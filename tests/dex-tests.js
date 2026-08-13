@@ -39720,6 +39720,96 @@
          z4 0.8–0.9 → 151–163   z5 0.9–1.0 → 163–174
        and z5.high lands exactly on HRmax, because 100 % of the reserve IS HRmax. That identity
        is the cheapest way to catch a %-of-HRmax regression. */
+    /* ════ THREE MORE PSEUDO-TESTED OxyDex FUNCTIONS (measured 2026-08-12) ════════════════════
+       `_flagSev` decides whether a finding reads as ok / warn / bad on the user's screen,
+       `oxyPBConf` is the confidence stamped on a periodic-breathing finding, and
+       `oxyBuildEpochSeries` is the per-epoch HR series the Integrator's three-cornered-hat
+       consumes. All three ran on every night and nothing asserted a single output. */
+    group('OxyDex _flagSev / oxyPBConf / buildEpochSeries — known-answer', 'oxydex-dsp · flags · epochs', function (T) {
+      var O = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var B = (O && (O._bare || O)) || {};
+      var sev = B._flagSev,
+        pb = B.oxyPBConf,
+        bes = (O && O.buildEpochSeries) || B.oxyBuildEpochSeries;
+
+      T.ok('OxyDex._flagSev reachable', typeof sev === 'function', 'export _flagSev');
+      if (typeof sev === 'function') {
+        T.eq('OK is the only "ok" — severity is not defaulted', sev('OK'), 'ok');
+        T.eq('a BAD substring anywhere in the code ⇒ bad (T90_)', sev('T90_ELEVATED'), 'bad');
+        T.eq('…and it is a SUBSTRING test, not equality (ODI4_ABNORMAL inside a longer code)', sev('X_ODI4_ABNORMAL_Y'), 'bad');
+        /* `RESTLESS`, not `ODI4_BORDERLINE`: the latter also contains `BORDERLINE` at index 5, so
+           it still matches when the scan is weakened from `indexOf(...) >= 0` to `> 0` and the
+           mutant survives. RESTLESS matches exactly one WARN entry, at index 0. */
+        T.eq('a WARN substring ⇒ warn (matching at index 0 counts)', sev('RESTLESS'), 'warn');
+        /* BAD is scanned BEFORE warn, and `ODI4_ABNORMAL` is bad while `ODI4_BORDERLINE` is warn —
+           a code containing both must come back bad. This is the assertion that pins the ORDER of
+           the two scans; either list alone cannot. */
+        T.eq('bad is scanned before warn — a code matching both is bad', sev('ODI4_ABNORMAL_BORDERLINE'), 'bad');
+        /* NOCTURNAL_STRESS carries its own numeric threshold: ≥ 80 is bad, below is warn. Both
+           sides pinned, because a one-sided test cannot see `>= 80` slide to `> 80`. */
+        T.eq('NOCTURNAL_STRESS(80) ⇒ bad — the bound is inclusive', sev('NOCTURNAL_STRESS(80)'), 'bad');
+        T.eq('NOCTURNAL_STRESS(79) ⇒ warn', sev('NOCTURNAL_STRESS(79)'), 'warn');
+        T.eq('an unknown code ⇒ info, never silently ok or bad', sev('SOMETHING_NOBODY_LISTED'), 'info');
+      }
+
+      T.ok('OxyDex.oxyPBConf reachable', typeof pb === 'function', 'export oxyPBConf');
+      if (typeof pb === 'function') {
+        /* conf = clamp(0.3 … 0.6) of 0.3 + min(cross,12)/12 × 0.3 — a floor, a ceiling, and a
+           saturating ramp between them. Each of the three is pinned separately. */
+        T.eq('no crossings ⇒ the 0.3 FLOOR, not 0', pb({ cross: 0 }), 0.3);
+        T.eq('a missing epoch object ⇒ the floor too, never NaN', pb(null), 0.3);
+        T.eq('6 crossings ⇒ halfway up the ramp = 0.45', pb({ cross: 6 }), 0.45);
+        T.eq('12 crossings ⇒ the 0.6 CEILING', pb({ cross: 12 }), 0.6);
+        T.eq('100 crossings SATURATE at 0.6 — cross is capped at 12, not scaled', pb({ cross: 100 }), 0.6);
+        /* The floor only BINDS on a negative crossing count: the ramp already starts at 0.3, so for
+           cross ≥ 0 `Math.max(0.3, …)` never changes anything and dropping it is invisible. A
+           negative cross drives the ramp to 0.15, and the floor is the only thing holding it up. */
+        T.eq('a NEGATIVE crossing count is floored at 0.3, not allowed to fall to 0.15', pb({ cross: -6 }), 0.3);
+        /* ⚠ `Math.min(0.6, …)` and `Math.min(cross, 12)` are MUTUALLY MASKING and each is an
+           equivalent mutant ON ITS OWN — measured 2026-08-12. The ramp tops out at exactly 0.6 when
+           cross is capped at 12, so widening the cap alone is swallowed by the ceiling, and raising
+           the ceiling alone is swallowed by the cap. Only removing BOTH changes an output, and this
+           harness mutates one operator at a time. Do not add an assertion chasing either; the pair
+           is deliberate redundancy, and the two assertions above already pin the value at 12 and
+           beyond. */
+      }
+
+      T.ok('OxyDex.buildEpochSeries reachable', typeof bes === 'function', 'export buildEpochSeries');
+      if (typeof bes === 'function') {
+        var t0 = Date.UTC(2026, 5, 13, 22, 0, 0);
+        var rows = [];
+        /* 60 one-second rows in epoch 0. 59 of them read 60 bpm and ONE reads 600, so the MEDIAN
+           is 60 while the mean would be 69 — that gap is what pins median-not-mean. Motion is 0
+           everywhere except a single 10, so its MEAN is 10/60 = 0.1667 → 0.167, which in turn
+           pins mean-not-median on the motion leg (its median is 0). The two statistics are
+           deliberately different so one cannot be substituted for the other unnoticed. */
+        for (var i = 0; i < 60; i++) rows.push({ tMs: t0 + i * 1000, hr: i === 0 ? 600 : 60, motion: i === 0 ? 10 : 0, spo2: 96 });
+        /* A SECOND full epoch. With only epoch 0 the `tMin: k * 5` scaling is invisible, because
+           0 × 5 and 0 × 1 are both 0 — measured: that mutant survived a one-epoch fixture. */
+        for (var j = 0; j < 60; j++) rows.push({ tMs: t0 + 300000 + j * 1000, hr: 70, motion: 0, spo2: 96 });
+        var eps = bes(rows, t0);
+        T.eq('two full epochs survive', eps.length, 2);
+        T.eq('tMin is node-relative MINUTES — epoch 1 is 5, not 1', eps[1].tMin, 5);
+        T.eq('tMin is node-relative minutes (epoch 0 ⇒ 0)', eps[0].tMin, 0);
+        T.eq('hr is the MEDIAN 1 Hz rate (60), not the mean (69)', eps[0].hr, 60);
+        T.eq('the statistic is labelled, so a consumer cannot mistake it', eps[0].hrStat, 'median-rate');
+        T.eq('motionIndex is the MEAN motion count (10/60 = 0.167), not the median (0)', eps[0].motionIndex, 0.167);
+        T.eq('no rows ⇒ [] (never a fabricated epoch)', bes([], t0).length, 0);
+        T.eq('no anchor ⇒ [] — an epoch grid needs a t0', bes(rows, null).length, 0);
+        // one sample short of the ≥60 coverage floor ⇒ that epoch vanishes
+        var short1 = [];
+        for (var s1 = 0; s1 < 59; s1++) short1.push({ tMs: t0 + 300000 + s1 * 1000, hr: 70, motion: 0 });
+        T.eq('a 59-sample epoch is DROPPED — the floor is ≥60', bes(rows.slice(0, 60).concat(short1), t0).length, 1);
+        /* Pre-anchor rows need FULL coverage of their own to prove they were skipped by `k < 0`
+           rather than merely dropped by the coverage floor — with one stray row the two guards are
+           indistinguishable, and that mutant survived. 60 rows two epochs early would surface as a
+           tMin −10 epoch if the negative-k guard stopped working. */
+        var pre = [];
+        for (var p = 0; p < 60; p++) pre.push({ tMs: t0 - 600000 + p * 1000, hr: 65, motion: 0 });
+        T.eq('a FULLY covered pre-anchor epoch is still skipped (negative k), not emitted', bes(pre.concat(rows), t0).length, 2);
+      }
+    });
+
     group('OxyDex computeKarvonenZones — reserve, not max', 'oxydex-dsp · karvonen', function (T) {
       var O = env.OxyDex || env.OxyDSP || env.OXYDSP;
       var B = (O && (O._bare || O)) || {};
