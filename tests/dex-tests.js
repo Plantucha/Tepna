@@ -20493,6 +20493,79 @@
        channel detected on its own orientation contributes nothing), and only then does the second
        show the fix restoring it. Without `detectChannel`'s forceSign the second assertion cannot
        pass, so this group fails on the pre-fix module rather than merely describing it. */
+    group('PpgDex correctRR cannot LOCK to a stale reference (PPGDEX-CORRECTRR-LOCKIN)', 'ppgdex-dsp · known-answer · regression', function (T) {
+      /* THE TRAP. Only an ACCEPTED interval updates the running reference, and a REJECTED one is
+         replaced by that reference — a feedback loop. After a genuine artifact burst drags the
+         reference down, every CORRECT interval sits outside the 30 % band, is rejected, is replaced by
+         the stale value, and never updates the reference. The output is then a CONSTANT indefinitely.
+
+         ⚠️ THE INPUT BELOW IS REAL, AND IT HAS TO BE. Three hand-built synthetics FAILED to reproduce
+         this — in each, `globalMed` made the artifact the minority so it was rejected and the lock
+         never formed, and the test passed against the BUGGY code. The lock needs an artifact burst
+         that is itself ACCEPTED (it arrives gradually) followed by a return to the true rate. These
+         160 intervals are lifted from 2026-07-20 at t=91.3 min, where the shipped code imputed
+         1789 of 7437 intervals (24 % of the night) and reported 76 bpm against ECG's 52.4 and the
+         O2Ring's 52. */
+      var D = env.PPGDSP;
+      if (!D || typeof D.correctRR !== 'function') {
+        T.ok('PPGDSP.correctRR is exported', !!(D && typeof D.correctRR === 'function'));
+        return;
+      }
+      var rr = [
+        1113, 1116, 1133, 1112, 1111, 1112, 1104, 1065, 1082, 1073, 1004, 1040, 975, 934, 784, 841, 957, 624, 773, 856, 787, 787, 773, 816, 776, 784, 784, 773, 728, 755, 1442, 992, 1331, 1318, 1200,
+        1278, 1346, 1319, 1346, 1350, 1306, 1320, 1301, 1258, 1354, 1292, 1285, 1253, 1266, 1176, 1223, 1253, 1224, 1298, 1299, 1279, 1266, 1257, 1225, 1222, 1234, 1244, 1202, 1256, 1247, 1196, 1263,
+        1232, 1216, 1234, 1183, 1151, 1142, 1181, 1203, 1101, 1161, 1159, 1162, 1161, 1160, 1157, 1147, 1138, 1125, 1218, 1239, 1186, 1185, 1214, 1228, 1152, 1103, 1100, 1105, 1132, 1138, 1162, 1159,
+        1166, 1122, 1124, 1150, 1161, 1102, 1096, 1125, 1184, 1164, 1193, 1173, 1130, 1137, 1138, 1102, 1115, 1069, 1120, 1120, 1156, 1155, 1172, 1197, 1189, 1164, 1166, 1138, 1141, 1154, 1152
+      ];
+      var tt = [],
+        t = 0;
+      for (var i = 0; i < rr.length; i++) {
+        t += rr[i] / 1000;
+        tt.push(t);
+      }
+      var r = D.correctRR(rr, tt);
+      var tail = r.nn.slice(-60);
+      var uniq = {};
+      for (var k = 0; k < tail.length; k++) uniq[Math.round(tail[k])] = 1;
+      var nUniq = Object.keys(uniq).length;
+      var atTrue = 0;
+      for (var m = 0; m < tail.length; m++) if (tail[m] > 1000) atTrue++;
+
+      /* THE DISCRIMINATOR. Under the bug the tail is a single repeated value near 776; the true rate
+         after the burst is 1100-1250. Both halves are asserted: a fix that merely stopped imputing
+         would pass the first and fail the second. */
+      T.ok('the tail tracks the TRUE rate (>1000 ms) rather than the ~776 ms lock', atTrue >= 55, 'atTrue=' + atTrue + '/60');
+      T.ok('the tail is NOT one repeated constant — the lock-in signature', nUniq > 10, 'distinct=' + nUniq);
+      T.ok('the burst itself is still corrected, so this is not "reject nothing"', r.nCorr > 0 && r.nCorr < rr.length / 3, 'nCorr=' + r.nCorr);
+      T.eq('one output interval per input interval', r.nn.length, rr.length);
+
+      /* CONTROLS — the fix must not disable artifact rejection, nor perturb a clean record. */
+      var rr2 = [],
+        tt2 = [],
+        t2 = 0;
+      for (var a = 0; a < 40; a++) {
+        rr2.push(a === 20 ? 400 : 1000);
+        t2 += rr2[a] / 1000;
+        tt2.push(t2);
+      }
+      var r2v = D.correctRR(rr2, tt2);
+      T.ok('an isolated ectopic beat is STILL corrected', Math.abs(r2v.nn[20] - 400) > 100);
+
+      var rr3 = [],
+        tt3 = [],
+        t3 = 0;
+      for (var b = 0; b < 50; b++) {
+        var v = 1000 + (b % 5) * 8;
+        rr3.push(v);
+        t3 += v / 1000;
+        tt3.push(t3);
+      }
+      var r3 = D.correctRR(rr3, tt3);
+      var same = true;
+      for (var c = 0; c < rr3.length; c++) if (Math.abs(r3.nn[c] - rr3[c]) > 1e-9) same = false;
+      T.ok('a clean series passes through UNCHANGED (nCorr = 0)', same && r3.nCorr === 0);
+    });
+
     group('PpgDex polarity is decided by UPSTROKE DURATION, not derivative skew (PPG-FOOT-PLACEMENT §0)', 'ppgdex-dsp · orientation · regression', function (T) {
       /* WHAT THIS PINS. `orient` decided polarity from the SKEWNESS OF THE FIRST DERIVATIVE — a third
          moment on a noisy derivative — and was measured WRONG ON 10 OF 20 real box nights. An inverted
@@ -34885,7 +34958,12 @@
         typeof res.ppgRmssd === 'number' && isFinite(res.ppgRmssd) && res.ppgRmssd > 0,
         'ppgRmssd=' + res.ppgRmssd
       );
-      T.eq('PpgDex rMSSD known-answer (seed 12345)', res.ppgRmssd, 41.8);
+      /* 41.8 → 42.1 (PPGDEX-CORRECTRR-LOCKIN, 2026-08-13). NOT a re-baseline to match a change: the
+         old value was computed while `correctRR` could lock to a stale reference and substitute a
+         CONSTANT for long runs, and constant intervals have zero successive differences, so rMSSD was
+         DEFLATED. On the real corpus the same defect imputed 1789 of 7437 intervals (24 % of a night).
+         The fix raises it toward truth; the direction is the one the mechanism predicts. */
+      T.eq('PpgDex rMSSD known-answer (seed 12345)', res.ppgRmssd, 42.1);
       T.ok('the worker reported no per-detector errors', res.errors && Object.keys(res.errors).length === 0, JSON.stringify(res.errors));
 
       // a worker changes WHEN the work runs, never WHAT — a second reconstruction is byte-identical
