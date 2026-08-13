@@ -46,6 +46,21 @@
   function setHooks(h) {
     if (h) for (const k in _ui) if (typeof h[k] === 'function') _ui[k] = h[k];
   }
+  /* THE COUNTERPART TO setHooks, so an installed hook can be UNDONE exactly.
+     `_ui` is module state shared by everything co-loaded in a realm, and `setHooks` merges into it
+     with no way to read it back — so a caller that installs a profile could not put back whatever
+     was there before, only guess at it. In the Node lane the guess happens to be right (nothing
+     there ever calls setHooks, so the defaults above are always what was there), but that is a
+     property of today's lane rather than of the contract, and it is exactly the kind of thing that
+     is true until it quietly isn't.
+     Returns a SHALLOW COPY: handing back `_ui` itself would let a caller mutate the live hooks
+     through the object it was given, which is the bug this exists to prevent, one level down.
+     Additive — nothing else reads it (MUTATION-PROGRAM-FOLLOWUPS §9.4). */
+  function getHooks() {
+    const out = {};
+    for (const k in _ui) out[k] = _ui[k];
+    return out;
+  }
 
   /* ════ CANONICAL CLOCK · CLOCK-UNIFY (duplicated locally per app) ═══════════
    tMs = floating wall-clock ms: the recording's LOCAL civil time encoded as if
@@ -1347,6 +1362,7 @@
   // reaching them as bare page globals. Headless callers (compute/tests) never register, so the
   // no-op/{} defaults hold and the export is byte-identical.
   HRVDex.setHooks = setHooks;
+  HRVDex.getHooks = getHooks;
   // mutable cross-file state, namespace-proxied — the DSP closure owns these; hrvdex-app
   // bridges the window properties on its own page (the guarded window proxies below keep
   // serving the non-namespaced classic realms).
