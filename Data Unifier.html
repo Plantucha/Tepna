@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-6ifHETM/vE1cSP27y38W1fStGgtyYq5HRHvUVH3DRbQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7oHiD+bMFu7PAJ8DITaVlISLmk0rNQd3hvceyXJVJOE=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-HQXLCrnyd0cMdnMUuGXYt0pbFF5i/EkYBOhxbXnhSA0=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-Tb8DS1tO4zT5rWJZ7yZvjM5nCZMQ4x1wUdoRROqvEZw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-Zg0VuZposJeHUmYwdGlxPYv7/96XL9I90WDHTkIO/fI=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-cfWApVFWKLfNIo7gB4Jzrge7/Qnsl2HNHo60gvvc26M=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-6ifHETM/vE1cSP27y38W1fStGgtyYq5HRHvUVH3DRbQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7oHiD+bMFu7PAJ8DITaVlISLmk0rNQd3hvceyXJVJOE=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-HQXLCrnyd0cMdnMUuGXYt0pbFF5i/EkYBOhxbXnhSA0=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-X3RaReXwC3TI5JxJXT2zz2wJwwyvtIk9KgQcFoVhRFw=' 'sha256-Zg0VuZposJeHUmYwdGlxPYv7/96XL9I90WDHTkIO/fI=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-cfWApVFWKLfNIo7gB4Jzrge7/Qnsl2HNHo60gvvc26M=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -18224,31 +18224,95 @@ __exports.GlucoDex = window.GlucoDex;
      nothing into it", so the UI said "load the device PPI file to cross-validate" — advice that is
      actionable in the first case and misleading in the second, because the user already did.
 
-     It is the second case in practice. Measured across this corpus: 107 of 107 Verity `_PPI.txt`
-     files are header-only, and 40 of 40 `_HR.txt` are all-zero. The docs' hedge ("often header-only")
-     understates it — on this firmware it is categorical, which is why the computed PPI is not a
-     second opinion but the only one. `filePresent` lets a reader tell "you have nothing to compare"
-     from "your device produced nothing to compare", which are different facts about the world. */
-  function validatePPI(selfNN, devicePPI) {
+     It WAS the second case, categorically, and that is no longer true — the claim is corrected here
+     rather than deleted, because the reason it changed is the useful part. Re-measured 2026-08-13 over
+     132 `_PPI.txt` in the capture corpus: 108 are header-only and 17 carry real intervals, up to
+     29 329 unblocked in one night. The split is not random and it is not firmware version — it is
+     CAPTURE MODE. Every header-only file is phone-captured; every file with data is a box capture from
+     2026-08-05 onward. (Consistent with the Verity's known SDK-mode behaviour, where PPI reports
+     permanently invalid.) So `filePresent` still distinguishes "you have nothing to compare" from
+     "your device produced nothing to compare", and the second is now a statement about HOW the night
+     was captured, not about the hardware. Do not re-derive "the Verity never emits PPI" from an
+     all-phone sample — that inference was made once already and this paragraph is its correction. */
+
+  /* THE COMPARISON MUST CORRECT BOTH SIDES, or it measures our artifact rejection instead of the two
+     detectors (mirrors ECGDex `validateRR`, which Malik-corrects self AND device before comparing).
+     The asymmetry is large and it points the WRONG WAY, which is what makes it worth a comment rather
+     than a line of code. Measured through the real pipeline on 2026-08-08: `nn` reaching this function
+     is already corrected (rMSSD 59.3), while the raw firmware series reads 103.6 — so an uncorrected
+     comparison shows the device 75 % HIGHER and invites exactly one conclusion, that our detector is
+     over-smoothing. Correcting the device the same way costs 306 beats and brings it to 53.6, i.e.
+     dRMSSD 10.7 %: the firmware series carried MORE artifact, not less. The uncorrected reading does
+     not merely exaggerate the disagreement, it inverts its direction.
+     rMSSD is a first-difference statistic, which is precisely where unequal artifact handling lands;
+     the MEANS agreed to 8 ms (0.74 %) the whole time. Correction uses PpgDex's own optical threshold
+     on both sides, not ECGDex's 0.20 Malik rule — pulse-arrival jitter is larger than R-peak jitter
+     (see `correctRR`). Note SDNN stays looser than rMSSD (14.8 / 22.5 % on two nights): it is a
+     whole-record spread, so it also absorbs genuine coverage differences between the two series. */
+  function _ppiCorrect(vals) {
+    // correctRR wants a time axis; the intervals ARE the axis, so accumulate them.
+    const tt = [];
+    let acc = 0;
+    for (let i = 0; i < vals.length; i++) {
+      acc += vals[i] / 1000;
+      tt.push(acc);
+    }
+    const c = correctRR(vals, tt);
+    return { out: c.nn, nc: c.nCorr };
+  }
+  function sdnnOf(rr) {
+    if (!rr || rr.length < 2) return 0;
+    const m = mean(rr);
+    let s = 0;
+    for (let i = 0; i < rr.length; i++) s += (rr[i] - m) * (rr[i] - m);
+    return Math.sqrt(s / (rr.length - 1));
+  }
+  function validatePPI(selfNN, devicePPI, opts) {
     if (!devicePPI) return { hasData: false, filePresent: false };
     if (!devicePPI.length) return { hasData: false, filePresent: true };
+    /* `source` names WHICH firmware produced the comparison series, because PpgDex now has two and
+       they are not interchangeable: the Verity `_PPI.txt` is a wrist device's own interval estimate,
+       while `o2ring-marker` is the finger ring's inserted `156` beat rows. A reader who cannot tell
+       them apart cannot judge the result — different sensor, different site, different detector. */
+    const source = (opts && opts.source) || 'device-ppi';
     const dev = devicePPI.filter((d) => d.ppi > 300 && d.ppi < 2000 && (d.blocker == null || d.blocker === 0)).map((d) => d.ppi);
-    if (dev.length < 3 || selfNN.length < 3) return { hasData: true, usable: false, nDevice: dev.length };
-    const sM = mean(selfNN),
-      dM = mean(dev);
-    const sR = rmssdOf(selfNN),
-      dR = rmssdOf(dev);
+    if (dev.length < 3 || selfNN.length < 3) return { hasData: true, filePresent: true, usable: false, source, nDevice: dev.length };
+    const devRaw = rmssdOf(dev);
+    const sC = _ppiCorrect(selfNN),
+      dC = _ppiCorrect(dev);
+    const self = sC.out,
+      devc = dC.out;
+    if (self.length < 3 || devc.length < 3) return { hasData: true, filePresent: true, usable: false, source, nDevice: dev.length };
+    const sM = mean(self),
+      dM = mean(devc);
+    const sR = rmssdOf(self),
+      dR = rmssdOf(devc);
+    const sS = sdnnOf(self),
+      dS = sdnnOf(devc);
+    const pct = (a, b) => (b ? r1((100 * Math.abs(a - b)) / b) : null);
     const agree = 100 * (1 - Math.min(1, Math.abs(sM - dM) / dM));
     return {
       hasData: true,
+      filePresent: true,
       usable: true,
-      nSelf: selfNN.length,
-      nDevice: dev.length,
+      source,
+      nSelf: self.length,
+      nDevice: devc.length,
       selfMean: Math.round(sM),
       devMean: Math.round(dM),
       meanAbsDevMs: Math.round(Math.abs(sM - dM)),
       selfRMSSD: r1(sR),
       devRMSSD: r1(dR),
+      selfSDNN: r1(sS),
+      devSDNN: r1(dS),
+      // Δ as a PERCENT of the device value, the shape ECGDex's verdict pills read.
+      dMean: r2(dM ? (100 * Math.abs(sM - dM)) / dM : 0),
+      dRMSSD: pct(sR, dR),
+      dSDNN: pct(sS, dS),
+      // How much artifact each side carried, so a reader can see the correction rather than trust it.
+      selfEctopyCorrected: sC.nc,
+      devEctopyCorrected: dC.nc,
+      devRawRMSSD: r1(devRaw),
       deviceAgreementPct: r1(agree)
     };
   }
@@ -18856,7 +18920,26 @@ __exports.GlucoDex = window.GlucoDex;
     }
 
     // PPI validation lane
-    const validation = validatePPI(nn, rec.devicePPI);
+    /* TWO firmware sources, and the O2Ring one needs no companion file. A Verity night brings its own
+       `_PPI.txt` (when box-captured); an O2Ring finger night brings nothing — but its `156` beat rows
+       ARE a firmware interval series, carried in-band in the PPG file itself. Preferring the explicit
+       `_PPI.txt` keeps existing behaviour byte-identical wherever one exists; the markers fill the case
+       that previously rendered "no device PPI loaded" on every single O2Ring recording.
+       Shaped as parseDevicePPI's output so ONE comparison path serves both — a second path would be a
+       second place for the two sides to be corrected differently, which is the defect above. */
+    let ppiSource = 'device-ppi',
+      ppiSeries = rec.devicePPI;
+    if ((!ppiSeries || !ppiSeries.length) && rec.beatMarkerSec && rec.beatMarkerSec.length > 3) {
+      const mk = [];
+      for (let i = 1; i < rec.beatMarkerSec.length; i++) {
+        // blocker:0 — the ring publishes no quality flag per marker, and inventing one would be a
+        // fabricated field. The range gate inside validatePPI is the only filter these get.
+        mk.push({ ppi: (rec.beatMarkerSec[i] - rec.beatMarkerSec[i - 1]) * 1000, blocker: 0 });
+      }
+      ppiSeries = mk;
+      ppiSource = 'o2ring-marker';
+    }
+    const validation = validatePPI(nn, ppiSeries, { source: ppiSource });
 
     // markers
     const markers = (rec.markers || []).map((mk) => ({ relSec: mk.relSec, type: mk.type }));
