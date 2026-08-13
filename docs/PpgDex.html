@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-LnNGITlE+enIELFulLfDR0/WzNKrnp6HLDyoJRA3Nn0=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-Sqnltq7E/oqEWc5Jo4KVBWzbShxcEyEbURm7R8wG6eQ=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gkraeoIEN9r6LA+zlqVHeR6XLjw9aSQJtsze7JvykEw=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-B3MeIs5r8RZ6cHakUpbYwGGH8bUTdFDfV9B1pBzRYiU=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-Sqnltq7E/oqEWc5Jo4KVBWzbShxcEyEbURm7R8wG6eQ=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-haXlV4mtLdwoslHOZ4k+3vK6o7SIRMBQuPt5xEIbyzY=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PpgDex — Raw Wrist-PPG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -9589,6 +9589,143 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       curve: curve.map((p) => ({ tau: r2(p.tau), adev: p.adev, n: p.n }))
     };
   }
+  /* ── PER-CHANNEL DETECTOR AGREEMENT, REFERENCE-FREE (three-cornered hat) ─────────────────────────
+     The Verity streams THREE optical channels in the SAME ROWS. Detect independently on each and you
+     have three observers of one pulse on one axis, so the shared physiology cancels in every pairwise
+     difference and what remains is detector disagreement. Allan deviation of each pairwise difference
+     gives the SUM of two channels' noise; the classic three-cornered-hat split then separates them:
+
+         sigma_i(tau)^2 = 1/2 ( AVAR(i-j,tau) + AVAR(i-k,tau) - AVAR(j-k,tau) )
+
+     That is per-channel noise WITH NO REFERENCE — nothing here is assumed to be correct, which is the
+     whole point and why it works where no gold standard exists. (Same identity `integrator-tch.js`
+     applies across NODES; this applies it across CHANNELS of one sensor.)
+
+     ⚠️ NOISE, NOT CORRECTNESS — AND THIS SUITE HAS ALREADY BEEN BITTEN BY THE DIFFERENCE.
+     A three-cornered hat is blind to anything that moves all three corners together. The concrete
+     case is not hypothetical: PPGDEX-OPTICAL-POLARITY (#1200) shipped for three weeks with `orient()`
+     choosing the wrong sign, and ALL THREE CHANNELS AGREED ON THE WRONG SIGN — feet ~900 ms early on
+     every channel simultaneously. Under that failure the mutual differences stay small, the noise
+     stays independent, the non-negativity check stays clean, and this function reports three healthy
+     channels at slope -1. It would have been green on every night the polarity was wrong.
+     So: a clean result says the three observers disagree with each other by very little. It says
+     NOTHING about whether all three are looking at the right feature of the waveform. `polarity` is
+     carried in the return for exactly that reason — never publish the agreement without it.
+
+     ⚠️ AND THE CHANNELS ARE NOT INDEPENDENT OPTICS — THE HARDWARE SAYS SO. The Verity Sense carries
+     SIX LEDs of ONE wavelength (green) in a symmetric ring around a central detector. So the three
+     exported channels do not differ in wavelength, and they are not three separate sensors: they
+     differ in ILLUMINATION GEOMETRY over largely the same tissue volume, read through a shared
+     optical front end. (Consistent with VIGIL-DEEP-ANALYSIS §6, which refuted multi-wavelength motion
+     fusion for this device on the "near-identical green channels" ground — the ring geometry is why.)
+     Everything common to that front end therefore CANCELS in the pairwise differences: motion at the
+     site, contact pressure, ambient leakage, perfusion change. The per-channel sigma below is the
+     INDEPENDENT RESIDUAL — a LOWER BOUND on a channel's true timing noise, never an estimate of it,
+     and the bound is loose in exactly the conditions that matter most (a moving or poorly-coupled
+     wrist). Do not read a small sigma as a quiet channel; read it as "this channel adds little of its
+     OWN noise on top of whatever all three share".
+     This is NOT the refuted fusion idea re-proposed: that combined channels to cancel motion, which
+     the shared wavelength makes impossible. This decomposes noise, and is explicit that it cannot see
+     the motion term at all.
+
+     Validity is COMPUTED, not assumed: a negative split variance means the sources are not independent
+     enough for the identity to hold, so `negativeVarianceTaus` is published and a tau that goes
+     negative yields null for that channel rather than a clamped zero pretending to be a measurement. */
+  const TCH_MIN_TRIPLES = 200; // below this the octave ladder cannot support a slope fit
+  const TCH_PAIR_TOL_SEC = 0.15; // a beat with no counterpart within this is not a triple
+  function detectorAgreementTriplet(trains, opts) {
+    if (!trains || trains.length !== 3) return null;
+    for (const t of trains) if (!t || t.length < TCH_MIN_TRIPLES) return null;
+    const tol = (opts && opts.tolSec) || TCH_PAIR_TOL_SEC;
+    const near = (arr, t) => {
+      let lo = 0,
+        hi = arr.length - 1;
+      while (lo < hi) {
+        const m = (lo + hi) >> 1;
+        if (arr[m] < t) lo = m + 1;
+        else hi = m;
+      }
+      let bi = lo,
+        b = Math.abs(arr[lo] - t);
+      if (lo > 0 && Math.abs(arr[lo - 1] - t) < b) {
+        bi = lo - 1;
+        b = Math.abs(arr[lo - 1] - t);
+      }
+      return { t: arr[bi], d: b };
+    };
+    /* Roll-call on channel 0. Legitimate ONLY because all three are in the same rows: correspondence
+       is exact, not an alignment estimate, so there is no offset to fit and none to decay. (The ECGDex
+       attempt paired 63.6 % against 99.8 % here for precisely that reason.) A beat missing from either
+       other channel is DROPPED, never matched across a gap. */
+    const A = [],
+      B = [],
+      C = [];
+    for (const t of trains[0]) {
+      const b = near(trains[1], t),
+        c = near(trains[2], t);
+      if (b.d < tol && c.d < tol) {
+        A.push(t);
+        B.push(b.t);
+        C.push(c.t);
+      }
+    }
+    if (A.length < TCH_MIN_TRIPLES) return null;
+    const tau0 = (A[A.length - 1] - A[0]) / (A.length - 1);
+    if (!(tau0 > 0)) return null;
+    const ph = (X, Y) => X.map((v, i) => (v - Y[i]) * 1000);
+    const ab = allanFromPhase(ph(A, B), tau0),
+      ac = allanFromPhase(ph(A, C), tau0),
+      bc = allanFromPhase(ph(B, C), tau0);
+    const nT = Math.min(ab.length, ac.length, bc.length);
+    if (nT < 3) return null;
+    /** @type {{tau:number, adev:number|null}[][]} — an empty literal infers as never[][] under checkJs */
+    const per = [[], [], []];
+    let neg = 0;
+    for (let i = 0; i < nT; i++) {
+      const v = [ab[i].adev * ab[i].adev, ac[i].adev * ac[i].adev, bc[i].adev * bc[i].adev];
+      const split = [0.5 * (v[0] + v[1] - v[2]), 0.5 * (v[0] + v[2] - v[1]), 0.5 * (v[1] + v[2] - v[0])];
+      let bad = false;
+      for (let c = 0; c < 3; c++) if (split[c] < 0) bad = true;
+      if (bad) neg++;
+      for (let c = 0; c < 3; c++) per[c].push({ tau: ab[i].tau, adev: split[c] >= 0 ? Math.sqrt(split[c]) : null });
+    }
+    const chans = per.map((curve) => {
+      /* Built explicitly rather than filtered: `.filter(p => p.adev > 0)` does not NARROW the type
+         (a filter is not a type predicate), so the nulls a refused tau legitimately produces stay in
+         the signature and every downstream read is "possibly null". */
+      const pts = [];
+      for (const q of curve) if (q.adev != null && q.adev > 0) pts.push({ tau: q.tau, adev: q.adev });
+      const sl = allanSlope(pts);
+      return {
+        sigmaShortestMs: pts.length ? r2(pts[0].adev) : null,
+        sigmaLongestMs: pts.length ? pts[pts.length - 1].adev : null,
+        slope: sl == null ? null : r2(sl),
+        curve: curve.map((p) => ({ tau: r2(p.tau), adev: p.adev }))
+      };
+    });
+    return {
+      /* The PAIRWISE curves the split was derived from. Published for two reasons: a reader can see
+         the input to the identity rather than only its output, and it makes the reconstruction
+         checkable — sigma_i^2 + sigma_j^2 must equal AVAR(i-j) EXACTLY, which holds only when the
+         split coefficients are exactly 1/2. That is the one assertion able to catch a wrong
+         coefficient: scaling all three sigma equally leaves the ORDERING intact and log-log SLOPE is
+         scale-invariant, so every other property survives a mis-scaled split unchanged. */
+      pairwise: { AB: ab.map((p) => p.adev), AC: ac.map((p) => p.adev), BC: bc.map((p) => p.adev) },
+      nTriples: A.length,
+      triplePct: r1((100 * A.length) / trains[0].length),
+      tau0Sec: r2(tau0),
+      taus: nT,
+      negativeVarianceTaus: neg,
+      /* The identity's own independence check. Non-zero ⇒ the three channels are not independent
+         enough at those tau and the split there is not a measurement. Published, never hidden. */
+      independent: neg === 0,
+      channels: chans,
+      /* Carried so the agreement can never be read without it — see the polarity warning above. */
+      polarity: (opts && opts.signs) || null,
+      polarityUnanimous: opts && opts.signs ? opts.signs.every((s) => s === opts.signs[0]) : null,
+      scope: 'per-channel detector NOISE (independent residual only); says nothing about whether all three channels are reading the correct waveform feature'
+    };
+  }
   function sdnnOf(rr) {
     if (!rr || rr.length < 2) return 0;
     const m = mean(rr);
@@ -9808,7 +9945,13 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
            so nothing is compensated after the fact.
        Measured effect on the three affected nights: kept3/3 0 → 21818 / 15486 / 7925 and 1-of-3 drops
        23202 → 795, 15662 → 67, 8305 → 187, with every inter-channel peak offset collapsing to 0.0 ms. */
-    applyConsensusPolarity(perChannel, (i, sgn) => detectChannel(chIn[keepIdx[i]], rec.fs, sgn));
+    /* The RETURN VALUE matters and was being discarded. It is the number of channels whose polarity
+       disagreed with the majority and were re-detected — the only record that the three observers did
+       not originally agree, since after this call the signs are unanimous BY CONSTRUCTION. A
+       post-consensus unanimity check is therefore vacuous; this count is not. It travels into the
+       detector-agreement result below, where it is the one field that can hint at the failure that
+       tool is structurally blind to. */
+    const polarityFlipped = applyConsensusPolarity(perChannel, (i, sgn) => detectChannel(chIn[keepIdx[i]], rec.fs, sgn));
     // remap the reference channel onto the deduped set; if the best-SNR channel was itself a
     // duplicate, its first occurrence carries the identical waveform, so the reference is preserved.
     const refIdx = Math.max(
@@ -9823,6 +9966,19 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     const refIdxUsed = harmonicOutlierRefIdx(refIdx, _chRates, _chSnr);
     const bp = perChannel[refIdxUsed].bp; // reference-channel band-passed waveform
     const cons = consensusBeats(perChannel, refIdxUsed, rec.fs);
+    /* PER-CHANNEL DETECTOR AGREEMENT (three-cornered hat). Only meaningful with three genuinely
+       distinct channels in the same rows — a deduped 1- or 2-channel record, or a replicated one, has
+       no third corner and gets null rather than a two-corner approximation. Runs on the CONSENSUS-
+       CORRECTED per-channel feet, i.e. the beats the node actually uses. */
+    let channelStability = null;
+    if (perChannel.length === 3) {
+      const toSec = (pc) => Array.from(pc.feet, (i) => rec.relSec[Math.max(0, Math.min(rec.n - 1, Math.round(i)))]).filter(Number.isFinite);
+      channelStability = detectorAgreementTriplet([toSec(perChannel[0]), toSec(perChannel[1]), toSec(perChannel[2])], {
+        signs: perChannel.map((pc) => pc.sign),
+        polarityFlipped: polarityFlipped
+      });
+      if (channelStability) channelStability.polarityFlipped = polarityFlipped;
+    }
     // A beat whose foot→peak span touches a rejected sentinel is a GAP, not a measurement — its
     // timing would rest on held values. Drop it. This is the same discipline the 3-LED path applies
     // to a 1-of-3 beat: dropped, never median-filled, never interpolated.
@@ -10248,6 +10404,9 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       }
     }
 
+    /* Per-channel detector agreement (three-cornered hat). Null unless the record has three distinct
+       channels — see `detectorAgreementTriplet`, and read its `scope` before drawing a conclusion:
+       this is per-channel NOISE, not per-channel correctness. */
     // PPI validation lane
     /* TWO firmware sources, and the O2Ring one needs no companion file. A Verity night brings its own
        `_PPI.txt` (when box-captured); an O2Ring finger night brings nothing — but its `156` beat rows
@@ -10444,6 +10603,13 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       magHasData: motion.hasMag,
       magInterferencePct,
       validation,
+      /* Per-channel detector agreement, three-cornered hat over the 3 optical channels. Null unless
+         the record carries three distinct channels. ⚠️ Read `scope` before concluding anything: this
+         is per-channel NOISE (the independent residual), not per-channel correctness — it is blind to
+         any error that moves all three channels together, which is the failure that actually shipped
+         (#1200, wrong polarity, all three agreeing). `polarity` and `polarityFlipped` travel with it
+         so the agreement is never read without the orientation it was computed under. */
+      channelStability,
       markers,
       morph,
       perfusionIndex: perfWindow(),
@@ -10732,6 +10898,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     allanFromPhase,
     classifyAllan,
     detectorStability,
+    detectorAgreementTriplet,
     bandpass,
     detectBeats,
     detectChannel,
@@ -16174,6 +16341,28 @@ const { PPGUI } = __require('ppgdex-render.js');
         medianBeat: m.medianBeat ? { fs: m.medianBeat.fs, pre: m.medianBeat.pre, nUsed: m.medianBeat.nUsed, samples: Array.from(m.medianBeat.beat).map((v) => +v.toFixed(4)) } : null,
         perWindow: m.perWindow || []
       },
+      /* PER-CHANNEL DETECTOR AGREEMENT (three-cornered hat over the 3 optical channels). Exported so
+         the Integrator can weigh a node's beat timing without a reference, the way it does
+         `validation.stability`. ⚠️ `scope` is part of the payload, not decoration: this is per-channel
+         NOISE and it is structurally blind to any error common to all three channels. The Verity's six
+         LEDs are one wavelength in a ring around a shared front end, so motion, contact and perfusion
+         cancel — and a wrong polarity is agreed by all three (#1200). `polarity`/`polarityFlipped`
+         ship with it so a consumer cannot read the agreement without the orientation behind it. */
+      channelStability: r.channelStability
+        ? {
+            channels: r.channelStability.channels.map((c) => ({ sigmaShortestMs: c.sigmaShortestMs, sigmaLongestMs: c.sigmaLongestMs, slope: c.slope })),
+            beatsTripled: r.channelStability.nTriples,
+            triplePct: r.channelStability.triplePct,
+            tau0Sec: r.channelStability.tau0Sec,
+            negativeVarianceTaus: r.channelStability.negativeVarianceTaus,
+            independent: r.channelStability.independent,
+            polarity: r.channelStability.polarity,
+            polarityFlipped: r.channelStability.polarityFlipped,
+            scope: r.channelStability.scope,
+            method:
+              'three-cornered hat: sigma_i(tau)^2 = 1/2(AVAR(i-j)+AVAR(i-k)-AVAR(j-k)) over the pairwise beat-time differences; reference-free, and a negative split means the channels are not independent at that tau'
+          }
+        : null,
       validation:
         r.validation && r.validation.usable
           ? {

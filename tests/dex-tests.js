@@ -827,6 +827,130 @@
       T.eq('a missing firmware series refuses', P.detectorStability(a, null), null);
     });
 
+    /* ════ PER-CHANNEL DETECTOR AGREEMENT — REFERENCE-FREE, AND BLIND BY CONSTRUCTION ════
+       Three optical channels in the SAME ROWS are three observers of one pulse on one axis, so the
+       physiology cancels in every pairwise difference and a three-cornered hat splits the remainder
+       into per-channel noise with NO reference. Measured on three real Verity nights: 99.8-99.9 %
+       triple-paired, 0 negative-variance taus out of 14/14/13, all nine per-channel slopes in
+       [-1.019, -0.995].
+       The assertions below pin the two properties that make it trustworthy AND the one that makes it
+       dangerous. The dangerous one is not hypothetical: #1200 shipped three weeks of nights where
+       `orient()` chose the wrong polarity and ALL THREE CHANNELS AGREED ON IT. Under that failure the
+       feet are ~900 ms early on every channel at once, the mutual differences stay small, and this
+       function reports three healthy channels. It measures NOISE, never CORRECTNESS, and a test suite
+       that does not say so invites the next reader to trust it for the thing it cannot do. */
+    group('PpgDex three-cornered hat splits per-channel noise — and is blind to what moves all three', 'ppgdex-dsp · channel-stability', function (T) {
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!P || typeof P.detectorAgreementTriplet !== 'function') {
+        T.skip('PPGDSP.detectorAgreementTriplet available', 'not loaded');
+        return;
+      }
+      // Three observers of ONE beat train, each with its own independent jitter. Deterministic MINSTD
+      // (exact in a double — see the detector-stability group for why the glibc LCG is unusable here).
+      var seed = 4242;
+      var rnd = function () {
+        seed = (seed * 16807) % 2147483647;
+        return seed / 2147483647 - 0.5;
+      };
+      var truth = [],
+        t = 0;
+      for (var i = 0; i < 1500; i++) {
+        t += 1.0 + 0.05 * Math.sin(i / 30);
+        truth.push(t);
+      }
+      // Channel jitter amplitudes chosen DISTINCT so the split has something to separate: if the code
+      // returned the pairwise value unsplit, all three would come back equal and this would not catch it.
+      var amp = [0.004, 0.012, 0.008]; // seconds
+      var mk = function (a) {
+        return truth.map(function (v) {
+          return v + a * rnd();
+        });
+      };
+      // Built ONCE and reused: `mk` advances the shared PRNG, so regenerating for the blindness check
+      // below would compare two DIFFERENT jitter realisations rather than one series plus an offset.
+      // (That is exactly how the assertion first failed, and it would have looked like a code defect.)
+      var ch = [mk(amp[0]), mk(amp[1]), mk(amp[2])];
+      var got = P.detectorAgreementTriplet([ch[0].slice(), ch[1].slice(), ch[2].slice()], { signs: [-1, -1, -1] });
+      T.ok('three channels on one axis produce a split', got != null);
+      T.ok('nearly every beat forms a triple (same rows ⇒ exact correspondence, not an estimate)', got.triplePct > 95, 'triplePct=' + got.triplePct);
+      /* THE IDENTITY'S OWN VALIDITY CHECK. A negative split variance means the sources are not
+         independent enough for the three-cornered hat to hold. It must be COMPUTED and published, not
+         assumed — a clamp to zero would turn "this is not a measurement" into a confident 0 ms. */
+      T.eq('independent sources yield no negative split variances', got.negativeVarianceTaus, 0);
+      T.eq('…and that is reported as a verdict, not left for the reader to derive', got.independent, true);
+      /* THE SPLIT MUST ORDER THE CHANNELS. Pairwise ADEV can only ever say "i+j"; the whole point is
+         separating them. Channel 1 has 3x channel 0's jitter by construction, so a correct split ranks
+         them — an implementation returning the pairwise value would rank them all equal and pass every
+         other assertion here. */
+      var s = got.channels.map(function (c) {
+        return c.sigmaShortestMs;
+      });
+      T.ok('the noisiest channel is identified as noisiest', s[1] > s[0] && s[1] > s[2], 'sigma=' + s.join(' / '));
+      T.ok('the quietest channel is identified as quietest', s[0] < s[2], 'sigma=' + s.join(' / '));
+      /* ⚠️ THE ASSERTION THAT CATCHES A WRONG SPLIT — added after a survivor. Every other property in
+         this group is invariant to MIS-SCALING: multiplying all three sigma by a constant preserves the
+         ordering, and a log-log slope is scale-invariant. A coefficient of 0.4 instead of 1/2 makes the
+         three-cornered hat arithmetically wrong and passed all eleven original assertions. The
+         reconstruction discriminates precisely BECAUSE it is guaranteed by the correct split and by no
+         other: sigma_i^2 + sigma_j^2 must equal AVAR(i-j) exactly. */
+      var recon = 0;
+      for (var r = 0; r < got.pairwise.AB.length; r++) {
+        var a0 = got.channels[0].curve[r].adev,
+          a1 = got.channels[1].curve[r].adev,
+          a2 = got.channels[2].curve[r].adev;
+        if (a0 == null || a1 == null || a2 == null) continue;
+        recon = Math.max(
+          recon,
+          Math.abs(Math.sqrt(a0 * a0 + a1 * a1) - got.pairwise.AB[r]),
+          Math.abs(Math.sqrt(a0 * a0 + a2 * a2) - got.pairwise.AC[r]),
+          Math.abs(Math.sqrt(a1 * a1 + a2 * a2) - got.pairwise.BC[r])
+        );
+      }
+      T.ok('the split RECONSTRUCTS every pairwise ADEV — the only check here that catches a wrong coefficient', recon < 1e-9, 'worst reconstruction error = ' + recon);
+      T.ok(
+        'per-channel jitter is identified as jitter (slope ≈ −1)',
+        got.channels.every(function (c) {
+          return c.slope < -0.75;
+        }),
+        'slopes=' +
+          got.channels
+            .map(function (c) {
+              return c.slope;
+            })
+            .join(' / ')
+      );
+      /* ⚠️ THE BLIND SPOT, ASSERTED SO IT CANNOT BE FORGOTTEN. Shift ALL THREE channels by the same
+         900 ms — the #1200 polarity failure, where every channel was wrong together. Nothing about the
+         split moves, because a common term cancels in every pairwise difference. This assertion exists
+         to FAIL if someone ever claims this function validates channel correctness. */
+      var off = 0.9;
+      var shift = function (a) {
+        return a.map(function (v) {
+          return v + off;
+        });
+      };
+      var shifted = P.detectorAgreementTriplet([shift(ch[0]), shift(ch[1]), shift(ch[2])], { signs: [1, 1, 1] });
+      var s2 = shifted.channels.map(function (c) {
+        return c.sigmaShortestMs;
+      });
+      T.eq('a 900 ms error common to ALL THREE channels is INVISIBLE — this measures noise, not correctness', JSON.stringify(s2), JSON.stringify(s));
+      T.ok('…so the scope is stated in the payload, not left to the reader', /noise/i.test(got.scope) && /correct/i.test(got.scope), got.scope);
+      /* The orientation the split was computed under must travel WITH it, since that is the one thing
+         a clean result cannot vouch for. */
+      T.eq('the polarity is carried so the agreement is never read without it', JSON.stringify(got.polarity), JSON.stringify([-1, -1, -1]));
+      // Fewer than three corners is not a three-cornered hat. No two-corner approximation.
+      T.eq('two channels refuse rather than approximating', P.detectorAgreementTriplet([mk(0.004), mk(0.004)]), null);
+      T.eq(
+        'too few beats refuse rather than reporting a thin ladder',
+        P.detectorAgreementTriplet([
+          [1, 2, 3],
+          [1, 2, 3],
+          [1, 2, 3]
+        ]),
+        null
+      );
+    });
+
     /* ════ SELF-PPI vs FIRMWARE-PPI — BOTH SIDES CORRECTED, or the comparison inverts ════
        Mirrors ECGDex's `validateRR` card (Beats · Mean · RMSSD · SDNN, each with a Δ%). The defect it
        fixes is that PpgDex compared an ALREADY-CORRECTED self series against a RAW firmware series, so

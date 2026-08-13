@@ -1098,6 +1098,28 @@ import { PPGUI } from './ppgdex-render.js';
         medianBeat: m.medianBeat ? { fs: m.medianBeat.fs, pre: m.medianBeat.pre, nUsed: m.medianBeat.nUsed, samples: Array.from(m.medianBeat.beat).map((v) => +v.toFixed(4)) } : null,
         perWindow: m.perWindow || []
       },
+      /* PER-CHANNEL DETECTOR AGREEMENT (three-cornered hat over the 3 optical channels). Exported so
+         the Integrator can weigh a node's beat timing without a reference, the way it does
+         `validation.stability`. ⚠️ `scope` is part of the payload, not decoration: this is per-channel
+         NOISE and it is structurally blind to any error common to all three channels. The Verity's six
+         LEDs are one wavelength in a ring around a shared front end, so motion, contact and perfusion
+         cancel — and a wrong polarity is agreed by all three (#1200). `polarity`/`polarityFlipped`
+         ship with it so a consumer cannot read the agreement without the orientation behind it. */
+      channelStability: r.channelStability
+        ? {
+            channels: r.channelStability.channels.map((c) => ({ sigmaShortestMs: c.sigmaShortestMs, sigmaLongestMs: c.sigmaLongestMs, slope: c.slope })),
+            beatsTripled: r.channelStability.nTriples,
+            triplePct: r.channelStability.triplePct,
+            tau0Sec: r.channelStability.tau0Sec,
+            negativeVarianceTaus: r.channelStability.negativeVarianceTaus,
+            independent: r.channelStability.independent,
+            polarity: r.channelStability.polarity,
+            polarityFlipped: r.channelStability.polarityFlipped,
+            scope: r.channelStability.scope,
+            method:
+              'three-cornered hat: sigma_i(tau)^2 = 1/2(AVAR(i-j)+AVAR(i-k)-AVAR(j-k)) over the pairwise beat-time differences; reference-free, and a negative split means the channels are not independent at that tau'
+          }
+        : null,
       validation:
         r.validation && r.validation.usable
           ? {
