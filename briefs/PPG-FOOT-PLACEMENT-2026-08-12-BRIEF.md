@@ -55,6 +55,41 @@ gradient. Per-channel foot error is ≈0.9 ms in one mode and ≈13 ms in the ot
 
 **The mechanism is still unknown.** That is the honest state.
 
+## 1b · 🟢 THE MODE IS PREDICTED BY SAMPLING RATE — 176 Hz roughly DOUBLES the odds of a good night
+
+Splitting the corpus by capture provenance (asked 2026-08-12) separated it by **sampling rate** instead,
+because the two trees differ in both: the phone tree (`Ecg nightly`, June) is natively **176 Hz**
+throughout, the box tree (`tepna-smoketest/captures`, July–Aug) natively **55 Hz** except 2026-08-02.
+
+| | n | good (<5 ms) | median IQR | trees |
+|---|---|---|---|---|
+| **55 Hz** | 13 | **5 (38 %)** | **25.67 ms** | BOX only |
+| **176 Hz** | 37 | **32 (86 %)** | **2.66 ms** | BOX *and* PHONE |
+
+**Provenance does NOT track the modes.** Every box night is `device+host`/`independent:true` (spread
+434–2556 ms) and every phone night `device`/`independent:false` (spread 1.00 ms, the stamp quantum — the
+phone's host column is device time rounded, exactly CLAUDE.md §7's band). Both modes occur inside the
+box tree, and spread overlaps them completely: good nights at 517 and 731 ms sit either side of bad
+nights at 434 and 793.
+
+**The disambiguator is the one BOX night at 176 Hz** — 2026-08-02, **IQR 2.47 ms, GOOD**. Same tree,
+hardware, period and capture stack as the 55 Hz nights around it; it behaves like the *rate* population,
+not like its own tree. ⚠️ **n=1.** 36 of 37 high-rate nights are phone-captured and from June, so rate
+stays confounded with tree, period and possibly band placement. It is the right control and it agrees,
+but it is one night — a native-176 box night beside the existing 55 Hz ones would settle it.
+
+### This RECONCILES `PPG-SAMPLE-RATE-AND-PAT` §3 rather than contradicting it
+
+§3 measured residIQR **flat from 25→176 Hz** and concluded rate buys nothing. It worked by **decimating
+one recording**. Decimating a good-mode night leaves it in good mode — the mode is a property of the
+night, fixed before resampling — so a decimation study is *structurally incapable* of seeing an effect
+that operates on WHICH MODE YOU LAND IN. Both results stand and they measure different things:
+
+> **Rate does not improve a night you already have. It predicts whether you get a good one.**
+
+Same shape as §2.1's error one level up: a within-unit measurement generalised to a between-unit claim.
+
+
 ## 2 · RETRACTION — `CROSS-DOMAIN-METHODS` §2's premise was measured on one night, and it was a bad one
 
 §2 states the PPG foot at **12.7 ms σ** is now the dominant error term and is therefore what to attack
@@ -127,7 +162,9 @@ Fixing that outranks any estimator change — it blocks every PAT measurement, n
 - [x] `CROSS-DOMAIN-METHODS` §2's 12.7 ms premise retracted and §2.1's rate attribution corrected
 - [ ] the PAT reference fixed — medians inside 150–400 ms and pairing ≥95 % on both modes
 - [ ] only THEN: re-score CFD against it, and adopt or reject on that number
-- [ ] the mode-splitting mechanism identified (still unknown)
+- [x] the mode is PREDICTED by sampling rate (38 % good at 55 Hz vs 86 % at 176 Hz) — §1b
+- [ ] a native-176 Hz BOX night, to break the rate/tree confound (the control is currently n=1)
+- [ ] the mode-splitting MECHANISM identified — rate predicts it, but why a night falls either way is unknown
 
 Related: [`CROSS-DOMAIN-METHODS-2026-08-12-BRIEF.md`](CROSS-DOMAIN-METHODS-2026-08-12-BRIEF.md) ·
 [`PPG-SAMPLE-RATE-AND-PAT-2026-08-03-BRIEF.md`](PPG-SAMPLE-RATE-AND-PAT-2026-08-03-BRIEF.md)
