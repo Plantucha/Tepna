@@ -22871,6 +22871,94 @@
       T.ok('ANTI-VACUITY · a bin OUTSIDE the hole is populated', (hg[0] || {}).n > 0, 'n=' + (hg[0] || {}).n);
     });
 
+    /* ════ postprandial — PSEUDO-TESTED, and it is the meal-response curve itself ═════════════
+       For each meal marker it measures the glucose response: the pre-meal baseline, the peak rise
+       above it, the time to that peak, the delta at two hours, and whether the curve came back
+       down. Every one of those is a number a user acts on, and none was asserted.
+
+       Reached through `analyze(parsed, null, { mealMarkers })` — meals arrive as an option, so the
+       excursion can be DESIGNED rather than generated. This series is flat at 100 all day except a
+       single lunch response, so every expectation is exact:
+         baseline  mean of 11:30–12:00, all 100                        ⇒ 100
+         peak      160 at 12:45, i.e. rel 45                           ⇒ peakDelta 60, ttp 45
+         2 h       the sample nearest rel 120 is 14:00 at 108          ⇒ delta2h 8
+         return    some sample after the peak is ≤ baseline + 15 (115) ⇒ returned */
+    group('GlucoDex postprandial — the meal response curve, known-answer', 'glucodex-dsp · postprandial', function (T) {
+      var G = (env.GLUDSP && env.GLUDSP.analyze && env.GLUDSP) || (env.GlucoDex && env.GlucoDex.analyze && env.GlucoDex) || null;
+      if (!G) {
+        T.skip('GLUDSP.analyze available', 'GLUDSP not co-loaded in this runner');
+        return;
+      }
+      var t0 = Date.UTC(2026, 5, 13, 0, 0, 0);
+      var tMs = [],
+        vMgdl = [];
+      /* The day sits at 120 EXCEPT the half hour before lunch, which is 100. That asymmetry is
+         deliberate: with a flat morning, widening the baseline window from 30 min to 300 changes
+         nothing and the mutant survives. The meal's own first sample is 106, not 100, so including
+         rel 0 in the baseline would move it too — a curve that starts exactly at baseline cannot
+         show `rel < 0` become `rel <= 0`. Both measured. */
+      for (var k = 0; k < 288; k++) {
+        var mins = k * 5;
+        var rel = mins - 720; // minutes after the 12:00 meal
+        var v = 120;
+        if (mins >= 690 && mins < 720)
+          v = 100; // the pre-meal baseline window
+        else if (rel >= 0 && rel <= 45)
+          v = 106 + (54 * rel) / 45; // starts ABOVE baseline, peaks 160 at rel 45
+        else if (rel > 45 && rel <= 120)
+          v = 160 - (52 * (rel - 45)) / 75; // falls to 108 by rel 120
+        else if (rel > 120 && rel <= 180) v = 108;
+        tMs.push(t0 + mins * 60000);
+        vMgdl.push(Math.round(v));
+      }
+      var meals = [{ label: 'Lunch', category: 'medium', minOfDay: 720, carbsAvg: 60 }];
+      var res = G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: tMs[0], source: 'synthetic' }, null, { mealMarkers: meals });
+      var pp = (res && res.postprandial) || [];
+      T.eq('one meal marker ⇒ one postprandial row', pp.length, 1);
+      var p = pp[0] || {};
+      T.eq('the row carries the meal label through', p.label, 'Lunch');
+      T.eq('baseline is the mean of the 30 min BEFORE the meal (flat 100)', p.baseline, 100);
+      T.eq('peakDelta is the rise ABOVE baseline, not the absolute peak (160 − 100)', p.peakDelta, 60);
+      T.eq('timeToPeakMin is measured from the meal, not from midnight', p.timeToPeakMin, 45);
+      T.eq('delta2h is the 2-hour value minus baseline (108 − 100)', p.delta2h, 8);
+      T.eq('one day of data ⇒ nDays 1', p.nDays, 1);
+
+      /* A meal with NO pre-meal window cannot be measured — the baseline needs ≥2 samples in the
+         30 minutes before it, and a meal at 00:00 has none. It is DROPPED rather than emitted with
+         null fields, and a set in which nothing is measurable comes back null rather than as an
+         array of empty rows. That is a stronger honesty rule than the one I first assumed, and it
+         is what the code actually does. */
+      var midnight = G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: tMs[0], source: 'synthetic' }, null, {
+        mealMarkers: [{ label: 'Midnight', category: 'light', minOfDay: 0, carbsAvg: 10 }]
+      });
+      T.eq('a meal with no pre-meal window yields null, not a row of nulls', (midnight || {}).postprandial, null);
+      /* MIXED — the measurable lunch survives and the unmeasurable midnight meal is dropped, so the
+         filter removes rather than pads. One row, and it is the right one. */
+      var mixed = G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: tMs[0], source: 'synthetic' }, null, {
+        mealMarkers: [{ label: 'Midnight', category: 'light', minOfDay: 0, carbsAvg: 10 }, meals[0]]
+      });
+      var mx = (mixed && mixed.postprandial) || [];
+      T.eq('an unmeasurable meal beside a measurable one is DROPPED, not padded', mx.length, 1);
+      T.eq('…and the surviving row is the measurable Lunch', (mx[0] || {}).label, 'Lunch');
+
+      /* THE ≥6 POST-MEAL FLOOR needs a meal the RECORD RUNS OUT ON. A 23:40 meal has a full
+         pre-meal window (23:10–23:40, six samples) but only four samples after it before the day
+         ends, so it is refused for the sequence length ALONE — the one shape that separates that
+         floor from the baseline floor beside it. A dense midday meal can never show it. */
+      var late = G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: tMs[0], source: 'synthetic' }, null, {
+        mealMarkers: [meals[0], { label: 'Late', category: 'light', minOfDay: 1420, carbsAvg: 12 }]
+      });
+      var lt = (late && late.postprandial) || [];
+      T.eq('a meal with only 4 post-meal samples is refused (needs ≥6)', lt.length, 1);
+      T.eq('…and it is the Late one that was dropped', (lt[0] || {}).label, 'Lunch');
+
+      /* No meals at all ⇒ null, not an empty array dressed as a result.
+         ⚠ The `|| !meals.length` half of that guard is an EQUIVALENT mutant and stays untested:
+         with an empty array the function falls through to `return out.length ? out : null`, which
+         is null anyway. The early return is a shortcut, not a behaviour. Do not chase it. */
+      T.eq('no meal markers ⇒ null', (G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: tMs[0], source: 'synthetic' }, null, {}) || {}).postprandial, null);
+    });
+
     group('GlucoDex genSynthetic — the generator honours its three options (mutation bootstrap)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
       var G = (env.GLUDSP && env.GLUDSP.genSynthetic && env.GLUDSP) || (env.GlucoDex && env.GlucoDex.genSynthetic && env.GlucoDex) || null;
       if (!G) {
