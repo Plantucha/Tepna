@@ -22715,6 +22715,75 @@
        ⚠️ THE GENERATOR IS UNSEEDED — gaussian noise and per-day meal jitter, no seed option. So every
        assertion here is STRUCTURAL or STATISTICAL. An exact expected series would be flaky, and a
        tolerance wide enough to hide that would also hide the mutants. */
+    /* ════ carbCategory — PSEUDO-TESTED, reached through parseNutrition's meal clustering ═════
+       `carbCategory` labels every meal marker light / medium / heavy, and the label is what a user
+       sees against each meal. Nothing asserted the bands, and nothing asserted the CLUSTERING that
+       decides what a "meal" is in the first place.
+
+       Servings are bucketed by `Math.round(minOfDay / 45)`, so 07:00 (420 ⇒ 9.33 ⇒ 9) and 07:05
+       (425 ⇒ 9.44 ⇒ 9) are ONE meal while 07:20 (440 ⇒ 9.78 ⇒ 10) would be another. The first meal
+       below is deliberately a 29 g serving plus a 1 g serving five minutes later: merged it is 30 g
+       and reads `medium`, unmerged the 29 g would read `light`. One fixture, two properties. */
+    group('GlucoDex carbCategory + the 45-minute meal clustering', 'glucodex-dsp · nutrition · carbs', function (T) {
+      var G = env.GLUDSP || env.GlucoDex;
+      var pn = G && G.parseNutrition;
+      T.ok('GLUDSP.parseNutrition reachable', typeof pn === 'function', 'export parseNutrition from glucodex-dsp.js');
+      if (typeof pn === 'function') {
+        /* A serving must carry ≥ 8 g of carbs to count at all — the 7 g row below is therefore NOT
+           a meal, and it sits at 07:10 (430 ⇒ bucket 10) precisely so that admitting it would show
+           up as an extra marker rather than hide inside an existing one. A first draft of this
+           fixture used 1 g and 0 g rows and lost them both to that guard, which is how the guard
+           got pinned here instead of merely worked around. */
+        var csv = [
+          'Date,Time,Group,Carbs (g)',
+          '2026-06-13,07:00,Breakfast,22',
+          '2026-06-13,07:05,Breakfast,8',
+          '2026-06-13,07:10,Breakfast,7',
+          '2026-06-13,12:00,Lunch,74',
+          '2026-06-13,12:40,Lunch,10',
+          '2026-06-13,18:00,Dinner,75',
+          '2026-06-13,21:00,Snack,29'
+        ].join('\n');
+        var out = pn(csv) || {};
+        var mm = out.mealMarkers || [];
+        T.eq('seven servings become FIVE meals — one merge, one sub-threshold row dropped', mm.length, 5);
+        T.eq('a 7 g serving is below the 8 g floor and is not a meal', out.nServings, 6);
+        T.eq('…and the shape is reported as servings, not daily', out.shape, 'servings');
+        var cats = mm.map(function (m) {
+          return m.category;
+        });
+        var carbs = mm.map(function (m) {
+          return m.carbsAvg;
+        });
+        T.eq('the merged meal totals 22 + 8 = 30 g (the 8 g serving is admitted — the floor is inclusive)', carbs[0], 30);
+        /* THE TWO BAND EDGES, both strict-less, each pinned from both sides:
+           `g < 30 ? light : g < 75 ? medium : heavy`
+             30 g  ⇒ NOT light (the merged breakfast)      74 g ⇒ medium
+             75 g  ⇒ NOT medium, i.e. heavy                 0 g ⇒ light  */
+        T.eq('30 g is NOT light — the lower band is exclusive', cats[0], 'medium');
+        T.eq('74 g is still medium', cats[1], 'medium');
+        /* 12:40 is 760 min ⇒ 760/45 = 16.89, which ROUNDS to bucket 17 and FLOORS to 16. Rounded it is
+           its own meal; floored it would merge into the 12:00 lunch and make it 84 g. Without this row
+           the two agree on every bucket in the fixture and `Math.round → Math.floor` survives. */
+        T.eq('12:40 rounds UP into its own bucket, it does not floor into the 12:00 lunch', cats[2], 'light');
+        T.eq('75 g tips to heavy — the upper band is exclusive too', cats[3], 'heavy');
+        T.eq('29 g is light — under the lower band', cats[4], 'light');
+        T.eq('carbsAvg carries the meal totals in order', JSON.stringify(carbs), '[30,74,10,75,29]');
+        /* ⚠ `carbsAvg` is a SUM over the meal's servings, not an average — `m.n` is counted and
+           never divided by, while the field name and the comment above it both say "per-occurrence
+           average carbs". Reported in #1199 and unchanged since; this assertion pins the CURRENT
+           behaviour so a fix is a visible change rather than a silent one. With one occurrence per
+           meal the two readings coincide, which is why the merged 30 g meal above is the case that
+           actually distinguishes them: an average would be 15. */
+        T.ok('carbsAvg is the SUM of the merged servings (30), not their average (15)', carbs[0] === 30, 'got ' + carbs[0]);
+        /* ⚠ `carbCategory`'s `g == null ? 'medium'` default is UNREACHABLE and stays untested: both
+           of its call sites pass `Math.round(...)` of a summed number, so the argument is always a
+           number. Mutating that default survives, and no input through parseNutrition can change
+           that. Do not add an assertion chasing it — it would have to call carbCategory directly,
+           which is not exported and should not be exported for a branch nothing reaches. */
+      }
+    });
+
     group('GlucoDex genSynthetic — the generator honours its three options (mutation bootstrap)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
       var G = (env.GLUDSP && env.GLUDSP.genSynthetic && env.GLUDSP) || (env.GlucoDex && env.GlucoDex.genSynthetic && env.GlucoDex) || null;
       if (!G) {
