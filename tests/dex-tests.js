@@ -12190,6 +12190,166 @@
       T.ok('one missing subjective seed ⇒ NaN, never a graded 0', isNaN(noSubj[0].d_hile), 'got ' + noSubj[0].d_hile);
     });
 
+    /* ════ THE TWO 14-DAY WINDOWS, AND THE EVENT CONFIDENCE CLAMPS ═══════════════════════════
+       Same shapes as the 7-day VO2 window, on different columns — and equally unreachable from a
+       single row. Both expectations are exact rather than characterisations:
+         · d_hrv_momentum is the slope of ln(rMSSD) against the day index, so a series that DOUBLES
+           daily has slope exactly ln 2 = 0.6931472 by construction.
+         · d_stress_ac correlates each day's stress with the next day's, so a strictly linear ramp
+           gives a Pearson of exactly 1. */
+    group('HRVDex — the 14-day windows and the event confidence clamps', 'hrvdex-dsp · win14 · evconf', function (T) {
+      var M = env.HRVDex;
+      var D = (M && M._bare) || M;
+      if (!D || typeof D.computeDerived !== 'function') {
+        T.skip('computeDerived available', 'HRVDex not co-loaded');
+        return;
+      }
+      var DAY = 86400000;
+      var D0 = Date.UTC(2026, 5, 1, 22, 0, 0);
+      var mk = function (over) {
+        var r = {
+          _hr: 62,
+          _meanRR: 968,
+          _sdnn: 54,
+          _rmssd: 41,
+          _mxdmn: 320,
+          _pnn50: 18.5,
+          _amo50: 31,
+          _mode: 950,
+          _totalPow: 3200,
+          _hf: 900,
+          _lf: 1400,
+          _vlf: 900,
+          _stress: 3.2,
+          _energy: 5.1,
+          _focus: 4.4,
+          _sns: 1.2,
+          _psns: 2.1,
+          _coherence: 3.3,
+          _hrv: 60,
+          _cv: 5.6,
+          _spanMin: 6,
+          _tMs: D0
+        };
+        for (var k in over || {}) r[k] = over[k];
+        return r;
+      };
+      /* ⚠ DRIVE THE NO-ARGUMENT PATH, via the `allRows` accessor.
+         `computeDerived(rowsArg)` honours its argument only in the FIRST pass; the day-to-day and
+         rolling-window passes iterate the module's `allRows` regardless. So `derive(rows)` returns
+         every column below as `undefined`, and a test that called it would be measuring nothing —
+         which is exactly how this group first failed. Loading `allRows` and calling with no
+         argument exercises the path the app itself uses, and needs no source change.
+         (The argument/`allRows` split is reported in the PR; it is a real inconsistency with the
+         function's own header, but fixing it changes an ingest surface and is the owner's call.) */
+      var series = function (n, per) {
+        var out = [];
+        for (var i = 0; i < n; i++) out.push(mk(per(i)));
+        var savedRows = M.allRows;
+        try {
+          M.allRows = out;
+          D.computeDerived();
+        } finally {
+          M.allRows = savedRows;
+        }
+        return out;
+      };
+      var near = function (a, b, tol) {
+        return a != null && isFinite(a) && Math.abs(a - b) <= (tol || 0.0001);
+      };
+
+      /* ── d_hrv_momentum · slope of ln(rMSSD) over a 14-day window, ≥5 days ─────────────────── */
+      var dbl = function (i) {
+        return { _tMs: D0 + i * DAY, _rmssd: 10 * Math.pow(2, i) };
+      };
+      var five = series(5, dbl);
+      T.ok('rMSSD doubling daily ⇒ ln-slope is exactly ln 2 = 0.6931', near(five[4].d_hrv_momentum, 0.6931472), 'got ' + five[4].d_hrv_momentum);
+      var four = series(4, dbl);
+      T.ok('four days ⇒ NaN — the momentum gate is ≥5 distinct days', isNaN(four[3].d_hrv_momentum), 'got ' + four[3].d_hrv_momentum);
+      /* A FLAT series has slope 0, not NaN — "no trend" and "not enough data" are different answers
+         and must not collapse onto each other. */
+      var flat = series(5, function (i) {
+        return { _tMs: D0 + i * DAY, _rmssd: 40 };
+      });
+      T.ok('a flat rMSSD series ⇒ slope 0, distinct from the NaN of too-few-days', near(flat[4].d_hrv_momentum, 0), 'got ' + flat[4].d_hrv_momentum);
+      /* The window is DAY-KEYED like the VO2 one: two rows on one day contribute once. With 5 rows
+         over 4 distinct days the gate must stay shut. */
+      var dupDay = series(5, function (i) {
+        return { _tMs: D0 + (i < 4 ? i : 3) * DAY + (i === 4 ? 3600000 : 0), _rmssd: 10 * Math.pow(2, Math.min(i, 3)) };
+      });
+      T.ok('5 rows over 4 DISTINCT days ⇒ still NaN (the window counts days)', isNaN(dupDay[4].d_hrv_momentum), 'got ' + dupDay[4].d_hrv_momentum);
+      /* rMSSD must be > 0 to enter — ln(0) is −Infinity and would drag the slope to nonsense. */
+      var withZero = series(6, function (i) {
+        return { _tMs: D0 + i * DAY, _rmssd: i === 0 ? 0 : 10 * Math.pow(2, i) };
+      });
+      T.ok('a zero rMSSD day is EXCLUDED, not fed to ln() as −Infinity', isFinite(withZero[5].d_hrv_momentum), 'got ' + withZero[5].d_hrv_momentum);
+
+      /* ── d_stress_ac · day-to-day autocorrelation of stress, needs >3 pairs ────────────────── */
+      var ramp = function (i) {
+        return { _tMs: D0 + i * DAY, _stress: 10 + i * 10 };
+      };
+      var r5 = series(5, ramp);
+      T.ok('a strictly rising stress ramp ⇒ autocorrelation exactly 1', near(r5[4].d_stress_ac, 1), 'got ' + r5[4].d_stress_ac);
+      var r4 = series(4, ramp);
+      T.ok('four days ⇒ only 3 pairs ⇒ NaN (the gate is >3 pairs)', isNaN(r4[3].d_stress_ac), 'got ' + r4[3].d_stress_ac);
+
+      /* ── THE PAIRING IS LAG-1, and only an ALTERNATING series can show it ────────────────────
+         On a rising ramp, correlating each day with the NEXT day gives 1 — and correlating each
+         day with ITSELF also gives 1, so the ramp cannot see the offset disappear (measured: that
+         mutant survived it). Alternating 10/50 makes y = 60 − x, a Pearson of exactly −1, while
+         self-pairing would give +1. */
+      var alt = function (i) {
+        return { _tMs: D0 + i * DAY, _stress: i % 2 === 0 ? 10 : 50 };
+      };
+      var a5 = series(5, alt);
+      T.ok('alternating stress ⇒ lag-1 autocorrelation exactly −1, not +1', near(a5[4].d_stress_ac, -1), 'got ' + a5[4].d_stress_ac);
+
+      /* The 14-day window is day-keyed here too: 5 rows over 4 DISTINCT days leave 4 entries and
+         so only 3 pairs, one short of the gate. Count the duplicate and it opens. */
+      var aDup = series(5, function (i) {
+        return { _tMs: D0 + (i < 4 ? i : 3) * DAY + (i === 4 ? 3600000 : 0), _stress: i % 2 === 0 ? 10 : 50 };
+      });
+      T.ok('5 rows over 4 distinct days ⇒ 3 pairs ⇒ NaN (days, not rows)', isNaN(aDup[4].d_stress_ac), 'got ' + aDup[4].d_stress_ac);
+
+      /* A pair is used only when BOTH of its days have a stress reading. With `||` instead of
+         `&&` a half-absent pair survives, Pearson sees a NaN and the whole column goes NaN — so
+         this fixture must both CONTAIN a gap and still produce a finite answer. */
+      var gap = series(8, function (i) {
+        var v = i % 2 === 0 ? 10 : 50;
+        return { _tMs: D0 + i * DAY, _stress: i === 4 ? NaN : v };
+      });
+      T.ok('a day with NO stress drops its PAIRS, leaving a finite −1', near(gap[7].d_stress_ac, -1), 'got ' + gap[7].d_stress_ac);
+
+      /* ── event confidence: clamp(0.4 … 0.9) around a linear ramp ───────────────────────────── */
+      var EV = D.hrvEventsFromRows;
+      T.ok('HRVDex.hrvEventsFromRows reachable', typeof EV === 'function', 'export hrvEventsFromRows');
+      if (typeof EV === 'function') {
+        var confOf = function (row, impulse) {
+          var hits = (EV([row]) || []).filter(function (e) {
+            return e.impulse === impulse;
+          });
+          return hits.length ? hits[0].conf : null;
+        };
+        /* hrv_low fires below rMSSD 20; conf = (20 − rMSSD)/20 clamped to [0.4, 0.9].
+           rMSSD 10 sits mid-ramp; 19 is below the floor; 1 is above the ceiling. */
+        T.eq('hrv_low · rMSSD 10 ⇒ mid-ramp 0.5', confOf(mk({ _rmssd: 10 }), 'hrv_low'), 0.5);
+        T.eq('hrv_low · rMSSD 19 ⇒ 0.05 raised to the 0.4 FLOOR', confOf(mk({ _rmssd: 19 }), 'hrv_low'), 0.4);
+        T.eq('hrv_low · rMSSD 1 ⇒ 0.95 clipped to the 0.9 CEILING', confOf(mk({ _rmssd: 1 }), 'hrv_low'), 0.9);
+        T.eq('hrv_low does not fire at rMSSD 20 — the trigger is strict', confOf(mk({ _rmssd: 20 }), 'hrv_low'), null);
+        /* stress_high fires at stress ≥ 70; conf = (stress − 50)/50 over the same clamp. 70 lands
+           exactly ON the floor, which is why the trigger and the floor need separate cases. */
+        T.eq('stress_high · stress 80 ⇒ 0.6', confOf(mk({ _stress: 80 }), 'stress_high'), 0.6);
+        /* ⚠ `Math.max(0.4, …)` on THIS one is an equivalent mutant and stays so: the event only
+           fires at stress ≥ 70, and (70 − 50)/50 is exactly 0.4, so the ramp never enters the
+           clamp from below. The floor and the trigger coincide by construction. Its sibling above
+           is different — hrv_low fires below rMSSD 20, where the ramp really does fall under 0.4
+           (rMSSD 19 ⇒ 0.05), so there the floor is load-bearing and is pinned. */
+        T.eq('stress_high · stress 70 ⇒ 0.4, the floor, and it DOES fire (bound inclusive)', confOf(mk({ _stress: 70 }), 'stress_high'), 0.4);
+        T.eq('stress_high · stress 99 ⇒ 0.98 clipped to 0.9', confOf(mk({ _stress: 99 }), 'stress_high'), 0.9);
+        T.eq('stress_high does not fire at 69', confOf(mk({ _stress: 69 }), 'stress_high'), null);
+      }
+    });
+
     group('HRVDex computeDerived — the 52 derived columns, pinned', 'hrvdex-dsp · known-answer · mutation-pinned', function (T) {
       var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
       if (!D || typeof D.computeDerived !== 'function') {
