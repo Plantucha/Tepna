@@ -376,6 +376,68 @@ visible to every in-flight worker, and can flip verdicts in a run that reports n
 Descartes run was discarded for this. **Serialize manual mutation against sweeps, or run them from
 different checkouts.**
 
+## 11 · THE DESCARTES FLEET, MEASURED — 543 functions, 24 pseudo-tested (2026-08-12)
+
+Extreme mutation (one mutant per function; **pseudo-tested** = COVERED and yet every applicable
+mutant survives, i.e. the suite runs it and reads nothing it returns) across all eight DSPs, each
+under its own `--group=<file>-dsp`:
+
+| file | functions | pseudo-tested | partial | not-reached | tested | pseudo % of reached |
+|---|---|---|---|---|---|---|
+| oxydex | 143 | **5** | 6 | 8 | 124 | 3.7 % |
+| ecgdex | 70 | **4** | 1 | 4 | 61 | 6.1 % |
+| ppgdex | 88 | **3** | 1 | 16 | 68 | 4.2 % |
+| hrvdex | 37 | **1** | 0 | 20 | 16 | 5.9 % |
+| pulsedex | 50 | **2** | 1 | 18 | 29 | 6.3 % |
+| glucodex | 61 | **4** | 0 | 4 | 53 | 7.0 % |
+| cpapdex | 51 | **5** | 0 | 1 | 45 | 10.0 % |
+| motiondex | 43 | **0** | 1 | 2 | 40 | 0.0 % |
+| **FLEET** | **543** | **24** | **10** | **73** | **436** | **5.1 %** |
+
+The 24, in full — this is the §5 work-list for assertion strength, ordered by file:
+
+`oxydex` setHooks · _flagSev · fmtTimeFull · oxyPBConf · oxyBuildEpochSeries ·
+`ecgdex` triangularIndex · fragmentation · surgeEscalation · accAnalyze ·
+`ppgdex` pad2 · fmtClockSec · sqiAt · `hrvdex` _hrvClockS · `pulsedex` cohEst · _pdForeignUnitCol ·
+`glucodex` _ckZoneMin · postprandial · agp · carbCategory ·
+`cpapdex` _p2 · fmtClock · fmtDate · fmtDateTime · _leakCV
+
+Three things this table is **not**:
+
+- **`not-reached` is not dead code.** 73 functions read zero executions under their file-named
+  group, and §10.3's caveat applies at full force: another group may reach them under a contract
+  name, and the browser render lane is invisible to c8 entirely. It is an upper bound on what is
+  unguarded, nothing more.
+- **A low pseudo-tested count is not a strong suite.** It says every function has *at least one*
+  assertion that notices *something*. `computeDerived` was never pseudo-tested and still carried 95
+  survivors.
+- **The percentages are not comparable across files** — see §11.1.
+
+### 11.1 · 15.4 % OF THE SURVIVOR POPULATION IS NOT PRODUCTION CODE
+
+Attributing every survivor in the five banked sweeps to its enclosing function:
+
+| file | survivors | inside test-support | largest survivor function |
+|---|---|---|---|
+| cpapdex | 472 | **201 (43 %)** | `selfTest` 125, `_synthEdfSet` 57 |
+| glucodex | 503 | 65 (13 %) | `genSynthetic` 65, `clean` 62 |
+| motiondex | 258 | 21 (8 %) | `respiratoryEffort` 31, `genSyntheticACC` 21 |
+| hrvdex | 244 | 0 | `computeDerived` 95 |
+| pulsedex | 391 | 0 | `parseRRInput` 43 |
+| **total** | **1868** | **287 (15.4 %)** | |
+
+"Test-support" = `selfTest`, its `ok`/`near` helpers, and the synthetic fixture builders.
+
+**This is not an argument to exclude them.** The `near()` precedent in `cpapdex-dsp.js` is decisive
+the other way: a comparator that has quietly become more permissive weakens all 70-odd assertions
+running through it, and mutation is the only thing that finds it. #1190 killed 32 such mutants and
+they were real.
+
+It **is** an argument that a single fleet percentage blends two different quantities. cpapdex's
+kill rate is computed over a population that is 43 % checking-apparatus; hrvdex's over one that is
+0 %. Those two numbers are not measuring the same thing, and §1's fleet figure inherits the blend.
+**Report production and checking-apparatus rates separately, or report the split beside the total.**
+
 ## Done when
 
 - [ ] The owner has ratified, adjusted, or per-file'd the 90 % target against §2.
@@ -388,3 +450,7 @@ different checkouts.**
       scope-artifact fraction is known rather than assumed.
 - [ ] §10.5 — every string/regex-locating tool in `tools/` scopes to the named function and fails
       loudly on an absent or ambiguous pattern.
+- [ ] §11 — the 24 pseudo-tested functions have tests, each with a measured before → after
+      (the method is proven: oxydex went 7 → 5 and the diff named exactly the two that were fixed).
+- [ ] §11.1 — the fleet kill rate is reported with its production / checking-apparatus split, or
+      the decision to keep one blended number is recorded with a reason.
