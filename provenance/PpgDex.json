@@ -80,6 +80,19 @@
       "inputHashes": {
         "synthetic_ppgdex_o2ring_finger.txt": "d73e38672ef5c375"
       }
+    },
+    "synthetic_ppgdex_inverted_golden.node-export.json": {
+      "bundle": "PpgDex.html",
+      "manifestHash": "4f90711c059a",
+      "added": "2026-08-13",
+      "note": "PPG-FOOT-PLACEMENT §0 — the INVERTED-CONVENTION Verity twin, the polarity the real hardware actually produces (all 20 real nights resolve to sign -1; every other committed input resolves to +1). Byte-identical to the clean twin except the pulsatile term is negated, so the pair isolates polarity alone. Pins that detectChannel resolves a real-convention capture correctly end-to-end, through the rich block a mis-polarised record corrupts (analyzablePct, hrv.*, apnea.cvhrIndex). Minted after `orient`'s derivative-skew rule was found wrong on 10 of 20 real nights with all five existing goldens green.",
+      "inputs": [
+        "synthetic_ppgdex_verity_inverted.txt"
+      ],
+      "outputHash": "8149d0835b8de703",
+      "inputHashes": {
+        "synthetic_ppgdex_verity_inverted.txt": "1b02dcbda84baed4"
+      }
     }
   }
 }

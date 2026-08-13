@@ -20872,6 +20872,63 @@
       T.ok('a clean series passes through UNCHANGED (nCorr = 0)', same && r3.nCorr === 0);
     });
 
+    group('PpgDex resolves the REAL-HARDWARE polarity — an invariant, not a recorded answer (PPG-FOOT-PLACEMENT §0)', 'ppgdex-dsp · orientation · committed-input', function (T) {
+      /* WHY THIS EXISTS AT ALL, GIVEN THERE IS ALSO A GOLDEN. A golden records whatever compute()
+         returns, so it reds when a value MOVES and NEVER when a value was wrong from the start. The
+         `rich` golden recorded quality.analyzablePct = 56 on a mis-polarised record and CI reproduced
+         that happily on every push; the fix moved it to 98. Five PpgDex goldens were green throughout.
+
+         So this group asserts a PROPERTY instead — one that can fail without anybody knowing the right
+         answer in advance: whatever polarity `detectChannel` resolves must be the one with the SHORTER
+         systolic rise. That is the physiology (systole is faster than diastole), and it is checked
+         end-to-end through the shipped entry point rather than against the rule in isolation, so a
+         correct rule that stops being WIRED still reds.
+
+         ⚠️ Deliberately NOT a threshold like `riseFraction < 0.5`. On this synthetic the WRONG polarity
+         scores 0.402 — under any such bound — because the twin's pulse is a sinusoid plus one harmonic
+         and is far less asymmetric than a real pleth (real nights: 0.25 correct vs 0.63–0.76 wrong). A
+         bound tuned on real data would pass the synthetic silently, which is the failure mode this
+         whole group exists to stop. Comparing the two polarities needs no threshold at all. */
+      var D = env.PPGDSP;
+      var pairs = [
+        ['ppgdex_inverted', -1, 'the INVERTED twin — the polarity real Verity hardware produces'],
+        ['ppgdex_finger', -1, 'the committed O2Ring finger twin']
+      ];
+      if (!(D && typeof D.detectChannel === 'function' && typeof D.riseFraction === 'function')) {
+        T.ok('PPGDSP.detectChannel + riseFraction available', false);
+        return;
+      }
+      pairs.forEach(function (row) {
+        var key = row[0],
+          wantSign = row[1],
+          label = row[2];
+        var eq = env.equiv && env.equiv[key];
+        if (!(eq && eq.input)) {
+          T.skip('committed input present: ' + key, 'COMMITTED — this must run everywhere including CI');
+          return;
+        }
+        var rec = D.parsePPG(eq.input);
+        var det = D.detectChannel(rec.ch[0], rec.fs);
+        var flipped = D.detectChannel(rec.ch[0], rec.fs, -det.sign);
+        var rOk = D.riseFraction(det.bp, rec.fs);
+        var rBad = D.riseFraction(flipped.bp, rec.fs);
+        T.eq(label + ' resolves to sign ' + wantSign, det.sign, wantSign);
+        T.ok(label + ': the RESOLVED polarity has the shorter systolic rise (' + (rOk == null ? 'n/a' : rOk.toFixed(3)) + ' < ' + (rBad == null ? 'n/a' : rBad.toFixed(3)) + ')', rOk != null && rBad != null && rOk < rBad);
+      });
+
+      /* THE CLEAN TWIN IS THE CONTROL, and it must resolve the OTHER way. Without it an implementation
+         that hard-returned −1 would satisfy every assertion above. */
+      // `ppgdex` is the REAL-corpus pair (gitignored); the clean COMMITTED twin is `ppgdex_rich`.
+      var clean = env.equiv && env.equiv.ppgdex_rich;
+      if (clean && clean.input) {
+        var rc = D.parsePPG(clean.input);
+        var dc = D.detectChannel(rc.ch[0], rc.fs);
+        T.eq('the CLEAN twin resolves to +1 — a hard-coded −1 would pass everything else', dc.sign, 1);
+      } else {
+        T.ok('clean twin present (COMMITTED — must run everywhere including CI)', false);
+      }
+    });
+
     group('PpgDex polarity is decided by UPSTROKE DURATION, not derivative skew (PPG-FOOT-PLACEMENT §0)', 'ppgdex-dsp · orientation · regression', function (T) {
       /* WHAT THIS PINS. `orient` decided polarity from the SKEWNESS OF THE FIRST DERIVATIVE — a third
          moment on a noisy derivative — and was measured WRONG ON 10 OF 20 real box nights. An inverted

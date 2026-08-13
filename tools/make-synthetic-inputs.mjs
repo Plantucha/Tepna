@@ -362,6 +362,34 @@ const emit = (name, text) => {
   }
   emit('synthetic_ppgdex_verity.txt', rows.join('\n') + '\n');
 
+  /* ── 5a-iii · the INVERTED-CONVENTION Verity twin (PPG-FOOT-PLACEMENT §0, 2026-08-13) ──────────
+     THE CLEAN TWIN ABOVE HAS THE OPPOSITE POLARITY FROM THE REAL DEVICE. It resolves to sign +1,
+     while every one of the 20 real Verity nights resolves to −1: more blood absorbs more light, so the
+     raw optical signal DIPS on systole. So the committed corpus exercised a convention the hardware
+     never produces, and the real-world case reached CI through no fixture at all.
+
+     That is how a polarity bug lived in `orient` while five PpgDex fixtures stayed green — the one
+     path nothing covered was the only path the device actually takes. This twin is that path: byte-
+     identical construction with the pulsatile term NEGATED, so it is the same recording seen the way
+     the sensor really sees it.
+
+     The DC level is NOT negated — only the AC term. Inverting the baseline too would make the file
+     unlike any real capture (the Verity's DC sits near −499500 either way) and would let a fix that
+     keys on baseline sign pass for the wrong reason. */
+  {
+    const invRows = [HEAD];
+    for (let i = 0; i < FS * SECS; i++) {
+      const t = i / FS;
+      const hr = 62 + 4 * Math.sin(t / 20);
+      const ph = 2 * Math.PI * (hr / 60) * t;
+      const pulse = Math.sin(ph) + 0.45 * Math.sin(2 * ph - 0.9);
+      const base = -499500 - 2200 * pulse - 300 * Math.sin(t / 7); // ← the ONE sign that differs
+      const ns = ns0 + BigInt(Math.round((i / FS) * 1e9));
+      invRows.push(`${isoMs(t0 + (i / FS) * 1000)};${ns};${Math.round(base)};${Math.round(base - 9340)};${Math.round(base - 17140)};${Math.round(-650690 + 40 * Math.sin(t / 11))};`);
+    }
+    emit('synthetic_ppgdex_verity_inverted.txt', invRows.join('\n') + '\n');
+  }
+
   /* ── 5a-ii · the FRAGMENTED Verity twin (INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.2) ──
      The clean twin above is contiguous, so PpgDex's `coverage()` returns null on it and NOTHING
      committed exercised the emitter — PpgDex's gap derivation was gated only by hand-built inputs
