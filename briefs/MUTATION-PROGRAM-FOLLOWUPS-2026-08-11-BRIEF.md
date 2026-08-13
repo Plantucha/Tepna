@@ -561,6 +561,32 @@ consensus, quorum or cross-channel-agreement rule in the fleet before writing te
 dissenter may be equivalent for a corpus in which the replicas agree, and *killable* on one where
 they do not. Corpus-dependence is a third bucket beside "equivalent" and "a real gap".
 
+**THE FLEET AUDIT, run 2026-08-13.** Every consensus / quorum / cross-channel-agreement rule
+outside PpgDex, checked against the rule above:
+
+| rule | verdict |
+|---|---|
+| `integrator-tch.js` — the three-cornered hat itself | **already documented, thoroughly.** Its header states TCH "cancels common-mode by construction → false confidence", that it measures precision and not trueness, and that positive common-mode noise cannot be detected reference-free without an externally supplied `rho`. Nothing to add. |
+| `integrator-dsp.js` `fuseStagingConsensus` | **weaker exposure.** It reports an inter-node REM gap, but the legs are NOT replicas — they use different `stagingMethod`s — and it already fails closed (`disagreement: null`) when the `remFractionBasis` differs. A shared staging error is conceivable but the legs are heterogeneous by construction. |
+| `analysis-stats.js` `_consensusTrust` (and its `sensor-trio-worker.js` twin) | **THE SIGN-FLIPPED CASE, undocumented — see below.** |
+
+`_consensusTrust(hh, vv, oo, C)` weights each epoch by the RANGE across the three devices —
+`max − min` — giving full weight when the range is at or below the median and tapering to zero as
+it grows. It then feeds `tchSigmasFused`.
+
+A range is a DIFFERENCE, so a bias shared by all three cancels out of it exactly: the weighting is
+blind to common-mode by construction, the same way the estimator downstream is. But it is worse
+than blind in one sub-case. Where the shared error also COMPRESSES the spread — three devices
+clipping, saturating or railing to the same value — the range goes to ~0 and the epoch receives the
+MAXIMUM weight. So the epochs most contaminated by common-mode error are the ones the trust
+function selects hardest, and they are then fed to an estimator that cancels common-mode by
+construction.
+
+This is not proposed as a code change: it is a methodological caveat on an analysis tool, and the
+right treatment is the one `integrator-tch.js` already models — say it in the header where a
+consumer reading the number will see it. Recorded here rather than acted on because the analysis
+lane is not this brief's subject and the statistic itself is not wrong, only narrower than it looks.
+
 ## Done when
 
 - [ ] The owner has ratified, adjusted, or per-file'd the 90 % target against §2.
@@ -582,6 +608,9 @@ they do not. Corpus-dependence is a third bucket beside "equivalent" and "a real
 - [x] §12.2 — DONE 2026-08-13: every `*-dsp.js` / `*-cross.js` / `*-edf.js` scanned for the shape
       (a function aliasing `arg || moduleArray` that still reads the module array in its body).
       HRVDex was the only site; fixed in #1211, and it now assigns 62 of 62 columns where it did 52.
-- [ ] §12.6 — the fleet's other consensus / quorum / cross-channel-agreement rules are checked for
-      the same common-mode blindness, and any test written against them is judged against §12.6
-      before it is written.
+- [x] §12.6 — DONE 2026-08-13: the fleet's other consensus / quorum / agreement rules audited. TCH
+      already documents its own common-mode blindness; `fuseStagingConsensus` is weakly exposed
+      (heterogeneous legs, fails closed on basis mismatch); `_consensusTrust` is the undocumented
+      sign-flipped case and is written up in §12.6.
+- [ ] §12.6 follow-up — `analysis-stats.js` `_consensusTrust` gains a header caveat in the shape
+      `integrator-tch.js` already uses, or the decision not to is recorded with a reason.
