@@ -12482,7 +12482,12 @@
       var produced = Object.keys(got).filter(function (k) {
         return k.indexOf('d_') === 0;
       });
-      T.eq('computeDerived still produces 52 derived columns', produced.length, 52);
+      /* 52 → 62: `computeDerived(rowsArg)` now honours its argument on the day-to-day and
+         rolling-window passes too, so the ten columns those passes own are DERIVED on caller-
+         supplied rows instead of being left undefined — d_rmssd_delta_pct, d_ari,
+         d_rmssd_rolling_ln, d_stress_auc, d_rmssd_cv7, d_sdnn_z, d_stress_ac, d_pnn50_slope,
+         d_hrv_momentum, d_recovery_debt. The no-argument path is unchanged. */
+      T.eq('computeDerived still produces 62 derived columns', produced.length, 62);
     });
 
     /* ── THE GUARDS, not the outputs ────────────────────────────────────────────────────────────
@@ -12594,30 +12599,37 @@
          deliberately does not supply, and the source's own comment says "NaN when no GT entered".
          Naming it here rather than filtering it out keeps the exception visible — if it ever became
          finite, that would be a real change and this assertion would catch it. */
-      T.eq('a fully-populated row leaves every derived column finite but d_vo2_delta', nonFinite(null), 'd_vo2_delta');
+      /* The three added names are NOT a weakened control. They are the multi-day window columns,
+         which this FOUR-ROW fixture cannot fill — d_hrv_momentum needs ≥5 distinct days,
+         d_stress_ac needs >3 lag-1 pairs, d_sdnn_z needs a non-zero SDNN spread across the window,
+         and four identical rows give none of those. They are non-finite for the same honest reason
+         d_vo2_delta is: the input for them was never supplied. They appear here only because
+         computeDerived now derives them on caller-supplied rows at all; before, they were
+         `undefined` and fell out of this enumeration silently. */
+      T.eq('a fully-populated row leaves every derived column finite but d_vo2_delta and the unfillable window columns', nonFinite(null), 'd_hrv_momentum d_sdnn_z d_stress_ac d_vo2_delta');
 
       var CASES = [
-        ['_hr', 'd_vei d_vo2_base d_vo2_delta d_vo2_hrv d_vo2_roll7'],
-        ['_meanRR', 'd_csi d_cv_calc d_cvi d_mxdmn_meanrr d_nn50 d_rsa d_vo2_delta'],
-        ['_sdnn', 'd_cai d_cv_calc d_dfa_proxy d_ortho d_pns_eff d_rmssd_sdnn d_sd1_sd2 d_vo2_delta'],
-        ['_rmssd', 'd_cai d_cvi d_lnrmssd d_vo2_delta'],
-        ['_mxdmn', 'd_si d_vo2_delta'],
-        ['_pnn50', 'd_pns_eff d_vo2_delta'],
-        ['_amo50', 'd_si d_vo2_delta'],
-        ['_mode', 'd_si d_vo2_delta'],
-        ['_totalPow', 'd_hfnu d_lfhf_totpow d_lfnu d_vlf_pct d_vo2_delta'],
-        ['_hf', 'd_lfhf d_lfhf_totpow d_plaw d_rsa d_sai d_sdi d_spectral_ent d_svi d_vlf_hf d_vo2_delta'],
-        ['_lf', 'd_lfhf d_lfhf_totpow d_plaw d_sai d_sdi d_spectral_ent d_svi d_vo2_delta'],
-        ['_vlf', 'd_plaw d_spectral_ent d_vlf_hf d_vo2_delta'],
-        ['_stress', 'd_ans_load d_coh_energy d_crs d_focus_eff d_hile d_pti d_se_div d_sfd d_vo2_delta'],
-        ['_energy', 'd_ans_load d_coh_energy d_efc d_focus_eff d_hile d_pti d_se_div d_sfd d_vo2_delta d_welfare'],
-        ['_focus', 'd_coh_energy d_efc d_focus_eff d_hile d_pti d_se_div d_sfd d_vo2_delta'],
-        ['_sns', 'd_ans_load d_coh_energy d_focus_eff d_hile d_pti d_se_div d_sfd d_vo2_delta'],
-        ['_psns', 'd_ans_load d_coh_energy d_focus_eff d_hile d_otr d_pti d_se_div d_sfd d_vo2_delta'],
-        ['_coherence', 'd_coh_energy d_efc d_focus_eff d_hile d_incoherent_stress d_pti d_se_div d_sfd d_vo2_delta d_welfare'],
-        ['_hrv', 'd_vo2_delta'],
-        ['_cv', 'd_vo2_delta'],
-        ['_spanMin', 'd_vo2_delta']
+        ['_hr', 'd_hrv_momentum d_sdnn_z d_stress_ac d_vei d_vo2_base d_vo2_delta d_vo2_hrv d_vo2_roll7'],
+        ['_meanRR', 'd_csi d_cv_calc d_cvi d_hrv_momentum d_mxdmn_meanrr d_nn50 d_rsa d_sdnn_z d_stress_ac d_vo2_delta'],
+        ['_sdnn', 'd_cai d_cv_calc d_dfa_proxy d_hrv_momentum d_ortho d_pns_eff d_rmssd_sdnn d_sd1_sd2 d_sdnn_z d_stress_ac d_vo2_delta'],
+        ['_rmssd', 'd_ari d_cai d_cvi d_hrv_momentum d_lnrmssd d_rmssd_cv7 d_rmssd_delta_pct d_rmssd_rolling_ln d_sdnn_z d_stress_ac d_vo2_delta'],
+        ['_mxdmn', 'd_hrv_momentum d_sdnn_z d_si d_stress_ac d_vo2_delta'],
+        ['_pnn50', 'd_hrv_momentum d_pns_eff d_sdnn_z d_stress_ac d_vo2_delta'],
+        ['_amo50', 'd_hrv_momentum d_sdnn_z d_si d_stress_ac d_vo2_delta'],
+        ['_mode', 'd_hrv_momentum d_sdnn_z d_si d_stress_ac d_vo2_delta'],
+        ['_totalPow', 'd_hfnu d_hrv_momentum d_lfhf_totpow d_lfnu d_sdnn_z d_stress_ac d_vlf_pct d_vo2_delta'],
+        ['_hf', 'd_hrv_momentum d_lfhf d_lfhf_totpow d_plaw d_rsa d_sai d_sdi d_sdnn_z d_spectral_ent d_stress_ac d_svi d_vlf_hf d_vo2_delta'],
+        ['_lf', 'd_hrv_momentum d_lfhf d_lfhf_totpow d_plaw d_sai d_sdi d_sdnn_z d_spectral_ent d_stress_ac d_svi d_vo2_delta'],
+        ['_vlf', 'd_hrv_momentum d_plaw d_sdnn_z d_spectral_ent d_stress_ac d_vlf_hf d_vo2_delta'],
+        ['_stress', 'd_ans_load d_coh_energy d_crs d_focus_eff d_hile d_hrv_momentum d_pti d_sdnn_z d_se_div d_sfd d_stress_ac d_vo2_delta'],
+        ['_energy', 'd_ans_load d_coh_energy d_efc d_focus_eff d_hile d_hrv_momentum d_pti d_sdnn_z d_se_div d_sfd d_stress_ac d_vo2_delta d_welfare'],
+        ['_focus', 'd_coh_energy d_efc d_focus_eff d_hile d_hrv_momentum d_pti d_sdnn_z d_se_div d_sfd d_stress_ac d_vo2_delta'],
+        ['_sns', 'd_ans_load d_coh_energy d_focus_eff d_hile d_hrv_momentum d_pti d_sdnn_z d_se_div d_sfd d_stress_ac d_vo2_delta'],
+        ['_psns', 'd_ans_load d_coh_energy d_focus_eff d_hile d_hrv_momentum d_otr d_pti d_sdnn_z d_se_div d_sfd d_stress_ac d_vo2_delta'],
+        ['_coherence', 'd_coh_energy d_efc d_focus_eff d_hile d_hrv_momentum d_incoherent_stress d_pti d_sdnn_z d_se_div d_sfd d_stress_ac d_vo2_delta d_welfare'],
+        ['_hrv', 'd_hrv_momentum d_sdnn_z d_stress_ac d_vo2_delta'],
+        ['_cv', 'd_hrv_momentum d_sdnn_z d_stress_ac d_vo2_delta'],
+        ['_spanMin', 'd_hrv_momentum d_sdnn_z d_stress_ac d_vo2_delta']
       ];
       for (var i = 0; i < CASES.length; i++) {
         T.eq('absent ' + CASES[i][0] + ' → exactly these columns fall to NaN', nonFinite(CASES[i][0]), CASES[i][1]);
@@ -12656,27 +12668,27 @@
         return n2 + '/' + Math.round(s * 1e6) / 1e6;
       };
       var DIGESTS = [
-        ['_hr', '42/1516.104117'],
-        ['_meanRR', '40/622.252166'],
-        ['_sdnn', '39/1522.209459'],
-        ['_rmssd', '43/1528.636879'],
-        ['_mxdmn', '45/1599.264877'],
-        ['_pnn50', '45/2085.606194'],
-        ['_amo50', '45/1599.926035'],
-        ['_mode', '45/1599.926035'],
-        ['_totalPow', '42/1522.069127'],
-        ['_hf', '37/644.827336'],
-        ['_lf', '39/1584.575877'],
-        ['_vlf', '43/1592.662088'],
-        ['_stress', '38/1561.926609'],
-        ['_energy', '37/1642.805009'],
-        ['_focus', '39/1647.140077'],
-        ['_sns', '39/1644.48423'],
-        ['_psns', '38/1642.533032'],
-        ['_coherence', '37/1545.381034'],
-        ['_hrv', '46/1650.912877'],
-        ['_cv', '46/1650.912877'],
-        ['_spanMin', '46/1650.912877']
+        ['_hr', '49/1533.61769'],
+        ['_meanRR', '47/639.765738'],
+        ['_sdnn', '46/1539.723031'],
+        ['_rmssd', '46/1541.436879'],
+        ['_mxdmn', '52/1616.77845'],
+        ['_pnn50', '52/2103.119766'],
+        ['_amo50', '52/1617.439607'],
+        ['_mode', '52/1617.439607'],
+        ['_totalPow', '49/1539.582699'],
+        ['_hf', '44/662.340908'],
+        ['_lf', '46/1602.089449'],
+        ['_vlf', '50/1610.17566'],
+        ['_stress', '45/1566.640181'],
+        ['_energy', '44/1660.318581'],
+        ['_focus', '46/1664.653649'],
+        ['_sns', '46/1661.997802'],
+        ['_psns', '45/1660.046604'],
+        ['_coherence', '44/1562.894606'],
+        ['_hrv', '53/1668.426449'],
+        ['_cv', '53/1668.426449'],
+        ['_spanMin', '53/1668.426449']
       ];
       for (var q = 0; q < DIGESTS.length; q++) {
         T.eq('absent ' + DIGESTS[q][0] + ' → the surviving columns still compute the same values', digest(DIGESTS[q][0]), DIGESTS[q][1]);
@@ -12825,11 +12837,11 @@
         return out.sort().join(' ');
       };
       var FCASES = [
-        ['_amo50', 'd_si d_vo2_delta'],
-        ['_mode', 'd_si d_vo2_delta'],
-        ['_mxdmn', 'd_si d_vo2_delta'],
-        ['_meanRR', 'd_csi d_cv_calc d_cvi d_mxdmn_meanrr d_nn50 d_rsa d_vo2_delta'],
-        ['_rmssd', 'd_cai d_cvi d_lnrmssd d_vo2_delta']
+        ['_amo50', 'd_hrv_momentum d_sdnn_z d_si d_stress_ac d_vo2_delta'],
+        ['_mode', 'd_hrv_momentum d_sdnn_z d_si d_stress_ac d_vo2_delta'],
+        ['_mxdmn', 'd_hrv_momentum d_sdnn_z d_si d_stress_ac d_vo2_delta'],
+        ['_meanRR', 'd_csi d_cv_calc d_cvi d_hrv_momentum d_mxdmn_meanrr d_nn50 d_rsa d_sdnn_z d_stress_ac d_vo2_delta'],
+        ['_rmssd', 'd_ari d_cai d_cvi d_hrv_momentum d_lnrmssd d_rmssd_cv7 d_rmssd_delta_pct d_rmssd_rolling_ln d_sdnn_z d_stress_ac d_vo2_delta']
       ];
       for (var i = 0; i < FCASES.length; i++) {
         T.eq('fallback realm · absent ' + FCASES[i][0] + ' → exactly these columns fall to NaN', nf(FCASES[i][0]), FCASES[i][1]);
@@ -12960,19 +12972,27 @@
       /* ── MULTI-OPERAND SPECTRAL GUARDS ──────────────────────────────────────────────────────
          `_hasBands = _hf > 0 && _lf > 0 && _vlf > 0`: zeroing one operand leaves the other two
          truthy, so `&&` -> `||` still reaches the same branch. Zero PAIRS, and all three. */
-      T.eq('_hf and _lf both absent', shape(at(3, { _hf: 0, _lf: 0 })), 'd_lfhf d_lfhf_totpow d_plaw d_rsa d_sai d_sdi d_spectral_ent d_svi d_vlf_hf d_vo2_delta');
-      T.eq('_lf and _vlf both absent', shape(at(3, { _lf: 0, _vlf: 0 })), 'd_lfhf d_lfhf_totpow d_plaw d_sai d_sdi d_spectral_ent d_svi d_vlf_hf d_vo2_delta');
-      T.eq('all three bands absent', shape(at(3, { _hf: 0, _lf: 0, _vlf: 0 })), 'd_lfhf d_lfhf_totpow d_plaw d_rsa d_sai d_sdi d_spectral_ent d_svi d_vlf_hf d_vo2_delta');
-      T.eq('_totalPow and _vlf both absent', shape(at(3, { _totalPow: 0, _vlf: 0 })), 'd_hfnu d_lfhf_totpow d_lfnu d_plaw d_spectral_ent d_vlf_hf d_vlf_pct d_vo2_delta');
+      T.eq('_hf and _lf both absent', shape(at(3, { _hf: 0, _lf: 0 })), 'd_hrv_momentum d_lfhf d_lfhf_totpow d_plaw d_rsa d_sai d_sdi d_sdnn_z d_spectral_ent d_stress_ac d_svi d_vlf_hf d_vo2_delta');
+      T.eq('_lf and _vlf both absent', shape(at(3, { _lf: 0, _vlf: 0 })), 'd_hrv_momentum d_lfhf d_lfhf_totpow d_plaw d_sai d_sdi d_sdnn_z d_spectral_ent d_stress_ac d_svi d_vlf_hf d_vo2_delta');
+      T.eq(
+        'all three bands absent',
+        shape(at(3, { _hf: 0, _lf: 0, _vlf: 0 })),
+        'd_hrv_momentum d_lfhf d_lfhf_totpow d_plaw d_rsa d_sai d_sdi d_sdnn_z d_spectral_ent d_stress_ac d_svi d_vlf_hf d_vo2_delta'
+      );
+      T.eq(
+        '_totalPow and _vlf both absent',
+        shape(at(3, { _totalPow: 0, _vlf: 0 })),
+        'd_hfnu d_hrv_momentum d_lfhf_totpow d_lfnu d_plaw d_sdnn_z d_spectral_ent d_stress_ac d_vlf_hf d_vlf_pct d_vo2_delta'
+      );
       /* `_totalPow > r._vlf` is an ORDERING operand, not a presence one — no amount of zeroing
          reaches it. A VLF larger than the total power is physically impossible and arithmetically
          reachable, which is exactly the input that separates `>` from `>=`. */
-      T.eq('_vlf EXCEEDS _totalPow — the ordering operand, unreachable by zeroing', shape(at(3, { _vlf: 5000 })), 'd_hfnu d_lfnu d_vo2_delta');
-      T.eq('_vlf EQUALS _totalPow — the boundary of that same comparison', shape(at(3, { _vlf: 3200 })), 'd_hfnu d_lfnu d_vo2_delta');
+      T.eq('_vlf EXCEEDS _totalPow — the ordering operand, unreachable by zeroing', shape(at(3, { _vlf: 5000 })), 'd_hfnu d_hrv_momentum d_lfnu d_sdnn_z d_stress_ac d_vo2_delta');
+      T.eq('_vlf EQUALS _totalPow — the boundary of that same comparison', shape(at(3, { _vlf: 3200 })), 'd_hfnu d_hrv_momentum d_lfnu d_sdnn_z d_stress_ac d_vo2_delta');
       /* `_vlf != null` cannot be moved by 0, because 0 is not null. This is the only value that
          flips that operand, and no earlier fixture supplied it. */
-      T.eq('_vlf is NULL, not zero — the != null operand', shape(at(3, { _vlf: null })), 'd_hfnu d_lfnu d_plaw d_spectral_ent d_vlf_hf d_vlf_pct d_vo2_delta');
-      T.eq('_totalPow is NULL', shape(at(3, { _totalPow: null })), 'd_hfnu d_lfhf_totpow d_lfnu d_vlf_pct d_vo2_delta');
+      T.eq('_vlf is NULL, not zero — the != null operand', shape(at(3, { _vlf: null })), 'd_hfnu d_hrv_momentum d_lfnu d_plaw d_sdnn_z d_spectral_ent d_stress_ac d_vlf_hf d_vlf_pct d_vo2_delta');
+      T.eq('_totalPow is NULL', shape(at(3, { _totalPow: null })), 'd_hfnu d_hrv_momentum d_lfhf_totpow d_lfnu d_sdnn_z d_stress_ac d_vlf_pct d_vo2_delta');
     });
 
     group('HRVDex storage failure survives the success line (DEEP-AUDIT-II §1.11)', 'hrvdex-dsp', function (T) {
