@@ -1,6 +1,6 @@
 ---
 bump: patch
-type: test
+type: changed
 brief: MUTATION-PROGRAM-2026-08-09-BRIEF.md
 ---
 
