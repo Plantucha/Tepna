@@ -5726,7 +5726,6 @@ function hrAgreement(sources, opts) {
     return best === null ? null : pts[best];
   };
 
-  var ref = idx[0];
   var epochs = [],
     fault = {},
     compared = 0,
@@ -5734,11 +5733,29 @@ function hrAgreement(sources, opts) {
     adjudicable = 0;
   for (var k = 0; k < idx.length; k++) fault[idx[k].node] = 0;
 
-  for (var p = 0; p < ref.pts.length; p++) {
-    var t = ref.pts[p].t;
+  /* THE TIMELINE IS THE UNION, NOT THE FIRST SOURCE'S. Using sources[0] as the reference makes the
+     result depend on ARGUMENT ORDER: every instant the first source lacks is never compared, so if
+     PpgDex stops early (trio passes it first) every later ECG/ring disagreement is invisible. Caught
+     by testing the function against its own argument order rather than by reading it.
+     Anchors are spaced at least `alignMs` apart so each real epoch is compared exactly once — without
+     that, three sources a minute apart would raise three near-duplicate comparisons of one moment. */
+  var anchors = [];
+  for (var u = 0; u < idx.length; u++) {
+    for (var v = 0; v < idx[u].pts.length; v++) anchors.push(idx[u].pts[v].t);
+  }
+  anchors.sort(function (a, b) {
+    return a - b;
+  });
+  var picked = [];
+  for (var w = 0; w < anchors.length; w++) {
+    if (!picked.length || anchors[w] - picked[picked.length - 1] > alignMs) picked.push(anchors[w]);
+  }
+
+  for (var p = 0; p < picked.length; p++) {
+    var t = picked[p];
     var vals = [];
     for (var q = 0; q < idx.length; q++) {
-      var hit = q === 0 ? ref.pts[p] : near(idx[q].pts, t);
+      var hit = near(idx[q].pts, t);
       if (hit) vals.push({ node: idx[q].node, hr: hit.hr });
     }
     if (vals.length < 2) continue;

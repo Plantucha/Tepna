@@ -1010,8 +1010,12 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
       ch.on('error', (e) => settle(1, `spawn/runtime error: ${e && e.message ? e.message : e}`));
       ch.on('exit', (code, signal) => {
         // The process is GONE. Give the pipes a moment to flush, then report regardless.
+        /* NOT unref'd, deliberately. An unref'd timer does not hold the event loop open, so if this
+           grace period were the only pending work Node would EXIT — the promise never resolves, the
+           worker loop never advances, and the remaining nights are dropped without a word. That is
+           the same "finished but unreported" shape this whole block exists to prevent. Holding the
+           loop for at most CHILD_STDIO_GRACE_MS is the cheaper failure. */
         graceT = setTimeout(() => settle(code == null ? (signal ? 1 : 0) : code, `exited (${signal || code}) but its stdio never closed — reporting anyway`), CHILD_STDIO_GRACE_MS);
-        if (graceT.unref) graceT.unref();
       });
       ch.on('close', (code) => settle(code, null));
       function finish(code) {
@@ -1183,7 +1187,9 @@ function writeAgreement(dir, key) {
         .filter((e) => e && typeof e.hr === 'number' && isFinite(e.hr) && isFinite(e.tMin))
         // ABSOLUTE instant, never the epoch index: the nodes' starts differ by up to 24 min on this
         // corpus, so comparing tMin across them compares different moments.
-        .map((e) => ({ tMs: s0 + e.tMin * 60000, hr: e.hr }));
+        // `beats` is REQUIRED, not optional: hrAgreement drops truncated epochs by it, and omitting
+        // the field makes that filter silently inert — the fix would be present and never applied.
+        .map((e) => ({ tMs: s0 + e.tMin * 60000, hr: e.hr, beats: e.beats }));
       if (eps.length) sources.push({ node: n, epochs: eps });
     } catch {
       /* unreadable export → that node simply does not vote */
@@ -1196,7 +1202,10 @@ function writeAgreement(dir, key) {
   }
   const worst = Object.keys(r.fault).sort((a, b) => r.fault[b] - r.fault[a])[0];
   const named = r.fault[worst] > 0 ? `  worst=${worst} (${r.fault[worst]})` : '';
-  console.log(`    ⚖ HR agreement: ${r.flagged}/${r.compared} epoch(s) disagree >${r.tolBpm} bpm (${r.flaggedPct} %)` + `  adjudicable=${r.adjudicable}${named}  nodes=${r.nodes.join('/')}`);
+  const dropNote = r.droppedFragments ? `  dropped=${r.droppedFragments} fragment(s)` : '';
+  console.log(
+    `    ⚖ HR agreement: ${r.flagged}/${r.compared} epoch(s) disagree >${r.tolBpm} bpm (${r.flaggedPct} %)` + `  adjudicable=${r.adjudicable}${dropNote}${named}  nodes=${r.nodes.join('/')}`
+  );
   // Only the SUMMARY plus the flagged epochs — a full per-epoch dump would be most of the night.
   const outPath = join(dir, `agreement_${key}.json`);
   writeFileSync(
@@ -1208,6 +1217,9 @@ function writeAgreement(dir, key) {
         nodes: r.nodes,
         compared: r.compared,
         adjudicable: r.adjudicable,
+        // What the gate DISCARDED, not just what it judged. A filter that silently drops epochs reads
+        // as "covered everything" when it did not — the sidecar has to state its own coverage.
+        droppedFragments: r.droppedFragments,
         flagged: r.flagged,
         flaggedPct: r.flaggedPct,
         fault: r.fault,

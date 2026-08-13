@@ -2021,7 +2021,10 @@
       ]);
       T.eq('a 24-beat fragment among 265-beat epochs is DROPPED, not compared', frag.droppedFragments, 1);
       T.eq('...so it raises no disagreement', frag.flagged, 0);
-      T.eq('...and the two real epochs still compare', frag.compared, 2);
+      /* The instant SURVIVES the drop — only ECG's vote is withdrawn. PpgDex and OxyDex still hold
+         valid epochs there, so the moment is still compared, as a pair. Dropping a fragment must not
+         delete a moment other sensors measured properly. */
+      T.eq('the instant is still compared — only the fragment source withdraws', frag.compared, 3);
 
       // Turning the filter off must restore the false alarm — otherwise the test proves nothing.
       var fragOff = I.hrAgreement(
@@ -2059,13 +2062,35 @@
       T.eq('with the filter OFF the fragment IS flagged — the filter is what suppresses it', fragOff.flagged, 1);
 
       /* The yardstick is PER-NODE: the ring carries ~90 beats an epoch where the ECG carries ~265, so
-         a shared constant would discard every OxyDex epoch. */
-      T.eq('a node with a legitimately low beat count is NOT discarded', frag.compared, 2);
+         a shared constant would discard every OxyDex epoch. Asserted on the DROP COUNT — exactly one
+         epoch was dropped, the ECG fragment — rather than on `compared`, which a change in the
+         timeline logic can move for unrelated reasons. */
+      T.eq('only the ECG fragment is dropped — the low-beat ring is untouched', frag.droppedFragments, 1);
 
       // No `beats` field at all ⇒ cannot judge ⇒ keep, rather than silently dropping everything.
       var noBeats = I.hrAgreement([mk('PpgDex', [50, 50], 0), mk('ECGDex', [50, 50], 0), mk('OxyDex', [50, 50], 0)]);
       T.eq('epochs without a beat count are kept, not dropped', noBeats.compared, 2);
       T.eq('...and nothing is reported as dropped', noBeats.droppedFragments, 0);
+
+      /* ORDER-INVARIANCE. The first version keyed the timeline off `sources[0]`, so every instant the
+         FIRST source lacked was never compared — and trio passes PpgDex first, so a PpgDex that
+         stopped early made every later ECG/ring disagreement invisible. A gate with a silent blind
+         spot is worse than no gate, because it reports "clean". The timeline is now the UNION.
+         Caught by permuting the arguments, not by reading the code. */
+      var shortP = mk('PpgDex', [50, 50], 0);
+      var longE = mk('ECGDex', [50, 50, 50, 90, 50], 0);
+      var longO = mk('OxyDex', [50, 50, 50, 50, 50], 0);
+      var o1 = I.hrAgreement([shortP, longE, longO]);
+      var o2 = I.hrAgreement([longE, shortP, longO]);
+      var o3 = I.hrAgreement([longO, longE, shortP]);
+      T.eq('the disagreement is seen even though the FIRST source stopped early', o1.flagged, 1);
+      T.eq('argument order does not change what is compared', o1.compared + ',' + o2.compared + ',' + o3.compared, '5,5,5');
+      T.eq('argument order does not change what is flagged', o1.flagged + ',' + o2.flagged + ',' + o3.flagged, '1,1,1');
+
+      /* Anchors are spaced at least one alignment window apart, so three sources whose epochs sit
+         seconds apart raise ONE comparison of that moment, not three near-duplicates. */
+      var stag = I.hrAgreement([mk('A', [50, 50], 0), mk('B', [50, 50], 3000), mk('C', [50, 50], 9000)]);
+      T.eq('staggered starts collapse to one comparison per epoch', stag.compared, 2);
 
       // REFUSE rather than guess: one source cannot disagree with anything.
       T.ok('a single source is refused, not scored', I.hrAgreement([mk('PpgDex', [50], 0)]).ok === false);
