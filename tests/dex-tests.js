@@ -1976,6 +1976,97 @@
       T.eq('a concordant night flags nothing', clean.flagged, 0);
       T.eq('...but it did compare every epoch', clean.compared, 3);
 
+      /* A TRUNCATED EPOCH IS NOT A MEASUREMENT. At a recording boundary the last 5-minute epoch may
+         hold seconds of data while carrying an `hr` that looks exactly like a full one. Measured on
+         this corpus: 15 of 2275 epochs hold under a quarter of their night's median beat count and
+         ALL FIFTEEN are ECGDex — a systematic edge effect, not chance. The worst read 122.4 bpm from
+         24 beats where its neighbours held 261-287 and read 56: a strap coming off, scored as
+         tachycardia, and flagged as a sensor disagreement it never was. */
+      var withBeats = function (node, rows, t0) {
+        return {
+          node: node,
+          epochs: rows.map(function (r, i) {
+            return { tMs: t0 + i * 300000, hr: r[0], beats: r[1] };
+          })
+        };
+      };
+      var frag = I.hrAgreement([
+        withBeats(
+          'ECGDex',
+          [
+            [56, 270],
+            [56, 265],
+            [122.4, 24]
+          ],
+          0
+        ),
+        withBeats(
+          'PpgDex',
+          [
+            [55, 280],
+            [55, 275],
+            [55, 270]
+          ],
+          0
+        ),
+        withBeats(
+          'OxyDex',
+          [
+            [55, 90],
+            [55, 88],
+            [55, 86]
+          ],
+          0
+        )
+      ]);
+      T.eq('a 24-beat fragment among 265-beat epochs is DROPPED, not compared', frag.droppedFragments, 1);
+      T.eq('...so it raises no disagreement', frag.flagged, 0);
+      T.eq('...and the two real epochs still compare', frag.compared, 2);
+
+      // Turning the filter off must restore the false alarm — otherwise the test proves nothing.
+      var fragOff = I.hrAgreement(
+        [
+          withBeats(
+            'ECGDex',
+            [
+              [56, 270],
+              [56, 265],
+              [122.4, 24]
+            ],
+            0
+          ),
+          withBeats(
+            'PpgDex',
+            [
+              [55, 280],
+              [55, 275],
+              [55, 270]
+            ],
+            0
+          ),
+          withBeats(
+            'OxyDex',
+            [
+              [55, 90],
+              [55, 88],
+              [55, 86]
+            ],
+            0
+          )
+        ],
+        { minBeatFrac: 0 }
+      );
+      T.eq('with the filter OFF the fragment IS flagged — the filter is what suppresses it', fragOff.flagged, 1);
+
+      /* The yardstick is PER-NODE: the ring carries ~90 beats an epoch where the ECG carries ~265, so
+         a shared constant would discard every OxyDex epoch. */
+      T.eq('a node with a legitimately low beat count is NOT discarded', frag.compared, 2);
+
+      // No `beats` field at all ⇒ cannot judge ⇒ keep, rather than silently dropping everything.
+      var noBeats = I.hrAgreement([mk('PpgDex', [50, 50], 0), mk('ECGDex', [50, 50], 0), mk('OxyDex', [50, 50], 0)]);
+      T.eq('epochs without a beat count are kept, not dropped', noBeats.compared, 2);
+      T.eq('...and nothing is reported as dropped', noBeats.droppedFragments, 0);
+
       // REFUSE rather than guess: one source cannot disagree with anything.
       T.ok('a single source is refused, not scored', I.hrAgreement([mk('PpgDex', [50], 0)]).ok === false);
       T.ok('no sources at all is refused', I.hrAgreement([]).ok === false);

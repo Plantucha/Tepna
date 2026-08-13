@@ -5082,6 +5082,17 @@ function _wrappedSlopeFit(rows, rrMs, opts) {
    spread and says plainly when they disagree. It does NOT average, and it does NOT repair a node. */
 var HR_AGREE_TOL_BPM = 15; // a disagreement worth naming; sleep HR moves far less than this between sensors
 var HR_AGREE_ALIGN_MS = 150000; // ±2.5 min — half a 5-minute epoch, so an epoch matches at most one
+/* A TRUNCATED EPOCH IS NOT A MEASUREMENT, and every node emits them without saying so. At a recording
+   boundary the last (or first) 5-minute epoch may hold seconds of data, yet it carries an `hr` that
+   looks exactly like a full one — normal rmssd, normal sdnn, nothing marking it. Measured on this
+   corpus: 15 of 2275 epochs hold under a quarter of their own night's median beat count, and ALL
+   FIFTEEN are ECGDex, so this is a systematic edge effect rather than chance. The worst reports
+   122.4 bpm from 24 beats where its neighbours hold 261-287 and read 56 — a strap coming off, scored
+   as tachycardia.
+   Such an epoch is DROPPED from the comparison rather than flagged: it is a fragment, and a
+   disagreement with a fragment says nothing about either sensor. `beats` is already on every epoch,
+   so this needs no new emitter field — only for someone to read it. */
+var HR_AGREE_MIN_BEAT_FRAC = 0.25; // of that source's own median epoch beat count
 
 function hrAgreement(sources, opts) {
   opts = opts || {};
@@ -5092,13 +5103,34 @@ function hrAgreement(sources, opts) {
   });
   if (src.length < 2) return { ok: false, reason: 'need >=2 sources with epochs', sources: src.length };
 
-  // index each source by absolute instant
+  // index each source by absolute instant, dropping fragments (see HR_AGREE_MIN_BEAT_FRAC)
+  var minFrac = opts.minBeatFrac != null ? opts.minBeatFrac : HR_AGREE_MIN_BEAT_FRAC;
+  var dropped = 0;
   var idx = src.map(function (s) {
-    var m = [];
+    var all = [];
     for (var i = 0; i < s.epochs.length; i++) {
       var e = s.epochs[i];
-      if (e && isFinite(e.tMs) && isFinite(e.hr)) m.push({ t: e.tMs, hr: e.hr });
+      if (e && isFinite(e.tMs) && isFinite(e.hr)) all.push({ t: e.tMs, hr: e.hr, beats: isFinite(e.beats) ? e.beats : null });
     }
+    // Median beat count of THIS source — the yardstick has to be per-node, since the three sensors
+    // have different pulse counts per epoch and a shared constant would mis-scale two of them.
+    var bs = all
+      .map(function (x) {
+        return x.beats;
+      })
+      .filter(function (v) {
+        return v != null && v > 0;
+      })
+      .sort(function (a, b) {
+        return a - b;
+      });
+    var medB = bs.length ? bs[bs.length >> 1] : null;
+    var m = all.filter(function (x) {
+      if (medB == null || x.beats == null) return true; // no beat count ⇒ cannot judge ⇒ keep
+      var ok = x.beats >= minFrac * medB;
+      if (!ok) dropped++;
+      return ok;
+    });
     m.sort(function (a, b) {
       return a.t - b.t;
     });
@@ -5182,6 +5214,7 @@ function hrAgreement(sources, opts) {
     }),
     compared: compared,
     adjudicable: adjudicable,
+    droppedFragments: dropped,
     flagged: flagged,
     flaggedPct: compared ? Math.round((1000 * flagged) / compared) / 10 : 0,
     fault: fault,
