@@ -22784,6 +22784,93 @@
       }
     });
 
+    /* ════ agp — PSEUDO-TESTED, and it is the AGP every clinician reads ═══════════════════════
+       The Ambulatory Glucose Profile: 48 half-hour bins across the 24 h clock, each carrying the
+       p10/p25/p50/p75/p90 of the glucose falling in it. It is the standard consensus chart, and
+       nothing asserted the bin grid, the percentile ORDER, or what an empty bin reports.
+
+       Reached through the real path — `analyze(genSynthetic(...))` — because genSynthetic already
+       returns the `parsed` shape analyze takes, so no export is needed. The invariants below are
+       properties of the construction rather than recorded numbers: a percentile ladder must be
+       non-decreasing, and the grid must exist whether or not data landed in it. */
+    group('GlucoDex agp — the 48-bin percentile grid, and what an empty bin says', 'glucodex-dsp · agp', function (T) {
+      var G = (env.GLUDSP && env.GLUDSP.analyze && env.GLUDSP) || (env.GlucoDex && env.GlucoDex.analyze && env.GlucoDex) || null;
+      if (!G || typeof G.genSynthetic !== 'function') {
+        T.skip('GLUDSP.analyze + genSynthetic available', 'GLUDSP not co-loaded in this runner');
+        return;
+      }
+      var res = G.analyze(G.genSynthetic({ days: 2, cadence: 5, profile: 'healthy' }));
+      var h = (res && res.hourly) || [];
+      T.eq('the grid is 48 half-hour bins, not 24 hourly ones', h.length, 48);
+      T.eq('the first bin is clock hour 0', (h[0] || {}).h, 0);
+      T.eq('the second is 0.5 — bins are HALF hours', (h[1] || {}).h, 0.5);
+      T.eq('the last is 23.5, so the grid closes the day', (h[47] || {}).h, 23.5);
+
+      /* THE PERCENTILE LADDER IS NON-DECREASING, in every populated bin. This is the invariant that
+         catches a transposed quantile argument — p25 and p75 swapped produce a perfectly plausible
+         chart and a ladder that goes backwards. Checked over all 48 bins rather than a sample. */
+      var populated = 0,
+        ladderOk = 0,
+        integral = 0;
+      for (var i = 0; i < h.length; i++) {
+        var b = h[i];
+        if (!b || b.p50 == null) continue;
+        populated++;
+        if (b.p10 <= b.p25 && b.p25 <= b.p50 && b.p50 <= b.p75 && b.p75 <= b.p90) ladderOk++;
+        if (b.p10 % 1 === 0 && b.p50 % 1 === 0 && b.p90 % 1 === 0) integral++;
+      }
+      T.ok('most bins are populated on a 2-day 5-minute record', populated >= 40, 'populated=' + populated + '/48');
+      T.eq('p10 ≤ p25 ≤ p50 ≤ p75 ≤ p90 in EVERY populated bin', ladderOk, populated);
+      T.eq('…and every percentile is rounded to a whole mg/dL', integral, populated);
+
+      /* AN EMPTY BIN REPORTS null, NOT ZERO — and the grid still contains it. At 60-minute cadence
+         every sample lands on the hour, so the 24 half-past bins receive nothing at all. They must
+         come back with n 0 and null percentiles rather than being dropped from the array or
+         reported as a glucose of 0, which would draw a floor-to-ceiling band on the chart. */
+      var sparse = G.analyze(G.genSynthetic({ days: 3, cadence: 60, profile: 'healthy' }));
+      var hs = (sparse && sparse.hourly) || [];
+      T.eq('the grid is still 48 bins when half of them are empty', hs.length, 48);
+      var emptyNulled = 0,
+        emptyCount = 0;
+      for (var j = 1; j < hs.length; j += 2) {
+        // the half-past bins
+        emptyCount++;
+        if (hs[j] && hs[j].n === 0 && hs[j].p50 === null && hs[j].p10 === null) emptyNulled++;
+      }
+      T.eq('every half-past bin is empty at hourly cadence, and says so with n 0 + null', emptyNulled, emptyCount);
+      /* AN EMPTY BIN STILL CARRIES ITS CLOCK POSITION, and that is a SECOND code path — the early
+         return builds its own `{h, n, p10…}` literal rather than falling through to the populated
+         one. Asserting `h` only on a fully-populated record leaves that literal's `b / 2` untested,
+         and mutating it there survives. Measured. */
+      T.eq('an EMPTY bin still reports its half-hour position (bin 1 ⇒ 0.5)', (hs[1] || {}).h, 0.5);
+      T.eq('…and the last empty bin is 23.5, not 47', (hs[47] || {}).h, 23.5);
+      T.ok('…while the on-the-hour bins DID receive data (anti-vacuity)', (hs[0] || {}).n > 0, 'n=' + (hs[0] || {}).n);
+
+      /* ── THE ANALYZABLE FILTER, which nothing in the GlucoDex lane was pinning ────────────────
+         `agp` skips every sample `_ana` rejects — warmup, compression, and long-gap FILL — which is
+         the "excluded from every distribution metric" promise the source states at the predicate.
+         A synthetic record carries no flags at all, so on it the filter is a no-op and removing it
+         changes nothing: measured, that mutant survived the whole `--group=GlucoDex` lane.
+         This fixture puts a THREE-HOUR hole in an otherwise dense day. The fill drawn across it is
+         not measured glucose, so those samples must not reach the percentile bins — with the filter
+         the 03:00 bin is empty, without it the drawn line populates it. */
+      var t0 = Date.UTC(2026, 5, 13, 0, 0, 0);
+      var tMs = [],
+        vMgdl = [];
+      for (var k = 0; k < 288; k++) {
+        var mins = k * 5;
+        if (mins >= 180 && mins < 360) continue; // 03:00–06:00 absent
+        tMs.push(t0 + mins * 60000);
+        vMgdl.push(110 + (k % 7));
+      }
+      var gapped = G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: tMs[0], source: 'synthetic' });
+      var hg = (gapped && gapped.hourly) || [];
+      // 03:00 is bin 6, 05:30 is bin 11 — squarely inside the hole
+      T.eq('a bin inside a 3 h hole reports NO analyzable samples', (hg[6] || {}).n, 0);
+      T.eq('…and the bin at the far end of the hole too', (hg[11] || {}).n, 0);
+      T.ok('ANTI-VACUITY · a bin OUTSIDE the hole is populated', (hg[0] || {}).n > 0, 'n=' + (hg[0] || {}).n);
+    });
+
     group('GlucoDex genSynthetic — the generator honours its three options (mutation bootstrap)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
       var G = (env.GLUDSP && env.GLUDSP.genSynthetic && env.GLUDSP) || (env.GlucoDex && env.GlucoDex.genSynthetic && env.GlucoDex) || null;
       if (!G) {
