@@ -140,6 +140,52 @@ map directly onto open items here.
   yields intervals **reliable at one degree of freedom** and whose point estimator is **always
   positive**.
 
+### 2.1 · MEASURED — the first error bars, and they change what we are allowed to say
+
+`tools/tch-bootstrap-ci.mjs` (moving-block bootstrap, seeded, 2000 replicates, block L=5 epochs,
+38 nights). Block resampling rather than i.i.d. for the reason §5 already established: consecutive
+epochs share posture, perfusion and wander, so single-epoch resampling destroys the dependence and
+returns intervals that are too narrow.
+
+**Corpus median σ (bpm) — the figure quoted across briefs, now with an interval:**
+
+| node | median σ | 95 % CI |
+|---|---:|---|
+| ECGDex | 0.352 | [0.290, 0.406] |
+| PpgDex | 0.261 | [0.170, 0.335] |
+| OxyDex | 0.988 | [0.820, 1.091] |
+
+**🔴 FINDING 1 — THE ECG-vs-PPG ORDERING WAS NEVER ESTABLISHED.** Differencing the bootstrap medians:
+
+| pair | 95 % CI of the difference | verdict |
+|---|---|---|
+| ECGDex − PpgDex | **[−0.018, 0.214]** | **overlapping — not resolved** |
+| ECGDex − OxyDex | [−0.740, −0.445] | separated |
+| PpgDex − OxyDex | [−0.885, −0.530] | separated |
+
+Only the ring separates. The chest-ECG-vs-armband-PPG comparison — quoted repeatedly as "ECGDex 0.30,
+PpgDex 0.33", i.e. PPG marginally worse — is inside noise, and on this run the point estimates
+**reverse** (ECG 0.352 > Ppg 0.261). Nothing should be concluded from that reversal either; the
+interval straddles zero and that is the whole point. What is settled is that the two wearables are not
+distinguishable by this method on this corpus, and every statement ranking them has been over-reading.
+
+⚠️ **These medians do not reproduce the quoted 0.30 / 0.33 / 1.10.** Different alignment and night set;
+neither supersedes the other and both are now suspect as bare numbers. That is the third figure in this
+brief to fail re-measurement, which is itself the argument for shipping intervals rather than points.
+
+**🔴 FINDING 2 — THE INDEPENDENCE ALARM FIRES ON 41.7 % OF REPLICATES.** Across 7200 within-night
+bootstrap replicates, **3003 produced a non-physical (negative-variance) classic split**. Per night it
+ranges from 4 % to 81 %. A negative split is TCH telling you the uncorrelated-error assumption is
+violated (DA-V F6), so this is not a numerical nuisance — it is §1's identifiability problem showing up
+as a measured rate rather than an argument. It also means the point estimates above are conditioned on
+the physical replicates, which is exactly why the rate is reported beside them instead of being
+filtered away.
+
+**Consequence for the ranking below:** §2's remaining items (Premoli–Tavella's positive-definite
+constrained solve, KLTS intervals) are now better motivated than when this brief was written — a 41.7 %
+non-physical rate is the condition those methods exist for. The bootstrap does not replace them; it
+measures the size of the problem they address.
+
 > ⚠️ **DO NOT SWAP TCH FOR GCOV ON THE STRENGTH OF "GCOV IS NON-NEGATIVE".** Schatzman (2021)
 > <https://consensus.app/papers/details/a91094bfdd6f5b659727f825eccf416c/> compares the N-oscillator
 > extensions of both and finds extended TCH **superior, especially at large τ**; notes GCOV *also*
