@@ -11,10 +11,12 @@
 #
 # ── THE VERB IS AN ALLOWLIST, NEVER AN INTERPOLATION ────────────────────────────────────────────────
 #
-# This is reachable from an HTTP body, so the verb never becomes shell text. `build_cmd` maps a name to
-# a fixed argv and raises on anything else; there is no code path that puts a caller's string on a
-# command line. `minutes` is coerced to a bounded int for the same reason — the helper takes it as an
-# argument, and "30; rm -rf" must not survive being a number.
+# This is reachable from an HTTP body, so nothing the caller sent reaches the command line. The verb is
+# used as a LOOKUP KEY and the argv is built from the value stored in `_VERBS` — the caller's own string
+# is compared and then discarded. That distinction is not pedantic: appending `verb` after a membership
+# test is what CodeQL flagged as py/command-line-injection, and it was correct to, because the object on
+# the command line was caller-derived even though its content could only be one of three words.
+# `minutes` is coerced to a bounded int and formatted with %d, so it is one to three digits.
 #
 # ⚠️ RESTART KILLS THIS WEB SERVER. The monitor is served BY the unit being restarted, so a synchronous
 # call would stop the process mid-response and every click would read as a crash. The HTTP layer
@@ -30,7 +32,14 @@ HELPER = "tepna-restart.sh"
 
 # The verbs the helper actually implements. `status` is read-only and safe to run inline; `restart` and
 # `stop` end this process, so the HTTP layer must respond before either is fired.
-_ARITY = {"restart": 0, "status": 0, "stop": 1}
+# Maps a REQUESTED verb to the canonical name that goes on the command line, plus its arity. The name
+# is stored, not echoed: `build_cmd` appends THIS string, never the caller's — so the argv is built
+# from module constants even though the lookup key came from an HTTP body. A membership test alone
+# ("if verb in _ARITY") leaves the caller's own object on the command line, which is what CodeQL
+# flagged as py/command-line-injection and what the previous comment here wrongly claimed was not
+# happening.
+_VERBS = {"restart": ("restart", 0), "status": ("status", 0), "stop": ("stop", 1)}
+_ARITY = {k: v[1] for k, v in _VERBS.items()}
 KILLS_SELF = frozenset({"restart", "stop"})
 
 # `stop` takes minutes. Bounded because the helper arms a deadman timer with it: too small is useless,
@@ -75,10 +84,11 @@ def build_cmd(verb, minutes=None) -> list[str]:
 
     The allowlist IS the security boundary: the verb is looked up, never formatted, so no caller string
     reaches a command line. Returns a list (never a shell string) so there is no shell to quote for."""
-    if verb not in _ARITY:
-        raise VerbError(f"unknown verb {verb!r} — expected one of {', '.join(sorted(_ARITY))}")
-    argv = ["sudo", "-n", helper_path.resolve(HELPER), verb]
-    if _ARITY[verb]:
+    if verb not in _VERBS:
+        raise VerbError(f"unknown verb {verb!r} — expected one of {', '.join(sorted(_VERBS))}")
+    canonical, arity = _VERBS[verb]          # the STORED name, not the caller's string
+    argv = ["sudo", "-n", helper_path.resolve(HELPER), canonical]
+    if arity:
         n = coerce_minutes(minutes)
         # ⚠️ THE BOUND IS RE-ASSERTED HERE, at the point of USE, not only in `coerce_minutes`.
         #
