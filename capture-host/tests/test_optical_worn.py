@@ -219,8 +219,16 @@ def test_a_CONFLICT_between_the_contact_bit_and_the_optics_is_VISIBLE_not_arbitr
     c = _PpgClient(-322929, frames=2, hr_frame=bytes([0x06, 60]))   # contact supported + detected
     T._inject_connect(monkeypatch, c)
     T._stop_after(monkeypatch, 1)
+    # ⚠️ PATCH ONLY THE OPTICAL CALL. A blanket stub used to isolate the optical branch by accident,
+    # because `on_hr` published the contact bit WITHOUT consulting the combiner — which was the bug that
+    # let a charging Verity read `worn: True` for 3 h 24 m. Now that the HR path goes through
+    # `worn_verdict` too, a blanket stub answers BOTH calls and this test would assert its own mock.
+    # The two callers are told apart by their arguments: the optics pass `ambient`, the HR path passes
+    # `contact`. The scenario under test is unchanged — optics say not-worn, the contact bit says worn.
+    _real_wv = capture.worn_verdict
     monkeypatch.setattr(capture, "worn_verdict",
-                        lambda **_k: (False, "not worn per ambient-stability"))
+                        lambda **k: (False, "not worn per ambient-stability") if "ambient" in k
+                        else _real_wv(**k))
     dev = T._pdev(name="Verity", vendor="Polar", model="VeritySense", streams=["ppg", "hr"],
                   address="24:AC:AC:0C:30:1E")
     with caplog.at_level("WARNING"):
@@ -499,3 +507,49 @@ def test_the_out_of_domain_warning_does_NOT_fire_at_a_rate_a_detector_DOES_cover
         asyncio.run(capture.run_polar(dev, str(tmp_path)))
     noise = [r.message for r in caplog.records if "optical worn calibrations" in r.message]
     assert not noise, f"warned about no verdict while a detector covered the rate: {noise}"
+
+
+# ── the 2026-08-14 charger incident, at the level it actually failed ─────────────────────────────────
+
+def test_CHARGING_OVERRULES_THE_HR_CONTACT_BIT_and_starts_the_power_drop_clock(tmp_path, monkeypatch):
+    """⚠️ A VETO THAT SHIPPED UNREACHABLE, which is why this test lives here and not beside the unit.
+
+    `worn_verdict`'s `if charging: return False` was gated by 24 passing assertions — while being
+    unreachable from the live path on the one device that has both a contact bit and a charging dock,
+    because `capture.on_hr` published `worn=contact` with a direct `_set` and consulted neither
+    `worn_verdict` nor `_publish_worn`. Measured on the box: a Verity streamed 3 h 24 m at 176 Hz into
+    its charger (~190 MB) with battery pinned at 100 % and `charging: True` published correctly right
+    beside a confident `worn: True`.
+
+    The second assertion is the one with teeth. `_WORN_SINCE` is what `should_drop_not_worn` measures,
+    and the old code keyed it off the RAW bit, so the 180 s drop could never accumulate however certain
+    any other detector was. A verdict nothing acts on is not a fix."""
+    T._polar_common(monkeypatch)
+    c = _PpgClient(-322929, frames=1, hr_frame=bytes([0x06, 60]))   # contact SUPPORTED and DETECTED
+    T._inject_connect(monkeypatch, c)
+    T._stop_after(monkeypatch, 1)
+    dev = T._pdev(name="Verity", vendor="Polar", model="VeritySense", streams=["ppg", "hr"],
+                  address="24:AC:AC:0C:30:1E")
+    capture.STATUS["devices"].setdefault("Verity", {})["charging"] = True
+    T._run(capture.run_polar(dev, str(tmp_path)))
+    st = capture.STATUS["devices"]["Verity"]
+    assert st.get("worn") is False, f"a docked device is not on a wrist, contact bit or not: {st}"
+    assert "on charger" in (st.get("worn_why") or ""), st
+    assert "24:AC:AC:0C:30:1E" in capture._WORN_SINCE, (
+        "the power-drop clock MUST start, or the link streams into the dock forever")
+
+
+def test_a_contact_bit_that_says_worn_is_still_WORN_when_nothing_says_charging(tmp_path, monkeypatch):
+    """The mirror image, and the expensive one to get wrong: a false not-worn drops a live link and
+    costs a night. The veto must fire on `charging`, not on merely having a contact bit."""
+    T._polar_common(monkeypatch)
+    c = _PpgClient(-322929, frames=1, hr_frame=bytes([0x06, 60]))
+    T._inject_connect(monkeypatch, c)
+    T._stop_after(monkeypatch, 1)
+    dev = T._pdev(name="Verity", vendor="Polar", model="VeritySense", streams=["ppg", "hr"],
+                  address="24:AC:AC:0C:30:1E")
+    capture.STATUS["devices"].setdefault("Verity", {})["charging"] = False
+    T._run(capture.run_polar(dev, str(tmp_path)))
+    st = capture.STATUS["devices"]["Verity"]
+    assert st.get("worn") is True, f"the contact bit still owns this: {st}"
+    assert "24:AC:AC:0C:30:1E" not in capture._WORN_SINCE, "and no drop clock may start"
