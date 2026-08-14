@@ -225,6 +225,45 @@ the correlation the data DEMANDS, against which an EXTERNAL estimate (the motion
 for range and sign. That comparison is a consistency test, not a self-validation, and it is the first
 one available. It is not run here.
 
+### 2.3 · 🔴 THE SHIPPED MOTION PROXY, CHECKED AGAINST THE FIRST VALID YARDSTICK
+
+§2.2 supplies `minRho` — the correlation the data DEMANDS — which is the first non-circular thing the
+external proxy can be checked against. `tools/motion-rho-vs-minrho.mjs` calls the REAL
+`_tchRhoFromMotion` (module-local, reached by loading `integrator-dsp.js` as a classic script in a vm
+realm; reimplementing its Σr²/Σr aggregation would have measured a copy). 38 nights.
+
+| | result |
+|---|---|
+| Spearman(proxy, minRho) | **−0.120** |
+| nights needing ρ where the proxy **covers** minRho | 5/14 |
+| nights needing ρ where it falls **SHORT** | **9/14** (median 0.10, worst 0.58) |
+| nights needing nothing where it fires anyway | 24/24 (values 0.23–0.61) |
+| saturating its own [0, 0.9] clamp | 0/38 |
+
+**It is not inert.** Asked of the shipped hat directly rather than inferred from a comment: the external
+ρ is **ACCEPTED on 27 of 38 nights** (rejected on 11), and where accepted it moves the largest σ by a
+**median 0.242 bpm, worst 1.042**. Against corpus medians of ECGDex 0.352 / PpgDex 0.261 / OxyDex 0.988
+(§2.1), a 0.242 bpm shift is comparable to the **entire** σ of the two quiet sensors.
+
+**THE STRONGEST DEFENSIBLE CLAIM, and it is narrower than the table looks.** On the 14 nights where
+correlation is PROVEN present — the classic split goes negative, which cannot happen under
+independence — the proxy is **below the minimum required value on 9 of them**. It under-shoots exactly
+where rescue is both needed and provable.
+
+⚠️ **"Fires on 24/24 quiet nights" is NOT proof of error, and must not be quoted as one.** A physical
+classic solve does not establish ρ = 0: correlation can exist without being large enough to force a
+negative split. Negativity is sufficient evidence of correlation, not necessary. Those 24 nights are
+suggestive of over-firing; they do not demonstrate it.
+
+⚠️ Likewise `minRho` is an EQUICORRELATION (§2.2), so "short by 0.10" is not a per-pair error bar.
+
+**RECOMMENDED CHANGE, not made here.** `integrator-tch.js`'s own auto min-rho search "only engages on
+the negative-variance failure mode" — it rescues, it does not routinely adjust. The EXTERNAL ρ has no
+such discipline: `opts.rho` is applied whenever supplied. Gating the external proxy the same way — use
+it only when the classic solve fails — would remove 24 of 38 applications while keeping every rescue,
+and it aligns the two paths on one rule. That is a behavioural change to shipped fusion and wants its
+own gate run and decision, so it is written down rather than done.
+
 **Consequence for the ranking below:** §2's remaining items (Premoli–Tavella's positive-definite
 constrained solve, KLTS intervals) are now better motivated than when this brief was written — a 41.7 %
 non-physical rate is the condition those methods exist for. The bootstrap does not replace them; it
