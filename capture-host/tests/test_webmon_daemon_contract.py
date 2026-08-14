@@ -15,9 +15,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + "/..")
 
-from tests.test_webmon_api import _mk, _serve, webmon  # noqa: E402
+from tests.test_webmon_api import _mk, _serve  # noqa: E402
 
 import daemon_control  # noqa: E402
 
