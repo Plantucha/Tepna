@@ -42,6 +42,22 @@ say()  { printf '%s\n' "$*"; }
 warn() { printf 'WARN: %s\n' "$*" >&2; }
 die()  { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
+# --- the restart MODE -------------------------------------------------------------------------
+# The timer passes nothing and gets the original behaviour. The two explicit modes exist for the
+# monitor's "Deploy now" button, which needs the two things a timer never does: to SEE the report
+# (so it runs --no-restart and hands the decision back to the operator), and to be able to override
+# the recording interlock deliberately (--force-restart) rather than wait up to an hour.
+#
+# ⚠️ `--no-restart` IS THE BUTTON'S DEFAULT MODE, and that is the point. This script restarts the
+# daemon when the box is idle — which would kill the web server serving the button's response, so a
+# deploy that WORKED would present as a dropped connection. Reporting "a restart is owed" and letting
+# the operator press Restart is two clicks that never lie about what happened.
+MODE="${1-auto}"
+case "$MODE" in
+  auto|--no-restart|--force-restart) ;;
+  *) die "usage: $0 [--no-restart|--force-restart]" ;;
+esac
+
 # --- the recording interlock -------------------------------------------------------------------
 # Prints one of: recording | idle | unknown:<why>
 #
@@ -120,12 +136,33 @@ fi
 # --- 5 · restart, but only into an idle box ----------------------------------------------------
 if [ "$before" = "$after" ]; then
   :                                      # no new code — nothing to restart into
+elif [ "$MODE" = "--no-restart" ]; then
+  # A MACHINE-READABLE MARKER, because the caller must branch on this. Prose alone would make the API
+  # parse an English sentence — the coupling that breaks the next time the wording improves.
+  say "RESTART-OWED — new code is on disk and the daemon is still running the old build"
 else
   state="$(recording_state)"
+  forced=0
+  if [ "$MODE" = "--force-restart" ] && [ "$state" != idle ]; then
+    # Say what is being overridden rather than silently calling the box idle. A forced restart during a
+    # recording is a legitimate operator decision; hiding which interlock it stepped over would make
+    # the log unreadable afterwards — and this log is the only witness on a box nobody logs into.
+    #
+    # `forced` is carried SEPARATELY from `state` even though setting state=idle alone would reach the
+    # right branch. It would also make the next line print "box is idle" about a box that is recording —
+    # a log that contradicts the line above it, in the one record of why a night was cut short.
+    say "forcing a restart despite: $state"
+    forced=1
+    state=idle
+  fi
   case "$state" in
     idle)
       [ -x "$RESTART_SH" ] || die "new code is on disk but $RESTART_SH is missing — cannot complete the deploy"
-      say "box is idle — restarting the daemon"
+      if [ "$forced" = 1 ]; then
+        say "restarting the daemon — FORCED, the box was not idle"
+      else
+        say "box is idle — restarting the daemon"
+      fi
       # tepna-restart.sh already confirms the unit came back (it sleeps, then checks is-active) and
       # reports a failed restart as a failure, so this does not need to re-check and must not assume.
       "${SUDO[@]}" "$RESTART_SH" restart || die "restart FAILED — the box is now running NEW code on disk with the OLD process, which is the exact state this script exists to prevent"
