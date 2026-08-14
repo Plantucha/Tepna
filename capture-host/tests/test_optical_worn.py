@@ -198,6 +198,43 @@ def test_a_REAL_contact_bit_outranks_the_optical_inference(tmp_path, monkeypatch
     assert "24:AC:AC:0C:30:1E" not in capture._WORN_SINCE, "and no power-drop clock may be started"
 
 
+def test_a_CONFLICT_between_the_contact_bit_and_the_optics_is_VISIBLE_not_arbitrated(
+        tmp_path, monkeypatch, caplog):
+    """THE TEN-HOUR BUG, and the fix is visibility rather than a change of precedence.
+
+    `_has_contact_bit` used to suppress the optical branch entirely, so when a Verity on a desk
+    reported contact the card read `worn: True`, published no `worn_why`, and nothing computed a
+    second opinion that could contradict it. 496 MB into a desk, under a confident verdict.
+
+    The precedence is deliberately UNCHANGED. "contact says worn, optics say not" describes BOTH an
+    armband on a desk AND one worn over a sleeve in bright sun, and those two are indistinguishable
+    from these two signals — so arbitrating would be a guess wearing a verdict's clothes. The costs
+    are also asymmetric: a false not-worn drops a live link and loses a night; a false worn loses a
+    charge. So the contact bit keeps `worn`, the optics are published beside it, and the DISAGREEMENT
+    is logged. What was broken was the silence, not the ranking."""
+    T._polar_common(monkeypatch)
+    # TWO frames = TWO ambient windows, which is what makes the throttle assertion below mean
+    # something. With one window the flag goes False->True once, the suppression arm never runs, and
+    # `len(said) == 1` passes vacuously — it was, until branch coverage said so.
+    c = _PpgClient(-322929, frames=2, hr_frame=bytes([0x06, 60]))   # contact supported + detected
+    T._inject_connect(monkeypatch, c)
+    T._stop_after(monkeypatch, 1)
+    monkeypatch.setattr(capture, "worn_verdict",
+                        lambda **_k: (False, "not worn per ambient-stability"))
+    dev = T._pdev(name="Verity", vendor="Polar", model="VeritySense", streams=["ppg", "hr"],
+                  address="24:AC:AC:0C:30:1E")
+    with caplog.at_level("WARNING"):
+        T._run(capture.run_polar(dev, str(tmp_path)))
+    st = capture.STATUS["devices"]["Verity"]
+    assert st.get("worn") is True, f"the contact bit must KEEP the decision: {st}"
+    assert "24:AC:AC:0C:30:1E" not in capture._WORN_SINCE, "and no power-drop clock may start"
+    assert st.get("worn_optical") is False, (
+        f"the optical opinion must be published BESIDE it — that is the whole fix: {st}")
+    said = [r.message for r in caplog.records if "contact bit says worn" in r.message]
+    assert said, f"the disagreement must be logged; saw: {[r.message[:60] for r in caplog.records]}"
+    assert len(said) == 1, f"once per session, not once per PPG window — got {len(said)}"
+
+
 def test_a_SECOND_unworn_window_does_not_restart_the_grace_clock(tmp_path, monkeypatch):
     """⚠️ THE INVARIANT THE WHOLE POWER FEATURE RESTS ON. `should_drop_not_worn` measures how long the
     strap has been CONTINUOUSLY not-worn, so the timestamp must be set once and then left alone. Reset
@@ -430,6 +467,35 @@ def test_the_daemon_SAYS_when_the_rate_puts_worn_detection_out_of_domain(tmp_pat
     dev = T._pdev(streams=["ppg"])
     with caplog.at_level("WARNING"):
         asyncio.run(capture.run_polar(dev, str(tmp_path)))
-    hits = [r.message for r in caplog.records if "calibrated at 55 Hz only" in r.message]
+    hits = [r.message for r in caplog.records if "outside BOTH optical worn calibrations" in r.message]
     assert hits, f"no out-of-domain warning; saw: {[r.message[:70] for r in caplog.records]}"
     assert "worn is False" in hits[0], "the operator needs the CONSEQUENCE, not just the fact"
+
+
+def test_the_out_of_domain_warning_does_NOT_fire_at_a_rate_a_detector_DOES_cover(
+        tmp_path, monkeypatch, caplog):
+    """The other half, and the one that was missing. This warning asked only the LEVEL calibration
+    until 2026-08-13, so it fired on every 176 Hz session — announcing that no verdict was coming
+    while the STABILITY detector was publishing one. A warning that cries wolf on the configuration
+    the box actually runs is worse than no warning: it teaches the reader to skip the line that will
+    one day be true. Asserting the silence is the only way that stays fixed."""
+    import asyncio
+    import sys as _sys
+
+    _sys.path.insert(0, __import__("os").path.dirname(__file__))
+    import capture
+    import test_capture_runners as T
+
+    capture._STOP = asyncio.Event()
+    T._polar_common(monkeypatch)
+    c = T.FlexPolarClient(data_frames=[T._ppg_frame()])
+    c.sdk_mode_on = True
+    T._inject_connect(monkeypatch, c)
+    T._stop_after(monkeypatch, 1)
+    # 176 Hz is the STABILITY detector's domain, so a verdict IS available and nothing should warn.
+    monkeypatch.setattr(capture, "sd_calibrated_for", lambda fs, **_k: True)
+    dev = T._pdev(streams=["ppg"])
+    with caplog.at_level("WARNING"):
+        asyncio.run(capture.run_polar(dev, str(tmp_path)))
+    noise = [r.message for r in caplog.records if "optical worn calibrations" in r.message]
+    assert not noise, f"warned about no verdict while a detector covered the rate: {noise}"

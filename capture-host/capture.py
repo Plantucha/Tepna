@@ -29,7 +29,7 @@ import nightqc
 import nightarchive
 import storage_targets
 from telemetry import (TelemetryBus, calibrated_for, ppi_contact,
-                       worn_verdict)
+                       sd_calibrated_for, worn_verdict)
 
 # ── JOURNAL SEVERITY (VIGIL-COEXISTENCE-AND-RANGE §1) ────────────────────────────────────────────────
 # systemd assigns ONE priority to a service's whole stdout stream, so with a plain basicConfig every line
@@ -1738,6 +1738,10 @@ async def run_polar(dev: dict, root: str):
                 _amb: list[float] = []
                 _AMB_WINDOW = 220
                 _has_contact_bit = False
+                # Say the contact-vs-optics conflict ONCE per session, not once per PPG window.
+                # At 176 Hz this branch runs ~every 1.25 s; an unthrottled warning would emit
+                # ~2900 identical lines a night and bury the one that matters.
+                _worn_conflict_said = False
 
                 def _publish_worn(worn: bool | None, why: str) -> None:
                     """One publish path for every source of `worn`, so the power bookkeeping cannot
@@ -1767,6 +1771,7 @@ async def run_polar(dev: dict, root: str):
 
                 # PMD data handler — one char carries all PMD streams; route by measurement type.
                 def on_pmd(_sender, data: bytearray):
+                    nonlocal _worn_conflict_said
                     arrival = _now()
                     try:
                         meas, samples = pmd.decode_frame(bytes(data), arrival, fs=stream_fs.get(data[0]),
@@ -1862,7 +1867,22 @@ async def run_polar(dev: dict, root: str):
                     # reports the real thing (desk 0/31877, worn 1/20957 — telemetry.ppi_contact). A
                     # measurement beats an inference, so when PPI is a configured stream it decides and
                     # the ambient heuristic never runs.
-                    if (_ppi_contact is not None or len(_amb) >= _AMB_WINDOW) and not _has_contact_bit:
+                    # ⚠️ THE OPTICAL BRANCH NOW RUNS EVEN WHEN A CONTACT BIT EXISTS — but it does NOT
+                    # take the verdict away from it. The two are different jobs and conflating them
+                    # cost ten hours on 2026-08-13: `_has_contact_bit` suppressed this branch entirely,
+                    # so a Verity on a desk reported `worn: True` from its HR contact bit, published no
+                    # `worn_why`, and NOTHING computed a second opinion that could have contradicted it.
+                    # The defect was not that the contact bit won. It was that nobody else spoke.
+                    #
+                    # The precedence is deliberately UNCHANGED, because the disagreement is not
+                    # resolvable from these two signals: "contact says worn, optics say not" describes
+                    # BOTH an armband on a desk AND one worn over a sleeve in bright sun. The costs are
+                    # not symmetric — a false not-worn drops a live link and loses a night, a false worn
+                    # loses a charge — so the contact bit keeps the decision and the optical result is
+                    # published beside it as `worn_optical`, with a WARNING when they differ. Making the
+                    # conflict visible is the fix; arbitrating it from two sources that cannot settle it
+                    # would be a guess wearing a verdict's clothes.
+                    if (_ppi_contact is not None or len(_amb) >= _AMB_WINDOW):
                         # ONE COMBINER, EVERY DETECTOR — telemetry.worn_verdict. Previously this branch
                         # ran exactly one heuristic (ambient LEVEL) with exactly one calibration domain
                         # (55 Hz), so at 176 Hz there was no verdict at all and, worse, no way to tell:
@@ -1877,9 +1897,26 @@ async def run_polar(dev: dict, root: str):
                         _worn, _why = worn_verdict(ppi_flags=_ppi_flags, ambient=list(_amb),
                                                    fs=stream_fs.get(pmd.PPG))
                         _amb.clear()
-                        # Published unconditionally, INCLUDING None. See _publish_worn: skipping the
-                        # publish is what let a stale `True` survive ten hours of desk streaming.
-                        _publish_worn(_worn, _why)
+                        if _has_contact_bit:
+                            # A contact bit owns `worn`. Publish the optical opinion ALONGSIDE it and
+                            # say so when they disagree — that log line is the whole point of running
+                            # this branch at all, and it is what was missing while an armband streamed
+                            # 496 MB into a desk under a confident `worn: True`.
+                            _set(name, worn_optical=_worn, worn_optical_why=_why)
+                            _stated = STATUS["devices"].get(name, {}).get("worn")
+                            if _worn is not None and _stated is not None and _worn != _stated:
+                                if not _worn_conflict_said:
+                                    log.warning(
+                                        "%s: the contact bit says worn=%s but the optical detector says "
+                                        "%s (%s). The contact bit KEEPS the decision — it fails toward a "
+                                        "false WORN, and a wrong not-worn would drop a live link — but "
+                                        "if this device is on a desk, that is why nothing dropped it.",
+                                        name, _stated, _worn, _why)
+                                    _worn_conflict_said = True
+                        else:
+                            # Published unconditionally, INCLUDING None. See _publish_worn: skipping the
+                            # publish is what let a stale `True` survive ten hours of desk streaming.
+                            _publish_worn(_worn, _why)
                     # Live push — RAW, per-stream shape (no on-box DSP):
                     key, hz = _live_key(pmd.MEAS_NAME[meas], tag), stream_fs.get(meas) or pmd.SAMPLE_HZ.get(meas)
                     # The frame's LAST sample on the DEVICE's own counter. `effFs` is measured off this
@@ -1911,7 +1948,8 @@ async def run_polar(dev: dict, root: str):
                     if contact is not None:
                         nonlocal _has_contact_bit
                         _has_contact_bit = True      # a direct measurement outranks the optical inference
-                        _set(name, worn=contact,
+                        _set(name, worn=contact, worn_why=("worn per hr-contact-bit" if contact
+                                                           else "not worn per hr-contact-bit"),
                              last_error=None if contact else "not worn — no skin contact")
                         # Timestamp the FIRST not-worn so the live loop can measure how long it has lasted.
                         # Module-level + only-set-if-absent, so it PERSISTS across the duty-cycle reconnects
@@ -2170,17 +2208,25 @@ async def run_polar(dev: dict, root: str):
                                     break                 # retrying the fixed cmd cannot help while charging
                             if started:                  # record + re-register at the ACTUAL negotiated rate
                                 stream_fs[meas] = used_fs
-                                if meas == pmd.PPG and not calibrated_for(used_fs):
+                                if (meas == pmd.PPG and not calibrated_for(used_fs)
+                                        and not sd_calibrated_for(used_fs)):
                                     # SAY IT WHERE THE RATE IS DECIDED. The optical worn calibration
                                     # was measured at 55 Hz; at another rate the ambient channel does
                                     # not carry the same meaning, so no verdict is published at all.
                                     # Silence would read as "the detector is fine and the strap is on".
-                                    log.warning("%s: PPG negotiated %s Hz, but optical worn detection "
-                                                "is calibrated at 55 Hz only — NO worn verdict will be "
-                                                "published this session. The power drop and the CPAP "
-                                                "interlock both read `worn is False`, so both stay "
-                                                "inactive rather than acting on a wrong reading.",
-                                                name, used_fs)
+                                    # ⚠️ ASK BOTH DETECTORS BEFORE ANNOUNCING THERE WILL BE NO VERDICT.
+                                    # This asked only the LEVEL calibration until 2026-08-13, so it
+                                    # fired on every 176 Hz session — telling the operator no verdict
+                                    # was coming while the STABILITY detector was publishing one. A
+                                    # warning that cries wolf on the configuration the box actually
+                                    # runs is worse than none: it trains the reader to skip the line
+                                    # that will one day be true.
+                                    log.warning("%s: PPG negotiated %s Hz, which is outside BOTH "
+                                                "optical worn calibrations (level 55 Hz, stability "
+                                                "176 Hz) — NO optical verdict will be published this "
+                                                "session. The power drop and the CPAP interlock both "
+                                                "read `worn is False`, so both stay inactive rather "
+                                                "than acting on a wrong reading.", name, used_fs)
                                 stream_scale[meas] = pmd.axis_scale(meas, settings)   # device-reported range/resolution
                                 _register(meas, used_fs)
                                 _set(name, charging=False)

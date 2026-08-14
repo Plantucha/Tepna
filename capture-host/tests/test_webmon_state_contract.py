@@ -35,6 +35,9 @@ FULL_STATUS = {
     "pull_progress": {"done": 3, "total": 7, "pct": 42},
     "link_epoch": 7,
     "worn": True,
+    "worn_why": "worn per hr-contact-bit",
+    "worn_optical": False,
+    "worn_optical_why": "not worn per ambient-stability",
     "charging": True,
     "last_error": "gatt write failed",
 }
@@ -48,7 +51,7 @@ DEV = {"name": "H10", "vendor": "Polar", "model": "H10", "device_id": "12345678"
 DEVICE_KEYS = {
     "name", "vendor", "model", "device_id", "device_id_aliases", "name_aliases", "address", "streams",
     "connected", "battery", "rssi", "clock_synced", "device_time", "clock_skew_sec", "pull_progress",
-    "link_epoch", "worn", "charging", "last_error",
+    "link_epoch", "worn", "worn_why", "worn_optical", "worn_optical_why", "charging", "last_error",
 }
 
 
@@ -80,6 +83,13 @@ def test_a_device_projects_every_field_it_promises(tmp_path):
     assert d["pull_progress"] == {"done": 3, "total": 7, "pct": 42}
     assert d["link_epoch"] == 7
     assert d["worn"] is True
+    # PROVENANCE, not just the verdict. `worn` alone is a bare tri-state: on 2026-08-13 a desk
+    # armband read True from its HR contact bit for ten hours with nothing saying where that came
+    # from, or that the optical detector disagreed. These three must ARRIVE — a field published into
+    # STATUS but not forwarded here is not published at all, and that failure is silent both ways.
+    assert d["worn_why"] == "worn per hr-contact-bit"
+    assert d["worn_optical"] is False, "the disagreeing opinion must reach the monitor, not just the log"
+    assert d["worn_optical_why"] == "not worn per ambient-stability"
     assert d["charging"] is True
     assert d["last_error"] == "gatt write failed"
 

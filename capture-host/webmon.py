@@ -203,6 +203,17 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         # sample yet has a climbing epoch; surfacing it is what makes that visible.
                         "link_epoch": st.get("link_epoch"),
                         "worn": st.get("worn"),
+                        # WHICH SOURCE DECIDED, and what the other one thought. `worn` alone is a bare
+                        # True/False/None with no provenance, and on 2026-08-13 that was the entire
+                        # failure: an armband on a desk reported `worn: True` from its HR contact bit
+                        # for ten hours while nothing said where that came from or that the optical
+                        # detector disagreed. The daemon logs the conflict; a log line does not reach
+                        # the person looking at the monitor. A field that exists in STATUS but is not
+                        # forwarded here is NOT published — the same class as a DSP value that never
+                        # reaches its export, and it fails silently in both directions.
+                        "worn_why": st.get("worn_why"),
+                        "worn_optical": st.get("worn_optical"),
+                        "worn_optical_why": st.get("worn_optical_why"),
                         "charging": bool(st.get("charging")),
                         "last_error": st.get("last_error")})
         return out
