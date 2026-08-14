@@ -141,6 +141,12 @@ def test_the_startup_self_test_survives_a_status_file_without_capeff(monkeypatch
             return io.StringIO("Name:\tpython3\nPid:\t1\nThreads:\t1\n")     # no CapEff line at all
         return real_open(path, *a, **kw)
     monkeypatch.setattr("builtins.open", fake_open)
+    # The self-test gained a THIRD input (helper grants) after this test was written, and its warnings
+    # are environment-dependent — `/usr/local/lib/tepna` exists on some dev machines without the helpers
+    # in it, which legitimately warns. Silencing it here would test a different function; passing the
+    # same gathered value keeps the ORIGINAL claim intact: a missing CapEff line still reaches the
+    # verdict rather than aborting the boot check.
+    monkeypatch.setattr(capture, "_gather_helper_warnings", list)
     with caplog.at_level("WARNING"):
         _run(capture.startup_defense_check(None))
     # it got as far as the verdict, which is all this path owes anyone
