@@ -52,6 +52,7 @@ DEVICE_KEYS = {
     "name", "vendor", "model", "device_id", "device_id_aliases", "name_aliases", "address", "streams",
     "connected", "battery", "rssi", "clock_synced", "device_time", "clock_skew_sec", "pull_progress",
     "link_epoch", "worn", "worn_why", "worn_optical", "worn_optical_why", "charging", "last_error",
+    "clock_uncorrectable",
 }
 
 
@@ -161,3 +162,36 @@ def test_the_top_level_blocks_are_null_before_their_pollers_run(tmp_path):
         assert k in body, f"{k} must be present-and-null, never absent"
     for k in ("storage", "qc", "host", "archive", "cpap"):
         assert body[k] is None
+
+
+def test_clock_uncorrectable_REACHES_the_monitor(tmp_path):
+    """⚠️ A VERDICT WITH NO CONSUMER IS NOT PUBLISHED, which is what this field was until now.
+
+    `capture.py` sets `clock_uncorrectable` when the clock watchdog exhausts its give-up budget and
+    retracts it on the next successful sync — behaviour pinned by 7 tests. Nothing read it: not this
+    projection, not `alerts`, not `nightqc`, not the monitor. For a suite whose Clock Contract rests on
+    device time being trustworthy, a night captured under an uncorrectable clock was downstream
+    indistinguishable from a good one.
+
+    This asserts the forwarding, which is the half that fails silently — the comment beside `worn_why`
+    in `webmon.py` says exactly why: a field that exists in STATUS but is not forwarded here is NOT
+    published, and it fails silently in both directions."""
+    body = _state(tmp_path, [{"name": "H10", "address": "AA"}],
+                  {"H10": {"connected": True, "clock_uncorrectable": True}})
+    assert body["devices"][0]["clock_uncorrectable"] is True, body["devices"][0]
+
+
+def test_a_RETRACTED_uncorrectable_verdict_reaches_the_monitor_too(tmp_path):
+    """The retraction is the half that matters operationally: a device written off while docked, then
+    synced cleanly once off the dock, must stop reading as uncorrectable. Forwarding only the True case
+    would leave a stale red pill that nothing could clear."""
+    body = _state(tmp_path, [{"name": "H10", "address": "AA"}],
+                  {"H10": {"connected": True, "clock_uncorrectable": False}})
+    assert body["devices"][0]["clock_uncorrectable"] is False, body["devices"][0]
+
+
+def test_a_device_that_never_reported_gets_None_not_a_fabricated_False(tmp_path):
+    """Absent is not the same as "correctable", and the suite's own honesty rule applies: an unknown
+    must stay visible as unknown rather than being defaulted into a reassuring answer."""
+    body = _state(tmp_path, [{"name": "H10", "address": "AA"}], {"H10": {"connected": True}})
+    assert body["devices"][0]["clock_uncorrectable"] is None, body["devices"][0]

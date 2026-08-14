@@ -1,0 +1,51 @@
+{
+  "experiment": "known-clock adversarial recovery, post-capture injection layer",
+  "written_before_any_run": true,
+  "substrate": {
+    "night": "2026-08-13 23:17 -> 2026-08-14 04:03",
+    "capture": "box (vigil), three devices simultaneous",
+    "h10_packets": 54648,
+    "verity_packets": 74513,
+    "o2ring_packets": 17021
+  },
+  "recovery_under_test": "DexClock.hostAxis (clock.js §7) — ppm, maxStepMs, spreadMs, independent, refusal",
+  "sign_convention": "r = hostMs - devMs; ppm = (smoothed r at end) / devSpan * 1e6. Device running FAST => r shrinks => ppm shifts NEGATIVE.",
+
+  "predictions": [
+
+    { "id": "P0-null", "perturbation": "none",
+      "predict": "ok:true, independent:true (box capture, spread >> 2ms). This is the baseline all others are measured against.",
+      "criterion": "recovered ppm is reproducible to <0.5 ppm across repeated identical runs (determinism)" },
+
+    { "id": "P1-offset", "perturbation": "hostMs += 5000 ms on EVERY anchor",
+      "predict": "ppm UNCHANGED (|delta| < 0.5 ppm) and totalMs UNCHANGED.",
+      "why": "hostAxis subtracts r0 — it measures divergence RELATIVE to the first anchor, so a constant offset is removed by construction. A constant offset is NOT RECOVERABLE from this estimator, by design.",
+      "criterion": "|ppm_perturbed - ppm_null| < 0.5 ppm. If the ppm MOVES, the estimator is contaminated by absolute offset and that is a defect." },
+
+    { "id": "P2-freq", "perturbation": "devMs scaled by (1 + 100e-6)",
+      "predict": "ppm shifts by approximately -100 ppm.",
+      "criterion": "recovered delta-ppm in [-115, -85] (i.e. within 15% of the injected 100 ppm)" },
+
+    { "id": "P2b-freq-small", "perturbation": "devMs scaled by (1 + 10e-6)",
+      "predict": "ppm shifts by approximately -10 ppm.",
+      "criterion": "recovered delta-ppm in [-13, -7] (within 30% — smaller signal, more relative noise)" },
+
+    { "id": "P3-jump", "perturbation": "hostMs += 2000 ms for the second half of anchors only (a step)",
+      "predict": "maxStepMs rises far above the null baseline; ppm also shifts because a step at the midpoint is genuine divergence at the end.",
+      "criterion": "maxStepMs_perturbed > 10x maxStepMs_null" },
+
+    { "id": "P4-loss", "perturbation": "drop 30% of anchors (deterministic stride-based, not random)",
+      "predict": "ppm essentially unchanged — the running median over a linear ramp is robust to thinning.",
+      "criterion": "|ppm_perturbed - ppm_null| < 2 ppm, and n drops to ~70%" },
+
+    { "id": "P5-implausible", "perturbation": "devMs scaled by 2.0 (a unit/column error, not a crystal)",
+      "predict": "REFUSAL — ok:false with reason mentioning 'implausible'.",
+      "criterion": "ok === false. Anything else is a fabricated timebase." },
+
+    { "id": "P6-o2ring", "perturbation": "none — run the real O2Ring leg as-is",
+      "predict": "THE KEY TEST. The O2Ring device column is a quantized duration counter (OXYLIVE_DURATION_S, ~1 s quantum), NOT an oscillator. Its axis is DRAWN. hostAxis's `independent` flag is spreadMs > 2ms; a 1 s quantum forces spreadMs into the hundreds of ms, so `independent` is predicted to report TRUE for a stream that has no clock at all.",
+      "criterion": "PASS = hostAxis refuses OR reports independent:false. FAIL = independent:true, which would be a false positive on a non-clock — the most dangerous failure this pipeline can have.",
+      "note": "I expect this to FAIL. Predicting a failure in advance is the point of writing this file first."
+    }
+  ]
+}

@@ -129,6 +129,7 @@ button{font:inherit;}
 .btn{background:var(--surface2);border:var(--b);color:var(--text2);border-radius:10px;padding:7px 14px;cursor:pointer;
   font-size:12px;font-weight:var(--fw-semibold);transition:all .15s;}
 .btn:hover{background:rgba(255,255,255,.04);color:var(--text);border-color:rgba(255,255,255,.08);}
+.ctl-label{display:inline-block;min-width:6.6rem;flex:none;}
 .btn:disabled{opacity:.4;cursor:not-allowed;}
 .btn:active{transform:scale(.97);}
 .btn-primary{background:linear-gradient(135deg,var(--teal),var(--blue));color:#041014;border:none;font-weight:700;
@@ -466,28 +467,29 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
             files and nothing drops, but a <i>restart</i> is still what carries a <code>[Service]</code>
             change into the running daemon.</p>
           <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-top:.6rem">
+            <span class="hint ctl-label">Daemon:</span>
             <button class="btn-primary" onclick='daemonRestart(this)'>Restart daemon</button>
             <label class="hint">stop for
               <input id="dmnMin" type="number" min="1" max="480" value="30" style="width:4.2rem"> min</label>
-            <button onclick='daemonStop(this)'>Stop capture</button>
-            <button onclick='daemonReload(this)' title="Re-read unit files after a pull changed them. Does not touch the running daemon.">Reload units</button>
+            <button class="btn btn-destructive" onclick='daemonStop(this)'>Stop capture</button>
+            <button class="btn" onclick='daemonReload(this)' title="Re-read unit files after a pull changed them. Does not touch the running daemon.">Reload units</button>
             <span class="hint" id="dmnMsg"></span>
           </div>
           <!-- THE RECOVERY LADDER, cheapest rung first. The adapter watchdog cannot fire these itself:
                a deaf-but-UP adapter is indistinguishable from nobody wearing the sensors, which is why
                these are human buttons and not another automatic rung. -->
           <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-top:.6rem">
-            <span class="hint">Radio recovery:</span>
-            <button onclick='daemonRadio(this)' title="Restart bluetoothd. Recovered the box on 2026-07-30: 0 → 91 devices seen.">Restart bluetooth</button>
-            <button onclick='daemonRebind(this)' title="USB driver unbind + bind. The only rung that clears an RTL8761B firmware hang.">Re-bind adapter</button>
-            <button onclick='daemonReboot(this)' title="Last rung. Refused while a sensor is streaming unless you confirm.">Reboot box</button>
+            <span class="hint ctl-label">Radio recovery:</span>
+            <button class="btn" onclick='daemonRadio(this)' title="Restart bluetoothd. Recovered the box on 2026-07-30: 0 → 91 devices seen.">Restart bluetooth</button>
+            <button class="btn" onclick='daemonRebind(this)' title="USB driver unbind + bind. The only rung that clears an RTL8761B firmware hang.">Re-bind adapter</button>
+            <button class="btn btn-destructive" onclick='daemonReboot(this)' title="Last rung. Refused while a sensor is streaming unless you confirm.">Reboot box</button>
           </div>
           <!-- DEPLOY. The updater already pulls every ~30 min on a timer; what it cannot do is decide to
                interrupt a recording, so it defers the RESTART and the box runs old code until idle.
                This button is "pull now, and tell me whether a restart is owed". -->
           <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-top:.6rem">
-            <span class="hint">Deploy:</span>
-            <button onclick='daemonDeploy(this)' title="Fetch, fast-forward and re-serve the bundles. Never restarts on its own — it reports whether one is owed.">Deploy now</button>
+            <span class="hint ctl-label">Deploy:</span>
+            <button class="btn" onclick='daemonDeploy(this)' title="Fetch, fast-forward and re-serve the bundles. Never restarts on its own — it reports whether one is owed.">Deploy now</button>
           </div>
         </div>
 
@@ -677,6 +679,10 @@ function clockStatus(dev){
   // The O2Ring exposes no per-sample device time, but we DO set its RTC on every connect — so it earns
   // a pill from that alone. (Its RTC is set in LOCAL civil, not UTC like the Polars: the ring has a
   // screen the wearer reads, and its samples are host-arrival stamped so its clock never fed timing.)
+  // GIVE-UP OUTRANKS 'we set it once', so it is checked before the no-device_time shortcut —
+  // otherwise a device with no per-sample stamps (the ring) shows 'clock set' from a sync that has
+  // since been written off, or shows no pill at all.
+  if(dev.clock_uncorrectable && !dev.device_time) return {cls:'bad', txt:'clock uncorrectable'};
   if(!dev.device_time) return dev.clock_synced ? {cls:'ok', txt:'clock set'} : null;
   const yr = +String(dev.device_time).slice(0,4);
   if(yr < 2020) return {cls:'bad',  txt:'clock not set'};       // sitting at the firmware default
@@ -688,6 +694,11 @@ function clockStatus(dev){
   const sk = dev.clock_skew_sec;
   const measured = (sk != null && isFinite(sk));
   if(measured && Math.abs(sk) > 2) return {cls:'warn', txt:'clock drifting'};
+  // ⚠️ ONLY WHEN NOTHING MEASURED CONTRADICTS IT. A clock we could not WRITE may still be RIGHT, and
+  // the block above already settles that a measured agreement outranks "we set it hours ago". Letting
+  // the give-up verdict override a sub-second measurement would repeat the exact mistake that comment
+  // was written after — telling the user to worry about a clock that was fine.
+  if(dev.clock_uncorrectable && !measured) return {cls:'bad', txt:'clock uncorrectable'};
   if(!dev.clock_synced) return measured ? {cls:'ok', txt:'clock ok'}
                                         : {cls:'warn', txt:'clock unverified'};
   return {cls:'ok', txt:'clock set'};
@@ -697,6 +708,7 @@ function clkChip(dev){
   if(!st) return '';
   const s = dev.clock_skew_sec;
   const t = `device clock ${dev.device_time}`
+          + (dev.clock_uncorrectable ? ' · AUTO-SYNC GAVE UP — the daemon could not write this clock' : '')
           + (dev.clock_synced ? ` · set from host at ${String(dev.clock_synced).slice(11,19)}` : ' · not set by us this session')
           + (s!=null ? ` · sample-stamp offset ${s>=0?'+':''}${Math.abs(s)>=3600?(s/3600).toFixed(1)+'h':Math.round(s)+'s'} vs host` : '');
   return `<span class="clk ${st.cls}" title="${esc(t)}">🕐 ${st.txt}</span>`;
