@@ -605,6 +605,39 @@ analyses accelerometer/gyro data and does none of it. Allan-variance IMU noise i
 random walk, bias instability, rate random walk) is standard practice with tooling and a standard
 behind it. <https://www.mathworks.com/help/fusion/ug/inertial-sensor-noise-analysis-using-allan-variance.html>
 
+### 6.1 · MEASURED AND REJECTED — EDF weighting changes the arithmetic, not the answer
+
+The defect is real as stated: `_ckAllanSlope` fits log-log ADEV points with UNWEIGHTED OLS, while
+long-τ points rest on far fewer overlapping terms and currently carry equal weight. The question is
+whether fixing it changes any classification.
+
+Measured on ten real host−device divergence curves (Polar Sensor Logger, ~1 Hz phase, the same
+geometry `hostAxis` consumes), weighting each point by its per-τ overlap count `n`:
+
+| | value |
+|---|---|
+| largest Δslope | **0.018** |
+| typical Δslope | 0.001–0.007 |
+| classifications changed | **0 of 10** |
+
+Every curve sits at ≈ −1.00 (white PM), and the nearest category boundary is −0.75 — roughly **14×
+further away than the largest weighting effect**. The correction is real and immaterial.
+
+**And the one case where it WOULD matter is already handled.** Weighting only changes an answer for a
+curve near a boundary, which is exactly where `classifyAllan` already refuses to name a noise type
+(`noise: null` when an edge lies within 1.96 SE, #1227). The two mechanisms cover the same case, and
+the refusal is both cheaper and more honest — it says "undecided" rather than producing a slightly
+better-weighted guess.
+
+**Therefore §6 is closed as REJECTED for the weighting step.** The EDF circularity that motivated it
+(EDF depends on noise type, so a CI used to decide noise type is circular) is moot when the fix it
+would enable moves nothing.
+
+⚠️ **What this does NOT reject: GMWM.** That is a different claim — not "weight the slope fit better"
+but "stop reading a noise type off a slope at all". Nothing here tests it, and the IEEE-standard
+procedure remaining a human eyeballing linear trends is still the honest description of what
+`classifyAllan` automates. It stays listed, unmeasured, and last.
+
 ⚠️ **Scope discipline.** GMWM is a substantially larger dependency-free implementation than anything
 in this section. It is listed as the *correct* answer, not the *next* one. The cheap intermediate is
 EDF-weighted least squares iterated to a fixed point, treating **non-convergence as the ambiguous
@@ -676,7 +709,7 @@ implementations to disagree with**, which §7 argues is the only thing that can 
 | — | §3 E-QC | **blocked on hardware** | The fourth stream is EMPTY: `Pulse.1s` is −1 fill in all 189 SA2 files (§3.1c). Needs the ResMed oximeter module attached, or a different independent 4th HR source. More nights will not help. |
 | 3 | §5 Newey–West for the closure tolerance | medium | Closed form, standard tooling, `blocks_` already exposed. Held below E-QC only because the bandwidth choice needs its own sensitivity study. |
 | 4 | §2 ML reformulation / KLTS intervals for TCH | medium | Do after E-QC — the estimator matters less than closing the identifiability gap. |
-| 5 | §6 EDF-weighted slope, then GMWM | large | Correct, and the least urgent: `classifyAllan` currently refuses rather than lying, which is the safe failure. |
+| — | ~~§6 EDF-weighted slope~~ | done | **MEASURED AND REJECTED** (§6.1): Δslope ≤ 0.018, 0 of 10 classifications change, and the boundary case it would help is already covered by `classifyAllan`'s refusal. GMWM is untouched by this and stays last. |
 
 ---
 
