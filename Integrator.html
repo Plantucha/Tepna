@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4k3h01pxeArEwocDXAmvj2lm9BOeocYgYMtTKmqI25o=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-CnI5YW+LdEAapI+CCE0/WGgJYxytQ54ZIpLyNZi0ztk=' 'sha256-G6q9jVUxKlEI3qmcuxeKVPEubWjDukvVfBf/P40dmL8=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-k+FV7AZrEGGuFvXlh73TfpK+yAoc1Q7YRwHKGyqH0NY=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4k3h01pxeArEwocDXAmvj2lm9BOeocYgYMtTKmqI25o=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-CnI5YW+LdEAapI+CCE0/WGgJYxytQ54ZIpLyNZi0ztk=' 'sha256-G6q9jVUxKlEI3qmcuxeKVPEubWjDukvVfBf/P40dmL8=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-k+FV7AZrEGGuFvXlh73TfpK+yAoc1Q7YRwHKGyqH0NY=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60=' 'sha256-vBFNPMuQECD/SIy0jpNzms/FGVZDc/HQEEk2Ie4lVhE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Integrator · Fusion Layer</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -4773,6 +4773,173 @@ body.light .cov-grid td.cg-node{ background:#fff; }
   //      win  9 → 77 / 36.3      win 21 → 57 / 18.7      win 41 → 168 / 16.5      win 81 → 245 / 24.8
   //  21 halves the jitter without over-smoothing; 41+ starts flattening the O2Ring's real curvature,
   //  which is the one thing this must follow. Step recovery is unaffected across the whole range.
+  /* ── ALLAN DEVIATION, THE SPINE COPY (HOSTAXIS-STABILITY-2026-08-13-BRIEF) ─────────────────────────
+     WHY IT LIVES HERE. `hostAxis` publishes a `ppm` with no statement of how far to trust it, and §7's
+     rule "never quote a ppm without the span beside it" was enforced by prose plus one hand-picked
+     threshold. Allan deviation is the standard answer — it says whether an error shrinks when you
+     average longer, which a standard deviation CANNOT, because SD diverges for several of these noise
+     types as N grows (NIST/Riley SP 1065).
+     Promoted rather than copied: `ppgdex-dsp.js` had the only JS core and `ecgdex-dsp.js` had none, so
+     giving each node its own would have made a fourth implementation. It sits in the spine for the same
+     reason `parseTimestamp` does (§✅) — one definition, inlined everywhere, delegated to by name.
+     `integrator-tch.js` deliberately keeps its own: different domain (frequency series, per-node
+     three-cornered hat) and a different API. `capture-host/allan.py` is a different LANGUAGE lane and
+     cannot be called from a bundle. All three are pinned to each other by cross-implementation tests.
+
+     INPUT IS PHASE — a time-error series. For a physiological signal the only legitimate phase series
+     is the DIFFERENCE between two observers of the same thing; intervals are a FREQUENCY series and a
+     heart is not an oscillator with stationary noise. Here the input is the host-minus-device
+     divergence, which is a phase series by construction. */
+  var CK_ALLAN_MIN_TERMS = 8; // an estimate from a handful of terms is wider than the answer it gives
+  /* Slope midpoints between the canonical exponents, and the SAME vocabulary as capture-host/allan.py
+     `_NOISE`. Verbatim on purpose: two lanes naming one curve differently is a defect a reader cannot
+     see. Drift is the open-ended top, so it is the fall-through — an edge no slope can fail would make
+     that arm unreachable. */
+  var CK_ALLAN_NOISE = [
+    [-0.75, 'white/flicker-phase', 'jitter — averages away fast'],
+    [-0.25, 'white-frequency', 'benign; averaging helps as √N'],
+    [0.25, 'flicker-frequency', 'A FLOOR — more averaging buys nothing'],
+    [0.75, 'random-walk-frequency', 'wanders; a longer fit is worse than a short one']
+  ];
+  function _ckAllanFromPhase(phaseMs, tau0Sec) {
+    // PHASE → FRACTIONAL FREQUENCY: y[i] = (x[i+1] − x[i]) / tau0. The change of variable that makes
+    // the overlapping-average form apply, and why this matches allan.py's second-difference form.
+    var y = [],
+      i;
+    for (i = 1; i < phaseMs.length; i++) {
+      var v = (phaseMs[i] - phaseMs[i - 1]) / tau0Sec;
+      if (!isFinite(v)) return [];
+      y.push(v);
+    }
+    var N = y.length;
+    if (N < 3) return [];
+    var pre = new Float64Array(N + 1);
+    for (var j = 0; j < N; j++) pre[j + 1] = pre[j] + y[j];
+    var out = [];
+    for (var m = 1; 2 * m + 1 <= N; m *= 2) {
+      var sum = 0,
+        cnt = 0;
+      for (i = 0; i + 2 * m <= N; i++) {
+        var d = (pre[i + 2 * m] - pre[i + m]) / m - (pre[i + m] - pre[i]) / m;
+        sum += d * d;
+        cnt++;
+      }
+      if (cnt < CK_ALLAN_MIN_TERMS) break;
+      out.push({ tau: m * tau0Sec, adev: Math.sqrt(sum / (2 * cnt)), n: cnt });
+    }
+    return out;
+  }
+  /* Log-log least squares, returning the slope AND ITS STANDARD ERROR.
+     ⚠️ THE SE IS A LOWER BOUND, NOT AN ESTIMATE. Overlapping ADEV points are CORRELATED — adjacent τ
+     are computed from largely the same samples — while OLS assumes independent residuals. So the true
+     uncertainty is wider than this. Do NOT tighten the 1.96 multiplier below to 1 SE believing that is
+     the more rigorous choice; it is the less rigorous one. */
+  function _ckAllanSlope(points) {
+    var pts = [],
+      i;
+    for (i = 0; i < (points || []).length; i++) if (points[i].adev > 0 && points[i].tau > 0) pts.push(points[i]);
+    if (pts.length < 3) return null; // two points fit any line and cannot be checked
+    var xs = [],
+      ys = [];
+    for (i = 0; i < pts.length; i++) {
+      xs.push(Math.log(pts[i].tau) / Math.LN10);
+      ys.push(Math.log(pts[i].adev) / Math.LN10);
+    }
+    var k = xs.length,
+      mx = 0,
+      my = 0;
+    for (i = 0; i < k; i++) {
+      mx += xs[i];
+      my += ys[i];
+    }
+    mx /= k;
+    my /= k;
+    var sxx = 0,
+      sxy = 0;
+    for (i = 0; i < k; i++) {
+      sxx += (xs[i] - mx) * (xs[i] - mx);
+      sxy += (xs[i] - mx) * (ys[i] - my);
+    }
+    if (!(sxx > 0) || k < 3) return null;
+    var b = sxy / sxx,
+      a = my - b * mx,
+      ss = 0;
+    for (i = 0; i < k; i++) {
+      var e = ys[i] - (a + b * xs[i]);
+      ss += e * e;
+    }
+    return { slope: b, se: Math.sqrt(ss / (k - 2) / sxx), nTau: k };
+  }
+  /* NAME THE NOISE TYPE — OR REFUSE TO. A strict `<` against a POINT ESTIMATE assigns a type the data
+     may not support: −0.7501 and −0.7500 sit either side of a boundary while printing identically, and
+     the `meaning` string flips between "averages away" and "helps as √N" — the field a consumer
+     branches on. So when a boundary lies within 1.96 SE the type is NOT named.
+     `noise: null`, never a string like 'ambiguous': a truthy sentinel passes the guard everyone writes
+     (`if (noise) …`), which would reintroduce the bug inside its own fix.
+     ⚠️ 1.96 SE IS A DELIBERATE STAND-IN, AND THE REASON IS WORTH KEEPING. The textbook treatment is
+     Riley/SP-1065 equivalent degrees of freedom, but EDF is a function of THE NOISE TYPE — so computing
+     a confidence interval in order to DECIDE the noise type is circular exactly at a boundary. The
+     honest forms are to iterate (assume a type → EDF → re-classify) or to test under each candidate;
+     near a boundary the iteration is least likely to settle, and a classification that does not
+     converge is the same finding as a CI that straddles. So this reaches the same verdict where it
+     matters. Anyone implementing EDF properly must handle that circularity before claiming more. */
+  /* `nTau` travels WITH the classification, not only beside it. A perfect fit on 3 taus and one on 12
+     both yield se 0 and are very different evidence — the SE divides by k−2, so three points lie on a
+     line far more easily than twelve. `stability` publishes `taus` at its own level, but a consumer
+     holding only this dict could not tell them apart, which is the rename problem one FIELD short
+     rather than one LAYER short. */
+  function _ckClassifyAllan(sl, se, nTau) {
+    if (sl == null || !isFinite(sl)) return null; // an unknown is not a noise type
+    var i,
+      edges = [];
+    for (i = 0; i < CK_ALLAN_NOISE.length; i++) edges.push(CK_ALLAN_NOISE[i][0]);
+    /* se === 0 and se == null both skip the refusal — a DECISION, not a fall-through, and the record
+       keeps them apart (`slopeSE` is 0 vs null/undefined). No SE supplied ⇒ the pre-SE contract, since
+       refusing would break every existing caller over a distinction it never asked about. An SE of
+       exactly 0 ⇒ the log-log points fall exactly on a line (reachable: a noiseless τ⁻¹ series returns
+       exactly 0), and a perfect fit is the one case where the exponent IS known exactly.
+       ⚠️ Do not read 0 as "measured and perfectly certain" on real data: residuals are never exactly
+       zero for a capture, so 0 means a degenerate or synthetic input — and the SE is a LOWER bound
+       regardless. Published so a reader can tell which they got. */
+    // `se > 0` alone: null/undefined/NaN all compare false, so the isFinite guard was redundant — and
+    // its `> 0` → `>= 0` mutant is EQUIVALENT (at se === 0 the product is 0 either way), i.e. a guard
+    // nothing could observe being wrong. Kept identical to the Python twin.
+    var half = se > 0 ? 1.96 * se : 0;
+    var straddled = [];
+    for (i = 0; i < edges.length; i++) if (sl - half < edges[i] && edges[i] < sl + half) straddled.push(edges[i]);
+    var name = null,
+      meaning = null;
+    for (i = 0; i < CK_ALLAN_NOISE.length; i++) {
+      if (sl < CK_ALLAN_NOISE[i][0]) {
+        name = CK_ALLAN_NOISE[i][1];
+        meaning = CK_ALLAN_NOISE[i][2];
+        break;
+      }
+    }
+    if (name == null) {
+      name = 'drift';
+      meaning = 'deterministic — fit and remove it, never average through it';
+    }
+    if (straddled.length) {
+      // The two types the data cannot separate, so a reader sees WHAT is undecided rather than a blank.
+      var cands = [];
+      for (i = 0; i < CK_ALLAN_NOISE.length; i++) {
+        var lo = i === 0 ? -Infinity : CK_ALLAN_NOISE[i - 1][0];
+        if (sl - half < CK_ALLAN_NOISE[i][0] && sl + half > lo) cands.push(CK_ALLAN_NOISE[i][1]);
+      }
+      if (sl + half > 0.75) cands.push('drift');
+      return {
+        slope: sl, // UNROUNDED — rounding in the DATA is what made the boundary case invisible
+        slopeSE: se,
+        nTau: nTau == null ? null : nTau,
+        noise: null,
+        candidates: cands,
+        meaning: 'the slope sits within 1.96 SE of a category boundary — the noise TYPE is not supported by this fit; branch on `slope`, not on a label'
+      };
+    }
+    return { slope: sl, slopeSE: se, nTau: nTau == null ? null : nTau, noise: name, candidates: null, meaning: meaning };
+  }
+
   var CK_AXIS_WIN = 21; // running-median width in anchors; odd so the median is a real sample
   var CK_AXIS_MAX_PPM = 50000; // 5 % — refusal bound, see the plausibility check in hostAxis()
   /* Twice the 1 ms phone-stamp quantum. A residual spread at or below this means the host column is
@@ -4886,6 +5053,55 @@ body.light .cov-grid td.cg-node{ background:#fff; }
          was actually disciplined. `spreadMs` is published so the call is checkable rather than trusted. */
       spreadMs: spreadMs,
       independent: independent,
+      /* HOW FAR TO TRUST THE `ppm` ABOVE — σ_y(τ) for the host-vs-device divergence, plus the noise
+         type its slope names. §7 has always said "never quote a `ppm` without the span beside it";
+         this is that rule computed rather than asserted.
+         ⚠️ RAW divergence, NOT the running-median `sm`. The median exists to keep BLE delivery jitter
+         out of the correction, which is exactly the noise this measures — running ADEV on the smoothed
+         series would report how well the smoother worked and call it clock stability.
+         ⚠️ NULL WHEN THERE IS NO SECOND CLOCK. `independent:false` means the host column is the device
+         stamp rounded, so its "divergence" is quantisation; a curve over it would report the rounding
+         as physics. That is the COMMON case, not an edge — the whole phone-captured tree reads
+         false — so the refusal path is the one most consumers will see.
+         Deliberately gated by nothing: this is a diagnostic. The last two arrival diagnostics that
+         shipped with thresholds both fired on every stream of the first real night
+         (ALLAN-DEVIATION §4); a bar comes after a τ-curve from several nights, not before. */
+      stability: (function () {
+        if (!independent) return null;
+        var spanSec = (pts[n - 1].d - pts[0].d) / 1000;
+        if (!(spanSec > 0)) return null;
+        var ph = [];
+        for (var q = 0; q < n; q++) ph.push(pts[q].r - r0);
+        var curve = _ckAllanFromPhase(ph, spanSec / (n - 1));
+        if (curve.length < 3) return null;
+        var fit = _ckAllanSlope(curve);
+        if (!fit) return null;
+        var cls = _ckClassifyAllan(fit.slope, fit.se, fit.nTau);
+        var bestI = 0;
+        for (var b = 1; b < curve.length; b++) if (curve[b].adev < curve[bestI].adev) bestI = b;
+        return {
+          taus: curve.length,
+          tau0Sec: spanSec / (n - 1),
+          slope: cls.slope,
+          /* Published UNCONDITIONALLY, including when the type IS named — a caller with a wider
+             tolerance can then decide for itself instead of being forced to accept this default. */
+          slopeSE: cls.slopeSE,
+          noise: cls.noise,
+          candidates: cls.candidates,
+          meaning: cls.meaning,
+          atShortestMs: curve[0].adev,
+          atLongestMs: curve[curve.length - 1].adev,
+          tauMaxSec: curve[curve.length - 1].tau,
+          /* The averaging time minimising σ_y — the window a measurement on this pair should use, in
+             place of one chosen by intuition. On a pure-jitter clock it is simply the longest τ
+             measured, and saying so is more honest than implying a minimum was found. */
+          optimalTauSec: curve[bestI].tau,
+          /* THE POINT OF THE EXERCISE: how much of the `ppm` above is real. σ_y at the recording's own
+             span, expressed in ppm — quote the ppm WITH this or not at all. */
+          ppmUncertainty: curve[curve.length - 1].adev * 1000,
+          note: 'σ_y(τ) of the RAW host−device divergence; slope names the noise type. The SE is a LOWER bound — overlapping ADEV points are correlated while OLS assumes independence.'
+        };
+      })(),
       inertReason: independent
         ? null
         : 'host ≡ device — residual spread ' + spreadMs.toFixed(2) + ' ms ≤ ' + CK_AXIS_INERT_MS + ' ms (one stamp quantum); this host column is not an independent clock',
@@ -4919,6 +5135,11 @@ body.light .cov-grid td.cg-node{ background:#fff; }
     resolveDMY: resolveDMY,
     parseTimestamp: parseTimestamp,
     hostAxis: hostAxis,
+    // Promoted from ppgdex-dsp.js so the fleet has ONE JS core (HOSTAXIS-STABILITY §4.3). Nodes
+    // delegate by name, the way they already do for parseTimestamp.
+    allanFromPhase: _ckAllanFromPhase,
+    allanSlope: _ckAllanSlope,
+    classifyAllan: _ckClassifyAllan,
     _ckMedian: _ckMedian
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.DexClock;

@@ -4382,6 +4382,17 @@
             ppm: ecgHostAx.ppm,
             maxStepMs: ecgHostAx.maxStepMs,
             spanMs: ecgAxisSpanMs,
+            /* σ_y(τ) of the host−device divergence, forwarded from the spine. Like the fields above,
+               this block RENAMES and therefore drops anything not listed — the same trap that ate this
+               field in PpgDex on its first real-data run.
+               WHY IT MATTERS HERE SPECIFICALLY: this node is the one that QUOTES a rate (it corrects
+               `fs` from `ppm`), so it is the one that needs to say how much of that rate is real.
+               `ppmUncertainty` is σ_y at the recording's own span — read the `ppm` above WITH it.
+               It does NOT change the span gate: `ECG_AXIS_MIN_SPAN_MS` is untouched here, and the claim
+               that 2400 s is too permissive was measured and WITHDRAWN (HOSTAXIS-STABILITY §3 —
+               6.8-32.7 ppm uncertainty against 20-90 ppm errors is marginal, not wrong). Revisiting it
+               needs a bound derived for the estimator `fs` actually uses, which ADEV is not. */
+            stability: ecgHostAx.stability || null,
             reason: ecgAxisApplied
               ? undefined
               : 'span ' + Math.round(ecgAxisSpanMs / 1000) + ' s < ' + ECG_AXIS_MIN_SPAN_MS / 1000 + ' s — too short to resolve a crystal rate, fs left on the device clock'
@@ -4737,6 +4748,38 @@
        ATTACHED ONLY WHEN THERE IS SOMETHING TO REPORT. An absent `_RR.txt` yields no key at all rather
        than `validation: null` — a null key is still a changed export shape, and every committed fixture
        lacks the companion, so omission keeps them byte-identical while real recordings gain the field. */
+    /* THE HOST AXIS, ON THE INTEGRATOR-FACING SURFACE (HOSTAXIS-STABILITY §4.2). ECGDex has always
+       COMPUTED one — it is what `tMsAt` rides — and never exported it, so a downstream reader could not
+       tell a disciplined ECG axis from a raw device-clock one without re-deriving the condition.
+       `applied` and `tMsCorrected` are different questions and both travel: the ppm correction to `fs`
+       is span-gated, the interpolation is not, so `applied:false` does NOT mean the time axis is
+       uncorrected. `stability.ppmUncertainty` is the number that makes `ppm` readable — measured
+       −21.9 ± 9.3 ppm on a real box night, i.e. 2.4σ from zero. Omitted entirely when there is no host
+       axis, rather than a null key: no committed fixture has one. */
+    if (r.hostAxis && r.hostAxis.ok) {
+      out.recording.hostAxis = {
+        applied: r.hostAxis.applied,
+        anchors: r.hostAxis.anchors,
+        ppm: r.hostAxis.ppm,
+        ppmUncertainty: r.hostAxis.stability ? r.hostAxis.stability.ppmUncertainty : null,
+        maxStepMs: r.hostAxis.maxStepMs,
+        spanMs: r.hostAxis.spanMs,
+        independent: r.hostAxis.independent,
+        spreadMs: r.hostAxis.spreadMs,
+        tMsCorrected: r.tMsCorrected === true,
+        stability: r.hostAxis.stability
+          ? {
+              slope: r.hostAxis.stability.slope,
+              slopeSE: r.hostAxis.stability.slopeSE,
+              noise: r.hostAxis.stability.noise,
+              candidates: r.hostAxis.stability.candidates,
+              optimalTauSec: r.hostAxis.stability.optimalTauSec,
+              tauMaxSec: r.hostAxis.stability.tauMaxSec
+            }
+          : null,
+        note: 'quote `ppm` WITH `ppmUncertainty`; `stability:null` means there was no second clock (host column ≡ device stamp), not that the clock was perfect'
+      };
+    }
     if (r.deviceRR && r.deviceRR.length) {
       const _v = validateRR(r.nn, r.deviceRR);
       if (_v) {
