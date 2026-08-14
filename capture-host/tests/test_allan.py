@@ -682,3 +682,67 @@ def test_identify_forwards_the_se_and_the_tau_COUNT_into_both_records():
         assert r[lane]["slope_se"] is not None, lane
         assert r[lane]["slope_se"] > 0, lane
         assert r[lane]["n_tau"] == r["taus"][lane], lane
+
+
+# ── SECOND mutation pass. The gate went 28 -> 16; these close the rest. Three of them kill mutants the
+# module's own comment called "not worth a constructed double-exact fixture" — a short search over
+# (slope, se) found exact-float killers for all three, so the fixture is three lines, not a project.
+
+
+def test_mdev_includes_a_tau_with_EXACTLY_the_minimum_terms():
+    """The mdev twin of the hdev case above — killed there, missed here on the first pass.
+    mdev terms = n-3m+1, so n=10, m=1 gives exactly 8."""
+    rng = random.Random(43)
+    x = [rng.gauss(0, 1) for _ in range(10)]
+    got = allan.mdev(x, TAU0, [TAU0])
+    assert len(got) == 1
+    assert got[0]["n"] == allan._MIN_TERMS
+
+
+def test_mdev_SKIPS_an_unsupportable_tau_and_keeps_going():
+    rng = random.Random(44)
+    x = [rng.gauss(0, 1) for _ in range(30)]
+    got = allan.mdev(x, TAU0, [9 * TAU0, TAU0])
+    assert [p["tau"] for p in got] == [TAU0]
+
+
+def test_the_ladder_INCLUDES_the_m_whose_term_count_is_exactly_the_minimum():
+    """`>= _MIN_TERMS` vs `>`: at n=10, m=1 the ADEV term count is exactly 8. Inclusive is correct —
+    _MIN_TERMS is the smallest count that IS acceptable, not the first that is not."""
+    assert allan._octave_taus(10, 1.0) == [1.0]
+    rng = random.Random(45)
+    x = [rng.gauss(0, 1) for _ in range(10)]
+    assert len(allan.adev(x, 1.0)) == 1
+
+
+def test_the_ladder_INCLUDES_the_m_sitting_exactly_ON_the_span_cap():
+    """`m <= n/(2*_MIN_SPAN_MULTIPLE)` vs `<`, and the 2.0 itself. At n=16 the cap is exactly 2, so
+    m=2 must be included; tightening either the comparison or the constant drops it."""
+    assert allan._octave_taus(16, 1.0) == [1.0, 2.0]
+    rng = random.Random(46)
+    x = [rng.gauss(0, 1) for _ in range(16)]
+    assert [p["tau"] for p in allan.adev(x, 1.0)] == [1.0, 2.0]
+
+
+def test_a_CI_ending_EXACTLY_on_the_top_edge_does_not_offer_drift():
+    """`sl + half > _NOISE[-1][0]` vs `>=`. Constructed so the interval genuinely straddles an inner
+    edge (so the refusal path is entered) AND its upper end lands exactly on the top edge."""
+    sl, se = 0.4952, 0.13
+    assert sl + 1.96 * se == allan._NOISE[-1][0]  # the fixture's premise, asserted not assumed
+    c = allan.classify(sl, se, 5)
+    assert c["noise"] is None
+    assert allan._DRIFT[0] not in c["candidates"]
+
+
+def test_a_candidate_edge_touched_EXACTLY_from_below_is_not_listed():
+    """`sl - half < e` vs `<=`: an edge sitting exactly at the interval's lower end is NOT inside it."""
+    c = allan.classify(-0.499904, 0.1276, 5)
+    assert c["noise"] is None
+    assert c["candidates"] == ["white-frequency", "flicker-frequency"]
+
+
+def test_a_candidate_band_touched_EXACTLY_from_above_is_not_listed():
+    """`sl + half > lo` vs `>=`: a band whose lower bound equals the interval's upper end is empty."""
+    c = allan.classify(-0.500096, 0.1276, 5)
+    assert c["noise"] is None
+    assert c["candidates"] == ["white/flicker-phase", "white-frequency"]

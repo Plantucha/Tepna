@@ -346,14 +346,18 @@ def classify(sl, se=None, n_tau=None, table=None):
     if half:
         edges = [e for e, _, _ in noise]
         if any(sl - half < e < sl + half for e in edges):
-            # ⚠️ REMAINING MUTATION SURVIVORS, recorded rather than left silent. The `<`/`>` strictness
-            # in THIS loop (`sl - half <= e`, `sl + half >= lo`) survives the suite: killing it needs a
-            # CI that straddles an edge AND touches a candidate boundary at exact float equality
-            # simultaneously. The detection test above IS pinned at exact equality
-            # (`test_a_CI_ENDING_exactly_on_an_edge_does_not_straddle_it`); this loop only decides WHICH
-            # names are listed once a refusal has already been decided, so a boundary slip here widens
-            # or narrows an advisory list, never flips a verdict. Judged not worth a constructed
-            # double-exact fixture; `mutation (diff-scoped)` is advisory, not a required check.
+            # ✅ THE THREE SURVIVORS THIS COMMENT USED TO EXCUSE ARE NOW KILLED (2026-08-14).
+            # It previously said the `<`/`>` strictness here (`sl - half <= e`, `sl + half >= lo`, and
+            # `sl + half >= noise[-1][0]` below) needed "a CI that straddles an edge AND touches a
+            # candidate boundary at exact float equality simultaneously", and judged that not worth a
+            # constructed fixture. That was true about the requirement and wrong about the cost: a short
+            # search over (slope, se) finds exact-float pairs satisfying both at once, and the fixtures
+            # are three lines each — `sl=0.4952, se=0.13` puts the interval end exactly on the top edge
+            # while genuinely straddling an inner one; `sl=-0.499904` and `sl=-0.500096` at se=0.1276
+            # touch a candidate boundary exactly from below and from above.
+            # The lesson is the reusable part: "unkillable" was an estimate of EFFORT, not a property of
+            # the code, and it was never re-tested after being written down. Before excusing a survivor,
+            # run the search — it is cheaper than the paragraph explaining why you did not.
             cands, lo = [], float("-inf")
             for e, nm, _ in noise:
                 if sl - half < e and sl + half > lo:
