@@ -3,18 +3,42 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **Created:** 2026-08-04
+**Status:** DONE — 2026-08-14 · **Created:** 2026-08-04
 
-> **§1–§5 BUILT 2026-08-04.** `capture.publish_recording` publishes the predicate `alert_loop` was
-> discarding; `capture-host/tepna-update.sh` + `tepna-update.service`/`.timer` implement §4; the units are
-> on `check-system-files.sh`'s manifest and `install-services.sh` enables the timer. 24 tests, four
-> mutants killed (fail-open on `unknown`, falling back to `connected`, dropping the dirty refusal, keying
-> `publish_recording` on `connected`).
+> **§1–§5 BUILT 2026-08-04; §6 CLOSED 2026-08-14 ON MEASURED BOX EVIDENCE.**
+> `capture.publish_recording` publishes the predicate `alert_loop` was discarding;
+> `capture-host/tepna-update.sh` + `tepna-update.service`/`.timer` implement §4; the units are on
+> `check-system-files.sh`'s manifest and `install-services.sh` enables the timer.
 >
-> **It stays IN-PROGRESS deliberately.** §6's last item is *one real cycle watched happening on the box*,
-> and that has not happened yet — the units are not deployed. Stamping DONE on machinery whose only
-> untested property is "does it work unattended" would reproduce this brief's own §5 in the act of
-> closing it.
+> **The blocking item was "one real cycle observed on the box", and it has now happened 41 times.**
+> Read from the box's own journal on 2026-08-14 — `journalctl -u tepna-update.service`:
+>
+> | | |
+> |---|---|
+> | cycles that pulled new code | **88** |
+> | cycles that **deferred** because a device was recording | **47** |
+> | cycles that **restarted the daemon unattended** | **41** |
+>
+> Both halves are therefore witnessed, not just the happy one: the interlock fires roughly as often as
+> the restart does, which is the property §4 exists for. Two cycles were watched live during the
+> 2026-08-14 session (`updated 42566ded → 935fb09b`, `updated 935fb09b → da81d63d`), each correctly
+> reporting `deferred — a device is recording`.
+>
+> **One failure mode was also observed, and behaved as designed:** a cycle died on
+> `fatal: unable to access github.com … Connection timed out after 300039 ms`, the unit went `failed`,
+> and the next tick recovered. §5's whole argument is that a nonzero exit is what makes drift VISIBLE on
+> a box nobody logs into; this is that working.
+>
+> ⚠️ **§6's second checkbox was mis-worded and is corrected below rather than ticked as written.** It
+> asked for `tepna-update.sh` on the MANIFEST at `0755`. That file is never installed to a system path —
+> the unit runs it in place (`ExecStart=/opt/tepna/capture-host/tepna-update.sh`), which is the whole
+> point of §3: it must stay vigil-owned and unprivileged. Its two UNITS are managed, at `0644`, which is
+> correct for units. Managing the `.sh` would mean root-owning it, contradicting the brief's own design.
+>
+> **What is NOT closed here** is carried to `VIGIL-AUTO-UPDATE-FOLLOWUPS-2026-08-14-BRIEF.md`: the
+> root-owned HELPERS still need a human, because the NOPASSWD wildcard grants EXECUTE on
+> `/usr/local/lib/tepna/*` and never WRITE to it — so #914's eight-day-drift class is reported, not
+> fixed.
 
 # A capture box that cannot finish its own deploy runs stale code — automate to the blast radius of the daemon, and *report* the rest
 
@@ -97,13 +121,17 @@ is safe):
 
 ## 6 · Done when
 
-- [ ] `status.json` carries `recording` (per device + top level), test-gated, single-sourced on
-      `alerts.device_is_recording`.
-- [ ] `tepna-update.sh` + its timer are on `check-system-files.sh`'s MANIFEST at **mode `0755`** (the mode
-      column exists as of 2026-08-04 — before it, a managed executable was installed `0644` and unrunnable).
-- [ ] A test proves the updater **defers** rather than restarts while a device is recording, and another
-      proves it refuses on a dirty tree.
-- [ ] `capture-host`'s 100 % statement+branch floor still holds.
-- [ ] **One real cycle observed on the box:** a commit lands, the box picks it up unattended, the daemon
-      restarts, and the report says so. Until that is watched happening, this is untested machinery — which
-      is the same failure it exists to fix.
+- [x] `status.json` carries `recording` (per device + top level), test-gated, single-sourced on
+      `alerts.device_is_recording`. — present in `alerts.py` and `capture.py`.
+- [x] **CORRECTED:** the two UNITS are on `check-system-files.sh`'s MANIFEST at `0644` (correct for
+      systemd units). `tepna-update.sh` itself is deliberately NOT managed: `ExecStart` runs it in place
+      from the checkout, and managing it would root-own the one helper §3 requires to stay unprivileged.
+      The `0755` mode column is exercised by the five helpers that ARE installed under `$LIB_TEPNA`.
+- [x] A test proves the updater **defers** rather than restarts while a device is recording, and another
+      proves it refuses on a dirty tree. — `test_it_DEFERS_while_a_device_is_recording` and
+      `test_a_dirty_checkout_is_never_touched`, plus 19 more in `tests/test_vigil_update.py`.
+- [x] `capture-host`'s 100 % statement+branch floor still holds. — 3598 passed, 100.00 %, 2026-08-14.
+- [x] **One real cycle observed on the box.** 88 pulls, 41 unattended restarts, 47 correct deferrals,
+      and one transient-network failure that surfaced as a `failed` unit and self-recovered. See the
+      header block for the journal counts.
+
