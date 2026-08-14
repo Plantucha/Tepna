@@ -221,6 +221,29 @@ def ambient_stability_worn(ambient, *, threshold: float = _WORN_AMBIENT_SD_MAX,
     return statistics.pstdev(vals) < threshold
 
 
+def on_body(st: "dict | None") -> "bool | None":
+    """PURE. Is this device on a body right now? `True` / `False` / `None` when unknown.
+
+    ONE ENCODING OF ONE RULE — *a charging device cannot be on a body*. It was written twice, and only
+    one copy said so: `cpap_harvest.blocking_devices` checked `charging` (after the 2026-07-26 evening
+    when every sensor was docked and a manual pull still refused, "which is precisely when a pull is
+    safest"), while `capture.autopull_poller` gated on `worn is True` alone.
+
+    ⚠️ `None` IS RETURNED, NOT COLLAPSED, because the two callers must answer it DIFFERENTLY and that
+    asymmetry is deliberate rather than an oversight to be tidied away. Their costs are not symmetric:
+      · blocking a harvest on an unknown is cheap — the next run retries;
+      · refusing to auto-pull on an unknown loses the ONLY backup for a lossy night, and the O2Ring's
+        `worn` is never actually unknown, so a conservative default there buys nothing real.
+    So `blocking_devices` blocks on `is not False`, and the auto-pull skips only on `is True`. Folding
+    them into a single boolean would silently pick one policy for both."""
+    st = st or {}
+    if not st.get("connected"):
+        return False
+    if st.get("charging"):
+        return False
+    return st.get("worn")
+
+
 def worn_verdict(*, ppi_flags=None, ambient=None, fs: float | None = None,
                  charging: bool | None = None,
                  contact: bool | None = None) -> tuple[bool | None, str]:
