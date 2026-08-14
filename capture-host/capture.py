@@ -1953,16 +1953,25 @@ async def run_polar(dev: dict, root: str):
                     if contact is not None:
                         nonlocal _has_contact_bit
                         _has_contact_bit = True      # a direct measurement outranks the optical inference
-                        _set(name, worn=contact, worn_why=("worn per hr-contact-bit" if contact
-                                                           else "not worn per hr-contact-bit"),
-                             last_error=None if contact else "not worn — no skin contact")
-                        # Timestamp the FIRST not-worn so the live loop can measure how long it has lasted.
-                        # Module-level + only-set-if-absent, so it PERSISTS across the duty-cycle reconnects
-                        # — otherwise each probe would restart the grace clock and never drop.
-                        if contact:
-                            _WORN_SINCE.pop(addr, None)
-                        elif addr not in _WORN_SINCE:
-                            _WORN_SINCE[addr] = _time.monotonic()
+                        # ⚠️ THROUGH THE COMBINER AND THE ONE PUBLISH PATH — not `_set` directly.
+                        #
+                        # This branch used to write `worn=contact` straight through, bypassing BOTH
+                        # abstractions whose own docstrings call themselves the single path:
+                        # `worn_verdict` ("ONE COMBINER, EVERY DETECTOR") and `_publish_worn` ("one
+                        # publish path for every source of `worn`, so the power bookkeeping cannot
+                        # diverge between them"). The cost was not theoretical. The charging veto lives
+                        # in the combiner, so on a device that HAS a contact bit it could never fire:
+                        # the Verity streamed 3 h 24 m at 176 Hz into its charging dock on 2026-08-14
+                        # (~190 MB, battery pinned at 100 %, `charging: True` published correctly right
+                        # beside a confident `worn: True`), because the bit reports skin contact in a
+                        # dock and nothing downstream was permitted to disagree with it.
+                        #
+                        # It also duplicated the `_WORN_SINCE` bookkeeping, so the drop timer keyed off
+                        # the RAW bit rather than the verdict — meaning the 180 s not-worn drop could
+                        # not accumulate no matter what any other detector concluded.
+                        _publish_worn(*worn_verdict(
+                            contact=contact,
+                            charging=STATUS["devices"].get(name, {}).get("charging")))
                     if rr:                        # raw RR intervals to the monitor (no HRV computed on-box)
                         BUS.push(_live_key("hr", tag), [float(x) for x in rr], 0)
                     if bpm:
