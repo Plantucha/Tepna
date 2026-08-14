@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (deferred 2026-07-15 — §3/§4 EXECUTED; §1 blocked on gitignored ~600k-row companions; §2 conditional on a morph re-bundle) · **Created:** 2026-07-12 · **Follows:** `PPGDEX-PI-AND-PARSE-2026-07-12-BRIEF.md`
+**Status:** DONE — 2026-08-14 (§3/§4 EXECUTED 2026-07-14 · §1 CLOSED 2026-08-01 as NOT ACTIONABLE · **§2's trigger fired 2026-07-15 and the stamp was simply never flipped** — see §2a. Nothing surfaced during this closing pass that warrants a follow-up brief: §1 and §4 each already carry their forward rule inline, and §2's list no longer exists to re-home a rule into) · **Created:** 2026-07-12 · **Follows:** `PPGDEX-PI-AND-PARSE-2026-07-12-BRIEF.md`
 
 # PpgDex PI + parse — follow-ups
 
@@ -95,6 +95,26 @@ shipped bundle source that predates Biome and had never been touched by a PR sin
 lines would churn provenance and risk the format-sensitive source-text gates. Per the same rule that
 governs its siblings: **drop it from the list the day it is genuinely reformatted on a behavioural
 re-bundle.**
+
+### §2a CLOSED 2026-08-14 — the trigger fired 2026-07-15, one day after this brief was deferred for lack of one
+
+The header was written on 2026-07-15 and said *"no trigger yet"*. On that same day
+**`02d335d5` — "refactor(suite): P4 — reflow whole tree with Biome, retire formatter-override list"** —
+did more than fire the trigger: it reflowed `ppgdex-morph.js` along with the whole tree and **retired the
+override list itself**. `biome.json` today has **no `overrides` key at all**, so there is no list to drop
+`ppgdex-morph.js` from. The section's request is satisfied in the strongest available sense — not by
+exempting the file, but by removing the exemption mechanism.
+
+**Nothing was owed in the code; what was owed was the stamp.** The condition was met the day it was
+written down, and the brief then sat `PROPOSED` for a month describing a `biome.json` state that had
+already ceased to exist — while its own header cited that condition as one of the two reasons it could
+not close. That is the failure mode a *conditional* section invites: an item phrased as "do X the day Y
+happens" has no owner watching for Y, so it can silently outlive its own premise.
+
+**Forward rule:** when a section's completion depends on someone else's future commit, name the class of
+commit that would satisfy it (here, any fleet-wide reflow) so a later reader can *test* the condition in
+one `git log`, and re-check it at every status pass. Do not leave an unwatched conditional as the only
+thing holding a brief open.
 
 ## §3 — is there another fractional-index loop in the fleet?
 
