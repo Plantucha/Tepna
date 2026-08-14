@@ -1422,3 +1422,84 @@ def test_the_archive_poller_mirrors_the_configured_subtrees(tmp_path, monkeypatc
     assert (dest / "cpap" / "night.edf").read_text() == "edf"
     assert not (dest / "incoming").exists(), "a transient tree must never reach the mirror"
     assert "incoming" not in calls, "and it must not even be offered"
+
+
+def test_a_DEAD_arrival_sidecar_warns_once_per_night(tmp_path, monkeypatch, caplog):
+    """⚠️ THE FAILURE NOTHING ELSE CAN SEE, and the reason a source-scan test was not enough.
+
+    The sidecar write is wrapped in a bare `except: pass` — telemetry must never disturb the data
+    callback — so a persistent failure is invisible BY CONSTRUCTION: samples keep arriving, the files
+    keep growing, and the per-connection BLE offset the sidecar exists to recover just stops being
+    recoverable. It surfaces weeks later inside an analysis, which is exactly how the back-timed stamps
+    it replaced went unnoticed for a whole corpus.
+
+    `alerts.arrival_canary` was written for this and, until now, called by nothing outside its own tests.
+    Three source-scan assertions proved the call EXISTS; the 100 % floor then proved they never RAN it —
+    seven statements uncovered. This one drives `qc_poller` and reads the journal, mirroring the frozen
+    sensor test above."""
+    os.makedirs(str(tmp_path / "captures" / "2026-08-14"), exist_ok=True)
+    monkeypatch.setattr(capture, "_current_night", lambda captures, settle: "2026-08-14")
+    monkeypatch.setattr(capture.nightqc, "summarize", lambda night, devices: {
+        "night": "2026-08-14", "missing": [], "devices": []})
+    # writing samples (rows) with a sidecar that has produced nothing (arrival_rows == 0)
+    capture.STATUS["devices"]["Verity"] = {"connected": True, "charging": False,
+                                           "rows": 159607, "arrival_rows": 0}
+    sent = []
+
+    class _N:
+        async def send(self, title, message, **kw):
+            sent.append((title, message))
+            return True
+
+    _stop_after(monkeypatch, 2)                    # two polls; one warning
+    cfg = {"qc": {"poll_sec": 1, "frozen_after_sec": 600}, "devices": []}
+    with caplog.at_level("WARNING"):
+        _run(capture.qc_poller(cfg, str(tmp_path), _N()))
+    dead = [r for r in caplog.records if "arrival sidecar" in r.getMessage()]
+    assert len(dead) == 1, f"one warning per dead sidecar per night, not one per poll: {len(dead)}"
+    assert "Verity" in dead[0].getMessage()
+    assert len(sent) == 1 and sent[0][0] == "Tepna: packet-arrival sidecar dead"
+    assert "will not show up as a dropout" in sent[0][1]
+    capture.STATUS["devices"].pop("Verity", None)
+
+
+def test_a_healthy_sidecar_says_NOTHING(tmp_path, monkeypatch, caplog):
+    """The mirror, and the one that matters for trust: measured over every session on the box — 355 with
+    a sidecar — this predicate fires ZERO times. Its sibling `smeared` arm was retired precisely because
+    it fired on EVERY stream on the first real night, so a canary that cannot stay quiet is worse than
+    none."""
+    os.makedirs(str(tmp_path / "captures" / "2026-08-14"), exist_ok=True)
+    monkeypatch.setattr(capture, "_current_night", lambda captures, settle: "2026-08-14")
+    monkeypatch.setattr(capture.nightqc, "summarize", lambda night, devices: {
+        "night": "2026-08-14", "missing": [], "devices": []})
+    capture.STATUS["devices"]["Verity"] = {"connected": True, "charging": False,
+                                           "rows": 159607, "arrival_rows": 159607}
+    _stop_after(monkeypatch, 2)
+    cfg = {"qc": {"poll_sec": 1, "frozen_after_sec": 600}, "devices": []}
+    with caplog.at_level("WARNING"):
+        _run(capture.qc_poller(cfg, str(tmp_path), None))
+    assert [r for r in caplog.records if "arrival sidecar" in r.getMessage()] == []
+    capture.STATUS["devices"].pop("Verity", None)
+
+
+def test_a_dead_sidecar_still_warns_the_journal_with_NO_webhook(tmp_path, monkeypatch, caplog):
+    """The notifier is optional; the journal line is not — the same rule the frozen-sensor alert states
+    two tests up, and the reason the WARNING is emitted before the `if notifier:` rather than inside it.
+    A box with no webhook configured has the journal as its ONLY alerting surface, and this failure
+    otherwise leaves no trace in it at all.
+
+    Found by the 100 % BRANCH floor: with only the fires-with-a-notifier and stays-silent cases, the
+    false arm of `if notifier:` never executed — 0 uncovered statements and 1 uncovered branch."""
+    os.makedirs(str(tmp_path / "captures" / "2026-08-14"), exist_ok=True)
+    monkeypatch.setattr(capture, "_current_night", lambda captures, settle: "2026-08-14")
+    monkeypatch.setattr(capture.nightqc, "summarize", lambda night, devices: {
+        "night": "2026-08-14", "missing": [], "devices": []})
+    capture.STATUS["devices"]["Verity"] = {"connected": True, "charging": False,
+                                           "rows": 159607, "arrival_rows": 0}
+    _stop_after(monkeypatch, 2)
+    cfg = {"qc": {"poll_sec": 1, "frozen_after_sec": 600}, "devices": []}
+    with caplog.at_level("WARNING"):
+        _run(capture.qc_poller(cfg, str(tmp_path), None))     # no notifier at all
+    dead = [r for r in caplog.records if "arrival sidecar" in r.getMessage()]
+    assert len(dead) == 1, f"the journal must still carry it: {[r.getMessage()[:60] for r in caplog.records]}"
+    capture.STATUS["devices"].pop("Verity", None)

@@ -34,6 +34,8 @@ import time
 import urllib.parse
 import urllib.request
 
+import telemetry
+
 log = logging.getLogger("cpap")
 
 DEFAULT_BASE = "http://192.168.4.1"
@@ -299,16 +301,10 @@ def blocking_devices(status_devices: dict) -> list[str]:
 
     The rule this encodes: a harvest is unsafe when a radio is carrying real sample traffic near the
     body, not merely when a link exists. A charging device cannot be on a body."""
-    out = []
-    for name, st in (status_devices or {}).items():
-        st = st or {}
-        if not st.get("connected"):
-            continue
-        if st.get("charging"):                 # on the dock — cannot be worn, streams unavailable
-            continue
-        if st.get("worn") is False:            # explicitly reported off-body (the ring knows)
-            continue
-        out.append(name)
+    # Single-sourced on `telemetry.on_body` so the rule cannot drift from its other caller. Blocks on
+    # UNKNOWN as well as on-body: refusing a harvest costs a retry, and this side can afford that.
+    out = [name for name, st in (status_devices or {}).items()
+           if telemetry.on_body(st) is not False]
     return sorted(out)
 
 
