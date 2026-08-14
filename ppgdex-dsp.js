@@ -2857,6 +2857,306 @@
     const c = correctRR(vals, tt);
     return { out: c.nn, nc: c.nCorr };
   }
+
+  /* ── DETECTOR STABILITY vs AVERAGING TIME (overlapping Allan deviation) ────────────────────────
+     WHAT THIS IS, because the method is borrowed and the application is not obvious. Allan deviation
+     is clock metrology's standard answer to "does this error shrink if I average longer?" — a single
+     SD cannot answer it, because for several common noise types SD DIVERGES as N grows (NIST/Riley
+     SP 1065). Here it is applied not to a clock but to the DISAGREEMENT between two beat detectors
+     watching the same heart: our optical foot detector and the device's own firmware detector. The
+     physiology is common to both, so it cancels in the difference, and what remains is detector noise
+     alone. That difference series is a genuine two-oscillator comparison, which is ADEV's native case.
+
+     ⚠️ The input must be PHASE (a time-error series), not intervals. RR/PPI intervals are a FREQUENCY
+     series, and a heart is not an oscillator with stationary noise — run raw intervals through this
+     and the curve is dominated by respiratory sinus arrhythmia and sleep-stage drift, i.e. it measures
+     HRV with an instrument built to make HRV disappear. Measured on 2026-08-08: the detector
+     difference gives slope −1.007 (pure jitter, 45.8 ms/beat → 0.02 ms at 40 min), while the same
+     night's beat times against a uniform grid give −0.307 and stall at 27 ms. Different questions.
+
+     WHY THE SLOPE IS THE ANSWER and the magnitude is not: −1 jitter that averages away · −½ benign ·
+     0 A FLOOR that averaging cannot remove · +½ wander · +1 deterministic drift. A −1 slope with no
+     floor is what licenses treating a SUSTAINED divergence as a real fault rather than accumulated
+     noise — without it that inference is an assumption.
+
+     THREE IMPLEMENTATIONS, DELIBERATELY, AND GATED AGAINST EACH OTHER. `capture-host/allan.py` works
+     in the phase domain via the second difference; `integrator-tch.js allanDeviation` works in the
+     frequency domain via overlapping averages; this is the frequency form again because PpgDex cannot
+     reach either (Python is a different lane, and inlining the Integrator's TCH module into this
+     bundle for one function is not worth it — while promoting it to the shared spine would re-stamp
+     all 8 provenance fragments, §👥.3, for that same one function). The two formulations are
+     algebraically equivalent and were verified to agree to every reported digit across all 12 τ on a
+     real night; `tests/dex-tests.js` pins this against BOTH siblings so a third variant cannot drift. */
+  const ALLAN_MIN_PAIRS = 64; // below this the octave ladder has too few τ to fit a slope at all
+  function allanFromPhase(phaseMs, tau0Sec) {
+    // PHASE → FRACTIONAL FREQUENCY: y[i] = (x[i+1] − x[i]) / tau0. This is the change of variable that
+    // makes the overlapping-average form apply; it is why this matches the phase-domain sibling.
+    const y = [];
+    for (let i = 1; i < phaseMs.length; i++) {
+      const v = (phaseMs[i] - phaseMs[i - 1]) / tau0Sec;
+      if (!isFinite(v)) return [];
+      y.push(v);
+    }
+    const N = y.length;
+    if (N < 3) return [];
+    const pre = new Float64Array(N + 1);
+    for (let j = 0; j < N; j++) pre[j + 1] = pre[j] + y[j];
+    const out = [];
+    for (let m = 1; 2 * m + 1 <= N; m *= 2) {
+      let sum = 0,
+        cnt = 0;
+      for (let i = 0; i + 2 * m <= N; i++) {
+        const d = (pre[i + 2 * m] - pre[i + m]) / m - (pre[i + m] - pre[i]) / m;
+        sum += d * d;
+        cnt++;
+      }
+      if (cnt < 8) break; // an estimate from a handful of terms is wider than the answer it gives
+      out.push({ tau: m * tau0Sec, adev: Math.sqrt(sum / (2 * cnt)), n: cnt });
+    }
+    return out;
+  }
+  /* Slope midpoints between the canonical exponents, and the SAME vocabulary as capture-host/allan.py
+     `_NOISE`. Kept verbatim on purpose: two lanes naming the same curve differently is a defect a
+     reader cannot see. Drift is the open-ended top, so it is the fall-through rather than a table edge
+     — an edge no slope can fail makes the fall-through unreachable. */
+  const ALLAN_NOISE = [
+    [-0.75, 'white/flicker-phase', 'jitter — averages away fast'],
+    [-0.25, 'white-frequency', 'benign; averaging helps as √N'],
+    [0.25, 'flicker-frequency', 'A FLOOR — more averaging buys nothing'],
+    [0.75, 'random-walk-frequency', 'wanders; a longer fit is worse than a short one']
+  ];
+  function allanSlope(points) {
+    const pts = (points || []).filter((p) => p.adev > 0 && p.tau > 0);
+    if (pts.length < 3) return null; // two points fit any line and cannot be checked
+    const xs = pts.map((p) => Math.log10(p.tau)),
+      ys = pts.map((p) => Math.log10(p.adev));
+    const mx = mean(xs),
+      my = mean(ys);
+    let num = 0,
+      den = 0;
+    for (let i = 0; i < xs.length; i++) {
+      num += (xs[i] - mx) * (ys[i] - my);
+      den += (xs[i] - mx) * (xs[i] - mx);
+    }
+    return den > 0 ? num / den : null;
+  }
+  /* ⚠️ KNOWN LIMITATION, RECORDED BECAUSE THIS SHIPS ON A NEW CONSUMER SURFACE (2026-08-13).
+     The boundary test is a strict `<` against a POINT ESTIMATE, so a slope landing on an edge is
+     assigned a type the data does not support, and the returned `slope` is ROUNDED — so the digit that
+     decided it is not even in the output. Measured: -0.7501 classifies as white/flicker-phase and
+     -0.7500 as white-frequency, both reporting slope -0.75, with `meaning` flipping between "averages
+     away" and "helps as sqrt(N)" — the field a consumer branches on. Our own ECGDex pair sits exactly
+     there (slope -0.7500, OLS SE 0.0204, so the -0.75 edge is inside the CI).
+     Pre-existing and shared with `capture-host/allan.py`, which has the identical structure. A joint
+     fix across both lanes is queued: refuse to NAME a type when a boundary lies within 1.96 SE, publish
+     `slopeSE` unconditionally, and stop rounding the slope in the DATA (round at display). It is
+     deliberately not fixed here — a two-language contract must move in ONE changeset or the lanes
+     drift, which is the property this file's parity gate exists to protect.
+     ⚠️ When that lands, note the SE is a LOWER BOUND: overlapping ADEV points are correlated (adjacent
+     taus reuse most of the same samples) while OLS assumes independent residuals. Do not tighten 1.96
+     back to 1 SE believing that is the more rigorous choice.
+     This does NOT weaken the marker-pair result shipped today: slope -1.0071, SE 0.0028, the nearest
+     boundary ~90 SEs away, which survives any multiplier. The ambiguity only bites where the call is
+     already close. */
+  function classifyAllan(sl) {
+    if (sl == null) return null; // an unknown is not a noise type
+    for (let i = 0; i < ALLAN_NOISE.length; i++) {
+      if (sl < ALLAN_NOISE[i][0]) return { slope: r2(sl), noise: ALLAN_NOISE[i][1], meaning: ALLAN_NOISE[i][2] };
+    }
+    return { slope: r2(sl), noise: 'drift', meaning: 'deterministic — fit and remove it, never average through it' };
+  }
+  /* Pairs two beat-time series (SECONDS, on the same axis) and returns the stability of their
+     disagreement. `maxPairSec` rejects a beat with no counterpart rather than pairing it across a
+     dropout — a fabricated pair injects a step the curve would read as wander. */
+  function detectorStability(selfSec, fwSec, maxPairSec) {
+    if (!selfSec || !fwSec || selfSec.length < ALLAN_MIN_PAIRS || fwSec.length < 3) return null;
+    const tol = maxPairSec || 0.3;
+    const ph = [],
+      bt = [];
+    for (let k = 0; k < selfSec.length; k++) {
+      const t = selfSec[k];
+      let lo = 0,
+        hi = fwSec.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (fwSec[mid] < t) lo = mid + 1;
+        else hi = mid;
+      }
+      let bi = lo,
+        best = Math.abs(fwSec[lo] - t);
+      if (lo > 0 && Math.abs(fwSec[lo - 1] - t) < best) {
+        bi = lo - 1;
+        best = Math.abs(fwSec[lo - 1] - t);
+      }
+      if (best < tol) {
+        ph.push((t - fwSec[bi]) * 1000);
+        bt.push(t);
+      }
+    }
+    if (ph.length < ALLAN_MIN_PAIRS) return null;
+    const tau0 = (bt[bt.length - 1] - bt[0]) / (bt.length - 1);
+    if (!(tau0 > 0)) return null;
+    const curve = allanFromPhase(ph, tau0);
+    if (curve.length < 3) return null;
+    const cls = classifyAllan(allanSlope(curve));
+    if (!cls) return null;
+    let best = curve[0];
+    for (const p of curve) if (p.adev < best.adev) best = p;
+    return {
+      nPaired: ph.length,
+      pairedPct: r1((100 * ph.length) / selfSec.length),
+      tau0Sec: r2(tau0),
+      taus: curve.length,
+      slope: cls.slope,
+      noise: cls.noise,
+      meaning: cls.meaning,
+      atShortestMs: r2(curve[0].adev),
+      atLongestMs: curve[curve.length - 1].adev,
+      tauMaxSec: Math.round(curve[curve.length - 1].tau),
+      /* The averaging window a measurement built on this pair should actually use — the principled
+         replacement for a window length chosen by intuition. On a pure-jitter pair it is simply the
+         longest τ measured, and saying so is more honest than implying a minimum was found. */
+      optimalTauSec: Math.round(best.tau),
+      curve: curve.map((p) => ({ tau: r2(p.tau), adev: p.adev, n: p.n }))
+    };
+  }
+  /* ── PER-CHANNEL DETECTOR AGREEMENT, REFERENCE-FREE (three-cornered hat) ─────────────────────────
+     The Verity streams THREE optical channels in the SAME ROWS. Detect independently on each and you
+     have three observers of one pulse on one axis, so the shared physiology cancels in every pairwise
+     difference and what remains is detector disagreement. Allan deviation of each pairwise difference
+     gives the SUM of two channels' noise; the classic three-cornered-hat split then separates them:
+
+         sigma_i(tau)^2 = 1/2 ( AVAR(i-j,tau) + AVAR(i-k,tau) - AVAR(j-k,tau) )
+
+     That is per-channel noise WITH NO REFERENCE — nothing here is assumed to be correct, which is the
+     whole point and why it works where no gold standard exists. (Same identity `integrator-tch.js`
+     applies across NODES; this applies it across CHANNELS of one sensor.)
+
+     ⚠️ NOISE, NOT CORRECTNESS — AND THIS SUITE HAS ALREADY BEEN BITTEN BY THE DIFFERENCE.
+     A three-cornered hat is blind to anything that moves all three corners together. The concrete
+     case is not hypothetical: PPGDEX-OPTICAL-POLARITY (#1200) shipped for three weeks with `orient()`
+     choosing the wrong sign, and ALL THREE CHANNELS AGREED ON THE WRONG SIGN — feet ~900 ms early on
+     every channel simultaneously. Under that failure the mutual differences stay small, the noise
+     stays independent, the non-negativity check stays clean, and this function reports three healthy
+     channels at slope -1. It would have been green on every night the polarity was wrong.
+     So: a clean result says the three observers disagree with each other by very little. It says
+     NOTHING about whether all three are looking at the right feature of the waveform. `polarity` is
+     carried in the return for exactly that reason — never publish the agreement without it.
+
+     ⚠️ AND THE CHANNELS ARE NOT INDEPENDENT OPTICS — THE HARDWARE SAYS SO. The Verity Sense carries
+     SIX LEDs of ONE wavelength (green) in a symmetric ring around a central detector. So the three
+     exported channels do not differ in wavelength, and they are not three separate sensors: they
+     differ in ILLUMINATION GEOMETRY over largely the same tissue volume, read through a shared
+     optical front end. (Consistent with VIGIL-DEEP-ANALYSIS §6, which refuted multi-wavelength motion
+     fusion for this device on the "near-identical green channels" ground — the ring geometry is why.)
+     Everything common to that front end therefore CANCELS in the pairwise differences: motion at the
+     site, contact pressure, ambient leakage, perfusion change. The per-channel sigma below is the
+     INDEPENDENT RESIDUAL — a LOWER BOUND on a channel's true timing noise, never an estimate of it,
+     and the bound is loose in exactly the conditions that matter most (a moving or poorly-coupled
+     wrist). Do not read a small sigma as a quiet channel; read it as "this channel adds little of its
+     OWN noise on top of whatever all three share".
+     This is NOT the refuted fusion idea re-proposed: that combined channels to cancel motion, which
+     the shared wavelength makes impossible. This decomposes noise, and is explicit that it cannot see
+     the motion term at all.
+
+     Validity is COMPUTED, not assumed: a negative split variance means the sources are not independent
+     enough for the identity to hold, so `negativeVarianceTaus` is published and a tau that goes
+     negative yields null for that channel rather than a clamped zero pretending to be a measurement. */
+  const TCH_MIN_TRIPLES = 200; // below this the octave ladder cannot support a slope fit
+  const TCH_PAIR_TOL_SEC = 0.15; // a beat with no counterpart within this is not a triple
+  function detectorAgreementTriplet(trains, opts) {
+    if (!trains || trains.length !== 3) return null;
+    for (const t of trains) if (!t || t.length < TCH_MIN_TRIPLES) return null;
+    const tol = (opts && opts.tolSec) || TCH_PAIR_TOL_SEC;
+    const near = (arr, t) => {
+      let lo = 0,
+        hi = arr.length - 1;
+      while (lo < hi) {
+        const m = (lo + hi) >> 1;
+        if (arr[m] < t) lo = m + 1;
+        else hi = m;
+      }
+      let bi = lo,
+        b = Math.abs(arr[lo] - t);
+      if (lo > 0 && Math.abs(arr[lo - 1] - t) < b) {
+        bi = lo - 1;
+        b = Math.abs(arr[lo - 1] - t);
+      }
+      return { t: arr[bi], d: b };
+    };
+    /* Roll-call on channel 0. Legitimate ONLY because all three are in the same rows: correspondence
+       is exact, not an alignment estimate, so there is no offset to fit and none to decay. (The ECGDex
+       attempt paired 63.6 % against 99.8 % here for precisely that reason.) A beat missing from either
+       other channel is DROPPED, never matched across a gap. */
+    const A = [],
+      B = [],
+      C = [];
+    for (const t of trains[0]) {
+      const b = near(trains[1], t),
+        c = near(trains[2], t);
+      if (b.d < tol && c.d < tol) {
+        A.push(t);
+        B.push(b.t);
+        C.push(c.t);
+      }
+    }
+    if (A.length < TCH_MIN_TRIPLES) return null;
+    const tau0 = (A[A.length - 1] - A[0]) / (A.length - 1);
+    if (!(tau0 > 0)) return null;
+    const ph = (X, Y) => X.map((v, i) => (v - Y[i]) * 1000);
+    const ab = allanFromPhase(ph(A, B), tau0),
+      ac = allanFromPhase(ph(A, C), tau0),
+      bc = allanFromPhase(ph(B, C), tau0);
+    const nT = Math.min(ab.length, ac.length, bc.length);
+    if (nT < 3) return null;
+    /** @type {{tau:number, adev:number|null}[][]} — an empty literal infers as never[][] under checkJs */
+    const per = [[], [], []];
+    let neg = 0;
+    for (let i = 0; i < nT; i++) {
+      const v = [ab[i].adev * ab[i].adev, ac[i].adev * ac[i].adev, bc[i].adev * bc[i].adev];
+      const split = [0.5 * (v[0] + v[1] - v[2]), 0.5 * (v[0] + v[2] - v[1]), 0.5 * (v[1] + v[2] - v[0])];
+      let bad = false;
+      for (let c = 0; c < 3; c++) if (split[c] < 0) bad = true;
+      if (bad) neg++;
+      for (let c = 0; c < 3; c++) per[c].push({ tau: ab[i].tau, adev: split[c] >= 0 ? Math.sqrt(split[c]) : null });
+    }
+    const chans = per.map((curve) => {
+      /* Built explicitly rather than filtered: `.filter(p => p.adev > 0)` does not NARROW the type
+         (a filter is not a type predicate), so the nulls a refused tau legitimately produces stay in
+         the signature and every downstream read is "possibly null". */
+      const pts = [];
+      for (const q of curve) if (q.adev != null && q.adev > 0) pts.push({ tau: q.tau, adev: q.adev });
+      const sl = allanSlope(pts);
+      return {
+        sigmaShortestMs: pts.length ? r2(pts[0].adev) : null,
+        sigmaLongestMs: pts.length ? pts[pts.length - 1].adev : null,
+        slope: sl == null ? null : r2(sl),
+        curve: curve.map((p) => ({ tau: r2(p.tau), adev: p.adev }))
+      };
+    });
+    return {
+      /* The PAIRWISE curves the split was derived from. Published for two reasons: a reader can see
+         the input to the identity rather than only its output, and it makes the reconstruction
+         checkable — sigma_i^2 + sigma_j^2 must equal AVAR(i-j) EXACTLY, which holds only when the
+         split coefficients are exactly 1/2. That is the one assertion able to catch a wrong
+         coefficient: scaling all three sigma equally leaves the ORDERING intact and log-log SLOPE is
+         scale-invariant, so every other property survives a mis-scaled split unchanged. */
+      pairwise: { AB: ab.map((p) => p.adev), AC: ac.map((p) => p.adev), BC: bc.map((p) => p.adev) },
+      nTriples: A.length,
+      triplePct: r1((100 * A.length) / trains[0].length),
+      tau0Sec: r2(tau0),
+      taus: nT,
+      negativeVarianceTaus: neg,
+      /* The identity's own independence check. Non-zero ⇒ the three channels are not independent
+         enough at those tau and the split there is not a measurement. Published, never hidden. */
+      independent: neg === 0,
+      channels: chans,
+      /* Carried so the agreement can never be read without it — see the polarity warning above. */
+      polarity: (opts && opts.signs) || null,
+      polarityUnanimous: opts && opts.signs ? opts.signs.every((s) => s === opts.signs[0]) : null,
+      scope: 'per-channel detector NOISE (independent residual only); says nothing about whether all three channels are reading the correct waveform feature'
+    };
+  }
   function sdnnOf(rr) {
     if (!rr || rr.length < 2) return 0;
     const m = mean(rr);
@@ -3076,7 +3376,13 @@
            so nothing is compensated after the fact.
        Measured effect on the three affected nights: kept3/3 0 → 21818 / 15486 / 7925 and 1-of-3 drops
        23202 → 795, 15662 → 67, 8305 → 187, with every inter-channel peak offset collapsing to 0.0 ms. */
-    applyConsensusPolarity(perChannel, (i, sgn) => detectChannel(chIn[keepIdx[i]], rec.fs, sgn));
+    /* The RETURN VALUE matters and was being discarded. It is the number of channels whose polarity
+       disagreed with the majority and were re-detected — the only record that the three observers did
+       not originally agree, since after this call the signs are unanimous BY CONSTRUCTION. A
+       post-consensus unanimity check is therefore vacuous; this count is not. It travels into the
+       detector-agreement result below, where it is the one field that can hint at the failure that
+       tool is structurally blind to. */
+    const polarityFlipped = applyConsensusPolarity(perChannel, (i, sgn) => detectChannel(chIn[keepIdx[i]], rec.fs, sgn));
     // remap the reference channel onto the deduped set; if the best-SNR channel was itself a
     // duplicate, its first occurrence carries the identical waveform, so the reference is preserved.
     const refIdx = Math.max(
@@ -3091,6 +3397,19 @@
     const refIdxUsed = harmonicOutlierRefIdx(refIdx, _chRates, _chSnr);
     const bp = perChannel[refIdxUsed].bp; // reference-channel band-passed waveform
     const cons = consensusBeats(perChannel, refIdxUsed, rec.fs);
+    /* PER-CHANNEL DETECTOR AGREEMENT (three-cornered hat). Only meaningful with three genuinely
+       distinct channels in the same rows — a deduped 1- or 2-channel record, or a replicated one, has
+       no third corner and gets null rather than a two-corner approximation. Runs on the CONSENSUS-
+       CORRECTED per-channel feet, i.e. the beats the node actually uses. */
+    let channelStability = null;
+    if (perChannel.length === 3) {
+      const toSec = (pc) => Array.from(pc.feet, (i) => rec.relSec[Math.max(0, Math.min(rec.n - 1, Math.round(i)))]).filter(Number.isFinite);
+      channelStability = detectorAgreementTriplet([toSec(perChannel[0]), toSec(perChannel[1]), toSec(perChannel[2])], {
+        signs: perChannel.map((pc) => pc.sign),
+        polarityFlipped: polarityFlipped
+      });
+      if (channelStability) channelStability.polarityFlipped = polarityFlipped;
+    }
     // A beat whose foot→peak span touches a rejected sentinel is a GAP, not a measurement — its
     // timing would rest on held values. Drop it. This is the same discipline the 3-LED path applies
     // to a 1-of-3 beat: dropped, never median-filled, never interpolated.
@@ -3516,6 +3835,9 @@
       }
     }
 
+    /* Per-channel detector agreement (three-cornered hat). Null unless the record has three distinct
+       channels — see `detectorAgreementTriplet`, and read its `scope` before drawing a conclusion:
+       this is per-channel NOISE, not per-channel correctness. */
     // PPI validation lane
     /* TWO firmware sources, and the O2Ring one needs no companion file. A Verity night brings its own
        `_PPI.txt` (when box-captured); an O2Ring finger night brings nothing — but its `156` beat rows
@@ -3537,6 +3859,15 @@
       ppiSource = 'o2ring-marker';
     }
     const validation = validatePPI(nn, ppiSeries, { source: ppiSource });
+    /* The stability leg needs BOTH detectors' beat TIMES on ONE axis, which is true only for the
+       marker source: those rows sit in the same file, on the same `relSec`, as the feet we detected.
+       A `_PPI.txt` carries intervals plus the host's ARRIVAL stamps, so differencing against it would
+       measure BLE transport jitter on top of detector jitter and report the sum as detector noise —
+       a worse answer than none. Null there, and the card says why rather than showing a number that
+       does not mean what it appears to. */
+    if (validation && validation.usable && ppiSource === 'o2ring-marker' && rec.beatMarkerSec) {
+      validation.stability = detectorStability(footSec, Array.from(rec.beatMarkerSec));
+    }
 
     // markers
     const markers = (rec.markers || []).map((mk) => ({ relSec: mk.relSec, type: mk.type }));
@@ -3703,6 +4034,13 @@
       magHasData: motion.hasMag,
       magInterferencePct,
       validation,
+      /* Per-channel detector agreement, three-cornered hat over the 3 optical channels. Null unless
+         the record carries three distinct channels. ⚠️ Read `scope` before concluding anything: this
+         is per-channel NOISE (the independent residual), not per-channel correctness — it is blind to
+         any error that moves all three channels together, which is the failure that actually shipped
+         (#1200, wrong polarity, all three agreeing). `polarity` and `polarityFlipped` travel with it
+         so the agreement is never read without the orientation it was computed under. */
+      channelStability,
       markers,
       morph,
       perfusionIndex: perfWindow(),
@@ -3986,6 +4324,12 @@
     analyzeMotion,
     movementOnsets,
     validatePPI,
+    // Exposed for the cross-implementation parity gate (allan.py / integrator-tch.js) — see the
+    // DETECTOR STABILITY block above. Not part of any node contract.
+    allanFromPhase,
+    classifyAllan,
+    detectorStability,
+    detectorAgreementTriplet,
     bandpass,
     detectBeats,
     detectChannel,
