@@ -166,11 +166,36 @@ REDUCTION §P3, 2026-07-15): `BUILD-MANIFEST.json` + `FIXTURE-PROVENANCE.json` w
 **`provenance/<App>.json`** fragments (each owns that app's GATE-A `manifestHash` + GATE-B fixtures), so an
 OxyDex re-bundle and a GlucoDex re-bundle now touch **different files** — no collision. `provenance-ledger.js`
 reassembles the combined `{ bundles }` / `{ fixtures }` view every reader/gate still consumes; the monoliths
-are retired. What remains genuinely shared: **`clock.js` (and any other spine module) is inlined into EVERY
-bundle** — so one clock change moves **every** app's `manifestHash` (and thus every fragment) at once.
+are retired. What remains genuinely shared: a **spine module is inlined into many bundles**, so one spine
+change moves each of those apps' `manifestHash` (and thus each fragment) at once.
 
-- **A shared-spine change still serializes** (it re-stamps all 8 fragments); a single-app re-bundle no longer
-  does. For spine work, say so before you start.
+⚠️ **"EVERY bundle" is WRONG for `clock.js`, and this sentence used to say it.** Measured 2026-08-14 —
+`grep -c 'data-inline-src="clock.js"' <App>.html`, then confirmed at runtime by loading each page and
+reading `typeof DexClock`:
+
+| module | bundles carrying it |
+|---|---|
+| `kernel-constants.js` · `metric-registry.js` · `dex-export.js` | **8 of 8** |
+| **`clock.js`** | **5 of 8** — absent from **PpgDex · GlucoDex · CPAPDex**, where `DexClock` is `undefined` at runtime |
+
+Those three are exactly the nodes §✅ names as keeping *"DELIBERATE node-local variants — do not force
+them onto DexClock"*. They ship without the spine **on purpose**; this paragraph contradicted §✅ and §✅
+is the correct one.
+
+🔴 **This cost a whole PR (#1232, closed).** It removed `ppgdex-dsp.js`'s Allan core citing this line —
+but that was **the only copy PpgDex has**, and the parity assertion holding the two copies byte-equal
+read as evidence of redundancy when it was the opposite. The PpgDex render rig went **1458 ms →
+16945 ms** and `browser-gates` went red. Two fixes were tried and both were wrong, in the order that
+makes them worth recording: an **unguarded** alias (`const f = DexClock.f`) throws at
+MODULE-EVALUATION time — which **no Node assertion can see**, because Node co-loads the spine and never
+evaluates the file alone, so only `browser-gates` catches it; **guarding** it then converts the crash
+into a **silent disablement**, which is worse than the crash.
+
+**Before delegating anything in a `*-dsp.js` to `DexClock`, check that bundle actually carries it.** Do
+not infer it from this section.
+
+- **A shared-spine change still serializes** — all 8 fragments for the three universal modules, **5** for
+  `clock.js`; a single-app re-bundle no longer does. For spine work, say so before you start.
 - Landing second? **Rebase, re-run `node tools/build.mjs --app <App>`** — it auto-writes the manifest hash
   and re-stamps fixtures, so the redo is cheap — then re-run the gates.
 - A shared-spine change (`clock.js`, `kernel-constants.js`, `metric-registry.js`, `dex-export.js`) should
