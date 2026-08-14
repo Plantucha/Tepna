@@ -360,6 +360,52 @@ increases". That is the 10× underestimate, named and solved.
 > · Stata `newey` <https://www.stata.com/manuals/tsnewey.pdf> · MATLAB `hac`
 > <https://www.mathworks.com/help/econ/hac.html>
 
+### 5.1 · MEASURED — HAC recovers the split the bimodality predicted, but the case is NOT closed
+
+`tools/closure-tol-hac.mjs` co-loads the real `fitClockDrift`, rebuilds each leg's `blocks_` phase
+series from the node exports, and computes the Newey-West HAC standard error of each slope. Tolerance
+becomes `1.96 * sqrt(SE1² + SE2² + SE3²)` — a bound with a stated confidence rather than a fraction of a
+magnitude. 14 nights produced three fitted legs.
+
+| rule | closes | voids |
+|---|---:|---:|
+| magnitude `max(5, 0.25·leg)` | 6 | **8** |
+| HAC `1.96·SE`, L = 0 / 2 / 4 / 8 | **12** | **2** |
+
+**Bandwidth does not drive it.** All four Bartlett truncations give the identical 12/2 split (median SE
+9.68 → 11.79 ppm), which is the sensitivity analysis the sources ask for, and it passes. The two nights
+that void are **2026-08-06** (51.5 ppm vs a 41.7 ppm bound) and **2026-08-10** (18.5 vs 15.9).
+
+That 12/2 split is exactly what #1231's bimodality predicted — "roughly two nights have a genuinely
+wrong fit and about eight currently-voided nights are threshold artifacts" — reached here from the
+legs' own precision, without being tuned to that structure.
+
+**🔴 TWO RESULTS ARGUE AGAINST SHIPPING THIS YET, AND THEY ARE RECORDED BECAUSE THEY ARE INCONVENIENT.**
+
+1. **The r = −0.238 figure does not reproduce.** On these 14 nights `|closure|` vs leg magnitude is
+   **r = +0.460**, and against the HAC SE it is only **0.298–0.353**. So on this subset the OLD
+   predictor tracks closure BETTER than the new one. The −0.238 came from a different fold over a
+   different night set; neither supersedes the other, and the disagreement itself is the finding —
+   n = 14 is far too small to settle a correlation, and this brief has already been burned once by a
+   confident number over a small denominator (§3.1).
+2. **Correlation is not the criterion, but "voids fewer" is not one either.** A tolerance's job is
+   CALIBRATION: at 95 % the void rate should be ~5 % when the fits are sound. HAC gives 14 % (2/14),
+   consistent with two genuinely bad nights plus noise. The magnitude rule gives **57 %**, which is not
+   credible as "57 % of nights have a wrong fit". That asymmetry is the real argument for HAC — not the
+   raw count, and not the correlation.
+
+**Recommendation: do NOT flip the constant on n = 14.** Ship the derivation and the tool; re-run when
+more nights carry the third leg (only 25 of 51 currently have a `PpgDexFinger` export, and 14 of those
+yield three confident fits). The change is additive when it comes — `fitClockClosure` already accepts
+`opts.closureTolPpm`, so a computed HAC bound can be reported alongside the shipped rule before it
+replaces it.
+
+⚠️ **The third leg is `PpgDexFinger`, not `OxyDex`.** OxyDex's export carries no beat series at all
+(only `spo2`/`hr`), so the closure triple is H10 chest ECG · Verity armband PPG · O2Ring FINGER PPG
+through PpgDex. A first attempt at this analysis used OxyDex and produced zero fitted nights.
+
+---
+
 ⚠️ **Bandwidth (lag truncation) selection is the judgement call**, and the sources agree sensitivity
 analysis matters in small samples — our blocks-per-night count *is* a small sample. Report the
 tolerance under two or three bandwidths before adopting one, and prefer §3's moving-block bootstrap as
