@@ -34,9 +34,10 @@ class _Ran:
 
     def __init__(self, rc=0, out="", err=""):
         self.rc, self.out, self.err, self.argv = rc, out, err, None
+        self.kw = None            # the kwargs too — see the HOW-IT-IS-CALLED test below
 
     def __call__(self, argv, **kw):
-        self.argv = argv
+        self.argv, self.kw = argv, kw
         return subprocess.CompletedProcess(argv, self.rc, self.out, self.err)
 
 
@@ -163,3 +164,27 @@ def test_the_verbs_that_kill_this_process_are_declared():
     in it, or a harmless read would be deferred and never reported."""
     assert dc.KILLS_SELF == {"restart", "stop"}
     assert "status" not in dc.KILLS_SELF
+
+
+def test_run_PASSES_MINUTES_THROUGH_to_the_command_it_builds():
+    """Found by the mutation gate: `build_cmd(verb, minutes)` mutated to `build_cmd(verb, None)`
+    survived, because nothing asserted that `run` forwards the argument. A stop that silently used the
+    default instead of the requested duration is exactly the class of bug that looks like it worked."""
+    r = _Ran(0, "stopped")
+    dc.run("stop", 12, runner=r)
+    assert r.argv[-2:] == ["stop", "12"], f"the requested minutes must reach the helper: {r.argv}"
+    r2 = _Ran(0, "stopped")
+    dc.run("stop", runner=r2)
+    assert r2.argv[-1] == str(dc.DEFAULT_STOP_MINUTES), "and the default when none was asked for"
+
+
+def test_HOW_the_helper_is_invoked_is_asserted_not_just_THAT_it_is():
+    """Also from the mutation gate: every kwarg of the subprocess call survived mutation, because the
+    fake accepted `**kw` and threw it away. Each one carries weight — without `capture_output` and
+    `text` there is no output to put in `detail` or to detect the missing-sudoers hint from, and
+    without `timeout` a wedged helper hangs the endpoint on a box that has had 18 h D-state processes."""
+    r = _Ran(0, "ok")
+    dc.run("restart", runner=r, timeout=17.0)
+    assert r.kw.get("capture_output") is True, "output is needed for `detail` and the sudoers hint"
+    assert r.kw.get("text") is True, "bytes would break the substring checks in `run`"
+    assert r.kw.get("timeout") == 17.0, "the caller's timeout must reach subprocess, or it cannot bound"

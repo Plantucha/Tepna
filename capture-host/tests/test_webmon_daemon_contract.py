@@ -11,6 +11,7 @@ that validates in the DEFERRED half returns a cheerful 200 and then does nothing
 before the answer, so a bad verb or an impossible `minutes` is a 400 and never a silent no-op — the
 same silent-success shape this suite keeps finding in other layers.
 """
+import asyncio
 import os
 import sys
 
@@ -116,3 +117,45 @@ def test_STATUS_is_answered_INLINE_because_it_does_not_kill_the_server(tmp_path,
     assert status == 200 and body["ok"] is True
     assert body["detail"] == "tepna-capture.service: active", "an inline verb returns the REAL output"
     assert seen == ["status"], "status must run during the request, not after it"
+
+
+def test_the_DEFERRED_HALF_FIRES_with_the_verb_and_minutes_that_were_ASKED_FOR(tmp_path, monkeypatch):
+    """⚠️ THE OTHER HALF OF THE ORDERING CONTRACT, and the one every other test here is blind to.
+
+    Every test above asserts `fired == []` — which proves the answer came FIRST, and proves nothing at
+    all about what happens next. The mutation gate found this: ten separate mutants of the scheduling
+    line survived, including `_schedule(delay, verb, None)` and `daemon_control.run(verb, None)`. Under
+    any of them the operator asks to stop capture for 12 minutes, gets a cheerful 200 saying '12 min',
+    and the box comes back after the 30-minute default — a silent success, which is this suite's most
+    frequently re-found failure shape.
+
+    So this one lets the timer actually elapse and reads what came out the other side."""
+    fired = []
+    app, *_ = _mk(tmp_path, devices=[], status={})
+    monkeypatch.setattr(daemon_control, "run",
+                        lambda verb, minutes=None, **kw: fired.append((verb, minutes)))
+
+    async def go(c):
+        r = await c.post("/api/daemon", json={"verb": "stop", "minutes": 12})
+        body = await r.json()
+        assert fired == [], "still answer-then-fire: nothing may have run at response time"
+        await asyncio.sleep(daemon_control.RESTART_DELAY_S + 0.35)   # let call_later come due
+        return body
+    _serve(app, go)
+    assert fired == [("stop", 12)], f"the deferred call must carry BOTH arguments through: {fired}"
+
+
+def test_a_deferred_RESTART_fires_the_restart_verb_and_no_other(tmp_path, monkeypatch):
+    """The verb travels through the same seam and was mutable to `None` there too — a restart that
+    fired `None` would raise inside a timer callback, where nothing is watching."""
+    fired = []
+    app, *_ = _mk(tmp_path, devices=[], status={})
+    monkeypatch.setattr(daemon_control, "run",
+                        lambda verb, minutes=None, **kw: fired.append((verb, minutes)))
+
+    async def go(c):
+        await c.post("/api/daemon", json={"verb": "restart"})
+        await asyncio.sleep(daemon_control.RESTART_DELAY_S + 0.35)
+        return None
+    _serve(app, go)
+    assert [v for v, _ in fired] == ["restart"], f"exactly the restart verb, once: {fired}"
