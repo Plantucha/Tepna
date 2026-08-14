@@ -34,7 +34,14 @@
  *   node tools/mutation-worklist.mjs --top 40
  *   node tools/mutation-worklist.mjs --file oxydex-dsp.js
  *   node tools/mutation-worklist.mjs --json          # machine-readable, for tracking progress
+ *   node tools/mutation-worklist.mjs --sweep-dir D   # read sweeps from D (also: DEX_SWEEP_DIR)
  *   node tools/mutation-worklist.mjs --selftest
+ *
+ * SWEEPS LIVE IN `.mutation-sweeps/` (gitignored), NOT `/tmp` — a tmpfs loses them on reboot, and
+ * this tool then reported a FINISHED queue rather than a lost one. It now EXITS 2 with `NO SWEEP
+ * DATA` instead of printing `0/0 = NaN%`. Regenerate one with:
+ *
+ *     node tools/mutate.mjs --file ppgdex-dsp.js --json > .mutation-sweeps/ppgdex-dsp.json
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -50,18 +57,48 @@ const opt = (f, d) => {
 const IS_MAIN = !!process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 /* Where each file's newest sweep lives. A sweep is a large JSON that is NOT committed (it is a
-   measurement, not a source), so this is a lookup of the agreed scratch paths. A missing sweep is
-   reported, never silently skipped — an absent file must not read as "no work left". */
-export const SWEEPS = {
-  'oxydex-dsp.js': '/tmp/oxydex-sweep.json',
-  'ecgdex-dsp.js': '/tmp/ecgdex-sweep.json',
-  'integrator-dsp.js': '/tmp/integrator-sweep.json',
-  'ppgdex-dsp.js': '/tmp/ppgdex-sweep-fresh.json',
-  'glucodex-dsp.js': '/tmp/glucodex-sweep2.json',
-  'cpapdex-dsp.js': '/tmp/cpapdex-sweep.json',
-  'hrvdex-dsp.js': '/tmp/hrvdex-sweep.json',
-  'motiondex-dsp.js': '/tmp/motiondex-sweep.json'
-};
+   measurement, not a source), so this resolves the agreed scratch paths. A missing sweep is
+   reported, never silently skipped — an absent file must not read as "no work left".
+
+   🔴 NOT `/tmp`, AND THAT IS THE WHOLE POINT OF THIS BLOCK. Until 2026-08-14 these were eight
+   hard-coded `/tmp/*-sweep*.json` paths. `/tmp` is a tmpfs: a reboot wipes it. On 2026-08-14 a box
+   restart destroyed all eight at once, and the failure presented as SUCCESS — the tool warned about
+   the missing files, then printed
+
+       ▸ FLEET  0/0 distinguishable = NaN%   0 survivors unresolved   target 99%
+       0 functions hold 0 unresolved survivors.
+
+   which reads as a finished queue rather than a lost one. The equivalence LEDGER survived (it is
+   committed), so only the survivor inventory was lost — the cheap half to rebuild, but only if
+   somebody notices it is gone. See §NO-SWEEP below for the refusal that now replaces `NaN%`.
+
+   The paths were also DRIFTING: three of the eight carried ad-hoc suffixes (`-fresh`, `2`) accreted
+   by whoever last re-swept that file, which is the usual sign that a hand-maintained path list has
+   started to rot. A directory has no such failure mode — the name is derived, so it cannot drift.
+
+   `.mutation-sweeps/` sits in the repo root and is gitignored, exactly as `.mutation-crawl/` already
+   is. Override with `DEX_SWEEP_DIR` or `--sweep-dir` for a scratch volume elsewhere. */
+export const SWEEP_FILES = ['oxydex-dsp.js', 'ecgdex-dsp.js', 'integrator-dsp.js', 'ppgdex-dsp.js', 'glucodex-dsp.js', 'cpapdex-dsp.js', 'hrvdex-dsp.js', 'motiondex-dsp.js'];
+
+export function sweepDir() {
+  const flag = opt('--sweep-dir', '');
+  return flag || process.env.DEX_SWEEP_DIR || join(ROOT, '.mutation-sweeps');
+}
+
+/* Derived, never hand-written: `ppgdex-dsp.js` -> `<dir>/ppgdex-dsp.json`. */
+export function sweepPathFor(file, dir) {
+  return join(dir || sweepDir(), String(file).replace(/\.js$/, '') + '.json');
+}
+
+export function resolveSweeps(dir) {
+  const d = dir || sweepDir();
+  const out = {};
+  for (const f of SWEEP_FILES) out[f] = sweepPathFor(f, d);
+  return out;
+}
+
+/* Same shape as the old literal — `tools/killcheck.mjs` reads `SWEEPS[file]`. */
+export const SWEEPS = resolveSweeps();
 
 /* Innermost enclosing `function NAME(` for every line. Brace-counting rather than a parser: the same
    approach probe-equivalence uses, so a function this cannot see is invisible to BOTH and the two
@@ -143,6 +180,38 @@ if (IS_MAIN && has('--selftest')) {
   ok('…the RESOLVED count is within 1 % either way', Math.abs(a.resolved - b.resolved) / 5590 < 0.01, `${Math.round(a.resolved)} vs ${Math.round(b.resolved)}`);
   ok('a target already met needs no kills', project(100, 100, 0, 99, 0).killsNeeded === 0);
 
+  /* ── sweep-path resolution (2026-08-14) ────────────────────────────────────────────────────
+     The regression these pin is not a wrong number, it is a wrong PLACE: eight `/tmp` paths that a
+     reboot wiped, after which the tool reported a finished queue. */
+  ok('all eight DSPs are expected', SWEEP_FILES.length === 8, String(SWEEP_FILES.length));
+  ok('a sweep path is DERIVED from the filename, not hand-written', sweepPathFor('ppgdex-dsp.js', '/d') === '/d/ppgdex-dsp.json', sweepPathFor('ppgdex-dsp.js', '/d'));
+  ok('…so the ad-hoc suffixes that had accreted cannot come back', !SWEEP_FILES.some((f) => /-fresh|2\.json/.test(sweepPathFor(f, '/d'))));
+  ok('NO sweep path lives in /tmp — a tmpfs loses the queue on reboot', !Object.values(resolveSweeps()).some((p) => p.startsWith('/tmp/')), Object.values(resolveSweeps())[0]);
+  ok('the default dir is inside the repo, beside .mutation-crawl', sweepDir().startsWith(ROOT), sweepDir());
+  ok('DEX_SWEEP_DIR overrides it', sweepPathFor('oxydex-dsp.js', '/elsewhere') === '/elsewhere/oxydex-dsp.json');
+  ok('every expected file resolves to a distinct path', new Set(Object.values(resolveSweeps())).size === 8);
+
+  /* The honesty property, stated as arithmetic: a zero denominator must not become a percentage.
+     `0/0` is NaN, and `NaN.toFixed(1)` is the string "NaN" — which printed beside "target 99%" and
+     read as a finished programme. */
+  ok('a zero denominator is not a percentage', Number.isNaN((100 * 0) / 0), 'the NaN% that shipped');
+  /* Bound to locals: biome's noSelfCompare reads a literal `0 > 0` as a mistake, and it is normally
+     right — the same accommodation the suite's comparator group makes for `ser(x) === ser(x)`. */
+  const zeroDis = 0,
+    negDis = -29;
+  ok('…and the guard catches it (dis>0 is false for 0 and for negatives)', !(zeroDis > 0) && !(negDis > 0));
+
+  /* ABSENT and DEGENERATE are different failures with different fixes, and a single `dis > 0` guard
+     reported both as missing data. Caught by testing the HAPPY path: a sweep of 100 tested against
+     ppgdex's 129 committed equivalents gives dis = −29, and the tool blamed a file that was present.
+     `loaded` is what separates them, so these pin the decision rather than the message. */
+  const verdict = (loadedN, disN) => (loadedN === 0 ? 'NO SWEEP DATA' : disN <= 0 ? 'DEGENERATE DENOMINATOR' : 'ok');
+  ok('nothing read ⇒ absent, not degenerate', verdict(0, 0) === 'NO SWEEP DATA', verdict(0, 0));
+  ok('read but ledger ≥ tested ⇒ DEGENERATE, not absent', verdict(1, -29) === 'DEGENERATE DENOMINATOR', verdict(1, -29));
+  ok('…and exactly zero distinguishable is degenerate too, not a 0 % rate', verdict(1, 0) === 'DEGENERATE DENOMINATOR', verdict(1, 0));
+  ok('a healthy sweep reports normally', verdict(8, 1060) === 'ok', verdict(8, 1060));
+  ok('the two failures are never the same verdict', verdict(0, 0) !== verdict(1, 0));
+
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
   process.exit(fail ? 1 : 0);
 }
@@ -155,6 +224,7 @@ if (IS_MAIN && !has('--selftest')) {
 
   const rows = [];
   const missing = [];
+  let loaded = 0; // sweeps actually READ — distinguishes "absent" from "present but degenerate"
   let T = 0,
     K = 0,
     I = 0,
@@ -166,6 +236,7 @@ if (IS_MAIN && !has('--selftest')) {
       continue;
     }
     const d = JSON.parse(readFileSync(sweep, 'utf8'));
+    loaded++;
     const src = readFileSync(join(ROOT, file), 'utf8');
     const ranges = functionRanges(src);
     const eq = new Set((led[file] || []).map((e) => e.line + '|' + e.op + '|' + String(e.before).trim()));
@@ -185,13 +256,74 @@ if (IS_MAIN && !has('--selftest')) {
 
   if (missing.length) console.log(`  ⚠ NO SWEEP for ${missing.length} file(s): ${missing.join(', ')} — their work is NOT counted below.\n`);
 
+  /* ── §NO-SWEEP · AN EMPTY DENOMINATOR IS AN UNKNOWN QUEUE, NOT A FINISHED ONE ─────────────────
+     With every sweep absent this printed `0/0 distinguishable = NaN%   0 survivors unresolved`
+     beside `target 99%`, and `0 functions hold 0 unresolved survivors` — the exact shape of a
+     completed programme. It also exited 0, so nothing downstream could tell the difference either.
+     That is CLAUDE.md §👥.4b's family: the check ran and reported success about something it never
+     examined. Measured 2026-08-14, after a reboot wiped the eight `/tmp` sweeps.
+
+     Refuse instead. There is no percentage to report when nothing was measured, and printing one
+     anyway is the failure — `NaN` is not a small number, it is the absence of a measurement wearing
+     the shape of one. Exit 2 so a script cannot mistake it for a clean queue. */
+  const dis = T - I - E;
+  const surv = T - I - K - E;
+  const where = sweepDir();
+
+  /* TWO DISTINCT FAILURES, and collapsing them hides the second. "No sweep was read" and "a sweep
+     was read but its denominator is not positive" have different causes and different fixes, and a
+     single `dis > 0` guard reports both as missing data. Caught 2026-08-14 testing the HAPPY path:
+     a sweep claiming `tested: 100` against ppgdex's 129 committed equivalents yields dis = −29, and
+     the tool blamed an absent file that was sitting right there. A stale sweep — one taken before
+     the ledger grew past it — is a real condition and deserves its own name. */
+  if (dis <= 0 && loaded > 0) {
+    const m = {
+      error: 'DEGENERATE DENOMINATOR',
+      loaded,
+      tested: T,
+      invalid: I,
+      equivalent: E,
+      distinguishable: dis,
+      detail:
+        'the ledger records at least as many equivalents as the sweep tested — the sweep is STALE relative to tools/mutate-equivalence.json, or the two disagree about which file they describe. Re-sweep; do not read a rate off this.'
+    };
+    if (has('--json')) console.log(JSON.stringify(m, null, 2));
+    else {
+      console.log(`🔴 DEGENERATE DENOMINATOR — ${T} tested − ${I} invalid − ${E} equivalent = ${dis}.\n`);
+      console.log('   A sweep was read, so this is NOT missing data. The equivalence ledger records at');
+      console.log('   least as many entries as the sweep tested, which means the sweep predates them');
+      console.log('   or the two describe different files. Re-sweep — a rate computed here is meaningless.');
+    }
+    process.exit(2);
+  }
+
+  if (loaded === 0) {
+    const msg = {
+      error: 'NO SWEEP DATA',
+      swept: 0,
+      expected: only ? [only] : SWEEP_FILES,
+      sweepDir: where,
+      detail: 'the queue is UNKNOWN, not empty — re-sweep before reading any progress from this tool'
+    };
+    if (has('--json')) console.log(JSON.stringify(msg, null, 2));
+    else {
+      console.log('🔴 NO SWEEP DATA — the queue is UNKNOWN, not empty.\n');
+      console.log(`   Looked in: ${where}`);
+      console.log(`   Expected:  ${(only ? [only] : SWEEP_FILES).map((f) => sweepPathFor(f, where).split('/').pop()).join(', ')}\n`);
+      console.log('   A sweep is a MEASUREMENT and is not committed, so an absent one means it was');
+      console.log('   never run or was destroyed — never that the work is done. Regenerate with');
+      console.log(`   \`node tools/mutate.mjs --file <f> --json > ${where}/<f-without-.js>.json\`.\n`);
+      console.log('   The equivalence LEDGER (tools/mutate-equivalence.json) is committed and is not');
+      console.log('   affected by this — only the survivor inventory needs rebuilding.');
+    }
+    process.exit(2);
+  }
+
   if (has('--json')) {
     console.log(JSON.stringify({ fleet: { tested: T, killed: K, invalid: I, equivalent: E }, work: rows }, null, 2));
     process.exit(0);
   }
 
-  const dis = T - I - E;
-  const surv = T - I - K - E;
   console.log(`▸ FLEET  ${K}/${dis} distinguishable = ${((100 * K) / dis).toFixed(1)}%   ${surv} survivors unresolved   target 99%\n`);
   console.log('  THE TARGET IN ONE LINE: at any kill/classify split, ~98.5% of those survivors must be');
   console.log('  RESOLVED — killed if killable, classified if not. No ratio avoids the work.\n');
