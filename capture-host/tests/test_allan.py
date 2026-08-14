@@ -9,6 +9,7 @@ exists to do, so the separation is asserted explicitly.
 """
 from __future__ import annotations
 
+import pytest
 import random
 
 import allan
@@ -241,3 +242,192 @@ def test_stability_needs_three_taus_exactly():
     assert allan.stability(x, TAU0, )["ok"] is True
     two = allan.adev(x, TAU0, taus=[1.0, 2.0])
     assert len(two) == 2 and allan.slope(two) is None
+
+
+# ── the boundary refusal (2026-08-13) ──────────────────────────────────────────────────────────────
+# `classify` named a noise type from a strict `<` against a POINT ESTIMATE, and rounded the slope in
+# the returned record. So -0.7501 and -0.7500 printed identically with OPPOSITE types, and `meaning`
+# flipped between "averages away" and "helps as sqrt(N)" — the field a caller branches on. Found while
+# promoting the JS twin into clock.js; fixed in both lanes in one changeset so they cannot drift.
+
+
+def test_boundary_slopes_differ_by_a_digit_the_output_used_to_hide():
+    """Without an SE the two sides of an edge classify oppositely — the defect, kept as the control."""
+    a = allan.classify(-0.7501)
+    b = allan.classify(-0.7500)
+    assert a["noise"] == "white/flicker-phase"
+    assert b["noise"] == "white-frequency"
+    # and the deciding digit is now VISIBLE, because slope is no longer rounded in the data
+    assert a["slope"] == -0.7501 and b["slope"] == -0.75
+
+
+def test_an_edge_inside_1_96_se_refuses_to_name_a_type():
+    """The fix: an unsupportable distinction yields None, not a coin flip."""
+    c = allan.classify(-0.75, 0.02)
+    assert c["noise"] is None, c
+    assert c["candidates"] == ["white/flicker-phase", "white-frequency"], c
+    assert "not supported" in c["meaning"]
+
+
+def test_noise_is_None_and_never_a_truthy_sentinel():
+    """`'ambiguous'` would pass `if c["noise"]:` — the guard callers actually write — and so would
+    reintroduce the bug inside its own fix."""
+    c = allan.classify(-0.75, 0.02)
+    assert c["noise"] is None
+    assert not c["noise"]
+
+
+def test_a_confident_slope_is_still_named():
+    """The refusal must DISCRIMINATE. -1.007 with SE 0.003 is ~90 SEs from the nearest edge; a rule
+    that refused here would be useless rather than cautious."""
+    c = allan.classify(-1.007, 0.003)
+    assert c["noise"] == "white/flicker-phase"
+    assert c["candidates"] is None  # present-and-None on success, matching the JS twin
+
+
+def test_slope_se_is_published_even_when_classification_succeeds():
+    """A caller with a wider tolerance must be able to decide for itself, which requires the SE on the
+    success path too — not only when the module already gave up."""
+    st = allan.stability(_white_pm(), TAU0)
+    assert st["slope_se"] is not None and st["slope_se"] > 0
+    assert st["classification"]["noise"] is not None
+    assert st["classification"]["slope_se"] == st["slope_se"]
+
+
+def test_slope_is_unrounded_in_the_data():
+    """Rounding in the DATA is the root cause: two records printing -0.75 with opposite labels. Round
+    at display instead."""
+    st = allan.stability(_white_pm(), TAU0)
+    assert st["classification"]["slope"] == allan.slope(allan.adev(_white_pm(), TAU0))
+
+
+def test_slope_se_needs_three_taus():
+    """Two points fit any line, so their residual is identically zero and an SE from them would read as
+    perfect confidence — the opposite of the truth. None, like `slope`."""
+    assert allan.slope_se([{"tau": 1.0, "adev": 1.0}, {"tau": 2.0, "adev": 0.5}]) is None
+    assert allan.slope_se([]) is None
+
+
+def test_slope_se_refuses_a_degenerate_x_spread():
+    """All taus equal ⇒ sxx == 0 ⇒ the slope is undefined, not infinite. Reachable only by hand: adev()
+    never emits duplicate taus, which is exactly why the guard needs its own test rather than a
+    fixture."""
+    same = [{"tau": 4.0, "adev": 1.0}, {"tau": 4.0, "adev": 2.0}, {"tau": 4.0, "adev": 3.0}]
+    assert allan.slope_se(same) is None
+
+
+def test_a_straddle_of_the_TOP_edge_offers_drift_as_a_candidate():
+    """The +0.75 edge is the open-ended one — drift sits ABOVE the table rather than in it, so the
+    candidate list has to reach outside `_NOISE` to name it. A slope just under +0.75 with a wide SE
+    cannot be separated from deterministic drift, and saying 'random-walk' there would be a guess."""
+    c = allan.classify(0.74, 0.02)
+    assert c["noise"] is None, c
+    assert "drift" in c["candidates"], c
+
+
+def test_se_zero_and_se_none_are_a_DECISION_not_a_fall_through():
+    """Both skip the refusal, for OPPOSITE reasons, and the record keeps them apart.
+
+    `None` means no SE was supplied — the caller gets the pre-SE contract. `0.0` means the log-log
+    points fall exactly on a line, which a noiseless tau^-1 series really does produce; that is the one
+    case where the exponent is known exactly, so refusing there would refuse the best-determined input
+    there is. Pinned because they are one `if half:` apart and a later reader would otherwise have to
+    guess whether the equality was intended.
+    """
+    a = allan.classify(-0.75, None)
+    b = allan.classify(-0.75, 0.0)
+    assert a["noise"] == b["noise"] == "white-frequency"
+    # …and a reader can still tell which input produced it
+    assert a["slope_se"] is None and b["slope_se"] == 0.0
+
+
+def test_a_perfect_power_law_really_does_yield_zero_se():
+    """The reachability that makes the case above worth pinning rather than dismissing."""
+    pts = [{"tau": 2**k, "adev": 1.0 / (2**k)} for k in range(6)]
+    assert allan.slope(pts) == -1.0
+    assert allan.slope_se(pts) == 0.0
+
+
+def test_n_tau_travels_with_the_classification():
+    """A perfect fit on 3 taus and one on 12 both yield se 0.0 and are very different evidence — the SE
+    divides by k-2, so three points lie on a line far more easily than twelve. `stability()` publishes
+    `taus` at its own level, but a consumer holding only the classification dict could not tell them
+    apart. Same shape as the rename problem, one FIELD short rather than one LAYER short."""
+    st = allan.stability(_white_pm(), TAU0)
+    assert st["classification"]["n_tau"] == st["taus"]
+    assert allan.classify(-1.0, 0.0, 3)["n_tau"] == 3
+    assert allan.classify(-1.0, 0.0)["n_tau"] is None
+
+
+def test_the_1_96_multiplier_itself_is_pinned():
+    """The whole refusal rests on 1.96, and nothing pinned it — a `2.96` mutant SURVIVED CI.
+
+    The killing case has to sit in the band the two multipliers disagree about. Edge at -0.75, se 0.01:
+    1.96*se = 0.0196 and 2.96*se = 0.0296, so a slope 0.025 away is OUTSIDE the real band and INSIDE
+    the inflated one. Naming the type here is therefore only correct at 1.96.
+    """
+    c = allan.classify(-0.775, 0.01)
+    assert c["noise"] == "white/flicker-phase", c  # 2.96 would have refused
+    # …and the band is real: move just inside it and the refusal fires
+    assert allan.classify(-0.765, 0.01)["noise"] is None
+
+
+# ── the arithmetic itself, not just its shape (mutation survivors, 2026-08-13) ──────────────────────
+# The diff-scoped mutation gate killed a dozen mutants in the code above that every existing test
+# survived: `k - 2` -> `k + 2`, `len < 3` -> `< 4`, `sxx <= 0` -> `<= 1`, `_NOISE[-1]` -> `_NOISE[-2]`,
+# and every `<` -> `<=` on the straddle test. The common gap: the tests asserted that a refusal happened
+# and that an SE was positive, never WHICH NUMBER came out. A property that survives rescaling or an
+# off-by-one cannot pin arithmetic — the same lesson the three-cornered-hat coefficient taught.
+
+
+def test_slope_se_is_the_exact_OLS_value_not_merely_positive():
+    """Pins `ss / (k - 2) / sxx`. `k + 2` and `k - 3` both survived "se > 0"; only the value kills them
+    (and `k - 3` at k=3 divides by zero, which is its own signal)."""
+    p3 = [{"tau": 1.0, "adev": 1.0}, {"tau": 2.0, "adev": 0.4}, {"tau": 4.0, "adev": 0.3}]
+    assert allan.slope(p3) == pytest.approx(-0.8684827971, abs=1e-9)
+    assert allan.slope_se(p3) == pytest.approx(0.2617967648, abs=1e-9)
+
+
+def test_exactly_three_taus_is_ENOUGH_not_too_few():
+    """`len(pts) < 3` -> `<= 3` / `< 4` both survived, because every test used either 2 (refused) or
+    many (accepted) and none sat ON the minimum. Three is the least that can show curvature."""
+    p3 = [{"tau": 1.0, "adev": 1.0}, {"tau": 2.0, "adev": 0.4}, {"tau": 4.0, "adev": 0.3}]
+    assert allan.slope_se(p3) is not None
+    assert allan.slope(p3) is not None
+
+
+def test_a_small_but_nonzero_x_spread_is_still_usable():
+    """`sxx <= 0` -> `sxx <= 1` survived: every fixture had a decade-wide tau ladder, so sxx > 1 always.
+    A narrow ladder is unusual, not invalid — refusing it would discard a real curve."""
+    tiny = [{"tau": 1.0, "adev": 1.0}, {"tau": 1.2, "adev": 0.9}, {"tau": 1.5, "adev": 0.8}]
+    se = allan.slope_se(tiny)
+    assert se is not None and se == pytest.approx(0.01425291409, abs=1e-9)
+
+
+def test_drift_is_offered_only_from_the_TOP_edge():
+    """`_NOISE[-1]` -> `_NOISE[-2]` / `_NOISE[+1]` survived: they change WHICH edge admits drift as a
+    candidate. A CI reaching past +0.25 but not +0.75 must NOT offer drift."""
+    c = allan.classify(0.2, 0.02)  # CI [0.16, 0.24] — clears +0.25, nowhere near +0.75
+    assert c["noise"] is not None, c  # straddles nothing
+    mid = allan.classify(0.24, 0.01)  # CI [0.2204, 0.2596] — straddles +0.25 only
+    assert mid["noise"] is None
+    assert "drift" not in mid["candidates"], mid
+    top = allan.classify(0.74, 0.02)  # CI [0.7008, 0.7792] — straddles +0.75
+    assert "drift" in top["candidates"], top
+
+
+def test_a_CI_ENDING_exactly_on_an_edge_does_not_straddle_it():
+    """Every `<` -> `<=` mutant on the straddle test survived, because no fixture landed a CI endpoint
+    EXACTLY on a category edge. It is constructible: 1.96 * (0.25/1.96) is exactly 0.25, so a slope of
+    0.0 puts both endpoints precisely on -0.25 and +0.25.
+
+    The convention this pins is half-open — touching an edge is not crossing it. That is a real
+    decision, not an accident: a CI that merely reaches a boundary has not shown the slope could be on
+    the other side of it, and refusing there would refuse every fit whose error happens to end flush.
+    """
+    se = 0.25 / 1.96  # -> half == 0.25 exactly
+    assert 1.96 * se == 0.25
+    c = allan.classify(0.0, se)  # CI is exactly [-0.25, +0.25]
+    assert c["noise"] is not None, c  # `<=` on either side would refuse here
+    # …and a hair wider DOES straddle, so the boundary is where it claims to be
+    assert allan.classify(0.0, se * 1.0001)["noise"] is None

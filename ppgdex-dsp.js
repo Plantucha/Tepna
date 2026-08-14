@@ -702,6 +702,14 @@
             independent: hostAx.independent === undefined ? null : hostAx.independent,
             spreadMs: hostAx.spreadMs === undefined ? null : hostAx.spreadMs,
             inertReason: hostAx.inertReason || null,
+            /* FORWARDED, because this block is a RESHAPE and anything not named here is dropped. That
+               is not hypothetical: `stability` was computed in `clock.js` and vanished exactly here on
+               the first real-data run — the same shape as the `buildV2` defect, one layer down. A node
+               summary that renames fields must forward the ones it does not rename.
+               Null on a DRAWN axis even when `clock.js` produced a curve: the ns column is then
+               synthesised from the host, so its "divergence" is the writer's own arithmetic and a
+               stability figure over it would describe capture-host code, not a clock. */
+            stability: axisSynthetic ? null : hostAx.stability || null,
             timingSource: axisSynthetic ? 'host' : hostAx.independent === false ? 'device' : 'device+host'
           }
         : { ok: false, reason: hostAx.reason || 'no host anchors', drawn: axisSynthetic, quantizedShare, timingSource: axisSynthetic ? 'none' : 'device' }

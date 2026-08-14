@@ -707,6 +707,84 @@
        wrong. These assertions pin all three together: the analytic slopes any correct implementation
        must produce, exact parity with the Integrator's, and a cross-LANGUAGE known answer computed by
        allan.py. A fourth variant cannot be added quietly. */
+    /* ════ hostAxis PUBLISHES HOW FAR TO TRUST ITS OWN ppm (HOSTAXIS-STABILITY, spine) ════
+       §7 has always said "never quote a `ppm` without the span beside it" — enforced by prose plus one
+       hand-picked threshold. `hostAxis.stability` computes it: σ_y(τ) of the RAW host−device
+       divergence, the noise type its slope names, and `ppmUncertainty` at the recording's own span.
+       Real captures: ECGDex ppm −21.9 ± 9.3, PpgDex −32.9 ± 19.8 — both barely 2σ from zero, which is
+       precisely the thing a bare ppm could not say.
+       The Allan core was PROMOTED here rather than copied: `ppgdex-dsp.js` had the only JS one and
+       `ecgdex-dsp.js` had none, so a per-node curve would have meant a fourth implementation
+       (HOSTAXIS-STABILITY §4.3). These pin the spine copy against the node copy exactly, so the two
+       cannot drift while the duplicate remains. */
+    group('hostAxis stability — the spine Allan core, and it refuses when there is no second clock', 'clock · hostaxis-stability', function (T) {
+      var C = env.DexClock;
+      if (!C || typeof C.hostAxis !== 'function' || typeof C.allanFromPhase !== 'function') {
+        T.skip('DexClock.hostAxis + allanFromPhase available', 'not loaded');
+        return;
+      }
+      // MINSTD, exact in a double — the glibc LCG overflows 2^53 in JS but not in Python's bignums, so
+      // a "cross-language" fixture built with it silently compares two DIFFERENT series.
+      var seed = 12345;
+      var rnd = function () {
+        seed = (seed * 16807) % 2147483647;
+        return seed / 2147483647 - 0.5;
+      };
+      var white = [];
+      for (var i = 0; i < 600; i++) white.push(rnd());
+      /* CROSS-LANGUAGE KNOWN ANSWER from `capture-host/allan.py adev(phase, 1.0)` on this exact series.
+         Different algebra, different language — agreement at 1e-9 is evidence of the same quantity. */
+      var got = C.allanFromPhase(white, 1.0);
+      var PY = [
+        [1, 0.509665262],
+        [2, 0.2487007094],
+        [4, 0.1224070812],
+        [8, 0.0612171944],
+        [16, 0.0311570938],
+        [32, 0.0159440059]
+      ];
+      var worst = 0;
+      for (var k = 0; k < PY.length; k++) worst = got[k].tau === PY[k][0] ? Math.max(worst, Math.abs(got[k].adev - PY[k][1])) : Infinity;
+      T.ok('the spine core matches capture-host/allan.py to 1e-9', worst < 1e-9, 'worst |Δ| = ' + worst);
+      /* THE PROMOTION MUST NOT HAVE FORKED. `ppgdex-dsp.js` still carries the copy it was promoted
+         from; until that delegates, these must agree EXACTLY or the fleet has two answers. */
+      var P = env.PPGDSP || env.PpgDSP;
+      if (P && typeof P.allanFromPhase === 'function') {
+        var node = P.allanFromPhase(white, 1.0);
+        var d = node.length === got.length ? 0 : Infinity;
+        for (var q = 0; q < Math.min(node.length, got.length); q++) d = Math.max(d, Math.abs(node[q].adev - got[q].adev));
+        T.ok('the spine copy and the ppgdex-dsp copy are byte-identical in output', d === 0, 'worst |Δ| = ' + d + ' (a non-zero here means the promotion forked)');
+      } else T.skip('PPGDSP.allanFromPhase for the promotion-parity leg', 'not loaded');
+      /* THE BOUNDARY REFUSAL. A strict `<` on a point estimate names a type the fit cannot support. */
+      var amb = C.classifyAllan(-0.75, 0.02);
+      T.eq('an edge within 1.96 SE refuses to name a type', amb.noise, null);
+      T.ok('…and names the candidates instead of going blank', amb.candidates && amb.candidates.length === 2, JSON.stringify(amb.candidates));
+      T.ok('noise is null, NEVER a truthy sentinel that passes `if (noise)`', !amb.noise);
+      T.eq('a confident slope is still named — the rule must DISCRIMINATE', C.classifyAllan(-1.007, 0.003).noise, 'white/flicker-phase');
+      T.ok('slopeSE is published even when the type IS named', C.classifyAllan(-1.007, 0.003).slopeSE === 0.003);
+      /* `nTau` travels WITH the classification: a perfect fit on 3 taus and one on 12 both yield SE 0
+         and are very different evidence (the SE divides by k−2). A consumer holding only this dict
+         could otherwise not tell them apart — the rename problem one FIELD short. */
+      T.eq('the tau count travels with the classification, not only beside it', C.classifyAllan(-1.0, 0, 3).nTau, 3);
+      T.ok('…and is present on the refusal path too', C.classifyAllan(-0.75, 0.02, 9).nTau === 9);
+      T.eq('slope is UNROUNDED in the data (rounding is what hid the boundary case)', C.classifyAllan(-0.7501, 0).slope, -0.7501);
+      /* NO SECOND CLOCK ⇒ NO CURVE. A host column that is the device stamp rounded has a "divergence"
+         made of quantisation; a curve over it would report the rounding as clock physics. This is the
+         COMMON case — the whole phone-captured tree reads independent:false. */
+      var inert = [];
+      for (var j = 0; j < 400; j++) inert.push({ devMs: j * 100, hostMs: Math.round(j * 100) });
+      var ha = C.hostAxis(inert, {});
+      T.ok('a host column identical to the device yields independent:false', ha.ok !== true || ha.independent === false, 'independent=' + (ha.ok ? ha.independent : 'n/a'));
+      T.eq('…and therefore NO stability curve, rather than one built from rounding', ha.ok ? ha.stability : null, null);
+      // A real two-clock pair DOES produce one, or the refusal above would be vacuous.
+      var real = [];
+      for (var m = 0; m < 400; m++) real.push({ devMs: m * 100, hostMs: m * 100 * (1 + 30e-6) + 40 * rnd() });
+      var ha2 = C.hostAxis(real, {});
+      T.ok('an independent pair produces a curve', ha2.ok === true && ha2.stability != null, 'independent=' + ha2.independent);
+      T.ok('…carrying the ppm uncertainty the ppm should never be quoted without', ha2.stability && ha2.stability.ppmUncertainty > 0, JSON.stringify(ha2.stability && ha2.stability.ppmUncertainty));
+      T.ok('…and its own SE', ha2.stability && ha2.stability.slopeSE > 0);
+    });
+
     group('PpgDex Allan deviation agrees with BOTH sibling implementations, in two languages', 'ppgdex-dsp · detector-stability', function (T) {
       var P = env.PPGDSP || env.PpgDSP;
       if (!P || typeof P.allanFromPhase !== 'function') {
