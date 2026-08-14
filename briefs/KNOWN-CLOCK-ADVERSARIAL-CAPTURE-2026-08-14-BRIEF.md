@@ -1,6 +1,11 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-14 · **Follows:** `ALLAN-DEVIATION-2026-08-12-BRIEF.md`, `WEARABLE-HOST-AXIS-FOLLOWUPS-2026-08-02-BRIEF.md` · **Affects:** `capture-host/`, `clock.js` §7, `ecgdex-dsp.js`, `ppgdex-dsp.js`, `oxydex-dsp.js`
+**Status:** IN-PROGRESS · **Created:** 2026-08-14 · **Follows:** `ALLAN-DEVIATION-2026-08-12-BRIEF.md`, `WEARABLE-HOST-AXIS-FOLLOWUPS-2026-08-02-BRIEF.md` · **Affects:** `capture-host/`, `clock.js` §7, `ecgdex-dsp.js`, `ppgdex-dsp.js`, `oxydex-dsp.js`
+
+> **Phase 1 EXECUTED 2026-08-14** — post-capture injection layer run against a real three-device box
+> night. Preregistered criteria, results, and two confirmed defects in **§Findings** below. The
+> remaining phases (injection at the `capture.py` write path, the null night, targets 6–8) are still
+> PROPOSED.
 
 # The one experiment: inject a known truth, run the production pipeline blind, and see what it recovers
 
@@ -197,6 +202,114 @@ and *no* end-to-end timing test — outside the experiment entirely, which would
 - [ ] Adapter assignment is recorded per night and held fixed across the set.
 - [ ] The result is written up whether it passes or fails — a failed recovery is the more valuable
       paper, and `papers/dead-ends.html` is where it goes if so.
+
+---
+
+# Findings — Phase 1, executed 2026-08-14
+
+**Substrate.** `vigil:/srv/tepna/captures/2026-08-13`, the night of 23:17 → 04:03 (4.75 h), all three
+devices recording simultaneously, box-captured: H10 30,519 ECG packets · Verity 67,519 PPG packets ·
+O2Ring 17,020 packets. Recovery under test: `DexClock.hostAxis`.
+
+**Preregistration.** `acceptance.json`, written and hashed **before any run**:
+`sha256 b061d2792c1ff8d605ec82ff9fd298d56ca40915877ab274aa1785f2baff1586`. Perturbations are
+deterministic (no RNG) so every figure below re-runs exactly.
+
+## Results against the preregistered criteria
+
+| target | injected | H10 recovered | Verity recovered | criterion | |
+|---|---|---|---|---|:--:|
+| determinism | — | Δppm `0.00e+0` | `0.00e+0` | < 0.5 ppm | ✅ |
+| **1 · constant offset** | +5000 ms | **Δppm 0.000** | **0.000** | < 0.5 ppm | ✅ |
+| **2 · frequency** | +100 ppm | **−99.982** | **−99.974** | ±15 % | ✅ |
+| 2b · frequency, small | +10 ppm | **−9.999** | **−9.998** | ±30 % | ✅ |
+| **5 · timestamp jump** | +2000 ms step | maxStep **57.6×** | **30.2×** | > 10× | ✅ |
+| 4 · packet loss | 30 % stride | Δppm −0.649 | **+6.485** | < 2 ppm | ❌ |
+| plausibility | dev × 2.0 | **refused** | **refused** | `ok:false` | ✅ |
+
+Frequency recovery is accurate to **0.02 %** at 100 ppm and **0.01 %** at 10 ppm, on 4.75 h of real
+BLE-jittered packets. That is the headline pass.
+
+**Target 1 behaved exactly as §2.3 predicted, and the prediction is the result.** A 5 s offset moved
+the recovered rate by **0.000 ppm** — `hostAxis` subtracts `r0`, so a constant offset is removed by
+construction and is **not recoverable from this estimator at all**. Anyone reading a `ppm` as
+evidence about absolute alignment is reading a quantity that is blind to it by design.
+
+**Target 4 failed, and the failure is in the experiment, not the estimator.** Follow-up (`probe.mjs`):
+
+| thinning at the same 30 % rate | H10 Δppm | Verity Δppm |
+|---|---|---|
+| stride `i%10>=3` | −0.649 | **+6.485** |
+| reordered phase | −2.567 | +1.879 |
+| **contiguous mid-gap** | **0.000** | **0.000** |
+
+Contiguous loss — *which is what a real BLE dropout is* — has **exactly zero** effect on both
+devices. The bias only appears under interleaved decimation, which does not occur in the wild. The
+preregistered criterion caught a real sensitivity and then the mechanism showed it is unreachable;
+without preregistration this would have been hand-waved in either direction.
+
+## Defect A — `independent` is structurally fooled by a drawn axis (CONFIRMED, fix shipped)
+
+`independent` was `spreadMs > 2 ms`. A counter synthesised as `index × an assumed rate` at **1 s**
+granularity produces an enormous residual spread, so **the coarser the fabrication, the more
+"independent" it read** — the discriminator detects the opposite of what it must.
+
+Measured on the O2Ring's real monotonic run (16,910 of 17,020 packets):
+
+```
+ok:true   ppm = 2765.5   spreadMs = 48306.0   independent = TRUE
+```
+
+A confident 2765 ppm rate for a device with **no oscillator**. The whole-file run *did* refuse — but
+only by luck: a mid-session counter reset makes the device span **negative** (−10,520 s against a
++17,102 s host span), tripping the ±50000 ppm plausibility bound. On the monotonic segment a node
+would actually parse after gap-splitting, it sails through. Consumers that trust the flag:
+`pat-gate.js:92` · `ecgdex-dsp.js:4301` (fs correction) · `integrator-dsp.js:5338` (skew decision) ·
+`tools/pat-host-offset.mjs:408`.
+
+**The separating quantity, measured over 381 arrival sidecars on the box tree:**
+
+| population | files | modal-delta share |
+|---|---|---|
+| real clock streams | 356 | max **56.00 %** (Verity ppg; H10 ecg 40.79 %, H10 acc 0.06 %) |
+| **DRAWN streams** | 25 | min **79.04 %** (O2Ring counter, Verity `ppi`) |
+
+Nothing lands between. `CK_AXIS_DRAWN_SHARE = 0.67` sits in the gap: **0/25 missed, 0/356 false
+positives.** A property of the data, like `CK_AXIS_INERT_MS`, not a tuned knob.
+
+⚠ **`Verity ppi` is drawn at 100 % — a second fabricated stream, not previously flagged.**
+
+## Defect B — the existing ≥99 % drawn test misses 20 % of drawn streams (CONFIRMED)
+
+| threshold | drawn MISSED | false positives |
+|---|---|---|
+| **99 % (current, ppgdex-dsp)** | **5 / 25** | 0 / 356 |
+| 95 % | 1 / 25 | 0 / 356 |
+| **67 % (adopted)** | **0 / 25** | 0 / 356 |
+
+A fabricated axis is only ~100 % concentrated when nothing interrupts it; **one counter reset, a
+repeated stamp or a doubled delta drops a genuinely drawn stream to 79 %.** Do not raise the bound
+back toward 99 %.
+
+## What shipped, and the hole deliberately left open
+
+`hostAxis` now computes the modal-delta concentration from the anchors it already holds and publishes
+**`drawnShare`**, **`deviceDrawn`** and **`drawnReason`**.
+
+**`deviceDrawn` does NOT gate `independent`, and that is a decision, not an oversight.** Folding it in
+was implemented, run, and reverted: it reds **11 assertions**, including ECGDex's planted-drift
+recovery — a real feature whose fixture legitimately uses a uniform device axis (`devMs = i * 1000`),
+which is by construction indistinguishable from a fabricated one. The detector is right about real
+data and wrong to be load-bearing there, **because a test fixture is not a recording.** This follows
+the precedent `independent` itself shipped under: additive first, consumers migrate deliberately.
+
+**So the hole is still open**: `independent` remains `true` for a drawn O2Ring axis, and the four
+consumers above still read it. The new test group asserts that state explicitly (`KNOWN HOLE ·
+independent is still spread-only`) so it cannot be silently "tidied" shut without the consumer work.
+
+**Next:** migrate consumers to `deviceDrawn` node by node, re-cutting each node's fixtures to a
+realistic device axis first — `integrator-dsp.js:5338` is the highest-harm one, since it is the leg
+that decides whether two devices sit on one timebase.
 
 ## Cross-references
 

@@ -664,6 +664,24 @@
   /* Twice the 1 ms phone-stamp quantum. A residual spread at or below this means the host column is
      the device column rounded, not a second clock — see the measurement in hostAxis(). */
   var CK_AXIS_INERT_MS = 2;
+  /* A DEVICE WHOSE AXIS WAS DRAWN IS NOT A SECOND CLOCK — and `spreadMs` alone cannot see it.
+     `independent` was `spreadMs > CK_AXIS_INERT_MS`, which detects the OPPOSITE of what it must for a
+     drawn axis: a counter synthesised as `index × an assumed rate` at 1 s granularity produces a HUGE
+     residual spread (22,335 ms measured on a real O2Ring segment), so the coarser the fabrication the
+     more "independent" it read. Measured 2026-08-14 on the O2Ring's monotonic run: `ok:true`,
+     `ppm = 2765.5`, `independent:true` — a confident rate for a device with no oscillator, consumed
+     downstream by pat-gate.js, ecgdex-dsp.js's fs correction and integrator-dsp.js's skew decision.
+     The discriminator that DOES separate them is the concentration of the device's inter-sample
+     deltas. Measured over 381 arrival sidecars on the box tree:
+         real clock streams (356)  modal-delta share  max  56.00 %   (Verity ppg; H10 ecg 40.79 %)
+         DRAWN streams      (25)   modal-delta share  min  79.04 %   (O2Ring counter, Verity ppi)
+     Nothing lands between. 0.67 sits in that gap — ~1.2× above the highest real and ~1.2× below the
+     lowest drawn — and gives 0/25 missed with 0/356 false positives. It is a property of the DATA,
+     like CK_AXIS_INERT_MS, not a tuned knob.
+     ⚠ The pre-existing ≥99 % drawn test (ppgdex-dsp) MISSES 5 of those 25 — a drawn axis is only
+     ~100 % concentrated when nothing interrupts it; one counter reset, a repeated stamp or a doubled
+     delta drops a genuinely fabricated stream to 79 %. Do not raise this back toward 99 %. */
+  var CK_AXIS_DRAWN_SHARE = 0.67;
 
   function _ckMedian(v) {
     var s = v.slice().sort(function (a, b) {
@@ -750,6 +768,30 @@
       if (rv > rMax) rMax = rv;
     }
     var spreadMs = rMax - rMin;
+    /* Is the DEVICE column a clock at all? (See CK_AXIS_DRAWN_SHARE.) Concentration of the device's
+       own inter-sample deltas — computed from the anchors already in hand, no extra input. */
+    var _dTally = Object.create(null),
+      _dTotal = 0,
+      _dTop = 0;
+    for (var dq = 1; dq < n; dq++) {
+      var dk = String(pts[dq].d - pts[dq - 1].d);
+      var dc = (_dTally[dk] = (_dTally[dk] || 0) + 1);
+      _dTotal++;
+      if (dc > _dTop) _dTop = dc;
+    }
+    var drawnShare = _dTotal > 0 ? _dTop / _dTotal : 0;
+    var deviceDrawn = _dTotal > 0 && drawnShare >= CK_AXIS_DRAWN_SHARE;
+    /* `deviceDrawn` is published ADDITIVELY and does NOT gate `independent` — the same discipline the
+       spread flag itself shipped under ("ok and ppm are untouched, so every existing consumer behaves
+       exactly as before"). Folding it in was tried and reverted: a SYNTHETIC fixture legitimately uses
+       a uniform device axis (`devMs = i * 1000`), which is by construction indistinguishable from a
+       fabricated one, so gating on it reds 11 assertions including ECGDex's planted-drift recovery —
+       a real feature, not a fixture nit. The detector is right about real data (381 files, perfect
+       separation) and wrong to be load-bearing here, because a test fixture is not a recording.
+       ⚠ CONSEQUENCE, stated because it is a live hole and not a resolved one: `independent` is STILL
+       true for a drawn O2Ring axis, and pat-gate.js / ecgdex-dsp.js / integrator-dsp.js still read it.
+       Consumers must move to `deviceDrawn` deliberately, node by node, with each node's fixtures
+       re-cut to a realistic device axis. Tracked in KNOWN-CLOCK-ADVERSARIAL-CAPTURE §Findings. */
     var independent = spreadMs > CK_AXIS_INERT_MS;
     /* PLAUSIBILITY BOUND — refuse, never "correct", an implausible rate. Caught by the ECGDex §4.3
        fixture, whose synthetic ms column advances at 2× its host stamps: unbounded, that is a −500000
@@ -821,9 +863,18 @@
           note: 'σ_y(τ) of the RAW host−device divergence; slope names the noise type. The SE is a LOWER bound — overlapping ADEV points are correlated while OLS assumes independence.'
         };
       })(),
+      /* Published so the `independent` call is checkable rather than trusted — the same reason
+         `spreadMs` is published beside it. */
+      drawnShare: drawnShare,
+      deviceDrawn: deviceDrawn,
       inertReason: independent
         ? null
         : 'host ≡ device — residual spread ' + spreadMs.toFixed(2) + ' ms ≤ ' + CK_AXIS_INERT_MS + ' ms (one stamp quantum); this host column is not an independent clock',
+      /* Separate from `inertReason` on purpose: that field answers "is the HOST column real", this one
+         answers "is the DEVICE column a clock". Both can be non-null; neither implies the other. */
+      drawnReason: deviceDrawn
+        ? 'device axis is DRAWN — ' + (drawnShare * 100).toFixed(2) + ' % of inter-sample deltas share one value (≥ ' + (CK_AXIS_DRAWN_SHARE * 100).toFixed(0) + ' %); this column is a synthesised counter, not a clock, so there is no second timebase to discipline against'
+        : null,
       /* Linear between anchors; FLAT outside them. Flat, not extrapolated: past the last anchor there
          is no measurement, and extending a slope there would fabricate one — the same rule as §2.6. */
       correctionAt: function (devMs) {
