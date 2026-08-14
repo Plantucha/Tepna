@@ -20,6 +20,7 @@ import asyncio, hmac, json, logging, os, re, tempfile
 from aiohttp import web
 import yaml
 import bonding
+import daemon_control
 import clockcfg
 import offline_lock
 import polar_pmd as pmd          # for SDK_MODE — the feature bit, named once, not spelled "0x9" here
@@ -615,6 +616,43 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         """{stream: [bytes_per_sec, at_rate]} so the UI can scale cost by the selected rate."""
         return {k: list(v) for k, v in _BPS_BY_MODEL[_model_of(dev)].items()}
 
+    def _schedule(delay, verb, minutes):
+        """Fire the helper AFTER the response has flushed.
+
+        A named seam, not an inline lambda, because a test must be able to observe that the daemon WAS
+        scheduled without actually stopping the unit the test runner is inside. Monkeypatching this is
+        how the ordering gets asserted at all."""
+        asyncio.get_running_loop().call_later(delay, lambda: daemon_control.run(verb, minutes))
+
+    async def daemon_post(req):
+        """Stop or restart the capture daemon from the monitor, so recovery needs no terminal.
+
+        ⚠️ THIS UNIT SERVES THIS RESPONSE. `restart` and `stop` end the process that is writing the
+        reply, so firing synchronously drops the connection mid-write and the operator sees a failed
+        request for an action that in fact succeeded — indistinguishable from a crash, and the reason
+        people stop trusting the button. So: validate, ANSWER, then fire on a short delay.
+
+        VALIDATION HAPPENS BEFORE THE ANSWER, not in the deferred half. An answer-then-fire design that
+        validates late returns a cheerful 200 and then does nothing, which is worse than a 400 — it is
+        the silent-success shape this suite keeps finding elsewhere."""
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
+        verb, minutes = body.get("verb"), body.get("minutes")
+        try:
+            daemon_control.build_cmd(verb, minutes)      # raises on a bad verb or bad minutes
+        except daemon_control.VerbError as e:
+            return web.json_response({"ok": False, "verb": verb, "error": str(e)}, status=400)
+        if verb not in daemon_control.KILLS_SELF:
+            return web.json_response(daemon_control.run(verb, minutes))
+        _schedule(daemon_control.RESTART_DELAY_S, verb, minutes)
+        return web.json_response({
+            "ok": True, "verb": verb, "scheduled_in_s": daemon_control.RESTART_DELAY_S,
+            "detail": ("stopping capture for %s min — this page will disconnect and the daemon "
+                       "restarts itself afterwards" % daemon_control.coerce_minutes(minutes))
+                      if verb == "stop" else
+                      "restarting — this page will disconnect for a few seconds"})
+
     async def settings_get(_req):
         devs = []
         for d in cfg.get("devices", []):
@@ -1110,6 +1148,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         web.post("/api/pull", pull_stored_h),
         web.get("/api/settings", settings_get),
         web.post("/api/settings", settings_post),
+        web.post("/api/daemon", daemon_post),
         web.get("/api/timeline", timeline_get),
         web.get("/api/storage", storage_get),
         web.get("/api/alerts", alerts_get),
