@@ -453,6 +453,24 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
         <span class="hint" id="setMsg"></span>
       </div>
 
+        <!-- DAEMON CONTROL. Every recovery this box has needed went through ssh — six restarts in one
+             day to apply a config change, and a runaway sensor silenced by POSTing config because
+             nothing else could reach it. The privileged helper was already deployed and NOPASSWD
+             granted; only a caller was missing. -->
+        <div class="card">
+          <div class="section-title">Daemon control</div>
+          <p class="hint">Stream and rate changes only take effect at a device's next connect — restart to
+            apply them now. Stopping frees the BLE links for a manual probe; the daemon restarts itself
+            when the timer expires, so a forgotten stop cannot cost a night.</p>
+          <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-top:.6rem">
+            <button class="btn-primary" onclick='daemonRestart(this)'>Restart daemon</button>
+            <label class="hint">stop for
+              <input id="dmnMin" type="number" min="1" max="480" value="30" style="width:4.2rem"> min</label>
+            <button onclick='daemonStop(this)'>Stop capture</button>
+            <span class="hint" id="dmnMsg"></span>
+          </div>
+        </div>
+
       <!-- PUSH ALERTS. The monitor is a PULL surface — a low disk, or a sensor that died at 01:00, is
            only seen if somebody goes looking. This is the destination those alerts fire to. The URL is
            WRITE-ONLY on purpose: for ntfy/Discord/Slack/Telegram the URL *is* the credential, and this
@@ -874,6 +892,54 @@ async function loadAlerts(){
       ? `configured \u2192 <b>${esc(a.hint||'set')}</b>${a.enabled?'':' <span class="bad">(off)</span>'}`
       : '<span class="bad">no destination set \u2014 alerts go nowhere</span>';
   }catch(e){ $('#alState').innerHTML = `<span class="bad">${esc(e)}</span>`; }
+}
+
+// ── DAEMON CONTROL ──────────────────────────────────────────────────────────────────────────────────
+// The unit being restarted is the one serving this page, so a click ALWAYS ends in a dropped
+// connection. The API answers before it fires; this half has to EXPECT the drop and poll the box back
+// up, or a successful restart is indistinguishable from a crash.
+async function daemonPost(btn, body, pending){
+  btn.disabled = true; $('#dmnMsg').textContent = pending;
+  try{
+    const r = await api('/api/daemon',{method:'POST',headers:{'content-type':'application/json'},
+                                       body:JSON.stringify(body)});
+    if(!r.ok){ $('#dmnMsg').innerHTML = `<span class="bad">${esc(r.error||'failed')}</span>`; return; }
+    $('#dmnMsg').innerHTML = `<span class="ok">${esc(r.detail||'done')}</span>`;
+    await daemonWaitForReturn();
+  }catch(e){ $('#dmnMsg').innerHTML = `<span class="bad">${esc(e)}</span>`; }
+  finally{ btn.disabled = false; }
+}
+
+// Poll until the box answers again. A restart takes seconds; a stop holds the unit down for its whole
+// timer, so this reports "still down" rather than pretending to have waited it out.
+async function daemonWaitForReturn(tries){
+  tries = tries || 25;
+  for(let i=0;i<tries;i++){
+    await new Promise(r=>setTimeout(r,1000));
+    try{ await api('/api/state');
+         $('#dmnMsg').innerHTML = '<span class="ok">daemon is back</span>';
+         return true; }
+    catch(e){ $('#dmnMsg').textContent = 'waiting for the daemon\u2026 ' + (i+1) + 's'; }
+  }
+  $('#dmnMsg').innerHTML = '<span class="hint">still down \u2014 expected while a stop timer runs</span>';
+  return false;
+}
+
+function daemonRestart(btn){ return daemonPost(btn, {verb:'restart'}, 'restarting\u2026'); }
+
+// SHOW WHAT IS LIVE BEFORE ACTING. "Stop capture" at 23:00 with three sensors streaming is a different
+// act from the same click at noon, and the button cannot tell them apart — the operator can, given the
+// list. Read at click time rather than from cached state, so it cannot be stale.
+async function daemonStop(btn){
+  const mins = parseInt($v('dmnMin'),10) || 30;
+  let live = [];
+  try{ const st = await api('/api/state');
+       live = (st.devices||[]).filter(d=>d.connected).map(d=>d.name); }catch(e){}
+  const what = live.length ? 'LIVE NOW: ' + live.join(', ') + '\nThose links will drop.'
+                           : 'Nothing is streaming right now.';
+  if(!confirm('Stop capture for ' + mins + ' minutes?\n\n' + what +
+              '\n\nThe daemon restarts itself afterwards.')) return;
+  return daemonPost(btn, {verb:'stop', minutes:mins}, 'stopping\u2026');
 }
 
 async function postAlerts(btn, body, verb){

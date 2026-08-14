@@ -179,3 +179,57 @@ def test_an_abstaining_detector_does_not_veto_one_that_can_still_speak():
     verdict, why = telemetry.worn_verdict(ppi_flags=0x06, ambient=WORN_SD, fs=135.0)
     assert verdict is True
     assert "ambient" not in why
+
+
+# ── CHARGING AT FULL — the hole the rising rule cannot reach ────────────────────────────────────────
+
+def test_a_FULL_battery_that_has_not_moved_for_45_min_is_on_a_charger():
+    """`capture._read_batt` infers charging from a RISING battery, which is unambiguous and works
+    everywhere it can fire. It cannot fire at 100 %: a full cell has nowhere to rise to. Measured
+    2026-08-14 — the Verity streamed 80 min at 176 Hz with `battery` pinned at 100 and `charging`
+    False throughout, so nothing downstream could tell a dock from a wrist.
+
+    Streaming drains this hardware ~9 %/h (2026-08-10: 100 → 74 % in 3 h at 55 Hz, and 176 Hz costs
+    more), so 45 min at full with no movement is ~7 points that did not happen."""
+    assert telemetry.full_battery_implies_charging(100, telemetry._BATT_FLAT_CHARGING_S) is True
+    assert telemetry.full_battery_implies_charging(100, telemetry._BATT_FLAT_CHARGING_S + 600) is True
+
+
+def test_a_SHORT_flat_stretch_claims_NOTHING_rather_than_claiming_discharge():
+    """Never False. Ten minutes of a steady reading has not proved the device is draining, and
+    inventing that verdict would be the mirror of the bug being fixed."""
+    assert telemetry.full_battery_implies_charging(100, 600) is None
+    assert telemetry.full_battery_implies_charging(100, telemetry._BATT_FLAT_CHARGING_S - 1) is None
+
+
+def test_it_claims_nothing_BELOW_full_because_the_rising_rule_owns_that_range():
+    """Deliberately narrow. Flatness lower down is weak — a slow drain and a coarse reporting step look
+    identical — and it does not need to work there: a battery below 100 that goes on charge RISES, and
+    the existing rule catches it (measured 2026-07-19, Verity 35 → 61 %)."""
+    assert telemetry.full_battery_implies_charging(99, 7200) is None
+    assert telemetry.full_battery_implies_charging(35, 86400) is None
+
+
+def test_junk_readings_are_refused_not_coerced():
+    assert telemetry.full_battery_implies_charging(None, 9999) is None
+    assert telemetry.full_battery_implies_charging(100, None) is None
+    assert telemetry.full_battery_implies_charging("full", 9999) is None
+    assert telemetry.full_battery_implies_charging(100, "ages") is None
+
+
+def test_CHARGING_OVERRULES_a_contact_bit_that_says_worn():
+    """⚠️ THE ONE INVERSION OF THE ASYMMETRY, and the reason is that the expensive error is not
+    available here. Everywhere else "worn wins" because a false not-worn drops a live link and costs a
+    night. A device in a dock is not on a wrist, so that error cannot be made — and on 2026-08-14 the
+    contact bit said `worn` for 80 minutes while the strap sat on a charger."""
+    verdict, why = telemetry.worn_verdict(ppi_flags=0x06, charging=True)
+    assert verdict is False
+    assert "charger" in why
+    # …and with charging absent or false, the contact bit keeps the decision exactly as before.
+    assert telemetry.worn_verdict(ppi_flags=0x06, charging=False)[0] is True
+    assert telemetry.worn_verdict(ppi_flags=0x06)[0] is True
+
+
+def test_charging_decides_even_when_no_other_detector_has_an_opinion():
+    """It must not need a quorum: on the charger there may be no ambient window and no contact bit."""
+    assert telemetry.worn_verdict(charging=True)[0] is False

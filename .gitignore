@@ -199,6 +199,12 @@ __pycache__/
 htmlcov/
 .mutation-crawl/
 
+# Mutation SWEEPS — the survivor inventory tools/mutation-worklist.mjs ranks its queue from.
+# A measurement, not a source, so it is not committed; but it must survive a REBOOT, which is why
+# it lives here and not in /tmp. Eight /tmp paths were wiped by a restart on 2026-08-14 and the
+# empty queue then read as a FINISHED one (0/0 = NaN% beside "target 99%").
+.mutation-sweeps/
+
 # c8 / coverage output — generated, never committed
 coverage/
 .nyc_output/
