@@ -82,15 +82,15 @@ export function longestMonotonicRun(a) {
 // seeded LCG — reproducible "noise" (numerical recipes constants)
 function lcg(seed) {
   let s = seed >>> 0;
-  return () => ((s = (1664525 * s + 1013904223) >>> 0) / 4294967296);
+  return () => (s = (1664525 * s + 1013904223) >>> 0) / 4294967296;
 }
 
 // ── perturbations. Each returns a NEW anchor array; none mutates its input. ────────────────────
 export const PERTURB = {
-  offset: (a, ms) => a.map(x => ({ devMs: x.devMs, hostMs: x.hostMs + ms })),
+  offset: (a, ms) => a.map((x) => ({ devMs: x.devMs, hostMs: x.hostMs + ms })),
   frequency: (a, ppm) => {
     const d0 = a[0].devMs;
-    return a.map(x => ({ hostMs: x.hostMs, devMs: d0 + (x.devMs - d0) * (1 + ppm / 1e6) }));
+    return a.map((x) => ({ hostMs: x.hostMs, devMs: d0 + (x.devMs - d0) * (1 + ppm / 1e6) }));
   },
   /* A random WALK in frequency — the τ^+1/2 mechanism. Injected on the host leg so the device axis
      keeps its real quantisation (which target 7 depends on). */
@@ -123,7 +123,7 @@ export const PERTURB = {
   }
 };
 
-const ppmOf = r => (r && r.ok ? r.ppm : null);
+const ppmOf = (r) => (r && r.ok ? r.ppm : null);
 
 /** Run every target against one anchor set. Returns a plain object — no printing. */
 export function recover(anchors, opts = {}) {
@@ -154,11 +154,11 @@ export function recover(anchors, opts = {}) {
   };
 
   // T0 · NULL CONTROL — the same input, untouched. Must reproduce the baseline exactly.
-  out.targets.null = { injected: 0, recovered: ppmOf(DexClock.hostAxis(anchors.map(x => ({ ...x })))) };
+  out.targets.null = { injected: 0, recovered: ppmOf(DexClock.hostAxis(anchors.map((x) => ({ ...x })))) };
   out.targets.null.errPpm = out.targets.null.recovered === null ? null : out.targets.null.recovered - base.ppm;
 
   // T1 · CONSTANT OFFSET — expected UNRECOVERABLE (hostAxis subtracts r0). Recovering ~0 is the pass.
-  out.targets.offset = [1000, 5000, 60000].map(ms => {
+  out.targets.offset = [1000, 5000, 60000].map((ms) => {
     const r = ppmOf(DexClock.hostAxis(PERTURB.offset(anchors, ms)));
     return { injectedMs: ms, dPpm: r === null ? null : r - base.ppm };
   });
@@ -169,7 +169,7 @@ export function recover(anchors, opts = {}) {
      reports `r = host − dev`, so the correct recovery is **−ppm**. `expectedPpm` carries that, and
      `relErr` is measured against it. (My own first self-test asserted against +ppm and failed at
      −198.7 %, which is exactly this sign, doubled.) */
-  out.targets.frequency = [-500, -100, -10, -1, 1, 10, 100, 500].map(ppm => {
+  out.targets.frequency = [-500, -100, -10, -1, 1, 10, 100, 500].map((ppm) => {
     const r = ppmOf(DexClock.hostAxis(PERTURB.frequency(anchors, ppm)));
     const rec = r === null ? null : r - base.ppm;
     const expected = -ppm;
@@ -177,7 +177,7 @@ export function recover(anchors, opts = {}) {
   });
 
   // T3 · FREQUENCY WANDER — recover the NOISE TYPE, not a magnitude (allan.py's classify()).
-  out.targets.wander = [0.5, 5].map(step => {
+  out.targets.wander = [0.5, 5].map((step) => {
     const r = DexClock.hostAxis(PERTURB.wander(anchors, step, seed));
     return {
       injectedPpmStep: step,
@@ -187,8 +187,11 @@ export function recover(anchors, opts = {}) {
   });
 
   // T4 · PACKET LOSS — contiguous (what a real dropout is) vs interleaved (what it is not).
-  out.targets.loss = [0.1, 0.3, 0.5].flatMap(f =>
-    [['contiguous', PERTURB.lossContiguous], ['interleaved', PERTURB.lossInterleaved]].map(([kind, fn]) => {
+  out.targets.loss = [0.1, 0.3, 0.5].flatMap((f) =>
+    [
+      ['contiguous', PERTURB.lossContiguous],
+      ['interleaved', PERTURB.lossInterleaved]
+    ].map(([kind, fn]) => {
       const set = fn(anchors, f);
       const r = set.length >= 3 ? ppmOf(DexClock.hostAxis(set)) : null;
       return { kind, frac: f, n: set.length, dPpm: r === null ? null : r - base.ppm };
@@ -196,7 +199,7 @@ export function recover(anchors, opts = {}) {
   );
 
   // T5 · TIMESTAMP JUMP — must localise to maxStepMs, not smear into the rate.
-  out.targets.jump = [200, 2000].map(ms => {
+  out.targets.jump = [200, 2000].map((ms) => {
     const r = DexClock.hostAxis(PERTURB.jump(anchors, ms, 0.5));
     return {
       injectedMs: ms,
@@ -224,8 +227,7 @@ function* sidecars(root) {
   }
 }
 
-const deviceOf = f =>
-  /O2Ring/i.test(f) ? 'O2Ring' : /VeritySense/i.test(f) ? 'Verity' : /H10/i.test(f) ? 'H10' : 'other';
+const deviceOf = (f) => (/O2Ring/i.test(f) ? 'O2Ring' : /VeritySense/i.test(f) ? 'Verity' : /H10/i.test(f) ? 'H10' : 'other');
 
 function selfTest() {
   let fail = 0;
@@ -246,27 +248,41 @@ function selfTest() {
   const r = recover(a);
   ok('a planted +50 ppm baseline is seen', Math.abs(r.baseline.ppm - 50) < 5, `ppm=${r.baseline.ppm.toFixed(2)}`);
   ok('NULL control reproduces the baseline exactly', r.targets.null.errPpm === 0, `err=${r.targets.null.errPpm}`);
-  const f100 = r.targets.frequency.find(x => x.injectedPpm === 100);
-  ok("a +100 ppm device injection is recovered as -100 ppm within 2 %", Math.abs(f100.relErr) < 0.02, `rel=${(f100.relErr * 100).toFixed(3)} %`);
-  ok('constant offset is NOT recoverable — by construction', r.targets.offset.every(o => Math.abs(o.dPpm) < 1e-6));
-  ok('a contiguous dropout does not move the rate', r.targets.loss.filter(l => l.kind === 'contiguous').every(l => Math.abs(l.dPpm) < 1));
+  const f100 = r.targets.frequency.find((x) => x.injectedPpm === 100);
+  ok('a +100 ppm device injection is recovered as -100 ppm within 2 %', Math.abs(f100.relErr) < 0.02, `rel=${(f100.relErr * 100).toFixed(3)} %`);
+  ok(
+    'constant offset is NOT recoverable — by construction',
+    r.targets.offset.every((o) => Math.abs(o.dPpm) < 1e-6)
+  );
+  ok(
+    'a contiguous dropout does not move the rate',
+    r.targets.loss.filter((l) => l.kind === 'contiguous').every((l) => Math.abs(l.dPpm) < 1)
+  );
   /* REGRESSION: this tool once guarded on `stability.ok`, a field that does not exist, so every
      stream recorded a null noise type and the wander target reported "(none)" across the whole
      corpus — silence read as a result. Assert the field is actually POPULATED, not merely absent. */
-  ok('the stability curve is actually READ, not silently null', r.baseline.stabilityNoise !== null && r.baseline.stabilityTaus > 0, `noise=${r.baseline.stabilityNoise} taus=${r.baseline.stabilityTaus}`);
+  ok(
+    'the stability curve is actually READ, not silently null',
+    r.baseline.stabilityNoise !== null && r.baseline.stabilityTaus > 0,
+    `noise=${r.baseline.stabilityNoise} taus=${r.baseline.stabilityTaus}`
+  );
   /* NOT "always names a type": `classify()` returns `noise: null` (with candidates) when the slope
      SE cannot discriminate, which is its honest refusal and must not be asserted away. What must hold
      is that a SLOPE was computed for every injection — the curve ran. Measured: the classifier names
      a type at 0.5 and 20 ppm/step and declines in between, so class recovery succeeds at the extremes
      only. That is a property of the estimator worth reporting, not a bug to assert around. */
-  ok('every wander injection yields a computed slope (named or not)', r.targets.wander.every(w => typeof w.slope === 'number' && isFinite(w.slope)), JSON.stringify(r.targets.wander.map(w => [w.slope, w.noise])));
+  ok(
+    'every wander injection yields a computed slope (named or not)',
+    r.targets.wander.every((w) => typeof w.slope === 'number' && isFinite(w.slope)),
+    JSON.stringify(r.targets.wander.map((w) => [w.slope, w.noise]))
+  );
   ok('monotonic split finds the longer run', longestMonotonicRun([{ devMs: 0 }, { devMs: 1 }, { devMs: 2 }, { devMs: 0 }]).length === 3);
   console.log(fail ? `\n${fail} self-test FAILURE(S)` : '\nself-test: all green');
   return fail ? 1 : 0;
 }
 
 function main(argv) {
-  const arg = k => {
+  const arg = (k) => {
     const i = argv.indexOf(k);
     return i >= 0 ? argv[i + 1] : null;
   };

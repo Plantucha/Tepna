@@ -36,13 +36,22 @@ function load(file, measFilter) {
 
 // ── perturbations (deterministic; no RNG) ─────────────────────────────────────
 const P = {
-  'P0-null':         a => a,
-  'P1-offset':       a => a.map(x => ({ devMs: x.devMs, hostMs: x.hostMs + 5000 })),
-  'P2-freq':         a => { const d0 = a[0].devMs; return a.map(x => ({ hostMs: x.hostMs, devMs: d0 + (x.devMs - d0) * (1 + 100e-6) })); },
-  'P2b-freq-small':  a => { const d0 = a[0].devMs; return a.map(x => ({ hostMs: x.hostMs, devMs: d0 + (x.devMs - d0) * (1 + 10e-6) })); },
-  'P3-jump':         a => a.map((x, i) => ({ devMs: x.devMs, hostMs: x.hostMs + (i >= a.length / 2 ? 2000 : 0) })),
-  'P4-loss':         a => a.filter((_, i) => i % 10 >= 3),          // drop 30%, deterministic stride
-  'P5-implausible':  a => { const d0 = a[0].devMs; return a.map(x => ({ hostMs: x.hostMs, devMs: d0 + (x.devMs - d0) * 2.0 })); }
+  'P0-null': (a) => a,
+  'P1-offset': (a) => a.map((x) => ({ devMs: x.devMs, hostMs: x.hostMs + 5000 })),
+  'P2-freq': (a) => {
+    const d0 = a[0].devMs;
+    return a.map((x) => ({ hostMs: x.hostMs, devMs: d0 + (x.devMs - d0) * (1 + 100e-6) }));
+  },
+  'P2b-freq-small': (a) => {
+    const d0 = a[0].devMs;
+    return a.map((x) => ({ hostMs: x.hostMs, devMs: d0 + (x.devMs - d0) * (1 + 10e-6) }));
+  },
+  'P3-jump': (a) => a.map((x, i) => ({ devMs: x.devMs, hostMs: x.hostMs + (i >= a.length / 2 ? 2000 : 0) })),
+  'P4-loss': (a) => a.filter((_, i) => i % 10 >= 3), // drop 30%, deterministic stride
+  'P5-implausible': (a) => {
+    const d0 = a[0].devMs;
+    return a.map((x) => ({ hostMs: x.hostMs, devMs: d0 + (x.devMs - d0) * 2.0 }));
+  }
 };
 
 function fmt(r) {
@@ -51,27 +60,30 @@ function fmt(r) {
 }
 
 const TARGETS = [
-  ['H10',    '/tmp/kc/Polar_H10_02849638_20260813231740_PMDARRIVAL.csv',            'ecg'],
-  ['Verity', '/tmp/kc/Polar_VeritySense_0C301E3F_20260813231725_PMDARRIVAL.csv',    'ppg'],
-  ['O2Ring', '/tmp/kc/Wellue_O2Ring-S_S8AW2100_20260813231713_PMDARRIVAL.csv',      null]
+  ['H10', '/tmp/kc/Polar_H10_02849638_20260813231740_PMDARRIVAL.csv', 'ecg'],
+  ['Verity', '/tmp/kc/Polar_VeritySense_0C301E3F_20260813231725_PMDARRIVAL.csv', 'ppg'],
+  ['O2Ring', '/tmp/kc/Wellue_O2Ring-S_S8AW2100_20260813231713_PMDARRIVAL.csv', null]
 ];
 
 for (const [name, file, meas] of TARGETS) {
   const { anchors, measSeen } = load(file, meas);
   console.log(`\n${'='.repeat(78)}\n${name}  (meas filter: ${meas || 'ALL'})  anchors=${anchors.length}`);
   console.log('  meas types present:', [...measSeen.entries()].map(([k, v]) => `${k}:${v}`).join(' '));
-  if (anchors.length < 3) { console.log('  SKIP — too few anchors'); continue; }
+  if (anchors.length < 3) {
+    console.log('  SKIP — too few anchors');
+    continue;
+  }
 
   const results = {};
   for (const [id, fn] of Object.entries(P)) {
-    if (name === 'O2Ring' && id !== 'P0-null') continue;   // O2Ring leg = P6, null run only
-    const r = DexClock.hostAxis(fn(anchors.map(x => ({ ...x }))));
+    if (name === 'O2Ring' && id !== 'P0-null') continue; // O2Ring leg = P6, null run only
+    const r = DexClock.hostAxis(fn(anchors.map((x) => ({ ...x }))));
     results[id] = r;
     console.log(`  ${id.padEnd(17)} ${fmt(r)}`);
   }
 
   // determinism check for P0
-  const again = DexClock.hostAxis(anchors.map(x => ({ ...x })));
+  const again = DexClock.hostAxis(anchors.map((x) => ({ ...x })));
   if (results['P0-null'].ok && again.ok) {
     console.log(`  [determinism]     |dppm| = ${Math.abs(again.ppm - results['P0-null'].ppm).toExponential(2)}`);
   }

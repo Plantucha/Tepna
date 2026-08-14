@@ -873,7 +873,11 @@
       /* Separate from `inertReason` on purpose: that field answers "is the HOST column real", this one
          answers "is the DEVICE column a clock". Both can be non-null; neither implies the other. */
       drawnReason: deviceDrawn
-        ? 'device axis is DRAWN — ' + (drawnShare * 100).toFixed(2) + ' % of inter-sample deltas share one value (≥ ' + (CK_AXIS_DRAWN_SHARE * 100).toFixed(0) + ' %); this column is a synthesised counter, not a clock, so there is no second timebase to discipline against'
+        ? 'device axis is DRAWN — ' +
+          (drawnShare * 100).toFixed(2) +
+          ' % of inter-sample deltas share one value (≥ ' +
+          (CK_AXIS_DRAWN_SHARE * 100).toFixed(0) +
+          ' %); this column is a synthesised counter, not a clock, so there is no second timebase to discipline against'
         : null,
       /* Linear between anchors; FLAT outside them. Flat, not extrapolated: past the last anchor there
          is no measurement, and extending a slope there would fabricate one — the same rule as §2.6. */
