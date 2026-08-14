@@ -62,3 +62,64 @@ def test_not_worn_and_charging_are_amber_or_blue_never_red():
     chg = html.split(".ov-head .st.chg{")[1].split("}")[0]
     assert "--amber" in warn and "--red" not in warn
     assert "--blue" in chg and "--red" not in chg
+
+
+# ── THE HOLE THE RISING RULE CANNOT REACH: a battery already at 100 % ───────────────────────────────
+# The tests above are source scans. This one EXECUTES, because the defect it covers is a wiring
+# question — does a `True` from the predicate actually reach the flag — and a scan cannot answer that.
+
+def test_a_FULL_flat_battery_sets_charging_where_the_rising_rule_is_blind(tmp_path, monkeypatch):
+    """A full cell has nowhere to rise to, so `lvl > prev` can never fire at 100 %. Measured
+    2026-08-14: the Verity streamed 80 min at 176 Hz with `battery` pinned at 100 and `charging` False
+    the whole time, so the contact bit's `worn: True` stood unopposed and the not-worn drop could never
+    fire — an armband on a dock, indistinguishable from a wrist.
+
+    The RULE (how long flat, at what level) is tested exhaustively and purely in
+    `test_worn_detectors.py`. What this asserts is the part a pure test cannot: that a `True` from it
+    reaches `charging`, on the second battery read, when the level has not moved."""
+    import asyncio
+    import sys as _sys
+
+    _sys.path.insert(0, __import__("os").path.dirname(__file__))
+    import capture
+    import test_capture_runners as T
+
+    capture._STOP = asyncio.Event()
+    T._polar_common(monkeypatch)
+    # The predicate is stubbed rather than time-travelled: advancing `_time.monotonic` past 45 min
+    # would also trip the 90 s stall watchdog and end the session before the second read.
+    monkeypatch.setattr(capture, "full_battery_implies_charging", lambda *_a, **_k: True)
+    c = T.FlexPolarClient(data_frames=[T._ppg_frame()], batt_level=100)
+    T._inject_connect(monkeypatch, c)
+    T._stop_after(monkeypatch, 130)          # past `secs % 120` → a SECOND battery read
+    asyncio.run(capture.run_polar(T._pdev(streams=["ppg"]), str(tmp_path)))
+    st = capture.STATUS["devices"][T._pdev(streams=["ppg"])["name"]]
+    assert st.get("battery") == 100, f"the fixture reads 100; the flat path needs prev == lvl: {st}"
+    assert st.get("charging") is True, (
+        f"a full, unmoving battery must set charging — this is the case `lvl > prev` cannot see: {st}")
+
+
+def test_a_full_battery_that_has_NOT_been_flat_long_enough_sets_nothing(tmp_path, monkeypatch):
+    """The complement, and the one that keeps the rule from becoming "at 100 % assume a charger".
+
+    A device unplugged at full reads 100 for the first minutes too. If a short flat stretch set the
+    flag, every session that began on a fully-charged strap would declare itself docked and drop the
+    link — the expensive error, made for the cheap reason."""
+    import asyncio
+    import sys as _sys
+
+    _sys.path.insert(0, __import__("os").path.dirname(__file__))
+    import capture
+    import test_capture_runners as T
+
+    capture._STOP = asyncio.Event()
+    T._polar_common(monkeypatch)
+    monkeypatch.setattr(capture, "full_battery_implies_charging", lambda *_a, **_k: None)
+    c = T.FlexPolarClient(data_frames=[T._ppg_frame()], batt_level=100)
+    T._inject_connect(monkeypatch, c)
+    T._stop_after(monkeypatch, 130)
+    asyncio.run(capture.run_polar(T._pdev(streams=["ppg"]), str(tmp_path)))
+    st = capture.STATUS["devices"][T._pdev(streams=["ppg"])["name"]]
+    assert st.get("battery") == 100
+    assert st.get("charging") is not True, (
+        f"a full battery alone is not a charger — only a full battery that has not MOVED is: {st}")

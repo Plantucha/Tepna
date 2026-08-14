@@ -28,7 +28,7 @@ import alerts
 import nightqc
 import nightarchive
 import storage_targets
-from telemetry import (TelemetryBus, calibrated_for, ppi_contact,
+from telemetry import (TelemetryBus, calibrated_for, full_battery_implies_charging, ppi_contact,
                        sd_calibrated_for, worn_verdict)
 
 # ── JOURNAL SEVERITY (VIGIL-COEXISTENCE-AND-RANGE §1) ────────────────────────────────────────────────
@@ -1738,6 +1738,10 @@ async def run_polar(dev: dict, root: str):
                 _amb: list[float] = []
                 _AMB_WINDOW = 220
                 _has_contact_bit = False
+                # When the battery level last CHANGED. A full cell cannot rise, so at 100 % the
+                # rising-charge rule in `_read_batt` is blind and flatness is the only substitute
+                # signal — see telemetry.full_battery_implies_charging.
+                _batt_flat_since = None
                 # Say the contact-vs-optics conflict ONCE per session, not once per PPG window.
                 # At 176 Hz this branch runs ~every 1.25 s; an unthrottled warning would emit
                 # ~2900 identical lines a night and bury the one that matters.
@@ -1894,8 +1898,9 @@ async def run_polar(dev: dict, root: str):
                         # which is why they are separate detectors and not one widened threshold.
                         # `stream_fs` is what the device actually AGREED to, not what the config asked
                         # for, and only the agreed number describes these samples.
-                        _worn, _why = worn_verdict(ppi_flags=_ppi_flags, ambient=list(_amb),
-                                                   fs=stream_fs.get(pmd.PPG))
+                        _worn, _why = worn_verdict(
+                            ppi_flags=_ppi_flags, ambient=list(_amb), fs=stream_fs.get(pmd.PPG),
+                            charging=STATUS["devices"].get(name, {}).get("charging"))
                         _amb.clear()
                         if _has_contact_bit:
                             # A contact bit owns `worn`. Publish the optical opinion ALONGSIDE it and
@@ -1997,6 +2002,18 @@ async def run_polar(dev: dict, root: str):
                             elif isinstance(prev, int) and lvl < prev:
                                 _set(name, charging=False)   # discharging again -> off the dock
                             _set(name, battery=lvl)
+                            # AT FULL, FLATNESS REPLACES RISING. The rule above cannot fire at 100 %
+                            # — there is nowhere to rise to — so a device docked while full reported
+                            # charging=False indefinitely. Measured 2026-08-14: 80 min of 176 Hz
+                            # streaming with battery pinned at 100 and nothing able to tell a dock
+                            # from a wrist. Streaming drains ~9 %/h, so 45 min of no movement at full
+                            # is a charger.
+                            nonlocal _batt_flat_since
+                            if prev != lvl or _batt_flat_since is None:
+                                _batt_flat_since = _time.monotonic()
+                            elif full_battery_implies_charging(
+                                    lvl, _time.monotonic() - _batt_flat_since):
+                                _set(name, charging=True)
                     except Exception:
                         pass
                 if writers:

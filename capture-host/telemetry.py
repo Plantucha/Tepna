@@ -221,7 +221,8 @@ def ambient_stability_worn(ambient, *, threshold: float = _WORN_AMBIENT_SD_MAX,
     return statistics.pstdev(vals) < threshold
 
 
-def worn_verdict(*, ppi_flags=None, ambient=None, fs: float | None = None) -> tuple[bool | None, str]:
+def worn_verdict(*, ppi_flags=None, ambient=None, fs: float | None = None,
+                 charging: bool | None = None) -> tuple[bool | None, str]:
     """Combine every worn detector that is AVAILABLE and IN DOMAIN into one verdict plus its reason.
 
     Returns `(verdict, why)`. `why` names which detectors voted, so "no verdict" is visible rather
@@ -244,6 +245,16 @@ def worn_verdict(*, ppi_flags=None, ambient=None, fs: float | None = None) -> tu
     on this hardware (contact=0 on 31 877 desk rows, contact=1 on 20 957 worn rows). It is unavailable
     whenever SDK mode is on, because the Verity refuses PPI there — which is exactly the configuration
     that made this whole function necessary."""
+    # ── CHARGING OUTRANKS EVERY OTHER DETECTOR, and it is the ONE case that inverts the asymmetry ──
+    #
+    # The rule below is "worn if ANY detector says worn", because a false NOT-worn drops a live link
+    # and costs a night while a false worn costs a charge. That reasoning does not apply here: a device
+    # sitting in a dock is not on a wrist, so the expensive error is not available to be made. This is
+    # the only signal in the set that is a PHYSICAL FACT about where the device is rather than an
+    # inference about what it is seeing, which is why it may overrule a contact bit that says worn —
+    # and on 2026-08-14 that contact bit did say worn, for 80 minutes, on a charger.
+    if charging:
+        return False, "not worn — on charger (a docked device is not on a wrist)"
     votes: list[tuple[str, bool]] = []
     contact = ppi_contact(ppi_flags)
     if contact is not None:
@@ -262,6 +273,49 @@ def worn_verdict(*, ppi_flags=None, ambient=None, fs: float | None = None) -> tu
     if worn_by:
         return True, "worn per " + ", ".join(worn_by)
     return False, "not worn per " + ", ".join(n for n, _ in votes)
+
+
+# ── CHARGING AT FULL, WHERE THE RISING RULE IS STRUCTURALLY BLIND ───────────────────────────────────
+#
+# `capture._read_batt` already infers charging from a RISING battery, which is unambiguous — these cells
+# do not self-charge — and it works everywhere it can fire (measured 2026-07-19: Verity 35 -> 61 %).
+#
+# It cannot fire at 100 %. A full cell has nowhere to rise to, so a device docked while full reports
+# `charging: False` for as long as it sits there. Measured 2026-08-14: the Verity streamed 80 minutes
+# at 176 Hz with `battery` pinned at 100 and `charging` False the whole time, so nothing downstream
+# could tell a charger from a wrist.
+#
+# THE SUBSTITUTE SIGNAL AT FULL IS FLATNESS, and it is quantitative rather than a hunch. Streaming
+# drains this hardware at roughly 9 %/h — measured on the 2026-08-10 desk incident, 100 % -> 74 % in
+# three hours at 55 Hz, and 176 Hz costs more, not less. So a *streaming* device that has held 100 %
+# for 45 minutes should have shed ~7 points and has shed none. The window is deliberately long: it
+# spans several battery quantisation steps whatever the device's reporting granularity, and the cost of
+# waiting is a few minutes of streaming while the cost of being wrong is a dropped link.
+#
+# ⚠️ RESTRICTED TO FULL ON PURPOSE. Flatness lower down is weak — a slow drain and a coarse reporting
+# step look identical — and it does not need to work there, because a battery below 100 that goes on
+# charge RISES and the existing rule already catches it. This fills the one hole that rule cannot
+# reach, and claims nothing outside it.
+_BATT_FULL_PCT = 100
+_BATT_FLAT_CHARGING_S = 2700.0     # 45 min; ~7 points of expected drain at the measured 9 %/h
+
+
+def full_battery_implies_charging(level, seconds_flat, *, full_pct: int = _BATT_FULL_PCT,
+                                  min_flat_s: float = _BATT_FLAT_CHARGING_S) -> bool | None:
+    """`True` when a FULL battery has stayed put long enough that a draining device would have moved.
+
+    PURE. `None` means "no claim" — below full (where the rising rule applies), on a short observation,
+    or with nothing to read. Never returns False: a battery flat for ten minutes has not proved it is
+    discharging, and saying so would be inventing the opposite verdict out of insufficient evidence."""
+    if level is None or seconds_flat is None:
+        return None
+    try:
+        lvl, flat = int(level), float(seconds_flat)
+    except (TypeError, ValueError):
+        return None
+    if lvl < full_pct or flat < min_flat_s:
+        return None
+    return True
 
 
 def stream_health(nominal_fs, eff_fs, age_s, warmup: bool = False,
