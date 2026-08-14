@@ -295,3 +295,42 @@ def test_RADIO_is_answered_INLINE_because_it_drops_links_without_killing_this_se
     assert status_code == 200 and body["detail"] == "bluetooth: active"
     assert seen == ["radio"], "inline, during the request"
     assert "scheduled_in_s" not in body
+
+
+def test_DEPLOY_is_answered_INLINE_with_the_report_and_the_restart_flag(tmp_path, monkeypatch):
+    """The whole point of the button: it returns what moved and whether the daemon is still on the old
+    build. Deferring it would return a cheerful 200 carrying neither."""
+    monkeypatch.setattr(daemon_control, "run",
+                        lambda verb, minutes=None, **kw: {"ok": True, "verb": verb,
+                                                          "detail": "updated abc → def\nRESTART-OWED",
+                                                          "restart_owed": True})
+    app, *_ = _mk(tmp_path, devices=[], status={})
+
+    async def go(c):
+        r = await c.post("/api/daemon", json={"verb": "deploy"})
+        return r.status, await r.json()
+    status_code, body = _serve(app, go)
+    assert status_code == 200 and body["ok"] is True
+    assert body["restart_owed"] is True and "updated" in body["detail"]
+    assert "scheduled_in_s" not in body
+
+
+def test_an_inline_verb_gets_ITS_OWN_timeout_not_the_default(tmp_path, monkeypatch):
+    """Found while wiring deploy: the inline path passed no timeout at all, so a network fetch would
+    have been bounded at the systemctl default. The handler must ask `timeout_for`, not hardcode."""
+    seen = {}
+
+    def _fake_run(verb, minutes=None, **kw):
+        seen[verb] = kw.get("timeout")
+        return {"ok": True, "verb": verb, "detail": ""}
+
+    monkeypatch.setattr(daemon_control, "run", _fake_run)
+    app, *_ = _mk(tmp_path, devices=[], status={})
+
+    async def go(c):
+        await c.post("/api/daemon", json={"verb": "deploy"})
+        await c.post("/api/daemon", json={"verb": "status"})
+        return None
+    _serve(app, go)
+    assert seen["deploy"] == daemon_control.DEPLOY_TIMEOUT_S, seen
+    assert seen["status"] == 30.0, seen
