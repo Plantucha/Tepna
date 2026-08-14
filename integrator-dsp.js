@@ -4938,6 +4938,17 @@ function fitClockDrift(aTimes, bTimes, opts) {
     return x - y;
   });
   return {
+    /* THE SERIES THE FIT WAS MADE FROM, which was being discarded. `off` at `tMs` is a PHASE series —
+       the only input from which this leg's own rate uncertainty can be measured. Without it a consumer
+       can see the slope but not how far to trust it, which is precisely what left `fitClockClosure`
+       with a tolerance guessed from magnitude (`0.25 * maxleg`) rather than derived from precision.
+       Measured: closure error is UNCORRELATED with leg magnitude (r = -0.24 over the corpus), so the
+       proportional model has no support; and naive OLS on these blocks underestimates the observed
+       closure noise 10x, because consecutive block offsets share the same wander and OLS assumes
+       independent residuals. A correlation-safe uncertainty needs the series, not a summary of it. */
+    blocks_: rows.map(function (b) {
+      return { tMs: b.tMs, off: b.off };
+    }),
     offsetMs: my + slope * (A[0] - mx),
     driftPpm: slope * 1e6,
     medianCorrespondence: medFrac,

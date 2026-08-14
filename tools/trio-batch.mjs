@@ -1023,7 +1023,7 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
         // Print each night's block whole, so interleaved children never shred each other's output.
         const body = out
           .split('\n')
-          .filter((l) => /^\s{4,}[✓✗⊘·⏱]/.test(l)) // `{4,}`, and ⏱: the clock-fit block indents its per-sensor lines deeper, and an exact-4 filter silently ate them
+          .filter((l) => /^\s{4,}[✓✗⊘·⏱⚖]/.test(l)) // `{4,}`, ⏱ and ⚖: deeper-indented fit/agreement lines — an exact-4 filter silently ate the first, and a missing ⚖ ate the second
           .join('\n');
         console.log(`\n▸ ${p.key}${node ? ` · ${node}` : ''}  [${done}/${queue0}]${code === 0 ? '' : `  ✗ child exit ${code}`}`);
         if (body) console.log(body);
@@ -1924,6 +1924,19 @@ for (const p of work) {
      siblings" — solved the same way: the parent runs it once, after every node has landed. */
   if (!ONLY_NODE) row.clockFit = printClockFit(dir, p.key);
   if (!ONLY_NODE) row.driftFit = printDriftFit(dir, p.key);
+  /* ⚠️ THESE TWO WERE ONLY ON THE OTHER PATH, AND THE OTHER PATH ALMOST NEVER RUNS.
+     There are two completion paths for a night: this one, where a child owns the WHOLE night, and the
+     parent's `if (node)` branch, which handles a night whose nodes were split across children. The
+     sidecars were added to the parent branch alone. But node-split is enabled only when
+     `work.length < plan.jobs` — FEWER nights than job slots — so every ordinary corpus fold takes THIS
+     path and silently wrote neither sidecar. Measured: a 40-night fold produced 0 `agreement_*.json`
+     and 0 `arrival_*.json`, while small batches (which do split) produced them for every night. The
+     feature looked correct because the case it was developed against is the rare one.
+     Guarded by `!ONLY_NODE` for the same reason as the fits directly above: a child that owns a single
+     node cannot see its siblings' exports, so it would adjudicate a "disagreement" against files that
+     have not been written yet. */
+  if (!ONLY_NODE && row.nodes.length >= 2) writeAgreement(dir, p.key);
+  if (!ONLY_NODE) writeArrival(dir, p.key, p);
 
   summary.push(row);
 }
