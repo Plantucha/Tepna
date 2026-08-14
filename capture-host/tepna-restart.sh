@@ -22,7 +22,7 @@ set -uo pipefail
 
 UNIT=tepna-capture.service
 
-usage() { echo "usage: $0 {restart|status|radio|reload|stop [minutes]}" >&2; exit 2; }
+usage() { echo "usage: $0 {restart|status|radio|reload|reboot|stop [minutes]}" >&2; exit 2; }
 # Arity is PER VERB: only `stop` takes a second argument. A blanket "1 or 2 args" would quietly accept
 # `restart extra`, and a verb that ignores trailing junk is one that will eventually be handed a typo
 # for the thing the caller actually meant.
@@ -105,6 +105,26 @@ case "$1" in
       echo "still reports NeedDaemonReload after a successful daemon-reload" >&2
       exit 1
     fi
+    ;;
+  reboot)
+    # THE LAST RUNG. Above `radio` (restart bluetoothd) and above an unbind/bind of the adapter — for a
+    # controller that survives both, and for a kernel-side wedge no userspace rung can reach.
+    #
+    # ⚠️ THE GUARD IS NOT HERE, AND THAT IS DELIBERATE — SAY SO RATHER THAN IMPLY IT. "Is a sensor
+    # streaming right now?" is a question only the daemon can answer; this script would have to guess it
+    # from file mtimes, and the two files that are ALWAYS being written (`status.json` and the LINK log)
+    # would make it guess wrong in the direction that refuses forever. A guard that is usually wrong is
+    # worse than an honest absence, so the live-capture check lives in the API layer, which reads real
+    # device state, and this verb is the mechanism it drives.
+    #
+    # That is not a hole. The only callers are that API and a shell with `sudo`, and a shell with `sudo`
+    # can already run `systemctl reboot` directly — a guard here would constrain nobody it needs to.
+    #
+    # The unit is `enabled`, so capture comes back by itself; that is what makes this survivable at all.
+    echo "$UNIT: rebooting the host now — capture resumes on boot (the unit is enabled)"
+    # `systemctl reboot` rather than `shutdown -r`: no wall broadcast, no one-minute delay, and it is the
+    # same mechanism the deadman timer path already relies on being present.
+    systemctl reboot || exit 1
     ;;
   radio)
     # A DEAF RADIO IS NOT A DOWN RADIO. On 2026-07-30 hci0 reported `UP RUNNING` with 332 MB of

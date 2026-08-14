@@ -76,9 +76,14 @@ def test_the_range_is_inclusive_at_both_ends_and_REFUSES_beyond_them():
 
 def test_an_unknown_verb_is_REFUSED_and_never_reaches_an_argv():
     with pytest.raises(dc.VerbError):
-        dc.build_cmd("reboot")
+        dc.build_cmd("obliterate")
     with pytest.raises(dc.VerbError):
         dc.build_cmd("restart; rm -rf /")
+    # `reboot` USED to be the example here, and became a real verb in the recovery-rungs change. Kept as
+    # a note rather than quietly swapped: the example must be something that will never be implemented,
+    # or this test decays into asserting the allowlist contains whatever it happens to contain.
+    with pytest.raises(dc.VerbError):
+        dc.build_cmd("shutdown")
 
 
 def test_the_argv_is_a_LIST_so_there_is_no_shell_to_quote_for():
@@ -162,8 +167,13 @@ def test_a_HUNG_helper_is_bounded_and_says_so():
 def test_the_verbs_that_kill_this_process_are_declared():
     """`KILLS_SELF` is what the HTTP layer branches on to decide answer-then-fire. `status` must not be
     in it, or a harmless read would be deferred and never reported."""
-    assert dc.KILLS_SELF == {"restart", "stop"}
+    assert dc.KILLS_SELF == {"restart", "stop", "reboot"}
     assert "status" not in dc.KILLS_SELF
+    # `radio` and `rebind` take every BLE LINK down but leave this process alive, so they are answered
+    # inline. Conflating "drops the links" with "ends this server" would defer them and throw away the
+    # helper's real output — the exact mistake DROPS_LINKS exists to keep separate.
+    assert dc.DROPS_LINKS == {"radio", "rebind"}
+    assert not (dc.DROPS_LINKS & dc.KILLS_SELF), "a verb cannot be both — they need opposite handling"
 
 
 def test_run_PASSES_MINUTES_THROUGH_to_the_command_it_builds():
@@ -209,7 +219,7 @@ def test_reload_does_NOT_kill_this_process_so_it_must_run_INLINE():
     the answer (was a reload owed? did it clear?). That is the silent-success shape this suite exists
     to catch, and putting `reload` in KILLS_SELF is the one edit that would reintroduce it."""
     assert "reload" not in dc.KILLS_SELF
-    assert dc.KILLS_SELF == {"restart", "stop"}, "exactly the two that end this process, no more"
+    assert dc.KILLS_SELF == {"restart", "stop", "reboot"}, "exactly those that end this process, no more"
 
 
 def test_reload_reports_the_helpers_real_answer_including_whether_one_was_OWED():
@@ -220,3 +230,43 @@ def test_reload_reports_the_helpers_real_answer_including_whether_one_was_OWED()
     assert got["ok"] is True and got["verb"] == "reload"
     assert "none was owed" in got["detail"], got
     assert r.argv[-1] == "reload"
+
+
+# ── the recovery rungs: radio · rebind · reboot ──────────────────────────────────────────────────────
+
+def test_rebind_uses_the_OTHER_helper_and_passes_the_port_as_its_only_argument():
+    """tepna-btreset.sh takes a bus-port and no verb word. The two helpers' allowlists are disjoint on
+    purpose — btreset may touch ONLY Bluetooth radios, usbreset ONLY a docked Polar — so `rebind` must
+    resolve to btreset and never to the restart helper."""
+    argv = dc.build_cmd("rebind", "1-2")
+    assert dc.BTRESET in argv[2] and dc.HELPER not in argv[2]
+    assert argv[3:] == ["1-2"], f"the port is the whole argument list, with no verb word: {argv}"
+
+
+@pytest.mark.parametrize("bad", ["1-2; rm -rf /", "../../etc/shadow", "", "1-2 3", "1-2\n4",
+                                 None, 12, "-2", "1-"])
+def test_a_usb_port_that_is_not_a_BUS_PORT_never_reaches_the_command_line(bad):
+    """The helper re-validates and additionally checks the device CLASS off the hardware — that is the
+    real allowlist. This is the near side of the sudo boundary, refusing before the call is made."""
+    with pytest.raises(dc.VerbError):
+        dc.build_cmd("rebind", bad)
+
+
+def test_radio_and_reboot_are_zero_arity_on_the_restart_helper():
+    assert dc.build_cmd("radio") == dc.build_cmd("radio", None)
+    assert dc.build_cmd("radio")[-1] == "radio"
+    assert dc.build_cmd("reboot")[-1] == "reboot"
+    assert dc.HELPER in dc.build_cmd("reboot")[2]
+
+
+def test_reboot_ENDS_this_process_and_radio_rebind_do_NOT():
+    """⚠️ THE DISTINCTION THAT DECIDES HTTP HANDLING, and it is not "is this dangerous".
+
+    A reboot ends the process writing the reply, so it must be answered before it fires. Restarting
+    bluetoothd or re-binding the adapter takes every BLE link down — arguably a bigger deal mid-night —
+    but leaves this server running, so they are answered INLINE with the helper's real output. Sorting
+    them by danger instead of by "does it kill the responder" is how a recovery verb ends up returning
+    a cheerful 200 that carries nothing."""
+    assert "reboot" in dc.KILLS_SELF
+    assert "radio" not in dc.KILLS_SELF and "rebind" not in dc.KILLS_SELF
+    assert {"radio", "rebind"} == dc.DROPS_LINKS
