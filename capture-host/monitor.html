@@ -461,12 +461,16 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
           <div class="section-title">Daemon control</div>
           <p class="hint">Stream and rate changes only take effect at a device's next connect — restart to
             apply them now. Stopping frees the BLE links for a manual probe; the daemon restarts itself
-            when the timer expires, so a forgotten stop cannot cost a night.</p>
+            when the timer expires, so a forgotten stop cannot cost a night.
+            <b>Reload units</b> is for after a pull changed the systemd unit itself: it re-reads the
+            files and nothing drops, but a <i>restart</i> is still what carries a <code>[Service]</code>
+            change into the running daemon.</p>
           <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-top:.6rem">
             <button class="btn-primary" onclick='daemonRestart(this)'>Restart daemon</button>
             <label class="hint">stop for
               <input id="dmnMin" type="number" min="1" max="480" value="30" style="width:4.2rem"> min</label>
             <button onclick='daemonStop(this)'>Stop capture</button>
+            <button onclick='daemonReload(this)' title="Re-read unit files after a pull changed them. Does not touch the running daemon.">Reload units</button>
             <span class="hint" id="dmnMsg"></span>
           </div>
         </div>
@@ -898,14 +902,18 @@ async function loadAlerts(){
 // The unit being restarted is the one serving this page, so a click ALWAYS ends in a dropped
 // connection. The API answers before it fires; this half has to EXPECT the drop and poll the box back
 // up, or a successful restart is indistinguishable from a crash.
-async function daemonPost(btn, body, pending){
+// `dropsConnection` is EXPLICIT, and defaults to the dangerous case. `reload` does not stop anything,
+// so polling the box back up after it would print "daemon is back" for a drop that never happened —
+// a reassuring message about an event the code did not observe. Undefined still means true, so the
+// two verbs that really do kill this server keep their behaviour unchanged.
+async function daemonPost(btn, body, pending, dropsConnection){
   btn.disabled = true; $('#dmnMsg').textContent = pending;
   try{
     const r = await api('/api/daemon',{method:'POST',headers:{'content-type':'application/json'},
                                        body:JSON.stringify(body)});
     if(!r.ok){ $('#dmnMsg').innerHTML = `<span class="bad">${esc(r.error||'failed')}</span>`; return; }
     $('#dmnMsg').innerHTML = `<span class="ok">${esc(r.detail||'done')}</span>`;
-    await daemonWaitForReturn();
+    if(dropsConnection !== false) await daemonWaitForReturn();
   }catch(e){ $('#dmnMsg').innerHTML = `<span class="bad">${esc(e)}</span>`; }
   finally{ btn.disabled = false; }
 }
@@ -926,6 +934,11 @@ async function daemonWaitForReturn(tries){
 }
 
 function daemonRestart(btn){ return daemonPost(btn, {verb:'restart'}, 'restarting\u2026'); }
+
+// A RELOAD IS NOT A RESTART, and the reply says so rather than leaving the operator to assume. It
+// re-reads unit files after a pull brought a new unit definition; it does not touch the running
+// process, so nothing drops and no [Service] change reaches the daemon until it is also restarted.
+function daemonReload(btn){ return daemonPost(btn, {verb:'reload'}, 'reloading unit files\u2026', false); }
 
 // SHOW WHAT IS LIVE BEFORE ACTING. "Stop capture" at 23:00 with three sensors streaming is a different
 // act from the same click at noon, and the button cannot tell them apart — the operator can, given the

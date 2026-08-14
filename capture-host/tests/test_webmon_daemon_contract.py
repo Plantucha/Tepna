@@ -159,3 +159,27 @@ def test_a_deferred_RESTART_fires_the_restart_verb_and_no_other(tmp_path, monkey
         return None
     _serve(app, go)
     assert [v for v, _ in fired] == ["restart"], f"exactly the restart verb, once: {fired}"
+
+
+def test_RELOAD_is_answered_INLINE_with_the_real_output_not_deferred(tmp_path, monkeypatch):
+    """The mirror of the STATUS test, for the same reason and a sharper one: a deferred reload would
+    report nothing about the only two questions the verb exists to answer — whether a reload was owed,
+    and whether it cleared. `reload` does not stop this server, so there is nothing to defer for."""
+    seen = []
+
+    def _fake_run(verb, minutes=None, **kw):
+        seen.append((verb, minutes))
+        return {"ok": True, "verb": verb,
+                "detail": "tepna-capture.service: unit files re-read — a reload WAS owed"}
+
+    monkeypatch.setattr(daemon_control, "run", _fake_run)
+    app, *_ = _mk(tmp_path, devices=[], status={})
+
+    async def go(c):
+        r = await c.post("/api/daemon", json={"verb": "reload"})
+        return r.status, await r.json()
+    status, body = _serve(app, go)
+    assert status == 200 and body["ok"] is True
+    assert "WAS owed" in body["detail"], "the helper's real answer must reach the caller"
+    assert seen == [("reload", None)], "reload must run DURING the request, not after it"
+    assert "scheduled_in_s" not in body, "an inline verb has nothing scheduled — saying so would lie"
