@@ -97,7 +97,7 @@
  * on-disk `<file>.mutate-backup` that exists for the whole window, plus `recoverStale()` at startup
  * which restores any leftover before doing anything else and says so.
  */
-import { readFileSync, writeFileSync, appendFileSync, existsSync, rmSync, readdirSync, copyFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, appendFileSync, existsSync, rmSync, readdirSync, mkdirSync, symlinkSync } from 'node:fs';
 import { cpus } from 'node:os';
 import { execFileSync, execSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -441,38 +441,15 @@ function runSuiteAsync(filter, cwd, timeoutMs) {
    is 852 full checkouts, ~850 MB copied per file. Measured on this external volume: one file took
    ~12 minutes, projecting to ~14 h for the roster, and essentially all of it was checkout I/O rather
    than test execution. Hoisted, the same sweep pays for 12 checkouts total. */
-/* A WORKER MUST TEST *YOUR TREE*, NOT YOUR LAST COMMIT.
-   `git worktree add --detach HEAD` checks out the committed state, so every UNCOMMITTED change — the
-   tests you just wrote, the fix you are validating — is invisible to the run. It fails in the worst
-   possible way: silently, with a plausible number, about the wrong code. It cost a 79-minute
+/* A WORKER MUST TEST *YOUR TREE*, NOT YOUR LAST COMMIT — now true BY CONSTRUCTION.
+   `git worktree add --detach HEAD` checked out the COMMITTED state, so every uncommitted change —
+   the tests you just wrote, the fix you are validating — was invisible to the run. It failed in the
+   worst possible way: silently, with a plausible number, about the wrong code. It cost a 79-minute
    exhaustive `clock.js` run that reported seven mutants as SURVIVORS which had already been verified
    killed by hand, because the workers were running the pre-fix suite.
-   So mirror the caller's dirty files into each fresh worker. `git status --porcelain` covers modified
-   and untracked alike; deletions are applied as deletions. This is the whole point of the harness —
-   it exists to tell you whether YOUR change is visible to the suite. */
-function syncDirty(dir) {
-  let out = '';
-  try {
-    out = execFileSync('git', ['status', '--porcelain', '-z'], { cwd: ROOT, encoding: 'utf8' });
-  } catch {
-    return;
-  }
-  for (const rec of out.split('\0')) {
-    if (!rec || rec.length < 4) continue;
-    const path = rec.slice(3);
-    if (!path || path.endsWith('.mutate-backup')) continue;
-    const from = join(ROOT, path),
-      to = join(dir, path);
-    try {
-      if (!existsSync(from)) {
-        rmSync(to, { force: true });
-        continue;
-      }
-      mkdirSync(dirname(to), { recursive: true });
-      copyFileSync(from, to);
-    } catch {}
-  }
-}
+   A `syncDirty()` helper used to mirror the dirty files in afterwards. It is GONE and must not come
+   back: the workers are hard links to the working files themselves, so uncommitted state is present
+   with nothing to synchronise and no window in which the two can disagree. */
 
 let _pool = null;
 function workerPool() {
@@ -484,13 +461,37 @@ function workerPool() {
      exactly the moment a watcher first checks, which is the failure this tool's own header objects to
      elsewhere ("a measurement harness that lies about its own state"). One line per worker, on stderr,
      in every mode. */
+  /* ── HARD LINKS, NOT `git worktree add` (2026-08-13) ──────────────────────────────────────────
+     `git worktree add` per worker was a full checkout — minutes of I/O before a single mutant ran —
+     and on this ntfs3 volume it DEADLOCKED: measured 2026-08-12, one `git worktree add` sat in
+     uninterruptible D state for 1 h 33 m and took the whole sweep with it. D state cannot be killed.
+     `cp -al` creates directory entries pointing at the SAME inodes, so a worker costs milliseconds
+     and no data movement. `killcheck.mjs` and `extreme-mutate.mjs` have always built their workers
+     this way and neither has ever wedged; this file was the odd one out.
+     Two consequences, both improvements:
+       · the caller's UNCOMMITTED changes are present BY CONSTRUCTION, because the links point at the
+         working files — `syncDirty` existed only to paper over `--detach HEAD` checking out the
+         COMMITTED state, and is now unnecessary.
+       · `.git` is excluded, so a group that shells out to git degrades to a SKIP rather than a false
+         verdict (`readTrackedFiles` already returns null and skips on a missing git).
+     ⚠ UNLINK BEFORE WRITING a mutant into a worker — a hard link shares the inode with the repo, so
+     writing through it would edit the source under test. See the write path below. */
   const _poolT0 = Date.now();
-  process.stderr.write('  building worker pool: ' + JOBS + ' worktree(s), each a full checkout — this takes minutes\n');
+  const _entries = readdirSync(ROOT)
+    .filter((e) => !['.git', 'node_modules', 'coverage', '.nyc_output'].includes(e))
+    .map((e) => join(ROOT, e));
+  process.stderr.write('  building worker pool: ' + JOBS + ' hard-linked tree(s) — seconds, not minutes\n');
   for (let w = 0; w < JOBS; w++) {
     const dir = join(ROOT, '..', '.mutate-w' + w + '-' + process.pid);
     try {
-      execFileSync('git', ['worktree', 'add', '--detach', '--quiet', dir, 'HEAD'], { cwd: ROOT, stdio: 'ignore' });
-      syncDirty(dir);
+      rmSync(dir, { recursive: true, force: true });
+      mkdirSync(dir, { recursive: true });
+      execFileSync('cp', ['-al', '--', ..._entries, dir], { stdio: 'ignore' });
+      try {
+        symlinkSync(join(ROOT, 'node_modules'), join(dir, 'node_modules'));
+      } catch (_) {
+        /* absent node_modules is fine — the suite has no runtime deps */
+      }
       _pool.push(dir);
       process.stderr.write('    worker ' + _pool.length + '/' + JOBS + ' ready  (' + Math.round((Date.now() - _poolT0) / 1000) + 's)\n');
     } catch (e) {
@@ -509,9 +510,12 @@ function workerPool() {
   return _pool;
 }
 function dropPool() {
+  /* Plain rmSync now the workers are hard links, not registered worktrees — removing a link never
+     touches the inode's other name, so the repo's own files are untouched by construction. This also
+     removes the last `git worktree` call from the hot path, which is the point (see workerPool). */
   for (const d of _pool || []) {
     try {
-      execFileSync('git', ['worktree', 'remove', '--force', d], { cwd: ROOT, stdio: 'ignore' });
+      rmSync(d, { recursive: true, force: true });
     } catch {}
   }
   _pool = null;
@@ -1233,6 +1237,12 @@ async function runFile(file) {
         for (;;) {
           const i = next++;
           if (i >= picked.length) return;
+          /* UNLINK FIRST — LOAD-BEARING. The worker tree is HARD LINKS, so `wAbs` and the repo's own
+             copy are the SAME inode: writing through it would mutate the source under test, with
+             JOBS workers corrupting the file they are measuring. Removing the link first breaks the
+             sharing for this one path and leaves the repo untouched. (killcheck.mjs carries the same
+             note for the same reason.) */
+          rmSync(wAbs, { force: true });
           writeFileSync(wAbs, picked[i].apply());
           jwrite({ k: jkey(picked[i]) });
           classify(await runSuiteAsync(filter, dir, timeoutMs), picked[i]);
@@ -1633,15 +1643,18 @@ function recoverStale() {
       } catch {}
       if (alive) continue;
       const dir = join(ROOT, '..', e.name);
+      /* rmSync alone — workers are hard links now, so there is no worktree registration to remove
+         and removing a link cannot touch the repo's copy. `git worktree remove` is deliberately NOT
+         attempted first: it is the call that went D-state here, and reaching for it during RECOVERY
+         would wedge the very run trying to clean up after the last wedge.
+         A leftover from an OLD run predating this change is still a registered worktree; `git
+         worktree prune` below reaps that registration once the directory is gone. */
       try {
-        execFileSync('git', ['worktree', 'remove', '--force', dir], { cwd: ROOT, stdio: 'ignore' });
-      } catch {
-        try {
-          rmSync(dir, { recursive: true, force: true });
-        } catch {}
-      }
-      out.push(e.name + ' (orphaned worktree)');
+        rmSync(dir, { recursive: true, force: true });
+      } catch {}
+      out.push(e.name + ' (orphaned worker tree)');
     }
+    /* Cheap, touches no working tree, and clears registrations left by pre-2026-08-13 runs. */
     execFileSync('git', ['worktree', 'prune'], { cwd: ROOT, stdio: 'ignore' });
   } catch {}
   try {
