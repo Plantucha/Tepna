@@ -122,6 +122,55 @@
     return { violations: violations, counted: counted };
   }
 
+  /* ── THE COMPARATOR'S SERIALISER — ONE copy, shared by `T.eq` and the group that guards it ──────
+     Hoisted out of `T.eq` deliberately. The guard group below used to re-declare its own private
+     copy and assert against THAT, so a change to the real comparator left the group that exists to
+     catch it still green — the instrument rules' own headline shape ("the check ran, and reported
+     success about something it never examined", MUTATION-PROGRAM §8). One function, two callers.
+
+     WHAT JSON COLLAPSES. `JSON.stringify` is not injective, and every value it maps onto the same
+     text is a pair `T.eq` calls equal while they differ. Nine such classes were measured (2026-08-14):
+
+       NaN · +Infinity · −Infinity   -> "null"        (tagged 2026-08-13, #1215)
+       function · undefined · symbol -> undefined     (so ANY two functions compared equal — and a
+                                                       function compared equal to a MISSING value)
+       {p:1,q:undefined}             -> {"p":1}       (an undefined-valued property is DROPPED, so a
+                                                       mutant deleting a field assignment survives)
+       [undefined]                   -> [null]
+       -0                            -> 0             (a sign flip landing on negative zero)
+
+     The function case is why this matters beyond tidiness: `T.eq(P.retiredName, P.currentName)` is a
+     BACK-COMPAT gate, and it passed whether the two were the same function, two different functions,
+     or the retired name not existing at all. Found by the PpgDex/Allan delegation work (#1232), which
+     hit the same blindness asserting a node exposes the SPINE's function object rather than a
+     lookalike wrapper.
+
+     FUNCTIONS COMPARE BY IDENTITY, not by name or source text. Two distinct functions with identical
+     bodies are different answers to "is this the same function?", which is the only question a test
+     asks of a function value. A WeakMap id gives that without retaining anything. */
+  var _serFnIds = new WeakMap();
+  var _serFnSeq = 0;
+  function dexSerializeForEq(v) {
+    return JSON.stringify(v, function (_k, val) {
+      if (typeof val === 'number') {
+        if (!isFinite(val)) return Number.isNaN(val) ? '@NaN' : val > 0 ? '@+Inf' : '@-Inf';
+        // −0 and 0 are `===` but are different measurements; Object.is separates them.
+        if (val === 0 && Object.is(val, -0)) return '@-0';
+        return val;
+      }
+      /* Returning a tag rather than `undefined` is what keeps an undefined-valued PROPERTY in the
+         output — the replacer is consulted before the key is dropped, so this closes the dropped-
+         field case at every depth as a side effect of closing the top-level one. */
+      if (val === undefined) return '@undef';
+      if (typeof val === 'function') {
+        if (!_serFnIds.has(val)) _serFnIds.set(val, ++_serFnSeq);
+        return '@fn#' + _serFnIds.get(val);
+      }
+      if (typeof val === 'symbol') return '@sym:' + String(val.description);
+      return val;
+    });
+  }
+
   function runDexTests(env) {
     env = env || {};
     var GROUPS = [];
@@ -195,15 +244,16 @@
              shapes this suite returns: `parseTimestamp` answers `{tMs, offsetMin}` with a null
              `offsetMin` when the stamp carried no zone, and `hostAxis` refuses with
              `{ok:false, reason, n}`. A first version of this fix tagged only the top-level value and
-             left all of those blind — caught in review, and the reason the count below is measured
-             over field- and array-level cases too rather than over the 263 top-level ones alone. */
-          var _ser = function (v) {
-            return JSON.stringify(v, function (_k, val) {
-              return typeof val === 'number' && !isFinite(val) ? (Number.isNaN(val) ? '@NaN' : val > 0 ? '@+Inf' : '@-Inf') : val;
-            });
-          };
-          var pass = _ser(got) === _ser(want);
-          G.tests.push({ name: name, pass: pass, detail: pass ? detail || '' : 'got ' + JSON.stringify(got) + ' · want ' + JSON.stringify(want) });
+             left all of those blind — caught in review, and the reason the count is measured over
+             field- and array-level cases too rather than over the 263 top-level ones alone.
+             The serialiser is `dexSerializeForEq`, shared with the group that guards it. */
+          var pass = dexSerializeForEq(got) === dexSerializeForEq(want);
+          /* The FAILURE TEXT uses the same serialiser as the verdict. A bare `JSON.stringify` here
+             renders every newly-visible difference as `got undefined · want undefined` — a failing
+             assertion whose message says the two sides are identical, which reads as a broken
+             harness and sends the reader after the wrong bug. Measured on the `markO2Sentinels`
+             mutant kill, 2026-08-14: the verdict was right and the message was unusable. */
+          G.tests.push({ name: name, pass: pass, detail: pass ? detail || '' : 'got ' + dexSerializeForEq(got) + ' · want ' + dexSerializeForEq(want) });
         },
         approx: function (name, got, want, tol, detail) {
           var pass = got != null && isFinite(got) && Math.abs(got - want) <= (tol == null ? 1e-6 : tol);
@@ -262,11 +312,9 @@
        measured mutant kill (a CPAPDex path that returns NaN where null is contracted now dies).
        This group is what trips if someone reverts to a bare stringify. */
     group('T.eq distinguishes null from NaN and ±Infinity, at any depth', 'harness · comparator', function (T) {
-      var ser = function (v) {
-        return JSON.stringify(v, function (_k, val) {
-          return typeof val === 'number' && !isFinite(val) ? (Number.isNaN(val) ? '@NaN' : val > 0 ? '@+Inf' : '@-Inf') : val;
-        });
-      };
+      /* THE REAL comparator, not a copy. This group previously re-declared its own private `ser`,
+         which meant it could not fail for any change to the one `T.eq` actually uses. */
+      var ser = dexSerializeForEq;
       T.ok(
         'a bare JSON.stringify DOES collapse them — the hazard is real, not hypothetical',
         JSON.stringify(NaN) === JSON.stringify(null) && JSON.stringify(Infinity) === JSON.stringify(null),
@@ -287,6 +335,36 @@
       var nanA = ser(NaN),
         nanB = ser(NaN);
       T.ok('NaN equals NaN under this comparator (both refusals of the same kind)', nanA === nanB, 'NaN no longer self-compares');
+
+      /* ── the six OTHER collapses, measured 2026-08-14 ────────────────────────────────────────
+         Same hazard, same file, found by asking what else `JSON.stringify` is not injective over
+         rather than by waiting for the next one to bite. Each pair below compared EQUAL under the
+         previous comparator. The `fnA`/`fnB` case is the one with a live call site: the
+         `markO2Sentinels` back-compat assertion could not tell an intact alias from a deleted one. */
+      function fnA() {
+        return 1;
+      }
+      function fnB() {
+        return 2;
+      }
+      T.ok('a bare JSON.stringify DOES drop functions — this hazard is real too', JSON.stringify(fnA) === JSON.stringify(fnB), 'JSON now serialises functions; simplify this group');
+      T.ok('two DIFFERENT functions are distinct', ser(fnA) !== ser(fnB), 'a function-identity assertion is blind');
+      T.ok('a function is distinct from a MISSING value', ser(fnA) !== ser(undefined), 'a deleted back-compat alias reads as intact');
+      T.ok('a function is distinct from a symbol', ser(fnA) !== ser(Symbol('s')), 'both collapse to undefined');
+      T.ok('a DROPPED undefined property is distinct from an absent one', ser({ p: 1 }) !== ser({ p: 1, q: undefined }), 'a mutant deleting a field assignment survives');
+      T.ok('…and nested one level deeper too', ser({ o: { p: 1 } }) !== ser({ o: { p: 1, q: undefined } }), 'depth is not special-cased');
+      T.ok('an undefined ARRAY slot is distinct from a null slot', ser([undefined]) !== ser([null]), 'array position');
+      T.ok('−0 is distinct from 0 (a sign flip can land there)', ser(-0) !== ser(0), 'Object.is separates them; === does not');
+      T.ok('…and as a FIELD too', ser({ v: -0 }) !== ser({ v: 0 }), 'depth is not special-cased');
+      T.ok('a function-valued FIELD carries its identity', ser({ f: fnA }) !== ser({ f: fnB }), 'both objects serialised to {}');
+      /* …and identity still means identity, or every function assertion in the suite would red.
+         Bound to locals: biome's noSelfCompare reads `ser(x) === ser(x)` as a mistake. */
+      var sameA = ser(fnA),
+        sameB = ser(fnA);
+      T.ok('the SAME function compares equal to itself', sameA === sameB, 'function identity is not stable across calls');
+      var undA = ser(undefined),
+        undB = ser(undefined);
+      T.ok('undefined equals undefined (both the same absence)', undA === undB, 'undefined no longer self-compares');
     });
 
     group('Clock Contract — parseTimestamp', 'live mirror', function (T) {
