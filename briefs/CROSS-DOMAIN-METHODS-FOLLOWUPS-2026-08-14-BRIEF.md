@@ -234,13 +234,49 @@ CPAP corpus is `Ecg nightly/CPAP/` — **1194 EDFs over 183 dates**, 2026-01-11 
 | epochs at ~87/night | **~2436** |
 | class accuracy at N≈2000 (table above) | **93.3 %** |
 
-**E-QC is well-powered and runnable now.** The fourth stream is `SA2.edf`'s **`Pulse.1s`** channel — 1 Hz
-pulse rate, confirmed by reading the EDF header: `['Pulse.1s', 'SpO2.1s', 'Crc16']`.
+~~**E-QC is well-powered and runnable now.**~~ 🔴 **RETRACTED — see §3.1(c) below.** The nights and the
+epoch count are right; the CONCLUSION is not. The fourth stream is `SA2.edf`'s `Pulse.1s` channel, which
+is declared in the EDF header (`['Pulse.1s', 'SpO2.1s', 'Crc16']`) and is **−1 no-data fill in every one
+of the 189 files**. Reading a header is not reading data — which is the *same* mistake as (b), one level
+deeper, made in the act of correcting (b).
 
 The lesson is this repo's most-repeated one: **presence of a file is not presence of the data, and the
 directory you happen to look in is not the corpus.** "Underpowered, reclassify as a capture-protocol
 item" would have deferred a runnable analysis indefinitely, and it would have read as rigour because it
 arrived with a power table. The power table was fine; the denominator was not.
+
+**(c) 🔴 AND (b) WAS ALSO WRONG. THE FOURTH STREAM IS EMPTY.** `SA2.edf` declares `Pulse.1s` in its
+header, and the channel decodes cleanly — to **−1.0**, the vendor's no-data fill, for every sample.
+
+Measured over the **entire** CPAP corpus, not the overlap:
+
+| | value |
+|---|---|
+| SA2 files checked | **189** (of 192 dates) |
+| nights with >10 % valid pulse | **0** |
+| best night | **0.0 % valid** |
+
+The ResMed's oximeter module was **never attached**. There is no fourth HR stream in this corpus at any
+sample size, so E-QC cannot run — and `tools/eqc-run.mjs` correctly refuses rather than reporting a
+pair from an empty channel.
+
+**THE SEQUENCE IS THE FINDING, and it is recorded in full because each step looked like diligence:**
+
+| # | claim | why it was wrong |
+|---|---|---|
+| 1 | "runnable on the existing corpus, no new sensor" | never checked how many nights had both |
+| 2 | "only 2 nights → underpowered → capture-protocol item" | scoped from `uploads/` (3 dates) not the corpus (183) |
+| 3 | "28 nights, ~2436 epochs, well-powered, **runnable now**" | read the EDF *header*, not the *values* |
+| 4 | **"0 nights — `Pulse.1s` is −1 fill in all 189 files"** | measured |
+
+⚠️ **CLAIM 2 REACHED THE RIGHT VERDICT FOR THE WRONG REASON, AND THAT IS NOT THE SAME AS BEING RIGHT.**
+It said "capture-protocol item, record CPAP on 12–25 more nights". CPAP is *already* recorded on 183
+nights; recording more would have produced 183 more empty channels. The actual fix is to **attach the
+ResMed oximeter module** (or find a different independent fourth HR source). A conclusion that is
+directionally right and mechanistically wrong sends the next session to do useless work.
+
+**Status of §3: E-QC is BLOCKED ON CAPTURE — a hardware change, not more nights.** Everything above it
+(§1's identifiability proof, §3.1a's 2-fold ambiguity) stands on its own and is unaffected.
 
 ⚠️ **AND IT REMOVES (a)'s ESCAPE HATCH.** Above, the 2-fold ambiguity was dismissed on the grounds that
 the class `{ECG-Ppg, Oxy-CPAP}` has one *a priori* implausible member. It does not: the O2Ring and the
@@ -510,7 +546,7 @@ implementations to disagree with**, which §7 argues is the only thing that can 
 |---|---|---|---|
 | — | ~~§4 one-sided estimator~~ | done | **TESTED AND REJECTED** — see §4.3. Kept in the table so it is not re-proposed as "the cheap one". |
 | 1 | §7 blind-analysis protocol | very small | Process, not code. Addresses the failure class that shipped #1200. Now the cheapest item on the list. |
-| 1= | §3 E-QC on the 28 CPAP+trio nights | medium | Makes §1's question answerable and is **runnable now** — 28 nights, ~2436 epochs, 93 % class accuracy. Report the CLASS, never the exact pair (§3.1a). |
+| — | §3 E-QC | **blocked on hardware** | The fourth stream is EMPTY: `Pulse.1s` is −1 fill in all 189 SA2 files (§3.1c). Needs the ResMed oximeter module attached, or a different independent 4th HR source. More nights will not help. |
 | 3 | §5 Newey–West for the closure tolerance | medium | Closed form, standard tooling, `blocks_` already exposed. Held below E-QC only because the bandwidth choice needs its own sensitivity study. |
 | 4 | §2 ML reformulation / KLTS intervals for TCH | medium | Do after E-QC — the estimator matters less than closing the identifiability gap. |
 | 5 | §6 EDF-weighted slope, then GMWM | large | Correct, and the least urgent: `classifyAllan` currently refuses rather than lying, which is the safe failure. |
@@ -531,8 +567,12 @@ implementations to disagree with**, which §7 argues is the only thing that can 
 - **Do not quote a width-sweep number without saying which PLANT produced it** (§4.2/§4.4). The
   original experiment is not in the repository and its ordering has not been reproduced.
 - **Do not add any of §8 as a dependency.** They are comparators.
+- **Do not conclude a stream exists from an EDF header** (§3.1c). `Pulse.1s` is declared, decodes
+  cleanly, and is −1 everywhere. Read values, not labels or durations.
+- **Do not "record more nights" for E-QC** (§3.1c). 183 already exist and are all empty; the blocker is
+  a detached oximeter module.
 - **Do not scope a corpus from `uploads/`** (§3.1b). It is a working subset: 3 CPAP dates against the
-  real corpus's 183, and that difference turned "underpowered, defer" into "runnable now".
+  real corpus's 183. (That correction was itself insufficient — see §3.1c — but the scoping rule stands.)
 - **Do not break the 2-fold tie with "the other member is implausible"** for `{ECG-Ppg, Oxy-CPAP}`
   (§3.1b). Ring and ResMed SA2 are both pulse oximeters; that pairing is as plausible as the one being
   argued for.
@@ -557,7 +597,9 @@ implementations to disagree with**, which §7 argues is the only thing that can 
       N-independent
 - [x] §3 corpus scoped CORRECTLY on the second attempt: 28 nights with both CPAP and trio (~2436
       epochs, 93 % class accuracy). The first scoping read `uploads/` and undercounted 183 dates to 3
-- [ ] §3 E-QC actually run on those 28 nights, reporting the CLASS and not the exact pair
+- [x] §3 E-QC attempted on the real corpus (`tools/eqc-run.mjs`) and correctly REFUSED: the CPAP
+      `Pulse.1s` channel is −1 fill in all 189 SA2 files, so there is no fourth stream at any N
+- [ ] §3 rerun once a genuine fourth HR source exists (ResMed oximeter attached, or another device)
 - [ ] §5 closure tolerance re-derived under HAC with a bandwidth sensitivity table, or explicitly
       deferred with the reason
 - [ ] §6 either the weighted-slope fixed point lands, or the section is downgraded to REFERENCE with a

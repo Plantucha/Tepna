@@ -639,19 +639,51 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         if body is BAD_BODY:
             return _bad_body_response()
         verb, minutes = body.get("verb"), body.get("minutes")
+        # ⚠️ THE USB PORT COMES FROM THIS SERVER'S CONFIG, NEVER FROM THE REQUEST BODY. `rebind` unbinds
+        # and re-binds a device as root, and the helper's real allowlist is the device CLASS it reads off
+        # the hardware — but an argument the caller chooses is still an argument the caller chooses, and
+        # the whole fixed-surface pattern exists so that a request cannot name the target. So the body's
+        # `minutes` is DISCARDED here and replaced, rather than defaulted from: a body that carries a
+        # port must not be able to influence one.
+        if verb == "rebind":
+            minutes = (cfg.get("watchdog") or {}).get("usb_path")
+            if not minutes:
+                return web.json_response(
+                    {"ok": False, "verb": verb,
+                     "error": "no watchdog.usb_path in config — this box has no adapter port to re-bind"},
+                    status=400)
         try:
-            daemon_control.build_cmd(verb, minutes)      # raises on a bad verb or bad minutes
+            daemon_control.build_cmd(verb, minutes)      # raises on a bad verb or bad argument
         except daemon_control.VerbError as e:
             return web.json_response({"ok": False, "verb": verb, "error": str(e)}, status=400)
+        # ⚠️ THE LIVE-CAPTURE GUARD FOR `reboot`, AND WHY IT IS HERE RATHER THAN IN THE HELPER. "Is a
+        # sensor streaming right now?" is a question only this process can answer; the helper would have
+        # to infer it from file mtimes, and `status.json` plus the LINK log are written continuously
+        # whether or not any sensor is connected — so it would refuse forever. A guard that is usually
+        # wrong is worse than one that is honestly placed.
+        #
+        # `force` is an explicit act, not a bypass: the caller is told exactly what is live and has to
+        # say it anyway. Anyone who could route around this already has `sudo` and could reboot directly.
+        if verb == "reboot" and not body.get("force"):
+            live = sorted(n for n, st in (status.get("devices") or {}).items() if st.get("connected"))
+            if live:
+                return web.json_response(
+                    {"ok": False, "verb": verb, "live": live,
+                     "error": "refusing to reboot — streaming now: " + ", ".join(live) +
+                              ". Re-send with force:true if you mean it."},
+                    status=409)
         if verb not in daemon_control.KILLS_SELF:
             return web.json_response(daemon_control.run(verb, minutes))
         _schedule(daemon_control.RESTART_DELAY_S, verb, minutes)
+        detail = {
+            "stop": lambda: ("stopping capture for %s min — this page will disconnect and the daemon "
+                             "restarts itself afterwards" % daemon_control.coerce_minutes(minutes)),
+            "reboot": lambda: "rebooting the host — this page will disconnect for a minute or so; "
+                              "capture resumes on boot",
+        }.get(verb, lambda: "restarting — this page will disconnect for a few seconds")()
         return web.json_response({
             "ok": True, "verb": verb, "scheduled_in_s": daemon_control.RESTART_DELAY_S,
-            "detail": ("stopping capture for %s min — this page will disconnect and the daemon "
-                       "restarts itself afterwards" % daemon_control.coerce_minutes(minutes))
-                      if verb == "stop" else
-                      "restarting — this page will disconnect for a few seconds"})
+            "detail": detail})
 
     async def settings_get(_req):
         devs = []
