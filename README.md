@@ -19,10 +19,10 @@ A fleet of local-only, single-signal physiological analyzers. No upload. No acco
 
 [![No network · CI-enforced](https://img.shields.io/badge/no_network-CI--enforced-1f8a5b)](no-network.html)
 [![Local-first](https://img.shields.io/badge/local--first-100%25-1f8a5b)](docs/WHY-THIS-EXISTS.md)
-[![Tests green](https://img.shields.io/badge/tests-4.6k%2B_assertions_green-1f8a5b)](#-the-privacy-claim-is-a-test-not-a-promise)
+[![Tests green](https://img.shields.io/badge/tests-7.3k_assertions_green-1f8a5b)](#-the-privacy-claim-is-a-test-not-a-promise)
 [![Every metric graded](https://img.shields.io/badge/every_metric-evidence_graded-8a5cf6)](#the-evidence-ladder-every-metric-is-graded)
 [![Reproducible](https://img.shields.io/badge/every_paper-regenerates_from_its_tool-8a5cf6)](papers/papers.html)
-![Nodes](https://img.shields.io/badge/nodes-7_live_%C2%B7_1_planned-555)
+![Nodes](https://img.shields.io/badge/nodes-8_live_%C2%B7_1_planned-555)
 ![Releases](https://img.shields.io/badge/releases-31_shipped-555)
 
 **[tepna.net](https://tepna.net)**  ·  [github.com/Plantucha/Tepna](https://github.com/Plantucha/Tepna)
@@ -44,23 +44,31 @@ A fleet of local-only, single-signal physiological analyzers. No upload. No acco
 
 | | |
 |---|---|
-| 🧠 **Analyzers** | **7 live** single-signal nodes · **1 planned** (EEGDex) |
+| 🧠 **Analyzers** | **8 live** single-signal nodes · **1 planned** (EEGDex) |
 | 🔀 **Fusion** | **Integrator** (cross-signal) + 2 ingest front doors — **Data Unifier** · **OverDex** — all live |
-| 🧪 **Tests** | **4,650+ assertions** across **305 groups**, run as **6 partitioned CI shards** — green on every push |
-| 🛡️ **CI gates** | `no-network` · `tests` · `types` · `biome` · `CodeQL` — the privacy claim is **enforced, not asserted** |
+| 🧪 **Tests** | **7,333 assertions** across **470 groups**, run as **6 partitioned CI shards** — green on every push |
+| 🐍 **Capture lane** | the **Health Box** (`capture-host/`) — **3,200+ Python tests** at a **100 % statement *and* branch** coverage floor |
+| 🛡️ **CI gates** | `no-network` · `tests` · `types` · `biome` · `CodeQL` · `capture-host` — the privacy claim is **enforced, not asserted** |
 | 🎫 **Honesty** | every surfaced number carries an **evidence grade** — nothing ships unlabelled |
 | 🔬 **Reproducible** | every preprint **regenerates from its live tool**; every bundle is **content-addressed** |
 
-**Roadmap** &nbsp; `▰▰▰▰▰▰▰▱` &nbsp; **7 of 8** planned analyzers live — EEGDex (Muse) is next.
+**Roadmap** &nbsp; `▰▰▰▰▰▰▰▰▱` &nbsp; **8 of 9** planned analyzers live — EEGDex (Muse) is next.
 
-> **Momentum.** `v2.0.0` is the suite's first **MAJOR** release, and the break is a *retirement*:
+> **Momentum.** `v2.0.0` is the suite's only **MAJOR** release, and the break is a *retirement*:
 > ECGDex's `apnea.estimatedAHI` and `apnea.riskCategory` were the CVHR index wearing AHI's units and
 > clinical cut-points — measured at **r = −0.151** against device-scored AHI — so they were withdrawn
-> rather than relabelled. The same release closes a cross-device timing gap nobody had measured: the
-> two wearables were never compared to *each other* and turn out to sit **~3.3 s apart on every
-> phone-captured night**, the CPAP clock offset is now a **pooled fit** across all channels (29/29
-> nights in band, against 22/25 for the previous vote), and OxyDex — which exported SpO₂ **nowhere** —
-> now ships the full 1 Hz series. Full history in the **[changelog](CHANGELOG.md)**.
+> rather than relabelled. It also closed a cross-device timing gap nobody had measured: the two
+> wearables were never compared to *each other* and turn out to sit **~3.3 s apart on every
+> phone-captured night**.
+>
+> The `2.1 → 2.5` line has been about **finding out which gates were bluffing**. `tools/mutate.mjs`
+> breaks the code on purpose and reports which tests fail to notice — its first sweep found that
+> **41 % of mutations to `clock.js`, the Clock Contract itself, went unnoticed**, and closing that is
+> ongoing work with published numbers rather than a claim. Alongside it, the **host-disciplined time
+> axis** (Clock Contract §7) reconciles the device crystal against the capture host's clock, and it
+> refuses rather than guesses: an O2Ring axis that turned out to be **drawn** — synthesized from a
+> sample index, not a clock — is now detected and declared as such instead of being silently trusted.
+> Full history in the **[changelog](CHANGELOG.md)**.
 
 ### Node status
 
@@ -73,6 +81,7 @@ A fleet of local-only, single-signal physiological analyzers. No upload. No acco
 | **HRVDex** | HRV summaries | *(exports)* | 🟢 **Live** | additive multi-day rMSSD / SDNN ledger |
 | **GlucoDex** | CGM | *(exports)* | 🟢 **Live** | Time in Range · GMI |
 | **CPAPDex** | CPAP therapy | ResMed · EDF | 🟢 **Live** | pressure · leak · respiratory events |
+| **MotionDex** | Inertial motion (IMU) | Polar Verity Sense · H10 (`*_ACC/_GYRO/_MAGN`) | 🟢 **Live** | body position · actigraphy · motion SQI |
 | **EEGDex** | EEG | Muse | ⚪ **Planned** | — |
 
 ---
@@ -97,7 +106,7 @@ install — every node app is a single self-contained HTML file that runs straig
 Most health apps *say* your data is private. Tepna **proves it, mechanically, on every commit.**
 
 [`no-network.html`](no-network.html) is a self-verifying gate — the privacy analogue of a build
-signature. It statically scans every shipped surface (the 8 self-contained bundles + the 2
+signature. It statically scans every shipped surface (the 9 provenance-gated bundles + the 2
 orchestrators + their loose modules), **boots each one in a trapped iframe** where any cross-origin
 request throws, and asserts **zero network egress**. A planted-canary negative control ships inside
 the gate, so a vacuous "all clear" can never pass. It runs headless in CI on **every push**.
@@ -105,10 +114,11 @@ the gate, so a vacuous "all clear" can never pass. It runs headless in CI on **e
 | CI gate | What it guarantees |
 |---|---|
 | **no-network** | No shipped surface reaches the network — privacy is enforced, not asserted |
-| **tests** | 4,650+ assertions over the real DSP modules, run as 6 parallel shards that provably *partition* the suite — so the union of the shards is the whole gate, and no group can quietly go unrun |
+| **tests** | 7,333 assertions over the real DSP modules, run as 6 parallel shards that provably *partition* the suite — so the union of the shards is the whole gate, and no group can quietly go unrun |
 | **types** | JSDoc type-checking (`tsc --checkJs`) across the signal contracts |
 | **biome** | Format + house-invariant lint (frozen names, Clock Contract, SPDX, evidence vocabulary) |
 | **CodeQL** | Static security analysis on every push |
+| **capture-host** | The Python capture lane on its own runners — `ruff` · `shellcheck` (strictest level, every `.sh`) · `pytest` at a **100 % statement and branch** coverage floor |
 
 Render-coverage (booting each real app bundle in an iframe and asserting computed values reach the
 DOM) is a heavier browser gate — it lives in `Dex-Test-Suite.html?full` and the manual
@@ -180,6 +190,7 @@ useful; the ladder just makes sure you always know which kind of number you're l
 | **HRVDex** | HRV summaries | — | Vendor HRV exports + ECGDex exports (additive, multi-day) | [Technical guide](HRVDex%20Reference.html) |
 | **GlucoDex** | CGM | — | Continuous glucose traces | [Technical guide](GlucoDex%20Reference.html) |
 | **CPAPDex** | CPAP therapy | ResMed · EDF | EDF therapy data — pressure · leak · respiratory events | [Technical guide](CPAPDex%20Reference.html) |
+| **MotionDex** | Inertial motion (IMU) | Polar Verity Sense · H10 | Accelerometer / gyro / magnetometer streams → body position, actigraphy, respiratory effort, motion SQI | *(no reference guide yet)* |
 | **EEGDex** | EEG *(planned)* | Muse | Raw EEG | *(planned)* |
 
 Each node emits a `ganglior.node-export` JSON that the **Integrator** fuses across signals. Two
@@ -189,13 +200,36 @@ right node on each file, and hands every result to the Integrator automatically.
 
 **HRVDex is the suite's HRV ledger.** Its imports are *additive*: every Welltory CSV or ECGDex export (CSV **or** `ganglior.node-export` JSON, including the multi-recording array) appends to one accumulating multi-day table — drop many files or nights at once, exact-duplicate measurements are skipped, and the table is persisted in the browser between visits (clear it with **Clear saved history**). ECGDex's **⬇ HRVDex** export writes a Welltory-style CSV with *all* loaded nights in one file, so a whole H10 history lands in HRVDex in a single drop.
 
+> **MotionDex is live but not yet fully surfaced.** It has its own bundle, its own DSP/registry
+> modules and a provenance ledger fragment, and the Integrator consumes its output to motion-gate
+> HRV — but it has **no reference guide yet** and no tile on the landing picker. Both are open work.
+
+---
+
+## 📻 The Health Box — where the raw signals come from
+
+The suite reads files. Something has to *write* them, and for the nightly multi-device recordings
+that is **`capture-host/`** — an out-of-suite Python service for a bedside Raspberry Pi that holds
+the live BLE links (Polar H10 ECG, Verity PPG/ACC) and writes **existing vendor layouts** into
+per-night directories the Dex apps already know how to read. It is a *producer*, deliberately
+outside the browser suite: no Dex app ever talks to a device.
+
+It is also a **separate lane with a separate gate.** `npm run check` does not cover it —
+`capture-host/check.sh` does, and CI runs the same three jobs: `ruff`, `shellcheck` at its strictest
+level over every shell script, and `pytest` with a **100 % statement *and* branch** coverage floor
+across **3,200+ tests**. That floor is the point: this code runs unattended overnight against
+hardware that misbehaves, so the failure modes it must survive are the ones nobody is awake to see.
+
+Per-device capture instructions for everyone else — no Pi required — live in
+[`how-to-collect/`](how-to-collect/health-box.md).
+
 ---
 
 ## 🔬 Scientific Foundation
 
-Every non-trivial number traces to a published method, and every working preprint is **regenerated
-from the live tool behind it** — no hand-drawn figures, no cherry-picked runs. Highlights from
-**[`papers/`](papers/papers.html)**:
+Every non-trivial number traces to a published method, and each of the **21 working preprints** in
+**[`papers/`](papers/papers.html)** is **regenerated from the live tool behind it** — no hand-drawn
+figures, no cherry-picked runs. Highlights:
 
 - **[One phone is not one clock](papers/wearable-clock-drift.html)** — a single-subject methods study
   measuring ~48 ppm inter-device timing drift across 11 nights (145k beats), showing why beat-level
@@ -217,25 +251,37 @@ source, here's the lay of the land.
 
 | You want… | Look at |
 |---|---|
-| **A map of every doc** | [`DOCS-INDEX.md`](DOCS-INDEX.md) — the single entry path over all ~180 briefs, audits, and READMEs, grouped by topic. Start here before opening any individual brief. |
-| **The app for your device** | the bundled `OxyDex.html`, `PpgDex.html`, `PulseDex.html`, `ECGDex.html`, `HRVDex.html`, `GlucoDex.html`, `CPAPDex.html` — open them directly. `Integrator.html` fuses them all; `Data Unifier.html` routes any file you drop to the right node, and `OverDex.html` runs a whole folder at once. |
+| **A map of every doc** | [`DOCS-INDEX.md`](DOCS-INDEX.md) — the single entry path over all ~400 briefs, audits, and READMEs, grouped by topic. Start here before opening any individual brief. |
+| **The app for your device** | the bundled `OxyDex.html`, `PpgDex.html`, `PulseDex.html`, `ECGDex.html`, `HRVDex.html`, `GlucoDex.html`, `CPAPDex.html`, `MotionDex.html` — open them directly. `Integrator.html` fuses them all; `Data Unifier.html` routes any file you drop to the right node, and `OverDex.html` runs a whole folder at once. |
 | **The front door** | `index.html` (the landing/device picker) — the page normal people start from. |
 | **How an app is built** | its source modules — `<node>-dsp.js` (signal math), `-render.js`, `-app.js`, `-registry.js` — plus `<App>.src.html`. Edit these; **never** the bundled `*.html`, then re-bundle. |
 | **Shared engine** | `metric-registry.js` (evidence badges), `ganglior-provenance.js`, `ans-design.css`. |
 | **Research tools** | `*-analysis.html` — the live tool behind each paper — plus `cohort-*.html`, `synth-gen.html`. Gates: `Dex-Test-Suite.html`, `verify-provenance.html`. |
-| **The papers** | `papers/` — working preprints, each regenerated from its tool. |
+| **The papers** | `papers/` — 21 working preprints, each regenerated from its tool. |
+| **The capture service** | `capture-host/` — the Health Box Python lane (its own gate: `capture-host/check.sh`). Device-by-device capture instructions: `how-to-collect/`. |
+| **Testing the tests** | `tools/mutate.mjs` — breaks the code on purpose and reports which gates fail to notice. The honest measure of whether a green suite means anything. |
 | **Architecture docs** | `wiring/` — the "How It's Wired" reference set; start at `wiring/How It's Wired - the Dex Suite.html`. |
 | **Design system** | `templates/` — visual-language spec, theme + evidence-badge previews. |
 | **House rules** | `CLAUDE.md` (constitution) · `CONTRIBUTING.md` (on-ramp) · `ARCHITECTURE-PRINCIPLES.md` · [`docs/LEXICON.md`](docs/LEXICON.md). |
 
 ---
 
-## On the "75+ metrics" number
+## On the metric count
 
-Yes, the suite derives well over 75 metrics across all nodes. That number describes **surface
-area, not confidence.** The validated set above is the part we'd stake a decision on; the long tail
-is there for exploration and is graded honestly so you can tell the difference at a glance. We lead
-with the ladder, not the count, on purpose.
+The eight node registries define **404 graded metrics**. That number describes **surface area, not
+confidence** — which is exactly why the suite publishes the breakdown rather than the headline:
+
+| Tier | Count | Share |
+|---|---:|---:|
+| **measured** — read off the device | 118 | 29 % |
+| **validated** — anchored to a published standard | 84 | 21 % |
+| **emerging** — published, device-dependent | 78 | 19 % |
+| **experimental** — internally consistent, not externally confirmed | 96 | 24 % |
+| **heuristic** — directional only | 28 | 7 % |
+
+So **roughly half** the surface is `measured` or `validated`, and **just under a third** sits at
+`experimental` or `heuristic`. A count of 404 would be a boast; the distribution is the honest
+version of the same fact, and it is why the ladder leads and the count follows.
 
 ---
 
