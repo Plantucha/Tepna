@@ -53,6 +53,19 @@
     /* ── VALIDATED — established HRV from pulse-peak intervals ──────────────── */
     rmssd: { label: 'rMSSD', unit: 'ms', goodDirection: 'up', depth: 'advanced', evidence: 'validated', cite: 'RMSSD — short-term parasympathetic HRV (Task Force 1996)' },
     sdnn: { label: 'SDNN', unit: 'ms', goodDirection: 'up', depth: 'advanced', evidence: 'validated', cite: 'SDNN — overall HRV (Task Force 1996)' },
+    /* The Allan-deviation slope of the disagreement between our beat detector and the device firmware's.
+       EMERGING, not validated: overlapping Allan deviation is itself a standard, cited instrument
+       (NIST SP 1065), but applying it to two DETECTORS rather than two oscillators is this suite's own
+       construction and has no external validation behind it — the tier tracks the application, not the
+       statistic. Deliberately not `measured`: it is an inference about detector noise, not a reading. */
+    detectorStability: {
+      label: 'Detector stability',
+      unit: 'slope',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'emerging',
+      cite: 'Overlapping Allan deviation of the self-vs-firmware beat-time difference; slope names the noise type (Riley, NIST SP 1065, 2008)'
+    },
     lnRMSSD: { label: 'ln rMSSD', unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'validated', cite: 'Log-RMSSD — readiness HRV scale' },
     pnn50: { label: 'pNN50', unit: '%', goodDirection: 'up', depth: 'advanced', evidence: 'validated', cite: 'pNN50 — % successive PPI > 50 ms (Task Force 1996)' },
     sd1: { label: 'SD1', unit: 'ms', goodDirection: 'up', depth: 'research', evidence: 'validated', cite: 'Poincaré SD1 — short-term HRV (≈ RMSSD/√2)' },
@@ -430,6 +443,7 @@
     '3-led agree': 'ledAgreement',
     rmssd: 'rmssd',
     sdnn: 'sdnn',
+    'detector stability': 'detectorStability',
     'ln rmssd': 'lnRMSSD',
     pnn50: 'pnn50',
     sd1: 'sd1',
