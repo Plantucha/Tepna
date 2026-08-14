@@ -222,7 +222,8 @@ def ambient_stability_worn(ambient, *, threshold: float = _WORN_AMBIENT_SD_MAX,
 
 
 def worn_verdict(*, ppi_flags=None, ambient=None, fs: float | None = None,
-                 charging: bool | None = None) -> tuple[bool | None, str]:
+                 charging: bool | None = None,
+                 contact: bool | None = None) -> tuple[bool | None, str]:
     """Combine every worn detector that is AVAILABLE and IN DOMAIN into one verdict plus its reason.
 
     Returns `(verdict, why)`. `why` names which detectors voted, so "no verdict" is visible rather
@@ -256,9 +257,16 @@ def worn_verdict(*, ppi_flags=None, ambient=None, fs: float | None = None,
     if charging:
         return False, "not worn — on charger (a docked device is not on a wrist)"
     votes: list[tuple[str, bool]] = []
-    contact = ppi_contact(ppi_flags)
+    # The HR characteristic's contact bit, ALREADY DECODED by the caller — a different signal from the
+    # PPI flag byte below, carried by a different stream, and the reason this parameter exists: it had
+    # no way into this function, so `capture.on_hr` published `worn` directly and the charging veto
+    # above was unreachable on the one device that has both a contact bit and a charging dock. The
+    # Verity streamed 3 h 24 m into its charger on 2026-08-14 under `worn: True` because of it.
     if contact is not None:
-        votes.append(("ppi-contact", contact))
+        votes.append(("hr-contact-bit", contact))
+    ppi = ppi_contact(ppi_flags)
+    if ppi is not None:
+        votes.append(("ppi-contact", ppi))
     if ambient is not None:
         level = optical_worn(ambient, fs=fs)
         if level is not None:
