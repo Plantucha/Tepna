@@ -618,3 +618,67 @@ def test_slope_reads_the_requested_key_and_defaults_to_adev():
     assert allan.slope(pts) == pytest.approx(-1.0)
     assert allan.slope(pts, "mdev") == pytest.approx(0.0, abs=1e-12)
     assert allan.slope_se(pts, "mdev") == pytest.approx(0.0, abs=1e-12)
+
+
+# ── MUTATION-DRIVEN additions. Each of these kills a mutant that the diff-scoped gate found alive on
+# the lines above, i.e. a line whose edit NO existing assertion could observe. Written after the gate
+# named them, not before — which is the honest order to record.
+
+
+@pytest.mark.parametrize("fn,key", [(allan.mdev, "mdev"), (allan.hdev, "hdev")])
+def test_mdev_and_hdev_scale_exactly_with_tau0(fn, key):
+    """Every assertion above used tau0 = 1.0, where `tau/tau0` and `tau*tau0` are the SAME NUMBER and
+    so are `m*tau0` and `m/tau0`. Two mutants lived in that blind spot. A deviation is a rate, so
+    stretching the sample interval by k divides it by k at the corresponding tau."""
+    rng = random.Random(21)
+    x = [rng.gauss(0, 1) for _ in range(300)]
+    base = fn(x, 1.0, [4.0])[0]
+    for k in (0.5, 2.0, 10.0):
+        got = fn(x, k, [4.0 * k])[0]
+        assert got["tau"] == pytest.approx(4.0 * k)
+        assert got["n"] == base["n"]
+        assert got[key] == pytest.approx(base[key] / k, rel=1e-12)
+
+
+def test_hdev_includes_a_tau_with_EXACTLY_the_minimum_terms():
+    """`terms < _MIN_TERMS` vs `<=` differ on exactly one input: terms == _MIN_TERMS. n=11, m=1 gives
+    n-3m = 8. Inclusive is correct — the constant is the minimum that IS acceptable."""
+    rng = random.Random(31)
+    x = [rng.gauss(0, 1) for _ in range(11)]
+    got = allan.hdev(x, TAU0, [TAU0])
+    assert len(got) == 1
+    assert got[0]["n"] == allan._MIN_TERMS
+
+
+def test_hdev_SKIPS_an_unsupportable_tau_and_keeps_going():
+    """`continue` vs `break`: an unsupported tau must not abandon the rest of the ladder. Ordered
+    worst-first so a `break` would return nothing at all."""
+    rng = random.Random(32)
+    x = [rng.gauss(0, 1) for _ in range(30)]
+    got = allan.hdev(x, TAU0, [9 * TAU0, TAU0])
+    assert [p["tau"] for p in got] == [TAU0]
+
+
+def test_classify_mdev_forwards_the_se_and_so_can_still_REFUSE():
+    """`classify_mdev` dropping `se` was invisible because no test passed one. Without the SE a slope
+    on an MDEV edge is named; with it, the refusal must survive the delegation."""
+    named = allan.classify_mdev(-1.25)
+    assert named["noise"] is not None
+    refused = allan.classify_mdev(-1.25, 0.20, 6)
+    assert refused["noise"] is None
+    assert refused["candidates"]
+
+
+def test_classify_mdev_forwards_n_tau():
+    assert allan.classify_mdev(-0.9, None, 7)["n_tau"] == 7
+
+
+def test_identify_forwards_the_se_and_the_tau_COUNT_into_both_records():
+    """Four mutants dropped `slope_se(a)` or `len(a)` from identify's classify calls and no assertion
+    noticed, because only `noise` was ever read. The published record must carry both, or a caller
+    cannot tell a confident classification from a bare one."""
+    r = allan.identify(_white_pm(), TAU0)
+    for lane in ("adev", "mdev"):
+        assert r[lane]["slope_se"] is not None, lane
+        assert r[lane]["slope_se"] > 0, lane
+        assert r[lane]["n_tau"] == r["taus"][lane], lane

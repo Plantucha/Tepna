@@ -29,10 +29,15 @@ labelled flicker PM every time, and both are plausible answers for a wearable li
 look wrong. `classify_mdev` exists so the caller cannot get it wrong by omission; `_NOISE_MDEV` carries
 the separate exponents.
 
-⚠️ **Each estimator computes its OWN term count.** MDEV needs N−3m+1 and HDEV N−3m against ADEV's
-N−2m, and `_octave_taus` now takes the estimator's counter. Reusing ADEV's would offer averaging times
-the other two cannot support — publishing exactly the thin, wide-CI number this module's docstring says
-it exists to refuse. Gate-pinned: at n=30 and τ=11, ADEV reports and both others decline.
+⚠️ **Each estimator computes its OWN term count** — MDEV needs N−3m+1 and HDEV N−3m against ADEV's
+N−2m, and `_octave_taus` now takes the estimator's counter. **But the correctness guard is the in-loop
+`if terms < _MIN_TERMS: continue`, not the counter**, and this changeset's first draft got that wrong:
+it claimed reusing ADEV's count would publish a thin estimate. It would not — the in-loop check runs on
+every tau however the ladder was built, so the result list is identical. Measured over 784
+(series, estimator) pairs, zero differences; the diff-scoped mutation gate is what caught the
+overclaim, and the mutants are recorded in `tools/mutate-equivalence.json` with their probe.
+Gate-pinned where it actually matters: at n=30 and τ=11 ADEV reports and both others decline, and at
+n=11 HDEV includes the tau whose term count is EXACTLY the minimum.
 
 MDEV's inner sum is carried as a **sliding window** — written directly it is O(N·m) per τ, so O(N²)
 over an octave ladder, minutes on a 25 000-sample night. The optimisation is pinned against a direct

@@ -137,10 +137,25 @@ difference is not. Directly relevant: the O2Ring's real error is non-linear and 
 
 ### 3.2 · Three traps, each of which would ship a silently wrong number
 
-1. **`_octave_taus` is ADEV-specific and must not be reused blindly.** It stops where `n − 2m` falls
-   below `_MIN_TERMS`. MDEV needs `N − 3m + 1` terms and HDEV needs `N − 3m`, so the existing tau ladder
-   offers averaging times those two estimators cannot support. Each estimator must compute its own term
-   count and skip, or the module ships exactly the thin estimate its docstring says it exists to prevent.
+1. **Each estimator needs its own term count — but be precise about WHICH check protects you.**
+   `_octave_taus` stops where `n − 2m` falls below `_MIN_TERMS`; MDEV needs `N − 3m + 1` terms and HDEV
+   `N − 3m`. So the ADEV ladder offers averaging times those two cannot support, and each estimator
+   passes its own counter.
+
+   ⚠️ **CORRECTED 2026-08-14, by the mutation gate, against this brief's own first draft.** That draft
+   said reusing ADEV's count would "publish exactly the thin estimate the docstring exists to prevent".
+   **It would not.** The in-loop `if terms < _MIN_TERMS: continue` runs on every tau regardless of how
+   the ladder was built, so an over-generous ladder produces a longer *candidate* list and an
+   **identical result list**. Measured: original vs mutant over 784 (series, estimator) pairs — every
+   n in 10..399 plus 1000 and 4096, both estimators — **zero output differences**, which is why the
+   diff-scoped gate reported those mutants as surviving. Passing `terms_at` is an efficiency and intent
+   refinement; **the in-loop guard is the correctness guard**, and unlike `terms_at` it is killable and
+   is pinned by test. Recorded in `capture-host/tools/mutate-equivalence.json` as
+   `no-distinguishing-input` with the probe.
+
+   The general lesson, which is the one this repo keeps relearning: *a guard you did not watch fail is
+   not known to guard anything.* Two checks defended the same property here and only one of them was
+   load-bearing; nothing but the mutation gate distinguished them.
 
 2. **`classify()` must NOT be applied to an MDEV slope.** The canonical exponents differ, and that
    difference *is* MDEV's reason to exist:
