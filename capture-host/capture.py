@@ -28,8 +28,8 @@ import alerts
 import nightqc
 import nightarchive
 import storage_targets
-from telemetry import (TelemetryBus, calibrated_for, full_battery_implies_charging, ppi_contact,
-                       sd_calibrated_for, worn_verdict)
+from telemetry import (TelemetryBus, calibrated_for, full_battery_implies_charging, on_body,
+                       ppi_contact, sd_calibrated_for, worn_verdict)
 
 # ── JOURNAL SEVERITY (VIGIL-COEXISTENCE-AND-RANGE §1) ────────────────────────────────────────────────
 # systemd assigns ONE priority to a service's whole stdout stream, so with a plain basicConfig every line
@@ -4712,7 +4712,15 @@ async def autopull_poller(cfg: dict, root: str):
         if _RECOVER.is_set() or _OXYII_PAUSE.is_set():
             continue                                       # mid-recovery or another pull already running
         st = STATUS["devices"].get(name, {})
-        if st.get("connected") and st.get("worn") is True:
+        # ⚠️ `charging` IS PART OF THIS, and it was missing. The sibling encoding of the same rule
+        # (`cpap_harvest.blocking_devices`) has checked it since 2026-07-26, when every sensor was docked
+        # and a manual pull still refused — "the gate was unreachable on any evening the sensors were
+        # charging, which is precisely when a pull is safest". The same was true here: a docked ring
+        # reporting contact would have blocked its own backup pull, at the one moment it is free to run.
+        #
+        # `is True`, not `is not False` — the asymmetry is deliberate and documented on `on_body`.
+        # Refusing to pull on an UNKNOWN loses the only backup for a lossy night.
+        if on_body(st) is True:
             continue                                       # actively worn+streaming — do not interrupt it
         # RETRY until a pass finds nothing new, capped at `retries`. The ring's flash is small and it
         # overwrites oldest-first, so a session missed on a lossy link is lost once new ones pile on top —
