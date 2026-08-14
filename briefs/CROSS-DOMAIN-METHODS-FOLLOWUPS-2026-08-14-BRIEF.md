@@ -140,6 +140,179 @@ map directly onto open items here.
   yields intervals **reliable at one degree of freedom** and whose point estimator is **always
   positive**.
 
+### 2.1 · MEASURED — the first error bars, and they change what we are allowed to say
+
+`tools/tch-bootstrap-ci.mjs` (moving-block bootstrap, seeded, 2000 replicates, block L=5 epochs,
+38 nights). Block resampling rather than i.i.d. for the reason §5 already established: consecutive
+epochs share posture, perfusion and wander, so single-epoch resampling destroys the dependence and
+returns intervals that are too narrow.
+
+**Corpus median σ (bpm) — the figure quoted across briefs, now with an interval:**
+
+| node | median σ | 95 % CI |
+|---|---:|---|
+| ECGDex | 0.352 | [0.290, 0.406] |
+| PpgDex | 0.261 | [0.170, 0.335] |
+| OxyDex | 0.988 | [0.820, 1.091] |
+
+**🔴 FINDING 1 — THE ECG-vs-PPG ORDERING WAS NEVER ESTABLISHED.** Differencing the bootstrap medians:
+
+| pair | 95 % CI of the difference | verdict |
+|---|---|---|
+| ECGDex − PpgDex | **[−0.018, 0.214]** | **overlapping — not resolved** |
+| ECGDex − OxyDex | [−0.740, −0.445] | separated |
+| PpgDex − OxyDex | [−0.885, −0.530] | separated |
+
+Only the ring separates. The chest-ECG-vs-armband-PPG comparison — quoted repeatedly as "ECGDex 0.30,
+PpgDex 0.33", i.e. PPG marginally worse — is inside noise, and on this run the point estimates
+**reverse** (ECG 0.352 > Ppg 0.261). Nothing should be concluded from that reversal either; the
+interval straddles zero and that is the whole point. What is settled is that the two wearables are not
+distinguishable by this method on this corpus, and every statement ranking them has been over-reading.
+
+⚠️ **These medians do not reproduce the quoted 0.30 / 0.33 / 1.10.** Different alignment and night set;
+neither supersedes the other and both are now suspect as bare numbers. That is the third figure in this
+brief to fail re-measurement, which is itself the argument for shipping intervals rather than points.
+
+**🔴 FINDING 2 — THE INDEPENDENCE ALARM FIRES ON 41.7 % OF REPLICATES.** Across 7200 within-night
+bootstrap replicates, **3003 produced a non-physical (negative-variance) classic split**. Per night it
+ranges from 4 % to 81 %. A negative split is TCH telling you the uncorrelated-error assumption is
+violated (DA-V F6), so this is not a numerical nuisance — it is §1's identifiability problem showing up
+as a measured rate rather than an argument. It also means the point estimates above are conditioned on
+the physical replicates, which is exactly why the rate is reported beside them instead of being
+filtered away.
+
+### 2.2 · MEASURED — how much shared error the data REQUIRES, not just how often it complains
+
+§2.1 gives a RATE (41.7 % of replicates non-physical). It does not say how badly. There is a natural
+magnitude and the shipped code already computes it: `integrator-tch.js`'s `correlated()` scans rho
+upward and returns the SMALLEST common correlation that makes the solve physical — the minimum shared
+error consistent with the measurements. `tools/tch-minrho-corpus.mjs` runs it over the corpus.
+
+| | nights |
+|---|---:|
+| classic solve physical on the full night | **24** |
+| classic goes NEGATIVE | **14** |
+| …rescued by a common rho | 14 |
+| …no rho ≤ 0.95 works at all | **0** |
+
+**On the 14 nights where independence fails, the minimum equicorrelation is median 0.54, range
+0.33–0.87.** That is not a marginal violation — on 37 % of nights the data requires that a *majority*
+of the apparent error be shared. Pooled over 11 386 moving-block replicates, 59.5 % need no correlation
+at all and the 95 % range runs to 0.83.
+
+The 40.5 % of replicates needing rho > 0 here and §2.1's 41.7 % non-physical rate are two independent
+computations of the same underlying quantity, and they agree to about a point — which is the only
+cross-check available.
+
+⚠️ **`minRho` is the minimum EQUICORRELATION** — one scalar standing in for three pair covariances.
+`_solveMulti` applies a single rho to all three pairs, and real shared error is unlikely to be equal
+across them (the two optical sensors plausibly share more with each other than either does with the
+chest ECG). So it is neither an upper nor a lower bound on any individual pair. **This is the gap
+Premoli & Tavella's positive-definite constrained solve fills**, and §2.2 is the measurement that
+justifies building it — not a replacement for it.
+
+⚠️ **The point estimate is fragile.** 2026-06-19 needs 0.64 on the full night but has a bootstrap
+median of 0.00; 2026-08-10's classic solve is physical yet its bootstrap median is 0.56. Quote the
+interval, never the night's single value.
+
+**NOTHING NEW WAS IMPLEMENTED, deliberately.** Building the Premoli–Tavella solver before measuring
+with the shipped one is how this repo ended up with two Allan cores.
+
+**A yardstick that is NOT circular.** §1 showed the "direct" residual-correlation measurement to be the
+polarization identity — the same three variances rearranged, so useless for validating the motion
+proxy. `minRho` is derived from those same three variances too, but it is being used differently: as
+the correlation the data DEMANDS, against which an EXTERNAL estimate (the motion proxy) can be checked
+for range and sign. That comparison is a consistency test, not a self-validation, and it is the first
+one available. It is not run here.
+
+### 2.3 · 🔴 THE SHIPPED MOTION PROXY, CHECKED AGAINST THE FIRST VALID YARDSTICK
+
+§2.2 supplies `minRho` — the correlation the data DEMANDS — which is the first non-circular thing the
+external proxy can be checked against. `tools/motion-rho-vs-minrho.mjs` calls the REAL
+`_tchRhoFromMotion` (module-local, reached by loading `integrator-dsp.js` as a classic script in a vm
+realm; reimplementing its Σr²/Σr aggregation would have measured a copy). 38 nights.
+
+| | result |
+|---|---|
+| Spearman(proxy, minRho) | **−0.120** |
+| nights needing ρ where the proxy **covers** minRho | 5/14 |
+| nights needing ρ where it falls **SHORT** | **9/14** (median 0.10, worst 0.58) |
+| nights needing nothing where it fires anyway | 24/24 (values 0.23–0.61) |
+| saturating its own [0, 0.9] clamp | 0/38 |
+
+**It is not inert.** Asked of the shipped hat directly rather than inferred from a comment: the external
+ρ is **ACCEPTED on 27 of 38 nights** (rejected on 11), and where accepted it moves the largest σ by a
+**median 0.242 bpm, worst 1.042**. Against corpus medians of ECGDex 0.352 / PpgDex 0.261 / OxyDex 0.988
+(§2.1), a 0.242 bpm shift is comparable to the **entire** σ of the two quiet sensors.
+
+**THE STRONGEST DEFENSIBLE CLAIM, and it is narrower than the table looks.** On the 14 nights where
+correlation is PROVEN present — the classic split goes negative, which cannot happen under
+independence — the proxy is **below the minimum required value on 9 of them**. It under-shoots exactly
+where rescue is both needed and provable.
+
+⚠️ **"Fires on 24/24 quiet nights" is NOT proof of error, and must not be quoted as one.** A physical
+classic solve does not establish ρ = 0: correlation can exist without being large enough to force a
+negative split. Negativity is sufficient evidence of correlation, not necessary. Those 24 nights are
+suggestive of over-firing; they do not demonstrate it.
+
+⚠️ Likewise `minRho` is an EQUICORRELATION (§2.2), so "short by 0.10" is not a per-pair error bar.
+
+### 2.3.1 · 🔴 THE RECOMMENDATION IN 2.3 WAS WRONG — WITHDRAWN BEFORE IT WAS BUILT
+
+§2.3 recommended gating the external ρ the way the auto min-rho search is gated: apply it only when the
+classic solve fails. **That change was approved, started, and abandoned at the first read of the code
+it would have modified.** Two independent refutations, both of which were available before the
+recommendation was written:
+
+**(a) IT DEFEATS THE FEATURE'S STATED PURPOSE, and the source says so in place.**
+`integrator-tch.js`'s external-ρ block is prefaced by: *"Positive common-mode BIASES classic without
+driving it negative, so it can't be detected reference-free — the honest fix is to remove a correlation
+the consumer can independently estimate."* The external ρ exists **precisely** for the correlation that
+does NOT produce a negative split. Gating it on negativity would restrict it to the one case it was not
+built for, and delete it from every case it was.
+
+This is the same logic §2.3 already stated for the other side of the table — "a physical classic solve
+does not establish ρ = 0" — and then failed to apply to its own recommendation.
+
+**(b) THE UNDERSHOOT IS ALREADY MITIGATED IN SHIPPED CODE.** §2.3's strongest claim was that the proxy
+falls short of `minRho` on 9 of 14 nights where correlation is provable. Cross-tabulated against
+`externalRhoRejected`:
+
+| | nights |
+|---|---:|
+| proxy SHORT of minRho | 9 |
+| …hat **already rejects** it | **8** |
+| …hat accepts it anyway | 1 — 2026-08-03, ρ = 0.53 vs minRho 0.53, i.e. equal to 2 dp |
+
+`_solveMulti` fails when ρ sits below the geometry's non-negativity floor, and the FU-IV §1.4 path
+raises `externalRhoRejected`. So the undershoot does not reach the estimate on 8 of 9 nights, and the
+ninth is a rounding tie. **"9 of 14" overstated a defect that shipped code already catches.**
+
+### 2.3.2 · What actually survives
+
+Narrower, and still worth acting on eventually:
+
+- **Spearman(proxy, minRho) = −0.120.** The proxy does not track the one correlation signal we can
+  measure. That remains unexplained.
+- **It is accepted on 27 of 38 nights and moves the largest σ by a median 0.242 bpm** (worst 1.042),
+  comparable to the entire σ of the quiet sensors (§2.1). It is materially changing estimates.
+- **Its magnitude is unvalidated, and cannot be validated from inside the triplet.** On negative-split
+  nights the hat already rejects an under-floor ρ; on the other 24 nights `minRho` is silent by
+  construction — that is exactly the blind spot the external ρ exists to cover, so it cannot also be
+  the thing that checks it.
+
+**Therefore the only route to validating the proxy is a genuinely external one — a fourth independent
+source (§3, E-QC), which is blocked on hardware.** That is the honest end of this thread: the question
+is not answerable with the sensors currently recording, and no rearrangement of three of them will
+change that. §1 said this algebraically; this is the same wall reached empirically.
+
+⚠️ **Do not re-propose the gating change.** Both refutations are recorded above.
+
+**Consequence for the ranking below:** §2's remaining items (Premoli–Tavella's positive-definite
+constrained solve, KLTS intervals) are now better motivated than when this brief was written — a 41.7 %
+non-physical rate is the condition those methods exist for. The bootstrap does not replace them; it
+measures the size of the problem they address.
+
 > ⚠️ **DO NOT SWAP TCH FOR GCOV ON THE STRENGTH OF "GCOV IS NON-NEGATIVE".** Schatzman (2021)
 > <https://consensus.app/papers/details/a91094bfdd6f5b659727f825eccf416c/> compares the N-oscillator
 > extensions of both and finds extended TCH **superior, especially at large τ**; notes GCOV *also*
@@ -478,6 +651,39 @@ analyses accelerometer/gyro data and does none of it. Allan-variance IMU noise i
 random walk, bias instability, rate random walk) is standard practice with tooling and a standard
 behind it. <https://www.mathworks.com/help/fusion/ug/inertial-sensor-noise-analysis-using-allan-variance.html>
 
+### 6.1 · MEASURED AND REJECTED — EDF weighting changes the arithmetic, not the answer
+
+The defect is real as stated: `_ckAllanSlope` fits log-log ADEV points with UNWEIGHTED OLS, while
+long-τ points rest on far fewer overlapping terms and currently carry equal weight. The question is
+whether fixing it changes any classification.
+
+Measured on ten real host−device divergence curves (Polar Sensor Logger, ~1 Hz phase, the same
+geometry `hostAxis` consumes), weighting each point by its per-τ overlap count `n`:
+
+| | value |
+|---|---|
+| largest Δslope | **0.018** |
+| typical Δslope | 0.001–0.007 |
+| classifications changed | **0 of 10** |
+
+Every curve sits at ≈ −1.00 (white PM), and the nearest category boundary is −0.75 — roughly **14×
+further away than the largest weighting effect**. The correction is real and immaterial.
+
+**And the one case where it WOULD matter is already handled.** Weighting only changes an answer for a
+curve near a boundary, which is exactly where `classifyAllan` already refuses to name a noise type
+(`noise: null` when an edge lies within 1.96 SE, #1227). The two mechanisms cover the same case, and
+the refusal is both cheaper and more honest — it says "undecided" rather than producing a slightly
+better-weighted guess.
+
+**Therefore §6 is closed as REJECTED for the weighting step.** The EDF circularity that motivated it
+(EDF depends on noise type, so a CI used to decide noise type is circular) is moot when the fix it
+would enable moves nothing.
+
+⚠️ **What this does NOT reject: GMWM.** That is a different claim — not "weight the slope fit better"
+but "stop reading a noise type off a slope at all". Nothing here tests it, and the IEEE-standard
+procedure remaining a human eyeballing linear trends is still the honest description of what
+`classifyAllan` automates. It stays listed, unmeasured, and last.
+
 ⚠️ **Scope discipline.** GMWM is a substantially larger dependency-free implementation than anything
 in this section. It is listed as the *correct* answer, not the *next* one. The cheap intermediate is
 EDF-weighted least squares iterated to a fixed point, treating **non-convergence as the ambiguous
@@ -549,7 +755,7 @@ implementations to disagree with**, which §7 argues is the only thing that can 
 | — | §3 E-QC | **blocked on hardware** | The fourth stream is EMPTY: `Pulse.1s` is −1 fill in all 189 SA2 files (§3.1c). Needs the ResMed oximeter module attached, or a different independent 4th HR source. More nights will not help. |
 | 3 | §5 Newey–West for the closure tolerance | medium | Closed form, standard tooling, `blocks_` already exposed. Held below E-QC only because the bandwidth choice needs its own sensitivity study. |
 | 4 | §2 ML reformulation / KLTS intervals for TCH | medium | Do after E-QC — the estimator matters less than closing the identifiability gap. |
-| 5 | §6 EDF-weighted slope, then GMWM | large | Correct, and the least urgent: `classifyAllan` currently refuses rather than lying, which is the safe failure. |
+| — | ~~§6 EDF-weighted slope~~ | done | **MEASURED AND REJECTED** (§6.1): Δslope ≤ 0.018, 0 of 10 classifications change, and the boundary case it would help is already covered by `classifyAllan`'s refusal. GMWM is untouched by this and stays last. |
 
 ---
 
