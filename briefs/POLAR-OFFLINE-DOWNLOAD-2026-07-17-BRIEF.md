@@ -26,6 +26,46 @@ USB the armband enumerates as a **HID device** (`/dev/hidrawN`), *not* mass stor
 and speaks Polar's private protocol over HID. There is no volume to mount, no file to copy. **BLE
 PS-FTP is the only download path.**
 
+> ### ⚠️ CORRECTION 2026-08-14 — "USB gives you nothing" is FALSE. The conclusion survives; the reasoning does not.
+>
+> The paragraph above is right that the Verity enumerates as HID rather than mass storage, and right
+> that BLE is the only path that can **pull a file**. It is wrong about the interesting part, and wrong
+> in the direction that stops a reader from looking: **PS-FTP rides the USB HID pipe.** Measured on the
+> real Verity `0C301E3F`, 2026-08-02, and recorded in `capture-host/probe_polar_usb.py` — two 64-byte
+> interrupt endpoints (`0x01 OUT` / `0x81 IN`) served a genuine PS-FTP directory listing for `/U/0/`
+> (`DBDC.DAT`, `USERID.BPB`, `S/`, a date-named session directory). `polar_psftp`'s protobuf layer
+> parses it unchanged; only the framing differs (v800_downloader's, not BLE RFC76). `CHANGELOG.md`
+> carries the same finding.
+>
+> **Why the first probe concluded "dead end", since the failure mode is instructive:** two off-by-one
+> errors, each of which makes a working pipe look dead — `is_end()` is `(packet[1] & 3) == 1`, so
+> flags==1 is END and flags==0 is MORE (the `11 04 ..` reply is "ACK me", not a terminator); and the
+> RFC60 length is **`len + 4`**, not `len` (a bare length is accepted and answered with nothing).
+>
+> **What USB still cannot do, and why the section's verdict stands anyway:** the server answers only in
+> a window that opens on **USB re-enumeration**, and that window is **ONE REQUEST WIDE** — proven by
+> replug, where the first GET returned the listing and the next a second later returned 1-byte filler
+> (171 attempts at 1 Hz → 0). `tepna-usbreset.sh` is deployed under `/usr/local/lib/tepna/` and opens
+> the window on demand, but one request cannot carry a multi-packet file. So USB is a **listing and
+> diagnostic channel**, not a pull path.
+>
+> ⚠️ **Never cite a USB listing as the device's filesystem.** The single reply is capped at one 64-byte
+> report, the device flags it END regardless, and the payload ends mid-record — `/U/0/` has six entries
+> by the BLE mirror and USB returned four plus a stub, decoding one into a fabricated filename `"20"`.
+> Fixed in `polar_psftp.TruncatedProtobuf` / `_parse_directory_ex` (PR #1117), which also covered the
+> **BLE** walk, where `polar_mirror` would otherwise have written a MANIFEST claiming a subset was whole.
+>
+> ⚠️ **Never sweep opcodes on this pipe** — a sweep of byte1 across `0x00..0xFF` re-enumerated the
+> device mid-run. `polar_psftp._ALLOWED_QUERIES` exists for that hazard.
+>
+> **The correction that matters for planning:** the section's framing is "BLE is the only path" as a
+> statement of sufficiency. It is only a statement of *necessity*. A separate finding — that the
+> **daemon's** BLE pull had never once succeeded in production (27×409, 2×502 over seven days, with
+> `captures/stored/*offline*` empty for both Polars) — sits alongside the "Validation status" checkbox
+> above recording a byte-verified 7-file pull **via the standalone CLI**. Those are consistent: the
+> protocol works, the shipped web-triggered path is what remains unexercised, which is exactly what the
+> open Done-when box says. Do not read this correction as reopening that box.
+
 ## The protocol — Polar PS-FTP (RFC60 + RFC76)
 
 Taken **verbatim from the official Polar BLE SDK** (`BlePsFtpUtils.kt`, `pftp_request.proto`,
