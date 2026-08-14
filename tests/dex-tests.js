@@ -694,6 +694,263 @@
       T.eq('the retired name still resolves to the same function', P.markO2Sentinels, P.markO2BeatMarkers);
     });
 
+    /* ════ DETECTOR STABILITY — A THIRD ALLAN IMPLEMENTATION, PINNED TO THE OTHER TWO ════
+       PpgDex compares its own beat detector against the device firmware's using overlapping Allan
+       deviation of the two beat-time series' DIFFERENCE. That difference is a phase series and the
+       shared physiology cancels, so the curve is detector noise alone — ADEV's native case, applied to
+       two detectors rather than two oscillators.
+
+       There are now THREE implementations in this repo, by necessity: `capture-host/allan.py` (phase
+       domain, second difference — a different LANGUAGE lane), `integrator-tch.js allanDeviation`
+       (frequency domain, overlapping averages — a module PpgDex does not load), and PpgDex's own. The
+       formulations are algebraically equivalent, so drift between them is invisible until a number is
+       wrong. These assertions pin all three together: the analytic slopes any correct implementation
+       must produce, exact parity with the Integrator's, and a cross-LANGUAGE known answer computed by
+       allan.py. A fourth variant cannot be added quietly. */
+    group('PpgDex Allan deviation agrees with BOTH sibling implementations, in two languages', 'ppgdex-dsp · detector-stability', function (T) {
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!P || typeof P.allanFromPhase !== 'function') {
+        T.skip('PPGDSP.allanFromPhase available', 'not loaded');
+        return;
+      }
+      // A deterministic series both lanes build with identical arithmetic (seeded LCG, no Math.random).
+      /* MINSTD (Park-Miller), NOT the glibc LCG — and the reason is the whole point of a cross-LANGUAGE
+         pin. `seed * 1103515245` reaches ~2.4e18, past 2^53, so JS silently loses precision in the
+         multiply while Python's arbitrary-precision ints do not: the two lanes generate DIFFERENT
+         series and the comparison quietly stops being one. 16807 * 2^31 ~ 3.6e13 stays exact in an
+         IEEE double, so both languages build the identical series and the agreement below means what
+         it claims. (Caught by this very assertion failing at 2.6e-2.) */
+      var seed = 12345;
+      var rnd = function () {
+        seed = (seed * 16807) % 2147483647;
+        return seed / 2147483647 - 0.5;
+      };
+      var white = [];
+      for (var i = 0; i < 600; i++) white.push(rnd());
+
+      /* CROSS-LANGUAGE KNOWN ANSWER. Computed by `capture-host/allan.py adev(phase, 1.0)` on this exact
+         series. Pinned to 10 dp: the two implementations are different algebra in different languages,
+         so agreement at this precision is evidence they compute the same quantity, not a coincidence. */
+      var got = P.allanFromPhase(white, 1.0);
+      var PY = [
+        [1, 0.509665262],
+        [2, 0.2487007094],
+        [4, 0.1224070812],
+        [8, 0.0612171944],
+        [16, 0.0311570938],
+        [32, 0.0159440059]
+      ];
+      T.ok('the octave ladder reaches at least the pinned taus', got.length >= PY.length, 'got ' + got.length);
+      var worst = 0;
+      for (var k = 0; k < PY.length; k++) {
+        if (got[k].tau !== PY[k][0]) worst = Infinity;
+        else worst = Math.max(worst, Math.abs(got[k].adev - PY[k][1]));
+      }
+      T.ok('matches capture-host/allan.py to 1e-9 at every pinned tau', worst < 1e-9, 'worst |Δ| = ' + worst);
+
+      /* PARITY WITH THE INTEGRATOR, via the phase→frequency change of variable that connects the two
+         formulations. If this ever diverges, one of the two is wrong and neither says so on its own. */
+      var K = env.IntegratorTCH;
+      if (K && typeof K.allanDeviation === 'function') {
+        var y = [];
+        for (var j = 1; j < white.length; j++) y.push((white[j] - white[j - 1]) / 1.0);
+        var tch = K.allanDeviation(y, [1, 2, 4, 8, 16, 32]);
+        var wt = 0;
+        for (var q = 0; q < tch.length; q++) if (tch[q].adev != null) wt = Math.max(wt, Math.abs(tch[q].adev - got[q].adev));
+        T.ok('matches integrator-tch.js allanDeviation exactly (phase and frequency forms agree)', wt < 1e-12, 'worst |Δ| = ' + wt);
+      } else T.skip('IntegratorTCH present for the parity leg', 'load integrator-tch.js + wire env.IntegratorTCH in both runners');
+
+      /* THE SLOPE IS THE VERDICT, so the analytic cases matter more than any magnitude. White phase
+         noise must give ~−1 and a deterministic ramp must give ~+1; an implementation that got the
+         magnitudes right and the slope backwards would invert every conclusion drawn from this. */
+      T.ok('white phase noise is identified as jitter (slope ≈ −1)', Math.abs(P.classifyAllan(-0.999) ? -1 : 0) === 1);
+      var wsl = P.classifyAllan(
+        (function () {
+          var pts = got.filter(function (p) {
+            return p.adev > 0;
+          });
+          var xs = pts.map(function (p) {
+            return Math.log10(p.tau);
+          });
+          var ys = pts.map(function (p) {
+            return Math.log10(p.adev);
+          });
+          var mx =
+            xs.reduce(function (a, b) {
+              return a + b;
+            }, 0) / xs.length;
+          var my =
+            ys.reduce(function (a, b) {
+              return a + b;
+            }, 0) / ys.length;
+          var n = 0,
+            d = 0;
+          for (var z = 0; z < xs.length; z++) {
+            n += (xs[z] - mx) * (ys[z] - my);
+            d += (xs[z] - mx) * (xs[z] - mx);
+          }
+          return n / d;
+        })()
+      );
+      T.eq('…and named with the same vocabulary capture-host/allan.py uses', wsl.noise, 'white/flicker-phase');
+      T.eq('…with the actionable meaning attached, not just a label', wsl.meaning, 'jitter — averages away fast');
+      var ramp = [];
+      for (var m = 0; m < 600; m++) ramp.push(m * 0.5); // pure deterministic drift
+      var rc = P.allanFromPhase(ramp, 1.0);
+      T.ok('a deterministic ramp is NOT called jitter', rc.length >= 3 && P.classifyAllan(1).noise === 'drift');
+      T.eq('drift carries the never-average-through-it warning', P.classifyAllan(1).meaning, 'deterministic — fit and remove it, never average through it');
+      T.eq('an unknown slope is not assigned a noise type', P.classifyAllan(null), null);
+
+      /* THE PAIRING CONTRACT. A beat with no counterpart must be DROPPED, not paired across a dropout:
+         a fabricated pair injects a step the curve reads as wander, which would turn a clean detector
+         into a drifting one on any night with a gap. */
+      var a = [],
+        b = [];
+      seed = 999;
+      for (var s2 = 0; s2 < 400; s2++) {
+        a.push(s2 * 1.0);
+        // A fixed 184 ms detector latency PLUS per-beat jitter. The jitter is load-bearing: with a
+        // perfectly constant offset the phase difference is constant, ADEV is identically zero, every
+        // point is filtered out and the slope gets fitted on the dropout alone — a degenerate fixture
+        // that passes or fails for reasons unrelated to the code. (This assertion caught that too.)
+        if (s2 < 150 || s2 > 200) b.push(s2 * 1.0 + 0.184 + rnd() * 0.02); // 50-beat firmware dropout
+      }
+      var st = P.detectorStability(a, b);
+      T.ok('a stability result is produced across a dropout', st != null);
+      T.ok('beats with no counterpart are dropped, not paired across the gap', st.nPaired <= 351, 'nPaired=' + st.nPaired + ' of 400 self beats, 350 firmware');
+      T.ok('jitter around a fixed latency is still identified as jitter', st.slope < -0.5, 'slope=' + st.slope);
+      /* THE FIXED OFFSET ITSELF IS INVISIBLE — it dies in the second difference, which is why a
+         constant inter-detector latency (184 ms here, ~190 ms on real nights) never inflates this
+         curve. An implementation that leaked the offset in would report ~184 ms at every tau. */
+      T.ok('the 184 ms latency does not appear in the curve at all', st.atShortestMs < 20, 'atShortestMs=' + st.atShortestMs + ' ms against a 184 ms offset');
+      T.eq('too few pairs refuses rather than reporting a thin curve', P.detectorStability([1, 2, 3], [1, 2, 3]), null);
+      T.eq('a missing firmware series refuses', P.detectorStability(a, null), null);
+    });
+
+    /* ════ PER-CHANNEL DETECTOR AGREEMENT — REFERENCE-FREE, AND BLIND BY CONSTRUCTION ════
+       Three optical channels in the SAME ROWS are three observers of one pulse on one axis, so the
+       physiology cancels in every pairwise difference and a three-cornered hat splits the remainder
+       into per-channel noise with NO reference. Measured on three real Verity nights: 99.8-99.9 %
+       triple-paired, 0 negative-variance taus out of 14/14/13, all nine per-channel slopes in
+       [-1.019, -0.995].
+       The assertions below pin the two properties that make it trustworthy AND the one that makes it
+       dangerous. The dangerous one is not hypothetical: #1200 shipped three weeks of nights where
+       `orient()` chose the wrong polarity and ALL THREE CHANNELS AGREED ON IT. Under that failure the
+       feet are ~900 ms early on every channel at once, the mutual differences stay small, and this
+       function reports three healthy channels. It measures NOISE, never CORRECTNESS, and a test suite
+       that does not say so invites the next reader to trust it for the thing it cannot do. */
+    group('PpgDex three-cornered hat splits per-channel noise — and is blind to what moves all three', 'ppgdex-dsp · channel-stability', function (T) {
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!P || typeof P.detectorAgreementTriplet !== 'function') {
+        T.skip('PPGDSP.detectorAgreementTriplet available', 'not loaded');
+        return;
+      }
+      // Three observers of ONE beat train, each with its own independent jitter. Deterministic MINSTD
+      // (exact in a double — see the detector-stability group for why the glibc LCG is unusable here).
+      var seed = 4242;
+      var rnd = function () {
+        seed = (seed * 16807) % 2147483647;
+        return seed / 2147483647 - 0.5;
+      };
+      var truth = [],
+        t = 0;
+      for (var i = 0; i < 1500; i++) {
+        t += 1.0 + 0.05 * Math.sin(i / 30);
+        truth.push(t);
+      }
+      // Channel jitter amplitudes chosen DISTINCT so the split has something to separate: if the code
+      // returned the pairwise value unsplit, all three would come back equal and this would not catch it.
+      var amp = [0.004, 0.012, 0.008]; // seconds
+      var mk = function (a) {
+        return truth.map(function (v) {
+          return v + a * rnd();
+        });
+      };
+      // Built ONCE and reused: `mk` advances the shared PRNG, so regenerating for the blindness check
+      // below would compare two DIFFERENT jitter realisations rather than one series plus an offset.
+      // (That is exactly how the assertion first failed, and it would have looked like a code defect.)
+      var ch = [mk(amp[0]), mk(amp[1]), mk(amp[2])];
+      var got = P.detectorAgreementTriplet([ch[0].slice(), ch[1].slice(), ch[2].slice()], { signs: [-1, -1, -1] });
+      T.ok('three channels on one axis produce a split', got != null);
+      T.ok('nearly every beat forms a triple (same rows ⇒ exact correspondence, not an estimate)', got.triplePct > 95, 'triplePct=' + got.triplePct);
+      /* THE IDENTITY'S OWN VALIDITY CHECK. A negative split variance means the sources are not
+         independent enough for the three-cornered hat to hold. It must be COMPUTED and published, not
+         assumed — a clamp to zero would turn "this is not a measurement" into a confident 0 ms. */
+      T.eq('independent sources yield no negative split variances', got.negativeVarianceTaus, 0);
+      T.eq('…and that is reported as a verdict, not left for the reader to derive', got.independent, true);
+      /* THE SPLIT MUST ORDER THE CHANNELS. Pairwise ADEV can only ever say "i+j"; the whole point is
+         separating them. Channel 1 has 3x channel 0's jitter by construction, so a correct split ranks
+         them — an implementation returning the pairwise value would rank them all equal and pass every
+         other assertion here. */
+      var s = got.channels.map(function (c) {
+        return c.sigmaShortestMs;
+      });
+      T.ok('the noisiest channel is identified as noisiest', s[1] > s[0] && s[1] > s[2], 'sigma=' + s.join(' / '));
+      T.ok('the quietest channel is identified as quietest', s[0] < s[2], 'sigma=' + s.join(' / '));
+      /* ⚠️ THE ASSERTION THAT CATCHES A WRONG SPLIT — added after a survivor. Every other property in
+         this group is invariant to MIS-SCALING: multiplying all three sigma by a constant preserves the
+         ordering, and a log-log slope is scale-invariant. A coefficient of 0.4 instead of 1/2 makes the
+         three-cornered hat arithmetically wrong and passed all eleven original assertions. The
+         reconstruction discriminates precisely BECAUSE it is guaranteed by the correct split and by no
+         other: sigma_i^2 + sigma_j^2 must equal AVAR(i-j) exactly. */
+      var recon = 0;
+      for (var r = 0; r < got.pairwise.AB.length; r++) {
+        var a0 = got.channels[0].curve[r].adev,
+          a1 = got.channels[1].curve[r].adev,
+          a2 = got.channels[2].curve[r].adev;
+        if (a0 == null || a1 == null || a2 == null) continue;
+        recon = Math.max(
+          recon,
+          Math.abs(Math.sqrt(a0 * a0 + a1 * a1) - got.pairwise.AB[r]),
+          Math.abs(Math.sqrt(a0 * a0 + a2 * a2) - got.pairwise.AC[r]),
+          Math.abs(Math.sqrt(a1 * a1 + a2 * a2) - got.pairwise.BC[r])
+        );
+      }
+      T.ok('the split RECONSTRUCTS every pairwise ADEV — the only check here that catches a wrong coefficient', recon < 1e-9, 'worst reconstruction error = ' + recon);
+      T.ok(
+        'per-channel jitter is identified as jitter (slope ≈ −1)',
+        got.channels.every(function (c) {
+          return c.slope < -0.75;
+        }),
+        'slopes=' +
+          got.channels
+            .map(function (c) {
+              return c.slope;
+            })
+            .join(' / ')
+      );
+      /* ⚠️ THE BLIND SPOT, ASSERTED SO IT CANNOT BE FORGOTTEN. Shift ALL THREE channels by the same
+         900 ms — the #1200 polarity failure, where every channel was wrong together. Nothing about the
+         split moves, because a common term cancels in every pairwise difference. This assertion exists
+         to FAIL if someone ever claims this function validates channel correctness. */
+      var off = 0.9;
+      var shift = function (a) {
+        return a.map(function (v) {
+          return v + off;
+        });
+      };
+      var shifted = P.detectorAgreementTriplet([shift(ch[0]), shift(ch[1]), shift(ch[2])], { signs: [1, 1, 1] });
+      var s2 = shifted.channels.map(function (c) {
+        return c.sigmaShortestMs;
+      });
+      T.eq('a 900 ms error common to ALL THREE channels is INVISIBLE — this measures noise, not correctness', JSON.stringify(s2), JSON.stringify(s));
+      T.ok('…so the scope is stated in the payload, not left to the reader', /noise/i.test(got.scope) && /correct/i.test(got.scope), got.scope);
+      /* The orientation the split was computed under must travel WITH it, since that is the one thing
+         a clean result cannot vouch for. */
+      T.eq('the polarity is carried so the agreement is never read without it', JSON.stringify(got.polarity), JSON.stringify([-1, -1, -1]));
+      // Fewer than three corners is not a three-cornered hat. No two-corner approximation.
+      T.eq('two channels refuse rather than approximating', P.detectorAgreementTriplet([mk(0.004), mk(0.004)]), null);
+      T.eq(
+        'too few beats refuse rather than reporting a thin ladder',
+        P.detectorAgreementTriplet([
+          [1, 2, 3],
+          [1, 2, 3],
+          [1, 2, 3]
+        ]),
+        null
+      );
+    });
+
     /* ════ SELF-PPI vs FIRMWARE-PPI — BOTH SIDES CORRECTED, or the comparison inverts ════
        Mirrors ECGDex's `validateRR` card (Beats · Mean · RMSSD · SDNN, each with a Δ%). The defect it
        fixes is that PpgDex compared an ALREADY-CORRECTED self series against a RAW firmware series, so
@@ -2060,6 +2317,72 @@
         });
         T.eq('zLatest is the hand-derived −1.70σ', envZ.metrics.m.baseline.zLatest, -1.7);
         T.eq('a −1.70σ night flags below-1sigma, NOT below-2sigma (the outlier cut is a strict z ≤ −2)', envZ.metrics.m.baseline.flag, 'below-1sigma');
+      }
+    });
+
+    /* ════ THE INTEGRATOR INGESTS A NODE'S DETECTOR-STABILITY CURVE ════
+       `hrAgreement` names a FAULTY node when epochs disagree, but a fault count cannot say whether the
+       accused node's detector is intrinsically noisy or was fine and met a real event. A node that
+       ships its own firmware detector can answer that about itself (PpgDex `validation.stability`), and
+       the Integrator reads it rather than deriving it — an export carries no beat times, so a slope
+       cannot be recomputed downstream and must not be guessed. These pin the READ contract: what a
+       malformed or absent block does, and that the value is carried through UNCHANGED rather than
+       folded into the fault attribution (a slope is evidence about a detector, an epoch disagreement is
+       evidence about a moment; blending them yields a number answering neither). */
+    group('Integrator reads a node detector-stability curve, and never invents one', 'integrator-dsp · cross-node · detector-stability', function (T) {
+      var I = env.IntegratorDSP || env.INTEGRATOR;
+      if (!I || typeof I.readDetectorStability !== 'function') {
+        T.skip('IntegratorDSP.readDetectorStability available', 'not loaded');
+        return;
+      }
+      // The shape PpgDex actually exports (ppgdex-app.js buildV2 → validation.stability).
+      var exp = {
+        node: 'PpgDex',
+        validation: {
+          source: 'o2ring-marker',
+          stability: {
+            slope: -1.01,
+            noise: 'white/flicker-phase',
+            meaning: 'jitter — averages away fast',
+            beatsPaired: 17722,
+            tau0Sec: 1.19,
+            atShortestMs: 42.31,
+            atLongestMs: 0.0065,
+            tauMaxSec: 9720,
+            optimalTauSec: 9720
+          }
+        }
+      };
+      var got = I.readDetectorStability(exp);
+      T.ok('a real PpgDex export round-trips into the reader', got != null);
+      T.eq('the node travels with the curve', got.node, 'PpgDex');
+      T.eq('…and so does WHICH firmware produced it', got.source, 'o2ring-marker');
+      T.eq('the slope is carried through unchanged', got.slope, -1.01);
+      T.eq('the averaging window the node measured is preserved', got.optimalTauSec, 9720);
+      /* The one derived field, and it is a threshold restatement rather than a new inference — the same
+         −0.75 midpoint capture-host/allan.py and ppgdex-dsp.js use. At −1 the disagreement averages
+         away, so a persistent divergence cannot be noise; at a floor that inference is unavailable. */
+      T.eq('a jitter slope licenses treating a sustained divergence as a real fault', got.sustainedDivergenceIsFault, true);
+      T.eq('a FLOOR withdraws that licence', I.readDetectorStability({ node: 'X', validation: { stability: { slope: 0.02 } } }).sustainedDivergenceIsFault, false);
+      // ABSENT AND MALFORMED BOTH YIELD null, so a consumer branches on presence, never on a default.
+      T.eq('no validation block at all ⇒ null', I.readDetectorStability({ node: 'OxyDex' }), null);
+      T.eq('a validation block with no stability leg ⇒ null', I.readDetectorStability({ validation: { source: 'device-ppi' } }), null);
+      T.eq('a stability block with no slope is not a verdict ⇒ null', I.readDetectorStability({ validation: { stability: { noise: 'white/flicker-phase' } } }), null);
+      T.eq('a non-finite slope is refused rather than propagated', I.readDetectorStability({ validation: { stability: { slope: Number.NaN } } }), null);
+      T.eq('null input is tolerated', I.readDetectorStability(null), null);
+      // A node that carried no curve must be ABSENT from the agreement result, not present with a zero.
+      if (typeof I.hrAgreement === 'function') {
+        var mk = function (node, base) {
+          var eps = [];
+          for (var i = 0; i < 40; i++) eps.push({ tMs: 1e12 + i * 300000, hr: base, beats: 300 });
+          return { node: node, epochs: eps };
+        };
+        var withCurve = mk('PpgDex', 55);
+        withCurve.stability = got;
+        var ag = I.hrAgreement([withCurve, mk('ECGDex', 55), mk('OxyDex', 55)]);
+        T.ok('the agreement result carries a stability map', ag.ok === true && ag.stability && typeof ag.stability === 'object');
+        T.eq('the node that shipped a curve appears in it', ag.stability.PpgDex ? ag.stability.PpgDex.slope : null, -1.01);
+        T.eq('a node with no curve is ABSENT, not defaulted to a slope', ag.stability.ECGDex, undefined);
       }
     });
 

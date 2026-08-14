@@ -146,6 +146,124 @@ def optical_worn(ambient, *, threshold: float = _WORN_AMBIENT_MAX,
     return statistics.median(vals) < threshold
 
 
+# ── DETECTOR B · AMBIENT *STABILITY*, FOR THE RATE WHERE THE LEVEL IS BLIND ─────────────────────────
+#
+# `optical_worn` above thresholds the ambient LEVEL and refuses outside 55 Hz, which left 176 Hz — the
+# rate this box actually runs — with no optical verdict at all. This is the detector for that domain,
+# and it exists because THE PEGGING INVERTS BETWEEN THE TWO RATES:
+#
+#     55 Hz   worn = DARK  (|median| ~1e2)      unworn = pegged bright (~3e5) — and pegged is QUIET
+#     176 Hz  worn = PEGGED (~6.5e5), QUIET     unworn = unpegged room light  — and that is NOISY
+#
+# So the level separates at 55 Hz and the variance separates at 176 Hz, and each statistic is blind at
+# the other's rate. That is not a tuning problem; it is two different physical regimes, which is why
+# this ships as a second calibrated detector rather than a widened threshold on the first.
+#
+# Measured 2026-08-13 over 90 windows of 30 s from 15 real 176 Hz Verity files:
+#
+#     ambient SD    worn 32.0 – 36.7  (n=54)      desk 141.4 – 30 399.3  (n=36)
+#
+# A clean gap of 3.9x with nothing in it. The threshold is its geometric midpoint (sqrt(36.7 * 141.4)
+# = 72.1, rounded to 72), the same rule that produced the 5000 above — not a number anyone picked.
+#
+# ⚠️ THIS CALIBRATION IS WEAKER THAN THE 55 Hz ONE AND THE DIFFERENCE IS STATED, NOT SMOOTHED OVER.
+# The 5000 came from 5730 windows across 45 files whose worn/unworn state was known independently.
+# This came from 90 windows across 15 files whose state is inferred from capture time (evening and
+# overnight = worn; 2026-08-03 09:23–12:13 = desk). That inference is corroborated by an INDEPENDENT
+# statistic — per-file cardiac-band power differs 20–100x between the two groups — but corroboration
+# is not the same as knowing, and a wider corpus should re-derive this before anyone leans harder on it.
+#
+# ⚠️ CARDIAC-BAND POWER WAS TRIED AS A THIRD DETECTOR AND REFUTED — do not re-derive it. The idea is
+# attractive (periodicity is rate-independent, and unlike amplitude it does not conflate "not worn"
+# with "worn badly"), and on two hand-picked windows it looked like a 94x separation. Over the corpus
+# it is not a detector at all: at 55 Hz 468 of 474 windows fall in the overlap (worn median 0.026 vs
+# unworn 0.013, and the unworn MAXIMUM 1.088 exceeds the worn maximum 0.882), and even at 176 Hz worn
+# reaches down to 0.00089 while desk reaches up to 0.02234. An unworn sensor has ample 0.7–3.5 Hz
+# energy from room-light flicker, handling and drift, and normalising by total power rewards a quiet
+# drifting signal. It survives only as a per-FILE indicator, which is what labelled the corpus above.
+_WORN_AMBIENT_SD_MAX = 72.0        # ambient SD below this ⇒ under skin, AT 176 Hz. See the gap above.
+_WORN_SD_MIN_SAMPLES = 256         # ~1.5 s at 176 Hz; fewer is not a spread
+_WORN_SD_CALIBRATED_PPG_HZ = (176.0,)
+_WORN_SD_FS_TOL_HZ = 2.0           # files measure 175.4–176.6; this is a tolerance, not a rate menu
+
+
+def sd_calibrated_for(fs, *, rates=_WORN_SD_CALIBRATED_PPG_HZ,
+                      tol: float = _WORN_SD_FS_TOL_HZ) -> bool:
+    """Is the ambient-STABILITY calibration valid at this PPG rate?
+
+    ⚠️ AN UNKNOWN RATE (`None`) IS OUT OF DOMAIN HERE — the opposite of `calibrated_for`. That
+    asymmetry is deliberate, not an oversight. `calibrated_for` admits `None` because callers older
+    than the parameter would otherwise lose worn detection entirely; this detector has no such callers,
+    so admitting an unknown rate would only ever let it run somewhere it was never measured. A new
+    detector gets the strict rule; the concession is not inherited."""
+    if fs is None:
+        return False
+    return any(abs(float(fs) - r) <= tol for r in rates)
+
+
+def ambient_stability_worn(ambient, *, threshold: float = _WORN_AMBIENT_SD_MAX,
+                           min_samples: int = _WORN_SD_MIN_SAMPLES,
+                           fs: float | None = None) -> bool | None:
+    """Is an optical sensor against skin, judged by how STILL its ambient channel is?
+
+    PURE. `True` / `False` / `None` when it cannot be said — the same three-valued contract as
+    `optical_worn`, and for the same reason: `None` changes nothing downstream, `False` drops a link.
+
+    Uses population SD over the raw values. Sign is irrelevant (the Verity reports ambient negative)
+    and, unlike the level detector, the magnitude is NOT taken — |x| would fold a signal that crosses
+    zero and understate its spread. Nothing in this corpus crosses zero, so the two agree today; taking
+    the spread of the values as they arrive is simply the thing being described."""
+    if not sd_calibrated_for(fs):
+        return None
+    vals = [v for v in ambient if v is not None and v == v]      # drop None/NaN; keep sign
+    if len(vals) < max(2, min_samples):
+        return None
+    return statistics.pstdev(vals) < threshold
+
+
+def worn_verdict(*, ppi_flags=None, ambient=None, fs: float | None = None) -> tuple[bool | None, str]:
+    """Combine every worn detector that is AVAILABLE and IN DOMAIN into one verdict plus its reason.
+
+    Returns `(verdict, why)`. `why` names which detectors voted, so "no verdict" is visible rather
+    than silent — the failure this function was written after was not a wrong answer but a STALE one:
+    the caller declined to publish when the detector abstained, and the previous `True` stood for ten
+    hours while an armband streamed into a desk.
+
+    ── THE COMBINER IS ASYMMETRIC, BECAUSE THE TWO ERRORS DO NOT COST THE SAME ──
+    A false NOT-WORN drops a live link mid-night and costs a recording. A false WORN wastes battery
+    and costs a charge. So:
+        · WORN     if ANY detector says worn
+        · NOT WORN only if at least one detector has an opinion and EVERY opinion is not-worn
+        · None     if no detector is available or in domain
+    Today the two optical detectors have disjoint domains (55 Hz vs 176 Hz) so they cannot disagree,
+    and the rule reads like a dispatch. It is written as a vote anyway: the moment a second rate is
+    calibrated for both, the disagreement case exists, and it must resolve toward keeping the link.
+
+    ── PPI CONTACT OUTRANKS NOTHING; IT SIMPLY VOTES FIRST AND USUALLY DECIDES ──
+    `ppi_contact` is the device's own measurement rather than an inference, and it separated perfectly
+    on this hardware (contact=0 on 31 877 desk rows, contact=1 on 20 957 worn rows). It is unavailable
+    whenever SDK mode is on, because the Verity refuses PPI there — which is exactly the configuration
+    that made this whole function necessary."""
+    votes: list[tuple[str, bool]] = []
+    contact = ppi_contact(ppi_flags)
+    if contact is not None:
+        votes.append(("ppi-contact", contact))
+    if ambient is not None:
+        level = optical_worn(ambient, fs=fs)
+        if level is not None:
+            votes.append(("ambient-level", level))
+        spread = ambient_stability_worn(ambient, fs=fs)
+        if spread is not None:
+            votes.append(("ambient-stability", spread))
+    if not votes:
+        return None, ("no worn detector is available and in domain"
+                      + (f" at {fs:g} Hz" if fs is not None else " (PPG rate unknown)"))
+    worn_by = [n for n, v in votes if v]
+    if worn_by:
+        return True, "worn per " + ", ".join(worn_by)
+    return False, "not worn per " + ", ".join(n for n, _ in votes)
+
+
 def stream_health(nominal_fs, eff_fs, age_s, warmup: bool = False,
                   *, weak_frac: float = _WEAK_FRAC, stall_s: float = _STALL_S) -> str:
     """Classify one stream's link health from its nominal rate, measured effective rate, and the age of

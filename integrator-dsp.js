@@ -5235,6 +5235,22 @@ function hrAgreement(sources, opts) {
     flagged: flagged,
     flaggedPct: compared ? Math.round((1000 * flagged) / compared) / 10 : 0,
     fault: fault,
+    /* WHAT A FAULT COUNT DOES NOT SAY. `fault` attributes disagreements to a node; it cannot say
+       whether that node's detector is intrinsically noisy or was fine and met a real event. Where a
+       source shipped its own detector-stability curve (PpgDex `validation.stability` — see
+       `readDetectorStability`), it is carried through here UNCHANGED, keyed by node, so a reader
+       weighing an attribution has the one fact that settles it. Deliberately not folded INTO `fault`:
+       a stability slope is evidence about a detector, an epoch disagreement is evidence about a
+       moment, and silently blending the two would produce a number that answers neither question.
+       Empty object when no source carried one — never a fabricated default. */
+    stability: (function () {
+      var out = {};
+      for (var i = 0; i < src.length; i++) {
+        var st = src[i].stability || readDetectorStability(src[i].export || src[i]);
+        if (st && isFinite(st.slope)) out[src[i].node] = st;
+      }
+      return out;
+    })(),
     epochs: epochs
   };
 }
@@ -5258,6 +5274,53 @@ function hrAgreement(sources, opts) {
      · a device whose host column is the device stamp ROUNDED (`independent:false`) has no second
        clock at all — a phone capture reads ~1.00 ms spread, one stamp quantum.
      · fewer than two survivors ⇒ there is no pair to offset. */
+
+/* ── DETECTOR STABILITY, INGESTED FROM A NODE EXPORT (PpgDex `validation.stability`) ──────────────
+   WHAT IT IS. A node that ships its own firmware beat detector can compare its waveform-derived beat
+   times against that firmware's on the SAME axis. The shared physiology cancels in the difference, so
+   the overlapping Allan deviation of that difference describes the NODE'S OWN DETECTOR NOISE versus
+   averaging time — not the subject's heart, and not any clock offset between devices. Today only
+   PpgDex emits it, and only for the O2Ring marker source where one axis genuinely carries both.
+
+   WHY THE INTEGRATOR WANTS IT. `hrAgreement` names a FAULTY node when epochs disagree, and its verdict
+   is a bare attribution — it cannot say whether the accused node's detector is intrinsically noisy or
+   was fine and hit a real event. `slope` answers exactly that, and it is the only field here carrying
+   a decision: at −1 the disagreement is jitter that averages away, so a SUSTAINED divergence is a
+   genuine fault rather than accumulated noise; at 0 there is a FLOOR no averaging removes, and a fault
+   attribution against that node is worth less. `optimalTauSec` is the averaging window this pairing
+   actually supports — the principled replacement for an epoch length chosen by intuition.
+
+   READ, NEVER DERIVE. This returns what the node measured, or null. It does not recompute the curve
+   from an export (an export carries no beat times) and does not infer a slope from a single scalar.
+   Absent, malformed or non-finite ⇒ null, so a consumer branches on presence rather than on a
+   fabricated default. `node`/`source` travel with it because a wrist device's firmware estimate and a
+   finger ring's are different detectors, and a reader that cannot tell them apart cannot weigh this. */
+function readDetectorStability(nodeExport) {
+  var v = nodeExport && nodeExport.validation;
+  var s = v && v.stability;
+  if (!s || typeof s !== 'object') return null;
+  if (!isFinite(s.slope)) return null; // the slope IS the verdict; without it there is nothing to say
+  var num = function (x) {
+    return isFinite(x) ? x : null;
+  };
+  return {
+    node: (nodeExport && (nodeExport.node || (nodeExport.schema && nodeExport.schema.node))) || null,
+    source: v.source || null,
+    slope: s.slope,
+    noise: s.noise || null,
+    meaning: s.meaning || null,
+    beatsPaired: num(s.beatsPaired),
+    tau0Sec: num(s.tau0Sec),
+    atShortestMs: num(s.atShortestMs),
+    atLongestMs: num(s.atLongestMs),
+    optimalTauSec: num(s.optimalTauSec),
+    /* The one derived field, and it is a THRESHOLD RESTATEMENT rather than a fresh inference: a slope
+       below the white/flicker-phase boundary (the same −0.75 midpoint `capture-host/allan.py` and
+       `ppgdex-dsp.js` use) means averaging keeps paying, so a persistent divergence cannot be noise. */
+    sustainedDivergenceIsFault: s.slope < -0.75
+  };
+}
+
 function arrivalPairOffsets(devices, opts) {
   opts = opts || {};
   var list = (devices || []).filter(function (d) {
@@ -6581,6 +6644,7 @@ window.IntegratorDSP = {
   arrivalPairOffsets,
   /* the cross-node HR agreement gate — see the block above it for why this layer, not the nodes */
   hrAgreement,
+  readDetectorStability,
   _wrappedSlopeFit,
   // Timing fiducial over timeseries.spo2 — deliberately NOT OxyDex's clinical desat_event.
   desatOnsetsFromSeries,

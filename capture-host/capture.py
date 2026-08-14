@@ -28,7 +28,8 @@ import alerts
 import nightqc
 import nightarchive
 import storage_targets
-from telemetry import TelemetryBus, calibrated_for, optical_worn, ppi_contact
+from telemetry import (TelemetryBus, calibrated_for, ppi_contact,
+                       worn_verdict)
 
 # ── JOURNAL SEVERITY (VIGIL-COEXISTENCE-AND-RANGE §1) ────────────────────────────────────────────────
 # systemd assigns ONE priority to a service's whole stdout stream, so with a plain basicConfig every line
@@ -1738,14 +1739,28 @@ async def run_polar(dev: dict, root: str):
                 _AMB_WINDOW = 220
                 _has_contact_bit = False
 
-                def _publish_worn(worn: bool, why: str) -> None:
+                def _publish_worn(worn: bool | None, why: str) -> None:
                     """One publish path for every source of `worn`, so the power bookkeeping cannot
                     diverge between them. The `_WORN_SINCE` handling mirrors the HR branch exactly: set
                     ONCE on the first not-worn and left alone, because `should_drop_not_worn` measures
                     CONTINUOUS not-worn time and restarting the clock each window means the grace never
-                    elapses and the drop never fires."""
-                    _set(name, worn=worn, last_error=None if worn else why)
-                    if worn:
+                    elapses and the drop never fires.
+
+                    ⚠️ `None` IS PUBLISHED, NOT SKIPPED, AND THAT IS WHY THIS TAKES `bool | None`.
+                    The previous signature was `bool` and the caller simply did not call it when the
+                    detector abstained. But `_set` only ever UPDATES, so declining to publish leaves the
+                    LAST verdict standing for as long as the process lives. Measured 2026-08-13: the
+                    176 Hz domain refusal fired correctly on every negotiation, nothing cleared `worn`,
+                    and the card read `worn: True` for ten hours while the armband streamed 496 MB into
+                    a desk. An abstention that cannot be seen is worse than a wrong answer, because a
+                    wrong answer can at least be contradicted.
+
+                    `None` also CLEARS any running not-worn clock: a grace period started under one
+                    detector must not keep counting once that detector has stopped speaking, or a
+                    device gets dropped on evidence nothing is still asserting."""
+                    _set(name, worn=worn, worn_why=why,
+                         last_error=None if worn is not False else why)
+                    if worn is not False:
                         _WORN_SINCE.pop(addr, None)
                     elif addr not in _WORN_SINCE:
                         _WORN_SINCE[addr] = _time.monotonic()
@@ -1804,6 +1819,10 @@ async def run_polar(dev: dict, root: str):
                     # (Declared here rather than in the enclosing scope precisely so it cannot go stale
                     # — a verdict from a frame two minutes ago is not a verdict about now.)
                     _ppi_contact: bool | None = None
+                    # The RAW flag byte as well as the decoded verdict: `worn_verdict` re-decodes it so
+                    # the combiner owns the "is this bit even supported" rule rather than inheriting an
+                    # already-collapsed answer. Keeping both costs nothing and keeps one decoder.
+                    _ppi_flags = None
                     for smp in samples:
                         v = smp.values
                         if meas == pmd.ECG:    wr.write_ecg(smp.phone, smp.sensor_ns, smp.t_ms, v[0])
@@ -1820,6 +1839,7 @@ async def run_polar(dev: dict, root: str):
                             wr.write_ppi(smp.phone, smp.sensor_ns, v[0], v[1], v[2], v[3])
                             # The device's OWN contact bit, from the stream that actually carries one.
                             _ppi_contact = ppi_contact(v[3])
+                            _ppi_flags = v[3]
                     # ── WORN, FROM THE OPTICAL SIGNAL (telemetry.optical_worn) ──────────────────
                     # A device that declares no skin-contact bit never gets a `worn` verdict from the
                     # HR path — the Verity says `contact_supported: false` and emits 1 Hz of 0000
@@ -1842,25 +1862,24 @@ async def run_polar(dev: dict, root: str):
                     # reports the real thing (desk 0/31877, worn 1/20957 — telemetry.ppi_contact). A
                     # measurement beats an inference, so when PPI is a configured stream it decides and
                     # the ambient heuristic never runs.
-                    if _ppi_contact is not None and not _has_contact_bit:
-                        _worn = _ppi_contact
+                    if (_ppi_contact is not None or len(_amb) >= _AMB_WINDOW) and not _has_contact_bit:
+                        # ONE COMBINER, EVERY DETECTOR — telemetry.worn_verdict. Previously this branch
+                        # ran exactly one heuristic (ambient LEVEL) with exactly one calibration domain
+                        # (55 Hz), so at 176 Hz there was no verdict at all and, worse, no way to tell:
+                        # the abstention was silent and the previous value stood.
+                        #
+                        # PASS THE NEGOTIATED RATE, or every domain check is inert. The level detector
+                        # is calibrated at 55 Hz and the stability detector at 176 Hz — the two ambient
+                        # regimes are opposite (worn is DARK at 55 Hz, worn is PEGGED-AND-QUIET at 176),
+                        # which is why they are separate detectors and not one widened threshold.
+                        # `stream_fs` is what the device actually AGREED to, not what the config asked
+                        # for, and only the agreed number describes these samples.
+                        _worn, _why = worn_verdict(ppi_flags=_ppi_flags, ambient=list(_amb),
+                                                   fs=stream_fs.get(pmd.PPG))
                         _amb.clear()
-                        _publish_worn(_worn, "not worn — the device's PPI contact bit says off-body")
-                    elif len(_amb) >= _AMB_WINDOW and not _has_contact_bit:
-                        # PASS THE NEGOTIATED RATE, or the domain check is inert. The calibration was
-                        # measured at 55 Hz and at 176 the ambient channel pegs — same worn wrist,
-                        # opposite verdict. `stream_fs` is what the device actually agreed to, not what
-                        # the config asked for, which is the only number that describes these samples.
-                        # PASS THE NEGOTIATED RATE, or the domain check is inert. The calibration was
-                        # measured at 55 Hz and at 176 the ambient channel pegs — same worn wrist,
-                        # opposite verdict. `stream_fs` is what the device actually agreed to, not what
-                        # the config asked for, which is the only number that describes these samples.
-                        # Out of domain ⇒ None ⇒ nothing is published; the operator was told why at
-                        # negotiation time, not here (this runs every window).
-                        _worn = optical_worn(list(_amb), fs=stream_fs.get(pmd.PPG))
-                        _amb.clear()
-                        if _worn is not None:
-                            _publish_worn(_worn, "not worn — optical ambient says off-body")
+                        # Published unconditionally, INCLUDING None. See _publish_worn: skipping the
+                        # publish is what let a stale `True` survive ten hours of desk streaming.
+                        _publish_worn(_worn, _why)
                     # Live push — RAW, per-stream shape (no on-box DSP):
                     key, hz = _live_key(pmd.MEAS_NAME[meas], tag), stream_fs.get(meas) or pmd.SAMPLE_HZ.get(meas)
                     # The frame's LAST sample on the DEVICE's own counter. `effFs` is measured off this
