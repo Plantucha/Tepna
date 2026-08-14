@@ -2754,6 +2754,179 @@
     };
   }
 
+  /* ── PER-BEAT alignment against the strap's OWN detector (2026-08-13) ───────────────────────────
+     `validateRR` above compares WHOLE-RECORD summaries — beats, mean, RMSSD, SDNN. Those agree on a
+     night whose beat-to-beat correspondence has quietly fallen apart, because a summary is invariant
+     to which beat matched which. This pairs them BEAT BY BEAT, which is a different and stricter
+     question, and it is the one that exposes a decaying match.
+
+     WHY INDEX ALIGNMENT AND NOT TIMESTAMPS. The H10 `_RR.txt` header is `Phone timestamp;RR-interval
+     [ms]` — the stamps are ARRIVAL times, so differencing against them measures BLE batching, not the
+     detector. Measured on 2026-08-10: arrival-gap minus device-reported RR has median −79 ms, SD
+     299 ms, p1–p99 spread 1275 ms. If the intervals were arrival-differenced that would be ~0; it is
+     Polar's RR batching. So the VALUES are device-measured even though the AXIS is not, and the
+     correct move is to ignore the stamps entirely and align the two interval series by INDEX.
+     (A first attempt reconstructed the device train by cumulating from one arrival-stamped anchor. It
+     drifted 510 ms across a night and paired 63.6 %. Index alignment needs no axis, so the
+     arrival-only header stops mattering — which is also why the same exclusion applied to PpgDex's
+     `_PPI.txt` is about the AXIS, not about the intervals.)
+
+     ⚠️ A SINGLE GLOBAL OFFSET IS NOT SUFFICIENT, AND ASSUMING ONE FLATTERS THE RESULT. The two trains
+     differ by a handful of beats over a night (17 848 self vs 17 881 device on the reference file), and
+     that surplus is NOT necessarily at the ends. If any of it is distributed, the pairing decays with
+     beat index and every downstream statistic is computed on progressively mismatched pairs. Measured
+     on that same file: the best offset re-fits to 35 on the first two thirds and 33 on the last, and
+     the median |self − device| interval difference by decile runs
+
+         2.36  2.33  2.22  2.27  2.31  |  16.93  17.26  25.94  27.76  30.79   ms
+         (p90: 5.4 ... 5.6 flat)       |  (p90 rising to 91.0)
+
+     — flat for half the night, then climbing monotonically. The whole-night median still reads a
+     healthy 4.88 ms and the beat COUNTS still match to 33 in 17 848, so neither `validateRR` nor any
+     existing gate can see it. Only the index-vs-index view can.
+     Therefore the offset is re-fitted per window and the decay is REPORTED, never averaged over. A
+     comparison whose pairing silently degrades produces a number rather than an error, which is the
+     failure mode this suite keeps paying for. */
+  const RR_ALIGN_MAX_OFFSET = 60; // beats; beyond this the two files are not the same recording
+  const RR_ALIGN_MIN_PAIRS = 300; // per window, for a median to mean anything
+  const RR_ALIGN_WINDOWS = 10; // deciles — enough to see a trend, few enough to stay populated
+  const RR_ALIGN_PLAUSIBLE_MS = 500; // a pair further apart than this is not the same beat
+  function _rrBestOffset(selfNN, dev, lo, hi) {
+    let bo = null,
+      bs = Infinity;
+    for (let off = -RR_ALIGN_MAX_OFFSET; off <= RR_ALIGN_MAX_OFFSET; off++) {
+      const d = [];
+      for (let i = Math.max(lo, -off); i < Math.min(hi, dev.length - off); i++) {
+        const v = selfNN[i] - dev[i + off];
+        if (Math.abs(v) < RR_ALIGN_PLAUSIBLE_MS) d.push(Math.abs(v));
+      }
+      if (d.length < RR_ALIGN_MIN_PAIRS) continue;
+      d.sort((a, b) => a - b);
+      const med = d[d.length >> 1];
+      if (med < bs) {
+        bs = med;
+        bo = off;
+      }
+    }
+    return bo == null ? null : { offset: bo, medianAbsMs: +bs.toFixed(2) };
+  }
+  function alignFirmwareRR(selfNN, deviceRR, opts) {
+    /* THE RELATIVE TEST NEEDS AN ABSOLUTE FLOOR, or it calls sub-sample noise a defect. Two detectors
+       reading the same ECG cannot disagree by less than the sampling interval in any meaningful sense —
+       an R-peak lands on a sample. Observed: one file rises 2.27 -> 6.96 ms, a 3.07x jump that trips a
+       purely relative rule, while 6.96 ms is still INSIDE one sample at 130.04 Hz (7.69 ms). Against
+       that, the genuine decays reach 25-50 ms, i.e. 3-7 samples. So a window must exceed BOTH 3x the
+       recording's own best AND one sample period to count. `fs` defaults to the H10's nominal rate when
+       the caller does not supply it — the floor is then approximate, which is stated rather than
+       hidden, and a caller with the real `fs` should pass it. */
+    const fs = opts && opts.fs > 0 ? opts.fs : 130;
+    const sampleMs = 1000 / fs;
+    if (!selfNN || !deviceRR || selfNN.length < RR_ALIGN_MIN_PAIRS || deviceRR.length < RR_ALIGN_MIN_PAIRS) return null;
+    const dev = deviceRR.map((d) => d.rr).filter((v) => v > 250 && v < 2500);
+    if (dev.length < RR_ALIGN_MIN_PAIRS) return null;
+    const N = selfNN.length;
+    const whole = _rrBestOffset(selfNN, dev, 0, N);
+    if (!whole) return null;
+    // Re-fit per third. Agreement is the licence to treat one offset as global.
+    const T = Math.floor(N / 3);
+    const thirds = [_rrBestOffset(selfNN, dev, 0, T), _rrBestOffset(selfNN, dev, T, 2 * T), _rrBestOffset(selfNN, dev, 2 * T, N)];
+    // Built explicitly: `.filter(Boolean)` is not a type predicate, so the nulls a refused third
+    // legitimately produces stay in the element type and `.offset` reads as possibly-null.
+    const offs = [];
+    for (const t of thirds) if (t) offs.push(t.offset);
+    const offsetStable = offs.length === 3 && offs[0] === offs[1] && offs[1] === offs[2];
+    // Per-decile |difference| at the global offset: the FAN is what a single median hides.
+    const g = whole.offset,
+      step = Math.floor(N / RR_ALIGN_WINDOWS),
+      byWindow = [];
+    for (let k = 0; k < RR_ALIGN_WINDOWS; k++) {
+      const d = [];
+      for (let i = Math.max(k * step, -g); i < Math.min((k + 1) * step, dev.length - g); i++) {
+        const v = selfNN[i] - dev[i + g];
+        if (Math.abs(v) < RR_ALIGN_PLAUSIBLE_MS) d.push(Math.abs(v));
+      }
+      if (!d.length) {
+        byWindow.push(null);
+        continue;
+      }
+      d.sort((a, b) => a - b);
+      byWindow.push(+d[d.length >> 1].toFixed(2));
+    }
+    const seen = byWindow.filter((v) => v != null);
+    /* THE BASELINE IS THE BEST WINDOW, NOT THE FIRST. Comparing against the first window assumes the
+       degradation is a suffix, and it is not always: on 2026-07-25 the pairing is BAD at the start
+       (17.47, 18.71), clean through the middle (~2.5), and bad again at the end (20.24). Using the
+       first window as the reference made that file's own worst data the yardstick, so nothing exceeded
+       3x it and the verdict read "uniform". The minimum is what the strap achieves when the match
+       holds, which is the only per-recording baseline that survives a bad start, a bad end, or both.
+       Per-recording rather than a fixed bound because a noisier strap simply starts higher, and that
+       is not a decay. 3x separates the two populations actually observed: the flat regions sit at
+       2.0-2.8 ms across every file, the degraded ones at 13-31. */
+    const best = seen.length ? Math.min.apply(null, seen) : null;
+    const worst = seen.length ? Math.max.apply(null, seen) : null;
+    /* TOLERANCE IS THE LOOSER OF (3x best) AND ONE SAMPLE. Two reasons, and the second is not academic:
+       a difference below the sampling interval is not a detectable disagreement at all, and a very good
+       match drives 3x best toward zero — on a synthetic with an exact match it IS zero, so a purely
+       relative band would call a perfect recording non-uniform. */
+    // Infinity, not null, when there is nothing to compare: it keeps `tol` a NUMBER so every later
+    // comparison is total, and an empty window set makes both branches below false anyway.
+    const tol = best != null ? Math.max(3 * best, sampleMs) : Infinity;
+    const nonUniform = best != null && worst != null && worst > tol;
+    /* The LONGEST CONTIGUOUS RUN within tolerance, not a prefix — same reason. A consumer wanting one
+       trustworthy stretch needs where it is, not merely how long it is, so both ends are reported. */
+    // -1 sentinels rather than nulls: the run length is the comparison, and tracking it as a NUMBER
+    // avoids arithmetic on possibly-null bounds (which `checkJs` cannot narrow through a short-circuit).
+    let runFrom = -1,
+      runTo = -1,
+      bestLen = 0,
+      curFrom = -1;
+    for (let k = 0; k <= byWindow.length; k++) {
+      const w = k < byWindow.length ? byWindow[k] : null; // hoisted: element access is not narrowed
+      const okk = w != null && w <= tol;
+      if (okk && curFrom < 0) curFrom = k;
+      if (!okk && curFrom >= 0) {
+        const len = k - curFrom;
+        if (len > bestLen) {
+          bestLen = len;
+          runFrom = curFrom;
+          runTo = k - 1;
+        }
+        curFrom = -1;
+      }
+    }
+    const decayed = nonUniform;
+    return {
+      offset: g,
+      medianAbsMs: whole.medianAbsMs,
+      nSelf: N,
+      nDevice: dev.length,
+      beatSurplus: dev.length - N,
+      offsetPerThird: thirds.map((t) => (t ? t.offset : null)),
+      offsetStable,
+      medianAbsByWindow: byWindow,
+      /* TRUE ⇒ the beat correspondence degrades through the recording, so any whole-record statistic
+         derived from these pairs is computed on progressively mismatched beats. Reported, never
+         silently corrected: which SIDE is dropping beats is not determinable from the intervals alone,
+         and guessing it would fabricate the more interesting half of the answer. */
+      /* THE MEDIAN FAN IS THE VERDICT; the offset disagreement is REPORTED BESIDE IT, not folded in.
+         They are different observations and OR-ing them made the weaker one dominate: a one-beat offset
+         difference between thirds is common when every window is already sub-sample, and flagging that
+         as a decay fires on recordings where nothing is wrong. Where a distributed surplus is real, the
+         fan appears too (2026-08-10 shows BOTH: offsets 35/35/33 and medians 2.2 -> 30.8). */
+      pairingDecays: decayed,
+      /* The prefix over which the pairing IS trustworthy — a consumer wanting one number should use
+         this range rather than the whole record. Null when nothing decayed (use everything). */
+      /* Window indices (0-based, inclusive) of the longest stretch whose pairing holds. Null when the
+         whole record is uniform — use everything. A bad START is why this is a range and not a count. */
+      stableWindowRange: nonUniform && bestLen > 0 ? [runFrom, runTo] : null,
+      medianAbsBestMs: best,
+      medianAbsWorstMs: worst,
+      // The resolution floor the verdict used, so a reader can see what "disagreement" was measured against.
+      sampleMs: +sampleMs.toFixed(2),
+      note: 'per-beat index alignment; the H10 _RR.txt axis is ARRIVAL-stamped so timestamps are deliberately unused — only the interval VALUES are device-measured'
+    };
+  }
+
   // ─── self-HR vs device-HR cross-check ────────────────────────────────────────
   function _rollMedian(x, win) {
     const n = x.length,
@@ -3827,6 +4000,7 @@
     analyze,
     classifyMode,
     validateRR,
+    alignFirmwareRR,
     validateHR,
     accAnalyze,
     accExtras,
@@ -4552,6 +4726,51 @@
       ganglior_events: events,
       reserved: { doc: 'Awaiting other fleet nodes; null until available.' }
     };
+    /* SELF vs FIRMWARE — ON THE INTEGRATOR-FACING SURFACE, which is the whole point. `validateRR` has
+       always been computed and shown in `valCard`, then discarded: it reached `ecgdex-app.js buildV2`
+       (the AI-readable export) at most, and NEVER this builder. A cross-node consumer therefore could
+       not see whether ECGDex's own detector agrees with the strap's, while PpgDex publishes the
+       equivalent — an asymmetry with no reason behind it.
+       ⚠️ The builder matters more than the field: `buildNodeExport` is what `trio-batch` writes, what
+       the Integrator reads, and what the equivalence legs re-run. `buildV2` is none of those. A field
+       added to the wrong one is invisible to every consumer AND to the gate that would have said so.
+       ATTACHED ONLY WHEN THERE IS SOMETHING TO REPORT. An absent `_RR.txt` yields no key at all rather
+       than `validation: null` — a null key is still a changed export shape, and every committed fixture
+       lacks the companion, so omission keeps them byte-identical while real recordings gain the field. */
+    if (r.deviceRR && r.deviceRR.length) {
+      const _v = validateRR(r.nn, r.deviceRR);
+      if (_v) {
+        const _al = alignFirmwareRR(r.nn, r.deviceRR, { fs: r.fs });
+        out.validation = {
+          source: 'device-rr',
+          beatsCompared: _v.nSelf,
+          nDevice: _v.nDev,
+          dMeanPct: _v.dMean,
+          dRMSSDPct: _v.dRMSSD,
+          dSDNNPct: _v.dSDNN,
+          devEctopyCorrected: _v.devEctopyCorrected,
+          devRawRMSSD: _v.devRawRMSSD,
+          /* The summary fields above are invariant to WHICH beat matched which, so they stay healthy on
+             a recording whose correspondence has come apart. `alignment.pairingDecays` is the leg that
+             sees it; when true, every summary above is computed over progressively mismatched pairs and
+             `stableWindowRange` names the deciles that are trustworthy. */
+          alignment: _al
+            ? {
+                offset: _al.offset,
+                medianAbsMs: _al.medianAbsMs,
+                beatSurplus: _al.beatSurplus,
+                offsetPerThird: _al.offsetPerThird,
+                offsetStable: _al.offsetStable,
+                medianAbsByWindow: _al.medianAbsByWindow,
+                pairingDecays: _al.pairingDecays,
+                stableWindowRange: _al.stableWindowRange,
+                sampleMs: _al.sampleMs
+              }
+            : null,
+          note: 'self-computed RR (sub-sample-refined Pan-Tompkins) vs the strap firmware RR; both Malik-corrected. Validation lane only — self-RR is never replaced by device RR'
+        };
+      }
+    }
     /* SPARSE COVERAGE — INTEGRATOR-GAP-AWARE-OVERLAP part 2 (the emitter half of DEEP-AUDIT-III §6.2).
        `durSec` says how much signal there is and `endEpochMs` says where the recording ends on the
        clock; NEITHER says WHERE INSIDE that span the signal actually is. On a night of BLE reconnects

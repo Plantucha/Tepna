@@ -24,5 +24,34 @@
   "ganglior_events": [],
   "reserved": {
     "doc": "Awaiting other fleet nodes; null until available."
+  },
+  "validation": {
+    "source": "channel-tch",
+    "channelStability": {
+      "channels": [
+        {
+          "sigmaShortestMs": 7.03,
+          "slope": -1.06
+        },
+        {
+          "sigmaShortestMs": 12.41,
+          "slope": -1.05
+        },
+        {
+          "sigmaShortestMs": 10.31,
+          "slope": -1.03
+        }
+      ],
+      "beatsTripled": 334,
+      "negativeVarianceTaus": 0,
+      "independent": true,
+      "polarity": [
+        -1,
+        -1,
+        -1
+      ],
+      "polarityFlipped": 0,
+      "scope": "per-channel detector NOISE (independent residual only); says nothing about whether all three channels are reading the correct waveform feature"
+    }
   }
 }
