@@ -181,6 +181,50 @@ as a measured rate rather than an argument. It also means the point estimates ab
 the physical replicates, which is exactly why the rate is reported beside them instead of being
 filtered away.
 
+### 2.2 · MEASURED — how much shared error the data REQUIRES, not just how often it complains
+
+§2.1 gives a RATE (41.7 % of replicates non-physical). It does not say how badly. There is a natural
+magnitude and the shipped code already computes it: `integrator-tch.js`'s `correlated()` scans rho
+upward and returns the SMALLEST common correlation that makes the solve physical — the minimum shared
+error consistent with the measurements. `tools/tch-minrho-corpus.mjs` runs it over the corpus.
+
+| | nights |
+|---|---:|
+| classic solve physical on the full night | **24** |
+| classic goes NEGATIVE | **14** |
+| …rescued by a common rho | 14 |
+| …no rho ≤ 0.95 works at all | **0** |
+
+**On the 14 nights where independence fails, the minimum equicorrelation is median 0.54, range
+0.33–0.87.** That is not a marginal violation — on 37 % of nights the data requires that a *majority*
+of the apparent error be shared. Pooled over 11 386 moving-block replicates, 59.5 % need no correlation
+at all and the 95 % range runs to 0.83.
+
+The 40.5 % of replicates needing rho > 0 here and §2.1's 41.7 % non-physical rate are two independent
+computations of the same underlying quantity, and they agree to about a point — which is the only
+cross-check available.
+
+⚠️ **`minRho` is the minimum EQUICORRELATION** — one scalar standing in for three pair covariances.
+`_solveMulti` applies a single rho to all three pairs, and real shared error is unlikely to be equal
+across them (the two optical sensors plausibly share more with each other than either does with the
+chest ECG). So it is neither an upper nor a lower bound on any individual pair. **This is the gap
+Premoli & Tavella's positive-definite constrained solve fills**, and §2.2 is the measurement that
+justifies building it — not a replacement for it.
+
+⚠️ **The point estimate is fragile.** 2026-06-19 needs 0.64 on the full night but has a bootstrap
+median of 0.00; 2026-08-10's classic solve is physical yet its bootstrap median is 0.56. Quote the
+interval, never the night's single value.
+
+**NOTHING NEW WAS IMPLEMENTED, deliberately.** Building the Premoli–Tavella solver before measuring
+with the shipped one is how this repo ended up with two Allan cores.
+
+**A yardstick that is NOT circular.** §1 showed the "direct" residual-correlation measurement to be the
+polarization identity — the same three variances rearranged, so useless for validating the motion
+proxy. `minRho` is derived from those same three variances too, but it is being used differently: as
+the correlation the data DEMANDS, against which an EXTERNAL estimate (the motion proxy) can be checked
+for range and sign. That comparison is a consistency test, not a self-validation, and it is the first
+one available. It is not run here.
+
 **Consequence for the ranking below:** §2's remaining items (Premoli–Tavella's positive-definite
 constrained solve, KLTS intervals) are now better motivated than when this brief was written — a 41.7 %
 non-physical rate is the condition those methods exist for. The bootstrap does not replace them; it
