@@ -39,7 +39,7 @@ def _post(tmp_path, body, monkeypatch, fired=None):
 
 def test_an_unknown_verb_is_a_400_and_fires_NOTHING(tmp_path, monkeypatch):
     fired = []
-    status, body = _post(tmp_path, {"verb": "reboot"}, monkeypatch, fired)
+    status, body = _post(tmp_path, {"verb": "obliterate"}, monkeypatch, fired)
     assert status == 400
     assert body["ok"] is False and "unknown verb" in body["error"]
     assert fired == [], "a refused request must not reach the helper"
@@ -159,3 +159,178 @@ def test_a_deferred_RESTART_fires_the_restart_verb_and_no_other(tmp_path, monkey
         return None
     _serve(app, go)
     assert [v for v, _ in fired] == ["restart"], f"exactly the restart verb, once: {fired}"
+
+
+def test_RELOAD_is_answered_INLINE_with_the_real_output_not_deferred(tmp_path, monkeypatch):
+    """The mirror of the STATUS test, for the same reason and a sharper one: a deferred reload would
+    report nothing about the only two questions the verb exists to answer — whether a reload was owed,
+    and whether it cleared. `reload` does not stop this server, so there is nothing to defer for."""
+    seen = []
+
+    def _fake_run(verb, minutes=None, **kw):
+        seen.append((verb, minutes))
+        return {"ok": True, "verb": verb,
+                "detail": "tepna-capture.service: unit files re-read — a reload WAS owed"}
+
+    monkeypatch.setattr(daemon_control, "run", _fake_run)
+    app, *_ = _mk(tmp_path, devices=[], status={})
+
+    async def go(c):
+        r = await c.post("/api/daemon", json={"verb": "reload"})
+        return r.status, await r.json()
+    status, body = _serve(app, go)
+    assert status == 200 and body["ok"] is True
+    assert "WAS owed" in body["detail"], "the helper's real answer must reach the caller"
+    assert seen == [("reload", None)], "reload must run DURING the request, not after it"
+    assert "scheduled_in_s" not in body, "an inline verb has nothing scheduled — saying so would lie"
+
+
+def test_REBOOT_is_REFUSED_while_a_sensor_is_streaming_and_names_which(tmp_path, monkeypatch):
+    """⚠️ A REBOOT AT 02:00 COSTS THE NIGHT. The guard is server-side, not a browser confirm: it reads
+    real device state, so a direct API call is refused too. It NAMES what is live, because "refused" on
+    its own tells the operator nothing about whether to force it."""
+    fired = []
+    app, *_ = _mk(tmp_path, devices=[{"name": "H10", "address": "AA"}],
+                  status={"H10": {"connected": True}})
+    monkeypatch.setattr(daemon_control, "run",
+                        lambda verb, minutes=None, **kw: fired.append(verb))
+
+    async def go(c):
+        r = await c.post("/api/daemon", json={"verb": "reboot"})
+        return r.status, await r.json()
+    status_code, body = _serve(app, go)
+    assert status_code == 409, "a state conflict, not a malformed request"
+    assert body["ok"] is False and body["live"] == ["H10"]
+    assert "H10" in body["error"] and "force" in body["error"]
+    assert fired == [], "nothing may have been scheduled"
+
+
+def test_REBOOT_with_force_is_allowed_and_still_answers_before_it_fires(tmp_path, monkeypatch):
+    """`force` is an explicit act, not a bypass — the caller was told what was live and said it anyway.
+    Anyone who could route around this already has sudo and could reboot the box directly."""
+    fired = []
+    app, *_ = _mk(tmp_path, devices=[{"name": "H10", "address": "AA"}],
+                  status={"H10": {"connected": True}})
+    monkeypatch.setattr(daemon_control, "run",
+                        lambda verb, minutes=None, **kw: fired.append(verb))
+
+    async def go(c):
+        r = await c.post("/api/daemon", json={"verb": "reboot", "force": True})
+        return r.status, await r.json()
+    status_code, body = _serve(app, go)
+    assert status_code == 200 and body["ok"] is True
+    assert "capture resumes on boot" in body["detail"]
+    assert fired == [], "a reboot kills this server — it must be answered first"
+
+
+def test_REBOOT_is_allowed_with_nothing_connected_without_forcing(tmp_path, monkeypatch):
+    """The mirror image, so the guard cannot fire on everything and train the operator to always force."""
+    app, *_ = _mk(tmp_path, devices=[{"name": "H10", "address": "AA"}],
+                  status={"H10": {"connected": False}})
+    monkeypatch.setattr(daemon_control, "run", lambda verb, minutes=None, **kw: None)
+
+    async def go(c):
+        r = await c.post("/api/daemon", json={"verb": "reboot"})
+        return r.status, await r.json()
+    status_code, body = _serve(app, go)
+    assert status_code == 200 and body["ok"] is True
+
+
+def test_the_USB_PORT_COMES_FROM_CONFIG_and_a_port_in_the_BODY_IS_IGNORED(tmp_path, monkeypatch):
+    """⚠️ THE SECURITY PROPERTY OF `rebind`, and it was untested until a surviving mutant said so.
+
+    `rebind` unbinds and re-binds a USB device as root. The helper's real allowlist is the device CLASS
+    it reads off the hardware, so a hostile port cannot reach a non-radio — but the fixed-surface pattern
+    exists so that a REQUEST cannot name the target at all. The body's value must therefore be discarded
+    and replaced, not merely defaulted from; those two differ only when an attacker supplies one, which
+    is the only case that matters.
+
+    Written after mutating the handler to take the port from the body: every other test still passed."""
+    seen = []
+    app, cfg, *_ = _mk(tmp_path, devices=[], status={})
+    cfg["watchdog"] = {"usb_path": "1-2"}
+    monkeypatch.setattr(daemon_control, "run",
+                        lambda verb, minutes=None, **kw: seen.append((verb, minutes)) or
+                        {"ok": True, "verb": verb, "detail": "re-bound"})
+
+    async def go(c):
+        r = await c.post("/api/daemon", json={"verb": "rebind", "minutes": "9-9"})
+        return r.status, await r.json()
+    status_code, body = _serve(app, go)
+    assert status_code == 200 and body["ok"] is True
+    assert seen == [("rebind", "1-2")], f"the CONFIG port, never the body's: {seen}"
+
+
+def test_rebind_is_REFUSED_when_the_box_has_no_configured_adapter_port(tmp_path, monkeypatch):
+    """No `watchdog.usb_path` means this box has no adapter to re-bind. Refuse and say so, rather than
+    fall back to a guess — there is no safe default for "which USB device should I reset as root"."""
+    fired = []
+    app, *_ = _mk(tmp_path, devices=[], status={})
+    monkeypatch.setattr(daemon_control, "run",
+                        lambda verb, minutes=None, **kw: fired.append(verb))
+
+    async def go(c):
+        r = await c.post("/api/daemon", json={"verb": "rebind"})
+        return r.status, await r.json()
+    status_code, body = _serve(app, go)
+    assert status_code == 400 and body["ok"] is False
+    assert "usb_path" in body["error"]
+    assert fired == [], "no port means no call, not a defaulted one"
+
+
+def test_RADIO_is_answered_INLINE_because_it_drops_links_without_killing_this_server(tmp_path, monkeypatch):
+    """`radio` restarts bluetoothd — every BLE link drops, but this process survives, so the helper's
+    real output must come back. It is the rung the adapter watchdog structurally cannot fire itself: a
+    deaf-but-UP adapter is indistinguishable from nobody wearing the sensors."""
+    seen = []
+    monkeypatch.setattr(daemon_control, "run",
+                        lambda verb, minutes=None, **kw: seen.append(verb) or
+                        {"ok": True, "verb": verb, "detail": "bluetooth: active"})
+    app, *_ = _mk(tmp_path, devices=[], status={})
+
+    async def go(c):
+        r = await c.post("/api/daemon", json={"verb": "radio"})
+        return r.status, await r.json()
+    status_code, body = _serve(app, go)
+    assert status_code == 200 and body["detail"] == "bluetooth: active"
+    assert seen == ["radio"], "inline, during the request"
+    assert "scheduled_in_s" not in body
+
+
+def test_DEPLOY_is_answered_INLINE_with_the_report_and_the_restart_flag(tmp_path, monkeypatch):
+    """The whole point of the button: it returns what moved and whether the daemon is still on the old
+    build. Deferring it would return a cheerful 200 carrying neither."""
+    monkeypatch.setattr(daemon_control, "run",
+                        lambda verb, minutes=None, **kw: {"ok": True, "verb": verb,
+                                                          "detail": "updated abc → def\nRESTART-OWED",
+                                                          "restart_owed": True})
+    app, *_ = _mk(tmp_path, devices=[], status={})
+
+    async def go(c):
+        r = await c.post("/api/daemon", json={"verb": "deploy"})
+        return r.status, await r.json()
+    status_code, body = _serve(app, go)
+    assert status_code == 200 and body["ok"] is True
+    assert body["restart_owed"] is True and "updated" in body["detail"]
+    assert "scheduled_in_s" not in body
+
+
+def test_an_inline_verb_gets_ITS_OWN_timeout_not_the_default(tmp_path, monkeypatch):
+    """Found while wiring deploy: the inline path passed no timeout at all, so a network fetch would
+    have been bounded at the systemctl default. The handler must ask `timeout_for`, not hardcode."""
+    seen = {}
+
+    def _fake_run(verb, minutes=None, **kw):
+        seen[verb] = kw.get("timeout")
+        return {"ok": True, "verb": verb, "detail": ""}
+
+    monkeypatch.setattr(daemon_control, "run", _fake_run)
+    app, *_ = _mk(tmp_path, devices=[], status={})
+
+    async def go(c):
+        await c.post("/api/daemon", json={"verb": "deploy"})
+        await c.post("/api/daemon", json={"verb": "status"})
+        return None
+    _serve(app, go)
+    assert seen["deploy"] == daemon_control.DEPLOY_TIMEOUT_S, seen
+    assert seen["status"] == 30.0, seen

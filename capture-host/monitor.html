@@ -461,13 +461,33 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
           <div class="section-title">Daemon control</div>
           <p class="hint">Stream and rate changes only take effect at a device's next connect — restart to
             apply them now. Stopping frees the BLE links for a manual probe; the daemon restarts itself
-            when the timer expires, so a forgotten stop cannot cost a night.</p>
+            when the timer expires, so a forgotten stop cannot cost a night.
+            <b>Reload units</b> is for after a pull changed the systemd unit itself: it re-reads the
+            files and nothing drops, but a <i>restart</i> is still what carries a <code>[Service]</code>
+            change into the running daemon.</p>
           <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-top:.6rem">
             <button class="btn-primary" onclick='daemonRestart(this)'>Restart daemon</button>
             <label class="hint">stop for
               <input id="dmnMin" type="number" min="1" max="480" value="30" style="width:4.2rem"> min</label>
             <button onclick='daemonStop(this)'>Stop capture</button>
+            <button onclick='daemonReload(this)' title="Re-read unit files after a pull changed them. Does not touch the running daemon.">Reload units</button>
             <span class="hint" id="dmnMsg"></span>
+          </div>
+          <!-- THE RECOVERY LADDER, cheapest rung first. The adapter watchdog cannot fire these itself:
+               a deaf-but-UP adapter is indistinguishable from nobody wearing the sensors, which is why
+               these are human buttons and not another automatic rung. -->
+          <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-top:.6rem">
+            <span class="hint">Radio recovery:</span>
+            <button onclick='daemonRadio(this)' title="Restart bluetoothd. Recovered the box on 2026-07-30: 0 → 91 devices seen.">Restart bluetooth</button>
+            <button onclick='daemonRebind(this)' title="USB driver unbind + bind. The only rung that clears an RTL8761B firmware hang.">Re-bind adapter</button>
+            <button onclick='daemonReboot(this)' title="Last rung. Refused while a sensor is streaming unless you confirm.">Reboot box</button>
+          </div>
+          <!-- DEPLOY. The updater already pulls every ~30 min on a timer; what it cannot do is decide to
+               interrupt a recording, so it defers the RESTART and the box runs old code until idle.
+               This button is "pull now, and tell me whether a restart is owed". -->
+          <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-top:.6rem">
+            <span class="hint">Deploy:</span>
+            <button onclick='daemonDeploy(this)' title="Fetch, fast-forward and re-serve the bundles. Never restarts on its own — it reports whether one is owed.">Deploy now</button>
           </div>
         </div>
 
@@ -898,14 +918,18 @@ async function loadAlerts(){
 // The unit being restarted is the one serving this page, so a click ALWAYS ends in a dropped
 // connection. The API answers before it fires; this half has to EXPECT the drop and poll the box back
 // up, or a successful restart is indistinguishable from a crash.
-async function daemonPost(btn, body, pending){
+// `dropsConnection` is EXPLICIT, and defaults to the dangerous case. `reload` does not stop anything,
+// so polling the box back up after it would print "daemon is back" for a drop that never happened —
+// a reassuring message about an event the code did not observe. Undefined still means true, so the
+// two verbs that really do kill this server keep their behaviour unchanged.
+async function daemonPost(btn, body, pending, dropsConnection){
   btn.disabled = true; $('#dmnMsg').textContent = pending;
   try{
     const r = await api('/api/daemon',{method:'POST',headers:{'content-type':'application/json'},
                                        body:JSON.stringify(body)});
     if(!r.ok){ $('#dmnMsg').innerHTML = `<span class="bad">${esc(r.error||'failed')}</span>`; return; }
     $('#dmnMsg').innerHTML = `<span class="ok">${esc(r.detail||'done')}</span>`;
-    await daemonWaitForReturn();
+    if(dropsConnection !== false) await daemonWaitForReturn();
   }catch(e){ $('#dmnMsg').innerHTML = `<span class="bad">${esc(e)}</span>`; }
   finally{ btn.disabled = false; }
 }
@@ -927,6 +951,11 @@ async function daemonWaitForReturn(tries){
 
 function daemonRestart(btn){ return daemonPost(btn, {verb:'restart'}, 'restarting\u2026'); }
 
+// A RELOAD IS NOT A RESTART, and the reply says so rather than leaving the operator to assume. It
+// re-reads unit files after a pull brought a new unit definition; it does not touch the running
+// process, so nothing drops and no [Service] change reaches the daemon until it is also restarted.
+function daemonReload(btn){ return daemonPost(btn, {verb:'reload'}, 'reloading unit files\u2026', false); }
+
 // SHOW WHAT IS LIVE BEFORE ACTING. "Stop capture" at 23:00 with three sensors streaming is a different
 // act from the same click at noon, and the button cannot tell them apart — the operator can, given the
 // list. Read at click time rather than from cached state, so it cannot be stale.
@@ -940,6 +969,63 @@ async function daemonStop(btn){
   if(!confirm('Stop capture for ' + mins + ' minutes?\n\n' + what +
               '\n\nThe daemon restarts itself afterwards.')) return;
   return daemonPost(btn, {verb:'stop', minutes:mins}, 'stopping\u2026');
+}
+
+// ── the recovery ladder ─────────────────────────────────────────────────────────────────────────────
+// `radio` and `rebind` take every BLE link down but leave this server running, so they are answered
+// inline and MUST NOT poll the box back up — nothing dropped. `reboot` does end this process.
+function daemonRadio(btn){
+  if(!confirm('Restart the Bluetooth service?\n\nEvery sensor link drops and has to reconnect. This is the ' +
+              'rung for an adapter that is UP but deaf — it recovered this box on 2026-07-30 (0 → 91 devices seen).')) return;
+  return daemonPost(btn, {verb:'radio'}, 'restarting bluetooth\u2026', false);
+}
+
+function daemonRebind(btn){
+  if(!confirm('Re-bind the USB Bluetooth adapter?\n\nDriver unbind + bind — the rung ABOVE restarting ' +
+              'bluetoothd, and the only thing that clears a controller firmware hang. All links drop.\n\n' +
+              'The port comes from this box\u2019s config, and the helper refuses anything that is not a ' +
+              'Bluetooth radio.')) return;
+  return daemonPost(btn, {verb:'rebind'}, 're-binding adapter\u2026', false);
+}
+
+// REBOOT ASKS THE SERVER WHAT IS LIVE, rather than trusting the page's cached state. The 409 carries the
+// list, so the confirm can name the sensors that are actually streaming — "are you sure?" with no
+// specifics is the prompt everyone clicks through.
+async function daemonReboot(btn){
+  btn.disabled = true; $('#dmnMsg').textContent = 'checking what is live\u2026';
+  try{
+    const r = await api('/api/daemon',{method:'POST',headers:{'content-type':'application/json'},
+                                       body:JSON.stringify({verb:'reboot'})});
+    if(r.ok){ $('#dmnMsg').innerHTML = `<span class="ok">${esc(r.detail||'rebooting')}</span>`;
+              await daemonWaitForReturn(90); return; }
+    if(!r.live){ $('#dmnMsg').innerHTML = `<span class="bad">${esc(r.error||'failed')}</span>`; return; }
+    if(!confirm('STREAMING RIGHT NOW: ' + r.live.join(', ') +
+                '\n\nA reboot ends tonight\u2019s recording for those sensors. Reboot anyway?')) {
+      $('#dmnMsg').textContent = 'cancelled'; return;
+    }
+  }catch(e){ $('#dmnMsg').innerHTML = `<span class="bad">${esc(e)}</span>`; return; }
+  finally{ btn.disabled = false; }
+  return daemonPost(btn, {verb:'reboot', force:true}, 'rebooting\u2026', true);
+}
+
+// DEPLOY IS TWO CLICKS ON PURPOSE. `--no-restart` means the response survives to be read, so the
+// operator learns what moved and whether the daemon is still on the old build. Restarting inline would
+// kill the server writing that answer, and a deploy that WORKED would present as a dropped connection.
+async function daemonDeploy(btn){
+  btn.disabled = true; $('#dmnMsg').textContent = 'fetching and fast-forwarding\u2026';
+  let r;
+  try{
+    r = await api('/api/daemon',{method:'POST',headers:{'content-type':'application/json'},
+                                 body:JSON.stringify({verb:'deploy'})});
+  }catch(e){ $('#dmnMsg').innerHTML = `<span class="bad">${esc(e)}</span>`; return; }
+  finally{ btn.disabled = false; }
+  if(!r.ok){ $('#dmnMsg').innerHTML = `<span class="bad">${esc(r.error||'deploy failed')}</span>`; return; }
+  $('#dmnMsg').innerHTML = `<span class="ok">${esc(r.detail||'up to date')}</span>`;
+  // `restart_owed` is a FLAG from the server, not this page grepping the text for a marker.
+  if(!r.restart_owed) return;
+  if(!confirm('New code is on disk, and the daemon is still running the old build.\n\n' +
+              'Restart it now? Sensor links drop for a few seconds and reconnect.')) return;
+  return daemonPost(btn, {verb:'restart'}, 'restarting\u2026');
 }
 
 async function postAlerts(btn, body, verb){

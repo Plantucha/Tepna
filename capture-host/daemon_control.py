@@ -24,23 +24,69 @@
 # long to wait before reconnecting. That ordering is the whole reason this is not three lines inline.
 from __future__ import annotations
 
+import re
 import subprocess
 
 import helper_path
 
 HELPER = "tepna-restart.sh"
+# The adapter re-bind rung lives in its OWN helper, and the two allowlists are disjoint on purpose:
+# tepna-btreset.sh may touch ONLY Bluetooth radios (USB class e0:01:01, read off the device, never from
+# the argument), tepna-usbreset.sh ONLY a docked Polar. Merging them would build a "reset any USB device
+# as root" primitive — a denial-of-service surface the fixed-helper pattern exists to not have.
+BTRESET = "tepna-btreset.sh"
+# The updater is the ONE helper here that is not privileged: it runs as the capture user, and it
+# deliberately refuses to install /etc or the granted helpers, because root executing freshly-pulled
+# repo code on a schedule would turn a compromise of that user into root by waiting for a tick. So it
+# gets NO sudo, and `_NO_SUDO` is what keeps that visible at the call site rather than implied.
+UPDATER = "tepna-update.sh"
+_NO_SUDO = frozenset({"deploy"})
 
-# The verbs the helper actually implements. `status` is read-only and safe to run inline; `restart` and
-# `stop` end this process, so the HTTP layer must respond before either is fired.
+# Seconds to allow each verb. The default suits a systemctl call; a deploy does a NETWORK fetch, and a
+# real one on this box failed after 300 s of `Connection timed out` — so it needs a bound of its own,
+# large enough to complete and small enough that a wedged fetch does not pin the endpoint forever.
+DEPLOY_TIMEOUT_S = 240.0
+_TIMEOUT = {"deploy": DEPLOY_TIMEOUT_S}
+
+# The marker tepna-update.sh prints when new code is on disk but the daemon still runs the old build.
+# Matched as a token, never by parsing the sentence around it.
+RESTART_OWED = "RESTART-OWED"
+
+# The verbs the helper actually implements. `status` and `reload` do not end this process and so run
+# INLINE, where their real output can be returned; `restart` and `stop` do, so the HTTP layer must
+# respond before either is fired.
+#
+# `reload` re-reads unit files after a `git pull` brings a new unit definition. It is NOT in KILLS_SELF
+# on purpose: `systemctl daemon-reload` re-reads files and does not signal, stop or replace any running
+# service, so deferring it would throw away the one thing the caller asked for — the answer.
 # Maps a REQUESTED verb to the canonical name that goes on the command line, plus its arity. The name
 # is stored, not echoed: `build_cmd` appends THIS string, never the caller's — so the argv is built
 # from module constants even though the lookup key came from an HTTP body. A membership test alone
 # ("if verb in _ARITY") leaves the caller's own object on the command line, which is what CodeQL
 # flagged as py/command-line-injection and what the previous comment here wrongly claimed was not
 # happening.
-_VERBS = {"restart": ("restart", 0), "status": ("status", 0), "stop": ("stop", 1)}
+# verb -> (canonical word on the argv, arity, which helper). The canonical word is STORED, never the
+# caller's string; `rebind` has NO word because its helper takes the port as its only argument.
+_VERBS = {"restart": ("restart", 0, HELPER), "status": ("status", 0, HELPER),
+          "stop": ("stop", 1, HELPER), "reload": ("reload", 0, HELPER),
+          "radio": ("radio", 0, HELPER), "reboot": ("reboot", 0, HELPER),
+          "rebind": ("", 1, BTRESET),
+          # `--no-restart` is a STORED flag, not a caller argument: the button must see the report, and
+          # a deploy that restarted would kill the server writing that report. Forcing is a separate,
+          # explicit act the operator takes afterwards with the Restart button.
+          "deploy": ("--no-restart", 0, UPDATER)}
 _ARITY = {k: v[1] for k, v in _VERBS.items()}
-KILLS_SELF = frozenset({"restart", "stop"})
+KILLS_SELF = frozenset({"restart", "stop", "reboot"})
+
+# Verbs that take every BLE link down without ending this process. They are answered INLINE (the web
+# server survives), but a caller must be told: restarting bluetoothd mid-night drops every sensor, and
+# the reconnect is not instant. Separate from KILLS_SELF because the two need opposite HTTP handling and
+# collapsing them into one flag is how a UI ends up warning about the wrong thing.
+DROPS_LINKS = frozenset({"radio", "rebind"})
+
+# A USB bus-port: digits, one hyphen, optional dotted hub path — `1-2`, `11-1.2`. Anchored, and applied
+# to a value that comes from the SERVER'S CONFIG, never from a request body; see `run`'s docstring.
+_USB_PORT_RE = re.compile(r"^[0-9]+-[0-9]+(\.[0-9]+)*$")
 
 # `stop` takes minutes. Bounded because the helper arms a deadman timer with it: too small is useless,
 # and an unbounded value is an indefinite outage entered by typo. 8 h is longer than any night.
@@ -79,6 +125,18 @@ def coerce_minutes(value, *, default: int = DEFAULT_STOP_MINUTES) -> int:
     return minutes
 
 
+def coerce_usb_port(value) -> str:
+    """PURE. A USB bus-port, or raise. Mirrors tepna-btreset.sh's own regex so the refusal happens on
+    this side of the sudo boundary too — the helper re-validates and additionally checks the device
+    CLASS, which is the real allowlist. Defence in depth, not a substitute for it."""
+    if not isinstance(value, str) or not _USB_PORT_RE.match(value):
+        raise VerbError(f"not a usb bus-port: {value!r} — expected e.g. '1-2'")
+    return value
+
+
+_COERCE = {"stop": coerce_minutes, "rebind": coerce_usb_port}
+
+
 def build_cmd(verb, minutes=None) -> list[str]:
     """PURE. The argv for one helper verb, or raise.
 
@@ -86,10 +144,13 @@ def build_cmd(verb, minutes=None) -> list[str]:
     reaches a command line. Returns a list (never a shell string) so there is no shell to quote for."""
     if verb not in _VERBS:
         raise VerbError(f"unknown verb {verb!r} — expected one of {', '.join(sorted(_VERBS))}")
-    canonical, arity = _VERBS[verb]          # the STORED name, not the caller's string
-    argv = ["sudo", "-n", helper_path.resolve(HELPER), canonical]
+    canonical, arity, helper = _VERBS[verb]  # the STORED name, not the caller's string
+    argv = [] if verb in _NO_SUDO else ["sudo", "-n"]
+    argv.append(helper_path.resolve(helper))
+    if canonical:
+        argv.append(canonical)
     if arity:
-        n = coerce_minutes(minutes)
+        n = _COERCE[verb](minutes)
         # ⚠️ THE BOUND IS RE-ASSERTED HERE, at the point of USE, not only in `coerce_minutes`.
         #
         # Not redundancy for its own sake. The value reaches this line from an HTTP body, and a reader
@@ -104,10 +165,25 @@ def build_cmd(verb, minutes=None) -> list[str]:
         # UNREACHABLE by construction — `coerce_minutes` raises on everything this catches — and kept
         # anyway, because its value is not runtime behaviour: a reader of THIS function needs no other
         # function to trust the next line. Excluded from coverage for the same reason the arm exists.
-        if not isinstance(n, int) or not MIN_STOP_MINUTES <= n <= MAX_STOP_MINUTES:  # pragma: no cover
-            raise VerbError(f"minutes out of range after coercion: {n!r}")
-        argv.append("%d" % n)
+        if isinstance(n, str):
+            # A usb bus-port. Re-asserted at the point of USE for the same reason the int bound is: a
+            # reader of THIS function must not have to follow the value into another one to see that it
+            # cannot carry a metacharacter, a space or a path.
+            if not _USB_PORT_RE.match(n):  # pragma: no cover
+                raise VerbError(f"usb port failed re-validation: {n!r}")
+            argv.append(n)
+        else:
+            if not isinstance(n, int) or not MIN_STOP_MINUTES <= n <= MAX_STOP_MINUTES:  # pragma: no cover
+                raise VerbError(f"minutes out of range after coercion: {n!r}")
+            argv.append("%d" % n)
     return argv
+
+
+def timeout_for(verb, default: float = 30.0) -> float:
+    """PURE. The bound for one verb. A deploy fetches over the network and needs longer than a
+    systemctl call; giving every verb the long bound instead would let a wedged helper pin the control
+    endpoint for four minutes, which is the opposite of what the bound is for."""
+    return _TIMEOUT.get(verb, default)
 
 
 def run(verb, minutes=None, *, timeout: float = 30.0, runner=subprocess.run) -> dict:
@@ -131,7 +207,13 @@ def run(verb, minutes=None, *, timeout: float = 30.0, runner=subprocess.run) -> 
         return {"ok": False, "verb": verb, "error": f"helper did not return within {timeout:g}s"}
     out = ((r.stdout or "") + (r.stderr or "")).strip()
     if r.returncode == 0:
-        return {"ok": True, "verb": verb, "detail": out[-400:]}
+        res = {"ok": True, "verb": verb, "detail": out[-400:]}
+        if verb == "deploy":
+            # A FLAG, not a sentence for the caller to parse. The UI has to decide whether to offer a
+            # restart, and `RESTART_OWED in detail` at the call site would break the next time the
+            # helper's wording improves — the coupling this token exists to prevent.
+            res["restart_owed"] = RESTART_OWED in out
+        return res
     hint = ""
     if "password" in out.lower() or "sudo:" in out.lower():
         hint = (" — the NOPASSWD grant for " + HELPER + " is missing on this host; this is a DEPLOY "

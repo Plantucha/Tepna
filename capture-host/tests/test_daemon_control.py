@@ -76,9 +76,14 @@ def test_the_range_is_inclusive_at_both_ends_and_REFUSES_beyond_them():
 
 def test_an_unknown_verb_is_REFUSED_and_never_reaches_an_argv():
     with pytest.raises(dc.VerbError):
-        dc.build_cmd("reboot")
+        dc.build_cmd("obliterate")
     with pytest.raises(dc.VerbError):
         dc.build_cmd("restart; rm -rf /")
+    # `reboot` USED to be the example here, and became a real verb in the recovery-rungs change. Kept as
+    # a note rather than quietly swapped: the example must be something that will never be implemented,
+    # or this test decays into asserting the allowlist contains whatever it happens to contain.
+    with pytest.raises(dc.VerbError):
+        dc.build_cmd("shutdown")
 
 
 def test_the_argv_is_a_LIST_so_there_is_no_shell_to_quote_for():
@@ -162,8 +167,13 @@ def test_a_HUNG_helper_is_bounded_and_says_so():
 def test_the_verbs_that_kill_this_process_are_declared():
     """`KILLS_SELF` is what the HTTP layer branches on to decide answer-then-fire. `status` must not be
     in it, or a harmless read would be deferred and never reported."""
-    assert dc.KILLS_SELF == {"restart", "stop"}
+    assert dc.KILLS_SELF == {"restart", "stop", "reboot"}
     assert "status" not in dc.KILLS_SELF
+    # `radio` and `rebind` take every BLE LINK down but leave this process alive, so they are answered
+    # inline. Conflating "drops the links" with "ends this server" would defer them and throw away the
+    # helper's real output — the exact mistake DROPS_LINKS exists to keep separate.
+    assert dc.DROPS_LINKS == {"radio", "rebind"}
+    assert not (dc.DROPS_LINKS & dc.KILLS_SELF), "a verb cannot be both — they need opposite handling"
 
 
 def test_run_PASSES_MINUTES_THROUGH_to_the_command_it_builds():
@@ -188,3 +198,121 @@ def test_HOW_the_helper_is_invoked_is_asserted_not_just_THAT_it_is():
     assert r.kw.get("capture_output") is True, "output is needed for `detail` and the sudoers hint"
     assert r.kw.get("text") is True, "bytes would break the substring checks in `run`"
     assert r.kw.get("timeout") == 17.0, "the caller's timeout must reach subprocess, or it cannot bound"
+
+
+# ── reload — re-read unit files after a pull changed them ────────────────────────────────────────────
+
+def test_reload_is_a_ZERO_ARITY_verb_and_carries_no_minutes():
+    """Arity is per verb. `reload` takes none, so a stray `minutes` must not reach the command line —
+    the helper would reject it, but the argv should never have carried it in the first place."""
+    assert dc.build_cmd("reload") == dc.build_cmd("reload", None)
+    assert dc.build_cmd("reload")[-1] == "reload"
+    assert "480" not in dc.build_cmd("reload", 480), "a zero-arity verb must ignore minutes entirely"
+
+
+def test_reload_does_NOT_kill_this_process_so_it_must_run_INLINE():
+    """⚠️ THE PROPERTY THAT DECIDES WHETHER THE BUTTON IS USEFUL AT ALL.
+
+    `daemon-reload` re-reads unit FILES. It does not signal, stop or replace any running service, so
+    this web server survives it — and therefore it must be answered inline, with the helper's real
+    output. Deferring it would return a cheerful 200 carrying nothing, for a verb whose entire value is
+    the answer (was a reload owed? did it clear?). That is the silent-success shape this suite exists
+    to catch, and putting `reload` in KILLS_SELF is the one edit that would reintroduce it."""
+    assert "reload" not in dc.KILLS_SELF
+    assert dc.KILLS_SELF == {"restart", "stop", "reboot"}, "exactly those that end this process, no more"
+
+
+def test_reload_reports_the_helpers_real_answer_including_whether_one_was_OWED():
+    """The helper distinguishes 'a reload was owed' from 'nothing had changed', because those mean
+    different things to an operator. `run` must pass that through rather than flattening it to 'ok'."""
+    r = _Ran(0, "tepna-capture.service: unit files re-read — none was owed, nothing on disk had changed")
+    got = dc.run("reload", runner=r)
+    assert got["ok"] is True and got["verb"] == "reload"
+    assert "none was owed" in got["detail"], got
+    assert r.argv[-1] == "reload"
+
+
+# ── the recovery rungs: radio · rebind · reboot ──────────────────────────────────────────────────────
+
+def test_rebind_uses_the_OTHER_helper_and_passes_the_port_as_its_only_argument():
+    """tepna-btreset.sh takes a bus-port and no verb word. The two helpers' allowlists are disjoint on
+    purpose — btreset may touch ONLY Bluetooth radios, usbreset ONLY a docked Polar — so `rebind` must
+    resolve to btreset and never to the restart helper."""
+    argv = dc.build_cmd("rebind", "1-2")
+    assert dc.BTRESET in argv[2] and dc.HELPER not in argv[2]
+    assert argv[3:] == ["1-2"], f"the port is the whole argument list, with no verb word: {argv}"
+
+
+@pytest.mark.parametrize("bad", ["1-2; rm -rf /", "../../etc/shadow", "", "1-2 3", "1-2\n4",
+                                 None, 12, "-2", "1-"])
+def test_a_usb_port_that_is_not_a_BUS_PORT_never_reaches_the_command_line(bad):
+    """The helper re-validates and additionally checks the device CLASS off the hardware — that is the
+    real allowlist. This is the near side of the sudo boundary, refusing before the call is made."""
+    with pytest.raises(dc.VerbError):
+        dc.build_cmd("rebind", bad)
+
+
+def test_radio_and_reboot_are_zero_arity_on_the_restart_helper():
+    assert dc.build_cmd("radio") == dc.build_cmd("radio", None)
+    assert dc.build_cmd("radio")[-1] == "radio"
+    assert dc.build_cmd("reboot")[-1] == "reboot"
+    assert dc.HELPER in dc.build_cmd("reboot")[2]
+
+
+def test_reboot_ENDS_this_process_and_radio_rebind_do_NOT():
+    """⚠️ THE DISTINCTION THAT DECIDES HTTP HANDLING, and it is not "is this dangerous".
+
+    A reboot ends the process writing the reply, so it must be answered before it fires. Restarting
+    bluetoothd or re-binding the adapter takes every BLE link down — arguably a bigger deal mid-night —
+    but leaves this server running, so they are answered INLINE with the helper's real output. Sorting
+    them by danger instead of by "does it kill the responder" is how a recovery verb ends up returning
+    a cheerful 200 that carries nothing."""
+    assert "reboot" in dc.KILLS_SELF
+    assert "radio" not in dc.KILLS_SELF and "rebind" not in dc.KILLS_SELF
+    assert {"radio", "rebind"} == dc.DROPS_LINKS
+
+
+# ── deploy — the one UNPRIVILEGED verb ──────────────────────────────────────────────────────────────
+
+def test_deploy_runs_WITHOUT_sudo_because_the_updater_is_unprivileged():
+    """⚠️ THE PROPERTY THAT KEEPS THIS SAFE TO AUTOMATE. tepna-update.sh runs as the capture user and
+    refuses to install /etc or the granted helpers — root executing freshly-pulled repo code on a
+    schedule would turn a compromise of that user into root by waiting for a tick. Prefixing it with
+    sudo would hand it exactly the privilege it was written to decline."""
+    argv = dc.build_cmd("deploy")
+    assert argv[0] != "sudo" and "sudo" not in argv, f"the updater must not be elevated: {argv}"
+    assert dc.UPDATER in argv[0]
+    assert argv[1:] == ["--no-restart"], "the button's mode is stored, not caller-supplied"
+
+
+def test_every_OTHER_verb_still_goes_through_sudo():
+    """The mirror image, so `_NO_SUDO` cannot quietly grow and de-elevate a privileged helper."""
+    for verb in sorted(set(dc._VERBS) - {"deploy"}):
+        arg = "1-2" if verb == "rebind" else (5 if verb == "stop" else None)
+        assert dc.build_cmd(verb, arg)[:2] == ["sudo", "-n"], verb
+
+
+def test_deploy_does_NOT_kill_this_server_so_its_report_can_be_read():
+    """`--no-restart` is what makes the answer survive. A deploy that restarted would end the process
+    writing the reply, so the operator would see a dropped connection for a deploy that worked."""
+    assert "deploy" not in dc.KILLS_SELF
+    assert "deploy" not in dc.DROPS_LINKS
+
+
+def test_deploy_gets_a_LONGER_bound_and_the_others_keep_the_short_one():
+    """A deploy fetches over the network — a real run on this box died after 300 s of connection
+    timeout. Giving every verb that bound instead would let a wedged helper pin the control endpoint
+    for four minutes, which is the opposite of what a timeout is for."""
+    assert dc.timeout_for("deploy") == dc.DEPLOY_TIMEOUT_S > 30.0
+    assert dc.timeout_for("status") == 30.0 and dc.timeout_for("restart") == 30.0
+
+
+def test_restart_owed_is_reported_as_a_FLAG_not_left_in_the_prose():
+    """The UI must branch on this, and `"RESTART-OWED" in detail` at the call site would break the next
+    time the helper's wording improves. So the token is matched HERE, once, and published as a bool."""
+    owed = dc.run("deploy", runner=_Ran(0, "updated abc → def\nRESTART-OWED — new code is on disk"))
+    assert owed["ok"] is True and owed["restart_owed"] is True
+    clean = dc.run("deploy", runner=_Ran(0, "up to date at abc123456789 — nothing to do"))
+    assert clean["restart_owed"] is False
+    # and it is a DEPLOY-only key: a restart result carrying it would make the UI offer a second restart
+    assert "restart_owed" not in dc.run("restart", runner=_Ran(0, "ok"))
