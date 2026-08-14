@@ -24,6 +24,8 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from tests._srcscan import module_source  # noqa: E402
+
 import daemon_control as dc  # noqa: E402
 
 
@@ -274,22 +276,41 @@ def test_reboot_ENDS_this_process_and_radio_rebind_do_NOT():
 
 # ── deploy — the one UNPRIVILEGED verb ──────────────────────────────────────────────────────────────
 
-def test_deploy_runs_WITHOUT_sudo_because_the_updater_is_unprivileged():
-    """⚠️ THE PROPERTY THAT KEEPS THIS SAFE TO AUTOMATE. tepna-update.sh runs as the capture user and
-    refuses to install /etc or the granted helpers — root executing freshly-pulled repo code on a
-    schedule would turn a compromise of that user into root by waiting for a tick. Prefixing it with
-    sudo would hand it exactly the privilege it was written to decline."""
+def test_deploy_goes_through_the_ROOT_HELPER_to_escape_the_daemons_mount_namespace():
+    """⚠️ THIS TEST REPLACES ONE THAT ASSERTED A PROXY AND WOULD HAVE PASSED THROUGH A REAL BUG.
+
+    It used to read `test_deploy_runs_WITHOUT_sudo_because_the_updater_is_unprivileged` and assert
+    `"sudo" not in argv`. The reasoning was sound — the updater refuses to install /etc precisely so it
+    never needs root — but "uses no sudo" is not the same claim as "does not run as root", and only the
+    second one matters. Executing the updater directly turned out to be impossible for an unrelated
+    reason: the capture daemon runs `ProtectSystem=strict` with `ReadWritePaths=/srv/tepna
+    /opt/tepna/capture-host`, so `/opt/tepna/.git` is READ-ONLY to anything it spawns and `git fetch`
+    dies on `.git/FETCH_HEAD: Read-only file system`. Measured on the box, first press of the button.
+
+    Sudo alone would not fix it — a mount namespace is not escaped by privilege. The helper's `deploy`
+    verb asks PID 1 for a transient unit instead, and runs the updater under `--uid=vigil` inside it,
+    so the real invariant survives: the updater is still unprivileged. That property is asserted in
+    `test_the_helper_runs_the_updater_as_vigil_not_as_root`, where it can actually be observed."""
     argv = dc.build_cmd("deploy")
-    assert argv[0] != "sudo" and "sudo" not in argv, f"the updater must not be elevated: {argv}"
-    assert dc.UPDATER in argv[0]
-    assert argv[1:] == ["--no-restart"], "the button's mode is stored, not caller-supplied"
+    assert argv[:2] == ["sudo", "-n"], "the helper is what can ask PID 1 for a namespace"
+    assert dc.HELPER in argv[2] and argv[3] == "deploy", argv
 
 
-def test_every_OTHER_verb_still_goes_through_sudo():
-    """The mirror image, so `_NO_SUDO` cannot quietly grow and de-elevate a privileged helper."""
-    for verb in sorted(set(dc._VERBS) - {"deploy"}):
-        arg = "1-2" if verb == "rebind" else (5 if verb == "stop" else None)
-        assert dc.build_cmd(verb, arg)[:2] == ["sudo", "-n"], verb
+def test_the_helper_runs_the_updater_as_vigil_not_as_root():
+    """The invariant the old test was reaching for, asserted where it is actually decided — in the
+    helper's own source. `--uid=vigil` is what keeps a root-executes-freshly-pulled-repo-code path from
+    existing; tepna-update.sh's header is explicit that it must never run as root."""
+    src = module_source("tepna-restart.sh")
+    arm = src[src.index("  deploy)"):src.index("  radio)")]
+    # ⚠️ COMMENTS STRIPPED FIRST, and this is not tidiness. This arm's header explains why `--uid=vigil`
+    # matters, so a bare `"--uid=vigil" in arm` is satisfied by the PROSE and passes while the command
+    # says `--uid=root`. Found by mutating exactly that: the mutant hit the comment, the assertion held,
+    # and the test reported success about a line it never looked at.
+    code = "\n".join(ln for ln in arm.splitlines() if not ln.lstrip().startswith("#"))
+    assert "--uid=vigil" in code, f"the updater must be dropped to the capture user:\n{code}"
+    assert "--uid=root" not in code, "and never raised back to root"
+    assert "systemd-run" in code, "started as a NEW unit, or it inherits the read-only namespace"
+    assert "--no-restart" in code, "the button's mode: report, never restart out from under the reply"
 
 
 def test_deploy_does_NOT_kill_this_server_so_its_report_can_be_read():

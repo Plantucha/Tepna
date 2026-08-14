@@ -21,8 +21,10 @@
 set -uo pipefail
 
 UNIT=tepna-capture.service
+# Where the checkout lives, for `deploy`. A constant, not derived from the caller.
+REPO_DIR="${TEPNA_REPO_DIR:-/opt/tepna}"
 
-usage() { echo "usage: $0 {restart|status|radio|reload|reboot|stop [minutes]}" >&2; exit 2; }
+usage() { echo "usage: $0 {restart|status|radio|reload|reboot|deploy|stop [minutes]}" >&2; exit 2; }
 # Arity is PER VERB: only `stop` takes a second argument. A blanket "1 or 2 args" would quietly accept
 # `restart extra`, and a verb that ignores trailing junk is one that will eventually be handed a typo
 # for the thing the caller actually meant.
@@ -125,6 +127,33 @@ case "$1" in
     # `systemctl reboot` rather than `shutdown -r`: no wall broadcast, no one-minute delay, and it is the
     # same mechanism the deadman timer path already relies on being present.
     systemctl reboot || exit 1
+    ;;
+  deploy)
+    # RUN THE UPDATER OUTSIDE THE CAPTURE DAEMON'S MOUNT NAMESPACE. This verb exists only because of
+    # that namespace; everything else about the deploy already worked.
+    #
+    # ⚠️ THE BUG THIS FIXES, because it is not the one it looks like. The capture unit sets
+    # `ProtectSystem=strict` with `ReadWritePaths=/srv/tepna /opt/tepna/capture-host` — so `/opt/tepna/.git`
+    # is READ-ONLY to anything the daemon spawns, and `git fetch` dies on `.git/FETCH_HEAD:
+    # Read-only file system`. Measured 2026-08-14 the first time the Deploy button was pressed on the box.
+    #
+    # SUDO DOES NOT FIX IT, and that is the part worth remembering: a mount namespace is not escaped by
+    # privilege. Running the updater as root inside the daemon's namespace hits exactly the same
+    # read-only mount. What escapes is asking PID 1 for a NEW unit, which starts outside that namespace
+    # — and PID 1 is reachable from inside the sandbox (the `reload` verb's `daemon-reload` proves it;
+    # only the filesystem is restricted, not the bus).
+    #
+    # `--uid=vigil` KEEPS THE UPDATER UNPRIVILEGED, which was always the real invariant. tepna-update.sh
+    # refuses to install /etc precisely so it never needs root, and that is unchanged here: this verb is
+    # root only long enough to ask systemd for a namespace, and the script itself runs as the capture
+    # user exactly as the timer runs it.
+    #
+    # `--pipe --wait` returns the updater's own output AND its exit code, so the caller gets the report
+    # rather than "started". `--collect` reaps the transient unit so a previous run cannot block the
+    # next with "unit already loaded" — the failure tepna-restart.sh's own `stop` verb hit on 2026-08-02.
+    [ -x "$REPO_DIR/capture-host/tepna-update.sh" ] || exit 1
+    systemd-run --quiet --pipe --wait --collect --uid=vigil --unit=tepna-deploy-now \
+      "$REPO_DIR/capture-host/tepna-update.sh" --no-restart || exit 1
     ;;
   radio)
     # A DEAF RADIO IS NOT A DOWN RADIO. On 2026-07-30 hci0 reported `UP RUNNING` with 332 MB of

@@ -35,12 +35,22 @@ HELPER = "tepna-restart.sh"
 # the argument), tepna-usbreset.sh ONLY a docked Polar. Merging them would build a "reset any USB device
 # as root" primitive — a denial-of-service surface the fixed-helper pattern exists to not have.
 BTRESET = "tepna-btreset.sh"
-# The updater is the ONE helper here that is not privileged: it runs as the capture user, and it
-# deliberately refuses to install /etc or the granted helpers, because root executing freshly-pulled
-# repo code on a schedule would turn a compromise of that user into root by waiting for a tick. So it
-# gets NO sudo, and `_NO_SUDO` is what keeps that visible at the call site rather than implied.
-UPDATER = "tepna-update.sh"
-_NO_SUDO = frozenset({"deploy"})
+# ⚠️ `deploy` GOES THROUGH THE ROOT HELPER, AND THE REASON IS NOT PRIVILEGE OVER FILES.
+#
+# This module used to exec `tepna-update.sh` directly with NO sudo, on the argument that the updater is
+# unprivileged and must stay so. That argument is right and is unchanged — but it answered the wrong
+# question. The capture daemon runs under `ProtectSystem=strict` with
+# `ReadWritePaths=/srv/tepna /opt/tepna/capture-host`, so `/opt/tepna/.git` is READ-ONLY to anything it
+# spawns and `git fetch` dies on `.git/FETCH_HEAD: Read-only file system` — measured on the box the
+# first time the button was pressed, 2026-08-14.
+#
+# SUDO ALONE WOULD NOT HAVE HELPED: a mount namespace is not escaped by privilege, so a root child of
+# this process hits the same read-only mount. What escapes is asking PID 1 for a NEW unit, which is
+# what the helper's `deploy` verb does (`systemd-run --uid=vigil`), and PID 1 IS reachable from inside
+# the sandbox — the `reload` verb's `daemon-reload` proves it. The updater still runs as `vigil`.
+#
+# The invariant worth testing was therefore never "deploy uses no sudo"; it is "the updater does not
+# run as root". The old test asserted the proxy and would have passed through this entire bug.
 
 # Seconds to allow each verb. The default suits a systemctl call; a deploy does a NETWORK fetch, and a
 # real one on this box failed after 300 s of `Connection timed out` — so it needs a bound of its own,
@@ -71,10 +81,10 @@ _VERBS = {"restart": ("restart", 0, HELPER), "status": ("status", 0, HELPER),
           "stop": ("stop", 1, HELPER), "reload": ("reload", 0, HELPER),
           "radio": ("radio", 0, HELPER), "reboot": ("reboot", 0, HELPER),
           "rebind": ("", 1, BTRESET),
-          # `--no-restart` is a STORED flag, not a caller argument: the button must see the report, and
-          # a deploy that restarted would kill the server writing that report. Forcing is a separate,
-          # explicit act the operator takes afterwards with the Restart button.
-          "deploy": ("--no-restart", 0, UPDATER)}
+          # The helper passes `--no-restart` on to the updater: the button must SEE the report, and a
+          # deploy that restarted would kill the server writing it. Forcing is a separate, explicit act
+          # the operator takes afterwards with the Restart button.
+          "deploy": ("deploy", 0, HELPER)}
 _ARITY = {k: v[1] for k, v in _VERBS.items()}
 KILLS_SELF = frozenset({"restart", "stop", "reboot"})
 
@@ -145,8 +155,7 @@ def build_cmd(verb, minutes=None) -> list[str]:
     if verb not in _VERBS:
         raise VerbError(f"unknown verb {verb!r} — expected one of {', '.join(sorted(_VERBS))}")
     canonical, arity, helper = _VERBS[verb]  # the STORED name, not the caller's string
-    argv = [] if verb in _NO_SUDO else ["sudo", "-n"]
-    argv.append(helper_path.resolve(helper))
+    argv = ["sudo", "-n", helper_path.resolve(helper)]
     if canonical:
         argv.append(canonical)
     if arity:
