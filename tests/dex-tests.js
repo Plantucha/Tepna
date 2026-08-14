@@ -1891,6 +1891,44 @@
 
        Reached end-to-end through `buildNodeExport`, which needs only a position track, so this pins
        the real export path rather than a function lifted out of it. */
+    /* ════ ALIAS IDENTITY — a retired or duplicated NAME must resolve to the SAME function ════
+       A back-compat alias has one job: keep an old caller working. Nothing checks that it still
+       points anywhere, and a guard that cannot tell an intact alias from a DELETED one is not a
+       guard. PpgDex's `markO2Sentinels` has such an assertion; MotionDex's did not, and MotionDex is
+       where the cost is already documented: `MOTIONDSP` published the generator ONLY as
+       `genSyntheticACC` while `window.MotionDex` published it as `genSynthetic`, and
+       `motiondex-app.js`'s runDemo() calls `MOTIONDSP.genSynthetic` — so the ▶ Demo button threw
+       "MOTIONDSP.genSynthetic is not a function" SINCE BIRTH (EXPORT-PATH-UNREACHABLE §8). The fix
+       aliased both spellings; nothing pins them, so the same drift can recur.
+
+       ⚠ THE ONLY THING THAT CAUGHT IT LAST TIME WAS THE BROWSER LANE — the render-coverage export-bar
+       leg, which SKIPs headless. These are cheap Node-lane assertions over the same invariant, so CI
+       fails on a dropped alias instead of a human noticing a dead button.
+
+       ⚠ `T.eq` IS THE RIGHT COMPARATOR HERE ONLY SINCE #1234. Before it, functions serialised to
+       `undefined` and `T.eq(fnA, fnB)` passed for ANY two functions — including a lookalike wrapper.
+       `dexSerializeForEq` now tags each function with a WeakMap identity (`@fn#N`), so these compare
+       by identity. If that ever regresses, THESE ASSERTIONS GO HOLLOW SILENTLY. */
+    group('alias identity — retired and cross-namespace names resolve to the same function', 'motiondex-dsp · alias · export-path', function (T) {
+      var M = env.MOTIONDSP;
+      var X = env.MotionDex;
+      if (!M || !X) {
+        T.skip('env.MOTIONDSP + env.MotionDex available', 'MotionDex not co-loaded in this runner');
+        return;
+      }
+      /* Guard the guard: if the comparator ever stops seeing functions, every assertion below would
+         pass vacuously. Two DIFFERENT functions must compare unequal for this group to mean anything. */
+      T.ok(
+        'the comparator can tell two distinct functions apart (else the rest is vacuous)',
+        typeof M.compute === 'function' && typeof M.buildNodeExport === 'function' && M.compute !== M.buildNodeExport,
+        'compute vs buildNodeExport'
+      );
+      T.eq('MOTIONDSP.genSynthetic is genSyntheticACC (runDemo calls the alias)', M.genSynthetic, M.genSyntheticACC);
+      T.eq('MotionDex.genSynthetic is the same function as MOTIONDSP.genSyntheticACC', X.genSynthetic, M.genSyntheticACC);
+      T.eq('MotionDex._build is buildNodeExport', X._build, X.buildNodeExport);
+      T.eq('the two namespaces publish ONE buildNodeExport, not two', M.buildNodeExport, X.buildNodeExport);
+    });
+
     group('Clock Contract §6 — MotionDex’s exported event `t` is the UTC wall clock', 'motiondex-dsp · export · clock · mutation-pinned', function (T) {
       var MD = env.MOTIONDSP;
       if (!(MD && typeof MD.buildNodeExport === 'function')) {
