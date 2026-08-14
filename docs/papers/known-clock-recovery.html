@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  known-clock-recovery.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A wearable clock rate is usually below its own uncertainty — Tepna preprint</title>
+<link rel="stylesheet" href="../licensing/dex-license.css">
+<link rel="stylesheet" href="paper.css">
+</head>
+<body>
+<div class="sheet">
+  <a class="toplink" href="papers.html">← Tepna preprints</a>
+  <div class="banner">Tepna Working Preprint · not peer-reviewed</div>
+  <h1 class="title">The estimator is fine; the quantity is not. Known-defect injection shows a wearable clock rate recovers to 0.03 % — and is still below its own σ<sub>y</sub>(τ) on 42 % of hour-long recordings</h1>
+  <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
+  <p class="affil">Clock Contract §7 · capture-host · Tepna physiological-signal suite</p>
+  <p class="meta">Draft v1 · August 2026 · Analysis tool: <code>tools/known-clock-recovery.mjs</code> · Preregistration: <code>experiments/known-clock/acceptance.json</code> (sha256 <code>b061d279…</code>, hashed before any run) · Substrate: 395 arrival sidecars, 21 nights, 3 devices</p>
+
+  <div class="abstract">
+    <h2>Abstract</h2>
+    <p style="text-align:left;margin-bottom:0"><b>Background.</b> Consumer wearables carry crystals wrong by parts-per-million, and pipelines that fuse two devices correct for it by comparing each device's counter against a capture host's clock. Every such correction in this suite was validated only against <i>itself</i>: the device-vs-host estimator, the stability curve, and the three-source closure check are mutually consistent but were never compared to a defect known in advance. A shared error would leave all of them green. <b>Methods.</b> We injected exactly-known clock defects — constant offset, constant frequency error over ±1…±500 ppm, random-walk frequency wander, contiguous and interleaved packet loss, and timestamp steps — into 61 real Bluetooth arrival streams (395 sidecars, 21 nights, Polar H10 · Polar Verity Sense · Wellue O2Ring) and asked the shipped estimator to recover them, against acceptance criteria written and hashed <i>before</i> any run. All perturbations are deterministic; the reported figures re-run to the bit. <b>Results.</b> Frequency recovery is unbiased and linear across three and a half orders of magnitude: median relative error 0.03–0.09 %, 90th percentile ≤ 0.55 %, worst 1.06 % (n = 41 streams with span &gt; 300 s). A constant offset is recovered as exactly 0.000 ppm at every magnitude — it is <i>unidentifiable by construction</i>, not merely hard. Contiguous packet loss of up to 50 % moves the recovered rate by exactly 0.0000 ppm; interleaved decimation moves it by up to 1115 ppm, and only the former resembles a real dropout. A 200 ms timestamp step is invisible (median step ratio 1.0×); 2000 ms is localised on 51 % of streams. Injected frequency wander of 0.5–5 ppm/step does not move the Allan slope (−0.990 → −0.937): at realistic magnitudes it is buried under the Bluetooth phase noise. <b>The estimator, in short, is accurate.</b> The failure is in the quantity: σ<sub>y</sub>(τ) evaluated at each recording's own span exceeds the rate being quoted for <b>100 % of streams under 300 s</b>, <b>94 % under one hour</b>, and <b>42 % of streams longer than an hour</b>. <b>Conclusion.</b> A parts-per-million figure from a short wearable fragment is not a crystal property; it is that recording's noise reported in the units of one. We also report two estimator defects found by the same run — a synthesised device counter passing as an independent clock, and a drawn-axis detector missing 20 % of drawn streams — and an independent validation of our Allan implementation against <code>allantools</code> to 4.8 × 10⁻¹⁴.</p>
+  </div>
+  <p class="kw"><b>Keywords:</b> clock synchronisation · Allan deviation · wearable sensors · Bluetooth Low Energy · known-answer testing · preregistration · frequency stability · measurement uncertainty</p>
+
+  <div class="callout" style="border:1px dashed #b8860b;background:#fffdf5">
+    <h2 class="sec" style="margin-top:0">0. Layman overview <span style="font-weight:400;color:#b8860b;font-size:13px">(delete before submission)</span></h2>
+    <p>Two wearables recording the same night do not agree on what time it is. Each has a cheap crystal that runs slightly fast or slow, so software measures that error — in parts per million — and corrects for it. We wanted to know whether that measurement is any good.</p>
+    <p>The honest way to find out is to <b>break the data on purpose by an amount you write down first</b>, then see what the software reports. We did that: we took real overnight recordings, shifted the clocks by exact amounts, deleted packets, inserted jumps — and asked the software to tell us what we had done.</p>
+    <p><b>It is very good at it.</b> Told to find a rate error, it finds it to within about a thousandth of its size. Deleting half the data changes its answer by nothing at all.</p>
+    <p><b>But the number it produces is usually too small to be real.</b> Every measurement has a noise floor, and for these devices the floor drops the longer you record. On recordings shorter than an hour, the "crystal error" being reported is smaller than the noise it was measured through — the software is faithfully reporting a quantity that is mostly randomness. Only on recordings longer than an hour, and even then only about half the time, does the number mean what it appears to mean.</p>
+    <p>So the tool is not broken. The habit of quoting its output without saying how long the recording was is.</p>
+  </div>
+
+  <h2 class="sec">1. Introduction</h2>
+  <p>Multi-device physiological recording rests on an assumption that is rarely tested: that the devices can be placed on a common timebase. A chest strap and an armband sampling the same heart produce beat trains that can only be compared if the relationship between their clocks is known, and each device's clock is a low-cost crystal with a frequency error of tens of parts per million. The standard remedy is to record, alongside every packet, the capture host's own timestamp, and to estimate the device-vs-host rate from the divergence between the two columns.</p>
+  <p>The estimator used here is described in the suite's Clock Contract §7: a running median of the host-minus-device residual, interpolated between anchors and held flat outside them, with refusals rather than corrections when the implied rate is implausible. It was built against real recordings and is internally consistent with two neighbouring instruments — an overlapping Allan deviation of the same residual, and a three-source closure check across devices.</p>
+  <p><b>Internal consistency is the problem.</b> Each of those three instruments is validated against the others; none has been compared with a defect known in advance. An error shared between them — a sign convention, a units factor, a subtraction that removes the quantity of interest — would leave all three agreeing and all three wrong. This is not hypothetical for this suite: an earlier claim about one of these constants was published, challenged, and withdrawn, with the reviewer noting that the evidence was one file and a marginal estimator.</p>
+  <p>We therefore did the one experiment that can fail in a way the others cannot: inject a known defect, run the production pipeline blind, and compare what comes back with what went in — with the acceptance criteria fixed and hashed beforehand so that a disappointing result cannot be reinterpreted afterwards.</p>
+
+  <h2 class="sec">2. Methods</h2>
+  <h3 class="sub">2.1 Substrate</h3>
+  <p>A bedside capture host (Raspberry Pi, chrony-disciplined, stratum 2 with a 0.011 ppm skew against a local stratum-1 reference; RMS offset 19.5 µs) holds Bluetooth Low Energy links to a Polar H10 chest strap, a Polar Verity Sense armband and a Wellue O2Ring pulse oximeter, and writes one row per received packet carrying <i>both</i> the host stamp and the device's own sensor counter. That pair is the two clocks. We used 395 such sidecars spanning 21 nights; 61 streams carried ≥ 500 packets and entered the analysis, of which 41 had a span exceeding 300 s.</p>
+  <p>A counter reset inside a session is a different clock, not a clock error, so each stream is reduced to its longest monotonic run before analysis rather than "corrected". One O2Ring session steps backwards by 27 463 s and is split on that basis.</p>
+
+  <h3 class="sub">2.2 Injected defects</h3>
+  <p>Six families, all deterministic — no call to a random number generator or a wall clock appears in the tool, so every figure below reproduces exactly. Wander, the one family requiring noise, uses a seeded linear congruential generator.</p>
+  <table class="tbl">
+    <tr><th>Target</th><th>Injection</th><th>Expected recovery</th></tr>
+    <tr><td>Null control</td><td>none</td><td>baseline, exactly</td></tr>
+    <tr><td>Constant offset</td><td>host + 1 / 5 / 60 s</td><td><b>0 ppm</b> — see §3.2</td></tr>
+    <tr><td>Constant frequency</td><td>device × (1 + <i>f</i>), <i>f</i> ∈ ±{1, 10, 100, 500} ppm</td><td><b>−<i>f</i></b></td></tr>
+    <tr><td>Frequency wander</td><td>random walk, 0.5 and 5 ppm per step</td><td>Allan slope → τ<sup>+1/2</sup></td></tr>
+    <tr><td>Packet loss</td><td>10 / 30 / 50 %, contiguous and interleaved</td><td>rate unchanged</td></tr>
+    <tr><td>Timestamp jump</td><td>200 and 2000 ms step at mid-recording</td><td>localised to max step</td></tr>
+  </table>
+  <p>The sign of the frequency target is worth stating explicitly, because it is the classic route to a confident wrong answer. The injection makes the <i>device</i> run fast by +<i>f</i>; the estimator reports host-minus-device; so the correct recovery is <b>−<i>f</i></b>. Our own first self-test asserted against +<i>f</i> and failed at −198.7 %, which is exactly this sign, doubled. The expected value is now carried in the output record rather than in a comment.</p>
+
+  <h3 class="sub">2.3 Independent validation of the stability instrument</h3>
+  <p>Allan deviation underlies §3.5 and §3.6, so its implementation was validated against <code>allantools</code> 2024.06, the reference implementation following Riley (NIST SP 1065). Overlapping ADEV was computed from identical phase series of four synthesised noise types. Agreement is exact to floating-point: worst per-τ relative difference <b>4.78 × 10⁻¹⁴</b>, and slopes identical to four decimals (white PM −1.0004, white FM −0.5235, random-walk FM +0.3905, drift +1.0000). This rules out a units or convention error in the instrument used to make the paper's central claim.</p>
+
+  <h2 class="sec">3. Results</h2>
+
+  <h3 class="sub">3.1 Null control and determinism</h3>
+  <p>Across all 61 streams the unperturbed re-run reproduces the baseline with a maximum absolute error of <b>0.00 × 10⁰ ppm</b> — not "within tolerance", but bit-identical, on every stream. A pipeline that recovered a perturbation from an unperturbed recording would have failed here, and nothing else in the design would have caught it.</p>
+
+  <h3 class="sub">3.2 A constant offset is unidentifiable, not merely difficult</h3>
+  <p>Offsets of 1, 5 and 60 s produce a rate change of <b>exactly 0.000 ppm on all 61 streams</b>. This is a structural property: the estimator measures divergence relative to its first anchor, so a constant offset is removed before the rate is formed. The consequence is not a limitation to be improved but a statement about what the output means — <b>a parts-per-million figure carries no information about absolute alignment</b>, and any downstream consumer treating a small ppm as evidence that two devices are aligned is reading a quantity that is blind to the question. Recovering exactly zero is the correct behaviour, and it is only visible as a result because the expectation was written down first.</p>
+
+  <h3 class="sub">3.3 Frequency recovery is unbiased across three and a half orders of magnitude</h3>
+  <table class="tbl">
+    <tr><th>Injected (ppm)</th><th>n</th><th>median |rel. err|</th><th>p90</th><th>worst</th></tr>
+    <tr><td>−500</td><td>41</td><td>0.039 %</td><td>0.451 %</td><td>0.97 %</td></tr>
+    <tr><td>−100</td><td>41</td><td>0.029 %</td><td>0.490 %</td><td>1.00 %</td></tr>
+    <tr><td>−10</td><td>41</td><td>0.038 %</td><td>0.500 %</td><td>1.01 %</td></tr>
+    <tr><td>−1</td><td>41</td><td>0.039 %</td><td>0.503 %</td><td>1.01 %</td></tr>
+    <tr><td>+1</td><td>41</td><td>0.039 %</td><td>0.504 %</td><td>1.01 %</td></tr>
+    <tr><td>+10</td><td>41</td><td>0.040 %</td><td>0.502 %</td><td>1.02 %</td></tr>
+    <tr><td>+100</td><td>41</td><td>0.054 %</td><td>0.510 %</td><td>1.02 %</td></tr>
+    <tr><td>+500</td><td>41</td><td>0.094 %</td><td>0.550 %</td><td>1.06 %</td></tr>
+  </table>
+  <p>The error is flat in magnitude and symmetric in sign — the estimator is linear and unbiased over the whole range, including at ±1 ppm, an injection far below the devices' own rate errors. On the face of it this is a strong endorsement. §3.6 explains why it is not.</p>
+
+  <h3 class="sub">3.4 Packet loss: the realistic case costs nothing, the unrealistic case costs everything</h3>
+  <table class="tbl">
+    <tr><th>Loss</th><th>Fraction</th><th>median |Δppm|</th><th>p90</th><th>max</th></tr>
+    <tr><td rowspan="3"><b>contiguous</b></td><td>10 %</td><td>0.0000</td><td>0.000</td><td><b>0.00</b></td></tr>
+    <tr><td>30 %</td><td>0.0000</td><td>0.000</td><td><b>0.00</b></td></tr>
+    <tr><td>50 %</td><td>0.0000</td><td>0.000</td><td><b>0.00</b></td></tr>
+    <tr><td rowspan="3">interleaved</td><td>10 %</td><td>0.0000</td><td>13.06</td><td>304.5</td></tr>
+    <tr><td>30 %</td><td>0.1082</td><td>51.13</td><td>943.4</td></tr>
+    <tr><td>50 %</td><td>0.9409</td><td>66.99</td><td>1115.1</td></tr>
+  </table>
+  <p>Removing half of every stream in one contiguous block changes the recovered rate by <b>exactly nothing</b>, on all 61 streams. Removing the same quantity by decimation changes it by up to 1115 ppm. Since a Bluetooth dropout is a contiguous outage — the link fails for an interval — the estimator is robust to the loss that actually occurs and fragile to a pattern that does not. We report both because the preregistered criterion was written against the decimated case and <i>failed</i>; the mechanism was only identified by testing the alternative afterwards. Had the criterion been written after the fact, this would have been recorded as a pass with no insight attached.</p>
+
+  <h3 class="sub">3.5 Two sensitivity floors</h3>
+  <p><b>Timestamp steps.</b> A 200 ms injected step produces a median max-step ratio of <b>1.0×</b> — it is indistinguishable from the ordinary Bluetooth delivery jitter it hides in, on every stream. A 2000 ms step is localised (median 13.0×) but exceeds the 10× detection criterion on only <b>51 %</b> of streams. The estimator cannot see a clock step smaller than roughly its own jitter, which for this transport is of order a second.</p>
+  <p><b>Frequency wander.</b> Injected random-walk wander of 0.5 and 5 ppm per step moves the median Allan slope from <b>−0.990</b> to −0.968 and −0.937 respectively — a τ<sup>−1</sup> phase-noise process throughout, never approaching the τ<sup>+1/2</sup> signature of the injected walk. The noise classifier declines to name a type on an increasing share of streams as the injection grows (42/45 named at 0.5 ppm, 31/45 at 5 ppm), which is the honest response to a slope whose standard error spans two mechanisms. <b>At realistic magnitudes, wander is not recoverable from this substrate</b>: it is buried beneath the phase jitter of the link.</p>
+
+  <h3 class="sub">3.6 The central result: the rate is usually smaller than its own uncertainty</h3>
+  <p>σ<sub>y</sub>(τ) evaluated at each recording's own span is the natural uncertainty on a rate quoted from that recording. Comparing it with the rate itself:</p>
+  <table class="tbl">
+    <tr><th>Span</th><th>n</th><th>median |ppm|</th><th>median σ<sub>y</sub> (ppm)</th><th>|ppm| / σ<sub>y</sub></th><th>fraction resolved</th></tr>
+    <tr><td>&lt; 300 s</td><td>4</td><td>105.9</td><td>2137.5</td><td>0.050</td><td><b>0 %</b></td></tr>
+    <tr><td>300–3600 s</td><td>17</td><td>50.4</td><td>489.8</td><td>0.168</td><td><b>6 %</b></td></tr>
+    <tr><td>&gt; 3600 s</td><td>24</td><td>28.2</td><td>22.0</td><td>1.316</td><td><b>58 %</b></td></tr>
+  </table>
+  <p>Per device, restricted to spans over one hour: H10 median |ppm| 21.7 against σ<sub>y</sub> 10.5 (resolved, ratio 2.1); Verity 33.8 against 22.0 (marginal, 1.5); O2Ring 2611.7 against 908.5 — a large ratio that means nothing, because that device's axis is synthesised rather than measured (§3.7).</p>
+  <p>The estimator's own accuracy (§3.3, 0.03 %) and the quantity's resolvability are <b>independent questions</b>, and only the first has previously been asked. The tool recovers an injected rate almost perfectly <i>because the injection is large and coherent</i>; the device's own rate is neither, and on most recordings it does not rise above the floor. This is the empirical content behind the Clock Contract's existing prose rule that a ppm must never be quoted without its span — a rule previously derived by hand from two anecdotal figures, now given a curve.</p>
+  <p><b>An actionable consequence.</b> One node currently admits a rate correction when the recording span exceeds 2400 s. In the 300–3600 s band only <b>6 %</b> of streams have a rate exceeding their own σ<sub>y</sub>. Extrapolating the measured τ<sup>−1</sup> behaviour of the H10 from its 7.6 h median (σ<sub>y</sub> = 10.5 ppm) down to 2400 s gives ≈ 120 ppm against a true rate near 20 ppm. <b>That threshold is roughly an order of magnitude too permissive.</b> A claim of this shape was made and withdrawn in this project on weaker evidence — one file and a marginal endpoint estimator — and is here re-opened with a different method and 45 streams.</p>
+
+  <h3 class="sub">3.7 Two estimator defects surfaced by the same run</h3>
+  <p><b>A synthesised counter passes as an independent clock.</b> The flag distinguishing "two genuinely independent clocks" from "a host column derived from the device" thresholded the residual <i>spread</i>. A device counter constructed as sample-index × an assumed rate, at 1 s granularity, produces an enormous spread — so the coarser the fabrication, the more independent it appeared. On a real O2Ring segment the estimator returned a confident 2765.5 ppm with the independence flag set, for a device with no oscillator at all. The whole-file run did refuse, but only because a counter reset made the span negative and tripped an unrelated plausibility bound.</p>
+  <p>The separating quantity is the concentration of the device's own inter-sample deltas. Over 381 sidecars, the 356 real clock streams reach at most <b>56.00 %</b> modal-delta share while the 25 drawn streams start at <b>79.04 %</b>, with nothing in between; a threshold of 0.67 gives 0/25 missed and 0/356 false positives. <b>A pre-existing detector set at ≥ 99 % misses 5 of the 25</b>, because a fabricated axis is only ~100 % concentrated when nothing interrupts it — a single counter reset or repeated stamp is enough. We also find the Verity's inter-pulse-interval stream to be 100 % drawn, previously unflagged.</p>
+
+  <h2 class="sec">4. Limitations</h2>
+  <p>This is a single-subject, single-host study; the crystals characterised are three specific devices. The capture host is stratum 2 rather than a directly disciplined reference, though its 19.5 µs RMS offset sits four orders of magnitude below the Bluetooth jitter that dominates the residual, so the host is not the limiting term. Injection occurs after capture, at the sidecar, so the capture daemon itself is outside the loop — a defect introduced during acquisition would not be seen. Beat-level targets (detector false positives and negatives) require a different substrate and are not addressed. Finally, the interleaved-loss result should not be read as a robustness claim about real dropouts; it is the control that establishes contiguity as the relevant variable.</p>
+
+  <h2 class="sec">5. Conclusion</h2>
+  <p>Injecting known defects into real recordings shows that the rate estimator in question is accurate, unbiased, linear over three and a half orders of magnitude, exactly robust to the packet loss that actually occurs, and structurally blind to constant offset. It also shows that the quantity it produces is, on most wearable recordings, smaller than its own noise floor — and that two of its auxiliary judgements, independence and drawn-axis detection, were wrong in ways that a self-consistent validation could not reveal. The general lesson is not about clocks. <b>A pipeline validated only against itself can be accurate and uninformative at the same time, and only a truth fixed in advance can tell the two apart.</b></p>
+
+  <h2 class="sec">Reproduction</h2>
+  <p>Preregistered criteria: <code>experiments/known-clock/acceptance.json</code>, sha256 <code>b061d2792c1ff8d605ec82ff9fd298d56ca40915877ab274aa1785f2baff1586</code>, committed before the first run. Regenerate every figure with:</p>
+  <pre><code>node tools/known-clock-recovery.mjs --self-test
+node tools/known-clock-recovery.mjs --root &lt;captures&gt; --out results.json
+python3 experiments/known-clock/validate_allan.py</code></pre>
+  <p>All perturbations are deterministic; no figure depends on a seed drawn at run time.</p>
+</div>
+
+<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.5.0</div>
+</body></html>
