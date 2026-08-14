@@ -188,3 +188,35 @@ def test_HOW_the_helper_is_invoked_is_asserted_not_just_THAT_it_is():
     assert r.kw.get("capture_output") is True, "output is needed for `detail` and the sudoers hint"
     assert r.kw.get("text") is True, "bytes would break the substring checks in `run`"
     assert r.kw.get("timeout") == 17.0, "the caller's timeout must reach subprocess, or it cannot bound"
+
+
+# ── reload — re-read unit files after a pull changed them ────────────────────────────────────────────
+
+def test_reload_is_a_ZERO_ARITY_verb_and_carries_no_minutes():
+    """Arity is per verb. `reload` takes none, so a stray `minutes` must not reach the command line —
+    the helper would reject it, but the argv should never have carried it in the first place."""
+    assert dc.build_cmd("reload") == dc.build_cmd("reload", None)
+    assert dc.build_cmd("reload")[-1] == "reload"
+    assert "480" not in dc.build_cmd("reload", 480), "a zero-arity verb must ignore minutes entirely"
+
+
+def test_reload_does_NOT_kill_this_process_so_it_must_run_INLINE():
+    """⚠️ THE PROPERTY THAT DECIDES WHETHER THE BUTTON IS USEFUL AT ALL.
+
+    `daemon-reload` re-reads unit FILES. It does not signal, stop or replace any running service, so
+    this web server survives it — and therefore it must be answered inline, with the helper's real
+    output. Deferring it would return a cheerful 200 carrying nothing, for a verb whose entire value is
+    the answer (was a reload owed? did it clear?). That is the silent-success shape this suite exists
+    to catch, and putting `reload` in KILLS_SELF is the one edit that would reintroduce it."""
+    assert "reload" not in dc.KILLS_SELF
+    assert dc.KILLS_SELF == {"restart", "stop"}, "exactly the two that end this process, no more"
+
+
+def test_reload_reports_the_helpers_real_answer_including_whether_one_was_OWED():
+    """The helper distinguishes 'a reload was owed' from 'nothing had changed', because those mean
+    different things to an operator. `run` must pass that through rather than flattening it to 'ok'."""
+    r = _Ran(0, "tepna-capture.service: unit files re-read — none was owed, nothing on disk had changed")
+    got = dc.run("reload", runner=r)
+    assert got["ok"] is True and got["verb"] == "reload"
+    assert "none was owed" in got["detail"], got
+    assert r.argv[-1] == "reload"

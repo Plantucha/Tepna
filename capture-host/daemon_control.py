@@ -30,15 +30,21 @@ import helper_path
 
 HELPER = "tepna-restart.sh"
 
-# The verbs the helper actually implements. `status` is read-only and safe to run inline; `restart` and
-# `stop` end this process, so the HTTP layer must respond before either is fired.
+# The verbs the helper actually implements. `status` and `reload` do not end this process and so run
+# INLINE, where their real output can be returned; `restart` and `stop` do, so the HTTP layer must
+# respond before either is fired.
+#
+# `reload` re-reads unit files after a `git pull` brings a new unit definition. It is NOT in KILLS_SELF
+# on purpose: `systemctl daemon-reload` re-reads files and does not signal, stop or replace any running
+# service, so deferring it would throw away the one thing the caller asked for — the answer.
 # Maps a REQUESTED verb to the canonical name that goes on the command line, plus its arity. The name
 # is stored, not echoed: `build_cmd` appends THIS string, never the caller's — so the argv is built
 # from module constants even though the lookup key came from an HTTP body. A membership test alone
 # ("if verb in _ARITY") leaves the caller's own object on the command line, which is what CodeQL
 # flagged as py/command-line-injection and what the previous comment here wrongly claimed was not
 # happening.
-_VERBS = {"restart": ("restart", 0), "status": ("status", 0), "stop": ("stop", 1)}
+_VERBS = {"restart": ("restart", 0), "status": ("status", 0), "stop": ("stop", 1),
+          "reload": ("reload", 0)}
 _ARITY = {k: v[1] for k, v in _VERBS.items()}
 KILLS_SELF = frozenset({"restart", "stop"})
 

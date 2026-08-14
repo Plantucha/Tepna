@@ -22,7 +22,7 @@ set -uo pipefail
 
 UNIT=tepna-capture.service
 
-usage() { echo "usage: $0 {restart|status|radio|stop [minutes]}" >&2; exit 2; }
+usage() { echo "usage: $0 {restart|status|radio|reload|stop [minutes]}" >&2; exit 2; }
 # Arity is PER VERB: only `stop` takes a second argument. A blanket "1 or 2 args" would quietly accept
 # `restart extra`, and a verb that ignores trailing junk is one that will eventually be handed a typo
 # for the thing the caller actually meant.
@@ -75,6 +75,36 @@ case "$1" in
     ;;
   status)
     echo "$UNIT: $(systemctl is-active "$UNIT" 2>/dev/null) since $(systemctl show "$UNIT" -p ActiveEnterTimestamp --value 2>/dev/null)"
+    ;;
+  reload)
+    # RE-READ THE UNIT FILES. `git pull` can bring a new unit definition, and until systemd re-reads it
+    # the box keeps the old one — the same stale-config shape `restart` exists for, one layer down. It
+    # needed a password, which is exactly the gap this whole script exists to close.
+    #
+    # ⚠️ A RELOAD IS NOT AN APPLY, and conflating the two is the trap here. `daemon-reload` re-reads unit
+    # FILES; it does not push [Service] changes into an already-running process. Measured 2026-08-14:
+    # this box had carried the "changed on disk" notice since 2026-08-06 while every one of the 17
+    # directives its unit and drop-in set was ALREADY loaded and live. The notice tracks the file's
+    # mtime, not the process — so a reader who treats it as "the daemon is running stale config" reaches
+    # the wrong conclusion, as one did that day. This verb therefore reports the two facts separately
+    # and never implies one from the other.
+    #
+    # `NeedDaemonReload` is the machine-readable form of that notice. Read the property, never grep
+    # `systemctl status` prose for "changed on disk" — that string is localised, reflowed by width, and
+    # absent entirely on some versions, so a grep for it fails OPEN.
+    owed=$(systemctl show "$UNIT" -p NeedDaemonReload --value 2>/dev/null)
+    systemctl daemon-reload || exit 1
+    if [ "$owed" = yes ]; then
+      echo "$UNIT: unit files re-read — a reload WAS owed; a restart is still required for any [Service] change to reach the running process"
+    else
+      echo "$UNIT: unit files re-read — none was owed, nothing on disk had changed"
+    fi
+    # Report the outcome rather than assuming it, as `restart` does. If the flag survives its own
+    # reload, something is wrong that a cheerful exit 0 would hide.
+    if [ "$(systemctl show "$UNIT" -p NeedDaemonReload --value 2>/dev/null)" = yes ]; then
+      echo "still reports NeedDaemonReload after a successful daemon-reload" >&2
+      exit 1
+    fi
     ;;
   radio)
     # A DEAF RADIO IS NOT A DOWN RADIO. On 2026-07-30 hci0 reported `UP RUNNING` with 332 MB of
