@@ -4176,6 +4176,7 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
     first_seen: dict[str, float] = {}      # night → monotonic ts we first saw it with data
     alerted: set[str] = set()              # nights already alerted (edge-trigger, one per night)
     frozen_alerted: set[str] = set()       # night:device — one warning per frozen sensor per night
+    canary_alerted: set[str] = set()       # night:message — one warning per dead sidecar per night
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         try:
@@ -4222,6 +4223,31 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
                         "Tepna: sensor connected but silent",
                         f"{_name} has sent no data for ~{int(_sil / 60)} min while the night is still "
                         f"recording. The link is up, so this is not a dropout.")
+
+            # A DEAD PACKET-ARRIVAL SIDECAR, which nothing else can see. The sidecar write is wrapped in
+            # a bare `except: pass` — telemetry must never disturb the data callback — so a persistent
+            # failure is invisible BY CONSTRUCTION, and the offset floor it exists to recover just stops
+            # being recoverable. `arrival_canary` was written for exactly this and, until now, was called
+            # by nothing outside its tests: a correct answer with no consumer.
+            #
+            # ⚠️ WIRED ONLY AFTER CHECKING IT AGAINST THE REAL CORPUS, because its sibling `smeared` arm
+            # was retired for firing on EVERY stream on the first real night (2026-08-11) — a premise
+            # that was wrong rather than a threshold that was loose. Measured over every session on the
+            # box: 355 with a sidecar, ZERO that would fire. The 812 sessions without a sidecar at all
+            # are entirely pre-2026-08-11, when the feature did not exist — every session on or after
+            # that date has one, so the abstention is historical and not a live blind spot.
+            for _msg in alerts.arrival_canary(summ, STATUS.get("devices") or {}):
+                _ckey = f"{n}:{_msg}"
+                if _ckey in canary_alerted:
+                    continue
+                canary_alerted.add(_ckey)
+                log.warning("qc: %s — the packet-arrival sidecar is not advancing, so the per-connection "
+                            "BLE offset cannot be recovered for this stream", _msg)
+                if notifier:
+                    await notifier.send(
+                        "Tepna: packet-arrival sidecar dead",
+                        f"{_msg}. Sample data is still being written, so this will not show up as a "
+                        f"dropout — but the timing sidecar for this stream is producing nothing.")
             if summ.get("scope_suspect"):
                 # A SCOPE RESULT, NOT A DEVICE FAULT (nightqc's scope_suspect holds the reasoning).
                 # Nine independent streams across three vendors do not fail in the same second, so
