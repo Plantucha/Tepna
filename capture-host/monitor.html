@@ -482,6 +482,13 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
             <button onclick='daemonRebind(this)' title="USB driver unbind + bind. The only rung that clears an RTL8761B firmware hang.">Re-bind adapter</button>
             <button onclick='daemonReboot(this)' title="Last rung. Refused while a sensor is streaming unless you confirm.">Reboot box</button>
           </div>
+          <!-- DEPLOY. The updater already pulls every ~30 min on a timer; what it cannot do is decide to
+               interrupt a recording, so it defers the RESTART and the box runs old code until idle.
+               This button is "pull now, and tell me whether a restart is owed". -->
+          <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-top:.6rem">
+            <span class="hint">Deploy:</span>
+            <button onclick='daemonDeploy(this)' title="Fetch, fast-forward and re-serve the bundles. Never restarts on its own — it reports whether one is owed.">Deploy now</button>
+          </div>
         </div>
 
       <!-- PUSH ALERTS. The monitor is a PULL surface — a low disk, or a sensor that died at 01:00, is
@@ -999,6 +1006,26 @@ async function daemonReboot(btn){
   }catch(e){ $('#dmnMsg').innerHTML = `<span class="bad">${esc(e)}</span>`; return; }
   finally{ btn.disabled = false; }
   return daemonPost(btn, {verb:'reboot', force:true}, 'rebooting\u2026', true);
+}
+
+// DEPLOY IS TWO CLICKS ON PURPOSE. `--no-restart` means the response survives to be read, so the
+// operator learns what moved and whether the daemon is still on the old build. Restarting inline would
+// kill the server writing that answer, and a deploy that WORKED would present as a dropped connection.
+async function daemonDeploy(btn){
+  btn.disabled = true; $('#dmnMsg').textContent = 'fetching and fast-forwarding\u2026';
+  let r;
+  try{
+    r = await api('/api/daemon',{method:'POST',headers:{'content-type':'application/json'},
+                                 body:JSON.stringify({verb:'deploy'})});
+  }catch(e){ $('#dmnMsg').innerHTML = `<span class="bad">${esc(e)}</span>`; return; }
+  finally{ btn.disabled = false; }
+  if(!r.ok){ $('#dmnMsg').innerHTML = `<span class="bad">${esc(r.error||'deploy failed')}</span>`; return; }
+  $('#dmnMsg').innerHTML = `<span class="ok">${esc(r.detail||'up to date')}</span>`;
+  // `restart_owed` is a FLAG from the server, not this page grepping the text for a marker.
+  if(!r.restart_owed) return;
+  if(!confirm('New code is on disk, and the daemon is still running the old build.\n\n' +
+              'Restart it now? Sensor links drop for a few seconds and reconnect.')) return;
+  return daemonPost(btn, {verb:'restart'}, 'restarting\u2026');
 }
 
 async function postAlerts(btn, body, verb){

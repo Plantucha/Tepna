@@ -673,7 +673,15 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                               ". Re-send with force:true if you mean it."},
                     status=409)
         if verb not in daemon_control.KILLS_SELF:
-            return web.json_response(daemon_control.run(verb, minutes))
+            # ⚠️ OFF THE EVENT LOOP. `daemon_control.run` is a blocking subprocess call, and the inline
+            # verbs are not all fast: the helper sleeps 5 s inside `radio` and up to 11 s inside
+            # `rebind`, and `deploy` does a NETWORK fetch that has taken 300 s on this box. Called
+            # directly, every one of those freezes the whole monitor — the live SSE feed, every other
+            # request — for its full duration, and a recovery button that hangs the page it is served
+            # from is the shape people stop trusting.
+            return web.json_response(await asyncio.to_thread(
+                daemon_control.run, verb, minutes,
+                timeout=daemon_control.timeout_for(verb)))
         _schedule(daemon_control.RESTART_DELAY_S, verb, minutes)
         detail = {
             "stop": lambda: ("stopping capture for %s min — this page will disconnect and the daemon "

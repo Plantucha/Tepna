@@ -35,6 +35,22 @@ HELPER = "tepna-restart.sh"
 # the argument), tepna-usbreset.sh ONLY a docked Polar. Merging them would build a "reset any USB device
 # as root" primitive — a denial-of-service surface the fixed-helper pattern exists to not have.
 BTRESET = "tepna-btreset.sh"
+# The updater is the ONE helper here that is not privileged: it runs as the capture user, and it
+# deliberately refuses to install /etc or the granted helpers, because root executing freshly-pulled
+# repo code on a schedule would turn a compromise of that user into root by waiting for a tick. So it
+# gets NO sudo, and `_NO_SUDO` is what keeps that visible at the call site rather than implied.
+UPDATER = "tepna-update.sh"
+_NO_SUDO = frozenset({"deploy"})
+
+# Seconds to allow each verb. The default suits a systemctl call; a deploy does a NETWORK fetch, and a
+# real one on this box failed after 300 s of `Connection timed out` — so it needs a bound of its own,
+# large enough to complete and small enough that a wedged fetch does not pin the endpoint forever.
+DEPLOY_TIMEOUT_S = 240.0
+_TIMEOUT = {"deploy": DEPLOY_TIMEOUT_S}
+
+# The marker tepna-update.sh prints when new code is on disk but the daemon still runs the old build.
+# Matched as a token, never by parsing the sentence around it.
+RESTART_OWED = "RESTART-OWED"
 
 # The verbs the helper actually implements. `status` and `reload` do not end this process and so run
 # INLINE, where their real output can be returned; `restart` and `stop` do, so the HTTP layer must
@@ -54,7 +70,11 @@ BTRESET = "tepna-btreset.sh"
 _VERBS = {"restart": ("restart", 0, HELPER), "status": ("status", 0, HELPER),
           "stop": ("stop", 1, HELPER), "reload": ("reload", 0, HELPER),
           "radio": ("radio", 0, HELPER), "reboot": ("reboot", 0, HELPER),
-          "rebind": ("", 1, BTRESET)}
+          "rebind": ("", 1, BTRESET),
+          # `--no-restart` is a STORED flag, not a caller argument: the button must see the report, and
+          # a deploy that restarted would kill the server writing that report. Forcing is a separate,
+          # explicit act the operator takes afterwards with the Restart button.
+          "deploy": ("--no-restart", 0, UPDATER)}
 _ARITY = {k: v[1] for k, v in _VERBS.items()}
 KILLS_SELF = frozenset({"restart", "stop", "reboot"})
 
@@ -125,7 +145,8 @@ def build_cmd(verb, minutes=None) -> list[str]:
     if verb not in _VERBS:
         raise VerbError(f"unknown verb {verb!r} — expected one of {', '.join(sorted(_VERBS))}")
     canonical, arity, helper = _VERBS[verb]  # the STORED name, not the caller's string
-    argv = ["sudo", "-n", helper_path.resolve(helper)]
+    argv = [] if verb in _NO_SUDO else ["sudo", "-n"]
+    argv.append(helper_path.resolve(helper))
     if canonical:
         argv.append(canonical)
     if arity:
@@ -158,6 +179,13 @@ def build_cmd(verb, minutes=None) -> list[str]:
     return argv
 
 
+def timeout_for(verb, default: float = 30.0) -> float:
+    """PURE. The bound for one verb. A deploy fetches over the network and needs longer than a
+    systemctl call; giving every verb the long bound instead would let a wedged helper pin the control
+    endpoint for four minutes, which is the opposite of what the bound is for."""
+    return _TIMEOUT.get(verb, default)
+
+
 def run(verb, minutes=None, *, timeout: float = 30.0, runner=subprocess.run) -> dict:
     """Invoke the helper and report what happened. Never raises for an operational failure.
 
@@ -179,7 +207,13 @@ def run(verb, minutes=None, *, timeout: float = 30.0, runner=subprocess.run) -> 
         return {"ok": False, "verb": verb, "error": f"helper did not return within {timeout:g}s"}
     out = ((r.stdout or "") + (r.stderr or "")).strip()
     if r.returncode == 0:
-        return {"ok": True, "verb": verb, "detail": out[-400:]}
+        res = {"ok": True, "verb": verb, "detail": out[-400:]}
+        if verb == "deploy":
+            # A FLAG, not a sentence for the caller to parse. The UI has to decide whether to offer a
+            # restart, and `RESTART_OWED in detail` at the call site would break the next time the
+            # helper's wording improves — the coupling this token exists to prevent.
+            res["restart_owed"] = RESTART_OWED in out
+        return res
     hint = ""
     if "password" in out.lower() or "sudo:" in out.lower():
         hint = (" — the NOPASSWD grant for " + HELPER + " is missing on this host; this is a DEPLOY "

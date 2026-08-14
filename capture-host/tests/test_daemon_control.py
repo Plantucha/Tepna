@@ -270,3 +270,49 @@ def test_reboot_ENDS_this_process_and_radio_rebind_do_NOT():
     assert "reboot" in dc.KILLS_SELF
     assert "radio" not in dc.KILLS_SELF and "rebind" not in dc.KILLS_SELF
     assert {"radio", "rebind"} == dc.DROPS_LINKS
+
+
+# ── deploy — the one UNPRIVILEGED verb ──────────────────────────────────────────────────────────────
+
+def test_deploy_runs_WITHOUT_sudo_because_the_updater_is_unprivileged():
+    """⚠️ THE PROPERTY THAT KEEPS THIS SAFE TO AUTOMATE. tepna-update.sh runs as the capture user and
+    refuses to install /etc or the granted helpers — root executing freshly-pulled repo code on a
+    schedule would turn a compromise of that user into root by waiting for a tick. Prefixing it with
+    sudo would hand it exactly the privilege it was written to decline."""
+    argv = dc.build_cmd("deploy")
+    assert argv[0] != "sudo" and "sudo" not in argv, f"the updater must not be elevated: {argv}"
+    assert dc.UPDATER in argv[0]
+    assert argv[1:] == ["--no-restart"], "the button's mode is stored, not caller-supplied"
+
+
+def test_every_OTHER_verb_still_goes_through_sudo():
+    """The mirror image, so `_NO_SUDO` cannot quietly grow and de-elevate a privileged helper."""
+    for verb in sorted(set(dc._VERBS) - {"deploy"}):
+        arg = "1-2" if verb == "rebind" else (5 if verb == "stop" else None)
+        assert dc.build_cmd(verb, arg)[:2] == ["sudo", "-n"], verb
+
+
+def test_deploy_does_NOT_kill_this_server_so_its_report_can_be_read():
+    """`--no-restart` is what makes the answer survive. A deploy that restarted would end the process
+    writing the reply, so the operator would see a dropped connection for a deploy that worked."""
+    assert "deploy" not in dc.KILLS_SELF
+    assert "deploy" not in dc.DROPS_LINKS
+
+
+def test_deploy_gets_a_LONGER_bound_and_the_others_keep_the_short_one():
+    """A deploy fetches over the network — a real run on this box died after 300 s of connection
+    timeout. Giving every verb that bound instead would let a wedged helper pin the control endpoint
+    for four minutes, which is the opposite of what a timeout is for."""
+    assert dc.timeout_for("deploy") == dc.DEPLOY_TIMEOUT_S > 30.0
+    assert dc.timeout_for("status") == 30.0 and dc.timeout_for("restart") == 30.0
+
+
+def test_restart_owed_is_reported_as_a_FLAG_not_left_in_the_prose():
+    """The UI must branch on this, and `"RESTART-OWED" in detail` at the call site would break the next
+    time the helper's wording improves. So the token is matched HERE, once, and published as a bool."""
+    owed = dc.run("deploy", runner=_Ran(0, "updated abc → def\nRESTART-OWED — new code is on disk"))
+    assert owed["ok"] is True and owed["restart_owed"] is True
+    clean = dc.run("deploy", runner=_Ran(0, "up to date at abc123456789 — nothing to do"))
+    assert clean["restart_owed"] is False
+    # and it is a DEPLOY-only key: a restart result carrying it would make the UI offer a second restart
+    assert "restart_owed" not in dc.run("restart", runner=_Ran(0, "ok"))
