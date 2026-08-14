@@ -746,15 +746,28 @@
       var worst = 0;
       for (var k = 0; k < PY.length; k++) worst = got[k].tau === PY[k][0] ? Math.max(worst, Math.abs(got[k].adev - PY[k][1])) : Infinity;
       T.ok('the spine core matches capture-host/allan.py to 1e-9', worst < 1e-9, 'worst |Δ| = ' + worst);
-      /* THE PROMOTION MUST NOT HAVE FORKED. `ppgdex-dsp.js` still carries the copy it was promoted
-         from; until that delegates, these must agree EXACTLY or the fleet has two answers. */
+      /* THE DUPLICATE IS GONE — this asserts the DELEGATION, not a numeric match. `ppgdex-dsp.js`
+         carried its own copy of the core until the spine got one, held equal only by comparing their
+         outputs. Comparing outputs of the SAME function is vacuous, so the check that still means
+         something is identity: the node must expose the spine's function, not a lookalike. If someone
+         reintroduces a local implementation this fails immediately, where an output comparison would
+         keep passing until the two drifted. */
       var P = env.PPGDSP || env.PpgDSP;
       if (P && typeof P.allanFromPhase === 'function') {
-        var node = P.allanFromPhase(white, 1.0);
-        var d = node.length === got.length ? 0 : Infinity;
-        for (var q = 0; q < Math.min(node.length, got.length); q++) d = Math.max(d, Math.abs(node[q].adev - got[q].adev));
-        T.ok('the spine copy and the ppgdex-dsp copy are byte-identical in output', d === 0, 'worst |Δ| = ' + d + ' (a non-zero here means the promotion forked)');
-      } else T.skip('PPGDSP.allanFromPhase for the promotion-parity leg', 'not loaded');
+        /* `T.ok` with `===`, NOT `T.eq`. The comparator serialises through JSON, and a FUNCTION
+           serialises to `undefined` — so `T.eq(fnA, fnB)` compares undefined to undefined and passes
+           for any two functions, including a lookalike wrapper. Verified: wrapping the delegation in
+           `function(a,b){return DexClock.allanFromPhase(a,b);}` left the T.eq form green. */
+        T.ok(
+          'ppgdex-dsp delegates to the spine core rather than carrying its own',
+          P.allanFromPhase === C.allanFromPhase,
+          'node fn ' + (P.allanFromPhase === C.allanFromPhase ? 'IS' : 'is NOT') + ' the spine fn'
+        );
+        T.ok('…and the same for the classifier, which is where the boundary rule lives', P.classifyAllan === C.classifyAllan);
+        // `allanSlope` is deliberately NOT asserted: the node uses it internally and does not export it,
+        // so widening the public surface purely to test delegation would trade a real contract for a
+        // test convenience. The two exported entry points above already fail if a local copy returns.
+      } else T.skip('PPGDSP for the delegation check', 'not loaded');
       /* THE BOUNDARY REFUSAL. A strict `<` on a point estimate names a type the fit cannot support. */
       var amb = C.classifyAllan(-0.75, 0.02);
       T.eq('an edge within 1.96 SE refuses to name a type', amb.noise, null);

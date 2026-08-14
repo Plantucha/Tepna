@@ -1143,7 +1143,13 @@ import { PPGUI } from './ppgdex-render.js';
                  `optimalTauSec` is the averaging window a consumer should actually use for this pair. */
               stability: r.validation.stability
                 ? {
+                    /* `knownLimitation` is GONE because the limitation is FIXED, not because it
+                       stopped mattering: the boundary case now refuses to name a type (spine
+                       `classifyAllan`, 1.96 SE) and `slopeSE` ships so a caller can judge for itself.
+                       `noise` may be null; branch on `slope`. */
                     slope: r.validation.stability.slope,
+                    slopeSE: r.validation.stability.slopeSE,
+                    candidates: r.validation.stability.candidates,
                     noise: r.validation.stability.noise,
                     meaning: r.validation.stability.meaning,
                     beatsPaired: r.validation.stability.nPaired,
@@ -1152,13 +1158,12 @@ import { PPGUI } from './ppgdex-render.js';
                     atLongestMs: r.validation.stability.atLongestMs,
                     tauMaxSec: r.validation.stability.tauMaxSec,
                     optimalTauSec: r.validation.stability.optimalTauSec,
-                    method: 'overlapping Allan deviation of the two detectors’ beat-time difference (phase); the shared physiology cancels, so the curve is detector noise alone',
+                    method: 'overlapping Allan deviation of the two detectors’ beat-time difference (phase); the shared physiology cancels, so the curve is detector noise alone'
                     /* Recorded rather than discovered later: `noise`/`meaning` come from a strict
                        threshold on a point estimate, so a slope landing on a category boundary is
                        named with confidence the fit does not support. `slope` is the trustworthy
                        field. Today's marker pair is ~90 SEs clear of the nearest boundary; a joint
                        fix across this and capture-host/allan.py is queued. */
-                    knownLimitation: 'noise/meaning are unreliable when slope sits on a category boundary (±0.75, ±0.25); branch on slope, not on the label'
                   }
                 : null,
               note: 'self-PPI vs firmware PPI; both sides artifact-corrected. Validation lane only — PPI not handed to PulseDex'

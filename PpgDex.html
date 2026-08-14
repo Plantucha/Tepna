@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-Sqnltq7E/oqEWc5Jo4KVBWzbShxcEyEbURm7R8wG6eQ=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-haXlV4mtLdwoslHOZ4k+3vK6o7SIRMBQuPt5xEIbyzY=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-te1hduEZLzkyLwyEsZ10RbuXU2xdiPLLteOvWkiLWFo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-Sqnltq7E/oqEWc5Jo4KVBWzbShxcEyEbURm7R8wG6eQ=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-udusjh+gX9XB8wL+4KmseiuGQu4nVPaUidWQ+y07PEg=' 'sha256-yLJSeDIGqIvRxoaApdTUcAba29ryV3XyxXbKPtHzNjU='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PpgDex — Raw Wrist-PPG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -9490,83 +9490,18 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
      algebraically equivalent and were verified to agree to every reported digit across all 12 τ on a
      real night; `tests/dex-tests.js` pins this against BOTH siblings so a third variant cannot drift. */
   const ALLAN_MIN_PAIRS = 64; // below this the octave ladder has too few τ to fit a slope at all
-  function allanFromPhase(phaseMs, tau0Sec) {
-    // PHASE → FRACTIONAL FREQUENCY: y[i] = (x[i+1] − x[i]) / tau0. This is the change of variable that
-    // makes the overlapping-average form apply; it is why this matches the phase-domain sibling.
-    const y = [];
-    for (let i = 1; i < phaseMs.length; i++) {
-      const v = (phaseMs[i] - phaseMs[i - 1]) / tau0Sec;
-      if (!isFinite(v)) return [];
-      y.push(v);
-    }
-    const N = y.length;
-    if (N < 3) return [];
-    const pre = new Float64Array(N + 1);
-    for (let j = 0; j < N; j++) pre[j + 1] = pre[j] + y[j];
-    const out = [];
-    for (let m = 1; 2 * m + 1 <= N; m *= 2) {
-      let sum = 0,
-        cnt = 0;
-      for (let i = 0; i + 2 * m <= N; i++) {
-        const d = (pre[i + 2 * m] - pre[i + m]) / m - (pre[i + m] - pre[i]) / m;
-        sum += d * d;
-        cnt++;
-      }
-      if (cnt < 8) break; // an estimate from a handful of terms is wider than the answer it gives
-      out.push({ tau: m * tau0Sec, adev: Math.sqrt(sum / (2 * cnt)), n: cnt });
-    }
-    return out;
-  }
-  /* Slope midpoints between the canonical exponents, and the SAME vocabulary as capture-host/allan.py
-     `_NOISE`. Kept verbatim on purpose: two lanes naming the same curve differently is a defect a
-     reader cannot see. Drift is the open-ended top, so it is the fall-through rather than a table edge
-     — an edge no slope can fail makes the fall-through unreachable. */
-  const ALLAN_NOISE = [
-    [-0.75, 'white/flicker-phase', 'jitter — averages away fast'],
-    [-0.25, 'white-frequency', 'benign; averaging helps as √N'],
-    [0.25, 'flicker-frequency', 'A FLOOR — more averaging buys nothing'],
-    [0.75, 'random-walk-frequency', 'wanders; a longer fit is worse than a short one']
-  ];
-  function allanSlope(points) {
-    const pts = (points || []).filter((p) => p.adev > 0 && p.tau > 0);
-    if (pts.length < 3) return null; // two points fit any line and cannot be checked
-    const xs = pts.map((p) => Math.log10(p.tau)),
-      ys = pts.map((p) => Math.log10(p.adev));
-    const mx = mean(xs),
-      my = mean(ys);
-    let num = 0,
-      den = 0;
-    for (let i = 0; i < xs.length; i++) {
-      num += (xs[i] - mx) * (ys[i] - my);
-      den += (xs[i] - mx) * (xs[i] - mx);
-    }
-    return den > 0 ? num / den : null;
-  }
-  /* ⚠️ KNOWN LIMITATION, RECORDED BECAUSE THIS SHIPS ON A NEW CONSUMER SURFACE (2026-08-13).
-     The boundary test is a strict `<` against a POINT ESTIMATE, so a slope landing on an edge is
-     assigned a type the data does not support, and the returned `slope` is ROUNDED — so the digit that
-     decided it is not even in the output. Measured: -0.7501 classifies as white/flicker-phase and
-     -0.7500 as white-frequency, both reporting slope -0.75, with `meaning` flipping between "averages
-     away" and "helps as sqrt(N)" — the field a consumer branches on. Our own ECGDex pair sits exactly
-     there (slope -0.7500, OLS SE 0.0204, so the -0.75 edge is inside the CI).
-     Pre-existing and shared with `capture-host/allan.py`, which has the identical structure. A joint
-     fix across both lanes is queued: refuse to NAME a type when a boundary lies within 1.96 SE, publish
-     `slopeSE` unconditionally, and stop rounding the slope in the DATA (round at display). It is
-     deliberately not fixed here — a two-language contract must move in ONE changeset or the lanes
-     drift, which is the property this file's parity gate exists to protect.
-     ⚠️ When that lands, note the SE is a LOWER BOUND: overlapping ADEV points are correlated (adjacent
-     taus reuse most of the same samples) while OLS assumes independent residuals. Do not tighten 1.96
-     back to 1 SE believing that is the more rigorous choice.
-     This does NOT weaken the marker-pair result shipped today: slope -1.0071, SE 0.0028, the nearest
-     boundary ~90 SEs away, which survives any multiplier. The ambiguity only bites where the call is
-     already close. */
-  function classifyAllan(sl) {
-    if (sl == null) return null; // an unknown is not a noise type
-    for (let i = 0; i < ALLAN_NOISE.length; i++) {
-      if (sl < ALLAN_NOISE[i][0]) return { slope: r2(sl), noise: ALLAN_NOISE[i][1], meaning: ALLAN_NOISE[i][2] };
-    }
-    return { slope: r2(sl), noise: 'drift', meaning: 'deterministic — fit and remove it, never average through it' };
-  }
+  /* DELEGATED TO THE SPINE (HOSTAXIS-STABILITY §4.3). The core was promoted into `clock.js` when
+     `hostAxis` needed it, and `clock.js` is inlined into every bundle — so keeping a second copy here
+     was a duplicate awaiting divergence, held equal only by a parity assertion. Aliased by name, the
+     same pattern `parseTimestamp` uses (§✅).
+     ⚠️ THE SPINE VERSION IS NOT A LIKE-FOR-LIKE SWAP, and that is the point. `classifyAllan(sl, se,
+     nTau)` refuses to NAME a noise type when a category boundary lies within 1.96 SE, returns `slope`
+     UNROUNDED, and publishes `slopeSE`/`candidates`. The local copy took `(sl)` alone and rounded — the
+     exact defect this node shipped a `knownLimitation` string about. Delegating retires that string
+     rather than restating it. */
+  const allanFromPhase = DexClock.allanFromPhase;
+  const allanSlope = DexClock.allanSlope;
+  const classifyAllan = DexClock.classifyAllan;
   /* Pairs two beat-time series (SECONDS, on the same axis) and returns the stability of their
      disagreement. `maxPairSec` rejects a beat with no counterpart rather than pairing it across a
      dropout — a fabricated pair injects a step the curve would read as wander. */
@@ -9600,7 +9535,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     if (!(tau0 > 0)) return null;
     const curve = allanFromPhase(ph, tau0);
     if (curve.length < 3) return null;
-    const cls = classifyAllan(allanSlope(curve));
+    const fit = allanSlope(curve);
+    const cls = fit ? classifyAllan(fit.slope, fit.se, fit.nTau) : null;
     if (!cls) return null;
     let best = curve[0];
     for (const p of curve) if (p.adev < best.adev) best = p;
@@ -9610,7 +9546,12 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       tau0Sec: r2(tau0),
       taus: curve.length,
       slope: cls.slope,
+      /* From the spine, and published unconditionally — including when the type IS named — so a caller
+         with a wider tolerance can decide for itself. `noise` is NULL when a category boundary lies
+         within 1.96 SE: branch on `slope`, never on the label. */
+      slopeSE: cls.slopeSE,
       noise: cls.noise,
+      candidates: cls.candidates,
       meaning: cls.meaning,
       atShortestMs: r2(curve[0].adev),
       atLongestMs: curve[curve.length - 1].adev,
@@ -9728,7 +9669,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
          the signature and every downstream read is "possibly null". */
       const pts = [];
       for (const q of curve) if (q.adev != null && q.adev > 0) pts.push({ tau: q.tau, adev: q.adev });
-      const sl = allanSlope(pts);
+      const fit = allanSlope(pts);
+      const sl = fit ? fit.slope : null;
       return {
         sigmaShortestMs: pts.length ? r2(pts[0].adev) : null,
         sigmaLongestMs: pts.length ? pts[pts.length - 1].adev : null,
@@ -11113,8 +11055,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
               atShortestMs: _v.stability.atShortestMs,
               atLongestMs: _v.stability.atLongestMs,
               tauMaxSec: _v.stability.tauMaxSec,
-              optimalTauSec: _v.stability.optimalTauSec,
-              knownLimitation: 'noise/meaning are unreliable when slope sits on a category boundary (±0.75, ±0.25); branch on slope, not on the label'
+              optimalTauSec: _v.stability.optimalTauSec
             }
           : null,
         note: 'self-PPI vs firmware PPI; both sides artifact-corrected. Validation lane only — PPI is never handed to PulseDex'
@@ -16477,7 +16418,13 @@ const { PPGUI } = __require('ppgdex-render.js');
                  `optimalTauSec` is the averaging window a consumer should actually use for this pair. */
               stability: r.validation.stability
                 ? {
+                    /* `knownLimitation` is GONE because the limitation is FIXED, not because it
+                       stopped mattering: the boundary case now refuses to name a type (spine
+                       `classifyAllan`, 1.96 SE) and `slopeSE` ships so a caller can judge for itself.
+                       `noise` may be null; branch on `slope`. */
                     slope: r.validation.stability.slope,
+                    slopeSE: r.validation.stability.slopeSE,
+                    candidates: r.validation.stability.candidates,
                     noise: r.validation.stability.noise,
                     meaning: r.validation.stability.meaning,
                     beatsPaired: r.validation.stability.nPaired,
@@ -16486,13 +16433,12 @@ const { PPGUI } = __require('ppgdex-render.js');
                     atLongestMs: r.validation.stability.atLongestMs,
                     tauMaxSec: r.validation.stability.tauMaxSec,
                     optimalTauSec: r.validation.stability.optimalTauSec,
-                    method: 'overlapping Allan deviation of the two detectors’ beat-time difference (phase); the shared physiology cancels, so the curve is detector noise alone',
+                    method: 'overlapping Allan deviation of the two detectors’ beat-time difference (phase); the shared physiology cancels, so the curve is detector noise alone'
                     /* Recorded rather than discovered later: `noise`/`meaning` come from a strict
                        threshold on a point estimate, so a slope landing on a category boundary is
                        named with confidence the fit does not support. `slope` is the trustworthy
                        field. Today's marker pair is ~90 SEs clear of the nearest boundary; a joint
                        fix across this and capture-host/allan.py is queued. */
-                    knownLimitation: 'noise/meaning are unreliable when slope sits on a category boundary (±0.75, ±0.25); branch on slope, not on the label'
                   }
                 : null,
               note: 'self-PPI vs firmware PPI; both sides artifact-corrected. Validation lane only — PPI not handed to PulseDex'

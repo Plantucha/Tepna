@@ -2921,83 +2921,18 @@
      algebraically equivalent and were verified to agree to every reported digit across all 12 τ on a
      real night; `tests/dex-tests.js` pins this against BOTH siblings so a third variant cannot drift. */
   const ALLAN_MIN_PAIRS = 64; // below this the octave ladder has too few τ to fit a slope at all
-  function allanFromPhase(phaseMs, tau0Sec) {
-    // PHASE → FRACTIONAL FREQUENCY: y[i] = (x[i+1] − x[i]) / tau0. This is the change of variable that
-    // makes the overlapping-average form apply; it is why this matches the phase-domain sibling.
-    const y = [];
-    for (let i = 1; i < phaseMs.length; i++) {
-      const v = (phaseMs[i] - phaseMs[i - 1]) / tau0Sec;
-      if (!isFinite(v)) return [];
-      y.push(v);
-    }
-    const N = y.length;
-    if (N < 3) return [];
-    const pre = new Float64Array(N + 1);
-    for (let j = 0; j < N; j++) pre[j + 1] = pre[j] + y[j];
-    const out = [];
-    for (let m = 1; 2 * m + 1 <= N; m *= 2) {
-      let sum = 0,
-        cnt = 0;
-      for (let i = 0; i + 2 * m <= N; i++) {
-        const d = (pre[i + 2 * m] - pre[i + m]) / m - (pre[i + m] - pre[i]) / m;
-        sum += d * d;
-        cnt++;
-      }
-      if (cnt < 8) break; // an estimate from a handful of terms is wider than the answer it gives
-      out.push({ tau: m * tau0Sec, adev: Math.sqrt(sum / (2 * cnt)), n: cnt });
-    }
-    return out;
-  }
-  /* Slope midpoints between the canonical exponents, and the SAME vocabulary as capture-host/allan.py
-     `_NOISE`. Kept verbatim on purpose: two lanes naming the same curve differently is a defect a
-     reader cannot see. Drift is the open-ended top, so it is the fall-through rather than a table edge
-     — an edge no slope can fail makes the fall-through unreachable. */
-  const ALLAN_NOISE = [
-    [-0.75, 'white/flicker-phase', 'jitter — averages away fast'],
-    [-0.25, 'white-frequency', 'benign; averaging helps as √N'],
-    [0.25, 'flicker-frequency', 'A FLOOR — more averaging buys nothing'],
-    [0.75, 'random-walk-frequency', 'wanders; a longer fit is worse than a short one']
-  ];
-  function allanSlope(points) {
-    const pts = (points || []).filter((p) => p.adev > 0 && p.tau > 0);
-    if (pts.length < 3) return null; // two points fit any line and cannot be checked
-    const xs = pts.map((p) => Math.log10(p.tau)),
-      ys = pts.map((p) => Math.log10(p.adev));
-    const mx = mean(xs),
-      my = mean(ys);
-    let num = 0,
-      den = 0;
-    for (let i = 0; i < xs.length; i++) {
-      num += (xs[i] - mx) * (ys[i] - my);
-      den += (xs[i] - mx) * (xs[i] - mx);
-    }
-    return den > 0 ? num / den : null;
-  }
-  /* ⚠️ KNOWN LIMITATION, RECORDED BECAUSE THIS SHIPS ON A NEW CONSUMER SURFACE (2026-08-13).
-     The boundary test is a strict `<` against a POINT ESTIMATE, so a slope landing on an edge is
-     assigned a type the data does not support, and the returned `slope` is ROUNDED — so the digit that
-     decided it is not even in the output. Measured: -0.7501 classifies as white/flicker-phase and
-     -0.7500 as white-frequency, both reporting slope -0.75, with `meaning` flipping between "averages
-     away" and "helps as sqrt(N)" — the field a consumer branches on. Our own ECGDex pair sits exactly
-     there (slope -0.7500, OLS SE 0.0204, so the -0.75 edge is inside the CI).
-     Pre-existing and shared with `capture-host/allan.py`, which has the identical structure. A joint
-     fix across both lanes is queued: refuse to NAME a type when a boundary lies within 1.96 SE, publish
-     `slopeSE` unconditionally, and stop rounding the slope in the DATA (round at display). It is
-     deliberately not fixed here — a two-language contract must move in ONE changeset or the lanes
-     drift, which is the property this file's parity gate exists to protect.
-     ⚠️ When that lands, note the SE is a LOWER BOUND: overlapping ADEV points are correlated (adjacent
-     taus reuse most of the same samples) while OLS assumes independent residuals. Do not tighten 1.96
-     back to 1 SE believing that is the more rigorous choice.
-     This does NOT weaken the marker-pair result shipped today: slope -1.0071, SE 0.0028, the nearest
-     boundary ~90 SEs away, which survives any multiplier. The ambiguity only bites where the call is
-     already close. */
-  function classifyAllan(sl) {
-    if (sl == null) return null; // an unknown is not a noise type
-    for (let i = 0; i < ALLAN_NOISE.length; i++) {
-      if (sl < ALLAN_NOISE[i][0]) return { slope: r2(sl), noise: ALLAN_NOISE[i][1], meaning: ALLAN_NOISE[i][2] };
-    }
-    return { slope: r2(sl), noise: 'drift', meaning: 'deterministic — fit and remove it, never average through it' };
-  }
+  /* DELEGATED TO THE SPINE (HOSTAXIS-STABILITY §4.3). The core was promoted into `clock.js` when
+     `hostAxis` needed it, and `clock.js` is inlined into every bundle — so keeping a second copy here
+     was a duplicate awaiting divergence, held equal only by a parity assertion. Aliased by name, the
+     same pattern `parseTimestamp` uses (§✅).
+     ⚠️ THE SPINE VERSION IS NOT A LIKE-FOR-LIKE SWAP, and that is the point. `classifyAllan(sl, se,
+     nTau)` refuses to NAME a noise type when a category boundary lies within 1.96 SE, returns `slope`
+     UNROUNDED, and publishes `slopeSE`/`candidates`. The local copy took `(sl)` alone and rounded — the
+     exact defect this node shipped a `knownLimitation` string about. Delegating retires that string
+     rather than restating it. */
+  const allanFromPhase = DexClock.allanFromPhase;
+  const allanSlope = DexClock.allanSlope;
+  const classifyAllan = DexClock.classifyAllan;
   /* Pairs two beat-time series (SECONDS, on the same axis) and returns the stability of their
      disagreement. `maxPairSec` rejects a beat with no counterpart rather than pairing it across a
      dropout — a fabricated pair injects a step the curve would read as wander. */
@@ -3031,7 +2966,8 @@
     if (!(tau0 > 0)) return null;
     const curve = allanFromPhase(ph, tau0);
     if (curve.length < 3) return null;
-    const cls = classifyAllan(allanSlope(curve));
+    const fit = allanSlope(curve);
+    const cls = fit ? classifyAllan(fit.slope, fit.se, fit.nTau) : null;
     if (!cls) return null;
     let best = curve[0];
     for (const p of curve) if (p.adev < best.adev) best = p;
@@ -3041,7 +2977,12 @@
       tau0Sec: r2(tau0),
       taus: curve.length,
       slope: cls.slope,
+      /* From the spine, and published unconditionally — including when the type IS named — so a caller
+         with a wider tolerance can decide for itself. `noise` is NULL when a category boundary lies
+         within 1.96 SE: branch on `slope`, never on the label. */
+      slopeSE: cls.slopeSE,
       noise: cls.noise,
+      candidates: cls.candidates,
       meaning: cls.meaning,
       atShortestMs: r2(curve[0].adev),
       atLongestMs: curve[curve.length - 1].adev,
@@ -3159,7 +3100,8 @@
          the signature and every downstream read is "possibly null". */
       const pts = [];
       for (const q of curve) if (q.adev != null && q.adev > 0) pts.push({ tau: q.tau, adev: q.adev });
-      const sl = allanSlope(pts);
+      const fit = allanSlope(pts);
+      const sl = fit ? fit.slope : null;
       return {
         sigmaShortestMs: pts.length ? r2(pts[0].adev) : null,
         sigmaLongestMs: pts.length ? pts[pts.length - 1].adev : null,
@@ -4544,8 +4486,7 @@
               atShortestMs: _v.stability.atShortestMs,
               atLongestMs: _v.stability.atLongestMs,
               tauMaxSec: _v.stability.tauMaxSec,
-              optimalTauSec: _v.stability.optimalTauSec,
-              knownLimitation: 'noise/meaning are unreliable when slope sits on a category boundary (±0.75, ±0.25); branch on slope, not on the label'
+              optimalTauSec: _v.stability.optimalTauSec
             }
           : null,
         note: 'self-PPI vs firmware PPI; both sides artifact-corrected. Validation lane only — PPI is never handed to PulseDex'
