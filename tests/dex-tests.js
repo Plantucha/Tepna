@@ -1495,6 +1495,77 @@
       T.ok('ok and ppm are unchanged by the declaration — the field is purely additive', inert.ok === true && typeof inert.ppm === 'number' && typeof inert.n === 'number');
     });
 
+    /* A DEVICE COLUMN THAT IS NOT A CLOCK — `spreadMs` detects the OPPOSITE of what it needs to.
+       KNOWN-CLOCK-ADVERSARIAL-CAPTURE, measured 2026-08-14 on the real box tree. `independent` was
+       `spreadMs > 2 ms`, so a counter SYNTHESISED as `index × an assumed rate` at 1 s granularity —
+       which has no oscillator at all — produced a residual spread of 22,335 ms and read as maximally
+       independent. On the O2Ring's real monotonic run hostAxis returned `ok:true, ppm = 2765.5,
+       independent:true`: a confident rate for a device that cannot have one. The coarser the
+       fabrication, the more "independent" it looked.
+       The quantity that DOES separate them, over 381 arrival sidecars:
+           real clock streams (356)   modal-delta share   max  56.00 %
+           DRAWN streams      (25)    modal-delta share   min  79.04 %
+       Nothing between. The bound sits in that gap and is a property of the data, not a knob. */
+    group('hostAxis · a DRAWN device axis is declared — quantisation is not independence', 'clock · known-answer · drawn-axis', function (T) {
+      var C = env.DexClock;
+      T.ok('DexClock.hostAxis present', !!(C && typeof C.hostAxis === 'function'));
+      if (!(C && typeof C.hostAxis === 'function')) return;
+
+      /* A drawn axis: the device column advances by exactly one quantum every packet, while the host
+         wanders. This is the O2Ring's OXYLIVE_DURATION_S counter in miniature. */
+      var drawn = [];
+      for (var i = 0; i < 200; i++) drawn.push({ devMs: i * 1000, hostMs: i * 1000 + (i % 7) * 90 });
+      var dr = C.hostAxis(drawn);
+      T.eq('a uniform device counter is flagged deviceDrawn', dr.deviceDrawn, true);
+      T.eq('…at a share of 1.0 — every delta is the same value', Math.round(dr.drawnShare * 100) / 100, 1);
+      T.ok('…and it NAMES why, separately from inertReason', typeof dr.drawnReason === 'string' && /DRAWN/.test(dr.drawnReason), String(dr.drawnReason));
+
+      /* A real device axis: BLE packet stamps never repeat like that. The most concentrated real
+         stream measured over the whole box tree was Verity ppg at 56.00 %; this fixture is coarser
+         than that and must still read as a clock. */
+      var real = [],
+        acc = 0;
+      for (var j = 0; j < 200; j++) {
+        acc += 1000 + ((j * 37) % 97); // 97 distinct inter-packet gaps ⇒ modal share ≈ 1 %, like real BLE
+        real.push({ devMs: acc, hostMs: acc + j * 30 });
+      }
+      var rr = C.hostAxis(real);
+      T.eq('a device axis with genuine packet-level variation is NOT drawn', rr.deviceDrawn, false);
+      T.eq('…and carries no drawnReason', rr.drawnReason, null);
+
+      /* THE BOUND SITS IN THE MEASURED GAP. Built explicitly at the two population edges so a future
+         edit to CK_AXIS_DRAWN_SHARE that leaves the gap reds here rather than silently re-opening the
+         hole. `share` here is the fraction of deltas that take the modal value. */
+      var atShare = function (share) {
+        var a = [],
+          n = 300,
+          same = Math.round(n * share);
+        for (var k = 0; k < n; k++) a.push({ devMs: 0, hostMs: k * 1000 + (k % 3) * 40 });
+        var t = 0;
+        for (var m = 0; m < n; m++) {
+          t += m < same ? 1000 : 1000 + ((m % 13) + 1);
+          a[m].devMs = t;
+        }
+        return C.hostAxis(a);
+      };
+      T.eq('56 % concentration — the most concentrated REAL stream measured — is a clock', atShare(0.56).deviceDrawn, false);
+      T.eq('79 % — the LEAST concentrated DRAWN stream measured — is not', atShare(0.79).deviceDrawn, true);
+
+      /* LOCK-OUT. The pre-existing ppgdex-level test fires at ≥99 %, and that threshold MISSES 5 of
+         the 25 drawn files on disk (lowest 79.04 %) — a fabricated axis is only ~100 % concentrated
+         when nothing interrupts it; one counter reset or a repeated stamp is enough. Asserted so the
+         bound cannot be "tidied" back to 99 % without this going red. */
+      T.eq('a 90 %-concentrated axis is STILL drawn — the ≥99 % rule would have missed it', atShare(0.9).deviceDrawn, true);
+
+      /* THE HOLE IS OPEN, AND THAT IS RECORDED RATHER THAN IMPLIED. `deviceDrawn` is additive: it does
+         NOT yet gate `independent`, because folding it in reds ECGDex's planted-drift recovery (a real
+         feature whose fixture legitimately uses a uniform device axis). pat-gate.js, ecgdex-dsp.js and
+         integrator-dsp.js still read `independent`. When a consumer migrates, THIS assertion is the one
+         to update — deliberately, with that node's fixtures re-cut. */
+      T.eq('KNOWN HOLE · independent is still spread-only, so a drawn axis still reads independent', dr.independent, true);
+      T.ok('…which is exactly why deviceDrawn is published for consumers to move to', dr.deviceDrawn === true && dr.independent === true);
+    });
+
     /* ════ THE CLOCK CONTRACT'S OWN GUARDS, FOUND UNTESTED BY `tools/mutate.mjs` ═══════════════
      An exhaustive mutation run on `clock.js` (CLOCK-MUTATION-AUDIT) killed 31 of 75 — the WEAKEST
      module in the fleet, and the one `CLAUDE.md` opens by calling non-negotiable. The mechanism is

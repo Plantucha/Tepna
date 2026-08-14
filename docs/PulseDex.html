@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0HBhMJiuRosV3WFtoxnOr6uXufKmQavN6RxdtfvAXA0=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-MnP9wt46pmURQuPdQy2UqyTKBewz1pHaLL5EkHLHJvg=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WIkFbL2oleMNGRl8JnmJHJHr24/Q1W+/ZCGBpqSl2fM=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cfWApVFWKLfNIo7gB4Jzrge7/Qnsl2HNHo60gvvc26M=' 'sha256-l7+aJgsMD55W+OVW3ZgKnu0aySX2YViv57Gwk5Dhu+M=' 'sha256-nghmP9jMX0rAyZ78QklkJKcGr9ZiroYj+56iLDFYjLY=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-vBFNPMuQECD/SIy0jpNzms/FGVZDc/HQEEk2Ie4lVhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0HBhMJiuRosV3WFtoxnOr6uXufKmQavN6RxdtfvAXA0=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-MnP9wt46pmURQuPdQy2UqyTKBewz1pHaLL5EkHLHJvg=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WIkFbL2oleMNGRl8JnmJHJHr24/Q1W+/ZCGBpqSl2fM=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cfWApVFWKLfNIo7gB4Jzrge7/Qnsl2HNHo60gvvc26M=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-l7+aJgsMD55W+OVW3ZgKnu0aySX2YViv57Gwk5Dhu+M=' 'sha256-nghmP9jMX0rAyZ78QklkJKcGr9ZiroYj+56iLDFYjLY=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PulseDex — Raw RR Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -6424,6 +6424,24 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
   /* Twice the 1 ms phone-stamp quantum. A residual spread at or below this means the host column is
      the device column rounded, not a second clock — see the measurement in hostAxis(). */
   var CK_AXIS_INERT_MS = 2;
+  /* A DEVICE WHOSE AXIS WAS DRAWN IS NOT A SECOND CLOCK — and `spreadMs` alone cannot see it.
+     `independent` was `spreadMs > CK_AXIS_INERT_MS`, which detects the OPPOSITE of what it must for a
+     drawn axis: a counter synthesised as `index × an assumed rate` at 1 s granularity produces a HUGE
+     residual spread (22,335 ms measured on a real O2Ring segment), so the coarser the fabrication the
+     more "independent" it read. Measured 2026-08-14 on the O2Ring's monotonic run: `ok:true`,
+     `ppm = 2765.5`, `independent:true` — a confident rate for a device with no oscillator, consumed
+     downstream by pat-gate.js, ecgdex-dsp.js's fs correction and integrator-dsp.js's skew decision.
+     The discriminator that DOES separate them is the concentration of the device's inter-sample
+     deltas. Measured over 381 arrival sidecars on the box tree:
+         real clock streams (356)  modal-delta share  max  56.00 %   (Verity ppg; H10 ecg 40.79 %)
+         DRAWN streams      (25)   modal-delta share  min  79.04 %   (O2Ring counter, Verity ppi)
+     Nothing lands between. 0.67 sits in that gap — ~1.2× above the highest real and ~1.2× below the
+     lowest drawn — and gives 0/25 missed with 0/356 false positives. It is a property of the DATA,
+     like CK_AXIS_INERT_MS, not a tuned knob.
+     ⚠ The pre-existing ≥99 % drawn test (ppgdex-dsp) MISSES 5 of those 25 — a drawn axis is only
+     ~100 % concentrated when nothing interrupts it; one counter reset, a repeated stamp or a doubled
+     delta drops a genuinely fabricated stream to 79 %. Do not raise this back toward 99 %. */
+  var CK_AXIS_DRAWN_SHARE = 0.67;
 
   function _ckMedian(v) {
     var s = v.slice().sort(function (a, b) {
@@ -6510,6 +6528,30 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
       if (rv > rMax) rMax = rv;
     }
     var spreadMs = rMax - rMin;
+    /* Is the DEVICE column a clock at all? (See CK_AXIS_DRAWN_SHARE.) Concentration of the device's
+       own inter-sample deltas — computed from the anchors already in hand, no extra input. */
+    var _dTally = Object.create(null),
+      _dTotal = 0,
+      _dTop = 0;
+    for (var dq = 1; dq < n; dq++) {
+      var dk = String(pts[dq].d - pts[dq - 1].d);
+      var dc = (_dTally[dk] = (_dTally[dk] || 0) + 1);
+      _dTotal++;
+      if (dc > _dTop) _dTop = dc;
+    }
+    var drawnShare = _dTotal > 0 ? _dTop / _dTotal : 0;
+    var deviceDrawn = _dTotal > 0 && drawnShare >= CK_AXIS_DRAWN_SHARE;
+    /* `deviceDrawn` is published ADDITIVELY and does NOT gate `independent` — the same discipline the
+       spread flag itself shipped under ("ok and ppm are untouched, so every existing consumer behaves
+       exactly as before"). Folding it in was tried and reverted: a SYNTHETIC fixture legitimately uses
+       a uniform device axis (`devMs = i * 1000`), which is by construction indistinguishable from a
+       fabricated one, so gating on it reds 11 assertions including ECGDex's planted-drift recovery —
+       a real feature, not a fixture nit. The detector is right about real data (381 files, perfect
+       separation) and wrong to be load-bearing here, because a test fixture is not a recording.
+       ⚠ CONSEQUENCE, stated because it is a live hole and not a resolved one: `independent` is STILL
+       true for a drawn O2Ring axis, and pat-gate.js / ecgdex-dsp.js / integrator-dsp.js still read it.
+       Consumers must move to `deviceDrawn` deliberately, node by node, with each node's fixtures
+       re-cut to a realistic device axis. Tracked in KNOWN-CLOCK-ADVERSARIAL-CAPTURE §Findings. */
     var independent = spreadMs > CK_AXIS_INERT_MS;
     /* PLAUSIBILITY BOUND — refuse, never "correct", an implausible rate. Caught by the ECGDex §4.3
        fixture, whose synthetic ms column advances at 2× its host stamps: unbounded, that is a −500000
@@ -6581,9 +6623,22 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
           note: 'σ_y(τ) of the RAW host−device divergence; slope names the noise type. The SE is a LOWER bound — overlapping ADEV points are correlated while OLS assumes independence.'
         };
       })(),
+      /* Published so the `independent` call is checkable rather than trusted — the same reason
+         `spreadMs` is published beside it. */
+      drawnShare: drawnShare,
+      deviceDrawn: deviceDrawn,
       inertReason: independent
         ? null
         : 'host ≡ device — residual spread ' + spreadMs.toFixed(2) + ' ms ≤ ' + CK_AXIS_INERT_MS + ' ms (one stamp quantum); this host column is not an independent clock',
+      /* Separate from `inertReason` on purpose: that field answers "is the HOST column real", this one
+         answers "is the DEVICE column a clock". Both can be non-null; neither implies the other. */
+      drawnReason: deviceDrawn
+        ? 'device axis is DRAWN — ' +
+          (drawnShare * 100).toFixed(2) +
+          ' % of inter-sample deltas share one value (≥ ' +
+          (CK_AXIS_DRAWN_SHARE * 100).toFixed(0) +
+          ' %); this column is a synthesised counter, not a clock, so there is no second timebase to discipline against'
+        : null,
       /* Linear between anchors; FLAT outside them. Flat, not extrapolated: past the last anchor there
          is no measurement, and extending a slope there would fabricate one — the same rule as §2.6. */
       correctionAt: function (devMs) {
