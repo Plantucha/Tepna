@@ -14,6 +14,7 @@ import datetime as _dt
 import os
 
 from writers import PmdArrivalLogWriter
+from tests._srcscan import module_source
 
 _T0 = _dt.datetime(2026, 8, 11, 22, 0, 0)
 
@@ -480,3 +481,53 @@ def test_arrival_quality_refuses_an_estimate_from_a_single_packet(tmp_path):
     rows = nightqc.arrival_quality(str(tmp_path))
     assert len(rows) == 1 and rows[0]["rows"] == 1, rows
     assert rows[0]["offset"] == {"ok": False, "reason": "too-few", "n": 1}, rows
+
+
+# ── the canary is WIRED, not merely correct ─────────────────────────────────────────────────────────
+
+def _alert_loop_code() -> str:
+    """`capture.py`'s source with COMMENTS STRIPPED.
+
+    ⚠️ A source-scan test that reads comments asserts the documentation, not the code. Learned the hard
+    way on 2026-08-14: a check for `--uid=vigil` in a shell helper passed against the sentence explaining
+    why `--uid=vigil` mattered, while the command itself said `--uid=root`. The block these assertions
+    cover carries a long comment naming `arrival_canary`, so without this strip they would pass on prose."""
+    import io
+    import tokenize
+    src = module_source("capture.py")
+    # tokenize + untokenize, NOT a line prefix and NOT a hand-rolled join. Two drafts failed here:
+    #   · dropping lines whose lstrip() starts with "#" leaves a TRAILING comment intact, and
+    #     `for _msg in []:  # alerts.arrival_canary(` then satisfied every assertion below;
+    #   · joining the surviving tokens with "" welds `if notifier:` into `ifnotifier:`, so a search for
+    #     a multi-token phrase silently matches nothing — a false PASS in the other direction.
+    # `untokenize` pads from the original positions, so spacing survives and only comments go.
+    toks = [t for t in tokenize.generate_tokens(io.StringIO(src).readline)
+            if t.type != tokenize.COMMENT]
+    return tokenize.untokenize(toks)
+
+
+def test_arrival_canary_is_CALLED_by_the_alert_loop():
+    """It was called by nothing outside its own tests — a correct answer with no consumer, the same
+    class as the charging veto that shipped unreachable behind 24 passing assertions (#1245). Its own
+    docstring names the failure it alone can see: the sidecar write is wrapped in a bare `except: pass`
+    so telemetry cannot disturb the data callback, which makes a persistent failure invisible BY
+    CONSTRUCTION."""
+    assert "alerts.arrival_canary(" in _alert_loop_code(), "the alert loop must actually invoke it"
+
+
+def test_the_canary_warns_even_with_no_webhook_configured():
+    """The journal is the only alerting surface a box without a webhook has, and this failure otherwise
+    leaves no trace in it at all. Mirrors the frozen-sensor alert's own rule, a few lines up."""
+    code = _alert_loop_code()
+    seg = code[code.index("alerts.arrival_canary("):]
+    seg = seg[:seg.index("if notifier:")]
+    assert "log.warning(" in seg, "a WARNING must precede the optional notifier, not depend on it"
+
+
+def test_the_canary_is_deduped_per_night_so_it_cannot_page_every_tick():
+    """`alert_loop` re-runs on a timer; an undeduped warning would repeat for the whole night. The
+    frozen-sensor alert beside it keys on night:device for exactly this reason."""
+    code = _alert_loop_code()
+    assert "canary_alerted" in code
+    seg = code[code.index("alerts.arrival_canary("):][:900]
+    assert "canary_alerted.add(" in seg and "continue" in seg
