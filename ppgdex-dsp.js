@@ -4474,6 +4474,64 @@
        was feeding `apnea.overlapHours` as if it were continuous. Assigned conditionally so a clean
        export stays byte-identical (see the identical note in ecgdex-dsp). */
     if (r.coverage) out.recording.coverage = r.coverage;
+    /* SELF vs FIRMWARE — ON THE INTEGRATOR-FACING SURFACE. This is a DEFECT FIX, not a new feature:
+       `validation` (with its `stability` leg) was added to `ppgdex-app.js buildV2` and the Integrator's
+       `readDetectorStability()` was written to read `nodeExport.validation.stability` — but `buildV2` is
+       the AI-readable export, NOT what `buildNodeExport` emits. A real `ganglior.node-export` carries
+       apnea · ganglior_events · hrv · kernel · quality · recording · reserved · schema · timeseries and
+       nothing else, so the reader returned null on every genuine export. Its unit tests passed because
+       they construct the export shape BY HAND — they proved the reader worked, never that anything fed
+       it. The gate could not catch it either: the equivalence legs re-run `buildNodeExport`, so a field
+       added to `buildV2` is outside what they examine.
+       Attached only when usable, for the same reason as the sibling above — a `validation: null` key is
+       still a changed export shape, and no committed fixture reaches `usable`. */
+    if (r.validation && r.validation.usable) {
+      const _v = r.validation;
+      out.validation = {
+        source: _v.source,
+        beatsCompared: _v.nSelf,
+        nDevice: _v.nDevice,
+        dMeanPct: _v.dMean,
+        dRMSSDPct: _v.dRMSSD,
+        dSDNNPct: _v.dSDNN,
+        devEctopyCorrected: _v.devEctopyCorrected,
+        devRawRMSSD: _v.devRawRMSSD,
+        deviceAgreementPct: _v.deviceAgreementPct,
+        /* The field `readDetectorStability()` actually consumes. `slope` is load-bearing: -1 means the
+           disagreement is jitter that averages away, so a SUSTAINED divergence is a real fault; 0 would
+           be a floor no averaging removes. Present only for the marker source, where both detectors sit
+           on one axis — see the DSP note on why a `_PPI.txt` cannot supply this. */
+        stability: _v.stability
+          ? {
+              slope: _v.stability.slope,
+              noise: _v.stability.noise,
+              meaning: _v.stability.meaning,
+              beatsPaired: _v.stability.nPaired,
+              tau0Sec: _v.stability.tau0Sec,
+              atShortestMs: _v.stability.atShortestMs,
+              atLongestMs: _v.stability.atLongestMs,
+              tauMaxSec: _v.stability.tauMaxSec,
+              optimalTauSec: _v.stability.optimalTauSec,
+              knownLimitation: 'noise/meaning are unreliable when slope sits on a category boundary (±0.75, ±0.25); branch on slope, not on the label'
+            }
+          : null,
+        note: 'self-PPI vs firmware PPI; both sides artifact-corrected. Validation lane only — PPI is never handed to PulseDex'
+      };
+    }
+    // Per-channel three-cornered-hat noise, same surface and same reason. ⚠️ Read `scope`: NOISE, not
+    // correctness — it is blind to any error common to all three channels (#1200 polarity).
+    if (r.channelStability) {
+      out.validation = out.validation || { source: 'channel-tch' };
+      out.validation.channelStability = {
+        channels: r.channelStability.channels.map((c) => ({ sigmaShortestMs: c.sigmaShortestMs, slope: c.slope })),
+        beatsTripled: r.channelStability.nTriples,
+        negativeVarianceTaus: r.channelStability.negativeVarianceTaus,
+        independent: r.channelStability.independent,
+        polarity: r.channelStability.polarity,
+        polarityFlipped: r.channelStability.polarityFlipped,
+        scope: r.channelStability.scope
+      };
+    }
     // ── RICH export (gated: opts.rich) — ECG-PPG-FOLLOWUPS-HANDOFF §1 option (a) / PPGDEX-FOLLOWUPS §1 ──
     // By DEFAULT this builder emits the LIGHT export above and the app's exportGanglior() calls WITHOUT
     // opts.rich → the app's Ganglior stream stays BYTE-IDENTICAL. Only the orchestrate emitter

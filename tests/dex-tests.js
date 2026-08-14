@@ -33372,6 +33372,162 @@
      dev gate — so ONLY the absolute upper bound decides its fate: it is the exact
      input that separates 2000 from 2200. (PulseDex deliberately keeps 2200 for
      athlete-RR bradycardia; ECGDex does NOT — that per-signal split is intentional.) */
+    /* ════ THE VALIDATION BLOCK MUST REACH THE BUILDER THE INTEGRATOR ACTUALLY READS ════
+       A DEFECT THIS SUITE SHIPPED. `validation.stability` was added to `ppgdex-app.js buildV2` and the
+       Integrator's `readDetectorStability()` was written against `nodeExport.validation.stability` —
+       but `buildV2` is the AI-readable export, not what `buildNodeExport` emits. A real
+       `ganglior.node-export` carries apnea · ganglior_events · hrv · kernel · quality · recording ·
+       reserved · schema · timeseries and nothing else, so the reader returned null on every genuine
+       export while its own unit tests passed, because those construct the export shape BY HAND.
+       Nor could the equivalence legs catch it: they re-run `buildNodeExport`, so a field added to
+       `buildV2` sits outside what they examine. Two gates, both honest, neither looking at the thing.
+       These assertions go through the REAL builder for both nodes. A hand-built object would restore
+       exactly the blindness being fixed. */
+    group('the firmware-validation block reaches buildNodeExport, not just the UI export', 'dsp · node-export · integrator-facing', function (T) {
+      var P = env.PPGDSP || env.PpgDSP,
+        E = env.ECGDSP,
+        I = env.IntegratorDSP || env.INTEGRATOR;
+      if (!P || typeof P.buildNodeExport !== 'function' || !E || typeof E.buildNodeExport !== 'function') {
+        T.skip('both node-export builders available', 'not loaded');
+        return;
+      }
+      /* ABSENT ⇒ NO KEY, not a null one. Every committed fixture lacks a device companion, so a null
+         key would change the export shape of all of them for nothing. */
+      var bare = P.buildNodeExport({ nn: [], tt: [], epochs: [], events: [], fs: 55, n: 10, durSec: 1, t0Ms: 0 }, {});
+      T.eq('a PpgDex export with no firmware comparison carries NO validation key', Object.prototype.hasOwnProperty.call(bare, 'validation'), false);
+      var bareE = E.buildNodeExport({ nn: [], tt: [], epochs: [], events: [], fs: 130, n: 10, durSec: 1, t0Ms: 0 }, {});
+      T.eq('…and neither does an ECGDex export without a _RR.txt', Object.prototype.hasOwnProperty.call(bareE, 'validation'), false);
+      /* PRESENT ⇒ IT MUST BE ON THIS BUILDER, and it must survive the round-trip the Integrator makes.
+         `usable` is what the emitter gates on, so this is the minimum shape a real recording produces. */
+      var withV = P.buildNodeExport(
+        {
+          nn: [],
+          tt: [],
+          epochs: [],
+          events: [],
+          fs: 55,
+          n: 10,
+          durSec: 1,
+          t0Ms: 0,
+          validation: {
+            usable: true,
+            source: 'o2ring-marker',
+            nSelf: 100,
+            nDevice: 98,
+            dMean: 0.7,
+            dRMSSD: 10.7,
+            dSDNN: 14.8,
+            devEctopyCorrected: 306,
+            devRawRMSSD: 103.6,
+            deviceAgreementPct: 99.3,
+            stability: {
+              slope: -1.01,
+              noise: 'white/flicker-phase',
+              meaning: 'jitter — averages away fast',
+              nPaired: 17722,
+              tau0Sec: 1.19,
+              atShortestMs: 42.31,
+              atLongestMs: 0.0065,
+              tauMaxSec: 9720,
+              optimalTauSec: 9720
+            }
+          }
+        },
+        {}
+      );
+      T.ok('a usable comparison DOES reach the node export', withV.validation != null);
+      T.eq('…carrying which firmware produced it', withV.validation.source, 'o2ring-marker');
+      T.ok('…and the stability leg the Integrator reads', withV.validation.stability != null && withV.validation.stability.slope === -1.01);
+      /* THE ROUND-TRIP THAT WAS BROKEN. Feeding the real builder's output to the real reader is the
+         assertion that fails on the shipped defect; every hand-built fixture passed it. */
+      if (I && typeof I.readDetectorStability === 'function') {
+        var got = I.readDetectorStability(withV);
+        T.ok('the Integrator reads stability off a REAL builder output', got != null, 'readDetectorStability returned null on buildNodeExport output');
+        T.eq('…recovering the slope unchanged', got ? got.slope : null, -1.01);
+        T.eq('…and a bare export still yields null rather than a fabricated default', I.readDetectorStability(bare), null);
+      } else T.skip('IntegratorDSP.readDetectorStability for the round-trip', 'wire env.IntegratorDSP in both runners');
+    });
+
+    /* ════ PER-BEAT ALIGNMENT AGAINST THE STRAP'S OWN DETECTOR — a whole-record median hides a decay ════
+       `validateRR` compares whole-record summaries, which are invariant to WHICH beat matched which, so
+       a night whose beat correspondence has fallen apart still reports healthy means and RMSSD. This
+       pairs the two interval series BEAT BY BEAT and reports where the match holds.
+       Measured on the real corpus: on 2026-08-10 the whole-night median |self − device| reads a healthy
+       4.88 ms and the beat COUNTS match to 33 in 17 848, while the per-decile medians run
+       2.36 2.33 2.22 2.27 2.31 | 16.93 17.26 25.94 27.76 30.79 — flat for half the night, then climbing.
+       Nothing else in the suite can see that. Across the wider corpus the non-uniformity is more often a
+       degraded START (15-28 ms in the first two deciles, then clean) than a decay, so the verdict must
+       not assume a shape. */
+    group('ECGDex per-beat firmware alignment reports WHERE the pairing holds, not just a median', 'ecgdex-dsp · firmware-rr-align', function (T) {
+      var E = env.ECGDSP;
+      if (!E || typeof E.alignFirmwareRR !== 'function') {
+        T.skip('ECGDSP.alignFirmwareRR available', 'not loaded');
+        return;
+      }
+      /* Beat-to-beat variation at a PHYSIOLOGICAL scale, deterministic (MINSTD — exact in a double).
+         A smooth sine is the wrong fixture here and quietly defeats the test: shifting it by one index
+         changes each interval by ~1.3 ms, which is SUB-SAMPLE at 130 Hz and correctly not flagged, so a
+         genuinely dropped beat looked undetectable. Real RR varies tens of ms beat to beat, which is
+         exactly why a one-index slip shows up as 25-50 ms in the corpus. */
+      var seed = 7777;
+      var rnd = function () {
+        seed = (seed * 16807) % 2147483647;
+        return seed / 2147483647 - 0.5;
+      };
+      var mkDev = function (n, base) {
+        var o = [];
+        for (var i = 0; i < n; i++) o.push({ rr: base + 40 * Math.sin(i / 23) + 70 * rnd(), tsMs: null });
+        return o;
+      };
+      // A CLEAN pair: identical rhythm, device train starting 7 beats earlier. One global offset holds.
+      var dev = mkDev(4000, 900);
+      var self = [];
+      for (var i = 7; i < dev.length; i++) self.push(dev[i].rr);
+      var ok = E.alignFirmwareRR(self, dev, { fs: 130 });
+      T.ok('a clean pair aligns', ok != null);
+      T.eq('the index offset is recovered exactly', ok.offset, 7);
+      T.eq('a uniform recording is not flagged', ok.pairingDecays, false);
+      T.eq('…and needs no restricted range', ok.stableWindowRange, null);
+      T.eq('the offset agrees across all three thirds', JSON.stringify(ok.offsetPerThird), JSON.stringify([7, 7, 7]));
+      /* THE DEFECT THIS EXISTS FOR: a whole-record median stays healthy while the pairing degrades.
+         Corrupt the back half by dropping a beat from the device train mid-recording, which shifts every
+         later pair by one — exactly the distributed-surplus case a single global offset cannot absorb. */
+      var dev2 = mkDev(4000, 900);
+      var self2 = [];
+      for (var j = 7; j < dev2.length; j++) {
+        if (j === 2400) continue; // one dropped beat ⇒ every later index is off by one
+        self2.push(dev2[j].rr);
+      }
+      var bad = E.alignFirmwareRR(self2, dev2, { fs: 130 });
+      T.ok('a mid-recording beat drop is DETECTED', bad.pairingDecays === true, 'byWindow=' + JSON.stringify(bad.medianAbsByWindow));
+      T.ok(
+        '…and the trustworthy stretch is located, not just counted',
+        bad.stableWindowRange != null && bad.stableWindowRange[0] < bad.stableWindowRange[1],
+        'range=' + JSON.stringify(bad.stableWindowRange)
+      );
+      /* THE BASELINE IS THE BEST WINDOW, NOT THE FIRST — a real file (2026-07-25) is bad at the START,
+         clean in the middle and bad at the end. Referencing the first window made that file's own worst
+         data the yardstick, so nothing exceeded it and the verdict read "uniform". */
+      var dev3 = mkDev(4000, 900);
+      var self3 = [];
+      for (var k = 7; k < dev3.length; k++) self3.push(dev3[k].rr + (k < 700 ? 60 : 0));
+      var badStart = E.alignFirmwareRR(self3, dev3, { fs: 130 });
+      T.ok('a degraded START is detected (the baseline is the best window, not the first)', badStart.pairingDecays === true, 'byWindow=' + JSON.stringify(badStart.medianAbsByWindow));
+      T.ok('…and the stable stretch EXCLUDES the bad prefix', badStart.stableWindowRange != null && badStart.stableWindowRange[0] > 0, 'range=' + JSON.stringify(badStart.stableWindowRange));
+      /* THE RELATIVE TEST NEEDS AN ABSOLUTE FLOOR. Two detectors on one ECG cannot meaningfully disagree
+         by less than a sampling interval. A 3x rise from 2.3 to 6.9 ms trips a purely relative rule while
+         still sitting INSIDE one sample at 130 Hz — the real decays reach 25-50 ms, i.e. 3-7 samples. */
+      var dev4 = mkDev(4000, 900);
+      var self4 = [];
+      for (var m = 7; m < dev4.length; m++) self4.push(dev4[m].rr + (m > 3000 ? 5 : 0));
+      var subSample = E.alignFirmwareRR(self4, dev4, { fs: 130 });
+      T.ok('a sub-sample rise is NOT called a defect', subSample.pairingDecays === false, 'worst=' + subSample.medianAbsWorstMs + ' ms against a ' + subSample.sampleMs + ' ms sample');
+      T.ok('the resolution floor used for that verdict is published', subSample.sampleMs > 7 && subSample.sampleMs < 8, 'sampleMs=' + subSample.sampleMs);
+      // Refusals: no fabricated alignment from too little data.
+      T.eq('too few beats refuse', E.alignFirmwareRR([900, 900, 900], mkDev(4000, 900)), null);
+      T.eq('a missing device series refuses', E.alignFirmwareRR(self, null), null);
+    });
+
     group('ECGDex range gate: _malikCorrect matches buildNN at 2000 ms (AUDIT-2026-07-16 F2)', 'ecgdex-dsp · regression', function (T) {
       var ECG = env.ECGDSP;
       T.ok('ECGDSP.buildNN + validateRR exposed', ECG && typeof ECG.buildNN === 'function' && typeof ECG.validateRR === 'function');
