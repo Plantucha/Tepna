@@ -257,12 +257,56 @@ suggestive of over-firing; they do not demonstrate it.
 
 ⚠️ Likewise `minRho` is an EQUICORRELATION (§2.2), so "short by 0.10" is not a per-pair error bar.
 
-**RECOMMENDED CHANGE, not made here.** `integrator-tch.js`'s own auto min-rho search "only engages on
-the negative-variance failure mode" — it rescues, it does not routinely adjust. The EXTERNAL ρ has no
-such discipline: `opts.rho` is applied whenever supplied. Gating the external proxy the same way — use
-it only when the classic solve fails — would remove 24 of 38 applications while keeping every rescue,
-and it aligns the two paths on one rule. That is a behavioural change to shipped fusion and wants its
-own gate run and decision, so it is written down rather than done.
+### 2.3.1 · 🔴 THE RECOMMENDATION IN 2.3 WAS WRONG — WITHDRAWN BEFORE IT WAS BUILT
+
+§2.3 recommended gating the external ρ the way the auto min-rho search is gated: apply it only when the
+classic solve fails. **That change was approved, started, and abandoned at the first read of the code
+it would have modified.** Two independent refutations, both of which were available before the
+recommendation was written:
+
+**(a) IT DEFEATS THE FEATURE'S STATED PURPOSE, and the source says so in place.**
+`integrator-tch.js`'s external-ρ block is prefaced by: *"Positive common-mode BIASES classic without
+driving it negative, so it can't be detected reference-free — the honest fix is to remove a correlation
+the consumer can independently estimate."* The external ρ exists **precisely** for the correlation that
+does NOT produce a negative split. Gating it on negativity would restrict it to the one case it was not
+built for, and delete it from every case it was.
+
+This is the same logic §2.3 already stated for the other side of the table — "a physical classic solve
+does not establish ρ = 0" — and then failed to apply to its own recommendation.
+
+**(b) THE UNDERSHOOT IS ALREADY MITIGATED IN SHIPPED CODE.** §2.3's strongest claim was that the proxy
+falls short of `minRho` on 9 of 14 nights where correlation is provable. Cross-tabulated against
+`externalRhoRejected`:
+
+| | nights |
+|---|---:|
+| proxy SHORT of minRho | 9 |
+| …hat **already rejects** it | **8** |
+| …hat accepts it anyway | 1 — 2026-08-03, ρ = 0.53 vs minRho 0.53, i.e. equal to 2 dp |
+
+`_solveMulti` fails when ρ sits below the geometry's non-negativity floor, and the FU-IV §1.4 path
+raises `externalRhoRejected`. So the undershoot does not reach the estimate on 8 of 9 nights, and the
+ninth is a rounding tie. **"9 of 14" overstated a defect that shipped code already catches.**
+
+### 2.3.2 · What actually survives
+
+Narrower, and still worth acting on eventually:
+
+- **Spearman(proxy, minRho) = −0.120.** The proxy does not track the one correlation signal we can
+  measure. That remains unexplained.
+- **It is accepted on 27 of 38 nights and moves the largest σ by a median 0.242 bpm** (worst 1.042),
+  comparable to the entire σ of the quiet sensors (§2.1). It is materially changing estimates.
+- **Its magnitude is unvalidated, and cannot be validated from inside the triplet.** On negative-split
+  nights the hat already rejects an under-floor ρ; on the other 24 nights `minRho` is silent by
+  construction — that is exactly the blind spot the external ρ exists to cover, so it cannot also be
+  the thing that checks it.
+
+**Therefore the only route to validating the proxy is a genuinely external one — a fourth independent
+source (§3, E-QC), which is blocked on hardware.** That is the honest end of this thread: the question
+is not answerable with the sensors currently recording, and no rearrangement of three of them will
+change that. §1 said this algebraically; this is the same wall reached empirically.
+
+⚠️ **Do not re-propose the gating change.** Both refutations are recorded above.
 
 **Consequence for the ranking below:** §2's remaining items (Premoli–Tavella's positive-definite
 constrained solve, KLTS intervals) are now better motivated than when this brief was written — a 41.7 %
