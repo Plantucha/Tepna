@@ -2929,10 +2929,20 @@
      nTau)` refuses to NAME a noise type when a category boundary lies within 1.96 SE, returns `slope`
      UNROUNDED, and publishes `slopeSE`/`candidates`. The local copy took `(sl)` alone and rounded — the
      exact defect this node shipped a `knownLimitation` string about. Delegating retires that string
-     rather than restating it. */
-  const allanFromPhase = DexClock.allanFromPhase;
-  const allanSlope = DexClock.allanSlope;
-  const classifyAllan = DexClock.classifyAllan;
+     rather than restating it.
+     ⚠️ GUARDED, and the guard is LOAD-BEARING — a bare `DexClock.allanFromPhase` here throws
+     `DexClock is not defined` at MODULE-EVALUATION time in any surface that loads this file without
+     `clock.js`, which `no-network.html` (60 modules, evaluated standalone) does by construction. The
+     first cut of this delegation shipped unguarded and reddened `browser-gates` on both
+     `Dex-Test-Suite.html` and `no-network.html` while the whole Node lane stayed green, because Node
+     co-loads the spine and never evaluates this file alone. `hostAxis` at the top of this module
+     already tolerates the same absence for the same reason — match it, do not "simplify" it away.
+     Identity is preserved when the spine IS present, so the `===` assertion in `tests/dex-tests.js`
+     still catches a reintroduced local implementation. */
+  const _ckSpine = typeof DexClock !== 'undefined' && DexClock ? DexClock : null;
+  const allanFromPhase = _ckSpine ? _ckSpine.allanFromPhase : undefined;
+  const allanSlope = _ckSpine ? _ckSpine.allanSlope : undefined;
+  const classifyAllan = _ckSpine ? _ckSpine.classifyAllan : undefined;
   /* Pairs two beat-time series (SECONDS, on the same axis) and returns the stability of their
      disagreement. `maxPairSec` rejects a beat with no counterpart rather than pairing it across a
      dropout — a fabricated pair injects a step the curve would read as wander. */
