@@ -677,6 +677,10 @@ function clockStatus(dev){
   // The O2Ring exposes no per-sample device time, but we DO set its RTC on every connect — so it earns
   // a pill from that alone. (Its RTC is set in LOCAL civil, not UTC like the Polars: the ring has a
   // screen the wearer reads, and its samples are host-arrival stamped so its clock never fed timing.)
+  // GIVE-UP OUTRANKS 'we set it once', so it is checked before the no-device_time shortcut —
+  // otherwise a device with no per-sample stamps (the ring) shows 'clock set' from a sync that has
+  // since been written off, or shows no pill at all.
+  if(dev.clock_uncorrectable && !dev.device_time) return {cls:'bad', txt:'clock uncorrectable'};
   if(!dev.device_time) return dev.clock_synced ? {cls:'ok', txt:'clock set'} : null;
   const yr = +String(dev.device_time).slice(0,4);
   if(yr < 2020) return {cls:'bad',  txt:'clock not set'};       // sitting at the firmware default
@@ -688,6 +692,11 @@ function clockStatus(dev){
   const sk = dev.clock_skew_sec;
   const measured = (sk != null && isFinite(sk));
   if(measured && Math.abs(sk) > 2) return {cls:'warn', txt:'clock drifting'};
+  // ⚠️ ONLY WHEN NOTHING MEASURED CONTRADICTS IT. A clock we could not WRITE may still be RIGHT, and
+  // the block above already settles that a measured agreement outranks "we set it hours ago". Letting
+  // the give-up verdict override a sub-second measurement would repeat the exact mistake that comment
+  // was written after — telling the user to worry about a clock that was fine.
+  if(dev.clock_uncorrectable && !measured) return {cls:'bad', txt:'clock uncorrectable'};
   if(!dev.clock_synced) return measured ? {cls:'ok', txt:'clock ok'}
                                         : {cls:'warn', txt:'clock unverified'};
   return {cls:'ok', txt:'clock set'};
@@ -697,6 +706,7 @@ function clkChip(dev){
   if(!st) return '';
   const s = dev.clock_skew_sec;
   const t = `device clock ${dev.device_time}`
+          + (dev.clock_uncorrectable ? ' · AUTO-SYNC GAVE UP — the daemon could not write this clock' : '')
           + (dev.clock_synced ? ` · set from host at ${String(dev.clock_synced).slice(11,19)}` : ' · not set by us this session')
           + (s!=null ? ` · sample-stamp offset ${s>=0?'+':''}${Math.abs(s)>=3600?(s/3600).toFixed(1)+'h':Math.round(s)+'s'} vs host` : '');
   return `<span class="clk ${st.cls}" title="${esc(t)}">🕐 ${st.txt}</span>`;
