@@ -307,8 +307,11 @@ def full_battery_implies_charging(level, seconds_flat, *, full_pct: int = _BATT_
     PURE. `None` means "no claim" — below full (where the rising rule applies), on a short observation,
     or with nothing to read. Never returns False: a battery flat for ten minutes has not proved it is
     discharging, and saying so would be inventing the opposite verdict out of insufficient evidence."""
-    if level is None or seconds_flat is None:
-        return None
+    # ⚠️ NO `is None` GUARD HERE, deliberately. One used to sit on this line and the mutation gate
+    # showed it was dead: `or` mutated to `and` survived, because a lone `None` simply falls through to
+    # `int(None)` / `float(None)`, raises TypeError, and returns None from the handler below by a
+    # different route. A guard that cannot change any output is not a guard — it is a second, silent
+    # copy of the rule underneath it, and the next reader has to prove they agree.
     try:
         lvl, flat = int(level), float(seconds_flat)
     except (TypeError, ValueError):
