@@ -234,8 +234,11 @@ CPAP corpus is `Ecg nightly/CPAP/` — **1194 EDFs over 183 dates**, 2026-01-11 
 | epochs at ~87/night | **~2436** |
 | class accuracy at N≈2000 (table above) | **93.3 %** |
 
-**E-QC is well-powered and runnable now.** The fourth stream is `SA2.edf`'s **`Pulse.1s`** channel — 1 Hz
-pulse rate, confirmed by reading the EDF header: `['Pulse.1s', 'SpO2.1s', 'Crc16']`.
+~~**E-QC is well-powered and runnable now.**~~ 🔴 **RETRACTED — see §3.1(c) below.** The nights and the
+epoch count are right; the CONCLUSION is not. The fourth stream is `SA2.edf`'s `Pulse.1s` channel, which
+is declared in the EDF header (`['Pulse.1s', 'SpO2.1s', 'Crc16']`) and is **−1 no-data fill in every one
+of the 189 files**. Reading a header is not reading data — which is the *same* mistake as (b), one level
+deeper, made in the act of correcting (b).
 
 The lesson is this repo's most-repeated one: **presence of a file is not presence of the data, and the
 directory you happen to look in is not the corpus.** "Underpowered, reclassify as a capture-protocol
@@ -523,7 +526,7 @@ implementations to disagree with**, which §7 argues is the only thing that can 
 - **Do not "record more nights" for E-QC** (§3.1c). 183 already exist and are all empty; the blocker is
   a detached oximeter module.
 - **Do not scope a corpus from `uploads/`** (§3.1b). It is a working subset: 3 CPAP dates against the
-  real corpus's 183, and that difference turned "underpowered, defer" into "runnable now".
+  real corpus's 183. (That correction was itself insufficient — see §3.1c — but the scoping rule stands.)
 - **Do not break the 2-fold tie with "the other member is implausible"** for `{ECG-Ppg, Oxy-CPAP}`
   (§3.1b). Ring and ResMed SA2 are both pulse oximeters; that pairing is as plausible as the one being
   argued for.
