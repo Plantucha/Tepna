@@ -79,7 +79,24 @@ def build_cmd(verb, minutes=None) -> list[str]:
         raise VerbError(f"unknown verb {verb!r} — expected one of {', '.join(sorted(_ARITY))}")
     argv = ["sudo", "-n", helper_path.resolve(HELPER), verb]
     if _ARITY[verb]:
-        argv.append(str(coerce_minutes(minutes)))
+        n = coerce_minutes(minutes)
+        # ⚠️ THE BOUND IS RE-ASSERTED HERE, at the point of USE, not only in `coerce_minutes`.
+        #
+        # Not redundancy for its own sake. The value reaches this line from an HTTP body, and a reader
+        # (or a static analyser) checking whether a caller-supplied value can influence a command line
+        # has to follow it into another function to find the guard. CodeQL flagged exactly that as
+        # `py/command-line-injection` — the sanitiser did not survive the call boundary, and a
+        # security property that cannot be seen locally is one nobody can verify in review either.
+        #
+        # After this, `n` is provably an int in [1, 480], so `str(n)` is one to three digits. Combined
+        # with a LIST argv (no shell, nothing to quote for) there is no injection surface — but the
+        # argument for that now lives where the argv is built.
+        # UNREACHABLE by construction — `coerce_minutes` raises on everything this catches — and kept
+        # anyway, because its value is not runtime behaviour: a reader of THIS function needs no other
+        # function to trust the next line. Excluded from coverage for the same reason the arm exists.
+        if not isinstance(n, int) or not MIN_STOP_MINUTES <= n <= MAX_STOP_MINUTES:  # pragma: no cover
+            raise VerbError(f"minutes out of range after coercion: {n!r}")
+        argv.append("%d" % n)
     return argv
 
 
