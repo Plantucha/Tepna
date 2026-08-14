@@ -192,8 +192,47 @@ than metrology's on exactly our blocker.
   Shows there is an *optimal* triplet — the one violating the assumptions least — and that removing
   seasonal (here: circadian / posture) variation substantially improves error estimation.
 
+### 3.1 · ⚠️ MEASURED — E-QC resolves the pair only UP TO ITS COMPLEMENT, and our corpus cannot run it
+
+The claim above ("runnable on the existing corpus with no new sensor") was **wrong on both halves**, and
+both were found by pre-registering the power requirement before touching the corpus — the first actual
+use of §7's blind-analysis discipline. `tools/eqc-power.mjs`, seeded, planted rho on one pair, real
+measured sigmas (ECGDex 0.30 · PpgDex 0.33 · OxyDex 1.10; CPAPDex has no published sigma and is given
+0.60, flagged rather than hidden).
+
+**(a) A STRUCTURAL 2-FOLD AMBIGUITY the method's description does not mention.** Exact-pair accuracy
+plateaus at a coin flip no matter how much data is supplied, while "pair or its complement" converges:
+
+| N epochs | exact pair | pair-or-complement |
+|---:|---:|---:|
+| 174 | 35.0 % | 59.3 % |
+| 1000 | 45.0 % | 86.3 % |
+| 2000 | 50.0 % | 93.3 % |
+| 5000 | **51.7 %** | **98.3 %** |
+
+Chance is 16.7 % exact / 33.3 % class. The mechanism is combinatorial, not statistical: in K₄ every
+consistency identity containing edge (a,b) — `V_ab + V_cd = V_ac + V_bd = V_ad + V_bc` — **also contains
+its disjoint edge (c,d)**, so dropping either one absorbs the contamination equally well. No sample size
+fixes this. E-QC therefore narrows the correlated pair from 6 candidates to **2**, which is real
+information but is not "identifies which pair".
+
+For us the 2-element classes are `{ECG–Ppg, Oxy–CPAP}`, `{ECG–Oxy, Ppg–CPAP}`, `{ECG–CPAP, Ppg–Oxy}`.
+The physically interesting hypothesis — ECG and PPG sharing subject/posture error — sits in a class whose
+other member (ring↔CPAP) is *a priori* implausible, so domain knowledge can break the tie. That is a
+legitimate resolution, but it must be stated as an assumption rather than presented as a measurement.
+
+**(b) THE CORPUS IS UNDERPOWERED BY AN ORDER OF MAGNITUDE.** Only **2 nights** carry both a CPAP
+recording and a trio night (2026-06-12 and 2026-06-16; 20 EDFs exist but cover 3 dates, one of which has
+no trio). At ~87 epochs/night that is **~174 epochs → 59.3 % class accuracy**, barely above the 33.3 %
+floor. Useful class identification needs **~1000 epochs (86 %)**, comfortable needs ~2000 (93 %).
+
+**So E-QC is a CAPTURE-PROTOCOL item, not an analysis item.** It needs CPAP recorded alongside the trio
+on roughly **12–25 more nights**. Nothing in the existing corpus will produce it, and running it on the
+2 available nights would return a confident-looking pair that is 41 % likely to be the wrong *class*
+before the 2-fold ambiguity is even applied.
+
 **We have four HR streams on CPAP nights** (OxyDex ring, ECGDex H10, PpgDex Verity, CPAPDex device
-pulse rate). E-QC is runnable on the existing corpus with no new sensor.
+pulse rate). ⚠️ But see §3.1 — this was measured and the corpus does NOT support it.
 
 ---
 
@@ -407,7 +446,7 @@ implementations to disagree with**, which §7 argues is the only thing that can 
 |---|---|---|---|
 | — | ~~§4 one-sided estimator~~ | done | **TESTED AND REJECTED** — see §4.3. Kept in the table so it is not re-proposed as "the cheap one". |
 | 1 | §7 blind-analysis protocol | very small | Process, not code. Addresses the failure class that shipped #1200. Now the cheapest item on the list. |
-| 2 | §3 E-QC on the 4-stream CPAP nights | medium | The only item that converts §1's unanswerable question into an answerable one, and it needs **no new sensor**. |
+| 2 | §3 E-QC — **CAPTURE first** | blocked | Still the only item that makes §1's question answerable, but §3.1 measured the corpus at ~174 epochs against the ~1000 needed. Record CPAP alongside the trio for 12–25 nights; the analysis is then cheap. |
 | 3 | §5 Newey–West for the closure tolerance | medium | Closed form, standard tooling, `blocks_` already exposed. Held below E-QC only because the bandwidth choice needs its own sensitivity study. |
 | 4 | §2 ML reformulation / KLTS intervals for TCH | medium | Do after E-QC — the estimator matters less than closing the identifiability gap. |
 | 5 | §6 EDF-weighted slope, then GMWM | large | Correct, and the least urgent: `classifyAllan` currently refuses rather than lying, which is the safe failure. |
@@ -428,6 +467,11 @@ implementations to disagree with**, which §7 argues is the only thing that can 
 - **Do not quote a width-sweep number without saying which PLANT produced it** (§4.2/§4.4). The
   original experiment is not in the repository and its ordering has not been reproduced.
 - **Do not add any of §8 as a dependency.** They are comparators.
+- **Do not run E-QC on the 2 available nights** (§3.1). It returns a confident-looking pair that is
+  41 % likely to be the wrong CLASS before the 2-fold ambiguity is even applied.
+- **Do not describe E-QC as "identifies which pair is correlated"** without the complement caveat. It
+  narrows 6 candidates to 2; the tie is broken by domain knowledge, which is an assumption, not a
+  measurement.
 - **Do not quote the 0.173 motion-proxy figure** as evidence the proxy is poor. Per §1.1 it compared
   against a non-measurement. The proxy's quality is currently **unknown**, which is a different and
   more honest statement.
@@ -441,8 +485,10 @@ implementations to disagree with**, which §7 argues is the only thing that can 
 - [x] §4 built (`tools/hostaxis-estimator-bakeoff.mjs` — the width-21 experiment is re-runnable for the
       first time), measured, and **REJECTED** with the numbers in §4.3
 - [ ] §7 blinded validation protocol written down and used once, on a real detector change
-- [ ] §3 E-QC run on the 4-stream CPAP nights, with the identified correlated pair reported — or
-      recorded as REJECTED with the measurement that rejected it, per the parent brief's §4 pattern
+- [x] §3 power-analysed BEFORE running (§7 discipline, first use): E-QC has a structural 2-fold
+      ambiguity (pair vs its complement, 51.7 % exact / 98.3 % class at N=5000) and our corpus holds
+      ~174 of the ~1000 epochs needed. Reclassified as a CAPTURE-PROTOCOL item
+- [ ] §3 rerun once CPAP is recorded alongside the trio on 12–25 more nights
 - [ ] §5 closure tolerance re-derived under HAC with a bandwidth sensitivity table, or explicitly
       deferred with the reason
 - [ ] §6 either the weighted-slope fixed point lands, or the section is downgraded to REFERENCE with a
