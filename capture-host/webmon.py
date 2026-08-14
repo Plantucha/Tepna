@@ -198,6 +198,15 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         "clock_synced": st.get("clock_synced"),
                         "device_time": st.get("device_time"),
                         "clock_skew_sec": st.get("clock_skew_sec"),
+                        # THE WATCHDOG'S GIVE-UP VERDICT, which until now reached nobody. `capture.py`
+                        # sets it when the clock write has failed its whole budget and retracts it on the
+                        # next successful sync — a fact with 7 tests pinning it and, before this line, no
+                        # consumer at all. That is the failure the `worn_why` comment below describes,
+                        # one field over: a value that exists in STATUS but is not forwarded here is NOT
+                        # published. For a suite whose Clock Contract rests on device time being
+                        # trustworthy, a night captured under an uncorrectable clock was downstream
+                        # indistinguishable from a good one.
+                        "clock_uncorrectable": st.get("clock_uncorrectable"),
                         "pull_progress": st.get("pull_progress"),
                         # link_epoch (E5) is the reconnect count — the honest churn signal a green
                         # "connected" dot hides. A device that flaps all night reads "connected" at every
