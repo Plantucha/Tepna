@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4k3h01pxeArEwocDXAmvj2lm9BOeocYgYMtTKmqI25o=' 'sha256-5MzkM3qcfNo7/ia7NMesPzY0UNkEkQtKdqJKsDYWewM=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7oHiD+bMFu7PAJ8DITaVlISLmk0rNQd3hvceyXJVJOE=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-HQXLCrnyd0cMdnMUuGXYt0pbFF5i/EkYBOhxbXnhSA0=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-Zg0VuZposJeHUmYwdGlxPYv7/96XL9I90WDHTkIO/fI=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cfWApVFWKLfNIo7gB4Jzrge7/Qnsl2HNHo60gvvc26M=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qcqYxRubUqXg41nj4CLdzPeeY55rND+blST3sR3Tg1I=' 'sha256-vBFNPMuQECD/SIy0jpNzms/FGVZDc/HQEEk2Ie4lVhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7oHiD+bMFu7PAJ8DITaVlISLmk0rNQd3hvceyXJVJOE=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-HQXLCrnyd0cMdnMUuGXYt0pbFF5i/EkYBOhxbXnhSA0=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UPB8eLICVLWaDSoiCNQs+IHD0CLF8s7IbngmetEonXk=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-Zg0VuZposJeHUmYwdGlxPYv7/96XL9I90WDHTkIO/fI=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cfWApVFWKLfNIo7gB4Jzrge7/Qnsl2HNHo60gvvc26M=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qcqYxRubUqXg41nj4CLdzPeeY55rND+blST3sR3Tg1I=' 'sha256-te1hduEZLzkyLwyEsZ10RbuXU2xdiPLLteOvWkiLWFo=' 'sha256-vBFNPMuQECD/SIy0jpNzms/FGVZDc/HQEEk2Ie4lVhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -7179,6 +7179,17 @@ function fitClockDrift(aTimes, bTimes, opts) {
     return x - y;
   });
   return {
+    /* THE SERIES THE FIT WAS MADE FROM, which was being discarded. `off` at `tMs` is a PHASE series —
+       the only input from which this leg's own rate uncertainty can be measured. Without it a consumer
+       can see the slope but not how far to trust it, which is precisely what left `fitClockClosure`
+       with a tolerance guessed from magnitude (`0.25 * maxleg`) rather than derived from precision.
+       Measured: closure error is UNCORRELATED with leg magnitude (r = -0.24 over the corpus), so the
+       proportional model has no support; and naive OLS on these blocks underestimates the observed
+       closure noise 10x, because consecutive block offsets share the same wander and OLS assumes
+       independent residuals. A correlation-safe uncertainty needs the series, not a summary of it. */
+    blocks_: rows.map(function (b) {
+      return { tMs: b.tMs, off: b.off };
+    }),
     offsetMs: my + slope * (A[0] - mx),
     driftPpm: slope * 1e6,
     medianCorrespondence: medFrac,
@@ -24190,7 +24201,32 @@ __exports.GlucoDex = window.GlucoDex;
       let segAnchorSec = relSec.length ? relSec[0] : 0; // host t0 for segment 0
       for (let i = 0; i < n; i++) {
         if (i > 0 && relSec[i] - relSec[i - 1] > maxStep) {
-          segAnchorSec = relSec[i]; // genuine loss → re-anchor to the host, restart the crystal count
+          /* RE-ANCHOR, BUT NEVER BACKWARD (2026-08-14). Snapping to the host value assumed the host is
+             ahead — at a genuine loss it is. It is not always, and the shortfall is systematic rather
+             than noise: this file's ns axis is DRAWN at ~127.51 rows/s while the true row rate is
+             125.000 + HR/60 ≈ 125.9, so host time under-counts by ~1.3 %. The crystal, counting real
+             samples at the ADC rate, therefore gains ~64 ms over a 5 s segment — and every re-anchor
+             dragged the axis back by whatever it had gained.
+             Measured on one 5.9 h night: 1548 backward steps, median −4.73 ms, worst −336.62 ms,
+             −20.4 s of backward time in total, on the DEFAULT path for every O2Ring finger recording.
+             Invisible to every gate: `intervalsSpanningTimeGap` tests `relSec[i] − relSec[i−1] > maxStep`,
+             strictly greater, so a NEGATIVE difference is never counted at any magnitude — and the
+             fast-path `if (run === 0) return out;` then returns all-false through the branch documented
+             as the clean case.
+             The guard keeps the loss-preserving intent exactly: where the host really did jump ahead,
+             `relSec[i]` still wins and the genuine gap survives. It only binds where the host is BEHIND,
+             which is the case that was fabricating negative time. One ADC tick, not zero, so two
+             consecutive samples never share an instant. */
+          /* ADVANCE BY THE HOST'S GAP, DO NOT SNAP TO ITS ABSOLUTE VALUE. Both preserve the loss;
+             only this one preserves its DURATION. Snapping (`max(relSec[i], …)`) silently shortened
+             every genuine gap by however much the crystal had gained over the preceding segment —
+             measured, two real losses on one night fell from 455→281 ms and 337→233 ms, i.e. below the
+             314 ms detector and out of the gap count entirely. Trading fabricated backward time for
+             undetected dropouts is not a fix.
+             `relSec[i] − relSec[i−1]` is what the host actually observed elapsing across the loss, and
+             adding it to the crystal's own position keeps the axis monotone (the difference exceeds
+             `maxStep` by construction) while reproducing the gap exactly. */
+          segAnchorSec = rc[i - 1] + (relSec[i] - relSec[i - 1]);
           realCount = 0;
         }
         rc[i] = segAnchorSec + realCount / O2_ADC_HZ;

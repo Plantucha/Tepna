@@ -1097,6 +1097,81 @@
       T.eq('a too-sparse series is unusable, not a comparison', P.validatePPI(self, [{ ppi: 900, blocker: 0 }]).usable, false);
     });
 
+    /* ════ THE CRYSTAL AXIS MUST NOT RUN BACKWARD — AND MUST NOT SWALLOW A DROPOUT ════
+       The re-anchor snapped to the host's ABSOLUTE value on a genuine loss. That assumed the host is
+       always ahead. It is not: the O2Ring's ns column is DRAWN at ~127.51 rows/s while the true row
+       rate is 125.000 + HR/60 ≈ 125.9, so host time under-counts by ~1.3 % and the crystal — counting
+       real ADC samples — gains ~64 ms per 5 s segment. Every re-anchor then dragged the axis BACK by
+       whatever it had gained: measured 1548 backward steps on one 5.9 h night, worst −336.62 ms.
+       No gate could see it: `intervalsSpanningTimeGap` tests `relSec[i] − relSec[i−1] > maxStep`,
+       strictly greater, so negative time is never counted at any magnitude.
+       ⚠️ AND THE SECOND HALF IS WORSE THAN THE FIRST. Because the crystal ran ahead, the shortfall was
+       being subtracted from real dropouts: on 2026-07-27 the host saw 8 losses and the crystal reported
+       3, with one 353 ms dropout appearing as time running BACKWARD by 47 ms. The defect suppressed
+       gap detection. A first fix — `max(relSec[i], …)` — removed the backward time and made this
+       WORSE, shrinking two genuine losses (455→281 ms, 337→233 ms) below the detector.
+       The fix advances by the host's OBSERVED gap from the crystal's own position, which is monotone by
+       construction and reproduces the duration exactly. Post-fix the crystal matches the host on all
+       five recovered losses to the millisecond. */
+    group('O2Ring crystal axis never runs backward, and preserves a dropout it must not hide', 'ppgdex-dsp · crystal-monotonic', function (T) {
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!P || typeof P.parsePPG !== 'function') {
+        T.skip('PPGDSP.parsePPG available', 'not loaded');
+        return;
+      }
+      /* Reproduces the REAL geometry, which is what makes the bug appear: a drawn host axis whose
+         assumed rate (127.51 rows/s) EXCEEDS the effective one, so the crystal outruns it, plus a
+         genuine loss partway. A fixture whose host runs faster than the crystal cannot show this — the
+         committed one does exactly that, which is why every existing gate stayed green. */
+      var HDR = 'Phone timestamp;sensor timestamp [ns];channel 0\n';
+      var N = 3000,
+        GAP_AT = 1500,
+        GAP_MS = 400;
+      var txt = HDR,
+        ns = 0;
+      for (var i = 0; i < N; i++) {
+        var isMarker = i % 140 === 70 && i < N - 4; // ~0.7 %, the measured marker share
+        /* PERIODIC SMALL HOST JUMPS — without these the backward assertion is VACUOUS. A backward step
+           needs a re-anchor to fire while the crystal is AHEAD, and the crystal gains ~64 ms per 5 s.
+           The real file re-anchors ~1548 times on ordinary ~55 ms BLE jitter (maxStep is 2 samples,
+           ~16 ms), each firing before the accumulated gain is spent. One large gap alone cannot show
+           it: 400 ms exceeds anything gained by then, so the anchor moves forward and the bug hides. */
+        var jitter = Math.floor(i / 640) * 55;
+        var hostMs = Math.round((i / 127.51) * 1000) + jitter + (i >= GAP_AT ? GAP_MS : 0);
+        /* The step has to be in the DEVICE column to reach `relSec`. Host-only jitter is absorbed by
+           the running-median correction — which is what it is FOR — so the re-anchor never fires and
+           the backward assertion tests nothing. (It did not, until this line.) */
+        if (i > 0 && i % 640 === 0) ns += 55 * 1e6;
+        if (i === GAP_AT) ns += GAP_MS * 1e6; // a real dropout in the device axis too
+        var d = new Date(Date.UTC(2026, 7, 8, 1, 0, 0) + hostMs);
+        txt += d.toISOString().slice(0, 23) + ';' + ns + ';' + (isMarker ? 156 : 124 + (i % 7)) + '\n';
+        ns += 7843000; // ~127.51 rows/s, the drawn rate
+      }
+      var crys = P.parsePPG(txt, { timebase: 'device-crystal' });
+      var host = P.parsePPG(txt, { timebase: 'host-disciplined' });
+      var back = 0,
+        worst = 0;
+      for (var k = 1; k < crys.relSec.length; k++) {
+        var dd = crys.relSec[k] - crys.relSec[k - 1];
+        if (dd < 0) {
+          back++;
+          if (dd < worst) worst = dd;
+        }
+      }
+      T.eq('the crystal axis never steps backward', back, 0);
+      T.ok('…and the worst step is not negative', worst === 0, 'worst=' + (worst * 1000).toFixed(2) + ' ms');
+      /* THE DROPOUT SURVIVES, AT ITS TRUE DURATION. Monotonicity alone is satisfiable by snapping,
+         which is what silently ate two real losses — so this asserts the GAP, not just the ordering. */
+      var gapCrys = 0,
+        gapHost = 0;
+      for (var j = 1; j < crys.relSec.length; j++) gapCrys = Math.max(gapCrys, crys.relSec[j] - crys.relSec[j - 1]);
+      for (var m = 1; m < host.relSec.length; m++) gapHost = Math.max(gapHost, host.relSec[m] - host.relSec[m - 1]);
+      T.ok('the dropout is still detectable on the crystal axis', gapCrys > 0.314, 'largest crystal step = ' + (gapCrys * 1000).toFixed(0) + ' ms');
+      T.ok('…and its DURATION matches what the host observed', Math.abs(gapCrys - gapHost) < 0.002, 'crystal ' + (gapCrys * 1000).toFixed(0) + ' ms vs host ' + (gapHost * 1000).toFixed(0) + ' ms');
+      // The crystal must still be the 125.000 grid — the fix changes anchoring, not the rate.
+      T.ok('consecutive real samples are still one ADC tick apart', Math.abs(crys.relSec[1] - crys.relSec[0] - 1 / 125) < 1e-12);
+    });
+
     /* ════ DEVICE-CRYSTAL TIMEBASE — O2Ring 125.000 marker-aware axis (O2RING-ADAPTIVE-TIMEBASE Stage 2) ════
        The O2Ring finger pleth inserts one `156` beat MARKER per beat, so the file's ROW rate is
        125.000 (the crystal ADC) + ~HR/60. The opt-in device-crystal timebase rebuilds relSec on the

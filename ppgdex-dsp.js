@@ -596,7 +596,32 @@
       let segAnchorSec = relSec.length ? relSec[0] : 0; // host t0 for segment 0
       for (let i = 0; i < n; i++) {
         if (i > 0 && relSec[i] - relSec[i - 1] > maxStep) {
-          segAnchorSec = relSec[i]; // genuine loss → re-anchor to the host, restart the crystal count
+          /* RE-ANCHOR, BUT NEVER BACKWARD (2026-08-14). Snapping to the host value assumed the host is
+             ahead — at a genuine loss it is. It is not always, and the shortfall is systematic rather
+             than noise: this file's ns axis is DRAWN at ~127.51 rows/s while the true row rate is
+             125.000 + HR/60 ≈ 125.9, so host time under-counts by ~1.3 %. The crystal, counting real
+             samples at the ADC rate, therefore gains ~64 ms over a 5 s segment — and every re-anchor
+             dragged the axis back by whatever it had gained.
+             Measured on one 5.9 h night: 1548 backward steps, median −4.73 ms, worst −336.62 ms,
+             −20.4 s of backward time in total, on the DEFAULT path for every O2Ring finger recording.
+             Invisible to every gate: `intervalsSpanningTimeGap` tests `relSec[i] − relSec[i−1] > maxStep`,
+             strictly greater, so a NEGATIVE difference is never counted at any magnitude — and the
+             fast-path `if (run === 0) return out;` then returns all-false through the branch documented
+             as the clean case.
+             The guard keeps the loss-preserving intent exactly: where the host really did jump ahead,
+             `relSec[i]` still wins and the genuine gap survives. It only binds where the host is BEHIND,
+             which is the case that was fabricating negative time. One ADC tick, not zero, so two
+             consecutive samples never share an instant. */
+          /* ADVANCE BY THE HOST'S GAP, DO NOT SNAP TO ITS ABSOLUTE VALUE. Both preserve the loss;
+             only this one preserves its DURATION. Snapping (`max(relSec[i], …)`) silently shortened
+             every genuine gap by however much the crystal had gained over the preceding segment —
+             measured, two real losses on one night fell from 455→281 ms and 337→233 ms, i.e. below the
+             314 ms detector and out of the gap count entirely. Trading fabricated backward time for
+             undetected dropouts is not a fix.
+             `relSec[i] − relSec[i−1]` is what the host actually observed elapsing across the loss, and
+             adding it to the crystal's own position keeps the axis monotone (the difference exceeds
+             `maxStep` by construction) while reproducing the gap exactly. */
+          segAnchorSec = rc[i - 1] + (relSec[i] - relSec[i - 1]);
           realCount = 0;
         }
         rc[i] = segAnchorSec + realCount / O2_ADC_HZ;

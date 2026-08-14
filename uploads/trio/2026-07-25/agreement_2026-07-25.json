@@ -1,0 +1,42 @@
+{
+  "night": "2026-07-25",
+  "tolBpm": 15,
+  "nodes": [
+    "PpgDex",
+    "ECGDex",
+    "OxyDex"
+  ],
+  "compared": 102,
+  "adjudicable": 96,
+  "droppedFragments": 1,
+  "flagged": 1,
+  "flaggedPct": 1,
+  "fault": {
+    "PpgDex": 0,
+    "ECGDex": 0,
+    "OxyDex": 1
+  },
+  "epochs": [
+    {
+      "tMs": 1785020315000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 82
+        },
+        {
+          "node": "ECGDex",
+          "hr": 91.3
+        },
+        {
+          "node": "OxyDex",
+          "hr": 60
+        }
+      ],
+      "median": 82,
+      "spreadBpm": 31.3,
+      "adjudicated": true,
+      "outlier": "OxyDex"
+    }
+  ]
+}
