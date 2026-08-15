@@ -311,6 +311,63 @@
        own failure, since a failing assertion reds the suite. The implementation was proven by a
        measured mutant kill (a CPAPDex path that returns NaN where null is contracted now dies).
        This group is what trips if someone reverts to a bare stringify. */
+    /* ════ XMT GROUND TRUTH — the fixture that decides whether extreme-mutate is measuring anything
+       `tools/extreme-mutate.mjs` has 30 selftests and every one exercises a PURE function of that
+       tool. None runs the pipeline — splice, run suite, read coverage, classify — against a file
+       whose correct answer is known independently. So all 30 can pass while the tool reports
+       anything at all. That is the shape this whole programme hunts: a check that ran and reported
+       success about something it never examined.
+
+       This group is the OBSERVER half of `xmt-fixture.js`. The fixture's four functions are
+       trivial on purpose; what decides their verdict is HOW THIS GROUP WATCHES THEM:
+
+         add             value asserted        -> every extreme mutant killed  -> tested
+         calculateSomething  called, ignored   -> every extreme mutant survives -> PSEUDO-TESTED
+         recordInto      side effect asserted  -> killed (not a return-value tool)
+         getConstant     bare accessor         -> excluded by a Descartes stop-matcher
+
+       Run the experiment with:
+         node tools/extreme-mutate.mjs --file xmt-fixture.js --group xmt-fixture
+
+       ⚠️ EDITING THIS GROUP CHANGES THE EXPECTED VERDICTS. The assertions below are not checking the
+       fixture's arithmetic — 2+3 is not in question. They are establishing the observation regime
+       that makes each expected verdict true. Weaken the `add` assertion and `add` becomes
+       pseudo-tested, correctly. */
+    group('XMT ground truth — the fixture extreme-mutate is validated against', 'xmt-fixture · harness · known-answer', function (T) {
+      var F = env.xmtFixture;
+      if (!F || typeof F.add !== 'function') {
+        T.skip('xmt-fixture.js co-loaded', 'Node-lane only — the runner co-loads it through the same path as a DSP so c8 can see it');
+        return;
+      }
+
+      /* A · VALUE ASSERTED. Every Descartes operator returns something ≠ 5, so all are killed. */
+      T.eq('add returns the sum — the value is asserted, so every extreme mutant dies', F.add(2, 3), 5);
+      T.eq('…and a second point, so a constant-returning mutant cannot coincide', F.add(10, -4), 6);
+
+      /* B · CALLED, RESULT IGNORED. This is the pseudo-tested case and the assertion is deliberately
+         about something the function does NOT control — that calling it does not throw. Coverage is
+         satisfied (Betka & Wagner's precondition) while behaviour is unobserved. */
+      /* CALLED, NEVER OBSERVED. The call satisfies coverage — Betka & Wagner's precondition — and
+         nothing below inspects the result. That absence IS the regime under test.
+
+         ⚠️ There is deliberately NO assertion about the return value here, and no stand-in for one.
+         A first draft asserted `ignored !== undefined || ignored === undefined`, which is a
+         tautology — always true, unable to fail, and exactly the hollow gate this whole exercise
+         exists to detect. Writing one INSIDE the pseudo-tested fixture would have been the joke
+         telling itself. The honest way to express "nothing observes this" is to observe nothing. */
+      F.calculateSomething([10, 20, -5, 30]);
+
+      /* C · SIDE EFFECT ASSERTED. Emptying the body leaves the sink untouched, so this dies even
+         though the return value is unused. Separates "return unused" from "untested". */
+      var sink = [];
+      F.recordInto(sink, 'a');
+      F.recordInto(sink, 'b');
+      T.eq('recordInto appends to its sink — the SIDE EFFECT is asserted', sink, ['a', 'b']);
+
+      /* D · BARE ACCESSOR. Asserted so the function is covered; the tool must still EXCLUDE it via a
+         stop-matcher rather than score it, because its pseudo-testedness carries no information. */
+      T.eq('getConstant returns its constant (covered, but not a scoreable subject)', F.getConstant(), 7);
+    });
     group('T.eq distinguishes null from NaN and ±Infinity, at any depth', 'harness · comparator', function (T) {
       /* THE REAL comparator, not a copy. This group previously re-declared its own private `ser`,
          which meant it could not fail for any change to the one `T.eq` actually uses. */

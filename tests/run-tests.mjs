@@ -1735,6 +1735,21 @@ async function main() {
     srcHtml: readSrcHtml(),
     nonBundleCsp: readNonBundleCsp(),
     claudeMdClaims: readClaudeMdClaims(),
+    /* XMT GROUND TRUTH (analysis/xmt-fixture.js) — loaded through the SAME `loadInto` path the DSPs
+       use, so c8 attributes per-function coverage to it exactly as it does for a DSP. That matters:
+       `tools/extreme-mutate.mjs` reads those counts, and Descartes' rule makes coverage a
+       PRECONDITION for the pseudo-tested verdict — a fixture c8 cannot see would classify
+       `not-covered` and the validation would fail for a reason that is not about the tool.
+       Its own realm, so nothing it defines can reach the DSP sandbox. */
+    xmtFixture: (() => {
+      try {
+        const c = makeSandbox();
+        loadInto(c, 'xmt-fixture.js');
+        return c.XmtFixture || (c.globalThis && c.globalThis.XmtFixture) || null;
+      } catch {
+        return null;
+      }
+    })(),
     analysisTools: readAnalysisTools(),
     bundleCsp: readBundleCsp(),
     manifests: readManifests(),
