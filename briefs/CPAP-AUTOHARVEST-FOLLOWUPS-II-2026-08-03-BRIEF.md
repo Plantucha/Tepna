@@ -51,6 +51,9 @@ measure nothing.**
 
 **§1.2 stands and is now quantified: the box is 111 commits behind `origin/main`,** and the
 raising-harvest alert fix is confirmed absent from the deployed `capture.py` (grep finds no such alert).
+*(⚠️ **Both halves of this sentence are now false — see the 2026-08-15 re-measurement in §1-original.**
+The box is **3** commits behind with a clean tree, and the `capture.py` grep was against the wrong
+module: the fix lives in the CPAP poller path. Kept as written because the reasoning below depends on it.)*
 So even with the transport live, that particular alert still cannot fire in the field. Deploying is the
 two-step (`git pull` **and** `sync-apps.sh`) and is an owner-timed action: pushing 111 commits to a live
 capture box can interrupt an active recording, so it wants a quiet window, not an autopilot moment.
@@ -73,6 +76,36 @@ Carried verbatim from the parent §2.2, because it is the one item where the rep
 **Owner actions, in order:** configure `alerts:` (`enabled` + `webhook_url` — the endpoint is a
 decision and the URL is a secret no session holds), then deploy. Deploying is a deliberate **two-step**:
 `git pull` **and** `sync-apps.sh` — the first alone is half a deploy.
+
+> ### ✅ BOTH REASONS ARE NOW FALSE — re-measured on the box 2026-08-15
+>
+> **1 · The `alerts:` block exists and is enabled.** `config.yaml:115` carries `enabled: true` +
+> `webhook_url` (value not read — it is a secret), `offline_sec: 300`, `poll_sec: 60`. So `Notifier` is
+> no longer constructed disabled and `send()` is no longer a guaranteed `False`. The owner action asked
+> for above has been taken.
+>
+> **2 · "Committed, not shipped" is dead, and so is "111 commits behind."** The box is at
+> `27c16eb0`, which **is an ancestor of `origin/main`**, only **3** commits behind (all docs-only), with
+> `git status --short` **empty**. A clean tree at a current-main commit means every committed
+> `capture-host/` fix is deployed *by construction* — no per-file hunt needed. Spot-confirmed anyway:
+> deployed `cpap_harvest.py` is **byte-identical** to `origin/main`'s.
+>
+> The hourly `tepna-update.timer` is what closed this; the "deliberate two-step, owner-timed" framing
+> above applies to files **installed** into `/etc` or `/usr/local/lib`, not to code run from the
+> `/opt/tepna` checkout. See `CAPTURE-HOST-FOLLOWUPS-II` §V5 for that two-class rule.
+>
+> ⚠️ **The original evidence for reason 2 was invalid, and that is the more useful correction.** It read
+> *"confirmed absent from the deployed `capture.py` (grep finds no such alert)"* — but the fix is in the
+> **CPAP poller path**, not `capture.py`; the governing test is
+> `tests/test_cpap_poller.py::test_a_RAISING_harvest_alerts_not_just_barren`. Grepping `capture.py`
+> returns zero on a *current* checkout too, so the finding would have reproduced identically against
+> fully-deployed code. **An absence found in the wrong file is not evidence of absence** — the same
+> shape as this brief's own `ModuleNotFoundError: aiohttp` warning above, where the harness rather than
+> the box was at fault.
+>
+> **What is still genuinely owed is unchanged:** the *Done when* below. A configured webhook is not a
+> delivered one, and nothing here demonstrates an induced failure actually paging anyone. Re-use the
+> TEST-NET-1 injection; do not read "enabled: true" as "the transport works."
 
 **Done when:** a deliberately induced failure on the box delivers a real webhook. The parent's TEST-NET-1
 injection (`192.0.2.1`, zero blast radius, no config touched, destination verified empty afterwards) is
@@ -128,6 +161,13 @@ a full backfill is using the slower one.
       `/opt/tepna/capture-host/.venv/bin/python` to observe a real delivery, and (b) the deploy — the box
       is **111 commits behind** and the raising-harvest alert is confirmed absent from the deployed
       `capture.py`, so that alert cannot fire in the field regardless of transport.
+      - **(b) IS DONE — re-measured 2026-08-15.** The box is 3 commits behind with a clean tree at an
+        ancestor of `origin/main`, so `capture-host/` is deployed by construction (deployed
+        `cpap_harvest.py` byte-matches `origin/main`); the hourly `tepna-update.timer` closed it without
+        an operator. The `capture.py` grep was against the wrong module — the fix is in the CPAP poller
+        path (`test_cpap_poller.py::test_a_RAISING_harvest_alerts_not_just_barren`). **(a) remains
+        outstanding**, and it is the whole of what is left: `alerts:` is now `enabled: true` with a
+        `webhook_url`, but a configured webhook is not a delivered one.
 - [x] **§2 — DONE 2026-08-04.** `capture-host/tests/test_probe_read_char.py`, 13 assertions, no hardware
       (the whole surface is one awaitable, so a fake client covers every branch). The routing in §2 —
       *"whoever lands the PMD work should take it"* — had **passed without anyone taking it**:
