@@ -37,6 +37,8 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+// The one-inflation-robust floor + diagnostic — see the note in estimate().
+import { chao, modifiedChao } from './capture-recapture.mjs';
 
 const require = createRequire(import.meta.url);
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -219,6 +221,21 @@ export function profile(A, B, C, tol) {
   return cells;
 }
 
+/**
+ * One window's estimate as a single printable string.
+ *
+ * ⚠️ EXTRACTED SO IT CAN BE GATED. `--scan` is the survey mode — it is *where* per-window contamination
+ * shows up — and it was the one path on which the diagnostic could not be seen: a window carrying the
+ * 48.5 %-shaped absurdity printed `missed=9500 (48.5 %)` with no flag at all, because the REFUSED branch
+ * is loud and the estimated branch said nothing but the number. Inline in a `console.log` this could only
+ * have been checked by a source scan, and a source scan is satisfiable by a comment.
+ */
+export function estSummary(est) {
+  if (!est.ok) return `REFUSED — ${String(est.reason).slice(0, 72)}`;
+  const warn = est.warnings && est.warnings.length ? `  ⚠ ${est.warnings.length} — ${String(est.warnings[0]).slice(0, 58)}…` : '';
+  return `missed=${est.missedEst.toFixed(1)} (${est.missedFracPct.toFixed(2)} %)${warn}`;
+}
+
 /** No-three-way-interaction closure. Returns null when a cell is 0 (the estimator is undefined). */
 export function estimate(c) {
   const denom = c.m110 * c.m101 * c.m011;
@@ -243,10 +260,73 @@ export function estimate(c) {
     };
   }
   const m000 = (c.m100 * c.m010 * c.m001 * c.m111) / denom;
+
+  /* ── THE ADEQUACY RULE IS NECESSARY, NOT SUFFICIENT ─────────────────────────────────────────────
+     The sparse-cell refusal above catches six single-digit cells. It does NOT catch cells that are
+     comfortably >= 5 and still wrong, which is what a full night produces: 93/159/207 · 262/152/74
+     clear the rule everywhere and yield m000 = 9500 against 10093 observed — 48.5 % of beats "missed
+     by everything", the same absurdity the rule exists for, arriving through a door it does not watch.
+
+     The mechanism is CONTAMINATION, not sparsity. The closed form multiplies the three SINGLE-SOURCE
+     cells, and a single-source cell is a mixture: a real beat the other two missed, or a spike this one
+     detector invented. False positives therefore enter the numerator directly. Chao's bound reads the
+     same singletons and inflates with them; the modified Chao (Bohning et al. 2018, Metrika) reads only
+     f2 and f3 and CANNOT — so the ratio measures the contamination no cell-count rule can see.
+     Measured: false singletons that push the log-linear up 89 % move the modified Chao by 0.
+     WARN, do not refuse: their sparse rule already owns refusal, and a second one would silently change
+     this function's contract for its existing caller.
+     ⚠️ Both Chao variants UNDER-read by ~70 % under the positive dependence this corpus has. They are a
+     floor and a diagnostic, never a competing point estimate. */
+  const _cr = {
+    100: c.m100,
+    '010': c.m010,
+    '001': c.m001,
+    110: c.m110,
+    101: c.m101,
+    '011': c.m011,
+    111: c.m111
+  };
+  const _ch = chao(_cr);
+  const _mc = modifiedChao(_cr);
+  const _oneInflation = _ch.ok && _mc.ok && _mc.n0 > 0 ? _ch.n0 / _mc.n0 : null;
+  /* BOTH THRESHOLDS ARE ARGUED, NOT FITTED — they gate warnings, never behaviour.
+     0.25: a physiological bound. A worn recording on which three detectors each see ~9600 beats cannot
+     plausibly have missed a quarter of them; if the model says so, the model is wrong, not the night.
+     5: a structural bound, not a calibration — and the null is EXACT, so a reader can check it rather
+     than take it. Under a homogeneous Poisson capture model f_k = N·L^k·e^-L/k!, both estimators reduce
+     to f0 = N·e^-L algebraically:
+         Chao      f1^2/2f2   = (N·L·e^-L)^2 / (2·N·L^2·e^-L/2)        = N·e^-L
+         mod Chao  2f2^3/9f3^2 = 2(N·L^2·e^-L/2)^3 / (9(N·L^3·e^-L/6)^2) = N·e^-L
+     So their ratio is 1 BY CONSTRUCTION, not approximately (verified numerically over L = 0.3 .. 5.0:
+     1.0000 at every point, independently by two sessions), and any departure from 1 is contamination or
+     heterogeneity rather than a tuning artefact. 5 sits far above sampling noise and far below what real
+     data produces — the measured night reads 699. Nothing here is tuned to that number.
+
+     ⚠️ THE TWO BOUNDS AGE DIFFERENTLY, which is why they are argued separately. The physiological one is
+     a claim about this subject and this montage and could simply be wrong for another recording. The
+     structural one cannot be wrong unless the capture model is. Do not "harmonise" them. */
+  const _warnings = [];
+  if (m000 > observed * 0.25) {
+    _warnings.push(`log-linear puts ${((m000 / (observed + m000)) * 100).toFixed(1)} % of beats in the unobserved cell — implausible on a worn recording, and NOT excluded by the adequacy rule`);
+  }
+  if (_oneInflation != null && _oneInflation > 5) {
+    _warnings.push(
+      `one-inflation ${_oneInflation.toFixed(1)}x — the single-source cells hold far more than the doubleton/tripleton structure explains, i.e. detector false positives are inflating m000`
+    );
+  }
+
   return {
     ok: true,
     observed,
     missedEst: m000,
+    warnings: _warnings,
+    /* ⚠️ FLOORS, NOT QUANTITIES — named so, because `chaoFloor` reads like something to plot.
+       Both under-read by ~70 % under the positive dependence this corpus has, and the modified Chao
+       returns ~0.31 on the measured night. When `estimate()` refuses, neither is computed at all and
+       `oneInflation` is null. The RATIO is doing the work here; the floors are its inputs. */
+    chaoFloor: _ch.ok ? _ch.n0 : null,
+    modifiedChaoFloor: _mc.ok ? _mc.n0 : null,
+    oneInflation: _oneInflation,
     total: observed + m000,
     missedFracPct: (m000 / (observed + m000)) * 100,
     perSourceMissPct: {
@@ -389,10 +469,7 @@ function main(argv) {
     console.log(`windows where the estimator is identifiable: ${usable.length}/${sc.windows.length}` + `  (covering ${(((usable.length * winMs) / sc.spanMs) * 100).toFixed(1)} % of the overlap)`);
     for (const w of ranked.slice(0, 8)) {
       const m = Math.round((w.startMs - sc.windows[0].startMs) / 60000);
-      console.log(
-        `  min ${String(m).padStart(3)}  agree=${String(w.agree).padStart(4)} disagree=${String(w.disagree).padStart(3)}  ` +
-          (w.est.ok ? `missed=${w.est.missedEst.toFixed(1)} (${w.est.missedFracPct.toFixed(2)} %)` : `REFUSED — ${w.est.reason.slice(0, 46)}`)
-      );
+      console.log(`  min ${String(m).padStart(3)}  agree=${String(w.agree).padStart(4)} disagree=${String(w.disagree).padStart(3)}  ` + estSummary(w.est));
     }
     if (usable.length) {
       const fr = usable.map((w) => w.est.missedFracPct).sort((a, b) => a - b);
