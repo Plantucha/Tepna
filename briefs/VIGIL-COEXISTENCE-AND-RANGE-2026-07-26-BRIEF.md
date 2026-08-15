@@ -321,6 +321,37 @@ told you — `check-system-files.sh` is the only instrument that can, and **noth
 schedule**. Until something does, treat "fixed and merged" for any `deploy/` file as "fixed in the repo",
 and run the checker before believing otherwise.
 
+### 🔁 THE RECURSION, and how it actually resolves — measured 2026-08-15
+
+`nightqc` is being wired to call this checker once per night (Vigil box's work-unit), so the class closes
+rather than this one instance. But it lands with a twist worth stating, because it is this section's own
+finding pointed at itself:
+
+**The checker that detects un-deployed fixes is itself subject to being un-deployed.** The `--json` mode
+the nightly check parses does not exist on the box yet — verified: `grep -c json` on
+`/opt/tepna/capture-host/deploy/check-system-files.sh` returns **0**, and passing `--json` there today is
+silently ignored, printing the human report. So the nightly check will return `None` until the box has
+the new script.
+
+**But it needs a `git pull`, not an `--install`, and that distinction matters:**
+
+- `check-system-files.sh` is **not a MANAGED file** — it is not in the installed set (the 11 managed
+  entries are the udev rules, units, and `/usr/local/lib/tepna` helpers). It runs from the `/opt/tepna`
+  checkout.
+- The box **does** auto-pull. Verified 2026-08-15: `tepna-update.timer` is `enabled` + `active`,
+  `tepna-update.service` last ran **10:38:15 EDT that morning**, and `/opt/tepna` HEAD is a commit dated
+  the same day.
+
+**So no operator step is required for this one** — the hourly updater picks it up. That is the opposite
+of the `tepna-restart.sh` case above, which *was* a MANAGED file and therefore *did* need a
+password-bearing `--install`.
+
+⚠️ **The distinction is the durable part:** a fix to a file under `deploy/` that is **installed** into
+`/etc` or `/usr/local/lib` needs an operator; a fix to a script **run from the checkout** does not. The
+rule stated earlier in this section — *treat "fixed and merged" as "fixed in the repo"* — applies to the
+first class. For the second, the hourly timer is the deployment, and the thing to verify is that the
+timer is alive, not that somebody ran a command.
+
 ## §6 · Hypotheses that did NOT survive
 
 * **"The CPAP transfer is starving the capture loop."** Load average 0.34 during a 23 MB/min
