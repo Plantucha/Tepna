@@ -127,7 +127,13 @@ session and the analysis to another, and let the second report before seeing the
       `deviceDrawn`; `ecgdex-dsp.js` and `pat-gate.js` deliberately do not, on measured zero exposure
       (§3). The parent's `KNOWN HOLE` assertion stands unchanged and correct: `hostAxis.independent`
       is still spread-only — the consumers moved off it rather than the flag being redefined.
-- [ ] One experiment in this family is run with injection and analysis in **different sessions**.
+- [~] **HARNESS BUILT 2026-08-15; the second operator is still owed.** `--blind-prepare` /
+      `--blind-score` make it two commands: prepare writes `blinded.json` (anchors + opaque ids only —
+      audited on the real 35.7 MB artefact, **zero** matches for device, night, draw name or magnitude)
+      and a sealed `TRUTH.json`. Proven end-to-end on the corpus: **51 answered, 10 inapplicable,
+      median |err| 0.000 ppm, worst 1.025, zero false positives on null draws** — reproducing the
+      open-label §3.2/§3.4 findings blind. WARNING: I ran both legs myself, so this is NOT a blind
+      result; it proves the mechanism and removes the excuse, nothing more.
 
 ## Cross-references
 
