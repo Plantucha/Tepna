@@ -5335,7 +5335,15 @@ function readDetectorStability(nodeExport) {
 function arrivalPairOffsets(devices, opts) {
   opts = opts || {};
   var list = (devices || []).filter(function (d) {
-    return d && d.ok === true && d.independent === true && d.plausibleCrystal !== false && isFinite(d.offsetMs);
+    /* `deviceDrawn !== true` is the PROVENANCE refusal; the two beside it are not substitutes for it.
+       `independent` compares two COLUMNS, and a drawn counter's coarse quantisation makes its residual
+       spread enormous, so it reads MORE independent the more fabricated it is. `plausibleCrystal` is a
+       MAGNITUDE proxy (|ppm| ≤ 200) and catches a drawn axis only when its assumed rate happens to be
+       badly wrong. Measured 2026-08-14 over 395 sidecars: one real O2Ring segment (1.72 h) reports
+       −22.83 ppm at a 99.3 % drawn-delta share — a textbook-plausible crystal between the H10's −20
+       and the Verity's −34 — and passes BOTH. It has no oscillator. Only the delta-concentration test
+       separates it, and it does so with no overlap (real ≤ 56.00 %, drawn ≥ 79.04 % over 381 files). */
+    return d && d.ok === true && d.independent === true && d.deviceDrawn !== true && d.plausibleCrystal !== false && isFinite(d.offsetMs);
   });
   var refused = (devices || [])
     .filter(function (d) {
@@ -5349,9 +5357,13 @@ function arrivalPairOffsets(devices, opts) {
             ? 'axis refused'
             : d.independent !== true
               ? 'host column is not an independent clock'
-              : d.plausibleCrystal === false
-                ? 'drawn axis — ' + d.ppm + ' ppm is not a crystal'
-                : 'incomplete anchor'
+              : d.deviceDrawn === true
+                ? 'device axis is DRAWN — ' +
+                  (d.drawnShare == null ? 'delta concentration' : (d.drawnShare * 100).toFixed(1) + ' % of deltas share one value') +
+                  '; a synthesised counter, not a clock, whatever ppm it reports'
+                : d.plausibleCrystal === false
+                  ? 'drawn axis — ' + d.ppm + ' ppm is not a crystal'
+                  : 'incomplete anchor'
       };
     });
   if (list.length < 2) return { ok: false, reason: 'need >=2 usable clocks', usable: list.length, refused: refused };
