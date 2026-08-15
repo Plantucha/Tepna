@@ -120,8 +120,15 @@ ambiguity for any subject whose RR is near 800 ms, and the pipeline can report "
 ≈ 0" while being one full beat wrong.
 
 **Consequence for the design:** target 1's acceptance criterion **must be defined on an aperiodic
-feature** — a deliberate marker (a tap artefact, a commanded LED event, a motion impulse visible in
-both ACC streams), not on the beat train. If it is defined on beats, the experiment reports pass/fail
+feature** — a deliberate marker, not the beat train.
+⚠ **This line originally proposed "a tap artefact … a motion impulse visible in both ACC streams",
+and that is wrong — corrected 2026-08-15 after the owner challenged it.** A tap on one device is a
+LOCAL mechanical event: to reach a device on another body segment it must travel through tissue, which
+damps and delays it. Measured (§4b below): a whole-body roll — far larger than a tap — produces no
+alignable shared transient at all. A marker that relies on TRANSMISSION between body segments does
+not work here. What works is **co-location**: strap the two devices together, produce one sharp
+impulse so they are momentarily a single rigid body experiencing literally the same acceleration, then
+don them. The clapperboard principle, and it needs no transmission. If it is defined on beats, the experiment reports pass/fail
 on an unidentifiable quantity, and will do so *confidently*.
 
 This is also why the **~3.3 s** phone-night H10↔Verity divergence was resolvable and a 0.2 s one is

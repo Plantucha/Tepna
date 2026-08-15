@@ -28,10 +28,91 @@ same holes open.
 *unrecoverable by construction* — `hostAxis` subtracts `r0`, so a 5 s injection moves the rate by
 exactly 0.000 ppm on all 61 streams. That is a real result about the estimator, and it is **not** a
 test of offset recovery: it establishes that this instrument cannot answer the question. Testing
-target 1 needs an **aperiodic marker present in two devices at once** — a tap artefact, a commanded
-LED event, a motion impulse visible in both ACC streams — because beat trains align only modulo one
-RR interval (`beat-trains-align-only-mod-rr`). No such marker exists in any recording on disk, so
+target 1 needs an **aperiodic marker present in two devices at once**, because beat trains align only
+modulo one RR interval (`beat-trains-align-only-mod-rr`). ⚠ **The mechanism matters and this brief
+first got it wrong**: a tap or any impulse applied to ONE device must travel through tissue to reach a
+device on another body segment, and measurement shows it does not survive that path. The marker must
+be shared by **CO-LOCATION**, not by transmission — see §2.1a. No such marker exists in any recording on disk, so
 this is a **capture protocol change**: someone must produce the marker at capture time.
+
+### §2.1a · The co-location protocol — what a capture must actually do
+
+Executable, so this stops being an open-ended "needs a marker":
+
+1. **Both devices already streaming and both links established.** The marker is useless if either
+   stream starts after it.
+2. **Hold the two devices firmly together** — taped, or gripped in one hand so they cannot move
+   relative to each other. They must be one rigid body for the next step.
+3. **One sharp impulse**: rap the pair once, hard, against a table edge. Sharp matters more than
+   strong — the correlation is driven by the rise, not the amplitude.
+4. **Repeat 3–5 times, several seconds apart**, so the recovered lag can be checked for consistency
+   ACROSS impulses rather than trusted from one.
+5. **Don the devices** and record the night as usual.
+6. **Repeat the impulse sequence at the end**, before doffing. Two brackets separate a constant offset
+   from drift; one bracket cannot.
+
+Then `tools/aperiodic-offset.mjs --a <ACC> --b <ACC>` over the bracket windows. **Accept only if
+`locked` is true AND the lag agrees across impulses AND it is invariant to `--max-lag-s`.** Any one of
+those alone is satisfiable by noise — §4b is the demonstration.
+
+**Why this works when a tap on a worn device does not:** during step 3 the two accelerometers
+experience *literally the same acceleration*, because they are one object. Nothing has to propagate
+between body segments. That is the entire difference, and it is why the earlier "tap artefact" wording
+was wrong rather than merely optimistic.
+
+### §2.1b · The evidence that no natural marker exists — lags that disagree
+
+Beyond the prominence figures in §4b, the decisive check is whether the windows that *do* clear the
+lock bound agree on a lag. Scanning all **285** one-minute windows of the paired night:
+
+| | |
+|---|---|
+| median prominence | **0.0092** |
+| windows above the 0.05 lock bound | **5 of 285** |
+| their recovered lags | **+200, −50, −1700, +2800, −1300, +550 ms** |
+
+Five exceedances out of 285 under a max-over-lag search is about what noise yields, and the lags
+**spread over 4.5 seconds**. A genuine constant offset would give the SAME lag in every locking
+window. So the failure is not "the windowing was too coarse" or "we needed a better detector" — there
+is no shared marker to find, and no amount of re-analysis will produce one.
+
+### §2.1c · 🔴 THE O2RING ALREADY HAS A COMMANDED SYNC — and it reframes §2.1a
+
+**Owner, 2026-08-15: "o2 has sync beat".** Correct, and it is confirmed on hardware in
+[`O2RING-OPCODE-SURFACE-2026-08-03-BRIEF.md`](O2RING-OPCODE-SURFACE-2026-08-03-BRIEF.md):
+
+| opcode | effect | status |
+|---|---|---|
+| **`0x83`** | **vibration motor** — fired 5×, felt 5×, contact held throughout | confirmed |
+| **`0x03`** | drains the PPG buffer — an exact sample **count** between two host-timestamped reads | confirmed (truncates >250 samples ≈ 2 s, silently) |
+
+**Why this beats §2.1a's co-location for this device.** `0x83` is a mechanical impulse the ring
+*generates itself* at an instant the host chose and stamped. Nothing has to propagate and nothing has
+to be strapped together — the marker originates inside the device whose axis needs anchoring.
+
+**And the framing correction that matters more than the opcode.** §2.1a assumed the marker must be
+shared *between devices*. It need not be. **If each device is independently anchored to the common
+capture host, the device↔device offset follows by subtraction** — the host is the shared reference,
+and on a box night it is disciplined to 0.008 ppm. A cross-device marker is only required when there
+is no common host, which is the phone-capture case, not the box case. My co-location proposal solved a
+harder problem than the corpus actually poses.
+
+**`0x03` is the stronger of the two for the axis problem**, and the opcode brief already says so: a
+drain gives an exact sample count between host-timestamped reads, so *"the host clock becomes the axis
+and the ring supplies only counts … it converts 'no timestamps at all' into 'host-stamped batches of
+known size', and the residual is bounded by one batch rather than accumulating across a night."* That
+is exactly the fix for the drawn axis this brief has been treating as unfixable — the O2Ring is the
+device whose `deviceDrawn` flag we added guards for, and this removes the cause rather than refusing
+the symptom.
+
+⚠ **Untested before use, both flagged by the opcode brief and not by me:** whether buzzing
+mid-recording contaminates the ring's **own motion column** (already fragile —
+`o2ring-motion-column-fault`), the battery cost, and that `0x03` **discards overflow past ~2 s with no
+error and no gap marker**, so a drain cadence slower than that loses samples silently.
+
+⚠ **This does NOT settle target 1 for the Polar pair.** H10 and Verity have no commanded marker of
+their own; for them either the host anchoring above suffices (box nights) or §2.1a's co-location is
+still the route. The ring was the hardest leg and is now the most tractable one.
 
 **§2.2 · Adapter assignment is not recorded (item 6) — and it is not a logging change.** Checked
 2026-08-15: `capture.py` carries a single global `ADAPTER` (config `adapter:`, one MAC used for
@@ -99,6 +180,29 @@ caught by the same operator running one more check, which is exactly the mechani
 relied on. **The fix is procedural, not technical:** preregister, hand the injection log to one
 session and the analysis to another, and let the second report before seeing the truth file.
 
+## 4b · A trap worth more than the hypothesis: injecting a constant offset is a VACUOUS test
+
+Testing an offset estimator by injecting a known constant offset **cannot fail**, and that is not a
+strength. A constant time shift translates the entire cross-correlation surface rigidly, so the argmax
+moves by exactly the injected amount whether or not the argmax means anything.
+
+Measured on the night above, whose prominence is **0.0017** — i.e. no lock at all:
+
+| injected | expected | recovered | error |
+|---|---|---|---|
+| −3000 ms | 6000 | 6000 | **0** |
+| −1000 ms | 8000 | 8000 | **0** |
+| +1000 ms | 10000 | 10000 | **0** |
+| +3000 ms | 12000 | 12000 | **0** |
+
+**Perfect recovery, four for four, from a method measuring nothing.** Had this been reported without
+the prominence figure and the range test beside it, it would have read as a clean validation of target
+1 — the exact shape of every other absence-failure in this work, and the most convincing one yet
+because the numbers are flawless.
+
+The discriminators that do work, both now asserted in `--self-test`: **peak prominence** against a
+posture-only null control, and **invariance of the peak to the search range**.
+
 ## 5 · Smaller items, recorded so they are not rediscovered
 
 - **Beat truth.** Phase 3 cannot separate "the corrector is biased" from "the raw train carries ~22 %
@@ -121,7 +225,14 @@ session and the analysis to another, and let the second report before seeing the
 ## Done when
 
 - [ ] An aperiodic cross-device marker exists in at least one captured night, and target 1 is
-      evaluated against it.
+      evaluated against it. **TESTED AND FAILED 2026-08-15 — the shortcut does not exist.** §2.1 assumed
+      this needs a deliberate marker; I proposed nature already supplies one, since turning over in bed
+      produces a transient in both devices' ACC at the same instant. Measured on the real paired night
+      (H10 chest vs Verity arm, 4.75 h): **no usable shared transient.** Peak prominence 0.0017–0.018
+      against a posture-only NULL control of 0.002 — indistinguishable — and the peak **rides the search
+      boundary** (3850 ms at ±4 s, 5750 at ±6 s, 9000 at ±9 s), which is what an argmax of noise does
+      and a real lock never does. `tools/aperiodic-offset.mjs` is kept as the instrument that *would*
+      detect a deliberate marker. The brief's original claim stands.
 - [ ] Adapter assignment is written into night metadata and held fixed across a capture set.
 - [x] **DONE 2026-08-15** — `integrator-dsp.js` (#1274) and `tools/pat-host-offset.mjs` (#1278) read
       `deviceDrawn`; `ecgdex-dsp.js` and `pat-gate.js` deliberately do not, on measured zero exposure
