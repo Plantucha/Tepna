@@ -1,5 +1,52 @@
 # Pilot re-run results (≥1k synthetic patients) — June 2026
 
+## CORPUS RE-RUN — the full 52-night sweep, which withdraws part of the correction directly below (2026-08-15, later)
+
+**The correction below was measured on 24 nights. Re-run on the full committed corpus it survives in
+part and is withdrawn in part — recorded here rather than edited away, because the failure mode is the
+one this ledger exists to catch: a real effect read off a subset too small to carry it.**
+
+- **Corpus.** 55 committed trio nights (up from 40), 52 with usable three-way windows, **903,265
+  simultaneous seconds** — 3.1× the 26 nights / 291,561 s behind the published headline σ. Median
+  per-night window 17,260 s against the paper's ≈11,214 s. Swept by the same
+  `tools/tch-window-sensitivity.mjs`, so the comparison is tool-identical.
+- **1 h → whole night, three independent corpora:**
+
+  | corner | full committed (52 n) | paper's own nights (24 n) | box corpus (17 n) |
+  |---|---|---|---|
+  | O2Ring | **+30 %** | +30 % | +28 % |
+  | H10    | **+45 %** | +51 % | +26 % |
+  | Verity | **+24 %** | +4 %  | +49 % |
+
+- **WITHDRAWN — "the corners reorder".** The dramatic Verity contrast (+49 % box vs +4 % here) that the
+  entry below reads as a reorder is mostly **small-sample**: at 52 nights Verity is +24 %, between the
+  two. What survives is narrower and better founded — the **O2Ring transfers** (+28 / +30 / +30 % across
+  all three), the **H10 genuinely differs by capture path** (+26 % box vs +45–51 % on both phone
+  samples), and the **Verity is unstable across samples**, which is itself the finding since it is the
+  corner a practitioner would most want to borrow.
+- **STRENGTHENED — non-monotonicity.** The entry below names one non-monotonic corner. On the full corpus
+  there are **two**: Verity runs 0.58 → 0.54 → 0.56 → 0.67 → 0.73 → 0.67 → 0.67 → 0.72 (peaking at
+  11.2 ks — the paper's own window length — then falling back), and the H10 dips 0.78 → 0.74 before
+  rising to 1.13. Only the O2Ring is monotonic throughout.
+- **NEW — the two analysis paths agree on one corner, once window length is controlled.** Truncating the
+  52-night node-export sweep to the paper's own 11,214 s window gives O2Ring **2.44** [2.28–2.77] ·
+  H10 **0.93** [0.68–1.13] · Verity **0.72** [0.47–0.91] against the published 2.41 / 1.28 / 1.42. The
+  O2Ring corner **reproduces across pipelines** (within 1.2 %, published value inside the CI); the other
+  two do not, each falling outside its interval with the node-export path reporting a quieter corner. So
+  the blanket "the paths disagree in absolute terms" was too coarse — part of that gap was a
+  window-length effect wearing a pipeline-effect label. A per-corner reconciliation is now owed.
+- **NEW — corpus-scale clock closure, 52 nights.** Of the nights carrying an H10↔Verity pairwise rate,
+  **17 close consistently (32.7 %) · 10 fail closure (19.2 %) · 25 are unclosed for want of a third
+  source (48.1 %)** — **67 % are not measurements**, and the three populations are indistinguishable
+  from their ppm values and night lengths alone. **Pooling inverts the sign:** all-52 median **+5.0 ppm**
+  vs closed-only **−3.0 ppm** (IQR −23…+6). Closure residual median 5.9, max 55.8 ppm; two nights
+  (07-04, 07-11) additionally fail their own beat-correspondence chance control. Written into
+  `wearable-clock-drift.html` §3.6 and cross-referenced from `dead-ends.html` wall 2.7.
+- **The general lesson.** The entry below was right that an unavailability claim is an empirical claim.
+  This entry adds the sibling: **a per-corner magnitude read off two dozen nights is an empirical claim
+  about sample size**, and the check is the same — re-run it on everything you have before publishing the
+  contrast. Both errors were cheap to find and were found only after the text had shipped.
+
 ## CORRECTION — sigma-no-reference limitation (x), window sensitivity on its own corpus (2026-08-15)
 
 **A published limitation excused itself with a fact that was never checked, and the fact was wrong.**
