@@ -244,6 +244,114 @@ the boot service armed them. A replug of the Raytac before this runs leaves it a
 
 ---
 
+### 📡 §5 RE-CHECKED ON THE LIVE BOX 2026-08-15 — resolved as written, and DRIFTED AGAIN elsewhere
+
+§5's own text still reads as open while the header records it RESOLVED. Ran the shipped checker on the
+box to settle it — `bash /opt/tepna/capture-host/deploy/check-system-files.sh`:
+
+**§5 as written is CLOSED.** `99-tepna-btdongle.rules` reports **`MANAGED ✓ content in sync`**. The
+"two fixes behind" state is gone and the header was right.
+
+**But the check now reports `11 managed, 2 drifted, 1 SUPERSEDED`, and one of those matters in the
+field:**
+
+| file | state |
+|---|---|
+| `tepna-restart.sh` | **✗ STALE — /etc differs from the repo** |
+| `99-polar-hidraw.rules` | **SUPERSEDED, still present** — replaced by `99-tepna-hidraw.rules` |
+
+#### 🔴 The stale file silently disables a fix that already shipped
+
+Diffed against the repo copy, the installed `/usr/local/lib/tepna/tepna-restart.sh` is missing the
+**`deploy` verb** and its `REPO_DIR` constant — the 2026-08-14 fix for the Deploy button, whose own
+comment records the bug:
+
+> *"the capture unit sets `ProtectSystem=strict` with `ReadWritePaths=/srv/tepna /opt/tepna/capture-host`
+> — so `/opt/tepna/.git` is READ-ONLY to anything the daemon spawns, and `git fetch` dies on
+> `.git/FETCH_HEAD: Read-only file system`… SUDO DOES NOT FIX IT: a mount namespace is not escaped by
+> privilege."*
+
+`/opt/tepna` **has** the fix; `/usr/local/lib/tepna` does not. **So the Deploy button on the box is still
+broken today, by the exact bug that was fixed and merged** — the repo believes the issue closed and the
+field does not. That is this brief's §5 failure mode recurring on a different file, and it is the reason
+§5 was worth writing rather than a one-off.
+
+#### What it needs
+
+An operator, exactly as §5 says — the installer needs a password-bearing sudo:
+
+```sh
+ssh vigil 'sudo bash /opt/tepna/capture-host/deploy/check-system-files.sh --install'
+sudo rm /etc/udev/rules.d/99-polar-hidraw.rules      # the checker never deletes
+```
+
+⚠️ **The generalisable point, and the reason this is recorded here rather than in a new brief:** a merged
+fix to a file under `deploy/` is **not deployed**. `check-system-files.sh` already detects it and nothing
+runs it on a schedule, so drift is found only when somebody looks. Every future "fixed and merged" claim
+about a `deploy/` file should be read as "fixed in the repo" until this checker says otherwise.
+
+### ✅ RESOLVED ON THE BOX, same day — operator ran the installer, verified from the repo side
+
+The owner ran both commands within the hour:
+
+```
+sudo bash /opt/tepna/capture-host/deploy/check-system-files.sh --install
+sudo rm /etc/udev/rules.d/99-polar-hidraw.rules
+```
+
+Checker now reports **`11 managed, 0 drifted`** with no SUPERSEDED line. **Verified independently rather
+than from that summary**, because a green count is exactly the kind of evidence this brief exists to
+distrust:
+
+| check | result |
+|---|---|
+| `deploy)` case present in the installed copy | ✓ |
+| `REPO_DIR` constant present | ✓ (3 refs) |
+| usage line | `{restart\|status\|radio\|reload\|reboot\|deploy\|stop [minutes]}` |
+| `diff /usr/local/lib/tepna/tepna-restart.sh` vs repo | **byte-identical** |
+| `99-polar-hidraw.rules` | removed |
+| capture service | still **active** — the installer restarted nothing, as it says |
+
+**The Deploy button works in the field again**, and the 2026-08-14 fix is now actually deployed rather
+than merely merged.
+
+⚠️ **The standing lesson is unchanged by the fix**, and is the reason this exchange is recorded: the fix
+had been merged for a day, CI was green, and the field was still broken. Nothing in the repo could have
+told you — `check-system-files.sh` is the only instrument that can, and **nothing runs it on a
+schedule**. Until something does, treat "fixed and merged" for any `deploy/` file as "fixed in the repo",
+and run the checker before believing otherwise.
+
+### 🔁 THE RECURSION, and how it actually resolves — measured 2026-08-15
+
+`nightqc` is being wired to call this checker once per night (Vigil box's work-unit), so the class closes
+rather than this one instance. But it lands with a twist worth stating, because it is this section's own
+finding pointed at itself:
+
+**The checker that detects un-deployed fixes is itself subject to being un-deployed.** The `--json` mode
+the nightly check parses does not exist on the box yet — verified: `grep -c json` on
+`/opt/tepna/capture-host/deploy/check-system-files.sh` returns **0**, and passing `--json` there today is
+silently ignored, printing the human report. So the nightly check will return `None` until the box has
+the new script.
+
+**But it needs a `git pull`, not an `--install`, and that distinction matters:**
+
+- `check-system-files.sh` is **not a MANAGED file** — it is not in the installed set (the 11 managed
+  entries are the udev rules, units, and `/usr/local/lib/tepna` helpers). It runs from the `/opt/tepna`
+  checkout.
+- The box **does** auto-pull. Verified 2026-08-15: `tepna-update.timer` is `enabled` + `active`,
+  `tepna-update.service` last ran **10:38:15 EDT that morning**, and `/opt/tepna` HEAD is a commit dated
+  the same day.
+
+**So no operator step is required for this one** — the hourly updater picks it up. That is the opposite
+of the `tepna-restart.sh` case above, which *was* a MANAGED file and therefore *did* need a
+password-bearing `--install`.
+
+⚠️ **The distinction is the durable part:** a fix to a file under `deploy/` that is **installed** into
+`/etc` or `/usr/local/lib` needs an operator; a fix to a script **run from the checkout** does not. The
+rule stated earlier in this section — *treat "fixed and merged" as "fixed in the repo"* — applies to the
+first class. For the second, the hourly timer is the deployment, and the thing to verify is that the
+timer is alive, not that somebody ran a command.
+
 ## §6 · Hypotheses that did NOT survive
 
 * **"The CPAP transfer is starving the capture loop."** Load average 0.34 during a 23 MB/min
