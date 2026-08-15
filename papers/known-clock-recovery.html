@@ -45,7 +45,7 @@
 
   <h2 class="sec">2. Methods</h2>
   <h3 class="sub">2.1 Substrate</h3>
-  <p>A bedside capture host (Raspberry Pi, chrony-disciplined, stratum 2 with a 0.011 ppm skew against a local stratum-1 reference; RMS offset 19.5 µs) holds Bluetooth Low Energy links to a Polar H10 chest strap, a Polar Verity Sense armband and a Wellue O2Ring pulse oximeter, and writes one row per received packet carrying <i>both</i> the host stamp and the device's own sensor counter. That pair is the two clocks. We used 395 such sidecars spanning 21 nights; 61 streams carried ≥ 500 packets and entered the analysis, of which 41 had a span exceeding 300 s.</p>
+  <p>A bedside capture host (Raspberry Pi, chrony-disciplined; source-stratum 1 via a local stratum-1 reference, chrony skew 0.004–0.011 ppm, RMS offset 19.5 µs — the host is <b>rate-trusted</b> by the capture daemon, a correction to draft v1 which reported it as stratum 2 and failing that bar) holds Bluetooth Low Energy links to a Polar H10 chest strap, a Polar Verity Sense armband and a Wellue O2Ring pulse oximeter, and writes one row per received packet carrying <i>both</i> the host stamp and the device's own sensor counter. That pair is the two clocks. We used 395 such sidecars spanning 21 nights; 61 streams carried ≥ 500 packets and entered the analysis, of which 41 had a span exceeding 300 s.</p>
   <p>A counter reset inside a session is a different clock, not a clock error, so each stream is reduced to its longest monotonic run before analysis rather than "corrected". One O2Ring session steps backwards by 27 463 s and is split on that basis.</p>
 
   <h3 class="sub">2.2 Injected defects</h3>
