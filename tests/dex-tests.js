@@ -39350,10 +39350,54 @@
         offenders.length === 0,
         offenders.length ? 'must call resolveCorpus(): ' + JSON.stringify(offenders) : 'all 9 go through the helper'
       );
+      /* The consumer must IMPORT a helper, not merely mention one. The earlier form tested the raw
+         source, so a helper named only in a comment satisfied it — the hollow-scan failure this group's
+         own anti-vacuity legs exist to prevent. Either export is the ONE helper: `resolveCorpus` is a
+         front for `corpusSearch` (asserted below), so there is still exactly one search. */
+      var reImport = /import\s*\{[^}]*\b(?:resolveCorpus|corpusSearch)\b[^}]*\}\s*from\s*['"][^'"]*regen-goldens-core\.mjs['"]/;
       var noImport = CONSUMERS.filter(function (f) {
-        return !/resolveCorpus/.test(String(env.sources[f]));
+        return !reImport.test(String(env.sources[f]));
       });
-      T.ok('every consumer names resolveCorpus', noImport.length === 0, JSON.stringify(noImport));
+      T.ok('every consumer IMPORTS the helper from the core (not just names it)', noImport.length === 0, JSON.stringify(noImport));
+      /* FIXTURE-CORPUS-REACHABILITY-2026-08-09 — a worktree holds the tracked fifth of uploads/ and none
+         of the 435 gitignored recordings, so assuming `<repo>/uploads` made §👥.1's mandated isolation and
+         §🔏's mandated re-verification mutually exclusive. The resolver SEARCHES, and the order is the
+         contract: an explicit override first, then the primary checkout, then this one. */
+      T.ok('ANTI-VACUITY · corpusSearch is exported from the core', /export function corpusSearch\s*\(/.test(core), 'no `export function corpusSearch(` — the order scan below would be hollow');
+      T.ok(
+        'resolveCorpus is a front for corpusSearch, so there is exactly ONE search',
+        /resolveCorpus\s*\(repo\)\s*\{[\s\S]{0,240}?corpusSearch\(repo\)/.test(core),
+        'resolveCorpus must delegate to corpusSearch rather than re-deriving the path'
+      );
+      var searchBody = (String(core).match(/export function corpusSearch\s*\(repo\)\s*\{[\s\S]*?\n\}/) || [''])[0];
+      T.ok('ANTI-VACUITY · the corpusSearch body was captured', searchBody.length > 400, 'len=' + searchBody.length);
+      var iEnv = searchBody.indexOf('process.env.DEX_UPLOADS');
+      var iCommon = searchBody.indexOf('--git-common-dir');
+      var iRepo = searchBody.lastIndexOf("path.join(repo, 'uploads')");
+      T.ok(
+        'the search order is $DEX_UPLOADS → primary checkout → this checkout',
+        iEnv >= 0 && iCommon > iEnv && iRepo > iCommon,
+        'DEX_UPLOADS@' + iEnv + ' git-common-dir@' + iCommon + ' repo@' + iRepo
+      );
+      T.ok(
+        'the primary-checkout candidate is the PARENT of the common git dir, not the git dir itself',
+        /path\.join\(path\.dirname\(common\), 'uploads'\)/.test(searchBody),
+        '`--git-common-dir` names <primary>/.git; the corpus is its sibling'
+      );
+      T.ok(
+        'a candidate that cannot be resolved is SKIPPED, never guessed',
+        /catch\s*\{[\s\S]{0,120}?common = null/.test(searchBody),
+        'outside git the primary-checkout candidate must simply not exist'
+      );
+      /* §2 — the expensive part was the MESSAGE: "absent" read as a fact about the machine while being a
+         fact about the checkout. A refusal must SHOW where it looked. */
+      var vf = String(env.sources['tools/verify-fixtures.mjs']);
+      T.ok('verify-fixtures shows the search when it refuses', /formatCorpusSearch\(SEARCH\)/.test(vf), 'the refusal branch must print every candidate and its verdict');
+      T.ok(
+        'verify-fixtures no longer prints a placeholder corpus path',
+        !/DEX_UPLOADS=\/path\/to\/uploads/.test(vf),
+        '`/path/to/uploads` told a reader standing in a checkout that HAS uploads/ nothing they could act on'
+      );
       // ── CORPUS ≠ FIXTURES: the write side must stay in THIS checkout ──────────────────────────
       T.ok(
         'the core writes fixtures to fixturesDir, never to the redirected corpus',
