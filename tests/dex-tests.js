@@ -284,6 +284,17 @@
       }
       G.ms = Date.now() - _t0; // per-group wall time — sizes the CI shards (run-tests --timings)
       GROUPS.push(G);
+      /* Optional progress hook. The runner reports only AFTER runDexTests returns, so a multi-minute
+         run had no way to say how far along it was — and a wrong guess then becomes durable (a Level
+         B run was called "10–15 min" against a true 78). Additive and lane-safe: the browser lane
+         passes no `onGroup` and behaves exactly as before. */
+      if (typeof env.onGroup === 'function') {
+        try {
+          env.onGroup(G);
+        } catch (_e) {
+          /* a reporter must never fail the suite it is reporting on */
+        }
+      }
       if (_bail) {
         for (var _bi = 0; _bi < G.tests.length; _bi++) {
           if (!G.tests[_bi].pass && !G.tests[_bi].skip) {
@@ -311,6 +322,79 @@
        own failure, since a failing assertion reds the suite. The implementation was proven by a
        measured mutant kill (a CPAPDex path that returns NaN where null is contracted now dies).
        This group is what trips if someone reverts to a bare stringify. */
+    /* ════ XMT GROUND TRUTH — the fixture that decides whether extreme-mutate is measuring anything
+       `tools/extreme-mutate.mjs` has 30 selftests and every one exercises a PURE function of that
+       tool. None runs the pipeline — splice, run suite, read coverage, classify — against a file
+       whose correct answer is known independently. So all 30 can pass while the tool reports
+       anything at all. That is the shape this whole programme hunts: a check that ran and reported
+       success about something it never examined.
+
+       This group is the OBSERVER half of `xmt-fixture.js`. The fixture's four functions are
+       trivial on purpose; what decides their verdict is HOW THIS GROUP WATCHES THEM:
+
+         add             value asserted        -> every extreme mutant killed  -> tested
+         calculateSomething  called, ignored   -> every extreme mutant survives -> PSEUDO-TESTED
+         recordInto      side effect asserted  -> killed (not a return-value tool)
+         getConstant     bare accessor         -> excluded by a Descartes stop-matcher
+
+       Run the experiment with:
+         node tools/extreme-mutate.mjs --file xmt-fixture.js --group xmt-fixture
+
+       ⚠️ EDITING THIS GROUP CHANGES THE EXPECTED VERDICTS. The assertions below are not checking the
+       fixture's arithmetic — 2+3 is not in question. They are establishing the observation regime
+       that makes each expected verdict true. Weaken the `add` assertion and `add` becomes
+       pseudo-tested, correctly. */
+    group('XMT ground truth — the fixture extreme-mutate is validated against', 'xmt-fixture · harness · known-answer', function (T) {
+      var F = env.xmtFixture;
+      if (!F || typeof F.add !== 'function') {
+        T.skip('xmt-fixture.js co-loaded', 'Node-lane only — the runner co-loads it through the same path as a DSP so c8 can see it');
+        return;
+      }
+
+      /* A · VALUE ASSERTED. Every Descartes operator returns something ≠ 5, so all are killed. */
+      T.eq('add returns the sum — the value is asserted, so every extreme mutant dies', F.add(2, 3), 5);
+      T.eq('…and a second point, so a constant-returning mutant cannot coincide', F.add(10, -4), 6);
+
+      /* B · CALLED, RESULT IGNORED. This is the pseudo-tested case and the assertion is deliberately
+         about something the function does NOT control — that calling it does not throw. Coverage is
+         satisfied (Betka & Wagner's precondition) while behaviour is unobserved. */
+      /* CALLED, NEVER OBSERVED. The call satisfies coverage — Betka & Wagner's precondition — and
+         nothing below inspects the result. That absence IS the regime under test.
+
+         ⚠️ There is deliberately NO assertion about the return value here, and no stand-in for one.
+         A first draft asserted `ignored !== undefined || ignored === undefined`, which is a
+         tautology — always true, unable to fail, and exactly the hollow gate this whole exercise
+         exists to detect. Writing one INSIDE the pseudo-tested fixture would have been the joke
+         telling itself. The honest way to express "nothing observes this" is to observe nothing. */
+      F.calculateSomething([10, 20, -5, 30]);
+
+      /* C · SIDE EFFECT ASSERTED. Emptying the body leaves the sink untouched, so this dies even
+         though the return value is unused. Separates "return unused" from "untested". */
+      var sink = [];
+      F.recordInto(sink, 'a');
+      F.recordInto(sink, 'b');
+      T.eq('recordInto appends to its sink — the SIDE EFFECT is asserted', sink, ['a', 'b']);
+
+      /* D · BARE ACCESSOR. Asserted so the function is covered; the tool must still EXCLUDE it via a
+         stop-matcher rather than score it, because its pseudo-testedness carries no information. */
+      T.eq('getConstant returns its constant (covered, but not a scoreable subject)', F.getConstant(), 7);
+
+      /* ══ E · F · G — THE LEVEL B REGIME ═════════════════════════════════════════════════════════
+         `summarise` is asserted STRONGLY as a whole: emptying it breaks the return, so Level A calls
+         it TESTED — correctly. Three statements inside it have three different known answers, and
+         that spread is the point. A fixture where every statement survives would be passed by a tool
+         that reported everything, and a fixture where every statement dies would be passed by one
+         that reported nothing.
+
+         ⚠️ THE OMISSION BELOW IS THE FIXTURE. `stats.seen` is written on every iteration and is
+         deliberately NEVER asserted — assert it and F becomes tested, correctly, and this group
+         stops validating anything. As with B above, the honest way to express "nothing observes
+         this" is to observe nothing. */
+      var stats = { seen: 0 };
+      T.eq('summarise returns the total — E is OBSERVED, so deleting it must be KILLED', F.summarise([1, 2, 3], stats), 6);
+      T.eq('…and a second point, so a mutant that hard-codes 6 cannot coincide', F.summarise([10, 5], stats), 15);
+      T.eq("summarise([]) is 0 — the empty case, which is also G's only candidate input", F.summarise([], stats), 0);
+    });
     group('T.eq distinguishes null from NaN and ±Infinity, at any depth', 'harness · comparator', function (T) {
       /* THE REAL comparator, not a copy. This group previously re-declared its own private `ser`,
          which meant it could not fail for any change to the one `T.eq` actually uses. */
@@ -1684,6 +1768,26 @@
          a boundary test rather than a claim that nothing ever locks. */
       T.eq('13 in the first field locks DMY', C.resolveDMY(['10:00:00 13/08/2026'], {}).locked, true);
       T.eq('13 in the second field locks MDY', C.resolveDMY(['10:00:00 08/13/2026'], {}).dmy, false);
+
+      /* KILLS the deletion of `s = s.trim().replace(/^["']|["']$/g, '')` in resolveDMY — Level B's
+         first real pseudo-tested STATEMENT, found 2026-08-15 on a file Level A scores 13/13
+         functions tested and ZERO pseudo-tested. That gap IS the finding (Maton, Kapfhammer &
+         McMinn, ICSME 2024): every assertion above feeds resolveDMY a BARE stamp, so the quote and
+         whitespace strip was executed on every one of them and observed by none.
+
+         ⚠️ THE FAILURE IS SILENT AND FILE-WIDE. Without the strip, `"13/05/2026 22:00"` matches
+         neither RE_A nor RE_C, so the loop `continue`s and the day>12 evidence is never seen:
+         `locked` goes true → FALSE. Per §3 and clock.js:48 `locked` means THE ORDER WAS PROVEN FOR
+         THIS FILE, so the file silently falls back to the preferDMY default — and when the real
+         order is the other one, EVERY date in it is misparsed by a parser that reported no error.
+         Quoted fields are ordinary CSV, and ppgdex already keeps a quote-strip of its own.
+
+         Verified by re-applying the mutant, not by reading the code: a test written from reading
+         is how `se = se || 0` produced a test that passed while catching nothing. */
+      T.eq('a QUOTED vendor stamp still locks the order — the strip is observed', C.resolveDMY(['"10:00:00 13/08/2026"'], {}).locked, true);
+      T.eq('…single quotes too, as some exporters emit', C.resolveDMY(["'10:00:00 13/08/2026'"], {}).locked, true);
+      T.eq('…and surrounding whitespace does not hide the evidence', C.resolveDMY(['  10:00:00 13/08/2026  '], {}).locked, true);
+      T.eq('a quoted MDY stamp resolves MDY, not the default', C.resolveDMY(['"10:00:00 08/13/2026"'], {}).dmy, false);
 
       /* KILLS `while (t < prevTMs - CK_ROLL_SLACK_MS)` → `<=`.
          The midnight-roll guard. The slack is 12 h — the largest backwards step that cannot be a

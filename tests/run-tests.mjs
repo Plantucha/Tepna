@@ -109,6 +109,80 @@ const SHARD = (() => {
   return { index, total, label: `${index + 1}/${total}` };
 })();
 
+/* ── PROGRESS + ETA ─────────────────────────────────────────────────────────────────────────
+   The full suite runs >10 min and a filtered one can still take minutes (`--group=clock` is 58
+   groups / 853 assertions / 295 s), and until now it printed NOTHING until it was done. That is
+   not merely unfriendly: with no measured figure to hand, waiting gets estimated by guess, and a
+   guess of "10–15 min" was published here against a true 78 min.
+
+   The denominator is REAL, not a mean: `tests/group-timings.json` carries per-group wall times, so
+   the ETA is the sum of the times of the groups still to run. Where a group is absent from that
+   file (new, or renamed) it falls back to the observed mean and the line says `~` so the reader
+   knows which number they are looking at.
+
+   ⚠️ Matching is by TITLE only — the timings file stores no tags — so a tag-scoped filter may plan
+   against a superset. It over-estimates in that case, which is the harmless direction.
+
+   Goes to STDERR so TAP/log parsers on stdout are untouched, and is OFF under CI (hundreds of
+   lines) — `--no-progress` disables it locally. */
+function progressReporter() {
+  let plan = null;
+  try {
+    const raw = JSON.parse(readFileSync(join(ROOT, 'tests/group-timings.json'), 'utf8'));
+    /* dex-tests.js is required lazily further down, so resolve the matcher here rather than
+       assuming module-scope access to it. */
+    const { dexGroupMatcher } = createRequire(import.meta.url)(join(ROOT, 'tests/dex-tests.js'));
+    const match = GROUP_FILTER ? dexGroupMatcher(GROUP_FILTER) : null;
+    const per = new Map();
+    let total = 0;
+    for (const [title, ms] of Object.entries(raw.groups || {})) {
+      if (match && !match(title, '')) continue;
+      per.set(title, ms);
+      total += ms;
+    }
+    if (total > 0) plan = { per, total };
+  } catch {
+    plan = null; /* no timings → mean-based, and say so */
+  }
+  const t0 = Date.now();
+  let done = 0;
+  let plannedDone = 0;
+  if (plan) process.stderr.write('  ⏱  plan: ' + plan.per.size + ' groups, ~' + (plan.total / 1000).toFixed(0) + 's from tests/group-timings.json\n');
+  else process.stderr.write('  ⏱  no usable group timings — ETA will be a running mean\n');
+  return (G) => {
+    done++;
+    const elapsed = (Date.now() - t0) / 1000;
+    let left;
+    let exact = false;
+    if (plan) {
+      plannedDone += plan.per.has(G.title) ? plan.per.get(G.title) : plan.total / Math.max(1, plan.per.size);
+      left = Math.max(0, (plan.total - plannedDone) / 1000);
+      exact = plan.per.has(G.title);
+    } else {
+      left = Number.NaN;
+    }
+    const fmt = (x) => (!Number.isFinite(x) ? '?' : x >= 60 ? Math.floor(x / 60) + 'm' + String(Math.round(x % 60)).padStart(2, '0') + 's' : Math.round(x) + 's');
+    process.stderr.write(
+      '  [' +
+        String(done).padStart(3) +
+        (plan ? '/' + plan.per.size : '') +
+        ']  ' +
+        (G.ms >= 1000 ? String((G.ms / 1000).toFixed(1)) + 's' : String(G.ms) + 'ms').padStart(7) +
+        '  ' +
+        'elapsed ' +
+        fmt(elapsed) +
+        '  ' +
+        (exact ? 'ETA ' : 'ETA ~') +
+        fmt(left) +
+        '  ' +
+        String(G.title).slice(0, 58) +
+        '\n'
+    );
+  };
+}
+
+const PROGRESS = !process.env.CI && !process.argv.slice(2).some((a) => /^--?no-progress$/i.test(a));
+
 const SHOW_TIMINGS = process.argv.slice(2).some((s) => /^--?timings?$/i.test(s)) || !!process.env.DEX_TIMINGS;
 
 /* --group-index=N[,M…] — execute EXACTLY these declaration indices, nothing else.
@@ -1735,6 +1809,22 @@ async function main() {
     srcHtml: readSrcHtml(),
     nonBundleCsp: readNonBundleCsp(),
     claudeMdClaims: readClaudeMdClaims(),
+    onGroup: PROGRESS ? progressReporter() : undefined,
+    /* XMT GROUND TRUTH (analysis/xmt-fixture.js) — loaded through the SAME `loadInto` path the DSPs
+       use, so c8 attributes per-function coverage to it exactly as it does for a DSP. That matters:
+       `tools/extreme-mutate.mjs` reads those counts, and Descartes' rule makes coverage a
+       PRECONDITION for the pseudo-tested verdict — a fixture c8 cannot see would classify
+       `not-covered` and the validation would fail for a reason that is not about the tool.
+       Its own realm, so nothing it defines can reach the DSP sandbox. */
+    xmtFixture: (() => {
+      try {
+        const c = makeSandbox();
+        loadInto(c, 'xmt-fixture.js');
+        return c.XmtFixture || (c.globalThis && c.globalThis.XmtFixture) || null;
+      } catch {
+        return null;
+      }
+    })(),
     analysisTools: readAnalysisTools(),
     bundleCsp: readBundleCsp(),
     manifests: readManifests(),
