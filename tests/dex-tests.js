@@ -42721,6 +42721,54 @@
       T.ok('…and reports its overlap as verified', !!pcOk && pcOk.overlapVerified === true);
     });
 
+    /* A DRAWN AXIS WITH A PLAUSIBLE PPM — the case both existing guards admit.
+       `arrivalPairOffsets` decides whether two devices sit on ONE timebase, and it was gated by
+       `independent` + `plausibleCrystal`. Neither is a provenance test:
+         · `independent` compares two COLUMNS. A counter synthesised as `index x an assumed rate` at
+           1 s granularity has an enormous residual spread, so it reads MORE independent the coarser
+           the fabrication.
+         · `plausibleCrystal` is `|ppm| <= 200`, a MAGNITUDE proxy. It catches the O2Ring only because
+           that axis happens to report 2730 ppm.
+       Measured 2026-08-14 over 395 sidecars: one real O2Ring segment (2026-08-13, 1.72 h) reports
+       -22.83 ppm at a 99.3 % drawn-delta share — a textbook-plausible crystal, between the H10's -20
+       and the Verity's -34 — and passes BOTH while having no oscillator. This group pins the
+       provenance refusal so the magnitude proxy can never again be the only thing standing there.
+       (The 16 other drawn streams that also pass both are zero-span, where ppm = 0 trivially; the
+       real-span case is n = 1 and is reported as such rather than as a rate.) */
+    group('Integrator refuses a DRAWN axis on provenance, not on magnitude', 'integrator-dsp · arrival-offsets · drawn-axis', function (T) {
+      var I = env.IntegratorDSP;
+      T.ok('arrivalPairOffsets is reachable', !!(I && typeof I.arrivalPairOffsets === 'function'));
+      if (!(I && typeof I.arrivalPairOffsets === 'function')) return;
+      var real = function (name, ppm, off) {
+        return { device: name, ok: true, independent: true, plausibleCrystal: true, deviceDrawn: false, drawnShare: 0.01, ppm: ppm, offsetMs: off };
+      };
+      /* the measured specimen: drawn, yet independent:true and |ppm| well inside the magnitude bound */
+      var drawn = { device: 'Wellue O2Ring-S', ok: true, independent: true, plausibleCrystal: true, deviceDrawn: true, drawnShare: 0.993, ppm: -22.83, offsetMs: 120 };
+
+      var ok2 = I.arrivalPairOffsets([real('Polar H10', -20.1, 100), real('Polar VeritySense', -33.8, 300)]);
+      T.ok('two genuine clocks still pair', ok2 && ok2.ok === true, JSON.stringify(ok2 && ok2.reason));
+
+      var withDrawn = I.arrivalPairOffsets([real('Polar H10', -20.1, 100), drawn]);
+      T.ok('a drawn axis beside ONE real clock leaves no pair', withDrawn && withDrawn.ok === false, JSON.stringify(withDrawn && withDrawn.ok));
+      T.eq('…and it is counted as unusable', withDrawn && withDrawn.usable, 1);
+      var why = (withDrawn && withDrawn.refused ? withDrawn.refused : []).filter(function (r) {
+        return r.device === 'Wellue O2Ring-S';
+      })[0];
+      T.ok('…refused by PROVENANCE, naming the delta concentration', !!why && /DRAWN/.test(why.reason) && /99\.3 %/.test(why.reason), why && why.reason);
+      T.ok('…not by the magnitude proxy, which would have admitted it', Math.abs(drawn.ppm) <= 200 && drawn.plausibleCrystal === true);
+
+      /* LOCK-OUT: this must fail if the provenance clause is removed. With `deviceDrawn` ignored the
+         specimen passes every remaining gate, so a pair WOULD form — assert the count that proves it. */
+      var three = I.arrivalPairOffsets([real('Polar H10', -20.1, 100), real('Polar VeritySense', -33.8, 300), drawn]);
+      T.eq('with two real clocks + one drawn, exactly TWO are usable', three && three.usable, 2);
+      T.ok(
+        '…and the drawn one is still listed as refused, not silently dropped',
+        (three.refused || []).some(function (r) {
+          return r.device === 'Wellue O2Ring-S';
+        })
+      );
+    });
+
     /* DEEP-AUDIT-III §3.2 — `apneaCoupling.real` must be a TEST, not a coin flip.
        It was `usable && lift > 1 && observedPct > chancePct`. `chancePct` IS the mean of the
        surrogate distribution, so under the null "observed > chance" is a fair coin by construction:
