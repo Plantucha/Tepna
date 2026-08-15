@@ -225,6 +225,87 @@ Per-device capture instructions for everyone else — no Pi required — live in
 
 ---
 
+## Measurement before interpretation
+
+A calculated number is not automatically a valid measurement. The chain runs:
+
+```text
+physical signal → acquisition → timestamping → conditioning → event detection
+              → metric → cross-signal fusion → physiological interpretation
+```
+
+A failure at any earlier stage invalidates everything downstream, and a sophisticated algorithm cannot
+recover information the acquisition path never preserved. That matters most with consumer sensors,
+where an exported value can hide resampling, proprietary filtering, buffering, transport latency, clock
+drift, reconstructed samples, or an undocumented event detector.
+
+This is not hypothetical here. **ECGDex's `apnea.estimatedAHI` was withdrawn in v2.0.0**, not
+relabelled: it was a CVHR index wearing AHI's units and clinical cut-points, and it correlated with
+device-scored AHI at **r = −0.151**. The algorithm was fine. The construct was not.
+
+---
+
+## Time is a measurement
+
+A timestamp is an observation of time, not automatically the truth — and cross-device work makes that
+the whole problem. Two devices can each report milliseconds and still not share a millisecond.
+
+Measured on this corpus:
+
+| | |
+|---|---|
+| H10 ↔ Verity offset, **phone**-captured nights | **~3.3 s** |
+| the same pair, **box**-captured nights | **~0.2 s** |
+| the capture host's own clock | 0.008 ppm |
+| an O2Ring crystal, worst case | **−3035 ppm, decaying to −1622** — non-linear, so a single ppm figure is the wrong model, not merely an imprecise one |
+
+Hence `DexClock.hostAxis`: a running median over host/device anchor pairs, which **refuses** rather than
+guessing when it has fewer than three anchors or the divergence exceeds 5 %. A node may not hand-roll a
+rate correction, and a refusal returns no correction at all — a caller must not be able to apply a
+silent zero.
+
+---
+
+## Agreement is not confirmation
+
+Two sensors agreeing is evidence of physiological truth only if they are independent. They may instead
+share a clock, an artifact, a preprocessing step, or a selection rule.
+
+The suite has a measured instance. Whether a recording contains a **second clock at all** is decided by
+the *spread* of host-vs-device residuals, not by the rate — and the corpus is bimodal with nothing in
+between:
+
+| capture | residual spread | meaning |
+|---|---|---|
+| box | 101.89 ms – 5124 ms | two genuinely independent clocks |
+| phone | **0.13 – 1.00 ms** | one stamp quantum — the "host" column is the device stamp, rounded |
+
+A phone-captured night therefore has **no second clock**, and a near-zero drift there is the *absence*
+of a measurement wearing the shape of one. It also explains the ~3.3 s vs ~0.2 s split in the previous
+section: only the box actually puts both devices on one timebase, so only there is the offset a
+measurement rather than an artifact of shared derivation. `hostAxis` publishes `independent` so a
+consumer cannot mistake the two.
+
+---
+
+## Adversarial testing
+
+The suite is built to attack its own attractive results, and a useful failure is kept as a regression
+test rather than deleted.
+
+- The privacy gate ships a **planted-canary negative control**, so a vacuous "all clear" cannot pass.
+- A packet-arrival check had two arms; the `smeared` arm was **retired for firing on every stream** on
+  its first real night. The premise was wrong, not the threshold. Its surviving arm was only wired in
+  after a corpus check across **355 sessions returned zero false positives**.
+- Fixtures prefer an adversarial *committed* twin over a real recording, because CI can re-run the twin
+  from committed bytes and cannot re-run a gitignored night.
+
+The questions it asks of itself: can correlated artifacts manufacture multimodal agreement? Can a
+host-derived clock validate itself? Can quality filtering select only the observations that support the
+desired relationship? Can a synthetic test share an assumption with the algorithm it is testing?
+
+---
+
 ## 🔬 Scientific Foundation
 
 Every non-trivial number traces to a published method, and each of the **21 working preprints** in

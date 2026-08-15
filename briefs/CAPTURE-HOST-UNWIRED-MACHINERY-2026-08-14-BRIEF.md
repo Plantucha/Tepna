@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-14
+**Status:** IN-PROGRESS — 2026-08-14 · **Created:** 2026-08-14
 
 # Machinery that exists, is tested, and is connected to nothing
 
@@ -44,7 +44,7 @@ could not be corrected"* is a first-order data-quality fact. It currently reache
 and no nightly QC report. A night captured under an uncorrectable clock is indistinguishable, downstream,
 from a good one.
 
-- [ ] Surface it. Cheapest honest option: `webmon`'s device projection + a monitor pill, since `worn_why`
+- [x] **DONE #1254.** Surface it. Cheapest honest option: `webmon`'s device projection + a monitor pill, since `worn_why`
       already establishes the "verdict plus its reason" pattern.
 - [ ] Decide whether `nightqc` should carry it per night — that is the artefact an analysis actually
       reads months later, and the one place the fact still matters after the session ends.
@@ -65,7 +65,7 @@ and, of its predecessor:
 The docstring also records that its *other* arm (`smeared`) was correctly retired after firing on every
 stream on 2026-08-11. That retirement was right; it left the surviving arm wired to nothing.
 
-- [ ] Call it from `alert_loop`, where the other per-tick predicates already run.
+- [x] **DONE #1258.** Call it from `alert_loop`, where the other per-tick predicates already run.
 - [ ] ⚠️ Before wiring: run it against real QC output for a few nights. The retired arm fired on **every
       stream on the first real night** because its premise (a 5 ms floor) was never reachable. Wiring the
       DEAD arm without that check risks repeating the same mistake, one arm over.
@@ -91,10 +91,10 @@ That is a second line of defence doing the first line's job.
 vigil-owned **by design** — `tepna-update.sh` must be able to write it. A constant that describes its
 second element incorrectly is how the fallback looks safe at the call site.
 
-- [ ] Call `grant_warning` once at boot for every helper the daemon can invoke, and log it at WARNING.
+- [x] **DONE #1257.** Call `grant_warning` once at boot for every helper the daemon can invoke, and log it at WARNING.
       The boot self-test is the established place (`VIGIL-OVERNIGHT-FINDINGS` P1.4 added two checks there
       after finding the third missing).
-- [ ] Correct the `SYSTEM_DIRS` comment: entry 1 is a root-owned deploy target, entry 2 is a
+- [x] **DONE #1257.** Correct the `SYSTEM_DIRS` comment: entry 1 is a root-owned deploy target, entry 2 is a
       **fallback for development** and is not safe to hold a grant.
 
 ## 4 · The same gate written two ways, and only one of them checks `charging`
@@ -108,7 +108,7 @@ second element incorrectly is how the fallback looks safe at the call site.
 `worn=False` on the dock honestly, so the gap is **latent, not live**. It is listed because the two gates
 encode the same rule — *a charging device cannot be on a body* — and only one of them says so.
 
-- [ ] Add the `charging` check, or route both through one predicate. `blocking_devices` already is one.
+- [x] **DONE #1259.** Add the `charging` check, or route both through one predicate. `blocking_devices` already is one.
 
 ## 5 · Minor: defined, never used
 
@@ -138,8 +138,26 @@ So the detector must be **advisory with a curated allowlist**, not a hard gate �
 `mutation (diff-scoped)`. A hard gate here would fail on every legitimately declarative constant
 (`PMD_SERVICE`, `OXYII_SERVICE`) and every CLI-only entry point.
 
-- [ ] Build it as a `tools/` script first, run it, curate the allowlist, and only then decide whether it
+- [x] **DONE — `tools/find_unwired.py`.** Build it as a `tools/` script first, run it, curate the allowlist, and only then decide whether it
       earns a CI job.
+
+### 6.1 · First run — it found three orphans the hand audit MISSED
+
+Run 2026-08-14 against `origin/main`. It reproduced every hand-found item **and** added three, because
+it subtracts `def` lines while a human counting occurrences reads the definition as a use:
+
+| new finding | why it is not "minor dead code" |
+|---|---|
+| **`rate_unmet`** (status key) | published when a device refuses the configured rate. The log line beside it says *"The config still says %s; **nothing else will tell you it did not happen**"* — and the field published to make that visible reaches no consumer. The claim in the log is more true than its author intended. |
+| **`connection_ceiling_error`** | distinguishes "the ADAPTER is out of connection slots" from "the sensor is absent" — *"a diagnosable over-provisioning, not a flapping device"*. Nothing calls it, so slot exhaustion presents as a dead sensor and sends the operator after the wrong fault. |
+| `predict_step_split` | O2Ring frame-lock helper, tests only. Genuinely §5-class. |
+
+It also **correctly did not report** `tool` or `timespec` — the two false positives the hand scan
+produced — and correctly treats `prune_old_nights` / `unarchived_nights` as wired despite their being
+passed to `asyncio.to_thread` without parentheses.
+
+- [ ] `rate_unmet` and `connection_ceiling_error` are §1/§2-class, not §5: surface the first to a
+      consumer, wire the second where connect failures are classified. Own work-unit.
 
 ## 7 · What this audit checked and REJECTED — do not "fix" it
 
