@@ -41,6 +41,32 @@ _MIN_TERMS = 8
 # A tau is only reported when the series spans at least this many of them, for the same reason.
 _MIN_SPAN_MULTIPLE = 4.0
 
+# TDEV is Mod sigma_y scaled by tau/sqrt(3); computed once rather than per point.
+_SQRT3 = math.sqrt(3.0)
+
+
+def _clean(phase):
+    """Finite samples only, as floats. Shared so every estimator rejects the same inputs — a family
+    where one member silently accepted a NaN would report a curve the others could not reproduce."""
+    return [float(v) for v in phase if v is not None and v == v and abs(v) != float("inf")]
+
+
+# ── TERM COUNTS, one per estimator ────────────────────────────────────────────────────────────────
+# Each estimator consumes a different amount of the series per tau, so each needs its own count. This
+# is NOT bookkeeping: `_octave_taus` decides which taus to report from it, and reusing ADEV's count for
+# MDEV/HDEV would offer averaging times those estimators cannot support — publishing exactly the thin,
+# wide-CI number this module's docstring says it exists to refuse.
+def _terms_adev(n, m):
+    return n - 2 * m
+
+
+def _terms_mdev(n, m):
+    return n - 3 * m + 1
+
+
+def _terms_hdev(n, m):
+    return n - 3 * m
+
 
 def adev(phase, tau0, taus=None):
     """Overlapping Allan deviation of a PHASE (time-error) series.
@@ -58,7 +84,7 @@ def adev(phase, tau0, taus=None):
     inter-device constant, or a -20.86 ppm rate) does not show up here at all. That is the point —
     those are separately measured and removable; this measures what is left.
     """
-    x = [float(v) for v in phase if v is not None and v == v and abs(v) != float("inf")]
+    x = _clean(phase)
     n = len(x)
     if n < 3 or not tau0 or tau0 <= 0:
         return []
@@ -69,7 +95,7 @@ def adev(phase, tau0, taus=None):
         m = int(round(tau / tau0))
         if m < 1:
             continue
-        terms = n - 2 * m
+        terms = _terms_adev(n, m)
         if terms < _MIN_TERMS:
             continue
         acc = 0.0
@@ -81,28 +107,123 @@ def adev(phase, tau0, taus=None):
     return out
 
 
-def _octave_taus(n, tau0):
+def _octave_taus(n, tau0, terms_at=None):
     """Octave-spaced averaging times — the conventional sampling of the curve, and enough to read a
-    slope from. Stops where fewer than `_MIN_SPAN_MULTIPLE` independent spans remain."""
+    slope from. Stops where fewer than `_MIN_SPAN_MULTIPLE` independent spans remain.
+
+    `terms_at(n, m)` is the estimator's own term count, defaulting to ADEV's. Passing it is what keeps
+    each estimator from being offered a tau it cannot support (see the term-count block above)."""
+    if terms_at is None:
+        terms_at = _terms_adev
     out = []
     m = 1
-    while (n - 2 * m) >= _MIN_TERMS and m <= n / (2.0 * _MIN_SPAN_MULTIPLE):
+    while terms_at(n, m) >= _MIN_TERMS and m <= n / (2.0 * _MIN_SPAN_MULTIPLE):
         out.append(m * tau0)
         m *= 2
     return out
 
 
-def slope(points):
+def mdev(phase, tau0, taus=None):
+    """Overlapping MODIFIED Allan deviation of a phase series (Allan & Barnes 1981; Riley SP 1065).
+
+        Mod sigma_y^2(tau) = 1 / (2 m^2 tau^2 (N-3m+1))
+                             * SUM_j [ SUM_{i=j}^{j+m-1} (x[i+2m] - 2 x[i+m] + x[i]) ]^2
+
+    WHY THIS EXISTS ALONGSIDE `adev`, in one sentence: the inner average over m second-differences
+    applies a software bandwidth that scales with tau, which SEPARATES WHITE PHASE NOISE FROM FLICKER
+    PHASE NOISE — a distinction ADEV structurally cannot make, because both give it tau^-1. That is the
+    entire reason to compute a second curve, and `identify()` is where the two are read together.
+
+    ⚠️ Its slopes are NOT ADEV's. White PM is tau^-3/2 here against tau^-1 there. Classify an MDEV
+    slope with `classify_mdev`; feeding it to `classify` names white PM as flicker PM every time.
+
+    The inner sum is carried as a SLIDING WINDOW over the second differences. Written directly it is
+    O(N*m) per tau and so O(N^2) over an octave ladder, which on a 25 000-sample night is minutes.
+    """
+    x = _clean(phase)
+    n = len(x)
+    if n < 4 or not tau0 or tau0 <= 0:
+        return []
+    if taus is None:
+        taus = _octave_taus(n, tau0, _terms_mdev)
+    out = []
+    for tau in taus:
+        m = int(round(tau / tau0))
+        if m < 1:
+            continue
+        terms = _terms_mdev(n, m)
+        if terms < _MIN_TERMS:
+            continue
+        d = [x[i + 2 * m] - 2.0 * x[i + m] + x[i] for i in range(n - 2 * m)]
+        s = math.fsum(d[:m])
+        acc = s * s
+        for j in range(1, terms):
+            s += d[j + m - 1] - d[j - 1]
+            acc += s * s
+        t = m * tau0
+        out.append({"tau": t, "mdev": math.sqrt(acc / (2.0 * terms)) / (m * t), "n": terms})
+    return out
+
+
+def tdev(phase, tau0, taus=None):
+    """TIME deviation — sigma_x(tau) = tau/sqrt(3) * Mod sigma_y(tau) (Allan, Weiss & Jespersen 1991).
+
+    THE POINT: this is in TIME UNITS, not fractional frequency. ADEV answers "how stable is the
+    oscillator"; TDEV answers "how much timing error does this clock contribute at this averaging
+    time", which is the quantity an uncertainty budget actually needs and the one PAT is missing.
+
+    Returns `[{tau, tdev, n}]` in the same unit as the input phase series (ms here).
+    """
+    return [{"tau": p["tau"], "tdev": p["tau"] * p["mdev"] / _SQRT3, "n": p["n"]} for p in mdev(phase, tau0, taus)]
+
+
+def hdev(phase, tau0, taus=None):
+    """Overlapping HADAMARD deviation (Baugh 1971; Hutsell 1995; Riley SP 1065).
+
+        H sigma_y^2(tau) = 1 / (6 tau^2 (N-3m)) * SUM_i (x[i+3m] - 3 x[i+2m] + 3 x[i+m] - x[i])^2
+
+    The THIRD difference, so it is insensitive to a linear frequency drift where ADEV's second
+    difference is not. That is not academic here: the O2Ring's real error is large and non-linear
+    (-3035 ppm decaying to -1622 ppm), and ADEV on a drifting clock reports the drift rather than the
+    noise underneath it. Use this when `classify` returns `drift` and you need what is left.
+    """
+    x = _clean(phase)
+    n = len(x)
+    if n < 4 or not tau0 or tau0 <= 0:
+        return []
+    if taus is None:
+        taus = _octave_taus(n, tau0, _terms_hdev)
+    out = []
+    for tau in taus:
+        m = int(round(tau / tau0))
+        if m < 1:
+            continue
+        terms = _terms_hdev(n, m)
+        if terms < _MIN_TERMS:
+            continue
+        acc = 0.0
+        for i in range(terms):
+            d = x[i + 3 * m] - 3.0 * x[i + 2 * m] + 3.0 * x[i + m] - x[i]
+            acc += d * d
+        t = m * tau0
+        out.append({"tau": t, "hdev": math.sqrt(acc / (6.0 * terms)) / t, "n": terms})
+    return out
+
+
+def slope(points, key="adev"):
     """Log-log slope of sigma_y(tau), by least squares. None when fewer than three taus.
 
     The slope IS the noise identification, so it is reported as a number and classified separately —
     a caller that wants to argue with the boundaries can read the slope itself.
+
+    `key` selects which deviation column to fit, so the same estimator serves `adev`/`mdev`/`hdev`
+    curves. It is LAST and optional, so every pre-existing caller is unchanged by construction.
     """
-    pts = [p for p in (points or []) if p.get("adev", 0) > 0 and p.get("tau", 0) > 0]
+    pts = [p for p in (points or []) if p.get(key, 0) > 0 and p.get("tau", 0) > 0]
     if len(pts) < 3:
         return None
     xs = [math.log10(p["tau"]) for p in pts]
-    ys = [math.log10(p["adev"]) for p in pts]
+    ys = [math.log10(p[key]) for p in pts]
     k = len(xs)
     mx = sum(xs) / k
     my = sum(ys) / k
@@ -112,18 +233,18 @@ def slope(points):
     return sum((xs[i] - mx) * (ys[i] - my) for i in range(k)) / den
 
 
-def slope_se(points):
+def slope_se(points, key="adev"):
     """Standard error of the log-log slope, or None when fewer than three taus.
 
     LOWER BOUND, not an estimate: overlapping ADEV points are correlated (adjacent taus reuse most of
     the same samples) while this OLS residual assumes independence. It is used to decide whether a
     noise TYPE is supportable, where being conservative is the safe direction.
     """
-    pts = [p for p in (points or []) if p.get("adev", 0) > 0 and p.get("tau", 0) > 0]
+    pts = [p for p in (points or []) if p.get(key, 0) > 0 and p.get("tau", 0) > 0]
     if len(pts) < 3:
         return None
     xs = [math.log10(p["tau"]) for p in pts]
-    ys = [math.log10(p["adev"]) for p in pts]
+    ys = [math.log10(p[key]) for p in pts]
     k = len(xs)
     mx = sum(xs) / k
     my = sum(ys) / k
@@ -148,8 +269,29 @@ _NOISE = (
 )
 _DRIFT = ("drift", "deterministic — fit and remove it, never average through it")
 
+# MDEV's canonical exponents, which are NOT ADEV's — and the difference IS why MDEV is computed.
+# ADEV collapses white PM and flicker PM onto one tau^-1 arm and can never separate them; MDEV puts
+# white PM at tau^-3/2, so the pair of slopes resolves what either alone cannot.
+#
+#   noise            ADEV      MDEV
+#   white PM         tau^-1    tau^-3/2   <- the split
+#   flicker PM       tau^-1    tau^-1     <-
+#   white FM         tau^-1/2  tau^-1/2
+#   flicker FM       tau^0     tau^0
+#   random-walk FM   tau^+1/2  tau^+1/2
+#
+# Edges are the midpoints between adjacent exponents, as in `_NOISE`, so nothing is favoured; drift is
+# the open-ended top and stays outside the table for the same reason it does there.
+_NOISE_MDEV = (
+    (-1.25, "white-phase", "jitter, uncorrelated sample to sample — averages away fastest"),
+    (-0.75, "flicker-phase", "correlated jitter — averages away, but slower than white phase"),
+    (-0.25, "white-frequency", "benign; averaging helps as sqrt(N)"),
+    (0.25, "flicker-frequency", "A FLOOR — more averaging buys nothing"),
+    (0.75, "random-walk-frequency", "wanders; a longer fit is worse than a short one"),
+)
 
-def classify(sl, se=None, n_tau=None):
+
+def classify(sl, se=None, n_tau=None, table=None):
     """Name the dominant noise type from a log-log slope — or REFUSE to, when the fit cannot support it.
 
     The boundary test is a strict `<` against a POINT ESTIMATE. Without `se` that assigns a type the
@@ -177,8 +319,11 @@ def classify(sl, se=None, n_tau=None):
     """
     if sl is None:
         return None
+    # `table` is optional and LAST, so every pre-existing caller keeps ADEV's table by construction.
+    # An MDEV slope MUST be passed `_NOISE_MDEV` (use `classify_mdev`) — see the table's comment.
+    noise = table or _NOISE
     name, meaning = _DRIFT
-    for edge, nm, mn in _NOISE:
+    for edge, nm, mn in noise:
         if sl < edge:
             name, meaning = nm, mn
             break
@@ -199,22 +344,26 @@ def classify(sl, se=None, n_tau=None):
     # test could kill it. A guard that cannot be wrong in a way anyone can see is better deleted.
     half = 1.96 * se if se else 0.0
     if half:
-        edges = [e for e, _, _ in _NOISE]
+        edges = [e for e, _, _ in noise]
         if any(sl - half < e < sl + half for e in edges):
-            # ⚠️ REMAINING MUTATION SURVIVORS, recorded rather than left silent. The `<`/`>` strictness
-            # in THIS loop (`sl - half <= e`, `sl + half >= lo`) survives the suite: killing it needs a
-            # CI that straddles an edge AND touches a candidate boundary at exact float equality
-            # simultaneously. The detection test above IS pinned at exact equality
-            # (`test_a_CI_ENDING_exactly_on_an_edge_does_not_straddle_it`); this loop only decides WHICH
-            # names are listed once a refusal has already been decided, so a boundary slip here widens
-            # or narrows an advisory list, never flips a verdict. Judged not worth a constructed
-            # double-exact fixture; `mutation (diff-scoped)` is advisory, not a required check.
+            # ✅ THE THREE SURVIVORS THIS COMMENT USED TO EXCUSE ARE NOW KILLED (2026-08-14).
+            # It previously said the `<`/`>` strictness here (`sl - half <= e`, `sl + half >= lo`, and
+            # `sl + half >= noise[-1][0]` below) needed "a CI that straddles an edge AND touches a
+            # candidate boundary at exact float equality simultaneously", and judged that not worth a
+            # constructed fixture. That was true about the requirement and wrong about the cost: a short
+            # search over (slope, se) finds exact-float pairs satisfying both at once, and the fixtures
+            # are three lines each — `sl=0.4952, se=0.13` puts the interval end exactly on the top edge
+            # while genuinely straddling an inner one; `sl=-0.499904` and `sl=-0.500096` at se=0.1276
+            # touch a candidate boundary exactly from below and from above.
+            # The lesson is the reusable part: "unkillable" was an estimate of EFFORT, not a property of
+            # the code, and it was never re-tested after being written down. Before excusing a survivor,
+            # run the search — it is cheaper than the paragraph explaining why you did not.
             cands, lo = [], float("-inf")
-            for e, nm, _ in _NOISE:
+            for e, nm, _ in noise:
                 if sl - half < e and sl + half > lo:
                     cands.append(nm)
                 lo = e
-            if sl + half > _NOISE[-1][0]:
+            if sl + half > noise[-1][0]:
                 cands.append(_DRIFT[0])
             return {
                 "slope": sl,
@@ -228,6 +377,49 @@ def classify(sl, se=None, n_tau=None):
     # that appears only on failure forces every caller into `.get()` and makes the two lanes' records
     # differently shaped for no reason — parity is the property the cross-lane gate protects.
     return {"slope": sl, "slope_se": se, "n_tau": n_tau, "noise": name, "candidates": None, "meaning": meaning}
+
+
+def classify_mdev(sl, se=None, n_tau=None):
+    """`classify` against MDEV's exponents rather than ADEV's.
+
+    Exists so the caller cannot get this wrong by omission: passing an MDEV slope to bare `classify`
+    is silently wrong (it names white PM as flicker PM), and a wrong label there is invisible because
+    both are plausible answers for a wearable link.
+    """
+    return classify(sl, se, n_tau, _NOISE_MDEV)
+
+
+# The one ADEV arm that is genuinely two noise types wearing one name, and the two MDEV names that
+# split it. Derived from the tables rather than retyped, so a table edit cannot desynchronise them.
+_PHASE_ADEV_NAME = _NOISE[0][1]
+_PHASE_MDEV_NAMES = (_NOISE_MDEV[0][1], _NOISE_MDEV[1][1])
+
+
+def identify(phase, tau0):
+    """Read the ADEV and MDEV curves TOGETHER — the only way to name phase noise.
+
+    ADEV maps BOTH white phase noise and flicker phase noise onto tau^-1, so its `white/flicker-phase`
+    verdict is not one answer, it is two answers that ADEV cannot distinguish. MDEV separates them
+    (tau^-3/2 vs tau^-1). This computes both curves and, only when ADEV has landed on that ambiguous
+    arm AND MDEV has landed on one of the two it splits into, publishes the resolution as
+    `phase_noise`.
+
+    `phase_noise` is None whenever the pair does not license a split — including when either curve is
+    too short to classify, or when either classifier REFUSED near a boundary. None rather than a
+    string, for the reason `classify` documents: a truthy sentinel passes `if r["phase_noise"]:`,
+    which is the guard callers actually write.
+
+    Why it matters operationally: white phase noise averages away as tau^-3/2, flicker phase noise
+    only as tau^-1. Told they are the same, you would under-estimate how much a longer window buys.
+    """
+    a = adev(phase, tau0)
+    md = mdev(phase, tau0)
+    a_cls = classify(slope(a), slope_se(a), len(a))
+    m_cls = classify_mdev(slope(md, "mdev"), slope_se(md, "mdev"), len(md))
+    resolved = None
+    if a_cls and m_cls and a_cls["noise"] == _PHASE_ADEV_NAME and m_cls["noise"] in _PHASE_MDEV_NAMES:
+        resolved = m_cls["noise"]
+    return {"adev": a_cls, "mdev": m_cls, "phase_noise": resolved, "taus": {"adev": len(a), "mdev": len(md)}}
 
 
 def stability(phase, tau0):

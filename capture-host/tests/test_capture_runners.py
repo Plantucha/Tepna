@@ -4643,3 +4643,26 @@ def test_run_oxyii_swallows_a_raising_arrival_writer(tmp_path, monkeypatch):
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
     assert list((tmp_path / "captures").rglob("*_SPO2.csv")), "a raising sidecar cost the SpO2 capture"
+
+
+def test_the_autopull_gate_now_asks_on_body_not_worn_alone():
+    """§4 of CAPTURE-HOST-UNWIRED-MACHINERY: the same rule was written twice and only one copy checked
+    `charging`. A docked ring reporting contact would have blocked its own backup pull — at the one
+    moment it is free to run, which is the exact complaint `blocking_devices`' docstring records from
+    2026-07-26: "the gate was unreachable on any evening the sensors were charging, which is precisely
+    when a pull is safest"."""
+    import io
+    import tokenize
+    from tests._srcscan import module_source
+    src = module_source("capture.py")
+    # comments stripped — the block carries a long one naming on_body, and a source scan that reads
+    # comments asserts the documentation rather than the code (learned 2026-08-14, twice).
+    code = tokenize.untokenize([t for t in tokenize.generate_tokens(io.StringIO(src).readline)
+                                if t.type != tokenize.COMMENT])
+    # ⚠️ ANCHOR ON THE DEFINITION. `code.index("autopull_poller")` finds an earlier DOCSTRING mention
+    # ("autopull_poller's hourly cadence…") and slices the wrong function — the same first-occurrence
+    # trap that made a `status=409` mutation hit unrelated code earlier today.
+    i = code.index("async def autopull_poller(")
+    seg = code[i:i + 4000]
+    assert "on_body(st) is True" in seg, "the auto-pull gate must route through the shared predicate"
+    assert 'st.get("worn") is True' not in seg, "…and must not keep the old worn-only test beside it"

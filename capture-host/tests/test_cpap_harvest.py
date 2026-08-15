@@ -317,3 +317,33 @@ def test_should_fetch_shares_short_reads_boundaries_not_just_its_verdict(tmp_pat
     q.write_bytes(b"")
     assert ch.should_fetch({"size": "1KB", "name": q.name}, str(q)), \
         "an empty file against a 1KB listing must be re-fetched, not skipped as unverifiable"
+
+
+# ── one rule, one encoding ──────────────────────────────────────────────────────────────────────────
+
+def test_on_body_says_NO_for_a_charging_device_whatever_worn_claims():
+    """*A charging device cannot be on a body.* The rule was encoded twice and only `blocking_devices`
+    said so — `capture.autopull_poller` gated on `worn is True` alone. It matters most in exactly the
+    contradictory state the Polar produces: a docked strap whose HR contact bit still reports skin
+    contact (measured 2026-08-14, 3 h 24 m into a charger under `worn: True`)."""
+    import telemetry
+    assert telemetry.on_body({"connected": True, "charging": True, "worn": True}) is False
+    assert telemetry.on_body({"connected": True, "worn": True}) is True
+    assert telemetry.on_body({"connected": False, "worn": True}) is False
+
+
+def test_on_body_returns_None_for_unknown_rather_than_guessing():
+    """⚠️ THE ASYMMETRY IS THE POINT, not an oversight to tidy away. The two callers answer `None`
+    differently because their costs differ: blocking a harvest on an unknown is cheap (the next run
+    retries), while refusing to auto-pull on an unknown loses the ONLY backup for a lossy night.
+    Collapsing this to a bool would silently pick one policy for both."""
+    import telemetry
+    assert telemetry.on_body({"connected": True}) is None
+    assert telemetry.on_body({}) is False and telemetry.on_body(None) is False
+
+
+def test_blocking_devices_still_blocks_on_UNKNOWN():
+    """The conservative side of the asymmetry, pinned so a later "simplification" cannot flip it."""
+    import cpap_harvest as ch
+    assert ch.blocking_devices({"Ring": {"connected": True}}) == ["Ring"]
+    assert ch.blocking_devices({"Ring": {"connected": True, "charging": True}}) == []
