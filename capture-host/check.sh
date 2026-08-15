@@ -47,6 +47,11 @@ run_gate "ruff"       "$PY" -m ruff check .
 mapfile -t sh_files < <(find . -name '*.sh' -not -path './.venv*' | sort)
 run_gate "shellcheck" shellcheck --severity=style "${sh_files[@]}"
 run_gate "pytest"     "$PY" -m pytest -q --cov --cov-branch --cov-fail-under=100
+# Machinery that exists, is tested, and is connected to NOTHING — the sibling of "a check that reports
+# success about something it never examined". No other gate can see it: every instance HAS passing
+# tests, and the tests call the function directly, which is exactly the wiring production lacks. Seconds,
+# no network. The floor is 0 and the allowlist is the escape hatch, with a reason required per entry.
+run_gate "unwired"    "$PY" tools/find_unwired.py --check
 
 echo
 echo "──────── capture-host gates ────────"

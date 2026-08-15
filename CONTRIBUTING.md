@@ -132,6 +132,19 @@ fixture whose output the change moved.
 > | `pytest` (capture-host) | `pytest --cov …` | coverage entirely; the suite passes far below the gate |
 > | `pytest --cov` | `pytest --cov --cov-branch --cov-fail-under=100` | partial BRANCHES, and nothing enforced — reported `EXIT=0` at the same 99 % CI failed on |
 >
+> ⚠️ **AND THE SAME COMMAND CAN STILL LIE, BECAUSE OF THE MACHINE.** The rows above are about running a
+> *weaker* command. This is the sibling: identical command, identical flags, different answer. Measured
+> 2026-08-14 on `capture-host` — `pytest --cov --cov-branch --cov-fail-under=100` read **100.00 %**
+> locally and **99.99 %** in CI, every test green in both. The uncovered branch was a
+> "helper is safely owned" path that only executes when `/usr/local/lib/tepna` exists and is populated;
+> this dev box had been used as a capture host, CI has no such directory, so the real scan walked that
+> branch here and never there. The same directory being present-but-EMPTY earlier the same day made a
+> deploy check behave differently again.
+>
+> A green local gate is evidence about **this machine**. If you have ever run the capture-host installer
+> locally, treat a local 100 % as the weaker claim and let CI have the last word — and when CI reds on
+> coverage while every test passes, look for an environment-dependent branch before looking for a bug.
+>
 > The last two are the same file, hours apart. So: **read the command out of `.github/workflows/*.yml`
 > and run that string**, rather than the shorter one you remember. For the JS side that is
 > `npm run check`; for `capture-host/` it is the full `pytest -q --cov --cov-branch
