@@ -42174,6 +42174,79 @@
         T.eq('a vo2est with no hrRest falls through to the rows, never to undefined', ((zEmptyVo2 || {}).zones || {}).z1 ? zEmptyVo2.zones.z1.low : null, 117);
       }
     });
+    /* ════ NEXT-DAY READINESS — the OTHER half of computeKarvonenZones, and where its 110 survivors live
+       The group above pins the Karvonen/Tanaka arithmetic thoroughly, and the mutation sweep still
+       reports 110 survivors in this function. They are not in the zones. Measured by line, they sit
+       almost entirely in the READINESS COMPOSITE — five scoring ladders that produce a user-facing
+       0-100 number and were executed on every night with a profile while asserted by nothing:
+
+         L5749-5752  spo2Score   16 survivors     L5737-5741  rmssdScore  12
+         L5667/5674  hrRestOverride path 10       L5758       durationMin  4
+
+       That is FOLLOWUPS §4 in one function: the suite runs it and does not check the result.
+
+       Every threshold below is read from the source and pinned at BOTH sides of its boundary, because
+       a ladder is exactly where an off-by-one hides — `>= 2.3` and `> 2.3` differ on one input only.
+       The compound gates get one test per OPERAND, never a joint move: §2c's rule that "all-or-none
+       in the DATA is not all-or-none in the GATE" — varying both halves together can never separate
+       `&&` from `||`.                                                                              */
+    group('OxyDex readiness composite — every scoring ladder, at both sides of each threshold', 'oxydex-dsp · karvonen · readiness · known-answer', function (T) {
+      var O = env.OxyDex && (env.OxyDex._bare || env.OxyDex);
+      var K = O && O.computeKarvonenZones;
+      T.ok('OxyDex._bare.computeKarvonenZones reachable', typeof K === 'function');
+      if (typeof K !== 'function') return;
+
+      /* One helper, one varying input at a time. hrRest comes from vo2est so no row corpus is
+         needed, and `durationMinHint` drives the sleep ladder without fabricating 25 200 rows. */
+      var sc = function (hrv, odi4, hypDose, stageProxy, hint) {
+        var r = K(null, hrv || { rmssd: 2.3 }, { hrRest: 60 }, odi4, hypDose, null, stageProxy, 49, hint);
+        return (r && r.scores) || {};
+      };
+
+      /* ── rMSSD ladder: 2.3/1.6/1.2/0.7 → 30/24/18/10/4, all `>=` ───────────────────────────── */
+      T.eq('rmssd 2.30 ⇒ 30 (>= is inclusive at the top rung)', sc({ rmssd: 2.3 }).rmssd, 30);
+      T.eq('rmssd 2.29 ⇒ 24 (one hundredth below drops a rung)', sc({ rmssd: 2.29 }).rmssd, 24);
+      T.eq('rmssd 1.60 ⇒ 24', sc({ rmssd: 1.6 }).rmssd, 24);
+      T.eq('rmssd 1.59 ⇒ 18', sc({ rmssd: 1.59 }).rmssd, 18);
+      T.eq('rmssd 1.20 ⇒ 18', sc({ rmssd: 1.2 }).rmssd, 18);
+      T.eq('rmssd 1.19 ⇒ 10', sc({ rmssd: 1.19 }).rmssd, 10);
+      T.eq('rmssd 0.70 ⇒ 10', sc({ rmssd: 0.7 }).rmssd, 10);
+      T.eq('rmssd 0.69 ⇒ 4 (the floor, not 0)', sc({ rmssd: 0.69 }).rmssd, 4);
+      T.eq('rmssd null ⇒ 0, not the 4 floor — absent is not "worst"', sc({ rmssd: null }).rmssd, 0);
+
+      /* ── SpO2 ladder: each rung is a COMPOUND gate, so each operand is moved ALONE ──────────── */
+      T.eq('odi4 1 · hd94 29 ⇒ 25 (both inside the top rung)', sc(null, { rate: 1 }, { hd94PerHr: 29 }).spo2, 25);
+      T.eq('odi4 2 alone breaks the top rung ⇒ 20', sc(null, { rate: 2 }, { hd94PerHr: 29 }).spo2, 20);
+      T.eq('hd94 30 ALONE also breaks it ⇒ 20 — proving the second operand is load-bearing', sc(null, { rate: 1 }, { hd94PerHr: 30 }).spo2, 20);
+      T.eq('odi4 5 alone drops to the third rung ⇒ 13', sc(null, { rate: 5 }, { hd94PerHr: 29 }).spo2, 13);
+      T.eq('hd94 60 alone drops to the third rung ⇒ 13', sc(null, { rate: 1 }, { hd94PerHr: 60 }).spo2, 13);
+      T.eq('odi4 10 alone ⇒ 7 (the fourth rung ignores hd94 entirely)', sc(null, { rate: 10 }, { hd94PerHr: 0 }).spo2, 7);
+      T.eq('hd94 120 alone ⇒ 7', sc(null, { rate: 1 }, { hd94PerHr: 120 }).spo2, 7);
+      T.eq('odi4 20 ⇒ 2, the floor', sc(null, { rate: 20 }, { hd94PerHr: 0 }).spo2, 2);
+      T.eq('odi4 19.9 ⇒ 7, so the 20 boundary is exclusive', sc(null, { rate: 19.9 }, { hd94PerHr: 999 }).spo2, 7);
+      T.eq('no odi4 and no hypDose ⇒ both read 0 ⇒ the TOP rung, 25', sc(null, null, null).spo2, 25);
+
+      /* ── Sleep ladder: duration rungs 420/360/300, plus stage bonuses ───────────────────────── */
+      T.eq('no stageProxy ⇒ neutral +5, and 420 min ⇒ 10 ⇒ 15', sc(null, null, null, null, 420).sleep, 15);
+      T.eq('419 min drops the duration rung ⇒ 7 + 5 = 12', sc(null, null, null, null, 419).sleep, 12);
+      T.eq('360 min ⇒ 7 + 5 = 12', sc(null, null, null, null, 360).sleep, 12);
+      T.eq('359 min ⇒ 4 + 5 = 9', sc(null, null, null, null, 359).sleep, 9);
+      T.eq('300 min ⇒ 4 + 5 = 9', sc(null, null, null, null, 300).sleep, 9);
+      T.eq('299 min ⇒ the 1-point floor + 5 = 6', sc(null, null, null, null, 299).sleep, 6);
+      /* A PRESENT stageProxy replaces the neutral +5 with earned points — so a night with stage data
+         and poor stages scores WORSE than one with none, which is the intended asymmetry. */
+      T.eq('stageProxy present but both proxies 0 ⇒ 10 + 0 + 0 = 10, below the neutral 15', sc(null, null, null, { remProxyMin: 0, nremDeepMin: 0 }, 420).sleep, 10);
+      T.eq('rem 45 ⇒ +5 · deep 60 ⇒ +5 ⇒ 10 + 10 = 20', sc(null, null, null, { remProxyMin: 45, nremDeepMin: 60 }, 420).sleep, 20);
+      T.eq('rem 44 ⇒ +3 and deep 59 ⇒ +3 ⇒ 10 + 6 = 16', sc(null, null, null, { remProxyMin: 44, nremDeepMin: 59 }, 420).sleep, 16);
+      T.eq('rem 20 ⇒ +3 · deep 30 ⇒ +3 ⇒ 16', sc(null, null, null, { remProxyMin: 20, nremDeepMin: 30 }, 420).sleep, 16);
+      T.eq('rem 19 and deep 29 earn NOTHING ⇒ 10', sc(null, null, null, { remProxyMin: 19, nremDeepMin: 29 }, 420).sleep, 10);
+      /* The two stage bonuses are INDEPENDENT — moved together they cannot be told apart. */
+      T.eq('rem 45 alone ⇒ 10 + 5 = 15', sc(null, null, null, { remProxyMin: 45, nremDeepMin: 0 }, 420).sleep, 15);
+      T.eq('deep 60 alone ⇒ 10 + 5 = 15', sc(null, null, null, { remProxyMin: 0, nremDeepMin: 60 }, 420).sleep, 15);
+
+      /* ── durationMinHint is a FALLBACK, not an override — n>0 wins, and absent ⇒ 360 ────────── */
+      T.eq('no rows and no hint ⇒ the 360 default ⇒ 7 + 5 = 12', sc(null, null, null, null, null).sleep, 12);
+    });
 
     group('OxyDex refuses fabricated dates and inflated spans — §F2/§F1.4', 'oxydex-dsp · clock · guards', function (T) {
       var O = env.OxyDSP || env.OXYDSP;
