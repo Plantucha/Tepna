@@ -244,6 +244,52 @@ the boot service armed them. A replug of the Raytac before this runs leaves it a
 
 ---
 
+### 📡 §5 RE-CHECKED ON THE LIVE BOX 2026-08-15 — resolved as written, and DRIFTED AGAIN elsewhere
+
+§5's own text still reads as open while the header records it RESOLVED. Ran the shipped checker on the
+box to settle it — `bash /opt/tepna/capture-host/deploy/check-system-files.sh`:
+
+**§5 as written is CLOSED.** `99-tepna-btdongle.rules` reports **`MANAGED ✓ content in sync`**. The
+"two fixes behind" state is gone and the header was right.
+
+**But the check now reports `11 managed, 2 drifted, 1 SUPERSEDED`, and one of those matters in the
+field:**
+
+| file | state |
+|---|---|
+| `tepna-restart.sh` | **✗ STALE — /etc differs from the repo** |
+| `99-polar-hidraw.rules` | **SUPERSEDED, still present** — replaced by `99-tepna-hidraw.rules` |
+
+#### 🔴 The stale file silently disables a fix that already shipped
+
+Diffed against the repo copy, the installed `/usr/local/lib/tepna/tepna-restart.sh` is missing the
+**`deploy` verb** and its `REPO_DIR` constant — the 2026-08-14 fix for the Deploy button, whose own
+comment records the bug:
+
+> *"the capture unit sets `ProtectSystem=strict` with `ReadWritePaths=/srv/tepna /opt/tepna/capture-host`
+> — so `/opt/tepna/.git` is READ-ONLY to anything the daemon spawns, and `git fetch` dies on
+> `.git/FETCH_HEAD: Read-only file system`… SUDO DOES NOT FIX IT: a mount namespace is not escaped by
+> privilege."*
+
+`/opt/tepna` **has** the fix; `/usr/local/lib/tepna` does not. **So the Deploy button on the box is still
+broken today, by the exact bug that was fixed and merged** — the repo believes the issue closed and the
+field does not. That is this brief's §5 failure mode recurring on a different file, and it is the reason
+§5 was worth writing rather than a one-off.
+
+#### What it needs
+
+An operator, exactly as §5 says — the installer needs a password-bearing sudo:
+
+```sh
+ssh vigil 'sudo bash /opt/tepna/capture-host/deploy/check-system-files.sh --install'
+sudo rm /etc/udev/rules.d/99-polar-hidraw.rules      # the checker never deletes
+```
+
+⚠️ **The generalisable point, and the reason this is recorded here rather than in a new brief:** a merged
+fix to a file under `deploy/` is **not deployed**. `check-system-files.sh` already detects it and nothing
+runs it on a schedule, so drift is found only when somebody looks. Every future "fixed and merged" claim
+about a `deploy/` file should be read as "fixed in the repo" until this checker says otherwise.
+
 ## §6 · Hypotheses that did NOT survive
 
 * **"The CPAP transfer is starving the capture loop."** Load average 0.34 during a 23 MB/min
