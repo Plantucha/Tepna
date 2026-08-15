@@ -53,6 +53,13 @@ CONSUMERS = ("webmon.py", "alerts.py", "nightqc.py", "timeline.py", "telemetry.p
 ALLOW_KEYS = {
     "tool": "read by webmon.py and monitor.html under a quoting form scan 1 does not model",
 }
+# Fields the API publishes deliberately for a consumer OTHER than the monitor. `/api/state` is not the
+# monitor's private channel — but "something else reads it" must be stated, not assumed.
+ALLOW_RENDERED: dict = {}
+
+# Handlers defined in monitor.html that nothing calls. Same rule, same reason.
+ALLOW_JS: dict = {}
+
 ALLOW_FUNCS = {
     "main": "CLI entry point",
     "night_profile": "adapter_ab is an offline analysis tool, not daemon code",
@@ -126,6 +133,20 @@ def status_keys(src: str) -> set[str]:
     return keys
 
 
+def projected_keys(src: str) -> set[str]:
+    """The device-projection keys `webmon` publishes to `/api/state`, from the AST.
+
+    Anchored on the dict literal carrying both `connected` and `battery` — the device projection — rather
+    than on a line number or a function name, so it survives the file moving around it."""
+    for node in ast.walk(ast.parse(src)):
+        if not isinstance(node, ast.Dict):
+            continue
+        ks = {k.value for k in node.keys if isinstance(k, ast.Constant) and isinstance(k.value, str)}
+        if {"connected", "battery"} <= ks:
+            return ks
+    return set()
+
+
 def public_functions(src: str) -> set[str]:
     """Module-level `def`s that are part of the module's surface (not `_private`)."""
     out: set[str] = set()
@@ -174,6 +195,45 @@ def scan(root: "str | None" = None) -> dict:
             if n.endswith((".py", ".sh")):
                 everything += open(os.path.join(dirpath, n), encoding="utf-8", errors="replace").read()
 
+    # ── SCAN 3 · FORWARDED BUT NEVER DRAWN ──────────────────────────────────────────────────────────
+    # The next link in the same chain. Scan 1 asks whether a published key reaches a consumer, and
+    # `webmon.py` counts as one — so forwarding a field satisfies it while the field still reaches
+    # nobody's eyes. `worn_why`'s own comment in that projection makes the argument for this scan: *"The
+    # daemon logs the conflict; a log line does not reach the person looking at the monitor."* Correct,
+    # and it applies one layer further on: a field published to a JSON endpoint nobody reads is not
+    # published to an operator either.
+    orphan_rendered = []
+    wm = os.path.join(root, "webmon.py")
+    mon = os.path.join(root, "monitor.html")
+    if os.path.exists(wm) and os.path.exists(mon):
+        html = open(mon, encoding="utf-8", errors="replace").read()
+        keys = projected_keys(open(wm, encoding="utf-8").read())
+        if not keys:
+            # FAIL LOUD, NOT OPEN. An anchor that stops matching returns an empty set, and an empty set
+            # reports "0 unexplained" forever — a scan that examines nothing and calls it clean, which is
+            # the failure this whole tool exists to name. Losing the anchor must red, not go quiet.
+            orphan_rendered.append({"key": "<projection not found — the AST anchor in projected_keys() "
+                                           "no longer matches webmon.py>", "allowed": None})
+        for key in sorted(keys):
+            if re.search(r"\b%s\b" % re.escape(key), html):
+                continue
+            orphan_rendered.append({"key": key, "allowed": ALLOW_RENDERED.get(key)})
+
+    # ── SCAN 4 · A HANDLER WITH NO CONTROL ──────────────────────────────────────────────────────────
+    # Scan 3 asks whether a published field is REFERENCED in monitor.html — and a reference inside a
+    # function nothing calls is not a rendering. Removing `${lastSampleText(d)}` from the device row left
+    # scan 3 perfectly green, because the key still appeared inside the helper's own body. Same shape as
+    # scan 2's `uses - defs`: the definition is not a use. It found `syncAllTime` on its first run — a
+    # complete host+all-devices clock sync, POSTing a registered endpoint, with no button in the page.
+    orphan_js = []
+    if os.path.exists(mon):
+        html_js = open(mon, encoding="utf-8", errors="replace").read()
+        for fn in sorted(set(re.findall(r"function\s+([A-Za-z_$][\w$]*)\s*\(", html_js))):
+            uses = len(re.findall(r"\b%s\b" % re.escape(fn), html_js))
+            defs = len(re.findall(r"function\s+%s\b" % re.escape(fn), html_js))
+            if uses - defs <= 0:
+                orphan_js.append({"func": fn, "allowed": ALLOW_JS.get(fn)})
+
     orphan_funcs = []
     for f in files:
         for fn in sorted(public_functions(src[f])):
@@ -183,7 +243,8 @@ def scan(root: "str | None" = None) -> dict:
             defs = len(re.findall(r"def\s+%s\b" % re.escape(fn), everything))
             if uses - defs <= 0:
                 orphan_funcs.append({"module": f, "func": fn, "allowed": ALLOW_FUNCS.get(fn)})
-    return {"orphan_status_keys": orphan_keys, "orphan_functions": orphan_funcs}
+    return {"orphan_status_keys": orphan_keys, "orphan_functions": orphan_funcs,
+            "orphan_rendered": orphan_rendered, "orphan_js": orphan_js}
 
 
 def main(argv: list[str]) -> int:
@@ -195,7 +256,11 @@ def main(argv: list[str]) -> int:
             ("status keys published by capture.py and read by nothing",
              res["orphan_status_keys"], lambda r: r["key"]),
             ("public functions referenced only by tests",
-             res["orphan_functions"], lambda r: "%s  %s" % (r["module"], r["func"]))):
+             res["orphan_functions"], lambda r: "%s  %s" % (r["module"], r["func"])),
+            ("fields webmon forwards that monitor.html never draws",
+             res["orphan_rendered"], lambda r: r["key"]),
+            ("monitor.html handlers with no control that calls them",
+             res["orphan_js"], lambda r: r["func"])):
         live = [r for r in rows if not r["allowed"]]
         print("\n== %s ==" % label)
         for r in live:
@@ -216,7 +281,8 @@ def main(argv: list[str]) -> int:
     # exists to catch and the moment it is cheapest to fix. The allowlist remains the escape hatch, and
     # every entry must state WHY — so silencing a finding costs a sentence of justification, not a flag.
     if "--check" in argv:
-        n = sum(1 for r in res["orphan_status_keys"] + res["orphan_functions"] if not r["allowed"])
+        n = sum(1 for r in res["orphan_status_keys"] + res["orphan_functions"]
+                + res["orphan_rendered"] + res["orphan_js"] if not r["allowed"])
         if n:
             print("\n✖ %d unexplained — wire it, or allowlist it WITH A REASON in ALLOW_KEYS/ALLOW_FUNCS" % n)
             return 1
