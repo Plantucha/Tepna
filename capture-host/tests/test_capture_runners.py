@@ -4666,3 +4666,79 @@ def test_the_autopull_gate_now_asks_on_body_not_worn_alone():
     seg = code[i:i + 4000]
     assert "on_body(st) is True" in seg, "the auto-pull gate must route through the shared predicate"
     assert 'st.get("worn") is True' not in seg, "…and must not keep the old worn-only test beside it"
+
+
+# ── SHUTDOWN REACHES THE HOLD LOOPS — with a REAL sleep (RUN-POLAR-MUTATION-STOP-HERE §5) ───────────
+# §5 asked whether the sweep's 13 loop-condition TIMEOUTS were real non-termination or an artefact of
+# `_stop_after`, which patches `asyncio.sleep` to a no-op — the hypothesis being that a loop which no
+# longer awaits a real sleep never sees `_STOP`.
+#
+# MEASURED 2026-08-15 by running the real `run_polar` under the REAL `asyncio.sleep` with a real
+# deadline, one mutant at a time. THE HYPOTHESIS IS REFUTED, and the answer is not uniform:
+#
+#   site           mutant                                    real sleep + _STOP set
+#   hold loop      `client.is_connected and not _STOP` → or  HUNG   (exits only once the link drops)
+#   pause loop     `(paused or recovering) and not _STOP`→or  EXITED — the siblings were false
+#   pause loop     …the same mutant with the pause HELD       HUNG
+#
+# So the operator is not what decides it. **A `… and not _STOP.is_set()` → `or` mutant is REAL exactly
+# when its SIBLING condition can still be true at shutdown**, because `or` then makes `_STOP`
+# unreachable. For the hold loop the sibling is `client.is_connected`, which is true by definition
+# during a session and is cleared only by the `finally` AFTER the loop — so nothing inside the process
+# can end it. For the pause loop the sibling is transient, which is why the same mutation is inert in
+# the ordinary path and fatal when a pull owns the link at shutdown.
+#
+# These two tests pin the property that makes the difference: SHUTDOWN MUST REACH THE LOOP. They use a
+# real sleep deliberately — under `_stop_after` they would pass against the mutant, which is the whole
+# finding — and `_run_bounded` so a regression FAILS instead of hanging the suite.
+def _stop_shortly(cap, after=0.05):
+    """A task that sets `_STOP` on the real clock — the shutdown a running daemon actually receives."""
+    async def go():
+        await asyncio.sleep(after)
+        cap._STOP.set()
+    return go
+
+
+def test_stop_ends_a_live_session_even_with_a_real_sleep(tmp_path, monkeypatch):
+    """The connected hold loop must exit on `_STOP` WITHOUT waiting for the link to drop. The mutant
+    that makes `client.is_connected` the sole exit condition hangs here — measured, not assumed."""
+    _polar_common(monkeypatch)
+    c = FlexPolarClient(data_frames=[], start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    capture._STOP.clear()
+
+    async def go():
+        t = asyncio.create_task(_stop_shortly(capture)())
+        try:
+            await capture.run_polar(_pdev(), str(tmp_path))
+        finally:
+            t.cancel()
+    try:
+        _run_bounded(go(), 6.0)                      # returns ⇒ shutdown reached the loop
+    finally:
+        capture._STOP.set()
+    assert c.is_connected, "it must exit on _STOP, not by waiting for the link to go down"
+
+
+def test_stop_ends_a_PAUSED_session_even_with_a_real_sleep(tmp_path, monkeypatch):
+    """The mirror case, and the one the standard arms miss: while a pull owns the link the pause loop's
+    sibling condition is TRUE, so an `or` mutant makes `_STOP` unreachable there too. A run that never
+    pauses cannot see this — the sweep's own scenario is what made the mutant look inert."""
+    _polar_common(monkeypatch)
+    c = FlexPolarClient(data_frames=[], start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    capture._STOP.clear()
+    dev = _pdev()
+    capture._POLAR_PAUSED.add(dev["address"])        # a pull owns the link, and never lets go
+
+    async def go():
+        t = asyncio.create_task(_stop_shortly(capture)())
+        try:
+            await capture.run_polar(dev, str(tmp_path))
+        finally:
+            t.cancel()
+    try:
+        _run_bounded(go(), 6.0)
+    finally:
+        capture._STOP.set()
+        capture._POLAR_PAUSED.clear()
