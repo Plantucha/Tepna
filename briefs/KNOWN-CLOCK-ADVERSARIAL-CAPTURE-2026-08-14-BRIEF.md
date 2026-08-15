@@ -498,13 +498,47 @@ out`; the shipped shape is `{ nn, tt, nCorr, flags }`. It matched nothing and re
 Silence read as a result — the same failure as Phase 2's `stability.ok`. A regression assertion now
 requires both corrector legs to be *populated*.
 
-## Still not done (do not read Phase 2 as the whole experiment)
+---
 
-- **Injection at the `capture.py` write path.** Everything above perturbs the *sidecar*, so the capture
-  daemon is outside the loop; an acquisition-side defect would not be seen.
-- **Targets 6–8** — beat-matching errors need the RR/ECG substrate, not arrival stamps; sensor-specific
-  noise stays confounded with adapter assignment; host-induced artifacts need the 19.5 µs floor separated.
-- **A blind operator.** Criteria were preregistered and hashed, but the same agent injected and analysed.
+# Phase 4 — the capture write path (executed 2026-08-14)
+
+Everything in Phases 1–3 perturbs the *sidecar*, which leaves the capture daemon outside the loop:
+decoding a PMD frame, stamping arrival and formatting the CSV all happen **before** the substrate
+those experiments touch. `capture-host` holds a 100 % coverage floor and had **no test following a
+clock relationship from a wire frame to a recovered rate**.
+
+`capture-host/tests/test_write_path_clock_recovery.py` closes it. A device clock running at a known
+offset goes in as raw PMD bytes; the **real** `decode_frame` parses it, the **real**
+`PmdArrivalLogWriter` writes it, the file is read back, and the rate is recovered from the written
+columns. Nothing is reimplemented — a test that formatted its own CSV would pass while the shipped
+formatter was broken, which is the gap being closed.
+
+Planted **0 / +50 / −50 / +200 ppm** over a 40-min synthetic session at 130 Hz; each recovered to
+within **2 ppm** at the correct sign (host−device, so a fast device reads negative). Two properties
+are pinned separately because the rate test alone does not cover them: the arrival stamp keeps
+**millisecond** resolution (a whole-second stamp makes every rate under ~400 ppm unrecoverable while
+the 200 ppm case still passes), and a missing device stamp is written **blank, never a fabricated 0**
+— §2.6's rule applied to the write path.
+
+**The tests were verified by breaking the code, not by passing.** Truncating `_phone_ts` to whole
+seconds kills 3 of 4; making the blank-field helper emit `"0"` kills the fourth. Both mutants were
+reverted and `writers.py` is byte-identical. A first-run pass proves nothing here — the repo's own
+lesson (`ui-export-paths-broken`) is that a gate is evidence only once you have seen it fail.
+
+⚠ `shellcheck` is **absent on this machine** (exit 127). That is a missing tool, not a failing gate,
+and it is called out because `check.sh` prints it beside real failures.
+
+## Still not done
+
+- **A blind operator.** Criteria were preregistered and hashed, but the same agent injected and
+  analysed. §3.6b — a claim this brief made and then withdrew — is the live demonstration: it was
+  caught only because that same operator ran one more measurement. Handing the analysis to a
+  different session is the only real fix.
+- **Beat truth.** Phase 3 cannot separate "the corrector is biased" from "the raw train carries
+  ~22 % artefact inflation" without independently adjudicated R-peaks, which no corpus here contains.
+- **Sensor noise is stream-attributed, not device-attributed.** §3.10 escapes the adapter confound by
+  comparing two streams on one device, which is enough to place the noise on the Verity accelerometer
+  but not enough to say a *device* is noisier than another.
 
 ## Cross-references
 
