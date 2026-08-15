@@ -98,6 +98,35 @@ export function resolveSweeps(dir) {
   return out;
 }
 
+/* ── PRODUCTION vs NOT ────────────────────────────────────────────────────────────────────────
+   The queue ranks by SURVIVOR COUNT, and this file's own header says count measures SIZE, not
+   value. Two of the top four entries are a synthetic-data generator and a self-check: killing
+   those mutants asserts something about a FIXTURE, not about analysis a user sees. #1196 measured
+   that population at 15.4 % of the fleet.
+
+   FAIL-CLOSED, and the direction matters. Default is PRODUCTION; a function is set aside only
+   after someone read it and wrote down why (`tools/mutation-nonproduction.json`). A wrong
+   exclusion silently deletes real work from the queue; a missing one merely leaves noise in the
+   ranking. The name pattern used to FIND candidates is not evidence and is not applied here —
+   `sampleHz` matches /^sample[A-Z]/ and is real production code, called three times in its file.
+
+   NOTHING IS DROPPED SILENTLY. The excluded rows are reported beside the ranked list with their
+   total, so a reader who disagrees can see exactly what was set aside. They also stay in the
+   DENOMINATOR — this is a ranking aid, not an equivalence claim. */
+export function loadNonProduction() {
+  try {
+    const j = JSON.parse(readFileSync(join(ROOT, 'tools/mutation-nonproduction.json'), 'utf8'));
+    const out = new Set();
+    for (const [file, list] of Object.entries(j.functions || {})) for (const e of list || []) if (e && e.fn) out.add(file + '::' + e.fn);
+    return out;
+  } catch {
+    return new Set(); // unreadable ⇒ everything is production ⇒ nothing hidden
+  }
+}
+export function isNonProduction(set, file, fn) {
+  return !!(set && set.has(file + '::' + fn));
+}
+
 /* Same shape as the old literal — `tools/killcheck.mjs` reads `SWEEPS[file]`. */
 export const SWEEPS = resolveSweeps();
 
@@ -213,6 +242,23 @@ if (IS_MAIN && has('--selftest')) {
   ok('a healthy sweep reports normally', verdict(8, 1060) === 'ok', verdict(8, 1060));
   ok('the two failures are never the same verdict', verdict(0, 0) !== verdict(1, 0));
 
+  /* ── production partition (2026-08-15) ────────────────────────────────────────────────────
+     The property that matters is the DIRECTION of failure: an unreadable or malformed ledger must
+     exclude NOTHING, because a wrong exclusion silently deletes real work from the queue while a
+     missing one merely leaves noise in the ranking. */
+  const NP = new Set(['a.js::genSynthetic', 'b.js::selfTest']);
+  ok('a listed function is non-production', isNonProduction(NP, 'a.js', 'genSynthetic'));
+  ok('…and the SAME name in another file is NOT', !isNonProduction(NP, 'z.js', 'genSynthetic'), 'the key is file::fn, not fn');
+  ok('an unlisted function is production', !isNonProduction(NP, 'a.js', 'analyze'));
+  ok('an EMPTY set excludes nothing (fail-closed)', !isNonProduction(new Set(), 'a.js', 'genSynthetic'));
+  ok('a null set excludes nothing (fail-closed)', !isNonProduction(null, 'a.js', 'genSynthetic'));
+  /* The real ledger must load and must not be empty — an exclusion list that silently became empty
+     would restore the misleading ranking without any signal. */
+  const real = loadNonProduction();
+  ok('the committed ledger loads and is non-empty', real.size > 0, String(real.size) + ' entries');
+  ok('…and cpapdex selfTest is in it', isNonProduction(real, 'cpapdex-dsp.js', 'selfTest'));
+  ok('…while motiondex sampleHz is NOT — a name pattern is not evidence', !isNonProduction(real, 'motiondex-dsp.js', 'sampleHz'), 'sampleHz is production; it must never be set aside');
+
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
   process.exit(fail ? 1 : 0);
 }
@@ -238,6 +284,7 @@ if (IS_MAIN && !has('--selftest')) {
      fusing them is a planning error, not just a reporting one.
      Fails closed via mutation-reach: absent or unresolvable coverage ⇒ everything UNASSERTED, i.e.
      nothing is ever quietly written off as unreachable. */
+  const NONPROD = loadNonProduction();
   const covPath = opt('--cov', '');
   const COV = covPath && existsSync(covPath) ? JSON.parse(readFileSync(covPath, 'utf8')) : null;
   let UNREACHED = 0,
@@ -266,7 +313,7 @@ if (IS_MAIN && !has('--selftest')) {
       const fn = attribute(ranges, m.line);
       per.set(fn, (per.get(fn) || 0) + 1);
     }
-    for (const [fn, n] of per) rows.push({ file, fn, n });
+    for (const [fn, n] of per) rows.push({ file, fn, n, nonProd: isNonProduction(NONPROD, file, fn) });
 
     if (COV) {
       const rec = findRecord(COV, file);
@@ -277,6 +324,11 @@ if (IS_MAIN && !has('--selftest')) {
     }
   }
   rows.sort((a, b) => b.n - a.n);
+  /* Split for REPORTING only. Both halves stay in the survivor total and the denominator — this
+     changes what the ranked list points at, not what the programme owes. */
+  const prodRows = rows.filter((r) => !r.nonProd);
+  const skipRows = rows.filter((r) => r.nonProd);
+  const skipN = skipRows.reduce((a, r) => a + r.n, 0);
 
   if (missing.length) console.log(`  ⚠ NO SWEEP for ${missing.length} file(s): ${missing.join(', ')} — their work is NOT counted below.\n`);
 
@@ -357,12 +409,20 @@ if (IS_MAIN && !has('--selftest')) {
     console.log(`          UNASSERTED ${UNASSERTED} — tests execute it and do not notice; strengthen an assertion\n`);
     if (covUnresolved.length) console.log(`  ⚠ coverage did not resolve for ${covUnresolved.length} file(s): ${covUnresolved.join(', ')} — counted UNASSERTED (fail-closed).\n`);
   }
+
+  if (skipN) {
+    console.log(`  SET ASIDE  ${skipN} survivors in ${skipRows.length} NON-PRODUCTION function(s) — a fixture generator or a`);
+    console.log('             self-check, so killing them asserts nothing a user sees. Still in the denominator;');
+    console.log('             reasons in tools/mutation-nonproduction.json. Ranked list below EXCLUDES them.');
+    for (const r of skipRows) console.log(`               ${String(r.n).padStart(4)}  ${r.file}  ${r.fn}`);
+    console.log('');
+  }
   console.log('  THE TARGET IN ONE LINE: at any kill/classify split, ~98.5% of those survivors must be');
   console.log('  RESOLVED — killed if killable, classified if not. No ratio avoids the work.\n');
   console.log('    rank   n   file                 function                     cumulative   % of work');
   let cum = 0;
   const tot = rows.reduce((s, r) => s + r.n, 0);
-  rows.slice(0, top).forEach((r, i) => {
+  prodRows.slice(0, top).forEach((r, i) => {
     cum += r.n;
     console.log(`    ${String(i + 1).padStart(4)} ${String(r.n).padStart(4)}   ${r.file.padEnd(20)} ${r.fn.padEnd(28)} ${String(cum).padStart(6)}      ${((100 * cum) / tot).toFixed(1)}%`);
   });
