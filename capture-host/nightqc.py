@@ -826,7 +826,6 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         # box-wide silence ran 58.6 min, 85 s under the split threshold.)
         others = [s for s in sessions if s is not cur]
         if others:
-            excluded = sum(f["rows"] for s in others for f in s[2])
             before = [s for s in others if s[1] <= cur[0]]
             after = [s for s in others if s[0] >= cur[1]]
             # `prior_gap_sec` keeps naming the gap to the nearest EARLIER session, which is what its
@@ -842,7 +841,6 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
                 gaps.append(f"{_hhmm(cur[1])}->{_hhmm(nxt[0])} {round((nxt[0] - cur[1]) / 60)}min gap; "
                             f"{len(after)} later session(s), "
                             f"{sum(f['rows'] for s in after for f in s[2])} rows, excluded from coverage")
-            del excluded
     per_device = []
     newest = max((f["mtime"] for f in current), default=None)
     missing = []

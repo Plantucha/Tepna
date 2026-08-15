@@ -98,3 +98,52 @@ def test_no_data_reports_no_judged_session(tmp_path):
     os.makedirs(d, exist_ok=True)
     r = nightqc.summarize(d, _DEV)
     assert r["judged_session"] is None, "a verdict with no ground must not claim one"
+
+
+# ── the gap must name the NEAREST session, not just some session ────────────────────────────────────
+# ⚠️ THE MUTATION GATE FOUND THIS, and lint could not. With only one session on each side, `max(before,
+# key=lambda s: s[1])` and `min(after, key=lambda s: s[0])` are indistinguishable from `key=None` — a
+# one-element max returns that element whatever it is keyed on. Every such mutant SURVIVED, so the tests
+# proved the gap was reported and said nothing about whether the right session was named. These fixtures
+# put several sessions on each side so the key function has work to do.
+def _many_sessions(tmp_path):
+    """Three earlier sessions, the judged one, and two later — all absolute, none derived from now()."""
+    d = str(tmp_path / "2026-08-15")
+    def at(hhmmss, rows, name):
+        t = _dt.strptime("20260815" + hhmmss, "%Y%m%d%H%M%S").timestamp()
+        _rows(d, name, rows, t + 900)
+        return t
+    at("000500", 50, "Polar_H10_02849638_20260815000500_ECG.txt")     # earliest
+    at("020000", 60, "Polar_H10_02849638_20260815020000_ECG.txt")
+    at("040000", 70, "Polar_H10_02849638_20260815040000_ECG.txt")     # NEAREST earlier
+    at("080000", 900, "Polar_H10_02849638_20260815080000_ECG.txt")    # judged (most rows)
+    at("120000", 80, "Polar_H10_02849638_20260815120000_ECG.txt")     # NEAREST later
+    at("180000", 90, "Polar_H10_02849638_20260815180000_ECG.txt")     # furthest later
+    return d
+
+
+def test_the_earlier_gap_is_measured_to_the_NEAREST_earlier_session(tmp_path):
+    r = nightqc.summarize(_many_sessions(tmp_path), _DEV)
+    earlier = [g for g in r["gaps"] if "earlier session" in g]
+    assert earlier, f"an earlier gap must be reported: {r['gaps']}"
+    # 04:00 session ends ~04:15; judged starts 08:00 -> ~3.7 h. Keyed on the WRONG session it would be
+    # ~7.7 h (from 00:05) — so the number itself distinguishes right from wrong.
+    assert "225min" in earlier[0] or "224min" in earlier[0], earlier[0]
+
+
+def test_the_later_gap_is_measured_to_the_NEAREST_later_session(tmp_path):
+    r = nightqc.summarize(_many_sessions(tmp_path), _DEV)
+    later = [g for g in r["gaps"] if "later session" in g]
+    assert later, f"a later gap must be reported: {r['gaps']}"
+    # judged ends ~08:15; nearest later starts 12:00 -> ~225 min. The furthest would be ~585.
+    assert "225min" in later[0] or "224min" in later[0], later[0]
+
+
+def test_every_excluded_session_is_counted_on_its_own_side(tmp_path):
+    r = nightqc.summarize(_many_sessions(tmp_path), _DEV)
+    earlier = [g for g in r["gaps"] if "earlier session" in g][0]
+    later = [g for g in r["gaps"] if "later session" in g][0]
+    assert "3 earlier session(s)" in earlier, earlier
+    assert "2 later session(s)" in later, later
+    assert "180 rows" in earlier, earlier          # 50 + 60 + 70
+    assert "170 rows" in later, later              # 80 + 90

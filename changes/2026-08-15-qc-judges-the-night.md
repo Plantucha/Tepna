@@ -45,3 +45,26 @@ all are separate daytime episodes rather than a night split by a dropout, of whi
 observed. Whether an episode boundary should falsify a claim about a different session is the same
 report-versus-judge question as `system_files`, and it is left open rather than answered by a threshold
 fitted to eighteen points.
+
+
+## The mutation gate found dead code that lint could not
+
+`mutation (diff-scoped)` reported 29 survivors on this diff. One was a real defect: the two-sided gap
+rewrite computed `excluded = sum(...)` and then `del excluded` — a value produced and immediately thrown
+away. **Ruff cannot flag it, because `del` counts as a use.** Removed.
+
+**The other survivors on the new code are EQUIVALENT mutants, and the reason is an invariant worth
+recording.** `merge_sessions` yields DISJOINT sessions as `(start, end, files)` tuples, so ordering by
+start, by end, and by whole-tuple all agree:
+
+    max by tuple (300,380) == max by end (300,380)
+    min by start (100,150) == min by end (100,150)
+
+So `max(before, key=lambda s: s[1])` → `key=None`, and `min(after, key=lambda s: s[0])` → `key=s[1]`,
+select the same session and cannot be killed by any input. Likewise `s[1] <= cur[0]` → `s[1] < cur[0]`
+differs only for a session ending in the same instant the judged one starts, which `merge_sessions` would
+already have merged.
+
+Measured rather than argued: of six such mutants, **one dies** — `key=lambda s: s[2]`, keying on the FILE
+LIST, which is a genuine distinction — and the new nearest-session tests kill it. The other five are
+equivalent by that invariant. Chasing them would mean writing tests for states the data model forbids.
