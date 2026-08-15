@@ -2,7 +2,7 @@
 Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-09
+**Status:** DONE — 2026-08-15 (§1 confirmed live on the box and **§1a fixed** — the confirmation found a second O2Ring stream that was never stamped; §3 was already retracted, and the ambiguous note it blames is now fixed; §2 stays deliberately open by nature) · **Created:** 2026-08-09
 
 # O2Ring adaptive timebase — follow-ups
 
@@ -36,6 +36,53 @@ Also fixed on the box while there: the gitignored `config.yaml:110` still pinned
 (the retired ROW rate). Set to `125.000` with an inline reason + a timestamped backup; YAML re-parsed
 (`o2ring.ppg_fs = 125.0`); no restart (the value is the grid's starting guess and slews regardless, and
 a capture was in progress). It takes effect at the next automatic daemon restart.
+
+### ✅ §1 CONFIRMED LIVE — 2026-08-15
+
+The one-line confirmation §1 left outstanding. First line of a real O2Ring capture on the box:
+
+```
+/srv/tepna/captures/2026-08-15/Wellue_O2Ring-S_S8AW2100_20260815052731_PPG.txt
+  # timebase=host-disciplined
+```
+
+and the CLOCK sidecar still carries the column with a well-founded verdict:
+
+```
+…;synchronised to stratum 1 via 192.168.0.123 (ref 192.168.0.123);0.005;host-disciplined
+```
+
+## 1a · THE CONFIRMATION FOUND A SECOND O2RING STREAM THAT WAS NEVER STAMPED — fixed 2026-08-15
+
+Checking §1 meant listing the ring's files, and the ring writes **two** optical streams. Only one is
+stamped:
+
+| stream | files on the box | carrying `# timebase=` |
+|---|---|---|
+| `_PPG.txt` (`ppg1`, single channel) | 216 | **20** — every one post-deploy |
+| `_PPG2W.txt` (`ppg2w`, raw dual-wavelength, cmd 0x05) | 40 | **0** |
+
+**Not a deploy lag.** `Wellue_O2Ring-S_S8AW2100_20260815052731_PPG2W.txt` is unstamped while
+`…_20260815052731_PPG.txt` — the *same capture session*, same device, same host clock — is stamped.
+
+The cause is one line. `capture.py` builds `ppg1` with `timebase=_tb` and, five lines below, builds
+`ppg2w` without it; `writers.py` then gates on `stream == "ppg1"`. The gate's own comment justifies the
+exclusion as *"meaningless for a Verity `ppg` or an ECG stream"* — which is true, and does not cover
+`ppg2w`. **The decision is per DEVICE — the O2Ring's crystal-vs-host rate — and `ppg2w` is the same
+ring.** Reading the rule as "the finger file" rather than "the ring's files" is how the stream was
+missed.
+
+**Latent, not live, and that is the argument for fixing it now rather than filing it.** Nothing in the
+JS lane parses `ppg2w` yet (`grep` over the tree: zero readers), so nothing is currently misreading an
+axis. But the recordings accumulate at ~40 files and counting, and **a timebase that was never written
+cannot be recovered afterwards** — unlike a parser, which can be written whenever. The 40 existing files
+are unrecoverable; every future one is not.
+
+Fixed by widening the writer's gate to both O2Ring optical streams and passing `_tb` at the `ppg2w` call
+site. The writer test now asserts both directions on `ppg2w` — stamped when a timebase exists, no comment
+when it does not — beside the existing `ppg1` cases and the Verity negative.
+
+**Nothing else surfaced**, so no follow-up brief is spawned: §1a was found and closed inside this pass.
 
 ## 2 · A REAL bad-host ECG night (nice-to-have, NOT a blocker)
 
@@ -77,6 +124,13 @@ would add nothing: the box already clears both bars (source-stratum ≤ 1, skew 
 
 The identity of 192.168.0.123 itself is unrecorded (no rDNS; MAC `86:20:f6:d6:c4:1d`, locally-administered).
 Worth naming in `vigil-box-clock-facts` so the next reader does not repeat the misreading above.
+
+> **DONE 2026-08-15.** The note has been disambiguated at the source: its one-line description said
+> *"chrony/local-stratum-1"*, which is the exact string that was read as the `local` orphan directive. It
+> now states that this means a **LAN stratum-1 SERVER at 192.168.0.123**, not chrony's `local stratum`,
+> and carries the two commands that settle it (`grep -c '^local ' /etc/chrony/chrony.conf` → **0**;
+> `grep '^server' …` → `server 192.168.0.123 iburst prefer`, re-measured 2026-08-15). The box's LAN
+> address was stale in the same note (`.61`) and is corrected to **192.168.0.41**.
 
 ## 4 · Process gotchas this pass (so the next timebase-adjacent change is cheaper)
 
