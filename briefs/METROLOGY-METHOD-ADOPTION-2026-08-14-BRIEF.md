@@ -197,6 +197,71 @@ Revisit if `_MIN_SPAN_MULTIPLE` is ever relaxed; until then this is a measured d
 
 ---
 
+### 3.5 · MEASURED ON THE WHOLE BOX CORPUS, 2026-08-14 — 27 streams, and two first-pass claims REFUTED
+
+Everything in §3.1–§3.3 was validated against synthetics of known noise type. That proves the estimators
+compute what they claim; it never proves the claim is worth computing. So they were run over **every
+`*_PMDARRIVAL.csv` on the capture box** — 398 files, 73 MB, of which **27 streams carry ≥ 2000 packets**
+(the Verity writes many short fragments; most files are too small to fit a curve). All **box-captured**,
+which is the precondition from §1 — on a phone night the host column is the device stamp *rounded*, so
+this analysis would be measuring a clock against a copy of itself.
+
+Phase series is `host_ms − last_sensor_ns/1e6`, the construction `nightqc.py` already uses. TDEV is
+quoted at the tau nearest **300 s** for every stream, so the columns are commensurable.
+
+| device / stream | n | median ADEV slope | median MDEV slope | MDEV verdict | TDEV @ ~300 s |
+|---|---|---|---|---|---|
+| Polar H10 · ecg | 4 | −0.993 | **−1.421** | white-phase 3, refuse 1 | **2.07 ms** |
+| Polar H10 · acc | 4 | −0.991 | **−1.416** | white-phase 3, refuse 1 | **1.92 ms** |
+| Verity · ppg | 13 | −0.994 | **−1.336** | white-phase 8, refuse 5 | **3.51 ms** |
+| Verity · acc | 5 | −0.997 | **−1.478** | white-phase 5 | 10.96 ms |
+| Verity · ppi | 1 | −0.297 | −0.342 | white-frequency | 5028 ms ⚠️ |
+
+#### What the corpus CONFIRMS, more strongly than one night could
+
+- **ADEV cannot separate these links; MDEV can.** ADEV returned `white/flicker-phase` for **26 of 27**
+  streams — one label for the entire corpus. MDEV resolved **19 of 27** to `white-phase` and refused 8.
+  That is the whole argument for computing a second curve, and it now rests on 27 streams.
+- **No drift anywhere.** Median `|HDEV slope − ADEV slope|` is **0.0005** (H10) and **0.0007** (Verity),
+  max 0.033. The drift-immune estimator agrees with ADEV wherever there is no drift to be immune to —
+  the clean negative result, corpus-wide, on a chrony-disciplined host.
+
+#### 🔴 What the corpus REFUTES — both claims were mine, from a single night
+
+1. **"The H10 sits between white and flicker phase and the classifier refuses it" — WRONG.** That came
+   from one night reading −1.284 (ecg) and −1.277 (acc). Across **8 H10 streams** the median is
+   **−1.421**, i.e. **white phase noise**, and the verdict is white-phase on 6 of 8. The night first
+   examined sits at the extreme end of the device's range — **−1.277 is the MAXIMUM** of the eight.
+2. **"Two independent H10 streams corroborate it" — that was not independent evidence.** Both streams
+   came from the *same recording*, so they share that night's link conditions, its posture, its
+   interference. Agreement between two streams of one night measures the *within-night* consistency of
+   the estimator, not the *between-night* behaviour of the clock. Two numbers from one night is n = 1.
+3. **The TDEV comparison INVERTED under a fair reading.** The first pass reported "H10 3.4 ms vs Verity
+   0.85 ms", read at each stream's **longest tau** — but the longest tau differs per stream, so those
+   are not the same quantity. At a **common tau ≈ 300 s** the ordering reverses: **H10 ≈ 2.0 ms, Verity
+   ppg ≈ 3.5 ms, Verity acc ≈ 11 ms.** The chest strap is the *better* link, not the worse one.
+
+The lesson is the one this repo keeps paying for, and it is worth stating plainly because the first pass
+was careful and still wrong: **an existence result read off one recording is not a property of the
+device**, and **two numbers that share a confound are one number**. The estimators were right both
+times; the inference from three streams was not.
+
+#### The number Phase 3 was waiting for — conclusion UNCHANGED, on better evidence
+
+Every device's clock term sits between **~2 ms and ~11 ms** at 300 s of averaging, against a beat-to-beat
+PAT error of **~68 ms**. The clock is **6–30× below the fiducial term** whichever device you take, so the
+Phase 2 / Phase 4 ordering stands: **the uncertainty lives in the PPG foot, not the timebase.** An
+ensemble time scale would be refining a term that is already negligible against the one Phase 2 addresses.
+That conclusion survived the refutation above because it never depended on which device was better — only
+on all of them being far below 68 ms, which 27 streams now show.
+
+⚠️ **Limits.** Only 27 of 398 files clear 2000 packets, and the H10 contributes just 8 streams from a
+handful of nights — enough to refute a one-night claim, not enough for a distribution. The phase series
+is **arrival delay**, so it contains BLE transport as well as the oscillator: TDEV here is an **upper
+bound** on the clock's own contribution, which strengthens the conclusion above rather than weakening it.
+The `ppi` row is **not comparable** — it is a derived interval series rather than a packet-arrival series,
+and its 5-second TDEV and white-frequency slope say so loudly; it is listed only so its exclusion is visible.
+
 ## §4 · Phase 2 — the PPG foot as a time-of-arrival estimate
 
 **The gap, stated as the repo already measures it.** Every PAT standard deviation currently quoted here
