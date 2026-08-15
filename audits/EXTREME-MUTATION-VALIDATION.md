@@ -446,6 +446,45 @@ cost, quantified.
 
 ---
 
+## 3h · ✅ LEVEL B'S FIRST REAL FINDING — AND IT IS MATON ET AL.'S CLAIM
+
+`clock.js`, Level A: **13/13 functions tested, ZERO pseudo-tested.** Level B, `resolveDMY` L81:
+
+```
+● PSEUDO-TESTED STMT  resolveDMY  L81  [EXPRESSION]  s = s.trim().replace(/^["']|["']$/g, '');
+```
+
+**Triaged before it was believed**, which §3d is the reason for. It is NOT equivalent — a quoted
+stamp distinguishes it, measured both ways:
+
+| input | unmutated | mutated |
+|---|---|---|
+| `"10:00:00 13/08/2026"` (quoted) | `locked: true` | `locked: **false**` |
+| `10:00:00 13/08/2026` (bare) | `locked: true` | `locked: true` |
+
+⚠️ **The failure is silent and file-wide.** Without the strip, a quoted stamp matches neither `RE_A`
+nor `RE_C`, so the loop `continue`s and the day > 12 evidence is never seen. Per §3 and `clock.js:48`
+`locked` means THE ORDER WAS PROVEN FOR THIS FILE — so the file falls back to the `preferDMY` default,
+and when the real order is the other one **every date in it is misparsed by a parser that reported no
+error**. Quoted fields are ordinary CSV; ppgdex already carries a quote-strip of its own.
+
+**Why every existing assertion missed it:** all of them feed `resolveDMY` a BARE stamp. The strip
+executed on every one and was observed by none — coverage without observation, one level below the
+function. That is precisely the result Level A cannot reach, on this suite's own spine.
+
+**Killed, and the kill was VERIFIED by re-applying the mutant** — 4 assertions, all failing with it
+and passing without, `clock.js` restored byte-identical.
+
+🔴 **And the first verification was a false pass, for the third time in this audit.** `--group=
+clock-contract` selected 6 groups and **not** the one holding the new assertions (titled `clock.js —
+wave 6: …`), so the suite reported 42 green WITH THE MUTANT APPLIED. The assertions had never run.
+Only re-running under `--group=wave 6` showed the four failures. A filter that misses the group is
+indistinguishable from a test that passes — the same shape as §4b's truncation and as `-k absent`
+not matching `absence`. **Never accept a kill from a filtered run without confirming the assertion
+executed.**
+
+---
+
 ## 4a · ⏱️ LEVEL B'S COST, MEASURED — one suite run per statement is the whole story
 
 `clock.js` has **85 eligible statements** across 13 functions (133 total; 43 declined as control-flow,

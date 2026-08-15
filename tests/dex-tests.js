@@ -1769,6 +1769,26 @@
       T.eq('13 in the first field locks DMY', C.resolveDMY(['10:00:00 13/08/2026'], {}).locked, true);
       T.eq('13 in the second field locks MDY', C.resolveDMY(['10:00:00 08/13/2026'], {}).dmy, false);
 
+      /* KILLS the deletion of `s = s.trim().replace(/^["']|["']$/g, '')` in resolveDMY — Level B's
+         first real pseudo-tested STATEMENT, found 2026-08-15 on a file Level A scores 13/13
+         functions tested and ZERO pseudo-tested. That gap IS the finding (Maton, Kapfhammer &
+         McMinn, ICSME 2024): every assertion above feeds resolveDMY a BARE stamp, so the quote and
+         whitespace strip was executed on every one of them and observed by none.
+
+         ⚠️ THE FAILURE IS SILENT AND FILE-WIDE. Without the strip, `"13/05/2026 22:00"` matches
+         neither RE_A nor RE_C, so the loop `continue`s and the day>12 evidence is never seen:
+         `locked` goes true → FALSE. Per §3 and clock.js:48 `locked` means THE ORDER WAS PROVEN FOR
+         THIS FILE, so the file silently falls back to the preferDMY default — and when the real
+         order is the other one, EVERY date in it is misparsed by a parser that reported no error.
+         Quoted fields are ordinary CSV, and ppgdex already keeps a quote-strip of its own.
+
+         Verified by re-applying the mutant, not by reading the code: a test written from reading
+         is how `se = se || 0` produced a test that passed while catching nothing. */
+      T.eq('a QUOTED vendor stamp still locks the order — the strip is observed', C.resolveDMY(['"10:00:00 13/08/2026"'], {}).locked, true);
+      T.eq("…single quotes too, as some exporters emit", C.resolveDMY(["'10:00:00 13/08/2026'"], {}).locked, true);
+      T.eq('…and surrounding whitespace does not hide the evidence', C.resolveDMY(['  10:00:00 13/08/2026  '], {}).locked, true);
+      T.eq('a quoted MDY stamp resolves MDY, not the default', C.resolveDMY(['"10:00:00 08/13/2026"'], {}).dmy, false);
+
       /* KILLS `while (t < prevTMs - CK_ROLL_SLACK_MS)` → `<=`.
          The midnight-roll guard. The slack is 12 h — the largest backwards step that cannot be a
          wrap. At EXACTLY the threshold `<=` rolls a day that `<` does not, adding 24 h to a stamp

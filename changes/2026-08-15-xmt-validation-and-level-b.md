@@ -123,3 +123,16 @@ unmeasurable (one parse, not a suite run: 1037 runs saved fleet-wide). That blin
 quantified cost of Level B's documented choice to DELETE rather than instrument — PseudoSweep
 instruments, so `const` is measurable there and is not here.
 
+✅ **LEVEL B'S FIRST REAL FINDING, AND IT IS THE PAPER'S CLAIM.** `clock.js` scores 13/13 functions
+tested and ZERO pseudo-tested at Level A. At statement level, `resolveDMY`'s quote/whitespace strip
+is pseudo-tested: every existing assertion feeds it a BARE stamp, so the strip ran on all of them and
+was observed by none. Deleting it makes a quoted stamp match neither vendor regex, so the day>12
+evidence is never seen and `locked` goes true → false — and `locked` means THE ORDER WAS PROVEN FOR
+THIS FILE, so a quoted CSV silently falls back to the default order and every date in it is misparsed
+with no error reported. Triaged as NOT equivalent (measured both ways), killed by 4 assertions, and
+the kill VERIFIED by re-applying the mutant.
+
+⚠️ That verification was a FALSE PASS on the first attempt: `--group=clock-contract` did not select
+the group holding the new assertions, so the suite reported 42 green with the mutant applied. A
+filter that misses the group is indistinguishable from a passing test.
+
