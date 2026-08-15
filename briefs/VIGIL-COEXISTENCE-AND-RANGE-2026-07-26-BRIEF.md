@@ -290,6 +290,37 @@ fix to a file under `deploy/` is **not deployed**. `check-system-files.sh` alrea
 runs it on a schedule, so drift is found only when somebody looks. Every future "fixed and merged" claim
 about a `deploy/` file should be read as "fixed in the repo" until this checker says otherwise.
 
+### ✅ RESOLVED ON THE BOX, same day — operator ran the installer, verified from the repo side
+
+The owner ran both commands within the hour:
+
+```
+sudo bash /opt/tepna/capture-host/deploy/check-system-files.sh --install
+sudo rm /etc/udev/rules.d/99-polar-hidraw.rules
+```
+
+Checker now reports **`11 managed, 0 drifted`** with no SUPERSEDED line. **Verified independently rather
+than from that summary**, because a green count is exactly the kind of evidence this brief exists to
+distrust:
+
+| check | result |
+|---|---|
+| `deploy)` case present in the installed copy | ✓ |
+| `REPO_DIR` constant present | ✓ (3 refs) |
+| usage line | `{restart\|status\|radio\|reload\|reboot\|deploy\|stop [minutes]}` |
+| `diff /usr/local/lib/tepna/tepna-restart.sh` vs repo | **byte-identical** |
+| `99-polar-hidraw.rules` | removed |
+| capture service | still **active** — the installer restarted nothing, as it says |
+
+**The Deploy button works in the field again**, and the 2026-08-14 fix is now actually deployed rather
+than merely merged.
+
+⚠️ **The standing lesson is unchanged by the fix**, and is the reason this exchange is recorded: the fix
+had been merged for a day, CI was green, and the field was still broken. Nothing in the repo could have
+told you — `check-system-files.sh` is the only instrument that can, and **nothing runs it on a
+schedule**. Until something does, treat "fixed and merged" for any `deploy/` file as "fixed in the repo",
+and run the checker before believing otherwise.
+
 ## §6 · Hypotheses that did NOT survive
 
 * **"The CPAP transfer is starving the capture loop."** Load average 0.34 during a 23 MB/min
