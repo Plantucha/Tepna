@@ -489,6 +489,81 @@ result measured on a handful of recordings did not survive the corpus: §3.5's H
 and now §4c's effect size *and* its mechanism. The estimators were correct every time; the inference from
 small n was not. **Run the corpus before writing the section, not after being asked.**
 
+## §4d · PHASE 3 EXECUTED — where PAT's 37 ms actually lives, and why every fix failed
+
+Phase 2 closed with the question "where does the remaining spread come from?" Answered, on **25 usable
+nights of the 29 matched pairs**, by decomposing PAT into its contributors on the *same paired beats*.
+
+Two independent estimates were built for each side and differenced. For the ECG: a parabolic-vertex R
+against a **template-matched** R. For the PPG: the shipped intersecting tangent against max-upslope.
+
+| source | disagreement | share of PAT variance |
+|---|---|---|
+| **ECG fiducial** | 0.56 ms *(range 0.45–2.45)* | **0.02 %** |
+| **PPG fiducial / landmark choice** | 11.10 ms *(range 2.63–58.0)* | **8.7 %** |
+| **everything else** | — | **≈ 91 %** |
+
+Median total PAT SD **37.57 ms** (range 13.4–45.9), median 542 paired beats per night.
+
+### The remainder is not noise — it is correlated
+
+| lag | median acf | nights > 0.1 |
+|---|---|---|
+| 1 | **+0.520** | **24 / 25** |
+| 2 | +0.337 | 20 / 25 |
+| 3 | +0.316 | 18 / 25 |
+| 5 | +0.153 | 18 / 25 |
+| 10 | +0.156 | 15 / 25 |
+
+**White measurement noise gives ≈ 0 at every lag.** This decays over 5–10 beats — the timescale of
+respiration, blood pressure and vascular tone.
+
+### 🔴 This refutes §3.5's reading, and the error is a specific one worth naming
+
+§3.5 measured the PAT series as ADEV −0.918 and recorded it as *"white/flicker PHASE noise, i.e.
+UNCORRELATED PER-BEAT error"*. **The label is right and the gloss is wrong.** `white/flicker-phase` is
+the arm ADEV **cannot resolve** — it contains white PM (uncorrelated) *and* flicker PM (**strongly
+correlated**) — and I silently collapsed it onto the first member, then built Phase 2's rationale on that.
+The whole reason MDEV was added in Phase 1 is that this arm is ambiguous; I wrote the tool and then read
+past its warning.
+
+**The obvious rescue was tested and also fails.** §3.5's series kept only 10–50 % of beats, so a sparsity
+artifact was the natural explanation. Re-run on the densely-paired series here: median ADEV **−0.923**
+against §3.5's −0.918 — **identical**. Not an artifact. The two statistics genuinely disagree on the same
+data, because they answer different questions.
+
+**And MDEV does not settle it either, which is itself the correct outcome.** Median MDEV is **−1.317**,
+sitting *between* white phase (−1.5) and flicker phase (−1.0), and `classify_mdev` **REFUSED to name a
+type on 4 of 6 nights**. That refusal is right: a mixture of ~9 % white fiducial noise and ~91 %
+correlated physiology is not a canonical noise process, and the classifier declining to label it is the
+behaviour §3.2 designed it for.
+
+### 🟢 The methodological finding: the elaborate instrument was the wrong one
+
+A two-line **lag-1 autocorrelation** answered in one measurement what the Allan family could not settle
+across three sections. That is not a criticism of the Allan work — it is excellent for its own question,
+and §3.5 used it correctly to characterise *clocks*. But identifying a noise **process** and asking "is
+this series correlated at all" are different questions, and **the slope-based tool is the wrong
+instrument for the second.** Reach for the cheap direct statistic first; escalate to the noise-type
+machinery only once correlation is established and the mechanism is the open question.
+
+### The consequence: "reduce PAT SD" was never the right objective
+
+**≈ 91 % of PAT's spread is real physiological variation.** That explains every negative result in this
+brief at a stroke: template TOA (§4a), eight alternative fiducials (§4b) and beat-admission gating (§4c)
+each competed for a **ninth** of the variance, which is why the best of them moved ~1.7 ms on a ~37 ms
+baseline. They were not weak methods — they were aimed at a term that is mostly not there.
+
+You do not want that 91 % smoothed away; it is the thing PAT is supposed to measure. **The open work is
+to EXPLAIN it** — against respiration, posture, and BP where a reference exists — not to suppress it.
+Any future proposal to "improve PAT precision" should first state which of the 9 % it is targeting.
+
+⚠️ **Limits.** 25 nights, 20-minute slices, one subject, one device pair. The PPG figure is
+*landmark-choice sensitivity* (tangent vs max-upslope are genuinely different features), so it is an
+upper bound on fiducial error rather than an estimate of it — the CRLB precision of a single fiducial is
+0.44–0.58 ms (§4a). The ECG figure is a disagreement between two estimators of the same landmark and is
+therefore a lower bound. Neither bound changes the conclusion, since they bracket ~9 %.
+
 ## §5 · Phase 3 — a GUM uncertainty budget for PAT
 
 **The framework.** JCGM 100:2008 (the GUM) plus **JCGM 101:2008**, its Monte-Carlo supplement, which
