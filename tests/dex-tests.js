@@ -284,6 +284,17 @@
       }
       G.ms = Date.now() - _t0; // per-group wall time — sizes the CI shards (run-tests --timings)
       GROUPS.push(G);
+      /* Optional progress hook. The runner reports only AFTER runDexTests returns, so a multi-minute
+         run had no way to say how far along it was — and a wrong guess then becomes durable (a Level
+         B run was called "10–15 min" against a true 78). Additive and lane-safe: the browser lane
+         passes no `onGroup` and behaves exactly as before. */
+      if (typeof env.onGroup === 'function') {
+        try {
+          env.onGroup(G);
+        } catch (_e) {
+          /* a reporter must never fail the suite it is reporting on */
+        }
+      }
       if (_bail) {
         for (var _bi = 0; _bi < G.tests.length; _bi++) {
           if (!G.tests[_bi].pass && !G.tests[_bi].skip) {

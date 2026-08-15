@@ -334,6 +334,39 @@ export function suiteReported(stdout) {
   return /^\s*(\u001b\[[0-9;]*m)?1\.\.\d+/m.test(String(stdout || ''));
 }
 
+/* ── PROGRESS AND ETA ────────────────────────────────────────────────────────────────────────
+   A run here is measured in HOURS and reported only at the end, so "is it working or wedged?" had
+   no answer but `ps`. Worse, it made a wrong estimate durable: this run was called "10–15 min" from
+   a guess, while one `--group=clock` invocation takes 295 s and the true figure was 78 min. The
+   baseline already MEASURES that number before any mutant runs — it was simply never used.
+
+   Pure so it can be tested. `perRun` comes from the baseline, then from the observed mean once
+   subjects start completing, so the estimate self-corrects instead of trusting the first sample. */
+export function etaSeconds(done, total, jobs, perRunSec) {
+  const left = Math.max(0, total - done);
+  const rounds = Math.ceil(left / Math.max(1, jobs));
+  return Math.round(rounds * Math.max(0, perRunSec));
+}
+
+export function fmtDuration(sec) {
+  if (!Number.isFinite(sec) || sec < 0) return '?';
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const x = Math.round(sec % 60);
+  return h ? h + 'h' + String(m).padStart(2, '0') + 'm' : m ? m + 'm' + String(x).padStart(2, '0') + 's' : x + 's';
+}
+
+/* A progress line that states what it MEASURED, not just a bar: done/total, the per-run cost the
+   estimate rests on, and how long is left. A reader can check the arithmetic. */
+export function progressLine(done, total, jobs, perRunSec, verdict) {
+  const pct = Math.floor((done / Math.max(1, total)) * 100);
+  return (
+    '  [' + String(done).padStart(String(total).length) + '/' + total + ' ' + String(pct).padStart(3) + '%]  ' +
+    String(verdict || '').padEnd(24) +
+    ' ~' + fmtDuration(perRunSec) + '/run × ' + jobs + ' jobs  →  ' + fmtDuration(etaSeconds(done, total, jobs, perRunSec)) + ' left'
+  );
+}
+
 export function classifyStatementVerdict(ran, suitePassed) {
   if (!ran) return 'INCONCLUSIVE'; // the mutant never executed — harness, timeout, or syntax
   return suitePassed ? 'PSEUDO_TESTED_STATEMENT' : 'KILLED';
@@ -394,8 +427,11 @@ async function runLevelB(file, group, jobs, covPath) {
 
   process.stderr.write('  baseline: one clean run of --group=' + group + '\n');
   const base = mkTree();
+  const tBase = Date.now();
   const b = runSuite(base);
+  const baseSec = (Date.now() - tBase) / 1000;
   rmSync(base, { recursive: true, force: true });
+  process.stderr.write('  baseline took ' + fmtDuration(baseSec) + ' — that is the per-mutant cost\n');
   if (!b.passed) {
     console.error('✗ BASELINE IS RED — every statement would read as KILLED. Fix the suite first.');
     process.exit(2);
@@ -476,9 +512,15 @@ async function runLevelB(file, group, jobs, covPath) {
     process.exit(2);
   }
 
+  const jobsUsed = Math.min(jobs, subjects.length);
+  process.stderr.write(
+    '  ESTIMATE: ' + subjects.length + ' subjects × ' + fmtDuration(baseSec) + ' ÷ ' + jobsUsed + ' jobs  ≈  ' +
+    fmtDuration(etaSeconds(0, subjects.length, jobsUsed, baseSec)) + '\n'
+  );
   const trees = [];
-  for (let i = 0; i < Math.min(jobs, subjects.length); i++) trees.push(mkTree());
+  for (let i = 0; i < jobsUsed; i++) trees.push(mkTree());
   const results = [];
+  let runSecTotal = 0;
   let next = 0;
   const worker = async (dir) => {
     for (;;) {
@@ -488,9 +530,15 @@ async function runLevelB(file, group, jobs, covPath) {
       const wAbs = join(dir, file);
       rmSync(wAbs, { force: true }); // UNLINK FIRST — hard-linked to the repo's own inode
       writeFileSync(wAbs, s.mutant);
+      const t0 = Date.now();
       const r = runSuite(dir);
+      runSecTotal += (Date.now() - t0) / 1000;
       const verdict = classifyStatementVerdict(r.ran, r.passed);
       results.push({ ...s, verdict });
+      /* The estimate rides the OBSERVED mean once there is one — the baseline is a single sample and
+         a cold one, so trusting it for the whole run repeats the error this exists to fix. */
+      const perRun = results.length ? runSecTotal / results.length : baseSec;
+      process.stderr.write(progressLine(results.length, subjects.length, jobsUsed, perRun, verdict) + '\n');
       if (verdict === 'PSEUDO_TESTED_STATEMENT') process.stderr.write('  ● PSEUDO-TESTED STMT  ' + s.fn.padEnd(22) + ' L' + String(s.line).padEnd(6) + ' [' + s.kind + '] ' + s.text + '\n');
       rmSync(wAbs, { force: true });
       writeFileSync(wAbs, src);
@@ -600,6 +648,16 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   ok('deleting a `var` initialiser still parses', parsesAsStatement('var x ;') === true);
   ok('deleting a `let` initialiser still parses', parsesAsStatement('let x ;') === true);
   ok('deleting a `const` initialiser does NOT parse — unmeasurable, not killed', parsesAsStatement('const x ;') === false);
+
+  /* ── ETA. The estimate is arithmetic a reader can check, so it is tested like any other output. */
+  ok('ETA is rounds-remaining × per-run, not subjects × per-run', etaSeconds(0, 126, 8, 295) === 16 * 295, String(etaSeconds(0, 126, 8, 295)));
+  ok('…and it shrinks as subjects complete', etaSeconds(120, 126, 8, 295) === 295, String(etaSeconds(120, 126, 8, 295)));
+  ok('a finished run has zero left, never negative', etaSeconds(126, 126, 8, 295) === 0 && etaSeconds(200, 126, 8, 295) === 0);
+  ok('one job is not divided away', etaSeconds(0, 5, 1, 10) === 50, String(etaSeconds(0, 5, 1, 10)));
+  ok('jobs greater than subjects still needs one round', etaSeconds(0, 3, 8, 10) === 10, String(etaSeconds(0, 3, 8, 10)));
+  ok('durations read in the units a human waits in', fmtDuration(4720) === '1h18m' && fmtDuration(295) === '4m55s' && fmtDuration(9) === '9s', fmtDuration(4720) + ' ' + fmtDuration(295) + ' ' + fmtDuration(9));
+  ok('a nonsense duration says so rather than printing NaN', fmtDuration(Number.NaN) === '?' && fmtDuration(-1) === '?');
+  ok('the progress line states the cost the estimate rests on', /\[ 42\/126  33%\].*KILLED.*4m55s\/run × 8 jobs.*54m05s left/.test(progressLine(42, 126, 8, 295, 'KILLED')), progressLine(42, 126, 8, 295, 'KILLED'));
 
   ok('a return is eligible', classifyStatement('return a;') === 'RETURN');
   ok('a throw is eligible', classifyStatement('throw new Error("x");') === 'THROW');
