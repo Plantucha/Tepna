@@ -162,6 +162,57 @@ sample; it is what the sensor vendor's own community says the channel is for.
 regen and lets you see its effect before fusion lands on top. Record the before/after HRV delta in the
 brief when executed.
 
+### 📏 §2 RE-MEASURED 2026-08-15 WITH AN ECG REFERENCE — subtraction is INERT, and the blocker is gone
+
+§2's 2026-08-04 measurement ended: *"the corpus cannot yet decide whether that is an improvement… Only
+6 of 12 nights produce a physiologically plausible rMSSD at all."* **That blocker was not a corpus
+problem — it was a missing reference.** rMSSD alone cannot say which of two values is *better*; the same
+nights carry a simultaneous H10 chest ECG, whose rMSSD is the gold standard this comparison needed.
+
+Re-run on **29 matched H10+Verity nights** (a different, larger date range than §2's twelve), shipped
+path vs `ch[0] − amb` through the same `detectChannel → buildPPI` chain, scored as **|PPG rMSSD − ECG
+rMSSD|**:
+
+| | result |
+|---|---|
+| ambient-subtraction Δ on rMSSD | median **−0.50 ms** (range −71.2 … +2.6) |
+| \|error vs ECG\| — shipped | 19.1 ms |
+| \|error vs ECG\| — ambient-subtracted | 16.8 ms |
+| nights where subtraction is **closer to the ECG** | **17 / 29** |
+| nights with \|Δ\| > 5 ms | **2 / 29** |
+
+**17 of 29 is a coin flip.** On this corpus ambient subtraction is **inert** — it neither helps nor harms
+against the reference, and moves rMSSD by more than 5 ms on two nights out of twenty-nine.
+
+⚠️ **This does not refute §2's 2026-08-04 result, and must not be read as doing so.** That measurement
+covered 2026-07-16…07-27 and found a +101 % move on **one** night (2026-07-19); this covers
+2026-06-10…07-13 and does not include it. Two different night sets, one shared conclusion in the median
+and an unexplained outlier that only §2's set contains. **What has changed is that the question is now
+decidable** — any future run can score against the ECG instead of asking whether a bare rMSSD looks
+plausible.
+
+### 🟢 The larger finding: §2's "implausible nights" are the alternation defect, and the shipped detector predicts them
+
+§2 noted six nights reading 164–2332 ms rMSSD and called them *"impossible for a resting adult"*. With an
+ECG reference the mechanism is measurable, and PpgDex's own `rMSSD > sdnnRobust` alternation ratio
+predicts it:
+
+| | \|PPG rMSSD − ECG rMSSD\| |
+|---|---|
+| **altPPG < 1.0** (no alternation) | **4.7 ms** median *(n = 17)* |
+| **altPPG ≥ 1.0** (alternating) | **35.0 ms** median *(n = 12)* |
+
+**A 7.4× difference.** So the shipped alternation detector is, as far as this corpus shows, a valid
+predictor of whether PpgDex's HRV output can be trusted — **validated against ground truth rather than
+against plausibility for the first time**. On non-alternating nights PPG rMSSD tracks chest ECG to
+**within ~5 ms**, which is the strongest statement available about the optical HRV path.
+
+**Consequence for this brief:** Phase 1 (ambient subtraction) should be judged inert and deprioritised
+against Phase 3 (the degenerate-channel guard, already EXECUTED) and against acting on the alternation
+ratio, which is where the measurable error lives. Cross-referenced from
+`INTEGRATOR-PAT-VASCULAR-2026-07-18` §2-RESULT-V/VI, where the same ratio was found necessary-but-not-
+sufficient for PAT identifiability.
+
 ## 3 · Phase 2 — optimal linear combining (replaces `pickChannel` as the waveform source)
 
 Per analysis window (reuse the existing 300 s epoch grid):
