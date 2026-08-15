@@ -403,6 +403,62 @@ matters more than any individual number.
 - **The fix is upstream of PAT entirely** — it is the optical beat detector's alternation, which is a
   PpgDex defect with its own detector and its own history, not a fusion problem.
 
+## 2-RESULT-VI · SCOPE AND LIMITS of §2-RESULT-III–V — three checks that narrow the claims
+
+Three follow-up checks, each run because the claim above would have been unsafe without it.
+
+### 1 · The harness does NOT carry the known `fs` bug — checked, not assumed
+
+`pat-sd-is-the-window` records that ECGDex once derived `fs` from the lossy `timestamp [ms]` column and
+**rounded it to a nominal 130 Hz**, so the axis ran 46–126 ppm fast — **1.25–4.16 s per night** (fixed,
+PR #1121). A seconds-scale drift across a 40-minute window is exactly what would destroy interval-sequence
+alignment, so the obvious worry is that §2-RESULT-IV rediscovered a fixed bug in its own harness.
+
+**It does not.** The harness derives `fs` from the measured span rather than rounding to nominal, and on
+a real file the two columns agree to nine decimals:
+
+    fs from 'timestamp [ms]'        129.957632 Hz
+    fs from 'sensor timestamp [ns]' 129.957623 Hz     -> 0 ms drift over a 3078 s slice
+
+### 2 · It is NOT specific to the phone-captured tree
+
+§2-RESULT-III–V ran on `Ecg nightly/`, which is **phone-captured**. The box tree
+(`tepna-smoketest/captures/`) is the one with a real second clock, and `pat-sd-is-the-window` reports
+prior box work finding beat pairing clean. Three box segments tested:
+
+| segment | beats | ncc | margin | altPPG |
+|---|---|---|---|---|
+| 2026-07-29 22:06 | 1465 | 0.1046 | 0.0068 | **0.95** |
+| 2026-07-29 21:24 | 1432 | −0.0175 | 0.0050 | 4.52 |
+| 2026-07-29 23:09 | 888 | 0.0361 | 0.0014 | **0.93** |
+
+**Box nights fail too**, so the finding is not an artifact of the phone tree. ⚠️ But the box segments are
+short and **fragmented** — that night alone holds 22 ECG and 7 PPG files from BLE reconnects — so this is
+a weaker test than the phone corpus, not a stronger one.
+
+⚠️ **And there is no contradiction with the prior box result**, which correlated **HR curves** at lag 0
+(r = 0.988). An HR curve is smooth; a raw RR *sequence* is not. Correlating smoothed rates is a far
+weaker statement than aligning beat-to-beat intervals, and the two measurements are not comparable.
+
+### 3 · Alternation is NOT sufficient — the §2-RESULT-V mechanism is weakened
+
+**Two of the three box segments carry clean alternation ratios (0.95, 0.93) and are still
+unidentifiable.** Together with the two phone-corpus exceptions already recorded (an identifiable night
+at altPPG 1.24, an unidentifiable one at 0.68 failing on genuine variability instead), the honest
+statement is:
+
+> `altPPG` is a strong **negative** predictor on the phone corpus — a night with alternation will not
+> yield PAT — but a clean `altPPG` does **not** imply identifiability. It is a necessary-not-sufficient
+> screen, and §2-RESULT-V's framing of it as "the mechanism" is too strong.
+
+### What survives all three checks
+
+- PAT is recoverable on **2 of 29** phone nights, at **28.1 / 36.8 ms** SD and **4.5–5.7 ms**
+  beat-to-beat — an existence result, and unaffected by the above.
+- The **anchor**, not the foot detector, is the failure — §2-RESULT-III's tolerance sweep stands.
+- The **identifiability gate itself** (RR↔PPI margin) stands: it is objective, self-validating, and
+  needed no threshold. What is now uncertain is the *cause* of non-identifiability, not the fact of it.
+
 ## 3 · Phase 1 — promote the coupler into the Integrator (consume EXPORTS, add the missing one)
 
 - **Move the timing engine** `coupledPAT`/`ecgRpeakTimes`/`ppgFootTimes`/`sharedClock` from
