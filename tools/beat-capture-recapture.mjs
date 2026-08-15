@@ -258,6 +258,33 @@ export function estimate(c) {
   };
 }
 
+/* ── WINDOWED SCAN ───────────────────────────────────────────────────────────────────────────────
+   The whole-recording run refuses on quiet sleep because the detectors agree too well: the cells that
+   carry information about the unseen hold single-digit counts. The method has power where the sources
+   DISAGREE, which is also where beats are actually lost — motion, poor perfusion, apnea.
+
+   ⚠ WHAT KIND OF SELECTION THIS IS, because "select the windows that work" is the circularity this
+   project keeps catching. Windows are ranked by DISAGREEMENT COUNT — a property of the three beat
+   sets, computed before any estimate exists — and never by the estimate, the miss rate, or whether
+   the estimator returned `ok`. That is selection on PRECISION, which is legitimate, and it is the same
+   move as analysing subjects who have more data.
+   ⚠ WHAT IT COSTS ANYWAY: the result is then an estimate FOR THE DISAGREEING SEGMENTS, not for the
+   night. Those segments are where misses concentrate, so the number is the relevant one — but it must
+   never be multiplied up to a whole-night undercount, and this function reports the covered fraction
+   so a reader can see how much of the night it does not speak for. */
+export function scanWindows(eT, aT, bT, tol, winMs) {
+  const lo = Math.max(eT[0], aT[0], bT[0]),
+    hi = Math.min(eT[eT.length - 1], aT[aT.length - 1], bT[bT.length - 1]);
+  const out = [];
+  for (let w = lo; w + winMs <= hi; w += winMs) {
+    const cut = (arr) => arr.filter((t) => t >= w && t < w + winMs);
+    const c = profile(cut(eT), cut(aT), cut(bT), tol);
+    const disagree = c.m110 + c.m101 + c.m011 + c.m100 + c.m010 + c.m001;
+    out.push({ startMs: w, cells: c, agree: c.m111, disagree, est: estimate(c) });
+  }
+  return { windows: out, spanMs: hi - lo, winMs };
+}
+
 function selfTest() {
   let fail = 0;
   const ok = (n, cond, d = '') => {
@@ -352,6 +379,28 @@ function main(argv) {
     lagB = medianLag(eT, bT, 600);
   const aAdj = aT.map((t) => t - lagA),
     bAdj = bT.map((t) => t - lagB);
+  if (argv.includes('--scan')) {
+    const winMs = Number(arg('--win-min') || 2) * 60000;
+    const sc = scanWindows(eT, aAdj, bAdj, tol, winMs);
+    const ranked = sc.windows.slice().sort((x, y) => y.disagree - x.disagree);
+    const usable = ranked.filter((w) => w.est.ok);
+    console.log(`windows=${sc.windows.length} of ${(sc.spanMs / 60000).toFixed(1)} min at ${winMs / 60000} min each`);
+    console.log(`median disagreement/window: ${sc.windows.map((w) => w.disagree).sort((a, b) => a - b)[sc.windows.length >> 1]}`);
+    console.log(`windows where the estimator is identifiable: ${usable.length}/${sc.windows.length}` + `  (covering ${(((usable.length * winMs) / sc.spanMs) * 100).toFixed(1)} % of the overlap)`);
+    for (const w of ranked.slice(0, 8)) {
+      const m = Math.round((w.startMs - sc.windows[0].startMs) / 60000);
+      console.log(
+        `  min ${String(m).padStart(3)}  agree=${String(w.agree).padStart(4)} disagree=${String(w.disagree).padStart(3)}  ` +
+          (w.est.ok ? `missed=${w.est.missedEst.toFixed(1)} (${w.est.missedFracPct.toFixed(2)} %)` : `REFUSED — ${w.est.reason.slice(0, 46)}`)
+      );
+    }
+    if (usable.length) {
+      const fr = usable.map((w) => w.est.missedFracPct).sort((a, b) => a - b);
+      console.log(`\nmissed-fraction across identifiable windows: median ${fr[fr.length >> 1].toFixed(2)} %  range ${fr[0].toFixed(2)}–${fr[fr.length - 1].toFixed(2)} %`);
+      console.log('NOTE: this describes the DISAGREEING segments only; it must not be scaled to the night.');
+    }
+    return 0;
+  }
   const c = profile(eT, aAdj, bAdj, tol);
   const est = estimate(c);
   console.log(

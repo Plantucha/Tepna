@@ -901,6 +901,44 @@ a log-linear model with pairwise interactions is fitted; and the estimated misse
 reported **with its interaction terms shown**, since a fit that finds no dependence on this data would
 itself be the surprising result and must not pass silently.
 
+### §7.2 · The targeted re-run also refuses — and it names the method's hard limit
+
+`--scan` ranks 2-minute windows by **disagreement count**, a property of the three beat sets computed
+before any estimate exists. Selection on precision, never on the estimate. Result over the same night:
+
+```
+windows = 9 of 18.8 min          median disagreement per window = 0
+identifiable: 0/9                (covering 0.0 % of the overlap)
+  min  0   agree= 83  disagree=26   REFUSED
+  min 16   agree= 98  disagree=22   REFUSED (cells too sparse)
+  min 2–14 agree=100–102 disagree=0 REFUSED (a required cell is zero)
+```
+
+**In seven of nine windows the three detectors agree on EVERY beat.** All disagreement is confined to
+two windows — the start, and one event near minute 16 — and even there the informative cells stay
+single-digit.
+
+**🔴 THE LIMIT THIS EXPOSES, which is structural and not a matter of more data.** Perfect agreement has
+two causes and capture–recapture **cannot separate them**: either nothing was missed, or *all three
+detectors missed the same beats*. The second is precisely the positive-dependence case §7 was designed
+around — and in the limit of total dependence the overlap carries no information at all, which is the
+condition the tool's own self-test already pins (`fully dependent detectors do NOT yield a confident
+total`). Running it on quiet sleep does not merely lack power; the question is **unidentifiable there
+by construction**.
+
+**So this line is closed for this corpus, and the honest next method is a different one.** Astronomy's
+artificial-star test and gravitational-wave injection campaigns face the same no-ground-truth problem
+and solve it the other way round: **plant synthetic events of known amplitude into the real recording
+and measure what the shipped detector recovers**, giving completeness as a function of SNR. That needs
+no second detector, no independence assumption, and no disagreement — and it measures exactly the
+quantity `beat-error-recovery.mjs` currently has to assume, because it perturbs an existing beat train
+rather than the waveform the detector actually reads.
+
+**Recorded as the recommendation rather than built here:** injection-recovery on the raw ECG/PPG
+waveform is the next instrument, and it supersedes capture–recapture for this question on clean data.
+Capture–recapture remains the right tool for artefact-heavy segments, where the detectors genuinely
+diverge — the O2Ring nights with poor perfusion are the obvious first candidate.
+
 > Lincoln–Petersen / capture–recapture in epidemiology: <https://academic.oup.com/aje/advance-article/doi/10.1093/aje/kwaf004/7950813> ·
 > dependence bias and the log-linear remedy: <https://academic.oup.com/aje/article/179/11/1383/2739086> ·
 > current beat-detection practice (agreement-as-reference): <https://ppg-beats.readthedocs.io/en/stable/functions/detect_ecg_beats/>
