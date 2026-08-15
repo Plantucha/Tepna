@@ -1,0 +1,7 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+---
+bump: patch
+type: added
+brief: KNOWN-CLOCK-ADVERSARIAL-CAPTURE-FOLLOWUPS-2026-08-14-BRIEF.md
+---
+Spawns the follow-up brief for the known-clock experiment, per the house rule that an executed brief records what execution discovered. Its purpose is to make the parent's incompleteness VISIBLE rather than implied: four phases and a paper landed in one day, and three of seven acceptance items are unmet. Two of those are not analysis problems — target 1 (constant offset) has never actually been tested, because the parent measured only that the estimator is blind to it by construction, and testing it needs an aperiodic cross-device marker that no recording on disk contains; and adapter assignment is unrecorded, so noise can be attributed to a stream but not to a device. Both are capture-protocol changes, which is why running further analyses would add results without closing the holes. Also carries the deliberately-open consumer migration (`hostAxis` publishes `deviceDrawn` but does not gate `independent` on it, since folding it in reds ECGDex's planted-drift recovery whose fixture legitimately uses a uniform device axis; four consumers still read the old flag, `integrator-dsp.js` being the highest-harm one), the blind-operator gap that §3.6b's withdrawal demonstrates cannot self-fix, and four smaller items recorded so they are not rediscovered.
