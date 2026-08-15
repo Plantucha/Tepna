@@ -518,6 +518,62 @@ survivors sit at **1.23 and 1.24**, i.e. exactly at the boundary the threshold w
   — which beat is being picked, and what the detector saw on the beats where it picked differently.
   That is a `ppgdex-dsp` investigation, not a fusion one, and it is where this should go next.
 
+## 2-RESULT-VIII · 🔴 ERROR FOUND IN MY OWN HARNESS — the identifiable count was 5, it is 11
+
+A deliberate audit of the analysis code (not of its conclusions) found a real bug, and it changes the
+headline of §2-RESULT-IV–VII. **Every count in those sections derived from a broken lag search.**
+
+### The bug
+
+`ncc(RR, PPI, lag)` searched **non-negative lags only** — `for (k = 0; k <= 40; …)`, with the function
+itself returning `null` for `lag < 0`. A negative lag means the **PPG train leads the ECG**, which
+happens whenever the optical detector emits an extra beat early in the overlap. Those nights could not
+be aligned at any lag the search examined, so they were scored unidentifiable **by construction**.
+
+**20 of 29 nights have a negative best lag.** The search was blind to two thirds of the corpus.
+
+### What it changes
+
+| | buggy (lag ≥ 0) | corrected (symmetric) |
+|---|---|---|
+| **identifiable (margin ≥ 0.05)** | **5 / 29** | **11 / 29** |
+| PAT SD on those nights | 28.1–36.8 ms | median **38.5 ms**, best **13.3 ms** |
+
+Individual nights moved substantially — `2026-07-08` ncc **0.8003 → 0.9976**; `2026-06-20 22:55`
+**0.5876 → 0.8750** with **PAT SD 13.3 ms**, the tightest in the corpus, previously scored a failure.
+
+**So "PAT is recoverable on 2 of 29 nights (7 %)" is WRONG. It is 11 of 29 (38 %)**, and the "93 % of
+nights fail" framing in §2-RESULT-V must be read as ~62 %.
+
+### What SURVIVES the correction — and this is the useful part
+
+The structural conclusions were computed against the identifiability split, so all of them were at risk.
+Recomputed on the corrected split, they are **unchanged**:
+
+| | buggy split | corrected split |
+|---|---|---|
+| `corr(altPPG, ncc)` | −0.662 | **−0.670** |
+| multimodal nights identifiable | 0 / 8 | **0 / 8** |
+| unimodal nights identifiable | 5 / 21 | 11 / 21 |
+
+- **Unimodality is NECESSARY, now perfectly:** every one of the 11 identifiable nights is unimodal
+  (**11/11**), and no multimodal night is identifiable (**0/8**), on *both* splits. §2-RESULT-VII's
+  "sufficient but not necessary" was the right shape and the wrong direction — it is **necessary but not
+  sufficient**: 10 of 21 unimodal nights still fail.
+- **The alternation correlation is unmoved** (−0.662 → −0.670), so §2-RESULT-V's graded relationship
+  stands, still as a screen rather than a mechanism.
+- **The tolerance sweep (§2-RESULT-III) is unaffected** — it never used the lag search.
+- **The combined gate now has perfect specificity**: `modes ≤ 1 AND altPPG < 1.25` passes **7/11**
+  identifiable and **0/18** unidentifiable. Still fitted post hoc; still not for adoption from here.
+
+### Why this one was findable and the earlier six were not
+
+The six previous corrections were all **sampling** errors — a handful of nights implying more than the
+corpus supported. This is a **code** error, and it has the opposite signature: it was invisible in every
+individual result and visible only in the harness. Reading the analysis code as an artifact in its own
+right, rather than re-reading the conclusions, is what surfaced it — and it is the check that should have
+run before the first corpus batch, not after seven sections of interpretation.
+
 ## 3 · Phase 1 — promote the coupler into the Integrator (consume EXPORTS, add the missing one)
 
 - **Move the timing engine** `coupledPAT`/`ecgRpeakTimes`/`ppgFootTimes`/`sharedClock` from
