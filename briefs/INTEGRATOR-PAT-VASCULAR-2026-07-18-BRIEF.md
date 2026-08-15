@@ -629,6 +629,69 @@ materially higher identifiability and PAT SD near 5 ms *without* detrending. ⚠
 in §2-RESULT-VI did **not** align, but they were 888–1465-beat fragments from a night with 22 ECG and 7
 PPG files; that is not a fair test of the hypothesis and should not be read as one.
 
+## 2-RESULT-X · THE REPO ALREADY HAD THE FIX — per-block offset + RR unwrap, implemented and measured
+
+§2-RESULT-IX concluded "look at the clock, not the detector" and recommended a corpus change. **Before
+proposing new work, the existing briefs were checked — and the method already exists, is validated, and
+this investigation rediscovered its premise from scratch.**
+
+`CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01` §1 states it outright: *"Body-worn devices drift relative to
+each other by tens to hundreds of ppm — enough to walk past a whole heartbeat inside one night. Every
+cross-node measurement that fits a **single** offset per night is therefore measuring a moving target,
+and reports the movement as noise, as poor coupling, or as a physiological limit."* Its §2.4 is a control
+titled *"the drift is in the CLOCKS, not in the beat detection"*; its §2.1 is *"beat correspondence is
+high once drift is removed"*.
+
+**That brief lists three prior independent arrivals at the same finding, two of them via self-retraction.
+§2-RESULT-III–IX is the fourth.** Recorded plainly: the conclusion is corroborated, not novel, and the
+cost of not reading it first was several sections of rediscovery.
+
+### The step this investigation was missing
+
+§2.2: *"As the true offset drifts past a tooth boundary, the argmax falls back exactly one RR… Fitting a
+slope through that measures the sawtooth, not the clock. **Unwrap by whole RRs first.**"* Every offset in
+§2-RESULT-III–IX was **one modal offset per night** — exactly the "moving target" §1 warns about.
+
+### Implemented: per-block (5 min) modal offset, unwrapped by whole RRs
+
+| night | measured drift | offset range | PAT SD global → per-block | beats recovered |
+|---|---|---|---|---|
+| 2026-07-09 | **5.4 ppm** | 65 ms | 41.0 → 41.3 | 2305 → 2316 |
+| 2026-06-10 | **276.5 ppm** | 561 ms | 176.8 → **109.0** | 1785 → **2258** |
+| 2026-07-13 | **178.8 ppm** | 435 ms | 149.8 → **98.6** | 1819 → **2091** |
+| 2026-07-04 | **−305.6 ppm** | 1312 ms | 181.6 → **157.9** | 842 → **1476** |
+| 2026-06-29 | 107.7 ppm | 233 ms | 114.2 → 106.8 | 2360 → 2380 |
+
+**It works, and it also measures the thing.** The drift is **5–306 ppm**, and the offset walks **65–1312 ms**
+across a night — §1's "tens to hundreds of ppm" confirmed on this corpus. PAT SD falls 13–38 % and up to
+**75 % more beats** are recovered on the worst nights.
+
+**And it explains the identifiability split directly:** the night that worked all along carries **5.4 ppm**;
+every night that failed carries **100–300 ppm**. Identifiability was never a property of the PPG detector
+— it was whether that night's two crystals happened to agree.
+
+### What it does NOT fix, and the honest next step
+
+Shorter blocks do not help — 120 s is marginally better, 60 s worse, 30 s fails outright (too few beats
+per block to find a modal offset). Per-block refitting **saturates at 38–157 ms**, far from the **5.5 ms**
+reachable on a clean night.
+
+The reason is visible in the one directly comparable number: on 2026-07-09 per-block gives **41.3 ms**
+while interval-anchoring (§2-RESULT-IV) gives **16.7 ms**. **The two methods fix different halves.**
+Per-block tracks the drift but still pairs by nearest-match inside a ±300 ms window, which admits wrong
+partners; interval-anchoring gets exact beat correspondence but assumes a single constant lag, which the
+drift destroys.
+
+**Neither brief combines them, and the combination is the obvious next build:** per-block offset to track
+the drift, then **interval-sequence anchoring within each block** for exact correspondence. That is a
+concrete, testable proposal — and it is deliberately left unbuilt here rather than rushed, because this
+investigation has already recorded eight corrections, five of them from moving faster than the evidence.
+
+⚠️ **Do not reach for the three-corner closure to replace the missing host clock.** `CLOCK-CLOSURE-THREE-SOURCE`
+is DONE but carries a ⛔ VOID banner: the third corner was the O2Ring, whose `sensor timestamp` is
+**drawn, not measured** — built as `sample_index × an assumed rate` — so its apparent ppm is the error in
+that constant. There is no free third clock in this corpus.
+
 ## 3 · Phase 1 — promote the coupler into the Integrator (consume EXPORTS, add the missing one)
 
 - **Move the timing engine** `coupledPAT`/`ecgRpeakTimes`/`ppgFootTimes`/`sharedClock` from
