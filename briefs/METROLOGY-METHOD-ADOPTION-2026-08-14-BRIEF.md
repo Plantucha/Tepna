@@ -680,6 +680,50 @@ reference or a deliberate intervention (a tilt, a Valsalva, a cold pressor) that
 schedule. Adding sensors that measure respiration or posture *again* would be re-testing two refuted
 hypotheses; and no estimator improvement can reach the 91 %, because it is not error.
 
+## §4g · CORRECTION — every PAT number in §4d–§4f is CONDITIONAL ON A TOLERANCE I never reported
+
+§4d–§4f paired R-peaks to feet by **modal-offset nearest-match** with an unstated **±80 ms** gate, and
+§4d's decomposition was computed on whatever survived it. Two problems, both mine.
+
+**1 · The pairing was never validated.** Nearest-match decides each beat independently, so it will pair
+*across* a beat slip. Redone with a **monotone one-to-one** assignment (dynamic programming;
+monotonicity forbids crossing):
+
+| | §4d (nearest-match, ±80 ms) | monotone, ±150 ms |
+|---|---|---|
+| ECG fiducial | 0.02 % | **0.01 %** |
+| PPG fiducial | 8.7 % | **3.1 %** |
+| **acf₁ of PAT** | +0.520 | **+0.772** *(>0.1 on 28/29 nights)* |
+| total PAT SD | 37.57 ms | 71.71 ms |
+
+**The physiology conclusion strengthens, and the direction is the evidence.** Had beat-slips manufactured
+the correlated structure, repairing the pairing would have destroyed it; instead acf₁ rose and the
+measurement-error share fell. On beats that correspond, ~97 % of PAT variance is correlated non-error
+structure.
+
+**2 · But the totals are meaningless without the tolerance**, which is the larger error. Sweeping it
+across 29 nights (`INTEGRATOR-PAT-VASCULAR` §2-RESULT-III):
+
+| tolerance | ±50 | ±150 | ±400 | ±600 |
+|---|---|---|---|---|
+| correspondence | 25.2 % | 68.6 % | 96.0 % | 97.7 % |
+| PAT SD | 27.8 ms | 70.7 ms | 126.9 ms | 144.6 ms |
+
+**Every PAT SD in this brief is a point on that curve, and none of them said so.** §4d's 37.57 ms was
+±80 ms nearest-match; §4g's 71.71 ms is ±150 ms monotone. Neither is "the" PAT SD. A tighter window is
+not a better measurement — it is a stricter *selection*, and it buys its low scatter by discarding the
+beats that disagree.
+
+⚠️ **This is the same defect twice in adjacent sections.** §4g's first draft criticised §4d for an
+unacknowledged ±80 ms gate and then quoted 71.71 ms without mentioning its own ±150 ms window. The rule
+that follows: **a PAT statistic is quoted with its tolerance and its correspondence rate, or it is not
+quoted.**
+
+**What survives:** the *shares* (ECG ~0.01 %, PPG ~3.1 %) and the autocorrelation are ratios and are
+stable across the sweep, so §4d–§4f's conclusion — that the dominant term is correlated physiology and
+not measurement error — is unaffected. **What does not survive:** any absolute PAT SD stated in this
+brief without its tolerance, and any claim about beat-level coverage.
+
 ## §5 · Phase 3 — a GUM uncertainty budget for PAT
 
 **The framework.** JCGM 100:2008 (the GUM) plus **JCGM 101:2008**, its Monte-Carlo supplement, which
