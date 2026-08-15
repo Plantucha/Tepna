@@ -419,6 +419,73 @@ That is a concrete redirection rather than a second null: any future PAT work sh
 it should be justified against PpgDex's existing `conf`/SQI rather than assumed to beat them.
 
 
+### §4c · 🟢 THE GATE PAYS — and the incumbent SQI is missing an axis, not miscalibrated
+
+§4b predicted the lever was beat ADMISSION, not beat timing. Tested, and it holds — with a result that
+is actionable rather than another null.
+
+**Method, because the obvious version of this test is worthless.** A stricter rule keeps easier beats and
+gets a lower SD for free, so every rule is scored at the **same keep-fraction**, and **random selection
+is included as a control**. The control earns its place: random gets *worse* as it gets stricter
+(13.69 → 15.45 ms), confirming that retention alone buys nothing and that any gain below is selection.
+
+PAT SD (ms) by admission rule at matched retention, tangent foot throughout:
+
+| night | baseline | rule | keep 90% | keep 75% | keep 50% | keep 25% |
+|---|---|---|---|---|---|---|
+| 2026-07-09 | 13.69 | **sqi** (incumbent) | 13.23 | 13.12 | 12.20 | **10.54** |
+| *(clean)* | | ppiPlaus | 13.40 | 13.25 | 13.44 | 13.79 |
+| | | random | 13.82 | 13.88 | 14.35 | 15.45 |
+| 2026-07-06 | 36.46 | sqi | 35.92 | 35.05 | 33.82 | 33.26 |
+| *(noisy)* | | **ppiPlaus** | 33.22 | 30.09 | 26.85 | 25.69 |
+| | | **sqi×ppiPlaus** | 33.02 | 30.17 | 26.99 | **24.45** |
+| | | random | 36.77 | 36.36 | 34.56 | 34.77 |
+| 2026-06-28 | 36.71 | sqi | 36.44 | 35.39 | 33.46 | 32.29 |
+| *(noisy)* | | ppiPlaus | 36.73 | 33.85 | 29.05 | 28.64 |
+| | | **sqi×ppiPlaus** | 36.26 | 36.04 | 30.95 | **22.19** |
+| | | random | 36.58 | 36.66 | 36.74 | 36.27 |
+
+#### The confound control is what makes this trustworthy
+
+Interval plausibility could simply be selecting **physiologically stable-HR epochs**, where PAT is steady
+anyway — selection on a correlate of the outcome rather than on error. That is testable directly: compute
+the *same* plausibility from the **ECG's own RR intervals**, which select the same stable-HR epochs while
+knowing nothing about the PPG detector.
+
+**It gains almost nothing** — 2026-07-06: **36.34 ms** at keep 25 % against ppiPlaus's **25.69**;
+2026-06-28: 33.01 against 28.64. So the gain is **not** stable-HR selection. **PPG-side interval
+plausibility is rejecting PPG detector errors specifically**, which is exactly what it was meant to do
+and the one interpretation that would have been unsafe to assume.
+
+#### What this says to do
+
+**The incumbent `beatSQI` is not miscalibrated — it is measuring one axis.** It is template correlation ×
+amplitude × motion, i.e. *waveform shape*. It carries no notion of whether a beat's INTERVAL is
+plausible, and on noisy nights that is where the recoverable error lives. The two are complementary in
+the data, not competing:
+
+- **clean night** → few detector errors → shape (`sqi`) is the right discriminator, and interval
+  plausibility adds nothing (13.79 vs 10.54);
+- **noisy night** → detector errors dominate → interval plausibility finds them, and the **combination is
+  best**, reaching **22.19 ms from a 36.71 ms baseline — a 14.5 ms reduction** where PAT is worst and
+  most needs help.
+
+⚠️ **Do not read this as "ship sqi×ppiPlaus".** The combination is *worse* than `sqi` alone on both clean
+nights, so a fixed multiplicative rule trades good nights for bad ones. What the data supports is the
+narrower claim: **rhythm plausibility is a real, missing, non-redundant admission axis**, and any rule
+using it must be adaptive to how noisy the night actually is. Choosing that form is a design decision
+this experiment does not make.
+
+⚠️ **Mild circularity, named rather than hidden:** `ppiPlaus` is computed from intervals between the very
+feet whose placement it is used to judge, so a mis-placed foot produces both a bad interval and a bad
+PAT. That is the error being rejected, so it is a feature here — but it means the rule cannot be
+described as an *independent* check, and it should never be quoted as one.
+
+**Limits:** four nights, 20-minute slices, one subject, one device pair. keep 25 % discards three
+quarters of the beats, which is a real cost for any consumer needing beat coverage; at keep 50 % the
+gains are roughly half as large.
+
+
 ## §5 · Phase 3 — a GUM uncertainty budget for PAT
 
 **The framework.** JCGM 100:2008 (the GUM) plus **JCGM 101:2008**, its Monte-Carlo supplement, which
