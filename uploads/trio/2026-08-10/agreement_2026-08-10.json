@@ -6,9 +6,9 @@
     "ECGDex",
     "OxyDex"
   ],
-  "compared": 65,
-  "adjudicable": 60,
-  "droppedFragments": 1,
+  "compared": 124,
+  "adjudicable": 113,
+  "droppedFragments": 0,
   "flagged": 0,
   "flaggedPct": 0,
   "fault": {
