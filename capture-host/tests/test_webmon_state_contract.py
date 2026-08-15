@@ -53,6 +53,7 @@ DEVICE_KEYS = {
     "connected", "battery", "rssi", "clock_synced", "device_time", "clock_skew_sec", "pull_progress",
     "link_epoch", "worn", "worn_why", "worn_optical", "worn_optical_why", "charging", "last_error",
     "clock_uncorrectable", "rate_unmet",
+    "clock_uncorrectable", "last_sample",
 }
 
 

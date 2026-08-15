@@ -61,6 +61,15 @@ ALLOW_FUNCS = {
     "analyze": "blind_spots, driven by tools/find_blindspots.py",
     "rank": "blind_spots, driven by tools/find_blindspots.py",
     "concentration": "mutation_triage, driven by the mutation programme",
+    # ── investigated 2026-08-14 (brief §5). Each is CAPABILITY THAT EXISTS ELSEWHERE, not a gap. The
+    # reason is recorded here so the next reader spends a line rather than an investigation — which is
+    # the allowlist's whole job, and why every entry prints with its justification.
+    "oxy_is_finalized": "redundant — pull_session.py already gates re-pulls on finalisation via "
+                        "parse_trailer, which that caller needs anyway for the device summary",
+    "busy_with": "redundant — offline_lock.slot() raises OfflineBusy(_busy), so the label already "
+                 "reaches callers as e.holder",
+    "predict_step_split": "research helper from O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS §2, driven by its "
+                          "brief rather than by the daemon — same shape as blind_spots.analyze",
 }
 
 
@@ -140,6 +149,14 @@ def scan(root: "str | None" = None) -> dict:
         if os.sep + "tests" in dirpath or "node_modules" in dirpath or os.sep + ".venv" in dirpath:
             continue
         for n in names:
+            # ⚠️ SKIP THIS FILE. The allowlist NAMES the functions it excuses, so scanning our own source
+            # counts each entry as a usage — and the entry then vanishes from the report entirely rather
+            # than printing as "(allowed)", which is the exact opposite of the stated design ("a
+            # suppression you cannot see is how the next real finding hides behind a stale entry").
+            # Measured 2026-08-14: adding three allowlist entries silently removed all three rows.
+            # A scanner must not count its own suppression file as evidence the code is wired.
+            if os.path.abspath(os.path.join(dirpath, n)) == os.path.abspath(__file__):
+                continue
             if n.endswith((".py", ".sh")):
                 everything += open(os.path.join(dirpath, n), encoding="utf-8", errors="replace").read()
 
