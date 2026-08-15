@@ -17,6 +17,12 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-stale-brief.sh\"",
             "timeout": 10,
             "statusMessage": "checking the brief has not moved on origin/main"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-format.sh\"",
+            "timeout": 15,
+            "statusMessage": "checking staged JS is Biome-clean"
           }
         ]
       },
