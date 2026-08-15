@@ -21,12 +21,24 @@
       "segments": [
         {
           "startMs": 1775391720000,
-          "durSec": 2449800
+          "durSec": 1206300
+        },
+        {
+          "startMs": 1776602520000,
+          "durSec": 35400
+        },
+        {
+          "startMs": 1776643320000,
+          "durSec": 1165500
+        },
+        {
+          "startMs": 1777819620000,
+          "durSec": 22200
         }
       ],
-      "recordedSec": 2449800,
-      "nWithDuration": 1,
-      "n": 1
+      "recordedSec": 2429400,
+      "nWithDuration": 4,
+      "n": 4
     },
     "clamp": {
       "detected": true,

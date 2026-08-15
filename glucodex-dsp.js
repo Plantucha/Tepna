@@ -1971,14 +1971,59 @@
         events: events.length,
         /* §F1.1 — CONTINUOUS coverage, the sibling of HRVDex's sparse block (§6.2). GlucoDex declared no
            duration key `adaptEnvelopeNode` reads, so a well-controlled ZERO-EVENT CGM record collapsed to
-           a point at t0Ms — the healthiest record was the one that dropped out of fusion. A CGM wear IS
-           continuous, so one segment states that honestly; here `spanSec` and `recordedSec` agree BY
-           MEASUREMENT, which is precisely what the sparse case could not claim. */
+           a point at t0Ms — the healthiest record was the one that dropped out of fusion.
+
+           ⚠ NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS-II §2 — the original of this block claimed `spanSec`
+           and `recordedSec` "agree BY MEASUREMENT, which is precisely what the sparse case could not
+           claim". They were the SAME EXPRESSION and could not disagree, so a wear with a 6 h sensor
+           dropout reported 100 % coverage and the planted 21 600 s hole left no trace at all. The comment
+           named HRVDex as its sibling and then did what HRVDex explicitly refuses ("the obvious fix —
+           stamp `durSec = lastTMs − firstTMs` — would FABRICATE COVERAGE").
+
+           Now MEASURED. The cleaner already flags every gap cell (`FLAG.GAP` short bridge / `GAP_LONG`)
+           and already knows the cadence, so a segment is a maximal run of NON-gap cells and its duration
+           is `cells × cadence` — the same arithmetic `activeMin` uses one function away, deliberately
+           reusing that definition rather than inventing a second gap threshold. `recordedSec` is the sum
+           of those segments and `spanSec` is untouched: the two now CAN disagree, which is the whole
+           point. The segments also travel to `adaptEnvelopeNode`, so a CGM dropout stops counting as
+           recorded time when the Integrator judges overlap.
+
+           `kind` stays `'continuous'` deliberately. It names the SAMPLING MODALITY — a CGM is a
+           continuous monitor whether or not a sensor dropped out — exactly as HRVDex's `'sparse'` names
+           spot measurements. Completeness is what `segments`/`recordedSec` are for, and folding it into
+           `kind` would re-create the very conflation this fix removes. Nothing switches on `kind`;
+           `adaptEnvelopeNode` reads `segments`. */
         coverage: (function () {
           var _c = glucoCells(r.series);
           if (!_c.length || r.t0Ms == null) return null;
           var _sec = Math.max(0, Math.round((_c[_c.length - 1].tMs - r.t0Ms) / 1000));
-          return { kind: 'continuous', spanSec: _sec, segments: [{ startMs: r.t0Ms, durSec: _sec }], recordedSec: _sec, nWithDuration: 1, n: 1 };
+          var _F = r.series && r.series.FLAG ? r.series.FLAG : null;
+          var _cadS = r.series && isFinite(r.series.cadence) && r.series.cadence > 0 ? r.series.cadence * 60 : null;
+          /* No cadence or no flags ⇒ the gaps cannot be located, so coverage is UNKNOWN — null, not the
+             span. `nWithDuration: 0` says how much of it is actually known, as HRVDex's does. */
+          if (_F == null || _cadS == null) return { kind: 'continuous', spanSec: _sec, segments: [{ startMs: r.t0Ms, durSec: null }], recordedSec: null, nWithDuration: 0, n: 1 };
+          var _segs = [],
+            _cur = null;
+          for (var _i = 0; _i < _c.length; _i++) {
+            if (_c[_i].f === _F.GAP || _c[_i].f === _F.GAP_LONG) {
+              _cur = null;
+              continue;
+            }
+            if (!_cur) {
+              _cur = { startMs: _c[_i].tMs, cells: 0 };
+              _segs.push(_cur);
+            }
+            _cur.cells++;
+          }
+          // `const` after the guard above, not the `var`: TS cannot keep a mutable binding's narrowing
+          // across the callback boundary, so reading `_cadS` in there is `possibly null` to typecheck.
+          const _cadSec = _cadS;
+          var _out = _segs.map(function (s) {
+            return { startMs: s.startMs, durSec: Math.round(s.cells * _cadSec) };
+          });
+          var _rec = 0;
+          for (var _j = 0; _j < _out.length; _j++) _rec += _out[_j].durSec;
+          return { kind: 'continuous', spanSec: _sec, segments: _out, recordedSec: _rec, nWithDuration: _out.length, n: _out.length };
         })(),
         clamp:
           cs && cs.detected

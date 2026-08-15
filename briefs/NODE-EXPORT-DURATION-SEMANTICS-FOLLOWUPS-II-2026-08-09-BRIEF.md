@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-15 (**§1 PulseDex EXECUTED** — shipped, gated, fixtures re-verified; see §1-RESULT. §2 GlucoDex still open and still pinned) · **Created:** 2026-08-09 · **Follows:** `NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS-2026-08-06-BRIEF.md` §3-RESULT · **Affects:** `pulsedex-dsp.js`, `glucodex-dsp.js` — both compute-path, both owing a re-bundle
+**Status:** DONE — 2026-08-15 (**both halves EXECUTED** — §1 PulseDex, §2 GlucoDex; every "Done when" item met, no `KNOWN DEFECT` pin left in the group. See §1-RESULT and §2-RESULT) · **Created:** 2026-08-09 · **Follows:** `NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS-2026-08-06-BRIEF.md` §3-RESULT · **Affects:** `pulsedex-dsp.js`, `glucodex-dsp.js` — both compute-path, both owing a re-bundle
 
 # Two nodes fabricate coverage, and both are pinned in the gate that found them
 
@@ -143,6 +143,60 @@ segment count. Keep `spanSec` as it is; it is correct.
 continuous segment. Whether the kind stays `continuous` with honest segments, or becomes conditional, is
 part of this decision — not a detail.
 
+## 2-RESULT · EXECUTED 2026-08-15
+
+`recordedSec` is now the **sum of measured segments**, reusing the node's own gap definition rather than
+inventing a second one as the brief asked: the cleaner already flags every gap cell (`FLAG.GAP` /
+`GAP_LONG`) and already knows the cadence, so a segment is a maximal run of non-gap cells with duration
+`cells × cadence` — the arithmetic `activeMin` uses one function away. `spanSec` is untouched. The two
+can now disagree, which was the entire complaint.
+
+**What it found on the real corpus.** The committed 28-day Lingo export claimed one segment covering
+everything. It is four, and **20 400 s — 5.7 h — of dropout had been counted as recorded**:
+
+```
+recording.coverage.segments.0.durSec: 2449800 → 1206300
+recording.coverage.segments.1: undefined → {"startMs":1776602520000,"durSec":35400}
+recording.coverage.segments.2: undefined → {"startMs":1776643320000,"durSec":1165500}
+recording.coverage.segments.3: undefined → {"startMs":1777819620000,"durSec":22200}
+recording.coverage.recordedSec:  2449800 → 2429400      n: 1 → 4
+```
+
+⚠️ **`synthetic_glucodex_gap_golden` was asserting the defect over its own planted gap.** That fixture
+exists because `FIXTURE-VERIFICATION-GATE` §4 added committed-input adversarial twins precisely so this
+class could be caught in CI with no corpus — and it ran on every push, reproducing 258 900 s "recorded"
+across a fixture built to contain a hole (now 209 100 s across 2 segments). **A committed adversarial
+fixture only tests what an assertion asks of it.** The twin was doing its job; nothing ever compared its
+coverage against its own gap. Worth carrying into the next audit that reaches for "we have a twin for
+that".
+
+**`kind` stays `'continuous'` — the decision the brief flagged as not-a-detail.** It names the sampling
+MODALITY, not completeness: a CGM is a continuous monitor whether or not a sensor dropped out, exactly as
+HRVDex's `'sparse'` names spot measurements. Completeness is what `segments`/`recordedSec` are for, and
+folding it into `kind` would rebuild the conflation this fix removes. Checked rather than assumed:
+nothing in the tree switches on `coverage.kind`; `adaptEnvelopeNode` reads `segments`.
+
+**One deliberate convention change, bounded and gated.** A segment's duration is `cells × cadence`, not
+`lastCell − firstCell`. The alternative gives a ONE-CELL segment `durSec: 0` — asserting nothing was
+recorded when one sample was, the absent-vs-zero confusion HRVDex's block warns about — and it disagrees
+with `activeMin`. The cost is that a gapless record's `recordedSec` exceeds `spanSec` by exactly the final
+cell, because `spanSec` measures between sample INSTANTS while a cell covers a cadence of time. Bounded at
+one cadence per segment, and asserted, rather than left to be found later as a >100 % coverage ratio.
+
+**This reaches fusion, which is the part that matters beyond the export.** The segments travel to
+`adaptEnvelopeNode`, which judges overlap on RECORDED time — so a CGM dropout stops counting as overlap
+with another node. That mechanism is what DEEP-AUDIT-III §6.2 built; GlucoDex had been feeding it a single
+whole-span segment, i.e. the mechanism was live and its input was the fabrication.
+
+**Compute-path, computed not claimed:** `computeHash 2ab4fab25b6e → 5ad4d400eb4a`, `manifestHash
+fa3e8d398d5a → cb3c4dd0e7d6`. 3 fixtures regenerated, `verifiedUnder` re-stamped after a green corpus
+run; both orchestrators, `docs/GlucoDex.html` and the 4 analysis tools that inline `glucodex-dsp.js`
+rebuilt.
+
+**Both pins are now contract, and the group has none left.** Each of the two `KNOWN DEFECT` pins did
+exactly what it was for: the fix reddened the group and forced a deliberate rewrite rather than a silent
+pass.
+
 ## 3 · What both owe, and why they were not done in the gate PR
 
 Each is a **compute-path** edit to a bundled DSP. Per `CLAUDE.md` §🔏 each owes: a `computeHash` move,
@@ -165,13 +219,17 @@ update — the pins cannot be silently satisfied.
       discriminator. The `classifyRecording` consumer was checked, not assumed — and a SECOND consumer
       the brief did not name (`adaptEnvelopeNode`, which builds the Integrator window from the exported
       `durationMin`) is why `durMin` keeps its value. See §1-RESULT.
-- [ ] §2 — GlucoDex's `recordedSec` is measured from the cells, and the `kind: 'continuous'` claim is
-      resolved deliberately. The misleading "BY MEASUREMENT" comment goes with it.
-- [x] **§1's did** — `computeHash e8f4070fe122 → 67624a697ce1`, 3 fixtures regenerated (exactly the 3
-      new fields moved), `verifiedUnder` re-stamped after a green corpus run. §2's is still owed.
-- [x] **§1's two pins converted in the same PR**, plus two new assertions pinning the discriminator on
-      the TIMESTAMPED branch — half a discriminator leaves a consumer just as unable to tell the
-      branches apart. §2's pin is untouched and still red-capable.
+- [x] **§2 EXECUTED 2026-08-15** — `recordedSec` is the sum of measured segments, cut on the cleaner's
+      OWN gap flags and cadence (no second gap definition). `kind` stays `'continuous'` deliberately — it
+      names the MODALITY, and nothing in the tree switches on it (checked). The "BY MEASUREMENT" comment
+      is replaced by one that states what the fields now mean. See §2-RESULT.
+- [x] **BOTH did.** §1 `computeHash e8f4070fe122 → 67624a697ce1`; §2 `computeHash 2ab4fab25b6e →
+      5ad4d400eb4a`. 3 fixtures regenerated each, `verifiedUnder` re-stamped after a green corpus run,
+      orchestrators + docs + analysis tools rebuilt on both.
+- [x] **All four pins converted, each in the PR that fixed its node** — and each fix reddened the group
+      first, which is what the pins were for. §2's additions also carry a paired ALLOW (a GAPLESS wear
+      must still report one segment and full coverage, or the segmenter is only finding damage) and a
+      bound on the cells-×-cadence overshoot. **No `KNOWN DEFECT` pin remains in the group.**
 
 ## 5 · Explicitly NOT in scope
 
