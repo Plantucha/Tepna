@@ -622,6 +622,64 @@ is a night-median while the PAT slice covers the first ~20 minutes, so a rate th
 over the night would blur the target band — but the effect being tested is absent by a factor of two in
 the *wrong direction*, which no plausible blurring produces.
 
+## §4f · NOR POSTURE — both references this corpus holds are now exhausted
+
+§4e localised PAT's correlated variance to VLF (~50 % below 0.04 Hz, dominant period ~31 s) and named
+posture as the better-aimed of the two available references, since posture change is a VLF-timescale
+event. Tested on the ACC from the **same device as the PPG**, so unlike the CPAP leg there is no clock
+problem at all — both carry the same `Phone timestamp` column.
+
+**Gravity vector** by a 30 s moving average of the ACC (orientation only, motion removed), normalised,
+sampled at 1 Hz. PAT and the three gravity components resampled onto a common **5 s** grid, then PAT
+regressed on `(gx, gy, gz)`.
+
+**The null is the whole experiment.** A **circular shift** of the gravity series preserves posture's own
+spectrum and autocorrelation *exactly* and destroys only its time-alignment with PAT, so whatever R² it
+still scores is what two slow, unrelated series produce by construction.
+
+**14 nights** (4 skipped for few beats, 2 short ACC, 9 short overlap):
+
+| | median |
+|---|---|
+| R² **real** | **12.59 %** |
+| R² circular-shift null, median | 7.05 % |
+| R² circular-shift null, 95th pct | 23.59 % |
+| **nights where real exceeds its OWN 95th-pct null** | **1 / 14** |
+
+**1 of 14 is the false-positive rate**, not a finding — at α = 0.05 you expect 0.7. Posture explains
+nothing beyond chance.
+
+⚠️ **And the raw number would have been reported as a finding.** R² = 12.6 % looks like a real effect;
+on one night it reached **21.76 %** against a null median of **21.19 %**. Without the circular shift this
+section would have claimed "posture explains a fifth of PAT's variance". **Two slow autocorrelated series
+score ~7–21 % R² for free.** Any future analysis correlating PAT against a slow covariate in this corpus
+must carry an order-preserving null, or it will find whatever it looks for.
+
+**An event-locked version was tried first and abandoned, not tuned.** Detecting posture transitions
+(gravity direction changing >20° within 20 s) found **2 transitions in 43 minutes**, and neither had
+enough beats either side to yield a step. No threshold fixes a statistic resting on two points; the
+continuous regression uses every 5 s sample instead.
+
+### What this bounds
+
+| candidate | reference in this corpus | verdict |
+|---|---|---|
+| measurement error (ECG + PPG fiducial) | internal, §4d | **~9 %** of variance |
+| respiration | CPAP `BRP.edf` flow, §4e | **refuted** — 1/17 nights, below its shuffled null |
+| posture | Polar ACC gravity, §4f | **refuted** — 1/14 nights, at the false-positive rate |
+| blood pressure / vascular tone | **none exists here** | untested, and now the leading candidate |
+
+PAT's ~91 % correlated variance sits at a **~31 s timescale**, is not respiratory, and is not postural.
+The LF band it partly occupies (35.8 %, centred near the ~0.1 Hz Mayer-wave frequency) is the classic
+signature of baroreflex-mediated blood-pressure oscillation — which is also what PAT is physiologically
+*expected* to track. **That hypothesis cannot be tested on this corpus**, because it contains no BP
+reference: no cuff, no finger-clamp, no intervention.
+
+**So the honest end-state is a bound, not an answer.** Further PAT work needs either a blood-pressure
+reference or a deliberate intervention (a tilt, a Valsalva, a cold pressor) that moves BP on a known
+schedule. Adding sensors that measure respiration or posture *again* would be re-testing two refuted
+hypotheses; and no estimator improvement can reach the 91 %, because it is not error.
+
 ## §5 · Phase 3 — a GUM uncertainty budget for PAT
 
 **The framework.** JCGM 100:2008 (the GUM) plus **JCGM 101:2008**, its Monte-Carlo supplement, which
