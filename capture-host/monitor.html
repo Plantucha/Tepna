@@ -1412,16 +1412,27 @@ async function loadSettings(){
     // reported — true / false / **null = it never said**. Folding null into "off" is exactly how a
     // night runs at 55 Hz under a config reading 176 with every card green, which is the failure that
     // motivated this control (2026-08-03, and it took a file-by-file rate audit to find).
+    // ⚠️ SDK MODE AND PPI/HR ARE MUTUALLY EXCLUSIVE ON THE VERITY, and this control used to present
+    // them as independent controls — so the config could express a state the hardware cannot hold, and
+    // the only symptom was two streams quietly absent (POLAR-ONBOARD-BACKUP-FOLLOWUPS §3). The
+    // exclusion is a VERITY-FAMILY FACT, not something the device reports: nothing in the PMD feature
+    // set announces it, so it cannot be derived and is stated instead. The server warns on the same
+    // condition when settings are saved; this banner is the half you see BEFORE the click.
     const sdk = !d.sdk_capable ? '' : (() => {
       const want = !!d.sdk_mode, act = d.sdk_mode_actual;
       const state = !want ? '' :
         act === true  ? '<span class="mb" style="color:#3c8">device confirms: on</span>' :
         act === false ? '<span class="mb" style="color:#c55">device says OFF — the extended rates are NOT in use</span>' :
                         '<span class="mb" style="color:#ca3">device has not reported its mode — unknown, not off</span>';
+      const excl = (d.streams||[]).filter(s => s==='ppi' || s==='hr');
+      const clash = !(want && excl.length) ? '' :
+        `<span class="mb" style="color:#c55">⚠ SDK mode DISABLES ${excl.map(esc).join(' + ')} on this device —
+         ${excl.length>1?'those streams go':'that stream goes'} silently absent while it is on. Turn one off.</span>`;
       return `<label class="setrow"><input type="checkbox" class="sdksel" data-addr="${esc(d.address)}" ${want?'checked':''}>
-        <span class="k">SDK mode</span>${state}
+        <span class="k">SDK mode</span>${state}${clash}
         <span class="mb">Unlocks the device's extended rate menu — PPG 28/44/55/135/<b>176</b> Hz, ACC/GYRO to 416 Hz.
         Re-entered on every connect (it does not survive a power cycle) and needs all streams stopped.
+        <b>Costs PPI and HR</b> — a Verity cannot serve those in SDK mode, and they go quiet rather than erroring.
         <em style="opacity:.75">(needs reconnect · measured: 176 Hz PPG costs 8.60 %/h against 4.74, ~11.6 h runtime — PPG-SAMPLE-RATE-AND-PAT)</em></span></label>`;
     })();
     return `<div style="margin-bottom:.7rem"><div class="name">${esc(d.name)}</div>${sdk}${boxes||'<span class="hint">no streams reported yet</span>'}</div>`;
@@ -1511,9 +1522,16 @@ async function saveSettings(btn){
   try{
     const r = await api('/api/settings',{method:'POST',headers:{'content-type':'application/json'},
                                          body:JSON.stringify({settings,streams,rates,sdk_mode})});
+    // A saved-with-warnings result is NOT a plain success and must not read like one. The server
+    // warns rather than refusing (an exclusion that is a Verity-family fact should not block a config
+    // written for other hardware), so this line is the only place the operator learns it — appended
+    // AFTER the saved list so the warning is the last thing read, not buried in front of it.
+    const warn = (r.warnings||[]).length ? '  ⚠ ' + r.warnings.join(' · ') : '';
     $('#setMsg').textContent = r.ok
-      ? (r.changed.length ? `saved: ${r.changed.join(', ')}${r.restart_needed?' — reconnect the device to apply':''}` : 'no changes')
+      ? (r.changed.length ? `saved: ${r.changed.join(', ')}${r.restart_needed?' — reconnect the device to apply':''}${warn}`
+                          : (warn ? 'no changes' + warn : 'no changes'))
       : 'rejected: '+r.error;
+    $('#setMsg').style.color = (r.ok && warn) ? '#c55' : '';
   }catch(e){ $('#setMsg').textContent='failed: '+e; }
   btn.disabled=false; btn.textContent=t0;
 }
