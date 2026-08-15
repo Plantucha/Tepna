@@ -18,6 +18,7 @@ import pathlib
 
 import pytest
 
+from tests._srcscan import module_source
 import helper_path
 import host_clock as hc
 
@@ -525,3 +526,120 @@ def test_neither_daemon_readable_is_still_a_safe_verdict(monkeypatch):
 def test_parse_chrony_tracking_never_raises_on_junk():
     for junk in ("", "garbage", ":::", "Stratum : notanumber\n", "Reference ID : \n"):
         assert isinstance(hc.parse_chrony_tracking(junk), dict)
+
+
+# ── the grant check is WIRED, not merely correct ────────────────────────────────────────────────────
+
+def test_SYSTEM_DIRS_second_entry_is_documented_as_a_FALLBACK_not_a_deploy_target():
+    """⚠️ THE COMMENT WAS LOAD-BEARING AND WRONG. It called BOTH entries "root-owned deploy targets",
+    but `/opt/tepna/capture-host` is the checkout — vigil-owned BY DESIGN, because `tepna-update.sh`
+    must be able to write it to complete a deploy. A constant that mis-describes its own second element
+    is how a fallback path looks safe at the call site that prefixes `sudo -n` to it."""
+    src = module_source("helper_path.py")
+    head = src[:src.index("SUDO_HELPERS")]
+    assert "/opt/tepna/capture-host" in head
+    assert "vigil-owned" in head or "DEVELOPMENT FALLBACK" in head, (
+        "the second entry must be documented as unsafe to grant, not as a deploy target")
+
+
+def test_every_sudo_helper_is_named_in_ONE_place():
+    """`SUDO_HELPERS` exists so the boot self-test can check them all. A per-call-site check is exactly
+    what left `grant_warning` with no caller: capture.py resolves three helpers, clockcfg and link_rssi
+    resolve others, and nobody owned the whole set."""
+    import helper_path as hp
+    assert set(hp.SUDO_HELPERS) >= {"tepna-restart.sh", "tepna-btreset.sh", "tepna-clock.sh"}
+    for name in hp.SUDO_HELPERS:
+        assert name.endswith(".sh") and "/" not in name, name
+
+
+def test_the_boot_self_test_ASKS_about_helper_grants():
+    """It was called by nothing outside its own tests. The condition is reachable: `resolve()` falls back
+    to the in-repo copy, that copy is `-rwxrwxr-x vigil` on the box, and `daemon_control.build_cmd`
+    prefixes `sudo -n` to whatever it returns."""
+    src = module_source("capture.py")
+    assert "helper_path.grant_warning(" in src, "the boot self-test must invoke it"
+    assert "helper_warnings" in src, "…and feed the result to the pure decision function"
+
+
+def test_helper_warnings_reach_the_verdict_and_an_absent_list_says_nothing():
+    """No `_UNCHECKED` sentinel on this one, deliberately. For a single value like `usb_path`, "not
+    looked" and "looked and it was empty" are different verdicts. For a LIST OF WARNINGS they are not —
+    both produce no warning — so a sentinel would be decoration that reads like rigour. A surviving
+    mutant proved it: swapping `_UNCHECKED` for `()` changed nothing observable."""
+    import capture
+    assert capture.defense_warnings(None, None) == []
+    assert len(capture.defense_warnings(None, None, helper_warnings=["x", "y"])) == 2
+
+
+def test_ONE_unreadable_helper_does_not_silence_the_others(monkeypatch):
+    """⚠️ THE FAIL-OPEN THIS ALMOST SHIPPED WITH. A single try around the whole loop means one bad stat
+    aborts the sweep and every helper after it goes unchecked — and the LOOP ORDER then decides which
+    defences get reported. A self-test that goes quiet because one input failed is precisely the shape
+    it exists to refuse."""
+    import capture
+    import helper_path as hp
+    calls = []
+
+    def _boom(path):
+        calls.append(path)
+        if len(calls) == 1:
+            raise OSError("unreadable")
+        return "unsafe: " + path
+
+    monkeypatch.setattr(hp, "grant_warning", _boom)
+    monkeypatch.setattr(hp, "SUDO_HELPERS", ("a.sh", "b.sh", "c.sh"))
+    monkeypatch.setattr(capture.os.path, "isdir", lambda p: True)   # pretend this is a deployed host
+    warns = capture._gather_helper_warnings()
+    assert len(calls) == 3, f"every helper must still be asked: {calls}"
+    assert len(warns) == 2, f"the two readable ones must still be reported: {warns}"
+
+
+def test_the_helper_check_is_SILENT_on_a_development_checkout(monkeypatch):
+    """⚠️ A SELF-TEST THAT ALWAYS FIRES TEACHES PEOPLE TO STOP READING IT — the same way the retired
+    `smeared` canary arm fired on every stream on its first real night. In any dev checkout the helpers
+    are repo-local and never root-owned, so an ungated check warns five times at every startup about
+    paths that hold no sudoers grant and never will."""
+    import capture
+    monkeypatch.setattr(capture.os.path, "isdir", lambda p: False)   # no /usr/local/lib/tepna here
+    assert capture._gather_helper_warnings() == []
+
+
+def test_but_it_SPEAKS_on_a_deployed_host_whose_helper_fell_back_to_the_checkout(monkeypatch, tmp_path):
+    """The signal that actually bit on 2026-08-14: a deployed box where a helper is MISSING from the
+    system dir, so `resolve()` silently returns the vigil-writable checkout copy — and `daemon_control`
+    prefixes `sudo -n` to it."""
+    import capture
+    import helper_path as hp
+    unsafe = tmp_path / "tepna-restart.sh"
+    unsafe.write_text("#!/bin/sh\n")
+    monkeypatch.setattr(capture.os.path, "isdir", lambda p: True)
+    monkeypatch.setattr(hp, "SUDO_HELPERS", ("tepna-restart.sh",))
+    monkeypatch.setattr(hp, "resolve", lambda n: str(unsafe))
+    warns = capture._gather_helper_warnings()
+    assert len(warns) == 1 and "not root-owned" in warns[0], warns
+
+
+def test_a_SAFE_helper_is_skipped_while_the_unsafe_one_is_still_reported(monkeypatch):
+    """⚠️ COVERED ONLY BY ACCIDENT ON A MACHINE THAT HAS `/usr/local/lib/tepna`, which CI does not.
+
+    A box mid-deploy is exactly this mixture: some helpers already installed root-owned, one still
+    resolving to the vigil-writable checkout. The report must name the unsafe one and stay silent about
+    the safe ones — a sweep that reported every helper would be as useless as one that reported none.
+
+    Local runs passed at 100 % because this machine HAS the system dir populated, so the real scan
+    walked the `w is None` path incidentally. CI has no such directory, `_gather_helper_warnings`
+    returns early, and the branch went uncovered — 99.99 %, one partial branch, every test green. An
+    environment-dependent coverage hole is invisible precisely where it is convenient."""
+    import capture
+    import helper_path as hp
+    monkeypatch.setattr(capture.os.path, "isdir", lambda p: True)
+    # ⚠️ NAMES CHOSEN SO NEITHER IS A SUBSTRING OF THE OTHER. The first draft used "safe.sh"/"unsafe.sh"
+    # with `"safe" in path`, which matches BOTH — "unsafe" contains "safe" — so every helper read as
+    # safe and the assertion saw an empty list. A predicate that matches more than intended, inside a
+    # test about a predicate that matches more than intended.
+    monkeypatch.setattr(hp, "SUDO_HELPERS", ("ok-one.sh", "rewritable.sh", "ok-two.sh"))
+    monkeypatch.setattr(hp, "resolve", lambda n: "/fake/" + n)
+    monkeypatch.setattr(hp, "grant_warning",
+                        lambda path: "not root-owned: " + path if "rewritable" in path else None)
+    warns = capture._gather_helper_warnings()
+    assert warns == ["not root-owned: /fake/rewritable.sh"], warns
