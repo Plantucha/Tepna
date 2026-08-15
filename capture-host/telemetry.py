@@ -7,7 +7,7 @@
 # A dropped subscriber or a slow browser never blocks capture: the per-subscriber queue drops oldest.
 
 from __future__ import annotations
-import asyncio, collections, datetime as _dt, logging, statistics, time
+import asyncio, collections, datetime as _dt, logging, math, statistics, time
 from dataclasses import dataclass
 
 log = logging.getLogger("tepna.telemetry")
@@ -221,6 +221,89 @@ def ambient_stability_worn(ambient, *, threshold: float = _WORN_AMBIENT_SD_MAX,
     return statistics.pstdev(vals) < threshold
 
 
+# ── PULSE PROMINENCE ────────────────────────────────────────────────────────────────────────────────
+# Measured 2026-08-15, on the morning a docked Verity streamed noise for 30 min while EVERY existing
+# guard reported it worn:
+#   · `charging` was False — charging is inferred from a Polar refusing PMD START with 0x0D in_charger,
+#     and this device ACCEPTED the start while docked, so the inference never fired;
+#   · the HR contact bit said worn (its documented lie);
+#   · `ambient_stability_worn` said worn — a dock has beautifully stable ambient light, so the vote meant
+#     to be the honest one is a false positive in exactly the condition that matters.
+# Both votes agreed, so the disagreement chip could not fire either. Three detectors, one dock, no alarm.
+#
+# ⚠️ THE OBVIOUS FIX WAS MEASURED AND REJECTED. A motion veto does not work: a sleeping arm sits at ACC
+# SD 2.2 mg, QUIETER than this dock's 3.4 mg. A motion threshold would veto real sleep — a worse failure
+# than the one it fixes. Do not re-propose it without re-measuring.
+#
+# What separates them is whether there is a PULSE at all. Note the docked stream's spectral peak lands at
+# 45–54 bpm, entirely plausible — which is why the monitor believed 106 bpm. The peak's LOCATION carries
+# no information; its PROMINENCE does.
+_PULSE_BAND_HZ = (0.70, 3.00)      # 42–180 bpm
+_PULSE_NOISE_BAND_HZ = (6.0, 12.0)  # above any pulse harmonic that matters, below the anti-alias corner
+_PULSE_PROMINENCE_MIN = 250.0
+_PULSE_MIN_SAMPLES = 4096
+_PULSE_MIN_FS_HZ = 30.0             # the 6–12 Hz reference band must sit below Nyquist
+
+
+def _goertzel_power(vals, f: float, fs: float) -> float:
+    """Power at one frequency. Cheaper than an FFT when only ~60 bins are wanted."""
+    w = 2 * math.pi * f / fs
+    coeff = 2 * math.cos(w)
+    s1 = s2 = 0.0
+    for x in vals:
+        s0 = x + coeff * s1 - s2
+        s2 = s1
+        s1 = s0
+    return s1 * s1 + s2 * s2 - coeff * s1 * s2
+
+
+def pulse_prominence(ppg, *, fs: float) -> "float | None":
+    """Peak power in the pulse band over mean power in a reference band above it. `None` if unmeasurable.
+
+    Rate-independent by construction — the bands are in Hz and the transform is evaluated at the given
+    `fs` — which is why this does NOT inherit `sd_calibrated_for`'s exact-rate menu. It was measured at
+    BOTH 55 Hz and 176 Hz on the same device and separates at both, so an exact-rate gate would reject
+    data it demonstrably handles. The gate it does need is Nyquist: below ~30 Hz the reference band folds.
+    """
+    if fs is None or not (fs >= _PULSE_MIN_FS_HZ):
+        return None
+    vals = [float(v) for v in ppg if v is not None and v == v]
+    if len(vals) < _PULSE_MIN_SAMPLES:
+        return None
+    mean = sum(vals) / len(vals)
+    vals = [v - mean for v in vals]
+    lo, hi = _PULSE_BAND_HZ
+    band = max(_goertzel_power(vals, f / 100.0, fs) for f in range(int(lo * 100), int(hi * 100) + 1, 6))
+    nlo, nhi = _PULSE_NOISE_BAND_HZ
+    ref = [_goertzel_power(vals, f / 10.0, fs) for f in range(int(nlo * 10), int(nhi * 10) + 1, 3)]
+    denom = sum(ref) / len(ref)
+    if not (denom > 0):
+        return None
+    return band / denom
+
+
+def pulse_prominence_worn(ppg, *, fs: float,
+                          threshold: float = _PULSE_PROMINENCE_MIN) -> "bool | None":
+    """Is this optical sensor on skin, judged by whether a pulse is present at all?
+
+    PURE, three-valued, same contract as the other worn detectors: `None` changes nothing downstream.
+
+    THE THRESHOLD IS THE GEOMETRIC MIDPOINT OF MEASURED POPULATIONS, not a round number. Corpus of
+    2026-08-15 — 12 windows across a worn night (55 Hz) and 10 across the docked morning (176 Hz):
+
+        worn   min  1985   median  33 950   max 18 161 494
+        dock   min   4.9   median      11.2 max      34.4
+
+    Worst-worn / worst-dock = **58x**, with nothing between. sqrt(34.4 x 1985) = 261, so 250 sits ~7x
+    above the loudest dock and ~8x below the quietest worn beat. Both margins are stated because a
+    threshold quoted without the distance to each population cannot be re-judged when the corpus grows.
+    """
+    p = pulse_prominence(ppg, fs=fs)
+    if p is None:
+        return None
+    return p > threshold
+
+
 def on_body(st: "dict | None") -> "bool | None":
     """PURE. Is this device on a body right now? `True` / `False` / `None` when unknown.
 
@@ -246,7 +329,8 @@ def on_body(st: "dict | None") -> "bool | None":
 
 def worn_verdict(*, ppi_flags=None, ambient=None, fs: float | None = None,
                  charging: bool | None = None,
-                 contact: bool | None = None) -> tuple[bool | None, str]:
+                 contact: bool | None = None,
+                 ppg=None) -> tuple[bool | None, str]:
     """Combine every worn detector that is AVAILABLE and IN DOMAIN into one verdict plus its reason.
 
     Returns `(verdict, why)`. `why` names which detectors voted, so "no verdict" is visible rather
@@ -297,6 +381,25 @@ def worn_verdict(*, ppi_flags=None, ambient=None, fs: float | None = None,
         spread = ambient_stability_worn(ambient, fs=fs)
         if spread is not None:
             votes.append(("ambient-stability", spread))
+    # ── A PULSE OVERRULES THE AMBIENT PROXIES, and only them ────────────────────────────────────────
+    # Both ambient detectors are PROXIES: stable-or-dark light ⇒ *probably* under skin. Pulse presence
+    # is the thing itself ⇒ perfused tissue. When the direct measurement contradicts the proxy, the
+    # direct one wins; that is not the general "worn if ANY" rule and it is deliberately narrow.
+    #
+    # ⚠️ IT MAY NOT OVERRULE A CONTACT BIT, and the asymmetry still holds for that. A false not-worn
+    # drops a live link and costs a night — a cold, poorly-perfused wrist can genuinely show no pulse.
+    # This verdict is published as `worn_optical`, which does NOT own the drop; the contact bit does.
+    # So the cost of being wrong here is a wrong diagnostic and a spurious conflict warning, not a lost
+    # recording. That is the only reason the override is affordable at all.
+    #
+    # Measured 2026-08-15, the morning a docked Verity streamed noise while ambient-stability called it
+    # worn: 12 windows across a worn night gave prominence 1985 .. 18 161 494; 10 docked windows gave
+    # 4.9 .. 34.4. 58x between the worst of each, nothing in between.
+    if ppg is not None:
+        pulse = pulse_prominence_worn(ppg, fs=fs)
+        if pulse is not None:
+            votes = [(n2, v) for (n2, v) in votes if not n2.startswith("ambient-")]
+            votes.append(("pulse-prominence", pulse))
     if not votes:
         return None, ("no worn detector is available and in domain"
                       + (f" at {fs:g} Hz" if fs is not None else " (PPG rate unknown)"))
@@ -350,6 +453,29 @@ def full_battery_implies_charging(level, seconds_flat, *, full_pct: int = _BATT_
     if lvl < full_pct or flat < min_flat_s:
         return None
     return True
+
+
+def note_flat_battery(store: dict, name: str, prev, lvl, now: float,
+                      *, min_flat_s: float = _BATT_FLAT_CHARGING_S) -> bool:
+    """Advance a device's flat-battery clock and say whether it now implies charging.
+
+    PURE apart from the `store` it is handed — which is the point: the clock lives in the CALLER's
+    module-level dict rather than in a connection-scoped local, so it survives a reconnect.
+
+    ⚠️ THAT IS THE WHOLE BUG THIS EXISTS TO FIX. The rule needs 2700 s of a battery not moving at 100 %.
+    While the clock was a local inside `run_polar`'s `async with _connect(...)` block, every dropped link
+    restarted the count — and a device in a dock is precisely a device that keeps dropping its link.
+    Measured 2026-08-15: the Verity reconnected at 10:03 / 10:10 / 10:15 / 10:20, gaps of 6.7, 4.9 and
+    5.0 min, streaming noise at 176 Hz with battery pinned at 100 and `charging` False throughout. The
+    guard was correct, wired, and structurally unreachable in the one scenario it was written for.
+
+    `prev` came from module-level STATUS and so already survived; only the clock did not. Half the rule
+    persisted and half reset, which is why the asymmetry was invisible from either half.
+    """
+    if prev != lvl or store.get(name) is None:
+        store[name] = now
+        return False
+    return bool(full_battery_implies_charging(lvl, now - store[name], min_flat_s=min_flat_s))
 
 
 def stream_health(nominal_fs, eff_fs, age_s, warmup: bool = False,

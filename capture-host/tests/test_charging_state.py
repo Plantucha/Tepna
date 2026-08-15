@@ -9,6 +9,7 @@
 # set to 1 in the sidecar. Two devices visibly charging, neither flagged.
 
 import oxyii
+import telemetry
 from tests._srcscan import module_source
 
 
@@ -88,7 +89,10 @@ def test_a_FULL_flat_battery_sets_charging_where_the_rising_rule_is_blind(tmp_pa
     T._polar_common(monkeypatch)
     # The predicate is stubbed rather than time-travelled: advancing `_time.monotonic` past 45 min
     # would also trip the 90 s stall watchdog and end the session before the second read.
-    monkeypatch.setattr(capture, "full_battery_implies_charging", lambda *_a, **_k: True)
+    # Patched at `note_flat_battery` rather than at `full_battery_implies_charging`: the clock now lives
+    # in a module-level store so it can survive reconnects, and the predicate is called from telemetry's
+    # namespace, where a patch on `capture.` cannot reach it.
+    monkeypatch.setattr(capture, "note_flat_battery", lambda *_a, **_k: True)
     c = T.FlexPolarClient(data_frames=[T._ppg_frame()], batt_level=100)
     T._inject_connect(monkeypatch, c)
     T._stop_after(monkeypatch, 130)          # past `secs % 120` → a SECOND battery read
@@ -114,7 +118,9 @@ def test_a_full_battery_that_has_NOT_been_flat_long_enough_sets_nothing(tmp_path
 
     capture._STOP = asyncio.Event()
     T._polar_common(monkeypatch)
-    monkeypatch.setattr(capture, "full_battery_implies_charging", lambda *_a, **_k: None)
+    # Same seam move as the positive case above: the predicate is now reached through
+    # `note_flat_battery`, whose store outlives the connection.
+    monkeypatch.setattr(capture, "note_flat_battery", lambda *_a, **_k: False)
     c = T.FlexPolarClient(data_frames=[T._ppg_frame()], batt_level=100)
     T._inject_connect(monkeypatch, c)
     T._stop_after(monkeypatch, 130)
@@ -123,3 +129,72 @@ def test_a_full_battery_that_has_NOT_been_flat_long_enough_sets_nothing(tmp_path
     assert st.get("battery") == 100
     assert st.get("charging") is not True, (
         f"a full battery alone is not a charger — only a full battery that has not MOVED is: {st}")
+
+
+# ── the flat-battery clock must OUTLIVE the connection ──────────────────────────────────────────────
+_FLAT = telemetry._BATT_FLAT_CHARGING_S
+
+
+def test_flat_clock_starts_on_first_sight_and_claims_nothing_yet():
+    store = {}
+    assert telemetry.note_flat_battery(store, "V", None, 100, 1000.0) is False
+    assert store["V"] == 1000.0
+
+
+def test_flat_clock_does_not_fire_before_the_window():
+    store = {"V": 1000.0}
+    assert telemetry.note_flat_battery(store, "V", 100, 100, 1000.0 + _FLAT - 1) is False
+
+
+def test_flat_clock_fires_once_the_window_passes():
+    store = {"V": 1000.0}
+    assert telemetry.note_flat_battery(store, "V", 100, 100, 1000.0 + _FLAT + 1) is True
+
+
+def test_a_moving_battery_restarts_the_clock():
+    store = {"V": 1000.0}
+    assert telemetry.note_flat_battery(store, "V", 100, 99, 5000.0) is False
+    assert store["V"] == 5000.0
+
+
+def test_below_full_never_fires_however_long_it_sits():
+    """The rising rule owns that range; flatness lower down is a slow drain and a coarse step at once."""
+    store = {"V": 1000.0}
+    assert telemetry.note_flat_battery(store, "V", 80, 80, 1000.0 + 10 * _FLAT) is False
+
+
+def test_THE_CLOCK_SURVIVES_RECONNECTS():
+    """⚠️ THE REGRESSION THIS FIX EXISTS FOR, and the old code could not pass it.
+
+    The clock used to be a local inside `run_polar`'s `async with _connect(...)` block, so every dropped
+    link reset it. A docked device is precisely one that keeps dropping its link — measured 2026-08-15,
+    the Verity reconnected at 10:03 / 10:10 / 10:15 / 10:20 while streaming noise at 176 Hz with battery
+    pinned at 100 and `charging` False throughout. 45 min of UNINTERRUPTED connection is exactly what the
+    scenario denies, so the guard was correct, wired, and structurally unreachable.
+
+    Here the store is owned by the caller and outlives the connection, so five short sessions add up."""
+    store = {}
+    t = 1000.0
+    telemetry.note_flat_battery(store, "V", None, 100, t)          # session 1 opens
+    fired = []
+    for session in range(1, 6):                                     # five ~10-minute sessions
+        for tick in range(10):
+            t += 60.0
+            fired.append(telemetry.note_flat_battery(store, "V", 100, 100, t))
+        # the link drops here; nothing in this loop touches `store`, which is the whole point
+    assert any(fired), "the clock never reached the window across reconnects — the bug is back"
+    assert fired.index(True) * 60 >= _FLAT - 60, "fired too early to be the real window"
+
+
+def test_a_reset_store_reproduces_the_OLD_broken_behaviour():
+    """The counterfactual, so the test above cannot pass for an unrelated reason: clearing the store at
+    each reconnect — what the connection-scoped local did — never reaches the window."""
+    t = 1000.0
+    fired = []
+    for session in range(5):
+        store = {}                                                  # ← the old per-connection local
+        telemetry.note_flat_battery(store, "V", None, 100, t)
+        for tick in range(10):
+            t += 60.0
+            fired.append(telemetry.note_flat_battery(store, "V", 100, 100, t))
+    assert not any(fired), "the counterfactual fired, so the regression test proves nothing"
