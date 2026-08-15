@@ -35,7 +35,7 @@ real-data papers (sigma, the odi-bias real arm, ppg-ecg-hrv-validation) and the 
 | cpap-flow-reference | REAL (n-of-1 methods) | n/a — generator-independent; 26 nights / 172 h real corpus (Draft v1, Jul) | drafted | **DRAFT** ↓R2 (new, 2026-07-22) |
 | acc-respiratory-rate | REAL (n-of-1) | n/a — generator-independent; 19,193 real epochs vs CPAP flow (Draft v1, Jul) | drafted | **DRAFT** ↓R2 (new, 2026-07-22) |
 | effort-typing-null | REAL (n-of-1, negative) | n/a — generator-independent; 401 scored events (Draft v1, Jul) | drafted | **PARKED** ↓R3 (new, 2026-07-22) |
-| known-clock-recovery | REAL (n-of-1, preregistered) | n/a — generator-independent; 61 BLE arrival streams + 101 RR trains over 21 nights (Draft v2) | done | **DONE** (new, 2026-08-14) ↓R4 |
+| known-clock-recovery | REAL (n-of-1, preregistered) | n/a — generator-independent; 61 BLE arrival streams + 101 RR trains + a paired ACC night over 21 nights (Draft v3) | done | **DONE** (new, 2026-08-14) ↓R4 |
 
 ## Open residuals on the 2026-07-22 additions
 
