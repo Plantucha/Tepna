@@ -658,10 +658,17 @@ GlucoDex ran a pre-fix DSP against real users' CGM data. So the claim is now **c
   **`tools/verify-fixtures.mjs`**, and only after a **green real-corpus run**.
 
 **What this means in practice:**
-- Re-verify after a compute-path change: **`DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs`**. It refuses
+- Re-verify after a compute-path change: **`node tools/verify-fixtures.mjs`**. It refuses
   to stamp if an input is missing or the suite is red — a verification you didn't run is precisely the false
   claim being abolished. If a fixture genuinely **moved**, regenerate it (`tools/regen-<node>-goldens.mjs`)
   first; never re-stamp around a moved output.
+  ⚠️ **Your worktree does not contain the corpus, and cannot** — the recordings are gitignored, so §👥.1's
+  mandated worktree holds only the tracked fifth of `uploads/` while §🔏's mandated re-run needs the other
+  four fifths. The tool now searches `$DEX_UPLOADS` → the **primary checkout**'s `uploads/` → this
+  checkout's, and prints that search when it refuses, so "absent" is a conclusion you can check rather
+  than a guess. `DEX_UPLOADS=<corpus>` still overrides. The data lives in **four** places and only the
+  first satisfies this tool — see [`docs/CORPUS-LOCATIONS.md`](docs/CORPUS-LOCATIONS.md), which also
+  records that the freshest nights are on `vigil` and that a *regeneration* may therefore be an `ssh` job.
 - **`tools/release.mjs` REFUSES to cut a release while any corpus-backed fixture is UNVERIFIED.** That is the
   wall — it would have blocked v1.10.1. CI reports the same thing but does **not** block (a contributor with
   no corpus cannot green it; harm materialises on ship, and the releaser is the one holding the corpus).
