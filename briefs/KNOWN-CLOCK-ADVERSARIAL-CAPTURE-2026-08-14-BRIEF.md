@@ -370,12 +370,57 @@ O2Ring 2611.7 vs 908.5 (meaningless — drawn axis).
 first had ever been asked.** §3.3 recovers an injected rate to 0.03 % *because the injection is large
 and coherent*; a device's own rate is neither.
 
-**Actionable: `ECG_AXIS_MIN_SPAN_MS = 2400 s` is roughly an order of magnitude too permissive.** In the
-300–3600 s band only **6 %** of streams have a rate above their own σ_y; extrapolating the H10's
-measured τ⁻¹ from 7.6 h (σ_y = 10.5 ppm) to 2400 s gives ≈ **120 ppm** against a true rate near 20.
-⚠ A claim of this shape was **made and withdrawn** in `HOSTAXIS-STABILITY` on weaker evidence (one file,
-a marginal endpoint estimator). It is re-opened here by a different method on 45 streams — it should be
-re-reviewed on this evidence, not waved through because it now agrees.
+## 🔴 WITHDRAWN — "`ECG_AXIS_MIN_SPAN_MS = 2400 s` is an order of magnitude too permissive"
+
+**This brief asserted that, and it is wrong.** Recorded rather than deleted, because it shipped in
+this brief, in `changes/2026-08-14-known-clock-corpus.md` and in `papers/known-clock-recovery.html`,
+and because the way it was wrong is more useful than the claim was.
+
+The reasoning was: only 6 % of streams in the 300–3600 s band have |ppm| > σ_y, therefore a gate
+admitting corrections at 2400 s admits noise. **That conflates two questions.**
+
+| question | test | answer under 1 h |
+|---|---|---|
+| is the rate **resolved** — quotable as distinguishable from zero? | \|ppm\| vs σ_y | **no** |
+| does applying the correction **reduce error**? | \|est − truth\| vs \|0 − truth\| | **yes** |
+
+A span gate governs the second. A point estimate can sit below its own noise floor and still be far
+closer to the truth than assuming zero — which is exactly what happens here.
+
+**Measured directly** (truth = the full-span rate, only on streams whose full-span estimate is itself
+resolved; the same stream then truncated):
+
+| span | n | med err **corrected** | med err **uncorrected** | correction helped |
+|---|---|---|---|---|
+| **2400 s** (shipped) | 11 | **8.41 ppm** | 22.27 ppm | **82 %** |
+| 4800 s | 11 | 4.71 ppm | 22.27 ppm | **100 %** |
+| 9600 s | 9 | 1.93 ppm | 22.19 ppm | **100 %** |
+
+**The gate is doing net good where it stands** — it more than halves the median error at 2400 s. The
+18 % harm cases are modest (worst: Verity truth −34.3 ppm, estimate −77.3, error 43.0 vs 34.3
+uncorrected). A raise to **4800 s** would remove the harm cases at the cost of refusing correction on
+fragments it currently improves; that is defensible, and it is a far smaller claim than the withdrawn
+one. **n = 9–11** — truth requires a resolved full-span estimate, so few streams qualify. Do not push
+this harder than that n allows.
+
+⚠ `HOSTAXIS-STABILITY` made a claim of this shape and withdrew it as *"marginal, not wrong"*. This
+brief re-opened it on stronger evidence and then **independently reproduced the reason it was
+withdrawn. The withdrawal was correct.** The σ_y result above is untouched — it licenses a caveat on
+**quoting** a ppm, not a change to a gate that governs **applying** one.
+
+### The within-stream span sweep that produced this (162 points, O2Ring + `ppi` excluded as drawn)
+
+| span | n | med \|ppm\| | med σ_y | resolved |
+|---|---|---|---|---|
+| 300 s | 38 | 134.33 | 1072.93 | 0 % |
+| 1200 s | 26 | 59.56 | 203.99 | 0 % |
+| **2400 s** | 21 | 32.95 | 86.16 | **5 %** |
+| 4800 s | 19 | 24.62 | 43.59 | 16 % |
+| 9600 s | 19 | 24.51 | 21.07 | **63 %** |
+| 19200 s | 6 | 22.33 | 11.95 | 67 % |
+
+σ_y halves as span doubles, consistent with the measured τ⁻¹ slope. Resolution crosses 50 % between
+4800 s and 9600 s (H10 88 % at 9600 s; Verity 45 %, and Verity never reaches it inside this corpus).
 
 ## Also confirmed at corpus scale
 
@@ -396,13 +441,104 @@ index all carry the paper), but **the gate did not surface it and would not surf
 Filed here rather than fixed: the fix belongs to whoever owns `build-docs.mjs`, and a wrong guess about
 what `docs/` should contain is worse than the gap.
 
-## Still not done (do not read Phase 2 as the whole experiment)
+---
 
-- **Injection at the `capture.py` write path.** Everything above perturbs the *sidecar*, so the capture
-  daemon is outside the loop; an acquisition-side defect would not be seen.
-- **Targets 6–8** — beat-matching errors need the RR/ECG substrate, not arrival stamps; sensor-specific
-  noise stays confounded with adapter assignment; host-induced artifacts need the 19.5 µs floor separated.
-- **A blind operator.** Criteria were preregistered and hashed, but the same agent injected and analysed.
+# Phase 3 — target 6, beat-matching errors (executed 2026-08-14)
+
+Tool: **`tools/beat-error-recovery.mjs`** (self-tested, seeded, no `Math.random`/`Date.now`).
+Substrate: **101 real H10 RR trains**, median 1440 beats, median true rMSSD 44.6 ms.
+
+**Why this target outranks everything in Phase 1–2.** A 30 ppm rate error moves a 7 h night by 0.75 s
+and moves rMSSD by ~0.003 %, because rMSSD is a first difference and a smooth rate error cancels.
+A single missed beat fuses two intervals into one ~2× normal, and rMSSD is *quadratic* in that. The
+two failure families are not the same size and only one of them had ever been measured here.
+
+| injection | RAW rMSSD err | ECG-Malik (0.20) | PPG-Malik (0.30) | ECG beats fixed |
+|---|---|---|---|---|
+| **miss 0.1 %** | **+20.8 %** | −22.0 % | −18.9 % | 3 |
+| miss 0.5 % | +114.4 % | −22.0 % | −19.6 % | 9 |
+| miss 2 % | +387.0 % | −22.0 % | −19.4 % | 31 |
+| miss 5 % | +614.5 % | −22.2 % | −17.8 % | 73 |
+| FP 0.1 % | +23.0 % | −22.0 % | −18.8 % | 8 |
+| FP 5 % | +293.2 % | −10.7 % | −4.6 % | 184 |
+| jitter 2 ms | +0.1 % | −22.0 % | −18.8 % | 3 |
+| jitter 30 ms | +15.3 % | −5.4 % | −3.9 % | 3 |
+| **NULL (clean)** | **0.00 %** | **−21.95 %** | **−18.85 %** | 3 |
+
+**One missed beat in a thousand inflates rMSSD by 20.8 %.** Mean RR moves 0.06 % for the same
+injection — so a summary HR looks perfect while the HRV metric is a fifth wrong. Detector accuracy
+and clock accuracy are not comparable quantities, and the suite had been measuring the smaller one.
+
+**The corrector lands on the same value regardless of what was injected** (−22 % at 0.1 % miss and at
+5 % miss alike). It is not converging on truth; it is converging on its own flattened estimate. It
+does remove the injected damage — +614 % → −22 % is a real repair — but it arrives at a fixed offset.
+
+**🔴 What this CANNOT distinguish, stated because the tempting conclusion is unsupported.** The
+"truth" here is the as-recorded device RR train, which already contains real ectopy and real detector
+artefacts. So the NULL row's **−21.95 %** has two readings that this experiment cannot separate:
+
+1. the corrector carries a ~22 % downward bias, or
+2. the raw train carries ~22 % of artefact-driven rMSSD inflation that the corrector correctly removes.
+
+**Do not cite this as "Malik is biased."** What it does establish is the *magnitude*: correcting a
+median of **3 beats out of 1440** (0.2 %) moves rMSSD by 22 %, because rMSSD is quadratic and its
+extremes dominate. The choice of corrector matters as much as a 1-in-1000 detector error rate.
+Separating (1) from (2) needs a train with independently-known beat truth — simultaneous ECG with
+manually adjudicated R-peaks — which this corpus does not contain.
+
+**Wrong-corrector cost, measured.** The suite applies a stricter Malik bound to ECG/Pulse than to
+optical PPG (300/2200/**0.20** vs 300/2000/**0.30**, intentional per `oxydex-dsp.js:92`). An earlier
+run of this tool used the PPG corrector on ECG-derived RR — the wrong one. On a synthetic train with
+one planted merged beat the ECG corrector recovers rMSSD to **8.1 ms against a truth of 8.1 ms**,
+correcting exactly 1 interval. Both legs are now reported side by side so attribution is explicit.
+
+**A third instance of the same tool bug.** This tool read `correctRR`'s return as `rr | corrected |
+out`; the shipped shape is `{ nn, tt, nCorr, flags }`. It matched nothing and recorded null for all
+101 streams, so the whole first corpus run printed `after Malik: n/a` while the corrector ran fine.
+Silence read as a result — the same failure as Phase 2's `stability.ok`. A regression assertion now
+requires both corrector legs to be *populated*.
+
+---
+
+# Phase 4 — the capture write path (executed 2026-08-14)
+
+Everything in Phases 1–3 perturbs the *sidecar*, which leaves the capture daemon outside the loop:
+decoding a PMD frame, stamping arrival and formatting the CSV all happen **before** the substrate
+those experiments touch. `capture-host` holds a 100 % coverage floor and had **no test following a
+clock relationship from a wire frame to a recovered rate**.
+
+`capture-host/tests/test_write_path_clock_recovery.py` closes it. A device clock running at a known
+offset goes in as raw PMD bytes; the **real** `decode_frame` parses it, the **real**
+`PmdArrivalLogWriter` writes it, the file is read back, and the rate is recovered from the written
+columns. Nothing is reimplemented — a test that formatted its own CSV would pass while the shipped
+formatter was broken, which is the gap being closed.
+
+Planted **0 / +50 / −50 / +200 ppm** over a 40-min synthetic session at 130 Hz; each recovered to
+within **2 ppm** at the correct sign (host−device, so a fast device reads negative). Two properties
+are pinned separately because the rate test alone does not cover them: the arrival stamp keeps
+**millisecond** resolution (a whole-second stamp makes every rate under ~400 ppm unrecoverable while
+the 200 ppm case still passes), and a missing device stamp is written **blank, never a fabricated 0**
+— §2.6's rule applied to the write path.
+
+**The tests were verified by breaking the code, not by passing.** Truncating `_phone_ts` to whole
+seconds kills 3 of 4; making the blank-field helper emit `"0"` kills the fourth. Both mutants were
+reverted and `writers.py` is byte-identical. A first-run pass proves nothing here — the repo's own
+lesson (`ui-export-paths-broken`) is that a gate is evidence only once you have seen it fail.
+
+⚠ `shellcheck` is **absent on this machine** (exit 127). That is a missing tool, not a failing gate,
+and it is called out because `check.sh` prints it beside real failures.
+
+## Still not done
+
+- **A blind operator.** Criteria were preregistered and hashed, but the same agent injected and
+  analysed. §3.6b — a claim this brief made and then withdrew — is the live demonstration: it was
+  caught only because that same operator ran one more measurement. Handing the analysis to a
+  different session is the only real fix.
+- **Beat truth.** Phase 3 cannot separate "the corrector is biased" from "the raw train carries
+  ~22 % artefact inflation" without independently adjudicated R-peaks, which no corpus here contains.
+- **Sensor noise is stream-attributed, not device-attributed.** §3.10 escapes the adapter confound by
+  comparing two streams on one device, which is enough to place the noise on the Verity accelerometer
+  but not enough to say a *device* is noisier than another.
 
 ## Cross-references
 

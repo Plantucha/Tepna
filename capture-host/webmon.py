@@ -207,6 +207,20 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         # trustworthy, a night captured under an uncorrectable clock was downstream
                         # indistinguishable from a good one.
                         "clock_uncorrectable": st.get("clock_uncorrectable"),
+                        # A RATE THE DEVICE REFUSED. capture.py logs it with the words "the config
+                        # still says %s; nothing else will tell you it did not happen" — and then
+                        # published `rate_unmet` to STATUS, where nothing read it. The log line was
+                        # more literally true than its author intended. It matters because the config
+                        # keeps claiming the rate you asked for: a Verity negotiated down from 176 Hz
+                        # is a different recording, and only this field says so after the fact.
+                        "rate_unmet": st.get("rate_unmet"),
+                        # WHEN THIS DEVICE LAST PRODUCED A SAMPLE. Published on every write and read by
+                        # nothing until now. `nightqc` computes a per-night `silent_sec` and the frozen-
+                        # sensor alert fires off it, but that is a NIGHT summary — an operator watching
+                        # the card mid-session had no way to see a stream that stopped four minutes ago
+                        # while the link stayed up. That is the same failure the frozen alert exists for,
+                        # one time-scale down.
+                        "last_sample": st.get("last_sample"),
                         "pull_progress": st.get("pull_progress"),
                         # link_epoch (E5) is the reconnect count — the honest churn signal a green
                         # "connected" dot hides. A device that flaps all night reads "connected" at every

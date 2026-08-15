@@ -845,7 +845,8 @@ _UNCHECKED = object()
 
 def defense_warnings(autosuspend_value: "str | None", capeff_hex: "str | None", *,
                      usb_path=_UNCHECKED, archive_enabled=_UNCHECKED,
-                     archive_dest_ready: "bool | None" = None) -> list[str]:
+                     archive_dest_ready: "bool | None" = None,
+                     helper_warnings=()) -> list[str]:
     """PURE (testable): given the pinned adapter's USB `power/control` value ('auto' | 'on' | None if
     unknown) and the process CapEff hex ('0000…' | None), return the LOUD startup warnings for any wedge
     defense that is DISARMED. Empty when everything is armed.
@@ -909,6 +910,22 @@ def defense_warnings(autosuspend_value: "str | None", capeff_hex: "str | None", 
             "archive is enabled but its destination is NOT ready (not mounted) — the mirror will write "
             "into an empty mountpoint on the boot disk and report success. Check the target in the "
             "monitor's Storage card.")
+    # A PRIVILEGED HELPER RESOLVED FROM A PATH THE GRANTED USER CAN REWRITE. `helper_path.grant_warning`
+    # has always been able to detect this and, until 2026-08-14, was called by nothing outside its own
+    # tests — a correct answer with no consumer, which is this box's most-repeated defect shape.
+    #
+    # It is reachable, not hypothetical: `resolve()` falls back to the in-repo copy when no system copy
+    # exists, that copy is `-rwxrwxr-x vigil` on the real box, and `daemon_control.build_cmd` prefixes
+    # `sudo -n` to whatever it returns. Today it degrades legibly only by accident — sudoers is scoped to
+    # /usr/local/lib/tepna/*, so the call is REFUSED rather than escalated. That is the second line of
+    # defence doing the first line's job, and it stops being true the moment a grant is widened.
+    #
+    # ⚠️ A PLAIN () DEFAULT, NOT `_UNCHECKED`, and the difference from `usb_path` above is the point.
+    # For a single value, "not looked" and "looked and it was empty" are different verdicts, which is why
+    # those parameters carry the sentinel. For a LIST OF WARNINGS they are not: both produce no warning,
+    # so a sentinel here would be decoration that reads like rigour. Found by mutation — swapping the
+    # sentinel for () changed nothing observable, which is the definition of decorative.
+    out.extend(helper_warnings or [])
     return out
 
 
@@ -926,6 +943,39 @@ def _usb_power_control_path(hci: str) -> "str | None":
     except Exception:
         pass
     return None
+
+
+def _gather_helper_warnings() -> list[str]:
+    """One warning per privileged helper that would be sudo-run from a path the granted user can rewrite.
+
+    ⚠️ PER-HELPER try, NOT one around the loop. A single unreadable path would otherwise abort the sweep
+    and silence every helper after it — and the LOOP ORDER would then decide which defences got reported.
+    A self-test that goes quiet because one input failed is exactly the fail-open shape it exists to
+    refuse. Bounded and never raising, like the other gatherers: a self-test must not stop capture.
+
+    Asks about every helper invoked under sudo ANYWHERE (`helper_path.SUDO_HELPERS`), not only the three
+    this module resolves — clockcfg and link_rssi resolve others, and a per-call-site check is precisely
+    what left `grant_warning` with no caller at all until 2026-08-14."""
+    # ⚠️ ONLY ON A DEPLOYED HOST, and this gate is not cosmetic. In ANY development checkout the helpers
+    # are repo-local and never root-owned, so an ungated check warns five times at every startup about a
+    # path that holds no sudoers grant and never will. A self-test that always fires teaches the operator
+    # to stop reading it — the same way the retired `smeared` canary arm fired on every stream.
+    #
+    # The presence of the system dir IS the discriminator: it exists exactly where a NOPASSWD grant on
+    # `/usr/local/lib/tepna/*` plausibly exists. That makes the surviving signal the one that actually
+    # bit on 2026-08-14 — a deployed box where a helper is MISSING from the system dir, so `resolve()`
+    # silently falls back to the vigil-writable checkout beneath a `sudo -n`.
+    if not os.path.isdir(helper_path.SYSTEM_DIRS[0]):
+        return []
+    out: list[str] = []
+    for name in helper_path.SUDO_HELPERS:
+        try:
+            w = helper_path.grant_warning(helper_path.resolve(name))
+        except Exception:                # pragma: no cover — grant_warning already swallows OSError
+            continue
+        if w:
+            out.append(w)
+    return out
 
 
 async def startup_defense_check(hci: "str | None", cfg: "dict | None" = None) -> None:
@@ -955,7 +1005,10 @@ async def startup_defense_check(hci: "str | None", cfg: "dict | None" = None) ->
         pass
     # Config-derived defenses. Only judged when a cfg was passed — a check that cannot see its input must
     # not report "armed", which is the exact failure this whole self-test exists to prevent.
-    kw: dict = {}
+    # Ask about every helper that is invoked under sudo anywhere, not only the ones THIS module resolves —
+    # capture.py resolves three, clockcfg and link_rssi resolve others, and a per-call-site check is what
+    # left this unwired in the first place.
+    kw: dict = {"helper_warnings": _gather_helper_warnings()}
     if cfg is not None:
         wcfg = (cfg.get("watchdog") or {})
         acfg = (cfg.get("archive") or {})
@@ -1192,6 +1245,25 @@ def device_absent_error(exc: BaseException) -> bool:
 # sensors. Classify it so the log says "adapter connection ceiling", not a generic link error.
 _CEILING_SIGNS = ("connection-profile-unavailable", "too many", "no resources", "connection limit",
                   "max connections", "host is down")
+
+
+def link_error_text(exc: BaseException) -> str:
+    """The operator-facing description of a failed connect — ONE formatter for every link-error site.
+
+    `connection_ceiling_error` has been able to tell these apart since it was written, and until
+    2026-08-14 nothing called it. The comment above it says *"classify it so the log says 'adapter
+    connection ceiling', not a generic link error"*, and all THREE sites logged the generic form anyway.
+    The two failures want opposite responses — a ceiling is over-provisioning you fix at the adapter, an
+    absent sensor is a battery or a strap — and `TimeoutError()` reads identically either way, which is
+    VIGIL-DEEP-ANALYSIS §2D's complaint that an over-provisioned dongle "looks like flapping sensors".
+
+    Single-sourced deliberately, and the count is why: a grep that stopped at the first two sites would
+    have left the third drifting. The charging rule was written twice and only one copy checked
+    `charging` — the same failure, one file over."""
+    if connection_ceiling_error(exc):
+        return ("ADAPTER CONNECTION CEILING — the adapter is out of link slots, so this is "
+                "over-provisioning and NOT an absent sensor: %r" % (exc,))
+    return "link error: %r" % (exc,)
 
 
 def connection_ceiling_error(exc: BaseException) -> bool:
@@ -2398,7 +2470,7 @@ async def run_polar(dev: dict, root: str):
                 continue
             _OPT_QUIET.discard(addr)
             _set(name, connected=False, last_error=repr(e))
-            log.warning("%s link error: %r", name, e)
+            log.warning("%s %s", name, link_error_text(e))
             # A ONE-SIDED BOND. is_bonded() reads the HOST's view, so a device-side factory reset (Polar
             # Flow offers one) leaves BlueZ reporting `Bonded: yes` while the sensor has forgotten us.
             # ensure_bonded() then short-circuits forever and the strap drops service discovery on every
@@ -2633,7 +2705,7 @@ async def run_viatom(dev: dict, root: str):
                         break
         except Exception as e:
             _set(name, connected=False, last_error=repr(e))
-            log.warning("%s link error: %r", name, e)
+            log.warning("%s %s", name, link_error_text(e))
         finally:
             if wr:
                 _empty, _p = not wr.rows, wr.path      # discard header-only files, as run_polar does
@@ -2995,7 +3067,7 @@ async def run_oxyii(dev: dict, root: str):
                         break
         except Exception as e:
             _set(name, connected=False, last_error=repr(e))
-            log.warning("%s link error: %r", name, e)
+            log.warning("%s %s", name, link_error_text(e))
         finally:
             try:
                 oxy_arr_wr.close()

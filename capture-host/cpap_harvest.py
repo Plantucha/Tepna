@@ -602,7 +602,6 @@ def _wpa_dir(root: str | None = None) -> str:
     return cands[-1]                                    # nothing worked; the caller warns and carries on
 
 
-_WPA_DIR = "/tmp/tepna-wpa-%d" % os.getuid()  # module default for CLI/test use; the daemon passes a root
 # ctrl_interface is a PARAMETER, not a module constant: the directory is probed per call (see
 # _wpa_dir), so baking it in at import time would hand wpa_supplicant a path the daemon cannot write.
 _WPA_CONF = ('ctrl_interface={ctrl}\nctrl_interface_group=0\n'

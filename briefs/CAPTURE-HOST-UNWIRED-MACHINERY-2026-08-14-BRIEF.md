@@ -112,12 +112,11 @@ encode the same rule — *a charging device cannot be on a body* — and only on
 
 ## 5 · Minor: defined, never used
 
-- [ ] `last_sample` — published at `capture.py:1939` and `:2896`, read by nothing. It is a per-stream
+- [x] **DONE.** `last_sample` — published at `capture.py:1939` and `:2896`, read by nothing. It is a per-stream
       freshness stamp, which is what §2's DEAD detector wants; wire it or drop it.
-- [ ] `oxyii.oxy_is_finalized:596` — tests only.
-- [ ] `offline_lock.busy_with` — tests only.
-- [ ] `cpap_harvest._WPA_DIR:609` — comments itself as "module default for CLI/test use"; nothing uses it,
-      so even that is stale.
+- [x] **ALLOWLISTED, investigated.** Redundant: `pull_session.py` already gates re-pulls on finalisation via `parse_trailer`, which that caller needs anyway for the device summary. `oxyii.oxy_is_finalized:596`.
+- [x] **ALLOWLISTED, investigated.** Redundant: `offline_lock.slot()` raises `OfflineBusy(_busy)`, so the label already reaches callers as `e.holder`. `offline_lock.busy_with`.
+- [x] **DELETED.** `cpap_harvest._WPA_DIR` — its own comment claimed a CLI/test use that did not exist.
 
 ## 6 · The detector, because five instances is a pattern
 
@@ -156,7 +155,7 @@ It also **correctly did not report** `tool` or `timespec` — the two false posi
 produced — and correctly treats `prune_old_nights` / `unarchived_nights` as wired despite their being
 passed to `asyncio.to_thread` without parentheses.
 
-- [ ] `rate_unmet` and `connection_ceiling_error` are §1/§2-class, not §5: surface the first to a
+- [x] **DONE #1269.** `rate_unmet` and `connection_ceiling_error` are §1/§2-class, not §5: surface the first to a
       consumer, wire the second where connect failures are classified. Own work-unit.
 
 ## 7 · What this audit checked and REJECTED — do not "fix" it

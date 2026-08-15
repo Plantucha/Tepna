@@ -268,3 +268,36 @@ def test_usb_rebind_does_not_call_the_helper_when_the_direct_write_worked(monkey
     monkeypatch.setattr(builtins, "open", ok)
     assert _aio.run(capture._usb_rebind("3-1")) is True
     assert called == []
+
+
+def test_a_connection_ceiling_is_NAMED_not_logged_as_a_generic_link_error():
+    """⚠️ THE PREDICATE THAT COULD ALWAYS TELL THESE APART, AND WAS CALLED BY NOTHING.
+
+    The comment above `_CEILING_SIGNS` says it outright — *"classify it so the log says 'adapter
+    connection ceiling', not a generic link error"* — and all three link-error sites logged the generic
+    form anyway. The two failures want OPPOSITE responses: a ceiling is over-provisioning you fix at the
+    adapter, an absent sensor is a battery or a strap. `TimeoutError()` reads identically either way,
+    which is VIGIL-DEEP-ANALYSIS §2D's complaint that an over-provisioned dongle looks like flapping
+    sensors."""
+    ceiling = capture.link_error_text(RuntimeError("org.bluez.Error.Failed: br-connection-profile-unavailable"))
+    assert "ADAPTER CONNECTION CEILING" in ceiling
+    assert "NOT an absent sensor" in ceiling
+    plain = capture.link_error_text(TimeoutError("connect timed out"))
+    assert "CEILING" not in plain and "link error:" in plain
+
+
+def test_EVERY_link_error_site_routes_through_the_one_formatter():
+    """Three sites, and a grep that stopped at the first two would have left the third drifting — which
+    is exactly how the "a charging device cannot be on a body" rule came to be written twice with only
+    one copy checking `charging`."""
+    import io
+    import tokenize
+    from tests._srcscan import module_source
+    src = module_source("capture.py")
+    code = tokenize.untokenize([t for t in tokenize.generate_tokens(io.StringIO(src).readline)
+                                if t.type != tokenize.COMMENT])
+    assert 'log.warning("%s link error: %r", name, e)' not in code, (
+        "a link-error site is still logging the unclassified form")
+    assert code.count("link_error_text(e)") == 3, (
+        "expected all three sites to route through the formatter, found %d"
+        % code.count("link_error_text(e)"))

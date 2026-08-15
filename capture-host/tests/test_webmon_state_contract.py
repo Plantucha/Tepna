@@ -52,7 +52,8 @@ DEVICE_KEYS = {
     "name", "vendor", "model", "device_id", "device_id_aliases", "name_aliases", "address", "streams",
     "connected", "battery", "rssi", "clock_synced", "device_time", "clock_skew_sec", "pull_progress",
     "link_epoch", "worn", "worn_why", "worn_optical", "worn_optical_why", "charging", "last_error",
-    "clock_uncorrectable",
+    "clock_uncorrectable", "rate_unmet",
+    "clock_uncorrectable", "last_sample",
 }
 
 
@@ -195,3 +196,26 @@ def test_a_device_that_never_reported_gets_None_not_a_fabricated_False(tmp_path)
     must stay visible as unknown rather than being defaulted into a reassuring answer."""
     body = _state(tmp_path, [{"name": "H10", "address": "AA"}], {"H10": {"connected": True}})
     assert body["devices"][0]["clock_uncorrectable"] is None, body["devices"][0]
+
+
+def test_rate_unmet_REACHES_the_monitor(tmp_path):
+    """⚠️ THE FIELD WHOSE OWN LOG LINE SAID NOBODY WOULD SEE IT.
+
+    `capture.py` warns "configured rate %s Hz was NOT offered by the device — capturing at %s Hz
+    instead … The config still says %s; nothing else will tell you it did not happen", then publishes
+    `rate_unmet` so something CAN tell you. Nothing read it, so the sentence was literally true.
+
+    It is not cosmetic: the config keeps claiming the rate that was asked for, so a Verity negotiated
+    down from 176 Hz to 55 Hz produces a materially different recording that looks correctly configured
+    for as long as anyone reads the config instead of this field."""
+    body = _state(tmp_path, [{"name": "Verity", "address": "AA"}],
+                  {"Verity": {"connected": True,
+                              "rate_unmet": {"ppg": {"want": 176, "got": 55}}}})
+    got = body["devices"][0]["rate_unmet"]
+    assert got == {"ppg": {"want": 176, "got": 55}}, body["devices"][0]
+
+
+def test_a_device_that_got_every_rate_it_asked_for_reports_None(tmp_path):
+    """Absent is not "negotiated down to something" — the honest empty, not a fabricated one."""
+    body = _state(tmp_path, [{"name": "Verity", "address": "AA"}], {"Verity": {"connected": True}})
+    assert body["devices"][0]["rate_unmet"] is None

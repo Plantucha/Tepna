@@ -118,3 +118,29 @@ def test_an_ALLOWLISTED_function_is_reported_as_allowed_not_hidden(tmp_path, mon
     out = capsys.readouterr().out
     assert "(allowed)" in out and "synthetic reason" in out
     assert "0 unexplained, 1 allowed" in out
+
+
+def test_the_scanner_does_NOT_count_its_own_allowlist_as_usage():
+    """⚠️ THE DETECTOR COMMITTING ITS OWN DEFECT CLASS, found 2026-08-14 by using it.
+
+    The allowlist NAMES the functions it excuses. `os.walk` reads `tools/` into the corpus, so each
+    entry counted as a usage — and the row then vanished from the report ENTIRELY instead of printing as
+    "(allowed)". That is the precise inversion of the design: *a suppression you cannot see is how the
+    next real finding hides behind a stale entry.* Adding three entries silently removed three rows.
+
+    A scanner must not read its own suppression file as evidence the code is wired."""
+    res = find_unwired.scan()
+    allowed = {r["func"] for r in res["orphan_functions"] if r["allowed"]}
+    assert "predict_step_split" in allowed, (
+        "an allowlisted function must still be REPORTED, with its reason — not silently absent")
+    assert "busy_with" in allowed and "oxy_is_finalized" in allowed
+
+
+def test_every_allowlisted_function_still_appears_in_the_report(capsys):
+    """The count line must separate the two populations, so a growing allowlist is visible rather than
+    quietly shrinking the finding list."""
+    find_unwired.main([])
+    out = capsys.readouterr().out
+    assert "unexplained," in out and "allowed" in out
+    for name in ("predict_step_split", "busy_with", "oxy_is_finalized"):
+        assert name in out, f"{name} is allowlisted but absent from the report"

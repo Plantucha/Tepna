@@ -18,9 +18,20 @@
 from __future__ import annotations
 import os
 
-# Root-owned deploy targets, most-preferred first. /opt/tepna is the path the CAPTURE-HOST brief uses on
-# the real box; /usr/local/lib/tepna suits a workstation where the repo sits on a non-root filesystem.
+# Where `resolve` looks, most-preferred first.
+#
+# ⚠️ ONLY THE FIRST IS A ROOT-OWNED DEPLOY TARGET. This comment used to call BOTH "root-owned deploy
+# targets", which is false and load-bearing: `/opt/tepna/capture-host` is the CHECKOUT, and it is
+# vigil-owned BY DESIGN — `tepna-update.sh` has to be able to write it to complete a deploy. So the
+# second entry is a DEVELOPMENT FALLBACK, and a path resolved from it must never hold a sudoers grant.
+# Measured on the box: `-rwxrwxr-x vigil`. `grant_warning` below exists to say so out loud, and until
+# 2026-08-14 nothing called it.
 SYSTEM_DIRS = ("/usr/local/lib/tepna", "/opt/tepna/capture-host")
+
+# Every helper this codebase invokes under sudo. Listed HERE so the boot self-test can check them in one
+# place, rather than each call site remembering to — which is how the check came to exist with no caller.
+SUDO_HELPERS = ("tepna-restart.sh", "tepna-btreset.sh", "tepna-usbreset.sh",
+                "tepna-clock.sh", "tepna-rssi.sh")
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
 
