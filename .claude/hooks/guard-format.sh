@@ -20,10 +20,23 @@
 # share the tree — so the common state is a hook that exists in-repo and runs for
 # nobody. Verified still true here: no `core.hooksPath`, no `.git/hooks/pre-commit`.
 #
-# `.claude/settings.json` does not have that problem. It is checked in, and every
-# session loads it automatically — which is exactly how `guard-shared-tree.sh` and
-# `guard-stale-brief.sh` already work. So this is the same idea as the declined git
-# hook, installed by a mechanism that actually reaches the sessions that commit.
+# `.claude/settings.json` is a better mechanism: it is checked in, so it installs by
+# being merged rather than by anyone running a command — which is exactly how
+# `guard-shared-tree.sh` and `guard-stale-brief.sh` already work.
+#
+# ⚠ BUT IT IS NOT AUTOMATIC, AND THE FIRST DRAFT OF THIS HEADER OVERSTATED IT. A
+# session reads `.claude/settings.json` from ITS OWN project checkout, so a hook
+# takes effect only once that checkout has pulled. Measured immediately after this
+# landed: the shared root was 92 commits behind, with neither the wiring nor this
+# script — so for a window after merge, this guard was in-repo and running for
+# NOBODY, which is the exact property the git hook was declined for. The difference
+# is real but narrower than "automatic": a git hook needs `core.hooksPath` set and
+# stays off forever; this needs a `git pull` and then stays on.
+#
+# It degrades safely, verified rather than assumed: a checkout with the wiring but
+# not the script runs `bash <missing>` -> exit **127**, and the harness denies only
+# on 2. So a half-synced checkout ALLOWS. Both halves fail open, in the same
+# direction as the no-Biome case below.
 #
 # ⚠ IT CHECKS THE STAGED PATHS EXPLICITLY, NOT `--changed`. Measured 2026-08-15:
 # `biome ci --changed --since=origin/main` exited 0 on a format-only violation that
