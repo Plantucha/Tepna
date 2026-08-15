@@ -144,3 +144,98 @@ def test_every_allowlisted_function_still_appears_in_the_report(capsys):
     assert "unexplained," in out and "allowed" in out
     for name in ("predict_step_split", "busy_with", "oxy_is_finalized"):
         assert name in out, f"{name} is allowlisted but absent from the report"
+
+
+def test_check_mode_FAILS_on_anything_unexplained(tmp_path, monkeypatch, capsys):
+    """⚠️ A GATE YOU HAVE NOT SEEN FAIL IS NOT A GATE — this suite's most-repeated lesson, applied to
+    the gate built from it.
+
+    `--check` only became honest after the allowlist was curated: on 2026-08-14 this reported 13
+    unexplained functions, every one needing a human decision. Failing CI on that list would have
+    trained people to silence it, which is the same defect one level up. With the count at 0, the floor
+    is defensible — a NEW unexplained orphan means something was just added and wired to nothing."""
+    root = _tree(tmp_path, {"m.py": "def nobody_calls_me():\n    return 1\n"})
+    monkeypatch.setattr(find_unwired, "HERE", root)
+    assert find_unwired.main(["--check"]) == 1
+    assert "unexplained" in capsys.readouterr().out
+
+
+def test_check_mode_PASSES_when_everything_is_wired_or_explained(tmp_path, monkeypatch, capsys):
+    """The other direction, so the gate cannot be green by never looking — the exact failure this whole
+    detector exists to find."""
+    root = _tree(tmp_path, {"m.py": "def helper():\n    return 1\n\n\ndef caller():\n    return helper()\n"})
+    monkeypatch.setattr(find_unwired, "HERE", root)
+    monkeypatch.setitem(find_unwired.ALLOW_FUNCS, "caller", "synthetic entry point")
+    assert find_unwired.main(["--check"]) == 0
+    assert "0 unexplained" in capsys.readouterr().out
+
+
+def test_a_BARE_run_still_exits_zero_so_it_can_be_read_without_gating():
+    """The report stays usable as a report. Only `--check` enforces."""
+    assert find_unwired.main([]) == 0
+
+
+# ── scan 3 · forwarded but never drawn ──────────────────────────────────────────────────────────────
+_WEBMON = ('def p(st):\n    return {"connected": 1, "battery": st.get("battery"),\n'
+           '            "drawn": st.get("drawn"), "hidden": st.get("hidden")}\n')
+
+
+def test_a_field_webmon_forwards_but_the_monitor_never_draws_is_REPORTED(tmp_path):
+    root = _tree(tmp_path, {"webmon.py": _WEBMON, "monitor.html": "<b>${dev.drawn}</b>"})
+    keys = [r["key"] for r in find_unwired.scan(root)["orphan_rendered"]]
+    assert "hidden" in keys and "drawn" not in keys
+
+
+def test_forwarding_alone_does_not_satisfy_it__that_is_the_orphan_one_layer_along(tmp_path):
+    """Scan 1 counts `webmon.py` as a consumer, so forwarding a key satisfies it while the key still
+    reaches nobody's eyes. `worn_why` makes the argument itself: the daemon logs the conflict, and a log
+    line does not reach the person looking at the monitor — which applies one layer further on too."""
+    root = _tree(tmp_path, {"capture.py": 'def f():\n    _set(n, hidden=1)\n',
+                            "webmon.py": _WEBMON, "monitor.html": "<b>nothing</b>"})
+    res = find_unwired.scan(root)
+    assert not [r for r in res["orphan_status_keys"] if r["key"] == "hidden"]   # scan 1 is satisfied
+    assert [r for r in res["orphan_rendered"] if r["key"] == "hidden"]          # scan 3 is not
+
+
+def test_losing_the_AST_ANCHOR_reds_rather_than_reporting_zero(tmp_path):
+    """FAIL LOUD, NOT OPEN. An anchor that stops matching returns an empty key set, and an empty set
+    reports `0 unexplained` forever — a scan that examines nothing and calls it clean, which is the
+    exact class this tool exists to name."""
+    root = _tree(tmp_path, {"webmon.py": 'def p(st):\n    return {"nothing": 1}\n',
+                            "monitor.html": "<b>x</b>"})
+    rows = find_unwired.scan(root)["orphan_rendered"]
+    assert len(rows) == 1 and "projection not found" in rows[0]["key"]
+    assert rows[0]["allowed"] is None                      # unexplained ⇒ --check exits 1
+
+
+def test_no_webmon_or_no_monitor_reports_nothing_rather_than_crashing(tmp_path):
+    assert find_unwired.scan(_tree(tmp_path, {"webmon.py": _WEBMON}))["orphan_rendered"] == []
+
+
+# ── scan 4 · a handler with no control ──────────────────────────────────────────────────────────────
+def test_a_monitor_handler_nothing_calls_is_REPORTED(tmp_path):
+    root = _tree(tmp_path, {"monitor.html":
+                            "<button onclick='used()'>x</button>"
+                            "<script>function used(){} function orphaned(){}</script>"})
+    names = [r["func"] for r in find_unwired.scan(root)["orphan_js"]]
+    assert names == ["orphaned"]
+
+
+def test_a_key_referenced_only_INSIDE_a_dead_handler_is_still_caught(tmp_path):
+    """Scan 3 greps the file, and the helper's own body contains the key — so deleting the call site left
+    scan 3 green while the field reached nobody. Measured on `lastSampleText` before scan 4 existed; the
+    definition is not a use, which is scan 2's rule applied to the page."""
+    root = _tree(tmp_path, {"webmon.py": _WEBMON,
+                            "monitor.html": "<script>function draw(d){return d.hidden;}</script>"})
+    res = find_unwired.scan(root)
+    assert not [r for r in res["orphan_rendered"] if r["key"] == "hidden"]   # grep is satisfied…
+    assert [r for r in res["orphan_js"] if r["func"] == "draw"]             # …the handler is dead
+
+
+def test_scan_4_allowlist_reports_rather_than_hides(tmp_path, monkeypatch, capsys):
+    root = _tree(tmp_path, {"monitor.html": "<script>function orphaned(){}</script>"})
+    monkeypatch.setattr(find_unwired, "HERE", root)
+    monkeypatch.setattr(find_unwired, "ALLOW_JS", {"orphaned": "a documented reason"})
+    assert find_unwired.main(["--check"]) == 0
+    out = capsys.readouterr().out
+    assert "(allowed)" in out and "a documented reason" in out
