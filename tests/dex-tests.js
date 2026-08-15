@@ -19857,6 +19857,24 @@
       T.eq('BLOCKED with checks running WAITS', d(OPEN('BLOCKED', { pass: 19, pending: 1 })).action, 'wait');
       T.eq('UNKNOWN mergeability WAITS — GitHub is still computing it', d(OPEN('UNKNOWN', { pass: 22 })).action, 'wait');
       T.eq('CLEAN + green merges', d(OPEN('CLEAN', { pass: 22 })).action, 'merge');
+      /* ── A PENDING CHECK THAT CANNOT BLOCK THE MERGE ────────────────────────────────────────────
+         Measured 2026-08-14 across #1259 and #1269: both timed out here at 45 minutes with `still
+         UNSTABLE` while `mutation (diff-scoped)` ran, and both were mergeable the whole time. That
+         context is advisory — not in the ruleset's required set — and #1259 merged INSTANTLY once
+         auto-merge was armed, with 22 passing and the same check still pending. ~90 minutes spent
+         proving a check could not block. `pending` counted every context; the required set was already
+         read for the missing-context rule and simply was not used here. */
+      T.eq('an ADVISORY pending check does not hold a green PR', d(OPEN('CLEAN', { pass: 22, pending: 1 }, { requiredPending: 0 })).action, 'merge');
+      T.ok(
+        '…and the merge SAYS an advisory check was still in flight',
+        /advisory/.test(d(OPEN('CLEAN', { pass: 22, pending: 1 }, { requiredPending: 0 })).why),
+        'merging past it silently is the other half of the same defect — the mutation red already ' + 'merges unnoticed, and a tool that quietly outruns it makes that worse'
+      );
+      T.eq('a REQUIRED pending check still waits', d(OPEN('CLEAN', { pass: 20, pending: 3 }, { requiredPending: 3 })).action, 'wait');
+      /* ⚠️ AN UNREADABLE REQUIRED SET MUST NOT BECOME PERMISSION — same asymmetry as the `readable`
+         guard: a spurious wait costs one poll, a spurious merge cannot be undone. */
+      T.eq('required set unreadable → falls back to waiting on ALL pending', d(OPEN('CLEAN', { pass: 22, pending: 1 })).action, 'wait');
+      T.eq('a FAILURE still outranks the advisory exemption', d(OPEN('BEHIND', { pass: 20, fail: 2 }, { requiredPending: 0 })).action, 'fail');
 
       /* ── AN UNREADABLE SNAPSHOT IS NOT AN EMPTY ONE ──────────────────────────────────────────
          Measured 2026-08-12 on #1183. A `net/http: TLS handshake timeout` from the GraphQL API made

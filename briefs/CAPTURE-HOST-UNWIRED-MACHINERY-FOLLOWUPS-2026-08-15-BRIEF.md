@@ -64,7 +64,7 @@ The tool's decision core distinguishes four states — `BEHIND` · `BLOCKED` wit
 `UNKNOWN` mergeability · a never-reported required context — but not **"pending check outside the
 required set"**.
 
-- [ ] Teach it the required-context set (`gh api repos/…/rulesets`) and treat a pending non-required
+- [x] **DONE.** Teach it the required-context set (`gh api repos/…/rulesets`) and treat a pending non-required
       check as ignorable rather than as a reason to wait.
 - [ ] Until then, prefer arming auto-merge and keeping the branch current; `BEHIND` is the only state
       that actually stalls a green PR under `strict = true`.
@@ -86,4 +86,4 @@ Two of the three second-run failures were **environment-dependent**, and both re
 - [ ] §1's three pairs are wired or allowlisted with reasons, and the detector's unexplained count
       reaches 0 or a stated floor.
 - [ ] §2's CI question is answered either way, in writing.
-- [ ] §3 is fixed in `land-pr.mjs` or its limitation is documented where the tool is invoked.
+- [x] **DONE.** §3 is fixed in `land-pr.mjs` or its limitation is documented where the tool is invoked.
