@@ -109,6 +109,80 @@ const SHARD = (() => {
   return { index, total, label: `${index + 1}/${total}` };
 })();
 
+/* ── PROGRESS + ETA ─────────────────────────────────────────────────────────────────────────
+   The full suite runs >10 min and a filtered one can still take minutes (`--group=clock` is 58
+   groups / 853 assertions / 295 s), and until now it printed NOTHING until it was done. That is
+   not merely unfriendly: with no measured figure to hand, waiting gets estimated by guess, and a
+   guess of "10–15 min" was published here against a true 78 min.
+
+   The denominator is REAL, not a mean: `tests/group-timings.json` carries per-group wall times, so
+   the ETA is the sum of the times of the groups still to run. Where a group is absent from that
+   file (new, or renamed) it falls back to the observed mean and the line says `~` so the reader
+   knows which number they are looking at.
+
+   ⚠️ Matching is by TITLE only — the timings file stores no tags — so a tag-scoped filter may plan
+   against a superset. It over-estimates in that case, which is the harmless direction.
+
+   Goes to STDERR so TAP/log parsers on stdout are untouched, and is OFF under CI (hundreds of
+   lines) — `--no-progress` disables it locally. */
+function progressReporter() {
+  let plan = null;
+  try {
+    const raw = JSON.parse(readFileSync(join(ROOT, 'tests/group-timings.json'), 'utf8'));
+    /* dex-tests.js is required lazily further down, so resolve the matcher here rather than
+       assuming module-scope access to it. */
+    const { dexGroupMatcher } = createRequire(import.meta.url)(join(ROOT, 'tests/dex-tests.js'));
+    const match = GROUP_FILTER ? dexGroupMatcher(GROUP_FILTER) : null;
+    const per = new Map();
+    let total = 0;
+    for (const [title, ms] of Object.entries(raw.groups || {})) {
+      if (match && !match(title, '')) continue;
+      per.set(title, ms);
+      total += ms;
+    }
+    if (total > 0) plan = { per, total };
+  } catch {
+    plan = null; /* no timings → mean-based, and say so */
+  }
+  const t0 = Date.now();
+  let done = 0;
+  let plannedDone = 0;
+  if (plan) process.stderr.write('  ⏱  plan: ' + plan.per.size + ' groups, ~' + (plan.total / 1000).toFixed(0) + 's from tests/group-timings.json\n');
+  else process.stderr.write('  ⏱  no usable group timings — ETA will be a running mean\n');
+  return (G) => {
+    done++;
+    const elapsed = (Date.now() - t0) / 1000;
+    let left;
+    let exact = false;
+    if (plan) {
+      plannedDone += plan.per.has(G.title) ? plan.per.get(G.title) : plan.total / Math.max(1, plan.per.size);
+      left = Math.max(0, (plan.total - plannedDone) / 1000);
+      exact = plan.per.has(G.title);
+    } else {
+      left = Number.NaN;
+    }
+    const fmt = (x) => (!Number.isFinite(x) ? '?' : x >= 60 ? Math.floor(x / 60) + 'm' + String(Math.round(x % 60)).padStart(2, '0') + 's' : Math.round(x) + 's');
+    process.stderr.write(
+      '  [' +
+        String(done).padStart(3) +
+        (plan ? '/' + plan.per.size : '') +
+        ']  ' +
+        (G.ms >= 1000 ? String((G.ms / 1000).toFixed(1)) + 's' : String(G.ms) + 'ms').padStart(7) +
+        '  ' +
+        'elapsed ' +
+        fmt(elapsed) +
+        '  ' +
+        (exact ? 'ETA ' : 'ETA ~') +
+        fmt(left) +
+        '  ' +
+        String(G.title).slice(0, 58) +
+        '\n'
+    );
+  };
+}
+
+const PROGRESS = !process.env.CI && !process.argv.slice(2).some((a) => /^--?no-progress$/i.test(a));
+
 const SHOW_TIMINGS = process.argv.slice(2).some((s) => /^--?timings?$/i.test(s)) || !!process.env.DEX_TIMINGS;
 
 /* --group-index=N[,M…] — execute EXACTLY these declaration indices, nothing else.
@@ -799,6 +873,73 @@ function readSrcHtml() {
     if (existsSync(p)) out[f] = readFileSync(p, 'utf8');
   }
   return out;
+}
+
+/* CLAUDE.md wins on every conflict and is the first thing a session reads — so a FALSE claim in it
+   misleads more reliably than a bug does. Nothing checked its factual assertions, and one had rotted:
+   it said `clock.js` is "inlined by the owned bundler into every bundle" when three of the eight app
+   bundles do not carry it at all, leaving `DexClock` undefined there. Nothing in CI could see it.
+
+   The gatable subset is narrow ON PURPOSE. Auto-extracting every path CLAUDE.md names and asserting it
+   exists was measured first and REJECTED: 11 of 75 read as "missing", nearly all legitimately so
+   (ledgers deliberately retired into `provenance/` fragments, corpus suffixes like `_ECG.txt`, the
+   `Foo.html` placeholder, two `*-list.txt` files killed in July) — ~15 % false positives, which is the
+   noisy red that gets routed around rather than read.
+
+   So claims are OPT-IN and carry their own value: CLAUDE.md writes `CLAIM <name> = <number>` inline and
+   this reads the tree for the same number. Prose stays prose; only the number is load-bearing, so the
+   gate cannot drift into policing wording. Node-lane only (fs reads) — the browser lane has no readdir,
+   so `env.claudeMdClaims` is undefined there and the group SKIPs, mirroring docs-ledger/release-ledger. */
+function readClaudeMdClaims() {
+  const cm = join(ROOT, 'CLAUDE.md');
+  if (!existsSync(cm)) return undefined;
+  const claudeMd = readFileSync(cm, 'utf8');
+
+  const claims = {};
+  for (const m of claudeMd.matchAll(/CLAIM\s+([A-Za-z][A-Za-z0-9_]*)\s*=\s*(\d+)/g)) {
+    claims[m[1]] = Number(m[2]);
+  }
+
+  /* Read from the SHIPPED bundle, not from source or a builder list: the question this claim answers is
+     what a user's browser actually gets. `data-inline-src` is the owned bundler's marker. */
+  const APP_BUNDLES = ['OxyDex.html', 'PulseDex.html', 'HRVDex.html', 'ECGDex.html', 'PpgDex.html', 'GlucoDex.html', 'CPAPDex.html', 'MotionDex.html'];
+  const clockBundles = [];
+  const missingBundles = [];
+  for (const b of APP_BUNDLES) {
+    const p = join(ROOT, b);
+    if (!existsSync(p)) {
+      missingBundles.push(b);
+      continue;
+    }
+    if (/data-inline-src="clock\.js"/.test(readFileSync(p, 'utf8'))) clockBundles.push(b);
+  }
+
+  // What the builder says it owns, read FROM the builder rather than restated here.
+  let ownedBundles = null,
+    orchestrators = null;
+  try {
+    const src = readFileSync(join(ROOT, 'tools', 'build.mjs'), 'utf8');
+    const om = src.match(/ORCHESTRATORS\s*=\s*\[([^\]]*)\]/);
+    if (om)
+      orchestrators = om[1]
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean).length;
+    const mg = readFileSync(join(ROOT, 'manifest-gate.js'), 'utf8');
+    const bm = mg.match(/MANIFEST_BUNDLES\s*=\s*\[([^\]]*)\]/);
+    if (bm && orchestrators != null) {
+      ownedBundles =
+        bm[1]
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean).length + orchestrators;
+    }
+  } catch {
+    /* unreadable ⇒ leave null. `null` means UNKNOWN and the assertion reports that; it must never
+       collapse to 0, which would read as "the builder owns nothing" and pass a wrong CLAIM. */
+  }
+
+  return { claudeMd, claims, clockBundles, missingBundles, appBundles: APP_BUNDLES, ownedBundles, orchestrators };
 }
 
 /* N1 (PRIVACY-SECURITY-AUDIT-FINDINGS-2026-07-13): the standalone, unbundled analysis/research pages +
@@ -1667,6 +1808,23 @@ async function main() {
     hosts: readHosts(),
     srcHtml: readSrcHtml(),
     nonBundleCsp: readNonBundleCsp(),
+    claudeMdClaims: readClaudeMdClaims(),
+    onGroup: PROGRESS ? progressReporter() : undefined,
+    /* XMT GROUND TRUTH (analysis/xmt-fixture.js) — loaded through the SAME `loadInto` path the DSPs
+       use, so c8 attributes per-function coverage to it exactly as it does for a DSP. That matters:
+       `tools/extreme-mutate.mjs` reads those counts, and Descartes' rule makes coverage a
+       PRECONDITION for the pseudo-tested verdict — a fixture c8 cannot see would classify
+       `not-covered` and the validation would fail for a reason that is not about the tool.
+       Its own realm, so nothing it defines can reach the DSP sandbox. */
+    xmtFixture: (() => {
+      try {
+        const c = makeSandbox();
+        loadInto(c, 'xmt-fixture.js');
+        return c.XmtFixture || (c.globalThis && c.globalThis.XmtFixture) || null;
+      } catch {
+        return null;
+      }
+    })(),
     analysisTools: readAnalysisTools(),
     bundleCsp: readBundleCsp(),
     manifests: readManifests(),

@@ -284,6 +284,17 @@
       }
       G.ms = Date.now() - _t0; // per-group wall time — sizes the CI shards (run-tests --timings)
       GROUPS.push(G);
+      /* Optional progress hook. The runner reports only AFTER runDexTests returns, so a multi-minute
+         run had no way to say how far along it was — and a wrong guess then becomes durable (a Level
+         B run was called "10–15 min" against a true 78). Additive and lane-safe: the browser lane
+         passes no `onGroup` and behaves exactly as before. */
+      if (typeof env.onGroup === 'function') {
+        try {
+          env.onGroup(G);
+        } catch (_e) {
+          /* a reporter must never fail the suite it is reporting on */
+        }
+      }
       if (_bail) {
         for (var _bi = 0; _bi < G.tests.length; _bi++) {
           if (!G.tests[_bi].pass && !G.tests[_bi].skip) {
@@ -311,6 +322,79 @@
        own failure, since a failing assertion reds the suite. The implementation was proven by a
        measured mutant kill (a CPAPDex path that returns NaN where null is contracted now dies).
        This group is what trips if someone reverts to a bare stringify. */
+    /* ════ XMT GROUND TRUTH — the fixture that decides whether extreme-mutate is measuring anything
+       `tools/extreme-mutate.mjs` has 30 selftests and every one exercises a PURE function of that
+       tool. None runs the pipeline — splice, run suite, read coverage, classify — against a file
+       whose correct answer is known independently. So all 30 can pass while the tool reports
+       anything at all. That is the shape this whole programme hunts: a check that ran and reported
+       success about something it never examined.
+
+       This group is the OBSERVER half of `xmt-fixture.js`. The fixture's four functions are
+       trivial on purpose; what decides their verdict is HOW THIS GROUP WATCHES THEM:
+
+         add             value asserted        -> every extreme mutant killed  -> tested
+         calculateSomething  called, ignored   -> every extreme mutant survives -> PSEUDO-TESTED
+         recordInto      side effect asserted  -> killed (not a return-value tool)
+         getConstant     bare accessor         -> excluded by a Descartes stop-matcher
+
+       Run the experiment with:
+         node tools/extreme-mutate.mjs --file xmt-fixture.js --group xmt-fixture
+
+       ⚠️ EDITING THIS GROUP CHANGES THE EXPECTED VERDICTS. The assertions below are not checking the
+       fixture's arithmetic — 2+3 is not in question. They are establishing the observation regime
+       that makes each expected verdict true. Weaken the `add` assertion and `add` becomes
+       pseudo-tested, correctly. */
+    group('XMT ground truth — the fixture extreme-mutate is validated against', 'xmt-fixture · harness · known-answer', function (T) {
+      var F = env.xmtFixture;
+      if (!F || typeof F.add !== 'function') {
+        T.skip('xmt-fixture.js co-loaded', 'Node-lane only — the runner co-loads it through the same path as a DSP so c8 can see it');
+        return;
+      }
+
+      /* A · VALUE ASSERTED. Every Descartes operator returns something ≠ 5, so all are killed. */
+      T.eq('add returns the sum — the value is asserted, so every extreme mutant dies', F.add(2, 3), 5);
+      T.eq('…and a second point, so a constant-returning mutant cannot coincide', F.add(10, -4), 6);
+
+      /* B · CALLED, RESULT IGNORED. This is the pseudo-tested case and the assertion is deliberately
+         about something the function does NOT control — that calling it does not throw. Coverage is
+         satisfied (Betka & Wagner's precondition) while behaviour is unobserved. */
+      /* CALLED, NEVER OBSERVED. The call satisfies coverage — Betka & Wagner's precondition — and
+         nothing below inspects the result. That absence IS the regime under test.
+
+         ⚠️ There is deliberately NO assertion about the return value here, and no stand-in for one.
+         A first draft asserted `ignored !== undefined || ignored === undefined`, which is a
+         tautology — always true, unable to fail, and exactly the hollow gate this whole exercise
+         exists to detect. Writing one INSIDE the pseudo-tested fixture would have been the joke
+         telling itself. The honest way to express "nothing observes this" is to observe nothing. */
+      F.calculateSomething([10, 20, -5, 30]);
+
+      /* C · SIDE EFFECT ASSERTED. Emptying the body leaves the sink untouched, so this dies even
+         though the return value is unused. Separates "return unused" from "untested". */
+      var sink = [];
+      F.recordInto(sink, 'a');
+      F.recordInto(sink, 'b');
+      T.eq('recordInto appends to its sink — the SIDE EFFECT is asserted', sink, ['a', 'b']);
+
+      /* D · BARE ACCESSOR. Asserted so the function is covered; the tool must still EXCLUDE it via a
+         stop-matcher rather than score it, because its pseudo-testedness carries no information. */
+      T.eq('getConstant returns its constant (covered, but not a scoreable subject)', F.getConstant(), 7);
+
+      /* ══ E · F · G — THE LEVEL B REGIME ═════════════════════════════════════════════════════════
+         `summarise` is asserted STRONGLY as a whole: emptying it breaks the return, so Level A calls
+         it TESTED — correctly. Three statements inside it have three different known answers, and
+         that spread is the point. A fixture where every statement survives would be passed by a tool
+         that reported everything, and a fixture where every statement dies would be passed by one
+         that reported nothing.
+
+         ⚠️ THE OMISSION BELOW IS THE FIXTURE. `stats.seen` is written on every iteration and is
+         deliberately NEVER asserted — assert it and F becomes tested, correctly, and this group
+         stops validating anything. As with B above, the honest way to express "nothing observes
+         this" is to observe nothing. */
+      var stats = { seen: 0 };
+      T.eq('summarise returns the total — E is OBSERVED, so deleting it must be KILLED', F.summarise([1, 2, 3], stats), 6);
+      T.eq('…and a second point, so a mutant that hard-codes 6 cannot coincide', F.summarise([10, 5], stats), 15);
+      T.eq("summarise([]) is 0 — the empty case, which is also G's only candidate input", F.summarise([], stats), 0);
+    });
     group('T.eq distinguishes null from NaN and ±Infinity, at any depth', 'harness · comparator', function (T) {
       /* THE REAL comparator, not a copy. This group previously re-declared its own private `ser`,
          which meant it could not fail for any change to the one `T.eq` actually uses. */
@@ -1684,6 +1768,26 @@
          a boundary test rather than a claim that nothing ever locks. */
       T.eq('13 in the first field locks DMY', C.resolveDMY(['10:00:00 13/08/2026'], {}).locked, true);
       T.eq('13 in the second field locks MDY', C.resolveDMY(['10:00:00 08/13/2026'], {}).dmy, false);
+
+      /* KILLS the deletion of `s = s.trim().replace(/^["']|["']$/g, '')` in resolveDMY — Level B's
+         first real pseudo-tested STATEMENT, found 2026-08-15 on a file Level A scores 13/13
+         functions tested and ZERO pseudo-tested. That gap IS the finding (Maton, Kapfhammer &
+         McMinn, ICSME 2024): every assertion above feeds resolveDMY a BARE stamp, so the quote and
+         whitespace strip was executed on every one of them and observed by none.
+
+         ⚠️ THE FAILURE IS SILENT AND FILE-WIDE. Without the strip, `"13/05/2026 22:00"` matches
+         neither RE_A nor RE_C, so the loop `continue`s and the day>12 evidence is never seen:
+         `locked` goes true → FALSE. Per §3 and clock.js:48 `locked` means THE ORDER WAS PROVEN FOR
+         THIS FILE, so the file silently falls back to the preferDMY default — and when the real
+         order is the other one, EVERY date in it is misparsed by a parser that reported no error.
+         Quoted fields are ordinary CSV, and ppgdex already keeps a quote-strip of its own.
+
+         Verified by re-applying the mutant, not by reading the code: a test written from reading
+         is how `se = se || 0` produced a test that passed while catching nothing. */
+      T.eq('a QUOTED vendor stamp still locks the order — the strip is observed', C.resolveDMY(['"10:00:00 13/08/2026"'], {}).locked, true);
+      T.eq('…single quotes too, as some exporters emit', C.resolveDMY(["'10:00:00 13/08/2026'"], {}).locked, true);
+      T.eq('…and surrounding whitespace does not hide the evidence', C.resolveDMY(['  10:00:00 13/08/2026  '], {}).locked, true);
+      T.eq('a quoted MDY stamp resolves MDY, not the default', C.resolveDMY(['"10:00:00 08/13/2026"'], {}).dmy, false);
 
       /* KILLS `while (t < prevTMs - CK_ROLL_SLACK_MS)` → `<=`.
          The midnight-roll guard. The slack is 12 h — the largest backwards step that cannot be a
@@ -7782,6 +7886,77 @@
         var content = (SRC[n].match(/<meta[^>]*Content-Security-Policy[^>]*content="([^"]*)"/i) || ['', ''])[1];
         var ss = (content.match(/script-src\s+([^;]*)/i) || ['', ''])[1];
         T.ok(n + " · script-src is present and drops 'unsafe-inline' (strict, hash-based)", /script-src/.test(content) && !/'unsafe-inline'/.test(ss), ss);
+      });
+    });
+
+    /* ════ 8d¹ · CLAUDE.md CLAIMS — the authoritative file must not state facts the tree contradicts ════
+       CLAUDE.md wins on every conflict and is the first thing a session reads, so a false claim in it
+       misleads more reliably than a bug: nothing downstream disagrees with it. Nothing checked it, and
+       one claim had rotted — it said `clock.js` is "inlined by the owned bundler into every bundle"
+       while three of eight app bundles do not carry it, leaving `DexClock` UNDEFINED there.
+
+       ⚠️ THIS GATE READS NUMBERS, NOT PROSE, AND THAT LIMIT IS THE DESIGN. Two measurements set it:
+         · asserting every path CLAUDE.md names exists ⇒ 11 of 75 "missing", nearly all legitimate
+           (retired ledgers, corpus suffixes, the `Foo.html` placeholder) — ~15 % false positives.
+         · grepping for banned strings ⇒ the three `@font-face` hits in the tree are all inside COMMENTS
+           SAYING "no @font-face". A prose gate reports the documentation of a rule as a violation of it.
+       So CLAUDE.md opts a claim in by writing `CLAIM <name> = <number>`, and this checks that number.
+       A claim nobody marks is simply not gated — under-coverage, never a false red.
+
+       Node-lane only (env.claudeMdClaims is fs-read); the browser lane SKIPs, mirroring docs-ledger. */
+    group('CLAUDE.md claims match the tree (CLAIM markers)', 'docs · claude-md · claims', function (T) {
+      var C = env.claudeMdClaims;
+      if (!C) {
+        T.skip('env.claudeMdClaims provided to the runner', 'Node-lane only — wire env.claudeMdClaims (run-tests.mjs readClaudeMdClaims)');
+        return;
+      }
+      var claims = C.claims || {};
+      T.ok('CLAUDE.md carries at least one CLAIM marker', Object.keys(claims).length > 0, 'found: ' + (Object.keys(claims).join(', ') || 'none — a CLAIM was removed, or the marker syntax drifted'));
+
+      /* Every app bundle must be present, or a "0 bundles inline clock.js" reading would pass a
+         CLAIM of 0 while really meaning "nothing was measured" — unknown must not read as a count. */
+      T.ok('every app bundle was readable (an absent bundle cannot be measured)', (C.missingBundles || []).length === 0, 'missing: ' + ((C.missingBundles || []).join(', ') || 'none'));
+
+      // ── clockBundles ────────────────────────────────────────────────────────────────────────
+      if (claims.clockBundles == null) {
+        T.ok('CLAIM clockBundles is declared in CLAUDE.md', false, 'the §✅ parseTimestamp bullet must carry `CLAIM clockBundles = <n>`');
+      } else {
+        var got = (C.clockBundles || []).length;
+        T.ok(
+          'CLAIM clockBundles = ' + claims.clockBundles + ' matches the shipped bundles',
+          got === claims.clockBundles,
+          got +
+            ' of ' +
+            (C.appBundles || []).length +
+            ' inline clock.js: ' +
+            (C.clockBundles || []).join(', ') +
+            ' — if this moved, a bundle gained or lost the spine; update BOTH the bundle set and the CLAIM'
+        );
+        /* The specific error this gate was built for: "every bundle" is the claim that was false, and a
+           bare count alone would not catch someone re-wording it back. */
+        T.ok(
+          'CLAUDE.md does not claim clock.js reaches EVERY bundle',
+          !/clock\.js[^\n]*\n?[^\n]*inlined by the owned bundler into every bundle/.test(C.claudeMd || ''),
+          'three app bundles ship without it; DexClock is undefined there, so "every bundle" is not a rounding error'
+        );
+      }
+
+      // ── ownedBundles / orchestrators, read from the builder itself ──────────────────────────
+      [
+        ['ownedBundles', C.ownedBundles, 'tools/build.mjs MANIFEST_BUNDLES + ORCHESTRATORS'],
+        ['orchestrators', C.orchestrators, 'tools/build.mjs ORCHESTRATORS']
+      ].forEach(function (row) {
+        var name = row[0],
+          actual = row[1],
+          src = row[2];
+        if (claims[name] == null) return; // not opted in — silence is under-coverage, not a red
+        if (actual == null) {
+          // UNKNOWN. Deliberately a FAILURE, not a pass: a gate that cannot read its source must not
+          // certify the claim it was asked to check (CLAUDE.md §4b — success about what it never saw).
+          T.ok('CLAIM ' + name + ' could be measured', false, 'could not read ' + src + ' — the claim is UNVERIFIED, which is not the same as correct');
+          return;
+        }
+        T.ok('CLAIM ' + name + ' = ' + claims[name] + ' matches ' + src, actual === claims[name], 'tree says ' + actual + ', CLAUDE.md says ' + claims[name] + ' — update whichever is wrong');
       });
     });
 
@@ -20175,6 +20350,49 @@
 
       // A real conflict is the one case a human must resolve — never auto-updated around.
       T.eq('DIRTY stops and points at the rebase rules', d(OPEN('DIRTY', { pass: 22 })).action, 'fail');
+      /* ── AN ADVISORY RED IS NOT A FAILURE (2026-08-15) ─────────────────────────────────────
+         Measured on #1285: `mutation (diff-scoped)` failed, land-pr printed `fail: 1 check(s)
+         failed` and exited 1, and GitHub's auto-merge landed the PR minutes later unaided. The
+         operator is then sent to fix a PR that needed nothing.
+
+         This is the SAME asymmetry as the pending branch: reasoning about a check's STATE without
+         asking whether it can block the merge. `mutation` is advisory by design so that a survivor
+         cannot force someone to delete a `# pragma: no cover` to go green. */
+      var REQ = ['test', 'biome', 'typecheck'];
+      /* Mirrors what `snapshot()` builds, including the two DERIVED counts — `decide` reads those,
+         not the raw name lists, so a helper that omits them tests a shape the tool never sees. */
+      var snapFail = function (failedNames, required) {
+        var reqSet = {};
+        for (var i = 0; i < required.length; i++) reqSet[required[i]] = 1;
+        var rf = required.length
+          ? failedNames.filter(function (n) {
+              return reqSet[n];
+            }).length
+          : null;
+        return {
+          state: 'OPEN',
+          mergeState: 'BLOCKED',
+          readable: true,
+          buckets: { pass: 20, fail: failedNames.length },
+          reported: REQ.concat(failedNames),
+          failedNames: failedNames,
+          requiredFailed: rf,
+          requiredPending: 0,
+          required: required
+        };
+      };
+      T.eq('a failing REQUIRED check stops the run', d(snapFail(['test'], REQ)).action, 'fail');
+      T.eq('…and names it, so the operator knows what to fix', /required check\(s\) failed: test/.test(d(snapFail(['test'], REQ)).why), true);
+      T.ok('an ADVISORY red does NOT stop the run', d(snapFail(['mutation (diff-scoped)'], REQ)).action !== 'fail', 'advisory red still terminal — #1285 strands again');
+      T.ok(
+        '…even alongside a BEHIND branch, which is the real action needed',
+        ['update', 'wait', 'merge'].indexOf(d(snapFail(['mutation (diff-scoped)'], REQ)).action) >= 0,
+        d(snapFail(['mutation (diff-scoped)'], REQ)).action
+      );
+      T.eq('a MIX of required and advisory still stops', d(snapFail(['mutation (diff-scoped)', 'test'], REQ)).action, 'fail');
+      /* FAIL-CLOSED: an unreadable ruleset must not silently downgrade a real red to advisory. */
+      T.eq('ruleset unreadable ⇒ EVERY failure is blocking', d(snapFail(['mutation (diff-scoped)'], [])).action, 'fail');
+      T.eq('…and says why, so the degraded mode is visible', /required set unknown/.test(d(snapFail(['mutation (diff-scoped)'], [])).why), true);
     });
 
     group('Rebase-safe — the generated/source classifier fails CLOSED (REBASE-SAFE)', 'tools · rebase-safe', function (T) {
@@ -39236,10 +39454,54 @@
         offenders.length === 0,
         offenders.length ? 'must call resolveCorpus(): ' + JSON.stringify(offenders) : 'all 9 go through the helper'
       );
+      /* The consumer must IMPORT a helper, not merely mention one. The earlier form tested the raw
+         source, so a helper named only in a comment satisfied it — the hollow-scan failure this group's
+         own anti-vacuity legs exist to prevent. Either export is the ONE helper: `resolveCorpus` is a
+         front for `corpusSearch` (asserted below), so there is still exactly one search. */
+      var reImport = /import\s*\{[^}]*\b(?:resolveCorpus|corpusSearch)\b[^}]*\}\s*from\s*['"][^'"]*regen-goldens-core\.mjs['"]/;
       var noImport = CONSUMERS.filter(function (f) {
-        return !/resolveCorpus/.test(String(env.sources[f]));
+        return !reImport.test(String(env.sources[f]));
       });
-      T.ok('every consumer names resolveCorpus', noImport.length === 0, JSON.stringify(noImport));
+      T.ok('every consumer IMPORTS the helper from the core (not just names it)', noImport.length === 0, JSON.stringify(noImport));
+      /* FIXTURE-CORPUS-REACHABILITY-2026-08-09 — a worktree holds the tracked fifth of uploads/ and none
+         of the 435 gitignored recordings, so assuming `<repo>/uploads` made §👥.1's mandated isolation and
+         §🔏's mandated re-verification mutually exclusive. The resolver SEARCHES, and the order is the
+         contract: an explicit override first, then the primary checkout, then this one. */
+      T.ok('ANTI-VACUITY · corpusSearch is exported from the core', /export function corpusSearch\s*\(/.test(core), 'no `export function corpusSearch(` — the order scan below would be hollow');
+      T.ok(
+        'resolveCorpus is a front for corpusSearch, so there is exactly ONE search',
+        /resolveCorpus\s*\(repo\)\s*\{[\s\S]{0,240}?corpusSearch\(repo\)/.test(core),
+        'resolveCorpus must delegate to corpusSearch rather than re-deriving the path'
+      );
+      var searchBody = (String(core).match(/export function corpusSearch\s*\(repo\)\s*\{[\s\S]*?\n\}/) || [''])[0];
+      T.ok('ANTI-VACUITY · the corpusSearch body was captured', searchBody.length > 400, 'len=' + searchBody.length);
+      var iEnv = searchBody.indexOf('process.env.DEX_UPLOADS');
+      var iCommon = searchBody.indexOf('--git-common-dir');
+      var iRepo = searchBody.lastIndexOf("path.join(repo, 'uploads')");
+      T.ok(
+        'the search order is $DEX_UPLOADS → primary checkout → this checkout',
+        iEnv >= 0 && iCommon > iEnv && iRepo > iCommon,
+        'DEX_UPLOADS@' + iEnv + ' git-common-dir@' + iCommon + ' repo@' + iRepo
+      );
+      T.ok(
+        'the primary-checkout candidate is the PARENT of the common git dir, not the git dir itself',
+        /path\.join\(path\.dirname\(common\), 'uploads'\)/.test(searchBody),
+        '`--git-common-dir` names <primary>/.git; the corpus is its sibling'
+      );
+      T.ok(
+        'a candidate that cannot be resolved is SKIPPED, never guessed',
+        /catch\s*\{[\s\S]{0,120}?common = null/.test(searchBody),
+        'outside git the primary-checkout candidate must simply not exist'
+      );
+      /* §2 — the expensive part was the MESSAGE: "absent" read as a fact about the machine while being a
+         fact about the checkout. A refusal must SHOW where it looked. */
+      var vf = String(env.sources['tools/verify-fixtures.mjs']);
+      T.ok('verify-fixtures shows the search when it refuses', /formatCorpusSearch\(SEARCH\)/.test(vf), 'the refusal branch must print every candidate and its verdict');
+      T.ok(
+        'verify-fixtures no longer prints a placeholder corpus path',
+        !/DEX_UPLOADS=\/path\/to\/uploads/.test(vf),
+        '`/path/to/uploads` told a reader standing in a checkout that HAS uploads/ nothing they could act on'
+      );
       // ── CORPUS ≠ FIXTURES: the write side must stay in THIS checkout ──────────────────────────
       T.ok(
         'the core writes fixtures to fixturesDir, never to the redirected corpus',
@@ -39713,14 +39975,21 @@
          CPAPDex    recording.durSec        8400 s span / 1200 s data  ENVELOPE ✓ (2 h hole included)
          HRVDex     coverage.recordedSec    null, nWithDuration 0/3    HONEST ✓ (declines to sum to 0)
          PulseDex   durMin  (+timestamps)   2700 s = span             ENVELOPE ✓
-         PulseDex   durMin  (NO timestamps) 1800 s = data, cov 100 %  ✗ KNOWN DEFECT
-         GlucoDex   coverage.recordedSec    == spanSec, 6 h hole      ✗ KNOWN DEFECT
+         PulseDex   durMin  (NO timestamps) 1800 s = data, cov NULL   FIXED ✓ 2026-08-15 (§1)
+         GlucoDex   coverage.recordedSec    Σsegments, hole VISIBLE   FIXED ✓ 2026-08-15 (§2)
 
-       The two ✓ pairs are a real ratchet: they red if anyone redefines the field. The two ✗ are pinned
-       as CHARACTERIZATION — the values are wrong, they are recorded so a fix must update this group
-       DELIBERATELY rather than silently, and they are routed to
-       NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS-II. Pinning a defect is not endorsing it; leaving it
-       unpinned is how it survives another six audits. */
+       All four rows are now a ratchet: they red if anyone redefines the field. Both of the original ✗
+       rows were CHARACTERIZATION pins — values recorded as wrong so that a fix had to update this group
+       DELIBERATELY rather than satisfy it silently — and both did exactly that: each fix reddened this
+       group and forced its assertions to be rewritten as contract. Pinning a defect is not endorsing it;
+       leaving it unpinned is how it survives another six audits.
+
+       PulseDex's row was one of those pins and is now CONTRACT. The pin did its job exactly as
+       designed: fixing the DSP reddened this group and forced the assertions to be rewritten rather
+       than quietly satisfied. `durMin` still reads 1800 s on the untimed branch and that is now
+       CORRECT-BY-CONTRACT rather than a silent second meaning — `durationBasis` names it `beat-sum`,
+       `spanMin` is null because there is no envelope to measure, and `coverage` is null because
+       coverage needs one. See the block below for why `durMin` itself was deliberately not nulled. */
     group('The four ungated nodes — duration tracks the ENVELOPE on a gapped twin — §3', 'pulsedex-dsp · glucodex-dsp · cpapdex-dsp · hrvdex-dsp · export · duration-semantics', function (T) {
       var GAP_S = 900;
 
@@ -39825,21 +40094,40 @@
           'coverage=' + (timed && timed.coverage)
         );
 
-        /* ⚠️ KNOWN DEFECT — PINNED, NOT ENDORSED. Routed to NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS-II §1.
-           `beatTimes` has two branches: with timestamps it returns a wall SPAN (correct, asserted above);
-           without them it cumulates RR, so `durMin` silently changes meaning to DATA seconds — the exact
-           defect §1 of the parent fixed in ECGDex, surviving one branch away. Worse, `coverage` is
-           initialised to 100 and only overwritten on the timestamped path, so an untimed stream asserts
-           a completeness it cannot know. These two assertions pin the WRONG values so that fixing them
-           reds this group and forces a deliberate update. Do NOT "make them pass" by editing them. */
+        /* ── FIXED 2026-08-15, FOLLOWUPS-II §1 — these were KNOWN DEFECT pins and are now CONTRACT.
+           The defect: `beatTimes` has two branches — with timestamps a wall SPAN, without them a
+           cumulative RR sum — so `durMin` silently changed meaning between them, and `coverage` was
+           initialised to 100 and only ever overwritten on the timestamped path, asserting a
+           completeness it could not know.
+
+           The resolution is HRVDex's sparse-block template: the ENVELOPE and the DATA get DIFFERENT
+           NAMES, and the one that cannot be known is null rather than estimated. `durMin` deliberately
+           KEEPS its value — `classifyRecording` does arithmetic on it and `adaptEnvelopeNode` builds
+           this node's fusion window from the exported `durationMin`, so nulling it would collapse that
+           window to a POINT, which is the DEEP-AUDIT-III §6.2 regression HRVDex already paid for. The
+           ambiguity is therefore resolved by LABELLING, and these assertions pin the label. */
         var untimed = P.computeResult({ vals: vals });
         var dU = untimed && untimed.durMin != null ? untimed.durMin * 60 : null;
         T.ok(
-          'KNOWN DEFECT (FOLLOWUPS-II §1) · PulseDex with NO timestamps publishes DATA seconds as durMin',
-          dU != null && Math.abs(dU - data) < 30,
-          'durMin*60=' + dU + ' — should be span ' + span + ' or null, is data ' + data
+          'PulseDex with NO timestamps · durMin is the beat-sum, and durationBasis SAYS SO',
+          dU != null && Math.abs(dU - data) < 30 && untimed.durationBasis === 'beat-sum',
+          'durMin*60=' + dU + ' (data ' + data + ') basis=' + (untimed && untimed.durationBasis)
         );
-        T.eq('KNOWN DEFECT (FOLLOWUPS-II §1) · …and asserts coverage 100 % on a stream it cannot place in time', untimed && untimed.coverage, 100);
+        T.eq('…and coverage is NULL, not a manufactured 100 — absent is not complete', untimed && untimed.coverage, null);
+        T.eq('…and spanMin is NULL — a stream with no wall clock has no envelope', untimed && untimed.spanMin, null);
+        T.ok(
+          '…while recordedMin still reports what the beats DO account for',
+          untimed && Math.abs(untimed.recordedMin * 60 - (data + RR / 1000)) < 30,
+          'recordedMin*60=' + (untimed && untimed.recordedMin * 60) + ' · data+1beat=' + (data + RR / 1000)
+        );
+        /* The timestamped branch must carry the SAME three keys with the opposite verdicts, or the
+           discriminator is only half-wired and a consumer still cannot tell the branches apart. */
+        T.eq('PulseDex WITH timestamps · durationBasis is the envelope', timed && timed.durationBasis, 'envelope');
+        T.ok(
+          '…and spanMin is the measured envelope, distinct from recordedMin by ~the hole',
+          timed && timed.spanMin != null && Math.abs(timed.spanMin * 60 - span) < 30 && timed.spanMin - timed.recordedMin > 10,
+          'spanMin=' + (timed && timed.spanMin) + ' recordedMin=' + (timed && timed.recordedMin)
+        );
       })();
 
       /* ── GlucoDex · 24 h of 5-min CGM cells, a 6 h sensor dropout, 24 h more ────────────────────── */
@@ -39877,18 +40165,74 @@
         if (!c) return;
         T.ok('…spanSec is the ENVELOPE (the dropout is inside it)', Math.abs(c.spanSec - span) < 60, 'spanSec=' + c.spanSec + ' want ~' + span);
 
-        /* ⚠️ KNOWN DEFECT — PINNED, NOT ENDORSED. Routed to NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS-II §2.
-           The block's own comment reads: "here `spanSec` and `recordedSec` agree BY MEASUREMENT, which is
-           precisely what the sparse case could not claim." They do not agree by measurement — they are
-           assigned the SAME expression, so they agree by CONSTRUCTION and cannot ever disagree. A CGM wear
-           with a 6 h sensor dropout therefore reports 100 % coverage. The comment also names HRVDex's
-           sparse block as its sibling, and HRVDex is the node that refuses exactly this fabrication
-           (asserted above). Pinned so the fix must update this deliberately. */
-        T.eq('KNOWN DEFECT (FOLLOWUPS-II §2) · GlucoDex recordedSec == spanSec by CONSTRUCTION, so a 6 h dropout reports full coverage', c.recordedSec, c.spanSec);
+        /* ── FIXED 2026-08-15, FOLLOWUPS-II §2 — these were KNOWN DEFECT pins and are now CONTRACT.
+           The block's own comment used to read: "here `spanSec` and `recordedSec` agree BY MEASUREMENT,
+           which is precisely what the sparse case could not claim." They were assigned the SAME
+           EXPRESSION, so they agreed by CONSTRUCTION and could not ever disagree — and a CGM wear with a
+           6 h sensor dropout reported 100 % coverage. The comment named HRVDex's sparse block as its
+           sibling while doing exactly what HRVDex refuses.
+
+           `recordedSec` is now the SUM OF MEASURED SEGMENTS: the cleaner already flags every gap cell
+           (FLAG.GAP / GAP_LONG) and already knows the cadence, so a segment is a maximal run of non-gap
+           cells and its duration is `cells × cadence` — the same arithmetic `activeMin` uses, reused
+           rather than re-derived as a second gap threshold. The two CAN now disagree, which is the point.
+
+           `kind` stays 'continuous' deliberately: it names the SAMPLING MODALITY, not completeness — a
+           CGM is a continuous monitor whether or not a sensor dropped out, exactly as HRVDex's 'sparse'
+           names spot measurements. Completeness is what segments/recordedSec are for, and folding it
+           into `kind` would rebuild the conflation this fix removes. */
         T.ok(
-          'KNOWN DEFECT (FOLLOWUPS-II §2) · …the 6 h hole leaves NO trace — one segment, nWithDuration 1',
-          c.segments && c.segments.length === 1 && c.nWithDuration === 1,
+          'GlucoDex recordedSec is MEASURED — the 6 h dropout is missing from it',
+          c.recordedSec != null && c.recordedSec < c.spanSec && Math.abs(c.spanSec - c.recordedSec - GAP_MS / 1000) < 2 * (STEP / 1000),
+          'recordedSec=' + c.recordedSec + ' spanSec=' + c.spanSec + ' Δ=' + (c.spanSec - c.recordedSec) + ' want ~' + GAP_MS / 1000
+        );
+        T.ok(
+          '…and the hole SPLITS the record — two segments, both with a measured duration',
+          c.segments &&
+            c.segments.length === 2 &&
+            c.nWithDuration === 2 &&
+            c.n === 2 &&
+            c.segments.every(function (s) {
+              return s.durSec != null && s.durSec > 0;
+            }),
           'segments=' + (c.segments && c.segments.length) + ' nWithDuration=' + c.nWithDuration
+        );
+        T.ok(
+          '…and the segments SUM to recordedSec (the published parts account for the published whole)',
+          c.segments.reduce(function (a, s) {
+            return a + s.durSec;
+          }, 0) === c.recordedSec,
+          'Σsegments=' +
+            c.segments.reduce(function (a, s) {
+              return a + s.durSec;
+            }, 0) +
+            ' recordedSec=' +
+            c.recordedSec
+        );
+        /* `kind` is the MODALITY. Pinned so that a later "fix" which flips it on any dropout has to
+           argue with this line rather than slip past — the two are different questions. */
+        T.eq('…while kind stays the MODALITY, not a completeness verdict', c.kind, 'continuous');
+        /* A GAPLESS wear must still report full coverage, or the segmenter is just reporting damage.
+           This is the paired ALLOW: same code path, one property different (no hole). */
+        var exWhole = G.compute({ tMs: tMs.slice(0, NSEG), vMgdl: vMgdl.slice(0, NSEG), unit: 'mgdl', t0Ms: t0 });
+        var cW = exWhole && exWhole.recording ? exWhole.recording.coverage : null;
+        T.ok(
+          'a GAPLESS wear reports ONE segment and full coverage — the segmenter is not just finding damage',
+          cW && cW.segments.length === 1 && cW.recordedSec >= cW.spanSec,
+          cW ? 'segments=' + cW.segments.length + ' recordedSec=' + cW.recordedSec + ' spanSec=' + cW.spanSec : 'no coverage block'
+        );
+        /* A segment's duration is `cells × cadence`, not `lastCell − firstCell`. The alternative gives a
+           ONE-CELL segment `durSec: 0` — asserting nothing was recorded when one sample was, the exact
+           absent-vs-zero confusion HRVDex's block warns about — and it disagrees with `activeMin`, which
+           this node already computes as `activeCells × cadence` one function away.
+           The cost is that a gapless record's recordedSec exceeds spanSec by exactly the final cell,
+           because `spanSec` is measured between sample INSTANTS while a cell covers a cadence of time.
+           That overshoot is BOUNDED and asserted here rather than left for someone to find as a >100 %
+           coverage ratio: at most one cadence over the whole record, per segment boundary. */
+        T.ok(
+          '…and the cells-×-cadence convention overshoots the instant-to-instant span by at most one cadence per segment',
+          cW.recordedSec - cW.spanSec <= STEP / 1000 && c.recordedSec - (c.spanSec - GAP_MS / 1000) <= 2 * (STEP / 1000),
+          'gapless Δ=' + (cW.recordedSec - cW.spanSec) + ' · gapped Δ=' + (c.recordedSec - (c.spanSec - GAP_MS / 1000)) + ' · cadence=' + STEP / 1000
         );
       })();
     });

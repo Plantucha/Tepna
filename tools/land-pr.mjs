@@ -62,9 +62,32 @@ export function decide(snap) {
   if (snap.state === 'MERGED') return { action: 'done', why: 'already merged' };
   if (snap.state === 'CLOSED') return { action: 'closed', why: 'PR was closed without merging' };
 
-  /* FAILURE BEATS EVERYTHING ELSE. A failing check with a BEHIND branch is still a failure, and
-     updating the branch would re-run CI and hide it behind a fresh pending. Check this first. */
-  if (failed > 0) return { action: 'fail', why: `${failed} check(s) failed` };
+  /* FAILURE BEATS EVERYTHING ELSE — WHEN IT CAN BLOCK. A failing REQUIRED check with a BEHIND
+     branch is still a failure, and updating the branch would re-run CI and hide it behind a fresh
+     pending, so it is checked first.
+
+     ⚠️ BUT AN ADVISORY RED IS NOT A FAILURE, and treating it as one strands a PR that was mergeable
+     the whole time. Measured on #1285: `mutation (diff-scoped)` failed, this tool printed
+     `fail: 1 check(s) failed` and exited 1, and GitHub's auto-merge landed the PR minutes later
+     without help. The operator is then sent to "fix" a PR that needed nothing.
+
+     This is the SAME ASYMMETRY the pending branch already carries: a pending non-required check must
+     not cause a wait, and a failing non-required check must not cause a stop. Both were wrong for
+     the same reason — the tool was reasoning about check STATE without asking whether the check can
+     block the merge. `mutation` is advisory by design (§👥 and mutation.yml's `continue-on-error`)
+     precisely so a survivor cannot force someone to delete a `# pragma: no cover` to go green.
+
+     FAIL-CLOSED: if the ruleset could not be read, `required` is empty and EVERY failure is treated
+     as blocking. An unreadable ruleset must not silently downgrade a real red to advisory — that is
+     the direction that merges broken code. */
+  if (failed > 0) {
+    const rf = snap.requiredFailed;
+    if (rf == null) return { action: 'fail', why: `${failed} check(s) failed; required set unknown so all treated as blocking` };
+    if (rf > 0) return { action: 'fail', why: `required check(s) failed: ${(snap.failedNames || []).join(', ') || rf}` };
+    /* ADVISORY-ONLY RED: fall through and keep landing. Deliberately no logging here — `decide` is
+       PURE, which is what makes it gate-backable, and the caller's per-poll line already prints the
+       bucket counts, so `fail:1` remains visible beside the action it did not cause. */
+  }
 
   /* A REQUIRED CONTEXT THAT WAS NEVER REPORTED. Distinct from "pending": pending means a check run
      exists and is running; this means no run exists at all, which is what a skipped matrix job
@@ -97,29 +120,29 @@ export function decide(snap) {
 
   if (snap.mergeState === 'DIRTY') return { action: 'fail', why: 'merge conflict — rebase by hand (see CLAUDE.md §👥.2c)' };
 
-  /* ⚠️ WAIT ONLY ON CHECKS THAT CAN ACTUALLY BLOCK THE MERGE.
-     `pending` counts EVERY context, and most of them cannot hold a PR: `mutation (diff-scoped)` is
-     advisory by design and is not in the ruleset's required set. Measured 2026-08-14 across #1259 and
-     #1269 — both timed out here at 45 minutes with `still UNSTABLE` while that one check ran, and both
-     were mergeable the whole time. #1259 merged INSTANTLY the moment auto-merge was armed, with 22
-     passing and that same check still pending. ~90 minutes spent proving a check could not block.
+  /* AN ADVISORY PENDING CHECK CANNOT HOLD A GREEN PR. Measured across #1259 and #1269: both timed
+     out here at 45 minutes with `mutation (diff-scoped)` running, both were mergeable throughout,
+     and #1259 merged INSTANTLY once auto-merge was armed with that check still pending. ~90 minutes
+     spent proving a check could not block. `pending` counted every context; the required set was
+     already read for the missing-context rule and simply was not consulted here.
 
-     The required set is already read from the ruleset for the missing-context rule above; this simply
-     uses it. When it could not be read, `requiredPending` falls back to the total — an unknown set must
-     not license merging past a check that might be required, which is the same fail-safe asymmetry the
-     `readable` guard states: a spurious wait costs one poll, a spurious merge cannot be undone. */
-  const requiredPending = snap.requiredPending === undefined ? pending : snap.requiredPending;
-  if (requiredPending > 0) return { action: 'wait', why: `${requiredPending} required check(s) still running` };
+     FAIL-CLOSED: if we could not work out how many PENDING checks are required, wait. A spurious
+     wait costs one poll; a spurious merge lands past a check that could have blocked. */
+  let advisoryNote = '';
+  if (pending > 0) {
+    const rp = snap.requiredPending;
+    if (rp == null) return { action: 'wait', why: `${pending} check(s) still running (required set unknown — waiting is the safe direction)` };
+    if (rp > 0) return { action: 'wait', why: `${rp} required check(s) still running` };
+    /* Advisory only. Say so in the verdict rather than merging past it silently — a tool that
+       quietly outruns an advisory check makes the already-unnoticed advisory red worse. */
+    advisoryNote = ` (${pending} advisory check(s) still in flight)`;
+  }
 
   /* UNKNOWN is GitHub still computing mergeability — transient, and NOT a reason to merge or fail.
      Observed on #1095: `mergeable=UNKNOWN` for minutes while every check was green. */
   if (snap.mergeState === 'UNKNOWN') return { action: 'wait', why: 'GitHub still computing mergeability' };
 
-  /* Name the advisory checks still in flight. Merging past them is correct — they cannot block — but
-     doing it SILENTLY is the other half of the same defect: the mutation gate's red already merges
-     unnoticed today, and a tool that quietly outruns it makes that worse rather than better. */
-  const advisory = pending - requiredPending;
-  return advisory > 0 ? { action: 'merge', why: `green and up to date — ${advisory} advisory check(s) still pending, not required` } : { action: 'merge', why: 'green and up to date' };
+  return { action: 'merge', why: 'green and up to date' + advisoryNote };
 }
 
 /* ── I/O ────────────────────────────────────────────────────────────────────────────────────── */
@@ -140,22 +163,26 @@ function snapshot(pr) {
     checks = [];
     readable = false;
   }
+  const req = requiredContexts() || [];
+  const reqSet = new Set(req);
   const buckets = {};
   for (const c of checks) buckets[c.bucket] = (buckets[c.bucket] || 0) + 1;
-  /* PENDING, RESTRICTED TO CONTEXTS THAT CAN BLOCK THE MERGE. `undefined` when the required set could
-     not be read, so `decide()` falls back to the total rather than merging past an unknown — an
-     unreadable ruleset must not become permission. A required context is matched by exact name, the
-     same string the ruleset stores and `gh pr checks` reports. */
-  const req = requiredContexts();
-  const requiredPending = req.length ? checks.filter((c) => c.bucket === 'pending' && req.includes(c.name)).length : undefined;
   return {
-    requiredPending,
     state: view.state,
     mergeState: view.mergeStateStatus,
     buckets,
     readable,
     reported: checks.map((c) => c.name),
-    required: requiredContexts()
+    /* WHICH checks failed, not just how many. `buckets` is a count, and a count cannot answer
+       "is this failure blocking?" — the question the fail branch has to ask. */
+    failedNames: checks.filter((c) => c.bucket === 'fail').map((c) => c.name),
+    /* HOW MANY of the pending/failing checks can actually BLOCK. `buckets` is a count over ALL
+       contexts and cannot answer that — which is why the tool waited on advisory checks for 90
+       minutes and stopped on advisory reds. `null` when the ruleset could not be read, so `decide`
+       can tell "none are required" from "we do not know" and fail closed on the second. */
+    requiredPending: req.length ? checks.filter((c) => c.bucket === 'pending' && reqSet.has(c.name)).length : null,
+    requiredFailed: req.length ? checks.filter((c) => c.bucket === 'fail' && reqSet.has(c.name)).length : null,
+    required: req
   };
 }
 

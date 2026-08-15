@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-08 · **Follows:** `CITATION-ATTRIBUTION-FOLLOWUPS-2026-08-05-BRIEF.md` (DONE — 2026-08-08) · **Evidence:** `audits/CITATION-VERIFICATION-2026-08-05.json`
+**Status:** DONE — 2026-08-15 (§2 and §3 settled 2026-08-08; **§1's fixture debt discharged 2026-08-15** — see §1-RESULT) · **Created:** 2026-08-08 · **Follows:** `CITATION-ATTRIBUTION-FOLLOWUPS-2026-08-05-BRIEF.md` (DONE — 2026-08-08) · **Evidence:** `audits/CITATION-VERIFICATION-2026-08-05.json`
 
 # The citation gate works — on the surfaces it looks at. Three things executing it left behind.
 
@@ -37,6 +37,46 @@ DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs
 
 **Done when:** the corpus run is executed and `verifiedUnder` re-stamped, **or** a fixture genuinely
 moved and is regenerated with its node's `tools/regen-<node>-goldens.mjs` first. Record which.
+**→ The first: re-stamped after a green corpus run, no fixture moved. See the result block below.**
+
+### ✅ DISCHARGED 2026-08-15 — and it was settled in passing, not as an errand
+
+The corpus run happened, and it happened as a side effect of unrelated compute-path work
+(`NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS-II` §1, #1316). `verify-fixtures` re-stamps **every** stale
+fixture, not only the node whose PR it is — so a PulseDex change discharged this debt along with four
+other nodes'.
+
+The five bundles the parent rebuilt were Integrator · OverDex · ECGDex · PpgDex · Data Unifier. Two are
+orchestrators and carry no GATE-B fixtures; the three that do were all re-run against the real corpus and
+reproduced. Measured on `origin/main` after #1317, from a checkout verified to be 0 commits behind:
+
+```
+▸ fixture verification — 14 corpus-backed fixture(s) owe a verifiedUnder
+  ✓ ECGDex_2026-06-27_equiv…      verified under a9b2b198f69f
+  ✓ PpgDex_2026-06-27_equiv…      verified under 857c02f37ab8
+  ✓ integrator_tch_golden…        verified under 3f72e7e03f92
+  … 14/14
+✓ every corpus-backed fixture is verified under the current compute closure
+```
+
+**What was NOT done, deliberately, and it is what §1 asked for.** No `verifiedUnder` was hand-stamped, no
+"export-inert" was written in prose, and the green suite was not read as settling it. The tool re-ran the
+app on the real recordings and the exports reproduced; that is the whole of the evidence.
+
+**One honest qualification.** The stamps certify the code as of #1316/#1317, not the citation-era
+`computeHash` the parent recorded (`7efa556794e9` for ECGDex, etc.). That is correct rather than a
+shortfall — `verifiedUnder` names the code that actually reproduced the bytes, and
+`FIXTURE-CORPUS-REACHABILITY` §4 already filed the general case as *"the discharge is valid as of an
+instant, and the instant passes"*, a cost rather than a hole. The debt §1 names — *these exports have
+never been re-run since a DSP comment moved their compute closure* — no longer exists: they have been
+re-run, and they reproduced.
+
+**A method note, because the first measurement was wrong.** The initial reading of this said 14/14 too,
+with *different hashes* — it came from a pre-existing worktree directory that `git worktree add` had
+refused to create over, so the shell landed in **another session's checkout, 482 commits behind**. The
+answer was plausible, wrong, and would have been recorded as evidence. The check that caught it is one
+line — `git rev-list --count HEAD..origin/main` — and it is the same lesson CLAUDE.md §👥.2b draws about
+refs, applied to worktrees: **verify the tree you are standing in before quoting what it says.**
 
 ## 2 · The gate stops at source surfaces, and nobody has said whether that is right
 

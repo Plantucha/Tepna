@@ -21,10 +21,10 @@
       "segments": [
         {
           "startMs": 1777766400000,
-          "durSec": 258900
+          "durSec": 259200
         }
       ],
-      "recordedSec": 258900,
+      "recordedSec": 259200,
       "nWithDuration": 1,
       "n": 1
     },

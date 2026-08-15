@@ -1255,15 +1255,33 @@
       N = a.length;
     if (N < 10) return null;
 
+    /* ── ENVELOPE vs DATA (NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS-II §1) ──────────────────────
+       `beatTimes` has two branches: with timestamps it returns a wall SPAN, without them it cumulates
+       RR. So `durSec` silently changed meaning between branches, and `coverage` was initialised to
+       100 and only ever overwritten on the timestamped path — a completeness claim made from the
+       ABSENCE of evidence, which is what the Clock Contract §2.6 and this brief family exist to stop.
+
+       The fix follows HRVDex's sparse block (the in-tree template): the ENVELOPE and the DATA get
+       DIFFERENT NAMES so nothing can read one as the other, and the one that cannot be known is
+       `null` rather than estimated. An untimed RR stream has no gap information at all, so it has no
+       envelope and no coverage — both are null, and `recordedSec` carries what the beats do account
+       for.
+
+       `durSec` KEEPS its previous value on purpose. It is not a publication choice: `classifyRecording`
+       consumes it immediately and does arithmetic on it, and `adaptEnvelopeNode` reads the exported
+       `durationMin` to build this node's fusion window. Nulling it would collapse that window to a
+       POINT — the exact DEEP-AUDIT-III §6.2 regression HRVDex already paid for once. So the ambiguity
+       is resolved by LABELLING rather than by deletion: `durationBasis` states which of the two a given
+       `durationMin` is, and `spanMin`/`recordedMin` publish them separately and unambiguously. */
     const times = beatTimes(a, f.tsMs);
     const durSec = times[N - 1] || (N * mean(a)) / 1000;
-    let coverage = 100;
-    if (f.tsMs && isFinite(f.tsMs[0]) && isFinite(f.tsMs[N - 1])) {
-      const wall = (f.tsMs[N - 1] - f.tsMs[0]) / 1000;
-      let rrSum = 0;
-      for (let i = 0; i < N; i++) rrSum += a[i] / 1000;
-      coverage = wall > 0 ? +Math.min(100, (rrSum / wall) * 100).toFixed(1) : 100;
-    }
+    const timedAxis = !!(f.tsMs && isFinite(f.tsMs[0]) && isFinite(f.tsMs[N - 1]));
+    let rrSumSec = 0;
+    for (let i = 0; i < N; i++) rrSumSec += a[i] / 1000;
+    // ENVELOPE — wall span. Unknowable without timestamps, so null, never estimated from the beats.
+    const spanSec = timedAxis ? (f.tsMs[N - 1] - f.tsMs[0]) / 1000 : null;
+    // COVERAGE — data over envelope. Needs BOTH, so it is null exactly when the envelope is.
+    const coverage = spanSec != null && spanSec > 0 ? +Math.min(100, (rrSumSec / spanSec) * 100).toFixed(1) : null;
 
     const cls = classifyRecording(a, f.t0Ms, durSec);
     const mode = cls.mode;
@@ -1379,6 +1397,10 @@
       modeLabel: MODE_LABEL[mode] || mode,
       longRec,
       durMin: +(durSec / 60).toFixed(1),
+      // The two, named apart (FOLLOWUPS-II §1). `durationBasis` says which one `durMin` equals.
+      spanMin: spanSec != null ? +(spanSec / 60).toFixed(1) : null,
+      recordedMin: +(rrSumSec / 60).toFixed(1),
+      durationBasis: timedAxis ? 'envelope' : 'beat-sum',
       coverage,
       N,
       windows: win ? win.wins : null,
@@ -1488,6 +1510,12 @@
         startEpochMs: r.t0Ms ?? null,
         offsetMin: r.offsetMin ?? null,
         durationMin: r.durMin,
+        /* FOLLOWUPS-II §1 — `durationMin` is kept for the envelope consumers that already read it
+           (`adaptEnvelopeNode`), and these three say what it actually IS. `spanMin` null ⇒ the stream
+           carries no wall clock, so it has no envelope and `coveragePct` is null too: absent, not 100. */
+        spanMin: r.spanMin ?? null,
+        recordedMin: r.recordedMin ?? null,
+        durationBasis: r.durationBasis ?? null,
         mode: r.mode,
         modeLabel: r.modeLabel,
         longRecording: r.longRec,

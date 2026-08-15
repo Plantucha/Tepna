@@ -75,10 +75,13 @@
  * @typedef {Object} GangliorRecording
  * @property {number|null}  startEpochMs   floating wall-clock ms of first valid sample (t0Ms); null = unknown
  * @property {number|null} [offsetMin]     minutes east of UTC, or null (no zone in source)
- * @property {number|null} [durationMin]
+ * @property {number|null} [durationMin]   what `adaptEnvelopeNode` builds the fusion window from
+ * @property {number|null} [spanMin]       ENVELOPE — wall span. null = the source carries no wall clock
+ * @property {number|null} [recordedMin]   DATA — what the samples themselves account for
+ * @property {string|null} [durationBasis] which of the two `durationMin` equals: "envelope" | "beat-sum"
  * @property {number}      [beats]
  * @property {string}      [source]
- * @property {number|null} [coveragePct]
+ * @property {number|null} [coveragePct]   null = UNMEASURABLE (no envelope), never a defaulted 100
  */
 
 /**

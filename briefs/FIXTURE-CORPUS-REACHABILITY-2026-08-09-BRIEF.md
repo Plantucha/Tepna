@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-09 · **Follows:** `FIXTURE-VERIFICATION-GATE-2026-07-14-BRIEF.md` · **Affects:** `tools/verify-fixtures.mjs`, `CLAUDE.md` §👥.1 / §🔏
+**Status:** DONE — 2026-08-15 · **Created:** 2026-08-09 · **Follows:** `FIXTURE-VERIFICATION-GATE-2026-07-14-BRIEF.md` · **Affects:** `tools/verify-fixtures.mjs`, `CLAUDE.md` §👥.1 / §🔏
 
 # The workflow this repo mandates cannot discharge the gate that same workflow triggers
 
@@ -118,13 +118,52 @@ be *cheap and obvious*, because on this repo it will be done often — which is 
 
 ## Done when
 
-- [ ] `verify-fixtures` prints its search path and finds the primary checkout's `uploads/` from
+- [x] `verify-fixtures` prints its search path and finds the primary checkout's `uploads/` from
       inside a worktree without `DEX_UPLOADS` being set by hand.
-- [ ] The worktree consequence is stated at both call sites.
-- [ ] The four corpus locations are recorded, including that `Ecg nightly` contains a space and that
+- [x] The worktree consequence is stated at both call sites.
+- [x] The four corpus locations are recorded, including that `Ecg nightly` contains a space and that
       `vigil:/srv/tepna/captures` is the freshest.
-- [ ] Refusal behaviour is UNCHANGED — verified by running with a corpus that is genuinely missing an
+- [x] Refusal behaviour is UNCHANGED — verified by running with a corpus that is genuinely missing an
       input and confirming it still refuses to stamp.
+
+## EXECUTED — 2026-08-15
+
+**What shipped.** `corpusSearch(repo)` in `tools/regen-goldens-core.mjs` — the same module that already
+holds the ONE resolver, so the two halves of the fixture workflow still cannot drift apart. It returns
+every candidate *with its verdict*, in the order Proposal 1 specifies:
+
+    $DEX_UPLOADS  →  primary checkout (git rev-parse --path-format=absolute --git-common-dir)  →  this checkout
+
+`resolveCorpus` is now a thin front for it and keeps its old contract, so the whole regen family
+inherits the search without a call-site change. `verify-fixtures` prints the chosen corpus on every
+stamp run and prints the **whole search** when it refuses.
+
+**One thing the brief did not say, and it is the reason to prefer this over copying data around.**
+Preferring the primary checkout means a git-**tracked** input can now be read from a checkout at a
+different commit than the one you are standing in. That is a real behaviour change, and it **fails
+closed**: the input is hashed by GATE B and re-run by the node's equiv leg, so a mismatch reds the
+suite and `verify-fixtures` refuses to stamp. The alternative was not running at all.
+
+**The counts had all grown, which is itself the finding for §3.** Re-measured 2026-08-15 against the
+brief's 2026-08-09 figures:
+
+| location | brief (08-09) | now (08-15) |
+|---|---|---|
+| `<primary>/uploads` | 653 (435 gitignored) | **777** (435 gitignored, 136 tracked) |
+| `tepna-smoketest/captures` | 11,430 | **11,646** |
+| `Ecg nightly` | 1,980 | 1,980 |
+| `vigil:/srv/tepna/captures` | 4,247 / 21 nights | **6,827 / 28 nights** |
+
+Three of four moved in six days. `docs/CORPUS-LOCATIONS.md` therefore records them as *scale, not a
+checksum*, with a `last-verified` date — a corpus inventory that reads like a fixture invites someone
+to treat a stale count as a discrepancy.
+
+**Refusal behaviour is unchanged, and that was checked rather than reasoned about** (Done-when 4): run
+against a corpus genuinely missing an input, the tool still exits **2** and stamps nothing — it now
+shows the three places it looked first. The refusal is the design; only the message moved.
+
+**§4 remains a filed cost, not a hole.** Nothing here shortens the window between incurring a
+verification debt and discharging it; it only makes the discharge cheap, which is what §4 asked for.
 
 ## Cross-references
 
