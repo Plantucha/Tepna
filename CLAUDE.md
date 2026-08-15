@@ -576,6 +576,19 @@ generated trees, and re-bundling can staleness any of them:
 subset.** `CONTRIBUTING.md` has carried the full builder table all along — this line exists so the
 file you read *first* points at it too.
 
+⚠️ **FORMAT BEFORE YOU BUNDLE, not after.** `npm run check` puts `typecheck` and `lint` first by design:
+they cost seconds, and everything after them costs minutes. A one-line type error or a Biome reflow
+found *after* `build.mjs` invalidates the whole chain — bundle → orchestrators → `build-analysis` →
+`build-docs` → `regen-<node>-goldens` → `verify-fixtures` (which re-runs the entire suite) — because
+formatting an inlined file changes the inlined text, so `manifestHash` **and** `computeHash` move and
+`verifiedUnder` has to be re-earned. Measured 2026-08-15: that chain ran twice for one `const`.
+Pre-flight is `npm run typecheck && npm run lint`, then the group your change touches, and only then the
+builders. **Hook-enforced at commit time** by `.claude/hooks/guard-format.sh`, which denies a `git
+commit` whose STAGED `*.js`/`*.mjs` are not Biome-clean — `biome` is a required check, so such a commit
+reds CI on formatting alone. It checks the staged paths explicitly (`biome ci --changed` was measured
+exiting 0 on a staged format-only violation) and **fails open where Biome cannot run**, because a fresh
+worktree has no `node_modules`. Escape hatch for a deliberate WIP commit: `CLAUDE_ALLOW_UNFORMATTED=1`.
+
 The failure mode, if you skip it: a fleet re-bundle that passed `build.mjs --check`, GATE A/B, biome
 and all 5378 assertions still went red in CI on `STALE (7): CPAPDex.html, ECGDex.html, …` (#797,
 2026-08-03), because nothing local had looked at `docs/`. **All six test shards were green and only
