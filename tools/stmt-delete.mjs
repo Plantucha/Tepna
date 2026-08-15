@@ -79,7 +79,7 @@ import { stripNonCode } from './probe-equivalence.mjs';
 
 /* Files Level B may run against. An allowlist, not a glob: SDL is experimental here and its cost is
    one suite run per statement, so it is pointed deliberately rather than swept. */
-export const LEVEL_B_ALLOWLIST = ['clock.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js', 'oxydex-dsp.js'];
+export const LEVEL_B_ALLOWLIST = ['xmt-fixture.js', 'clock.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js', 'oxydex-dsp.js'];
 
 /* The statement kinds this tool will delete, named after PseudoSweep's `Stmt.Type` enum so the two
    can be compared. The Java-only members (INNER_CLASS, LAMBDA_RETURN, SWITCH_ENTRY_ASSIGNMENT) and
@@ -94,14 +94,23 @@ export const ELIGIBLE = ['EXPRESSION', 'RETURN', 'THROW', 'BREAK', 'CONTINUE', '
    inside an `if` or a loop belongs to a control structure whose deletion semantics differ, and
    guessing at them is how an unsound mutant gets emitted. Nested bodies are reached by recursing on
    the enclosing block, not by flattening. */
-export function splitStatements(src, from, to) {
-  const mask = stripNonCode(src);
+export function splitStatements(src, from, to, _mask) {
+  const mask = _mask || stripNonCode(src);
   const out = [];
   let depth = 0;
   let start = from;
   const emit = (end) => {
-    const text = src.slice(start, end);
-    if (text.trim()) out.push({ start, end, text });
+    /* ⚠️ `start` sits where the PREVIOUS statement ended, so it points at the whitespace AND the
+       COMMENTS preceding this statement's first real character — which then become its reported
+       text, kind and LINE. The planted fixture surfaced this as
+       `[EXPRESSION] /* ── G · TRULY EQUIVALENT …` at the comment's line, for a subject that is
+       actually a RETURN eleven lines lower: a human sent to the wrong line to judge the wrong
+       construct. `stripNonCode` blanks comments to whitespace in place, so advancing over
+       mask-whitespace skips code-whitespace and comments alike. */
+    let s = start;
+    while (s < end && /\s/.test(mask[s])) s++;
+    const text = src.slice(s, end);
+    if (text.trim()) out.push({ start: s, end, text });
     start = end;
   };
   for (let i = from; i < to; i++) {
@@ -122,15 +131,85 @@ export function splitStatements(src, from, to) {
       if (c === '}' && depth === 0) emit(i + 1);
     } else if (c === ';' && depth === 0) emit(i + 1);
   }
-  return out;
+
+  /* 🔴 RECURSE INTO CONTROL-FLOW BODIES — without this, Level B tests only the TOP LEVEL of a
+     function and every statement inside a loop or a branch is invisible.
+
+     Not merely ineligible — INVISIBLE. `if (c) { … }` is emitted as ONE statement and declined as
+     control-flow (correctly: deleting the guard removes everything it guards). Its body then
+     appears in no subject list at all, so the run reports a smaller denominator and reads as
+     complete. Measured on the planted fixture: `stats.seen = stats.seen + 1;` — a statement
+     deliberately constructed to be pseudo-tested, with a KNOWN answer — was neither killed nor
+     reported, because it sits one brace deep. The clock.js figure of 85 eligible subjects was an
+     undercount of the same kind.
+
+     This is the failure mode this repo keeps re-earning: a gate that ran, passed, and never
+     examined the thing in question. It was found only because the fixture had a known answer —
+     no selftest could have, since every one of them exercises a flat function body.
+
+     Nested FUNCTIONS are deliberately not recursed into: `functionBodies` already enumerates each
+     one as its own subject range, so descending here would double-count them under the enclosing
+     function's name. */
+  const nested = [];
+  for (const st of out) {
+    /* ⚠️ MATCH THE MASKED TEXT, NEVER THE RAW SOURCE. The first version of this guard tested
+       `st.text`, which includes comments — so a loop body whose comment contained the WORD
+       "function" was skipped as if it declared one, and the recursion silently did nothing. It
+       cost a full re-run to see, because a skipped recursion looks exactly like a file with no
+       nested statements. */
+    const t = mask.slice(st.start, st.end).trim();
+    if (!/^(if|for|while|do|switch|try|catch|finally|else)\b/.test(t)) continue;
+    if (/\bfunction\b/.test(t) || /=>/.test(t)) continue;
+    let i = st.start;
+    while (i < st.end) {
+      if (mask[i] !== '{') {
+        i++;
+        continue;
+      }
+      let d = 0;
+      let j = i;
+      for (; j < st.end; j++) {
+        if (mask[j] === '{') d++;
+        else if (mask[j] === '}' && --d === 0) break;
+      }
+      if (j >= st.end) break; /* unbalanced — fail closed, recurse nowhere */
+      for (const inner of splitStatements(src, i + 1, j, mask)) nested.push(inner);
+      i = j + 1;
+    }
+  }
+  return out.concat(nested).sort((a, b) => a.start - b.start);
 }
 
 /* ── ELIGIBILITY, and the reason each exclusion exists ───────────────────────────────────────
    Returns a `Stmt.Type`-style name, or a `not-eligible:<reason>` string. Conservative: anything
    unrecognised declines. */
 export function classifyStatement(text) {
-  const t = String(text || '').trim();
-  if (!t) return 'not-eligible:empty';
+  /* 🔴 EVERY RULE BELOW MATCHES CODE, NOT PROSE. `stripNonCode` blanks comments, strings and regex
+     literals in place, and eligibility is decided on THAT view. Deciding on raw text makes a
+     comment load-bearing: a statement whose comment says "function" declines as
+     `contains-function`, and one that says "if" declines as control-flow — silent losses that
+     shrink the denominator while the run reads as complete. The recursion guard above had exactly
+     this bug and it took a known-answer fixture to expose it, so the rule is applied at both
+     layers rather than patched at the one that was caught.
+
+     It also makes `no-content` correct rather than approximate: a fragment that is ONLY a comment
+     masks to whitespace and declines, where the raw text would have counted it as substance. */
+  const raw = String(text || '').trim();
+  if (!raw) return 'not-eligible:empty';
+  const t = stripNonCode(raw).trim();
+
+  /* ⚠️ A BARE `;` HAS NOTHING TO DELETE, and reporting it is a FREE FALSE POSITIVE — the same rule
+     Level A applies to an already-empty function body ("an empty function cannot be emptied, and
+     reporting it as survived would be a free false positive on every no-op stub in the file"). I
+     failed to carry it over, and the first live run found out: the very first PSEUDO-TESTED
+     STATEMENT reported against clock.js was `_ckNumEpoch L40 [EXPRESSION] ;` — a lone semicolon.
+     Measured on that file: 14 of 85 eligible subjects (16.5 %) were bare, so one run in six would
+     have been a fabricated finding.
+
+     These arise from the splitter emitting after a block close: `}` ends a statement, and a `;`
+     following it becomes a fragment of its own. Declining here rather than in the splitter keeps the
+     boundary logic simple and puts the judgement where every other eligibility rule lives. */
+  if (!t.replace(/[\s;]/g, '')) return 'not-eligible:no-content';
 
   /* A statement containing a function definition is a DECLARATION of behaviour, not an execution of
      it. Deleting it removes a binding other statements call — the same unsound shape as deleting a
@@ -304,7 +383,49 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   const L = 'function f(){ for (var i=0;i<3;i++) { h(i); } k(); }';
   const lo = L.indexOf('{');
   const ls = splitStatements(L, lo + 1, L.length - 1);
-  ok('a for-header semicolon does NOT split a statement', ls.length === 2, String(ls.length) + ' (a naive split gives 4)');
+  ok('a for-header semicolon does NOT split a statement', ls.filter((x) => x.text.trim().startsWith('for')).length === 1, String(ls.length));
+  /* ⚠️ THIS EXPECTATION WAS CHANGED DELIBERATELY, from `ls.length === 2` to 3. The loop, `k();` —
+     AND `h(i);` from inside the loop body, which the pre-recursion splitter never emitted. The old
+     count was not wrong about the for-header; it was asserting the ABSENCE of the body as though
+     that were correct, so it locked in the invisibility bug the planted fixture later exposed.
+     The header property is now asserted directly (exactly one statement begins with `for`) rather
+     than inferred from a total, so it cannot be satisfied by a body going missing again. */
+  ok('…and the loop BODY is now a subject in its own right', ls.length === 3 && ls.some((x) => x.text.trim() === 'h(i);'), String(ls.length) + ' — ' + ls.map((x) => x.text.trim()).join(' | '));
+  ok('nested statements are ordered by position, not appended after their parent', ls[0].text.trim().startsWith('for') && ls[1].text.trim() === 'h(i);', ls.map((x) => x.text.trim()).join(' | '));
+
+  /* Both blocks of an if/else are recursed, and a comment before a statement is not mistaken for it. */
+  const IE = 'function f(){ if (c) { p(); } else { q(); } /* note */ r(); }';
+  const ieo = IE.indexOf('{');
+  const es = splitStatements(IE, ieo + 1, IE.length - 1);
+  ok('if AND else bodies are both recursed', es.some((x) => x.text.trim() === 'p();') && es.some((x) => x.text.trim() === 'q();'), es.map((x) => x.text.trim()).join(' | '));
+  ok(
+    'a leading comment is not reported as the statement',
+    es.some((x) => x.text.trim() === 'r();'),
+    es.map((x) => x.text.trim()).join(' | ')
+  );
+
+  /* ── PROSE IS NOT CODE. Each of these declined for the wrong reason before the masked-view fix,
+     and each loss was SILENT — a smaller denominator, no warning. */
+  ok(
+    'a comment mentioning "function" does not make a statement ineligible',
+    classifyStatement('g(a); /* inside a function we test */') === 'EXPRESSION',
+    classifyStatement('g(a); /* inside a function we test */')
+  );
+  ok('a comment mentioning "if" does not read as control flow', classifyStatement('/* if it fails */ g(a);') === 'EXPRESSION', classifyStatement('/* if it fails */ g(a);'));
+  ok('a string containing "function" is still just an expression', classifyStatement('log("function");') === 'EXPRESSION', classifyStatement('log("function");'));
+  ok('a comment-only fragment has no content to delete', classifyStatement('/* just a note */').startsWith('not-eligible'), classifyStatement('/* just a note */'));
+  ok('…but a real nested function still declines', classifyStatement('var h = function () { return 1; };').startsWith('not-eligible'), classifyStatement('var h = function () { return 1; };'));
+
+  /* The recursion guard reads the same masked view — asserted through the public splitter, since
+     that is the layer where the loss actually happened. */
+  const CM = 'function f(){ for (var i=0;i<3;i++) { /* calls a function */ h(i); } }';
+  const cmo = CM.indexOf('{');
+  const cms = splitStatements(CM, cmo + 1, CM.length - 1);
+  ok(
+    'a loop whose COMMENT says "function" is still recursed into',
+    cms.some((x) => x.text.trim() === 'h(i);'),
+    cms.map((x) => x.text.trim()).join(' | ')
+  );
 
   ok('a return is eligible', classifyStatement('return a;') === 'RETURN');
   ok('a throw is eligible', classifyStatement('throw new Error("x");') === 'THROW');
@@ -315,6 +436,12 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   ok('a nested function declines — deleting it removes a binding', classifyStatement('var f = function(){};').startsWith('not-eligible'));
   ok('an arrow declines for the same reason', classifyStatement('var f = () => 1;').startsWith('not-eligible'));
   ok('an unrecognised construct declines rather than guessing', classifyStatement('').startsWith('not-eligible'));
+  /* The bare-`;` rule. Found by RUNNING it: the first live pseudo-tested statement reported against
+     clock.js was a lone semicolon, and 14 of 85 subjects on that file were the same shape. */
+  ok('a bare `;` has nothing to delete', classifyStatement(';').startsWith('not-eligible'), classifyStatement(';'));
+  ok('…and so does `;;`', classifyStatement(';;').startsWith('not-eligible'));
+  ok('…and whitespace around one', classifyStatement('  ;  ').startsWith('not-eligible'));
+  ok('but a real statement is still eligible', classifyStatement('g(a);') === 'EXPRESSION');
 
   /* The declaration adaptation — the binding must survive. */
   const D = 'var x = compute();';
@@ -332,7 +459,7 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   ok('a mutant that never ran ⇒ INCONCLUSIVE, never KILLED', classifyStatementVerdict(false, false) === 'INCONCLUSIVE');
   ok('…and never PSEUDO_TESTED either — an absent run is not evidence', classifyStatementVerdict(false, true) === 'INCONCLUSIVE');
 
-  ok('the allowlist is explicit, not a glob', LEVEL_B_ALLOWLIST.length === 4 && LEVEL_B_ALLOWLIST.indexOf('clock.js') >= 0);
+  ok('the allowlist is explicit, not a glob', LEVEL_B_ALLOWLIST.length === 5 && LEVEL_B_ALLOWLIST.indexOf('clock.js') >= 0);
   ok('eligible kinds are named after PseudoSweep Stmt.Type', ELIGIBLE.indexOf('VARIABLE_DECLARATION') >= 0 && ELIGIBLE.indexOf('RETURN') >= 0);
 
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));

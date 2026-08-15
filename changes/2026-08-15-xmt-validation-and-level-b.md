@@ -75,3 +75,26 @@ permanently.
 
 CI: **advisory only.** Level B is experimental, costs one suite run per statement, and is not wired
 into any gate. Baseline and ratchet come after the results are stable and manually reviewed.
+
+**LEVEL B IS VALIDATED AGAINST PLANTED ANSWERS, AND THAT IS WHAT FOUND ITS BUGS.** Three statements
+with known verdicts were planted inside a function Level A calls TESTED — observed (must die),
+unobserved (must survive), and TRULY EQUIVALENT (survives, and the tool is *wrong* to report it, which
+makes the equivalent-mutant limitation a tested property instead of a caveat). 3 of 3 now match.
+
+🔴 **Getting there exposed that Level B had been blind to roughly HALF of every file it ran on.**
+`splitStatements` emitted only a function body's top level, so a loop or branch body appeared in **no
+subject list at all** — not ineligible, invisible. Eligible subjects on `clock.js` go 67 → 132 (+97 %);
+`ecgdex-dsp.js` 555 → 1143 (+106 %). The earlier "85 eligible" figure was that undercount, and the run
+read as complete. **None of the 26 selftests could have caught it** — every one exercised a flat
+function body, so all 26 agreed with the bug.
+
+The first fix silently did nothing: its guard matched RAW text, and the planted comment contains the
+word "function", so the loop was skipped as though it declared one. `classifyStatement` had the same
+flaw — a comment saying "function" or "if" declined a real subject. Both now match the `stripNonCode`
+view; 10 selftests pin the recursion and the masked-eligibility rules.
+
+⚠️ **§3d records a retraction.** Level B's first live finding — `clock.js`'s `se = se || 0` — was
+reported here as a pseudo-tested statement and is **an EQUIVALENT MUTANT**: every call site guarantees
+a number. Survival is not pseudo-testedness, SDL cannot separate the two, and TCE (the standard remedy)
+does not port to JS — so every survivor needs manual triage. The test written for it is kept for an
+independent reason: Clock §2 case 3's optional seconds had **zero** fixtures.

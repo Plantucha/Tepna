@@ -367,6 +367,22 @@
       /* D · BARE ACCESSOR. Asserted so the function is covered; the tool must still EXCLUDE it via a
          stop-matcher rather than score it, because its pseudo-testedness carries no information. */
       T.eq('getConstant returns its constant (covered, but not a scoreable subject)', F.getConstant(), 7);
+
+      /* ══ E · F · G — THE LEVEL B REGIME ═════════════════════════════════════════════════════════
+         `summarise` is asserted STRONGLY as a whole: emptying it breaks the return, so Level A calls
+         it TESTED — correctly. Three statements inside it have three different known answers, and
+         that spread is the point. A fixture where every statement survives would be passed by a tool
+         that reported everything, and a fixture where every statement dies would be passed by one
+         that reported nothing.
+
+         ⚠️ THE OMISSION BELOW IS THE FIXTURE. `stats.seen` is written on every iteration and is
+         deliberately NEVER asserted — assert it and F becomes tested, correctly, and this group
+         stops validating anything. As with B above, the honest way to express "nothing observes
+         this" is to observe nothing. */
+      var stats = { seen: 0 };
+      T.eq('summarise returns the total — E is OBSERVED, so deleting it must be KILLED', F.summarise([1, 2, 3], stats), 6);
+      T.eq('…and a second point, so a mutant that hard-codes 6 cannot coincide', F.summarise([10, 5], stats), 15);
+      T.eq("summarise([]) is 0 — the empty case, which is also G's only candidate input", F.summarise([], stats), 0);
     });
     group('T.eq distinguishes null from NaN and ±Infinity, at any depth', 'harness · comparator', function (T) {
       /* THE REAL comparator, not a copy. This group previously re-declared its own private `ser`,

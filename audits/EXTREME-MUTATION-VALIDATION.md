@@ -233,6 +233,109 @@ traditional scores is moderate (Spearman ~0.6). It RANKS; it does not substitute
 
 ---
 
+## 3d · 🔴 LEVEL B'S FIRST FINDING WAS AN EQUIVALENT MUTANT, AND ONLY MANUAL TRIAGE CAUGHT IT
+
+Level B's first live result on `clock.js` was reported as:
+
+```
+● PSEUDO-TESTED STMT  _ckMk  L113  [EXPRESSION]  se = se || 0;
+```
+
+Deleting it leaves the suite green — verified by hand at 848, then 853 assertions. On its face that is
+the paper's central claim reproduced: a pseudo-tested STATEMENT inside a function Level A calls
+TESTED, in the Clock Contract's component builder.
+
+**It is not. It is an EQUIVALENT MUTANT.** Every call site of `_ckMk` supplies `se` as a defined
+number — six pass `m[6] ? +m[6] : 0`, and the two that pass `+m[6]` or `+m[3]` unconditionally belong
+to regexes whose seconds group is MANDATORY (the 14-digit compact form, and 4a `HH:MM:SS DD/MM/YYYY`,
+which returns null for `22:00 07/06/2026`). Measured both mutated and unmutated: identical behaviour
+on every reachable input. **No input can reach the default.**
+
+⚠️ **SURVIVAL IS NOT PSEUDO-TESTEDNESS.** A statement survives deletion either because nothing
+observes it OR because nothing can distinguish it, and SDL cannot tell those apart. That is the
+equivalent-mutant problem at statement level, and it is the direct reason the standard answer — TCE —
+was investigated in §3c. TCE does not port to JS, so **Level B has no automated equivalence
+detection at all** and every survivor needs the manual triage the task specifies.
+
+**What actually caught it: writing the test and re-applying the mutant.** The test I wrote from
+READING the code passed, and the mutant still survived — the repo's most-repeated lesson, earned
+again: *a test written from reading the code passes while catching nothing.* Had I stopped at "test
+written, suite green", a false finding would have been recorded as the headline result of this audit.
+
+**The test was kept anyway, for an independent reason.** It covers §2 case 3's optional seconds
+(`YYYY-MM-DD[ T]HH:MM[:SS]`), for which there were **zero** fixtures — measured, not guessed. It
+closes a real grammar gap; it simply does not kill the mutant that led to it. Those are two different
+claims and only one of them is about the mutant.
+
+**Level B's status is therefore: WORKING, UNVALIDATED.** It correctly identified a surviving
+statement. Whether it can find a genuinely pseudo-tested one on this fleet is still open, and the
+`clock.js` run continues.
+
+---
+
+## 3e · 🔴 PLANTING KNOWN ANSWERS FOUND THREE DEFECTS — INCLUDING ONE THAT HID HALF THE SUBJECTS
+
+§3d ended with Level B **working but unvalidated**: it had reported a survivor, and the survivor was
+equivalent. The fix for "unvalidated" is the same one Level A got — plant statements whose answers are
+known and check the tool against them, rather than reading its output and finding it plausible.
+
+Three statements were planted inside `summarise` in `xmt-fixture.js`, a function asserted strongly
+enough that Level A calls it TESTED — **which is the point**, since Maton et al.'s result is that
+pseudo-tested statements hide inside methods that are not pseudo-tested:
+
+| | statement | expected | why |
+|---|---|---|---|
+| **E** | `total += readings[i];` | **KILLED** | the return is asserted at two points |
+| **F** | `stats.seen = stats.seen + 1;` | **PSEUDO-TESTED** | written every iteration, asserted nowhere |
+| **G** | `n = n \|\| 0;` | **PSEUDO-TESTED**, *and wrong to be* | `readings.length` is always a number — no input distinguishes deleting it |
+
+The spread is deliberate. A fixture where everything survives is passed by a tool that reports
+everything; one where everything dies is passed by a tool that reports nothing. **G is the negative
+control the equivalent-mutant limitation needs**: it mirrors `clock.js`'s `se = se || 0` exactly, so
+the limitation is now a TESTED PROPERTY rather than a caveat in prose. An earlier draft used
+`total = total || 0`, which `summarise(['x'])` separates (`NaN` vs `0`) — unobserved like F, not
+equivalent. Mislabelling it would have repeated §3d's error inside the fixture built to prevent it.
+
+**Final verdict: 3 of 3 known answers matched.** But only after three defects, and none of them were
+visible in the tool's output:
+
+- 🔴 **NESTED STATEMENTS WERE INVISIBLE — not ineligible, INVISIBLE.** `splitStatements` emitted only
+  a function body's TOP level. `if (c) { … }` came out as one statement and declined as control-flow,
+  correctly; its body then appeared in **no subject list at all**. F sits one brace deep and was
+  neither killed nor reported. Measured across the allowlist:
+
+  | file | eligible now | top-level only | hidden |
+  |---|---|---|---|
+  | `clock.js` | 132 | 67 | **+97 %** |
+  | `ecgdex-dsp.js` | 1143 | 555 | **+106 %** |
+  | `ppgdex-dsp.js` | 964 | 503 | **+92 %** |
+  | `oxydex-dsp.js` | 1221 | 851 | **+43 %** |
+
+  **Level B was blind to roughly half of every file it ran on**, and §3d's "85 eligible on clock.js"
+  was that undercount. The run reported a smaller denominator and read as complete — this repo's
+  most-repeated failure, a gate that ran and passed without examining the thing in question. **No
+  selftest could have caught it**: all 26 exercised flat function bodies, so every one agreed with
+  the bug.
+
+- 🔴 **PROSE WAS LOAD-BEARING.** The first recursion fix did nothing, because its guard matched the
+  RAW statement text — and F's comment contains the word *"function"*, so the loop was skipped as
+  though it declared one. `classifyStatement` had the identical flaw: a comment saying "function" or
+  "if" silently declined a real subject. Both now match the `stripNonCode` view, which also makes
+  `no-content` exact (a comment-only fragment masks to whitespace). Six selftests pin it.
+
+- **Subjects were reported at a preceding comment's line and kind.** `[EXPRESSION]` at G's comment for
+  a subject that was a `RETURN` eleven lines lower — a human sent to the wrong line to judge the wrong
+  construct. `emit` now advances to the first real character.
+
+**What this says about the method, beyond the bugs.** Every one of these was found by a fixture with a
+known answer and by nothing else — not by 26 passing selftests, not by a clean run over a real file,
+not by reading the output. The tool's own numbers were internally consistent throughout. That is the
+argument for keeping ground-truth fixtures beside any measurement tool this suite ships, and it is the
+second time in this audit that a known answer overturned a plausible result (§2b's stop-matcher was the
+first).
+
+---
+
 ## 4a · ⏱️ LEVEL B'S COST, MEASURED — one suite run per statement is the whole story
 
 `clock.js` has **85 eligible statements** across 13 functions (133 total; 43 declined as control-flow,

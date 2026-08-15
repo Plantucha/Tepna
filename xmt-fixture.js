@@ -75,5 +75,47 @@
     return 7;
   }
 
-  root.XmtFixture = { add: add, calculateSomething: calculateSomething, recordInto: recordInto, getConstant: getConstant };
+  /* ══ LEVEL B GROUND TRUTH ═══════════════════════════════════════════════════════════════════
+     Fixtures A–D above decide whether FUNCTION-level XMT is measuring anything. These three decide
+     whether STATEMENT-level deletion is, and they exist because Level B's first live finding on
+     clock.js turned out to be an EQUIVALENT mutant rather than a pseudo-tested statement — a
+     survivor is not a finding until something distinguishes those two.
+
+     All three live in ONE function that is strongly tested as a whole: emptying `summarise` breaks
+     the asserted return, so Level A correctly calls it TESTED. That is the entire point — Maton et
+     al.'s result is that pseudo-tested STATEMENTS hide inside NOT-pseudo-tested METHODS, and a
+     fixture that cannot exhibit that cannot validate the tool. */
+  function summarise(readings, stats) {
+    var total = 0;
+    var n = readings.length;
+    n = n || 0; /* ← G (see below) */
+    for (var i = 0; i < n; i++) {
+      /* ── E · OBSERVED — the control. Delete it and the asserted return changes.
+         EXPECTED: KILLED. Without this, a tool that reported everything as pseudo-tested would
+         still "pass" the fixture below. */
+      total += readings[i];
+
+      /* ── F · EXECUTED, NEVER OBSERVED — the planted pseudo-tested statement.
+         `stats.seen` is written on every iteration and NOTHING asserts it. Deleting it is a real
+         behavioural change (the counter stops advancing) that no test can see.
+         EXPECTED: PSEUDO_TESTED_STATEMENT — and, critically, inside a function Level A calls
+         TESTED. This is the Level-A/Level-B gap in one case. */
+      stats.seen = stats.seen + 1;
+    }
+
+    /* ── G · TRULY EQUIVALENT — the honest negative.
+       `readings.length` is a non-negative integer on every input that reaches here, so `|| 0` maps
+       0→0 and n→n. NO input distinguishes deleting it — not merely no input THIS SUITE supplies.
+       That distinction is the whole fixture: an earlier draft used `total = total || 0`, which
+       `summarise(['x'])` separates (NaN vs 0), making it unobserved like F rather than equivalent.
+       It mirrors `clock.js`'s `se = se || 0`, whose call sites likewise guarantee a number.
+       EXPECTED: Level B reports PSEUDO_TESTED_STATEMENT here TOO, and is WRONG to.
+       ⚠️ This fixture exists to make that limitation a TESTED PROPERTY rather than a caveat in
+       prose. SDL cannot separate "nothing observes this" from "nothing can distinguish it"; the
+       standard remedy is TCE, which does not port to JS (audits/EXTREME-MUTATION-VALIDATION §3c).
+       Until it does, every Level-B survivor needs manual triage — and this fixture is the proof. */
+    return total;
+  }
+
+  root.XmtFixture = { summarise: summarise, add: add, calculateSomething: calculateSomething, recordInto: recordInto, getConstant: getConstant };
 })(typeof globalThis !== 'undefined' ? globalThis : this);
