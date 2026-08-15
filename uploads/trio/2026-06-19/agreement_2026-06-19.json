@@ -3,17 +3,15 @@
   "tolBpm": 15,
   "nodes": [
     "PpgDex",
-    "ECGDex",
     "OxyDex"
   ],
-  "compared": 78,
-  "adjudicable": 77,
+  "compared": 77,
+  "adjudicable": 0,
   "droppedFragments": 0,
   "flagged": 0,
   "flaggedPct": 0,
   "fault": {
     "PpgDex": 0,
-    "ECGDex": 0,
     "OxyDex": 0
   },
   "epochs": []
