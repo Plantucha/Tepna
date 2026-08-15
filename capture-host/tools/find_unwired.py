@@ -70,6 +70,19 @@ ALLOW_FUNCS = {
                  "reaches callers as e.holder",
     "predict_step_split": "research helper from O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS §2, driven by its "
                           "brief rather than by the daemon — same shape as blind_spots.analyze",
+    # ── investigated 2026-08-15 (FOLLOWUPS §1). The three O2Ring request/response pairs split three
+    # ways, and the docstrings answered it: `info` was WIRED (firmware provenance the code said mattered
+    # and nothing recorded), these two were not.
+    "battery_frame": "superseded — parse_battery's own docstring says byte[1] matches the live header's "
+                     "battery percent, which the live path already reads every frame",
+    "parse_battery": "superseded by the live header — see battery_frame",
+    "config_frame": "a diagnostic, not provenance: 'verifying the ring's config on the box without the "
+                    "vendor app'. Read-only; no SET_CONFIG writer ships. Wire it if a config audit is "
+                    "ever wanted, not before",
+    "parse_config": "diagnostic — see config_frame",
+    "is_offline_cmd": "the READ half of a write/read pair whose write half IS used — `as_offline` sets "
+                      "the bit in probe_verity_offline and probe_verity_survey; nothing needs to ask "
+                      "the question back. Same shape as busy_with",
 }
 
 

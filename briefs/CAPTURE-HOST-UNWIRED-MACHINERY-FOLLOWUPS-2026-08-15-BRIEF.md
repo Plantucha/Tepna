@@ -25,11 +25,11 @@ Three **complete, symmetric O2Ring capabilities** — implemented, tested, and n
 different claim from "seven dead functions", and it changes the question from *delete or keep* to *why
 was the command never sent*. The probes do not use them either: the scan reads `probe_*.py`.
 
-- [ ] Establish for each pair whether the command was superseded (the live `0xA5` frame path already
+- [x] **DONE.** Establish for each pair whether the command was superseded (the live `0xA5` frame path already
       carries what it would return), or simply never wired. §5's pattern applies — investigate, then
       either wire or allowlist **with the reason**, so the next reader spends a line rather than a
       re-investigation.
-- [ ] `is_offline_cmd` sits next to the offline-recording work (`POLAR-OFFLINE-DOWNLOAD`,
+- [x] **DONE — allowlisted.** `is_offline_cmd` sits next to the offline-recording work (`POLAR-OFFLINE-DOWNLOAD`,
       `POLAR-ONBOARD-BACKUP`). Decide whether it is a leftover of a path that was abandoned or a piece
       of one still open.
 
@@ -83,7 +83,7 @@ Two of the three second-run failures were **environment-dependent**, and both re
 
 ## 5 · Done when
 
-- [ ] §1's three pairs are wired or allowlisted with reasons, and the detector's unexplained count
+- [x] **DONE — 0 unexplained on both scans.** §1's three pairs are wired or allowlisted with reasons, and the detector's unexplained count
       reaches 0 or a stated floor.
 - [ ] §2's CI question is answered either way, in writing.
 - [x] **DONE.** §3 is fixed in `land-pr.mjs` or its limitation is documented where the tool is invoked.
