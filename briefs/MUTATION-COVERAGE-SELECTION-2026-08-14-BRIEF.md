@@ -18,7 +18,7 @@ in `/tmp` any more. That was the whole point of #1235:
 
 | path | what it is | cost to rebuild |
 |---|---|---|
-| `.mutation-sweeps/<file>.json` | 6 survivor inventories | a sweep (hours) |
+| `.mutation-sweeps/<file>.json` | 8 survivor inventories, all canary-passed | a sweep (hours) |
 | `.mutation-sweeps/per-group.json` | the 470-group coverage map | ~10 min |
 | `.mutation-sweeps/cov/coverage-final.json` | aggregate c8 coverage | ~25 min |
 
@@ -49,7 +49,51 @@ back to the older 2026-08-09 crawl.
 
 ---
 
-## 1 · THE FLEET NUMBER IS 46.2 %, NOT 38.5 % — the published figure is stale
+## 1 · THE FLEET IS 46.4 %, NOT 38.5 % — measured on ALL EIGHT FILES, 2026-08-15
+
+```
+FLEET  4571/9847 distinguishable = 46.4%   5276 survivors unresolved   target 99%
+SPLIT  UNREACHED 471 (8.7%) - UNASSERTED 4929 (91.3%)
+```
+
+**First complete fleet measurement — no `NO SWEEP` line.** Every file's sweep is canary-passed and
+taken with coverage-directed selection under the §3a fix. The published 38.5 % was stale by ~8 points,
+exactly as `MUTATION-PROGRAM-FOLLOWUPS` §2 predicted: "kills from tests written since do not appear
+until that file is re-swept".
+
+**91.3 % of survivors are UNASSERTED** — code the tests execute and do not check. That is §4's
+fleet-level diagnosis confirmed PER MUTANT by an independent method, and it means a coverage floor
+buys almost nothing. The two exceptions are named in §1b.
+
+### 1a · Per-file, superseding the 6-file table below
+
+| file | killed | note |
+|---|---:|---|
+| `ecgdex-dsp.js` | 606 | re-swept post-§3a; was 146 killed / **1324 INVALID** / VOIDED |
+| `integrator-dsp.js` | 863 | re-swept post-§3a; was 796 / 178 invalid |
+| `oxydex-dsp.js` | 1328 | canary passed, 0.7 % invalid |
+| `ppgdex-dsp.js` | 644 | canary passed, 1.3 % invalid |
+| `cpapdex` `glucodex` `hrvdex` `motiondex` | — | still on PRE-SELECTION crawl data; **re-sweep owed** |
+
+### 1b · REACHABILITY RANKS THE SAME TWO FILES §4 DID, BY A DIFFERENT METHOD
+
+Unreached share of each file's survivors:
+
+    pulsedex 37.5 %  ·  hrvdex 20.2 %  ·  ppgdex 14.5 %  ·  oxydex 9.5 %
+    integrator 9.0 % ·  motiondex 6.5 % ·  glucodex 5.1 % ·  cpapdex 0.2 %
+
+`FOLLOWUPS` §4 named **hrvdex and pulsedex** as the only two genuinely under-executed files, derived
+from c8 statement coverage against kill rates. This partitions SURVIVORS against per-line execution
+and ranks the same two first and second. Two methods, one answer.
+
+**And `pulsedex-dsp.js` IS NOT IN `SWEEP_FILES`.** The file with the fleet's worst reachability and
+(per §4) its lowest kill rate is absent from the queue, from §1's table, and therefore from every
+headline number including the 46.4 % above. Adding it moves a ratified target's denominator, so it is
+an owner decision, not a fix to be slipped in.
+
+---
+
+## 1c · SUPERSEDED — the 6-file figure this section originally carried
 
 Rebuilt from the surviving sweeps, on the DISTINGUISHABLE denominator the ratified target uses:
 
@@ -103,20 +147,54 @@ path, so a broken selection makes it survive and the sweep refuses (exit 3).
 
 ---
 
-## 3 · 🔴 THE NEXT THING TO FIX — calibration is now the dominant cost
+## 3 · ⚠️ RETRACTED — "calibration is the dominant cost" was an artefact of an 8-mutant run
 
-`tools/mutate.mjs` sizes each mutant's timeout from ONE clean run of the **tag-filtered** group set
-(`baseMs × 5`). That made sense when mutants ran that same set. They no longer do.
+**An earlier draft of this section said calibration was ~90 % of a sweep and named it the next thing
+to fix. That is WRONG and the fix is not worth doing.** Recorded rather than deleted, because the way
+it was wrong is the more useful artefact.
 
-Measured: `integrator-dsp --limit 8 --jobs 4` = **339 s wall**, of which **~312 s is calibration** and
-~25 s is the mutants. Calibration is ~90 % of a small sweep and it is measuring a set nobody runs.
+The measurement was `integrator-dsp --limit 8 --jobs 4` = 339 s wall, of which ~312 s was calibration.
+True, and meaningless: **a fixed cost looks enormous amortised over almost nothing.** Measured against
+FULL sweeps on the same box:
 
-Fix: calibrate against the SELECTED set (or the widest selection in the batch). Until then the
-timeout is ~5× too loose, which also weakens §8's "a hang is its own verdict" rule.
+| file | calibration | elapsed | share |
+|---|---:|---:|---:|
+| `oxydex-dsp.js` | 37 s | 96 m 35 s | **0.6 %** |
+| `ppgdex-dsp.js` | 101 s | 66 m 20 s | **2.5 %** |
 
-**Consequence for planning: the tool header's "a full fleet re-sweep is ~24 h" is obsolete.** With
-per-mutant cost cut 15–78× the fleet is low single-digit hours, dominated by per-file calibration.
-Do not quote a number until §3 lands — it would be measuring the wrong term.
+0.6–2.5 %, not 90 %. Do not spend a work-unit here.
+
+**And calibrating on the union is not merely acceptable, it is REQUIRED** — the cheap alternative is
+unsafe. A module-LOAD line falls back to the tag filter (§2a), which is slower than a typical selected
+run, so a timeout sized on a representative selection would kill exactly those runs and score them
+INVALID. That is the defect §3a describes, re-introduced by the "optimisation". The union bounds both
+paths; the cost of that guarantee is ~1 % of a sweep.
+
+⚠️ The two suspiciously CHEAP calibrations in that table's full run — ecgdex 3 s, integrator 1 s —
+were the §3a bug itself, not efficiency. A calibration that gets *faster* than the work it is sizing
+is a symptom, not a win.
+
+### 3a · THE DEFECT THIS SHIPPED WITH, and what caught it
+
+`suiteArgs` made the run-suite selector polymorphic (an ARRAY of declaration indices, or a tag
+STRING). **Only the async runner was updated.** `runSuite` still hand-built `'--group=' + filter`, so
+an array stringified to `--group=44,45,46` — read as three TITLE substrings, resolving to ONE
+unrelated group, 12 assertions instead of 62 groups. Calibration timed that near-empty run, `timeoutMs
+= max(30000, baseMs × 5)` collapsed to its 30 s floor, and every mutant on a slow file was killed by
+the timeout and scored INVALID — never tested, absent from BOTH the killed and survivor counts:
+
+    oxydex     2679 tested,   18 INVALID (0.7 %)
+    ecgdex     1809 tested, 1324 INVALID (73 %)   canary FAILED -> result VOIDED
+    integrator 1840 tested,  178 INVALID (9.7 %)
+    ppgdex     1342 tested,   17 INVALID (1.3 %)
+
+**The A/B that "proved" selection safe covered only the async path.** hrvdex `--limit 24`, identical
+survivor sets, zero disagreements — a real measurement, generalised past what it examined. Same shape
+as §4.4's finding that "unkillable" was an estimate nobody re-tested.
+
+**THE CANARY IS WHY THIS IS A CAUGHT BUG AND NOT A PUBLISHED NUMBER.** It runs the same per-mutant
+path, so it died with everything else, and the tool VOIDED ecgdex and reported `killed: null` rather
+than a plausible-looking rate. An instrument that refuses beats one that answers.
 
 ---
 
@@ -165,8 +243,14 @@ installed pytest-cov and would replace the heuristic with a measured mapping.
 - [x] Selection wired into `mutate.mjs`, proven verdict-equivalent (hrvdex `--limit 24`: identical
       survivors, `killed=14`, `invalid=0`).
 - [x] Survivors split UNREACHED / UNASSERTED — 109 / 1725.
-- [x] Queue rebuilt from the surviving sweeps: 46.2 % over 6 files.
-- [ ] §3 calibration fixed, and a fleet wall-clock quoted from measurement.
-- [ ] `oxydex` · `ecgdex` · `integrator` swept; the uncorrected-denominator hypothesis tested.
-- [ ] ppgdex sweep resumed from its journal.
+- [x] Queue rebuilt from the surviving sweeps: 46.2 % over 6 files -> **46.4 % over all EIGHT (§1)**.
+- [x] §3 RETRACTED — calibration is 0.6-2.5 % of a full sweep, not 90 %; the union is required, not
+      merely acceptable. Full-fleet wall-clock now measured rather than estimated.
+- [x] `oxydex` · `ecgdex` · `integrator` swept. ecgdex+integrator RE-swept after §3a; both canaries
+      pass and invalid fell 1324 -> 15 and 178 -> 8.
+- [ ] The uncorrected-denominator hypothesis (§1c) still untested — those three remain at ZERO
+      ledger entries, so their denominators are still uncorrected even though their sweeps are fresh.
+- [ ] `cpapdex` · `glucodex` · `hrvdex` · `motiondex` re-swept WITH selection (still pre-selection data).
+- [ ] Owner decision: does `pulsedex-dsp.js` join `SWEEP_FILES` (§1b)?
+- [x] ppgdex re-swept outright (no journal existed for the truncated run).
 - [ ] Declared equivalences harvested into `mutate-equivalence.json`.
