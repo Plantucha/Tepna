@@ -459,6 +459,65 @@ statement is:
 - The **identifiability gate itself** (RR↔PPI margin) stands: it is objective, self-validating, and
   needed no threshold. What is now uncertain is the *cause* of non-identifiability, not the fact of it.
 
+## 2-RESULT-VII · THE CAUSE HUNT — NOT FOUND. Two partial indicators, and an overfitted rule.
+
+§2-RESULT-VI ended with "the *cause* of non-identifiability is uncertain, not the fact of it". This
+section went looking. **It did not find a cause**, and the negative result is recorded in full because
+the intermediate steps each looked like an answer.
+
+### The hypothesis, and why it was the right one to test
+
+The feet **do** correspond one-to-one (97.7 % at ±600 ms), so beats are not missing — yet their times
+scatter by hundreds of ms against R. §4a measured the template's *precision* at **0.44 ms**, which cannot
+produce that. The gap must be **model error, not noise error**: the detector locking onto a *different
+waveform feature* on different beats. That predicts a **multimodal** PAT distribution, with modes
+separated by the foot→peak or foot→notch spacing.
+
+Measured (PAT as the gap to the nearest preceding R — no window, so it cannot inherit a tolerance;
+20 ms bins, modes = smoothed local maxima ≥ 40 % of the global peak):
+
+| | n | identifiable |
+|---|---|---|
+| **unimodal** | 21 | **5 / 21** |
+| **multimodal** | 8 | **0 / 8** |
+| correlation(mode count, ncc) | | **−0.053** |
+
+### 🔴 Multimodality is SUFFICIENT but not NECESSARY — so it is not the cause
+
+Every multimodal night fails, and multimodality is real (up to **5 modes** on 2026-07-04, at
+170/250/410/570/910 ms). But **16 unimodal nights fail as well**, and the correlation with
+identifiability is **−0.053 — indistinguishable from zero.** Multimodality explains at most 8 of 24
+failures.
+
+⚠️ **A six-night sample said otherwise.** It happened to contain four multimodal failures and two
+unimodal successes, which looked like clean separation. **That is the sixth time in this investigation
+that a handful of nights implied a cleaner result than the corpus supports.**
+
+### The combined rule works, and is overfitted
+
+| gate | identifiable passing | unidentifiable passing |
+|---|---|---|
+| `modes ≤ 1` | 5/5 | 16/24 |
+| `altPPG < 1.25` | 5/5 | 5/24 |
+| **both** | **5/5** | **2/24** |
+
+⚠️ **Do not adopt this rule from this brief.** The threshold **1.25 was chosen after seeing that the
+highest identifiable night is 1.24** — the textbook definition of fitting to the sample. The two
+survivors sit at **1.23 and 1.24**, i.e. exactly at the boundary the threshold was drawn around. With
+**n = 5** positives, this corpus cannot validate a two-parameter rule; it can only propose one.
+
+### Honest end-state
+
+- **No single cause.** Multimodality is specific but insensitive; alternation is sensitive but not
+  sufficient; neither is mechanism enough to act on.
+- **What is established and unchanged:** the anchor rather than the foot detector is the failure
+  (§2-RESULT-III); PAT is recoverable on 2 of 29 nights at 28.1/36.8 ms and 4.5–5.7 ms beat-to-beat
+  (§2-RESULT-IV); and the identifiability gate itself is objective and threshold-free.
+- **What would settle it:** the mode structure and the alternation ratio are both *symptoms* measured on
+  the PPI series. The cause is inside the optical beat detector, and finding it needs the **waveform**
+  — which beat is being picked, and what the detector saw on the beats where it picked differently.
+  That is a `ppgdex-dsp` investigation, not a fusion one, and it is where this should go next.
+
 ## 3 · Phase 1 — promote the coupler into the Integrator (consume EXPORTS, add the missing one)
 
 - **Move the timing engine** `coupledPAT`/`ecgRpeakTimes`/`ppgFootTimes`/`sharedClock` from
