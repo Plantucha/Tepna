@@ -132,13 +132,29 @@ button{font:inherit;}
 .ctl-label{display:inline-block;min-width:6.6rem;flex:none;}
 .btn:disabled{opacity:.4;cursor:not-allowed;}
 .btn:active{transform:scale(.97);}
-.btn-primary{background:linear-gradient(135deg,var(--teal),var(--blue));color:#041014;border:none;font-weight:700;
-  padding:8px 18px;border-radius:10px;cursor:pointer;transition:opacity .15s,box-shadow .2s,transform .1s;}
-.btn-primary:hover{opacity:.92;box-shadow:0 0 20px rgba(61,224,208,.25);}
-.btn-primary:active{transform:scale(.97);}
-.btn-destructive{background:transparent;border:1px solid rgba(255,107,122,.22);color:rgba(255,107,122,.75);
-  border-radius:8px;font-size:11px;font-weight:500;padding:6px 11px;cursor:pointer;transition:background .12s,color .12s;}
-.btn-destructive:hover{background:rgba(255,107,122,.08);color:var(--red);}
+/* ── ONE GEOMETRY, THREE COLOURS ────────────────────────────────────────────────────────────────────
+   `.btn-primary` and `.btn-destructive` used to be STANDALONE rules that each re-declared padding,
+   radius, font-size and weight — so the three button types disagreed by construction:
+
+       .btn            padding 7px 14px · radius 10px · 12px · semibold
+       .btn-primary    padding 8px 18px · radius 10px · inherited · 700
+       .btn-destructive padding 6px 11px · radius  8px · 11px · 500
+
+   Three sizes and two corner radii in one toolbar. Because each variant was self-sufficient the markup
+   drifted too — 9 buttons wrote the variant class ALONE, 2 composed it with `btn`,
+   1 did not — and BOTH forms rendered, which is exactly why the split survived unnoticed.
+
+   Geometry now lives ONLY here; the variants set colour. Weight is the one exception and is deliberate:
+   it signals hierarchy (which button is the primary action) rather than shape. Compose them —
+   base + variant — and a variant on its own is now visibly wrong, which is the point. */
+.btn-primary{background:linear-gradient(135deg,var(--teal),var(--blue));color:#041014;border:none;
+  font-weight:700;}
+.btn-primary:hover{background:linear-gradient(135deg,var(--teal),var(--blue));opacity:.92;
+  box-shadow:0 0 20px rgba(61,224,208,.25);color:#041014;border:none;}
+.btn-destructive{background:transparent;border:1px solid rgba(255,107,122,.22);
+  color:rgba(255,107,122,.75);}
+.btn-destructive:hover{background:rgba(255,107,122,.08);color:var(--red);
+  border-color:rgba(255,107,122,.45);}
 .data-pill{display:inline-flex;align-items:center;gap:6px;background:rgba(45,212,191,.1);border:1px solid rgba(45,212,191,.18);
   color:var(--green);padding:4px 10px;border-radius:999px;font-size:11px;font-weight:600;}
 .data-pill.idle{background:rgba(110,133,168,.12);border-color:rgba(110,133,168,.2);color:var(--text3);}
@@ -261,6 +277,12 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
 .setrow .k{font-family:ui-monospace,monospace;min-width:15rem;}
 .ratesel{font-size:11px;padding:1px 4px;background:var(--surface);color:var(--text);border:var(--b);border-radius:6px;}
 .setrow .mb{color:var(--text3);font-size:11px;}
+/* Rate advice — the REASON behind a `recommended` tick, on its own line under the control. Inherits the
+   .mb hint colour and size rather than inventing a look, so it reads as guidance and not as a warning;
+   `b` carries the verdict, the rest the justification. Full width so it wraps under the row instead of
+   squeezing the control. */
+.setrow .rate-why{flex-basis:100%;color:var(--text3);font-size:11px;line-height:1.45;margin:2px 0 6px 0;}
+.setrow .rate-why b{color:var(--text2);font-weight:600;}
 .batt-fill{position:absolute;left:1px;top:1px;bottom:1px;background:currentColor;border-radius:1px;transition:width .3s;}
 /* Link/RSSI pill — sits beside the battery pill. Drawn signal bars + dBm (or rate-based quality when the
    privileged RSSI helper isn't granted), colored like the battery meter. Never blank on a live device. */
@@ -450,7 +472,7 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
         <div id="setFields"></div>
       </div>
       <div style="display:flex;gap:.5rem;align-items:center;margin:.4rem 0 1rem">
-        <button class="btn-primary" onclick='saveSettings(this)'>Save settings</button>
+        <button class="btn btn-primary" onclick='saveSettings(this)'>Save settings</button>
         <span class="hint" id="setMsg"></span>
       </div>
 
@@ -468,7 +490,7 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
             change into the running daemon.</p>
           <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-top:.6rem">
             <span class="hint ctl-label">Daemon:</span>
-            <button class="btn-primary" onclick='daemonRestart(this)'>Restart daemon</button>
+            <button class="btn btn-primary" onclick='daemonRestart(this)'>Restart daemon</button>
             <label class="hint">stop for
               <input id="dmnMin" type="number" min="1" max="480" value="30" style="width:4.2rem"> min</label>
             <button class="btn btn-destructive" onclick='daemonStop(this)'>Stop capture</button>
@@ -512,7 +534,7 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
         <input id="alUrl" type="password" autocomplete="new-password" spellcheck="false"
                placeholder="https://ntfy.sh/your-topic" style="width:100%;max-width:38rem">
         <div style="display:flex;gap:.5rem;align-items:center;margin-top:.6rem;flex-wrap:wrap">
-          <button class="btn-primary" onclick="saveAlerts(this)">Save alerts</button>
+          <button class="btn btn-primary" onclick="saveAlerts(this)">Save alerts</button>
           <button class="btn" onclick="testAlerts(this)">Send test alert</button>
           <button class="btn" onclick="clearAlerts(this)">Clear</button>
           <span class="hint" id="alMsg"></span>
@@ -524,7 +546,7 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
       <div class="card">
         <h3>Devices</h3>
         <div style="display:flex;gap:.5rem;align-items:center;margin:12px 0 4px">
-          <button class="btn-primary" id="scanBtn">Scan</button>
+          <button class="btn btn-primary" id="scanBtn">Scan</button>
           <!-- The handler for this shipped in dace8cba ("the PAT precondition") and the endpoint has
                been registered ever since; the button was never added, so the one control that puts the
                host and EVERY sensor on one timebase in a single press was unreachable from the page.
@@ -547,9 +569,9 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
         <h3>CPAP <span style="font-weight:400;color:var(--text3);font-size:11px">· ResMed card harvested over Wi-Fi — files, not a stream</span></h3>
         <div class="clk-status" id="cpapStatus"><span class="spin">waiting for first run…</span></div>
         <div style="display:flex;gap:.5rem;align-items:center;margin:12px 0 4px;flex-wrap:wrap">
-          <button class="btn-primary" data-cpap="last">Download last night</button>
-          <button class="btn-primary" data-cpap="week">Download last 7 nights</button>
-          <button class="btn-primary" data-cpap="missing">Download all missing</button>
+          <button class="btn btn-primary" data-cpap="last">Download last night</button>
+          <button class="btn btn-primary" data-cpap="week">Download last 7 nights</button>
+          <button class="btn btn-primary" data-cpap="missing">Download all missing</button>
           <span class="spin" id="cpapPullState"></span>
         </div>
         <p class="hint" id="cpapHint"></p>
@@ -577,7 +599,7 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
           </label>
         </div>
         <div class="clk-actions">
-          <button class="btn-primary" id="ntpSave">Save &amp; apply</button>
+          <button class="btn btn-primary" id="ntpSave">Save &amp; apply</button>
           <button class="btn" id="ntpSyncNow">Sync now</button>
           <button class="btn" id="tzSave">Set timezone</button>
           <span class="spin" id="clkMsg"></span>
@@ -636,7 +658,7 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
         </div>
 
         <div style="display:flex;gap:.5rem;align-items:center;margin:.9rem 0 .2rem">
-          <button class="btn-primary" onclick="saveStorage(this)">Save target</button>
+          <button class="btn btn-primary" onclick="saveStorage(this)">Save target</button>
           <button class="btn" onclick="testStorage(this)">Test connection</button>
           <span class="hint" id="stMsg"></span>
         </div>
@@ -1315,7 +1337,7 @@ function renderRemembered(devs){
       <button class="btn" onclick='syncTime(${JSON.stringify(d.address)}, this)' title="Set this device's INTERNAL clock from the host (it stamps every sample with device time). Pauses that device's capture for a few seconds.">🕐 Sync time</button>
       ${(d.vendor==='Wellue'||d.vendor==='Viatom')?`<button class="btn" onclick='pullStored(this)' title="Download the ring&#39;s onboard-recorded night off flash (pauses live SpO₂ for ~1 min)">Pull stored session</button>`:''}
       ${d.vendor==='Polar'?`<button class="btn" onclick='pullRec(${JSON.stringify(d.address)}, this)' title="List &amp; download the Polar device&#39;s onboard offline recordings off flash (pause live capture first — one BLE link)">📥 Recordings</button>`:''}
-      <button class="btn-destructive" onclick='forget(${JSON.stringify(d.address)})'>Forget</button>
+      <button class="btn btn-destructive" onclick='forget(${JSON.stringify(d.address)})'>Forget</button>
     </div>${d.vendor==='Polar'?`<div class="rec-panel" id="${recPanelId(d.address)}" style="margin:0 0 .7rem;padding-left:.2rem;display:flex;flex-direction:column;gap:.35rem"></div>`:''}`).join('');
 }
 
@@ -1399,8 +1421,16 @@ async function loadSettings(){
         // options at all means the device has never reported a menu; a configured rate is still real and
         // must survive, and that is the case a bare <span> could not express even in principle.
         : (opts.length===1 ? `<span class="mb">${opts[0]} Hz</span>${carry}` : carry);
+      // ⚠️ THE SINGLE-OPTION CASE IS WHERE THE ADVICE MATTERS MOST, and it used to say nothing at all.
+      // A Verity outside SDK mode offers PPG as `[55]`, so no <select> renders and the operator sees a
+      // bare "55 Hz" with no way to learn that 176 exists behind a mode switch, or what it costs. That
+      // is the decision they were asked to make daily, and the UI was silent about it.
+      const adv = rateAdvice(d, k, opts);
+      const advHtml = adv
+        ? `<div class="rate-why"><b>${esc(adv.head)}</b>${adv.why ? ' — ' + esc(adv.why) : ''}</div>`
+        : '';
       return `<label class="setrow"><input type="checkbox" data-addr="${esc(d.address)}" data-stream="${esc(k)}" ${on?'checked':''}>
-        <span class="k">${esc(k)}</span>${sel}<span class="mb" data-mb="${esc(d.address)}|${esc(k)}"></span></label>`;
+        <span class="k">${esc(k)}</span>${sel}<span class="mb" data-mb="${esc(d.address)}|${esc(k)}"></span>${advHtml}</label>`;
     }).join('');
     // ── SDK MODE ────────────────────────────────────────────────────────────────────────────────
     // Rendered ONLY where the device advertises feature 0x9 (server-derived `sdk_capable`): a switch
@@ -1449,6 +1479,52 @@ async function loadSettings(){
 }
 // The rate the daemon would pick with no override: its built-in preference if offered, else the max.
 const PREF_RATE = {ecg:130, ppg:55, acc:50, gyro:52, mag:20};   // mirrors polar_pmd._PREF_RATE
+// ── WHY, not just WHICH ─────────────────────────────────────────────────────────────────────────────
+// `PREF_RATE` mirrors `polar_pmd._PREF_RATE` and drives the default. It says WHICH rate and never WHY,
+// so a `✓ recommended` tick could not be re-judged by the person it is aimed at — and a recommendation
+// nobody can re-judge is just a default wearing a badge. These are the reasons, one per stream, shown
+// wherever the tick is. Keep them here beside the numbers so the two cannot drift apart.
+//
+// ⚠️ A RECOMMENDATION IS NOT A CAPABILITY. `_PREF_RATE` asks ACC for 50 and a Verity offers
+// [26,52,104,208,416]; the daemon degrades to the nearest OFFERED value rather than breaking capture.
+// So the tick appears only when the device actually lists that rate — see `rateAdvice`.
+const RATE_WHY = {
+  ecg: 'the H10 offers only 130 Hz, and the shipped Pan–Tompkins is calibrated at it',
+  ppg: 'stable all night, and it is the only rate offered outside SDK mode. 176 Hz cuts beat-timing '
+     + 'quantisation from ~18 ms to ~5.7 ms — better for PAT and beat work — but needs SDK mode, which '
+     + 'makes PPI permanently invalid and drops the link about every 90 s',
+  acc: 'enough for posture, movement onsets and the worn/still checks; higher rates cost bytes and buy '
+     + 'nothing this suite reads',
+  gyro: 'the nearest offered value to the 50 Hz the motion code expects',
+  mag: 'orientation drifts slowly; 20 Hz is ample and the cheapest option that is not lossy',
+  ppi: 'device-computed intervals arrive per beat — there is no rate to choose',
+  hr:  'the HR characteristic notifies once per second by specification',
+  // The O2Ring is not a PMD device: it streams at a fixed device-side rate and reports no menu, so
+  // there is nothing to pick. Say that rather than render a blank row — "no choice" and "we did not
+  // look" are different, and the operator cannot tell them apart from an empty space.
+  spo2: 'the ring reports oximetry on its own schedule; there is no rate to choose',
+  ppg2w: 'the second wavelength arrives with the first — one stream, one device-side rate'
+};
+// The advice for one stream on one device, resolved against what the device ACTUALLY offers.
+// Returns null when there is nothing useful to say, so callers render nothing rather than an empty row.
+function rateAdvice(dev, k, opts){
+  const why = RATE_WHY[k];
+  const pref = PREF_RATE[k];
+  if(!why && pref == null) return null;
+  const offered = (opts || []).length ? opts : null;
+  const canPick = pref != null && offered && offered.includes(pref);
+  let head;
+  // ⚠️ SINGLE-OPTION IS CHECKED FIRST, even when it happens to equal the preference. Saying
+  // "55 Hz recommended" where 55 is the ONLY value implies a choice was weighed and made; the operator
+  // then cannot tell a preference from a constraint, which is exactly the distinction they need on the
+  // day they are deciding whether SDK mode is worth it.
+  if(offered && offered.length === 1)
+    head = `${offered[0]} Hz — the only rate this device offers here`;
+  else if(canPick)           head = `${pref} Hz recommended`;
+  else if(offered)           head = `no preset preference; the daemon takes the nearest to ${pref} Hz`;
+  else                       head = 'this device has not reported a rate menu yet';
+  return {head, why: why || ''};
+}
 function defaultRate(d,k,opts){
   const p = PREF_RATE[k];
   return (p!=null && opts.includes(p)) ? p : Math.max.apply(null, opts);
