@@ -21988,10 +21988,43 @@
       var PARSE_RE = /Date\.parse\s*\(/; // locale parse — banned outright (§2.4)
       var NEWDATE_STR_RE = /new Date\(\s*['"]/; // new Date('…') string construction — banned (§2.4)
       var GETTER_RE = /\.get(?:Hours|Minutes|Seconds|FullYear|Month|Date|Day)\s*\(/; // non-UTC civil getter (§5); getUTC*/getTimezoneOffset not matched
+      /* DEEP-AUDIT-IV §2 — THE EXEMPTION IS PER OCCURRENCE, NOT PER FILE.
+         This was keyed by FILENAME and tested as `!GETTER_ALLOW[f]`, so one known-benign getter
+         exempted EVERY line of `glucodex-dsp.js` from Clock Contract §5 — permanently, in a file that
+         computes `daypart`, `dawn`, `nocturnalHypo`, `hourly` and `daily`, which is exactly the
+         wall-clock reasoning §5 exists to protect. The assertion still read "clean across N files
+         (glucodex-dsp.js allow-listed w/ reason)", which sounds scoped and was total. Reproduced by the
+         audit: a fresh `new Date(ms).getHours()` injected into that file left this group GREEN.
+
+         Now the allow-list names the exact occurrences, and the file's match multiset must equal them.
+         A NEW getter reds (it is not in the list); and if the exempted line is ever converted, the
+         count no longer matches and this reds too — so a stale exemption cannot outlive its reason,
+         which is the failure mode that produced the whole-file blind spot in the first place. */
       var GETTER_ALLOW = {
-        'glucodex-dsp.js':
-          'synthetic-gen date-anchor (new Date(t0).getFullYear/Month/Date → Date.UTC midnight); latent/non-user-facing, convert to getUTC* on next GlucoDex on-touch re-bundle (DEV-TOOLCHAIN-FOLLOWUPS)'
+        'glucodex-dsp.js': {
+          occurrences: ['.getFullYear(', '.getMonth(', '.getDate('],
+          why: 'synthetic-gen date-anchor at :1535 (new Date(t0).getFullYear/Month/Date → Date.UTC midnight); latent/non-user-facing, convert to getUTC* on the next GlucoDex on-touch re-bundle (DEV-TOOLCHAIN-FOLLOWUPS)'
+        }
       };
+      var GETTER_RE_G = new RegExp(GETTER_RE.source, 'g');
+      function getterVerdict(f, t) {
+        var found = (t.match(GETTER_RE_G) || []).slice().sort();
+        var allow = GETTER_ALLOW[f];
+        if (!allow) return found.length ? f + ' (' + found.length + ': ' + found.join(' ') + ')' : null;
+        var want = allow.occurrences.slice().sort();
+        if (found.join('|') === want.join('|')) return null;
+        /* ONE message, both directions. A ternary here would be dead code: the equality above already
+           returned, so any "did it grow or shrink" test below it is always true — and an unreachable
+           branch in a gate is the shape this group exists to catch. Name both fixes instead. */
+        return (
+          f +
+          ' — allow-list is [' +
+          want.join(' ') +
+          '] but the file now has [' +
+          found.join(' ') +
+          ']; a NEW non-UTC getter must be converted to getUTC*, or — if the exempted line was already fixed — DELETE the stale GETTER_ALLOW entry'
+        );
+      }
       var parseHits = [],
         newdateHits = [],
         getterHits = [];
@@ -21999,7 +22032,8 @@
         var t = strip(src[f]);
         if (PARSE_RE.test(t)) parseHits.push(f);
         if (NEWDATE_STR_RE.test(t)) newdateHits.push(f);
-        if (GETTER_RE.test(t) && !GETTER_ALLOW[f]) getterHits.push(f);
+        var gv = getterVerdict(f, t);
+        if (gv) getterHits.push(gv);
       });
       T.ok(
         'A1 · no Date.parse() on any source (contract mandates regex + Date.UTC)',

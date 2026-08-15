@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-04 · **Charter:** `AUDIT-PROMPT.md` · **Follows:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` (DONE 2026-07-29) · `DEEP-AUDIT-III-FOLLOWUPS-II-2026-07-29-BRIEF.md` (DONE 2026-07-31)
+**Status:** IN-PROGRESS — 2026-08-15 (**§1 EXECUTED elsewhere** as #956, verified in the tree; **§2 EXECUTED 2026-08-15**. Punch-list item 2 — the alternation cross-check — is still open and now has a stated method; §3 remain leads) · **Created:** 2026-08-04 · **Charter:** `AUDIT-PROMPT.md` · **Follows:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` (DONE 2026-07-29) · `DEEP-AUDIT-III-FOLLOWUPS-II-2026-07-29-BRIEF.md` (DONE 2026-07-31)
 
 # Deep audit IV — the fifth instance of 3a, in the file the 3a fix shipped in yesterday
 
@@ -193,6 +193,58 @@ a `*-dsp.js` and therefore re-bundles GlucoDex with the full §🔏 cost; take i
 touch rather than alone, and take (a)/(b) now so the gate is not blind in the meantime.
 
 ---
+
+## 1-RESULT · EXECUTED ELSEWHERE — #956, verified in the tree 2026-08-15
+
+`ppgdex-dsp.js` now reads `e.motionIndex != null && e.motionIndex <= 0.5` — the `== null` exemption that
+admitted "the accelerometer was not recording" as "verified still" is gone. **§1.5's second instruction
+was followed too**, which is the part that could have been skipped: `sdnnRobustBasis` is published
+(`'gated'` / `'ungated-fallback'`), with a comment making §1.5's own argument — excluding the null
+epochs pushes a partial-ACC night under the `< 3` threshold more often, so the export has to name which
+quantity produced the number rather than trade a wrong one for an unattributable one.
+
+Landed as `8e958e28` — *fix(ppgdex): the robust-HRV gate counts only epochs the ACC actually observed*
+(#956). Recorded here because a finding that is fixed by someone else is still a finding this brief must
+close; leaving it open is how the same line gets audited a sixth time.
+
+## 2-RESULT · EXECUTED 2026-08-15 — the exemption is now per OCCURRENCE
+
+Punch-list item 3, and it was still live: `GETTER_ALLOW` was keyed by **filename** and tested as
+`!GETTER_ALLOW[f]`, so one known-benign getter exempted **every line** of `glucodex-dsp.js` — a file that
+computes `daypart`, `dawn`, `nocturnalHypo`, `hourly` and `daily`, which is exactly the wall-clock
+reasoning Clock Contract §5 exists to protect. The assertion printed *"clean across N files
+(glucodex-dsp.js allow-listed w/ reason)"*, which reads scoped and was total.
+
+**Measured before changing anything:** the file has exactly **3** matches, all on `:1535`
+(`Date.UTC(d0.getFullYear(), d0.getMonth(), d0.getDate())`) — the documented synthetic-generator anchor.
+So the allow-list now names those three occurrences and the file's match multiset must equal them.
+
+Two properties, and the second is the one that keeps it honest:
+
+1. a **new** getter reds, because it is not in the list — this is the audit's own probe
+   (`new Date(ms).getHours()`), which previously left the group **green**;
+2. if the exempted line is ever converted to `getUTC*`, the multiset no longer matches and this **also**
+   reds — so a stale exemption cannot outlive its reason, which is precisely how the whole-file blind
+   spot arose in the first place.
+
+Both verified by re-applying each case; the tree was confirmed restored afterwards. Test-layer only —
+no re-bundle, no fixture, no provenance movement, exactly as §2.3 predicted. The `getUTC*` conversion
+(option (c)) still rides the next GlucoDex on-touch re-bundle; narrowing the gate does not consume it.
+
+## 7.2-RESULT · The alternation cross-check is still OPEN, and now says what it needs
+
+Punch-list item 2 asks whether any of the six real `rmssd > sdnnRobust` alternation nights had partial
+ACC coverage — which would raise §1 from "wrong number" to "suppressed quality warning". It **cannot be
+answered from the committed exports**, and that is worth recording so the next reader does not try:
+
+- `uploads/trio/*/PpgDex_*.node-export.json` predate #956 — they carry neither `sdnnRobustBasis` nor
+  `sdnnRobustNEpochs`;
+- `quality` carries `motionRejectedPct` but **no motion-COVERAGE field**, so "the ACC was off" and "the
+  ACC saw movement" are not separable from the export alone.
+
+So it needs a corpus re-run pairing each PpgDex night with its ACC stream, not a scan. It is a
+retrospective question now that §1 is fixed — it changes the record, not the code — which is why it is
+recorded rather than blocking this brief.
 
 ## 3 · Lower-severity observations — leads, not findings
 
