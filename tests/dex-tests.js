@@ -19832,6 +19832,106 @@
 
        Node-lane only — it imports a tool — so the browser lane SKIPs, exactly like docs-ledger. ════ */
 
+    /* ── searchback-aware injection: the alpha = 1 control that could not fail ──────────────────────
+       CROSS-DOMAIN-METHODS-FOLLOWUPS §7.3's next increment. Gap-planted injection cannot benefit from
+       Pan-Tompkins' searchback, so its completeness was argued to understate in-rhythm performance;
+       attenuating REAL beats in place tests that directly. This group exists for the control, not the
+       curve — because the first version of the control was VACUOUS. */
+    group('Beat attenuation — the alpha = 1 control must be able to fail', 'tools · beat-injection', function (T) {
+      var AR = env.attenuateAndRecover;
+      var BT = env.beatBuildTemplate;
+      if (typeof AR !== 'function' || typeof BT !== 'function') {
+        T.skip('attenuation core is wired into this lane', 'browser lane cannot import tools/beat-injection-recovery.mjs');
+        return;
+      }
+      /* HETEROGENEOUS beats on purpose. With identical beats the leave-one-out average IS the beat, so
+         the reconstruction is nearly the identity and the control is nearly as vacuous as the version it
+         replaced — a synthetic fixture that is too clean hides exactly this bug. */
+      var FS = 130,
+        N = FS * 120;
+      var v = new Float64Array(N),
+        sd = 7;
+      var rnd = function () {
+        sd = (sd * 1103515245 + 12345) & 0x7fffffff;
+        return sd / 0x7fffffff;
+      };
+      var peaks = [];
+      for (var b = 0; b * FS < N - FS; b++) {
+        var amp = 800 + rnd() * 800,
+          wd = 2 + Math.floor(rnd() * 3),
+          at = b * FS + 1;
+        for (var k = 0; k < wd; k++) if (at + k < N) v[at + k] = amp;
+        for (var k2 = wd; k2 < wd + 3; k2++) if (at + k2 < N) v[at + k2] = -amp * 0.3;
+        peaks.push(at);
+      }
+      for (var i = 0; i < N; i++) v[i] += Math.sin(i * 1.7) * 5;
+      var ctx = {
+        ECGDSP: {
+          bandpass: function (x) {
+            return x;
+          },
+          detectPeaks: function () {
+            return peaks;
+          }
+        }
+      };
+      var tpl = BT(v, peaks, FS);
+
+      var r1 = AR(ctx, v, FS, tpl, 1, { fraction: 0.1 });
+      var rH = AR(ctx, v, FS, tpl, 0.5, { fraction: 0.1 });
+      var r0 = AR(ctx, v, FS, tpl, 0, { fraction: 0.1 });
+
+      /* ⚠️ THE ASSERTION THIS GROUP EXISTS FOR. The original construction was
+         `residual = window − fitted; out = residual + alpha x fitted`, which at alpha = 1 is
+         `window − fitted + fitted` — BIT-IDENTICAL to the input for any template, however badly it fits.
+         Its "alpha = 1 must recover 100 %" control therefore could not fail and certified nothing: a
+         check reporting success about something it never examined, in the place put there to stop that.
+         Removing the beat's OWN fitted shape and re-inserting the LEAVE-ONE-OUT average breaks it. */
+      T.ok('alpha = 1 actually EDITS the signal (the identity construction gives exactly 0)', r1.editDelta > 0);
+      T.ok('...and materially, not by a rounding crumb', r1.editDelta > 0.005 * tpl.peakAmp);
+
+      /* The exact quantity the retired construction would have produced, computed here so the contrast
+         is permanent rather than a claim in a comment. */
+      var vacuous = 0;
+      for (var q = 0; q < peaks.length; q++) {
+        var half = tpl.half,
+          at2 = peaks[q];
+        if (at2 - half < 0 || at2 + half >= N) continue;
+        var vt = 0,
+          tt = 0;
+        for (var m = 0; m < tpl.wave.length; m++) {
+          vt += v[at2 - half + m] * tpl.wave[m];
+          tt += tpl.wave[m] * tpl.wave[m];
+        }
+        var sc = vt / (tt || 1);
+        for (var m2 = 0; m2 < tpl.wave.length; m2++) {
+          var fitted = sc * tpl.wave[m2];
+          vacuous = Math.max(vacuous, Math.abs(v[at2 - half + m2] - fitted + 1 * fitted - v[at2 - half + m2]));
+        }
+      }
+      /* Float rounding leaves ~1e-13, not a true 0 — assert the SCALE, which is the honest claim: the
+         retired construction's edit is negligible against the real one by ~14 orders of magnitude. */
+      T.ok('the retired `residual + 1 x fitted` construction edits nothing but float dust', vacuous < 1e-9);
+      T.ok('...while this construction edits ~14 orders of magnitude more', r1.editDelta > 1e9 * Math.max(vacuous, 1e-15));
+
+      /* Attenuation is monotone: less beat left means a bigger edit, and alpha = 0 removes it outright. */
+      T.ok('editing grows as the beat is turned down', r0.editDelta > rH.editDelta && rH.editDelta > r1.editDelta);
+      T.ok('alpha = 0 removes a beat-sized quantity', r0.editDelta > 0.5 * tpl.peakAmp);
+      T.eq('every chosen beat is modified at all three amplitudes', r1.modified === rH.modified && rH.modified === r0.modified, true);
+      T.ok('the scattered subset never picks adjacent beats', r1.modified > 0 && r1.modified < peaks.length / 2);
+      /* `neighbours: k` must attenuate MORE beats while scoring the SAME ones — the structural half of
+         the mechanism test. (The empirical half needs a real detector: on the corpus, turning the
+         neighbours down lifts the middle beat from 1.2 % to 84.4 % at SNR 21.9, which is what confirms
+         the adaptive-threshold explanation. A stub detector cannot show that, so it is not asserted here
+         — the brief carries it with its numbers.) */
+      var nb1 = AR(ctx, v, FS, tpl, 0.5, { fraction: 0.1, neighbours: 1 });
+      T.eq('neighbours widens the attenuated set', nb1.attenuated > rH.attenuated, true);
+      T.eq('...but scores exactly the same beats', nb1.modified, rH.modified);
+      T.eq('neighbours: 0 attenuates only the scored beats', rH.attenuated, rH.modified);
+
+      T.eq('alpha = 0 publishes the interpolation reading, other alphas do not', r0.interpolatedAcrossGap !== null && r1.interpolatedAcrossGap === null, true);
+    });
+
     /* ── capture-recapture: how many beats did EVERY detector miss (CROSS-DOMAIN-METHODS §7) ────────
        Epidemiology's answer to an undercount nothing observed. The three estimators are closed forms,
        so they are pinned against an EXACT analytic model rather than a tolerance — and then against a
