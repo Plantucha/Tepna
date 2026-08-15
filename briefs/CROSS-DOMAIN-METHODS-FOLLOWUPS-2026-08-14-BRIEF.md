@@ -970,6 +970,18 @@ and that an isolated plant cannot benefit from. So the measured completeness und
 detector achieves on beats in rhythm, and the true miss rate is **≤ 1.4 %**, plausibly well below it.
 Do not quote 1.4 % as the miss rate; quote it as the bound, and say which side it is on.
 
+> **⚠️ CORRECTED 2026-08-15 — the insight is right, the SIGN is wrong.** Measured by attenuating real
+> beats in place (`SEARCHBACK-AWARE-INJECTION-2026-08-15-BRIEF.md`, the increment this paragraph asks
+> for): in-rhythm completeness is **lower**, not higher, so gap-planting **overstates** what the detector
+> achieves and the bound moves **UP**. On identical beats with a unified SNR axis, the in-rhythm curve
+> gives **~3x more misses** (1.56 % vs 0.53 %, on a *measured* rather than nominal SNR axis — template
+> subtraction leaves a beat-shaped residual, so alpha = 0 is not silence and the nominal axis understated
+> the effect threefold). The mechanism is the adaptive threshold, not searchback:
+> attenuating a beat *and its neighbours* lifts its recovery from 1.2 % to ~74 % at SNR 21.9, because
+> full-amplitude neighbours hold Pan–Tompkins' running threshold high. Searchback contributes nothing
+> measurable here. Correction carried by that brief's PR by agreement, so one brief is not edited by two
+> sessions on one day.
+
 **Why the bound is still worth having.** `KNOWN-CLOCK-ADVERSARIAL-CAPTURE` measured that a **0.5 %**
 miss rate inflates rMSSD by **114 %** and 2 % by 387 %. An upper bound of 1.4 % therefore does not
 settle the question — it places it squarely inside the range where the damage is large, which is
