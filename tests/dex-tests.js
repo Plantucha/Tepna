@@ -39871,14 +39871,21 @@
          CPAPDex    recording.durSec        8400 s span / 1200 s data  ENVELOPE ✓ (2 h hole included)
          HRVDex     coverage.recordedSec    null, nWithDuration 0/3    HONEST ✓ (declines to sum to 0)
          PulseDex   durMin  (+timestamps)   2700 s = span             ENVELOPE ✓
-         PulseDex   durMin  (NO timestamps) 1800 s = data, cov 100 %  ✗ KNOWN DEFECT
-         GlucoDex   coverage.recordedSec    == spanSec, 6 h hole      ✗ KNOWN DEFECT
+         PulseDex   durMin  (NO timestamps) 1800 s = data, cov NULL   FIXED ✓ 2026-08-15 (§1)
+         GlucoDex   coverage.recordedSec    Σsegments, hole VISIBLE   FIXED ✓ 2026-08-15 (§2)
 
-       The two ✓ pairs are a real ratchet: they red if anyone redefines the field. The two ✗ are pinned
-       as CHARACTERIZATION — the values are wrong, they are recorded so a fix must update this group
-       DELIBERATELY rather than silently, and they are routed to
-       NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS-II. Pinning a defect is not endorsing it; leaving it
-       unpinned is how it survives another six audits. */
+       All four rows are now a ratchet: they red if anyone redefines the field. Both of the original ✗
+       rows were CHARACTERIZATION pins — values recorded as wrong so that a fix had to update this group
+       DELIBERATELY rather than satisfy it silently — and both did exactly that: each fix reddened this
+       group and forced its assertions to be rewritten as contract. Pinning a defect is not endorsing it;
+       leaving it unpinned is how it survives another six audits.
+
+       PulseDex's row was one of those pins and is now CONTRACT. The pin did its job exactly as
+       designed: fixing the DSP reddened this group and forced the assertions to be rewritten rather
+       than quietly satisfied. `durMin` still reads 1800 s on the untimed branch and that is now
+       CORRECT-BY-CONTRACT rather than a silent second meaning — `durationBasis` names it `beat-sum`,
+       `spanMin` is null because there is no envelope to measure, and `coverage` is null because
+       coverage needs one. See the block below for why `durMin` itself was deliberately not nulled. */
     group('The four ungated nodes — duration tracks the ENVELOPE on a gapped twin — §3', 'pulsedex-dsp · glucodex-dsp · cpapdex-dsp · hrvdex-dsp · export · duration-semantics', function (T) {
       var GAP_S = 900;
 
@@ -39983,21 +39990,40 @@
           'coverage=' + (timed && timed.coverage)
         );
 
-        /* ⚠️ KNOWN DEFECT — PINNED, NOT ENDORSED. Routed to NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS-II §1.
-           `beatTimes` has two branches: with timestamps it returns a wall SPAN (correct, asserted above);
-           without them it cumulates RR, so `durMin` silently changes meaning to DATA seconds — the exact
-           defect §1 of the parent fixed in ECGDex, surviving one branch away. Worse, `coverage` is
-           initialised to 100 and only overwritten on the timestamped path, so an untimed stream asserts
-           a completeness it cannot know. These two assertions pin the WRONG values so that fixing them
-           reds this group and forces a deliberate update. Do NOT "make them pass" by editing them. */
+        /* ── FIXED 2026-08-15, FOLLOWUPS-II §1 — these were KNOWN DEFECT pins and are now CONTRACT.
+           The defect: `beatTimes` has two branches — with timestamps a wall SPAN, without them a
+           cumulative RR sum — so `durMin` silently changed meaning between them, and `coverage` was
+           initialised to 100 and only ever overwritten on the timestamped path, asserting a
+           completeness it could not know.
+
+           The resolution is HRVDex's sparse-block template: the ENVELOPE and the DATA get DIFFERENT
+           NAMES, and the one that cannot be known is null rather than estimated. `durMin` deliberately
+           KEEPS its value — `classifyRecording` does arithmetic on it and `adaptEnvelopeNode` builds
+           this node's fusion window from the exported `durationMin`, so nulling it would collapse that
+           window to a POINT, which is the DEEP-AUDIT-III §6.2 regression HRVDex already paid for. The
+           ambiguity is therefore resolved by LABELLING, and these assertions pin the label. */
         var untimed = P.computeResult({ vals: vals });
         var dU = untimed && untimed.durMin != null ? untimed.durMin * 60 : null;
         T.ok(
-          'KNOWN DEFECT (FOLLOWUPS-II §1) · PulseDex with NO timestamps publishes DATA seconds as durMin',
-          dU != null && Math.abs(dU - data) < 30,
-          'durMin*60=' + dU + ' — should be span ' + span + ' or null, is data ' + data
+          'PulseDex with NO timestamps · durMin is the beat-sum, and durationBasis SAYS SO',
+          dU != null && Math.abs(dU - data) < 30 && untimed.durationBasis === 'beat-sum',
+          'durMin*60=' + dU + ' (data ' + data + ') basis=' + (untimed && untimed.durationBasis)
         );
-        T.eq('KNOWN DEFECT (FOLLOWUPS-II §1) · …and asserts coverage 100 % on a stream it cannot place in time', untimed && untimed.coverage, 100);
+        T.eq('…and coverage is NULL, not a manufactured 100 — absent is not complete', untimed && untimed.coverage, null);
+        T.eq('…and spanMin is NULL — a stream with no wall clock has no envelope', untimed && untimed.spanMin, null);
+        T.ok(
+          '…while recordedMin still reports what the beats DO account for',
+          untimed && Math.abs(untimed.recordedMin * 60 - (data + RR / 1000)) < 30,
+          'recordedMin*60=' + (untimed && untimed.recordedMin * 60) + ' · data+1beat=' + (data + RR / 1000)
+        );
+        /* The timestamped branch must carry the SAME three keys with the opposite verdicts, or the
+           discriminator is only half-wired and a consumer still cannot tell the branches apart. */
+        T.eq('PulseDex WITH timestamps · durationBasis is the envelope', timed && timed.durationBasis, 'envelope');
+        T.ok(
+          '…and spanMin is the measured envelope, distinct from recordedMin by ~the hole',
+          timed && timed.spanMin != null && Math.abs(timed.spanMin * 60 - span) < 30 && timed.spanMin - timed.recordedMin > 10,
+          'spanMin=' + (timed && timed.spanMin) + ' recordedMin=' + (timed && timed.recordedMin)
+        );
       })();
 
       /* ── GlucoDex · 24 h of 5-min CGM cells, a 6 h sensor dropout, 24 h more ────────────────────── */
@@ -40035,18 +40061,74 @@
         if (!c) return;
         T.ok('…spanSec is the ENVELOPE (the dropout is inside it)', Math.abs(c.spanSec - span) < 60, 'spanSec=' + c.spanSec + ' want ~' + span);
 
-        /* ⚠️ KNOWN DEFECT — PINNED, NOT ENDORSED. Routed to NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS-II §2.
-           The block's own comment reads: "here `spanSec` and `recordedSec` agree BY MEASUREMENT, which is
-           precisely what the sparse case could not claim." They do not agree by measurement — they are
-           assigned the SAME expression, so they agree by CONSTRUCTION and cannot ever disagree. A CGM wear
-           with a 6 h sensor dropout therefore reports 100 % coverage. The comment also names HRVDex's
-           sparse block as its sibling, and HRVDex is the node that refuses exactly this fabrication
-           (asserted above). Pinned so the fix must update this deliberately. */
-        T.eq('KNOWN DEFECT (FOLLOWUPS-II §2) · GlucoDex recordedSec == spanSec by CONSTRUCTION, so a 6 h dropout reports full coverage', c.recordedSec, c.spanSec);
+        /* ── FIXED 2026-08-15, FOLLOWUPS-II §2 — these were KNOWN DEFECT pins and are now CONTRACT.
+           The block's own comment used to read: "here `spanSec` and `recordedSec` agree BY MEASUREMENT,
+           which is precisely what the sparse case could not claim." They were assigned the SAME
+           EXPRESSION, so they agreed by CONSTRUCTION and could not ever disagree — and a CGM wear with a
+           6 h sensor dropout reported 100 % coverage. The comment named HRVDex's sparse block as its
+           sibling while doing exactly what HRVDex refuses.
+
+           `recordedSec` is now the SUM OF MEASURED SEGMENTS: the cleaner already flags every gap cell
+           (FLAG.GAP / GAP_LONG) and already knows the cadence, so a segment is a maximal run of non-gap
+           cells and its duration is `cells × cadence` — the same arithmetic `activeMin` uses, reused
+           rather than re-derived as a second gap threshold. The two CAN now disagree, which is the point.
+
+           `kind` stays 'continuous' deliberately: it names the SAMPLING MODALITY, not completeness — a
+           CGM is a continuous monitor whether or not a sensor dropped out, exactly as HRVDex's 'sparse'
+           names spot measurements. Completeness is what segments/recordedSec are for, and folding it
+           into `kind` would rebuild the conflation this fix removes. */
         T.ok(
-          'KNOWN DEFECT (FOLLOWUPS-II §2) · …the 6 h hole leaves NO trace — one segment, nWithDuration 1',
-          c.segments && c.segments.length === 1 && c.nWithDuration === 1,
+          'GlucoDex recordedSec is MEASURED — the 6 h dropout is missing from it',
+          c.recordedSec != null && c.recordedSec < c.spanSec && Math.abs(c.spanSec - c.recordedSec - GAP_MS / 1000) < 2 * (STEP / 1000),
+          'recordedSec=' + c.recordedSec + ' spanSec=' + c.spanSec + ' Δ=' + (c.spanSec - c.recordedSec) + ' want ~' + GAP_MS / 1000
+        );
+        T.ok(
+          '…and the hole SPLITS the record — two segments, both with a measured duration',
+          c.segments &&
+            c.segments.length === 2 &&
+            c.nWithDuration === 2 &&
+            c.n === 2 &&
+            c.segments.every(function (s) {
+              return s.durSec != null && s.durSec > 0;
+            }),
           'segments=' + (c.segments && c.segments.length) + ' nWithDuration=' + c.nWithDuration
+        );
+        T.ok(
+          '…and the segments SUM to recordedSec (the published parts account for the published whole)',
+          c.segments.reduce(function (a, s) {
+            return a + s.durSec;
+          }, 0) === c.recordedSec,
+          'Σsegments=' +
+            c.segments.reduce(function (a, s) {
+              return a + s.durSec;
+            }, 0) +
+            ' recordedSec=' +
+            c.recordedSec
+        );
+        /* `kind` is the MODALITY. Pinned so that a later "fix" which flips it on any dropout has to
+           argue with this line rather than slip past — the two are different questions. */
+        T.eq('…while kind stays the MODALITY, not a completeness verdict', c.kind, 'continuous');
+        /* A GAPLESS wear must still report full coverage, or the segmenter is just reporting damage.
+           This is the paired ALLOW: same code path, one property different (no hole). */
+        var exWhole = G.compute({ tMs: tMs.slice(0, NSEG), vMgdl: vMgdl.slice(0, NSEG), unit: 'mgdl', t0Ms: t0 });
+        var cW = exWhole && exWhole.recording ? exWhole.recording.coverage : null;
+        T.ok(
+          'a GAPLESS wear reports ONE segment and full coverage — the segmenter is not just finding damage',
+          cW && cW.segments.length === 1 && cW.recordedSec >= cW.spanSec,
+          cW ? 'segments=' + cW.segments.length + ' recordedSec=' + cW.recordedSec + ' spanSec=' + cW.spanSec : 'no coverage block'
+        );
+        /* A segment's duration is `cells × cadence`, not `lastCell − firstCell`. The alternative gives a
+           ONE-CELL segment `durSec: 0` — asserting nothing was recorded when one sample was, the exact
+           absent-vs-zero confusion HRVDex's block warns about — and it disagrees with `activeMin`, which
+           this node already computes as `activeCells × cadence` one function away.
+           The cost is that a gapless record's recordedSec exceeds spanSec by exactly the final cell,
+           because `spanSec` is measured between sample INSTANTS while a cell covers a cadence of time.
+           That overshoot is BOUNDED and asserted here rather than left for someone to find as a >100 %
+           coverage ratio: at most one cadence over the whole record, per segment boundary. */
+        T.ok(
+          '…and the cells-×-cadence convention overshoots the instant-to-instant span by at most one cadence per segment',
+          cW.recordedSec - cW.spanSec <= STEP / 1000 && c.recordedSec - (c.spanSec - GAP_MS / 1000) <= 2 * (STEP / 1000),
+          'gapless Δ=' + (cW.recordedSec - cW.spanSec) + ' · gapped Δ=' + (c.recordedSec - (c.spanSec - GAP_MS / 1000)) + ' · cadence=' + STEP / 1000
         );
       })();
     });
