@@ -737,6 +737,61 @@ the two cleanest nights — **16.7 ms falling to 5.5 ms after removing a 20 ppm 
 instrument reaches single-digit ms when the geometry cooperates, and nothing measured so far explains why
 it usually does not.
 
+## 2-RESULT-XII · THE WHOLE THREAD IN ONE TABLE — PAT SD is the WINDOW, and the repo said so first
+
+Every PAT SD in §2-RESULT-III–XI came from a different pipeline. Run them all on the **same night, in one
+harness**, so the comparison is finally like-for-like:
+
+| pipeline | 2026-07-09 (n / SD) | 2026-06-10 (n / SD) |
+|---|---|---|
+| nearest ±50 ms | 2001 / **23.9** | 659 / **26.9** |
+| nearest ±150 ms | 2277 / 33.6 | 1242 / 60.9 |
+| nearest ±300 ms | 2305 / 41.0 | 1684 / 119.6 |
+| nearest ±600 ms | 2316 / 46.0 | 2361 / **191.8** |
+| monotone ±50…±600 | **identical to nearest at every tolerance** | **identical** |
+| monotone ±150 + detrend | 2277 / 33.4 | 1242 / 58.7 |
+
+**Spread on one night: 1.9× (good) and 7.1× (bad), from pipeline choice alone.**
+
+### 🔴 Two of my own claims fall here
+
+1. **Monotonicity does nothing.** §4g attributed a 37.57 → 71.71 ms change to replacing nearest-match with
+   a monotone assignment, arguing nearest-match "pairs across slips". **The two agree exactly at every
+   tolerance.** That change was entirely the tolerance moving ±80 → ±150. The monotone DP is a correct
+   implementation of an irrelevant refinement.
+2. **Detrending is not worth 89 %.** §2-RESULT-IX reported a 20.7 ppm fit removing 89 % of variance. Here
+   the same operation moves 33.6 → 33.4 and 60.9 → 58.7. The 89 % applied to the *interval-anchored*
+   series only, which is a different pairing — so it is a property of that pipeline, not of PAT.
+
+### 🟢 And the repo's own prescribed test separates the nights cleanly
+
+`pat-sd-is-the-window` says: *"before quoting a PAT scatter, divide by w/√12 for whatever window produced
+it — a ratio near 1.00 means the window was measured, not the subject."* Applied across the sweep:
+
+| window | w/√12 | 2026-07-09 ratio | 2026-06-10 ratio |
+|---|---|---|---|
+| ±50 ms | 28.9 | 0.83 | 0.93 |
+| ±150 ms | 86.6 | 0.39 | 0.70 |
+| ±300 ms | 173.2 | 0.24 | 0.69 |
+| ±600 ms | 346.4 | **0.13** | **0.55** |
+
+**The TRAJECTORY is the test.** Widen the window and a real measurement pulls away from `w/√12`
+(0.83 → 0.13); a non-measurement tracks it (0.93 → 0.55). That single curve separates the two nights more
+cleanly than the RR↔PPI margin of §2-RESULT-IV, **and it needs no interval alignment, no unwrapping, and
+no second device** — only the PAT series and the window that produced it.
+
+**It should replace the identifiability gate proposed in §2-RESULT-IV.** Simpler, assumption-free, and
+already written down in this repo before this investigation started.
+
+### The standing lesson
+
+Nine corrections are recorded across §2-RESULT-III–XII. Seven were **sampling** (a handful of nights
+promising more than the corpus delivered), one was a **code** error (the asymmetric lag search), and one
+was a **baseline** error (comparing a new method against a weaker variant of itself). None was an
+estimator that computed the wrong thing. **Every single one was an inference drawn faster than the
+measurement supported it** — and the two cheapest guards against all nine were already in the repo: run
+the corpus first, and read the existing brief before building.
+
 ## 3 · Phase 1 — promote the coupler into the Integrator (consume EXPORTS, add the missing one)
 
 - **Move the timing engine** `coupledPAT`/`ecgRpeakTimes`/`ppgFootTimes`/`sharedClock` from
