@@ -33,7 +33,15 @@ LED event, a motion impulse visible in both ACC streams — because beat trains 
 RR interval (`beat-trains-align-only-mod-rr`). No such marker exists in any recording on disk, so
 this is a **capture protocol change**: someone must produce the marker at capture time.
 
-**§2.2 · Adapter assignment is not recorded (item 6).** The box has two BLE adapters for three
+**§2.2 · Adapter assignment is not recorded (item 6) — and it is not a logging change.** Checked
+2026-08-15: `capture.py` carries a single global `ADAPTER` (config `adapter:`, one MAC used for
+bonding), not a per-device assignment. BlueZ selects the controller, so which radio carried which link
+is not currently a quantity the daemon holds — recording it means deciding how to obtain it (the BlueZ
+object path `/org/bluez/hciX/dev_…` carries it at connect time) and then validating against hardware on
+a box that captures every night. That is a design change plus a capture campaign, not a log line, and
+it should not be made blind.
+
+ The box has two BLE adapters for three
 devices and the capture path uses the UB500 known to go deaf. §3.10 of the paper escaped the confound
 *within* a device — Verity `acc` at 322.8 ppm σ_y against the same device's `ppg` at 42.0, same
 adapter, same night, matched span, so the 7.7× gap cannot be an adapter term. It cannot escape it
@@ -52,18 +60,31 @@ load-bearing against a fixture.
 **So the hole is open and asserted as open** (`KNOWN HOLE · independent is still spread-only`). Four
 consumers still read `independent`:
 
-| consumer | what it decides | harm if a drawn axis passes |
-|---|---|---|
-| `integrator-dsp.js:5338` | whether two devices sit on one timebase | **highest** — a fabricated axis enters a fusion decision |
-| `ecgdex-dsp.js:4301` | whether to apply the `fs` correction | a correction derived from a non-clock |
-| `pat-gate.js:92` | whether PAT may run at all | PAT runs on an unusable pair |
-| `tools/pat-host-offset.mjs:408` | per-night refusal | a night admitted that should be refused |
+| consumer | decides | measured exposure | state |
+|---|---|---|---|
+| `integrator-dsp.js:5338` | whether two devices sit on one timebase | one real O2Ring segment, **−22.83 ppm at 99.3 % drawn share**, passing both existing guards | ✅ **migrated** (#1274) |
+| `tools/pat-host-offset.mjs:408` | per-night PAT refusal | its PAT target **is** the Wellue finger PPG — **O2Ring 20/20 drawn** | ✅ **migrated** (#1278) |
+| `ecgdex-dsp.js:4301` | whether to apply the `fs` correction | **H10 ecg 0/6 drawn** — none | ⛔ **deliberately not gated** |
+| `pat-gate.js:92` | whether PAT may run at all | **no live caller supplies `ax`** — `PAT Feasibility.html` calls neither `verdict(` nor `hostAxis(` | ⛔ **deliberately not gated** |
 
-**Migrate one at a time, re-cutting that node's fixtures to a realistic device axis first.** A
-realistic axis is cheap to build and the parent's tool shows how: 97 distinct inter-packet gaps gives
-a modal-delta share of ~1 %, against the ≥67 % that marks a drawn one. Start with
-`integrator-dsp.js` — highest harm, and the only one where the wrong answer propagates into a
-cross-device claim.
+**MIGRATION CLOSED 2026-08-15, and two of the four were closed by declining to change them.** The
+drawn-axis flag was worth wiring exactly where a drawn axis can arrive, and the corpus says where that
+is: O2Ring 20/20 and Verity `ppi` 1/1, against H10 ecg **0/6** and Verity ppg **0/19**. Gating ECGDex
+would have forced re-cutting a legitimate planted-drift fixture — whose uniform device axis is by
+construction indistinguishable from a fabricated one — to defend against something that does not occur
+in the data. Gating `pat-gate.js` would have defended a parameter nothing currently passes. Both are
+machinery for a hypothetical, and adding them for symmetry would have made the guard look thorough
+while teaching a reader that the flag matters in places it does not.
+
+⚠ **If either premise changes, both decisions reopen.** ECGDex acquires exposure the moment a device
+with a drawn axis feeds it ECG; `pat-gate.js` acquires it the moment any caller starts passing `ax`.
+Neither is guarded against that, and neither should be silently assumed to stay safe.
+
+**A gate written for this migration was itself vacuous and is recorded in #1278.** The source scan
+matched `/deviceDrawn === true/`, which also matches the refusal *body*, so deleting the whole guard
+left 4/4 green. It now pins the conditional; mutation-verified (clean 4/4, mutant 2 failing). A scan
+matching an identifier rather than a construct is the text-gate form of the same absence-failure that
+produced `stability.ok`, `correctRR`'s return shape, and a mutation that silently did not apply.
 
 ## 4 · A blind operator — the one this cannot self-fix
 
@@ -102,8 +123,10 @@ session and the analysis to another, and let the second report before seeing the
 - [ ] An aperiodic cross-device marker exists in at least one captured night, and target 1 is
       evaluated against it.
 - [ ] Adapter assignment is written into night metadata and held fixed across a capture set.
-- [ ] At least `integrator-dsp.js` reads `deviceDrawn` rather than `independent`, with its fixtures
-      re-cut and the parent's `KNOWN HOLE` assertion updated deliberately.
+- [x] **DONE 2026-08-15** — `integrator-dsp.js` (#1274) and `tools/pat-host-offset.mjs` (#1278) read
+      `deviceDrawn`; `ecgdex-dsp.js` and `pat-gate.js` deliberately do not, on measured zero exposure
+      (§3). The parent's `KNOWN HOLE` assertion stands unchanged and correct: `hostAxis.independent`
+      is still spread-only — the consumers moved off it rather than the flag being redefined.
 - [ ] One experiment in this family is run with injection and analysis in **different sessions**.
 
 ## Cross-references
