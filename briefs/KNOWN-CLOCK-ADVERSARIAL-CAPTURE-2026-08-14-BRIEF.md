@@ -370,12 +370,57 @@ O2Ring 2611.7 vs 908.5 (meaningless — drawn axis).
 first had ever been asked.** §3.3 recovers an injected rate to 0.03 % *because the injection is large
 and coherent*; a device's own rate is neither.
 
-**Actionable: `ECG_AXIS_MIN_SPAN_MS = 2400 s` is roughly an order of magnitude too permissive.** In the
-300–3600 s band only **6 %** of streams have a rate above their own σ_y; extrapolating the H10's
-measured τ⁻¹ from 7.6 h (σ_y = 10.5 ppm) to 2400 s gives ≈ **120 ppm** against a true rate near 20.
-⚠ A claim of this shape was **made and withdrawn** in `HOSTAXIS-STABILITY` on weaker evidence (one file,
-a marginal endpoint estimator). It is re-opened here by a different method on 45 streams — it should be
-re-reviewed on this evidence, not waved through because it now agrees.
+## 🔴 WITHDRAWN — "`ECG_AXIS_MIN_SPAN_MS = 2400 s` is an order of magnitude too permissive"
+
+**This brief asserted that, and it is wrong.** Recorded rather than deleted, because it shipped in
+this brief, in `changes/2026-08-14-known-clock-corpus.md` and in `papers/known-clock-recovery.html`,
+and because the way it was wrong is more useful than the claim was.
+
+The reasoning was: only 6 % of streams in the 300–3600 s band have |ppm| > σ_y, therefore a gate
+admitting corrections at 2400 s admits noise. **That conflates two questions.**
+
+| question | test | answer under 1 h |
+|---|---|---|
+| is the rate **resolved** — quotable as distinguishable from zero? | \|ppm\| vs σ_y | **no** |
+| does applying the correction **reduce error**? | \|est − truth\| vs \|0 − truth\| | **yes** |
+
+A span gate governs the second. A point estimate can sit below its own noise floor and still be far
+closer to the truth than assuming zero — which is exactly what happens here.
+
+**Measured directly** (truth = the full-span rate, only on streams whose full-span estimate is itself
+resolved; the same stream then truncated):
+
+| span | n | med err **corrected** | med err **uncorrected** | correction helped |
+|---|---|---|---|---|
+| **2400 s** (shipped) | 11 | **8.41 ppm** | 22.27 ppm | **82 %** |
+| 4800 s | 11 | 4.71 ppm | 22.27 ppm | **100 %** |
+| 9600 s | 9 | 1.93 ppm | 22.19 ppm | **100 %** |
+
+**The gate is doing net good where it stands** — it more than halves the median error at 2400 s. The
+18 % harm cases are modest (worst: Verity truth −34.3 ppm, estimate −77.3, error 43.0 vs 34.3
+uncorrected). A raise to **4800 s** would remove the harm cases at the cost of refusing correction on
+fragments it currently improves; that is defensible, and it is a far smaller claim than the withdrawn
+one. **n = 9–11** — truth requires a resolved full-span estimate, so few streams qualify. Do not push
+this harder than that n allows.
+
+⚠ `HOSTAXIS-STABILITY` made a claim of this shape and withdrew it as *"marginal, not wrong"*. This
+brief re-opened it on stronger evidence and then **independently reproduced the reason it was
+withdrawn. The withdrawal was correct.** The σ_y result above is untouched — it licenses a caveat on
+**quoting** a ppm, not a change to a gate that governs **applying** one.
+
+### The within-stream span sweep that produced this (162 points, O2Ring + `ppi` excluded as drawn)
+
+| span | n | med \|ppm\| | med σ_y | resolved |
+|---|---|---|---|---|
+| 300 s | 38 | 134.33 | 1072.93 | 0 % |
+| 1200 s | 26 | 59.56 | 203.99 | 0 % |
+| **2400 s** | 21 | 32.95 | 86.16 | **5 %** |
+| 4800 s | 19 | 24.62 | 43.59 | 16 % |
+| 9600 s | 19 | 24.51 | 21.07 | **63 %** |
+| 19200 s | 6 | 22.33 | 11.95 | 67 % |
+
+σ_y halves as span doubles, consistent with the measured τ⁻¹ slope. Resolution crosses 50 % between
+4800 s and 9600 s (H10 88 % at 9600 s; Verity 45 %, and Verity never reaches it inside this corpus).
 
 ## Also confirmed at corpus scale
 
