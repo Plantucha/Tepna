@@ -617,3 +617,29 @@ def test_but_it_SPEAKS_on_a_deployed_host_whose_helper_fell_back_to_the_checkout
     monkeypatch.setattr(hp, "resolve", lambda n: str(unsafe))
     warns = capture._gather_helper_warnings()
     assert len(warns) == 1 and "not root-owned" in warns[0], warns
+
+
+def test_a_SAFE_helper_is_skipped_while_the_unsafe_one_is_still_reported(monkeypatch):
+    """⚠️ COVERED ONLY BY ACCIDENT ON A MACHINE THAT HAS `/usr/local/lib/tepna`, which CI does not.
+
+    A box mid-deploy is exactly this mixture: some helpers already installed root-owned, one still
+    resolving to the vigil-writable checkout. The report must name the unsafe one and stay silent about
+    the safe ones — a sweep that reported every helper would be as useless as one that reported none.
+
+    Local runs passed at 100 % because this machine HAS the system dir populated, so the real scan
+    walked the `w is None` path incidentally. CI has no such directory, `_gather_helper_warnings`
+    returns early, and the branch went uncovered — 99.99 %, one partial branch, every test green. An
+    environment-dependent coverage hole is invisible precisely where it is convenient."""
+    import capture
+    import helper_path as hp
+    monkeypatch.setattr(capture.os.path, "isdir", lambda p: True)
+    # ⚠️ NAMES CHOSEN SO NEITHER IS A SUBSTRING OF THE OTHER. The first draft used "safe.sh"/"unsafe.sh"
+    # with `"safe" in path`, which matches BOTH — "unsafe" contains "safe" — so every helper read as
+    # safe and the assertion saw an empty list. A predicate that matches more than intended, inside a
+    # test about a predicate that matches more than intended.
+    monkeypatch.setattr(hp, "SUDO_HELPERS", ("ok-one.sh", "rewritable.sh", "ok-two.sh"))
+    monkeypatch.setattr(hp, "resolve", lambda n: "/fake/" + n)
+    monkeypatch.setattr(hp, "grant_warning",
+                        lambda path: "not root-owned: " + path if "rewritable" in path else None)
+    warns = capture._gather_helper_warnings()
+    assert warns == ["not root-owned: /fake/rewritable.sh"], warns
