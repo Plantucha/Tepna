@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-09 · **Follows:** `RUN-POLAR-MUTATION-PASS-2026-08-08-BRIEF.md`
+**Status:** DONE — 2026-08-15 (all four Done-when items: §5 MEASURED and its hypothesis REFUTED, §3 declined on journal evidence, §4's rule in the runbook, the declines recorded in the fleet brief) · **Created:** 2026-08-09 · **Follows:** `RUN-POLAR-MUTATION-PASS-2026-08-08-BRIEF.md`
 
 # `run_polar` — four families closed, and the case for stopping there
 
@@ -91,6 +91,55 @@ One run with an unpatched sleep and a real deadline settles it. **Do not write t
 that is known** — this is exactly the "confident wrong answer from the instrument" the parent brief's
 §5.4 is about.
 
+## 5-RESULT · MEASURED 2026-08-15 — the hypothesis is REFUTED, and the answer is not uniform
+
+§5 asked whether the 13 loop-condition timeouts were real non-termination or an artefact of
+`_stop_after`, and offered a mechanism: *"a loop that no longer awaits a real sleep therefore never sees
+`_STOP`"*. **That mechanism is wrong** — the loops in question do await a real sleep. Measured by running
+the real `run_polar` under the **real `asyncio.sleep`** with a real deadline, one mutant at a time:
+
+| site | mutant | real sleep + `_STOP` set |
+|---|---|---|
+| hold loop | `client.is_connected and not _STOP` → `or` | **HUNG** (8 s ceiling) |
+| …same, plus the link dropped | | EXITED 1.20 s |
+| pause loop | `(paused or recovering) and not _STOP` → `or` | **EXITED** 1.20 s |
+| …same, with the pause HELD | | **HUNG** |
+| unmutated control, every arm | | EXITED 1.20 s |
+
+**So the operator is not what decides it.** A `… and not _STOP.is_set()` → `or` mutant is real exactly
+when its **sibling condition can still be true at shutdown**, because `or` then makes `_STOP`
+unreachable. For the hold loop that sibling is `client.is_connected` — true by definition during a
+session and cleared only by the `finally` *after* the loop, so nothing inside the process can end it.
+For the pause loop it is transient, which is why the same mutation looks inert in the ordinary path and
+is fatal when a pull owns the link at shutdown.
+
+**Neither "all real" nor "all artefact" was the answer, and one site would have produced either.** The
+first site alone says *real*; the second alone says *artefact*. This brief family's recurring error is
+generalising from one file (§3 of the parent, and its own §4 warning), so the second site was measured
+before anything was written — and it changed the conclusion.
+
+**Two tests now gate it, and they cost 0.56 s.** §5 feared these were expensive; they are not, once the
+mechanism is known. Both drive the real runner with a real sleep — under `_stop_after` they would pass
+against the mutant, which is the whole finding — and use `_run_bounded`, so a regression **fails at 6 s
+instead of hanging the suite**. Each mutant is killed by its own test and only its own.
+
+**What could not be settled:** the exact 13 mutant IDs are not recoverable — the sweep state lived in
+`/tmp` and did not survive the 2026-08-14 reboot. What is settled is the *mechanism* and the decision
+rule, which is what the remaining IDs would have been judged by anyway. A re-sweep can now classify them
+by inspection: name the sibling condition, ask whether it holds at shutdown.
+
+## 3-RESULT · `reconnect / bonding` — DECLINED 2026-08-15, on evidence
+
+§3 made the take/decline turn on whether the incident recurs. The box journal, re-read 2026-08-15:
+**3 `re-pair` lines, all on 2026-07-30** — the tail of the 2026-07-29 episode itself — and **0**
+escalations to the two-strike `stale_bond_hits` rule or a "could not re-establish" in the 16 days since.
+
+⚠️ **The weakness is stated with the finding.** Sixteen quiet days is not strong evidence about a rare
+failure, and the recovery path shipped *because* of that incident — so the quiet may be the fix working
+rather than the failure being rare, which cuts toward the family mattering. The remaining input is
+priority against the roadmap, which is an owner call. So this is declined **reversibly and
+conditionally**, with the trigger written down: **a second stale-bond incident reopens it.**
+
 ## 6 · What actually predicted value — the generalisable part
 
 The parent brief said concentration predicts *cost*. This pass says something different about *worth*,
@@ -122,10 +171,13 @@ These are cheap, reusable, and each one had already produced a confident wrong a
 
 ## 8 · Done when
 
-* §5's one measurement is run and the 13 timeouts are recorded as real or artefact. **Nothing is
-  written for them first.**
-* A decision is taken on §3 (`reconnect / bonding`) — take it or decline it in writing.
-* §4's rule — *a mutant killable only by asserting a tuned constant is not the suite's to own* — is
-  added to `MUTATION-AUDIT-RUNBOOK` beside the ceiling rule, so the next pass does not re-derive it.
-* The remaining families are marked DECLINED in `CAPTURE-HOST-MUTATION-FLEET` with the reason, so
-  `run_polar` is not re-opened as if it were untouched.
+* [x] **§5 measured 2026-08-15** — and the hypothesis was refuted: the answer is per-SITE, not
+  per-class, and the patched sleep is not the cause. Nothing was written until the measurement was
+  done; then two tests were, because the mechanism made them cheap. See §5-RESULT.
+* [x] **§3 DECLINED 2026-08-15 in writing**, on journal evidence, reversibly — a second incident reopens it. See §3-RESULT.
+* [x] **§4's rule is in `MUTATION-AUDIT-RUNBOOK` §7**, beside the ceiling rule — with the boundary it
+  needs: it governs TUNED constants, not all constants. A number fixed by a wire format, a vendor spec
+  or a physical unit is not tuning and stays pinned.
+* [x] **The remaining families are marked DECLINED in `CAPTURE-HOST-MUTATION-FLEET` §7.8**, with the
+  per-family reason in that file rather than only by reference, so `run_polar` cannot be re-opened as
+  if it were untouched.
