@@ -235,6 +235,38 @@ read-only. Cf. `tools/acc-acc-control.mjs`, which is the same pattern committed,
 
 ---
 
+## ⚠️ READ THIS BEFORE §2-RESULT-III…XII — WHAT IS CURRENT, AND WHAT IS SUPERSEDED
+
+The twelve sections below are a **running investigation with nine self-corrections recorded in place**,
+per house style. That is deliberate — but it means a claim and its refutation can sit 300 lines apart,
+and several superseded figures still read as plain statements in their original sections. **This table is
+authoritative; anything below it that disagrees is superseded.**
+
+| claim, as first written | where | **CURRENT** |
+|---|---|---|
+| "PAT recoverable on **2 of 29** nights (7 %)" | IV, V | **11 of 29 (38 %)** — the lag search was asymmetric (VIII) |
+| "**93 %** of nights fail" | V | **~62 %** |
+| beat-to-beat precision "**4.5–5.7 ms**" | IV | **~2.7 ms** — beat times were on a synthetic uniform grid (IX) |
+| "the PPG foot detector is **REFUTED**" | III draft | **False.** Feet correspond 96–97.7 % at a wide window; that number measured the *window* |
+| alternation is "**the mechanism**" | V | **Not sufficient.** A strong negative screen only; clean-ratio nights still fail (VI) |
+| multimodality "sufficient but not necessary" | VII | **Necessary, not sufficient** — 11/11 identifiable are unimodal, 0/8 multimodal (VIII) |
+| monotone pairing fixes cross-slip pairing | IX, and §4g of METROLOGY | **It changes nothing.** Monotone ≡ nearest-match at every tolerance; the difference was the tolerance (XII) |
+| detrending removes "**89 %** of variance" | IX | **Pipeline-specific.** On the common pairing it moves 33.6 → 33.4 ms (XII) |
+| "the **clock** is the cause" | IX | **Half.** Drift explains beats failing to MATCH; it does not explain matched beats SCATTERING (XI) |
+| RR↔PPI margin as the identifiability gate | IV | **Superseded** by the `w/√12` ratio trajectory — simpler, no alignment needed (XII) |
+
+### What stands, in one paragraph
+
+The **anchor**, not the foot detector, is why PAT fails; feet correspond at a wide window. **PAT SD is
+dominated by the matching window** — 1.9–7.1× spread on a single night from pipeline choice alone — so no
+PAT statistic means anything without its tolerance and correspondence rate beside it. The **`w/√12` ratio
+trajectory** separates real measurements from window artefacts (0.83→0.13 vs 0.93→0.55) and is the
+recommended gate. **Inter-device drift is 5–306 ppm**, per-block unwrapping recovers coverage
+(68.6 % → 79.4 %) but not precision (71.7 → 67.5 ms). On the cleanest night the instrument reaches
+**16.7 ms**, and **5.5 ms** after removing a 20 ppm trend — so the capability is real. **The cause of the
+residual scatter is NOT found**; amplitude, upslope, rise time, LED channel, missing beats, fiducial
+switching, uniform-grid timestamps and drift are each excluded by measurement.
+
 ## 2-RESULT-III · §II.4's NEXT MEASUREMENT, RUN 2026-08-15 — the detector is FINE; the OFFSET is not
 
 §II.4 said: *"`feet/R` ≈ 1.0 refutes NET dropout but not local insertion/deletion pairs … **That is the
