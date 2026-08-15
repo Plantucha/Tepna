@@ -782,7 +782,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         body = await _body(req)
         if body is BAD_BODY:
             return _bad_body_response()
-        changed, restart_needed = [], False
+        changed, restart_needed, warnings = [], False, []
         try:
             for key, val in (body.get("settings") or {}).items():
                 v = settings_schema.coerce(key, val)
@@ -898,6 +898,23 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                     dev["sdk_mode"] = want
                     changed.append(f"{dev.get('name')}.sdk_mode")
                     restart_needed = True     # the mode is entered during PMD negotiation, i.e. at connect
+                # ⚠️ SDK MODE COSTS PPI AND HR, AND NOTHING SAID SO (POLAR-ONBOARD-BACKUP-FOLLOWUPS §3).
+                # The UI presented SDK mode and the stream checkboxes as independent, so the config could
+                # express a state the hardware cannot hold and the only symptom was two streams quietly
+                # absent. This WARNS rather than refusing, deliberately: the combination is legal to
+                # write — a Verity swapped for a device without the exclusion would make it valid, and a
+                # hard refusal would then block a correct config on a family fact. Warning is also what
+                # the brief asked for; "silently winning" was the defect.
+                #
+                # It is evaluated on the FINAL state, not on `changed`, so it fires when SDK mode was
+                # already on and PPI is being added — the same conflict arriving from the other side.
+                # A check that only ran on the sdk_mode edge would miss exactly that.
+                excl = [s for s in (dev.get("streams") or []) if s in ("ppi", "hr")]
+                if want and excl:
+                    warnings.append(
+                        f"{dev.get('name')}: SDK mode disables {' + '.join(excl)} on a Verity — "
+                        f"{'those streams' if len(excl) > 1 else 'that stream'} will be silently absent "
+                        "while it is on")
         except settings_schema.SettingsError as e:
             return web.json_response({"ok": False, "error": str(e)}, status=400)
         if changed:
@@ -915,7 +932,11 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 return web.json_response(
                     {"ok": False, "error": "config write failed (disk?)", "changed": changed},
                     status=500)
-        return web.json_response({"ok": True, "changed": changed, "restart_needed": restart_needed})
+        # `warnings` is ALWAYS present, even when empty. A key that appears only on trouble teaches a
+        # client to read its absence as "no trouble", which is indistinguishable from "this server is
+        # older than the check" — the same absence-is-not-evidence trap the streams/rates surfaces hit.
+        return web.json_response({"ok": True, "changed": changed,
+                                  "restart_needed": restart_needed, "warnings": warnings})
 
     # ── Storage / offload target (STORAGE-OFFLOAD-TARGETS) ──────────────────────────────────────
     # The box has a small SSD, so finished nights have to leave. This surface owns WHERE they go and

@@ -273,6 +273,26 @@ is a gate someone switches off"*.
 
 **Record the equivalents you confirmed**, so the next audit does not re-derive them.
 
+**A mutant killable ONLY by asserting a TUNED constant is not the suite's to own** (added 2026-08-15
+from `RUN-POLAR-MUTATION-STOP-HERE` §4 — the ceiling rule's sibling, and the one that decides what to
+decline). Killing `backoff = min(backoff * 2, 60)` → `* 3`, or `60` → `61`, requires pinning the exact
+sleep SEQUENCE a session produces. The constants here are tuned against a live radio — `CHARGE_RETRY_S`,
+`_STALL_RECONNECT_S`, `_NOT_WORN_RECHECK_S`, `_REBOND_EVERY` have all moved in response to measurement —
+and each move would then red a build in a file that has nothing to say about whether the new value is
+better.
+
+> **Pin the BEHAVIOUR the constant produces — backoff grows; it is capped; a stall reconnect is faster
+> than an error backoff — and let the number move.**
+
+Same trade this suite already makes for message wording (161 mutants → PROSE) and for `flush=`/`XX`
+wrapping. It declined 29 `backoff / sleep cadence` mutants on `run_polar` and should decline their
+equivalents everywhere.
+
+⚠️ **It is a rule about TUNED constants, not about all constants.** A number fixed by a wire format, a
+vendor spec or a physical unit is not tuning and must stay pinned — mutating a PMD opcode or an
+`int(x, 16)` base is a real defect. The test is whether the value has *moved in response to
+measurement*, not whether it is a literal.
+
 **Do not wire a whole-tree kill-rate threshold into CI.** The gate that exists — `tools/mutate_diff.py`,
 the `mutation-diff` job — is diff-scoped on purpose.
 

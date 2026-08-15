@@ -243,3 +243,60 @@ def test_resubmitting_the_same_rates_is_still_a_no_op(tmp_path):
         devices=[dev], status={"H10": {"pmd_options": {"acc": [25, 50]}}})
     assert body["changed"] == [] and body["restart_needed"] is False
     assert not os.path.exists(cfg_path), "a no-op settings post must not write config.yaml"
+
+
+# ── SDK mode costs PPI and HR, and the response says so (POLAR-ONBOARD-BACKUP-FOLLOWUPS §3) ─────────
+# The monitor presented SDK mode and the stream checkboxes as INDEPENDENT controls, so the config could
+# express a state the hardware cannot hold and the only symptom was two streams quietly absent. The
+# server WARNS rather than refusing: the exclusion is a Verity-FAMILY fact, not something any device
+# reports, so a hard refusal would block a legitimate config written for other hardware. "Silently
+# winning" was the defect; warning is the fix the brief asked for.
+#
+# `status` is deliberately omitted from these: with no remembered capability list the SDK-capability
+# gate above passes, which isolates the warning from the refusal path next door.
+def test_enabling_sdk_mode_warns_that_it_disables_ppi_and_hr(tmp_path):
+    """The conflict is reported, the write still happens, and the warning names the streams lost."""
+    status, body, cfg, _ = _post_settings(
+        tmp_path, {"sdk_mode": {ADDR: True}},
+        devices=[dict(H10, streams=["ecg", "ppi", "hr"])])
+    assert status == 200 and body["ok"] is True
+    assert cfg["devices"][0]["sdk_mode"] is True, "it WARNS — it does not refuse the write"
+    assert len(body["warnings"]) == 1, body["warnings"]
+    w = body["warnings"][0]
+    assert "ppi" in w and "hr" in w, f"the warning must name the streams that go quiet: {w}"
+    assert "H10" in w, "and which device it is about"
+
+
+def test_the_sdk_conflict_is_judged_on_the_final_state_not_on_the_edge(tmp_path):
+    """The mirror image: SDK mode is ALREADY on and PPI is configured. A check that only ran when
+    `sdk_mode` itself CHANGED would miss this entirely — the same conflict from the other side, and the
+    one an operator is more likely to create."""
+    status, body, _, _ = _post_settings(
+        tmp_path, {"sdk_mode": {ADDR: True}},
+        devices=[dict(H10, streams=["ecg", "ppi"], sdk_mode=True)])
+    assert status == 200
+    assert body["changed"] == [], "sdk_mode was already true — nothing changed"
+    assert len(body["warnings"]) == 1, "…and the conflict is still reported"
+    assert "ppi" in body["warnings"][0]
+
+
+def test_no_conflict_means_no_warning_and_the_key_is_still_present(tmp_path):
+    """The paired ALLOW, and the reason `warnings` is unconditional. A key that appears only on trouble
+    teaches a client to read its ABSENCE as "no trouble" — indistinguishable from a server older than
+    the check. So it is always there, and empty when there is nothing to say."""
+    status, body, _, _ = _post_settings(
+        tmp_path, {"sdk_mode": {ADDR: True}},
+        devices=[dict(H10, streams=["ecg", "acc"])])
+    assert status == 200
+    assert body["warnings"] == [], "no ppi/hr configured ⇒ nothing to warn about"
+    assert "warnings" in body, "and the key is present even when empty"
+
+
+def test_turning_sdk_mode_off_never_warns(tmp_path):
+    """Disabling is always safe — the streams come back. A warning here would train the operator to
+    ignore the one that matters."""
+    status, body, _, _ = _post_settings(
+        tmp_path, {"sdk_mode": {ADDR: False}},
+        devices=[dict(H10, streams=["ecg", "ppi", "hr"], sdk_mode=True)])
+    assert status == 200
+    assert body["warnings"] == []

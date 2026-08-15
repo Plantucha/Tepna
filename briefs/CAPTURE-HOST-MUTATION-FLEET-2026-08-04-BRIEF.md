@@ -142,6 +142,35 @@ reader of the tree overlap a writer · assert the mutation anchor is unique · c
   `method=None`, the `getattr` default, `flush=`). `tools/mutate_pure.py` already searches for a
   distinguishing input; folding it into triage is what stops someone writing a test that cannot pass.
 
+## 7.8 · `run_polar`'s remaining families — DECLINED, in this file (2026-08-15)
+
+Recorded here and not only in `RUN-POLAR-MUTATION-STOP-HERE`, so `run_polar` cannot be re-opened as if
+it were untouched. **183 survivors + 13 loop-condition timeouts against 400 reachable**, after four
+families closed (130/145 killed, 15 equivalents proven):
+
+| family | count | verdict |
+|---|---:|---|
+| other | 59 | **DECLINED** — the residue after seven named families; no shared fixture, so each is its own setup |
+| reconnect / bonding | 35 | **DECLINED 2026-08-15** — see below; reopen on a second incident |
+| negotiation + decode | 33 | **DECLINED** — `polar_pmd` is separately swept; these are its CALL sites |
+| backoff / sleep cadence | 29 | **DECLINED** — killable only by pinning a tuned constant (runbook §7) |
+| loop / branch conditions | 12 (+13 timeouts) | **PARTLY TAKEN 2026-08-15** — the timeouts were measured and two are now gated |
+| device clock + skew | 12 | **DECLINED** — the only honest confirmation a sync took; no incident behind it |
+| stall + worn watchdog | 8 | **DECLINED** — the predicates are already extracted and covered |
+| PMD control-point I/O | 4 | **DONE** — went with the bounded-await family |
+
+**`reconnect / bonding` declined on evidence, not appetite.** Its claim was a measured incident: on
+2026-07-29 an H10's bond went stale, the re-pair removed it and could not re-establish it, and 4.5 h of
+ECG was lost. The box journal was re-read on 2026-08-15 for recurrence — **3 `re-pair` lines, all on
+2026-07-30** (the tail of that same episode) and **0** escalations to the two-strike `stale_bond_hits`
+rule or a "could not re-establish" since, over 16 days.
+
+⚠️ **State the weakness with the finding: 16 quiet days is not strong evidence about a rare failure, and
+the recovery path shipped BECAUSE of that incident — so the quiet may be the fix working rather than the
+failure being rare.** That cuts toward the family mattering, not away from it. What decides it is
+priority against the roadmap, which is an owner call; the decline is therefore *reversible and
+conditional*, and the trigger is written down: **a second stale-bond incident reopens it.**
+
 ## 8 · Done when
 
 * `capture.run_polar` has its own brief and a first pass.

@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-11
+**Status:** IN-PROGRESS — 2026-08-15 (**§2 SUPERSEDED** — the blocking state it describes no longer exists, measured on the box; **§3 EXECUTED**. §4 open — the H10 pull path. §5 needs no code) · **Created:** 2026-08-11
 
 > **What this is.** What the 2026-08-10/11 hardware session surfaced that the parent brief does not
 > cover. Four fixes already shipped; three items remain, and one of them is holding a safety setting
@@ -15,6 +15,18 @@
 `power.drop_not_worn_sec = 0` on vigil — **the not-worn drop is DISABLED** and stays that way until
 §2 lands. That is deliberate: the detector currently reports `worn: False` for a worn armband, and a
 drop acting on that reading disconnects a sensor mid-night.
+
+> ### ✅ NO LONGER TRUE — re-measured on the box 2026-08-15
+>
+> ```
+> /opt/tepna/capture-host/config.yaml
+>   power:
+>     drop_not_worn_sec: 180.0
+> ```
+>
+> The drop is **restored and live**. §2 was discharged by work that landed after this brief was
+> written; the state described above is stale, and this box is the first thing a reader trusts. See
+> §2-RESULT.
 
 ## 1 · Shipped (context, not work)
 
@@ -49,6 +61,37 @@ default → 176 Hz in the morning, worn detection calibrated at 55 Hz in the eve
 ⚠️ The afternoon measurement that appeared to validate the detector was taken on a genuinely unworn
 device, so it agreed for the wrong reason. A passing check on a case that cannot fail is not evidence.
 
+### ✅ §2-RESULT — SUPERSEDED, not executed. Verified in the code and on the box, 2026-08-15
+
+Every item §2 asked for exists, and none of it was done by this brief:
+
+1. **"It refuses rather than guesses"** — `telemetry.optical_worn` opens with `if not calibrated_for(fs):
+   return None`, and its docstring states the three-valued contract (*"`None` IS NOT `False`, and the
+   callers make that distinction load-bearing"*). Done.
+2. **"Re-derive per rate"** — done differently and better than asked. Rather than re-deriving the level
+   threshold at 176 Hz, a **second detector** was added: `ambient_stability_worn`, because *the pegging
+   inverts between the rates* — at 55 Hz worn is dark and unworn is pegged-bright, at 176 Hz worn is
+   pegged-and-quiet and unworn is unpegged room light. The level separates at one rate and the variance
+   at the other, and each is blind at the other's. That is two physical regimes, not a threshold to
+   widen. Calibrated 2026-08-13 on 90 windows from 15 real files, threshold at the geometric midpoint of
+   a 3.9× gap — and the write-up says plainly that this calibration is **weaker** than the 55 Hz one
+   (90 windows vs 5730, state inferred from capture time rather than known) instead of smoothing it over.
+3. **"Prefer the PPI contact bit"** — superseded by a multi-vote `worn_verdict` in which the contact bit
+   is one vote among several, with a pulse override that may overrule the ambient proxies but **not** a
+   contact bit. That ordering is the right answer to the parent's caveat, and to the observed failure of
+   a Verity streaming 3 h 24 m inside its charger under `worn: True`.
+4. **"Restore `drop_not_worn_sec = 180`"** — already 180.0 on the box.
+
+**A third detector was tried and REFUTED, and the refutation is recorded so nobody re-derives it.**
+Cardiac-band power looks ideal (periodicity is rate-independent) and showed a 94× separation on two
+hand-picked windows; over the corpus it is not a detector at all — at 55 Hz, 468 of 474 windows fall in
+the overlap, and the unworn *maximum* exceeds the worn maximum. That is the same "two hand-picked
+windows nearly became a fleet claim" shape this repo keeps finding, caught before it shipped.
+
+**What this brief contributes is the correction:** §0's banner said a safety feature was disabled and
+would stay disabled until this brief landed. It is not, and it did not. A brief that states a live
+degraded state is the one a reader trusts most, so a stale one is worse than a stale plan.
+
 ## 3 · The SDK-mode switch needs to say what it costs — BEFORE the click
 
 Enabling SDK mode disables PPI and HR on a Verity Sense (parent brief, §"the Verity mode selector").
@@ -58,6 +101,36 @@ can express a state the hardware cannot hold, and the only symptom is two stream
 **Done when** the SDK-mode control names the exclusion in its help text, and enabling it while `ppi`
 or `hr` is checked warns rather than silently winning. Derive the exclusion from the device where
 possible; state it as a Verity-family fact where not.
+
+> ### ✅ EXECUTED 2026-08-15
+>
+> **It cannot be derived, so it is stated.** Nothing in the PMD feature set announces the exclusion —
+> the device advertises SDK mode and advertises PPI, and says nothing about the two being exclusive. So
+> it ships as a Verity-family fact, in exactly the terms this brief allowed for.
+>
+> **Three surfaces, because the UI one is the bypassable one:**
+> - the control's help text now ends *"**Costs PPI and HR** — a Verity cannot serve those in SDK mode,
+>   and they go quiet rather than erroring"*, visible whether or not there is a conflict;
+> - a red banner appears on the control when SDK mode is on **and** `ppi`/`hr` are configured, naming
+>   the streams — the half you see *before* the click, which is what §3 asked for;
+> - `POST /api/settings` returns a **`warnings`** array, and the save message renders it in red. This is
+>   the load-bearing half: it is testable, and it fires for a client that never renders the banner.
+>
+> **It warns, it does not refuse** — deliberately. The exclusion is a family fact, so a hard refusal
+> would block a legitimate config written for hardware that does not have it. "Silently winning" was
+> the defect, not "permitting".
+>
+> **The check is on the FINAL state, not on the `sdk_mode` edge.** The conflict arrives from both
+> directions, and adding PPI to a device already in SDK mode is the likelier one; an edge-triggered
+> check would miss it entirely. That case has its own test, and its own mutant.
+>
+> **`warnings` is always present, even when empty** — a key that appears only on trouble teaches a
+> client to read its absence as "no trouble", which is indistinguishable from a server older than the
+> check.
+>
+> Four tests, each DENY paired with an ALLOW (no conflict ⇒ empty; disabling ⇒ never warns).
+> Mutation-verified: dropping the warning, making it edge-triggered, and warning on disable each red the
+> intended assertion.
 
 ## 4 · The H10 recording leg — unchanged, and still gated on one experiment
 
