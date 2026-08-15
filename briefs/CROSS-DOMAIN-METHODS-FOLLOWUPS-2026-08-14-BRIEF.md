@@ -939,6 +939,44 @@ waveform is the next instrument, and it supersedes capture–recapture for this 
 Capture–recapture remains the right tool for artefact-heavy segments, where the detectors genuinely
 diverge — the O2Ring nights with poor perfusion are the obvious first candidate.
 
+### §7.3 · BUILT AND RUN — the artificial-star test gives a completeness curve, and a bounded answer
+
+`tools/beat-injection-recovery.mjs`. Plants the subject's **own averaged beat** into the raw ECG at
+physiologically admissible positions (≥350 ms from any existing beat, so refractory rejection is not
+counted as a miss), re-runs the **shipped** Pan–Tompkins, and measures the recovered fraction against
+amplitude expressed as a multiple of **local** noise. 25.6 min of H10 ECG, 1315 baseline beats.
+
+| SNR | 0 | 5 | 10 | 20 | 30 | 40 | 60 | 90 | 140 |
+|---|---|---|---|---|---|---|---|---|---|
+| completeness | 0 % | 0 % | 0 % | **8.7 %** | **94.7 %** | 100 % | 100 % | 100 % | 100 % |
+| spurious | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+
+A sharp knee between 20 and 30, and **zero spurious detections at every amplitude** — the injection
+never induces a false positive elsewhere.
+
+**Where the real beats sit on that curve** — the number the curve exists to enable:
+
+| | min | p1 | p5 | median | p95 | max |
+|---|---|---|---|---|---|---|
+| real-beat SNR | 10.0 | 22.2 | 41.0 | **48.9** | 69.5 | 83.6 |
+
+**0.61 %** of real beats fall below SNR 20 · **2.21 %** below 30 · **3.73 %** below 40. Convolving the
+distribution with the curve gives roughly **1.4 % of beats at risk of being missed**.
+
+**🔴 THAT IS AN UPPER BOUND, AND THE REASON IS STRUCTURAL.** Injected beats are placed in GAPS, isolated
+from the rhythm. A real low-amplitude beat arrives *in sequence*, and Pan–Tompkins has a searchback
+that reopens a window when an RR interval runs long — a mechanism that exists precisely for this case
+and that an isolated plant cannot benefit from. So the measured completeness understates what the
+detector achieves on beats in rhythm, and the true miss rate is **≤ 1.4 %**, plausibly well below it.
+Do not quote 1.4 % as the miss rate; quote it as the bound, and say which side it is on.
+
+**Why the bound is still worth having.** `KNOWN-CLOCK-ADVERSARIAL-CAPTURE` measured that a **0.5 %**
+miss rate inflates rMSSD by **114 %** and 2 % by 387 %. An upper bound of 1.4 % therefore does not
+settle the question — it places it squarely inside the range where the damage is large, which is
+exactly the finding that motivated all of this. **Closing it needs the searchback-aware version:**
+plant beats in rhythm by *removing* a real beat and re-inserting it at reduced amplitude, so the
+sequence context is preserved. That is the next increment and it is small.
+
 > Lincoln–Petersen / capture–recapture in epidemiology: <https://academic.oup.com/aje/advance-article/doi/10.1093/aje/kwaf004/7950813> ·
 > dependence bias and the log-linear remedy: <https://academic.oup.com/aje/article/179/11/1383/2739086> ·
 > current beat-detection practice (agreement-as-reference): <https://ppg-beats.readthedocs.io/en/stable/functions/detect_ecg_beats/>
