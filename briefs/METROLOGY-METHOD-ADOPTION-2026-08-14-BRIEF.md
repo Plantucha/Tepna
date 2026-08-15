@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-08-14 · **Follows:** `CROSS-DOMAIN-METHODS-2026-08-12-BRIEF.md` · `CROSS-DOMAIN-METHODS-FOLLOWUPS-2026-08-14-BRIEF.md` · **Feeds:** `PPG-FOOT-PLACEMENT-2026-08-12-BRIEF.md` · `PAT-OFFSET-ESTIMATOR-FOLLOWUPS-2026-08-12-BRIEF.md` · `ALLAN-DEVIATION-2026-08-12-BRIEF.md`
+**Status:** DONE — 2026-08-15 (all four phases resolved — **two of them by refutation, which is a resolution and not a failure**. Phase 1 SHIPPED and corpus-validated (§3.1–§3.5). Phase 2 BUILT AND REFUTED in both directions and **nothing was shipped** (§4a–§4c). Phase 3 ANSWERED as far as this corpus permits (§4d–§4f). Phase 4 RULED OUT by measurement before any code (§3.5). ⚠️ **DONE here does NOT mean "build the remaining phases"** — the opposite: §4a, §4b and §3.5 exist to stop exactly that. **The one live residue is owner-gated and needs no follow-up brief to restate it:** PAT requires a blood-pressure reference or a scheduled intervention (tilt · Valsalva · cold pressor), because ~91 % of its variance is physiology that no estimator can reach and neither available reference explains — see §4f. Three methodological rules earned here and stated in-section: a noise-type names a TIMESCALE never a MECHANISM (§4d) · any PAT-vs-slow-covariate analysis needs an ORDER-PRESERVING NULL or it finds what it looks for (§4f) · run the corpus before writing the section (§4c)) · **Created:** 2026-08-14 · **Follows:** `CROSS-DOMAIN-METHODS-2026-08-12-BRIEF.md` · `CROSS-DOMAIN-METHODS-FOLLOWUPS-2026-08-14-BRIEF.md` · **Feeds:** `PPG-FOOT-PLACEMENT-2026-08-12-BRIEF.md` · `PAT-OFFSET-ESTIMATOR-FOLLOWUPS-2026-08-12-BRIEF.md` · `ALLAN-DEVIATION-2026-08-12-BRIEF.md`
 
 # Adopting the metrology toolbox — which methods, where they land, and in what order
 
@@ -773,15 +773,23 @@ upgrade a badge because "the literature says" — `LITERATURE-USE-POLICY-2026-07
 
 ## §9 · Done when
 
-- [ ] **Phase 1** — MDEV · TDEV · HDEV shipped in `allan.py` with per-estimator term guards, an MDEV
-      noise table, ADEV↔MDEV disambiguation, known-answer tests including one ADEV/MDEV disagreement,
-      and `capture-host/check.sh` green at 100 % branch coverage.
-- [ ] **Phase 2** — PPG feet published as `(t̂, σ_t, q)`; template built from high-SQI beats; continuity
-      constraint across beats; alternation nights handled explicitly; corpus re-verification complete.
-- [ ] **Phase 3** — a PAT uncertainty budget with a variance decomposition, in `tools/`, driven by
-      Phase 2's σ_t and Phase 1's TDEV.
-- [ ] **Phase 4** — an ensemble estimator evaluated against `hostAxis`'s measured 57 ms on held-out box
-      nights, adopted only on a win, with fault isolation reported per corner.
+- [x] **Phase 1 — SHIPPED.** MDEV · TDEV · HDEV in `allan.py` with per-estimator term guards, an MDEV
+      noise table, ADEV↔MDEV disambiguation, 69 tests at 100 % statement+branch coverage, mutation gate
+      28 → 0 unclassified, `check.sh` green. **Corpus-validated** on 27 box streams (§3.5): ADEV gave
+      26/27 one label, MDEV resolved 19; TDEV put the clock at 2–11 ms.
+- [x] **Phase 2 — BUILT AND REFUTED; nothing shipped.** Template-matched TOA is *worse* than the shipped
+      tangent foot on the same beats, 6/6 (§4a); none of eight alternative fiducials beats it by more
+      than 0.3–0.7 ms (§4b); the admission gate is real but ~1.7 ms on 29 nights (§4c). The
+      `ppgdex-dsp.js` experiment was **reverted**, so no `manifestHash`/`computeHash` moved and no
+      fixture re-verification was owed.
+- [x] **Phase 3 — ANSWERED to the corpus limit.** The decomposition (§4d) replaced the planned GUM
+      Monte-Carlo budget and superseded its purpose: ECG fiducial **0.02 %**, PPG fiducial **8.7 %**,
+      remainder **~91 %** and *correlated* (acf₁ +0.520 on 24/25 nights). Respiration refuted against
+      CPAP flow (§4e), posture refuted against ACC (§4f). A GUM budget over the ~9 % is possible but no
+      longer the question, since the dominant term is not error.
+- [x] **Phase 4 — RULED OUT before any code.** §3.5's TDEV put the clock at 2–11 ms against a ~37 ms PAT
+      spread; an ensemble time scale would refine a term already ~20× below the dominant one. `hostAxis`
+      keeps its measured 57 ms median, unchallenged because nothing needed to challenge it.
 
 ---
 
