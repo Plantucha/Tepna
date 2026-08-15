@@ -299,6 +299,79 @@ rMSSD 3–6×. A template fitted across alternating beats will smear; the altern
 
 ---
 
+### §4a · BUILT AND REFUTED, 2026-08-15 — the tangent foot already beats a template-matched arrival time
+
+Phase 2 was built to the specification in §4 — `buildFootTemplate` (amplitude-normalised **median** beat
+shape, so one artifact beat cannot become the reference every beat is measured against) and `footTOA`
+(cross-correlation, parabolic sub-sample peak, and a Cramér–Rao uncertainty
+`sigma_tau = sigma_noise / sqrt(SUM (dT/dk)^2)` — arrival time is resolved by SLOPE, so both terms are
+measured per beat and nothing is tuned).
+
+**The estimator itself is correct.** On synthetic beats with injected noise it behaves exactly as theory
+requires — sigma scales linearly with noise, and it over-states the true scatter by a consistent ~1.4x,
+which is the conservative direction for an uncertainty:
+
+| injected noise | predicted sigma | actual scatter | q |
+|---|---|---|---|
+| 0.00 | 0.000 ms | 0.000 ms | 1.0000 |
+| 0.02 | 0.194 ms | 0.118 ms | 0.9996 |
+| 0.10 | 0.899 ms | 0.640 ms | 0.9918 |
+
+**And it does not help.** Measured on five real H10+Verity nights (20-minute slices, ~850 beats each),
+PAT standard deviation with each fiducial:
+
+| night | tangent foot | template TOA |
+|---|---|---|
+| 2026-07-09 | **13.69 ms** | 14.71 ms |
+| 2026-07-12 | 17.40 ms | **17.23 ms** |
+| 2026-07-06 | **36.46 ms** | 37.87 ms |
+| 2026-07-01 | **46.08 ms** | 48.94 ms |
+| 2026-06-28 | **36.71 ms** | 36.89 ms |
+
+And on the **same beats**, which is the only fair comparison, the tangent foot wins **6 of 6** — including
+on the low-q half, where a template should help most if it helps at all:
+
+    2026-07-09  q>median  tangent 11.41  vs template 11.56     q<=median  15.30 vs 16.79
+    2026-07-06  q>median  tangent 33.30  vs template 33.77     q<=median  40.27 vs 41.94
+    2026-07-01  q>median  tangent 44.80  vs template 44.84     q<=median  42.72 vs 48.76
+
+#### Why — and why §3.5's Allan result did NOT imply otherwise
+
+The decisive number is **sigma_tau itself: 0.44–0.58 ms on clean nights.** The waveform determines the
+foot's arrival time to well under a millisecond. There is simply **no 13–46 ms of timing ambiguity in the
+PPG for a better estimator to recover** — so PAT's spread cannot be fiducial *precision*, and nothing
+that improves fiducial precision can reduce it.
+
+**This refutes the inference that opened Phase 2, and the error is worth naming.** §3.5 measured the PAT
+series as white/flicker PHASE noise (ADEV −0.918 over 48 nights) and I read that as "uncorrelated
+per-beat error ⇒ fiducial jitter ⇒ a better fiducial will help". The first step is sound; **the second is
+not**. An uncorrelated per-beat signature says the variance does not persist across beats — it does
+**not** say which of the several per-beat contributors produced it. Genuine beat-to-beat PAT variation is
+itself largely uncorrelated at the beat scale, and so is ECG-side R-peak placement. **A noise-type
+classification names a TIMESCALE, never a MECHANISM**, and treating it as an attribution is the same
+over-reading as §3.5's own refuted claims.
+
+#### What was kept, and what was thrown away
+
+**The source change was REVERTED and nothing shipped.** `ppgdex-dsp.js` sits in the compute closure, so
+landing it would have moved `manifestHash` and `computeHash` and owed a real-corpus fixture
+re-verification — for an estimator measured to make the target metric slightly *worse*. Measuring before
+wiring is what made that free.
+
+**One result survives and is worth a separate look:** `q` discriminates beat quality even though `tHat`
+does not improve timing. Splitting on `q` alone separates PAT spread cleanly and repeatedly — 11.41 vs
+15.30, 33.30 vs 40.27 ms. That is a *quality* signal, not a *timing* one, and PpgDex already publishes
+`conf` and SQI, so it needs its own justification against those rather than a free ride on this section.
+
+#### Consequence for the build order
+
+**Phase 2 is closed as specified.** With Phase 4 already ruled out by §3.5 (2–11 ms clock against ~50 ms
+PAT) and Phase 2 refuted here, the open question is no longer *which estimator* but **where the 13–46 ms
+actually comes from** — physiology, the ECG fiducial, or the pairing. That is a measurement, not a build,
+and it should precede any further estimator work. Phase 3's variance decomposition is now the natural
+next step precisely because it answers that question, and it costs no bundle.
+
+
 ## §5 · Phase 3 — a GUM uncertainty budget for PAT
 
 **The framework.** JCGM 100:2008 (the GUM) plus **JCGM 101:2008**, its Monte-Carlo supplement, which
