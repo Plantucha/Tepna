@@ -99,6 +99,254 @@ export function detect(ctx, v, fs) {
   return (Array.isArray(p) ? p : (p && (p.peaks || p.idx)) || []).filter(Number.isFinite);
 }
 
+/**
+ * SEARCHBACK-AWARE RECOVERY — attenuate REAL beats in place instead of planting new ones in gaps.
+ *
+ * WHY THIS EXISTS. `injectAndRecover` plants the template into gaps ≥350 ms from any beat, which makes
+ * its completeness an UPPER bound on the miss rate: an isolated plant cannot benefit from Pan–Tompkins'
+ * SEARCHBACK, the mechanism that reopens a detection window when an RR interval runs long — i.e. the one
+ * mechanism that exists precisely for a low-amplitude beat arriving in sequence. Measured completeness
+ * therefore understates what the detector achieves on beats in rhythm.
+ *
+ * THE FIX: keep the beat where it is and turn it DOWN. For a scattered subset (so every modified beat
+ * keeps unmodified neighbours and every neighbouring RR is intact), fit the template's scale to the local
+ * waveform and rewrite the window as `residual + alpha x fitted`, where `residual = window − fitted`.
+ * That preserves the local noise exactly and reduces only the beat component, so the rhythm, the RR
+ * sequence and the searchback context are all untouched. alpha = 1 rewrites the beat to itself.
+ *
+ * TWO CONTROLS MATTER MORE THAN THE CURVE:
+ *   · alpha = 1 must recover ~100 %. If it does not, the excise-and-reinsert is itself damaging the beat
+ *     and every number downstream measures this function's arithmetic rather than the detector. It is the
+ *     amplitude-0 null of `injectAndRecover`, one level up.
+ *   · alpha = 0 — beat fully removed, neighbours intact — measures how often SEARCHBACK FABRICATES a beat
+ *     that is not there. Gap-planting is structurally blind to this: it can only ever add signal. A
+ *     substantial recovery at alpha = 0 means the detector interpolates, which for rMSSD is the same
+ *     class of damage as a miss, in the opposite direction.
+ *
+ * Returns SNR alongside alpha so the curve is directly comparable with `injectAndRecover`'s.
+ */
+export function attenuateAndRecover(ctx, v, fs, tpl, alpha, opts = {}) {
+  const { fraction = 0.05, seed = 12345, tolMs = 100, neighbours = 0, scaleMode = 'template' } = opts;
+  /* TWO WAYS TO MAKE A BEAT QUIETER, AND THEY ARE NOT THE SAME OBJECT.
+     · 'template'  edited = (window − ownFit) + alpha x looFit
+       Scales an AVERAGE beat but leaves the residual — this beat's departure from the population shape —
+       at FULL size. At low alpha the residual is a large share of what remains, and a difference-of-two-
+       beats has different frequency content from a beat. So a refusal here may be partly MORPHOLOGY
+       ("that no longer looks like a beat") rather than threshold, and the two are confounded.
+     · 'baseline'  edited = baseline + alpha x (window − baseline)
+       Scales the beat INCLUDING its own morphology — genuinely the same beat, smaller — and at alpha = 0
+       leaves flat baseline rather than a residual, so it is also a true removal.
+     Running both at nb = 0 separates the threshold effect from the morphology effect. Confound
+     identified in review; neither construction is wrong, they answer different questions. */
+  /* `neighbours: k` also attenuates the k beats either side of each chosen beat, and scores ONLY the
+     middle one. This is the falsifiable form of the adaptive-threshold mechanism (proposed by this
+     session, test proposed by #1292's author): if in-rhythm detection is harder because full-amplitude
+     neighbours hold Pan-Tompkins' running threshold high, then turning the neighbours down too must move
+     the middle beat's recovery TOWARD the gap-planted curve. If it does not move, the mechanism is wrong
+     and something else explains the difference. Either way the answer is measured, not asserted. */
+  const base = detect(ctx, v, fs)
+    .slice()
+    .sort((a, b) => a - b);
+  const half = tpl.half;
+  const len = tpl.wave.length;
+
+  /* ⚠️ THE OBVIOUS CONSTRUCTION MAKES THE alpha = 1 CONTROL VACUOUS, AND IT IS VACUOUS FOR ANY TEMPLATE.
+     Writing `residual = window − fitted` and reconstructing `residual + alpha x fitted` gives, at
+     alpha = 1, `window − fitted + fitted` — bit-identical to the original however badly the template
+     fits. The control could not fail, so it certified nothing: a check reporting success about something
+     it never examined, in the one place it was put to prevent exactly that. (Caught in review by the
+     author of this file; it was mine.)
+
+     THE FIX IS NOT LEAVE-ONE-OUT BY ITSELF — the identity is structural, not a property of the template.
+     What breaks it is removing one thing and inserting a DIFFERENT one: excise the beat's OWN fitted
+     waveform, then re-insert the LEAVE-ONE-OUT average shape at that beat's amplitude. alpha = 1 then
+     means "replace this beat with the average of every OTHER beat, same amplitude, same position", which
+     genuinely tests that the excise-and-reinsert preserves detectability — it can fail on a DC step at
+     the window edge, on a poor template, or on arithmetic. It is also the same object `injectAndRecover`
+     plants, so the two curves are measuring the detectability of the same waveform and are comparable. */
+  const acc = new Float64Array(len);
+  let nAcc = 0;
+  for (const q of base) {
+    const i2 = Math.round(q);
+    if (i2 - half < 0 || i2 + half >= v.length) continue;
+    for (let k = 0; k < len; k++) acc[k] += v[i2 - half + k];
+    nAcc++;
+  }
+  if (nAcc < 3) return null;
+
+  const step = Math.max(2, Math.round(1 / Math.max(1e-6, fraction)));
+  const r = lcg(seed);
+  const chosen = [];
+  for (let i2 = 1; i2 < base.length - 1; i2 += step) {
+    const j2 = i2 + Math.floor(r() * (step - 1));
+    const q = Math.round(base[Math.min(j2, base.length - 2)]);
+    if (q - half < 0 || q + half >= v.length) continue;
+    if (chosen.length && q - chosen[chosen.length - 1] < 2 * half) continue;
+    chosen.push(q);
+  }
+  if (!chosen.length) return null;
+
+  /* expand each scored beat to the set actually attenuated; only `chosen` is ever scored */
+  const idxOf = new Map();
+  base.forEach((b, i2) => idxOf.set(Math.round(b), i2));
+  const toEdit = [];
+  for (const q of chosen) {
+    toEdit.push(q);
+    const at = idxOf.get(q);
+    for (let d = 1; d <= neighbours && at != null; d++) {
+      for (const nb of [base[at - d], base[at + d]]) {
+        if (nb == null) continue;
+        const r2 = Math.round(nb);
+        if (r2 - half >= 0 && r2 + half < v.length) toEdit.push(r2);
+      }
+    }
+  }
+
+  const w = Float64Array.from(v);
+  const snrs = [];
+  const measured = [];
+  let editDelta = 0; // max |edited − original| over modified windows — see the note on the return
+  for (const q of toEdit) {
+    /* leave-one-out average: this beat contributes to `acc`, so take it back out. */
+    const loo = new Float64Array(len);
+    for (let k = 0; k < len; k++) loo[k] = (acc[k] - v[q - half + k]) / (nAcc - 1);
+    const ped = (loo[0] + loo[len - 1]) / 2; // same DC-pedestal removal buildTemplate does
+    for (let k = 0; k < len; k++) loo[k] -= ped;
+
+    /* the beat's OWN amplitude, measured against its own averaged shape */
+    let vt = 0,
+      tt2 = 0;
+    for (let k = 0; k < len; k++) {
+      vt += w[q - half + k] * tpl.wave[k];
+      tt2 += tpl.wave[k] * tpl.wave[k];
+    }
+    const scale = vt / (tt2 || 1);
+
+    if (scaleMode === 'baseline') {
+      /* local baseline from the window's outer thirds, which exclude the QRS in the middle */
+      const edge = Math.max(1, Math.round(len / 3));
+      let bsum = 0,
+        bn = 0;
+      for (let k = 0; k < edge; k++) {
+        bsum += w[q - half + k] + w[q + half - k];
+        bn += 2;
+      }
+      const bl = bsum / bn;
+      for (let k = 0; k < len; k++) {
+        w[q - half + k] = bl + alpha * (w[q - half + k] - bl);
+      }
+    } else {
+      for (let k = 0; k < len; k++) {
+        w[q - half + k] = w[q - half + k] - scale * tpl.wave[k] + alpha * scale * loo[k];
+      }
+    }
+    /* SNR uses the POPULATION template peak, not this beat's leave-one-out peak, so this curve's axis
+       is identical BY CONSTRUCTION to `injectAndRecover`'s and to the real-beat SNR distribution the
+       curve gets convolved with. The two differ by O(1/n) and would silently shift one axis relative to
+       the other — which is the kind of discrepancy that survives review because both numbers look
+       reasonable on their own. */
+    snrs.push((Math.abs(alpha * scale) * tpl.peakAmp) / localNoise(v, q, fs));
+    /* ⚠️ THE NOMINAL SNR ABOVE IS NOT WHAT THE DETECTOR SEES, and the gap between them is the reason
+       alpha = 0 is not silence. Template subtraction is imperfect: what remains is `residual + alpha x
+       fitted`, and the residual is beat-SHAPED and beat-POSITIONED, so at low alpha the window still holds
+       signal the nominal axis reports as absent. Measured on the corpus: at alpha = 0 the local peak/noise
+       falls 55.9 -> 13.1, not to 0 — which is why a lowered threshold (nb = 2) recovers 10.7 % of
+       "removed" beats, and why those recoveries land a median 15.4 ms from the true position (~2 samples)
+       rather than at the ~507 ms RR midpoint an inference-from-intervals would produce. They are the
+       residual being detected, NOT beats invented from noise.
+       So the honest axis is the POST-EDIT local peak/noise, measured. The nominal one is kept beside it
+       because it is what `injectAndRecover` uses, and dropping it would silently break the comparison. */
+    let pk = 0;
+    for (let k = 0; k < len; k++) pk = Math.max(pk, Math.abs(w[q - half + k]));
+    measured.push(pk / localNoise(v, q, fs));
+    for (let k = 0; k < len; k++) {
+      editDelta = Math.max(editDelta, Math.abs(w[q - half + k] - v[q - half + k]));
+    }
+  }
+
+  const after = detect(ctx, w, fs)
+    .slice()
+    .sort((a, b) => a - b);
+  const tol = (tolMs / 1000) * fs;
+  const near = (arr, t) => {
+    if (!arr.length) return Infinity;
+    let lo = 0,
+      hi = arr.length - 1;
+    while (lo < hi) {
+      const m = (lo + hi) >> 1;
+      if (arr[m] < t) lo = m + 1;
+      else hi = m;
+    }
+    let d = Math.abs(arr[lo] - t);
+    if (lo > 0) d = Math.min(d, Math.abs(arr[lo - 1] - t));
+    return d;
+  };
+  const nearSigned = (arr, t) => {
+    if (!arr.length) return Infinity;
+    let lo = 0,
+      hi = arr.length - 1;
+    while (lo < hi) {
+      const m = (lo + hi) >> 1;
+      if (arr[m] < t) lo = m + 1;
+      else hi = m;
+    }
+    let best = arr[lo] - t;
+    if (lo > 0 && Math.abs(arr[lo - 1] - t) < Math.abs(best)) best = arr[lo - 1] - t;
+    return best;
+  };
+  let recovered = 0;
+  /* SIGNED offset of each recovery from the true position of the beat that was there. At alpha = 0 this
+     is the measurement that decides whether a "fabrication" is damage or inference: a detection AT the
+     true beat time is the detector correctly inferring an invisible beat (a recovery, and good for rMSSD);
+     one placed away from it — an interpolated RR midpoint, say — is a beat at the wrong time, which is
+     timing error and inflates rMSSD. Same count, opposite conclusion. */
+  const offsetsMs = [];
+  for (const q of chosen) {
+    const d = nearSigned(after, q);
+    if (Math.abs(d) <= tol) {
+      recovered++;
+      offsetsMs.push((d / fs) * 1000);
+    }
+  }
+
+  const untouched = base.filter((b) => !toEdit.some((c) => Math.abs(c - b) < 2 * half));
+  let kept = 0;
+  for (const b of untouched) if (near(after, b) <= tol) kept++;
+
+  const med = snrs.slice().sort((a, b) => a - b)[snrs.length >> 1];
+  return {
+    alpha,
+    scaleMode,
+    /* ⚠️ THE ANTI-VACUITY MEASUREMENT. The first version of this function reconstructed as
+       `residual + alpha x fitted`, which at alpha = 1 is bit-identical to the original for ANY template
+       — so its "alpha = 1 must recover 100 %" control could not fail and certified nothing. Publishing
+       the actual edit magnitude makes the triviality impossible to reintroduce silently: a gate asserts
+       editDelta > 0 at alpha = 1, which the identity construction cannot satisfy. */
+    editDelta,
+    modified: chosen.length,
+    attenuated: toEdit.length,
+    neighbours,
+    recovered,
+    completeness: recovered / chosen.length,
+    /* ⚠️ AT alpha = 0 THIS FIELD HAS TWO READINGS WITH OPPOSITE SIGNS OF DESIRABILITY, and which one
+       applies depends on whether the gap is real — so it is named for the MEASUREMENT, not for either
+       interpretation. The beat is gone and its neighbours are intact, so a detection at its position is
+       searchback interpolating across a long RR. Read as SEARCHBACK EFFICACY it says how often a
+       genuinely-missed beat is recovered — the mechanism that makes the gap-planted 1.4 % an
+       over-estimate. Read as a FABRICATION RATE it says how often a truly-absent beat is invented, which
+       is what matters at a real sinus pause. Same number; do not quote it without saying which. */
+    interpolatedAcrossGap: alpha === 0 ? recovered / chosen.length : null,
+    offsetsMs,
+    medianAbsOffsetMs: offsetsMs.length ? offsetsMs.map(Math.abs).sort((a, b) => a - b)[offsetsMs.length >> 1] : null,
+    medianSnr: med,
+    /* what the detector actually faced, vs `medianSnr` which is what alpha nominally asked for */
+    medianMeasuredSnr: measured.length ? measured.slice().sort((a, b) => a - b)[measured.length >> 1] : null,
+    untouched: untouched.length,
+    untouchedKept: kept,
+    untouchedRetention: untouched.length ? kept / untouched.length : null
+  };
+}
+
 /** Subject's own averaged beat, centred on the detected peak. */
 export function buildTemplate(v, peaks, fs) {
   const half = Math.round(0.12 * fs); // ±120 ms spans QRS plus a little

@@ -233,3 +233,90 @@ def test_CHARGING_OVERRULES_a_contact_bit_that_says_worn():
 def test_charging_decides_even_when_no_other_detector_has_an_opinion():
     """It must not need a quorum: on the charger there may be no ambient window and no contact bit."""
     assert telemetry.worn_verdict(charging=True)[0] is False
+
+
+# ── pulse prominence — the detector a dock cannot fool ──────────────────────────────────────────────
+def _pulse(n=telemetry._PULSE_MIN_SAMPLES, fs=176.0, hz=1.0, amp=100.0, noise=5.0, seed=7):
+    import math
+    import random
+    r = random.Random(seed)
+    return [amp * math.sin(2 * math.pi * hz * i / fs) + r.gauss(0, noise) for i in range(n)]
+
+
+def _noise(n=telemetry._PULSE_MIN_SAMPLES, sd=100.0, seed=11):
+    import random
+    r = random.Random(seed)
+    return [r.gauss(0, sd) for _ in range(n)]
+
+
+def test_a_clean_pulse_is_worn():
+    assert telemetry.pulse_prominence_worn(_pulse(), fs=176.0) is True
+
+
+def test_pure_noise_is_not_worn():
+    assert telemetry.pulse_prominence_worn(_noise(), fs=176.0) is False
+
+
+def test_prominence_separates_the_two_by_orders_of_magnitude():
+    """The threshold is the geometric midpoint of measured populations; this pins the gap it sits in."""
+    p = telemetry.pulse_prominence(_pulse(), fs=176.0)
+    q = telemetry.pulse_prominence(_noise(), fs=176.0)
+    assert p > 100 * q
+
+
+def test_an_unknown_rate_is_out_of_domain():
+    assert telemetry.pulse_prominence_worn(_pulse(), fs=None) is None
+
+
+def test_below_nyquist_for_the_reference_band_is_refused():
+    """Under ~30 Hz the 6-12 Hz reference band folds, so the ratio would compare a band to its own alias."""
+    assert telemetry.pulse_prominence_worn(_pulse(), fs=20.0) is None
+
+
+def test_too_few_samples_is_no_claim():
+    assert telemetry.pulse_prominence_worn(_pulse(n=100), fs=176.0) is None
+
+
+def test_a_flat_signal_yields_no_claim_rather_than_a_division_by_zero():
+    assert telemetry.pulse_prominence([5.0] * telemetry._PULSE_MIN_SAMPLES, fs=176.0) is None
+    assert telemetry.pulse_prominence_worn([5.0] * telemetry._PULSE_MIN_SAMPLES, fs=176.0) is None
+
+
+def test_nones_and_nans_are_dropped_not_counted():
+    vals = _pulse(n=telemetry._PULSE_MIN_SAMPLES) + [None, float("nan")]
+    assert telemetry.pulse_prominence_worn(vals, fs=176.0) is True
+
+
+def test_it_works_at_BOTH_measured_rates_which_is_why_it_has_no_rate_menu():
+    """`sd_calibrated_for` pins ambient-stability to 176 Hz. This detector is rate-independent by
+    construction and was measured at 55 and 176 Hz, so an exact-rate gate would reject data it handles."""
+    assert telemetry.pulse_prominence_worn(_pulse(fs=55.0, hz=0.9), fs=55.0) is True
+    assert telemetry.pulse_prominence_worn(_pulse(fs=176.0, hz=0.9), fs=176.0) is True
+
+
+# ── the override, and its limit ─────────────────────────────────────────────────────────────────────
+def test_a_pulse_OVERRULES_the_ambient_proxies():
+    """A dock gives stable ambient (proxy says worn) and no pulse (direct measurement says not).
+    The direct one wins — this is the case that streamed noise for 30 min on 2026-08-15."""
+    v, why = telemetry.worn_verdict(ambient=WORN_SD, fs=176.0, ppg=_noise())
+    assert v is False, why
+    assert "pulse-prominence" in why and "ambient" not in why
+
+
+def test_but_it_may_NOT_overrule_a_contact_bit():
+    """A cold, poorly-perfused wrist can genuinely show no pulse, and a false not-worn costs a night.
+    `worn_optical` does not own the drop; the contact bit does."""
+    v, why = telemetry.worn_verdict(contact=True, ambient=WORN_SD, fs=176.0, ppg=_noise())
+    assert v is True, why
+
+
+def test_without_ppg_the_ambient_votes_stand_unchanged():
+    before = telemetry.worn_verdict(ambient=WORN_SD, fs=176.0)
+    after = telemetry.worn_verdict(ambient=WORN_SD, fs=176.0, ppg=None)
+    assert before == after
+
+
+def test_an_out_of_domain_pulse_vote_leaves_the_ambient_votes_alone():
+    """Abstention must not silently delete the votes it was going to replace."""
+    v, why = telemetry.worn_verdict(ambient=WORN_SD, fs=176.0, ppg=_pulse(n=100))
+    assert "ambient" in why

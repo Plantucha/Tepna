@@ -611,9 +611,15 @@ code-gated fixtures**. You do not hand-edit `manifestHash`, and you never hand-e
 — it regresses a bundle to the retired legacy format, which `manifest-gate.js` now hashes to `null`, so
 GATE A reds and points you back here.
 
-**Owned ≠ in GATE A.** `build.mjs` owns **10** bundles — the 8 apps plus the two orchestrators
-(`Data Unifier.html`, `OverDex.html`, owned per FOLLOWUPS §6). `BUILD-MANIFEST.json` / GATE A cover the
-**8 apps**. `--check` is the guard that covers all 10.
+**Owned ≠ in GATE A.** `build.mjs` owns **`CLAIM ownedBundles = 11`** bundles — the **9** in
+`manifest-gate.js MANIFEST_BUNDLES` (the 8 apps **plus `Integrator.html`**) and
+**`CLAIM orchestrators = 2`** orchestrators (`Data Unifier.html`, `OverDex.html`, owned per FOLLOWUPS §6).
+GATE A covers those **9**, not 8 — `Integrator.html` carries a `manifestHash` and a `provenance/Integrator.json`
+fragment like any app. `--check` is the guard that covers all 11.
+*(This line read "owns **10** bundles — the 8 apps" and "GATE A cover the **8 apps**" until 2026-08-15;
+both were off by one because `Integrator.html` was never counted. Found by the `claude-md-claims` gate on
+its first run, not by a reader. The `CLAIM` markers are machine-checked against the builder, so if you
+change what it owns, this line reds until you update it.)*
 
 **Fixtures.** `build.mjs` re-stamps a code-gated fixture's `manifestHash` on rebuild, but it cannot
 know that your code changed a fixture's **output**. If it did, regenerate the fixture by **re-running the
@@ -779,10 +785,15 @@ hand-typed version onto source files — `manifestHash` already identifies code 
   flag "missing woff2" — that whole class of warning was removed at the root in June 2026.
 - **`parseTimestamp` single-sourced in `clock.js` (A5 EXECUTED 2026-07-03, owner-ratified).** The former
   "duplicated in every `*-dsp.js`, mirror it" rule is RETIRED: THE canonical Clock-Contract parser now lives
-  in `clock.js` (`DexClock`), inlined by the owned bundler into every bundle (bundled-local AND single-source).
-  oxydex/pulsedex/hrvdex/ecgdex/integrator-dsp DELEGATE via local aliases; ppgdex (strict ISO/epoch subset +
-  quote-strip), glucodex (`_ckParse` + MDY numeric wrapper) and cpapdex (EDF subset) keep DELIBERATE node-local
-  variants — do not force them onto DexClock, and do not reintroduce a mirror. Load `clock.js` BEFORE any
+  in `clock.js` (`DexClock`), inlined by the owned bundler into **`CLAIM clockBundles = 5`** of the 8 app
+  bundles (bundled-local AND single-source) — **NOT all of them**, and that distinction is load-bearing:
+  oxydex/pulsedex/hrvdex/ecgdex/motiondex ship the spine and DELEGATE via local aliases, while **ppgdex,
+  glucodex and cpapdex do not inline `clock.js` at all**, so **`DexClock` is UNDEFINED in those three
+  bundles** — a bare `DexClock.x` there is a `ReferenceError`, not a fallback. They keep DELIBERATE
+  node-local variants (ppgdex: strict ISO/epoch subset + quote-strip; glucodex: `_ckParse` + MDY numeric
+  wrapper; cpapdex: EDF subset) — do not force them onto DexClock, and do not reintroduce a mirror.
+  *(This sentence read "into every bundle" until 2026-08-15, which was false for three of eight and is why
+  the `claude-md-claims` gate exists. The `CLAIM` marker above is machine-checked — see that group.)* Load `clock.js` BEFORE any
   delegating `*-dsp.js` (dex-coload.js `shared:` + the co-load gate enforce this; worker `importScripts` lists too).
 - **`docs-archive/REFACTOR-BRIEF-modularize-Dexes.md`:** historical, the refactor is DONE. See `docs-archive/`.
 

@@ -97,7 +97,29 @@ Recorded here because it was found executing this brief and would otherwise be l
 - [x] the ring leg's `OXYLIVE_DURATION_S` pairing tested — it does NOT produce a usable fit (3851 ppm)
 - [ ] within-connection constancy tested by halves, and the result recorded either way
 - [ ] the anatomical sign re-checked after correcting both legs
-- [ ] `mutate_diff.py` refuses instead of greening when mutmut is missing
+- [x] `mutate_diff.py` refuses instead of greening when mutmut is missing — **DONE 2026-08-15.**
+      Two guards, because one is not enough. A **preflight** (`refusal_reason`, pure and pinned by
+      `--selftest`) refuses with **exit 2** when the venv or mutmut is absent; a **post-loop** guard
+      refuses when every mutmut invocation errored, which the import check cannot see. Exit 2 is
+      distinct from 1 (survivors) and is **not** suppressed by `--report-only`: that flag's contract
+      is about FINDINGS, and "the tool could not look" is not a finding.
+
+      **Verified both directions on a real changed function** (`alerts.validate_webhook_url`), not
+      just asserted: with the venv absent the old code printed *"every mutant on the changed
+      functions was killed"* at **exit 0**, and the new code refuses at **exit 2**; with mutmut
+      importable it proceeds and mutates, emitting no refusal — so the guard did not trade a false
+      green for a false red.
+
+      ⚠️ **The obvious probe is wrong, and it nearly shipped.** `-m mutmut --help` exits **1** on
+      this repo's own venv while mutmut 3.7.0 is installed and imports fine (a broken
+      `safe_setproctitle` import; the console script fails too, on a missing `source_paths`). A
+      `--help` probe would refuse on a working machine. The probe is `python -c "import mutmut"`,
+      and the reason is recorded at the function.
+
+      Note `tools/` is outside the `--cov-fail-under=100` scope (nothing under it is imported by the
+      pytest suite), so the guard is pinned by the tool's own `--selftest` rather than a new test
+      file — a test importing this module would be the first, and would drag 366 uncovered lines
+      into the coverage floor and red CI for an unrelated reason.
 
 Related: [`PAT-OFFSET-ESTIMATOR-2026-08-11-BRIEF.md`](PAT-OFFSET-ESTIMATOR-2026-08-11-BRIEF.md) ·
 [`PAT-PACKET-ARRIVAL-2026-08-11-BRIEF.md`](PAT-PACKET-ARRIVAL-2026-08-11-BRIEF.md) ·

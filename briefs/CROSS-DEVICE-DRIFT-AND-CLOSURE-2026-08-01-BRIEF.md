@@ -434,9 +434,34 @@ The defence is redundancy in the measurement, not more surrogates.
 
       **The rule that follows:** a consumer needing a genuine second clock reads `independent` and
       **refuses** when it is false — shipped for the coupling gate as `NO SHARED CLOCK` (PR #1069) and
-      owed for the ECGDex `fs` correction (branch `fix/ecgdex-fs-independent`, which currently applies
-      a rate derived from a non-clock on every phone-captured night). A consumer that only needs an
-      approximate alignment may use the envelope, but must not upgrade its provenance by doing so.
+      ~~owed for the ECGDex `fs` correction (branch `fix/ecgdex-fs-independent`, which currently applies
+      a rate derived from a non-clock on every phone-captured night)~~ — **SHIPPED, see below**. A
+      consumer that only needs an approximate alignment may use the envelope, but must not upgrade its
+      provenance by doing so.
+
+      > **✅ NO LONGER OWED — verified in the tree 2026-08-15.** The ECGDex leg landed as **PR #1101**
+      > (*"the fs correction never asked whether there is a second clock (Clock §7)"*) and was extended by
+      > **#1121**. `ecgdex-dsp.js` now carries `ecgHostAx.independent !== false` on **both** consumers —
+      > the `fs` division *and* `_ecgCorrAt` (the latter was never in the WIP branch, so main went further
+      > than the fix this brief was waiting for) — and forwards `independent` + `spreadMs` into the export
+      > so a refusal is auditable rather than an indistinguishable `applied:false`.
+      >
+      > **The gate the WIP called owed also exists**, in `tests/dex-tests.js` (`ecgdex-dsp` group), and it
+      > tests both directions rather than only the fix: a DERIVED capture (host = device restamped, zero
+      > divergence) must report `independent:false` / `applied:false`, and an INDEPENDENT one (500 ppm
+      > planted, deterministic ±4 ms jitter so the residual clears the 2 ms discriminator) must report
+      > `true`/`true` — *"the guard did not break the feature"*. It asserts the consequence on `fs`
+      > itself, and deliberately asserts the recovered rate as a **band** (100–600 ppm from a planted
+      > 500, ~250 measured) because §7's running median under-reads by `(1 − 5/(n−1))` at the ends;
+      > asserting the planted value would assert the bias away.
+      >
+      > ⚠️ **The stranded branch `fix/ecgdex-fs-independent` (`d6b15a39`) still exists on `origin` with no
+      > PR**, 240 commits behind and marked `NOT FOR MERGE`. It is superseded — **do not resurrect it**: it gates
+      > only the `fs` division and would *narrow* the shipped guard. Left in place rather than deleted —
+      > deleting a remote branch with no PR makes its commit unreachable, and that is the owner's call.
+      >
+      > **Why this sat stale:** the fix landed under a title naming Clock §7, not this brief, so nothing
+      > linked the two. The blocker sentence named a *branch* — which is what made it cheap to falsify.
 - [x] **ACCEPTED STATEMENT RECORDED 2026-08-08 — the optical spine is not validated against hardware,
       and will not be on this equipment.** The choice this item offered was "a device that emits real
       PPI, or an accepted statement". No such device exists in the corpus, so the statement is taken.
