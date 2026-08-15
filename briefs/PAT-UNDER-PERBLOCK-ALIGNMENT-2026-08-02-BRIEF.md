@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-02 · **Executes:** `CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01-BRIEF.md` §3.2 · **Corrects:** `WEARABLE-DRIFT-FIT-2026-08-01-BRIEF.md` §3, `CLOCK-CLOSURE-THREE-SOURCE-2026-08-01-BRIEF.md`, and §3.2 of the brief it executes
+**Status:** DONE — 2026-08-15 (**all seven Done-when boxes are closed**, the last of them a recorded owner-style decision — *"DECIDED 2026-08-08 — NO, not as a shipped whole-night metric. The evidence is sufficient"* — which is a resolution, not an omission. ⚠️ **DONE does not mean the PAT question is settled**: §3f.4 *What is NOT claimed* deliberately parks two items, and they are parked rather than owed — (a) the 20/57 count is a magnitude and the binomial tail is **not quotable** because windows from one night and from overlapping pairs are not independent; (b) **the intermittency is not attributed**, and the tool already carries per-window `ppm` for that test — it has simply not been run. Anyone reviving PAT should start there. Related and newer: `INTEGRATOR-PAT-VASCULAR-2026-07-18` §2-RESULT-III…XII, which reaches the same conclusion about window-dependence from a different direction and records the `w/√12` ratio test as the recommended gate.) · **Created:** 2026-08-02 · **Executes:** `CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01-BRIEF.md` §3.2 · **Corrects:** `WEARABLE-DRIFT-FIT-2026-08-01-BRIEF.md` §3, `CLOCK-CLOSURE-THREE-SOURCE-2026-08-01-BRIEF.md`, and §3.2 of the brief it executes
 
 # PAT is not blocked by alignment. It is blocked by pulse transit time itself.
 

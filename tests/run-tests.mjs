@@ -22,6 +22,7 @@ import { classify as rebaseClassify } from '../tools/rebase-safe.mjs';
 import { decide as landDecide } from '../tools/land-pr.mjs';
 import * as captureRecapture from '../tools/capture-recapture.mjs';
 import { estimate as beatCrEstimate, estSummary as beatCrSummary } from '../tools/beat-capture-recapture.mjs';
+import { attenuateAndRecover, buildTemplate as beatBuildTemplate } from '../tools/beat-injection-recovery.mjs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
@@ -1525,6 +1526,8 @@ async function main() {
     captureRecapture: captureRecapture,
     beatCrEstimate: beatCrEstimate,
     beatCrSummary: beatCrSummary,
+    attenuateAndRecover: attenuateAndRecover,
+    beatBuildTemplate: beatBuildTemplate,
     /* REGEN-CORPUS-PATH-FOLLOWUPS-II §1 — A2's OWN scope. The SPDX lint used to read `env.sources`,
        a list curated to serve OTHER source-scan gates, so a file was licence-checked iff some unrelated
        scan happened to want its text. `CLAUDE.md` §📜 states the invariant as universal. This walks the
