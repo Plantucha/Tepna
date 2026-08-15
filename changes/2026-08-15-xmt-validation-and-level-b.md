@@ -111,3 +111,15 @@ precondition: §3e's recursion made branch-nested statements subjects, and an un
 deleted passes the suite BECAUSE IT NEVER RAN — 3–7 % per file would have read as pseudo-tested.
 It fails open toward testing. Its `covPath` was also wired to a call site that never received it.
 
+**AND A LOAD FAILURE WAS BEING READ AS A KILL.** The verdict rule treated any non-zero exit as a
+verdict, but a module that fails to PARSE exits non-zero with empty stdout exactly like a failing
+suite. `ran` now requires the runner's TAP plan line, which it prints only on completion — proven on
+a real tree (unparseable `clock.js`: exit 2, no plan, old rule KILLED, new rule INCONCLUSIVE).
+Runtime throws stay real kills, deliberately: the suite still completes, so the test DID detect the
+change. This mattered because of `const`: a declaration is mutated by dropping its initialiser, which
+is a SyntaxError for `const x;` — **482 of 691 declarations on ecgdex-dsp.js and 423 of 568 on
+ppgdex-dsp.js**, all 905 of which would have been banked as KILLED. They are now declined as
+unmeasurable (one parse, not a suite run: 1037 runs saved fleet-wide). That blind spot is the
+quantified cost of Level B's documented choice to DELETE rather than instrument — PseudoSweep
+instruments, so `const` is measurable there and is not here.
+

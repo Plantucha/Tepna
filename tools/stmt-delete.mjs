@@ -328,6 +328,12 @@ export function deleteStatement(src, stmt, kind) {
    Deliberately NOT the same vocabulary as Level A. A statement has no coverage precondition of its
    own to check here (the enclosing function's coverage is Level A's concern), and collapsing the two
    into one metric is the thing the literature warns against. */
+/* Did the suite actually report? `tests/run-tests.mjs` prints `1..N` once it completes, whatever the
+   verdict, and prints nothing if it dies at load. */
+export function suiteReported(stdout) {
+  return /^\s*(\u001b\[[0-9;]*m)?1\.\.\d+/m.test(String(stdout || ''));
+}
+
 export function classifyStatementVerdict(ran, suitePassed) {
   if (!ran) return 'INCONCLUSIVE'; // the mutant never executed — harness, timeout, or syntax
   return suitePassed ? 'PSEUDO_TESTED_STATEMENT' : 'KILLED';
@@ -356,10 +362,23 @@ async function runLevelB(file, group, jobs, covPath) {
       execFileSync(process.execPath, [join(cwd, 'tests/run-tests.mjs'), '--group=' + group], { cwd, encoding: 'utf8', timeout: 900000, maxBuffer: 1 << 24 });
       return { ran: true, passed: true };
     } catch (e) {
-      /* A non-zero exit is a VERDICT (tests failed). A missing status means it never ran — spawn
-         failure or timeout kill — and that is INCONCLUSIVE, not a kill. Conflating them is how a
-         harness problem gets banked as test strength. */
-      return { ran: e.status !== undefined, passed: false };
+      /* 🔴 A NON-ZERO EXIT IS NOT EVIDENCE THAT THE SUITE RAN. The original rule here — `ran =
+         e.status !== undefined` — treats every non-zero exit as a verdict, and a module that fails
+         to PARSE exits 1 with empty stdout exactly like a suite whose assertions failed. So a
+         mutant that produced unparseable source was banked as KILLED: the check reported success
+         about something it never examined (CLAUDE.md §4b's family), and it did so in the direction
+         that INFLATES test strength.
+
+         The splitter bugs that produced such mutants are fixed and fragmentation is now 0, but the
+         two failures are independent — this one is about how a result is READ, and it would return
+         with the next unparseable construct. So `ran` now requires POSITIVE EVIDENCE: the runner
+         prints its TAP plan `1..N` unconditionally once it completes, and prints nothing at all if
+         it dies at load. No plan ⇒ the suite never reported ⇒ INCONCLUSIVE.
+
+         ⚠️ This deliberately keeps RUNTIME throws as real kills. A deletion that makes the code
+         throw inside a test still lets the suite finish and print its plan — the test DID detect
+         the change, which is a kill. Only a failure to run at all is inconclusive. */
+      return { ran: e.status !== undefined && suiteReported(e.stdout), passed: false };
     }
   };
 
@@ -419,12 +438,27 @@ async function runLevelB(file, group, jobs, covPath) {
   }
   const subjects = [];
   let skippedUncovered = 0;
+  let skippedUnparseableMutant = 0;
   for (const fb of functionBodies(src)) {
     for (const st of splitStatements(src, fb.open + 1, fb.close)) {
       const kind = classifyStatement(st.text);
       if (ELIGIBLE.indexOf(kind) < 0) continue;
       const mutant = deleteStatement(src, st, kind);
       if (mutant == null || mutant === src) continue; // declined, or a no-op splice
+      /* 🔴 THE MUTANT MUST PARSE, AND FOR `const` IT DOES NOT. A declaration is mutated by dropping
+         its INITIALISER and keeping the binding — sound for `var x;` and `let x;`, and a SyntaxError
+         for `const x;`, which requires one. Measured: 482 of 691 declarations on ecgdex-dsp.js and
+         423 of 568 on ppgdex-dsp.js. Under the exit-code-only verdict rule every one of those 905
+         would have been banked as KILLED.
+
+         Deleting the whole statement instead is NOT the alternative — that removes the binding and
+         every later reference becomes a ReferenceError, which is the unsound shape the initialiser
+         trick exists to avoid. So the subject is DECLINED: unmeasurable, and saying so costs one
+         parse instead of a full suite run. */
+      if (!parsesAsStatement(mutant.slice(st.start, st.end).trim())) {
+        skippedUnparseableMutant++;
+        continue;
+      }
       const line = src.slice(0, st.start).split('\n').length;
       if (covered && !covered.has(line)) {
         skippedUncovered++;
@@ -433,6 +467,7 @@ async function runLevelB(file, group, jobs, covPath) {
       subjects.push({ fn: fb.fn, kind, text: st.text.trim().slice(0, 68), line, mutant });
     }
   }
+  if (skippedUnparseableMutant) process.stderr.write('  ' + skippedUnparseableMutant + ' declaration(s) declined — deleting the initialiser would not parse (`const` needs one); they are unmeasurable, not killed\n');
   if (covered) process.stderr.write('  coverage precondition: ' + skippedUncovered + ' statement(s) on never-executed lines skipped (they would read as pseudo-tested)\n');
   else process.stderr.write('  ⚠ NO COVERAGE RECORD for ' + file + ' — every statement will be tested, and an unreached one will read as PSEUDO-TESTED. Pass --cov <coverage-final.json>.\n');
   process.stderr.write('  ' + subjects.length + ' eligible statement(s) across ' + functionBodies(src).length + ' function(s)\n');
@@ -553,6 +588,18 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   ok('a legal `break` is NOT declined by the parse backstop', classifyStatement('break;') === 'BREAK', classifyStatement('break;'));
   ok('a legal `return` is NOT declined by the parse backstop', classifyStatement('return a;') === 'RETURN');
   ok('an `await` statement is NOT declined by the parse backstop', classifyStatement('await g();') === 'EXPRESSION', classifyStatement('await g();'));
+
+  /* A load failure and an assertion failure both exit 1. Only one of them is a kill. */
+  ok('a completed suite reports its TAP plan', suiteReported('ok 1\n\n1..7\n✓ all 7 assertions passed') === true);
+  ok('…even when it is failing', suiteReported('not ok 3\n\n1..54\n✕ 1 failing') === true);
+  ok('…and through the runner\'s colour codes', suiteReported('\u001b[2m1..12\u001b[0m') === true);
+  ok('a load failure reports NOTHING — not a kill', suiteReported('') === false);
+  ok('…nor does a stack trace alone count', suiteReported('SyntaxError: Unexpected token\n  at foo') === false);
+  ok('an unreported suite is INCONCLUSIVE even with a non-zero exit', classifyStatementVerdict(false, false) === 'INCONCLUSIVE');
+
+  ok('deleting a `var` initialiser still parses', parsesAsStatement('var x ;') === true);
+  ok('deleting a `let` initialiser still parses', parsesAsStatement('let x ;') === true);
+  ok('deleting a `const` initialiser does NOT parse — unmeasurable, not killed', parsesAsStatement('const x ;') === false);
 
   ok('a return is eligible', classifyStatement('return a;') === 'RETURN');
   ok('a throw is eligible', classifyStatement('throw new Error("x");') === 'THROW');

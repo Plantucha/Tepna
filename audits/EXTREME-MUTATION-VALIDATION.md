@@ -393,6 +393,59 @@ The 51 selftests were green before and after every one of these defects.
 
 ---
 
+## 3g · 🔴 A LOAD FAILURE IS NOT A KILL — AND 905 MUTANTS COULD NOT PARSE
+
+§3f fixed the splitter so no subject is a fragment. It did not fix how a RESULT IS READ, and those
+are independent: the verdict rule was
+
+```js
+return { ran: e.status !== undefined, passed: false };   // "a non-zero exit is a VERDICT"
+```
+
+A module that fails to PARSE exits non-zero with empty stdout, exactly like a suite whose assertions
+failed. **Every unparseable mutant was therefore banked as KILLED** — a check reporting success about
+something it never examined, in the direction that inflates test strength.
+
+`ran` now requires POSITIVE EVIDENCE: `tests/run-tests.mjs` prints its TAP plan `1..N` once it
+completes, whatever the verdict, and prints nothing if it dies at load. No plan ⇒ INCONCLUSIVE.
+Demonstrated end-to-end on a real tree, not asserted:
+
+| tree | exit | plan line | old rule | new rule |
+|---|---|---|---|---|
+| clean | 0 | ✓ | — | — |
+| `clock.js` made unparseable | 2 (`SETUP ERROR: Unexpected token ')'`) | ✗ | **KILLED** | **INCONCLUSIVE** |
+
+⚠️ **Runtime throws remain real kills, deliberately.** A deletion that makes the code throw *inside a
+test* still lets the suite finish and print its plan — the test DID detect the change. Only a failure
+to run at all is inconclusive.
+
+**And then the reason it mattered: `const`.** A declaration is mutated by dropping its initialiser and
+keeping the binding — sound for `var x;` and `let x;`, a **SyntaxError for `const x;`**, which requires
+one. Measured: **482 of 691 declarations on `ecgdex-dsp.js`, 423 of 568 on `ppgdex-dsp.js`.** Under the
+old rule all **905** would have been recorded as killed. `clock.js` uses `var` throughout and has zero,
+which is the only reason the first real run was not poisoned.
+
+Deleting the whole statement is not the alternative — that removes the binding and every later
+reference becomes a `ReferenceError`, the unsound shape the initialiser trick exists to avoid. So the
+subject is **DECLINED**: unmeasurable, and saying so costs one parse instead of a full suite run.
+
+**This is a real limitation, and it is the price of a documented departure.** §Level B chose to DELETE
+rather than instrument, because instrumenting needs an AST. PseudoSweep instruments, so a `const`
+initialiser is measurable there and is not here. **905 statements — the largest single blind spot in
+Level B — trace directly to that choice.** The departure was recorded as a difference; this is its
+cost, quantified.
+
+**Final measurable subject counts:**
+
+| file | measurable | −`const` | −uncovered | suite runs saved |
+|---|---|---|---|---|
+| `clock.js` | 126 | 0 | 4 | 4 |
+| `ecgdex-dsp.js` | 631 | 482 | 20 | 502 |
+| `ppgdex-dsp.js` | 492 | 423 | 46 | 469 |
+| `oxydex-dsp.js` | 1159 | 0 | 62 | 62 |
+
+---
+
 ## 4a · ⏱️ LEVEL B'S COST, MEASURED — one suite run per statement is the whole story
 
 `clock.js` has **85 eligible statements** across 13 functions (133 total; 43 declined as control-flow,
