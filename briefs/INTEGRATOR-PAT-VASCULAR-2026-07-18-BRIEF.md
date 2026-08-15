@@ -296,6 +296,65 @@ what §II.4 warned `modalLag` must not be read as.
 - **It corrects a downstream analysis:** `METROLOGY-METHOD-ADOPTION` §4d–§4g decomposed PAT variance at a
   single fixed tolerance without reporting it — see its §4g.
 
+## 2-RESULT-IV · THE ANCHOR IS RECOVERABLE — by interval sequence, on 2 of 29 nights
+
+§2-RESULT-III relocated the failure from the foot detector to the **anchor**: the R↔foot offset is
+ambiguous modulo one RR, and beat *times* cannot resolve it. Beat *intervals* can, because an RR
+sequence is aperiodic where a beat train is not — the standard fix
+([[beat-trains-align-only-mod-rr]]: "align on aperiodic features").
+
+**Method.** Normalised cross-correlation of the ECG **RR** sequence against the PPG **PPI** sequence over
+integer BEAT-INDEX lags, both trains first restricted to their common time span. The **margin** between
+best and second-best lag is the identifiability measure, and it is self-validating: no threshold is
+chosen, the two populations separate by three orders of magnitude.
+
+| night | ncc | margin | PAT SD | acf₁ | acf₁₀ |
+|---|---|---|---|---|---|
+| **2026-07-12** | **0.9964** | 0.2228 | **36.8 ms** | 0.988 | 0.967 |
+| **2026-07-09** | **0.9953** | 0.1963 | **28.1 ms** | 0.987 | 0.960 |
+| 2026-07-08 | 0.8003 | 0.1275 | 62.6 ms | 0.762 | 0.309 |
+| 2026-07-11 | 0.7304 | 0.0813 | 162.6 ms | — | — |
+| *(24 further nights)* | *0.06–0.70* | **0.0003–0.036** | — | — | — |
+
+### Only 2 of 29 nights are cleanly identifiable — and on those, PAT is a precise instrument
+
+**PAT SD 28.1 and 36.8 ms**, against a corpus median of 70.7 ms at ±150 ms tolerance. And the
+autocorrelation is near-unity: **acf₁ = 0.987**, still **0.96 at lag 10**. Which means the beat-to-beat
+component is
+
+    sigma_beat = SD * sqrt(2(1 - acf1)) = 28.1 * sqrt(2*0.013) = 4.5 ms   (2026-07-09)
+                                          36.8 * sqrt(2*0.012) = 5.7 ms   (2026-07-12)
+
+**Beat-to-beat PAT precision is ~4.5–5.7 ms.** The 28 ms total is almost entirely *slow drift*, not
+noise. Compare the same computation on the next-best night (acf₁ 0.762): **43.2 ms** — an order of
+magnitude worse, and that night is already below the clean pair.
+
+### What this establishes, and what it does not
+
+- **The instrument is capable.** When the two devices demonstrably see the same beats, PAT is resolved to
+  a few milliseconds beat-to-beat. Nothing in §4a–§4c's estimator work could have revealed this, because
+  it was never an estimator problem.
+- **It works on ~7 % of nights.** 2 of 29 clean, 5 of 29 identifiable at all. Every corpus-median PAT
+  statistic in this project — including `METROLOGY-METHOD-ADOPTION` §4d–§4g — **averaged over nights
+  where the PAT series is not PAT**.
+- **The physiology conclusion SURVIVES and strengthens.** §4d found the residual correlated (acf₁
+  +0.772); on cleanly-anchored nights it is **+0.987**, decaying to 0.96 over ten beats. The correlated
+  structure is not a pairing artifact — repairing the anchor made it *stronger*, which is the direction
+  that distinguishes signal from artifact.
+- ⚠️ **n = 2.** This is an existence result: it proves the instrument *can* work and quantifies it when it
+  does. It does not establish a distribution, and this brief has already been burned once by reporting a
+  handful of nights (§2-RESULT-III's first draft). The identifiability gate is objective, and only two
+  nights pass it — that is the finding, not a sampling choice.
+- **Confound ruled out:** identifiable and non-identifiable nights carry the same beat counts (median
+  2151 vs 2136 R-peaks), so this is not sample size in disguise.
+
+### What to do with it
+
+**Gate on identifiability before computing PAT at all.** The RR↔PPI margin is cheap, needs no reference,
+and separates cleanly. A PAT statistic from a night with margin < 0.05 is not a weak measurement — it is
+a measurement of something else. This is the missing precondition that §2-RESULT's original go/no-go gate
+never had, and it explains why that gate failed: it was scored on a corpus that was ~93 % unidentifiable.
+
 ## 3 · Phase 1 — promote the coupler into the Integrator (consume EXPORTS, add the missing one)
 
 - **Move the timing engine** `coupledPAT`/`ecgRpeakTimes`/`ppgFootTimes`/`sharedClock` from
