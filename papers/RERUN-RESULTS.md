@@ -1,5 +1,37 @@
 # Pilot re-run results (≥1k synthetic patients) — June 2026
 
+## CORRECTION — sigma-no-reference limitation (x), window sensitivity on its own corpus (2026-08-15)
+
+**A published limitation excused itself with a fact that was never checked, and the fact was wrong.**
+No headline σ changes; what changes is that a hedge becomes a measurement, and a second published
+statement does not survive the wider test.
+
+- **The false claim.** Limitation (x) read *"the sensitivity has not been characterised on this paper's
+  own corpus, whose raw capture is no longer available to re-derive."* The raw capture **is** available —
+  the phone-captured tree these nights were logged into is still on disk, with H10 ECG, Verity PPG and
+  O2Ring present for every night the section names. Nothing had gone missing; the unavailability was
+  inferred and then written as fact.
+- **Now measured**, on the paper's own 24 three-way-eligible nights, re-folded by `tools/trio-batch.mjs`
+  and swept by `tools/tch-window-sensitivity.mjs`, 1 h → whole night:
+  **O2Ring 1.98 → 2.57 (+30 %) · H10 0.61 → 0.92 (+51 %) · Verity 0.45 → 0.47 (+4 %)**.
+- **The surviving caveat was right, and understated.** It warned the *magnitude* might not transfer. The
+  magnitudes do not merely shift, they **reorder**: Verity is the most window-sensitive corner on the
+  box corpus (+49 %) and the **least** on this one (+4 %); H10 goes the other way (+26 % → +51 %). Only
+  the O2Ring transfers (+28 % → +30 %).
+- **"A monotonic rise in every corner" is corpus-specific, not a property of the phenomenon.** O2Ring and
+  H10 are monotonic here; Verity runs 0.45 → 0.44 → 0.48 → 0.47 → 0.49 → 0.51 → 0.53 → 0.47, peaking at
+  18 ks and falling back at whole-night.
+- **Scope, stated so it is not over-read.** The sweep runs the **node-export** path, not the raw-ingest
+  fused-weight hat behind the headline σ (1.28 / 1.42 / 2.41), and those two paths are already known to
+  disagree in absolute terms (`tools/tch-fused-corpus.mjs`). Only the *relative* window-length
+  sensitivity is claimed comparable. The raw-ingest sweep on these nights is now possible and remains
+  undone.
+- **The general lesson**, which is the reason this is recorded rather than quietly fixed: an
+  unavailability claim is an empirical claim about a filesystem, and it is cheaper to check than to
+  write. This one survived into a published limitation and was doing load-bearing work — it excused the
+  analysis from being run.
+
+
 ## CORRECTION — wearable-clock-drift + dead-ends 2.7, real-data reanalysis (2026-07-29)
 
 **The largest conclusion change in this suite's history, and the only one that overturned a paper's title.**
