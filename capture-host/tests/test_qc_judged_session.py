@@ -18,7 +18,7 @@ nights, and why the alarm could not have told anyone about the charger: it says 
 """
 import os
 import sys
-import time
+from datetime import datetime as _dt
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import nightqc  # noqa: E402
@@ -39,11 +39,19 @@ def _rows(d, name, rows, mtime):
 
 
 def _two_sessions(tmp_path, night_rows, later_rows):
-    """A big night session, then a small later one — the 2026-08-15 shape."""
+    """A big night session, then a small later one — the 2026-08-15 shape.
+
+    ⚠️ MTIMES ARE ABSOLUTE AND DERIVED FROM THE FILENAMES, never from `time.time()`. The first version
+    stamped them `now - 6h` and `now - 60s` while the filenames said 02:42 and 10:01 — two clocks that
+    drift apart as the day advances. `merge_sessions` reads both, so whether the fixture produced ONE
+    session or TWO depended on the hour the suite happened to run: it passed at noon and failed at 15:16,
+    with the two sessions merged into one 4200-row block. A fixture whose meaning changes with wall-clock
+    time is not a fixture. `test_nightqc.py` already used absolute stamps; this now matches it."""
     d = str(tmp_path / "2026-08-15")
-    now = time.time()
-    _rows(d, "Polar_H10_02849638_20260815024240_ECG.txt", night_rows, now - 6 * 3600)
-    _rows(d, "Polar_VeritySense_0C301E3F_20260815100132_PPG.txt", later_rows, now - 60)
+    night = _dt.strptime("20260815024240", "%Y%m%d%H%M%S").timestamp()
+    later = _dt.strptime("20260815100132", "%Y%m%d%H%M%S").timestamp()
+    _rows(d, "Polar_H10_02849638_20260815024240_ECG.txt", night_rows, night + 3 * 3600)
+    _rows(d, "Polar_VeritySense_0C301E3F_20260815100132_PPG.txt", later_rows, later + 600)
     return d
 
 
@@ -70,7 +78,8 @@ def test_the_LATEST_session_would_have_been_the_wrong_one(tmp_path):
 
 def test_a_single_session_day_is_unchanged(tmp_path):
     d = str(tmp_path / "2026-08-15")
-    _rows(d, "Polar_H10_02849638_20260815024240_ECG.txt", 4000, time.time() - 3600)
+    night = _dt.strptime("20260815024240", "%Y%m%d%H%M%S").timestamp()
+    _rows(d, "Polar_H10_02849638_20260815024240_ECG.txt", 4000, night + 3 * 3600)
     r = nightqc.summarize(d, _DEV)
     assert r["judged_session"]["rows"] == 4000
 
