@@ -19831,6 +19831,161 @@
        value of the classifier is that it is wrong in the SAFE direction.
 
        Node-lane only — it imports a tool — so the browser lane SKIPs, exactly like docs-ledger. ════ */
+
+    /* ── capture-recapture: how many beats did EVERY detector miss (CROSS-DOMAIN-METHODS §7) ────────
+       Epidemiology's answer to an undercount nothing observed. The three estimators are closed forms,
+       so they are pinned against an EXACT analytic model rather than a tolerance — and then against a
+       planted-truth simulation, because a closed form being algebraically right says nothing about
+       whether it recovers the truth under the dependence this corpus actually has. */
+    group('Capture-recapture — three estimators, and the one-inflation trap between them', 'tools · capture-recapture', function (T) {
+      var CR = env.captureRecapture;
+      if (!CR || typeof CR.estimate !== 'function') {
+        T.skip('capture-recapture core is wired into this lane', 'browser lane cannot import tools/capture-recapture.mjs');
+        return;
+      }
+
+      /* EXACT known answers. Under a Poisson capture model f_k = N·λ^k·e^-λ/k!, all three closed forms
+         return f0 identically — derived analytically, not read off a previous run. */
+      var N = 100000,
+        lam = 0.9,
+        fact = [1, 1, 2, 6];
+      var fk = function (k) {
+        return (N * Math.pow(lam, k) * Math.exp(-lam)) / fact[k];
+      };
+      var pois = { 100: fk(1) / 3, '010': fk(1) / 3, '001': fk(1) / 3, 110: fk(2) / 3, 101: fk(2) / 3, '011': fk(2) / 3, 111: fk(3) };
+      T.approx('Chao recovers f0 exactly on a Poisson capture model', CR.chao(pois).n0, fk(0), 1e-6);
+      T.approx('modified Chao recovers the same f0 from f2 and f3 alone', CR.modifiedChao(pois).n0, fk(0), 1e-6);
+
+      /* The log-linear closed form is exact when capture IS independent, and its interaction terms are
+         then exactly zero — which is what makes a NON-zero one a measurement rather than noise. */
+      var p = 0.6,
+        q = 0.4;
+      var nc = function (a, b, c) {
+        return N * (a ? p : q) * (b ? p : q) * (c ? p : q);
+      };
+      var ind = { 100: nc(1, 0, 0), '010': nc(0, 1, 0), '001': nc(0, 0, 1), 110: nc(1, 1, 0), 101: nc(1, 0, 1), '011': nc(0, 1, 1), 111: nc(1, 1, 1) };
+      var LL = CR.logLinear(ind);
+      T.approx('log-linear recovers n000 under independence', LL.n0, nc(0, 0, 0), 1e-6);
+      T.approx('...and interaction AB is exactly 0 there', LL.interactions.AB, 0, 1e-9);
+      T.approx('...AC too', LL.interactions.AC, 0, 1e-9);
+      T.approx('...BC too', LL.interactions.BC, 0, 1e-9);
+
+      /* THE ONE-INFLATION NULL IS EXACT, NOT APPROXIMATE — so it is pinned, not described. Under a
+     homogeneous Poisson capture model both Chao variants reduce to the same f0, so their ratio is 1 by
+     construction and any departure IS the contamination. If this ever drifts, the `> 5` warning bound in
+     beat-capture-recapture.mjs stops meaning what its comment claims. */
+      for (var li = 0; li < 5; li++) {
+        var LAM = [0.3, 0.9, 1.5, 2.5, 5.0][li];
+        var FA = [1, 1, 2, 6];
+        var fkl = function (k) {
+          return (1e6 * Math.pow(LAM, k) * Math.exp(-LAM)) / FA[k];
+        };
+        var pc = { 100: fkl(1) / 3, '010': fkl(1) / 3, '001': fkl(1) / 3, 110: fkl(2) / 3, 101: fkl(2) / 3, '011': fkl(2) / 3, 111: fkl(3) };
+        T.approx('one-inflation null is exactly 1 at lambda=' + LAM, CR.chao(pc).n0 / CR.modifiedChao(pc).n0, 1, 1e-9);
+      }
+
+      /* ⚠️ THE CLAIM THAT MATTERS, AND IT IS DIRECTIONAL. False positives land in the SINGLETON cells,
+         and the log-linear closed form carries all three of them in its NUMERATOR — so detector noise
+         inflates the missed-beat count directly. The modified Chao reads f2 and f3 only, so it cannot
+         move. This is the whole reason all three are reported rather than one. */
+      var base = { 100: 300, '010': 300, '001': 300, 110: 900, 101: 900, '011': 900, 111: 5000 };
+      var infl = Object.assign({}, base, { 100: 900, '010': 900, '001': 900 });
+      T.ok('false singletons INFLATE the log-linear estimate', CR.logLinear(infl).n0 > CR.logLinear(base).n0 * 2.5);
+      T.ok('false singletons INFLATE Chao', CR.chao(infl).n0 > CR.chao(base).n0 * 2.5);
+      T.eq('modified Chao is IMMUNE to them — identical to the last bit', CR.modifiedChao(infl).n0, CR.modifiedChao(base).n0);
+
+      /* PLANTED TRUTH under POSITIVE dependence — the regime this corpus is actually in. A shared
+         per-beat difficulty makes detectors fail together, which is exactly what the real night shows
+         (pairwise interactions 3.1–5.1). Deterministic PRNG so the assertion is a fact, not a sample. */
+      var s = 12345;
+      var rnd = function () {
+        s = (s * 1103515245 + 12345) & 0x7fffffff;
+        return s / 0x7fffffff;
+      };
+      var norm = function () {
+        var u = 0,
+          v = 0;
+        while (!u) u = rnd();
+        while (!v) v = rnd();
+        return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+      };
+      var hist = [],
+        truth0 = 0;
+      for (var i = 0; i < 120000; i++) {
+        var z = norm() * 1.5,
+          h = [];
+        for (var d2 = 0; d2 < 3; d2++) h.push(rnd() < 1 / (1 + Math.exp(-(0.85 + z))) ? 1 : 0);
+        if (!h[0] && !h[1] && !h[2]) {
+          truth0++;
+          continue;
+        }
+        hist.push(h.join(''));
+      }
+      var R = CR.estimate(hist);
+      /* ⚠️ THE HONEST BOUND, MEASURED RATHER THAN ASSERTED IN PROSE. Positive dependence biases the Chao
+         family DOWNWARD (Brenner 1995) — here by ~70 %. It is a floor, and a loose one; anything that
+         reads `missedAtLeast` as a point estimate is reading it wrong, so the gate pins the direction. */
+      T.ok('under dependence the Chao family UNDER-reads the planted truth', R.estimators.chao.n0 < truth0 && R.estimators.modifiedChao.n0 < truth0);
+      T.ok('the log-linear, which models the dependence, lands far closer', Math.abs(R.estimators.logLinear.n0 - truth0) < Math.abs(R.estimators.chao.n0 - truth0));
+      T.ok('positive dependence shows up as POSITIVE interaction terms', R.estimators.logLinear.interactions.AB > 0.5);
+
+      /* Refusals, never a silent zero — an uncomputable estimate must not read as "nothing was missed". */
+      var noDouble = { 100: 5, '010': 5, '001': 5, 110: 0, 101: 0, '011': 0, 111: 0 };
+      T.eq('Chao REFUSES with no doubletons rather than returning 0', CR.chao(noDouble).ok, false);
+      T.eq('...and returns no number at all', CR.chao(noDouble).n0, null);
+      T.eq('modified Chao REFUSES with no tripletons', CR.modifiedChao(noDouble).ok, false);
+      T.eq('log-linear REFUSES on an empty cell rather than dividing by zero', CR.logLinear(noDouble).ok, false);
+
+      /* ── THE DRIVER'S OWN ESTIMATOR — the case its adequacy rule does not watch ────────────────────
+     `beat-capture-recapture.mjs` refuses when any of the six informative cells is < 5 (the textbook
+     expected-cell rule). That is necessary and NOT sufficient: a full night clears it in every cell and
+     still puts 48.5 % of beats in the unobserved class. The rule sees sparsity; this sees contamination. */
+      var BE = env.beatCrEstimate;
+      if (typeof BE === 'function') {
+        var full = BE({ m100: 93, m010: 159, m001: 207, m110: 262, m101: 152, m011: 74, m111: 9146 });
+        T.eq('the adequacy rule does NOT refuse the full-night cells', full.ok, true);
+        T.approx('...and the log-linear reports a frankly absurd m000', full.missedEst, 9500, 25);
+        T.ok('...so a WARNING carries what the refusal cannot', full.warnings.length >= 2);
+        T.ok('...naming the unobserved fraction', /% of beats in the unobserved cell/.test(full.warnings.join(' ')));
+        T.ok('...and the one-inflation that explains it', /one-inflation/.test(full.warnings.join(' ')));
+        T.ok('one-inflation is enormous here', full.oneInflation > 100);
+        /* A clean, uncontaminated table must NOT trip the warning — otherwise it is noise, not a signal. */
+        var ok2 = BE({ m100: 300, m010: 300, m001: 300, m110: 900, m101: 900, m011: 900, m111: 5000 });
+        T.eq('a well-conditioned table warns about nothing', ok2.warnings.length, 0);
+        T.ok('...and still publishes the floors', ok2.chaoFloor > 0 && ok2.modifiedChaoFloor > 0);
+        /* ── --scan MUST SHOW IT ────────────────────────────────────────────────────────────────────
+       `--scan` is the mode for surveying a night, so it is exactly where per-window contamination
+       shows up — and it was the one path where the diagnostic was invisible: the REFUSED branch is
+       loud, and the ESTIMATED branch printed nothing but the number. Found in review by the author of
+       the file. Gated on the extracted formatter, because inline in a `console.log` the only possible
+       check is a source scan, and a source scan is satisfiable by a comment. */
+        var SUM = env.beatCrSummary;
+        if (typeof SUM === 'function') {
+          var line = SUM(full);
+          T.ok('a contaminated window still prints its number', /missed=9499/.test(line));
+          T.ok('...and now carries a visible warning marker', /⚠/.test(line));
+          T.ok('...naming how many', /⚠ 2/.test(line));
+          T.ok('a clean window prints NO marker (a flag on everything is not a flag)', !/⚠/.test(SUM(ok2)));
+          T.ok('a refusal still reads as a refusal, not as an estimate', /^REFUSED/.test(SUM(BE({ m100: 2, m010: 3, m001: 4, m110: 2, m101: 1, m011: 1, m111: 900 }))));
+        }
+
+        /* The sparse refusal is THEIRS and must keep working — this change must not widen its contract. */
+        T.eq('the sparse-cell refusal still refuses', BE({ m100: 2, m010: 3, m001: 4, m110: 2, m101: 1, m011: 1, m111: 900 }).ok, false);
+      }
+
+      /* A 000 history cannot have been observed — accepting one silently would corrupt every estimate. */
+      var tab = CR.tabulate(['100', '000', '111', '000']);
+      T.eq('impossible 000 histories are counted, not absorbed', tab.impossibleHistories, 2);
+      T.eq('...and excluded from the observed total', tab.observed, 2);
+      var threw = false;
+      try {
+        CR.tabulate(['1000']);
+      } catch (e) {
+        threw = true;
+      }
+      T.ok('a non-3-source history is rejected outright rather than silently ignored', threw);
+    });
+
     /* ── land-pr: the PR-landing state machine (LAND-PR, 2026-08-09) ───────────────────────────
        `main` moves a median 7.2 min while CI takes ~10-12 over 7 required checks, and the ruleset
        sets strict=true, so every session hand-writes a polling loop and they keep being wrong in

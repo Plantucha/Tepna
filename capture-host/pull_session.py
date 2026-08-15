@@ -110,6 +110,28 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
         # Auth + setup (mirror the live flow; file ops appear to require the session be opened).
         await send(oxyii.auth_frame(serial)); await asyncio.sleep(0.5)
         await send(oxyii.setup_frame());      await asyncio.sleep(0.5)
+        # ── DEVICE IDENTITY, recorded per session ─────────────────────────────────────────────────
+        # `parse_get_info`'s own docstring says why this matters, and it was never called: *"this
+        # device's behaviour is firmware-dependent (the F2 MTU gate differs between 2D010001/2/3), so a
+        # capture should record which firmware produced it."* Nothing in the tree recorded the ring's
+        # firmware — the only firmware handling anywhere was Polar-side. A capture whose interpretation
+        # depends on firmware, and which does not say which firmware, cannot be re-read later with that
+        # knowledge.
+        #
+        # ⚠️ STRICTLY NON-FATAL, and `None` rather than a guess. An identity read must never be able to
+        # fail a pull: the recording on flash is the irreplaceable thing here, and a 20 s wait for a
+        # nice-to-have is not worth risking it — so this uses a SHORT 6 s bound and swallows everything.
+        # A ring that does not answer 0xE1 yields `device_firmware: null`, an honest "not read" rather
+        # than a plausible default.
+        identity = None
+        try:
+            await send(oxyii.info_frame())
+            identity = oxyii.parse_get_info(await _wait(q, oxyii.OP_GET_INFO, timeout=6.0))
+        except Exception as e:                       # noqa: BLE001 — see above; never fatal
+            print(f"  ⚠ device identity not read ({e!r}) — continuing; firmware will be null", flush=True)
+        if identity:
+            print(f"device: firmware={identity.get('firmware')!r} serial={identity.get('serial')!r}",
+                  flush=True)
 
         # 1) list recorded sessions
         await send(oxyii.file_list_frame())
@@ -207,6 +229,10 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
             # cmd=0xF2 before the trailer flushes (size-equality is not enough). None when unfinalised.
             summary = oxyii.parse_oxy_trailer(data) if fmt_a else None
             meta_j = {"session": ts, "bytes": len(data), "declared_size": size,
+            # Which firmware produced these bytes. None when 0xE1 did not answer — see the
+            # identity read above; "not read" and "old firmware" are different facts.
+            "device_firmware": (identity or {}).get("firmware"),
+            "device_serial": (identity or {}).get("serial"),
                       "header": hdr, "format_a": fmt_a, "approx_samples": n_samples,
                       "finalized": bool(summary),
                       "device_summary": summary,

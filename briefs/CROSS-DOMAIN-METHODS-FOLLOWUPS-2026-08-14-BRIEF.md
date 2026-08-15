@@ -859,11 +859,123 @@ missing: a *number* for how many beats are lost, on real recordings, without adj
 number gates rMSSD's trustworthiness directly (§ above: 0.1 % → 20.8 %), and it is the only route to
 settling the Malik −22 % question with the corpus that exists.
 
+### §7.1 · BUILT AND RUN — and it refuses on clean data, which is itself the finding
+
+`tools/beat-capture-recapture.mjs`, run on 18.85 min of the 2026-08-13 box night with three shipped
+detectors on one host axis:
+
+| | ECG (H10, chest) | PPG (Verity, arm) | PPG (O2Ring, finger) |
+|---|---|---|---|
+| beats | 970 | 963 | 952 |
+| effective fs | 130.02 Hz | 176.46 Hz | 125 Hz |
+
+**Pulse arrival time falls out as a by-product, and it is physiologically ordered:** median **337.9 ms**
+to the arm and **410.2 ms** to the finger. Aligning on it is mandatory, not cosmetic — before it was
+handled the two optical sources matched each other 895 times and the ECG 10 times, and `observed` came
+out at **1899 against ~970 real beats**, every beat counted twice.
+
+**The capture profile, aligned:** `m111 = 935` · `m110 = 24` · `m101 = 2` · `m011 = 3` · `m100 = 9` ·
+`m010 = 1` · `m001 = 12`, observed 986.
+
+**🔴 THE ESTIMATOR REFUSES, AND SHOULD.** The closed form divides by `m110·m101·m011` and multiplies by
+the three single-source cells. Here that is 24·2·3 = 144 against 9·1·12, giving **m000 = 701 — 41 % of
+beats "missed by everything"**, which is absurd on its face and would have been reported as a number
+had the guard not been added. The tool now applies the textbook adequacy rule (expected cell ≥ 5) to
+the six informative cells and refuses, with a reason that says **"the data cannot identify the
+undercount"** and explicitly *not* "nothing was missed" — two statements a caller must never confuse.
+
+**What this establishes.** On a clean, low-motion window the three detectors agree on **935 of 986**
+beats (95 %), and that agreement is exactly what destroys the estimator's power: the cells carrying
+information about the unseen are single-digit. **The method has power precisely where the data is
+bad** — motion, poor perfusion, apnea — which is also where the missed beats that matter for rMSSD
+actually live. Running it on quiet sleep was the wrong first test, and the refusal is what told us.
+
+**Next, and it is a targeted run rather than more machinery:** select windows by *disagreement between
+detectors* (a property of the sources, not of the estimate, so it is not circular) and re-run there.
+If the informative cells populate, the undercount becomes estimable on exactly the segments where it
+is largest.
+
 **Done when:** three beat sets are extracted on one box night; matched within ±½ RR using the arrival
 sidecar's offset (which the corpus supplies at 4.8 ms agreement, so matching is not the bottleneck);
 a log-linear model with pairwise interactions is fitted; and the estimated missed-beat count is
 reported **with its interaction terms shown**, since a fit that finds no dependence on this data would
 itself be the surprising result and must not pass silently.
+
+### §7.2 · The targeted re-run also refuses — and it names the method's hard limit
+
+`--scan` ranks 2-minute windows by **disagreement count**, a property of the three beat sets computed
+before any estimate exists. Selection on precision, never on the estimate. Result over the same night:
+
+```
+windows = 9 of 18.8 min          median disagreement per window = 0
+identifiable: 0/9                (covering 0.0 % of the overlap)
+  min  0   agree= 83  disagree=26   REFUSED
+  min 16   agree= 98  disagree=22   REFUSED (cells too sparse)
+  min 2–14 agree=100–102 disagree=0 REFUSED (a required cell is zero)
+```
+
+**In seven of nine windows the three detectors agree on EVERY beat.** All disagreement is confined to
+two windows — the start, and one event near minute 16 — and even there the informative cells stay
+single-digit.
+
+**🔴 THE LIMIT THIS EXPOSES, which is structural and not a matter of more data.** Perfect agreement has
+two causes and capture–recapture **cannot separate them**: either nothing was missed, or *all three
+detectors missed the same beats*. The second is precisely the positive-dependence case §7 was designed
+around — and in the limit of total dependence the overlap carries no information at all, which is the
+condition the tool's own self-test already pins (`fully dependent detectors do NOT yield a confident
+total`). Running it on quiet sleep does not merely lack power; the question is **unidentifiable there
+by construction**.
+
+**So this line is closed for this corpus, and the honest next method is a different one.** Astronomy's
+artificial-star test and gravitational-wave injection campaigns face the same no-ground-truth problem
+and solve it the other way round: **plant synthetic events of known amplitude into the real recording
+and measure what the shipped detector recovers**, giving completeness as a function of SNR. That needs
+no second detector, no independence assumption, and no disagreement — and it measures exactly the
+quantity `beat-error-recovery.mjs` currently has to assume, because it perturbs an existing beat train
+rather than the waveform the detector actually reads.
+
+**Recorded as the recommendation rather than built here:** injection-recovery on the raw ECG/PPG
+waveform is the next instrument, and it supersedes capture–recapture for this question on clean data.
+Capture–recapture remains the right tool for artefact-heavy segments, where the detectors genuinely
+diverge — the O2Ring nights with poor perfusion are the obvious first candidate.
+
+### §7.3 · BUILT AND RUN — the artificial-star test gives a completeness curve, and a bounded answer
+
+`tools/beat-injection-recovery.mjs`. Plants the subject's **own averaged beat** into the raw ECG at
+physiologically admissible positions (≥350 ms from any existing beat, so refractory rejection is not
+counted as a miss), re-runs the **shipped** Pan–Tompkins, and measures the recovered fraction against
+amplitude expressed as a multiple of **local** noise. 25.6 min of H10 ECG, 1315 baseline beats.
+
+| SNR | 0 | 5 | 10 | 20 | 30 | 40 | 60 | 90 | 140 |
+|---|---|---|---|---|---|---|---|---|---|
+| completeness | 0 % | 0 % | 0 % | **8.7 %** | **94.7 %** | 100 % | 100 % | 100 % | 100 % |
+| spurious | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+
+A sharp knee between 20 and 30, and **zero spurious detections at every amplitude** — the injection
+never induces a false positive elsewhere.
+
+**Where the real beats sit on that curve** — the number the curve exists to enable:
+
+| | min | p1 | p5 | median | p95 | max |
+|---|---|---|---|---|---|---|
+| real-beat SNR | 10.0 | 22.2 | 41.0 | **48.9** | 69.5 | 83.6 |
+
+**0.61 %** of real beats fall below SNR 20 · **2.21 %** below 30 · **3.73 %** below 40. Convolving the
+distribution with the curve gives roughly **1.4 % of beats at risk of being missed**.
+
+**🔴 THAT IS AN UPPER BOUND, AND THE REASON IS STRUCTURAL.** Injected beats are placed in GAPS, isolated
+from the rhythm. A real low-amplitude beat arrives *in sequence*, and Pan–Tompkins has a searchback
+that reopens a window when an RR interval runs long — a mechanism that exists precisely for this case
+and that an isolated plant cannot benefit from. So the measured completeness understates what the
+detector achieves on beats in rhythm, and the true miss rate is **≤ 1.4 %**, plausibly well below it.
+Do not quote 1.4 % as the miss rate; quote it as the bound, and say which side it is on.
+
+**Why the bound is still worth having.** `KNOWN-CLOCK-ADVERSARIAL-CAPTURE` measured that a **0.5 %**
+miss rate inflates rMSSD by **114 %** and 2 % by 387 %. An upper bound of 1.4 % therefore does not
+settle the question — it places it squarely inside the range where the damage is large, which is
+exactly the finding that motivated all of this. **Closing it needs the searchback-aware version:**
+plant beats in rhythm by *removing* a real beat and re-inserting it at reduced amplitude, so the
+sequence context is preserved. That is the next increment and it is small.
 
 > Lincoln–Petersen / capture–recapture in epidemiology: <https://academic.oup.com/aje/advance-article/doi/10.1093/aje/kwaf004/7950813> ·
 > dependence bias and the log-linear remedy: <https://academic.oup.com/aje/article/179/11/1383/2739086> ·
