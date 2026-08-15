@@ -251,13 +251,21 @@ class StreamWriter:
         self.path = path
         self.stream = stream
         self._fh = open(path, "w", buffering=1 << 20, newline="\n")
-        # O2RING-ADAPTIVE-TIMEBASE Stage 3b: stamp the per-capture RATE decision into the O2Ring FINGER
-        # file (`ppg1`) as a `# timebase=…` comment BEFORE the header — the same header-comment shape
-        # LinkLogWriter uses for `# adapter=`. It travels WITH the data, so PpgDex reads it (parsePPG
-        # pre-scan) without a sidecar; a `#` line fails every consumer's row filter, so it is inert to
-        # parsing. Only `ppg1` carries it — the decision is about the O2Ring's crystal-vs-host rate, which
-        # is meaningless for a Verity `ppg` or an ECG stream. Absent ⇒ PpgDex defaults to device-crystal.
-        if stream == "ppg1" and timebase:
+        # O2RING-ADAPTIVE-TIMEBASE Stage 3b: stamp the per-capture RATE decision into the O2Ring optical
+        # files as a `# timebase=…` comment BEFORE the header — the same header-comment shape
+        # LinkLogWriter uses for `# adapter=`. It travels WITH the data, so a reader gets it (PpgDex's
+        # parsePPG pre-scan) without a sidecar; a `#` line fails every consumer's row filter, so it is
+        # inert to parsing. Absent ⇒ a reader defaults to device-crystal.
+        #
+        # The gate is BY DEVICE, not by stream name. The decision is about the O2RING's crystal-vs-host
+        # rate: meaningless for a Verity `ppg` or an ECG stream, and meaningful for EVERY O2Ring optical
+        # stream. `ppg2w` (the raw dual-wavelength cmd-0x05 stream) is the same ring on the same host
+        # clock and was omitted — measured on the box 2026-08-15, 20 of 216 `_PPG.txt` carried the stamp
+        # (all post-deploy) against 0 of 40 `_PPG2W.txt`, including a `_PPG2W.txt` from the SAME capture
+        # session as a stamped `_PPG.txt`. Latent rather than live, since nothing parses `ppg2w` yet —
+        # which is why it was worth fixing now rather than later: the recordings accumulate, and a
+        # timebase that was never written cannot be recovered afterwards.
+        if stream in ("ppg1", "ppg2w") and timebase:
             self._fh.write(f"# timebase={timebase}\n")
         self._fh.write(self.HEADERS[stream] + "\n")
         # The HR writer owns a sibling _RR.txt (PSL layout — see the "hr"/"rr" header note). rsplit replaces

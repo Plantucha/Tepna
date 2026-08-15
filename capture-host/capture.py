@@ -2817,7 +2817,9 @@ async def run_oxyii(dev: dict, root: str):
                 # RAW DUAL-WAVELENGTH (cmd 0x05). OPT-IN — absent from the default stream list, so a box
                 # that has not asked for it is untouched. It is a SECOND poll on the ring's single BLE
                 # link and ~920 B per reply, so it costs airtime that the 1 Hz vitals poll currently owns.
-                ppg2wr = (StreamWriter(ppg2w_path, "ppg2w")
+                # Same ring, same host clock, same `_tb` — the timebase decision is per DEVICE, so it
+                # rides this stream too (O2RING-ADAPTIVE-TIMEBASE-FOLLOWUPS §1a).
+                ppg2wr = (StreamWriter(ppg2w_path, "ppg2w", timebase=_tb)
                           if "ppg2w" in (dev.get("streams") or []) else None)
                 # Byte-11 identification experiment (see writers.OxyFrameLogWriter). ~1 Hz, ~1 MB/night,
                 # and a SIDECAR so the vendor SpO2 CSV layout OxyDex parses stays byte-identical.
