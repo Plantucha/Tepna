@@ -585,7 +585,13 @@ formatting an inlined file changes the inlined text, so `manifestHash` **and** `
 Pre-flight is `npm run typecheck && npm run lint`, then the group your change touches, and only then the
 builders. **Hook-enforced at commit time** by `.claude/hooks/guard-format.sh`, which denies a `git
 commit` whose STAGED `*.js`/`*.mjs` are not Biome-clean — `biome` is a required check, so such a commit
-reds CI on formatting alone. It checks the staged paths explicitly (`biome ci --changed` was measured
+reds CI on formatting alone.
+⚠️ **A hook change takes effect only once YOUR checkout has pulled it** — a session reads
+`.claude/settings.json` from its own project directory, so a hook that merged five minutes ago is
+running for nobody until each checkout syncs (measured: the shared root sat 92 commits behind with
+neither the wiring nor the script). It degrades safely — a missing script exits 127 and the harness
+denies only on 2 — but *"it is hook-enforced"* means *"once you have pulled it"*, and the shared root
+is the checkout most likely not to have. It checks the staged paths explicitly (`biome ci --changed` was measured
 exiting 0 on a staged format-only violation) and **fails open where Biome cannot run**, because a fresh
 worktree has no `node_modules`. Escape hatch for a deliberate WIP commit: `CLAUDE_ALLOW_UNFORMATTED=1`.
 
