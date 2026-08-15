@@ -249,12 +249,24 @@ def test_summarize_a_NON_optional_absence_still_fails(tmp_path):
 
 # ── the box-wide outage that graded itself green (CAPTURE-HOST-DEEP-AUDIT §A2) ──────────────────
 def test_a_box_wide_outage_does_not_get_the_night_graded_green(tmp_path):
-    """THE §A2 regression. `summarize` keeps only the session reaching the newest write, so an outage
-    longer than _SESSION_GAP_SEC made it discard the whole pre-outage half of the night — and then
-    report `coverage: 1.0, silent_sec: 0, ok: true` over the remainder, with no field saying a word.
+    """THE §A2 regression. An outage longer than _SESSION_GAP_SEC splits the night, and `summarize`
+    judges ONE session — so half the night is discarded and the remainder could report
+    `coverage: 1.0, silent_sec: 0, ok: true` with no field saying a word.
 
     Reachability is not hypothetical: the measured 2026-07-24 box-wide silence ran 03:33->04:32, i.e.
-    58.6 min — 85 s under the threshold. This has already come within a minute and a half of firing."""
+    58.6 min — 85 s under the threshold. This has already come within a minute and a half of firing.
+
+    ⚠️ UPDATED 2026-08-15, and the guarantee is unchanged while one incidental fact is. `summarize` no
+    longer keeps "the session reaching the newest write" — it keeps the one with the most ROWS, because
+    the old rule made it judge a DAYTIME session (on 2026-08-15, a Verity streaming into its charger) and
+    report the night as an excluded gap. So here the BIGGER half is judged rather than the later one.
+
+    That change re-opened this very regression through a door this test could not see: gap detection
+    looked only BEFORE the judged session, which was safe only while the judged session was always the
+    newest. With the earlier half judged, the discarded half sits AFTER it and was invisible — the night
+    would have graded green having thrown away part of itself. Gap detection is now two-sided, and the
+    assertions below check the LATER-side exclusion rather than the earlier-side one. `ok is False` — the
+    thing this test exists for — is asserted identically."""
     from datetime import datetime as _dt
     night = str(tmp_path / "2026-07-24"); os.makedirs(night)
     first = _dt.strptime("20260723220000", "%Y%m%d%H%M%S").timestamp()   # 22:00, ran 3 h -> 01:00
@@ -265,14 +277,17 @@ def test_a_box_wide_outage_does_not_get_the_night_graded_green(tmp_path):
     s = nightqc.summarize(night, devs)
 
     # The scoping itself is KEPT — that part was deliberate and is not the defect.
-    assert s["span_sec"] == 7200, "still scoped to the current session"
+    assert s["span_sec"] == 10800, "scoped to the judged session — now the BIGGER half, not the later one"
+    assert s["judged_session"]["rows"] == 10800, "the substantive half is judged"
     assert s["devices"][0]["coverage"]["hr"] == 1.0
     assert s["missing"] == [] and s["degraded"] == []
-    # What changes is that it can no longer claim the night on that basis.
+    # THE GUARANTEE, unchanged: it cannot claim the night while half of it was discarded.
     assert s["ok"] is False, "half the night was discarded and it still graded green"
-    assert s["prior_gap_sec"] == round(after - (first + 10800))
     assert [x["rows"] for x in s["sessions"]] == [10800, 7200], "both halves are reported"
-    assert s["gaps"] and "10800 rows" in s["gaps"][0]
+    # The discarded half is now AFTER the judged one, which one-sided detection could not see.
+    assert s["gaps"], "the outage must be named"
+    assert "7200 rows" in s["gaps"][0] and "later session" in s["gaps"][0]
+    assert s["prior_gap_sec"] is None, "nothing precedes the judged half; the hole is on the other side"
 
 
 def test_an_uninterrupted_night_reports_no_gap_and_stays_green(tmp_path):
