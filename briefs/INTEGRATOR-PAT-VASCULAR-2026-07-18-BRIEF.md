@@ -235,6 +235,67 @@ read-only. Cf. `tools/acc-acc-control.mjs`, which is the same pattern committed,
 
 ---
 
+## 2-RESULT-III · §II.4's NEXT MEASUREMENT, RUN 2026-08-15 — the detector is FINE; the OFFSET is not
+
+§II.4 said: *"`feet/R` ≈ 1.0 refutes NET dropout but not local insertion/deletion pairs … **That is the
+next measurement**: audit beat correspondence directly (monotone one-to-one R↔foot assignment, counting
+insertions and deletions), not foot counts."* Run on 29 matched H10+Verity nights, by
+dynamic-programming a monotone one-to-one assignment (monotonicity forbids crossing, so a slip cannot be
+paired through).
+
+**And the answer depends entirely on a parameter, which is itself the finding.** A match requires the
+foot to fall within ±TOL of the night's modal offset. Sweeping TOL:
+
+| tolerance | ±50 | ±100 | ±150 | ±250 | **±400** | **±600** |
+|---|---|---|---|---|---|---|
+| median correspondence | 25.2 % | 48.3 % | 68.6 % | 90.1 % | **96.0 %** | **97.7 %** |
+| nights ≥ 95 % | 0/29 | 1/29 | 3/29 | 8/29 | 16/29 | **24/29** |
+| **median PAT SD** | 27.8 ms | 52.5 ms | 70.7 ms | 101.9 ms | **126.9 ms** | **144.6 ms** |
+
+### The PPG foot detector is NOT the problem
+
+**At a wide enough window essentially every R peak has a corresponding foot** — 96 % at ±400 ms, 97.7 %
+at ±600 ms, ≥95 % on 24 of 29 nights. There is no epidemic of missing feet, and no epidemic of spurious
+ones. §II.4's insertion/deletion hypothesis is **not supported**: the feet are there and they correspond
+one-to-one.
+
+⚠️ **An earlier draft of this section concluded the opposite** — "the foot detector is REFUTED" — from
+the ±150 ms row alone (68.6 %). That number measures the **window**, not the detector. Correspondence is
+a joint property of the detector *and* the tolerance, and quoting it without the tolerance beside it is
+meaningless. Caught before merge by sweeping the parameter instead of trusting a single value of it.
+
+### The real finding: no tolerance buys both
+
+Correspondence and scatter move together, and there is **no operating point where both are acceptable**:
+
+- at **±150 ms** the matched PAT is tight (70.7 ms) but only **68.6 %** of beats participate;
+- at **±400 ms** nearly every beat participates but PAT SD is **126.9 ms**.
+
+A true PAT for these sites is ~150–300 ms with beat-to-beat variability of tens of ms. **A 127 ms SD is
+not a PAT distribution** — it is a distribution of something else that happens to contain PAT.
+
+### The modal offset is the thing that is broken
+
+Across the 29 nights the modal offset spans **100 → 1175 ms**, a **1075 ms** spread, against a plausible
+PAT range of ~150 ms. Several nights sit a full RR above the rest — precisely §II.4's ambiguity, now
+quantified rather than suspected.
+
+And the discriminating detail: **offset magnitude does NOT predict matching quality.** Nights with
+offset < 500 ms and ≥ 500 ms match equally well (68.2 % vs 68.6 % at ±150) with equal scatter (73.3 vs
+69.4 ms). So a whole-RR error shifts the anchor **without degrading the monotone assignment** — the
+relative beat-to-beat structure is sound while the absolute offset is uninterpretable. That is exactly
+what §II.4 warned `modalLag` must not be read as.
+
+### What it changes
+
+- **The NO-GO stands, with the cause relocated.** Not "the foot detector is inadequate" — that is
+  refuted — but **"the R↔foot anchor is not identifiable per night from these streams."** Reviving this
+  brief requires an anchor that is right in absolute terms, not a better foot detector.
+- **Any PAT statistic must be quoted with its tolerance and its correspondence rate.** Alone, a PAT SD
+  describes an unspecified subset selected by an unstated parameter.
+- **It corrects a downstream analysis:** `METROLOGY-METHOD-ADOPTION` §4d–§4g decomposed PAT variance at a
+  single fixed tolerance without reporting it — see its §4g.
+
 ## 3 · Phase 1 — promote the coupler into the Integrator (consume EXPORTS, add the missing one)
 
 - **Move the timing engine** `coupledPAT`/`ecgRpeakTimes`/`ppgFootTimes`/`sharedClock` from
