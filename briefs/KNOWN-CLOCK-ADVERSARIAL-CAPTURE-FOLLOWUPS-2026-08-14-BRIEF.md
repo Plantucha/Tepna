@@ -28,10 +28,53 @@ same holes open.
 *unrecoverable by construction* — `hostAxis` subtracts `r0`, so a 5 s injection moves the rate by
 exactly 0.000 ppm on all 61 streams. That is a real result about the estimator, and it is **not** a
 test of offset recovery: it establishes that this instrument cannot answer the question. Testing
-target 1 needs an **aperiodic marker present in two devices at once** — a tap artefact, a commanded
-LED event, a motion impulse visible in both ACC streams — because beat trains align only modulo one
-RR interval (`beat-trains-align-only-mod-rr`). No such marker exists in any recording on disk, so
+target 1 needs an **aperiodic marker present in two devices at once**, because beat trains align only
+modulo one RR interval (`beat-trains-align-only-mod-rr`). ⚠ **The mechanism matters and this brief
+first got it wrong**: a tap or any impulse applied to ONE device must travel through tissue to reach a
+device on another body segment, and measurement shows it does not survive that path. The marker must
+be shared by **CO-LOCATION**, not by transmission — see §2.1a. No such marker exists in any recording on disk, so
 this is a **capture protocol change**: someone must produce the marker at capture time.
+
+### §2.1a · The co-location protocol — what a capture must actually do
+
+Executable, so this stops being an open-ended "needs a marker":
+
+1. **Both devices already streaming and both links established.** The marker is useless if either
+   stream starts after it.
+2. **Hold the two devices firmly together** — taped, or gripped in one hand so they cannot move
+   relative to each other. They must be one rigid body for the next step.
+3. **One sharp impulse**: rap the pair once, hard, against a table edge. Sharp matters more than
+   strong — the correlation is driven by the rise, not the amplitude.
+4. **Repeat 3–5 times, several seconds apart**, so the recovered lag can be checked for consistency
+   ACROSS impulses rather than trusted from one.
+5. **Don the devices** and record the night as usual.
+6. **Repeat the impulse sequence at the end**, before doffing. Two brackets separate a constant offset
+   from drift; one bracket cannot.
+
+Then `tools/aperiodic-offset.mjs --a <ACC> --b <ACC>` over the bracket windows. **Accept only if
+`locked` is true AND the lag agrees across impulses AND it is invariant to `--max-lag-s`.** Any one of
+those alone is satisfiable by noise — §4b is the demonstration.
+
+**Why this works when a tap on a worn device does not:** during step 3 the two accelerometers
+experience *literally the same acceleration*, because they are one object. Nothing has to propagate
+between body segments. That is the entire difference, and it is why the earlier "tap artefact" wording
+was wrong rather than merely optimistic.
+
+### §2.1b · The evidence that no natural marker exists — lags that disagree
+
+Beyond the prominence figures in §4b, the decisive check is whether the windows that *do* clear the
+lock bound agree on a lag. Scanning all **285** one-minute windows of the paired night:
+
+| | |
+|---|---|
+| median prominence | **0.0092** |
+| windows above the 0.05 lock bound | **5 of 285** |
+| their recovered lags | **+200, −50, −1700, +2800, −1300, +550 ms** |
+
+Five exceedances out of 285 under a max-over-lag search is about what noise yields, and the lags
+**spread over 4.5 seconds**. A genuine constant offset would give the SAME lag in every locking
+window. So the failure is not "the windowing was too coarse" or "we needed a better detector" — there
+is no shared marker to find, and no amount of re-analysis will produce one.
 
 **§2.2 · Adapter assignment is not recorded (item 6) — and it is not a logging change.** Checked
 2026-08-15: `capture.py` carries a single global `ADAPTER` (config `adapter:`, one MAC used for
