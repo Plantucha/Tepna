@@ -381,6 +381,96 @@ export function changedLinesFromDiff(diffText) {
 export function verdictFromOutput(out) {
   return String(out).includes('✓') || String(out).includes('✕') ? 'KILLED' : 'INVALID';
 }
+
+/* ── COVERAGE-DIRECTED TEST SELECTION ────────────────────────────────────────────────────────
+   A mutant on line N can only be killed by a group that EXECUTES line N. The tag filter already
+   narrows 470 groups to one module's worth; the per-group coverage map narrows it to the groups
+   that actually touch the line. Measured 2026-08-14 on the real map: a median of 6 groups for
+   integrator-dsp (78×), 9 for hrvdex (52×), 30 for ppgdex (16×) — MUTATION-PROGRAM-FOLLOWUPS §6
+   estimated 10–100× and the estimate holds.
+     Build the map with `node tools/per-group-coverage.mjs`. Standard technique; the Python lane
+   gets it from mutmut for free, which is part of why it kills 74.6 % to this fleet's ~46 %.
+     Petrović, G. & Ivanković, M. (2018). "State of Mutation Testing at Google."
+     ICSE-SEIP '18, pp. 163–171. doi:10.1145/3183519.3183521
+
+   🔴 IT MUST NEVER NARROW TO ZERO. An empty index list would run NO group, and a run with no
+   assertions fails nothing — so every mutant would report SURVIVED. That is not a slow gate, it is
+   a sweep that fabricates findings, and it would look like a spectacular speedup while doing it.
+   Every failure path here therefore returns null and the caller falls back to the tag filter:
+   no map, unreadable map, file absent from the map, line attributable to nothing. Selecting too
+   many groups costs time; selecting none costs the measurement. */
+const PGMAP = (() => {
+  const p = opt('--per-group-map', join(ROOT, '.mutation-sweeps/per-group.json'));
+  if (!existsSync(p)) return null;
+  try {
+    const m = JSON.parse(readFileSync(p, 'utf8'));
+    return m && Array.isArray(m.groups) && m.groups.length ? m : null;
+  } catch {
+    return null;
+  }
+})();
+
+/* THE UNION of every group that touches ANY line of `file` — the widest run per-mutant selection can
+   produce, and therefore what the TIMEOUT must be sized on.
+
+   The old calibration timed one clean run of the TAG-filtered set and set `timeout = baseMs × 5`.
+   That was right when mutants ran that same set. They no longer do, and it is wrong in BOTH
+   directions now:
+     · too LOOSE for the common case — measured on integrator, calibration was 312 s of a 339 s
+       8-mutant run while the mutants themselves cost ~25 s. Calibration became ~90 % of a small
+       sweep, and it was measuring a group set nobody runs.
+     · too TIGHT in principle — selection is NOT a subset of the tag filter. 17 groups execute
+       ppgdex-dsp.js lines without carrying its tag (4 for integrator), because an integration test
+       reaches across nodes. Those groups are a REASON to prefer selection (the tag filter can miss a
+       real killer) but they mean a selected run can exceed the tag-filtered one it was sized against.
+   Calibrating on the union fixes both: it bounds every non-baseline selection, and it is the set the
+   sweep actually runs. Baseline lines still fall back to the tag filter, which is narrower. */
+export function calibrationIndices(map, file) {
+  if (!map || !Array.isArray(map.groups) || !map.groups.length) return null;
+  const out = [];
+  for (const g of map.groups) {
+    if (g.unknown || (g.files && g.files[file])) out.push(g.index);
+  }
+  return out.length ? out : null;
+}
+
+export function selectIndices(map, file, line) {
+  if (!map || !Array.isArray(map.groups) || !map.groups.length) return null;
+  if (!Number.isFinite(line)) return null;
+  /* SELECTION MAY ONLY NARROW, NEVER WIDEN — and a module-LOAD line is where it would widen.
+     `tests/run-tests.mjs` loads every DSP before any group runs, so a line executed at load time is
+     touched by all 470 groups and per-group-coverage.mjs's own consumer correctly answers "all of
+     them". Handing that back here would run the WHOLE suite for one mutant, against a timeout
+     calibrated on the narrow tag-filtered run (baseMs × 5, where baseMs is ~16 s for hrvdex) — so
+     the run is killed and the mutant is scored INVALID: never tested, and silently absent from both
+     the killed and the survivor count.
+       Measured 2026-08-14 by A/B on hrvdex-dsp.js at --limit 24: identical survivor sets, but
+     `killed` went 14 → 13 and one INVALID appeared at L47, a load-time line.
+       Returning null hands the caller back to the tag filter, which is exactly today's behaviour
+     for that mutant. So the worst case of this whole mechanism is "no change", never "wider". */
+  const base = map.baseline && map.baseline[file];
+  if (Array.isArray(base) && base.includes(line)) return null;
+
+  const out = [];
+  for (const g of map.groups) {
+    if (g.unknown) {
+      out.push(g.index);
+      continue;
+    }
+    const ls = g.files && g.files[file];
+    if (Array.isArray(ls) && ls.includes(line)) out.push(g.index);
+  }
+  return out.length ? out : null; // never an empty selection — see the note above
+}
+/* `filter` is polymorphic: an ARRAY of declaration indices (coverage-directed selection) or a
+   STRING tag filter (the pre-existing behaviour). Kept as one parameter so the four call sites and
+   the journal/verdict paths are untouched. An empty array can never arrive — selectIndices returns
+   null instead, and null means "no filter", i.e. run everything. */
+export function suiteArgs(filter) {
+  if (Array.isArray(filter) && filter.length) return ['tests/run-tests.mjs', '--group-index=' + filter.join(',')];
+  if (typeof filter === 'string' && filter) return ['tests/run-tests.mjs', '--group=' + filter];
+  return ['tests/run-tests.mjs'];
+}
 function runSuiteAsync(filter, cwd, timeoutMs) {
   return new Promise((resolve) => {
     /* DEX_BAIL stops the suite at the first FAILING group. Measured on a real clock.js mutant:
@@ -389,7 +479,7 @@ function runSuiteAsync(filter, cwd, timeoutMs) {
        still pays the full suite. What it costs is the BREADTH of killer attribution: a mutant caught
        by several groups now reports only the first. That is why it is opt-in, and why the whole-file
        surveys that exist to measure `killers` should run without it. */
-    const ch = spawn('node', filter ? ['tests/run-tests.mjs', '--group=' + filter] : ['tests/run-tests.mjs'], {
+    const ch = spawn('node', suiteArgs(filter), {
       cwd,
       stdio: ['ignore', 'pipe', 'ignore'],
       timeout: timeoutMs || 900000,
@@ -523,7 +613,16 @@ function dropPool() {
 
 function runSuite(filter, cwd, timeoutMs) {
   try {
-    execFileSync('node', filter ? ['tests/run-tests.mjs', '--group=' + filter] : ['tests/run-tests.mjs'], { cwd: cwd || ROOT, encoding: 'utf8', timeout: timeoutMs || 900000 });
+    /* suiteArgs, NOT a hand-built '--group=' — this runner takes the same polymorphic selector as
+       runSuiteAsync. Fixing only the async one shipped a live defect: an ARRAY stringifies to
+       `--group=44,45,46`, which the matcher reads as three TITLE substrings and resolves to ONE
+       unrelated group. Calibration therefore timed a 12-assertion run instead of the intended 62
+       groups, `timeoutMs = max(30000, baseMs*5)` collapsed to the 30 s floor, and every mutant on a
+       slow file was killed by the timeout and scored INVALID — never tested, and absent from both
+       the killed and survivor counts. Measured 2026-08-14 on the full sweep: ecgdex 1324 of 1809
+       INVALID (73 %) with `canary: FAILED`, integrator 178 (9.7 %), against ~1 % on the two files
+       whose groups fit inside 30 s. The canary voided ecgdex rather than publishing the number. */
+    execFileSync('node', suiteArgs(filter), { cwd: cwd || ROOT, encoding: 'utf8', timeout: timeoutMs || 900000 });
     return 'SURVIVED'; // suite green with broken code → nothing tests this line
   } catch (e) {
     if (e.status === undefined) return 'INVALID'; // never ran (spawn failure / timeout kill)
@@ -755,6 +854,10 @@ async function runFile(file) {
   if (!existsSync(abs)) return { file, error: 'not found' };
   const g = groupsForFile(file);
   const filter = FULL ? null : g && g.count ? g.stem : null;
+  /* Coverage-directed selection, per mutant. Falls back to `filter` whenever the map cannot answer
+     — see selectIndices: it returns null rather than an empty list, because a zero-group run fails
+     nothing and would report every mutant SURVIVED. `--full` keeps its meaning (no narrowing). */
+  const sel = (mu) => (FULL ? filter : selectIndices(PGMAP, basename(file), mu && mu.line) || filter);
   if (!FULL && (!g || !g.count)) return { file, error: 'NO GROUPS tagged "' + (g ? g.stem : '?') + '" — every mutant would survive trivially. Use --full, or give this file a tagged group.' };
 
   /* TIME ONE CLEAN RUN FIRST. Two things depend on it and both were guesses before.
@@ -774,9 +877,13 @@ async function runFile(file) {
      per-mutant loop and the pool build were both given progress; this was missed because it happens
      before either. Announce it up front and time it, so the number that follows is explained rather
      than merely late. */
-  process.stderr.write('  calibrating: one clean ' + (filter ? 'group "' + filter + '"' : 'FULL SUITE') + ' run to size the timeout — no mutant is tested yet\n');
+  /* Size the timeout against what the sweep WILL run — the union of groups touching this file when
+     a coverage map is present, the tag filter otherwise. See calibrationIndices. */
+  const calSel = FULL ? filter : calibrationIndices(PGMAP, basename(file)) || filter;
+  const calDesc = Array.isArray(calSel) ? calSel.length + ' selected group(s)' : calSel ? 'group "' + calSel + '"' : 'FULL SUITE';
+  process.stderr.write('  calibrating: one clean ' + calDesc + ' run to size the timeout — no mutant is tested yet\n');
   const t0 = Date.now();
-  runSuite(filter, ROOT, 600000);
+  runSuite(calSel, ROOT, 600000);
   const baseMs = Math.max(1, Date.now() - t0);
   process.stderr.write('  calibrated: clean run took ' + (baseMs / 1000).toFixed(0) + 's\n');
   const timeoutMs = Math.max(30000, baseMs * 5);
@@ -1208,7 +1315,7 @@ async function runFile(file) {
           writeFileSync(abs, mu.apply());
           jwrite({ k: jkey(mu) });
           jwrite({ k: jkey(mu) });
-          classify(runSuite(filter, ROOT, timeoutMs), mu);
+          classify(runSuite(sel(mu), ROOT, timeoutMs), mu);
         }
         writeFileSync(abs, original);
         rmSync(bak, { force: true });
@@ -1245,14 +1352,14 @@ async function runFile(file) {
           rmSync(wAbs, { force: true });
           writeFileSync(wAbs, picked[i].apply());
           jwrite({ k: jkey(picked[i]) });
-          classify(await runSuiteAsync(filter, dir, timeoutMs), picked[i]);
+          classify(await runSuiteAsync(sel(picked[i]), dir, timeoutMs), picked[i]);
         }
       };
       await Promise.all(trees.map(worker));
     } else {
       for (const mu of picked) {
         writeFileSync(abs, mu.apply());
-        classify(runSuite(filter, ROOT, timeoutMs), mu);
+        classify(runSuite(sel(mu), ROOT, timeoutMs), mu);
       }
     }
   } finally {

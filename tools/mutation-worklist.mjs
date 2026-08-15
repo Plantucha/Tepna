@@ -46,6 +46,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { executedLines, findRecord, partitionSurvivors } from './mutation-reach.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -229,6 +230,19 @@ if (IS_MAIN && !has('--selftest')) {
     K = 0,
     I = 0,
     E = 0;
+
+  /* OPTIONAL reachability split. Without --cov the tool behaves exactly as before; a survivor count
+     is then a single undifferentiated number, which is what makes 5885 of them unplannable. With it,
+     each survivor is additionally UNREACHED (no test executes the line — write a test) or UNASSERTED
+     (tests execute it and do not notice — strengthen an assertion). Those have opposite fixes, so
+     fusing them is a planning error, not just a reporting one.
+     Fails closed via mutation-reach: absent or unresolvable coverage ⇒ everything UNASSERTED, i.e.
+     nothing is ever quietly written off as unreachable. */
+  const covPath = opt('--cov', '');
+  const COV = covPath && existsSync(covPath) ? JSON.parse(readFileSync(covPath, 'utf8')) : null;
+  let UNREACHED = 0,
+    UNASSERTED = 0;
+  const covUnresolved = [];
   for (const [file, sweep] of Object.entries(SWEEPS)) {
     if (only && file !== only) continue;
     if (!existsSync(sweep) || !existsSync(join(ROOT, file))) {
@@ -245,12 +259,22 @@ if (IS_MAIN && !has('--selftest')) {
     I += d.invalid || 0;
     E += (led[file] || []).length;
     const per = new Map();
+    const unclassified = [];
     for (const m of d.survivors || []) {
       if (eq.has(m.line + '|' + m.op + '|' + String(m.before).trim())) continue;
+      unclassified.push(m);
       const fn = attribute(ranges, m.line);
       per.set(fn, (per.get(fn) || 0) + 1);
     }
     for (const [fn, n] of per) rows.push({ file, fn, n });
+
+    if (COV) {
+      const rec = findRecord(COV, file);
+      if (!rec) covUnresolved.push(file);
+      const P = partitionSurvivors(unclassified, executedLines(rec));
+      UNREACHED += P.unreached.length;
+      UNASSERTED += P.unasserted.length;
+    }
   }
   rows.sort((a, b) => b.n - a.n);
 
@@ -325,6 +349,14 @@ if (IS_MAIN && !has('--selftest')) {
   }
 
   console.log(`▸ FLEET  ${K}/${dis} distinguishable = ${((100 * K) / dis).toFixed(1)}%   ${surv} survivors unresolved   target 99%\n`);
+
+  if (COV) {
+    const tot = UNREACHED + UNASSERTED;
+    const pct = tot ? ((100 * UNREACHED) / tot).toFixed(1) : '0.0';
+    console.log(`  SPLIT   UNREACHED ${UNREACHED} (${pct}%) — no test executes the line; write a test that reaches it`);
+    console.log(`          UNASSERTED ${UNASSERTED} — tests execute it and do not notice; strengthen an assertion\n`);
+    if (covUnresolved.length) console.log(`  ⚠ coverage did not resolve for ${covUnresolved.length} file(s): ${covUnresolved.join(', ')} — counted UNASSERTED (fail-closed).\n`);
+  }
   console.log('  THE TARGET IN ONE LINE: at any kill/classify split, ~98.5% of those survivors must be');
   console.log('  RESOLVED — killed if killable, classified if not. No ratio avoids the work.\n');
   console.log('    rank   n   file                 function                     cumulative   % of work');
