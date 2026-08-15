@@ -859,6 +859,42 @@ missing: a *number* for how many beats are lost, on real recordings, without adj
 number gates rMSSD's trustworthiness directly (§ above: 0.1 % → 20.8 %), and it is the only route to
 settling the Malik −22 % question with the corpus that exists.
 
+### §7.1 · BUILT AND RUN — and it refuses on clean data, which is itself the finding
+
+`tools/beat-capture-recapture.mjs`, run on 18.85 min of the 2026-08-13 box night with three shipped
+detectors on one host axis:
+
+| | ECG (H10, chest) | PPG (Verity, arm) | PPG (O2Ring, finger) |
+|---|---|---|---|
+| beats | 970 | 963 | 952 |
+| effective fs | 130.02 Hz | 176.46 Hz | 125 Hz |
+
+**Pulse arrival time falls out as a by-product, and it is physiologically ordered:** median **337.9 ms**
+to the arm and **410.2 ms** to the finger. Aligning on it is mandatory, not cosmetic — before it was
+handled the two optical sources matched each other 895 times and the ECG 10 times, and `observed` came
+out at **1899 against ~970 real beats**, every beat counted twice.
+
+**The capture profile, aligned:** `m111 = 935` · `m110 = 24` · `m101 = 2` · `m011 = 3` · `m100 = 9` ·
+`m010 = 1` · `m001 = 12`, observed 986.
+
+**🔴 THE ESTIMATOR REFUSES, AND SHOULD.** The closed form divides by `m110·m101·m011` and multiplies by
+the three single-source cells. Here that is 24·2·3 = 144 against 9·1·12, giving **m000 = 701 — 41 % of
+beats "missed by everything"**, which is absurd on its face and would have been reported as a number
+had the guard not been added. The tool now applies the textbook adequacy rule (expected cell ≥ 5) to
+the six informative cells and refuses, with a reason that says **"the data cannot identify the
+undercount"** and explicitly *not* "nothing was missed" — two statements a caller must never confuse.
+
+**What this establishes.** On a clean, low-motion window the three detectors agree on **935 of 986**
+beats (95 %), and that agreement is exactly what destroys the estimator's power: the cells carrying
+information about the unseen are single-digit. **The method has power precisely where the data is
+bad** — motion, poor perfusion, apnea — which is also where the missed beats that matter for rMSSD
+actually live. Running it on quiet sleep was the wrong first test, and the refusal is what told us.
+
+**Next, and it is a targeted run rather than more machinery:** select windows by *disagreement between
+detectors* (a property of the sources, not of the estimate, so it is not circular) and re-run there.
+If the informative cells populate, the undercount becomes estimable on exactly the segments where it
+is largest.
+
 **Done when:** three beat sets are extracted on one box night; matched within ±½ RR using the arrival
 sidecar's offset (which the corpus supplies at 4.8 ms agreement, so matching is not the bottleneck);
 a log-linear model with pairwise interactions is fitted; and the estimated missed-beat count is
