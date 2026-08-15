@@ -1279,6 +1279,19 @@ function writeArrival(dir, key, p) {
          where a real crystal is +/-100. Flag the implausibility here so no consumer spends it: a
          drawn axis may be PLACED on the host timeline, never spent as a second opinion about it. */
       plausibleCrystal: ax.ppm == null ? null : Math.abs(ax.ppm) <= 200,
+      /* …and `plausibleCrystal` is a MAGNITUDE proxy for the question above, not an answer to it. It
+         catches the ring only because that particular drawn axis happens to report 2730 ppm. A drawn
+         axis whose assumed rate is nearly right reports a SMALL ppm and passes: measured 2026-08-14
+         over 395 sidecars, one real O2Ring segment (2026-08-13, 1.72 h) reports **−22.83 ppm** — a
+         textbook-plausible crystal, sitting between the H10's −20 and the Verity's −34 — with a
+         drawn-delta share of 99.3 %. It passes `independent` (huge spread) AND `plausibleCrystal`
+         (|−22.83| ≤ 200) while having no oscillator at all.
+         `deviceDrawn` is the STRUCTURAL test the comment above actually wanted: concentration of the
+         device's own inter-sample deltas, which separates the populations with no overlap (real
+         streams ≤ 56.00 %, drawn ≥ 79.04 % over 381 files). Carried through so consumers can refuse
+         on provenance rather than on magnitude. */
+      deviceDrawn: ax.deviceDrawn == null ? null : ax.deviceDrawn,
+      drawnShare: ax.drawnShare == null ? null : Math.round(ax.drawnShare * 1000) / 1000,
       /* THE MAPPING CONSTANT, AS A MEDIAN — never a single anchor. Per-device arrival spread here is
          3013 ms (Verity) and 7005 ms (H10), so one packet is not an estimate: taking the first put
          this offset 1355 ms from the median-derived value, which is larger than PAT itself. `MAD` is
@@ -1292,7 +1305,7 @@ function writeArrival(dir, key, p) {
     });
   }
   devices.sort((a, b) => b.anchors - a.anchors);
-  const indep = devices.filter((d) => d.independent === true && d.plausibleCrystal !== false).length;
+  const indep = devices.filter((d) => d.independent === true && d.plausibleCrystal !== false && d.deviceDrawn !== true).length;
   console.log(
     `    ⇄ arrival sidecar: ${devices.length} device(s), ${rows} packet(s)` +
       `  usable-clock: ${indep}/${devices.length}` +
