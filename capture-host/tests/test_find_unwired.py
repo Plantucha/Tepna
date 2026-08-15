@@ -144,3 +144,32 @@ def test_every_allowlisted_function_still_appears_in_the_report(capsys):
     assert "unexplained," in out and "allowed" in out
     for name in ("predict_step_split", "busy_with", "oxy_is_finalized"):
         assert name in out, f"{name} is allowlisted but absent from the report"
+
+
+def test_check_mode_FAILS_on_anything_unexplained(tmp_path, monkeypatch, capsys):
+    """⚠️ A GATE YOU HAVE NOT SEEN FAIL IS NOT A GATE — this suite's most-repeated lesson, applied to
+    the gate built from it.
+
+    `--check` only became honest after the allowlist was curated: on 2026-08-14 this reported 13
+    unexplained functions, every one needing a human decision. Failing CI on that list would have
+    trained people to silence it, which is the same defect one level up. With the count at 0, the floor
+    is defensible — a NEW unexplained orphan means something was just added and wired to nothing."""
+    root = _tree(tmp_path, {"m.py": "def nobody_calls_me():\n    return 1\n"})
+    monkeypatch.setattr(find_unwired, "HERE", root)
+    assert find_unwired.main(["--check"]) == 1
+    assert "unexplained" in capsys.readouterr().out
+
+
+def test_check_mode_PASSES_when_everything_is_wired_or_explained(tmp_path, monkeypatch, capsys):
+    """The other direction, so the gate cannot be green by never looking — the exact failure this whole
+    detector exists to find."""
+    root = _tree(tmp_path, {"m.py": "def helper():\n    return 1\n\n\ndef caller():\n    return helper()\n"})
+    monkeypatch.setattr(find_unwired, "HERE", root)
+    monkeypatch.setitem(find_unwired.ALLOW_FUNCS, "caller", "synthetic entry point")
+    assert find_unwired.main(["--check"]) == 0
+    assert "0 unexplained" in capsys.readouterr().out
+
+
+def test_a_BARE_run_still_exits_zero_so_it_can_be_read_without_gating():
+    """The report stays usable as a report. Only `--check` enforces."""
+    assert find_unwired.main([]) == 0

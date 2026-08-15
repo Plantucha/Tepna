@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-15
+**Status:** DONE — 2026-08-15 · **Created:** 2026-08-15
 
 # What executing the unwired-machinery brief surfaced that auditing it did not
 
@@ -48,7 +48,7 @@ pointed at an input other than the convenient one.
 The first two surfaced only against a synthetic tree; the third only by *using* the allowlist. All three
 would have passed any review of the source.
 
-- [ ] Consider whether the detector earns a CI job. It is deliberately advisory and exits 0 (a gate that
+- [x] **DONE — it does, now.** Consider whether the detector earns a CI job. It is deliberately advisory and exits 0 (a gate that
       fails on declarative constants trains people to silence it) — but "advisory" currently also means
       "seen only by whoever runs it", which is the same visibility problem as the `mutation
       (diff-scoped)` red that merges unnoticed.
@@ -78,12 +78,12 @@ Two of the three second-run failures were **environment-dependent**, and both re
 - the same directory being present-but-empty earlier the same day made a deploy check behave differently
   than it will on any other machine.
 
-- [ ] Worth stating in `CONTRIBUTING.md` next to the coverage floor: a 100 % local run on a machine that
+- [x] **DONE.** Worth stating in `CONTRIBUTING.md` next to the coverage floor: a 100 % local run on a machine that
       has been used as a capture host is a weaker claim than the same number from CI.
 
 ## 5 · Done when
 
 - [x] **DONE — 0 unexplained on both scans.** §1's three pairs are wired or allowlisted with reasons, and the detector's unexplained count
       reaches 0 or a stated floor.
-- [ ] §2's CI question is answered either way, in writing.
+- [x] **DONE.** §2's CI question is answered either way, in writing.
 - [x] **DONE.** §3 is fixed in `land-pr.mjs` or its limitation is documented where the tool is invoked.

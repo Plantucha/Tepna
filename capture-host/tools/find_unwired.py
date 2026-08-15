@@ -29,8 +29,9 @@ failure one level up. Exit is always 0; the report is the product.
      fore walks the AST and takes only the keywords of the `_set` call itself.
 
 Usage:
-    python3 tools/find_unwired.py            # report
+    python3 tools/find_unwired.py            # report (always exits 0)
     python3 tools/find_unwired.py --json     # machine-readable
+    python3 tools/find_unwired.py --check    # exit 1 on anything unexplained (run by check.sh)
 """
 from __future__ import annotations
 
@@ -203,8 +204,23 @@ def main(argv: list[str]) -> int:
             if r["allowed"]:
                 print("   (allowed) %-34s %s" % (fmt(r), r["allowed"]))
         print("   %d unexplained, %d allowed" % (len(live), len(rows) - len(live)))
-    # ADVISORY. Always 0 — see the module docstring. A hard gate here fails on every declarative
-    # constant and CLI entry point, and a gate people silence is worse than no gate.
+    # ── ADVISORY BY DEFAULT, ENFORCEABLE ON REQUEST ────────────────────────────────────────────────
+    #
+    # A bare run always exits 0. `--check` exits 1 on anything unexplained, and that mode only became
+    # honest once the allowlist was curated: on 2026-08-14 this reported 13 unexplained functions, every
+    # one of which needed a human to decide whether it was a gap or a declarative constant. Failing CI
+    # on that list would have trained people to silence it — the same defect one level up.
+    #
+    # After FOLLOWUPS §1 the count is 0 on both scans, so 0 is a floor worth defending: a NEW unexplained
+    # orphan means something was just added and wired to nothing, which is precisely the class this
+    # exists to catch and the moment it is cheapest to fix. The allowlist remains the escape hatch, and
+    # every entry must state WHY — so silencing a finding costs a sentence of justification, not a flag.
+    if "--check" in argv:
+        n = sum(1 for r in res["orphan_status_keys"] + res["orphan_functions"] if not r["allowed"])
+        if n:
+            print("\n✖ %d unexplained — wire it, or allowlist it WITH A REASON in ALLOW_KEYS/ALLOW_FUNCS" % n)
+            return 1
+        print("\n✓ 0 unexplained — every published key and public function is wired or explained")
     return 0
 
 
