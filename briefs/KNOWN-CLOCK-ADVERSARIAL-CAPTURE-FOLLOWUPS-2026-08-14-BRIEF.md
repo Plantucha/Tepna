@@ -76,6 +76,44 @@ Five exceedances out of 285 under a max-over-lag search is about what noise yiel
 window. So the failure is not "the windowing was too coarse" or "we needed a better detector" — there
 is no shared marker to find, and no amount of re-analysis will produce one.
 
+### §2.1c · 🔴 THE O2RING ALREADY HAS A COMMANDED SYNC — and it reframes §2.1a
+
+**Owner, 2026-08-15: "o2 has sync beat".** Correct, and it is confirmed on hardware in
+[`O2RING-OPCODE-SURFACE-2026-08-03-BRIEF.md`](O2RING-OPCODE-SURFACE-2026-08-03-BRIEF.md):
+
+| opcode | effect | status |
+|---|---|---|
+| **`0x83`** | **vibration motor** — fired 5×, felt 5×, contact held throughout | confirmed |
+| **`0x03`** | drains the PPG buffer — an exact sample **count** between two host-timestamped reads | confirmed (truncates >250 samples ≈ 2 s, silently) |
+
+**Why this beats §2.1a's co-location for this device.** `0x83` is a mechanical impulse the ring
+*generates itself* at an instant the host chose and stamped. Nothing has to propagate and nothing has
+to be strapped together — the marker originates inside the device whose axis needs anchoring.
+
+**And the framing correction that matters more than the opcode.** §2.1a assumed the marker must be
+shared *between devices*. It need not be. **If each device is independently anchored to the common
+capture host, the device↔device offset follows by subtraction** — the host is the shared reference,
+and on a box night it is disciplined to 0.008 ppm. A cross-device marker is only required when there
+is no common host, which is the phone-capture case, not the box case. My co-location proposal solved a
+harder problem than the corpus actually poses.
+
+**`0x03` is the stronger of the two for the axis problem**, and the opcode brief already says so: a
+drain gives an exact sample count between host-timestamped reads, so *"the host clock becomes the axis
+and the ring supplies only counts … it converts 'no timestamps at all' into 'host-stamped batches of
+known size', and the residual is bounded by one batch rather than accumulating across a night."* That
+is exactly the fix for the drawn axis this brief has been treating as unfixable — the O2Ring is the
+device whose `deviceDrawn` flag we added guards for, and this removes the cause rather than refusing
+the symptom.
+
+⚠ **Untested before use, both flagged by the opcode brief and not by me:** whether buzzing
+mid-recording contaminates the ring's **own motion column** (already fragile —
+`o2ring-motion-column-fault`), the battery cost, and that `0x03` **discards overflow past ~2 s with no
+error and no gap marker**, so a drain cadence slower than that loses samples silently.
+
+⚠ **This does NOT settle target 1 for the Polar pair.** H10 and Verity have no commanded marker of
+their own; for them either the host anchoring above suffices (box nights) or §2.1a's co-location is
+still the route. The ring was the hardest leg and is now the most tractable one.
+
 **§2.2 · Adapter assignment is not recorded (item 6) — and it is not a logging change.** Checked
 2026-08-15: `capture.py` carries a single global `ADAPTER` (config `adapter:`, one MAC used for
 bonding), not a per-device assignment. BlueZ selects the controller, so which radio carried which link
