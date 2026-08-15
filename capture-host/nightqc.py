@@ -11,7 +11,9 @@
 # every writer emits exactly one header line, so rows = newlines − 1.
 from __future__ import annotations
 
+import json
 import os
+import subprocess
 
 import allan
 import clock_offset
@@ -21,6 +23,89 @@ from datetime import datetime, timedelta
 # Sidecars the box writes that are NOT a device capture stream — excluded from the per-device rollup so a
 # LINK/CLOCK/QC file never masquerades as sensor data.
 _SIDECAR_TAGS = {"LINK", "CLOCK", "OXYFRAME"}
+
+# ── DEPLOY-FILE DRIFT, CHECKED NIGHTLY ──────────────────────────────────────────────────────────────
+# `deploy/check-system-files.sh` is the ONLY instrument that can see an installed helper diverging from
+# the repo, and nothing ran it on a schedule — so drift surfaced when somebody happened to look. On
+# 2026-08-15 that was three weeks after the brief, and the stale file was `tepna-restart.sh` missing the
+# `deploy` verb: the fix for the Deploy button had been MERGED FOR A DAY with CI green while the field
+# stayed broken. Nothing in the repo could have said so.
+#
+# ⚠️ IT REPORTS, IT DOES NOT JUDGE. This deliberately does NOT feed `ok`. QC already returns ok=false on
+# ~10 of 11 nights for a benign doffing gap, and a drifted deploy file is an OPERATOR action (`--install`,
+# or a hand `rm` for a superseded leftover) rather than a bad night's capture. Another axis in an alarm
+# nobody reads is worth nothing.
+#
+# ⚠️ COUNTS, NOT THE EXIT CODE. The exit code is a single bit and the two classes need OPPOSITE responses.
+# (It does carry SUPERSEDED, contrary to a first reading — line ~168 increments `drift` as well as
+# `stale_etc`, measured exit 1 — but "something drifted" still cannot say WHICH.)
+_SYSTEM_FILES_SH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "deploy", "check-system-files.sh")
+_SYSTEM_FILES_TIMEOUT_S = 60.0
+_DEPLOYED_MARKER = "/usr/local/lib/tepna"      # helper_path.SYSTEM_DIRS[0]; absent on a dev checkout
+_CHECKOUT_DIR = "/opt/tepna"                   # the tree tepna-update.sh fast-forwards
+
+
+def system_file_drift(script: str = _SYSTEM_FILES_SH, *,
+                      timeout: float = _SYSTEM_FILES_TIMEOUT_S,
+                      marker: str = _DEPLOYED_MARKER,
+                      runner=None) -> "dict | None":
+    """Counts from `check-system-files.sh --json`, or `None` when no claim can be made.
+
+    `None` for every unhappy path — not a deployed host, script absent, timed out, unparseable — because
+    a zeroed record would read as "nothing has drifted", which is the one wrong answer available here.
+    The script is read-only without `--install`, never restarts anything and never deletes, so it is
+    safe on a schedule.
+    """
+    if not os.path.isdir(marker):
+        return None                                  # a dev checkout has nothing installed to drift
+    if not os.path.exists(script):
+        return None
+    run = runner or subprocess.run
+    try:
+        p = run(["bash", script, "--json"], capture_output=True, text=True, timeout=timeout)
+    except Exception:                                # noqa: BLE001 — a QC extra may never break QC
+        return None
+    try:
+        out = json.loads((p.stdout or "").strip().splitlines()[-1])
+    except Exception:                                # noqa: BLE001
+        return None
+    if not isinstance(out, dict):
+        return None
+    out["exit"] = p.returncode
+    out["checkout_clean"] = _checkout_clean(runner=run)
+    return out
+
+
+def _checkout_clean(checkout: str = _CHECKOUT_DIR, *, runner=None) -> "bool | None":
+    """Is the deploy checkout clean? `None` when it cannot be said.
+
+    ⚠️ THIS IS THE CONDITION; HEAD-CURRENCY IS A LAGGING SYMPTOM OF IT. `tepna-update.sh` refuses a dirty
+    tree — *"ERROR: /opt/tepna has uncommitted changes — refusing to touch it"* — which is correct (it
+    will not fast-forward over someone's work) and severe: ONE stray untracked file silently halts every
+    future deploy, and the only outward sign is a `systemctl --failed` entry on a box nobody logs into.
+    It has happened: an untracked `capture-host/vigil.sh` plus a `chmod +x` that git counted as a mode
+    change were together enough.
+
+    A dirty tree does NOT make HEAD stale at the moment it appears — it makes it stale from the NEXT
+    merge. So a HEAD-currency check reads green for up to an hour after the box has actually stopped
+    deploying, and catches the breakage only after the first missed pull. This catches it when it breaks.
+    (Suggested in review, and it is the same move as measuring the tree rather than the ref.)
+
+    ⚠️ `core.fileMode=true` here, so `chmod +x` on a tracked file IS a modification — fixing an exec bit
+    by hand creates the very dirt that blocks the updater. Let the commit carry the mode.
+    """
+    if not os.path.isdir(os.path.join(checkout, ".git")):
+        return None
+    run = runner or subprocess.run
+    try:
+        p = run(["git", "-C", checkout, "status", "--porcelain"],
+                capture_output=True, text=True, timeout=_SYSTEM_FILES_TIMEOUT_S)
+    except Exception:                                # noqa: BLE001 — a QC extra may never break QC
+        return None
+    if p.returncode != 0:
+        return None
+    return not (p.stdout or "").strip()
 _SUMMARY_NAME = "QC-SUMMARY.json"
 
 # A gap this long between two capture SESSIONS starts a new one, so coverage is judged against the CURRENT
@@ -777,6 +862,8 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
                            "silent_sec": silent})
     return {
         "night": os.path.basename(night_dir.rstrip("/")),
+        # Reported beside the capture verdict, never folded into it — see the note on system_file_drift.
+        "system_files": system_file_drift(),
         "devices": per_device,
         "missing": missing,
         "degraded": degraded,
