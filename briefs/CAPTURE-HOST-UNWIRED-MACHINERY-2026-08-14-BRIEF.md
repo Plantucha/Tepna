@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-14 · **Created:** 2026-08-14
+**Status:** DONE — 2026-08-15 · **Created:** 2026-08-14
 
 # Machinery that exists, is tested, and is connected to nothing
 
@@ -174,6 +174,28 @@ explicitly, and the branch at `:2901` documents that only the vitals stop when i
 **Same code shape, opposite verdict, because the sensors differ.** Routing the ring through the combiner
 would add a veto it does not need and a dependency on `charging` inference where a direct measurement
 already exists. Recorded here because reasoning by analogy from #1245 would produce exactly that change.
+
+## 7.5 · Outcome
+
+**Every section shipped, across eight PRs.** §1 `clock_uncorrectable` (#1254) · §2 `arrival_canary`
+(#1258) · §3 `grant_warning` (#1257) · §4 `on_body` (#1259) · §6 the detector (#1260) · §6.1 the
+ceiling classifier + `rate_unmet` (#1269) · §5 (#1271).
+
+**The status-key half is CLOSED: 0 unexplained, 0 allowed.** Every key `capture.py` publishes now
+reaches a consumer. The function half stands at **7 unexplained, 5 allowed** — the 7 carried to the
+follow-up, characterised there rather than counted.
+
+⚠️ **Every section needed a second gate run, and not one failure was a flake.** That is the finding
+this brief did not predict:
+
+| section | what the gate caught |
+|---|---|
+| §2 | three source-scan tests asserted the call EXISTS and never EXECUTED it — 7 uncovered statements; then the no-webhook branch, the exact property the code comment claimed |
+| §3 | a self-test that would cry wolf on every dev startup; then a branch CI could see and this machine could not, because `/usr/local/lib/tepna` exists here and not there |
+| §5 | a projection key that reached `webmon` without being declared in `DEVICE_KEYS` |
+
+Two of the three were **environment-dependent**: the local gate read 100 % because this machine differs
+from CI. A green local run is evidence about this machine, not about the code.
 
 ## 8 · Done when
 
