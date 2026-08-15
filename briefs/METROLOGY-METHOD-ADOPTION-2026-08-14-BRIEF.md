@@ -419,72 +419,75 @@ That is a concrete redirection rather than a second null: any future PAT work sh
 it should be justified against PpgDex's existing `conf`/SQI rather than assumed to beat them.
 
 
-### §4c · 🟢 THE GATE PAYS — and the incumbent SQI is missing an axis, not miscalibrated
+### §4c · THE GATE: a real effect, ~1.7 ms — and the 4-night version of this section was wrong twice
 
-§4b predicted the lever was beat ADMISSION, not beat timing. Tested, and it holds — with a result that
-is actionable rather than another null.
+§4b predicted the lever was beat ADMISSION, not beat timing. It is — but the size and the mechanism both
+had to be re-measured, and **an earlier draft of this section, written on 4 nights, overstated the effect
+by ~8x and got its causal story backwards.** Both corrections are recorded here rather than quietly
+replaced, because the 4-night numbers were produced by the same method that produced the 29-night ones.
 
-**Method, because the obvious version of this test is worthless.** A stricter rule keeps easier beats and
-gets a lower SD for free, so every rule is scored at the **same keep-fraction**, and **random selection
-is included as a control**. The control earns its place: random gets *worse* as it gets stricter
-(13.69 → 15.45 ms), confirming that retention alone buys nothing and that any gain below is selection.
+**Method** — the naive version of this test is worthless: a stricter rule keeps easier beats and gets a
+lower SD for free. So every rule is scored at the **same keep-fraction**, with **random selection as a
+control**. The control works: random is flat everywhere (−0.02 to +0.09 ms) and loses to every real rule
+on 22–26 of 29 nights, so any gain below is genuine selection and not retention.
 
-PAT SD (ms) by admission rule at matched retention, tangent foot throughout:
+**29 matched H10+Verity nights** (20-minute slices; median baseline PAT SD **40.55 ms**, range 13.7–49.3):
 
-| night | baseline | rule | keep 90% | keep 75% | keep 50% | keep 25% |
-|---|---|---|---|---|---|---|
-| 2026-07-09 | 13.69 | **sqi** (incumbent) | 13.23 | 13.12 | 12.20 | **10.54** |
-| *(clean)* | | ppiPlaus | 13.40 | 13.25 | 13.44 | 13.79 |
-| | | random | 13.82 | 13.88 | 14.35 | 15.45 |
-| 2026-07-06 | 36.46 | sqi | 35.92 | 35.05 | 33.82 | 33.26 |
-| *(noisy)* | | **ppiPlaus** | 33.22 | 30.09 | 26.85 | 25.69 |
-| | | **sqi×ppiPlaus** | 33.02 | 30.17 | 26.99 | **24.45** |
-| | | random | 36.77 | 36.36 | 34.56 | 34.77 |
-| 2026-06-28 | 36.71 | sqi | 36.44 | 35.39 | 33.46 | 32.29 |
-| *(noisy)* | | ppiPlaus | 36.73 | 33.85 | 29.05 | 28.64 |
-| | | **sqi×ppiPlaus** | 36.26 | 36.04 | 30.95 | **22.19** |
-| | | random | 36.58 | 36.66 | 36.74 | 36.27 |
+| rule | keep 90% | keep 75% | keep 50% | keep 25% | beats random (k50) |
+|---|---|---|---|---|---|
+| `sqi` (incumbent) | −0.48 | −1.04 | −1.49 | −2.98 | 22/29 |
+| `ppiPlaus` | −0.52 | −1.50 | **−1.85** | −1.56 | 25/29 |
+| **`sqi × ppiPlaus`** | −0.48 | −1.41 | −1.73 | −2.79 | 23/29 |
+| `min(sqi, ppi)` | −0.53 | −1.14 | −1.82 | **−3.22** | 25/29 |
+| `rrEcgPlaus` *(control)* | −0.36 | −0.50 | −1.01 | −1.48 | 24/29 |
+| `amp` | −0.39 | −0.40 | −0.64 | −0.46 | 18/29 |
+| `random` | −0.02 | +0.09 | +0.00 | −0.27 | — |
 
-#### The confound control is what makes this trustworthy
+*(median Δ in ms against each night's own baseline)*
 
-Interval plausibility could simply be selecting **physiologically stable-HR epochs**, where PAT is steady
-anyway — selection on a correlate of the outcome rather than on error. That is testable directly: compute
-the *same* plausibility from the **ECG's own RR intervals**, which select the same stable-HR epochs while
-knowing nothing about the PPG detector.
+#### 🔴 Correction 1 — the effect is ~1.7 ms, not ~14 ms
 
-**It gains almost nothing** — 2026-07-06: **36.34 ms** at keep 25 % against ppiPlaus's **25.69**;
-2026-06-28: 33.01 against 28.64. So the gain is **not** stable-HR selection. **PPG-side interval
-plausibility is rejecting PPG detector errors specifically**, which is exactly what it was meant to do
-and the one interpretation that would have been unsafe to assume.
+The 4-night draft quoted a 36.71 → 22.19 ms reduction. At 29 nights the median gain at keep 50 % is
+**1.7–1.9 ms on a 40 ms baseline** — about **4 %, for discarding half the beats.** The large numbers were
+the tail of the distribution, selected by having looked at four nights and reported the striking ones.
 
-#### What this says to do
+#### 🔴 Correction 2 — the mechanism is INVERTED
 
-**The incumbent `beatSQI` is not miscalibrated — it is measuring one axis.** It is template correlation ×
-amplitude × motion, i.e. *waveform shape*. It carries no notion of whether a beat's INTERVAL is
-plausible, and on noisy nights that is where the recoverable error lives. The two are complementary in
-the data, not competing:
+The draft said interval plausibility helps on *noisy* nights, where detector errors live, and does
+nothing on clean ones. Split by median baseline SD across 29 nights, keep 50 %:
 
-- **clean night** → few detector errors → shape (`sqi`) is the right discriminator, and interval
-  plausibility adds nothing (13.79 vs 10.54);
-- **noisy night** → detector errors dominate → interval plausibility finds them, and the **combination is
-  best**, reaching **22.19 ms from a 36.71 ms baseline — a 14.5 ms reduction** where PAT is worst and
-  most needs help.
+| | clean nights (n=14) | noisy nights (n=15) |
+|---|---|---|
+| `sqi` | −3.18 ms | −0.67 ms |
+| `ppiPlaus` | **−4.66 ms** | −0.35 ms |
+| `sqi × ppiPlaus` | **−5.37 ms** | −0.95 ms |
 
-⚠️ **Do not read this as "ship sqi×ppiPlaus".** The combination is *worse* than `sqi` alone on both clean
-nights, so a fixed multiplicative rule trades good nights for bad ones. What the data supports is the
-narrower claim: **rhythm plausibility is a real, missing, non-redundant admission axis**, and any rule
-using it must be adaptive to how noisy the night actually is. Choosing that form is a design decision
-this experiment does not make.
+**The gain is on CLEAN nights, not noisy ones**, for every rule. The plausible mechanism is the opposite
+of the one asserted: on a genuinely bad night *most* beats are bad, so there is no good subset to select;
+on a clean night a handful of bad beats exist and removing them helps. Selection needs something to
+select **towards**.
 
-⚠️ **Mild circularity, named rather than hidden:** `ppiPlaus` is computed from intervals between the very
-feet whose placement it is used to judge, so a mis-placed foot produces both a bad interval and a bad
-PAT. That is the error being rejected, so it is a feature here — but it means the rule cannot be
-described as an *independent* check, and it should never be quoted as one.
+#### The confound control also weakened
 
-**Limits:** four nights, 20-minute slices, one subject, one device pair. keep 25 % discards three
-quarters of the beats, which is a real cost for any consumer needing beat coverage; at keep 50 % the
-gains are roughly half as large.
+`rrEcgPlaus` — the same plausibility computed from the ECG's own RR intervals, which selects the same
+stable-HR epochs while knowing nothing about the PPG detector — gained **nothing** on 4 nights. On 29 it
+gains **−1.01 ms** and beats random on 24/29. So **part of the effect IS physiological stable-epoch
+selection**, not detector-error rejection. The PPG-side rule still exceeds it (−1.85 vs −1.01), so there
+is a PPG-specific residue of roughly **0.8 ms** — real, and an order of magnitude below what the 4-night
+draft claimed for it.
 
+#### Verdict
+
+**Rhythm plausibility is a genuine, non-redundant admission axis, and it is small.** `sqi × ppiPlaus`
+beats the incumbent on 19–21 of 29 nights, for a median extra gain of ~0.3 ms over `sqi` alone. Against
+the cost — a `ppgdex-dsp.js` change moves `manifestHash` and `computeHash` and owes a real-corpus fixture
+re-verification — **that does not currently justify shipping.** It justifies keeping the finding on
+record and revisiting if a consumer appears that is sensitive at the 1–2 ms level.
+
+**The methodological lesson is the durable output of this whole phase.** Three times in this brief a
+result measured on a handful of recordings did not survive the corpus: §3.5's H10 slope and TDEV ordering,
+and now §4c's effect size *and* its mechanism. The estimators were correct every time; the inference from
+small n was not. **Run the corpus before writing the section, not after being asked.**
 
 ## §5 · Phase 3 — a GUM uncertainty budget for PAT
 
