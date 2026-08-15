@@ -1247,6 +1247,25 @@ _CEILING_SIGNS = ("connection-profile-unavailable", "too many", "no resources", 
                   "max connections", "host is down")
 
 
+def link_error_text(exc: BaseException) -> str:
+    """The operator-facing description of a failed connect — ONE formatter for every link-error site.
+
+    `connection_ceiling_error` has been able to tell these apart since it was written, and until
+    2026-08-14 nothing called it. The comment above it says *"classify it so the log says 'adapter
+    connection ceiling', not a generic link error"*, and all THREE sites logged the generic form anyway.
+    The two failures want opposite responses — a ceiling is over-provisioning you fix at the adapter, an
+    absent sensor is a battery or a strap — and `TimeoutError()` reads identically either way, which is
+    VIGIL-DEEP-ANALYSIS §2D's complaint that an over-provisioned dongle "looks like flapping sensors".
+
+    Single-sourced deliberately, and the count is why: a grep that stopped at the first two sites would
+    have left the third drifting. The charging rule was written twice and only one copy checked
+    `charging` — the same failure, one file over."""
+    if connection_ceiling_error(exc):
+        return ("ADAPTER CONNECTION CEILING — the adapter is out of link slots, so this is "
+                "over-provisioning and NOT an absent sensor: %r" % (exc,))
+    return "link error: %r" % (exc,)
+
+
 def connection_ceiling_error(exc: BaseException) -> bool:
     """True when a connect failed because the ADAPTER is out of connection slots, not because the sensor
     is absent — a diagnosable over-provisioning, not a flapping device."""
@@ -2451,7 +2470,7 @@ async def run_polar(dev: dict, root: str):
                 continue
             _OPT_QUIET.discard(addr)
             _set(name, connected=False, last_error=repr(e))
-            log.warning("%s link error: %r", name, e)
+            log.warning("%s %s", name, link_error_text(e))
             # A ONE-SIDED BOND. is_bonded() reads the HOST's view, so a device-side factory reset (Polar
             # Flow offers one) leaves BlueZ reporting `Bonded: yes` while the sensor has forgotten us.
             # ensure_bonded() then short-circuits forever and the strap drops service discovery on every
@@ -2686,7 +2705,7 @@ async def run_viatom(dev: dict, root: str):
                         break
         except Exception as e:
             _set(name, connected=False, last_error=repr(e))
-            log.warning("%s link error: %r", name, e)
+            log.warning("%s %s", name, link_error_text(e))
         finally:
             if wr:
                 _empty, _p = not wr.rows, wr.path      # discard header-only files, as run_polar does
@@ -3048,7 +3067,7 @@ async def run_oxyii(dev: dict, root: str):
                         break
         except Exception as e:
             _set(name, connected=False, last_error=repr(e))
-            log.warning("%s link error: %r", name, e)
+            log.warning("%s %s", name, link_error_text(e))
         finally:
             try:
                 oxy_arr_wr.close()
