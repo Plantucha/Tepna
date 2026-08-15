@@ -1,0 +1,43 @@
+{
+  "_note": "Functions whose mutants are NOT a statement about shipped behaviour. The mutation queue ranks by SURVIVOR COUNT, and count is a measure of SIZE, not of value — so without this the list sends the next session to write tests for a synthetic-data generator. #1196 measured this population at 15.4 % of the fleet.",
+  "_rules": [
+    "DEFAULT IS PRODUCTION. An entry is added only after reading the function and confirming it. A wrong exclusion silently deletes real work from the queue, which is the unrecoverable direction; a missing exclusion merely leaves noise in the ranking.",
+    "NEVER SILENTLY DROP. tools/mutation-worklist.mjs reports the excluded set and its total beside the ranked list, so the reader sees what was set aside and can disagree with it.",
+    "A NAME PATTERN IS NOT EVIDENCE. `sampleHz` matched the /^sample[A-Z]/ heuristic used to FIND candidates and is real production code — it computes a sampling frequency and is called three times in its own file. It is deliberately absent below. Every candidate is read before it is listed.",
+    "These are NOT equivalence claims. The mutants may well be killable; they are excluded from the ranked list because killing them would assert something about a fixture generator or a self-check, not about analysis a user sees. They stay in the denominator."
+  ],
+  "functions": {
+    "cpapdex-dsp.js": [
+      {
+        "fn": "selfTest",
+        "survivors": 100,
+        "why": "The DSP's own self-check, exported and run by the gated suite (`CpapDsp.selfTest()`). Its mutants change assertion TEXT and TOLERANCES inside that check — e.g. `ok('near() REJECTS a value just outside the tolerance', !near(10, 10.75, …))`. Killing them means writing tests that assert a self-test's tolerances are correct, i.e. testing the test.",
+        "verified": "2026-08-15 — read the function; it is a pass/fail counter over `ok(...)` calls, reachable only as an exported diagnostic."
+      }
+    ],
+    "ecgdex-dsp.js": [
+      {
+        "fn": "genSynthetic",
+        "survivors": 157,
+        "why": "Seeded synthetic-ECG generator (`opts.seed`, `scenario:'ambulatory'`). Mutating it changes the FIXTURES a test consumes, not any analysis path a recording takes. The file's own comment at L4027 discusses it as the source of test input.",
+        "verified": "2026-08-15 — read the function; no call site on any analysis path inside the DSP."
+      }
+    ],
+    "glucodex-dsp.js": [
+      {
+        "fn": "genSynthetic",
+        "survivors": 34,
+        "why": "Seeded synthetic-CGM generator (`opts.days`, `opts.profile` in {'healthy','predm'}). Produces test corpora, not user data.",
+        "verified": "2026-08-15 — read the function."
+      }
+    ],
+    "motiondex-dsp.js": [
+      {
+        "fn": "genSyntheticACC",
+        "survivors": 21,
+        "why": "Seeded synthetic accelerometer generator (`opts.hz`, `opts.sec`). Test-fixture source.",
+        "verified": "2026-08-15 — read the function."
+      }
+    ]
+  }
+}
