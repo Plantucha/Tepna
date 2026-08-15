@@ -692,6 +692,51 @@ is DONE but carries a ⛔ VOID banner: the third corner was the O2Ring, whose `s
 **drawn, not measured** — built as `sample_index × an assumed rate` — so its apparent ppm is the error in
 that constant. There is no free third clock in this corpus.
 
+## 2-RESULT-XI · THE COMBINATION, BUILT — it recovers BEATS, not PRECISION
+
+§2-RESULT-X named the obvious next build: per-block offset to track the drift, then exact one-to-one
+correspondence *within* each block. Built and run on all 29 nights — 5-min blocks, modal offset unwrapped
+by whole RRs, then a monotone DP assignment inside each block with the window centred on that block's own
+offset.
+
+| | single global offset (§4g) | **per-block + unwrap + monotone** |
+|---|---|---|
+| correspondence | 68.6 % | **79.4 %** (≥75 % on **20/29** nights) |
+| PAT SD | 71.71 ms | **67.5 ms** |
+| acf₁ | +0.772 | +0.694 |
+
+### 🔴 A 5-night table said 40–60 %. The corpus says 6 %. The error was mine, and it was a strawman baseline.
+
+The per-night comparison in the working notes showed 176.8 → 71.4 ms and 181.6 → 80.2 ms and read as a
+halving. **Those baselines came from a different, weaker method** — `perblock.mjs`'s global fallback,
+which pairs by *nearest-match within ±300 ms*. §4g's actual baseline is a **monotone assignment at
+±150 ms, 71.71 ms**. Compared like for like, the combination improves PAT SD by **6 %**, not 40–60 %.
+
+**Comparing a new method against a weaker variant of itself, rather than against the standing result, is
+the same class of error as every tolerance-conditional number this brief has had to correct** — and it is
+the seventh time here that a handful of nights implied more than the corpus supports.
+
+### What the combination is actually worth
+
+- ✅ **Coverage: real and useful.** Correspondence 68.6 % → **79.4 %**, and ≥75 % on 20 of 29 nights
+  against 3 of 29 at ±150 ms globally. Drift tracking is what recovers those beats, exactly as
+  `CROSS-DEVICE-DRIFT-AND-CLOSURE` §2.1 predicts.
+- ❌ **Precision: essentially unchanged.** 71.7 → 67.5 ms.
+
+**That result is informative rather than disappointing: after per-block drift removal, ~67 ms of scatter
+remains.** So inter-device drift explains the *correspondence* loss and **not** the residual scatter.
+§2-RESULT-IX's "the clock is the cause" is therefore too broad — the clock is the cause of *beats not
+matching*; something else is the cause of *matched beats scattering*.
+
+### Where that leaves the cause
+
+Still open, and now more sharply bounded. Eliminated by measurement: pulse amplitude, upstroke slope,
+rise time, LED channel choice, missing/spurious beats, fiducial-feature switching (7 of 18 only), my own
+uniform-grid timestamps, and now inter-device drift as an explanation of the residual. What survives on
+the two cleanest nights — **16.7 ms falling to 5.5 ms after removing a 20 ppm trend** — says the
+instrument reaches single-digit ms when the geometry cooperates, and nothing measured so far explains why
+it usually does not.
+
 ## 3 · Phase 1 — promote the coupler into the Integrator (consume EXPORTS, add the missing one)
 
 - **Move the timing engine** `coupledPAT`/`ecgRpeakTimes`/`ppgFootTimes`/`sharedClock` from
