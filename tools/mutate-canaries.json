@@ -36,12 +36,14 @@
     ]
   },
   "hrvdex-dsp.js": {
-    "line": 101,
-    "op": "cmp < → <=",
-    "before": "for (var i = 0; i < arguments.length; i++) {",
-    "after": "for (var i = 0; i <= arguments.length; i++) {",
+    "line": 118,
+    "op": "negate: drop !",
+    "before": "if (v == null || typeof v !== 'number' || !isFinite(v)) return false;",
+    "after": "if (v == null || typeof v !== 'number' || isFinite(v)) return false;",
     "killers": [
-      "HRVDex — an absent column yields NaN, never a fabricated number (§1.1–1.9)"
+      "HRVDex — an absent column yields NaN, never a fabricated number (§1.1–1.9)",
+      "HRVDex computeDerived — the 52 derived columns, pinned",
+      "HRVDex computeDerived — the GUARDS, one seed absent at a time"
     ]
   },
   "integrator-dsp.js": {
