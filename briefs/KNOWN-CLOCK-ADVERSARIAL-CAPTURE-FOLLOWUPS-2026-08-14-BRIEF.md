@@ -99,6 +99,29 @@ caught by the same operator running one more check, which is exactly the mechani
 relied on. **The fix is procedural, not technical:** preregister, hand the injection log to one
 session and the analysis to another, and let the second report before seeing the truth file.
 
+## 4b · A trap worth more than the hypothesis: injecting a constant offset is a VACUOUS test
+
+Testing an offset estimator by injecting a known constant offset **cannot fail**, and that is not a
+strength. A constant time shift translates the entire cross-correlation surface rigidly, so the argmax
+moves by exactly the injected amount whether or not the argmax means anything.
+
+Measured on the night above, whose prominence is **0.0017** — i.e. no lock at all:
+
+| injected | expected | recovered | error |
+|---|---|---|---|
+| −3000 ms | 6000 | 6000 | **0** |
+| −1000 ms | 8000 | 8000 | **0** |
+| +1000 ms | 10000 | 10000 | **0** |
+| +3000 ms | 12000 | 12000 | **0** |
+
+**Perfect recovery, four for four, from a method measuring nothing.** Had this been reported without
+the prominence figure and the range test beside it, it would have read as a clean validation of target
+1 — the exact shape of every other absence-failure in this work, and the most convincing one yet
+because the numbers are flawless.
+
+The discriminators that do work, both now asserted in `--self-test`: **peak prominence** against a
+posture-only null control, and **invariance of the peak to the search range**.
+
 ## 5 · Smaller items, recorded so they are not rediscovered
 
 - **Beat truth.** Phase 3 cannot separate "the corrector is biased" from "the raw train carries ~22 %
@@ -121,7 +144,14 @@ session and the analysis to another, and let the second report before seeing the
 ## Done when
 
 - [ ] An aperiodic cross-device marker exists in at least one captured night, and target 1 is
-      evaluated against it.
+      evaluated against it. **TESTED AND FAILED 2026-08-15 — the shortcut does not exist.** §2.1 assumed
+      this needs a deliberate marker; I proposed nature already supplies one, since turning over in bed
+      produces a transient in both devices' ACC at the same instant. Measured on the real paired night
+      (H10 chest vs Verity arm, 4.75 h): **no usable shared transient.** Peak prominence 0.0017–0.018
+      against a posture-only NULL control of 0.002 — indistinguishable — and the peak **rides the search
+      boundary** (3850 ms at ±4 s, 5750 at ±6 s, 9000 at ±9 s), which is what an argmax of noise does
+      and a real lock never does. `tools/aperiodic-offset.mjs` is kept as the instrument that *would*
+      detect a deliberate marker. The brief's original claim stands.
 - [ ] Adapter assignment is written into night metadata and held fixed across a capture set.
 - [x] **DONE 2026-08-15** — `integrator-dsp.js` (#1274) and `tools/pat-host-offset.mjs` (#1278) read
       `deviceDrawn`; `ecgdex-dsp.js` and `pat-gate.js` deliberately do not, on measured zero exposure
