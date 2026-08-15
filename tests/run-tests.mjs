@@ -108,6 +108,32 @@ const SHARD = (() => {
 
 const SHOW_TIMINGS = process.argv.slice(2).some((s) => /^--?timings?$/i.test(s)) || !!process.env.DEX_TIMINGS;
 
+/* --group-index=N[,M…] — execute EXACTLY these declaration indices, nothing else.
+   `--group=` selects by title/tag substring-or-regex, which is right for a human and wrong for a
+   machine: titles here contain regex metacharacters and commas (the filter's own OR separator), so
+   a tool that enumerates groups and feeds them back cannot address one unambiguously. Indices are
+   what `--list` already emits and what the shard planner already partitions on, so this reuses
+   `dexShardSelector` rather than adding a second selection mechanism.
+   Built for tools/per-group-coverage.mjs, which must run each group in isolation to learn which
+   lines it executes — the per-test coverage MUTATION-PROGRAM-FOLLOWUPS §6 names as the prerequisite
+   for test selection, and which tools/mutate.mjs §INCREMENTAL SWEEPS names as the reason a SURVIVED
+   verdict cannot be soundly reused. */
+const GROUP_INDICES = (() => {
+  const a = process.argv.slice(2);
+  const hit = a.find((s) => /^--?group-index(=|$)/i.test(s));
+  if (!hit) return null;
+  const raw = hit.includes('=') ? hit.split('=').slice(1).join('=') : a[a.indexOf(hit) + 1] || '';
+  const idx = String(raw)
+    .split(',')
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isInteger(n) && n >= 0);
+  if (!idx.length) {
+    console.error(`✗ bad --group-index "${raw}" — want one or more 0-based integers, e.g. 12 or 12,13`);
+    process.exit(2);
+  }
+  return new Set(idx);
+})();
+
 /* --quiet / -q (D3 · EFFICIENCY-AUDIT-FINDINGS-2026-07-12): collapse the full per-assertion tree —
    print a header + assertions ONLY for failing groups, and always a trailing FAILURES recap. A red
    run otherwise emits ~169 KB and names the failure once, mid-log, so `| tail` yields nothing
@@ -1638,6 +1664,8 @@ async function main() {
     groupFilter: GROUP_FILTER || null,
     listOnly: LIST_ONLY
   };
+  // Exact index selection. Set before the SHARD block so the two never both apply.
+  if (GROUP_INDICES) env.shardIndices = GROUP_INDICES;
 
   const { runDexTests, auditSkips } = require('./dex-tests.js');
 
