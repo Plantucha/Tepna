@@ -7913,6 +7913,23 @@
       var claims = C.claims || {};
       T.ok('CLAUDE.md carries at least one CLAIM marker', Object.keys(claims).length > 0, 'found: ' + (Object.keys(claims).join(', ') || 'none — a CLAIM was removed, or the marker syntax drifted'));
 
+      /* A CLAIM must be an INTEGER, and a non-integer must RED rather than vanish. The parser used to
+         read `(\d+)`, which on `CLAIM x = 5.5` returned 5 — a silently truncated claim that could then
+         pass a check it should fail, in the gate whose whole job is stopping CLAUDE.md from lying.
+         Tightening the pattern to refuse a decimal would only trade truncation for SILENCE: the claim
+         stops being parsed, and a claim nobody checks is the same defect one level up. So the parser
+         matches the decimal and this assertion names it.
+         Found by a peer's caution about a different extractor — `-0.02 over 37 paired nights` yielding
+         37 — which does NOT apply here (this one never scans prose for a bare number; it requires
+         `CLAIM <ident> = `). Checking rather than assuming is what turned up the variant that does. */
+      T.ok(
+        'every CLAIM value is an integer (a decimal is REJECTED, not silently truncated)',
+        (C.claimsMalformed || []).length === 0,
+        (C.claimsMalformed || []).length
+          ? 'malformed: ' + C.claimsMalformed.join('; ') + ' — a CLAIM counts things, so it is a whole number; fix the marker in CLAUDE.md'
+          : 'all ' + Object.keys(claims).length + ' integral'
+      );
+
       /* Every app bundle must be present, or a "0 bundles inline clock.js" reading would pass a
          CLAIM of 0 while really meaning "nothing was measured" — unknown must not read as a count. */
       T.ok('every app bundle was readable (an absent bundle cannot be measured)', (C.missingBundles || []).length === 0, 'missing: ' + ((C.missingBundles || []).join(', ') || 'none'));

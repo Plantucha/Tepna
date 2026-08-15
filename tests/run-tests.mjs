@@ -895,9 +895,21 @@ function readClaudeMdClaims() {
   if (!existsSync(cm)) return undefined;
   const claudeMd = readFileSync(cm, 'utf8');
 
+  /* The number pattern is DELIBERATELY permissive, and the gate rejects what it should not have
+     matched. `(\d+)` alone silently TRUNCATES: `CLAIM x = 5.5` yielded 5, so a fractional claim could
+     pass a check it should fail — in the gate whose whole job is stopping CLAUDE.md from lying.
+     Tightening to `(?!\.\d)` fixes the truncation and replaces it with SILENCE: the claim stops being
+     parsed at all, and a claim nobody checks is the same defect one level up. So it matches the
+     decimal, and `claimsMalformed` carries it to an assertion that reds by name. */
   const claims = {};
-  for (const m of claudeMd.matchAll(/CLAIM\s+([A-Za-z][A-Za-z0-9_]*)\s*=\s*(\d+)/g)) {
-    claims[m[1]] = Number(m[2]);
+  const claimsMalformed = [];
+  for (const m of claudeMd.matchAll(/CLAIM\s+([A-Za-z][A-Za-z0-9_]*)\s*=\s*(-?\d+(?:\.\d+)?)/g)) {
+    const raw = m[2];
+    if (!/^\d+$/.test(raw)) {
+      claimsMalformed.push(m[1] + ' = ' + raw);
+      continue;
+    }
+    claims[m[1]] = Number(raw);
   }
 
   /* Read from the SHIPPED bundle, not from source or a builder list: the question this claim answers is
@@ -939,7 +951,7 @@ function readClaudeMdClaims() {
        collapse to 0, which would read as "the builder owns nothing" and pass a wrong CLAIM. */
   }
 
-  return { claudeMd, claims, clockBundles, missingBundles, appBundles: APP_BUNDLES, ownedBundles, orchestrators };
+  return { claudeMd, claims, claimsMalformed, clockBundles, missingBundles, appBundles: APP_BUNDLES, ownedBundles, orchestrators };
 }
 
 /* N1 (PRIVACY-SECURITY-AUDIT-FINDINGS-2026-07-13): the standalone, unbundled analysis/research pages +
