@@ -801,6 +801,73 @@ function readSrcHtml() {
   return out;
 }
 
+/* CLAUDE.md wins on every conflict and is the first thing a session reads — so a FALSE claim in it
+   misleads more reliably than a bug does. Nothing checked its factual assertions, and one had rotted:
+   it said `clock.js` is "inlined by the owned bundler into every bundle" when three of the eight app
+   bundles do not carry it at all, leaving `DexClock` undefined there. Nothing in CI could see it.
+
+   The gatable subset is narrow ON PURPOSE. Auto-extracting every path CLAUDE.md names and asserting it
+   exists was measured first and REJECTED: 11 of 75 read as "missing", nearly all legitimately so
+   (ledgers deliberately retired into `provenance/` fragments, corpus suffixes like `_ECG.txt`, the
+   `Foo.html` placeholder, two `*-list.txt` files killed in July) — ~15 % false positives, which is the
+   noisy red that gets routed around rather than read.
+
+   So claims are OPT-IN and carry their own value: CLAUDE.md writes `CLAIM <name> = <number>` inline and
+   this reads the tree for the same number. Prose stays prose; only the number is load-bearing, so the
+   gate cannot drift into policing wording. Node-lane only (fs reads) — the browser lane has no readdir,
+   so `env.claudeMdClaims` is undefined there and the group SKIPs, mirroring docs-ledger/release-ledger. */
+function readClaudeMdClaims() {
+  const cm = join(ROOT, 'CLAUDE.md');
+  if (!existsSync(cm)) return undefined;
+  const claudeMd = readFileSync(cm, 'utf8');
+
+  const claims = {};
+  for (const m of claudeMd.matchAll(/CLAIM\s+([A-Za-z][A-Za-z0-9_]*)\s*=\s*(\d+)/g)) {
+    claims[m[1]] = Number(m[2]);
+  }
+
+  /* Read from the SHIPPED bundle, not from source or a builder list: the question this claim answers is
+     what a user's browser actually gets. `data-inline-src` is the owned bundler's marker. */
+  const APP_BUNDLES = ['OxyDex.html', 'PulseDex.html', 'HRVDex.html', 'ECGDex.html', 'PpgDex.html', 'GlucoDex.html', 'CPAPDex.html', 'MotionDex.html'];
+  const clockBundles = [];
+  const missingBundles = [];
+  for (const b of APP_BUNDLES) {
+    const p = join(ROOT, b);
+    if (!existsSync(p)) {
+      missingBundles.push(b);
+      continue;
+    }
+    if (/data-inline-src="clock\.js"/.test(readFileSync(p, 'utf8'))) clockBundles.push(b);
+  }
+
+  // What the builder says it owns, read FROM the builder rather than restated here.
+  let ownedBundles = null,
+    orchestrators = null;
+  try {
+    const src = readFileSync(join(ROOT, 'tools', 'build.mjs'), 'utf8');
+    const om = src.match(/ORCHESTRATORS\s*=\s*\[([^\]]*)\]/);
+    if (om)
+      orchestrators = om[1]
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean).length;
+    const mg = readFileSync(join(ROOT, 'manifest-gate.js'), 'utf8');
+    const bm = mg.match(/MANIFEST_BUNDLES\s*=\s*\[([^\]]*)\]/);
+    if (bm && orchestrators != null) {
+      ownedBundles =
+        bm[1]
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean).length + orchestrators;
+    }
+  } catch {
+    /* unreadable ⇒ leave null. `null` means UNKNOWN and the assertion reports that; it must never
+       collapse to 0, which would read as "the builder owns nothing" and pass a wrong CLAIM. */
+  }
+
+  return { claudeMd, claims, clockBundles, missingBundles, appBundles: APP_BUNDLES, ownedBundles, orchestrators };
+}
+
 /* N1 (PRIVACY-SECURITY-AUDIT-FINDINGS-2026-07-13): the standalone, unbundled analysis/research pages +
    the landing page are same-origin surfaces that ingest recordings and persist checkpoints. They must
    carry the CSP egress/injection backstop the 10 owned bundles do. Node-lane only (fs read); the browser
@@ -1667,6 +1734,7 @@ async function main() {
     hosts: readHosts(),
     srcHtml: readSrcHtml(),
     nonBundleCsp: readNonBundleCsp(),
+    claudeMdClaims: readClaudeMdClaims(),
     analysisTools: readAnalysisTools(),
     bundleCsp: readBundleCsp(),
     manifests: readManifests(),

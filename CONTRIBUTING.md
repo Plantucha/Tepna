@@ -128,7 +128,7 @@ fixture whose output the change moved.
 >
 > | ran locally | CI actually runs | what the weaker one missed |
 > |---|---|---|
-> | `npm run lint` | `biome ci` | formatting — `lint` does not check it, so a clean-locally file reds CI |
+> | ~~`npm run lint`~~ **(FIXED 2026-08-15)** | `biome ci` | formatting — `lint` did not check it, so a clean-locally file reds CI. **`npm run lint` IS `biome ci` now**; the old lint-only form survives as `npm run lint:only`. Row kept because the *shape* is the lesson, not the instance |
 > | `pytest` (capture-host) | `pytest --cov …` | coverage entirely; the suite passes far below the gate |
 > | `pytest --cov` | `pytest --cov --cov-branch --cov-fail-under=100` | partial BRANCHES, and nothing enforced — reported `EXIT=0` at the same 99 % CI failed on |
 >
@@ -227,7 +227,8 @@ scripts, and `tsc`/ESLint self-install via `npx -y` on demand. The **one** pinne
 | `npm run check` | typecheck → lint → test → build-core → build:check → verify:manifest | the full Node-lane floor — run before you call it done |
 | `npm test` | `node tests/run-tests.mjs` | after any `*-dsp.js` / `*-cross.js` / `*-app.js` change |
 | `npm run typecheck` | `tsc --noEmit --checkJs` (pinned) | after touching a `tsconfig`-scoped module |
-| `npm run lint` | Biome linter over `*.js`/`*.mjs` (the control-flow / dead-code floor) | the lint gate (ESLint retired — Phase 3 §B2) |
+| `npm run lint` | Biome `ci` over `*.js`/`*.mjs` — **format + the control-flow / dead-code floor**, check-only | the lint gate, and what `npm run check` chains. **Changed 2026-08-15**: it was `biome lint` (no format), so a file could pass here and red the required `biome` check. Whole-tree, because `--changed` misses a new file both untracked *and* staged |
+| `npm run lint:only` | Biome `lint` alone — no format | the retired behaviour, kept for isolating a lint error from a format one |
 | `npm run format` | Biome `format --write` (pass paths) | **on-touch only** — a NET-NEW file, or the one file you are already re-bundling (never the tree; see §B2 below) |
 | `npm run format:changed` | Biome `ci --changed` over changed `*.js`/`*.mjs` — format **+ lint floor** (check-only) | what CI (`format.yml`) enforces — validate before pushing |
 | `npm run build` / `build:app -- <Name>` / `build:check` | `tools/build.mjs --all` / `--app` / `--check` | re-bundle owned bundles / drift guard |

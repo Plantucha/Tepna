@@ -7785,6 +7785,77 @@
       });
     });
 
+    /* ════ 8d¹ · CLAUDE.md CLAIMS — the authoritative file must not state facts the tree contradicts ════
+       CLAUDE.md wins on every conflict and is the first thing a session reads, so a false claim in it
+       misleads more reliably than a bug: nothing downstream disagrees with it. Nothing checked it, and
+       one claim had rotted — it said `clock.js` is "inlined by the owned bundler into every bundle"
+       while three of eight app bundles do not carry it, leaving `DexClock` UNDEFINED there.
+
+       ⚠️ THIS GATE READS NUMBERS, NOT PROSE, AND THAT LIMIT IS THE DESIGN. Two measurements set it:
+         · asserting every path CLAUDE.md names exists ⇒ 11 of 75 "missing", nearly all legitimate
+           (retired ledgers, corpus suffixes, the `Foo.html` placeholder) — ~15 % false positives.
+         · grepping for banned strings ⇒ the three `@font-face` hits in the tree are all inside COMMENTS
+           SAYING "no @font-face". A prose gate reports the documentation of a rule as a violation of it.
+       So CLAUDE.md opts a claim in by writing `CLAIM <name> = <number>`, and this checks that number.
+       A claim nobody marks is simply not gated — under-coverage, never a false red.
+
+       Node-lane only (env.claudeMdClaims is fs-read); the browser lane SKIPs, mirroring docs-ledger. */
+    group('CLAUDE.md claims match the tree (CLAIM markers)', 'docs · claude-md · claims', function (T) {
+      var C = env.claudeMdClaims;
+      if (!C) {
+        T.skip('env.claudeMdClaims provided to the runner', 'Node-lane only — wire env.claudeMdClaims (run-tests.mjs readClaudeMdClaims)');
+        return;
+      }
+      var claims = C.claims || {};
+      T.ok('CLAUDE.md carries at least one CLAIM marker', Object.keys(claims).length > 0, 'found: ' + (Object.keys(claims).join(', ') || 'none — a CLAIM was removed, or the marker syntax drifted'));
+
+      /* Every app bundle must be present, or a "0 bundles inline clock.js" reading would pass a
+         CLAIM of 0 while really meaning "nothing was measured" — unknown must not read as a count. */
+      T.ok('every app bundle was readable (an absent bundle cannot be measured)', (C.missingBundles || []).length === 0, 'missing: ' + ((C.missingBundles || []).join(', ') || 'none'));
+
+      // ── clockBundles ────────────────────────────────────────────────────────────────────────
+      if (claims.clockBundles == null) {
+        T.ok('CLAIM clockBundles is declared in CLAUDE.md', false, 'the §✅ parseTimestamp bullet must carry `CLAIM clockBundles = <n>`');
+      } else {
+        var got = (C.clockBundles || []).length;
+        T.ok(
+          'CLAIM clockBundles = ' + claims.clockBundles + ' matches the shipped bundles',
+          got === claims.clockBundles,
+          got +
+            ' of ' +
+            (C.appBundles || []).length +
+            ' inline clock.js: ' +
+            (C.clockBundles || []).join(', ') +
+            ' — if this moved, a bundle gained or lost the spine; update BOTH the bundle set and the CLAIM'
+        );
+        /* The specific error this gate was built for: "every bundle" is the claim that was false, and a
+           bare count alone would not catch someone re-wording it back. */
+        T.ok(
+          'CLAUDE.md does not claim clock.js reaches EVERY bundle',
+          !/clock\.js[^\n]*\n?[^\n]*inlined by the owned bundler into every bundle/.test(C.claudeMd || ''),
+          'three app bundles ship without it; DexClock is undefined there, so "every bundle" is not a rounding error'
+        );
+      }
+
+      // ── ownedBundles / orchestrators, read from the builder itself ──────────────────────────
+      [
+        ['ownedBundles', C.ownedBundles, 'tools/build.mjs MANIFEST_BUNDLES + ORCHESTRATORS'],
+        ['orchestrators', C.orchestrators, 'tools/build.mjs ORCHESTRATORS']
+      ].forEach(function (row) {
+        var name = row[0],
+          actual = row[1],
+          src = row[2];
+        if (claims[name] == null) return; // not opted in — silence is under-coverage, not a red
+        if (actual == null) {
+          // UNKNOWN. Deliberately a FAILURE, not a pass: a gate that cannot read its source must not
+          // certify the claim it was asked to check (CLAUDE.md §4b — success about what it never saw).
+          T.ok('CLAIM ' + name + ' could be measured', false, 'could not read ' + src + ' — the claim is UNVERIFIED, which is not the same as correct');
+          return;
+        }
+        T.ok('CLAIM ' + name + ' = ' + claims[name] + ' matches ' + src, actual === claims[name], 'tree says ' + actual + ', CLAUDE.md says ' + claims[name] + ' — update whichever is wrong');
+      });
+    });
+
     /* ════ 8d² · SECURITY — CSP on the UNBUNDLED analysis/landing pages (N1 · PRIVACY-SECURITY-AUDIT-2026-07-13) ════
        The 10 owned bundles carry a meta-CSP; the standalone analysis/research pages + index.html did not,
        though they ingest recordings and persist checkpoints (which dex-forget already erases). This leg
@@ -20175,6 +20246,49 @@
 
       // A real conflict is the one case a human must resolve — never auto-updated around.
       T.eq('DIRTY stops and points at the rebase rules', d(OPEN('DIRTY', { pass: 22 })).action, 'fail');
+      /* ── AN ADVISORY RED IS NOT A FAILURE (2026-08-15) ─────────────────────────────────────
+         Measured on #1285: `mutation (diff-scoped)` failed, land-pr printed `fail: 1 check(s)
+         failed` and exited 1, and GitHub's auto-merge landed the PR minutes later unaided. The
+         operator is then sent to fix a PR that needed nothing.
+
+         This is the SAME asymmetry as the pending branch: reasoning about a check's STATE without
+         asking whether it can block the merge. `mutation` is advisory by design so that a survivor
+         cannot force someone to delete a `# pragma: no cover` to go green. */
+      var REQ = ['test', 'biome', 'typecheck'];
+      /* Mirrors what `snapshot()` builds, including the two DERIVED counts — `decide` reads those,
+         not the raw name lists, so a helper that omits them tests a shape the tool never sees. */
+      var snapFail = function (failedNames, required) {
+        var reqSet = {};
+        for (var i = 0; i < required.length; i++) reqSet[required[i]] = 1;
+        var rf = required.length
+          ? failedNames.filter(function (n) {
+              return reqSet[n];
+            }).length
+          : null;
+        return {
+          state: 'OPEN',
+          mergeState: 'BLOCKED',
+          readable: true,
+          buckets: { pass: 20, fail: failedNames.length },
+          reported: REQ.concat(failedNames),
+          failedNames: failedNames,
+          requiredFailed: rf,
+          requiredPending: 0,
+          required: required
+        };
+      };
+      T.eq('a failing REQUIRED check stops the run', d(snapFail(['test'], REQ)).action, 'fail');
+      T.eq('…and names it, so the operator knows what to fix', /required check\(s\) failed: test/.test(d(snapFail(['test'], REQ)).why), true);
+      T.ok('an ADVISORY red does NOT stop the run', d(snapFail(['mutation (diff-scoped)'], REQ)).action !== 'fail', 'advisory red still terminal — #1285 strands again');
+      T.ok(
+        '…even alongside a BEHIND branch, which is the real action needed',
+        ['update', 'wait', 'merge'].indexOf(d(snapFail(['mutation (diff-scoped)'], REQ)).action) >= 0,
+        d(snapFail(['mutation (diff-scoped)'], REQ)).action
+      );
+      T.eq('a MIX of required and advisory still stops', d(snapFail(['mutation (diff-scoped)', 'test'], REQ)).action, 'fail');
+      /* FAIL-CLOSED: an unreadable ruleset must not silently downgrade a real red to advisory. */
+      T.eq('ruleset unreadable ⇒ EVERY failure is blocking', d(snapFail(['mutation (diff-scoped)'], [])).action, 'fail');
+      T.eq('…and says why, so the degraded mode is visible', /required set unknown/.test(d(snapFail(['mutation (diff-scoped)'], [])).why), true);
     });
 
     group('Rebase-safe — the generated/source classifier fails CLOSED (REBASE-SAFE)', 'tools · rebase-safe', function (T) {
@@ -39236,10 +39350,54 @@
         offenders.length === 0,
         offenders.length ? 'must call resolveCorpus(): ' + JSON.stringify(offenders) : 'all 9 go through the helper'
       );
+      /* The consumer must IMPORT a helper, not merely mention one. The earlier form tested the raw
+         source, so a helper named only in a comment satisfied it — the hollow-scan failure this group's
+         own anti-vacuity legs exist to prevent. Either export is the ONE helper: `resolveCorpus` is a
+         front for `corpusSearch` (asserted below), so there is still exactly one search. */
+      var reImport = /import\s*\{[^}]*\b(?:resolveCorpus|corpusSearch)\b[^}]*\}\s*from\s*['"][^'"]*regen-goldens-core\.mjs['"]/;
       var noImport = CONSUMERS.filter(function (f) {
-        return !/resolveCorpus/.test(String(env.sources[f]));
+        return !reImport.test(String(env.sources[f]));
       });
-      T.ok('every consumer names resolveCorpus', noImport.length === 0, JSON.stringify(noImport));
+      T.ok('every consumer IMPORTS the helper from the core (not just names it)', noImport.length === 0, JSON.stringify(noImport));
+      /* FIXTURE-CORPUS-REACHABILITY-2026-08-09 — a worktree holds the tracked fifth of uploads/ and none
+         of the 435 gitignored recordings, so assuming `<repo>/uploads` made §👥.1's mandated isolation and
+         §🔏's mandated re-verification mutually exclusive. The resolver SEARCHES, and the order is the
+         contract: an explicit override first, then the primary checkout, then this one. */
+      T.ok('ANTI-VACUITY · corpusSearch is exported from the core', /export function corpusSearch\s*\(/.test(core), 'no `export function corpusSearch(` — the order scan below would be hollow');
+      T.ok(
+        'resolveCorpus is a front for corpusSearch, so there is exactly ONE search',
+        /resolveCorpus\s*\(repo\)\s*\{[\s\S]{0,240}?corpusSearch\(repo\)/.test(core),
+        'resolveCorpus must delegate to corpusSearch rather than re-deriving the path'
+      );
+      var searchBody = (String(core).match(/export function corpusSearch\s*\(repo\)\s*\{[\s\S]*?\n\}/) || [''])[0];
+      T.ok('ANTI-VACUITY · the corpusSearch body was captured', searchBody.length > 400, 'len=' + searchBody.length);
+      var iEnv = searchBody.indexOf('process.env.DEX_UPLOADS');
+      var iCommon = searchBody.indexOf('--git-common-dir');
+      var iRepo = searchBody.lastIndexOf("path.join(repo, 'uploads')");
+      T.ok(
+        'the search order is $DEX_UPLOADS → primary checkout → this checkout',
+        iEnv >= 0 && iCommon > iEnv && iRepo > iCommon,
+        'DEX_UPLOADS@' + iEnv + ' git-common-dir@' + iCommon + ' repo@' + iRepo
+      );
+      T.ok(
+        'the primary-checkout candidate is the PARENT of the common git dir, not the git dir itself',
+        /path\.join\(path\.dirname\(common\), 'uploads'\)/.test(searchBody),
+        '`--git-common-dir` names <primary>/.git; the corpus is its sibling'
+      );
+      T.ok(
+        'a candidate that cannot be resolved is SKIPPED, never guessed',
+        /catch\s*\{[\s\S]{0,120}?common = null/.test(searchBody),
+        'outside git the primary-checkout candidate must simply not exist'
+      );
+      /* §2 — the expensive part was the MESSAGE: "absent" read as a fact about the machine while being a
+         fact about the checkout. A refusal must SHOW where it looked. */
+      var vf = String(env.sources['tools/verify-fixtures.mjs']);
+      T.ok('verify-fixtures shows the search when it refuses', /formatCorpusSearch\(SEARCH\)/.test(vf), 'the refusal branch must print every candidate and its verdict');
+      T.ok(
+        'verify-fixtures no longer prints a placeholder corpus path',
+        !/DEX_UPLOADS=\/path\/to\/uploads/.test(vf),
+        '`/path/to/uploads` told a reader standing in a checkout that HAS uploads/ nothing they could act on'
+      );
       // ── CORPUS ≠ FIXTURES: the write side must stay in THIS checkout ──────────────────────────
       T.ok(
         'the core writes fixtures to fixturesDir, never to the redirected corpus',

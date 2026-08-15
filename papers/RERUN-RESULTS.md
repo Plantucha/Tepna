@@ -1,5 +1,127 @@
 # Pilot re-run results (≥1k synthetic patients) — June 2026
 
+## CONVERGED — sensor-trio-nights Table 1 ±0.15, closed on the GPU at 5,000,000 trials/cell (2026-08-15)
+
+**A column that shipped flagged "indicative" for want of compute is now settled to exhaustion. The
+answer moves, and a companion adequacy claim in the same paper turns out to have been false.**
+
+- **The published column** was 720 Monte-Carlo trials/cell and read **5 / 5 / 5** (O2Ring / H10 /
+  Verity) for the minimum trio-windows to reach a ±0.15 bpm CI half-width. The paper flagged it as
+  unconverged and predicted **3 / 5 / 3**; that prediction is confirmed.
+- **The convergence ladder**, WebGPU lane, `tools/trio-power-headless.mjs`, adapter `amd/rdna-3`:
+
+  | trials/cell | half-width at N=3 (O2 / H10 / Ver) | minN (±0.15) | wall time |
+  |---|---|---|---|
+  | 720 *(as published)* | not reported | 5 / 5 / 5 | — |
+  | 20,000 | 0.1421 / 0.1549 / 0.1441 | **3 / 5 / 3** | 2.4 s |
+  | 50,000 | 0.1433 / 0.1539 / 0.1448 | 3 / 5 / 3 | 2.5 s |
+  | 100,000 | 0.1441 / 0.1540 / 0.1443 | 3 / 5 / 3 | 4 s |
+  | 1,000,000 | 0.1435 / 0.1538 / 0.1450 | 3 / 5 / 3 | 26.3 s |
+  | **5,000,000** | **0.1434 / 0.1537 / 0.1452** | **3 / 5 / 3** | **129 s** |
+
+  The last two rows agree to **0.0002 bpm** on every cell, so the Monte-Carlo term is exhausted. A
+  repeat at a fixed trial count reproduces bit-for-bit (the sim is deterministically seeded).
+- **The H10's `5` is a grid artifact, not a real gap.** Its half-width at N=3 settles at 0.154 —
+  missing the target by 2.5 % — with the next grid point at 5 (0.123). Interpolating the ≈1/√N trend
+  puts the crossing at **N ≈ 3.15**. So all three corners reach ±0.15 at roughly three windows, and
+  quoting `minN` alone off the {1,2,3,5,8,12,20} grid overstates the ECG corner's cost by ~1.6×.
+  **The residual uncertainty is now the grid, not the Monte-Carlo** — the fix is more grid points, not
+  more trials, and the 5 M run is reported to establish that ceiling rather than to improve the estimate.
+- **FALSIFIED — the paper's own adequacy claim.** A provenance row asserted that at 720 trials/cell
+  "each σ̂, bias and CI-half is pinned to its displayed precision (MC error on a half-width ≈ ±0.02
+  bpm), so the window thresholds above are the estimator's answer, not sampling noise." An MC error of
+  ±0.02 is **larger than the 0.004–0.005 margins that decide these cells**, so 720 trials could not
+  have resolved them — the claim was internally checkable against its own stated error bar and was
+  never checked. The ±0.5 and ±0.25 thresholds sit far from their boundaries and *are* safe at 720.
+- **Still owed:** Table 5's per-window ±0.15 column is a 720-trial figure at an untested margin, and is
+  flagged in place rather than quoted.
+- **Why it stayed open, which is the transferable part.** Nothing analytic blocked this. 20,000
+  trials/cell is **33 m 46 s** on the CPU worker pool and **2.4 s** on the GPU lane (~840×); at 5 M the
+  comparison is **129 s against an extrapolated ~5.9 days**. The convergence question was not hard, it
+  was unaffordable — and an unaffordable check reads exactly like a settled one once the caveat ages.
+  Reaching the discrete adapter matters too: with `--enable-unsafe-webgpu` alone the run silently lands
+  on *google/swiftshader*, a software rasteriser that reports `lane: webgpu` while running no faster
+  than the CPU pool, so the tool asserts the adapter and the runs above record `amd/rdna-3`.
+
+## CORPUS RE-RUN — the full 52-night sweep, which withdraws part of the correction directly below (2026-08-15, later)
+
+**The correction below was measured on 24 nights. Re-run on the full committed corpus it survives in
+part and is withdrawn in part — recorded here rather than edited away, because the failure mode is the
+one this ledger exists to catch: a real effect read off a subset too small to carry it.**
+
+- **Corpus.** 55 committed trio nights (up from 40), 52 with usable three-way windows, **903,265
+  simultaneous seconds** — 3.1× the 26 nights / 291,561 s behind the published headline σ. Median
+  per-night window 17,260 s against the paper's ≈11,214 s. Swept by the same
+  `tools/tch-window-sensitivity.mjs`, so the comparison is tool-identical.
+- **1 h → whole night, three independent corpora:**
+
+  | corner | full committed (52 n) | paper's own nights (24 n) | box corpus (17 n) |
+  |---|---|---|---|
+  | O2Ring | **+30 %** | +30 % | +28 % |
+  | H10    | **+45 %** | +51 % | +26 % |
+  | Verity | **+24 %** | +4 %  | +49 % |
+
+- **WITHDRAWN — "the corners reorder".** The dramatic Verity contrast (+49 % box vs +4 % here) that the
+  entry below reads as a reorder is mostly **small-sample**: at 52 nights Verity is +24 %, between the
+  two. What survives is narrower and better founded — the **O2Ring transfers** (+28 / +30 / +30 % across
+  all three), the **H10 genuinely differs by capture path** (+26 % box vs +45–51 % on both phone
+  samples), and the **Verity is unstable across samples**, which is itself the finding since it is the
+  corner a practitioner would most want to borrow.
+- **STRENGTHENED — non-monotonicity.** The entry below names one non-monotonic corner. On the full corpus
+  there are **two**: Verity runs 0.58 → 0.54 → 0.56 → 0.67 → 0.73 → 0.67 → 0.67 → 0.72 (peaking at
+  11.2 ks — the paper's own window length — then falling back), and the H10 dips 0.78 → 0.74 before
+  rising to 1.13. Only the O2Ring is monotonic throughout.
+- **NEW — the two analysis paths agree on one corner, once window length is controlled.** Truncating the
+  52-night node-export sweep to the paper's own 11,214 s window gives O2Ring **2.44** [2.28–2.77] ·
+  H10 **0.93** [0.68–1.13] · Verity **0.72** [0.47–0.91] against the published 2.41 / 1.28 / 1.42. The
+  O2Ring corner **reproduces across pipelines** (within 1.2 %, published value inside the CI); the other
+  two do not, each falling outside its interval with the node-export path reporting a quieter corner. So
+  the blanket "the paths disagree in absolute terms" was too coarse — part of that gap was a
+  window-length effect wearing a pipeline-effect label. A per-corner reconciliation is now owed.
+- **NEW — corpus-scale clock closure, 52 nights.** Of the nights carrying an H10↔Verity pairwise rate,
+  **17 close consistently (32.7 %) · 10 fail closure (19.2 %) · 25 are unclosed for want of a third
+  source (48.1 %)** — **67 % are not measurements**, and the three populations are indistinguishable
+  from their ppm values and night lengths alone. **Pooling inverts the sign:** all-52 median **+5.0 ppm**
+  vs closed-only **−3.0 ppm** (IQR −23…+6). Closure residual median 5.9, max 55.8 ppm; two nights
+  (07-04, 07-11) additionally fail their own beat-correspondence chance control. Written into
+  `wearable-clock-drift.html` §3.6 and cross-referenced from `dead-ends.html` wall 2.7.
+- **The general lesson.** The entry below was right that an unavailability claim is an empirical claim.
+  This entry adds the sibling: **a per-corner magnitude read off two dozen nights is an empirical claim
+  about sample size**, and the check is the same — re-run it on everything you have before publishing the
+  contrast. Both errors were cheap to find and were found only after the text had shipped.
+
+## CORRECTION — sigma-no-reference limitation (x), window sensitivity on its own corpus (2026-08-15)
+
+**A published limitation excused itself with a fact that was never checked, and the fact was wrong.**
+No headline σ changes; what changes is that a hedge becomes a measurement, and a second published
+statement does not survive the wider test.
+
+- **The false claim.** Limitation (x) read *"the sensitivity has not been characterised on this paper's
+  own corpus, whose raw capture is no longer available to re-derive."* The raw capture **is** available —
+  the phone-captured tree these nights were logged into is still on disk, with H10 ECG, Verity PPG and
+  O2Ring present for every night the section names. Nothing had gone missing; the unavailability was
+  inferred and then written as fact.
+- **Now measured**, on the paper's own 24 three-way-eligible nights, re-folded by `tools/trio-batch.mjs`
+  and swept by `tools/tch-window-sensitivity.mjs`, 1 h → whole night:
+  **O2Ring 1.98 → 2.57 (+30 %) · H10 0.61 → 0.92 (+51 %) · Verity 0.45 → 0.47 (+4 %)**.
+- **The surviving caveat was right, and understated.** It warned the *magnitude* might not transfer. The
+  magnitudes do not merely shift, they **reorder**: Verity is the most window-sensitive corner on the
+  box corpus (+49 %) and the **least** on this one (+4 %); H10 goes the other way (+26 % → +51 %). Only
+  the O2Ring transfers (+28 % → +30 %).
+- **"A monotonic rise in every corner" is corpus-specific, not a property of the phenomenon.** O2Ring and
+  H10 are monotonic here; Verity runs 0.45 → 0.44 → 0.48 → 0.47 → 0.49 → 0.51 → 0.53 → 0.47, peaking at
+  18 ks and falling back at whole-night.
+- **Scope, stated so it is not over-read.** The sweep runs the **node-export** path, not the raw-ingest
+  fused-weight hat behind the headline σ (1.28 / 1.42 / 2.41), and those two paths are already known to
+  disagree in absolute terms (`tools/tch-fused-corpus.mjs`). Only the *relative* window-length
+  sensitivity is claimed comparable. The raw-ingest sweep on these nights is now possible and remains
+  undone.
+- **The general lesson**, which is the reason this is recorded rather than quietly fixed: an
+  unavailability claim is an empirical claim about a filesystem, and it is cheaper to check than to
+  write. This one survived into a published limitation and was doing load-bearing work — it excused the
+  analysis from being run.
+
+
 ## CORRECTION — wearable-clock-drift + dead-ends 2.7, real-data reanalysis (2026-07-29)
 
 **The largest conclusion change in this suite's history, and the only one that overturned a paper's title.**

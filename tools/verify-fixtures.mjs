@@ -32,9 +32,13 @@
  *
  *   node tools/verify-fixtures.mjs            # verify + stamp verifiedUnder
  *   node tools/verify-fixtures.mjs --check    # report UNVERIFIED fixtures, write nothing (CI-safe)
+ *
+ * WHERE IT LOOKS. The corpus is 435 gitignored recordings; a worktree gets the tracked fifth and none
+ * of them, so this searches $DEX_UPLOADS → the PRIMARY checkout's uploads/ → this checkout's, and
+ * prints the search on refusal. docs/CORPUS-LOCATIONS.md lists the four places the data actually is.
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 import fs from 'node:fs';
-import { resolveCorpus } from './regen-goldens-core.mjs';
+import { corpusSearch, formatCorpusSearch } from './regen-goldens-core.mjs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -47,8 +51,12 @@ const CHECK = process.argv.includes('--check');
 // (keeping the fragment objects as write targets) and only rewrites the fragment(s) it stamps.
 const PROV_DIR = path.join(REPO, 'provenance');
 // ONE resolver, shared with the regen family so the two halves of the fixture workflow cannot look
-// in different places again (REGEN-CORPUS-PATH-FOLLOWUPS §3.1).
-const UPLOADS = resolveCorpus(REPO);
+// in different places again (REGEN-CORPUS-PATH-FOLLOWUPS §3.1). It SEARCHES rather than assuming —
+// the worktree CLAUDE.md §👥.1 mandates holds only the tracked fifth of `uploads/`, so the corpus this
+// tool needs lives in the primary checkout (FIXTURE-CORPUS-REACHABILITY §1). Every candidate and its
+// verdict is kept so a refusal can SHOW the search instead of asserting an absence.
+const SEARCH = corpusSearch(REPO);
+const UPLOADS = SEARCH.dir;
 
 const C = { red: '\x1b[31m', green: '\x1b[32m', dim: '\x1b[2m', yellow: '\x1b[33m', reset: '\x1b[0m' };
 const paint = (s, c) => (process.stdout.isTTY ? c + s + C.reset : s);
@@ -123,7 +131,9 @@ if (CHECK) {
     console.error(
       paint(`\n✕ ${stale.length} fixture(s) UNVERIFIED under the current compute closure.`, C.red) +
         '\n  Their producing code changed and NOTHING has re-run them since. Fix:\n' +
-        '    DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs\n' +
+        '    node tools/verify-fixtures.mjs\n' +
+        '  (it searches for the corpus itself, including the primary checkout when you are in a worktree;\n' +
+        '   DEX_UPLOADS=<corpus> overrides — see docs/CORPUS-LOCATIONS.md)\n' +
         '  (or, if the change genuinely moved an export, regenerate first: tools/regen-<node>-goldens.mjs)'
     );
     process.exit(1);
@@ -134,6 +144,10 @@ if (CHECK) {
 
 /* ── STAMP MODE — verify for real, then record ────────────────────────────────────────────── */
 
+// 0 · say WHERE the corpus was found before reading a byte of it — an unstated path is how a
+//     worktree run's "absent" got read as a fact about the machine (FIXTURE-CORPUS-REACHABILITY §2).
+console.log('▸ corpus: ' + UPLOADS + paint(' (' + (SEARCH.candidates.find((c) => c.chosen) || {}).label + ')', C.dim));
+
 // 1 · every named corpus input must be PRESENT. Absent ⇒ we cannot verify ⇒ we do not stamp.
 const missing = [];
 for (const k of owing) for (const f of fixtures[k].inputs || []) if (!fs.existsSync(path.join(UPLOADS, f))) missing.push(f);
@@ -141,8 +155,12 @@ if (missing.length) {
   console.error(
     paint('✕ cannot verify — ' + [...new Set(missing)].length + ' corpus input(s) absent:', C.red) +
       '\n  ' + [...new Set(missing)].slice(0, 6).join('\n  ') +
-      '\n\n  These are gitignored personal recordings. Point DEX_UPLOADS at the corpus:\n' +
-      '    DEX_UPLOADS=/path/to/uploads node tools/verify-fixtures.mjs\n' +
+      '\n\n  These are gitignored personal recordings, so they are NOT in a fresh worktree: a worktree off\n' +
+      '  origin/main gets only the tracked fifth of uploads/, and the corpus lives in the PRIMARY checkout.\n' +
+      '  Searched, in order:\n' +
+      formatCorpusSearch(SEARCH) +
+      '\n\n  If none of those is your corpus, name it (docs/CORPUS-LOCATIONS.md lists the four it may be in):\n' +
+      '    DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs\n' +
       '  Refusing to stamp: a verification you did not run is exactly the false claim this gate exists to abolish.'
   );
   process.exit(2);

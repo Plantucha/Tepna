@@ -16,6 +16,7 @@
  * verbatim, and the diff reports only what physiologically MOVED. build.mjs re-stamps manifestHash but
  * never outputHash, so a pure output regeneration under new code needs this to close GATE B.
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -74,7 +75,66 @@ export function diff(a, b, p, out) {
    to prevent. So: raw inputs resolve through `resolveCorpus`; fixture outputs are always written to the
    `uploads/` of the checkout you are running in. Callers pass both, named. ── */
 export function resolveCorpus(repo) {
-  return process.env.DEX_UPLOADS ? path.resolve(process.env.DEX_UPLOADS) : path.join(repo, 'uploads');
+  if (process.env.DEX_UPLOADS) return path.resolve(process.env.DEX_UPLOADS);
+  return corpusSearch(repo).dir;
+}
+
+/* ── THE CHECKOUT YOU ARE STANDING IN IS NOT THE CHECKOUT THE CORPUS IS IN
+   (FIXTURE-CORPUS-REACHABILITY-2026-08-09 §1/§2). CLAUDE.md §👥.1 mandates a worktree for any DSP
+   change; CLAUDE.md §🔏 mandates a `verify-fixtures` re-run for that same change. Those two mandates
+   were mutually exclusive, because `uploads/` is 653 files of which 435 are GITIGNORED — a fresh
+   worktree off origin/main gets the 134 tracked ones, and every corpus-backed fixture input is in the
+   other 80 %. The failure presented as "the corpus is absent", which reads like a fact about the
+   MACHINE while being a fact about the CHECKOUT, and that is the reading that stops you looking.
+
+   `git rev-parse --git-common-dir` names the PRIMARY checkout's `.git` from inside any linked
+   worktree, so its parent is where the corpus actually is. It degrades correctly: in a normal checkout
+   it returns that checkout's own `.git`, making the candidate identical to `<repo>/uploads` rather
+   than wrong, and outside git it throws and the candidate is simply skipped.
+
+   Ordering is DEX_UPLOADS → primary checkout → this checkout, per the brief. Reading a git-TRACKED
+   input from the primary checkout when the two differ is a real behaviour change, and it FAILS CLOSED:
+   the input is hashed by GATE B and re-run by the equiv leg, so a mismatch reds the suite and
+   `verify-fixtures` refuses to stamp. The alternative was not running at all.
+
+   Returns every candidate WITH its verdict so a caller can SHOW the search — "absent" must be a
+   conclusion the reader can check, not a guess they have to trust. ── */
+export function corpusSearch(repo) {
+  const cands = [];
+  const push = (label, dir) => {
+    if (!dir || cands.some((c) => c.dir === dir)) return;
+    let exists = false;
+    try {
+      exists = fs.statSync(dir).isDirectory();
+    } catch {
+      exists = false;
+    }
+    cands.push({ label, dir, exists });
+  };
+  if (process.env.DEX_UPLOADS) push('$DEX_UPLOADS', path.resolve(process.env.DEX_UPLOADS));
+  let common = null;
+  try {
+    common = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], {
+      cwd: repo,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore']
+    }).trim();
+  } catch {
+    common = null; // no git, or not a checkout — this candidate simply does not exist
+  }
+  if (common) push('primary checkout (git --git-common-dir)', path.join(path.dirname(common), 'uploads'));
+  push('this checkout', path.join(repo, 'uploads'));
+  const hit = cands.find((c) => c.exists);
+  const dir = hit ? hit.dir : path.join(repo, 'uploads');
+  for (const c of cands) c.chosen = c.dir === dir;
+  return { dir, candidates: cands };
+}
+
+/* Render the search as lines a reader can act on. Printed on REFUSAL, where the old message said only
+   `DEX_UPLOADS=/path/to/uploads` — a placeholder, read by someone standing in a checkout that HAS an
+   `uploads/`. See docs/CORPUS-LOCATIONS.md for where the four real corpora live. */
+export function formatCorpusSearch(search) {
+  return search.candidates.map((c) => '    ' + (c.chosen ? '→ ' : '  ') + c.label + ': ' + c.dir + (c.exists ? '' : '  (absent)')).join('\n');
 }
 
 /* ── ledger re-record: outputHash (+ inputHashes) hashed with the gates' OWN sha16, never hand-typed.

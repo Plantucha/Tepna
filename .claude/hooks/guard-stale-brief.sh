@@ -3,7 +3,7 @@
 # Copyright 2026 Michal Planicka
 # SPDX-License-Identifier: Apache-2.0
 #
-# guard-stale-brief.sh — PreToolUse(Edit|Write) guard against SILENTLY OVERWRITING
+# guard-stale-brief.sh — PreToolUse(Edit|Write|Bash) guard against SILENTLY OVERWRITING
 # a brief that someone else already answered.
 #
 # THE FAILURE, twice on one file in one day (2026-08-08, GENERATOR-FOLLOWUPS-III):
@@ -40,6 +40,12 @@
 # rule is the backstop. (Contrast `tools/rebase-safe.mjs`, which fails CLOSED because
 # there a wrong guess reverts source.)
 #
+# ⚠ SCOPE. This covers the SEQUENTIAL collision — the other work has merged and you have
+# fetched. It structurally CANNOT cover the CONCURRENT one (two PRs open at once, neither
+# merged), because the information does not exist on any ref for it to read. That half is
+# `.github/workflows/stale-file.yml`, which reads the real ref on the PR. Do not describe
+# this hook as covering the concurrent case — BRIEF-COLLISION-RESIDUAL-GAP §5.
+#
 # Escape hatch: CLAUDE_ALLOW_STALE_BRIEF=1 — set it when you have READ the commits it
 # names and are deliberately writing over them.
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -47,37 +53,85 @@ set -uo pipefail
 
 [ "${CLAUDE_ALLOW_STALE_BRIEF:-}" = "1" ] && exit 0
 
-f="$(jq -r '.tool_input.file_path // empty' 2>/dev/null)" || exit 0
-[ -z "$f" ] && exit 0
+# stdin is readable ONCE, and this hook now asks it two questions (Edit/Write carry a
+# `file_path`; Bash carries a `command`), so the payload is buffered rather than piped twice.
+payload="$(cat 2>/dev/null)" || exit 0
+f="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // empty' 2>/dev/null)"
+cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null)"
+[ -z "$f" ] && [ -z "$cmd" ] && exit 0
 
 # Repo-relative, so an absolute path from the tool matches the same rule as a relative one.
 root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 [ -z "$root" ] && exit 0
-rel="${f#"$root"/}"
 
 # GUARDED SET — the hot shared docs. `briefs/*.md` is where the collision happened;
 # DOCS-INDEX.md is the dashboard every brief change touches, so it collides for the
 # same reason and by the same mechanism.
-case "$rel" in
-  briefs/*.md | DOCS-INDEX.md) ;;
-  *) exit 0 ;;
-esac
+GUARDED_RE='(briefs/[A-Za-z0-9._@+-]+\.md|DOCS-INDEX\.md)'
+
+# ── §3 of BRIEF-COLLISION-RESIDUAL-GAP: the matcher was `Edit|Write`, which is a TOOL
+#    name and not a file write. Every computed edit — `python3 - <<'PY'`, `cat > f`,
+#    `sed -i` — arrives through `Bash` and bypassed this guard completely. That is not a
+#    hypothetical: the session that WROTE that brief made four such edits to DOCS-INDEX.md
+#    and a brief, all unguarded, because placing a table row is easier to compute than to
+#    hand-write. The sibling `guard-shared-tree.sh` matches `Bash` for exactly this reason.
+#
+#    A command is only inspected when it is WRITE-SHAPED. Naming a brief is not enough —
+#    this hook's own remedy tells you to run `git log -p … -- <brief>`, and a guard that
+#    denied its own advice would be worse than the gap. So: a redirect/tee/cp/mv aimed at a
+#    guarded path, an in-place sed, or an interpreter opening a file for writing.
+#
+#    ⚠ It is a HEURISTIC over shell text, and it is tuned to over- rather than under-fire:
+#    a read piped into a file (`grep x briefs/A.md > /tmp/o`) is write-shaped by this rule.
+#    That costs a denial only when the brief ACTUALLY moved upstream — the staleness query
+#    still gates every path — and the message names the commits and the escape hatch.
+looks_like_write() {
+  printf '%s' "$1" | grep -qE "(>>?|\btee\b|\bcp\b|\bmv\b|\btruncate\b)[^|;&]*${GUARDED_RE}" && return 0
+  printf '%s' "$1" | grep -qE '\bsed\b[^|;&]*(-[A-Za-z]*i\b|--in-place)' && return 0
+  if printf '%s' "$1" | grep -qE '\b(python3?|node|perl|ruby|php)\b'; then
+    # The path is usually behind a variable here, so no adjacency test can see it — the
+    # write VERB is the only available signal.
+    printf '%s' "$1" | grep -qE "(open\([^)]*['\"]w|\.write\(|writeFileSync|writeFile\(|>>?[[:space:]]*['\"]?briefs/)" && return 0
+  fi
+  return 1
+}
+
+cands=""
+if [ -n "$f" ]; then
+  rel="${f#"$root"/}"
+  case "$rel" in
+    briefs/*.md | DOCS-INDEX.md) cands="$rel" ;;
+    *) : ;;
+  esac
+elif looks_like_write "$cmd"; then
+  cands="$(printf '%s' "$cmd" | grep -oE "$GUARDED_RE" | sort -u)"
+fi
+[ -z "$cands" ] && exit 0
 
 git rev-parse --verify -q HEAD >/dev/null 2>&1 || exit 0
 git rev-parse --verify -q origin/main >/dev/null 2>&1 || exit 0
 base="$(git merge-base HEAD origin/main 2>/dev/null)" || exit 0
 [ -z "$base" ] && exit 0
 
-# Commits on origin/main touching THIS file that your branch does not have.
-missed="$(git log --oneline --no-decorate "$base"..origin/main -- "$rel" 2>/dev/null)" || exit 0
-[ -z "$missed" ] && exit 0
-
-n="$(printf '%s\n' "$missed" | grep -c .)"
+# Commits on origin/main touching EACH candidate that your branch does not have.
+report=""; first=""; n=0
+while IFS= read -r rel; do
+  [ -z "$rel" ] && continue
+  missed="$(git log --oneline --no-decorate "$base"..origin/main -- "$rel" 2>/dev/null)" || continue
+  [ -z "$missed" ] && continue
+  [ -z "$first" ] && first="$rel"
+  n=$((n + $(printf '%s\n' "$missed" | grep -c .)))
+  report="$report
+  $rel
+$(printf '%s\n' "$missed" | sed 's/^/    /')"
+done <<EOF
+$cands
+EOF
+[ -z "$first" ] && exit 0
 
 cat >&2 <<EOF
-BLOCKED: '$rel' has moved on origin/main since your branch's base — $n commit(s) you do not have.
-
-$(printf '%s\n' "$missed" | sed 's/^/    /')
+BLOCKED: a guarded doc has moved on origin/main since your branch's base — $n commit(s) you do not have.
+$report
 
 Editing it now is how a written answer disappears. On 2026-08-08 exactly this dropped a
 concurrent session's §2 from GENERATOR-FOLLOWUPS-III: no hunks overlapped, so git raised
@@ -86,7 +140,7 @@ no conflict, the squash took the newer text, and the brief was left contradictin
 
 READ those commits first — they may already answer what you are about to write:
 
-    git log -p $base..origin/main -- '$rel'
+    git log -p $base..origin/main -- '$first'
 
 Then rebase so your edit lands ON TOP of them rather than instead of them:
 

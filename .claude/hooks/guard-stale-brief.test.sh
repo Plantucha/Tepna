@@ -77,6 +77,37 @@ expect ALLOW "briefs/ non-markdown moved too — still not a brief"   "briefs/no
 expect ALLOW "docs/briefs/ moved too — 'briefs/' must ANCHOR"      "docs/briefs/x.md"
 
 echo
+echo "### §3 — a write that arrives through Bash (the matcher was a TOOL name, not a write)"
+runcmd() { # runcmd <command string> ; echoes DENY or ALLOW
+  jq -nc --arg c "$1" '{tool_input:{command:$c}}' | bash "$H" >/dev/null 2>&1
+  [ $? -eq 2 ] && echo DENY || echo ALLOW
+}
+expectcmd() { # expectcmd <want> <label> <command>
+  local got; got="$(runcmd "$3")"
+  if [ "$got" = "$1" ]; then printf '  ok    %-58s %s\n' "$2" "$got"
+  else printf '  FAIL  %-58s got %s, want %s\n' "$2" "$got" "$1"; fail=$((fail+1)); fi
+}
+# The four routes the brief's own author actually used, all previously unguarded.
+expectcmd DENY  "cat > a stale brief"                               "cat > briefs/SHARED-BRIEF.md <<'X'
+v3
+X"
+expectcmd DENY  "sed -i on a stale brief"                           "sed -i 's/a/b/' briefs/SHARED-BRIEF.md"
+expectcmd DENY  "python heredoc — path behind a VARIABLE"           "python3 - <<'PY'
+p='briefs/SHARED-BRIEF.md'
+io.open(p,'w').write('v3')
+PY"
+expectcmd DENY  "DOCS-INDEX.md through a redirect"                  "printf 'v3' >> DOCS-INDEX.md"
+
+# Paired ALLOWs. Each differs in ONE property from a DENY above, and the first two are the
+# ones that matter: this hook's OWN remedy names a brief, so a guard that fired on reading
+# would deny its own advice.
+expectcmd ALLOW "the remedy this hook prints is a READ, not a write"  "git log -p HEAD..origin/main -- 'briefs/SHARED-BRIEF.md'"
+expectcmd ALLOW "grep of a stale brief is not a write"                "grep -n 'v1' briefs/SHARED-BRIEF.md | head"
+expectcmd ALLOW "write-shaped, but the brief did NOT move upstream"   "sed -i 's/a/b/' briefs/OTHER-BRIEF.md"
+expectcmd ALLOW "write-shaped, but out of the guarded set"            "sed -i 's/a/b/' README.md"
+expectcmd ALLOW "staging a stale brief is not writing it"             "git add briefs/SHARED-BRIEF.md"
+
+echo
 echo "### escape hatch + degenerate inputs"
 got="$(printf '{"tool_input":{"file_path":"briefs/SHARED-BRIEF.md"}}' | CLAUDE_ALLOW_STALE_BRIEF=1 bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW)"
 if [ "$got" = ALLOW ]; then echo "  ok    CLAUDE_ALLOW_STALE_BRIEF=1 releases it"
@@ -105,6 +136,34 @@ for want in "answer §2" "rebase-safe" "CLAUDE_ALLOW_STALE_BRIEF" "git log -p"; 
   if grep -qF -- "$want" <<<"$msg"; then echo "  ok    message carries '$want'"
   else echo "  FAIL  message missing '$want'"; fail=$((fail+1)); fi
 done
+
+echo
+echo "### the WIRING — a hook that is not wired is inert, however green its behaviour reads"
+# This is the §3 defect one level up: the guard was correct and simply never ran for Bash.
+# Nothing else in the tree reads .claude/settings.json, so a silent unwiring — or a widened
+# matcher quietly reverted — would leave every case above passing.
+S="$(cd "$(dirname "$H")/.." && pwd)/settings.json"
+if [ -f "$S" ]; then
+  wired="$(jq -r --arg h guard-stale-brief.sh '
+    [.hooks.PreToolUse[]? | select(any(.hooks[]?; .command | test($h))) | .matcher] | sort | join(",")
+  ' "$S" 2>/dev/null)"
+  case "$wired" in
+    *"Edit|Write"*) echo "  ok    wired for Edit|Write" ;;
+    *) echo "  FAIL  not wired for Edit|Write (matchers: '$wired')"; fail=$((fail+1)) ;;
+  esac
+  case "$wired" in
+    *Bash*) echo "  ok    wired for Bash — §3, where computed edits arrive" ;;
+    *) echo "  FAIL  not wired for Bash — a heredoc/sed -i/redirect write bypasses this guard"; fail=$((fail+1)) ;;
+  esac
+  # An `if:` clause on THIS entry would silently re-open §3 for every non-matching command.
+  unconditional="$(jq -r --arg h guard-stale-brief.sh '
+    [.hooks.PreToolUse[]? | select(.matcher | test("Bash")) | .hooks[]? | select(.command | test($h)) | (.["if"] // "none")] | join(",")
+  ' "$S" 2>/dev/null)"
+  if [ "$unconditional" = "none" ]; then echo "  ok    the Bash entry is unconditional (no 'if:' narrowing it)"
+  else echo "  FAIL  the Bash entry carries if='$unconditional' — commands outside it bypass the guard"; fail=$((fail+1)); fi
+else
+  echo "  FAIL  .claude/settings.json not found at $S"; fail=$((fail+1))
+fi
 
 echo
 echo "### file integrity"
