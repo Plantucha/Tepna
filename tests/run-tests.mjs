@@ -163,10 +163,20 @@ function progressReporter() {
     }
     const fmt = (x) => (!Number.isFinite(x) ? '?' : x >= 60 ? Math.floor(x / 60) + 'm' + String(Math.round(x % 60)).padStart(2, '0') + 's' : Math.round(x) + 's');
     process.stderr.write(
-      '  [' + String(done).padStart(3) + (plan ? '/' + plan.per.size : '') + ']  ' +
-      (G.ms >= 1000 ? String((G.ms / 1000).toFixed(1)) + 's' : String(G.ms) + 'ms').padStart(7) + '  ' +
-      'elapsed ' + fmt(elapsed) + '  ' + (exact ? 'ETA ' : 'ETA ~') + fmt(left) + '  ' +
-      String(G.title).slice(0, 58) + '\n'
+      '  [' +
+        String(done).padStart(3) +
+        (plan ? '/' + plan.per.size : '') +
+        ']  ' +
+        (G.ms >= 1000 ? String((G.ms / 1000).toFixed(1)) + 's' : String(G.ms) + 'ms').padStart(7) +
+        '  ' +
+        'elapsed ' +
+        fmt(elapsed) +
+        '  ' +
+        (exact ? 'ETA ' : 'ETA ~') +
+        fmt(left) +
+        '  ' +
+        String(G.title).slice(0, 58) +
+        '\n'
     );
   };
 }

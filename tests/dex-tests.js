@@ -1785,7 +1785,7 @@
          Verified by re-applying the mutant, not by reading the code: a test written from reading
          is how `se = se || 0` produced a test that passed while catching nothing. */
       T.eq('a QUOTED vendor stamp still locks the order — the strip is observed', C.resolveDMY(['"10:00:00 13/08/2026"'], {}).locked, true);
-      T.eq("…single quotes too, as some exporters emit", C.resolveDMY(["'10:00:00 13/08/2026'"], {}).locked, true);
+      T.eq('…single quotes too, as some exporters emit', C.resolveDMY(["'10:00:00 13/08/2026'"], {}).locked, true);
       T.eq('…and surrounding whitespace does not hide the evidence', C.resolveDMY(['  10:00:00 13/08/2026  '], {}).locked, true);
       T.eq('a quoted MDY stamp resolves MDY, not the default', C.resolveDMY(['"10:00:00 08/13/2026"'], {}).dmy, false);
 

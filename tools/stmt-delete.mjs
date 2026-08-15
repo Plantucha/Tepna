@@ -213,7 +213,10 @@ export function splitStatements(src, from, to, _mask) {
     if (/\bfunction\b/.test(t) || /=>/.test(t)) continue;
     let i = st.start;
     while (i < st.end) {
-      if (mask[i] !== '{' || braceKind(mask, i) !== 'block') { i++; continue; }
+      if (mask[i] !== '{' || braceKind(mask, i) !== 'block') {
+        i++;
+        continue;
+      }
       let d = 0;
       let j = i;
       for (; j < st.end; j++) {
@@ -361,9 +364,21 @@ export function fmtDuration(sec) {
 export function progressLine(done, total, jobs, perRunSec, verdict) {
   const pct = Math.floor((done / Math.max(1, total)) * 100);
   return (
-    '  [' + String(done).padStart(String(total).length) + '/' + total + ' ' + String(pct).padStart(3) + '%]  ' +
+    '  [' +
+    String(done).padStart(String(total).length) +
+    '/' +
+    total +
+    ' ' +
+    String(pct).padStart(3) +
+    '%]  ' +
     String(verdict || '').padEnd(24) +
-    ' ~' + fmtDuration(perRunSec) + '/run × ' + jobs + ' jobs  →  ' + fmtDuration(etaSeconds(done, total, jobs, perRunSec)) + ' left'
+    ' ~' +
+    fmtDuration(perRunSec) +
+    '/run × ' +
+    jobs +
+    ' jobs  →  ' +
+    fmtDuration(etaSeconds(done, total, jobs, perRunSec)) +
+    ' left'
   );
 }
 
@@ -503,7 +518,8 @@ async function runLevelB(file, group, jobs, covPath) {
       subjects.push({ fn: fb.fn, kind, text: st.text.trim().slice(0, 68), line, mutant });
     }
   }
-  if (skippedUnparseableMutant) process.stderr.write('  ' + skippedUnparseableMutant + ' declaration(s) declined — deleting the initialiser would not parse (`const` needs one); they are unmeasurable, not killed\n');
+  if (skippedUnparseableMutant)
+    process.stderr.write('  ' + skippedUnparseableMutant + ' declaration(s) declined — deleting the initialiser would not parse (`const` needs one); they are unmeasurable, not killed\n');
   if (covered) process.stderr.write('  coverage precondition: ' + skippedUncovered + ' statement(s) on never-executed lines skipped (they would read as pseudo-tested)\n');
   else process.stderr.write('  ⚠ NO COVERAGE RECORD for ' + file + ' — every statement will be tested, and an unreached one will read as PSEUDO-TESTED. Pass --cov <coverage-final.json>.\n');
   process.stderr.write('  ' + subjects.length + ' eligible statement(s) across ' + functionBodies(src).length + ' function(s)\n');
@@ -514,8 +530,7 @@ async function runLevelB(file, group, jobs, covPath) {
 
   const jobsUsed = Math.min(jobs, subjects.length);
   process.stderr.write(
-    '  ESTIMATE: ' + subjects.length + ' subjects × ' + fmtDuration(baseSec) + ' ÷ ' + jobsUsed + ' jobs  ≈  ' +
-    fmtDuration(etaSeconds(0, subjects.length, jobsUsed, baseSec)) + '\n'
+    '  ESTIMATE: ' + subjects.length + ' subjects × ' + fmtDuration(baseSec) + ' ÷ ' + jobsUsed + ' jobs  ≈  ' + fmtDuration(etaSeconds(0, subjects.length, jobsUsed, baseSec)) + '\n'
   );
   const trees = [];
   for (let i = 0; i < jobsUsed; i++) trees.push(mkTree());
@@ -589,11 +604,19 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   const ieo = IE.indexOf('{');
   const es = splitStatements(IE, ieo + 1, IE.length - 1);
   ok('if AND else bodies are both recursed', es.some((x) => x.text.trim() === 'p();') && es.some((x) => x.text.trim() === 'q();'), es.map((x) => x.text.trim()).join(' | '));
-  ok('a leading comment is not reported as the statement', es.some((x) => x.text.trim() === 'r();'), es.map((x) => x.text.trim()).join(' | '));
+  ok(
+    'a leading comment is not reported as the statement',
+    es.some((x) => x.text.trim() === 'r();'),
+    es.map((x) => x.text.trim()).join(' | ')
+  );
 
   /* ── PROSE IS NOT CODE. Each of these declined for the wrong reason before the masked-view fix,
      and each loss was SILENT — a smaller denominator, no warning. */
-  ok('a comment mentioning "function" does not make a statement ineligible', classifyStatement('g(a); /* inside a function we test */') === 'EXPRESSION', classifyStatement('g(a); /* inside a function we test */'));
+  ok(
+    'a comment mentioning "function" does not make a statement ineligible',
+    classifyStatement('g(a); /* inside a function we test */') === 'EXPRESSION',
+    classifyStatement('g(a); /* inside a function we test */')
+  );
   ok('a comment mentioning "if" does not read as control flow', classifyStatement('/* if it fails */ g(a);') === 'EXPRESSION', classifyStatement('/* if it fails */ g(a);'));
   ok('a string containing "function" is still just an expression', classifyStatement('log("function");') === 'EXPRESSION', classifyStatement('log("function");'));
   ok('a comment-only fragment has no content to delete', classifyStatement('/* just a note */').startsWith('not-eligible'), classifyStatement('/* just a note */'));
@@ -604,14 +627,22 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   const CM = 'function f(){ for (var i=0;i<3;i++) { /* calls a function */ h(i); } }';
   const cmo = CM.indexOf('{');
   const cms = splitStatements(CM, cmo + 1, CM.length - 1);
-  ok('a loop whose COMMENT says "function" is still recursed into', cms.some((x) => x.text.trim() === 'h(i);'), cms.map((x) => x.text.trim()).join(' | '));
+  ok(
+    'a loop whose COMMENT says "function" is still recursed into',
+    cms.some((x) => x.text.trim() === 'h(i);'),
+    cms.map((x) => x.text.trim()).join(' | ')
+  );
 
   /* ── AN OBJECT LITERAL IS NOT A BLOCK. Each of these came back as TWO fragments before
      `braceKind`, and each fragment produced source that does not parse. */
   const OB = 'function f(){ return c ? { d: a } : null; }';
   const obo = OB.indexOf('{');
   const obs = splitStatements(OB, obo + 1, OB.length - 1);
-  ok('a ternary returning an object literal stays ONE statement', obs.length === 1 && obs[0].text.trim() === 'return c ? { d: a } : null;', String(obs.length) + ' — ' + obs.map((x) => x.text.trim()).join(' | '));
+  ok(
+    'a ternary returning an object literal stays ONE statement',
+    obs.length === 1 && obs[0].text.trim() === 'return c ? { d: a } : null;',
+    String(obs.length) + ' — ' + obs.map((x) => x.text.trim()).join(' | ')
+  );
   const AS = 'function f(){ var o = { a: 1 }; g(o); }';
   const aso = AS.indexOf('{');
   const ass = splitStatements(AS, aso + 1, AS.length - 1);
@@ -628,9 +659,22 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   const FRAG = 'function f(){ var d = p ? { x: 1 } : { x: 2 }; if (d) { q(d); } return d; }';
   const frago = FRAG.indexOf('{');
   const frags = splitStatements(FRAG, frago + 1, FRAG.length - 1);
-  ok('no emitted subject begins mid-expression', frags.every((x) => !/^[:?,]/.test(x.text.trim())), frags.map((x) => x.text.trim()).join(' | '));
+  ok(
+    'no emitted subject begins mid-expression',
+    frags.every((x) => !/^[:?,]/.test(x.text.trim())),
+    frags.map((x) => x.text.trim()).join(' | ')
+  );
 
-  ok('a destructuring declaration is not split from its initialiser', (() => { const D = 'function f(){ const { a, b } = g(); h(a); }'; const o = D.indexOf('{'); const r = splitStatements(D, o + 1, D.length - 1); return r.length === 2 && r[0].text.trim() === 'const { a, b } = g();'; })(), 'see braceKind declarators');
+  ok(
+    'a destructuring declaration is not split from its initialiser',
+    (() => {
+      const D = 'function f(){ const { a, b } = g(); h(a); }';
+      const o = D.indexOf('{');
+      const r = splitStatements(D, o + 1, D.length - 1);
+      return r.length === 2 && r[0].text.trim() === 'const { a, b } = g();';
+    })(),
+    'see braceKind declarators'
+  );
   ok('an expression FRAGMENT is declined, whatever produced it', classifyStatement('= f();') === 'not-eligible:unparseable', classifyStatement('= f();'));
   ok('…and so is a dangling ternary arm', classifyStatement(': null;') === 'not-eligible:unparseable', classifyStatement(': null;'));
   ok('a legal `break` is NOT declined by the parse backstop', classifyStatement('break;') === 'BREAK', classifyStatement('break;'));
@@ -640,7 +684,7 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   /* A load failure and an assertion failure both exit 1. Only one of them is a kill. */
   ok('a completed suite reports its TAP plan', suiteReported('ok 1\n\n1..7\n✓ all 7 assertions passed') === true);
   ok('…even when it is failing', suiteReported('not ok 3\n\n1..54\n✕ 1 failing') === true);
-  ok('…and through the runner\'s colour codes', suiteReported('\u001b[2m1..12\u001b[0m') === true);
+  ok("…and through the runner's colour codes", suiteReported('\u001b[2m1..12\u001b[0m') === true);
   ok('a load failure reports NOTHING — not a kill', suiteReported('') === false);
   ok('…nor does a stack trace alone count', suiteReported('SyntaxError: Unexpected token\n  at foo') === false);
   ok('an unreported suite is INCONCLUSIVE even with a non-zero exit', classifyStatementVerdict(false, false) === 'INCONCLUSIVE');
@@ -655,9 +699,17 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   ok('a finished run has zero left, never negative', etaSeconds(126, 126, 8, 295) === 0 && etaSeconds(200, 126, 8, 295) === 0);
   ok('one job is not divided away', etaSeconds(0, 5, 1, 10) === 50, String(etaSeconds(0, 5, 1, 10)));
   ok('jobs greater than subjects still needs one round', etaSeconds(0, 3, 8, 10) === 10, String(etaSeconds(0, 3, 8, 10)));
-  ok('durations read in the units a human waits in', fmtDuration(4720) === '1h18m' && fmtDuration(295) === '4m55s' && fmtDuration(9) === '9s', fmtDuration(4720) + ' ' + fmtDuration(295) + ' ' + fmtDuration(9));
+  ok(
+    'durations read in the units a human waits in',
+    fmtDuration(4720) === '1h18m' && fmtDuration(295) === '4m55s' && fmtDuration(9) === '9s',
+    fmtDuration(4720) + ' ' + fmtDuration(295) + ' ' + fmtDuration(9)
+  );
   ok('a nonsense duration says so rather than printing NaN', fmtDuration(Number.NaN) === '?' && fmtDuration(-1) === '?');
-  ok('the progress line states the cost the estimate rests on', /\[ 42\/126  33%\].*KILLED.*4m55s\/run × 8 jobs.*54m05s left/.test(progressLine(42, 126, 8, 295, 'KILLED')), progressLine(42, 126, 8, 295, 'KILLED'));
+  ok(
+    'the progress line states the cost the estimate rests on',
+    /\[ 42\/126  33%\].*KILLED.*4m55s\/run × 8 jobs.*54m05s left/.test(progressLine(42, 126, 8, 295, 'KILLED')),
+    progressLine(42, 126, 8, 295, 'KILLED')
+  );
 
   ok('a return is eligible', classifyStatement('return a;') === 'RETURN');
   ok('a throw is eligible', classifyStatement('throw new Error("x");') === 'THROW');
