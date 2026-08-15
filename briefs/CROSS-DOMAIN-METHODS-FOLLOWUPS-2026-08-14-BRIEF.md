@@ -811,6 +811,64 @@ implementations to disagree with**, which §7 argues is the only thing that can 
 - [ ] §6 either the weighted-slope fixed point lands, or the section is downgraded to REFERENCE with a
       note that `classifyAllan`'s refusal is the accepted behaviour
 
+## 7 · PROPOSED — epidemiology already solved "how many did BOTH detectors miss"
+
+**The finding this answers.** `KNOWN-CLOCK-ADVERSARIAL-CAPTURE` measured that **one missed beat in a
+thousand inflates rMSSD by 20.8 %**, against ~0.003 % for the entire clock-error family — four orders
+of magnitude, and only the smaller one has instruments. It also could not decide whether Malik
+correction's −22 % on a clean train is a bias or the correct removal of real artefact, because that
+needs beat truth no corpus here has. Both reduce to one question: **how many beats did every detector
+miss?**
+
+**What the field does now, and why it is biased.** The PPG-beats toolbox (Charlton et al.) establishes
+reference beats by running *two* ECG detectors and keeping those **both** detected. That is an
+INTERSECTION, and it discards by construction the beats both detectors missed — the very population
+whose size we need. Used as a quality filter it is sound; used as truth it under-counts, and the
+undercount is invisible because the discarded beats are exactly the ones nothing saw.
+
+**The import: two-source capture–recapture, with the dependence correction.** Ecology's
+Lincoln–Petersen estimator, standard in epidemiology for census and disease undercount, estimates the
+unobserved class from the overlap: `N̂ = n₁n₂ / n₁₂`. Applied to beats, `n₁` and `n₂` are two detectors'
+beat sets, `n₁₂` the matched pairs, and `N̂ − observed` is **the beats nobody saw**.
+
+⚠ **It does not work with two sources here, and the reason is decisive rather than a caveat.** The
+estimator assumes independent capture. Our detectors fail *together* — motion, poor perfusion and
+apnea degrade optical and electrical channels at once — which is **positive dependence**, and the
+literature is unambiguous that this biases the estimate **downward**: it would under-report the very
+undercount it is being used to find. With exactly two lists the model is **saturated**, so the
+dependence cannot be estimated from the data at all. The standard remedy is a **log-linear model with
+interaction terms**, and that needs **≥3 sources**.
+
+**We have three, and they are genuinely different instruments** — which is what makes the interaction
+terms mean something rather than absorb a shared artefact:
+
+| source | modality | site |
+|---|---|---|
+| H10 → Pan–Tompkins on raw `_ECG.txt` | electrical | chest |
+| Verity → PPGDSP feet on raw `_PPG.txt` | optical | arm |
+| O2Ring → finger pleth | optical | finger |
+
+⚠ **Measured 2026-08-15, and it removes a fourth candidate:** the Verity's *firmware* `_RR.txt` is
+**empty — 0 beats** over the same night the H10 firmware reports **15,522**. That is `CLAUDE.md`'s
+documented "Verity onboard files are all-zero" confirmed on this night; a Verity beat MUST come from
+the raw PPG. Do not count it as a source. Note also that H10-firmware and H10-Pan–Tompkins are **not**
+independent — same waveform — so they cannot be two of the three.
+
+**Why this is worth doing rather than admiring.** It produces the quantity the whole suite has been
+missing: a *number* for how many beats are lost, on real recordings, without adjudicated R-peaks. That
+number gates rMSSD's trustworthiness directly (§ above: 0.1 % → 20.8 %), and it is the only route to
+settling the Malik −22 % question with the corpus that exists.
+
+**Done when:** three beat sets are extracted on one box night; matched within ±½ RR using the arrival
+sidecar's offset (which the corpus supplies at 4.8 ms agreement, so matching is not the bottleneck);
+a log-linear model with pairwise interactions is fitted; and the estimated missed-beat count is
+reported **with its interaction terms shown**, since a fit that finds no dependence on this data would
+itself be the surprising result and must not pass silently.
+
+> Lincoln–Petersen / capture–recapture in epidemiology: <https://academic.oup.com/aje/advance-article/doi/10.1093/aje/kwaf004/7950813> ·
+> dependence bias and the log-linear remedy: <https://academic.oup.com/aje/article/179/11/1383/2739086> ·
+> current beat-detection practice (agreement-as-reference): <https://ppg-beats.readthedocs.io/en/stable/functions/detect_ecg_beats/>
+
 Related: [`CROSS-DOMAIN-METHODS-2026-08-12-BRIEF.md`](CROSS-DOMAIN-METHODS-2026-08-12-BRIEF.md) ·
 [`ALLAN-DEVIATION-2026-08-12-BRIEF.md`](ALLAN-DEVIATION-2026-08-12-BRIEF.md) ·
 [`HOSTAXIS-STABILITY-2026-08-13-BRIEF.md`](HOSTAXIS-STABILITY-2026-08-13-BRIEF.md) ·
