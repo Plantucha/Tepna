@@ -564,6 +564,64 @@ upper bound on fiducial error rather than an estimate of it — the CRLB precisi
 0.44–0.58 ms (§4a). The ECG figure is a disagreement between two estimators of the same landmark and is
 therefore a lower bound. Neither bound changes the conclusion, since they bracket ~9 %.
 
+## §4e · WHAT THE 91 % IS: very-low-frequency drift, and NOT respiration
+
+§4d established that ~91 % of PAT's variance is correlated structure rather than measurement error, and
+closed by saying the work was to explain it "against respiration, posture and BP where a reference
+exists". **That parenthetical was wrong — the references exist in this corpus.** Every one of the 26
+ECG+PPG nights has a matching CPAP night carrying **`BRP.edf`**, a 25 Hz `Flow.40ms` channel in L/s —
+a *direct* airflow measurement, not a proxy — and both Polars log ACC for posture.
+
+**Design, chosen to be immune to the clock.** The ResMed has been caught running **42 min** behind
+(`cpap-clock-42min-offset`), so no waveform alignment was attempted. Instead the comparison is in the
+FREQUENCY domain: the CPAP flow gives that night's breathing rate (median dominant frequency over 5-min
+windows), and PAT — resampled onto a uniform 4 Hz grid — is decomposed into band powers. A bulk clock
+offset cannot create or destroy a spectral peak, so the test needs no alignment at all.
+
+**17 nights** (10 of 27 skipped for <300 paired beats), median CPAP breathing rate **15.36 brpm**:
+
+| band | median share of PAT power |
+|---|---|
+| **VLF** (0.004–0.04 Hz) | **50.0 %** |
+| **LF** (0.04–0.15 Hz) | **35.8 %** |
+| HF (0.15–0.40 Hz) | 14.6 % |
+| **respiratory band, centred on THIS night's measured rate ±0.03 Hz** | **3.99 %** |
+| *the same band on a BEAT-ORDER-SHUFFLED series* | **8.70 %** |
+
+### 🔴 Respiration is refuted, and the control is what proves it
+
+**The respiratory band holds LESS power than the shuffled null** — 3.99 % against 8.70 %, and it exceeds
+the null on only **1 of 17 nights**. That is not a weak effect; it is the absence of one. Shuffling beat
+order whitens the spectrum, spreading power evenly and *raising* the share landing in any narrow band, so
+a real respiratory peak would have to beat that. None does.
+
+The control behaving that way is also the evidence it works: it moves power out of VLF and into the
+higher bands, exactly as destroying temporal structure should.
+
+### 🟢 What the variance actually is
+
+PAT's dominant frequency is **0.032 Hz — a ~31-second cycle** — and **~86 % of its power sits in
+VLF+LF combined.** That is drift on a scale of tens of seconds to minutes: vascular tone, blood-pressure
+regulation (the LF/Mayer band sits at ~0.1 Hz), thermoregulation, posture, sleep-stage transitions.
+Breathing, at ~0.26 Hz, contributes essentially nothing.
+
+**This is a positive localisation, not just a null.** It says where to look next, and it says the
+remaining reference in this corpus — **ACC**, which MotionDex already turns into posture via the gravity
+vector — is aimed at the right band, because posture change is precisely a VLF-timescale event.
+
+⚠️ **Process note, because the first run of this analysis was WRONG and nearly reported.** It produced
+different nights sharing *identical* beat counts and band shares (52.1/28.9/18.9 twice, 62.0/27.8/10.3
+twice). Cause: the batch was launched with a trailing `&` inside an already-backgrounded call, so the
+harness tracked the outer shell, reported completion after 8 of 29 nights, and left the inner loop alive
+to race a second batch over the same temp files. Fixed with per-night PID-scoped temp files and a
+**unique-tag assertion** in the aggregator, which now fails loudly rather than averaging a race. The
+duplicate rows were the only tell — a reader scanning the medians would have seen nothing wrong.
+
+⚠️ **Limits:** 17 nights, 20-minute PPG/ECG slices against whole-night CPAP, one subject. The CPAP rate
+is a night-median while the PAT slice covers the first ~20 minutes, so a rate that drifted materially
+over the night would blur the target band — but the effect being tested is absent by a factor of two in
+the *wrong direction*, which no plausible blurring produces.
+
 ## §5 · Phase 3 — a GUM uncertainty budget for PAT
 
 **The framework.** JCGM 100:2008 (the GUM) plus **JCGM 101:2008**, its Monte-Carlo supplement, which
