@@ -299,6 +299,196 @@ rMSSD 3–6×. A template fitted across alternating beats will smear; the altern
 
 ---
 
+### §4a · BUILT AND REFUTED, 2026-08-15 — the tangent foot already beats a template-matched arrival time
+
+Phase 2 was built to the specification in §4 — `buildFootTemplate` (amplitude-normalised **median** beat
+shape, so one artifact beat cannot become the reference every beat is measured against) and `footTOA`
+(cross-correlation, parabolic sub-sample peak, and a Cramér–Rao uncertainty
+`sigma_tau = sigma_noise / sqrt(SUM (dT/dk)^2)` — arrival time is resolved by SLOPE, so both terms are
+measured per beat and nothing is tuned).
+
+**The estimator itself is correct.** On synthetic beats with injected noise it behaves exactly as theory
+requires — sigma scales linearly with noise, and it over-states the true scatter by a consistent ~1.4x,
+which is the conservative direction for an uncertainty:
+
+| injected noise | predicted sigma | actual scatter | q |
+|---|---|---|---|
+| 0.00 | 0.000 ms | 0.000 ms | 1.0000 |
+| 0.02 | 0.194 ms | 0.118 ms | 0.9996 |
+| 0.10 | 0.899 ms | 0.640 ms | 0.9918 |
+
+**And it does not help.** Measured on five real H10+Verity nights (20-minute slices, ~850 beats each),
+PAT standard deviation with each fiducial:
+
+| night | tangent foot | template TOA |
+|---|---|---|
+| 2026-07-09 | **13.69 ms** | 14.71 ms |
+| 2026-07-12 | 17.40 ms | **17.23 ms** |
+| 2026-07-06 | **36.46 ms** | 37.87 ms |
+| 2026-07-01 | **46.08 ms** | 48.94 ms |
+| 2026-06-28 | **36.71 ms** | 36.89 ms |
+
+And on the **same beats**, which is the only fair comparison, the tangent foot wins **6 of 6** — including
+on the low-q half, where a template should help most if it helps at all:
+
+    2026-07-09  q>median  tangent 11.41  vs template 11.56     q<=median  15.30 vs 16.79
+    2026-07-06  q>median  tangent 33.30  vs template 33.77     q<=median  40.27 vs 41.94
+    2026-07-01  q>median  tangent 44.80  vs template 44.84     q<=median  42.72 vs 48.76
+
+#### Why — and why §3.5's Allan result did NOT imply otherwise
+
+The decisive number is **sigma_tau itself: 0.44–0.58 ms on clean nights.** The waveform determines the
+foot's arrival time to well under a millisecond. There is simply **no 13–46 ms of timing ambiguity in the
+PPG for a better estimator to recover** — so PAT's spread cannot be fiducial *precision*, and nothing
+that improves fiducial precision can reduce it.
+
+**This refutes the inference that opened Phase 2, and the error is worth naming.** §3.5 measured the PAT
+series as white/flicker PHASE noise (ADEV −0.918 over 48 nights) and I read that as "uncorrelated
+per-beat error ⇒ fiducial jitter ⇒ a better fiducial will help". The first step is sound; **the second is
+not**. An uncorrelated per-beat signature says the variance does not persist across beats — it does
+**not** say which of the several per-beat contributors produced it. Genuine beat-to-beat PAT variation is
+itself largely uncorrelated at the beat scale, and so is ECG-side R-peak placement. **A noise-type
+classification names a TIMESCALE, never a MECHANISM**, and treating it as an attribution is the same
+over-reading as §3.5's own refuted claims.
+
+#### What was kept, and what was thrown away
+
+**The source change was REVERTED and nothing shipped.** `ppgdex-dsp.js` sits in the compute closure, so
+landing it would have moved `manifestHash` and `computeHash` and owed a real-corpus fixture
+re-verification — for an estimator measured to make the target metric slightly *worse*. Measuring before
+wiring is what made that free.
+
+**One result survives and is worth a separate look:** `q` discriminates beat quality even though `tHat`
+does not improve timing. Splitting on `q` alone separates PAT spread cleanly and repeatedly — 11.41 vs
+15.30, 33.30 vs 40.27 ms. That is a *quality* signal, not a *timing* one, and PpgDex already publishes
+`conf` and SQI, so it needs its own justification against those rather than a free ride on this section.
+
+#### Consequence for the build order
+
+**Phase 2 is closed as specified.** With Phase 4 already ruled out by §3.5 (2–11 ms clock against ~50 ms
+PAT) and Phase 2 refuted here, the open question is no longer *which estimator* but **where the 13–46 ms
+actually comes from** — physiology, the ECG fiducial, or the pairing. That is a measurement, not a build,
+and it should precede any further estimator work. Phase 3's variance decomposition is now the natural
+next step precisely because it answers that question, and it costs no bundle.
+
+
+### §4b · …and a DIFFERENT fiducial does not help either — but the sweep found where the leverage actually is
+
+§4a refuted a better estimator of the *same* landmark. That leaves the obvious follow-up, and it is a
+genuinely different question: **σ_τ bounds how precisely a KNOWN SHAPE can be timed in noise, and says
+nothing about whether the foot is the right FEATURE to time.** PPG morphology moves with vascular tone
+and respiration, so a landmark can drift relative to true pulse arrival — model error, not noise error.
+
+So eight candidate fiducials were computed on the **same beats of the same waveform**: diastolic trough ·
+intersecting tangent (shipped) · max first derivative · max second derivative · 10 / 25 / 50 % amplitude
+crossings on the upstroke · systolic peak. PAT SD, scored on the beats **all eight** successfully pair —
+without that constraint each column is scored on a different beat set, which is the unfair-subset trap
+§4a already caught once:
+
+| night | best | tangent | worst |
+|---|---|---|---|
+| 2026-07-09 | trough **13.02** | 13.68 *(3rd)* | peak 17.37 |
+| 2026-07-06 | **tangent 24.28** | — *(1st)* | trough 36.83 |
+| 2026-07-12 | trough **17.03** | 17.21 *(3rd)* | peak 19.03 |
+| 2026-06-28 | **tangent 24.81** | — *(1st)* | peak 33.08 |
+
+**The shipped tangent foot is already at or near the optimum.** It ranks 1st or 3rd on every night, and
+the spread across all the *sensible* candidates — tangent, the three amplitude crossings, max-d1 — is
+**0.3–0.7 ms**, i.e. nothing. Only two candidates behave distinctly, and both argue for what already
+ships: **systolic peak is consistently worst** (3–8 ms, as expected — reflected waves move it), and
+**diastolic trough is bimodal**: best on the two clean nights and catastrophically worst on the two
+noisier ones (36.83, 26.47 ms). Fragile is worse than slightly-suboptimal.
+
+⚠️ 2026-07-01 produced **zero** commonly-paired beats and is excluded — that night is too poor for all
+eight to pair the same beat. (The scratch script printed `0.00 ms` for it, which is an artifact of taking
+an SD over an empty set, not a result. Recorded so the number is never quoted.)
+
+#### 🟢 The finding worth keeping: SELECTION has ~40× the leverage of FIDUCIAL CHOICE
+
+The two tables above differ in one respect beyond the fiducial — restricting to commonly-paired beats.
+On 2026-07-06 that alone moved PAT SD from **36.46 ms to 24.28 ms**. Against it, choosing the best
+fiducial instead of the shipped one moves **0.3 ms**.
+
+**Which beats you trust is worth ~12 ms; which feature you time is worth ~0.3 ms.** That is a factor of
+~40 in leverage, measured on the same data in the same run, and it converges with the one result §4a
+salvaged — `q` separates PAT spread (11.41 vs 15.30 ms) while `tHat` does not improve it. Both say the
+same thing from different directions: **the remaining PAT variance is not in the fiducial algorithm, and
+the tractable lever is beat admission, not beat timing.**
+
+That is a concrete redirection rather than a second null: any future PAT work should go at the gate, and
+it should be justified against PpgDex's existing `conf`/SQI rather than assumed to beat them.
+
+
+### §4c · THE GATE: a real effect, ~1.7 ms — and the 4-night version of this section was wrong twice
+
+§4b predicted the lever was beat ADMISSION, not beat timing. It is — but the size and the mechanism both
+had to be re-measured, and **an earlier draft of this section, written on 4 nights, overstated the effect
+by ~8x and got its causal story backwards.** Both corrections are recorded here rather than quietly
+replaced, because the 4-night numbers were produced by the same method that produced the 29-night ones.
+
+**Method** — the naive version of this test is worthless: a stricter rule keeps easier beats and gets a
+lower SD for free. So every rule is scored at the **same keep-fraction**, with **random selection as a
+control**. The control works: random is flat everywhere (−0.02 to +0.09 ms) and loses to every real rule
+on 22–26 of 29 nights, so any gain below is genuine selection and not retention.
+
+**29 matched H10+Verity nights** (20-minute slices; median baseline PAT SD **40.55 ms**, range 13.7–49.3):
+
+| rule | keep 90% | keep 75% | keep 50% | keep 25% | beats random (k50) |
+|---|---|---|---|---|---|
+| `sqi` (incumbent) | −0.48 | −1.04 | −1.49 | −2.98 | 22/29 |
+| `ppiPlaus` | −0.52 | −1.50 | **−1.85** | −1.56 | 25/29 |
+| **`sqi × ppiPlaus`** | −0.48 | −1.41 | −1.73 | −2.79 | 23/29 |
+| `min(sqi, ppi)` | −0.53 | −1.14 | −1.82 | **−3.22** | 25/29 |
+| `rrEcgPlaus` *(control)* | −0.36 | −0.50 | −1.01 | −1.48 | 24/29 |
+| `amp` | −0.39 | −0.40 | −0.64 | −0.46 | 18/29 |
+| `random` | −0.02 | +0.09 | +0.00 | −0.27 | — |
+
+*(median Δ in ms against each night's own baseline)*
+
+#### 🔴 Correction 1 — the effect is ~1.7 ms, not ~14 ms
+
+The 4-night draft quoted a 36.71 → 22.19 ms reduction. At 29 nights the median gain at keep 50 % is
+**1.7–1.9 ms on a 40 ms baseline** — about **4 %, for discarding half the beats.** The large numbers were
+the tail of the distribution, selected by having looked at four nights and reported the striking ones.
+
+#### 🔴 Correction 2 — the mechanism is INVERTED
+
+The draft said interval plausibility helps on *noisy* nights, where detector errors live, and does
+nothing on clean ones. Split by median baseline SD across 29 nights, keep 50 %:
+
+| | clean nights (n=14) | noisy nights (n=15) |
+|---|---|---|
+| `sqi` | −3.18 ms | −0.67 ms |
+| `ppiPlaus` | **−4.66 ms** | −0.35 ms |
+| `sqi × ppiPlaus` | **−5.37 ms** | −0.95 ms |
+
+**The gain is on CLEAN nights, not noisy ones**, for every rule. The plausible mechanism is the opposite
+of the one asserted: on a genuinely bad night *most* beats are bad, so there is no good subset to select;
+on a clean night a handful of bad beats exist and removing them helps. Selection needs something to
+select **towards**.
+
+#### The confound control also weakened
+
+`rrEcgPlaus` — the same plausibility computed from the ECG's own RR intervals, which selects the same
+stable-HR epochs while knowing nothing about the PPG detector — gained **nothing** on 4 nights. On 29 it
+gains **−1.01 ms** and beats random on 24/29. So **part of the effect IS physiological stable-epoch
+selection**, not detector-error rejection. The PPG-side rule still exceeds it (−1.85 vs −1.01), so there
+is a PPG-specific residue of roughly **0.8 ms** — real, and an order of magnitude below what the 4-night
+draft claimed for it.
+
+#### Verdict
+
+**Rhythm plausibility is a genuine, non-redundant admission axis, and it is small.** `sqi × ppiPlaus`
+beats the incumbent on 19–21 of 29 nights, for a median extra gain of ~0.3 ms over `sqi` alone. Against
+the cost — a `ppgdex-dsp.js` change moves `manifestHash` and `computeHash` and owes a real-corpus fixture
+re-verification — **that does not currently justify shipping.** It justifies keeping the finding on
+record and revisiting if a consumer appears that is sensitive at the 1–2 ms level.
+
+**The methodological lesson is the durable output of this whole phase.** Three times in this brief a
+result measured on a handful of recordings did not survive the corpus: §3.5's H10 slope and TDEV ordering,
+and now §4c's effect size *and* its mechanism. The estimators were correct every time; the inference from
+small n was not. **Run the corpus before writing the section, not after being asked.**
+
 ## §5 · Phase 3 — a GUM uncertainty budget for PAT
 
 **The framework.** JCGM 100:2008 (the GUM) plus **JCGM 101:2008**, its Monte-Carlo supplement, which
