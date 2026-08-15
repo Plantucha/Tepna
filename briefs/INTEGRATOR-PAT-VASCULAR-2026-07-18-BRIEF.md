@@ -574,6 +574,61 @@ individual result and visible only in the harness. Reading the analysis code as 
 right, rather than re-reading the conclusions, is what surfaced it — and it is the check that should have
 run before the first corpus batch, not after seven sections of interpretation.
 
+## 2-RESULT-IX · SECOND ERROR PASS, and WHERE TO FIX PAT — it is the clock, not the detector
+
+### Three further harness errors, found by auditing the code rather than the conclusions
+
+| # | error | impact |
+|---|---|---|
+| 3 | `acf` computed on `tight` (PAT filtered to \|v−med\|<300 ms) — removing outliers smooths a series and inflates autocorrelation | **none on the claim**: identifiable nights had 100 % retention, so filtered ≡ raw (0.987 both). One night moved 0.992 → 0.896 |
+| 4 | mode detection used the nearest **preceding** R — directional, truncates at 0 and wraps at one RR, so it can *manufacture* modes | 4 of 29 mode counts changed; **conclusion unchanged** — identifiable nights are 11/11 unimodal, 0/11 multimodal on both versions |
+| 5 | **beat times rebuilt on a synthetic uniform grid** at the mean rate, discarding the real per-sample stamps | **large.** The uniform grid drifts up to **106.5 ms** across a 40-min ECG slice. Fixed: PAT SD **28.1 → 16.7 ms** and **13.3 → 10.9 ms** on the two best nights; identifiability unaffected (interval differences cancel drift) |
+
+**Beat-to-beat PAT precision is therefore ~2.7 ms**, not the 4.5 ms reported in §2-RESULT-IV.
+
+### Where to fix PAT — four candidates eliminated by measurement, one confirmed
+
+| candidate | test | verdict |
+|---|---|---|
+| weak pulses / poor perfusion | corr(PAT deviation, amplitude / upslope / rise) | **REFUTED** — r = 0.02–0.22, inconsistent sign; on 4 of 5 nights *low*-amplitude beats deviate *less* |
+| wrong LED channel / consensus | PAT SD computed per channel | **REFUTED** — all three identical (46/46/46, 264/263/266, 299/300/300) |
+| missing or spurious beats | monotone correspondence at ±600 ms | **REFUTED** — 97.7 % correspond one-to-one |
+| fiducial-feature switching | mode count | **partial** — explains 7 of 18 failures; 11 unimodal nights still fail |
+| **inter-device clock drift** | linear fit of PAT against elapsed time | ✅ **CONFIRMED on identifiable nights** |
+
+    2026-07-09   PAT SD 16.7 -> 5.5 ms detrended,  89.0 % of variance,  20.7 ppm
+    2026-06-20   PAT SD 10.9 -> 8.2 ms detrended,  43.1 % of variance,   9.5 ppm
+
+**~20 ppm is exactly a crystal difference between two independent devices**, and 20 ppm over a 2500 s
+window is 50 ms — the observed magnitude. Remove it and **PAT resolves to 5.5 ms**.
+
+⚠️ On failing nights the same fit returns **902 ppm and 11 010 ppm**. 1.1 % is not a crystal; there the
+linear term is absorbing something else (a step, or a wrap), so **drift does not explain the failures** —
+only the residual scatter on nights that already align.
+
+### The recommendation, and the trap in it
+
+**Look at the clock, not the optical detector.** Every detector-side hypothesis this investigation raised
+— fiducial precision (§4a), fiducial choice (§4b), admission gating (§4c), channel selection, pulse
+quality — has now been measured and eliminated. The remaining term on good nights is a crystal-scale
+drift between the H10 and the Verity.
+
+⚠️ **But do NOT fit it out of PAT.** That is circular: a linear PAT trend is exactly what a slow
+physiological drift also looks like, and this brief has spent seven sections learning what fitting an
+unvalidated model costs. The drift must be measured **independently of PAT**.
+
+**That is what `DexClock.hostAxis` exists for — and it cannot run on this corpus.** `Ecg nightly/` is
+phone-captured: `independent = false`, `spreadMs` 0.13–1.00, the host column is the device stamp
+*rounded*, so there is no second clock to discipline against. **Every night analysed in §2-RESULT-III–IX
+is one where the correction that would fix PAT is structurally unavailable.**
+
+**So the next step is a corpus change, not a code change:** re-run this whole analysis on **box
+captures**, where `independent = true` and `hostAxis` can measure the inter-device drift without touching
+PAT. The prediction is specific and falsifiable — if drift is the cause, box nights should show
+materially higher identifiability and PAT SD near 5 ms *without* detrending. ⚠️ Three box segments tested
+in §2-RESULT-VI did **not** align, but they were 888–1465-beat fragments from a night with 22 ECG and 7
+PPG files; that is not a fair test of the hypothesis and should not be read as one.
+
 ## 3 · Phase 1 — promote the coupler into the Integrator (consume EXPORTS, add the missing one)
 
 - **Move the timing engine** `coupledPAT`/`ecgRpeakTimes`/`ppgFootTimes`/`sharedClock` from
