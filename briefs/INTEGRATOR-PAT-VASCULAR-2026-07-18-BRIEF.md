@@ -355,6 +355,54 @@ and separates cleanly. A PAT statistic from a night with margin < 0.05 is not a 
 a measurement of something else. This is the missing precondition that §2-RESULT's original go/no-go gate
 never had, and it explains why that gate failed: it was scored on a corpus that was ~93 % unidentifiable.
 
+## 2-RESULT-V · THE MECHANISM — PPG beat alternation, which PpgDex already detects
+
+§2-RESULT-IV showed PAT is recoverable on 2 of 29 nights and unrecoverable on the rest, and that more
+data does not rescue the failures (tripling the slice, 2388 → 6426 beats, left margins at 0.001–0.003).
+So the failure is a property of the beat train. **It has a named cause, and this repo already ships a
+detector for it.**
+
+`rMSSD > sdnnRobust` is PpgDex's shipped beat-alternation detector — when the optical detector alternates
+between two fiducials, successive intervals swing long-short-long and rMSSD inflates 3–6× while the
+robust SD does not. Computed per night and set against identifiability:
+
+| | altPPG = rMSSD / sdnnRobust |
+|---|---|
+| **identifiable** (margin ≥ 0.05, n=5) | median **0.97**, range 0.79–1.24 |
+| **not identifiable** (n=24) | median **2.24**, range 0.68–7.56 |
+
+- gate `altPPG < 1.0` → catches **4/5** identifiable and **23/24** unidentifiable
+- `corr(altPPG, ncc)` = **−0.662**
+- rMSSD on unidentifiable nights runs **127–592 ms** against a physiological 20–50 ms
+
+**So the answer to "why does PAT fail on 93 % of nights" is: the PPG beat train is alternating, and
+PpgDex already knows.** The metric is computed today and used for HRV plausibility; nobody had connected
+it to PAT identifiability.
+
+### Honest bounds — it is strong, not perfect
+
+⚠️ **A seven-night spot check suggested clean separation. The corpus says 93 %.** Two nights break it:
+
+- `2026-07-11_221615` is identifiable (margin 0.0813) at altPPG **1.24** — above the gate;
+- `2026-06-18_214249` is NOT identifiable (margin 0.0149) at altPPG **0.68** — below it, and it fails for
+  a different reason: `sdnnRobust` is **100.2 ms**, i.e. genuinely high interval variability rather than
+  alternation.
+
+So alternation is *a* dominant cause and not the only one, and a gate built on it must be stated with its
+error rate rather than as a clean separator. **This is the fifth time in this investigation that a
+handful of nights implied a cleaner result than the corpus supports** — recorded because the pattern
+matters more than any individual number.
+
+### What it means for the PAT programme
+
+- **The instrument is not the problem and the estimator was never the problem.** §4a–§4c of
+  `METROLOGY-METHOD-ADOPTION` tried a template TOA, eight fiducials and an admission gate, and moved
+  ~1.7 ms. All three were averaging over nights whose beat train was wrong.
+- **PAT has a cheap, PPG-only precondition.** `altPPG < 1.0` needs no ECG and no reference; it is already
+  computed. Applying it first is the difference between a 28 ms PAT and a 70 ms one.
+- **The fix is upstream of PAT entirely** — it is the optical beat detector's alternation, which is a
+  PpgDex defect with its own detector and its own history, not a fusion problem.
+
 ## 3 · Phase 1 — promote the coupler into the Integrator (consume EXPORTS, add the missing one)
 
 - **Move the timing engine** `coupledPAT`/`ecgRpeakTimes`/`ppgFootTimes`/`sharedClock` from
