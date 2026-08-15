@@ -87,10 +87,11 @@ session and the analysis to another, and let the second report before seeing the
   so a page never copied is "current" by construction. Measured: `docs/ current — 53 pages` while
   `docs/papers/papers.html` linked to a file absent from that tree. Seeded by hand; the gate would
   not surface the next one.
-- **`TIMEBASE_MAX_STRATUM = 1` rejects the box it was written for.** The capture host is stratum 2
-  with 0.011 ppm skew and 422 µs root delay from a real stratum-1. §3.9 now shows the host contributes
-  `r = 0.036` of the residual, so this bound is stricter than the evidence requires. Re-derive it, or
-  document why stratum alone is the right gate.
+- **🔴 `TIMEBASE_MAX_STRATUM` — item WITHDRAWN 2026-08-15, its premise was an error.** The parent
+  claimed the bound rejects the box it was written for. It does not: the box records
+  `stratum=1 … timebase=host-disciplined`, because `chronyc`'s tracking-stratum (2) is normalised to
+  the *server's* stratum (1) before the comparison — which `host_clock.py` documents in capitals and
+  `test_chrony_stratum_is_normalised_to_the_SERVER_stratum` already gates. Nothing to re-derive.
 - **The three-instance tool bug.** `stability.ok`, `correctRR`'s `{nn,…}` return, and a mutation that
   silently failed to apply — all the same shape: a check reporting about something it never examined.
   Both tools now assert their readouts are *populated*. Any new harness in this family should do the
@@ -104,7 +105,6 @@ session and the analysis to another, and let the second report before seeing the
 - [ ] At least `integrator-dsp.js` reads `deviceDrawn` rather than `independent`, with its fixtures
       re-cut and the parent's `KNOWN HOLE` assertion updated deliberately.
 - [ ] One experiment in this family is run with injection and analysis in **different sessions**.
-- [ ] `TIMEBASE_MAX_STRATUM` is either re-derived or its rationale written down.
 
 ## Cross-references
 

@@ -46,7 +46,7 @@ The last two rows are the actual work. The rest is plumbing that already passes 
 
 ## 2 · Four measured facts that change the design
 
-### 2.1 · The host is Stratum **2**, and it fails the suite's own rate-trust gate — but that is not the limiting term
+### 2.1 · 🔴 WITHDRAWN — the host does NOT fail the rate-trust gate; it passes it
 
 Measured on the box, 2026-08-14:
 
@@ -57,9 +57,27 @@ Reference ID    : C0A8007B (192.168.0.123)   ← itself Stratum 1
 sourcestats 192.168.0.123 : offset −47 ns · freq skew 0.010 ppm · std dev 13 µs over 137 m
 ```
 
-`host_clock.py` sets `TIMEBASE_MAX_STRATUM = 1` — *"must be a genuine reference clock (stratum ≤ 1,
-PPS/GPS-backed)"*. The box is stratum 2. **`timebase_decision()` refuses to grant rate-trust today**,
-and the proposal's phrase "PPS-disciplined host" is therefore an unmet precondition, not a setting.
+**🔴 This section originally claimed the box is stratum 2 and that `timebase_decision()` refuses to
+grant rate-trust. Both halves are wrong.** Corrected 2026-08-15 by running the real path instead of
+reading a terminal, and recorded here because it shipped in this brief, in the paper and in the index.
+
+The box's own recorded decision, `2026-08-15 …_CLOCK.csv`:
+
+```
+trust=disciplined  absolute_ok=1  stratum=1  chrony_skew_ppm=0.004  timebase=host-disciplined
+```
+
+**It is host-disciplined and passes the gate.** The error: `chronyc tracking` reports `Stratum : 2`
+meaning *this host's* stratum, and `parse_chrony_tracking` normalises that to the **server's** stratum
+by subtracting 1 — so the value compared against `TIMEBASE_MAX_STRATUM` is **1**, not 2.
+`host_clock.py`'s own docstring warns about exactly this in capitals (*"STRATUM MEANS TWO DIFFERENT
+THINGS AND THEY MUST NOT BE MIXED"*), and
+`test_chrony_stratum_is_normalised_to_the_SERVER_stratum` already pins it. There is no code defect and
+no missing test; the claim came from comparing a number I read in a terminal against a constant I read
+in a file, without running the function that connects them.
+
+**Consequence for the follow-ups:** the item *"`TIMEBASE_MAX_STRATUM = 1` rejects the box it was
+written for"* is void — its premise was this error.
 
 But the more useful measurement is the ratio. The host's RMS offset is **19.5 µs**. BLE delivery
 jitter into this same pipeline is **~100 ms, with 470 ms observed** (`clock.js` §7). The host is
