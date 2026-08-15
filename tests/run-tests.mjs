@@ -254,6 +254,10 @@ function readSources() {
        because one is bundled and the other is not. Two copies of a threshold drift apart silently, so
        the closure-identity gate reads the rule out of BOTH files as text and compares them. */
     'tools/drift-report.js',
+    /* KNOWN-CLOCK-FOLLOWUPS §3 — the drawn-axis refusal lives in this tool's CLI loop, not its exported
+       surface, so it is gated as TEXT. Its PAT target is the Wellue finger PPG, the one device whose
+       axis is drawn on every stream measured (20/20). */
+    'tools/pat-host-offset.mjs',
     'tools/regen-integrator-goldens.mjs',
     /* CLOCK-AXIS-AND-RENDER-SURFACE-FOLLOWUPS §3 — the cohort desat-recall matcher is implemented TWICE
        (cohort-regression.js + cohort-runner.html), independently, with the same [-10s,+60s] window. No
