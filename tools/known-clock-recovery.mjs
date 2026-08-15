@@ -229,6 +229,112 @@ function* sidecars(root) {
 
 const deviceOf = (f) => (/O2Ring/i.test(f) ? 'O2Ring' : /VeritySense/i.test(f) ? 'Verity' : /H10/i.test(f) ? 'H10' : 'other');
 
+/* ── BLINDING ────────────────────────────────────────────────────────────────────────────────────
+   WHY THIS IS IN THE TOOL RATHER THAN A PROCEDURE NOTE. This work preregistered its criteria and still
+   had to withdraw two claims, both caught by the same operator running one more check — the mechanism
+   that cannot be relied on. "Hand the analysis to another session" is the fix, and it is also the kind
+   of instruction nobody follows unless it is cheaper than not following it. These two modes make it two
+   commands.
+
+     prepare : node tools/known-clock-recovery.mjs --blind-prepare --root <corpus> --out <dir>
+               writes <dir>/blinded.json  (anchors only, perturbed, opaque stream ids)
+                  and <dir>/TRUTH.json    (what was done — DO NOT open before scoring)
+     analyse : the second operator reads blinded.json, reports {id -> recoveredPpm} as their own JSON
+     score   : node tools/known-clock-recovery.mjs --blind-score --truth <dir>/TRUTH.json --claims <f>
+
+   WHAT IS ACTUALLY HIDDEN, stated plainly because a blinding claim is worth nothing vague: the analyst
+   receives anchor pairs and an opaque id. They do not receive the device name, the night, whether a
+   perturbation was applied, which family it came from, or its magnitude — including whether it is a
+   NULL. The menu below is fixed and published; concealing the menu would be security theatre, since an
+   analyst can read this file. What they cannot know is the DRAW.
+
+   THE KEY IS THE ONLY SECRET, and it is not generated here — the caller passes `--key`, so the tool has
+   no hidden state and a run is reproducible by whoever holds the key. Reusing a key reproduces a draw
+   exactly, which is the point: a disputed result can be re-derived rather than re-argued. */
+const BLIND_MENU = [
+  { id: 'null', apply: (a) => a.map((x) => ({ ...x })), truth: 0 },
+  { id: 'freq-neg-small', apply: (a) => PERTURB.frequency(a, -10), truth: 10 },
+  { id: 'freq-pos-small', apply: (a) => PERTURB.frequency(a, 10), truth: -10 },
+  { id: 'freq-neg-mid', apply: (a) => PERTURB.frequency(a, -100), truth: 100 },
+  { id: 'freq-pos-mid', apply: (a) => PERTURB.frequency(a, 100), truth: -100 },
+  { id: 'offset-only', apply: (a) => PERTURB.offset(a, 5000), truth: 0 },
+  { id: 'loss-contiguous', apply: (a) => PERTURB.lossContiguous(a, 0.3), truth: 0 }
+];
+
+/* A 32-bit FNV-1a of `key + streamIndex`. Deterministic, no crypto claim intended — this hides a draw
+   from a colleague, not from an adversary, and saying so is better than implying more. */
+function drawFor(key, i) {
+  let h = 0x811c9dc5;
+  for (const ch of String(key) + ':' + i) {
+    h ^= ch.charCodeAt(0);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return BLIND_MENU[h % BLIND_MENU.length];
+}
+
+export function blindPrepare(streams, key) {
+  const blinded = [];
+  const truth = [];
+  streams.forEach((s, i) => {
+    const pick = drawFor(key, i);
+    const anchors = pick.apply(s.anchors);
+    const id = 'S' + String(i).padStart(4, '0');
+    /* THE TRUTH MUST BE ABSOLUTE, NOT A DELTA. The analyst holds only the perturbed anchors, so the
+       only quantity they can report is the stream's ABSOLUTE rate — they cannot subtract a baseline
+       they were never given. A first version stored the delta and scored an absolute claim against it,
+       which turned every stream that merely HAS a real rate into a "false positive": 21 of 61 on the
+       first real run, all of them the estimator working correctly. The baseline is computed here,
+       where the unperturbed anchors are still in hand, and added to the draw. */
+    const base = DexClock.hostAxis(s.anchors);
+    const baselinePpm = base.ok ? base.ppm : null;
+    /* IS THE DRAW EVEN APPLICABLE? A frequency error cannot be injected into a stream with no device
+       span — scaling `(x.devMs - d0)` by `(1 + f)` leaves a zero-length axis untouched — so expecting
+       a recovery there demands the impossible. Measured on the first real blind run: `freq-pos-mid`
+       scored a median error of EXACTLY 100.000 ppm, i.e. the injected magnitude, because 10 of its
+       draws landed on the corpus's zero-span drawn streams and the estimator correctly returned the
+       baseline. Marking them inapplicable is honest; leaving them in would have scored the analyst
+       down for the harness's error, which is the failure this whole apparatus exists to prevent. */
+    const devSpan = s.anchors.length > 1 ? s.anchors[s.anchors.length - 1].devMs - s.anchors[0].devMs : 0;
+    const applicable = baselinePpm !== null && (pick.truth === 0 || devSpan > 0);
+    const expectedPpm = !applicable ? null : baselinePpm + pick.truth;
+    blinded.push({ id, anchors: anchors.map((a) => ({ devMs: a.devMs, hostMs: a.hostMs })) });
+    truth.push({ id, perturbation: pick.id, deltaPpm: pick.truth, baselinePpm: baselinePpm, expectedPpm: expectedPpm, applicable: applicable, devSpanMs: devSpan, source: s.label });
+  });
+  return {
+    blinded: { note: 'anchors only — device, night and the draw itself are withheld', streams: blinded },
+    truth: { key, note: 'DO NOT open before the analyst has committed their claims', streams: truth }
+  };
+}
+
+/* Scoring is deliberately DUMB: it compares the analyst's numbers to the draw and reports, with no
+   tolerance tuning and no re-run. A score computed after seeing the answer is not a score. */
+export function blindScore(truth, claims) {
+  const byId = new Map(claims.map((c) => [c.id, c]));
+  const rows = truth.streams.map((t) => {
+    const c = byId.get(t.id);
+    const got = c && Number.isFinite(c.recoveredPpm) ? c.recoveredPpm : null;
+    const exp = t.expectedPpm == null ? null : t.expectedPpm;
+    const err = got === null || exp === null ? null : got - exp;
+    return { id: t.id, perturbation: t.perturbation, expected: exp, delta: t.deltaPpm, claimed: got, errPpm: err, missing: got === null || exp === null, inapplicable: t.applicable === false };
+  });
+  const scored = rows.filter((r) => !r.missing);
+  const abs = scored.map((r) => Math.abs(r.errPpm)).sort((a, b) => a - b);
+  return {
+    n: rows.length,
+    answered: scored.length,
+    unanswered: rows.filter((r) => r.missing && !r.inapplicable).length,
+    /* Reported, never silently dropped: a draw the harness could not actually apply. */
+    inapplicable: rows.filter((r) => r.inapplicable).length,
+    medAbsErrPpm: abs.length ? abs[abs.length >> 1] : null,
+    worstAbsErrPpm: abs.length ? abs[abs.length - 1] : null,
+    /* A null draw the analyst reported a rate for is the failure this whole design exists to catch. */
+    /* A false positive is a rate claimed where the DRAW added none — judged on the delta, not on the
+       absolute expectation, because a stream with a genuine baseline rate is not a false positive. */
+    falsePositives: scored.filter((r) => r.delta === 0 && Math.abs(r.errPpm) > 1).length,
+    rows: rows
+  };
+}
+
 function selfTest() {
   let fail = 0;
   const ok = (name, cond, detail = '') => {
@@ -276,6 +382,39 @@ function selfTest() {
     r.targets.wander.every((w) => typeof w.slope === 'number' && isFinite(w.slope)),
     JSON.stringify(r.targets.wander.map((w) => [w.slope, w.noise]))
   );
+  /* BLINDING. The assertion that matters is not that scoring works — it is that the file handed to the
+     analyst carries no device, no night, no perturbation name and no magnitude. A blinding harness that
+     leaks the draw is worse than none, because it produces a confident "independent" result. */
+  const bstreams = [
+    { label: 'Polar_H10_02849638_x_PMDARRIVAL.csv#ecg', anchors: a.map((x) => ({ ...x })) },
+    { label: 'Wellue_O2Ring_y_PMDARRIVAL.csv#ppg', anchors: a.map((x) => ({ ...x })) }
+  ];
+  const bp = blindPrepare(bstreams, 'test-key');
+  const blob = JSON.stringify(bp.blinded);
+  ok('the blinded file names no device', !/H10|O2Ring|Verity|Wellue|Polar/i.test(blob));
+  /* Strict on purpose, and it earned that: the first version failed on the word "perturbation" in the
+     file's own explanatory note — no draw leaked, but a test that tolerates near-misses in a blinding
+     check is not worth having, so the note was reworded rather than the assertion loosened. */
+  ok('…no draw name and no expected magnitude', !/freq-|offset-only|loss-|expectedPpm|baselinePpm|perturbation/.test(blob));
+  ok(
+    '…and only opaque ids',
+    bp.blinded.streams.every((x) => /^S\d{4}$/.test(x.id))
+  );
+  ok(
+    'the TRUTH file does carry the draw',
+    bp.truth.streams.every((x) => typeof x.perturbation === 'string')
+  );
+  ok('the same key reproduces the same draw', JSON.stringify(blindPrepare(bstreams, 'test-key').truth) === JSON.stringify(bp.truth));
+  ok('a different key does not', JSON.stringify(blindPrepare(bstreams, 'other-key').truth) !== JSON.stringify(bp.truth));
+  /* the failure this exists to catch: a rate claimed on a draw that had none */
+  const nullId = bp.truth.streams.find((x) => x.deltaPpm === 0);
+  if (nullId) {
+    const sc = blindScore(bp.truth, [{ id: nullId.id, recoveredPpm: (nullId.expectedPpm || 0) + 42 }]);
+    ok('scoring flags a rate claimed on a NULL draw as a false positive', sc.falsePositives === 1, 'fp=' + sc.falsePositives);
+  }
+  const empty = blindScore(bp.truth, []);
+  ok('an unanswered stream is counted, not silently dropped', empty.unanswered + empty.inapplicable === bp.truth.streams.length);
+  ok('…and an INAPPLICABLE draw is reported separately, not scored as a miss', typeof empty.inapplicable === 'number');
   ok('monotonic split finds the longer run', longestMonotonicRun([{ devMs: 0 }, { devMs: 1 }, { devMs: 2 }, { devMs: 0 }]).length === 3);
   console.log(fail ? `\n${fail} self-test FAILURE(S)` : '\nself-test: all green');
   return fail ? 1 : 0;
@@ -287,6 +426,52 @@ function main(argv) {
     return i >= 0 ? argv[i + 1] : null;
   };
   if (argv.includes('--self-test')) return selfTest();
+  if (argv.includes('--blind-prepare')) {
+    const root = arg('--root') || process.env.DEX_CAPTURES;
+    const out = arg('--out');
+    const key = arg('--key');
+    if (!root || !out || !key) {
+      console.error('usage: --blind-prepare --root <captures> --out <dir> --key <secret>');
+      console.error('  the KEY is yours to keep; the tool stores no hidden state and reusing it reproduces the draw');
+      return 2;
+    }
+    const streams = [];
+    for (const f of sidecars(root)) {
+      let byMeas;
+      try {
+        byMeas = parseSidecar(readFileSync(f, 'utf8'));
+      } catch {
+        continue;
+      }
+      for (const [meas, rows] of byMeas) {
+        const seg = longestMonotonicRun(rows);
+        if (seg.length < Number(arg('--min-packets') || 500)) continue;
+        streams.push({ label: basename(f) + '#' + meas, anchors: seg });
+      }
+    }
+    const { blinded, truth } = blindPrepare(streams, key);
+    writeFileSync(join(out, 'blinded.json'), JSON.stringify(blinded));
+    writeFileSync(join(out, 'TRUTH.json'), JSON.stringify(truth, null, 1));
+    console.log(`prepared ${streams.length} stream(s)\n  give the analyst : ${join(out, 'blinded.json')}\n  DO NOT OPEN yet  : ${join(out, 'TRUTH.json')}`);
+    return 0;
+  }
+  if (argv.includes('--blind-score')) {
+    const t = arg('--truth'),
+      c = arg('--claims');
+    if (!t || !c) {
+      console.error('usage: --blind-score --truth <TRUTH.json> --claims <analyst.json>');
+      return 2;
+    }
+    const truth = JSON.parse(readFileSync(t, 'utf8'));
+    const raw = JSON.parse(readFileSync(c, 'utf8'));
+    const claims = Array.isArray(raw) ? raw : raw.streams || raw.claims || [];
+    const sc = blindScore(truth, claims);
+    console.log(
+      `answered ${sc.answered}/${sc.n}  inapplicable ${sc.inapplicable}  med|err| ${sc.medAbsErrPpm === null ? 'n/a' : sc.medAbsErrPpm.toFixed(3)} ppm  worst ${sc.worstAbsErrPpm === null ? 'n/a' : sc.worstAbsErrPpm.toFixed(3)}  FALSE POSITIVES on null draws: ${sc.falsePositives}`
+    );
+    for (const r of sc.rows) console.log(`  ${r.id}  ${String(r.perturbation).padEnd(16)} expected ${String(r.expected).padStart(5)}  claimed ${r.claimed === null ? '(none)' : r.claimed.toFixed(2)}`);
+    return sc.falsePositives > 0 ? 1 : 0;
+  }
   const root = arg('--root') || process.env.DEX_CAPTURES;
   if (!root) {
     console.error('usage: node tools/known-clock-recovery.mjs --root <captures-dir> [--out f.json] [--min-packets N]');

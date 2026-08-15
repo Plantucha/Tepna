@@ -49,31 +49,56 @@ back to the older 2026-08-09 crawl.
 
 ---
 
-## 1 · THE FLEET IS 46.4 %, NOT 38.5 % — measured on ALL EIGHT FILES, 2026-08-15
+## 1 · THE FLEET IS 52.1 %, NOT 38.5 % — all eight files, every one CANARY-VERIFIED, 2026-08-15
 
 ```
-FLEET  4571/9847 distinguishable = 46.4%   5276 survivors unresolved   target 99%
-SPLIT  UNREACHED 471 (8.7%) - UNASSERTED 4929 (91.3%)
+FLEET  5124/9832 distinguishable = 52.1%   4708 survivors unresolved   target 99%
+SPLIT  UNREACHED 499 (10.0%) - UNASSERTED 4489 (90.0%)
 ```
 
-**First complete fleet measurement — no `NO SWEEP` line.** Every file's sweep is canary-passed and
-taken with coverage-directed selection under the §3a fix. The published 38.5 % was stale by ~8 points,
-exactly as `MUTATION-PROGRAM-FOLLOWUPS` §2 predicted: "kills from tests written since do not appear
-until that file is re-swept".
+Every file re-swept with coverage-directed selection under the §3a fix, and **every one reports
+`canary=PASSED`**. The published 38.5 % was stale by ~14 points — the programme was much further along
+than its own headline said, exactly as `MUTATION-PROGRAM-FOLLOWUPS` §2 predicted it would be.
 
-**91.3 % of survivors are UNASSERTED** — code the tests execute and do not check. That is §4's
-fleet-level diagnosis confirmed PER MUTANT by an independent method, and it means a coverage floor
-buys almost nothing. The two exceptions are named in §1b.
+**90 % of survivors are UNASSERTED** — code the tests execute and do not check. §4's fleet-level
+diagnosis, confirmed PER MUTANT by an independent method. A coverage floor buys almost nothing.
 
-### 1a · Per-file, superseding the 6-file table below
+### 1a · Per-file — and the fleet number hides how differentiated it is
 
-| file | killed | note |
-|---|---:|---|
-| `ecgdex-dsp.js` | 606 | re-swept post-§3a; was 146 killed / **1324 INVALID** / VOIDED |
-| `integrator-dsp.js` | 863 | re-swept post-§3a; was 796 / 178 invalid |
-| `oxydex-dsp.js` | 1328 | canary passed, 0.7 % invalid |
-| `ppgdex-dsp.js` | 644 | canary passed, 1.3 % invalid |
-| `cpapdex` `glucodex` `hrvdex` `motiondex` | — | still on PRE-SELECTION crawl data; **re-sweep owed** |
+| file | killed / distinguishable | rate |
+|---|---:|---:|
+| `motiondex-dsp.js` | 344 / 359 | **95.8 %** — effectively AT the 99 % target |
+| `glucodex-dsp.js` | 573 / 782 | **73.3 %** |
+| `hrvdex-dsp.js` | 304 / 420 | **72.4 %** |
+| `cpapdex-dsp.js` | 462 / 788 | 58.6 % |
+| `ppgdex-dsp.js` | 644 / 1196 | 53.8 % |
+| `oxydex-dsp.js` | 1328 / 2661 | 49.9 % |
+| `integrator-dsp.js` | 863 / 1832 | 47.1 % |
+| `ecgdex-dsp.js` | 606 / 1794 | **33.8 %** — the laggard |
+| *(`pulsedex-dsp.js`)* | *182 / 531* | *34.3 % — NOT in `SWEEP_FILES`, excluded from the above* |
+
+**One fleet percentage was hiding a 62-point spread.** `motiondex` is done; `ecgdex` holds 1188
+unresolved survivors on its own. Per-file targets — §2a option (3) of the followups, raised and never
+decided — look better justified by this table than by anything argued at the time.
+
+### 1c · A CANARY THAT COULD NOT VERIFY PRODUCED A PLAUSIBLE WRONG NUMBER
+
+`hrvdex-dsp.js` was swept three times. The first ran inside a 4-file batch with `canary=STALE` — the
+recorded anchor had drifted onto a comment, so `findCanary` returned null and the run was UNGUARDED.
+It reported **331 kills**. Two later runs, one of them `canary=PASSED`, reported **305 and 304**.
+
+    run 1  canary STALE   (unguarded)   killed 331   <- 27 high, in range, wrong
+    run 2  canary NONE    (unguarded)   killed 305
+    run 3  canary PASSED                killed 304   <- imported
+
+Nothing about 331 looked wrong. The only signal was the tool declining to say PASSED. **Do not import
+a sweep whose canary did not pass**, however plausible the number.
+
+Re-learning the canary was left to the TOOL (`delete` the entry; `saveCanary` fires only when the
+state is `NONE`, recording from a real attributed kill). Hand-picking was not an option: the stale
+anchor's text occurs at TWO lines in the current source, and §8's rule is that a non-unique anchor
+mutates the wrong function. Verify the other entries survive the rewrite — this file's own comment
+records a bug where saving one canary destroyed every other.
 
 ### 1b · REACHABILITY RANKS THE SAME TWO FILES §4 DID, BY A DIFFERENT METHOD
 

@@ -97,13 +97,29 @@ export function decide(snap) {
 
   if (snap.mergeState === 'DIRTY') return { action: 'fail', why: 'merge conflict — rebase by hand (see CLAUDE.md §👥.2c)' };
 
-  if (pending > 0) return { action: 'wait', why: `${pending} check(s) still running` };
+  /* ⚠️ WAIT ONLY ON CHECKS THAT CAN ACTUALLY BLOCK THE MERGE.
+     `pending` counts EVERY context, and most of them cannot hold a PR: `mutation (diff-scoped)` is
+     advisory by design and is not in the ruleset's required set. Measured 2026-08-14 across #1259 and
+     #1269 — both timed out here at 45 minutes with `still UNSTABLE` while that one check ran, and both
+     were mergeable the whole time. #1259 merged INSTANTLY the moment auto-merge was armed, with 22
+     passing and that same check still pending. ~90 minutes spent proving a check could not block.
+
+     The required set is already read from the ruleset for the missing-context rule above; this simply
+     uses it. When it could not be read, `requiredPending` falls back to the total — an unknown set must
+     not license merging past a check that might be required, which is the same fail-safe asymmetry the
+     `readable` guard states: a spurious wait costs one poll, a spurious merge cannot be undone. */
+  const requiredPending = snap.requiredPending === undefined ? pending : snap.requiredPending;
+  if (requiredPending > 0) return { action: 'wait', why: `${requiredPending} required check(s) still running` };
 
   /* UNKNOWN is GitHub still computing mergeability — transient, and NOT a reason to merge or fail.
      Observed on #1095: `mergeable=UNKNOWN` for minutes while every check was green. */
   if (snap.mergeState === 'UNKNOWN') return { action: 'wait', why: 'GitHub still computing mergeability' };
 
-  return { action: 'merge', why: 'green and up to date' };
+  /* Name the advisory checks still in flight. Merging past them is correct — they cannot block — but
+     doing it SILENTLY is the other half of the same defect: the mutation gate's red already merges
+     unnoticed today, and a tool that quietly outruns it makes that worse rather than better. */
+  const advisory = pending - requiredPending;
+  return advisory > 0 ? { action: 'merge', why: `green and up to date — ${advisory} advisory check(s) still pending, not required` } : { action: 'merge', why: 'green and up to date' };
 }
 
 /* ── I/O ────────────────────────────────────────────────────────────────────────────────────── */
@@ -126,7 +142,14 @@ function snapshot(pr) {
   }
   const buckets = {};
   for (const c of checks) buckets[c.bucket] = (buckets[c.bucket] || 0) + 1;
+  /* PENDING, RESTRICTED TO CONTEXTS THAT CAN BLOCK THE MERGE. `undefined` when the required set could
+     not be read, so `decide()` falls back to the total rather than merging past an unknown — an
+     unreadable ruleset must not become permission. A required context is matched by exact name, the
+     same string the ruleset stores and `gh pr checks` reports. */
+  const req = requiredContexts();
+  const requiredPending = req.length ? checks.filter((c) => c.bucket === 'pending' && req.includes(c.name)).length : undefined;
   return {
+    requiredPending,
     state: view.state,
     mergeState: view.mergeStateStatus,
     buckets,
