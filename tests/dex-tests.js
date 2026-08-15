@@ -19920,6 +19920,49 @@
 
       // A real conflict is the one case a human must resolve — never auto-updated around.
       T.eq('DIRTY stops and points at the rebase rules', d(OPEN('DIRTY', { pass: 22 })).action, 'fail');
+      /* ── AN ADVISORY RED IS NOT A FAILURE (2026-08-15) ─────────────────────────────────────
+         Measured on #1285: `mutation (diff-scoped)` failed, land-pr printed `fail: 1 check(s)
+         failed` and exited 1, and GitHub's auto-merge landed the PR minutes later unaided. The
+         operator is then sent to fix a PR that needed nothing.
+
+         This is the SAME asymmetry as the pending branch: reasoning about a check's STATE without
+         asking whether it can block the merge. `mutation` is advisory by design so that a survivor
+         cannot force someone to delete a `# pragma: no cover` to go green. */
+      var REQ = ['test', 'biome', 'typecheck'];
+      /* Mirrors what `snapshot()` builds, including the two DERIVED counts — `decide` reads those,
+         not the raw name lists, so a helper that omits them tests a shape the tool never sees. */
+      var snapFail = function (failedNames, required) {
+        var reqSet = {};
+        for (var i = 0; i < required.length; i++) reqSet[required[i]] = 1;
+        var rf = required.length
+          ? failedNames.filter(function (n) {
+              return reqSet[n];
+            }).length
+          : null;
+        return {
+          state: 'OPEN',
+          mergeState: 'BLOCKED',
+          readable: true,
+          buckets: { pass: 20, fail: failedNames.length },
+          reported: REQ.concat(failedNames),
+          failedNames: failedNames,
+          requiredFailed: rf,
+          requiredPending: 0,
+          required: required
+        };
+      };
+      T.eq('a failing REQUIRED check stops the run', d(snapFail(['test'], REQ)).action, 'fail');
+      T.eq('…and names it, so the operator knows what to fix', /required check\(s\) failed: test/.test(d(snapFail(['test'], REQ)).why), true);
+      T.ok('an ADVISORY red does NOT stop the run', d(snapFail(['mutation (diff-scoped)'], REQ)).action !== 'fail', 'advisory red still terminal — #1285 strands again');
+      T.ok(
+        '…even alongside a BEHIND branch, which is the real action needed',
+        ['update', 'wait', 'merge'].indexOf(d(snapFail(['mutation (diff-scoped)'], REQ)).action) >= 0,
+        d(snapFail(['mutation (diff-scoped)'], REQ)).action
+      );
+      T.eq('a MIX of required and advisory still stops', d(snapFail(['mutation (diff-scoped)', 'test'], REQ)).action, 'fail');
+      /* FAIL-CLOSED: an unreadable ruleset must not silently downgrade a real red to advisory. */
+      T.eq('ruleset unreadable ⇒ EVERY failure is blocking', d(snapFail(['mutation (diff-scoped)'], [])).action, 'fail');
+      T.eq('…and says why, so the degraded mode is visible', /required set unknown/.test(d(snapFail(['mutation (diff-scoped)'], [])).why), true);
     });
 
     group('Rebase-safe — the generated/source classifier fails CLOSED (REBASE-SAFE)', 'tools · rebase-safe', function (T) {
