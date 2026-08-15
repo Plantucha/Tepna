@@ -28,9 +28,40 @@ real-data papers (sigma, the odi-bias real arm, ppg-ecg-hrv-validation) and the 
 | sigma-no-reference | REAL | n/a (generator-independent) | error/style audit only | **DONE** |
 | sensor-trio-nights | sim (self-contained MC) | n/a — own generator, not cohort-gen; 720 trials/cell (Draft v1) | done | **DONE** (added to ledger 2026-07) |
 | synthetic-data-frontier | perspective | n/a | error/style audit only | **DONE** |
-| ppg-ecg-hrv-validation | REAL | n/a (real co-recordings; Draft v1, Jul) | done | **DONE** (new, 2026-07) |
+| ppg-ecg-hrv-validation | REAL | n/a (real co-recordings; **Draft v2, Jul — 4→20 paired nights**) | done | **DONE** (v2 supersedes v1, 2026-07-21) |
+| ppg-quality-gate-pooling | REAL | n/a (same 20-night corpus; Draft v1, Jul) | done | **DONE** (new, 2026-07-21) |
 | timestamp-pathology | methods (real+synth) | n/a — live over shipping parser (Draft v1, Jul) | done | **DONE** (new, 2026-07) |
 | dead-ends | synthesis | n/a — regenerates from source tools (Draft v1, Jul) | done | **DONE** (new, 2026-07) |
+| cpap-flow-reference | REAL (n-of-1 methods) | n/a — generator-independent; 26 nights / 172 h real corpus (Draft v1, Jul) | drafted | **DRAFT** ↓R2 (new, 2026-07-22) |
+| acc-respiratory-rate | REAL (n-of-1) | n/a — generator-independent; 19,193 real epochs vs CPAP flow (Draft v1, Jul) | drafted | **DRAFT** ↓R2 (new, 2026-07-22) |
+| effort-typing-null | REAL (n-of-1, negative) | n/a — generator-independent; 401 scored events (Draft v1, Jul) | drafted | **PARKED** ↓R3 (new, 2026-07-22) |
+| known-clock-recovery | REAL (n-of-1, preregistered) | n/a — generator-independent; 61 BLE arrival streams + 101 RR trains over 21 nights (Draft v2) | done | **DONE** (new, 2026-08-14) ↓R4 |
+
+## Open residuals on the 2026-07-22 additions
+
+**R2 — the three respiratory papers are DRAFT until the corpus is re-run through the tool.**
+`resp-acc-analysis.html` now exists and runs the **shipped** `MOTIONDSP.respiratoryRate` rather than a
+reimplementation, and it reproduces the original harness on four spot-checked nights (clock offsets
+within **8 s**, per-night MAE within **0.06 br/min**). What is outstanding is the **full 26-night
+end-to-end re-run through the tool**, plus emitting figures into `papers/figures/`. Until then the
+headline figures trace to the original external harness, which does not satisfy the house rule
+*"no number without a tool that reproduces it"*. Each paper carries a visible banner saying exactly
+this — do not clear it early.
+
+**R3 — `effort-typing-null` is PARKED, not merely draft.** Four reasons, in order: the mechanism
+behind the 0.99× ratio is **unexplained** (the CPAP-pressure candidate was tested against
+`MaskPress.2s` and *fails* — ρ = −0.174, p = 0.0008, the opposite of its prediction); obstructive
+**n = 31**; the event labels are the CPAP manufacturer's algorithm rather than PSG scoring; and an
+adversarial literature review surfaced a prior report whose direction may run *opposite* to the
+assumed mechanism. Publishing an unexplained negative is a weaker position than an explained one.
+The engineering consequence is already actioned separately in
+`briefs/INTEGRATOR-APNEA-TYPING-REVIEW-2026-07-22-BRIEF.md`.
+
+**Shared bounding limitation on all three.** Single subject, and — measured, not assumed — a single
+sleeping posture (gravity-roll IQR 13.1–17.9°). Doheny 2020's supine-vs-lateral effect could not be
+replicated (1.02× vs their 1.54×) *by absence of exposure*, not by contradiction. No
+posture-robustness claim may be made from this corpus; the synthetic adversarial twin in
+`tests/dex-tests.js` gates that property instead.
 
 ## Concrete errors found (June) — DISPOSITION
 - **API inconsistency (real bug) — ✅ FIXED.** June: `treatment-response` cited
@@ -68,3 +99,19 @@ all prior pilot numbers are superseded and the shipped drafts reflect the curren
 residual (R1) explicitly parked and covered elsewhere. Combined with §6 criterion (b) (both "now"
 candidates 2.1 + 2.2 shipped), the roadmap is "done for now" except the MED-effort now-candidate 2.3
 (cross-signal plausibility QC) and the node-gated 3.1–3.6.
+
+**R4 — `known-clock-recovery` carries no figures, deliberately.** Every number in it is a table cell
+produced by a committed tool (`tools/known-clock-recovery.mjs`, `tools/beat-error-recovery.mjs`, both
+`--self-test`-gated, both deterministic), and the two curves it reports — sigma_y(tau) against span,
+and rMSSD error against injected beat-error rate — are monotone and fully carried by their tables.
+Emitting a PNG into `papers/figures/` would add a rendering step without adding evidence, so the
+house rule *"no number without a tool that reproduces it"* is satisfied by the tools rather than by a
+figure. If the paper is prepared for external submission the two curves should be plotted then.
+
+**A note on this paper's status, because it differs from every other row above.** It is the only paper
+in the set whose criteria were **preregistered and hashed before the first run**
+(`experiments/known-clock/acceptance.json`, sha256 `b061d279…`). It is also the only one that
+**withdraws a claim of its own** (§3.6b): the draft argued a shipped span gate was an order of
+magnitude too permissive, and a direct test showed the gate does net good where it stands. That
+retraction is in the paper rather than removed from it, and the reason it was caught — one further
+measurement by the same operator — is stated as a limitation, not a strength.
