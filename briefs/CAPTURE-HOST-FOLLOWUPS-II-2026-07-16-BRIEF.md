@@ -147,6 +147,31 @@ what the second bring-up session surfaced and is **not yet done**. Parent `CAPTU
     (repo-identical) checkout; `tepna-rssi.sh` matches; **`tepna-usbreset.sh` was never installed at all and
     has no sudoers grant** — which means the USB unbind/bind step `VIGIL-OVERNIGHT-FINDINGS` P1.3 calls
     *"the only reliable clear"* for a wedged adapter cannot run.
+    - ✅ **THE DRIFT IS RESOLVED — re-measured on the box 2026-08-15.** All four managed helpers now match
+      the checkout byte-for-byte:
+
+      | helper | 2026-08-04 | 2026-08-15 |
+      |---|---|---|
+      | `tepna-clock.sh` | DRIFTED | **MATCH** |
+      | `tepna-restart.sh` | DRIFTED | **MATCH** |
+      | `tepna-rssi.sh` | match | **MATCH** |
+      | `tepna-usbreset.sh` | **not installed** | **MATCH** |
+
+      Closed by the owner running `sudo bash check-system-files.sh --install` on 2026-08-15, which
+      re-installs the whole MANAGED set rather than the one file it was run for — so `tepna-usbreset.sh`
+      arrived as a side effect, and P1.3's *"only reliable clear"* is now runnable.
+
+      ⚠️ **The mechanism that produced the drift is unchanged**, so it will recur: a MANAGED helper fixed
+      in the repo stays stale under `/usr/local/lib/tepna` until someone runs `--install` by hand. The
+      hourly `tepna-update.timer` does **not** cover this class — it fast-forwards `/opt/tepna` only.
+      That is the two-class distinction: **installed into `/etc` or `/usr/local/lib` ⇒ needs an operator;
+      run from the checkout ⇒ the timer IS the deployment.** `check-system-files.sh` is itself the second
+      class, which is why it needed no install to start reporting.
+
+  - ❌ **The apply path is STILL unexercised — re-checked 2026-08-15, unchanged.**
+    `/etc/systemd/timesyncd.conf.d/` is still absent, so the ntp/sync half of `tepna-clock.sh` has still
+    never written anything. The drift being fixed does **not** close V5; it removes one of the two reasons
+    V5 was open. What remains needs the apply path actually invoked on hardware.
     - ⚠️ **That last clause is WRONG, corrected 2026-08-05 — and it is the more interesting error.**
       `tepna-usbreset.sh` is **not** the unbind/bind rung. It toggles `authorized` on a docked **Polar
       sensor** to re-open the PS-FTP window and is hard-allowlisted to `0da4:0008`; its header names *"the
@@ -221,6 +246,32 @@ what the second bring-up session surfaced and is **not yet done**. Parent `CAPTU
 §2's V1–V5 all need a real device or a real box (a PSL `_GYRO`/`_MAG`/`_ACC` export to byte-diff against,
 an OH1 for PPI, an observed NTP step, a box with the sudoers rule), plus the overnight round-trip and the
 Pi bring-up. No further desk work is available here: §1 and R1 are closed and §4's D1 has shipped.
+
+> **⚠️ THE PARAGRAPH ABOVE IS DATED 2026-07-18 AND HAS BEEN OVERTAKEN — read it as history, not status.**
+> Its claim that *"no further desk work is available here"* was falsified within three weeks by work
+> recorded in this very brief, above it: **V3 RESOLVED 2026-08-08** (30 151 real PPI rows — the decoder is
+> exercised at scale, and it is PSL's *capture* that yields nothing, an app finding not a device one),
+> **V1–V3 measured against the 19 GB PSL corpus 2026-08-04**, **V4 OBSERVED ON HARDWARE 2026-08-04**, and
+> **V5's drift closed 2026-08-15**. Four items moved on desk evidence and a live box after the paragraph
+> declared none could.
+>
+> **Current state of the V-items, 2026-08-15:**
+>
+> | | state | what is actually left |
+> |---|---|---|
+> | **V1** | partial | physical-invariant agreement shown (H10 ACC 996.2 vs 992.5 mg, 0.4 %); the **uncompressed** GYRO/MAG byte-diff is still owed |
+> | **V2** | open | needs one real uncompressed H10 `_ACC` frame diffed against a PSL `_ACC` export |
+> | **V3** | ✅ resolved | 2026-08-08; correctness-by-byte-diff re-tracked as V1/V2-shaped, not "unexercised" |
+> | **V4** | ✅ observed | 2026-08-04, though not by the trigger the item specified |
+> | **V5** | partial | drift ✅ closed 2026-08-15; the ntp/sync **apply path** is still unexercised (`timesyncd.conf.d` absent) |
+>
+> **The brief stays PROPOSED**, and the honest reason is narrower than the 2026-07-18 paragraph's: what is
+> left is V1/V2's byte-diffs of the **uncompressed** path, V5's apply path, and the overnight round-trip +
+> Pi bring-up. The 2026-08-04 PSL work compared *physical invariants*, not bytes, and explicitly did not
+> close V1's uncompressed claim; whether the 19 GB corpus already contains a usable uncompressed frame or
+> one must be captured is **not established here** — check before assuming either. **Do not re-derive "no
+> desk work is available" from the old paragraph** — that sentence is what made three later sessions'
+> findings look like they had nowhere to land.
 
 ## Related
 - [`CAPTURE-HOST-2026-06-29-BRIEF.md`](CAPTURE-HOST-2026-06-29-BRIEF.md) — the parent (stays PROPOSED).
