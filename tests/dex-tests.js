@@ -7785,6 +7785,77 @@
       });
     });
 
+    /* ════ 8d¹ · CLAUDE.md CLAIMS — the authoritative file must not state facts the tree contradicts ════
+       CLAUDE.md wins on every conflict and is the first thing a session reads, so a false claim in it
+       misleads more reliably than a bug: nothing downstream disagrees with it. Nothing checked it, and
+       one claim had rotted — it said `clock.js` is "inlined by the owned bundler into every bundle"
+       while three of eight app bundles do not carry it, leaving `DexClock` UNDEFINED there.
+
+       ⚠️ THIS GATE READS NUMBERS, NOT PROSE, AND THAT LIMIT IS THE DESIGN. Two measurements set it:
+         · asserting every path CLAUDE.md names exists ⇒ 11 of 75 "missing", nearly all legitimate
+           (retired ledgers, corpus suffixes, the `Foo.html` placeholder) — ~15 % false positives.
+         · grepping for banned strings ⇒ the three `@font-face` hits in the tree are all inside COMMENTS
+           SAYING "no @font-face". A prose gate reports the documentation of a rule as a violation of it.
+       So CLAUDE.md opts a claim in by writing `CLAIM <name> = <number>`, and this checks that number.
+       A claim nobody marks is simply not gated — under-coverage, never a false red.
+
+       Node-lane only (env.claudeMdClaims is fs-read); the browser lane SKIPs, mirroring docs-ledger. */
+    group('CLAUDE.md claims match the tree (CLAIM markers)', 'docs · claude-md · claims', function (T) {
+      var C = env.claudeMdClaims;
+      if (!C) {
+        T.skip('env.claudeMdClaims provided to the runner', 'Node-lane only — wire env.claudeMdClaims (run-tests.mjs readClaudeMdClaims)');
+        return;
+      }
+      var claims = C.claims || {};
+      T.ok('CLAUDE.md carries at least one CLAIM marker', Object.keys(claims).length > 0, 'found: ' + (Object.keys(claims).join(', ') || 'none — a CLAIM was removed, or the marker syntax drifted'));
+
+      /* Every app bundle must be present, or a "0 bundles inline clock.js" reading would pass a
+         CLAIM of 0 while really meaning "nothing was measured" — unknown must not read as a count. */
+      T.ok('every app bundle was readable (an absent bundle cannot be measured)', (C.missingBundles || []).length === 0, 'missing: ' + ((C.missingBundles || []).join(', ') || 'none'));
+
+      // ── clockBundles ────────────────────────────────────────────────────────────────────────
+      if (claims.clockBundles == null) {
+        T.ok('CLAIM clockBundles is declared in CLAUDE.md', false, 'the §✅ parseTimestamp bullet must carry `CLAIM clockBundles = <n>`');
+      } else {
+        var got = (C.clockBundles || []).length;
+        T.ok(
+          'CLAIM clockBundles = ' + claims.clockBundles + ' matches the shipped bundles',
+          got === claims.clockBundles,
+          got +
+            ' of ' +
+            (C.appBundles || []).length +
+            ' inline clock.js: ' +
+            (C.clockBundles || []).join(', ') +
+            ' — if this moved, a bundle gained or lost the spine; update BOTH the bundle set and the CLAIM'
+        );
+        /* The specific error this gate was built for: "every bundle" is the claim that was false, and a
+           bare count alone would not catch someone re-wording it back. */
+        T.ok(
+          'CLAUDE.md does not claim clock.js reaches EVERY bundle',
+          !/clock\.js[^\n]*\n?[^\n]*inlined by the owned bundler into every bundle/.test(C.claudeMd || ''),
+          'three app bundles ship without it; DexClock is undefined there, so "every bundle" is not a rounding error'
+        );
+      }
+
+      // ── ownedBundles / orchestrators, read from the builder itself ──────────────────────────
+      [
+        ['ownedBundles', C.ownedBundles, 'tools/build.mjs MANIFEST_BUNDLES + ORCHESTRATORS'],
+        ['orchestrators', C.orchestrators, 'tools/build.mjs ORCHESTRATORS']
+      ].forEach(function (row) {
+        var name = row[0],
+          actual = row[1],
+          src = row[2];
+        if (claims[name] == null) return; // not opted in — silence is under-coverage, not a red
+        if (actual == null) {
+          // UNKNOWN. Deliberately a FAILURE, not a pass: a gate that cannot read its source must not
+          // certify the claim it was asked to check (CLAUDE.md §4b — success about what it never saw).
+          T.ok('CLAIM ' + name + ' could be measured', false, 'could not read ' + src + ' — the claim is UNVERIFIED, which is not the same as correct');
+          return;
+        }
+        T.ok('CLAIM ' + name + ' = ' + claims[name] + ' matches ' + src, actual === claims[name], 'tree says ' + actual + ', CLAUDE.md says ' + claims[name] + ' — update whichever is wrong');
+      });
+    });
+
     /* ════ 8d² · SECURITY — CSP on the UNBUNDLED analysis/landing pages (N1 · PRIVACY-SECURITY-AUDIT-2026-07-13) ════
        The 10 owned bundles carry a meta-CSP; the standalone analysis/research pages + index.html did not,
        though they ingest recordings and persist checkpoints (which dex-forget already erases). This leg
