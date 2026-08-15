@@ -95,6 +95,34 @@ whatever the code did on the day they were written, silently. That is the same s
 - 7 of 8 exports in `uploads/` were skipped because their named source is not on disk. The check is only
   as good as the raw files present, and it says so rather than reporting a clean sweep.
 
+  > **📏 RE-RUN 2026-08-15 WITH THE RAW CORPUS SUPPLIED — 7 skipped becomes 4, and the staleness is
+  > ISOLATED.** The tool takes `--raw <dir>`, and the missing sources are on the working volume:
+  >
+  > ```sh
+  > node tools/oxydex-export-staleness.mjs uploads \
+  >      --raw "/run/media/michal/647A504F7A50205A/Ecg nightly"
+  > ```
+  >
+  > | | as shipped (no `--raw`) | with the corpus |
+  > |---|---|---|
+  > | checked | 1 | **4** |
+  > | no longer reproduce | 1 | **1** |
+  > | skipped, source absent | **7** | **4** |
+  >
+  > **The three newly-checkable nights all reproduce cleanly** (`2026-06-25`, `2026-06-26`, `2026-07-01`
+  > → ✓). So `OxyDex_2026-07-02_2205` remains the **only** stale export in the corpus, and it is stale in
+  > the way §2 already characterised (`hrv.rmssd: null → 0.5`, `hrv.n: null → 22013`,
+  > `stats.minSpo2: 84 → 87`).
+  >
+  > **This changes the reading of §2.** With 7 of 8 unverifiable, "one export is stale" was consistent
+  > with a systemic problem that happened to be visible on one night. With 4 of 8 verified and 3 of those
+  > clean, it is a **single stale artifact**, not a pattern — which is the difference between "regenerate
+  > one file" and "distrust the corpus".
+  >
+  > ⚠️ Four remain unverifiable: their named sources are not in `Ecg nightly/` either. The bound is
+  > unchanged in kind, only smaller — the check is still only as good as the files present, and it still
+  > says so rather than reporting a clean sweep.
+
 ## 3 · `hypoxicBurden` was null for the entire life of the field — check for other renamed-on-export keys
 
 > ### ✅ AUDITED + GATED 2026-08-04 — there is no second `hypoxicBurden`

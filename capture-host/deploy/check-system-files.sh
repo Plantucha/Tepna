@@ -58,6 +58,17 @@ ETC_NETWORKD="${TEPNA_ETC_NETWORKD:-/etc/systemd/network}"
 LIB_TEPNA="${TEPNA_LIB_DIR:-/usr/local/lib/tepna}"
 INSTALL=0
 [ "${1:-}" = "--install" ] && INSTALL=1
+# `--json` emits ONE machine-readable line and suppresses the human report, so a scheduler can record
+# COUNTS rather than a boolean. The exit code alone is not enough for that — not because it misses
+# SUPERSEDED (it does not; a reportable SUPERSEDED increments `drift` on line ~168 and exits 1, measured)
+# but because "something drifted" and "which class drifted" need different responses: a MANAGED drift is
+# `--install`, a SUPERSEDED leftover is a hand `rm` this script deliberately never performs.
+JSON=0
+[ "${1:-}" = "--json" ] && JSON=1
+# Route the human report to /dev/null and keep fd 3 for the one JSON line, rather than threading an
+# `if` through every echo in the file — fewer places to forget, and the report stays byte-identical
+# for the interactive caller.
+[ "$JSON" = "1" ] && exec 3>&1 1>/dev/null
 
 # file | destination | class | mode (optional, default 0644)
 #
@@ -207,5 +218,14 @@ if [ "$INSTALL" = "1" ] && [ "$installed" -gt 0 ]; then
   echo "  $installed file(s) installed — nothing restarted, so a running capture is untouched"
 fi
 echo "  $managed managed, $drift drifted$([ "$ambig" -gt 0 ] && echo ", $ambig AMBIGUOUS")$([ "$stale_etc" -gt 0 ] && echo ", $stale_etc SUPERSEDED")"
+if [ "$JSON" = "1" ]; then
+  # ⚠️ `drifted` INCLUDES `superseded` — line ~168 increments both, which is why a SUPERSEDED leftover
+  # exits 1. `managedDrifted` is published separately because the two need OPPOSITE responses: a managed
+  # drift is fixed by `--install`, a superseded leftover by a hand `rm` this script never performs.
+  # A consumer that adds `drifted + superseded` would double-count; one that reads only `drifted` cannot
+  # tell which action is owed. Both are published so neither mistake is available.
+  printf '{"managed":%d,"drifted":%d,"managedDrifted":%d,"superseded":%d,"ambiguous":%d,"missing":%d}\n' \
+    "$managed" "$drift" "$((drift - stale_etc))" "$stale_etc" "$ambig" "$missing" >&3
+fi
 [ "$drift" -eq 0 ] || exit 1
 exit 0

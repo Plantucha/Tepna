@@ -192,6 +192,43 @@ def classify(entries, survivors, generated):
     return out
 
 
+def refusal_reason(venv_exists: bool, probe_rc: int | None) -> str | None:
+    """Why this run cannot be trusted to have checked anything — or None if it can.
+
+    THE GATE USED TO FAIL OPEN, and this is the guard for it. With mutmut absent every
+    `run_one` returns `{"error": ...}`, the caller prints and continues, `blocking` ends up
+    empty, and the run prints "every mutant on the changed functions was killed" with
+    `survivors: []`. That is a GREEN VERDICT ABOUT ZERO MUTANTS — the check reporting success
+    about something it never examined, the same shape as a `-k` filter that matches nothing or
+    a `pytest` line without `--cov`. Recorded in PAT-OFFSET-ESTIMATOR-FOLLOWUPS.
+
+    Pure on purpose: the caller gathers the two facts, this decides. That keeps the decision
+    pinnable by `--selftest` without spawning anything, exactly as `classify` is.
+
+    `probe_rc is None` means the interpreter itself could not be launched (OSError), which is a
+    different cause from mutmut being absent under a working interpreter — worth distinct text,
+    because the remedies differ (create the venv vs install the tool).
+
+    ⚠️ `probe_rc` MUST come from `python -c "import mutmut"`, never from `--help`. Measured
+    2026-08-15 on this repo's own venv: mutmut 3.7.0 is installed and imports fine, yet
+    `-m mutmut --help` exits 1 on a broken `safe_setproctitle` import and `mutmut --help` exits 1
+    on a missing `source_paths`. A `--help` probe would therefore REFUSE on a machine where the
+    gate works — trading a false green for a false red, which is not an improvement. Import
+    presence is the property this guard is actually about.
+    """
+    if not venv_exists:
+        return ("the capture-host venv is missing — expected an interpreter at .venv/bin/python. "
+                "Create it (python -m venv .venv && .venv/bin/pip install -e '.[dev]') and re-run.")
+    if probe_rc is None:
+        return ("the venv interpreter could not be launched. The path exists but is not executable "
+                "or is a broken symlink.")
+    if probe_rc != 0:
+        return ("mutmut is not importable under the venv interpreter "
+                "(`.venv/bin/python -c 'import mutmut'` exited non-zero). Install it into the venv; "
+                "without it this gate generates no mutants and would report success.")
+    return None
+
+
 def _selftest() -> int:
     """The classifier's own known answers. A mechanism that decides what the gate ignores has to be
     the best-tested thing in the file, so each of the five outcomes is pinned here."""
@@ -223,7 +260,26 @@ def _selftest() -> int:
     if diff_key("-a\n+b\n") == diff_key("-a\n+c\n"):
         print("  selftest FAIL: diff_key collides on different mutations")
         ok = False
-    print("  selftest: classify + diff_key OK" if ok else "  selftest: FAILED")
+    # The fail-open guard. Pinned here rather than in tests/ on purpose: nothing under tools/ is
+    # imported by the pytest suite, so a test importing this module would be the first — and would
+    # drag a 366-line uncovered file into the --cov-fail-under=100 floor and red CI for a reason
+    # unrelated to the change. The tool tests itself, as `classify` already does.
+    for label, args, want_none in (
+        ("healthy", (True, 0), True),
+        ("mutmut absent", (True, 1), False),
+        ("interpreter unlaunchable", (True, None), False),
+        ("venv missing", (False, None), False),
+        ("venv missing outranks a 0 rc", (False, 0), False),
+    ):
+        got = refusal_reason(*args)
+        if (got is None) != want_none:
+            print(f"  selftest FAIL: refusal_reason({label}) -> {got!r}")
+            ok = False
+    # the three refusal texts must be DISTINCT — they prescribe different remedies
+    if len({refusal_reason(True, 1), refusal_reason(True, None), refusal_reason(False, None)}) != 3:
+        print("  selftest FAIL: refusal reasons are not distinguishable")
+        ok = False
+    print("  selftest: classify + diff_key + refusal_reason OK" if ok else "  selftest: FAILED")
     return 0 if ok else 1
 
 
@@ -243,6 +299,26 @@ def main(argv=None) -> int:
         print(f"mutate-diff: no capture-host/*.py changed against {a.base} — nothing to check.")
         return 0
 
+    # ── PREFLIGHT — refuse rather than green when the gate cannot actually run ──────────────
+    # Checked BEFORE any work, because the failure is total: no mutmut means no mutants for any
+    # module, and the loop below would report every one of them as clean.
+    #
+    # Exit 2, and NOT suppressed by --report-only. That flag's contract is "never exit non-zero"
+    # about FINDINGS; this is not a finding, it is the tool being unable to look, and hiding it
+    # behind report-only would re-create the exact false green this guard exists to remove. The
+    # distinct code also lets a caller tell "could not check" from "found survivors" (exit 1).
+    try:
+        _rc: int | None = subprocess.run(
+            [str(VENV_PY), "-c", "import mutmut"], capture_output=True, text=True).returncode
+    except OSError:
+        _rc = None
+    _why = refusal_reason(VENV_PY.exists(), _rc)
+    if _why:
+        print(f"mutate-diff: REFUSING — {_why}")
+        print("  Nothing was mutated, so nothing can be concluded. This is deliberately not a pass:\n"
+              "  a gate that cannot see must not report green.")
+        return 2
+
     import importlib.util
     spec = importlib.util.spec_from_file_location("mut", HERE / "tools" / "mutate.py")
     mut = importlib.util.module_from_spec(spec)
@@ -253,6 +329,10 @@ def main(argv=None) -> int:
     # `mutmut show` per mutant, paid ONLY for modules the equivalence file actually claims.
     _equiv_pre = load_equivalence()
     generated_keys: set = set()
+    # The preflight proves mutmut IMPORTS; these prove it actually ran. Measured on this repo's own
+    # venv, importable-but-unusable is a real state, not a hypothetical — so an import check alone
+    # would still fail open. If every invocation errored, no mutant was ever tested.
+    _attempted = _ran = 0
     verdict: dict = {"base": a.base, "modules": {}, "survivors": []}
     for module, lines in sorted(changed.items()):
         stems = functions_covering(HERE / module, lines)
@@ -265,10 +345,12 @@ def main(argv=None) -> int:
               f"{', '.join(sorted(stems))}", flush=True)
         # One mutmut invocation per function keeps a single slow function from hiding the others.
         for g in globs:
+            _attempted += 1
             r = mut.run_one(module, only=g)
             if r.get("error"):
                 print(f"    ! {g}: {r['error']}")
                 continue
+            _ran += 1
             work = Path(r["work"])
             # ── the GENERATED set, for REFUTED detection ────────────────────────────────────────
             # `mutmut results` lists survivors and not-checked ONLY — a KILLED mutant is absent from
@@ -307,6 +389,16 @@ def main(argv=None) -> int:
                                              "changed": diff_key(show.stdout),
                                              "diff": show.stdout[:400], "work": str(work)})
         verdict["modules"][module] = sorted(stems)
+
+    # Every invocation failed. The loop above prints each error and continues — right per glob (one
+    # broken function must not hide the others), catastrophic in aggregate, because `blocking` is
+    # then empty and the run prints success. Refuse for the same reason as the preflight: nothing
+    # was tested, so nothing was shown. This is the layer the import check cannot cover.
+    if _attempted and not _ran:
+        print(f"\nmutate-diff: REFUSING — all {_attempted} mutmut invocation(s) failed, so no mutant "
+              "was generated or tested. The per-glob errors are above.")
+        print("  Deliberately not a pass: a gate that cannot see must not report green.")
+        return 2
 
     # ── the recorded classification ───────────────────────────────────────────────────────────
     # Applied to survivors ONLY, and only per-module, so an entry filed against a different file can

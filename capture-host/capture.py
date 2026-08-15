@@ -28,7 +28,7 @@ import alerts
 import nightqc
 import nightarchive
 import storage_targets
-from telemetry import (TelemetryBus, calibrated_for, full_battery_implies_charging, on_body,
+from telemetry import (TelemetryBus, calibrated_for, note_flat_battery, on_body,
                        ppi_contact, sd_calibrated_for, worn_verdict)
 
 # ── JOURNAL SEVERITY (VIGIL-COEXISTENCE-AND-RANGE §1) ────────────────────────────────────────────────
@@ -1638,6 +1638,24 @@ async def _exit_sdk_mode(ctrl, name: str) -> bool | None:
     return on
 
 
+# ⚠️ THE 45-MINUTE FLAT-BATTERY CLOCK MUST OUTLIVE THE CONNECTION, and it did not.
+#
+# `full_battery_implies_charging` needs 2700 s of a battery not moving at 100 %. That timer used to be a
+# local inside `run_polar`'s `async with _connect(...)` block — i.e. INSIDE the reconnect loop — so every
+# dropped link reset it to None and restarted the count.
+#
+# The condition it was written for is a device sitting in a dock. A device sitting in a dock is ALSO a
+# device that keeps dropping its link: measured 2026-08-15, the Verity reconnected at 10:03, 10:10, 10:15
+# and 10:20 — gaps of 6.7, 4.9 and 5.0 min — while streaming noise at 176 Hz with battery pinned at 100
+# and `charging` False throughout. The guard is correct, is wired, and could never fire, because 45 min of
+# UNINTERRUPTED connection is exactly what the scenario denies it.
+#
+# `prev` (the battery level it compares against) was already read from module-level STATUS and so already
+# survived reconnects. Only the clock did not, which is why the asymmetry was invisible: half the rule
+# persisted and half of it reset.
+_BATT_FLAT_SINCE: dict[str, float] = {}
+
+
 async def run_polar(dev: dict, root: str):
     """Polar PMD + the standard Heart Rate characteristic. Despite the name this is also the path for any
     third-party HR strap, because `hr` is SIG-standard — so the Polar-SPECIFIC rituals below have to be
@@ -1808,12 +1826,17 @@ async def run_polar(dev: dict, root: str):
                 # the optical path stands down permanently for straps that have one (the H10 reports
                 # None and never raises it; the COOSPO does).
                 _amb: list[float] = []
+                # A ROLLING window, not a per-verdict batch like `_amb`. The pulse detector needs 4096
+                # samples for frequency resolution — ~23 s at 176 Hz, ~74 s at 55 Hz — while the ambient
+                # verdict fires every ~220. Clearing this on each verdict would keep it permanently below
+                # its minimum and it would abstain forever: an orphan detector that looks wired.
+                _ppg_win: list[float] = []
+                _PPG_WIN_MAX = 8192
                 _AMB_WINDOW = 220
                 _has_contact_bit = False
                 # When the battery level last CHANGED. A full cell cannot rise, so at 100 % the
                 # rising-charge rule in `_read_batt` is blind and flatness is the only substitute
                 # signal — see telemetry.full_battery_implies_charging.
-                _batt_flat_since = None
                 # Say the contact-vs-optics conflict ONCE per session, not once per PPG window.
                 # At 176 Hz this branch runs ~every 1.25 s; an unthrottled warning would emit
                 # ~2900 identical lines a night and bury the one that matters.
@@ -1911,6 +1934,11 @@ async def run_polar(dev: dict, root: str):
                         elif meas == pmd.PPG:
                             wr.write_ppg(smp.phone, smp.sensor_ns, smp.t_ms, v[:3], v[3])
                             _amb.append(v[3])
+                            _ppg_win.append(v[0])
+                            # branchless trim: a negative-slice delete is a NO-OP while the window is
+                            # shorter than the cap (`x[:-8192]` is empty for len < 8192), so there is no
+                            # rarely-taken arm to leave uncovered — the guard and the trim are one line.
+                            del _ppg_win[:-_PPG_WIN_MAX]
                         elif meas == pmd.GYRO: wr.write_gyro(smp.phone, smp.sensor_ns, smp.t_ms, *v)
                         elif meas == pmd.MAG:  wr.write_mag(smp.phone, smp.sensor_ns, smp.t_ms, *v)
                         elif meas == pmd.PPI:   # pragma: no branch — PPI is the last of the six
@@ -1972,7 +2000,8 @@ async def run_polar(dev: dict, root: str):
                         # for, and only the agreed number describes these samples.
                         _worn, _why = worn_verdict(
                             ppi_flags=_ppi_flags, ambient=list(_amb), fs=stream_fs.get(pmd.PPG),
-                            charging=STATUS["devices"].get(name, {}).get("charging"))
+                            charging=STATUS["devices"].get(name, {}).get("charging"),
+                            ppg=list(_ppg_win))
                         _amb.clear()
                         if _has_contact_bit:
                             # A contact bit owns `worn`. Publish the optical opinion ALONGSIDE it and
@@ -2089,11 +2118,9 @@ async def run_polar(dev: dict, root: str):
                             # streaming with battery pinned at 100 and nothing able to tell a dock
                             # from a wrist. Streaming drains ~9 %/h, so 45 min of no movement at full
                             # is a charger.
-                            nonlocal _batt_flat_since
-                            if prev != lvl or _batt_flat_since is None:
-                                _batt_flat_since = _time.monotonic()
-                            elif full_battery_implies_charging(
-                                    lvl, _time.monotonic() - _batt_flat_since):
+                            # store is module-level, so a reconnect does not restart the clock
+                            if note_flat_battery(_BATT_FLAT_SINCE, name, prev, lvl,
+                                                 _time.monotonic()):
                                 _set(name, charging=True)
                     except Exception:
                         pass
