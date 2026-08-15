@@ -5321,6 +5321,36 @@
       T.ok('default is OFF so every existing analysis is unchanged', /const ALLOW_PARTIAL = flag\('--allow-partial'\)/.test(tb));
     });
 
+    /* THE DRAWN-AXIS REFUSAL, GATED AS TEXT IN BOTH TOOLS THAT SPEND A CLOCK.
+       `hostAxis.independent` compares two COLUMNS, so a synthesised counter reads MORE independent the
+       coarser its quantisation; `plausibleCrystal` is a magnitude proxy. Neither is provenance. The
+       exposure is measured, not hypothetical: O2Ring streams are flagged drawn 20/20 and Verity `ppi`
+       1/1, against H10 ecg 0/6 and Verity ppg 0/19 — and `pat-host-offset.mjs` takes the Wellue finger
+       PPG as its PAT target. Both refusals live in CLI loops rather than exported surfaces, so they are
+       asserted as source text; ECGDex is deliberately NOT gated here, having zero measured exposure. */
+    group('drawn-axis refusal is present in every tool that spends a clock', 'clock · drawn-axis · source-scan', function (T) {
+      var S = env.sources || {};
+      [
+        ['tools/trio-batch.mjs', /deviceDrawn/],
+        /* The CONDITIONAL, not merely the identifier. A first version matched /deviceDrawn === true/,
+           which the refusal BODY also contains (`ax.deviceDrawn === true ? …`) — so replacing the guard
+           with `if (false)` left the test green. Verified by mutation after the fix: it reds. */
+        ['tools/pat-host-offset.mjs', /if\s*\(\s*ax\.deviceDrawn === true \|\| px\.deviceDrawn === true\s*\)/]
+      ].forEach(function (pair) {
+        var txt = S[pair[0]];
+        if (txt == null) {
+          T.skip(pair[0] + ' wired into env.sources', 'not in env.sources — the scan would read nothing');
+          return;
+        }
+        T.ok(pair[0] + ' refuses on deviceDrawn', pair[1].test(txt), 'no deviceDrawn guard found');
+      });
+      var pat = S['tools/pat-host-offset.mjs'];
+      if (pat != null) {
+        T.ok('…and the PAT refusal is a CONTINUE, not a warning', /if\s*\(\s*ax\.deviceDrawn === true \|\| px\.deviceDrawn === true\s*\)[\s\S]{0,600}?continue;/.test(pat));
+        T.ok('…naming DRAWN in the refusal text so a reader can tell it from an independence refusal', /DRAWN AXIS/.test(pat));
+      }
+    });
+
     group('trio-batch feeds the O2Ring finger site without breaking the trio count', 'trio-batch · o2ring-finger', function (T) {
       var src = env.sources || {};
       var tb = src['tools/trio-batch.mjs'] || src['trio-batch.mjs'] || '';
