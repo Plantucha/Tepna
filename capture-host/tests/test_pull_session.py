@@ -93,6 +93,15 @@ class FakeRing:
         assert response is False, "this device requires write-without-response, stated explicitly"
         self.writes.append(frame)
         op = frame[1]
+        # The ring answers its identity read. Without this every test paid the 6 s identity timeout —
+        # measured: this file went from 0.24 s to 4 MINUTES, which would have shipped into CI as a
+        # silent slowdown. A fake that declines to answer a command the real device answers is not a
+        # neutral omission; it makes the happy path untested AND expensive.
+        if op == oxyii.OP_GET_INFO and getattr(self, 'answer_info', True):
+            fw = b"2D010003"
+            sn = b"O2R-TEST-1"
+            payload = (b"\x00" * 9) + fw + (b"\x00" * 20) + bytes([len(sn)]) + sn
+            self._reply(oxyii.OP_GET_INFO, payload + b"\x00" * max(0, 48 - len(payload)))
         if op == oxyii.OP_FILE_LIST:
             slots = b"".join(s.encode() + b"\x00\x00" for s in self.sessions)
             self._reply(oxyii.OP_FILE_LIST, bytes([len(self.sessions)]) + slots)
@@ -724,3 +733,39 @@ def test_a_healthy_mtu_does_not_warn(tmp_path, monkeypatch, capsys):
     _install(monkeypatch, ring)
     _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
     assert "may fail silently" not in capsys.readouterr().out
+
+
+def _pull_one(tmp_path, monkeypatch, answer_info=True):
+    """One complete pull against the fake ring → its `.meta.json`. `answer_info=False` models a device
+    that ignores the 0xE1 identity read."""
+    hdr = bytes([0x01, 0x03, 0, 0, 0, 0, 0, 0, 0x04, 0x00])
+    blob = hdr + bytes([96, 50, 0]) * 60 + bytes(48)
+    ring = FakeRing(["20260720020000"], blob)
+    ring.answer_info = answer_info
+    _install(monkeypatch, ring)
+    got = _run(pull_session._pull_once("AA:BB:CC:DD:EE:FF", str(tmp_path), "latest", 0, None, "0000"))
+    return json.load(open(got[0] + ".meta.json"))
+
+def test_the_pull_records_WHICH_FIRMWARE_produced_the_bytes(tmp_path, monkeypatch):
+    """⚠️ `parse_get_info` said this mattered and was called by nothing.
+
+    Its docstring: *"this device's behaviour is firmware-dependent (the F2 MTU gate differs between
+    2D010001/2/3), so a capture should record which firmware produced it."* Nothing in the tree recorded
+    the ring's firmware — the only firmware handling anywhere was Polar-side. A capture whose
+    interpretation depends on firmware, and which does not say which firmware, cannot be re-read later
+    with that knowledge."""
+    meta = _pull_one(tmp_path, monkeypatch)
+    assert meta["device_firmware"] == "2D010003", meta
+    assert meta["device_serial"] == "O2R-TEST-1", meta
+
+
+def test_a_ring_that_does_not_answer_0xE1_still_completes_the_pull(tmp_path, monkeypatch):
+    """⚠️ THE IDENTITY READ MUST NEVER BE ABLE TO FAIL A PULL. The recording on flash is the
+    irreplaceable thing here; the firmware string is a nice-to-have. A device that ignores 0xE1 — an
+    older firmware, a busy radio — must still yield its session, with `device_firmware: null`.
+
+    `null`, not a guess: "not read" and "old firmware" are different facts, and only one of them is a
+    reason to reinterpret the capture."""
+    meta = _pull_one(tmp_path, monkeypatch, answer_info=False)
+    assert meta["device_firmware"] is None and meta["device_serial"] is None, meta
+    assert meta["bytes"] > 0, "the session itself must still land"
