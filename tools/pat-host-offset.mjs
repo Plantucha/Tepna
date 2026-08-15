@@ -409,6 +409,20 @@ if (IS_CLI) {
           refusals.push(`${night}: NOT INDEPENDENT — ${!ax.independent ? 'ECG ' + ax.inertReason : 'PPG ' + px.inertReason}`);
           continue;
         }
+        /* AND THE DEVICE COLUMN MUST BE A CLOCK, which `independent` cannot tell you — it compares two
+           COLUMNS, so a counter synthesised as `index × an assumed rate` reads MORE independent the
+           coarser its quantisation. The target here is the Wellue finger PPG (line 371), and that is
+           precisely the drawn-axis device: 20 of 20 O2Ring streams in the corpus are flagged, against
+           0 of 6 for H10 ECG and 0 of 19 for Verity PPG. One real segment (2026-08-13, 1.72 h) reports
+           −22.83 ppm at a 99.3 % drawn-delta share — a plausible-looking crystal from a stream with no
+           oscillator — so the magnitude cannot be the discriminator either. `hostAxis` publishes
+           `deviceDrawn`; refuse on it, because `toHostAxis` below would otherwise place beats on a
+           fabricated timebase and the offset it yields would be an artefact of the assumed rate. */
+        if (ax.deviceDrawn === true || px.deviceDrawn === true) {
+          const which = ax.deviceDrawn === true ? { tag: 'ECG', r: ax } : { tag: 'PPG', r: px };
+          refusals.push(`${night}: DRAWN AXIS — ${which.tag} ${which.r.drawnReason || 'device column is a synthesised counter, not a clock'}`);
+          continue;
+        }
         const eT = toHostAxis(er, hostCorrector(ax, ea.anchors[0].devMs), ea.anchors[0].devMs);
         const fT = toHostAxis(pr, hostCorrector(px, pa.anchors[0].devMs), pa.anchors[0].devMs);
         for (let w = lo; w + WINDOW_MIN * 60000 <= hi; w += WINDOW_MIN * 60000) {
