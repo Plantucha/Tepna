@@ -372,6 +372,53 @@ and it should precede any further estimator work. Phase 3's variance decompositi
 next step precisely because it answers that question, and it costs no bundle.
 
 
+### §4b · …and a DIFFERENT fiducial does not help either — but the sweep found where the leverage actually is
+
+§4a refuted a better estimator of the *same* landmark. That leaves the obvious follow-up, and it is a
+genuinely different question: **σ_τ bounds how precisely a KNOWN SHAPE can be timed in noise, and says
+nothing about whether the foot is the right FEATURE to time.** PPG morphology moves with vascular tone
+and respiration, so a landmark can drift relative to true pulse arrival — model error, not noise error.
+
+So eight candidate fiducials were computed on the **same beats of the same waveform**: diastolic trough ·
+intersecting tangent (shipped) · max first derivative · max second derivative · 10 / 25 / 50 % amplitude
+crossings on the upstroke · systolic peak. PAT SD, scored on the beats **all eight** successfully pair —
+without that constraint each column is scored on a different beat set, which is the unfair-subset trap
+§4a already caught once:
+
+| night | best | tangent | worst |
+|---|---|---|---|
+| 2026-07-09 | trough **13.02** | 13.68 *(3rd)* | peak 17.37 |
+| 2026-07-06 | **tangent 24.28** | — *(1st)* | trough 36.83 |
+| 2026-07-12 | trough **17.03** | 17.21 *(3rd)* | peak 19.03 |
+| 2026-06-28 | **tangent 24.81** | — *(1st)* | peak 33.08 |
+
+**The shipped tangent foot is already at or near the optimum.** It ranks 1st or 3rd on every night, and
+the spread across all the *sensible* candidates — tangent, the three amplitude crossings, max-d1 — is
+**0.3–0.7 ms**, i.e. nothing. Only two candidates behave distinctly, and both argue for what already
+ships: **systolic peak is consistently worst** (3–8 ms, as expected — reflected waves move it), and
+**diastolic trough is bimodal**: best on the two clean nights and catastrophically worst on the two
+noisier ones (36.83, 26.47 ms). Fragile is worse than slightly-suboptimal.
+
+⚠️ 2026-07-01 produced **zero** commonly-paired beats and is excluded — that night is too poor for all
+eight to pair the same beat. (The scratch script printed `0.00 ms` for it, which is an artifact of taking
+an SD over an empty set, not a result. Recorded so the number is never quoted.)
+
+#### 🟢 The finding worth keeping: SELECTION has ~40× the leverage of FIDUCIAL CHOICE
+
+The two tables above differ in one respect beyond the fiducial — restricting to commonly-paired beats.
+On 2026-07-06 that alone moved PAT SD from **36.46 ms to 24.28 ms**. Against it, choosing the best
+fiducial instead of the shipped one moves **0.3 ms**.
+
+**Which beats you trust is worth ~12 ms; which feature you time is worth ~0.3 ms.** That is a factor of
+~40 in leverage, measured on the same data in the same run, and it converges with the one result §4a
+salvaged — `q` separates PAT spread (11.41 vs 15.30 ms) while `tHat` does not improve it. Both say the
+same thing from different directions: **the remaining PAT variance is not in the fiducial algorithm, and
+the tractable lever is beat admission, not beat timing.**
+
+That is a concrete redirection rather than a second null: any future PAT work should go at the gate, and
+it should be justified against PpgDex's existing `conf`/SQI rather than assumed to beat them.
+
+
 ## §5 · Phase 3 — a GUM uncertainty budget for PAT
 
 **The framework.** JCGM 100:2008 (the GUM) plus **JCGM 101:2008**, its Monte-Carlo supplement, which
