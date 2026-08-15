@@ -336,6 +336,63 @@ first).
 
 ---
 
+## 3f · 🔴 THE PRE-FLIGHT: FOUR MORE DEFECTS, FOUND WITHOUT RUNNING A SINGLE MUTANT
+
+§3e's fixes made Level B correct on an 11-statement fixture. Before spending two hours on 130 real
+subjects, the subject list itself was audited statically — every defect so far had been in subject
+CONSTRUCTION, and that can be inspected without executing anything.
+
+**1 · An object literal's `}` was ending statements.** The splitter emitted on any `}` returning to
+depth 0. In `clock.js`:
+
+```js
+return lmo >= 1 && … ? { d: ld, mo: lmo } : null;
+```
+
+came back as **two** "statements" — `return … ? { d: ld, mo: lmo }` and `: null;` — both eligible,
+neither a statement. **This predates the recursion work.** `braceKind` now decides at the `{`
+whether it opens a block or a value, from what precedes it, and errs toward `block` (a lost subject
+is visible; a split expression is not).
+
+⚠️ **The consequence is a FALSE GREEN, not noise.** Deleting a fragment leaves source that does not
+parse, so the suite fails to LOAD — and a load failure is indistinguishable from an assertion
+failure. Every such mutant was recorded as **KILLED**. `mutate.mjs:181` predicted invalid mutants
+would "drown the signal"; the real behaviour was worse, because they inflated the kill count instead.
+
+**2 · Destructuring patterns, the same class from a different construct.** `const { a, b } = f();`
+split into `const { a, b }` and `= f();`. Six fleet-wide after fix 1.
+
+**3 · So the fix is a BACKSTOP, not a construct list.** A subject whose text does not parse is now
+declined outright (`not-eligible:unparseable`). Two unrelated constructs produced this bug silently;
+a third would too. Fragments after both fixes: **0 on every file.**
+
+**4 · The backstop's first version declined 30 % of all subjects.** It parsed the *masked* text —
+where strings and regexes are blanked — so `z.replace(':', '')` became `z.replace(   ,   )` and
+`return x ? 'high' : 'low';` lost both arms. Valid statements, declined: 308 on `oxydex-dsp.js`, 23
+on `clock.js`. Every other rule here matches masked code, which is precisely why this one looked
+right. Parsing needs the real characters back.
+
+**5 · Coverage is a precondition at statement level too — and was not.** The tool argued a statement
+has no coverage precondition of its own, the enclosing function's being Level A's concern. That was
+true while every subject sat at a covered function's top level, and **§3e's recursion ended it**:
+statements inside `if` and loop bodies are exactly the ones a test skips while still covering the
+function. Delete one, the suite passes BECAUSE IT NEVER RAN, and it reports as pseudo-tested — Betka
+& Wagner's precondition violated one level down, the same error whose Level-A fix cut a claimed
+48.6 % to 5.4 %. Measured: 3–7 % of subjects sit on never-executed lines (4 on `clock.js`, 69 on
+`ppgdex-dsp.js`). It fails OPEN toward testing — absent coverage we cannot prove non-execution, and
+an invisible hole in the denominator is worse than a wasted run.
+
+**6 · And the precondition was wired to a call site that never received it.** `runLevelB` gained a
+`covPath` parameter; the one call passed three arguments. `covPath` would have been `undefined`,
+`covered` would have stayed `null`, and the whole thing would have done nothing — while the code
+read as correct. Caught by grepping the call site rather than the definition.
+
+**None of this required running a mutant.** Fragmentation is a property of the subject list; coverage
+is a property of a committed artefact. The two hours were the reason to look, not the way to find out.
+The 51 selftests were green before and after every one of these defects.
+
+---
+
 ## 4a · ⏱️ LEVEL B'S COST, MEASURED — one suite run per statement is the whole story
 
 `clock.js` has **85 eligible statements** across 13 functions (133 total; 43 declined as control-flow,

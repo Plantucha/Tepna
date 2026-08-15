@@ -98,3 +98,16 @@ reported here as a pseudo-tested statement and is **an EQUIVALENT MUTANT**: ever
 a number. Survival is not pseudo-testedness, SDL cannot separate the two, and TCE (the standard remedy)
 does not port to JS — so every survivor needs manual triage. The test written for it is kept for an
 independent reason: Clock §2 case 3's optional seconds had **zero** fixtures.
+
+**A STATIC PRE-FLIGHT BEFORE THE FIRST REAL RUN FOUND FOUR MORE DEFECTS, NONE NEEDING A MUTANT.**
+An object literal's `}` ended statements, splitting `return c ? { d: a } : null;` into two fragments
+— **pre-existing**, and its mutants do not parse, so the suite fails to LOAD and the mutant is
+recorded as **KILLED**: syntax errors inflating the kill count, a false green rather than noise.
+Destructuring patterns did the same. Both are now fixed at the brace, plus a backstop that declines
+any subject that does not parse (0 fragments fleet-wide) — because two unrelated constructs caused
+this silently and a third would too. That backstop's first version parsed the MASKED text and
+declined 30 % of valid subjects (308 on oxydex-dsp.js). And coverage is now a statement-level
+precondition: §3e's recursion made branch-nested statements subjects, and an unexecuted statement
+deleted passes the suite BECAUSE IT NEVER RAN — 3–7 % per file would have read as pseudo-tested.
+It fails open toward testing. Its `covPath` was also wired to a call site that never received it.
+

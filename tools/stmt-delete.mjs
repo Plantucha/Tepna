@@ -75,6 +75,7 @@
  *   node tools/stmt-delete.mjs --file ecgdex-dsp.js --group ecgdex-dsp --jobs 12 --json
  *   node tools/stmt-delete.mjs --selftest
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
+import vm from 'node:vm';
 import { stripNonCode } from './probe-equivalence.mjs';
 
 /* Files Level B may run against. An allowlist, not a glob: SDL is experimental here and its cost is
@@ -94,6 +95,37 @@ export const ELIGIBLE = ['EXPRESSION', 'RETURN', 'THROW', 'BREAK', 'CONTINUE', '
    inside an `if` or a loop belongs to a control structure whose deletion semantics differ, and
    guessing at them is how an unsound mutant gets emitted. Nested bodies are reached by recursing on
    the enclosing block, not by flattening. */
+/* Is this `{` opening a BLOCK or an OBJECT LITERAL? Decided by what precedes it, which is how a
+   parser's expression/statement position is approximated without one. Errs toward `block`: a
+   mislabelled block merely declines to split (a lost subject, visible as a smaller count), while a
+   mislabelled object literal SPLITS AN EXPRESSION IN HALF and emits unparseable mutants. */
+/* Does this text compile as a statement in a context that permits every legal statement form? */
+export function parsesAsStatement(text) {
+  try {
+    new vm.Script('(async function* _x_(){ for(;;){ switch(1){ case 1: ' + text + '\n} } })');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function braceKind(mask, i) {
+  let j = i - 1;
+  while (j >= 0 && /\s/.test(mask[j])) j--;
+  if (j < 0) return 'block';
+  const p = mask[j];
+  if (p === '>' && mask[j - 1] === '=') return 'block'; /* `=> {` — an arrow body */
+  if ('=(,:?[+-*/%&|^!<>~'.indexOf(p) >= 0) return 'expr';
+  let k = j;
+  while (k >= 0 && /[A-Za-z_$]/.test(mask[k])) k--;
+  const word = mask.slice(k + 1, j + 1);
+  /* `const`/`let`/`var` before a brace is a DESTRUCTURING PATTERN — neither a block nor an object
+     literal, but it must not split either: `const { a, b } = f();` was emitted as `const { a, b }`
+     plus `= f();`, six such fragments fleet-wide after the object-literal fix. */
+  if (['return', 'typeof', 'new', 'case', 'in', 'of', 'delete', 'void', 'instanceof', 'yield', 'await', 'const', 'let', 'var'].indexOf(word) >= 0) return 'expr';
+  return 'block';
+}
+
 export function splitStatements(src, from, to, _mask) {
   const mask = _mask || stripNonCode(src);
   const out = [];
@@ -113,12 +145,31 @@ export function splitStatements(src, from, to, _mask) {
     if (text.trim()) out.push({ start: s, end, text });
     start = end;
   };
+  const kinds = [];
   for (let i = from; i < to; i++) {
     const c = mask[i];
-    if (c === '{' || c === '(' || c === '[') depth++;
-    else if (c === '}' || c === ')' || c === ']') {
+    if (c === '{') {
+      kinds.push(braceKind(mask, i));
+      depth++;
+    } else if (c === '(' || c === '[') {
+      kinds.push('paren');
+      depth++;
+    } else if (c === '}' || c === ')' || c === ']') {
+      const k = kinds.pop();
       depth--;
-      /* A BLOCK-TERMINATED STATEMENT DOES NOT END IN `;`. `for (…) { … }` and `if (…) { … }` close
+      /* 🔴 ONLY A BLOCK `}` ENDS A STATEMENT — AN OBJECT LITERAL'S DOES NOT. Without `braceKind`
+         this rule fires on the `}` of a value and splits an expression in half. Measured on
+         clock.js:
+             return lmo >= 1 && … ? { d: ld, mo: lmo } : null;
+         came back as TWO "statements", `return … ? { d: ld, mo: lmo }` and `: null;`, both of which
+         classify as eligible and neither of which is a statement. Deleting either leaves source
+         that does not parse — and an unparseable mutant makes the suite FAIL, which this tool would
+         have recorded as KILLED. That is the worst possible direction: syntax errors inflating the
+         kill count, i.e. `mutate.mjs:181`'s "invalid mutants drown the signal" arriving as a
+         false GREEN rather than as noise. ~1–4 % of subjects per file, and it predates the
+         recursion work.
+
+         A BLOCK-TERMINATED STATEMENT DOES NOT END IN `;`. `for (…) { … }` and `if (…) { … }` close
          on `}`, so a splitter that only breaks on semicolons welds them to whatever follows.
          Caught by selftest: `for (var i=0;i<3;i++) { h(i); } k();` came back as ONE statement
          instead of two. It failed SAFE — the merged text starts with `for`, so eligibility declined
@@ -128,7 +179,7 @@ export function splitStatements(src, from, to, _mask) {
          fires on the `)` of `g(a);` and the `]` of `a[i];`, splitting an expression in half and
          stripping its semicolon — caught immediately by the two selftests above, which is why they
          assert the TEXT and not just the count. */
-      if (c === '}' && depth === 0) emit(i + 1);
+      if (c === '}' && depth === 0 && k === 'block') emit(i + 1);
     } else if (c === ';' && depth === 0) emit(i + 1);
   }
 
@@ -162,10 +213,7 @@ export function splitStatements(src, from, to, _mask) {
     if (/\bfunction\b/.test(t) || /=>/.test(t)) continue;
     let i = st.start;
     while (i < st.end) {
-      if (mask[i] !== '{') {
-        i++;
-        continue;
-      }
+      if (mask[i] !== '{' || braceKind(mask, i) !== 'block') { i++; continue; }
       let d = 0;
       let j = i;
       for (; j < st.end; j++) {
@@ -214,6 +262,25 @@ export function classifyStatement(text) {
   /* A statement containing a function definition is a DECLARATION of behaviour, not an execution of
      it. Deleting it removes a binding other statements call — the same unsound shape as deleting a
      variable declaration, without the initialiser trick to rescue it. */
+  /* 🔴 CATCH-ALL: A SUBJECT THAT DOES NOT PARSE IS NOT A STATEMENT — decline it, whatever produced
+     it. Two distinct splitter bugs (object-literal braces, destructuring patterns) each emitted
+     expression FRAGMENTS that classified as eligible, and deleting a fragment leaves source that
+     does not parse. The suite then fails to LOAD, and a load failure is indistinguishable from an
+     assertion failure: the mutant is recorded as KILLED. Syntax errors inflating the kill count is
+     strictly worse than noise — it is a false green.
+
+     This is a backstop, not the fix; both causes are fixed above. It exists because the bug class
+     recurs (twice now, from unrelated constructs) and the failure is silent. The wrapper permits
+     the constructs a statement may legally use in context — `return`, `break`/`continue`, a `case`
+     label, `await`, `yield` — so a legal statement is never declined for its surroundings. */
+  /* ⚠️ PARSE THE RAW TEXT, NOT THE MASKED VIEW. Every other rule here matches masked code — that
+     is the point of §the masked-view fix — but a PARSE needs the real characters back: masking
+     blanks string and regex literals, so `z.replace(':', '')` becomes `z.replace(   ,   )` and
+     `return x ? 'high' : 'low';` loses both arms. Both are valid statements and both were declined.
+     Measured before this line was corrected: 308 of oxydex-dsp.js's subjects dropped, ~30 %, and
+     the count would simply have read as a smaller denominator. */
+  if (!parsesAsStatement(raw)) return 'not-eligible:unparseable';
+
   if (/\bfunction\b/.test(t) || /=>/.test(t)) return 'not-eligible:contains-function';
 
   /* Control-flow headers own their bodies. Deleting `if (c) { … }` removes the guard AND everything
@@ -275,9 +342,9 @@ export function classifyStatementVerdict(ran, suitePassed) {
    BASELINE FIRST, ALWAYS. If the suite is already red, every mutant "fails" and every statement
    reads KILLED — a green report built on a broken harness. Level A refuses in that state and so does
    this. */
-async function runLevelB(file, group, jobs) {
+async function runLevelB(file, group, jobs, covPath) {
   const { execFileSync, execFile } = await import('node:child_process');
-  const { mkdtempSync, readFileSync, writeFileSync, rmSync, symlinkSync, readdirSync } = await import('node:fs');
+  const { mkdtempSync, readFileSync, writeFileSync, rmSync, symlinkSync, readdirSync, existsSync } = await import('node:fs');
   const { join, dirname, resolve } = await import('node:path');
   const { fileURLToPath } = await import('node:url');
   const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -315,18 +382,59 @@ async function runLevelB(file, group, jobs) {
     process.exit(2);
   }
 
-  /* Subjects: every eligible top-level statement of every function. */
+  /* 🔴 COVERAGE IS A PRECONDITION AT STATEMENT LEVEL TOO — and it was NOT, which was defensible
+     exactly until statements stopped being top-level.
+
+     The original reasoning (kept at the verdict vocabulary below) was that a statement has no
+     coverage precondition of its own, because the enclosing function's coverage is Level A's
+     concern. That holds when every subject sits at a covered function's top level. It stopped
+     holding the moment the splitter began recursing into `if` and loop bodies: those are precisely
+     the statements a test can skip while still covering the function. Delete one, the suite passes
+     BECAUSE IT NEVER RAN, and it is reported as pseudo-tested — which is Betka & Wagner's
+     precondition violated at a lower level, the same error whose Level-A fix cut a claimed 48.6 %
+     to an honest 5.4 %.
+
+     Measured on the current allowlist: 3–7 % of subjects sit on never-executed lines — 4 on
+     clock.js, 69 on ppgdex-dsp.js. Small, but every one is a false finding in a list whose whole
+     value is that it is short enough to triage by hand. Skipping them also SAVES a full suite run
+     each: ~1.7 h on ppgdex alone.
+
+     ⚠️ FAILS OPEN TOWARD TESTING, deliberately, which is the opposite of a skip-list's usual rule.
+     Absent coverage data we cannot prove a statement is unreached, and the two errors are not
+     symmetric: testing a statement we could have skipped costs time and is visible in the count,
+     while skipping one we should have tested is an invisible hole in the denominator. So a subject
+     is dropped ONLY when a coverage record for this file exists AND its line is definitively
+     unexecuted. */
   const { functionBodies } = await import('./extreme-mutate.mjs');
+  let covered = null;
+  if (covPath && existsSync(covPath)) {
+    try {
+      const { executedLines } = await import('./mutation-reach.mjs');
+      const cov = JSON.parse(readFileSync(covPath, 'utf8'));
+      const key = Object.keys(cov).find((k) => k === file || k.endsWith('/' + file));
+      if (key) covered = executedLines(cov[key]);
+    } catch {
+      covered = null; /* unreadable → test everything */
+    }
+  }
   const subjects = [];
+  let skippedUncovered = 0;
   for (const fb of functionBodies(src)) {
     for (const st of splitStatements(src, fb.open + 1, fb.close)) {
       const kind = classifyStatement(st.text);
       if (ELIGIBLE.indexOf(kind) < 0) continue;
       const mutant = deleteStatement(src, st, kind);
       if (mutant == null || mutant === src) continue; // declined, or a no-op splice
-      subjects.push({ fn: fb.fn, kind, text: st.text.trim().slice(0, 68), line: src.slice(0, st.start).split('\n').length, mutant });
+      const line = src.slice(0, st.start).split('\n').length;
+      if (covered && !covered.has(line)) {
+        skippedUncovered++;
+        continue;
+      }
+      subjects.push({ fn: fb.fn, kind, text: st.text.trim().slice(0, 68), line, mutant });
     }
   }
+  if (covered) process.stderr.write('  coverage precondition: ' + skippedUncovered + ' statement(s) on never-executed lines skipped (they would read as pseudo-tested)\n');
+  else process.stderr.write('  ⚠ NO COVERAGE RECORD for ' + file + ' — every statement will be tested, and an unreached one will read as PSEUDO-TESTED. Pass --cov <coverage-final.json>.\n');
   process.stderr.write('  ' + subjects.length + ' eligible statement(s) across ' + functionBodies(src).length + ' function(s)\n');
   if (!subjects.length) {
     console.error('✗ NO ELIGIBLE STATEMENTS — nothing to measure. Eligibility fails closed, so this may mean the file is all control flow.');
@@ -398,19 +506,11 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   const ieo = IE.indexOf('{');
   const es = splitStatements(IE, ieo + 1, IE.length - 1);
   ok('if AND else bodies are both recursed', es.some((x) => x.text.trim() === 'p();') && es.some((x) => x.text.trim() === 'q();'), es.map((x) => x.text.trim()).join(' | '));
-  ok(
-    'a leading comment is not reported as the statement',
-    es.some((x) => x.text.trim() === 'r();'),
-    es.map((x) => x.text.trim()).join(' | ')
-  );
+  ok('a leading comment is not reported as the statement', es.some((x) => x.text.trim() === 'r();'), es.map((x) => x.text.trim()).join(' | '));
 
   /* ── PROSE IS NOT CODE. Each of these declined for the wrong reason before the masked-view fix,
      and each loss was SILENT — a smaller denominator, no warning. */
-  ok(
-    'a comment mentioning "function" does not make a statement ineligible',
-    classifyStatement('g(a); /* inside a function we test */') === 'EXPRESSION',
-    classifyStatement('g(a); /* inside a function we test */')
-  );
+  ok('a comment mentioning "function" does not make a statement ineligible', classifyStatement('g(a); /* inside a function we test */') === 'EXPRESSION', classifyStatement('g(a); /* inside a function we test */'));
   ok('a comment mentioning "if" does not read as control flow', classifyStatement('/* if it fails */ g(a);') === 'EXPRESSION', classifyStatement('/* if it fails */ g(a);'));
   ok('a string containing "function" is still just an expression', classifyStatement('log("function");') === 'EXPRESSION', classifyStatement('log("function");'));
   ok('a comment-only fragment has no content to delete', classifyStatement('/* just a note */').startsWith('not-eligible'), classifyStatement('/* just a note */'));
@@ -421,11 +521,38 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   const CM = 'function f(){ for (var i=0;i<3;i++) { /* calls a function */ h(i); } }';
   const cmo = CM.indexOf('{');
   const cms = splitStatements(CM, cmo + 1, CM.length - 1);
-  ok(
-    'a loop whose COMMENT says "function" is still recursed into',
-    cms.some((x) => x.text.trim() === 'h(i);'),
-    cms.map((x) => x.text.trim()).join(' | ')
-  );
+  ok('a loop whose COMMENT says "function" is still recursed into', cms.some((x) => x.text.trim() === 'h(i);'), cms.map((x) => x.text.trim()).join(' | '));
+
+  /* ── AN OBJECT LITERAL IS NOT A BLOCK. Each of these came back as TWO fragments before
+     `braceKind`, and each fragment produced source that does not parse. */
+  const OB = 'function f(){ return c ? { d: a } : null; }';
+  const obo = OB.indexOf('{');
+  const obs = splitStatements(OB, obo + 1, OB.length - 1);
+  ok('a ternary returning an object literal stays ONE statement', obs.length === 1 && obs[0].text.trim() === 'return c ? { d: a } : null;', String(obs.length) + ' — ' + obs.map((x) => x.text.trim()).join(' | '));
+  const AS = 'function f(){ var o = { a: 1 }; g(o); }';
+  const aso = AS.indexOf('{');
+  const ass = splitStatements(AS, aso + 1, AS.length - 1);
+  ok('an assigned object literal does not split its statement', ass.length === 2 && ass[0].text.trim() === 'var o = { a: 1 };', ass.map((x) => x.text.trim()).join(' | '));
+  ok('`= {` is an expression brace', braceKind('x = {', 4) === 'expr');
+  ok('`return {` is an expression brace', braceKind('return {', 7) === 'expr');
+  ok('`) {` is a block brace', braceKind('if (c) {', 7) === 'block');
+  ok('`; {` is a block brace', braceKind('a; {', 3) === 'block');
+  ok('`=> {` is a block brace, not an object', braceKind('() => {', 6) === 'block');
+  ok('an unknown predecessor errs toward block — a lost subject beats an unparseable mutant', braceKind('@ {', 2) === 'block');
+
+  /* Every emitted subject must be a STATEMENT. A fragment is not merely useless: deleting it leaves
+     source that does not parse, the suite fails to load, and a crash reads as KILLED. */
+  const FRAG = 'function f(){ var d = p ? { x: 1 } : { x: 2 }; if (d) { q(d); } return d; }';
+  const frago = FRAG.indexOf('{');
+  const frags = splitStatements(FRAG, frago + 1, FRAG.length - 1);
+  ok('no emitted subject begins mid-expression', frags.every((x) => !/^[:?,]/.test(x.text.trim())), frags.map((x) => x.text.trim()).join(' | '));
+
+  ok('a destructuring declaration is not split from its initialiser', (() => { const D = 'function f(){ const { a, b } = g(); h(a); }'; const o = D.indexOf('{'); const r = splitStatements(D, o + 1, D.length - 1); return r.length === 2 && r[0].text.trim() === 'const { a, b } = g();'; })(), 'see braceKind declarators');
+  ok('an expression FRAGMENT is declined, whatever produced it', classifyStatement('= f();') === 'not-eligible:unparseable', classifyStatement('= f();'));
+  ok('…and so is a dangling ternary arm', classifyStatement(': null;') === 'not-eligible:unparseable', classifyStatement(': null;'));
+  ok('a legal `break` is NOT declined by the parse backstop', classifyStatement('break;') === 'BREAK', classifyStatement('break;'));
+  ok('a legal `return` is NOT declined by the parse backstop', classifyStatement('return a;') === 'RETURN');
+  ok('an `await` statement is NOT declined by the parse backstop', classifyStatement('await g();') === 'EXPRESSION', classifyStatement('await g();'));
 
   ok('a return is eligible', classifyStatement('return a;') === 'RETURN');
   ok('a throw is eligible', classifyStatement('throw new Error("x");') === 'THROW');
@@ -474,8 +601,11 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   };
   const file = opt('--file', '');
   const group = opt('--group', '');
+  /* Default to the sweep programme's own coverage artefact, so the precondition is ON unless the
+     file genuinely has no record. An absent default would make the safe path the one nobody types. */
+  const covPath = opt('--cov', '.mutation-sweeps/cov/coverage-final.json');
   if (!file || !group) {
-    console.error('usage: node tools/stmt-delete.mjs --file <f> --group <g> [--jobs N] [--json]');
+    console.error('usage: node tools/stmt-delete.mjs --file <f> --group <g> [--jobs N] [--json] [--cov <coverage-final.json>]');
     process.exit(2);
   }
   if (LEVEL_B_ALLOWLIST.indexOf(file) < 0) {
@@ -485,7 +615,7 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   }
   const os = await import('node:os');
   const jobs = Math.max(1, Number(opt('--jobs', String(Math.max(1, os.cpus().length - 2)))) || 1);
-  const out = await runLevelB(file, group, jobs);
+  const out = await runLevelB(file, group, jobs, covPath);
   const ps = out.results.filter((r) => r.verdict === 'PSEUDO_TESTED_STATEMENT');
   const inc = out.results.filter((r) => r.verdict === 'INCONCLUSIVE');
   if (argv.includes('--json')) {
