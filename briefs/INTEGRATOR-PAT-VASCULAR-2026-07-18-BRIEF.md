@@ -235,6 +235,595 @@ read-only. Cf. `tools/acc-acc-control.mjs`, which is the same pattern committed,
 
 ---
 
+## ⚠️ READ THIS BEFORE §2-RESULT-III…XII — WHAT IS CURRENT, AND WHAT IS SUPERSEDED
+
+The twelve sections below are a **running investigation with nine self-corrections recorded in place**,
+per house style. That is deliberate — but it means a claim and its refutation can sit 300 lines apart,
+and several superseded figures still read as plain statements in their original sections. **This table is
+authoritative; anything below it that disagrees is superseded.**
+
+| claim, as first written | where | **CURRENT** |
+|---|---|---|
+| "PAT recoverable on **2 of 29** nights (7 %)" | IV, V | **11 of 29 (38 %)** — the lag search was asymmetric (VIII) |
+| "**93 %** of nights fail" | V | **~62 %** |
+| beat-to-beat precision "**4.5–5.7 ms**" | IV | **~2.7 ms** — beat times were on a synthetic uniform grid (IX) |
+| "the PPG foot detector is **REFUTED**" | III draft | **False.** Feet correspond 96–97.7 % at a wide window; that number measured the *window* |
+| alternation is "**the mechanism**" | V | **Not sufficient.** A strong negative screen only; clean-ratio nights still fail (VI) |
+| multimodality "sufficient but not necessary" | VII | **Necessary, not sufficient** — 11/11 identifiable are unimodal, 0/8 multimodal (VIII) |
+| monotone pairing fixes cross-slip pairing | IX, and §4g of METROLOGY | **It changes nothing.** Monotone ≡ nearest-match at every tolerance; the difference was the tolerance (XII) |
+| detrending removes "**89 %** of variance" | IX | **Pipeline-specific.** On the common pairing it moves 33.6 → 33.4 ms (XII) |
+| "the **clock** is the cause" | IX | **Half.** Drift explains beats failing to MATCH; it does not explain matched beats SCATTERING (XI) |
+| RR↔PPI margin as the identifiability gate | IV | **Superseded** by the `w/√12` ratio trajectory — simpler, no alignment needed (XII) |
+
+### What stands, in one paragraph
+
+The **anchor**, not the foot detector, is why PAT fails; feet correspond at a wide window. **PAT SD is
+dominated by the matching window** — 1.9–7.1× spread on a single night from pipeline choice alone — so no
+PAT statistic means anything without its tolerance and correspondence rate beside it. The **`w/√12` ratio
+trajectory** separates real measurements from window artefacts (0.83→0.13 vs 0.93→0.55) and is the
+recommended gate. **Inter-device drift is 5–306 ppm**, per-block unwrapping recovers coverage
+(68.6 % → 79.4 %) but not precision (71.7 → 67.5 ms). On the cleanest night the instrument reaches
+**16.7 ms**, and **5.5 ms** after removing a 20 ppm trend — so the capability is real. **The cause of the
+residual scatter is NOT found**; amplitude, upslope, rise time, LED channel, missing beats, fiducial
+switching, uniform-grid timestamps and drift are each excluded by measurement.
+
+## 2-RESULT-III · §II.4's NEXT MEASUREMENT, RUN 2026-08-15 — the detector is FINE; the OFFSET is not
+
+§II.4 said: *"`feet/R` ≈ 1.0 refutes NET dropout but not local insertion/deletion pairs … **That is the
+next measurement**: audit beat correspondence directly (monotone one-to-one R↔foot assignment, counting
+insertions and deletions), not foot counts."* Run on 29 matched H10+Verity nights, by
+dynamic-programming a monotone one-to-one assignment (monotonicity forbids crossing, so a slip cannot be
+paired through).
+
+**And the answer depends entirely on a parameter, which is itself the finding.** A match requires the
+foot to fall within ±TOL of the night's modal offset. Sweeping TOL:
+
+| tolerance | ±50 | ±100 | ±150 | ±250 | **±400** | **±600** |
+|---|---|---|---|---|---|---|
+| median correspondence | 25.2 % | 48.3 % | 68.6 % | 90.1 % | **96.0 %** | **97.7 %** |
+| nights ≥ 95 % | 0/29 | 1/29 | 3/29 | 8/29 | 16/29 | **24/29** |
+| **median PAT SD** | 27.8 ms | 52.5 ms | 70.7 ms | 101.9 ms | **126.9 ms** | **144.6 ms** |
+
+### The PPG foot detector is NOT the problem
+
+**At a wide enough window essentially every R peak has a corresponding foot** — 96 % at ±400 ms, 97.7 %
+at ±600 ms, ≥95 % on 24 of 29 nights. There is no epidemic of missing feet, and no epidemic of spurious
+ones. §II.4's insertion/deletion hypothesis is **not supported**: the feet are there and they correspond
+one-to-one.
+
+⚠️ **An earlier draft of this section concluded the opposite** — "the foot detector is REFUTED" — from
+the ±150 ms row alone (68.6 %). That number measures the **window**, not the detector. Correspondence is
+a joint property of the detector *and* the tolerance, and quoting it without the tolerance beside it is
+meaningless. Caught before merge by sweeping the parameter instead of trusting a single value of it.
+
+### The real finding: no tolerance buys both
+
+Correspondence and scatter move together, and there is **no operating point where both are acceptable**:
+
+- at **±150 ms** the matched PAT is tight (70.7 ms) but only **68.6 %** of beats participate;
+- at **±400 ms** nearly every beat participates but PAT SD is **126.9 ms**.
+
+A true PAT for these sites is ~150–300 ms with beat-to-beat variability of tens of ms. **A 127 ms SD is
+not a PAT distribution** — it is a distribution of something else that happens to contain PAT.
+
+### The modal offset is the thing that is broken
+
+Across the 29 nights the modal offset spans **100 → 1175 ms**, a **1075 ms** spread, against a plausible
+PAT range of ~150 ms. Several nights sit a full RR above the rest — precisely §II.4's ambiguity, now
+quantified rather than suspected.
+
+And the discriminating detail: **offset magnitude does NOT predict matching quality.** Nights with
+offset < 500 ms and ≥ 500 ms match equally well (68.2 % vs 68.6 % at ±150) with equal scatter (73.3 vs
+69.4 ms). So a whole-RR error shifts the anchor **without degrading the monotone assignment** — the
+relative beat-to-beat structure is sound while the absolute offset is uninterpretable. That is exactly
+what §II.4 warned `modalLag` must not be read as.
+
+### What it changes
+
+- **The NO-GO stands, with the cause relocated.** Not "the foot detector is inadequate" — that is
+  refuted — but **"the R↔foot anchor is not identifiable per night from these streams."** Reviving this
+  brief requires an anchor that is right in absolute terms, not a better foot detector.
+- **Any PAT statistic must be quoted with its tolerance and its correspondence rate.** Alone, a PAT SD
+  describes an unspecified subset selected by an unstated parameter.
+- **It corrects a downstream analysis:** `METROLOGY-METHOD-ADOPTION` §4d–§4g decomposed PAT variance at a
+  single fixed tolerance without reporting it — see its §4g.
+
+## 2-RESULT-IV · THE ANCHOR IS RECOVERABLE — by interval sequence, on 2 of 29 nights
+
+§2-RESULT-III relocated the failure from the foot detector to the **anchor**: the R↔foot offset is
+ambiguous modulo one RR, and beat *times* cannot resolve it. Beat *intervals* can, because an RR
+sequence is aperiodic where a beat train is not — the standard fix
+([[beat-trains-align-only-mod-rr]]: "align on aperiodic features").
+
+**Method.** Normalised cross-correlation of the ECG **RR** sequence against the PPG **PPI** sequence over
+integer BEAT-INDEX lags, both trains first restricted to their common time span. The **margin** between
+best and second-best lag is the identifiability measure, and it is self-validating: no threshold is
+chosen, the two populations separate by three orders of magnitude.
+
+| night | ncc | margin | PAT SD | acf₁ | acf₁₀ |
+|---|---|---|---|---|---|
+| **2026-07-12** | **0.9964** | 0.2228 | **36.8 ms** | 0.988 | 0.967 |
+| **2026-07-09** | **0.9953** | 0.1963 | **28.1 ms** | 0.987 | 0.960 |
+| 2026-07-08 | 0.8003 | 0.1275 | 62.6 ms | 0.762 | 0.309 |
+| 2026-07-11 | 0.7304 | 0.0813 | 162.6 ms | — | — |
+| *(24 further nights)* | *0.06–0.70* | **0.0003–0.036** | — | — | — |
+
+### Only 2 of 29 nights are cleanly identifiable — and on those, PAT is a precise instrument
+
+**PAT SD 28.1 and 36.8 ms**, against a corpus median of 70.7 ms at ±150 ms tolerance. And the
+autocorrelation is near-unity: **acf₁ = 0.987**, still **0.96 at lag 10**. Which means the beat-to-beat
+component is
+
+    sigma_beat = SD * sqrt(2(1 - acf1)) = 28.1 * sqrt(2*0.013) = 4.5 ms   (2026-07-09)
+                                          36.8 * sqrt(2*0.012) = 5.7 ms   (2026-07-12)
+
+**Beat-to-beat PAT precision is ~4.5–5.7 ms.** The 28 ms total is almost entirely *slow drift*, not
+noise. Compare the same computation on the next-best night (acf₁ 0.762): **43.2 ms** — an order of
+magnitude worse, and that night is already below the clean pair.
+
+### What this establishes, and what it does not
+
+- **The instrument is capable.** When the two devices demonstrably see the same beats, PAT is resolved to
+  a few milliseconds beat-to-beat. Nothing in §4a–§4c's estimator work could have revealed this, because
+  it was never an estimator problem.
+- **It works on ~7 % of nights.** 2 of 29 clean, 5 of 29 identifiable at all. Every corpus-median PAT
+  statistic in this project — including `METROLOGY-METHOD-ADOPTION` §4d–§4g — **averaged over nights
+  where the PAT series is not PAT**.
+- **The physiology conclusion SURVIVES and strengthens.** §4d found the residual correlated (acf₁
+  +0.772); on cleanly-anchored nights it is **+0.987**, decaying to 0.96 over ten beats. The correlated
+  structure is not a pairing artifact — repairing the anchor made it *stronger*, which is the direction
+  that distinguishes signal from artifact.
+- ⚠️ **n = 2.** This is an existence result: it proves the instrument *can* work and quantifies it when it
+  does. It does not establish a distribution, and this brief has already been burned once by reporting a
+  handful of nights (§2-RESULT-III's first draft). The identifiability gate is objective, and only two
+  nights pass it — that is the finding, not a sampling choice.
+- **Confound ruled out:** identifiable and non-identifiable nights carry the same beat counts (median
+  2151 vs 2136 R-peaks), so this is not sample size in disguise.
+
+### What to do with it
+
+**Gate on identifiability before computing PAT at all.** The RR↔PPI margin is cheap, needs no reference,
+and separates cleanly. A PAT statistic from a night with margin < 0.05 is not a weak measurement — it is
+a measurement of something else. This is the missing precondition that §2-RESULT's original go/no-go gate
+never had, and it explains why that gate failed: it was scored on a corpus that was ~93 % unidentifiable.
+
+## 2-RESULT-V · THE MECHANISM — PPG beat alternation, which PpgDex already detects
+
+§2-RESULT-IV showed PAT is recoverable on 2 of 29 nights and unrecoverable on the rest, and that more
+data does not rescue the failures (tripling the slice, 2388 → 6426 beats, left margins at 0.001–0.003).
+So the failure is a property of the beat train. **It has a named cause, and this repo already ships a
+detector for it.**
+
+`rMSSD > sdnnRobust` is PpgDex's shipped beat-alternation detector — when the optical detector alternates
+between two fiducials, successive intervals swing long-short-long and rMSSD inflates 3–6× while the
+robust SD does not. Computed per night and set against identifiability:
+
+| | altPPG = rMSSD / sdnnRobust |
+|---|---|
+| **identifiable** (margin ≥ 0.05, n=5) | median **0.97**, range 0.79–1.24 |
+| **not identifiable** (n=24) | median **2.24**, range 0.68–7.56 |
+
+- gate `altPPG < 1.0` → catches **4/5** identifiable and **23/24** unidentifiable
+- `corr(altPPG, ncc)` = **−0.662**
+- rMSSD on unidentifiable nights runs **127–592 ms** against a physiological 20–50 ms
+
+**So the answer to "why does PAT fail on 93 % of nights" is: the PPG beat train is alternating, and
+PpgDex already knows.** The metric is computed today and used for HRV plausibility; nobody had connected
+it to PAT identifiability.
+
+### Honest bounds — it is strong, not perfect
+
+⚠️ **A seven-night spot check suggested clean separation. The corpus says 93 %.** Two nights break it:
+
+- `2026-07-11_221615` is identifiable (margin 0.0813) at altPPG **1.24** — above the gate;
+- `2026-06-18_214249` is NOT identifiable (margin 0.0149) at altPPG **0.68** — below it, and it fails for
+  a different reason: `sdnnRobust` is **100.2 ms**, i.e. genuinely high interval variability rather than
+  alternation.
+
+So alternation is *a* dominant cause and not the only one, and a gate built on it must be stated with its
+error rate rather than as a clean separator. **This is the fifth time in this investigation that a
+handful of nights implied a cleaner result than the corpus supports** — recorded because the pattern
+matters more than any individual number.
+
+### What it means for the PAT programme
+
+- **The instrument is not the problem and the estimator was never the problem.** §4a–§4c of
+  `METROLOGY-METHOD-ADOPTION` tried a template TOA, eight fiducials and an admission gate, and moved
+  ~1.7 ms. All three were averaging over nights whose beat train was wrong.
+- **PAT has a cheap, PPG-only precondition.** `altPPG < 1.0` needs no ECG and no reference; it is already
+  computed. Applying it first is the difference between a 28 ms PAT and a 70 ms one.
+- **The fix is upstream of PAT entirely** — it is the optical beat detector's alternation, which is a
+  PpgDex defect with its own detector and its own history, not a fusion problem.
+
+## 2-RESULT-VI · SCOPE AND LIMITS of §2-RESULT-III–V — three checks that narrow the claims
+
+Three follow-up checks, each run because the claim above would have been unsafe without it.
+
+### 1 · The harness does NOT carry the known `fs` bug — checked, not assumed
+
+`pat-sd-is-the-window` records that ECGDex once derived `fs` from the lossy `timestamp [ms]` column and
+**rounded it to a nominal 130 Hz**, so the axis ran 46–126 ppm fast — **1.25–4.16 s per night** (fixed,
+PR #1121). A seconds-scale drift across a 40-minute window is exactly what would destroy interval-sequence
+alignment, so the obvious worry is that §2-RESULT-IV rediscovered a fixed bug in its own harness.
+
+**It does not.** The harness derives `fs` from the measured span rather than rounding to nominal, and on
+a real file the two columns agree to nine decimals:
+
+    fs from 'timestamp [ms]'        129.957632 Hz
+    fs from 'sensor timestamp [ns]' 129.957623 Hz     -> 0 ms drift over a 3078 s slice
+
+### 2 · It is NOT specific to the phone-captured tree
+
+§2-RESULT-III–V ran on `Ecg nightly/`, which is **phone-captured**. The box tree
+(`tepna-smoketest/captures/`) is the one with a real second clock, and `pat-sd-is-the-window` reports
+prior box work finding beat pairing clean. Three box segments tested:
+
+| segment | beats | ncc | margin | altPPG |
+|---|---|---|---|---|
+| 2026-07-29 22:06 | 1465 | 0.1046 | 0.0068 | **0.95** |
+| 2026-07-29 21:24 | 1432 | −0.0175 | 0.0050 | 4.52 |
+| 2026-07-29 23:09 | 888 | 0.0361 | 0.0014 | **0.93** |
+
+**Box nights fail too**, so the finding is not an artifact of the phone tree. ⚠️ But the box segments are
+short and **fragmented** — that night alone holds 22 ECG and 7 PPG files from BLE reconnects — so this is
+a weaker test than the phone corpus, not a stronger one.
+
+⚠️ **And there is no contradiction with the prior box result**, which correlated **HR curves** at lag 0
+(r = 0.988). An HR curve is smooth; a raw RR *sequence* is not. Correlating smoothed rates is a far
+weaker statement than aligning beat-to-beat intervals, and the two measurements are not comparable.
+
+### 3 · Alternation is NOT sufficient — the §2-RESULT-V mechanism is weakened
+
+**Two of the three box segments carry clean alternation ratios (0.95, 0.93) and are still
+unidentifiable.** Together with the two phone-corpus exceptions already recorded (an identifiable night
+at altPPG 1.24, an unidentifiable one at 0.68 failing on genuine variability instead), the honest
+statement is:
+
+> `altPPG` is a strong **negative** predictor on the phone corpus — a night with alternation will not
+> yield PAT — but a clean `altPPG` does **not** imply identifiability. It is a necessary-not-sufficient
+> screen, and §2-RESULT-V's framing of it as "the mechanism" is too strong.
+
+### What survives all three checks
+
+- PAT is recoverable on **2 of 29** phone nights, at **28.1 / 36.8 ms** SD and **4.5–5.7 ms**
+  beat-to-beat — an existence result, and unaffected by the above.
+- The **anchor**, not the foot detector, is the failure — §2-RESULT-III's tolerance sweep stands.
+- The **identifiability gate itself** (RR↔PPI margin) stands: it is objective, self-validating, and
+  needed no threshold. What is now uncertain is the *cause* of non-identifiability, not the fact of it.
+
+## 2-RESULT-VII · THE CAUSE HUNT — NOT FOUND. Two partial indicators, and an overfitted rule.
+
+§2-RESULT-VI ended with "the *cause* of non-identifiability is uncertain, not the fact of it". This
+section went looking. **It did not find a cause**, and the negative result is recorded in full because
+the intermediate steps each looked like an answer.
+
+### The hypothesis, and why it was the right one to test
+
+The feet **do** correspond one-to-one (97.7 % at ±600 ms), so beats are not missing — yet their times
+scatter by hundreds of ms against R. §4a measured the template's *precision* at **0.44 ms**, which cannot
+produce that. The gap must be **model error, not noise error**: the detector locking onto a *different
+waveform feature* on different beats. That predicts a **multimodal** PAT distribution, with modes
+separated by the foot→peak or foot→notch spacing.
+
+Measured (PAT as the gap to the nearest preceding R — no window, so it cannot inherit a tolerance;
+20 ms bins, modes = smoothed local maxima ≥ 40 % of the global peak):
+
+| | n | identifiable |
+|---|---|---|
+| **unimodal** | 21 | **5 / 21** |
+| **multimodal** | 8 | **0 / 8** |
+| correlation(mode count, ncc) | | **−0.053** |
+
+### 🔴 Multimodality is SUFFICIENT but not NECESSARY — so it is not the cause
+
+Every multimodal night fails, and multimodality is real (up to **5 modes** on 2026-07-04, at
+170/250/410/570/910 ms). But **16 unimodal nights fail as well**, and the correlation with
+identifiability is **−0.053 — indistinguishable from zero.** Multimodality explains at most 8 of 24
+failures.
+
+⚠️ **A six-night sample said otherwise.** It happened to contain four multimodal failures and two
+unimodal successes, which looked like clean separation. **That is the sixth time in this investigation
+that a handful of nights implied a cleaner result than the corpus supports.**
+
+### The combined rule works, and is overfitted
+
+| gate | identifiable passing | unidentifiable passing |
+|---|---|---|
+| `modes ≤ 1` | 5/5 | 16/24 |
+| `altPPG < 1.25` | 5/5 | 5/24 |
+| **both** | **5/5** | **2/24** |
+
+⚠️ **Do not adopt this rule from this brief.** The threshold **1.25 was chosen after seeing that the
+highest identifiable night is 1.24** — the textbook definition of fitting to the sample. The two
+survivors sit at **1.23 and 1.24**, i.e. exactly at the boundary the threshold was drawn around. With
+**n = 5** positives, this corpus cannot validate a two-parameter rule; it can only propose one.
+
+### Honest end-state
+
+- **No single cause.** Multimodality is specific but insensitive; alternation is sensitive but not
+  sufficient; neither is mechanism enough to act on.
+- **What is established and unchanged:** the anchor rather than the foot detector is the failure
+  (§2-RESULT-III); PAT is recoverable on 2 of 29 nights at 28.1/36.8 ms and 4.5–5.7 ms beat-to-beat
+  (§2-RESULT-IV); and the identifiability gate itself is objective and threshold-free.
+- **What would settle it:** the mode structure and the alternation ratio are both *symptoms* measured on
+  the PPI series. The cause is inside the optical beat detector, and finding it needs the **waveform**
+  — which beat is being picked, and what the detector saw on the beats where it picked differently.
+  That is a `ppgdex-dsp` investigation, not a fusion one, and it is where this should go next.
+
+## 2-RESULT-VIII · 🔴 ERROR FOUND IN MY OWN HARNESS — the identifiable count was 5, it is 11
+
+A deliberate audit of the analysis code (not of its conclusions) found a real bug, and it changes the
+headline of §2-RESULT-IV–VII. **Every count in those sections derived from a broken lag search.**
+
+### The bug
+
+`ncc(RR, PPI, lag)` searched **non-negative lags only** — `for (k = 0; k <= 40; …)`, with the function
+itself returning `null` for `lag < 0`. A negative lag means the **PPG train leads the ECG**, which
+happens whenever the optical detector emits an extra beat early in the overlap. Those nights could not
+be aligned at any lag the search examined, so they were scored unidentifiable **by construction**.
+
+**20 of 29 nights have a negative best lag.** The search was blind to two thirds of the corpus.
+
+### What it changes
+
+| | buggy (lag ≥ 0) | corrected (symmetric) |
+|---|---|---|
+| **identifiable (margin ≥ 0.05)** | **5 / 29** | **11 / 29** |
+| PAT SD on those nights | 28.1–36.8 ms | median **38.5 ms**, best **13.3 ms** |
+
+Individual nights moved substantially — `2026-07-08` ncc **0.8003 → 0.9976**; `2026-06-20 22:55`
+**0.5876 → 0.8750** with **PAT SD 13.3 ms**, the tightest in the corpus, previously scored a failure.
+
+**So "PAT is recoverable on 2 of 29 nights (7 %)" is WRONG. It is 11 of 29 (38 %)**, and the "93 % of
+nights fail" framing in §2-RESULT-V must be read as ~62 %.
+
+### What SURVIVES the correction — and this is the useful part
+
+The structural conclusions were computed against the identifiability split, so all of them were at risk.
+Recomputed on the corrected split, they are **unchanged**:
+
+| | buggy split | corrected split |
+|---|---|---|
+| `corr(altPPG, ncc)` | −0.662 | **−0.670** |
+| multimodal nights identifiable | 0 / 8 | **0 / 8** |
+| unimodal nights identifiable | 5 / 21 | 11 / 21 |
+
+- **Unimodality is NECESSARY, now perfectly:** every one of the 11 identifiable nights is unimodal
+  (**11/11**), and no multimodal night is identifiable (**0/8**), on *both* splits. §2-RESULT-VII's
+  "sufficient but not necessary" was the right shape and the wrong direction — it is **necessary but not
+  sufficient**: 10 of 21 unimodal nights still fail.
+- **The alternation correlation is unmoved** (−0.662 → −0.670), so §2-RESULT-V's graded relationship
+  stands, still as a screen rather than a mechanism.
+- **The tolerance sweep (§2-RESULT-III) is unaffected** — it never used the lag search.
+- **The combined gate now has perfect specificity**: `modes ≤ 1 AND altPPG < 1.25` passes **7/11**
+  identifiable and **0/18** unidentifiable. Still fitted post hoc; still not for adoption from here.
+
+### Why this one was findable and the earlier six were not
+
+The six previous corrections were all **sampling** errors — a handful of nights implying more than the
+corpus supported. This is a **code** error, and it has the opposite signature: it was invisible in every
+individual result and visible only in the harness. Reading the analysis code as an artifact in its own
+right, rather than re-reading the conclusions, is what surfaced it — and it is the check that should have
+run before the first corpus batch, not after seven sections of interpretation.
+
+## 2-RESULT-IX · SECOND ERROR PASS, and WHERE TO FIX PAT — it is the clock, not the detector
+
+### Three further harness errors, found by auditing the code rather than the conclusions
+
+| # | error | impact |
+|---|---|---|
+| 3 | `acf` computed on `tight` (PAT filtered to \|v−med\|<300 ms) — removing outliers smooths a series and inflates autocorrelation | **none on the claim**: identifiable nights had 100 % retention, so filtered ≡ raw (0.987 both). One night moved 0.992 → 0.896 |
+| 4 | mode detection used the nearest **preceding** R — directional, truncates at 0 and wraps at one RR, so it can *manufacture* modes | 4 of 29 mode counts changed; **conclusion unchanged** — identifiable nights are 11/11 unimodal, 0/11 multimodal on both versions |
+| 5 | **beat times rebuilt on a synthetic uniform grid** at the mean rate, discarding the real per-sample stamps | **large.** The uniform grid drifts up to **106.5 ms** across a 40-min ECG slice. Fixed: PAT SD **28.1 → 16.7 ms** and **13.3 → 10.9 ms** on the two best nights; identifiability unaffected (interval differences cancel drift) |
+
+**Beat-to-beat PAT precision is therefore ~2.7 ms**, not the 4.5 ms reported in §2-RESULT-IV.
+
+### Where to fix PAT — four candidates eliminated by measurement, one confirmed
+
+| candidate | test | verdict |
+|---|---|---|
+| weak pulses / poor perfusion | corr(PAT deviation, amplitude / upslope / rise) | **REFUTED** — r = 0.02–0.22, inconsistent sign; on 4 of 5 nights *low*-amplitude beats deviate *less* |
+| wrong LED channel / consensus | PAT SD computed per channel | **REFUTED** — all three identical (46/46/46, 264/263/266, 299/300/300) |
+| missing or spurious beats | monotone correspondence at ±600 ms | **REFUTED** — 97.7 % correspond one-to-one |
+| fiducial-feature switching | mode count | **partial** — explains 7 of 18 failures; 11 unimodal nights still fail |
+| **inter-device clock drift** | linear fit of PAT against elapsed time | ✅ **CONFIRMED on identifiable nights** |
+
+    2026-07-09   PAT SD 16.7 -> 5.5 ms detrended,  89.0 % of variance,  20.7 ppm
+    2026-06-20   PAT SD 10.9 -> 8.2 ms detrended,  43.1 % of variance,   9.5 ppm
+
+**~20 ppm is exactly a crystal difference between two independent devices**, and 20 ppm over a 2500 s
+window is 50 ms — the observed magnitude. Remove it and **PAT resolves to 5.5 ms**.
+
+⚠️ On failing nights the same fit returns **902 ppm and 11 010 ppm**. 1.1 % is not a crystal; there the
+linear term is absorbing something else (a step, or a wrap), so **drift does not explain the failures** —
+only the residual scatter on nights that already align.
+
+### The recommendation, and the trap in it
+
+**Look at the clock, not the optical detector.** Every detector-side hypothesis this investigation raised
+— fiducial precision (§4a), fiducial choice (§4b), admission gating (§4c), channel selection, pulse
+quality — has now been measured and eliminated. The remaining term on good nights is a crystal-scale
+drift between the H10 and the Verity.
+
+⚠️ **But do NOT fit it out of PAT.** That is circular: a linear PAT trend is exactly what a slow
+physiological drift also looks like, and this brief has spent seven sections learning what fitting an
+unvalidated model costs. The drift must be measured **independently of PAT**.
+
+**That is what `DexClock.hostAxis` exists for — and it cannot run on this corpus.** `Ecg nightly/` is
+phone-captured: `independent = false`, `spreadMs` 0.13–1.00, the host column is the device stamp
+*rounded*, so there is no second clock to discipline against. **Every night analysed in §2-RESULT-III–IX
+is one where the correction that would fix PAT is structurally unavailable.**
+
+**So the next step is a corpus change, not a code change:** re-run this whole analysis on **box
+captures**, where `independent = true` and `hostAxis` can measure the inter-device drift without touching
+PAT. The prediction is specific and falsifiable — if drift is the cause, box nights should show
+materially higher identifiability and PAT SD near 5 ms *without* detrending. ⚠️ Three box segments tested
+in §2-RESULT-VI did **not** align, but they were 888–1465-beat fragments from a night with 22 ECG and 7
+PPG files; that is not a fair test of the hypothesis and should not be read as one.
+
+## 2-RESULT-X · THE REPO ALREADY HAD THE FIX — per-block offset + RR unwrap, implemented and measured
+
+§2-RESULT-IX concluded "look at the clock, not the detector" and recommended a corpus change. **Before
+proposing new work, the existing briefs were checked — and the method already exists, is validated, and
+this investigation rediscovered its premise from scratch.**
+
+`CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01` §1 states it outright: *"Body-worn devices drift relative to
+each other by tens to hundreds of ppm — enough to walk past a whole heartbeat inside one night. Every
+cross-node measurement that fits a **single** offset per night is therefore measuring a moving target,
+and reports the movement as noise, as poor coupling, or as a physiological limit."* Its §2.4 is a control
+titled *"the drift is in the CLOCKS, not in the beat detection"*; its §2.1 is *"beat correspondence is
+high once drift is removed"*.
+
+**That brief lists three prior independent arrivals at the same finding, two of them via self-retraction.
+§2-RESULT-III–IX is the fourth.** Recorded plainly: the conclusion is corroborated, not novel, and the
+cost of not reading it first was several sections of rediscovery.
+
+### The step this investigation was missing
+
+§2.2: *"As the true offset drifts past a tooth boundary, the argmax falls back exactly one RR… Fitting a
+slope through that measures the sawtooth, not the clock. **Unwrap by whole RRs first.**"* Every offset in
+§2-RESULT-III–IX was **one modal offset per night** — exactly the "moving target" §1 warns about.
+
+### Implemented: per-block (5 min) modal offset, unwrapped by whole RRs
+
+| night | measured drift | offset range | PAT SD global → per-block | beats recovered |
+|---|---|---|---|---|
+| 2026-07-09 | **5.4 ppm** | 65 ms | 41.0 → 41.3 | 2305 → 2316 |
+| 2026-06-10 | **276.5 ppm** | 561 ms | 176.8 → **109.0** | 1785 → **2258** |
+| 2026-07-13 | **178.8 ppm** | 435 ms | 149.8 → **98.6** | 1819 → **2091** |
+| 2026-07-04 | **−305.6 ppm** | 1312 ms | 181.6 → **157.9** | 842 → **1476** |
+| 2026-06-29 | 107.7 ppm | 233 ms | 114.2 → 106.8 | 2360 → 2380 |
+
+**It works, and it also measures the thing.** The drift is **5–306 ppm**, and the offset walks **65–1312 ms**
+across a night — §1's "tens to hundreds of ppm" confirmed on this corpus. PAT SD falls 13–38 % and up to
+**75 % more beats** are recovered on the worst nights.
+
+**And it explains the identifiability split directly:** the night that worked all along carries **5.4 ppm**;
+every night that failed carries **100–300 ppm**. Identifiability was never a property of the PPG detector
+— it was whether that night's two crystals happened to agree.
+
+### What it does NOT fix, and the honest next step
+
+Shorter blocks do not help — 120 s is marginally better, 60 s worse, 30 s fails outright (too few beats
+per block to find a modal offset). Per-block refitting **saturates at 38–157 ms**, far from the **5.5 ms**
+reachable on a clean night.
+
+The reason is visible in the one directly comparable number: on 2026-07-09 per-block gives **41.3 ms**
+while interval-anchoring (§2-RESULT-IV) gives **16.7 ms**. **The two methods fix different halves.**
+Per-block tracks the drift but still pairs by nearest-match inside a ±300 ms window, which admits wrong
+partners; interval-anchoring gets exact beat correspondence but assumes a single constant lag, which the
+drift destroys.
+
+**Neither brief combines them, and the combination is the obvious next build:** per-block offset to track
+the drift, then **interval-sequence anchoring within each block** for exact correspondence. That is a
+concrete, testable proposal — and it is deliberately left unbuilt here rather than rushed, because this
+investigation has already recorded eight corrections, five of them from moving faster than the evidence.
+
+⚠️ **Do not reach for the three-corner closure to replace the missing host clock.** `CLOCK-CLOSURE-THREE-SOURCE`
+is DONE but carries a ⛔ VOID banner: the third corner was the O2Ring, whose `sensor timestamp` is
+**drawn, not measured** — built as `sample_index × an assumed rate` — so its apparent ppm is the error in
+that constant. There is no free third clock in this corpus.
+
+## 2-RESULT-XI · THE COMBINATION, BUILT — it recovers BEATS, not PRECISION
+
+§2-RESULT-X named the obvious next build: per-block offset to track the drift, then exact one-to-one
+correspondence *within* each block. Built and run on all 29 nights — 5-min blocks, modal offset unwrapped
+by whole RRs, then a monotone DP assignment inside each block with the window centred on that block's own
+offset.
+
+| | single global offset (§4g) | **per-block + unwrap + monotone** |
+|---|---|---|
+| correspondence | 68.6 % | **79.4 %** (≥75 % on **20/29** nights) |
+| PAT SD | 71.71 ms | **67.5 ms** |
+| acf₁ | +0.772 | +0.694 |
+
+### 🔴 A 5-night table said 40–60 %. The corpus says 6 %. The error was mine, and it was a strawman baseline.
+
+The per-night comparison in the working notes showed 176.8 → 71.4 ms and 181.6 → 80.2 ms and read as a
+halving. **Those baselines came from a different, weaker method** — `perblock.mjs`'s global fallback,
+which pairs by *nearest-match within ±300 ms*. §4g's actual baseline is a **monotone assignment at
+±150 ms, 71.71 ms**. Compared like for like, the combination improves PAT SD by **6 %**, not 40–60 %.
+
+**Comparing a new method against a weaker variant of itself, rather than against the standing result, is
+the same class of error as every tolerance-conditional number this brief has had to correct** — and it is
+the seventh time here that a handful of nights implied more than the corpus supports.
+
+### What the combination is actually worth
+
+- ✅ **Coverage: real and useful.** Correspondence 68.6 % → **79.4 %**, and ≥75 % on 20 of 29 nights
+  against 3 of 29 at ±150 ms globally. Drift tracking is what recovers those beats, exactly as
+  `CROSS-DEVICE-DRIFT-AND-CLOSURE` §2.1 predicts.
+- ❌ **Precision: essentially unchanged.** 71.7 → 67.5 ms.
+
+**That result is informative rather than disappointing: after per-block drift removal, ~67 ms of scatter
+remains.** So inter-device drift explains the *correspondence* loss and **not** the residual scatter.
+§2-RESULT-IX's "the clock is the cause" is therefore too broad — the clock is the cause of *beats not
+matching*; something else is the cause of *matched beats scattering*.
+
+### Where that leaves the cause
+
+Still open, and now more sharply bounded. Eliminated by measurement: pulse amplitude, upstroke slope,
+rise time, LED channel choice, missing/spurious beats, fiducial-feature switching (7 of 18 only), my own
+uniform-grid timestamps, and now inter-device drift as an explanation of the residual. What survives on
+the two cleanest nights — **16.7 ms falling to 5.5 ms after removing a 20 ppm trend** — says the
+instrument reaches single-digit ms when the geometry cooperates, and nothing measured so far explains why
+it usually does not.
+
+## 2-RESULT-XII · THE WHOLE THREAD IN ONE TABLE — PAT SD is the WINDOW, and the repo said so first
+
+Every PAT SD in §2-RESULT-III–XI came from a different pipeline. Run them all on the **same night, in one
+harness**, so the comparison is finally like-for-like:
+
+| pipeline | 2026-07-09 (n / SD) | 2026-06-10 (n / SD) |
+|---|---|---|
+| nearest ±50 ms | 2001 / **23.9** | 659 / **26.9** |
+| nearest ±150 ms | 2277 / 33.6 | 1242 / 60.9 |
+| nearest ±300 ms | 2305 / 41.0 | 1684 / 119.6 |
+| nearest ±600 ms | 2316 / 46.0 | 2361 / **191.8** |
+| monotone ±50…±600 | **identical to nearest at every tolerance** | **identical** |
+| monotone ±150 + detrend | 2277 / 33.4 | 1242 / 58.7 |
+
+**Spread on one night: 1.9× (good) and 7.1× (bad), from pipeline choice alone.**
+
+### 🔴 Two of my own claims fall here
+
+1. **Monotonicity does nothing.** §4g attributed a 37.57 → 71.71 ms change to replacing nearest-match with
+   a monotone assignment, arguing nearest-match "pairs across slips". **The two agree exactly at every
+   tolerance.** That change was entirely the tolerance moving ±80 → ±150. The monotone DP is a correct
+   implementation of an irrelevant refinement.
+2. **Detrending is not worth 89 %.** §2-RESULT-IX reported a 20.7 ppm fit removing 89 % of variance. Here
+   the same operation moves 33.6 → 33.4 and 60.9 → 58.7. The 89 % applied to the *interval-anchored*
+   series only, which is a different pairing — so it is a property of that pipeline, not of PAT.
+
+### 🟢 And the repo's own prescribed test separates the nights cleanly
+
+`pat-sd-is-the-window` says: *"before quoting a PAT scatter, divide by w/√12 for whatever window produced
+it — a ratio near 1.00 means the window was measured, not the subject."* Applied across the sweep:
+
+| window | w/√12 | 2026-07-09 ratio | 2026-06-10 ratio |
+|---|---|---|---|
+| ±50 ms | 28.9 | 0.83 | 0.93 |
+| ±150 ms | 86.6 | 0.39 | 0.70 |
+| ±300 ms | 173.2 | 0.24 | 0.69 |
+| ±600 ms | 346.4 | **0.13** | **0.55** |
+
+**The TRAJECTORY is the test.** Widen the window and a real measurement pulls away from `w/√12`
+(0.83 → 0.13); a non-measurement tracks it (0.93 → 0.55). That single curve separates the two nights more
+cleanly than the RR↔PPI margin of §2-RESULT-IV, **and it needs no interval alignment, no unwrapping, and
+no second device** — only the PAT series and the window that produced it.
+
+**It should replace the identifiability gate proposed in §2-RESULT-IV.** Simpler, assumption-free, and
+already written down in this repo before this investigation started.
+
+### The standing lesson
+
+Nine corrections are recorded across §2-RESULT-III–XII. Seven were **sampling** (a handful of nights
+promising more than the corpus delivered), one was a **code** error (the asymmetric lag search), and one
+was a **baseline** error (comparing a new method against a weaker variant of itself). None was an
+estimator that computed the wrong thing. **Every single one was an inference drawn faster than the
+measurement supported it** — and the two cheapest guards against all nine were already in the repo: run
+the corpus first, and read the existing brief before building.
+
 ## 3 · Phase 1 — promote the coupler into the Integrator (consume EXPORTS, add the missing one)
 
 - **Move the timing engine** `coupledPAT`/`ecgRpeakTimes`/`ppgFootTimes`/`sharedClock` from
