@@ -35,6 +35,7 @@ real-data papers (sigma, the odi-bias real arm, ppg-ecg-hrv-validation) and the 
 | cpap-flow-reference | REAL (n-of-1 methods) | n/a — generator-independent; 26 nights / 172 h real corpus (Draft v1, Jul) | drafted | **DRAFT** ↓R2 (new, 2026-07-22) |
 | acc-respiratory-rate | REAL (n-of-1) | n/a — generator-independent; 19,193 real epochs vs CPAP flow (Draft v1, Jul) | drafted | **DRAFT** ↓R2 (new, 2026-07-22) |
 | effort-typing-null | REAL (n-of-1, negative) | n/a — generator-independent; 401 scored events (Draft v1, Jul) | drafted | **PARKED** ↓R3 (new, 2026-07-22) |
+| known-clock-recovery | REAL (n-of-1, preregistered) | n/a — generator-independent; 61 BLE arrival streams + 101 RR trains over 21 nights (Draft v2) | done | **DONE** (new, 2026-08-14) ↓R4 |
 
 ## Open residuals on the 2026-07-22 additions
 
@@ -98,3 +99,19 @@ all prior pilot numbers are superseded and the shipped drafts reflect the curren
 residual (R1) explicitly parked and covered elsewhere. Combined with §6 criterion (b) (both "now"
 candidates 2.1 + 2.2 shipped), the roadmap is "done for now" except the MED-effort now-candidate 2.3
 (cross-signal plausibility QC) and the node-gated 3.1–3.6.
+
+**R4 — `known-clock-recovery` carries no figures, deliberately.** Every number in it is a table cell
+produced by a committed tool (`tools/known-clock-recovery.mjs`, `tools/beat-error-recovery.mjs`, both
+`--self-test`-gated, both deterministic), and the two curves it reports — sigma_y(tau) against span,
+and rMSSD error against injected beat-error rate — are monotone and fully carried by their tables.
+Emitting a PNG into `papers/figures/` would add a rendering step without adding evidence, so the
+house rule *"no number without a tool that reproduces it"* is satisfied by the tools rather than by a
+figure. If the paper is prepared for external submission the two curves should be plotted then.
+
+**A note on this paper's status, because it differs from every other row above.** It is the only paper
+in the set whose criteria were **preregistered and hashed before the first run**
+(`experiments/known-clock/acceptance.json`, sha256 `b061d279…`). It is also the only one that
+**withdraws a claim of its own** (§3.6b): the draft argued a shipped span gate was an order of
+magnitude too permissive, and a direct test showed the gate does net good where it stands. That
+retraction is in the paper rather than removed from it, and the reason it was caught — one further
+measurement by the same operator — is stated as a limitation, not a strength.

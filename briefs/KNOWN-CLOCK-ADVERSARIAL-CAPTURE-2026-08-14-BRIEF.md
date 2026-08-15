@@ -441,6 +441,63 @@ index all carry the paper), but **the gate did not surface it and would not surf
 Filed here rather than fixed: the fix belongs to whoever owns `build-docs.mjs`, and a wrong guess about
 what `docs/` should contain is worse than the gap.
 
+---
+
+# Phase 3 — target 6, beat-matching errors (executed 2026-08-14)
+
+Tool: **`tools/beat-error-recovery.mjs`** (self-tested, seeded, no `Math.random`/`Date.now`).
+Substrate: **101 real H10 RR trains**, median 1440 beats, median true rMSSD 44.6 ms.
+
+**Why this target outranks everything in Phase 1–2.** A 30 ppm rate error moves a 7 h night by 0.75 s
+and moves rMSSD by ~0.003 %, because rMSSD is a first difference and a smooth rate error cancels.
+A single missed beat fuses two intervals into one ~2× normal, and rMSSD is *quadratic* in that. The
+two failure families are not the same size and only one of them had ever been measured here.
+
+| injection | RAW rMSSD err | ECG-Malik (0.20) | PPG-Malik (0.30) | ECG beats fixed |
+|---|---|---|---|---|
+| **miss 0.1 %** | **+20.8 %** | −22.0 % | −18.9 % | 3 |
+| miss 0.5 % | +114.4 % | −22.0 % | −19.6 % | 9 |
+| miss 2 % | +387.0 % | −22.0 % | −19.4 % | 31 |
+| miss 5 % | +614.5 % | −22.2 % | −17.8 % | 73 |
+| FP 0.1 % | +23.0 % | −22.0 % | −18.8 % | 8 |
+| FP 5 % | +293.2 % | −10.7 % | −4.6 % | 184 |
+| jitter 2 ms | +0.1 % | −22.0 % | −18.8 % | 3 |
+| jitter 30 ms | +15.3 % | −5.4 % | −3.9 % | 3 |
+| **NULL (clean)** | **0.00 %** | **−21.95 %** | **−18.85 %** | 3 |
+
+**One missed beat in a thousand inflates rMSSD by 20.8 %.** Mean RR moves 0.06 % for the same
+injection — so a summary HR looks perfect while the HRV metric is a fifth wrong. Detector accuracy
+and clock accuracy are not comparable quantities, and the suite had been measuring the smaller one.
+
+**The corrector lands on the same value regardless of what was injected** (−22 % at 0.1 % miss and at
+5 % miss alike). It is not converging on truth; it is converging on its own flattened estimate. It
+does remove the injected damage — +614 % → −22 % is a real repair — but it arrives at a fixed offset.
+
+**🔴 What this CANNOT distinguish, stated because the tempting conclusion is unsupported.** The
+"truth" here is the as-recorded device RR train, which already contains real ectopy and real detector
+artefacts. So the NULL row's **−21.95 %** has two readings that this experiment cannot separate:
+
+1. the corrector carries a ~22 % downward bias, or
+2. the raw train carries ~22 % of artefact-driven rMSSD inflation that the corrector correctly removes.
+
+**Do not cite this as "Malik is biased."** What it does establish is the *magnitude*: correcting a
+median of **3 beats out of 1440** (0.2 %) moves rMSSD by 22 %, because rMSSD is quadratic and its
+extremes dominate. The choice of corrector matters as much as a 1-in-1000 detector error rate.
+Separating (1) from (2) needs a train with independently-known beat truth — simultaneous ECG with
+manually adjudicated R-peaks — which this corpus does not contain.
+
+**Wrong-corrector cost, measured.** The suite applies a stricter Malik bound to ECG/Pulse than to
+optical PPG (300/2200/**0.20** vs 300/2000/**0.30**, intentional per `oxydex-dsp.js:92`). An earlier
+run of this tool used the PPG corrector on ECG-derived RR — the wrong one. On a synthetic train with
+one planted merged beat the ECG corrector recovers rMSSD to **8.1 ms against a truth of 8.1 ms**,
+correcting exactly 1 interval. Both legs are now reported side by side so attribution is explicit.
+
+**A third instance of the same tool bug.** This tool read `correctRR`'s return as `rr | corrected |
+out`; the shipped shape is `{ nn, tt, nCorr, flags }`. It matched nothing and recorded null for all
+101 streams, so the whole first corpus run printed `after Malik: n/a` while the corrector ran fine.
+Silence read as a result — the same failure as Phase 2's `stability.ok`. A regression assertion now
+requires both corrector legs to be *populated*.
+
 ## Still not done (do not read Phase 2 as the whole experiment)
 
 - **Injection at the `capture.py` write path.** Everything above perturbs the *sidecar*, so the capture
