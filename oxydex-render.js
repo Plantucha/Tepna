@@ -1693,7 +1693,7 @@ function renderAll() {
                 return a + (v - nsiMean) * (v - nsiMean);
               }, 0) / nsiVals.length
             ).toFixed(1);
-            t4html += metric('NSI Mean (' + nsiVals.length + 'n)', nsiMean, '± ' + nsiSD, nsiMean < 30 ? 'good' : nsiMean < 60 ? 'warn' : 'bad');
+            t4html += metric('NSI Mean', nsiMean, nsiVals.length + 'n · ± ' + nsiSD, nsiMean < 30 ? 'good' : nsiMean < 60 ? 'warn' : 'bad');
           }
           // SpO2 night-to-night CV
           var spo2Vals = nights
