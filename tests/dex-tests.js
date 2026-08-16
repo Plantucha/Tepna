@@ -40495,7 +40495,7 @@
          (row 2 · chartTitle 24 · metric 55 · ssKPI 7 · nrChip 6), so the cap drops 94 → 70 and the
          remaining debt is the genuine per-metric kind. */
       var HELPER_RE = /\b(metric|kpi|ssKPI|nrKpi|nrChip|row|mkpi|sub)\s*\(\s*(['"`])([^'"`\n]{1,60})\2/g;
-      var KNOWN_UNREGISTERED = 68; // 94 − 24 chart captions − 2 CPAPDex row ICONS (emoji, §1.3: denied not tiered); LOWER as rows are adjudicated, never raise
+      var KNOWN_UNREGISTERED = 0; // 0 — DEBT CLEARED 2026-08-16: 24 chart captions (badge the series) + 2 CPAPDex row icons + 3 OxyDex non-measurements denied, and 65 tiers owner-ratified. NEVER raise this.
       var fabricated = [];
       NODES.forEach(function (n) {
         var seen = {};
