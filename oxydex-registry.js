@@ -170,6 +170,204 @@
     },
     sfi: { label: 'SFI', unit: '/hr', goodDirection: 'down', depth: 'research', evidence: 'experimental', cite: 'Sleep fragmentation index — OxyDex composite, internal' },
 
+    /* ── ADJUDICATED 2026-08-16 (owner-ratified) — the 68-label fabricated-tier debt.
+       Every tier below is a CLAIM about how well that number is established, assigned one at a
+       time against the ladder these files already use (meanSpo2/minHr = measured · odi3/odi4/t88 =
+       validated · hypoxicBurden/pnn3 = experimental · MOS = heuristic), NOT filled in to turn a
+       gate green — that is the fabricated authority §🎫 exists to prevent.
+       The rule that did most of the work: an ESTABLISHED EXTERNAL METHOD applied to a signal it
+       was not validated on is `emerging`, never `validated`. DFA α1, deceleration capacity and
+       ApEn are real published methods computed here on PULSE rate rather than ECG RR.
+       Anything the code itself hedges — `proxy`, `-equiv`, `~est` — is `heuristic`. ── */
+    stabilityR2: {
+      label: 'Stability R²',
+      unit: '',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'experimental',
+      cite: "Fit quality (r²) of the cross-night stability regression — a property of this suite's model, not of the subject"
+    },
+    scoreTrend: { label: 'Trend', unit: 'pts/night', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: 'OLS slope of the nightly composite score across the loaded nights' },
+    spo2NightCV: { label: 'SpO2 Night CV', unit: '%', goodDirection: 'down', depth: 'advanced', evidence: 'experimental', cite: 'Between-night coefficient of variation of mean SpO₂' },
+    pbTrend: { label: 'PB Trend', unit: '/night', goodDirection: 'down', depth: 'advanced', evidence: 'experimental', cite: 'OLS slope of the periodic-breathing index across nights' },
+    poorNightsPct: {
+      label: 'Poor Nights (<50)',
+      unit: '%',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'experimental',
+      cite: "Share of nights scoring under 50 on this suite's composite score"
+    },
+    odi4Delta: {
+      label: 'ODI-4 Δ (first→last)',
+      unit: '/hr',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'experimental',
+      cite: 'Difference between first and last night ODI-4 — the DIFFERENCE is ours; ODI-4 itself is the standard 4% criterion'
+    },
+    solTrend: { label: 'SOL Trend', unit: 'min/night', goodDirection: 'down', depth: 'advanced', evidence: 'heuristic', cite: 'OLS slope of estimated sleep-onset latency across nights' },
+    posShifts: { label: 'Pos Shifts', unit: 'count', goodDirection: 'down', depth: 'advanced', evidence: 'experimental', cite: 'Posture-shift count derived from the accelerometer' },
+    lcsp: {
+      label: 'LCSP',
+      unit: 'min',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'heuristic',
+      cite: 'Longest continuous stable period — a sleep-consolidation stand-in, not a scored measure'
+    },
+    remProxy: {
+      label: 'REM ~est',
+      unit: 'min',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'heuristic',
+      cite: "REM estimate from oximetry + pulse rate. The '~est' is deliberate: recall/precision against PSG labels has never been measured (REM-STAGING)"
+    },
+    deepProxy: { label: 'Deep ~est', unit: 'min', goodDirection: 'up', depth: 'advanced', evidence: 'heuristic', cite: 'Deep-sleep estimate from the same basis, with the same absent validation' },
+    hrRest: {
+      label: 'HR Rest',
+      unit: 'bpm',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Resting pulse rate — a direct reading, same class as the registered Min HR / Max HR'
+    },
+    hrMaxKpi: { label: 'HR Max', unit: 'bpm', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Peak pulse rate — direct reading' },
+    vo2Conf: {
+      label: 'Confidence',
+      unit: '%',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'heuristic',
+      cite: 'Confidence attached to the VO₂ estimate — a self-assessment of another metric, not a measurement'
+    },
+    dfaAlpha1: {
+      label: 'DFA',
+      unit: 'α1',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'emerging',
+      cite: 'Peng detrended fluctuation α1 — established method, computed here on PULSE rate rather than ECG RR; that transfer is not validated here'
+    },
+    ssiIdx: { label: 'SSI', unit: '', goodDirection: 'up', depth: 'research', evidence: 'experimental', cite: "Sleep-stability index, this suite's own construction" },
+    cdiIdx: { label: 'CDI', unit: '/h', goodDirection: 'down', depth: 'research', evidence: 'experimental', cite: 'Cyclic desaturation index, bespoke detector' },
+    hypLoad: {
+      label: 'HypLoad',
+      unit: '%·min',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'emerging',
+      cite: 'Hypoxic load — same family as the registered hypoxicBurden (experimental) and no better established'
+    },
+    recIdx: { label: 'RecIdx', unit: '', goodDirection: 'up', depth: 'research', evidence: 'experimental', cite: 'Recovery index, bespoke' },
+    oxyCrash: { label: 'OxyCrash', unit: '/h', goodDirection: 'down', depth: 'research', evidence: 'experimental', cite: 'Bespoke rapid-desaturation rate' },
+    spo2CoV: { label: 'SpO₂ CoV', unit: '%', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Coefficient of variation of the sensed SpO₂ series' },
+    tAucWeighted: { label: 'T-AUC Wt', unit: '%·min', goodDirection: 'down', depth: 'advanced', evidence: 'experimental', cite: "Weighted time-area below threshold — the WEIGHTING is this suite's" },
+    auc90Rate: {
+      label: 'AUC-90 Rate',
+      unit: '%·min/h',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'validated',
+      cite: 'Area under 90% per hour — a standard oximetry burden measure, sibling of the registered T88'
+    },
+    dip3Rate: {
+      label: 'Dip-3/hr',
+      unit: '/hr',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'validated',
+      cite: '3% desaturation index — the same standardised criterion as the registered ODI-3'
+    },
+    nadirCount: { label: 'Nadir Count', unit: 'count', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Count of nadir events below the stated threshold' },
+    nadirDepth: { label: 'Nadir Depth', unit: '%', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Mean depth of those nadirs, in the sensed unit' },
+    nadirRecov: { label: 'Nadir Recov', unit: 's', goodDirection: 'down', depth: 'advanced', evidence: 'experimental', cite: 'Mean recovery time after a nadir — the recovery definition is ours' },
+    circadianScore: { label: 'Circadian', unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: 'Circadian score, bespoke composite' },
+    decelCap: {
+      label: 'Decel Cap',
+      unit: 'ms',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'emerging',
+      cite: 'Bauer deceleration capacity — established method, computed on pulse-derived rate rather than ECG RR'
+    },
+    apEn: { label: 'ApEn', unit: '', goodDirection: 'up', depth: 'research', evidence: 'heuristic', cite: 'Pincus approximate entropy — established method, unvalidated on this signal' },
+    bradyCount: { label: 'Bradycardia', unit: 'count', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Count of epochs below the stated HR threshold' },
+    tachyCount: { label: 'Tachycardia', unit: 'count', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Count of epochs above the stated HR threshold' },
+    wasoWindows: {
+      label: 'WASO Win',
+      unit: 'count',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'experimental',
+      cite: 'Wake-after-sleep-onset windows inferred from oximetry and motion, not PSG'
+    },
+    ultradianCycles: { label: 'Ultradian Cycles', unit: 'count', goodDirection: 'up', depth: 'advanced', evidence: 'heuristic', cite: 'Count of detected ultradian cycles — the detector is ours' },
+    ultradianValleys: { label: 'HR Valleys', unit: 'count', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: 'Valley count from the same detector' },
+    crcIdx: { label: 'CRC Index', unit: '', goodDirection: 'up', depth: 'research', evidence: 'heuristic', cite: 'Cardio-respiratory coupling index, bespoke' },
+    pbDivergeCount: { label: 'PB Diverge', unit: 'count', goodDirection: 'down', depth: 'advanced', evidence: 'experimental', cite: 'Count of periodic-breathing divergence events, bespoke detector' },
+    pbDivergePct: { label: 'Diverge %', unit: '%', goodDirection: 'down', depth: 'advanced', evidence: 'experimental', cite: 'Share form of the divergence count' },
+    couplingScore: { label: 'Coupling', unit: '%', goodDirection: 'up', depth: 'research', evidence: 'experimental', cite: 'Coupling score, bespoke composite' },
+    spo2IQR: { label: 'SpO₂ IQR', unit: '%', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Interquartile range of the sensed SpO₂ series' },
+    condMeanBelow94: {
+      label: 'Cond Mean',
+      unit: '%',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Conditional mean of SpO₂ while below 94% — a statistic of the sensed series'
+    },
+    condPctBelow94: { label: 'Cond %', unit: '%', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Share of the recording below 94%' },
+    nadirBinLt4: { label: 'Nadir<4%', unit: 'count', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: 'Histogram bin of sensed nadir depths (<4% drop)' },
+    nadirBin46: { label: 'Nadir 4-6', unit: 'count', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Histogram bin of sensed nadir depths (4–6%)' },
+    nadirBin69: { label: 'Nadir 6-9', unit: 'count', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Histogram bin (6–9%)' },
+    nadirBinGt9: { label: 'Nadir>9%', unit: 'count', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Histogram bin (>9%), summed from the two deepest bins' },
+    rmssdProxy: {
+      label: 'RMSSD proxy',
+      unit: 'ms',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: 'Named `proxy` in the code — pulse-interval analogue of RMSSD, not RR-interval RMSSD'
+    },
+    hrIQR: { label: 'HR IQR', unit: 'bpm', goodDirection: 'down', depth: 'advanced', evidence: 'heuristic', cite: 'Interquartile range of the sensed pulse rate' },
+    hrPbContrast: { label: 'PB HR Δ', unit: 'bpm', goodDirection: 'down', depth: 'advanced', evidence: 'experimental', cite: 'Pulse-rate contrast between periodic-breathing and non-PB windows' },
+    meanHrPb: { label: 'Mean HR PB', unit: 'bpm', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Mean pulse rate within PB windows' },
+    meanHrRest: { label: 'Mean HR Rest', unit: 'bpm', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Mean pulse rate outside PB windows' },
+    pnn3Equiv: { label: 'pNN3-equiv', unit: '%', goodDirection: 'up', depth: 'research', evidence: 'heuristic', cite: 'Named `-equiv` — a pNN50-style analogue on pulse intervals' },
+    rsaProxy: { label: 'RSA proxy', unit: '', goodDirection: 'up', depth: 'research', evidence: 'heuristic', cite: 'Named `proxy` in the code' },
+    breathsPerMin: {
+      label: 'Breaths/min',
+      unit: '/min',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'emerging',
+      cite: 'Respiratory rate derived from RSA in the pulse signal, not from a respiratory band'
+    },
+    rsaPeakFreq: {
+      label: 'RSA Peak Freq',
+      unit: 'Hz',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'emerging',
+      cite: 'Spectral peak of the RSA band — method standard, application unvalidated here'
+    },
+    rsaPeakPow: { label: 'RSA Power', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'Power in the RSA band' },
+    oscEpisodeCount: { label: 'Flagged Windows', unit: 'count', goodDirection: 'down', depth: 'advanced', evidence: 'experimental', cite: 'Windows the oscillation detector flagged' },
+    oscPeakCrossings: { label: 'Peak Crossings', unit: 'count', goodDirection: 'down', depth: 'advanced', evidence: 'experimental', cite: 'Crossing count from the same detector' },
+    restlessWindows: { label: 'Restless Windows', unit: 'count', goodDirection: 'down', depth: 'advanced', evidence: 'experimental', cite: 'Motion-derived restlessness count' },
+    arousalIndex: { label: 'Arousal Index', unit: '%', goodDirection: 'down', depth: 'advanced', evidence: 'experimental', cite: 'Arousal index inferred without EEG' },
+    hbTotal: {
+      label: 'Total Burden',
+      unit: '%·min',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'emerging',
+      cite: 'Hypoxic-burden aggregate — the registered hypoxicBurden sits at experimental; this is no better established'
+    },
+    hbRate: { label: 'Burden Rate', unit: '%·min/h', goodDirection: 'down', depth: 'advanced', evidence: 'emerging', cite: 'Per-hour form of the burden aggregate' },
+
     /* ── EXPERIMENTAL — plausible node composite, not externally validated ──── */
     nsi: { label: 'NSI', unit: '', goodDirection: 'down', depth: 'research', evidence: 'experimental', cite: 'Nocturnal Stress Index — OxyDex composite (dip-rate + AUC-90 + T95 + AAI), internal' },
     sleepStability: { label: 'Sleep stability', unit: '', goodDirection: 'up', depth: 'research', evidence: 'experimental', cite: 'OxyDex sleep-stability score — internal composite' },
@@ -317,6 +515,72 @@
     't<90%': 't90',
     't<90': 't90',
     't90 (time <90%)': 't90',
+    /* aliases for the 2026-08-16 adjudication — see the block above */
+    'stability r²': 'stabilityR2',
+    trend: 'scoreTrend',
+    'spo2 night cv': 'spo2NightCV',
+    'pb trend': 'pbTrend',
+    'poor nights (<50)': 'poorNightsPct',
+    'odi-4 δ (first→last)': 'odi4Delta',
+    'sol trend': 'solTrend',
+    'pos shifts': 'posShifts',
+    lcsp: 'lcsp',
+    'rem ~est': 'remProxy',
+    'deep ~est': 'deepProxy',
+    'hr rest': 'hrRest',
+    'hr max': 'hrMaxKpi',
+    confidence: 'vo2Conf',
+    dfa: 'dfaAlpha1',
+    ssi: 'ssiIdx',
+    cdi: 'cdiIdx',
+    hypload: 'hypLoad',
+    recidx: 'recIdx',
+    oxycrash: 'oxyCrash',
+    'spo₂ cov': 'spo2CoV',
+    't-auc wt': 'tAucWeighted',
+    'auc-90 rate': 'auc90Rate',
+    'dip-3/hr': 'dip3Rate',
+    'nadir count': 'nadirCount',
+    'nadir depth': 'nadirDepth',
+    'nadir recov': 'nadirRecov',
+    circadian: 'circadianScore',
+    'decel cap': 'decelCap',
+    apen: 'apEn',
+    bradycardia: 'bradyCount',
+    tachycardia: 'tachyCount',
+    'waso win': 'wasoWindows',
+    'ultradian cycles': 'ultradianCycles',
+    'hr valleys': 'ultradianValleys',
+    'crc index': 'crcIdx',
+    'pb diverge': 'pbDivergeCount',
+    'diverge %': 'pbDivergePct',
+    coupling: 'couplingScore',
+    'spo₂ iqr': 'spo2IQR',
+    'cond mean': 'condMeanBelow94',
+    'cond %': 'condPctBelow94',
+    'nadir<4%': 'nadirBinLt4',
+    'nadir 4-6': 'nadirBin46',
+    'nadir 6-9': 'nadirBin69',
+    'nadir>9%': 'nadirBinGt9',
+    'rmssd proxy': 'rmssdProxy',
+    'hr iqr': 'hrIQR',
+    'pb hr δ': 'hrPbContrast',
+    'mean hr pb': 'meanHrPb',
+    'mean hr rest': 'meanHrRest',
+    'pnn3-equiv': 'pnn3Equiv',
+    'rsa proxy': 'rsaProxy',
+    'breaths/min': 'breathsPerMin',
+    'rsa peak freq': 'rsaPeakFreq',
+    'rsa power': 'rsaPeakPow',
+    'flagged windows': 'oscEpisodeCount',
+    'peak crossings': 'oscPeakCrossings',
+    'restless windows': 'restlessWindows',
+    'arousal index': 'arousalIndex',
+    'total burden': 'hbTotal',
+    'burden rate': 'hbRate',
+    'frag index': 'sfi',
+    'motion %': 'motion',
+    'nsi mean': 'nsi',
     't95% time': 't95',
     t95: 't95',
     't95% time below': 't95',
@@ -444,7 +708,11 @@
   }
 
   /* Pure metadata labels (not metrics) — never badge these even with fallback. */
-  var _META_DENY = { date: 1, start: 1, end: 1, source: 1, 'sample rate': 1, recording: 1, 'active flags': 1 };
+  /* `best night` / `worst night` render a DATE (`bestNight.date`), and `hr range` renders
+     `minHr + '–' + maxHr` — TWO separately-registered `measured` metrics in one field, which is the
+     chart-caption rule (§🎫) arriving in a KPI. None of the three is a measurement that can carry one
+     tier, so they are denied rather than tiered. Owner-ratified 2026-08-16. */
+  var _META_DENY = { date: 1, start: 1, end: 1, source: 1, 'sample rate': 1, recording: 1, 'active flags': 1, 'best night': 1, 'worst night': 1, 'hr range': 1 };
 
   /* badgeForLabel(label, fallback) → '<span class="ev …">' | '' — the zero-touch
    hook the render helpers call to place an evidence dot IMMEDIATELY BEFORE any label
