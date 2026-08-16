@@ -744,6 +744,79 @@ uses. **Queueing theory** for BLE arrivals is subsumed by the IPDV/PDV literatur
 closer to the measurement. Neither is wrong; both are longer routes to somewhere §2 and §13b already
 reach.
 
+## 13f · ROUND SEVEN — the bias was CANON, not language
+
+### 13f.1 · The language framing in §13d was itself a bad model
+
+§13d organised the search by language and drew a lesson about "which community owns a problem". That
+is half right and it obscured the larger effect. **Most current research worldwide publishes in
+English** — India, Brazil, Iran, Turkey, Poland, Israel, the Nordics — so a language-based search does
+not reach it either, and the absence had a different cause:
+
+> **Searching for "the canonical work" systematically retrieves the oldest, most-cited paper in a
+> field, which is disproportionately mid-20th-century and Western. Searching for CURRENT work
+> retrieves a globally distributed set, in English, that the canonical query never surfaces.**
+
+Tested rather than asserted. Rounds 1–4 asked for foundations and returned Allan 1966, Page 1954,
+Cronbach 1972, Isermann 1984, Julier 1997. One query phrased for *recency* on the same subject matter
+returned a 2022 benchmark, a 2025 algorithm paper, four public datasets and three 2025–26 foundation
+models — none of which any canonical query had produced.
+
+### 13f.2 · What the recency query found, and the one thing it leaves open
+
+**Already known here, and correctly closed — recorded so nobody re-opens it:**
+
+`PPGDEX-ALGORITHM-DEEP-DIVE` §… already cites **Charlton et al. (2022)**, *Detecting beats in the
+photoplethysmogram: benchmarking open-source algorithms*, Physiol. Meas. 43 — **DOI
+10.1088/1361-6579/ac826d** — knows it ranks **MSPTD** and **qppg** top, and concludes with evidence
+that *"MSPTDfast v.2's published F1 is statistically indistinguishable from the shipped TERMA on
+wearable-at-rest data … there is no headroom to buy."* Measured baseline: beat sensitivity median
+**1.0000** (IQR 0.928–1.000, **range 0.609–1.000**), PPV median 1.0000 (range 0.610–1.000). The
+distribution is reported honestly; the algorithm question is settled.
+
+**The remainder is narrow and real: those figures are tagged `[CORPUS]`.** They are agreement against
+our own H10 ECG on our own recordings — a **transfer standard**, which `sigma-no-reference` itself
+names as a distinct validation mode from a reference. Meanwhile:
+
+| dataset | status here |
+|---|---|
+| **CapnoBase** | 0 mentions |
+| **BIDMC** | 0 mentions |
+| **MIMIC PERform** | 0 mentions |
+| **PPG-DaLiA** | 0 mentions |
+
+These are **public corpora with expert-annotated beats** — a genuine external reference, not a second
+device. They are the corpora Charlton's benchmark itself runs on, so a score computed on them is
+directly comparable to published numbers.
+
+**The distinction this exposes is worth more than the datasets.** This project's founding constraint
+is "we have no reference". That is true of **our recordings**. It is *not* true of **our detector**:
+
+> A detector can be validated on externally-annotated public data; a recording cannot.
+> The suite has treated these as one problem, and they are two.
+
+**Do:** run `ppgdex-dsp.js`'s detector on CapnoBase/BIDMC and report sensitivity/PPV against the
+expert annotations. It converts a transfer-standard agreement into an **external known-answer**, is
+directly comparable to a published benchmark, needs no new capture, and is the same argument Vigil box
+made for checking `allan.py` against AllanTools. Also worth noting the worst night here is **0.609** —
+an external corpus would say whether that is a hard night or a detector limit.
+
+**Also surfaced, not evaluated:** PPG foundation models (Pulse-PPG, PaPaGei-S, ~20 M segments) and a
+2026 Biosignale benchmark of ten open-source R-peak detectors across five datasets including
+ambulatory and arrhythmic rhythms. Recorded for completeness; neither is a fit for a suite whose rule
+is that model output cannot be evidence.
+
+### 13f.3 · The revised search rule
+
+Both effects are real and they compound. For future literature work in this project:
+
+1. **Ask for the canon AND ask for the last three years.** They return disjoint sets, and the second
+   set is where the global distribution of researchers actually appears.
+2. **Ask which community owns the problem** (§13d.6) — GNSS clock analysis, sequential detection,
+   wearable BLE engineering and estimator theory each concentrate somewhere.
+3. **Ask what public annotated data exists** before concluding a quantity has no reference. That
+   question was never asked in six rounds, and it had an answer.
+
 ## 14 · Lower priority — technique already used, justification missing
 
 | field | work | why |
