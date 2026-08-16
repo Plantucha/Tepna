@@ -77,6 +77,7 @@
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
 import vm from 'node:vm';
 import { stripNonCode } from './probe-equivalence.mjs';
+import { ResumeLedger, etaSeconds, fingerprint, fmtDuration, progressLine } from './run-progress.mjs';
 
 /* Files Level B may run against. An allowlist, not a glob: SDL is experimental here and its cost is
    one suite run per statement, so it is pointed deliberately rather than swept. */
@@ -376,42 +377,11 @@ export function suiteReported(stdout) {
 
    Pure so it can be tested. `perRun` comes from the baseline, then from the observed mean once
    subjects start completing, so the estimate self-corrects instead of trusting the first sample. */
-export function etaSeconds(done, total, jobs, perRunSec) {
-  const left = Math.max(0, total - done);
-  const rounds = Math.ceil(left / Math.max(1, jobs));
-  return Math.round(rounds * Math.max(0, perRunSec));
-}
-
-export function fmtDuration(sec) {
-  if (!Number.isFinite(sec) || sec < 0) return '?';
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const x = Math.round(sec % 60);
-  return h ? h + 'h' + String(m).padStart(2, '0') + 'm' : m ? m + 'm' + String(x).padStart(2, '0') + 's' : x + 's';
-}
-
-/* A progress line that states what it MEASURED, not just a bar: done/total, the per-run cost the
-   estimate rests on, and how long is left. A reader can check the arithmetic. */
-export function progressLine(done, total, jobs, perRunSec, verdict) {
-  const pct = Math.floor((done / Math.max(1, total)) * 100);
-  return (
-    '  [' +
-    String(done).padStart(String(total).length) +
-    '/' +
-    total +
-    ' ' +
-    String(pct).padStart(3) +
-    '%]  ' +
-    String(verdict || '').padEnd(24) +
-    ' ~' +
-    fmtDuration(perRunSec) +
-    '/run × ' +
-    jobs +
-    ' jobs  →  ' +
-    fmtDuration(etaSeconds(done, total, jobs, perRunSec)) +
-    ' left'
-  );
-}
+/* Progress, ETA and the resume ledger are SHARED — `tools/run-progress.mjs`. They were written
+   here first and every other multi-hour tool needed the same thing, so they moved rather than
+   being copied: a second implementation of an ETA is a second thing to get wrong, and this one
+   was already wrong once (it divided by a `jobs` count that bought no parallelism). */
+export { etaSeconds, fmtDuration, progressLine } from './run-progress.mjs';
 
 export function classifyStatementVerdict(ran, suitePassed) {
   if (!ran) return 'INCONCLUSIVE'; // the mutant never executed — harness, timeout, or syntax
@@ -427,7 +397,7 @@ export function classifyStatementVerdict(ran, suitePassed) {
    BASELINE FIRST, ALWAYS. If the suite is already red, every mutant "fails" and every statement
    reads KILLED — a green report built on a broken harness. Level A refuses in that state and so does
    this. */
-async function runLevelB(file, group, jobs, covPath) {
+async function runLevelB(file, group, jobs, covPath, resumePath) {
   const { execFileSync, execFile } = await import('node:child_process');
   const { mkdtempSync, readFileSync, writeFileSync, rmSync, symlinkSync, readdirSync, existsSync } = await import('node:fs');
   const { join, dirname, resolve } = await import('node:path');
@@ -581,20 +551,40 @@ async function runLevelB(file, group, jobs, covPath) {
     process.exit(2);
   }
 
-  const jobsUsed = Math.min(jobs, subjects.length);
+  /* ── RESUME ────────────────────────────────────────────────────────────────────────────
+     A run here is measured in hours, and twice now one has been killed partway — at 78/126 and
+     again at 102/179 — discarding every verdict it had computed. The verdicts are independent
+     per subject, so there was never a reason to lose them.
+
+     The fingerprint covers the SUBJECT SOURCE and the group, so a ledger written against other
+     code is refused rather than merged: a resumed run that mixes two codebases reports a score
+     for neither. A refusal costs a restart; the alternative costs the truth. */
+  const keyOf = (x) => x.line + '|' + x.kind + '|' + x.text;
+  const fp = fingerprint({ tool: 'stmt-delete@2', file, group, src, subjects: subjects.length });
+  const ledger = new ResumeLedger(resumePath || null, fp).load();
+  if (resumePath && ledger.stale) {
+    process.stderr.write('  ⚠ resume ledger describes DIFFERENT inputs (source or group changed) — starting from zero\n');
+  }
+  ledger.begin();
+  const pending = subjects.filter((x) => !ledger.has(keyOf(x)));
+  if (resumePath && ledger.size) {
+    process.stderr.write('  ↻ resuming: ' + ledger.size + ' subject(s) already recorded, ' + pending.length + ' to go\n');
+  }
+  const jobsUsed = Math.min(jobs, Math.max(1, pending.length));
   process.stderr.write(
-    '  ESTIMATE: ' + subjects.length + ' subjects × ' + fmtDuration(baseSec) + ' ÷ ' + jobsUsed + ' jobs  ≈  ' + fmtDuration(etaSeconds(0, subjects.length, jobsUsed, baseSec)) + '\n'
+    '  ESTIMATE: ' + pending.length + ' subjects × ' + fmtDuration(baseSec) + ' ÷ ' + jobsUsed + ' jobs  ≈  ' + fmtDuration(etaSeconds(0, pending.length, jobsUsed, baseSec)) + '\n'
   );
   const trees = [];
   for (let i = 0; i < jobsUsed; i++) trees.push(mkTree());
-  const results = [];
+  const results = ledger.values().map((r) => ({ fn: r.fn, kind: r.kind, text: r.text, line: r.line, verdict: r.verdict }));
+  const resumedCount = results.length;
   let runSecTotal = 0;
   let next = 0;
   const worker = async (dir) => {
     for (;;) {
       const i = next++;
-      if (i >= subjects.length) return;
-      const s = subjects[i];
+      if (i >= pending.length) return;
+      const s = pending[i];
       const wAbs = join(dir, file);
       rmSync(wAbs, { force: true }); // UNLINK FIRST — hard-linked to the repo's own inode
       writeFileSync(wAbs, s.mutant);
@@ -603,9 +593,11 @@ async function runLevelB(file, group, jobs, covPath) {
       runSecTotal += (Date.now() - t0) / 1000;
       const verdict = classifyStatementVerdict(r.ran, r.passed);
       results.push({ ...s, verdict });
+      ledger.record(keyOf(s), { fn: s.fn, kind: s.kind, text: s.text, line: s.line, verdict });
       /* The estimate rides the OBSERVED mean once there is one — the baseline is a single sample and
          a cold one, so trusting it for the whole run repeats the error this exists to fix. */
-      const perRun = results.length ? runSecTotal / results.length : baseSec;
+      const ran = results.length - resumedCount;
+      const perRun = ran ? runSecTotal / ran : baseSec;
       process.stderr.write(progressLine(results.length, subjects.length, jobsUsed, perRun, verdict) + '\n');
       if (verdict === 'PSEUDO_TESTED_STATEMENT') process.stderr.write('  ● PSEUDO-TESTED STMT  ' + s.fn.padEnd(22) + ' L' + String(s.line).padEnd(6) + ' [' + s.kind + '] ' + s.text + '\n');
       rmSync(wAbs, { force: true });
@@ -849,8 +841,11 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   /* Default to the sweep programme's own coverage artefact, so the precondition is ON unless the
      file genuinely has no record. An absent default would make the safe path the one nobody types. */
   const covPath = opt('--cov', '.mutation-sweeps/cov/coverage-final.json');
+  /* Resume is OPT-IN: a stale ledger silently reused would be worse than a slow restart, so the
+     operator asks for it and the fingerprint decides whether it is honoured. */
+  const resumePath = argv.includes('--resume') ? opt('--resume-file', '.mutation-sweeps/levelb-' + file.replace(/[^A-Za-z0-9]+/g, '-') + '-' + group.replace(/[^A-Za-z0-9]+/g, '-') + '.jsonl') : null;
   if (!file || !group) {
-    console.error('usage: node tools/stmt-delete.mjs --file <f> --group <g> [--jobs N] [--json] [--cov <coverage-final.json>]');
+    console.error('usage: node tools/stmt-delete.mjs --file <f> --group <g> [--jobs N] [--json] [--cov <f>] [--resume [--resume-file <f>]]');
     process.exit(2);
   }
   if (LEVEL_B_ALLOWLIST.indexOf(file) < 0) {
@@ -860,7 +855,7 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   }
   const os = await import('node:os');
   const jobs = Math.max(1, Number(opt('--jobs', String(Math.max(1, os.cpus().length - 2)))) || 1);
-  const out = await runLevelB(file, group, jobs, covPath);
+  const out = await runLevelB(file, group, jobs, covPath, resumePath);
   const ps = out.results.filter((r) => r.verdict === 'PSEUDO_TESTED_STATEMENT');
   const inc = out.results.filter((r) => r.verdict === 'INCONCLUSIVE');
   if (argv.includes('--json')) {
