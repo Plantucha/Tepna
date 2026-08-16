@@ -31,6 +31,17 @@ discards a torn trailing line rather than failing. A rewrite-the-file design can
 Level A was checked for Level B's sequential bug and does **not** have it — it awaits an async `run`,
 so its ETA divides by a job count that exists.
 
-Not yet covered, stated rather than implied: `capture-host/tools/mutate_diff.py` (Python, needs its own
-port), the three `regen-*-goldens.mjs` (minutes, not hours), and `mutate.mjs` (already has its own
-`--resume`, not yet unified onto this core).
+**The three `regen-*-goldens.mjs` now report progress too**, from one insertion point — they all
+delegate to `runRegen`. Reported at the START of each item rather than the end, because the loop
+leaves via several `continue` paths (absent fixture, build threw, historical record) and an
+end-of-body report would silently skip exactly the items a reader most wants counted.
+
+⚠️ **Resume is deliberately NOT added to the regen tools.** A mutation verdict is a read-only
+observation, so resuming one is free; a regeneration WRITES the fixture set, and a resumed
+regeneration would leave it half-updated — some files from this code, some from whatever ran before.
+That is precisely the mixed-provenance state the resume fingerprint exists to prevent, and these runs
+are minutes rather than hours, so the trade is not worth taking.
+
+Still not covered, stated rather than implied: `capture-host/tools/mutate_diff.py` (Python, needs its
+own port — though `mutmut` streams its own progress, so it is not fully blind) and `mutate.mjs`
+(already has its own `--resume` and bespoke progress, not yet unified onto this core).
