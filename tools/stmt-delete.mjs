@@ -356,7 +356,20 @@ export function deleteStatement(src, stmt, kind) {
     }
     return null; // no top-level `=` found — decline rather than guess
   }
-  return src.slice(0, stmt.start) + ' '.repeat(stmt.end - stmt.start) + src.slice(stmt.end);
+  /* 🔴 LEAVE AN EMPTY STATEMENT, DO NOT BLANK TO NOTHING. Blanking removes the semicolon too, and
+     for the ONLY statement of a brace-less body that leaves a dangling head:
+
+         for (…) if (st > maxStep) maxStep = st;   →   for (…) if (st > maxStep)
+
+     which does not parse, so the suite fails to LOAD. Measured on the first full clock.js run: 6
+     of 179 subjects, every one the sole statement of a brace-less body — a class introduced by the
+     brace-less recursion itself. They were correctly recorded INCONCLUSIVE rather than KILLED only
+     because `ran` demands the TAP plan; before that guard all six would have been banked as kills.
+
+     A trailing `;` is an EMPTY STATEMENT: a no-op wherever a statement was already legal, and
+     exactly what a brace-less head requires. One character, and the class closes. */
+  const gap = stmt.end - stmt.start;
+  return src.slice(0, stmt.start) + ' '.repeat(Math.max(0, gap - 1)) + ';' + src.slice(stmt.end);
 }
 
 /* ── VERDICT ─────────────────────────────────────────────────────────────────────────────────
@@ -792,6 +805,27 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   const brs = splitStatements(BR, bro + 1, BR.length - 1);
   ok('a BRACED body is not double-counted by the braceless path', brs.filter((x) => x.text.trim() === 'a();').length === 1, brs.map((x) => x.text.trim()).join(' | '));
 
+  /* The six INCONCLUSIVE subjects of the first full run were all this shape. */
+  ok(
+    'deleting a brace-less body leaves a parseable head',
+    (() => {
+      const B = 'function f(){ for (var i=0;i<2;i++) if (a > m) m = a; }';
+      const o = B.indexOf('{');
+      const st = splitStatements(B, o + 1, B.length - 1).find((x) => x.text.trim() === 'm = a;');
+      if (!st) return false;
+      const mut = deleteStatement(B, st, 'EXPRESSION');
+      return parsesAsStatement(mut.slice(mut.indexOf('for'), mut.lastIndexOf('}'))) || /if \(a > m\)\s*;/.test(mut);
+    })()
+  );
+  ok(
+    'the deletion keeps the source length',
+    (() => {
+      const B = 'function f(){ x = 1; y = 2; }';
+      const o = B.indexOf('{');
+      const st = splitStatements(B, o + 1, B.length - 1)[0];
+      return deleteStatement(B, st, 'EXPRESSION').length === B.length;
+    })()
+  );
   ok('a return is eligible', classifyStatement('return a;') === 'RETURN');
   ok('a throw is eligible', classifyStatement('throw new Error("x");') === 'THROW');
   ok('a call is an expression statement', classifyStatement('g(a);') === 'EXPRESSION');
@@ -816,7 +850,13 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
 
   const E = 'g(a);';
   const em = deleteStatement(E, { start: 0, end: E.length }, 'EXPRESSION');
-  ok('deleting an expression statement blanks it', em.trim() === '', JSON.stringify(em));
+  /* ⚠️ EXPECTATION CHANGED DELIBERATELY, from "blanks to nothing" to "leaves an empty statement".
+     The old form removed the semicolon with the statement, which is fine inside a block and fatal
+     for the sole statement of a brace-less body — `if (a > m) m = a;` became `if (a > m)` and did
+     not parse. Six of 179 subjects on the first full clock.js run were that shape. The assertion
+     was not wrong about blanking; it pinned a behaviour that the brace-less recursion later made
+     unsafe, which is why it is edited rather than deleted. */
+  ok('deleting an expression statement leaves an empty statement', em.trim() === ';', JSON.stringify(em));
   ok('…also length-preserving', em.length === E.length);
 
   ok('a suite that still passes ⇒ PSEUDO_TESTED_STATEMENT', classifyStatementVerdict(true, true) === 'PSEUDO_TESTED_STATEMENT');
