@@ -860,6 +860,15 @@ badge CSS or re-tier metrics ad hoc.
   immediately *before* the label** (`.ev`) in dense/crowded text — tables, chips, legends, multi-metric
   rows. New surfaces inherit NOTHING automatically: you must wire `MetricRegistry.badge()` / `.ev-corner`
   in when you add them. Markup contract → `dex-badges.css`; workflow → `CONTRIBUTING.md`.
+  - **A CHART CAPTION IS NOT A BADGE SITE — badge the SERIES** (owner decision 2026-08-16,
+    `DEEP-AUDIT-V-FOLLOWUPS` §1.2 option (c)). A caption routinely spans two metrics —
+    *"SpO₂ Mean % · T95% Time Below 95%"* — so it **cannot** carry one evidence tier, and forcing one
+    onto it would be the fabricated authority this section exists to prevent. The mandate above already
+    says *"every chart-or-graph series"*; the corollary is stated here so it is not re-litigated:
+    **an unbadged caption is correct provided every series it draws is badged.** `no-fabricated-tier`
+    therefore does not scan `chartTitle`, and its ratchet dropped **94 → 70** when the 24 caption
+    labels came out — measured, not assumed (row 2 · chartTitle 24 · metric 55 · ssKPI 7 · nrChip 6).
+    Those 24 were never debt.
 - **Visual source of truth:** `metric-registry.js` injects the badge stylesheet and now exposes the
   exact string as `MetricRegistry.BADGE_CSS`. `dex-badges.css` is a byte-faithful MIRROR for static
   docs that don't load the engine (e.g. the reference guides). Apps load `metric-registry.js` and
