@@ -112,6 +112,51 @@ after it is staged. But do not repeat the impossibility claim. If you think two 
 inseparable, **run the query before writing that down**; five reviewers falsified this paragraph in
 minutes with one `git log`.
 
+**That detector now EXISTS — `tools/commit-shape.mjs` (#1330).** It runs in `npm run check` as
+`verify:commit-shape` and as a step in the CI `static` job. Re-measured over current history at build
+time: **32 commits delete a changeset → 30 releases pass with 0 false positives**, 2 exempt.
+Exemption is by **declared provenance** (`Revert `, `rescue:`), never by shape — a rescue snapshot is
+shape-identical to the corruption *on purpose*, so widening the shape rule would re-admit the
+accident. It **refuses (exit 2) on a shallow clone** rather than reporting green: `actions/checkout@v4`
+defaults to depth 1, where the scan sees one commit, finds nothing and exits 0 — which is why CI sets
+`fetch-depth: 0` there and why that line is load-bearing.
+
+### 2b-bis · ⚠️ "HOOK-ENFORCED" MEANS *CLAUDE CODE, IN A CHECKOUT THAT PULLED IT* — nothing wider
+
+This file says "hook-enforced" in several places. Measured 2026-08-15, the phrase is narrower than it
+reads, in two independent ways:
+
+1. **One client.** The guards are `PreToolUse` hooks resolved through `$CLAUDE_PROJECT_DIR` in
+   `.claude/settings.json`. `.git/hooks/` holds samples only and `core.hooksPath` is unset — so a
+   second coding agent, a human at a terminal, or the GitHub web UI inherits **none** of them.
+2. **One checkout.** Hooks load from *your own* working copy. A guard merged to `main` protects nobody
+   in a tree that has not pulled it — measured with the shared root 92 commits behind, carrying
+   neither the wiring nor the script.
+
+**A git `pre-commit` hook is not the fix and was already declined** —
+`CAPTURE-HOST-SUBPROCESS-SURFACE-FOLLOWUPS-2026-08-04-BRIEF.md` §5: *"a hook must be installed … so the
+common state is a hook that exists in-repo and runs for nobody."* That is (2) one layer down.
+
+**Prevention cannot be made agent-neutral.** It is agent-coupled (inside the operator's tool loop) or
+install-coupled (per clone), and a sandbox is not a third option — it protects the machine from the
+agent, not the tree from a bad `git add`. **Detection can be**, because it reads a property of the
+resulting commit and CI applies to whoever opened the PR. That asymmetry is why the two guards below
+are CI checks rather than more hooks:
+
+| invariant | agent-neutral enforcement |
+|---|---|
+| blanket-add / ref-move corruption | `tools/commit-shape.mjs` — `npm run check` + CI `static` job (#1330) |
+| stale-brief overwrite | `.github/workflows/stale-file.yml` — **a REQUIRED context** since #1337 (#1086) |
+| §2c rebase silently reverting source | **none — not mechanically decidable.** Prevention only |
+
+⚠️ **`stale-file` has no escape hatch, deliberately.** The hook needs `CLAUDE_ALLOW_STALE_BRIEF=1`
+because a local hook cannot rebase for you; CI has no such constraint. **Rebasing IS the hatch** — it
+advances the merge-base, empties the overlap, and passes the check — and it is the hatch that forces
+you to read the upstream commits first, which is the entire reason the check exists.
+
+Full reasoning and what is deliberately *not* covered:
+`briefs/AGENT-NEUTRAL-GUARDS-2026-08-15-BRIEF.md`.
+
 ### 2c · REBASING: `git checkout <ref> -- <conflicted>` reverts source SILENTLY — use `rebase-safe`
 
 **You will rebase.** `main` moves during every review cycle, and the two orchestrator bundles
