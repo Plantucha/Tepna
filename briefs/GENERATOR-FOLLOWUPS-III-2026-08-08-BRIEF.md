@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** IN-PROGRESS (§1 swept — 2 stale parks + a 2nd pass · **§2 ANSWERED** — MotionDex accidental, CPAPDex deliberate · §3 open · §4 spawned) · **Created:** 2026-08-08 · **Follows:** `GENERATOR-FOLLOWUPS-II-BRIEF.md` (§3 executed 2026-08-08)
+**Status:** IN-PROGRESS (§1 swept — 2 stale parks + a 2nd pass · **§2 ANSWERED** — MotionDex accidental, CPAPDex deliberate · **§3 MEASURED 2026-08-16 — cap stays at 3; the binding constraint is the Float32 intermediate (~196 MB resident for 20.3 MB of Int16), not the raw samples** · §4 spawned) · **Created:** 2026-08-08 · **Follows:** `GENERATOR-FOLLOWUPS-II-BRIEF.md` (§3 executed 2026-08-08)
 
 # Generator follow-ups, Round III — what §3's execution surfaced
 
@@ -184,13 +184,49 @@ candidates — neither carries a shared-axis `.synth-line` today.
 > accumulate into. §4 is still worth doing; it is a smaller win than the §3 precedent implies, and the
 > multi-recording spine is the prerequisite if multi-night is the goal.
 
-## 3. The 3-night cap is a guess, not a measurement
+## 3. The 3-night cap is a guess, not a measurement — **MEASURED 2026-08-16, and the guess was RIGHT**
 
 Capped at 3 because raw µV at 130 Hz is ~3.4 M Int16 samples/night against an O2Ring night's ~1 k
 rows — a size *argument*, not a measured browser limit. Nobody has profiled 3 nights of real ingest in
 the app. Either measure it and set the cap from the number, or say in the control's `title` that it is
 a conservative guess. Do **not** raise it on intuition; §3's own note that "ECG at ~130 Hz over many
 nights is large" is the only evidence behind it.
+
+### 3-RESULT · The number, and why the cap stays at 3
+
+Ran the real `SYNTH.renderECGInt16` + `ECGDSP.bandpass`/`detectPeaks` over three
+`DexPatientGen.resolve('baseline', 3)` nights, in one realm, measuring wall-clock and RSS.
+
+| | measured |
+|---|---|
+| samples per night | **3,439,410 / 3,547,050 / 3,634,410** |
+| 3 nights, Int16 storage | 10,620,870 samples = **20.3 MB** |
+| generation | 1,203 ms (≈ 395 ms/night) |
+| bandpass + detectPeaks | 506 ms (≈ 170 ms/night) |
+| **total for 3 nights** | **≈ 1.7 s** |
+| peak RSS | **244 MB**, from a 48 MB baseline ⇒ **≈ 196 MB** for three nights held at once |
+
+**The brief's premise was exactly right** — "~3.4 M Int16 samples per night" is 3.44 M measured. What
+was missing was the consequence, and the consequence is not the Int16 storage.
+
+**The binding constraint is the Float32 intermediate, not the raw samples.** 20.3 MB of Int16 becomes
+≈ 196 MB resident, because the analysis path converts each night to `Float32Array` (4 bytes/sample =
+13.8 MB/night on top of the 6.9 MB Int16) and the app **accumulates** into `allRecordings` rather than
+releasing. Three nights is comfortable. Linear in nights, **14 — what every other node offers — projects
+to ≈ 900 MB resident**, which is a real tab risk rather than a hypothetical one.
+
+**So the cap stays at 3, now for a measured reason instead of a size intuition, and the `title` needs no
+"it's a guess" hedge because it is no longer one.** This closes the §3 box by the *measure* branch, so
+no UI change and no re-bundle is owed.
+
+⚠️ **What this measurement does NOT establish**, stated so the number is not over-quoted:
+- It is **Node, not a browser** — no DOM, no rendering, no tab memory ceiling. It bounds the compute and
+  the allocation, which is what the cap's own rationale was about, not the full in-app ingest.
+- It measures **cost, not correctness**: `detectPeaks` returned no beat count under my scaling, and I did
+  not chase it, because the question was how expensive three nights are, not whether the synthetic beats
+  are right. Do not cite this run as evidence the pipeline works.
+- **The 14-night projection is linear extrapolation**, not a run. It is a reason not to raise the cap,
+  not a measurement of 14 nights.
 
 ## Done when
 
@@ -204,7 +240,12 @@ nights is large" is the only evidence behind it.
       `tools/make-synthetic-edf.mjs` is a built path, not a gap). What the multi-recording evidence
       adds is not a competing verdict but a **bound on the payoff**, which is why §4 orders the spine
       first. See §2's ADDENDUM, and the withdrawal note above it.
-- [ ] §3 cap either measured or labelled as a guess in the UI.
+- [x] **§3 MEASURED 2026-08-16 — the cap stays at 3, and the guess was right.** 3 nights = 10.6 M
+      Int16 samples (20.3 MB) but **≈196 MB resident**, because the analysis path converts each night
+      to `Float32Array` and the app accumulates rather than releasing. ≈1.7 s total. The binding
+      constraint is the intermediate, not the raw samples; 14 nights projects to ≈900 MB. Closed by
+      the *measure* branch, so no UI hedge and no re-bundle — see §3-RESULT for what the run does
+      and does not establish (Node not browser; cost not correctness).
 
 ## 4. Spawned by §2 — MotionDex needs a multi-recording spine BEFORE a generator
 

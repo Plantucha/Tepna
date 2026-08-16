@@ -219,13 +219,26 @@ and *no* end-to-end timing test — outside the experiment entirely, which would
 
 ## Done when
 
-- [ ] `acceptance.json` is committed **before** the first blind run, with its hash recorded here.
+- [x] **VERIFIED 2026-08-16.** `experiments/known-clock/acceptance.json` is tracked, was committed in
+      #1252, and its `sha256 b061d279…f2baff1586` matches the hash recorded below byte for byte. The
+      preregistration is real, not asserted.
 - [ ] ≥1 null night is in the blind set and the pipeline did **not** recover a perturbation from it.
+      *(Correctly open — the null night is one of the phases the header lists as still PROPOSED.)*
 - [ ] All eight targets reported, each with span/anchor count where it quotes a rate.
-- [ ] The O2Ring leg **refused** on every clock-recovery target, as predicted in advance.
-- [ ] Target 1 is evaluated on an aperiodic marker, not on beat alignment.
-- [ ] Adapter assignment is recorded per night and held fixed across the set.
-- [ ] The result is written up whether it passes or fails — a failed recovery is the more valuable
+      *(Correctly open — targets 6–8 are unrun, and the Phase-1 table quotes no span/anchor counts.)*
+- [✗] **TESTED AND FALSIFIED 2026-08-16 — this is Defect A, not an untested box.** The O2Ring did NOT
+      refuse: on its real monotonic run it returned `ok:true`, `ppm 2765.5`, `independent TRUE` — a
+      confident rate for a device with no oscillator. The whole-file run refused only by luck (a
+      counter reset makes the span negative, tripping the plausibility bound). **A preregistered
+      prediction that fails is the experiment working**, and leaving it unticked read as though it had
+      never been run.
+- [ ] Target 1 is evaluated on an aperiodic marker, not on beat alignment. **Still open, and the
+      results table's ✅ for target 1 was VACUOUS** — its criterion cannot fail, since `hostAxis`
+      subtracts `r0` and a 1 000 000 ms offset passes `< 0.5 ppm` at float noise. Row re-marked `⊘`;
+      see the amendment under the results table.
+- [ ] Adapter assignment is recorded per night and held fixed across the set. *(Correctly open — needs
+      the multi-night blind set; Phase 1 was a single night.)*
+- [x] **DONE.** The result is written up whether it passes or fails — a failed recovery is the more valuable
       paper, and `papers/dead-ends.html` is where it goes if so.
 
 ---
@@ -245,7 +258,7 @@ deterministic (no RNG) so every figure below re-runs exactly.
 | target | injected | H10 recovered | Verity recovered | criterion | |
 |---|---|---|---|---|:--:|
 | determinism | — | Δppm `0.00e+0` | `0.00e+0` | < 0.5 ppm | ✅ |
-| **1 · constant offset** | +5000 ms | **Δppm 0.000** | **0.000** | < 0.5 ppm | ✅ |
+| **1 · constant offset** | +5000 ms | **Δppm 0.000** | **0.000** | < 0.5 ppm | ⊘ **VACUOUS — see below** |
 | **2 · frequency** | +100 ppm | **−99.982** | **−99.974** | ±15 % | ✅ |
 | 2b · frequency, small | +10 ppm | **−9.999** | **−9.998** | ±30 % | ✅ |
 | **5 · timestamp jump** | +2000 ms step | maxStep **57.6×** | **30.2×** | > 10× | ✅ |
@@ -259,6 +272,40 @@ BLE-jittered packets. That is the headline pass.
 the recovered rate by **0.000 ppm** — `hostAxis` subtracts `r0`, so a constant offset is removed by
 construction and is **not recoverable from this estimator at all**. Anyone reading a `ppm` as
 evidence about absolute alignment is reading a quantity that is blind to it by design.
+
+> ### ⊘ AMENDED 2026-08-16 — that row was marked ✅, and the ✅ was VACUOUS
+>
+> The prose above is right and the table was wrong. **Target 1's criterion cannot fail**, so passing it
+> is not evidence about anything. `clock.js:492` is `var r0 = pts[0].r` — divergence is measured
+> relative to the first anchor, so a constant offset shifts every `r` by the same amount and is
+> subtracted out exactly. Measured directly against `DexClock.hostAxis` on 200 synthetic anchors
+> carrying a real +100 ppm error:
+>
+> | injected constant offset | recovered ppm | Δppm vs unshifted |
+> |---|---|---|
+> | 0 ms | −100.716809 | 0 |
+> | +5 000 ms *(what was tested)* | −100.716809 | 2.8 × 10⁻¹⁴ |
+> | −250 000 ms | −100.716809 | 6.7 × 10⁻¹³ |
+> | **+1 000 000 ms** *(16½ minutes)* | **−100.716809** | **6.7 × 10⁻¹³** |
+>
+> A **sixteen-minute** offset passes `< 0.5 ppm` exactly as comfortably as five seconds, at float noise.
+> The test cannot distinguish a working estimator from a broken one on this target, so its ✅ carried no
+> information — and a reader scanning the table counts six passes and one failure.
+>
+> **The brief already knew this and the two halves contradicted each other.** Done-when box *"Target 1
+> is evaluated on an aperiodic marker, not on beat alignment"* is **unchecked**, and §2.3 predicted the
+> whole thing in advance. The ✅ is what a reader meets first.
+>
+> **This is the one place a vacuous pass is most expensive.** The entire method here is preregistered
+> criteria — its value rests on a criterion being able to fail. One that cannot is worse than no
+> criterion, because it launders "not measured" into "measured and passed". The row is now `⊘`, which
+> is neither pass nor fail, and target 1 stays open until it is evaluated on the aperiodic marker §2.3
+> specifies.
+>
+> **Generalisable, and cheap to apply to the remaining targets before they run:** for each
+> preregistered criterion, ask *what injected value would make this fail?* If the answer is "none",
+> the criterion is measuring the estimator's construction rather than its behaviour. Targets 6–8 have
+> not been run yet, so this costs nothing to check now and cannot be retrofitted afterwards.
 
 **Target 4 failed, and the failure is in the experiment, not the estimator.** Follow-up (`probe.mjs`):
 
