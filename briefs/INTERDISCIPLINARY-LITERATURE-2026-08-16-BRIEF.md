@@ -67,7 +67,7 @@ vocabulary is mature and mostly already cited **in prose but not in the ledger**
 | **Torcaso, F., Ekstrom, C. R., Burt, E. A. & Matsakis, D. N. (1998)** — *Estimating frequency stability and cross-correlations*, Proc. 30th PTTI | correlated corners — the assumption the σ paper concedes is bent | verified · **unledgered** |
 | **Riley, W. J. (2008)** — *Handbook of Frequency Stability Analysis*, NIST Special Publication 1065 | σ_y(τ), TDEV, Hadamard, noise-type-by-slope | verified · **unledgered** |
 | **Riley, W. J. & Greenhall, C. A. (2004)** — *Power law noise identification using the lag 1 autocorrelation*, 18th European Frequency and Time Forum, Guildford — **DOI 10.1049/cp:20040932** | **names the dominant noise type analytically, from phase or frequency data, at any averaging factor, WITHOUT fitting a slope** | verified + DOI |
-| **Zhou, Greenhall & Howe (2011)** — *Power law noise identification using the lag 1 autocorrelation by overlapping samples*, IEEE | extends the above to the overlapping estimator we actually use | venue verified · DOI unverified |
+| *Power law noise identification using the lag 1 autocorrelation by overlapping samples* — IEEE Xplore document **6037776** | extends the above to the overlapping estimator we actually use | ⚠️ **AUTHORS AND YEAR UNVERIFIED.** The paper exists; two independent renderings reached this brief ("Zhou, Greenhall & Howe 2011" and "Zhou Chunlei et al., ICEMI") and **neither is confirmed** — a search for it returns the 2004 EFTF paper instead. Do not cite until resolved. |
 | **IEEE Std 1139** — *Definitions of Physical Quantities for Fundamental Frequency and Time Metrology* | TIE, TDEV, MDEV; phase vs frequency noise | verified, standard |
 
 ⚠️ **PRECONDITION, added 2026-08-16 after Vigil box's review — do not adopt this before the parity
@@ -85,6 +85,14 @@ strict `<` against a **point estimate** near a boundary, which is why a `1.96·S
 and why a full Riley EDF treatment is circular (EDF needs the noise type). **Riley & Greenhall 2004
 breaks that circle**: an analytic identification that never computes a slope has no boundary to sit
 near. That would retire the refusal band rather than tune it.
+
+⚠️ **TWO DIFFERENT STATISTICS SHARE THE WORDS "lag-1 autocorrelation" — do not conflate them.**
+`METROLOGY-METHOD-ADOPTION` §5 celebrates a "two-line lag-1 autocorrelation" that settled in one
+measurement what the Allan family could not. That is a **plain correlation test** — *is this series
+correlated at all*. Riley & Greenhall 2004 is a **noise-type identifier** — *which power law is this*,
+analytically, without fitting a slope. Same two words, different statistics, different questions. A
+reader citing METROLOGY §5 as evidence that lag-1 retires the SE band would be wrong, and the two
+briefs sit close enough in a semantic search to invite exactly that. (Raised by Brief runner.)
 
 **Also owed:** the five entries marked *unledgered* are cited in `papers/sigma-no-reference.html`
 prose today and are invisible to `citation-ledger`. Adding them is cheap and closes a real hole.
@@ -455,6 +463,6 @@ may be quoted as `validated`-tier until it has been, with the citation checked a
 ## Done when
 
 - [ ] §2's five unledgered time-frequency citations added to `CITATION-VERIFICATION-2026-08-05.json`
-- [ ] Riley & Greenhall 2004 evaluated against the `1.96·SE` refusal band — does analytic noise-ID retire it?
+- [x] ~~Riley & Greenhall 2004 evaluated against the `1.96·SE` refusal band~~ — **NOT tracked here.** The same question is `HOSTAXIS-STABILITY-FOLLOWUPS` §3 and is being answered there. Tracking it in two briefs is the shape that produced the GENERATOR-FOLLOWUPS-III collision, and `stale-file` cannot see it because the two live in different files.
 - [ ] One field adopted or rejected in writing, with the reason (a reading queue that never closes an item is a wish list)
 - [ ] Any DOI marked *unverified* resolved before it leaves `briefs/`
