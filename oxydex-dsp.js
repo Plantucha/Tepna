@@ -1651,48 +1651,142 @@
 
   // SpO2 FFT — dominant frequency in 0.01–0.05 Hz band (respiratory oscillation)
   // Fast: probe 20 candidate frequencies only instead of full DFT
-  function computeSpO2FFT(rows) {
-    var spo2 = rows.map(function (r) {
-      return r.spo2;
-    });
-    var n = spo2.length;
-    if (n < 512) return null;
-    // DEEP-AUDIT-2026-07-11 §9: `Math.min(n, 3600)` analysed only the FIRST HOUR of the night, undisclosed.
-    // This is the surfaced "FFT Cycle Length" — the periodic-breathing / Cheyne-Stokes cycle number — and
-    // the head-slice CHANGED it on ~30 of 39 real O2Ring nights (63s→200s, 200s→33s, 50s→200s). The probe
-    // is O(11·N), so the cap bought nothing; the cycle length now describes the whole night.
-    var USE = n;
-    var sig = spo2;
-    var mean =
-      sig.reduce(function (a, b) {
-        return a + b;
-      }, 0) / USE;
-    // Probe frequencies: 0.010, 0.013, 0.016, 0.020, 0.025, 0.030, 0.035, 0.040, 0.045, 0.050 Hz
-    var freqs = [0.005, 0.007, 0.008, 0.01, 0.013, 0.016, 0.02, 0.025, 0.03, 0.04, 0.05]; // extended to 200s to capture PB/CS cycles
-    var bestPow = -1,
-      bestFreq = 0;
-    for (var fi = 0; fi < freqs.length; fi++) {
-      var f = freqs[fi],
-        re = 0,
-        im = 0;
-      for (var t = 0; t < USE; t++) {
-        var ang = 2 * Math.PI * f * t;
-        re += (sig[t] - mean) * Math.cos(ang);
-        im -= (sig[t] - mean) * Math.sin(ang);
-      }
-      var pow = re * re + im * im;
-      if (pow > bestPow) {
-        bestPow = pow;
-        bestFreq = f;
-      }
-    }
-    var peakFreqHz = isFinite(bestFreq) ? +bestFreq.toFixed(4) : 0;
-    var peakCycSec = peakFreqHz > 0 ? +(1 / peakFreqHz).toFixed(0) : null;
-    return { peakFreqHz: peakFreqHz, peakCycSec: peakCycSec };
+  // FFT CYCLE LENGTH — periodic breathing / Cheyne-Stokes period, WITH A NULL.
+  //
+  // ⚠️ THIS USED TO RETURN A NUMBER ALWAYS. It took a raw-power argmax over 11 unevenly-spaced probe
+  // frequencies with no background and no significance test, so it could not say "no cycle detected".
+  // Measured on pure AR(1) with nothing planted, it pinned to the 0.005 Hz band edge in 12 % of runs at
+  // rho=0, rising to 55 % at rho=0.995: on a featureless night it reported a confident cycle length.
+  //
+  // ⚠️ AND YET THE CORPUS SAYS THE METRIC IS REAL, which is why this is a significance test and NOT a
+  // retraction. Across 103 O2Ring nights (median lag-1 rho 0.9813) only 19/103 = 18 % hit the 200 s edge
+  // against a 42 % null — exact one-sided p = 3.3e-7, Wilson CI [0.121, 0.270] excluding 0.42 — and the
+  // cycles spread across 62-125 s, the classic periodic-breathing range. The fix must KEEP those and drop
+  // the fabricated ones. (OXYDEX-FFT-CYCLE-NULL-2026-08-16-BRIEF.)
+  //
+  // METHOD — Mann, M. E. & Lees, J. M. (1996), Climatic Change 33, 409-445, doi 10.1007/BF00142586:
+  // test peak HEIGHT against a fitted red background, never peak LOCATION. In a red spectrum the argmax
+  // sits near the low-frequency end by construction, so its position carries no information.
+  //
+  //   1. rho = lag-1 autocorrelation of the mean-removed series (the background's only parameter).
+  //   2. AR(1) spectrum  S(f) ~ (1-rho^2) / (1 - 2 rho cos(2 pi f / fs) + rho^2), evaluated on the probe
+  //      grid and scaled by the MEDIAN observed/theoretical ratio — median so a real peak cannot inflate
+  //      the background that is supposed to expose it.
+  //   3. A periodogram ordinate over its background is ~exponential (chi-square, 2 dof), so
+  //      P(ratio > x) = exp(-x). With 11 probes the Sidak-corrected 95 % threshold is
+  //      -ln(1 - 0.95^(1/11)) ~= 5.37.
+  //
+  // This ALSO fixes the uneven-grid bias the brief flagged: dividing by a frequency-dependent background
+  // is the normalisation. Comparing raw power across unevenly spaced probes favoured the low end no
+  // matter what the signal did.
+  // ⚠️ NO FIXED PROBE GRID — the record's OWN Fourier bins.
+  // Two grids were tried and both failed for the same reason. The original 11 hand-picked probes left
+  // blind spots: a cycle planted at 80 s, between the 100 s and 77 s teeth, measured SNR p05 1.6 against
+  // p05 37.0 for the same amplitude at 100 s — invisible. Log-spacing 33 probes did not fix it, it just
+  // moved the teeth: 0.01 Hz stopped being a probe and the on-grid case collapsed to p05 3.2.
+  //
+  // The cause is resolution, not density. An N-sample record resolves fs/N; anything evaluated BETWEEN
+  // its Fourier bins loses power to scalloping no matter how many spot frequencies you pick. So evaluate
+  // ON the bins — k/N for every k in the band — which is also the basis in which periodogram statistics
+  // are actually defined. `_FFT_MAX_BINS` strides if a long night would otherwise cost more than it is
+  // worth; striding costs coverage, so it is reported rather than silent.
+  var _FFT_LO_HZ = 0.005;      // 200 s
+  var _FFT_HI_HZ = 0.05;       // 20 s
+  var _FFT_MAX_BINS = 400;
+  // ⚠️ THE THEORETICAL THRESHOLD IS ANTI-CONSERVATIVE AND THE GAP IS MEASURED, NOT GUESSED.
+  // Sidak assumes a KNOWN background; ours is fitted from the same series, so the null tail is much
+  // heavier than exp(-x) predicts. Measured over 80 pure-AR(1) runs at rho=0.98 (nothing planted):
+  //     null   p50 6.1   p95 10.3   p99 14.6   max 23.9      theoretical threshold: 6.98
+  // i.e. the theoretical value sits at the null MEDIAN and would fire on ~half of featureless nights.
+  // The same geometry with a 2 %-amplitude 80 s cycle planted gives p05 23.7 / p50 43.1, so inflating
+  // by 2.2x (-> ~15.4) puts the bar above the null p99 and well below the planted p05.
+  // This is a correction for BACKGROUND ESTIMATION, stated and reproducible, not a fitted constant:
+  // re-run the group's null/planted report if the background model changes.
+  var _FFT_EST_BG_INFLATION = 2.2;
+  var _FFT_CONF = 0.95;
+  // The Sidak threshold is computed PER CALL from the bins actually tested — see computeSpO2FFT.
+
+  function _lag1(x, mean) {
+    var num = 0, den = 0, i;
+    for (i = 0; i < x.length; i++) den += (x[i] - mean) * (x[i] - mean);
+    for (i = 1; i < x.length; i++) num += (x[i] - mean) * (x[i - 1] - mean);
+    if (!(den > 0)) return 0;
+    var r = num / den;
+    // A background needs a POSITIVE persistence; a negative or absurd rho is not a red spectrum, and
+    // clamping is honest here because the alternative is a background that curves the wrong way.
+    return r > 0.999 ? 0.999 : r < 0 ? 0 : r;
   }
 
-  // HR Sample Entropy proxy — lower = more regular (OSA pattern)
-  // SampEn(m=2, r=0.2*SD) estimated on motion-free HR
+  function _median(a) {
+    var b = a.slice().sort(function (p, q) { return p - q; });
+    var m = b.length >> 1;
+    return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2;
+  }
+
+  function computeSpO2FFT(rows, fs) {
+    var spo2 = rows.map(function (r) { return r.spo2; });
+    var n = spo2.length;
+    if (n < 512) return null;
+    var RATE = fs > 0 ? fs : 1;            // SpO2 rows are 1 Hz; the argument keeps that testable
+    var mean = spo2.reduce(function (a, b) { return a + b; }, 0) / n;
+    var rho = _lag1(spo2, mean);
+
+    var kLo = Math.max(1, Math.ceil(_FFT_LO_HZ * n / RATE));
+    var kHi = Math.min(Math.floor(n / 2) - 1, Math.floor(_FFT_HI_HZ * n / RATE));
+    if (kHi <= kLo) return null;
+    var stride = Math.max(1, Math.ceil((kHi - kLo + 1) / _FFT_MAX_BINS));
+
+    var pows = [], bg = [], fss = [], k, t;
+    for (k = kLo; k <= kHi; k += stride) {
+      var f = k * RATE / n, re = 0, im = 0;
+      for (t = 0; t < n; t++) {
+        var ang = 2 * Math.PI * k * t / n;
+        re += (spo2[t] - mean) * Math.cos(ang);
+        im -= (spo2[t] - mean) * Math.sin(ang);
+      }
+      pows.push((re * re + im * im) / n);
+      var w = 2 * Math.PI * f / RATE;
+      bg.push((1 - rho * rho) / (1 - 2 * rho * Math.cos(w) + rho * rho));
+      fss.push(f);
+    }
+    // Sidak across the bins ACTUALLY tested — the correction must follow the grid, not a constant.
+    // Sidak across the bins ACTUALLY tested — the correction must follow the grid, not a constant.
+    var thresh = -Math.log(1 - Math.pow(_FFT_CONF, 1 / pows.length)) * _FFT_EST_BG_INFLATION;
+
+    // Scale the AR(1) SHAPE to the data by the MEDIAN ratio. Median, because a mean would let one real
+    // peak raise the background that is supposed to expose it.
+    var ratios = [], fi;
+    for (fi = 0; fi < pows.length; fi++) ratios.push(bg[fi] > 0 ? pows[fi] / bg[fi] : 0);
+    var scale = _median(ratios);
+
+    var bestSnr = -1, bestFreq = null;
+    for (fi = 0; fi < pows.length; fi++) {
+      var snr = scale > 0 && bg[fi] > 0 ? pows[fi] / (scale * bg[fi]) : 0;
+      if (snr > bestSnr) { bestSnr = snr; bestFreq = fss[fi]; }
+    }
+    var ok = bestFreq != null && bestSnr >= thresh;
+    // Computed under the guard rather than in a ternary so the null-narrowing is direct — a ternary on
+    // `ok` does not tell the checker that `bestFreq` is non-null inside it.
+    var peakF = null, peakC = null;
+    if (ok && bestFreq != null) {
+      peakF = +bestFreq.toFixed(4);
+      peakC = +(1 / bestFreq).toFixed(0);
+    }
+    return {
+      // NULL, not 0 and not a spurious number: a missing measurement must be visible as missing
+      // (CLAUDE.md §🔒, by analogy). Every consumer must tolerate an absent cycle.
+      peakFreqHz: peakF,
+      peakCycSec: peakC,
+      // Published so the verdict can be audited against the ground it was computed from.
+      snr: +bestSnr.toFixed(2),
+      threshold: +thresh.toFixed(2),
+      bins: pows.length,
+      strided: stride > 1,
+      rhoLag1: +rho.toFixed(4),
+      detected: ok
+    };
+  }
+
   function computeHREntropy(rows) {
     var clean = rows
       .filter(function (r) {

@@ -19,6 +19,11 @@
       "year": "2000",
       "container": "JAMA"
     },
+    "10.1007/BF00142586": {
+      "firstAuthor": "Mann",
+      "year": "1996",
+      "container": "Climatic Change"
+    },
     "10.1007/BF00648343": {
       "firstAuthor": "Lomb",
       "year": "1976",
@@ -54,6 +59,36 @@
       "year": "1972",
       "container": "Journal of Chronic Diseases"
     },
+    "10.1016/S0140-6736(06)68735-7": {
+      "firstAuthor": "Bauer",
+      "year": "2006",
+      "container": "The Lancet"
+    },
+    "10.1016/S0140-6736(84)90062-X": {
+      "firstAuthor": "Guilleminault",
+      "year": "1984",
+      "container": "The Lancet"
+    },
+    "10.1016/S0165-1838(96)00112-9": {
+      "firstAuthor": "Toichi",
+      "year": "1997",
+      "container": "Journal of the Autonomic Nervous System"
+    },
+    "10.1016/S0735-1097(00)01054-8": {
+      "firstAuthor": "Tanaka",
+      "year": "2001",
+      "container": "Journal of the American College of Cardiology"
+    },
+    "10.1016/S1388-2457(03)00123-8": {
+      "firstAuthor": "Kemp",
+      "year": "2003",
+      "container": "Clinical Neurophysiology"
+    },
+    "10.1016/S2213-8587(22)00319-9": {
+      "firstAuthor": "Battelino",
+      "year": "2023",
+      "container": "The Lancet Diabetes &amp; Endocrinology"
+    },
     "10.1016/j.amepre.2005.06.004": {
       "firstAuthor": "Jurca",
       "year": "2005",
@@ -79,40 +114,10 @@
       "year": "2013",
       "container": "International Journal of Cardiology"
     },
-    "10.1016/S0140-6736(06)68735-7": {
-      "firstAuthor": "Bauer",
-      "year": "2006",
-      "container": "The Lancet"
-    },
-    "10.1016/S0140-6736(84)90062-X": {
-      "firstAuthor": "Guilleminault",
-      "year": "1984",
-      "container": "The Lancet"
-    },
     "10.1016/s0165-1838(96)00112-9": {
       "firstAuthor": "Toichi",
       "year": "1997",
       "container": "Journal of the Autonomic Nervous System"
-    },
-    "10.1016/S0165-1838(96)00112-9": {
-      "firstAuthor": "Toichi",
-      "year": "1997",
-      "container": "Journal of the Autonomic Nervous System"
-    },
-    "10.1016/S0735-1097(00)01054-8": {
-      "firstAuthor": "Tanaka",
-      "year": "2001",
-      "container": "Journal of the American College of Cardiology"
-    },
-    "10.1016/S1388-2457(03)00123-8": {
-      "firstAuthor": "Kemp",
-      "year": "2003",
-      "container": "Clinical Neurophysiology"
-    },
-    "10.1016/S2213-8587(22)00319-9": {
-      "firstAuthor": "Battelino",
-      "year": "2023",
-      "container": "The Lancet Diabetes &amp; Endocrinology"
     },
     "10.1038/nrdp.2015.15": {
       "firstAuthor": "Lévy",

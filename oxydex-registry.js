@@ -66,6 +66,21 @@
     maxHr: { label: 'Max HR', unit: 'bpm', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Highest nocturnal heart rate — direct pulse reading' },
 
     /* ── EMERGING — published, less standardized / device-dependent ─────────── */
+    fftCycleSec: {
+      label: 'FFT Cycle Length',
+      unit: 's',
+      goodDirection: 'none',
+      depth: 'research',
+      evidence: 'emerging',
+      cite:
+        'Periodic-breathing / Cheyne-Stokes cycle length from the SpO2 periodogram. The PHYSIOLOGY is ' +
+        'established and has a genuinely characteristic period; this SpO2-derived, device-dependent ' +
+        'estimate is not standardized, hence emerging rather than validated. Reported only when the ' +
+        'peak clears a fitted AR(1) background (Mann & Lees 1996, Climatic Change 33:409-445, ' +
+        'doi 10.1007/BF00142586) — NULL otherwise, because before 2026-08-16 this returned an argmax ' +
+        'unconditionally and fabricated a cycle on featureless nights (~42 % of pure AR(1) runs). ' +
+        'Corpus support: 19/103 nights at the band edge against a 42 % null, p = 3.3e-7.',
+    },
     ahiEst: { label: 'CVHR / AHI est', unit: '/hr', goodDirection: 'down', depth: 'advanced', evidence: 'emerging', cite: 'CVHR-derived AHI estimate — oximetry surrogate, not PSG' },
     cvhrIndex: { label: 'CVHR index', unit: '/hr', goodDirection: 'down', depth: 'advanced', evidence: 'emerging', cite: 'Cyclical-variation-of-HR index (Hayano)' },
     sleepEff: { label: 'Sleep Eff', unit: '%', goodDirection: 'up', depth: 'advanced', evidence: 'emerging', cite: 'Motion-derived sleep efficiency — actigraphy proxy, not EEG' },

@@ -397,6 +397,56 @@
        work, so it cannot be re-proposed: `first sensor timestamp == 0` is true for EVERY O2Ring file
        including the measured post-2026-07-28 ones (1574–1861 distinct deltas), because it separates
        relative-epoch from absolute-epoch, not drawn from measured. */
+    /* OXYDEX-FFT-CYCLE-NULL-2026-08-16 — the surfaced "FFT Cycle Length" had NO NULL: a raw-power
+       argmax over 11 probes with no background, so it could not report "no cycle" and fabricated one on
+       featureless input. The fix is a significance test (Mann & Lees 1996), NOT a retraction — the corpus
+       says the metric is real (19/103 nights at the band edge vs a 42 % null, p = 3.3e-7). So BOTH
+       controls are mandatory: a threshold that rejects everything passes the negative test and is useless. */
+    group('the FFT cycle length can say "no cycle" — and still finds a real one', 'oxydex · fft-null',
+      function (T) {
+        // computeSpO2FFT lives on the OxyDex namespace; env.OxyDSP carries compute() and would
+        // short-circuit ahead of it. Pick whichever object actually has the function.
+        var cand = [env.OxyDex && env.OxyDex._bare, env.OxyDex, env.OxyDSP, env.OXYDSP];
+        var OD = null, ci;
+        for (ci = 0; ci < cand.length; ci++) {
+          if (cand[ci] && typeof cand[ci].computeSpO2FFT === 'function') { OD = cand[ci]; break; }
+        }
+        if (!OD) { T.skip('computeSpO2FFT not in env — OxyDex keys: ' + (env.OxyDex ? Object.keys(env.OxyDex).slice(0,14).join(',') : 'NO OxyDex') + ' | OxyDSP: ' + (env.OxyDSP ? Object.keys(env.OxyDSP).slice(0,10).join(',') : 'none')); return; }
+        function rng(seed) { var s = seed >>> 0; return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+        function ar1(n, rho, seed) {
+          var r = rng(seed), x = 0, o = [], i, u, v;
+          for (i = 0; i < n; i++) {
+            u = 0; v = 0; while (!u) u = r(); while (!v) v = r();
+            x = rho * x + Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+            o.push({ spo2: 96 + x * 0.5 });
+          }
+          return o;
+        }
+        var N = 8, det = 0, k;
+        for (k = 0; k < N; k++) { var a = OD.computeSpO2FFT(ar1(1200, 0.98, k * 7919 + 1)); if (a && a.detected) det++; }
+        // NEGATIVE CONTROL. Nothing is planted, so a detection is a fabrication. The old code reported a
+        // confident cycle on ~42 % of these; this must be a small minority.
+        T.ok('pure AR(1) at rho=0.98 rarely reports a cycle (' + det + '/' + N + ')', det <= N * 0.25);
+
+        var PER = 80, rec = 0;
+        for (k = 0; k < N; k++) {
+          var base = ar1(1200, 0.98, k * 104729 + 3), i2;
+          for (i2 = 0; i2 < base.length; i2++) base[i2].spo2 += 2.0 * Math.sin(2 * Math.PI * i2 / PER);
+          var b = OD.computeSpO2FFT(base);
+          if (b && b.detected && Math.abs(b.peakCycSec - PER) <= 25) rec++;
+        }
+        // POSITIVE CONTROL, and it is what stops the fix from being "return null always".
+        T.ok('a planted ' + PER + 's cycle is still recovered (' + rec + '/' + N + ')', rec >= N * 0.6);
+
+        var q = OD.computeSpO2FFT(ar1(1200, 0.98, 424242));
+        T.ok('a non-detection publishes null, never 0 or a spurious number',
+          q && (q.detected ? q.peakCycSec > 0 : q.peakCycSec === null && q.peakFreqHz === null));
+        T.ok('the verdict is auditable — snr, threshold and rho are published',
+          q && typeof q.snr === 'number' && typeof q.threshold === 'number' && typeof q.rhoLag1 === 'number');
+        T.ok('too short a night is still null, not a guess', OD.computeSpO2FFT(ar1(100, 0.9, 5)) === null);
+      });
+
+
     group('a drawn time axis is detected and declared, not silently corrected', 'ppgdex · axis-provenance', function (T) {
       var P = env.PPGDSP || env.PpgDSP;
       if (!P || typeof P.parsePPG !== 'function') {
