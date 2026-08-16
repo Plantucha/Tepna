@@ -531,3 +531,27 @@ def test_the_canary_is_deduped_per_night_so_it_cannot_page_every_tick():
     assert "canary_alerted" in code
     seg = code[code.index("alerts.arrival_canary("):][:900]
     assert "canary_alerted.add(" in seg and "continue" in seg
+
+
+def test_arrival_quality_asks_for_tdev_at_the_FIXED_comparison_tau(tmp_path, monkeypatch):
+    """The wiring, asserted at the boundary rather than by recomputing TDEV (which `test_allan` owns).
+
+    What must not regress is that nightqc NAMES the tau. Omitting it is silent — `stability` would
+    simply publish `tdev: None` and every record would still look well-formed — and deriving it
+    per-stream is worse than omitting it, because the numbers then look comparable and are not.
+    """
+    import nightqc
+    seen = []
+    real = nightqc.allan.stability
+
+    def spy(phase, tau0, tdev_tau=None):
+        seen.append(tdev_tau)
+        return real(phase, tau0, tdev_tau)
+
+    monkeypatch.setattr(nightqc.allan, "stability", spy)
+    _write_sidecar(os.path.join(tmp_path, "Tepna_9_PMDARRIVAL.csv"), "ECG",
+                   [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30])
+    nightqc.arrival_quality(str(tmp_path))
+    assert seen, "arrival_quality never reached the stability call"
+    assert all(t == nightqc._TDEV_TAU_S for t in seen), seen
+    assert nightqc._TDEV_TAU_S == 300.0
