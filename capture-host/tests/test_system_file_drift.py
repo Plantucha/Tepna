@@ -143,3 +143,35 @@ def test_the_drift_record_carries_the_clean_flag(tmp_path):
         _script(tmp_path), marker=str(tmp_path),
         runner=lambda *a, **k: _Done(json.dumps(_GOOD), 1))
     assert "checkout_clean" in got, "a HEAD-only view lags the breakage by up to one merge"
+
+
+# ── the REAL subprocess path ────────────────────────────────────────────────────────────────────────
+# ⚠️ EVERY TEST ABOVE INJECTS A RUNNER, so `run = runner or subprocess.run` only ever takes its truthy
+# side under test. The falsy side is reached solely by `summarize()`'s real call — which happens on a
+# machine where `/usr/local/lib/tepna` exists (a former capture host) and returns early on one where it
+# does not (CI). So the branch was complete locally and PARTIAL on CI, and the coverage floor failed
+# there while reading 100 % here. That is `CLAUDE.md`'s "a green local gate is evidence about this
+# machine", in its branch-coverage form. These two tests take the real path deliberately.
+
+
+def test_the_real_subprocess_path_runs(tmp_path):
+    """No runner injected: `subprocess.run` executes the script for real. It prints nothing, so the
+    result is `None` — the point is which BRANCH was taken, not the verdict."""
+    p = tmp_path / "check-system-files.sh"
+    p.write_text("#!/bin/sh\nexit 0\n")
+    assert nightqc.system_file_drift(str(p), marker=str(tmp_path)) is None
+
+
+def test_the_real_subprocess_path_parses_real_output(tmp_path):
+    """And with a script that actually emits the JSON line, the real path returns counts."""
+    p = tmp_path / "check-system-files.sh"
+    p.write_text("#!/bin/sh\necho '%s'\nexit 1\n" % json.dumps(_GOOD))
+    got = nightqc.system_file_drift(str(p), marker=str(tmp_path))
+    assert got is not None and got["managed"] == 11 and got["exit"] == 1
+
+
+def test_checkout_clean_takes_the_real_git_path(tmp_path):
+    """Same branch, same reason, in `_checkout_clean`. A `.git` directory that is not a repository makes
+    real `git status` exit non-zero, so this returns None — again, the branch is the point."""
+    (tmp_path / ".git").mkdir()
+    assert nightqc._checkout_clean(str(tmp_path)) is None

@@ -133,7 +133,22 @@ def _run_variant(module: str, before: str | None, after: str | None) -> list:
 
 
 def _differences(a: list, b: list) -> int:
-    return sum(1 for x, y in zip(a, b) if json.dumps(x[1], sort_keys=True) != json.dumps(y[1], sort_keys=True))
+    """How many decode results distinguish the variant from the baseline.
+
+    ⚠️ A LENGTH MISMATCH IS A DIFFERENCE — THE LARGEST ONE — and `zip` alone cannot see it. This used to
+    be a bare `sum(... for x, y in zip(a, b) ...)`, which stops at the SHORTER list: a variant that
+    dropped results simply had them ignored, and if the surviving prefix matched, the count came back 0.
+    `n == 0` is the caller's verdict for "no-distinguishing-input", i.e. EQUIVALENT — so a mutant that
+    destroyed two thirds of the output was reported as harmless. Demonstrated:
+
+        base 3 results, variant 3 identical   -> 0   (equivalent, correct)
+        base 3 results, one value changed     -> 1   (killable, correct)
+        base 3 results, variant 1 result      -> 0   <- WRONG: 2 results vanished
+
+    That is this suite's signature failure inside the very tool built to detect it: a check reporting
+    success about something it never examined. Missing and extra entries are now counted."""
+    n = sum(1 for x, y in zip(a, b) if json.dumps(x[1], sort_keys=True) != json.dumps(y[1], sort_keys=True))
+    return n + abs(len(a) - len(b))
 
 
 def main() -> int:

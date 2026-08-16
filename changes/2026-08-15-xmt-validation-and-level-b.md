@@ -136,3 +136,12 @@ the kill VERIFIED by re-applying the mutant.
 the group holding the new assertions, so the suite reported 42 green with the mutant applied. A
 filter that misses the group is indistinguishable from a passing test.
 
+🔴 **AND THE SAME BLIND SPOT AGAIN WITHOUT BRACES.** `if (c) continue;` is one statement, declined as
+control-flow, and its body appears in NO subject list — identical invisibility to the nested-statement
+bug, from a construct that fix did not cover, and invisible to the parse backstop because a miss
+leaves no invalid text. 940 braceless bodies + 34 braceless `else` across the allowlist. Recursing
+into them: clock.js 126 → **175**, ecgdex 631 → **828**, ppgdex 492 → **710**, oxydex 1159 → **1539**
+(+845). Fixture still 3/3. Three times now the denominator has been wrong while the report read as
+complete — every rule that DECLINES a subject is a potential silent hole, so the runner now prints
+its skip counts, not only its subject count.
+

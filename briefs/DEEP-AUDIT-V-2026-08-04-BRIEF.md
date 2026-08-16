@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-04 · **Charter:** `AUDIT-PROMPT.md` · **Sibling:** `DEEP-AUDIT-IV-2026-08-04-BRIEF.md` (same day, solo pass — its two findings are context here, not re-filed)
+**Status:** DONE — 2026-08-15 (**every filed finding is resolved**: 20 of 21 cite a fix in source, F12 REFUTED by measurement in the FOLLOWUPS brief. Verification scope stated in §7 — the tier-0/tier-3.5 procedural items were NOT re-checked in this pass) · **Created:** 2026-08-04 · **Charter:** `AUDIT-PROMPT.md` · **Sibling:** `DEEP-AUDIT-IV-2026-08-04-BRIEF.md` (same day, solo pass — its two findings are context here, not re-filed)
 
 # Deep audit V — the arithmetic held; identity did not
 
@@ -367,6 +367,53 @@ noisy-OR (device identity, not node identity)** · `tools/mutate.mjs` + `mutmut`
 orchestrator/adapter surface · `cohort-worker.js`.
 
 ---
+
+## 7 · CLOSING SWEEP — 2026-08-15, and what was actually verified
+
+Re-checked against `origin/main` eleven days on. **Every filed finding is resolved.**
+
+| | |
+|---|---|
+| filed findings (bold `**Fn ·**`) | **21** |
+| cite a fix in source | **20** |
+| refuted by measurement | **1** — F12, in `DEEP-AUDIT-V-FOLLOWUPS` |
+| still open | **0** |
+
+**Spot-verified in the code, not merely counted** — a citation can be aspirational, so six were opened
+and read: F10 (`MAGN?` with the N optional, in both alternations), F11/F24 (the coospo adapter now gates
+on the NAME, or the header LINE plus an RR-shaped column), F16 (`absIdx` present-gates on the inputs and
+returns `null`), F20/F21 (the worker ships raw stamp strings back and the main thread parses once with
+`DexClock`), F22/F23 (OxyDex's *"NOT COMPUTABLE is `null`, never 0"* and the INDETERMINATE branch), F5
+(the TCH corner-label refusal). All are real behaviour, not comments describing an intention.
+
+**F20/F21 shipped a BETTER fix than this brief prescribed, and said why.** The brief called for shipping
+`clock.js`'s `parseTimestamp` into `WORKER_SRC` via `Function.toString()`. The implementer found that
+does not work — `DexClock.parseTimestamp` closes over module-scope helpers (`_ckMk`, `_dmy`), so a
+`toString()` of it alone does not travel, and a serializer would live in the shared spine and re-stamp
+all 8 provenance fragments for a bug in one app. The worker now returns raw stamp strings and the main
+thread parses them once. Three parsers became one, and the one is the gated one.
+
+**F12 is REFUTED, and this closing sweep nearly filed it as the open item.** It was the only finding
+without a source citation, which reads exactly like unfinished work. It is not: `DEEP-AUDIT-V-FOLLOWUPS`
+reproduced it on **every** IMU file rather than one night and the load-bearing half did not survive —
+all 61 GYRO files declare `[dps]`, none anywhere has `max|gyro| > 2000` (the unmissable tell of raw LSB),
+and the claimed "543 files" does not reproduce because there are 61 GYRO files in total. Better still,
+the refutation names the discriminator this brief already had and read past: the no-gyro control (68 % /
+100.4 ms) equals the "fixed" result (66 % / 99.2 ms), so **the conversion deleted the gyro term rather
+than correcting it.** §4.7's *"reproduce before this drives a DSP edit"* did its job.
+
+**A method note, because the first scan was wrong.** Counting citations by grepping `DEEP-AUDIT-V` next
+to an F-number reported **eight** findings open. Files cite this brief as `DA-V §2.7 F17` and as a bare
+`// F21:`, so the scan under-reported — a **false absence**, which reads as "there is work here" and
+would have sent someone to redo finished work. Widening the pattern took one command; the corrected
+count is 20 of 21, and the direct reads above are what make it trustworthy rather than the count.
+
+**What this sweep did NOT verify**, stated because §4 of this brief is about exactly that: the tier-0
+procedural items (0.2 `BASE_URL` browser re-base, 0.3 independent reproduction of F12's magnitudes — now
+moot) and tier 3.5's `no-fabricated-tier` extension were **not** re-checked here. The group exists and
+`badgeForLabel` is gated across the fleet, but whether 3.5's specific widening landed was not confirmed.
+F1/F14/F2/F3 — the findings 3.5 was the prerequisite for — all cite fixes, which is suggestive and is not
+the same as checked. Those carry to `DEEP-AUDIT-V-FOLLOWUPS`.
 
 ## 6 · The structural conclusion
 

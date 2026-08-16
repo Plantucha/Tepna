@@ -485,6 +485,51 @@ executed.**
 
 ---
 
+## 3i · 🔴 THE SAME BLIND SPOT AGAIN, WITHOUT BRACES — 845 MORE SUBJECTS
+
+§3e recovered nested statements by recursing into `{ … }` bodies. It did not recover this:
+
+```js
+if (typeof s !== 'string') continue;
+```
+
+One statement, declined as control-flow (correctly), and `continue;` appears in **no subject list**.
+Identical invisibility to §3e, from a construct the fix did not cover — and **the parse backstop
+cannot see it**, because a miss leaves no invalid text behind. Only counting can.
+
+| construct | clock | ecgdex | ppgdex | oxydex |
+|---|---|---|---|---|
+| braceless `if`/`for`/`while` body | 50 | 211 | 234 | 445 |
+| braceless `else` | 2 | 5 | 9 | 18 |
+| `do … while` · labeled statement | 0 | 0 | 0 | 0 |
+| `switch` case body | 0 | 6 | 0 | 0 |
+
+Recursing into braceless bodies too:
+
+| file | measurable now | braced-only | recovered |
+|---|---|---|---|
+| `clock.js` | **175** | 126 | +49 |
+| `ecgdex-dsp.js` | **828** | 631 | +197 |
+| `ppgdex-dsp.js` | **710** | 492 | +218 |
+| `oxydex-dsp.js` | **1539** | 1159 | +380 |
+
+Fixture still **3/3**. ⚠️ The `clock.js` run in flight when this landed measured 126 of 175 — its
+verdicts stand (a subject's verdict does not change), but its DENOMINATOR was 72 % of the file.
+
+**Found by asking "what would this miss?" rather than by looking at output.** A peer session
+suggested pointing a local model at the selection patterns for exactly that question. The question
+was the valuable part; it was answered deterministically — for "is this a statement?" a parser beats
+a model, and for "which constructs never become subjects" a count beats both. The model was not used
+for the verdict, the classification, or the count.
+
+**Three times now the denominator has been wrong and the report has read as complete** (§3e nested,
+§3g `const`, §3i braceless). The pattern is stable enough to name: **every rule that DECLINES a
+subject is a potential silent hole, and none of them are visible in a passing run.** A tool that
+reports what it measured must also report what it refused — which is why `runLevelB` now prints its
+skip counts rather than only its subject count.
+
+---
+
 ## 4a · ⏱️ LEVEL B'S COST, MEASURED — one suite run per statement is the whole story
 
 `clock.js` has **85 eligible statements** across 13 functions (133 total; 43 declined as control-flow,
