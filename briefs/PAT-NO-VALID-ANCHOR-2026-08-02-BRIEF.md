@@ -104,8 +104,45 @@ been paying one of these two costs without naming which.
 ## 6 · The two routes — one is a capture decision, so it is not taken here
 
 1. **Capture a new box night with a stable BLE link.** Single-segment *and* host-disciplined at 0.2 s gives
-   a valid non-beat anchor and closes the question directly. Blocked on the adapter fault that fragments
-   the Verity — the capture-side issue, not an analysis one.
+   a valid non-beat anchor and closes the question directly. ~~Blocked on the adapter fault that fragments
+   the Verity — the capture-side issue, not an analysis one.~~
+
+   > ✅ **NOT BLOCKED — the nights already exist. Measured 2026-08-16 on `vigil:/srv/tepna/captures`.**
+   > No new capture is required, and none has been required for some time.
+   >
+   > Over the last **12** capture days, **10** carry a **≥ 4 h single-segment Verity PPG *and* a
+   > ≥ 4 h single-segment H10 ECG** covering the same session. Only 2026-08-08 and 2026-08-12 do not.
+   > The three best:
+   >
+   > | night | Verity PPG (1 segment) | H10 ECG (1 segment) | overlap |
+   > |---|---|---|---|
+   > | **2026-08-07** | 21:50:54 → 06:51:42 | 21:50:56 → 06:55:06 | **9.0 h** |
+   > | 2026-08-11 | 21:40:29 → 04:17:18 | 21:40:21 → 05:30:03 | 6.6 h |
+   > | 2026-08-16 | 00:15:16 → 06:21:37 | 22:15:56 → 06:25:03 | 6.1 h |
+   >
+   > **2026-08-07 meets every stated criterion**: both streams single-segment and starting within two
+   > seconds of each other, clock `disciplined` at stratum 1 for the whole night, ACC present on both
+   > devices, and the Verity ACC covering the full span at 51.7 Hz against a 52 Hz nominal — it starts
+   > two seconds *before* the PPG.
+   >
+   > The adapter fault is **real but intermittent**, not a persistent blocker: it fragments some
+   > sessions (2026-08-16 broke into ~3-minute pieces from 11:06 onward) while leaving most overnight
+   > runs whole. The premise "blocked on the adapter fault" was true when written and had quietly
+   > stopped being true; nothing re-checked it.
+   >
+   > ⚠️ **TWO MEASUREMENT TRAPS, both of which produced confident wrong answers on the way to this
+   > table — keep them if you re-run it.**
+   > 1. **A capture directory is keyed by SESSION START, so one night spans two directories.** Last
+   >    night's H10 began 22:15 on the 15th and files under `2026-08-15`, while its Verity began 00:15
+   >    and files under `2026-08-16`. Listing one directory gave *"zero H10 files"* — true of the
+   >    directory, false of the night.
+   > 2. **`ls …_PPG.txt | head -1` takes one segment of many.** On a fragmented day that silently reads
+   >    the first 3-minute piece as though it were the night, and on a clean day it accidentally reads
+   >    the right file — so it is wrong in a way that usually looks right.
+   >
+   > **What this establishes and what it does not:** the DATA satisfies route 1. The analysis — deriving
+   > the non-beat anchor on 2026-08-07 and testing whether PAT resolves — has **not** been run. Route 1
+   > is unblocked, not executed.
 2. **Characterise the per-characteristic latency** on phone nights: measure ACC vs PPG vs ECG arrival
    timestamps from the SAME device, and correct the ACC anchor by that difference before transferring it.
    This is a measurement the existing corpus CAN support, and it would also retro-validate every ACC-anchored
