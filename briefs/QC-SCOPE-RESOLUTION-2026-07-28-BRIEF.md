@@ -119,4 +119,9 @@ the summary already contained the tell (`"files": 2`, both sidecars) and nothing
 - [x] L3 `scope_suspect` + a scope-shaped `qc_poller` warning that suppresses the gap alert
 - [x] L4 `judged_dir` / `searched_dirs` / `data_files` on every summary
 - [x] Regression tests, mutation-checked, replayed against the real corpus
-- [ ] **Deploy to the box** — `/opt/tepna/capture-host` still runs the pre-fix code
+- [x] **Deploy to the box** — verified on the box 2026-08-16: `newest_data_mtime`, `scope_suspect`,
+      `judged_dir` and `searched_dirs` are all present in `/opt/tepna/capture-host`, alongside work that
+      merged the same day. The box self-updates hourly; this line simply outlived the deploy it described.
+      ⚠️ It was read as CURRENT three weeks later and nearly caused a rebuild of this brief's four layers —
+      an unticked box in a `DONE` brief is not evidence the work is undone (see the header, which is
+      authoritative)
