@@ -504,7 +504,11 @@ function exportCSV() {
       lines.push('  DFA α1,' + n.dfa.alpha1, '  DFA Label,' + n.dfa.dfaLabel);
     }
     if (n.fft) {
-      lines.push('  FFT Peak Freq (Hz),' + n.fft.peakFreqHz, '  FFT Cycle Length (s),' + n.fft.peakCycSec);
+      // EMPTY, not the string "null": no cycle cleared the fitted background, and a missing
+      // measurement must read as missing (OXYDEX-FFT-CYCLE-NULL-2026-08-16).
+      var _fq = n.fft.peakFreqHz == null ? '' : n.fft.peakFreqHz;
+      var _fc = n.fft.peakCycSec == null ? '' : n.fft.peakCycSec;
+      lines.push('  FFT Peak Freq (Hz),' + _fq, '  FFT Cycle Length (s),' + _fc);
     }
     if (n.hrEnt) {
       lines.push('  HR SampEn,' + n.hrEnt.sampEn, '  HR SampEn Label,' + n.hrEnt.sampEnLabel);

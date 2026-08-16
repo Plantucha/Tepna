@@ -4,6 +4,11 @@
  "_resolver": "https://api.crossref.org/works/{doi}",
  "_count": 92,
  "dois": {
+  "10.1007/BF00142586": {
+   "firstAuthor": "Mann",
+   "year": "1996",
+   "container": "Climatic Change"
+  },
   "10.1001/archinte.1916.00080130010002": {
    "firstAuthor": "Du BOIS",
    "year": "1916",
