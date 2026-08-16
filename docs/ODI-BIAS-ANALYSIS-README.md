@@ -12,7 +12,8 @@
   by-severity, correction curve, CSV/JSON/PNG export).
 - `nsrr-adapter.js` — `window.NSRR`: EDF (via the suite's `CpapEdf.readEDF`) → OxyDex rows, and an
   NSRR profusion-XML parser → reference AHI (scored apneas+hypopneas ÷ staged sleep hours). Also
-  accepts a harmonized-variable CSV (e.g. SHHS `ahi_a0h4`) paired by record id.
+  accepts a harmonized-variable CSV (e.g. SHHS `ahi_a0h3a` — arousal-inclusive; see §2 below for why
+  the definition is not interchangeable) paired by record id.
 
 ## Three point sources (increasing publishability)
 1. **SubjectA** — the 5 committed real O2Ring nights vs their known/planted AHI. Runs today, no
@@ -41,7 +42,13 @@ that the tool works; **the manuscript numbers are whatever the NSRR lane produce
 1. Get NSRR access (free, DUA at sleepdata.org) — SHHS is the easiest start (single PSG/subject, large N).
 2. **Scored-AHI CSV (one click):** load the cohort's harmonized CSV directly (e.g.
    `shhs1-dataset-*.csv`) — the tool auto-detects the id column (`nsrrid`/`pptid`/…) and the best AHI
-   variable present, preferring the 4%-desat definition (`ahi_a0h4` → `ahi_a0h3` → `poohi4`/`rdi4p`/…).
+   variable present, **preferring an arousal-inclusive definition** (`ahi_a0h3a` → `ahi_a0h4a` →
+   `ahi_a0h3` → `ahi_a0h4` → …). That order is the measurement, not a preference: ODI is blind to
+   hypopneas that end in an arousal without a qualifying desaturation, so a desaturation-only
+   reference such as `ahi_a0h4` shares the blind spot and the bias reads LOW — agreement between two
+   desaturation-based indices, reported as ODI-vs-AHI bias. The status pill turns amber and names the
+   confound whenever the selected variable is desat-only or unrecognised. (Corrected 2026-08-16;
+   `ahi_a0h4` had been first since the tool was written.)
    Then drop the matching EDFs; stems like `shhs1-200001` auto-pair to nsrrid `200001`. (A plain
    `id,ahi` two-column CSV still works as a fallback.)
 3. Read the **nsrr** row in the Sources card and `stats.json → perSource.nsrr`; export `figures.png`.
