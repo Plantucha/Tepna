@@ -118,6 +118,34 @@ the code each cites, not by trusting a status header — the parent brief now ca
 machine does not have, which is a different kind of open from the rest of this list and should not be
 ranked beside them.
 
+### …and it waits on the SAME recording as `REM-STAGING-FOLLOWUPS` §2b — measured 2026-08-15
+
+Two independent briefs, one dependency, and neither named the other until now.
+
+**Why the local corpus structurally cannot supply it.** The committed CPAP night carries **20 events —
+13 apnea, 7 hypopnea** (`uploads/cpapdex-2026-06-12.node-export.json`). That is what effective therapy
+looks like, and it is why "the trio corpus is a healthy sleeper" is a claim about the RECORDINGS rather
+than about the subject. F8 asks whether the coupling statistic survives events arriving in **bouts of
+5–20 min**; twenty events across a night can neither exhibit nor refute bout structure at any useful
+power. **The blocker is statistical, not instrumental** — and collecting untreated nights is a clinical
+decision, not an engineering one, so it is not a data-collection step this brief may propose.
+
+**The reader F8 needs is ALREADY BUILT, which changes the economics.** `REM-STAGING-FOLLOWUPS` §2a
+rebuilt `nsrr-adapter.js` for expert sleep staging — and it parses **respiratory events too**, not only
+stages:
+
+```
+nsrr-adapter.js:228   var kind = HYPOP_RE.test(concept) ? 'hypopnea' : APNEA_RE.test(concept) ? 'apnea' : 'resp';
+```
+
+plus `tools/nsrr-stage-validate.mjs` (21 KB, `--selftest`-proven against a synthesised EDF + profusion
+XML, no records required). So the marginal cost of F8 **after** a DUA is a diagnostic, not an ingest
+pipeline.
+
+**Consequence for whoever weighs the NSRR DUA: it unblocks two briefs, not one, and the second arrives
+with its reader already written and tested.** Neither brief makes that argument on its own, because
+neither could see the other.
+
 ⚠️ **A stale "still open" list costs more than a stale DONE.** A reader who trusts this section spends a
 day re-fixing eight closed findings, and the eight were closed *by people who then did not come back to
 update the list they were working from*. That is the same asymmetry `truncation-fabricates-disproofs`

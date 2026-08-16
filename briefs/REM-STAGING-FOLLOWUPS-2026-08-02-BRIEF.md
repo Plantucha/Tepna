@@ -74,6 +74,21 @@ re-bundle rather than causing one; this is that deferral, named rather than skip
 - **2c** Only then revisit a detector change, with the falsifiers demoted from primary evidence to
   sanity checks (they were only ever proxies for the labels).
 
+> ### The DUA unblocks a SECOND brief, and nothing said so until 2026-08-15
+>
+> `DEEP-AUDIT-V` **F8** — whether the Integrator's event-coupling statistic survives events arriving in
+> **bouts of 5–20 min** — is blocked on the same records, for the same reason, and neither brief named
+> the other. The permutation p-value itself is measured correct (4.8 % FPR over 500 trials) and the
+> hour-scale worry is refuted (6.0 % / 5.3 % vs a 6.0 % control); the **bout scale** carries a measured
+> 36–53 % residual FPR that no local night can test. The committed CPAP night has **20 events — 13
+> apnea, 7 hypopnea**: effective therapy, and far too few to exhibit or refute clustering.
+>
+> **§2a's work already covers it.** `nsrr-adapter.js` parses respiratory events as well as stages
+> (`:228` — `HYPOP_RE` / `APNEA_RE` → `'hypopnea'` / `'apnea'`), so records fetched for 2b arrive
+> carrying exactly what F8 needs. The cost of F8 after a DUA is a diagnostic, not an ingest pipeline.
+>
+> So the DUA is worth more than this brief alone argues. Weigh it against **two** briefs.
+
 **Caveat to carry:** NSRR is clinical PSG, not a consumer chest strap on a healthy sleeper at home. A
 detector tuned on NSRR and deployed on H10 data inherits a domain shift, and §5's falsifiers remain the
 only check that survives the move. Do not let a good NSRR number retire them.
