@@ -600,10 +600,50 @@ higher bands, exactly as destroying temporal structure should.
 
 ### 🟢 What the variance actually is
 
-PAT's dominant frequency is **0.032 Hz — a ~31-second cycle** — and **~86 % of its power sits in
-VLF+LF combined.** That is drift on a scale of tens of seconds to minutes: vascular tone, blood-pressure
+~~PAT's dominant frequency is **0.032 Hz — a ~31-second cycle**~~ — **RETRACTED 2026-08-16, see below** —
+and **~86 % of its power sits in VLF+LF combined.** That is drift on a scale of tens of seconds to minutes: vascular tone, blood-pressure
 regulation (the LF/Mayer band sits at ~0.1 Hz), thermoregulation, posture, sleep-stage transitions.
 Breathing, at ~0.26 Hz, contributes essentially nothing.
+
+### 🔴 RETRACTED 2026-08-16 — the "~31-second cycle" is what red noise does, not a finding
+
+**In a red spectrum the argmax sits near the low-frequency end BY CONSTRUCTION**, so reading its location
+as a characteristic period reads a peak into a slope. Tested against the null this section's own numbers
+imply, with none of the original data needed:
+
+An **AR(1) process reproduces the published band shares almost exactly** — rho = 0.908 gives VLF 0.51 /
+LF 0.33 / HF 0.16 against the measured 0.50 / 0.36 / 0.15 — on the same geometry (4 Hz grid, 20-minute
+slices), **with no oscillation present at all**. Where does its argmax land?
+
+    argmax over 120 runs of PURE red noise, nothing planted:
+        median 0.0220 Hz     10th-90th 0.0080 - 0.0500 Hz
+        74 % of runs put the argmax at or below 0.032 Hz
+
+**0.032 Hz sits in the middle of that.** The number is not evidence of a cycle.
+
+**What this does NOT touch, because the rest of the section is sound:**
+- **The band shares stand** (50 / 36 / 15). The AR(1) fit reproducing them describes the null, not a fault
+  in the measurement.
+- **The respiration refutation stands, and it is the strongest thing here** — it rests on the shuffled
+  control (3.99 % against 8.70 %, exceeding the null on 1 of 17 nights), a comparison against a control
+  rather than a peak reading.
+- **The positive localisation stands**: the power really is at VLF+LF. What is retracted is a
+  *characteristic frequency* within that band, not the band.
+
+⚠️ **Limits of the retraction itself.** AR(1) is one red-noise model, chosen because it reproduces the
+published shares; a different background would move the 74 %. And this tests only whether the argmax
+LOCATION discriminates — it does not — rather than fitting a robust background and testing peak HEIGHT
+against it (Mann & Lees 1996, `Climatic Change` 33:409-445). That stronger test is what to run if anyone
+wants to claim a cycle here rather than retire one.
+
+⚠️ **It transfers to shipped code, and there the fix is NOT a retraction.** `oxydex-dsp.js
+computeSpO2FFT` surfaces "FFT Cycle Length" by raw-power argmax over 11 fixed frequencies with no
+background and no null, so it cannot return "no cycle detected" — on pure AR(1) at rho = 0.98 it reports
+the 0.005 Hz band edge in 42 % of runs. But real O2Ring nights (median lag-1 rho = 0.98) hit that edge in
+only **3 of 14 = 21 %**, i.e. HALF as often as the null, which is weak positive evidence that something
+real pulls the argmax away from the edge. Periodic breathing and CSR have a genuinely characteristic
+period, so the answer there is a significance test that keeps real detections and drops fabricated ones —
+not removal. Found with Papers, whose corpus check refuted their own stronger hypothesis.
 
 **This is a positive localisation, not just a null.** It says where to look next, and it says the
 remaining reference in this corpus — **ACC**, which MotionDex already turns into posture via the gravity
