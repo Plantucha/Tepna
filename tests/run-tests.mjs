@@ -20,6 +20,7 @@ import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, 
 import { createRequire } from 'node:module';
 import { classify as rebaseClassify } from '../tools/rebase-safe.mjs';
 import { decide as landDecide } from '../tools/land-pr.mjs';
+import { classify as commitShape } from '../tools/commit-shape.mjs';
 import * as captureRecapture from '../tools/capture-recapture.mjs';
 import { estimate as beatCrEstimate, estSummary as beatCrSummary } from '../tools/beat-capture-recapture.mjs';
 import { attenuateAndRecover, buildTemplate as beatBuildTemplate } from '../tools/beat-injection-recovery.mjs';
@@ -1676,6 +1677,7 @@ async function main() {
        machine is only trustworthy if something drives it. Node-lane only (an ESM import of a tool),
        so the browser lane SKIPs. No `gh`, no network, no clock — decide() is a pure function. */
     landDecide: landDecide,
+    commitShape: commitShape,
     captureRecapture: captureRecapture,
     beatCrEstimate: beatCrEstimate,
     beatCrSummary: beatCrSummary,

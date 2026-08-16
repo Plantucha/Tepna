@@ -20278,6 +20278,62 @@
       T.ok('a non-3-source history is rejected outright rather than silently ignored', threw);
     });
 
+    /* ── commit-shape: the AGENT-NEUTRAL half of the shared-tree guards ──────────────────────
+       CLAUDE.md calls the shared-tree rules "hook-enforced". Measured 2026-08-15, that holds for
+       ONE client: the guards are PreToolUse hooks under $CLAUDE_PROJECT_DIR, .git/hooks/ is empty
+       and core.hooksPath is unset. Prevention cannot be made agent-neutral (it is agent- or
+       install-coupled); DETECTION can, because it reads a property of the COMMIT and CI applies to
+       whoever opened the PR. This drives the pure core, so no git, no network, no clock.
+       AGENT-NEUTRAL-GUARDS-2026-08-15-BRIEF.md §3. */
+    group('Commit-shape — a release deletes only changesets AND bumps the version; the accident did neither', 'tools · commit-shape', function (T) {
+      var c = env.commitShape;
+      if (typeof c !== 'function') {
+        T.skip('commit-shape core is wired into this lane', 'browser lane cannot import tools/commit-shape.mjs');
+        return;
+      }
+      var D = function (p) {
+        return { status: 'D', path: p };
+      };
+      var M = function (p) {
+        return { status: 'M', path: p };
+      };
+      var LEDGER = [M('suite.manifest.json'), M('CHANGELOG.md'), M('RELEASE-MANIFEST.json')];
+
+      // A commit that deletes no changeset is none of this guard's business — it must stay
+      // silent rather than have an opinion, or every commit in the repo becomes a candidate.
+      T.eq('no changeset deleted ⇒ not-applicable', c({ subject: 'fix(dsp): whatever', files: [M('oxydex-dsp.js'), D('docs/old.html')] }).verdict, 'not-applicable');
+
+      // THE RELEASE SHAPE. Both conditions, not either.
+      T.eq('changesets only + 3/3 ledger ⇒ release', c({ subject: 'chore(release): v2.6.0', files: [D('changes/a.md'), D('changes/b.md')].concat(LEDGER) }).verdict, 'release');
+
+      // ── THE DETECTOR MUST BE SEEN TO FIRE. A guard never observed failing is not evidence.
+      // This is the 2026-08-03 corruption in miniature: a blanket add sweeping live files out
+      // alongside changesets, with no version bump.
+      var corruption = {
+        subject: 'chore: sync tree',
+        files: [D('changes/a.md'), D('briefs/LIVE-BRIEF.md'), D('tools/build.mjs'), D('uploads/trio/x.json')]
+      };
+      T.eq('blanket-add corruption ⇒ FLAGGED', c(corruption).verdict, 'FLAGGED');
+      T.ok('the reason names the deletions outside changes/', /outside changes\//.test(c(corruption).reason));
+      T.eq('and counts them', c(corruption).outsideDeletions, 3);
+
+      // The two halves fail INDEPENDENTLY — this is what gives 0 false positives over 30 releases.
+      T.eq('changesets only but NO version bump ⇒ FLAGGED', c({ subject: 'chore: prune', files: [D('changes/a.md')] }).verdict, 'FLAGGED');
+      T.eq('version bumped but ALSO deletes a live file ⇒ FLAGGED', c({ subject: 'chore(release): v2.6.0', files: [D('changes/a.md'), D('clock.js')].concat(LEDGER) }).verdict, 'FLAGGED');
+      T.eq('a PARTIAL ledger is not a release', c({ subject: 'chore(release): v2.6.0', files: [D('changes/a.md'), M('CHANGELOG.md')] }).verdict, 'FLAGGED');
+
+      // Exemption is by DECLARED PROVENANCE, never by shape — a rescue snapshot is
+      // shape-identical to the corruption on purpose (CLAUDE.md §👥.2 says to snapshot, not step on).
+      T.eq('rescue: snapshot is exempt', c({ subject: 'rescue: WIP snapshot', files: corruption.files }).verdict, 'exempt');
+      T.eq('Revert is exempt', c({ subject: 'Revert "fix(x): y"', files: corruption.files }).verdict, 'exempt');
+      T.eq('an UNDECLARED commit of the same shape is NOT exempt', c(corruption).verdict, 'FLAGGED');
+      T.eq('"rescued" does not smuggle past the prefix', c({ subject: 'rescued some files', files: corruption.files }).verdict, 'FLAGGED');
+
+      // Empty/absent input must not throw — CI feeds this whatever the PR contains.
+      T.eq('empty commit ⇒ not-applicable', c({ subject: '', files: [] }).verdict, 'not-applicable');
+      T.eq('absent fields ⇒ not-applicable', c({}).verdict, 'not-applicable');
+    });
+
     /* ── land-pr: the PR-landing state machine (LAND-PR, 2026-08-09) ───────────────────────────
        `main` moves a median 7.2 min while CI takes ~10-12 over 7 required checks, and the ruleset
        sets strict=true, so every session hand-writes a polling loop and they keep being wrong in
