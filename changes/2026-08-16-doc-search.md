@@ -53,3 +53,22 @@ exists to find, reproduced in the fix for another bug. Replaced with four behavi
 as a page. Script and style bodies are dropped, so an inlined bundle cannot flood the index with
 minified JS that matches every query weakly and nothing well. 20 selftests.
 
+🔴 **RECALL@5 IS THE METRIC — top-1 must not be optimised**, and that is recorded in the tool because
+the next person to improve it will reach for top-1. The costs are wildly asymmetric: a false negative
+costs a session rebuilding finished work (a day of first-principles reasoning toward an answer two
+briefs already held), a false positive costs opening one file. Any tuning that raises top-1 by
+NARROWING the candidate set trades a cheap error for an expensive one and makes the tool worse while
+the headline number improves.
+
+⚠️ **The tool's worst outcome and its worst bug are the same shape** — "nothing found" — which is why
+the dispatch guard exiting 0 with empty stdout was not an unrelated defect.
+
+⚠️ **ADJACENCY IS NOT EQUIVALENCE.** A near-neighbour index systematically places the two
+nearest-but-DISTINCT methods side by side. Real instance: a "two-line lag-1 autocorrelation" (a
+correlation test) ranks adjacent to Riley & Greenhall lag-1 (a noise-type identifier) — same two
+words, different statistic, different question. The reader opens the right file and draws the wrong
+inference from its neighbour. A property of retrieval rather than a defect, and the one way a
+path-ranking tool can still mislead; now stated in the output footer as well as the header.
+
+Both findings are a peer session's, from using the tool on a live question rather than reviewing it.
+

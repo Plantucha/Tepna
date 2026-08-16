@@ -34,6 +34,31 @@
  * brief SAYS, it is back in the failure mode above, with a plausible summary of a document the
  * reader then does not open.
  *
+ * ── 🔴 RECALL@5 IS THE METRIC. DO NOT OPTIMISE TOP-1 ────────────────────────────────────────────
+ * The costs are wildly asymmetric, and that asymmetry is the whole design:
+ *
+ *   a FALSE NEGATIVE ("nothing found")  costs a session rebuilding finished work — a day of
+ *                                       first-principles reasoning toward an answer two briefs
+ *                                       already held
+ *   a FALSE POSITIVE                    costs opening one file
+ *
+ * So any tuning that raises top-1 by NARROWING the candidate set trades a cheap error for an
+ * expensive one and makes the tool worse while the headline number improves. Publish recall@5;
+ * guard the empty result. Measured here: recall@5 4/5, top-1 2/5 — and the 2/5 is not the figure
+ * that matters, because the reader opens five.
+ *
+ * ⚠️ THE WORST OUTCOME AND THE WORST BUG ARE THE SAME SHAPE, which is not a coincidence: this file
+ * once exited 0 with empty stdout when renamed, and "nothing found" is exactly what a session
+ * cannot distinguish from a true negative.
+ *
+ * ── ⚠️ ADJACENCY IS NOT EQUIVALENCE ────────────────────────────────────────────────────────────
+ * A near-neighbour index will systematically place the two nearest-but-DISTINCT methods side by
+ * side. Real instance: a "two-line lag-1 autocorrelation" (a CORRELATION test) ranks adjacent to
+ * Riley & Greenhall lag-1 (a NOISE-TYPE IDENTIFIER) — same two words, different statistic,
+ * different question. The reader opens the right file and draws the wrong inference from its
+ * neighbour. That is a property of retrieval, not a defect, and it is the one way a path-ranking
+ * tool can still mislead.
+ *
  * ⚠️ AND IT FAILS SOFT. If the embedder is unreachable it degrades to a deterministic token search
  * rather than erroring, because a search tool that is down is a search tool nobody uses — and the
  * fallback is the `grep` you would have run anyway.
@@ -301,6 +326,8 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   console.log(`\n▸ ${qv ? 'semantic' : 'TOKEN-FALLBACK (embedder unreachable)'} · "${query}"\n`);
   for (const h of hits) console.log(`  ${h.score.toFixed(3)}  ${h.file}\n        ${h.text.slice(0, 110).trim()}…`);
   console.log('\n  ⚠ These are PATHS TO READ, not an answer. This tool does not summarise a document,');
+  console.log('    and ADJACENCY IS NOT EQUIVALENCE — the two nearest results may answer DIFFERENT');
+  console.log('    questions with the same words. Read the one you opened, not the one beside it.');
   console.log('    because a plausible summary of a brief nobody opens is the failure it exists to prevent.\n');
 }
 
