@@ -1293,8 +1293,14 @@
         "dfaLabel": "SpO₂ DFA (α1=1.704) — HR-DFA thresholds do not apply to SpO₂ signal"
       },
       "fft": {
-        "peakFreqHz": 0.007,
-        "peakCycSec": 143
+        "peakFreqHz": null,
+        "peakCycSec": null,
+        "snr": 11.32,
+        "threshold": 19.27,
+        "bins": 327,
+        "strided": true,
+        "rhoLag1": 0.9719,
+        "detected": false
       },
       "hrEnt": {
         "sampEn": 1.453,
