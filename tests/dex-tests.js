@@ -16699,6 +16699,20 @@
           inner(n);
         };
       };
+      /* ANTI-VACUITY. Every assertion in this group is raised INSIDE the loop below, so an empty or
+         truncated TABLE does not fail — it silently raises fewer. Measured 2026-08-16 by deleting the
+         rows: the group went 174 → 35 assertions and still reported GREEN. Nothing in the suite pins an
+         expected assertion count, so 139 checks can vanish with no signal at all. `>=` rather than `===`
+         so adding a threshold row is free, while losing one reds.
+         ⚠️ The number is the table's REAL size (20 rows, each raising several assertions), not a `> 0`
+         floor. A floor would be this same defect one level up — it detects only total loss, which is the
+         failure least likely to happen quietly. It earned that immediately: the first draft guessed 179
+         from counting nested brackets and this leg failed loudly rather than passing on a wrong premise. */
+      T.ok(
+        'ANTI-VACUITY · the threshold table is intact (an empty one silently raises no assertions)',
+        TABLE.length >= 20,
+        'rows=' + TABLE.length + ' (expected ≥ 20 — each row raises several assertions; 20 rows ⇒ 174)'
+      );
       var r, c, i, j, set, patch;
       for (i = 0; i < TABLE.length; i++) {
         r = TABLE[i];
@@ -34887,6 +34901,10 @@
         { raw: '2026-06-07 22:00:00', tMs: U(2026, 5, 7, 22, 0, 0), off: null },
         { raw: 'not a date', tMs: null, miss: true }
       ];
+      /* ANTI-VACUITY — same shape as the OxyDex threshold table: every assertion is raised inside the
+         per-row walk, so an emptied TABLE reports green having checked nothing. Measured: 54 → 27
+         assertions, still green. */
+      T.ok('ANTI-VACUITY · the per-node conformance table is intact', TABLE.length >= 5, 'rows=' + TABLE.length + ' (expected ≥ 5)');
       function checkLive(name, fn) {
         T.ok(name + ' present', typeof fn === 'function');
         if (typeof fn !== 'function') return;
