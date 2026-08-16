@@ -550,6 +550,16 @@ def newest_data_mtime(night_dir: str) -> float | None:
 
 
 
+# The averaging time TDEV is quoted at, in SECONDS, for every stream alike. A fixed tau is the whole
+# point: read at each stream's OWN optimal tau the ordering INVERTS — measured on the real corpus,
+# H10 3.4 ms vs Verity 0.85 ms per-stream flips to H10 ~2.0 vs Verity ppg ~3.5 at a common tau. A
+# per-stream tau yields two numbers that cannot be compared while looking exactly like two that can.
+# 300 s sits past the short-tau jitter and is short enough that the corpus streams support it.
+# ⚠️ The `ppi` stream is NOT comparable on this axis at any tau — it is a derived interval series
+# rather than an arrival series, and reads white-frequency at ~5 s.
+_TDEV_TAU_S = 300.0
+
+
 def _tau0_of(pairs) -> float:
     """Mean packet interval in SECONDS — ADEV's sample interval. Measured from the HOST stamps, which
     are the axis this phase series is indexed on; taking it from the device would let a stalled counter
@@ -688,10 +698,15 @@ def arrival_quality(night_dir: str) -> list[dict]:
                 # all four Polar streams are white/flicker PHASE (slope -0.99 to -1.00) averaging to
                 # 0.023-0.094 ms — the clock sits ~100x inside PAT's 10 ms budget and is not the
                 # bottleneck. The ring is white FREQUENCY at 615 ms, four orders worse.
+                # THAT ADEV LABEL IS TWO ANSWERS, and `phase_noise` now separates them: ADEV maps white
+                # PM and flicker PM both to tau^-1 (26 of 27 corpus streams get the joint label), while
+                # MDEV splits them tau^-3/2 vs tau^-1 and resolves 19, refusing 8. The two halves give
+                # opposite advice about a longer window, so the joint label could not be acted on.
+                # `tdev` is quoted at a FIXED tau for the reason `_TDEV_TAU_S` documents.
                 # Reported, gated by NOTHING: the last two arrival diagnostics that shipped with
                 # thresholds both fired on every stream of the first real night. See
                 # ALLAN-DEVIATION-2026-08-12-BRIEF.
-                "stability": allan.stability(diffs, _tau0_of(pairs)),
+                "stability": allan.stability(diffs, _tau0_of(pairs), _TDEV_TAU_S),
                 "floor_spread_ms": None if spread is None else round(spread, 1),
                 # The verdict a reader should branch on. None where it cannot be judged — an unknown is
                 # not a pass, and the earlier attempt's whole failure was reporting a number that had
