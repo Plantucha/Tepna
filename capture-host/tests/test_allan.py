@@ -962,3 +962,94 @@ def test_gcov_honours_explicit_taus_and_skips_impossible_ones():
     b = [rng.gauss(0, 1) for _ in range(4000)]
     got = allan.gcov(a, b, TAU0, [2.0, 0.4, 1e9])
     assert [p["tau"] for p in got] == [2.0]
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# LAG-1 NOISE IDENTIFICATION (Riley & Greenhall 2004) — a second opinion that fits no slope.
+# `classify` reads a fitted log-log slope, so near a boundary it must REFUSE. This identifies the power
+# law analytically from the lag-1 autocorrelation, so it has no boundary to sit near.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+
+
+def _flicker_fm(seed=13):
+    """Flicker FM: integrate pink noise. alpha = -1."""
+    p, v, out = _flicker_pm(seed), 0.0, []
+    for q in p:
+        v += q
+        out.append(v)
+    return out
+
+
+def test_lag1_recovers_the_WHOLE_power_law_family():
+    """THE known-answer test, and the reason this is worth having: `allan.py` had no external reference
+    for its noise naming. AllanTools implements the same identification, so these five are checkable
+    rather than re-derived. Each series is synthesised to a known alpha and must come back as it."""
+    cases = ((_white_pm(), 2, 'white-phase'), (_flicker_pm(), 1, 'flicker-phase'),
+             (_white_fm(), 0, 'white-frequency'), (_flicker_fm(), -1, 'flicker-frequency'),
+             (_rw_fm(), -2, 'random-walk-frequency'))
+    for series, alpha, name in cases:
+        got = allan.noise_id(series)
+        assert got is not None, name
+        assert got['alpha'] == alpha, f"{name}: expected alpha {alpha}, got {got}"
+        assert got['noise'] == name, got
+
+
+def test_lag1_ANSWERS_where_the_slope_classifier_must_refuse():
+    """The operational payoff. `classify` refuses when 1.96*se straddles a boundary — correctly, because
+    a fitted slope cannot support the call there. An estimator that fits no slope has no boundary, so it
+    still answers. Both are published; disagreement is information."""
+    refused = allan.classify(-0.75, 0.02)          # dead on an edge, CI straddling it
+    assert refused['noise'] is None, refused        # the incumbent declines, by design
+    got = allan.noise_id(_white_pm())
+    assert got['noise'] == 'white-phase'            # the lag-1 identifier does not have to
+
+
+def test_the_two_opinions_AGREE_on_an_unambiguous_series():
+    """ANTI-VACUITY. An identifier that answered something unrelated to the slope classifier would be
+    a second number, not a second opinion."""
+    for series, expect in ((_white_fm(), 'white-frequency'), (_rw_fm(), 'random-walk-frequency')):
+        st = allan.stability(series, TAU0)
+        assert st['classification']['noise'] == expect
+        assert st['lag1_noise']['noise'] == expect
+
+
+def test_stability_publishes_the_second_opinion_beside_the_first():
+    st = allan.stability(_white_pm(), TAU0)
+    assert 'classification' in st and 'lag1_noise' in st
+    assert st['lag1_noise']['noise'] == 'white-phase'
+    # ADEV maps white PM and flicker PM to one arm; the lag-1 identifier separates them without MDEV.
+    assert st['classification']['noise'] == 'white/flicker-phase'
+
+
+def test_a_series_too_short_to_identify_returns_None_rather_than_a_guess():
+    assert allan.noise_id([1.0, 2.0, 3.0]) is None
+    assert allan.noise_id([]) is None
+
+
+def test_it_gives_up_rather_than_differencing_a_series_into_nothing():
+    """Each difference eats a sample. A short, strongly correlated series would decorrelate only after
+    more differences than it has samples for — None, not an answer from four points."""
+    # A cubic stays correlated through two differences: 34 -> 33 -> 32 (still a linear ramp, rho ~ 0.5)
+    # -> 31, below the 32-sample floor. So it runs out before it decorrelates, and must say so.
+    cubic = [float(i) ** 3 for i in range(34)]
+    assert allan.noise_id(cubic, dmax=99) is None
+    # …while the same shape with room to spare does identify.
+    assert allan.noise_id([float(i) ** 3 for i in range(4096)], dmax=99) is not None
+
+
+def test_alpha_is_clamped_to_the_five_named_laws():
+    """Outside [-2, +2] the series is not one of the five this names; inventing a sixth label would be
+    naming something it did not measure."""
+    for series in (_white_pm(), _flicker_pm(), _white_fm(), _flicker_fm(), _rw_fm(), _drift()):
+        got = allan.noise_id(series)
+        if got is not None:
+            assert -2 <= got['alpha'] <= 2, got
+            assert got['noise'] in allan._ALPHA_NAMES.values()
+
+
+def test_the_slope_classifier_and_its_TABLE_are_untouched_by_this_addition():
+    """The three-lane parity gate (#1334) holds `_NOISE` equal across clock.js / ppgdex-dsp.js / here.
+    This addition must not move it, or the lanes would be running different algorithms."""
+    assert allan._NOISE[0][1] == 'white/flicker-phase'
+    assert [e[0] for e in allan._NOISE] == [-0.75, -0.25, 0.25, 0.75]
+    assert allan.classify(-1.0)['noise'] == 'white/flicker-phase'
