@@ -50,6 +50,42 @@ known-answer already exists for `allanFromPhase` (MINSTD, deliberately not the g
 2⁵³ in JS but not in Python's bignums, so the two lanes would build different series and the
 "cross-language" pin silently would not be one). Extending that to `classify` is the stronger gate.
 
+### 2a · That extension is BUILT — 2026-08-16, group *"the two executable lanes must AGREE"*
+
+23 rows, each the literal return of `capture-host/allan.py classify(sl, se)` **run** on that input, with
+`DexClock.classifyAllan` executed live against it. Inputs sit where the lanes could differ: on an edge,
+either side of one, `se == 0` (must NAME a type, not refuse), an interval whose upper end lands exactly
+on the top edge, allan.py's own two exact-float fixtures, a band straddling everything including drift,
+and four searched pairs putting the interval's **lower** end exactly on each edge.
+
+**Result: the lanes agree on every DECISION** — noise, candidates, refusal, unrounded slope — on all 23
+rows. Six mutants confirm the gate sees divergence (band 1.96→1.0 · edge `<`→`<=` · drift edge 0.75→0.8 ·
+meaning reworded · straddle `<`→`<=` · re-rounding the slope).
+
+**Two findings it produced, neither visible to table-equality:**
+
+1. **`meaning` differs**: `√N` (clock.js) vs `sqrt(N)` (allan.py). The table gate never compared
+   `meaning`, so nothing saw it. Pinned via one exact rewrite, and the **count of rows needing it is
+   pinned too (4)** — a normaliser that silently absorbs the next divergence would be this repo's
+   favourite defect wearing a fix. That count already earned its place: adding the four edge fixtures
+   moved it 3 → 4 and the leg caught it.
+2. **KNOWN DEFECT · `clock.js` hardcodes the drift edge.** allan.py derives it from the table
+   (`sl + half > noise[-1][0]`); clock.js writes `sl + half > 0.75`. Identical today because the last
+   edge *is* 0.75 — so behaviour-identical, no re-bundle owed — but a table edit moves one lane and not
+   the other **while table-equality still passes**. `clock.js` is spine, so the one-line fix rides the
+   next spine re-bundle rather than forcing one.
+
+⚠️ **The gate had a hole, again, and again only mutation found it.** `sl - half < e` mutated to `<=`
+survived all 19 original rows: no input placed the interval's lower end exactly on an edge, so the
+comparison was unobservable. Fixed by searching for exact-float pairs (`sl=-0.24999804, se=1e-06` gives
+`sl - 1.96·se == -0.25` exactly) — the same search allan.py's own comment recommends. **Second time in
+this suite's history that mutating the GATE rather than the code was the only thing that worked.**
+
+⚠️ **A bulk edit while writing this group replaced the WRONG `var PY`** — `tests/dex-tests.js` holds two
+other known-answer tables of that name, and a `count=1` regex took the `allanFromPhase` one. Caught by
+the new group's own ANTI-VACUITY row-count leg reporting 19 where 23 was expected. The table is now
+`PY_CLASSIFY`; a generic name in a 44 k-line file is a collision waiting to happen.
+
 ⚠️ **The gate had a hole of exactly the kind it exists to prevent, found by mutating it.** The first draft
 tested `/def classify\([^)]*se/`, which matches `se_unused=None` as a **substring** — so renaming the
 parameter away left the gate green. Four mutants were applied; that one survived until the assertion was
