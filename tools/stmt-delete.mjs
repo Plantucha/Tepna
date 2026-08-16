@@ -578,6 +578,7 @@ async function runLevelB(file, group, jobs, covPath, resumePath) {
   for (let i = 0; i < jobsUsed; i++) trees.push(mkTree());
   const results = ledger.values().map((r) => ({ fn: r.fn, kind: r.kind, text: r.text, line: r.line, verdict: r.verdict }));
   const resumedCount = results.length;
+  const runT0 = Date.now();
   let runSecTotal = 0;
   let next = 0;
   const worker = async (dir) => {
@@ -598,7 +599,7 @@ async function runLevelB(file, group, jobs, covPath, resumePath) {
          a cold one, so trusting it for the whole run repeats the error this exists to fix. */
       const ran = results.length - resumedCount;
       const perRun = ran ? runSecTotal / ran : baseSec;
-      process.stderr.write(progressLine(results.length, subjects.length, jobsUsed, perRun, verdict) + '\n');
+      process.stderr.write(progressLine(results.length, subjects.length, jobsUsed, perRun, verdict, (Date.now() - runT0) / 1000) + '\n');
       if (verdict === 'PSEUDO_TESTED_STATEMENT') process.stderr.write('  ● PSEUDO-TESTED STMT  ' + s.fn.padEnd(22) + ' L' + String(s.line).padEnd(6) + ' [' + s.kind + '] ' + s.text + '\n');
       rmSync(wAbs, { force: true });
       writeFileSync(wAbs, src);
