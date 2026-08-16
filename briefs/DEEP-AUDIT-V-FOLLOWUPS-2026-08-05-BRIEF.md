@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-05 · **Follows:** `DEEP-AUDIT-V-2026-08-04-BRIEF.md` (PROPOSED) · `DEEP-AUDIT-IV-2026-08-04-BRIEF.md` (PROPOSED)
+**Status:** IN-PROGRESS — 2026-08-15 (§4 RE-MEASURED: eight of its nine "still open" items are closed, F8 alone remains and is data-blocked. §1's three decisions are OWNER calls with the `no-fabricated-tier` ratchet holding meanwhile; §4 Tier-4 coverage debt stands) · **Created:** 2026-08-05 · **Follows:** `DEEP-AUDIT-V-2026-08-04-BRIEF.md` (DONE — 2026-08-15) · `DEEP-AUDIT-IV-2026-08-04-BRIEF.md` (IN-PROGRESS)
 
 # Fixing the audit found a 94-label class, and it needs THREE decisions, not one
 
@@ -95,17 +95,34 @@ instead of the resolver the runtime uses.
 
 ---
 
-## 4 · Still open from `DEEP-AUDIT-V`
+## 4 · Still open from `DEEP-AUDIT-V` — RE-MEASURED 2026-08-15, and almost none of it is
 
-**Tier 1:** F17 (O2Ring drawn-axis `timingSource` — also requires retracting `O2RING-SYNTHESISED-AXIS §5`,
-`WEARABLE-HOST-AXIS-FOLLOWUPS §F1` and `PAT-PROXIMAL-DISTAL-PAIR §2/§2a`) · F12 (PpgDex gyro unit
-oracle — **§4.7 flags its headline magnitudes as needing independent reproduction BEFORE it drives a
-DSP edit**) · F16 (PulseDex present-gates) · F4/F5 (Integrator TCH: the discarded AMBIGUOUS verdict and
-the collapsing corner labels) · F7 (longitudinal sleep-date join) · F13 (PpgDex `hostAxis.independent`
-dropped at the export boundary).
+This section listed nine items as open. **Eight are closed**; one is data-blocked. Verified by reading
+the code each cites, not by trusting a status header — the parent brief now carries the same sweep.
 
-**Tier 2:** F20+F21 (ECGDex worker clock, see §3) · F8 (coupling bout-clustering — **validate against a
-real OSA stream first; the trio corpus is a healthy sleeper**) · ~~F19~~ **F18** (capture-host `_PPI.txt` layout) — **LANDED 2026-08-05 as #961**, before this brief was written; the number was also wrong (F19 is `accFs`, F18 is the PPI layout). Found INDEPENDENTLY from the producer side while auditing `capture-host/writers.py` against the vendor corpus: 7 of 8 stream headers match a real Polar Sensor Logger export byte-for-byte and PPI did not. Same mechanism as F18 names, reached through a different consumer (`sigma-no-reference-analysis.js intervalMap`, not `parseDevicePPI`) — the interval sanity band rejects a ~1e15 device clock, so a LIVE stream reads as zero beats. 21 871 real rows were affected on the box. Nothing left to do here.
+| item | state 2026-08-15 | evidence |
+|---|---|---|
+| **F17** O2Ring drawn-axis `timingSource` | **DONE** | `ppgdex-dsp.js:564`, `:675` |
+| …and its three retractions | **ALL LANDED** | `O2RING-SYNTHESISED-AXIS` §3 · `WEARABLE-HOST-AXIS-FOLLOWUPS` *"RETRACTED IN PART — DEEP-AUDIT-V §2.7 F17"* · `PAT-PROXIMAL-DISTAL-PAIR` §2a *"PROVENANCE CORRECTION"* |
+| **F12** PpgDex gyro unit oracle | **REFUTED** | this brief's own §F12 — do not ship it |
+| **F16** PulseDex present-gates | **DONE** | `pulsedex-dsp.js:241` — *"AN UNCOMPUTABLE INDEX IS `null`, NEVER 0"* |
+| **F4** TCH AMBIGUOUS verdict | **DONE** | `integrator-dsp.js:2613` — *"THE SCREEN HAS THREE OUTCOMES; THIS IMPLEMENTED TWO"* |
+| **F5** collapsing corner labels | **DONE** | `integrator-tch.js:318` |
+| **F7** longitudinal sleep-date join | **DONE** | `integrator-longitudinal.js:231` |
+| **F13** `hostAxis.independent` dropped at the export boundary | **DONE** | `ppgdex-dsp.js:696` |
+| **F20+F21** ECGDex worker clock | **DONE** | `ecgdex-app.js` — and by a *better* route than either brief prescribed (see §3) |
+| **F18** capture-host `_PPI.txt` layout | **LANDED** #961 | already recorded below |
+| **F8** coupling bout-clustering | **OPEN — data-blocked** | needs a real OSA stream; the trio corpus is a healthy sleeper |
+
+**F8 is the only Tier-1/Tier-2 item left, and it is not waiting on code.** It waits on a recording this
+machine does not have, which is a different kind of open from the rest of this list and should not be
+ranked beside them.
+
+⚠️ **A stale "still open" list costs more than a stale DONE.** A reader who trusts this section spends a
+day re-fixing eight closed findings, and the eight were closed *by people who then did not come back to
+update the list they were working from*. That is the same asymmetry `truncation-fabricates-disproofs`
+names: a false green is eventually caught by the thing it gates, a false "there is work here" is caught
+by nobody.
 
 **Tier 3:** §1 above.
 
