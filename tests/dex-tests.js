@@ -953,7 +953,14 @@
       T.eq('an exact power law fits with NO residual — se is 0', Math.round(exact.se * 1e9) / 1e9, 0);
       T.eq('…and reports every τ point it used', exact.nTau, 4);
       /* The refusal is a contract too: two points fit any line and cannot be checked (§7). */
-      T.eq('fewer than three τ points refuses rather than fitting', C.allanSlope([{ tau: 1, adev: 1 }, { tau: 10, adev: 1 }]), null);
+      T.eq(
+        'fewer than three τ points refuses rather than fitting',
+        C.allanSlope([
+          { tau: 1, adev: 1 },
+          { tau: 10, adev: 1 }
+        ]),
+        null
+      );
       var white = [];
       for (var i = 0; i < 600; i++) white.push(rnd());
       /* CROSS-LANGUAGE KNOWN ANSWER from `capture-host/allan.py adev(phase, 1.0)` on this exact series.
