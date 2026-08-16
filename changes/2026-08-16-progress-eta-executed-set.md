@@ -20,3 +20,9 @@ remaining plan by observed-vs-planned divided a real elapsed by a 1 ms first gro
 `ETA 146m24s` for a run that takes 5. The correction now engages only after 5 % of the plan has run and
 is clamped to [0.2, 5] — a hint that is out by more than 5x is not worth scaling by. First ETA is now
 5m38s against a measured 4m55s, stable from group 1.
+
+**And `verify-fixtures.mjs` was swallowing the progress entirely.** It runs the FULL suite against the
+real corpus — >10 min — and is what `tools/release.mjs` refuses to cut a release without, yet it piped
+BOTH streams, so it printed one line and went silent for the whole run. stderr is now inherited; only
+stdout is captured, which is where the `✕` lines its failure parse reads are written.
+
