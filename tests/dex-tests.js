@@ -974,7 +974,17 @@
         [16, 0.0311570938],
         [32, 0.0159440059]
       ];
-      var worst = 0;
+      /* ANTI-VACUITY — the cheapest control there is, and it earns its space here twice over.
+         The comparison below is a loop over `PY`: empty that table and the loop never runs, `worst`
+         stays 0, and "matches capture-host/allan.py to 1e-9" passes having compared NOTHING. Measured
+         2026-08-16 by deleting the table: 15/15 green. This is also not hypothetical vandalism — a
+         `count=1` bulk regex aimed at a DIFFERENT `var PY` in this file replaced this one while a
+         sibling gate was being written, and only an unrelated row-count leg in that sibling caught it.
+         A pinned table should assert its own size regardless of what the assertion was added to
+         protect; it costs one line and it is the only thing standing between a lost reference and a
+         green suite. */
+      T.ok('ANTI-VACUITY · the pinned Python answers are present (an empty table passes the loop below)', PY.length >= 6 && got.length >= PY.length, 'PY rows=' + PY.length + ' got=' + got.length);
+      var worst = PY.length ? 0 : Infinity;
       for (var k = 0; k < PY.length; k++) worst = got[k].tau === PY[k][0] ? Math.max(worst, Math.abs(got[k].adev - PY[k][1])) : Infinity;
       T.ok('the spine core matches capture-host/allan.py to 1e-9', worst < 1e-9, 'worst |Δ| = ' + worst);
       /* THE PROMOTION MUST NOT HAVE FORKED. `ppgdex-dsp.js` still carries the copy it was promoted
@@ -1049,8 +1059,12 @@
         [16, 0.0311570938],
         [32, 0.0159440059]
       ];
+      /* ANTI-VACUITY. `got.length >= PY.length` is trivially true when PY is empty, and the loop
+         below then compares nothing while reporting a match — see the sibling group's note. Assert the
+         table's own size, not only that the curve reaches it. */
+      T.ok('ANTI-VACUITY · the pinned Python answers are present', PY.length >= 6, 'PY rows=' + PY.length);
       T.ok('the octave ladder reaches at least the pinned taus', got.length >= PY.length, 'got ' + got.length);
-      var worst = 0;
+      var worst = PY.length ? 0 : Infinity;
       for (var k = 0; k < PY.length; k++) {
         if (got[k].tau !== PY[k][0]) worst = Infinity;
         else worst = Math.max(worst, Math.abs(got[k].adev - PY[k][1]));
@@ -16754,6 +16768,20 @@
           inner(n);
         };
       };
+      /* ANTI-VACUITY. Every assertion in this group is raised INSIDE the loop below, so an empty or
+         truncated TABLE does not fail — it silently raises fewer. Measured 2026-08-16 by deleting the
+         rows: the group went 174 → 35 assertions and still reported GREEN. Nothing in the suite pins an
+         expected assertion count, so 139 checks can vanish with no signal at all. `>=` rather than `===`
+         so adding a threshold row is free, while losing one reds.
+         ⚠️ The number is the table's REAL size (20 rows, each raising several assertions), not a `> 0`
+         floor. A floor would be this same defect one level up — it detects only total loss, which is the
+         failure least likely to happen quietly. It earned that immediately: the first draft guessed 179
+         from counting nested brackets and this leg failed loudly rather than passing on a wrong premise. */
+      T.ok(
+        'ANTI-VACUITY · the threshold table is intact (an empty one silently raises no assertions)',
+        TABLE.length >= 20,
+        'rows=' + TABLE.length + ' (expected ≥ 20 — each row raises several assertions; 20 rows ⇒ 174)'
+      );
       var r, c, i, j, set, patch;
       for (i = 0; i < TABLE.length; i++) {
         r = TABLE[i];
@@ -34942,6 +34970,10 @@
         { raw: '2026-06-07 22:00:00', tMs: U(2026, 5, 7, 22, 0, 0), off: null },
         { raw: 'not a date', tMs: null, miss: true }
       ];
+      /* ANTI-VACUITY — same shape as the OxyDex threshold table: every assertion is raised inside the
+         per-row walk, so an emptied TABLE reports green having checked nothing. Measured: 54 → 27
+         assertions, still green. */
+      T.ok('ANTI-VACUITY · the per-node conformance table is intact', TABLE.length >= 5, 'rows=' + TABLE.length + ' (expected ≥ 5)');
       function checkLive(name, fn) {
         T.ok(name + ' present', typeof fn === 'function');
         if (typeof fn !== 'function') return;
