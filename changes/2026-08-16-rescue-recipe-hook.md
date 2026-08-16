@@ -40,4 +40,22 @@ Clearing `strict` did not drain it either, because auto-merge does not re-evalua
 Both halves are now stated, alongside `queue-doctor` and the *availability* (not cost) reason a merge
 queue is impossible here.
 
-Gate: `npm run test:hooks` EXIT=0 · `docs-ledger` 38/38.
+**3 · `tools/auto-rescue.sh` — the rule, on a timer.** §👥.2 already says *found finished,
+uncommitted work that isn't yours? Snapshot it, don't step on it.* That depended on somebody
+noticing; on 2026-08-16 nobody did, and a `land-pr` fix survived only because its verdict string
+happened to appear in a log with no matching source in git.
+
+Hourly, it snapshots each checkout's uncommitted work to **`refs/rescue/<timestamp>`** — a commit
+whose tree is the working tree, parented on HEAD. It writes **only** that ref: not the tree, not the
+index, not any branch. Refs under `refs/rescue/` never appear in `git branch` and cannot be checked
+out by accident. It skips a clean tree, skips a mid-rebase one, and mints nothing when the tree has
+not changed since the last snapshot. Verified against the live shared checkout: 188 paths captured,
+tree still 188 dirty afterwards, ref present and absent from `git branch`, second run a no-op.
+
+**This is the answer to what a syncer cannot do.** A checkout with live uncommitted work must never
+be fast-forwarded, so `sync-main` correctly SKIPS it — and the primary checkout is consequently **197
+commits behind** with 188 dirty paths. Syncing is not the fix there; not losing the work is. Both
+timers now watch both checkouts: `sync-main` catches a tree up the moment it goes clean, and
+`auto-rescue` covers the interval.
+
+Gate: `npm run test:hooks` EXIT=0 · `docs-ledger` 38/38 · `shellcheck --severity=style` clean.
