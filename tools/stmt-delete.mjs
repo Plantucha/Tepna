@@ -436,6 +436,28 @@ async function runLevelB(file, group, jobs, covPath) {
   const abs = join(ROOT, file);
   const src = readFileSync(abs, 'utf8');
 
+  /* 🔴 `execFileSync` BLOCKS THE EVENT LOOP, so `--jobs N` BOUGHT NOTHING. The worker loop contains
+     no `await`, so `trees.map(worker)` invoked worker #1, which ran the ENTIRE subject list
+     synchronously and never yielded — workers 2..N were not invoked until it was done, by which
+     point every index was claimed and they returned immediately. Measured on the clock.js run:
+     ONE child process at any moment, 285 s per subject, 8 hours for 101 of 179 subjects.
+
+     ⚠️ It hid behind a plausible ETA. The estimate divided by `jobs`, so it under-reported by
+     exactly the factor that did not exist — "1h05m left" for ~6h of work — and two separate
+     diagnoses of the slowness (I/O contention on the volume, then over-subscription) were both
+     wrong: there was never any parallelism to contend for. `execFile` was already imported here and
+     simply never used, which is the tell that the async path was intended from the start.
+
+     `ran` still demands the TAP plan: a load failure exits non-zero with no plan, and that is
+     inconclusive, not a kill. */
+  const runSuiteAsync = (cwd) =>
+    new Promise((resolve) => {
+      execFile(process.execPath, [join(cwd, 'tests/run-tests.mjs'), '--group=' + group], { cwd, encoding: 'utf8', timeout: 900000, maxBuffer: 1 << 24 }, (err, stdout) => {
+        if (!err) return resolve({ ran: true, passed: true });
+        resolve({ ran: typeof err.code === 'number' && suiteReported(stdout), passed: false });
+      });
+    });
+
   const runSuite = (cwd) => {
     try {
       execFileSync(process.execPath, [join(cwd, 'tests/run-tests.mjs'), '--group=' + group], { cwd, encoding: 'utf8', timeout: 900000, maxBuffer: 1 << 24 });
@@ -577,7 +599,7 @@ async function runLevelB(file, group, jobs, covPath) {
       rmSync(wAbs, { force: true }); // UNLINK FIRST — hard-linked to the repo's own inode
       writeFileSync(wAbs, s.mutant);
       const t0 = Date.now();
-      const r = runSuite(dir);
+      const r = await runSuiteAsync(dir);
       runSecTotal += (Date.now() - t0) / 1000;
       const verdict = classifyStatementVerdict(r.ran, r.passed);
       results.push({ ...s, verdict });
