@@ -51,6 +51,17 @@
  * once exited 0 with empty stdout when renamed, and "nothing found" is exactly what a session
  * cannot distinguish from a true negative.
  *
+ * ── ⚠️ A FLAT FIELD IS NOT EVIDENCE OF ABSENCE ─────────────────────────────────────────────────
+ * Measured on live use: a query returned 0.593 / 0.586 / 0.581 / 0.573 / 0.567 — no standout — and
+ * the reader opened the top two, found nothing, and concluded the work was unbuilt. The conclusion
+ * happened to hold, but it held because they later opened the other three, not because the scores
+ * were flat.
+ *
+ * Flatness means the corpus has many documents of similar distance from the query, which is the
+ * NORMAL shape when the vocabulary is shared — `session`, `night`, `window` and `duration` all rank
+ * together. It is not a signal that nothing matched. Read five, or read none; reading two and
+ * inferring absence is the one use of this tool that produces a confident wrong answer.
+ *
  * ── ⚠️ ADJACENCY IS NOT EQUIVALENCE ────────────────────────────────────────────────────────────
  * A near-neighbour index will systematically place the two nearest-but-DISTINCT methods side by
  * side. Real instance: a "two-line lag-1 autocorrelation" (a CORRELATION test) ranks adjacent to
@@ -361,6 +372,8 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   console.log('\n  ⚠ These are PATHS TO READ, not an answer. This tool does not summarise a document,');
   console.log('    and ADJACENCY IS NOT EQUIVALENCE — the two nearest results may answer DIFFERENT');
   console.log('    questions with the same words. Read the one you opened, not the one beside it.');
+  console.log('    A FLAT FIELD IS NOT ABSENCE: similar scores mean shared vocabulary, not no match.');
+  console.log('    Read all five before concluding a thing was never decided.');
   console.log('    because a plausible summary of a brief nobody opens is the failure it exists to prevent.\n');
 }
 
