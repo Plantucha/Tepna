@@ -437,6 +437,102 @@ contradiction, which for prose is a language model, and **this repo's own rule i
 cannot be evidence.** So it stays prevention, and `stale-file` plus required-read is the tractable
 proxy rather than a compromise.
 
+## 13c · ROUND FOUR — the Anglophone bias, and what searching in Chinese found
+
+### 13c.1 · The bias was in the retrieval, not the judgement
+
+Rounds 1–3 were searched **entirely in English**, against a tool documented as US-only. The skew
+entered before any assessment happened, and calling something "the canonical work" partly describes
+Scopus/WoS indexing coverage rather than quality. Two concrete errors this produced:
+
+**(a) The change-point section cited the procedure and omitted the theorem.** §9 listed Page (1954,
+CUSUM) and Adams & MacKay (2007). It did not list:
+
+| work | detail | status |
+|---|---|---|
+| **Shiryaev, A. N. (1963)** — *On optimum methods in quickest detection problems*, Theory of Probability and Its Applications 8(1):22–46 — **DOI 10.1137/1108002** | Bayesian quickest-detection theory; thresholding the posterior probability of an active change is **strictly optimal**, minimising average detection delay at a given false-alarm rate | verified + DOI |
+| **Shiryaev–Roberts procedure** | under generalised-Bayesian and multi-cyclic optimality, "the best one can do" given specified pre/post-change distributions | concept, multiple sources |
+
+Citing CUSUM without Shiryaev is citing a method while omitting the result that says when it is optimal.
+
+**(b) Time-frequency was treated as NIST + BIPM.** For a project whose core problem is *comparing
+clocks with no reference*, omitting two national timing institutes is coverage failure:
+
+- **NTSC** (National Time Service Center, Chinese Academy of Sciences, Xi'an) — keeps UTC(NTSC) on
+  22 caesium clocks and 8 hydrogen masers, publishes BeiDou time transfer in *Metrologia*, operates an
+  ⁸⁷Sr optical lattice clock measured against TAI.
+- **VNIIFTRI** (Russia) — the equivalent role for UTC(SU) and GLONASS timing.
+
+**Probable but UNVERIFIED, and recorded as such:** Allan variance is a second-order structure
+function of phase, and **Kolmogorov's (1941) structure-function formalism** is the general treatment
+of processes with **stationary increments** — which is exactly what a clock phase is. If that holds,
+the σ_y(τ) slope taxonomy is a special case of a broader framework. **No source stating the
+equivalence directly was found.** Related Soviet-school work in scope: **Kotelnikov** (sampling, 1933,
+predating Shannon) and **Kolmogorov–Wiener** prediction/filtering of stationary sequences — the
+foundation under the interpolation `hostAxis` performs.
+
+⚠️ **Asymmetry to state, not hide:** these were verified for *existence*, but much is published in
+Russian or Chinese and would be assessed via translated abstracts rather than read. That is weaker
+footing than the English-language entries above, and they are not equivalently vetted.
+
+### 13c.2 · A METHOD from the Chinese satellite-clock literature — and a gap it exposes
+
+Searching in Chinese (`钟差建模`, `周期项提取`, `重叠哈达玛方差`) returns a **standard pipeline** for
+BeiDou on-board clock analysis that the English-language time-frequency sources did not surface,
+because the GNSS community works with clocks carrying *known* periodic terms (orbital period, thermal
+cycling) and therefore treats periodicity extraction as routine:
+
+```
+1. 二次多项式拟合  quadratic fit           → remove trend (offset + rate + drift)
+2. 周期项提取      periodic extraction     → from the FIT RESIDUAL, not the raw series
+3. FFT 频谱图      spectrum of the residual→ identify which periods are present
+4. 重叠哈达玛方差  overlapping Hadamard    → stability on what remains
+```
+
+**Decomposition BEFORE stability.** Trend → periodic → noise, and the variance estimator only ever
+sees the residual.
+
+**THE GAP THIS EXPOSES, measured 2026-08-16:**
+
+```
+grep -c 'fft|periodog|periodic|spectral'   capture-host/allan.py → 0
+                                            clock.js             → 0
+```
+
+…while `allan.py:270` and `clock.js` both **print** to the caller:
+
+> `"drift"` — *"deterministic — fit and remove it, never average through it"*
+
+**The advice is given and never acted on.** Nothing detrends, and nothing looks for periodicity at
+all. A periodic component in the phase would be classified as a **noise type** by the slope
+classifier rather than identified as a deterministic term — the exact error the string warns about,
+one category over.
+
+Tepna has physical reasons to expect periodicity: the **7.5 ms BLE connection interval**, the
+**~90 s Verity reconnect cycle**, and overnight **thermal cycling**. None has ever been looked for.
+
+### 13c.3 · A second method, and it lands on an open problem
+
+The same literature (`一种基于MAD改进的GNSS高程时间序列粗差探测方法`; `一种基于小波分析的卫星钟差数据粗差处理方法`)
+uses `σ = median{|cd_j| / 0.6745}` on wavelet coefficients and MAD with parameter 5 for outlier
+rejection — **and states the limitation directly**:
+
+> 常用的 GNSS 时间序列粗差剔除方法主要有 3σ 法、中位数(MAD)法、四分位距(IQR)法等，但这些方法都存在
+> **数据剔除效果在很大程度上受限于数据长度**的缺陷。
+>
+> *(3σ, MAD and IQR outlier rejection are all substantially limited by series length.)*
+
+That is **Vigil box's length-biased Verity fragment problem**, already characterised by a field that
+hit it first. Worth reading before hand-rolling a fragment-length correction.
+
+### 13c.4 · A retrieval failure mode worth recording
+
+Searching `三角帽` (three-cornered hat) returned Stardew Valley and 18th-century millinery — the term
+is also the ordinary word for a **tricorne**. **Homonym collision in the target language** is a
+distinct failure from the English-only bias: the query was right and the corpus answered a different
+question. When searching a second language, verify the technical term is not also a common noun, and
+prefer a phrase that cannot collide (`时频 三角帽 方差` rather than `三角帽`).
+
 ## 14 · Lower priority — technique already used, justification missing
 
 | field | work | why |
