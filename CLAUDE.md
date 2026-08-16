@@ -281,7 +281,8 @@ one shape: **the check ran, and reported success about something it never examin
 ### 5 · LANDING: `main` moves faster than CI, so every extra PR is another lost race
 
 **Measured 2026-08-09.** `main` moves a **median 7.2 min** between merges (min 1.2, max 120; only **8 of
-19** recent gaps were ≥ 12 min). CI is **~10–12 min** across 7 required checks. The `protect-main` ruleset
+19** recent gaps were ≥ 12 min). CI is **~10–12 min** across 8 required checks (`stale-file` became the
+8th on 2026-08-16 — it blocks a stale prose edit rather than only reddening it). The `protect-main` ruleset
 sets `required_status_checks.strict = true`, so the branch must be **up to date at merge time** — and
 GitHub's auto-merge does **not** update it for you. A PR therefore has to hold *all checks green* and
 *main stood still* in the same instant, a window open well under half the time.
