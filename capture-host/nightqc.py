@@ -122,6 +122,83 @@ _PREV_PROBE_SEC = 12 * 3600.0
 # Stamp parsing moved to writers.file_stamp (audit F5) — anchored, year-validated, one implementation.
 
 
+# ── THE NIGHT BAND ──────────────────────────────────────────────────────────────────────────────────
+# A capture SESSION is not a night. Contiguity was a workable proxy while the box recorded only at night;
+# under continuous recording a 1 h gap almost never splits, so sessions measured 31.73 h, 16.24 h and
+# 20.39 h on 2026-08-13/14/15 — QC called a 31.7-hour block "the night".
+#
+# ⚠️ THE FOLDER PROBLEM IS ALREADY SOLVED and this is NOT that. Sessions merge across midnight and
+# `searched_dirs` spans both folders (QC-SCOPE-RESOLUTION-2026-07-28); all three judged sessions above
+# cross midnight correctly. What remains is day-vs-night INSIDE one contiguous session.
+#
+# 20:00 -> 10:00 deliberately WIDE. Measured over 28 nights (HRVDEX-ALL-NIGHT-SCOPE-2026-07-20): 27
+# started 21:00-23:00 and one started at 01:06, and a `getUTCHours() < 10` "morning only" rule kept 1 of
+# 28. A band fitted to the mode drops the outlier night entirely, which is the failure this inherits
+# rather than repeats. 14 h is longer than anyone sleeps ON PURPOSE — it bounds where a night may fall,
+# it does not claim the subject was in bed for it.
+_NIGHT_BEGIN_H = 20
+_NIGHT_END_H = 10
+
+
+def night_band(ts: float) -> tuple:
+    """The [begin, end) night band containing `ts`, as epochs.
+
+    Anchored on the EVENING date: a stamp at or after 20:00 belongs to the band starting that evening, a
+    stamp before it belongs to the previous evening's. So 02:42 and 22:30 either side of one midnight
+    land in the SAME band, which is the whole point.
+
+    ⚠️ Naive local arithmetic, matching `_midnight_of` — an hour off on the two DST changeover days a
+    year. Bounded and benign for a band this wide; a 14 h window does not care about one hour.
+    """
+    d = datetime.fromtimestamp(ts)
+    anchor = d.date() if d.hour >= _NIGHT_BEGIN_H else (d - timedelta(days=1)).date()
+    begin = datetime.combine(anchor, datetime.min.time()).timestamp() + _NIGHT_BEGIN_H * 3600.0
+    return begin, begin + (24 - _NIGHT_BEGIN_H + _NIGHT_END_H) * 3600.0
+
+
+def _overlap(a0: float, a1: float, b0: float, b1: float) -> float:
+    """Seconds two intervals share; 0 when they do not touch."""
+    return max(0.0, min(a1, b1) - max(b0, a0))
+
+
+def night_view(session, files) -> "dict | None":
+    """What of a session actually fell in the night band — span, and rows APPORTIONED to it.
+
+    ⚠️ **Rows are apportioned PRO RATA over each file's own span, not counted.** QC reads filenames and
+    counts newlines; it never parses a timestamp (that is what makes it cheap enough to run every ten
+    minutes), so it cannot know WHICH rows fell inside the band. Each file contributes
+    `rows * overlap(file, band) / file_span`, which assumes a roughly uniform row rate WITHIN one file —
+    true for a capture stream, and the assumption is stated here rather than hidden because it is the
+    one thing that could make these numbers wrong.
+
+    Measured 2026-08-13..15: a 20.39 h session becomes a 10.42 h night carrying 63 % of its rows, while a
+    3.35 h session that was entirely night reads 1.00.
+
+    ⚠️ **REPORTED, NOT JUDGED.** `ok`, `coverage` and `missing` are deliberately untouched. Flipping the
+    verdict onto this changes every number in an alarm with no ground truth to validate against; the
+    band and the pro-rata assumption should be watched on real nights first. Same stance as
+    `system_files`.
+    """
+    if not files:
+        return None
+    s0, s1 = session[0], session[1]
+    b0, b1 = night_band((s0 + s1) / 2.0)
+    span = _overlap(s0, s1, b0, b1)
+    rows = 0.0
+    for f in files:
+        st = f.get("session")
+        if st is None:
+            continue
+        dur = float(f.get("span_sec") or 0.0)
+        if dur <= 0:
+            rows += f["rows"] if b0 <= st < b1 else 0.0      # a zero-span file is a point in time
+            continue
+        rows += f["rows"] * _overlap(st, st + dur, b0, b1) / dur
+    total = sum(f["rows"] for f in files)
+    return {"begin": round(b0), "end": round(b1), "span_sec": round(span),
+            "rows": round(rows), "row_fraction": (rows / total) if total else None}
+
+
 def _session_of(fname: str, mtime: float) -> float:
     """The capture SESSION a file belongs to, as an epoch — the `_YYYYMMDDHHMMSS_` START stamp
     writers.capture_filename() embeds (the instant the connection opened). Falls back to the file's mtime
@@ -1082,6 +1159,10 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         # below: a verdict that cannot be audited against the ground it was computed from is a claim.
         "judged_session": {"start": round(cur[0]), "end": round(cur[1]),
                            "rows": sum(f["rows"] for f in cur[2])} if data else None,
+        # WHAT OF THAT SESSION WAS ACTUALLY NIGHT. Published beside the session rather than replacing
+        # it: under continuous recording the judged session runs 16-31 h, so `judged_session.rows` is
+        # not a claim about a night. Reported, gated by NOTHING — see night_view's docstring.
+        "night_window": night_view(cur, cur[2]) if data else None,
         "searched_dirs": [os.path.basename(p.rstrip("/")) for p in searched],
         "data_files": len(data),
         # NINE INDEPENDENT STREAMS ACROSS THREE VENDORS DO NOT FAIL IN THE SAME SECOND. When the scope
