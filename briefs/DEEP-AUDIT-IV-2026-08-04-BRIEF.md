@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-15 (**§1 EXECUTED elsewhere** as #956, verified in the tree; **§2 EXECUTED 2026-08-15**. Punch-list item 2 — the alternation cross-check — is still open and now has a stated method; §3 remain leads) · **Created:** 2026-08-04 · **Charter:** `AUDIT-PROMPT.md` · **Follows:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` (DONE 2026-07-29) · `DEEP-AUDIT-III-FOLLOWUPS-II-2026-07-29-BRIEF.md` (DONE 2026-07-31)
+**Status:** IN-PROGRESS — 2026-08-15 (**§1 EXECUTED elsewhere** as #956, verified in the tree; **§2 EXECUTED 2026-08-15**. Punch-list item 2 — the alternation cross-check — **RUN 2026-08-16: 2 of 5 nights measured, both FULL ACC (negative); 3 blocked on raw data absent from all four corpus trees. Also corrects the count: FIVE alternation nights, not six** (§7.2-RUN); §3 remain leads) · **Created:** 2026-08-04 · **Charter:** `AUDIT-PROMPT.md` · **Follows:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` (DONE 2026-07-29) · `DEEP-AUDIT-III-FOLLOWUPS-II-2026-07-29-BRIEF.md` (DONE 2026-07-31)
 
 # Deep audit IV — the fifth instance of 3a, in the file the 3a fix shipped in yesterday
 
@@ -114,11 +114,19 @@ irony: `DEEP-AUDIT-2026-07-22` fixed the Integrator to stop comparing PpgDex on 
 whole-record `sdnn` *and to use `sdnnRobust` instead*. This finding is a defect in the axis that fix
 routed everything onto.)
 
-**Directional consequence — HYPOTHESIS (not executed against the corpus):** `Dv.hrvShapeViolates(rmssd,
-sdnnRobust)` (`tests/dex-tests.js:8233`) is the shipped detector for the PPG beat-alternation artifact,
-and it fires on `rmssd > sdnnRobust`. Inflating `sdnnRobust` moves that comparison toward *not* firing,
-so on a partial-ACC night this defect can **suppress a known quality flag**. Worth running against the
-six real alternation nights before the fix lands, to see whether any of them is partial-ACC.
+**Directional consequence — hypothesis, now PARTLY TESTED (see §7.2-RUN, 2026-08-16):**
+`Dv.hrvShapeViolates(rmssd, sdnnRobust)` (`tests/dex-tests.js:8233`) is the shipped detector for the PPG
+beat-alternation artifact, and it fires on `rmssd > sdnnRobust`. Inflating `sdnnRobust` moves that
+comparison toward *not* firing, so on a partial-ACC night this defect can **suppress a known quality
+flag**.
+
+Run against the corpus 2026-08-16. **There are FIVE such nights, not six** — the shipped
+`shapeViolation` flag and an independent recomputation agree exactly on the same five. Two of them have
+raw data that pairs to the export second-for-second, and **both have FULL ACC coverage**, including
+2026-08-07, the strongest alternation in the corpus (ratio 1.27). The remaining three cannot be
+answered: their source recordings are absent from all four trees in `docs/CORPUS-LOCATIONS.md`, leaving
+only same-named fragments (one is 2 seconds long). **Evidence against the hypothesis on the nights that
+can be asked; not a refutation.**
 
 ### 1.5 Fix sketch
 
@@ -245,6 +253,56 @@ answered from the committed exports**, and that is worth recording so the next r
 So it needs a corpus re-run pairing each PpgDex night with its ACC stream, not a scan. It is a
 retrospective question now that §1 is fixed — it changes the record, not the code — which is why it is
 recorded rather than blocking this brief.
+
+### 7.2-RUN · Executed 2026-08-16 — **2 of 5 answered, both NEGATIVE; 3 blocked on absent raw data**
+
+**First correction: there are FIVE alternation nights, not six.** The "six" was asserted here and in
+several other briefs without a list. Across all 51 committed `uploads/trio/*/PpgDex_*.node-export.json`,
+the shipped detector's own `hrv.time.shapeViolation` flag is set on exactly **5**, and an independent
+recomputation of `rmssd > sdnnRobust` from the same exports returns the **same 5** — the two agree
+exactly, so this is not a threshold artefact:
+
+| night | rmssd | sdnnRobust | ratio | `timingSource` |
+|---|---|---|---|---|
+| 2026-07-01 | 66.5 | 61.2 | 1.09 | `device` (phone) |
+| 2026-08-04 | 82.2 | 75.6 | 1.09 | `device+host` (box) |
+| 2026-08-06 | 74.1 | 68.1 | 1.09 | `device+host` |
+| 2026-08-07 | 112.6 | 89.0 | 1.27 | `device+host` |
+| 2026-08-08 | 100.2 | 85.7 | 1.17 | `device+host` |
+
+**Two nights have raw data that pairs to the export exactly, and both have FULL ACC coverage:**
+
+- **2026-07-01** — PSL tree, under `Polar_Sense_*` naming (not `Polar_VeritySense_*`, which is why an
+  earlier glob found nothing). PPG `21:43:40 → 04:55:29`, ACC `21:43:48 → 04:55:28`; the export's span
+  is `durSec 25909.5` = the same 7.20 h. ACC covers all but the first 8 s, at 25.8 Hz effective against
+  a ~26 Hz phone nominal — no interior gap large enough to matter.
+- **2026-08-07** — `vigil:/srv/tepna/captures`. PPG `21:50:54 → 06:51:42` (9.01 h, 1 788 881 rows,
+  55.1 Hz), ACC `21:50:52 → 06:51:41` (1 677 101 rows, 51.7 Hz vs 52 Hz nominal). The ACC starts two
+  seconds **before** the PPG. Export `durSec 32448.38` matches the PPG span to the second.
+
+**So on both nights where the question can be asked, the answer is no: the ACC was on for the whole
+recording, so §1's defect could not have suppressed the flag there.** That is evidence against the
+hypothesis, not a refutation of it — see below.
+
+**Three nights cannot be answered, and the reason is missing raw data rather than missing method:**
+
+| night | export span | what the trees actually hold |
+|---|---|---|
+| 2026-08-04 | 8.17 h from 22:49:42 | vigil + smoketest both hold only a **0.49 h fragment** starting 04:48 |
+| 2026-08-06 | 9.39 h from 20:54:30 | vigil holds **2 seconds** (129 PPG rows) |
+| 2026-08-08 | 6.45 h from 00:33:34 | Verity PPG and ACC **absent** on vigil |
+
+⚠️ **The fragments are the trap here.** Each of those directories exists and is named for the right
+date, so a coverage check run without comparing spans would have read the 2-second capture as a night
+and reported "full ACC coverage, 53.1 Hz" — a clean-looking answer about the wrong recording. The
+pairing test (export `durSec` ≡ raw span) is what separates them, and it is the step to keep if anyone
+re-runs this.
+
+**Status of item 2: advanced, not closed.** 2/5 measured negative, 3/5 blocked on raw data that is not
+in any of the four locations `docs/CORPUS-LOCATIONS.md` lists. Closing it needs those three recordings
+to surface, or an explicit decision that two clean negatives on the two highest-ratio *available*
+nights — including 2026-08-07, the strongest alternation in the corpus at 1.27 — is enough to retire
+the concern.
 
 ## 3 · Lower-severity observations — leads, not findings
 
