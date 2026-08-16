@@ -17,6 +17,7 @@
  * never outputHash, so a pure output regeneration under new code needs this to close GATE B.
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 import { execFileSync } from 'node:child_process';
+import { fmtDuration, progressLine } from './run-progress.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -202,7 +203,23 @@ export async function runRegen({ fixtures, fixturesDir, corpusDir, check, rereco
        `skipped` count conflated them. That conflation is what let a run which regenerated only the
        synthetic fixtures read as a normal, complete pass. Counted and reported apart. */
     absent = 0;
+  /* ── PROGRESS. Regenerating a golden re-runs the real modules over a real corpus, so this loop is
+     minutes of silence per node and the operator cannot tell a slow fixture from a wedged one.
+
+     ⚠️ RESUME IS DELIBERATELY NOT ADDED HERE, unlike the mutation tools. A mutation verdict is a
+     read-only observation, so resuming one is free; a regeneration WRITES the fixture set, and a
+     resumed regeneration would leave that set half-updated — some files from this code, some from
+     whatever ran before. That is exactly the mixed-provenance state the resume fingerprint exists
+     to prevent, and these runs are minutes rather than hours, so the trade is not worth taking. */
+  const regenT0 = Date.now();
+  let regenDone = 0;
   for (const F of fixtures) {
+    /* Reported at the START of each item, not the end: the loop leaves via several `continue`
+       paths (absent fixture, build threw, historical record) and an end-of-body report would
+       silently skip exactly the items a reader most wants to see counted. */
+    const perItem = regenDone > 0 ? (Date.now() - regenT0) / 1000 / regenDone : 0;
+    console.log(progressLine(regenDone, fixtures.length, 1, perItem, F.name.slice(0, 22)));
+    regenDone++;
     const p = path.join(fixturesDir, F.name);
     const isNew = !fs.existsSync(p);
     if (isNew && !F.newRecord) {

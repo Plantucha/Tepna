@@ -50,6 +50,42 @@ known-answer already exists for `allanFromPhase` (MINSTD, deliberately not the g
 2⁵³ in JS but not in Python's bignums, so the two lanes would build different series and the
 "cross-language" pin silently would not be one). Extending that to `classify` is the stronger gate.
 
+### 2a · That extension is BUILT — 2026-08-16, group *"the two executable lanes must AGREE"*
+
+23 rows, each the literal return of `capture-host/allan.py classify(sl, se)` **run** on that input, with
+`DexClock.classifyAllan` executed live against it. Inputs sit where the lanes could differ: on an edge,
+either side of one, `se == 0` (must NAME a type, not refuse), an interval whose upper end lands exactly
+on the top edge, allan.py's own two exact-float fixtures, a band straddling everything including drift,
+and four searched pairs putting the interval's **lower** end exactly on each edge.
+
+**Result: the lanes agree on every DECISION** — noise, candidates, refusal, unrounded slope — on all 23
+rows. Six mutants confirm the gate sees divergence (band 1.96→1.0 · edge `<`→`<=` · drift edge 0.75→0.8 ·
+meaning reworded · straddle `<`→`<=` · re-rounding the slope).
+
+**Two findings it produced, neither visible to table-equality:**
+
+1. **`meaning` differs**: `√N` (clock.js) vs `sqrt(N)` (allan.py). The table gate never compared
+   `meaning`, so nothing saw it. Pinned via one exact rewrite, and the **count of rows needing it is
+   pinned too (4)** — a normaliser that silently absorbs the next divergence would be this repo's
+   favourite defect wearing a fix. That count already earned its place: adding the four edge fixtures
+   moved it 3 → 4 and the leg caught it.
+2. **KNOWN DEFECT · `clock.js` hardcodes the drift edge.** allan.py derives it from the table
+   (`sl + half > noise[-1][0]`); clock.js writes `sl + half > 0.75`. Identical today because the last
+   edge *is* 0.75 — so behaviour-identical, no re-bundle owed — but a table edit moves one lane and not
+   the other **while table-equality still passes**. `clock.js` is spine, so the one-line fix rides the
+   next spine re-bundle rather than forcing one.
+
+⚠️ **The gate had a hole, again, and again only mutation found it.** `sl - half < e` mutated to `<=`
+survived all 19 original rows: no input placed the interval's lower end exactly on an edge, so the
+comparison was unobservable. Fixed by searching for exact-float pairs (`sl=-0.24999804, se=1e-06` gives
+`sl - 1.96·se == -0.25` exactly) — the same search allan.py's own comment recommends. **Second time in
+this suite's history that mutating the GATE rather than the code was the only thing that worked.**
+
+⚠️ **A bulk edit while writing this group replaced the WRONG `var PY`** — `tests/dex-tests.js` holds two
+other known-answer tables of that name, and a `count=1` regex took the `allanFromPhase` one. Caught by
+the new group's own ANTI-VACUITY row-count leg reporting 19 where 23 was expected. The table is now
+`PY_CLASSIFY`; a generic name in a 44 k-line file is a collision waiting to happen.
+
 ⚠️ **The gate had a hole of exactly the kind it exists to prevent, found by mutating it.** The first draft
 tested `/def classify\([^)]*se/`, which matches `se_unused=None` as a **substring** — so renaming the
 parameter away left the gate green. Four mutants were applied; that one survived until the assertion was
@@ -118,10 +154,20 @@ And a stale status is not symmetric: **a stale `DONE` makes someone re-check fin
 
 ## 6 · Done when
 
-- [ ] `ppgdex-dsp.js classifyAllan` takes an SE and refuses at a boundary, matching its two siblings —
-      landed as its own unit with the re-bundle, `computeHash` move and corpus re-verification §🔏 owes.
-- [ ] The KNOWN DEFECT pin in the parity group is converted to a contract assertion **in that same PR**.
-      A pin outliving its defect is worse than no pin.
+- [x] **DONE 2026-08-16** — `ppgdex-dsp.js classifyAllan(sl, se, nTau)` refuses at a boundary, publishes
+      `slopeSE`/`nTau`/`candidates`, and returns the slope UNROUNDED, matching both siblings. New params
+      are optional and LAST, so every pre-existing caller keeps the pre-SE contract by construction.
+      It **cannot delegate** to `clock.js` — `PpgDex.html` inlines no `clock.js`, so `DexClock` is
+      undefined in that bundle; the duplication is structural, not laziness, which is the argument for
+      pinning answers rather than trusting the copies. Landed with the re-bundle (`manifestHash`
+      `0a6b1833a7d9` → `d0bd8cbe0add`, 6 fixtures re-stamped) and the corpus re-verification §🔏 owes:
+      `verify-fixtures.mjs` ran green over the real corpus and stamped
+      `PpgDex_2026-06-27_equiv.node-export.json verifiedUnder → 16583a17082c` (13 already current).
+- [x] **DONE 2026-08-16** — the KNOWN DEFECT pin is now three contract assertions in the same PR
+      (SE-aware · no `r2(sl)` in the record · drift edge derived from `ALLAN_NOISE`, not hardcoded).
+      The known-answer group also gained ppgdex as a **third lane against the same pinned Python
+      answers** — all three now agree on all 23 rows, checked against one external reference rather
+      than two copies agreeing with each other.
 - [ ] A decision on §3: adopt lag-1 identification, or record why the SE band stays — **with the
       measurement**, not the preference. If adopted, both lanes move together or the parity gate reds.
 - [ ] §4's three questions answered, or explicitly parked with reasons.

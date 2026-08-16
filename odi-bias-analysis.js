@@ -428,8 +428,33 @@
     return null;
   }
 
-  // NSRR harmonized AHI variables, best-first per cohort (4% desat / AHI definitions).
-  var NSRR_AHI_VARS = ['ahi_a0h4', 'ahi_a0h4a', 'ahi_a0h3a', 'ahi_a0h3', 'ahi_c0h4', 'ahi_c0h3', 'ahi_ap0nop', 'poohi4', 'poohi3', 'rdi4p', 'rdi3p', 'oahi4', 'oahi3', 'ahi', 'rdi'];
+  /* NSRR harmonized AHI variables, best-first.
+     ⚠ THIS ORDER IS A SCIENTIFIC CHOICE, NOT A CONVENIENCE — do not sort it back.
+
+     This tool exists to measure how much a pulse-oximeter ODI UNDER-counts AHI, and the
+     mechanism it is measuring is that ODI is blind to hypopneas which terminate in an
+     arousal WITHOUT a qualifying desaturation. So the reference definition decides the
+     answer before any data is read: pick a reference that is itself defined by
+     desaturation (`ahi_a0h4` = apneas + hypopneas with ≥4 % desat) and reference and
+     estimator share the blind spot, the missed events are missing from BOTH sides, and
+     the tool reports a small bias — about a comparison it never actually made.
+
+     `ahi_a0h4` was first in this list until 2026-08-16, i.e. the default was the one
+     variable guaranteed to mask the effect. Arousal-inclusive definitions (trailing `a`)
+     now lead, lowest desaturation threshold first, since that is the most inclusive
+     reference and therefore the one that can SEE the events ODI misses. */
+  var NSRR_AHI_VARS = ['ahi_a0h3a', 'ahi_a0h4a', 'ahi_a0h3', 'ahi_a0h4', 'ahi_c0h3', 'ahi_c0h4', 'ahi_ap0nop', 'poohi3', 'poohi4', 'rdi3p', 'rdi4p', 'oahi3', 'oahi4', 'ahi', 'rdi'];
+
+  /* Reference definitions that count arousal-terminated hypopneas. Explicit rather than a
+     suffix regex: `rdi3p`/`poohi3` also end in a digit-plus-letter shape, and guessing wrong
+     here mislabels the confound in the direction that hides it. Unknown ⇒ null ⇒ warn. */
+  var AHI_VARS_WITH_AROUSAL = ['ahi_a0h3a', 'ahi_a0h4a', 'ahi_c0h3a', 'ahi_c0h4a', 'ahi_o0h3a', 'ahi_o0h4a'];
+  function ahiCountsArousals(v) {
+    if (!v) return null;
+    if (AHI_VARS_WITH_AROUSAL.indexOf(v) >= 0) return true;
+    if (NSRR_AHI_VARS.indexOf(v) >= 0) return false;
+    return null; // unrecognised variable — caller must not assume either way
+  }
   var NSRR_ID_VARS = ['nsrrid', 'pptid', 'subject', 'id', 'studyid', 'mesaid', 'idtype'];
 
   function onAhiCsv(text) {
@@ -479,7 +504,21 @@
         }
       }
       AHI_CSV.__var = ahiVar;
-      setStatus(n + ' rows · AHI var “' + ahiVar + '” · id col “' + head[idCol] + '” (add EDFs to pair)', 'done');
+      /* Name the confound at the moment the reference is chosen. The variable name was always
+         printed, but as a neutral fact — and a reader who does not already know that `…h4`
+         means "4 % desaturation, arousals not counted" cannot tell that this one choice
+         bounds the result. A desat-only reference does not invalidate the run; it makes it a
+         DIFFERENT measurement (agreement between two desaturation-based indices), and that is
+         what must not be reported as ODI-vs-AHI bias. */
+      var arousals = ahiCountsArousals(ahiVar);
+      var note =
+        arousals === true
+          ? ' · arousal-inclusive reference ✓'
+          : arousals === false
+            ? ' · ⚠ DESATURATION-ONLY reference — shares ODI’s blind spot, so bias will read LOW'
+            : ' · ⚠ unrecognised AHI variable — confirm whether it counts arousal-terminated hypopneas';
+      AHI_CSV.__arousals = arousals;
+      setStatus(n + ' rows · AHI var “' + ahiVar + '” · id col “' + head[idCol] + '”' + note + ' (add EDFs to pair)', arousals === true ? 'done' : 'warn');
       return;
     }
 
