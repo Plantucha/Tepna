@@ -137,7 +137,8 @@ reason this can be reconsidered safely later.
 
 🔁 **This same question is tracked in a second place**: `INTERDISCIPLINARY-LITERATURE-2026-08-16` line
 271, *"Riley & Greenhall 2004 evaluated against the `1.96·SE` refusal band — does analytic noise-ID
-retire it?"* Answered here, once, and cross-referenced there rather than answered twice. `stale-file`
+retire it?"* Answered here, once. That box was closed by its own brief's author on 2026-08-16,
+pointing at this section — an attempted cross-reference from this side was dropped as redundant. `stale-file`
 cannot see this class of duplication — the two live in different files, so there is no overlap for it
 to detect. That is the GENERATOR-FOLLOWUPS-III failure one level up, and worth knowing it exists.
 

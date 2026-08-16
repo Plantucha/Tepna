@@ -34,8 +34,11 @@ a measurement on exactly the short files that would want it). The other two are 
 measurement that would settle each, and question 3's framing is corrected: `independent` is a provenance
 test, not a sufficiency test, so a span floor belongs on the quoted quantity rather than inside it.
 
-Also closes the same question where it was tracked a second time, in
-`INTERDISCIPLINARY-LITERATURE-2026-08-16`. Two briefs held one question in different files, which
-`stale-file` structurally cannot detect — it looks for the same path touched twice.
+The same question was tracked a second time in `INTERDISCIPLINARY-LITERATURE-2026-08-16`. That box is
+now closed **by its own brief's author**, pointing here — this PR originally carried a cross-reference
+into that file and it was dropped during rebase as redundant, because they had made the same edit
+first. Two briefs held one question in different files, which `stale-file` structurally cannot detect:
+it looks for the same path touched twice. Notably, git DID conflict here — the duplication was in one
+file, so it was visible; the dangerous version is when the two edits never touch.
 
 Found via `tools/doc-search.mjs` (#1349) on its first real query. Docs only.
