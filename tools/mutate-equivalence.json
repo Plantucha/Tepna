@@ -1847,6 +1847,24 @@
       "class": "no-distinguishing-input",
       "why": "In computeCAMQ. Original and mutant produced byte-identical output on every input.",
       "probe": "computeCAMQ · scoring/clamping: 26 inputs, 12 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 703,
+      "op": "cmp > → >=",
+      "before": "if (r._vlf > 0 && r._lf > 0 && r._hf > 0) {",
+      "class": "no-distinguishing-input",
+      "why": "A PROOF, not a failed search. The guarded block writes exactly ONE field — `r.d_plaw` — and its `else` writes NaN to the same field, so there is no second observable to check. The mutants differ from the original ONLY for a band <= 0, and that is precisely the input for which the block itself yields NaN: log10(0) is -Infinity, so mxp is -Infinity, so (lp_arr[i] - mxp) is (-Inf) - (-Inf) = NaN, so num_s is NaN and d_plaw is NaN. Both branches therefore assign NaN for every input that distinguishes the conditions. The guard is a clarity guard, not a correctness one.",
+      "probe": "The block reduced to its arithmetic and evaluated for every distinguishing input — bands (0,600,340) (600,0,340) (600,340,0) (-1,600,340) (0,0,340): the block computes NaN in all five, matching the else branch exactly. Confirmed dynamically first: a test asserting !isFinite(d_plaw) passed against all five mutants (0 of 5 killed), and a sharper `d_plaw === undefined` failed on the BASELINE too — got \"@NaN\" want \"@undef\" — which is what showed both paths converge on NaN rather than one of them leaving the field unset. Run 2026-08-16.",
+      "brief": "MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md"
+    },
+    {
+      "line": 703,
+      "op": "bool && → ||",
+      "before": "if (r._vlf > 0 && r._lf > 0 && r._hf > 0) {",
+      "class": "no-distinguishing-input",
+      "why": "A PROOF, not a failed search. The guarded block writes exactly ONE field — `r.d_plaw` — and its `else` writes NaN to the same field, so there is no second observable to check. The mutants differ from the original ONLY for a band <= 0, and that is precisely the input for which the block itself yields NaN: log10(0) is -Infinity, so mxp is -Infinity, so (lp_arr[i] - mxp) is (-Inf) - (-Inf) = NaN, so num_s is NaN and d_plaw is NaN. Both branches therefore assign NaN for every input that distinguishes the conditions. The guard is a clarity guard, not a correctness one.",
+      "probe": "The block reduced to its arithmetic and evaluated for every distinguishing input — bands (0,600,340) (600,0,340) (600,340,0) (-1,600,340) (0,0,340): the block computes NaN in all five, matching the else branch exactly. Confirmed dynamically first: a test asserting !isFinite(d_plaw) passed against all five mutants (0 of 5 killed), and a sharper `d_plaw === undefined` failed on the BASELINE too — got \"@NaN\" want \"@undef\" — which is what showed both paths converge on NaN rather than one of them leaving the field unset. Run 2026-08-16.",
+      "brief": "MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md"
     }
   ],
   "motiondex-dsp.js": [
