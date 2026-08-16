@@ -2,6 +2,9 @@
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 import os
 
+import datetime as _dtmod
+
+import pytest
 import nightqc
 
 
@@ -746,3 +749,98 @@ def test_the_rate_tolerance_bound_is_INCLUSIVE_at_a_bit_exact_boundary(tmp_path)
     # what made the first version of this test fail on a correct implementation.
     assert row["measured_hz"] == round(measured, 2), "precondition: the file really measures 1e9/step"
     assert row["matches_config"] is True, "on the bound is INSIDE the bound — the tolerance IS the tolerance"
+
+
+# ─── the night band: a session is not a night ───────────────────────────────────────────────────
+
+def _ts(y, mo, d, h, mi=0):
+    return _dtmod.datetime(y, mo, d, h, mi).timestamp()
+
+
+def test_either_side_of_one_midnight_is_the_SAME_night():
+    """THE property. 22:30 and 02:42 straddling one midnight must land in one band — that is what makes
+    this a night rather than a date. If they split, nothing else here matters."""
+    a = nightqc.night_band(_ts(2026, 8, 14, 22, 30))
+    b = nightqc.night_band(_ts(2026, 8, 15, 2, 42))
+    assert a == b, (a, b)
+
+
+def test_the_band_boundary_is_where_it_claims_to_be():
+    """20:00 opens a new band; 19:59 still belongs to the previous evening's."""
+    late = nightqc.night_band(_ts(2026, 8, 14, 20, 0))
+    early = nightqc.night_band(_ts(2026, 8, 14, 19, 59))
+    assert late != early
+    assert late[0] == _ts(2026, 8, 14, 20)
+    assert early[0] == _ts(2026, 8, 13, 20)
+    assert round(late[1] - late[0]) == 14 * 3600          # 20:00 -> 10:00 is 14 h
+
+
+def test_a_session_wholly_inside_the_band_keeps_all_of_itself():
+    files = [{"session": _ts(2026, 8, 15, 2, 42), "span_sec": 3.35 * 3600, "rows": 1000}]
+    v = nightqc.night_view((files[0]["session"], files[0]["session"] + 3.35 * 3600), files)
+    assert v["row_fraction"] == pytest.approx(1.0)
+    assert v["span_sec"] == pytest.approx(3.35 * 3600, abs=2)
+
+
+def test_a_session_running_through_midday_is_CLIPPED_and_its_rows_apportioned():
+    """The defect this exists for: 20.39 h of continuous recording is not a 20.39 h night."""
+    s0 = _ts(2026, 8, 15, 10, 1)
+    s1 = _ts(2026, 8, 16, 6, 25)
+    files = [{"session": s0, "span_sec": s1 - s0, "rows": 1000}]
+    v = nightqc.night_view((s0, s1), files)
+    assert v["span_sec"] < (s1 - s0) / 1.5, v            # roughly halved, not merely trimmed
+    assert 0.0 < v["row_fraction"] < 1.0, v
+    assert v["begin"] == round(_ts(2026, 8, 15, 20))     # the evening the night began
+
+
+def test_a_session_entirely_in_daylight_yields_no_night_rows():
+    s0, s1 = _ts(2026, 8, 15, 11), _ts(2026, 8, 15, 16)
+    v = nightqc.night_view((s0, s1), [{"session": s0, "span_sec": s1 - s0, "rows": 500}])
+    assert v["span_sec"] == 0
+    assert v["rows"] == 0 and v["row_fraction"] == pytest.approx(0.0)
+
+
+def test_night_view_is_None_without_files_rather_than_a_zeroed_record():
+    """A zeroed record would read as 'the night captured nothing', which is a different claim."""
+    assert nightqc.night_view((0.0, 1.0), []) is None
+
+
+def test_a_zero_span_file_is_a_POINT_in_time_not_a_division_by_zero():
+    inside = _ts(2026, 8, 15, 2)
+    outside = _ts(2026, 8, 15, 13)
+    v_in = nightqc.night_view((inside, inside + 60), [{"session": inside, "span_sec": 0, "rows": 7}])
+    v_out = nightqc.night_view((outside, outside + 60), [{"session": outside, "span_sec": 0, "rows": 7}])
+    assert v_in["rows"] == 7
+    assert v_out["rows"] == 0
+
+
+def test_a_file_without_a_session_stamp_is_skipped_not_guessed():
+    s0 = _ts(2026, 8, 15, 2)
+    v = nightqc.night_view((s0, s0 + 3600), [{"span_sec": 3600, "rows": 9},
+                                             {"session": s0, "span_sec": 3600, "rows": 1}])
+    assert v["rows"] == 1                                 # only the stamped file contributes
+
+
+def test_row_fraction_is_None_when_there_are_no_rows_to_take_a_fraction_OF():
+    s0 = _ts(2026, 8, 15, 2)
+    v = nightqc.night_view((s0, s0 + 3600), [{"session": s0, "span_sec": 3600, "rows": 0}])
+    assert v["row_fraction"] is None
+
+
+def test_overlap_is_zero_for_disjoint_intervals_and_never_negative():
+    assert nightqc._overlap(0, 10, 20, 30) == 0
+    assert nightqc._overlap(20, 30, 0, 10) == 0
+    assert nightqc._overlap(0, 10, 5, 20) == 5
+
+
+def test_night_window_is_published_WITHOUT_clobbering_the_existing_night_key(tmp_path):
+    """Regression for a collision the existing suite caught. `night` was already the folder DATE string
+    ("2026-07-19", "incoming"); publishing the band under that name silently replaced it with a dict.
+    The two are different facts and both are published."""
+    d = tmp_path / "2026-08-15"
+    d.mkdir()
+    (d / "Polar_H10_02849638_20260815024240_ECG.csv").write_text("h\n" + "r\n" * 400)
+    s = nightqc.summarize(str(d), [])
+    assert s["night"] == "2026-08-15", s["night"]          # still the folder date, still a string
+    assert "night_window" in s
+    assert s["night_window"] is None or isinstance(s["night_window"], dict)

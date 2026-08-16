@@ -600,10 +600,64 @@ higher bands, exactly as destroying temporal structure should.
 
 ### 🟢 What the variance actually is
 
-PAT's dominant frequency is **0.032 Hz — a ~31-second cycle** — and **~86 % of its power sits in
-VLF+LF combined.** That is drift on a scale of tens of seconds to minutes: vascular tone, blood-pressure
+~~PAT's dominant frequency is **0.032 Hz — a ~31-second cycle**~~ — **RETRACTED 2026-08-16, see below** —
+and **~86 % of its power sits in VLF+LF combined.** That is drift on a scale of tens of seconds to minutes: vascular tone, blood-pressure
 regulation (the LF/Mayer band sits at ~0.1 Hz), thermoregulation, posture, sleep-stage transitions.
 Breathing, at ~0.26 Hz, contributes essentially nothing.
+
+### 🔴 RETRACTED 2026-08-16 — the "~31-second cycle" is what red noise does, not a finding
+
+**In a red spectrum the argmax sits near the low-frequency end BY CONSTRUCTION**, so reading its location
+as a characteristic period reads a peak into a slope. Tested against the null this section's own numbers
+imply, with none of the original data needed:
+
+An **AR(1) process reproduces the published band shares almost exactly** — rho = 0.908 gives VLF 0.51 /
+LF 0.33 / HF 0.16 against the measured 0.50 / 0.36 / 0.15 — on the same geometry (4 Hz grid, 20-minute
+slices), **with no oscillation present at all**. Where does its argmax land?
+
+    argmax over 120 runs of PURE red noise, nothing planted:
+        median 0.0220 Hz     10th-90th 0.0080 - 0.0500 Hz
+        74 % of runs put the argmax at or below 0.032 Hz
+
+**0.032 Hz sits in the middle of that.** The number is not evidence of a cycle.
+
+**What this does NOT touch, because the rest of the section is sound:**
+- **The band shares stand** (50 / 36 / 15). The AR(1) fit reproducing them describes the null, not a fault
+  in the measurement.
+- **The respiration refutation stands, and it is the strongest thing here** — it rests on the shuffled
+  control (3.99 % against 8.70 %, exceeding the null on 1 of 17 nights), a comparison against a control
+  rather than a peak reading.
+- **The positive localisation stands**: the power really is at VLF+LF. What is retracted is a
+  *characteristic frequency* within that band, not the band.
+
+⚠️ **Limits of the retraction itself.** AR(1) is one red-noise model, chosen because it reproduces the
+published shares; a different background would move the 74 %. And this tests only whether the argmax
+LOCATION discriminates — it does not — rather than fitting a robust background and testing peak HEIGHT
+against it (Mann & Lees 1996, `Climatic Change` 33:409-445). That stronger test is what to run if anyone
+wants to claim a cycle here rather than retire one.
+
+⚠️ **THE SAME TEST GIVES THE OPPOSITE VERDICT ON SHIPPED CODE, and that contrast is the finding.**
+`oxydex-dsp.js computeSpO2FFT` surfaces "FFT Cycle Length" by raw-power argmax over 11 fixed
+frequencies with no background and no null, so it cannot return "no cycle detected" — on pure AR(1) it
+pins to the 0.005 Hz band edge in 12 % of runs at rho = 0, rising to 55 % at rho = 0.995, nothing
+planted. **But the corpus refutes the red-noise null there, decisively.** Across **103 O2Ring nights**
+(median lag-1 rho = 0.9813, range 0.955-0.997, so rho = 0.98 is the right null):
+
+    reporting the 200 s EDGE     19/103 = 18 %      null predicts 42 %
+    exact one-sided binomial     p = 3.3e-7         Wilson 95 % CI [0.121, 0.270], excluding 0.42
+    cycle distribution           62s:16  77s:8  100s:21  125s:13  143s:13  200s:19  (+33/40/50: 13)
+
+Cycles spread across the band instead of piling at the edge, and 62-125 s is the classic periodic-
+breathing / CSR range. **So §4e's argmax does not discriminate and OxyDex's does** — same statistic,
+opposite verdicts, which is why neither result can be generalised from the other.
+
+What survives for OxyDex is narrower: the function has **no null**, so it cannot flag the nights where
+there is nothing to report. The fix is peak height against a fitted background, which **keeps** the real
+detections rather than retiring them — not removal.
+
+Found with Papers, who corrected themselves twice here: an initial n=14 result (3/14 = 21 %) was
+reported as a refutation when it was not significant (p = 0.096, null inside the Wilson CI [0.076,
+0.476], 41 % power). The 103-night run is what settles it. Statistics re-derived independently.
 
 **This is a positive localisation, not just a null.** It says where to look next, and it says the
 remaining reference in this corpus — **ACC**, which MotionDex already turns into posture via the gravity

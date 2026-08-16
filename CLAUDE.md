@@ -204,6 +204,34 @@ nothing: `git show HEAD:<file> | grep -c <an identifier your change adds>`.
 generated paths pass through. Escape hatch for a deliberate single-file restore: run it outside a
 rebase on one explicit path, and verify afterwards.
 
+### 2d · TWO SESSIONS WILL DERIVE THE SAME BRANCH NAME — and a plain `--force` destroys the other's PR
+
+Measured 2026-08-16: two sessions independently produced **`claude/land-pr-required-reported`** for the
+same defect. One pushed and opened a PR; the other had committed the same name locally and had not
+pushed yet. This is **likely, not coincidental** — branches are named after the fix, so one defect
+yields one slug, and two sessions working one defect is the normal case here, not the exception.
+
+**No hook can catch it, and that is what makes it a different class from everything else in §👥.** The
+collision is on the **remote**, between two private trees. `guard-shared-tree.sh` inspects your local
+tree and commands; it structurally cannot see a branch name on `origin` that another checkout is about
+to use. Every other hazard in this section is visible somewhere locally. This one is not.
+
+**The safe failure is already built in, and it is the tell:**
+
+- A **plain `git push`** to a diverged branch is **REJECTED** as non-fast-forward. That rejection on a
+  branch you believe is yours alone is the warning — **never force past it.** Find out who owns the
+  name first.
+- **`--force-with-lease`** refuses when the remote carries commits you have not seen. This is the
+  load-bearing mitigation and it is what turned the 2026-08-16 case into a near-miss rather than a lost
+  PR. **Never use a bare `--force` against `origin`.**
+- A **per-session suffix** — `claude/<task>-<3 chars>` — prevents the collision itself. Defence in
+  depth, and the cheaper of the two, but note the asymmetry: **the suffix prevents the collision, the
+  lease prevents the LOSS**, and only one of those is recoverable when it goes wrong.
+
+⚠️ Verify before any force-push that the remote head is your own commit —
+`git log --oneline -1 origin/<branch>` and `git log --format='%an' origin/<branch> -3 | sort -u`. Two
+sessions on one repo makes "it is my branch, so forcing is safe" an assumption, not a fact.
+
 ### 3 · Bundles and ledgers must be SERIALIZED — a worktree does not save you here
 
 Isolation solves the *tree*. The old single-file ledger collision is **mostly SOLVED** (ARCHITECTURE-DEBT-
@@ -325,12 +353,41 @@ one shape: **the check ran, and reported success about something it never examin
 
 ### 5 · LANDING: `main` moves faster than CI, so every extra PR is another lost race
 
-**Measured 2026-08-09.** `main` moves a **median 7.2 min** between merges (min 1.2, max 120; only **8 of
-19** recent gaps were ≥ 12 min). CI is **~10–12 min** across 8 required checks (`stale-file` became the
-8th on 2026-08-16 — it blocks a stale prose edit rather than only reddening it). The `protect-main` ruleset
-sets `required_status_checks.strict = true`, so the branch must be **up to date at merge time** — and
-GitHub's auto-merge does **not** update it for you. A PR therefore has to hold *all checks green* and
-*main stood still* in the same instant, a window open well under half the time.
+**Re-measured 2026-08-16 — state the WINDOW with any of these numbers, because the value depends on it.**
+Over **today's 28 merges**: median gap **8.6 min**, min 0.0, max 88.2, **13 of 27** gaps ≥ 10 min. CI is
+**≤ 9 min** worst-workflow, median ~2 min, across 8 required checks (`stale-file` became the 8th on
+2026-08-16). *(The prior figure here — "median 7.2 min, 8 of 19 ≥ 12 min", 2026-08-09 — carried no window.
+Sampling the last **40 merges** instead of today yields median **13.1 min**, because that reaches back
+days and swallows an 88-minute lull and a 5-day gap. Same repo, same hour, two answers. A cadence number
+without its window and sample size is not a measurement.)*
+
+⚠️ **AND IT IS NOT A RACE YOU CAN WIN BY WAITING — it is a DEADLOCK. This is the paragraph's most
+expensive sentence, so it is now first.** `protect-main` sets `required_status_checks.strict = true`, so
+the branch must be **up to date at merge time**, and **GitHub's auto-merge does NOT update it for you**.
+An armed, fully green, BEHIND PR therefore **never becomes mergeable on its own**, no matter how long it
+sits. Someone must update the branch.
+
+That fact was already stated here, and on 2026-08-16 **three sessions still deadlocked on it** — 14 PRs,
+every required context passing, zero pending, zero failing, nothing merging. The reason is framing: it
+sat inside "a window open well under half the time", which reads as a probabilistic race that patience
+eventually wins. It is not probabilistic. Waiting has **zero** probability of success. Measured on four
+of my own that afternoon: the one I updated when green **merged**; the three left armed and green sat
+BEHIND indefinitely.
+
+**The consequence is that PRs merge STRICTLY SEQUENTIALLY, and it is the real cost of a deep queue.**
+Every merge to `main` re-BEHINDs every other open PR. So updating N branches at once is waste — all N
+re-run CI, the first to finish merges, and the other N−1 go BEHIND again. The protocol:
+
+> **update ONE green PR → let it merge → update the next.**
+
+At ~9 min a cycle, a queue of 14 takes over two hours to drain no matter how green it is. That is a far
+better argument for fewer simultaneous PRs than the race framing, and it explains how a queue grows all
+day while every session is being careful.
+
+⚠️ **If you have anything to push anyway, `git merge origin/main` locally and push ONCE** — `gh pr
+update-branch` creates a remote merge commit and restarts CI, and a separate push of your own commit is
+a *second* head and a second run. Merging locally makes the branch current and carries your change in one
+CI cycle.
 
 **The cadence lever is bigger than the polling lever, and it is the one you control.** One capture-host
 fix shipped as **five** PRs (#1062 → #1071 → #1081 → #1091 → #1095) because each increment was pushed as
@@ -365,6 +422,16 @@ behind a fresh pending.
 ⚠️ **A merge queue would paper over all of this, and is the wrong first reach.** It was proposed here and
 correctly rejected: the numbers say the self-inflicted serialisation is the bigger term. Fix the cadence
 first; the ruleset is the constraint, not the defect.
+
+**And it is not available anyway — check this BEFORE re-opening the cost argument.** GitHub merge queue
+requires an **organization-owned** repository; `Tepna` is user-owned (`owner.type: User`, confirmed
+`isInOrganization: false`), so the feature is ineligible regardless of the economics. Public visibility
+is **not** the discriminator — this repo is public and still ineligible. Verified three independent
+ways: the API rejects a `merge_queue` rule outright even with no parameters (2026-08-09), the GraphQL
+owner is a User, and GitHub's own documentation scopes the feature to organization repositories.
+Recorded here because the paragraph above reads as a *cost* decision, and on 2026-08-16 a session was
+about to take fresh cadence numbers to the owner arguing against a constraint that is not economic at
+all. If you want merge queue, the question is repository ownership, not throughput.
 
 ---
 

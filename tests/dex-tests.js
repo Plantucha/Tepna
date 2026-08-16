@@ -468,6 +468,20 @@
          that a consumer relies on and no test exercises parses to `null` the moment its branch is
          disturbed, and null is the contract's honest "unknown" — so the failure would surface as
          missing data rather than as an error. */
+
+      /* §2.6 — A MISSING STAMP MUST BE VISIBLE, NEVER FABRICATED. Only `P('')` was asserted; a null
+         or undefined `raw` was not, and those are the shapes a caller actually passes when a column
+         is absent rather than empty.
+
+         ⚠️ THESE DO NOT KILL THE L139/L144 MUTANTS, and saying so is the point. Level B found
+         `if (raw == null) return null;` and `if (!s) return null;` surviving deletion, and they are
+         EQUIVALENT: both are early exits whose inputs reach the same `null` through the function's
+         final fall-through, verified by deleting both and re-running every case above — identical
+         answers. An unkillable statement is not a test gap. The contract is worth pinning anyway,
+         because a future refactor that adds a fabricating branch below would break it. */
+      T.eq('§2.6 · a null stamp refuses rather than fabricating an instant', P(null, {}), null);
+      T.eq('§2.6 · an undefined stamp likewise', P(undefined, {}), null);
+      T.eq('§2.6 · whitespace-only is not a stamp', P('   ', {}), null);
       var v4d = P('2026/06/07 22:00:45', {});
       T.eq('4d · "YYYY/MM/DD HH:MM:SS" → components verbatim', v4d && v4d.tMs, U(2026, 5, 7, 22, 0, 45));
       T.eq('4d · no zone in the stamp → offsetMin null', v4d && v4d.offsetMin, null);
@@ -927,6 +941,33 @@
 
          A pure power law adev = C·τ^m is exactly collinear in log-log, so least squares must return
          m itself. That is a KNOWN ANSWER, and any arithmetic slip in the fit moves it. */
+
+      /* ── KILLS `_ckClassifyAllan` L404/L409/L410 (the `meaning` lookup and the 'drift' name).
+         Level B found them surviving deletion on 2026-08-16. The only existing assertion on this
+         function is a REFUSAL (`noise is null` when the slope straddles an edge) — nothing checks
+         that a slope actually PRODUCES the right name, so the table lookup and the drift branch were
+         unobserved.
+
+         §7 is explicit that the slope's job is to name a MECHANISM, and the name is what a reader
+         acts on: `A FLOOR — more averaging buys nothing` and `deterministic — fit and remove it`
+         prescribe opposite responses. A classifier whose label is unasserted can swap those two and
+         nothing reddens. */
+      var cls = function (slope) {
+        var r = C.classifyAllan(slope, 0, 8);
+        return r == null ? null : r.noise;
+      };
+      T.eq('τ⁻¹ is named jitter that averages away', cls(-1), 'white/flicker-phase');
+      T.eq('τ⁻¹ᐟ² is named the benign case', cls(-0.5), 'white-frequency');
+      T.eq('τ⁰ is named A FLOOR — the one that means more averaging buys nothing', cls(0), 'flicker-frequency');
+      T.eq('τ⁺¹ᐟ² is named wander', cls(0.5), 'random-walk-frequency');
+      /* Past the table's last edge the branch names drift explicitly rather than falling off the end. */
+      T.eq('τ⁺¹ is named drift — the branch past the last table edge', cls(1), 'drift');
+      /* The MEANING is what a reader acts on, and the two extremes prescribe opposite responses. */
+      var mFloor = C.classifyAllan(0, 0, 8);
+      var mDrift = C.classifyAllan(1, 0, 8);
+      T.ok('the floor meaning says averaging buys nothing', /FLOOR|averaging buys nothing/.test((mFloor && mFloor.meaning) || ''), String(mFloor && mFloor.meaning));
+      T.ok('the drift meaning says fit and remove, never average', /fit and remove/.test((mDrift && mDrift.meaning) || ''), String(mDrift && mDrift.meaning));
+      T.ok('…and they are not the same string', (mFloor && mFloor.meaning) !== (mDrift && mDrift.meaning));
       var lawPts = function (m, c) {
         var out = [];
         for (var _t = 0; _t < 4; _t++) {
@@ -20470,6 +20511,31 @@
         /advisory/.test(d(OPEN('CLEAN', { pass: 22, pending: 1 }, { requiredPending: 0 })).why),
         'merging past it silently is the other half of the same defect — the mutation red already ' + 'merges unnoticed, and a tool that quietly outruns it makes that worse'
       );
+      /* ── AN ADVISORY PENDING CHECK MUST NOT SWITCH OFF THE MISSING-CONTEXT RULE ──────────────
+         Measured 2026-08-16 across four sessions. The never-reported rule further up is gated behind
+         `pending === 0`, so ONE advisory pending check disabled it, and the merge branch was reached
+         having verified only "no PENDING check is required" — never "every required context reported
+         and passed". The mechanism (#1293): `suite (shard 1/6)` is pending and is NOT itself required,
+         so requiredPending is 0, while the required `test` rollup only lands once all six shards
+         finish and has therefore never reported at all.
+
+         Consequence: `decide` said merge, GitHub refused, and the lander quit leaving the PR
+         unattended. This repo's own recurring defect, now in the tool that decides whether work
+         ships — an ABSENCE read as satisfied, because the rule that inspects absences was disabled
+         by something unrelated to it. The live snapshot is pinned verbatim below. */
+      var LIVE_REQ = ['test', 'no-network', 'typecheck', 'biome', 'test (py3.12)', 'test (py3.13)', 'browser-gates', 'stale-file'];
+      var LIVE_SEEN = ['biome', 'no-network', 'stale-file', 'typecheck', 'relevance (browser-gates)', 'suite (shard 1/6)'];
+      var live = OPEN('BLOCKED', { pass: 19, pending: 1, skipping: 2 }, { requiredPending: 0, required: LIVE_REQ, reported: LIVE_SEEN });
+      T.eq('one ADVISORY pending check does NOT authorise a merge past unreported required contexts', d(live).action, 'wait');
+      T.ok('…and the verdict NAMES the contexts that never reported', /test \(py3\.12\)/.test(d(live).why) && /test \(py3\.13\)/.test(d(live).why));
+      /* A NEAR-MISS NAME IS NOT A REPORT. `relevance (browser-gates)` contains the required string
+         but is a different context, so a substring test would call it satisfied. Set membership. */
+      T.ok('…`relevance (browser-gates)` does not satisfy required `browser-gates`', /browser-gates/.test(d(live).why));
+      /* THE CONVERSE, so the fix cannot pass by refusing everything — the failure mode of any gate
+         added in a hurry. Every required context reported and green ⇒ an advisory pending still merges. */
+      var allIn = OPEN('CLEAN', { pass: 22, pending: 1 }, { requiredPending: 0, required: LIVE_REQ, reported: LIVE_REQ.concat(['mutation (diff-scoped)']) });
+      T.eq('every required context reported ⇒ an advisory pending check still merges', d(allIn).action, 'merge');
+
       T.eq('a REQUIRED pending check still waits', d(OPEN('CLEAN', { pass: 20, pending: 3 }, { requiredPending: 3 })).action, 'wait');
       /* ⚠️ AN UNREADABLE REQUIRED SET MUST NOT BECOME PERMISSION — same asymmetry as the `readable`
          guard: a spurious wait costs one poll, a spurious merge cannot be undone. */
