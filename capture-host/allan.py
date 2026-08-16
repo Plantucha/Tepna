@@ -45,10 +45,15 @@ _MIN_SPAN_MULTIPLE = 4.0
 _SQRT3 = math.sqrt(3.0)
 
 
+def _finite(v):
+    """One definition of admissible, shared by the single- and paired-series cleaners below."""
+    return v is not None and v == v and abs(v) != float("inf")
+
+
 def _clean(phase):
     """Finite samples only, as floats. Shared so every estimator rejects the same inputs — a family
     where one member silently accepted a NaN would report a curve the others could not reproduce."""
-    return [float(v) for v in phase if v is not None and v == v and abs(v) != float("inf")]
+    return [float(v) for v in phase if _finite(v)]
 
 
 # ── TERM COUNTS, one per estimator ────────────────────────────────────────────────────────────────
@@ -104,6 +109,88 @@ def adev(phase, tau0, taus=None):
             acc += d * d
         t = m * tau0
         out.append({"tau": t, "adev": math.sqrt(acc / (2.0 * terms)) / t, "n": terms})
+    return out
+
+
+def _clean_pair(phase_x, phase_y):
+    """Positions finite in BOTH series, as `(xs, ys)`.
+
+    Cleaning the two separately would silently MISALIGN them, which is the one error this estimator
+    cannot survive: `_clean` DROPS a non-finite sample, so a single NaN at index i in one series shifts
+    every later sample of that series by one against the other, and the covariance is then taken
+    between two different instants. It would not raise, and the result would look like a real number.
+    """
+    xs, ys = [], []
+    for a, b in zip(phase_x, phase_y):
+        if _finite(a) and _finite(b):
+            xs.append(float(a))
+            ys.append(float(b))
+    return xs, ys
+
+
+def gcov(phase_x, phase_y, tau0, taus=None):
+    """Groslambert covariance — the AVAR of what two comparison series SHARE, rejecting what they don't.
+
+    (Fest, Groslambert & Gagnepain 1983; Vernotte & Lantz, IEEE TUFFC 2018, Eq. 2.)
+
+    AVAR squares one series, so it reports signal + that series' own measurement noise and cannot tell
+    them apart. GCov multiplies TWO series instead: whatever they share survives the average, and
+    whatever is independent between them is zero-mean and averages away. Vernotte & Lantz state the
+    property directly — *"GCov is not polluted by the measurement noises since all cross-covariances are
+    zero-mean"* — and that the two approaches are strictly equivalent when the counter noise is
+    negligible. So the GAP between `adev` and `gcov` is a measurement OF the instrument noise.
+
+    That is the open question here. `arrival - device` carries BLE transport on top of the oscillator, so
+    every ADEV/TDEV this module reports on such a series is an UPPER BOUND on the clock. Two streams
+    captured from the same device over the same link share that device's clock and carry independent
+    per-packet transport noise, so GCov of the pair estimates the clock comparison with the transport
+    removed.
+
+        GCov(tau) = 1 / (2 (N-2m) tau^2) * SUM_i dx_i * dy_i,   dx_i = x[i+2m] - 2 x[i+m] + x[i]
+
+    identical to `adev`'s normalisation with one factor replaced by the second series — so `gcov(x, x)`
+    IS `adev(x)**2`, exactly, and that identity is the estimator's own regression test.
+
+    ⚠️ **A covariance is not a variance and MAY BE NEGATIVE.** It is returned signed and unclamped. The
+    paper measures P(estimate < 0) as high as 47.5 % when a clock is masked by less-stable partners, so a
+    negative value here is an ordinary outcome meaning "below the noise of this comparison", NOT a bug and
+    NOT zero. `gdev` is the signed root, `sign(g) * sqrt(|g|)`, published so a caller can compare it with
+    `adev` on one axis; where it is negative it is not a deviation and must not be read as one.
+
+    ⚠️ **THE INDEPENDENCE ASSUMPTION IS THE WHOLE ESTIMATOR, and it is the caller's to justify.** Two
+    streams sharing one BLE connection may have their arrival jitter correlated by the connection event
+    that delivered both, and any such correlation is retained rather than rejected — GCov cannot
+    distinguish shared clock from shared measurement noise. It is a floor on the transport contribution,
+    not a proof of one.
+
+    Both series must be on the SAME grid with the same `tau0`. Unequal lengths REFUSE (`[]`) rather than
+    zip to the shorter: two streams of different length are not aligned, and truncating one would compare
+    different instants while looking like a result.
+    """
+    if len(phase_x) != len(phase_y):
+        return []
+    x, y = _clean_pair(phase_x, phase_y)
+    n = len(x)
+    if n < 3 or not tau0 or tau0 <= 0:
+        return []
+    if taus is None:
+        taus = _octave_taus(n, tau0)
+    out = []
+    for tau in taus:
+        m = int(round(tau / tau0))
+        if m < 1:
+            continue
+        terms = _terms_adev(n, m)
+        if terms < _MIN_TERMS:
+            continue
+        acc = 0.0
+        for i in range(terms):
+            dx = x[i + 2 * m] - 2.0 * x[i + m] + x[i]
+            dy = y[i + 2 * m] - 2.0 * y[i + m] + y[i]
+            acc += dx * dy
+        t = m * tau0
+        g = acc / (2.0 * terms) / (t * t)
+        out.append({"tau": t, "gcov": g, "gdev": math.copysign(math.sqrt(abs(g)), g), "n": terms})
     return out
 
 
