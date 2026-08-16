@@ -20465,6 +20465,38 @@
          proving a check could not block. `pending` counted every context; the required set was already
          read for the missing-context rule and simply was not used here. */
       T.eq('an ADVISORY pending check does not hold a green PR', d(OPEN('CLEAN', { pass: 22, pending: 1 }, { requiredPending: 0 })).action, 'merge');
+      /* ── AN ADVISORY PENDING CHECK MUST NOT MASK AN ABSENT REQUIRED ONE ─────────────────────────
+         The rule above and the missing-context rule are both right, and together they left a hole:
+         the missing-context rule is gated behind `pending === 0`, so ONE advisory pending check
+         switches it off, and `decide` reaches `merge` having only established that nothing PENDING
+         is required — never that the required contexts exist.
+
+         Measured 2026-08-16 on #1355/#1361/#1364: all three decided `merge (green and up to date
+         (1 advisory check(s) still in flight))` while `test`, `test (py3.12)`, `test (py3.13)` and
+         `browser-gates` had not reported at all. GitHub refused each with "the base branch policy
+         prohibits the merge", and the tool EXITED, abandoning the PR. */
+      var ABSENT = OPEN(
+        'CLEAN',
+        { pass: 20, pending: 1 },
+        {
+          requiredPending: 0,
+          required: ['test', 'no-network', 'browser-gates'],
+          reported: ['no-network', 'mutation (diff-scoped)']
+        }
+      );
+      T.eq('an absent REQUIRED context is not merged past, even with only advisory checks pending', d(ABSENT).action, 'wait');
+      T.ok('…and the verdict NAMES the contexts that never reported', /test/.test(d(ABSENT).why) && /browser-gates/.test(d(ABSENT).why), d(ABSENT).why);
+      /* The pre-existing shape must be untouched: every required context reported and passing, one
+         advisory check still running ⇒ still a merge. A fix that turned this into a wait would trade
+         the #1259/#1269 90-minute stall back in. */
+      T.eq(
+        'all required contexts reported ⇒ an advisory pending check STILL does not hold it',
+        d(OPEN('CLEAN', { pass: 22, pending: 1 }, { requiredPending: 0, required: ['test', 'biome'], reported: ['test', 'biome', 'mutation (diff-scoped)'] })).action,
+        'merge'
+      );
+      /* FAIL-CLOSED direction check: an unread ruleset leaves `required` empty, and this rule must
+         then be inert rather than blocking everything. */
+      T.eq('an unread ruleset (required: []) leaves the new rule inert, not blocking', d(OPEN('CLEAN', { pass: 22, pending: 1 }, { requiredPending: 0, required: [], reported: [] })).action, 'merge');
       T.ok(
         '…and the merge SAYS an advisory check was still in flight',
         /advisory/.test(d(OPEN('CLEAN', { pass: 22, pending: 1 }, { requiredPending: 0 })).why),

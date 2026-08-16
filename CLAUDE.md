@@ -366,6 +366,16 @@ behind a fresh pending.
 correctly rejected: the numbers say the self-inflicted serialisation is the bigger term. Fix the cadence
 first; the ruleset is the constraint, not the defect.
 
+**And it is not available anyway — check this BEFORE re-opening the cost argument.** GitHub merge queue
+requires an **organization-owned** repository; `Tepna` is user-owned (`owner.type: User`, confirmed
+`isInOrganization: false`), so the feature is ineligible regardless of the economics. Public visibility
+is **not** the discriminator — this repo is public and still ineligible. Verified three independent
+ways: the API rejects a `merge_queue` rule outright even with no parameters (2026-08-09), the GraphQL
+owner is a User, and GitHub's own documentation scopes the feature to organization repositories.
+Recorded here because the paragraph above reads as a *cost* decision, and on 2026-08-16 a session was
+about to take fresh cadence numbers to the owner arguing against a constraint that is not economic at
+all. If you want merge queue, the question is repository ownership, not throughput.
+
 ---
 
 ## 📌 Brief lifecycle — date NEW filenames at creation; mark DONE in the HEADER, never rename (non-negotiable)

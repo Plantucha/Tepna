@@ -142,6 +142,38 @@ export function decide(snap) {
      Observed on #1095: `mergeable=UNKNOWN` for minutes while every check was green. */
   if (snap.mergeState === 'UNKNOWN') return { action: 'wait', why: 'GitHub still computing mergeability' };
 
+  /* ⚠️ EVERY REQUIRED CONTEXT MUST HAVE REPORTED — which is a DIFFERENT question from "no PENDING
+     check is required", and on this repo the two come apart constantly.
+
+     The missing-context rule above is gated behind `pending === 0`, so **one advisory pending check
+     switches it off** and this function reaches the merge branch having verified only that nothing
+     *pending* is required. It never asks whether the required contexts exist at all.
+
+     Measured 2026-08-16 across #1355, #1361 and #1364 — three of four runs, same shape each time:
+
+         15:02:39  pending:2 pass:19 skipping:1  → wait (1 required check(s) still running)
+         15:03:40  pass:20 pending:1 skipping:1  → merge (green and up to date (1 advisory …))
+         Command failed: gh pr merge 1355 --squash
+         X the base branch policy prohibits the merge
+
+     Each then EXITED, leaving the PR with nothing holding it current — worse than never running the
+     tool, because the operator believes it is being tended. On the same PRs `test`, `test (py3.12)`,
+     `test (py3.13)` and `browser-gates` had not reported at all (`browser-gates` existed only as
+     `relevance (browser-gates)`, a different name), and the advisory `mutation` context masked it.
+
+     This is the header's own #1183 lesson with the sign flipped: there, an absence was read as
+     evidence of failure; here, an absence is read as satisfaction. Both are a missing measurement
+     being treated as a result.
+
+     FAIL-CLOSED, consistent with the two branches above: an unread ruleset leaves `required` empty
+     and this rule simply does not fire, which is the pre-existing behaviour — it can only ever add
+     waits, never merges. */
+  if ((snap.required || []).length) {
+    const seenNow = new Set(snap.reported || []);
+    const absent = snap.required.filter((r) => !seenNow.has(r));
+    if (absent.length) return { action: 'wait', why: `required check(s) have not reported yet: ${absent.join(', ')}` };
+  }
+
   return { action: 'merge', why: 'green and up to date' + advisoryNote };
 }
 
