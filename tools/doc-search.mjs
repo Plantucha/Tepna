@@ -161,6 +161,26 @@ export function isEntryPoint(argv1, moduleUrl) {
     return false;
   }
 }
+/* ── 🔴 THE CORPUS MUST PROVE ITSELF, NOT MERELY BE NON-EMPTY ────────────────────────────────────
+ * Measured: pointed at a directory with no documents, this printed its header, no hits, its footer,
+ * and exited 0 — a fake "nothing found" from the tool whose worst outcome is exactly that. Reachable
+ * without any mistake in the ranking: a wrong ROOT, an unreadable directory, a copy vendored
+ * somewhere without the docs beside it.
+ *
+ * ⚠️ A BARE `length > 0` WOULD BE THE SAME DEFECT ONE LEVEL UP — it detects only total loss, which is
+ * the failure least likely to happen quietly. Half a corpus silently missing would still pass. So the
+ * check is for ANCHORS that any correct checkout must contain: CLAUDE.md and ORIENTATION.md are both
+ * required to sit in root (CLAUDE.md says the test suite fetches ORIENTATION.md by path), and a real
+ * brief set is never a handful. Absence of those means the corpus is wrong, not that the answer is no. */
+export function corpusProblem(files) {
+  const has = (f) => files.includes(f);
+  if (!files.length) return 'no documents found at all';
+  if (!has('CLAUDE.md')) return 'CLAUDE.md is not in the corpus — ROOT is probably wrong';
+  if (!has('ORIENTATION.md')) return 'ORIENTATION.md is not in the corpus — ROOT is probably wrong';
+  const briefs = files.filter((f) => f.startsWith('briefs/')).length;
+  if (briefs < 50) return `only ${briefs} briefs indexed — the brief set is never this small`;
+  return null;
+}
 export function listDocs(root, dirs = DIRS) {
   const out = [];
   for (const d of dirs) {
@@ -297,6 +317,12 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   ok('an inlined script body is dropped', !/functionx/.test(readDoc('x.html', '<script>functionx()</script><p>real</p>').replace(/\s+/g, '')));
   ok('markdown is returned untouched', readDoc('x.md', '# <not markup>') === '# <not markup>');
   ok('papers/ is in the corpus', DIRS.includes('papers'));
+  ok('an empty corpus is refused, not reported as no results', corpusProblem([]) !== null);
+  ok('a corpus missing CLAUDE.md is refused', corpusProblem(['ORIENTATION.md'].concat(Array.from({ length: 60 }, (_, i) => `briefs/b${i}.md`))) !== null);
+  ok('…and one missing ORIENTATION.md', corpusProblem(['CLAUDE.md'].concat(Array.from({ length: 60 }, (_, i) => `briefs/b${i}.md`))) !== null);
+  /* the floor is not `> 0`: half a brief set missing must still refuse */
+  ok('a handful of briefs is refused — a floor of >0 would pass this', corpusProblem(['CLAUDE.md', 'ORIENTATION.md', 'briefs/one.md']) !== null);
+  ok('a real corpus passes', corpusProblem(listDocs(ROOT)) === null, String(corpusProblem(listDocs(ROOT))));
   ok(
     'the doc list finds briefs',
     listDocs(ROOT).some((f) => f.startsWith('briefs/'))
@@ -311,6 +337,13 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   const query = argv.join(' ').trim();
   if (!query) {
     console.error('usage: node tools/doc-search.mjs "<what you are trying to find out>"');
+    process.exit(2);
+  }
+  const problem = corpusProblem(listDocs(ROOT));
+  if (problem) {
+    console.error('✗ REFUSING TO SEARCH: ' + problem + '.');
+    console.error('  An empty result here is indistinguishable from "nothing was decided", which is the');
+    console.error('  one answer this tool must never fake. Fix the corpus rather than trusting the silence.');
     process.exit(2);
   }
   const { entries, live } = await buildIndex(process.argv.includes('--quiet'));

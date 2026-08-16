@@ -72,3 +72,17 @@ path-ranking tool can still mislead; now stated in the output footer as well as 
 
 Both findings are a peer session's, from using the tool on a live question rather than reviewing it.
 
+🔴 **AND THE CORPUS ITSELF COULD BE EMPTY.** Pointed at a directory with no documents, this printed
+its header, no hits, its footer, and **exited 0** — a fake "nothing found" from the tool whose worst
+outcome is precisely that. Reachable with no error in the ranking at all: a wrong ROOT, an unreadable
+directory, a copy vendored somewhere without the docs beside it. Found by applying a peer's structural
+heuristic — *a pinned table should assert its own size regardless of what the assertion was added to
+protect* — to this tool rather than agreeing with it.
+
+⚠️ **A bare `length > 0` would have been the same defect one level up.** It detects only total loss,
+which is the failure least likely to happen quietly; half a corpus silently missing would still pass.
+So the check is for ANCHORS any correct checkout must contain — `CLAUDE.md` and `ORIENTATION.md` are
+both required to sit in root, and a real brief set is never a handful. Absence means the corpus is
+wrong, not that the answer is no. Refuses with **exit 2** and an explanation. 25 selftests, including
+that a three-document corpus is refused where a `> 0` floor would pass it.
+
