@@ -154,10 +154,20 @@ And a stale status is not symmetric: **a stale `DONE` makes someone re-check fin
 
 ## 6 · Done when
 
-- [ ] `ppgdex-dsp.js classifyAllan` takes an SE and refuses at a boundary, matching its two siblings —
-      landed as its own unit with the re-bundle, `computeHash` move and corpus re-verification §🔏 owes.
-- [ ] The KNOWN DEFECT pin in the parity group is converted to a contract assertion **in that same PR**.
-      A pin outliving its defect is worse than no pin.
+- [x] **DONE 2026-08-16** — `ppgdex-dsp.js classifyAllan(sl, se, nTau)` refuses at a boundary, publishes
+      `slopeSE`/`nTau`/`candidates`, and returns the slope UNROUNDED, matching both siblings. New params
+      are optional and LAST, so every pre-existing caller keeps the pre-SE contract by construction.
+      It **cannot delegate** to `clock.js` — `PpgDex.html` inlines no `clock.js`, so `DexClock` is
+      undefined in that bundle; the duplication is structural, not laziness, which is the argument for
+      pinning answers rather than trusting the copies. Landed with the re-bundle (`manifestHash`
+      `0a6b1833a7d9` → `d0bd8cbe0add`, 6 fixtures re-stamped) and the corpus re-verification §🔏 owes:
+      `verify-fixtures.mjs` ran green over the real corpus and stamped
+      `PpgDex_2026-06-27_equiv.node-export.json verifiedUnder → 16583a17082c` (13 already current).
+- [x] **DONE 2026-08-16** — the KNOWN DEFECT pin is now three contract assertions in the same PR
+      (SE-aware · no `r2(sl)` in the record · drift edge derived from `ALLAN_NOISE`, not hardcoded).
+      The known-answer group also gained ppgdex as a **third lane against the same pinned Python
+      answers** — all three now agree on all 23 rows, checked against one external reference rather
+      than two copies agreeing with each other.
 - [ ] A decision on §3: adopt lag-1 identification, or record why the SE band stays — **with the
       measurement**, not the preference. If adopted, both lanes move together or the parity gate reds.
 - [ ] §4's three questions answered, or explicitly parked with reasons.

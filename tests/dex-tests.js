@@ -39612,16 +39612,21 @@
          renaming the parameter away left this green. Caught by mutating it; a gate nobody has watched
          fail is not a gate, and that applies to the gate one is writing. */
       T.ok('allan.py refuses on the same rule, with the same multiplier', /1\.96/.test(py) && /def classify\([^)]*\bse\s*=/.test(py), 'classify(sl, se=…) with a 1.96 band');
-      /* ⚠️ KNOWN DEFECT — PINNED, NOT ENDORSED. `ppgdex-dsp.js classifyAllan(sl)` takes NO se and
-         rounds the slope into the record it returns (`slope: r2(sl)`), so the deciding digit is not in
-         the output. The joint fix landed in the other two lanes and this third copy was left behind —
-         its own comment says "When that lands…", which is the tell. Pinned so that fixing it must
-         update this group deliberately; do NOT "make it pass" by editing the assertion. It is a
-         compute-path file, so the fix owes a re-bundle + corpus re-verification and is its own unit. */
+      /* ✅ WAS a KNOWN DEFECT, FIXED 2026-08-16 — the pin is now the contract it was holding open.
+         `ppgdex-dsp.js classifyAllan` took no `se` and rounded the slope into its record, so the digit
+         that decided the answer was not in the output. It was the THIRD copy of the rule and the one
+         the joint fix (#1227) missed. It cannot delegate to `clock.js`: `PpgDex.html` inlines no
+         `clock.js`, so `DexClock` is undefined in that bundle — the duplication is structural, which
+         is exactly why the sibling group pins all three lanes' ANSWERS rather than their tables. */
+      T.ok('ppgdex-dsp.js classifyAllan is SE-aware, like both siblings', /function classifyAllan\(sl,\s*se/.test(ppg) && /1\.96/.test(ppg), 'takes (sl, se, nTau) with a 1.96 band');
+      T.ok('ppgdex-dsp.js no longer rounds the slope in the DATA', !/slope:\s*r2\(sl\)/.test(ppg), 'r2(sl) in the returned record is what made the boundary case invisible');
+      /* The drift arm derived from the TABLE, not retyped as a literal. ppgdex now does what allan.py
+         does and clock.js still does not — see the KNOWN DEFECT in the known-answer group. Asserted
+         here so the corrected lane cannot quietly regress to the hardcoded form. */
       T.ok(
-        'KNOWN DEFECT · ppgdex-dsp.js classifyAllan is NOT SE-aware (the third copy the joint fix missed)',
-        /function classifyAllan\(sl\)/.test(ppg) && !/function classifyAllan\(sl,\s*se/.test(ppg),
-        'takes a bare slope and returns r2(sl) — routed to a follow-up; the tables above still agree'
+        'ppgdex-dsp.js derives the drift edge from ALLAN_NOISE rather than hardcoding it',
+        /ALLAN_NOISE\[ALLAN_NOISE\.length - 1\]\[0\]/.test(ppg) && !/sl \+ half > 0\.75/.test(ppg),
+        'a hardcoded 0.75 desynchronises from the table on any edit'
       );
     });
 
@@ -39655,6 +39660,13 @@
         T.skip('DexClock.classifyAllan available', 'not loaded');
         return;
       }
+      /* THE THIRD LANE, added 2026-08-16 once `ppgdex-dsp.js` became SE-aware. It is checked against
+         the SAME pinned Python answers rather than against clock.js, so the three are pinned to one
+         external reference instead of two of them agreeing with each other. PpgDex cannot delegate to
+         DexClock — its bundle inlines no clock.js — so this is the only thing keeping the copies
+         honest. Skipped, not failed, when the module is absent: the browser lane may not load it. */
+      var PPG = env.PPGDSP || env.PpgDSP;
+      var ppgLane = PPG && typeof PPG.classifyAllan === 'function' ? PPG : null;
 
       /* KNOWN ANSWER — captured by RUNNING allan.py, not transcribed from reading it: a hand-copied
          expectation encodes what the reader BELIEVED the code does. Named `PY_CLASSIFY`, not `PY`,
@@ -39769,6 +39781,39 @@
       }
 
       T.eq('clock.js reproduces allan.py exactly on every decision (noise · candidates · unrounded slope)', mismatches.length, 0, mismatches.slice(0, 4).join(' ; '));
+
+      /* The third lane, against the same pinned answers. Deliberately a separate pass rather than a
+         third column in the loop above: if ppgdex regresses, the failure must name ppgdex. */
+      if (!ppgLane) {
+        T.skip('ppgdex-dsp.js classifyAllan against the same pinned answers', 'PPGDSP not loaded in this lane');
+      } else {
+        var ppgBad = [],
+          ppgNormalised = 0;
+        for (var j = 0; j < PY_CLASSIFY.length; j++) {
+          var prow = PY_CLASSIFY[j];
+          var pgot = ppgLane.classifyAllan(prow.sl, prow.se, null);
+          if (prow.isNull) {
+            if (pgot !== null) ppgBad.push('sl=null expected null');
+            continue;
+          }
+          if (pgot == null) {
+            ppgBad.push('sl=' + prow.sl + ' se=' + prow.se + ' — ppgdex returned null, Python did not');
+            continue;
+          }
+          var pc = pgot.candidates == null ? null : pgot.candidates.join('|');
+          var wc = prow.cands == null ? null : prow.cands.join('|');
+          var pw = 'sl=' + prow.sl + ' se=' + prow.se;
+          if (pgot.slope !== prow.sl) ppgBad.push(pw + ' slope ' + pgot.slope + ' != ' + prow.sl);
+          if ((pgot.noise == null ? null : pgot.noise) !== prow.noise) ppgBad.push(pw + ' noise ' + pgot.noise + ' != ' + prow.noise);
+          if (pc !== wc) ppgBad.push(pw + ' candidates ' + pc + ' != ' + wc);
+          if (pgot.meaning !== prow.meaning) {
+            if (normalise(pgot.meaning) === prow.meaning) ppgNormalised++;
+            else ppgBad.push(pw + ' meaning ' + JSON.stringify(pgot.meaning) + ' != ' + JSON.stringify(prow.meaning));
+          }
+        }
+        T.eq('ppgdex-dsp.js reproduces allan.py exactly — the third copy, which cannot delegate', ppgBad.length, 0, ppgBad.slice(0, 4).join(' ; '));
+        T.eq('ppgdex needs the normaliser on the same 4 rows as clock.js', ppgNormalised, 4, 'normalised=' + ppgNormalised);
+      }
       /* Pinned COUNT, not merely "some were normalised". If a later edit diverges a fourth string the
          normaliser would quietly cover it, and this number is the only thing that would move. It
          already earned its place: adding the four edge fixtures moved it 3 -> 4 and this leg caught it. */
