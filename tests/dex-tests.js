@@ -20472,6 +20472,79 @@
       T.eq('absent fields ⇒ not-applicable', c({}).verdict, 'not-applicable');
     });
 
+    /* ── queue-doctor: the state no dashboard reports (QUEUE-DEADLOCK, 2026-08-16) ──────────────
+       `strict: true` requires an up-to-date branch at merge, and GitHub's auto-merge NEVER updates
+       one — so a BEHIND branch armed with --auto is PERMANENTLY unmergeable while reading green in
+       every view. 14 PRs sat a full day across four sessions: 0 pending, 0 blocking failures, all
+       armed, nothing failing, nothing conflicting. The only symptom was that nothing moved.
+       This drives the pure core, so the decisions are pinned without `gh`, a network or a clock. */
+    group('Queue-doctor — green-and-stuck is a state, and one update per run is the only non-wasteful order', 'tools · queue-doctor', function (T) {
+      var cl = env.qdClassify,
+        pk = env.qdPick,
+        IDLE = env.qdIdleMin;
+      if (typeof cl !== 'function' || typeof pk !== 'function') {
+        T.skip('queue-doctor core is wired into this lane', 'browser lane cannot import tools/queue-doctor.mjs');
+        return;
+      }
+      var REQ = ['test', 'biome'];
+      var NOW = 1755000000000;
+      var GREEN = [
+        { name: 'test', bucket: 'pass' },
+        { name: 'biome', bucket: 'pass' }
+      ];
+      var P = function (o) {
+        var b = { number: 1, state: 'OPEN', isDraft: false, mergeState: 'BEHIND', autoMerge: true, updatedAtMs: NOW - 40 * 60000, checks: GREEN };
+        for (var k in o) b[k] = o[k];
+        return b;
+      };
+      var k = function (o, req) {
+        return cl(P(o), req === undefined ? REQ : req, NOW).k;
+      };
+
+      /* THE STATE ITSELF — green, armed, BEHIND, and unmergeable forever. */
+      T.eq('green + BEHIND + armed is STUCK, not healthy', k({}), 'stuck-behind');
+      T.eq('green + BEHIND but NOT armed is a different stuck — updating cannot land it', k({ autoMerge: false }), 'stuck-unarmed');
+
+      /* ⚠️ THE ADVISORY/REQUIRED DISTINCTION. land-pr got this wrong TWICE in one day — once
+         waiting 90 min on an advisory pending, once merging past four unreported required
+         contexts. Both directions are pinned here so this tool cannot repeat either. */
+      T.eq('an advisory RED does not make a PR failing', k({ checks: GREEN.concat([{ name: 'mutation', bucket: 'fail' }]) }), 'stuck-behind');
+      T.eq('an advisory PENDING does not make a PR busy', k({ checks: GREEN.concat([{ name: 'codeql', bucket: 'pending' }]) }), 'stuck-behind');
+      T.eq(
+        'a REQUIRED red IS failing',
+        k({
+          checks: [
+            { name: 'test', bucket: 'fail' },
+            { name: 'biome', bucket: 'pass' }
+          ]
+        }),
+        'failing'
+      );
+      /* A required context that never reported is ABSENT, which reads identically to SATISFIED if
+         you only count buckets — the exact hole that let land-pr merge past four of them. */
+      T.eq('a required context that NEVER REPORTED is awaited, not treated as passing', k({ checks: [{ name: 'biome', bucket: 'pass' }] }), 'running');
+
+      /* FAIL CLOSED. An unreadable required set must never downgrade a real red to advisory. */
+      T.eq('unreadable required set refuses to classify', k({}, null), 'unknown');
+      T.eq('a conflict is a human job, not an update', k({ mergeState: 'DIRTY' }), 'dirty');
+      T.eq('drafts are skipped', k({ isDraft: true }), 'skip');
+
+      /* ── ONE PR PER RUN, OLDEST FIRST ────────────────────────────────────────────────────────
+         Under strict:true, the moment any PR merges every other open PR goes BEHIND — so updating
+         two at once GUARANTEES one wasted CI run. Serialisation is the only non-wasteful order. */
+      var C = function (kind, n, idle) {
+        return { k: kind, pr: { number: n }, why: kind, idleMin: idle };
+      };
+      T.eq('a PR mid-CI serialises the queue — no second update', pk([C('running', 5), C('stuck-behind', 1, 40)]).action, 'wait');
+      T.eq('…and an ADVISORY check must not serialise it forever (that is `running`, not `stuck`)', pk([C('stuck-behind', 1, 40)]).action, 'update');
+      T.eq('oldest stuck PR is picked, so none starves', pk([C('stuck-behind', 1, 40), C('stuck-behind', 2, 90), C('stuck-behind', 3, 25)]).pr.number, 2);
+      T.eq('a freshly-BEHIND PR is left for its owner', pk([C('stuck-behind', 1, IDLE - 1)]).action, 'none');
+      T.eq('…and one past the idle window is taken', pk([C('stuck-behind', 1, IDLE + 1)]).action, 'update');
+      T.eq('one unreadable PR stops the whole run rather than guessing', pk([C('unknown', 9), C('stuck-behind', 1, 99)]).action, 'wait');
+      /* Updating an unarmed PR would loop forever without landing it — report, do not act. */
+      T.eq('an UNARMED stuck PR is never updated (it needs a human to arm it)', pk([C('stuck-unarmed', 1, 99)]).action, 'none');
+    });
+
     /* ── land-pr: the PR-landing state machine (LAND-PR, 2026-08-09) ───────────────────────────
        `main` moves a median 7.2 min while CI takes ~10-12 over 7 required checks, and the ruleset
        sets strict=true, so every session hand-writes a polling loop and they keep being wrong in
