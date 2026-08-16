@@ -444,7 +444,26 @@ if (IS_MAIN && !has('--selftest')) {
        earlier `--no-save` install had left it, and silently refused everywhere else. */
     execFileSync(
       'npx',
-      ['-y', 'c8@10.1.2', '--reporter=json', '--report-dir=' + covDir, '--exclude=tests/**', '--exclude=tools/**', process.execPath, join(ROOT, 'tests/run-tests.mjs'), '--group=' + group],
+      /* 🔴 A TOOL BEING MUTATED MUST BE MEASURABLE. This c8 call hard-coded `--exclude=tools/**`,
+         so Level A REFUSED on every file in that tree — correctly, since without per-function
+         coverage "nothing calls this" is indistinguishable from "nothing asserts on this". The
+         effect was that every guard there lived on hand-written cases only and could never be
+         mutation-assessed: commit-shape (guards main), rebase-safe (prevents work loss), land-pr
+         (merges PRs), and this programme's own stmt-delete.
+
+         The exclusion is lifted ONLY when the subject is itself under tools/, and `--include` is
+         set alongside because the repo's .c8rc.json restricts include to root `*.js` and c8 merges
+         its config with these flags. Verified: the report goes from 0 tools files to 117, with
+         commit-shape.mjs carrying 4 functions.
+
+         ⚠️ `.c8rc.json` IS DELIBERATELY NOT TOUCHED. Its stated job is measuring the Dex SUITE as
+         the baseline for a future floor ("NO THRESHOLD YET"), and folding 117 dev tools into that
+         number would corrupt the baseline it exists to establish. This report is ephemeral — a
+         temp dir, removed a few lines below — so it changes no shared measurement. */
+      (/^tools[\\/]/.test(file)
+        ? ['-y', 'c8@10.1.2', '--reporter=json', '--report-dir=' + covDir, '--exclude=tests/**', '--include=tools/*.mjs', '--all']
+        : ['-y', 'c8@10.1.2', '--reporter=json', '--report-dir=' + covDir, '--exclude=tests/**', '--exclude=tools/**']
+      ).concat([process.execPath, join(ROOT, 'tests/run-tests.mjs'), '--group=' + group]),
       { cwd: ROOT, stdio: 'ignore', timeout: 600000 }
     );
   } catch (_) {
