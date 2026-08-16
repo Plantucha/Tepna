@@ -212,6 +212,7 @@ export function splitStatements(src, from, to, _mask) {
     if (!/^(if|for|while|do|switch|try|catch|finally|else)\b/.test(t)) continue;
     if (/\bfunction\b/.test(t) || /=>/.test(t)) continue;
     let i = st.start;
+    let sawBlock = false;
     while (i < st.end) {
       if (mask[i] !== '{' || braceKind(mask, i) !== 'block') {
         i++;
@@ -226,6 +227,36 @@ export function splitStatements(src, from, to, _mask) {
       if (j >= st.end) break; /* unbalanced — fail closed, recurse nowhere */
       for (const inner of splitStatements(src, i + 1, j, mask)) nested.push(inner);
       i = j + 1;
+      sawBlock = true;
+    }
+    /* 🔴 A BRACELESS BODY IS A BODY. `if (c) continue;` is emitted as ONE statement and declined as
+       control-flow — correct for the statement, and it leaves `continue;` in NO subject list, the
+       same invisibility the braced case had. Unlike a fragment this leaves no invalid text behind,
+       so the parse backstop cannot see it; only counting can. Measured across the allowlist: 940
+       braceless `if`/`for`/`while` bodies and 34 braceless `else`.
+
+       Deleting such a body is a real and legal mutant — `if (c) doX();` becomes `if (c) ;`, which
+       parses and means something different. */
+    if (!sawBlock) {
+      let bodyStart = -1;
+      if (/^else\b/.test(t)) {
+        bodyStart = st.start + mask.slice(st.start, st.end).indexOf('else') + 4;
+      } else {
+        const lp = mask.indexOf('(', st.start);
+        if (lp >= 0 && lp < st.end) {
+          let d = 0;
+          for (let q = lp; q < st.end; q++) {
+            if (mask[q] === '(') d++;
+            else if (mask[q] === ')' && --d === 0) {
+              bodyStart = q + 1;
+              break;
+            }
+          }
+        }
+      }
+      if (bodyStart > st.start && bodyStart < st.end) {
+        for (const inner of splitStatements(src, bodyStart, st.end, mask)) nested.push(inner);
+      }
     }
   }
   return out.concat(nested).sort((a, b) => a.start - b.start);
@@ -710,6 +741,41 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
     /\[ 42\/126  33%\].*KILLED.*4m55s\/run × 8 jobs.*54m05s left/.test(progressLine(42, 126, 8, 295, 'KILLED')),
     progressLine(42, 126, 8, 295, 'KILLED')
   );
+
+  /* ── BRACELESS BODIES. A miss here leaves no invalid text, so only a count can see it. */
+  const BL = 'function f(){ if (c) continue; k(); }';
+  const blo = BL.indexOf('{');
+  const bls = splitStatements(BL, blo + 1, BL.length - 1);
+  ok(
+    'a braceless if BODY is a subject in its own right',
+    bls.some((x) => x.text.trim() === 'continue;'),
+    bls.map((x) => x.text.trim()).join(' | ')
+  );
+  ok(
+    '…and the if statement itself is still emitted (and will decline)',
+    bls.some((x) => x.text.trim().startsWith('if (c)')),
+    bls.map((x) => x.text.trim()).join(' | ')
+  );
+  const EB = 'function f(){ if (c) a(); else b(); }';
+  const ebo = EB.indexOf('{');
+  const ebs = splitStatements(EB, ebo + 1, EB.length - 1);
+  ok(
+    'a braceless else body is a subject',
+    ebs.some((x) => x.text.trim() === 'b();'),
+    ebs.map((x) => x.text.trim()).join(' | ')
+  );
+  const NP = 'function f(){ for (var i = 0; i < n(x); i++) g(i); }';
+  const npo = NP.indexOf('{');
+  const nps = splitStatements(NP, npo + 1, NP.length - 1);
+  ok(
+    'a header with nested parens does not swallow the body',
+    nps.some((x) => x.text.trim() === 'g(i);'),
+    nps.map((x) => x.text.trim()).join(' | ')
+  );
+  const BR = 'function f(){ if (c) { a(); } k(); }';
+  const bro = BR.indexOf('{');
+  const brs = splitStatements(BR, bro + 1, BR.length - 1);
+  ok('a BRACED body is not double-counted by the braceless path', brs.filter((x) => x.text.trim() === 'a();').length === 1, brs.map((x) => x.text.trim()).join(' | '));
 
   ok('a return is eligible', classifyStatement('return a;') === 'RETURN');
   ok('a throw is eligible', classifyStatement('throw new Error("x");') === 'THROW');
