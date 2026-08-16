@@ -128,44 +128,74 @@ const SHARD = (() => {
 function progressReporter() {
   let plan = null;
   try {
+    /* 🔴 THE DENOMINATOR IS THE EXECUTED SET, NOT THE TIMINGS FILE. The first version planned by
+       matching `group-timings.json` TITLES, but selection also matches TAGS — so `--group=clock`
+       planned 36 groups while 58 actually ran, and the line read `[55/36]`. A progress counter whose
+       numerator can exceed its denominator is not merely ugly: the ETA derived from it is wrong by
+       the same ratio, and it is wrong in the optimistic direction.
+
+       `listOnly` declares every group WITHOUT executing any (each body is skipped, so it costs
+       ~0.1 s), and it carries the TAG — so applying the real matcher to it yields exactly the set
+       `onGroup` will fire for. The timings file is then used only for the per-group COST, which is
+       what it is actually authoritative about; a group missing from it falls back to the mean of the
+       ones present. */
+    const { runDexTests: _list, dexGroupMatcher } = createRequire(import.meta.url)(join(ROOT, 'tests/dex-tests.js'));
     const raw = JSON.parse(readFileSync(join(ROOT, 'tests/group-timings.json'), 'utf8'));
-    /* dex-tests.js is required lazily further down, so resolve the matcher here rather than
-       assuming module-scope access to it. */
-    const { dexGroupMatcher } = createRequire(import.meta.url)(join(ROOT, 'tests/dex-tests.js'));
     const match = GROUP_FILTER ? dexGroupMatcher(GROUP_FILTER) : null;
+    const declared = _list({ listOnly: true }).groups;
+    const selected = match ? declared.filter((g) => match(g.title, g.tag)) : declared;
+    const known = selected.map((g) => raw.groups?.[g.title]).filter((x) => typeof x === 'number');
+    const mean = known.length ? known.reduce((a, b) => a + b, 0) / known.length : 0;
     const per = new Map();
     let total = 0;
-    for (const [title, ms] of Object.entries(raw.groups || {})) {
-      if (match && !match(title, '')) continue;
-      per.set(title, ms);
+    for (const g of selected) {
+      const ms = typeof raw.groups?.[g.title] === 'number' ? raw.groups[g.title] : mean;
+      per.set(g.title, ms);
       total += ms;
     }
-    if (total > 0) plan = { per, total };
+    if (selected.length) plan = { per, total, count: selected.length, priced: known.length };
   } catch {
-    plan = null; /* no timings → mean-based, and say so */
+    plan = null; /* no list or no timings → running mean, and say so */
   }
   const t0 = Date.now();
   let done = 0;
   let plannedDone = 0;
-  if (plan) process.stderr.write('  ⏱  plan: ' + plan.per.size + ' groups, ~' + (plan.total / 1000).toFixed(0) + 's from tests/group-timings.json\n');
-  else process.stderr.write('  ⏱  no usable group timings — ETA will be a running mean\n');
+  if (plan) {
+    process.stderr.write(
+      '  ⏱  plan: ' + plan.count + ' groups will run, ~' + (plan.total / 1000).toFixed(0) + 's' + (plan.priced < plan.count ? '  (' + (plan.count - plan.priced) + ' unpriced — mean used)' : '') + '\n'
+    );
+  } else {
+    process.stderr.write('  ⏱  group plan unavailable — ETA will be a running mean\n');
+  }
+  const fmt = (x) => (!Number.isFinite(x) ? '?' : x >= 60 ? Math.floor(x / 60) + 'm' + String(Math.round(x % 60)).padStart(2, '0') + 's' : Math.round(x) + 's');
   return (G) => {
     done++;
     const elapsed = (Date.now() - t0) / 1000;
-    let left;
+    let left = Number.NaN;
     let exact = false;
     if (plan) {
-      plannedDone += plan.per.has(G.title) ? plan.per.get(G.title) : plan.total / Math.max(1, plan.per.size);
-      left = Math.max(0, (plan.total - plannedDone) / 1000);
+      plannedDone += plan.per.has(G.title) ? plan.per.get(G.title) : plan.total / Math.max(1, plan.count);
+      /* Scale the remaining PLAN by how wrong it has been so far — the timings file is a hint from
+         another machine, so trusting it unadjusted repeats the "78 min" error at group scale.
+         ⚠️ BUT NOT FROM ONE SAMPLE. Unguarded, this divided a real elapsed by a 1 ms first group and
+         printed `ETA 146m24s` for a run that took 5 — the same cold-sample error it exists to fix,
+         re-created one level up. The correction only engages once enough of the plan has actually
+         run to mean something, and is clamped: a hint that is out by more than 5x is not a hint
+         worth scaling by. */
+      const seen = plannedDone / Math.max(1, plan.total);
+      let ratio = 1;
+      if (seen >= 0.05 && elapsed > 2 && plannedDone > 0) {
+        ratio = elapsed / (plannedDone / 1000);
+        if (!Number.isFinite(ratio) || ratio <= 0) ratio = 1;
+        ratio = Math.min(5, Math.max(0.2, ratio));
+      }
+      left = Math.max(0, ((plan.total - plannedDone) / 1000) * ratio);
       exact = plan.per.has(G.title);
-    } else {
-      left = Number.NaN;
     }
-    const fmt = (x) => (!Number.isFinite(x) ? '?' : x >= 60 ? Math.floor(x / 60) + 'm' + String(Math.round(x % 60)).padStart(2, '0') + 's' : Math.round(x) + 's');
     process.stderr.write(
       '  [' +
         String(done).padStart(3) +
-        (plan ? '/' + plan.per.size : '') +
+        (plan ? '/' + plan.count : '') +
         ']  ' +
         (G.ms >= 1000 ? String((G.ms / 1000).toFixed(1)) + 's' : String(G.ms) + 'ms').padStart(7) +
         '  ' +
