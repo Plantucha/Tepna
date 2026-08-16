@@ -101,12 +101,22 @@ export function stripPython(text) {
 /* Is `id` a real symbol in this text — declared, assigned, or read as a property — rather than a
    word that happens to appear? Deliberately broad: over-matching here only keeps a candidate, while
    under-matching drops a real finding. */
+/* Every character with meaning in a RegExp, escaped. Exported so it can be tested on inputs the
+   extractor does not currently produce — the point is to stop depending on that. */
+export function escapeRegex(t) {
+  return String(t).replace(/[.*+?^${}()|[\]\\]/g, (c) => '\\' + c);
+}
+
 export function declaresSymbol(text, id) {
   /* ⚠️ A PREFIX OF A SYMBOL COUNTS, and demanding an exact symbol was wrong. A control caught it:
      `/CK_AXIS_MAX/` asserted against `var CK_AXIS_MAX_PPM = 50000;` is not a symbol by exact match —
      and that IS the defect, an assertion already satisfied by a longer name. So the question is
      whether some declared symbol STARTS with the asserted identifier. */
-  const e = id.replace(/[$]/g, '\\$') + '[A-Za-z0-9_$]*';
+  /* ⚠️ ESCAPE EVERY METACHARACTER, not only `$`. Today `assertedIdentifiers` yields only
+     `[A-Za-z_$]`-shaped tokens, so `$` was the sole reachable one and escaping it alone was CORRECT
+     — correct by a coupling to another function rather than by anything local, which is the fragile
+     kind, and CodeQL `js/incomplete-sanitization` named it. */
+  const e = escapeRegex(id) + '[A-Za-z0-9_$]*';
   return new RegExp('(?:\\b(?:function|def|class|var|let|const|async)\\s+' + e + '\\b)' + '|(?:\\b' + e + '\\s*[:=][^=])' + '|(?:\\.' + e + '\\b)' + '|(?:\\b' + e + '\\s*\\()').test(text);
 }
 
@@ -157,6 +167,10 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   const loose = (re, t) => !!looseAgainst(re, t);
   ok("the peer's instance is FOUND — se_unused satisfies it", loose(/def classify\([^)]*se/, PY));
   ok("the peer's FIX is not flagged — \\bse\\s*= survives the rename", !loose(/def classify\([^)]*\bse\s*=/, PY));
+  ok('every regex metacharacter is escaped, not only $', escapeRegex('a.b*c+d?e^f$g') === 'a\\.b\\*c\\+d\\?e\\^f\\$g', escapeRegex('a.b*c+d?e^f$g'));
+  ok('brackets and braces too', escapeRegex('x{1}y[2]z(3)|w') === 'x\\{1\\}y\\[2\\]z\\(3\\)\\|w', escapeRegex('x{1}y[2]z(3)|w'));
+  ok('an ordinary identifier is unchanged', escapeRegex('CK_AXIS_MAX') === 'CK_AXIS_MAX');
+  ok('a dotted token cannot build a wildcard pattern', declaresSymbol('var ab = 1;', 'a.b') === false);
   ok('a bare identifier is found', loose(/hostAxis/, JS));
   ok('a bounded call is tight', !loose(/\bhostAxis\s*\(/, JS));
   ok('an anchored declaration is tight', !loose(/function\s+hostAxis\b/, JS));
