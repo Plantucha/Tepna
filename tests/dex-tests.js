@@ -458,6 +458,27 @@
       var a = P('2026-06-07T22:00:00.123', {});
       T.eq('ms-fraction no-zone → tMs preserves ms', a && a.tMs, U(2026, 5, 7, 22, 0, 0, 123));
       T.eq('ms-fraction no-zone → offsetMin null', a && a.offsetMin, null);
+
+      /* ── KILLS format 4d's whole branch (clock.js L186-189: the match, the _ckMk call, and the
+         return). Level B found ALL THREE surviving deletion on 2026-08-16 — an entire vendor format
+         named in the Clock Contract §2.4 with nothing observing it.
+
+         The one existing `YYYY/MM/DD` assertion in this suite goes through GlucoDex's OWN parser
+         (`GP`), not DexClock's, so it covered a different implementation of the same shape. A format
+         that a consumer relies on and no test exercises parses to `null` the moment its branch is
+         disturbed, and null is the contract's honest "unknown" — so the failure would surface as
+         missing data rather than as an error. */
+      var v4d = P('2026/06/07 22:00:45', {});
+      T.eq('4d · "YYYY/MM/DD HH:MM:SS" → components verbatim', v4d && v4d.tMs, U(2026, 5, 7, 22, 0, 45));
+      T.eq('4d · no zone in the stamp → offsetMin null', v4d && v4d.offsetMin, null);
+      /* §2.4 writes the seconds group as OPTIONAL, and the branch defaults it — assert the default
+         rather than assume it, since `m[6] ? +m[6] : 0` is the only thing standing between an absent
+         group and a NaN. */
+      var v4dNoSec = P('2026/06/07 22:00', {});
+      T.eq('4d · seconds are optional and default to 0', v4dNoSec && v4dNoSec.tMs, U(2026, 5, 7, 22, 0, 0));
+      /* §2.7 — a regex matches DIGITS, not calendar validity, and Date.UTC would silently roll. */
+      T.eq('4d · an impossible month refuses rather than rolling', P('2026/13/01 22:00', {}), null);
+      T.eq('4d · an impossible day refuses too', P('2026/02/30 22:00', {}), null);
       var b = P('2026-06-07T22:00:00.500+02:00', {});
       T.eq('ms-fraction zoned → tMs', b && b.tMs, U(2026, 5, 7, 22, 0, 0, 500));
       T.eq('ms-fraction zoned → offsetMin +120', b && b.offsetMin, 120);
@@ -892,6 +913,54 @@
         seed = (seed * 16807) % 2147483647;
         return seed / 2147483647 - 0.5;
       };
+
+      /* ── KILLS the whole least-squares body of `_ckAllanSlope` (L341-350: the mx/my accumulators,
+         the /= k means, and the sxy covariance). Level B found every one of those five statements
+         SURVIVING deletion on 2026-08-16, inside a function this suite already exercises.
+
+         The reason they survived is that every existing slope assertion is an INEQUALITY —
+         `st.slope < -0.5`, `st.slopeSE > 0`. Those pin a DIRECTION, and the slope's whole job is to
+         name a MAGNITUDE: §7 reads τ⁻¹ as jitter that averages away, τ⁻¹ᐟ² as the benign case, τ⁰ as
+         a floor where more averaging buys nothing, τ⁺¹ as drift. `slope < -0.5` cannot tell −0.6
+         from −1.0, so it cannot tell "benign" from "jitter" — the one distinction the number exists
+         to make.
+
+         A pure power law adev = C·τ^m is exactly collinear in log-log, so least squares must return
+         m itself. That is a KNOWN ANSWER, and any arithmetic slip in the fit moves it. */
+      var lawPts = function (m, c) {
+        var out = [];
+        for (var _t = 0; _t < 4; _t++) {
+          var tau = Math.pow(10, _t);
+          out.push({ tau: tau, adev: c * Math.pow(tau, m) });
+        }
+        return out;
+      };
+      var slopeOf = function (m) {
+        var r = C.allanSlope(lawPts(m, 1e-6));
+        return r == null ? null : Math.round(r.slope * 1e6) / 1e6;
+      };
+      T.eq('a τ⁻¹ law recovers slope −1 exactly — jitter that averages away', slopeOf(-1), -1);
+      T.eq('a τ⁻¹ᐟ² law recovers −0.5 — the benign case the inequality could not separate', slopeOf(-0.5), -0.5);
+      T.eq('a τ⁰ law recovers 0 — a floor, where more averaging buys nothing', slopeOf(0), 0);
+      T.eq('a τ⁺¹ law recovers +1 — drift', slopeOf(1), 1);
+      /* ⚠️ `my += ys[i]` is NOT killable by any slope assertion, and that is a property of least
+         squares rather than a gap in the test: the mean of y sets the INTERCEPT, and the slope
+         b = sxy/sxx is invariant to it (for collinear y, Σ(x−mx)·y = m·sxx whatever my is). Verified
+         by applying the mutant — the four slope answers above stayed exact.
+         It reaches the RESIDUAL instead: a pure power law is exactly collinear, so the fit must have
+         zero residual, and a wrong my displaces every prediction. */
+      var exact = C.allanSlope(lawPts(-0.5, 1e-6));
+      T.eq('an exact power law fits with NO residual — se is 0', Math.round(exact.se * 1e9) / 1e9, 0);
+      T.eq('…and reports every τ point it used', exact.nTau, 4);
+      /* The refusal is a contract too: two points fit any line and cannot be checked (§7). */
+      T.eq(
+        'fewer than three τ points refuses rather than fitting',
+        C.allanSlope([
+          { tau: 1, adev: 1 },
+          { tau: 10, adev: 1 }
+        ]),
+        null
+      );
       var white = [];
       for (var i = 0; i < 600; i++) white.push(rnd());
       /* CROSS-LANGUAGE KNOWN ANSWER from `capture-host/allan.py adev(phase, 1.0)` on this exact series.
@@ -905,7 +974,17 @@
         [16, 0.0311570938],
         [32, 0.0159440059]
       ];
-      var worst = 0;
+      /* ANTI-VACUITY — the cheapest control there is, and it earns its space here twice over.
+         The comparison below is a loop over `PY`: empty that table and the loop never runs, `worst`
+         stays 0, and "matches capture-host/allan.py to 1e-9" passes having compared NOTHING. Measured
+         2026-08-16 by deleting the table: 15/15 green. This is also not hypothetical vandalism — a
+         `count=1` bulk regex aimed at a DIFFERENT `var PY` in this file replaced this one while a
+         sibling gate was being written, and only an unrelated row-count leg in that sibling caught it.
+         A pinned table should assert its own size regardless of what the assertion was added to
+         protect; it costs one line and it is the only thing standing between a lost reference and a
+         green suite. */
+      T.ok('ANTI-VACUITY · the pinned Python answers are present (an empty table passes the loop below)', PY.length >= 6 && got.length >= PY.length, 'PY rows=' + PY.length + ' got=' + got.length);
+      var worst = PY.length ? 0 : Infinity;
       for (var k = 0; k < PY.length; k++) worst = got[k].tau === PY[k][0] ? Math.max(worst, Math.abs(got[k].adev - PY[k][1])) : Infinity;
       T.ok('the spine core matches capture-host/allan.py to 1e-9', worst < 1e-9, 'worst |Δ| = ' + worst);
       /* THE PROMOTION MUST NOT HAVE FORKED. `ppgdex-dsp.js` still carries the copy it was promoted
@@ -980,8 +1059,12 @@
         [16, 0.0311570938],
         [32, 0.0159440059]
       ];
+      /* ANTI-VACUITY. `got.length >= PY.length` is trivially true when PY is empty, and the loop
+         below then compares nothing while reporting a match — see the sibling group's note. Assert the
+         table's own size, not only that the curve reaches it. */
+      T.ok('ANTI-VACUITY · the pinned Python answers are present', PY.length >= 6, 'PY rows=' + PY.length);
       T.ok('the octave ladder reaches at least the pinned taus', got.length >= PY.length, 'got ' + got.length);
-      var worst = 0;
+      var worst = PY.length ? 0 : Infinity;
       for (var k = 0; k < PY.length; k++) {
         if (got[k].tau !== PY[k][0]) worst = Infinity;
         else worst = Math.max(worst, Math.abs(got[k].adev - PY[k][1]));
@@ -16685,6 +16768,20 @@
           inner(n);
         };
       };
+      /* ANTI-VACUITY. Every assertion in this group is raised INSIDE the loop below, so an empty or
+         truncated TABLE does not fail — it silently raises fewer. Measured 2026-08-16 by deleting the
+         rows: the group went 174 → 35 assertions and still reported GREEN. Nothing in the suite pins an
+         expected assertion count, so 139 checks can vanish with no signal at all. `>=` rather than `===`
+         so adding a threshold row is free, while losing one reds.
+         ⚠️ The number is the table's REAL size (20 rows, each raising several assertions), not a `> 0`
+         floor. A floor would be this same defect one level up — it detects only total loss, which is the
+         failure least likely to happen quietly. It earned that immediately: the first draft guessed 179
+         from counting nested brackets and this leg failed loudly rather than passing on a wrong premise. */
+      T.ok(
+        'ANTI-VACUITY · the threshold table is intact (an empty one silently raises no assertions)',
+        TABLE.length >= 20,
+        'rows=' + TABLE.length + ' (expected ≥ 20 — each row raises several assertions; 20 rows ⇒ 174)'
+      );
       var r, c, i, j, set, patch;
       for (i = 0; i < TABLE.length; i++) {
         r = TABLE[i];
@@ -34873,6 +34970,10 @@
         { raw: '2026-06-07 22:00:00', tMs: U(2026, 5, 7, 22, 0, 0), off: null },
         { raw: 'not a date', tMs: null, miss: true }
       ];
+      /* ANTI-VACUITY — same shape as the OxyDex threshold table: every assertion is raised inside the
+         per-row walk, so an emptied TABLE reports green having checked nothing. Measured: 54 → 27
+         assertions, still green. */
+      T.ok('ANTI-VACUITY · the per-node conformance table is intact', TABLE.length >= 5, 'rows=' + TABLE.length + ' (expected ≥ 5)');
       function checkLive(name, fn) {
         T.ok(name + ' present', typeof fn === 'function');
         if (typeof fn !== 'function') return;
