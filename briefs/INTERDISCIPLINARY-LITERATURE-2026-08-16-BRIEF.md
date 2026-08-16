@@ -533,6 +533,116 @@ distinct failure from the English-only bias: the query was right and the corpus 
 question. When searching a second language, verify the technical term is not also a common noun, and
 prefer a phrase that cannot collide (`时频 三角帽 方差` rather than `三角帽`).
 
+## 13d · ROUND FIVE — six languages, searched for METHODS not citations
+
+Russian · Japanese · Korean · Czech · German · French. Ordered by what each actually yielded.
+
+### 13d.1 · KOREAN — the most actionable find in this brief
+
+**Tepna problem.** Vigil box established that there is **no standard HCI anchor** for ACL/GATT
+notifications, that kernel-side timestamps need `CAP_NET_RAW` (an owner action), and that BLE's
+**7.5 ms connection interval** is a floor beneath everything. The conclusion was that better alignment
+requires privileged access.
+
+| work | claim | status |
+|---|---|---|
+| *Application-layer time synchronization and data alignment method for multichannel biosignal sensors using BLE protocol* — PMC10144216 | sync + alignment implemented **in the BLE application layer**, no additional hardware | verified exists · **claim unread** |
+| *Comparison between two time synchronization and data alignment methods for multi-channel wearable biosensor systems using BLE* — PMC10007376 | **absolute time alignment error < 1.8 ms**, transferable between commercial MCUs | verified exists · **claim unread** |
+| *Wireless body-area network time synchronization using R peak reference broadcasts* — US 10375659 | uses the **R peak as a shared reference event** across devices | verified exists |
+
+**Why this matters:** < 1.8 ms is *below the 7.5 ms connection interval*, achieved **at the
+application layer with no extra hardware** — i.e. a route around the exact blocker that currently
+needs owner sign-off. ⚠️ I have not read these; the number may be measured under conditions we cannot
+meet (a controlled MCU firmware we do not own, rather than stock Polar devices). **Read before
+believing.** But if it holds even approximately, it reopens a question recorded as closed.
+
+The R-peak reference broadcast is the second idea: both devices observe the *same heartbeat*, so a
+physiological event becomes a shared timestamp. Note this is **not** the beat-train alignment that
+fails mod-one-RR — it is an explicit broadcast of a marker, which is the aperiodic-anchor shape the
+suite's own briefs call for.
+
+### 13d.2 · RUSSIAN — a decomposition that fits the gap round four exposed
+
+The productive term is **разладка** (*disorder*) — the Shiryaev school's own word, and searching
+`change point` in English does not reach this literature.
+
+**SSA — Singular Spectrum Analysis** (*Особенности применения метода SSA для обнаружения разладки во
+временных рядах*) decomposes a series into **trend + oscillatory + noise components
+non-parametrically**, with no model assumed. Also found: *Математические модели временных рядов с
+трендом в задачах обнаружения разладки* — change-point detection **against a trend background** for
+quasi-periodic series.
+
+**This lands exactly on §13c.2's gap.** Tepna prints *"deterministic — fit and remove it"* and never
+detrends or looks for periodicity. The Chinese GNSS pipeline does it parametrically (quadratic fit →
+FFT → residual). SSA does it **non-parametrically**, which matters because we do not know the periods
+in advance — 7.5 ms interval beating, ~90 s reconnect cycle and thermal drift are hypotheses, not
+knowns. *(All entries: verified exist · authors/DOIs unverified.)*
+
+### 13d.3 · JAPANESE — a way around the PAT wall rather than through it
+
+**Tepna problem.** `dead-ends` wall 7: cross-device PAT is unrecoverable, and the cause is **open**.
+
+The Japanese PTT literature reports that **PTT derived from the fingertip PPG waveform alone —
+without ECG — is comparable at rest to PTT derived from ECG + PPG together**
+(光産業創成大学院大学 dissertation; 中央大学 土肥 tonometry work).
+
+**If that transfers, it dissolves the blocker rather than solving it.** Tepna's PAT wall is a
+*cross-device clock* problem; a single-device interval has no cross-device clock in it. The suite has
+never tested whether the intra-device PPG-only interval carries the information, because it went
+looking for the two-device version first.
+
+⚠️ The same literature is candid about the limits: 脈波は血圧以外の影響を受ける — the pulse wave is
+affected by things other than blood pressure — and PTT correlates poorly with *spontaneous*
+within-subject BP variation. So this is a route to a **timing** measurement, not a BP claim.
+
+### 13d.4 · FRENCH — already integrated, and the papers under-cite it
+
+**A correction to my own round-four self-criticism.** I said the search had been Anglophone. In
+*this* area it was not, and the codebase proves it:
+
+```
+Vernotte     briefs=4  docs=1  code=1   papers=0
+Groslambert  briefs=4  docs=1  code=1   papers=0
+KLTS         briefs=1  docs=0  code=1   papers=0
+```
+
+**Groslambert Covariance** (FEMTO-ST / Vernotte, Besançon) is the French alternative to the
+three-cornered hat, and it is the method built for the case where **TCH returns negative variance** —
+which `tch-multinight` hits on 8 of 53 nights. It is already implemented here. **KLTS**
+(Karhunen–Loève Transform using Sufficient statistics, arXiv 1904.05849) is the rigorous
+confidence-interval method for both TCH and GCov.
+
+**The gap is not knowledge, it is publication.** `papers=0` across all three: `sigma-no-reference`
+reports an across-night **bootstrap** CI and never mentions that a rigorous CI method exists and is
+known internally. The papers under-cite what the codebase already does.
+
+### 13d.5 · CZECH and GERMAN — institutional context, no new method
+
+- **ÚFE Prague** (Ústav fotoniky a elektroniky AV ČR) — Laboratoř Státního etalonu času a frekvence,
+  the associated ČMI laboratory realising **UTC(TP)** on 5071A caesium standards, with time transfer
+  by satellite and optical fibre. Worth knowing: NTSC's own BeiDou common-view work was **China–Czech,
+  against UTC(TP)** — the national lab nearest this project is already in that network.
+- **PTB** (Physikalisch-Technische Bundesanstalt) — extensive GUM and traceability material, but it is
+  the same GUM already covered in §1. No new method; a good teaching source for uncertainty budgets.
+
+### 13d.6 · What the multilingual round says about the method
+
+Six languages, and the yield was **uneven in an informative way**: Korean and Russian produced
+methods, Japanese produced a reframing, French produced a *correction to my own criticism*, Czech and
+German produced context. The lesson is not "search everything" — it is that **the fields organise
+differently by language community**, so the same query reaches different work:
+
+- GNSS/satellite-clock work is heavily Chinese-language → periodicity extraction is routine there.
+- Sequential change-point theory is heavily Russian → *разладка*, and CUSUM without Shiryaev is
+  half the field.
+- Wearable BLE sync engineering is heavily Korean → application-layer alignment is a live subfield.
+- Time-frequency estimator theory has a strong French school → GCov, KLTS.
+
+⚠️ **Everything in §13d is verified for EXISTENCE only.** None has been read; several are behind
+translation. The claim I would most like to be true — < 1.8 ms application-layer BLE alignment — is
+exactly the one I would trust least until read, because it contradicts a conclusion this project
+reached by measurement.
+
 ## 14 · Lower priority — technique already used, justification missing
 
 | field | work | why |
