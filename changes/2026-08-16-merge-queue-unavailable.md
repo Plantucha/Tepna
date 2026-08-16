@@ -20,4 +20,21 @@ cadence numbers to the owner arguing against a constraint that is not economic a
 had the availability blocker discovered for them. The two facts lived in `stale-file.yml` and a brief;
 neither is where someone reads before proposing a change to merge policy.
 
-If merge queue is wanted, the question is repository ownership, not throughput. Docs only.
+If merge queue is wanted, the question is repository ownership, not throughput.
+
+Also adds §👥.2d, a hazard class no hook in this repo can see. Two sessions independently produced the
+branch name `claude/land-pr-required-reported` for the same defect on 2026-08-16; one pushed and opened
+a PR, the other had committed the same name locally. That is likely rather than coincidental, since
+branches are named after the fix and one defect yields one slug. The collision is on the remote, between
+two private trees, so `guard-shared-tree.sh` structurally cannot detect it — every other hazard in §👥 is
+visible somewhere locally.
+
+The safe failure is already built in: a plain `git push` to a diverged branch is rejected as
+non-fast-forward, and that rejection on a branch you believe is yours alone is the warning rather than an
+obstacle to force past. `--force-with-lease` refuses on unseen commits and is what made this a near-miss
+instead of a destroyed PR. A per-session branch suffix prevents the collision, but note the asymmetry:
+the suffix prevents the collision while the lease prevents the loss, and only one of those is
+recoverable.
+
+Docs only.
+

@@ -204,6 +204,34 @@ nothing: `git show HEAD:<file> | grep -c <an identifier your change adds>`.
 generated paths pass through. Escape hatch for a deliberate single-file restore: run it outside a
 rebase on one explicit path, and verify afterwards.
 
+### 2d · TWO SESSIONS WILL DERIVE THE SAME BRANCH NAME — and a plain `--force` destroys the other's PR
+
+Measured 2026-08-16: two sessions independently produced **`claude/land-pr-required-reported`** for the
+same defect. One pushed and opened a PR; the other had committed the same name locally and had not
+pushed yet. This is **likely, not coincidental** — branches are named after the fix, so one defect
+yields one slug, and two sessions working one defect is the normal case here, not the exception.
+
+**No hook can catch it, and that is what makes it a different class from everything else in §👥.** The
+collision is on the **remote**, between two private trees. `guard-shared-tree.sh` inspects your local
+tree and commands; it structurally cannot see a branch name on `origin` that another checkout is about
+to use. Every other hazard in this section is visible somewhere locally. This one is not.
+
+**The safe failure is already built in, and it is the tell:**
+
+- A **plain `git push`** to a diverged branch is **REJECTED** as non-fast-forward. That rejection on a
+  branch you believe is yours alone is the warning — **never force past it.** Find out who owns the
+  name first.
+- **`--force-with-lease`** refuses when the remote carries commits you have not seen. This is the
+  load-bearing mitigation and it is what turned the 2026-08-16 case into a near-miss rather than a lost
+  PR. **Never use a bare `--force` against `origin`.**
+- A **per-session suffix** — `claude/<task>-<3 chars>` — prevents the collision itself. Defence in
+  depth, and the cheaper of the two, but note the asymmetry: **the suffix prevents the collision, the
+  lease prevents the LOSS**, and only one of those is recoverable when it goes wrong.
+
+⚠️ Verify before any force-push that the remote head is your own commit —
+`git log --oneline -1 origin/<branch>` and `git log --format='%an' origin/<branch> -3 | sort -u`. Two
+sessions on one repo makes "it is my branch, so forcing is safe" an assumption, not a fact.
+
 ### 3 · Bundles and ledgers must be SERIALIZED — a worktree does not save you here
 
 Isolation solves the *tree*. The old single-file ledger collision is **mostly SOLVED** (ARCHITECTURE-DEBT-
