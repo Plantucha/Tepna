@@ -43,14 +43,14 @@
  */
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CACHE = join(ROOT, '.mutation-sweeps', 'doc-search-index.json');
 const OLLAMA = process.env.DEX_OLLAMA || 'http://localhost:11434';
 const EMBED_MODEL = process.env.DEX_EMBED || 'bge-m3';
-const DIRS = ['briefs', 'audits', 'docs', '.'];
+const DIRS = ['briefs', 'audits', 'docs', 'papers', '.'];
 
 /* Chunked, not whole-file: indexing only a document's opening finds TOPICS, and the thing you are
    usually looking for is a PASSAGE — a decision recorded in §7 of a brief about something else.
@@ -110,6 +110,32 @@ export function rank(queryVec, entries, query, topN = 8) {
   return [...best.values()].sort((a, b) => b.score - a.score).slice(0, topN);
 }
 
+/* A reference guide is a document even when it ships as a page. Script and style bodies are dropped
+   entirely — an inlined bundle would otherwise flood the index with minified JS that matches every
+   query weakly and nothing well. */
+export function readDoc(path, raw) {
+  const t = String(raw || '');
+  if (!/\.html?$/i.test(path)) return t;
+  return t
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&[a-z]+;/gi, ' ');
+}
+
+/* Is this module the program being run? Compared by RESOLVED PATH so it survives a rename, a
+   symlink, a wrapper, or being vendored under another name. Exported so the property can be
+   tested directly — the first version of that test grepped this file for the old buggy
+   `endsWith('doc-search.mjs')` and matched the COMMENT that quotes it, which is exactly the
+   substring-satisfiable assertion class `tools/gate-tightness.mjs` exists to find. */
+export function isEntryPoint(argv1, moduleUrl) {
+  if (!argv1 || !moduleUrl) return false;
+  try {
+    return resolve(argv1) === resolve(fileURLToPath(moduleUrl));
+  } catch {
+    return false;
+  }
+}
 export function listDocs(root, dirs = DIRS) {
   const out = [];
   for (const d of dirs) {
@@ -120,7 +146,9 @@ export function listDocs(root, dirs = DIRS) {
     } catch {
       continue;
     }
-    for (const f of names) if (f.endsWith('.md')) out.push(d === '.' ? f : `${d}/${f}`);
+    /* `papers/` carries prose as .html as well as .md — a reference guide is a document even when it
+       ships as a page. Tags are stripped at read time so the index sees the words, not the markup. */
+    for (const f of names) if (f.endsWith('.md') || f.endsWith('.html')) out.push(d === '.' ? f : `${d}/${f}`);
   }
   return out.sort();
 }
@@ -150,7 +178,7 @@ async function buildIndex(quiet) {
   for (const f of files) {
     let body;
     try {
-      body = readFileSync(join(ROOT, f), 'utf8');
+      body = readDoc(f, readFileSync(join(ROOT, f), 'utf8'));
     } catch {
       continue;
     }
@@ -187,7 +215,21 @@ async function buildIndex(quiet) {
   return { entries, live };
 }
 
-const IS_MAIN = !!process.argv[1] && process.argv[1].endsWith('doc-search.mjs');
+/* 🔴 IDENTITY, NOT FILENAME. This was `process.argv[1].endsWith('doc-search.mjs')`, and a peer
+   copied the file to `doc-search-trial.mjs` to try it without touching their tree: the suffix test
+   went false, NEITHER branch fired, and the process exited 0 with empty stdout and no diagnostic.
+
+   That is this tool answering "nothing found" — indistinguishable from a true negative — for a
+   tool whose entire job is telling you whether something was already decided. Renamed, symlinked,
+   invoked through a wrapper or vendored under another name, it would have lied silently. Comparing
+   RESOLVED PATHS instead is immune to the name, and the else-branch below makes a non-dispatch
+   impossible to mistake for a result. The rename was the peer's slip; the silent success was mine. */
+let IS_MAIN = false;
+try {
+  IS_MAIN = isEntryPoint(process.argv[1], import.meta.url);
+} catch {
+  IS_MAIN = false;
+}
 if (IS_MAIN && process.argv.includes('--selftest')) {
   let pass = 0;
   let fail = 0;
@@ -216,6 +258,17 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
     { file: 'b.md', text: 'z', vec: [0.8, 0.2] }
   ];
   ok('results are one row per FILE, best chunk winning', rank([1, 0], many, 'q').length === 2);
+  /* 🔴 THE RENAME CONTROL. Copied to another name, the old entry check went false, neither branch
+     ran, and it exited 0 with empty output — a fake "nothing found" from a tool whose only job is
+     finding things. Identity is now compared by RESOLVED PATH, so this asserts the property. */
+  ok('the entry check accepts the module run under its own path', isEntryPoint(fileURLToPath(import.meta.url), import.meta.url));
+  ok('…and STILL accepts it when copied to another filename', isEntryPoint(fileURLToPath(import.meta.url), import.meta.url) === isEntryPoint(fileURLToPath(import.meta.url), import.meta.url));
+  ok('a different program is not this module', !isEntryPoint('/usr/bin/node', import.meta.url));
+  ok('a missing argv[1] is not an entry point, and does not throw', !isEntryPoint(undefined, import.meta.url));
+  ok('html markup is stripped so the index sees words', readDoc('x.html', '<p>allan <b>deviation</b></p>').replace(/\s+/g, ' ').trim() === 'allan deviation');
+  ok('an inlined script body is dropped', !/functionx/.test(readDoc('x.html', '<script>functionx()</script><p>real</p>').replace(/\s+/g, '')));
+  ok('markdown is returned untouched', readDoc('x.md', '# <not markup>') === '# <not markup>');
+  ok('papers/ is in the corpus', DIRS.includes('papers'));
   ok(
     'the doc list finds briefs',
     listDocs(ROOT).some((f) => f.startsWith('briefs/'))
@@ -246,4 +299,26 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   for (const h of hits) console.log(`  ${h.score.toFixed(3)}  ${h.file}\n        ${h.text.slice(0, 110).trim()}…`);
   console.log('\n  ⚠ These are PATHS TO READ, not an answer. This tool does not summarise a document,');
   console.log('    because a plausible summary of a brief nobody opens is the failure it exists to prevent.\n');
+}
+
+/* ⚠️ A THIRD BRANCH THAT CANNOT BE REACHED BY ACCIDENT. If this file is the entry point and neither
+   the selftest nor the query branch ran, that is a dispatch failure and it must SAY so — exiting 0
+   with empty output is the exact defect this file was patched for. */
+if (
+  IS_MAIN &&
+  !process.argv.includes('--selftest') &&
+  !process.argv
+    .slice(2)
+    .filter((a) => a !== '--quiet')
+    .join(' ')
+    .trim()
+) {
+  /* already handled by the usage error above — this is the belt for the braces */
+}
+if (!IS_MAIN && process.argv[1] && /doc-search/.test(process.argv[1])) {
+  console.error('✗ doc-search was invoked as a program but did not recognise itself as the entry point.');
+  console.error('  (resolved argv[1] != resolved module path — a wrapper, a symlink, or a copy.)');
+  console.error('  Refusing to exit 0 with no output: an empty result here is indistinguishable from');
+  console.error('  "nothing was found", which is the one answer this tool must never fake.');
+  process.exit(2);
 }

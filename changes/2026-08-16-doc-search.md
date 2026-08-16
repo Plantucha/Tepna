@@ -34,3 +34,22 @@ Chunked (1200/900 overlap), because whole-file indexing finds TOPICS and the thi
 PASSAGE — measured: top-1 1/5 → 2/5, and one query moved rank 42 → 20. Incremental by content hash:
 cold build 201 s, warm query **1 s**. Honest limits: top-5 4/5 and top-1 2/5 on five known answers, so
 it is a read-the-top-five tool, not an oracle. 12 selftests.
+
+🔴 **A peer found the defect this tool exists to prevent, in this tool.** `IS_MAIN` tested
+`process.argv[1].endsWith('doc-search.mjs')`. Copied to `doc-search-trial.mjs` to try it without
+touching their tree, the suffix test went false, NEITHER branch ran, and it **exited 0 with empty
+stdout and no diagnostic** — a fake "nothing found" from a tool whose only job is telling you whether
+something was already decided. Renamed, symlinked, wrapped or vendored, it would have lied silently.
+
+Entry detection now compares RESOLVED PATHS via an exported `isEntryPoint`, and a non-dispatch exits 2
+with an explanation rather than 0 with nothing.
+
+⚠️ **The first version of that control grepped this file for the old `endsWith('doc-search.mjs')` and
+matched the COMMENT quoting it** — the substring-satisfiable assertion class `tools/gate-tightness.mjs`
+exists to find, reproduced in the fix for another bug. Replaced with four behavioural assertions on
+`isEntryPoint`, and verified by actually copying the file to another name and running it.
+
+**Corpus extended to `papers/` and to `.html`** — a reference guide is a document even when it ships
+as a page. Script and style bodies are dropped, so an inlined bundle cannot flood the index with
+minified JS that matches every query weakly and nothing well. 20 selftests.
+
