@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-15 · **Affects:** `.github/workflows/`, `tools/`, `.claude/hooks/` (unchanged, but reclassified) · **Follows:** `CLAUDE.md` §👥.2, §👥.2b, §👥.2c
+**Status:** DONE — 2026-08-16 (all four boxes verified 2026-08-16. §3 shipped as #1330 and was mutation-checked independently. **§4 was never built here because it already existed** — `stale-file.yml` (#1086) computes this brief's property line for line, and #1337 made it a REQUIRED check, which was the only piece genuinely missing. Both CLAUDE.md boxes were already satisfied. ⚠️ This brief read PROPOSED with four open boxes while fully executed, and its §4 invited a rebuild of a workflow that had shipped two months earlier — the stale-PROPOSED trap this repo keeps paying for) · **Created:** 2026-08-15 · **Affects:** `.github/workflows/`, `tools/`, `.claude/hooks/` (unchanged, but reclassified) · **Follows:** `CLAUDE.md` §👥.2, §👥.2b, §👥.2c
 
 > **The one-line claim:** every rule `CLAUDE.md` calls "hook-enforced" is enforced **only for Claude
 > Code, and only in a checkout that has pulled the hook**. The invariants are worth keeping; the
@@ -92,20 +92,47 @@ validation against the adversarial cases — is done above.
 tests include a synthetic corruption commit that it *catches* (a detector never seen to fire is not
 evidence — `CLAUDE.md` §🧪).
 
-## 4 · Phase 2 — stale-brief overwrite detector · **moderate**
+## 4 · Phase 2 — stale-brief overwrite detector · **ALREADY BUILT (#1086), REQUIRED since #1337**
 
-`guard-stale-brief.sh` denies editing a brief that moved on `origin/main` since your merge-base. The
-detectable PR-level property: **a PR edits `briefs/X.md`, and `origin/main` has commits touching
-`briefs/X.md` that are not in the PR's merge-base.**
+> ⚠️ **DO NOT BUILD THIS.** It shipped 2026-08-09 as `.github/workflows/stale-file.yml` (#1086) —
+> before this section proposed it. Verified 2026-08-16.
 
-This is computable in CI and needs no local state. Two known complications:
+The property this section specifies is what that workflow already computes, line for line:
 
-- It must not fire on a *deliberate* overwrite. The hook's escape hatch is
-  `CLAUDE_ALLOW_STALE_BRIEF=1`, an environment variable CI cannot see; the PR-level equivalent needs a
-  declared marker (a PR-body line, or a trailer).
-- The hook reads a **local** `origin/main` and never fetches, so it under-reports by design. CI
-  always has the true ref, so the CI detector is **strictly stronger** than the hook — which is an
-  argument for building it, not against.
+```sh
+base="$(git merge-base HEAD "origin/$BASE_REF")"
+git diff --name-only "$base"...HEAD             > mine.txt     # files this PR touches
+git diff --name-only "$base" "origin/$BASE_REF" > theirs.txt   # files that landed since the fork
+guard() { grep -E '^(briefs/.*\.md|DOCS-INDEX\.md)$' || true; }
+overlap="$(comm -12 mine-g.txt theirs-g.txt)"                  # non-empty ⇒ exit 1
+```
+
+Same guarded set (briefs + `DOCS-INDEX.md`), `fetch-depth: 0` for the same reason this section needs
+it, and on failure it prints the upstream commits plus `git log -p` and `npm run rebase`.
+
+**The second complication below is not merely satisfied — it is quoted.** The workflow's own header
+says the hook *"reads your local `origin/main` so it is only as fresh as your last fetch … This lane
+has neither problem — it runs on GitHub against the real ref."*
+
+**What WAS genuinely missing is enforcement, and that is now closed.** The check was advisory: it
+reddened a PR, and auto-merge — used on essentially every PR here — merged it anyway. `stale-file` is
+the **8th required context** on ruleset `protect-main` as of **#1337** (owner-directed, 2026-08-16).
+Detection became prevention.
+
+**On the first complication — the declared-override marker — the decision is NOT to add one.**
+`exit 1` is unconditional, and that is right: **rebasing advances the merge-base, the overlap empties,
+and the check passes by itself.** Rebase *is* the escape hatch, and it is the one that forces you to
+read the upstream commits first — which is the entire reason this check exists, after two sessions each
+wrote a brief without reading what the other had written. A PR-body marker would let someone skip
+exactly that step. The hook needs `CLAUDE_ALLOW_STALE_BRIEF=1` only because a local hook cannot rebase
+for you; CI has no such constraint.
+
+⚠️ **The real remaining gap is one level up, and neither this workflow nor a marker would close it:**
+two briefs holding the **same question in different files**. `stale-file` looks for the same PATH
+touched twice, so it is structurally blind to this. Measured 2026-08-16 —
+`HOSTAXIS-STABILITY-FOLLOWUPS` §3 and `INTERDISCIPLINARY-LITERATURE-2026-08-16` line 271 tracked one
+question independently, and it surfaced only because `tools/doc-search.mjs` ranked them adjacently.
+That is the GENERATOR-FOLLOWUPS-III failure one level up, and it currently has no detector.
 
 ## 5 · Phase 3 — rebase silently reverting source · **OUT OF SCOPE, and stated as such**
 
@@ -144,7 +171,22 @@ brief that quietly omitted this would imply coverage that does not exist.
 
 ## Done when
 
-- [ ] §3 detector implemented, green over full history, with a synthetic corruption commit in its tests
-- [ ] §4 detector implemented, with a declared-override marker, or explicitly deferred with a reason
-- [ ] `CLAUDE.md` §👥.2/2b amended: "hook-enforced" reworded to name the client and the pull requirement
-- [ ] §5's gap stated in `CLAUDE.md` rather than left implied
+- [x] **DONE — #1330.** `tools/commit-shape.mjs` (pure `classify()` + CLI), wired into `npm run check`
+      and the always-runs `static` CI job, with a 14-assertion group. Green over full history: 32
+      changeset-deleting commits → 30 releases pass, 0 false positives, 2 exempt **by declared
+      provenance, never by shape** (one `Revert`, one `rescue:` snapshot — a rescue is shape-identical
+      to the corruption on purpose, so widening the shape rule would re-admit the accident). It refuses
+      with **exit 2 on a shallow clone**, because `actions/checkout@v4` defaults to depth 1 where the
+      scan finds nothing and exits 0 — a detector reporting success about history it never had.
+      Independently mutation-checked: four boundary mutants applied, all four killed.
+- [x] **DONE by supersession — #1086, enforced by #1337.** Not built here: it already existed as
+      `.github/workflows/stale-file.yml`, computing this section's property line for line (see §4). The
+      missing piece was that it was advisory while auto-merge is used on every PR; it is now the 8th
+      **required** context on `protect-main`. **The declared-override marker was considered and
+      rejected with a reason** — rebasing empties the overlap by itself, so rebase is the escape hatch,
+      and it is the one that forces you to read the upstream commits first.
+- [x] **DONE** — `CLAUDE.md` now says the phrase is narrower than it reads (*"Measured 2026-08-15…"*),
+      states that **prevention cannot be made agent-neutral** (agent-coupled or install-coupled), and
+      carries the per-invariant table of what agent-neutral enforcement actually exists.
+- [x] **DONE** — that same table states §2c explicitly: *"none — not mechanically decidable. Prevention
+      only."* The gap is written down rather than implied, which is what this box asked for.
