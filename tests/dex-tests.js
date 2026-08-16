@@ -892,6 +892,47 @@
         seed = (seed * 16807) % 2147483647;
         return seed / 2147483647 - 0.5;
       };
+
+      /* ── KILLS the whole least-squares body of `_ckAllanSlope` (L341-350: the mx/my accumulators,
+         the /= k means, and the sxy covariance). Level B found every one of those five statements
+         SURVIVING deletion on 2026-08-16, inside a function this suite already exercises.
+
+         The reason they survived is that every existing slope assertion is an INEQUALITY —
+         `st.slope < -0.5`, `st.slopeSE > 0`. Those pin a DIRECTION, and the slope's whole job is to
+         name a MAGNITUDE: §7 reads τ⁻¹ as jitter that averages away, τ⁻¹ᐟ² as the benign case, τ⁰ as
+         a floor where more averaging buys nothing, τ⁺¹ as drift. `slope < -0.5` cannot tell −0.6
+         from −1.0, so it cannot tell "benign" from "jitter" — the one distinction the number exists
+         to make.
+
+         A pure power law adev = C·τ^m is exactly collinear in log-log, so least squares must return
+         m itself. That is a KNOWN ANSWER, and any arithmetic slip in the fit moves it. */
+      var lawPts = function (m, c) {
+        var out = [];
+        for (var _t = 0; _t < 4; _t++) {
+          var tau = Math.pow(10, _t);
+          out.push({ tau: tau, adev: c * Math.pow(tau, m) });
+        }
+        return out;
+      };
+      var slopeOf = function (m) {
+        var r = C.allanSlope(lawPts(m, 1e-6));
+        return r == null ? null : Math.round(r.slope * 1e6) / 1e6;
+      };
+      T.eq('a τ⁻¹ law recovers slope −1 exactly — jitter that averages away', slopeOf(-1), -1);
+      T.eq('a τ⁻¹ᐟ² law recovers −0.5 — the benign case the inequality could not separate', slopeOf(-0.5), -0.5);
+      T.eq('a τ⁰ law recovers 0 — a floor, where more averaging buys nothing', slopeOf(0), 0);
+      T.eq('a τ⁺¹ law recovers +1 — drift', slopeOf(1), 1);
+      /* ⚠️ `my += ys[i]` is NOT killable by any slope assertion, and that is a property of least
+         squares rather than a gap in the test: the mean of y sets the INTERCEPT, and the slope
+         b = sxy/sxx is invariant to it (for collinear y, Σ(x−mx)·y = m·sxx whatever my is). Verified
+         by applying the mutant — the four slope answers above stayed exact.
+         It reaches the RESIDUAL instead: a pure power law is exactly collinear, so the fit must have
+         zero residual, and a wrong my displaces every prediction. */
+      var exact = C.allanSlope(lawPts(-0.5, 1e-6));
+      T.eq('an exact power law fits with NO residual — se is 0', Math.round(exact.se * 1e9) / 1e9, 0);
+      T.eq('…and reports every τ point it used', exact.nTau, 4);
+      /* The refusal is a contract too: two points fit any line and cannot be checked (§7). */
+      T.eq('fewer than three τ points refuses rather than fitting', C.allanSlope([{ tau: 1, adev: 1 }, { tau: 10, adev: 1 }]), null);
       var white = [];
       for (var i = 0; i < 600; i++) white.push(rnd());
       /* CROSS-LANGUAGE KNOWN ANSWER from `capture-host/allan.py adev(phase, 1.0)` on this exact series.
