@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-13
+**Status:** DONE — 2026-08-15 (**executed as #1227**, 2026-08-13; the header simply never moved. Verified item-by-item against `main` — see §8. §5's inherited defect and the parent's §7 questions carry to `HOSTAXIS-STABILITY-FOLLOWUPS-2026-08-15-BRIEF.md`) · **Created:** 2026-08-13
 
 # `hostAxis` publishes a bare ppm; the curve behind it is already computed in the other lane
 
@@ -191,3 +191,35 @@ record in the implementation that it is inherited.
 3. **Is `independent` the right precondition, or should it also require a minimum span?** §7 argues
    `hostAxis` deliberately has no span gate because it interpolates rather than quotes a rate — but
    `stability` *is* a quoted quantity, so the argument may not transfer to it.
+
+## 8 · CLOSED 2026-08-15 — verified item-by-item, not from the header
+
+This brief shipped as **#1227** (`feat(clock): hostAxis publishes how far to trust its own ppm — and the
+Allan core moves to the spine`) and then read `PROPOSED` for two days. Every Done-when item checked
+against `main`:
+
+| item | evidence |
+|---|---|
+| `hostAxis` returns `stability` (curve · slope · noise name · `ppmUncertainty`) | `clock.js` — `stability:`, `ppmUncertainty`, `allanFromPhase` on the spine |
+| `ppm` unchanged, additive | `ppm` untouched; the equivalence legs pass |
+| a phone-captured file yields `stability: null` | asserted in `tests/dex-tests.js` |
+| cross-language known answer vs `allan.py`, **MINSTD not glibc** | `tests/dex-tests.js:888` — and it carries the reason verbatim: the glibc LCG overflows 2⁵³ in JS but not in Python's bignums, so the two lanes would build different series and the pin silently would not be one |
+| ECGDex's host axis surfaced in its node export | `ecgdex-dsp.js:4371` — `hostAxis: ecgHostAx.ok` |
+| 8 bundles + all three generated trees | landed with #1227 |
+| follow-up brief spawned | `HOSTAXIS-STABILITY-FOLLOWUPS-2026-08-15-BRIEF.md` |
+
+⚠️ **The stale header nearly caused the work to be done twice.** A session read `PROPOSED`, checked the
+one precondition §4.1 names (no bundle work in flight — true), **announced a fleet-wide spine change to
+another session**, and only then opened the tree. Retracted; nothing was blocked. Two rules came out of
+it, both worth more than the correction:
+
+> **An announcement is a request for other people to stop, so it comes AFTER the tree check, not before.**
+
+> **A stale `DONE` makes someone re-check finished work; a stale `PROPOSED` invites them to BUILD WHAT
+> EXISTS.** They are not symmetric and a status sweep should not weight them equally.
+
+§5's inherited `classifyAllan` defect turned out to have a **third** implementation — the joint fix
+reached `clock.js` and `allan.py` and missed `ppgdex-dsp.js`. A three-way parity gate now holds the
+tables equal and pins the gap; the fix itself, the literature that removes the boundary problem at its
+root, and §7's open questions all carry to the follow-up.
+
