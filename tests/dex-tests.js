@@ -37218,6 +37218,56 @@
       T.ok('odi-bias-analysis throws on a missing helper instead of swallowing it', /throw new Error\('odi-bias-analysis:/.test(srcs['odi-bias-analysis.js']));
     });
 
+    /* ════ 21c-bis · THE REFERENCE MUST BE ABLE TO SEE WHAT THE ESTIMATOR CANNOT ════
+     `odi-bias-analysis` measures how far a pulse-oximeter ODI under-counts PSG-scored AHI. The
+     mechanism it is measuring is that ODI is blind to hypopneas terminating in an AROUSAL with no
+     qualifying desaturation. So the reference definition decides the answer before a byte is read:
+     `ahi_a0h4` counts hypopneas only at ≥4 % desaturation — the same events ODI counts — and with
+     that as reference the missed population is absent from BOTH sides, the indices agree by
+     construction, and the tool reports a small bias about a comparison it never made.
+
+     `ahi_a0h4` led the first-match-wins preference list until 2026-08-16, and both READMEs stated
+     the preference explicitly, so the masking default was documented rather than accidental.
+
+     This group EVALUATES the list rather than grepping for a name: a text match would pass on a
+     file that merely mentions `ahi_a0h3a` in a comment, which is the substring-hole failure this
+     suite keeps rediscovering. Ordering is the contract, so ordering is what is asserted. */
+    group('ODI-bias reference AHI cannot share ODI’s blind spot', 'odi-bias · nsrr · source-scan', function (T) {
+      var src = (env.sources || {})['odi-bias-analysis.js'];
+      // ANTI-VACUITY: a scan over absent text passes while examining nothing.
+      T.ok('odi-bias-analysis.js source loaded (scan is non-vacuous)', typeof src === 'string' && src.length > 2000, 'len=' + (typeof src === 'string' ? src.length : 'absent'));
+      if (typeof src !== 'string' || src.length < 2000) return;
+
+      var m = /var\s+NSRR_AHI_VARS\s*=\s*(\[[^\]]*\])/.exec(src);
+      T.ok('NSRR_AHI_VARS literal is parseable from source', !!m);
+      if (!m) return;
+      var vars = JSON.parse(m[1].replace(/'/g, '"'));
+      T.ok('the preference list is populated', vars.length > 5, 'n=' + vars.length);
+
+      /* Arousal-inclusive definitions carry a trailing `a`. Listed explicitly, not matched by suffix:
+         `rdi3p`/`poohi3` share the digit-plus-letter shape and a regex that swept them in would
+         mislabel a desat-only reference as safe — an error in the direction that hides the defect. */
+      var AROUSAL = ['ahi_a0h3a', 'ahi_a0h4a', 'ahi_c0h3a', 'ahi_c0h4a', 'ahi_o0h3a', 'ahi_o0h4a'];
+      T.ok('an arousal-inclusive variable is preferred FIRST', AROUSAL.indexOf(vars[0]) >= 0, 'first = ' + vars[0]);
+
+      var iDesat = vars.indexOf('ahi_a0h4');
+      var iArous = vars.indexOf('ahi_a0h3a');
+      T.ok('ahi_a0h3a outranks ahi_a0h4 (the exact 2026-08-16 regression)', iArous >= 0 && (iDesat < 0 || iArous < iDesat), 'ahi_a0h3a@' + iArous + ' · ahi_a0h4@' + iDesat);
+
+      // Every arousal-inclusive variable present must outrank every desat-only one — the general form.
+      var lastArous = -1,
+        firstDesat = vars.length;
+      for (var i = 0; i < vars.length; i++) {
+        if (AROUSAL.indexOf(vars[i]) >= 0) lastArous = i;
+        else if (firstDesat === vars.length) firstDesat = i;
+      }
+      T.ok('no desat-only variable outranks any arousal-inclusive one', lastArous < 0 || lastArous < firstDesat, 'lastArousal@' + lastArous + ' firstDesatOnly@' + firstDesat);
+
+      // The confound must be NAMED at selection time, not left as a neutral variable name.
+      T.ok('a desat-only selection warns rather than reporting silently', /ahiCountsArousals/.test(src) && /DESATURATION-ONLY/.test(src));
+      T.ok('an unrecognised variable warns rather than defaulting either way', /return null;/.test(src) && /unrecognised AHI variable/.test(src));
+    });
+
     /* ════ 21d · OVERDEX FOLDER WALKER — known-answer (TEST-COVERAGE-FOLLOWUPS §5) ════
      `overdex-walk.js` (globalThis.OverDexWalk) recurses a dropped/picked directory into a flat
      File[], each tagged with a folder-relative `.relPath` (display + de-dupe key), skipping hidden/

@@ -24,7 +24,12 @@ better correction.
 3. **NSRR PSG** (SHHS / MESA / MrOS / CHAT) — you drop matching `*.edf` + `*-nsrr.xml` pairs; the XML's
    scored apneas+hypopneas ÷ staged sleep hours = reference AHI. **This is the lane that supports a
    real-world clinical claim.** Files are NOT bundled — NSRR access is free but requires your own DUA
-   at sleepdata.org. Alternatively drop a `CSV(id,ahi)` (e.g. SHHS `ahi_a0h4`) + the EDFs.
+   at sleepdata.org (**SHHS requested 2026-08-16; NSRR states up to two weeks for review**).
+   Alternatively drop a `CSV(id,ahi)` + the EDFs — and use an **arousal-inclusive** AHI variable
+   (`ahi_a0h3a`), not `ahi_a0h4`. A 4 %-desaturation reference cannot see the arousal-terminated
+   hypopneas ODI also cannot see, so the two agree by construction and the bias this lane exists to
+   measure reads near zero. Report the desat-only variable as a SECONDARY result: the gap between the
+   two curves is the arousal-terminated population, which is the finding rather than a nuisance.
 
 ---
 
