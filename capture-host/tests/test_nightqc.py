@@ -2,6 +2,7 @@
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 import os
 
+import math
 import datetime as _dtmod
 
 import pytest
@@ -955,3 +956,76 @@ def test_a_device_without_a_name_is_keyed_by_its_device_id(tmp_path):
     assert d0["coverage"]["ecg"] == 1.0, (
         f"keyed by the ID, the measured 130 Hz is found and coverage is full; with a null ID the key "
         f"collapses and it falls back to the configured 260 Hz: {d0['coverage']}")
+
+
+# ─── GUM timing-uncertainty budget ──────────────────────────────────────────────────────────────
+
+def test_no_jitter_measurement_makes_the_budget_UNKNOWN_not_small():
+    """With no delivery term the total would be the quantum alone and read ~0.3 ms — a confident claim
+    about a link whose real jitter is tens of ms. An absent input is not a small one."""
+    assert nightqc.timing_uncertainty(None) is None
+    assert nightqc.timing_uncertainty({}) is None
+    assert nightqc.timing_uncertainty({"iqr_ms": None}) is None
+
+
+def test_delivery_dominates_a_polar_stream_and_the_quantum_dominates_the_RING():
+    """The distinction the literature says a binary flag cannot make: same 'trusted' verdict, different
+    limiting term, different fix. Polar -> attack the link; ring -> the 1 s axis IS the floor."""
+    polar = nightqc.timing_uncertainty({"iqr_ms": 45.0})
+    ring = nightqc.timing_uncertainty({"iqr_ms": 17.0}, quantised=True)
+    assert polar["dominant"] == "delivery"
+    assert ring["dominant"] == "quantum"
+    assert ring["components_ms"]["quantum"] == pytest.approx(1000.0 / math.sqrt(12), abs=1e-3)
+    assert polar["components_ms"]["quantum"] == pytest.approx(1.0 / math.sqrt(12), abs=1e-3)  # published rounded to 3 dp
+
+
+def test_the_delivery_term_is_the_ROBUST_sigma_not_the_raw_iqr():
+    u = nightqc.timing_uncertainty({"iqr_ms": 13.49})
+    assert u["components_ms"]["delivery"] == pytest.approx(10.0, abs=0.01)   # 13.49 / 1.349
+
+
+def test_terms_combine_in_QUADRATURE_not_by_addition():
+    u = nightqc.timing_uncertainty({"iqr_ms": 1.349}, quantised=True)     # delivery 1.0, quantum 288.675
+    d, q = u["components_ms"]["delivery"], u["components_ms"]["quantum"]
+    assert u["u_ms"] == pytest.approx(math.sqrt(d * d + q * q), abs=1e-3)
+    assert u["u_ms"] < d + q                                              # addition would be larger
+
+
+def test_the_oscillator_is_reported_BESIDE_the_budget_and_never_inside_it():
+    """The first draft folded `adev_min * optimal_tau` into the total and read 173 ms for the H10 where
+    the real per-event figure is 34 — a 5x overstatement, because an arrival-stamped event does not ride
+    the device clock at all. `free_run` answers a different question and must not move `u_ms`."""
+    jit = {"iqr_ms": 45.0}
+    stab = {"ok": True, "adev_min": 0.119158, "optimal_tau": 1453.2}
+    bare = nightqc.timing_uncertainty(jit)
+    with_osc = nightqc.timing_uncertainty(jit, stability=stab, tau_s=1453.2)
+    assert with_osc["u_ms"] == bare["u_ms"], "free-run drift must not enter the budget"
+    assert "oscillator" not in with_osc["components_ms"]
+    assert with_osc["free_run"]["drift_ms"] == pytest.approx(0.119158 * 1453.2, abs=0.01)
+    assert with_osc["free_run"]["tau_s"] == pytest.approx(1453.2, abs=0.1)
+
+
+def test_free_run_needs_a_usable_curve_and_a_tau_or_it_is_None():
+    jit = {"iqr_ms": 5.0}
+    assert nightqc.timing_uncertainty(jit)["free_run"] is None
+    assert nightqc.timing_uncertainty(jit, stability={"ok": False}, tau_s=100)["free_run"] is None
+    assert nightqc.timing_uncertainty(jit, stability={"ok": True, "adev_min": 0.1}, tau_s=None)["free_run"] is None
+    assert nightqc.timing_uncertainty(jit, stability={"ok": True, "adev_min": 0}, tau_s=100)["free_run"] is None
+    assert nightqc.timing_uncertainty(jit, stability="not a dict", tau_s=100)["free_run"] is None
+
+
+def test_dominant_share_is_a_VARIANCE_share_so_it_says_whether_the_fix_is_worth_it():
+    """0.99 means nothing else matters; a middling share means the dominant term is not the story."""
+    u = nightqc.timing_uncertainty({"iqr_ms": 1349.0})          # delivery 1000 vs quantum 0.289
+    assert u["dominant_share"] > 0.999
+    d, q = u["components_ms"]["delivery"], u["components_ms"]["quantum"]
+    assert u["dominant_share"] == pytest.approx(d * d / (d * d + q * q), abs=1e-6)
+
+
+def test_the_budget_reaches_the_per_stream_record(tmp_path):
+    """Wired, not merely defined — the defect this repo keeps finding one layer up."""
+    d = tmp_path / "2026-08-15"
+    d.mkdir()
+    (d / "Polar_H10_02849638_20260815024240_ECG.csv").write_text("h\n" + "r\n" * 400)
+    rows = nightqc.arrival_quality(str(d))
+    assert all("u_time" in r for r in rows), rows
