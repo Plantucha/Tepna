@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import subprocess
 
@@ -579,6 +580,20 @@ def _phase_grid(pairs, bin_s=_TRANSPORT_BIN_S):
     return {k: sum(v) / len(v) for k, v in acc.items()}
 
 
+def _fisher_ci(r, n_eff, z=1.96):
+    """95 % interval for a correlation via the Fisher z transform, or None.
+
+    `r` is bounded [-1, 1] but atanh diverges at the ends, so a degenerate +/-1 yields None rather than
+    an infinite bound — that is a pair with no independent information left, not a perfect measurement.
+    Needs `n_eff > 3` because the transform's SE is `1/sqrt(n_eff - 3)`.
+    """
+    if n_eff is None or n_eff <= 3 or not -1.0 < r < 1.0:
+        return None
+    zr = math.atanh(r)
+    se = 1.0 / math.sqrt(n_eff - 3)
+    return [math.tanh(zr - z * se), math.tanh(zr + z * se)]
+
+
 def transport_share(pairs_a, pairs_b, bin_s=_TRANSPORT_BIN_S):
     """How much of one stream's arrival ADEV is SHARED with a sibling stream of the same device.
 
@@ -594,18 +609,28 @@ def transport_share(pairs_a, pairs_b, bin_s=_TRANSPORT_BIN_S):
     rejected — `gcov` cannot tell shared clock from shared measurement noise. Read it as "at least this
     much of the ADEV is per-stream noise", never as "the clock is this stable".
 
-    `shared` may exceed 1 or go negative: it is a covariance over a variance, not a proportion. None
-    where the pair cannot support the shortest tau at all.
+    **`corr` IS A CORRELATION COEFFICIENT, normalised by the GEOMETRIC MEAN of the two ADEVs**, so
+    Cauchy-Schwarz bounds it to [-1, 1] by construction and `corr**2` is the shared VARIANCE fraction.
 
-    ⚠️ **IT IS A RATIO OF DEVIATIONS, so it decays as a SQUARE ROOT and small shares look large.** A 5 %
-    shared VARIANCE reads as sqrt(0.05) = 0.22 here, and two entirely unrelated streams measure 0.18-0.29
-    rather than ~0. Do not read 0.2 as "a fifth of this is clock"; square it first. This is also why no
-    threshold is applied — a fitted one passes on one night and fails on the next.
+    ⚠️ It replaces a `shared` field that divided by ONE channel's ADEV. That is not a presentation
+    change: measured over all 70 device-fragments in the box corpus, the old form ran -1.914 to +2.071
+    with **4 of 70 outside [-1, 1]** — values a shared fraction cannot take. The same 70 under this
+    normalisation run -0.385 to +0.969, none outside. The impossible readings were the normalisation,
+    not small-sample noise, and an n-floor would have hidden them while leaving them reachable at any n.
+    The key was RENAMED rather than redefined so no consumer silently receives a different quantity.
 
-    ⚠️ **`adev_a` and `adev_b` are BOTH returned, and the caller must divide by its OWN stream's.** The
-    covariance is symmetric but the two ADEVs are not, so one `shared` cannot describe both streams —
-    publishing a single figure attaches the denser stream's denominator to its partner's record, where
-    it silently reads as that stream's own noise fraction.
+    Read it on the VARIANCE scale: the corpus median is `corr` 0.042, i.e. ~96 % of a typical fragment's
+    arrival variance is per-stream transport noise. The deviation scale compresses this misleadingly —
+    a 5 % shared variance shows as 0.22 — which is why the ratio is no longer published rooted.
+
+    `ci` is the **Fisher z** 95 % interval, or None where the pair cannot support one.
+
+    ⚠️ **`n_eff`, NOT `n`, feeds that interval, and it is deliberately conservative.** Overlapping Allan
+    second differences reuse most of the same samples, so the `n` terms are far from independent and a
+    Fisher z over `n` would be far too tight — the same effective-degrees-of-freedom problem
+    `allan.classify` refuses to hand-roll. `n_eff` counts NON-OVERLAPPING second differences (each spans
+    `2m+1` samples), which under-states the information and so errs wide. It is a stand-in for a proper
+    EDF treatment, not one; a wide honest interval is publishable, a narrow wrong one is not.
     """
     ga, gb = _phase_grid(pairs_a, bin_s), _phase_grid(pairs_b, bin_s)
     keys = sorted(set(ga) | set(gb))
@@ -625,13 +650,18 @@ def transport_share(pairs_a, pairs_b, bin_s=_TRANSPORT_BIN_S):
     tau = solo_a[0]["tau"]
     if tau not in at or not solo_a[0]["adev"] or solo_b[0]["tau"] != tau or not solo_b[0]["adev"]:
         return None
+    corr = at[tau]["gcov"] / (solo_a[0]["adev"] * solo_b[0]["adev"])
+    m = max(1, int(round(tau / bin_s)))
+    n_eff = len(xs) // (2 * m + 1)          # non-overlapping second differences; see the docstring
     return {
         "tau": tau,
         "adev_a": solo_a[0]["adev"],
         "adev_b": solo_b[0]["adev"],
         "gcov": at[tau]["gcov"],
-        "gdev": at[tau]["gdev"],
+        "corr": corr,
         "n": at[tau]["n"],
+        "n_eff": n_eff,
+        "ci": _fisher_ci(corr, n_eff),
     }
 
 
@@ -812,10 +842,14 @@ def arrival_quality(night_dir: str) -> list[dict]:
                 if rec["file"] == name and rec["device"] == device and rec["meas"] in (first, second):
                     mine = "adev_a" if rec["meas"] == first else "adev_b"
                     rec["transport"] = {
-                        "tau": share["tau"], "n": share["n"], "gcov": share["gcov"],
+                        "tau": share["tau"], "n": share["n"], "n_eff": share["n_eff"],
+                        "gcov": share["gcov"],
                         "partner": second if rec["meas"] == first else first,
-                        "adev": share[mine],                       # THIS stream's, not the pair's
-                        "shared": share["gdev"] / share[mine],
+                        "adev": share[mine],           # THIS stream's own, for scale
+                        # SYMMETRIC by construction: the correlation describes the PAIR, so both records
+                        # carry the same value. Only `adev` differs between them.
+                        "corr": share["corr"],
+                        "ci": share["ci"],
                     }
     return out
 

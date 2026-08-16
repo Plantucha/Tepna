@@ -591,7 +591,7 @@ def test_transport_share_finds_the_shared_clock_under_independent_arrival_noise(
     rows = [r for r in nightqc.arrival_quality(str(tmp_path)) if r.get("transport")]
     assert len(rows) == 2, rows
     for r in rows:
-        assert 0.4 < r["transport"]["shared"] < 1.3, r["transport"]
+        assert 0.4 < r["transport"]["corr"] <= 1.0, r["transport"]
         assert r["transport"]["partner"] != r["meas"]
 
 
@@ -606,7 +606,7 @@ def test_transport_share_SEPARATES_a_shared_clock_from_two_unrelated_streams(tmp
     import nightqc, random
     a, b = _clock_plus_noise()
     _write_two_streams(os.path.join(tmp_path, "Tepna_21a_PMDARRIVAL.csv"), a, b)
-    shared_clock = [r["transport"]["shared"]
+    shared_clock = [r["transport"]["corr"]
                     for r in nightqc.arrival_quality(str(tmp_path)) if r.get("transport")]
 
     d2 = tmp_path / "unrelated"
@@ -615,27 +615,84 @@ def test_transport_share_SEPARATES_a_shared_clock_from_two_unrelated_streams(tmp
     x = [r1.gauss(0, 5) for _ in range(900)]
     y = [r1.gauss(0, 5) for _ in range(900)]
     _write_two_streams(os.path.join(d2, "Tepna_21b_PMDARRIVAL.csv"), x, y)
-    unrelated = [r["transport"]["shared"]
+    unrelated = [r["transport"]["corr"]
                  for r in nightqc.arrival_quality(str(d2)) if r.get("transport")]
 
     assert shared_clock and unrelated
     assert min(shared_clock) > 2.0 * max(unrelated), (shared_clock, unrelated)
 
 
-def test_each_stream_gets_its_OWN_adev_as_the_denominator(tmp_path):
-    """Regression for a real defect found by running this on the corpus: the covariance is symmetric but
-    the two ADEVs are not, and publishing one `shared` attached the denser stream's denominator to its
-    partner's record — where it read as that stream's own noise fraction. Measured on 2026-08-14, the
-    Verity's acc stream then reported 0.208 (the ppg's) instead of its true 0.032."""
+def test_corr_is_SYMMETRIC_while_each_stream_keeps_its_own_adev(tmp_path):
+    """The correlation describes the PAIR, so both records must carry the same value — while `adev`
+    stays per-stream, because the two streams genuinely differ in scale.
+
+    This replaces an assertion that the two `shared` values must DIFFER. That was right for the old
+    statistic (a covariance over one channel's variance, so necessarily asymmetric) and is wrong for
+    this one; keeping it would have pinned the defect rather than the contract.
+    """
     import nightqc
     a, b = _clock_plus_noise()
     b = [v * 4.0 for v in b]                       # make the two ADEVs plainly different
     _write_two_streams(os.path.join(tmp_path, "Tepna_22_PMDARRIVAL.csv"), a, b)
     rows = {r["meas"]: r["transport"] for r in nightqc.arrival_quality(str(tmp_path)) if r.get("transport")}
     assert set(rows) == {"ecg", "acc"}
-    assert rows["ecg"]["adev"] != rows["acc"]["adev"], rows
-    assert rows["ecg"]["shared"] != rows["acc"]["shared"], rows
-    assert rows["ecg"]["gcov"] == rows["acc"]["gcov"]        # the covariance IS symmetric
+    assert rows["ecg"]["adev"] != rows["acc"]["adev"], rows          # scale is per stream
+    assert rows["ecg"]["corr"] == rows["acc"]["corr"], rows          # the relationship is not
+    assert rows["ecg"]["gcov"] == rows["acc"]["gcov"]
+
+
+def test_corr_CANNOT_leave_minus_one_to_one_however_unequal_the_two_scales(tmp_path):
+    """THE regression for the defect this replaces, and it needs a CORRELATED pair to bite.
+
+    Dividing by one channel's ADEV is unbounded: |gcov| <= adev_a*adev_b, so the old form could reach
+    adev_b/adev_a. Over the 70 real device-fragments it ran -1.914 to +2.071, 4 outside [-1, 1].
+
+    ⚠️ My first version of this test used INDEPENDENT ragged pairs and passed under the defect — with
+    gcov ~ 0 every normalisation gives ~0, so it asserted nothing. Mutation-checked: reverting to
+    `gcov/adev_a**2` must fail here. The pair below shares a clock and differs 6x in scale, which
+    reads 4.80 under the old form against 0.79 under this one.
+    """
+    import nightqc, random
+    rng = random.Random(3)
+    clk, v = [], 0.0
+    for _ in range(900):
+        v += rng.gauss(0, 1.0)
+        clk.append(v)
+    a = [c + rng.gauss(0, 0.3) for c in clk]
+    b = [6.0 * c + rng.gauss(0, 1.8) for c in clk]      # same clock, six times the scale
+    _write_two_streams(os.path.join(tmp_path, "Tepna_41_PMDARRIVAL.csv"), a, b)
+    rows = [r["transport"] for r in nightqc.arrival_quality(str(tmp_path)) if r.get("transport")]
+    assert rows, "the pair must produce a transport record at all"
+    for t in rows:
+        assert -1.0 <= t["corr"] <= 1.0, t
+        assert t["corr"] > 0.5, t                       # …and still SEES the shared clock
+
+
+def test_the_interval_brackets_the_estimate_and_widens_when_n_eff_is_small():
+    """`ci` is Fisher z over `n_eff`, and `n_eff` counts NON-overlapping second differences — so it is
+    much smaller than `n` and the interval is correspondingly wide. A narrow interval here would be the
+    false precision the whole field exists to avoid."""
+    import nightqc
+    a, b = _clock_plus_noise(n=900)
+    pa = [(1000.0 * i, v) for i, v in enumerate(a)]
+    pb = [(1000.0 * i, v) for i, v in enumerate(b)]
+    share = nightqc.transport_share(pa, pb)
+    assert share and share["ci"] is not None
+    lo, hi = share["ci"]
+    assert lo < share["corr"] < hi, share
+    assert share["n_eff"] < share["n"] / 2, share            # overlap is not free information
+
+
+def test_no_interval_is_published_when_n_eff_cannot_support_one():
+    """None, not a bound of (-1, 1): an interval spanning the whole range is not a measurement, and a
+    caller branching on `ci` being present must not be handed one that says nothing."""
+    import nightqc
+    assert nightqc._fisher_ci(0.5, 3) is None
+    assert nightqc._fisher_ci(0.5, None) is None
+    assert nightqc._fisher_ci(1.0, 500) is None             # atanh diverges at the ends
+    assert nightqc._fisher_ci(-1.0, 500) is None
+    lo, hi = nightqc._fisher_ci(0.0, 103)
+    assert lo < 0.0 < hi
 
 
 def test_a_lone_stream_reports_no_transport_rather_than_a_zero(tmp_path):
