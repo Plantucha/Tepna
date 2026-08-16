@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-15 (**§3 AUDITED and written down** — both its boxes closed, and it corrects one of this brief's own claims. §2 is an owner decision on the box's privilege model; §4/§5 are decisions, not code) · **Created:** 2026-08-14
+**Status:** IN-PROGRESS — 2026-08-16 (**§2a DESIGN delivered for sign-off** — scope narrowed to the update/restart path only, since `CAP_NET_ADMIN` turned out to be already granted; three options costed, **(C) recommended: do not automate the privileged step, make its drift loud**, because all three measured staleness events were observability failures rather than privilege ones. Nothing applied to the box. · **§3 AUDITED and written down** — both its boxes closed, and it corrects one of this brief's own claims. §2 is an owner decision on the box's privilege model; §4/§5 are decisions, not code) · **Created:** 2026-08-14
 
 > Spawned by closing `VIGIL-AUTO-UPDATE-2026-08-04-BRIEF.md` (DONE 2026-08-14, §6 met with 41 observed
 > unattended restarts). Everything here was found by *running* the machinery that brief built, mostly on
@@ -52,6 +52,58 @@ Net: the trust anchor becomes `origin/main`, which is *already* the trust anchor
 runs. The honest residual is that it converts "root writes there when the owner types a password" into
 "root writes there whenever `vigil` asks, from GitHub". **That is an owner decision, not an engineering
 one.**
+
+### 2a · DESIGN, brought back for sign-off (owner-directed 2026-08-16) — three options, and I recommend (C)
+
+**Scope narrowed first.** This was going to cover the adapter-recovery ladder too. It does not:
+`CAP_NET_ADMIN` is **already granted** (`AmbientCapabilities=CAP_NET_ADMIN` on `tepna-capture.service`,
+`CapEff` bit 12 on the live process, zero "has no CAP_NET_ADMIN" warnings in three days, watchdog
+actively managing wedges). See `VIGIL-COEXISTENCE-FOLLOWUPS-2026-08-16` §2's retraction. What remains
+is **only** the update/restart path, which is root *code execution* rather than a network capability.
+
+**The two in-repo precedents any option must respect**, because the shape is not novel:
+
+| precedent | the rule it encodes |
+|---|---|
+| `capture-host/link_rssi.py` | privilege via `AmbientCapabilities` inherited across exec; sudo only as a dev-workstation fallback, since `NoNewPrivileges=true` forbids setuid sudo on the appliance |
+| `capture-host/webmon.py` | the privileged surface takes **no caller-controlled input** — a rebind's USB port comes from server config, never the request body, because *"an argument the caller chooses is still an argument the caller chooses"* |
+
+And the rule `enable-restart-control.sh` already states in its own header: **a NOPASSWD grant must name
+a file the granted user CANNOT rewrite.** That is exactly why the *installer* cannot be granted — it
+copies from `/opt/tepna`, which `vigil` owns.
+
+---
+
+**Option A — automate the install from the canonical remote** (the shape §2 sketches above).
+Root-owned installer clones `origin/main` into a root-only `0700` temp dir, installs from there against
+a filename allowlist, never touches `/etc`, clone→verify→install so a fetch failure leaves helpers
+unchanged. The remote URL must be **hardcoded in the root-owned script**, never `git remote get-url`
+(that config is vigil-writable) — webmon's rule applied.
+*Cost:* it genuinely converts "root writes when the owner types a password" into "root writes whenever
+`vigil` asks, from GitHub". A compromised GitHub token or a bad merge reaches root on the box without a
+human in the loop. **This is the option that needs your signature, and I am not proposing it.**
+
+**Option B — make the privileged surface STABLE so installing it is rare.**
+The staleness that motivated all this (#914's helpers eight days behind) only hurts if the root-owned
+helpers change often. Make `tepna-restart.sh` a thin, stable shim that reads nothing from the checkout,
+so its content changes maybe twice a year and a human install is not a recurring cost.
+*Cost:* does not fix drift, only makes it rarer; and "rare" is exactly when nobody notices.
+
+**Option C — 🟢 RECOMMENDED. Do not automate the privileged step. Make its drift LOUD.**
+`deploy/check-system-files.sh` already **detects** the drift (PR #435) — the failure was never detection,
+it was that nobody read it for eight days. Surface that detector's result where it is already looked at:
+the QC summary and the monitor page, as a first-class red rather than a line in a log.
+*Why this one:* it preserves the privilege boundary completely — no new grant, no root-executes-fetched-code
+path, `/etc` untouched, sudoers stays a human act — and it attacks the actual measured failure, which was
+**observability, not privilege**. Three of three staleness events were noticed late, not blocked.
+It is also the same trade this session made under a live incident: *detection you can perform beats
+remediation you cannot.* A watcher with no write permission is still a real safety layer.
+
+**What I have NOT done:** nothing is applied to the box, no sudoers file is written, no unit is edited.
+This is a design for sign-off, as directed.
+
+**Done when:** the owner picks A, B or C — or states that manual deploys are acceptable and closes the
+item, which is also a legitimate answer and cheaper than all three.
 
 ## 3 · `ProtectSystem=strict` means the daemon cannot run the updater in-process
 
