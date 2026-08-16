@@ -24,3 +24,15 @@ exact. It reaches the RESIDUAL instead, so the fit of an exact law is asserted t
 
 **Every one of the five was verified killed by re-applying it**, which is the step that has twice
 caught a test written from reading the code that caught nothing.
+
+**And format 4d had no test at all.** Level B also found `parseTimestamp` L186-189 surviving — the
+match, the `_ckMk` call and the return of `YYYY/MM/DD HH:MM[:SS]`, an entire vendor format named in
+Clock Contract §2.4. The one existing `YYYY/MM/DD` assertion in this suite goes through GlucoDex's
+OWN parser, not DexClock's, so it covered a different implementation of the same shape.
+
+That failure would have been quiet: a disturbed branch parses to `null`, and `null` is the contract's
+honest "unknown" — so it surfaces as missing data, not as an error. Five assertions now pin the
+components, the optional-seconds default (`m[6] ? +m[6] : 0` is all that stands between an absent
+group and a `NaN`), and the §2.7 refusals for an impossible month and day. All three mutants verified
+killed, 4 assertions failing on each.
+

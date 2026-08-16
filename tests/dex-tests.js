@@ -458,6 +458,27 @@
       var a = P('2026-06-07T22:00:00.123', {});
       T.eq('ms-fraction no-zone → tMs preserves ms', a && a.tMs, U(2026, 5, 7, 22, 0, 0, 123));
       T.eq('ms-fraction no-zone → offsetMin null', a && a.offsetMin, null);
+
+      /* ── KILLS format 4d's whole branch (clock.js L186-189: the match, the _ckMk call, and the
+         return). Level B found ALL THREE surviving deletion on 2026-08-16 — an entire vendor format
+         named in the Clock Contract §2.4 with nothing observing it.
+
+         The one existing `YYYY/MM/DD` assertion in this suite goes through GlucoDex's OWN parser
+         (`GP`), not DexClock's, so it covered a different implementation of the same shape. A format
+         that a consumer relies on and no test exercises parses to `null` the moment its branch is
+         disturbed, and null is the contract's honest "unknown" — so the failure would surface as
+         missing data rather than as an error. */
+      var v4d = P('2026/06/07 22:00:45', {});
+      T.eq('4d · "YYYY/MM/DD HH:MM:SS" → components verbatim', v4d && v4d.tMs, U(2026, 5, 7, 22, 0, 45));
+      T.eq('4d · no zone in the stamp → offsetMin null', v4d && v4d.offsetMin, null);
+      /* §2.4 writes the seconds group as OPTIONAL, and the branch defaults it — assert the default
+         rather than assume it, since `m[6] ? +m[6] : 0` is the only thing standing between an absent
+         group and a NaN. */
+      var v4dNoSec = P('2026/06/07 22:00', {});
+      T.eq('4d · seconds are optional and default to 0', v4dNoSec && v4dNoSec.tMs, U(2026, 5, 7, 22, 0, 0));
+      /* §2.7 — a regex matches DIGITS, not calendar validity, and Date.UTC would silently roll. */
+      T.eq('4d · an impossible month refuses rather than rolling', P('2026/13/01 22:00', {}), null);
+      T.eq('4d · an impossible day refuses too', P('2026/02/30 22:00', {}), null);
       var b = P('2026-06-07T22:00:00.500+02:00', {});
       T.eq('ms-fraction zoned → tMs', b && b.tMs, U(2026, 5, 7, 22, 0, 0, 500));
       T.eq('ms-fraction zoned → offsetMin +120', b && b.offsetMin, 120);
