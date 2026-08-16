@@ -46,3 +46,15 @@ slope actually PRODUCES the right name.
 responses. A classifier whose label is unasserted can swap those two and nothing reddens. Eight
 assertions pin all five names and both extreme meanings; all three mutants verified killed.
 
+**Two more Level-B survivors triaged, and both are EQUIVALENT rather than gaps.**
+`parseTimestamp` L139 `if (raw == null) return null;` and L144 `if (!s) return null;` are early exits
+whose inputs reach the same `null` through the function's final fall-through — verified by deleting
+both and re-running every refusal case: identical answers for `null`, `undefined`, `''`, whitespace
+and quotes-only. An unkillable statement is not a test gap, and recording that is the rule §3d exists
+to enforce.
+
+Three assertions were added anyway, and they do NOT kill those mutants. §2.6 requires a missing stamp
+to be visible as `null` and never fabricated; only `P('')` was asserted, while `null` and `undefined`
+— the shapes a caller passes when a column is ABSENT rather than empty — were not. The contract is
+worth pinning because a future refactor adding a fabricating branch below would break it.
+

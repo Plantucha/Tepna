@@ -468,6 +468,20 @@
          that a consumer relies on and no test exercises parses to `null` the moment its branch is
          disturbed, and null is the contract's honest "unknown" — so the failure would surface as
          missing data rather than as an error. */
+
+      /* §2.6 — A MISSING STAMP MUST BE VISIBLE, NEVER FABRICATED. Only `P('')` was asserted; a null
+         or undefined `raw` was not, and those are the shapes a caller actually passes when a column
+         is absent rather than empty.
+
+         ⚠️ THESE DO NOT KILL THE L139/L144 MUTANTS, and saying so is the point. Level B found
+         `if (raw == null) return null;` and `if (!s) return null;` surviving deletion, and they are
+         EQUIVALENT: both are early exits whose inputs reach the same `null` through the function's
+         final fall-through, verified by deleting both and re-running every case above — identical
+         answers. An unkillable statement is not a test gap. The contract is worth pinning anyway,
+         because a future refactor that adds a fabricating branch below would break it. */
+      T.eq('§2.6 · a null stamp refuses rather than fabricating an instant', P(null, {}), null);
+      T.eq('§2.6 · an undefined stamp likewise', P(undefined, {}), null);
+      T.eq('§2.6 · whitespace-only is not a stamp', P('   ', {}), null);
       var v4d = P('2026/06/07 22:00:45', {});
       T.eq('4d · "YYYY/MM/DD HH:MM:SS" → components verbatim', v4d && v4d.tMs, U(2026, 5, 7, 22, 0, 45));
       T.eq('4d · no zone in the stamp → offsetMin null', v4d && v4d.offsetMin, null);
