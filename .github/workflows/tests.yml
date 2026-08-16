@@ -86,12 +86,23 @@ jobs:
     name: shard-union + build + provenance
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth: 0 is LOAD-BEARING for the commit-shape scan below — on the default
+      # shallow clone it would see one commit, find nothing, and report green forever.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
       # THE load-bearing check for sharding: prove the 6 shards partition the suite, so no
       # group can fall between them, go unrun, and still leave every shard green. ~0.1 s.
+      # AGENT-NEUTRAL-GUARDS §3. The shared-tree guards are Claude-Code PreToolUse hooks, so
+      # they enforce nothing for any other operator. This is the detection half, which holds
+      # for whoever opened the PR: a commit deleting a changeset is a release ONLY if it
+      # deletes nothing outside changes/ AND bumps the version. Validated over full history —
+      # 30 releases pass, 0 false positives. Refuses on a shallow clone rather than passing.
+      - name: Commit-shape — no blanket-add / ref-move corruption in history
+        run: node tools/commit-shape.mjs
       - name: Shard-union — the shards partition the suite (no group goes unrun)
         run: node tests/verify-shard-union.mjs
       - name: Owned-build core tests (KAT + determinism + cross-hasher parity)

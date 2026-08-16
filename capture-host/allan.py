@@ -395,7 +395,7 @@ _PHASE_ADEV_NAME = _NOISE[0][1]
 _PHASE_MDEV_NAMES = (_NOISE_MDEV[0][1], _NOISE_MDEV[1][1])
 
 
-def identify(phase, tau0):
+def identify(phase, tau0, adev_points=None):
     """Read the ADEV and MDEV curves TOGETHER — the only way to name phase noise.
 
     ADEV maps BOTH white phase noise and flicker phase noise onto tau^-1, so its `white/flicker-phase`
@@ -411,8 +411,13 @@ def identify(phase, tau0):
 
     Why it matters operationally: white phase noise averages away as tau^-3/2, flicker phase noise
     only as tau^-1. Told they are the same, you would under-estimate how much a longer window buys.
+
+    `adev_points` — an ADEV curve already computed FOR THIS SERIES AND THIS tau0, supplied to avoid
+    computing it twice. LAST and optional, so every existing caller is unchanged. It is not validated
+    against `phase`: a curve from a different series would silently mis-pair the two classifications,
+    so it is only ever passed by a caller that just computed it from the same inputs (see `stability`).
     """
-    a = adev(phase, tau0)
+    a = adev(phase, tau0) if adev_points is None else adev_points
     md = mdev(phase, tau0)
     a_cls = classify(slope(a), slope_se(a), len(a))
     m_cls = classify_mdev(slope(md, "mdev"), slope_se(md, "mdev"), len(md))
@@ -422,13 +427,31 @@ def identify(phase, tau0):
     return {"adev": a_cls, "mdev": m_cls, "phase_noise": resolved, "taus": {"adev": len(a), "mdev": len(md)}}
 
 
-def stability(phase, tau0):
+def stability(phase, tau0, tdev_tau=None):
     """The whole answer for one series: the curve, its slope, the noise type, and the BEST averaging time.
 
     `optimal_tau` is the tau minimising sigma_y — the averaging window a measurement built on this clock
     should actually use. That is the principled replacement for a window length chosen by intuition, and
     it is the number this module exists to produce. On a purely white-frequency clock it is simply the
     longest tau measured, and saying so is more honest than implying a minimum was found.
+
+    PHASE NOISE IS RESOLVED HERE, not left ambiguous. `classification` comes from ADEV, which maps white
+    PM and flicker PM onto the SAME tau^-1 arm — so on a wearable link it answers `white/flicker-phase`
+    for nearly everything (26 of 27 corpus streams) and that one label carries two opposite operational
+    meanings: white PM averages away as tau^-3/2, flicker PM only as tau^-1. `phase_noise` publishes the
+    MDEV-resolved answer via `identify`, or None when the pair does not license a split. The ADEV curve
+    is computed ONCE and handed on, so adding this costs one MDEV pass rather than a second ADEV.
+
+    `tdev_tau` — the averaging time, in the same unit as `tau0`, at which to report TIME deviation.
+    THERE IS DELIBERATELY NO DEFAULT, and omitting it publishes no TDEV rather than picking one per
+    stream. Reading each stream at its own optimal/longest tau INVERTS the ordering: measured on the
+    real corpus, H10 3.4 ms vs Verity 0.85 ms read per-stream, which flips to H10 ~2.0 vs Verity ppg
+    ~3.5 at a common tau. A TDEV whose tau was chosen by the data is not comparable to another one, so
+    the caller must name the tau it wants to compare at.
+
+    ⚠️ `tdev` here is an UPPER BOUND on the clock's own contribution: this phase series is arrival-minus-
+    device, so it carries BLE transport as well as the oscillator. And two streams from one recording
+    are not independent corroboration — they shared that night's link conditions.
     """
     pts = adev(phase, tau0)
     if len(pts) < 3:
@@ -436,6 +459,11 @@ def stability(phase, tau0):
     sl = slope(pts)
     se = slope_se(pts)
     best = min(pts, key=lambda p: p["adev"])
+    ident = identify(phase, tau0, pts)
+    td = None
+    if tdev_tau:
+        got = tdev(phase, tau0, [tdev_tau])
+        td = got[0] if got else None
     return {
         "ok": True,
         "taus": len(pts),
@@ -445,6 +473,14 @@ def stability(phase, tau0):
         "optimal_tau": best["tau"],
         "at_longest": pts[-1]["adev"],
         "classification": classify(sl, se, len(pts)),
+        # The MDEV-resolved phase type, or None. None rather than a string for the reason `classify`
+        # documents at length: a truthy sentinel passes `if s["phase_noise"]:`, the guard callers write.
+        "phase_noise": ident["phase_noise"],
+        "mdev_classification": ident["mdev"],
+        # None when no `tdev_tau` was asked for, AND None when the series cannot support the tau that
+        # was. Those are different situations reaching the same value, and neither may be read as
+        # "the time error is zero" — a caller must branch on the key being None, not compare it.
+        "tdev": td,
         # Published UNCONDITIONALLY, including when the type IS named — a caller with a wider tolerance
         # can then decide for itself rather than being forced to accept the default above.
         "slope_se": se,
