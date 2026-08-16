@@ -39612,17 +39612,229 @@
          renaming the parameter away left this green. Caught by mutating it; a gate nobody has watched
          fail is not a gate, and that applies to the gate one is writing. */
       T.ok('allan.py refuses on the same rule, with the same multiplier', /1\.96/.test(py) && /def classify\([^)]*\bse\s*=/.test(py), 'classify(sl, se=…) with a 1.96 band');
-      /* ⚠️ KNOWN DEFECT — PINNED, NOT ENDORSED. `ppgdex-dsp.js classifyAllan(sl)` takes NO se and
-         rounds the slope into the record it returns (`slope: r2(sl)`), so the deciding digit is not in
-         the output. The joint fix landed in the other two lanes and this third copy was left behind —
-         its own comment says "When that lands…", which is the tell. Pinned so that fixing it must
-         update this group deliberately; do NOT "make it pass" by editing the assertion. It is a
-         compute-path file, so the fix owes a re-bundle + corpus re-verification and is its own unit. */
+      /* ✅ WAS a KNOWN DEFECT, FIXED 2026-08-16 — the pin is now the contract it was holding open.
+         `ppgdex-dsp.js classifyAllan` took no `se` and rounded the slope into its record, so the digit
+         that decided the answer was not in the output. It was the THIRD copy of the rule and the one
+         the joint fix (#1227) missed. It cannot delegate to `clock.js`: `PpgDex.html` inlines no
+         `clock.js`, so `DexClock` is undefined in that bundle — the duplication is structural, which
+         is exactly why the sibling group pins all three lanes' ANSWERS rather than their tables. */
+      T.ok('ppgdex-dsp.js classifyAllan is SE-aware, like both siblings', /function classifyAllan\(sl,\s*se/.test(ppg) && /1\.96/.test(ppg), 'takes (sl, se, nTau) with a 1.96 band');
+      T.ok('ppgdex-dsp.js no longer rounds the slope in the DATA', !/slope:\s*r2\(sl\)/.test(ppg), 'r2(sl) in the returned record is what made the boundary case invisible');
+      /* The drift arm derived from the TABLE, not retyped as a literal. ppgdex now does what allan.py
+         does and clock.js still does not — see the KNOWN DEFECT in the known-answer group. Asserted
+         here so the corrected lane cannot quietly regress to the hardcoded form. */
       T.ok(
-        'KNOWN DEFECT · ppgdex-dsp.js classifyAllan is NOT SE-aware (the third copy the joint fix missed)',
-        /function classifyAllan\(sl\)/.test(ppg) && !/function classifyAllan\(sl,\s*se/.test(ppg),
-        'takes a bare slope and returns r2(sl) — routed to a follow-up; the tables above still agree'
+        'ppgdex-dsp.js derives the drift edge from ALLAN_NOISE rather than hardcoding it',
+        /ALLAN_NOISE\[ALLAN_NOISE\.length - 1\]\[0\]/.test(ppg) && !/sl \+ half > 0\.75/.test(ppg),
+        'a hardcoded 0.75 desynchronises from the table on any edit'
       );
+    });
+
+    /* ════ THE SAME RULE, EXECUTED — not merely tabulated ════════════════════════════════════════
+     The group above pins the three noise TABLES as equal text. Its own brief states the limit:
+     "it does not execute either lane, so it cannot catch two implementations that share a table and
+     diverge in arithmetic." That is not hypothetical — the decision logic AROUND the table is written
+     twice by hand (edge scan, the 1.96·SE straddle test, the candidate walk, the drift arm), and a
+     table-equality gate is blind to every line of it.
+
+     So this pins ANSWERS. Each row is the literal return of `capture-host/allan.py classify(sl, se)`
+     RUN on that input, and `DexClock.classifyAllan` is executed live against it. Inputs sit where the
+     two lanes could differ: exactly on an edge, either side of one, se == 0 (which must NAME a type,
+     not refuse), an interval whose upper end lands exactly on the top edge, allan.py's own two
+     exact-float fixtures, a band wide enough to straddle everything including drift, and four pairs
+     found by search that put the interval's LOWER end exactly on each edge.
+
+     Those last four exist because the gate did not catch a mutant without them. `sl - half < e`
+     mutated to `<=` survived all 19 original rows — no input placed the lower end exactly on an edge,
+     so the comparison was unobservable. Found by mutating the gate rather than the code, which is the
+     only way that class shows up, and it is the second time in this suite's history.
+
+     WHAT IT FOUND. The lanes agree on every DECISION — noise, candidates, refusal, unrounded slope —
+     on all 23 rows. They differ in exactly one advisory string: `√N` (clock.js) vs `sqrt(N)`
+     (allan.py). `meaning` was never compared by the table gate, so nothing saw it. It is pinned rather
+     than normalised away, and the COUNT is pinned too: a normaliser that silently absorbs the next
+     divergence would be this suite's favourite defect wearing a fix. */
+    group('One noise-type rule — the two executable lanes must AGREE, not merely share a table', 'clock · allan · parity · known-answer', function (T) {
+      var C = env.DexClock;
+      if (!C || typeof C.classifyAllan !== 'function') {
+        T.skip('DexClock.classifyAllan available', 'not loaded');
+        return;
+      }
+      /* THE THIRD LANE, added 2026-08-16 once `ppgdex-dsp.js` became SE-aware. It is checked against
+         the SAME pinned Python answers rather than against clock.js, so the three are pinned to one
+         external reference instead of two of them agreeing with each other. PpgDex cannot delegate to
+         DexClock — its bundle inlines no clock.js — so this is the only thing keeping the copies
+         honest. Skipped, not failed, when the module is absent: the browser lane may not load it. */
+      var PPG = env.PPGDSP || env.PpgDSP;
+      var ppgLane = PPG && typeof PPG.classifyAllan === 'function' ? PPG : null;
+
+      /* KNOWN ANSWER — captured by RUNNING allan.py, not transcribed from reading it: a hand-copied
+         expectation encodes what the reader BELIEVED the code does. Named `PY_CLASSIFY`, not `PY`,
+         because this file already has two `var PY` known-answer tables and a careless bulk edit
+         replaced the wrong one while writing this very group. */
+      var PY_CLASSIFY = [
+        { sl: null, se: null, noise: null, cands: null, meaning: null, isNull: true },
+        { sl: -1, se: null, noise: 'white/flicker-phase', cands: null, meaning: 'jitter — averages away fast' },
+        { sl: -0.75, se: null, noise: 'white-frequency', cands: null, meaning: 'benign; averaging helps as sqrt(N)' },
+        { sl: -0.7501, se: null, noise: 'white/flicker-phase', cands: null, meaning: 'jitter — averages away fast' },
+        { sl: -0.4, se: null, noise: 'white-frequency', cands: null, meaning: 'benign; averaging helps as sqrt(N)' },
+        { sl: 0, se: null, noise: 'flicker-frequency', cands: null, meaning: 'A FLOOR — more averaging buys nothing' },
+        { sl: 0.5, se: null, noise: 'random-walk-frequency', cands: null, meaning: 'wanders; a longer fit is worse than a short one' },
+        { sl: 0.75, se: null, noise: 'drift', cands: null, meaning: 'deterministic — fit and remove it, never average through it' },
+        { sl: 1, se: null, noise: 'drift', cands: null, meaning: 'deterministic — fit and remove it, never average through it' },
+        { sl: 2, se: null, noise: 'drift', cands: null, meaning: 'deterministic — fit and remove it, never average through it' },
+        { sl: -0.5, se: 0, noise: 'white-frequency', cands: null, meaning: 'benign; averaging helps as sqrt(N)' },
+        {
+          sl: -0.75,
+          se: 0.01,
+          noise: null,
+          cands: ['white/flicker-phase', 'white-frequency'],
+          meaning: 'the slope sits within 1.96 SE of a category boundary — the noise TYPE is not supported by this fit; branch on `slope`, not on a label'
+        },
+        {
+          sl: -0.7,
+          se: 0.05,
+          noise: null,
+          cands: ['white/flicker-phase', 'white-frequency'],
+          meaning: 'the slope sits within 1.96 SE of a category boundary — the noise TYPE is not supported by this fit; branch on `slope`, not on a label'
+        },
+        {
+          sl: 0.4952,
+          se: 0.13,
+          noise: null,
+          cands: ['flicker-frequency', 'random-walk-frequency'],
+          meaning: 'the slope sits within 1.96 SE of a category boundary — the noise TYPE is not supported by this fit; branch on `slope`, not on a label'
+        },
+        {
+          sl: -0.499904,
+          se: 0.1276,
+          noise: null,
+          cands: ['white-frequency', 'flicker-frequency'],
+          meaning: 'the slope sits within 1.96 SE of a category boundary — the noise TYPE is not supported by this fit; branch on `slope`, not on a label'
+        },
+        {
+          sl: -0.500096,
+          se: 0.1276,
+          noise: null,
+          cands: ['white/flicker-phase', 'white-frequency'],
+          meaning: 'the slope sits within 1.96 SE of a category boundary — the noise TYPE is not supported by this fit; branch on `slope`, not on a label'
+        },
+        {
+          sl: 0,
+          se: 1,
+          noise: null,
+          cands: ['white/flicker-phase', 'white-frequency', 'flicker-frequency', 'random-walk-frequency', 'drift'],
+          meaning: 'the slope sits within 1.96 SE of a category boundary — the noise TYPE is not supported by this fit; branch on `slope`, not on a label'
+        },
+        {
+          sl: 0.74,
+          se: 0.02,
+          noise: null,
+          cands: ['random-walk-frequency', 'drift'],
+          meaning: 'the slope sits within 1.96 SE of a category boundary — the noise TYPE is not supported by this fit; branch on `slope`, not on a label'
+        },
+        {
+          sl: 0.76,
+          se: 0.02,
+          noise: null,
+          cands: ['random-walk-frequency', 'drift'],
+          meaning: 'the slope sits within 1.96 SE of a category boundary — the noise TYPE is not supported by this fit; branch on `slope`, not on a label'
+        },
+        { sl: -0.74999804, se: 0.000001, noise: 'white-frequency', cands: null, meaning: 'benign; averaging helps as sqrt(N)' },
+        { sl: -0.24999804, se: 0.000001, noise: 'flicker-frequency', cands: null, meaning: 'A FLOOR — more averaging buys nothing' },
+        { sl: 0.25000196, se: 0.000001, noise: 'random-walk-frequency', cands: null, meaning: 'wanders; a longer fit is worse than a short one' },
+        { sl: 0.75000196, se: 0.000001, noise: 'drift', cands: null, meaning: 'deterministic — fit and remove it, never average through it' }
+      ];
+
+      T.ok('ANTI-VACUITY · the known-answer table is populated', PY_CLASSIFY.length >= 23, PY_CLASSIFY.length + ' rows');
+
+      /* The ONE tolerated difference, written as an exact rewrite rather than a fuzzy match, so
+         anything else reds. `√N` and `sqrt(N)` are the same sentence; allan.py stays ASCII by choice. */
+      function normalise(s) {
+        return s == null ? s : s.replace(/√N/g, 'sqrt(N)');
+      }
+
+      var mismatches = [],
+        normalised = 0;
+      for (var i = 0; i < PY_CLASSIFY.length; i++) {
+        var row = PY_CLASSIFY[i];
+        var got = C.classifyAllan(row.sl, row.se);
+        if (row.isNull) {
+          if (got !== null) mismatches.push('sl=null expected null, got ' + JSON.stringify(got));
+          continue;
+        }
+        if (got == null) {
+          mismatches.push('sl=' + row.sl + ' se=' + row.se + ' — JS returned null, Python did not');
+          continue;
+        }
+        var gotCands = got.candidates == null ? null : got.candidates.join('|');
+        var wantCands = row.cands == null ? null : row.cands.join('|');
+        var where = 'sl=' + row.sl + ' se=' + row.se;
+        // The UNROUNDED slope is part of the contract — rounding in the DATA is the defect this fixed.
+        if (got.slope !== row.sl) mismatches.push(where + ' slope ' + got.slope + ' != ' + row.sl);
+        if ((got.noise == null ? null : got.noise) !== row.noise) mismatches.push(where + ' noise ' + got.noise + ' != ' + row.noise);
+        if (gotCands !== wantCands) mismatches.push(where + ' candidates ' + gotCands + ' != ' + wantCands);
+        if (got.meaning !== row.meaning) {
+          if (normalise(got.meaning) === row.meaning) normalised++;
+          else mismatches.push(where + ' meaning ' + JSON.stringify(got.meaning) + ' != ' + JSON.stringify(row.meaning));
+        }
+      }
+
+      T.eq('clock.js reproduces allan.py exactly on every decision (noise · candidates · unrounded slope)', mismatches.length, 0, mismatches.slice(0, 4).join(' ; '));
+
+      /* The third lane, against the same pinned answers. Deliberately a separate pass rather than a
+         third column in the loop above: if ppgdex regresses, the failure must name ppgdex. */
+      if (!ppgLane) {
+        T.skip('ppgdex-dsp.js classifyAllan against the same pinned answers', 'PPGDSP not loaded in this lane');
+      } else {
+        var ppgBad = [],
+          ppgNormalised = 0;
+        for (var j = 0; j < PY_CLASSIFY.length; j++) {
+          var prow = PY_CLASSIFY[j];
+          var pgot = ppgLane.classifyAllan(prow.sl, prow.se, null);
+          if (prow.isNull) {
+            if (pgot !== null) ppgBad.push('sl=null expected null');
+            continue;
+          }
+          if (pgot == null) {
+            ppgBad.push('sl=' + prow.sl + ' se=' + prow.se + ' — ppgdex returned null, Python did not');
+            continue;
+          }
+          var pc = pgot.candidates == null ? null : pgot.candidates.join('|');
+          var wc = prow.cands == null ? null : prow.cands.join('|');
+          var pw = 'sl=' + prow.sl + ' se=' + prow.se;
+          if (pgot.slope !== prow.sl) ppgBad.push(pw + ' slope ' + pgot.slope + ' != ' + prow.sl);
+          if ((pgot.noise == null ? null : pgot.noise) !== prow.noise) ppgBad.push(pw + ' noise ' + pgot.noise + ' != ' + prow.noise);
+          if (pc !== wc) ppgBad.push(pw + ' candidates ' + pc + ' != ' + wc);
+          if (pgot.meaning !== prow.meaning) {
+            if (normalise(pgot.meaning) === prow.meaning) ppgNormalised++;
+            else ppgBad.push(pw + ' meaning ' + JSON.stringify(pgot.meaning) + ' != ' + JSON.stringify(prow.meaning));
+          }
+        }
+        T.eq('ppgdex-dsp.js reproduces allan.py exactly — the third copy, which cannot delegate', ppgBad.length, 0, ppgBad.slice(0, 4).join(' ; '));
+        T.eq('ppgdex needs the normaliser on the same 4 rows as clock.js', ppgNormalised, 4, 'normalised=' + ppgNormalised);
+      }
+      /* Pinned COUNT, not merely "some were normalised". If a later edit diverges a fourth string the
+         normaliser would quietly cover it, and this number is the only thing that would move. It
+         already earned its place: adding the four edge fixtures moved it 3 -> 4 and this leg caught it. */
+      T.eq('exactly the 4 known √N/sqrt(N) rows need the normaliser — a 5th divergence reds here', normalised, 4, 'normalised=' + normalised);
+
+      /* ⚠️ KNOWN DEFECT · pinned, not endorsed. allan.py derives the drift arm from the table
+         (`sl + half > noise[-1][0]`); clock.js hardcodes the same number (`sl + half > 0.75`). They
+         agree today because the last edge IS 0.75, so behaviour is identical and no re-bundle is owed —
+         but a table edit moves one lane and not the other, and the table-equality gate above would
+         still pass while the answers diverged. Exactly the class this group exists to see, and the
+         `drift edge 0.75 -> 0.8` mutant confirms this group catches it. clock.js is spine, inlined into
+         bundles, so the one-line fix rides the next spine re-bundle rather than forcing one for a
+         change that is behaviour-identical today. */
+      var js = env.sources && env.sources['clock.js'];
+      if (js) {
+        T.ok(
+          'KNOWN DEFECT · clock.js hardcodes the drift edge instead of reading the table',
+          /sl \+ half > 0\.75/.test(js),
+          'if this stopped matching, the fix landed — delete this pin and assert the derived form instead'
+        );
+      }
     });
 
     group('Regen + verify resolve the corpus through ONE helper — REGEN-CORPUS-PATH-FOLLOWUPS §3.4', 'tools · fixtures · corpus-path', function (T) {
