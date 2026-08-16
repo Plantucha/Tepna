@@ -1555,6 +1555,25 @@ function selftest() {
     op.re.lastIndex = 0;
     return src.replace(op.re, op.to);
   };
+  /* ── 🔴 THE OPERATOR TABLE MUST ASSERT ITS OWN CONTENTS ────────────────────────────────────
+     Reported by a peer scanning for tests that walk a pinned constant without pinning its size,
+     and calibrated DOWN by them rather than filed as an alarm: total emptying already breaks the
+     two `OPS.find` lookups below, so this table was never exposed to complete loss. The exposure
+     is PARTIAL — drop every operator except those two and every assertion here still passes,
+     while the sweep silently measures a fraction of the operator set and reports a kill rate for
+     it as though it were the whole.
+
+     ⚠️ A `length > 0` FLOOR WOULD BE THE SAME DEFECT ONE LEVEL UP. The set is asserted by NAME,
+     not by count, so a silent addition is caught as well as a removal — a new operator that
+     nobody scored is the same lie as a missing one, in the other direction. */
+  const OP_NAMES = OPS.map((o) => o.name)
+    .sort()
+    .join(' | ');
+  ck(
+    'the operator set is exactly the ten that are scored',
+    OP_NAMES,
+    ['bool && → ||', 'bool || → &&', 'cmp < → <=', 'cmp <= → <', 'cmp > → >=', 'cmp >= → >', 'eq !== → ===', 'eq === → !==', 'negate: drop !', 'num → 0'].sort().join(' | ')
+  );
   const gt = OPS.find((o) => o.name === 'cmp > → >=');
   const lt = OPS.find((o) => o.name === 'cmp < → <=');
   ck('>> is not mutated into >=>', mutOne('var m = s.length >> 1;', gt), 'var m = s.length >> 1;');
