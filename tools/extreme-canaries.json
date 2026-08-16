@@ -6,5 +6,7 @@
   "pulsedex-dsp.js": "ansBalance",
   "oxydex-dsp.js": "trimSensorWarmup",
   "ecgdex-dsp.js": "genSynthetic",
-  "ppgdex-dsp.js": "biquad"
+  "ppgdex-dsp.js": "biquad",
+  "xmt-fixture.js": "recordInto",
+  "clock.js": "_ckP2"
 }
