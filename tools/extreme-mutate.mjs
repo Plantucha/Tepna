@@ -49,6 +49,7 @@
  *   node tools/extreme-mutate.mjs --selftest
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
 import { execFile, execFileSync } from 'node:child_process';
+import { ResumeLedger, etaSeconds, fingerprint, fmtDuration, progressLine } from './run-progress.mjs';
 import { mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -348,13 +349,14 @@ if (IS_MAIN && has('--selftest')) {
 if (IS_MAIN && !has('--selftest')) {
   const file = opt('--file', '');
   const group = opt('--group', '');
+  const resumePathA = process.argv.includes('--resume') ? opt('--resume-file', '') || '.mutation-sweeps/levela-' + String(opt('--file', 'x')).replace(/[^A-Za-z0-9]+/g, '-') + '.jsonl' : null;
   const jobsWanted = Math.max(1, Number(opt('--jobs', String((await import('node:os')).cpus().length))) || 1);
   if (!file || !group) {
     console.error('usage: node tools/extreme-mutate.mjs --file <dsp.js> --group <test group filter> [--jobs N] [--json]');
     process.exit(2);
   }
   const src = readFileSync(join(ROOT, file), 'utf8');
-  const bodies = functionBodies(src).filter((b) => emptyBody(src, b) !== null);
+  let bodies = functionBodies(src).filter((b) => emptyBody(src, b) !== null);
   if (!bodies.length) {
     console.error('no non-empty function bodies found in ' + file);
     process.exit(2);
@@ -542,6 +544,26 @@ if (IS_MAIN && !has('--selftest')) {
     next = 0,
     mutantsRun = 0;
   const FULL = has('--classify');
+  /* ── PROGRESS AND RESUME. Level A runs for minutes to hours over a DSP and, until now, said
+     nothing between its coverage header and its verdicts — so "is it working or wedged?" had no
+     answer, and an interruption discarded every function it had already classified.
+
+     The fingerprint covers the source and group, so a ledger written against other code is
+     refused rather than merged. Unlike Level B this loop was ALREADY genuinely parallel (it
+     awaits an async `run`), so the ETA divides by a job count that exists. */
+  const keyOf = (b) => b.fn + '|' + b.line;
+  const fpA = fingerprint({ tool: 'extreme-mutate@1', file, group, src, bodies: bodies.length });
+  const ledgerA = new ResumeLedger(resumePathA || null, fpA).load();
+  if (resumePathA && ledgerA.stale) process.stderr.write('  ⚠ resume ledger describes DIFFERENT inputs — starting from zero\n');
+  ledgerA.begin();
+  const allBodies = bodies;
+  bodies = bodies.filter((b) => !ledgerA.has(keyOf(b)));
+  if (resumePathA && ledgerA.size) process.stderr.write('  ↻ resuming: ' + ledgerA.size + ' function(s) already classified, ' + bodies.length + ' to go\n');
+  const jobsA = Math.max(1, Math.min(dirs.length, Math.max(1, bodies.length)));
+  process.stderr.write('  ' + bodies.length + ' function(s) to classify across ' + jobsA + ' job(s)\n');
+  let doneA = ledgerA.size;
+  let ranA = 0;
+  let secA = 0;
   const t0 = Date.now();
   const worker = async (w) => {
     const d = dirs[w];
@@ -549,6 +571,7 @@ if (IS_MAIN && !has('--selftest')) {
       const i = next++;
       if (i >= bodies.length) return;
       const b = bodies[i];
+      const bT0 = Date.now();
       /* EVERY operator, per Descartes — but SHORT-CIRCUIT on the first kill unless --classify.
          One killed operator already proves the function is not pseudo-tested, and most functions are
          killed by the first, so the average cost stays near 1 mutant rather than 8. The price: a
@@ -560,6 +583,7 @@ if (IS_MAIN && !has('--selftest')) {
       if (triv) {
         trivial.push({ ...b, matcher: triv });
         if (!has('--json')) process.stderr.write('  · excluded      ' + b.fn.padEnd(28) + ' L' + String(b.line).padEnd(6) + ' Descartes stop-matcher: ' + triv + '\n');
+        ledgerA.record(keyOf(b), { fn: b.fn, line: b.line, verdict: 'excluded' });
         continue;
       }
       /* An UNCOVERED function needs no mutants at all: every one of them would survive trivially, so
@@ -567,6 +591,7 @@ if (IS_MAIN && !has('--selftest')) {
       if (!(executions.get(b.fn) > 0)) {
         uncovered.push(b);
         if (!has('--json')) process.stderr.write('  ∅ not-reached   ' + b.fn.padEnd(28) + ' L' + b.line + '  — no test in this group calls it\n');
+        ledgerA.record(keyOf(b), { fn: b.fn, line: b.line, verdict: 'not-reached' });
         continue;
       }
       const verdicts = [];
@@ -589,6 +614,16 @@ if (IS_MAIN && !has('--selftest')) {
         if (!res.ok && !FULL) break;
       }
       const verdict = classifyDescartes(verdicts, executions.get(b.fn) || 0);
+      ledgerA.record(keyOf(b), { fn: b.fn, line: b.line, verdict });
+      doneA++;
+      secA += (Date.now() - bT0) / 1000;
+      if (!has('--json')) {
+        /* The mean is over the runs THIS process performed — a resumed ledger contributes
+           verdicts but no timings, and folding its count into the denominator would report a
+           per-run cost far below the real one. */
+        ranA++;
+        process.stderr.write(progressLine(doneA, allBodies.length, jobsA, secA / Math.max(1, ranA), verdict) + '\n');
+      }
       if (verdict === 'pseudo-tested') {
         pseudo.push({ ...b, ops: survivedOps });
         if (!has('--json')) process.stderr.write('  ● PSEUDO-TESTED ' + b.fn.padEnd(28) + ' L' + String(b.line).padEnd(6) + ' all ' + verdicts.length + ' extreme mutants survived\n');
