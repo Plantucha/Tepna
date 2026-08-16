@@ -844,3 +844,114 @@ def test_night_window_is_published_WITHOUT_clobbering_the_existing_night_key(tmp
     assert s["night"] == "2026-08-15", s["night"]          # still the folder date, still a string
     assert "night_window" in s
     assert s["night_window"] is None or isinstance(s["night_window"], dict)
+
+# ── Level B survivors handed over by the QC author (#1307's advisory mutation gate). Three clusters,
+# ── each a BOUNDARY the existing fixtures step over rather than land on.
+
+def test_span_at_exactly_the_minimum_is_judgeable(tmp_path):
+    """`_MIN_SPAN_SEC` is a FLOOR, not a bar to clear.
+
+    `span = span if span >= _MIN_SPAN_SEC else None` — at exactly the floor the span IS judgeable, and
+    every existing fixture uses 1000 s, stepping over the boundary rather than landing on it. The `>=`
+    -> `>` mutant survives them all: it only changes behaviour for a span of exactly 300 s, which is
+    reachable (a 5-minute capture) and turns a real coverage number into `unknown`."""
+    night = str(tmp_path / "2026-07-19"); os.makedirs(night)
+    base = 1_000_000.0
+    ecg = _cap(night, "Polar_H10_02849638_20260719_ECG.txt", 39000)   # 130 Hz x 300 s -> exactly 1.0
+    hr = _cap(night, "Polar_H10_02849638_20260719_HR.txt", 300)
+    _utime(hr, base)
+    _utime(ecg, base + nightqc._MIN_SPAN_SEC)
+    s = nightqc.summarize(night, [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "hr"]}])
+    assert s["span_sec"] == nightqc._MIN_SPAN_SEC
+    h10 = next(d for d in s["devices"] if d["name"] == "H10")
+    assert h10["coverage"].get("ecg") == 1.0, f"a span of exactly the floor must be judged: {h10['coverage']}"
+
+
+def test_coverage_exactly_at_the_degraded_threshold_is_not_degraded(tmp_path):
+    """`_DEGRADED_BELOW` is exclusive, and the rounding that feeds it is to 2 dp.
+
+    Two mutants live on this one line pair and both need the SAME fixture to die: `cov < _DEGRADED_BELOW`
+    -> `<=` (a stream at exactly the threshold would be flagged), and `round(..., 2)` -> `round(..., 3)`
+    (which moves the reported number AND, here, pushes it across the threshold).
+
+    Rows are chosen so the raw ratio is 0.495100 — `round(_, 2)` is 0.5 and NOT degraded, `round(_, 3)`
+    is 0.495 and degraded. One fixture, opposite verdicts, so neither mutant can hide."""
+    night = str(tmp_path / "2026-07-19"); os.makedirs(night)
+    base = 1_000_000.0
+    ecg = _cap(night, "Polar_H10_02849638_20260719_ECG.txt", 64363)   # 64363 / (130*1000) = 0.495100
+    hr = _cap(night, "Polar_H10_02849638_20260719_HR.txt", 1000)
+    _utime(hr, base)
+    _utime(ecg, base + 1000)
+    s = nightqc.summarize(night, [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "hr"]}])
+    assert s["span_sec"] == 1000
+    h10 = next(d for d in s["devices"] if d["name"] == "H10")
+    assert h10["coverage"]["ecg"] == 0.5, f"2 dp rounding: {h10['coverage']}"
+    assert not any("ecg" in g for g in s["degraded"]), f"exactly at the threshold is not below it: {s['degraded']}"
+
+
+def _cap_timed(night, name, rows, hz, t0_ns=1_000_000_000_000):
+    """A capture file carrying REAL device timestamps, so `measured_hz` can read a rate off it.
+
+    `_cap` writes `i;i` rows with no clock, which is fine for row-count coverage but makes the
+    measured rate unsayable — `measured_hz` reads the `sensor timestamp [ns]` column deliberately (the
+    DEVICE clock, not the host stamp, which is back-timed across each packet)."""
+    p = os.path.join(night, name)
+    step = int(round(1e9 / hz))
+    with open(p, "w") as fh:
+        fh.write("Phone timestamp;sensor timestamp [ns];channel 0\n")
+        for i in range(rows):
+            fh.write(f"2026-07-19T00:00:00.000;{t0_ns + i * step};{i}\n")
+    return p
+
+
+def test_coverage_judges_against_the_MEASURED_rate_not_the_configured_one(tmp_path):
+    """A device configured for one rate and delivering another must be judged against what it DID.
+
+    `hz = _measured_hz_of.get((name, s)) or _expected_hz(d, s)` — the measured rate wins, and six
+    mutants across the rate-reality path (a null night_dir, null devices, a null key in the
+    comprehension, a null device_id, a null lookup key) all collapse to one observable: the measured
+    map goes empty and coverage falls back to the CONFIGURED rate.
+
+    The device is configured at 260 Hz and delivers 130. Judged on measured that is full coverage;
+    judged on configured it is 50 % and reads degraded — so one fixture separates them and every
+    mutant on that path fails it.
+
+    ⚠️ This needs `_cap_timed`, not `_cap`: without a device-clock column the measured rate is
+    unsayable, the fallback fires for a legitimate reason, and the test would pass for the wrong one."""
+    night = str(tmp_path / "2026-07-19"); os.makedirs(night)
+    base = 1_000_000.0
+    ecg = _cap_timed(night, "Polar_H10_02849638_20260719_ECG.txt", 130000, 130.0)
+    hr = _cap(night, "Polar_H10_02849638_20260719_HR.txt", 1000)
+    _utime(hr, base)
+    _utime(ecg, base + 1000)
+    dev = [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "hr"], "rates": {"ecg": 260}}]
+    rr = {(r["device"], r["stream"]): r.get("measured_hz") for r in nightqc.rate_reality(night, dev)}
+    assert rr.get(("H10", "ecg")) is not None, f"the fixture must yield a measurable rate: {rr}"
+    s = nightqc.summarize(night, dev)
+    h10 = next(d for d in s["devices"] if d["name"] == "H10")
+    assert h10["coverage"]["ecg"] == 1.0, (
+        f"judged against the CONFIGURED 260 Hz this reads 0.5; against the measured 130 Hz it is full: "
+        f"{h10['coverage']}")
+
+
+def test_a_device_without_a_name_is_keyed_by_its_device_id(tmp_path):
+    """`name = d.get("name") or did` — a device may carry no name, and then its ID IS its name.
+
+    That fallback is what `_measured_hz_of` is keyed on, so `did = d.get("device_id")` -> `did = None`
+    is invisible to every fixture whose devices are named: the name wins and the ID is never consulted.
+    A nameless device is the only shape that reaches it, and there the null ID collapses the lookup key
+    and coverage silently falls back to the CONFIGURED rate — the same observable as the rest of the
+    rate-reality cluster, reached through a different door."""
+    night = str(tmp_path / "2026-07-19"); os.makedirs(night)
+    base = 1_000_000.0
+    ecg = _cap_timed(night, "Polar_H10_02849638_20260719_ECG.txt", 130000, 130.0)
+    _utime(ecg, base + 1000)
+    hr = _cap(night, "Polar_H10_02849638_20260719_HR.txt", 1000)
+    _utime(hr, base)
+    dev = [{"device_id": "02849638", "streams": ["ecg", "hr"], "rates": {"ecg": 260}}]   # no "name"
+    s = nightqc.summarize(night, dev)
+    d0 = s["devices"][0]
+    assert d0["name"] == "02849638", f"a nameless device is identified by its ID: {d0['name']}"
+    assert d0["coverage"]["ecg"] == 1.0, (
+        f"keyed by the ID, the measured 130 Hz is found and coverage is full; with a null ID the key "
+        f"collapses and it falls back to the configured 260 Hz: {d0['coverage']}")

@@ -387,6 +387,30 @@ def measured_hz(path: str, max_rows: int = _RATE_SAMPLE_ROWS):
     return 1e9 / step_ns
 
 
+def _rate_key(dev: dict) -> str:
+    """The identity `rate_reality` files a measurement under, and `summarize` looks it up by.
+
+    ⚠️ SHARED SO THE TWO CANNOT DISAGREE — they did. `rate_reality` keyed its rows
+    `dev.get("name") or dev.get("model") or "?"` while `summarize` looked up
+    `d.get("name") or d.get("device_id")`. Identical for a NAMED device, and for a nameless one the
+    measurement is filed under the model and sought under the id, so it is never found: coverage
+    falls back to the CONFIGURED rate, which is exactly the failure `measured_hz` exists to catch
+    ("you asked for 176 and recorded 55"). A nameless device is a supported shape — `summarize`'s own
+    `or did` fallback is what says so.
+
+    Same reasoning as `merge_sessions` being shared by `summarize` and `timeline.build` "so the two
+    cannot disagree about what the session is" — they had, and the fix was one definition rather than
+    two that happen to match.
+
+    ⚠️ THE `device_id` FALLBACK IS NOT COVERED BY A TEST, and saying so is the point. Once both callers
+    share this function they agree whatever it returns, so the clause cannot change a lookup — it only
+    keeps two devices with NEITHER a name NOR a model from both keying to "?" and shadowing each
+    other's measurement. That scenario is real but I could not build it with the current fixture
+    harness in reasonable time, so the clause is defensive and UNVERIFIED rather than proven. It is
+    kept because removing a guard one failed to test is not the same as showing it unnecessary."""
+    return dev.get("name") or dev.get("model") or dev.get("device_id") or "?"
+
+
 def rate_reality(night_dir: str, devices: list[dict]) -> list[dict]:
     """Per stream: the rate ASKED FOR against the rate the file actually carries.
 
@@ -435,7 +459,7 @@ def rate_reality(night_dir: str, devices: list[dict]) -> list[dict]:
             if got is not None and want:
                 ok = bool(abs(got - want) <= _RATE_MISMATCH_TOL * want)
             out.append({
-                "device": dev.get("name") or dev.get("model") or "?",
+                "device": _rate_key(dev),
                 "stream": stream,
                 "requested_hz": want,
                 "measured_hz": None if got is None else round(got, 2),
@@ -1116,7 +1140,7 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
             # NOT tautological: `measured_hz` reads a contiguous head of the file (median inter-sample
             # delta over ~4000 rows), while coverage counts EVERY row against the whole session span —
             # so a stream that dies at hour one still reports low coverage at its own correct rate.
-            hz = _measured_hz_of.get((name, s)) or _expected_hz(d, s)
+            hz = _measured_hz_of.get((_rate_key(d), s)) or _expected_hz(d, s)
             if hz and span:
                 cov = round(rows / (hz * span), 2)
                 coverage[s] = cov
