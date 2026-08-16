@@ -789,17 +789,58 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
     gaps: list[str] = []
     if data:
         sessions = merge_sessions(data)
-        cur = max(sessions, key=lambda sess: sess[1])  # the session reaching the latest write == "now"
+        # ⚠️ JUDGE THE SUBSTANTIVE SESSION, NOT THE MOST RECENT ONE.
+        #
+        # This used to be `max(sessions, key=lambda s: s[1])` — the session reaching the latest write —
+        # on the reasoning that QC runs in the morning, so the newest session IS the night. That was true
+        # while the box recorded only at night. It stopped being true when it began recording
+        # continuously, and nothing noticed because the failure is silent: a later DAYTIME session simply
+        # becomes "current" and the whole night is reported as an excluded gap.
+        #
+        # Measured 2026-08-15 — the day a Verity sat streaming noise in its charger all morning:
+        #     02:42->06:03   2 977 473 rows   <- the night
+        #     10:01->12:12   1 716 348 rows   <- JUDGED, and it was the charger
+        # H10 and O2Ring were absent from the morning session, so QC reported them `missing` and returned
+        # ok=false. It judged the garbage and called the night a hole.
+        #
+        # That is why `ok` has been false on 20 of the last 20 nights: every day with any daytime capture
+        # produces a spurious gap plus a spurious `missing`, and an alarm that is always on carries no
+        # information — it could not have told you about the charger, because it says the same thing every
+        # other night.
+        #
+        # ROWS, not duration: duration is inflated by a session that idles across a doffing gap, while
+        # rows count what was actually captured. Ties break toward the later session, preserving the old
+        # behaviour for the single-session days it was written for.
+        cur = max(sessions, key=lambda sess: (sum(f["rows"] for f in sess[2]), sess[1]))
         current = cur[2]
         span = cur[1] - cur[0]
         span = span if span >= _MIN_SPAN_SEC else None
-        prior = [s for s in sessions if s is not cur and s[1] <= cur[0]]
-        if prior:
-            prev = max(prior, key=lambda s: s[1])
-            prior_gap = cur[0] - prev[1]
-            excluded = sum(f["rows"] for s in prior for f in s[2])
-            gaps.append(f"{_hhmm(prev[1])}->{_hhmm(cur[0])} {round(prior_gap / 60)}min gap; "
-                        f"{len(prior)} earlier session(s), {excluded} rows, excluded from coverage")
+        # ⚠️ EXCLUDED IS EXCLUDED, WHICHEVER SIDE IT SITS ON.
+        #
+        # This used to look only BEFORE the judged session (`s[1] <= cur[0]`), which was safe while the
+        # judged session was always the newest — nothing could come after it. Judging by rows breaks that
+        # invariant: a night split by a box-wide outage now judges the BIGGER half, and if that is the
+        # earlier one the discarded half sits AFTER it and became invisible. The night would then grade
+        # green having thrown away part of itself — exactly the §A2 regression, re-entered through a door
+        # the one-sided test could not see. (Reachability is not hypothetical: the measured 2026-07-24
+        # box-wide silence ran 58.6 min, 85 s under the split threshold.)
+        others = [s for s in sessions if s is not cur]
+        if others:
+            before = [s for s in others if s[1] <= cur[0]]
+            after = [s for s in others if s[0] >= cur[1]]
+            # `prior_gap_sec` keeps naming the gap to the nearest EARLIER session, which is what its
+            # consumers read; the nearest later one is reported in the message rather than renamed.
+            if before:
+                prev = max(before, key=lambda s: s[1])
+                prior_gap = cur[0] - prev[1]
+                gaps.append(f"{_hhmm(prev[1])}->{_hhmm(cur[0])} {round(prior_gap / 60)}min gap; "
+                            f"{len(before)} earlier session(s), "
+                            f"{sum(f['rows'] for s in before for f in s[2])} rows, excluded from coverage")
+            if after:
+                nxt = min(after, key=lambda s: s[0])
+                gaps.append(f"{_hhmm(cur[1])}->{_hhmm(nxt[0])} {round((nxt[0] - cur[1]) / 60)}min gap; "
+                            f"{len(after)} later session(s), "
+                            f"{sum(f['rows'] for s in after for f in s[2])} rows, excluded from coverage")
     per_device = []
     newest = max((f["mtime"] for f in current), default=None)
     missing = []
@@ -884,6 +925,10 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         # scope failure read as nine simultaneous device failures. A verdict that cannot be audited
         # against the ground it was computed from is a claim, not a measurement.
         "judged_dir": os.path.basename(night_dir.rstrip("/")),
+        # WHICH session the verdict rests on, on the same principle as `judged_dir`/`searched_dirs`
+        # below: a verdict that cannot be audited against the ground it was computed from is a claim.
+        "judged_session": {"start": round(cur[0]), "end": round(cur[1]),
+                           "rows": sum(f["rows"] for f in cur[2])} if data else None,
         "searched_dirs": [os.path.basename(p.rstrip("/")) for p in searched],
         "data_files": len(data),
         # NINE INDEPENDENT STREAMS ACROSS THREE VENDORS DO NOT FAIL IN THE SAME SECOND. When the scope

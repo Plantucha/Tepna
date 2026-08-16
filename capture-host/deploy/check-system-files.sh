@@ -14,6 +14,35 @@
 # evening with a hot-plugged adapter unprotected because of it. Nothing said so — `systemctl status`
 # was green, the file was present, and its content was a day old.
 #
+# ── WHERE A HELPER MAY WRITE (VIGIL-AUTO-UPDATE-FOLLOWUPS §3, audited 2026-08-15) ──────────────────
+# A privileged helper spawned BY THE DAEMON inherits the unit's mount namespace, and `sudo` does NOT
+# escape it — privilege is not a namespace. So a helper that writes outside the writable set fails with
+# `Read-only file system`, which reads like a permissions bug and is a sandbox one. The writable set is
+# TWO things, and only the first is a list anyone maintains:
+#
+#   1. ReadWritePaths  — /srv/tepna · /opt/tepna/capture-host · -/etc/chrony ·
+#                        -/etc/systemd/timesyncd.conf.d · -/run/chrony
+#   2. ProtectSystem=strict's own carve-out — /dev, /proc and /sys stay writable, maintained by nobody
+#
+# Audited, by reading what each installed helper actually writes rather than assuming:
+#
+#   tepna-rssi.sh      writes NOTHING (hcitool read → stdout)      cannot fail this way
+#   tepna-clock.sh     /etc/chrony/… , /etc/systemd/timesyncd…     works BY BEING LISTED  ← the fragile one
+#   tepna-btreset.sh   /sys/bus/usb/drivers/usb, /sys/bus/usb/…    works by the /sys carve-out
+#   tepna-usbreset.sh  /sys/bus/usb/devices                        works by the /sys carve-out
+#   tepna-restart.sh   /opt/tepna/.git (outside the list!)         FAILED — fixed by systemd-run --uid=vigil,
+#                                                                  which starts the unit from PID 1, outside
+#                                                                  the namespace
+#
+# So exactly ONE helper depends on the list. That is narrower than the brief assumed — but it is also
+# the one nobody would notice breaking, because chrony keeps working from its existing config.
+#
+# ⚠ THE CLASS HAS ALREADY BITTEN A SECOND SUBSYSTEM. The journal carries 95 `Read-only file system`
+# lines from the CPAP Wi-Fi path — /run/wpa_supplicant, /run/tepna-wpa, /tmp/tepna-wpa-1000, all outside
+# the set — dated 2026-07-26 → 07-29 and none since, while `ReadWritePaths` was never changed. Harvest
+# still runs daily, so it was fixed in code or that leg is no longer reached; which of the two is not
+# established here. If you add a helper, check its writes against the two lists above BEFORE the box does.
+#
 # ── WHY IT ONLY INSTALLS WHAT THE REPO OWNS ────────────────────────────────────────────────────────
 # This started life with two classes, MANAGED and TEMPLATED, on the belief that `tepna-capture.service`
 # could not be installed from the repo because the repo's copy said `User=tepna` and no such user
