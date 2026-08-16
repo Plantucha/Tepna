@@ -386,8 +386,13 @@
     return _labelIdx[k] || null;
   }
 
-  /* Pure metadata labels (not metrics) — never badge these, even with fallback. */
-  var _META_DENY = { date: 1, start: 1, end: 1, source: 1, 'sample rate': 1, recording: 1, 'active flags': 1, mode: 1, session: 1, sessions: 1, device: 1, serial: 1 };
+  /* Pure metadata labels (not metrics) — never badge these, even with fallback.
+     The two EMOJI are row ICONS, not labels: `cpapdex-render.js` calls
+     `row('🔗', 'AHI ↔ ODI', …)`, so the first string argument the badge helpers read is the glyph
+     while the real label is the second. Badging a glyph asserts an evidence tier about a decoration,
+     which is the fabricated authority §🎫 exists to prevent — DEEP-AUDIT-V-FOLLOWUPS §1.3 called
+     these "the only part of the 94 that is unambiguous". Denied here rather than given a tier. */
+  var _META_DENY = { date: 1, start: 1, end: 1, source: 1, 'sample rate': 1, recording: 1, 'active flags': 1, mode: 1, session: 1, sessions: 1, device: 1, serial: 1, '🔗': 1, '💨': 1 };
 
   /* badgeForLabel(label, fallback) → '<span class="ev …">' | '' — the zero-touch
    hook the render helpers call to place an evidence dot IMMEDIATELY BEFORE any label
