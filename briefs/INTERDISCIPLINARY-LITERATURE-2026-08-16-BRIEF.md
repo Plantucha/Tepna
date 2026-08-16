@@ -70,6 +70,16 @@ vocabulary is mature and mostly already cited **in prose but not in the ledger**
 | **Zhou, Greenhall & Howe (2011)** — *Power law noise identification using the lag 1 autocorrelation by overlapping samples*, IEEE | extends the above to the overlapping estimator we actually use | venue verified · DOI unverified |
 | **IEEE Std 1139** — *Definitions of Physical Quantities for Fundamental Frequency and Time Metrology* | TIE, TDEV, MDEV; phase vs frequency noise | verified, standard |
 
+⚠️ **PRECONDITION, added 2026-08-16 after Vigil box's review — do not adopt this before the parity
+story is settled.** `#1334` pinned **three** implementations of the slope-threshold rule (`clock.js`
+`CK_ALLAN_NOISE`, `ppgdex-dsp.js` `ALLAN_NOISE`, `capture-host/allan.py` `_NOISE`) with a gate holding
+their tables equal. Replacing only the Python one with a lag-1 identifier would put the lanes on
+**genuinely different algorithms** rather than the same algorithm with different rounding — a
+divergence a table-equality gate structurally cannot express. Either all three move, or the gate must
+be redesigned first. Mitigating factor: **AllanTools implements lag-1 identification**
+(anderswallin.net, 2018), so a Python implementation has a real known-answer reference to check
+against rather than a re-derivation — which `allan.py` is otherwise short of.
+
 **Do (highest value in this brief).** `classifyAllan` / `allan.py classify` name a noise type by a
 strict `<` against a **point estimate** near a boundary, which is why a `1.96·SE` refusal band exists
 and why a full Riley EDF treatment is circular (EDF needs the noise type). **Riley & Greenhall 2004
