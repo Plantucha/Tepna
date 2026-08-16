@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-08-09 · **Owner decision:** option 3, taken 2026-08-09 · **Follows:** `OXYDEX-PB-OVERCALL-FOLLOWUPS-2026-08-04-BRIEF.md` §1 (which required this be spawned separately rather than patched in) · **Parent:** `OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md` · **Affects:** `oxydex-dsp.js detectOscillations` / `computePatternScores`, the OxyDex reference guide, `integrator-dsp.js`'s PB corroboration leg
+**Status:** PROPOSED · **Created:** 2026-08-09 · **Owner decision:** option 3, taken 2026-08-09 · **Follows:** `OXYDEX-PB-OVERCALL-FOLLOWUPS-2026-08-04-BRIEF.md` §1 (which required this be spawned separately rather than patched in) · **Parent:** `OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md` · **Affects:** `oxydex-dsp.js detectOscillations` / `computePatternScores`, the OxyDex reference guide, `integrator-dsp.js`'s PB corroboration leg · **Amended 2026-08-16:** §3.1 gains a **third** adversarial twin (a red-noise null) — see `OXYDEX-FFT-CYCLE-NULL-2026-08-16-BRIEF.md`; no other section changed and the owner decision is untouched
 
 # Build a periodic-breathing detector that measures periodicity
 
@@ -80,6 +80,32 @@ apart, because nothing it computes depends on the spacing. **This is the single 
 whether the new detector is a detector at all**, and it is cheap: no corpus, no reference, and it can
 be a committed adversarial twin in the suite.
 
+#### ⚠ A THIRD twin is required, and it is the one that will actually fire — added 2026-08-16
+
+The pair above is a **point-process** null: same dips, randomised placement. It is necessary and it is
+not sufficient, because it shares an assumption with the periodic twin — that the signal is *made of
+dips*. The null that defeats a crossing-interval detector has no dips at all.
+
+**SpO₂ is a red series**, and `OXYDEX-FFT-CYCLE-NULL-2026-08-16` measured how red: pure AR(1) at
+**ρ = 0.98** is the null it builds against `computeSpO2FFT`. A strongly red series wanders smoothly and
+crosses its own rolling baseline at intervals set by its **correlation time** — with no oscillation, no
+dips, and nothing periodic anywhere in it. If that correlation time puts the crossings inside §2.1's
+window, then "≥ 3 consecutive cycles in 40–130 s" is satisfied **by construction**, exactly as a
+periodogram's argmax sits low in a red spectrum by construction.
+
+So the third twin is: **pure AR(1) at ρ = 0.98, no oscillation planted ⇒ the detector reports no
+episode.** It is the same negative control that brief specifies, applied to a different estimator.
+
+**Do not assume the FFT finding does not transfer because the estimators differ.** It transfers because
+the *null* is a property of the signal, not of the statistic — which is also why the fix is not shared:
+that brief's remedy is peak height against a fitted background, and a crossing-interval detector needs
+its own (a crossing-interval distribution compared against the one red noise of the same lag-1
+autocorrelation produces, rather than against a fixed window). Whether the detector clears this twin is
+the finding; the honest outcome is that it might not, and §4's bar cannot be evaluated until it does.
+
+⚠ **The ρ must be measured on the corpus, not inherited.** ρ = 0.98 is that brief's figure at its
+sampling rate; a null built at the wrong ρ is a null that examined nothing. State the rate beside it.
+
 ### 3.2 · Decorrelation from hypoxemia burden — the falsifiable corpus criterion
 
 Over the 42-night O2Ring corpus, the new detector's episode count must **break** the r = 0.893
@@ -137,6 +163,9 @@ corroboration and by the OxyDex reference guide, both of which move with it.
       than being computed after it.
 - [ ] §3.1's adversarial twin pair is committed and the detector separates them — and the test is shown
       to FAIL against the current detector, which cannot.
+- [ ] §3.1's **third twin** — pure AR(1) red noise at the corpus-measured ρ, no oscillation planted —
+      produces **no episode**, with the ρ and its sampling rate stated. A detector that clears the
+      periodic/aperiodic pair but not this one is not finished.
 - [ ] §3.2's corpus decorrelation is measured and the achieved r is stated, whatever it is.
 - [ ] §3.3's κ is reported beside −0.039, explicitly as an observation.
 - [ ] §4's bar is measured: removing the leg now changes the fused outcome on some nights — or it does
