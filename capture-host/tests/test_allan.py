@@ -746,3 +746,101 @@ def test_a_candidate_band_touched_EXACTLY_from_above_is_not_listed():
     c = allan.classify(-0.500096, 0.1276, 5)
     assert c["noise"] is None
     assert c["candidates"] == ["white/flicker-phase", "white-frequency"]
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# WIRING — the resolution has to reach the ONE consumer that runs.
+#
+# `identify()` and `tdev()` were correct, tested and changelogged while having ZERO production call
+# sites: `stability()` is what `nightqc` calls, and it used ADEV alone. So every real night recorded
+# `white/flicker-phase` — one label whose two halves mean opposite things for how much a longer window
+# buys — even though the module could already split it. These assert the join, not the estimators.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+
+
+def _flicker_pm(seed=11, rows=16):
+    """Voss-McCartney pink noise placed directly in PHASE → flicker PM: ADEV ~ tau^-1 (the SAME arm as
+    white PM) but MDEV ~ tau^-1, where white PM is tau^-3/2. This is the series the suite lacked."""
+    rng = random.Random(seed)
+    vals = [rng.gauss(0, 1) for _ in range(rows)]
+    out = []
+    for i in range(N):
+        for k in range(rows):
+            if i % (1 << k) == 0:
+                vals[k] = rng.gauss(0, 1)
+        out.append(sum(vals))
+    return out
+
+
+def test_identify_names_FLICKER_phase_too_and_not_only_white():
+    """ANTI-VACUITY for the split itself. Every existing `identify` test uses white PM, so an
+    implementation that answered "white-phase" for anything on the ambiguous arm would pass all of
+    them. Flicker PM must land on the same ADEV arm and come back with the OTHER name."""
+    r = allan.identify(_flicker_pm(), TAU0)
+    assert r["adev"]["noise"] == "white/flicker-phase"      # ADEV cannot tell it from white PM
+    assert r["phase_noise"] == "flicker-phase"              # …MDEV can
+    assert allan.identify(_white_pm(), TAU0)["phase_noise"] == "white-phase"
+
+
+def test_stability_publishes_the_resolved_phase_type_not_only_the_ambiguous_one():
+    """THE WIRING. `classification` still reports ADEV's joint arm; `phase_noise` resolves it."""
+    s = allan.stability(_white_pm(), TAU0)
+    assert s["classification"]["noise"] == "white/flicker-phase"
+    assert s["phase_noise"] == "white-phase"
+    assert s["mdev_classification"]["noise"] == "white-phase"
+
+
+def test_stability_resolves_the_two_arms_to_DIFFERENT_names():
+    """The separation, asserted through the production entry point rather than through `identify`."""
+    assert allan.stability(_white_pm(), TAU0)["phase_noise"] == "white-phase"
+    assert allan.stability(_flicker_pm(), TAU0)["phase_noise"] == "flicker-phase"
+
+
+def test_stability_publishes_no_phase_type_when_adev_is_not_on_the_ambiguous_arm():
+    s = allan.stability(_white_fm(), TAU0)
+    assert s["classification"]["noise"] == "white-frequency"
+    assert s["phase_noise"] is None
+
+
+def test_stability_reports_no_tdev_unless_a_tau_is_NAMED():
+    """There is deliberately no default tau: reading each stream at its own optimal tau inverted the
+    real-corpus ordering, so an unnamed tau must yield None rather than a per-stream number."""
+    assert allan.stability(_white_pm(), TAU0)["tdev"] is None
+
+
+def test_stability_reports_tdev_at_exactly_the_tau_it_was_asked_for():
+    s = allan.stability(_white_pm(), TAU0, 300.0)
+    assert s["tdev"]["tau"] == 300.0
+    assert s["tdev"]["tdev"] > 0 and s["tdev"]["n"] > 0
+    # …and it is TDEV, not MDEV: sigma_x = tau/sqrt(3) * Mod sigma_y
+    md = allan.mdev(_white_pm(), TAU0, [300.0])[0]["mdev"]
+    assert s["tdev"]["tdev"] == pytest.approx(300.0 * md / math.sqrt(3.0), rel=1e-12)
+
+
+def test_stability_reports_no_tdev_when_the_series_cannot_SUPPORT_the_named_tau():
+    """A tau the data cannot carry yields None — never a thin estimate, and never a zero that would
+    read as "the time error is zero"."""
+    s = allan.stability(_white_pm(), TAU0, 1e9)
+    assert s["tdev"] is None
+
+
+def test_stability_keeps_every_key_it_published_before():
+    """Back-compat: the new fields are ADDITIVE. A consumer written against the old record still works."""
+    s = allan.stability(_white_pm(), TAU0)
+    for k in ("ok", "taus", "tau_min", "tau_max", "adev_min", "optimal_tau", "at_longest",
+              "classification", "slope_se", "curve"):
+        assert k in s, k
+
+
+def test_identify_reuses_a_supplied_adev_curve_instead_of_recomputing_it():
+    """`stability` already holds the ADEV curve, so it hands it on: one MDEV pass, not a second ADEV.
+    The supplied and recomputed forms must agree exactly, or the saving would change the answer."""
+    x = _white_pm()
+    pts = allan.adev(x, TAU0)
+    assert allan.identify(x, TAU0, pts) == allan.identify(x, TAU0)
+
+
+def test_a_too_short_series_still_refuses_before_reaching_the_new_fields():
+    s = allan.stability([1.0, 2.0, 3.0, 4.0], TAU0, 300.0)
+    assert s["ok"] is False and s["reason"] == "too-few-taus"
+    assert "phase_noise" not in s and "tdev" not in s
