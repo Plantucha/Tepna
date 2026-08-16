@@ -407,7 +407,36 @@ not changed. In order of payoff:
 
 **Do not hand-write the polling loop.** It has been written wrong in all four of §👥.4/4b's ways. Use:
 
+🔴 **ARMED IS NOT LANDING — and this is the single most expensive thing on this page to get wrong.**
+`protect-main` sets `strict_required_status_checks_policy: true`, so a branch must be **up to date at
+merge time** — and **GitHub's auto-merge does NOT update a branch.** It waits for the merge to become
+*possible*; under `strict: true` a `BEHIND` branch never becomes possible on its own. So arming
+`--auto` and leaving it is a **DEADLOCK, not a wait**.
+
+Measured 2026-08-16: **14 PRs sat for a full day.** Every one `OPEN`, 0 pending, 0 blocking failures,
+all armed, nothing failing, nothing conflicting. Four sessions looked straight at them and saw a
+healthy queue, because the only symptom was that **nothing moved — and "nothing moved" is not a state
+any dashboard reports.**
+
+Clearing the blocker is *also* not enough, one layer up: dropping `strict` did not drain the queue
+either, because **auto-merge does not re-evaluate on a ruleset change** — it waits for an event on the
+PR. Twelve merged in 60 seconds once something actively merged them.
+
+```
+armed     ≠ landing   — something must UPDATE the branch
+unblocked ≠ landing   — something must TRIGGER re-evaluation
+```
+
+Both are a passive mechanism waiting on an event that never arrives. **Something must act**: either you
+(`gh pr update-branch <N>` once the PR is green — not while its checks are still running, which just
+restarts them), `land-pr`, or the **`queue-doctor` timer**, which exists precisely because the failure
+happens when nobody is running anything and which names the state — `GREEN AND STUCK` — that no GitHub
+view reports. ⚠️ A merge queue would fix this properly and **is not available**: it is an
+*organisation*-repository feature and Tepna is user-owned (verified 2026-08-16 — this is availability,
+not a cost tradeoff, and an earlier note here got that wrong).
+
 ```sh
+node tools/queue-doctor.mjs --dry-run   # what is green-and-stuck right now, and what it would update
 node tools/land-pr.mjs <PR#>            # keeps the branch current, merges the moment it can
 node tools/land-pr.mjs <PR#> --dry-run  # print each decision, act on nothing
 ```

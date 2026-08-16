@@ -114,7 +114,28 @@ fi
 # Same damage as `-A`: it sweeps a concurrent session's in-flight files into your commit under your
 # message. `git add ./*` is the same thing with a prefix.
 _RE="$GITX"'add[[:space:]]+([^;&|]*[[:space:]])?(-A\b|--all\b|-u\b|--update\b|\.([[:space:]]|$)|:/|'"$QT"'(\./)?\*'"$QT"'([[:space:]]|$))'
-if grep -qE "$_RE" <<<"$cmdn"; then
+
+# ── THE ONE BLANKET ADD THAT TOUCHES NOTHING: a TEMP-INDEX snapshot ──────────────────────────────
+# CLAUDE.md §👥.2's own rescue recipe is `GIT_INDEX_FILE=/tmp/r.idx sh -c 'git add -A; git write-tree'`
+# — the documented way to PRESERVE another session's uncommitted work without touching their tree.
+# This guard denied it on the command text, so the procedure for rescuing work was itself
+# unexecutable, and the documented escape hatch is for "when the tree is genuinely yours alone",
+# which is precisely when a rescue is NOT needed. Measured 2026-08-16: a peer session could snapshot
+# one file by explicit path but could not snapshot the 188-file shared tree at all.
+#
+# A blanket add into a SEPARATE index writes to a throwaway file. It touches no working-tree file and
+# not the repo's index, so none of the damage this rule exists to prevent is reachable.
+#
+# DELIBERATELY NARROW. The exemption requires GIT_INDEX_FILE to name something that is NOT the repo's
+# own index, so `GIT_INDEX_FILE=.git/index git add -A` stays DENIED — that is ordinary blanket
+# staging wearing the recipe's clothes. `git commit -a` is not exempted at all: it commits.
+_TEMPIDX=0
+if grep -qE 'GIT_INDEX_FILE=[^[:space:];&|]+' <<<"$cmdn" \
+   && ! grep -qE 'GIT_INDEX_FILE=[^[:space:];&|]*\.git/index' <<<"$cmdn"; then
+  _TEMPIDX=1
+fi
+
+if [ "$_TEMPIDX" != 1 ] && grep -qE "$_RE" <<<"$cmdn"; then
   deny "BLOCKED: blanket staging in a SHARED checkout (CONTRIBUTING §6).
 
 Several agent sessions work this repo at once, so the working tree is not yours alone — a blanket add sweeps their in-flight files into your commit, under your message. That is exactly how cabd7f7 ended up carrying an unrelated brief.

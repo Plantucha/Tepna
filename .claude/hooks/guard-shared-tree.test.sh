@@ -38,6 +38,22 @@ chk(){ # chk <expected> <command>
   printf '  %-5s %-5s %s%s\n' "$got" "$base" "$2" "$flag"
 }
 
+# chk_relax <command> — a DELIBERATE relaxation: main denied this and we now allow it.
+#
+# The regression check above is exactly right by default, so a relaxation needs its own assertion
+# rather than an exemption from that one. Note it requires base=DENY as well as got=allow: a
+# "relaxation" that main ALREADY allowed changed nothing, and would otherwise pass silently while
+# proving nothing — the same vacuity shape this repo keeps finding. So this case is seen to fail
+# both if the fix is reverted (got=DENY) and if it was never needed (base=allow).
+chk_relax(){
+  local got; got=$(v "$1" "$H")
+  local base; base=$(v "$1" "$BASE")
+  local flag=""
+  [ "$got" != allow ] && { flag=" <-- EXPECTED allow (the relaxation is not in effect)"; fail=$((fail+1)); }
+  [ "$base" != DENY ] && { flag="$flag <-- main ALREADY allowed this; the case proves nothing"; fail=$((fail+1)); }
+  printf '  %-5s %-5s %s%s\n' "$got" "$base" "$1" "$flag"
+}
+
 echo "### MUST DENY                                                 now   main"
 # `#` lines are commentary on WHY a case exists, not cases. Without this the harness runs them as
 # commands, they are allowed, and each one reads as a failure — which is how a genuine 9-case
@@ -49,6 +65,13 @@ git add -u
 git add -A -- .
 git commit -a -m x
 git commit -am x
+
+# ── the temp-index exemption must not become a bypass (2026-08-16) ───────────────────────────────
+# The rescue recipe's SHAPE aimed at the repo's own index is ordinary blanket staging, and a
+# commit is never exempt however the index is spelled.
+GIT_INDEX_FILE=.git/index git add -A
+GIT_INDEX_FILE=./.git/index git add -A
+GIT_INDEX_FILE=/tmp/r.idx git commit -a -m x
 
 # ── source-checkout rule, adversarial pass 2026-08-05 ────────────────────────────────────────────
 # Each of these was ALLOWED before the fix. Every one is the ACCIDENTAL form: the shape a person or
@@ -221,6 +244,8 @@ git checkout -b claude/x origin/main && bash .claude/hooks/guard-shared-tree.tes
 git add path/to/file.js
 git add -- src/a.js src/b.js
 git commit -m "feat: thing"
+
+
 git commit -m "fix -a flag parsing in the CLI"
 git commit -F /tmp/msg.txt
 git checkout -b claude/x origin/main
@@ -274,6 +299,22 @@ node tools/rebase-safe.mjs && npm run check
 git checkout --ours -- docs/OxyDex.html
 npm run rebase
 ALLOW
+
+echo
+echo "### DELIBERATE RELAXATIONS — main denies these, this version allows them        now   main"
+# CLAUDE.md §👥.2's OWN RESCUE RECIPE, which this guard used to deny (2026-08-16).
+# A blanket add into a SEPARATE index writes a throwaway file: it touches no working-tree file and
+# not the repo's index, so none of the damage the blanket-add rule prevents is reachable. Denying it
+# made the documented procedure for PRESERVING another session's uncommitted work unexecutable —
+# and the escape hatch is for "when the tree is genuinely yours alone", precisely when no rescue is
+# needed. Measured that day: a peer could snapshot one file by explicit path and could not snapshot
+# the 188-file shared tree at all.
+while IFS= read -r c; do [ -n "$c" ] && [[ "$c" != \#* ]] && chk_relax "$c"; done <<'RELAX'
+GIT_INDEX_FILE=/tmp/r.idx git add -A
+GIT_INDEX_FILE=/tmp/r.idx sh -c 'git add -A; git write-tree'
+cp .git/index /tmp/r.idx && GIT_INDEX_FILE=/tmp/r.idx git add -A && GIT_INDEX_FILE=/tmp/r.idx git write-tree
+RELAX
+
 
 echo
 echo "### file integrity"
