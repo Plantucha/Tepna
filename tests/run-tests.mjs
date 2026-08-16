@@ -454,7 +454,13 @@ function readSources() {
     'cgm-hrv-coupling-analysis.js',
     'treatment-response-analysis.js',
     'odi-bias-analysis.js',
-    'hrv-confound-analysis.js'
+    'hrv-confound-analysis.js',
+    /* THE ONLY PYTHON IN THIS LIST, and it is here because one rule has three implementations in two
+       languages. `allan.py classify`, `clock.js CK_ALLAN_NOISE` and `ppgdex-dsp.js ALLAN_NOISE` all
+       name a power-law noise type from an ADEV slope, and NOTHING compared them — the same shape as
+       the closure-identity gate above, and as `registry-defs-parity`, both of which exist because two
+       copies of one truth drift. Loaded as TEXT only; nothing here executes Python. */
+    'capture-host/allan.py'
   ];
   const out = {};
   for (const f of wanted) {
