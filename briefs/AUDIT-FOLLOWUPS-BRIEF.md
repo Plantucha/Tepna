@@ -10,6 +10,33 @@
 >   failure this sweep exists to catch.)
 > - **§4.4** (`FINDING_EVIDENCE`) — its "not test-backed" half is **no longer true**; a gate now anchors
 >   every fusion finding type. Only owner *ratification* of the grades remains.
+>   **✅ AUDITED 2026-08-16 — all ten defensible as they stand; ratification is a one-word answer.**
+>   Owner directed (2026-08-16) that this fold into the OxyDex tier batch. It differs from that batch in
+>   kind: those 68 labels had **no** grade and needed one assigned; these ten **already carry** grades
+>   with citations, so the work was to audit them, not to write them. Assigning fresh tiers over existing
+>   reasoned ones would have been the more dangerous act.
+>
+>   | finding | grade | audit |
+>   |---|---|---|
+>   | `device_ahi` | `validated` | firmware-scored AHI, AASM-style, used as the clinical reference and not re-derived. Corroborated: CPAPDex matches the device's own `STR.edf` scoring to 0.05/h |
+>   | `confirmed_apnea` | `emerging` | cross-signal corroboration, explicitly *"not a scored AHI"* — see the citation note below |
+>   | `hrv_consensus` | `emerging` | Task Force 1996 is a real standard; cross-device consensus, divergence flags QC |
+>   | `positional_apnea` | `experimental` | its own cite says *"directional, small-n"* |
+>   | `tch_error` | `experimental` | Gray & Allan 1974 three-cornered hat — published method, conservative grade for this application |
+>   | `periodic_breathing` | `experimental` | node composite |
+>   | `auto_glycemic` | `heuristic` | *"hypothesis-generating"*, and `dead-ends.html` records the glucose↔HRV coupling collapsing to +0.01 once a shared apnea driver is partialled out |
+>   | `staging_disagreement` | `heuristic` | **the best-reasoned entry**: the tier is INHERITED, because a disagreement between two `heuristic` estimators cannot be stronger evidence than its inputs |
+>   | `desat_match` | `measured` | arithmetic over counts, not an inference |
+>   | `overlap_coverage` | `measured` | arithmetic over declared segment lengths |
+>
+>   ⚠️ **One citation worth tightening, and deliberately NOT treated as blocking.** `confirmed_apnea`
+>   cites *"AASM ODI framing; Azarbarzin 2019"*, while `oxydex-registry.js` explicitly distances its own
+>   hypoxic burden from that paper — *"NOT Azarbarzin 2019: that sleep-apnoea-specific hypoxic burden is
+>   event/baseline-referenced"*. Azarbarzin 2019 is about the hypoxic-burden metric, not about
+>   desaturation↔surge corroboration, so the reference is loose for the claim it is attached to.
+>   **It is not fabricated authority**, because the grade is `emerging` rather than `validated` — the
+>   citation is decorative here, not load-bearing, and §🎫's rule bites only when a citation carries an
+>   upgrade. Worth a rewording on the next touch of that file; not worth a re-bundle on its own.
 > - **§5.1 · §5.2** — data-gated (no PSG dataset / no Kubios-NeuroKit2 tooling committed). Not startable.
 > - **§5.4 · §5.5 · §5.6** — cosmetic / curation calls.
 > - ~~🔴 One NEW finding from §5.3's scan: `VO₂ GT` surfaces with no evidence badge.~~
