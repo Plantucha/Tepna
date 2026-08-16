@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** IN-PROGRESS — 2026-08-15 (**§3 EXECUTED + gated**, see §6; the one remaining box is an owner ruleset change) · **Created:** 2026-08-09 · **Follows:** `.claude/hooks/guard-stale-brief.sh` (#1066, merged 2026-08-09) · **Affects:** `.claude/settings.json`, repo branch protection
+**Status:** DONE — 2026-08-16 (**§3 EXECUTED + gated** see §6; **§2 PREVENTED** — `stale-file` is now a required check on `protect-main`) · **Created:** 2026-08-09 · **Follows:** `.claude/hooks/guard-stale-brief.sh` (#1066, merged 2026-08-09) · **Affects:** `.claude/settings.json`, repo branch protection
 
 # The stale-brief hook closes the sequential collision. The concurrent one is still open, and it is the one that happened twice.
 
@@ -93,13 +93,18 @@ rebased), shipped with `stale-file.test.sh`.
 
 **Remaining options, re-ranked against what is actually possible here:**
 
-1. **Make the stale-file check REQUIRED.** It is advisory today: it goes red on the PR but does not
-   block, and auto-merge is used on essentially every PR here — so as it stands it informs rather than
-   prevents. Adding `stale-file` to `protect-main`'s required-status-checks list is a one-line ruleset
-   change and is what converts it from a signal into a gate. **Owner decision.**
-2. **`strict_required_status_checks_policy = true`** — still available, still the most complete
-   in-repo option, still carrying the rebase-churn cost that made merge queue attractive. `npm run
-   rebase` reduces that to one command, which is the honest counter-argument to the cost objection.
+1. ~~**Make the stale-file check REQUIRED.**~~ **DONE 2026-08-16, owner-directed.** `stale-file` is
+   the 8th context on `protect-main`'s required list, so a stale PR is now blocked rather than merely
+   reddened. Preconditions checked before applying, because a required context that does not report on
+   some PRs blocks them forever: the workflow has **no `paths:` filter, no matrix and no job-level
+   `if:`**, its job id and reported context are both the literal `stale-file` (observed `pass` on 5/5
+   recent PRs), and a PR touching no guarded file **exits 0** rather than skipping. Ruleset diff
+   confirmed to touch `required_status_checks` and nothing else.
+2. ~~**`strict_required_status_checks_policy = true`**~~ — **already true**, and was when this brief
+   listed it as available. `CLAUDE.md` §👥.5 has described the repo as `strict = true` since 2026-08-09,
+   which is the same day this line was written; the option was stale on arrival. Its rebase-churn cost
+   is therefore already being paid, and `node tools/rebase-safe.mjs` / `tools/land-pr.mjs` exist because
+   of it.
 3. **Widen the hook's matcher to `Bash`** — closes §3, does nothing for §2. Worth doing on its own
    merits, not as a fix for the concurrent case.
 4. **Transfer the repo to an organization** — unlocks merge queue properly. Far beyond a settings
@@ -117,10 +122,11 @@ the next person looking. Several of my own PR bodies this session said *"the col
 
 - [x] **§2 detected 2026-08-09** by the stale-file PR check (#1086), after merge queue was chosen and
       found unavailable on a user-owned repo (§4). Detection is not prevention — see the next box.
-- [ ] **§2 PREVENTED** — the check is advisory: it reds the PR but does not block, and auto-merge is
-      used on essentially every PR here, so today it informs rather than stops. Add `stale-file` to
-      `protect-main`'s required-status-checks list **(owner)**, or record that advisory is enough and
-      why.
+- [x] **§2 PREVENTED 2026-08-16** — `stale-file` added to `protect-main`'s required-status-checks list
+      (owner-directed), making it the 8th required context. Detection became prevention: auto-merge can
+      no longer carry a stale PR past a red `stale-file`. See §4.1 for the preconditions verified first
+      — the risk being ruled out was a required context that never reports, which blocks every PR
+      forever rather than the intended one.
 - [x] **§3 CLOSED 2026-08-15** — the hook is wired for `Bash` as well as `Edit|Write` and inspects
       write-shaped commands. See §6.
 - [x] Any prose claiming the hook covers the concurrent case corrected — `CLAUDE.md` §📌's own wording
