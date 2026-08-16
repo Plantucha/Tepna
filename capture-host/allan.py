@@ -378,6 +378,86 @@ _NOISE_MDEV = (
 )
 
 
+# ── LAG-1 NOISE IDENTIFICATION (Riley & Greenhall 2004) ─────────────────────────────────────────────
+# `classify` names a noise type from the SLOPE of a fitted log-log line, which is why it needs a
+# `1.96*se` refusal band near a boundary and why a full Riley EDF treatment is circular (EDF is a
+# function of the noise type you are trying to determine). This identifies the power law ANALYTICALLY,
+# from the lag-1 autocorrelation, at any averaging factor, WITHOUT fitting a slope — so it has no
+# boundary to sit near and no circularity to break.
+#
+# W. J. Riley (Symmetricom) & C. A. Greenhall (JPL), "Power law noise identification using the lag 1
+# autocorrelation", Proc. 18th European Frequency and Time Forum, Guildford, 5-7 April 2004.
+# Extended to overlapping samples by Zhou, Greenhall & Howe (2011).
+#
+# ⚠️ PUBLISHED BESIDE `classify`, NOT INSTEAD OF IT — deliberately. `#1334` pinned THREE implementations
+# of the slope-threshold rule (`clock.js CK_ALLAN_NOISE`, `ppgdex-dsp.js ALLAN_NOISE`, `_NOISE` here)
+# with a gate asserting the tables are equal. Replacing only the Python one would put the lanes on
+# genuinely DIFFERENT ALGORITHMS rather than the same algorithm with different rounding — a divergence
+# a table-equality gate structurally cannot express. `_NOISE` and `classify` are untouched here; this is
+# a second, independent opinion a reader can compare against the first.
+#
+# ⚠️ TWO STATISTICS SHARE THE WORDS "lag-1 autocorrelation" AND THEY ARE NOT THE SAME.
+# `METROLOGY-METHOD-ADOPTION` §5 celebrates a two-line lag-1 check that asks *is this series correlated
+# at all* — a plain correlation test. This asks *which power law is this*. Same words, different
+# question; citing the former as evidence for the latter would be wrong.
+_ALPHA_NAMES = {
+    2: "white-phase",
+    1: "flicker-phase",
+    0: "white-frequency",
+    -1: "flicker-frequency",
+    -2: "random-walk-frequency",
+}
+
+
+def _lag1_acf(x):
+    """Lag-1 autocorrelation of a mean-removed series; 0 when the series has no variance."""
+    n = len(x)
+    m = sum(x) / n
+    den = sum((v - m) ** 2 for v in x)
+    if den <= 0:
+        return 0.0
+    num = sum((x[i] - m) * (x[i + 1] - m) for i in range(n - 1))
+    return num / den
+
+
+def noise_id(phase, dmax=3):
+    """Identify the dominant power law from a PHASE series, analytically. `None` when too short.
+
+    The algorithm difference the series until its lag-1 autocorrelation shows it has become
+    uncorrelated, counting the differences:
+
+        rho = r1 / (1 + r1);   difference while rho >= 0.25 (up to `dmax` times)
+        alpha = round(-2*(rho + d) + 2)          # the +2 is because this is PHASE, not frequency
+
+    KNOWN-ANSWER VALIDATED across the whole family — white PM +2, flicker PM +1, white FM 0, flicker FM
+    -1, random-walk FM -2, each recovered from synthesised series of the corresponding type. That
+    matters more than the derivation: AllanTools implements the same identification, so this has a real
+    reference rather than a re-derivation, which is what `allan.py` was otherwise short of.
+
+    Returns `{alpha, noise, differences, rho}`. `alpha` is clamped to [-2, +2]: outside that range the
+    series is not one of the five power laws this names, and a sixth label would be invented rather
+    than measured.
+    """
+    x = _clean(phase)
+    if len(x) < 32:
+        return None                      # differencing eats samples; a short series identifies nothing
+    d = 0
+    while True:
+        r1 = _lag1_acf(x)
+        rho = r1 / (1.0 + r1) if r1 != -1.0 else -1e9
+        if rho < 0.25 or d >= dmax:
+            raw = -2.0 * (rho + d) + 2.0
+            alpha = int(round(raw))
+            alpha = 2 if alpha > 2 else (-2 if alpha < -2 else alpha)
+            return {"alpha": alpha, "noise": _ALPHA_NAMES[alpha],
+                    "differences": d, "rho": round(rho, 4)}
+        nxt = [x[i + 1] - x[i] for i in range(len(x) - 1)]
+        if len(nxt) < 32:
+            return None                  # ran out of samples before it decorrelated
+        x = nxt
+        d += 1
+
+
 def classify(sl, se=None, n_tau=None, table=None):
     """Name the dominant noise type from a log-log slope — or REFUSE to, when the fit cannot support it.
 
@@ -560,6 +640,11 @@ def stability(phase, tau0, tdev_tau=None):
         "optimal_tau": best["tau"],
         "at_longest": pts[-1]["adev"],
         "classification": classify(sl, se, len(pts)),
+        # A SECOND, INDEPENDENT OPINION on the same question (Riley & Greenhall 2004). It fits no slope,
+        # so it has no boundary to refuse near — where `classification` declines because the CI straddles
+        # an edge, this still answers. Published beside rather than instead: see `noise_id`'s note on the
+        # three-lane parity gate. Disagreement between the two is INFORMATION, not an error.
+        "lag1_noise": noise_id(phase),
         # The MDEV-resolved phase type, or None. None rather than a string for the reason `classify`
         # documents at length: a truthy sentinel passes `if s["phase_noise"]:`, the guard callers write.
         "phase_noise": ident["phase_noise"],
