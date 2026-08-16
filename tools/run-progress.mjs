@@ -34,6 +34,26 @@ export function etaSeconds(done, total, jobs, perRunSec) {
   return Math.round(rounds * Math.max(0, perRunSec));
 }
 
+/* ── THROUGHPUT ETA, and why it is preferred when elapsed time is known ──────────────────────────
+   `etaSeconds` above multiplies a per-run cost by the number of ROUNDS remaining. That is correct
+   arithmetic and it rests on an assumption: that every one of `jobs` workers is actually doing work.
+   When the assumption is false the estimate is wrong by exactly the factor that does not exist —
+   Level B reported "1h05m left" against ~6 h because `--jobs 6` bought no parallelism at all
+   (#1338), and the same shape appears more mildly whenever the box is contended or the tail is
+   straggler-bound.
+
+   Measuring THROUGHPUT instead assumes nothing: `done / elapsed` is what actually happened, so it
+   absorbs contention, stragglers, a warm-up, and a jobs count that turns out to be a lie. This is
+   the form `tools/mutate.mjs` has always used, and it is the reason its estimates held up while
+   Level B's did not. Prefer it wherever elapsed time is available; keep the rounds form for the
+   up-front estimate, before there is anything to measure. */
+export function etaFromThroughput(done, total, elapsedSec) {
+  if (!(done > 0) || !(elapsedSec > 0)) return null;
+  const remaining = Math.max(0, total - done);
+  if (remaining === 0) return 0;
+  return Math.round(remaining / (done / elapsedSec));
+}
+
 export function fmtDuration(sec) {
   if (!Number.isFinite(sec) || sec < 0) return '?';
   const h = Math.floor(sec / 3600);
@@ -44,8 +64,14 @@ export function fmtDuration(sec) {
 
 /* States what it MEASURED — done/total, the per-run cost the estimate rests on, and how long is
    left — so a reader can check the arithmetic instead of trusting a bar. */
-export function progressLine(done, total, jobs, perRunSec, label) {
+export function progressLine(done, total, jobs, perRunSec, label, elapsedSec) {
   const pct = Math.floor((done / Math.max(1, total)) * 100);
+  /* Prefer MEASURED throughput once there is any: it assumes nothing about whether the jobs are
+     real, which the rounds form does. The line says WHICH it used — `obs` when the number came
+     from what actually happened, `est` when it is still the per-run projection — because an
+     estimate a reader cannot attribute is one they cannot sanity-check. */
+  const obs = etaFromThroughput(done, total, elapsedSec);
+  const left = obs == null ? etaSeconds(done, total, jobs, perRunSec) : obs;
   return (
     '  [' +
     String(done).padStart(String(total).length) +
@@ -60,8 +86,10 @@ export function progressLine(done, total, jobs, perRunSec, label) {
     '/run × ' +
     jobs +
     ' jobs  →  ' +
-    fmtDuration(etaSeconds(done, total, jobs, perRunSec)) +
-    ' left'
+    fmtDuration(left) +
+    ' left (' +
+    (obs == null ? 'est' : 'obs') +
+    ')'
   );
 }
 
@@ -161,6 +189,18 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
       console.log('  ✗ ' + n + (d ? '  — ' + d : ''));
     }
   };
+
+  /* The throughput form is preferred once anything has been measured, because it assumes nothing
+     about whether the jobs are real. These two cases are the ones that matter. */
+  ok('throughput ETA needs no jobs count', etaFromThroughput(10, 110, 100) === 1000, String(etaFromThroughput(10, 110, 100)));
+  ok('…and is correct when parallelism is a LIE', etaFromThroughput(101, 179, 28800) === Math.round(78 / (101 / 28800)), String(etaFromThroughput(101, 179, 28800)));
+  ok(
+    '…where the rounds form was optimistic by the jobs factor',
+    etaSeconds(101, 179, 6, 285) < etaFromThroughput(101, 179, 28800) / 4,
+    etaSeconds(101, 179, 6, 285) + ' vs ' + etaFromThroughput(101, 179, 28800)
+  );
+  ok('nothing measured yet returns null, not a guess', etaFromThroughput(0, 100, 50) === null && etaFromThroughput(10, 100, 0) === null);
+  ok('a finished run is zero', etaFromThroughput(100, 100, 50) === 0 && etaFromThroughput(120, 100, 50) === 0);
 
   ok('ETA is rounds-remaining × per-run', etaSeconds(0, 126, 8, 295) === 16 * 295, String(etaSeconds(0, 126, 8, 295)));
   ok('…and shrinks as items complete', etaSeconds(120, 126, 8, 295) === 295);
