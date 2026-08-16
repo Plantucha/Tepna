@@ -468,6 +468,20 @@
          that a consumer relies on and no test exercises parses to `null` the moment its branch is
          disturbed, and null is the contract's honest "unknown" — so the failure would surface as
          missing data rather than as an error. */
+
+      /* §2.6 — A MISSING STAMP MUST BE VISIBLE, NEVER FABRICATED. Only `P('')` was asserted; a null
+         or undefined `raw` was not, and those are the shapes a caller actually passes when a column
+         is absent rather than empty.
+
+         ⚠️ THESE DO NOT KILL THE L139/L144 MUTANTS, and saying so is the point. Level B found
+         `if (raw == null) return null;` and `if (!s) return null;` surviving deletion, and they are
+         EQUIVALENT: both are early exits whose inputs reach the same `null` through the function's
+         final fall-through, verified by deleting both and re-running every case above — identical
+         answers. An unkillable statement is not a test gap. The contract is worth pinning anyway,
+         because a future refactor that adds a fabricating branch below would break it. */
+      T.eq('§2.6 · a null stamp refuses rather than fabricating an instant', P(null, {}), null);
+      T.eq('§2.6 · an undefined stamp likewise', P(undefined, {}), null);
+      T.eq('§2.6 · whitespace-only is not a stamp', P('   ', {}), null);
       var v4d = P('2026/06/07 22:00:45', {});
       T.eq('4d · "YYYY/MM/DD HH:MM:SS" → components verbatim', v4d && v4d.tMs, U(2026, 5, 7, 22, 0, 45));
       T.eq('4d · no zone in the stamp → offsetMin null', v4d && v4d.offsetMin, null);
@@ -927,6 +941,33 @@
 
          A pure power law adev = C·τ^m is exactly collinear in log-log, so least squares must return
          m itself. That is a KNOWN ANSWER, and any arithmetic slip in the fit moves it. */
+
+      /* ── KILLS `_ckClassifyAllan` L404/L409/L410 (the `meaning` lookup and the 'drift' name).
+         Level B found them surviving deletion on 2026-08-16. The only existing assertion on this
+         function is a REFUSAL (`noise is null` when the slope straddles an edge) — nothing checks
+         that a slope actually PRODUCES the right name, so the table lookup and the drift branch were
+         unobserved.
+
+         §7 is explicit that the slope's job is to name a MECHANISM, and the name is what a reader
+         acts on: `A FLOOR — more averaging buys nothing` and `deterministic — fit and remove it`
+         prescribe opposite responses. A classifier whose label is unasserted can swap those two and
+         nothing reddens. */
+      var cls = function (slope) {
+        var r = C.classifyAllan(slope, 0, 8);
+        return r == null ? null : r.noise;
+      };
+      T.eq('τ⁻¹ is named jitter that averages away', cls(-1), 'white/flicker-phase');
+      T.eq('τ⁻¹ᐟ² is named the benign case', cls(-0.5), 'white-frequency');
+      T.eq('τ⁰ is named A FLOOR — the one that means more averaging buys nothing', cls(0), 'flicker-frequency');
+      T.eq('τ⁺¹ᐟ² is named wander', cls(0.5), 'random-walk-frequency');
+      /* Past the table's last edge the branch names drift explicitly rather than falling off the end. */
+      T.eq('τ⁺¹ is named drift — the branch past the last table edge', cls(1), 'drift');
+      /* The MEANING is what a reader acts on, and the two extremes prescribe opposite responses. */
+      var mFloor = C.classifyAllan(0, 0, 8);
+      var mDrift = C.classifyAllan(1, 0, 8);
+      T.ok('the floor meaning says averaging buys nothing', /FLOOR|averaging buys nothing/.test((mFloor && mFloor.meaning) || ''), String(mFloor && mFloor.meaning));
+      T.ok('the drift meaning says fit and remove, never average', /fit and remove/.test((mDrift && mDrift.meaning) || ''), String(mDrift && mDrift.meaning));
+      T.ok('…and they are not the same string', (mFloor && mFloor.meaning) !== (mDrift && mDrift.meaning));
       var lawPts = function (m, c) {
         var out = [];
         for (var _t = 0; _t < 4; _t++) {
