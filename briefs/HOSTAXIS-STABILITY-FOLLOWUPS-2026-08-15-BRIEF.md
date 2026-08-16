@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-15 · **Follows:** `HOSTAXIS-STABILITY-2026-08-13-BRIEF.md` (DONE — 2026-08-15, executed as #1227) · **Affects:** `ppgdex-dsp.js` (compute-path), `tests/dex-tests.js`
+**Status:** DONE — 2026-08-16 (all four boxes: §1 the ppgdex SE fix shipped as #1350 with the re-bundle and corpus re-verification · §2 the KNOWN DEFECT pin converted to three contract assertions and the known-answer gate extended to all three lanes (#1348, #1350) · §3 DECIDED — the SE band stays, on measurements already in the repo · §4 one answered, two parked with what would settle them. ⚠️ DONE does NOT mean 'adopt lag-1 next': §3 states the burden any such proposal carries, and §3.2 blocks a conflation that would otherwise justify it on the wrong evidence) · **Created:** 2026-08-15 · **Follows:** `HOSTAXIS-STABILITY-2026-08-13-BRIEF.md` (DONE — 2026-08-15, executed as #1227) · **Affects:** `ppgdex-dsp.js` (compute-path), `tests/dex-tests.js`
 
 # One noise-type rule, three implementations — and the joint fix reached two of them
 
@@ -92,7 +92,56 @@ parameter away left the gate green. Four mutants were applied; that one survived
 tightened to `\bse\s*=`. A gate nobody has watched fail is not a gate, and that applies to the gate one
 is writing.
 
-## 3 · The literature removes the boundary problem at the root — it does not merely bound it
+## 3 · DECIDED 2026-08-16 — **the SE band STAYS.** The measurement was already in the repo, twice
+
+The §6 box asked for a decision *"with the measurement, not the preference."* Both measurements
+existed before this brief was written, in briefs this one did not cross-reference. Neither was found by
+grep; both came from **`tools/doc-search.mjs` (#1349)** on the query *"should the Allan noise-type
+classifier use lag-1 autocorrelation instead of a slope fit with a 1.96 SE band"*.
+
+**1 · The weighting/EDF route is already REJECTED, with a measurement.**
+`CROSS-DOMAIN-METHODS-FOLLOWUPS-2026-08-14` §6 evaluated exactly this. Weighted OLS over the correlated
+overlapping points moves the answer by less than the distance to the nearest boundary on our curves —
+*"the correction is real and immaterial."* And the one case where weighting **would** matter is a curve
+near a boundary, which is precisely where `classifyAllan` already returns `noise: null`. The two
+mechanisms cover the same case, and the refusal is cheaper and more honest: it says *undecided* rather
+than producing a slightly better-weighted guess. That section closes with the EDF circularity being
+**moot when the fix it would enable moves nothing.**
+
+**2 · ⚠️ THE TWO "LAG-1"s ARE DIFFERENT STATISTICS. Do not cite one as evidence about the other.**
+`METROLOGY-METHOD-ADOPTION-2026-08-14` §5 records a triumphant *"two-line lag-1 autocorrelation
+answered in one measurement what the Allan family could not settle across three sections."* That is a
+**plain correlation test** — *is this series correlated at all* — applied to PAT residuals. Riley &
+Greenhall 2004 is a **noise-type identifier** — *which power law is this* — analytically, at any
+averaging factor, without fitting a slope. Same two words, different statistic, different question.
+A future reader citing METROLOGY §5 as evidence that lag-1 retires the SE band would be wrong, and the
+two briefs sit close enough in semantic search to invite exactly that. This paragraph exists to block it.
+
+**3 · So what remains genuinely open is narrow**, and it is NOT "the band is unprincipled". Riley &
+Greenhall's identifier is slope-free, so it has no edge to sit near and the boundary ambiguity does not
+arise — that much is real (`INTERDISCIPLINARY-LITERATURE-2026-08-16` line 69 records it verified, with
+DOI `10.1049/cp:20040932`; Zhou/Greenhall/Howe 2011 extends it to the overlapping estimator we actually
+use, venue verified, DOI unverified). What is unmeasured is whether it AGREES with the current
+classifier on this corpus, and what it does on the mixtures the refusal was built for — §5 of METROLOGY
+found MDEV declining to name a type on 4 of 6 nights because *"a mixture of ~9 % white fiducial noise
+and ~91 % correlated physiology is not a canonical noise process"*, and an analytic identifier facing
+that mixture will still return *something*. **An identifier that cannot refuse is not obviously an
+upgrade on one that can.**
+
+**The burden on any future adoption proposal**, stated so it is not re-litigated from scratch:
+(a) show it identifies the noise TYPE, not merely the presence of correlation; (b) show what it returns
+on the non-canonical mixtures where the band currently refuses; (c) move **all three lanes together** —
+`clock.js`, `ppgdex-dsp.js` and `capture-host/allan.py` — since the known-answer gate now pins their
+answers to one external reference and a single-lane swap reds it by construction. That gate is the
+reason this can be reconsidered safely later.
+
+🔁 **This same question is tracked in a second place**: `INTERDISCIPLINARY-LITERATURE-2026-08-16` line
+271, *"Riley & Greenhall 2004 evaluated against the `1.96·SE` refusal band — does analytic noise-ID
+retire it?"* Answered here, once, and cross-referenced there rather than answered twice. `stale-file`
+cannot see this class of duplication — the two live in different files, so there is no overlap for it
+to detect. That is the GENERATOR-FOLLOWUPS-III failure one level up, and worth knowing it exists.
+
+## 3a · The literature that motivated the question (retained — it is still the right reading)
 
 The `1.96 SE` band is documented in-code as a **deliberate stand-in**, and the parent brief explains why
 the textbook treatment looked unavailable: *"a full Riley EDF treatment is circular here, because EDF
@@ -126,17 +175,43 @@ root `*.js` — it needs a ledger entry naming the correct first author and year
 reds.** Do not shortcut that by editing `firstAuthor`; that is the one edit which makes a real defect
 disappear.
 
-## 4 · Still open from the parent's §7
+## 4 · Resolved from the parent's §7 — one ANSWERED, two PARKED with what would settle them
 
-1. **Should `ppmUncertainty` be reported at the file's own span, or at a fixed reference span?** The
-   former answers *"how far do I trust THIS file's ppm"*; the latter makes files comparable. Possibly both.
-2. **Does the ECGDex `fs` correction want the uncertainty at all**, or only the 2400 s span gate it
-   already has? Answering this needs the estimator-specific derivation the parent's §3 says is missing —
-   ADEV(τ) and endpoint-estimator uncertainty are different quantities and coincide only for white phase
-   noise, and even then differ by a constant.
-3. **Is `independent` the right precondition, or should it also require a minimum span?** `hostAxis`
-   deliberately has no span gate because it *interpolates* rather than quoting a rate — but `stability`
-   **is** a quoted quantity, so that argument may not transfer to it.
+1. **`ppmUncertainty` at the file's own span, or a fixed reference span?** → **ANSWERED: the file's own
+   span, which is what already ships** (`clock.js:632`; `ecgdex-dsp.js` documents it as *"σ_y at the
+   recording's own span — read the `ppm` above WITH it"*). The comparability the fixed-span option was
+   reaching for is **already delivered by the contract**, which requires quoting the span beside the ppm
+   (`CLAUDE.md` §7: *"never quote `ppm` without the span beside it"*); two files quoted with their spans
+   are interpretable together without renormalising either. And the fixed-span form is not merely
+   unnecessary, it is **unsafe on the short files that most need it**: σ_y at a τ the recording never
+   reached must be extrapolated, which is fabricating a measurement — the same rule as §2.6's *"a missing
+   stamp must be visible (null), never fabricated"* and as `hostAxis` going FLAT rather than extending a
+   slope past its last anchor. Not "possibly both": a fixed reference span would be a second number that
+   is honest only where it is redundant.
+2. **Does the ECGDex `fs` correction want the uncertainty, or only its 2400 s span gate?** → **PARKED.**
+   The principled position is clear — a span gate is a *proxy* for "is this rate well-determined" and
+   `ppmUncertainty` is the direct measure, so the direct measure should win. What is missing is the
+   estimator-specific derivation the parent's §3 already flags: ADEV(τ) and endpoint-estimator
+   uncertainty are different quantities, coinciding only for white phase noise and even then off by a
+   constant, so a threshold in σ_y units cannot be set from the current number without that derivation.
+   **What would settle it:** derive the endpoint-estimator uncertainty for the correction ECGDex
+   actually applies, then re-run the corpus and check whether any recording passes the 2400 s gate while
+   failing an uncertainty gate, or vice versa. If neither set is non-empty the swap is cosmetic and the
+   gate stays; that is the same "does it move anything" test §3.1 above settled the weighting question
+   with, and it should be run before writing the derivation, not after.
+3. **Is `independent` the right precondition, or should it also require a minimum span?** → **PARKED,
+   and the framing in the question is wrong in a way worth recording.** `independent` is not a
+   sufficiency test that a span requirement would tighten — it is a **provenance** test: `spreadMs > 2 ms`
+   asks whether the host column is a second clock at all, or the device stamp rounded. The corpus is
+   bimodal with nothing in between (box captures 101.89 ms – 5124 ms; phone captures 0.13 – 1.00 ms,
+   whose maximum is exactly one stamp quantum), so it answers a yes/no question about what the data IS,
+   and a short *genuine* two-clock recording is still two clocks. Bolting a span requirement onto it
+   would conflate "there is no second clock" with "there is one but I do not trust it yet" — two
+   findings a consumer must act on differently. **If a span floor is wanted for `stability`, it belongs
+   as its own precondition on the quoted quantity, not inside `independent`.** Parked because nothing
+   currently quotes `stability` off a short span in a way that has produced a wrong answer; **what would
+   settle it** is a corpus scan for recordings that are `independent` yet short enough that σ_y at their
+   own span exceeds the ppm they report — if that set is empty, there is no problem to fix.
 
 ## 5 · A process finding, because it cost real time
 
@@ -168,9 +243,16 @@ And a stale status is not symmetric: **a stale `DONE` makes someone re-check fin
       The known-answer group also gained ppgdex as a **third lane against the same pinned Python
       answers** — all three now agree on all 23 rows, checked against one external reference rather
       than two copies agreeing with each other.
-- [ ] A decision on §3: adopt lag-1 identification, or record why the SE band stays — **with the
-      measurement**, not the preference. If adopted, both lanes move together or the parity gate reds.
-- [ ] §4's three questions answered, or explicitly parked with reasons.
+- [x] **DONE 2026-08-16 — the SE band STAYS**, on measurements that already existed in two briefs this
+      one did not cross-reference (`CROSS-DOMAIN-METHODS-FOLLOWUPS` §6 rejected the weighting route as
+      *"real and immaterial"*; `METROLOGY-METHOD-ADOPTION` §5 is about a DIFFERENT lag-1 statistic — see
+      §3.2, which exists to stop that conflation). The adoption burden for any future proposal is stated
+      in §3, including that all THREE lanes must move together or the known-answer gate reds.
+- [x] **DONE 2026-08-16** — §4 resolved: Q1 **answered** (own span, which already ships; a fixed
+      reference span is unsafe on exactly the short files that would want it — it extrapolates σ_y to a τ
+      the recording never reached). Q2 and Q3 **parked with what would settle them**, and Q3's framing
+      corrected: `independent` is a provenance test, not a sufficiency test, so a span floor belongs on
+      the quoted quantity rather than inside it.
 
 ## Cross-references
 
