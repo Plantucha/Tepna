@@ -133,8 +133,23 @@ export function decide(snap) {
     const rp = snap.requiredPending;
     if (rp == null) return { action: 'wait', why: `${pending} check(s) still running (required set unknown — waiting is the safe direction)` };
     if (rp > 0) return { action: 'wait', why: `${rp} required check(s) still running` };
-    /* Advisory only. Say so in the verdict rather than merging past it silently — a tool that
-       quietly outruns an advisory check makes the already-unnoticed advisory red worse. */
+    /* ⚠️ ADVISORY-PENDING IS NOT ENOUGH TO MERGE — EVERY REQUIRED CONTEXT MUST HAVE REPORTED.
+       Measured on #1293: `suite (shard 1/6)` was pending and is NOT itself required, so
+       requiredPending was 0 — but the required `test` rollup only lands once all six shards finish
+       and had therefore never reported at all. Falling through here made `decide` return `merge`,
+       the tool ran a bare `gh pr merge`, and GitHub refused with its help text.
+
+       A required context that is ABSENT reads identically to one that is SATISFIED if you only count
+       buckets: zero failures and zero required-pendings both look green when the missing one is
+       simply not enumerated. So the fall-through is gated on the reported SET, not on counts.
+
+       This is deliberately a WAIT, not the `stuck` verdict below. `stuck` means waiting cannot help,
+       and it is only sound once nothing is pending; here something IS pending, so the absent context
+       is LATE rather than never-coming, and waiting is exactly right. */
+    const req = snap.required || [];
+    const seen = new Set(snap.reported || []);
+    const unreported = req.filter((c) => !seen.has(c));
+    if (unreported.length) return { action: 'wait', why: `${pending} advisory check(s) running and required context(s) not yet reported: ${unreported.join(', ')}` };
     advisoryNote = ` (${pending} advisory check(s) still in flight)`;
   }
 
@@ -213,6 +228,9 @@ async function main() {
   };
   const DRY = argv.includes('--dry-run');
   const deadline = Date.now() + num('--timeout-min', 45) * 60_000;
+  /* Bounded so a refusal we cannot learn from does not become an infinite merge loop. */
+  const MAX_REFUSALS = 3;
+  let refusals = 0;
   const interval = num('--interval-s', 60) * 1000;
 
   console.log(`▸ landing #${pr}${DRY ? ' (dry run)' : ''}`);
@@ -237,9 +255,34 @@ async function main() {
           console.log(`     update-branch declined (${String(e.message).split('\n')[0].slice(0, 80)})`);
         }
       } else if (action === 'merge') {
-        gh(['pr', 'merge', String(pr), '--squash']);
-        console.log('✓ merged');
-        return;
+        /* A REFUSED MERGE MUST NOT ABANDON THE PR — a SECOND defect, independent of the decide() gate
+           above and not fixed by it. This call throws when GitHub disagrees with our snapshot ("the
+           base branch policy prohibits the merge"), and that throw used to escape the poll loop
+           entirely, so the tool exited LOOKING LIKE IT HAD FINISHED while the PR was left with
+           nothing tending it. Measured 2026-08-16: three of four runs in one session died this way
+           and the operator believed all four were being looked after — worse than never running it,
+           because a dead lander and a quiet one are indistinguishable.
+
+           A refusal means OUR MODEL WAS WRONG, not that the PR is bad, so re-snapshot and keep
+           tending; the deadline still bounds the loop. Bounded, because a refusal we cannot learn
+           from must not become an infinite merge-attempt loop. */
+        try {
+          gh(['pr', 'merge', String(pr), '--squash']);
+          console.log('✓ merged');
+          return;
+        } catch (e) {
+          refusals += 1;
+          const first =
+            String(e.message || e)
+              .split('\n')
+              .find((l) => l.trim()) || 'no reason given';
+          console.log(`     ⚠ merge REFUSED (${first.trim().slice(0, 96)})`);
+          console.log(`       snapshot disagreed with GitHub — still tending this PR (refusal ${refusals}/${MAX_REFUSALS})`);
+          if (refusals >= MAX_REFUSALS) {
+            console.error(`✗ stuck: merge refused ${refusals}× — GitHub disagrees with the check snapshot; PR left OPEN and UNTENDED`);
+            process.exit(1);
+          }
+        }
       }
     }
     if (Date.now() >= deadline) {

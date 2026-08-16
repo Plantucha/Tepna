@@ -20470,6 +20470,31 @@
         /advisory/.test(d(OPEN('CLEAN', { pass: 22, pending: 1 }, { requiredPending: 0 })).why),
         'merging past it silently is the other half of the same defect — the mutation red already ' + 'merges unnoticed, and a tool that quietly outruns it makes that worse'
       );
+      /* ── AN ADVISORY PENDING CHECK MUST NOT SWITCH OFF THE MISSING-CONTEXT RULE ──────────────
+         Measured 2026-08-16 across four sessions. The never-reported rule further up is gated behind
+         `pending === 0`, so ONE advisory pending check disabled it, and the merge branch was reached
+         having verified only "no PENDING check is required" — never "every required context reported
+         and passed". The mechanism (#1293): `suite (shard 1/6)` is pending and is NOT itself required,
+         so requiredPending is 0, while the required `test` rollup only lands once all six shards
+         finish and has therefore never reported at all.
+
+         Consequence: `decide` said merge, GitHub refused, and the lander quit leaving the PR
+         unattended. This repo's own recurring defect, now in the tool that decides whether work
+         ships — an ABSENCE read as satisfied, because the rule that inspects absences was disabled
+         by something unrelated to it. The live snapshot is pinned verbatim below. */
+      var LIVE_REQ = ['test', 'no-network', 'typecheck', 'biome', 'test (py3.12)', 'test (py3.13)', 'browser-gates', 'stale-file'];
+      var LIVE_SEEN = ['biome', 'no-network', 'stale-file', 'typecheck', 'relevance (browser-gates)', 'suite (shard 1/6)'];
+      var live = OPEN('BLOCKED', { pass: 19, pending: 1, skipping: 2 }, { requiredPending: 0, required: LIVE_REQ, reported: LIVE_SEEN });
+      T.eq('one ADVISORY pending check does NOT authorise a merge past unreported required contexts', d(live).action, 'wait');
+      T.ok('…and the verdict NAMES the contexts that never reported', /test \(py3\.12\)/.test(d(live).why) && /test \(py3\.13\)/.test(d(live).why));
+      /* A NEAR-MISS NAME IS NOT A REPORT. `relevance (browser-gates)` contains the required string
+         but is a different context, so a substring test would call it satisfied. Set membership. */
+      T.ok('…`relevance (browser-gates)` does not satisfy required `browser-gates`', /browser-gates/.test(d(live).why));
+      /* THE CONVERSE, so the fix cannot pass by refusing everything — the failure mode of any gate
+         added in a hurry. Every required context reported and green ⇒ an advisory pending still merges. */
+      var allIn = OPEN('CLEAN', { pass: 22, pending: 1 }, { requiredPending: 0, required: LIVE_REQ, reported: LIVE_REQ.concat(['mutation (diff-scoped)']) });
+      T.eq('every required context reported ⇒ an advisory pending check still merges', d(allIn).action, 'merge');
+
       T.eq('a REQUIRED pending check still waits', d(OPEN('CLEAN', { pass: 20, pending: 3 }, { requiredPending: 3 })).action, 'wait');
       /* ⚠️ AN UNREADABLE REQUIRED SET MUST NOT BECOME PERMISSION — same asymmetry as the `readable`
          guard: a spurious wait costs one poll, a spurious merge cannot be undone. */
