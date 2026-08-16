@@ -36,3 +36,13 @@ components, the optional-seconds default (`m[6] ? +m[6] : 0` is all that stands 
 group and a `NaN`), and the §2.7 refusals for an impossible month and day. All three mutants verified
 killed, 4 assertions failing on each.
 
+**And the noise CLASSIFICATION was unasserted too.** Level B found `_ckClassifyAllan` L404/L409/L410
+surviving — the `meaning` table lookup and the `drift` branch. The only existing assertion on that
+function is a REFUSAL (`noise is null` when the slope straddles an edge); nothing checked that a
+slope actually PRODUCES the right name.
+
+§7 is explicit that the slope's job is to name a MECHANISM, and the name is what a reader acts on:
+`A FLOOR — more averaging buys nothing` and `deterministic — fit and remove it` prescribe OPPOSITE
+responses. A classifier whose label is unasserted can swap those two and nothing reddens. Eight
+assertions pin all five names and both extreme meanings; all three mutants verified killed.
+
