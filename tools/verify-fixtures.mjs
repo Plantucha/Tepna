@@ -173,7 +173,12 @@ try {
   execFileSync(process.execPath, [path.join(REPO, 'tests', 'run-tests.mjs')], {
     cwd: REPO,
     env: { ...process.env, DEX_UPLOADS: UPLOADS },
-    stdio: ['ignore', 'pipe', 'pipe']
+    /* stderr is INHERITED so the suite's progress reaches the operator. This tool runs the FULL
+       suite — >10 min — against the real corpus, and it is what `release.mjs` refuses to cut
+       without; capturing both streams meant it printed one line and then went silent for the whole
+       run, which is precisely the blind wait the progress line exists to end. Only stdout is piped,
+       and that is where the `✕` lines the failure parse reads are written. */
+    stdio: ['ignore', 'pipe', 'inherit']
   });
 } catch (e) {
   const out = String((e.stdout || '') + (e.stderr || ''));
