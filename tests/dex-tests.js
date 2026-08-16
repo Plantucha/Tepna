@@ -905,7 +905,17 @@
         [16, 0.0311570938],
         [32, 0.0159440059]
       ];
-      var worst = 0;
+      /* ANTI-VACUITY — the cheapest control there is, and it earns its space here twice over.
+         The comparison below is a loop over `PY`: empty that table and the loop never runs, `worst`
+         stays 0, and "matches capture-host/allan.py to 1e-9" passes having compared NOTHING. Measured
+         2026-08-16 by deleting the table: 15/15 green. This is also not hypothetical vandalism — a
+         `count=1` bulk regex aimed at a DIFFERENT `var PY` in this file replaced this one while a
+         sibling gate was being written, and only an unrelated row-count leg in that sibling caught it.
+         A pinned table should assert its own size regardless of what the assertion was added to
+         protect; it costs one line and it is the only thing standing between a lost reference and a
+         green suite. */
+      T.ok('ANTI-VACUITY · the pinned Python answers are present (an empty table passes the loop below)', PY.length >= 6 && got.length >= PY.length, 'PY rows=' + PY.length + ' got=' + got.length);
+      var worst = PY.length ? 0 : Infinity;
       for (var k = 0; k < PY.length; k++) worst = got[k].tau === PY[k][0] ? Math.max(worst, Math.abs(got[k].adev - PY[k][1])) : Infinity;
       T.ok('the spine core matches capture-host/allan.py to 1e-9', worst < 1e-9, 'worst |Δ| = ' + worst);
       /* THE PROMOTION MUST NOT HAVE FORKED. `ppgdex-dsp.js` still carries the copy it was promoted
@@ -980,8 +990,12 @@
         [16, 0.0311570938],
         [32, 0.0159440059]
       ];
+      /* ANTI-VACUITY. `got.length >= PY.length` is trivially true when PY is empty, and the loop
+         below then compares nothing while reporting a match — see the sibling group's note. Assert the
+         table's own size, not only that the curve reaches it. */
+      T.ok('ANTI-VACUITY · the pinned Python answers are present', PY.length >= 6, 'PY rows=' + PY.length);
       T.ok('the octave ladder reaches at least the pinned taus', got.length >= PY.length, 'got ' + got.length);
-      var worst = 0;
+      var worst = PY.length ? 0 : Infinity;
       for (var k = 0; k < PY.length; k++) {
         if (got[k].tau !== PY[k][0]) worst = Infinity;
         else worst = Math.max(worst, Math.abs(got[k].adev - PY[k][1]));
