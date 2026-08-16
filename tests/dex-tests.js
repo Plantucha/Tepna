@@ -39500,6 +39500,81 @@
        read side only, and the write side must stay pinned to this checkout.
        ANTI-VACUITY: assert the sources were actually loaded and the helper name is actually found —
        a scan over absent text passes trivially, which is the failure this repo keeps re-learning. */
+    /* ONE NOISE-TYPE RULE, THREE IMPLEMENTATIONS, TWO LANGUAGES, ZERO GATES (2026-08-15).
+       `clock.js CK_ALLAN_NOISE`, `ppgdex-dsp.js ALLAN_NOISE` and `capture-host/allan.py _NOISE` each
+       map an ADEV log-log slope to a power-law noise NAME. They agree today. Nothing held them equal —
+       `grep ALLAN_NOISE tests/dex-tests.js` returned nothing before this group — while the Python copy
+       was being edited the same day. That is precisely why `registry-defs-parity` and the
+       closure-identity scan exist: two copies of one truth drift, and the drift is silent because each
+       copy stays internally consistent.
+
+       Source SCAN, not execution: the Python cannot be run from here, and the JS copies live in files
+       this lane loads as text. Node-lane only — the browser lane cannot read `capture-host/`. */
+    group('One noise-type rule, three implementations — the tables must agree', 'clock · allan · parity · noise-type', function (T) {
+      var js = env.sources && env.sources['clock.js'];
+      var ppg = env.sources && env.sources['ppgdex-dsp.js'];
+      var py = env.sources && env.sources['capture-host/allan.py'];
+      if (!js || !ppg || !py) {
+        T.skip('all three noise-table sources wired into this lane', 'Node-lane only — add capture-host/allan.py to readSources in BOTH runners');
+        return;
+      }
+      function tableJs(src, name) {
+        var m = src.match(new RegExp(name + '\\s*=\\s*\\[([\\s\\S]*?)\\n\\s*\\];'));
+        if (!m) return null;
+        var rows = [];
+        var re = /\[\s*(-?[0-9.]+)\s*,\s*'([^']+)'/g,
+          r;
+        while ((r = re.exec(m[1]))) rows.push([parseFloat(r[1]), r[2]]);
+        return rows;
+      }
+      function tablePy(src) {
+        var m = src.match(/_NOISE\s*=\s*\(([\s\S]*?)\n\)/);
+        if (!m) return null;
+        var rows = [];
+        var re = /\(\s*(-?[0-9.]+)\s*,\s*"([^"]+)"/g,
+          r;
+        while ((r = re.exec(m[1]))) rows.push([parseFloat(r[1]), r[2]]);
+        return rows;
+      }
+      var A = tableJs(js, 'CK_ALLAN_NOISE'),
+        B = tableJs(ppg, 'ALLAN_NOISE'),
+        C = tablePy(py);
+      // ── anti-vacuity: a scan over text it failed to parse passes trivially ──────────────────────
+      T.ok('ANTI-VACUITY · clock.js CK_ALLAN_NOISE parsed', !!A && A.length >= 4, A ? A.length + ' rows' : 'NOT PARSED');
+      T.ok('ANTI-VACUITY · ppgdex-dsp.js ALLAN_NOISE parsed', !!B && B.length >= 4, B ? B.length + ' rows' : 'NOT PARSED');
+      T.ok('ANTI-VACUITY · allan.py _NOISE parsed', !!C && C.length >= 4, C ? C.length + ' rows' : 'NOT PARSED');
+      if (!A || !B || !C) return;
+      var f = function (t) {
+        return t
+          .map(function (r) {
+            return r[0] + '=' + r[1];
+          })
+          .join(' | ');
+      };
+      T.eq('clock.js ≡ ppgdex-dsp.js (same edges, same names, same order)', f(B), f(A));
+      T.eq('clock.js ≡ allan.py — the CROSS-LANGUAGE half, which nothing checked', f(C), f(A));
+
+      /* THE BOUNDARY CONTRACT, which is where they can diverge without the tables moving. A slope is a
+         POINT ESTIMATE; naming a type by strict `<` against it makes -0.7501 and -0.7500 opposite
+         labels. Two of the three refuse when a boundary lies within 1.96 SE. */
+      T.ok('clock.js refuses to name a type when a boundary is within 1.96 SE', /1\.96/.test(js), 'the SE-aware refusal is the contract');
+      /* `\bse\s*=` and not `[^)]*se` — the loose form matched `se_unused=None` as a SUBSTRING, so
+         renaming the parameter away left this green. Caught by mutating it; a gate nobody has watched
+         fail is not a gate, and that applies to the gate one is writing. */
+      T.ok('allan.py refuses on the same rule, with the same multiplier', /1\.96/.test(py) && /def classify\([^)]*\bse\s*=/.test(py), 'classify(sl, se=…) with a 1.96 band');
+      /* ⚠️ KNOWN DEFECT — PINNED, NOT ENDORSED. `ppgdex-dsp.js classifyAllan(sl)` takes NO se and
+         rounds the slope into the record it returns (`slope: r2(sl)`), so the deciding digit is not in
+         the output. The joint fix landed in the other two lanes and this third copy was left behind —
+         its own comment says "When that lands…", which is the tell. Pinned so that fixing it must
+         update this group deliberately; do NOT "make it pass" by editing the assertion. It is a
+         compute-path file, so the fix owes a re-bundle + corpus re-verification and is its own unit. */
+      T.ok(
+        'KNOWN DEFECT · ppgdex-dsp.js classifyAllan is NOT SE-aware (the third copy the joint fix missed)',
+        /function classifyAllan\(sl\)/.test(ppg) && !/function classifyAllan\(sl,\s*se/.test(ppg),
+        'takes a bare slope and returns r2(sl) — routed to a follow-up; the tables above still agree'
+      );
+    });
+
     group('Regen + verify resolve the corpus through ONE helper — REGEN-CORPUS-PATH-FOLLOWUPS §3.4', 'tools · fixtures · corpus-path', function (T) {
       var CONSUMERS = [
         'tools/verify-fixtures.mjs',
