@@ -50,6 +50,14 @@ call sites, measured on the tree at 2026-08-05:
    is the cheapest, but it needs stating in `CLAUDE.md` §🎫 — the coverage mandate currently names
    "chart-or-graph series", which arguably already settles it, and if so these 24 are not debt at all
    and the cap should drop to 70.
+
+   > ✅ **DECIDED 2026-08-16 — owner chose (c), and it is implemented.** `CLAUDE.md` §🎫 now states the
+   > corollary explicitly (*an unbadged caption is correct provided every series it draws is badged*),
+   > `no-fabricated-tier` no longer scans `chartTitle`, and the ratchet is **70**. The 24 were
+   > **measured, not assumed**, before the cap moved: instrumenting the gate by helper gave
+   > `row 2 · chartTitle 24 · metric 55 · ssKPI 7 · nrChip 6 = 94`, so removing captions lands exactly
+   > on 70 — and both ratchet assertions (does-not-grow, and not-slack) pass at that value rather than
+   > merely the first one. They were never debt.
 3. **The 2 emoji heads** belong in `_META_DENY` — they are icons, not measurements. Trivially fixable
    and the only part of the 94 that is unambiguous.
 

@@ -40333,8 +40333,17 @@
 
          So the debt is measured, published and RATCHETED: it may shrink, never grow. A 95th
          unregistered label reds this immediately; each row the owner adjudicates lowers the cap. */
-      var HELPER_RE = /\b(metric|kpi|ssKPI|nrKpi|nrChip|row|chartTitle|mkpi|sub)\s*\(\s*(['"`])([^'"`\n]{1,60})\2/g;
-      var KNOWN_UNREGISTERED = 94; // measured 2026-08-05; LOWER this as rows are adjudicated, never raise it
+      /* `chartTitle` is DELIBERATELY ABSENT from this list — owner decision 2026-08-16, option (c) of
+         DEEP-AUDIT-V-FOLLOWUPS §1.2. A chart caption routinely spans TWO metrics
+         (*"SpO₂ Mean % · T95% Time Below 95%"*), so it cannot carry ONE evidence tier; forcing it to
+         would be the fabricated authority this gate exists to catch, one level up. The coverage
+         mandate is satisfied at the SERIES instead, which `CLAUDE.md` §🎫 already required and now
+         says so explicitly.
+         Measured before the change: of 94 offenders, `chartTitle` contributed exactly 24
+         (row 2 · chartTitle 24 · metric 55 · ssKPI 7 · nrChip 6), so the cap drops 94 → 70 and the
+         remaining debt is the genuine per-metric kind. */
+      var HELPER_RE = /\b(metric|kpi|ssKPI|nrKpi|nrChip|row|mkpi|sub)\s*\(\s*(['"`])([^'"`\n]{1,60})\2/g;
+      var KNOWN_UNREGISTERED = 70; // 94 − 24 chart captions (owner: badge the series, not the caption, 2026-08-16); LOWER as rows are adjudicated, never raise
       var fabricated = [];
       NODES.forEach(function (n) {
         var seen = {};
