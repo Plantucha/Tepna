@@ -831,6 +831,117 @@ Both effects are real and they compound. For future literature work in this proj
 3. **Ask what public annotated data exists** before concluding a quantity has no reference. That
    question was never asked in six rounds, and it had an answer.
 
+## 13g · ROUND EIGHT — asking a Chinese-trained model, and what it could and could not do
+
+**The question (owner, 2026-08-16): can we ask a Chinese AI for science relevant to Tepna?**
+Answered by running it, because the interesting result is not the reading list — it is what the
+model turned out to be good and bad at, which is measurable and was measured.
+
+**Setup.** No API access to DeepSeek or any Chinese cloud service, and none was used — nobody was
+queried or flooded. But **Qwen is Alibaba's**, and three Qwen builds already sit on this disk under
+Ollama. So the Chinese-model question was answerable locally: `qwen3.8:27b`, one prompt, temperature
+0.3, no network, no cost. The prompt named our five real problems (non-linear ppm drift with no
+reference clock; PPG beat detection under nocturnal motion; PRV-vs-HRV and ectopic correction;
+nadir-SpO₂ statistics; non-stationary decomposition) and asked for work a Western search would miss.
+It carried one instruction that turned out to matter: **do not invent DOIs; write "uncertain" instead.**
+
+### What it did well — and it is not what I expected
+
+**It obeyed the honesty instruction, unprompted-by-example.** It emitted **no DOIs at all**, labelled
+its own author lists *"Representative names from NIM/CAS groups"*, and closed by saying the citations
+should be looked up in **CNKI (中国知网) and Wanfang (万方)** rather than taken from it. A model that
+volunteers "I have given you method names and likely venues, not papers" is behaving correctly, and
+that is worth recording against the assumption that these models simply fabricate.
+
+**Its one genuinely actionable output was a pointer to the DATABASES, not to any paper.** That is the
+round's real finding, and it is a structural gap rather than a citation gap:
+
+| | files in repo |
+|---|---|
+| `CNKI` | **0** |
+| `Wanfang` / `万方` | **0** |
+
+Rounds four and five searched *in Chinese* — but through Western-indexed channels. **The Chinese-language
+databases where this literature actually lives have never been queried at all.** No amount of better
+prompting fixes that; it needs a different index.
+
+### What it did badly — measured, not assumed
+
+- **It produced zero retrievable Chinese-language papers.** Every Chinese title it offered
+  (《基于鲁棒估计的三叉戟法时钟噪声分离》, 《非平稳时钟噪声的改进阿伦方差分析》, and eight more) is a
+  *plausible-looking title for a paper it could not confirm exists*. Its verifiable output consisted
+  entirely of methods that are canonical **internationally** — which is the opposite of what was asked.
+- **It mis-attributed a Western measure to Chinese groups, and we already had it.** Its
+  "Hypoxemia Area Index … from West China Hospital or Peking University Third Hospital" is the
+  **hypoxic burden** measure — Azarbarzin et al., already present in **25–27 files here**. Had the
+  claim not been checked it would have entered as both a new finding and a new attribution, and both
+  would have been wrong.
+- **The failure mode is the round-seven mechanism again, from the other side.** Round seven found our
+  *searching* was canon-biased. The model is canon-biased **in its training**, so asking it for
+  non-canonical work returns canonical work wearing non-canonical labels. It cannot be the fix for the
+  bias it shares.
+
+**Verdict on the technique: worth one prompt, not a programme.** It is the generation/retrieval axis
+from `qwen_run.py`'s banner — the output was a set of *pointers to check* (cheap when wrong) and it was
+right about the shape of the field while wrong about its contents. Do not query it again for citations.
+**Do act on the CNKI/Wanfang gap**, which is the one thing it told us that we could not have told
+ourselves.
+
+### What the round actually adds to the reading queue
+
+**A. The EMD / Hilbert–Huang family is entirely absent — and that is an unexamined gap, not a decision.**
+Measured across `briefs/ papers/ docs/ audits/ *.js capture-host/`:
+
+| term | files |
+|---|---|
+| `empirical mode decomposition` · `EEMD` · `CEEMDAN` · `Hilbert-Huang` | **0** |
+| `variational mode decomposition` | **0** |
+
+⚠️ A prior grep for `VMD` returned **8 files** and every one was a false positive — the base64 fragment
+`…VMd8yV9…` inside a bundled hash in `docs/*.html`. Case-insensitive acronym greps over bundles are
+unreliable; that hit would have been reported as "we already know VMD". *(§0's adjacency warning has a
+cousin: substring ≠ mention.)*
+
+All four verified against Crossref (author · year · venue confirmed, DOIs resolve):
+
+- **Huang, N. et al. (1998).** The empirical mode decomposition and the Hilbert spectrum… *Proc. R. Soc. Lond. A.* [`10.1098/rspa.1998.0193`](https://doi.org/10.1098/rspa.1998.0193)
+- **Wu, Z. & Huang, N. (2009).** Ensemble empirical mode decomposition: a noise-assisted data analysis method. *Adv. Adapt. Data Anal.* [`10.1142/S1793536909000047`](https://doi.org/10.1142/S1793536909000047)
+- **Torres, M. et al. (2011).** A complete EMD with adaptive noise (CEEMDAN). *IEEE ICASSP.* [`10.1109/ICASSP.2011.5947265`](https://doi.org/10.1109/ICASSP.2011.5947265)
+- **Dragomiretskiy, K. & Zosso, D. (2014).** Variational Mode Decomposition. *IEEE Trans. Signal Process.* [`10.1109/TSP.2013.2288675`](https://doi.org/10.1109/TSP.2013.2288675)
+
+**Read these with the criticism attached, not as a recommendation.** EMD is empirical — no
+convergence theory, mode mixing, endpoint effects, and it is *sensitive to sampling and noise
+realisation*, which for a timing pipeline is the property that matters most. VMD's variational
+formulation is the principled member of the family. **CHECKABLE CONSEQUENCE, and the only honest way
+to evaluate it here:** decompose a PPG segment, extract beats from the reconstruction, and compare beat
+times to the simultaneous ECG R-peaks — if IMF-based beats are not *more* stable against the ECG
+reference than the current detector, the family is not worth its cost. That is a test we can already
+run on the trio corpus, and it can come out negative.
+
+**B. Three-cornered hat has a large applied literature outside metrology — and it is N ≥ 3.**
+§3 of `CROSS-DOMAIN-METHODS-FOLLOWUPS` already records triple collocation and E-QC, so **this is not
+new ground**; what is new is that atmospheric and hydrological science run TCH itself at scale, with
+generalisations past three datasets and explicit negative-variance handling:
+
+- **Sjoberg, J. et al. (2021).** The Three-Cornered Hat Method for Estimating Error Variances of Three
+  or More Atmospheric Datasets, Part I. *J. Atmos. Oceanic Technol.*
+  [`10.1175/JTECH-D-19-0217.1`](https://doi.org/10.1175/JTECH-D-19-0217.1) — verified.
+- Adjacent and unread here: Bayesian TCH (BTCH) for merging; TCH extensions to four gridded products;
+  TCH under two error-correlated datasets — the last being **exactly our case**, since H10 and Verity
+  share one phone host and their errors are therefore not independent.
+
+**C. Extreme-value treatment of nadir SpO₂ remains absent** (`generalized extreme value` · `extreme
+value theory` → **0 files**), confirming an open recommendation already on record rather than adding a
+new one.
+
+### Method note for whoever runs the next round
+
+Three of this session's searches converged on material the repo already held (triple collocation,
+intersecting tangents, Groslambert covariance). That is [[convergence-is-correlated-ignorance]] in its
+literal form: **an independent search reproducing a known answer is evidence about the search, not
+about the field.** Grep the repo *before* writing a find up, not after — and grep for the method name,
+not the acronym.
+
 ## 14 · Lower priority — technique already used, justification missing
 
 | field | work | why |
