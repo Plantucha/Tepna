@@ -252,6 +252,183 @@ compares observed arrivals against a *model* with every clock and propagation te
 separately estimated, and studies what is left over. Applied here, the host axis stops being an
 alignment and becomes a timing model whose residual is the object of study.
 
+## 13b · ROUND THREE — from consulting the other sessions (2026-08-16)
+
+The first two passes were mine and were breadth. This round asked Brief runner, Mutator and Vigil box
+what they were *about to hand-roll*. It produced the single best find in the brief.
+
+### 13b.1 · VACUITY — a query whose empty result is indistinguishable from a true negative
+
+**This repo has reinvented a 1997 result down to the name.** The canonical case in model checking:
+verify `G(req -> F ack)`, it passes, and it passes because `req` never holds on any reachable path.
+The property was never exercised; the tool reports success about something it never examined. IBM
+measured roughly **a fifth of passing properties vacuous** on real hardware verification.
+
+| work | detail | status |
+|---|---|---|
+| **Beer, I., Ben-David, S., Eisner, C. & Rodeh, Y. (1997)** — *Efficient detection of vacuity in ACTL formulas*, CAV 1997 — **DOI 10.1007/3-540-63166-6_28** | introduces vacuity + the **interesting witness** requirement | verified + DOI |
+| **Beer, Ben-David, Eisner & Rodeh (2001)** — *Efficient detection of vacuity in temporal model checking*, Formal Methods in System Design 18(2):141–162 — **DOI 10.1023/A:1008779610539** | journal version | verified + DOI |
+| **Kupferman, O. & Vardi, M. Y. (2003)** — *Vacuity detection in temporal model checking*, STTT | the general formulation | verified · DOI unverified |
+| **Armoni, R. et al. (2003)** — *Enhanced vacuity detection in linear temporal logic*, CAV 2003 | LTL | verified · DOI unverified |
+
+**The suite already calls these legs `ANTI-VACUITY`** — the field's own word, arrived at
+independently, which is evidence the mapping is real rather than a stretch. **The transferable idea is
+the one we do not have: vacuity checking there is automatic and universal.** The model checker derives
+the witness obligation *from the property itself*; it does not depend on each author remembering to
+add a non-emptiness leg by hand. Ours are hand-added, so they exist exactly where someone thought of
+them.
+
+**Five instances measured in one day, across three sessions**, all the same shape — a query that
+examined nothing, reporting cleanly: a `grep -c` on a failed gate whose `✕` lines are indented; a
+`git diff` returning zero lines from a diff already staged by `--3way`; `EINVAL` from binding HCI
+device `0` instead of `0xFFFF`, reading exactly like a capability finding; a gate regex whose
+`[^)]*se` matched `se_unused=None` by substring; and "Codex is not installed" asserted from
+recollection about a package present for three weeks.
+
+**And the boundary against mutation testing is worth stating**, because it decides which tool applies:
+mutation testing catches *a check nobody has watched fail*; vacuity catches *a check with nothing to
+look at*. The gate-regex hole was mutation-shaped and died to a mutant. The `grep -c` was
+vacuity-shaped and **no mutant would have found it** — the code was correct and the input was empty.
+
+### 13b.2 · Oracle quality — measuring whether a check examined anything
+
+| work | detail | status |
+|---|---|---|
+| **Schuler, D. & Zeller, A. (2011)** — *Assessing oracle quality with checked coverage*, ICST 2011, Berlin | statements executed **that also influence an oracle**, via dynamic program slicing | verified |
+| **Schuler, D. & Zeller, A. (2013)** — *Checked coverage: an indicator for oracle quality*, STVR — **DOI 10.1002/stvr.1497** | journal extension | verified + DOI |
+| **A brief survey on oracle-based test adequacy metrics** — arXiv 2212.06118 | situates checked coverage against alternatives | verified, preprint |
+
+Their finding: checked coverage is *"a sure indicator for oracle quality and even more sensitive than
+mutation testing."*
+
+**It changes the economics, not only the framing** (Mutator's measurement): Level B pseudo-testedness
+costs **one full suite run PER STATEMENT** — ~285 s each, 179 subjects on `clock.js` alone. Checked
+coverage answers the same question from **one** instrumented run plus a slice. If their sensitivity
+result holds, the deletion experiment is the *expensive approximation* of the cheap measurement —
+O(statements) suite runs against O(1). That is not an argument to stop Level B, which found four real
+gaps today with three merged as tests; it is an argument about what to build next. **The blocker is a
+JS dynamic slicer, which is not a weekend's work.**
+
+⚠️ **Do not treat it as a drop-in.** Their result is over seven open-source **Java** projects. This
+suite's oracles are unusual — many assert on **exported JSON structures** and cross-node contracts
+rather than on returned values, and a backwards slice from `T.eq(export.foo, X)` passes through
+serialisation in a way that may flatter or destroy the metric. That is an open empirical question
+about our shape, not a doubt about theirs. **High coverage with low checked coverage is precisely "the check ran and examined
+nothing"** — a metric for §13b.1's failure class. Pseudo-testedness and an assertion-strength ranker
+are two hand-rolled halves of this one published measure.
+
+### 13b.3 · Absence of evidence — the same shape in three other fields
+
+| work | detail | status |
+|---|---|---|
+| **Altman, D. G. & Bland, J. M. (1995)** — *Absence of evidence is not evidence of absence*, BMJ 311:485 | two pages; the canonical citation | verified · DOI unverified |
+| **Zobel, J. (1998)** — *How reliable are the results of large-scale information retrieval experiments?*, SIGIR 1998 | **pooling bias** — unjudged documents scored non-relevant, so absence from the pool reads as evidence of irrelevance | verified · DOI unverified |
+| **Lipsitch, M., Tchetgen Tchetgen, E. & Cohen, T. (2010)** — *Negative controls: a tool for detecting confounding and bias in observational studies*, Epidemiology 21(3):383–388 | the control-ladder practice, formally | verified · DOI unverified |
+| **ICH E10** — *Choice of control group in clinical trials* | **assay sensitivity**: a non-inferiority trial finding no difference may simply have been unable to detect one | verified, guideline |
+
+**`assay sensitivity` is the exact term for "this instrument may have been blind"** — the property
+every null result in this suite needs and few state.
+
+### 13b.4 · Allan-family estimators on gapped and irregular data
+
+**Tepna problem** (Vigil box): `allan.py` assumes a uniform grid; BLE arrivals are not uniform, and
+1 s pre-binning is the workaround. Pre-averaging ahead of a variance estimator **must** alter measured
+stability — it is decimation with averaging, not resampling.
+
+| work | detail | status |
+|---|---|---|
+| **Barnes, J. A. & Allan, D. W. (1990)** — *Variances based on data with dead time between the measurements*, NIST Technical Note 1318 | the classical treatment of **dead time**; bias functions | verified, NIST TN |
+| **Sesia, I. & Tavella, P. (2008)** — *Estimating the Allan variance in the presence of long periods of missing data and outliers*, Metrologia 45(6):S134 — **DOI 10.1088/0026-1394/45/6/S19** | unbiased AVAR with missing data, unequal spacing and outliers | verified + DOI |
+| **Malkin, Z. (2016)** — *Application of the Allan variance to time series analysis in astrometry and geodesy: a review*, arXiv 1607.04712 | AVAR on irregularly spaced data | verified, preprint |
+| *Allan variance calculation for nonuniformly spaced input data* — DTIC ADA616850 | direct treatment | verified, tech report |
+
+**Note the convergence:** the irregular-sampling problem is solved in **pulsar timing** (§9), where
+"observations are quite irregularly spaced in time" is the normal condition. The field already in this
+brief for a different reason is also the answer here.
+
+### 13b.5 · Delay-variation estimation — is the residual a clock at all?
+
+**Tepna problem** (Vigil box, self-identified as the highest-value of their five): stability is computed
+on `host_ms − last_sensor_ns` and the residual is called "clock". It contains transport as well as
+oscillator.
+
+| work | detail | status |
+|---|---|---|
+| **RFC 3393** — *IP packet delay variation metric for IPPM* | the standing IPDV definition | verified, RFC |
+| **RFC 5481** — *Packet delay variation applicability statement* | the PDV-vs-IPDV distinction, and when each is appropriate | verified, RFC |
+
+One-way-delay literature already knows delay has **a floor plus a heavy right tail** —
+`writers.PmdArrivalLogWriter.floor_ms` is a hand-rolled minimum-filter over exactly that structure.
+
+### 13b.6 · Pooling k noisy estimates of one quantity with unequal precision
+
+**Tepna problem** (Vigil box): Verity fragments are **length-biased** — many short, few long — and the
+estimator's variance depends on length, so any pooled figure is dominated by its noisiest members.
+
+**Do:** inverse-variance weighting and random-effects meta-analysis, **including the heterogeneity
+question** — whether a common value exists across fragments at all. The alternative currently in use
+is a median, and hope. Standard references: DerSimonian & Laird (1986); Higgins & Thompson's *I²*
+(2002). Both **verified by name, DOI unverified.**
+
+### 13b.7 · Diagnostic-accuracy methodology — a defect that should become a methods section
+
+**Tepna problem** (Brief runner, found today): `odi-bias-analysis` selected `ahi_a0h4` as the reference
+AHI — hypopneas scored only at ≥4 % desaturation — while the *index* test is a ≥4 % desaturation index.
+Reference and index shared the scoring criterion, so the events ODI cannot see were absent from **both
+sides** and the bias would have read near zero.
+
+| work | detail | status |
+|---|---|---|
+| **incorporation bias / criterion contamination** | the index test contributes to the reference standard — a named, well-treated bias | concept, multiple sources |
+| **Whiting, P. F. et al. (2011)** — *QUADAS-2: a revised tool for the quality assessment of diagnostic accuracy studies*, Annals of Internal Medicine 155(8):529–536 | the appraisal framework any reviewer will apply | verified · DOI unverified |
+| **Bossuyt, P. M. et al. (2015)** — *STARD 2015: an updated list of essential items for reporting diagnostic accuracy studies*, BMJ 351:h5527 | reporting requirement | verified · DOI unverified |
+
+**Do:** name the bias, state which AHI definition was used as reference, and report the
+desaturation-only definition as a **secondary** result — because the gap between the two curves *is*
+the arousal-terminated hypopnea population, which is the finding. This converts a defect into the
+paper's methods section.
+
+### 13b.8 · Inter-scorer agreement — the ceiling on any apnea validation
+
+**Tepna problem.** No algorithm can be validated past the agreement of the humans defining truth.
+
+**AASM Inter-scorer Reliability Program, respiratory events** (JCSM, DOI **10.5664/jcsm.3630**):
+overall respiratory-event agreement **93.9 % (κ = 0.92)** including event-free epochs, but on epochs
+where an event was scored, **88.4 % (κ = 0.77)** — and by type: obstructive apnea **77.1 % (κ = 0.71)**,
+**hypopnea 65.4 % (κ = 0.57)**, **central apnea 52.4 % (κ = 0.41)**. Sleep-stage scoring meta-analysis:
+Cohen's κ **0.76**. *(verified + DOI for the respiratory-events paper.)*
+
+**Do:** any CPAPDex or ODI validation reporting agreement above these figures is measuring something
+other than truth. Central apnea at κ = 0.41 is the number to keep in view.
+
+### 13b.9 · A gate-design correction that outranks the algorithm choice
+
+Not literature, but it came out of the same consultation and it changes §2's precondition. Brief
+runner's argument: **a table-equality gate is the wrong gate.** It pins *representation*, so it
+forbids the change we want and permits two lanes that share a table and diverge in arithmetic. The
+stronger gate exists in outline already — `allanFromPhase` has a cross-language **known-answer** using
+MINSTD. Extend that to `classify`, and table-equality becomes redundant. **Order: build the
+known-answer → delete the table-equality → then swap the algorithm.**
+
+Also, before treating lag-1 identification as free: **it identifies the dominant type assuming a pure
+power law**, so *mixed noise is its failure mode*. It removes the boundary problem; it does not remove
+the modelling assumption.
+
+### 13b.10 · What NOT to reach for — recorded because it is instructive
+
+For "two sessions edited different sections of one brief and the result contradicts itself":
+**operational transform** (Ellis & Gibbs, SIGMOD 1989) and **CRDTs** (Shapiro et al., 2011) are the
+wrong tools. They guarantee **convergence** — every replica byte-identical, no conflict. Applied to
+`GENERATOR-FOLLOWUPS-III` they would have merged both edits silently and called it success.
+
+**The failure is not divergence; it is convergence on a document that asserts a claim and its
+rebuttal.** The nearer literature is speculative/semantic conflict detection — Brun, Holmes, Ernst &
+Notkin, *Proactive detection of collaboration conflicts* (FSE 2011, Crystal), and Sarma et al.'s
+Palantír. But it stops short honestly: detecting "these two sections contradict" needs an oracle for
+contradiction, which for prose is a language model, and **this repo's own rule is that model output
+cannot be evidence.** So it stays prevention, and `stale-file` plus required-read is the tractable
+proxy rather than a compromise.
+
 ## 14 · Lower priority — technique already used, justification missing
 
 | field | work | why |
