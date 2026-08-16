@@ -1,0 +1,249 @@
+/*
+ * tools/doc-search.mjs — Tepna
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ── "HAS THIS ALREADY BEEN DECIDED?" OVER 460+ DOCUMENTS ────────────────────────────────────────
+ *
+ * CLAUDE.md records this failure repeatedly and by name: four sessions independently proposing a fix
+ * the repo had already measured futile; five reviewers falsifying in minutes a paragraph nobody had
+ * queried; "if you think two populations are inseparable, RUN THE QUERY before writing that down."
+ * With 460+ briefs, audits and specs, `grep` only works if you already know the vocabulary the
+ * decision was written in — and you do not, which is why you are searching.
+ *
+ * Measured instance, 2026-08-16: a week of hand-writing equivalent-mutant proofs for `clock.js`,
+ * while `briefs/MUTATION-EQUIVALENCE-2026-08-04-BRIEF.md` had already measured that file's ceiling
+ * (81.9 % raw / 100 % distinguishable) and RATIFIED a decision about it. A semantic query for
+ * "trivial compiler equivalence / equivalent mutants" surfaced it at rank 1. No grep I ran that week
+ * would have: I was searching for "TCE" and "equivalence", the brief is titled after the DENOMINATOR.
+ *
+ * ── WHY THIS USE OF A LOCAL MODEL, WHEN TWO OTHERS WERE MEASURED USELESS ────────────────────────
+ * The same model, on this box, produced ZERO confirmed findings across two generation tasks —
+ * ranking assertion strength (0 of 3 flags real, and it missed the known-weak control) and auditing
+ * code against the deep-audit charter (7 prompt variants, every substantive claim false, including
+ * one three variants AGREED on). Generation asks it to judge correctness; its errors are confident,
+ * specific, and cost a verification run each to disprove.
+ *
+ * Retrieval inverts every one of those properties:
+ *
+ *   output          a PATH to a real document        (not a claim about correctness)
+ *   failure mode    a wasted read                    (not a falsehood to disprove)
+ *   verification    open the file                    (not reconstruct the reasoning)
+ *
+ * 🔴 THIS TOOL THEREFORE NEVER ANSWERS A QUESTION. It ranks paths. The moment it summarises what a
+ * brief SAYS, it is back in the failure mode above, with a plausible summary of a document the
+ * reader then does not open.
+ *
+ * ⚠️ AND IT FAILS SOFT. If the embedder is unreachable it degrades to a deterministic token search
+ * rather than erroring, because a search tool that is down is a search tool nobody uses — and the
+ * fallback is the `grep` you would have run anyway.
+ *
+ *   node tools/doc-search.mjs "has anyone measured the equivalent mutant ceiling?"
+ *   node tools/doc-search.mjs --selftest
+ */
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const CACHE = join(ROOT, '.mutation-sweeps', 'doc-search-index.json');
+const OLLAMA = process.env.DEX_OLLAMA || 'http://localhost:11434';
+const EMBED_MODEL = process.env.DEX_EMBED || 'bge-m3';
+const DIRS = ['briefs', 'audits', 'docs', '.'];
+
+/* Chunked, not whole-file: indexing only a document's opening finds TOPICS, and the thing you are
+   usually looking for is a PASSAGE — a decision recorded in §7 of a brief about something else.
+   Measured: whole-file indexing put a node-export question at rank 42; the decision it wanted was
+   three sections into a brief whose title is about something adjacent. */
+export function chunk(text, size = 1200, stride = 900) {
+  const t = String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!t) return [];
+  const out = [];
+  for (let i = 0; i < t.length; i += stride) {
+    out.push(t.slice(i, i + size));
+    if (i + size >= t.length) break;
+  }
+  return out;
+}
+
+export function cosine(a, b) {
+  let d = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    d += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  return na && nb ? d / (Math.sqrt(na) * Math.sqrt(nb)) : 0;
+}
+
+/* The deterministic fallback, and the thing every result is ultimately checked against: a document
+   either contains your words or it does not. */
+export function tokenScore(query, text) {
+  const q = [
+    ...new Set(
+      String(query)
+        .toLowerCase()
+        .match(/[a-z0-9_]{3,}/g) || []
+    )
+  ];
+  if (!q.length) return 0;
+  const t = String(text).toLowerCase();
+  let hit = 0;
+  for (const w of q) if (t.includes(w)) hit++;
+  return hit / q.length;
+}
+
+export function rank(queryVec, entries, query, topN = 8) {
+  const scored = entries.map((e) => ({
+    file: e.file,
+    score: queryVec && e.vec ? cosine(queryVec, e.vec) : tokenScore(query, e.text),
+    text: e.text
+  }));
+  /* Best chunk per file — a long brief must not crowd the list with its own sections. */
+  const best = new Map();
+  for (const s of scored) if (!best.has(s.file) || best.get(s.file).score < s.score) best.set(s.file, s);
+  return [...best.values()].sort((a, b) => b.score - a.score).slice(0, topN);
+}
+
+export function listDocs(root, dirs = DIRS) {
+  const out = [];
+  for (const d of dirs) {
+    const p = d === '.' ? root : join(root, d);
+    let names = [];
+    try {
+      names = readdirSync(p);
+    } catch {
+      continue;
+    }
+    for (const f of names) if (f.endsWith('.md')) out.push(d === '.' ? f : `${d}/${f}`);
+  }
+  return out.sort();
+}
+
+async function embed(inputs) {
+  const res = await fetch(`${OLLAMA}/api/embed`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ model: EMBED_MODEL, input: inputs })
+  });
+  const j = await res.json();
+  if (!j.embeddings) throw new Error(j.error || 'no embeddings returned');
+  return j.embeddings;
+}
+
+/* Incremental by CONTENT HASH. A brief that has not changed is not re-embedded, so the common case
+   (one doc edited) costs one call rather than four hundred. */
+async function buildIndex(quiet) {
+  const files = listDocs(ROOT);
+  let cache = { entries: {}, model: EMBED_MODEL };
+  try {
+    const c = JSON.parse(readFileSync(CACHE, 'utf8'));
+    if (c.model === EMBED_MODEL) cache = c;
+  } catch {}
+  const entries = [];
+  const pending = [];
+  for (const f of files) {
+    let body;
+    try {
+      body = readFileSync(join(ROOT, f), 'utf8');
+    } catch {
+      continue;
+    }
+    const h = createHash('sha256').update(body).digest('hex').slice(0, 16);
+    const hit = cache.entries[f];
+    const chunks = chunk(`${f} :: ${body}`);
+    if (hit && hit.h === h && hit.vecs && hit.vecs.length === chunks.length) {
+      chunks.forEach((t, i) => entries.push({ file: f, text: t, vec: hit.vecs[i] }));
+    } else {
+      pending.push({ file: f, h, chunks });
+    }
+  }
+  let embedded = 0;
+  let live = true;
+  for (const p of pending) {
+    try {
+      const vecs = await embed(p.chunks);
+      cache.entries[p.file] = { h: p.h, vecs };
+      p.chunks.forEach((t, i) => entries.push({ file: p.file, text: t, vec: vecs[i] }));
+      embedded += p.chunks.length;
+    } catch {
+      /* embedder down mid-build: keep the chunk as text so the fallback can still score it */
+      live = false;
+      p.chunks.forEach((t) => entries.push({ file: p.file, text: t, vec: null }));
+    }
+  }
+  if (embedded) {
+    try {
+      mkdirSync(dirname(CACHE), { recursive: true });
+      writeFileSync(CACHE, JSON.stringify(cache));
+    } catch {}
+  }
+  if (!quiet) process.stderr.write(`  ${files.length} docs · ${entries.length} chunks · ${embedded} newly embedded${live ? '' : ' · EMBEDDER DOWN, token fallback'}\n`);
+  return { entries, live };
+}
+
+const IS_MAIN = !!process.argv[1] && process.argv[1].endsWith('doc-search.mjs');
+if (IS_MAIN && process.argv.includes('--selftest')) {
+  let pass = 0;
+  let fail = 0;
+  const ok = (n, c, d) => {
+    if (c) {
+      pass++;
+      console.log('  ✓ ' + n);
+    } else {
+      fail++;
+      console.log('  ✗ ' + n + (d ? '  — ' + d : ''));
+    }
+  };
+  ok('chunking overlaps so a passage is not split away', chunk('x'.repeat(3000)).length >= 3);
+  ok('an empty document yields no chunks', chunk('').length === 0);
+  ok('a short document is one chunk', chunk('hello world').length === 1);
+  ok('cosine of a vector with itself is 1', Math.abs(cosine([1, 2, 3], [1, 2, 3]) - 1) < 1e-12);
+  ok('cosine of orthogonal vectors is 0', Math.abs(cosine([1, 0], [0, 1])) < 1e-12);
+  ok('a zero vector scores 0 rather than NaN', cosine([0, 0], [1, 1]) === 0);
+  ok('token fallback finds the words it was given', tokenScore('allan deviation', 'the allan deviation curve') === 1);
+  ok('…and reports a partial match as partial', Math.abs(tokenScore('allan deviation slope', 'the allan curve') - 1 / 3) < 1e-9);
+  ok('…and 0 when nothing matches', tokenScore('zzz qqq', 'nothing here') === 0);
+  /* One file must not crowd the list with its own sections. */
+  const many = [
+    { file: 'a.md', text: 'x', vec: [1, 0] },
+    { file: 'a.md', text: 'y', vec: [0.9, 0.1] },
+    { file: 'b.md', text: 'z', vec: [0.8, 0.2] }
+  ];
+  ok('results are one row per FILE, best chunk winning', rank([1, 0], many, 'q').length === 2);
+  ok(
+    'the doc list finds briefs',
+    listDocs(ROOT).some((f) => f.startsWith('briefs/'))
+  );
+  ok('…and root docs like CLAUDE.md', listDocs(ROOT).includes('CLAUDE.md'));
+  console.log(fail ? '\n✗ ' + fail + ' failed, ' + pass + ' passed' : '\n✓ all ' + pass + ' selftests passed');
+  process.exit(fail ? 1 : 0);
+}
+
+if (IS_MAIN && !process.argv.includes('--selftest')) {
+  const argv = process.argv.slice(2).filter((a) => a !== '--quiet');
+  const query = argv.join(' ').trim();
+  if (!query) {
+    console.error('usage: node tools/doc-search.mjs "<what you are trying to find out>"');
+    process.exit(2);
+  }
+  const { entries, live } = await buildIndex(process.argv.includes('--quiet'));
+  let qv = null;
+  if (live) {
+    try {
+      qv = (await embed([query]))[0];
+    } catch {
+      qv = null;
+    }
+  }
+  const hits = rank(qv, entries, query, 8);
+  console.log(`\n▸ ${qv ? 'semantic' : 'TOKEN-FALLBACK (embedder unreachable)'} · "${query}"\n`);
+  for (const h of hits) console.log(`  ${h.score.toFixed(3)}  ${h.file}\n        ${h.text.slice(0, 110).trim()}…`);
+  console.log('\n  ⚠ These are PATHS TO READ, not an answer. This tool does not summarise a document,');
+  console.log('    because a plausible summary of a brief nobody opens is the failure it exists to prevent.\n');
+}
