@@ -775,6 +775,82 @@ def _tau0_of(pairs) -> float:
     return ((pairs[-1][0] - pairs[0][0]) / 1000.0) / (len(pairs) - 1)
 
 
+# ── TIMING UNCERTAINTY, AS A BUDGET RATHER THAN A FLAG ──────────────────────────────────────────────
+# INTERDISCIPLINARY-LITERATURE-DIAGNOSIS §2.3 marks measurement-uncertainty propagation MISSING, and its
+# sentence is the whole justification for this: *"a binary `trusted` flag cannot distinguish a 1-ms result
+# from a 50-ms result."* Everything below was ALREADY MEASURED per stream — delivery jitter, the stamp
+# quantum, the oscillator curve — and never combined, so a consumer asking "how well do I know WHEN this
+# sample happened?" had to read four diagnostics and guess.
+#
+# §2.2 is the reason this is a budget and not a correction: a ONE-WAY BLE arrival stamp cannot separate
+# device event time, device offset and transport delay without a delay model, a two-way exchange or an
+# independent reference (RFC 5905; IEEE 1588-2019). We have none of the three, so the honest output is an
+# uncertainty attached to the timestamp we do have — NOT a better timestamp.
+_IQR_TO_SIGMA = 1.349          # IQR -> sigma for a normal; robust, and the jitter tail is not normal
+_STAMP_QUANTUM_MS = 1.0        # sidecar `Phone timestamp` is whole milliseconds
+_RING_QUANTUM_MS = 1000.0      # the O2Ring's duration axis is 1 s quantised — see `quantised`
+_UNIFORM_DIVISOR = math.sqrt(12.0)   # GUM 4.3.7: a rectangular half-width a has u = a/sqrt(3), full width w = w/sqrt(12)
+
+
+def timing_uncertainty(jitter, *, quantised=False, stability=None, tau_s=None):
+    """Combined standard uncertainty, in ms, for an event time read off a BLE arrival stamp.
+
+    GUM (JCGM 100:2008) in its plainest form: identify the inputs, express each as a standard
+    uncertainty, combine independent ones in quadrature. Returns the COMPONENTS as well as the total,
+    because a budget whose terms are hidden cannot be argued with — and the dominant term is the only
+    one worth acting on.
+
+        u_delivery   IQR/1.349 of per-packet delivery jitter — measured, and normally dominant
+        u_quantum    stamp resolution / sqrt(12), rectangular: 1 ms stamps, or 1 s for the ring's axis
+        (the oscillator is NOT here — see `free_run` below and the second warning)
+
+    None when there is no jitter measurement at all: with no delivery term the total would be dominated
+    by the quantum and read ~0.3 ms, which is not an honest claim about a link whose real jitter is
+    measured in tens of ms. An absent input makes the budget UNKNOWN, not small.
+
+    ⚠️ **THE OSCILLATOR IS DELIBERATELY NOT A TERM HERE, and putting it in was the first draft's error.**
+    An arrival-stamped event does not ride the device clock — the HOST stamps it — so nothing free-runs
+    and no drift accumulates into that timestamp. The first cut added `adev_min * optimal_tau` and read
+    **173 ms for the H10 against a real per-event figure of 34 ms**: it was answering "how far would the
+    device clock drift over 24 minutes?", which is a real question and a different one. It is published
+    as `free_run`, with the tau it belongs to, so neither can be mistaken for the other.
+
+    ⚠️ Delivery and quantum are treated as independent, which they are: one is link scheduling, the other
+    is the stamp's own resolution.
+
+    ⚠️ It is a per-EVENT uncertainty about arrival, not about physiology: it says how well the timestamp
+    locates the packet, not how well the packet locates a heartbeat.
+    """
+    if not isinstance(jitter, dict) or jitter.get("iqr_ms") is None:
+        return None
+    comps = {}
+    comps["delivery"] = float(jitter["iqr_ms"]) / _IQR_TO_SIGMA
+    comps["quantum"] = (_RING_QUANTUM_MS if quantised else _STAMP_QUANTUM_MS) / _UNIFORM_DIVISOR
+    total = math.sqrt(sum(v * v for v in comps.values()))
+    dominant = max(comps, key=lambda k: comps[k])
+    free_run = None
+    if isinstance(stability, dict) and stability.get("ok") and tau_s:
+        adev = stability.get("adev_min")
+        if adev:
+            # `allan.adev` divides a MILLISECOND phase series by a SECOND tau, so it is already ms/s and
+            # adev*tau is milliseconds — no unit conversion. Reported SEPARATELY with its tau, never
+            # folded into u_ms: see the docstring.
+            free_run = {"drift_ms": round(float(adev) * float(tau_s), 3), "tau_s": round(float(tau_s), 1)}
+    return {
+        "u_ms": round(total, 3),
+        "components_ms": {k: round(v, 3) for k, v in comps.items()},
+        "dominant": dominant,
+        # A DIFFERENT QUANTITY, published beside rather than inside: how far the DEVICE clock would drift
+        # if ridden free for `tau_s`. It is not part of `u_ms` because an arrival-stamped event does not
+        # ride the device clock at all — the host stamps it. Folding it in read 173 ms for the H10 where
+        # the real per-event figure is 34, i.e. a 5x overstatement of an uncertainty.
+        "free_run": free_run,
+        # The share the dominant term contributes to the VARIANCE — the number that says whether
+        # attacking it is worth anything. 0.99 means nothing else matters; 0.4 means it is not the story.
+        "dominant_share": round((comps[dominant] ** 2) / (total * total), 3) if total else None,
+    }
+
+
 def host_jitter(delays: list[float], min_n: int = 100) -> dict | None:
     """HOST-SIDE delivery jitter per packet, in ms. None when there are too few packets to say.
 
@@ -894,11 +970,20 @@ def arrival_quality(night_dir: str) -> list[dict]:
             # the centroid of t, so the absolute host epoch must not leak into the fit.
             t0 = pairs[0][0]
             offset = clock_offset.estimate([((h - t0) / 1000.0, d) for h, d in pairs])
+            # Hoisted so the uncertainty budget below composes them rather than recomputing.
+            jit = host_jitter(diffs)
+            stab = allan.stability(diffs, _tau0_of(pairs), _TDEV_TAU_S)
             out.append({
                 "file": name, "device": device, "meas": meas, "rows": len(diffs),
                 "quantised": quantised,
                 "offset": offset,
-                "jitter": host_jitter(diffs),
+                    "jitter": jit,
+                    # HOW WELL DO WE KNOW *WHEN*? A GUM budget over terms already measured here, so a
+                    # consumer gets one number with its parts rather than four diagnostics to weigh.
+                    # `tau` is the stability curve's own optimal averaging time — where `adev_min` was
+                    # read — so the oscillator term stays self-consistent with the curve it came from.
+                    "u_time": timing_uncertainty(jit, quantised=quantised, stability=stab,
+                                                 tau_s=(stab or {}).get("optimal_tau")),
                 # CLOCK STABILITY AS A CURVE. `arrival - device` is a phase (time-error) series, ADEV's
                 # native input, and the SLOPE names a mechanism where a ppm cannot: measured 2026-08-11,
                 # all four Polar streams are white/flicker PHASE (slope -0.99 to -1.00) averaging to
@@ -912,7 +997,7 @@ def arrival_quality(night_dir: str) -> list[dict]:
                 # Reported, gated by NOTHING: the last two arrival diagnostics that shipped with
                 # thresholds both fired on every stream of the first real night. See
                 # ALLAN-DEVIATION-2026-08-12-BRIEF.
-                "stability": allan.stability(diffs, _tau0_of(pairs), _TDEV_TAU_S),
+                    "stability": stab,
                 # Filled below where this device has a second stream to compare against; None means
                 # "no sibling stream", never "nothing shared".
                 "transport": None,
