@@ -30,6 +30,20 @@ the author of this brief; every entry was surfaced by search and checked for exi
 venue. Per `LITERATURE-USE-POLICY` §2, a paper-sourced number is `validated`-tier **only** with a
 real, checkable citation — so each entry is ledgered at the point it enters a document, not here.
 
+⚠️ **ADJACENCY IS NOT EQUIVALENCE — the failure mode this brief must be read against.**
+This is a reading queue, and it will be consumed through semantic search (`tools/doc-search.mjs`,
+which now indexes `papers/` and `.html` as well as briefs). **A near-neighbour index systematically
+places the two nearest-but-DISTINCT methods side by side**, because near-in-meaning is exactly what it
+ranks on. The measured instance in this repo: a *"two-line lag-1 autocorrelation"* (a **correlation
+test** — is this series correlated at all) ranks adjacent to **Riley & Greenhall lag-1** (a
+**noise-type identifier** — which power law, analytically). Same two words, different statistic,
+different question. The reader opens the right file and draws the wrong inference from its neighbour.
+
+So: **an entry's neighbours in a search result are not its synonyms**, and two entries in this brief
+being retrieved together is not evidence they address the same problem. Where two are genuinely
+confusable they are separated explicitly — see §2's lag-1 warning and §13d.4. (Design point owed to
+Mutator, who put it in `doc-search`'s output footer for the same reason.)
+
 ⚠️ **`briefs/` is deliberately outside the `citation-ledger` gate** (a brief quotes a wrong
 attribution *in order to say it is wrong*, so gating it runs ~35 % false positives). That exemption
 is why this brief can carry unledgered DOIs — and why moving any of them into `papers/`, `docs/**.md`
