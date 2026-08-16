@@ -643,6 +643,107 @@ translation. The claim I would most like to be true — < 1.8 ms application-lay
 exactly the one I would trust least until read, because it contradicts a conclusion this project
 reached by measurement.
 
+## 13e · ROUND SIX — beyond clocks: the mathematics the physiology needs
+
+Rounds 1–5 over-indexed on time handling because that is where the recent work sat. Tepna is also
+oximetry, HRV, ECG, PPG, CGM, CPAP and respiration. Four fields, each with a **checkable** consequence.
+
+### 13e.1 · Point-process modelling of heartbeats — and an ORACLE we do not have
+
+**Tepna problem.** rMSSD and SDNN are computed over *windows*, so every HRV number is a σ-per-window
+figure with the same defect limitation (x) documents for the hat. Worse, there is no way to ask
+whether a beat series is *well described* at all.
+
+| work | detail | status |
+|---|---|---|
+| **Barbieri, R., Matten, E. C., Alabi, A. A. & Brown, E. N. (2005)** — *A point-process model of human heartbeat intervals: new definitions of heart rate and heart rate variability*, Am. J. Physiol. Heart Circ. Physiol. | history-dependent **inverse Gaussian** model; yields **instantaneous** HR and HR-variability rather than window averages | verified · PMID 15374824 · DOI unverified |
+| **Brown, E. N. et al.** — the **time-rescaling theorem** goodness-of-fit, adapted from neural spike trains | KS test on rescaled inter-event times | verified · DOI unverified |
+| *Characterizing nonlinear heartbeat dynamics within a point process framework* | PMID 20172783 | verified |
+
+**Two consequences, and the second is the important one.**
+
+1. **Instantaneous HRV removes the window-length parameter** from the same class of quantity the σ
+   paper had to caveat.
+2. **The time-rescaling KS test is a goodness-of-fit oracle for a beat series** — and this project's
+   defining constraint is that it has *no reference*. A KS test on rescaled intervals does not need
+   one: it asks whether the observed beats are consistent with **any** point process of the fitted
+   form. A night whose beats fail it has a detection problem, and that verdict is available **without
+   a second device**. Given `dead-ends` wall 2 (a per-beat SQI stays green while beat-yield fails,
+   inflating rMSSD a median +83 %), this is a candidate detector for exactly the failure the SQI misses.
+
+### 13e.2 · Compositional data analysis — sleep-stage proportions are not ordinary numbers
+
+**Tepna problem.** Sleep-stage proportions sum to 1. Standard statistics on such data is invalid:
+components are not free to vary independently, so a correlation between "% deep" and anything else is
+partly an artifact of closure.
+
+| work | detail | status |
+|---|---|---|
+| **Aitchison, J.** — log-ratio analysis of compositional data | scale invariance, permutation invariance, **subcompositional coherence** | verified, foundational |
+| **isometric log-ratio (ILR) transform** | preserves metric properties; the standard pre-analysis step | verified, method |
+| *Reframing sleep architecture: a compositional and temporal approach to sleep data analysis* | bioRxiv 2025 — treats stage proportions as compositional; notes this is still **novel** in sleep research | verified, preprint |
+| 24-hour movement / time-use literature | log-ratio **balances** for sleep vs sedentary vs active | verified, established |
+
+**Do:** any analysis relating a stage proportion to an outcome — `DEEP-STAGE-DESAT-CONFOUND` is the
+live one — should use ILR coordinates rather than raw proportions, or state that closure was ignored.
+
+### 13e.3 · Extreme value theory — nadir SpO₂ is length-dependent, and we compare it across nights
+
+**Tepna problem, and it is checkable.** The nadir is the **minimum of a series**. The expected minimum
+falls as the series lengthens, *for purely sampling reasons and with no change in physiology*. Our
+nights run **4,372 s to 30,410 s — a 7× range.**
+
+Measured 2026-08-16:
+
+```
+nadirDensity = nadirCount / durationHr        ← count IS normalised by duration ✓
+tools/cpap-sa2-agreement.mjs:191              ← the nadir VALUE is a plain running minimum ✗
+```
+
+`OXYDEX-NADIR-HONESTY` (RUNAWAY-FIX-FOLLOWUPS §1/§2) already excludes **non-physiological** lows —
+perfusion-settling ramps and self-gated artifact desaturations. **That is validity of the reading, not
+the sampling effect, and the two are independent.** A perfectly valid minimum is still expected to be
+lower on a longer night.
+
+| work | detail | status |
+|---|---|---|
+| **Generalized Extreme Value (GEV) distribution** | limiting law for block minima/maxima; gives a *distribution* for the nadir rather than a point | verified, foundational |
+| **Block minima** vs **peaks-over-threshold (POT)** | POT is the closer fit: T90 and desaturation events are already threshold exceedances | verified, method |
+| Fisher–Tippett–Gnedenko; Pickands–Balkema–de Haan | the two limit theorems underneath | verified, foundational |
+
+**Do:** either report nadir with its night duration attached — the same discipline §7 already imposes
+on `ppm` — or model it as a GEV/POT quantity so nights of different length are comparable. Note the
+suite is *already* doing POT without naming it: an ODI event **is** a threshold exceedance.
+
+### 13e.4 · Tissue optics — why finger and wrist PPG are not two samples of one thing
+
+**Tepna problem.** O2Ring finger PPG and Verity wrist PPG are treated as two optical corners of a hat
+whose assumption is uncorrelated errors. The physics says they sample **different tissue volumes over
+different path lengths**.
+
+| work | detail | status |
+|---|---|---|
+| *Monte Carlo analysis of optical interactions in reflectance and transmittance finger photoplethysmography* — PMC6412556 | transmittance (finger clip) vs reflectance (wrist) are **different optical problems** | verified |
+| *Impact of sensor configuration and melanin concentration on reflective pulse oximetry using Monte Carlo simulations* — Sci. Rep. 2025 | sensor geometry and melanin both shift the result | verified |
+| **modified Beer–Lambert law** and its failure | it models the site as a non-scattering cuvette; tissue is **highly scattering**, so mean photon path length is wavelength-dependent and not the geometric distance | verified, foundational |
+
+**Two consequences.** The red/IR **optical paths and penetration depths differ**, and the deviation
+grows with source–detector separation — so a 3-LED consensus is combining channels that did not
+traverse the same tissue. And the finger/wrist difference is **structural, not a quality difference**:
+transmittance through a finger and reflectance at a wrist are different measurements of different
+volumes, which bears directly on whether their errors can be assumed independent.
+
+⚠️ Also worth knowing for any accuracy claim: **melanin concentration shifts reflective pulse
+oximetry** — a documented equity issue, and this is a single-subject corpus.
+
+### 13e.5 · Fields checked and NOT recommended
+
+Recorded so nobody re-walks them: **econometric cointegration** for two drifting clocks is a real
+formal match, but the suite's clock work is already better served by the time-frequency estimators it
+uses. **Queueing theory** for BLE arrivals is subsumed by the IPDV/PDV literature in §13b.5, which is
+closer to the measurement. Neither is wrong; both are longer routes to somewhere §2 and §13b already
+reach.
+
 ## 14 · Lower priority — technique already used, justification missing
 
 | field | work | why |
