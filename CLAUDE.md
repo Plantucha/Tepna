@@ -353,12 +353,41 @@ one shape: **the check ran, and reported success about something it never examin
 
 ### 5 · LANDING: `main` moves faster than CI, so every extra PR is another lost race
 
-**Measured 2026-08-09.** `main` moves a **median 7.2 min** between merges (min 1.2, max 120; only **8 of
-19** recent gaps were ≥ 12 min). CI is **~10–12 min** across 8 required checks (`stale-file` became the
-8th on 2026-08-16 — it blocks a stale prose edit rather than only reddening it). The `protect-main` ruleset
-sets `required_status_checks.strict = true`, so the branch must be **up to date at merge time** — and
-GitHub's auto-merge does **not** update it for you. A PR therefore has to hold *all checks green* and
-*main stood still* in the same instant, a window open well under half the time.
+**Re-measured 2026-08-16 — state the WINDOW with any of these numbers, because the value depends on it.**
+Over **today's 28 merges**: median gap **8.6 min**, min 0.0, max 88.2, **13 of 27** gaps ≥ 10 min. CI is
+**≤ 9 min** worst-workflow, median ~2 min, across 8 required checks (`stale-file` became the 8th on
+2026-08-16). *(The prior figure here — "median 7.2 min, 8 of 19 ≥ 12 min", 2026-08-09 — carried no window.
+Sampling the last **40 merges** instead of today yields median **13.1 min**, because that reaches back
+days and swallows an 88-minute lull and a 5-day gap. Same repo, same hour, two answers. A cadence number
+without its window and sample size is not a measurement.)*
+
+⚠️ **AND IT IS NOT A RACE YOU CAN WIN BY WAITING — it is a DEADLOCK. This is the paragraph's most
+expensive sentence, so it is now first.** `protect-main` sets `required_status_checks.strict = true`, so
+the branch must be **up to date at merge time**, and **GitHub's auto-merge does NOT update it for you**.
+An armed, fully green, BEHIND PR therefore **never becomes mergeable on its own**, no matter how long it
+sits. Someone must update the branch.
+
+That fact was already stated here, and on 2026-08-16 **three sessions still deadlocked on it** — 14 PRs,
+every required context passing, zero pending, zero failing, nothing merging. The reason is framing: it
+sat inside "a window open well under half the time", which reads as a probabilistic race that patience
+eventually wins. It is not probabilistic. Waiting has **zero** probability of success. Measured on four
+of my own that afternoon: the one I updated when green **merged**; the three left armed and green sat
+BEHIND indefinitely.
+
+**The consequence is that PRs merge STRICTLY SEQUENTIALLY, and it is the real cost of a deep queue.**
+Every merge to `main` re-BEHINDs every other open PR. So updating N branches at once is waste — all N
+re-run CI, the first to finish merges, and the other N−1 go BEHIND again. The protocol:
+
+> **update ONE green PR → let it merge → update the next.**
+
+At ~9 min a cycle, a queue of 14 takes over two hours to drain no matter how green it is. That is a far
+better argument for fewer simultaneous PRs than the race framing, and it explains how a queue grows all
+day while every session is being careful.
+
+⚠️ **If you have anything to push anyway, `git merge origin/main` locally and push ONCE** — `gh pr
+update-branch` creates a remote merge commit and restarts CI, and a separate push of your own commit is
+a *second* head and a second run. Merging locally makes the branch current and carries your change in one
+CI cycle.
 
 **The cadence lever is bigger than the polling lever, and it is the one you control.** One capture-host
 fix shipped as **five** PRs (#1062 → #1071 → #1081 → #1091 → #1095) because each increment was pushed as

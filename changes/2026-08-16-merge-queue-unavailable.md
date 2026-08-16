@@ -36,5 +36,23 @@ instead of a destroyed PR. A per-session branch suffix prevents the collision, b
 the suffix prevents the collision while the lease prevents the loss, and only one of those is
 recoverable.
 
+Also corrects §👥.5's cadence figures and, more importantly, its framing. The numbers are re-measured
+over a stated window — today's 28 merges, median gap 8.6 min, 13 of 27 gaps ≥ 10 min, CI ≤ 9 min — and
+the window is stated because the value depends on it: sampling the last 40 merges instead of today gives
+a 13.1 min median, since that reaches back days and swallows an 88-minute lull and a 5-day gap. The
+prior figure carried no window at all.
+
+The framing fix is the load-bearing half. §5 already said auto-merge does not update the branch, and
+three sessions still deadlocked on it on 2026-08-16 — 14 PRs with every required context passing, zero
+pending, zero failing, nothing merging. The sentence sat inside "a window open well under half the
+time", which reads as a probabilistic race that patience wins. It is not probabilistic: an armed, green,
+BEHIND PR never becomes mergeable on its own. Measured on four of mine that afternoon — the one updated
+when green merged, the three left alone sat indefinitely.
+
+That makes merges strictly sequential, since every merge re-BEHINDs every other open PR, so updating N
+branches at once is waste: all N re-run CI, one merges, N−1 go BEHIND again. The protocol is update one,
+let it land, update the next — and at ~9 min a cycle a 14-deep queue takes over two hours to drain
+however green it is.
+
 Docs only.
 
