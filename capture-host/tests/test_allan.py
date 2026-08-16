@@ -844,3 +844,121 @@ def test_a_too_short_series_still_refuses_before_reaching_the_new_fields():
     s = allan.stability([1.0, 2.0, 3.0, 4.0], TAU0, 300.0)
     assert s["ok"] is False and s["reason"] == "too-few-taus"
     assert "phase_noise" not in s and "tdev" not in s
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# GROSLAMBERT COVARIANCE — measuring the instrument noise instead of inheriting it.
+#
+# Every ADEV/TDEV this module reports on an `arrival - device` series is an UPPER BOUND, because the
+# series carries BLE transport on top of the oscillator and squaring one series cannot separate them.
+# GCov multiplies two series: the shared clock survives, independent per-channel noise averages away.
+# So these tests are about a SEPARATION, not a number — the headline one plants a known clock under
+# known independent noise and asserts ADEV is fooled where GCov is not.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+
+
+def _shared_clock_two_channels(seed=5, noise=3.0):
+    """One white-FM clock observed twice, each observation carrying INDEPENDENT white measurement
+    noise — the structure of two streams captured from one device over one link."""
+    rng = random.Random(seed)
+    clock, v = [0.0], 0.0
+    for _ in range(N - 1):
+        v += rng.gauss(0, 1.0)
+        clock.append(v)
+    ch1 = [c + rng.gauss(0, noise) for c in clock]
+    ch2 = [c + rng.gauss(0, noise) for c in clock]
+    return clock, ch1, ch2
+
+
+def test_gcov_of_a_series_with_itself_is_EXACTLY_adev_squared():
+    """The estimator's own regression test: same normalisation, one factor replaced by the series
+    itself. Exact to floating point, not approximate — anything else is an arithmetic error."""
+    rng = random.Random(3)
+    x = [rng.gauss(0, 1) for _ in range(4000)]
+    a = allan.adev(x, TAU0)
+    g = allan.gcov(x, x, TAU0)
+    assert [p["tau"] for p in a] == [p["tau"] for p in g]
+    for pa, pg in zip(a, g):
+        assert pg["gcov"] == pytest.approx(pa["adev"] ** 2, rel=1e-12)
+
+
+def test_gcov_rejects_the_measurement_noise_that_adev_CANNOT():
+    """THE headline capability, and the reason this is worth having.
+
+    One channel's ADEV sees clock + its own noise and cannot separate them; at short tau the noise
+    dominates completely. GCov of the two channels recovers the clock. Measured: at tau0 the single
+    channel reads ~5.4x the true clock while GCov lands within a few percent.
+    """
+    clock, ch1, ch2 = _shared_clock_two_channels()
+    true = allan.adev(clock, TAU0)[0]["adev"]
+    one = allan.adev(ch1, TAU0)[0]["adev"]
+    g = allan.gcov(ch1, ch2, TAU0)[0]["gdev"]
+    assert one > 3.0 * true, f"ADEV should be badly inflated by the planted noise, got {one} vs {true}"
+    assert g == pytest.approx(true, rel=0.10), f"GCov should recover the clock, got {g} vs {true}"
+
+
+def test_gcov_of_two_INDEPENDENT_series_collapses_toward_zero():
+    """ANTI-VACUITY. If GCov returned something like a variance regardless of its second argument, the
+    test above would pass for the wrong reason. Two series sharing NOTHING must give ~0, not ~ADEV."""
+    rng = random.Random(9)
+    a = [rng.gauss(0, 1) for _ in range(N)]
+    b = [rng.gauss(0, 1) for _ in range(N)]
+    g = allan.gcov(a, b, TAU0)[0]
+    solo = allan.adev(a, TAU0)[0]["adev"]
+    assert abs(g["gdev"]) < 0.2 * solo, f"{g['gdev']} is not small against {solo}"
+
+
+def test_gcov_may_be_NEGATIVE_and_is_returned_unclamped():
+    """A covariance is not a variance. Vernotte & Lantz measure P(estimate < 0) as high as 47.5 % when a
+    clock is masked by less-stable partners, so negative is an ordinary outcome meaning "below the noise
+    of this comparison" — clamping it to zero would report a floor that was never measured."""
+    rng = random.Random(4)
+    x = [rng.gauss(0, 1) for _ in range(4000)]
+    anti = [-v for v in x]
+    g = allan.gcov(x, anti, TAU0)[0]
+    a = allan.adev(x, TAU0)[0]["adev"]
+    assert g["gcov"] == pytest.approx(-(a ** 2), rel=1e-12)
+    assert g["gcov"] < 0 and g["gdev"] < 0
+
+
+def test_gdev_is_the_SIGNED_root_so_it_can_share_an_axis_with_adev():
+    clock, ch1, ch2 = _shared_clock_two_channels()
+    for p in allan.gcov(ch1, ch2, TAU0):
+        assert p["gdev"] == pytest.approx(math.copysign(math.sqrt(abs(p["gcov"])), p["gcov"]), rel=1e-12)
+
+
+def test_gcov_REFUSES_unequal_lengths_rather_than_zipping_to_the_shorter():
+    """Two streams of different length are not on one grid. Truncating would compare different instants
+    while returning a perfectly well-formed number."""
+    rng = random.Random(2)
+    a = [rng.gauss(0, 1) for _ in range(4000)]
+    assert allan.gcov(a, a[:-1], TAU0) == []
+
+
+def test_a_nan_in_ONE_series_cannot_misalign_the_pair():
+    """The trap `_clean_pair` exists for. Cleaning separately drops index i from one series only, which
+    shifts every later sample of that series against the other by one — a covariance between different
+    instants, with nothing raised. Dropping the position from BOTH is the only correct answer, and the
+    result must equal simply omitting that position from both up front."""
+    rng = random.Random(6)
+    a = [rng.gauss(0, 1) for _ in range(4000)]
+    b = [rng.gauss(0, 1) for _ in range(4000)]
+    holed = list(a)
+    holed[1500] = float("nan")
+    expect = allan.gcov(a[:1500] + a[1501:], b[:1500] + b[1501:], TAU0)
+    assert allan.gcov(holed, b, TAU0) == expect
+    # …and that is NOT what cleaning the two separately would have produced
+    assert allan.gcov(holed, b, TAU0) != allan.gcov(a, b, TAU0)
+
+
+def test_gcov_refuses_a_series_too_short_or_a_zero_tau0():
+    assert allan.gcov([1.0, 2.0], [1.0, 2.0], TAU0) == []
+    assert allan.gcov([1.0, 2.0, 3.0, 4.0], [1.0, 2.0, 3.0, 4.0], 0) == []
+
+
+def test_gcov_honours_explicit_taus_and_skips_impossible_ones():
+    rng = random.Random(8)
+    a = [rng.gauss(0, 1) for _ in range(4000)]
+    b = [rng.gauss(0, 1) for _ in range(4000)]
+    got = allan.gcov(a, b, TAU0, [2.0, 0.4, 1e9])
+    assert [p["tau"] for p in got] == [2.0]
