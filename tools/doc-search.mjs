@@ -262,7 +262,10 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
      ran, and it exited 0 with empty output — a fake "nothing found" from a tool whose only job is
      finding things. Identity is now compared by RESOLVED PATH, so this asserts the property. */
   ok('the entry check accepts the module run under its own path', isEntryPoint(fileURLToPath(import.meta.url), import.meta.url));
-  ok('…and STILL accepts it when copied to another filename', isEntryPoint(fileURLToPath(import.meta.url), import.meta.url) === isEntryPoint(fileURLToPath(import.meta.url), import.meta.url));
+  /* The MECHANISM, not a tautology: a path that spells the same file differently must still be
+     recognised. The first version of this line compared isEntryPoint(...) to itself — always true,
+     unable to fail, and caught by biome's noSelfCompare rather than by any test of mine. */
+  ok('a differently-spelled path to the same file is still the entry point', isEntryPoint(join(dirname(fileURLToPath(import.meta.url)), '..', 'tools', 'doc-search.mjs'), import.meta.url));
   ok('a different program is not this module', !isEntryPoint('/usr/bin/node', import.meta.url));
   ok('a missing argv[1] is not an entry point, and does not throw', !isEntryPoint(undefined, import.meta.url));
   ok('html markup is stripped so the index sees words', readDoc('x.html', '<p>allan <b>deviation</b></p>').replace(/\s+/g, ' ').trim() === 'allan deviation');
