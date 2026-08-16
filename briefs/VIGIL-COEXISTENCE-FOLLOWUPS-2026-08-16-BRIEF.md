@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-16 · **Supersedes:** `VIGIL-COEXISTENCE-AND-RANGE-2026-07-26-BRIEF.md` (DONE — 2026-08-16) · **Affects:** `capture-host/`, the box's privilege model — **no code in the repo**
+**Status:** PROPOSED · **Created:** 2026-08-16 (⚠️ **§2 RETRACTED the same day it shipped** — it claimed the adapter-recovery ladder is disarmed; the capability was already granted and the ladder is running. Only §1's field re-measurement is genuinely open here.) · **Supersedes:** `VIGIL-COEXISTENCE-AND-RANGE-2026-07-26-BRIEF.md` (DONE — 2026-08-16) · **Affects:** `capture-host/`, the box's privilege model — **no code in the repo**
 
 # What outlives VIGIL-COEXISTENCE — two items, neither of them code
 
@@ -25,35 +25,50 @@ requires a controlled physical walk-away; nothing in the repo can produce one.
 §2 established that WiFi bulk transfer and BLE capture cannot share one. A re-measurement inside a
 window would reproduce the confound rather than test the question.
 
-## 2 · §4's privilege decision — and it is the SAME question as `VIGIL-AUTO-UPDATE-FOLLOWUPS` §2
+## 2 · ~~§4's privilege decision~~ — 🔴 **RETRACTED 2026-08-16: it was already granted, and the ladder is running**
 
-The adapter-recovery ladder (`hciconfig reset` / USB rebind) is **disarmed by design**: capture runs
-without `CAP_NET_ADMIN`, so the ladder exits 1 and logs a warning at every start. That is the
-deliberate P1.2 position — prevention via autosuspend-off is the primary defence and capture stays
-unprivileged.
+> **This section was WRONG when it shipped, hours after being written, and the error is the one this
+> repo keeps paying for.** It asserted that capture runs without `CAP_NET_ADMIN` and that the
+> recovery ladder is disarmed — taken from the parent brief's premise rather than from the box.
+> Checked on the box the same afternoon:
+>
+> ```
+> tepna-capture.service:  AmbientCapabilities=CAP_NET_ADMIN
+> live process:           CapPrm/CapEff/CapAmb = 0000000000001000   ← bit 12 = CAP_NET_ADMIN
+> journal, last 3 days:   "has no CAP_NET_ADMIN" warnings = 0
+> watchdog, 13th/15th/16th: "clean poll 1/2 — holding the wedge count at 1 until recovery"
+> ```
+>
+> **The capability is granted, the startup warning no longer fires, and the watchdog is actively
+> managing wedges** — including at 14:45 on 2026-08-16. §4's decision was made and shipped before this
+> brief claimed it was open.
+>
+> ⚠️ **And the "measured cost" argument this section made was doubly wrong.** It cited today's Verity
+> fragmentation as the cost of a *disarmed* ladder. The ladder is not disarmed; the fragmentation
+> happens **with** recovery armed and running. So the fragmentation is evidence about the adapter or
+> the link — not evidence for a privilege grant that already exists. Attaching a real measurement to a
+> stale premise made it look like corroboration.
 
-The parent asked to *"grant the capability, or state that an adapter wedge on an unattended night
-requires a human"*.
+**What is genuinely still open is the OTHER half, and it is a different question.**
+`VIGIL-AUTO-UPDATE-FOLLOWUPS` §2 asks whether the **update/restart** path may hold `NOPASSWD` — root
+*code execution*, not a network capability — and its root hole stands: a capture user who can write
+`/opt/tepna` plus one granted privileged command is root in two steps. The owner has directed
+(2026-08-16) that a defensible shape be designed and brought back for sign-off, with nothing applied to
+the box meanwhile. **That work is unaffected by this retraction**; only the adapter half is closed.
 
-**These are one decision, not two.** `VIGIL-AUTO-UPDATE-FOLLOWUPS` §2 asks the adjacent question —
-whether the restart path may hold `NOPASSWD` — and reaches the same wall from the other side: a
-capture user who can write `/opt/tepna` plus a granted privileged command is root in two steps. Any
-answer to one constrains the other. The owner has directed (2026-08-16) that a defensible shape be
-**designed and brought back for sign-off**, with nothing applied to the box in the meantime. This item
-routes there rather than being decided separately.
+### The two in-repo precedents that design should follow
 
-### ⚠️ The decision now has a MEASURED cost, which it did not when the parent was written
+Found while checking this, and worth naming because they mean the shape is not novel:
 
-Measured 2026-08-16 on `vigil:/srv/tepna/captures`: **the adapter fault is real and intermittent.** On
-2026-08-16 the Verity stream fragmented into roughly three-minute segments from 11:06 onward, and 2 of
-the last 12 capture days produced no usable long single segment at all (2026-08-08, 2026-08-12).
+- **`capture-host/link_rssi.py`** — a privileged action via `AmbientCapabilities` on the unit, inherited
+  through exec, with a sudo fallback only for the dev workstation. On the appliance
+  `NoNewPrivileges=true` forbids setuid sudo outright, so ambient caps are the *only* path that works.
+- **`capture-host/webmon.py`** — the companion rule, stated in its own comment: the USB port for a
+  rebind comes from **server config, never the request body**, because *"an argument the caller chooses
+  is still an argument the caller chooses"*. The privileged surface takes no caller-controlled input.
 
-That is exactly the condition the disarmed ladder cannot self-heal from. The parent recorded §4 as a
-policy question with no observed instance; there are now observed instances, and they cost capture
-nights. **This is evidence for the decision, not a recommendation to grant the capability** — the root
-hole `VIGIL-AUTO-UPDATE-FOLLOWUPS` §2 describes is unchanged by the fault being real, and "an
-unattended wedge requires a human" remains a defensible answer provided it is *stated* rather than
-left implicit in a warning nobody can filter.
+Together those are the shape `VIGIL-AUTO-UPDATE-FOLLOWUPS` §2 sketches — root-owned, fixed-surface,
+allowlisted — already working in this codebase rather than proposed.
 
 ## 3 · What is NOT here
 
@@ -63,12 +78,14 @@ detects the udev drift §5 was about. Nothing in this brief is a code change in 
 ## Done when
 
 - [ ] §1's walk-away re-measured outside a transfer window, with the result recorded either way.
-- [ ] §2's privilege decision made — in the box privilege-model design, not here — and the outcome
-      written down rather than left as a startup warning.
+- [x] **§2 CLOSED 2026-08-16 — the adapter half was already granted.** `AmbientCapabilities=CAP_NET_ADMIN`
+      is on `tepna-capture.service`, the live process carries it (`CapEff` bit 12), the startup warning
+      has not fired in 3 days, and the watchdog is actively managing wedges. The **update/restart**
+      privilege question is separate and remains open in `VIGIL-AUTO-UPDATE-FOLLOWUPS` §2.
 
 ## Cross-references
 
 - Parent: `VIGIL-COEXISTENCE-AND-RANGE-2026-07-26-BRIEF.md` (DONE — 2026-08-16).
 - `VIGIL-AUTO-UPDATE-FOLLOWUPS-2026-08-14-BRIEF.md` §2 — the same privilege question from the restart side.
-- `VIGIL-OVERNIGHT-FINDINGS-2026-07-24-BRIEF.md` — the P1.2 position the disarmed ladder implements.
+- `VIGIL-OVERNIGHT-FINDINGS-2026-07-24-BRIEF.md` — the P1.2 position, which has since been superseded on the box: the capability was granted and the ladder armed.
 - `PAT-NO-VALID-ANCHOR-2026-08-02-BRIEF.md` §6 — where the 2026-08-16 fragmentation measurement is recorded.
