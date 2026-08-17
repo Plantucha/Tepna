@@ -825,6 +825,14 @@ def timing_uncertainty(jitter, *, quantised=False, stability=None, tau_s=None):
         return None
     comps = {}
     comps["delivery"] = float(jitter["iqr_ms"]) / _IQR_TO_SIGMA
+    # ⚠️ THAT CONVERSION ASSUMES A NORMAL TAIL, and on this hardware it does not hold. IQR/1.349 is the
+    # normal-consistency estimator; it is a robust SIGMA only if the distribution is roughly Gaussian.
+    # `excess_kurtosis` is published beside it so the assumption can be CHECKED rather than trusted:
+    # measured +1901 (H10 acc), +1400 (ecg), +124 (Verity ppg) against 0 for a normal. Where it is far
+    # from 0 this budget UNDER-states the delivery term, and no finite sigma describes the tail — read
+    # `allan.mtie` for the bound instead, which assumes no distribution at all (ITU-T G.810).
+    # Reported, not judged: nothing here gates on `tail_gaussian`, and the raw number travels with it so
+    # a reader can disagree with the bound.
     comps["quantum"] = (_RING_QUANTUM_MS if quantised else _STAMP_QUANTUM_MS) / _UNIFORM_DIVISOR
     total = math.sqrt(sum(v * v for v in comps.values()))
     dominant = max(comps, key=lambda k: comps[k])
@@ -836,8 +844,14 @@ def timing_uncertainty(jitter, *, quantised=False, stability=None, tau_s=None):
             # adev*tau is milliseconds — no unit conversion. Reported SEPARATELY with its tau, never
             # folded into u_ms: see the docstring.
             free_run = {"drift_ms": round(float(adev) * float(tau_s), 3), "tau_s": round(float(tau_s), 1)}
+    kurt = jitter.get("excess_kurtosis")
     return {
         "u_ms": round(total, 3),
+        # Does the delivery term's Gaussian premise hold? |excess kurtosis| < 1 is the conventional
+        # "close enough to normal" bound. None when it could not be measured — an unknown tail is not a
+        # Gaussian one.
+        "tail_gaussian": None if kurt is None else bool(abs(kurt) < 1.0),
+        "excess_kurtosis": kurt,
         "components_ms": {k: round(v, 3) for k, v in comps.items()},
         "dominant": dominant,
         # A DIFFERENT QUANTITY, published beside rather than inside: how far the DEVICE clock would drift
@@ -878,11 +892,20 @@ def host_jitter(delays: list[float], min_n: int = 100) -> dict | None:
     s = sorted(d)
     n = len(s)
     q = lambda p: s[min(n - 1, int(p * n))]  # noqa: E731 - a local quantile, not worth a helper
+    # EXCESS KURTOSIS, so the Gaussian assumption downstream is CHECKABLE rather than implied.
+    # `timing_uncertainty` converts `iqr_ms` to a sigma with IQR/1.349, which is only a standard
+    # uncertainty if the tail is normal. Measured on the real corpus it is not, by three orders:
+    # +1901 (H10 acc), +1400 (H10 ecg), +124 (Verity ppg) against 0 for a normal. Publishing the
+    # number beside the sigma is what lets a reader see that, instead of trusting the conversion.
+    mean = sum(s) / n
+    var = sum((v - mean) ** 2 for v in s) / n
+    kurt = (sum((v - mean) ** 4 for v in s) / n / (var * var) - 3.0) if var > 0 else None
     return {
         "n": n,
         "iqr_ms": round(q(0.75) - q(0.25), 2),
         "p99_ms": round(q(0.99), 2),
         "worst_ms": round(max(abs(s[0]), abs(s[-1])), 2),
+        "excess_kurtosis": None if kurt is None else round(kurt, 1),
     }
 
 

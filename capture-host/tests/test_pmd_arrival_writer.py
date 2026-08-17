@@ -804,3 +804,41 @@ def test_a_perfectly_linear_phase_has_no_adev_to_divide_by_and_returns_None():
     import nightqc
     ramp = [(1000.0 * i, 2.0 * i) for i in range(400)]
     assert nightqc.transport_share(ramp, ramp) is None
+
+
+def test_excess_kurtosis_is_published_so_the_gaussian_premise_is_CHECKABLE():
+    """`timing_uncertainty` converts IQR to a sigma with /1.349, which is a robust sigma only for a
+    roughly normal tail. Publishing the measured kurtosis beside it is what lets a reader see whether
+    that conversion means anything — on this hardware it usually does not."""
+    import nightqc, random
+    rng = random.Random(1)
+    normal = [rng.gauss(0, 1) for _ in range(5000)]
+    heavy = [rng.gauss(0, 1) if rng.random() < 0.99 else rng.gauss(0, 40) for _ in range(5000)]
+    assert abs(nightqc.host_jitter(normal)["excess_kurtosis"]) < 0.5
+    assert nightqc.host_jitter(heavy)["excess_kurtosis"] > 20
+
+
+def test_tail_gaussian_says_whether_the_delivery_term_can_be_trusted():
+    import nightqc
+    ok = nightqc.timing_uncertainty({"iqr_ms": 10.0, "excess_kurtosis": 0.2})
+    bad = nightqc.timing_uncertainty({"iqr_ms": 10.0, "excess_kurtosis": 1901.3})
+    unknown = nightqc.timing_uncertainty({"iqr_ms": 10.0})
+    assert ok["tail_gaussian"] is True
+    assert bad["tail_gaussian"] is False and bad["excess_kurtosis"] == 1901.3
+    # An unmeasured tail is not a Gaussian one — None, never a default True.
+    assert unknown["tail_gaussian"] is None
+
+
+def test_a_flat_topped_tail_is_ALSO_not_gaussian():
+    """Negative excess kurtosis is as far from normal as positive. Measured per-file, several Verity
+    streams sit at -0.9 to -1.1 (flat-topped) while the H10 is +1400 — the bound is two-sided because
+    the failure is."""
+    import nightqc
+    assert nightqc.timing_uncertainty({"iqr_ms": 5.0, "excess_kurtosis": -1.1})["tail_gaussian"] is False
+
+
+def test_a_zero_variance_sample_yields_no_kurtosis_rather_than_a_division():
+    import nightqc
+    j = nightqc.host_jitter([3.0] * 300)
+    assert j is not None and j["excess_kurtosis"] is None
+    assert nightqc.timing_uncertainty(j)["tail_gaussian"] is None
