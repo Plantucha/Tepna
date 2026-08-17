@@ -80,7 +80,16 @@
      set-aside for names that ANNOUNCE they are not signal. */
   function nonSignalName(name) {
     var u = String(name == null ? '' : name).toUpperCase();
-    if (/_(CLOCK|LINK|OXYFRAME|QC|SUMMARY|TELEMETRY)\b|_(CLOCK|LINK|OXYFRAME|QC|SUMMARY|TELEMETRY)\./.test(u)) return true;
+    /* `PMDARRIVAL` was ADDED 2026-08-17 and is the same defect this function exists to prevent, one
+       generation later: the per-packet arrival sidecar (`*_PMDARRIVAL.csv`) postdates this guard by
+       days, so it was never in the set. Measured against the real routers, it returned `ecg` from
+       `ecgKind` AND `ppg` from `ppgKind` — admitted as a PRIMARY waveform in both nodes — because it
+       matches no companion suffix and falls through to the bare-name default. A real night folder
+       carries 7-341 of them (341 on 2026-08-13, 245 on 08-16), so dropping one in queued every
+       sidecar as a recording. The `.CSV` extension is deliberately NOT added to the type list below:
+       a genuine waveform legitimately arrives as `.csv`, and excluding by extension would set those
+       aside too. Name the file that announces itself, not the container. */
+    if (/_(CLOCK|LINK|OXYFRAME|PMDARRIVAL|QC|SUMMARY|TELEMETRY)\b|_(CLOCK|LINK|OXYFRAME|PMDARRIVAL|QC|SUMMARY|TELEMETRY)\./.test(u)) return true;
     if (/^QC-|^\.|\.(JSON|MD|LOG|YAML|YML|INI|CFG|PNG|JPG|PDF|ZIP)$/.test(u)) return true;
     return false;
   }

@@ -44245,7 +44245,21 @@
         T.eq('§6.4a · the orchestrator agrees on _MAG', SO.streamKind(magHost), 'magn');
       }
       // (b) capture-host telemetry and sidecars are set aside, not queued as recordings
-      ['Tepna_20260720045557_CLOCK.csv', 'Tepna_20260720045557_LINK.csv', 'QC-SUMMARY.json', '.archived'].forEach(function (n) {
+      /* `_PMDARRIVAL.csv` ADDED 2026-08-17 — §6.4b a generation later, and the same defect because the
+         file POSTDATES the guard. The per-packet arrival sidecar began 2026-08-11, after this set was
+         written, so nothing covered it: measured against the real routers it returned `ecg` from
+         `ecgKind` AND `ppg` from `ppgKind` — a PRIMARY waveform in BOTH nodes — because it matches no
+         companion suffix and falls through to the bare-name default. A real night folder carries 7-341
+         of them (341 on 2026-08-13, 245 on 08-16), so one drop queued every sidecar as a recording.
+         Both device spellings are pinned: the H10 and the Verity each write their own. */
+      [
+        'Tepna_20260720045557_CLOCK.csv',
+        'Tepna_20260720045557_LINK.csv',
+        'QC-SUMMARY.json',
+        '.archived',
+        'Polar_H10_02849638_20260813000348_PMDARRIVAL.csv',
+        'Polar_VeritySense_0C301E3F_20260813000305_PMDARRIVAL.csv'
+      ].forEach(function (n) {
         T.eq('§6.4b · non-signal file is set aside, not queued as an ECG: ' + n, I.ecgKind(n), 'skip');
         T.eq('§6.4b · …nor as a PPG: ' + n, I.ppgKind(n), 'skip');
       });

@@ -308,14 +308,47 @@ export function batteryFor(fnName) {
 }
 
 /** Run a battery and return a stable string. Non-serialisable results are labelled, not dropped. */
-function runBattery(fn, bat) {
+/* ── A MUTANT THAT NEVER RETURNS MUST NOT WEDGE THE CRAWL ───────────────────────────────────────
+   `fn.apply(null, args)` called from the HOST has no timeout and cannot be interrupted. Mutation
+   testing MANUFACTURES non-terminating loops — deleting the body of `while (t < prev) t += 86400000;`
+   leaves `while (cond) ;` — so this is an expected output, not an edge case.
+
+   Measured 2026-08-16: ppgdex-dsp.js swept fine (538/1346 killed, 808 survivors, canary PASSED,
+   38 min) and then the probe phase ran **11 h 11 m of CPU at 93 %, single-threaded, with zero
+   output**, produced no result file, and blocked oxydex and ecgdex from ever being crawled. It would
+   not have stopped on its own.
+
+   THE FIX IS WHERE THE CALL HAPPENS, NOT WHAT IT CALLS. `vm`'s `timeout` interrupts synchronous
+   script execution — but only for code running INSIDE `runInContext`. Holding a function reference
+   from the realm and calling it out here escapes that entirely, which is exactly what this did. So
+   the call is moved back inside the realm, where the timeout applies.
+
+   Both the ORIGINAL and the MUTANT run under the same budget, so a genuinely slow function times out
+   on both sides and produces no false difference. A timeout is recorded as its own outcome rather
+   than as a throw: "did not terminate" is a real behavioural difference, and labelling it keeps it
+   from being read as an ordinary killable one-liner — no test can assert "hangs" the way it asserts
+   a value. */
+const PROBE_TIMEOUT_MS = +opt('--probe-timeout-ms', 2000);
+function runBattery(fn, bat, ctx) {
   const out = [];
   for (const args of bat.args()) {
     let r;
     try {
-      r = fn.apply(null, args);
+      if (ctx) {
+        ctx.__probeFn = fn;
+        ctx.__probeArgs = args;
+        r = vm.runInContext('__probeFn.apply(null, __probeArgs)', ctx, { timeout: PROBE_TIMEOUT_MS });
+      } else {
+        r = fn.apply(null, args);
+      }
     } catch (e) {
-      r = 'THREW:' + (e && e.message);
+      const msg = String((e && e.message) || e);
+      r = /Script execution timed out|ERR_SCRIPT_EXECUTION_TIMEOUT/i.test(msg) ? 'TIMEOUT:' + PROBE_TIMEOUT_MS + 'ms — did not terminate' : 'THREW:' + (e && e.message);
+    } finally {
+      if (ctx) {
+        ctx.__probeFn = undefined;
+        ctx.__probeArgs = undefined;
+      }
     }
     let s;
     try {
@@ -459,7 +492,7 @@ function probeFile(file, rec) {
       findings.push({ fn, survivors: list.length, status: 'UNRESOLVABLE', callPath: path, note: 'the recorded path did not resolve to a function — not evidence about the code' });
       continue;
     }
-    const baseRows = runBattery(baseFn, bat);
+    const baseRows = runBattery(baseFn, bat, base);
     if (!batteryIsUsable(baseRows)) {
       findings.push({
         fn,
@@ -488,7 +521,7 @@ function probeFile(file, rec) {
       }
       let rows;
       try {
-        rows = runBattery(resolve(mut, path), bat);
+        rows = runBattery(resolve(mut, path), bat, mut);
       } catch (e) {
         per.push({ line: m.line, op: m.op, status: 'PROBE-THREW', detail: e.message });
         continue;
@@ -700,6 +733,23 @@ function selftest() {
     Object.values(BATTERIES).every((b) => b.args().length > 0),
     true
   );
+
+  /* A NON-TERMINATING MUTANT IS AN EXPECTED OUTPUT OF MUTATION TESTING, NOT AN EDGE CASE.
+     Deleting the body of `while (t < prev) t += 86400000;` leaves `while (cond) ;`. Before this
+     guard, one such mutant wedged the ppgdex probe for 11 h 11 m of CPU with no output and no
+     result file, and blocked two further files from ever being crawled. The shapes below are the
+     real one and a bare spin; both must come back TIMEOUT rather than never coming back. */
+  console.log('\nrunBattery — a mutant that never returns is timed out, not waited on');
+  {
+    const tctx = { Math, Number, String, Array, Object, JSON, isFinite };
+    tctx.globalThis = tctx;
+    vm.createContext(tctx);
+    const one = (src, args) => runBattery(vm.runInContext('(' + src + ')', tctx), { args: () => [args] }, tctx)[0];
+    ck('a terminating function still returns its value', one('function(a){return a*2}', [21]), '42');
+    ck('a throwing function still reports THREW', /THREW:boom/.test(String(one('function(){throw new Error("boom")}', []))), true);
+    ck('an infinite loop reports TIMEOUT', /^"?TIMEOUT:/.test(String(one('function(){var t=0;while(true){t++;}return t;}', []))), true);
+    ck('…including the `while (cond) ;` shape statement-deletion actually produces', /^"?TIMEOUT:/.test(String(one('function(t,prev){while(t<prev);return t;}', [0, 10]))), true);
+  }
 
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
   return fail ? 1 : 0;
