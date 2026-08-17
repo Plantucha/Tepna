@@ -10,6 +10,11 @@ The parsers honour it. The DSPs never inherited it. Below a minimum-N guard they
 those zeros reach registered, badged metrics where nothing distinguishes them from a real measurement
 of zero.
 
+**`hrvdex-dsp.js` and `glucodex-dsp.js` are clean, and PulseDex already carries the fix.** That is the
+load-bearing fact and it belongs before any table: **the pattern is avoidable, not inherent to the
+domain.** Three of eight nodes already do it right, so this is a gap in inheritance rather than a
+problem with the mathematics.
+
 The sharpest statement of the class, found by Mutator in `ecgdex-dsp.js` and quoted verbatim because
 no paraphrase improves it:
 
@@ -35,6 +40,26 @@ if (n < 60 || durationHr <= 0) return { sbii: 0, sbiiQ: 'Q1(low)' };
 if (!nadirEvents.length)       return { sbii: 0, sbiiQ: 'Q1(low)' };
 if (!n)                        return { pred3p: 0, pred3pQ: 'Q1' };
 ```
+
+**And the guard is only half of it — the consumer completes the fabrication.** Measured by Mutator on
+OxyDex against `origin/main`, seven assertions seen to fail:
+
+```
+✕ sbii       got 0          want null
+✕ sbiiQ      got "Q1(low)"  want null
+✕ pred3p     got 0          want null
+✕ pred3pQ    got "Q1"       want null
+✕ desSev     got 0          want null
+✕ ahiKulkas  got 5.7        want null      ← the consumer defect
+✕ ahiODI4    got 0          want null
+✓ ahiODI4 still computes from the input it DOES have (5.5)
+```
+
+`ahiKulkas` is the one to read twice. `0.6 * null` is `0`, so an absent `DesSev` **silently dropped its
+term** and the estimate emerged as **5.7 rather than refusing** — missing data producing a specific,
+plausible, *low* AHI. Exactly the `hfnu` shape at a different site: the guard leaks a null, and one
+line later ordinary arithmetic converts it back into a number. **Fixing the guard without auditing its
+consumers moves the fabrication rather than removing it.**
 
 `sbii` is registered `emerging` and cited as *"Sleep-breathing instability index — Σ(D²·T)/TRT,
 SHHS-calibrated quintiles; **best oximetry predictor of CVD mortality** (Hui 2024, Respirology
@@ -65,7 +90,9 @@ correct. Recorded because it is this repo's recurring failure — a query that r
 **PpgDex's single instance is the ECGDex twin.** `cvhrFromNN`'s own comment: *"the Integrator
 corroborates finger CVHR against ECGDex cardiac CVHR, so they MUST share a method."* Its `index: 0`
 feeds `cvhrIndex` (registered, `emerging`) and reads as **"no cyclic variation detected"** rather than
-"not measurable". Fixing ECGDex's `detectCVHR` without PpgDex's would break that shared-method
+"not measurable". ⚠️ **PpgDex's case is strictly worse than ECGDex's**: its own export comment states
+**`"cvhrIndex=0 = none detected"`** — so `0` was already spoken for as a *real finding* before the
+guard began emitting it. There is no spare value left to overload. Fixing ECGDex's `detectCVHR` without PpgDex's would break that shared-method
 promise in the opposite direction.
 
 **PulseDex is the pattern to copy, not a new design to invent.** The fix and its assertions already
@@ -96,7 +123,7 @@ follow-up.
   `tools/verify-fixtures.mjs` — never a re-stamp around a moved output.
 - **Registry tiers stay untouched.** This is a refusal fix, not a re-grading.
 
-## 6 · Two traps, both paid for on 2026-08-16
+## 6 · Three traps, all paid for on 2026-08-16
 
 **6.1 · A single-bin significance threshold does not transfer to an aggregate.** Investigating CPC, I
 measured per-bin magnitude-squared coherence across five full box nights: HFC median **0.31–0.38**
@@ -113,6 +140,26 @@ filter keyed to that floor would have destroyed the metric **while looking like 
 **fabricates presence**; the refusal in §6.1 would have **fabricated absence**. *Both wear the costume
 of a careful guard.* A fix in this class is not safe merely because it refuses more — it has to refuse
 the right thing, and "more conservative" is not a proof.
+
+**6.3 · REFUSE WHEN YOU COULD NOT LOOK; REPORT ZERO WHEN YOU LOOKED AND FOUND NOTHING.** The third
+member of the family, and the one that nearly went wrong in the *fix* rather than the defect.
+`computeSBII` has two exits:
+
+```js
+if (n < 60 || durationHr <= 0) return { sbii: 0, sbiiQ: 'Q1(low)' };   // could not look  → REFUSE
+if (!nadirEvents.length)       return { sbii: 0, sbiiQ: 'Q1(low)' };   // looked, found none → 0 is TRUE
+```
+
+They are textually identical and semantically opposite. The second is reached **only after the first
+passed**, so the night was long enough and the detector genuinely found nothing — and a genuinely
+clean night really does belong in the lowest quintile. Mutator nulled it, then reverted: **nulling a
+true negative destroys a real measurement**, and it would have been invisible, because a night with no
+desaturations and a night too short to look would once again have produced the same output — merely
+`null` instead of `0`.
+
+Both cases must be asserted separately. **A fix that only moves the failure is not a fix**, and this
+family makes that mistake easy in both directions: §6.1 would have refused a real signal, §6.2 is the
+symmetry, §6.3 would have refused a real absence.
 
 ## 7 · Done when
 
