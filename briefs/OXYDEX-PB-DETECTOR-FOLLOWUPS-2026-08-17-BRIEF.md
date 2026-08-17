@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-08-17 (**§2 and §6 CLOSED by measurement the same day**: ρ measured at median 0.9804 with the CV threshold re-validated across the corpus's real redness including the reddest night, and the gap-spanning hazard shown to be fully caught by the existing guard. §1, §3, §4, §5 remain open) · **Created:** 2026-08-17 · **Follows:** `OXYDEX-PB-DETECTOR-2026-08-09-BRIEF.md` (DONE — 2026-08-17) · **Affects:** `oxydex-dsp.js computePatternScores`, `briefs/SYNTHETIC-CORPUS-BRIEF.md`, the CPAP/ECGDex corpora
+**Status:** IN-PROGRESS — 2026-08-17 (**§2 and §6 CLOSED by measurement the same day**: ρ measured at median 0.9804 with the CV threshold re-validated across the corpus's real redness including the reddest night, and the gap-spanning hazard shown to be fully caught by the existing guard. §3 HALF-CLOSED 2026-08-17 — the observer is in scope, the three-observer result is not yet obtainable. §1, §4, §5 remain open) · **Created:** 2026-08-17 · **Follows:** `OXYDEX-PB-DETECTOR-2026-08-09-BRIEF.md` (DONE — 2026-08-17) · **Affects:** `oxydex-dsp.js computePatternScores`, `briefs/SYNTHETIC-CORPUS-BRIEF.md`, the CPAP/ECGDex corpora
 
 # What the PB detector's execution turned up and did not close
 
@@ -62,7 +62,7 @@ merely at the inherited figure.
 what forbids it; regenerate it before touching that constant, and note the relationship is not monotone
 in ρ (0.99 is tighter than 0.995), so testing only the extremes would have missed the worst case.
 
-## 3 · 🔴 OPEN — the ECGDex third observer has never been exercised
+## 3 · ⚙ HALF-CLOSED — the ECGDex third observer is now in scope; the three-observer result is not
 
 `_pbObserver` admits three nodes. Every fusion measurement to date pairs **OxyDex with CPAPDex only**,
 because the available ECGDex exports carry no `apnea.cvhrIndex` — that block landed 2026-07-23
@@ -72,6 +72,33 @@ because the available ECGDex exports carry no `apnea.cvhrIndex` — that block l
 **So "3/56 corroborated" is a two-observer floor, not a ceiling**, and the parent's §4 conclusion is
 scoped accordingly. **Done when:** `tools/trio-batch.mjs` is re-run so ECGDex exports carry the `apnea`
 block, and `pb-fusion-blast` is re-run with all three observers in scope.
+
+### ⚙ HALF-CLOSED 2026-08-17 — the observer is now IN SCOPE; the three-observer *result* is not yet obtainable
+
+**Capability: resolved.** A `trio-batch` re-run against current code produces ECGDex exports that carry
+the block — **18 of 18** (`cvhrIndex` 4.3, 3.3, 6.2 on the first three nights). The leg is no longer
+unexercisable; nothing in the code was blocking it, only corpus staleness, exactly as the parent said.
+
+**Measurement: still blocked, and by a date gap rather than by the leg.** Those 18 nights come from
+`tepna-smoketest/captures`, which starts **2026-07-16**; the CPAP corpus ends **2026-07-21**. So the
+nights carrying *both* an ECGDex `apnea` block and a CPAP export number **5**, and on them
+`fusePeriodicBreathing` corroborates **0/5** — nothing to attribute to a third observer either way.
+
+**So the parent's 3/56 remains a two-observer figure**, and the three-observer question is open. **Done
+when:** ECGDex-carrying nights overlap the CPAP corpus in useful numbers — box captures from before
+2026-07-21, which exist on `vigil` but not in the local `smoketest` tree. No code needed.
+
+### 🐞 …and the tool was reporting its own scope wrongly — fixed here
+
+`pb-fusion-blast.mjs` printed the caveat *"(0 of N means UNEXERCISED, not inert …)"* **unconditionally**.
+Once the corpus was regenerated the output read **"18 of 18 carry apnea.cvhrIndex"** immediately followed
+by an explanation of what "0 of N" means — a stale note contradicting the line directly above it.
+
+That is worse than no note. A reader skimming for the scope caveat *finds one*, and concludes the third
+observer is still unexercised — so the tool would have kept asserting a limitation it had already
+outgrown, on every future run. Now it prints the state that actually holds: the unexercised text only
+when the count is 0, a PARTIAL line when some nights carry it, and an explicit *"the third observer IS in
+scope"* when all do. All three branches verified against real runs; `--selftest` green.
 
 ## 4 · 🟡 κ rests on 4 device-positive nights
 
