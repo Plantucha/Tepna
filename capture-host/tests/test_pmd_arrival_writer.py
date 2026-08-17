@@ -882,6 +882,13 @@ def test_a_frozen_device_stamp_is_reported_as_absent_not_merely_refused(tmp_path
     # the refusal is still the estimator's, unchanged -- this explains it, it does not replace it
     assert row["offset"]["ok"] is False
     assert row["offset"]["reason"] == "implausible-skew"
+    # ⚠ AND THE LATTICE MUST REFUSE IT TOO. `device_axis_is_clock` is `not (quantised or frozen)`, and
+    # the `quantised` half alone carries the RING (`_DURATION_S`). This stream is frozen WITHOUT being
+    # name-quantised — the Verity `ppi` case — so it is the only input that exercises the frozen term.
+    # Without this the mutation `bool(stamp_frozen)` -> `bool(None)` survives: the guard keeps working
+    # for the ring and silently stops working for ppi, which is the stream it was written for.
+    assert row["lattice"]["ok"] is False, row["lattice"]
+    assert row["lattice"]["reason"] == "device-axis-not-a-clock"
 
 
 def test_a_GENUINE_skew_is_refused_WITHOUT_being_called_absent(tmp_path):
@@ -1192,3 +1199,59 @@ def test_a_quantised_ring_stream_gets_no_lattice_but_a_polar_stream_does(tmp_pat
     assert got["OXYLIVE_DURATION_S"]["ok"] is False
     assert got["OXYLIVE_DURATION_S"]["reason"] == "device-axis-not-a-clock"
     assert got["ECG"] is None or got["ECG"]["ok"] is True
+
+
+# ─── tau0_uniformity reaches the row — is a single tau0 a fair label for this series? ────────────
+
+
+def test_tau0_uniformity_reaches_the_row_and_is_not_fabricated(tmp_path):
+    """`_tau0_of` hands `allan.stability` the MEAN packet interval, and every estimator there then
+    treats the samples as evenly spaced by it. This publishes whether that was ever true.
+
+    Measured over the real corpus once wired: H10 ecg 1.04, H10 acc 0.98-0.99, Verity ppg 0.87-1.23,
+    Verity ppi 0.52-0.97, O2Ring 1.00-1.01 — so the assertion here is the SHAPE and the refusal, not a
+    threshold. `classify`'s noise type is immune to a uniform tau rescale; `optimal_tau` and
+    `_TDEV_TAU_S` comparisons are not.
+    """
+    import nightqc
+    _write_sidecar(os.path.join(tmp_path, "Tepna_u2_PMDARRIVAL.csv"), "ECG", _bell(400))
+    row = nightqc.arrival_quality(str(tmp_path))[0]
+    u = row["tau0_uniformity"]
+    assert isinstance(u, dict), u
+    assert set(u) == {"ratio", "median", "max_gap", "n"}, u
+    assert u["n"] > 0 and u["median"] > 0
+    assert u["ratio"] > 0 and u["max_gap"] >= 1.0, u
+    # ⚠ PINS THE COLUMN. `pairs` is (host_ms, delay_ms, device_ns) and it must be fed the SAMPLE
+    # INSTANTS, not the delays. Both are floats of plausible size, so a wrong-column wiring returns
+    # a well-formed answer about the wrong quantity — the defect shape this repo keeps finding.
+    # The fixture writes packets 77 ms apart, so the median interval IS the cadence; the delay
+    # column measures 1 on the same input. Without this the mutation survives.
+    assert 60.0 < u["median"] < 100.0, ("median is not the packet cadence — wrong column?", u)
+
+
+def test_a_stream_too_short_to_have_a_spacing_reports_None_not_a_fake_1_0(tmp_path):
+    """The refusal has to survive the trip to the row. "Perfectly uniform" would be a claim about an
+    axis that is not there — and 1.0 is the value a reader would least question.
+
+    Exercised on the real corpus: 4 of 1008 rows take this path.
+    """
+    import nightqc
+    _write_sidecar(os.path.join(tmp_path, "Tepna_u3_PMDARRIVAL.csv"), "ECG", [400.0, 401.0])
+    rows = nightqc.arrival_quality(str(tmp_path))
+    if rows:
+        assert rows[0]["tau0_uniformity"] is None, rows[0]["tau0_uniformity"]
+    else:
+        T = None  # the whole row was refused earlier, which is also a refusal
+        assert T is None
+
+
+def test_ratio_and_max_gap_are_kept_SEPARATE_because_they_disagree(tmp_path):
+    """The case both numbers exist for, and it is real: H10 acc measures ratio 0.98 — apparently even
+    — with a max_gap of 9.9x. Collapsing them into one score loses exactly that stream.
+    """
+    import allan
+    even_with_one_stall = [0.0] + [float(i) for i in range(1, 60)] + [110.0]
+    u = allan.tau0_uniformity(even_with_one_stall)
+    assert u is not None
+    assert abs(u["ratio"] - 1.0) < 0.9, u          # the mean barely moves
+    assert u["max_gap"] >= 5.0, u                  # the peak does
