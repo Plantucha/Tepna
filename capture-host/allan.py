@@ -386,6 +386,69 @@ def mtie(phase, tau0, taus=None):
     return out
 
 
+# ── IS THE INPUT ACTUALLY A UNIFORMLY-SAMPLED PHASE SERIES? ────────────────────────────────────────
+# The module header says the input is a PHASE series. It does not say the other half: every estimator
+# here is handed a single `tau0` and assumes the samples are EVENLY SPACED by it. Nothing checks that,
+# and on this box the assumption is false in one lane and true in the other.
+#
+# `nightqc._tau0_of` takes the MEAN packet interval. On a BLE arrival axis the packets are not evenly
+# spaced, so the mean is not the spacing — it is the spacing plus the gaps, and the whole tau axis is
+# relabelled by the ratio between them. Measured 2026-08-17 over 120 arrival sidecars, mean/median:
+#
+#     H10 ecg  1.04     H10 acc  0.98-0.99     Verity acc  0.94-1.06     O2Ring dur  1.00
+#     Verity ppg  0.87-1.16  (79 series)       Verity ppi  0.52-0.97
+#
+# So up to a 16 % tau-label error on the most-populated stream, and 0.52 on ppi. For contrast the
+# DEVICE-counter axis the JS node lane uses is uniform to <=0.7 % over 439 streams — same estimator,
+# same vocabulary, different series, opposite answer.
+#
+# WHAT THAT ERROR DOES, because it bounds what this is for. A UNIFORM rescale of tau shifts the curve
+# horizontally in log-log and leaves the SLOPE invariant, so `classify`'s noise type — the thing callers
+# branch on — is immune (asserted: test_a_uniform_tau_rescale_leaves_the_SLOPE_invariant). What moves is
+# WHERE a sigma is read: `optimal_tau`, `tau_max`, and any comparison quoted at a fixed tau.
+#
+# THE CONCRETE ONE A READER SPENDS is `_TDEV_TAU_S`. That tau is FIXED precisely so nights are
+# comparable to each other — and a tau label that is wrong by a different amount per stream partially
+# defeats exactly that. Two streams quoted "at 100 s" are not at the same 100 s when one's tau0 is the
+# mean of an even series and the other's is inflated 16 % by gaps. That is the reason to publish the
+# ratio next to the curve rather than to leave it as a known-unknown. Genuinely IRREGULAR spacing additionally biases AVAR itself (dead
+# time — Barnes & Allan 1990, NIST TN 1318), which relabelling tau does not fix. Two distinct effects.
+#
+# DELIBERATELY NOT A GATE, and not a correction. ALLAN-DEVIATION §4's rule stands: the last two arrival
+# diagnostics that shipped with thresholds both fired on every stream of the first real night. This
+# REPORTS, so a reader can see when the tau label is trustworthy. The unbiased-AVAR estimator for
+# unequal spacing (Sesia & Tavella 2008, Metrologia 45(6):S134, doi:10.1088/0026-1394/45/6/S19) is the
+# principled fix and should follow this measurement rather than precede it — measure how often the bias
+# matters before importing machinery to remove it.
+def tau0_uniformity(sample_times):
+    """How well a single `tau0` describes the spacing of `sample_times` (the SAMPLE INSTANTS, not the
+    phase values). Returns None when there are too few samples to have a spacing at all.
+
+    `ratio` is mean / median consecutive interval: 1.0 is perfectly even, >1 means the mean is inflated
+    by gaps, <1 means it is deflated by a burst. `max_gap` is the largest interval over the median — the
+    peak view, since one long stall and many small ones give the same mean.
+    """
+    ts = sorted(v for v in (sample_times or []) if _finite(v))
+    if len(ts) < 3:
+        return None
+    deltas = sorted(b - a for a, b in zip(ts, ts[1:]) if b > a)
+    if len(deltas) < 2:
+        return None
+    # Strictly positive by construction — the comprehension above keeps only `b > a`, so every delta is
+    # > 0 and so is any median of them. A `median > 0` guard here was written, and the 100 % branch floor
+    # proved it UNREACHABLE: the series with no spacing at all ([5,5,5,5]) never gets here, because it
+    # produces zero positive deltas and refuses at the `len(deltas) < 2` line above. Dead defence removed
+    # rather than silenced with a pragma — an unreachable guard reads as a handled case that is not.
+    median = deltas[len(deltas) // 2]
+    mean = (ts[-1] - ts[0]) / (len(ts) - 1)
+    return {
+        "ratio": round(mean / median, 4),
+        "median": round(median, 4),
+        "max_gap": round(deltas[-1] / median, 2),
+        "n": len(ts),
+    }
+
+
 def slope(points, key="adev"):
     """Log-log slope of sigma_y(tau), by least squares. None when fewer than three taus.
 
