@@ -17,7 +17,7 @@ ch1 collapses to ~10^2 counts.
 
 EVERY CONSTANT LABELLED MEASURED vs CHOSEN (the four constraints the Vigil box session set):
 - PPG2W_CH1_FLOOR = 15388: MEASURED - geometric midpoint of the doffed-tail ch1 p99 max (355, n=3)
-  and the worn ch1 p1 min (667,065, 15 sessions); >3 orders of margin each side; wrong iff a
+  and the worn ch1 p1 min (667,065, 15 sessions); ~43x margin each side (3.3 orders of TOTAL separation); wrong iff a
   firmware/scale change moves either population by >~40x.
 - RATIO [0.5, 3]: CHOSEN - a ~2x margin around the MEASURED worn band (0.955-1.444). The margin
   earned its keep out-of-sample: a held-out 7-min adjustment session reached 1.929 and stayed inside.

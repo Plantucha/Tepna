@@ -1205,8 +1205,12 @@ def arrival_quality(night_dir: str) -> list[dict]:
 # discovered one is this repo's recurring failure:
 #   PPG2W_CH1_FLOOR = 15388     MEASURED: the geometric midpoint of the doffed-tail ch1 p99 maximum
 #                               (355 counts, n = 3 doffings) and the worn ch1 p1 minimum (667,065,
-#                               15 sessions). >3 orders of margin each side. It becomes WRONG if a
-#                               firmware/scale change moves either population by >~40x.
+#                               15 sessions). ~43x margin each side — 3.3 orders of TOTAL separation,
+#                               1.64 orders per side (the first version said "3 orders each side",
+#                               which contradicted the ~40x bar below by ~23x; a reader sizing a
+#                               firmware change against it would break the detector an order early).
+#                               It becomes WRONG if a firmware/scale change moves either population
+#                               by >~40x.
 #   PPG2W_RATIO_LO/HI = 0.5/3   CHOSEN: a ~2x margin around the MEASURED worn band (ratio
 #                               0.955-1.444 across the 15 derivation sessions). The margin earned its
 #                               keep out-of-sample: one held-out 7-min adjustment session reached
