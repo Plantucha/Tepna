@@ -1064,3 +1064,131 @@ def test_the_budget_is_asked_for_the_curve_s_OWN_optimal_tau(tmp_path):
     starved = nightqc.timing_uncertainty(row["jitter"], quantised=row["quantised"],
                                          stability=row["stability"], tau_s=None)
     assert starved["free_run"] is None, "a tau-less budget must not still report a free-run term"
+
+
+# ─── connection_lattice: the BLE connection interval, recovered from arrival stamps ──────────────
+
+
+def _lattice_series(step, reach, noise, n, seed=2):
+    """Delays whose DIFFERENCES land on a `step` lattice — what a connection-event delivery looks like."""
+    import random
+    r = random.Random(seed)
+    out = [0.0]
+    for _ in range(n):
+        out.append(out[-1] + step * r.randint(-reach, reach) + r.gauss(0, noise))
+    return out
+
+
+def test_connection_lattice_recovers_a_planted_period():
+    import nightqc
+    for step in (7.5, 12.5, 30.0, 45.0):
+        got = nightqc.connection_lattice(_lattice_series(step, 8, step / 20.0, 2500))
+        assert got, step
+        assert abs(got["period_ms"] - step) / step < 0.01, (step, got)
+        assert got["R"] > 0.5, got
+
+
+def test_connection_lattice_is_QUIET_on_continuous_delay():
+    """ANTI-VACUITY: without this the scan reports its favourite period on any input at all."""
+    import nightqc
+    import random
+    r = random.Random(9)
+    walk = [0.0]
+    for _ in range(2500):
+        walk.append(walk[-1] + r.gauss(0, 40))
+    got = nightqc.connection_lattice(walk)
+    assert got and got["R"] < 0.25, got
+
+
+def test_the_period_cannot_EXCEED_the_spread_it_is_measured_over():
+    """The failure that a planted test caught: an unguarded scan returned its own upper bound.
+
+    One period covering the whole support gives every value the same phase, so R is trivially ~1. The
+    guard caps the period at spread/CK_LATTICE_MIN_CYCLES, and a 12.5 ms lattice on a deliberately
+    narrow support is then recovered as 12.5 rather than as the edge of the search range.
+    """
+    import nightqc
+    got = nightqc.connection_lattice(_lattice_series(12.5, 4, 0.6, 2500))
+    assert got and abs(got["period_ms"] - 12.5) < 0.4, got
+
+
+def test_the_lattice_reported_is_the_FUNDAMENTAL_not_a_submultiple():
+    """Every multiple of 45 is a multiple of 22.5 and 15, so submultiples score high by construction.
+
+    Reporting one would understate the granularity by an integer factor.
+    """
+    import nightqc
+    got = nightqc.connection_lattice(_lattice_series(45.0, 8, 2.0, 2500))
+    assert got and abs(got["period_ms"] - 45.0) < 1.0, got
+
+
+def test_connection_lattice_refuses_a_series_too_short_to_say():
+    import nightqc
+    assert nightqc.connection_lattice(_lattice_series(30.0, 6, 1.0, 100)) is None
+    assert nightqc.connection_lattice([]) is None
+
+
+def test_a_delay_with_no_spread_at_all_yields_no_lattice():
+    """A constant delay has no support, so `hi <= lo` and there is nothing to scan."""
+    import nightqc
+    assert nightqc.connection_lattice([5.0] * 400) is None
+
+
+def test_the_lattice_reaches_the_row(tmp_path):
+    import nightqc
+    _write_sidecar(os.path.join(tmp_path, "Tepna_L1_PMDARRIVAL.csv"), "ECG", _bell(400))
+    row = nightqc.arrival_quality(str(tmp_path))[0]
+    assert "lattice" in row
+
+
+def test_the_period_is_MEASURED_not_drawn_from_a_table_of_known_intervals():
+    """The interval is NEGOTIATED per connection, so a different adapter gives a different answer.
+
+    The corpus happens to show 45 ms (H10) and 30 ms (Verity). If either were baked in as a default or
+    a candidate list, this would still pass on those two and fail here — so the planted values are
+    deliberately intervals the corpus never contains, including one that is not a round number of
+    milliseconds.
+    """
+    import nightqc
+    for step in (26.25, 48.75, 18.75, 3.75):
+        got = nightqc.connection_lattice(_lattice_series(step, 8, step / 20.0, 2500))
+        assert got, step
+        assert abs(got["period_ms"] - step) / step < 0.01, (step, got)
+        assert abs(got["ble_units"] - round(got["ble_units"])) < 0.05, (step, got)
+
+
+def test_a_changed_adapter_changes_the_reported_period(tmp_path):
+    """The property that makes this worth recording per session rather than documenting once."""
+    import nightqc
+    a = nightqc.connection_lattice(_lattice_series(30.0, 8, 1.0, 2500))
+    b = nightqc.connection_lattice(_lattice_series(45.0, 8, 1.0, 2500))
+    assert abs(a["period_ms"] - 30.0) < 0.6 and abs(b["period_ms"] - 45.0) < 0.9, (a, b)
+    assert b["period_ms"] > a["period_ms"] * 1.3, "the two links must not report the same interval"
+
+
+def test_the_lattice_REFUSES_a_device_axis_that_is_not_a_clock():
+    """`delays` is `host - device`; differencing removes the device cadence only if there WAS one.
+
+    On a drawn axis the subtraction injects the device's own quantum instead, so the scan measures
+    something other than the link. The O2Ring is the reason: 19 of its 28 streams have a frozen stamp
+    and the other 9 a 1 s counter — not one has a clock — and the scan was reporting 6.30 BLE units,
+    a non-integer, at R 0.52.
+    """
+    import nightqc
+    series = _lattice_series(30.0, 8, 1.0, 2500)
+    assert nightqc.connection_lattice(series)["ok"] is True
+    ref = nightqc.connection_lattice(series, device_axis_is_clock=False)
+    assert ref["ok"] is False and ref["reason"] == "device-axis-not-a-clock"
+    assert "period_ms" not in ref, "a refusal must not hand back a number to spend"
+
+
+def test_a_quantised_ring_stream_gets_no_lattice_but_a_polar_stream_does(tmp_path):
+    """The refusal has to reach the row through arrival_quality, keyed on the axis it already knows."""
+    import nightqc
+    _write_sidecar(os.path.join(tmp_path, "Tepna_R1_PMDARRIVAL.csv"), "OXYLIVE_DURATION_S",
+                   [400 + 1000 * (i % 3) for i in range(600)])
+    _write_sidecar(os.path.join(tmp_path, "Tepna_R2_PMDARRIVAL.csv"), "ECG", _bell(600))
+    got = {r["meas"]: r["lattice"] for r in nightqc.arrival_quality(str(tmp_path))}
+    assert got["OXYLIVE_DURATION_S"]["ok"] is False
+    assert got["OXYLIVE_DURATION_S"]["reason"] == "device-axis-not-a-clock"
+    assert got["ECG"] is None or got["ECG"]["ok"] is True

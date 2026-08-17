@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HFDSXcBDW8u7XD7M1mWyyx1aMdalHFgIYSeJ6kXEWU8=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-Vw8wfJlGH+61swjS1t+l9ykdoHngwhYiYvd7zU+i/6M=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-h7eDzXk9Q/+enhnS4yodXMepA0sXv6KmnkfDwFY8x0c=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-qcqYxRubUqXg41nj4CLdzPeeY55rND+blST3sR3Tg1I='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HFDSXcBDW8u7XD7M1mWyyx1aMdalHFgIYSeJ6kXEWU8=' 'sha256-KT37bp0y0ke8bMQOKs4x1LCCi2NIvgysOwzCVi14uPk=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-Vw8wfJlGH+61swjS1t+l9ykdoHngwhYiYvd7zU+i/6M=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-h7eDzXk9Q/+enhnS4yodXMepA0sXv6KmnkfDwFY8x0c=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ECGDex — Raw ECG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -8641,7 +8641,10 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   // SD1 = SDSD/√2 (short axis, beat-to-beat), SD2 = √(2·SDNN² − SD1²) (long axis).
   function poincareGeo(nn) {
     const n = nn.length;
-    if (n < 3) return { sd1: 0, sd2: 0 };
+    /* REFUSE (§2.6). sd1/sd2 are `validated` tier, so a fabricated 0 here is a badged claim that
+       beat-to-beat variability WAS measured and was zero — the strongest statement this file can
+       make, from two beats. Two points cannot define a dispersion at all. */
+    if (n < 3) return { sd1: null, sd2: null };
     let ds = 0,
       dc = 0;
     for (let i = 1; i < n; i++) {
@@ -9587,7 +9590,14 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   // ════════════════════════════════════════════════════════════════════════
   function lombScargle(nn, times, nf) {
     const N = nn.length;
-    if (N < 12) return { tp: 0, vlf: 0, lf: 0, hf: 0, lfhf: 0, respRate: 0 };
+    /* REFUSE, DO NOT FABRICATE (Clock Contract §2.6, applied to the spectral path). Returning zeros
+       here made "too few beats to transform" indistinguishable from "measured, and the power is
+       zero" — and the zeros reach badged metrics: `hfnu`/`lfnu`/`vlf` are `validated` tier, and
+       `hfnu` computed 0/(0+0 || 1)*100 = a clean 0.0 %. Null-VALUED FIELDS rather than a null
+       object, because callers read `spec.respRate` on the result and a bare null would crash them;
+       the absence has to be visible without breaking the shape. Same discipline `sqi` already uses
+       a few hundred lines below — "an absent measurement, never a default". */
+    if (N < 12) return { tp: null, vlf: null, lf: null, hf: null, lfhf: null, respRate: null };
     const t = times.slice(0, N);
     const dt = linfit(Array.from(t), Array.from(nn));
     const x = [];
@@ -10271,7 +10281,11 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   // ════════════════════════════════════════════════════════════════════════
   function detectCVHR(nn, tt) {
     const N = nn.length;
-    if (N < 60) return { events: [], index: 0, hrSeries: [] };
+    /* REFUSE (§2.6). `index: 0` IS the exported `cvhrIndex`, and 0 reads as "we looked for cyclic
+       variation and there was none" — a clinically meaningful negative — when the truth is that
+       fewer than 60 beats cannot carry a 20–60 s cycle at all. `events` stays [] because "no events
+       found" is honest for a list; the INDEX is the claim that has to refuse. */
+    if (N < 60) return { events: [], index: null, hrSeries: [] };
     // resample instantaneous HR to 1 Hz
     const tEnd = tt[N - 1];
     const M = Math.floor(tEnd);
@@ -10891,7 +10905,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     // ONCE so the long-record spectrum, the short-record representative spectrum, and
     // cardiorespiratory coupling all report the same value. (Also fixes a latent
     // `||[0]` no-op — an empty array is truthy — that risked median([])→NaN.)
-    const _respEpoch = epochs.filter((e) => e.resp > 0).map((e) => e.resp);
+    const _respEpoch = epochs.filter((e) => e.resp != null && e.resp > 0).map((e) => e.resp);
     const _respMedian = _respEpoch.length >= 3 ? +median(_respEpoch).toFixed(1) : null;
 
     let spec;
@@ -10959,8 +10973,10 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     // shorter records: use the whole NN series. Guarantees ellipse == cloud.
     const poincareNN = longRec && repSeg.length >= 20 ? repSeg : nn;
     const pg = poincareGeo(poincareNN);
-    const sd1v = +pg.sd1.toFixed(2),
-      sd2v = +pg.sd2.toFixed(2);
+    /* `.toFixed` on a refusal would throw, and `+null` would silently become 0 — the fabrication
+       re-entering one line after the guard that removed it. Carry the null through. */
+    const sd1v = pg.sd1 == null ? null : +pg.sd1.toFixed(2),
+      sd2v = pg.sd2 == null ? null : +pg.sd2.toFixed(2);
 
     prog(92, 'CVHR / apnea detection…');
     const cvhrRaw = detectCVHR(nn, tt);
@@ -11004,7 +11020,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       crc.plvBaseline = /** @type {any} */ (sOut.length ? +mean(sOut).toFixed(3) : null);
     }
     // per-epoch respiratory-rate spread (EDR) — CPAPDex can flag resp-rate instability without airflow
-    const respVals = epochs.filter((e) => e.resp > 0).map((e) => e.resp);
+    const respVals = epochs.filter((e) => e.resp != null && e.resp > 0).map((e) => e.resp);
     const respStats =
       respVals.length >= 3 ? { n: respVals.length, min: +arrMin(respVals).toFixed(1), max: +arrMax(respVals).toFixed(1), median: +median(respVals).toFixed(1), sd: +std(respVals).toFixed(2) } : null;
 
@@ -11132,8 +11148,12 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       // poincaré
       sd1: sd1v,
       sd2: sd2v,
-      sd1sd2: +(sd1v / (sd2v || 1)).toFixed(3),
-      ellArea: +(Math.PI * sd1v * sd2v).toFixed(0),
+      /* `sd1v / (sd2v || 1)` is the same fabrication as `hfnu` below: with sd2v null the `|| 1`
+         substitutes a denominator that was never measured, and `null / 1` is 0 in JS — so a
+         refusal would have surfaced as a ratio of exactly 0.000. Both derived metrics refuse
+         when either axis is absent. */
+      sd1sd2: sd1v == null || sd2v == null ? null : +(sd1v / (sd2v || 1)).toFixed(3),
+      ellArea: sd1v == null || sd2v == null ? null : +(Math.PI * sd1v * sd2v).toFixed(0),
       poincareNN,
       poincareRep: longRec && repSeg.length >= 20,
       poincareRepTMin: repTMin,
@@ -11147,8 +11167,15 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       respRate: spec.respRate,
       respStats,
       specWindow: /** @type {any} */ (spec).window || (longRec ? 'epochMedian5min' : 'representative5min'), // §10: name the scale
-      hfnu: +((spec.hf / (spec.hf + spec.lf || 1)) * 100).toFixed(1),
-      lfnu: +((spec.lf / (spec.hf + spec.lf || 1)) * 100).toFixed(1),
+      /* 🔴 THE `|| 1` WAS THE WHOLE DEFECT, and it is worth naming precisely. With hf and lf both
+         absent the expression read `null / (null + null || 1) * 100` — `null + null` is 0, `0 || 1`
+         is 1, `null / 1` is 0 — producing a clean `0.0 %` on a `validated`-tier metric from an
+         input that was never transformed. The guard is on the MEASUREMENT, not on the denominator:
+         if either band is absent there are no normalised units to report. A genuinely measured
+         hf + lf === 0 still yields 0 via the retained `|| 1`, which is the case that guard was
+         actually for. */
+      hfnu: spec.hf == null || spec.lf == null ? null : +((spec.hf / (spec.hf + spec.lf || 1)) * 100).toFixed(1),
+      lfnu: spec.hf == null || spec.lf == null ? null : +((spec.lf / (spec.hf + spec.lf || 1)) * 100).toFixed(1),
       // non-linear
       dfa1,
       sampen,
@@ -12525,6 +12552,10 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     partKey,
     mergeMultipart,
     lombScargle,
+    /* Exported so their refusal guards are directly assertable. Additive only — no existing caller
+       reaches them through this surface, and the internal call sites are unchanged. */
+    poincareGeo,
+    detectCVHR,
     dfaAlpha1,
     sampEn,
     parseTimestamp
@@ -16322,7 +16353,16 @@ __exports.ECGUI = window.ECGUI;
      set-aside for names that ANNOUNCE they are not signal. */
   function nonSignalName(name) {
     var u = String(name == null ? '' : name).toUpperCase();
-    if (/_(CLOCK|LINK|OXYFRAME|QC|SUMMARY|TELEMETRY)\b|_(CLOCK|LINK|OXYFRAME|QC|SUMMARY|TELEMETRY)\./.test(u)) return true;
+    /* `PMDARRIVAL` was ADDED 2026-08-17 and is the same defect this function exists to prevent, one
+       generation later: the per-packet arrival sidecar (`*_PMDARRIVAL.csv`) postdates this guard by
+       days, so it was never in the set. Measured against the real routers, it returned `ecg` from
+       `ecgKind` AND `ppg` from `ppgKind` — admitted as a PRIMARY waveform in both nodes — because it
+       matches no companion suffix and falls through to the bare-name default. A real night folder
+       carries 7-341 of them (341 on 2026-08-13, 245 on 08-16), so dropping one in queued every
+       sidecar as a recording. The `.CSV` extension is deliberately NOT added to the type list below:
+       a genuine waveform legitimately arrives as `.csv`, and excluding by extension would set those
+       aside too. Name the file that announces itself, not the container. */
+    if (/_(CLOCK|LINK|OXYFRAME|PMDARRIVAL|QC|SUMMARY|TELEMETRY)\b|_(CLOCK|LINK|OXYFRAME|PMDARRIVAL|QC|SUMMARY|TELEMETRY)\./.test(u)) return true;
     if (/^QC-|^\.|\.(JSON|MD|LOG|YAML|YML|INI|CFG|PNG|JPG|PDF|ZIP)$/.test(u)) return true;
     return false;
   }

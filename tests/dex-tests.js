@@ -9191,6 +9191,75 @@
       T.approx('…and that VLF power reaches totalPower', vlow && vlow.totalPower, vlow && vlow.vlf + vlow.lf + vlow.hf, 1e-9);
     });
 
+    /* ── INSUFFICIENT INPUT REFUSES; IT DOES NOT REPORT ZERO (Clock Contract §2.6) ──────────────
+       §2.6 says a missing stamp must be visible, never fabricated. The PARSER honours that. The
+       statistical and spectral paths never inherited it: below their minimum-N guards they returned
+       ZEROS, and those zeros reach registered, badged metrics where nothing distinguishes them from
+       a real measurement of zero.
+
+       The sharpest case is `hfnu`, `validated` tier. With hf and lf absent it evaluated
+       `null / (null + null || 1) * 100` — `null + null` is 0, `0 || 1` is 1, `null / 1` is 0 —
+       publishing a clean **0.0 %** for a spectrum that was never transformed. `sd1`/`sd2` are
+       `validated` too, and `cvhrIndex: 0` reads as the clinically meaningful "no cyclic variation
+       detected" rather than "not measurable".
+
+       LATENT, NOT UNREACHABLE. Across 4 full box nights: 2349 lombScargle calls, min N = 24, zero
+       hits below the N<12 guard. One factor of two of headroom — fragmented nights, doffing gaps
+       and dropped BLE links all shorten repSeg, and phone captures have dropouts as the norm.
+
+       Each assertion below was SEEN TO FAIL against the pre-fix module (measured: hfnu 0.0 %,
+       sd1 0, sd2 0, cvhrIndex 0), not merely written after the change. */
+    group('ECGDex insufficient input REFUSES — no fabricated zeros on badged metrics (§2.6)', 'ecgdex-dsp · fabricated-absence · known-answer', function (T) {
+      var D = env.ECGDSP;
+      if (!D || typeof D.lombScargle !== 'function') {
+        T.skip('env.ECGDSP available', 'ECGDSP not co-loaded in this runner');
+        return;
+      }
+      var shortNN = [800, 810, 790, 805, 795],
+        shortT = [0, 0.8, 1.6, 2.4, 3.2];
+
+      // ── spectral: N < 12 ──
+      var s = D.lombScargle(shortNN, shortT, 160);
+      T.eq('lombScargle below N=12 refuses hf (was 0)', s && s.hf, null);
+      T.eq('…and lf', s && s.lf, null);
+      T.eq('…and vlf', s && s.vlf, null);
+      T.eq('…and tp', s && s.tp, null);
+      T.eq('…and lfhf', s && s.lfhf, null);
+      T.eq('…and respRate — an unmeasured rate is not 0 breaths/min', s && s.respRate, null);
+      /* The published expression, reproduced exactly. This is the assertion that pins the defect:
+         the `|| 1` denominator turned two absent bands into a confident 0.0 % on a validated metric. */
+      var hfnu = s && (s.hf == null || s.lf == null ? null : +((s.hf / (s.hf + s.lf || 1)) * 100).toFixed(1));
+      T.eq('hfnu is null, NOT the 0.0 % the `|| 1` used to publish', hfnu, null);
+
+      // ── the guard must not have eaten the measurement ──
+      var nn = [],
+        tt = [],
+        t = 0;
+      for (var i = 0; i < 200; i++) {
+        var rr = 900 + 45 * Math.sin((2 * Math.PI * 0.25 * t) / 1000);
+        nn.push(rr);
+        tt.push(t / 1000);
+        t += rr;
+      }
+      var ok = D.lombScargle(nn, tt, 300);
+      T.ok('…while a sufficient series still MEASURES (refusal is not a blanket null)', ok && ok.hf != null && ok.hf > 0, 'hf ' + (ok && ok.hf));
+
+      // ── Poincaré: n < 3 ──
+      if (typeof D.poincareGeo === 'function') {
+        var pg = D.poincareGeo([800, 810]);
+        T.eq('poincareGeo below n=3 refuses sd1 (validated tier — was 0)', pg && pg.sd1, null);
+        T.eq('…and sd2', pg && pg.sd2, null);
+        T.ok('…while 200 beats still measure', D.poincareGeo(nn).sd1 > 0);
+      } else T.skip('poincareGeo exported', 'not on this build');
+
+      // ── CVHR: N < 60 ──
+      if (typeof D.detectCVHR === 'function') {
+        var c = D.detectCVHR(shortNN, shortT);
+        T.eq('detectCVHR below N=60 refuses its index — "not measurable", not "no cyclic variation"', c && c.index, null);
+        T.ok('…and events stays an empty LIST, which is honest for a list', !!c && Array.isArray(c.events) && c.events.length === 0);
+      } else T.skip('detectCVHR exported', 'not on this build');
+    });
+
     group('ECGDSP frequency-domain HRV — LF/HF band split known-answer (deep-scout §EP)', 'ecgdex-dsp · spectral · known-answer', function (T) {
       var D = env.ECGDSP;
       if (!D || typeof D.lombScargle !== 'function') {
@@ -44176,7 +44245,21 @@
         T.eq('§6.4a · the orchestrator agrees on _MAG', SO.streamKind(magHost), 'magn');
       }
       // (b) capture-host telemetry and sidecars are set aside, not queued as recordings
-      ['Tepna_20260720045557_CLOCK.csv', 'Tepna_20260720045557_LINK.csv', 'QC-SUMMARY.json', '.archived'].forEach(function (n) {
+      /* `_PMDARRIVAL.csv` ADDED 2026-08-17 — §6.4b a generation later, and the same defect because the
+         file POSTDATES the guard. The per-packet arrival sidecar began 2026-08-11, after this set was
+         written, so nothing covered it: measured against the real routers it returned `ecg` from
+         `ecgKind` AND `ppg` from `ppgKind` — a PRIMARY waveform in BOTH nodes — because it matches no
+         companion suffix and falls through to the bare-name default. A real night folder carries 7-341
+         of them (341 on 2026-08-13, 245 on 08-16), so one drop queued every sidecar as a recording.
+         Both device spellings are pinned: the H10 and the Verity each write their own. */
+      [
+        'Tepna_20260720045557_CLOCK.csv',
+        'Tepna_20260720045557_LINK.csv',
+        'QC-SUMMARY.json',
+        '.archived',
+        'Polar_H10_02849638_20260813000348_PMDARRIVAL.csv',
+        'Polar_VeritySense_0C301E3F_20260813000305_PMDARRIVAL.csv'
+      ].forEach(function (n) {
         T.eq('§6.4b · non-signal file is set aside, not queued as an ECG: ' + n, I.ecgKind(n), 'skip');
         T.eq('§6.4b · …nor as a PPG: ' + n, I.ppgKind(n), 'skip');
       });

@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import cmath
 import math
 import os
 import subprocess
@@ -909,6 +910,101 @@ def host_jitter(delays: list[float], min_n: int = 100) -> dict | None:
     }
 
 
+# BLE negotiates its connection interval in units of 1.25 ms, so a recovered period is checkable
+# against that grid rather than merely plausible. Measured: H10 45.00 ms (36 units), Verity 30.00 ms (24).
+CK_BLE_UNIT_MS = 1.25
+# The period must be small enough that the DATA SPANS several of them. Without this the scan returns its
+# own upper bound: if one period covers the whole support every value shares a phase and R is trivially
+# ~1. A planted 12.5 ms lattice on +/-50 ms support was "recovered" as 300 ms, the edge of the range.
+CK_LATTICE_MIN_CYCLES = 4.0
+# The scan is O(grid * n) and a night is ~50 000 packets, so the series is strided to this many points.
+CK_LATTICE_MAX_POINTS = 4000
+
+
+def connection_lattice(delays: list[float], *, device_axis_is_clock: bool = True,
+                       min_n: int = 300) -> dict | None:
+    """Is the host-added delay QUANTISED, and to what period? The BLE connection interval, from data.
+
+    A packet can only be delivered on a connection event, so the delivery delay is not a continuous
+    random variable — it is an integer number of connection intervals plus a small residual. This finds
+    that period without being told it, by the circular concentration
+
+        R(s) = | mean( exp(2i*pi*x/s) ) |
+
+    which is 1 for a perfect lattice of spacing `s` and ~1/sqrt(n) for anything continuous. `x` is the
+    DIFFERENCED delay, the same series `host_jitter` summarises.
+
+    Measured over the real corpus: **H10 R=0.95 at 44.94 ms, Verity ppg R=0.84 at 30.01 ms** — 36 and 24
+    exact BLE units. Adding U(0, 45 ms) to the H10 series collapses R from 0.976 to 0.005, which is the
+    control that makes the number mean something.
+
+    ⚠️ **THIS IS NOT A BOUND ON THE JITTER, and reading it as one is the mistake to avoid.** The lattice
+    sets the GRANULARITY; the width spans many teeth. The robust sigma is 2.6x one interval on the H10
+    and 9.6x on Verity ppg. A packet is late by an integer number of connection events, and that integer
+    is not small.
+
+    ⚠️ **SUBMULTIPLES ALSO SCORE HIGH, by construction** — every multiple of 45 is a multiple of 22.5 and
+    15. The fundamental is the LARGEST period that scores, and it wins on real data because phase error
+    scales as 1/s (H10: 0.982 at 45 ms against 0.943 at 22.5 and 0.906 at 15). Reporting a submultiple
+    would understate the granularity by an integer factor, so the scan takes the argmax rather than the
+    first peak.
+
+    **MEASURED EVERY SESSION, NEVER ASSUMED — the interval is NEGOTIATED per connection.** It is a
+    property of this adapter, this stack and this link, not of the device model: swap the dongle, or let
+    the peer renegotiate, and it changes. Nothing here carries a default, and the 45/30 ms figures above
+    are corpus OBSERVATIONS quoted for the reader, not constants the code consults. `arrival_quality`
+    runs this per stream per file, so the value lands in each night's summary and a change of adapter
+    shows up as a changed `period_ms` rather than as unexplained jitter.
+
+    Reported, gated by NOTHING — see `host_jitter` for why an arrival diagnostic does not get a threshold.
+    """
+    if not delays or len(delays) < min_n:
+        return None
+    # THE DEVICE AXIS HAS TO BE A CLOCK, or this measures the wrong thing. `delays` is
+    # `host - device`, and differencing it removes the device's cadence ONLY if the device supplied
+    # one. Where the axis is drawn the subtraction injects that instead: a FROZEN stamp reduces the
+    # series to raw host inter-arrival times, and a 1 s quantised counter stamps its own quantum on it.
+    # Measured on the O2Ring, which is the whole reason this refusal exists: of 28 streams, 19 have a
+    # frozen stamp and 9 a 1 s counter — NOT ONE has a real clock, and the scan was returning 6.30 BLE
+    # units, a non-integer, at R 0.52. A refusal is the honest answer; a number there is an artifact.
+    if not device_axis_is_clock:
+        return {"ok": False, "reason": "device-axis-not-a-clock", "n": len(delays) - 1}
+    x = [delays[i] - delays[i - 1] for i in range(1, len(delays))]
+    srt = sorted(x)
+    pick = lambda p: srt[min(len(srt) - 1, int(p * len(srt)))]  # noqa: E731 - local quantile
+    spread = pick(0.95) - pick(0.05)
+    hi = spread / CK_LATTICE_MIN_CYCLES
+    lo = 2.0
+    if not (hi > lo):
+        return None                      # too narrow to span several periods: see CK_LATTICE_MIN_CYCLES
+    step = max(1, len(x) // CK_LATTICE_MAX_POINTS)
+    xs = x[::step]
+    n = len(xs)
+    best_r, best_s = 0.0, None
+    grid = 1600
+    for i in range(grid):
+        s = lo * (hi / lo) ** (i / (grid - 1))
+        r = abs(sum(cmath.exp(2j * math.pi * v / s) for v in xs) / n)
+        if r > best_r:
+            best_r, best_s = r, s
+    for i in range(400):                 # refine +/-1.5 % around the coarse peak
+        s = best_s * (0.985 + 0.03 * i / 399)
+        r = abs(sum(cmath.exp(2j * math.pi * v / s) for v in xs) / n)
+        if r > best_r:
+            best_r, best_s = r, s
+    return {
+        "ok": True,
+        "period_ms": round(best_s, 3),
+        # Whether the period lands on BLE's own 1.25 ms grid is the check that it is a LINK parameter
+        # rather than a number the scan liked. Published as the raw ratio, not rounded to an integer.
+        "ble_units": round(best_s / CK_BLE_UNIT_MS, 2),
+        "R": round(best_r, 3),
+        "n": n,
+        # Rayleigh: p = exp(-n R^2). It underflows immediately on real data, so the exponent is reported.
+        "neg_log10_p": round(n * best_r * best_r / math.log(10), 1),
+    }
+
+
 def device_stamp_constant(stamps, min_n: int = 200):
     """Did this stream's device timestamp advance AT ALL over the capture?
 
@@ -1015,6 +1111,7 @@ def arrival_quality(night_dir: str) -> list[dict]:
             continue
         for (device, meas), pairs in sorted(per.items()):
             quantised = meas.endswith("_DURATION_S")
+            stamp_frozen = device_stamp_constant([ns for _, _, ns in pairs])
             diffs = [d for _, d, _ in pairs]
             est, spread = (None, None) if quantised else writers.PmdArrivalLogWriter.floor_ms(diffs)
             # t relative to this stream's first packet, in seconds — the estimator quotes its offset at
@@ -1028,9 +1125,14 @@ def arrival_quality(night_dir: str) -> list[dict]:
                 "file": name, "device": device, "meas": meas, "rows": len(diffs),
                 "quantised": quantised,
                     # Explains the refusal above when it is NOT skew: see device_stamp_constant.
-                    "device_stamp_constant": device_stamp_constant([ns for _, _, ns in pairs]),
+                    "device_stamp_constant": stamp_frozen,
                 "offset": offset,
                     "jitter": jit,
+                # THE GRANULARITY BEHIND THAT JITTER: delivery happens on connection events, so
+                # the delay is an integer number of them. See connection_lattice — and note it is
+                # a granularity, NOT a bound; the spread covers many teeth.
+                    "lattice": connection_lattice(
+                        diffs, device_axis_is_clock=not (quantised or bool(stamp_frozen))),
                     # HOW WELL DO WE KNOW *WHEN*? A GUM budget over terms already measured here, so a
                     # consumer gets one number with its parts rather than four diagnostics to weigh.
                     # `tau` is the stability curve's own optimal averaging time — where `adev_min` was
