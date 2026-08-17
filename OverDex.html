@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2c+NhGS5baEp+dkR92QyPev/wf2fl0amYca/JbyYiCk=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7oHiD+bMFu7PAJ8DITaVlISLmk0rNQd3hvceyXJVJOE=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UhOyYklF0oR6diFq0C93L2hL6VY0/z1/kwApfDX0WNo=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-Zg0VuZposJeHUmYwdGlxPYv7/96XL9I90WDHTkIO/fI=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qcqYxRubUqXg41nj4CLdzPeeY55rND+blST3sR3Tg1I=' 'sha256-vTHcYCT7T8BXXhlHTAa4nKdoEsbp2BN90lPR9Y8llUE=' 'sha256-yjtp8MVnI3SuljHutpPt9A8O4mMvt4dI82G2xauua68='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2c+NhGS5baEp+dkR92QyPev/wf2fl0amYca/JbyYiCk=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7oHiD+bMFu7PAJ8DITaVlISLmk0rNQd3hvceyXJVJOE=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-KT37bp0y0ke8bMQOKs4x1LCCi2NIvgysOwzCVi14uPk=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UhOyYklF0oR6diFq0C93L2hL6VY0/z1/kwApfDX0WNo=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-Zg0VuZposJeHUmYwdGlxPYv7/96XL9I90WDHTkIO/fI=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-vTHcYCT7T8BXXhlHTAa4nKdoEsbp2BN90lPR9Y8llUE=' 'sha256-yjtp8MVnI3SuljHutpPt9A8O4mMvt4dI82G2xauua68='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -29200,7 +29200,10 @@ __exports.PpgDex = window.PpgDex;
   // SD1 = SDSD/√2 (short axis, beat-to-beat), SD2 = √(2·SDNN² − SD1²) (long axis).
   function poincareGeo(nn) {
     const n = nn.length;
-    if (n < 3) return { sd1: 0, sd2: 0 };
+    /* REFUSE (§2.6). sd1/sd2 are `validated` tier, so a fabricated 0 here is a badged claim that
+       beat-to-beat variability WAS measured and was zero — the strongest statement this file can
+       make, from two beats. Two points cannot define a dispersion at all. */
+    if (n < 3) return { sd1: null, sd2: null };
     let ds = 0,
       dc = 0;
     for (let i = 1; i < n; i++) {
@@ -30146,7 +30149,14 @@ __exports.PpgDex = window.PpgDex;
   // ════════════════════════════════════════════════════════════════════════
   function lombScargle(nn, times, nf) {
     const N = nn.length;
-    if (N < 12) return { tp: 0, vlf: 0, lf: 0, hf: 0, lfhf: 0, respRate: 0 };
+    /* REFUSE, DO NOT FABRICATE (Clock Contract §2.6, applied to the spectral path). Returning zeros
+       here made "too few beats to transform" indistinguishable from "measured, and the power is
+       zero" — and the zeros reach badged metrics: `hfnu`/`lfnu`/`vlf` are `validated` tier, and
+       `hfnu` computed 0/(0+0 || 1)*100 = a clean 0.0 %. Null-VALUED FIELDS rather than a null
+       object, because callers read `spec.respRate` on the result and a bare null would crash them;
+       the absence has to be visible without breaking the shape. Same discipline `sqi` already uses
+       a few hundred lines below — "an absent measurement, never a default". */
+    if (N < 12) return { tp: null, vlf: null, lf: null, hf: null, lfhf: null, respRate: null };
     const t = times.slice(0, N);
     const dt = linfit(Array.from(t), Array.from(nn));
     const x = [];
@@ -30830,7 +30840,11 @@ __exports.PpgDex = window.PpgDex;
   // ════════════════════════════════════════════════════════════════════════
   function detectCVHR(nn, tt) {
     const N = nn.length;
-    if (N < 60) return { events: [], index: 0, hrSeries: [] };
+    /* REFUSE (§2.6). `index: 0` IS the exported `cvhrIndex`, and 0 reads as "we looked for cyclic
+       variation and there was none" — a clinically meaningful negative — when the truth is that
+       fewer than 60 beats cannot carry a 20–60 s cycle at all. `events` stays [] because "no events
+       found" is honest for a list; the INDEX is the claim that has to refuse. */
+    if (N < 60) return { events: [], index: null, hrSeries: [] };
     // resample instantaneous HR to 1 Hz
     const tEnd = tt[N - 1];
     const M = Math.floor(tEnd);
@@ -31450,7 +31464,7 @@ __exports.PpgDex = window.PpgDex;
     // ONCE so the long-record spectrum, the short-record representative spectrum, and
     // cardiorespiratory coupling all report the same value. (Also fixes a latent
     // `||[0]` no-op — an empty array is truthy — that risked median([])→NaN.)
-    const _respEpoch = epochs.filter((e) => e.resp > 0).map((e) => e.resp);
+    const _respEpoch = epochs.filter((e) => e.resp != null && e.resp > 0).map((e) => e.resp);
     const _respMedian = _respEpoch.length >= 3 ? +median(_respEpoch).toFixed(1) : null;
 
     let spec;
@@ -31518,8 +31532,10 @@ __exports.PpgDex = window.PpgDex;
     // shorter records: use the whole NN series. Guarantees ellipse == cloud.
     const poincareNN = longRec && repSeg.length >= 20 ? repSeg : nn;
     const pg = poincareGeo(poincareNN);
-    const sd1v = +pg.sd1.toFixed(2),
-      sd2v = +pg.sd2.toFixed(2);
+    /* `.toFixed` on a refusal would throw, and `+null` would silently become 0 — the fabrication
+       re-entering one line after the guard that removed it. Carry the null through. */
+    const sd1v = pg.sd1 == null ? null : +pg.sd1.toFixed(2),
+      sd2v = pg.sd2 == null ? null : +pg.sd2.toFixed(2);
 
     prog(92, 'CVHR / apnea detection…');
     const cvhrRaw = detectCVHR(nn, tt);
@@ -31563,7 +31579,7 @@ __exports.PpgDex = window.PpgDex;
       crc.plvBaseline = /** @type {any} */ (sOut.length ? +mean(sOut).toFixed(3) : null);
     }
     // per-epoch respiratory-rate spread (EDR) — CPAPDex can flag resp-rate instability without airflow
-    const respVals = epochs.filter((e) => e.resp > 0).map((e) => e.resp);
+    const respVals = epochs.filter((e) => e.resp != null && e.resp > 0).map((e) => e.resp);
     const respStats =
       respVals.length >= 3 ? { n: respVals.length, min: +arrMin(respVals).toFixed(1), max: +arrMax(respVals).toFixed(1), median: +median(respVals).toFixed(1), sd: +std(respVals).toFixed(2) } : null;
 
@@ -31691,8 +31707,12 @@ __exports.PpgDex = window.PpgDex;
       // poincaré
       sd1: sd1v,
       sd2: sd2v,
-      sd1sd2: +(sd1v / (sd2v || 1)).toFixed(3),
-      ellArea: +(Math.PI * sd1v * sd2v).toFixed(0),
+      /* `sd1v / (sd2v || 1)` is the same fabrication as `hfnu` below: with sd2v null the `|| 1`
+         substitutes a denominator that was never measured, and `null / 1` is 0 in JS — so a
+         refusal would have surfaced as a ratio of exactly 0.000. Both derived metrics refuse
+         when either axis is absent. */
+      sd1sd2: sd1v == null || sd2v == null ? null : +(sd1v / (sd2v || 1)).toFixed(3),
+      ellArea: sd1v == null || sd2v == null ? null : +(Math.PI * sd1v * sd2v).toFixed(0),
       poincareNN,
       poincareRep: longRec && repSeg.length >= 20,
       poincareRepTMin: repTMin,
@@ -31706,8 +31726,15 @@ __exports.PpgDex = window.PpgDex;
       respRate: spec.respRate,
       respStats,
       specWindow: /** @type {any} */ (spec).window || (longRec ? 'epochMedian5min' : 'representative5min'), // §10: name the scale
-      hfnu: +((spec.hf / (spec.hf + spec.lf || 1)) * 100).toFixed(1),
-      lfnu: +((spec.lf / (spec.hf + spec.lf || 1)) * 100).toFixed(1),
+      /* 🔴 THE `|| 1` WAS THE WHOLE DEFECT, and it is worth naming precisely. With hf and lf both
+         absent the expression read `null / (null + null || 1) * 100` — `null + null` is 0, `0 || 1`
+         is 1, `null / 1` is 0 — producing a clean `0.0 %` on a `validated`-tier metric from an
+         input that was never transformed. The guard is on the MEASUREMENT, not on the denominator:
+         if either band is absent there are no normalised units to report. A genuinely measured
+         hf + lf === 0 still yields 0 via the retained `|| 1`, which is the case that guard was
+         actually for. */
+      hfnu: spec.hf == null || spec.lf == null ? null : +((spec.hf / (spec.hf + spec.lf || 1)) * 100).toFixed(1),
+      lfnu: spec.hf == null || spec.lf == null ? null : +((spec.lf / (spec.hf + spec.lf || 1)) * 100).toFixed(1),
       // non-linear
       dfa1,
       sampen,
@@ -33084,6 +33111,10 @@ __exports.PpgDex = window.PpgDex;
     partKey,
     mergeMultipart,
     lombScargle,
+    /* Exported so their refusal guards are directly assertable. Additive only — no existing caller
+       reaches them through this surface, and the internal call sites are unchanged. */
+    poincareGeo,
+    detectCVHR,
     dfaAlpha1,
     sampEn,
     parseTimestamp
