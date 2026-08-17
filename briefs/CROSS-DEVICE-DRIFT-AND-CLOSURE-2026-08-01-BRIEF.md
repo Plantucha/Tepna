@@ -491,11 +491,83 @@ The defence is redundancy in the measurement, not more surrogates.
       night (classic, ρ = 0); elsewhere the solver needs ρ = 0.45–0.79. And the σ it returns is **not
       clock jitter**: beat-derived offsets carry pulse arrival time into both ECG pairs, so TCH
       attributes physiology to a device.
-- [ ] If per-device timing σ is genuinely wanted, get a third **mechanical** channel — or measure
-      against the capture host, which is an independent timing path by construction. Two IMUs is one
-      short.
-- [ ] Consider inverse-variance weighting in `fitClockOffsetPooled` (§3.4). **Not** on this evidence —
-      it needs a σ that is not physiology.
+- [x] **DONE 2026-08-17 — measured against the capture host, on 344 streams across 16 box nights. The
+      third mechanical channel was never needed; the host is the independent timing path.**
+      `tools/device-stability.mjs` (`--selftest` for the known answer), gated by
+      `device-stability · per-device-sigma`. It reuses `DexClock.hostAxis(…).stability` — **not** a
+      fourth Allan implementation (`HOSTAXIS-STABILITY` §4.3); the corpus walk and the roll-up are its
+      only contribution.
+
+      **Why the host route works where §2.6's TCH did not.** §2.6 got σ_ECG = 128 ms and rightly
+      refused to call it a clock: both ECG-containing pairs carry pulse arrival time, so TCH attributed
+      physiology to a device. `Phone timestamp` vs `sensor timestamp [ns]` contains **no beat**, so
+      nothing in it *can* carry a transit delay. That is the property §2.6 found missing, and it was
+      already in every raw capture file.
+
+      | device | streams | nights | ADEV slope | σ_y(τ = 256 s) | noise type |
+      |---|---|---|---|---|---|
+      | **Polar H10** | 98 | 16 | −0.99 [−1.06…−0.91] | **388 ppm** [171…764] | white/flicker **phase** |
+      | **Polar Verity Sense** | 218 | 16 | −1.00 [−1.03…−0.88] | **843 ppm** [248…1945] | white/flicker **phase** |
+      | Wellue O2Ring-S | 28 | 14 | −0.55 [−0.98…−0.30] | 1195 [178…15032] | white **frequency**, mixed |
+
+      ⚠ **THE QUESTION AS ASKED — "WHICH CLOCK IS UNSTABLE" — IS NOT WHAT THIS ANSWERS, and the slope
+      is what says so.** Every Polar curve is τ⁻¹ across the whole reachable τ range: phase noise all
+      the way out, so **neither crystal is ever reached** and this instrument cannot rank the crystals.
+      What it ranks is the **timing PATH**, and there the answer is unambiguous — the H10 is quieter
+      than the Verity on **16 of 16 paired nights**, median ratio **2.27×**, holding on the primary
+      streams alone (H10 ECG 452 ppm vs Verity PPG 808 ppm). Inverting the τ⁻¹ model names the
+      mechanism: implied arrival jitter **50 ms for the H10** (≈1 × its 45 ms connection interval)
+      against **124 ms for the Verity** (≈4 × its 30 ms). That is BLE delivery, not crystal quality.
+
+      **The corollary is the part that generalises:** because the noise is white phase throughout,
+      **averaging always pays — the limit on any rate estimate here is recording LENGTH, not a
+      stability floor.** No device in this corpus needs a stability gate. This reproduces
+      `ALLAN-DEVIATION`'s four-stream and `HOSTAXIS-STABILITY` §2's two-file results at 344-stream
+      scale, and it is why §6's guardrail still binds: a ppm from a short fragment is mostly noise —
+      now quantified rather than asserted.
+
+      **A method finding worth more than the table, because it nearly shipped as its opposite.** The
+      first crystal check here compared fragment rates by raw max−min spread, and failed **25 of 40
+      device-nights** — including 10 H10 nights, which would have contradicted
+      `WEARABLE-DRIFT-DIRECT` §1's ±2–3 ppm. §1 was right and this was wrong: it filtered to fragments
+      > 3 MB. On 2026-08-01 the H10's 563-minute fragment reads **−21.0 ± 2.4 ppm** while its 28-minute
+      fragments read −119.5 ± 309 and +12.5 ± 307 — **the same measurement**, every short value inside
+      1σ. Judged through the error bars (inverse-variance mean, reduced χ² = 0.07) the night is a
+      crystal at −21.0 ± 2.4, and **39 of 40 device-nights** now hold one; the single failure is the
+      O2Ring on 2026-08-01, χ²red 6.30, exactly as `WEARABLE-DRIFT-DIRECT` §7.1 predicted. **This is
+      the concrete payoff of publishing `ppmUncertainty`:** without σ_i the decision cannot be made
+      correctly, only made confidently.
+
+      ⛔ **What this does NOT license: revisiting ECGDex's 2400 s span gate.** The arithmetic is
+      tempting — σ_y ∝ τ⁻¹ from 388 ppm at 256 s reaches ~20 ppm only near 5000 s — and it is precisely
+      the claim `HOSTAXIS-STABILITY` §3 **made and withdrew**. Its lesson 2 stands: ADEV and the
+      uncertainty of the endpoint estimator ECGDex actually uses are different quantities, coinciding
+      only for white phase and even then differing by a constant. The gate moves when someone derives
+      the bound **for that estimator**, not before.
+
+- [x] **ANSWERED 2026-08-17 — still NO, but now for a measured reason instead of a missing one.** The
+      item deferred inverse-variance weighting because it "needs a σ that is not physiology". That σ
+      now exists (above), so the question is properly answerable — and the answer holds, with the
+      reasoning moved from *absent evidence* to *wrong quantity*.
+
+      **`hostAxis.stability` yields a per-DEVICE CLOCK σ; `fitClockOffsetPooled` weights per-CHANNEL
+      OFFSET estimates.** Different quantities: the pooled fit's channels differ in how sharply each
+      event type localises in time (a desaturation edge against a movement onset), which is
+      **event-morphology**, not a clock property. Weighting channels by their devices' clock stability
+      would import a number that differs 2.27× between two devices whose *events* may localise
+      identically — a confident wrong weight in place of an honest equal one.
+
+      **What would justify it is a per-channel σ of the offset estimate itself**, which §3.4 already
+      notes the estimator computes a curve for. That remains unbuilt, and it — not the clock σ — was
+      always the real precondition.
+
+      ⚠ **And `integrator-tch.js inverseVarianceWeights` is the wrong function to reach for even then.**
+      It **floors** each σ² at 8 % of the largest, so a spuriously near-zero σ² cannot capture all the
+      weight on short records. In clock work the σ span two orders of magnitude legitimately (2.4 ppm
+      against 376 ppm on one night) and the **smallest is the most trustworthy, not the most suspect** —
+      that regularisation would discard the fragment carrying the answer. Same formula, opposite failure
+      mode. Found while building the crystal check above, which needed exactly this weighting and could
+      not reuse it.
 
 ## 6 · Guardrail
 

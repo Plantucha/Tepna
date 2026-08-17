@@ -25,6 +25,7 @@ import { classify as commitShape } from '../tools/commit-shape.mjs';
 import * as captureRecapture from '../tools/capture-recapture.mjs';
 import { estimate as beatCrEstimate, estSummary as beatCrSummary } from '../tools/beat-capture-recapture.mjs';
 import { attenuateAndRecover, buildTemplate as beatBuildTemplate } from '../tools/beat-injection-recovery.mjs';
+import * as deviceStability from '../tools/device-stability.mjs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
@@ -1708,6 +1709,11 @@ async function main() {
        documented as "used by the self-test" and no self-test — no group, nothing in `npm run check`,
        nothing calling it. Node-lane only (an ESM import of a tool), so the browser lane SKIPs, exactly
        like docsLedger. */
+    /* device-stability's PURE decision cores — the per-stream verdict, the common-τ read, and the
+       is-it-a-crystal test. Same shape and same reason as rebaseClassify below: the tool walks a
+       corpus that CI does not have, so what can be gated is the reasoning, driven by value. Node-lane
+       only (an ESM import of a tool), so the browser lane SKIPs. */
+    deviceStability: deviceStability,
     rebaseClassify: rebaseClassify,
     /* land-pr's PURE decision core. Same shape and same reason as rebaseClassify above: the tool's
        value is a state machine that must not be re-derived by hand in every session, and a state
