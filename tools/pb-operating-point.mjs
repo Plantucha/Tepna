@@ -8,13 +8,36 @@
  * OXYDEX-PB-OVERCALL-2026-07-31 §4 asks for the emission threshold's derivation and an operating-point
  * sweep. This runs the sweep against a real corpus, driving the SHIPPED `processNight` — no reimplementation.
  *
- * THE DETECTOR. A 5-min window is flagged when, per `detectOscillations`:
+ * ⚠️ THE DETECTOR THIS TOOL WAS WRITTEN AGAINST NO LONGER EXISTS — re-derived 2026-08-17.
+ * Everything below describes the PREDECESSOR, and is kept because this tool's whole output is a
+ * critique of it. `OXYDEX-PB-DETECTOR-2026-08-09-BRIEF.md` replaced it with a periodicity gate, and
+ * the selftest's tripwire required the central claim be RE-DERIVED rather than re-quoted. It was,
+ * on this corpus, paired over the same 42 nights, old code vs new:
+ *
+ *     nights flagged            38/42   ->  16/42
+ *     r, episodes vs %<95%      0.910   ->  0.370
+ *     r, episodes vs mean SpO2 -0.832   -> -0.380
+ *
+ * So the critique below is now HISTORICAL: the over-call it measured has been substantially removed,
+ * and burden no longer explains most of the signal. Note 0.370 is not 0 — PB and hypoxemia genuinely
+ * co-occur, and a detector uncorrelated with burden would be suspicious in the other direction.
+ * Corroborated independently through the node-export path on 18 identical nights: nights with >= 1 PB
+ * episode 14/18 -> 4/18, total episodes 119 -> 5.
+ *
+ * THE PREDECESSOR (what the numbers below were measured against). A 5-min window was flagged when,
+ * per `detectOscillations`:
  *     lowMotion (motion fraction < 0.08)
  *     sustained (>= 40 samples below SPO2_OSC_THRESHOLD)
  *     cross >= OSC_FLAG_CROSSINGS          (crossings of the ABSOLUTE 95 % level)
- * There is NO cycle-length criterion in the gate — `cycleLen` is computed for `meta` only — and no
- * crescendo-decrescendo test. The three constants carry no citation; oxydex-dsp labels them
+ * There was NO cycle-length criterion in the gate — `cycleLen` was computed for `meta` only — and no
+ * crescendo-decrescendo test. The three constants carried no citation; oxydex-dsp labelled them
  * "detector tuning" and "algorithmic" in their own comments.
+ *
+ * THE CURRENT GATE, for contrast: episodes are variable-length runs from `detectSpO2Periodicity`,
+ * gated on baseline-relative crossings + cycle length in 40-130 s + >= PB_MIN_CYCLES consecutive
+ * cycles on DISJOINT pairs + cycle-length regularity (CV < PB_MAX_CYCLE_CV), then filtered for motion
+ * per episode. The fixed 5-min window is gone: four cycles at up to 130 s need 520 s and could never
+ * have fitted in the window they were scored in.
  *
  * WHY THAT MATTERS. AASM scores Cheyne-Stokes on a cycle length of AT LEAST 40 s (typically 45-90 s),
  * >= 3 consecutive cycles, and a crescendo-decrescendo envelope, measured against the patient's OWN
@@ -152,10 +175,22 @@ function selftest() {
   const crs = src.match(/OSC_FLAG_CROSSINGS:\s*(\d+)/);
   ok('SPO2_OSC_THRESHOLD is still 95 (the absolute level this analysis turns on)', thr && thr[1] === '95');
   ok('OSC_FLAG_CROSSINGS is still 6', crs && crs[1] === '6');
-  /* And the gate still has NO cycle-length criterion — the moment it gains one, this tool's central
-     claim ("it cannot distinguish periodicity") needs re-deriving rather than re-quoting. */
-  const gate = src.match(/if \(lowMotion && sustained && cross >= CFG\.OSC_FLAG_CROSSINGS\)/);
-  ok('the flag gate is still lowMotion && sustained && crossings — no cycle-length term', !!gate);
+  /* ── THE TRIPWIRE FIRED, 2026-08-17, and was honoured rather than flipped ──────────────────────
+     This used to assert `if (lowMotion && sustained && cross >= CFG.OSC_FLAG_CROSSINGS)` and read
+     "no cycle-length term". Its own comment set the obligation: *the moment it gains one, this tool's
+     central claim ("it cannot distinguish periodicity") needs RE-DERIVING rather than re-quoting.*
+     OXYDEX-PB-DETECTOR wired a periodicity gate, so the claim WAS re-derived on this corpus — the
+     numbers are in the header. The assertion is re-pointed, not deleted, so the next unannounced
+     change to the gate trips exactly as this one did. */
+  const gate = src.match(/detectSpO2Periodicity\(spo2Series, CFG\)/);
+  ok('the flag gate is now periodicity-gated (detectSpO2Periodicity drives the episodes)', !!gate);
+  const motionGuard = src.match(/if \(motion \/ span >= 0\.08\) continue;/);
+  ok('and low-motion rejection survived the rewrite, per-episode rather than per-window', !!motionGuard);
+  /* The four criteria ARE the detector's spec (brief §2 + §2.3); each is a named constant so this
+     selftest can see it. A missing one means the gate was quietly weakened. */
+  for (const k of ['PB_CYCLE_MIN_SEC', 'PB_CYCLE_MAX_SEC', 'PB_MIN_CYCLES', 'PB_MAX_CYCLE_CV']) {
+    ok(`${k} is present — the four gating criteria are all still named`, new RegExp(`${k}:\\s*[\\d.]+`).test(src));
+  }
   console.log(fail ? `\n✕ selftest: ${fail} failing` : '\n✓ selftest: all passing');
   process.exit(fail ? 1 : 0);
 }

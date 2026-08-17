@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2c+NhGS5baEp+dkR92QyPev/wf2fl0amYca/JbyYiCk=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7oHiD+bMFu7PAJ8DITaVlISLmk0rNQd3hvceyXJVJOE=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-Zg0VuZposJeHUmYwdGlxPYv7/96XL9I90WDHTkIO/fI=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qcqYxRubUqXg41nj4CLdzPeeY55rND+blST3sR3Tg1I=' 'sha256-vTHcYCT7T8BXXhlHTAa4nKdoEsbp2BN90lPR9Y8llUE=' 'sha256-xKtu+5OHKAfV32+JqFpE+83ScE8qSVYyo2nZOCGsDR4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2c+NhGS5baEp+dkR92QyPev/wf2fl0amYca/JbyYiCk=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7oHiD+bMFu7PAJ8DITaVlISLmk0rNQd3hvceyXJVJOE=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-Zg0VuZposJeHUmYwdGlxPYv7/96XL9I90WDHTkIO/fI=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qcqYxRubUqXg41nj4CLdzPeeY55rND+blST3sR3Tg1I=' 'sha256-vTHcYCT7T8BXXhlHTAa4nKdoEsbp2BN90lPR9Y8llUE=' 'sha256-yjtp8MVnI3SuljHutpPt9A8O4mMvt4dI82G2xauua68='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -6701,27 +6701,98 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     }
     // Criterion 4 gates: a run that is long enough but IRREGULAR is not periodic breathing.
     var periodic = best >= cfg.PB_MIN_CYCLES && cv !== null && cv < cfg.PB_MAX_CYCLE_CV;
-    return { periodic: periodic, longestRun: best, cycleLen: med, cycleCV: cv === null ? null : +cv.toFixed(4), nCycles: cycles.length };
+
+    // EPISODES — maximal runs of in-window cycles that also clear the count and regularity gates.
+    // Cycle j is built from halves[2j] + halves[2j+1], so it spans cross[2j] .. cross[2j+2]; a run of
+    // cycles a..b therefore spans cross[2a] .. cross[2b+2].
+    // A whole maximal run is accepted or rejected as ONE unit — a long in-window but irregular stretch
+    // is NOT re-scanned for a regular sub-run. That is deliberate and conservative: this detector exists
+    // because the predecessor over-called, and searching sub-runs for the most regular window is exactly
+    // the multiple-comparisons move that let a random dip train look periodic (§2.3).
+    var episodes = [],
+      runStart = -1,
+      curLens = [];
+    function closeRun(endCycleIdx) {
+      if (runStart >= 0 && curLens.length >= cfg.PB_MIN_CYCLES) {
+        var mm =
+          curLens.reduce(function (a, b) {
+            return a + b;
+          }, 0) / curLens.length;
+        var vv =
+          Math.sqrt(
+            curLens.reduce(function (s, b) {
+              return s + (b - mm) * (b - mm);
+            }, 0) / curLens.length
+          ) / mm;
+        if (vv < cfg.PB_MAX_CYCLE_CV) {
+          var sIdx = cross[2 * runStart],
+            eIdx = cross[2 * endCycleIdx + 2];
+          if (sIdx != null && eIdx != null) episodes.push({ startIdx: sIdx, endIdx: eIdx, cycles: curLens.length, cycleLen: +mm.toFixed(1), cycleCV: +vv.toFixed(4) });
+        }
+      }
+      runStart = -1;
+      curLens = [];
+    }
+    for (var e = 0; e < cycles.length; e++) {
+      if (cycles[e] >= cfg.PB_CYCLE_MIN_SEC && cycles[e] <= cfg.PB_CYCLE_MAX_SEC) {
+        if (runStart < 0) runStart = e;
+        curLens.push(cycles[e]);
+      } else closeRun(e - 1);
+    }
+    closeRun(cycles.length - 1);
+
+    return {
+      periodic: periodic,
+      longestRun: best,
+      cycleLen: med,
+      cycleCV: cv === null ? null : +cv.toFixed(4),
+      nCycles: cycles.length,
+      episodes: episodes
+    };
   }
 
+  // OXYDEX-PB-DETECTOR §2 — this now GATES on periodicity. It used to flag a fixed 300 s window on
+  // (lowMotion && >=40 samples below an ABSOLUTE 95 % && >=6 crossings of that same level), so nothing
+  // it computed depended on the SPACING of the crossings: it tracked hypoxemia burden (r = +0.893 with
+  // time-below-95) and could not tell a periodic night from an aperiodic one of equal burden.
+  //
+  // The 300 s window could not survive the fix. A cycle may run to PB_CYCLE_MAX_SEC = 130 s, so four
+  // consecutive cycles need up to 520 s — an episode that cannot fit in the window it was scored in.
+  // Episodes are therefore VARIABLE-LENGTH runs, which is also how AASM defines them.
+  // Low-motion rejection is kept: it is an artifact guard, independent of periodicity.
   function detectOscillations(rows) {
     var n = rows.length,
-      WSEC = CFG.OSC_WINDOW_SEC,
-      flagged = [];
-    for (var start = 0; start + WSEC <= n; start += WSEC) {
-      var cross = 0,
+      flagged = [],
+      spo2Series = [],
+      si;
+    for (si = 0; si < n; si++) spo2Series.push(rows[si].spo2);
+    var pb = detectSpO2Periodicity(spo2Series, CFG);
+    for (var ei = 0; ei < pb.episodes.length; ei++) {
+      var ep = pb.episodes[ei],
+        cross = 0,
         below = 0,
-        motion = 0;
-      for (var j = start + 1; j < start + WSEC; j++) {
+        motion = 0,
+        span = Math.max(ep.endIdx - ep.startIdx, 1);
+      for (var j = ep.startIdx + 1; j <= ep.endIdx && j < n; j++) {
         if (rows[j - 1].spo2 >= CFG.SPO2_OSC_THRESHOLD !== rows[j].spo2 >= CFG.SPO2_OSC_THRESHOLD) cross++;
         if (rows[j].spo2 < CFG.SPO2_OSC_THRESHOLD) below++;
         if (rows[j].motion > 0) motion++;
       }
-      var lowMotion = motion / Math.max(WSEC - 1, 1) < 0.08;
-      var sustained = below >= 40;
-      // OXYDEX-NODE-EXPORT-ENVELOPE §2b: retain the flagged window's start INDEX + absolute floating
-      // tMs so the node-export can emit one periodic_breathing event per episode (Clock Contract §6).
-      if (lowMotion && sustained && cross >= CFG.OSC_FLAG_CROSSINGS) flagged.push({ cross: cross, below: below, start: fmtTimeFull(rows[start].t), startIdx: start, tMs: rows[start].tMs });
+      // Motion artifact can manufacture a regular-looking trace; reject the episode, not the night.
+      if (motion / span >= 0.08) continue;
+      // OXYDEX-NODE-EXPORT-ENVELOPE §2b: retain the episode's start INDEX + absolute floating tMs so
+      // the node-export can emit one periodic_breathing event per episode (Clock Contract §6).
+      flagged.push({
+        cross: cross,
+        below: below,
+        start: fmtTimeFull(rows[ep.startIdx].t),
+        startIdx: ep.startIdx,
+        tMs: rows[ep.startIdx].tMs,
+        windowSec: span,
+        cycles: ep.cycles,
+        cycleLen: ep.cycleLen,
+        cycleCV: ep.cycleCV
+      });
     }
     var totalCross = flagged.reduce(function (s, w) {
       return s + w.cross;
@@ -6742,8 +6813,20 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       totalCrossings: totalCross,
       first: flagged.length ? flagged[0].start : null,
       last: flagged.length ? flagged[flagged.length - 1].start : null,
+      // `windowSec` is now the episode's OWN duration, not the retired fixed 300 s scan window — an
+      // episode of >= 4 cycles at up to 130 s each cannot fit in 300 s. `cycles`/`cycleLen`/`cycleCV`
+      // are added LAST so the leading keys stay the frozen display shape.
       episodes: flagged.map(function (w) {
-        return { tMs: w.tMs != null ? w.tMs : null, startIdx: w.startIdx, cross: w.cross, below: w.below, windowSec: WSEC };
+        return {
+          tMs: w.tMs != null ? w.tMs : null,
+          startIdx: w.startIdx,
+          cross: w.cross,
+          below: w.below,
+          windowSec: w.windowSec,
+          cycles: w.cycles,
+          cycleLen: w.cycleLen,
+          cycleCV: w.cycleCV
+        };
       })
     };
   }

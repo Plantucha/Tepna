@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-CNOVvL0rgtW4HsMGf9KUI693quAn6scT+2m6vEtOyG8=' 'sha256-D0jY4FkI6gwPWRVDC3Ing4wgbo8ELgIJgkU4KUWpoOE=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ehtOJVhvZerljrUlVQZ5RqIxLKhKMD8DwTxrPw3fIzw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-kU1tjeTFtsIMswCZfdVnVaVpv8Dxs4SBggntk5rBqkI=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-wnMcMNb2Ox5gzonOiO2wNUAWc0Prqb3nVjEWndGTrsc=' 'sha256-xKtu+5OHKAfV32+JqFpE+83ScE8qSVYyo2nZOCGsDR4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-CNOVvL0rgtW4HsMGf9KUI693quAn6scT+2m6vEtOyG8=' 'sha256-D0jY4FkI6gwPWRVDC3Ing4wgbo8ELgIJgkU4KUWpoOE=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ehtOJVhvZerljrUlVQZ5RqIxLKhKMD8DwTxrPw3fIzw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-kU1tjeTFtsIMswCZfdVnVaVpv8Dxs4SBggntk5rBqkI=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-wnMcMNb2Ox5gzonOiO2wNUAWc0Prqb3nVjEWndGTrsc=' 'sha256-yjtp8MVnI3SuljHutpPt9A8O4mMvt4dI82G2xauua68='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OxyDex — Nocturnal Oximetry Analyzer · v1.0.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -15646,27 +15646,98 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     }
     // Criterion 4 gates: a run that is long enough but IRREGULAR is not periodic breathing.
     var periodic = best >= cfg.PB_MIN_CYCLES && cv !== null && cv < cfg.PB_MAX_CYCLE_CV;
-    return { periodic: periodic, longestRun: best, cycleLen: med, cycleCV: cv === null ? null : +cv.toFixed(4), nCycles: cycles.length };
+
+    // EPISODES — maximal runs of in-window cycles that also clear the count and regularity gates.
+    // Cycle j is built from halves[2j] + halves[2j+1], so it spans cross[2j] .. cross[2j+2]; a run of
+    // cycles a..b therefore spans cross[2a] .. cross[2b+2].
+    // A whole maximal run is accepted or rejected as ONE unit — a long in-window but irregular stretch
+    // is NOT re-scanned for a regular sub-run. That is deliberate and conservative: this detector exists
+    // because the predecessor over-called, and searching sub-runs for the most regular window is exactly
+    // the multiple-comparisons move that let a random dip train look periodic (§2.3).
+    var episodes = [],
+      runStart = -1,
+      curLens = [];
+    function closeRun(endCycleIdx) {
+      if (runStart >= 0 && curLens.length >= cfg.PB_MIN_CYCLES) {
+        var mm =
+          curLens.reduce(function (a, b) {
+            return a + b;
+          }, 0) / curLens.length;
+        var vv =
+          Math.sqrt(
+            curLens.reduce(function (s, b) {
+              return s + (b - mm) * (b - mm);
+            }, 0) / curLens.length
+          ) / mm;
+        if (vv < cfg.PB_MAX_CYCLE_CV) {
+          var sIdx = cross[2 * runStart],
+            eIdx = cross[2 * endCycleIdx + 2];
+          if (sIdx != null && eIdx != null) episodes.push({ startIdx: sIdx, endIdx: eIdx, cycles: curLens.length, cycleLen: +mm.toFixed(1), cycleCV: +vv.toFixed(4) });
+        }
+      }
+      runStart = -1;
+      curLens = [];
+    }
+    for (var e = 0; e < cycles.length; e++) {
+      if (cycles[e] >= cfg.PB_CYCLE_MIN_SEC && cycles[e] <= cfg.PB_CYCLE_MAX_SEC) {
+        if (runStart < 0) runStart = e;
+        curLens.push(cycles[e]);
+      } else closeRun(e - 1);
+    }
+    closeRun(cycles.length - 1);
+
+    return {
+      periodic: periodic,
+      longestRun: best,
+      cycleLen: med,
+      cycleCV: cv === null ? null : +cv.toFixed(4),
+      nCycles: cycles.length,
+      episodes: episodes
+    };
   }
 
+  // OXYDEX-PB-DETECTOR §2 — this now GATES on periodicity. It used to flag a fixed 300 s window on
+  // (lowMotion && >=40 samples below an ABSOLUTE 95 % && >=6 crossings of that same level), so nothing
+  // it computed depended on the SPACING of the crossings: it tracked hypoxemia burden (r = +0.893 with
+  // time-below-95) and could not tell a periodic night from an aperiodic one of equal burden.
+  //
+  // The 300 s window could not survive the fix. A cycle may run to PB_CYCLE_MAX_SEC = 130 s, so four
+  // consecutive cycles need up to 520 s — an episode that cannot fit in the window it was scored in.
+  // Episodes are therefore VARIABLE-LENGTH runs, which is also how AASM defines them.
+  // Low-motion rejection is kept: it is an artifact guard, independent of periodicity.
   function detectOscillations(rows) {
     var n = rows.length,
-      WSEC = CFG.OSC_WINDOW_SEC,
-      flagged = [];
-    for (var start = 0; start + WSEC <= n; start += WSEC) {
-      var cross = 0,
+      flagged = [],
+      spo2Series = [],
+      si;
+    for (si = 0; si < n; si++) spo2Series.push(rows[si].spo2);
+    var pb = detectSpO2Periodicity(spo2Series, CFG);
+    for (var ei = 0; ei < pb.episodes.length; ei++) {
+      var ep = pb.episodes[ei],
+        cross = 0,
         below = 0,
-        motion = 0;
-      for (var j = start + 1; j < start + WSEC; j++) {
+        motion = 0,
+        span = Math.max(ep.endIdx - ep.startIdx, 1);
+      for (var j = ep.startIdx + 1; j <= ep.endIdx && j < n; j++) {
         if (rows[j - 1].spo2 >= CFG.SPO2_OSC_THRESHOLD !== rows[j].spo2 >= CFG.SPO2_OSC_THRESHOLD) cross++;
         if (rows[j].spo2 < CFG.SPO2_OSC_THRESHOLD) below++;
         if (rows[j].motion > 0) motion++;
       }
-      var lowMotion = motion / Math.max(WSEC - 1, 1) < 0.08;
-      var sustained = below >= 40;
-      // OXYDEX-NODE-EXPORT-ENVELOPE §2b: retain the flagged window's start INDEX + absolute floating
-      // tMs so the node-export can emit one periodic_breathing event per episode (Clock Contract §6).
-      if (lowMotion && sustained && cross >= CFG.OSC_FLAG_CROSSINGS) flagged.push({ cross: cross, below: below, start: fmtTimeFull(rows[start].t), startIdx: start, tMs: rows[start].tMs });
+      // Motion artifact can manufacture a regular-looking trace; reject the episode, not the night.
+      if (motion / span >= 0.08) continue;
+      // OXYDEX-NODE-EXPORT-ENVELOPE §2b: retain the episode's start INDEX + absolute floating tMs so
+      // the node-export can emit one periodic_breathing event per episode (Clock Contract §6).
+      flagged.push({
+        cross: cross,
+        below: below,
+        start: fmtTimeFull(rows[ep.startIdx].t),
+        startIdx: ep.startIdx,
+        tMs: rows[ep.startIdx].tMs,
+        windowSec: span,
+        cycles: ep.cycles,
+        cycleLen: ep.cycleLen,
+        cycleCV: ep.cycleCV
+      });
     }
     var totalCross = flagged.reduce(function (s, w) {
       return s + w.cross;
@@ -15687,8 +15758,20 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       totalCrossings: totalCross,
       first: flagged.length ? flagged[0].start : null,
       last: flagged.length ? flagged[flagged.length - 1].start : null,
+      // `windowSec` is now the episode's OWN duration, not the retired fixed 300 s scan window — an
+      // episode of >= 4 cycles at up to 130 s each cannot fit in 300 s. `cycles`/`cycleLen`/`cycleCV`
+      // are added LAST so the leading keys stay the frozen display shape.
       episodes: flagged.map(function (w) {
-        return { tMs: w.tMs != null ? w.tMs : null, startIdx: w.startIdx, cross: w.cross, below: w.below, windowSec: WSEC };
+        return {
+          tMs: w.tMs != null ? w.tMs : null,
+          startIdx: w.startIdx,
+          cross: w.cross,
+          below: w.below,
+          windowSec: w.windowSec,
+          cycles: w.cycles,
+          cycleLen: w.cycleLen,
+          cycleCV: w.cycleCV
+        };
       })
     };
   }
