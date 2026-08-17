@@ -676,7 +676,7 @@ def _phase_grid(pairs, bin_s=_TRANSPORT_BIN_S):
     while producing a perfectly well-formed number.
     """
     acc: dict[int, list[float]] = {}
-    for host_ms, phase in pairs:
+    for host_ms, phase, *_ in pairs:
         acc.setdefault(int(host_ms / 1000.0 / bin_s), []).append(phase)
     return {k: sum(v) / len(v) for k, v in acc.items()}
 
@@ -909,6 +909,34 @@ def host_jitter(delays: list[float], min_n: int = 100) -> dict | None:
     }
 
 
+def device_stamp_constant(stamps, min_n: int = 200):
+    """Did this stream's device timestamp advance AT ALL over the capture?
+
+    `clock_offset.estimate` already REFUSES such a stream — a device stamp frozen at one value makes
+    `delay = host - const`, whose slope is exactly 1e6 ppm, far past `MAX_PPM`. But it refuses it as
+    `implausible-skew`, which describes a clock running 100 % fast. That is not what happened: the field
+    is unpopulated. The remedies differ (a skewed clock is a clock; this one is an absent measurement),
+    so the distinction is published rather than left to be inferred from a suspiciously round slope.
+
+    Measured over 470 streams / 5 nights: **22 of the 23 refusals are this**, not skew — every Verity
+    `ppi` stream (`last_sensor_ns` literally 0 for all 4864 packets) and every frozen O2Ring
+    `OXYLIVE_DURATION_S`. The one real skew reads 193 892.8 ppm.
+
+    ⚠️ This is NOT a "drawn axis" test, and the statistic that looks like one does not work here. A modal
+    delta share over these PACKET-level stamps scores 0.61 on a genuinely healthy H10 ECG clock, because
+    its packets are uniformly filled: the modal step is 561.409 ms = 73 samples at 130 Hz, i.e. exactly
+    one packet. `ppgdex-dsp.js`'s `quantizedShare >= 0.99` measures per-SAMPLE stamps, a different axis;
+    porting that threshold here would name packet-fill uniformity as a synthesised timebase.
+
+    `None` below `min_n` — a handful of packets can repeat a stamp by chance.
+    """
+    xs = [v for v in stamps if v is not None]
+    if len(xs) < min_n:
+        return None
+    first = xs[0]
+    return all(v == first for v in xs)
+
+
 def arrival_quality(night_dir: str) -> list[dict]:
     """Per-device floor quality from the `*_PMDARRIVAL.csv` sidecars.
 
@@ -980,25 +1008,27 @@ def arrival_quality(night_dir: str) -> list[dict]:
                     try:
                         host_ms = datetime.fromisoformat(ts).timestamp() * 1000.0
                         per.setdefault((row.get("device", ""), row.get("meas", "")), []).append(
-                            (host_ms, host_ms - int(ns) / 1e6))
+                            (host_ms, host_ms - int(ns) / 1e6, int(ns)))
                     except (ValueError, TypeError):
                         continue
         except OSError:
             continue
         for (device, meas), pairs in sorted(per.items()):
             quantised = meas.endswith("_DURATION_S")
-            diffs = [d for _, d in pairs]
+            diffs = [d for _, d, _ in pairs]
             est, spread = (None, None) if quantised else writers.PmdArrivalLogWriter.floor_ms(diffs)
             # t relative to this stream's first packet, in seconds — the estimator quotes its offset at
             # the centroid of t, so the absolute host epoch must not leak into the fit.
             t0 = pairs[0][0]
-            offset = clock_offset.estimate([((h - t0) / 1000.0, d) for h, d in pairs])
+            offset = clock_offset.estimate([((h - t0) / 1000.0, d) for h, d, _ in pairs])
             # Hoisted so the uncertainty budget below composes them rather than recomputing.
             jit = host_jitter(diffs)
             stab = allan.stability(diffs, _tau0_of(pairs), _TDEV_TAU_S)
             out.append({
                 "file": name, "device": device, "meas": meas, "rows": len(diffs),
                 "quantised": quantised,
+                    # Explains the refusal above when it is NOT skew: see device_stamp_constant.
+                    "device_stamp_constant": device_stamp_constant([ns for _, _, ns in pairs]),
                 "offset": offset,
                     "jitter": jit,
                     # HOW WELL DO WE KNOW *WHEN*? A GUM budget over terms already measured here, so a

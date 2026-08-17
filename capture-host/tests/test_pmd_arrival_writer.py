@@ -842,3 +842,70 @@ def test_a_zero_variance_sample_yields_no_kurtosis_rather_than_a_division():
     j = nightqc.host_jitter([3.0] * 300)
     assert j is not None and j["excess_kurtosis"] is None
     assert nightqc.timing_uncertainty(j)["tail_gaussian"] is None
+
+
+# ─── device_stamp_constant: an ABSENT measurement, told apart from a skewed one ──────────────────
+#
+# `clock_offset.estimate` refuses both as `implausible-skew`, because a stamp frozen at one value makes
+# `delay = host - const`, whose slope is exactly 1e6 ppm. Measured over 470 streams / 5 real nights,
+# 22 of the 23 refusals are the frozen case and only one is a real skew — so the two are worth telling
+# apart, and the tests below pin that they ARE told apart in both directions.
+
+
+def _write_frozen(path, meas, n=300, dev_ns=500_000_000_000):
+    """Every packet reports the SAME device stamp while arrivals advance — the real Verity `ppi`."""
+    w = PmdArrivalLogWriter(path, fsync=False)
+    for i in range(n):
+        w.write(_T0 + _dt.timedelta(milliseconds=77.0 * i), "dev", meas, dev_ns, dev_ns, 10)
+    w.close()
+
+
+def test_device_stamp_constant_needs_enough_packets_to_mean_anything():
+    import nightqc
+    assert nightqc.device_stamp_constant([7] * 199) is None
+    assert nightqc.device_stamp_constant([7] * 200) is True
+
+
+def test_device_stamp_constant_is_a_fact_about_the_stamps_that_exist():
+    """`None` entries are absent readings, not evidence either way — they are dropped, not defaulted."""
+    import nightqc
+    assert nightqc.device_stamp_constant([7] * 200 + [None] * 50) is True
+    assert nightqc.device_stamp_constant([None] * 250) is None
+    assert nightqc.device_stamp_constant([7] * 199 + [8]) is False
+
+
+def test_a_frozen_device_stamp_is_reported_as_absent_not_merely_refused(tmp_path):
+    import nightqc
+    _write_frozen(os.path.join(tmp_path, "Tepna_f_PMDARRIVAL.csv"), "ppi")
+    row = nightqc.arrival_quality(str(tmp_path))[0]
+    assert row["device_stamp_constant"] is True
+    # the refusal is still the estimator's, unchanged -- this explains it, it does not replace it
+    assert row["offset"]["ok"] is False
+    assert row["offset"]["reason"] == "implausible-skew"
+
+
+def test_a_GENUINE_skew_is_refused_WITHOUT_being_called_absent(tmp_path):
+    """The discriminating case: without it, `device_stamp_constant` could just be `not offset.ok`.
+
+    The device clock here runs 20 % slow -- a real, advancing, badly-skewed clock. It must refuse for
+    the same reason AND read `False`, or the new field is a synonym for the refusal rather than a
+    diagnosis of it.
+    """
+    import nightqc
+    w = PmdArrivalLogWriter(os.path.join(tmp_path, "Tepna_s_PMDARRIVAL.csv"), fsync=False)
+    for i in range(300):
+        dev_ns = 500_000_000_000 + i * 77_000_000
+        w.write(_T0 + _dt.timedelta(milliseconds=77.0 * 1.2 * i), "dev", "ECG", dev_ns, dev_ns, 10)
+    w.close()
+    row = nightqc.arrival_quality(str(tmp_path))[0]
+    assert row["offset"]["ok"] is False and row["offset"]["reason"] == "implausible-skew"
+    assert row["device_stamp_constant"] is False, "an advancing clock must never read as absent"
+
+
+def test_a_healthy_stream_reads_false_so_the_field_is_not_vacuously_true(tmp_path):
+    import nightqc
+    _write_sidecar(os.path.join(tmp_path, "Tepna_h2_PMDARRIVAL.csv"), "ECG",
+                   [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30])
+    row = nightqc.arrival_quality(str(tmp_path))[0]
+    assert row["device_stamp_constant"] is False
+    assert row["offset"]["ok"] is True
