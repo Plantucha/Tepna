@@ -196,9 +196,33 @@ story is above: one wrong diagnosis, two real fixes, and then readable nights.
 nights (36 % base rate corpus-wide), the three-observer fusion corroborates 0/4, and κ vs the CPAP
 **correctly REFUSES** — "the device scored PB on NO night (n=4) — one rater never varied" — the
 degenerate-margin guard's first firing on live data.
-- [ ] The PTT-arousal index is computed on every locking box night and coupled to the CPAP's
-      device-scored events through the circular-shift null; the lift and the night-level correlation
-      are stated, whatever they are.
+- [x] **WIRED and RUN 2026-08-17 — and the first result is an honest NEGATIVE, stated as the box
+      demands.** `tools/pat-dip-validate.mjs`: per-night CPAP clock anchoring (δ swept ±70 min,
+      scored as the share of OxyDex desats explained by a preceding CPAP event — an INDEPENDENT
+      pair, so the Katz fraction never anchors on itself), coverable-events denominator (the
+      `coupleRtoFoot` §2 lesson re-applied), and a null of 10 circular shifts of the dip onsets.
+
+      On the newest five nights exactly ONE anchors: 08-14 at δ = −23.5 min (75 % of desats
+      explained; kin to the corpus's known ~38–42 min CPAP slowness). There:
+
+      | events (coverable) | dips | Katz % | chance % |
+      |---|---|---|---|
+      | 23 (14) | 139 | **7** | **36** |
+
+      **Sub-chance.** 1 of 14 coverable events was followed by a dip, against ~5 expected from the
+      onset-shift null. n = 1 night / 14 events — far too small to conclude, but the direction is
+      recorded rather than softened: on this night the dips did NOT point at the device's events.
+      Three failure modes to separate next, in order of likelihood: the dips are dominated by motion
+      periods that CPAP-scored sleep excludes (the motion/wear gate of the improvement list is now
+      the priority); the δ anchor locked a harmonic (75 % on 3-of-4 desats is thin); or the index at
+      Θ = 10 over these floors is still chance-dominated per the analytic line's own warning.
+
+      Three tool-design defects were found and fixed by their OWN first runs, each the repo's
+      recurring shape: an anchor criterion that could not succeed on a treated night (3–4 desats
+      cannot explain ≥50 % of 23 events — the mirror of a gate that cannot fail); a Katz denominator
+      counting events outside the dip-covered span (measuring recording overlap, not coupling); and
+      a foot-shift null so destructive the readability gate refused all 10 surrogates (a null that
+      cannot execute is not a null — onsets are shifted instead, count-preserving).
 - [ ] The two fiducial defects of §3.4 are fixed and shown export-inert or regenerated per §🔏.
 - [ ] `patArousalIdx` gets a registry row (`experimental`, autonomic wording) before any surface
       shows it.

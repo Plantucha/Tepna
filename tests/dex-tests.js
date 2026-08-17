@@ -7681,6 +7681,11 @@
       var ra = P.patDipEvents(a.R, a.F, { minDipMs: 10, minBeats: 4 });
       T.ok('A · planted 15 ms × 8-beat dips are FOUND (' + (ra.nEvents || 0) + ' events vs 20 planted)', !!ra.ok && ra.nEvents >= 16 && ra.nEvents <= 26);
       T.ok('A · …and the index clears its own chance line (lift ' + (ra.liftVsChance == null ? '∞' : ra.liftVsChance.toFixed(1)) + ')', !!ra.ok && (ra.liftVsChance == null || ra.liftVsChance > 5));
+      // A-null · the SAME planted night under a circular foot shift collapses toward chance — the
+      // surrogate keeps every marginal and destroys only alignment, so if it did NOT collapse, the
+      // "dips" never depended on the pairing and the detector is reading structure that is not there.
+      var raS = P.patDipEvents(a.R, a.F, { minDipMs: 10, minBeats: 4, shiftFeetMs: 600000 });
+      T.ok('A-null · a 10-min circular foot shift collapses the planted index (' + (ra.nEvents || 0) + ' → ' + (raS.ok ? raS.nEvents : 'refused') + ')', !raS.ok || raS.nEvents <= ra.nEvents * 0.35);
       T.ok(
         'A · depth is measured, not merely thresholded (every event 10-30 ms deep)',
         !!ra.ok &&

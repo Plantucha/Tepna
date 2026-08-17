@@ -395,7 +395,29 @@
     var MINP = opts.minPairs != null ? opts.minPairs : DIP_DEFAULTS.minPairs;
     var segs = opts.segments || null; // [[t0,t1],…] BLE-connection spans; runs never cross them
 
-    var L = _nearestLags(rTimes || [], fTimes || []);
+    /* SURROGATE MODE — `shiftFeetMs` circularly rotates the foot train within its own span before
+       anything else runs. This is the estimand's honest null (the event-coupling.js philosophy):
+       both trains keep their marginal statistics — every foot interval, every R interval — and only
+       the ALIGNMENT is destroyed, so whatever survives is the alignment. It lives INSIDE the
+       detector, not in a harness, so the null takes the identical code path: same pairing, same
+       shadowing, same baseline, same hysteresis. A null that runs a different pipeline measures the
+       difference between pipelines. */
+    var F0 = fTimes || [];
+    if (opts.shiftFeetMs) {
+      var srtF = F0.slice().sort(function (a, b) {
+        return a - b;
+      });
+      if (srtF.length > 1) {
+        var span = srtF[srtF.length - 1] - srtF[0],
+          f0 = srtF[0];
+        var sh = ((opts.shiftFeetMs % span) + span) % span;
+        F0 = srtF.map(function (f) {
+          return f0 + ((f - f0 + sh) % span);
+        });
+      }
+    }
+
+    var L = _nearestLags(rTimes || [], F0);
     if (L.length < MINP) return { ok: false, reason: 'too few R↔foot pairs (' + L.length + ' < ' + MINP + ')', nPairs: L.length };
 
     /* FOOT-GAP SHADOW — the slip twin's fabrication mode, closed at the source. A missed foot does
@@ -407,7 +429,7 @@
        (2× at the gap, and interleaved sub-0.5× where re-emitted feet land). So: any foot adjacent
        to an inter-foot interval outside [0.5×, 1.5×] the median is SUSPECT, and a beat that leans
        on a suspect foot is an artifact — a dip needs continuous optical evidence. */
-    var Fs = (fTimes || []).slice().sort(function (a, b) {
+    var Fs = F0.slice().sort(function (a, b) {
       return a - b;
     });
     var ffs = [];

@@ -153,4 +153,4 @@ function main() {
 
 const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (IS_CLI) main();
-export { main };
+export { main, anklePair };
