@@ -836,6 +836,30 @@
         t;
       for (t = 0; t < 120; t++) two.push(BASE + 3 * Math.sin((2 * Math.PI * t) / 60));
       T.ok('two real cycles do not satisfy the cycle floor — the sliding view of §2.2 would report 3 of them', OD.detectSpO2Periodicity(two).periodic === false);
+
+      /* THE UPPER BAND, which nothing exercised until now (FOLLOWUPS §5).
+         §2.1 settled the window at 40-130 s on the strength of Wedewardt 2010: cycle length tracks
+         circulatory delay and LENGTHENS as cardiac function worsens, mean 86 +/- 23 s in the worst-LVEF
+         group. That is the whole reason the ceiling is 130 and not AASM's typicality of 90 — so the
+         90-130 s band is exactly where the settled window earns its keep, and exactly the population a
+         narrower ceiling would discard. Every twin above sits at 60 s; the committed synthetic inputs
+         run at 20 s and 50 s. A regression that dropped the ceiling back to 90 would have passed all
+         of them. */
+      function periodicAt(periodSec, n) {
+        var x = [],
+          k;
+        for (k = 0; k < n; k++) x.push(BASE + 3 * Math.sin((2 * Math.PI * k) / periodSec));
+        return x;
+      }
+      var long110 = OD.detectSpO2Periodicity(periodicAt(110, 3600));
+      T.ok('a 110 s cycle FIRES — the 90-130 s band is reachable at all (run ' + long110.longestRun + ', cycle ' + long110.cycleLen + 's)', long110.periodic === true);
+      T.ok('…and reports its length in the upper band, not folded down into the classic 45-90', long110.cycleLen > 90 && long110.cycleLen <= 130);
+      var long128 = OD.detectSpO2Periodicity(periodicAt(128, 3600));
+      T.ok('a 128 s cycle still fires just inside the 130 s ceiling', long128.periodic === true);
+      /* And the ceiling is a real edge, not decoration — otherwise the two assertions above would pass
+         against a detector with no upper bound at all. */
+      var over = OD.detectSpO2Periodicity(periodicAt(150, 3600));
+      T.ok('a 150 s cycle does NOT fire — the ceiling rejects beyond it', over.periodic === false);
     });
 
     group('a drawn time axis is detected and declared, not silently corrected', 'ppgdex · axis-provenance', function (T) {
