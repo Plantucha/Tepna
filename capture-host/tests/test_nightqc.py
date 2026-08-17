@@ -1029,3 +1029,132 @@ def test_the_budget_reaches_the_per_stream_record(tmp_path):
     (d / "Polar_H10_02849638_20260815024240_ECG.csv").write_text("h\n" + "r\n" * 400)
     rows = nightqc.arrival_quality(str(d))
     assert all("u_time" in r for r in rows), rows
+
+
+# ── ppg2w_contact — the ring's independent coupling vote ───────────────────────────────────────────
+# Constants are labelled MEASURED vs CHOSEN at the definition; these tests plant both populations the
+# thresholds were measured on and the refusal paths the block must take instead of fabricating.
+
+def _worn_rows(n_ep, ratio=1.1, ch1=1_500_000):
+    ch0 = []
+    ch1s = []
+    for i in range(n_ep * nightqc._PPG2W_ROWS_PER_EPOCH):
+        ch1s.append(ch1 + (i % 7) * 100)          # small texture, well above the floor
+        ch0.append(int(ch1s[-1] * ratio))
+    return ch0, ch1s
+
+
+def _off_rows(n_ep):
+    # The measured off-finger signature: ch0 rails, ch1 collapses to ~10^2 counts.
+    n = n_ep * nightqc._PPG2W_ROWS_PER_EPOCH
+    return [3_400_000] * n, [150 + (i % 5) for i in range(n)]
+
+
+def test_ppg2w_a_worn_night_reports_its_band_and_zero_off_epochs():
+    ch0, ch1 = _worn_rows(120, ratio=1.1)
+    b = nightqc.ppg2w_contact(ch0, ch1)
+    assert b["off_epochs_pct"] == 0.0
+    assert b["off_runs_sustained"] == 0
+    assert b["tail_off"] is False
+    assert abs(b["worn_ratio_median"] - 1.1) < 0.01
+    assert b["worn_ratio_iqr"] < 0.01
+
+
+def test_ppg2w_a_doffed_tail_is_flagged_with_its_run_length():
+    w0, w1 = _worn_rows(100)
+    o0, o1 = _off_rows(30)
+    b = nightqc.ppg2w_contact(w0 + o0, w1 + o1)
+    assert b["tail_off"] is True
+    assert b["trailing_off_epochs"] == 30
+    assert b["off_runs_sustained"] == 1
+    assert abs(b["off_epochs_pct"] - 100 * 30 / 130) < 0.1
+
+
+def test_ppg2w_ratio_out_of_band_is_off_even_with_ch1_above_the_floor():
+    # The CHOSEN band is load-bearing on its own: bright but decoupled channels are not "worn".
+    ch0, ch1 = _worn_rows(80, ratio=5.0)          # ch1 healthy, ratio far outside [0.5, 3]
+    b = nightqc.ppg2w_contact(ch0, ch1)
+    assert b["off_epochs_pct"] == 100.0
+    assert b["worn_ratio_median"] is None          # nothing qualified as worn…
+    assert b["worn_ratio_iqr"] is None             # …so the band is ABSENT, not fabricated from off rows
+
+
+def test_ppg2w_an_epoch_is_decided_by_its_MAJORITY_not_one_glitch_row():
+    ch0, ch1 = _worn_rows(70)
+    ch1[500] = 0                                   # one dead row inside an otherwise worn epoch
+    b = nightqc.ppg2w_contact(ch0, ch1)
+    assert b["off_epochs_pct"] == 0.0
+
+
+def test_ppg2w_under_a_minute_refuses_rather_than_reporting():
+    ch0, ch1 = _worn_rows(nightqc._PPG2W_MIN_EPOCHS - 1)
+    assert nightqc.ppg2w_contact(ch0, ch1) is None
+
+
+def test_ppg2w_quality_walks_a_night_and_keeps_refusals_visible(tmp_path):
+    hdr = "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion\n"
+    worn = tmp_path / "Wellue_O2Ring-S_TEST_20260101000000_PPG2W.txt"
+    w0, w1 = _worn_rows(100)
+    o0, o1 = _off_rows(30)
+    with open(worn, "w") as f:
+        f.write(hdr)
+        rows = list(zip(w0 + o0, w1 + o1))
+        for i, (a, b) in enumerate(rows):
+            f.write(f"2026-01-01T00:00:{i % 60:02d}.000;0;{a};{b};0\n")
+            if i == 5000:
+                f.write(hdr)                       # mid-file repeated header — the rotation artifact
+    short = tmp_path / "Wellue_O2Ring-S_TEST_20260101010000_PPG2W.txt"
+    with open(short, "w") as f:
+        f.write(hdr + "2026-01-01T01:00:00.000;0;100;100;0\n")
+    out = nightqc.ppg2w_contact_quality(str(tmp_path))
+    assert [b["file"] for b in out] == [worn.name, short.name]
+    assert out[0]["usable"] is True
+    assert out[0]["tail_off"] is True and out[0]["doff_at"] is not None
+    assert out[1]["usable"] is False and "under" in out[1]["reason"]
+
+
+def test_ppg2w_quality_is_EMPTY_when_the_stream_was_never_captured(tmp_path):
+    assert nightqc.ppg2w_contact_quality(str(tmp_path)) == []
+    assert nightqc.ppg2w_contact_quality(str(tmp_path / "absent")) == []
+
+
+def test_ppg2w_a_bad_first_timestamp_yields_doff_at_None_not_a_crash(tmp_path):
+    p = tmp_path / "Wellue_O2Ring-S_TEST_20260101000000_PPG2W.txt"
+    w0, w1 = _worn_rows(100)
+    o0, o1 = _off_rows(30)
+    with open(p, "w") as f:
+        f.write("Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion\n")
+        for a, b in zip(w0 + o0, w1 + o1):
+            f.write(f"notatime;0;{a};{b};0\n")
+    out = nightqc.ppg2w_contact_quality(str(tmp_path))
+    assert out[0]["tail_off"] is True and out[0]["doff_at"] is None
+
+
+def test_ppg2w_an_unreadable_entry_is_skipped_not_fatal(tmp_path):
+    (tmp_path / "Wellue_O2Ring-S_TEST_20260101000000_PPG2W.txt").mkdir()   # a DIRECTORY with the name
+    assert nightqc.ppg2w_contact_quality(str(tmp_path)) == []
+
+
+def test_ppg2w_an_off_run_that_ENDS_midsession_is_counted_and_is_not_a_doffing():
+    # Covers the run-closing branch: worn -> off -> worn. The wearer adjusted the ring and put it back;
+    # that is one sustained off-run and NOT a doffing, so tail_off stays False and no doff time exists.
+    w0a, w1a = _worn_rows(70)
+    o0, o1 = _off_rows(15)
+    w0b, w1b = _worn_rows(70)
+    b = nightqc.ppg2w_contact(w0a + o0 + w0b, w1a + o1 + w1b)
+    assert b["off_runs_sustained"] == 1
+    assert b["tail_off"] is False
+    assert b["trailing_off_epochs"] == 0
+
+
+def test_ppg2w_a_truncated_row_is_skipped_like_the_repeated_header(tmp_path):
+    p = tmp_path / "Wellue_O2Ring-S_TEST_20260101000000_PPG2W.txt"
+    w0, w1 = _worn_rows(70)
+    with open(p, "w") as f:
+        f.write("Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion\n")
+        for i, (a, b) in enumerate(zip(w0, w1)):
+            f.write(f"2026-01-01T00:00:00.000;0;{a};{b};0\n")
+            if i == 100:
+                f.write("bad;row\n")               # a truncated row — rotation tears mid-line too
+    out = nightqc.ppg2w_contact_quality(str(tmp_path))
+    assert out[0]["usable"] is True and out[0]["off_epochs_pct"] == 0.0
