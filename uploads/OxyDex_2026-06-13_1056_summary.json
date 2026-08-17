@@ -30,15 +30,6 @@
     "summary": {
       "ranked": [
         {
-          "key": "pbEp",
-          "label": "PB Episodes",
-          "value": 16,
-          "displayVal": "16 eps",
-          "score": 10,
-          "sev": "r",
-          "cat": null
-        },
-        {
           "key": "sbii",
           "label": "SBII",
           "value": 47.787,
@@ -52,15 +43,6 @@
           "label": "Hypoxic Load",
           "value": 12.335,
           "displayVal": 12.335,
-          "score": 9,
-          "sev": "r",
-          "cat": null
-        },
-        {
-          "key": "cs",
-          "label": "Cheyne-Stokes",
-          "value": 3,
-          "displayVal": "3/3 indicators",
           "score": 9,
           "sev": "r",
           "cat": null
@@ -138,8 +120,8 @@
           "cat": "spo2"
         },
         {
-          "key": "uars",
-          "label": "UARS Pattern",
+          "key": "cs",
+          "label": "Cheyne-Stokes",
           "value": 1,
           "displayVal": "1/3 indicators",
           "score": 3,
@@ -196,6 +178,15 @@
           "label": "CT<94%",
           "value": 4.25,
           "displayVal": "4.25%",
+          "score": 1,
+          "sev": "g",
+          "cat": null
+        },
+        {
+          "key": "pbEp",
+          "label": "PB Episodes",
+          "value": 1,
+          "displayVal": "1 eps",
           "score": 1,
           "sev": "g",
           "cat": null
@@ -284,15 +275,6 @@
       ],
       "top5": [
         {
-          "key": "pbEp",
-          "label": "PB Episodes",
-          "value": 16,
-          "displayVal": "16 eps",
-          "score": 10,
-          "sev": "r",
-          "cat": null
-        },
-        {
           "key": "sbii",
           "label": "SBII",
           "value": 47.787,
@@ -311,15 +293,6 @@
           "cat": null
         },
         {
-          "key": "cs",
-          "label": "Cheyne-Stokes",
-          "value": 3,
-          "displayVal": "3/3 indicators",
-          "score": 9,
-          "sev": "r",
-          "cat": null
-        },
-        {
           "key": "odi1",
           "label": "ODI-1/hr",
           "value": 48.5,
@@ -327,10 +300,28 @@
           "score": 8,
           "sev": "r",
           "cat": "spo2"
+        },
+        {
+          "key": "recIdx",
+          "label": "Recovery Idx",
+          "value": 0.094,
+          "displayVal": 0.094,
+          "score": 8,
+          "sev": "r",
+          "cat": null
+        },
+        {
+          "key": "minSpo2",
+          "label": "Min SpO₂",
+          "value": 86,
+          "displayVal": "86%",
+          "score": 7,
+          "sev": "r",
+          "cat": "spo2"
         }
       ],
-      "impression": "Moderate burden: 16 PB episodes, SBII 47.787 %²·min/hr; CS pattern indicators 3/3 — screening signal, no periodicity test.",
-      "overallScore": 9
+      "impression": "Moderate burden: SBII 47.787 %²·min/hr, hypoxic load 12.335.",
+      "overallScore": 8
     },
     "odi4": {
       "rate": 1.9,
@@ -949,7 +940,7 @@
     "crossSignal": {
       "autoArousalIdx": 1.9,
       "crcIdx": 0.383,
-      "divergeCount": 16,
+      "divergeCount": 1,
       "divergePct": 100,
       "hrRecovery": null
     },
@@ -1001,13 +992,13 @@
       "ct85m": 0
     },
     "sleepStability": {
-      "score": 54,
-      "grade": "Poor",
+      "score": 69,
+      "grade": "Fair",
       "components": {
         "spo2Stab": 43,
         "hrFloor": 100,
         "motion": 61,
-        "pb": 20,
+        "pb": 95,
         "hypoxicBurden": 74,
         "t95": 50
       }
@@ -1022,16 +1013,14 @@
       "periodicity": null
     },
     "oscillations": {
-      "episodeCount": 16,
-      "peakCrossings": 16,
-      "totalCrossings": 164,
-      "first": "23:15:16 12/06/2026",
-      "last": "06:10:16 13/06/2026"
+      "episodeCount": 1,
+      "peakCrossings": 8,
+      "totalCrossings": 8,
+      "first": "02:47:12 13/06/2026",
+      "last": "02:47:12 13/06/2026"
     },
     "flags": [
       "SPO2_CRITICAL_DIP",
-      "PERIODIC_BREATHING(16)",
-      "BLUNTED_AROUSAL(100%)",
       "SBII_Q5(47.787)"
     ],
     "newMetrics": {
@@ -1443,7 +1432,7 @@
         "pbCycleLen": 102.9,
         "pbCycleLenSD": 67.8,
         "pbAmplitude": 4.06,
-        "pbLoad": 15.34,
+        "pbLoad": 0.959,
         "pbFirstThirdRatio": 0.64,
         "pbEarlyCount": 32,
         "pbLateCount": 18
@@ -1495,10 +1484,10 @@
         ]
       },
       "patScore": {
-        "csScore": 3,
-        "csLabel": "3/3 indicators",
-        "uarsScore": 1,
-        "uarsLabel": "1/3 indicators"
+        "csScore": 1,
+        "csLabel": "1/3 indicators",
+        "uarsScore": 0,
+        "uarsLabel": "0/3 indicators"
       },
       "dfa": {
         "alpha1": 1.682,
