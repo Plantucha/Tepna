@@ -909,3 +909,158 @@ def test_a_healthy_stream_reads_false_so_the_field_is_not_vacuously_true(tmp_pat
     row = nightqc.arrival_quality(str(tmp_path))[0]
     assert row["device_stamp_constant"] is False
     assert row["offset"]["ok"] is True
+
+
+# ─── the diff-scoped mutation gate's survivors on arrival_quality ────────────────────────────────
+#
+# 12 mutants survived on lines changed by the `device_stamp_constant` work (#1405). Every one below
+# is a real gap: the code was exercised, so it was COVERED, but nothing asserted what it produced —
+# the shape this repo keeps rediscovering, a check that ran and examined nothing.
+
+
+def _write_n_streams(path, streams, dev="Polar H10 X"):
+    """`streams` is {meas: [phase_ms, ...]} for ONE device, all on a 1 s cadence."""
+    w = PmdArrivalLogWriter(path, fsync=False)
+    base = 500_000_000_000
+    for meas, phases in streams.items():
+        for i, ph in enumerate(phases):
+            dev_ns = base + i * 1_000_000_000
+            arr = _T0 + _dt.timedelta(milliseconds=(dev_ns - base) / 1e6 + ph)
+            w.write(arr, dev, meas, dev_ns, dev_ns, 10)
+    w.close()
+
+
+def test_phase_grid_DIVIDES_by_the_bin_width_rather_than_multiplying():
+    """Two samples 5 s apart share a 10 s bin. Multiplying would put them 50 bins apart.
+
+    Every existing grid test used `bin_s` where * and / agree closely enough to pass, so the operator
+    itself was never pinned.
+    """
+    import nightqc
+    assert nightqc._phase_grid([(0.0, 1.0), (5000.0, 3.0)], 10) == {0: 2.0}
+
+
+def test_the_jitter_summary_actually_REACHES_the_row(tmp_path):
+    """`jitter: None` and `host_jitter(None)` both survived — nothing read the field."""
+    import nightqc
+    _write_sidecar(os.path.join(tmp_path, "Tepna_j1_PMDARRIVAL.csv"), "ECG", _bell(400))
+    row = nightqc.arrival_quality(str(tmp_path))[0]
+    assert isinstance(row["jitter"], dict), row["jitter"]
+    assert row["jitter"]["n"] == row["rows"] - 1, "one diff per adjacent pair"
+    assert row["jitter"]["iqr_ms"] > 0, "a bell of width 3000 cannot have a zero IQR"
+    assert row["jitter"]["worst_ms"] >= row["jitter"]["p99_ms"]
+
+
+def test_the_stability_curve_actually_REACHES_the_row(tmp_path):
+    """Deleting the `allan.stability` call survived: the key was never read."""
+    import nightqc
+    _write_sidecar(os.path.join(tmp_path, "Tepna_s1_PMDARRIVAL.csv"), "ECG", _bell(400))
+    row = nightqc.arrival_quality(str(tmp_path))[0]
+    assert isinstance(row["stability"], dict), row["stability"]
+    assert row["stability"]["ok"] is True, row["stability"]
+    assert row["stability"]["taus"] > 0 and row["stability"]["tau_max"] > 0, row["stability"]
+
+
+def test_the_transport_pair_is_the_two_DENSEST_streams(tmp_path):
+    """`key=None` and a flipped sign both survived, so the density rule was never pinned.
+
+    Three streams of one device: two dense, one sparse. Sorting by name instead picks the sparse one
+    (it is alphabetically second); sorting ascending by length picks it first.
+    """
+    import nightqc
+    a, b = _clock_plus_noise(n=900)
+    _write_n_streams(os.path.join(tmp_path, "Tepna_d1_PMDARRIVAL.csv"),
+                     {"aaa": a, "mmm": _bell(200), "zzz": b})
+    got = {r["meas"]: r.get("transport") for r in nightqc.arrival_quality(str(tmp_path))}
+    assert got["aaa"] and got["zzz"], "the two DENSEST streams must be the pair"
+    assert got["mmm"] is None, "the sparse stream must not be chosen over a denser one"
+    assert got["aaa"]["partner"] == "zzz" and got["zzz"]["partner"] == "aaa"
+
+
+def test_streams_of_EQUAL_density_are_broken_by_NAME_not_by_their_data(tmp_path):
+    """The tie-break `s[0]` -> `s[1]` survived, and only an exact tie can distinguish them.
+
+    Three equally dense streams: the rule takes the two alphabetically first. Breaking on the pair
+    LIST instead orders by whichever stream happens to hold the smallest leading tuple, which here is
+    `zzz` — a data-dependent choice that would silently vary with arrival noise.
+    """
+    import nightqc
+    a, b = _clock_plus_noise(n=900)
+    c = list(b)
+    c[0] = -9999.0            # makes zzz's leading tuple the smallest, so a data tie-break picks it
+    _write_n_streams(os.path.join(tmp_path, "Tepna_t1_PMDARRIVAL.csv"),
+                     {"aaa": a, "mmm": b, "zzz": c})
+    got = {r["meas"]: r.get("transport") for r in nightqc.arrival_quality(str(tmp_path))}
+    assert got["aaa"] and got["mmm"], "an exact tie must resolve by NAME"
+    assert got["zzz"] is None, "the data must not decide which streams pair"
+
+
+def test_device_stamp_constant_reads_the_FIRST_stamp_and_survives_a_single_one():
+    """`first = xs[0]` -> `xs[1]` survived the diff-scoped gate, and it is ALMOST equivalent.
+
+    Over 4006 probes at the default `min_n` nothing distinguishes them, and the argument says why: if
+    `xs[0] == xs[1]` the two are identical by substitution, and if they differ BOTH return False. So no
+    input at `min_n=200` can tell them apart.
+
+    The parameter is what separates them. `min_n` is public, and at `min_n=1` a one-element series is
+    trivially constant — the original says so, the mutant raises IndexError reaching for a second stamp
+    that the guard never promised. Filing this as equivalent would have been a false claim in the
+    ledger, which is the one entry that can hide a real defect.
+    """
+    import nightqc
+    assert nightqc.device_stamp_constant([7], min_n=1) is True
+    assert nightqc.device_stamp_constant([7, 7], min_n=2) is True
+    assert nightqc.device_stamp_constant([7, 8], min_n=2) is False
+
+
+def _write_dev_streams(path, per_device):
+    """`per_device` is {device: {meas: (start_offset_s, [phase_ms, ...])}}, all on a 1 s cadence."""
+    w = PmdArrivalLogWriter(path, fsync=False)
+    base = 500_000_000_000
+    for dev, streams in per_device.items():
+        for meas, (off_s, phases) in streams.items():
+            for i, ph in enumerate(phases):
+                dev_ns = base + int(off_s * 1e9) + i * 1_000_000_000
+                arr = _T0 + _dt.timedelta(milliseconds=(dev_ns - base) / 1e6 + ph)
+                w.write(arr, dev, meas, dev_ns, dev_ns, 10)
+    w.close()
+
+
+def test_a_device_that_cannot_be_paired_does_not_STOP_the_devices_after_it(tmp_path):
+    """`continue` -> `break` survived: no fixture had a skipped device FOLLOWED by a usable one.
+
+    Two skip reasons reach that loop — a device with only one stream, and a pair whose windows do not
+    overlap so `transport_share` returns None. Both are exercised here, each ahead of a device that
+    must still be reported.
+    """
+    import nightqc
+    a, b = _clock_plus_noise(n=900)
+    _write_dev_streams(os.path.join(tmp_path, "Tepna_c1_PMDARRIVAL.csv"), {
+        "AAA lonely": {"ecg": (0, _bell(300))},                       # one stream -> skipped
+        "BBB disjoint": {"ecg": (0, a), "acc": (1_000_000, b)},       # no shared bins -> share None
+        "CCC good": {"ecg": (0, a), "acc": (0, b)},                   # must still be reached
+    })
+    got = {(r["device"], r["meas"]): r.get("transport") for r in nightqc.arrival_quality(str(tmp_path))}
+    assert got[("CCC good", "ecg")], "a device after two skipped ones must still be paired"
+    assert got[("CCC good", "acc")]
+    assert got[("BBB disjoint", "ecg")] is None, "non-overlapping windows share nothing"
+    assert got[("AAA lonely", "ecg")] is None
+
+
+def test_the_budget_is_asked_for_the_curve_s_OWN_optimal_tau(tmp_path):
+    """Three mutants of `tau_s=(stab or {}).get("optimal_tau")` survived — all of them send None.
+
+    `timing_uncertainty` is tested directly and knows a missing tau makes `free_run` None. What was
+    untested is the WIRING: that `arrival_quality` hands it the tau its own stability curve chose. The
+    second assertion is the discriminating one — it shows the argument changes the answer, so passing
+    None is observable rather than merely different-looking.
+    """
+    import nightqc
+    _write_sidecar(os.path.join(tmp_path, "Tepna_u1_PMDARRIVAL.csv"), "ECG", _bell(400))
+    row = nightqc.arrival_quality(str(tmp_path))[0]
+    tau = row["stability"]["optimal_tau"]
+    assert tau, row["stability"]
+    assert row["u_time"]["free_run"] is not None, row["u_time"]
+    starved = nightqc.timing_uncertainty(row["jitter"], quantised=row["quantised"],
+                                         stability=row["stability"], tau_s=None)
+    assert starved["free_run"] is None, "a tau-less budget must not still report a free-run term"
