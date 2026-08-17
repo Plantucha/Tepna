@@ -141,6 +141,51 @@ relying on interval continuity.
 
 **Also noted:** `lastCross` (line 989) is assigned and never read.
 
+### 2.3 · 🔴 THE THREE CRITERIA ARE NOT ENOUGH — a fourth (regularity) is required. Measured 2026-08-16
+
+A prototype implementing §2's three criteria exactly — baseline-relative crossings against a rolling
+median, full cycles from **disjoint** half-cycle pairs (§2.2), cycle length gated to 40–130 s, and a run
+of ≥ 3 consecutive in-window cycles — was run against §3.1's twins. It separates the periodic twin from
+the aperiodic twin. **It fails the red-noise twin, and not marginally: AR(1) at ρ = 0.98 fired on 40 of
+40 seeds.**
+
+That is the §3.1 prediction coming true rather than a coding error. A smooth red series crosses its own
+rolling baseline at intervals set by its correlation time; if those land in 40–130 s, "≥ 3 consecutive
+in-window cycles" is satisfied with nothing periodic present. **A run-length criterion is not a
+periodicity criterion.**
+
+**What does separate them is the REGULARITY of the cycle length** — which is what the word "periodic"
+means, and clinically what crescendo-decrescendo CSR looks like. Coefficient of variation of the cycle
+lengths in the qualifying run, 40 seeds per row:
+
+| signal | CV min | CV median | CV max |
+|---|---|---|---|
+| red AR(1) ρ = 0.98 | **0.147** | 0.271 | 0.406 |
+| PB, ±0 s cycle jitter | 0.007 | 0.007 | 0.007 |
+| PB, ±5 s | 0.031 | 0.045 | 0.059 |
+| PB, ±10 s | 0.058 | 0.088 | **0.111** |
+| PB, ±15 s | 0.085 | 0.108 | 0.153 |
+| PB, ±20 s | 0.114 | 0.141 | 0.199 |
+
+**A gate at CV < 0.13 rejects 0/40 red-noise realizations and accepts 40/40 PB with jitter up to ±10 s**,
+with a graded band from ±15 s. The threshold is quoted with its margins deliberately: it is chosen
+between two measured distributions, not fitted to one night.
+
+**So the spec gains a fourth gating criterion:** *the qualifying run's cycle lengths must have
+CV < `CFG.PB_MAX_CYCLE_CV`*. Three consequences:
+
+1. §2's list must read **four** criteria, and §7's "implements all three criteria" becomes four.
+2. **The threshold is the detector's main free parameter and must not be quietly retuned.** If it moves,
+   the two distributions above are what justify the new value — re-measure them, do not adjust until the
+   corpus gives a pleasing episode count. That would be tuning to the guardrail §5 forbids.
+3. ⚠ **This bounds what the detector can claim.** It rejects red noise *of this ρ at this sampling rate*.
+   §3.1's box requires ρ be re-measured on the corpus; if the real ρ differs materially, this table must
+   be regenerated at that ρ before the threshold is trusted.
+
+**Not yet established:** whether real PB nights in this corpus have within-night CV below 0.13 at all. If
+they do not, the detector is correct and the corpus simply contains no PB — which is a legitimate answer
+and the one §4's bar must then be evaluated against.
+
 ## 3 · Validation — and the hard part is that there is no ground truth
 
 The obvious plan is "agree with the CPAP better than κ = −0.039". **That plan is not sufficient and
@@ -247,7 +292,7 @@ corroboration and by the OxyDex reference guide, both of which move with it.
       the worst-LVEF group (mean cycle 86 ± 23 s). `computePatternScores` already used 40–130, so the
       two sites agree **without a code change at that site**; the brief's 40–90 is what moves.
       Still open: `SYNTHETIC-CORPUS-BRIEF`'s ~40–90 s generator default should widen to match.
-- [ ] The detector implements all three criteria, with the cycle test **gating** the decision rather
+- [ ] The detector implements all FOUR criteria (§2.3 added regularity), with the cycle test **gating** the decision rather
       than being computed after it.
 - [ ] §3.1's adversarial twin pair is committed and the detector separates them — and the test is shown
       to FAIL against the current detector, which cannot.
