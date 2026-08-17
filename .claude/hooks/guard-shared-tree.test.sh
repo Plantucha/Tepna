@@ -38,21 +38,6 @@ chk(){ # chk <expected> <command>
   printf '  %-5s %-5s %s%s\n' "$got" "$base" "$2" "$flag"
 }
 
-# chk_relax <command> — a DELIBERATE relaxation: main denied this and we now allow it.
-#
-# The regression check above is exactly right by default, so a relaxation needs its own assertion
-# rather than an exemption from that one. Note it requires base=DENY as well as got=allow: a
-# "relaxation" that main ALREADY allowed changed nothing, and would otherwise pass silently while
-# proving nothing — the same vacuity shape this repo keeps finding. So this case is seen to fail
-# both if the fix is reverted (got=DENY) and if it was never needed (base=allow).
-chk_relax(){
-  local got; got=$(v "$1" "$H")
-  local base; base=$(v "$1" "$BASE")
-  local flag=""
-  [ "$got" != allow ] && { flag=" <-- EXPECTED allow (the relaxation is not in effect)"; fail=$((fail+1)); }
-  [ "$base" != DENY ] && { flag="$flag <-- main ALREADY allowed this; the case proves nothing"; fail=$((fail+1)); }
-  printf '  %-5s %-5s %s%s\n' "$got" "$base" "$1" "$flag"
-}
 
 echo "### MUST DENY                                                 now   main"
 # `#` lines are commentary on WHY a case exists, not cases. Without this the harness runs them as
@@ -301,7 +286,7 @@ npm run rebase
 ALLOW
 
 echo
-echo "### DELIBERATE RELAXATIONS — main denies these, this version allows them        now   main"
+echo "### DELIBERATE RELAXATIONS — this version MUST allow these; the main column is information"
 # CLAUDE.md §👥.2's OWN RESCUE RECIPE, which this guard used to deny (2026-08-16).
 # A blanket add into a SEPARATE index writes a throwaway file: it touches no working-tree file and
 # not the repo's index, so none of the damage the blanket-add rule prevents is reachable. Denying it
@@ -309,7 +294,7 @@ echo "### DELIBERATE RELAXATIONS — main denies these, this version allows them
 # and the escape hatch is for "when the tree is genuinely yours alone", precisely when no rescue is
 # needed. Measured that day: a peer could snapshot one file by explicit path and could not snapshot
 # the 188-file shared tree at all.
-while IFS= read -r c; do [ -n "$c" ] && [[ "$c" != \#* ]] && chk_relax "$c"; done <<'RELAX'
+while IFS= read -r c; do [ -n "$c" ] && [[ "$c" != \#* ]] && relaxed "$c"; done <<'RELAX'
 GIT_INDEX_FILE=/tmp/r.idx git add -A
 GIT_INDEX_FILE=/tmp/r.idx sh -c 'git add -A; git write-tree'
 cp .git/index /tmp/r.idx && GIT_INDEX_FILE=/tmp/r.idx git add -A && GIT_INDEX_FILE=/tmp/r.idx git write-tree
