@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2c+NhGS5baEp+dkR92QyPev/wf2fl0amYca/JbyYiCk=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7oHiD+bMFu7PAJ8DITaVlISLmk0rNQd3hvceyXJVJOE=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UhOyYklF0oR6diFq0C93L2hL6VY0/z1/kwApfDX0WNo=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-Zg0VuZposJeHUmYwdGlxPYv7/96XL9I90WDHTkIO/fI=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-nrbM2W2IHQNoLwlvreXlVSNIKOk4jWCX6AAgs6N2xek=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qcqYxRubUqXg41nj4CLdzPeeY55rND+blST3sR3Tg1I=' 'sha256-vTHcYCT7T8BXXhlHTAa4nKdoEsbp2BN90lPR9Y8llUE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2c+NhGS5baEp+dkR92QyPev/wf2fl0amYca/JbyYiCk=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7oHiD+bMFu7PAJ8DITaVlISLmk0rNQd3hvceyXJVJOE=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UhOyYklF0oR6diFq0C93L2hL6VY0/z1/kwApfDX0WNo=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-Zg0VuZposJeHUmYwdGlxPYv7/96XL9I90WDHTkIO/fI=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qcqYxRubUqXg41nj4CLdzPeeY55rND+blST3sR3Tg1I=' 'sha256-vTHcYCT7T8BXXhlHTAa4nKdoEsbp2BN90lPR9Y8llUE=' 'sha256-xKtu+5OHKAfV32+JqFpE+83ScE8qSVYyo2nZOCGsDR4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -11419,6 +11419,21 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     SPO2_OSC_THRESHOLD: 95, // node-local: SpO2 oscillation crossing level — SpO2 is an OxyDex-only signal; not referenced by any cross-node/fusion logic
     OSC_WINDOW_SEC: 300, // node-local: 5-min oscillation-analysis window (algorithmic)
     OSC_FLAG_CROSSINGS: 6, // node-local: min 95%-crossings to flag a periodic-breathing window (detector tuning)
+    // OXYDEX-PB-DETECTOR §2 — the periodicity gate. These constants ARE the detector's spec; §2.3
+    // measured each against the adversarial twins, so none is a free knob to retune against a corpus
+    // episode count (that is the tuning the brief's §5 forbids).
+    PB_BASELINE_WIN_SEC: 181, // rolling-median baseline, ~1.4x the 130 s ceiling so one cycle cannot flatten it
+    PB_CYCLE_MIN_SEC: 40, // §2.1 SETTLED: AASM's FLOOR (Berry 2012) — not the low end of a 40-90 window
+    PB_CYCLE_MAX_SEC: 130, // §2.1 SETTLED: ~mean+2SD of the worst-LVEF group's 86+/-23 s (Wedewardt 2010)
+    // §2 criterion 3, counted on DISJOINT pairs (§2.2). AASM's floor is >= 3 consecutive events, and
+    // this is deliberately ONE HIGHER. AASM scores central apneas/hypopneas from airflow on a PSG; this
+    // estimator sees SpO2 crossings from a wrist oximeter, which is the noisier instrument. At 3 the
+    // measured false-positive rate on the aperiodic twin is 5/40 seeds — a random dip train contains a
+    // chance run of three similar gaps. At 4 it is 0/40, with true positives unchanged at 40/40 for
+    // both 0 s and +/-10 s cycle jitter. The extra cycle costs no sensitivity and is not free-tuned.
+    PB_MIN_CYCLES: 4,
+    PB_MIN_AMP: 2, // %SpO2 peak-to-trough; stops 1 Hz integer dither reading as an oscillation
+    PB_MAX_CYCLE_CV: 0.13, // §2.3 criterion 4 (REGULARITY): rejects 0/40 red-noise seeds (min CV 0.147), accepts 40/40 PB to +/-10 s jitter (max CV 0.111)
     // O2Ring-S FIRMWARE DEVICE QUIRK — confirmed by Wellue engineering (May 2026, SN 2592302100,
     // fw 1.0.5.0): a timer-driven routine at the top of each clock hour injects a +21–25 BPM step in
     // ONE 1-s sample (SpO2 flat, motion zero), within ±60 s of the hour. Genuinely O2Ring-local —
@@ -14572,6 +14587,114 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   function parseTimeStr(s) {
     var m = s.match(/(\d{2}):(\d{2}):(\d{2})/);
     return m ? +m[1] * 3600 + +m[2] * 60 + +m[3] : 0;
+  }
+
+  // ── OXYDEX-PB-DETECTOR §2 · the periodicity gate ──────────────────────────────────────────────
+  // Four criteria, ALL gating. The predecessor counted crossings of an ABSOLUTE 95 % level inside a
+  // fixed window, so nothing it computed depended on the SPACING of those crossings — it measured
+  // hypoxemia burden (r = +0.893 against time-below-95) and could not separate a periodic night from
+  // an aperiodic one with the same burden.
+  //
+  //   1. crossings of the wearer's OWN rolling-median baseline, not a fixed 95 %
+  //   2. cycle length inside the clinical CSR window, from DISJOINT half-cycle pairs (§2.2: the
+  //      sliding view in computePatternScores reports 2k-1 cycles for k, so 2 would satisfy ">= 3")
+  //   3. >= PB_MIN_CYCLES consecutive in-window cycles
+  //   4. those cycle lengths REGULAR (CV < PB_MAX_CYCLE_CV) — §2.3 measured that criteria 1-3 alone
+  //      fire on 40/40 red-noise seeds, because a red series crosses its own baseline at intervals
+  //      set by its correlation time. A run-length test is not a periodicity test.
+  function pbRollingMedianBaseline(x, win) {
+    var half = win >> 1,
+      n = x.length,
+      out = new Array(n);
+    for (var i = 0; i < n; i++) {
+      var lo = i - half < 0 ? 0 : i - half,
+        hi = i + half > n - 1 ? n - 1 : i + half;
+      var seg = x.slice(lo, hi + 1).sort(function (a, b) {
+        return a - b;
+      });
+      out[i] = seg[seg.length >> 1];
+    }
+    return out;
+  }
+
+  // Baseline crossings, with an amplitude guard so integer dither is not an oscillation.
+  function pbCrossingIndices(spo2, cfg) {
+    var base = pbRollingMedianBaseline(spo2, cfg.PB_BASELINE_WIN_SEC),
+      cross = [],
+      lastSign = 0,
+      extreme = 0;
+    for (var i = 0; i < spo2.length; i++) {
+      var d = spo2[i] - base[i];
+      var s = d > 0 ? 1 : d < 0 ? -1 : 0;
+      if (s === 0) continue;
+      if (lastSign === 0) {
+        lastSign = s;
+        extreme = d;
+        continue;
+      }
+      if (s === lastSign) {
+        if (Math.abs(d) > Math.abs(extreme)) extreme = d;
+        continue;
+      }
+      // A sign flip closes an excursion; keep it only if that excursion was deep enough. Half of
+      // PB_MIN_AMP because the guard applies per half-cycle, peak-to-trough spans two.
+      if (Math.abs(extreme) >= cfg.PB_MIN_AMP / 2) cross.push(i);
+      lastSign = s;
+      extreme = d;
+    }
+    return cross;
+  }
+
+  // Returns the periodicity verdict for one SpO2 series (1 Hz). Pure — no rows, no clock.
+  function detectSpO2Periodicity(spo2, opts) {
+    var cfg = opts || CFG;
+    var cross = pbCrossingIndices(spo2, cfg),
+      halves = [];
+    for (var i = 1; i < cross.length; i++) halves.push(cross[i] - cross[i - 1]);
+    // DISJOINT pairing (i += 2). A sliding pair would double-count: see §2.2.
+    var cycles = [];
+    for (var j = 0; j + 1 < halves.length; j += 2) cycles.push(halves[j] + halves[j + 1]);
+    var best = 0,
+      bestLens = [],
+      run = 0,
+      runLens = [];
+    for (var k = 0; k < cycles.length; k++) {
+      var c = cycles[k];
+      if (c >= cfg.PB_CYCLE_MIN_SEC && c <= cfg.PB_CYCLE_MAX_SEC) {
+        run++;
+        runLens.push(c);
+        if (run > best) {
+          best = run;
+          bestLens = runLens.slice();
+        }
+      } else {
+        run = 0;
+        runLens = [];
+      }
+    }
+    var cv = null,
+      med = null;
+    if (bestLens.length) {
+      var sorted = bestLens.slice().sort(function (a, b) {
+        return a - b;
+      });
+      med = sorted[sorted.length >> 1];
+    }
+    if (bestLens.length > 1) {
+      var m =
+        bestLens.reduce(function (a, b) {
+          return a + b;
+        }, 0) / bestLens.length;
+      cv =
+        Math.sqrt(
+          bestLens.reduce(function (s, b) {
+            return s + (b - m) * (b - m);
+          }, 0) / bestLens.length
+        ) / m;
+    }
+    // Criterion 4 gates: a run that is long enough but IRREGULAR is not periodic breathing.
+    var periodic = best >= cfg.PB_MIN_CYCLES && cv !== null && cv < cfg.PB_MAX_CYCLE_CV;
+    return { periodic: periodic, longestRun: best, cycleLen: med, cycleCV: cv === null ? null : +cv.toFixed(4), nCycles: cycles.length };
   }
 
   function detectOscillations(rows) {
@@ -18375,6 +18498,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     detectPeriodicity,
     parseTimeStr,
     detectOscillations,
+    detectSpO2Periodicity, // OXYDEX-PB-DETECTOR §2 — SpO2 periodicity. NOT detectPeriodicity above, which is the HR-SPIKE detector (line ~3239) and is a different measurement on different input
     _flagSev,
     buildFlags,
     computeHypoxicBurden,
