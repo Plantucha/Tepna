@@ -54,22 +54,41 @@ corpus of uniformly short fragments.
 - **Do not** simply copy it — two implementations of one rule is what the `detector-stability` parity
   group exists to police. Promote one and have both call it.
 
-## 3 · Two brief headers say PROPOSED for work that shipped
+## 3 · ~~Two brief headers say PROPOSED for work that shipped~~ — ONE does; I read the other from a stale checkout
 
-Both were found by checking the code against the Done-when list rather than reading the header — the
-`brief-checkboxes-are-not-status` pattern, twice in one family.
+> ### ⛔ CORRECTED 2026-08-17, same day, by the author. HALF OF THIS SECTION WAS FALSE.
+>
+> **`HOSTAXIS-STABILITY-2026-08-13-BRIEF.md` reads `DONE` on `main` and did when this was written.**
+> I read it from the shared root checkout, which is **248 commits behind `origin/main`**, and reported
+> a header that had already been flipped. The claim about what SHIPPED (`hostAxis.stability`, the
+> `independent === false` refusal, the MINSTD pin, ECGDex's export) is correct — the claim about the
+> HEADER was not, and the header was the point of the section.
+>
+> **Why the checkout is stale is worth more than the correction.** `tepna-sync-main.timer` runs every
+> 15 min and is healthy; the service logs `SKIP — 175 uncommitted/untracked path(s) — never sync over
+> someone's work`. **The guard is behaving correctly** — it must not fast-forward over another
+> session's uncommitted files. But the consequence is that the shared tree froze 248 commits ago, so
+> *every* session reading a brief, a DSP or a gate from the root checkout gets a stale copy and cannot
+> tell. That is a worse failure than the one this section reported, and it is invisible: the file
+> opens, parses and looks current.
+>
+> **The lesson, which is this brief's own thesis turned on itself:** a status read from a checkout is
+> a statement about that checkout, not about `main`. Read briefs from a fresh worktree
+> (`git worktree add … origin/main`) or via `git show origin/main:<path>` — never from the shared root
+> unless you have just confirmed it is current. Confirm with `git rev-list --count HEAD..origin/main`
+> **and** `git status --porcelain`; the ref count alone reads 0 while the tree is hundreds of files
+> stale (CLAUDE.md §👥.2b).
 
-- **`HOSTAXIS-STABILITY-2026-08-13-BRIEF.md`** — every §6 item is in the tree, shipped by
-  `122e6319` (#1227): `clock.js` `hostAxis.stability` with `ppmUncertainty`, the `independent === false`
-  refusal returning `null`, the MINSTD cross-language pin (`tests/dex-tests.js:976`), and ECGDex's host
-  axis surfaced in its export (`ecgdex-dsp.js:4759`). The Allan core was promoted to the spine with a
-  comment naming this brief's §4.3.
-- **`WEARABLE-DRIFT-DIRECT-2026-08-02-BRIEF.md`** — §6 is all `[x]`, and §7.5 records the three-source
-  closure **closing 4 of 4 box nights** with `tools/beat-leg-closure.mjs` shipped.
+**What survives, verified against `origin/main` rather than the stale tree:**
 
-Neither flip is done here: a status flip is a claim that every acceptance item was verified, and
-verifying them is its own work unit. Whoever takes it should re-run the Done-when lists, not trust
-this paragraph.
+- **`WEARABLE-DRIFT-DIRECT-2026-08-02-BRIEF.md` — still `PROPOSED`.** §6 carries **7 `[x]`** plus one
+  `[~]` (a same-day retraction record, not an open item), and §7.5 records the three-source closure
+  **closing 4 of 4 box nights** with `tools/beat-leg-closure.mjs` shipped. This one is a genuine stale
+  header.
+
+The flip is still not done here: a status flip claims every acceptance item was verified, and verifying
+them is its own work unit. Whoever takes it should re-run the Done-when list — and read it from
+`origin/main`.
 
 ## 4 · The real precondition for inverse-variance weighting is still unbuilt
 
@@ -91,17 +110,22 @@ merge conflict when it goes wrong.
 
 **Owed by whoever owns PAT:** either close that item against §3.6, or state why §3.6 does not bind it.
 
-## 6 · `tools/doc-search.mjs` is not on `main`
+## 6 · ~~`tools/doc-search.mjs` is not on `main`~~ — WITHDRAWN, it is
 
-The semantic-search step several workflows reach for lives only on the unmerged branch
-`origin/claude/doc-search`. Invoking it fails with `MODULE_NOT_FOUND`, which reads as "the tool is
-broken" rather than "the tool was never landed". Either land it or stop citing it; a documented tool
-that does not exist sends people to grep believing they have already tried the better instrument.
+> ### ⛔ WITHDRAWN 2026-08-17, same day, by the author.
+>
+> `tools/doc-search.mjs` **is on `main`**. The `MODULE_NOT_FOUND` I hit came from invoking it in the
+> shared root checkout, which is 248 commits behind and predates the file — the same staleness that
+> produced §3's false half, reaching a different conclusion from the same cause.
+>
+> The shape is worth keeping even though the finding is not: **an absent file and a stale checkout are
+> indistinguishable at the call site.** `MODULE_NOT_FOUND` is evidence about the tree you ran in, never
+> about the repository. Before concluding a tool does not exist, check `git show origin/main:<path>`.
 
 ## 7 · Done when
 
 - [ ] `atShortestPpm` / `atLongestPpm` added additively to `hostAxis.stability`, on the next spine PR
 - [ ] `dual-clock-rate.mjs`'s crystal rule reads uncertainties, sharing ONE implementation with `device-stability.mjs`
-- [ ] the two stale headers re-verified against their Done-when lists and flipped, or their gaps recorded
+- [ ] `WEARABLE-DRIFT-DIRECT`'s header re-verified against its Done-when list and flipped, or its gaps recorded (`HOSTAXIS-STABILITY` needs nothing — it is already DONE; see §3's correction)
 - [ ] per-channel offset σ extracted, or recorded as declined with a reason
-- [ ] `doc-search.mjs` landed or its citations removed
+- [x] ~~`doc-search.mjs` landed or its citations removed~~ — WITHDRAWN 2026-08-17: it was already on `main` (§6)
