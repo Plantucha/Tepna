@@ -1260,6 +1260,26 @@ statistic silently lacks.
 that n** instead of an eyeballed threshold. Cheap: both are three-line formulas over angles already
 computed. **Confidence: HIGH** — the correspondence is an identity, not an analogy.
 
+> ### ✅ BUILT 2026-08-17 — `tools/circular-stats.mjs`, gated `tools · circular-stats`
+>
+> `rayleighP(n, rBar)` (Zar's approximation, the one CircStat's `circ_rtest` ships) +
+> `meanResultantLength`, the latter **pinned by the gate against the DSP-style inline computation** so
+> the exported statistic and `_wrappedSlopeFit`'s `concentration` cannot drift apart. Wired into
+> `tools/integrator-block-precision.mjs`, which now prints `Rayleigh p<0.01 on k/n` beside the
+> concentration it already reported.
+>
+> **The demonstration that the eyeballed threshold could not carry:** the SAME R̄ = 0.3 is
+> uniform-plausible at n = 10 blocks (p ≈ 0.42) and decisive at n = 100 (p ≈ 10⁻⁴). JOINT-UNWRAP §5
+> read 0.15–0.38 as "no phase to regress" — whether that judgement is right **depends on the block
+> count**, and only the test carries that dependence. Both exact limits are asserted as identities
+> (R̄=0 ⇒ p=1; R̄=1 ⇒ p < 10⁻⁷⁰), refusals fire on n<2 / R̄>1 / non-finite input.
+>
+> **Scope, stated:** the p tests uniformity under an independence assumption; adjacent blocks share
+> physiology, so it is mildly anticonservative — a diagnostic beside the statistic, not a gate, the
+> `slopeSE` posture. And `integrator-dsp.js`'s own `wrappedConcentration` field is deliberately
+> untouched: adding a p there is a compute-closure change that re-verifies the Integrator golden, so
+> it **rides the next behavioural re-bundle** — the same economics as `tau0Uniformity`'s wiring.
+
 ### 13h.2 · Spike-train distance metrics — the beat-correspondence audit already has a formal object, with the alignment for free
 
 **Tepna problem (named, twice).** `papers/dead-ends.html` §2.7's correction names the outstanding
@@ -1292,6 +1312,48 @@ beat-correspondence audit `dead-ends` says is outstanding. Sweep q around 1/(the
 SD) for sensitivity. ⚠️ The diagnosis §3.4's warning transfers verbatim: an association method
 quantifies ambiguity; it must never be used to *force* a coupling result. **Confidence: HIGH** on the
 correspondence; the measurement is the cheap test of whether it earns adoption.
+
+> ### 📏 BUILT AND RUN 2026-08-17 — `tools/beat-correspondence.mjs`, gated `tools · beat-correspondence`
+>
+> The pure core (banded VP alignment + interval-NCC anchor) is planted-truth tested: 7 planted
+> deletions + 4 insertions recovered **exactly**, a −25-beat lag recovered from intervals, an
+> out-of-band lag **refuses** rather than reporting, and the q extremes bracket the audit in opposite
+> directions. Three of those assertions encode bugs the first version shipped with — worth naming
+> because each is a lesson this brief family already teaches, re-learned in miniature:
+>
+> - **The offset estimator was poisoned by the thing being counted.** Index-paired median: one planted
+>   insertion shifts every later pairing by a whole beat, 90 % of deltas land one RR off, the median
+>   picks the wrong population (planted 1 insertion → reported d=1, i=2). Fixed nearest-neighbour.
+> - **The estimated offset is the MEDIAN of sampled deltas, so one residual is exactly 0 by
+>   construction** — and matches at ANY q. An "every beat is an indel" expectation is unsatisfiable
+>   without an explicit off-median offset. The code was right; the expectation was wrong, twice.
+> - **The mod-RR plane is an integer ambiguity and is resolved the §4 way**: on a phone capture there
+>   is no shared clock, so the offset is knowable only mod one RR — the nearest-neighbour estimator
+>   landed on the *previous cycle's foot* (offset 44.6 ms where transit is ~400+). The sweep runs the
+>   alignment per candidate plane (base + k·medianRR), VP distance is the per-plane cost, and the
+>   **margin between best and second-best plane is the ratio test**.
+>
+> **Measured, on the wrist pair (H10 ECG × Verity PPG — NOT §2-RESULT-IV's finger pair):**
+>
+> | night | beats (ECG/PPG) | anchor ncc · margin | best plane margin | indel rate | mean·max |Δt| |
+> |---|---|---|---|---|---|
+> | 2026-07-09 | 24 895 / 24 879 | 0.829 · **0.0002** | **1.2 %** | 37.6 % | 143 · 300 ms |
+> | 2026-07-12 | 20 698 / 20 672 | 0.753 · 0.081 | 9.8 % | 43.6 % | 129 · 300 ms |
+>
+> **⚠️ THESE ARE UPPER BOUNDS UNDER A GLOBAL-OFFSET MODEL, NOT SCRAMBLE MEASUREMENTS — the tool's own
+> refusal machinery says so.** Three confounds, all named by the run itself: (1) the beat counts match
+> to 0.06–0.13 % while the alignment path walks **±2000 beats** mid-night — large *asynchronous
+> dropout segments*, exactly the "counts match, identity scrambled" shape the audit exists for, but a
+> dropout is not a scramble; (2) phone captures carry ~7 ppm inter-device drift ≈ 176 ms over the
+> night — comparable to the 300 ms budget, so a single global offset cannot fit both ends, and the
+> residual max piling at exactly 2/q is the truncation signature; (3) the 07-09 plane margin is 1.2 %,
+> i.e. the ratio test does **not** confidently resolve the plane there. Also note the wrist anchors
+> (ncc 0.75–0.83) are far below RESULT-IV's finger anchors (0.995+) — a harder signal, not the same
+> experiment.
+>
+> **Next steps, stated rather than smuggled:** per-window offsets (the repo's per-block precedent)
+> remove the drift term without beat-circularity beyond a constant per window; and the finger pair
+> (O2Ring `.dat`) is the RESULT-IV experiment proper. Neither is done here.
 
 ### 13h.3 · The alignment substrate, and probabilistic linkage — recorded so the next searcher stops here
 

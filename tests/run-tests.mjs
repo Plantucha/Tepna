@@ -26,6 +26,8 @@ import * as captureRecapture from '../tools/capture-recapture.mjs';
 import { estimate as beatCrEstimate, estSummary as beatCrSummary } from '../tools/beat-capture-recapture.mjs';
 import { attenuateAndRecover, buildTemplate as beatBuildTemplate } from '../tools/beat-injection-recovery.mjs';
 import * as deviceStability from '../tools/device-stability.mjs';
+import * as beatCorrespondence from '../tools/beat-correspondence.mjs';
+import * as circularStats from '../tools/circular-stats.mjs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
@@ -1714,6 +1716,9 @@ async function main() {
        corpus that CI does not have, so what can be gated is the reasoning, driven by value. Node-lane
        only (an ESM import of a tool), so the browser lane SKIPs. */
     deviceStability: deviceStability,
+    /* beat-correspondence's PURE core (vpAlign, nccAnchor) — same shape and reason as deviceStability. */
+    beatCorrespondence: beatCorrespondence,
+    circularStats: circularStats,
     rebaseClassify: rebaseClassify,
     /* the porcelain parse, separated from the I/O so the gate can drive it by value — see the group */
     rebaseParsePorcelain: rebaseParsePorcelain,
