@@ -1,0 +1,107 @@
+<!--
+  CROSS-DEVICE-DRIFT-FOLLOWUPS-2026-08-17-BRIEF.md — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+-->
+**Status:** PROPOSED · **Created:** 2026-08-17 · **Follows:** `CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01-BRIEF.md` §5 (per-device σ + inverse-variance items, both executed 2026-08-17) · **Affects:** `clock.js` field naming, `tools/dual-clock-rate.mjs`, two stale brief headers
+
+# What executing the per-device σ item surfaced
+
+`CROSS-DEVICE-DRIFT-AND-CLOSURE` §5's "measure against the capture host" is done: 344 streams over 16
+box nights, `tools/device-stability.mjs`, gated by `device-stability · per-device-sigma`. This brief
+carries what turned up on the way and is **not** part of that work unit.
+
+---
+
+## 1 · `hostAxis.stability`'s σ fields are named `…Ms` and are not milliseconds
+
+`clock.js` publishes `atShortestMs` / `atLongestMs`. `allanFromPhase` is handed phase in **ms** and τ
+in **seconds**, so its `adev` is a fractional frequency in **ms/s** — which is exactly why the same
+object computes `ppmUncertainty: adev * 1000`. If the field were milliseconds that multiplier would
+be wrong.
+
+So the two names understate their own values by 1000× to anyone who reads them as written. Nothing
+is numerically wrong today — every in-repo consumer either uses `ppmUncertainty` or treats the value
+opaquely — but this is a unit mislabel in shipped spine code, and CLAUDE.md rates a wrong unit at the
+same severity as a wrong number. `HOSTAXIS-STABILITY` §2's own prose already writes the correct unit
+("194 ms/s @ 0.15 s"), so the brief and the field disagree.
+
+- **Fix:** add `atShortestPpm` / `atLongestPpm` alongside, deprecate the `…Ms` pair in comment. Additive,
+  so no consumer breaks — the same additive discipline `stability` itself shipped under.
+- **Cost:** `clock.js` is a **shared-spine change** (CLAUDE.md §👥.3) — it re-stamps all 8
+  `provenance/<App>.json` fragments and serialises against every bundle-touching PR. That is the whole
+  cost; the edit is three lines. Land it with other spine work, not alone.
+- ⚠ Do **not** rename in place. `atLongestMs` is read by `ecgdex-dsp.js`'s export block.
+
+## 2 · `tools/dual-clock-rate.mjs` has the defect this work found and fixed, mitigated by luck
+
+`MAX_CRYSTAL_SPREAD_PPM` refuses a device whose fragment rates disagree by more than 50 ppm — by
+**raw max−min spread**, with no reference to how precise each fragment's rate is. That is the rule
+`device-stability.mjs` started with and had to abandon: it failed **25 of 40 device-nights**,
+including 10 H10 nights, and would have contradicted `WEARABLE-DRIFT-DIRECT` §1's ±2–3 ppm. A
+−21.0 ± 2.4 ppm fragment and a −119.5 ± 309 ppm one are the same measurement, and max−min calls them
+a 98 ppm disagreement.
+
+**`dual-clock-rate` is protected today only by its length filter** (fragments > 3 MB, `MIN_SPAN_MIN`
+60), which happens to exclude the imprecise fragments rather than reasoning about them. That is a
+mitigation, not the rule being right, and it fails the moment someone lowers the filter or meets a
+corpus of uniformly short fragments.
+
+- **Fix:** give it the same uncertainty-aware verdict — `hostAxis.stability.ppmUncertainty` is already
+  available to it, since it already builds the axis. `device-stability.mjs crystalVerdict` is the
+  reference implementation and is gate-backed by value (two mutants: a raw-spread rule and a
+  uncertainty-blind fallback each kill assertions).
+- **Do not** simply copy it — two implementations of one rule is what the `detector-stability` parity
+  group exists to police. Promote one and have both call it.
+
+## 3 · Two brief headers say PROPOSED for work that shipped
+
+Both were found by checking the code against the Done-when list rather than reading the header — the
+`brief-checkboxes-are-not-status` pattern, twice in one family.
+
+- **`HOSTAXIS-STABILITY-2026-08-13-BRIEF.md`** — every §6 item is in the tree, shipped by
+  `122e6319` (#1227): `clock.js` `hostAxis.stability` with `ppmUncertainty`, the `independent === false`
+  refusal returning `null`, the MINSTD cross-language pin (`tests/dex-tests.js:976`), and ECGDex's host
+  axis surfaced in its export (`ecgdex-dsp.js:4759`). The Allan core was promoted to the spine with a
+  comment naming this brief's §4.3.
+- **`WEARABLE-DRIFT-DIRECT-2026-08-02-BRIEF.md`** — §6 is all `[x]`, and §7.5 records the three-source
+  closure **closing 4 of 4 box nights** with `tools/beat-leg-closure.mjs` shipped.
+
+Neither flip is done here: a status flip is a claim that every acceptance item was verified, and
+verifying them is its own work unit. Whoever takes it should re-run the Done-when lists, not trust
+this paragraph.
+
+## 4 · The real precondition for inverse-variance weighting is still unbuilt
+
+§5's inverse-variance item is answered NO for a reason that names what would change it: a **per-channel
+σ of the offset estimate**, not a per-device clock σ. §3.4 observes the estimator already computes each
+channel's curve, so the quantity is close to hand. Nobody has extracted it.
+
+This is the one item in that thread that is genuinely open rather than refuted, and it is small.
+
+## 5 · Recorded, NOT acted on — the PAT item belongs to another thread
+
+`CROSS-DEVICE-DRIFT-AND-CLOSURE` §5's remaining `[ ]` ("PAT re-tested under drift-aware alignment")
+reads as open, while the **same brief's §3.6** argues both routes to it close — an alignment fitted by
+maximising beat coincidence has already absorbed the transit it would be used to measure. That
+tension was deliberately left in place: `PAT-NO-VALID-ANCHOR-2026-08-02-BRIEF.md` is **IN-PROGRESS**
+and `PAT-UNDER-PERBLOCK-ALIGNMENT` has withdrawn its own title claim, so the PAT thread is live and
+owned elsewhere. Closing another session's item from outside is the §📌 collision, and it produces no
+merge conflict when it goes wrong.
+
+**Owed by whoever owns PAT:** either close that item against §3.6, or state why §3.6 does not bind it.
+
+## 6 · `tools/doc-search.mjs` is not on `main`
+
+The semantic-search step several workflows reach for lives only on the unmerged branch
+`origin/claude/doc-search`. Invoking it fails with `MODULE_NOT_FOUND`, which reads as "the tool is
+broken" rather than "the tool was never landed". Either land it or stop citing it; a documented tool
+that does not exist sends people to grep believing they have already tried the better instrument.
+
+## 7 · Done when
+
+- [ ] `atShortestPpm` / `atLongestPpm` added additively to `hostAxis.stability`, on the next spine PR
+- [ ] `dual-clock-rate.mjs`'s crystal rule reads uncertainties, sharing ONE implementation with `device-stability.mjs`
+- [ ] the two stale headers re-verified against their Done-when lists and flipped, or their gaps recorded
+- [ ] per-channel offset σ extracted, or recorded as declined with a reason
+- [ ] `doc-search.mjs` landed or its citations removed

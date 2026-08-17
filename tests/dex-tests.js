@@ -5810,6 +5810,81 @@
        incomplete one. A closure check that only ever confirms is the vacuous-gate failure this repo
        keeps re-finding — two legs and a hole would otherwise "close" at whatever the two legs sum to,
        which is a fabricated pass of exactly the §2.6 never-default-a-missing-value kind. */
+    /* PER-DEVICE TIMING STABILITY — `tools/device-stability.mjs`, executing
+       CROSS-DEVICE-DRIFT-AND-CLOSURE §5's "measure against the capture host". The tool walks a box
+       corpus CI does not have, so what is gated here is its REASONING, driven by value.
+
+       Two of these assertions exist because the first implementation got them WRONG on real data:
+
+       1. σ_y is a FUNCTION of τ, so a cross-device table must read every device at ONE τ. Quoting each
+          stream at its own longest τ ranks them partly by how long they happened to run — τmax spans
+          311–16153 s on this corpus, a 52× range.
+       2. Fragment rates may only be compared THROUGH THEIR UNCERTAINTIES. A raw max−min spread treats
+          −21.0 ± 2.4 ppm and −119.5 ± 309 ppm as two readings of equal standing; they are the same
+          measurement made over 563 minutes and over 28. The naive rule failed 25 of 40 device-nights
+          and would have contradicted WEARABLE-DRIFT-DIRECT §1 — which was right, because it filtered
+          to fragments > 3 MB. This is what `hostAxis.stability.ppmUncertainty` is FOR. */
+    group('device stability compares at one τ and judges rates through their error bars', 'device-stability · per-device-sigma', function (T) {
+      var DS = env.deviceStability;
+      if (!DS) {
+        T.skip('device-stability is loaded in this lane', 'browser lane cannot ESM-import a tool');
+        return;
+      }
+
+      // The verdict ladder, and its ORDERING — a drawn axis outranks a derived host column, and a
+      // length complaint never pre-empts either ("too short" invites "use a longer file", which on a
+      // drawn or phone-captured axis is precisely wrong).
+      T.eq('a drawn device axis is named first', DS.classifyStability({ ok: true, drawn: true, independent: false, stability: null, spanMin: 1 }), 'drawn-device-axis');
+      T.eq('then an absent second clock', DS.classifyStability({ ok: true, drawn: false, independent: false, stability: null, spanMin: 1 }), 'no-second-clock');
+      T.eq('an unreadable stream is not a verdict about a clock', DS.classifyStability({ ok: false }), 'unreadable');
+      T.eq('a short but independent stream is only THEN too short', DS.classifyStability({ ok: true, drawn: false, independent: true, stability: { taus: 9 }, spanMin: 1 }), 'too-short');
+
+      /* THE COMMON-τ READ. A curve that does not reach the reference must drop OUT of the comparison,
+         never contribute its own longest point — the assertion that must fail if someone "helpfully"
+         falls back to the nearest available τ. */
+      var curve = [];
+      for (var k = 0; k < 12; k++) curve.push({ tau: Math.pow(2, k), adev: 1 / Math.pow(2, k) });
+      var at256 = DS.sigmaAtRefTau(curve, 256);
+      T.ok('a curve reaching the reference τ is read there', at256 && at256.tau === 256, JSON.stringify(at256));
+      T.eq('…in ppm, the spine value ×1000 — σ_y is ms/s, not ms', at256 && Math.round(at256.ppm), Math.round((1 / 256) * 1000));
+      T.eq('a curve that stops short returns null rather than its own longest point', DS.sigmaAtRefTau(curve, 1e6), null);
+      T.eq('an empty curve returns null', DS.sigmaAtRefTau([], 256), null);
+
+      /* IS IT A CRYSTAL? The load-bearing case is the one that must PASS despite a wide raw spread:
+         real 2026-08-01 H10 fragments, one precise and four imprecise. If this reds, the tool is back
+         to ranking measurements by how long they happened to run. */
+      var h10 = [
+        { ppm: -119.5, ppmUncertainty: 309.1 },
+        { ppm: -93.3, ppmUncertainty: 155.1 },
+        { ppm: -13.2, ppmUncertainty: 93.3 },
+        { ppm: -19.7, ppmUncertainty: 121.3 },
+        { ppm: 12.5, ppmUncertainty: 306.9 },
+        { ppm: -21.0, ppmUncertainty: 2.4 }
+      ];
+      var cv = DS.crystalVerdict(h10);
+      T.eq('a 132 ppm raw spread explained by its own error bars IS a crystal', cv.verdict, 'crystal');
+      T.ok('…and the weighted rate is carried by the precise fragment, not the mean of six', Math.abs(cv.weightedPpm + 21.0) < 1.0, String(cv.weightedPpm));
+
+      /* …and the mirror assertion, without which the fix above would merely have disabled the check:
+         fragments disagreeing far BEYOND their error bars must still be refused. */
+      var ring = [
+        { ppm: -967.7, ppmUncertainty: 12.0 },
+        { ppm: 904.4, ppmUncertainty: 18.0 },
+        { ppm: 2454.3, ppmUncertainty: 25.0 }
+      ];
+      T.eq('fragments disagreeing beyond their error bars are still refused', DS.crystalVerdict(ring).verdict, 'not-a-crystal');
+      T.eq('one fragment is UNCHALLENGED — it cannot contradict itself, so it is not a pass', DS.crystalVerdict([{ ppm: -188, ppmUncertainty: 4 }]).verdict, 'unchallenged');
+      T.eq('no fragments is not a verdict either', DS.crystalVerdict([]).verdict, 'none');
+      T.eq(
+        'with no uncertainties it falls back to the raw bound rather than inventing a σ',
+        DS.crystalVerdict([
+          { ppm: -20, ppmUncertainty: null },
+          { ppm: 400, ppmUncertainty: null }
+        ]).verdict,
+        'not-a-crystal'
+      );
+    });
+
     group('a drift closure catches a wrong leg and refuses an absent one', 'drift-report · closure-identity', function (T) {
       var DR = env.DriftReport;
       T.ok('DriftReport is loaded in this lane', !!DR, 'tools/drift-report.js did not load — the group below would vacuously pass');
