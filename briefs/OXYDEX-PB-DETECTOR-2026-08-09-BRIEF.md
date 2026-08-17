@@ -299,9 +299,33 @@ corroboration and by the OxyDex reference guide, both of which move with it.
 - [ ] §3.1's **third twin** — pure AR(1) red noise at the corpus-measured ρ, no oscillation planted —
       produces **no episode**, with the ρ and its sampling rate stated. A detector that clears the
       periodic/aperiodic pair but not this one is not finished.
-- [ ] §3.2's corpus decorrelation is measured and the achieved r is stated, whatever it is.
+- [x] **§3.2's corpus decorrelation MEASURED 2026-08-16 — r = 0.910 → 0.370.** Paired on the **same
+      42 nights**, old code vs wired (`tools/pb-operating-point.mjs`): nights flagged 38/42 → 16/42;
+      episodes vs % time below 95 % **0.910 → 0.370**; episodes vs mean SpO₂ −0.832 → −0.380. Stated
+      "whatever it is", as the box asks: **0.370 is not zero.** PB and hypoxemia genuinely co-occur, so
+      a detector correlating *zero* with burden would be suspicious in the other direction; the claim
+      is that burden no longer explains most of the signal, not that the two are independent.
+      ⚠️ The tool's header quotes 36/37 nights and r = 0.893 from a **37-night** corpus; the 42-night
+      baseline re-measured here is 38/42 and r = 0.910. Compare like with like — the improvement is
+      0.910 → 0.370 on one corpus, not 0.893 → 0.370 across two.
 - [ ] §3.3's κ is reported beside −0.039, explicitly as an observation.
+      🔴 **BLOCKED 2026-08-16 — the CPAP corpus it needs is not on this machine.** `tools/pb-agreement.mjs`
+      requires `--cpap <cpap-exports.json>`, built by `tools/cpap-corpus.mjs --root <sd-card-dir>`. The
+      card is **not among the four locations in `docs/CORPUS-LOCATIONS.md`**, a `DATALOG`/`STR.edf`
+      search finds nothing, and `uploads/` holds only **3 distinct CPAP nights** (2026-06-12, -13, -16)
+      against the ~20 that produced −0.039. κ on n = 3 would be noise wearing a statistic's name.
+      Pointing `cpap-corpus.mjs` at `uploads/` "succeeds" and reports **nights: 0** — an empty result
+      that exits clean, so check the count, not the exit code.
 - [ ] §4's bar is measured: removing the leg now changes the fused outcome on some nights — or it does
       not, and option 1 is revisited on that evidence.
-- [ ] Fixtures regenerated, all four build surfaces rebuilt, `verify-fixtures` re-run, `npm run check`
-      green.
+      🔴 **BLOCKED on the same input.** `tools/pb-fusion-blast.mjs` also requires `--cpap`. Both boxes
+      unblock together the moment the SD card is mounted; neither needs new code.
+- [x] **Fixtures regenerated, build surfaces rebuilt, `verify-fixtures` re-run — 2026-08-16.** The
+      equivalence gate **red first** (`ranked.0` "PB Episodes 16 eps" no longer computed), which is what
+      GATE C is for; `tools/regen-oxydex-goldens.mjs` moved 2 fixtures and the synthetic golden was
+      unchanged. `manifestHash` 979be8301f81 → 30e45b3ce49b, `verifiedUnder` → 16ae6cce27f0 after a
+      green corpus run. Both orchestrators re-bundled (they inline `oxydex-dsp.js`). Full suite **with**
+      the corpus: 7631/7631, zero skips; `build:check`/`verify:docs`/`verify:analysis`/`verify:manifest`
+      /`lint` all rc=0.
+      ⚠️ `npm run test:hooks` fails — but **identically on `origin/main`** (rc=1 both), so it is
+      pre-existing and not attributable to this work. Recorded rather than omitted.
