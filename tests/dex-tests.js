@@ -740,6 +740,104 @@
       T.ok('too short a night is still null, not a guess', OD.computeSpO2FFT(ar1(100, 0.9, 5)) === null);
     });
 
+    /* OXYDEX-PB-DETECTOR §3.1 — the three adversarial twins.
+       The predecessor counted crossings of an absolute 95 % level, so NOTHING it computed depended on
+       the spacing of those crossings: it could not separate a periodic night from an aperiodic one
+       carrying the same desaturation burden. Twins A and B are that test.
+       Twin C is the one added 2026-08-16, and it is the one the first prototype FAILED: implementing
+       §2's three criteria (baseline crossings + cycle window + >= 3 consecutive) fired on 40/40
+       AR(1) rho=0.98 seeds, because a red series crosses its own rolling baseline at intervals set by
+       its correlation time. A run-length criterion is not a periodicity criterion — hence criterion 4
+       (REGULARITY, CV < PB_MAX_CYCLE_CV), whose threshold sits between two MEASURED distributions:
+       red noise never below CV 0.147, PB never above 0.111 out to +/-10 s cycle jitter. */
+    group('periodic breathing is separated from burden, from randomness, and from red noise', 'oxydex · pb-detector', function (T) {
+      var cand = [env.OxyDex && env.OxyDex._bare, env.OxyDex, env.OxyDSP, env.OXYDSP];
+      var OD = null,
+        pi;
+      for (pi = 0; pi < cand.length; pi++) {
+        if (cand[pi] && typeof cand[pi].detectSpO2Periodicity === 'function') {
+          OD = cand[pi];
+          break;
+        }
+      }
+      if (!OD) {
+        T.skip('detectSpO2Periodicity not in env — OxyDex keys: ' + (env.OxyDex ? Object.keys(env.OxyDex).slice(0, 14).join(',') : 'NO OxyDex'));
+        return;
+      }
+      var N = 3600,
+        BASE = 95;
+      function rng(seed) {
+        var s = seed >>> 0;
+        return function () {
+          s = (s * 1664525 + 1013904223) >>> 0;
+          return s / 4294967296;
+        };
+      }
+      function redNoise(n, rho, seed) {
+        var r = rng(seed),
+          v = 0,
+          o = [],
+          i;
+        for (i = 0; i < n; i++) {
+          var g = Math.sqrt(-2 * Math.log(r() || 1e-9)) * Math.cos(2 * Math.PI * r());
+          v = rho * v + 0.3 * g;
+          o.push(BASE + v);
+        }
+        return o;
+      }
+      // A — periodic: regular 60 s dips.
+      var periodic = [],
+        a;
+      for (a = 0; a < N; a++) periodic.push(BASE + 3 * Math.sin((2 * Math.PI * a) / 60));
+      // B — aperiodic: the SAME number of dips, the same depth, randomised placement.
+      function aperiodic() {
+        var r = rng(7),
+          x = [],
+          at = [],
+          i,
+          k;
+        for (i = 0; i < N; i++) x.push(BASE);
+        while (at.length < 60) {
+          var p = Math.floor(r() * (N - 40)) + 20,
+            ok = true;
+          for (k = 0; k < at.length; k++) if (Math.abs(at[k] - p) <= 25) ok = false;
+          if (ok) at.push(p);
+        }
+        for (i = 0; i < at.length; i++)
+          for (k = -12; k <= 12; k++) {
+            var idx = at[i] + k;
+            if (idx >= 0 && idx < N) x[idx] -= 2 * Math.pow(Math.cos((Math.PI * k) / 24), 2) * 3;
+          }
+        return x;
+      }
+
+      var rA = OD.detectSpO2Periodicity(periodic);
+      T.ok('A · a periodic night FIRES (run ' + rA.longestRun + ', cycle ' + rA.cycleLen + 's, CV ' + rA.cycleCV + ')', rA.periodic === true);
+      T.ok('A · and reports a cycle length inside the settled 40-130 s window', rA.cycleLen >= 40 && rA.cycleLen <= 130);
+
+      var rB = OD.detectSpO2Periodicity(aperiodic());
+      T.ok('B · the SAME burden placed randomly does NOT fire — this is the test the old detector could not pass', rB.periodic === false);
+
+      var rC = OD.detectSpO2Periodicity(redNoise(N, 0.98, 11));
+      T.ok('C · pure red noise, no oscillation planted, does NOT fire', rC.periodic === false);
+
+      // C is a distribution, not an anecdote: one lucky seed would prove nothing.
+      var fired = 0,
+        s;
+      for (s = 1; s <= 20; s++) if (OD.detectSpO2Periodicity(redNoise(N, 0.98, s * 13)).periodic) fired++;
+      T.ok('C · and it holds across 20 red-noise seeds, not one (' + fired + '/20 fired)', fired === 0);
+
+      // ANTI-VACUITY: a detector that never fires would pass B and C trivially. A must fire, and the
+      // regularity gate must be what rejects C — not an empty run that never reached criterion 4.
+      T.ok('the red-noise twin is rejected by REGULARITY, not by having no cycles at all', rC.longestRun >= 3 && rC.cycleCV !== null && rC.cycleCV >= 0.13);
+
+      // §2.2: the count is on DISJOINT pairs, so 2 real cycles must not read as 3.
+      var two = [],
+        t;
+      for (t = 0; t < 120; t++) two.push(BASE + 3 * Math.sin((2 * Math.PI * t) / 60));
+      T.ok('two real cycles do not satisfy the cycle floor — the sliding view of §2.2 would report 3 of them', OD.detectSpO2Periodicity(two).periodic === false);
+    });
+
     group('a drawn time axis is detected and declared, not silently corrected', 'ppgdex · axis-provenance', function (T) {
       var P = env.PPGDSP || env.PpgDSP;
       if (!P || typeof P.parsePPG !== 'function') {
