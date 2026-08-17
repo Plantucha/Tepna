@@ -194,6 +194,47 @@ reachable from the phrase. One is a demo the gates ignore; the other is what the
 `provenance/*.json` for whether a generator is on the compute path before assuming a change there is
 testable — or, in the other direction, harmless.
 
+### ✅ THE TESTING GAP IS CLOSED 2026-08-17 — and closing it found an independent argument for the window
+
+The committed-fixture route above is still worth doing, but the *risk* §5 named — that the detector's
+**90–130 s ceiling had never been exercised** — is now covered from committed bytes by four assertions in
+the `oxydex · pb-detector` group: a 110 s cycle fires and reports its length **above 90**, a 128 s cycle
+fires just inside the ceiling, and a **150 s cycle does not** (without that last one the first three
+would pass against a detector with no upper bound at all).
+
+**Verified non-vacuous by mutation, not by passing.** Dropping `PB_CYCLE_MAX_SEC` 130 → 90 kills all
+three upper-band assertions. Every twin previously in the group sits at 60 s and the committed synthetic
+inputs run at 20 s and 50 s, so that regression would have gone green before this.
+
+**And the mutant surfaced something nobody had looked for: the red-noise false-positive rate is MONOTONE
+IN THE CEILING, and narrowing it makes the detector WORSE.** Measured at ρ = 0.98, 200 seeds each:
+
+| ceiling | red-noise false positives |
+|---|---|
+| **90 s** (this brief's original proposal) | **28/200 — 14.0 %** |
+| 100 s | 17/200 — 8.5 % |
+| 110 s | 9/200 — 4.5 % |
+| **130 s** (settled) | **1/200 — 0.5 %** |
+| 150 s | 0/200 |
+| 200 s | 0/200 |
+
+The mechanism is that a narrower window **truncates qualifying runs**, so CV is computed over fewer
+cycles — and a short run is regular by chance far more often than a long one. The regularity criterion
+is therefore *weakened* by narrowing the cycle window, which is the opposite of the intuition that a
+tighter window is a stricter test.
+
+**So §2.1's 40–130 s has a second, independent justification.** The first was clinical — a 90 s ceiling
+discards roughly half the worst-LVEF group (Wedewardt 2010). This one is purely statistical and would
+hold even if the physiology were different: **the window chosen for physiological reasons is also the one
+that rejects red noise.** Two unrelated arguments landing on the same number is the strongest evidence
+this brief has produced for any constant.
+
+⚠️ **CORRECTION to §2's table above.** It reports `0/40` red-noise firings at ρ = 0.98 with the shipped
+ceiling. At 200 seeds the rate is **1/200 (0.5 %)**, not zero — `0/40` was a small-sample reading of a
+small-but-nonzero rate, and 40 seeds cannot distinguish 0 % from 0.5 %. The conclusion is unchanged
+(0.5 % is comfortably acceptable and 28× better than the alternative), but the number should not be
+quoted as zero.
+
 ## 6 · ✅ CLOSED 2026-08-17 — the mechanism is real, and the existing guard catches **all** of it
 
 The hazard, as carried from the parent's §2.2: `crossingTimes` is concatenated across windows while
