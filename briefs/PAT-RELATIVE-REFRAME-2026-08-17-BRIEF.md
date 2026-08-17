@@ -212,10 +212,22 @@ degenerate-margin guard's first firing on live data.
       **Sub-chance.** 1 of 14 coverable events was followed by a dip, against ~5 expected from the
       onset-shift null. n = 1 night / 14 events — far too small to conclude, but the direction is
       recorded rather than softened: on this night the dips did NOT point at the device's events.
-      Three failure modes to separate next, in order of likelihood: the dips are dominated by motion
-      periods that CPAP-scored sleep excludes (the motion/wear gate of the improvement list is now
-      the priority); the δ anchor locked a harmonic (75 % on 3-of-4 desats is thin); or the index at
-      Θ = 10 over these floors is still chance-dominated per the analytic line's own warning.
+
+      **The suspect list was then worked through by measurement, same day, and each elimination is a
+      wired capability rather than a note:**
+      | suspect | test | verdict |
+      |---|---|---|
+      | dips live in motion periods CPAP-scored sleep excludes | **motion gate wired** (Verity's own ACC, per-second envelope, mean+2σ; dips quiet only if no moving second touches them) | ❌ eliminated — 100 % quiet time, 136/139 dips quiet, Katz unchanged 7/36 |
+      | window anchored on event START while Katz's arousal follows TERMINATION | rescored at `tMs + meta.durSec` (all 23 events carry it) | ❌ eliminated — durations 10–22 s inside a 55 s window; Katz unchanged |
+      | δ locked a harmonic | full peak-structure sweep at 0.5-min steps | thin but unique — one 75 % plateau (−23.5 ± 0.5 min) on 3-of-4 desats; competitors all at 2-of-4 |
+      | dips couple at a different latency | **latency sweep**, 55 s window stepped ±180 s around event end | ❌ **flat at 7–14 % everywhere** — no coupling at any lag within ±3 min |
+
+      So on the one anchorable night the negative is real, not artifactual: the ankle dips are
+      internally coherent (analytic lift 15.6 over their own chance line) but do not align with the
+      device's scored events at any tested lag. What would move this forward is nights with real
+      event density — the treated subject's 14 coverable events with one device-positive class is
+      the same n-starvation as §3.3's κ — or an OSA-style night. The machinery is now in place to
+      consume them the moment they exist.
 
       Three tool-design defects were found and fixed by their OWN first runs, each the repo's
       recurring shape: an anchor criterion that could not succeed on a treated night (3–4 desats
