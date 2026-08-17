@@ -1153,6 +1153,17 @@ def arrival_quality(night_dir: str) -> list[dict]:
                 # thresholds both fired on every stream of the first real night. See
                 # ALLAN-DEVIATION-2026-08-12-BRIEF.
                     "stability": stab,
+                    # IS A SINGLE tau0 EVEN A FAIR LABEL FOR THIS SERIES? `_tau0_of` hands `stability` the MEAN packet
+                    # interval, and every estimator in `allan.py` then treats the samples as evenly spaced by it. On the
+                    # BLE arrival axis they are not: measured over 120 sidecars, mean/median runs 0.87-1.16 on Verity
+                    # ppg (79 series) against <=0.7% on the device-counter axis the JS lane uses — same estimator, same
+                    # vocabulary, opposite answer. A UNIFORM rescale of tau is a horizontal shift in log-log, so
+                    # `classify`'s noise type is IMMUNE; what moves is where a sigma is READ — `optimal_tau`, and
+                    # `_TDEV_TAU_S` comparisons. That last one is the cost: a FIXED tau exists so nights are comparable,
+                    # and two streams quoted 'at 100 s' are not at the same 100 s when one tau0 is inflated 16% by gaps.
+                    # Reported beside the curve, never applied to it — the unbiased unequal-spacing estimator (Sesia &
+                    # Tavella 2008, 10.1088/0026-1394/45/6/S19) is the principled fix and should FOLLOW this measurement.
+                    "tau0_uniformity": allan.tau0_uniformity([p[0] for p in pairs]),
                 # Filled below where this device has a second stream to compare against; None means
                 # "no sibling stream", never "nothing shared".
                 "transport": None,
