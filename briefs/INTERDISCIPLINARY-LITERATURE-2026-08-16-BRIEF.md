@@ -127,8 +127,19 @@ prose today and are invisible to `citation-ledger`. Adding them is cheap and clo
 > | **Gray** (×3), **Torcaso**, **Riley** | **prose only, no DOI** | ✅ (Gray added today) | **no** |
 >
 > **So the hole closes at the PAPER, not at the ledger** — the DOI has to be printed beside the prose
-> mention. That is a `papers/` edit and owes a `build-docs` rebuild of the served twin, which is why it
-> is recorded here as the actual next step rather than quietly claimed as done by the ledger work above.
+> mention. **DONE 2026-08-17, in this same change**, because printing a DOI and ledgering it must land
+> together: `10.1109/FREQ.1974.200027` is now printed beside Gray & Allan 1974 in
+> `papers/sigma-no-reference.html`, the served twin is rebuilt, and the gate now *reaches* it — verified
+> by corrupting the author beside that DOI and watching `every DOI on a source surface names the ledger's
+> first author and a year within ±1` red with *citation does not name "Gray"*, then restore.
+>
+> ⚠️ **The ordering is not optional, and the gate proved it.** The paper edit was first made on a branch
+> off `main`, where the ledger row did not yet exist, and `citation-ledger` immediately red'd with
+> *every DOI on a source surface is present in the ledger — got [10.1109/FREQ.1974.200027]*. Printing a
+> DOI whose ledger row is in an unmerged branch breaks `main`. **Same PR, or ledger first.**
+>
+> **Torcaso 1998 and Riley SP 1065 stay uncovered, and that is the honest end state** — neither has a
+> DOI, so the gate cannot see them and nothing should be added to make it look as though it can.
 > Torcaso and Riley SP 1065 have no DOI at all, so for those two the honest end state is a named citation
 > without one — the gate cannot cover them and should not be made to look as though it does.
 
