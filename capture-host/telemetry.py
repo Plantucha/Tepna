@@ -327,6 +327,38 @@ def on_body(st: "dict | None") -> "bool | None":
     return st.get("worn")
 
 
+# ── EVIDENCE SOURCES: AGREEMENT BETWEEN CORRELATED DETECTORS IS NOT CORROBORATION ──────────────────
+# INTERDISCIPLINARY-LITERATURE-DIAGNOSIS §4.2 — fusing evidence as if independent becomes OVERCONFIDENT
+# when it shares a source. `ambient-level` and `ambient-stability` are two statistics of ONE signal, so
+# they fail TOGETHER: a dock has both a low ambient level and a stable one. `hr-contact-bit` and
+# `ppi-contact` are two characteristics reporting one physical contact sensor.
+#
+# The incident that makes this concrete (2026-08-15): a Verity sat in its charger streaming noise while
+# the verdict read "worn per ambient-level, ambient-stability". Two detectors named, ONE signal behind
+# them, and the string invites an operator to count two.
+#
+# `pulse-prominence` displaces the ambient pair when available, so this mostly matters when it is not —
+# which is exactly the 55 Hz / no-PPG configuration where the ambient pair is all there is.
+_WORN_SOURCE = {
+    "hr-contact-bit": "device-contact",
+    "ppi-contact": "device-contact",
+    "ambient-level": "optical-ambient",
+    "ambient-stability": "optical-ambient",
+    "pulse-prominence": "optical-pulse",
+}
+
+
+def independent_sources(names) -> list:
+    """The DISTINCT evidence origins behind a set of detector names, sorted.
+
+    Detectors sharing an origin count once. An UNKNOWN name becomes its own source, which over-states
+    independence — the wrong direction — so a new detector must be added to `_WORN_SOURCE`. A test
+    asserts every name `worn_verdict` can emit is mapped, so the failure is caught at CI rather than in
+    a reason string an operator is reading at 3 a.m.
+    """
+    return sorted({_WORN_SOURCE.get(n, n) for n in names})
+
+
 def worn_verdict(*, ppi_flags=None, ambient=None, fs: float | None = None,
                  charging: bool | None = None,
                  contact: bool | None = None,
@@ -404,9 +436,15 @@ def worn_verdict(*, ppi_flags=None, ambient=None, fs: float | None = None,
         return None, ("no worn detector is available and in domain"
                       + (f" at {fs:g} Hz" if fs is not None else " (PPG rate unknown)"))
     worn_by = [n for n, v in votes if v]
+    named = worn_by if worn_by else [n for n, _ in votes]
+    # ⚠️ NAME THE INDEPENDENT SOURCES, NOT THE DETECTOR COUNT. Two statistics of one ambient series
+    # agreeing is one piece of evidence, not two (§4.2). Appended only when they differ, so the common
+    # single-detector case reads exactly as it did.
+    srcs = independent_sources(named)
+    qual = "" if len(srcs) == len(named) else f" ({len(srcs)} independent source(s): {', '.join(srcs)})"
     if worn_by:
-        return True, "worn per " + ", ".join(worn_by)
-    return False, "not worn per " + ", ".join(n for n, _ in votes)
+        return True, "worn per " + ", ".join(worn_by) + qual
+    return False, "not worn per " + ", ".join(named) + qual
 
 
 # ── CHARGING AT FULL, WHERE THE RISING RULE IS STRUCTURALLY BLIND ───────────────────────────────────
