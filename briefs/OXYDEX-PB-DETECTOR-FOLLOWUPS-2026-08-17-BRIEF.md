@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-08-17 (**§2 and §6 CLOSED by measurement the same day**: ρ measured at median 0.9804 with the CV threshold re-validated across the corpus's real redness including the reddest night, and the gap-spanning hazard shown to be fully caught by the existing guard. §3 HALF-CLOSED 2026-08-17 — the observer is in scope, the three-observer result is not yet obtainable. §1, §4, §5 remain open) · **Created:** 2026-08-17 · **Follows:** `OXYDEX-PB-DETECTOR-2026-08-09-BRIEF.md` (DONE — 2026-08-17) · **Affects:** `oxydex-dsp.js computePatternScores`, `briefs/SYNTHETIC-CORPUS-BRIEF.md`, the CPAP/ECGDex corpora
+**Status:** IN-PROGRESS — 2026-08-17 (**§2 and §6 CLOSED by measurement the same day**: ρ measured at median 0.9804 with the CV threshold re-validated across the corpus's real redness including the reddest night, and the gap-spanning hazard shown to be fully caught by the existing guard. §1 CLOSED (mitigated at the declaration; NOT on a reclassification — see the note there). §3 HALF-CLOSED — the observer is in scope, the three-observer result is not. §3b ADDED — OxyDex publishing axis provenance would silently upgrade an Integrator guard. §4, §5 remain open) · **Created:** 2026-08-17 · **Follows:** `OXYDEX-PB-DETECTOR-2026-08-09-BRIEF.md` (DONE — 2026-08-17) · **Affects:** `oxydex-dsp.js computePatternScores`, `briefs/SYNTHETIC-CORPUS-BRIEF.md`, the CPAP/ECGDex corpora
 
 # What the PB detector's execution turned up and did not close
 
@@ -9,7 +9,7 @@ than defects and treating them as bugs would be its own error.
 
 ---
 
-## 1 · 🟡 LATENT — `cycleIntervals` is a sliding view, and its length is not a cycle count
+## 1 · ✅ CLOSED — `cycleIntervals` is a sliding view, and its length is not a cycle count
 
 `computePatternScores` builds `cycleIntervals` by sliding one half-cycle at a time
 (`oxydex-dsp.js:1030`), so for `k` true cycles it holds `2k − 1` entries. The parent's §2.2 measured
@@ -25,6 +25,26 @@ cycles is a trap laid for exactly the criterion AASM states (`≥ 3 consecutive`
 had to avoid it deliberately. Options: rename to `cycleIntervalsSliding`, or add the disjoint count
 beside it, or a comment at the declaration. **Do not "fix" the sliding construction** — the mean and SD
 that consume it are correct as they are.
+
+### ✅ CLOSED 2026-08-17 — mitigated at the declaration, and the construction left alone
+
+A comment now sits at the `cycleIntervals` declaration stating plainly that **`.length` is not the
+number of cycles**, giving the `2k − 1` mapping, recording that the mean and SD it feeds are unaffected
+(SD 1.43 sliding vs 1.41 disjoint), and pointing at `detectSpO2Periodicity`'s disjoint pairing as the
+thing to copy if a cycle **count** is ever needed. The sliding construction is unchanged, deliberately.
+
+**Why a comment rather than the rename:** `pbCycleLen` is not an internal — it is exported to CSV as
+*"PB Cycle Length (s)"* (`oxydex-app.js:432`) and it gates two decisions, the CS criterion
+(`oxydex-dsp.js:1544`, the 40–130 s window) and UARS (`:1562`). Renaming the array is a wider edit
+across live consumers for no behavioural gain, and the trap is one of *reading*, which is what a comment
+at the point of declaration addresses.
+
+⚠️ **Closed on this mitigation, NOT on a reclassification.** The owner suggested it could be closed
+because "trio was reclassified to experiment". Checked with Vigil box, who owns that work: #1418 adds a
+**new** entry `tch_error_pseudo` at `heuristic`, `tch_error` itself is untouched and remains
+`experimental`, and **no existing tier moved and nothing about trio was reclassified**. That change is in
+the Integrator and has no bearing on this item. Recorded because closing on it would have been a
+wrong-premise closure of exactly the kind this brief keeps flagging.
 
 ## 2 · ✅ CLOSED 2026-08-17 — ρ measured: **median 0.9804**, and the threshold holds at the reddest night
 
@@ -99,6 +119,33 @@ observer is still unexercised — so the tool would have kept asserting a limita
 outgrown, on every future run. Now it prints the state that actually holds: the unexercised text only
 when the count is 0, a PARTIAL line when some nights carry it, and an explicit *"the third observer IS in
 scope"* when all do. All three branches verified against real runs; `--selftest` green.
+
+## 3b · 🔴 NEW — OxyDex publishing axis provenance would silently upgrade an Integrator guard
+
+Found 2026-08-17 by **asking Vigil box rather than inferring**, while checking whether their TCH work
+bore on §1. It did not — but this does, and it runs the other way.
+
+`integrator-dsp.js`'s drawn-axis TCH guard (#1418) carries the comment *"this upgrades itself the day
+OxyDex publishes axis provenance"*. The positive declaration it waits for is
+**`quality.timingSource === 'device' | 'device+host'`**; `'host'` (a drawn axis) and absent both fail.
+
+**Measured on `origin/main` and against a real export, by Vigil box:** OxyDex emits **no `quality`
+block, no `timingSource`, no `hostAxis`** — the only match in `oxydex-dsp.js` is a *comment* at :3220.
+So the condition is **not** met today, and #1398's `cycles` / `cycleLen` / `cycleCV` do **not** satisfy
+it: those describe the SpO₂ waveform's *rhythm*, while axis provenance describes the *time axis itself*
+— whether it was read from a device clock or drawn as `index × nominal_rate`. A periodicity metric can
+be computed perfectly well on a drawn axis, which is rather the point.
+
+⚠️ **The hazard is that the trigger is unwatched. A self-upgrading condition is a guard whose trigger
+nobody is watching** — Vigil box's phrasing, and their guard had already sat inert for nine days because
+nobody re-checked its premise against a real export. The day OxyDex declares `device` or `device+host`,
+Integrator behaviour changes with **nothing in the OxyDex change to indicate it**.
+
+**This is therefore an obligation on the OxyDex side, recorded here because that is where it will be
+triggered:** anyone adding a `quality.timingSource` emission to OxyDex must re-run the Integrator's TCH
+path and confirm the upgraded guard is correct — not merely that OxyDex's own gates are green.
+**Re-measure, do not assume either way**, and check an **export**, not the source (the source contains
+the string in a comment and would read as a false positive).
 
 ## 4 · 🟡 κ rests on 4 device-positive nights
 
