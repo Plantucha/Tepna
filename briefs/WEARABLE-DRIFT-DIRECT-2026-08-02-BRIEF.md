@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-02 · **Corrects:** `papers/wearable-clock-drift.html` scope note (90–216 ppm), `JOINT-UNWRAP-ATTEMPT-2026-08-02-BRIEF.md`, `WEARABLE-DRIFT-FIT-2026-08-01-BRIEF.md` · **Affects:** `tools/dual-clock-rate.mjs`
+**Status:** DONE — 2026-08-17 (every §6 item re-verified against the tree, and the recorded ppm caveat DISCHARGED BY RE-MEASUREMENT — see §8) · **Created:** 2026-08-02 · **Corrects:** `papers/wearable-clock-drift.html` scope note (90–216 ppm), `JOINT-UNWRAP-ATTEMPT-2026-08-02-BRIEF.md`, `WEARABLE-DRIFT-FIT-2026-08-01-BRIEF.md` · **Affects:** `tools/dual-clock-rate.mjs`
 
 # The inter-device rate is ~7 ppm, and it was in the raw files the whole time.
 
@@ -294,3 +294,48 @@ available is beat-derived — the exact stack that produced four retractions in 
 cannot fail. Running the beat leg honestly is a work unit of its own and is left open rather than
 faked; what is settled here is *which* third clock the closure should use, and on which nights it can
 exist at all.
+
+
+## 8 · Header flip 2026-08-17 — verified, not stamped
+
+`brief-checkboxes-are-not-status`: a `[x]` is a claim about the day it was written. Each §6 item was
+re-checked against the tree before flipping, and the one **conditional** in it was settled by
+measurement rather than by reading.
+
+**The conditional first, because it was the only thing that could have blocked this.** §6's applied
+item carries: *"every ppm here is measured against the CAPTURE HOST's clock. A 125/stratum capture
+change was in flight on 2026-08-08; if it alters how the host stamps or disciplines time, these
+baselines … must be re-measured."* Rather than establish what that change was, the baseline was simply
+**re-run with this brief's own instrument** across nights spanning it — the direct test of the thing the
+caveat is about:
+
+| night | H10 ppm | Verity ppm | ⇒ inter-device |
+|---|---|---|---|
+| 2026-07-25 | −18.7 | −27.1 | 8.4 |
+| 2026-07-27 | −20.3 | −27.6 | 7.3 |
+| 2026-08-01 | −20.9 | −28.6 | 7.7 |
+| **2026-08-07** | **−21.7** | **−28.5** | **6.8** |
+| **2026-08-10** | **−19.8** | **−28.4** | **8.6** |
+
+§7.2 claims H10 median **−20.3** [−18.7…−21.6] and Verity **−27.0** [−23.9…−30.2], inter-device ≈**6.7**.
+Re-measured: H10 −18.7…−21.7 (median −20.3, *identical*), Verity −26.0…−28.6 (inside the stated band),
+inter-device 5.7–8.6. **The nights after the change (bold) match the nights before it**, so whatever it
+did, it did not move the baseline. **Caveat discharged — by the measurement it asked for.**
+
+**The remaining items, each checked in the file that would carry it:**
+
+| §6 item | verified how |
+|---|---|
+| rate measured without beat matching / blocks / combs / unwrap | `tools/dual-clock-rate.mjs` re-run above — a two-column regression, no beat code reached |
+| repeatability across fragments **and** nights | the table above, spanning 17 days |
+| O2Ring's unusable timebase + mechanism | §7.1; independently re-confirmed 2026-08-17 — the ring fails a χ²-weighted crystal test on 2026-08-01 (χ²red 6.30) while all 39 other device-nights pass |
+| instrument shipped as a tool | `tools/dual-clock-rate.mjs` present and executable |
+| refuses when there is no second clock | `no-second-clock` verdict present; the re-run prints `— … not a rate` on every short fragment |
+| paper's scope note corrected in place | `papers/wearable-clock-drift.html` reads *"the H10 runs −20.3 ppm and the Verity −27.0 ppm versus the capture host … ≈7 ppm, not 90–216 (over 7 h: 202 ms, not 2.5 s)"* |
+| leg C from committed exports | recorded as impossible, then **superseded by §7.5** — the closure closes **4 of 4** box nights, `tools/beat-leg-closure.mjs` shipped with a `--selftest` |
+
+The one `[~]` is a **same-day retraction record**, not an open item; it is left as-is because deleting a
+withdrawn claim is how a correction chain stops being auditable.
+
+**Not claimed:** this flip says every acceptance item is met, not that the drift question is closed.
+`CROSS-DEVICE-DRIFT-AND-CLOSURE` §5 still holds one open PAT item, and the §7.4 estimator warning stands.
