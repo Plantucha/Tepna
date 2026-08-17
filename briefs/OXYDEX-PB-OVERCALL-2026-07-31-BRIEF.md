@@ -116,6 +116,17 @@ length**, **≥ 3 consecutive cycles**, and a **crescendo-decrescendo** envelope
 patient's **own baseline**. This gate checks none of those. `cycleLen` *is* computed — but only into
 `meta`, after the decision; it never gates anything.
 
+> ⚠️ **CORRECTION 2026-08-16 — the "40–90 s" above is a misreading of AASM, and it propagated.** AASM
+> states *"a cycle length of at least 40 seconds (typically 45 to 90 seconds)"* — a one-sided **floor**
+> plus a typicality note, not a two-sided scoring window (Berry RB et al. 2012, *J Clin Sleep Med*
+> 8(5):597–619, [10.5664/jcsm.2172](https://doi.org/10.5664/jcsm.2172)). The rest of the paragraph is
+> right: "≥ 3 consecutive cycles", the crescendo-decrescendo envelope and the patient's own baseline are
+> AASM verbatim, and the gate checks none of them.
+>
+> The wording is **left in place rather than rewritten** — this brief is DONE and records what was
+> believed at the time. The settled window (**40–130 s**, and why a 90 s ceiling discards roughly half of
+> the worst-LVEF group) is in `OXYDEX-PB-DETECTOR-2026-08-09-BRIEF.md` §2.1.
+
 ### 5.2 · The sweep: it is not measuring periodicity
 
 `tools/pb-operating-point.mjs` (committed here; drives the SHIPPED `processNight`, no reimplementation)
