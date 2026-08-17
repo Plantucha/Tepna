@@ -7787,6 +7787,124 @@
        movement at the same true instant; correlating whole signals does not recover the offset
        because most of a night is each sensor's own noise, so the correlation spends itself only
        where there is information — strong isolated movements. */
+    /* PAT-RELATIVE-REFRAME §3.1 — the ΔPAT dip detector, gated by the PB detector's twin discipline
+       from day one: a planted positive control, TWO nulls (white noise and red wander — the second is
+       the one that defeats naive detectors, per OXYDEX-FFT-CYCLE-NULL), a slip twin (the defect this
+       module's own coupleRtoFoot history documents), and a sign twin (a rise is not an arousal). */
+    group('ΔPAT dips: planted arousals found; noise, wander, slip and rises are not', 'pat-align · dip-detector', function (T) {
+      var P = env.PATAlign;
+      if (!P || typeof P.patDipEvents !== 'function') {
+        T.skip('patDipEvents not exposed');
+        return;
+      }
+      function rng(seed) {
+        var s = seed >>> 0;
+        return function () {
+          s = (s * 1664525 + 1013904223) >>> 0;
+          return s / 4294967296;
+        };
+      }
+      /* One synthetic night: beats at ~1 Hz with RR jitter, foot = R + 400 ms + noise(σ 5 ms) — the
+         easy end of this corpus's measured 10-23 ms per-beat band, on purpose: the HARD part of each
+         twin is its structure, not its noise. */
+      function night(mod, seed) {
+        var r = rng(seed || 7),
+          R = [],
+          F = [],
+          t = 0;
+        for (var i = 0; i < 3600; i++) {
+          t += 950 + r() * 100;
+          R.push(t);
+          F.push(t + 400 + (r() * 2 - 1) * 5 + (mod ? mod(i, t) : 0));
+        }
+        return { R: R, F: F };
+      }
+      function dipMod(i) {
+        return i % 180 >= 60 && i % 180 < 68 ? -15 : 0;
+      }
+
+      // A · planted dips: 15 ms deep, 8 beats, every ~3 minutes (Pitson-scale arousals), 20/night.
+      var a = night(dipMod, 11);
+      var ra = P.patDipEvents(a.R, a.F, { minDipMs: 10, minBeats: 4 });
+      T.ok('A · planted 15 ms × 8-beat dips are FOUND (' + (ra.nEvents || 0) + ' events vs 20 planted)', !!ra.ok && ra.nEvents >= 16 && ra.nEvents <= 26);
+      T.ok(
+        'A · depth is measured, not merely thresholded (every event 10-30 ms deep)',
+        !!ra.ok &&
+          ra.events.every(function (e) {
+            return e.depthMs >= 10 && e.depthMs <= 30;
+          })
+      );
+
+      // B · pure noise, nothing planted — the white null.
+      var b = night(null, 13);
+      var rb = P.patDipEvents(b.R, b.F, { minDipMs: 10, minBeats: 4 });
+      T.ok('B · plain noise yields (almost) no events (' + (rb.nEvents || 0) + ')', !!rb.ok && rb.dipIndexPerHr < 2);
+
+      // C · RED WANDER, no dips: the lag drifts ±40 ms on a ~10-minute timescale. A naive threshold
+      // on the raw lag fires all night; the rolling-median baseline must absorb it.
+      var c = night(function (i) {
+        return 40 * Math.sin((2 * Math.PI * i) / 600);
+      }, 17);
+      var rc = P.patDipEvents(c.R, c.F, { minDipMs: 10, minBeats: 4 });
+      T.ok('C · slow ±40 ms wander with NO dips yields (almost) no events (' + (rc.nEvents || 0) + ')', !!rc.ok && rc.dipIndexPerHr < 2);
+
+      // D · beat-slip: stretches where the "foot" jumps ~+1000 ms (one RR). Slip must neither read
+      // as dips nor poison the neighbouring baseline — and must be ACCOUNTED, not digested.
+      var d = night(function (i) {
+        return i % 180 < 6 ? 1000 : 0;
+      }, 19);
+      var rd = P.patDipEvents(d.R, d.F, { minDipMs: 10, minBeats: 4 });
+      T.ok('D · 1-RR slip stretches produce (almost) no dip events (' + (rd.nEvents || 0) + ')', !!rd.ok && rd.dipIndexPerHr < 2);
+      T.ok('D · …and are accounted as artifacts (' + (100 * rd.artifactShare).toFixed(1) + ' %)', !!rd.ok && rd.artifactShare > 0.01);
+
+      // E · SIGN: symmetric 15 ms RISES (a BP fall) must not count — the estimand is arousal DIPS.
+      var e = night(function (i) {
+        return i % 180 >= 60 && i % 180 < 68 ? +15 : 0;
+      }, 23);
+      var re = P.patDipEvents(e.R, e.F, { minDipMs: 10, minBeats: 4 });
+      T.ok('E · planted RISES are ignored (' + (re.nEvents || 0) + ' events)', !!re.ok && re.dipIndexPerHr < 2);
+
+      // F · segments: the SAME dip found without segments must die on a connection boundary through
+      // its middle — the per-connection BLE offset argument only holds within one connection.
+      var f = night(function (i) {
+        return i >= 1796 && i < 1804 ? -15 : 0;
+      }, 29);
+      var mid = f.R[1800];
+      var rf = P.patDipEvents(f.R, f.F, {
+        minDipMs: 10,
+        minBeats: 4,
+        segments: [
+          [0, mid],
+          [mid + 1, 1e12]
+        ]
+      });
+      var rg = P.patDipEvents(f.R, f.F, { minDipMs: 10, minBeats: 4 });
+      T.ok(
+        'F · a dip straddling a connection boundary dies at the cut (' + (rf.nEvents || 0) + ' with segments, ' + (rg.nEvents || 0) + ' without)',
+        !!rf.ok && !!rg.ok && rf.nEvents === 0 && rg.nEvents >= 1
+      );
+
+      // G · refusal: too few pairs refuses with a reason — never an index over noise.
+      var rr = P.patDipEvents(a.R.slice(0, 50), a.F.slice(0, 50), {});
+      T.ok('G · 50 pairs REFUSES with a reason rather than reporting an index', rr.ok === false && typeof rr.reason === 'string' && rr.reason.length > 0);
+
+      // H · READABILITY: when per-beat noise dwarfs Θ, the night must REFUSE, not index the noise —
+      // measured on the first five real nights (floors 80-122 ms vs Θ=10 → 54-78 fake dips/h).
+      var h = night(function () {
+        return 0;
+      }, 31);
+      // triple the noise to ±90 ms: floor ≈ 45 ms > 2Θ
+      var rH = P.patDipEvents(
+        h.R,
+        h.F.map(function (v, i) {
+          var rr2 = ((i * 2654435761) >>> 0) / 4294967296;
+          return v + (rr2 * 2 - 1) * 90;
+        }),
+        { minDipMs: 10, minBeats: 4 }
+      );
+      T.ok('H · a noise floor above 2×Θ REFUSES and names the floor (' + (rH.medianAbsDevMs || 0).toFixed(1) + ' ms)', rH.ok === false && /noise floor/.test(rH.reason || ''));
+    });
+
     group('PAT-align: anchor-based inter-device offset recovery (PAT-FEASIBILITY extraction)', 'pat-align · regression', function (T) {
       var P = env.PATAlign;
       T.ok('PATAlign exposed', !!(P && P.envelope && P.findAnchors && P.lagAtAnchor && P.alignByAnchors));
