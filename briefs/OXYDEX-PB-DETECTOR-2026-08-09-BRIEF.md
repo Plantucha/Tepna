@@ -329,7 +329,7 @@ corroboration and by the OxyDex reference guide, both of which move with it.
       ⚠️ The tool's header quotes 36/37 nights and r = 0.893 from a **37-night** corpus; the 42-night
       baseline re-measured here is 38/42 and r = 0.910. Compare like with like — the improvement is
       0.910 → 0.370 on one corpus, not 0.893 → 0.370 across two.
-- [ ] §3.3's κ is reported beside −0.039, explicitly as an observation.
+- [x] **§3.3's κ REPORTED 2026-08-17 — −0.036 → +0.149**, paired on 56 nights, beside the parent's −0.039 (which the old column reproduces). Explicitly an observation, and a fragile one: 4 device-positive nights.
       **BASELINE MEASURED 2026-08-17; the new detector's κ is still owed.**
       > ⚠️ **A "BLOCKED — not on this machine" note stood here for a few hours and was WRONG.** It is
       > left described rather than deleted because the mistake is instructive — and the FIRST correction
@@ -347,15 +347,48 @@ corroboration and by the OxyDex reference guide, both of which move with it.
       **κ = −0.051**, burden r = −0.494 where both fire (n = 3). That 26/29 is the *old* 90 % flagging.
       (It sits beside the parent's −0.039, which was a different night set; both are ~0, i.e. chance.)
 
-      🔴 **κ FOR THE NEW DETECTOR IS NOT COMPUTABLE FROM LOCAL DATA, and the reason is a date gap, not
-      a missing corpus.** The CPAP corpus runs **2026-01-11 → 2026-07-21**. The raw captures needed to
-      re-run OxyDex live in `/home/michal/tepna-smoketest/captures`, which starts **2026-07-16**. The
-      intersection is **5 nights**, and on those the *device* scored PB on **0** of 5 — so κ is
-      degenerate there for **any** OxyDex detector, old or new. It is not that the new detector
-      disagreed; there is no positive class on one rater. The 29 nights carrying the baseline are mostly
-      **June**, whose raw exists only on `vigil:/srv/tepna/captures`.
-      **To finish this box:** pull the June raw from `vigil`, regenerate those nights, re-run
-      `pb-agreement.mjs`. No code needed.
+      > ⚠️ **"NOT COMPUTABLE — a date gap" stood here and was ALSO WRONG.** It said the raw needed to
+      > re-run OxyDex existed only in `tepna-smoketest/captures` (starts 2026-07-16), giving a 5-night
+      > overlap with a device that scored PB on 0 of them. That was true of *that* tree and false as a
+      > claim about the corpus: **`<647A>/Ecg nightly` holds 61 O2Ring nights from 2026-05-03**, and
+      > OxyDex needs only the O2Ring CSV — not a tri-device capture. I had reached for `trio-batch`
+      > (which wants capture-host layout) and concluded from *its* input requirements that the data was
+      > missing. **Third false-absence of the day on this same corpus**, each from a different wrong
+      > assumption about where to look; the pattern is that I kept asking "can this tool run?" instead
+      > of "does the measurement need that tool?".
+
+      ### ✅ §3.3 MEASURED 2026-08-17 — κ −0.036 → **+0.149**, paired on the same 56 nights
+
+      Exports generated for all 61 `Ecg nightly` O2Ring nights through the **shipped** headless surface
+      `OxyDex.compute` (the same entry point the equivalence gate uses), once with the pre-wiring code
+      (`baa681fd`, the first parent of #1398's merge) and once with the wired code — then both run
+      through `pb-agreement.mjs` against the same 189-night CPAP export set. 56 nights pair.
+
+      | same 56 nights | OLD | NEW |
+      |---|---|---|
+      | Cohen's κ | **−0.036** | **+0.149** |
+      | OxyDex flags PB | **55/56** (98 %) | **20/56** (36 %) |
+      | device flags PB | 4/56 | 4/56 |
+      | 2×2 `a,b,c,d` | 3, 1, **52**, **0** | 3, 1, **17**, **35** |
+
+      **The old column independently reproduces the parent's published κ = −0.039** (here −0.036, a
+      different night set), which is the reason to trust the new figure: the harness recovers the known
+      answer before being asked for an unknown one. Note `d = 0` for the old detector — it never once
+      agreed that a night was PB-free, because it flagged 55 of 56.
+
+      **What improved and what did not.** Sensitivity held exactly: `a = 3` in both columns, i.e. both
+      detectors caught 3 of the device's 4 PB nights, and both missed the same one. The entire gain is
+      specificity — false positives **52 → 17**.
+
+      ⚠️ **Read κ = +0.149 as "slight, and fragile", not as agreement.** On Landis & Koch it is the
+      bottom band (0–0.20). More importantly it rests on **4 device-positive nights**: one night moving
+      between cells shifts it materially, so this is a direction-of-travel result, not a validation.
+      Below chance → above chance is the claim; "the two now agree" is not.
+      ⚠️ The `Ecg nightly` tree is **phone-captured**, so its timing provenance is the lower tier
+      (`timingSource: device`, no independent host clock). That does not affect this measurement —
+      night-level PB agreement is immune to sub-second alignment, which is the same argument
+      `pb-agreement.mjs` makes for ignoring the 38 min CPAP clock offset — but do not reuse these
+      exports for anything beat-level.
 
       **What IS measurable locally, and it is a genuine paired result — 18 nights, identical dates,
       old-code committed exports vs new-code regenerated:**
