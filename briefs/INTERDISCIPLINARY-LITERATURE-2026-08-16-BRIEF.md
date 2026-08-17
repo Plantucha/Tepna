@@ -1293,6 +1293,48 @@ SD) for sensitivity. ⚠️ The diagnosis §3.4's warning transfers verbatim: an
 quantifies ambiguity; it must never be used to *force* a coupling result. **Confidence: HIGH** on the
 correspondence; the measurement is the cheap test of whether it earns adoption.
 
+> ### 📏 BUILT AND RUN 2026-08-17 — `tools/beat-correspondence.mjs`, gated `tools · beat-correspondence`
+>
+> The pure core (banded VP alignment + interval-NCC anchor) is planted-truth tested: 7 planted
+> deletions + 4 insertions recovered **exactly**, a −25-beat lag recovered from intervals, an
+> out-of-band lag **refuses** rather than reporting, and the q extremes bracket the audit in opposite
+> directions. Three of those assertions encode bugs the first version shipped with — worth naming
+> because each is a lesson this brief family already teaches, re-learned in miniature:
+>
+> - **The offset estimator was poisoned by the thing being counted.** Index-paired median: one planted
+>   insertion shifts every later pairing by a whole beat, 90 % of deltas land one RR off, the median
+>   picks the wrong population (planted 1 insertion → reported d=1, i=2). Fixed nearest-neighbour.
+> - **The estimated offset is the MEDIAN of sampled deltas, so one residual is exactly 0 by
+>   construction** — and matches at ANY q. An "every beat is an indel" expectation is unsatisfiable
+>   without an explicit off-median offset. The code was right; the expectation was wrong, twice.
+> - **The mod-RR plane is an integer ambiguity and is resolved the §4 way**: on a phone capture there
+>   is no shared clock, so the offset is knowable only mod one RR — the nearest-neighbour estimator
+>   landed on the *previous cycle's foot* (offset 44.6 ms where transit is ~400+). The sweep runs the
+>   alignment per candidate plane (base + k·medianRR), VP distance is the per-plane cost, and the
+>   **margin between best and second-best plane is the ratio test**.
+>
+> **Measured, on the wrist pair (H10 ECG × Verity PPG — NOT §2-RESULT-IV's finger pair):**
+>
+> | night | beats (ECG/PPG) | anchor ncc · margin | best plane margin | indel rate | mean·max |Δt| |
+> |---|---|---|---|---|---|
+> | 2026-07-09 | 24 895 / 24 879 | 0.829 · **0.0002** | **1.2 %** | 37.6 % | 143 · 300 ms |
+> | 2026-07-12 | 20 698 / 20 672 | 0.753 · 0.081 | 9.8 % | 43.6 % | 129 · 300 ms |
+>
+> **⚠️ THESE ARE UPPER BOUNDS UNDER A GLOBAL-OFFSET MODEL, NOT SCRAMBLE MEASUREMENTS — the tool's own
+> refusal machinery says so.** Three confounds, all named by the run itself: (1) the beat counts match
+> to 0.06–0.13 % while the alignment path walks **±2000 beats** mid-night — large *asynchronous
+> dropout segments*, exactly the "counts match, identity scrambled" shape the audit exists for, but a
+> dropout is not a scramble; (2) phone captures carry ~7 ppm inter-device drift ≈ 176 ms over the
+> night — comparable to the 300 ms budget, so a single global offset cannot fit both ends, and the
+> residual max piling at exactly 2/q is the truncation signature; (3) the 07-09 plane margin is 1.2 %,
+> i.e. the ratio test does **not** confidently resolve the plane there. Also note the wrist anchors
+> (ncc 0.75–0.83) are far below RESULT-IV's finger anchors (0.995+) — a harder signal, not the same
+> experiment.
+>
+> **Next steps, stated rather than smuggled:** per-window offsets (the repo's per-block precedent)
+> remove the drift term without beat-circularity beyond a constant per window; and the finger pair
+> (O2Ring `.dat`) is the RESULT-IV experiment proper. Neither is done here.
+
 ### 13h.3 · The alignment substrate, and probabilistic linkage — recorded so the next searcher stops here
 
 The dynamic programme under 13h.2 is **Needleman–Wunsch** (global) / **Smith–Waterman** (local) —
