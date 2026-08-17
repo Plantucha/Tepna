@@ -11,9 +11,9 @@
 
 The suite's real data is **gitignored** — personal overnight recordings, never committed. So "the
 corpus" is not a property of the repository, it is a property of the machine, and it lives in four
-places — plus a **fifth, the CPAP corpus, which lives on a SECOND MOUNTED VOLUME** (see below; the
-four-location table only ever covered one volume). None of them is discoverable from a checkout, which
-is why this file exists.
+places. The **CPAP corpus is a subdirectory of row 3** (`Ecg nightly/CPAP`) rather than a fifth
+location — see below, including how a wrong search term produced a false "it isn't here". None of them
+is discoverable from a checkout, which is why this file exists.
 
 > **The one fact that costs the most time:** a fresh `git worktree` off `origin/main` contains the
 > **tracked** part of `uploads/` and none of the recordings. `CLAUDE.md` §👥.1 mandates that worktree
@@ -26,7 +26,7 @@ is why this file exists.
 > `uploads/` → this checkout's), and print the search when they refuse. You should not need
 > `DEX_UPLOADS` by hand for the primary-checkout case.
 
-## The four locations (all on one volume — see the fifth, below)
+## The four locations
 
 Counts re-measured **2026-08-15** and they grow with every capture night — read them as scale, not as
 a checksum.
@@ -49,10 +49,10 @@ through `corpusSearch`; **fixture outputs are always written to the `uploads/` o
 running in.** Routing the write side through `DEX_UPLOADS` would make a worktree regen rewrite a
 tracked file in another checkout, invisibly. See `tools/regen-goldens-core.mjs` §CORPUS ≠ FIXTURES.
 
-## The FIFTH location — the CPAP corpus, on the *other* volume
+## The CPAP corpus — a subdirectory of row 3, and it was there the whole time
 
 Added 2026-08-17 while re-measuring `OXYDEX-PB-DETECTOR` §3.3's κ. Three shipped tools need a CPAP
-export set that **none of the four rows above can produce**:
+export set:
 
 | tool | needs |
 |---|---|
@@ -60,16 +60,27 @@ export set that **none of the four rows above can produce**:
 | `tools/pb-agreement.mjs` | `--cpap <cpap-exports.json>` from the above |
 | `tools/pb-fusion-blast.mjs` | the same |
 
-| path | nights | what it is |
-|---|---|---|
-| `/run/media/michal/data/Ecg-nightly-archive/CPAP` | **192 folders → 189 exports** (3 empty) | the ResMed corpus, already in card layout — point `--root` straight at it |
+| path | nights | files | what it is |
+|---|---|---|---|
+| **`<647A>/Ecg nightly/CPAP`** | **192** (2026-01-11 → 07-21) | 1194 | the ResMed corpus, already in card layout — point `--root` straight at it |
+| `/run/media/michal/data/Ecg-nightly-archive/CPAP` | 192 | 1194 | a **byte-identical mirror** (0 name or size differences) on the second volume |
 
-> 🔴 **THERE ARE TWO MOUNTED VOLUMES, AND THIS FILE ONLY EVER DESCRIBED ONE.**
-> Every path in the four-location table is on `/run/media/michal/647A504F7A50205A` (or a host).
-> `/run/media/michal/data` is a second mounted volume and holds, besides the CPAP corpus, at least
-> `Tepna/uploads` and `tepna-archive/uploads`. A search of "the machine" that walks one mount and
-> reports absence is not a search of the machine — that produced a **false "corpus not on this
-> machine"** for several hours on 2026-08-17. **Check `ls -d /run/media/michal/*/` first.**
+> 🔴 **AN EARLIER VERSION OF THIS SECTION SAID THE CPAP CORPUS WAS ON THE *OTHER* VOLUME. IT WAS NOT —
+> and the misdiagnosis is more useful than the fact.** The sequence, 2026-08-17:
+>
+> 1. I searched `<647A>` for `DATALOG` and `STR.edf`, got nothing, and wrote *"the corpus is not on
+>    this machine."* **Neither marker exists in this layout** — the nights are date-named folders
+>    directly, and there is no `STR.edf` anywhere in it. I searched for the wrong thing.
+> 2. **That `find` also TIMED OUT at 120 s and was backgrounded; its output file was empty.** I read an
+>    empty file from an *incomplete* search as a negative result. This is `CLAUDE.md` §👥.4b exactly: a
+>    query that never finished, reported as an answer.
+> 3. On being told the corpus existed, I found the `/data` mirror and concluded *"it was on the volume
+>    I never searched"* — a tidy story that explained the symptom and was still wrong. It is on **both**.
+>
+> Two mounted volumes do exist (`ls -d /run/media/michal/*/`) and that is worth knowing. But the volume
+> was never the problem: **`<647A>/Ecg nightly/CPAP` was inside a path this file already listed.**
+> A wrong search term plus an unfinished search produced a false absence, and the first explanation
+> that fitted the evidence was accepted without re-testing it against the volume I had already walked.
 
 ⚠️ `uploads/` also holds **3** flat CPAP nights (2026-06-12, -13, -16) as loose `*_CSL/EVE/BRP/PLD/SA2.edf`.
 They are fixture inputs, **not** a corpus — do not point `--root` at `uploads/`.
