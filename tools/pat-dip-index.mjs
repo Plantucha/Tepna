@@ -29,7 +29,8 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { pairsIn } from './pat-finger-coupler.mjs';
-import { loadDsps } from './pat-matchrate-strict.mjs';
+import { loadDsps, ecgRpeakTimes, ppgFootTimes } from './pat-matchrate-strict.mjs';
+import { readFileSync, statSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
 const PATAlign = require('../pat-align.js');
@@ -43,6 +44,44 @@ const ROOT = argv.find((a) => !a.startsWith('--') && existsSync(a));
 const THETA = +opt('--theta', 10);
 const NBEATS = +opt('--beats', 4);
 const AS_JSON = argv.includes('--json');
+const LEG = opt('--leg', 'finger'); // finger (O2Ring, via the coupler's own pairing) | ankle (Verity)
+
+/* Overlap-aware ECG×Verity pairing — the coupler's `pairsIn` is deliberately ring-locked (its whole
+   point is not falling back to the wrist), so the ankle leg gets its own selector with the SAME
+   overlap-max rule. Pairing biggest-with-biggest instead is how this tool's first ankle probe read
+   floors of ~1150 ms: two non-overlapping sessions, nearest-lag ≈ uniform mod one RR. */
+const RE_VERITY = /VeritySense.*_PPG\.txt$/i;
+const RE_ECG2 = /_ECG\.txt$/i;
+function anklePair(dir) {
+  const cand = (re) =>
+    readdirSync(dir)
+      .filter((f) => re.test(f))
+      .map((f) => ({ f: join(dir, f), size: statSync(join(dir, f)).size }))
+      .sort((a, b) => b.size - a.size)
+      .slice(0, 4);
+  const parse = (list, fn) =>
+    list
+      .map((c) => {
+        try {
+          const r = fn(readFileSync(c.f, 'utf8'));
+          return r.t0Ms == null ? null : { rec: r };
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+  const E = parse(cand(RE_ECG2), ecgRpeakTimes);
+  const P = parse(cand(RE_VERITY), ppgFootTimes);
+  let best = null;
+  for (const e of E)
+    for (const p of P) {
+      const s0 = Math.max(e.rec.t0Ms, p.rec.t0Ms);
+      const e0 = Math.min(e.rec.t0Ms + e.rec.durSec * 1000, p.rec.t0Ms + p.rec.durSec * 1000);
+      const min = (e0 - s0) / 60000;
+      if (min > (best?.overlapMin ?? 0)) best = { ecg: e, ppg: p, overlapMin: min };
+    }
+  return best ? [best] : [];
+}
 
 function main() {
   /* Without this, pairsIn's per-file try/catch converts "DSPs not loaded" into "no ECG+ring pair" —
@@ -57,9 +96,9 @@ function main() {
     .sort();
   const rows = [];
   for (const night of nights) {
-    const pair = pairsIn(join(ROOT, night))[0];
+    const pair = (LEG === 'ankle' ? anklePair(join(ROOT, night)) : pairsIn(join(ROOT, night)))[0];
     if (!pair) {
-      rows.push({ night, skip: 'no ECG+ring pair' });
+      rows.push({ night, skip: 'no overlapping ECG+' + (LEG === 'ankle' ? 'Verity' : 'ring') + ' pair' });
       continue;
     }
     const R = pair.ecg.rec.times,
@@ -80,6 +119,8 @@ function main() {
       nPairs: r.nPairs,
       coveredHr: +r.coveredHr.toFixed(2),
       dipIndexPerHr: +r.dipIndexPerHr.toFixed(2),
+      chancePerHr: +r.chanceIndexPerHr.toFixed(2),
+      lift: r.liftVsChance == null ? null : +r.liftVsChance.toFixed(1),
       nEvents: r.nEvents,
       medianDepthMs: r.nEvents
         ? +r.events
@@ -96,7 +137,7 @@ function main() {
     return;
   }
   console.log(`ΔPAT dip index — Θ=${THETA} ms, ≥${NBEATS} core beats (descriptive; no chance floor yet)\n`);
-  console.log('night        overlap  pairs  covered  dips/h  events  medDepth  artifact%  noiseFloor');
+  console.log('night        overlap  pairs  covered  dips/h  chance/h  lift  medDepth  artifact%  noiseFloor');
   for (const r of rows) {
     if (r.skip) {
       console.log(`${r.night}  ⊘ ${r.skip}`);
@@ -104,7 +145,7 @@ function main() {
     }
     console.log(
       `${r.night}  ${String(r.overlapMin + 'm').padStart(6)}  ${String(r.nPairs).padStart(5)}  ` +
-        `${String(r.coveredHr + 'h').padStart(7)}  ${String(r.dipIndexPerHr).padStart(6)}  ${String(r.nEvents).padStart(6)}  ` +
+        `${String(r.coveredHr + 'h').padStart(7)}  ${String(r.dipIndexPerHr).padStart(6)}  ${String(r.chancePerHr).padStart(8)}  ${String(r.lift == null ? '∞' : r.lift).padStart(4)}  ` +
         `${String(r.medianDepthMs == null ? '—' : r.medianDepthMs + 'ms').padStart(8)}  ${String(r.artifactPct).padStart(8)}  ${String(r.noiseFloorMs + 'ms').padStart(9)}`
     );
   }
@@ -112,4 +153,4 @@ function main() {
 
 const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (IS_CLI) main();
-export { main };
+export { main, anklePair };
