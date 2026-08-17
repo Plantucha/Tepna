@@ -322,7 +322,319 @@
     };
   }
 
-  var api = { envelope: envelope, findAnchors: findAnchors, lagAtAnchor: lagAtAnchor, alignByAnchors: alignByAnchors, coupleRtoFoot: coupleRtoFoot, PHYS: PHYS, DEFAULTS: DEFAULTS };
+  /* ── ΔPAT DIP DETECTION — the RELATIVE estimand (PAT-RELATIVE-REFRAME-2026-08-17) ────────────────
+     Everything above serves ABSOLUTE PAT, whose own literature caps it at R²≈0.39 / ±17 mmHg against
+     an intra-arterial line (Payne 2006). What sleep medicine validated is the DIP: a transient PAT
+     fall of ~10-30 ms marking an autonomic arousal — 15.1±1.4 ms at provoked arousals and 9.9 ms even
+     without visible EEG change (Pitson 1994); catching 80-91 % of respiratory events against EEG's
+     43-55 % (Katz 2003); indexing OSA severity and CPAP response (Schwartz 2005). DOIs and the full
+     argument live in the brief; per the citation policy, moving them into this file's prose is what
+     requires CITATION-VERIFICATION entries — the brief carries them.
+
+     WHY THIS ESTIMAND SURVIVES THE BLOCKERS THAT STOP ABSOLUTE PAT HERE:
+       · the ~2.2 s per-connection BLE offset is CONSTANT within a connection — a within-connection
+         difference cancels it exactly, which is why `segments` (connection spans) gate runs;
+       · the anatomical sign of the LEVEL is irrelevant — only the excursion is read;
+       · PEP is an amplifier, not a confound, at arousal (sympathetic activation shortens both PEP
+         and vascular transit) — which is also why the output is an AUTONOMIC index and must never
+         be surfaced as BP or "vascular";
+       · no absolute plausibility window is needed, so PHYS cannot censor (§6.2's w/√12 family).
+
+     DESIGN NOTES, each earned by a prior defect in this file's history:
+       · pairing is NEAREST-fiducial, both directions — but a |lag − baseline| beyond
+         `maxExcursionMs` is an ARTIFACT (a beat-slip is ~1 RR ≈ 1000 ms; a real dip is <60 ms), so
+         slip cannot fabricate a dip NOR poison the baseline (it is excluded from the median input).
+         This is how the beat-slip lesson of `coupleRtoFoot` is honoured without importing PHYS.
+       · the baseline is a CENTERED rolling median over `baselineWinMs`: a 5-15 s dip inside a 60 s
+         window is ≤25 % contamination, well under a median's breakdown point, so the dip does not
+         drag its own reference down (the mean would).
+       · a pairing gap > `maxGapMs`, a segment boundary, or an artifact beat BREAKS a run — a dip
+         must be contiguous evidence, not a pattern stitched across a dropout.
+       · dips are FALLS only. A symmetric rise is not an arousal signature (a PAT rise = BP fall);
+         counting both would double the false-positive surface for nothing. */
+  var DIP_DEFAULTS = {
+    baselineWinMs: 60000, // centered rolling-median window
+    minDipMs: 10, // Θ: fall below baseline that counts (Pitson: 15.1 cortical, 9.9 subcortical)
+    minBeats: 4, // consecutive beats below Θ before an event is declared
+    maxExcursionMs: 120, // |lag − baseline| beyond this = artifact/slip, never a dip
+    maxGapMs: 5000, // a pairing gap longer than this breaks any run
+    minPairs: 240 // ~4 min of beats — below this, refuse rather than index noise
+  };
+
+  /* Nearest-foot lag per R-peak. Sign-agnostic on the LEVEL (the per-connection offset may put the
+     nominal lag anywhere, including negative); the dip logic reads only deviations from baseline.
+     BOTH trains are sorted defensively: the two-pointer walk assumes monotone times, and a foot train
+     is NOT guaranteed monotone in the wild — a detector glitch or a post-reconnect re-emission can
+     interleave, and an unsorted train silently makes "nearest" wrong (found by the slip twin, whose
+     +1 RR feet legitimately leapfrog their successors). */
+  function _nearestLags(R, F) {
+    var Rs = (R || []).slice().sort(function (a, b) {
+      return a - b;
+    });
+    var Fs = (F || []).slice().sort(function (a, b) {
+      return a - b;
+    });
+    var out = [],
+      j = 0,
+      nf = Fs.length;
+    for (var i = 0; i < Rs.length; i++) {
+      var r = Rs[i];
+      while (j + 1 < nf && Math.abs(Fs[j + 1] - r) <= Math.abs(Fs[j] - r)) j++;
+      if (nf) out.push({ tMs: r, lagMs: Fs[j] - r });
+    }
+    return out;
+  }
+
+  function patDipEvents(rTimes, fTimes, opts) {
+    opts = opts || {};
+    var W = opts.baselineWinMs != null ? opts.baselineWinMs : DIP_DEFAULTS.baselineWinMs;
+    var THETA = opts.minDipMs != null ? opts.minDipMs : DIP_DEFAULTS.minDipMs;
+    var NBEATS = opts.minBeats != null ? opts.minBeats : DIP_DEFAULTS.minBeats;
+    var MAXEX = opts.maxExcursionMs != null ? opts.maxExcursionMs : DIP_DEFAULTS.maxExcursionMs;
+    var MAXGAP = opts.maxGapMs != null ? opts.maxGapMs : DIP_DEFAULTS.maxGapMs;
+    var MINP = opts.minPairs != null ? opts.minPairs : DIP_DEFAULTS.minPairs;
+    var segs = opts.segments || null; // [[t0,t1],…] BLE-connection spans; runs never cross them
+
+    /* SURROGATE MODE — `shiftFeetMs` circularly rotates the foot train within its own span before
+       anything else runs. This is the estimand's honest null (the event-coupling.js philosophy):
+       both trains keep their marginal statistics — every foot interval, every R interval — and only
+       the ALIGNMENT is destroyed, so whatever survives is the alignment. It lives INSIDE the
+       detector, not in a harness, so the null takes the identical code path: same pairing, same
+       shadowing, same baseline, same hysteresis. A null that runs a different pipeline measures the
+       difference between pipelines. */
+    var F0 = fTimes || [];
+    if (opts.shiftFeetMs) {
+      var srtF = F0.slice().sort(function (a, b) {
+        return a - b;
+      });
+      if (srtF.length > 1) {
+        var span = srtF[srtF.length - 1] - srtF[0],
+          f0 = srtF[0];
+        var sh = ((opts.shiftFeetMs % span) + span) % span;
+        F0 = srtF.map(function (f) {
+          return f0 + ((f - f0 + sh) % span);
+        });
+      }
+    }
+
+    var L = _nearestLags(rTimes || [], F0);
+    if (L.length < MINP) return { ok: false, reason: 'too few R↔foot pairs (' + L.length + ' < ' + MINP + ')', nPairs: L.length };
+
+    /* FOOT-GAP SHADOW — the slip twin's fabrication mode, closed at the source. A missed foot does
+       not only lose one beat: the PREVIOUS beat's late (or next beat's early) foot then pairs with
+       the wrong R at ≈ RR − (1 RR slip) — a pseudo-excursion of ±(RR − 1000) ≈ ±50 ms that sits
+       INSIDE any sane artifact bound and reads as a perfect dip (measured by the twin: two 46 ms
+       "events", 4-5 beats each, exactly at the planted slip stretches). The tell is not the lag —
+       it is the FOOT TRAIN: a dropout leaves an inter-foot interval far from the running median
+       (2× at the gap, and interleaved sub-0.5× where re-emitted feet land). So: any foot adjacent
+       to an inter-foot interval outside [0.5×, 1.5×] the median is SUSPECT, and a beat that leans
+       on a suspect foot is an artifact — a dip needs continuous optical evidence. */
+    var Fs = F0.slice().sort(function (a, b) {
+      return a - b;
+    });
+    var ffs = [];
+    for (var fi = 1; fi < Fs.length; fi++) ffs.push(Fs[fi] - Fs[fi - 1]);
+    var ffSorted = ffs.slice().sort(function (a, b) {
+      return a - b;
+    });
+    var ffMed = ffSorted.length ? ffSorted[ffSorted.length >> 1] : 0;
+    var suspect = {}; // foot TIME → true (times are unique enough at ms resolution for this purpose)
+    for (var gi = 0; gi < ffs.length; gi++) {
+      if (ffMed > 0 && (ffs[gi] > 1.5 * ffMed || ffs[gi] < 0.5 * ffMed)) {
+        suspect[Fs[gi]] = true;
+        suspect[Fs[gi + 1]] = true;
+      }
+    }
+    var isSuspect = function (rT, lagMs) {
+      return suspect[rT + lagMs] === true; // the paired foot's absolute time
+    };
+
+    var segOf = function (t) {
+      if (!segs) return 0;
+      for (var s = 0; s < segs.length; s++) if (t >= segs[s][0] && t <= segs[s][1]) return s;
+      return -1; // outside every declared connection → excluded
+    };
+
+    /* Pass 1 — centered rolling median per beat, LEAVE-SELF-OUT. The beat's own lag is excluded
+       from its baseline window, and the exclusion is load-bearing: over any locally MONOTONE stretch
+       (a slow clock drift between the two axes is enough) the median of a centered window IS the
+       centre element, so a self-inclusive baseline makes dev ≡ 0 exactly — measured on the first
+       ankle-leg run as a 0.0 ms "noise floor" that was first misdiagnosed as fiducial quantization
+       (the feet were 100 % fractional; the zeros were self-agreement). A statistic that contains the
+       value it judges cannot deviate — the same self-reference family as §8's "a statistic whose
+       reference comes from the data it tests cannot fail". */
+    var half = W / 2,
+      lo = 0,
+      hi = 0,
+      n = L.length;
+    var base = new Array(n),
+      dev = new Array(n);
+    for (var i = 0; i < n; i++) {
+      var t = L[i].tMs;
+      while (lo < n && L[lo].tMs < t - half) lo++;
+      while (hi < n && L[hi].tMs <= t + half) hi++;
+      var win = [];
+      for (var k = lo; k < hi; k++) if (k !== i) win.push(L[k].lagMs);
+      if (!win.length) win.push(L[i].lagMs); // a beat alone in its window has no external reference
+      win.sort(function (a, b) {
+        return a - b;
+      });
+      base[i] = win[win.length >> 1];
+      dev[i] = L[i].lagMs - base[i];
+    }
+
+    /* Pass 2 — dip runs with HYSTERESIS (Schmitt-style): a run is a contiguous stretch of
+       dev ≤ −Θ/2, and it becomes an EVENT when ≥ NBEATS of it are CORE beats (dev ≤ −Θ). Without
+       the two thresholds, one beat whose noise draw lands at −0.9 Θ splits a genuine arousal into
+       fragments below NBEATS — measured by the straddle twin, where a real 8-beat, 15 ms dip
+       vanished on a single −9.1 ms beat. The event bar stays on CORE beats, so the exit threshold
+       adds no sensitivity to noise (a chance run needs NBEATS independent ≤ −Θ draws regardless).
+       Runs are still broken by gaps, segment edges, artifacts, and suspect-foot beats. */
+    var events = [],
+      run = [],
+      lastT = null,
+      lastSeg = null;
+    var flush = function () {
+      var core = run.filter(function (b) {
+        return b.d <= -THETA;
+      });
+      if (core.length >= NBEATS) {
+        var depths = core.map(function (b) {
+          return -b.d;
+        });
+        events.push({
+          tMs: run[0].t,
+          durMs: run[run.length - 1].t - run[0].t,
+          nBeats: run.length,
+          nCore: core.length,
+          depthMs: Math.max.apply(null, depths),
+          medianDepthMs: depths.slice().sort(function (a, b) {
+            return a - b;
+          })[depths.length >> 1]
+        });
+      }
+      run = [];
+    };
+    var artifacts = 0;
+    for (var m = 0; m < n; m++) {
+      var b = { t: L[m].tMs, d: dev[m] };
+      var sg = segOf(b.t);
+      var broke = (lastT != null && b.t - lastT > MAXGAP) || (lastSeg != null && sg !== lastSeg) || sg === -1;
+      if (broke) flush();
+      lastT = b.t;
+      lastSeg = sg;
+      if (sg === -1) continue;
+      if (Math.abs(b.d) > MAXEX || isSuspect(b.t, L[m].lagMs)) {
+        artifacts++;
+        flush(); // an artifact breaks a run; it never extends or seeds one
+        continue;
+      }
+      if (b.d <= -THETA / 2) run.push(b);
+      else flush();
+    }
+    flush();
+
+    /* Covered time = beat-to-beat spans that could have hosted a run (gaps excluded), so the index
+       has an honest denominator — an index over the wall span would dilute on fragmented nights. */
+    var coveredMs = 0;
+    for (var c = 1; c < n; c++) {
+      var dt = L[c].tMs - L[c - 1].tMs;
+      if (dt <= MAXGAP && segOf(L[c].tMs) !== -1 && segOf(L[c].tMs) === segOf(L[c - 1].tMs)) coveredMs += dt;
+    }
+    if (!(coveredMs > 0)) return { ok: false, reason: 'no covered span after gap/segment exclusion', nPairs: n };
+
+    var absDev = dev
+      .map(function (d) {
+        return Math.abs(d);
+      })
+      .sort(function (a, b) {
+        return a - b;
+      });
+    var floor = absDev[absDev.length >> 1];
+
+    /* READABILITY REFUSAL — defined is not informative. When the per-beat noise floor exceeds the
+       dip threshold itself, every "event" is four unlucky draws in a row and the index measures the
+       noise, not arousals — measured on the first five real nights this ran: floors of 80-122 ms
+       against Θ = 10 produced 54-78 "dips"/h with 56-62 ms "depths", i.e. ~Pitson × 4 at ~2× the
+       plausible arousal rate, from a signal whose display-waveform feet carry 91.8 ms of foot-to-foot
+       sd (PAT-COMPENDIUM §5.2). An index computed there is a well-formed number carrying no
+       information, and the tool must say WHY rather than print it. The stats are still returned on
+       the refusal so the caller can see how far from readable the night was. */
+    if (floor > 2 * THETA) {
+      return {
+        ok: false,
+        reason: 'noise floor ' + floor.toFixed(1) + ' ms > 2×Θ (' + 2 * THETA + ' ms) — per-beat scatter drowns dip-scale excursions',
+        nPairs: n,
+        coveredHr: coveredMs / 3600000,
+        artifactShare: artifacts / n,
+        medianAbsDevMs: floor,
+        thetaMs: THETA
+      };
+    }
+    /* …and the OPPOSITE degeneracy: a floor of ~0 with a dominant exactly-zero share means the
+       deviations are DEGENERATE — either genuinely quantized fiducials (integer-sample feet on a
+       coarse grid), or a baseline that contains the value it judges (the self-inclusion defect now
+       fixed above — kept as a guard because a regression re-introducing it would resurface exactly
+       here). Either way the floor statistic has no dynamic range and the index must not be read.
+       The compendium's N-corner-hat trap (§8: "returns 0.00 ms … print the exactly-zero share"). */
+    var zeroShare =
+      absDev.filter(function (v) {
+        return v === 0;
+      }).length / absDev.length;
+    if (floor === 0 && zeroShare > 0.25) {
+      return {
+        ok: false,
+        reason: 'deviations are QUANTIZED (' + (100 * zeroShare).toFixed(0) + ' % exactly zero) — integer-sample fiducials; sub-sample the foot before indexing dips',
+        nPairs: n,
+        coveredHr: coveredMs / 3600000,
+        artifactShare: artifacts / n,
+        medianAbsDevMs: floor,
+        zeroShare: zeroShare,
+        thetaMs: THETA
+      };
+    }
+    /* CHANCE LINE — an index without a null beside it is a number wearing a costume. Under a
+       (deliberately optimistic) independence assumption, the expected rate of ≥NBEATS-core runs from
+       noise alone is pairs/h × p^N × (1−p), with p MEASURED as the share of devs at or below −Θ —
+       not a Gaussian guess. Optimistic because real devs are autocorrelated, so the true chance rate
+       is HIGHER than this line; an observed index near or below it is therefore certainly noise,
+       while an index well above it is only *candidate* signal (the shuffle null in the brief remains
+       owed for any published claim). Measured on the first readable real night: floor 17 ms against
+       Θ = 10 gave 76.8 dips/h — chance-dominated, and this line is what says so. */
+    var pBelow =
+      dev.filter(function (d) {
+        return d <= -THETA;
+      }).length / n;
+    var pairsPerHr = n / (coveredMs / 3600000);
+    var chancePerHr = pairsPerHr * Math.pow(pBelow, NBEATS) * (1 - pBelow);
+    var idx = events.length / (coveredMs / 3600000);
+    return {
+      ok: true,
+      events: events,
+      dipIndexPerHr: idx,
+      chanceIndexPerHr: chancePerHr,
+      liftVsChance: chancePerHr > 0 ? idx / chancePerHr : idx > 0 ? Infinity : null,
+      pBelowTheta: pBelow,
+      nEvents: events.length,
+      nPairs: n,
+      coveredHr: coveredMs / 3600000,
+      artifactShare: artifacts / n,
+      medianAbsDevMs: floor, // the noise floor the Θ threshold competes with
+      thetaMs: THETA
+    };
+  }
+
+  var api = {
+    envelope: envelope,
+    findAnchors: findAnchors,
+    lagAtAnchor: lagAtAnchor,
+    alignByAnchors: alignByAnchors,
+    coupleRtoFoot: coupleRtoFoot,
+    patDipEvents: patDipEvents,
+    PHYS: PHYS,
+    DEFAULTS: DEFAULTS,
+    DIP_DEFAULTS: DIP_DEFAULTS
+  };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.PATAlign = api;
 })(typeof self !== 'undefined' ? self : typeof window !== 'undefined' ? window : null);

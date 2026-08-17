@@ -5944,6 +5944,153 @@
           measurement made over 563 minutes and over 28. The naive rule failed 25 of 40 device-nights
           and would have contradicted WEARABLE-DRIFT-DIRECT §1 — which was right, because it filtered
           to fragments > 3 MB. This is what `hostAxis.stability.ppmUncertainty` is FOR. */
+    /* THE BEAT-CORRESPONDENCE AUDIT — `tools/beat-correspondence.mjs`, the Victor–Purpura edit
+       distance on beat trains (INTERDISCIPLINARY-LITERATURE §13h.2; Victor & Purpura 1996). The tool
+       walks a corpus CI does not have, so the gate drives its PURE core by value with PLANTED truth.
+       Two of these assertions encode bugs the first version shipped with, found by the selftest:
+       an index-paired offset estimator that the indels being counted poisoned (1 planted insertion →
+       d=1,i=2 reported), and a q-extreme expectation that asserted a number the band forbids. */
+    /* THE RAYLEIGH NULL — `tools/circular-stats.mjs` (INTERDISCIPLINARY-LITERATURE §13h.1). The
+       repo's "phase concentration" (integrator-dsp _wrappedSlopeFit) IS the mean resultant length of
+       circular statistics; the Rayleigh test is the null the ad-hoc statistic stopped short of:
+       "at this n, is this concentration distinguishable from a uniform phase?" — JOINT-UNWRAP §5's
+       falsifier, with the n attached instead of a threshold read by eye. */
+    group('the Rayleigh null makes concentration readable at its own n', 'tools · circular-stats', function (T) {
+      var CS = env.circularStats;
+      if (!CS) {
+        T.skip('circular-stats is loaded in this lane', 'browser lane cannot ESM-import a tool');
+        return;
+      }
+      // The two exact limits of Zar's approximation, asserted as identities rather than examples.
+      T.eq('rBar = 0 gives p = 1 EXACTLY — uniform is fully plausible', CS.rayleighP(100, 0), 1);
+      T.ok('rBar = 1 gives an astronomically small p', CS.rayleighP(100, 1) < 1e-70, String(CS.rayleighP(100, 1)));
+
+      /* THE POINT OF THE EXERCISE: the same concentration is noise at one n and decisive at another.
+         JOINT-UNWRAP §5 read 0.15–0.38 as "no phase to regress" by eye; whether that judgement is
+         right DEPENDS ON n, and only the test carries that dependence. */
+      T.ok('R̄ = 0.3 at n = 10 is uniform-plausible (p ≈ 0.42)', CS.rayleighP(10, 0.3) > 0.3, String(CS.rayleighP(10, 0.3)));
+      T.ok('the SAME R̄ = 0.3 at n = 100 is decisive (p ≈ 1e-4)', CS.rayleighP(100, 0.3) < 1e-3, String(CS.rayleighP(100, 0.3)));
+      T.ok('…and p is monotone in n at fixed R̄', CS.rayleighP(500, 0.3) < CS.rayleighP(100, 0.3) && CS.rayleighP(100, 0.3) < CS.rayleighP(10, 0.3));
+      T.ok('…and monotone in R̄ at fixed n', CS.rayleighP(50, 0.6) < CS.rayleighP(50, 0.3) && CS.rayleighP(50, 0.3) < CS.rayleighP(50, 0.1));
+
+      // Refusals: a p on inputs that cannot carry the test would be a fabricated verdict.
+      T.eq('n < 2 refuses', CS.rayleighP(1, 0.5), null);
+      T.eq('rBar > 1 is not a mean resultant length — refuses', CS.rayleighP(10, 1.2), null);
+      T.eq('non-finite n refuses', CS.rayleighP(NaN, 0.5), null);
+
+      /* meanResultantLength is pinned against the DSP's own inline computation: same angles, same
+         R̄, so the exported statistic and _wrappedSlopeFit's `concentration` cannot drift apart.
+         Deterministic MINSTD angles, no Math.random. */
+      var seed = 77777;
+      var rnd = function () {
+        seed = (seed * 16807) % 2147483647;
+        return seed / 2147483647;
+      };
+      var angles = [];
+      for (var i = 0; i < 400; i++) angles.push(2 * Math.PI * rnd());
+      var mrl = CS.meanResultantLength(angles);
+      var sx = 0,
+        sy = 0;
+      for (var j = 0; j < angles.length; j++) {
+        sx += Math.cos(angles[j]);
+        sy += Math.sin(angles[j]);
+      }
+      var inline = Math.sqrt(sx * sx + sy * sy) / angles.length;
+      T.ok('meanResultantLength ≡ the DSP-style inline computation', Math.abs(mrl.rBar - inline) < 1e-12);
+      T.ok('uniform angles give a LOW R̄ and a HIGH p', mrl.rBar < 0.12 && CS.rayleighP(mrl.n, mrl.rBar) > 0.05, JSON.stringify({ rBar: mrl.rBar, p: CS.rayleighP(mrl.n, mrl.rBar) }));
+      // Concentrated (von-Mises-ish) angles: same generator, small dispersion around one direction.
+      var conc = [];
+      for (var k = 0; k < 400; k++) conc.push(1.0 + 0.4 * (rnd() - 0.5));
+      var mc = CS.meanResultantLength(conc);
+      T.ok('concentrated angles give a HIGH R̄ and a vanishing p', mc.rBar > 0.9 && CS.rayleighP(mc.n, mc.rBar) < 1e-50, JSON.stringify({ rBar: mc.rBar }));
+      T.eq('an empty angle set refuses rather than reporting a phase', CS.meanResultantLength([]), null);
+    });
+
+    group('beat correspondence recovers planted indels and refuses at the band edge', 'tools · beat-correspondence', function (T) {
+      var BC = env.beatCorrespondence;
+      if (!BC) {
+        T.skip('beat-correspondence is loaded in this lane', 'browser lane cannot ESM-import a tool');
+        return;
+      }
+      var seed = 424242;
+      var rnd = function () {
+        seed = (seed * 16807) % 2147483647; // MINSTD — exact in a double
+        return seed / 2147483647 - 0.5;
+      };
+      var A = [];
+      var t = 0;
+      for (var i = 0; i < 3000; i++) {
+        t += 1000 + 120 * rnd();
+        A.push(t);
+      }
+
+      // Identity + jitter: everything matches. The audit's zero point.
+      var B1 = A.map(function (x) {
+        return x + 40 + 20 * rnd();
+      });
+      var r = BC.vpAlign(A, B1, { q: 1 / 150, band: 32 });
+      T.ok(
+        'a jittered identical train matches completely, zero indels',
+        r.ok === true && r.deletionsA === 0 && r.insertionsB === 0 && r.matched === 3000,
+        JSON.stringify({ d: r.deletionsA, i: r.insertionsB, m: r.matched })
+      );
+
+      /* THE AUDIT CASE — planted indels recovered EXACTLY. This is the assertion that failed on the
+         first implementation (reported 9/6 for a planted 7/4): the offset was the median of
+         tB[i+lag]−tA[i], and a single insertion shifts every later index pairing by one whole beat,
+         so 90 % of sampled deltas landed one RR off and the median picked the wrong population. The
+         estimator was poisoned by exactly the thing being counted. Nearest-neighbour deltas ignore
+         indices; this pins that fix. */
+      var B2 = A.map(function (x) {
+        return x + 40 + 20 * rnd();
+      });
+      var delIdx = [200, 500, 900, 1400, 1900, 2300, 2800];
+      for (var d = delIdx.length - 1; d >= 0; d--) B2.splice(delIdx[d], 1);
+      var insAt = [300, 1100, 1700, 2500];
+      for (var g = 0; g < insAt.length; g++) B2.splice(insAt[g], 0, (B2[insAt[g] - 1] + B2[insAt[g]]) / 2 + 100 * rnd());
+      B2.sort(function (x, y) {
+        return x - y;
+      });
+      r = BC.vpAlign(A, B2, { q: 1 / 150, band: 32 });
+      T.ok('planted 7 deletions + 4 insertions are recovered EXACTLY', r.ok === true && r.deletionsA === 7 && r.insertionsB === 4, JSON.stringify({ d: r.deletionsA, i: r.insertionsB }));
+      T.eq('matched = n − deletions, so nothing is double-counted', r.matched, 3000 - 7);
+
+      // The anchor: a planted −25-beat lag recovered from INTERVALS (aperiodic), not times (comb).
+      var B3 = A.slice(25).map(function (x) {
+        return x + 40 + 15 * rnd();
+      });
+      var rrA = A.slice(1).map(function (x, ix) {
+        return x - A[ix];
+      });
+      var rrB3 = B3.slice(1).map(function (x, ix) {
+        return x - B3[ix];
+      });
+      var an = BC.nccAnchor(rrA, rrB3, 200);
+      T.ok('nccAnchor recovers a planted −25-beat lag from interval sequences', an.ok === true && an.lag === -25, JSON.stringify({ lag: an.lag }));
+
+      /* THE BAND EDGE REFUSES. A lag past the band must not return a confident wrong alignment —
+         "a result piled against a window edge is the window, not the signal" (CROSS-DEVICE-DRIFT §4),
+         here enforced as ok:false rather than left to the reader. */
+      r = BC.vpAlign(A, B3, { q: 1 / 150, band: 8, lag: 0 });
+      T.ok('an out-of-band lag REFUSES rather than reporting', r.ok === false, r.reason);
+
+      /* q AT ITS EXTREMES — both wrong in OPPOSITE directions, which is why 2/q is a stated choice.
+         q→0 absorbs planted indels as cheap matches (the audit under-counts); q→∞ with an explicit
+         off-median offset makes every beat an indel. The offset must be explicit because the
+         estimated offset is the MEDIAN of sampled deltas, so one residual is exactly 0 by
+         construction and matches at ANY q — an expectation the first version got wrong. */
+      var rLo = BC.vpAlign(A, B2, { q: 1e-9, band: 32 });
+      T.ok('q→0 under-counts the planted indels (absorbed as cheap matches)', rLo.ok === true && rLo.deletionsA + rLo.insertionsB < 11, String(rLo.deletionsA + rLo.insertionsB));
+      var As = A.slice(0, 60),
+        Bs = B1.slice(0, 60);
+      var rHi = BC.vpAlign(As, Bs, { q: 1e6, band: 70, offsetMs: 0 });
+      T.ok('q→∞ with an off-median offset makes every beat an indel', rHi.ok === true && rHi.matched === 0 && rHi.deletionsA === 60 && rHi.insertionsB === 60, JSON.stringify({ m: rHi.matched }));
+
+      // Degenerate input refuses rather than fabricating.
+      T.ok('empty and single-beat trains refuse', BC.vpAlign([], [], {}).ok === false && BC.vpAlign([1], [1], {}).ok === false);
+      T.ok('nccAnchor refuses under 32 intervals', BC.nccAnchor([1, 2], [1, 2], 10).ok === false);
+    });
+
     group('device stability compares at one τ and judges rates through their error bars', 'device-stability · per-device-sigma', function (T) {
       var DS = env.deviceStability;
       if (!DS) {
@@ -7640,6 +7787,133 @@
        movement at the same true instant; correlating whole signals does not recover the offset
        because most of a night is each sensor's own noise, so the correlation spends itself only
        where there is information — strong isolated movements. */
+    /* PAT-RELATIVE-REFRAME §3.1 — the ΔPAT dip detector, gated by the PB detector's twin discipline
+       from day one: a planted positive control, TWO nulls (white noise and red wander — the second is
+       the one that defeats naive detectors, per OXYDEX-FFT-CYCLE-NULL), a slip twin (the defect this
+       module's own coupleRtoFoot history documents), and a sign twin (a rise is not an arousal). */
+    group('ΔPAT dips: planted arousals found; noise, wander, slip and rises are not', 'pat-align · dip-detector', function (T) {
+      var P = env.PATAlign;
+      if (!P || typeof P.patDipEvents !== 'function') {
+        T.skip('patDipEvents not exposed');
+        return;
+      }
+      function rng(seed) {
+        var s = seed >>> 0;
+        return function () {
+          s = (s * 1664525 + 1013904223) >>> 0;
+          return s / 4294967296;
+        };
+      }
+      /* One synthetic night: beats at ~1 Hz with RR jitter, foot = R + 400 ms + noise(σ 5 ms) — the
+         easy end of this corpus's measured 10-23 ms per-beat band, on purpose: the HARD part of each
+         twin is its structure, not its noise. */
+      function night(mod, seed) {
+        var r = rng(seed || 7),
+          R = [],
+          F = [],
+          t = 0;
+        for (var i = 0; i < 3600; i++) {
+          t += 950 + r() * 100;
+          R.push(t);
+          F.push(t + 400 + (r() * 2 - 1) * 5 + (mod ? mod(i, t) : 0));
+        }
+        return { R: R, F: F };
+      }
+      function dipMod(i) {
+        return i % 180 >= 60 && i % 180 < 68 ? -15 : 0;
+      }
+
+      // A · planted dips: 15 ms deep, 8 beats, every ~3 minutes (Pitson-scale arousals), 20/night.
+      var a = night(dipMod, 11);
+      var ra = P.patDipEvents(a.R, a.F, { minDipMs: 10, minBeats: 4 });
+      T.ok('A · planted 15 ms × 8-beat dips are FOUND (' + (ra.nEvents || 0) + ' events vs 20 planted)', !!ra.ok && ra.nEvents >= 16 && ra.nEvents <= 26);
+      T.ok('A · …and the index clears its own chance line (lift ' + (ra.liftVsChance == null ? '∞' : ra.liftVsChance.toFixed(1)) + ')', !!ra.ok && (ra.liftVsChance == null || ra.liftVsChance > 5));
+      // A-null · the SAME planted night under a circular foot shift collapses toward chance — the
+      // surrogate keeps every marginal and destroys only alignment, so if it did NOT collapse, the
+      // "dips" never depended on the pairing and the detector is reading structure that is not there.
+      var raS = P.patDipEvents(a.R, a.F, { minDipMs: 10, minBeats: 4, shiftFeetMs: 600000 });
+      T.ok('A-null · a 10-min circular foot shift collapses the planted index (' + (ra.nEvents || 0) + ' → ' + (raS.ok ? raS.nEvents : 'refused') + ')', !raS.ok || raS.nEvents <= ra.nEvents * 0.35);
+      T.ok(
+        'A · depth is measured, not merely thresholded (every event 10-30 ms deep)',
+        !!ra.ok &&
+          ra.events.every(function (e) {
+            return e.depthMs >= 10 && e.depthMs <= 30;
+          })
+      );
+
+      // B · pure noise, nothing planted — the white null.
+      var b = night(null, 13);
+      var rb = P.patDipEvents(b.R, b.F, { minDipMs: 10, minBeats: 4 });
+      T.ok('B · plain noise yields (almost) no events (' + (rb.nEvents || 0) + ')', !!rb.ok && rb.dipIndexPerHr < 2);
+
+      // C · RED WANDER, no dips: the lag drifts ±40 ms on a ~10-minute timescale. A naive threshold
+      // on the raw lag fires all night; the rolling-median baseline must absorb it.
+      var c = night(function (i) {
+        return 40 * Math.sin((2 * Math.PI * i) / 600);
+      }, 17);
+      var rc = P.patDipEvents(c.R, c.F, { minDipMs: 10, minBeats: 4 });
+      T.ok('C · slow ±40 ms wander with NO dips yields (almost) no events (' + (rc.nEvents || 0) + ')', !!rc.ok && rc.dipIndexPerHr < 2);
+
+      // D · beat-slip: stretches where the "foot" jumps ~+1000 ms (one RR). Slip must neither read
+      // as dips nor poison the neighbouring baseline — and must be ACCOUNTED, not digested.
+      var d = night(function (i) {
+        return i % 180 < 6 ? 1000 : 0;
+      }, 19);
+      var rd = P.patDipEvents(d.R, d.F, { minDipMs: 10, minBeats: 4 });
+      T.ok('D · 1-RR slip stretches produce (almost) no dip events (' + (rd.nEvents || 0) + ')', !!rd.ok && rd.dipIndexPerHr < 2);
+      T.ok('D · …and are accounted as artifacts (' + (100 * rd.artifactShare).toFixed(1) + ' %)', !!rd.ok && rd.artifactShare > 0.01);
+
+      // E · SIGN: symmetric 15 ms RISES (a BP fall) must not count — the estimand is arousal DIPS.
+      var e = night(function (i) {
+        return i % 180 >= 60 && i % 180 < 68 ? +15 : 0;
+      }, 23);
+      var re = P.patDipEvents(e.R, e.F, { minDipMs: 10, minBeats: 4 });
+      T.ok('E · planted RISES are ignored (' + (re.nEvents || 0) + ' events)', !!re.ok && re.dipIndexPerHr < 2);
+
+      // F · segments: the SAME dip found without segments must die on a connection boundary through
+      // its middle — the per-connection BLE offset argument only holds within one connection.
+      // The dip is 6 beats so each half of the cut (3+3) is BELOW minBeats: an 8-beat dip would
+      // legitimately yield one 4-core-beat event per side, which is correct behaviour (evidence
+      // within a connection stands); what segments must forbid is only the stitch ACROSS the cut.
+      var f = night(function (i) {
+        return i >= 1797 && i < 1803 ? -15 : 0;
+      }, 29);
+      var mid = f.R[1800];
+      var rf = P.patDipEvents(f.R, f.F, {
+        minDipMs: 10,
+        minBeats: 4,
+        segments: [
+          [0, mid],
+          [mid + 1, 1e12]
+        ]
+      });
+      var rg = P.patDipEvents(f.R, f.F, { minDipMs: 10, minBeats: 4 });
+      T.ok(
+        'F · a dip straddling a connection boundary dies at the cut (' + (rf.nEvents || 0) + ' with segments, ' + (rg.nEvents || 0) + ' without)',
+        !!rf.ok && !!rg.ok && rf.nEvents === 0 && rg.nEvents >= 1
+      );
+
+      // G · refusal: too few pairs refuses with a reason — never an index over noise.
+      var rr = P.patDipEvents(a.R.slice(0, 50), a.F.slice(0, 50), {});
+      T.ok('G · 50 pairs REFUSES with a reason rather than reporting an index', rr.ok === false && typeof rr.reason === 'string' && rr.reason.length > 0);
+
+      // H · READABILITY: when per-beat noise dwarfs Θ, the night must REFUSE, not index the noise —
+      // measured on the first five real nights (floors 80-122 ms vs Θ=10 → 54-78 fake dips/h).
+      var h = night(function () {
+        return 0;
+      }, 31);
+      // triple the noise to ±90 ms: floor ≈ 45 ms > 2Θ
+      var rH = P.patDipEvents(
+        h.R,
+        h.F.map(function (v, i) {
+          var rr2 = ((i * 2654435761) >>> 0) / 4294967296;
+          return v + (rr2 * 2 - 1) * 90;
+        }),
+        { minDipMs: 10, minBeats: 4 }
+      );
+      T.ok('H · a noise floor above 2×Θ REFUSES and names the floor (' + (rH.medianAbsDevMs || 0).toFixed(1) + ' ms)', rH.ok === false && /noise floor/.test(rH.reason || ''));
+    });
+
     group('PAT-align: anchor-based inter-device offset recovery (PAT-FEASIBILITY extraction)', 'pat-align · regression', function (T) {
       var P = env.PATAlign;
       T.ok('PATAlign exposed', !!(P && P.envelope && P.findAnchors && P.lagAtAnchor && P.alignByAnchors));
