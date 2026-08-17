@@ -213,8 +213,47 @@ excess kurtosis:  H10 acc +1901 · H10 ecg +1400 · Verity ppg +124
 ```
 
 **A dual-Dirac has NEGATIVE excess kurtosis** — two deltas smeared by Gaussians is flat-topped. These
-are single, violently heavy-tailed peaks. There is no bounded component to separate: at our scale the
-**tail IS the phenomenon**, and 7.5 ms is noise beside delays measured in hundreds of milliseconds.
+are single, violently heavy-tailed peaks — so the *dual-Dirac model* does not fit, which was the
+question being asked.
+
+🔴 **SECOND CORRECTION, 2026-08-17 (#1412): "there is no bounded component" was WRONG, and the reason
+is the transferable part — KURTOSIS CANNOT SEE A LATTICE.** There **is** a bounded, deterministic
+component on every Polar stream: delivery delay is **quantised to an integer number of BLE connection
+events**, and it was recovered from arrival timestamps alone.
+
+```
+Polar H10 ecg   44.902 ms  ->  35.92 → 36 units × 1.25 ms = 45.00    R 0.937   9/9 streams
+Polar H10 acc   44.944 ms  ->  35.96 → 36                            R 0.927   8/8
+Polar Verity    30.014 ms  ->  24.01 → 24 units × 1.25 ms = 30.00    R 0.843   332/343
+Wellue O2Ring   REFUSED — no device clock at all
+```
+
+`R` is the circular concentration `|mean(exp(2πix/s))|` on the differenced delay: **1** for a lattice,
+**~1/√n** for anything continuous.
+
+**This result validates itself, which is rare here.** 1.25 ms is the **BLE specification's**
+connection-interval quantum — not a fitted constant, not a config value. Recovering **36 × 1.25** and
+**24 × 1.25** from noisy arrival stamps on two different chipsets means the method landed on integers
+it had no way to know in advance: **a known-answer test the protocol supplied.** The negative control
+is the other half — adding `U(0, 45 ms)` to the H10 series collapses R from **0.976 → 0.005**.
+
+⚠️ **And the H10 carries the STRONGEST comb in the corpus (R = 0.95) together with POSITIVE excess
+kurtosis (+8.6 / +5.5).** The statistic that "excluded" a bounded component was blind to it *by
+construction* — a lattice has no effect on the fourth moment. The flat-topped Verity streams later
+cited as possibly dual-Dirac are **discrete spikes with empty bins between**: a comb, not two
+Gaussian-smeared humps.
+
+**What actually follows, and it is a harder wall than the original entry claimed:**
+
+- **45 ms is a FLOOR on anything derived from arrival stamps — 4.5× PAT's 10 ms budget** — and it is
+  *independent* of the 2.2 s per-connection offset in `PAT-PACKET-ARRIVAL`. Anyone reviving PAT from
+  arrival stamps now faces **two structural walls, not one**. Device stamps + `hostAxis` remain the path.
+- It survives `hostAxis`'s width-21 running median as **3.21 ms** (30 ms → 2.15 ms) — inside PAT's
+  budget, but an **unbudgeted term that is inside only because of the median width**. That entangles it
+  with the width's own justification (the 9 → 77 / 21 → 57 / 41 → 168 / 81 → 245 planted-jitter table):
+  retune the width on other evidence and this term moves silently. Recorded because nothing else says so.
+- ⚠️ **Measured every session, never assumed** — the interval is negotiated per connection and the box
+  has two chipsets. Every figure above is "what the Realtek negotiated on these nights".
 
 ⚠️ It was **not shipped**, and the reason is the reusable part: feeding `abs(dj)/√12` into an
 uncertainty budget as a "bounded" term would have fabricated a quantity **from a model the data
@@ -244,6 +283,11 @@ processes per file and would not see it). The H10 and Verity numbers stand.
 entry was not wrong about the physics. It was wrong about **which term dominates at the scale we
 measure** — and that only surfaced by fitting the model and watching it fail. A literature entry that
 is theoretically correct can still be practically inverted, and the only way to find out is to run it.
+
+**And the correction needed its own correction.** The first pass falsified the DJ/RJ *decomposition*
+correctly and then over-reached into "no bounded component at all" — a claim the chosen statistic
+could not support in either direction. **A refutation is a claim too, and inherits the burden of
+proof it just imposed.**
 
 ## 8 · Generalizability theory
 
