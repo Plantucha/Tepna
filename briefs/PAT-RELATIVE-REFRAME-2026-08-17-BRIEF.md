@@ -141,8 +141,41 @@ precondition to check per night, not a refutation.
 
 - [ ] Within-connection offset stability is measured on ≥ 5 sidecar nights (first/second half fit
       comparison per connection) — the dip path's one clock gate.
-- [ ] A dip detector meeting §3.1 exists with a planted-dip positive control and a no-dip AR(1)
-      negative control (the PB detector's twin discipline, applied here from day one).
+- [x] **BUILT same day** — `PATAlign.patDipEvents` (+ `tools/pat-dip-index.mjs`), gated by TEN twins
+      in `pat-align · dip-detector`: planted Pitson-scale dips found 20/20; white-noise and ±40 ms
+      red-wander nulls quiet; the 1-RR slip twin caught a real fabrication mode (a slipped foot pairs
+      the next R at ≈RR−1000 ms, a perfect fake dip) now closed by foot-gap shadowing; a sign twin
+      (rises ignored); a segment twin (a dip straddling a connection boundary dies at the cut);
+      refusal twins for too-few-pairs, unreadable noise floors, and QUANTIZED fiducials. Hysteresis
+      (enter −Θ, extend −Θ/2, event = ≥N core beats) fixed a real fragility where one −0.9 Θ noise
+      draw split a genuine dip.
+
+### 📊 FIRST FIVE REAL NIGHTS (2026-08-13 → 17, pulled from vigil same day) — measured, and the answer is refusals with names
+
+| night | ring (finger) leg | ankle (Verity) leg |
+|---|---|---|
+| 08-13 | ⊘ noise floor **122.5 ms** > 2Θ | — |
+| 08-14 | ⊘ noise floor 86.5 ms > 2Θ | — |
+| 08-15 | ⊘ noise floor 80.8 ms > 2Θ | ⊘ quantized (floor 0.0 ms — integer-sample feet) |
+| 08-16 | ⊘ noise floor 79.7 ms > 2Θ | ⊘ quantized + 100 % artifact share |
+| 08-17 | ⊘ no ECG+ring pair | — |
+
+**Both legs refuse, for opposite degeneracies, and both reasons are already in the compendium.** The
+finger floor of 80–122 ms matches §5.2's measured 91.8 ms foot-to-foot sd of the `_PPG.txt` DISPLAY
+waveform — the good optics (18.9 ms) are in the unread `_PPG2W.txt`. The ankle leg's 0.0 ms floor is
+the §8 integer-grid trap: `pat-matchrate-strict`'s `ppgFootTimes` emits integer-sample feet at 55 Hz
+(18 ms quantum), where a Θ=10 dip is sub-quantum. **So the dip path's blocker is not clocks and not
+the estimand — it is fiducial quality, and the two fixes are already named:** route the ankle leg
+through the SUB-SAMPLE `refineFeet` (shipped in ppgdex-dsp, unused by the tool chain here), and give
+the finger leg `_PPG2W`'s optics (compendium §9.5, needs its timing story). Before the first run it
+was plausible the detector would index noise as arousals; it refuses instead, which is the twins
+doing their job on night one.
+
+**The fold itself (same five nights, all three Dexes + Integrator):** 4/5 nights are full trios
+(7.5–8.1 h three-way overlap; 08-17 has no O2Ring anchor). The new PB detector emits on **0/4**
+nights (36 % base rate corpus-wide), the three-observer fusion corroborates 0/4, and κ vs the CPAP
+**correctly REFUSES** — "the device scored PB on NO night (n=4) — one rater never varied" — the
+degenerate-margin guard's first firing on live data.
 - [ ] The PTT-arousal index is computed on every locking box night and coupled to the CPAP's
       device-scored events through the circular-shift null; the lift and the night-level correlation
       are stated, whatever they are.
