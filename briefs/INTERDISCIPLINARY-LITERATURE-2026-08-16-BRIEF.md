@@ -501,6 +501,57 @@ stability — it is decimation with averaging, not resampling.
 "observations are quite irregularly spaced in time" is the normal condition. The field already in this
 brief for a different reason is also the answer here.
 
+> ### ✅ ADOPTED 2026-08-17 — measured in BOTH lanes, and they do not agree. This entry conflates them.
+>
+> **The premise is correct for the lane it names and false for the other, so the adoption is bounded.**
+> `allan.py` (Python) and `allanFromPhase` (the JS spine) both take a `tau0` and both assume a uniform
+> grid — but they are handed **different series**, and only one of them is irregular.
+>
+> **Arrival lane** (`nightqc._tau0_of` → `allan.stability`, indexed on BLE packet-arrival host stamps).
+> 120 `*_PMDARRIVAL.csv` sidecars on the box, per `(device, meas)` series, as mean-τ₀ ÷ median-Δ:
+>
+> | series | n | median Δ | mean-τ₀ / median | worst gap ÷ median |
+> |---|---|---|---|---|
+> | H10 ecg | 7 | 541 ms | 1.04 | 9× |
+> | H10 acc | 7 | 720 ms | 0.98–0.99 | 10× |
+> | **Verity ppg** | **79** | 300 ms | **0.87 – 1.16** | 4× |
+> | Verity acc | 8 | 2416 ms | 0.94–1.06 | 2× |
+> | Verity ppi | 2 | 4897 ms | **0.52 – 0.97** | 1× |
+> | O2Ring duration | 10 | 1005 ms | 1.00 | 1× |
+>
+> **Node lane** (`DexClock.hostAxis(...).stability`, indexed on the device counter). 439 ECG/PPG streams,
+> 17 box nights: Polar **0.9999 – 1.0066**, worst gap **1.0–1.4×**; O2Ring 0.9990 – 1.0510, one gap 208×.
+>
+> **So: the arrival axis is irregular and the device axis is not.** §13b.4 says *"BLE arrivals are not
+> uniform"* — true, and this is the number: on the most-populated stream (Verity ppg, 79 series) the mean
+> packet interval runs **0.87–1.16×** the median, i.e. up to a **16 % error in the τ label**, and Verity
+> ppi reaches 0.52. Nothing in the node lane is close to that.
+>
+> **What the τ error does and does not do — the part worth stating, because it bounds the cost.** A
+> *uniform rescaling* of τ shifts the curve horizontally in log-log and leaves the **slope invariant**, so
+> the noise-type classification — the thing this suite actually branches on — is immune to it. What moves
+> is *where on the curve* a σ is quoted: `optimal_tau`, `tauMaxSec`, and any cross-stream comparison read
+> at a fixed τ. Separately and additionally, genuinely *irregular* spacing biases AVAR itself (dead time —
+> Barnes & Allan 1990, NIST TN 1318), which a τ relabel does not fix. Two distinct effects; only the first
+> is a scale error.
+>
+> **ADOPTED: Sesia & Tavella (2008)**, *Estimating the Allan variance in the presence of long periods of
+> missing data and outliers*, Metrologia **45**(6):S134, DOI `10.1088/0026-1394/45/6/S19` — the unbiased
+> AVAR for missing data and unequal spacing, which is exactly the arrival lane's condition.
+> **REJECTED for the node lane**, on measurement: its input is uniform to ≤0.7 % on every Polar stream, so
+> an unbiased-AVAR rewrite there would add machinery to correct a bias that is not present. The O2Ring is
+> the one node-lane exception and it is already refused twice over (drawn axis; incoherent cross-fragment
+> rate), so a third refusal is confirmatory.
+>
+> **Owed, and deliberately not done here:** the arrival lane should publish the mean-to-median ratio beside
+> its curve so a reader can see when the τ label is trustworthy — cheap, Python-side, no bundle. The
+> unbiased-AVAR swap is a larger change and should follow the ratio, not precede it: measure how often the
+> bias matters before importing an estimator to remove it.
+>
+> ⚠️ **The trap this entry set, recorded because it nearly worked.** I measured the node lane first, found
+> it uniform, and was one step from writing "the premise is refuted". The two lanes share an entry, a
+> vocabulary and an estimator, and differ in the only thing that mattered — which series they index on.
+
 ### 13b.5 · Delay-variation estimation — is the residual a clock at all?
 
 **Tepna problem** (Vigil box, self-identified as the highest-value of their five): stability is computed
@@ -1102,5 +1153,5 @@ may be quoted as `validated`-tier until it has been, with the citation checked a
 
 - [ ] §2's five unledgered time-frequency citations added to `CITATION-VERIFICATION-2026-08-05.json`
 - [x] ~~Riley & Greenhall 2004 evaluated against the `1.96·SE` refusal band~~ — **NOT tracked here.** The same question is `HOSTAXIS-STABILITY-FOLLOWUPS` §3 and is being answered there. Tracking it in two briefs is the shape that produced the GENERATOR-FOLLOWUPS-III collision, and `stale-file` cannot see it because the two live in different files.
-- [ ] One field adopted or rejected in writing, with the reason (a reading queue that never closes an item is a wish list)
+- [x] **DONE 2026-08-17 — §13b.4 adopted for the arrival lane and rejected for the node lane, both on measurement** (see the ✅ block there). Sesia & Tavella 2008 in; unbiased-AVAR in the JS spine out, because its input is uniform to ≤0.7 %.
 - [ ] Any DOI marked *unverified* resolved before it leaves `briefs/`
