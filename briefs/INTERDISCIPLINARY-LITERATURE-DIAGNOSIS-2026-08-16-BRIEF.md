@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** REFERENCE · **Created:** 2026-08-16 · **last-verified:** 2026-08-17
+**Status:** REFERENCE · **Created:** 2026-08-16 · **last-verified:** 2026-08-17 (§2.1 uniformity, §3.2 trigger, §7.8 gate — measured)
 
 # Interdisciplinary literature diagnosis — established methods around Tepna
 
@@ -103,6 +103,59 @@ reporting and a documented check that the input is a valid phase/time-error seri
 > phase/time-error series. `clock.js` already publishes `timingSource` and `deviceDrawn` precisely
 > because a drawn axis is not a clock — asserting that at the `stability()` boundary is the live part
 > of this recommendation.
+>
+> ### 📏 MEASURED 2026-08-17 — the check is owed, but for ONE device, and it is confirmatory
+>
+> ADEV's other input precondition is that the phase series be **uniformly sampled**: `allanFromPhase`
+> is handed `tau0` and `hostAxis` computes it as `span/(n−1)`, the MEAN spacing. Ragged sampling
+> therefore mislabels the whole τ axis by the ratio of mean to true spacing, silently. Measured across
+> **439 ECG/PPG streams on the 17-night box corpus**, as mean-τ₀ ÷ median-spacing:
+>
+> | device | streams | mean-τ₀ / median | worst single gap ÷ median |
+> |---|---|---|---|
+> | Polar H10 | 179 | 0.9999 – 1.0000 | **1.0×** |
+> | Polar Verity | 129 | 0.9999 – 1.0066 | 1.4× |
+> | **Wellue O2Ring** | 131 | 0.9990 – **1.0510** | **208×** |
+>
+> **The Polar streams satisfy the precondition outright** (≤0.7 % worst case), so a guard would gate a
+> non-problem there — and `ALLAN-DEVIATION` §4's rule applies: the last two arrival diagnostics that
+> shipped with thresholds both fired on every stream of the first real night. **The O2Ring does not**:
+> up to a **5.1 % τ-axis inflation** and a single gap 208× the median spacing, so its σ_y(τ) curve is
+> mislabelled in τ on top of the axis not being a clock at all. That is a *second, independent* reason
+> its stability figures mean nothing, reached without reference to the drawn-axis argument.
+>
+> **Consequence for sequencing, stated so the next reader does not re-derive it:** the check is real
+> but fires only on a device already refused twice over (drawn axis; incoherent cross-fragment rate),
+> so it is **confirmatory, not load-bearing**. Publishing a `tau0Uniformity` figure beside `stability`
+> is the right shape and it is a **shared-spine change** — 8 bundles, 8 provenance fragments, and an
+> ECGDex export move because ECGDex surfaces `stability`. Re-bundling the fleet for a diagnostic that
+> can only confirm an existing refusal is the wrong trade today; **let it ride the next behavioural
+> spine re-bundle**, the same economics CLAUDE.md §📦 applies to version stamping.
+
+### 📏 MEASURED 2026-08-17 — §3.2's action is NOT triggered, and §7.6 should say so
+
+§3.2 makes its recommendation conditional: *"IF a spectral peak becomes a published significance claim,
+calibrate it against colored/nonstationary nulls."* It has not. Lomb–Scargle appears in four DSPs and
+feeds `respRate` and the `vlf`/`tp` band powers; there is **no false-alarm-probability, no p-value and
+no peak-significance machinery anywhere in the tree**. Band power over a fixed band is not a peak
+detection, so the precondition for Baluev/VanderPlas null calibration does not exist. Nothing is owed
+until a peak is promoted to a claim — and this note is here so the next reader spends the search once.
+
+### ⛔ ATTEMPTED 2026-08-17 — §7.8's mechanical correction-chain check, and the obvious form is HOLLOW
+
+§7 item 8 asks to *"make the paper/brief correction chain mechanically visible where possible."* The
+motivating instance is §6's own: `dead-ends.html`'s abstract carried a retraction its §2.7 did not.
+
+The natural gate — *a paper containing a correction marker must carry one outside the abstract* — was
+**tested against that very instance and would have passed it.** Before the 2026-08-17 fix the file held
+**two** correction markers: one in the abstract (2026-08-13, the ~96 ms artifact) and one in §2.7 itself
+(2026-07-29, the earlier drift mis-attribution). The section was corrected — for a *different* claim.
+So the structural rule is satisfied while the defect is present.
+
+**Recorded as a negative so nobody ships it.** Distinguishing "this section carries a correction" from
+"this section carries the correction for the claim it still asserts" needs the retracted *quantity* tied
+to the sections asserting it, which is semantic, not structural. A gate that would not have caught its
+own motivating instance is the hollow-gate class `AUDIT-PROMPT.md` hunts.
 
 **References:** D. Allan, 1966, DOI `10.1109/PROC.1966.4634`; NIST SP 1065,
 *Handbook of Frequency Stability Analysis*.
