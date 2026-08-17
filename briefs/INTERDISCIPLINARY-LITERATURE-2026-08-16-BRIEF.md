@@ -1260,6 +1260,26 @@ statistic silently lacks.
 that n** instead of an eyeballed threshold. Cheap: both are three-line formulas over angles already
 computed. **Confidence: HIGH** — the correspondence is an identity, not an analogy.
 
+> ### ✅ BUILT 2026-08-17 — `tools/circular-stats.mjs`, gated `tools · circular-stats`
+>
+> `rayleighP(n, rBar)` (Zar's approximation, the one CircStat's `circ_rtest` ships) +
+> `meanResultantLength`, the latter **pinned by the gate against the DSP-style inline computation** so
+> the exported statistic and `_wrappedSlopeFit`'s `concentration` cannot drift apart. Wired into
+> `tools/integrator-block-precision.mjs`, which now prints `Rayleigh p<0.01 on k/n` beside the
+> concentration it already reported.
+>
+> **The demonstration that the eyeballed threshold could not carry:** the SAME R̄ = 0.3 is
+> uniform-plausible at n = 10 blocks (p ≈ 0.42) and decisive at n = 100 (p ≈ 10⁻⁴). JOINT-UNWRAP §5
+> read 0.15–0.38 as "no phase to regress" — whether that judgement is right **depends on the block
+> count**, and only the test carries that dependence. Both exact limits are asserted as identities
+> (R̄=0 ⇒ p=1; R̄=1 ⇒ p < 10⁻⁷⁰), refusals fire on n<2 / R̄>1 / non-finite input.
+>
+> **Scope, stated:** the p tests uniformity under an independence assumption; adjacent blocks share
+> physiology, so it is mildly anticonservative — a diagnostic beside the statistic, not a gate, the
+> `slopeSE` posture. And `integrator-dsp.js`'s own `wrappedConcentration` field is deliberately
+> untouched: adding a p there is a compute-closure change that re-verifies the Integrator golden, so
+> it **rides the next behavioural re-bundle** — the same economics as `tau0Uniformity`'s wiring.
+
 ### 13h.2 · Spike-train distance metrics — the beat-correspondence audit already has a formal object, with the alignment for free
 
 **Tepna problem (named, twice).** `papers/dead-ends.html` §2.7's correction names the outstanding

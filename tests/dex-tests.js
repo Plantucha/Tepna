@@ -5950,6 +5950,62 @@
        Two of these assertions encode bugs the first version shipped with, found by the selftest:
        an index-paired offset estimator that the indels being counted poisoned (1 planted insertion →
        d=1,i=2 reported), and a q-extreme expectation that asserted a number the band forbids. */
+    /* THE RAYLEIGH NULL — `tools/circular-stats.mjs` (INTERDISCIPLINARY-LITERATURE §13h.1). The
+       repo's "phase concentration" (integrator-dsp _wrappedSlopeFit) IS the mean resultant length of
+       circular statistics; the Rayleigh test is the null the ad-hoc statistic stopped short of:
+       "at this n, is this concentration distinguishable from a uniform phase?" — JOINT-UNWRAP §5's
+       falsifier, with the n attached instead of a threshold read by eye. */
+    group('the Rayleigh null makes concentration readable at its own n', 'tools · circular-stats', function (T) {
+      var CS = env.circularStats;
+      if (!CS) {
+        T.skip('circular-stats is loaded in this lane', 'browser lane cannot ESM-import a tool');
+        return;
+      }
+      // The two exact limits of Zar's approximation, asserted as identities rather than examples.
+      T.eq('rBar = 0 gives p = 1 EXACTLY — uniform is fully plausible', CS.rayleighP(100, 0), 1);
+      T.ok('rBar = 1 gives an astronomically small p', CS.rayleighP(100, 1) < 1e-70, String(CS.rayleighP(100, 1)));
+
+      /* THE POINT OF THE EXERCISE: the same concentration is noise at one n and decisive at another.
+         JOINT-UNWRAP §5 read 0.15–0.38 as "no phase to regress" by eye; whether that judgement is
+         right DEPENDS ON n, and only the test carries that dependence. */
+      T.ok('R̄ = 0.3 at n = 10 is uniform-plausible (p ≈ 0.42)', CS.rayleighP(10, 0.3) > 0.3, String(CS.rayleighP(10, 0.3)));
+      T.ok('the SAME R̄ = 0.3 at n = 100 is decisive (p ≈ 1e-4)', CS.rayleighP(100, 0.3) < 1e-3, String(CS.rayleighP(100, 0.3)));
+      T.ok('…and p is monotone in n at fixed R̄', CS.rayleighP(500, 0.3) < CS.rayleighP(100, 0.3) && CS.rayleighP(100, 0.3) < CS.rayleighP(10, 0.3));
+      T.ok('…and monotone in R̄ at fixed n', CS.rayleighP(50, 0.6) < CS.rayleighP(50, 0.3) && CS.rayleighP(50, 0.3) < CS.rayleighP(50, 0.1));
+
+      // Refusals: a p on inputs that cannot carry the test would be a fabricated verdict.
+      T.eq('n < 2 refuses', CS.rayleighP(1, 0.5), null);
+      T.eq('rBar > 1 is not a mean resultant length — refuses', CS.rayleighP(10, 1.2), null);
+      T.eq('non-finite n refuses', CS.rayleighP(NaN, 0.5), null);
+
+      /* meanResultantLength is pinned against the DSP's own inline computation: same angles, same
+         R̄, so the exported statistic and _wrappedSlopeFit's `concentration` cannot drift apart.
+         Deterministic MINSTD angles, no Math.random. */
+      var seed = 77777;
+      var rnd = function () {
+        seed = (seed * 16807) % 2147483647;
+        return seed / 2147483647;
+      };
+      var angles = [];
+      for (var i = 0; i < 400; i++) angles.push(2 * Math.PI * rnd());
+      var mrl = CS.meanResultantLength(angles);
+      var sx = 0,
+        sy = 0;
+      for (var j = 0; j < angles.length; j++) {
+        sx += Math.cos(angles[j]);
+        sy += Math.sin(angles[j]);
+      }
+      var inline = Math.sqrt(sx * sx + sy * sy) / angles.length;
+      T.ok('meanResultantLength ≡ the DSP-style inline computation', Math.abs(mrl.rBar - inline) < 1e-12);
+      T.ok('uniform angles give a LOW R̄ and a HIGH p', mrl.rBar < 0.12 && CS.rayleighP(mrl.n, mrl.rBar) > 0.05, JSON.stringify({ rBar: mrl.rBar, p: CS.rayleighP(mrl.n, mrl.rBar) }));
+      // Concentrated (von-Mises-ish) angles: same generator, small dispersion around one direction.
+      var conc = [];
+      for (var k = 0; k < 400; k++) conc.push(1.0 + 0.4 * (rnd() - 0.5));
+      var mc = CS.meanResultantLength(conc);
+      T.ok('concentrated angles give a HIGH R̄ and a vanishing p', mc.rBar > 0.9 && CS.rayleighP(mc.n, mc.rBar) < 1e-50, JSON.stringify({ rBar: mc.rBar }));
+      T.eq('an empty angle set refuses rather than reporting a phase', CS.meanResultantLength([]), null);
+    });
+
     group('beat correspondence recovers planted indels and refuses at the band edge', 'tools · beat-correspondence', function (T) {
       var BC = env.beatCorrespondence;
       if (!BC) {
