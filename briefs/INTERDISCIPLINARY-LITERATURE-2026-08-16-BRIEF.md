@@ -957,7 +957,7 @@ whether a beat series is *well described* at all.
 | work | detail | status |
 |---|---|---|
 | **Barbieri, R., Matten, E. C., Alabi, A. A. & Brown, E. N. (2005)** — *A point-process model of human heartbeat intervals: new definitions of heart rate and heart rate variability*, Am. J. Physiol. Heart Circ. Physiol. | history-dependent **inverse Gaussian** model; yields **instantaneous** HR and HR-variability rather than window averages | verified · PMID 15374824 · DOI unverified |
-| **Brown, E. N. et al.** — the **time-rescaling theorem** goodness-of-fit, adapted from neural spike trains | KS test on rescaled inter-event times | verified · DOI unverified |
+| **Brown, E. N. et al. (2002)** — *The time-rescaling theorem and its application to neural spike train data analysis*, Neural Computation 14(2) — **DOI `10.1162/08997660252741149`** | KS test on rescaled inter-event times | verified + DOI **(resolved 2026-08-17)** |
 | *Characterizing nonlinear heartbeat dynamics within a point process framework* | PMID 20172783 | verified |
 
 **Two consequences, and the second is the important one.**
@@ -1227,6 +1227,81 @@ intersecting tangents, Groslambert covariance). That is [[convergence-is-correla
 literal form: **an independent search reproducing a known answer is evidence about the search, not
 about the field.** Grep the repo *before* writing a find up, not after — and grep for the method name,
 not the acronym.
+
+## 13h · ROUND NINE — online round (2026-08-17): the phase we already measure is circular statistics, and beat trains are spike trains
+
+> **Method for this round, stated per §13f's rule.** Candidates were proposed from the author's own
+> canon, then checked online for applied precedent and every DOI resolved against `api.crossref.org`
+> at author time — so this round is **canon-biased by construction** and says so. What the search
+> added beyond the canon: the SPIKE-distance being **parameter-free**, and an EMD-based rate-robust
+> variant (2019). Each entry below names the MEASURED Tepna problem it lands on; a shared vocabulary
+> alone was not enough to enter.
+
+### 13h.1 · Circular statistics — the concentration statistic JOINT-UNWRAP built ad hoc has a field, and the field has its NULL
+
+**Tepna problem (measured).** `JOINT-UNWRAP-ATTEMPT` §5 gates on *"phase concentration 0.15–0.38,
+where 1 is total agreement"* and reads *"concentration rising 0.29 → 0.59 with block length"* by eye.
+That statistic **is the mean resultant length R̄** of circular statistics — the per-block offsets
+wrapped modulo one RR are angles on a circle of circumference one RR, and every wrapped quantity in
+the PAT family is circular data whether or not it is called that.
+
+**What the field adds that the ad-hoc version lacks: the null.** The **Rayleigh test** answers "at
+this n, is this R̄ distinguishable from a uniform phase?" — which is exactly the falsifier *"is there
+a phase to regress"* that §5 needed and answered with a threshold chosen by eye. The von Mises
+concentration κ is the calibrated version of "how locked", with small-n bias corrections the ad-hoc
+statistic silently lacks.
+
+| work | detail | status |
+|---|---|---|
+| **Berens, P. (2009)** — *CircStat: a MATLAB toolbox for circular statistics*, J. Stat. Software 31(10) — **DOI `10.18637/jss.v031.i10`** | R̄, Rayleigh, von Mises κ, the practical formulas | verified + DOI |
+| **Mardia, K. V. & Jupp, P. E.** — *Directional Statistics*, Wiley — **DOI `10.1002/9780470316979`** | the standard reference | verified + DOI · ⚠️ Crossref dates it **1999**, the print convention says 2000 — recorded so a citation matches the ledger, not the habit |
+
+**Do.** Next time a wrapped-phase concentration gates a decision, quote R̄ **with the Rayleigh p at
+that n** instead of an eyeballed threshold. Cheap: both are three-line formulas over angles already
+computed. **Confidence: HIGH** — the correspondence is an identity, not an analogy.
+
+### 13h.2 · Spike-train distance metrics — the beat-correspondence audit already has a formal object, with the alignment for free
+
+**Tepna problem (named, twice).** `papers/dead-ends.html` §2.7's correction names the outstanding
+measurement verbatim: *"a beat-correspondence audit: matching beat counts to 0.02 % refutes net
+dropout but not local insertion/deletion pairs, which preserve the total while scrambling which foot
+belongs to which beat."* And `JOINT-UNWRAP` measured slips — a dropped or inserted beat — wrecking a
+cumulative unwrap with no detector for them. §4's GNSS **cycle-slip** line was closed 2026-08-17 as
+not-owed *for the unwrap construction*; this entry is the form that survives that objection, because
+an edit-distance alignment **never unwraps — it aligns**.
+
+**Correspondence.** The **Victor–Purpura distance** is an edit distance on point processes: minimum
+cost to transform train A into train B, insert/delete at cost 1, shift a spike by Δt at cost q·|Δt|.
+**2/q is the timescale at which moving a beat costs as much as delete+insert** — precisely the "same
+beat shifted, or a different beat?" boundary the audit needs, made explicit as a parameter instead of
+implicit in a matching window. And the dynamic programme that computes the distance returns the
+**alignment itself** — which beats pair, which are insertions, which deletions — i.e. the audit, not
+just a score. The **van Rossum distance** is the kernel form of the same object; the **SPIKE-distance**
+is **parameter-free**, relevant in a repo whose measured failure mode is tuned knobs.
+
+| work | detail | status |
+|---|---|---|
+| **Victor, J. D. & Purpura, K. P. (1996)** — *Nature and precision of temporal coding in visual cortex*, J. Neurophysiol. 76(2):1310 — **DOI `10.1152/jn.1996.76.2.1310`** | the edit distance; the q timescale | verified + DOI |
+| **van Rossum, M. C. W. (2001)** — *A novel spike distance*, Neural Computation 13(4):751 — **DOI `10.1162/089976601300014321`** | kernel form | verified + DOI · ⚠️ Crossref family is **"Rossum"** — a `crossref-variant` alias is owed if this is ever ledgered |
+| **Kreuz, T. et al. (2013)** — *Monitoring spike train synchrony*, J. Neurophysiol. — **DOI `10.1152/jn.00873.2012`** | SPIKE-distance, parameter-free | verified + DOI |
+
+**Do — and it is one measurement, on data already in hand.** Run a VP alignment between the ECG
+R-peak train and the PPG foot train on the two `INTEGRATOR-PAT-VASCULAR` §2-RESULT-IV nights where the
+anchor is identifiable (ncc 0.995–0.996) — **count the insertion/deletion pairs directly**. That IS the
+beat-correspondence audit `dead-ends` says is outstanding. Sweep q around 1/(the honest beat-to-beat
+SD) for sensitivity. ⚠️ The diagnosis §3.4's warning transfers verbatim: an association method
+quantifies ambiguity; it must never be used to *force* a coupling result. **Confidence: HIGH** on the
+correspondence; the measurement is the cheap test of whether it earns adoption.
+
+### 13h.3 · The alignment substrate, and probabilistic linkage — recorded so the next searcher stops here
+
+The dynamic programme under 13h.2 is **Needleman–Wunsch** (global) / **Smith–Waterman** (local) —
+*Needleman & Wunsch 1970*, DOI `10.1016/0022-2836(70)90057-4`; *Smith & Waterman 1981*, DOI
+`10.1016/0022-2836(81)90087-5`; both verified. Sakoe–Chiba DTW is already in the diagnosis (§3.4)
+with the do-not-force-coupling warning. And **Fellegi & Sunter 1969** (*A theory for record linkage*,
+JASA, DOI `10.1080/01621459.1969.10501049`, verified) is the formal frame if device-pairing ever
+needs **quantified match/non-match error rates** rather than nearest-stamp heuristics — LOW priority,
+no current consumer; recorded so it is findable, not proposed.
 
 ## 14 · Lower priority — technique already used, justification missing
 
