@@ -568,7 +568,8 @@ function statusReport() {
   const files = readdirSync(OUT).filter((f) => f.endsWith('.crawl.json'));
   if (!files.length) return console.log('no completed files in ' + OUT);
   let tot = 0,
-    kill = 0;
+    kill = 0,
+    counted = 0;
   console.log('MUTATION CRAWL — results in ' + OUT + '\n');
   for (const f of files.sort()) {
     const j = JSON.parse(readFileSync(join(OUT, f), 'utf8'));
@@ -580,10 +581,29 @@ function statusReport() {
       console.log('  ' + j.file.padEnd(22) + ' ⚠ UNMEASURED — probe failed: ' + String(j.probeError || 'nothing probed').slice(0, 60));
       continue;
     }
+    /* A SWEEP THAT DIED IS NOT A FILE WITH NO SURVIVORS. The two guards above already refuse to
+       report a void or unprobed file as a result; a sweep that failed outright had no such branch
+       and fell through to the normal row, where `(j.findings || [])` is empty and every reduce
+       returns 0. Measured 2026-08-16: integrator-dsp.js timed out at 717/1845 after 354 minutes
+       (`spawnSync node ETIMEDOUT`) and the summary rendered
+
+           integrator-dsp.js   killed undefined/NaN   survivors 0   KILLABLE 0
+
+       then counted it in "across 6 file(s)" — a six-hour failure presented as a clean file with
+       nothing left to do, and folded into the fleet totals as if it had contributed.
+
+       The RESULT FILE was honest the whole time (`complete: false` plus the error), so resume
+       correctly re-runs it. Only the summary lied, which is the worse place for it: resume is read
+       by the tool, the summary is read by a person deciding whether the work is done. */
+    if (!j.complete || j.error) {
+      console.log('  ' + j.file.padEnd(22) + ' ⚠ INCOMPLETE — sweep did not finish: ' + String(j.error || 'no error recorded').slice(0, 60) + '  (re-run to resume; NOT counted below)');
+      continue;
+    }
     const k = (j.findings || []).reduce((a, x) => a + (x.killable || 0), 0);
     const s = (j.findings || []).reduce((a, x) => a + (x.survivors || 0), 0);
     tot += s;
     kill += k;
+    counted++;
     console.log(
       '  ' +
         j.file.padEnd(22) +
@@ -598,7 +618,20 @@ function statusReport() {
         (j.canary && j.canary !== 'PASSED' ? '   ⚠ canary ' + j.canary : '')
     );
   }
-  console.log('\n  ' + kill + ' killable of ' + tot + ' survivors across ' + files.length + ' file(s)');
+  /* `files.length` counts every result FILE, including the void / unmeasured / incomplete ones the
+     loop above deliberately skipped — so the footer claimed six files while five had contributed.
+     Count what was actually summed, and say plainly how many were excluded rather than quietly
+     shrinking the denominator. */
+  console.log(
+    '\n  ' +
+      kill +
+      ' killable of ' +
+      tot +
+      ' survivors across ' +
+      counted +
+      ' file(s)' +
+      (files.length - counted > 0 ? '   (' + (files.length - counted) + ' excluded above — void, unmeasured or incomplete)' : '')
+  );
   console.log('  "killable" = a battery found a distinguishing input. It is a LOWER BOUND: see each');
   console.log("  finding's `battery` and `batteryInputs`, and note any BATTERY-UNUSABLE entries.");
 }
