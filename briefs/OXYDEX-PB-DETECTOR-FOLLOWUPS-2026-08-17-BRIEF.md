@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-08-17 (**§2 and §6 CLOSED by measurement the same day**: ρ measured at median 0.9804 with the CV threshold re-validated across the corpus's real redness including the reddest night, and the gap-spanning hazard shown to be fully caught by the existing guard. §1 CLOSED (mitigated at the declaration; NOT on a reclassification — see the note there). §3 HALF-CLOSED — the observer is in scope, the three-observer result is not. §3b ADDED — OxyDex publishing axis provenance would silently upgrade an Integrator guard. §5 TARGET CORRECTED — it named the demo generator, not the one on the compute path. §4, §5 remain open) · **Created:** 2026-08-17 · **Follows:** `OXYDEX-PB-DETECTOR-2026-08-09-BRIEF.md` (DONE — 2026-08-17) · **Affects:** `oxydex-dsp.js computePatternScores`, `briefs/SYNTHETIC-CORPUS-BRIEF.md`, the CPAP/ECGDex corpora
+**Status:** IN-PROGRESS — 2026-08-17 (**§2 and §6 CLOSED by measurement the same day**: ρ measured at median 0.9804 with the CV threshold re-validated across the corpus's real redness including the reddest night, and the gap-spanning hazard shown to be fully caught by the existing guard. §1 CLOSED (mitigated at the declaration; NOT on a reclassification — see the note there). §3 CLOSED 2026-08-17 — the third observer is MEASURED (17/18 nights) and does not raise corroboration; the blocker was a wrong belief about the corpus, and vigil holds a CPAP tree running to 2026-08-16. §4b ADDED — extending the corpus did not help κ, which identifies the real constraint. §3b ADDED — OxyDex publishing axis provenance would silently upgrade an Integrator guard. §5 TARGET CORRECTED — it named the demo generator, not the one on the compute path. §4, §5 remain open) · **Created:** 2026-08-17 · **Follows:** `OXYDEX-PB-DETECTOR-2026-08-09-BRIEF.md` (DONE — 2026-08-17) · **Affects:** `oxydex-dsp.js computePatternScores`, `briefs/SYNTHETIC-CORPUS-BRIEF.md`, the CPAP/ECGDex corpora
 
 # What the PB detector's execution turned up and did not close
 
@@ -82,7 +82,7 @@ merely at the inherited figure.
 what forbids it; regenerate it before touching that constant, and note the relationship is not monotone
 in ρ (0.99 is tighter than 0.995), so testing only the extremes would have missed the worst case.
 
-## 3 · ⚙ HALF-CLOSED — the ECGDex third observer is now in scope; the three-observer result is not
+## 3 · ✅ CLOSED — the ECGDex third observer is measured, and does not change the picture
 
 `_pbObserver` admits three nodes. Every fusion measurement to date pairs **OxyDex with CPAPDex only**,
 because the available ECGDex exports carry no `apnea.cvhrIndex` — that block landed 2026-07-23
@@ -107,6 +107,56 @@ nights carrying *both* an ECGDex `apnea` block and a CPAP export number **5**, a
 **So the parent's 3/56 remains a two-observer figure**, and the three-observer question is open. **Done
 when:** ECGDex-carrying nights overlap the CPAP corpus in useful numbers — box captures from before
 2026-07-21, which exist on `vigil` but not in the local `smoketest` tree. No code needed.
+
+### ✅ CLOSED 2026-08-17 — the third observer is MEASURED, and it does not change the picture
+
+**The blocker was a wrong belief about the corpus, not a real limit.** I had concluded the overlap was
+capped because the local CPAP corpus ends 2026-07-21 while box captures start 07-16 (smoketest) / 07-25
+(vigil). **`vigil` holds its own CPAP SD-card tree** — `/srv/tepna/captures/cpap/DATALOG/`, 217 nights,
+**2026-01-11 → 2026-08-16**, plus the `STR.edf` a local search had looked for and not found. It extends
+the local corpus by nearly a month. 26 nights after 07-21 (75 MB) were pulled and merged, giving a
+combined **215-night** export set.
+
+That turns the ECGDex overlap from **5 nights to 17 of 18**, with the third observer in scope on
+**all 18**:
+
+| | two-observer (56 nights) | **three-observer (17 nights)** |
+|---|---|---|
+| OxyDex emits `periodic_breathing` | 20/56 (36 %) | 4/17 (24 %) |
+| `fusePeriodicBreathing` corroborates | 3/56 (5.4 %) | **1/17 (5.9 %)** |
+| …with the OxyDex leg stripped | 0/56 | **0/17** |
+
+**The answer: bringing the third observer into scope does NOT raise corroboration.** The rates are
+5.4 % and 5.9 % — indistinguishable at these counts — and stripping the OxyDex leg still takes it to
+zero. So the parent's 3/56 was a floor that turns out to be very close to the ceiling, and the ECGDex
+cardiac-CVHR leg **corroborated nothing on its own** across 18 nights carrying `apnea.cvhrIndex`.
+
+⚠️ That is a *measured null*, not a dead leg: 18 nights with one device-positive between them cannot
+demonstrate a leg's value either way. It says the third observer does not rescue the fusion count on
+this corpus, not that it never would.
+
+## 4b · ⚠️ THE EXTENDED CORPUS DID NOT HELP κ — and that identifies the real constraint
+
+Re-running §3.3's κ against the 215-night set:
+
+| set | nights paired | device PB | κ |
+|---|---|---|---|
+| `oxy-new` (61 O2Ring nights, 05-03 → 07-02) | 56 | 4 | **+0.149** — unchanged |
+| `trio-new` (18 box nights, 07-16 → 08-12) | 17 | **1** | +0.338 |
+
+**κ = 0.338 must not be read as an improvement: it rests on ONE device-positive night.** One night
+moving cells would swing it across the whole Landis–Koch scale. It is reported because the box asks for
+κ beside −0.039, not because it strengthens the claim.
+
+**What the extension proves is where the limit actually is.** Adding 26 CPAP nights added 12 paired
+nights and **essentially no device-positives**. The binding constraint on κ was never the number of
+*paired* nights — it is that **the CPAP scores PB on ~5 % of nights** (4/56, 1/17). Widening either
+corpus does not fix that; only a subject-period with more device-scored PB would.
+
+⚠️ Note the κ refusal guard shipped in `pb-agreement.mjs` (zero margin ⇒ refuse) does **not** fire at
+one positive — a margin of 1 is not a margin of 0. It is right not to fire (κ is defined), and this is
+the reminder that *defined* and *informative* are different properties. Read the counts, which the tool
+prints beside it.
 
 ### 🐞 …and the tool was reporting its own scope wrongly — fixed here
 
