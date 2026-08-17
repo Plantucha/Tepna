@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-08-17 (**§2 and §6 CLOSED by measurement the same day**: ρ measured at median 0.9804 with the CV threshold re-validated across the corpus's real redness including the reddest night, and the gap-spanning hazard shown to be fully caught by the existing guard. §1 CLOSED (mitigated at the declaration; NOT on a reclassification — see the note there). §3 HALF-CLOSED — the observer is in scope, the three-observer result is not. §3b ADDED — OxyDex publishing axis provenance would silently upgrade an Integrator guard. §4, §5 remain open) · **Created:** 2026-08-17 · **Follows:** `OXYDEX-PB-DETECTOR-2026-08-09-BRIEF.md` (DONE — 2026-08-17) · **Affects:** `oxydex-dsp.js computePatternScores`, `briefs/SYNTHETIC-CORPUS-BRIEF.md`, the CPAP/ECGDex corpora
+**Status:** IN-PROGRESS — 2026-08-17 (**§2 and §6 CLOSED by measurement the same day**: ρ measured at median 0.9804 with the CV threshold re-validated across the corpus's real redness including the reddest night, and the gap-spanning hazard shown to be fully caught by the existing guard. §1 CLOSED (mitigated at the declaration; NOT on a reclassification — see the note there). §3 HALF-CLOSED — the observer is in scope, the three-observer result is not. §3b ADDED — OxyDex publishing axis provenance would silently upgrade an Integrator guard. §5 TARGET CORRECTED — it named the demo generator, not the one on the compute path. §4, §5 remain open) · **Created:** 2026-08-17 · **Follows:** `OXYDEX-PB-DETECTOR-2026-08-09-BRIEF.md` (DONE — 2026-08-17) · **Affects:** `oxydex-dsp.js computePatternScores`, `briefs/SYNTHETIC-CORPUS-BRIEF.md`, the CPAP/ECGDex corpora
 
 # What the PB detector's execution turned up and did not close
 
@@ -157,7 +157,7 @@ nights, so a single night changing cells moves it materially. It is the bottom L
 without any new code. **Do not** re-report κ as validation until the positive class is larger — the
 honest claim remains *below chance → above chance*.
 
-## 5 · 🟢 SYNTHETIC-CORPUS's PB generator still emits the retired 40–90 s window
+## 5 · 🟢 OPEN (target CORRECTED) — the committed synthetic inputs never exercise the 90–130 s band
 
 `briefs/SYNTHETIC-CORPUS-BRIEF.md` line 77 specifies *"~40–90 s cycle length, runs of 4–10 cycles"*.
 §2.1 settled the window at **40–130 s** (AASM's floor is 40 s; 45–90 s is a typicality, not a bound), so
@@ -167,6 +167,32 @@ discards, which is where the pathology is worst.
 **Done when:** the generator's cycle-length range widens to 40–130 s and a long-cycle night (≥ 100 s) is
 present in the synthetic corpus. Cheap, and it makes the detector's upper band testable from committed
 bytes rather than only from personal recordings.
+
+### 🔧 CORRECTION 2026-08-17 — this named the WRONG generator. There are two, and only one is gated
+
+Investigated before editing anything, and the item as written would have sent the next person to a file
+that cannot affect the gate:
+
+| generator | what it feeds | on the compute path? |
+|---|---|---|
+| **`synth-gen.js`** (what §5 named, via `SYNTHETIC-CORPUS-BRIEF` line 77) | the **demo synthetic cohort**; inlined into ECGDex / GlucoDex / Integrator bundles | **NO** — `provenance/OxyDex.json` records it verbatim as *"the demo synthetic-cohort generator, NOT on the compute()/emit path"*, which is why a 2.0→2.1 re-texture moved `manifestHash` while `outputHash` and `inputHashes` stayed identical |
+| **`tools/make-synthetic-inputs.mjs`** | the **committed equivalence inputs** (`synthetic_oxydex_o2ring*.csv`) that the GATE-C legs actually run | **YES** |
+
+**So the fix belongs in `tools/make-synthetic-inputs.mjs`.** Its §9 long-night case builds a 7 h night with
+`per = i < 3600 ? 20 : 50` — a 20 s oscillation for the first hour and 50 s thereafter. **Neither
+exercises the 90–130 s upper band**: 20 s is below the 40 s floor and 50 s sits mid-window, so the
+detector's ceiling has never been tested from committed bytes. (That file's §9 exists for a different
+reason — catching a metric that analyses only the head of a night — and is correct for that purpose.)
+
+**Revised done-when:** add a **new** committed input (e.g. `synthetic_oxydex_o2ring_longcycle.csv`) with a
+≥ 4-cycle run at ~110 s, plus its ledger entry and equivalence leg. **Add rather than widen an existing
+file** — the existing CSVs have recorded `inputHashes`, so changing one moves a fixture input and drags
+regeneration behind it, whereas a new file changes no existing hash.
+
+⚠️ **The trap worth naming: "the synthetic corpus" means two different things in this repo**, and both are
+reachable from the phrase. One is a demo the gates ignore; the other is what the gates run on. Check
+`provenance/*.json` for whether a generator is on the compute path before assuming a change there is
+testable — or, in the other direction, harmless.
 
 ## 6 · ✅ CLOSED 2026-08-17 — the mechanism is real, and the existing guard catches **all** of it
 
