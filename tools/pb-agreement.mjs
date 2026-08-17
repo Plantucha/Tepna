@@ -51,12 +51,38 @@ const CPAP = opt('--cpap', null);
    when one rater says "yes" on 90 % of nights and the other on 10 %, they agree by accident often
    enough to look concordant. Kappa is what separates "these two see the same thing" from "these two
    are both mostly guessing in their own direction". */
-function kappa(a, b, c, d) {
+/* ⚠️ κ REFUSES WHEN A RATER NEVER VARIED, because a degenerate κ and a measured κ of 0 print the
+   same three characters and mean opposite things.
+
+   Measured 2026-08-17, comparing the rewritten PB detector against the device on a 5-night overlap:
+   a=0, b=0, c=1, d=4 — the device scored PB on NO night. That is not `pe === 1`, so the old guard let
+   it through: pe = 0.8 and κ = (0.8 − 0.8)/(1 − 0.8) = exactly 0.000. It renders identically to "the
+   two methods agree no better than chance" — a real, publishable finding — while the truth was "no
+   night was scored positive by both raters, so there is nothing to agree about".
+
+   With a zero margin, κ carries NO information about the other rater: every cell in that rater's
+   row/column is forced, so agreement-beyond-chance is undefined rather than absent. The paired-night
+   count is therefore not diagnostic metadata to print alongside — it is part of the verdict, which is
+   why this refuses rather than returning a number and trusting the reader to check the table.
+   Same family as the Clock Contract §2.6: a missing measurement must be visible, never fabricated. */
+function kappaOrRefusal(a, b, c, d) {
   const n = a + b + c + d;
-  if (!n) return null;
+  if (!n) return { k: null, why: 'no paired nights' };
+  const margins = [
+    [a + b, 'the device scored PB on NO night'],
+    [c + d, 'the device scored PB on EVERY night'],
+    [a + c, 'OxyDex flagged PB on NO night'],
+    [b + d, 'OxyDex flagged PB on EVERY night']
+  ];
+  for (const [m, why] of margins) if (m === 0) return { k: null, why: `${why} (n=${n}) — one rater never varied, so κ is UNDEFINED, not 0` };
   const po = (a + d) / n;
   const pe = (((a + b) * (a + c)) / n + ((c + d) * (b + d)) / n) / n;
-  return pe === 1 ? null : (po - pe) / (1 - pe);
+  if (pe === 1) return { k: null, why: 'expected agreement is 1 — κ undefined' };
+  return { k: (po - pe) / (1 - pe), why: null };
+}
+/* Thin wrapper so existing callers and the JSON field keep their shape. */
+function kappa(a, b, c, d) {
+  return kappaOrRefusal(a, b, c, d).k;
 }
 const mean = (x) => x.reduce((s, v) => s + v, 0) / x.length;
 function pearson(x, y) {
@@ -89,6 +115,27 @@ if (SELFTEST) {
   // the case this exists for: both raters mostly-yes, high raw agreement, NO real concordance
   near('kappa ~0 despite 82% raw agreement', kappa(90, 5, 5, 0), 0, 0.06);
   near('pearson perfect', pearson([1, 2, 3], [2, 4, 6]), 1, 1e-12);
+
+  /* THE DEGENERATE CASES — each of these used to print a confident 0.000. */
+  const refuses = (l, a, b, c, d) => {
+    const r = kappaOrRefusal(a, b, c, d);
+    const ok = r.k === null && typeof r.why === 'string' && r.why.length > 0;
+    if (!ok) bad++;
+    console.log(`${ok ? 'ok  ' : 'FAIL'} ${l}: k=${r.k}, why=${JSON.stringify(r.why)}`);
+  };
+  // the exact table measured 2026-08-17 on the 5-night overlap — device never positive
+  refuses('REFUSES the real 2026-08-17 table (0,0,1,4) rather than printing 0.000', 0, 0, 1, 4);
+  refuses('REFUSES when the device scored PB on every night', 3, 0, 0, 0);
+  refuses('REFUSES when OxyDex flagged PB on no night', 0, 4, 0, 6);
+  refuses('REFUSES when OxyDex flagged PB on every night', 4, 0, 6, 0);
+  refuses('REFUSES an empty table', 0, 0, 0, 0);
+  /* ANTI-VACUITY: a function that refused everything would pass all five above. The three
+     non-degenerate cases at the top must still return numbers — they are asserted by `near`. */
+  const live = kappaOrRefusal(90, 5, 5, 0);
+  const okLive = live.k != null && live.why === null;
+  if (!okLive) bad++;
+  console.log(`${okLive ? 'ok  ' : 'FAIL'} and a NON-degenerate table still returns a number (guard is not blanket): k=${live.k == null ? null : live.k.toFixed(3)}`);
+
   console.log(bad ? `\n${bad} FAILED` : '\nall selftests pass');
   process.exit(bad ? 1 : 0);
 }
@@ -139,7 +186,8 @@ const a = rows.filter((r) => r.devSec > 0 && r.oxyN > 0).length; // both
 const b = rows.filter((r) => r.devSec > 0 && r.oxyN === 0).length; // device only
 const c = rows.filter((r) => r.devSec === 0 && r.oxyN > 0).length; // OxyDex only
 const d = rows.filter((r) => r.devSec === 0 && r.oxyN === 0).length; // neither
-const k = kappa(a, b, c, d);
+const kr = kappaOrRefusal(a, b, c, d);
+const k = kr.k;
 const both = rows.filter((r) => r.devSec > 0 && r.oxyN > 0);
 const r =
   both.length >= 3
@@ -164,7 +212,7 @@ console.log(`night-level comparison instead, which the clock offset cannot affec
 console.log('                    OxyDex PB   OxyDex none');
 console.log(`  device PB          ${String(a).padEnd(11)} ${b}`);
 console.log(`  device none        ${String(c).padEnd(11)} ${d}`);
-console.log(`\n  Cohen's kappa (chance-corrected agreement): ${k == null ? '—' : k.toFixed(3)}`);
+console.log(`\n  Cohen's kappa (chance-corrected agreement): ${k == null ? `— REFUSED: ${kr.why}` : k.toFixed(3)}`);
 console.log(`  OxyDex flags PB on ${a + c}/${rows.length} nights; the device on ${a + b}/${rows.length}.`);
 if (r != null) console.log(`  burden correlation where BOTH fire (n=${both.length}): r = ${r.toFixed(3)}`);
 else console.log(`  burden correlation: n=${both.length} nights where both fire — too few to report`);
