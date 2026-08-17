@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-08-16
+**Status:** DONE — 2026-08-17 · **Created:** 2026-08-16
 
 # OxyDex's FFT Cycle Length has no null — it cannot report "no cycle"
 
@@ -122,19 +122,30 @@ Two design constraints that follow from §1's specifics and should not be skippe
 
 ## 6 · Done when
 
-- [ ] `computeSpO2FFT` returns `null` for `peakCycSec`/`peakFreqHz` when no peak clears a fitted
-      background, and the CSV export renders that as empty rather than `0` or a spurious number.
-- [ ] The §2 simulation is a **test**: pure AR(1) at ρ = 0.98, no oscillation planted ⇒ the function
-      reports no cycle in the large majority of runs. This gate must be **seen to fail** against the
-      current code before it is trusted.
-- [ ] A planted-oscillation positive control at a known period inside the band is **recovered** — a
-      threshold that rejects everything passes the negative test and is useless.
-- [ ] The 103-night corpus is re-run; the count of nights reporting a cycle is stated **before and
-      after**, and any night that loses its cycle is inspected rather than assumed correct.
-- [ ] `peakCycSec` gets an `oxydex-registry.js` entry with an evidence tier, since it is surfaced and
-      currently carries none.
-- [ ] Re-bundle + `npm run check` + `verify-provenance`; a DSP change here moves `computeHash`, so the
-      corpus-backed fixtures owe re-verification per §🔏 — this is **not** export-inert.
+- [x] **SHIPPED in #1383** — `computeSpO2FFT` returns `null` for both fields when no peak clears the
+      fitted background, and `oxydex-app.js:508` renders that as **empty**, with a comment naming this
+      brief: *"EMPTY, not the string 'null': … a missing measurement must read as missing"*.
+- [x] **SHIPPED in #1383** — the `oxydex · fft-null` group runs pure AR(1) with no oscillation planted
+      and asserts a null verdict; #1383's body records the pre-fix failure (the argmax fabricated a
+      cycle on 100 % of ρ=0 runs, 55 % at ρ=0.995), so the gate was seen to fail before being trusted.
+      Post-hoc corroboration: ρ was later **measured** on 61 real nights at median **0.9804**
+      (PB-FOLLOWUPS §2), so the ρ=0.98 null is at the corpus's real redness, not an assumed one.
+- [x] **SHIPPED in #1383** — the group plants a known-period oscillation and asserts recovery
+      (`a planted …s cycle is still recovered`, ≥60 % of runs), plus the too-short-night null and the
+      auditability leg (`snr`/`threshold`/`rhoLag1` published).
+- [x] **STATED in #1383 and pinned in the suite** — across 103 O2Ring nights, **19/103 (18 %)** report
+      a band-edge cycle against a **42 % null** rate (p = 3.3e-7, i.e. the corpus signal is *real* and
+      the fix is a significance gate, not a retraction). The figure is carried in the fft-null group's
+      comment so it cannot silently drift from the test that depends on it.
+- [x] **DONE 2026-08-17 (#1431)** — `peakCycSec` AND `peakFreqHz` get rows at **`experimental`**,
+      matching the published guide card (`ev-experimental`), with the tier argued in the entry: the null
+      work rules out `heuristic`, the absence of external validation rules out `emerging`. Aliases cover
+      the CSV headers and the guide card title in both subscript spellings, each verified to resolve
+      through `idForLabel` (the cohesion gate passing is consistent with an alias that binds nothing,
+      so resolution was demonstrated directly).
+- [x] **DONE — twice.** #1383 carried the DSP re-bundle and its re-verification; #1431's registry rows
+      moved `computeHash` again (registry is in the compute closure) and the corpus verification was
+      re-run, not asserted: suite green, both OxyDex summaries `verifiedUnder → 0f0b97dd2fcb`.
 
 ## 7 · What this does NOT claim
 
@@ -154,3 +165,17 @@ Two design constraints that follow from §1's specifics and should not be skippe
   reading queue as a method Tepna has a live use for, not merely a citation.
 - DEEP-AUDIT-2026-07-11 §9 fixed this same function's undisclosed first-hour head-slice. That fix was
   correct and is untouched here; this is a different defect in the same 40 lines.
+
+---
+
+## Closing note — no follow-up brief spawned (per `CLAUDE.md` §📌)
+
+Execution surfaced two residues, both routed to briefs that already own them rather than a new file:
+
+1. **The stale-header pattern itself.** Five of this brief's six boxes described work that had already
+   shipped (#1383), and the brief sat PROPOSED for a day after its own gate was green on main. This is
+   the fourth brief today found in that state; the class is recorded in the memory layer, not here.
+2. **A committed long-cycle synthetic input** would let the fft-null group's positive control run at a
+   period in the 90–130 s band from committed bytes. That is exactly
+   `OXYDEX-PB-DETECTOR-FOLLOWUPS-2026-08-17` §5's revised done-when, which owns it — one committed
+   input can serve both consumers, and splitting the ask across two briefs is how it gets built twice.
