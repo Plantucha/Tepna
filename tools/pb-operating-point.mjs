@@ -16,8 +16,18 @@
  * crescendo-decrescendo test. The three constants carry no citation; oxydex-dsp labels them
  * "detector tuning" and "algorithmic" in their own comments.
  *
- * WHY THAT MATTERS. AASM scores Cheyne-Stokes on a 40-90 s cycle length, >= 3 consecutive cycles, and a
- * crescendo-decrescendo envelope, measured against the patient's OWN baseline. An absolute 95 % crossing
+ * WHY THAT MATTERS. AASM scores Cheyne-Stokes on a cycle length of AT LEAST 40 s (typically 45-90 s),
+ * >= 3 consecutive cycles, and a crescendo-decrescendo envelope, measured against the patient's OWN
+ * baseline.
+ *   ^ CORRECTED 2026-08-16. This header previously read "a 40-90 s cycle length". That is a misreading:
+ *     AASM states "a cycle length of at least 40 seconds (typically 45 to 90 seconds)" — a one-sided
+ *     FLOOR plus a typicality note, not a two-sided scoring window (Berry RB et al. 2012, J Clin Sleep
+ *     Med 8(5):597-619, doi:10.5664/jcsm.2172). The distinction matters because cycle length tracks
+ *     circulatory delay and LENGTHENS as cardiac function worsens — mean 86 +/- 23 s in the worst-LVEF
+ *     group (Wedewardt J et al. 2010, Sleep Med 11(2):137-42, doi:10.1016/j.sleep.2009.09.004) — so a
+ *     90 s ceiling discards about half of the most severely impaired patients. See
+ *     OXYDEX-PB-DETECTOR-2026-08-09-BRIEF.md §2.1, which settles the window at 40-130 s.
+ * An absolute 95 % crossing
  * level is a different quantity: for a subject whose overnight mean sits at 95-96 %, the trace spends most
  * of the night within a point of the line it must cross, and 1 Hz oximetry is reported as INTEGERS — so a
  * value dithering 94/95/96 crosses `>= 95` continually without any breathing periodicity at all.
