@@ -4196,6 +4196,102 @@
       var blkOk = consOk && consOk.blocks && consOk.blocks[0];
       T.ok('control · a fully-timed triple still forms the hat (guard is specific to drawn)', !!(blkOk && blkOk.tch && blkOk.tch.ok));
 
+      /* THE SHAPE THE PRODUCER ACTUALLY EMITS (2026-08-17). Every assertion above sets
+         `timingSource` at the TOP LEVEL of the export — and no node writes it there. PpgDex puts it
+         under `quality` (verified on a real export: `quality.timingSource === 'device+host'`, top
+         level ABSENT), so the reader's chain resolved `null` for EVERY node and the guard these tests
+         certify excluded NOBODY on the whole trio corpus. The tests passed because they encoded the
+         shape their author assumed rather than the one the producer emits. */
+      /* THE SHAPE THE PRODUCER ACTUALLY EMITS. Every case above puts `timingSource` at the TOP LEVEL
+         of the export — and no node writes it there. PpgDex writes it under `quality` (verified on a
+         real export: `quality.timingSource === 'device+host'`, top level ABSENT), so the reader's
+         chain resolved `null` for EVERY corner and the guard these tests certify excluded NOBODY on
+         the whole trio corpus. The tests passed because they encoded the shape their author assumed
+         rather than the one the producer emits. Built through A() so it goes through real ingest —
+         setting the field on the returned REC would be too late and would test nothing. */
+      function mkDrawnUnderQuality(node, noiseStd, seed) {
+        var nz = normals(seed, NE),
+          eps = [];
+        for (var i2 = 0; i2 < NE; i2++) eps.push({ tMin: i2 * 5, rmssd: +(truth[i2] + noiseStd * nz[i2]).toFixed(1), hr: 55, motionIndex: 0.2 });
+        var whole = +(
+          eps.reduce(function (a, e) {
+            return a + e.rmssd;
+          }, 0) / NE
+        ).toFixed(1);
+        return A(
+          {
+            schema: { node: node },
+            recording: { startEpochMs: t0, durationMin: 240 },
+            quality: { analyzablePct: 95, timingSource: 'none' }, // ← where it really lives
+            hrv: { time: { rmssd: whole, sdnn: +(whole * 1.3).toFixed(1) } },
+            timeseries: { epochs: eps },
+            ganglior_events: [{ t: '23:00:10', tMs: t0 + 10000, impulse: 'x', node: node, conf: 0.8 }]
+          },
+          node,
+          node + '.json'
+        )[0];
+      }
+      var drawnQRec = mkDrawnUnderQuality('PpgDex', 14, 33);
+      T.eq('quality.timingSource is READ — the shape every real export uses', drawnQRec.timingSource, 'none');
+      var consQ = FC([mk('ECGDex', 2, 11), mk('HRVDex', 5, 22), drawnQRec], 1000);
+      var blkQ = consQ && consQ.blocks && consQ.blocks[0];
+      T.ok('a drawn leg declared under quality.timingSource is EXCLUDED too', !!blkQ && !(blkQ.tch && blkQ.tch.ok), 'status=' + (blkQ && blkQ.tchStatus));
+
+      /* PSEUDO THREE-CORNERED HAT — report the number, refuse the tier. A corner counts as TIMED only
+         on a POSITIVE declaration (`device`/`device+host`); `host` (a drawn axis) and an absent field
+         both fail, because absence of evidence is not evidence of independence. OxyDex publishes no
+         `quality` block at all, so on the real corpus this is always the pseudo case today. */
+      var blkP = (function () {
+        var c = FC([mk('ECGDex', 2, 11), mk('HRVDex', 5, 22), mk('PpgDex', 14, 33)], 1000);
+        return c && c.blocks && c.blocks[0];
+      })();
+      if (blkP && blkP.tch && blkP.tch.ok) {
+        T.eq('an UNDECLARED corner makes the hat PSEUDO, not clean', blkP.tch.pseudo, true);
+        T.ok(
+          '…and it names which corners declared what, rather than asserting a tier',
+          !!blkP.tch.axisProvenance && Object.keys(blkP.tch.axisProvenance).length === 3,
+          JSON.stringify(blkP.tch && blkP.tch.axisProvenance)
+        );
+        T.ok('…and says why', /no per-sample device timing/.test(blkP.tch.pseudoReason || ''), blkP.tch.pseudoReason);
+      } else {
+        T.skip('pseudo-TCH marking', 'no hat formed in this fixture');
+      }
+
+      /* ⚠ ANTI-VACUITY — without this, `pseudo` could be hardcoded `true` and every assertion above
+           would still pass, because on those fixtures EVERY corner reads null. The flag only means
+           something if a fully-declared triple turns it OFF. Each corner declares `device+host` under
+           `quality`, the shape the producer really writes. */
+      function mkTimed(node, noiseStd, seed) {
+        var nz = normals(seed, NE),
+          eps = [];
+        for (var i3 = 0; i3 < NE; i3++) eps.push({ tMin: i3 * 5, rmssd: +(truth[i3] + noiseStd * nz[i3]).toFixed(1), hr: 55, motionIndex: 0.2 });
+        var whole = +(
+          eps.reduce(function (a, e) {
+            return a + e.rmssd;
+          }, 0) / NE
+        ).toFixed(1);
+        return A(
+          {
+            schema: { node: node },
+            recording: { startEpochMs: t0, durationMin: 240 },
+            quality: { analyzablePct: 95, timingSource: 'device+host' },
+            hrv: { time: { rmssd: whole, sdnn: +(whole * 1.3).toFixed(1) } },
+            timeseries: { epochs: eps },
+            ganglior_events: [{ t: '23:00:10', tMs: t0 + 10000, impulse: 'x', node: node, conf: 0.8 }]
+          },
+          node,
+          node + '.json'
+        )[0];
+      }
+      var consT = FC([mkTimed('ECGDex', 2, 11), mkTimed('HRVDex', 5, 22), mkTimed('PpgDex', 14, 33)], 1000);
+      var blkT = consT && consT.blocks && consT.blocks[0];
+      if (blkT && blkT.tch && blkT.tch.ok) {
+        T.eq('control · a FULLY-DECLARED triple is a clean hat, not pseudo', blkT.tch.pseudo, false);
+        T.eq('control · …and carries no pseudo reason', blkT.tch.pseudoReason, null);
+      } else {
+        T.skip('pseudo-TCH anti-vacuity control', 'no hat formed');
+      }
+
       /* DEEP-AUDIT-V §2.1 F4 — THE SCREEN HAS THREE OUTCOMES AND THE CONSUMER IMPLEMENTED TWO.
          `screenTriplet`'s docstring: "Exactly-one → drop it and name the trustworthy pair; zero →
          proceed; two-or-more mutual decorrelations → AMBIGUOUS (can't tell which is truth) → don't
