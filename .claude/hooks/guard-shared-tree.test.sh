@@ -245,6 +245,15 @@ git add path/to/file.js
 git add -- src/a.js src/b.js
 git commit -m "feat: thing"
 
+# ── CLAUDE.md §👥.2's RESCUE RECIPE — a temp-index snapshot touches no file ──────────────────────
+# These were DELIBERATE RELAXATIONS while #1379 was in flight, asserted with `chk_relax` (allow here
+# AND deny on main). #1379 has since landed, so the behaviour IS main's own and the relaxation
+# assertion correctly reported that the cases now prove nothing. Re-filed as ordinary MUST ALLOW —
+# the same move, and for the same reason, as the pre-#991 case above.
+GIT_INDEX_FILE=/tmp/r.idx git add -A
+GIT_INDEX_FILE=/tmp/r.idx sh -c 'git add -A; git write-tree'
+cp .git/index /tmp/r.idx && GIT_INDEX_FILE=/tmp/r.idx git add -A && GIT_INDEX_FILE=/tmp/r.idx git write-tree
+
 
 git commit -m "fix -a flag parsing in the CLI"
 git commit -F /tmp/msg.txt
@@ -300,20 +309,6 @@ git checkout --ours -- docs/OxyDex.html
 npm run rebase
 ALLOW
 
-echo
-echo "### DELIBERATE RELAXATIONS — main denies these, this version allows them        now   main"
-# CLAUDE.md §👥.2's OWN RESCUE RECIPE, which this guard used to deny (2026-08-16).
-# A blanket add into a SEPARATE index writes a throwaway file: it touches no working-tree file and
-# not the repo's index, so none of the damage the blanket-add rule prevents is reachable. Denying it
-# made the documented procedure for PRESERVING another session's uncommitted work unexecutable —
-# and the escape hatch is for "when the tree is genuinely yours alone", precisely when no rescue is
-# needed. Measured that day: a peer could snapshot one file by explicit path and could not snapshot
-# the 188-file shared tree at all.
-while IFS= read -r c; do [ -n "$c" ] && [[ "$c" != \#* ]] && chk_relax "$c"; done <<'RELAX'
-GIT_INDEX_FILE=/tmp/r.idx git add -A
-GIT_INDEX_FILE=/tmp/r.idx sh -c 'git add -A; git write-tree'
-cp .git/index /tmp/r.idx && GIT_INDEX_FILE=/tmp/r.idx git add -A && GIT_INDEX_FILE=/tmp/r.idx git write-tree
-RELAX
 
 
 echo
