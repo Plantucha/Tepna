@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-08-09 · **Owner decision:** option 3, taken 2026-08-09 · **Follows:** `OXYDEX-PB-OVERCALL-FOLLOWUPS-2026-08-04-BRIEF.md` §1 (which required this be spawned separately rather than patched in) · **Parent:** `OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md` · **Affects:** `oxydex-dsp.js detectOscillations` / `computePatternScores`, the OxyDex reference guide, `integrator-dsp.js`'s PB corroboration leg · **Amended 2026-08-16:** §3.1 gains a **third** adversarial twin (a red-noise null) — see `OXYDEX-FFT-CYCLE-NULL-2026-08-16-BRIEF.md`; no other section changed and the owner decision is untouched · **§2.1 SETTLED 2026-08-16: 40–130 s**, cited — AASM sets a 40 s *floor* with 45–90 s as a typicality, not a 40–90 window, so the code was right and this brief's 40–90 does not propagate
+**Status:** DONE — 2026-08-17 · **Created:** 2026-08-09 · **Spawned:** `OXYDEX-PB-DETECTOR-FOLLOWUPS-2026-08-17-BRIEF.md` · **Owner decision:** option 3, taken 2026-08-09 · **Follows:** `OXYDEX-PB-OVERCALL-FOLLOWUPS-2026-08-04-BRIEF.md` §1 (which required this be spawned separately rather than patched in) · **Parent:** `OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md` · **Affects:** `oxydex-dsp.js detectOscillations` / `computePatternScores`, the OxyDex reference guide, `integrator-dsp.js`'s PB corroboration leg · **Amended 2026-08-16:** §3.1 gains a **third** adversarial twin (a red-noise null) — see `OXYDEX-FFT-CYCLE-NULL-2026-08-16-BRIEF.md`; no other section changed and the owner decision is untouched · **§2.1 SETTLED 2026-08-16: 40–130 s**, cited — AASM sets a 40 s *floor* with 45–90 s as a typicality, not a 40–90 window, so the code was right and this brief's 40–90 does not propagate
 
 # Build a periodic-breathing detector that measures periodicity
 
@@ -408,10 +408,37 @@ corroboration and by the OxyDex reference guide, both of which move with it.
 
       ⚠️ Pointing `cpap-corpus.mjs --root` at the wrong layout reports **nights: 0**, writes a valid
       empty exports file and **exits 0** — check the night count, never the exit code.
-- [ ] §4's bar is measured: removing the leg now changes the fused outcome on some nights — or it does
-      not, and option 1 is revisited on that evidence.
-      **UNBLOCKED** — `tools/pb-fusion-blast.mjs` takes the same `--cpap` set, which now exists. It
-      needs the regenerated trio exports for the same reason §3.3 does.
+- [x] **§4's bar MEASURED 2026-08-17 — and it REFUTES the hypothesis that motivated it.**
+      `tools/pb-fusion-blast.mjs` run against the shipped `fusePeriodicBreathing`, same 56 paired
+      nights, both detectors:
+
+      | | OLD | NEW |
+      |---|---|---|
+      | OxyDex emits `periodic_breathing` | 55/56 (98 %) | 20/56 (36 %) |
+      | `fusePeriodicBreathing` corroborates | **3/56** | **3/56** |
+      | …still corroborates with the OxyDex leg stripped | **0/56** | **0/56** |
+      | block `conf` on corroborated nights | 0.86 · 0.86 · 0.858 | 0.86 · 0.842 · 0.86 |
+
+      **Answer to the bar as posed: removing the leg DOES change the fused outcome — on 3 nights, 3 → 0.
+      The leg is load-bearing, so option 1 (withdraw it) is not supported.**
+
+      **But the more useful result is the one nobody asked for: the fix changed NO fused decision.** The
+      same 3 nights corroborate before and after, despite the detector going from firing on 98 % of
+      nights to 36 %. The parent's §3.4 worry — *"what does a channel that is on almost every night do to
+      a rule whose whole job is counting how many independent signals agree?"* — is **measured and the
+      answer is: nothing.** Corroboration requires CPAPDex to fire too, and the device flags PB on only
+      **4** of 56 nights, so the CPAP was always the binding constraint. The 52 surplus OxyDex nights
+      never reached a corroboration because there was nothing there to agree with.
+
+      **So the over-call was real and user-facing, and invisible at the fusion layer.** Both statements
+      hold, and conflating them is the error to avoid: the detector fix is justified by §3.2/§3.3 (burden
+      correlation 0.910 → 0.370, κ −0.036 → +0.149 — what a *user* is told), not by the fusion count.
+      A fix can be correct and have zero blast radius downstream; that is not an argument against it.
+
+      ⚠️ **The ECGDex third observer is UNEXERCISED here, not inert.** `_pbObserver` admits three nodes;
+      this run pairs OxyDex with CPAPDex only, because the export dirs used carry no `apnea.cvhrIndex`
+      (the tool reports `0 of 0` and says so itself). A three-observer run needs ECGDex exports carrying
+      the `apnea` block — a `trio-batch` re-run. **Do not read 3/56 as the ceiling.**
 - [x] **Fixtures regenerated, build surfaces rebuilt, `verify-fixtures` re-run — 2026-08-16.** The
       equivalence gate **red first** (`ranked.0` "PB Episodes 16 eps" no longer computed), which is what
       GATE C is for; `tools/regen-oxydex-goldens.mjs` moved 2 fixtures and the synthetic golden was
