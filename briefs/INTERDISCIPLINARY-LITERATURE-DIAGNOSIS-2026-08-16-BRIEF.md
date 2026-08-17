@@ -201,6 +201,27 @@ DOI `10.6028/NIST.TN.1900`; JCGM 101 Monte-Carlo supplement.
 
 **Confidence:** HIGH.
 
+> ### ✅ BUILT 2026-08-17 (verified, not proposed) — this item is no longer [MISSING] in the Python lane
+>
+> `capture-host/nightqc.py timing_uncertainty()` implements exactly this, and cites this section as its
+> justification: GUM in its plainest form — identify the inputs, express each as a standard uncertainty,
+> combine independent ones in quadrature — over delivery jitter (`IQR/1.349`), the stamp quantum
+> (`w/√12`, GUM 4.3.7) and the oscillator curve, returning the **components** as well as the total. §2.2
+> is cited there for why it is a *budget and not a correction*: a one-way BLE arrival stamp cannot
+> separate device event time, device offset and transport delay without a delay model, a two-way
+> exchange or an independent reference, and the box has none of the three.
+>
+> **Scope, so the remaining gap is not overstated:** it exists in **`capture-host/` only**. No JS node
+> attaches a per-event timing uncertainty, so §7.1's *"propagate it"* half — carrying the budget through
+> to PAT/coupling confidence — is still open. The [MISSING] label was right about the fleet and is now
+> wrong about the capture host.
+>
+> ⚠️ **Recorded because I got this wrong twice in one session.** I reported §2.3 as "confirmed absent"
+> after grepping `uncertaintyMs|timingUncertainty|eventUncertainty` across `*.js`. The implementation is
+> **Python**, so the query could not have found it whatever the answer was — a search whose scope
+> excluded the answer, reported as a negative. Same shape as this brief's own §7.8 note and as the two
+> stale-checkout claims corrected in #1424: **an empty result is a statement about where you looked.**
+
 ### 2.4 [REINVENTED] / [UNUSUAL APPLICATION] Three-cornered hat
 
 **Tepna:** `integrator-tch.js` and `analysis-stats.js` perform three-source relative
