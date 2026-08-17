@@ -309,17 +309,29 @@ corroboration and by the OxyDex reference guide, both of which move with it.
       baseline re-measured here is 38/42 and r = 0.910. Compare like with like — the improvement is
       0.910 → 0.370 on one corpus, not 0.893 → 0.370 across two.
 - [ ] §3.3's κ is reported beside −0.039, explicitly as an observation.
-      🔴 **BLOCKED 2026-08-16 — the CPAP corpus it needs is not on this machine.** `tools/pb-agreement.mjs`
-      requires `--cpap <cpap-exports.json>`, built by `tools/cpap-corpus.mjs --root <sd-card-dir>`. The
-      card is **not among the four locations in `docs/CORPUS-LOCATIONS.md`**, a `DATALOG`/`STR.edf`
-      search finds nothing, and `uploads/` holds only **3 distinct CPAP nights** (2026-06-12, -13, -16)
-      against the ~20 that produced −0.039. κ on n = 3 would be noise wearing a statistic's name.
-      Pointing `cpap-corpus.mjs` at `uploads/` "succeeds" and reports **nights: 0** — an empty result
-      that exits clean, so check the count, not the exit code.
+      **BASELINE MEASURED 2026-08-17; the new detector's κ is still owed.**
+      > ⚠️ **A "BLOCKED — not on this machine" note stood here for a few hours and was WRONG.** It is
+      > left described rather than deleted because the mistake is instructive: I searched
+      > `/run/media/michal/647A504F7A50205A` — **one volume** — found no `DATALOG`/`STR.edf`, and wrote
+      > *"not on this machine"*. There are **two** mounted volumes. The CPAP corpus is on the other one,
+      > at **`/run/media/michal/data/Ecg-nightly-archive/CPAP`** — **192 night folders → 189 exports**,
+      > in the exact `<root>/YYYYMMDD/YYYYMMDD_HHMMSS_{BRP,PLD,SA2,EVE,CSL}.edf` layout the tool wants.
+      > Measuring one volume and reporting a conclusion about *the machine* is the same over-claim this
+      > repo keeps paying for, in the direction that manufactures a blocker instead of a pass.
+
+      **Baseline κ, old-code exports, 29 paired nights:** device PB 4/29, OxyDex PB **26/29**,
+      **κ = −0.051**, burden r = −0.494 where both fire (n = 3). That 26/29 is the *old* 90 % flagging,
+      so this is the number the new detector must be compared *against*, not its result.
+      **Still owed:** the committed `uploads/trio` exports were produced by the old code, so κ for the
+      new detector requires regenerating them (`tools/trio-batch.mjs --src <captures> --out <scratch>`,
+      never over `uploads/trio`, which is tracked). Only **20** of the 51 trio nights have raw captures
+      locally, so the paired comparison will be on those, old vs new, on identical nights.
+      ⚠️ Pointing `cpap-corpus.mjs --root` at the wrong layout reports **nights: 0**, writes a valid
+      empty exports file and **exits 0** — check the night count, never the exit code.
 - [ ] §4's bar is measured: removing the leg now changes the fused outcome on some nights — or it does
       not, and option 1 is revisited on that evidence.
-      🔴 **BLOCKED on the same input.** `tools/pb-fusion-blast.mjs` also requires `--cpap`. Both boxes
-      unblock together the moment the SD card is mounted; neither needs new code.
+      **UNBLOCKED** — `tools/pb-fusion-blast.mjs` takes the same `--cpap` set, which now exists. It
+      needs the regenerated trio exports for the same reason §3.3 does.
 - [x] **Fixtures regenerated, build surfaces rebuilt, `verify-fixtures` re-run — 2026-08-16.** The
       equivalence gate **red first** (`ranked.0` "PB Episodes 16 eps" no longer computed), which is what
       GATE C is for; `tools/regen-oxydex-goldens.mjs` moved 2 fixtures and the synthetic golden was
