@@ -152,33 +152,77 @@ precondition to check per night, not a refutation.
 
 ### 📊 FIRST FIVE REAL NIGHTS (2026-08-13 → 17, pulled from vigil same day) — measured, and the answer is refusals with names
 
-| night | ring (finger) leg | ankle (Verity) leg |
+| night | ring (finger) leg | ankle (Verity) leg — after the two fixes below |
 |---|---|---|
-| 08-13 | ⊘ noise floor **122.5 ms** > 2Θ | — |
-| 08-14 | ⊘ noise floor 86.5 ms > 2Θ | — |
-| 08-15 | ⊘ noise floor 80.8 ms > 2Θ | ⊘ quantized (floor 0.0 ms — integer-sample feet) |
-| 08-16 | ⊘ noise floor 79.7 ms > 2Θ | ⊘ quantized + 100 % artifact share |
-| 08-17 | ⊘ no ECG+ring pair | — |
+| 08-13 | ⊘ floor 128.8 ms | floor 17.1 ms · **76.8 dips/h vs 20.3 chance — lift 3.8** |
+| 08-14 | ⊘ floor 90.0 ms | floor **4.9 ms** · **33.2 dips/h vs 2.1 chance — lift 15.6**, median depth 36.6 ms |
+| 08-15 | ⊘ floor 142.4 ms | ⊘ floor 1184 ms (no well-overlapping session pair found) |
+| 08-16 | ⊘ floor 84.0 ms | floor 9.8 ms · **64.0 dips/h vs 12.3 chance — lift 5.2** |
+| 08-17 | ⊘ no pair | ⊘ no overlapping pair |
 
-**Both legs refuse, for opposite degeneracies, and both reasons are already in the compendium.** The
-finger floor of 80–122 ms matches §5.2's measured 91.8 ms foot-to-foot sd of the `_PPG.txt` DISPLAY
-waveform — the good optics (18.9 ms) are in the unread `_PPG2W.txt`. The ankle leg's 0.0 ms floor is
-the §8 integer-grid trap: `pat-matchrate-strict`'s `ppgFootTimes` emits integer-sample feet at 55 Hz
-(18 ms quantum), where a Θ=10 dip is sub-quantum. **So the dip path's blocker is not clocks and not
-the estimand — it is fiducial quality, and the two fixes are already named:** route the ankle leg
-through the SUB-SAMPLE `refineFeet` (shipped in ppgdex-dsp, unused by the tool chain here), and give
-the finger leg `_PPG2W`'s optics (compendium §9.5, needs its timing story). Before the first run it
-was plausible the detector would index noise as arousals; it refuses instead, which is the twins
-doing their job on night one.
+### 🔧 The first ankle diagnosis was WRONG, and correcting it is what made the leg readable
+
+The first run reported the ankle "quantized (floor 0.0 ms — integer-sample feet)". **Both halves of
+that were false**: the feet are 100 % fractional (`detectBeats` already routes through the sub-sample
+`refineFeet`; 499/500 distinct intervals measured). The exact zeros were **self-inclusion
+degeneracy** — a centered rolling median over a locally *monotone* lag stretch IS the centre element,
+so a baseline containing the value it judges made dev ≡ 0. Same family as the compendium §8's "a
+statistic whose reference comes from the data it tests cannot fail". Two fixes:
+
+1. **Leave-self-out baseline** — the beat's own lag is excluded from its median window. This also
+   un-hid a second bug the zeros were masking: the crude probe paired biggest-file-with-biggest-file,
+   which on multi-session nights pairs non-overlapping recordings (floor ≈ one RR, ~1150 ms).
+2. **Overlap-aware ankle pairing** in `pat-dip-index.mjs --leg ankle` (the coupler's `pairsIn` is
+   deliberately ring-locked, so the ankle gets its own selector with the same overlap-max rule).
+
+Plus a **chance line beside every index**: expected ≥N-core-run rate from noise alone, with
+`p = P(dev ≤ −Θ)` *measured*, not assumed Gaussian — deliberately optimistic (independence), so an
+index *near* it is certainly noise while an index above it is only candidate signal. On 08-13 that
+line is what converts "76.8 dips/h" from a headline into "3.8× a 20.3/h chance floor".
+
+**Where this leaves the estimand:** the ankle leg produces PTT-arousal-shaped numbers on its first
+readable nights — 33 dips/h at 36.6 ms median depth over a 4.9 ms floor is Pitson/Katz-scale — but
+the lift is against an optimistic analytic null; the §5 shuffle null and the CPAP-event coupling
+remain owed before any published claim. The finger leg refuses every night, floors 84–143 ms,
+matching §5.2's 91.8 ms display-waveform foot sd: its path is `_PPG2W` optics or nothing.
+
+**The finger leg refuses every night for the reason already in the compendium** — floors of
+84–143 ms match §5.2's measured 91.8 ms foot-to-foot sd of the `_PPG.txt` DISPLAY waveform; the good
+optics (18.9 ms) are in the unread `_PPG2W.txt`, which needs a timing story first (§9.5). The ankle
+story is above: one wrong diagnosis, two real fixes, and then readable nights.
 
 **The fold itself (same five nights, all three Dexes + Integrator):** 4/5 nights are full trios
 (7.5–8.1 h three-way overlap; 08-17 has no O2Ring anchor). The new PB detector emits on **0/4**
 nights (36 % base rate corpus-wide), the three-observer fusion corroborates 0/4, and κ vs the CPAP
 **correctly REFUSES** — "the device scored PB on NO night (n=4) — one rater never varied" — the
 degenerate-margin guard's first firing on live data.
-- [ ] The PTT-arousal index is computed on every locking box night and coupled to the CPAP's
-      device-scored events through the circular-shift null; the lift and the night-level correlation
-      are stated, whatever they are.
+- [x] **WIRED and RUN 2026-08-17 — and the first result is an honest NEGATIVE, stated as the box
+      demands.** `tools/pat-dip-validate.mjs`: per-night CPAP clock anchoring (δ swept ±70 min,
+      scored as the share of OxyDex desats explained by a preceding CPAP event — an INDEPENDENT
+      pair, so the Katz fraction never anchors on itself), coverable-events denominator (the
+      `coupleRtoFoot` §2 lesson re-applied), and a null of 10 circular shifts of the dip onsets.
+
+      On the newest five nights exactly ONE anchors: 08-14 at δ = −23.5 min (75 % of desats
+      explained; kin to the corpus's known ~38–42 min CPAP slowness). There:
+
+      | events (coverable) | dips | Katz % | chance % |
+      |---|---|---|---|
+      | 23 (14) | 139 | **7** | **36** |
+
+      **Sub-chance.** 1 of 14 coverable events was followed by a dip, against ~5 expected from the
+      onset-shift null. n = 1 night / 14 events — far too small to conclude, but the direction is
+      recorded rather than softened: on this night the dips did NOT point at the device's events.
+      Three failure modes to separate next, in order of likelihood: the dips are dominated by motion
+      periods that CPAP-scored sleep excludes (the motion/wear gate of the improvement list is now
+      the priority); the δ anchor locked a harmonic (75 % on 3-of-4 desats is thin); or the index at
+      Θ = 10 over these floors is still chance-dominated per the analytic line's own warning.
+
+      Three tool-design defects were found and fixed by their OWN first runs, each the repo's
+      recurring shape: an anchor criterion that could not succeed on a treated night (3–4 desats
+      cannot explain ≥50 % of 23 events — the mirror of a gate that cannot fail); a Katz denominator
+      counting events outside the dip-covered span (measuring recording overlap, not coupling); and
+      a foot-shift null so destructive the readability gate refused all 10 surrogates (a null that
+      cannot execute is not a null — onsets are shifted instead, count-preserving).
 - [ ] The two fiducial defects of §3.4 are fixed and shown export-inert or regenerated per §🔏.
 - [ ] `patArousalIdx` gets a registry row (`experimental`, autonomic wording) before any surface
       shows it.
