@@ -1,7 +1,7 @@
 ---
 bump: patch
 type: fixed
-brief: DEEP-AUDIT-III-FOLLOWUPS-BRIEF.md
+brief: DEEP-AUDIT-V-FOLLOWUPS-2026-08-05-BRIEF.md
 ---
 
 ECGDex's statistical and spectral paths returned **fabricated zeros** on insufficient input, and those

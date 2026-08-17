@@ -2419,7 +2419,7 @@
     // ONCE so the long-record spectrum, the short-record representative spectrum, and
     // cardiorespiratory coupling all report the same value. (Also fixes a latent
     // `||[0]` no-op — an empty array is truthy — that risked median([])→NaN.)
-    const _respEpoch = epochs.filter((e) => e.resp > 0).map((e) => e.resp);
+    const _respEpoch = epochs.filter((e) => e.resp != null && e.resp > 0).map((e) => e.resp);
     const _respMedian = _respEpoch.length >= 3 ? +median(_respEpoch).toFixed(1) : null;
 
     let spec;
@@ -2534,7 +2534,7 @@
       crc.plvBaseline = /** @type {any} */ (sOut.length ? +mean(sOut).toFixed(3) : null);
     }
     // per-epoch respiratory-rate spread (EDR) — CPAPDex can flag resp-rate instability without airflow
-    const respVals = epochs.filter((e) => e.resp > 0).map((e) => e.resp);
+    const respVals = epochs.filter((e) => e.resp != null && e.resp > 0).map((e) => e.resp);
     const respStats =
       respVals.length >= 3 ? { n: respVals.length, min: +arrMin(respVals).toFixed(1), max: +arrMax(respVals).toFixed(1), median: +median(respVals).toFixed(1), sd: +std(respVals).toFixed(2) } : null;
 
