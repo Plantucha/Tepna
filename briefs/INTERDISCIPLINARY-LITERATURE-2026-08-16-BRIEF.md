@@ -184,11 +184,66 @@ are **isolable**, not merely detectable.
 | **Keysight (formerly Agilent)** — *Jitter Analysis: The Dual-Dirac Model, RJ/DJ, and Q-Scale*, application note 5989-3206 | the standard treatment | verified, vendor note |
 | **Tektronix** — *Dual-Dirac scope histograms and BERTScan measurements* | practical estimation | verified, vendor note |
 
-**Do:** deterministic jitter is **bounded**, random jitter is **unbounded Gaussian**, and they
+~~**Do:** deterministic jitter is **bounded**, random jitter is **unbounded Gaussian**, and they
 separate by tail-fitting. BLE's 7.5 ms connection interval is textbook bounded DJ — arrival latency
 spans 0 to exactly one interval — while scheduler contention is unbounded RJ. One `spreadMs`
-conflates a hard physical bound with a tail that has no worst case. Allan deviation names noise
-*types*; it does not distinguish bounded from unbounded.
+conflates a hard physical bound with a tail that has no worst case.~~
+
+🔴 **FALSIFIED BY THE CORPUS, 2026-08-16 (Vigil box). Do not act on the struck text above.** The
+physics is right and the *conclusion drawn from it* is wrong: the connection interval genuinely is a
+bound, but it is **negligible beside the term that dominates**, so decomposing into DJ + RJ answers a
+question the data does not pose.
+
+The dual-Dirac decomposition was implemented and **validated against planted cases first** — Q-scale
+tail fit, RJ recovered within 5 %, DJ conservative by ~13 % (the estimator's known bias, DJ(δδ) being
+an effective separation):
+
+```
+planted DJ 10.0 RJ 2.0  ->  8.43 / 2.10
+planted DJ 30.0 RJ 5.0  -> 26.06 / 5.26
+planted DJ  0.0 RJ 4.0  ->  ~0   / 3.92
+```
+
+It then returned **NEGATIVE DJ on most real streams** — −651 ms (H10 acc), −554 (ecg), −114 (Verity
+ppg). A negative DJ means the right tail's extrapolated intercept sits *below* the left's, which a
+two-lobe distribution cannot produce. The diagnostic that explains it:
+
+```
+excess kurtosis:  H10 acc +1901 · H10 ecg +1400 · Verity ppg +124
+```
+
+**A dual-Dirac has NEGATIVE excess kurtosis** — two deltas smeared by Gaussians is flat-topped. These
+are single, violently heavy-tailed peaks. There is no bounded component to separate: at our scale the
+**tail IS the phenomenon**, and 7.5 ms is noise beside delays measured in hundreds of milliseconds.
+
+⚠️ It was **not shipped**, and the reason is the reusable part: feeding `abs(dj)/√12` into an
+uncertainty budget as a "bounded" term would have fabricated a quantity **from a model the data
+contradicts** — and a negative DJ passed through `abs()` would have looked like a *large* bounded
+component. That is the worst available failure shape, and it is [[queries-that-examined-nothing]] in
+estimator form: the fit ran, converged, and reported a number about a structure that was not there.
+
+**What shipped instead answers the same question without the assumption: MTIE** (#1392). ITU-T G.810
+defines MTIE and TDEV as a pair precisely because RMS cannot express a worst case, and the TDEV half
+already existed (#1255). Known-answer validated before the citation was written down — a ramp of
+slope 3 gives MTIE(τ) = 3τ exactly, a planted step of 42 gives 42.000, and Bregni & Maccabruni's
+binary decomposition (IEEE T-IM 49(6), Dec 2000) is byte-identical to the O(N·W) definition at seven τ.
+
+```
+H10 ecg    MTIE@1s 5757 ms    MTIE@256s 5817 ms    RMS-style (adev·tau) 85 ms
+```
+
+**68×.** And MTIE being *flat across τ* says those six seconds are **ONE STALL, not accumulating
+drift** — validated against a planted spike (500/500) versus a random walk (3.7 → 44.1). That
+distinction changes what you would do about it, and no RMS statistic can express it.
+
+⚠️ Limits stated by the measurer: the kurtosis figures are one night's streams read per-file, and an
+O2Ring reading of +29394 is inflated by session boundaries in a concatenated read (the shipped code
+processes per file and would not see it). The H10 and Verity numbers stand.
+
+**The transferable lesson, which is why this correction is kept in full rather than deleted:** the
+entry was not wrong about the physics. It was wrong about **which term dominates at the scale we
+measure** — and that only surfaced by fitting the model and watching it fail. A literature entry that
+is theoretically correct can still be practically inverted, and the only way to find out is to run it.
 
 ## 8 · Generalizability theory
 
@@ -248,6 +303,40 @@ Naming them buys a method for discovering the ones not yet written.
 **Do:** the useful question is not "how high can the score go?" but **"what classes of scientifically
 meaningful error can this suite detect?"** — which is where mutation testing meets experimental
 validation.
+
+### 11a · ⚠️ TCE and the asymmetry that makes a false equivalence worse than a survivor
+
+**Trivial Compiler Equivalence** (Papadakis et al.) detects equivalent mutants by compiling mutant and
+original and comparing the emitted code: identical output proves behavioural equivalence, so the
+mutant can be **removed from the denominator** rather than chased. It is the standard answer to
+mutation testing's oldest cost — the equivalent-mutant problem is undecidable in general, and TCE
+converts a slice of it into a compiler invocation.
+
+**Carry this caveat wherever TCE or any equivalence heuristic is used here, because the two errors are
+not symmetric:**
+
+- A **surviving** mutant that is actually equivalent costs *effort* — someone investigates and finds
+  nothing. Annoying, bounded, and self-correcting.
+- A **falsely-declared equivalent** mutant is removed from the denominator **permanently**. The score
+  rises, the mutant is never generated again, and **the test gap it represented becomes invisible** —
+  there is no later run in which it reappears to be re-examined.
+
+So the two failure directions have different half-lives, and only one is recoverable. **An equivalence
+claim needs stronger evidence than a survivor claim**, not equal evidence.
+
+⚠️ **This is not hypothetical here.** `se = se || 0` in `clock.js` was declared EQUIVALENT in #1302
+and was not: every DexClock fixture used `:00` seconds, where `'00' && 0` and `'00' || 0` are both
+`0`, so the mutant genuinely could not be distinguished **on the data that existed**. That is a
+property of the FIXTURES read as a property of the CODE — a test gap wearing the shape of an
+equivalence. It was retired only when someone re-applied the mutant to current `main` and found **7
+assertions failing, of which only 3 were the ones added to catch it** — the other four had landed
+since, by accident. Nothing false reached `mutate-equivalence.json` (clock.js carries 3 entries, all
+`real-gap`), so the denominator survived; that it survived was luck rather than process.
+
+**Practical rule:** TCE's *positive* answer is a proof and can be trusted. Every other route to
+"equivalent" — reading the code, reasoning about the operator, a model's judgement — is a
+**hypothesis**, and the honest record is `not-separable-by <the observable you tried>` rather than
+`equivalent`. Related: [[assertions-encode-shape-not-contract]], [[equivalence-claims-age]].
 
 ## 12 · Forensic statistics for fabricated data
 
