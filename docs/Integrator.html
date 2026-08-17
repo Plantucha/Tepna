@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-CnI5YW+LdEAapI+CCE0/WGgJYxytQ54ZIpLyNZi0ztk=' 'sha256-G6q9jVUxKlEI3qmcuxeKVPEubWjDukvVfBf/P40dmL8=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UhOyYklF0oR6diFq0C93L2hL6VY0/z1/kwApfDX0WNo=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-k+FV7AZrEGGuFvXlh73TfpK+yAoc1Q7YRwHKGyqH0NY=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-CnI5YW+LdEAapI+CCE0/WGgJYxytQ54ZIpLyNZi0ztk=' 'sha256-KnPbEqFBJOnlmZiE8x/eirQ76Ndwk/+StDhjFSX8lag=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-k+FV7AZrEGGuFvXlh73TfpK+yAoc1Q7YRwHKGyqH0NY=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Integrator · Fusion Layer</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -6593,7 +6593,14 @@ function adaptEnvelopeNode(json, node, filename) {
       // §F3 filter AND _tchHat — reads `undefined` and keeps a leg that carries NO timing (proven: a
       // `timingSource:'none'` PpgDex was spent as a full TCH corner). 'none' = drawn axis, no host
       // anchors; 'host'/'device+host'/'device'/null = usable. WEARABLE-HOST-AXIS-FOLLOWUPS §F1/§F3.
-      timingSource: json.timingSource != null ? json.timingSource : (json.hostAxis && json.hostAxis.timingSource) || null,
+      /* `quality.timingSource` ADDED 2026-08-17 — WITHOUT IT THIS GUARD WAS INERT. The chain read the
+         top level and `hostAxis`; PpgDex writes it under `quality` (verified on a real export:
+         `quality.timingSource === 'device+host'`, top level ABSENT). So every node resolved to `null`
+         and both drawn-axis guards downstream — closure's §F3 filter and `_tchHat` — excluded NOBODY
+         on the whole trio corpus. The comment above cites `ppgdex-dsp.js:3333` for a top-level field;
+         that line is `buildEpochs` today, so the reference drifted and the path was never re-checked
+         against an actual export. */
+      timingSource: json.timingSource != null ? json.timingSource : (json.quality && json.quality.timingSource) || (json.hostAxis && json.hostAxis.timingSource) || null,
       events: events,
       series: seriesOut,
       summary: summary,
@@ -8580,6 +8587,36 @@ function _tchHat(like, ptsFn, metric) {
     return r;
   }
   r.metric = metric;
+  /* PSEUDO THREE-CORNERED HAT — the corner's axis, not the corner's crystal (2026-08-17).
+     The `timingSource === 'none'` filter above removes a leg that declares it has no timing. It cannot
+     see the commoner case: a leg that declares NOTHING. OxyDex emits no `quality` block at all, so it
+     resolves to `null`, which the filter deliberately keeps ("null/omitted stays usable").
+
+     Keeping it is right — excluding it would leave two corners and no hat at all, so the choice is not
+     "clean TCH vs contaminated TCH" but "contaminated TCH vs no estimate". What is wrong is quoting the
+     result at the SAME tier as one whose corners are all timed.
+
+     The mechanism, stated on instability rather than on clock-ness: the O2Ring HAS a crystal and a
+     disciplined RTC (`capture-host/oxyii.py` SET_UTC_TIME 0xC0) — it genuinely measures HR. What its
+     EXPORT lacks is per-sample clock readings; the axis is an anchor plus a nominal rate. An axis of
+     `index × nominal_rate` has ZERO APPARENT INSTABILITY BY CONSTRUCTION — it cannot disagree with
+     itself — while its real error reappears as a TIMING error that misplaces samples, contributing
+     ≈ δ·dHR/dt at each shared epoch. That term is a function of the COMMON signal's derivative, so it
+     is correlated with the other corners by construction and largest exactly where HR moves. TCH's
+     uncorrelated-error premise is violated in the one way it cannot absorb.
+
+     So: report the number, refuse the tier. `pseudo` drives a heuristic badge at the render layer.
+     A corner counts as TIMED only on a positive declaration — `device` or `device+host`. `host`
+     (a drawn axis) and `null` (nothing declared) both fail, because absence of evidence is not
+     evidence of independence. This upgrades itself the day OxyDex publishes axis provenance. */
+  r.axisProvenance = {};
+  [best.A, best.B, best.C].forEach(function (s, i) {
+    r.axisProvenance[_cornerIds[i]] = s.timingSource != null ? s.timingSource : null;
+  });
+  r.pseudo = [best.A, best.B, best.C].some(function (s) {
+    return s.timingSource !== 'device' && s.timingSource !== 'device+host';
+  });
+  r.pseudoReason = r.pseudo ? 'a corner declares no per-sample device timing — σ is a ranking, not a calibrated instability' : null;
   r.coMotion = {};
   // Same corner ids as the solve — a map keyed differently from sigma2 cannot be joined to it.
   [best.A, best.B, best.C].forEach(function (s, i) {
@@ -15246,6 +15283,17 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
       evidence: 'heuristic',
       cite: 'Disagreement between per-node sleep-stage PROXIES (HR/HRV-derived, not EEG). Inherits the heuristic tier of the estimators it compares (ECGDex deepMin/remMin). A flag that two proxies disagree — never evidence that either is right, and not a staging claim.'
     },
+    /* THE SAME ESTIMATOR, ONE TIER DOWN, when a corner declares no per-sample device timing.
+       Not a second method — `tch_error`'s own cite still applies. What is missing is the PREMISE:
+       TCH needs the three errors uncorrelated, and a corner whose axis is `index × nominal_rate`
+       has zero apparent instability by construction while its real error reappears as ≈ δ·dHR/dt,
+       a function of the COMMON signal. Selected by `tch.pseudo` (integrator-dsp `_tchHat`), so it
+       upgrades itself the day every corner publishes provenance. Same shape as
+       `staging_disagreement` above: an inherited tier, not an independent judgement. */
+    tch_error_pseudo: {
+      evidence: 'heuristic',
+      cite: "Pseudo three-cornered hat — Gray & Allan (1974) applied where a corner's exported axis carries no per-sample clock readings (an anchor plus a nominal rate). The estimator is unchanged; its uncorrelated-error premise is not established, so the per-sensor σ ranks the corners rather than calibrating them."
+    },
     tch_error: {
       evidence: 'experimental',
       cite: "Reference-free three-cornered hat (Gray & Allan 1974): each sensor's own error variance recovered from the three pairwise-difference variances of a shared quantity (per-epoch rMSSD). Estimates PRECISION, not trueness — a bias shared by all three is invisible. Needs ≥3 co-recorded sites; degrades to pairwise consensus otherwise."
@@ -16019,11 +16067,29 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
         );
         if (b.tch) {
           // reference-free per-sensor error (three-cornered hat) — §5
-          cards.push(findingCard('Per-sensor error (TCH) · ' + b.window, '#8FB8FF', tchBars(b), tchNote(b), Object.keys(b.tch.sigma2), 'tch_error'));
+          cards.push(
+            findingCard(
+              (b.tch.pseudo ? 'Per-sensor error (pseudo-TCH) · ' : 'Per-sensor error (TCH) · ') + b.window,
+              '#8FB8FF',
+              tchBars(b),
+              tchNote(b),
+              Object.keys(b.tch.sigma2),
+              b.tch.pseudo ? 'tch_error_pseudo' : 'tch_error'
+            )
+          );
         }
         if (b.tchHR) {
           // HR-hat — reference-free per-sensor HR error (ECG+PPG+Oxy) — FU-II §3
-          cards.push(findingCard('Per-sensor HR error (TCH) · ' + b.window, '#8FB8FF', tchBars(b, 'hr'), tchNote(b, 'hr'), Object.keys(b.tchHR.sigma2), 'tch_error'));
+          cards.push(
+            findingCard(
+              (b.tchHR.pseudo ? 'Per-sensor HR error (pseudo-TCH) · ' : 'Per-sensor HR error (TCH) · ') + b.window,
+              '#8FB8FF',
+              tchBars(b, 'hr'),
+              tchNote(b, 'hr'),
+              Object.keys(b.tchHR.sigma2),
+              b.tchHR.pseudo ? 'tch_error_pseudo' : 'tch_error'
+            )
+          );
         }
       });
     }

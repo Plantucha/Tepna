@@ -691,7 +691,14 @@ function adaptEnvelopeNode(json, node, filename) {
       // §F3 filter AND _tchHat — reads `undefined` and keeps a leg that carries NO timing (proven: a
       // `timingSource:'none'` PpgDex was spent as a full TCH corner). 'none' = drawn axis, no host
       // anchors; 'host'/'device+host'/'device'/null = usable. WEARABLE-HOST-AXIS-FOLLOWUPS §F1/§F3.
-      timingSource: json.timingSource != null ? json.timingSource : (json.hostAxis && json.hostAxis.timingSource) || null,
+      /* `quality.timingSource` ADDED 2026-08-17 — WITHOUT IT THIS GUARD WAS INERT. The chain read the
+         top level and `hostAxis`; PpgDex writes it under `quality` (verified on a real export:
+         `quality.timingSource === 'device+host'`, top level ABSENT). So every node resolved to `null`
+         and both drawn-axis guards downstream — closure's §F3 filter and `_tchHat` — excluded NOBODY
+         on the whole trio corpus. The comment above cites `ppgdex-dsp.js:3333` for a top-level field;
+         that line is `buildEpochs` today, so the reference drifted and the path was never re-checked
+         against an actual export. */
+      timingSource: json.timingSource != null ? json.timingSource : (json.quality && json.quality.timingSource) || (json.hostAxis && json.hostAxis.timingSource) || null,
       events: events,
       series: seriesOut,
       summary: summary,
@@ -2678,6 +2685,36 @@ function _tchHat(like, ptsFn, metric) {
     return r;
   }
   r.metric = metric;
+  /* PSEUDO THREE-CORNERED HAT — the corner's axis, not the corner's crystal (2026-08-17).
+     The `timingSource === 'none'` filter above removes a leg that declares it has no timing. It cannot
+     see the commoner case: a leg that declares NOTHING. OxyDex emits no `quality` block at all, so it
+     resolves to `null`, which the filter deliberately keeps ("null/omitted stays usable").
+
+     Keeping it is right — excluding it would leave two corners and no hat at all, so the choice is not
+     "clean TCH vs contaminated TCH" but "contaminated TCH vs no estimate". What is wrong is quoting the
+     result at the SAME tier as one whose corners are all timed.
+
+     The mechanism, stated on instability rather than on clock-ness: the O2Ring HAS a crystal and a
+     disciplined RTC (`capture-host/oxyii.py` SET_UTC_TIME 0xC0) — it genuinely measures HR. What its
+     EXPORT lacks is per-sample clock readings; the axis is an anchor plus a nominal rate. An axis of
+     `index × nominal_rate` has ZERO APPARENT INSTABILITY BY CONSTRUCTION — it cannot disagree with
+     itself — while its real error reappears as a TIMING error that misplaces samples, contributing
+     ≈ δ·dHR/dt at each shared epoch. That term is a function of the COMMON signal's derivative, so it
+     is correlated with the other corners by construction and largest exactly where HR moves. TCH's
+     uncorrelated-error premise is violated in the one way it cannot absorb.
+
+     So: report the number, refuse the tier. `pseudo` drives a heuristic badge at the render layer.
+     A corner counts as TIMED only on a positive declaration — `device` or `device+host`. `host`
+     (a drawn axis) and `null` (nothing declared) both fail, because absence of evidence is not
+     evidence of independence. This upgrades itself the day OxyDex publishes axis provenance. */
+  r.axisProvenance = {};
+  [best.A, best.B, best.C].forEach(function (s, i) {
+    r.axisProvenance[_cornerIds[i]] = s.timingSource != null ? s.timingSource : null;
+  });
+  r.pseudo = [best.A, best.B, best.C].some(function (s) {
+    return s.timingSource !== 'device' && s.timingSource !== 'device+host';
+  });
+  r.pseudoReason = r.pseudo ? 'a corner declares no per-sample device timing — σ is a ranking, not a calibrated instability' : null;
   r.coMotion = {};
   // Same corner ids as the solve — a map keyed differently from sigma2 cannot be joined to it.
   [best.A, best.B, best.C].forEach(function (s, i) {

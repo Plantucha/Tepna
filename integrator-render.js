@@ -220,6 +220,17 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
       evidence: 'heuristic',
       cite: 'Disagreement between per-node sleep-stage PROXIES (HR/HRV-derived, not EEG). Inherits the heuristic tier of the estimators it compares (ECGDex deepMin/remMin). A flag that two proxies disagree — never evidence that either is right, and not a staging claim.'
     },
+    /* THE SAME ESTIMATOR, ONE TIER DOWN, when a corner declares no per-sample device timing.
+       Not a second method — `tch_error`'s own cite still applies. What is missing is the PREMISE:
+       TCH needs the three errors uncorrelated, and a corner whose axis is `index × nominal_rate`
+       has zero apparent instability by construction while its real error reappears as ≈ δ·dHR/dt,
+       a function of the COMMON signal. Selected by `tch.pseudo` (integrator-dsp `_tchHat`), so it
+       upgrades itself the day every corner publishes provenance. Same shape as
+       `staging_disagreement` above: an inherited tier, not an independent judgement. */
+    tch_error_pseudo: {
+      evidence: 'heuristic',
+      cite: "Pseudo three-cornered hat — Gray & Allan (1974) applied where a corner's exported axis carries no per-sample clock readings (an anchor plus a nominal rate). The estimator is unchanged; its uncorrelated-error premise is not established, so the per-sensor σ ranks the corners rather than calibrating them."
+    },
     tch_error: {
       evidence: 'experimental',
       cite: "Reference-free three-cornered hat (Gray & Allan 1974): each sensor's own error variance recovered from the three pairwise-difference variances of a shared quantity (per-epoch rMSSD). Estimates PRECISION, not trueness — a bias shared by all three is invisible. Needs ≥3 co-recorded sites; degrades to pairwise consensus otherwise."
@@ -993,11 +1004,29 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
         );
         if (b.tch) {
           // reference-free per-sensor error (three-cornered hat) — §5
-          cards.push(findingCard('Per-sensor error (TCH) · ' + b.window, '#8FB8FF', tchBars(b), tchNote(b), Object.keys(b.tch.sigma2), 'tch_error'));
+          cards.push(
+            findingCard(
+              (b.tch.pseudo ? 'Per-sensor error (pseudo-TCH) · ' : 'Per-sensor error (TCH) · ') + b.window,
+              '#8FB8FF',
+              tchBars(b),
+              tchNote(b),
+              Object.keys(b.tch.sigma2),
+              b.tch.pseudo ? 'tch_error_pseudo' : 'tch_error'
+            )
+          );
         }
         if (b.tchHR) {
           // HR-hat — reference-free per-sensor HR error (ECG+PPG+Oxy) — FU-II §3
-          cards.push(findingCard('Per-sensor HR error (TCH) · ' + b.window, '#8FB8FF', tchBars(b, 'hr'), tchNote(b, 'hr'), Object.keys(b.tchHR.sigma2), 'tch_error'));
+          cards.push(
+            findingCard(
+              (b.tchHR.pseudo ? 'Per-sensor HR error (pseudo-TCH) · ' : 'Per-sensor HR error (TCH) · ') + b.window,
+              '#8FB8FF',
+              tchBars(b, 'hr'),
+              tchNote(b, 'hr'),
+              Object.keys(b.tchHR.sigma2),
+              b.tchHR.pseudo ? 'tch_error_pseudo' : 'tch_error'
+            )
+          );
         }
       });
     }

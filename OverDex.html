@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2c+NhGS5baEp+dkR92QyPev/wf2fl0amYca/JbyYiCk=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-7oHiD+bMFu7PAJ8DITaVlISLmk0rNQd3hvceyXJVJOE=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-KT37bp0y0ke8bMQOKs4x1LCCi2NIvgysOwzCVi14uPk=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UhOyYklF0oR6diFq0C93L2hL6VY0/z1/kwApfDX0WNo=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-Zg0VuZposJeHUmYwdGlxPYv7/96XL9I90WDHTkIO/fI=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rupbBl3hLsTFmaCOw1mTGiExJ69AQfvTUl41uKIdkeU=' 'sha256-vTHcYCT7T8BXXhlHTAa4nKdoEsbp2BN90lPR9Y8llUE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2c+NhGS5baEp+dkR92QyPev/wf2fl0amYca/JbyYiCk=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-7oHiD+bMFu7PAJ8DITaVlISLmk0rNQd3hvceyXJVJOE=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-KT37bp0y0ke8bMQOKs4x1LCCi2NIvgysOwzCVi14uPk=' 'sha256-KnPbEqFBJOnlmZiE8x/eirQ76Ndwk/+StDhjFSX8lag=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-Zg0VuZposJeHUmYwdGlxPYv7/96XL9I90WDHTkIO/fI=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rupbBl3hLsTFmaCOw1mTGiExJ69AQfvTUl41uKIdkeU=' 'sha256-vTHcYCT7T8BXXhlHTAa4nKdoEsbp2BN90lPR9Y8llUE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -2987,7 +2987,14 @@ function adaptEnvelopeNode(json, node, filename) {
       // §F3 filter AND _tchHat — reads `undefined` and keeps a leg that carries NO timing (proven: a
       // `timingSource:'none'` PpgDex was spent as a full TCH corner). 'none' = drawn axis, no host
       // anchors; 'host'/'device+host'/'device'/null = usable. WEARABLE-HOST-AXIS-FOLLOWUPS §F1/§F3.
-      timingSource: json.timingSource != null ? json.timingSource : (json.hostAxis && json.hostAxis.timingSource) || null,
+      /* `quality.timingSource` ADDED 2026-08-17 — WITHOUT IT THIS GUARD WAS INERT. The chain read the
+         top level and `hostAxis`; PpgDex writes it under `quality` (verified on a real export:
+         `quality.timingSource === 'device+host'`, top level ABSENT). So every node resolved to `null`
+         and both drawn-axis guards downstream — closure's §F3 filter and `_tchHat` — excluded NOBODY
+         on the whole trio corpus. The comment above cites `ppgdex-dsp.js:3333` for a top-level field;
+         that line is `buildEpochs` today, so the reference drifted and the path was never re-checked
+         against an actual export. */
+      timingSource: json.timingSource != null ? json.timingSource : (json.quality && json.quality.timingSource) || (json.hostAxis && json.hostAxis.timingSource) || null,
       events: events,
       series: seriesOut,
       summary: summary,
@@ -4974,6 +4981,36 @@ function _tchHat(like, ptsFn, metric) {
     return r;
   }
   r.metric = metric;
+  /* PSEUDO THREE-CORNERED HAT — the corner's axis, not the corner's crystal (2026-08-17).
+     The `timingSource === 'none'` filter above removes a leg that declares it has no timing. It cannot
+     see the commoner case: a leg that declares NOTHING. OxyDex emits no `quality` block at all, so it
+     resolves to `null`, which the filter deliberately keeps ("null/omitted stays usable").
+
+     Keeping it is right — excluding it would leave two corners and no hat at all, so the choice is not
+     "clean TCH vs contaminated TCH" but "contaminated TCH vs no estimate". What is wrong is quoting the
+     result at the SAME tier as one whose corners are all timed.
+
+     The mechanism, stated on instability rather than on clock-ness: the O2Ring HAS a crystal and a
+     disciplined RTC (`capture-host/oxyii.py` SET_UTC_TIME 0xC0) — it genuinely measures HR. What its
+     EXPORT lacks is per-sample clock readings; the axis is an anchor plus a nominal rate. An axis of
+     `index × nominal_rate` has ZERO APPARENT INSTABILITY BY CONSTRUCTION — it cannot disagree with
+     itself — while its real error reappears as a TIMING error that misplaces samples, contributing
+     ≈ δ·dHR/dt at each shared epoch. That term is a function of the COMMON signal's derivative, so it
+     is correlated with the other corners by construction and largest exactly where HR moves. TCH's
+     uncorrelated-error premise is violated in the one way it cannot absorb.
+
+     So: report the number, refuse the tier. `pseudo` drives a heuristic badge at the render layer.
+     A corner counts as TIMED only on a positive declaration — `device` or `device+host`. `host`
+     (a drawn axis) and `null` (nothing declared) both fail, because absence of evidence is not
+     evidence of independence. This upgrades itself the day OxyDex publishes axis provenance. */
+  r.axisProvenance = {};
+  [best.A, best.B, best.C].forEach(function (s, i) {
+    r.axisProvenance[_cornerIds[i]] = s.timingSource != null ? s.timingSource : null;
+  });
+  r.pseudo = [best.A, best.B, best.C].some(function (s) {
+    return s.timingSource !== 'device' && s.timingSource !== 'device+host';
+  });
+  r.pseudoReason = r.pseudo ? 'a corner declares no per-sample device timing — σ is a ranking, not a calibrated instability' : null;
   r.coMotion = {};
   // Same corner ids as the solve — a map keyed differently from sigma2 cannot be joined to it.
   [best.A, best.B, best.C].forEach(function (s, i) {

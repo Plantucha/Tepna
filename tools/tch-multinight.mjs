@@ -124,7 +124,15 @@ function rhoFromMotion(motions) {
 function runNight(night, labels) {
   const [LA, LB, LC] = labels;
   const al = TCH.alignTriplet(night.series[LA], night.series[LB], night.series[LC], { key: 'tMin', val: 'v' });
-  const base = { label: night.label, n: al.keys.length, marker: night.marker };
+  const base = {
+    label: night.label,
+    n: al.keys.length,
+    marker: night.marker,
+    // The hat is only a THREE-cornered hat if all three corners are timed; see loadNight.
+    method: night.pseudo ? 'pseudo-three-cornered-hat' : 'three-cornered-hat',
+    evidence: night.pseudo ? 'heuristic' : null,
+    axisProvenance: night.prov
+  };
   if (al.keys.length < 12) return { ...base, ok: false, reason: 'overlap ' + al.keys.length + ' < 12' };
 
   // align motion onto the SAME shared epoch keys the HR triplet resolved on
@@ -279,6 +287,18 @@ function readNightDir(dir) {
     const node = nodeOf(j, f);
     if (!node || !LABELS.includes(node)) continue;
     if (node === 'PpgDex' && j.quality && j.quality.timingSource !== undefined) marker = j.quality.timingSource;
+    /* PER-CORNER AXIS PROVENANCE, for every corner — not just the one that publishes it (2026-08-17).
+       `marker` above is a COHORT LABEL read from PpgDex alone; it refuses nothing and says nothing
+       about the other two. TCH needs the three errors uncorrelated, and a corner whose exported axis
+       is `index × nominal_rate` has zero apparent instability by construction while its real error
+       reappears as ≈ δ·dHR/dt — a function of the COMMON signal. So the run has to say which corners
+       declared per-sample device timing and which did not, or the σ table reads as if all three did.
+       POSITIVE declaration only: `device`/`device+host` count, `host` (drawn) and absent do not.
+       OxyDex publishes no `quality` block at all, so today it always reads absent — which is the
+       honest answer, and it upgrades itself if that changes. */
+    const _ts = (j.quality && j.quality.timingSource) || j.timingSource || null;
+    prov[node] = _ts;
+    if (_ts !== 'device' && _ts !== 'device+host') pseudo = true;
     const eps = (j.timeseries && j.timeseries.epochs) || (j.series && j.series.epochs) || [];
     const hr = [],
       mo = [];
@@ -291,7 +311,7 @@ function readNightDir(dir) {
     if (hr.length) series[node] = hr;
     if (mo.length) motion[node] = mo;
   }
-  return { label: dir.split('/').pop(), series, motion, marker };
+  return { label: dir.split('/').pop(), series, motion, marker, prov, pseudo };
 }
 function nodeOf(j, fname) {
   const s = (j.schema && (j.schema.node || j.node)) || j.node || '';
