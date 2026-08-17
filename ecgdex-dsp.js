@@ -3075,9 +3075,22 @@
     const bandOf = (fHz) => (fHz >= 0.1 && fHz <= 0.4 ? 'hfc' : fHz >= 0.01 ? 'lfc' : fHz >= 0.004 ? 'vlfc' : null);
     const counts = { hfc: 0, lfc: 0, vlfc: 0 },
       lfcVals = [];
+    /* ── THE BANDWIDTH NULL, COUNTED NOT ASSERTED ────────────────────────────────────────────────
+       The bands are wildly unequal — HFC spans 0.30 Hz, LFC 0.09, VLFC 0.006 — so "which band holds
+       the most power" is ~76 % HFC on NOISE, which is the same 5x low-frequency/high-frequency bias
+       the integrated-share estimator below was introduced to remove. Classifying a window therefore
+       cannot use raw share; it uses share ÷ the band's own bin count, i.e. power DENSITY. Counting
+       the bins keeps the null tied to the actual `kLo`/`kHi` clamp instead of to three literals that
+       would silently rot if a band edge ever moved. */
+    const bins = { hfc: 0, lfc: 0, vlfc: 0 };
+    const series = [];
     let windows = 0;
     const kLo = Math.max(1, Math.floor(0.004 / df)),
       kHi = Math.min(N >> 1, Math.ceil(0.4 / df));
+    for (let k = kLo; k <= kHi; k++) {
+      const b0 = bandOf(k * df);
+      if (b0) bins[b0]++;
+    }
     for (let s0 = 0; s0 + N <= hrRaw.length; s0 += STEP) {
       // per-window linear detrend + Hann. A LINEAR detrend removes drift without touching 0.004 Hz,
       // which is exactly what the 40-beat moving average could not do.
@@ -3147,10 +3160,38 @@
       counts.lfc += bandPow.lfc / tot;
       counts.vlfc += bandPow.vlfc / tot;
       windows++;
-      lfcVals.push(bandPow.lfc / tot);
+      const share = { hfc: bandPow.hfc / tot, lfc: bandPow.lfc / tot, vlfc: bandPow.vlfc / tot };
+      lfcVals.push(share.lfc);
+      /* PER-WINDOW STATE — CPC's actual clinical output is a stable/unstable PROFILE over the night,
+         not a night-level mean. Density = share ÷ bins, so a band is called only when it carries more
+         power PER BIN than its rivals; on a flat spectrum all three densities are equal and no band
+         wins by width alone. `null` when a band has no bins (a degenerate clamp), never a guess. */
+      let state = null,
+        best = 0;
+      for (const b of ['hfc', 'lfc', 'vlfc']) {
+        if (!bins[b]) continue;
+        const dens = share[b] / bins[b];
+        if (dens > best) {
+          best = dens;
+          state = b;
+        }
+      }
+      series.push({
+        tSec: Math.round(s0 / fs),
+        hfc: +share.hfc.toFixed(3),
+        lfc: +share.lfc.toFixed(3),
+        vlfc: +share.vlfc.toFixed(3),
+        state
+      });
     }
     if (!windows) return null;
     const pct = (k) => +((100 * counts[k]) / windows).toFixed(1); // counts[] now accumulate FRACTIONS, so this is a mean share
+    /* MINUTES PER STATE. Windows overlap 50 %, so each ADVANCES the clock by STEP/fs seconds — using
+       WIN_SEC here would double every duration. The last window's tail is not counted; it is one
+       STEP of a multi-hour night and inventing it would be worse than under-reporting it. */
+    const stepMin = STEP / fs / 60;
+    const stateMin = { hfc: 0, lfc: 0, vlfc: 0 };
+    for (const w of series) if (w.state) stateMin[w.state] += stepMin;
     return {
       windows,
       windowSec: WIN_SEC,
@@ -3158,6 +3199,20 @@
       hfcPct: pct('hfc'),
       lfcPct: pct('lfc'),
       vlfcPct: pct('vlfc'),
+      /* ── ADDED 2026-08-16 · the per-window profile, which is what CPC is actually FOR ──────────
+         The three *Pct fields above are night-level MEANS and cannot say when sleep was stable.
+         `series` is the profile; `stableMin`/`unstableMin`/`remWakeMin` are its durations.
+         ⚠️ NAMING IS A CLAIM. These are CPC's own three states — stable sleep, unstable sleep, and
+         REM/wake — and they are NOT the AASM stages. CPC has never been a stager: it partitions
+         sleep by coupling stability, which cuts across N1/N2/N3. Do not map remWakeMin onto REM
+         minutes, and do not compare these to `deepMin`/`remMin`, which estimate a different thing
+         from a different signal. */
+      series,
+      stableMin: +stateMin.hfc.toFixed(1),
+      unstableMin: +stateMin.lfc.toFixed(1),
+      remWakeMin: +stateMin.vlfc.toFixed(1),
+      bandBins: bins,
+      lfcWindowSd: lfcVals.length > 1 ? +Math.sqrt(lfcVals.reduce((a, v, _i, arr) => a + (v - arr.reduce((x, y) => x + y, 0) / arr.length) ** 2, 0) / (lfcVals.length - 1)).toFixed(3) : null,
       method: 'CPC — coherence x cross-power of HR vs EDR (Thomas 2005), 512 s windows, 50 % overlap'
     };
   }
@@ -4005,6 +4060,10 @@
     accAnalyze,
     accExtras,
     movementOnsets: _movementOnsets, // exported for `movement-onset-parity` — the gate on the duplication
+    /* Exported for the `cpc-bands` gate ONLY. The bandwidth-null property cannot be driven through
+       `analyze()` without a full synthetic ECG, and an unbiased-classifier claim that nothing
+       exercises is precisely what the integrated-share estimator was introduced to stop being. */
+    _cpc: _cpc,
     /* Exposed for the `ecgdex-hrv-geometry` known-answer gate. Both were measured PSEUDO-TESTED
        2026-08-12 — covered by `analyze`, asserted by nobody — and the only route to them was a full
        raw-ECG run, which cannot pin a hand-derived histogram. Reaching them directly is what makes a

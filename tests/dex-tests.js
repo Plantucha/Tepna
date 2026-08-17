@@ -20722,6 +20722,80 @@
       T.eq('an UNARMED stuck PR is never updated (it needs a human to arm it)', pk([C('stuck-unarmed', 1, 99)]).action, 'none');
     });
 
+    /* ── CPC per-window profile (Thomas et al. 2005) ────────────────────────────────────────────
+       `_cpc` computed HFC/LFC/VLFC as night-level MEANS and discarded the per-window structure —
+       which is what CPC is actually for: a stable/unstable PROFILE across the night. The bands are
+       wildly unequal in width (HFC 0.30 Hz, LFC 0.09, VLFC 0.006), so "which band holds most power"
+       is ~76 % HFC on NOISE. That is the same low-frequency/high-frequency bias the integrated-share
+       estimator was introduced to remove, and a per-window classifier reintroduces it unless it
+       divides by each band's bin count. These assertions pin the null AND the correction. */
+    group('CPC — the per-window classifier must not inherit the bandwidth null', 'ecgdex · cpc', function (T) {
+      var D = env.ECGDSP;
+      if (!D || typeof D._cpc !== 'function') {
+        T.skip('ECGDSP._cpc is reachable', 'browser lane cannot import ecgdex-dsp.js internals');
+        return;
+      }
+      var FS = 4,
+        TOT = 2048 * 6;
+      var seed = 12345;
+      var rnd = function () {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed / 0x7fffffff - 0.5;
+      };
+      var mk = function (fHz, amp) {
+        var a = new Float64Array(TOT),
+          b = new Float64Array(TOT);
+        for (var i = 0; i < TOT; i++) {
+          var v = fHz ? Math.sin(2 * Math.PI * fHz * (i / FS)) * amp : 0;
+          a[i] = v + rnd();
+          b[i] = v + rnd();
+        }
+        return [a, b];
+      };
+      var tally = function (r) {
+        var t = { hfc: 0, lfc: 0, vlfc: 0 };
+        for (var i = 0; i < r.series.length; i++) if (r.series[i].state) t[r.series[i].state]++;
+        return t;
+      };
+
+      var noise = mk(0, 0),
+        rN = D._cpc(noise[0], noise[1], FS);
+      /* THE NULL ITSELF, so the correction below has something to be a correction TO. Raw share is
+         bandwidth-proportional on uncorrelated input — this is not a defect, it is the reason the
+         classifier cannot use raw share. */
+      T.ok('on noise the raw HFC share reproduces the bandwidth null (~76 %)', rN.hfcPct > 60 && rN.hfcPct < 90, 'hfcPct=' + rN.hfcPct);
+      T.ok('…and VLFC, the narrowest band, is a few percent at most', rN.vlfcPct < 8, 'vlfcPct=' + rN.vlfcPct);
+      /* THE CORRECTION. Density-classified states must NOT collapse onto the widest band. An
+         un-normalised argmax scores ~76 % here; this bound is far below that and far above chance,
+         so it fails both if the normalisation is removed and if the classifier degenerates. */
+      var tN = tally(rN);
+      T.ok('density-normalised states do NOT collapse onto the widest band', tN.hfc <= rN.series.length * 0.6, JSON.stringify(tN) + ' of ' + rN.series.length);
+      T.ok('…and the narrowest band can still win a window on noise', tN.vlfc > 0, JSON.stringify(tN));
+
+      /* POSITIVE CONTROLS, both directions — a classifier that always answers "uniform" passes the
+         two bounds above. These pin that a real coupling at a known frequency lands in ITS band. */
+      var hi = mk(0.2, 1),
+        rH = D._cpc(hi[0], hi[1], FS),
+        tH = tally(rH);
+      T.eq('a planted 0.2 Hz coupling classifies every window HFC (stable)', tH.hfc, rH.series.length);
+      var lo = mk(0.02, 1),
+        rL = D._cpc(lo[0], lo[1], FS),
+        tL = tally(rL);
+      T.eq('a planted 0.02 Hz coupling classifies every window LFC (unstable)', tL.lfc, rL.series.length);
+      T.eq('…and does NOT leak into HFC', tH.lfc + tL.hfc, 0);
+
+      /* DURATIONS USE THE STEP, NOT THE WINDOW. Windows overlap 50 %, so charging each one WIN_SEC
+         would double every reported minute — a wrong number that looks entirely plausible. */
+      var stepMin = (2048 >> 1) / FS / 60;
+      T.ok(
+        'state minutes are charged per STEP, not per WINDOW (50 % overlap)',
+        Math.abs(rH.stableMin - rH.series.length * stepMin) < 0.05,
+        rH.stableMin + ' vs ' + (rH.series.length * stepMin).toFixed(1)
+      );
+      T.eq('one series entry per window', rH.series.length, rH.windows);
+      T.eq('a record too short to resolve VLFC returns null, not a degraded number', D._cpc(new Float64Array(100), new Float64Array(100), FS), null);
+    });
+
     /* ── land-pr: the PR-landing state machine (LAND-PR, 2026-08-09) ───────────────────────────
        `main` moves a median 7.2 min while CI takes ~10-12 over 7 required checks, and the ruleset
        sets strict=true, so every session hand-writes a polling loop and they keep being wrong in
