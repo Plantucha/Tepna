@@ -1,10 +1,10 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-08-17 · **Follows:** `OXYDEX-PB-DETECTOR-2026-08-09-BRIEF.md` (DONE — 2026-08-17) · **Affects:** `oxydex-dsp.js computePatternScores`, `briefs/SYNTHETIC-CORPUS-BRIEF.md`, the CPAP/ECGDex corpora
+**Status:** IN-PROGRESS — 2026-08-17 (**§2 and §6 CLOSED by measurement the same day**: ρ measured at median 0.9804 with the CV threshold re-validated across the corpus's real redness including the reddest night, and the gap-spanning hazard shown to be fully caught by the existing guard. §1, §3, §4, §5 remain open) · **Created:** 2026-08-17 · **Follows:** `OXYDEX-PB-DETECTOR-2026-08-09-BRIEF.md` (DONE — 2026-08-17) · **Affects:** `oxydex-dsp.js computePatternScores`, `briefs/SYNTHETIC-CORPUS-BRIEF.md`, the CPAP/ECGDex corpora
 
 # What the PB detector's execution turned up and did not close
 
 The parent is DONE: all boxes met, gates green. Six things surfaced while executing it that it did not
-own. Each is stated with **how strongly it is established**, because three of them are hazards rather
+own — **two of which (§2, §6) were closed by measurement on the day this brief was written**. Each is stated with **how strongly it is established**, because three of them are hazards rather
 than defects and treating them as bugs would be its own error.
 
 ---
@@ -26,18 +26,41 @@ had to avoid it deliberately. Options: rename to `cycleIntervalsSliding`, or add
 beside it, or a comment at the declaration. **Do not "fix" the sliding construction** — the mean and SD
 that consume it are correct as they are.
 
-## 2 · 🔴 OPEN — ρ = 0.98 is inherited, not measured on this corpus
+## 2 · ✅ CLOSED 2026-08-17 — ρ measured: **median 0.9804**, and the threshold holds at the reddest night
 
 The parent's §2.3 chose `PB_MAX_CYCLE_CV = 0.13` from two measured distributions: red noise never below
 CV 0.147, PB never above 0.111 out to ±10 s jitter. The red-noise arm was generated at **ρ = 0.98**,
 which came from `OXYDEX-FFT-CYCLE-NULL-2026-08-16` — a different estimator's null, not a measurement of
 this corpus.
 
-**Done when:** lag-1 autocorrelation is measured on the real O2Ring SpO₂ nights (61 available in
-`<647A>/Ecg nightly`), stated with its sampling rate, and §2.3's table regenerated at that ρ if it
-differs materially. If the corpus is *less* red than 0.98 the threshold is conservative and nothing
-moves; if it is *more* red, 0.13 may not separate and the detector needs re-tuning against the
-regenerated table — **not** against the corpus episode count, which is the tuning §5 forbids.
+**MEASURED on 61 real O2Ring nights** (`<647A>/Ecg nightly`, 1 Hz, median night 24 959 samples), lag-1
+autocorrelation of SpO₂ through the shipped `parseCSV`:
+
+| min | p25 | median | p75 | max | mean |
+|---|---|---|---|---|---|
+| 0.9552 | 0.9768 | **0.9804** | 0.9845 | **0.9968** | 0.9800 |
+
+**The inherited 0.98 was right** — median 0.9804, mean 0.9800. 34 of 61 nights sit at or above it.
+
+**And the tail is what mattered, so it was tested rather than waved through.** The reddest real night is
+ρ = 0.9968, so the §2.3 red-noise sweep was re-run across the measured range against the **shipped**
+detector (`PB_MIN_CYCLES = 4`, `PB_MAX_CYCLE_CV = 0.13`), 40 seeds each:
+
+| ρ | fired | red-noise CV (runs ≥ 4): min · median · max |
+|---|---|---|
+| 0.98 | **0/40** | 0.210 · 0.270 · 0.391 |
+| 0.985 | **0/40** | 0.179 · 0.268 · 0.374 |
+| 0.99 | **0/40** | 0.156 · 0.277 · 0.362 |
+| 0.995 | **0/40** | 0.195 · 0.294 · 0.401 |
+| 0.9968 | **0/40** | 0.157 · 0.274 · 0.433 |
+
+Zero false positives at every ρ in the measured range, and the tightest margin is **0.156 vs the 0.13
+gate** — 0.026 of headroom at ρ = 0.99. The threshold is validated at the corpus's real redness, not
+merely at the inherited figure.
+
+⚠️ **The margin is real but not generous.** If `PB_MAX_CYCLE_CV` is ever raised toward 0.15 this table is
+what forbids it; regenerate it before touching that constant, and note the relationship is not monotone
+in ρ (0.99 is tighter than 0.995), so testing only the extremes would have missed the worst case.
 
 ## 3 · 🔴 OPEN — the ECGDex third observer has never been exercised
 
@@ -71,14 +94,31 @@ discards, which is where the pathology is worst.
 present in the synthetic corpus. Cheap, and it makes the detector's upper band testable from committed
 bytes rather than only from personal recordings.
 
-## 6 · 🟡 PLAUSIBLE, still unverified — intervals may span skipped windows
+## 6 · ✅ CLOSED 2026-08-17 — the mechanism is real, and the existing guard catches **all** of it
 
-Carried forward from the parent's §2.2 unchanged, because it was never checked: `crossingTimes` is
-concatenated across windows while non-oscillating windows are `continue`d, so two consecutive entries
-can sit either side of a gap. The only guard is `iv > 5 && iv < 300`, and `WIN` is **also** 300 — so a
-gap-spanning pair landing under 300 s would be recorded as a cycle across a stretch explicitly judged
-non-oscillating. **Whether real data produces such a pair is not established.** Check before relying on
-interval continuity.
+The hazard, as carried from the parent's §2.2: `crossingTimes` is concatenated across windows while
+non-oscillating windows are `continue`d, so two consecutive entries can sit either side of a gap. The
+only guard is `iv > 5 && iv < 300`, and `WIN` is **also** 300.
+
+**MEASURED on the same 61 nights**, replicating `computePatternScores`' construction
+(`oxydex-dsp.js:991–1031`) against the shipped parser:
+
+| | count |
+|---|---|
+| intervals examined | 2438 |
+| intervals that straddle a **skipped** window | **184** |
+| …of those, kept by the `5 < iv < 300` guard | **0** |
+
+**The mechanism is real — 184 of 2438 intervals do straddle a non-oscillating window — and not one
+survives.** So this is not a latent bug that happens not to have fired; it cannot fire, and the reason
+is structural rather than lucky: **to straddle a whole skipped window an interval must exceed the window
+width, and the guard is set at exactly the window width.** `iv < 300` with `WIN = 300` is the correct
+bound, not a coincidence.
+
+⚠️ **That coupling is now load-bearing and undocumented in the code.** If `OSC_WINDOW_SEC` is ever
+changed without changing the interval guard to match, gap-spanning pairs start being recorded as cycles.
+The cheap protection is a comment at `oxydex-dsp.js:1026` tying the two constants together — worth doing
+on the next touch of that function (see §1, which wants a comment in the same place).
 
 ---
 
