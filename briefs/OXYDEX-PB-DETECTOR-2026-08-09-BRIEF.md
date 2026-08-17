@@ -292,13 +292,34 @@ corroboration and by the OxyDex reference guide, both of which move with it.
       the worst-LVEF group (mean cycle 86 ± 23 s). `computePatternScores` already used 40–130, so the
       two sites agree **without a code change at that site**; the brief's 40–90 is what moves.
       Still open: `SYNTHETIC-CORPUS-BRIEF`'s ~40–90 s generator default should widen to match.
-- [ ] The detector implements all FOUR criteria (§2.3 added regularity), with the cycle test **gating** the decision rather
-      than being computed after it.
-- [ ] §3.1's adversarial twin pair is committed and the detector separates them — and the test is shown
-      to FAIL against the current detector, which cannot.
-- [ ] §3.1's **third twin** — pure AR(1) red noise at the corpus-measured ρ, no oscillation planted —
-      produces **no episode**, with the ρ and its sampling rate stated. A detector that clears the
-      periodic/aperiodic pair but not this one is not finished.
+- [x] **All FOUR criteria implemented and GATING — 2026-08-17** (`detectSpO2Periodicity`, #1395; wired
+      into `detectOscillations` in #1398). Baseline-relative crossings of a rolling median · cycle
+      length in 40–130 s · ≥ `PB_MIN_CYCLES` consecutive cycles from **disjoint** pairs · cycle-length
+      **regularity** (CV < `PB_MAX_CYCLE_CV`). The cycle test decides the episode rather than being
+      computed after it, and the fixed 300 s window is gone entirely — four cycles at up to 130 s need
+      520 s and could never have fitted the window they were scored in.
+      `PB_MIN_CYCLES` is **4**, one above AASM's floor of 3: at 3 the aperiodic twin false-positives on
+      **5/40** seeds, at 4 it is **0/40** with true positives unchanged at 40/40. Recorded because it is
+      a deliberate instrument-specific deviation, not a rounding.
+- [x] **§3.1's twin pair committed and separated — group `oxydex · pb-detector`, 7/7** (#1395).
+      ⚠️ **The second half of this box — "shown to FAIL against the current detector" — is NOT satisfied
+      by a committed test, and is ticked on other evidence.** The old detector no longer exists to run
+      the twins against, so a red-then-green demonstration is no longer constructible in-tree. What
+      stands in its place: (a) the old gate was `lowMotion && sustained && cross >= OSC_FLAG_CROSSINGS`,
+      containing **no term that depends on crossing SPACING**, so it could not separate the twins as a
+      matter of construction rather than of tuning; (b) the paired corpus measurement over 18 identical
+      nights — nights firing **14/18 → 4/18**, episodes **119 → 5**. Written down plainly because "the
+      test fails against the old code" is exactly the claim that quietly becomes unverifiable once the
+      old code is deleted.
+- [x] **§3.1's third twin — red noise — produces no episode** (#1395). AR(1) **ρ = 0.98** at **1 Hz**
+      (the oximetry sample rate), no oscillation planted: **0/20 seeds fire**, run over 20 seeds rather
+      than one. Carries an anti-vacuity leg asserting the twin is rejected **by regularity**
+      (`longestRun >= 3 && cycleCV >= 0.13`) rather than by producing no cycles at all — without it, a
+      detector that never fires would pass this twin and the aperiodic one for free.
+      ⚠️ **ρ = 0.98 is still INHERITED from `OXYDEX-FFT-CYCLE-NULL`, not measured on this corpus**, which
+      is what the box actually asked for. Left as a stated limitation rather than silently satisfied: if
+      the real ρ differs materially, §2.3's CV table must be regenerated at that ρ before the 0.13
+      threshold is trusted.
 - [x] **§3.2's corpus decorrelation MEASURED 2026-08-16 — r = 0.910 → 0.370.** Paired on the **same
       42 nights**, old code vs wired (`tools/pb-operating-point.mjs`): nights flagged 38/42 → 16/42;
       episodes vs % time below 95 % **0.910 → 0.370**; episodes vs mean SpO₂ −0.832 → −0.380. Stated
@@ -311,13 +332,16 @@ corroboration and by the OxyDex reference guide, both of which move with it.
 - [ ] §3.3's κ is reported beside −0.039, explicitly as an observation.
       **BASELINE MEASURED 2026-08-17; the new detector's κ is still owed.**
       > ⚠️ **A "BLOCKED — not on this machine" note stood here for a few hours and was WRONG.** It is
-      > left described rather than deleted because the mistake is instructive: I searched
-      > `/run/media/michal/647A504F7A50205A` — **one volume** — found no `DATALOG`/`STR.edf`, and wrote
-      > *"not on this machine"*. There are **two** mounted volumes. The CPAP corpus is on the other one,
-      > at **`/run/media/michal/data/Ecg-nightly-archive/CPAP`** — **192 night folders → 189 exports**,
-      > in the exact `<root>/YYYYMMDD/YYYYMMDD_HHMMSS_{BRP,PLD,SA2,EVE,CSL}.edf` layout the tool wants.
-      > Measuring one volume and reporting a conclusion about *the machine* is the same over-claim this
-      > repo keeps paying for, in the direction that manufactures a blocker instead of a pass.
+      > left described rather than deleted because the mistake is instructive — and the FIRST correction
+      > to it was also wrong. The corpus is **`<647A>/Ecg nightly/CPAP`**, 192 night folders (2026-01-11
+      > → 07-21, 1194 files), i.e. inside a path `CORPUS-LOCATIONS.md` already listed. It is mirrored
+      > byte-identically at `/run/media/michal/data/Ecg-nightly-archive/CPAP`.
+      > What actually happened: I searched for `DATALOG`/`STR.edf`, **neither of which exists in this
+      > layout**, and that `find` **timed out at 120 s** and returned an empty file, which I read as a
+      > negative. Then, told the data existed, I found the mirror and concluded "it was on the volume I
+      > never searched" — a tidy story that fit the symptom and was still wrong. A wrong search term plus
+      > an unfinished search produced a false absence; the first explanation that fit was not re-tested
+      > against the volume already walked.
 
       **Baseline κ, old-code exports, 29 paired nights:** device PB 4/29, OxyDex PB **26/29**,
       **κ = −0.051**, burden r = −0.494 where both fire (n = 3). That 26/29 is the *old* 90 % flagging.
