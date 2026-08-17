@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** REFERENCE · **Created:** 2026-08-16 · **last-verified:** 2026-08-16
+**Status:** REFERENCE · **Created:** 2026-08-16 · **last-verified:** 2026-08-17
 
 # Interdisciplinary literature diagnosis — established methods around Tepna
 
@@ -342,9 +342,28 @@ sentence, until reconciled.
 > in the abstract — the same ordering hazard as a stale `PROPOSED` header. Corroborated independently:
 > every PAT SD in this corpus measures that 450 ms window, and the honest beat-to-beat figure is ~68 ms.
 >
-> **Deliberately NOT fixed here.** `papers/` has a served `docs/` twin, so editing the paper stales
-> `build-docs` and owes a rebuild — a separate work-unit, not a footnote to adopting this brief. The
-> brief's own instruction (cite the correction record, not the stale sentence) is the correct interim.
+> **~~Deliberately NOT fixed here.~~ FIXED 2026-08-17 — the separate work-unit was done.** `papers/`
+> has a served `docs/` twin, so editing the paper stales `build-docs` and owes a rebuild; that is why
+> adopting this brief correctly parked it rather than footnoting it. Now carried out:
+>
+> - The **heading** was the worst surface — `2.7 … is ~~drift-dominated~~ limited by peripheral
+>   beat-to-beat scatter` put the retracted mechanism in the section *title*, so it reached anyone
+>   scanning the contents. Now `~~limited by peripheral beat-to-beat scatter~~ unrecoverable — cause OPEN`.
+> - The **body claim** is struck and retained for the record, preceded by the correction, so the
+>   reader meets the retraction *before* the number rather than only in the abstract.
+> - The **disposition** it justified (*"needs better peripheral foot timing"*) is struck too. That is
+>   the part that mattered: a withdrawn number had been left setting a live research direction.
+> - **No replacement "true limit" is named**, deliberately. The repo carries two candidate figures
+>   under different conditions — within-bin σ ~68 ms (46–94) and 10–23 ms on 3 of 6 box nights with the
+>   axis fixed — **neither gate-backed**. Naming one would repeat this section's own error at a smaller
+>   scale. (Caught while writing the fix: the first draft asserted ~68 ms flatly as *"the honest
+>   figure"*, which the sibling paper's 10–23 ms contradicts.)
+>
+> **Scope, verified rather than assumed:** `papers/papers.html` and `papers/wearable-clock-drift.html`
+> **already** carried the v3 withdrawal, so `dead-ends.html` §2.7 was the only surface still asserting
+> it — this brief's diagnosis was exactly right and exactly bounded. `docs/papers/dead-ends.html`
+> rebuilt; `verify:docs` clean. ⚠️ `build-docs.mjs` printed nine paths to stage, **none of which had
+> changed**, and omitted the twin it had just rewritten — CLAUDE.md's warning, reproduced verbatim.
 
 ## 7 · Immediate priorities
 
