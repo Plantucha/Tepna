@@ -5944,6 +5944,97 @@
           measurement made over 563 minutes and over 28. The naive rule failed 25 of 40 device-nights
           and would have contradicted WEARABLE-DRIFT-DIRECT §1 — which was right, because it filtered
           to fragments > 3 MB. This is what `hostAxis.stability.ppmUncertainty` is FOR. */
+    /* THE BEAT-CORRESPONDENCE AUDIT — `tools/beat-correspondence.mjs`, the Victor–Purpura edit
+       distance on beat trains (INTERDISCIPLINARY-LITERATURE §13h.2; Victor & Purpura 1996). The tool
+       walks a corpus CI does not have, so the gate drives its PURE core by value with PLANTED truth.
+       Two of these assertions encode bugs the first version shipped with, found by the selftest:
+       an index-paired offset estimator that the indels being counted poisoned (1 planted insertion →
+       d=1,i=2 reported), and a q-extreme expectation that asserted a number the band forbids. */
+    group('beat correspondence recovers planted indels and refuses at the band edge', 'tools · beat-correspondence', function (T) {
+      var BC = env.beatCorrespondence;
+      if (!BC) {
+        T.skip('beat-correspondence is loaded in this lane', 'browser lane cannot ESM-import a tool');
+        return;
+      }
+      var seed = 424242;
+      var rnd = function () {
+        seed = (seed * 16807) % 2147483647; // MINSTD — exact in a double
+        return seed / 2147483647 - 0.5;
+      };
+      var A = [];
+      var t = 0;
+      for (var i = 0; i < 3000; i++) {
+        t += 1000 + 120 * rnd();
+        A.push(t);
+      }
+
+      // Identity + jitter: everything matches. The audit's zero point.
+      var B1 = A.map(function (x) {
+        return x + 40 + 20 * rnd();
+      });
+      var r = BC.vpAlign(A, B1, { q: 1 / 150, band: 32 });
+      T.ok(
+        'a jittered identical train matches completely, zero indels',
+        r.ok === true && r.deletionsA === 0 && r.insertionsB === 0 && r.matched === 3000,
+        JSON.stringify({ d: r.deletionsA, i: r.insertionsB, m: r.matched })
+      );
+
+      /* THE AUDIT CASE — planted indels recovered EXACTLY. This is the assertion that failed on the
+         first implementation (reported 9/6 for a planted 7/4): the offset was the median of
+         tB[i+lag]−tA[i], and a single insertion shifts every later index pairing by one whole beat,
+         so 90 % of sampled deltas landed one RR off and the median picked the wrong population. The
+         estimator was poisoned by exactly the thing being counted. Nearest-neighbour deltas ignore
+         indices; this pins that fix. */
+      var B2 = A.map(function (x) {
+        return x + 40 + 20 * rnd();
+      });
+      var delIdx = [200, 500, 900, 1400, 1900, 2300, 2800];
+      for (var d = delIdx.length - 1; d >= 0; d--) B2.splice(delIdx[d], 1);
+      var insAt = [300, 1100, 1700, 2500];
+      for (var g = 0; g < insAt.length; g++) B2.splice(insAt[g], 0, (B2[insAt[g] - 1] + B2[insAt[g]]) / 2 + 100 * rnd());
+      B2.sort(function (x, y) {
+        return x - y;
+      });
+      r = BC.vpAlign(A, B2, { q: 1 / 150, band: 32 });
+      T.ok('planted 7 deletions + 4 insertions are recovered EXACTLY', r.ok === true && r.deletionsA === 7 && r.insertionsB === 4, JSON.stringify({ d: r.deletionsA, i: r.insertionsB }));
+      T.eq('matched = n − deletions, so nothing is double-counted', r.matched, 3000 - 7);
+
+      // The anchor: a planted −25-beat lag recovered from INTERVALS (aperiodic), not times (comb).
+      var B3 = A.slice(25).map(function (x) {
+        return x + 40 + 15 * rnd();
+      });
+      var rrA = A.slice(1).map(function (x, ix) {
+        return x - A[ix];
+      });
+      var rrB3 = B3.slice(1).map(function (x, ix) {
+        return x - B3[ix];
+      });
+      var an = BC.nccAnchor(rrA, rrB3, 200);
+      T.ok('nccAnchor recovers a planted −25-beat lag from interval sequences', an.ok === true && an.lag === -25, JSON.stringify({ lag: an.lag }));
+
+      /* THE BAND EDGE REFUSES. A lag past the band must not return a confident wrong alignment —
+         "a result piled against a window edge is the window, not the signal" (CROSS-DEVICE-DRIFT §4),
+         here enforced as ok:false rather than left to the reader. */
+      r = BC.vpAlign(A, B3, { q: 1 / 150, band: 8, lag: 0 });
+      T.ok('an out-of-band lag REFUSES rather than reporting', r.ok === false, r.reason);
+
+      /* q AT ITS EXTREMES — both wrong in OPPOSITE directions, which is why 2/q is a stated choice.
+         q→0 absorbs planted indels as cheap matches (the audit under-counts); q→∞ with an explicit
+         off-median offset makes every beat an indel. The offset must be explicit because the
+         estimated offset is the MEDIAN of sampled deltas, so one residual is exactly 0 by
+         construction and matches at ANY q — an expectation the first version got wrong. */
+      var rLo = BC.vpAlign(A, B2, { q: 1e-9, band: 32 });
+      T.ok('q→0 under-counts the planted indels (absorbed as cheap matches)', rLo.ok === true && rLo.deletionsA + rLo.insertionsB < 11, String(rLo.deletionsA + rLo.insertionsB));
+      var As = A.slice(0, 60),
+        Bs = B1.slice(0, 60);
+      var rHi = BC.vpAlign(As, Bs, { q: 1e6, band: 70, offsetMs: 0 });
+      T.ok('q→∞ with an off-median offset makes every beat an indel', rHi.ok === true && rHi.matched === 0 && rHi.deletionsA === 60 && rHi.insertionsB === 60, JSON.stringify({ m: rHi.matched }));
+
+      // Degenerate input refuses rather than fabricating.
+      T.ok('empty and single-beat trains refuse', BC.vpAlign([], [], {}).ok === false && BC.vpAlign([1], [1], {}).ok === false);
+      T.ok('nccAnchor refuses under 32 intervals', BC.nccAnchor([1, 2], [1, 2], 10).ok === false);
+    });
+
     group('device stability compares at one τ and judges rates through their error bars', 'device-stability · per-device-sigma', function (T) {
       var DS = env.deviceStability;
       if (!DS) {
