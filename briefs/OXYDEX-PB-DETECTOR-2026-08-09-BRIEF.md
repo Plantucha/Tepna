@@ -98,6 +98,49 @@ brief, which the `citation-ledger` gate deliberately does not cover; **moving an
 `oxydex-dsp.js` requires a matching `audits/CITATION-VERIFICATION-*.json` entry**, since root `*.js`
 *is* a gated surface.
 
+### 2.2 · ⚠ The interval machinery already exists — and it is NOT fit to gate on as written (measured 2026-08-16)
+
+§2's criterion 2 says the cycle length is *"computed afterwards and discarded"*. That is right, and it
+implies a cheap plan: reuse `computePatternScores`'s existing `crossingTimes` → `intervals` →
+`cycleIntervals` (`oxydex-dsp.js:980–1036`) instead of writing new interval code. **Do not do that
+without fixing the following first.** Each item below is marked with how strongly it is established.
+
+**🔴 CONFIRMED by measurement — the cycle COUNT is inflated, and it defeats criterion 3.**
+`cycleIntervals` is built by sliding one half-cycle at a time —
+`for (i…) cycleIntervals.push(intervals[i] + intervals[i+1])` — so consecutive entries **share a
+half-cycle**. For `k` true cycles it reports `2k − 1`:
+
+| true cycles | 1 | 2 | 3 | 4 | 5 | 10 |
+|---|---|---|---|---|---|---|
+| `cycleIntervals.length` | 1 | **3** | 5 | 7 | 9 | 19 |
+
+So **2 real cycles satisfy a naive `cycleIntervals.length >= 3`** — precisely the case §2's criterion 3
+exists to reject (*"one dip is not periodicity; the word requires repetition"*), and precisely the count
+AASM sets at ≥ 3. A count criterion must use **disjoint** pairing (`i += 2`) or divide by two; the
+existing array is a sliding view, not a cycle list.
+
+**🟢 REFUTED — the overlap does NOT bias `pbCycleLenSD`, so do not "fix" that.** The obvious follow-on
+worry is that overlapping windows are correlated and understate dispersion, making everything look more
+regular than it is. Measured on alternating 20/40 s half-cycles with jitter: overlapping SD **1.43** vs
+disjoint **1.41**, and the means are identical. The SD is honest; only the **count** is wrong. Recorded
+because this is a plausible-sounding claim that a later session would otherwise re-derive and act on.
+
+**🔴 CERTAIN from the code — the machinery is BLIND on a high-baseline wearer.** Line 988 is
+`if (segMean >= THRESH) continue;` with `THRESH = SPO2_OSC_THRESHOLD = 95`. Any 5-minute window whose
+**mean** SpO₂ is ≥ 95 contributes no crossings at all, so for a wearer sitting at 96–97 % `pbCycleLen`
+is `null` **by construction**, however cleanly they oscillate. This is §2's criterion 1 (baseline-relative
+thresholds) seen from the other side, and it is worth checking against the parent's measured
+*0/24 nights corroborating* before assuming that number reflects the wearer rather than this line.
+
+**🟡 PLAUSIBLE, NOT VERIFIED — intervals may span skipped windows.** `crossingTimes` is concatenated
+across windows while non-oscillating windows are `continue`d, so two consecutive entries can sit either
+side of a gap. The only guard is `iv > 5 && iv < 300`, and `WIN` is *also* 300, so a gap-spanning pair
+that lands under 300 s would be recorded as a cycle across a stretch that was explicitly judged
+non-oscillating. Whether real data produces such a pair is **not established here** — check it before
+relying on interval continuity.
+
+**Also noted:** `lastCross` (line 989) is assigned and never read.
+
 ## 3 · Validation — and the hard part is that there is no ground truth
 
 The obvious plan is "agree with the CPAP better than κ = −0.039". **That plan is not sufficient and
