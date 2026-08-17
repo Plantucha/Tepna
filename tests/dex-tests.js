@@ -10529,6 +10529,75 @@
       T.approx('…including a mean RR the beats actually have', same && same.statsA.meanRR, 1024, 1);
       T.approx('…and the HR that implies', same && same.statsA.hr, 58.6, 0.5);
     });
+    /* ── OXYDEX FABRICATES A CLINICAL STRATIFICATION, NOT MERELY A ZERO (§2.6) ──────────────────
+       All three metrics below are `emerging` with goodDirection `down`, so 0 is the BEST value the
+       scale can express — and `sbiiQ`/`pred3pQ` name the lowest-risk SHHS quintile outright.
+       Returning those from insufficient data publishes a judgement that was never made. `sbii` is
+       cited as "best oximetry predictor of CVD mortality (Hui 2024, Respirology 29:825)".
+
+       The DIRECTION is what makes this a class rather than three bugs: every surfaced default fails
+       toward the reassuring answer — 0 desaturations, 0 crashes, 0 severity, lowest quintile.
+       Missing data always read as healthy.
+
+       THE PAIRED CASE IS THE POINT. computeSBII has two exits. `n < 60 || durationHr <= 0` could
+       not look, so it refuses. `!nadirEvents.length` is reached only AFTER that guard passed — the
+       night was long enough and the detector found nothing, a real measurement whose honest answer
+       IS 0/Q1(low). Nulling that would fabricate ABSENCE and destroy a true negative, the mirror of
+       the defect being fixed. Refuse when you could not look; report zero when you looked and found
+       nothing. Both are asserted, because a fix that only moves the failure is not a fix. */
+    group('OxyDex/PpgDex insufficient input REFUSES — a quintile is not a default (§2.6)', 'oxydex-dsp · ppgdex-dsp · fabricated-absence · known-answer', function (T) {
+      var O = (env.OxyDex && env.OxyDex._bare) || env.OxyDSP || null;
+      if (!O || typeof O.computeSBII !== 'function') {
+        T.skip('OxyDex._bare.computeSBII exposed', 'oxydex-dsp not wired in this lane');
+      } else {
+        var few = [];
+        for (var i = 0; i < 10; i++) few.push({ spo2: 96, hr: 60, t: i });
+        var sb = O.computeSBII(few, 10 / 3600);
+        T.eq('computeSBII under 60 samples refuses sbii (was 0 — the BEST value on a down scale)', sb && sb.sbii, null);
+        T.eq('…and refuses the QUINTILE rather than publishing Q1(low)', sb && sb.sbiiQ, null);
+
+        if (typeof O.computePRED3p === 'function') {
+          var pr = O.computePRED3p([], [], []);
+          T.eq('computePRED3p with no rows refuses pred3p', pr && pr.pred3p, null);
+          T.eq('…and its quintile', pr && pr.pred3pQ, null);
+        } else T.skip('computePRED3p exposed', 'not on this build');
+
+        if (typeof O.computeDesSev === 'function') {
+          var ds = O.computeDesSev(few);
+          T.eq('computeDesSev under 60 samples refuses desSev', ds && ds.desSev, null);
+        } else T.skip('computeDesSev exposed', 'not on this build');
+
+        /* The consumer is where a refusal normally gets undone: `0.6 * null` is 0, so an absent
+           DesSev silently dropped its term and the AHI estimate came out LOW. */
+        if (typeof O.computeAHIestimates === 'function') {
+          var ahi = O.computeAHIestimates(5, 8, null, 3);
+          T.eq('ahiKulkas refuses when DesSev is absent — 0.6*null would have under-reported AHI', ahi && ahi.ahiKulkas, null);
+          T.ok('…while ahiODI4 still computes from the input it DOES have', ahi && ahi.ahiODI4 != null, 'ahiODI4 ' + (ahi && ahi.ahiODI4));
+          var ahi2 = O.computeAHIestimates(null, 8, 2, 3);
+          T.eq('…and ahiODI4 refuses when ODI-4 is absent (null*1.1 was 0.0)', ahi2 && ahi2.ahiODI4, null);
+        } else T.skip('computeAHIestimates exposed', 'not on this build');
+      }
+
+      /* 🔴 PPGDEX `cvhrFromNN` IS DELIBERATELY NOT PART OF THIS FIX, and the reason is worth keeping
+         because two sessions independently concluded the opposite.
+
+         It has the identical shape — `if (N < 60) return { events: [], index: 0 }` — and
+         `ppgdex-dsp.js:1885` says the Integrator corroborates finger CVHR against ECGDex cardiac
+         CVHR, so "they MUST share a method". That argument is what made nulling it look obviously
+         right. It is wrong, and this suite already said so:
+
+           · 'a 90 s recording refuses rather than guessing' asserts cvhrIndex === 0 — here ZERO is
+             the refusal marker, deliberately
+           · 'the golden carries apnea.cvhrIndex (a NUMBER — 0 is a measurement, null is not)'
+           · two committed goldens pin it byte-for-byte, and the Integrator's
+             `summary.cvhrIndexWave` corroboration reads a number
+
+         Nulling it broke six assertions across four groups. The fleet made a different contract for
+         the Integrator-facing surface than for ECGDex's internal one, and changing THAT is a
+         decision with goldens and a consumer behind it — not a refactor to slip into a refusal fix.
+         Recorded here rather than in a brief because this is where the next person will look. */
+    });
+
     group('PulseDex indices that cannot be computed report null, not a graded 0 (DA-V §2.6)', 'pulsedex-dsp · fabricated-absence · regression', function (T) {
       var D = env.PulseDex && (env.PulseDex._bare || env.PulseDex);
       if (!(D && typeof D.absIdx === 'function' && typeof D.crsIdx === 'function' && typeof D.siCalc === 'function')) {

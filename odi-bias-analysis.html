@@ -3320,9 +3320,15 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // so the feared over-shoot did NOT materialize. Per the brief's guardrail (do not tune
     // the surrogate to chase the simulator), ×1.1 is retained UNCHANGED — conservative and
     // literature-consistent — rather than inflated to the synthetic-only slope.
-    var ahiODI4 = +(odi4Rate * 1.1).toFixed(1);
+    /* `null * 1.1` is 0, so an absent ODI-4 published an AHI estimate of 0.0 — the most reassuring
+       possible reading of a measurement that never happened. */
+    var ahiODI4 = odi4Rate == null ? null : +(odi4Rate * 1.1).toFixed(1);
     // Internal linear model (concept per Kulkas 2013 DesSev): AHI ≈ 0.8×ODI3 + 0.6×DesSev + 0.15×T95 − 1.2
-    var ahiKulkas = Math.max(0, +(0.8 * odi3Rate + 0.6 * desSevRate + 0.15 * t95Pct - 1.2).toFixed(1));
+    /* REFUSE rather than treat an absent term as zero (§2.6). `0.6 * null` is 0 in JS, so an
+       unmeasured DesSev silently vanished from the sum and the estimate came out LOW — the
+       reassuring direction, from missing data. Each estimate refuses only on the inputs it
+       actually uses, so a missing DesSev does not take ahiODI4 down with it. */
+    var ahiKulkas = odi3Rate == null || desSevRate == null || t95Pct == null ? null : Math.max(0, +(0.8 * odi3Rate + 0.6 * desSevRate + 0.15 * t95Pct - 1.2).toFixed(1));
     return { ahiODI4: ahiODI4, ahiKulkas: ahiKulkas };
   }
 
@@ -4747,7 +4753,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var odi1 = computeODI1(rows, blArr);
     var odi4Rate = odi4 ? odi4.rate : 0;
     var odi3Rate = odi3 ? odi3.rate : 0;
-    var desSevRate = desSev ? desSev.desSev : 0;
+    /* Propagate the refusal. `desSev.desSev` may now be null, and `0.6 * null` is 0 inside
+       computeAHIestimates — which would silently drop the DesSev term and UNDER-estimate AHI,
+       i.e. fail toward the reassuring answer, which is the bias this whole change exists to end. */
+    var desSevRate = desSev ? desSev.desSev : null;
     var t95Pct = stats ? stats.t95pct : 0;
     var ct90Sec = ctPrec ? ctPrec.ct90s || 0 : 0;
     var mos = computeMOS(odi4Rate, ct90Sec);
@@ -8311,7 +8320,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     });
     var n = spo2.length,
       WIN = 300;
-    if (n < 60 || durationHr <= 0) return { sbii: 0, sbiiQ: 'Q1(low)' };
+    /* REFUSE (Clock Contract §2.6). `sbii` is `emerging` with goodDirection `down`, so 0 is the BEST
+       value on the scale — and `Q1(low)` names the lowest-risk SHHS quintile explicitly. Returning
+       those from insufficient data does not merely fabricate a number, it fabricates a CLINICAL
+       STRATIFICATION: the reader sees a judgement already made, not a missing measurement. The cite
+       is "best oximetry predictor of CVD mortality (Hui 2024, Respirology 29:825)". */
+    if (n < 60 || durationHr <= 0) return { sbii: null, sbiiQ: null };
     // Nadir events from the ONE canonical primitive — DEX-EVENT-UNIFY-FOLLOWUPS §1 — scored on
     // the headline desats, not a private MEAN loop.
     //
@@ -8336,6 +8350,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       .filter(function (e) {
         return isFinite(e.depth) && isFinite(e.duration);
       });
+    /* DELIBERATELY NOT A REFUSAL, and the distinction is the whole point of this change. This branch
+       is reached only AFTER the guard above proved n >= 60 and durationHr > 0 — so the night was
+       long enough and the detector simply found no desaturation events. That is a MEASUREMENT, and
+       its honest answer is zero: a clean night genuinely sits in Q1(low). Nulling it here would
+       fabricate ABSENCE where there is a real result, which is the mirror of the defect being fixed
+       and destroys a true negative. Refuse when you could not look; report zero when you looked and
+       found nothing. */
     if (!nadirEvents.length) return { sbii: 0, sbiiQ: 'Q1(low)' };
     var sum = 0;
     nadirEvents.forEach(function (e) {
@@ -8352,7 +8373,11 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   // Proxy from SpO2 only: cumulative duration of all ODI-3 dip events / total time × 100
   function computePRED3p(rows, dip3Events, blArr) {
     var n = rows.length;
-    if (!n) return { pred3p: 0, pred3pQ: 'Q1' };
+    /* REFUSE (§2.6) — no rows at all is an absent measurement, not a clean night. `pred3p` is
+       `emerging`, goodDirection `down`, so 0 is the best value on its scale, and `Q1` is the
+       lowest-risk SHHS quintile. Contrast the nadir-events branch in computeSBII, which DOES
+       report zero: there the night was long enough and the detector found nothing. */
+    if (!n) return { pred3p: null, pred3pQ: null };
     // dip3Events: array of {start, end} indices from ODI-3 detection
     // We build this inline from rows
     var spo2 = rows.map(function (r) {
@@ -8384,7 +8409,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       return r.spo2;
     });
     var n = rows.length;
-    if (n < 60) return { desSev: 0 };
+    /* REFUSE (§2.6). `desSev` is `emerging`, goodDirection `down` — 0 is the best value it can
+       report, so under a minute of data it published the most reassuring possible answer. */
+    if (n < 60) return { desSev: null };
     // Desaturation area (Kulkas) — area = Σ per-second deficit vs each event's onset baseline,
     // scored over the CANONICAL ODI event set.
     //
@@ -8662,7 +8689,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
             try {
               var o4r = obj.odi4 && obj.odi4.rate != null ? obj.odi4.rate : 0;
               var o3r = obj.odi3 && obj.odi3.rate != null ? obj.odi3.rate : 0;
-              var dsev = obj.desSev && obj.desSev.desSev != null ? obj.desSev.desSev : 0;
+              /* null, not 0 — see computeAHIestimates: substituting 0 for an unmeasured DesSev
+                 drops its term from the Kulkas estimate and under-reports AHI. */
+              var dsev = obj.desSev && obj.desSev.desSev != null ? obj.desSev.desSev : null;
               var t95 = obj.stats && obj.stats.t95pct != null ? obj.stats.t95pct : 0;
               return computeAHIestimates(o4r, o3r, dsev, t95);
             } catch (e) {

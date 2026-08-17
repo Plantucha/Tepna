@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2c+NhGS5baEp+dkR92QyPev/wf2fl0amYca/JbyYiCk=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-7oHiD+bMFu7PAJ8DITaVlISLmk0rNQd3hvceyXJVJOE=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-KT37bp0y0ke8bMQOKs4x1LCCi2NIvgysOwzCVi14uPk=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-Zg0VuZposJeHUmYwdGlxPYv7/96XL9I90WDHTkIO/fI=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-vTHcYCT7T8BXXhlHTAa4nKdoEsbp2BN90lPR9Y8llUE=' 'sha256-yjtp8MVnI3SuljHutpPt9A8O4mMvt4dI82G2xauua68='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2c+NhGS5baEp+dkR92QyPev/wf2fl0amYca/JbyYiCk=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-7oHiD+bMFu7PAJ8DITaVlISLmk0rNQd3hvceyXJVJOE=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-KT37bp0y0ke8bMQOKs4x1LCCi2NIvgysOwzCVi14uPk=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-Zg0VuZposJeHUmYwdGlxPYv7/96XL9I90WDHTkIO/fI=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rupbBl3hLsTFmaCOw1mTGiExJ69AQfvTUl41uKIdkeU=' 'sha256-vTHcYCT7T8BXXhlHTAa4nKdoEsbp2BN90lPR9Y8llUE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -4532,9 +4532,15 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     // so the feared over-shoot did NOT materialize. Per the brief's guardrail (do not tune
     // the surrogate to chase the simulator), ×1.1 is retained UNCHANGED — conservative and
     // literature-consistent — rather than inflated to the synthetic-only slope.
-    var ahiODI4 = +(odi4Rate * 1.1).toFixed(1);
+    /* `null * 1.1` is 0, so an absent ODI-4 published an AHI estimate of 0.0 — the most reassuring
+       possible reading of a measurement that never happened. */
+    var ahiODI4 = odi4Rate == null ? null : +(odi4Rate * 1.1).toFixed(1);
     // Internal linear model (concept per Kulkas 2013 DesSev): AHI ≈ 0.8×ODI3 + 0.6×DesSev + 0.15×T95 − 1.2
-    var ahiKulkas = Math.max(0, +(0.8 * odi3Rate + 0.6 * desSevRate + 0.15 * t95Pct - 1.2).toFixed(1));
+    /* REFUSE rather than treat an absent term as zero (§2.6). `0.6 * null` is 0 in JS, so an
+       unmeasured DesSev silently vanished from the sum and the estimate came out LOW — the
+       reassuring direction, from missing data. Each estimate refuses only on the inputs it
+       actually uses, so a missing DesSev does not take ahiODI4 down with it. */
+    var ahiKulkas = odi3Rate == null || desSevRate == null || t95Pct == null ? null : Math.max(0, +(0.8 * odi3Rate + 0.6 * desSevRate + 0.15 * t95Pct - 1.2).toFixed(1));
     return { ahiODI4: ahiODI4, ahiKulkas: ahiKulkas };
   }
 
@@ -5959,7 +5965,10 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var odi1 = computeODI1(rows, blArr);
     var odi4Rate = odi4 ? odi4.rate : 0;
     var odi3Rate = odi3 ? odi3.rate : 0;
-    var desSevRate = desSev ? desSev.desSev : 0;
+    /* Propagate the refusal. `desSev.desSev` may now be null, and `0.6 * null` is 0 inside
+       computeAHIestimates — which would silently drop the DesSev term and UNDER-estimate AHI,
+       i.e. fail toward the reassuring answer, which is the bias this whole change exists to end. */
+    var desSevRate = desSev ? desSev.desSev : null;
     var t95Pct = stats ? stats.t95pct : 0;
     var ct90Sec = ctPrec ? ctPrec.ct90s || 0 : 0;
     var mos = computeMOS(odi4Rate, ct90Sec);
@@ -9523,7 +9532,12 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     });
     var n = spo2.length,
       WIN = 300;
-    if (n < 60 || durationHr <= 0) return { sbii: 0, sbiiQ: 'Q1(low)' };
+    /* REFUSE (Clock Contract §2.6). `sbii` is `emerging` with goodDirection `down`, so 0 is the BEST
+       value on the scale — and `Q1(low)` names the lowest-risk SHHS quintile explicitly. Returning
+       those from insufficient data does not merely fabricate a number, it fabricates a CLINICAL
+       STRATIFICATION: the reader sees a judgement already made, not a missing measurement. The cite
+       is "best oximetry predictor of CVD mortality (Hui 2024, Respirology 29:825)". */
+    if (n < 60 || durationHr <= 0) return { sbii: null, sbiiQ: null };
     // Nadir events from the ONE canonical primitive — DEX-EVENT-UNIFY-FOLLOWUPS §1 — scored on
     // the headline desats, not a private MEAN loop.
     //
@@ -9548,6 +9562,13 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       .filter(function (e) {
         return isFinite(e.depth) && isFinite(e.duration);
       });
+    /* DELIBERATELY NOT A REFUSAL, and the distinction is the whole point of this change. This branch
+       is reached only AFTER the guard above proved n >= 60 and durationHr > 0 — so the night was
+       long enough and the detector simply found no desaturation events. That is a MEASUREMENT, and
+       its honest answer is zero: a clean night genuinely sits in Q1(low). Nulling it here would
+       fabricate ABSENCE where there is a real result, which is the mirror of the defect being fixed
+       and destroys a true negative. Refuse when you could not look; report zero when you looked and
+       found nothing. */
     if (!nadirEvents.length) return { sbii: 0, sbiiQ: 'Q1(low)' };
     var sum = 0;
     nadirEvents.forEach(function (e) {
@@ -9564,7 +9585,11 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   // Proxy from SpO2 only: cumulative duration of all ODI-3 dip events / total time × 100
   function computePRED3p(rows, dip3Events, blArr) {
     var n = rows.length;
-    if (!n) return { pred3p: 0, pred3pQ: 'Q1' };
+    /* REFUSE (§2.6) — no rows at all is an absent measurement, not a clean night. `pred3p` is
+       `emerging`, goodDirection `down`, so 0 is the best value on its scale, and `Q1` is the
+       lowest-risk SHHS quintile. Contrast the nadir-events branch in computeSBII, which DOES
+       report zero: there the night was long enough and the detector found nothing. */
+    if (!n) return { pred3p: null, pred3pQ: null };
     // dip3Events: array of {start, end} indices from ODI-3 detection
     // We build this inline from rows
     var spo2 = rows.map(function (r) {
@@ -9596,7 +9621,9 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       return r.spo2;
     });
     var n = rows.length;
-    if (n < 60) return { desSev: 0 };
+    /* REFUSE (§2.6). `desSev` is `emerging`, goodDirection `down` — 0 is the best value it can
+       report, so under a minute of data it published the most reassuring possible answer. */
+    if (n < 60) return { desSev: null };
     // Desaturation area (Kulkas) — area = Σ per-second deficit vs each event's onset baseline,
     // scored over the CANONICAL ODI event set.
     //
@@ -9874,7 +9901,9 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
             try {
               var o4r = obj.odi4 && obj.odi4.rate != null ? obj.odi4.rate : 0;
               var o3r = obj.odi3 && obj.odi3.rate != null ? obj.odi3.rate : 0;
-              var dsev = obj.desSev && obj.desSev.desSev != null ? obj.desSev.desSev : 0;
+              /* null, not 0 — see computeAHIestimates: substituting 0 for an unmeasured DesSev
+                 drops its term from the Kulkas estimate and under-reports AHI. */
+              var dsev = obj.desSev && obj.desSev.desSev != null ? obj.desSev.desSev : null;
               var t95 = obj.stats && obj.stats.t95pct != null ? obj.stats.t95pct : 0;
               return computeAHIestimates(o4r, o3r, dsev, t95);
             } catch (e) {
