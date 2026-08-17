@@ -64,3 +64,35 @@ I reported §2.3 as "confirmed absent" earlier in this session after grepping
 `uncertaintyMs|timingUncertainty|eventUncertainty` across `*.js`. The implementation is Python, so that
 query could not have found it whatever the answer was - a search whose scope excluded the answer,
 reported as a negative. An empty result is a statement about where you looked.
+
+SECOND FIELD CLOSED — §4 (GNSS integer ambiguity resolution), [REINVENTED].
+
+That entry claimed the ratio test "answers is this alignment trustworthy on this night, which the suite
+currently cannot answer at all". That is false as of INTEGRATOR-PAT-VASCULAR §2-RESULT-IV, which built
+exactly it: the R-to-foot offset is ambiguous MODULO ONE RR and beat TIMES cannot resolve it; it is
+resolved by normalised cross-correlation of the ECG RR sequence against the PPG PPI sequence over
+INTEGER BEAT-INDEX LAGS; and it is validated by the MARGIN between best and second-best lag, reported
+per night, the two populations separating by three orders of magnitude (2 of 29 nights recoverable,
+ncc 0.995-0.996, margin 0.196-0.223, PAT SD 28.1 / 36.8 ms - inside pat-gate's 60 ms bar).
+
+That margin IS the GNSS ratio test, independently rebuilt under a different name on a different signal.
+
+What GNSS still adds, one real item: the fixed-failure-rate ratio test (Teunissen & Verhagen) sets the
+acceptance threshold from a target false-fix probability rather than a constant. §2-RESULT-IV needs no
+threshold today because its separation is 10^3 - a property of this corpus, not of the method.
+
+REJECTED with the reason: LAMBDA's decorrelation does not apply. The Z-transformation exists because a
+MULTI-DIMENSIONAL float-ambiguity covariance is elongated and makes integer least-squares expensive. The
+beat-lag ambiguity is ONE-dimensional, where integer least-squares is rounding and decorrelation is a
+no-op. Importing the toolbox would be machinery for a dimension the problem does not have.
+
+STILL OPEN: cycle-slip detection. A dropped or inserted beat is formally a cycle slip; GNSS detects them
+explicitly and the suite does not - JOINT-UNWRAP-ATTEMPT measured slips wrecking a cumulative unwrap with
+no detector for them.
+
+METHOD NOTE. Grep could not reach this: the queue says "integer ambiguity", the repo says "ambiguous
+modulo one RR" and "margin", and the two share no token. A loopback bge-m3 semantic index over all 4374
+brief sections surfaced §2-RESULT-IV at rank 3 for the field's own description. Calibrated before use
+with a control LADDER - three known-answer rungs landing 0.60-0.66 and a nonsense rung flooring at 0.42 -
+and every hit was opened and read. The retrieval is a candidate generator, never evidence; the index and
+harness stay in the scratchpad, uncommitted, out of every verification path.
