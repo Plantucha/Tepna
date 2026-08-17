@@ -320,12 +320,35 @@ corroboration and by the OxyDex reference guide, both of which move with it.
       > repo keeps paying for, in the direction that manufactures a blocker instead of a pass.
 
       **Baseline κ, old-code exports, 29 paired nights:** device PB 4/29, OxyDex PB **26/29**,
-      **κ = −0.051**, burden r = −0.494 where both fire (n = 3). That 26/29 is the *old* 90 % flagging,
-      so this is the number the new detector must be compared *against*, not its result.
-      **Still owed:** the committed `uploads/trio` exports were produced by the old code, so κ for the
-      new detector requires regenerating them (`tools/trio-batch.mjs --src <captures> --out <scratch>`,
-      never over `uploads/trio`, which is tracked). Only **20** of the 51 trio nights have raw captures
-      locally, so the paired comparison will be on those, old vs new, on identical nights.
+      **κ = −0.051**, burden r = −0.494 where both fire (n = 3). That 26/29 is the *old* 90 % flagging.
+      (It sits beside the parent's −0.039, which was a different night set; both are ~0, i.e. chance.)
+
+      🔴 **κ FOR THE NEW DETECTOR IS NOT COMPUTABLE FROM LOCAL DATA, and the reason is a date gap, not
+      a missing corpus.** The CPAP corpus runs **2026-01-11 → 2026-07-21**. The raw captures needed to
+      re-run OxyDex live in `/home/michal/tepna-smoketest/captures`, which starts **2026-07-16**. The
+      intersection is **5 nights**, and on those the *device* scored PB on **0** of 5 — so κ is
+      degenerate there for **any** OxyDex detector, old or new. It is not that the new detector
+      disagreed; there is no positive class on one rater. The 29 nights carrying the baseline are mostly
+      **June**, whose raw exists only on `vigil:/srv/tepna/captures`.
+      **To finish this box:** pull the June raw from `vigil`, regenerate those nights, re-run
+      `pb-agreement.mjs`. No code needed.
+
+      **What IS measurable locally, and it is a genuine paired result — 18 nights, identical dates,
+      old-code committed exports vs new-code regenerated:**
+
+      | | old | new |
+      |---|---|---|
+      | nights with ≥ 1 PB episode | **14/18** | **4/18** |
+      | total PB episodes | **119** | **5** |
+
+      Per-night, e.g. 07-19 19 → 0, 07-26 23 → 1, 07-28 20 → 0. This is an **independent corroboration**
+      of §3.2's 38 %-of-nights figure: different corpus slice, different code path (the node-export,
+      not `processNight` directly), same direction and magnitude.
+      ⚠️ Caveat stated rather than buried: the "old" column is the *committed* `uploads/trio` exports,
+      which were produced at various times by whatever code shipped then — not a single pinned version.
+      They are the shipped baseline artifacts, which is the right comparison for "what did users see",
+      but it is not a controlled A/B of one commit against another.
+
       ⚠️ Pointing `cpap-corpus.mjs --root` at the wrong layout reports **nights: 0**, writes a valid
       empty exports file and **exits 0** — check the night count, never the exit code.
 - [ ] §4's bar is measured: removing the leg now changes the fused outcome on some nights — or it does
