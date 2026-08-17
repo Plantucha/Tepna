@@ -1134,3 +1134,82 @@ def test_stability_publishes_the_peak_view_beside_the_rms_one():
     st = allan.stability(_white_fm(), TAU0)
     assert st["mtie"] is not None and st["mtie"]["ms"] > 0
     assert "classification" in st and "curve" in st
+
+
+# ── tau0_uniformity — is the input actually evenly spaced? ─────────────────────────────────────────
+# Every estimator here is handed ONE tau0 and assumes the samples are spaced by it. Nothing checked
+# that until now, and on the BLE arrival axis it is false: mean/median runs 0.87-1.16 on Verity ppg
+# and 0.52 on ppi, against <=0.7 % on the device-counter axis the JS lane uses.
+
+
+def test_tau0_uniformity_is_1_for_a_perfectly_even_series():
+    u = allan.tau0_uniformity([0, 100, 200, 300, 400])
+    assert u["ratio"] == 1.0
+    assert u["median"] == 100
+    assert u["max_gap"] == 1.0
+    assert u["n"] == 5
+
+
+def test_tau0_uniformity_reports_the_mean_INFLATED_by_a_gap():
+    # The failure this exists to surface: one long stall drags the MEAN interval far above the spacing
+    # the samples actually have, and tau0 is that mean — so the whole tau axis is relabelled.
+    u = allan.tau0_uniformity([0, 100, 200, 5000])
+    assert u["ratio"] > 10
+    assert u["median"] == 100
+    assert u["max_gap"] == 48.0
+
+
+def test_tau0_uniformity_max_gap_sees_a_stall_that_ratio_nearly_hides():
+    """Why BOTH numbers are published, not just the ratio.
+
+    One long stall among many even intervals barely moves the MEAN — here to 1.2x the spacing, which a
+    reader would shrug at — while `max_gap` shows the single interval was 4x. `ratio` answers "is the
+    tau label roughly right"; `max_gap` answers "was there a hole", and a dead-time bias comes from the
+    hole, not from the average (Barnes & Allan 1990).
+    """
+    even = allan.tau0_uniformity(list(range(0, 2500, 100)))
+    one_stall = allan.tau0_uniformity([*range(0, 2000, 100), 2400])
+    assert even["ratio"] == 1.0 and even["max_gap"] == 1.0
+    assert one_stall["ratio"] == pytest.approx(1.2, abs=0.01)   # easy to overlook
+    assert one_stall["max_gap"] == 5.0                          # not easy to overlook
+
+
+def test_tau0_uniformity_refuses_rather_than_claiming_perfect_uniformity():
+    # Each of these has NO spacing to describe. Returning 1.0 would be the fabricated-agreement failure:
+    # "perfectly uniform" is a claim about an axis that is not there.
+    assert allan.tau0_uniformity(None) is None
+    assert allan.tau0_uniformity([]) is None
+    assert allan.tau0_uniformity([0, 100]) is None          # < 3 samples
+    assert allan.tau0_uniformity([5, 5, 5, 5]) is None      # one instant -> ZERO positive deltas
+    assert allan.tau0_uniformity([0, 0, 0, 500]) is None    # only ONE positive delta, nothing to compare
+
+
+def test_tau0_uniformity_ignores_non_finite_samples_rather_than_propagating_nan():
+    u = allan.tau0_uniformity([0, 100, float("nan"), 200, None, 300])
+    assert u is not None and u["n"] == 4 and u["ratio"] == 1.0
+
+
+def test_tau0_uniformity_is_order_independent():
+    # It describes a series, not the order it arrived in; a shuffled sidecar must give the same answer.
+    assert allan.tau0_uniformity([300, 0, 200, 100]) == allan.tau0_uniformity([0, 100, 200, 300])
+
+
+def test_a_uniform_tau_rescale_leaves_the_SLOPE_invariant():
+    """The bound on what tau0_uniformity's finding costs, asserted rather than argued.
+
+    A wrong tau0 is a CONSTANT factor on tau, which in log-log is a horizontal shift — so `classify`'s
+    noise type, the thing callers branch on, cannot move. What moves is WHERE a sigma is read. This is
+    why the ratio is REPORTED and no estimator was changed.
+    """
+    phase = [((i * 7919) % 1000) / 1000.0 for i in range(400)]  # deterministic, no RNG
+    a = allan.stability(phase, 1.0)
+    b = allan.stability(phase, 3.0)  # same series, tau0 wrong by 3x
+    assert a["classification"]["slope"] == pytest.approx(b["classification"]["slope"], abs=1e-9)
+    assert a["classification"]["noise"] == b["classification"]["noise"]
+    assert a["classification"]["candidates"] == b["classification"]["candidates"]
+    # ...and what DOES move is the tau LABEL, exactly by the factor tau0 was wrong by. These are the
+    # quantities a reader spends: `optimal_tau`, `tau_max`, and any comparison quoted at a FIXED tau
+    # such as `_TDEV_TAU_S` — which exists to make nights comparable, and which a per-stream tau-label
+    # error partially defeats. That is the concrete consequence of a non-uniform arrival axis.
+    assert b["optimal_tau"] == pytest.approx(a["optimal_tau"] * 3.0, rel=1e-9)
+    assert b["tau_max"] == pytest.approx(a["tau_max"] * 3.0, rel=1e-9)
