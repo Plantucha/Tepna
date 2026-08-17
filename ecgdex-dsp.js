@@ -3162,36 +3162,27 @@
       windows++;
       const share = { hfc: bandPow.hfc / tot, lfc: bandPow.lfc / tot, vlfc: bandPow.vlfc / tot };
       lfcVals.push(share.lfc);
-      /* PER-WINDOW STATE — CPC's actual clinical output is a stable/unstable PROFILE over the night,
-         not a night-level mean. Density = share ÷ bins, so a band is called only when it carries more
-         power PER BIN than its rivals; on a flat spectrum all three densities are equal and no band
-         wins by width alone. `null` when a band has no bins (a degenerate clamp), never a guess. */
-      let state = null,
-        best = 0;
-      for (const b of ['hfc', 'lfc', 'vlfc']) {
-        if (!bins[b]) continue;
-        const dens = share[b] / bins[b];
-        if (dens > best) {
-          best = dens;
-          state = b;
-        }
-      }
+      /* ⚠️ NO PER-WINDOW STATE LABEL IS EMITTED, AND THE REASON IS MEASURED, NOT CAUTIOUS.
+         Two classifiers were built and both are biased, in opposite directions:
+           · raw argmax over band share  — the bands span 0.30 / 0.09 / 0.006 Hz, so the widest wins
+             on NOISE: 11 of 11 windows HFC.
+           · share ÷ bin count (density) — unbiased on a FLAT spectrum (measured 3/3/5 on white
+             noise) but wrong on a RED one, which is what physiological coupling actually is. On five
+             real H10 nights it returned stableMin = 0 on every one and put 71-83 % of the night in
+             VLFC, because with shares 35.8/51.9/12.3 over bins 153/47/3 the densities are
+             0.23/1.10/4.10 — VLFC wins by 18x on bin count alone. Physiologically impossible.
+         A defensible label needs the band's OWN observed background, not a flat null — the same
+         mistake, and the same fix, as fitting a red background before reading a periodogram peak.
+         Until that exists, the shares are reported and the labelling is left undone. */
       series.push({
         tSec: Math.round(s0 / fs),
         hfc: +share.hfc.toFixed(3),
         lfc: +share.lfc.toFixed(3),
-        vlfc: +share.vlfc.toFixed(3),
-        state
+        vlfc: +share.vlfc.toFixed(3)
       });
     }
     if (!windows) return null;
     const pct = (k) => +((100 * counts[k]) / windows).toFixed(1); // counts[] now accumulate FRACTIONS, so this is a mean share
-    /* MINUTES PER STATE. Windows overlap 50 %, so each ADVANCES the clock by STEP/fs seconds — using
-       WIN_SEC here would double every duration. The last window's tail is not counted; it is one
-       STEP of a multi-hour night and inventing it would be worse than under-reporting it. */
-    const stepMin = STEP / fs / 60;
-    const stateMin = { hfc: 0, lfc: 0, vlfc: 0 };
-    for (const w of series) if (w.state) stateMin[w.state] += stepMin;
     return {
       windows,
       windowSec: WIN_SEC,
@@ -3201,16 +3192,14 @@
       vlfcPct: pct('vlfc'),
       /* ── ADDED 2026-08-16 · the per-window profile, which is what CPC is actually FOR ──────────
          The three *Pct fields above are night-level MEANS and cannot say when sleep was stable.
-         `series` is the profile; `stableMin`/`unstableMin`/`remWakeMin` are its durations.
-         ⚠️ NAMING IS A CLAIM. These are CPC's own three states — stable sleep, unstable sleep, and
-         REM/wake — and they are NOT the AASM stages. CPC has never been a stager: it partitions
-         sleep by coupling stability, which cuts across N1/N2/N3. Do not map remWakeMin onto REM
-         minutes, and do not compare these to `deepMin`/`remMin`, which estimate a different thing
-         from a different signal. */
+         `series` carries the three shares per window; `stepSec` is what a duration must be charged
+         at. NO state label and NO minutes are emitted — see the note in the window loop for the two
+         classifiers that were built, measured, and rejected. */
       series,
-      stableMin: +stateMin.hfc.toFixed(1),
-      unstableMin: +stateMin.lfc.toFixed(1),
-      remWakeMin: +stateMin.vlfc.toFixed(1),
+      /* Windows overlap 50 %, so a duration must be charged per STEP, not per WIN_SEC — billing the
+         window would double every minute. Published so a consumer that builds its own labelling
+         cannot get that wrong, and because no duration is derived here. */
+      stepSec: STEP / fs,
       bandBins: bins,
       lfcWindowSd: lfcVals.length > 1 ? +Math.sqrt(lfcVals.reduce((a, v, _i, arr) => a + (v - arr.reduce((x, y) => x + y, 0) / arr.length) ** 2, 0) / (lfcVals.length - 1)).toFixed(3) : null,
       method: 'CPC — coherence x cross-power of HR vs EDR (Thomas 2005), 512 s windows, 50 % overlap'

@@ -7,46 +7,61 @@ brief: none
 ---
 
 CPC computed the HFC/LFC/VLFC shares as **night-level means and threw the per-window structure
-away** — which is the part CPC actually exists for. Thomas et al.'s method produces a *profile*
-across the night: stable sleep, unstable sleep, REM/wake. A single mean cannot say **when** sleep
-was stable, which is the whole clinical content.
+away** — which is the part CPC exists for. Thomas et al.'s method produces a *profile* across the
+night; a single mean cannot say **when** sleep was stable.
 
-`_cpc` now returns `series` (one entry per window: `tSec`, the three shares, and a `state`) plus
-`stableMin` / `unstableMin` / `remWakeMin`. Existing fields are untouched, so every consumer of
-`hfcPct`/`lfcPct`/`vlfcPct` is unaffected.
+`_cpc` now returns `series` (one entry per window: `tSec` and the three shares), `stepSec`,
+`bandBins` and `lfcWindowSd`. Existing fields are untouched, so every consumer of
+`hfcPct`/`lfcPct`/`vlfcPct` is unaffected. `lfcVals` was **dead** — pushed every window, never
+read — and now backs `lfcWindowSd`.
 
-**⚠️ THE CLASSIFIER CANNOT USE RAW SHARE, AND THAT IS THE ENTIRE DESIGN.** The bands are wildly
-unequal — HFC spans 0.30 Hz, LFC 0.09, VLFC 0.006 — so "which band holds the most power" answers
-**HFC on pure noise**, measured 11 of 11 windows. That is the same low-frequency/high-frequency bias
-the *integrated-share* estimator was introduced to remove (see the note at `ecgdex-dsp.js` on the
-argmax estimator's 5× over-pick), and a per-window classifier reintroduces it unless corrected.
+## ⚠️ NO STATE LABEL IS EMITTED, and that is the finding rather than a caution
 
-The fix is power **density**: share ÷ the band's own bin count, with the bins counted from the live
-`kLo`/`kHi` clamp rather than hardcoded, so the null cannot rot if a band edge moves. Measured:
+Two per-window classifiers were built. **Both are biased, in opposite directions, and the second
+only failed on real data.**
+
+**1 · argmax over raw share.** The bands span 0.30 / 0.09 / 0.006 Hz, so the widest wins on noise —
+measured **11 of 11 windows HFC**. This is the same low-frequency/high-frequency bias the
+*integrated-share* estimator was introduced to remove.
+
+**2 · share ÷ bin count (density).** Unbiased on a **flat** spectrum — measured 3/3/5 on white
+noise, near-uniform. Then folded against **five real Polar H10 nights** (39–225 MB captures, 32–94
+windows each):
 
 ```
-white noise      raw shares  72.6 / 25.8 / 1.6   (≈ the documented 76/23/1.5 bandwidth null)
-                 classified  3 hfc / 3 lfc / 5 vlfc      — near-uniform, not collapsed
-planted 0.20 Hz  11/11 HFC   stableMin 46.9
-planted 0.02 Hz  11/11 LFC   unstableMin 46.9   — and zero leakage either way
+                shares  hfc / lfc / vlfc     classified      stableMin
+2026-07-31       30.6 / 59.3 / 10.1          0 / 8  / 24         0
+2026-08-11       35.5 / 50.9 / 13.6          0 / 16 / 78         0
+2026-08-13       35.8 / 51.9 / 12.3          0 / 11 / 27         0
+2026-08-14       36.1 / 54.7 /  9.2          0 / 18 / 39         0
+2026-08-15       28.1 / 58.2 / 13.7          0 / 10 / 35         0
 ```
 
-**Durations are charged per STEP, not per WINDOW.** Windows overlap 50 %, so billing each one
-`WIN_SEC` would double every reported minute — a wrong number that looks entirely plausible. The
-final window's tail is not counted; it is one step of a multi-hour night, and inventing it would be
-worse than under-reporting it.
+**`stableMin = 0` on every night, and 71–83 % of each night classified REM/wake.** Physiologically
+impossible. The arithmetic: shares 35.8/51.9/12.3 over bins 153/47/3 give densities
+0.23/1.10/**4.10** — VLFC wins by 18× on bin count alone.
 
-**`lfcVals` was dead** — declared, pushed every window, never read. It now backs `lfcWindowSd`.
+**Physiological coupling spectra are RED, and density-against-a-flat-null over-picks narrow
+low-frequency bands exactly as raw share over-picks wide ones.** A defensible label needs the band's
+own *observed* background — the same fix as fitting a red background before reading a periodogram
+peak. Until that exists, the shares are reported and **the labelling is left undone**.
 
-**⚠️ NAMING IS A CLAIM, and this one is deliberately narrow.** These are CPC's three states, **not**
-the AASM stages. CPC has never been a stager: it partitions sleep by coupling *stability*, which cuts
-across N1/N2/N3. `remWakeMin` must not be read as REM minutes, and none of this should be compared
-with `deepMin`/`remMin`, which estimate a different thing from a different signal and remain
-`heuristic`. Nothing here is registered as a metric or surfaced; that needs a labelled reference this
-repo does not have (`AUDIT-FOLLOWUPS` §5.1, data-gated).
+⚠️ **The white-noise gate passed the whole time.** It validated against a flat null the real data
+does not have, which is why this surfaced only when the corpus was folded. Recorded because it is
+this repo's recurring shape, and because the same defect was found in `computeSpO2FFT` earlier the
+same day — by me, eight hours before I committed it here.
 
-Gate: new `ecgdex · cpc` group, 10 assertions. **Seen to fail**: reverting density to raw share
-collapses all 11 noise windows onto HFC and fires both bias assertions, while the eight others still
-pass — so the gate discriminates the correction specifically, not merely the code's presence.
-`ecgdex` group **1109/1109 against the real corpus** (`DEX_UPLOADS` set) — the equivalence legs ran
-rather than skipping, so the node export is confirmed unmoved. `lint` and `typecheck` clean.
+## Verification
+
+New `ecgdex · cpc` group, **12 assertions**. It pins the shares, the band geometry that makes naive
+labelling wrong, **and the absence of a label** — `state` must not appear on a series entry and no
+state durations may be emitted — so re-adding a flat-null classifier breaks the gate rather than
+passing it.
+
+`ecgdex` group **1109/1109 against the real corpus** (`DEX_UPLOADS` set), so the equivalence legs
+**ran rather than skipping** and the node export is confirmed unmoved — that is the leg §🔏 warns
+goes silently absent when `uploads/` is not present. `lint` and `typecheck` clean.
+
+Nothing is registered or surfaced. These are CPC's bands, **not** the AASM stages: CPC partitions by
+coupling *stability*, which cuts across N1/N2/N3, and none of it is comparable with
+`deepMin`/`remMin`.

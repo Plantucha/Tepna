@@ -20724,12 +20724,16 @@
 
     /* ── CPC per-window profile (Thomas et al. 2005) ────────────────────────────────────────────
        `_cpc` computed HFC/LFC/VLFC as night-level MEANS and discarded the per-window structure —
-       which is what CPC is actually for: a stable/unstable PROFILE across the night. The bands are
-       wildly unequal in width (HFC 0.30 Hz, LFC 0.09, VLFC 0.006), so "which band holds most power"
-       is ~76 % HFC on NOISE. That is the same low-frequency/high-frequency bias the integrated-share
-       estimator was introduced to remove, and a per-window classifier reintroduces it unless it
-       divides by each band's bin count. These assertions pin the null AND the correction. */
-    group('CPC — the per-window classifier must not inherit the bandwidth null', 'ecgdex · cpc', function (T) {
+       which is what CPC is for: a profile across the night, not one number.
+
+       ⚠️ IT DELIBERATELY EMITS NO STATE LABEL. Two classifiers were built and BOTH are biased, in
+       opposite directions, and the second one only failed on real data:
+         · raw argmax over share — bands span 0.30 / 0.09 / 0.006 Hz, so the widest wins on NOISE
+         · share ÷ bin count     — unbiased on a FLAT spectrum, but physiological coupling is RED:
+           on five real H10 nights it gave stableMin = 0 on every one and 71-83 % VLFC
+       These assertions pin the shares, the geometry that makes labelling hard, and the ABSENCE of a
+       label — so re-adding one without a fitted background breaks the gate. */
+    group('CPC — per-window shares, and why no state label is emitted', 'ecgdex · cpc', function (T) {
       var D = env.ECGDSP;
       if (!D || typeof D._cpc !== 'function') {
         T.skip('ECGDSP._cpc is reachable', 'browser lane cannot import ecgdex-dsp.js internals');
@@ -20752,46 +20756,56 @@
         }
         return [a, b];
       };
-      var tally = function (r) {
-        var t = { hfc: 0, lfc: 0, vlfc: 0 };
-        for (var i = 0; i < r.series.length; i++) if (r.series[i].state) t[r.series[i].state]++;
-        return t;
-      };
-
       var noise = mk(0, 0),
         rN = D._cpc(noise[0], noise[1], FS);
-      /* THE NULL ITSELF, so the correction below has something to be a correction TO. Raw share is
-         bandwidth-proportional on uncorrelated input — this is not a defect, it is the reason the
-         classifier cannot use raw share. */
+
+      /* THE GEOMETRY THAT MAKES A NAIVE LABEL WRONG. Raw share is bandwidth-proportional on
+         uncorrelated input — not a defect, but the reason argmax-over-share cannot be the rule. */
       T.ok('on noise the raw HFC share reproduces the bandwidth null (~76 %)', rN.hfcPct > 60 && rN.hfcPct < 90, 'hfcPct=' + rN.hfcPct);
       T.ok('…and VLFC, the narrowest band, is a few percent at most', rN.vlfcPct < 8, 'vlfcPct=' + rN.vlfcPct);
-      /* THE CORRECTION. Density-classified states must NOT collapse onto the widest band. An
-         un-normalised argmax scores ~76 % here; this bound is far below that and far above chance,
-         so it fails both if the normalisation is removed and if the classifier degenerates. */
-      var tN = tally(rN);
-      T.ok('density-normalised states do NOT collapse onto the widest band', tN.hfc <= rN.series.length * 0.6, JSON.stringify(tN) + ' of ' + rN.series.length);
-      T.ok('…and the narrowest band can still win a window on noise', tN.vlfc > 0, JSON.stringify(tN));
+      T.ok('the bin counts are wildly unequal — the reason share alone cannot be compared', rN.bandBins.hfc > 20 * rN.bandBins.vlfc, JSON.stringify(rN.bandBins));
 
-      /* POSITIVE CONTROLS, both directions — a classifier that always answers "uniform" passes the
-         two bounds above. These pin that a real coupling at a known frequency lands in ITS band. */
-      var hi = mk(0.2, 1),
-        rH = D._cpc(hi[0], hi[1], FS),
-        tH = tally(rH);
-      T.eq('a planted 0.2 Hz coupling classifies every window HFC (stable)', tH.hfc, rH.series.length);
-      var lo = mk(0.02, 1),
-        rL = D._cpc(lo[0], lo[1], FS),
-        tL = tally(rL);
-      T.eq('a planted 0.02 Hz coupling classifies every window LFC (unstable)', tL.lfc, rL.series.length);
-      T.eq('…and does NOT leak into HFC', tH.lfc + tL.hfc, 0);
-
-      /* DURATIONS USE THE STEP, NOT THE WINDOW. Windows overlap 50 %, so charging each one WIN_SEC
-         would double every reported minute — a wrong number that looks entirely plausible. */
-      var stepMin = (2048 >> 1) / FS / 60;
-      T.ok(
-        'state minutes are charged per STEP, not per WINDOW (50 % overlap)',
-        Math.abs(rH.stableMin - rH.series.length * stepMin) < 0.05,
-        rH.stableMin + ' vs ' + (rH.series.length * stepMin).toFixed(1)
+      /* THE ABSENCE IS THE ASSERTION. A future classifier must fit the observed background; this
+         fails the moment someone re-adds a flat-null label. */
+      T.eq(
+        'no per-window state label is emitted',
+        rN.series.every(function (w) {
+          return !('state' in w);
+        }),
+        true
       );
+      T.eq('no state durations are emitted', [rN.stableMin, rN.unstableMin, rN.remWakeMin].join(','), ',,');
+
+      /* THE SHARES THEMSELVES ARE SOUND, and are what a labelling would be built from. */
+      var hi = mk(0.2, 1),
+        rH = D._cpc(hi[0], hi[1], FS);
+      T.ok(
+        'a planted 0.2 Hz coupling dominates the HFC share in every window',
+        rH.series.every(function (w) {
+          return w.hfc > w.lfc && w.hfc > w.vlfc;
+        }),
+        JSON.stringify(rH.series[0])
+      );
+      var lo = mk(0.02, 1),
+        rL = D._cpc(lo[0], lo[1], FS);
+      T.ok(
+        'a planted 0.02 Hz coupling dominates the LFC share in every window',
+        rL.series.every(function (w) {
+          return w.lfc > w.hfc && w.lfc > w.vlfc;
+        }),
+        JSON.stringify(rL.series[0])
+      );
+      T.ok(
+        'shares sum to 1 per window',
+        rH.series.every(function (w) {
+          return Math.abs(w.hfc + w.lfc + w.vlfc - 1) < 0.005;
+        }),
+        JSON.stringify(rH.series[0])
+      );
+
+      /* 50 % OVERLAP: a duration must be charged per STEP. Published so a consumer cannot double it. */
+      T.eq('stepSec is the window ADVANCE, not the window length', rH.stepSec, 2048 / 2 / FS);
+      T.ok('…and is half the window, so charging windowSec would double every duration', rH.stepSec * 2 === rH.windowSec, rH.stepSec + ' vs ' + rH.windowSec);
       T.eq('one series entry per window', rH.series.length, rH.windows);
       T.eq('a record too short to resolve VLFC returns null, not a degraded number', D._cpc(new Float64Array(100), new Float64Array(100), FS), null);
     });
