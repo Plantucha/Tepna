@@ -155,7 +155,10 @@
   // SD1 = SDSD/√2 (short axis, beat-to-beat), SD2 = √(2·SDNN² − SD1²) (long axis).
   function poincareGeo(nn) {
     const n = nn.length;
-    if (n < 3) return { sd1: 0, sd2: 0 };
+    /* REFUSE (§2.6). sd1/sd2 are `validated` tier, so a fabricated 0 here is a badged claim that
+       beat-to-beat variability WAS measured and was zero — the strongest statement this file can
+       make, from two beats. Two points cannot define a dispersion at all. */
+    if (n < 3) return { sd1: null, sd2: null };
     let ds = 0,
       dc = 0;
     for (let i = 1; i < n; i++) {
@@ -1101,7 +1104,14 @@
   // ════════════════════════════════════════════════════════════════════════
   function lombScargle(nn, times, nf) {
     const N = nn.length;
-    if (N < 12) return { tp: 0, vlf: 0, lf: 0, hf: 0, lfhf: 0, respRate: 0 };
+    /* REFUSE, DO NOT FABRICATE (Clock Contract §2.6, applied to the spectral path). Returning zeros
+       here made "too few beats to transform" indistinguishable from "measured, and the power is
+       zero" — and the zeros reach badged metrics: `hfnu`/`lfnu`/`vlf` are `validated` tier, and
+       `hfnu` computed 0/(0+0 || 1)*100 = a clean 0.0 %. Null-VALUED FIELDS rather than a null
+       object, because callers read `spec.respRate` on the result and a bare null would crash them;
+       the absence has to be visible without breaking the shape. Same discipline `sqi` already uses
+       a few hundred lines below — "an absent measurement, never a default". */
+    if (N < 12) return { tp: null, vlf: null, lf: null, hf: null, lfhf: null, respRate: null };
     const t = times.slice(0, N);
     const dt = linfit(Array.from(t), Array.from(nn));
     const x = [];
@@ -1785,7 +1795,11 @@
   // ════════════════════════════════════════════════════════════════════════
   function detectCVHR(nn, tt) {
     const N = nn.length;
-    if (N < 60) return { events: [], index: 0, hrSeries: [] };
+    /* REFUSE (§2.6). `index: 0` IS the exported `cvhrIndex`, and 0 reads as "we looked for cyclic
+       variation and there was none" — a clinically meaningful negative — when the truth is that
+       fewer than 60 beats cannot carry a 20–60 s cycle at all. `events` stays [] because "no events
+       found" is honest for a list; the INDEX is the claim that has to refuse. */
+    if (N < 60) return { events: [], index: null, hrSeries: [] };
     // resample instantaneous HR to 1 Hz
     const tEnd = tt[N - 1];
     const M = Math.floor(tEnd);
@@ -2473,8 +2487,10 @@
     // shorter records: use the whole NN series. Guarantees ellipse == cloud.
     const poincareNN = longRec && repSeg.length >= 20 ? repSeg : nn;
     const pg = poincareGeo(poincareNN);
-    const sd1v = +pg.sd1.toFixed(2),
-      sd2v = +pg.sd2.toFixed(2);
+    /* `.toFixed` on a refusal would throw, and `+null` would silently become 0 — the fabrication
+       re-entering one line after the guard that removed it. Carry the null through. */
+    const sd1v = pg.sd1 == null ? null : +pg.sd1.toFixed(2),
+      sd2v = pg.sd2 == null ? null : +pg.sd2.toFixed(2);
 
     prog(92, 'CVHR / apnea detection…');
     const cvhrRaw = detectCVHR(nn, tt);
@@ -2646,8 +2662,12 @@
       // poincaré
       sd1: sd1v,
       sd2: sd2v,
-      sd1sd2: +(sd1v / (sd2v || 1)).toFixed(3),
-      ellArea: +(Math.PI * sd1v * sd2v).toFixed(0),
+      /* `sd1v / (sd2v || 1)` is the same fabrication as `hfnu` below: with sd2v null the `|| 1`
+         substitutes a denominator that was never measured, and `null / 1` is 0 in JS — so a
+         refusal would have surfaced as a ratio of exactly 0.000. Both derived metrics refuse
+         when either axis is absent. */
+      sd1sd2: sd1v == null || sd2v == null ? null : +(sd1v / (sd2v || 1)).toFixed(3),
+      ellArea: sd1v == null || sd2v == null ? null : +(Math.PI * sd1v * sd2v).toFixed(0),
       poincareNN,
       poincareRep: longRec && repSeg.length >= 20,
       poincareRepTMin: repTMin,
@@ -2661,8 +2681,15 @@
       respRate: spec.respRate,
       respStats,
       specWindow: /** @type {any} */ (spec).window || (longRec ? 'epochMedian5min' : 'representative5min'), // §10: name the scale
-      hfnu: +((spec.hf / (spec.hf + spec.lf || 1)) * 100).toFixed(1),
-      lfnu: +((spec.lf / (spec.hf + spec.lf || 1)) * 100).toFixed(1),
+      /* 🔴 THE `|| 1` WAS THE WHOLE DEFECT, and it is worth naming precisely. With hf and lf both
+         absent the expression read `null / (null + null || 1) * 100` — `null + null` is 0, `0 || 1`
+         is 1, `null / 1` is 0 — producing a clean `0.0 %` on a `validated`-tier metric from an
+         input that was never transformed. The guard is on the MEASUREMENT, not on the denominator:
+         if either band is absent there are no normalised units to report. A genuinely measured
+         hf + lf === 0 still yields 0 via the retained `|| 1`, which is the case that guard was
+         actually for. */
+      hfnu: spec.hf == null || spec.lf == null ? null : +((spec.hf / (spec.hf + spec.lf || 1)) * 100).toFixed(1),
+      lfnu: spec.hf == null || spec.lf == null ? null : +((spec.lf / (spec.hf + spec.lf || 1)) * 100).toFixed(1),
       // non-linear
       dfa1,
       sampen,
@@ -4039,6 +4066,10 @@
     partKey,
     mergeMultipart,
     lombScargle,
+    /* Exported so their refusal guards are directly assertable. Additive only — no existing caller
+       reaches them through this surface, and the internal call sites are unchanged. */
+    poincareGeo,
+    detectCVHR,
     dfaAlpha1,
     sampEn,
     parseTimestamp
