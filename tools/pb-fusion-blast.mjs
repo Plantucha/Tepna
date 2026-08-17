@@ -295,9 +295,21 @@ function run(ctx) {
   console.log('  …still corroborates with the OxyDex leg removed : ' + survives + ' / ' + n);
   console.log('  → corroboration decisions owed entirely to the always-on leg : ' + (corr.length - survives));
   if (uplift.length) console.log('  block conf on corroborated nights : ' + uplift.map((r) => r.conf).join(', '));
-  console.log('\n  ECGDex leg: ' + ecgWithApnea + ' of ' + ecgSeen + ' committed ECGDex exports carry apnea.cvhrIndex.');
-  console.log('  (0 of N means UNEXERCISED, not inert — the apnea block landed 2026-07-23, after this corpus');
-  console.log('   was generated. Re-run tools/trio-batch.mjs to bring the third observer into scope.)\n');
+  console.log('\n  ECGDex leg: ' + ecgWithApnea + ' of ' + ecgSeen + ' ECGDex exports carry apnea.cvhrIndex.');
+  /* The caveat below used to print UNCONDITIONALLY, so once the corpus was regenerated the output read
+     "18 of 18 carry apnea.cvhrIndex" immediately followed by an explanation of what "0 of N" means —
+     a stale note contradicting the line above it, which is worse than no note: a reader skimming for
+     the scope caveat finds one and concludes the leg is still unexercised. Print the state that
+     actually holds. */
+  if (!ecgWithApnea) {
+    console.log('  (0 of N means UNEXERCISED, not inert — the apnea block landed 2026-07-23, after this corpus');
+    console.log('   was generated. Re-run tools/trio-batch.mjs to bring the third observer into scope.)\n');
+  } else if (ecgWithApnea < ecgSeen) {
+    console.log('  (PARTIAL — the nights without the block predate 2026-07-23; the third observer is in scope');
+    console.log('   only for the ' + ecgWithApnea + ' that carry it.)\n');
+  } else {
+    console.log('  (The third observer IS in scope on every night here — this run is not OxyDex×CPAPDex only.)\n');
+  }
   for (const r of rows)
     console.log(
       '  ' +

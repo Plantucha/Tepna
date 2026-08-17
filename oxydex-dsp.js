@@ -1023,9 +1023,24 @@
     var intervals = [];
     for (var i = 1; i < crossingTimes.length; i++) {
       var iv = crossingTimes[i] - crossingTimes[i - 1];
+      // ⚠️ `iv < 300` IS COUPLED TO `WIN` (= CFG.OSC_WINDOW_SEC = 300) AND MUST TRACK IT.
+      // `crossingTimes` is concatenated across windows while non-oscillating windows are skipped
+      // above, so two consecutive entries can sit either side of a skipped stretch. Straddling a whole
+      // skipped window forces `iv` past the window width, which is why this bound catches every such
+      // pair — measured 2026-08-17 on 61 real nights: 184 of 2438 intervals straddle a skipped window,
+      // and 0 survive this guard. That is structural, not luck. Raise `OSC_WINDOW_SEC` without raising
+      // this and gap-spanning pairs start being recorded as cycles across stretches already judged
+      // non-oscillating. (OXYDEX-PB-DETECTOR-FOLLOWUPS §6.)
       if (iv > 5 && iv < 300) intervals.push(iv); // sanity: 5s–300s
     }
-    // Full cycle = 2 half-cycles
+    // Full cycle = 2 half-cycles.
+    // ⚠️ THIS IS A SLIDING VIEW: `.length` IS NOT THE NUMBER OF CYCLES. Each entry shares a half-cycle
+    // with its neighbour, so `k` true cycles produce `2k − 1` entries (2 → 3, 3 → 5, 10 → 19). That is
+    // harmless for what reads it here — the mean and SD below are unaffected (measured: SD 1.43 sliding
+    // vs 1.41 disjoint) — but it is a trap for any future "≥ N consecutive cycles" test, which is
+    // exactly the criterion AASM states and exactly what `detectSpO2Periodicity` needed; that function
+    // pairs DISJOINTLY (`j += 2`) for this reason. If you need a cycle COUNT, do not use this array's
+    // length. (OXYDEX-PB-DETECTOR-FOLLOWUPS §1.)
     var cycleIntervals = [];
     for (var i = 0; i + 1 < intervals.length; i++) cycleIntervals.push(intervals[i] + intervals[i + 1]);
 
