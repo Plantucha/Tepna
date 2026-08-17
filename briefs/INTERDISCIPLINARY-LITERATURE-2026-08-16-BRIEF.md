@@ -75,13 +75,13 @@ vocabulary is mature and mostly already cited **in prose but not in the ledger**
 
 | work | detail | status |
 |---|---|---|
-| **Allan, D. W. (1966)** — *Statistics of atomic frequency standards*, Proc. IEEE 54(2):221–230 | already cited in `sigma-no-reference` | verified · **unledgered** |
-| **Gray, J. E. & Allan, D. W. (1974)** — *A method for estimating the frequency stability of an individual oscillator*, Proc. 28th Ann. Symp. Frequency Control | the three-cornered hat | verified · **unledgered** |
-| **Premoli, A. & Tavella, P. (1993)** — *A revisited three-cornered hat method…*, IEEE Trans. Instrum. Meas. 42(1):7–13 | negative variance handling | verified · **unledgered** |
-| **Torcaso, F., Ekstrom, C. R., Burt, E. A. & Matsakis, D. N. (1998)** — *Estimating frequency stability and cross-correlations*, Proc. 30th PTTI | correlated corners — the assumption the σ paper concedes is bent | verified · **unledgered** |
-| **Riley, W. J. (2008)** — *Handbook of Frequency Stability Analysis*, NIST Special Publication 1065 | σ_y(τ), TDEV, Hadamard, noise-type-by-slope | verified · **unledgered** |
+| **Allan, D. W. (1966)** — *Statistics of atomic frequency standards*, Proc. IEEE 54(2):221–230 | already cited in `sigma-no-reference` | verified · **ledgered** `10.1109/PROC.1966.4634` |
+| **Gray, J. E. & Allan, D. W. (1974)** — *A method for estimating the frequency stability of an individual oscillator*, Proc. 28th Ann. Symp. Frequency Control | the three-cornered hat | verified · **ledgered 2026-08-17** `10.1109/FREQ.1974.200027` |
+| **Premoli, A. & Tavella, P. (1993)** — *A revisited three-cornered hat method…*, IEEE Trans. Instrum. Meas. 42(1):7–13 | negative variance handling | verified · **ledgered** `10.1109/19.206671` |
+| **Torcaso, F., Ekstrom, C. R., Burt, E. A. & Matsakis, D. N. (1998)** — *Estimating frequency stability and cross-correlations*, Proc. 30th PTTI | correlated corners — the assumption the σ paper concedes is bent | verified · **no DOI — not ledgerable** (proceedings) |
+| **Riley, W. J. (2008)** — *Handbook of Frequency Stability Analysis*, NIST Special Publication 1065 | σ_y(τ), TDEV, Hadamard, noise-type-by-slope | verified · **no DOI — not ledgerable** (NIST SP) |
 | **Riley, W. J. & Greenhall, C. A. (2004)** — *Power law noise identification using the lag 1 autocorrelation*, 18th European Frequency and Time Forum, Guildford — **DOI 10.1049/cp:20040932** | **names the dominant noise type analytically, from phase or frequency data, at any averaging factor, WITHOUT fitting a slope** | verified + DOI |
-| *Power law noise identification using the lag 1 autocorrelation by overlapping samples* — IEEE Xplore document **6037776** | extends the above to the overlapping estimator we actually use | ⚠️ **AUTHORS AND YEAR UNVERIFIED.** The paper exists; two independent renderings reached this brief ("Zhou, Greenhall & Howe 2011" and "Zhou Chunlei et al., ICEMI") and **neither is confirmed** — a search for it returns the 2004 EFTF paper instead. Do not cite until resolved. |
+| *Power law noise identification using the lag 1 autocorrelation by overlapping samples* — IEEE Xplore document **6037776** | extends the above to the overlapping estimator we actually use | **RESOLVED 2026-08-17** — `10.1109/icemi.2011.6037776`, Zhou Chunlei / Zhang Qi / Yan Shuhua, 2011, ICEMI · ledgered |
 | **IEEE Std 1139** — *Definitions of Physical Quantities for Fundamental Frequency and Time Metrology* | TIE, TDEV, MDEV; phase vs frequency noise | verified, standard |
 
 ⚠️ **PRECONDITION, added 2026-08-16 after Vigil box's review — do not adopt this before the parity
@@ -108,9 +108,68 @@ analytically, without fitting a slope. Same two words, different statistics, dif
 reader citing METROLOGY §5 as evidence that lag-1 retires the SE band would be wrong, and the two
 briefs sit close enough in a semantic search to invite exactly that. (Raised by Brief runner.)
 
-**Also owed:** the five entries marked *unledgered* are cited in `papers/sigma-no-reference.html`
-prose today and are invisible to `citation-ledger`. Adding them is cheap and closes a real hole.
+**Also owed:** ~~the five entries marked *unledgered* are cited in `papers/sigma-no-reference.html`
+prose today and are invisible to `citation-ledger`. Adding them is cheap and closes a real hole.~~
 
+> ### ⚠️ HALF-TRUE — CORRECTED 2026-08-17. Ledgering them does NOT close that hole.
+>
+> The premise is right and the remedy is not, because **`citation-ledger` is DOI-DRIVEN**: it walks the
+> DOIs *on a reader-facing surface* and asserts the surrounding text names the ledger's author within
+> ±1 year. A work named in prose **with no DOI beside it** is invisible to the gate whether or not the
+> ledger knows the DOI. Adding a ledger row for a DOI the paper does not print changes nothing.
+>
+> Measured in `papers/sigma-no-reference.html`:
+>
+> | work | in the paper | ledger | gate sees it? |
+> |---|---|---|---|
+> | Allan 1966 | DOI `10.1109/PROC.1966.4634` printed | ✅ | **yes** |
+> | Premoli 1993 | DOI `10.1109/19.206671` printed | ✅ | **yes** |
+> | **Gray** (×3), **Torcaso**, **Riley** | **prose only, no DOI** | ✅ (Gray added today) | **no** |
+>
+> **So the hole closes at the PAPER, not at the ledger** — the DOI has to be printed beside the prose
+> mention. **DONE 2026-08-17, in this same change**, because printing a DOI and ledgering it must land
+> together: `10.1109/FREQ.1974.200027` is now printed beside Gray & Allan 1974 in
+> `papers/sigma-no-reference.html`, the served twin is rebuilt, and the gate now *reaches* it — verified
+> by corrupting the author beside that DOI and watching `every DOI on a source surface names the ledger's
+> first author and a year within ±1` red with *citation does not name "Gray"*, then restore.
+>
+> ⚠️ **The ordering is not optional, and the gate proved it.** The paper edit was first made on a branch
+> off `main`, where the ledger row did not yet exist, and `citation-ledger` immediately red'd with
+> *every DOI on a source surface is present in the ledger — got [10.1109/FREQ.1974.200027]*. Printing a
+> DOI whose ledger row is in an unmerged branch breaks `main`. **Same PR, or ledger first.**
+>
+> **Torcaso 1998 and Riley SP 1065 stay uncovered, and that is the honest end state** — neither has a
+> DOI, so the gate cannot see them and nothing should be added to make it look as though it can.
+> Torcaso and Riley SP 1065 have no DOI at all, so for those two the honest end state is a named citation
+> without one — the gate cannot cover them and should not be made to look as though it does.
+
+
+> ### ✅ LEDGERED 2026-08-17 — and the "five unledgered" was an over-count, three ways
+>
+> Resolved at author time against `api.crossref.org` (the resolver the ledger names). Of the five rows
+> marked *unledgered*:
+>
+> - **two were already there** — Allan 1966 `10.1109/PROC.1966.4634` and Premoli 1993 `10.1109/19.206671`,
+>   both matching Crossref exactly. The column was stale, not the ledger.
+> - **one was genuinely missing and is now added** — Gray & Allan 1974 `10.1109/FREQ.1974.200027`.
+> - **two cannot be ledgered at all**: Torcaso et al. 1998 (Proc. 30th PTTI) and Riley 2008 (NIST SP 1065)
+>   **have no DOI**, and this ledger is DOI-keyed. They are marked *no DOI — not ledgerable* rather than
+>   left reading as an outstanding task, and emphatically not given a fabricated key.
+>
+> Also added: **Riley & Greenhall 2004** `10.1049/cp:20040932`, which carried a DOI in this table and was
+> absent from the ledger.
+>
+> **The `AUTHORS AND YEAR UNVERIFIED` row is resolved** (the brief's own rule: no unverified DOI leaves
+> `briefs/`). *"IEEE Xplore document 6037776"* is **`10.1109/icemi.2011.6037776`** — the DOI contains the
+> document number — **Zhou Chunlei, Zhang Qi, Yan Shuhua (2011)**, *IEEE 10th International Conference on
+> Electronic Measurement & Instruments*. It carries an `authorAliases: ["Zhou"]` with
+> `aliasSource: crossref-variant`, because Crossref puts the **whole name in `family`** with `given` empty
+> (`family='Zhou Chunlei'`); the surname is Zhou. That is a Crossref spelling variant, not a name read off
+> the paper, so it is the `crossref-variant` class and not `from-paper`.
+>
+> ⚠️ **The ledger's `_count` read 92 against 93 actual records** before this change — corrected to 96. No
+> gate asserts `_count`, so it had drifted silently; it is metadata, not the oracle, but a wrong count in
+> the file that IS the oracle is worth not leaving.
 ## 3 · Identifiability and observability
 
 **Tepna problem.** "The algorithm could not recover this" is the wrong sentence. "Is this parameter
@@ -141,6 +200,49 @@ value → search the best integer set → **validate the fix**. Tepna's beat ali
 and stops. Two importable things: a **cycle slip** is exactly a dropped or inserted beat and has
 formal detection; and the **ratio test / integer success rate** answers "is this alignment
 trustworthy on this night?", which the suite currently cannot answer at all.
+
+> ### ✅ CLOSED 2026-08-17 — [REINVENTED]. The suite HAS the ratio test; the last sentence above is out of date.
+>
+> **Correcting this entry's own claim first.** *"which the suite currently cannot answer at all"* is
+> false as of `INTEGRATOR-PAT-VASCULAR` §2-RESULT-IV, which built exactly the third step:
+>
+> - the R↔foot offset is *"ambiguous **modulo one RR**, and beat **times** cannot resolve it"* — the
+>   carrier-phase integer ambiguity, in the suite's own words;
+> - resolved by normalised cross-correlation of the ECG **RR** sequence against the PPG **PPI**
+>   sequence **over integer beat-index lags** — an integer search, on the aperiodic feature
+>   ([[beat-trains-align-only-mod-rr]]);
+> - **validated by the margin between the best and second-best lag**, reported per night, with the two
+>   populations separating by three orders of magnitude (recoverable on 2 of 29 nights: ncc 0.995–0.996,
+>   margin 0.196–0.223, PAT SD **28.1 / 36.8 ms** — inside `pat-gate`'s 60 ms bar).
+>
+> **That margin IS the GNSS ratio test** — best-vs-second-best of the integer candidates, used as an
+> accept/reject on the fix. Independently rebuilt, under a different name, on a different signal.
+> Naming the correspondence is the value; the estimator needs nothing.
+>
+> **What GNSS still has that the suite does not — one item, and it is real:**
+> **the fixed-failure-rate ratio test** (Teunissen & Verhagen) sets the acceptance threshold from a
+> *target false-fix probability* rather than a fixed constant. §2-RESULT-IV needs no threshold today
+> precisely because its separation is 10³; that is a property of this corpus, not of the method, and the
+> principled threshold is what to reach for the moment a night lands in the gap.
+>
+> **REJECTED, with the reason, so nobody imports it:** **LAMBDA's decorrelation step does not apply.**
+> The Z-transformation exists because a *multi-dimensional* float-ambiguity covariance is elongated and
+> makes the integer least-squares search expensive. The beat-lag ambiguity is **one-dimensional** — a
+> single integer lag — where integer least-squares is just rounding and decorrelation is a no-op.
+> Importing the LAMBDA toolbox here would be machinery for a dimension the problem does not have.
+>
+> **STILL OPEN, and this half of the entry stands:** **cycle-slip detection.** A dropped or inserted
+> beat is formally a cycle slip, GNSS detects those explicitly, and the suite does not — `JOINT-UNWRAP-
+> ATTEMPT` measured slips wrecking a cumulative unwrap and had no detector for them. That is the
+> importable piece.
+>
+> ⚠️ **Method note, because it is why this was found at all.** Grep could not reach it: the reading
+> queue says *"integer ambiguity"*, the repo says *"ambiguous modulo one RR"* and *"margin"*, and the
+> two share no token. A loopback `bge-m3` semantic index over all 4374 brief sections surfaced
+> §2-RESULT-IV at rank 3 for the field's own description. **Calibrated before use** with a control
+> ladder — three known-answer rungs landing 0.60–0.66 and a nonsense rung flooring at 0.42 — and every
+> hit was then opened and read. The retrieval is a candidate generator; the claims above come from the
+> sections themselves.
 
 ## 5 · Multisensor estimation under unknown correlation
 
@@ -500,6 +602,57 @@ stability — it is decimation with averaging, not resampling.
 **Note the convergence:** the irregular-sampling problem is solved in **pulsar timing** (§9), where
 "observations are quite irregularly spaced in time" is the normal condition. The field already in this
 brief for a different reason is also the answer here.
+
+> ### ✅ ADOPTED 2026-08-17 — measured in BOTH lanes, and they do not agree. This entry conflates them.
+>
+> **The premise is correct for the lane it names and false for the other, so the adoption is bounded.**
+> `allan.py` (Python) and `allanFromPhase` (the JS spine) both take a `tau0` and both assume a uniform
+> grid — but they are handed **different series**, and only one of them is irregular.
+>
+> **Arrival lane** (`nightqc._tau0_of` → `allan.stability`, indexed on BLE packet-arrival host stamps).
+> 120 `*_PMDARRIVAL.csv` sidecars on the box, per `(device, meas)` series, as mean-τ₀ ÷ median-Δ:
+>
+> | series | n | median Δ | mean-τ₀ / median | worst gap ÷ median |
+> |---|---|---|---|---|
+> | H10 ecg | 7 | 541 ms | 1.04 | 9× |
+> | H10 acc | 7 | 720 ms | 0.98–0.99 | 10× |
+> | **Verity ppg** | **79** | 300 ms | **0.87 – 1.16** | 4× |
+> | Verity acc | 8 | 2416 ms | 0.94–1.06 | 2× |
+> | Verity ppi | 2 | 4897 ms | **0.52 – 0.97** | 1× |
+> | O2Ring duration | 10 | 1005 ms | 1.00 | 1× |
+>
+> **Node lane** (`DexClock.hostAxis(...).stability`, indexed on the device counter). 439 ECG/PPG streams,
+> 17 box nights: Polar **0.9999 – 1.0066**, worst gap **1.0–1.4×**; O2Ring 0.9990 – 1.0510, one gap 208×.
+>
+> **So: the arrival axis is irregular and the device axis is not.** §13b.4 says *"BLE arrivals are not
+> uniform"* — true, and this is the number: on the most-populated stream (Verity ppg, 79 series) the mean
+> packet interval runs **0.87–1.16×** the median, i.e. up to a **16 % error in the τ label**, and Verity
+> ppi reaches 0.52. Nothing in the node lane is close to that.
+>
+> **What the τ error does and does not do — the part worth stating, because it bounds the cost.** A
+> *uniform rescaling* of τ shifts the curve horizontally in log-log and leaves the **slope invariant**, so
+> the noise-type classification — the thing this suite actually branches on — is immune to it. What moves
+> is *where on the curve* a σ is quoted: `optimal_tau`, `tauMaxSec`, and any cross-stream comparison read
+> at a fixed τ. Separately and additionally, genuinely *irregular* spacing biases AVAR itself (dead time —
+> Barnes & Allan 1990, NIST TN 1318), which a τ relabel does not fix. Two distinct effects; only the first
+> is a scale error.
+>
+> **ADOPTED: Sesia & Tavella (2008)**, *Estimating the Allan variance in the presence of long periods of
+> missing data and outliers*, Metrologia **45**(6):S134, DOI `10.1088/0026-1394/45/6/S19` — the unbiased
+> AVAR for missing data and unequal spacing, which is exactly the arrival lane's condition.
+> **REJECTED for the node lane**, on measurement: its input is uniform to ≤0.7 % on every Polar stream, so
+> an unbiased-AVAR rewrite there would add machinery to correct a bias that is not present. The O2Ring is
+> the one node-lane exception and it is already refused twice over (drawn axis; incoherent cross-fragment
+> rate), so a third refusal is confirmatory.
+>
+> **Owed, and deliberately not done here:** the arrival lane should publish the mean-to-median ratio beside
+> its curve so a reader can see when the τ label is trustworthy — cheap, Python-side, no bundle. The
+> unbiased-AVAR swap is a larger change and should follow the ratio, not precede it: measure how often the
+> bias matters before importing an estimator to remove it.
+>
+> ⚠️ **The trap this entry set, recorded because it nearly worked.** I measured the node lane first, found
+> it uniform, and was one step from writing "the premise is refuted". The two lanes share an entry, a
+> vocabulary and an estimator, and differ in the only thing that mattered — which series they index on.
 
 ### 13b.5 · Delay-variation estimation — is the residual a clock at all?
 
@@ -1100,7 +1253,7 @@ may be quoted as `validated`-tier until it has been, with the citation checked a
 
 ## Done when
 
-- [ ] §2's five unledgered time-frequency citations added to `CITATION-VERIFICATION-2026-08-05.json`
+- [x] **DONE 2026-08-17** — §2's time-frequency citations ledgered. Three added (Gray & Allan 1974, Riley & Greenhall 2004, Zhou Chunlei 2011); two were already present; two have **no DOI** and cannot be ledger-keyed. See the ✅ block in §2.
 - [x] ~~Riley & Greenhall 2004 evaluated against the `1.96·SE` refusal band~~ — **NOT tracked here.** The same question is `HOSTAXIS-STABILITY-FOLLOWUPS` §3 and is being answered there. Tracking it in two briefs is the shape that produced the GENERATOR-FOLLOWUPS-III collision, and `stale-file` cannot see it because the two live in different files.
-- [ ] One field adopted or rejected in writing, with the reason (a reading queue that never closes an item is a wish list)
-- [ ] Any DOI marked *unverified* resolved before it leaves `briefs/`
+- [x] **DONE 2026-08-17 — §13b.4 adopted for the arrival lane and rejected for the node lane, both on measurement** (see the ✅ block there). Sesia & Tavella 2008 in; unbiased-AVAR in the JS spine out, because its input is uniform to ≤0.7 %.
+- [x] **DONE 2026-08-17** — the one `AUTHORS AND YEAR UNVERIFIED` row (IEEE Xplore 6037776) resolves to `10.1109/icemi.2011.6037776`, Zhou Chunlei et al. 2011, ICEMI — ledgered with a `crossref-variant` alias.
