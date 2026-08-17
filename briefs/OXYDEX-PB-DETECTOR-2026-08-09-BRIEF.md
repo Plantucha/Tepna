@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-08-09 · **Owner decision:** option 3, taken 2026-08-09 · **Follows:** `OXYDEX-PB-OVERCALL-FOLLOWUPS-2026-08-04-BRIEF.md` §1 (which required this be spawned separately rather than patched in) · **Parent:** `OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md` · **Affects:** `oxydex-dsp.js detectOscillations` / `computePatternScores`, the OxyDex reference guide, `integrator-dsp.js`'s PB corroboration leg · **Amended 2026-08-16:** §3.1 gains a **third** adversarial twin (a red-noise null) — see `OXYDEX-FFT-CYCLE-NULL-2026-08-16-BRIEF.md`; no other section changed and the owner decision is untouched
+**Status:** PROPOSED · **Created:** 2026-08-09 · **Owner decision:** option 3, taken 2026-08-09 · **Follows:** `OXYDEX-PB-OVERCALL-FOLLOWUPS-2026-08-04-BRIEF.md` §1 (which required this be spawned separately rather than patched in) · **Parent:** `OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md` · **Affects:** `oxydex-dsp.js detectOscillations` / `computePatternScores`, the OxyDex reference guide, `integrator-dsp.js`'s PB corroboration leg · **Amended 2026-08-16:** §3.1 gains a **third** adversarial twin (a red-noise null) — see `OXYDEX-FFT-CYCLE-NULL-2026-08-16-BRIEF.md`; no other section changed and the owner decision is untouched · **§2.1 SETTLED 2026-08-16: 40–130 s**, cited — AASM sets a 40 s *floor* with 45–90 s as a typicality, not a 40–90 window, so the code was right and this brief's 40–90 does not propagate
 
 # Build a periodic-breathing detector that measures periodicity
 
@@ -56,6 +56,47 @@ Those are different specs in the same codebase for the same phenomenon.
 **Decide it once, from the literature, and cite it** — do not let the detector and the score disagree,
 and do not pick the narrower one merely because it is the newer sentence. Whichever is chosen, both
 sites move together.
+
+#### ✅ SETTLED 2026-08-16 — **40 s floor, 130 s ceiling. The code was right and this brief was wrong.**
+
+**The 40–90 s figure is a misreading of AASM, and the misreading is specific.** The AASM Sleep Apnea
+Definitions Task Force states the criterion as:
+
+> *"episodes of ≥ 3 consecutive central apneas and/or central hypopneas separated by a crescendo and
+> decrescendo change in breathing amplitude **with a cycle length of at least 40 seconds (typically 45
+> to 90 seconds)**"*
+>
+> — Berry RB et al. 2012, *J Clin Sleep Med* 8(5):597–619, [10.5664/jcsm.2172](https://doi.org/10.5664/jcsm.2172)
+
+That is a **one-sided floor** (≥ 40 s) plus a parenthetical **typicality** note. **90 s is not an upper
+scoring bound in AASM and never was.** The parent's *"AASM scores Cheyne-Stokes on a 40–90 s cycle"*
+converts a floor-plus-typicality into a two-sided window — the same shape as quoting a range as a
+criterion. Note the parent is right about the *other* two criteria: "≥ 3 consecutive" is AASM verbatim.
+
+**And a 90 s ceiling fails in the dangerous direction, which is measurable rather than arguable.** Cycle
+length is set by circulatory delay, so it *lengthens as cardiac function worsens* — the correlation with
+lung-to-ear circulation time is r = 0.939 (Naughton M et al. 1993, *Am Rev Respir Dis* 148(2):330–8,
+[10.1164/ajrccm/148.2.330](https://doi.org/10.1164/ajrccm/148.2.330)) and r = 0.88 (Hall MJ et al. 1996,
+*Am J Respir Crit Care Med* 154(2):376–81, [10.1164/ajrccm.154.2.8756809](https://doi.org/10.1164/ajrccm.154.2.8756809)).
+Stratified by ejection fraction across 104 CSR patients, mean cycle length runs **49 ± 17 s at LVEF > 50 %
+to 86 ± 23 s at LVEF < 20 %** (Wedewardt J et al. 2010, *Sleep Med* 11(2):137–42,
+[10.1016/j.sleep.2009.09.004](https://doi.org/10.1016/j.sleep.2009.09.004)).
+
+At the worst-LVEF end the **mean alone is 86 s**. A hard 90 s ceiling therefore discards roughly half of
+the most severely impaired group — it is not a neutral narrowing, it is a filter that removes signal
+precisely where the pathology is worst. The existing **130 s** sits near mean + 2 SD (86 + 46 = 132) and
+is the defensible ceiling. The code comment's *"up to ~120 s in severe heart failure"* was right on the
+physiology and merely uncited.
+
+**Resolution:** keep `computePatternScores`'s **40–130 s**; the new detector uses the same. The brief's
+40–90 does **not** propagate, and neither does `SYNTHETIC-CORPUS-BRIEF`'s "~40–90 s cycle" generator
+default, which should widen so the corpus can express a long-cycle night at all.
+
+⚠ Two consequences for whoever codes this. **"45–90 s" may stay as prose but must never become a gate** —
+it is a typicality, and this section exists because it became one. And the citations above are in a
+brief, which the `citation-ledger` gate deliberately does not cover; **moving any of these DOIs into
+`oxydex-dsp.js` requires a matching `audits/CITATION-VERIFICATION-*.json` entry**, since root `*.js`
+*is* a gated surface.
 
 ## 3 · Validation — and the hard part is that there is no ground truth
 
@@ -157,8 +198,12 @@ corroboration and by the OxyDex reference guide, both of which move with it.
 
 ## 7 · Done when
 
-- [ ] §2.1's cycle window is settled from the literature, cited, and the detector and
-      `computePatternScores` use the SAME one.
+- [x] **§2.1's cycle window SETTLED 2026-08-16 — 40–130 s, cited (Berry 2012 · Wedewardt 2010 ·
+      Naughton 1993 · Hall 1996).** The literature answer is that AASM sets a *floor* of 40 s with
+      45–90 s as a typicality, not a 40–90 window, and that a 90 s ceiling would discard about half of
+      the worst-LVEF group (mean cycle 86 ± 23 s). `computePatternScores` already used 40–130, so the
+      two sites agree **without a code change at that site**; the brief's 40–90 is what moves.
+      Still open: `SYNTHETIC-CORPUS-BRIEF`'s ~40–90 s generator default should widen to match.
 - [ ] The detector implements all three criteria, with the cycle test **gating** the decision rather
       than being computed after it.
 - [ ] §3.1's adversarial twin pair is committed and the detector separates them — and the test is shown
