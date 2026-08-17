@@ -4,15 +4,16 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** REFERENCE (living) · **last-verified:** 2026-08-16 · **Serves:**
+**Status:** REFERENCE (living) · **last-verified:** 2026-08-17 · **Serves:**
 `FIXTURE-CORPUS-REACHABILITY-2026-08-09-BRIEF.md` §3
 
 # Where the raw recordings actually are
 
 The suite's real data is **gitignored** — personal overnight recordings, never committed. So "the
 corpus" is not a property of the repository, it is a property of the machine, and it lives in four
-places — plus a **fifth, the CPAP SD card, which is removable and usually not mounted** (see the
-section below). None of them is discoverable from a checkout, which is why this file exists.
+places — plus a **fifth, the CPAP corpus, which lives on a SECOND MOUNTED VOLUME** (see below; the
+four-location table only ever covered one volume). None of them is discoverable from a checkout, which
+is why this file exists.
 
 > **The one fact that costs the most time:** a fresh `git worktree` off `origin/main` contains the
 > **tracked** part of `uploads/` and none of the recordings. `CLAUDE.md` §👥.1 mandates that worktree
@@ -25,7 +26,7 @@ section below). None of them is discoverable from a checkout, which is why this 
 > `uploads/` → this checkout's), and print the search when they refuse. You should not need
 > `DEX_UPLOADS` by hand for the primary-checkout case.
 
-## The four locations
+## The four locations (all on one volume — see the fifth, below)
 
 Counts re-measured **2026-08-15** and they grow with every capture night — read them as scale, not as
 a checksum.
@@ -48,31 +49,37 @@ through `corpusSearch`; **fixture outputs are always written to the `uploads/` o
 running in.** Routing the write side through `DEX_UPLOADS` would make a worktree regen rewrite a
 tracked file in another checkout, invisibly. See `tools/regen-goldens-core.mjs` §CORPUS ≠ FIXTURES.
 
-## ⚠️ A FIFTH source exists and is not listed above: the CPAP SD card
+## The FIFTH location — the CPAP corpus, on the *other* volume
 
-Found 2026-08-16 while trying to re-measure `OXYDEX-PB-DETECTOR` §3.3's κ. Three shipped tools take a
-CPAP export set that **none of the four locations above can produce**:
+Added 2026-08-17 while re-measuring `OXYDEX-PB-DETECTOR` §3.3's κ. Three shipped tools need a CPAP
+export set that **none of the four rows above can produce**:
 
 | tool | needs |
 |---|---|
-| `tools/cpap-corpus.mjs` | `--root <sd-card-dir>` — a ResMed card tree; builds the export set |
+| `tools/cpap-corpus.mjs` | `--root <dir>` — a ResMed tree, `<root>/YYYYMMDD/YYYYMMDD_HHMMSS_{BRP,PLD,SA2,EVE,CSL}.edf`; builds the export set |
 | `tools/pb-agreement.mjs` | `--cpap <cpap-exports.json>` from the above |
 | `tools/pb-fusion-blast.mjs` | the same |
 
-**Current state of this machine:** a `DATALOG` / `STR.edf` search finds nothing, and `uploads/` holds
-only **3 distinct CPAP nights** (2026-06-12, -13, -16) as flat `*_CSL/EVE/BRP/PLD/SA2.edf` files —
-against the ~20 nights behind the published κ = −0.039. The card is removable media and simply is not
-mounted; this is **not** a claim that the data is lost.
+| path | nights | what it is |
+|---|---|---|
+| `/run/media/michal/data/Ecg-nightly-archive/CPAP` | **192 folders → 189 exports** (3 empty) | the ResMed corpus, already in card layout — point `--root` straight at it |
 
-**The failure mode is the one this file exists to prevent.** Pointing `cpap-corpus.mjs --root` at a
-directory holding the right files in the *wrong layout* does not error — it prints
+> 🔴 **THERE ARE TWO MOUNTED VOLUMES, AND THIS FILE ONLY EVER DESCRIBED ONE.**
+> Every path in the four-location table is on `/run/media/michal/647A504F7A50205A` (or a host).
+> `/run/media/michal/data` is a second mounted volume and holds, besides the CPAP corpus, at least
+> `Tepna/uploads` and `tepna-archive/uploads`. A search of "the machine" that walks one mount and
+> reports absence is not a search of the machine — that produced a **false "corpus not on this
+> machine"** for several hours on 2026-08-17. **Check `ls -d /run/media/michal/*/` first.**
+
+⚠️ `uploads/` also holds **3** flat CPAP nights (2026-06-12, -13, -16) as loose `*_CSL/EVE/BRP/PLD/SA2.edf`.
+They are fixture inputs, **not** a corpus — do not point `--root` at `uploads/`.
+
+⚠️ **And the wrong-layout failure is silent.** `cpap-corpus.mjs --root` pointed at a directory holding
+the right files in the wrong shape does not error: it prints
 `nights: 0 | therapy hours: 0.0 | ganglior events: 0` and **writes a valid, empty exports file, exiting
-0**. Downstream that reads as *"the comparison ran and found no agreement"*, which is a different and
-much worse claim than *"the corpus was absent"*. Check the night count, never the exit code
+0**. Downstream that reads as *"the comparison ran and found no agreement"* — a different and much
+worse claim than *"the corpus was absent"*. Check the night count, never the exit code
 (`CLAUDE.md` §👥.4b).
-
-**Owner action to unblock:** mount the card and add its path here as a fifth row. Nothing in the repo
-needs changing.
 
 ## Regenerating a fixture may be an `ssh` job
 
