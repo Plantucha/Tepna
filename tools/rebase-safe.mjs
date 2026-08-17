@@ -53,6 +53,10 @@ const require = createRequire(import.meta.url);
 const C = { red: '[31m', grn: '[32m', yel: '[33m', bold: '[1m', off: '[0m' };
 const paint = (s, c) => (process.stdout.isTTY ? c + s + C.off : s);
 const git = (...a) => execFileSync('git', a, { cwd: ROOT, encoding: 'utf8' }).trim();
+/* UNTRIMMED. `--porcelain` encodes the index/worktree state in TWO leading columns, so an unstaged
+   modification legitimately begins with a space and `.trim()` destroys it — silently, and only on the
+   first line. Any caller parsing column-oriented git output must use this, never `git()`. */
+const gitRaw = (...a) => execFileSync('git', a, { cwd: ROOT, encoding: 'utf8' });
 const gitQuiet = (...a) => {
   try {
     return { ok: true, out: git(...a) };
@@ -115,6 +119,65 @@ function askBuildDocs() {
   } catch {
     return null;
   }
+}
+
+/* ── `git status --porcelain` → paths ──────────────────────────────────────────────────────────────
+   Every line is `XY PATH`: two status columns, one space, then the path. Three ways to get this
+   wrong, and the shipped version had two of them. All three are gate-pinned by value.
+
+   1 · DO NOT `.trim()` THE OUTPUT FIRST. A worktree modification that is not staged has a LEADING
+       SPACE in column 1 (`" M path"`) — exactly what `rebuild()` leaves behind. `.trim()` strips it
+       from the FIRST line only, so a `.slice(3)` then eats `M`, ` ` and the path's first character.
+       Measured: `" M OverDex.html"` → `verDex.html`. Only ever the first entry, which is why it read
+       as a typo rather than a parser fault and survived. `git()` trims by default, so this function
+       takes the RAW string and must keep it raw.
+   2 · A QUOTED PATH IS C-QUOTED, NOT JUST QUOTE-WRAPPED. git quotes any path with a space or a
+       non-ASCII byte and escapes the bytes: `Data Unifier.html` → `"Data Unifier.html"`, and
+       `café.html` → `"caf\303\251.html"`. Stripping the outer quotes with a regex leaves the octal
+       escapes in place, producing a plausible-looking name that does not exist. This matters here
+       specifically: **`Data Unifier.html` is one of the two orchestrator bundles this tool rebuilds**,
+       and it sorts first, so the most likely first entry is a quoted one.
+   3 · The two defects CANCEL on a quoted first entry — the character (1) eats is the opening quote,
+       and the trailing-quote strip removes its partner. So the bug is INVISIBLE precisely when the
+       first artifact is `Data Unifier.html` and visible when it is `OverDex.html`. A fixture whose
+       first entry is quoted, staged (`"M  path"`) or untracked (`"?? path"`) passes while the bug is
+       present, because none of those carries a leading space. The gate pins one of each. */
+function _unquote(s) {
+  if (s.length < 2 || s[0] !== '"') return s;
+  const body = s.slice(1, -1);
+  const bytes = [];
+  for (let i = 0; i < body.length; i++) {
+    if (body[i] !== '\\') {
+      bytes.push(...Buffer.from(body[i], 'utf8'));
+      continue;
+    }
+    const c = body[++i];
+    const oct = /[0-7]/.test(c) ? body.slice(i, i + 3) : null;
+    if (oct && /^[0-7]{3}$/.test(oct)) {
+      bytes.push(parseInt(oct, 8));
+      i += 2;
+      continue;
+    }
+    const simple = { n: 10, t: 9, r: 13, b: 8, f: 12, v: 11, a: 7 };
+    bytes.push(...Buffer.from(c in simple ? String.fromCharCode(simple[c]) : c, 'utf8'));
+  }
+  return Buffer.from(bytes).toString('utf8');
+}
+
+export function parsePorcelain(raw) {
+  return String(raw == null ? '' : raw)
+    .split('\n')
+    .filter((l) => l.length > 3)
+    .map((l) => {
+      const status = l.slice(0, 2);
+      let rest = l.slice(3);
+      /* A rename/copy reads `R  old -> new`; the destination is the path that exists now, and it is
+         the one a caller must stage. git quotes any path containing the separator, so an UNQUOTED
+         ` -> ` is unambiguously the separator. A rebuild cannot rename, so this is belt-and-braces —
+         but a parser that silently returned `old -> new` would hand back a path that never exists. */
+      if (/^[RC]/.test(status) && rest.includes(' -> ')) rest = rest.slice(rest.lastIndexOf(' -> ') + 4);
+      return _unquote(rest);
+    });
 }
 
 /* A path is GENERATED iff a builder owns it. Everything else — including every *.src.html, every
@@ -233,10 +296,9 @@ function main() {
   if (doBuild) {
     console.log(paint('▸ rebuilding every generated tree from source', C.bold));
     rebuild();
-    const dirty = git('status', '--porcelain')
-      .split('\n')
-      .filter(Boolean)
-      .map((l) => l.slice(3).replace(/^"|"$/g, ''));
+    /* RAW, not `git()` — `git()` trims, and the leading space of an unstaged entry is load-bearing.
+       See parsePorcelain's header: trimming it corrupts the first path. */
+    const dirty = parsePorcelain(gitRaw('status', '--porcelain'));
     if (dirty.length) {
       console.log(paint('▸ the rebuild moved ' + dirty.length + ' artifact(s) — AMEND them into your commit:', C.yel));
       dirty.forEach((p) => console.log('    ' + p));

@@ -21190,6 +21190,62 @@
       T.eq('…and says why, so the degraded mode is visible', /required set unknown/.test(d(snapFail(['mutation (diff-scoped)'], [])).why), true);
     });
 
+    /* THE PORCELAIN PARSE — the tool's other half, and it shipped corrupting a path.
+       `rebase-safe` prints "AMEND them into your commit: git add <paths>" after rebuilding. It built
+       that list by `.trim()`ing `git status --porcelain` and slicing 3 characters off each line. An
+       unstaged worktree modification — exactly what `rebuild()` leaves — begins with a SPACE, which
+       `.trim()` removes from the first line only, so the slice ate the first character of the first
+       path. Observed in the field: `git add verDex.html` for `OverDex.html`.
+
+       ⚠️ THE MASKING CONDITIONS ARE WHY THIS SURVIVED, AND WHY THE CONTROLS BELOW ARE NOT PADDING.
+       Three of the four first-entry shapes are IMMUNE, so a fixture author picking any of them writes
+       an assertion that passes against the BROKEN parser:
+         · quoted   (" M \"Data Unifier.html\"") — the slice eats the OPENING QUOTE, and the old
+           trailing-quote regex removed its partner, so the two defects cancel and the answer is right
+           BY LUCK. Confirmed by a second session failing to reproduce the bug using this very name.
+         · staged   ("M  path")  — no leading space, `.trim()` is a no-op.
+         · untracked("?? path")  — likewise.
+       And `Data Unifier.html` is the natural pick twice over: it is this repo's canonical multi-word
+       bundle, it is one of the two orchestrators this tool rebuilds, and porcelain sorts by path so
+       `D` precedes `O`. The same tool, same code, produced a correct list on one rebase and a corrupt
+       one on the next purely from which artifacts happened to be dirty.
+       So: the unstaged+unquoted case is pinned as the one that MUST be right, with the three immune
+       shapes beside it — without the pair, a "fix" that simply quoted everything would also pass. */
+    group('Rebase-safe — the porcelain parse keeps the first path intact (REBASE-SAFE)', 'tools · rebase-safe-porcelain', function (T) {
+      var pp = env.rebaseParsePorcelain;
+      if (typeof pp !== 'function') {
+        T.skip('porcelain parser is wired into this lane', 'browser lane cannot import tools/rebase-safe.mjs');
+        return;
+      }
+
+      // THE FAILING CASE. Unstaged + unquoted, first line. This is the assertion the shipped tool loses.
+      T.eq('an UNSTAGED UNQUOTED first path survives — the leading space is not trimmed away', pp(' M OverDex.html\n M Zebra.html\n'), ['OverDex.html', 'Zebra.html']);
+      // …and it is specifically the FIRST entry that was at risk; a later one was always fine.
+      T.eq('a later unstaged entry was never affected, so first-position is the discriminator', pp('?? a.html\n M OverDex.html\n')[1], 'OverDex.html');
+
+      // THE THREE MASKING SHAPES — each passes on the broken parser, so each is a control, not a duplicate.
+      T.eq('control · a QUOTED first path (the two defects used to cancel here)', pp(' M "Data Unifier.html"\n')[0], 'Data Unifier.html');
+      T.eq('control · a STAGED first path has no leading space', pp('M  OverDex.html\n')[0], 'OverDex.html');
+      T.eq('control · an UNTRACKED first path has no leading space', pp('?? OverDex.html\n')[0], 'OverDex.html');
+
+      /* C-QUOTING IS NOT QUOTE-WRAPPING. git escapes non-ASCII as octal BYTES inside the quotes, so
+         stripping the outer quotes with a regex yields a plausible name that does not exist. Broken
+         in every position, not just the first — the old parser returned `caf\303\251.html`. */
+      T.eq('a non-ASCII path is un-escaped from octal bytes, not left as \\303\\251', pp(' M "caf\\303\\251.html"\n')[0], 'café.html');
+      T.eq('an escaped quote inside a quoted path round-trips', pp(' M "wei\\"rd.html"\n')[0], 'wei"rd.html');
+      T.eq('an escaped backslash round-trips', pp(' M "back\\\\slash.html"\n')[0], 'back\\slash.html');
+      T.eq('an escaped tab round-trips', pp(' M "ta\\tb.html"\n')[0], 'ta\tb.html');
+
+      // A rename yields the DESTINATION — `old -> new` as a path would never exist to stage.
+      T.eq('a rename yields the destination, not "old -> new"', pp('R  old.html -> new.html\n')[0], 'new.html');
+      T.eq('a quoted rename destination is unquoted too', pp('R  "a b.html" -> "c d.html"\n')[0], 'c d.html');
+
+      // Degenerate input must not fabricate a path.
+      T.eq('empty output is no paths, not one empty path', pp('').length, 0);
+      T.eq('a trailing newline does not yield a phantom entry', pp(' M a.html\n').length, 1);
+      T.eq('null is tolerated as no paths', pp(null).length, 0);
+    });
+
     group('Rebase-safe — the generated/source classifier fails CLOSED (REBASE-SAFE)', 'tools · rebase-safe', function (T) {
       var cls = env.rebaseClassify;
       if (typeof cls !== 'function') {

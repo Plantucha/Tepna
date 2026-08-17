@@ -18,7 +18,7 @@
    ════════════════════════════════════════════════════════════════════════ */
 import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { classify as rebaseClassify } from '../tools/rebase-safe.mjs';
+import { classify as rebaseClassify, parsePorcelain as rebaseParsePorcelain } from '../tools/rebase-safe.mjs';
 import { decide as landDecide } from '../tools/land-pr.mjs';
 import { classify as qdClassify, pick as qdPick, IDLE_MIN as QD_IDLE_MIN } from '../tools/queue-doctor.mjs';
 import { classify as commitShape } from '../tools/commit-shape.mjs';
@@ -1715,6 +1715,8 @@ async function main() {
        only (an ESM import of a tool), so the browser lane SKIPs. */
     deviceStability: deviceStability,
     rebaseClassify: rebaseClassify,
+    /* the porcelain parse, separated from the I/O so the gate can drive it by value — see the group */
+    rebaseParsePorcelain: rebaseParsePorcelain,
     /* land-pr's PURE decision core. Same shape and same reason as rebaseClassify above: the tool's
        value is a state machine that must not be re-derived by hand in every session, and a state
        machine is only trustworthy if something drives it. Node-lane only (an ESM import of a tool),
