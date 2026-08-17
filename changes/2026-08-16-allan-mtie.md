@@ -50,7 +50,7 @@ naive form is O(N·W) and a night is ~30 000 samples; measured 0.04–0.20 s for
 
 ## An earlier attempt at the same problem was rejected by the data
 
-Dual-Dirac **RJ/DJ decomposition** (`INTERDISCIPLINARY-LITERATURE` §7) models jitter as a BOUNDED
+Dual-Dirac **RJ/DJ decomposition** — the standard SerDes/telecom jitter model — treats jitter as a BOUNDED
 deterministic part plus an unbounded random one, and BLE's 7.5 ms connection interval looks like textbook
 bounded DJ. **It does not fit.** The tail fit returned **negative DJ** on most real streams, and the
 kurtosis says why: a dual-Dirac is flat-topped (negative excess kurtosis); these are single, violently

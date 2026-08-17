@@ -6,7 +6,9 @@ type: added
 **`classify` names a noise type from a fitted slope, so near a boundary it must refuse. This one fits no
 slope, so it has no boundary.**
 
-`INTERDISCIPLINARY-LITERATURE-2026-08-16-BRIEF` §2 calls this the highest-value item it contains.
+`INTERDISCIPLINARY-LITERATURE-DIAGNOSIS-2026-08-16-BRIEF` §2.1 keeps slope-as-noise-diagnostic as
+[ALREADY CORRECT], asking only for confidence reporting and an input-validity check around it. This
+takes the other route.
 **Riley, W. J. & Greenhall, C. A. (2004)**, *Power law noise identification using the lag 1
 autocorrelation*, Proc. 18th European Frequency and Time Forum, Guildford, 5–7 April — identify the
 power law **analytically**, from the lag-1 autocorrelation, at any averaging factor, without fitting
