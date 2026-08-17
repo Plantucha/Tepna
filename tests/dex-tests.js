@@ -7680,6 +7680,7 @@
       var a = night(dipMod, 11);
       var ra = P.patDipEvents(a.R, a.F, { minDipMs: 10, minBeats: 4 });
       T.ok('A · planted 15 ms × 8-beat dips are FOUND (' + (ra.nEvents || 0) + ' events vs 20 planted)', !!ra.ok && ra.nEvents >= 16 && ra.nEvents <= 26);
+      T.ok('A · …and the index clears its own chance line (lift ' + (ra.liftVsChance == null ? '∞' : ra.liftVsChance.toFixed(1)) + ')', !!ra.ok && (ra.liftVsChance == null || ra.liftVsChance > 5));
       T.ok(
         'A · depth is measured, not merely thresholded (every event 10-30 ms deep)',
         !!ra.ok &&
@@ -7719,8 +7720,11 @@
 
       // F · segments: the SAME dip found without segments must die on a connection boundary through
       // its middle — the per-connection BLE offset argument only holds within one connection.
+      // The dip is 6 beats so each half of the cut (3+3) is BELOW minBeats: an 8-beat dip would
+      // legitimately yield one 4-core-beat event per side, which is correct behaviour (evidence
+      // within a connection stands); what segments must forbid is only the stitch ACROSS the cut.
       var f = night(function (i) {
-        return i >= 1796 && i < 1804 ? -15 : 0;
+        return i >= 1797 && i < 1803 ? -15 : 0;
       }, 29);
       var mid = f.R[1800];
       var rf = P.patDipEvents(f.R, f.F, {

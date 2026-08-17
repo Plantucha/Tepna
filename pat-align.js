@@ -433,9 +433,14 @@
       return -1; // outside every declared connection → excluded
     };
 
-    /* Pass 1 — centered rolling median per beat, artifacts excluded from the reference. Two-pointer
-       window; the median is over lags whose |value − prevMedian| stayed inside MAXEX, seeded by the
-       raw median for the first window (a cold start cannot know artifacts yet; MAXEX is generous). */
+    /* Pass 1 — centered rolling median per beat, LEAVE-SELF-OUT. The beat's own lag is excluded
+       from its baseline window, and the exclusion is load-bearing: over any locally MONOTONE stretch
+       (a slow clock drift between the two axes is enough) the median of a centered window IS the
+       centre element, so a self-inclusive baseline makes dev ≡ 0 exactly — measured on the first
+       ankle-leg run as a 0.0 ms "noise floor" that was first misdiagnosed as fiducial quantization
+       (the feet were 100 % fractional; the zeros were self-agreement). A statistic that contains the
+       value it judges cannot deviate — the same self-reference family as §8's "a statistic whose
+       reference comes from the data it tests cannot fail". */
     var half = W / 2,
       lo = 0,
       hi = 0,
@@ -447,7 +452,8 @@
       while (lo < n && L[lo].tMs < t - half) lo++;
       while (hi < n && L[hi].tMs <= t + half) hi++;
       var win = [];
-      for (var k = lo; k < hi; k++) win.push(L[k].lagMs);
+      for (var k = lo; k < hi; k++) if (k !== i) win.push(L[k].lagMs);
+      if (!win.length) win.push(L[i].lagMs); // a beat alone in its window has no external reference
       win.sort(function (a, b) {
         return a - b;
       });
@@ -543,12 +549,12 @@
         thetaMs: THETA
       };
     }
-    /* …and the OPPOSITE degeneracy: a floor of ~0 means the deviations are QUANTIZED — integer-sample
-       fiducials on a coarse grid (18 ms at the Verity's 55 Hz), where most devs are exactly 0 and a
-       "dip" is one grid step. The compendium's N-corner-hat trap (§8: "returns 0.00 ms … print the
-       exactly-zero share") in this estimand's clothing. Measured on the first ankle-leg probe: floor
-       0.0 ms, and on one night 100 % artifact share beside it. Sub-sample the fiducial (refineFeet
-       exists) rather than reading a zero floor as a quiet signal. */
+    /* …and the OPPOSITE degeneracy: a floor of ~0 with a dominant exactly-zero share means the
+       deviations are DEGENERATE — either genuinely quantized fiducials (integer-sample feet on a
+       coarse grid), or a baseline that contains the value it judges (the self-inclusion defect now
+       fixed above — kept as a guard because a regression re-introducing it would resurface exactly
+       here). Either way the floor statistic has no dynamic range and the index must not be read.
+       The compendium's N-corner-hat trap (§8: "returns 0.00 ms … print the exactly-zero share"). */
     var zeroShare =
       absDev.filter(function (v) {
         return v === 0;
@@ -565,10 +571,28 @@
         thetaMs: THETA
       };
     }
+    /* CHANCE LINE — an index without a null beside it is a number wearing a costume. Under a
+       (deliberately optimistic) independence assumption, the expected rate of ≥NBEATS-core runs from
+       noise alone is pairs/h × p^N × (1−p), with p MEASURED as the share of devs at or below −Θ —
+       not a Gaussian guess. Optimistic because real devs are autocorrelated, so the true chance rate
+       is HIGHER than this line; an observed index near or below it is therefore certainly noise,
+       while an index well above it is only *candidate* signal (the shuffle null in the brief remains
+       owed for any published claim). Measured on the first readable real night: floor 17 ms against
+       Θ = 10 gave 76.8 dips/h — chance-dominated, and this line is what says so. */
+    var pBelow =
+      dev.filter(function (d) {
+        return d <= -THETA;
+      }).length / n;
+    var pairsPerHr = n / (coveredMs / 3600000);
+    var chancePerHr = pairsPerHr * Math.pow(pBelow, NBEATS) * (1 - pBelow);
+    var idx = events.length / (coveredMs / 3600000);
     return {
       ok: true,
       events: events,
-      dipIndexPerHr: events.length / (coveredMs / 3600000),
+      dipIndexPerHr: idx,
+      chanceIndexPerHr: chancePerHr,
+      liftVsChance: chancePerHr > 0 ? idx / chancePerHr : idx > 0 ? Infinity : null,
+      pBelowTheta: pBelow,
       nEvents: events.length,
       nPairs: n,
       coveredHr: coveredMs / 3600000,
