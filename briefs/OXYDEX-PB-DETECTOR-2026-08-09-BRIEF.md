@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-08-09 · **Owner decision:** option 3, taken 2026-08-09 · **Follows:** `OXYDEX-PB-OVERCALL-FOLLOWUPS-2026-08-04-BRIEF.md` §1 (which required this be spawned separately rather than patched in) · **Parent:** `OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md` · **Affects:** `oxydex-dsp.js detectOscillations` / `computePatternScores`, the OxyDex reference guide, `integrator-dsp.js`'s PB corroboration leg · **Amended 2026-08-16:** §3.1 gains a **third** adversarial twin (a red-noise null) — see `OXYDEX-FFT-CYCLE-NULL-2026-08-16-BRIEF.md`; no other section changed and the owner decision is untouched
+**Status:** PROPOSED · **Created:** 2026-08-09 · **Owner decision:** option 3, taken 2026-08-09 · **Follows:** `OXYDEX-PB-OVERCALL-FOLLOWUPS-2026-08-04-BRIEF.md` §1 (which required this be spawned separately rather than patched in) · **Parent:** `OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md` · **Affects:** `oxydex-dsp.js detectOscillations` / `computePatternScores`, the OxyDex reference guide, `integrator-dsp.js`'s PB corroboration leg · **Amended 2026-08-16:** §3.1 gains a **third** adversarial twin (a red-noise null) — see `OXYDEX-FFT-CYCLE-NULL-2026-08-16-BRIEF.md`; no other section changed and the owner decision is untouched · **§2.1 SETTLED 2026-08-16: 40–130 s**, cited — AASM sets a 40 s *floor* with 45–90 s as a typicality, not a 40–90 window, so the code was right and this brief's 40–90 does not propagate
 
 # Build a periodic-breathing detector that measures periodicity
 
@@ -56,6 +56,135 @@ Those are different specs in the same codebase for the same phenomenon.
 **Decide it once, from the literature, and cite it** — do not let the detector and the score disagree,
 and do not pick the narrower one merely because it is the newer sentence. Whichever is chosen, both
 sites move together.
+
+#### ✅ SETTLED 2026-08-16 — **40 s floor, 130 s ceiling. The code was right and this brief was wrong.**
+
+**The 40–90 s figure is a misreading of AASM, and the misreading is specific.** The AASM Sleep Apnea
+Definitions Task Force states the criterion as:
+
+> *"episodes of ≥ 3 consecutive central apneas and/or central hypopneas separated by a crescendo and
+> decrescendo change in breathing amplitude **with a cycle length of at least 40 seconds (typically 45
+> to 90 seconds)**"*
+>
+> — Berry RB et al. 2012, *J Clin Sleep Med* 8(5):597–619, [10.5664/jcsm.2172](https://doi.org/10.5664/jcsm.2172)
+
+That is a **one-sided floor** (≥ 40 s) plus a parenthetical **typicality** note. **90 s is not an upper
+scoring bound in AASM and never was.** The parent's *"AASM scores Cheyne-Stokes on a 40–90 s cycle"*
+converts a floor-plus-typicality into a two-sided window — the same shape as quoting a range as a
+criterion. Note the parent is right about the *other* two criteria: "≥ 3 consecutive" is AASM verbatim.
+
+**And a 90 s ceiling fails in the dangerous direction, which is measurable rather than arguable.** Cycle
+length is set by circulatory delay, so it *lengthens as cardiac function worsens* — the correlation with
+lung-to-ear circulation time is r = 0.939 (Naughton M et al. 1993, *Am Rev Respir Dis* 148(2):330–8,
+[10.1164/ajrccm/148.2.330](https://doi.org/10.1164/ajrccm/148.2.330)) and r = 0.88 (Hall MJ et al. 1996,
+*Am J Respir Crit Care Med* 154(2):376–81, [10.1164/ajrccm.154.2.8756809](https://doi.org/10.1164/ajrccm.154.2.8756809)).
+Stratified by ejection fraction across 104 CSR patients, mean cycle length runs **49 ± 17 s at LVEF > 50 %
+to 86 ± 23 s at LVEF < 20 %** (Wedewardt J et al. 2010, *Sleep Med* 11(2):137–42,
+[10.1016/j.sleep.2009.09.004](https://doi.org/10.1016/j.sleep.2009.09.004)).
+
+At the worst-LVEF end the **mean alone is 86 s**. A hard 90 s ceiling therefore discards roughly half of
+the most severely impaired group — it is not a neutral narrowing, it is a filter that removes signal
+precisely where the pathology is worst. The existing **130 s** sits near mean + 2 SD (86 + 46 = 132) and
+is the defensible ceiling. The code comment's *"up to ~120 s in severe heart failure"* was right on the
+physiology and merely uncited.
+
+**Resolution:** keep `computePatternScores`'s **40–130 s**; the new detector uses the same. The brief's
+40–90 does **not** propagate, and neither does `SYNTHETIC-CORPUS-BRIEF`'s "~40–90 s cycle" generator
+default, which should widen so the corpus can express a long-cycle night at all.
+
+⚠ Two consequences for whoever codes this. **"45–90 s" may stay as prose but must never become a gate** —
+it is a typicality, and this section exists because it became one. And the citations above are in a
+brief, which the `citation-ledger` gate deliberately does not cover; **moving any of these DOIs into
+`oxydex-dsp.js` requires a matching `audits/CITATION-VERIFICATION-*.json` entry**, since root `*.js`
+*is* a gated surface.
+
+### 2.2 · ⚠ The interval machinery already exists — and it is NOT fit to gate on as written (measured 2026-08-16)
+
+§2's criterion 2 says the cycle length is *"computed afterwards and discarded"*. That is right, and it
+implies a cheap plan: reuse `computePatternScores`'s existing `crossingTimes` → `intervals` →
+`cycleIntervals` (`oxydex-dsp.js:980–1036`) instead of writing new interval code. **Do not do that
+without fixing the following first.** Each item below is marked with how strongly it is established.
+
+**🔴 CONFIRMED by measurement — the cycle COUNT is inflated, and it defeats criterion 3.**
+`cycleIntervals` is built by sliding one half-cycle at a time —
+`for (i…) cycleIntervals.push(intervals[i] + intervals[i+1])` — so consecutive entries **share a
+half-cycle**. For `k` true cycles it reports `2k − 1`:
+
+| true cycles | 1 | 2 | 3 | 4 | 5 | 10 |
+|---|---|---|---|---|---|---|
+| `cycleIntervals.length` | 1 | **3** | 5 | 7 | 9 | 19 |
+
+So **2 real cycles satisfy a naive `cycleIntervals.length >= 3`** — precisely the case §2's criterion 3
+exists to reject (*"one dip is not periodicity; the word requires repetition"*), and precisely the count
+AASM sets at ≥ 3. A count criterion must use **disjoint** pairing (`i += 2`) or divide by two; the
+existing array is a sliding view, not a cycle list.
+
+**🟢 REFUTED — the overlap does NOT bias `pbCycleLenSD`, so do not "fix" that.** The obvious follow-on
+worry is that overlapping windows are correlated and understate dispersion, making everything look more
+regular than it is. Measured on alternating 20/40 s half-cycles with jitter: overlapping SD **1.43** vs
+disjoint **1.41**, and the means are identical. The SD is honest; only the **count** is wrong. Recorded
+because this is a plausible-sounding claim that a later session would otherwise re-derive and act on.
+
+**🔴 CERTAIN from the code — the machinery is BLIND on a high-baseline wearer.** Line 988 is
+`if (segMean >= THRESH) continue;` with `THRESH = SPO2_OSC_THRESHOLD = 95`. Any 5-minute window whose
+**mean** SpO₂ is ≥ 95 contributes no crossings at all, so for a wearer sitting at 96–97 % `pbCycleLen`
+is `null` **by construction**, however cleanly they oscillate. This is §2's criterion 1 (baseline-relative
+thresholds) seen from the other side, and it is worth checking against the parent's measured
+*0/24 nights corroborating* before assuming that number reflects the wearer rather than this line.
+
+**🟡 PLAUSIBLE, NOT VERIFIED — intervals may span skipped windows.** `crossingTimes` is concatenated
+across windows while non-oscillating windows are `continue`d, so two consecutive entries can sit either
+side of a gap. The only guard is `iv > 5 && iv < 300`, and `WIN` is *also* 300, so a gap-spanning pair
+that lands under 300 s would be recorded as a cycle across a stretch that was explicitly judged
+non-oscillating. Whether real data produces such a pair is **not established here** — check it before
+relying on interval continuity.
+
+**Also noted:** `lastCross` (line 989) is assigned and never read.
+
+### 2.3 · 🔴 THE THREE CRITERIA ARE NOT ENOUGH — a fourth (regularity) is required. Measured 2026-08-16
+
+A prototype implementing §2's three criteria exactly — baseline-relative crossings against a rolling
+median, full cycles from **disjoint** half-cycle pairs (§2.2), cycle length gated to 40–130 s, and a run
+of ≥ 3 consecutive in-window cycles — was run against §3.1's twins. It separates the periodic twin from
+the aperiodic twin. **It fails the red-noise twin, and not marginally: AR(1) at ρ = 0.98 fired on 40 of
+40 seeds.**
+
+That is the §3.1 prediction coming true rather than a coding error. A smooth red series crosses its own
+rolling baseline at intervals set by its correlation time; if those land in 40–130 s, "≥ 3 consecutive
+in-window cycles" is satisfied with nothing periodic present. **A run-length criterion is not a
+periodicity criterion.**
+
+**What does separate them is the REGULARITY of the cycle length** — which is what the word "periodic"
+means, and clinically what crescendo-decrescendo CSR looks like. Coefficient of variation of the cycle
+lengths in the qualifying run, 40 seeds per row:
+
+| signal | CV min | CV median | CV max |
+|---|---|---|---|
+| red AR(1) ρ = 0.98 | **0.147** | 0.271 | 0.406 |
+| PB, ±0 s cycle jitter | 0.007 | 0.007 | 0.007 |
+| PB, ±5 s | 0.031 | 0.045 | 0.059 |
+| PB, ±10 s | 0.058 | 0.088 | **0.111** |
+| PB, ±15 s | 0.085 | 0.108 | 0.153 |
+| PB, ±20 s | 0.114 | 0.141 | 0.199 |
+
+**A gate at CV < 0.13 rejects 0/40 red-noise realizations and accepts 40/40 PB with jitter up to ±10 s**,
+with a graded band from ±15 s. The threshold is quoted with its margins deliberately: it is chosen
+between two measured distributions, not fitted to one night.
+
+**So the spec gains a fourth gating criterion:** *the qualifying run's cycle lengths must have
+CV < `CFG.PB_MAX_CYCLE_CV`*. Three consequences:
+
+1. §2's list must read **four** criteria, and §7's "implements all three criteria" becomes four.
+2. **The threshold is the detector's main free parameter and must not be quietly retuned.** If it moves,
+   the two distributions above are what justify the new value — re-measure them, do not adjust until the
+   corpus gives a pleasing episode count. That would be tuning to the guardrail §5 forbids.
+3. ⚠ **This bounds what the detector can claim.** It rejects red noise *of this ρ at this sampling rate*.
+   §3.1's box requires ρ be re-measured on the corpus; if the real ρ differs materially, this table must
+   be regenerated at that ρ before the threshold is trusted.
+
+**Not yet established:** whether real PB nights in this corpus have within-night CV below 0.13 at all. If
+they do not, the detector is correct and the corpus simply contains no PB — which is a legitimate answer
+and the one §4's bar must then be evaluated against.
 
 ## 3 · Validation — and the hard part is that there is no ground truth
 
@@ -157,18 +286,46 @@ corroboration and by the OxyDex reference guide, both of which move with it.
 
 ## 7 · Done when
 
-- [ ] §2.1's cycle window is settled from the literature, cited, and the detector and
-      `computePatternScores` use the SAME one.
-- [ ] The detector implements all three criteria, with the cycle test **gating** the decision rather
+- [x] **§2.1's cycle window SETTLED 2026-08-16 — 40–130 s, cited (Berry 2012 · Wedewardt 2010 ·
+      Naughton 1993 · Hall 1996).** The literature answer is that AASM sets a *floor* of 40 s with
+      45–90 s as a typicality, not a 40–90 window, and that a 90 s ceiling would discard about half of
+      the worst-LVEF group (mean cycle 86 ± 23 s). `computePatternScores` already used 40–130, so the
+      two sites agree **without a code change at that site**; the brief's 40–90 is what moves.
+      Still open: `SYNTHETIC-CORPUS-BRIEF`'s ~40–90 s generator default should widen to match.
+- [ ] The detector implements all FOUR criteria (§2.3 added regularity), with the cycle test **gating** the decision rather
       than being computed after it.
 - [ ] §3.1's adversarial twin pair is committed and the detector separates them — and the test is shown
       to FAIL against the current detector, which cannot.
 - [ ] §3.1's **third twin** — pure AR(1) red noise at the corpus-measured ρ, no oscillation planted —
       produces **no episode**, with the ρ and its sampling rate stated. A detector that clears the
       periodic/aperiodic pair but not this one is not finished.
-- [ ] §3.2's corpus decorrelation is measured and the achieved r is stated, whatever it is.
+- [x] **§3.2's corpus decorrelation MEASURED 2026-08-16 — r = 0.910 → 0.370.** Paired on the **same
+      42 nights**, old code vs wired (`tools/pb-operating-point.mjs`): nights flagged 38/42 → 16/42;
+      episodes vs % time below 95 % **0.910 → 0.370**; episodes vs mean SpO₂ −0.832 → −0.380. Stated
+      "whatever it is", as the box asks: **0.370 is not zero.** PB and hypoxemia genuinely co-occur, so
+      a detector correlating *zero* with burden would be suspicious in the other direction; the claim
+      is that burden no longer explains most of the signal, not that the two are independent.
+      ⚠️ The tool's header quotes 36/37 nights and r = 0.893 from a **37-night** corpus; the 42-night
+      baseline re-measured here is 38/42 and r = 0.910. Compare like with like — the improvement is
+      0.910 → 0.370 on one corpus, not 0.893 → 0.370 across two.
 - [ ] §3.3's κ is reported beside −0.039, explicitly as an observation.
+      🔴 **BLOCKED 2026-08-16 — the CPAP corpus it needs is not on this machine.** `tools/pb-agreement.mjs`
+      requires `--cpap <cpap-exports.json>`, built by `tools/cpap-corpus.mjs --root <sd-card-dir>`. The
+      card is **not among the four locations in `docs/CORPUS-LOCATIONS.md`**, a `DATALOG`/`STR.edf`
+      search finds nothing, and `uploads/` holds only **3 distinct CPAP nights** (2026-06-12, -13, -16)
+      against the ~20 that produced −0.039. κ on n = 3 would be noise wearing a statistic's name.
+      Pointing `cpap-corpus.mjs` at `uploads/` "succeeds" and reports **nights: 0** — an empty result
+      that exits clean, so check the count, not the exit code.
 - [ ] §4's bar is measured: removing the leg now changes the fused outcome on some nights — or it does
       not, and option 1 is revisited on that evidence.
-- [ ] Fixtures regenerated, all four build surfaces rebuilt, `verify-fixtures` re-run, `npm run check`
-      green.
+      🔴 **BLOCKED on the same input.** `tools/pb-fusion-blast.mjs` also requires `--cpap`. Both boxes
+      unblock together the moment the SD card is mounted; neither needs new code.
+- [x] **Fixtures regenerated, build surfaces rebuilt, `verify-fixtures` re-run — 2026-08-16.** The
+      equivalence gate **red first** (`ranked.0` "PB Episodes 16 eps" no longer computed), which is what
+      GATE C is for; `tools/regen-oxydex-goldens.mjs` moved 2 fixtures and the synthetic golden was
+      unchanged. `manifestHash` 979be8301f81 → 30e45b3ce49b, `verifiedUnder` → 16ae6cce27f0 after a
+      green corpus run. Both orchestrators re-bundled (they inline `oxydex-dsp.js`). Full suite **with**
+      the corpus: 7631/7631, zero skips; `build:check`/`verify:docs`/`verify:analysis`/`verify:manifest`
+      /`lint` all rc=0.
+      ⚠️ `npm run test:hooks` fails — but **identically on `origin/main`** (rc=1 both), so it is
+      pre-existing and not attributable to this work. Recorded rather than omitted.

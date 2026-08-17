@@ -1053,3 +1053,84 @@ def test_the_slope_classifier_and_its_TABLE_are_untouched_by_this_addition():
     assert allan._NOISE[0][1] == 'white/flicker-phase'
     assert [e[0] for e in allan._NOISE] == [-0.75, -0.25, 0.25, 0.75]
     assert allan.classify(-1.0)['noise'] == 'white/flicker-phase'
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# MTIE — the PEAK counterpart to TDEV's RMS (ITU-T G.810). Needed because `timing_uncertainty`
+# summarised delivery jitter as IQR/1.349, which assumes a Gaussian tail, and the corpus has excess
+# kurtosis +1901. At that shape there is no stable variance to summarise; MTIE needs no distribution.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+
+
+def _naive_mtie(x, m):
+    """The definition, directly: worst peak-to-peak inside any window of m+1 samples."""
+    w = m + 1
+    return max(max(x[i:i + w]) - min(x[i:i + w]) for i in range(len(x) - w + 1))
+
+
+def test_mtie_of_a_ramp_is_EXACTLY_slope_times_tau():
+    """A steady rate walks the phase linearly, so the worst window is any window: slope * tau, exactly.
+    This also pins the caveat that MTIE — unlike ADEV — is NOT blind to a constant frequency offset."""
+    ramp = [3.0 * i for i in range(600)]
+    for m in (1, 4, 16, 64):
+        got = allan.mtie(ramp, TAU0, [float(m)])[0]["mtie"]
+        assert got == pytest.approx(3.0 * m, abs=1e-9), f"tau={m}: {got}"
+
+
+def test_a_planted_step_is_recovered_exactly():
+    step = [0.0] * 300 + [42.0] * 300
+    assert allan.mtie(step, TAU0, [8.0])[0]["mtie"] == pytest.approx(42.0, abs=1e-9)
+
+
+def test_a_constant_series_has_no_time_interval_error():
+    assert allan.mtie([7.0] * 500, TAU0, [16.0])[0]["mtie"] == 0.0
+
+
+def test_the_BINARY_DECOMPOSITION_equals_the_definition():
+    """Bregni & Maccabruni's fast form must give byte-identical answers to the O(N*W) definition, or the
+    speed is bought with a different statistic. Seven taus, including non-powers-of-two."""
+    rng = random.Random(5)
+    x = [rng.gauss(0, 1) for _ in range(2000)]
+    for m in (1, 3, 7, 16, 33, 64, 129):
+        assert allan.mtie(x, TAU0, [float(m)])[0]["mtie"] == pytest.approx(_naive_mtie(x, m), abs=1e-12)
+
+
+def test_mtie_is_monotonically_non_decreasing_in_tau():
+    """A longer window CONTAINS every shorter one, so it cannot report less. That is what makes it a
+    bound rather than an average, and a decreasing point would mean the window logic is wrong."""
+    rng = random.Random(9)
+    x = [rng.gauss(0, 1) for _ in range(2000)]
+    curve = allan.mtie(x, TAU0)
+    assert len(curve) >= 3
+    for i in range(len(curve) - 1):
+        assert curve[i]["mtie"] <= curve[i + 1]["mtie"] + 1e-12
+
+
+def test_flat_separates_ONE_STALL_from_accumulating_drift():
+    """The diagnostic that changes what you would do. A single excursion fills every window, so short
+    and long agree; a random walk grows with tau. Measured: spike 500/500 flat, walk 3.7 -> 44.1."""
+    spike = [0.0] * 1500 + [500.0] + [0.0] * 1499
+    assert allan.stability(spike, TAU0)["mtie"]["flat"] is True
+    rng = random.Random(3)
+    v, walk = 0.0, []
+    for _ in range(3000):
+        v += rng.gauss(0, 1)
+        walk.append(v)
+    m = allan.stability(walk, TAU0)["mtie"]
+    assert m["flat"] is False
+    assert m["ms"] > m["ms_short"] * 5
+
+
+def test_mtie_refuses_what_it_cannot_measure():
+    assert allan.mtie([1.0], TAU0) == []
+    assert allan.mtie([1.0, 2.0, 3.0], 0) == []
+    assert allan.mtie([1.0, 2.0, 3.0], TAU0, [1e9]) == []
+    assert allan._mtie_summary([]) is None
+
+
+def test_stability_publishes_the_peak_view_beside_the_rms_one():
+    """Both, never one: on the corpus they disagree by ~70x (85 ms RMS-style vs a 5757 ms worst case),
+    and G.810 specifies both because they answer different questions."""
+    st = allan.stability(_white_fm(), TAU0)
+    assert st["mtie"] is not None and st["mtie"]["ms"] > 0
+    assert "classification" in st and "curve" in st

@@ -297,6 +297,95 @@ def hdev(phase, tau0, taus=None):
     return out
 
 
+# ── MTIE — MAXIMUM TIME INTERVAL ERROR ──────────────────────────────────────────────────────────────
+# TDEV (already here) is an RMS measure. MTIE is its PEAK counterpart, and ITU-T G.810 defines BOTH
+# because one number cannot do both jobs: RMS answers "how much does it typically vary", MTIE answers
+# "how far can it get, worst case, over this long".
+#
+# WHY IT IS NEEDED HERE, measured rather than assumed. `nightqc.timing_uncertainty` summarises delivery
+# jitter as IQR/1.349, which assumes a Gaussian tail. The real corpus is nowhere near Gaussian — excess
+# kurtosis +1901 (H10 acc), +1400 (H10 ecg), +124 (Verity ppg), against 0 for a normal. At that shape
+# there is no stable variance to summarise, and the repo already makes exactly this argument for
+# preferring ADEV over standard deviation. MTIE asks a question that needs no distribution at all.
+#
+# ⚠️ AN EARLIER ATTEMPT AT THIS PROBLEM WAS REJECTED BY THE DATA. Dual-Dirac RJ/DJ decomposition
+# (INTERDISCIPLINARY-LITERATURE §7) models jitter as a BOUNDED deterministic part plus an unbounded
+# random one, and BLE's connection interval looks like textbook bounded DJ. It does not fit: fitted DJ
+# came out NEGATIVE on most real streams, and the kurtosis above says why — a dual-Dirac is flat-topped
+# (negative excess kurtosis), these are single violently heavy-tailed peaks. The 7.5 ms interval bound
+# is real but negligible beside delays measured in hundreds of ms. So the bounded/unbounded split was
+# not shipped, and MTIE — which assumes neither — was.
+#
+# S. Bregni & S. Maccabruni, "Fast Computation of Maximum Time Interval Error by Binary Decomposition",
+# IEEE Trans. Instrumentation and Measurement 49(6), Dec 2000; ITU-T G.810 (08/96) for the definition.
+#
+# The naive form is O(N*W) per window and a night is ~30 000 samples, so this uses the binary
+# decomposition Bregni describes: a sparse table of range max/min over dyadic blocks, built once in
+# O(N log N), after which every window is two O(1) lookups.
+
+
+def _sparse_tables(x):
+    """Dyadic range-max and range-min tables. `up[k][i]` covers `x[i : i+2**k]`."""
+    n = len(x)
+    ups, dns = [list(x)], [list(x)]
+    k = 1
+    while (1 << k) <= n:
+        half = 1 << (k - 1)
+        prev_u, prev_d = ups[-1], dns[-1]
+        span = n - (1 << k) + 1
+        ups.append([max(prev_u[i], prev_u[i + half]) for i in range(span)])
+        dns.append([min(prev_d[i], prev_d[i + half]) for i in range(span)])
+        k += 1
+    return ups, dns
+
+
+def mtie(phase, tau0, taus=None):
+    """Maximum Time Interval Error of a PHASE series — the peak-to-peak spread inside the WORST window.
+
+        MTIE(tau) = max over all windows of length tau of ( max(x) - min(x) ) within that window
+
+    Returns `[{tau, mtie, n}]` ascending, in the same unit as `phase`. Monotonically non-decreasing in
+    tau by construction — a longer window contains every shorter one — which is what makes it a BOUND
+    rather than an average, and why its plot only ever rises.
+
+    ⚠️ **IT IS A PEAK, SO IT NEVER AVERAGES AWAY AND ONE OUTLIER SETS IT.** That is the point, not a
+    defect: it answers "how far could this have drifted over tau", and a single 5-second stall is a real
+    thing that happened. Do not compare an MTIE against an RMS figure like TDEV and call one wrong —
+    G.810 specifies both because they answer different questions.
+
+    ⚠️ Unlike ADEV/TDEV it is NOT insensitive to a constant frequency offset: a steady rate error walks
+    the phase, and MTIE reports that walk. On a series carrying a known offset, remove it first or read
+    the result as "including the rate", never as noise.
+    """
+    x = _clean(phase)
+    n = len(x)
+    if n < 2 or not tau0 or tau0 <= 0:
+        return []
+    if taus is None:
+        taus = _octave_taus(n, tau0)
+    ups, dns = _sparse_tables(x)
+    out = []
+    for tau in taus:
+        m = int(round(tau / tau0))
+        if m < 1 or m + 1 > n:
+            continue
+        w = m + 1                       # a tau of m intervals spans m+1 samples
+        # Largest dyadic block fitting the window. NO GUARD ON `k` BELOW: `w <= n` is enforced above,
+        # so k = floor(log2(w)) <= floor(log2(n)) = len(ups) - 1 and the level always exists. A defensive
+        # `if k >= len(ups)` here is unreachable, and this file removes unreachable arms rather than
+        # testing them (see _NOISE's note on the open-ended top).
+        blk = 1 << (w.bit_length() - 1)
+        hi, lo = ups[w.bit_length() - 1], dns[w.bit_length() - 1]
+        worst = 0.0
+        for i in range(n - w + 1):
+            j = i + w - blk             # two overlapping blocks cover the window exactly
+            span = max(hi[i], hi[j]) - min(lo[i], lo[j])
+            if span > worst:
+                worst = span
+        out.append({"tau": m * tau0, "mtie": worst, "n": n - w + 1})
+    return out
+
+
 def slope(points, key="adev"):
     """Log-log slope of sigma_y(tau), by least squares. None when fewer than three taus.
 
@@ -594,6 +683,23 @@ def identify(phase, tau0, adev_points=None):
     return {"adev": a_cls, "mdev": m_cls, "phase_noise": resolved, "taus": {"adev": len(a), "mdev": len(md)}}
 
 
+def _mtie_summary(curve):
+    """Compact MTIE facts for a record: the worst case over the longest window it supports, and whether
+    that worst case is a single excursion (flat across tau) or accumulates. None on an empty curve."""
+    if not curve:
+        return None
+    lo, hi = curve[0], curve[-1]
+    return {
+        "tau": hi["tau"],
+        "ms": round(hi["mtie"], 3),
+        "tau_short": lo["tau"],
+        "ms_short": round(lo["mtie"], 3),
+        # >0.9 means the shortest window already contains nearly the whole excursion: one event, not
+        # drift. Reported rather than judged — no threshold gates anything on it.
+        "flat": bool(hi["mtie"] > 0 and (lo["mtie"] / hi["mtie"]) > 0.9),
+    }
+
+
 def stability(phase, tau0, tdev_tau=None):
     """The whole answer for one series: the curve, its slope, the noise type, and the BEST averaging time.
 
@@ -645,6 +751,13 @@ def stability(phase, tau0, tdev_tau=None):
         # an edge, this still answers. Published beside rather than instead: see `noise_id`'s note on the
         # three-lane parity gate. Disagreement between the two is INFORMATION, not an error.
         "lag1_noise": noise_id(phase),
+        # THE PEAK VIEW, beside the RMS one. `adev`/`tdev` say how much this typically varies; MTIE says
+        # how far it got. On the real corpus those disagree by ~70x (H10: 85 ms RMS-style against a 5757
+        # ms worst case), and G.810 specifies both for exactly that reason.
+        # `flat` compares the shortest and longest window: when a single excursion dominates every
+        # window the two are nearly equal, which says the worst case is ONE STALL rather than drift that
+        # accumulates with tau. That distinction changes what you would do about it.
+        "mtie": _mtie_summary(mtie(phase, tau0)),
         # The MDEV-resolved phase type, or None. None rather than a string for the reason `classify`
         # documents at length: a truthy sentinel passes `if s["phase_noise"]:`, the guard callers write.
         "phase_noise": ident["phase_noise"],

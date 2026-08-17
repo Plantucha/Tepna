@@ -320,3 +320,55 @@ def test_an_out_of_domain_pulse_vote_leaves_the_ambient_votes_alone():
     """Abstention must not silently delete the votes it was going to replace."""
     v, why = telemetry.worn_verdict(ambient=WORN_SD, fs=176.0, ppg=_pulse(n=100))
     assert "ambient" in why
+
+
+# ─── §4.2 evidence-source independence ──────────────────────────────────────────────────────────
+
+def test_every_detector_name_the_combiner_can_emit_is_mapped_to_a_source():
+    """THE test that will actually fire. An unmapped detector silently counts as its OWN source, which
+    OVER-states independence — the wrong direction. This pins the map to the combiner: add a detector
+    without a source and CI says so, rather than an operator reading a reason string that implies two
+    pieces of evidence where there is one."""
+    import re
+    src = open(telemetry.__file__, encoding="utf-8").read()
+    body = src[src.index("def worn_verdict("):]
+    body = body[: body.index("\ndef ", 1)]
+    emitted = set(re.findall(r'votes\.append\(\("([a-z-]+)"', body))
+    assert emitted, "the combiner appends no named votes — the scrape is wrong, not the code"
+    unmapped = emitted - set(telemetry._WORN_SOURCE)
+    assert not unmapped, f"detectors with no evidence source: {sorted(unmapped)}"
+
+
+def test_detectors_sharing_a_signal_count_as_ONE_source():
+    """`ambient-level` and `ambient-stability` are two statistics of one series; `hr-contact-bit` and
+    `ppi-contact` are two characteristics of one physical sensor. Agreement between them is not
+    corroboration (INTERDISCIPLINARY-LITERATURE-DIAGNOSIS §4.2)."""
+    assert telemetry.independent_sources(["ambient-level", "ambient-stability"]) == ["optical-ambient"]
+    assert telemetry.independent_sources(["hr-contact-bit", "ppi-contact"]) == ["device-contact"]
+    assert telemetry.independent_sources(["ppi-contact", "ambient-level"]) == ["device-contact", "optical-ambient"]
+    assert telemetry.independent_sources([]) == []
+
+
+def test_an_unknown_detector_becomes_its_own_source_rather_than_vanishing():
+    """Fails toward over-counting independence, which is why the mapping test above exists — but it must
+    not silently DROP an unknown name, or the count would under-state the evidence instead."""
+    assert telemetry.independent_sources(["ambient-level", "brand-new"]) == ["brand-new", "optical-ambient"]
+
+
+def test_the_reason_string_is_unchanged_when_there_is_nothing_to_disambiguate():
+    """The common case is one detector. Appending a qualifier there would be noise, and every existing
+    consumer of `worn_why` reads that wording."""
+    v, why = telemetry.worn_verdict(contact=True)
+    assert (v, why) == (True, "worn per hr-contact-bit")
+
+
+def test_correlated_agreement_is_REPORTED_as_one_source_when_it_occurs():
+    """⚠️ NOT REACHABLE FROM PRODUCTION TODAY — capture.py's two call sites are disjoint (one passes
+    ppi_flags/ambient/ppg, the other passes contact), so these two never vote together. That makes the
+    current safety an ACCIDENT OF CALL-SITE SEPARATION rather than a property. This pins the behaviour
+    for the day someone passes both."""
+    sup, con = telemetry._PPI_CONTACT_SUPPORTED, telemetry._PPI_CONTACT
+    v, why = telemetry.worn_verdict(contact=True, ppi_flags=sup | con)
+    assert v is True
+    assert "hr-contact-bit, ppi-contact" in why
+    assert "1 independent source(s): device-contact" in why
