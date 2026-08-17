@@ -43,6 +43,7 @@
  *   node tools/integrator-block-precision.mjs --dir <trio-dir> [--max-nights 12]
  *   node tools/integrator-block-precision.mjs --selftest
  * ════════════════════════════════════════════════════════════════════════════════════════════════ */
+import { rayleighP } from './circular-stats.mjs';
 import vm from 'node:vm';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -224,7 +225,12 @@ function arm(A, Bt) {
           robust: robustSigma(lr.res.slice().sort((a, b) => a - b)),
           sd: sd(lr.res),
           ppm: r.driftPpm,
-          conc: r.wrappedConcentration != null ? r.wrappedConcentration : null
+          conc: r.wrappedConcentration != null ? r.wrappedConcentration : null,
+          /* THE NULL THE CONCENTRATION LACKED (INTERDISCIPLINARY-LITERATURE §13h.1): concentration IS
+             the mean resultant length, and the Rayleigh test says whether THIS value over THIS many
+             blocks is distinguishable from a uniform phase. §5 of the parent brief read 0.15–0.38 as
+             noise and 0.79 as lock by eye; this is that judgement with the n attached. */
+          rayleighP: r.wrappedConcentration != null ? rayleighP(r.perBlock.length, r.wrappedConcentration) : null
         }
       : null;
   }
@@ -274,8 +280,12 @@ const summarise = (armName) => {
       continue;
     }
     const under = v.filter((x) => x < TARGET_MS).length;
+    const ps = rows.map((r) => (r[armName] && r[armName][b] ? r[armName][b].rayleighP : null)).filter((x) => x != null);
+    const phaseReal = ps.filter((x) => x < 0.01).length;
     console.log(
-      `    ${String(b).padStart(4)} s   robust ${median(v).toFixed(0).padStart(5)} ms (IQR ${quantile(v, 0.25).toFixed(0)}–${quantile(v, 0.75).toFixed(0)})   concentration ${c.length ? median(c).toFixed(2) : ' n/a'}   ${under}/${v.length} night(s) under ${TARGET_MS} ms`
+      `    ${String(b).padStart(4)} s   robust ${median(v).toFixed(0).padStart(5)} ms (IQR ${quantile(v, 0.25).toFixed(0)}–${quantile(v, 0.75).toFixed(0)})   concentration ${c.length ? median(c).toFixed(2) : ' n/a'}` +
+        (ps.length ? `   Rayleigh p<0.01 on ${phaseReal}/${ps.length}` : '') +
+        `   ${under}/${v.length} night(s) under ${TARGET_MS} ms`
     );
   }
 };
