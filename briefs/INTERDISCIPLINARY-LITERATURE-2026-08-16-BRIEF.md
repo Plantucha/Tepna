@@ -75,13 +75,13 @@ vocabulary is mature and mostly already cited **in prose but not in the ledger**
 
 | work | detail | status |
 |---|---|---|
-| **Allan, D. W. (1966)** — *Statistics of atomic frequency standards*, Proc. IEEE 54(2):221–230 | already cited in `sigma-no-reference` | verified · **unledgered** |
-| **Gray, J. E. & Allan, D. W. (1974)** — *A method for estimating the frequency stability of an individual oscillator*, Proc. 28th Ann. Symp. Frequency Control | the three-cornered hat | verified · **unledgered** |
-| **Premoli, A. & Tavella, P. (1993)** — *A revisited three-cornered hat method…*, IEEE Trans. Instrum. Meas. 42(1):7–13 | negative variance handling | verified · **unledgered** |
-| **Torcaso, F., Ekstrom, C. R., Burt, E. A. & Matsakis, D. N. (1998)** — *Estimating frequency stability and cross-correlations*, Proc. 30th PTTI | correlated corners — the assumption the σ paper concedes is bent | verified · **unledgered** |
-| **Riley, W. J. (2008)** — *Handbook of Frequency Stability Analysis*, NIST Special Publication 1065 | σ_y(τ), TDEV, Hadamard, noise-type-by-slope | verified · **unledgered** |
+| **Allan, D. W. (1966)** — *Statistics of atomic frequency standards*, Proc. IEEE 54(2):221–230 | already cited in `sigma-no-reference` | verified · **ledgered** `10.1109/PROC.1966.4634` |
+| **Gray, J. E. & Allan, D. W. (1974)** — *A method for estimating the frequency stability of an individual oscillator*, Proc. 28th Ann. Symp. Frequency Control | the three-cornered hat | verified · **ledgered 2026-08-17** `10.1109/FREQ.1974.200027` |
+| **Premoli, A. & Tavella, P. (1993)** — *A revisited three-cornered hat method…*, IEEE Trans. Instrum. Meas. 42(1):7–13 | negative variance handling | verified · **ledgered** `10.1109/19.206671` |
+| **Torcaso, F., Ekstrom, C. R., Burt, E. A. & Matsakis, D. N. (1998)** — *Estimating frequency stability and cross-correlations*, Proc. 30th PTTI | correlated corners — the assumption the σ paper concedes is bent | verified · **no DOI — not ledgerable** (proceedings) |
+| **Riley, W. J. (2008)** — *Handbook of Frequency Stability Analysis*, NIST Special Publication 1065 | σ_y(τ), TDEV, Hadamard, noise-type-by-slope | verified · **no DOI — not ledgerable** (NIST SP) |
 | **Riley, W. J. & Greenhall, C. A. (2004)** — *Power law noise identification using the lag 1 autocorrelation*, 18th European Frequency and Time Forum, Guildford — **DOI 10.1049/cp:20040932** | **names the dominant noise type analytically, from phase or frequency data, at any averaging factor, WITHOUT fitting a slope** | verified + DOI |
-| *Power law noise identification using the lag 1 autocorrelation by overlapping samples* — IEEE Xplore document **6037776** | extends the above to the overlapping estimator we actually use | ⚠️ **AUTHORS AND YEAR UNVERIFIED.** The paper exists; two independent renderings reached this brief ("Zhou, Greenhall & Howe 2011" and "Zhou Chunlei et al., ICEMI") and **neither is confirmed** — a search for it returns the 2004 EFTF paper instead. Do not cite until resolved. |
+| *Power law noise identification using the lag 1 autocorrelation by overlapping samples* — IEEE Xplore document **6037776** | extends the above to the overlapping estimator we actually use | **RESOLVED 2026-08-17** — `10.1109/icemi.2011.6037776`, Zhou Chunlei / Zhang Qi / Yan Shuhua, 2011, ICEMI · ledgered |
 | **IEEE Std 1139** — *Definitions of Physical Quantities for Fundamental Frequency and Time Metrology* | TIE, TDEV, MDEV; phase vs frequency noise | verified, standard |
 
 ⚠️ **PRECONDITION, added 2026-08-16 after Vigil box's review — do not adopt this before the parity
@@ -108,9 +108,57 @@ analytically, without fitting a slope. Same two words, different statistics, dif
 reader citing METROLOGY §5 as evidence that lag-1 retires the SE band would be wrong, and the two
 briefs sit close enough in a semantic search to invite exactly that. (Raised by Brief runner.)
 
-**Also owed:** the five entries marked *unledgered* are cited in `papers/sigma-no-reference.html`
-prose today and are invisible to `citation-ledger`. Adding them is cheap and closes a real hole.
+**Also owed:** ~~the five entries marked *unledgered* are cited in `papers/sigma-no-reference.html`
+prose today and are invisible to `citation-ledger`. Adding them is cheap and closes a real hole.~~
 
+> ### ⚠️ HALF-TRUE — CORRECTED 2026-08-17. Ledgering them does NOT close that hole.
+>
+> The premise is right and the remedy is not, because **`citation-ledger` is DOI-DRIVEN**: it walks the
+> DOIs *on a reader-facing surface* and asserts the surrounding text names the ledger's author within
+> ±1 year. A work named in prose **with no DOI beside it** is invisible to the gate whether or not the
+> ledger knows the DOI. Adding a ledger row for a DOI the paper does not print changes nothing.
+>
+> Measured in `papers/sigma-no-reference.html`:
+>
+> | work | in the paper | ledger | gate sees it? |
+> |---|---|---|---|
+> | Allan 1966 | DOI `10.1109/PROC.1966.4634` printed | ✅ | **yes** |
+> | Premoli 1993 | DOI `10.1109/19.206671` printed | ✅ | **yes** |
+> | **Gray** (×3), **Torcaso**, **Riley** | **prose only, no DOI** | ✅ (Gray added today) | **no** |
+>
+> **So the hole closes at the PAPER, not at the ledger** — the DOI has to be printed beside the prose
+> mention. That is a `papers/` edit and owes a `build-docs` rebuild of the served twin, which is why it
+> is recorded here as the actual next step rather than quietly claimed as done by the ledger work above.
+> Torcaso and Riley SP 1065 have no DOI at all, so for those two the honest end state is a named citation
+> without one — the gate cannot cover them and should not be made to look as though it does.
+
+
+> ### ✅ LEDGERED 2026-08-17 — and the "five unledgered" was an over-count, three ways
+>
+> Resolved at author time against `api.crossref.org` (the resolver the ledger names). Of the five rows
+> marked *unledgered*:
+>
+> - **two were already there** — Allan 1966 `10.1109/PROC.1966.4634` and Premoli 1993 `10.1109/19.206671`,
+>   both matching Crossref exactly. The column was stale, not the ledger.
+> - **one was genuinely missing and is now added** — Gray & Allan 1974 `10.1109/FREQ.1974.200027`.
+> - **two cannot be ledgered at all**: Torcaso et al. 1998 (Proc. 30th PTTI) and Riley 2008 (NIST SP 1065)
+>   **have no DOI**, and this ledger is DOI-keyed. They are marked *no DOI — not ledgerable* rather than
+>   left reading as an outstanding task, and emphatically not given a fabricated key.
+>
+> Also added: **Riley & Greenhall 2004** `10.1049/cp:20040932`, which carried a DOI in this table and was
+> absent from the ledger.
+>
+> **The `AUTHORS AND YEAR UNVERIFIED` row is resolved** (the brief's own rule: no unverified DOI leaves
+> `briefs/`). *"IEEE Xplore document 6037776"* is **`10.1109/icemi.2011.6037776`** — the DOI contains the
+> document number — **Zhou Chunlei, Zhang Qi, Yan Shuhua (2011)**, *IEEE 10th International Conference on
+> Electronic Measurement & Instruments*. It carries an `authorAliases: ["Zhou"]` with
+> `aliasSource: crossref-variant`, because Crossref puts the **whole name in `family`** with `given` empty
+> (`family='Zhou Chunlei'`); the surname is Zhou. That is a Crossref spelling variant, not a name read off
+> the paper, so it is the `crossref-variant` class and not `from-paper`.
+>
+> ⚠️ **The ledger's `_count` read 92 against 93 actual records** before this change — corrected to 96. No
+> gate asserts `_count`, so it had drifted silently; it is metadata, not the oracle, but a wrong count in
+> the file that IS the oracle is worth not leaving.
 ## 3 · Identifiability and observability
 
 **Tepna problem.** "The algorithm could not recover this" is the wrong sentence. "Is this parameter
@@ -1194,7 +1242,7 @@ may be quoted as `validated`-tier until it has been, with the citation checked a
 
 ## Done when
 
-- [ ] §2's five unledgered time-frequency citations added to `CITATION-VERIFICATION-2026-08-05.json`
+- [x] **DONE 2026-08-17** — §2's time-frequency citations ledgered. Three added (Gray & Allan 1974, Riley & Greenhall 2004, Zhou Chunlei 2011); two were already present; two have **no DOI** and cannot be ledger-keyed. See the ✅ block in §2.
 - [x] ~~Riley & Greenhall 2004 evaluated against the `1.96·SE` refusal band~~ — **NOT tracked here.** The same question is `HOSTAXIS-STABILITY-FOLLOWUPS` §3 and is being answered there. Tracking it in two briefs is the shape that produced the GENERATOR-FOLLOWUPS-III collision, and `stale-file` cannot see it because the two live in different files.
 - [x] **DONE 2026-08-17 — §13b.4 adopted for the arrival lane and rejected for the node lane, both on measurement** (see the ✅ block there). Sesia & Tavella 2008 in; unbiased-AVAR in the JS spine out, because its input is uniform to ≤0.7 %.
-- [ ] Any DOI marked *unverified* resolved before it leaves `briefs/`
+- [x] **DONE 2026-08-17** — the one `AUTHORS AND YEAR UNVERIFIED` row (IEEE Xplore 6037776) resolves to `10.1109/icemi.2011.6037776`, Zhou Chunlei et al. 2011, ICEMI — ledgered with a `crossref-variant` alias.
