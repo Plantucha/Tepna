@@ -268,6 +268,20 @@ appears — not before.
 > **What would actually meet the trigger:** a second consumer needing *clock* offset between two devices
 > validated by *drift-consistency* — e.g. if the Integrator's CPAP↔wearable skew check (which today
 > vetoes on a threshold) were rebuilt to recover the offset rather than reject it.
+>
+> **⚠️ The rule this generalises to is NOT "grep over-reports" — that is only half the failure space.**
+> The table above is a grep finding **four hits and no real consumer**. The mirror-image defect landed
+> the same day in `pat-gate.js`: `verdict()` carries a correct NO-SHARED-CLOCK refusal on
+> `ax.independent === false`, and its only shipped caller passed **three** arguments — so the guard had
+> **never fired in the runtime**. There a grep finds **one hit that is genuinely the right function**,
+> and reports a healthy, well-exercised guard that does nothing.
+>
+> Over-reporting a capability that is not there, and under-reporting an absence, are the same defect
+> pointed in opposite directions, and **only one check covers both: ask WHO CALLS IT AND WITH WHAT
+> ARGUMENTS, never whether the name appears.** For a promotion decision that means counting *call
+> sites whose arguments actually reach the branch you intend to promote* — which for §9 is still zero.
+> Note the `pat-gate` case needed a **source scan** to verify, because its caller is a Web Worker no
+> behavioural test can drive; a name-level grep would have passed it in either direction.
 
 ## 10 · The browser render-coverage gate — RUN, 5 failures found, and FIXED
 
