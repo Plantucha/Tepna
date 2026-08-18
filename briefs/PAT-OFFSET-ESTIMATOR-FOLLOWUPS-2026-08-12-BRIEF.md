@@ -110,6 +110,35 @@ Recorded here because it was found executing this brief and would otherwise be l
       and a single BLE link does not survive that here. Halving a session would measure constancy
       **across reconnects** and report it as constancy **within a connection**, inverting the very
       result this box exists to establish.
+
+      🔴 **CORRECTION 2026-08-18, same day — THE ABOVE IS WRONG. The sidecars are here, and they always
+      were.** Every one of the 6 local capture nights carries `*_LINK.csv`, whose columns are
+      `Phone timestamp;device;connected;rssi_dbm;…;link_epoch;address` — i.e. exactly the
+      connection boundaries the paragraph above says are missing. Connection counts per night:
+
+      | night | LINK files | Verity connections | H10 connections |
+      |---|---|---|---|
+      | 2026-07-31 | 2 | 243 | 23 |
+      | 2026-08-11 | 12 | 17 | 2 |
+      | 2026-08-13 | 9 | 327 | 4 |
+      | 2026-08-14 | 12 | 16 | 2 |
+      | 2026-08-15 | 8 | 20 | 5 |
+      | 2026-08-16 | 5 | 17 | 1 |
+
+      **6 nights of 6, against a done-when that asks for ≥ 5.** So this item is NOT data-blocked; it is
+      unstarted.
+      **How I got it wrong, because the mechanism matters more than the fact:** I searched for the
+      *word* — `-iname "*sidecar*"`, `-iname "*.jsonl"` — and read `QC-SUMMARY.json`, then concluded
+      absence. I never listed the directory's file extensions. The sidecar is real, local, and named
+      something I did not guess. Identical in shape to the `ppg_expected`/`ppg_offset` trap recorded in
+      `O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS` §1 the same hour: **a grep for the vocabulary you expect
+      returns empty against data that is present under another name, and empty reads as absent.**
+      The `sessions`-are-not-connections warning above still stands and is now *more* useful, not less:
+      `link_epoch` is the right key, and a session still is not one.
+      ⚠️ **One real caveat for whoever runs it:** the Verity reconnects hard — 243 and 327 connections
+      on two nights — so most connections will be far too short to halve and fit. The measurement needs
+      a minimum-duration filter per connection, and the honest denominator is *connections long enough
+      to halve*, not connections observed.
 - [ ] the anatomical sign re-checked after correcting both legs
       **GATED ON THE BOX ABOVE** (checked 2026-08-18): §5 states the correction must not be consumed
       until §3 shows it repairs the sign, and §3 rests on the constancy test. So both remaining items

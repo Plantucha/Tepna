@@ -22,7 +22,13 @@ finished work and graded a metric that does not exist.
 - **`patArousalIdx` registry row** → stays **unchecked, deliberately**. The identifier appears in **no**
   source file, so this is a guard on future work, not a backlog item; adding a row now would grade a
   metric that does not exist.
-- **Within-connection offset stability** → **blocked on the sidecar.** The assumption under test is in
+- **Within-connection offset stability** → ~~blocked on the sidecar~~ **NOT BLOCKED — corrected same
+  day.** All 6 local capture nights carry `*_LINK.csv` with a `link_epoch` column, i.e. the connection
+  boundaries, against a done-when asking for ≥ 5 nights. The item is unstarted, not blocked. I reached
+  the wrong answer by searching for the *word* (`*sidecar*`, `*.jsonl`) instead of listing the
+  directory's file types — the same shape as the `ppg_expected`/`ppg_offset` trap below. Caveat for
+  whoever runs it: the Verity reconnects hard (243 and 327 connections on two nights), so the honest
+  denominator is connections long enough to halve, not connections observed. Original reasoning kept: The assumption under test is in
   code (`pat-align.js:335`, the per-connection BLE offset being constant within a connection), and
   `patDipEvents` already consumes `opts.segments`. The local corpus has no connection boundaries.
   ⚠️ **`sessions` are not connections** — on 2026-08-14 there are 3 sessions and 3 Verity `_PPG.txt`
