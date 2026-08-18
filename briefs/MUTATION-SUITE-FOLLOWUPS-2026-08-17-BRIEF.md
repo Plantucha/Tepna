@@ -54,7 +54,34 @@ world inferred from the one instance in front of me.)*
 
 ---
 
-## 2 · RE-ANCHOR THE EQUIVALENCE LEDGER — and the key must be checkable at READ time
+## 2 · ✅ DONE 2026-08-18 — RE-ANCHORED ON TEXT, 4 of 129 matches became 126
+
+**Closed by #1486, and the fix needed no ledger format change at all**: `before` and `after` were
+already recorded in every entry, so only what is *read* changed. Keyed by `(op, before, after)`
+instead of `(line, op)`, measured on the one file with a journal to check against:
+
+| key | matches (ppgdex, 129 classifications) |
+|---|---:|
+| `(line, op)` — the rot | **4** |
+| `(op, before, after)` | **126** |
+
+The inventory now reports **139 classified** for ppgdex against 4, and its open count falls
+**804 → 669**. The three that still miss are correct misses — killed since, or genuinely edited.
+
+**Exact text, not a truncated prefix**: cutting both sides to 100 chars scores the same 126 while
+introducing **33 colliding journal keys**, so it buys nothing and costs the ability to tell distinct
+mutants apart. The price is that 39 entries written truncated at exactly 100 chars can never match —
+**reported** via `staleClassifications`, never hidden, which is the read-time invariant below.
+
+⚠️ `describeMutant`'s `before`/`after` are **display** fields (72 chars). Keying on them would have
+conflated two mutations of the same long line — truncation-reads-as-the-whole, aimed at the very
+field that decides whether a survivor counts as resolved. `rawBefore`/`rawAfter` were added and only
+the raw pair is a key.
+
+*The original section is kept below: the reasoning is what made the fix cheap, and the fnHash route
+it proposed was NOT needed once the text fields turned out to be already present.*
+
+### 2a · The original analysis (retained)
 
 `tools/mutate-equivalence.json` holds 419 classifications (416 `no-distinguishing-input`, 3
 `real-gap`) keyed by **line number**. Lines move, so:
