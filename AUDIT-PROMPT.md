@@ -231,6 +231,16 @@ at a time.
     **The fix is always the same and it is not 'add a label':** make the label **travel with the number** —
     repeat the device/unit/corpus on the line carrying the value, select the reference by the same variable
     as the measurement, and if a reference cannot be keyed that way, **do not print it**.
+    **NOT to be confused with its sibling family, which is already named canonically — see
+    `CLAUDE.md` §👥.4b: *"the check ran, and reported success about something it never examined."*** That
+    is about **execution paths** (a truncated verdict, a pipeline exit code, a `grep -q`, an `npx` no-op,
+    a `-k` filter matching nothing); this class is about **labels**. Deliberately kept as a pointer rather
+    than restated — a second copy would drift from the first, and §👥.4b is the better statement. **When
+    auditing, note that §👥.4b's own examples are all commands, while the same shape reaches further:** a
+    **parameter** (a correct guard whose only caller omits the argument that switches it on, so it never
+    fires) and an **identifier** (four functions whose names agree and whose jobs differ, so a grep
+    over-reports a capability that does not exist) are the same defect off the command line. The check
+    that covers both: **ask who calls it and with what arguments — never whether the name appears.**
 
 ---
 
