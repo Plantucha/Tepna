@@ -831,6 +831,35 @@
       // regularity gate must be what rejects C — not an empty run that never reached criterion 4.
       T.ok('the red-noise twin is rejected by REGULARITY, not by having no cycles at all', rC.longestRun >= 3 && rC.cycleCV !== null && rC.cycleCV >= 0.13);
 
+      /* §5 · THE UPPER BAND FROM COMMITTED BYTES (OXYDEX-PB-DETECTOR-FOLLOWUPS §5).
+         Every twin above is an array this file synthesises, so the detector's 90-130 s ceiling has only
+         ever been exercised against inputs the test itself built. The committed inputs could not reach it:
+         they run at 20 s and 50 s (`_longnight`) and ~420 s drift (the clean file), all outside the band.
+         This leg runs the SAME detector over BYTES ON DISK, parsed by the real `parseCSV` — so a
+         regression in parsing, in the baseline, or in the ceiling reds here even if the synthesised twins
+         still pass. The input is `synthetic_oxydex_o2ring_longcycle.csv`: 8 cycles at 110 s, flat either
+         side, amplitude 2 %SpO2 about the baseline. */
+      var _lcRaw = env.equiv && env.equiv.oxydex_longcycle && env.equiv.oxydex_longcycle.input;
+      var _lcParse = (env.OxyDex && env.OxyDex.parseCSV) || (OD && OD.parseCSV);
+      if (!_lcRaw) T.skip('oxydex_longcycle committed input present', 'env.equiv.oxydex_longcycle.input absent (older runner)');
+      else if (typeof _lcParse !== 'function') T.skip('parseCSV reachable for the long-cycle leg', 'no parseCSV on the OxyDex surface');
+      else {
+        var _lcRows = _lcParse(_lcRaw);
+        var _lcSeries = _lcRows.map(function (r) {
+          return r.spo2;
+        });
+        var _lc = OD.detectSpO2Periodicity(_lcSeries);
+        T.ok('§5 · the committed long-cycle night parses to a full 2 h @1Hz', _lcSeries.length === 7200, _lcSeries.length + ' samples');
+        T.ok('§5 · …and fires as periodic through the real parser', _lc.periodic === true, JSON.stringify(_lc).slice(0, 140));
+        T.eq('§5 · …at its planted 110 s cycle length', _lc.cycleLen, 110);
+        T.ok('§5 · …which is ABOVE 90 s, the ceiling a 40-90 s reading would have imposed', _lc.cycleLen > 90, 'cycleLen ' + _lc.cycleLen);
+        T.ok('§5 · …and regular enough to clear criterion 4 on its own merits', _lc.cycleCV !== null && _lc.cycleCV < 0.13, 'cycleCV ' + _lc.cycleCV);
+        /* ANTI-VACUITY, same discipline as the red-noise leg: a run of >= PB_MIN_CYCLES is what makes the
+           verdict meaningful. 8 planted cycles yield 7 inter-crossing intervals, so a detector that found
+           only 4 would still say `periodic` while having lost half the episode. */
+        T.ok('§5 · …on a run of 7 cycles, not the bare 4-cycle minimum', _lc.longestRun === 7, 'longestRun ' + _lc.longestRun);
+      }
+
       // §2.2: the count is on DISJOINT pairs, so 2 real cycles must not read as 3.
       var two = [],
         t;

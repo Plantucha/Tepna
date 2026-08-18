@@ -167,6 +167,34 @@ const emit = (name, text) => {
     emit('synthetic_oxydex_o2ring_longnight.csv', rows.join('\n') + '\n');
   }
 
+  // §10 · a LONG-CYCLE night — the 90-130 s upper band, which NO committed input reaches.
+  //       OXYDEX-PB-DETECTOR-FOLLOWUPS §5: §9 above runs at 20 s and 50 s and the clean file drifts at
+  //       ~420 s, so `PB_CYCLE_MAX_SEC` (130) has only ever been exercised by unit twins that call the
+  //       detector directly. This night puts the ceiling on the compute() path, from committed bytes.
+  //       Eight cycles at 110 s — inside the 40-130 window and ABOVE the 90 s a 40-90 reading would
+  //       allow — amplitude 2 %SpO2 about the baseline (peak-to-trough 4, so each half-cycle clears the
+  //       `PB_MIN_AMP / 2` guard), flanked by flat stretches so the run's BOUNDARIES are pinned too.
+  //       ADDED as a new file rather than widening an existing one: the others carry recorded
+  //       `inputHashes`, so editing one would move a fixture input and drag regeneration behind it.
+  //       Flat rather than dithered on purpose. A sub-1 % wobble sits exactly ON the per-half-cycle
+  //       guard, so dither would make this fixture's own pass/fail marginal — and a fixture whose
+  //       verdict depends on rounding tests the rounding, not the band.
+  {
+    const N = 2 * 3600;
+    const RUN_START = 1800,
+      PERIOD = 110,
+      CYCLES = 8;
+    const rows = [HEAD];
+    for (let i = 0; i < N; i++) {
+      const d = new Date(t0 + i * 1000);
+      const k = i - RUN_START;
+      const inRun = k >= 0 && k < PERIOD * CYCLES;
+      const v = inRun ? 96 + 2 * Math.sin((2 * Math.PI * k) / PERIOD) : 96;
+      rows.push(`${clock(d)} ${dmy(d)},${Math.round(v)},${hrAt(i)},${i % 900 === 0 ? 3 : 0}`);
+    }
+    emit('synthetic_oxydex_o2ring_longcycle.csv', rows.join('\n') + '\n');
+  }
+
   // §5 · a GAP + ARTIFACT night (DEEP-AUDIT-2026-07-14 §5). Two things at once, because the ODI-4 basis bug
   //      needs both: (a) a 30-min finger-off '- -' gap so the valid-sample count (rows.length) is LESS than
   //      the elapsed span — the two ODI denominators then diverge; and (b) a self-gated ARTIFACT desat (a
