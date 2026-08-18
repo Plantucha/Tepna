@@ -413,3 +413,43 @@ formula struck so a reader sees it was withdrawn, and checking a retracted formu
 flag every honest correction forever — making deletion of the evidence the cheapest way to go green.
 And its self-test **counts** its legs rather than printing a literal, after a hardcoded `8/8` survived a
 ninth leg being added.
+
+
+## Dimension-5 sweep, 2026-08-18 — the defect that REMOVING something leaves behind
+
+`tools/guide-anchor-audit.mjs` (new; the dim-5 sibling of `severity-ladder-audit.mjs` and
+`formula-constant-audit.mjs`). Fleet: **768 internal links · 269 ids · 246 abbreviations · 246 map
+entries** across 7 guides. **Two defects, both OxyDex, both now fixed; every other guide clean.**
+
+### `BP` / `SBP` / `DBP` jumped to a section deleted two months earlier
+
+The abbreviation index mapped all three to `profile` — an id that does not exist. It used to: an HTML
+comment in the guide records **"BP PROJECTION section REMOVED 2026-06-23 (DEX-METRIC-REMOVAL-AUDIT)…
+`bpProj` is hard-null in dsp since 2026-06-21; cuffless BP from signals is indefensible."** The section
+went; the three jump-links pointing INTO it did not. A reader clicking BP in the abbreviation index has
+gone nowhere since June.
+
+**This is the shape worth naming: a removal is not finished when the thing is gone.** Every reference
+*into* it is now dangling, and references are held in a different structure from the thing itself — here,
+a JS map at the bottom of the document, which no metric-registry or badge gate can see. Repointed to
+`refs-formulas`, which is where cuff BP actually lives (it carries SBP, DBP and `MAP = DBP + ⅓(SBP −
+DBP)`), consistent with the removal note's own instruction that `prof_sbp`/`prof_dbp` survive as
+user-entered cuff inputs "documented elsewhere".
+
+### `MODL` was mapped and jumpable but never defined
+
+Present in `abbrSectionMap`, targets a real section, used as a quick-jump chip in the prose — and absent
+from `abbrs[]`, so the abbreviation index had no entry for it. Added from the guide's own card heading:
+**Mean Oxygen Desaturation Level**.
+
+### Two instrument errors, recorded because both were mine and both over-reported
+
+- **Seven phantom dead links** — one per guide, all identical: `href="#'+target+'"`, a runtime-built href
+  inside a `<script>`. Reading JavaScript as markup. The tool strips `<script>` blocks first, and its
+  self-test plants exactly that string to prove it.
+- **Six phantom undefined abbreviations where one was real** — the abbreviation list stores `SpO\u2082`
+  and the comparison saw an un-decoded key. The tool decodes `\uXXXX` and `&#xNN;` on BOTH sides before
+  comparing.
+
+In both cases the first number was larger and more alarming than the truth. A sweep that over-reports is
+recoverable; the discipline is to read every flag before believing any of it.
