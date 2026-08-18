@@ -406,7 +406,11 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   ok('…and strips the leading asterisks authors decorate with', !/^\s*\*/.test(jsComments('/*\n * a decision\n */')));
   /* A `//` inside a URL is not a comment start; getting this wrong would swallow the rest of a line
      of real prose in the very files being indexed. */
-  ok('a URL is not mistaken for a comment', !jsComments("var u = 'https://example.com/x';").includes('example.com'));
+  /* Asserting the result is EMPTY is stronger than asserting one host is absent, and it avoids a
+     CodeQL false positive: `.includes('<host>')` pattern-matches as URL-substring sanitization, which
+     this is not — it is a lexer assertion. The `//` here is preceded by `:` and must not open a
+     comment; if it did, the rest of a real line of prose would be swallowed. */
+  ok('a URL is not mistaken for a comment', jsComments("var u = 'https://host/x';") === '');
   ok('an empty source yields empty, not a crash', jsComments('') === '');
   ok(
     'the doc list finds briefs',
