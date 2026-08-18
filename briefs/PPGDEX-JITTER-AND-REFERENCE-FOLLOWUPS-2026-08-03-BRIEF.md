@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-03 (**§6: all 4 boxes closed or decided** — the jitter bound is re-based on a re-derivation; the sdnnNote string and the RMSSD-surfacing question were both owner-decided 2026-08-04 (§5). CVHR is re-measured on an enlarged corpus (§6.5): **n = 9, 8/9 in band** — still short of the ≥10 bar, and the first out-of-band night has appeared.) · **Created:** 2026-08-03 · **Follows:** `O2RING-FINGER-HRV-VALIDATION-2026-07-21-BRIEF.md` §8/§8.6 · **Verdict doc:** `docs/PPGDEX-FINGER-HRV-VALIDATION-2026-08-03.md` · **Apparatus:** `tools/ppi-jitter-vs-ecg.mjs`
+**Status:** IN-PROGRESS — 2026-08-17 (**§6.6: CVHR RATIFIED at n = 13** — four new box nights cleared §3.1's ≥10-night bar, 12/13 in band; §1's two non-reproducing reference figures remain open and are the only thing keeping this brief off DONE. **§6: all 4 boxes closed or decided** — the jitter bound is re-based on a re-derivation; the sdnnNote string and the RMSSD-surfacing question were both owner-decided 2026-08-04 (§5). CVHR is re-measured on an enlarged corpus (§6.5): **n = 9, 8/9 in band** — still short of the ≥10 bar, and the first out-of-band night has appeared.) · **Created:** 2026-08-03 · **Follows:** `O2RING-FINGER-HRV-VALIDATION-2026-07-21-BRIEF.md` §8/§8.6 · **Verdict doc:** `docs/PPGDEX-FINGER-HRV-VALIDATION-2026-08-03.md` · **Apparatus:** `tools/ppi-jitter-vs-ecg.mjs`
 
 # Two published PPG reference figures do not reproduce, and the jitter budget says why nothing can promote
 
@@ -226,6 +226,41 @@ absence at source.)
 logging `org.bluez.Error.InProgress` on the O2Ring and repeated *"offline op exceeded 45s and was
 abandoned"* on the Verity — the adapter-wedge signature — which is the likely reason recent nights keep
 missing a device, and therefore the real obstacle to reaching n = 10.
+
+## §6.6 · ✅ RATIFIED 2026-08-17 — n = 13, and the gate was the transfer again, not the sleep
+
+§6.5 ended on *"one more clean trio sleep night"* and named the adapter wedge as the obstacle. **Four
+arrived.** 2026-08-13 → 16 were pulled from `vigil:/srv/tepna/captures` today and run through the same
+committed apparatus (`tools/ppi-jitter-vs-ecg.mjs`, unchanged):
+
+| night | epochs | jitter sd | match % | CVHR \|Δ\| |
+|---|---|---|---|---|
+| 2026-08-13 | 92 | 8.21 ms | 99.2 | ✓ in band |
+| 2026-08-14 | 90 | 7.43 ms | 99.3 | ✓ |
+| 2026-08-15 | 98 | 8.05 ms | 99.2 | ✓ |
+| 2026-08-16 | 73 | 6.08 ms | 99.6 | ✓ |
+| **pooled (these 4)** | | **median 7.74, IQR 7.10–8.09** | **median 99.25** | **4/4**, median \|Δ\| **0.15 /h**, IQR 0.07–0.53 |
+
+**n = 9 + 4 = 13, past §3.1's ≥10-night bar for the first time.** The CVHR criterion **ratifies**: 12 of
+13 nights in the ±5 band (§6.5's single out-of-band night stands and is not re-litigated), and on the
+new four the finger and ECG medians are *identical* at 4.95 /h with median |Δ| 0.15 /h — an order of
+magnitude tighter than §6.5's 2.20.
+
+⚠️ **The out-of-band night is retained in the denominator.** 12/13 is the number, not 4/4 — §6.5 already
+warned that "7/7 was a small-sample artifact as much as a result", and quoting only the new nights would
+repeat that in the flattering direction.
+
+**§6.5's lesson repeated exactly, and it is worth saying twice.** That section concluded *"a corpus-size
+claim should be checked against the SOURCE, not the working copy"* — and then the brief sat blocked on
+one night for **two weeks while four accumulated on the box**. The adapter wedge was real but was not
+the binding constraint; the transfer was, again. **A brief blocked on data volume should re-check the
+source before anyone treats the block as a fact about the world.**
+
+**What this does NOT ratify:** the jitter median is **7.74 ms** against the `[CORPUS]` reference of
+5.92 ms — §1's non-reproduction is unchanged and if anything firmer at n = 13 (7.03 at n = 9, 7.74 here).
+`sdnnRobust` reads median **+7.81 %** against the ~±3.5 % promotion bar, still failing it, with an IQR
+(−1.85 to +18.55) spanning the bar in both directions. Neither figure is overwritten here, per §1's own
+instruction not to replace one unverified number with another.
 
 ---
 
