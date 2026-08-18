@@ -272,17 +272,35 @@ it a non-reproduction. **Re-run with `--device verity` on the same four nights:*
 100 % beat match rate**, so the figure is not describing a subset of lucky beats. That is the opposite
 of what §1 recorded (8.36 ms, +41 %) and the opposite of what I wrote an hour ago.
 
-**This does not settle §1; it sharpens it.** Three measurements of the same quantity now exist — 5.92
-(original, uncommitted apparatus), 8.36 (2026-08-03, 15 nights, committed apparatus), 4.98 (today, 4
-nights, same committed apparatus). The 2026-08-03 run and today's used the SAME tool, so **the
-apparatus is no longer a candidate explanation for the gap between those two** — corpus is. §1's
-instruction stands and is now better founded: do not overwrite the reference; the spread across nights
-is the finding, and a single median from any four nights cannot represent it.
+**This does not settle §1; it sharpens it, and only by one step.** Three measurements of the same
+quantity now exist — 5.92 (original, uncommitted apparatus), 8.36 (2026-08-03, 15 nights, committed
+apparatus), 4.98 (today, 4 nights, same committed apparatus). The 2026-08-03 run and today's used the
+SAME tool, so **the apparatus is excluded as an explanation for the gap between those two.**
 
-⚠️ **The trap for the next person, since it caught me:** the tool prints the Verity reference beside
-an O2Ring measurement, so the output *invites* a cross-device comparison that its own default makes
-wrong. Pass `--device` explicitly, always, and read the reference line as a constant string rather
-than as a like-for-like.
+⚠️ **It does NOT follow that corpus explains it, and an earlier draft of this section said it did.**
+4 nights against 15 differ in **precision** as well as in content: an IQR of 4.93–5.03 is the spread of
+**four numbers**, not a confidence interval on the median, and it will read far tighter than the
+estimate actually is. Before "corpus" is recorded as the explanation, the two medians must be compared
+*through* their uncertainties at matched n — or, cheaper and better, **the 15-night set re-run with
+`--device verity`** so the comparison is like-for-like at both ends. Until then the honest statement is
+that the apparatus is excluded and the cause is still open.
+
+**The load-bearing result here does not depend on any of that:** the Verity leg pairs at a **100 % beat
+match rate** across all four nights. That is a property of the pairing, not of the σ, and it stands
+whichever way the reference question resolves.
+
+⚠️ **The trap, stated precisely — and my first account of it was itself half wrong.** I told a peer the
+tool was unlabelled. It is not: line 230 prints `device: Polar Verity Sense (WRIST …)` / `Wellue O2Ring
+(FINGER …)` correctly, at the top. **I lost that label by reading the output through `| tail -20`** —
+CLAUDE.md §👥.4b, the truncation that discards the part carrying the verdict's meaning. So the defect is
+a *joint* one: a correct label at the top, an unkeyed reference at the bottom, and a reader who
+truncates. Any one of the three alone is survivable.
+
+**Fixed at the durable end** (`tools/ppi-jitter-vs-ecg.mjs`): the reference line is now device-keyed and
+repeats the device on the line — `[Verity WRIST reference: 5.92 ms — like-for-like]` under
+`--device verity`, and under the o2ring default `[no published reference for the O2Ring FINGER; 5.92 ms
+is the VERITY WRIST figure and is NOT comparable]`. **A label must travel with the number it labels**,
+because the reader who most needs it is the one who truncated the page.
 
 **What §6.6 does NOT ratify:** `sdnnRobust` reads median **+7.81 %** (finger) / **+9.35 %** (Verity)
 against the ~±3.5 % promotion bar, still failing it on both devices, with IQRs spanning the bar in
