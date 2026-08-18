@@ -43,3 +43,19 @@ carry the columns. Measured over **162 576 frames**: `ppg_dur_step` 1 → median
 off the declared count rather than inferred from arrival-stamp matching — §7.2's indirect recovery was
 right. Also records that the shipped header has `ppg_offset`, not the `ppg_expected` §1 names.
 
+**Plus `tools/pat-connection-stability.mjs` — the within-connection constancy measurement, built and
+run.** `pat-align.js:335` asserts the per-connection BLE offset is constant within a connection, and
+every dip event inherits it; nothing had measured it. Result: **n = 2, on one night — this corpus
+cannot answer it yet.**
+
+⚠️ **The first run's median |Δ| 110.3 ms over 9 connections was invalid and is retained only as the
+reason the guard exists.** It gated on the *Verity's* spans while pooling H10 beats across the *H10's*
+reconnects, so it measured an across-reconnect offset and would have reported it as within-connection
+drift — the `sessions` error one device over. A PAT lag is ECG-to-PPG and inherits both links.
+
+With the guard, only **8 of 113** Verity spans ≥300 s sit inside a single H10 connection, and 2 of
+those carry ≥60 beats of both signals. So the real constraint is not "≥5 nights captured" but "≥5
+nights with a long **simultaneous** connection on both devices" — scarce, since the Verity reconnects
+16–327 times a night. The tool withholds its own p90 below n=10 and prints the shortfall instead:
+at n=2 the p90 printed *below* the median and read as reassurance.
+

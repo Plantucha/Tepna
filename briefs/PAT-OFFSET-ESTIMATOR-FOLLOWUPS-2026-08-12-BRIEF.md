@@ -139,6 +139,33 @@ Recorded here because it was found executing this brief and would otherwise be l
       on two nights — so most connections will be far too short to halve and fit. The measurement needs
       a minimum-duration filter per connection, and the honest denominator is *connections long enough
       to halve*, not connections observed.
+
+      🔬 **MEASURED 2026-08-18 — the tool now exists (`tools/pat-connection-stability.mjs`), and the
+      answer is that THIS CORPUS CANNOT ANSWER IT YET. n = 2.**
+
+      | night | Verity spans ≥300 s | scored | med \|Δ\| | max \|Δ\| |
+      |---|---|---|---|---|
+      | 2026-07-31 | 5 | **2** | 76.5 ms | 111.8 ms |
+      | 2026-08-11 / 13 / 14 | 1 each | 0 | — | span too short of beats on BOTH signals |
+      | 2026-08-15 | 0 | 0 | — | no Verity span inside one H10 connection |
+      | 2026-08-16 | — | — | — | no ECG captured |
+
+      **The first run said median \|Δ\| 110.3 ms over 9 connections, and that number is invalid.** It
+      gated on the **Verity's** connection spans while pooling H10 beats across the **H10's own**
+      reconnects — so it measured an ACROSS-reconnect offset and would have reported it as
+      within-connection drift. A PAT lag is ECG-to-PPG and inherits **both** links; the span must be
+      inside one connection on **both** devices. That is the same error as substituting `sessions`,
+      one device over, and I made it while holding the note warning against it.
+      **With the guard: only 8 of 113 Verity spans ≥ 300 s sit inside a single H10 connection**, and
+      only 2 of those carry ≥ 60 beats of both signals. So the constraint is not "≥ 5 nights of
+      capture" — it is **≥ 5 nights with a long SIMULTANEOUS connection on both devices**, which is a
+      much scarcer thing given the Verity reconnects 16–327 times a night.
+      **Do not quote the 76.5 ms.** At n = 2 it is a number, not a result; the tool now withholds its
+      own p90 below n = 10 and prints the shortfall instead, because at n = 2 the p90 printed *below*
+      the median and read as reassurance.
+      **What would actually close this:** nights with fewer Verity reconnects (a stable link), or a
+      lower `--min-span-sec` paired with a beats-based rather than duration-based span filter. The
+      machinery is built either way — this is now a data question with a known shape, not an unknown.
 - [ ] the anatomical sign re-checked after correcting both legs
       **GATED ON THE BOX ABOVE** (checked 2026-08-18): §5 states the correction must not be consumed
       until §3 shows it repairs the sign, and §3 rests on the constancy test. So both remaining items
