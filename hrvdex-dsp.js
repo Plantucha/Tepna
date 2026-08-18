@@ -298,7 +298,17 @@
   }
   function _rowFromSeed(s) {
     const r = {};
-    r._tMs = +s.tMs;
+    /* ⚠️ `+s.tMs` COERCED AN ABSENT TIMESTAMP INTO THE EPOCH. `JSON.stringify(NaN)` writes **null**,
+       so a row whose timestamp never parsed (`_tMs = NaN`, set above) persists as `tMs: null` — and
+       `+null` is 0, which `isFinite` then accepts. Measured: the round trip produced
+       `_date: 1970-01-01T00:00:00.000Z`, and both callers that do
+       `.filter((r) => isFinite(r._tMs))` — written SPECIFICALLY to drop timeless rows — admitted it,
+       because the coercion happens before the guard and the guard cannot see what it destroyed.
+       NaN is this file's sentinel for an unparsed stamp, so absence is preserved by keeping it NaN
+       rather than by inventing a new one. `_seedFromRow`'s comment already states this discipline
+       ("Preserve absence through persistence … NOT a fabricated 0") and applies it to `offsetMin`
+       and every seed field; `tMs` was the single field copied raw. Clock Contract §2.6. */
+    r._tMs = s.tMs == null ? NaN : +s.tMs;
     r._offsetMin = s.offsetMin == null ? null : s.offsetMin;
     r._date = isFinite(r._tMs) ? new Date(r._tMs) : null;
     HRV_SEED_FIELDS.forEach((k) => {

@@ -36329,6 +36329,43 @@
      future edit could silently break (re-import idempotency, distinct-session survival,
      SI-input coverage). Source-mirror group (these fns are page-scope, not headless-
      loadable like parseTimestamp) — runs in BOTH runners off env.sources. */
+    /* ── A ROW WITH NO CLOCK MUST NOT COME BACK DATED TO 1970 ────────────────────────────────
+       Found by generalising a mutation finding: `isFinite(x)` standing where `x != null` was meant
+       is one character from fabricating, because `isFinite(null)` is TRUE and `Number(null)` is 0.
+       Here the coercion happens BEFORE the guard, so the guard cannot help — `_rowFromSeed` did
+       `r._tMs = +s.tMs`, and `+null` is 0.
+       The round trip is the whole defect: an unparsed row carries `_tMs: NaN`, `JSON.stringify(NaN)`
+       writes **null**, and reading it back produced `_tMs: 0` → `_date: 1970-01-01T00:00:00.000Z`.
+       Two callers then filter with `isFinite(r._tMs)` SPECIFICALLY to drop timeless rows, and
+       `isFinite(0)` is true — so the row survived the filter it was written to fail and entered the
+       analysis dated to the epoch.
+       `_seedFromRow`'s own comment claims the opposite discipline — "Preserve absence through
+       persistence: a null transparent field round-trips as null, NOT a fabricated 0" — and applies it
+       to `offsetMin` and every seed field. `tMs` was the one field copied raw. */
+    group('HRVDex seed round-trip — an absent timestamp survives persistence as absent (§2.6)', 'hrvdex-dsp · clock-contract · fabricated-absence', function (T) {
+      var B = (env.HRVDex && env.HRVDex._bare) || env.HRVDex || null;
+      if (!B || typeof B._seedFromRow !== 'function' || typeof B._rowFromSeed !== 'function') {
+        T.skip('HRVDex seed helpers available', 'HRVDex not co-loaded in this runner');
+        return;
+      }
+
+      // A row whose timestamp could not be parsed. NaN is this file's in-memory sentinel for that
+      // (`r._tMs = _ts ? _ts.tMs : NaN`), so this is the shape a real unparsed row has.
+      var seed = JSON.parse(JSON.stringify(B._seedFromRow({ _tMs: NaN, _offsetMin: null, _hr: 60 })));
+      T.eq('an unparsed timestamp persists as null, not a number', seed.tMs, null);
+
+      var back = B._rowFromSeed(seed);
+      T.ok('…and comes back NOT finite, so it cannot pass a finiteness filter', !isFinite(back._tMs), '_tMs=' + JSON.stringify(back._tMs));
+      T.eq('…with no date fabricated for it', back._date, null);
+
+      // The control, differing in ONE property: a row that DOES have a clock must round-trip intact.
+      // Without this, a fix that simply nulled every timestamp would score as a pass.
+      var t = Date.UTC(2026, 0, 2, 3, 4, 5);
+      var okBack = B._rowFromSeed(JSON.parse(JSON.stringify(B._seedFromRow({ _tMs: t, _offsetMin: null, _hr: 60 }))));
+      T.eq('a real timestamp round-trips unchanged', okBack._tMs, t);
+      T.eq('…and keeps its date', okBack._date && okBack._date.toISOString(), new Date(t).toISOString());
+    });
+
     group('HRVDex additive ingest — merge/dedup/ECGDex-map (P3/P4)', 'hrvdex-dsp · ecgdex-app', function (T) {
       var s = (env.sources || {})['hrvdex-dsp.js'];
       if (s == null) {
