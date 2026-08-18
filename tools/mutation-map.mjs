@@ -113,7 +113,22 @@ export function buildIdentity(root, files, readFn = readFileSync) {
   } catch {
     /* no suite ⇒ no claim; verifyFor then refuses everything, which is the fail-closed answer */
   }
-  return { sources, tests };
+  /* ── THE RUNNER ENUMERATES THE GROUPS, SO IT IS PART OF THE IDENTITY ──────────────────────────
+     The map's values are group INDICES, and those indices come from `tests/run-tests.mjs --list` —
+     not from `dex-tests.js` directly. So a change to the ENUMERATING PROGRAM (an added filter, a
+     reordering, a skip rule) can shift every index while the suite file itself is untouched, and a
+     stamp hashing only the suite would report "unchanged" and let the map mis-select. That is
+     exactly the failure this stamp exists to prevent, with a hole in it.
+     Found by a peer session asking whether their edit to `run-tests.mjs`'s `readSources` affected
+     this. It did not — adding a source entry adds no group — but the question exposed the gap, and
+     "this particular change was harmless" is not the same as "this input cannot matter". */
+  let runner = null;
+  try {
+    runner = sha16(readFn(join(root, 'tests/run-tests.mjs'), 'utf8'));
+  } catch {
+    /* unreadable runner ⇒ unclaimed ⇒ refused, the same fail-closed answer */
+  }
+  return { sources, tests, runner };
 }
 
 /**
@@ -129,6 +144,9 @@ export function verifyFor(map, file, now) {
   if (!id || !id.sources) return { ok: false, reason: 'map carries no identity stamp (built before stamping, or truncated)' };
   if (!now || !now.tests) return { ok: false, reason: 'cannot hash tests/dex-tests.js to compare' };
   if (id.tests !== now.tests) return { ok: false, reason: 'tests/dex-tests.js changed since the map was built — group INDICES may have shifted' };
+  /* An older map carries no `runner` field. Absent is not "matches" — it is unattributable, and the
+     entire point of the stamp is that unattributable never passes. */
+  if (!now.runner || id.runner !== now.runner) return { ok: false, reason: 'tests/run-tests.mjs changed (or the map predates runner stamping) — it enumerates the group INDICES the map is keyed on' };
   const want = now.sources && now.sources[file];
   if (!want) return { ok: false, reason: 'cannot hash ' + file + ' to compare' };
   if (!(file in id.sources)) return { ok: false, reason: file + ' is not in the map' };
@@ -147,28 +165,36 @@ function selftest() {
     if (!ok) fail++;
   };
   const G = [{ index: 0, files: {} }];
-  const now = { sources: { 'a.js': 'AAA', 'b.js': 'BBB' }, tests: 'TTT' };
-  const good = { groups: G, identity: { sources: { 'a.js': 'AAA', 'b.js': 'BBB' }, tests: 'TTT' } };
+  const now = { sources: { 'a.js': 'AAA', 'b.js': 'BBB' }, tests: 'TTT', runner: 'RRR' };
+  const good = { groups: G, identity: { sources: { 'a.js': 'AAA', 'b.js': 'BBB' }, tests: 'TTT', runner: 'RRR' } };
 
   console.log('verifyFor — a stale map fabricates SURVIVED, so every doubt refuses');
   ck('a matching stamp permits selection', verifyFor(good, 'a.js', now).ok, true);
-  ck('a moved SOURCE refuses that file', verifyFor({ ...good, identity: { sources: { 'a.js': 'OLD', 'b.js': 'BBB' }, tests: 'TTT' } }, 'a.js', now).ok, false);
+  ck('a moved SOURCE refuses that file', verifyFor({ ...good, identity: { sources: { 'a.js': 'OLD', 'b.js': 'BBB' }, tests: 'TTT', runner: 'RRR' } }, 'a.js', now).ok, false);
   /* Per-file, not per-map: one moved DSP must not cost selection on the other seven. */
-  ck('…and ONLY that file — the others keep selection', verifyFor({ ...good, identity: { sources: { 'a.js': 'OLD', 'b.js': 'BBB' }, tests: 'TTT' } }, 'b.js', now).ok, true);
+  ck('…and ONLY that file — the others keep selection', verifyFor({ ...good, identity: { sources: { 'a.js': 'OLD', 'b.js': 'BBB' }, tests: 'TTT', runner: 'RRR' } }, 'b.js', now).ok, true);
   /* The map's values are group INDICES; inserting a group shifts them all, and no per-file source
      hash can see that. This is the assertion that justifies hashing the suite at all. */
-  ck('a moved SUITE refuses everything — group indices shift', verifyFor({ ...good, identity: { sources: { 'a.js': 'AAA' }, tests: 'OLD' } }, 'a.js', now).ok, false);
+  ck('a moved SUITE refuses everything — group indices shift', verifyFor({ ...good, identity: { sources: { 'a.js': 'AAA' }, tests: 'OLD', runner: 'RRR' } }, 'a.js', now).ok, false);
   ck(
     '…saying why',
-    verifyFor({ ...good, identity: { sources: { 'a.js': 'AAA' }, tests: 'OLD' } }, 'a.js', now).reason,
+    verifyFor({ ...good, identity: { sources: { 'a.js': 'AAA' }, tests: 'OLD', runner: 'RRR' } }, 'a.js', now).reason,
     'tests/dex-tests.js changed since the map was built — group INDICES may have shifted'
   );
   /* Every map built before stamping existed has no identity. It may be perfectly good; there is no
      way to tell, and "no way to tell" is not a licence to use it. */
   ck('an UNSTAMPED map is refused', verifyFor({ groups: G }, 'a.js', now).ok, false);
-  ck('a file absent from the map is refused', verifyFor(good, 'zz.js', { sources: { 'zz.js': 'Z' }, tests: 'TTT' }).ok, false);
-  ck('an unhashable current source is refused', verifyFor(good, 'a.js', { sources: {}, tests: 'TTT' }).ok, false);
-  ck('an unhashable current suite is refused', verifyFor(good, 'a.js', { sources: { 'a.js': 'AAA' }, tests: null }).ok, false);
+  /* THE RUNNER ENUMERATES THE GROUPS. `tests/run-tests.mjs --list` produces the indices the map is
+     keyed on, so a change there can shift every index while dex-tests.js is untouched — invisible to
+     a stamp that hashes only the suite. */
+  ck('a changed RUNNER refuses — it produces the indices', verifyFor({ ...good, identity: { ...good.identity, runner: 'OLD' } }, 'a.js', now).ok, false);
+  ck('…saying that it enumerates the indices', /enumerates the group INDICES/.test(verifyFor({ ...good, identity: { ...good.identity, runner: 'OLD' } }, 'a.js', now).reason), true);
+  /* A map built before runner stamping has no such field. Absent is not "matches". */
+  ck('a map predating runner stamping is refused', verifyFor({ groups: G, identity: { sources: { 'a.js': 'AAA' }, tests: 'TTT' } }, 'a.js', now).ok, false);
+  ck('an unhashable current runner is refused', verifyFor(good, 'a.js', { sources: { 'a.js': 'AAA' }, tests: 'TTT', runner: null }).ok, false);
+  ck('a file absent from the map is refused', verifyFor(good, 'zz.js', { sources: { 'zz.js': 'Z' }, tests: 'TTT', runner: 'RRR' }).ok, false);
+  ck('an unhashable current source is refused', verifyFor(good, 'a.js', { sources: {}, tests: 'TTT', runner: 'RRR' }).ok, false);
+  ck('an unhashable current suite is refused', verifyFor(good, 'a.js', { sources: { 'a.js': 'AAA' }, tests: null, runner: 'RRR' }).ok, false);
   ck('an empty map is refused', verifyFor({ groups: [], identity: good.identity }, 'a.js', now).ok, false);
   ck('a null map is refused', verifyFor(null, 'a.js', now).ok, false);
 
