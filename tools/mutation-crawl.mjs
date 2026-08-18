@@ -41,13 +41,20 @@
  *   node tools/mutation-crawl.mjs --status               # read the checkpoint, run nothing
  *   node tools/mutation-crawl.mjs --selftest             # known-answer, touches nothing
  *
- * Resume is automatic: a file whose result carries `complete: true` is skipped.
+ * Resume is automatic, at three levels, and each is guarded by the hash of the source file and of
+ * `tests/dex-tests.js` — never by time or by trust:
+ *   · a file whose result carries `complete: true` is skipped entirely;
+ *   · a file whose SWEEP completed but whose PROBE failed reuses the cached sweep (no re-test);
+ *   · a sweep interrupted mid-flight resumes from `mutate.mjs`'s journal.
+ * If either hash has moved, the cache and the journal are refused and the sweep runs cold, saying
+ * which input changed. The per-file ceiling is whatever remains of `--max-hours`, not a constant.
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, renameSync, realpathSync } from 'node:fs';
 import { execFileSync, execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, basename } from 'node:path';
 import { cpus } from 'node:os';
+import { createHash } from 'node:crypto';
 import vm from 'node:vm';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -117,9 +124,15 @@ async function waitForQuiet() {
    (oxydex/pulsedex/hrvdex/ecgdex/integrator) alias `DexClock` at module scope — so a realm without it
    throws `DexClock is not defined` at LOAD, before a single function exists to probe. Measured: the
    first end-to-end run of this crawler reported "0 KILLABLE of 298 survivors" for exactly that
-   reason, and looked like a finding. The list mirrors `dex-coload.js`'s `shared:`. */
-const SPINE = ['clock.js', 'kernel-constants.js', 'metric-registry.js', 'dex-export.js', 'dex-units.js', 'signal-frame.js'];
-function loadRealm(text) {
+   reason, and looked like a finding.
+
+   This list is WIDER than `dex-coload.js`'s `shared:` (which is `['clock.js']` alone) and the comment
+   here used to claim it mirrored it — it does not, and should not: co-loading is about what a running
+   app needs, this is about what a module body can reference before any function is called. It also
+   carried `dex-units.js`, which does not exist in this repo and never has; every load is
+   `existsSync`-guarded so it cost nothing but a reader's confidence. Each entry below resolves. */
+const SPINE = ['clock.js', 'kernel-constants.js', 'metric-registry.js', 'dex-export.js', 'signal-frame.js'];
+export function loadRealm(text) {
   const src = String(text).replace(/^export .*$/gm, '');
   const ctx = {
     console: { log() {}, warn() {}, error() {}, info() {} },
@@ -162,6 +175,50 @@ function loadRealm(text) {
   ctx.globalThis = ctx;
   ctx.self = ctx;
   ctx.global = ctx;
+  /* ── A DOM STUB, BECAUSE A DSP THAT TOUCHES `document` AT LOAD TIME IS NOT A DSP THAT NEEDS A DOM.
+     `oxydex-dsp.js:153` reads `document.documentElement.outerHTML` while the module body runs, so the
+     whole realm threw `document is not defined` and the probe reported UNMEASURED for the fleet's
+     LARGEST file — 1477 survivors, more than every other node's survivors put together, invisible
+     for two full crawls (measured 2026-08-16 and again on 2026-08-17 after a 193-minute re-sweep).
+     Six references in that file, all incidental: an `outerHTML` read for parser provenance and five
+     `getElementById`/`createElement` calls inside UI handlers no probe ever enters.
+
+     The stub is INERT ON PURPOSE — every getter returns an empty string or null, every method is a
+     no-op. It exists to let the module body finish, not to simulate a browser: a stub that returned
+     plausible elements would let UI code run under the prober and make a mutant's verdict depend on
+     a fake DOM, which is a worse failure than the one being fixed. Anything that genuinely needs a
+     document belongs in the browser lane, where there is a real one. */
+  /* `dataset` and `style` are plain bags rather than getters: `metric-registry.js:applyTier` guards
+     on `document.body` being truthy and then WRITES `b.dataset.mode`. Introducing a document makes
+     that path execute for the first time, so the stub has to absorb the write — the selftest below
+     caught it as `Cannot set properties of undefined (setting 'mode')`. It is the general hazard of
+     stubbing a host object: the stub's SHAPE decides which branches run, so every field here exists
+     because something real reached for it, and each one absorbs rather than answers. */
+  const stubEl = () => ({
+    outerHTML: '',
+    innerHTML: '',
+    textContent: '',
+    value: '',
+    dataset: {},
+    style: {},
+    classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+    appendChild() {},
+    removeChild() {},
+    addEventListener() {},
+    setAttribute() {},
+    getAttribute: () => null,
+    querySelector: () => null,
+    querySelectorAll: () => []
+  });
+  ctx.document = {
+    documentElement: stubEl(),
+    body: stubEl(),
+    getElementById: () => null,
+    createElement: () => stubEl(),
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    addEventListener() {}
+  };
   vm.createContext(ctx);
   for (const dep of SPINE) {
     const p = join(ROOT, dep);
@@ -390,12 +447,133 @@ export function batteryIsUsable(rows) {
 }
 
 // ── the crawl ──────────────────────────────────────────────────────────────────────────────────
+
+/* ── A SWEEP THAT RAN FOR HOURS MUST NEVER BE THROWN AWAY ───────────────────────────────────────
+   Three separate ways this tool used to discard work it had already paid for, all measured on the
+   2026-08-16/17 fleet crawl:
+
+   1. `timeout: 6 h` was a CONSTANT while the crawl's own budget is 48 h. `integrator-dsp.js` ran
+      717 of 1845 mutants in 354 min at 8 jobs, hit the ceiling, threw `spawnSync node ETIMEDOUT`,
+      and the crawl recorded an error — six hours of test execution, gone. The ceiling now derives
+      from the budget actually remaining, so a file that legitimately needs 5.5 h is not killed by
+      a number that has nothing to do with it.
+   2. `mutate.mjs` has journalled every verdict since it was written, and takes `--resume` — the
+      crawl passed neither. So even the interrupted run above could have continued from mutant 717
+      and did not, because nobody asked it to.
+   3. A sweep whose PROBE failed left `complete:false`, and resume is per-file on `complete:true` —
+      so the next run re-swept from zero to reach the same failing probe. `oxydex-dsp.js` re-ran a
+      193-minute sweep on 2026-08-17 to fail on `document is not defined` a second time.
+
+   RESUMING IS ONLY SOUND ACROSS IDENTICAL CODE, and `--resume` deliberately does not check: it
+   replays every recorded verdict, which is right for "the same run continued" and wrong for
+   anything else. (`--incremental` is the hash-validated mode, but it never reuses a SURVIVED
+   verdict — on a survivor-heavy file it re-tests almost everything, which is not what is needed
+   here.) So the CRAWL supplies the identity guard that `--resume` lacks: it stamps the source and
+   the test file's hashes beside the journal, and resumes only on an exact match. A mismatch
+   discards the journal and sweeps cold, saying which input moved. This fails CLOSED — a stale
+   journal replayed against changed code would fabricate verdicts for mutants that were never run
+   under it, which is this repo's oldest failure class wearing a new hat (§🔏). */
+const sha16 = (s) => createHash('sha256').update(s).digest('hex').slice(0, 16);
+
+/** The identity a journal/sweep was produced under: the mutated source + the suite that judged it. */
+export function sweepIdentity(srcText, testsText) {
+  return { srcHash: sha16(String(srcText)), testsHash: sha16(String(testsText)) };
+}
+
+/** Which of the two inputs moved — the message a resume refusal owes the reader. */
+export function identityDrift(a, b) {
+  if (!a || !b) return 'no recorded identity';
+  const out = [];
+  if (a.srcHash !== b.srcHash) out.push('source changed');
+  if (a.testsHash !== b.testsHash) out.push('tests/dex-tests.js changed');
+  return out.join(' + ') || null;
+}
+
+/** Only worth logging "sweeping cold" when there was something on disk it could have used. */
+function hasCacheOrJournal(outFile, journal) {
+  return existsSync(outFile) || existsSync(journal);
+}
+
+function currentIdentity(file) {
+  let tests = '';
+  try {
+    tests = readFileSync(join(ROOT, 'tests/dex-tests.js'), 'utf8');
+  } catch {
+    /* no suite readable ⇒ no identity ⇒ nothing may be resumed, which fails closed */
+    return null;
+  }
+  try {
+    return sweepIdentity(readFileSync(join(ROOT, file), 'utf8'), tests);
+  } catch {
+    return null;
+  }
+}
+
+/* ── THE DECISION, AS A PURE FUNCTION ───────────────────────────────────────────────────────────
+   Three inputs on disk (a cached sweep, a state stamp, a journal) and one computed identity give
+   four possible actions, and the two expensive mistakes are OPPOSITE: re-sweeping when a cache was
+   valid costs 193 minutes, and reusing when it was not fabricates verdicts. Deciding that inline
+   made both branches unreachable from a test, which is how this tool's sibling `land-pr.mjs` earned
+   its own pure decision core. `reason` is not decoration — it is what the log line prints, so a
+   refusal that a reader cannot explain cannot ship. */
+export function sweepPlan({ hasSweep, hasState, hasJournal, state, now }) {
+  /* No identity computable (unreadable source or suite) ⇒ nothing may be trusted. Fails CLOSED. */
+  if (!now) return { action: 'cold', reason: 'no identity for the current source/suite' };
+  const drift = state ? identityDrift(state.identity, now) : 'no recorded identity';
+  if (hasSweep && hasState && state && state.complete) {
+    if (!drift) return { action: 'reuse', reason: 'source and suite hash unchanged' };
+    return { action: 'cold', reason: 'cached sweep not reusable: ' + drift };
+  }
+  if (hasJournal) {
+    if (!drift) return { action: 'resume', reason: 'same source, same suite' };
+    return { action: 'cold', reason: 'journal not resumable (' + drift + ')' };
+  }
+  return { action: 'cold', reason: 'no cache, no journal' };
+}
+
 function sweep(file) {
   const outFile = join(OUT, basename(file) + '.sweep.json');
+  const stateFile = join(OUT, basename(file) + '.sweep-state.json');
+  const journal = join(ROOT, '.mutate-journal', file.replace(/[/\\]/g, '_') + '.jsonl');
+  const now = currentIdentity(file);
+  let state = null;
+  try {
+    state = JSON.parse(readFileSync(stateFile, 'utf8'));
+  } catch {
+    /* absent or unreadable ⇒ no stamp ⇒ the planner treats it as unattributable */
+  }
+  const plan = sweepPlan({ hasSweep: existsSync(outFile), hasState: existsSync(stateFile), hasJournal: existsSync(journal), state, now });
+
+  /* A completed sweep is a pure function of (source, suite): if both still hash the same, re-running
+     it cannot produce a different answer — so a probe that failed last time gets a second attempt for
+     the price of the probe, not the price of the sweep. */
+  if (plan.action === 'reuse') {
+    try {
+      const rec = JSON.parse(readFileSync(outFile, 'utf8'));
+      if (rec && Array.isArray(rec.survivors)) {
+        log('   ↻ REUSING the cached sweep — ' + plan.reason + ' (' + rec.survivors.length + ' survivors, no re-test needed)');
+        return rec;
+      }
+      log('   cached sweep unreadable as a record — sweeping cold');
+    } catch {
+      log('   cached sweep unreadable — sweeping cold');
+    }
+  } else if (plan.action === 'resume') {
+    log('   ↻ RESUMING from the journal — ' + plan.reason);
+  } else if (hasCacheOrJournal(outFile, journal)) {
+    log('   ' + plan.reason + ' — sweeping cold');
+  }
+
+  writeFileSync(stateFile, JSON.stringify({ file, identity: now, complete: false, startedAt: new Date().toISOString() }, null, 2) + '\n');
+
+  /* The ceiling is what is LEFT OF THE BUDGET, not a constant unrelated to it. */
+  const remaining = MAX_MS - (Date.now() - T0);
   const args = ['tools/mutate.mjs', '--file', file, '--limit', '9999', '--jobs', String(JOBS), '--bail', '--json'];
-  const txt = execFileSync('node', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: 6 * 3600 * 1000 });
+  if (plan.action === 'resume') args.push('--resume');
+  const txt = execFileSync('node', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: Math.max(60000, remaining) });
   const rec = JSON.parse(txt.trim().split('\n')[0]);
   writeFileSync(outFile, JSON.stringify(rec, null, 2) + '\n');
+  writeFileSync(stateFile, JSON.stringify({ file, identity: now, complete: true, finishedAt: new Date().toISOString() }, null, 2) + '\n');
   return rec;
 }
 function enclosingFn(lines, lineNo) {
@@ -749,6 +927,69 @@ function selftest() {
     ck('a throwing function still reports THREW', /THREW:boom/.test(String(one('function(){throw new Error("boom")}', []))), true);
     ck('an infinite loop reports TIMEOUT', /^"?TIMEOUT:/.test(String(one('function(){var t=0;while(true){t++;}return t;}', []))), true);
     ck('…including the `while (cond) ;` shape statement-deletion actually produces', /^"?TIMEOUT:/.test(String(one('function(t,prev){while(t<prev);return t;}', [0, 10]))), true);
+  }
+
+  /* RESUMING IS ONLY SOUND ACROSS IDENTICAL CODE. `--resume` replays verdicts without checking, so
+     the identity guard is the crawl's, and it must refuse on EITHER input moving — a suite edit
+     changes what "killed" means just as surely as a source edit does. */
+  console.log('\nsweepIdentity / identityDrift — a journal is resumable only under the code that wrote it');
+  const idA = sweepIdentity('source A', 'tests A');
+  ck('the same inputs hash the same', identityDrift(idA, sweepIdentity('source A', 'tests A')), null);
+  ck('a changed SOURCE refuses', identityDrift(idA, sweepIdentity('source B', 'tests A')), 'source changed');
+  ck('a changed SUITE refuses — it changes what "killed" means', identityDrift(idA, sweepIdentity('source A', 'tests B')), 'tests/dex-tests.js changed');
+  ck('both moving names both', identityDrift(idA, sweepIdentity('source B', 'tests B')), 'source changed + tests/dex-tests.js changed');
+  /* Fails CLOSED: an absent identity is never treated as a match. The pre-existing journals on disk
+     when this shipped had no stamp, and replaying them would have been exactly the fabricated-verdict
+     failure the guard exists to prevent. */
+  ck('a MISSING recorded identity refuses rather than matching', identityDrift(null, idA), 'no recorded identity');
+  ck('…in either position', identityDrift(idA, null), 'no recorded identity');
+
+  /* The two mistakes this planner sits between are OPPOSITE in cost: re-sweeping a valid cache spends
+     193 minutes, reusing an invalid one fabricates verdicts. So both directions are asserted. */
+  console.log('\nsweepPlan — reuse what is provably the same, refuse everything else');
+  const ID = sweepIdentity('src', 'tests');
+  const OLD = sweepIdentity('src OLD', 'tests');
+  const P = (o) => sweepPlan({ hasSweep: false, hasState: false, hasJournal: false, state: null, now: ID, ...o });
+  ck('a completed sweep under the same identity is REUSED', P({ hasSweep: true, hasState: true, state: { complete: true, identity: ID } }).action, 'reuse');
+  ck('…and is REFUSED once the source moves', P({ hasSweep: true, hasState: true, state: { complete: true, identity: OLD } }).action, 'cold');
+  ck('…naming what moved, because the log line is the reason', P({ hasSweep: true, hasState: true, state: { complete: true, identity: OLD } }).reason, 'cached sweep not reusable: source changed');
+  ck('an INCOMPLETE sweep is not a cache — it falls through to the journal', P({ hasSweep: true, hasState: true, hasJournal: true, state: { complete: false, identity: ID } }).action, 'resume');
+  ck('a journal under the same identity RESUMES', P({ hasJournal: true, hasState: true, state: { complete: false, identity: ID } }).action, 'resume');
+  ck('…and is REFUSED once the suite moves', P({ hasJournal: true, hasState: true, state: { complete: false, identity: sweepIdentity('src', 'tests NEW') } }).action, 'cold');
+  /* The journals already on disk when this shipped carried NO stamp. Replaying them would have been
+     the fabricated-verdict failure this guard exists to prevent, so an unstamped journal is cold. */
+  ck('an UNSTAMPED journal (pre-dating this guard) is never resumed', P({ hasJournal: true }).action, 'cold');
+  ck('…saying so', P({ hasJournal: true }).reason, 'journal not resumable (no recorded identity)');
+  ck('nothing on disk sweeps cold', P({}).action, 'cold');
+  /* Fails closed on an unreadable source or suite: no identity ⇒ nothing is trusted, cache included.
+     Asserted on the REASON, not just the action. Deleting the `!now` guard leaves the action `cold`
+     either way — `identityDrift` refuses a null on either side — so an action-only assertion could
+     not tell the two apart, and a planted deletion of that guard survived until this line checked the
+     message. The distinction is worth keeping: it points at the unreadable SOURCE rather than at the
+     journal, and sending a reader to the wrong file is the whole cost of a vague refusal. */
+  const noId = sweepPlan({ hasSweep: true, hasState: true, hasJournal: true, state: { complete: true, identity: ID }, now: null });
+  ck('no computable identity refuses even a complete cache', noId.action, 'cold');
+  ck('…blaming the unreadable source, not the journal', noId.reason, 'no identity for the current source/suite');
+
+  /* The realm must survive a module body that touches `document` at load. This is the assertion that
+     was seen to FAIL against the pre-fix realm — it threw `document is not defined`, which is exactly
+     how oxydex-dsp.js's 1477 survivors went unmeasured across two crawls. */
+  console.log('\nloadRealm — a DSP that reads `document` at load time must not take the realm down');
+  {
+    const probeSrc =
+      'var _prov = document.documentElement.outerHTML;\n' + 'globalThis.Probe = { echo: function (x) { return x * 2; }, el: function () { return document.getElementById("nope"); } };\n';
+    let realm = null,
+      threw = null;
+    try {
+      realm = loadRealm(probeSrc);
+    } catch (e) {
+      threw = String((e && e.message) || e);
+    }
+    ck('a module body reading document.documentElement.outerHTML loads', threw, null);
+    ck('…and its functions are then reachable', realm && typeof realm.Probe.echo === 'function' ? realm.Probe.echo(21) : null, 42);
+    /* INERT, not simulated: the stub must not hand back a plausible element, or a mutant's verdict
+       starts depending on a DOM this harness invented. */
+    ck('getElementById returns null — the stub is inert, not a fake browser', realm && realm.Probe.el(), null);
   }
 
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
