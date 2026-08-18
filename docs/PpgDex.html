@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-Sqnltq7E/oqEWc5Jo4KVBWzbShxcEyEbURm7R8wG6eQ=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-haXlV4mtLdwoslHOZ4k+3vK6o7SIRMBQuPt5xEIbyzY=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-vTHcYCT7T8BXXhlHTAa4nKdoEsbp2BN90lPR9Y8llUE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-haXlV4mtLdwoslHOZ4k+3vK6o7SIRMBQuPt5xEIbyzY=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-vTHcYCT7T8BXXhlHTAa4nKdoEsbp2BN90lPR9Y8llUE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PpgDex — Raw Wrist-PPG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -6050,7 +6050,23 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
        tri-device corpus is run. Timing/rate metrics are unaffected and keep their own grades: HR,
        PPI and rate-domain HRV come off the SAME audited pipeline and are NOT re-tiered here.
        Promote only on evidence that the finger pleth reproduces plausible fiducials. */
+    /* ── DORMANT BY DESIGN — declared, graded, and NOT COMPUTED (21 entries) ────────────────────
+       `dormant: true` marks a metric this registry PRE-DECLARES: the grade and citation are settled
+       so that when the per-site split ships it inherits a reviewed tier instead of inventing one at
+       the point of use. Nothing computes these, nothing renders them, and no guide card exists.
+
+       WHY THE FLAG, rather than leaving the intent in the prose above: measured 2026-08-17, these 21
+       are 32 % of this node's registry, and NOTHING machine-readable said so. A dormant grade can
+       drift — a later edit, a fleet-wide tier sweep, a copy-paste from a live sibling — with no gate
+       able to see that the entry was never in service. The flag makes the intent checkable, and
+       `ppgdex · dormant-registry` asserts both halves: a dormant metric has NO guide card, and a
+       non-dormant one is not silently parked.
+
+       ⚠ DORMANT IS NOT A LOWER TIER. Each carries its real `evidence` (`experimental` here, for the
+       reason the block below states — the ring's unknown on-device transfer function). Promotion is
+       removing the flag when the metric ships, not editing the grade. */
     dicroticFinger: {
+      dormant: true,
       label: 'Dicrotic notch (finger)',
       unit: '',
       goodDirection: 'up',
@@ -6059,6 +6075,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       cite: 'Dicrotic-notch detection at the O2Ring FINGER site — unknown on-device transfer function; enters below the wrist grade until the tri-device corpus validates it (PPGDEX-O2RING-FINGER-SITE §5)'
     },
     aiFinger: {
+      dormant: true,
       label: 'Aug. index (finger)',
       unit: '%',
       goodDirection: 'down',
@@ -6067,6 +6084,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       cite: 'Augmentation index at the O2Ring FINGER site — reflection timing is site-sensitive AND filtered on-device; not the wrist-validated quantity (PPGDEX-O2RING-FINGER-SITE §5)'
     },
     reflectionIdxFinger: {
+      dormant: true,
       label: 'Reflection index (finger)',
       unit: '',
       goodDirection: 'down',
@@ -6075,6 +6093,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       cite: 'PPG reflection index at the O2Ring FINGER site — diastolic÷systolic amplitude ratio, distorted by the ring’s on-device AC-coupling/gain normalisation (PPGDEX-O2RING-FINGER-SITE §5)'
     },
     sdppgBAFinger: {
+      dormant: true,
       label: 'SDPPG b/a (finger)',
       unit: '',
       goodDirection: 'down',
@@ -6083,6 +6102,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       cite: '2nd-derivative PPG b/a (Takazawa 1998) at the O2Ring FINGER site — a 2nd derivative amplifies any unknown filter in the chain, so the wrist’s emerging grade is not inherited (PPGDEX-O2RING-FINGER-SITE §5)'
     },
     agingIdxFinger: {
+      dormant: true,
       label: 'Aging index (finger)',
       unit: '',
       goodDirection: 'down',
@@ -6091,6 +6111,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       cite: 'SDPPG aging index (b−c−d−e)/a (Takazawa 1998) at the O2Ring FINGER site — same 2nd-derivative caveat as sdppgBAFinger (PPGDEX-O2RING-FINGER-SITE §5)'
     },
     notchTimeFinger: {
+      dormant: true,
       label: 'Notch time (finger)',
       unit: 'ms',
       goodDirection: 'up',
@@ -6099,6 +6120,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       cite: 'Foot→dicrotic-notch timing at the O2Ring FINGER site — the wrist entry is `measured`, which a site change does NOT confer: notch LOCATION is what an unknown on-device filter moves (PPGDEX-O2RING-FINGER-SITE §5)'
     },
     pulseWidthFinger: {
+      dormant: true,
       label: 'Pulse width (finger)',
       unit: 'ms',
       goodDirection: 'up',
@@ -6119,6 +6141,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
        untouched: HR, PPI and rate-domain HRV come off the same audited pipeline and do not care
        where on the body the beat was seen. */
     dicroticAnkle: {
+      dormant: true,
       label: 'Dicrotic notch (ankle)',
       unit: '',
       goodDirection: 'up',
@@ -6127,6 +6150,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       cite: 'Dicrotic-notch detection at an ANKLE site — notch visibility falls with distance from the heart and rising vessel stiffness; the wrist grade is not inherited (PPGDEX-SITE-WIRING §2)'
     },
     aiAnkle: {
+      dormant: true,
       label: 'Aug. index (ankle)',
       unit: '%',
       goodDirection: 'down',
@@ -6135,6 +6159,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       cite: 'Augmentation index at an ANKLE site — AI is DEFINED by reflected-wave arrival relative to the systolic peak, and that timing is exactly what moves down the arterial tree; not the wrist-validated quantity (PPGDEX-SITE-WIRING §2)'
     },
     reflectionIdxAnkle: {
+      dormant: true,
       label: 'Reflection index (ankle)',
       unit: '',
       goodDirection: 'down',
@@ -6143,6 +6168,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       cite: 'PPG reflection index at an ANKLE site — diastolic÷systolic amplitude ratio, and the reflection it measures is site-determined (PPGDEX-SITE-WIRING §2)'
     },
     sdppgBAAnkle: {
+      dormant: true,
       label: 'SDPPG b/a (ankle)',
       unit: '',
       goodDirection: 'down',
@@ -6151,6 +6177,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       cite: '2nd-derivative PPG b/a (Takazawa 1998) at an ANKLE site — Takazawa\u2019s norms are finger-derived and a 2nd derivative amplifies any waveform difference; the wrist grade is not inherited (PPGDEX-SITE-WIRING §2)'
     },
     agingIdxAnkle: {
+      dormant: true,
       label: 'Aging index (ankle)',
       unit: '',
       goodDirection: 'down',
@@ -6159,6 +6186,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       cite: 'SDPPG aging index (b−c−d−e)/a (Takazawa 1998) at an ANKLE site — same site-transfer caveat as sdppgBAAnkle (PPGDEX-SITE-WIRING §2)'
     },
     notchTimeAnkle: {
+      dormant: true,
       label: 'Notch time (ankle)',
       unit: 'ms',
       goodDirection: 'up',
@@ -6167,6 +6195,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       cite: 'Foot→dicrotic-notch timing at an ANKLE site — the wrist entry is `measured`, which a site change does NOT confer: notch timing is the single quantity most directly moved by arterial distance (PPGDEX-SITE-WIRING §2)'
     },
     pulseWidthAnkle: {
+      dormant: true,
       label: 'Pulse width (ankle)',
       unit: 'ms',
       goodDirection: 'up',
@@ -6188,6 +6217,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
        a 1-column O2Ring pleth comes from a finger ring, so there the layout really does fix the
        site. Wrist is the only site this suite infers that the hardware does not guarantee. */
     dicroticAssumed: {
+      dormant: true,
       label: 'Dicrotic notch (site assumed)',
       unit: '',
       goodDirection: 'up',
@@ -6196,6 +6226,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       cite: 'Dicrotic-notch detection with the optical site ASSUMED, not observed — the wrist grade rests on a limb nobody confirmed; declare the site to earn it back (PPGDEX-SITE-WIRING §3)'
     },
     aiAssumed: {
+      dormant: true,
       label: 'Aug. index (site assumed)',
       unit: '%',
       goodDirection: 'down',
@@ -6204,6 +6235,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       cite: 'Augmentation index with the optical site ASSUMED — AI is site-defined, so a wrist tier on an unconfirmed limb is a grade the metric did not earn (PPGDEX-SITE-WIRING §3)'
     },
     reflectionIdxAssumed: {
+      dormant: true,
       label: 'Reflection index (site assumed)',
       unit: '',
       goodDirection: 'down',
@@ -6212,6 +6244,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       cite: 'PPG reflection index with the optical site ASSUMED — the reflection it measures is site-determined (PPGDEX-SITE-WIRING §3)'
     },
     sdppgBAAssumed: {
+      dormant: true,
       label: 'SDPPG b/a (site assumed)',
       unit: '',
       goodDirection: 'down',
@@ -6220,6 +6253,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       cite: '2nd-derivative PPG b/a with the optical site ASSUMED — Takazawa norms are site-specific (PPGDEX-SITE-WIRING §3)'
     },
     agingIdxAssumed: {
+      dormant: true,
       label: 'Aging index (site assumed)',
       unit: '',
       goodDirection: 'down',
@@ -6228,6 +6262,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       cite: 'SDPPG aging index with the optical site ASSUMED — same site-transfer caveat as sdppgBAAssumed (PPGDEX-SITE-WIRING §3)'
     },
     notchTimeAssumed: {
+      dormant: true,
       label: 'Notch time (site assumed)',
       unit: 'ms',
       goodDirection: 'up',
@@ -6236,6 +6271,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       cite: 'Foot→dicrotic-notch timing with the optical site ASSUMED — `measured` is a claim about a KNOWN fiducial at a KNOWN site (PPGDEX-SITE-WIRING §3)'
     },
     pulseWidthAssumed: {
+      dormant: true,
       label: 'Pulse width (site assumed)',
       unit: 'ms',
       goodDirection: 'up',
