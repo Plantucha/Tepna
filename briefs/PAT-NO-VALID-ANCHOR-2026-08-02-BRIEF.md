@@ -278,6 +278,29 @@ corrected. What would make it publishable is a **second logging app or phone** s
 - [x] Established that the **phone tree carries no independent host clock** (76/76 files at 1 ms range vs
       148/148 box files > 100 ms), so `hostAxis` is inert there — and that this is why the rate must be
       fitted on this tree.
+- [x] 🟢 **ROUTE 1 IS UNBLOCKED — the single-segment box night EXISTS: `2026-08-11` (found 2026-08-18).**
+      This brief records that no box night had both legs unfragmented — *"the one box night with a single
+      ECG fragment, 2026-07-30, has 13 PPG fragments"*. That was true of the box tree as it stood; the
+      corpus has since grown to **2026-08-16**, and `Tepna/uploads/captures/2026-08-11` meets every
+      criterion §7 states, measured rather than assumed:
+
+      | leg | file | duration | gaps > 5 s | `hostAxis` |
+      |---|---|---|---|---|
+      | ECG (H10) | ONE `_ECG.txt`, 3 664 016 rows | **7.83 h** | **0** | `ok`, **`independent: true`**, spread 491.9 ms, ppm −26.7 |
+      | PPG (Verity) | ONE `_PPG.txt`, 1 312 910 rows | **6.61 h** | **0** | `ok`, **`independent: true`**, spread 1064.7 ms, ppm −31.9 |
+
+      One continuous fragment each · ~6.6 h overlap · nocturnal (both start 21:40, 8 s apart) · a **real
+      second clock on BOTH legs** (spread 492/1065 ms against the ≤ ~1 ms that marks a derived host
+      column). So the rate can be **DERIVED** here rather than fit — which is exactly what this item says
+      Route 1 was still needed for.
+
+      **And the night makes the case for the correction quantitative:** the two crystals differ by
+      **5.2 ppm** (−26.7 vs −31.9), which over the 6.61 h overlap is **124 ms of uncorrected relative
+      drift — 1.37× the ±90 ms PAT tolerance**. So host-disciplining is load-bearing on this night, not
+      cosmetic: without it the two devices walk out of tolerance on their own, before any physiology.
+      ⚠️ **Not yet done, and this box is only the DATA finding:** the per-fragment Δ implementation and
+      the derivation itself remain open below. What changed is that they are no longer waiting on a
+      capture.
 - [ ] **Per-fragment Δ**, not one per night — the likeliest fix, since box nights fail uniformly (0/13)
       with 24 ECG / 68 PPG fragments while a single Δ describes the whole timeline. Supersedes Route 1 as
       the next step; a single-segment box night would still be needed to DERIVE the rate rather than fit it.
