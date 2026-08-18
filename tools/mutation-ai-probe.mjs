@@ -136,6 +136,9 @@ export function rankPool(pool, targetVec, poolVecs) {
 
 export function startTierFor(prev) {
   if (!prev) return 0;
+  /* A STALE entry was never PROBED — the mutant could not even be built, so no sampling tier was
+     spent on it. Resuming it above tier 0 would skip draws it never had. */
+  if (prev.v === 'STALE') return 0;
   if (prev.v === 'KILL') return SAMPLING_TIERS; // answered; nothing to search for
   return Math.min(Number(prev.tier || 0), SAMPLING_TIERS - 1);
 }
@@ -272,14 +275,40 @@ async function ask(prompt, attempt = 0) {
  * Returns null when the recorded text is not on the recorded line, rather than falling back to a
  * whole-file replace: a fallback here re-introduces the bug in the one case that needs it most.
  */
-export function mutateAtLine(src, line, before, after) {
+export function mutateAtLine(src, line, before, after, window = 40) {
   const lines = src.split('\n');
-  const i = Number(line) - 1;
-  if (!(i >= 0 && i < lines.length)) return null;
   const b = String(before).trim();
-  if (!b || !lines[i].includes(b)) return null;
-  lines[i] = lines[i].replace(b, String(after).trim());
-  return lines.join('\n');
+  if (!b) return null;
+  const i0 = Number(line) - 1;
+
+  /* Exact hit on the recorded line — the common case, and the cheapest. */
+  let idx = i0 >= 0 && i0 < lines.length && lines[i0].includes(b) ? i0 : -1;
+
+  /* ⚠️ SOURCE DRIFTS, AND REFUSING ON DRIFT THREW AWAY 72 % OF THE CORPUS. The crawl records a line
+     number; the file then gains a comment or a guard above it and every recorded line is off by a
+     few. Measured on OxyDex: 800 of 1110 survivors reported STALE, and the sample showed line 1026
+     now holding a COMMENT ABOUT the very statement that used to be there — the code had simply moved
+     down. Exact-line matching turns an ordinary edit into a dead corpus.
+     So: search a WINDOW around the recorded line, nearest first. This stays safe because it is the
+     opposite of the original bug — a whole-file `replace` took the first match ANYWHERE, while this
+     will not look past ±window lines, and REFUSES when the window holds more than one candidate,
+     since "which of these two identical lines did the crawl mean" has no answer. Narrow drift is
+     recovered; ambiguity is still refused. */
+  if (idx < 0) {
+    const hits = [];
+    for (let d = 1; d <= window; d++) {
+      for (const k of [i0 - d, i0 + d]) {
+        if (k >= 0 && k < lines.length && lines[k].includes(b)) hits.push(k);
+      }
+      if (hits.length) break; // nearest distance wins; only ties at that distance are ambiguous
+    }
+    if (hits.length !== 1) return null;
+    idx = hits[0];
+  }
+
+  const out = lines.slice();
+  out[idx] = out[idx].replace(b, String(after).trim());
+  return out.join('\n');
 }
 
 /** Extract a named function's source text, best-effort. Used only to inform the model. */
@@ -498,6 +527,7 @@ function selftest() {
   /* The point of the whole mechanism: a second run must start ABOVE where the first gave up, or it
      redraws the same deterministic proposals and finds nothing — which is what it did. */
   ck('a NONE resumes AT the tier it reached, so the next run draws differently', startTierFor({ v: 'NONE', tier: 2 }), 2);
+  ck('a STALE restarts at tier 0 — it was never probed, so no tier was spent', startTierFor({ v: 'STALE', tier: 3 }), 0);
   ck('…and a NONE that exhausted the ladder cannot loop forever', startTierFor({ v: 'NONE', tier: 99 }), SAMPLING_TIERS - 1);
   ck('there are as many sampling tiers as the ladder claims', SAMPLING_TIERS >= 3, true);
 
@@ -520,8 +550,13 @@ function selftest() {
   const getf = (ctx) => ctx.f;
   const proven = [{ call: 'f', line: 2, before: 'if (a < 3) return 1;', after: 'if (a <= 3) return 1;', input: '[3]' }];
   ck('a proven-killable input IS detected', canaryFor(proven, cSrc, mkRealm(cSrc), mkRealm, getf).ok, true);
-  const wrongLine = [{ ...proven[0], line: 3 }];
-  ck('…and a mutation applied to the WRONG line is NOT detected — the failure mode', canaryFor(wrongLine, cSrc, mkRealm(cSrc), mkRealm, getf).ok, false);
+  /* ⚠️ THIS ASSERTION WAS REWRITTEN, NOT DELETED, WHEN WINDOW RECOVERY LANDED. It used to pass a
+     line number off by one and require NO detection — a valid test of the old exact-line matcher,
+     and meaningless once drift recovery was added, because an off-by-one is now correctly RECOVERED.
+     The invariant that still matters is the one the original whole-file `replace` violated: a
+     mutation whose text is nowhere findable must NOT be silently applied somewhere else. */
+  const absent = [{ ...proven[0], before: 'if (zzz > 99) return 7;' }];
+  ck('…a mutation whose text is nowhere findable is NOT applied elsewhere, so nothing is detected', canaryFor(absent, cSrc, mkRealm(cSrc), mkRealm, getf).ok, false);
   ck('no checkable case at all is NOT ok — an empty canary must never read as green', canaryFor([], cSrc, mkRealm(cSrc), mkRealm, getf).ok, false);
 
   console.log('\nmutateAtLine — the bug the positive control caught');
@@ -529,7 +564,14 @@ function selftest() {
   /* The SAME text on two lines: a whole-file replace hits line 1, the mutant is on line 3. */
   ck('mutates the RECORDED line, not the first match', mutateAtLine(dup, 3, 'var T = 1;', 'var T = 0;').split('\n')[2], '  var T = 0;');
   ck('…leaving the earlier identical line untouched', mutateAtLine(dup, 3, 'var T = 1;', 'var T = 0;').split('\n')[0], 'var T = 1;');
-  ck('a line that does not carry the text is null, NOT a whole-file replace', mutateAtLine(dup, 2, 'var T = 1;', 'var T = 0;'), null);
+  /* Drift recovery: the recorded line is off by two because a comment was inserted above it. */
+  const drifted = '// a comment added later\n// and another\nvar T = 1;\nfunction g() {}';
+  ck('drift is RECOVERED by searching a window, not refused', mutateAtLine(drifted, 1, 'var T = 1;', 'var T = 0;').split('\n')[2], 'var T = 0;');
+  ck('…but the window is bounded — a far-away match is NOT taken', mutateAtLine(drifted, 1, 'var T = 1;', 'var T = 0;', 1), null);
+  /* Two identical candidates at the same distance: "which one did the crawl mean" has no answer. */
+  const ambig = 'var T = 1;\n// middle\nvar T = 1;';
+  ck('an ambiguous window REFUSES rather than guessing a side', mutateAtLine(ambig, 2, 'var T = 1;', 'var T = 0;'), null);
+  ck('a line that does not carry the text falls back to the WINDOW, never to a whole-file replace', mutateAtLine(dup, 2, 'var T = 1;', 'var T = 0;', 0), null);
   ck('an out-of-range line is null', mutateAtLine(dup, 99, 'var T = 1;', 'var T = 0;'), null);
 
   console.log('\nfunctionIndex — a survivor with no call handle is skipped, never guessed');
@@ -671,7 +713,7 @@ async function main() {
     const t = pick[i];
     const key = probeKey(t);
     const prev = done.get(key);
-    if (prev && !(RETRY_NONE && (prev.v === 'NONE' || prev.v === 'NOPROPOSAL') && Number(prev.tier || 0) < SAMPLING_TIERS)) {
+    if (prev && !(RETRY_NONE && (prev.v === 'NONE' || prev.v === 'NOPROPOSAL' || prev.v === 'STALE') && Number(prev.tier || 0) < SAMPLING_TIERS)) {
       skipped++;
       continue;
     }
