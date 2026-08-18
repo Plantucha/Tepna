@@ -1,0 +1,88 @@
+<!--
+  DELIVERY-PROCESS-OVERHAUL-2026-08-18-BRIEF.md — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+-->
+
+**Status:** IN-PROGRESS — 2026-08-18 (§1 §3 §4 executed in the founding PR; §2 §5 §6 are owner-gated) · **Created:** 2026-08-18
+
+# Delivery-process overhaul — the friction, measured, and what removes it
+
+> Owner-commissioned 2026-08-18 after a session that paid every cost below in one night. Everything here
+> is a number somebody measured, not an intuition; the failures that produced each rule are cited so a
+> future session can re-derive *why* before relaxing anything.
+
+## The problem, priced
+
+`strict:true` + 17 required checks + N parallel sessions. One night, four sessions:
+
+| friction | measured |
+|---|---|
+| jobs in flight before anyone acted | 11 PRs × 17 checks = **187** |
+| pool at saturation | 130 queued · 4 running · ~1 job retired/min · hours to clear |
+| CI laps to land ONE unchanged doc PR | **4** (~68 job-runs re-proving identical content) |
+| superseded `tests` run after branch update | executed **43 min past its SHA being replaced**, to `success`, against a dead tree |
+| workflows lacking `cancel-in-progress` at the time | **8 of 11** — an update was purely ADDITIVE load |
+| release debt | **220 pending changesets** against canonical v2.5.0 |
+| orphaned worktrees | **329** registered, 0 prunable, ~55–60 GB, volume at 90 % |
+| shared-root staleness | 250+ commits behind, permanently (sync guard correctly refuses over 180 dirty paths) → **6 confident wrong answers in one afternoon across two sessions** |
+
+## §1 · Guarded `cancel-in-progress` on the 5 remaining PR-triggered workflows — EXECUTED here
+
+`tests` `types` `format` `no-network` `codeql` now carry the exact house pattern `capture-host-ci.yml`
+already had: `group: <name>-${{ github.ref }}`, `cancel-in-progress: ${{ github.event_name == 'pull_request' }}`.
+PR-only deliberately — cancelling on `main` leaves a cancelled required check with no successor.
+`ci-timing`/`coverage` are schedule-only (nothing to guard); `browser-gates`/`mutation`/`stale-file`
+already cancelled. **Verified live in the founding PR:** a second push while the first run was in flight,
+then `gh run list` showing the superseded runs `cancelled` — the exact scenario that burned 43 min.
+
+## §2 · Release fold cadence — OWNER-GATED, and the largest single debt
+
+220 changesets is work cadence fully decoupled from release cadence. The machinery is fine
+(`tools/release.mjs` computes the version once from a green tree and refuses while corpus-backed
+fixtures are unverified); nobody runs it. **Proposed: fold at ≥25 pending changesets or weekly,
+whichever first, run attended on the box holding the corpus.** Not automated deliberately — the tool's
+refusal conditions (red tree, unverified fixtures) need a human deciding *regenerate vs investigate*,
+and an unattended fold that hits one would either die silently or be pressured into `--force` culture.
+
+## §3 · WIP cap ≤ 4 open PRs repo-wide — EXECUTED (CLAUDE.md §👥.5b)
+
+The 187-job pile-up was **legitimate work units, just too many at once** — the flattering explanation
+("our collection discipline caused it") was measured false: collections were ~68 jobs against 131 queued.
+The cap is §5's "one PR per work-unit" made checkable across sessions. A finished unit waits for a slot.
+
+## §4 · Worktree lifecycle — EXECUTED (`tools/wt-done.mjs`)
+
+Verifies the branch's PR is **MERGED via `gh`** (never `git branch --merged` — squash-merge strands
+branches) and the tree is **clean**, then `git worktree remove` with NO `--force` so git's guard stays
+the last line. `--list` prints every worktree with a verdict and its DENOMINATOR. Refusals are a pure
+exported core (`verdict()`), self-tested (6 legs) including the anti-vacuity direction.
+
+## §5 · Merge queue — OWNER-GATED, and the ground is already prepared
+
+§👥.5 rejected a queue in 2026-08 when the problem was one session splitting a fix into five PRs —
+correct then. 2026-08-18 measured a different problem: the race is structural at N>1 sessions (4 laps,
+zero content change). Meanwhile **7 workflows already carry `merge_group:` triggers**, wired before the
+queue deliberately (BRIEF-COLLISION-RESIDUAL-GAP-2026-08-09 §4) because the reverse order is an outage.
+So the decision is genuinely open, not settled: flipping the ruleset is ~minutes of owner action, CI
+runs once per queue entry on the predicted merge state, and §5b's collection rules become largely
+unnecessary knowledge. **Blocked on: owner yes/no.** If no: the fallback is a landing train
+(`land-pr.mjs` over a list, collecting k+1 only after k merges).
+
+## §6 · Drain the shared root once — OWNER-GATED, destructive-adjacent
+
+The root's 180 dirty paths make the sync guard's refusal *permanent*, so the checkout is stale without
+bound and produced six confident wrong answers in one afternoon. The fix is one attended pass: rescue
+snapshot (the §👥.2 temp-index recipe — preserves every byte on a branch), tar the untracked set as a
+second copy, then restore the tree and let the existing 15-min timer work. **Owner-gated because step 3
+destroys working-tree state that may be another session's only copy** — the snapshot makes it safe in
+fact, but the *authorization* to step on possibly-live work is the owner's to give, per §👥.2's own rule.
+
+## Done when
+
+- [x] §1 five workflows guarded + verified live (founding PR)
+- [x] §3 cap written into CLAUDE.md §5b
+- [x] §4 `wt-done.mjs` shipped with selftest
+- [ ] §2 first fold executed (→ 0 pending changesets) and the cadence written into this brief's header
+- [ ] §5 owner decision recorded here (either way), CLAUDE.md §5 amended if yes
+- [ ] §6 root drained, `git status --porcelain` empty in root, sync timer observed catching up

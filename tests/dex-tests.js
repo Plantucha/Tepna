@@ -6696,9 +6696,17 @@
       var shallow = run(300, { cvhrPeriodSec: 60, cvhrDepth: 0.01 });
       T.eq('a 1 % oscillation is below the sustained-oscillation gate', shallow.cvhrIndex, 0);
 
-      // ── 5 · THE SHORT-RECORD REFUSAL — under 2 minutes no apnea-band train can be resolved ─────
+      /* ── 5 · THE SHORT-RECORD REFUSAL — under 2 minutes no apnea-band train can be resolved ─────
+         §2.6: a value that could not be measured must be VISIBLE, never fabricated. This assertion
+         used to read `brief.cvhrIndex, 0` — its NAME already said "refuses rather than guessing"
+         while the constant it pinned WAS the guess, so the test held the defect in place.
+         `0` is not free to mean "not measurable" here: ppgdex-dsp.js:4759 spends it explicitly —
+         "cvhrIndex=0 = none detected" — and §2's flat-HR case above asserts exactly that meaning on
+         a record that DID resolve. One value cannot carry both, so the unmeasurable case takes null.
+         `cvhrEvents` stays `[]`→0: the event list genuinely is empty, and its length is not a
+         measurement that can be absent. */
       var brief = run(90, { cvhrPeriodSec: 40, cvhrDepth: 0.18 });
-      T.eq('a 90 s recording refuses rather than guessing', brief.cvhrIndex, 0);
+      T.eq('a 90 s recording refuses rather than guessing', brief.cvhrIndex, null);
       T.eq('…and reports no events', brief.cvhrEvents, 0);
     });
 
@@ -12682,7 +12690,19 @@
       }
       T.ok('the golden carries hrv.frequency', !!(rich.hrv && rich.hrv.frequency));
       T.ok('the golden carries hrv.confidence', !!(rich.hrv && rich.hrv.confidence));
-      T.ok('the golden carries apnea.cvhrIndex (a number — 0 is a measurement, null is not)', !!rich.apnea && typeof rich.apnea.cvhrIndex === 'number', JSON.stringify(rich.apnea));
+      /* ⚠️ This assertion used to demand a NUMBER — "0 is a measurement, null is not" — and it was
+         right about the principle and wrong about this fixture. All three committed PpgDex goldens
+         are SHORTER than cvhrFromNN's 120 s guard (39.99 / 39.99 / 40.23 s), so the number it was
+         pinning was the guard's fabricated zero, not a measurement, and GATE-B was enforcing it.
+         The field must be PRESENT and must not be a fabricated value; on a record too short to
+         resolve an apnea-band train, null is the only honest answer (§2.6, FABRICATED-DEFAULTS-FLEET
+         §3). A longer fixture would legitimately carry a number here, so the assertion checks the
+         key exists and holds either a real number or an explicit refusal — never `undefined`. */
+      T.ok(
+        'the golden carries apnea.cvhrIndex — a number when resolvable, null when the record is too short',
+        !!rich.apnea && 'cvhrIndex' in rich.apnea && (typeof rich.apnea.cvhrIndex === 'number' || rich.apnea.cvhrIndex === null),
+        JSON.stringify(rich.apnea)
+      );
       T.eq('the golden carries recording.site, the field that routes wrist vs finger', rich.recording && rich.recording.site, 'wrist');
 
       /* CONTROL — the LIGHT export on the SAME input must carry none of it. This is what makes the
@@ -17169,16 +17189,31 @@
       //    rich export alongside hrv, not the light one) must populate summary.cvhrIndexWave. This runs the
       //    ACTUAL compute → apnea.cvhrIndex → normalizer link on a committed synthetic input. ──
       if (env.PpgDex && typeof env.PpgDex.compute === 'function' && env.equiv && env.equiv.ppgdex_synth && env.equiv.ppgdex_synth.input && typeof env.adaptEnvelopeNode === 'function') {
+        /* ⚠️ THIS FIXTURE CANNOT SUPPORT THE CLAIM THE ASSERTIONS USED TO MAKE. `ppgdex_synth` is
+           `synthetic_ppgdex_verity.txt` — a 39.99 s record — and `cvhrFromNN` refuses under 120 s
+           because no apnea-band train can be resolved in two minutes. So the old assertions
+           (`cvhrIndex != null`, `cv != null && isFinite`) were passing on a FABRICATED zero, and the
+           failure text — "the corroboration would silently never fire on real data" — drew a
+           conclusion about real data from a fixture too short to be real. Measured 2026-08-18: on 44
+           real corpus nights the guard fires 0 times, so on real data the corroboration ALWAYS has a
+           number (FABRICATED-DEFAULTS-FLEET §4).
+           What this fixture CAN prove is the link: compute → apnea.cvhrIndex → normalizer →
+           summary.cvhrIndexWave, carrying the value through UNCHANGED whether it is a number or an
+           explicit refusal. That is what the end-to-end test is for; asserting a magnitude it cannot
+           produce is how a short fixture came to certify a long-record behaviour. */
         var pr = env.PpgDex.compute({ text: env.equiv.ppgdex_synth.input }, { rich: true });
-        T.ok('the rich PpgDex export carries an apnea.cvhrIndex block', pr && pr.apnea && pr.apnea.cvhrIndex != null, 'apnea=' + JSON.stringify(pr && pr.apnea));
+        T.ok('the rich PpgDex export carries an apnea.cvhrIndex block', !!(pr && pr.apnea) && 'cvhrIndex' in pr.apnea, 'apnea=' + JSON.stringify(pr && pr.apnea));
         var pR = env.adaptEnvelopeNode(pr, 'PpgDex', 'synthetic_ppgdex_verity.txt');
         var _pRec = Array.isArray(pR) ? pR[0] : pR && pR.recs && pR.recs[0];
         var cv = _pRec && _pRec.summary ? _pRec.summary.cvhrIndexWave : undefined;
         T.ok(
-          'a REAL PpgDex export sets summary.cvhrIndexWave (the finger CVHR reaches the fusion)',
-          cv != null && isFinite(cv),
-          'got ' + cv + ' — the corroboration would silently never fire on real data'
+          'the finger CVHR reaches the fusion — apnea.cvhrIndex propagates to summary.cvhrIndexWave unchanged',
+          cv === (pr && pr.apnea ? pr.apnea.cvhrIndex : 'MISSING'),
+          'export=' + JSON.stringify(pr && pr.apnea && pr.apnea.cvhrIndex) + ' summary=' + JSON.stringify(cv) + ' — the link is what this 40 s fixture can prove; a NUMBER needs a >=120 s record'
         );
+        /* And the refusal must survive the trip: a normalizer that turned null into 0 on the way
+           through would re-fabricate exactly what the DSP just stopped fabricating. */
+        T.ok('…and a refusal arrives as a refusal, not as 0', !(cv === 0 && pr.apnea.cvhrIndex === null), 'summary.cvhrIndexWave=' + JSON.stringify(cv));
       }
     });
 
