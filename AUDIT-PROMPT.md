@@ -375,8 +375,9 @@ are not two passes.** The 2026-07-18 agreement was strong because the passes cam
 genuinely different directions (JS compute paths vs the Vigil↔suite seam). Contrast 2026-08-17, measured:
 two sessions independently searched for a metric by its **registry id and labels**, both got zero, and
 both concluded it was unsurfaced — while `oxydex-render.js:2711` was rendering a titled section of
-**eight `metric()` cards** from it under the accessor `n.desat`, whose member labels appear nowhere in the
-registry. **The agreement was correlated method, not corroboration**, and it was worth nothing: one
+**eight `metric()` cards** from it under the accessor `n.desat`. The parent id genuinely reaches no
+surface; its *members* are separately registered, rendered and badged, so the object was on screen the
+whole time and no search for the parent's own name could see it. **The agreement was correlated method, not corroboration**, and it was worth nothing: one
 name-keyed grep run twice returns the same blind spot twice. What surfaced it was a *third* session whose
 **count** disagreed — and, separately, one of the two greps had in fact found the render lines and
 discarded them through `| head -12` (§👥.4b, committed inside an investigation *of* method failure).
