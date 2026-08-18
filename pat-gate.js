@@ -99,6 +99,36 @@
           reason: 'host column is derived from the device stamp — the two devices are not on one timebase, so beat-lag scatter cannot be separated from per-device clock wander'
         }
       };
+    /* A DRAWN AXIS IS NOT A CLOCK — AND IT FAILS THE CHECK ABOVE *OPEN*. `timingSource:'none'` is
+       ppgdex-dsp's verdict (`ppgdex-dsp.js:740`) that the device axis was CONSTRUCTED — `sample_index ×
+       an assumed rate` — AND that no host anchors were usable: the recording carries no timing
+       information whatsoever (CLAUDE.md §7, "A device whose axis was DRAWN is not a clock").
+       This CANNOT be folded into NO SHARED CLOCK, and that is the whole defect. That branch tests
+       `independent === false`, but `'none'` is a hostAxis REFUSAL (`{ok:false, reason, n}`), so it
+       carries no `independent` member at all — `undefined`, not `false`. The *more* degenerate input
+       therefore walked straight through the guard that catches the *less* degenerate one: a leg with no
+       clock passed where a leg with an unshared clock was refused.
+       Why it must be a refusal and not a downgrade: under a drawn axis both trains advance at an
+       ASSUMED rate, so the inter-device lag drifts by the difference of two rate errors and every PAT
+       number below faithfully measures that drift as if it were PTT. `O2RING-SYNTHESISED-AXIS`
+       retracted two of three pairs over exactly this, and `CLOCK-CLOSURE-THREE-SOURCE` recorded its
+       signature — "six nights failed with all legs confident".
+       `'host'` is deliberately NOT refused: the axis was drawn, but real host anchors then placed it on
+       host time, so the two devices genuinely do sit on one timebase — which is the condition this gate
+       exists to require, however the axis got there. Refusing it would cost the box nights that are the
+       only ones with a second clock at all. */
+    if (ax && ax.timingSource === 'none')
+      return {
+        tier: 'no',
+        label: 'DRAWN AXIS',
+        why: {
+          timingSource: 'none',
+          drawn: ax.drawn === undefined ? null : ax.drawn,
+          quantizedShare: ax.quantizedShare == null ? null : ax.quantizedShare,
+          reason:
+            'the device axis was constructed from a sample index and an assumed rate, and no host anchors were usable — the recording carries no timing, so a beat-lag is a rate-error difference rather than a PTT'
+        }
+      };
     if (!cp || !cp.ok) return { tier: 'no', label: 'NOT COUPLED', why: null };
     if (!sc || !sc.ok) return { tier: 'no', label: 'NOT SIMULTANEOUS', why: null };
     /* REFUSE A NIGHT THE WINDOW HAS EATEN. `[PHYS_LO, PHYS_HI]` was treated as a plausibility filter;
@@ -260,9 +290,32 @@
     };
   }
 
+  /* TWO LEGS, TWO AXES, ONE VERDICT. A PAT number is a comparison BETWEEN two recordings, so it is only
+     as good as the WORSE of their two clocks — an honest H10 axis does not redeem a drawn ring one, and
+     handing `verdict` whichever axis came first would let the good leg vouch for the bad. `verdict`
+     takes a single `ax`, so *which* axis it gets is a gate policy, and it lives here rather than in the
+     worker for the reason `verdict` and `sharedClock` moved here at all (ENGINE-VERIFICATION-FINDINGS
+     §1.5): a criterion that lives in a Web Worker cannot be executed by a test.
+     Ordering is SEVERITY, not preference. A drawn axis outranks a non-independent one because it is the
+     stronger statement — no timing at all, versus real timing on an unshared crystal — and because the
+     two are not comparable through `independent`, which a drawn axis does not carry (see `verdict`).
+     Nulls are dropped rather than defaulted: a leg that reports no axis must not be read as a clean one,
+     it simply does not vote, and if NO leg reports an axis the result is `null` so `verdict` keeps its
+     documented back-compat behaviour of not refusing. */
+  function worstAxis(a, b) {
+    var xs = [a, b].filter(function (x) {
+      return x != null;
+    });
+    if (!xs.length) return null;
+    for (var i = 0; i < xs.length; i++) if (xs[i].timingSource === 'none') return xs[i];
+    for (var j = 0; j < xs.length; j++) if (xs[j].independent === false) return xs[j];
+    return xs[0];
+  }
+
   root.PATGate = {
     PAT_GATE: PAT_GATE,
     verdict: verdict,
+    worstAxis: worstAxis,
     sharedClock: sharedClock,
     driftStats: driftStats,
     BIN_MATCH_MIN: BIN_MATCH_MIN,

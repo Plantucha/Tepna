@@ -7757,6 +7757,67 @@
         // and back-compat: no axis argument at all behaves exactly as before
         T.eq('no axis passed → unchanged behaviour (back-compat)', env.PATGate.verdict(ovOK, cpGO, scOK).tier, 'go');
         T.eq('an axis object without the flag does not refuse', env.PATGate.verdict(ovOK, cpGO, scOK, { spreadMs: 3 }).tier, 'go');
+
+        /* THE DRAWN AXIS — the case that failed the guard above OPEN (O2RING-PHASE4-PREMISE-REVIEW §4).
+           `timingSource:'none'` is a hostAxis REFUSAL, so it carries no `independent` member, and the
+           `independent === false` branch therefore never saw it: the leg with NO clock passed where the
+           leg with an unshared clock was refused. The fourth assertion is the one that would have caught
+           the shipped defect — it pins that the old branch is genuinely not what does the refusing. */
+        var vDrawn = env.PATGate.verdict(ovOK, cpGO, scOK, { timingSource: 'none', drawn: true, quantizedShare: 0.997 });
+        T.eq('a drawn axis with no host anchors is refused', vDrawn.tier, 'no');
+        T.eq('and the refusal names itself rather than borrowing NO SHARED CLOCK', vDrawn.label, 'DRAWN AXIS');
+        T.eq('the refusal carries the quantized share, so it can be audited', vDrawn.why.quantizedShare, 0.997);
+        T.eq("a 'none' axis carries no `independent`, which is why the older branch missed it", { timingSource: 'none' }.independent, undefined);
+        /* AND THE OTHER DIRECTION, which is the expensive half to get wrong: a DRAWN axis that real host
+           anchors placed on host time still puts both devices on ONE timebase, so it must NOT be refused.
+           Refusing 'host' would discard the box nights — the only ones with a second clock at all. */
+        T.eq("a drawn axis anchored to the host ('host') still reaches the go tier", env.PATGate.verdict(ovOK, cpGO, scOK, { timingSource: 'host', drawn: true }).tier, 'go');
+        T.eq("a full 'device+host' axis is untouched", env.PATGate.verdict(ovOK, cpGO, scOK, { timingSource: 'device+host', independent: true }).tier, 'go');
+
+        /* WHICH of two axes the gate judges on. Severity order, and neither leg may vouch for the other. */
+        var wA = env.PATGate.worstAxis,
+          axGood = { timingSource: 'device+host', independent: true },
+          axDrawn = { timingSource: 'none', drawn: true },
+          axUnshared = { timingSource: 'device', independent: false };
+        T.ok('worstAxis is exported', typeof wA === 'function', 'PATGate.worstAxis missing');
+        if (typeof wA === 'function') {
+          T.eq('a drawn leg outranks an honest one (drawn first)', wA(axDrawn, axGood).timingSource, 'none');
+          T.eq('…and in the other argument order — an honest leg cannot redeem a drawn one', wA(axGood, axDrawn).timingSource, 'none');
+          T.eq('a drawn leg outranks a merely unshared one', wA(axUnshared, axDrawn).timingSource, 'none');
+          T.eq('an unshared leg outranks an honest one', wA(axGood, axUnshared).independent, false);
+          T.eq('two honest legs return an honest axis', wA(axGood, axGood).timingSource, 'device+host');
+          // a leg that reports NO axis must not be read as a clean one — it simply does not vote
+          T.eq('a null leg does not outvote a drawn one', wA(null, axDrawn).timingSource, 'none');
+          T.eq('a null leg does not mask an unshared one', wA(axUnshared, null).independent, false);
+          T.eq('no axis on either leg → null, so verdict keeps its back-compat non-refusal', wA(null, null), null);
+          T.eq('and that null, passed through, does not refuse', env.PATGate.verdict(ovOK, cpGO, scOK, wA(null, null)).tier, 'go');
+        }
+      }
+
+      /* ANTI-INERTNESS — the assertion this whole group would be worthless without. Every case above
+         tests `verdict` in isolation, and `verdict`'s NO SHARED CLOCK refusal was ALREADY correct before
+         this change; what shipped broken was that the only runtime caller invoked it with THREE
+         arguments, so no input could ever reach it (`integrator-dsp.js:694` records the identical
+         failure in the sibling path: "WITHOUT IT THIS GUARD WAS INERT"). A behavioural test cannot see
+         that — the caller is a Web Worker — so the seam is pinned by source scan, the same way
+         `verifiedUnder`'s forbidden writer is. */
+      if (env.sources) {
+        var wsrc = env.sources['pat-feasibility-worker.js'];
+        T.ok("the worker's source is readable in this lane", !!wsrc, 'pat-feasibility-worker.js not in env.sources — add it to readSources()');
+        if (wsrc) {
+          var vcalls = wsrc.match(/PATGate\.verdict\([^)]*\)/g) || [];
+          T.ok('the worker calls PATGate.verdict at all', vcalls.length > 0, 'no PATGate.verdict call found');
+          var thin = vcalls.filter(function (c) {
+            return c.split(',').length < 4;
+          });
+          T.ok('EVERY PATGate.verdict call in the worker passes an axis — a 3-arg call IS the inert-guard defect', vcalls.length > 0 && thin.length === 0, 'axis-less call(s): ' + thin.join(' | '));
+          T.ok('and the axis it passes is the WORSE of the two legs, not whichever came first', /PATGate\.worstAxis\(/.test(wsrc), 'worker does not call PATGate.worstAxis');
+          T.ok(
+            'both parsers forward their axis rather than dropping it in the reshape',
+            (wsrc.match(/hostAxis:\s*rec\.hostAxis/g) || []).length >= 2,
+            'ecgRpeakTimes/ppgFootTimes must forward rec.hostAxis'
+          );
+        }
       }
 
       if (env.PATGate && env.PATGate.verdict) {

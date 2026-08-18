@@ -97,7 +97,12 @@ function ecgRpeakTimes(text) {
      48 ms axis error is not survivable against a 60 ms PAT bar. `tMsAt` falls back to device time when
      there is no independent second clock, so this can never fabricate one. */
   for (var i = 0; i < peaks.length; i++) t[i] = typeof rec.tMsAt === 'function' ? rec.tMsAt(peaks[i]) : rec.t0Ms + (peaks[i] / rec.fs) * 1000;
-  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, times: t, n: peaks.length };
+  /* FORWARDED, because this reshape drops anything it does not name — the lesson ppgdex-dsp.js states
+     three lines above `timingSource`'s own definition, re-applied one layer down. `parseECG` already
+     decided this fragment's axis provenance and it died here, which is why `PATGate.verdict`'s
+     NO SHARED CLOCK / DRAWN AXIS refusals had a caller that never passed an axis and so had never
+     fired in the shipped runtime. */
+  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, times: t, n: peaks.length, hostAxis: rec.hostAxis || null };
 }
 function ppgFootTimes(text) {
   var rec = PPGDSP.parsePPG(text);
@@ -123,7 +128,8 @@ function ppgFootTimes(text) {
     var sec = rel && rel[idx] != null && isFinite(rel[idx]) ? rel[idx] : idx / fs;
     t[i] = t0 + sec * 1000;
   }
-  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, times: t, n: cons.feet.length };
+  // Forwarded for the same reason as the ECG leg above — this is the leg that can actually be DRAWN.
+  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, times: t, n: cons.feet.length, hostAxis: rec.hostAxis || null };
 }
 function overlap(ecg, ppg) {
   var s = Math.max(ecg.t0Ms, ppg.t0Ms),
@@ -420,7 +426,12 @@ self.onmessage = function (e) {
         var ov = overlap(ecg, ppg),
           cp = coupledPAT(ecg.times, ppg.times),
           sc = sharedClock(ecg, ppg, ov),
-          vd = PATGate.verdict(ov, cp, sc);
+          /* THE AXIS THE GATE JUDGES ON. Both parsers now forward theirs; `worstAxis` picks the leg that
+             decides (drawn > non-independent > either), because a PAT number is only as good as the
+             worse of the two clocks. Passing nothing here — which is what this call did until
+             2026-08-17 — left the gate's clock refusals inert in the one path that ships them. */
+          ax = PATGate.worstAxis(ecg.hostAxis, ppg.hostAxis),
+          vd = PATGate.verdict(ov, cp, sc, ax);
         var ppm = ov.min > 0 && isFinite(cp.driftRange) ? (cp.driftRange / (ov.min * 60000)) * 1e6 : NaN;
         function packCp(c) {
           return c.ok
@@ -476,7 +487,11 @@ self.onmessage = function (e) {
             // corrected drift cleared the bar still reported DRIFT-DOMINATED. Evaluate the same gate on it
             // and publish BOTH, each tagged with the drift it reflects. The primary `vd` is deliberately
             // left on RAW drift — promoting on corrected drift is an owner call, not a refactor.
-            out.vdCorr = PATGate.verdict(ov, cpCorr, sc);
+            /* Same axis as the primary verdict: an ACC-derived offset correction re-aligns two trains,
+               it does not conjure a clock, so a drawn or unshared axis is exactly as disqualifying here
+               as it is above. Judging the corrected coupling against no axis would reopen the refusal on
+               the very path §1.5 added because it had been rendered ungated. */
+            out.vdCorr = PATGate.verdict(ov, cpCorr, sc, ax);
           } else {
             out.accSync = { available: false, reason: drift.reason, anchors: drift.anchors || 0 };
           }
