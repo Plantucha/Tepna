@@ -166,6 +166,42 @@ has to change what is **collected** (attribute a group's own calls back to the f
 collected data is **interpreted**. Recorded here so the next reader does not spend the run
 re-deriving it — the hypothesis was good, and it took one measurement to close.
 
+### 3c · ✅ A MECHANISM THAT DOES WORK — interval coverage, validated 2026-08-18
+
+§3a proves the *interpretation* layer cannot recover the distinction. It does not follow that the fix
+is expensive. A peer proposed snapshotting V8 coverage around each group and diffing, on the
+assumption that counts accumulate — and named the control that had to fire first: **counts must be
+monotonic, or a before/after diff is wrong in a way that looks fine.**
+
+**The control fired, and it refuted the method while validating the goal.** `Profiler.takePreciseCoverage`
+**resets on read** on Node 22: `work()` called once before each of two snapshots reported `1` and `1`,
+not `1` and `2`.
+
+Which makes the fix *simpler* than the proposal, because reset-on-read means each snapshot already
+**is** the interval:
+
+| interval | what ran | reported |
+|---|---|---:|
+| 1 | 3 calls | **3** |
+| 2 | nothing | **0** |
+| 3 | 1 call | **1** |
+
+So per-group attribution needs **no diff**: `startPreciseCoverage({callCount:true, detailed:true})` →
+load everything in the normal co-load order → **take once and discard** (that snapshot is the
+load-time baseline) → run the group → **take again**. The second snapshot is exactly that group's own
+execution, with the baseline already gone. Nothing about load order, module identity, or group
+execution changes — only the accounting.
+
+That matters because the obvious alternative — loading DSPs lazily per group — is *not* available:
+`dex-coload.js` and the co-load gate deliberately pin `clock.js` before every delegating DSP, and
+deferring loads would change semantics the suite exists to hold.
+
+**Not implemented.** `run-tests.mjs` already runs one group per process via `--group-index`, so the
+snapshot pair can live in the harness without giving `group()` start/end callbacks — which is the
+change this file's header rejected, because `tests/dex-tests.js` is the file every parallel PR
+conflicts in. **Done when:** a rebuilt map shows group 338 attributing `hrvdex-dsp.js:853`, and the
+paired hrvdex comparison of §3 shows **zero** KILLED→SURVIVED flips.
+
 ### 3b · The half of this that SURVIVES the quarantine
 
 The three `SURVIVED → KILLED` flips are a property of the **tag filter**, not of the map, so they

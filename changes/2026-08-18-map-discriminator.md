@@ -31,3 +31,13 @@ Credit: a peer session proposed the discriminator and asked to have it tested ra
 and separately pointed out that the under-count outlives the quarantine.
 
 Docs only; the map stays quarantined and no tool behaviour changes.
+
+**§3c — and a mechanism that DOES work, validated.** A peer proposed snapshotting V8 coverage around
+each group and diffing, and named the control it needed: counts must be monotonic or the diff is
+wrong in a way that looks fine. The control fired — `Profiler.takePreciseCoverage` **resets on read**
+on Node 22 — which refutes the diff and makes the fix *simpler*: each snapshot already **is** the
+interval (3 calls → 3, nothing → 0, 1 call → 1). So per-group attribution needs no diff at all: take
+once after load to discard the baseline, run the group, take again. Load order is untouched, which
+matters because loading DSPs lazily is not available — `dex-coload.js` pins `clock.js` before every
+delegating DSP by design. Not implemented; `run-tests.mjs` already runs one group per process, so it
+can live in the harness without giving `group()` callbacks in the file every parallel PR conflicts in.
