@@ -86,6 +86,18 @@ export const SAMPLING_TIERS = 5;
 const RETRY_NONE = argv.includes('--retry-none');
 
 /**
+ * How many sampling tiers ONE RUN may spend on ONE mutant.
+ *
+ * ⚠️ ESCALATING THE WHOLE LADDER INSIDE A SINGLE RUN IS A 30× THROUGHPUT REGRESSION, and I shipped
+ * it that way. Five tiers means up to five ~1 s model calls per mutant, and measured on ECGDex the
+ * rate fell from ~40/min to 1.3/min — an ETA of 506 minutes for one file. The ladder is meant to be
+ * climbed ACROSS runs, not within one: a run spends a step or two, journals the tier it reached, and
+ * the next `--retry-none` pass starts above it. That keeps a single pass fast enough to be worth
+ * launching AND makes repeat passes productive, which is the whole point of having tiers at all.
+ */
+export const TIERS_PER_RUN = Number(opt('--tiers-per-run', '2'));
+
+/**
  * ── THE SEED POOL ────────────────────────────────────────────────────────────────────────────────
  * Every input that has ever killed anything, tried on a NEW mutant BEFORE the model is asked.
  *
@@ -527,6 +539,7 @@ function selftest() {
   /* The point of the whole mechanism: a second run must start ABOVE where the first gave up, or it
      redraws the same deterministic proposals and finds nothing — which is what it did. */
   ck('a NONE resumes AT the tier it reached, so the next run draws differently', startTierFor({ v: 'NONE', tier: 2 }), 2);
+  ck('the ladder is climbed ACROSS runs — one run spends a bounded number of tiers', TIERS_PER_RUN < SAMPLING_TIERS, true);
   ck('a STALE restarts at tier 0 — it was never probed, so no tier was spent', startTierFor({ v: 'STALE', tier: 3 }), 0);
   ck('…and a NONE that exhausted the ladder cannot loop forever', startTierFor({ v: 'NONE', tier: 99 }), SAMPLING_TIERS - 1);
   ck('there are as many sampling tiers as the ladder claims', SAMPLING_TIERS >= 3, true);
@@ -814,7 +827,8 @@ async function main() {
        --retry-none starts ABOVE it rather than repeating the same draws. */
     let tier = startTierFor(prev);
     let lastN = 0;
-    for (; tier < SAMPLING_TIERS && !hit; tier++) {
+    const tierStop = Math.min(SAMPLING_TIERS, tier + TIERS_PER_RUN);
+    for (; tier < tierStop && !hit; tier++) {
       hb = { at: Date.now(), what: 'asking [tier ' + tier + '] about ' + t.call + ' [' + t.op + ']', i: i + 1 };
       let inputs = [];
       try {
@@ -838,7 +852,17 @@ async function main() {
     }
     if (!hit) {
       record(key, 'NONE', { n: lastN, tier: tier });
-      log(prog + ' — ' + t.call + ' [' + t.op + ']  ' + lastN + ' input(s) over ' + tier + ' tier(s), none separated');
+      log(
+        prog +
+          ' — ' +
+          t.call +
+          ' [' +
+          t.op +
+          ']  ' +
+          lastN +
+          ' input(s), none separated' +
+          (tier < SAMPLING_TIERS ? '  (tier ' + tier + '/' + SAMPLING_TIERS + ' — a --retry-none pass resumes above this)' : '  (ladder exhausted)')
+      );
       continue;
     }
     const rec = { fn: t.fn, callPath: t.call, line: t.line, op: t.op, before: t.before, after: t.after, status: 'KILLABLE', ...hit };
