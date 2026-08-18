@@ -65,6 +65,80 @@ const ROOT = (() => {
 const HOST = 'http://127.0.0.1:11434';
 const MODEL = opt('--model', 'qwen3-coder:30b');
 const VERBOSE = !argv.includes('--quiet');
+
+/**
+ * How many distinct sampling tiers a mutant may be asked at. Tier 0 is greedy (reproducible); every
+ * tier above it perturbs the sampling so a re-ask can actually land somewhere else.
+ */
+export const SAMPLING_TIERS = 5;
+
+/**
+ * `--retry-none` — re-probe mutants a previous run answered NONE, starting ABOVE the tier it reached.
+ *
+ * Without this, "run it again to find more" is false: an answered mutant is skipped, and even if it
+ * were re-probed, tier 0 is deterministic and returns the same proposals. With it, each successive
+ * run is a genuinely new set of draws on exactly the mutants still unexplained — the sampling ladder
+ * turned into an ACROSS-RUN search rather than a within-run retry.
+ *
+ * A KILL is never re-probed: it is already answered, and re-asking could only replace a known
+ * distinguishing input with another one.
+ */
+const RETRY_NONE = argv.includes('--retry-none');
+
+/**
+ * ── THE SEED POOL ────────────────────────────────────────────────────────────────────────────────
+ * Every input that has ever killed anything, tried on a NEW mutant BEFORE the model is asked.
+ *
+ * The economics force this. Measured on OxyDex: 943 model-proposed inputs bought 2 kills — roughly a
+ * second of GPU per proposal, microseconds to RUN one. So an input already known to separate some
+ * mutant is thousands of times cheaper to try than to invent, and mutants cluster: the same
+ * adversarial shape (an out-of-range date, an empty array, a null option bag) breaks many guards.
+ *
+ * ⚠️ A POOL HIT IS EXACTLY AS TRUSTWORTHY AS A MODEL HIT AND FOR THE SAME REASON — neither is
+ * believed. Both are run against real and mutant and kept only on a MEASURED difference. The pool
+ * changes what gets TRIED, never what counts as a kill.
+ *
+ * bge-m3 orders the pool by similarity between the mutated line and the line each input was found
+ * on, so the most relevant handful is tried rather than all of it. That is retrieval — matching
+ * shapes — which is the one regime these local models are measured reliable in. If the embedding
+ * model is unreachable the pool is still tried in insertion order: degraded ranking, never a
+ * degraded verdict.
+ *
+ * ⚠️ MEASURED CONTRIBUTION SO FAR: **0 kills of 54 newly probed mutants** (OxyDex, pool of 10, all
+ * embedded and ranked). The ranking worked; the PREMISE is what is weak. Argument SHAPES differ per
+ * function — an input built for `_o2DateAnchorMs` (`[[20231301000000, null]]`) cannot mean anything
+ * to `parseCSV`, which wants a string — so cross-function reuse mostly cannot fire. It is retained
+ * because trying 24 recorded inputs costs microseconds against ~1 s for a model call, so the
+ * expected value stays positive even at a low hit rate; it is NOT retained because it was shown to
+ * work. Do not quote it as a win. The version with a real prior is a SAME-FUNCTION pool (an input
+ * that killed one mutant in F tried on other mutants in F, where the signature matches by
+ * construction), and that has not been measured yet.
+ */
+export function poolFrom(journalText) {
+  const seen = new Set();
+  const pool = [];
+  for (const [, r] of doneKeys(journalText)) {
+    if (r.v !== 'KILL' || !r.hit || !r.hit.input) continue;
+    if (seen.has(r.hit.input)) continue;
+    seen.add(r.hit.input);
+    pool.push({ input: r.hit.input, context: String(r.hit.before || '').trim(), call: r.hit.callPath });
+  }
+  return pool;
+}
+
+/** Cosine ranking of pool entries against a target line. Ties keep insertion order. */
+export function rankPool(pool, targetVec, poolVecs) {
+  if (!targetVec || !poolVecs || poolVecs.length !== pool.length) return pool.map((p, i) => ({ ...p, i }));
+  const dot = (a, b) => a.reduce((s2, v, i) => s2 + v * b[i], 0);
+  const norm = (a) => Math.sqrt(dot(a, a)) || 1;
+  return pool.map((p, i) => ({ ...p, i, sim: poolVecs[i] ? dot(targetVec, poolVecs[i]) / (norm(targetVec) * norm(poolVecs[i])) : -1 })).sort((a, b) => b.sim - a.sim || a.i - b.i);
+}
+
+export function startTierFor(prev) {
+  if (!prev) return 0;
+  if (prev.v === 'KILL') return SAMPLING_TIERS; // answered; nothing to search for
+  return Math.min(Number(prev.tier || 0), SAMPLING_TIERS - 1);
+}
 const CTX = Number(opt('--ctx', '2048')); // larger than --draft's: the prompt carries function source
 
 /**
@@ -149,12 +223,35 @@ function promptFor(fnName, fnSrc, before, after, op) {
   );
 }
 
+/** bge-m3 embedding. Returns null on any failure — ranking degrades, verdicts never do. */
+async function embed(text) {
+  try {
+    const res = await fetch(HOST + '/api/embeddings', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'bge-m3', prompt: String(text).slice(0, 600) })
+    });
+    const j = await res.json();
+    return Array.isArray(j.embedding) ? j.embedding : null;
+  } catch {
+    return null;
+  }
+}
+
 async function ask(prompt, attempt = 0) {
-  const sampling = [{ temperature: 0 }, { temperature: 0.7, top_p: 0.8, top_k: 20 }, { temperature: 1.0, top_p: 0.95, top_k: 20 }];
+  /* One entry per SAMPLING_TIERS. Tier 0 greedy and reproducible; the rest widen progressively so
+     successive tiers explore instead of redrawing the same argmax. */
+  const sampling = [
+    { temperature: 0 },
+    { temperature: 0.6, top_p: 0.8, top_k: 20 },
+    { temperature: 0.9, top_p: 0.95, top_k: 40 },
+    { temperature: 1.1, top_p: 0.97, top_k: 60 },
+    { temperature: 1.3, top_p: 0.99, top_k: 80 }
+  ];
   const res = await fetch(HOST + '/api/generate', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ model: MODEL, prompt, stream: false, think: false, options: { num_ctx: CTX, num_predict: 300, ...sampling[Math.min(attempt, 2)] } })
+    body: JSON.stringify({ model: MODEL, prompt, stream: false, think: false, options: { num_ctx: CTX, num_predict: 300, ...sampling[Math.min(attempt, sampling.length - 1)] } })
   });
   const j = await res.json();
   return j.response || '';
@@ -357,6 +454,53 @@ function selftest() {
   ck('only the MUTANT throwing is a legitimate kill', verdictFor('null', 'THREW:boom').kill, true);
   ck('both throwing is not', verdictFor('THREW:a', 'THREW:b').kill, false);
 
+  console.log('\nseed pool + bge ranking — cheaper than asking, and no weaker a verdict');
+  const jk = [
+    '{"k":"a","v":"KILL","hit":{"input":"[1]","before":"if (x < 3)","callPath":"A.f"}}',
+    '{"k":"b","v":"KILL","hit":{"input":"[1]","before":"if (y < 3)","callPath":"A.g"}}',
+    '{"k":"c","v":"NONE"}'
+  ].join('\n');
+  ck('the pool is built from KILLS only', poolFrom(jk).length, 1);
+  ck('…deduplicated by input, since the same input kills many mutants', poolFrom(jk).filter((p) => p.input === '[1]').length, 1);
+  ck('a journal with no kills yields an empty pool, not a throw', poolFrom('{"k":"a","v":"NONE"}').length, 0);
+  /* bge is an ORDERING, never a verdict: with no vectors the pool is still returned in full so the
+     inputs are still tried. A ranking model that is down must not silently shrink what gets tested. */
+  const pl = [
+    { input: '[1]', context: 'a' },
+    { input: '[2]', context: 'b' }
+  ];
+  ck(
+    'no embeddings ⇒ full pool, insertion order (degraded ranking, not a degraded run)',
+    rankPool(pl, null, null).map((p) => p.input),
+    ['[1]', '[2]']
+  );
+  ck(
+    '…a length mismatch is treated the same way rather than mis-pairing vectors',
+    rankPool(pl, [1, 0], [[1, 0]]).map((p) => p.input),
+    ['[1]', '[2]']
+  );
+  ck(
+    'with embeddings, the nearer context is tried first',
+    rankPool(
+      pl,
+      [1, 0],
+      [
+        [0, 1],
+        [1, 0]
+      ]
+    ).map((p) => p.input),
+    ['[2]', '[1]']
+  );
+
+  console.log('\nescalation — "run it again and find more" must be TRUE, not aspirational');
+  ck('a never-probed mutant starts at tier 0', startTierFor(undefined), 0);
+  ck('a KILL is never re-probed', startTierFor({ v: 'KILL', tier: 1 }) >= SAMPLING_TIERS, true);
+  /* The point of the whole mechanism: a second run must start ABOVE where the first gave up, or it
+     redraws the same deterministic proposals and finds nothing — which is what it did. */
+  ck('a NONE resumes AT the tier it reached, so the next run draws differently', startTierFor({ v: 'NONE', tier: 2 }), 2);
+  ck('…and a NONE that exhausted the ladder cannot loop forever', startTierFor({ v: 'NONE', tier: 99 }), SAMPLING_TIERS - 1);
+  ck('there are as many sampling tiers as the ladder claims', SAMPLING_TIERS >= 3, true);
+
   console.log('\njournal — killable must mean "stop without losing what you did"');
   ck('a key identifies WHAT changed, not a list position', probeKey({ line: 7, op: 'o', before: ' x ' }), probeKey({ line: 7, op: 'o', before: 'x' }));
   ck('…a different line is a different mutant', probeKey({ line: 7, op: 'o', before: 'x' }) === probeKey({ line: 8, op: 'o', before: 'x' }), false);
@@ -489,6 +633,33 @@ async function main() {
   const record = (k, v, extra) => writeSync(jfd, JSON.stringify({ k, v, ...(extra || {}) }) + '\n');
   log('  journal ' + jOut + '\n');
 
+  /* ── HEARTBEAT ──────────────────────────────────────────────────────────────────────────────
+     A per-mutant line is NOT a heartbeat: a wedged model call, a dead socket or a mutant spinning in
+     a manufactured infinite loop produces SILENCE — and silence is precisely when someone needs to
+     know whether the run is alive. This ticks on a timer independent of progress, so a stall is
+     visible AS a stall, with how long the current mutant has been running, rather than as output
+     that simply stops. It only speaks when a mutant has outlived one interval, so a healthy run is
+     not made noisier. `unref()` so it can never hold the process open past the work. */
+  let hb = { at: Date.now(), what: 'starting', i: 0 };
+  const HB_MS = Number(opt('--heartbeat', '15000'));
+  const beat = setInterval(() => {
+    const stuckS = Math.round((Date.now() - hb.at) / 1000);
+    if (stuckS * 1000 < HB_MS) return;
+    log('    ♥ alive — ' + stuckS + 's on [' + hb.i + '/' + pick.length + '] ' + hb.what + (stuckS > 120 ? '   ⚠ long; the model or this mutant may be wedged' : ''));
+  }, HB_MS);
+  beat.unref();
+
+  /* Seeded from this file's own journal; grows as the run finds more. */
+  const POOL_TRY = Number(opt('--pool-try', '24'));
+  const pool = existsSync(jOut) ? poolFrom(readFileSync(jOut, 'utf8')) : [];
+  const poolVecs = [];
+  if (pool.length) {
+    for (const p of pool) poolVecs.push(await embed(p.context));
+    const ranked = poolVecs.filter(Boolean).length;
+    log('  seed pool: ' + pool.length + ' known-killing input(s), ' + (ranked ? ranked + ' embedded for bge-m3 ranking' : 'NOT embedded — bge unreachable, trying in insertion order'));
+  }
+  let poolKills = 0;
+
   const t0 = Date.now();
   const found = [];
   for (const [, r0] of done) if (r0.v === 'KILL' && r0.hit) found.push(r0.hit);
@@ -499,24 +670,14 @@ async function main() {
   for (let i = 0; i < pick.length; i++) {
     const t = pick[i];
     const key = probeKey(t);
-    if (done.has(key)) {
+    const prev = done.get(key);
+    if (prev && !(RETRY_NONE && (prev.v === 'NONE' || prev.v === 'NOPROPOSAL') && Number(prev.tier || 0) < SAMPLING_TIERS)) {
       skipped++;
       continue;
     }
     const fnSrc = functionSource(src, t.fn) || t.before;
-    let inputs = [];
-    for (let a = 0; a < 2 && !inputs.length; a++) {
-      try {
-        inputs = parseProposedInputs(await ask(promptFor(t.fn, fnSrc, t.before, t.after, t.op), a), Number(opt('--per-mutant', '8')));
-      } catch {
-        log('✗ local model unreachable at ' + HOST + ' — stopping (a refusal, not an empty result)');
-        break;
-      }
-    }
     const el = (Date.now() - t0) / 1000;
     const rate = (i + 1) / (el / 60);
-    /* A roll-up every 25 mutants: the per-line stream scrolls away, and "how is it actually going"
-       should not require the reader to tally it themselves. */
     if (VERBOSE && i > 0 && i % 25 === 0) {
       const seen = i + 1 - skipped;
       log(
@@ -539,13 +700,10 @@ async function main() {
     }
     const prog =
       '[' + String(i + 1).padStart(4) + '/' + pick.length + '  ' + rate.toFixed(1) + '/min  ETA ' + Math.round((pick.length - i - 1) / Math.max(rate, 0.01)) + 'm  found ' + found.length + ']';
-    if (!inputs.length) {
-      noProposal++;
-      record(key, 'NOPROPOSAL');
-      log(prog + ' — ' + t.call + ' [' + t.op + ']  no parseable proposal');
-      continue;
-    }
 
+    /* Build the mutant BEFORE asking. Every reason to skip this mutant — stale line, will not load,
+       no call handle — is knowable without spending a single model call, and spending one anyway is
+       how a probe run burns an hour on mutants it was never going to be able to test. */
     const mutSrc = mutateAtLine(src, t.line, t.before, t.after);
     if (!mutSrc) {
       record(key, 'STALE');
@@ -560,36 +718,97 @@ async function main() {
       log(prog + ' — ' + t.call + '  mutant does not load');
       continue;
     }
-    const path = String(t.call).split('.');
-    const get = (ctx) => path.reduce((o, k) => (o == null ? o : o[k]), ctx);
-    const fnA = get(realm),
-      fnB = get(mutRealm);
+    const fnA = path0(realm, t.call);
+    const fnB = path0(mutRealm, t.call);
     if (typeof fnA !== 'function' || typeof fnB !== 'function') {
       record(key, 'UNREACHABLE');
       log(prog + ' — ' + t.call + '  not reachable as a function');
       continue;
     }
+    const runInputs = (ins) => {
+      for (const args of ins) {
+        tried++;
+        const a = resultString(fnA, args);
+        const b = resultString(fnB, args);
+        if (!verdictFor(a, b).kill) continue;
+        if (isRealmArtefact && isRealmArtefact(a, b, () => true) === true) continue;
+        return { input: JSON.stringify(args), orig: a.slice(0, 2000), mutant: b.slice(0, 2000) };
+      }
+      return null;
+    };
 
+    /* THE POOL FIRST — microseconds, and it costs the model nothing. */
     let hit = null;
-    for (const args of inputs) {
-      tried++;
-      const a = resultString(fnA, args);
-      const b = resultString(fnB, args);
-      const v = verdictFor(a, b);
-      if (!v.kill) continue;
-      if (isRealmArtefact && isRealmArtefact(a, b, () => true) === true) continue;
-      hit = { input: JSON.stringify(args), orig: a.slice(0, 2000), mutant: b.slice(0, 2000) };
-      break;
+    let poolHit = false;
+    if (pool.length) {
+      hb = { at: Date.now(), what: 'trying ' + Math.min(pool.length, POOL_TRY) + ' known-killing input(s) on ' + t.call, i: i + 1 };
+      const tv = poolVecs.length ? await embed(String(t.before).trim()) : null;
+      const ordered = rankPool(pool, tv, poolVecs).slice(0, POOL_TRY);
+      hit = runInputs(
+        ordered
+          .map((p) => {
+            try {
+              return JSON.parse(p.input);
+            } catch {
+              return null;
+            }
+          })
+          .filter(Boolean)
+      );
+      if (hit) {
+        poolHit = true;
+        poolKills++;
+      }
+    }
+
+    /* ⚠️ ESCALATE UNTIL A KILL, NOT UNTIL A PARSE — this is why re-running can find more.
+       The first version re-asked ONLY when zero proposals parsed, so a mutant whose 8 proposals all
+       parsed and none separated got exactly ONE draw, at temperature 0. Temperature 0 is
+       deterministic, so re-running the tool returned byte-identical proposals and found nothing new,
+       ever. "Run it again to find more" was false BY CONSTRUCTION. That is not a tuning shortfall:
+       the sampling ladder existed and was reachable only by the one failure mode that could not use
+       it. Now each tier re-asks with different sampling, and a tier counts as spent only once its
+       inputs have actually been RUN. The tier reached is journalled, so a later run with
+       --retry-none starts ABOVE it rather than repeating the same draws. */
+    let tier = startTierFor(prev);
+    let lastN = 0;
+    for (; tier < SAMPLING_TIERS && !hit; tier++) {
+      hb = { at: Date.now(), what: 'asking [tier ' + tier + '] about ' + t.call + ' [' + t.op + ']', i: i + 1 };
+      let inputs = [];
+      try {
+        inputs = parseProposedInputs(await ask(promptFor(t.fn, fnSrc, t.before, t.after, t.op), tier), Number(opt('--per-mutant', '8')));
+      } catch {
+        log('✗ local model unreachable at ' + HOST + ' — stopping (a refusal, not an empty result)');
+        break;
+      }
+      if (!inputs.length) continue;
+      lastN += inputs.length;
+      hb = { at: Date.now(), what: 'running ' + inputs.length + ' input(s) [tier ' + tier + '] against ' + t.call, i: i + 1 };
+      hit = runInputs(inputs);
+      if (!hit && VERBOSE) for (const a2 of inputs.slice(0, 2)) log('          tier ' + tier + ' tried ' + JSON.stringify(a2).slice(0, 86));
+    }
+
+    if (!lastN) {
+      noProposal++;
+      record(key, 'NOPROPOSAL', { tier: tier });
+      log(prog + ' — ' + t.call + ' [' + t.op + ']  no parseable proposal in ' + tier + ' tier(s)');
+      continue;
     }
     if (!hit) {
-      record(key, 'NONE', { n: inputs.length });
-      log(prog + ' — ' + t.call + ' [' + t.op + ']  ' + inputs.length + ' input(s), none separated');
+      record(key, 'NONE', { n: lastN, tier: tier });
+      log(prog + ' — ' + t.call + ' [' + t.op + ']  ' + lastN + ' input(s) over ' + tier + ' tier(s), none separated');
       continue;
     }
     const rec = { fn: t.fn, callPath: t.call, line: t.line, op: t.op, before: t.before, after: t.after, status: 'KILLABLE', ...hit };
-    record(key, 'KILL', { hit: rec });
+    record(key, 'KILL', { hit: rec, tier: poolHit ? 'pool' : tier });
     found.push(rec);
-    log(prog + ' ✓ ' + t.call + ' [' + t.op + ']  NOW KILLABLE');
+    if (!pool.some((p) => p.input === rec.input)) {
+      pool.push({ input: rec.input, context: String(rec.before || '').trim(), call: rec.callPath });
+      poolVecs.push(await embed(String(rec.before).trim()));
+    }
+    log(prog + ' ✓ ' + t.call + ' [' + t.op + ']  NOW KILLABLE  (line ' + t.line + ', ' + (poolHit ? 'FROM POOL — no model call' : 'tier ' + tier) + ')');
+    log('        was: ' + String(t.before).trim().slice(0, 86));
+    log('        now: ' + String(t.after).trim().slice(0, 86));
     log('        input ' + hit.input.slice(0, 70));
     log('        real=' + hit.orig.slice(0, 46) + '   mutant=' + hit.mutant.slice(0, 46));
   }
@@ -614,6 +833,7 @@ async function main() {
       1
     )
   );
+  clearInterval(beat);
   const mins = (Date.now() - t0) / 60000;
   log(
     '\n  ' +
@@ -630,6 +850,7 @@ async function main() {
       mins.toFixed(1) +
       ' min'
   );
+  log('  ' + poolKills + ' of those came FROM THE SEED POOL with no model call at all');
   log('  journal: ' + jOut + '  — kill this at ANY time and re-run to resume from here');
   log('  → ' + outPath + '   (feed to `mutation-suite.mjs --draft --crawl-dir <dir>`)');
 }
