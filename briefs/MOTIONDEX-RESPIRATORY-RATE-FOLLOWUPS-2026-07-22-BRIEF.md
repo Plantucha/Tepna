@@ -57,6 +57,34 @@ are cleared **only then**.
 > paper-editorial work — choosing which figure each preprint carries and rewriting its results
 > section — not tool work, and it should not be done by the session that built the tool.
 >
+> ### ▶ CHECKED 2026-08-17 — the two surfaces already DISAGREE, before any re-run
+>
+> The editorial leg above is described as "replace the numbers". It is not: **the paper and its own
+> index abstract already carry different numbers for the same study**, so there is no single set to
+> replace and no way to tell which surface a reader has seen. Measured by parsing both files:
+>
+> | | `papers/acc-respiratory-rate.html` | `papers/papers.html` |
+> |---|---|---|
+> | epochs | **18,856** | **19,193** |
+> | 95 % CI on MAE 1.01 | **0.92–1.10** | **0.91–1.12** |
+> | within 2 br/min | **91.7 %** | **91.6 %** |
+> | confidence-gated at 70 % coverage | **MAE 0.61** | **MAE 0.56**, 97.8 % within 2 |
+>
+> Both say 26 nights and both say MAE 1.01, which is why this survived review — **the headline agrees
+> and every denominator around it does not.** A 337-epoch difference means the two were computed over
+> different scored sets, so at most one of them describes the analysis actually run.
+>
+> **Not fixed here, deliberately.** Choosing which is right requires re-running the corpus, which is
+> exactly the leg this item reserves for a session that did not build the tool. Guessing — or copying
+> the paper's figures over the index's because the paper "looks more authoritative" — would convert an
+> open question into a false claim, and both surfaces still carry DRAFT banners, so nothing is being
+> presented as final meanwhile.
+>
+> **Whoever takes the editorial leg should treat this table as the first item**, not the last: a re-run
+> that replaces one surface and not the other leaves the corpus in exactly this state. Note also that
+> `papers/` has a **served twin** under `docs/papers/`, so any edit here stales `build-docs.mjs` the way
+> a bundle does.
+>
 > **Also worth knowing before that is attempted:** this run used 21 ACC files >30 MB across 14 nights
 > because one browser pass will not hold more. **419 pair in total.** The corpus is far larger than the
 > "26 nights" this item names.
@@ -211,6 +239,35 @@ The offset-plus-drift recovery (cross-correlation lock → linear drift fit → 
 with independent clocks need it. It currently lives in `resp-acc-analysis.js`. The Integrator and
 OverDex both align multi-device recordings and would benefit. Worth promoting once a second consumer
 appears — not before.
+
+> ### ▶ CHECKED 2026-08-17 — the trigger is NOT met, and `grep` says the opposite
+>
+> Asked because it looked met: `tools/beat-correspondence.mjs` (added 2026-08) recovers an alignment by
+> cross-correlation, which reads like the second consumer this item waits for. It is not, and neither
+> are the other two hits. **Four functions whose names all say "cross-correlation" do four different
+> jobs:**
+>
+> | function | what it aligns | validity criterion |
+> |---|---|---|
+> | `resp-acc-analysis.recoverOffset` | two devices' **clocks** | drift-consistency ← *this item's subject* |
+> | `integrator-longitudinal.crossCorrelations` | **metric vs metric across nights** | n/a — not an alignment |
+> | `oxydex-dsp.computeSpO2HRLag` | SpO₂ vs HR **within one device** | physiological coupling, not clock |
+> | `tools/beat-correspondence.nccAnchor` | **beat INDEX** lag between two beat trains | margin over second-best (a ratio test) |
+>
+> So `grep -l crossCorr` returns **four files and zero second consumers**. Promoting on that grep would
+> have moved a spine capability for a user that does not exist, and `nccAnchor` is the near-miss: it
+> genuinely is a cross-correlation lock, but it works in **beat-index space** (its ambiguity is *which
+> beat*, resolvable only mod one RR interval) and validates by **margin**, not by drift-consistency.
+> Merging the two would force one abstraction over two different failure modes.
+>
+> **§9 therefore stays parked, on its own terms — and the "not before" clause earns its keep.** The next
+> session to have this idea should read this table rather than re-run the grep; the identifiers invite
+> the wrong conclusion, which is `AUDIT-PROMPT.md` class 15 (a label unkeyed to its content) expressed
+> in **function names** rather than in output.
+>
+> **What would actually meet the trigger:** a second consumer needing *clock* offset between two devices
+> validated by *drift-consistency* — e.g. if the Integrator's CPAP↔wearable skew check (which today
+> vetoes on a threshold) were rebuilt to recover the offset rather than reject it.
 
 ## 10 · The browser render-coverage gate — RUN, 5 failures found, and FIXED
 
