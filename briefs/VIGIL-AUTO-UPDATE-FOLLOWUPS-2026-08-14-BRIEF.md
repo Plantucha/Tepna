@@ -160,6 +160,28 @@ the subject stops wearing a sensor.
 - [ ] Decide whether that is acceptable, or whether a deploy should be able to say "restart at the next
       idle moment" rather than waiting for the next 30-minute tick to re-check. The `--force-restart`
       mode added 2026-08-14 covers the impatient case but not the patient one.
+      **📊 MEASURED 2026-08-18 — the decision now has its number, and "a large fraction" is 68.6 %.**
+      A deferral *streak* (consecutive `deferred` ticks ending at a `restarted`) is the interval during
+      which the box runs code that is on disk but not loaded. From `journalctl -u tepna-update`, a 13-day
+      window, **17 closed streaks**:
+
+      | | hours running unloaded code |
+      |---|---|
+      | median | **8.27 h** |
+      | mean | 12.72 h |
+      | max | **70.09 h** (08-05 22:12 → 08-08 20:18, 5 deferrals) |
+      | total | 216.2 h of a 13-day window = **68.6 %** |
+      | streaks ≥ 4 h | **16 of 17** |
+
+      The ratio has also grown since the brief was written: **88 deferrals against 66 restarts** in 30 days,
+      versus the 47/41 recorded above. Two things follow that prose did not make visible. First, this is the
+      **normal** case, not a tail — 16 of 17 streaks exceed four hours, so the 70 h outlier is not what makes
+      it a problem. Second, the second box below hypothesises *"deferring the same commit for 9 hours"*; the
+      measured **median is 8.27 h**, so that is the typical night, not a bad one.
+      **Recommendation (the decision remains the owner's):** the patient case is worth building — a deploy
+      that can say *"restart at the next idle moment"* would collapse the median from ~8 h to minutes, and
+      it is the 16-of-17 that it fixes, not the outlier. Left unticked deliberately: this supplies the
+      number the box asked for, it does not make the call.
 - [ ] `deferred` is currently INFO-level prose in a journal. If a deploy matters, nothing surfaces "this
       box has been deferring the same commit for 9 hours".
 

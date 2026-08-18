@@ -96,21 +96,37 @@ export function parseGuide(html) {
     const nm = /<span class="ma">([\s\S]*?)<\/span>/.exec(c);
     const ft = /<div class="ft">([\s\S]*?)<\/div>/.exec(c);
     if (!nm || !ft) continue;
-    const strip = (t) =>
-      t
-        /* STRUCK TEXT IS WITHDRAWN — drop `<s>…</s>` and `<del>…</del>` BEFORE tag-stripping. A guide
-           that corrects itself keeps the old formula visible under a strike so a reader who remembers it
-           sees it was retracted (house practice, e.g. the LTHR correction). Checking a retracted formula
-           against code asks whether the guide implements a claim it has explicitly withdrawn — the tool
-           would flag every honest correction forever, and the cheapest way to silence it would be to
-           delete the evidence. Order matters: strip the struck CONTENT first, or `<[^>]+>` removes the
-           tags and leaves the withdrawn constants behind. */
-        .replace(/<(s|del)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
-        .replace(/<[^>]+>/g, '')
-        .replace(/&#x([0-9a-fA-F]+);/g, (_m, h) => String.fromCodePoint(Number.parseInt(h, 16)))
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>');
+    /* Tag-strip to FIXPOINT, then decode entities in ONE pass. Both shapes are deliberate and both
+       were CodeQL findings on the first version of this file (`js/incomplete-multi-character-sanitization`
+       and `js/double-escaping`), one of which was a real defect:
+
+       · SEQUENTIAL unescaping double-decodes. Replacing `&#xNN;` and then `&amp;` turned a deliberately
+         escaped literal `&amp;#x41;` into `&#x41;` — indistinguishable from a live entity, i.e. the tool
+         reported a construct the document does not contain. Reproduced before fixing. A single pass over
+         one alternation consumes each source construct exactly once, so an escaped literal stays literal.
+       · A single `<[^>]+>` pass can leave `<script` behind on nested or malformed markup. This tool reads
+         only repo-owned guides and renders nothing, so that is not an injection risk here — but "not
+         exploitable" is not "correct", and a tag left behind is text this sweep would then mine for
+         constants. Looping to a fixpoint is three lines and removes the question. */
+    const stripTags = (t) => {
+      let prev;
+      let cur = t;
+      do {
+        prev = cur;
+        cur = cur.replace(/<[^<>]*>/g, '');
+      } while (cur !== prev);
+      return cur;
+    };
+    const ENT = /&(?:#x([0-9a-fA-F]+)|#(\d+)|(amp|lt|gt|quot|apos|nbsp));/g;
+    const NAMED = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+    const decode = (t) =>
+      t.replace(ENT, (_m, hex, dec, name) => {
+        if (name) return NAMED[name];
+        const cp = Number.parseInt(hex || dec, hex ? 16 : 10);
+        /* Out-of-range is exactly the `&#x201CFair` case: refuse rather than throw or guess. */
+        return Number.isFinite(cp) && cp >= 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : _m;
+      });
+    const strip = (t) => decode(stripTags(t.replace(/<(s|del)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')));
     out.push({ name: strip(nm[1]).trim(), formula: strip(ft[1]).split(/\s+/).join(' ').trim() });
   }
   return out;
@@ -177,6 +193,13 @@ if (process.argv.includes('--self-test')) {
   const cards = parseGuide('<div class="mh"><span class="ma">M</span><div class="ft">a = 0.88 b</div></div>');
   eq(cards.length === 1 && cards[0].name === 'M' && cards[0].formula.includes('0.88'), 'card parse');
   eq(parseGuide('<div class="mh"><span class="ma">N</span></div>').length === 0, 'card without a formula is skipped');
+  /* Decoder properties — every one a CodeQL finding or a near-miss on the first version. */
+  const fx = (t) => parseGuide('<div class="mh"><span class="ma">M</span><div class="ft">' + t + '</div></div>')[0].formula;
+  eq(fx('&amp;amp;') === '&amp;', 'nested escape survives exactly ONE decode (no double-unescape)');
+  eq(fx('&#x201CFair') === '&#x201CFair', 'an UNTERMINATED reference is left intact — it must stay reportable');
+  eq(fx('&#x110000;') === '&#x110000;', 'out-of-range code point is refused, not thrown and not guessed');
+  eq(fx('&#xB1;10.8') === '\u00b110.8', 'a well-formed reference decodes');
+  eq(fx('<b>a</b><i>b</i>') === 'ab', 'tags stripped to fixpoint');
   const struck = parseGuide('<div class="mh"><span class="ma">S</span><div class="ft">now 0.88 <s>was 0.87</s></div></div>');
   eq(struck[0].formula.includes('0.88') && !struck[0].formula.includes('0.87'), 'struck text is dropped, not merely untagged');
   console.log(`self-test: ${legs}/${legs} ok`);

@@ -39,18 +39,17 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | file | tested | killed | survived | **open** | classified | invalid | kill rate | state |
 |---|---:|---:|---:|---:|---:|---:|---:|---|
 | `ecgdex-dsp.js` | 1815 | 601 | 1203 | **1203** | 0 | 11 | 33 % | unknown |
-| `hrvdex-dsp.js` | 483 | 307 | 176 | **168** | 8 | 0 | 64 % | in flight |
-| `integrator-dsp.js` | 312 | 173 | 139 | **139** | 0 | 0 | 55 % | unknown |
+| `integrator-dsp.js` | 1161 | 589 | 571 | **571** | 0 | 1 | 51 % | unknown |
 | `oxydex-dsp.js` | 2732 | 1239 | 1477 | **1477** | 0 | 16 | 45 % | unknown |
-| `ppgdex-dsp.js` | 1360 | 538 | 808 | **804** | 4 | 14 | 40 % | unknown |
-| **fleet** | **6702** | **2858** | **3803** | **3791** | 12 | 41 | **43 %** | **includes 5 unconfirmed** |
+| `ppgdex-dsp.js` | 1360 | 538 | 808 | **669** | 139 | 14 | 40 % | unknown |
+| **fleet** | **7068** | **2967** | **4059** | **3920** | 139 | 42 | **42 %** | **includes 4 unconfirmed** |
 
-> ⚠ **374 recorded classification(s) no longer match any survivor.** The equivalence ledger is
+> ⚠ **276 recorded classification(s) no longer match any survivor.** The equivalence ledger is
 > keyed by line number, and lines move — so triage work that was really done has silently stopped
 > applying. Those mutants are counted as **open** here, which over-states the work rather than
 > hiding a gap, but the classifications need re-anchoring to be worth anything again.
 
-> ⚠ **`ecgdex-dsp.js`, `hrvdex-dsp.js`, `integrator-dsp.js`, `oxydex-dsp.js`, `ppgdex-dsp.js` are not confirmed-complete sweeps.** A row marked
+> ⚠ **`ecgdex-dsp.js`, `integrator-dsp.js`, `oxydex-dsp.js`, `ppgdex-dsp.js` are not confirmed-complete sweeps.** A row marked
 > `in flight` is a snapshot of a running sweep — the counts will grow and the rate will move.
 > A row marked `unknown` came from a journal this suite did not finish itself, so its
 > completeness cannot be asserted; it is not a claim that the file is unfinished, only that
@@ -1265,188 +1264,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 5246 | `bool && → \|\|` | `if (global.DexExport && typeof global.DexExport.scrubExport === 'functio` |
 | 5247 | `eq === → !==` | `if (typeof global.dexScrubExport === 'function') return global.dexScrubE` |
 
-## `hrvdex-dsp.js` — 176 survivor(s)
-
-| line | operator | source |
-|---:|---|---|
-| 118 | `bool \|\| → &&` | `if (v == null \|\| typeof v !== 'number' \|\| !isFinite(v)) return false;` |
-| 118 | `bool \|\| → &&` | `if (v == null \|\| typeof v !== 'number' \|\| !isFinite(v)) return false;` |
-| 134 | `cmp < → <=` | `for (var i = 0; i < arguments.length; i++) {` |
-| 155 | `cmp < → <=` | `if (_sc.length < 5) continue;` |
-| 156 | `bool && → \|\|` | `const _sd = _dIdx >= 0 && _sc[_dIdx] ? _sc[_dIdx].trim().replace(/\\r/g, ` |
-| 157 | `cmp >= → >` | `const _st = _tIdx >= 0 && _sc[_tIdx] ? _sc[_tIdx].trim().replace(/\\r/g, ` |
-| 157 | `bool && → \|\|` | `const _st = _tIdx >= 0 && _sc[_tIdx] ? _sc[_tIdx].trim().replace(/\\r/g, ` |
-| 158 | `bool && → \|\|` | `_stamps.push(_st && !/\\d{1,2}:\\d{2}/.test(_sd) ? (_sd + ' ' + _st).trim(` |
-| 158 | `bool \|\| → &&` | `_stamps.push(_st && !/\\d{1,2}:\\d{2}/.test(_sd) ? (_sd + ' ' + _st).trim(` |
-| 160 | `bool && → \|\|` | `const _order = typeof DexClock !== 'undefined' && DexClock.resolveDMY ? ` |
-| 165 | `cmp < → <=` | `if (cells.length < 5) continue;` |
-| 174 | `bool \|\| → &&` | `var _combined = _rawT && !/\\d{1,2}:\\d{2}/.test(_rawD) ? (_rawD + ' ' + _` |
-| 188 | `bool \|\| → &&` | `r._mode = numOrNull(r['Mode'] \|\| r['Mode RR']);` |
-| 189 | `bool \|\| → &&` | `r._totalPow = numOrNull(r['Total power'] \|\| r['Total Power']);` |
-| 212 | `bool && → \|\|` | `r._hrv = numOrNull(r['HRV Score'] != null && String(r['HRV Score']).trim` |
-| 219 | `bool \|\| → &&` | `return commitRows(_hrvParseSummaryRows(text), opts \|\| {});` |
-| 277 | `cmp >= → >` | `return !!(row && typeof row._spanMin === 'number' && isFinite(row._spanM` |
-| 280 | `bool && → \|\|` | `return typeof v === 'number' && isFinite(v) ? Math.round(v * 1000) / 100` |
-| 280 | `num → 0` | `return typeof v === 'number' && isFinite(v) ? Math.round(v * 1000) / 100` |
-| 280 | `eq === → !==` | `return typeof v === 'number' && isFinite(v) ? Math.round(v * 1000) / 100` |
-| 280 | `num → 0` | `return typeof v === 'number' && isFinite(v) ? Math.round(v * 1000) / 100` |
-| 295 | `eq === → !==` | `s[k] = typeof v === 'number' && isFinite(v) ? v : null;` |
-| 295 | `bool && → \|\|` | `s[k] = typeof v === 'number' && isFinite(v) ? v : null;` |
-| 305 | `bool && → \|\|` | `r[k] = typeof s[k] === 'number' && isFinite(s[k]) ? s[k] : null;` |
-| 317 | `bool \|\| → &&` | `if (!allRows \|\| !allRows.length) {` |
-| 317 | `negate: drop !` | `if (!allRows \|\| !allRows.length) {` |
-| 317 | `negate: drop !` | `if (!allRows \|\| !allRows.length) {` |
-| 334 | `cmp > → >=` | `while (kept.length > 1) {` |
-| 361 | `bool \|\| → &&` | `if (!Array.isArray(seeds) \|\| !seeds.length) return false;` |
-| 361 | `negate: drop !` | `if (!Array.isArray(seeds) \|\| !seeds.length) return false;` |
-| 361 | `negate: drop !` | `if (!Array.isArray(seeds) \|\| !seeds.length) return false;` |
-| 363 | `negate: drop !` | `if (!rows.length) return false;` |
-| 370 | `bool \|\| → &&` | `opts = opts \|\| {};` |
-| 371 | `bool \|\| → &&` | `newRows = (newRows \|\| []).filter((r) => isFinite(r._tMs));` |
-| 386 | `negate: drop !` | `if (!allRows.length) {` |
-| 394 | `num → 0` | `_ui.setProgress(100);` |
-| 404 | `eq === → !==` | `const skip = dup ? ' · ' + dup + ' duplicate' + (dup === 1 ? '' : 's') +` |
-| 405 | `eq === → !==` | `_ui.setStatus('✅ Added ' + added + ' measurement' + (added === 1 ? '' : ` |
-| 447 | `bool && → \|\|` | `if (pat && allRows && allRows.length) {` |
-| 447 | `bool && → \|\|` | `if (pat && allRows && allRows.length) {` |
-| 460 | `bool && → \|\|` | `if (sdc && sdi && allRows && allRows.length) {` |
-| 460 | `bool && → \|\|` | `if (sdc && sdi && allRows && allRows.length) {` |
-| 460 | `bool && → \|\|` | `if (sdc && sdi && allRows && allRows.length) {` |
-| 462 | `bool && → \|\|` | `sdi.innerHTML = allRows.length + ' sessions &bull; 85 metrics<br>' + (al` |
-| 475 | `bool \|\| → &&` | `if (!env \|\| typeof env !== 'object') return null;` |
-| 480 | `bool && → \|\|` | `const tMs = rec.startEpochMs != null && isFinite(rec.startEpochMs) ? +re` |
-| 488 | `bool && → \|\|` | `const n = (v) => (typeof v === 'number' && isFinite(v) ? v : null);` |
-| 502 | `cmp > → >=` | `if (t > 0) spanMin = t;` |
-| 542 | `bool && → \|\|` | `else if (data && Array.isArray(data.recordings))` |
-| 544 | `bool \|\| → &&` | `else if (data && (data.recording \|\| data.hrv)) envs = [data]; // single ` |
-| 544 | `bool && → \|\|` | `else if (data && (data.recording \|\| data.hrv)) envs = [data]; // single ` |
-| 546 | `negate: drop !` | `if (!seeds.length) {` |
-| 551 | `bool \|\| → &&` | `commitRows(rows, opts \|\| {});` |
-| 588 | `bool && → \|\|` | `var _baev = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.guar` |
-| 611 | `eq !== → ===` | `var _meanRRs0 = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.` |
-| 611 | `bool && → \|\|` | `var _meanRRs0 = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.` |
-| 622 | `cmp > → >=` | `const _hasNu = r._totalPow > 0 && r._vlf != null && r._totalPow > r._vlf` |
-| 623 | `cmp > → >=` | `const _hasBands = r._hf > 0 && r._lf > 0 && r._vlf > 0;` |
-| 623 | `cmp > → >=` | `const _hasBands = r._hf > 0 && r._lf > 0 && r._vlf > 0;` |
-| 623 | `cmp > → >=` | `const _hasBands = r._hf > 0 && r._lf > 0 && r._vlf > 0;` |
-| 623 | `bool && → \|\|` | `const _hasBands = r._hf > 0 && r._lf > 0 && r._vlf > 0;` |
-| 623 | `bool && → \|\|` | `const _hasBands = r._hf > 0 && r._lf > 0 && r._vlf > 0;` |
-| 659 | `bool && → \|\|` | `const meanRR_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits` |
-| 669 | `eq !== → ===` | `const rmssd_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.` |
-| 669 | `bool && → \|\|` | `const rmssd_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.` |
-| 678 | `cmp > → >=` | `r.d_abs = _all(r._sns, r._psns) && r._sns + r._psns > 0 ? (r._psns - r._` |
-| 703 | `cmp > → >=` | `if (r._vlf > 0 && r._lf > 0 && r._hf > 0) {` |
-| 703 | `cmp > → >=` | `if (r._vlf > 0 && r._lf > 0 && r._hf > 0) {` |
-| 703 | `bool && → \|\|` | `if (r._vlf > 0 && r._lf > 0 && r._hf > 0) {` |
-| 703 | `cmp > → >=` | `if (r._vlf > 0 && r._lf > 0 && r._hf > 0) {` |
-| 703 | `bool && → \|\|` | `if (r._vlf > 0 && r._lf > 0 && r._hf > 0) {` |
-| 712 | `cmp > → >=` | `r.d_plaw = den_s > 0 ? num_s / den_s : NaN;` |
-| 725 | `cmp >= → >` | `r.d_pns_eff = _all(r._rmssd, r._sdnn, r._pnn50) && r._pnn50 >= 1 && r._s` |
-| 729 | `negate: drop !` | `r.d_otr_sat = !isNaN(r.d_otr) && r.d_otr >= 499 ? true : false; // satur` |
-| 729 | `cmp >= → >` | `r.d_otr_sat = !isNaN(r.d_otr) && r.d_otr >= 499 ? true : false; // satur` |
-| 738 | `cmp < → <=` | `const circAdj = _hrvIsAllNight(r) ? 1.0 : mHour < 10 ? 1.08 : mHour > 16` |
-| 738 | `cmp > → >=` | `const circAdj = _hrvIsAllNight(r) ? 1.0 : mHour < 10 ? 1.08 : mHour > 16` |
-| 753 | `cmp > → >=` | `const _hrRestR = p_prof.hrrest_manual > 0 ? p_prof.hrrest_manual : r._hr` |
-| 754 | `cmp > → >=` | `const hrmax_tanaka = p_prof.hrmax_manual > 0 && p_prof.hrmax_manual >= 1` |
-| 754 | `cmp > → >=` | `const hrmax_tanaka = p_prof.hrmax_manual > 0 && p_prof.hrmax_manual >= 1` |
-| 755 | `cmp <= → <` | `const _altFR = p_prof.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((p_prof.ele` |
-| 755 | `num → 0` | `const _altFR = p_prof.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((p_prof.ele` |
-| 775 | `cmp > → >=` | `const vo2_win = _vo2win7.map((x) => x.d_vo2_hrv).filter((v) => !isNaN(v)` |
-| 834 | `bool && → \|\|` | `const dayGap = isFinite(r._tMs) && isFinite(prev._tMs) ? Math.round((r._` |
-| 835 | `bool && → \|\|` | `r.d_rmssd_delta_pct = dayGap === 1 && prev._rmssd > 0 && !isNaN(r._rmssd` |
-| 835 | `bool && → \|\|` | `r.d_rmssd_delta_pct = dayGap === 1 && prev._rmssd > 0 && !isNaN(r._rmssd` |
-| 835 | `cmp > → >=` | `r.d_rmssd_delta_pct = dayGap === 1 && prev._rmssd > 0 && !isNaN(r._rmssd` |
-| 835 | `num → 0` | `r.d_rmssd_delta_pct = dayGap === 1 && prev._rmssd > 0 && !isNaN(r._rmssd` |
-| 844 | `cmp < → <=` | `for (let j = i; j >= 0 && window7.length < 7; j--) {` |
-| 846 | `bool && → \|\|` | `if (_dk && !_seen7.has(_dk)) {` |
-| 862 | `num → 0` | `r.d_rmssd_cv7 = rmssd7.length > 1 ? (std(rmssd7) / mean7rmssd) * 100 : N` |
-| 862 | `cmp > → >=` | `r.d_rmssd_cv7 = rmssd7.length > 1 ? (std(rmssd7) / mean7rmssd) * 100 : N` |
-| 865 | `cmp > → >=` | `const stdSDNN7 = sdnn7.length > 1 ? std(sdnn7) : NaN;` |
-| 873 | `cmp < → <=` | `for (let j = i; j >= 0 && _win14ac.length < 14; j--) {` |
-| 883 | `cmp < → <=` | `for (let j = 0; j < ac_raw.length - 1; j++) {` |
-| 895 | `cmp > → >=` | `if (pnn507.length > 2) {` |
-| 905 | `cmp < → <=` | `for (let j = i; j >= 0 && window14.length < 14; j--) {` |
-| 920 | `negate: drop !` | `const ari14 = window14.map((x) => x.d_ari).filter((v) => !isNaN(v));` |
-| 921 | `cmp < → <=` | `r.d_recovery_debt = ari14.filter((v) => v < 0.9).length;` |
-| 921 | `num → 0` | `r.d_recovery_debt = ari14.filter((v) => v < 0.9).length;` |
-| 931 | `cmp > → >=` | `return arr.length > 1 ? Math.sqrt(arr.reduce((s, v) => s + (v - m) * (v ` |
-| 935 | `cmp < → <=` | `if (n < 2) return NaN;` |
-| 946 | `cmp > → >=` | `return dx * dy > 0 ? num / Math.sqrt(dx * dy) : NaN;` |
-| 957 | `eq === → !==` | `if (k === 0) return arr;` |
-| 959 | `negate: drop !` | `const slice = a.slice(Math.max(0, i - k), i + 1).filter((x) => !isNaN(x)` |
-| 972 | `negate: drop !` | `if (!el) return;` |
-| 973 | `eq !== → ===` | `var n = typeof windowDays !== 'undefined' ? windowDays : 7;` |
-| 975 | `eq === → !==` | `var mo = sc === 'morning' ? ', mornings only' : sc === 'allnight' ? ', a` |
-| 975 | `eq === → !==` | `var mo = sc === 'morning' ? ', mornings only' : sc === 'allnight' ? ', a` |
-| 976 | `cmp >= → >` | `var scope = n >= 999 ? 'all measurements' : 'last ' + n + ' day' + (n ==` |
-| 976 | `eq === → !==` | `var scope = n >= 999 ? 'all measurements' : 'last ' + n + ' day' + (n ==` |
-| 976 | `num → 0` | `var scope = n >= 999 ? 'all measurements' : 'last ' + n + ' day' + (n ==` |
-| 988 | `bool && → \|\|` | `if (sel && sel.value) return sel.value;` |
-| 990 | `bool && → \|\|` | `return legacy && /** @type {HTMLInputElement} */ (legacy).checked ? 'mor` |
-| 997 | `eq === → !==` | `if (scope === 'morning') {` |
-| 1000 | `cmp < → <=` | `rows = rows.filter((r) => !_hrvIsAllNight(r) && r._date && r._date.getUT` |
-| 1000 | `bool && → \|\|` | `rows = rows.filter((r) => !_hrvIsAllNight(r) && r._date && r._date.getUT` |
-| 1000 | `bool && → \|\|` | `rows = rows.filter((r) => !_hrvIsAllNight(r) && r._date && r._date.getUT` |
-| 1000 | `negate: drop !` | `rows = rows.filter((r) => !_hrvIsAllNight(r) && r._date && r._date.getUT` |
-| 1000 | `num → 0` | `rows = rows.filter((r) => !_hrvIsAllNight(r) && r._date && r._date.getUT` |
-| 1001 | `eq === → !==` | `} else if (scope === 'allnight') {` |
-| 1004 | `num → 0` | `if (windowDays < 999) {` |
-| 1004 | `cmp < → <=` | `if (windowDays < 999) {` |
-| 1006 | `num → 0` | `const lastMs = allRows[allRows.length - 1]._tMs - (windowDays - 1) * 864` |
-| 1007 | `cmp >= → >` | `rows = rows.filter((r) => r._tMs >= lastMs);` |
-| 1026 | `cmp > → >=` | `if (r._rmssd > 0) {` |
-| 1030 | `cmp >= → >` | `if (_all(r._pnn50) && r._pnn50 >= 0) {` |
-| 1031 | `num → 0` | `paraScore += Math.min(100, r._pnn50 * 4);` |
-| 1034 | `cmp > → >=` | `if (r._hf > 0) {` |
-| 1038 | `num → 0` | `var paraAvg = paraCount ? paraScore / paraCount : 50;` |
-| 1041 | `cmp > → >=` | `if (r._hf > 0 && r._lf > 0) {` |
-| 1041 | `cmp > → >=` | `if (r._hf > 0 && r._lf > 0) {` |
-| 1041 | `bool && → \|\|` | `if (r._hf > 0 && r._lf > 0) {` |
-| 1043 | `num → 0` | `sympPenalty = Math.max(0, (lfhf - 1.0) * 15); // penalty grows above LF/` |
-| 1043 | `num → 0` | `sympPenalty = Math.max(0, (lfhf - 1.0) * 15); // penalty grows above LF/` |
-| 1068 | `cmp < → <=` | `return (n < 10 ? '0' : '') + n;` |
-| 1068 | `num → 0` | `return (n < 10 ? '0' : '') + n;` |
-| 1077 | `bool \|\| → &&` | `if (!r \|\| !isFinite(r._tMs)) return;` |
-| 1079 | `cmp > → >=` | `if (isFinite(r._rmssd) && r._rmssd > 0 && r._rmssd < 20)` |
-| 1096 | `num → 0` | `conf: +Math.max(0.4, Math.min(0.9, (r._stress - 50) / 50)).toFixed(2),` |
-| 1110 | `bool \|\| → &&` | `opts = opts \|\| {};` |
-| 1119 | `bool && → \|\|` | `return r && isFinite(r._tMs);` |
-| 1128 | `eq !== → ===` | `var kfmt = opts.kernel ? { version: opts.kernel.VERSION, hash: opts.kern` |
-| 1128 | `bool && → \|\|` | `var kfmt = opts.kernel ? { version: opts.kernel.VERSION, hash: opts.kern` |
-| 1147 | `bool && → \|\|` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
-| 1147 | `bool && → \|\|` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
-| 1147 | `bool && → \|\|` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
-| 1159 | `bool && → \|\|` | `offsetMin: dated[0] && dated[0]._offsetMin != null ? dated[0]._offsetMin` |
-| 1163 | `bool && → \|\|` | `spanDays: t0 != null && last ? Math.round((last._tMs - t0) / 864e5) + 1 ` |
-| 1175 | `bool && → \|\|` | `spanSec: t0 != null && last && last._tMs != null ? Math.round((last._tMs` |
-| 1175 | `bool && → \|\|` | `spanSec: t0 != null && last && last._tMs != null ? Math.round((last._tMs` |
-| 1177 | `num → 0` | `var d = r._spanMin != null && isFinite(r._spanMin) ? Math.round(r._spanM` |
-| 1177 | `bool && → \|\|` | `var d = r._spanMin != null && isFinite(r._spanMin) ? Math.round(r._spanM` |
-| 1186 | `bool && → \|\|` | `return r._spanMin != null && isFinite(r._spanMin);` |
-| 1191 | `num → 0` | `return a + r._spanMin * 60;` |
-| 1197 | `bool && → \|\|` | `return r._spanMin != null && isFinite(r._spanMin);` |
-| 1207 | `cmp > → >=` | `var sd1 = r._rmssd > 0 ? r._rmssd / Math.SQRT2 : null;` |
-| 1208 | `cmp > → >=` | `var sd2 = sd1 != null && r._sdnn > 0 ? Math.sqrt(Math.max(0, 2 * r._sdnn` |
-| 1208 | `bool && → \|\|` | `var sd2 = sd1 != null && r._sdnn > 0 ? Math.sqrt(Math.max(0, 2 * r._sdnn` |
-| 1245 | `bool && → \|\|` | `return r && isFinite(r._tMs);` |
-| 1267 | `bool \|\| → &&` | `message: 'This is a ' + (node \|\| 'non-HRVDex') + ' export \\u2014 open it` |
-| 1267 | `bool \|\| → &&` | `message: 'This is a ' + (node \|\| 'non-HRVDex') + ' export \\u2014 open it` |
-| 1274 | `bool && → \|\|` | `return ((a && a.tMs) \|\| 0) - ((b && b.tMs) \|\| 0);` |
-| 1274 | `bool && → \|\|` | `return ((a && a.tMs) \|\| 0) - ((b && b.tMs) \|\| 0);` |
-| 1274 | `bool \|\| → &&` | `return ((a && a.tMs) \|\| 0) - ((b && b.tMs) \|\| 0);` |
-| 1274 | `bool \|\| → &&` | `return ((a && a.tMs) \|\| 0) - ((b && b.tMs) \|\| 0);` |
-| 1283 | `bool && → \|\|` | `generated: (json.schema && json.schema.generated) \|\| null,` |
-| 1284 | `bool && → \|\|` | `derivedFrom: (json.schema && json.schema.derivedFrom) \|\| null,` |
-| 1284 | `bool \|\| → &&` | `derivedFrom: (json.schema && json.schema.derivedFrom) \|\| null,` |
-| 1285 | `bool \|\| → &&` | `kernel: json.kernel \|\| null,` |
-| 1288 | `bool && → \|\|` | `scrubbed: !!(json.schema && json.schema.scrubbed),` |
-| 1295 | `eq !== → ===` | `var HRVDex = typeof HRVDex !== 'undefined' && HRVDex ? HRVDex : {};` |
-| 1295 | `bool && → \|\|` | `var HRVDex = typeof HRVDex !== 'undefined' && HRVDex ? HRVDex : {};` |
-| 1297 | `bool \|\| → &&` | `opts = opts \|\| {};` |
-| 1299 | `bool \|\| → &&` | `if (!rows \|\| !rows.length) return null;` |
-| 1319 | `eq === → !==` | `if (typeof DexExport !== 'undefined' && DexExport && typeof DexExport.sc` |
-
-## `integrator-dsp.js` — 139 survivor(s)
+## `integrator-dsp.js` — 571 survivor(s)
 
 | line | operator | source |
 |---:|---|---|
@@ -1589,6 +1407,438 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 951 | `bool \|\| → &&` | `if (!n \|\| typeof n !== 'object') return;` |
 | 954 | `bool \|\| → &&` | `var nSamp = stats.n \|\| 0;` |
 | 956 | `bool && → \|\|` | `var dt = durMs && nSamp ? durMs / nSamp : 1000; // O2Ring ≈ 1 Hz` |
+| 956 | `num → 0` | `var dt = durMs && nSamp ? durMs / nSamp : 1000; // O2Ring ≈ 1 Hz` |
+| 957 | `bool && → \|\|` | `var endMs = t0Ms != null && durMs != null ? t0Ms + durMs : null;` |
+| 973 | `bool \|\| → &&` | `if (idx == null \|\| t0Ms == null) return;` |
+| 976 | `num → 0` | `var conf = clamp(0.45 + (depth != null ? Math.min(depth, 12) / 24 : 0.1)` |
+| 976 | `num → 0` | `var conf = clamp(0.45 + (depth != null ? Math.min(depth, 12) / 24 : 0.1)` |
+| 976 | `num → 0` | `var conf = clamp(0.45 + (depth != null ? Math.min(depth, 12) / 24 : 0.1)` |
+| 976 | `num → 0` | `var conf = clamp(0.45 + (depth != null ? Math.min(depth, 12) / 24 : 0.1)` |
+| 976 | `num → 0` | `var conf = clamp(0.45 + (depth != null ? Math.min(depth, 12) / 24 : 0.1)` |
+| 976 | `num → 0` | `var conf = clamp(0.45 + (depth != null ? Math.min(depth, 12) / 24 : 0.1)` |
+| 991 | `bool && → \|\|` | `typeof DexClock !== 'undefined' && DexClock.resolveDMY` |
+| 1001 | `bool && → \|\|` | `var tMs = p ? p.tMs : sp.idx != null && t0Ms != null ? t0Ms + sp.idx * d` |
+| 1003 | `bool && → \|\|` | `var rise = sp.peak != null && sp.baseline != null ? sp.peak - sp.baselin` |
+| 1004 | `num → 0` | `var conf = clamp(0.4 + (rise != null ? Math.min(rise, 40) / 80 : 0.15), ` |
+| 1004 | `num → 0` | `var conf = clamp(0.4 + (rise != null ? Math.min(rise, 40) / 80 : 0.15), ` |
+| 1004 | `num → 0` | `var conf = clamp(0.4 + (rise != null ? Math.min(rise, 40) / 80 : 0.15), ` |
+| 1004 | `num → 0` | `var conf = clamp(0.4 + (rise != null ? Math.min(rise, 40) / 80 : 0.15), ` |
+| 1004 | `num → 0` | `var conf = clamp(0.4 + (rise != null ? Math.min(rise, 40) / 80 : 0.15), ` |
+| 1004 | `num → 0` | `var conf = clamp(0.4 + (rise != null ? Math.min(rise, 40) / 80 : 0.15), ` |
+| 1025 | `bool && → \|\|` | `pulseHr1Hz: stats.meanHr != null && isFinite(stats.meanHr) ? stats.meanH` |
+| 1038 | `eq === → !==` | `return e.impulse === 'spo2_desaturation' \|\| e.impulse === 'desat_event';` |
+| 1038 | `bool \|\| → &&` | `return e.impulse === 'spo2_desaturation' \|\| e.impulse === 'desat_event';` |
+| 1038 | `eq === → !==` | `return e.impulse === 'spo2_desaturation' \|\| e.impulse === 'desat_event';` |
+| 1050 | `cmp > → >=` | `var _remImplausible = !!_sp && (_sp.plausible === false \|\| (_sp.remProxy` |
+| 1050 | `bool \|\| → &&` | `var _remImplausible = !!_sp && (_sp.plausible === false \|\| (_sp.remProxy` |
+| 1052 | `num → 0` | `summary.remFraction = +(_sp.remProxyPct / 100).toFixed(3);` |
+| 1053 | `num → 0` | `summary.deepFraction = _sp.nremDeepPct != null ? +(_sp.nremDeepPct / 100` |
+| 1064 | `bool \|\| → &&` | `summary.stagingSuppressed = _sp.plausibilityNote \|\| 'oximetry REM proxy ` |
+| 1067 | `bool \|\| → &&` | `uid: 'OxyDex@' + (t0Ms \|\| 'n' + ni),` |
+| 1069 | `bool \|\| → &&` | `label: 'OxyDex · ' + (t0Ms != null ? fmtDayShort(t0Ms) : n.date \|\| 'nigh` |
+| 1070 | `bool \|\| → &&` | `dateStr: n.date \|\| (t0Ms != null ? fmtDate(t0Ms) : null),` |
+| 1078 | `bool \|\| → &&` | `kernelHash: _kernelHash(n.kernel \|\| _topKernel),` |
+| 1079 | `bool \|\| → &&` | `kernelVersion: _kernelVersion(n.kernel \|\| _topKernel),` |
+| 1113 | `bool \|\| → &&` | `var busVal = json.bus \|\| (json.schema && json.schema.bus) \|\| null;` |
+| 1113 | `bool \|\| → &&` | `var busVal = json.bus \|\| (json.schema && json.schema.bus) \|\| null;` |
+| 1114 | `negate: drop !` | `if (!busOK(busVal)) {` |
+| 1122 | `cmp < → <=` | `if (node !== 'Unknown' && KNOWN_NODES.indexOf(node) < 0) {` |
+| 1122 | `eq !== → ===` | `if (node !== 'Unknown' && KNOWN_NODES.indexOf(node) < 0) {` |
+| 1134 | `bool && → \|\|` | `json &&` |
+| 1135 | `bool && → \|\|` | `!Array.isArray(json) &&` |
+| 1135 | `negate: drop !` | `!Array.isArray(json) &&` |
+| 1136 | `negate: drop !` | `!json.ganglior_events &&` |
+| 1136 | `bool && → \|\|` | `!json.ganglior_events &&` |
+| 1137 | `negate: drop !` | `!json.fascia_events &&` |
+| 1137 | `bool && → \|\|` | `!json.fascia_events &&` |
+| 1138 | `bool && → \|\|` | `!json.events &&` |
+| 1138 | `negate: drop !` | `!json.events &&` |
+| 1139 | `bool && → \|\|` | `!json.recording &&` |
+| 1139 | `negate: drop !` | `!json.recording &&` |
+| 1140 | `bool && → \|\|` | `json.t0Ms != null &&` |
+| 1141 | `bool \|\| → &&` | `(Array.isArray(json.windows) \|\| json.nWindows != null \|\| json.durMin != ` |
+| 1141 | `bool \|\| → &&` | `(Array.isArray(json.windows) \|\| json.nWindows != null \|\| json.durMin != ` |
+| 1142 | `eq !== → ===` | `if (_looksSummary && node !== 'Unknown') {` |
+| 1142 | `bool && → \|\|` | `if (_looksSummary && node !== 'Unknown') {` |
+| 1145 | `bool \|\| → &&` | `(filename \|\| node) +` |
+| 1179 | `bool && → \|\|` | `if (Array.isArray(json[_c.key]) && json.schema && json.schema[_c.flag]) ` |
+| 1179 | `bool && → \|\|` | `if (Array.isArray(json[_c.key]) && json.schema && json.schema[_c.flag]) ` |
+| 1189 | `bool && → \|\|` | `if (_nightRecs && _nightRecs.length) mnRecs = mnRecs.concat(_nightRecs);` |
+| 1197 | `bool \|\| → &&` | `warnings: warnings.concat(['"' + (filename \|\| 'file') + '" — ' + node + ` |
+| 1202 | `negate: drop !` | `if (node === 'Unknown' && !json.ganglior_events && !json.events && !json` |
+| 1202 | `negate: drop !` | `if (node === 'Unknown' && !json.ganglior_events && !json.events && !json` |
+| 1202 | `negate: drop !` | `if (node === 'Unknown' && !json.ganglior_events && !json.events && !json` |
+| 1203 | `bool \|\| → &&` | `return { recs: [], warnings: warnings.concat(['"' + (filename \|\| 'file')` |
+| 1207 | `bool \|\| → &&` | `return { recs: [], warnings: warnings.concat(['"' + (filename \|\| 'file')` |
+| 1222 | `bool \|\| → &&` | `var raw = r.raw \|\| {};` |
+| 1223 | `bool \|\| → &&` | `var ev = raw.ganglior_events \|\| raw.events \|\| r.events \|\| [];` |
+| 1223 | `bool \|\| → &&` | `var ev = raw.ganglior_events \|\| raw.events \|\| r.events \|\| [];` |
+| 1223 | `bool \|\| → &&` | `var ev = raw.ganglior_events \|\| raw.events \|\| r.events \|\| [];` |
+| 1224 | `bool \|\| → &&` | `var first = ev.length ? ev[0].t \|\| ev[0].tMs \|\| '' : '';` |
+| 1224 | `bool \|\| → &&` | `var first = ev.length ? ev[0].t \|\| ev[0].tMs \|\| '' : '';` |
+| 1225 | `bool \|\| → &&` | `var last = ev.length ? ev[ev.length - 1].t \|\| ev[ev.length - 1].tMs \|\| '` |
+| 1225 | `bool \|\| → &&` | `var last = ev.length ? ev[ev.length - 1].t \|\| ev[ev.length - 1].tMs \|\| '` |
+| 1226 | `bool && → \|\|` | `var rm = r.summary && r.summary.rmssd != null ? r.summary.rmssd : '';` |
+| 1227 | `bool && → \|\|` | `var sd = r.summary && r.summary.sdnn != null ? r.summary.sdnn : '';` |
+| 1241 | `bool && → \|\|` | `if (e.contentId && nr.contentId) return e.contentId === nr.contentId;` |
+| 1242 | `cmp <= → <` | `if (e.t0Ms != null && nr.t0Ms != null) return Math.abs(e.t0Ms - nr.t0Ms)` |
+| 1242 | `bool && → \|\|` | `if (e.t0Ms != null && nr.t0Ms != null) return Math.abs(e.t0Ms - nr.t0Ms)` |
+| 1243 | `bool && → \|\|` | `if (e.t0Ms == null && nr.t0Ms == null) return _recSig(e) === nsig; // st` |
+| 1269 | `bool \|\| → &&` | `if (!cov \|\| !Array.isArray(cov.segments) \|\| !cov.segments.length) return` |
+| 1271 | `cmp < → <=` | `for (var i = 0; i < cov.segments.length; i++) {` |
+| 1273 | `bool \|\| → &&` | `if (!sg \|\| sg.startMs == null \|\| !isFinite(sg.startMs)) continue;` |
+| 1273 | `bool \|\| → &&` | `if (!sg \|\| sg.startMs == null \|\| !isFinite(sg.startMs)) continue;` |
+| 1276 | `cmp > → >=` | `var dur = sg.durSec != null && isFinite(sg.durSec) && sg.durSec > 0 ? sg` |
+| 1276 | `bool && → \|\|` | `var dur = sg.durSec != null && isFinite(sg.durSec) && sg.durSec > 0 ? sg` |
+| 1276 | `bool && → \|\|` | `var dur = sg.durSec != null && isFinite(sg.durSec) && sg.durSec > 0 ? sg` |
+| 1293 | `bool \|\| → &&` | `if (!sa \|\| !sb) return null;` |
+| 1299 | `cmp > → >=` | `if (e > s) totalMs += e - s;` |
+| 1307 | `bool \|\| → &&` | `if (!wa \|\| !wb) return null;` |
+| 1314 | `eq !== → ===` | `if (a.offsetMin != null && b.offsetMin != null && a.offsetMin !== b.offs` |
+| 1314 | `bool && → \|\|` | `if (a.offsetMin != null && b.offsetMin != null && a.offsetMin !== b.offs` |
+| 1314 | `bool && → \|\|` | `if (a.offsetMin != null && b.offsetMin != null && a.offsetMin !== b.offs` |
+| 1315 | `num → 0` | `sa -= a.offsetMin * 60000;` |
+| 1316 | `num → 0` | `ea -= a.offsetMin * 60000;` |
+| 1317 | `num → 0` | `sb -= b.offsetMin * 60000;` |
+| 1318 | `num → 0` | `eb -= b.offsetMin * 60000;` |
+| 1323 | `cmp <= → <` | `if (e <= s) return null;` |
+| 1343 | `negate: drop !` | `if (!sa && !sb) {` |
+| 1349 | `bool \|\| → &&` | `if (!wa \|\| !wb) return [];` |
+| 1356 | `bool && → \|\|` | `if (a.offsetMin != null && b.offsetMin != null && a.offsetMin !== b.offs` |
+| 1356 | `eq !== → ===` | `if (a.offsetMin != null && b.offsetMin != null && a.offsetMin !== b.offs` |
+| 1356 | `bool && → \|\|` | `if (a.offsetMin != null && b.offsetMin != null && a.offsetMin !== b.offs` |
+| 1357 | `num → 0` | `shA = a.offsetMin * 60000;` |
+| 1358 | `num → 0` | `shB = b.offsetMin * 60000;` |
+| 1365 | `cmp > → >=` | `if (en > st) out.push([st + shA, en + shA]);` |
+| 1379 | `bool \|\| → &&` | `if (!recWindow(a) \|\| !recWindow(b)) return true; // unknown ⇒ cannot dis` |
+| 1387 | `bool && → \|\|` | `return !!(recWindow(a) && recWindow(b) && overlapInterval(a, b));` |
+| 1387 | `bool && → \|\|` | `return !!(recWindow(a) && recWindow(b) && overlapInterval(a, b));` |
+| 1424 | `bool \|\| → &&` | `if (!Array.isArray(hrNodesLive) \|\| !hrNodesLive.length) return null;` |
+| 1427 | `bool && → \|\|` | `return h && HR_AUTHORITY[h.node] != null;` |
+| 1443 | `cmp >= → >` | `var expectSurge = depth != null && depth >= CONSEQUENCE.EXPECT_DEPTH_PCT` |
+| 1443 | `bool && → \|\|` | `var expectSurge = depth != null && depth >= CONSEQUENCE.EXPECT_DEPTH_PCT` |
+| 1453 | `cmp <= → <` | `return t != null && t >= w0 && t <= w1;` |
+| 1453 | `bool && → \|\|` | `return t != null && t >= w0 && t <= w1;` |
+| 1453 | `cmp >= → >` | `return t != null && t >= w0 && t <= w1;` |
+| 1453 | `bool && → \|\|` | `return t != null && t >= w0 && t <= w1;` |
+| 1508 | `num → 0` | `var APNEA_TYPE_LEAD_MS = 15000; // look this far BEFORE the desat — SpO₂` |
+| 1523 | `num → 0` | `cadMs = 10000;` |
+| 1527 | `num → 0` | `if (r.summary.effortCadenceSec != null) cadMs = r.summary.effortCadenceS` |
+| 1563 | `bool && → \|\|` | `var durMs = (d.ev.meta && d.ev.meta.durSec != null ? d.ev.meta.durSec : ` |
+| 1563 | `num → 0` | `var durMs = (d.ev.meta && d.ev.meta.durSec != null ? d.ev.meta.durSec : ` |
+| 1563 | `num → 0` | `var durMs = (d.ev.meta && d.ev.meta.durSec != null ? d.ev.meta.durSec : ` |
+| 1567 | `cmp < → <=` | `for (var i = 0; i < eps.length; i++) {` |
+| 1568 | `cmp <= → <` | `if (eps[i].tMs + cadMs <= lo) continue;` |
+| 1569 | `cmp >= → >` | `if (eps[i].tMs >= hi) break;` |
+| 1639 | `cmp <= → <` | `if (cur[0] <= last[1])` |
+| 1665 | `eq !== → ===` | `if (b.hours !== a.hours) return b.hours - a.hours; // more of the night ` |
+| 1666 | `num → 0` | `var ra = DESAT_OBSERVER_AUTHORITY[a.node] != null ? DESAT_OBSERVER_AUTHO` |
+| 1667 | `num → 0` | `var rb = DESAT_OBSERVER_AUTHORITY[b.node] != null ? DESAT_OBSERVER_AUTHO` |
+| 1668 | `eq !== → ===` | `if (ra !== rb) return ra - rb;` |
+| 1669 | `cmp < → <=` | `return a.node < b.node ? -1 : a.node > b.node ? 1 : 0;` |
+| 1669 | `cmp > → >=` | `return a.node < b.node ? -1 : a.node > b.node ? 1 : 0;` |
+| 1689 | `cmp < → <=` | `if (r && recSegments(r) && declaredBy.indexOf(r.node) < 0) declaredBy.pu` |
+| 1698 | `cmp > → >=` | `recordedFrac: envHrs > 0 ? +(totHrs / envHrs).toFixed(3) : null,` |
+| 1699 | `bool && → \|\|` | `segments: u && u.merged ? u.merged.length : 0,` |
+| 1722 | `bool \|\| → &&` | `if (!oxyAll.length \|\| !cardiac.length) return null;` |
+| 1732 | `bool \|\| → &&` | `gate = gate \|\| {};` |
+| 1733 | `num → 0` | `var leadMaxSec = gate.leadMaxSec != null ? gate.leadMaxSec : 15;` |
+| 1734 | `num → 0` | `var trailMaxSec = gate.trailMaxSec != null ? gate.trailMaxSec : 60;` |
+| 1763 | `bool && → \|\|` | `if (tMs >= merged[i][0] - dtMs && tMs <= merged[i][1] + dtMs) return tru` |
+| 1763 | `cmp <= → <` | `if (tMs >= merged[i][0] - dtMs && tMs <= merged[i][1] + dtMs) return tru` |
+| 1763 | `cmp >= → >` | `if (tMs >= merged[i][0] - dtMs && tMs <= merged[i][1] + dtMs) return tru` |
+| 1807 | `bool \|\| → &&` | `if (lat < -leadMaxSec \|\| lat > trailMaxSec) return; // directionality ga` |
+| 1807 | `cmp > → >=` | `if (lat < -leadMaxSec \|\| lat > trailMaxSec) return; // directionality ga` |
+| 1807 | `cmp < → <=` | `if (lat < -leadMaxSec \|\| lat > trailMaxSec) return; // directionality ga` |
+| 1809 | `cmp < → <=` | `if (dd < bd) {` |
+| 1819 | `bool && → \|\|` | `durSec: (d.meta && d.meta.durSec) \|\| null,` |
+| 1819 | `bool \|\| → &&` | `durSec: (d.meta && d.meta.durSec) \|\| null,` |
+| 1828 | `bool \|\| → &&` | `nodes: [d.node \|\| 'OxyDex', s.node \|\| 'ECGDex'],` |
+| 1830 | `bool \|\| → &&` | `{ node: d.node \|\| 'OxyDex', impulse: d.impulse, tMs: d.tMs, conf: d.conf` |
+| 1831 | `bool \|\| → &&` | `{ node: s.node \|\| 'ECGDex', impulse: s.impulse, tMs: s.tMs, conf: s.conf` |
+| 1831 | `bool \|\| → &&` | `{ node: s.node \|\| 'ECGDex', impulse: s.impulse, tMs: s.tMs, conf: s.conf` |
+| 1833 | `bool && → \|\|` | `meta: { desatDepth: d.meta && d.meta.depth, nadir: d.meta && d.meta.nadi` |
+| 1833 | `bool \|\| → &&` | `meta: { desatDepth: d.meta && d.meta.depth, nadir: d.meta && d.meta.nadi` |
+| 1833 | `bool && → \|\|` | `meta: { desatDepth: d.meta && d.meta.depth, nadir: d.meta && d.meta.nadi` |
+| 1833 | `num → 0` | `meta: { desatDepth: d.meta && d.meta.depth, nadir: d.meta && d.meta.nadi` |
+| 1841 | `negate: drop !` | `return !usedSurge.has(si);` |
+| 1858 | `bool \|\| → &&` | `var k = s.node \|\| 'ECGDex';` |
+| 1871 | `bool \|\| → &&` | `hrWitness: (pickHRAuthority(hrNodesLive) \|\| {}).node \|\| null,` |
+| 1874 | `eq === → !==` | `return d.verdict === 'artifact-no-consequence';` |
+| 1877 | `eq === → !==` | `return d.verdict === 'unconfirmed-desat';` |
+| 1887 | `num → 0` | `var unionSec = totHrs * 3600;` |
+| 1904 | `bool \|\| → &&` | `_surgeByNode[n] = (_surgeByNode[n] \|\| 0) + 1;` |
+| 1907 | `num → 0` | `var ra = HR_AUTHORITY[a] != null ? HR_AUTHORITY[a] : 99,` |
+| 1908 | `num → 0` | `rb = HR_AUTHORITY[b] != null ? HR_AUTHORITY[b] : 99;` |
+| 1909 | `eq !== → ===` | `if (ra !== rb) return ra - rb;` |
+| 1910 | `eq !== → ===` | `if (_surgeByNode[b] !== _surgeByNode[a]) return _surgeByNode[b] - _surge` |
+| 1911 | `cmp < → <=` | `return a < b ? -1 : 1;` |
+| 1915 | `cmp > → >=` | `var surgeRate = unionSec > 0 ? _rateCount / unionSec : 0; // surges per ` |
+| 1921 | `cmp >= → >` | `var belowChance = nConf === 0 \|\| nConf <= lambda \|\| pAtLeast >= 0.05;` |
+| 1921 | `eq === → !==` | `var belowChance = nConf === 0 \|\| nConf <= lambda \|\| pAtLeast >= 0.05;` |
+| 1921 | `cmp <= → <` | `var belowChance = nConf === 0 \|\| nConf <= lambda \|\| pAtLeast >= 0.05;` |
+| 1921 | `bool \|\| → &&` | `var belowChance = nConf === 0 \|\| nConf <= lambda \|\| pAtLeast >= 0.05;` |
+| 1921 | `bool \|\| → &&` | `var belowChance = nConf === 0 \|\| nConf <= lambda \|\| pAtLeast >= 0.05;` |
+| 1921 | `num → 0` | `var belowChance = nConf === 0 \|\| nConf <= lambda \|\| pAtLeast >= 0.05;` |
+| 1938 | `eq !== → ===` | `var _EC = (typeof EventCoupling !== 'undefined' && EventCoupling) \|\| (ty` |
+| 1938 | `eq !== → ===` | `var _EC = (typeof EventCoupling !== 'undefined' && EventCoupling) \|\| (ty` |
+| 1938 | `bool \|\| → &&` | `var _EC = (typeof EventCoupling !== 'undefined' && EventCoupling) \|\| (ty` |
+| 1938 | `bool \|\| → &&` | `var _EC = (typeof EventCoupling !== 'undefined' && EventCoupling) \|\| (ty` |
+| 1938 | `bool && → \|\|` | `var _EC = (typeof EventCoupling !== 'undefined' && EventCoupling) \|\| (ty` |
+| 1940 | `bool && → \|\|` | `if (_EC && typeof _EC.coupling === 'function' && desats.length && surges` |
+| 1940 | `bool && → \|\|` | `if (_EC && typeof _EC.coupling === 'function' && desats.length && surges` |
+| 1940 | `bool && → \|\|` | `if (_EC && typeof _EC.coupling === 'function' && desats.length && surges` |
+| 1940 | `bool && → \|\|` | `if (_EC && typeof _EC.coupling === 'function' && desats.length && surges` |
+| 1948 | `bool && → \|\|` | `var usable = !ec.underpowered && !ec.saturated;` |
+| 1972 | `cmp < → <=` | `real: usable && isFinite(ec.pPerm) && ec.pPerm < COUPLING_ALPHA` |
+| 1977 | `cmp > → >=` | `var ahi = totHrs > 0 ? +(nConf / totHrs).toFixed(2) : null;` |
+| 1981 | `cmp > → >=` | `confirmedAHIReportable: !belowChance && nConf > 0,` |
+| 1981 | `bool && → \|\|` | `confirmedAHIReportable: !belowChance && nConf > 0,` |
+| 1981 | `negate: drop !` | `confirmedAHIReportable: !belowChance && nConf > 0,` |
+| 2000 | `num → 0` | `surgeRatePerHr: +(surgeRate * 3600).toFixed(1),` |
+| 2035 | `cmp <= → <` | `agreement: confirmedIndex != null ? (confirmedIndex <= dev * 1.2 ? 'cons` |
+| 2035 | `num → 0` | `agreement: confirmedIndex != null ? (confirmedIndex <= dev * 1.2 ? 'cons` |
+| 2044 | `cmp <= → <` | `if (lam <= 0) return k <= 0 ? 1 : 0;` |
+| 2044 | `cmp <= → <` | `if (lam <= 0) return k <= 0 ? 1 : 0;` |
+| 2047 | `cmp < → <=` | `for (var i = 0; i < k; i++) {` |
+| 2056 | `bool \|\| → &&` | `if (!apneaResult \|\| !apneaResult.findings.length) return null;` |
+| 2077 | `bool && → \|\|` | `if (g.summary && g.summary.posture) posture = posture.concat(g.summary.p` |
+| 2108 | `cmp < → <=` | `if (d < bd) {` |
+| 2113 | `cmp <= → <` | `return best && bd <= 10 * 60000 ? /** @type {any} */ (best).pos : null;` |
+| 2126 | `cmp > → >=` | `var rate = supine + nonsupine > 0 ? supine / (supine + nonsupine) : null` |
+| 2127 | `cmp >= → >` | `var positional = rate != null && supine >= 3 && rate >= 0.7 && (nonsupin` |
+| 2127 | `cmp >= → >` | `var positional = rate != null && supine >= 3 && rate >= 0.7 && (nonsupin` |
+| 2127 | `eq === → !==` | `var positional = rate != null && supine >= 3 && rate >= 0.7 && (nonsupin` |
+| 2156 | `cmp < → <=` | `if (n < 4) return Math.round(sd);` |
+| 2160 | `cmp < → <=` | `for (i = 1; i < n; i++) {` |
+| 2162 | `eq === → !==` | `if (dir === 0) {` |
+| 2163 | `cmp > → >=` | `if (Math.abs(d) > 0) dir = d > 0 ? 1 : -1;` |
+| 2163 | `cmp > → >=` | `if (Math.abs(d) > 0) dir = d > 0 ? 1 : -1;` |
+| 2166 | `cmp > → >=` | `var sg = s > 0 ? 1 : s < 0 ? -1 : 0;` |
+| 2166 | `cmp < → <=` | `var sg = s > 0 ? 1 : s < 0 ? -1 : 0;` |
+| 2167 | `eq !== → ===` | `if (sg !== 0 && sg !== dir) {` |
+| 2167 | `eq !== → ===` | `if (sg !== 0 && sg !== dir) {` |
+| 2167 | `bool && → \|\|` | `if (sg !== 0 && sg !== dir) {` |
+| 2175 | `cmp < → <=` | `for (i = 1; i < tp.length; i++) {` |
+| 2177 | `cmp > → >=` | `if (amp > sd) exc.push(amp);` |
+| 2179 | `negate: drop !` | `if (!exc.length) return Math.round(sd);` |
+| 2181 | `cmp < → <=` | `for (i = 0; i < exc.length; i++) sum += exc[i];` |
+| 2186 | `num → 0` | `var minCov = opts.minCoverage != null ? opts.minCoverage : 0.5;` |
+| 2187 | `num → 0` | `var minMin = opts.minWindowMin != null ? opts.minWindowMin : 60; // reje` |
+| 2189 | `bool \|\| → &&` | `if (!cells.length \|\| startMs == null \|\| endMs == null \|\| endMs <= startM` |
+| 2189 | `bool \|\| → &&` | `if (!cells.length \|\| startMs == null \|\| endMs == null \|\| endMs <= startM` |
+| 2189 | `cmp <= → <` | `if (!cells.length \|\| startMs == null \|\| endMs == null \|\| endMs <= startM` |
+| 2189 | `bool \|\| → &&` | `if (!cells.length \|\| startMs == null \|\| endMs == null \|\| endMs <= startM` |
+| 2190 | `cmp > → >=` | `var cadMin = cgmRec.series.cadenceMin != null && cgmRec.series.cadenceMi` |
+| 2190 | `bool && → \|\|` | `var cadMin = cgmRec.series.cadenceMin != null && cgmRec.series.cadenceMi` |
+| 2192 | `cmp < → <=` | `if (nMin < minMin) return null; // honest: overlap too short to characte` |
+| 2196 | `cmp <= → <` | `if (cells[i].tMs >= startMs && cells[i].tMs <= endMs) win.push(cells[i])` |
+| 2196 | `cmp >= → >` | `if (cells[i].tMs >= startMs && cells[i].tMs <= endMs) win.push(cells[i])` |
+| 2196 | `bool && → \|\|` | `if (cells[i].tMs >= startMs && cells[i].tMs <= endMs) win.push(cells[i])` |
+| 2222 | `cmp > → >=` | `var coverage = expected > 0 ? vals.length / expected : 0;` |
+| 2223 | `cmp < → <=` | `if (vals.length < 3 \|\| coverage < minCov) return null; // honest: too th` |
+| 2223 | `cmp < → <=` | `if (vals.length < 3 \|\| coverage < minCov) return null; // honest: too th` |
+| 2229 | `cmp < → <=` | `for (i = 0; i < vals.length; i++) {` |
+| 2233 | `cmp > → >=` | `var sd = vals.length > 1 ? Math.sqrt(ss / (vals.length - 1)) : 0;` |
+| 2234 | `cmp > → >=` | `var cv = m > 0 ? (sd / m) * 100 : 0;` |
+| 2234 | `num → 0` | `var cv = m > 0 ? (sd / m) * 100 : 0;` |
+| 2240 | `cmp < → <=` | `for (i = 0; i < vals.length; i++) {` |
+| 2242 | `bool && → \|\|` | `if (g >= 70 && g <= 140) tt++;` |
+| 2242 | `cmp >= → >` | `if (g >= 70 && g <= 140) tt++;` |
+| 2242 | `num → 0` | `if (g >= 70 && g <= 140) tt++;` |
+| 2242 | `cmp <= → <` | `if (g >= 70 && g <= 140) tt++;` |
+| 2242 | `num → 0` | `if (g >= 70 && g <= 140) tt++;` |
+| 2243 | `cmp < → <=` | `if (g < 70) below++;` |
+| 2243 | `num → 0` | `if (g < 70) below++;` |
+| 2244 | `cmp < → <=` | `if (g < nadir) {` |
+| 2253 | `cmp < → <=` | `for (i = 0; i < vals.length; i++) {` |
+| 2255 | `cmp >= → >` | `if (h >= 3 && h < 6) {` |
+| 2255 | `cmp < → <=` | `if (h >= 3 && h < 6) {` |
+| 2255 | `bool && → \|\|` | `if (h >= 3 && h < 6) {` |
+| 2256 | `cmp < → <=` | `if (vals[i] < dawnNadir) dawnNadir = vals[i];` |
+| 2257 | `cmp < → <=` | `} else if (h >= 6 && h < 8) {` |
+| 2257 | `bool && → \|\|` | `} else if (h >= 6 && h < 8) {` |
+| 2257 | `cmp >= → >` | `} else if (h >= 6 && h < 8) {` |
+| 2258 | `cmp > → >=` | `if (vals[i] > dawnMax) {` |
+| 2264 | `bool && → \|\|` | `var dawnRise = isFinite(dawnNadir) && isFinite(dawnMax) ? Math.round(daw` |
+| 2275 | `num → 0` | `tir70_140: +((tt / vals.length) * 100).toFixed(1),` |
+| 2286 | `bool \|\| → &&` | `if (!ecg.length \|\| !glu.length) return null;` |
+| 2292 | `bool && → \|\|` | `var slope = g.summary && g.summary.autonomicInstabilitySlope;` |
+| 2300 | `bool && → \|\|` | `var gm = glucoseMetricsInWindow(c, win.startMs, win.endMs, { minCoverage` |
+| 2301 | `negate: drop !` | `if (!gm) return; // thin window → skip, honest (no fabricated CV)` |
+| 2309 | `bool && → \|\|` | `dawn = c.summary && c.summary.dawnSurge;` |
+| 2324 | `cmp >= → >` | `var r = xs.length >= 3 ? pearson(xs, ys) : null;` |
+| 2332 | `bool && → \|\|` | `if (r == null && pairs.length) {` |
+| 2336 | `num → 0` | `if (p0) directional = clamp(0.5 + clamp(p0.slope, -0.5, 0.5), 0, 1);` |
+| 2336 | `num → 0` | `if (p0) directional = clamp(0.5 + clamp(p0.slope, -0.5, 0.5), 0, 1);` |
+| 2336 | `num → 0` | `if (p0) directional = clamp(0.5 + clamp(p0.slope, -0.5, 0.5), 0, 1);` |
+| 2366 | `eq !== → ===` | `return (typeof IntegratorTCH !== 'undefined' && IntegratorTCH) \|\| (typeo` |
+| 2366 | `eq !== → ===` | `return (typeof IntegratorTCH !== 'undefined' && IntegratorTCH) \|\| (typeo` |
+| 2366 | `bool \|\| → &&` | `return (typeof IntegratorTCH !== 'undefined' && IntegratorTCH) \|\| (typeo` |
+| 2366 | `bool && → \|\|` | `return (typeof IntegratorTCH !== 'undefined' && IntegratorTCH) \|\| (typeo` |
+| 2366 | `bool \|\| → &&` | `return (typeof IntegratorTCH !== 'undefined' && IntegratorTCH) \|\| (typeo` |
+| 2376 | `bool && → \|\|` | `return e && e.tMs != null && isFinite(e.tMs) ? Math.round(e.tMs / 300000` |
+| 2376 | `bool && → \|\|` | `return e && e.tMs != null && isFinite(e.tMs) ? Math.round(e.tMs / 300000` |
+| 2381 | `bool && → \|\|` | `return e && e.tMin != null && e.rmssd != null;` |
+| 2381 | `bool && → \|\|` | `return e && e.tMin != null && e.rmssd != null;` |
+| 2391 | `bool && → \|\|` | `return e && e.tMin != null && e.hr != null;` |
+| 2391 | `bool && → \|\|` | `return e && e.tMin != null && e.hr != null;` |
+| 2402 | `bool \|\| → &&` | `var eps = (s.series && s.series.hrvEpochs) \|\| [];` |
+| 2405 | `bool && → \|\|` | `return e && set[_epKey(e)] && e.motion != null;` |
+| 2405 | `bool && → \|\|` | `return e && set[_epKey(e)] && e.motion != null;` |
+| 2410 | `negate: drop !` | `if (!vs.length) return null;` |
+| 2422 | `bool && → \|\|` | `if (e && e.tMin != null && e.motion != null) m[_epKey(e)] = e.motion;` |
+| 2422 | `bool && → \|\|` | `if (e && e.tMin != null && e.motion != null) m[_epKey(e)] = e.motion;` |
+| 2437 | `cmp < → <=` | `for (i = 0; i < a.length; i++) {` |
+| 2438 | `bool && → \|\|` | `if (a[i] != null && b[i] != null && isFinite(a[i]) && isFinite(b[i])) {` |
+| 2438 | `bool && → \|\|` | `if (a[i] != null && b[i] != null && isFinite(a[i]) && isFinite(b[i])) {` |
+| 2438 | `bool && → \|\|` | `if (a[i] != null && b[i] != null && isFinite(a[i]) && isFinite(b[i])) {` |
+| 2444 | `cmp < → <=` | `if (n < 4) return null;` |
+| 2463 | `cmp < → <=` | `if (sxx < 1e-12 \|\| syy < 1e-12) return null;` |
+| 2463 | `num → 0` | `if (sxx < 1e-12 \|\| syy < 1e-12) return null;` |
+| 2463 | `cmp < → <=` | `if (sxx < 1e-12 \|\| syy < 1e-12) return null;` |
+| 2463 | `bool \|\| → &&` | `if (sxx < 1e-12 \|\| syy < 1e-12) return null;` |
+| 2463 | `num → 0` | `if (sxx < 1e-12 \|\| syy < 1e-12) return null;` |
+| 2478 | `cmp < → <=` | `if (ms.length < 2) return null;` |
+| 2481 | `cmp < → <=` | `for (var i = 0; i < ms.length; i++)` |
+| 2494 | `cmp < → <=` | `for (var k = 0; k < ms[i].m.length; k++) {` |
+| 2497 | `bool && → \|\|` | `if (a != null && b != null && isFinite(a) && isFinite(b)) nOv++;` |
+| 2497 | `bool && → \|\|` | `if (a != null && b != null && isFinite(a) && isFinite(b)) nOv++;` |
+| 2497 | `bool && → \|\|` | `if (a != null && b != null && isFinite(a) && isFinite(b)) nOv++;` |
+| 2529 | `cmp > → >=` | `denom > 0` |
+| 2573 | `num → 0` | `return ptsFn(s).length >= 12;` |
+| 2586 | `cmp < → <=` | `for (var i = 0; i < ws.length; i++)` |
+| 2587 | `cmp < → <=` | `for (var j = i + 1; j < ws.length; j++)` |
+| 2590 | `cmp > → >=` | `if (!best \|\| al.keys.length > best.al.keys.length) best = { A: ws[i], B:` |
+| 2592 | `num → 0` | `if (!best \|\| best.al.keys.length < 12) return { ok: false, metric: metri` |
+| 2592 | `bool \|\| → &&` | `if (!best \|\| best.al.keys.length < 12) return { ok: false, metric: metri` |
+| 2637 | `bool \|\| → &&` | `corr: scr.corr \|\| null,` |
+| 2664 | `cmp < → <=` | `if (seen[base] < 2) return base;` |
+| 2665 | `bool \|\| → &&` | `used[base] = (used[base] \|\| 0) + 1;` |
+| 2669 | `bool \|\| → &&` | `var tag = sv.deviceKey \|\| sv.file \|\| sv.fname \|\| (sv.recording && sv.rec` |
+| 2669 | `bool \|\| → &&` | `var tag = sv.deviceKey \|\| sv.file \|\| sv.fname \|\| (sv.recording && sv.rec` |
+| 2669 | `bool \|\| → &&` | `var tag = sv.deviceKey \|\| sv.file \|\| sv.fname \|\| (sv.recording && sv.rec` |
+| 2669 | `bool && → \|\|` | `var tag = sv.deviceKey \|\| sv.file \|\| sv.fname \|\| (sv.recording && sv.rec` |
+| 2669 | `bool \|\| → &&` | `var tag = sv.deviceKey \|\| sv.file \|\| sv.fname \|\| (sv.recording && sv.rec` |
+| 2673 | `num → 0` | `var opts = { labels: _cornerIds, minN: 12 };` |
+| 2674 | `cmp > → >=` | `if (rho && rho.value > 0) opts.rho = rho.value;` |
+| 2713 | `cmp < → <=` | `for (var _i = 1; _i < _keys.length; _i++) _gaps.push(_keys[_i] - _keys[_` |
+| 2740 | `cmp > → >=` | `r.quietOrderUncertain = _quiet.length >= 2 && _quiet[0].v > 0 && _quiet[` |
+| 2740 | `cmp > → >=` | `r.quietOrderUncertain = _quiet.length >= 2 && _quiet[0].v > 0 && _quiet[` |
+| 2740 | `bool && → \|\|` | `r.quietOrderUncertain = _quiet.length >= 2 && _quiet[0].v > 0 && _quiet[` |
+| 2740 | `cmp < → <=` | `r.quietOrderUncertain = _quiet.length >= 2 && _quiet[0].v > 0 && _quiet[` |
+| 2740 | `bool && → \|\|` | `r.quietOrderUncertain = _quiet.length >= 2 && _quiet[0].v > 0 && _quiet[` |
+| 2765 | `bool && → \|\|` | `return r.summary && Array.isArray(r.summary.activitySeries) && r.summary` |
+| 2769 | `cmp >= → >` | `return HRV_SOURCE_NODES.indexOf(r.node) >= 0 && !r.dateUnknown && r.summ` |
+| 2769 | `bool && → \|\|` | `return HRV_SOURCE_NODES.indexOf(r.node) >= 0 && !r.dateUnknown && r.summ` |
+| 2769 | `bool && → \|\|` | `return HRV_SOURCE_NODES.indexOf(r.node) >= 0 && !r.dateUnknown && r.summ` |
+| 2769 | `bool && → \|\|` | `return HRV_SOURCE_NODES.indexOf(r.node) >= 0 && !r.dateUnknown && r.summ` |
+| 2769 | `bool \|\| → &&` | `return HRV_SOURCE_NODES.indexOf(r.node) >= 0 && !r.dateUnknown && r.summ` |
+| 2778 | `bool \|\| → &&` | `if (!isFinite(lo) \|\| !isFinite(hi) \|\| hi <= lo) return null;` |
+| 2778 | `cmp <= → <` | `if (!isFinite(lo) \|\| !isFinite(hi) \|\| hi <= lo) return null;` |
+| 2778 | `bool \|\| → &&` | `if (!isFinite(lo) \|\| !isFinite(hi) \|\| hi <= lo) return null;` |
+| 2783 | `cmp >= → >` | `if (e.tMs == null \|\| e.tMs < lo \|\| e.tMs >= hi) return;` |
+| 2783 | `bool \|\| → &&` | `if (e.tMs == null \|\| e.tMs < lo \|\| e.tMs >= hi) return;` |
+| 2783 | `bool \|\| → &&` | `if (e.tMs == null \|\| e.tMs < lo \|\| e.tMs >= hi) return;` |
+| 2795 | `cmp >= → >` | `quiet: immobileFrac >= HRV_QUIET_FRAC,` |
+| 2849 | `bool && → \|\|` | `if (r.node === 'OxyDex' && r.summary.pulseHr1Hz != null && isFinite(r.su` |
+| 2849 | `cmp > → >=` | `if (r.node === 'OxyDex' && r.summary.pulseHr1Hz != null && isFinite(r.su` |
+| 2849 | `bool && → \|\|` | `if (r.node === 'OxyDex' && r.summary.pulseHr1Hz != null && isFinite(r.su` |
+| 2849 | `bool && → \|\|` | `if (r.node === 'OxyDex' && r.summary.pulseHr1Hz != null && isFinite(r.su` |
+| 2864 | `bool \|\| → &&` | `if (!wave \|\| !dev) return null;` |
+| 2870 | `cmp <= → <` | `var agree = absBpm <= PULSE_AGREE_BPM;` |
+| 2889 | `cmp > → >=` | `(biasBpm === 0 ? 'matches' : (biasBpm > 0 ? 'reads +' : 'reads ') + bias` |
+| 2889 | `eq === → !==` | `(biasBpm === 0 ? 'matches' : (biasBpm > 0 ? 'reads +' : 'reads ') + bias` |
+| 2915 | `bool && → \|\|` | `var robust = s.sdnnRobustMs != null && isFinite(s.sdnnRobustMs);` |
+| 2919 | `bool && → \|\|` | `sdnnMs: robust ? +Number(s.sdnnRobustMs).toFixed(1) : s.sdnnMs != null &` |
+| 2924 | `cmp > → >=` | `if (r.node === 'OxyDex' && s.rmssd1Hz != null && isFinite(s.rmssd1Hz) &&` |
+| 2928 | `bool && → \|\|` | `hrVarSdBpm: s.hrVarSd1Hz != null && isFinite(s.hrVarSd1Hz) ? +Number(s.h` |
+| 2940 | `cmp > → >=` | `var ratio = proxyRmssdAsMs > 0 ? +(wave.rmssdMs / proxyRmssdAsMs).toFixe` |
+| 2941 | `cmp <= → <` | `var concordance = ratio == null ? null : ratio >= 1 / HRV_CONCORDANCE_FA` |
+| 2941 | `cmp >= → >` | `var concordance = ratio == null ? null : ratio >= 1 / HRV_CONCORDANCE_FA` |
+| 2963 | `eq === → !==` | `(wave.sdnnMetric === 'sdnnRobust' ? 'SDNN(robust) ' : 'SDNN ') +` |
+| 3002 | `cmp >= → >` | `if (r.node !== 'PpgDex' && s.cvhrIndex != null && isFinite(s.cvhrIndex) ` |
+| 3002 | `bool && → \|\|` | `if (r.node !== 'PpgDex' && s.cvhrIndex != null && isFinite(s.cvhrIndex) ` |
+| 3002 | `bool && → \|\|` | `if (r.node !== 'PpgDex' && s.cvhrIndex != null && isFinite(s.cvhrIndex) ` |
+| 3003 | `eq === → !==` | `corroborators.push({ node: r.node, cvhrIndex: +Number(s.cvhrIndex).toFix` |
+| 3010 | `cmp <= → <` | `return { node: c.node, channel: c.channel, cvhrIndex: c.cvhrIndex, gapPe` |
+| 3042 | `bool && → \|\|` | `(checked.length ? (anyDisagree && !anyAgree ? 'Divergence reported, neve` |
+| 3062 | `bool \|\| → &&` | `if (v == null \|\| !isFinite(v) \|\| v <= 0) return;` |
+| 3119 | `cmp <= → <` | `var agree = spread <= RR_AGREE_BRPM;` |
+| 3120 | `cmp > → >=` | `var ovAllVerified = sources.length > 1 && best.length > 1 && _overlapVer` |
+| 3120 | `cmp > → >=` | `var ovAllVerified = sources.length > 1 && best.length > 1 && _overlapVer` |
+| 3120 | `bool && → \|\|` | `var ovAllVerified = sources.length > 1 && best.length > 1 && _overlapVer` |
+| 3120 | `bool && → \|\|` | `var ovAllVerified = sources.length > 1 && best.length > 1 && _overlapVer` |
+| 3162 | `bool && → \|\|` | `return ['ECGDex', 'PulseDex', 'HRVDex', 'PpgDex'].indexOf(r.node) >= 0 &` |
+| 3162 | `bool && → \|\|` | `return ['ECGDex', 'PulseDex', 'HRVDex', 'PpgDex'].indexOf(r.node) >= 0 &` |
+| 3188 | `bool \|\| → &&` | `var win = (g[0].summary && g[0].summary.hrvWindow) \|\| 'wholeRecord';` |
+| 3190 | `bool \|\| → &&` | `return ((s.summary && s.summary.hrvWindow) \|\| 'wholeRecord') === win;` |
+| 3192 | `cmp < → <=` | `var crossWindow = likeWin.length < g.length;` |
+| 3203 | `cmp < → <=` | `if (sm.hrvQualityPct != null && sm.hrvQualityPct < QFLOOR) return s.node` |
+| 3205 | `cmp < → <=` | `if (sm.ledAgreementPct != null && sm.ledAgreementPct < LED_CONSENSUS_FLO` |
+| 3213 | `bool && → \|\|` | `var lowQExcluded = usable.length >= 2 && lowQ.length ? lowQ : null;` |
+| 3224 | `bool && → \|\|` | `if (rob != null && isFinite(rob)) return rob;` |
+| 3283 | `cmp > → >=` | `if (_ws > 0) rm.weightedMean = +(_acc / _ws).toFixed(1);` |
+| 3291 | `bool \|\| → &&` | `if (hrLike.indexOf(rc) >= 0 \|\| rc.dateUnknown \|\| _hrPts(rc).length < 12)` |
+| 3291 | `num → 0` | `if (hrLike.indexOf(rc) >= 0 \|\| rc.dateUnknown \|\| _hrPts(rc).length < 12)` |
+| 3310 | `bool && → \|\|` | `var eps = (rc.series && rc.series.hrvEpochs) \|\| [];` |
+| 3311 | `cmp < → <=` | `for (var i = 0; i < eps.length; i++) if (eps[i] && eps[i].hrStat) return` |
+| 3311 | `bool && → \|\|` | `for (var i = 0; i < eps.length; i++) if (eps[i] && eps[i].hrStat) return` |
+| 3315 | `eq === → !==` | `return v != null && _hrStats.indexOf(v) === i;` |
+| 3315 | `bool && → \|\|` | `return v != null && _hrStats.indexOf(v) === i;` |
+| 3317 | `cmp >= → >` | `var _hrStatMixed = _hrStatSet.length > 1 \|\| _hrStats.indexOf(null) >= 0;` |
+| 3317 | `bool \|\| → &&` | `var _hrStatMixed = _hrStatSet.length > 1 \|\| _hrStats.indexOf(null) >= 0;` |
+| 3317 | `cmp > → >=` | `var _hrStatMixed = _hrStatSet.length > 1 \|\| _hrStats.indexOf(null) >= 0;` |
+| 3319 | `bool && → \|\|` | `if (tchHR && tchHR.ok && tchHR.levels) {` |
+| 3326 | `bool && → \|\|` | `if (v != null && w != null) {` |
+| 3331 | `cmp > → >=` | `if (_hw > 0) hrReconciled = +(_ha / _hw).toFixed(1);` |
+| 3342 | `num → 0` | `: worst > 30` |
+| 3342 | `cmp > → >=` | `: worst > 30` |
+| 3363 | `bool \|\| → &&` | `return rc.node + '=' + (_hrStats[i] \|\| 'undeclared');` |
+| 3371 | `bool && → \|\|` | `hrStats: tchHR && tchHR.ok ? _hrStats : null,` |
+| 3372 | `bool && → \|\|` | `hrStatMixed: tchHR && tchHR.ok ? _hrStatMixed : null,` |
+| 3390 | `cmp > → >=` | `qc: !comparable ? 'incomparable' : worst > 30 ? 'divergent' : 'agreement` |
+| 3463 | `num → 0` | `return { node: s.node, remPct: +(s.summary.remFraction * 100).toFixed(1)` |
+| 3463 | `bool \|\| → &&` | `return { node: s.node, remPct: +(s.summary.remFraction * 100).toFixed(1)` |
+| 3479 | `bool \|\| → &&` | `return { node: s.node, remPct: +(s.summary.remFraction * 100).toFixed(1)` |
+| 3479 | `num → 0` | `return { node: s.node, remPct: +(s.summary.remFraction * 100).toFixed(1)` |
+| 3485 | `cmp > → >=` | `var disagree = gap > remGapThresh;` |
+| 3496 | `num → 0` | `(gap * 100).toFixed(0) +` |
+| 3504 | `num → 0` | `: 'Single-signal REM estimates agree within ' + (gap * 100).toFixed(0) +` |
+| 3522 | `num → 0` | `var PB_TIER_WEIGHT = { 'device-scored': 1.0, emerging: 0.8, experimental` |
+| 3542 | `bool && → \|\|` | `return c != null && isFinite(c);` |
+| 3544 | `num → 0` | `var conf = cs.length ? median(cs) : pct != null ? clamp(0.5 + (Math.min(` |
+| 3544 | `num → 0` | `var conf = cs.length ? median(cs) : pct != null ? clamp(0.5 + (Math.min(` |
+| 3544 | `num → 0` | `var conf = cs.length ? median(cs) : pct != null ? clamp(0.5 + (Math.min(` |
+| 3544 | `num → 0` | `var conf = cs.length ? median(cs) : pct != null ? clamp(0.5 + (Math.min(` |
+| 3544 | `num → 0` | `var conf = cs.length ? median(cs) : pct != null ? clamp(0.5 + (Math.min(` |
+| 3544 | `num → 0` | `var conf = cs.length ? median(cs) : pct != null ? clamp(0.5 + (Math.min(` |
+| 3544 | `num → 0` | `var conf = cs.length ? median(cs) : pct != null ? clamp(0.5 + (Math.min(` |
+| 3551 | `cmp < → <=` | `if (idx == null \|\| idx < PB_CVHR_MIN) return null;` |
+| 3552 | `num → 0` | `var c = clamp(0.4 + (Math.min(idx, 30) / 30) * 0.4, 0.4, 0.8);` |
+| 3552 | `num → 0` | `var c = clamp(0.4 + (Math.min(idx, 30) / 30) * 0.4, 0.4, 0.8);` |
+| 3594 | `cmp > → >=` | `if (!ex \|\| (s.obs.episodes \|\| 0) > (ex.episodes \|\| 0)) byNode[s.obs.node` |
+| 3594 | `bool \|\| → &&` | `if (!ex \|\| (s.obs.episodes \|\| 0) > (ex.episodes \|\| 0)) byNode[s.obs.node` |
+| 3594 | `bool \|\| → &&` | `if (!ex \|\| (s.obs.episodes \|\| 0) > (ex.episodes \|\| 0)) byNode[s.obs.node` |
+| 3605 | `negate: drop !` | `if (!isFinite(t0)) t0 = null;` |
+| 3608 | `num → 0` | `return (o.conf != null ? o.conf : 0) * (PB_TIER_WEIGHT[o.tier] \|\| 0.6);` |
+| 3621 | `eq === → !==` | `(o.episodes != null ? ', ' + o.episodes + ' episode' + (o.episodes === 1` |
+| 3664 | `bool \|\| → &&` | `return (k && (k.version != null ? k.version : k.VERSION)) \|\| null;` |
+| 3712 | `bool \|\| → &&` | `opts = opts \|\| {};` |
+| 3718 | `bool && → \|\|` | `return t != null && isFinite(t);` |
+| 3722 | `bool && → \|\|` | `return t != null && isFinite(t);` |
+| 3727 | `bool \|\| → &&` | `if (A.length < minEvents \|\| B.length < minEvents) return null;` |
+| 3727 | `cmp < → <=` | `if (A.length < minEvents \|\| B.length < minEvents) return null;` |
+| 3727 | `cmp < → <=` | `if (A.length < minEvents \|\| B.length < minEvents) return null;` |
+| 3731 | `cmp <= → <` | `for (var L = -maxSec; L <= maxSec; L += stepSec) {` |
+| 3734 | `cmp < → <=` | `for (var i = 0; i < A.length; i++) {` |
+| 3743 | `cmp < → <=` | `if (d < near) near = d;` |
+| 3744 | `cmp < → <=` | `if (B[mid] < t) lo = mid + 1;` |
+| 3747 | `cmp <= → <` | `if (near <= tolMs) hits++;` |
+| 3758 | `bool \|\| → &&` | `if (!best \|\| !nLags) return null;` |
+| 3766 | `cmp > → >=` | `peakOverFloor: floor > 0 ? +(best.hits / floor).toFixed(2) : null,` |
+| 3800 | `num → 0` | `var smooth = opts.smoothSec != null ? opts.smoothSec : 15;` |
+| 3801 | `bool \|\| → &&` | `if (!deltasSec \|\| !deltasSec.length) return null;` |
 
 ## `oxydex-dsp.js` — 1477 survivor(s)
 

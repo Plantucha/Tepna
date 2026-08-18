@@ -298,9 +298,39 @@ corrected. What would make it publishable is a **second logging app or phone** s
       **5.2 ppm** (−26.7 vs −31.9), which over the 6.61 h overlap is **124 ms of uncorrected relative
       drift — 1.37× the ±90 ms PAT tolerance**. So host-disciplining is load-bearing on this night, not
       cosmetic: without it the two devices walk out of tolerance on their own, before any physiology.
-      ⚠️ **Not yet done, and this box is only the DATA finding:** the per-fragment Δ implementation and
-      the derivation itself remain open below. What changed is that they are no longer waiting on a
-      capture.
+      🔬 **DERIVED 2026-08-18 — and it is the FIRST box night to beat its own null.** Ran
+      `tools/pat-host-offset.mjs --night 2026-08-11` (120 min windows, 50 surrogates, ECG reference,
+      foot timing point):
+
+      | window | beats | legacy | chance | p | strict | chance | p |
+      |---|---|---|---|---|---|---|---|
+      | 0 | 6212 | 57 % | 21 % | 0.020 | 8 % | 7 % | 0.059 |
+      | 120 | 6297 | 78 % | 20 % | 0.020 | **25 %** | 7 % | **0.020** |
+      | 240 | 6381 | 22 % | 21 % | 0.059 | 14 % | 7 % | **0.020** |
+
+      **strict beats its own surrogate null at p < 0.05 on 2 of 3 windows.** Against this brief's
+      *"0 of 13 box"*, that is the first box night to show any significance at all — and the thing that
+      changed is the one §7 named: a single unfragmented segment on **both** legs.
+
+      ⚠️ **But this is NOT "PAT recovered", and the numbers say so plainly.** A strict match of 8–25 %
+      against a 7 % chance line is *detectable*, not *usable*: the same estimator's reference night ran
+      far higher, and a 25 % match cannot carry a per-beat PAT. The honest claim is **above chance on a
+      box night for the first time**, which is a statement about identifiability, not about accuracy.
+
+      ⚠️ **The p-values are FLOORED by the surrogate count and must not be read as strengths.** With 50
+      surrogates, p = (k+1)/51, so **0.020 means zero surrogates exceeded** — the smallest value the
+      test can express, not a measured 1-in-50. 0.059 is two exceeded. Three windows at the floor is
+      three independent "no surrogate beat it", which is the useful reading; quoting 0.020 as *the*
+      p-value would over-state a resolution the run does not have. Re-run with more surrogates before
+      any number here is published.
+
+      **Scope: n = 1 night, 3 windows.** Legacy 22 % on the third window (chance 21 %) is at chance,
+      so even within this night the effect is not uniform across the recording.
+
+      ⚠️ **Not yet done, and the DATA finding above is only half of it:** the per-fragment Δ
+      implementation remains open below. What changed is that it is no longer waiting on a capture, and
+      that there is now one night on which a derived — not fitted — rate produces a signal to test it
+      against.
 - [ ] **Per-fragment Δ**, not one per night — the likeliest fix, since box nights fail uniformly (0/13)
       with 24 ECG / 68 PPG fragments while a single Δ describes the whole timeline. Supersedes Route 1 as
       the next step; a single-segment box night would still be needed to DERIVE the rate rather than fit it.
