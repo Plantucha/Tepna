@@ -111,28 +111,36 @@ better — but the headline figure must not be quoted again without a measuremen
   `hrvdex-dsp.js:853` and `:866`, and all six were killed by one group —
   **"HRVDex Phase-9 — compute() surface + summary adapter"**.
 
-**Root cause: NOT determined. Two measurements contradict each other, and I have not resolved which
-is wrong.** Stated plainly because the first version of this section asserted a cause it had not
-proven.
+**ROOT CAUSE RESOLVED 2026-08-18 by experiment — the COVERAGE MEASUREMENT is wrong, and the
+consequence is bigger than the bug.**
 
-The killing group is **index 338, `HRVDex Phase-9 — compute() surface + summary adapter`** (an
-earlier note here listed 314/323/338 — those are PulseDex's and OxyDex's Phase-9 groups, matched by a
-regex that was not anchored to the node. Only 338 is relevant; the finding survives, the supporting
-detail did not).
+*(This paragraph has been claimed, retracted as unproven, and now proven, in that order. The
+retraction was right at the time: I had asserted a cause from a contradiction rather than testing
+it.)*
 
-- The **mutation run** says group 338 kills mutants at `hrvdex-dsp.js:853` and `:866`.
-- A **direct c8 run of group 338 alone** says it executes 384 hrvdex lines — *exactly the load-time
-  baseline count* — and **not** 853 or 866.
+The decisive test, which cost about a minute: mutate `hrvdex-dsp.js:853` (`v > 0` → `v >= 0`) and run
+**only** group 338. It **fails** — 1 failing, 46 passing, exit 1. A test cannot detect a change to a
+line it never executes, so group 338 executes line 853, and the map that says otherwise is wrong.
 
-A test cannot kill a mutant on a line it never executes, so one of those is false. It is **not**
-baseline subtraction: 853 is absent from the raw coverage, not removed from it. Candidates not yet
-separated: c8 under-reporting for `vm.runInContext`-loaded code in the per-group runs (this file's
-history has one such bug already); or `--bail` making the journal's `ks` name only the first failing
-group, so the recorded killer is not the whole story.
+Corroborating: c8's report for that group holds exactly **one** `hrvdex-dsp.js` record with **384**
+executed lines — *precisely the load-time baseline count*. It captured the module load and none of
+the group's own calls into it. (Mechanism hypothesised, not proven: per-group runs re-enter the DSP
+through a realm whose compile c8 does not attribute back to the file. This repo already has one c8 ×
+`vm.runInContext` attribution bug on record.)
 
-What is certain and sufficient to act on: the map attributes **0** lines to a group without flagging
-it `unknown: true`, so the fail-closed path never fires — an empty attribution reads as "executes
-nothing", indistinguishable from "nothing was recorded" — and six real kills were lost.
+**THE SCALE IS WHAT KILLS THE OPTIMISATION.** Group 338 attributes zero lines *anywhere*, and it is
+not alone: **188 of 494 groups attribute zero lines to any DSP** (the build says so itself —
+"306/494 group(s) execute at least one DSP line"). The map cannot distinguish *"this group touches no
+DSP"* from *"this group's execution was not captured"*, and those demand opposite treatment.
+
+The only safe reading is to treat every zero-attribution group as `unknown` and select it always.
+That is **188 extra groups on every mutant** — against a tag filter that runs perhaps 40 for a node
+file. **The safe map is slower than the filter it was meant to replace.**
+
+So §6's "one optimisation worth building before more tests" is **blocked on a coverage-capture bug**,
+not on effort: until a zero attribution provably means zero, selection is either unsafe (as measured:
+6 lost kills) or pointless (slower than the tag filter). Fixing per-group capture is the real
+prerequisite, and it was never on anyone's list because the map appeared to work.
 
 **The map is QUARANTINED** (`per-group.json.QUARANTINED-underselects` in the git common dir).
 Sweeps fall back to the tag filter — slower and correct. **Do not restore it** until the empty
