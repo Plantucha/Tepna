@@ -94,9 +94,11 @@ async function main() {
     const noAnchors = '<title>Orchestrator</title><p>no version UI</p>';
     ok(DexBuild.projectVersion(noAnchors, '3.1.4') === noAnchors, 'bundle without anchors \u2192 byte-identical (orchestrators)');
     // THE invariance leg: same source built with and without the stamp \u2192 SAME manifestHash, different html
-    const src2 = '<html><head><title>S \u00b7 v1.0</title></head><body><script data-inline-src=' + q + 'x.js' + q + '></scr' + 'ipt></body></html>';
-    const plain = DexBuild.build({ srcHtml: src2.replace(/<script[^>]*><\/script>/, '<script src=' + q + 'x.js' + q + '></scr' + 'ipt>'), assets: { 'x.js': 'var x=1;' } });
-    const withV = DexBuild.build({ srcHtml: src2.replace(/<script[^>]*><\/script>/, '<script src=' + q + 'x.js' + q + '></scr' + 'ipt>'), assets: { 'x.js': 'var x=1;' }, suiteVersion: '3.1.4' });
+    // (no tag-filter regex here — CodeQL js/bad-tag-filter fires on any such pattern, and a fixture
+    //  needs no parsing: build the source string directly, once, and hand it to both builds)
+    const src2 = '<html><head><title>S \u00b7 v1.0</title></head><body><script src=' + q + 'x.js' + q + '></scr' + 'ipt></body></html>';
+    const plain = DexBuild.build({ srcHtml: src2, assets: { 'x.js': 'var x=1;' } });
+    const withV = DexBuild.build({ srcHtml: src2, assets: { 'x.js': 'var x=1;' }, suiteVersion: '3.1.4' });
     ok(plain.manifestHash === withV.manifestHash, 'manifestHash INVARIANT under the version stamp', plain.manifestHash);
     ok(plain.html !== withV.html && withV.html.includes('v3.1.4'), 'html differs only by the stamp');
   }
