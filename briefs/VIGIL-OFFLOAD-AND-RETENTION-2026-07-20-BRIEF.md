@@ -138,6 +138,46 @@ hang on something it does not own.**
 **SMB stays as-is regardless** — it is the right surface for a Windows box to *browse* the archive, which
 is orthogonal to how the bytes get there.
 
+## ⏱ RE-MEASURED ON THE LIVE BOX — 2026-08-17
+
+Every number below is from the box, not the brief. **The urgency is lower than stated and the
+configured mitigation is inert.**
+
+| | measured |
+|---|---|
+| disk | 233 G total, **188 G free** — 16 % used |
+| captures | **22.7 G across 24 nights** (2026-07-25 → 08-17) → **0.95 GB/night** |
+| runway at that rate | **198 nights ≈ 6.6 months** before the disk is full |
+| `storage.keep_nights` | **0** — retention is OFF, deliberately, with an explicit guard |
+| `storage.min_free_gb` | 2 |
+
+⚠️ **THE CONFIGURED ARCHIVE DESTINATION CANNOT FREE ANY SPACE.** `dest: /srv/tepna/archive`
+
+- the directory **does not exist** on the box, and
+- if created it resolves to `/dev/mapper/ubuntu--vg-ubuntu--lv` — **the same filesystem as
+  `/srv/tepna/captures`**, and
+- there is **no off-box mount of any kind** (`findmnt -t nfs,cifs,nfs4` returns nothing).
+
+So "archiving" today would copy bytes from one directory to another on one disk. A reader checking
+only that `dest` is set would conclude offload is configured; it is configured and inert. This is the
+archive-bypass recorded elsewhere as *latent* — confirmed latent, and here is why: there is nowhere
+for the bytes to go.
+
+**What this changes about the plan:** nothing about the requirement, only its sequencing. There is no
+disk emergency inside ~6 months, so the offload target can be chosen deliberately rather than under
+pressure — and `keep_nights` **must not** be raised off 0 until a verified off-box copy exists, or
+pruning would delete the only copy. The `Done when` ordering below already says this; the measurement
+confirms the order is the safe one and there is time to honour it.
+
+**Re-measure before acting**, with the commands that produced the table — the box is the authority and
+this section will age:
+
+```sh
+ssh vigil "df -h /srv/tepna | tail -1; du -sh /srv/tepna/captures; \
+           grep -A3 '^storage:' /opt/tepna/capture-host/config.yaml; \
+           findmnt -t nfs,cifs,nfs4 -n"
+```
+
 ## Open items (need an owner decision + root)
 
 - [ ] **Production box chosen** — leaning HP EliteDesk 800 G3 mini (~$135, powerful/serviceable, quiet
