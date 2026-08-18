@@ -39,17 +39,18 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | file | tested | killed | survived | **open** | classified | invalid | kill rate | state |
 |---|---:|---:|---:|---:|---:|---:|---:|---|
 | `ecgdex-dsp.js` | 1815 | 601 | 1203 | **1203** | 0 | 11 | 33 % | unknown |
+| `hrvdex-dsp.js` | 483 | 307 | 176 | **168** | 8 | 0 | 64 % | in flight |
 | `integrator-dsp.js` | 312 | 173 | 139 | **139** | 0 | 0 | 55 % | unknown |
 | `oxydex-dsp.js` | 2732 | 1239 | 1477 | **1477** | 0 | 16 | 45 % | unknown |
 | `ppgdex-dsp.js` | 1360 | 538 | 808 | **804** | 4 | 14 | 40 % | unknown |
-| **fleet** | **6219** | **2551** | **3627** | **3623** | 4 | 41 | **41 %** | **includes 4 unconfirmed** |
+| **fleet** | **6702** | **2858** | **3803** | **3791** | 12 | 41 | **43 %** | **includes 5 unconfirmed** |
 
-> ⚠ **379 recorded classification(s) no longer match any survivor.** The equivalence ledger is
+> ⚠ **374 recorded classification(s) no longer match any survivor.** The equivalence ledger is
 > keyed by line number, and lines move — so triage work that was really done has silently stopped
 > applying. Those mutants are counted as **open** here, which over-states the work rather than
 > hiding a gap, but the classifications need re-anchoring to be worth anything again.
 
-> ⚠ **`ecgdex-dsp.js`, `integrator-dsp.js`, `oxydex-dsp.js`, `ppgdex-dsp.js` are not confirmed-complete sweeps.** A row marked
+> ⚠ **`ecgdex-dsp.js`, `hrvdex-dsp.js`, `integrator-dsp.js`, `oxydex-dsp.js`, `ppgdex-dsp.js` are not confirmed-complete sweeps.** A row marked
 > `in flight` is a snapshot of a running sweep — the counts will grow and the rate will move.
 > A row marked `unknown` came from a journal this suite did not finish itself, so its
 > completeness cannot be asserted; it is not a claim that the file is unfinished, only that
@@ -137,20 +138,20 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 416 | `num → 0` | `a = cms === 0 ? amp * 1.5 * respAmp : cms > 40 ? amp * 1.9 : amp * 0.35;` |
 | 416 | `num → 0` | `a = cms === 0 ? amp * 1.5 * respAmp : cms > 40 ? amp * 1.9 : amp * 0.35;` |
 | 417 | `eq === → !==` | `if (cms === 0 \|\| cms === 26 \|\| cms === -28) ww = w * 1.9; // broaden QRS` |
-| 417 | `bool || → &&` | `if (cms === 0 \|\| cms === 26 \|\| cms === -28) ww = w * 1.9; // broaden QRS` |
+| 417 | `bool \|\| → &&` | `if (cms === 0 \|\| cms === 26 \|\| cms === -28) ww = w * 1.9; // broaden QRS` |
 | 417 | `eq === → !==` | `if (cms === 0 \|\| cms === 26 \|\| cms === -28) ww = w * 1.9; // broaden QRS` |
 | 417 | `eq === → !==` | `if (cms === 0 \|\| cms === 26 \|\| cms === -28) ww = w * 1.9; // broaden QRS` |
-| 417 | `bool || → &&` | `if (cms === 0 \|\| cms === 26 \|\| cms === -28) ww = w * 1.9; // broaden QRS` |
+| 417 | `bool \|\| → &&` | `if (cms === 0 \|\| cms === 26 \|\| cms === -28) ww = w * 1.9; // broaden QRS` |
 | 417 | `num → 0` | `if (cms === 0 \|\| cms === 26 \|\| cms === -28) ww = w * 1.9; // broaden QRS` |
 | 417 | `num → 0` | `if (cms === 0 \|\| cms === 26 \|\| cms === -28) ww = w * 1.9; // broaden QRS` |
 | 420 | `eq === → !==` | `if (isPAC && cms === -200) {` |
 | 420 | `num → 0` | `if (isPAC && cms === -200) {` |
-| 420 | `bool && → ||` | `if (isPAC && cms === -200) {` |
+| 420 | `bool && → \|\|` | `if (isPAC && cms === -200) {` |
 | 421 | `num → 0` | `a = amp * 0.7 * respAmp;` |
 | 425 | `cmp <= → <` | `for (let i = lo; i <= hi; i++) {` |
 | 432 | `cmp < → <=` | `for (let i = 0; i < N; i++) ecg[i] += gauss() * 8;` |
 | 438 | `eq === → !==` | `if (w.kind === 'flat') {` |
-| 439 | `bool || → &&` | `const v = ecg[s] \|\| 0;` |
+| 439 | `bool \|\| → &&` | `const v = ecg[s] \|\| 0;` |
 | 440 | `cmp < → <=` | `for (let i = s; i < e; i++) ecg[i] = v;` |
 | 443 | `cmp < → <=` | `for (let i = s; i < e; i++) ecg[i] = (rnd() - 0.5) * 2600;` |
 | 443 | `num → 0` | `for (let i = s; i < e; i++) ecg[i] = (rnd() - 0.5) * 2600;` |
@@ -169,7 +170,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 458 | `num → 0` | `const devRR = gtRR.map((r, k) => ({ tsMs: t0 + Math.round(beatT[k] * 100` |
 | 465 | `cmp < → <=` | `for (let s = 0; s < Mhr; s++) {` |
 | 466 | `cmp <= → <` | `while (_bi < beatT.length - 1 && beatT[_bi + 1] <= s) _bi++;` |
-| 466 | `bool && → ||` | `while (_bi < beatT.length - 1 && beatT[_bi + 1] <= s) _bi++;` |
+| 466 | `bool && → \|\|` | `while (_bi < beatT.length - 1 && beatT[_bi + 1] <= s) _bi++;` |
 | 466 | `cmp < → <=` | `while (_bi < beatT.length - 1 && beatT[_bi + 1] <= s) _bi++;` |
 | 467 | `num → 0` | `let hr = 60000 / gtRR[Math.min(_bi, gtRR.length - 1)] + gauss() * 0.7;` |
 | 467 | `num → 0` | `let hr = 60000 / gtRR[Math.min(_bi, gtRR.length - 1)] + gauss() * 0.7;` |
@@ -218,12 +219,12 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 539 | `num → 0` | `let act = sa.stage === 'Wake' ? 1.0 : sa.stage === 'N1' ? 0.32 : sa.stag` |
 | 539 | `num → 0` | `let act = sa.stage === 'Wake' ? 1.0 : sa.stage === 'N1' ? 0.32 : sa.stag` |
 | 543 | `cmp < → <=` | `if (sa.stage === 'REM' && rnd() < 0.25 / ACCfs) act += 0.45;` |
-| 543 | `bool && → ||` | `if (sa.stage === 'REM' && rnd() < 0.25 / ACCfs) act += 0.45;` |
+| 543 | `bool && → \|\|` | `if (sa.stage === 'REM' && rnd() < 0.25 / ACCfs) act += 0.45;` |
 | 543 | `eq === → !==` | `if (sa.stage === 'REM' && rnd() < 0.25 / ACCfs) act += 0.45;` |
 | 543 | `num → 0` | `if (sa.stage === 'REM' && rnd() < 0.25 / ACCfs) act += 0.45;` |
 | 543 | `num → 0` | `if (sa.stage === 'REM' && rnd() < 0.25 / ACCfs) act += 0.45;` |
 | 545 | `cmp >= → >` | `if (ti >= w.t0 && ti < w.t1) {` |
-| 545 | `bool && → ||` | `if (ti >= w.t0 && ti < w.t1) {` |
+| 545 | `bool && → \|\|` | `if (ti >= w.t0 && ti < w.t1) {` |
 | 545 | `cmp < → <=` | `if (ti >= w.t0 && ti < w.t1) {` |
 | 547 | `cmp > → >=` | `if (ph > w.cyc - 3) act += 0.55;` |
 | 547 | `num → 0` | `if (ph > w.cyc - 3) act += 0.55;` |
@@ -232,7 +233,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 551 | `num → 0` | `devACC[i] = { tsMs: t0 + Math.round(ti * 1000), x: Math.round(posture[0]` |
 | 551 | `num → 0` | `devACC[i] = { tsMs: t0 + Math.round(ti * 1000), x: Math.round(posture[0]` |
 | 577 | `cmp < → <=` | `for (tt = 0; tt < durSec; tt += step) {` |
-| 586 | `bool || → &&` | `scenario: opts.scenario \|\| 'overnight'` |
+| 586 | `bool \|\| → &&` | `scenario: opts.scenario \|\| 'overnight'` |
 | 603 | `cmp < → <=` | `for (let i = 0; i < N; i++) {` |
 | 613 | `cmp < → <=` | `for (let i = 0; i < N; i++) {` |
 | 624 | `cmp < → <=` | `for (let i = 2; i < N - 2; i++) d[i] = 2 * bp[i + 1] + bp[i + 2] - bp[i ` |
@@ -243,7 +244,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 648 | `num → 0` | `const stride = Math.max(1, Math.floor(N / 20000)),` |
 | 650 | `cmp < → <=` | `for (let i = 0; i < N; i += stride) {` |
 | 652 | `cmp > → >=` | `if (isFinite(v) && v > 0) s.push(v);` |
-| 652 | `bool && → ||` | `if (isFinite(v) && v > 0) s.push(v);` |
+| 652 | `bool && → \|\|` | `if (isFinite(v) && v > 0) s.push(v);` |
 | 659 | `cmp > → >=` | `if (p > 0) return p;` |
 | 663 | `cmp > → >=` | `for (let i = 0; i < initN; i++) if (integ[i] > mx) mx = integ[i];` |
 | 663 | `cmp < → <=` | `for (let i = 0; i < initN; i++) if (integ[i] > mx) mx = integ[i];` |
@@ -266,7 +267,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 738 | `num → 0` | `NPKI = 0.125 * integ[i] + 0.875 * NPKI;` |
 | 740 | `cmp > → >=` | `} else if (integ[i] > integ[i - 1] && integ[i] >= integ[i + 1]) {` |
 | 740 | `cmp >= → >` | `} else if (integ[i] > integ[i - 1] && integ[i] >= integ[i + 1]) {` |
-| 740 | `bool && → ||` | `} else if (integ[i] > integ[i - 1] && integ[i] >= integ[i + 1]) {` |
+| 740 | `bool && → \|\|` | `} else if (integ[i] > integ[i - 1] && integ[i] >= integ[i + 1]) {` |
 | 741 | `num → 0` | `NPKI = 0.125 * integ[i] + 0.875 * NPKI;` |
 | 741 | `num → 0` | `NPKI = 0.125 * integ[i] + 0.875 * NPKI;` |
 | 748 | `num → 0` | `THRI = NPKI + 0.25 * (SPKI - NPKI);` |
@@ -282,13 +283,13 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 773 | `cmp > → >=` | `if (bp[i] > bp[i - 1] && bp[i] >= bp[i + 1] && bp[i] > t && i - last > r` |
 | 773 | `cmp > → >=` | `if (bp[i] > bp[i - 1] && bp[i] >= bp[i + 1] && bp[i] > t && i - last > r` |
 | 773 | `cmp > → >=` | `if (bp[i] > bp[i - 1] && bp[i] >= bp[i + 1] && bp[i] > t && i - last > r` |
-| 773 | `bool && → ||` | `if (bp[i] > bp[i - 1] && bp[i] >= bp[i + 1] && bp[i] > t && i - last > r` |
-| 773 | `bool && → ||` | `if (bp[i] > bp[i - 1] && bp[i] >= bp[i + 1] && bp[i] > t && i - last > r` |
-| 773 | `bool && → ||` | `if (bp[i] > bp[i - 1] && bp[i] >= bp[i + 1] && bp[i] > t && i - last > r` |
+| 773 | `bool && → \|\|` | `if (bp[i] > bp[i - 1] && bp[i] >= bp[i + 1] && bp[i] > t && i - last > r` |
+| 773 | `bool && → \|\|` | `if (bp[i] > bp[i - 1] && bp[i] >= bp[i + 1] && bp[i] > t && i - last > r` |
+| 773 | `bool && → \|\|` | `if (bp[i] > bp[i - 1] && bp[i] >= bp[i + 1] && bp[i] > t && i - last > r` |
 | 788 | `cmp < → <=` | `for (let k = 0; k < peaks.length; k++) {` |
 | 794 | `cmp <= → <` | `for (let j = Math.max(1, i - w); j <= Math.min(bp.length - 2, i + w); j+` |
 | 795 | `cmp > → >=` | `if (bp[j] > bv) {` |
-| 806 | `bool || → &&` | `if (!isFinite(delta) \|\| Math.abs(delta) > 1) delta = 0;` |
+| 806 | `bool \|\| → &&` | `if (!isFinite(delta) \|\| Math.abs(delta) > 1) delta = 0;` |
 | 806 | `cmp > → >=` | `if (!isFinite(delta) \|\| Math.abs(delta) > 1) delta = 0;` |
 | 832 | `cmp > → >=` | `return m2 > 0 ? m4 / (m2 * m2) : 0;` |
 | 844 | `cmp < → <=` | `for (let k = 1; k < n; k++) rr[k] = (times[k] - times[k - 1]) * 1000;` |
@@ -298,7 +299,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 852 | `cmp < → <=` | `while (bp2 < peaksB.length && peaksB[bp2] < target - tolB) bp2++;` |
 | 855 | `cmp < → <=` | `for (let j = Math.max(0, bp2 - 2); j < peaksB.length && peaksB[j] <= tar` |
 | 855 | `cmp <= → <` | `for (let j = Math.max(0, bp2 - 2); j < peaksB.length && peaksB[j] <= tar` |
-| 855 | `bool && → ||` | `for (let j = Math.max(0, bp2 - 2); j < peaksB.length && peaksB[j] <= tar` |
+| 855 | `bool && → \|\|` | `for (let j = Math.max(0, bp2 - 2); j < peaksB.length && peaksB[j] <= tar` |
 | 856 | `cmp <= → <` | `if (Math.abs(peaksB[j] - target) <= tolB) {` |
 | 863 | `cmp < → <=` | `for (let k = 0; k < n; k++) {` |
 | 872 | `cmp < → <=` | `for (let j = s + 1; j < e; j++) {` |
@@ -307,14 +308,14 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 877 | `cmp > → >=` | `if (Math.abs(int16[j]) > 31000) railHit++;` |
 | 880 | `cmp > → >=` | `const flatBad = maxFlat > 0.2 * fs \|\| railHit > 3; // >200 ms flat` |
 | 880 | `cmp > → >=` | `const flatBad = maxFlat > 0.2 * fs \|\| railHit > 3; // >200 ms flat` |
-| 880 | `bool || → &&` | `const flatBad = maxFlat > 0.2 * fs \|\| railHit > 3; // >200 ms flat` |
+| 880 | `bool \|\| → &&` | `const flatBad = maxFlat > 0.2 * fs \|\| railHit > 3; // >200 ms flat` |
 | 886 | `cmp >= → >` | `const rrOK = rrk >= 300 && rrk <= 2000;` |
 | 886 | `cmp <= → <` | `const rrOK = rrk >= 300 && rrk <= 2000;` |
 | 886 | `num → 0` | `const rrOK = rrk >= 300 && rrk <= 2000;` |
-| 886 | `bool && → ||` | `const rrOK = rrk >= 300 && rrk <= 2000;` |
+| 886 | `bool && → \|\|` | `const rrOK = rrk >= 300 && rrk <= 2000;` |
 | 888 | `cmp > → >=` | `if (k > 1 && k < n - 1) {` |
 | 888 | `cmp < → <=` | `if (k > 1 && k < n - 1) {` |
-| 888 | `bool && → ||` | `if (k > 1 && k < n - 1) {` |
+| 888 | `bool && → \|\|` | `if (k > 1 && k < n - 1) {` |
 | 896 | `cmp < → <=` | `for (let j = s; j < e; j++) {` |
 | 897 | `cmp < → <=` | `if (int16[j] < mn) mn = int16[j];` |
 | 898 | `cmp > → >=` | `if (int16[j] > mx) mx = int16[j];` |
@@ -332,12 +333,12 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 943 | `cmp < → <=` | `const rangeBad = sqi[k] < sqiThr \|\| nn[k] < 300 \|\| nn[k] > 2000;` |
 | 943 | `cmp < → <=` | `const rangeBad = sqi[k] < sqiThr \|\| nn[k] < 300 \|\| nn[k] > 2000;` |
 | 943 | `num → 0` | `const rangeBad = sqi[k] < sqiThr \|\| nn[k] < 300 \|\| nn[k] > 2000;` |
-| 943 | `bool || → &&` | `const rangeBad = sqi[k] < sqiThr \|\| nn[k] < 300 \|\| nn[k] > 2000;` |
+| 943 | `bool \|\| → &&` | `const rangeBad = sqi[k] < sqiThr \|\| nn[k] < 300 \|\| nn[k] > 2000;` |
 | 944 | `cmp > → >=` | `const ectopic = med && dev > ectopyThr;` |
-| 946 | `bool || → &&` | `nn[k] = med \|\| nn[k + 1] \|\| nn[k - 1] \|\| 1000;` |
-| 946 | `bool || → &&` | `nn[k] = med \|\| nn[k + 1] \|\| nn[k - 1] \|\| 1000;` |
+| 946 | `bool \|\| → &&` | `nn[k] = med \|\| nn[k + 1] \|\| nn[k - 1] \|\| 1000;` |
+| 946 | `bool \|\| → &&` | `nn[k] = med \|\| nn[k + 1] \|\| nn[k - 1] \|\| 1000;` |
 | 946 | `num → 0` | `nn[k] = med \|\| nn[k + 1] \|\| nn[k - 1] \|\| 1000;` |
-| 948 | `bool && → ||` | `if (ectopic && !rangeBad) nEctopy++;` |
+| 948 | `bool && → \|\|` | `if (ectopic && !rangeBad) nEctopy++;` |
 | 948 | `negate: drop !` | `if (ectopic && !rangeBad) nEctopy++;` |
 | 952 | `cmp < → <=` | `for (let k = 0; k < n; k++) nCorr += corrected[k];` |
 | 954 | `cmp >= → >` | `for (let k = 0; k < n; k++) if (sqi[k] >= sqiThr) nGood++;` |
@@ -355,8 +356,8 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1023 | `cmp < → <=` | `if (S < 1) return out;` |
 | 1027 | `cmp < → <=` | `for (let k = 0; k < n; k++) {` |
 | 1029 | `cmp < → <=` | `if (s >= 0 && s < S) {` |
-| 1029 | `bool && → ||` | `if (s >= 0 && s < S) {` |
-| 1031 | `bool && → ||` | `qsum[s] += sqi && Number.isFinite(sqi[k]) ? sqi[k] : 1;` |
+| 1029 | `bool && → \|\|` | `if (s >= 0 && s < S) {` |
+| 1031 | `bool && → \|\|` | `qsum[s] += sqi && Number.isFinite(sqi[k]) ? sqi[k] : 1;` |
 | 1042 | `cmp < → <=` | `for (let i = 0; i < S; i++) {` |
 | 1056 | `cmp > → >=` | `winSqi[i] = cAcc > 0 ? qAcc / cAcc : 0;` |
 | 1060 | `cmp > → >=` | `for (let i = 0; i < S; i++) if (winCnt[i] > 0) active.push(i);` |
@@ -366,7 +367,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1079 | `cmp < → <=` | `for (let i = 0; i < S; i++) {` |
 | 1080 | `cmp <= → <` | `if (winCnt[i] <= 0) continue;` |
 | 1094 | `cmp < → <=` | `if (!peaks \|\| peaks.length < 20) return new Map();` |
-| 1094 | `bool || → &&` | `if (!peaks \|\| peaks.length < 20) return new Map();` |
+| 1094 | `bool \|\| → &&` | `if (!peaks \|\| peaks.length < 20) return new Map();` |
 | 1094 | `negate: drop !` | `if (!peaks \|\| peaks.length < 20) return new Map();` |
 | 1094 | `num → 0` | `if (!peaks \|\| peaks.length < 20) return new Map();` |
 | 1097 | `cmp < → <=` | `for (let k = 0; k < peaks.length; k++) times[k] = peaks[k] / fs; // seco` |
@@ -392,7 +393,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1263 | `cmp < → <=` | `for (let j = i + 1; j < N - m; j++) {` |
 | 1265 | `cmp <= → <` | `while (k < m && Math.abs(a[i + k] - a[j + k]) <= r) k++;` |
 | 1268 | `cmp <= → <` | `if (Math.abs(a[i + m] - a[j + m]) <= r) A++;` |
-| 1272 | `bool || → &&` | `if (B === 0 \|\| A === 0) return null;` |
+| 1272 | `bool \|\| → &&` | `if (B === 0 \|\| A === 0) return null;` |
 | 1283 | `cmp > → >=` | `if (f[k] > maxC) maxC = f[k];` |
 | 1292 | `cmp < → <=` | `for (let i = L; i < N - L; i++) {` |
 | 1293 | `cmp > → >=` | `const isAnchor = sign > 0 ? a[i] > a[i - 1] : a[i] < a[i - 1];` |
@@ -414,11 +415,11 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1377 | `num → 0` | `if (sSeg.length < 30) continue;` |
 | 1378 | `num → 0` | `const r = lombScargle(sSeg, sT, 160).respRate;` |
 | 1379 | `cmp > → >=` | `if (r != null && isFinite(r) && r > 0) rates.push(r);` |
-| 1379 | `bool && → ||` | `if (r != null && isFinite(r) && r > 0) rates.push(r);` |
-| 1379 | `bool && → ||` | `if (r != null && isFinite(r) && r > 0) rates.push(r);` |
+| 1379 | `bool && → \|\|` | `if (r != null && isFinite(r) && r > 0) rates.push(r);` |
+| 1379 | `bool && → \|\|` | `if (r != null && isFinite(r) && r > 0) rates.push(r);` |
 | 1381 | `cmp < → <=` | `if (rates.length < 3) return null;` |
 | 1383 | `cmp > → >=` | `if (!(m > 0)) return null;` |
-| 1392 | `bool || → &&` | `winSec = winSec \|\| 300;` |
+| 1392 | `bool \|\| → &&` | `winSec = winSec \|\| 300;` |
 | 1392 | `num → 0` | `winSec = winSec \|\| 300;` |
 | 1397 | `cmp <= → <` | `for (let w0 = 0; w0 <= tEnd; w0 += winSec) {` |
 | 1402 | `cmp < → <=` | `while (i < N && tt[i] < w1) {` |
@@ -428,7 +429,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1411 | `num → 0` | `const ls = lombScargle(seg, segT, 160);` |
 | 1463 | `cmp < → <=` | `if (!epochs \|\| epochs.length < 12) return null; // need ≥ ~1 h` |
 | 1463 | `num → 0` | `if (!epochs \|\| epochs.length < 12) return null; // need ≥ ~1 h` |
-| 1463 | `bool || → &&` | `if (!epochs \|\| epochs.length < 12) return null; // need ≥ ~1 h` |
+| 1463 | `bool \|\| → &&` | `if (!epochs \|\| epochs.length < 12) return null; // need ≥ ~1 h` |
 | 1471 | `cmp >= → >` | `if (cur.length >= 3) windows.push({ tMin: wStart, epochs: cur });` |
 | 1478 | `cmp < → <=` | `if (windows.length < 3) return null;` |
 | 1492 | `num → 0` | `const xs = pts.map((p) => p.tMin / 60); // hours` |
@@ -450,8 +451,8 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1643 | `cmp < → <=` | `for (let i = 0; i < N; i++) {` |
 | 1644 | `cmp > → >=` | `const xm = i > 0 ? x[i - 1] : x[i],` |
 | 1645 | `cmp < → <=` | `xp = i < N - 1 ? x[i + 1] : x[i];` |
-| 1653 | `bool || → &&` | `if (n < 60 \|\| !refIdx \|\| refIdx.length < n) return null;` |
-| 1653 | `bool || → &&` | `if (n < 60 \|\| !refIdx \|\| refIdx.length < n) return null;` |
+| 1653 | `bool \|\| → &&` | `if (n < 60 \|\| !refIdx \|\| refIdx.length < n) return null;` |
+| 1653 | `bool \|\| → &&` | `if (n < 60 \|\| !refIdx \|\| refIdx.length < n) return null;` |
 | 1653 | `num → 0` | `if (n < 60 \|\| !refIdx \|\| refIdx.length < n) return null;` |
 | 1656 | `cmp < → <=` | `for (let k = 0; k < n; k++) {` |
 | 1659 | `cmp <= → <` | `for (let j = Math.max(0, c - 2); j <= Math.min(int16.length - 1, c + 2);` |
@@ -466,14 +467,14 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1695 | `num → 0` | `const edrPeriod = _autocorrPeriod(edrB, FS, 2.5, 10);` |
 | 1696 | `cmp >= → >` | `const respFromEDR = edrPeriod ? +(60 / edrPeriod).toFixed(1) : respHint ` |
 | 1696 | `cmp <= → <` | `const respFromEDR = edrPeriod ? +(60 / edrPeriod).toFixed(1) : respHint ` |
-| 1696 | `bool && → ||` | `const respFromEDR = edrPeriod ? +(60 / edrPeriod).toFixed(1) : respHint ` |
+| 1696 | `bool && → \|\|` | `const respFromEDR = edrPeriod ? +(60 / edrPeriod).toFixed(1) : respHint ` |
 | 1696 | `num → 0` | `const respFromEDR = edrPeriod ? +(60 / edrPeriod).toFixed(1) : respHint ` |
-| 1696 | `bool && → ||` | `const respFromEDR = edrPeriod ? +(60 / edrPeriod).toFixed(1) : respHint ` |
+| 1696 | `bool && → \|\|` | `const respFromEDR = edrPeriod ? +(60 / edrPeriod).toFixed(1) : respHint ` |
 | 1696 | `num → 0` | `const respFromEDR = edrPeriod ? +(60 / edrPeriod).toFixed(1) : respHint ` |
 | 1697 | `cmp >= → >` | `const f0 = respFromEDR >= 6 && respFromEDR <= 24 ? respFromEDR / 60 : 0.` |
 | 1697 | `cmp <= → <` | `const f0 = respFromEDR >= 6 && respFromEDR <= 24 ? respFromEDR / 60 : 0.` |
 | 1697 | `num → 0` | `const f0 = respFromEDR >= 6 && respFromEDR <= 24 ? respFromEDR / 60 : 0.` |
-| 1697 | `bool && → ||` | `const f0 = respFromEDR >= 6 && respFromEDR <= 24 ? respFromEDR / 60 : 0.` |
+| 1697 | `bool && → \|\|` | `const f0 = respFromEDR >= 6 && respFromEDR <= 24 ? respFromEDR / 60 : 0.` |
 | 1697 | `num → 0` | `const f0 = respFromEDR >= 6 && respFromEDR <= 24 ? respFromEDR / 60 : 0.` |
 | 1697 | `num → 0` | `const f0 = respFromEDR >= 6 && respFromEDR <= 24 ? respFromEDR / 60 : 0.` |
 | 1702 | `num → 0` | `const wN = Math.max(16, Math.round(60 * FS)),` |
@@ -486,7 +487,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1734 | `num → 0` | `const rsaAmp = Math.max(0, quant(hrBarr, 0.92) - quant(hrBarr, 0.08));` |
 | 1735 | `cmp > → >=` | `const rsaRatio = meanHRabs - rsaAmp / 2 > 0 ? (meanHRabs + rsaAmp / 2) /` |
 | 1736 | `num → 0` | `const rsaAmpNorm = Math.min(1, rsaAmp / (0.1 * meanHRabs \|\| 1));` |
-| 1736 | `bool || → &&` | `const rsaAmpNorm = Math.min(1, rsaAmp / (0.1 * meanHRabs \|\| 1));` |
+| 1736 | `bool \|\| → &&` | `const rsaAmpNorm = Math.min(1, rsaAmp / (0.1 * meanHRabs \|\| 1));` |
 | 1737 | `num → 0` | `const couplingStrength = Math.max(0, Math.min(1, 0.65 * plv + 0.35 * rsa` |
 | 1737 | `num → 0` | `const couplingStrength = Math.max(0, Math.min(1, 0.65 * plv + 0.35 * rsa` |
 | 1739 | `num → 0` | `const NB = 16;` |
@@ -494,7 +495,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1744 | `cmp < → <=` | `if (ph < 0) ph += 2 * Math.PI;` |
 | 1750 | `cmp < → <=` | `for (let b = 0; b < NB; b++) {` |
 | 1751 | `cmp >= → >` | `phaseCurve.push(binN[b] >= 2 ? +(binSum[b] / binN[b]).toFixed(1) : null)` |
-| 1755 | `bool && → ||` | `if (epochs && epochs.length) {` |
+| 1755 | `bool && → \|\|` | `if (epochs && epochs.length) {` |
 | 1757 | `num → 0` | `const w0 = e.tMin * 60,` |
 | 1758 | `num → 0` | `w1 = w0 + 300;` |
 | 1761 | `cmp < → <=` | `if (s1 - s0 < wN) {` |
@@ -507,12 +508,12 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1817 | `cmp <= → <` | `for (let k = -2; k <= 2; k++) {` |
 | 1819 | `cmp < → <=` | `if (u >= 0 && u < M) {` |
 | 1819 | `cmp >= → >` | `if (u >= 0 && u < M) {` |
-| 1819 | `bool && → ||` | `if (u >= 0 && u < M) {` |
+| 1819 | `bool && → \|\|` | `if (u >= 0 && u < M) {` |
 | 1831 | `cmp < → <=` | `for (let s = 0; s < M; s++) {` |
 | 1833 | `cmp > → >=` | `if (s > 2 * half) acc -= src[s - 2 * half - 1];` |
 | 1839 | `cmp < → <=` | `for (let s = 0; s < M; s++) {` |
 | 1842 | `cmp <= → <` | `for (let k = -half; k <= half; k++) {` |
-| 1844 | `bool && → ||` | `if (u >= 0 && u < M) {` |
+| 1844 | `bool && → \|\|` | `if (u >= 0 && u < M) {` |
 | 1844 | `cmp < → <=` | `if (u >= 0 && u < M) {` |
 | 1844 | `cmp >= → >` | `if (u >= 0 && u < M) {` |
 | 1856 | `cmp < → <=` | `for (let s = 0; s < M; s++) res[s] = hiCut[s] - lo[s]; // apnea-band sig` |
@@ -522,7 +523,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1862 | `num → 0` | `for (let k = -12; k <= 12; k++) {` |
 | 1864 | `cmp < → <=` | `if (u >= 0 && u < M) {` |
 | 1864 | `cmp >= → >` | `if (u >= 0 && u < M) {` |
-| 1864 | `bool && → ||` | `if (u >= 0 && u < M) {` |
+| 1864 | `bool && → \|\|` | `if (u >= 0 && u < M) {` |
 | 1871 | `num → 0` | `const ENV_ON = 2.6; // bpm — sustained-oscillation gate` |
 | 1874 | `num → 0` | `let lastT = -100;` |
 | 1875 | `cmp < → <=` | `for (let s = 8; s < M - 8; s++) {` |
@@ -530,33 +531,33 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1877 | `cmp <= → <` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
 | 1877 | `cmp < → <=` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
 | 1877 | `cmp < → <=` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
-| 1877 | `bool && → ||` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
-| 1877 | `bool && → ||` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
+| 1877 | `bool && → \|\|` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
+| 1877 | `bool && → \|\|` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
 | 1877 | `num → 0` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
 | 1880 | `cmp < → <=` | `for (let u = s + 8; u < Math.min(M, s + 48); u++) {` |
 | 1881 | `cmp > → >=` | `if (res[u] > pk) {` |
 | 1888 | `cmp >= → >` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
 | 1888 | `cmp >= → >` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
 | 1888 | `cmp <= → <` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
-| 1888 | `bool && → ||` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
+| 1888 | `bool && → \|\|` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
 | 1888 | `cmp > → >=` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
-| 1888 | `bool && → ||` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
-| 1888 | `bool && → ||` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
+| 1888 | `bool && → \|\|` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
+| 1888 | `bool && → \|\|` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
 | 1888 | `num → 0` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
 | 1888 | `num → 0` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
 | 1895 | `num → 0` | `const hours = tEnd / 3600;` |
 | 1896 | `cmp > → >=` | `const index = hours > 0 ? +(events.length / hours).toFixed(1) : 0;` |
-| 1913 | `bool || → &&` | `const fs = accFs \|\| 4;` |
+| 1913 | `bool \|\| → &&` | `const fs = accFs \|\| 4;` |
 | 1914 | `cmp < → <=` | `if (!deviceACC \|\| !epochs \|\| !epochs.length \|\| deviceACC.length < fs * 3` |
-| 1914 | `bool || → &&` | `if (!deviceACC \|\| !epochs \|\| !epochs.length \|\| deviceACC.length < fs * 3` |
-| 1914 | `bool || → &&` | `if (!deviceACC \|\| !epochs \|\| !epochs.length \|\| deviceACC.length < fs * 3` |
-| 1914 | `bool || → &&` | `if (!deviceACC \|\| !epochs \|\| !epochs.length \|\| deviceACC.length < fs * 3` |
+| 1914 | `bool \|\| → &&` | `if (!deviceACC \|\| !epochs \|\| !epochs.length \|\| deviceACC.length < fs * 3` |
+| 1914 | `bool \|\| → &&` | `if (!deviceACC \|\| !epochs \|\| !epochs.length \|\| deviceACC.length < fs * 3` |
+| 1914 | `bool \|\| → &&` | `if (!deviceACC \|\| !epochs \|\| !epochs.length \|\| deviceACC.length < fs * 3` |
 | 1914 | `num → 0` | `if (!deviceACC \|\| !epochs \|\| !epochs.length \|\| deviceACC.length < fs * 3` |
-| 1918 | `bool && → ||` | `const baseOffset = ecgT0Ms && deviceACC[0].tsMs ? (deviceACC[0].tsMs - e` |
+| 1918 | `bool && → \|\|` | `const baseOffset = ecgT0Ms && deviceACC[0].tsMs ? (deviceACC[0].tsMs - e` |
 | 1918 | `num → 0` | `const baseOffset = ecgT0Ms && deviceACC[0].tsMs ? (deviceACC[0].tsMs - e` |
 | 1919 | `cmp >= → >` | `const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;` |
 | 1919 | `cmp <= → <` | `const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;` |
-| 1919 | `bool && → ||` | `const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;` |
+| 1919 | `bool && → \|\|` | `const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;` |
 | 1923 | `cmp < → <=` | `for (let i = 1; i < N; i++) dmv[i] = Math.abs(vm[i] - vm[i - 1]);` |
 | 1930 | `cmp < → <=` | `for (let i = Math.max(1, s0); i < Math.min(N, s1); i++) {` |
 | 1940 | `cmp > → >=` | `rawMot.push({ tMin: e.tMin, act: c > fs * 30 ? a / c : null });` |
@@ -568,56 +569,56 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 2009 | `cmp >= → >` | `if (m != null && m >= 60) stage = 'Wake';` |
 | 2014 | `cmp >= → >` | `else if (lfhf > lfhfGate && e.rmssd < rmMed * 0.85 && !(m != null && m >` |
 | 2014 | `cmp < → <=` | `else if (lfhf > lfhfGate && e.rmssd < rmMed * 0.85 && !(m != null && m >` |
-| 2014 | `bool && → ||` | `else if (lfhf > lfhfGate && e.rmssd < rmMed * 0.85 && !(m != null && m >` |
+| 2014 | `bool && → \|\|` | `else if (lfhf > lfhfGate && e.rmssd < rmMed * 0.85 && !(m != null && m >` |
 | 2014 | `cmp > → >=` | `else if (lfhf > lfhfGate && e.rmssd < rmMed * 0.85 && !(m != null && m >` |
 | 2015 | `cmp > → >=` | `else if (hrZ > 1.1 \|\| e.rmssd < rmMed * 0.45) stage = 'Wake';` |
-| 2015 | `bool || → &&` | `else if (hrZ > 1.1 \|\| e.rmssd < rmMed * 0.45) stage = 'Wake';` |
+| 2015 | `bool \|\| → &&` | `else if (hrZ > 1.1 \|\| e.rmssd < rmMed * 0.45) stage = 'Wake';` |
 | 2015 | `cmp < → <=` | `else if (hrZ > 1.1 \|\| e.rmssd < rmMed * 0.45) stage = 'Wake';` |
 | 2015 | `num → 0` | `else if (hrZ > 1.1 \|\| e.rmssd < rmMed * 0.45) stage = 'Wake';` |
 | 2016 | `cmp > → >=` | `else if (e.rmssd > rmMed * 1.12 && e.hr < hrMed) stage = 'Deep';` |
 | 2016 | `cmp < → <=` | `else if (e.rmssd > rmMed * 1.12 && e.hr < hrMed) stage = 'Deep';` |
-| 2016 | `bool && → ||` | `else if (e.rmssd > rmMed * 1.12 && e.hr < hrMed) stage = 'Deep';` |
+| 2016 | `bool && → \|\|` | `else if (e.rmssd > rmMed * 1.12 && e.hr < hrMed) stage = 'Deep';` |
 | 2016 | `num → 0` | `else if (e.rmssd > rmMed * 1.12 && e.hr < hrMed) stage = 'Deep';` |
 | 2030 | `cmp < → <=` | `for (let i = 1; i < raw.length - 1; i++) {` |
 | 2031 | `eq === → !==` | `if (raw[i - 1] === raw[i + 1] && raw[i] !== raw[i - 1] && (raw[i] === 'L` |
 | 2031 | `eq === → !==` | `if (raw[i - 1] === raw[i + 1] && raw[i] !== raw[i - 1] && (raw[i] === 'L` |
 | 2031 | `eq !== → ===` | `if (raw[i - 1] === raw[i + 1] && raw[i] !== raw[i - 1] && (raw[i] === 'L` |
-| 2031 | `bool || → &&` | `if (raw[i - 1] === raw[i + 1] && raw[i] !== raw[i - 1] && (raw[i] === 'L` |
+| 2031 | `bool \|\| → &&` | `if (raw[i - 1] === raw[i + 1] && raw[i] !== raw[i - 1] && (raw[i] === 'L` |
 | 2064 | `num → 0` | `const d = new Date(t0Ms + sec * 1000);` |
 | 2073 | `negate: drop !` | `if (!epochPos \|\| !epochPos.length) return null;` |
-| 2073 | `bool || → &&` | `if (!epochPos \|\| !epochPos.length) return null;` |
+| 2073 | `bool \|\| → &&` | `if (!epochPos \|\| !epochPos.length) return null;` |
 | 2073 | `negate: drop !` | `if (!epochPos \|\| !epochPos.length) return null;` |
 | 2074 | `num → 0` | `const m = sec / 60;` |
 | 2078 | `num → 0` | `const d = Math.abs(p.tMin + 2.5 - m);` |
 | 2079 | `cmp >= → >` | `if (m >= p.tMin && m < p.tMin + 5) {` |
-| 2079 | `bool && → ||` | `if (m >= p.tMin && m < p.tMin + 5) {` |
+| 2079 | `bool && → \|\|` | `if (m >= p.tMin && m < p.tMin + 5) {` |
 | 2079 | `cmp < → <=` | `if (m >= p.tMin && m < p.tMin + 5) {` |
 | 2082 | `cmp < → <=` | `if (d < bd) {` |
 | 2095 | `cmp < → <=` | `for (let k = 0; k < times.length; k++) {` |
 | 2096 | `cmp < → <=` | `if (Math.abs(times[k] - sec) < Math.abs(times[best] - sec)) best = k;` |
 | 2101 | `cmp < → <=` | `for (let k = 0; k < times.length; k++) {` |
 | 2102 | `cmp < → <=` | `if (Math.abs(times[k] - sec) < 5) {` |
-| 2107 | `bool || → &&` | `return c ? a / c : sqi[best] \|\| 0.5;` |
+| 2107 | `bool \|\| → &&` | `return c ? a / c : sqi[best] \|\| 0.5;` |
 | 2107 | `num → 0` | `return c ? a / c : sqi[best] \|\| 0.5;` |
 | 2112 | `num → 0` | `const surgeConf = (ampBpm) => +Math.max(0.45, Math.min(0.95, 0.45 + Math` |
 | 2157 | `eq !== → ===` | `if (s.stage !== prev) {` |
 | 2158 | `num → 0` | `events.push({ t: clock(s.tMin * 60), tMs: tmsAt(s.tMin * 60), impulse: '` |
 | 2158 | `num → 0` | `events.push({ t: clock(s.tMin * 60), tMs: tmsAt(s.tMin * 60), impulse: '` |
 | 2174 | `num → 0` | `conf: 0.6,` |
-| 2179 | `bool && → ||` | `events.sort((a, b) => (a.tMs != null && b.tMs != null ? a.tMs - b.tMs : ` |
+| 2179 | `bool && → \|\|` | `events.sort((a, b) => (a.tMs != null && b.tMs != null ? a.tMs - b.tMs : ` |
 | 2179 | `cmp < → <=` | `events.sort((a, b) => (a.tMs != null && b.tMs != null ? a.tMs - b.tMs : ` |
 | 2193 | `num → 0` | `const durMin = durSec / 60;` |
 | 2211 | `eq === → !==` | `if (gait.zonePct) briskPct = gait.zonePct.filter((z) => z.zone === 'Bris` |
-| 2211 | `bool || → &&` | `if (gait.zonePct) briskPct = gait.zonePct.filter((z) => z.zone === 'Bris` |
+| 2211 | `bool \|\| → &&` | `if (gait.zonePct) briskPct = gait.zonePct.filter((z) => z.zone === 'Bris` |
 | 2211 | `eq === → !==` | `if (gait.zonePct) briskPct = gait.zonePct.filter((z) => z.zone === 'Bris` |
-| 2211 | `bool || → &&` | `if (gait.zonePct) briskPct = gait.zonePct.filter((z) => z.zone === 'Bris` |
-| 2212 | `bool && → ||` | `if (gait.cadEpochs && gait.cadEpochs.length) {` |
+| 2211 | `bool \|\| → &&` | `if (gait.zonePct) briskPct = gait.zonePct.filter((z) => z.zone === 'Bris` |
+| 2212 | `bool && → \|\|` | `if (gait.cadEpochs && gait.cadEpochs.length) {` |
 | 2213 | `cmp >= → >` | `const act = gait.cadEpochs.filter((c) => c.cadence >= 20).length; // ≥20` |
 | 2213 | `num → 0` | `const act = gait.cadEpochs.filter((c) => c.cadence >= 20).length; // ≥20` |
 | 2219 | `eq === → !==` | `const w = cons.voteRows.filter((v) => v.vote === 'Wake (motion)').length` |
 | 2220 | `num → 0` | `accWakePct = Math.round((w / cons.voteRows.length) * 100);` |
 | 2224 | `cmp >= → >` | `const sustainedGait = steps >= 500 && cadencePresentPct >= 30;` |
-| 2224 | `bool && → ||` | `const sustainedGait = steps >= 500 && cadencePresentPct >= 30;` |
+| 2224 | `bool && → \|\|` | `const sustainedGait = steps >= 500 && cadencePresentPct >= 30;` |
 | 2224 | `cmp >= → >` | `const sustainedGait = steps >= 500 && cadencePresentPct >= 30;` |
 | 2224 | `num → 0` | `const sustainedGait = steps >= 500 && cadencePresentPct >= 30;` |
 | 2224 | `num → 0` | `const sustainedGait = steps >= 500 && cadencePresentPct >= 30;` |
@@ -645,15 +646,15 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 2345 | `num → 0` | `if (N < 12) throw new Error('Too few clean R-peaks after artifact gating` |
 | 2345 | `cmp < → <=` | `if (N < 12) throw new Error('Too few clean R-peaks after artifact gating` |
 | 2347 | `num → 0` | `prog(64, 'HRV suite…');` |
-| 2355 | `bool || → &&` | `const spanSec = nnRes.spanSec \|\| tt[N - 1] \|\| 0;` |
-| 2355 | `bool || → &&` | `const spanSec = nnRes.spanSec \|\| tt[N - 1] \|\| 0;` |
+| 2355 | `bool \|\| → &&` | `const spanSec = nnRes.spanSec \|\| tt[N - 1] \|\| 0;` |
+| 2355 | `bool \|\| → &&` | `const spanSec = nnRes.spanSec \|\| tt[N - 1] \|\| 0;` |
 | 2356 | `cmp > → >=` | `const durSec = nnRes.activeSec > 0 ? nnRes.activeSec : tt[N - 1] \|\| rec.` |
-| 2356 | `bool || → &&` | `const durSec = nnRes.activeSec > 0 ? nnRes.activeSec : tt[N - 1] \|\| rec.` |
-| 2356 | `bool || → &&` | `const durSec = nnRes.activeSec > 0 ? nnRes.activeSec : tt[N - 1] \|\| rec.` |
+| 2356 | `bool \|\| → &&` | `const durSec = nnRes.activeSec > 0 ? nnRes.activeSec : tt[N - 1] \|\| rec.` |
+| 2356 | `bool \|\| → &&` | `const durSec = nnRes.activeSec > 0 ? nnRes.activeSec : tt[N - 1] \|\| rec.` |
 | 2356 | `num → 0` | `const durSec = nnRes.activeSec > 0 ? nnRes.activeSec : tt[N - 1] \|\| rec.` |
 | 2357 | `cmp >= → >` | `const longRec = durSec >= 90 * 60;` |
 | 2358 | `cmp < → <=` | `const lowCoverage = nnRes.coveragePct != null && nnRes.coveragePct < 80;` |
-| 2358 | `bool && → ||` | `const lowCoverage = nnRes.coveragePct != null && nnRes.coveragePct < 80;` |
+| 2358 | `bool && → \|\|` | `const lowCoverage = nnRes.coveragePct != null && nnRes.coveragePct < 80;` |
 | 2358 | `num → 0` | `const lowCoverage = nnRes.coveragePct != null && nnRes.coveragePct < 80;` |
 | 2360 | `num → 0` | `prog(72, '5-min epoch engine…');` |
 | 2361 | `num → 0` | `const epochs = epochEngine(nn, tt, 300, nnSqi);` |
@@ -665,38 +666,38 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 2391 | `cmp >= → >` | `if (seg.length >= 20) {` |
 | 2391 | `num → 0` | `if (seg.length >= 20) {` |
 | 2406 | `cmp >= → >` | `if (longRec && epochs.length >= 3) {` |
-| 2406 | `bool && → ||` | `if (longRec && epochs.length >= 3) {` |
+| 2406 | `bool && → \|\|` | `if (longRec && epochs.length >= 3) {` |
 | 2415 | `num → 0` | `prog(80, 'Spectral (Lomb–Scargle)…');` |
 | 2422 | `cmp > → >=` | `const _respEpoch = epochs.filter((e) => e.resp != null && e.resp > 0).ma` |
-| 2422 | `bool && → ||` | `const _respEpoch = epochs.filter((e) => e.resp != null && e.resp > 0).ma` |
+| 2422 | `bool && → \|\|` | `const _respEpoch = epochs.filter((e) => e.resp != null && e.resp > 0).ma` |
 | 2423 | `cmp >= → >` | `const _respMedian = _respEpoch.length >= 3 ? +median(_respEpoch).toFixed` |
-| 2426 | `bool && → ||` | `if (longRec && epochs.length >= 3) {` |
+| 2426 | `bool && → \|\|` | `if (longRec && epochs.length >= 3) {` |
 | 2426 | `cmp >= → >` | `if (longRec && epochs.length >= 3) {` |
-| 2459 | `bool && → ||` | `const _lh = epochs.map((e) => e.lfhf).filter((v) => v != null && isFinit` |
+| 2459 | `bool && → \|\|` | `const _lh = epochs.map((e) => e.lfhf).filter((v) => v != null && isFinit` |
 | 2473 | `num → 0` | `spec = lombScargle(repSeg, repT, 300);` |
 | 2478 | `num → 0` | `prog(86, 'Non-linear (DFA · SampEn · fragmentation)…');` |
-| 2484 | `bool || → &&` | `const frag = fragmentation(nn) \|\| { pip: null, ials: null, pss: null };` |
+| 2484 | `bool \|\| → &&` | `const frag = fragmentation(nn) \|\| { pip: null, ials: null, pss: null };` |
 | 2488 | `cmp >= → >` | `const poincareNN = longRec && repSeg.length >= 20 ? repSeg : nn;` |
-| 2488 | `bool && → ||` | `const poincareNN = longRec && repSeg.length >= 20 ? repSeg : nn;` |
+| 2488 | `bool && → \|\|` | `const poincareNN = longRec && repSeg.length >= 20 ? repSeg : nn;` |
 | 2488 | `num → 0` | `const poincareNN = longRec && repSeg.length >= 20 ? repSeg : nn;` |
 | 2495 | `num → 0` | `prog(92, 'CVHR / apnea detection…');` |
 | 2500 | `cmp >= → >` | `const _epochMot = rec.deviceACC && rec.accFs && rec.deviceACC.length >= ` |
-| 2500 | `bool && → ||` | `const _epochMot = rec.deviceACC && rec.accFs && rec.deviceACC.length >= ` |
+| 2500 | `bool && → \|\|` | `const _epochMot = rec.deviceACC && rec.accFs && rec.deviceACC.length >= ` |
 | 2500 | `num → 0` | `const _epochMot = rec.deviceACC && rec.accFs && rec.deviceACC.length >= ` |
 | 2507 | `cmp >= → >` | `const _accEx = rec.deviceACC && rec.accFs && rec.deviceACC.length >= rec` |
-| 2507 | `bool && → ||` | `const _accEx = rec.deviceACC && rec.accFs && rec.deviceACC.length >= rec` |
-| 2507 | `bool && → ||` | `const _accEx = rec.deviceACC && rec.accFs && rec.deviceACC.length >= rec` |
+| 2507 | `bool && → \|\|` | `const _accEx = rec.deviceACC && rec.accFs && rec.deviceACC.length >= rec` |
+| 2507 | `bool && → \|\|` | `const _accEx = rec.deviceACC && rec.accFs && rec.deviceACC.length >= rec` |
 | 2507 | `num → 0` | `const _accEx = rec.deviceACC && rec.accFs && rec.deviceACC.length >= rec` |
-| 2519 | `bool && → ||` | `const hrvStab = longRec && !ambulatory ? hrvStability(epochs) : null; //` |
+| 2519 | `bool && → \|\|` | `const hrvStab = longRec && !ambulatory ? hrvStability(epochs) : null; //` |
 | 2520 | `negate: drop !` | `const surgeEsc = longRec && !ambulatory ? surgeEscalation(cvhrRaw.events` |
-| 2520 | `bool && → ||` | `const surgeEsc = longRec && !ambulatory ? surgeEscalation(cvhrRaw.events` |
-| 2525 | `bool && → ||` | `if (crc && crc.epochCRC.length && cvhr.events.length) {` |
+| 2520 | `bool && → \|\|` | `const surgeEsc = longRec && !ambulatory ? surgeEscalation(cvhrRaw.events` |
+| 2525 | `bool && → \|\|` | `if (crc && crc.epochCRC.length && cvhr.events.length) {` |
 | 2526 | `num → 0` | `const surgeMin = cvhr.events.map((e) => e.sec / 60);` |
 | 2530 | `cmp >= → >` | `const has = surgeMin.some((m) => m >= ec.tMin && m < ec.tMin + 5);` |
 | 2530 | `cmp < → <=` | `const has = surgeMin.some((m) => m >= ec.tMin && m < ec.tMin + 5);` |
-| 2530 | `bool && → ||` | `const has = surgeMin.some((m) => m >= ec.tMin && m < ec.tMin + 5);` |
+| 2530 | `bool && → \|\|` | `const has = surgeMin.some((m) => m >= ec.tMin && m < ec.tMin + 5);` |
 | 2537 | `cmp > → >=` | `const respVals = epochs.filter((e) => e.resp != null && e.resp > 0).map(` |
-| 2537 | `bool && → ||` | `const respVals = epochs.filter((e) => e.resp != null && e.resp > 0).map(` |
+| 2537 | `bool && → \|\|` | `const respVals = epochs.filter((e) => e.resp != null && e.resp > 0).map(` |
 | 2539 | `cmp >= → >` | `respVals.length >= 3 ? { n: respVals.length, min: +arrMin(respVals).toFi` |
 | 2541 | `num → 0` | `prog(94, 'Morphology · ectopy · rhythm…');` |
 | 2551 | `num → 0` | `prog(96, 'Ganglior events…');` |
@@ -712,38 +713,38 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 2650 | `num → 0` | `cv: +((sdnn / meanRR) * 100).toFixed(2),` |
 | 2654 | `num → 0` | `q25: +quant(nn, 0.25).toFixed(0),` |
 | 2655 | `num → 0` | `q75: +quant(nn, 0.75).toFixed(0),` |
-| 2669 | `bool || → &&` | `sd1sd2: sd1v == null \|\| sd2v == null ? null : +(sd1v / (sd2v \|\| 1)).toFi` |
-| 2669 | `bool || → &&` | `sd1sd2: sd1v == null \|\| sd2v == null ? null : +(sd1v / (sd2v \|\| 1)).toFi` |
-| 2670 | `bool || → &&` | `ellArea: sd1v == null \|\| sd2v == null ? null : +(Math.PI * sd1v * sd2v).` |
+| 2669 | `bool \|\| → &&` | `sd1sd2: sd1v == null \|\| sd2v == null ? null : +(sd1v / (sd2v \|\| 1)).toFi` |
+| 2669 | `bool \|\| → &&` | `sd1sd2: sd1v == null \|\| sd2v == null ? null : +(sd1v / (sd2v \|\| 1)).toFi` |
+| 2670 | `bool \|\| → &&` | `ellArea: sd1v == null \|\| sd2v == null ? null : +(Math.PI * sd1v * sd2v).` |
 | 2672 | `cmp >= → >` | `poincareRep: longRec && repSeg.length >= 20,` |
 | 2672 | `num → 0` | `poincareRep: longRec && repSeg.length >= 20,` |
-| 2672 | `bool && → ||` | `poincareRep: longRec && repSeg.length >= 20,` |
-| 2691 | `bool || → &&` | `hfnu: spec.hf == null \|\| spec.lf == null ? null : +((spec.hf / (spec.hf ` |
-| 2691 | `bool || → &&` | `hfnu: spec.hf == null \|\| spec.lf == null ? null : +((spec.hf / (spec.hf ` |
+| 2672 | `bool && → \|\|` | `poincareRep: longRec && repSeg.length >= 20,` |
+| 2691 | `bool \|\| → &&` | `hfnu: spec.hf == null \|\| spec.lf == null ? null : +((spec.hf / (spec.hf ` |
+| 2691 | `bool \|\| → &&` | `hfnu: spec.hf == null \|\| spec.lf == null ? null : +((spec.hf / (spec.hf ` |
 | 2691 | `num → 0` | `hfnu: spec.hf == null \|\| spec.lf == null ? null : +((spec.hf / (spec.hf ` |
-| 2692 | `bool || → &&` | `lfnu: spec.hf == null \|\| spec.lf == null ? null : +((spec.lf / (spec.hf ` |
-| 2692 | `bool || → &&` | `lfnu: spec.hf == null \|\| spec.lf == null ? null : +((spec.lf / (spec.hf ` |
+| 2692 | `bool \|\| → &&` | `lfnu: spec.hf == null \|\| spec.lf == null ? null : +((spec.lf / (spec.hf ` |
+| 2692 | `bool \|\| → &&` | `lfnu: spec.hf == null \|\| spec.lf == null ? null : +((spec.lf / (spec.hf ` |
 | 2692 | `num → 0` | `lfnu: spec.hf == null \|\| spec.lf == null ? null : +((spec.lf / (spec.hf ` |
-| 2716 | `bool || → &&` | `deviceRR: rec.deviceRR \|\| null,` |
-| 2717 | `bool || → &&` | `deviceHR: rec.deviceHR \|\| null,` |
-| 2718 | `bool || → &&` | `deviceACC: rec.deviceACC \|\| null,` |
-| 2719 | `bool || → &&` | `accFs: rec.accFs \|\| null,` |
+| 2716 | `bool \|\| → &&` | `deviceRR: rec.deviceRR \|\| null,` |
+| 2717 | `bool \|\| → &&` | `deviceHR: rec.deviceHR \|\| null,` |
+| 2718 | `bool \|\| → &&` | `deviceACC: rec.deviceACC \|\| null,` |
+| 2719 | `bool \|\| → &&` | `accFs: rec.accFs \|\| null,` |
 | 2739 | `cmp < → <=` | `for (let i = 0; i < n; i++) {` |
 | 2741 | `cmp <= → <` | `for (let j = Math.max(0, i - W); j <= Math.min(n - 1, i + W); j++) {` |
 | 2742 | `cmp <= → <` | `if (j !== i && vals[j] >= 300 && vals[j] <= 2000) seg.push(vals[j]);` |
 | 2742 | `cmp >= → >` | `if (j !== i && vals[j] >= 300 && vals[j] <= 2000) seg.push(vals[j]);` |
 | 2742 | `eq !== → ===` | `if (j !== i && vals[j] >= 300 && vals[j] <= 2000) seg.push(vals[j]);` |
-| 2742 | `bool && → ||` | `if (j !== i && vals[j] >= 300 && vals[j] <= 2000) seg.push(vals[j]);` |
-| 2742 | `bool && → ||` | `if (j !== i && vals[j] >= 300 && vals[j] <= 2000) seg.push(vals[j]);` |
+| 2742 | `bool && → \|\|` | `if (j !== i && vals[j] >= 300 && vals[j] <= 2000) seg.push(vals[j]);` |
+| 2742 | `bool && → \|\|` | `if (j !== i && vals[j] >= 300 && vals[j] <= 2000) seg.push(vals[j]);` |
 | 2742 | `num → 0` | `if (j !== i && vals[j] >= 300 && vals[j] <= 2000) seg.push(vals[j]);` |
 | 2742 | `num → 0` | `if (j !== i && vals[j] >= 300 && vals[j] <= 2000) seg.push(vals[j]);` |
 | 2747 | `cmp > → >=` | `if (vals[i] < 300 \|\| vals[i] > 2000 \|\| dev > 0.2) {` |
 | 2747 | `cmp < → <=` | `if (vals[i] < 300 \|\| vals[i] > 2000 \|\| dev > 0.2) {` |
 | 2747 | `num → 0` | `if (vals[i] < 300 \|\| vals[i] > 2000 \|\| dev > 0.2) {` |
-| 2748 | `bool || → &&` | `out[i] = med \|\| out[i - 1] \|\| 1000;` |
-| 2748 | `bool || → &&` | `out[i] = med \|\| out[i - 1] \|\| 1000;` |
+| 2748 | `bool \|\| → &&` | `out[i] = med \|\| out[i - 1] \|\| 1000;` |
+| 2748 | `bool \|\| → &&` | `out[i] = med \|\| out[i - 1] \|\| 1000;` |
 | 2748 | `num → 0` | `out[i] = med \|\| out[i - 1] \|\| 1000;` |
-| 2755 | `bool || → &&` | `if (!deviceRR \|\| !deviceRR.length) return null;` |
+| 2755 | `bool \|\| → &&` | `if (!deviceRR \|\| !deviceRR.length) return null;` |
 | 2772 | `num → 0` | `dRMSSD: +((Math.abs(selfRMSSD - devRMSSD) / devRMSSD) * 100).toFixed(1),` |
 | 2775 | `num → 0` | `dSDNN: +((Math.abs(selfSDNN - devSDNN) / devSDNN) * 100).toFixed(1),` |
 | 2778 | `num → 0` | `dMean: +((Math.abs(selfMean - devMean) / devMean) * 100).toFixed(2),` |
@@ -758,16 +759,16 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 2849 | `num → 0` | `const fs = opts && opts.fs > 0 ? opts.fs : 130;` |
 | 2851 | `cmp < → <=` | `if (!selfNN \|\| !deviceRR \|\| selfNN.length < RR_ALIGN_MIN_PAIRS \|\| device` |
 | 2851 | `cmp < → <=` | `if (!selfNN \|\| !deviceRR \|\| selfNN.length < RR_ALIGN_MIN_PAIRS \|\| device` |
-| 2851 | `bool || → &&` | `if (!selfNN \|\| !deviceRR \|\| selfNN.length < RR_ALIGN_MIN_PAIRS \|\| device` |
+| 2851 | `bool \|\| → &&` | `if (!selfNN \|\| !deviceRR \|\| selfNN.length < RR_ALIGN_MIN_PAIRS \|\| device` |
 | 2852 | `cmp > → >=` | `const dev = deviceRR.map((d) => d.rr).filter((v) => v > 250 && v < 2500)` |
 | 2852 | `cmp < → <=` | `const dev = deviceRR.map((d) => d.rr).filter((v) => v > 250 && v < 2500)` |
-| 2852 | `bool && → ||` | `const dev = deviceRR.map((d) => d.rr).filter((v) => v > 250 && v < 2500)` |
+| 2852 | `bool && → \|\|` | `const dev = deviceRR.map((d) => d.rr).filter((v) => v > 250 && v < 2500)` |
 | 2852 | `num → 0` | `const dev = deviceRR.map((d) => d.rr).filter((v) => v > 250 && v < 2500)` |
 | 2853 | `cmp < → <=` | `if (dev.length < RR_ALIGN_MIN_PAIRS) return null;` |
 | 2864 | `eq === → !==` | `const offsetStable = offs.length === 3 && offs[0] === offs[1] && offs[1]` |
-| 2864 | `bool && → ||` | `const offsetStable = offs.length === 3 && offs[0] === offs[1] && offs[1]` |
+| 2864 | `bool && → \|\|` | `const offsetStable = offs.length === 3 && offs[0] === offs[1] && offs[1]` |
 | 2864 | `eq === → !==` | `const offsetStable = offs.length === 3 && offs[0] === offs[1] && offs[1]` |
-| 2864 | `bool && → ||` | `const offsetStable = offs.length === 3 && offs[0] === offs[1] && offs[1]` |
+| 2864 | `bool && → \|\|` | `const offsetStable = offs.length === 3 && offs[0] === offs[1] && offs[1]` |
 | 2864 | `eq === → !==` | `const offsetStable = offs.length === 3 && offs[0] === offs[1] && offs[1]` |
 | 2869 | `cmp < → <=` | `for (let k = 0; k < RR_ALIGN_WINDOWS; k++) {` |
 | 2871 | `cmp < → <=` | `for (let i = Math.max(k * step, -g); i < Math.min((k + 1) * step, dev.le` |
@@ -782,32 +783,32 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 2964 | `cmp <= → <` | `for (let k = -half; k <= half; k++) {` |
 | 2966 | `cmp < → <=` | `if (u >= 0 && u < n && isFinite(x[u])) s.push(x[u]);` |
 | 2966 | `cmp >= → >` | `if (u >= 0 && u < n && isFinite(x[u])) s.push(x[u]);` |
-| 2966 | `bool && → ||` | `if (u >= 0 && u < n && isFinite(x[u])) s.push(x[u]);` |
-| 2966 | `bool && → ||` | `if (u >= 0 && u < n && isFinite(x[u])) s.push(x[u]);` |
+| 2966 | `bool && → \|\|` | `if (u >= 0 && u < n && isFinite(x[u])) s.push(x[u]);` |
+| 2966 | `bool && → \|\|` | `if (u >= 0 && u < n && isFinite(x[u])) s.push(x[u]);` |
 | 2968 | `negate: drop !` | `if (!s.length) {` |
-| 2978 | `bool || → &&` | `if (!rows \|\| !rows.length) return [];` |
+| 2978 | `bool \|\| → &&` | `if (!rows \|\| !rows.length) return [];` |
 | 2978 | `negate: drop !` | `if (!rows \|\| !rows.length) return [];` |
 | 2978 | `negate: drop !` | `if (!rows \|\| !rows.length) return [];` |
 | 2982 | `num → 0` | `const s = (r.tsMs - ecgT0Ms) / 1000;` |
 | 2983 | `cmp >= → >` | `if (s >= -2 && s <= durSec + 2) inWin++;` |
 | 2983 | `cmp <= → <` | `if (s >= -2 && s <= durSec + 2) inWin++;` |
-| 2983 | `bool && → ||` | `if (s >= -2 && s <= durSec + 2) inWin++;` |
-| 2985 | `bool && → ||` | `const base = ecgT0Ms && inWin > rows.length * 0.5 ? ecgT0Ms : rows[0].ts` |
+| 2983 | `bool && → \|\|` | `if (s >= -2 && s <= durSec + 2) inWin++;` |
+| 2985 | `bool && → \|\|` | `const base = ecgT0Ms && inWin > rows.length * 0.5 ? ecgT0Ms : rows[0].ts` |
 | 2985 | `num → 0` | `const base = ecgT0Ms && inWin > rows.length * 0.5 ? ecgT0Ms : rows[0].ts` |
 | 2985 | `cmp > → >=` | `const base = ecgT0Ms && inWin > rows.length * 0.5 ? ecgT0Ms : rows[0].ts` |
 | 2986 | `num → 0` | `return rows.map((r) => ({ sec: (r.tsMs - base) / 1000, row: r }));` |
-| 2989 | `bool || → &&` | `if (!ecgHrSeries \|\| !ecgHrSeries.length \|\| !deviceHR \|\| !deviceHR.length` |
-| 2989 | `bool || → &&` | `if (!ecgHrSeries \|\| !ecgHrSeries.length \|\| !deviceHR \|\| !deviceHR.length` |
+| 2989 | `bool \|\| → &&` | `if (!ecgHrSeries \|\| !ecgHrSeries.length \|\| !deviceHR \|\| !deviceHR.length` |
+| 2989 | `bool \|\| → &&` | `if (!ecgHrSeries \|\| !ecgHrSeries.length \|\| !deviceHR \|\| !deviceHR.length` |
 | 2989 | `negate: drop !` | `if (!ecgHrSeries \|\| !ecgHrSeries.length \|\| !deviceHR \|\| !deviceHR.length` |
-| 2989 | `bool || → &&` | `if (!ecgHrSeries \|\| !ecgHrSeries.length \|\| !deviceHR \|\| !deviceHR.length` |
+| 2989 | `bool \|\| → &&` | `if (!ecgHrSeries \|\| !ecgHrSeries.length \|\| !deviceHR \|\| !deviceHR.length` |
 | 2989 | `negate: drop !` | `if (!ecgHrSeries \|\| !ecgHrSeries.length \|\| !deviceHR \|\| !deviceHR.length` |
 | 2989 | `negate: drop !` | `if (!ecgHrSeries \|\| !ecgHrSeries.length \|\| !deviceHR \|\| !deviceHR.length` |
 | 2989 | `negate: drop !` | `if (!ecgHrSeries \|\| !ecgHrSeries.length \|\| !deviceHR \|\| !deviceHR.length` |
 | 2995 | `cmp < → <=` | `if (s >= 0 && s < M) dev[s] = a.row.hr;` |
-| 2995 | `bool && → ||` | `if (s >= 0 && s < M) dev[s] = a.row.hr;` |
+| 2995 | `bool && → \|\|` | `if (s >= 0 && s < M) dev[s] = a.row.hr;` |
 | 2995 | `cmp >= → >` | `if (s >= 0 && s < M) dev[s] = a.row.hr;` |
 | 2998 | `cmp < → <=` | `for (let s = 0; s < M; s++) {` |
-| 3005 | `bool && → ||` | `const rawVals = Array.from(ecgHrSeries).filter((h) => h >= 30 && h <= 22` |
+| 3005 | `bool && → \|\|` | `const rawVals = Array.from(ecgHrSeries).filter((h) => h >= 30 && h <= 22` |
 | 3005 | `cmp <= → <` | `const rawVals = Array.from(ecgHrSeries).filter((h) => h >= 30 && h <= 22` |
 | 3005 | `cmp >= → >` | `const rawVals = Array.from(ecgHrSeries).filter((h) => h >= 30 && h <= 22` |
 | 3005 | `num → 0` | `const rawVals = Array.from(ecgHrSeries).filter((h) => h >= 30 && h <= 22` |
@@ -819,20 +820,20 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3008 | `num → 0` | `hi = Math.min(210, hrMed + 45);` |
 | 3009 | `cmp >= → >` | `const ecgC = Float64Array.from(ecgHrSeries, (h) => (h >= lo && h <= hi ?` |
 | 3009 | `cmp <= → <` | `const ecgC = Float64Array.from(ecgHrSeries, (h) => (h >= lo && h <= hi ?` |
-| 3009 | `bool && → ||` | `const ecgC = Float64Array.from(ecgHrSeries, (h) => (h >= lo && h <= hi ?` |
+| 3009 | `bool && → \|\|` | `const ecgC = Float64Array.from(ecgHrSeries, (h) => (h >= lo && h <= hi ?` |
 | 3010 | `cmp >= → >` | `const devC = Float64Array.from(dev, (h) => (h >= lo && h <= hi ? h : NaN` |
-| 3010 | `bool && → ||` | `const devC = Float64Array.from(dev, (h) => (h >= lo && h <= hi ? h : NaN` |
+| 3010 | `bool && → \|\|` | `const devC = Float64Array.from(dev, (h) => (h >= lo && h <= hi ? h : NaN` |
 | 3010 | `cmp <= → <` | `const devC = Float64Array.from(dev, (h) => (h >= lo && h <= hi ? h : NaN` |
 | 3017 | `num → 0` | `const lead = M > 300 ? 60 : 0;` |
 | 3017 | `num → 0` | `const lead = M > 300 ? 60 : 0;` |
 | 3017 | `cmp > → >=` | `const lead = M > 300 ? 60 : 0;` |
 | 3020 | `cmp < → <=` | `for (let s = lead; s < M; s++) {` |
-| 3023 | `bool && → ||` | `if (isFinite(e) && isFinite(d) && e > 30 && d > 30) {` |
+| 3023 | `bool && → \|\|` | `if (isFinite(e) && isFinite(d) && e > 30 && d > 30) {` |
 | 3023 | `cmp > → >=` | `if (isFinite(e) && isFinite(d) && e > 30 && d > 30) {` |
 | 3023 | `cmp > → >=` | `if (isFinite(e) && isFinite(d) && e > 30 && d > 30) {` |
-| 3023 | `bool && → ||` | `if (isFinite(e) && isFinite(d) && e > 30 && d > 30) {` |
+| 3023 | `bool && → \|\|` | `if (isFinite(e) && isFinite(d) && e > 30 && d > 30) {` |
 | 3023 | `num → 0` | `if (isFinite(e) && isFinite(d) && e > 30 && d > 30) {` |
-| 3023 | `bool && → ||` | `if (isFinite(e) && isFinite(d) && e > 30 && d > 30) {` |
+| 3023 | `bool && → \|\|` | `if (isFinite(e) && isFinite(d) && e > 30 && d > 30) {` |
 | 3023 | `num → 0` | `if (isFinite(e) && isFinite(d) && e > 30 && d > 30) {` |
 | 3028 | `num → 0` | `if (xs.length < 10) return null;` |
 | 3028 | `cmp < → <=` | `if (xs.length < 10) return null;` |
@@ -840,26 +841,26 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3044 | `cmp > → >=` | `if (ae > maxe) maxe = ae;` |
 | 3046 | `cmp > → >=` | `const r = dx > 0 && dy > 0 ? num / Math.sqrt(dx * dy) : 0;` |
 | 3046 | `cmp > → >=` | `const r = dx > 0 && dy > 0 ? num / Math.sqrt(dx * dy) : 0;` |
-| 3046 | `bool && → ||` | `const r = dx > 0 && dy > 0 ? num / Math.sqrt(dx * dy) : 0;` |
+| 3046 | `bool && → \|\|` | `const r = dx > 0 && dy > 0 ? num / Math.sqrt(dx * dy) : 0;` |
 | 3053 | `cmp >= → >` | `const rMeaningful = xs.length >= 120 && sdE >= 1.5 && sdD >= 1.5;` |
 | 3053 | `cmp >= → >` | `const rMeaningful = xs.length >= 120 && sdE >= 1.5 && sdD >= 1.5;` |
 | 3053 | `cmp >= → >` | `const rMeaningful = xs.length >= 120 && sdE >= 1.5 && sdD >= 1.5;` |
-| 3053 | `bool && → ||` | `const rMeaningful = xs.length >= 120 && sdE >= 1.5 && sdD >= 1.5;` |
-| 3053 | `bool && → ||` | `const rMeaningful = xs.length >= 120 && sdE >= 1.5 && sdD >= 1.5;` |
+| 3053 | `bool && → \|\|` | `const rMeaningful = xs.length >= 120 && sdE >= 1.5 && sdD >= 1.5;` |
+| 3053 | `bool && → \|\|` | `const rMeaningful = xs.length >= 120 && sdE >= 1.5 && sdD >= 1.5;` |
 | 3053 | `num → 0` | `const rMeaningful = xs.length >= 120 && sdE >= 1.5 && sdD >= 1.5;` |
 | 3053 | `num → 0` | `const rMeaningful = xs.length >= 120 && sdE >= 1.5 && sdD >= 1.5;` |
 | 3053 | `num → 0` | `const rMeaningful = xs.length >= 120 && sdE >= 1.5 && sdD >= 1.5;` |
 | 3054 | `num → 0` | `const step = Math.max(1, Math.floor(M / 240)),` |
 | 3056 | `cmp < → <=` | `for (let s = 0; s < M; s += step) overlay.push({ t: s, ecg: isFinite(ecg` |
 | 3100 | `cmp < → <=` | `if (!hrRaw \|\| !edrRaw \|\| hrRaw.length < N) return null; // too short to ` |
-| 3100 | `bool || → &&` | `if (!hrRaw \|\| !edrRaw \|\| hrRaw.length < N) return null; // too short to ` |
-| 3100 | `bool || → &&` | `if (!hrRaw \|\| !edrRaw \|\| hrRaw.length < N) return null; // too short to ` |
+| 3100 | `bool \|\| → &&` | `if (!hrRaw \|\| !edrRaw \|\| hrRaw.length < N) return null; // too short to ` |
+| 3100 | `bool \|\| → &&` | `if (!hrRaw \|\| !edrRaw \|\| hrRaw.length < N) return null; // too short to ` |
 | 3100 | `negate: drop !` | `if (!hrRaw \|\| !edrRaw \|\| hrRaw.length < N) return null; // too short to ` |
 | 3100 | `negate: drop !` | `if (!hrRaw \|\| !edrRaw \|\| hrRaw.length < N) return null; // too short to ` |
 | 3102 | `cmp >= → >` | `const bandOf = (fHz) => (fHz >= 0.1 && fHz <= 0.4 ? 'hfc' : fHz >= 0.01 ` |
 | 3102 | `cmp >= → >` | `const bandOf = (fHz) => (fHz >= 0.1 && fHz <= 0.4 ? 'hfc' : fHz >= 0.01 ` |
 | 3102 | `cmp >= → >` | `const bandOf = (fHz) => (fHz >= 0.1 && fHz <= 0.4 ? 'hfc' : fHz >= 0.01 ` |
-| 3102 | `bool && → ||` | `const bandOf = (fHz) => (fHz >= 0.1 && fHz <= 0.4 ? 'hfc' : fHz >= 0.01 ` |
+| 3102 | `bool && → \|\|` | `const bandOf = (fHz) => (fHz >= 0.1 && fHz <= 0.4 ? 'hfc' : fHz >= 0.01 ` |
 | 3102 | `num → 0` | `const bandOf = (fHz) => (fHz >= 0.1 && fHz <= 0.4 ? 'hfc' : fHz >= 0.01 ` |
 | 3102 | `cmp <= → <` | `const bandOf = (fHz) => (fHz >= 0.1 && fHz <= 0.4 ? 'hfc' : fHz >= 0.01 ` |
 | 3102 | `num → 0` | `const bandOf = (fHz) => (fHz >= 0.1 && fHz <= 0.4 ? 'hfc' : fHz >= 0.01 ` |
@@ -879,7 +880,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3152 | `cmp <= → <` | `for (let j = Math.max(1, k - H); j <= Math.min((N >> 1) - 1, k + H); j++` |
 | 3159 | `cmp <= → <` | `if (pxx <= 0 \|\| pyy <= 0) continue;` |
 | 3159 | `cmp <= → <` | `if (pxx <= 0 \|\| pyy <= 0) continue;` |
-| 3159 | `bool || → &&` | `if (pxx <= 0 \|\| pyy <= 0) continue;` |
+| 3159 | `bool \|\| → &&` | `if (pxx <= 0 \|\| pyy <= 0) continue;` |
 | 3165 | `cmp <= → <` | `if (bandPow.hfc + bandPow.lfc + bandPow.vlfc <= 0) continue;` |
 | 3179 | `negate: drop !` | `if (!windows) return null;` |
 | 3180 | `num → 0` | `const pct = (k) => +((100 * counts[k]) / windows).toFixed(1); // counts[` |
@@ -891,41 +892,41 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3214 | `cmp > → >=` | `if (ac[lag] > best) {` |
 | 3219 | `cmp > → >=` | `if (!(bestLag > 0 && best > 0.1)) return null;` |
 | 3219 | `cmp > → >=` | `if (!(bestLag > 0 && best > 0.1)) return null;` |
-| 3219 | `bool && → ||` | `if (!(bestLag > 0 && best > 0.1)) return null;` |
+| 3219 | `bool && → \|\|` | `if (!(bestLag > 0 && best > 0.1)) return null;` |
 | 3219 | `num → 0` | `if (!(bestLag > 0 && best > 0.1)) return null;` |
 | 3250 | `cmp <= → <` | `if (half >= start && half <= maxL && ac[half] > 0.5 * best) {` |
 | 3250 | `cmp > → >=` | `if (half >= start && half <= maxL && ac[half] > 0.5 * best) {` |
 | 3264 | `cmp > → >=` | `if (bestLag > 0 && bestLag < maxL) {` |
 | 3264 | `cmp < → <=` | `if (bestLag > 0 && bestLag < maxL) {` |
-| 3264 | `bool && → ||` | `if (bestLag > 0 && bestLag < maxL) {` |
+| 3264 | `bool && → \|\|` | `if (bestLag > 0 && bestLag < maxL) {` |
 | 3269 | `cmp < → <=` | `if (curv < 0) {` |
 | 3271 | `cmp > → >=` | `if (delta > -1 && delta < 1) refined = bestLag + delta; // never leaves ` |
 | 3271 | `cmp < → <=` | `if (delta > -1 && delta < 1) refined = bestLag + delta; // never leaves ` |
-| 3271 | `bool && → ||` | `if (delta > -1 && delta < 1) refined = bestLag + delta; // never leaves ` |
+| 3271 | `bool && → \|\|` | `if (delta > -1 && delta < 1) refined = bestLag + delta; // never leaves ` |
 | 3278 | `num → 0` | `const lp = _maHalf(x, Math.max(1, Math.round((0.8 * fs) / 2)));` |
 | 3281 | `cmp < → <=` | `for (let i = 0; i < x.length; i++) o[i] = lp[i] - base[i];` |
 | 3294 | `cmp > → >=` | `if (Math.abs(uz) >= 0.7) label = uz > 0 ? 'Supine' : 'Prone';` |
 | 3295 | `cmp > → >=` | `else if (Math.abs(uy) >= 0.55) label = uy > 0 ? 'Upright' : 'Head-down';` |
 | 3295 | `cmp >= → >` | `else if (Math.abs(uy) >= 0.55) label = uy > 0 ? 'Upright' : 'Head-down';` |
 | 3296 | `cmp > → >=` | `else label = ux > 0 ? 'Left side' : 'Right side';` |
-| 3324 | `bool || → &&` | `if (!epochs \|\| !epochs.length) return [];` |
-| 3325 | `bool || → &&` | `const fs = accFs \|\| 4;` |
+| 3324 | `bool \|\| → &&` | `if (!epochs \|\| !epochs.length) return [];` |
+| 3325 | `bool \|\| → &&` | `const fs = accFs \|\| 4;` |
 | 3326 | `cmp < → <=` | `if (!deviceACC \|\| deviceACC.length < fs * 30) {` |
 | 3326 | `num → 0` | `if (!deviceACC \|\| deviceACC.length < fs * 30) {` |
-| 3335 | `bool && → ||` | `const baseOffset = ecgT0Ms && deviceACC[0].tsMs ? (deviceACC[0].tsMs - e` |
+| 3335 | `bool && → \|\|` | `const baseOffset = ecgT0Ms && deviceACC[0].tsMs ? (deviceACC[0].tsMs - e` |
 | 3335 | `num → 0` | `const baseOffset = ecgT0Ms && deviceACC[0].tsMs ? (deviceACC[0].tsMs - e` |
 | 3336 | `cmp >= → >` | `const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;` |
 | 3336 | `cmp <= → <` | `const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;` |
-| 3336 | `bool && → ||` | `const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;` |
+| 3336 | `bool && → \|\|` | `const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;` |
 | 3345 | `cmp < → <=` | `for (let i = s0; i < s1; i++) {` |
 | 3351 | `num → 0` | `const pos = ex.length > fs * 30 ? _normPosition(_posture(median(ex), med` |
 | 3351 | `cmp > → >=` | `const pos = ex.length > fs * 30 ? _normPosition(_posture(median(ex), med` |
 | 3365 | `cmp < → <=` | `for (let i = 0; i < deviceACC.length; i++) vm[i] = Math.hypot(xs[i], ys[` |
-| 3366 | `bool && → ||` | `const baseOffset = ecgT0Ms && deviceACC[0].tsMs ? (deviceACC[0].tsMs - e` |
+| 3366 | `bool && → \|\|` | `const baseOffset = ecgT0Ms && deviceACC[0].tsMs ? (deviceACC[0].tsMs - e` |
 | 3366 | `num → 0` | `const baseOffset = ecgT0Ms && deviceACC[0].tsMs ? (deviceACC[0].tsMs - e` |
 | 3367 | `cmp >= → >` | `const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;` |
 | 3367 | `cmp <= → <` | `const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;` |
-| 3367 | `bool && → ||` | `const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;` |
+| 3367 | `bool && → \|\|` | `const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;` |
 | 3372 | `num → 0` | `const winN = Math.min(vm.length, Math.round(Math.min(durSec, 120) * fs))` |
 | 3375 | `cmp > → >=` | `if (vm.length > winN) {` |
 | 3376 | `num → 0` | `const stepN = Math.max(1, Math.round(10 * fs));` |
@@ -951,12 +952,12 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3443 | `cmp < → <=` | `for (let i = Math.max(0, s0); i < Math.min(vm.length, s1); i++) {` |
 | 3449 | `cmp > → >=` | `if (seg.length > fs * 30) {` |
 | 3449 | `num → 0` | `if (seg.length > fs * 30) {` |
-| 3450 | `bool || → &&` | `actSeries.push({ tMin: e.tMin, act: +std(seg).toFixed(1), resp: e.resp \|` |
+| 3450 | `bool \|\| → &&` | `actSeries.push({ tMin: e.tMin, act: +std(seg).toFixed(1), resp: e.resp \|` |
 | 3458 | `cmp > → >=` | `const highMotion = actSeries.filter((a) => a.act > actMed * 2.2).map((a)` |
 | 3458 | `num → 0` | `const highMotion = actSeries.filter((a) => a.act > actMed * 2.2).map((a)` |
-| 3464 | `bool || → &&` | `postureTally[ps.label] = (postureTally[ps.label] \|\| 0) + 1;` |
+| 3464 | `bool \|\| → &&` | `postureTally[ps.label] = (postureTally[ps.label] \|\| 0) + 1;` |
 | 3465 | `eq !== → ===` | `if (prev && prev !== ps.label) transitions++;` |
-| 3465 | `bool && → ||` | `if (prev && prev !== ps.label) transitions++;` |
+| 3465 | `bool && → \|\|` | `if (prev && prev !== ps.label) transitions++;` |
 | 3469 | `num → 0` | `.map(([label, n]) => ({ label, pct: Math.round((n / postureSeries.length` |
 | 3504 | `cmp < → <=` | `for (let i = 1, j = 0; i < n; i++) {` |
 | 3506 | `cmp >= → >` | `for (; j & bit; bit >>= 1) j ^= bit;` |
@@ -972,7 +973,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3598 | `cmp > → >=` | `useRs = fs > WR + 0.5,` |
 | 3602 | `num → 0` | `const half = Math.max(1, Math.round(2.5 * wfs)),` |
 | 3604 | `cmp < → <=` | `for (let i = 0; i < N; i++) {` |
-| 3612 | `bool || → &&` | `if (epochLen < 8 \|\| N < epochLen) return [];` |
+| 3612 | `bool \|\| → &&` | `if (epochLen < 8 \|\| N < epochLen) return [];` |
 | 3612 | `cmp < → <=` | `if (epochLen < 8 \|\| N < epochLen) return [];` |
 | 3612 | `cmp < → <=` | `if (epochLen < 8 \|\| N < epochLen) return [];` |
 | 3614 | `cmp < → <=` | `while (nf < epochLen) nf <<= 1;` |
@@ -986,8 +987,8 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3645 | `cmp < → <=` | `for (let b = 1; b < half2; b++) {` |
 | 3646 | `cmp > → >=` | `if (b < loBin \|\| b > hiBin) {` |
 | 3646 | `cmp < → <=` | `if (b < loBin \|\| b > hiBin) {` |
-| 3646 | `bool || → &&` | `if (b < loBin \|\| b > hiBin) {` |
-| 3652 | `bool || → &&` | `snrDb = 10 * Math.log10((peak \|\| 1e-12) / (obMean \|\| 1e-12));` |
+| 3646 | `bool \|\| → &&` | `if (b < loBin \|\| b > hiBin) {` |
+| 3652 | `bool \|\| → &&` | `snrDb = 10 * Math.log10((peak \|\| 1e-12) / (obMean \|\| 1e-12));` |
 | 3652 | `num → 0` | `snrDb = 10 * Math.log10((peak \|\| 1e-12) / (obMean \|\| 1e-12));` |
 | 3652 | `num → 0` | `snrDb = 10 * Math.log10((peak \|\| 1e-12) / (obMean \|\| 1e-12));` |
 | 3653 | `cmp >= → >` | `out.push({ tStartMin: +((e * 30 - off) / 60).toFixed(2), rr: +(peakBin *` |
@@ -998,11 +999,11 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3679 | `cmp < → <=` | `for (let i = 1; i < N - 1; i++) {` |
 | 3680 | `cmp > → >=` | `if (F[i] > F[i - 1] && F[i] >= F[i + 1]) {` |
 | 3680 | `cmp >= → >` | `if (F[i] > F[i - 1] && F[i] >= F[i + 1]) {` |
-| 3680 | `bool && → ||` | `if (F[i] > F[i - 1] && F[i] >= F[i + 1]) {` |
+| 3680 | `bool && → \|\|` | `if (F[i] > F[i - 1] && F[i] >= F[i + 1]) {` |
 | 3682 | `num → 0` | `thr = 0.6 * rms;` |
 | 3683 | `cmp > → >=` | `if (F[i] > thr && i - lastPk >= minGap) {` |
 | 3683 | `cmp >= → >` | `if (F[i] > thr && i - lastPk >= minGap) {` |
-| 3683 | `bool && → ||` | `if (F[i] > thr && i - lastPk >= minGap) {` |
+| 3683 | `bool && → \|\|` | `if (F[i] > thr && i - lastPk >= minGap) {` |
 | 3687 | `cmp > → >=` | `if (recent.length > 10) recent.shift();` |
 | 3687 | `num → 0` | `if (recent.length > 10) recent.shift();` |
 | 3694 | `cmp < → <=` | `for (let k = 0; k < peaks.length; k++) {` |
@@ -1011,18 +1012,18 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3701 | `num → 0` | `if (cur.length >= 10) bouts.push(cur);` |
 | 3705 | `num → 0` | `if (cur.length >= 10) bouts.push(cur);` |
 | 3705 | `cmp >= → >` | `if (cur.length >= 10) bouts.push(cur);` |
-| 3707 | `bool || → &&` | `const durS = (b[b.length - 1] - b[0]) / fs \|\| 1,` |
+| 3707 | `bool \|\| → &&` | `const durS = (b[b.length - 1] - b[0]) / fs \|\| 1,` |
 | 3709 | `cmp < → <=` | `for (let k = 1; k < b.length; k++) {` |
 | 3711 | `cmp > → >=` | `if (dt > 0) cad.push(60 / dt);` |
 | 3714 | `cmp > → >=` | `cv = cad.length > 1 && mc > 0 ? (std(cad) / mc) * 100 : 0;` |
 | 3714 | `cmp > → >=` | `cv = cad.length > 1 && mc > 0 ? (std(cad) / mc) * 100 : 0;` |
-| 3714 | `bool && → ||` | `cv = cad.length > 1 && mc > 0 ? (std(cad) / mc) * 100 : 0;` |
+| 3714 | `bool && → \|\|` | `cv = cad.length > 1 && mc > 0 ? (std(cad) / mc) * 100 : 0;` |
 | 3714 | `num → 0` | `cv = cad.length > 1 && mc > 0 ? (std(cad) / mc) * 100 : 0;` |
 | 3715 | `num → 0` | `return { startMin: +((b[0] / fs - off) / 60).toFixed(2), durSec: +durS.t` |
 | 3720 | `cmp <= → <` | `for (let e = 0; (e + 1) * epLen <= N; e++) {` |
 | 3725 | `cmp < → <=` | `if (p >= s0 && p < s1) c++;` |
 | 3725 | `cmp >= → >` | `if (p >= s0 && p < s1) c++;` |
-| 3725 | `bool && → ||` | `if (p >= s0 && p < s1) c++;` |
+| 3725 | `bool && → \|\|` | `if (p >= s0 && p < s1) c++;` |
 | 3727 | `num → 0` | `cadEp.push({ tMin: +((e * 60 - off) / 60).toFixed(2), cadence: c });` |
 | 3727 | `num → 0` | `cadEp.push({ tMin: +((e * 60 - off) / 60).toFixed(2), cadence: c });` |
 | 3731 | `num → 0` | `['Sedentary', 0, 20, 'gray'],` |
@@ -1034,56 +1035,56 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3735 | `num → 0` | `['Vigorous', 120, 1e9, 'red']` |
 | 3741 | `cmp >= → >` | `if (c.cadence >= z[1] && c.cadence < z[2]) {` |
 | 3741 | `cmp < → <=` | `if (c.cadence >= z[1] && c.cadence < z[2]) {` |
-| 3741 | `bool && → ||` | `if (c.cadence >= z[1] && c.cadence < z[2]) {` |
+| 3741 | `bool && → \|\|` | `if (c.cadence >= z[1] && c.cadence < z[2]) {` |
 | 3749 | `cmp >= → >` | `return { totalSteps, walking: totalSteps >= 50, accFs: fs, bouts: boutOb` |
 | 3749 | `num → 0` | `return { totalSteps, walking: totalSteps >= 50, accFs: fs, bouts: boutOb` |
-| 3765 | `bool || → &&` | `opts = opts \|\| {};` |
+| 3765 | `bool \|\| → &&` | `opts = opts \|\| {};` |
 | 3768 | `num → 0` | `const minGapSec = opts.minGapSec != null ? opts.minGapSec : 30;` |
-| 3769 | `bool || → &&` | `if (!grid \|\| !grid.length \|\| !(dtSec > 0)) return [];` |
+| 3769 | `bool \|\| → &&` | `if (!grid \|\| !grid.length \|\| !(dtSec > 0)) return [];` |
 | 3769 | `cmp > → >=` | `if (!grid \|\| !grid.length \|\| !(dtSec > 0)) return [];` |
-| 3769 | `bool || → &&` | `if (!grid \|\| !grid.length \|\| !(dtSec > 0)) return [];` |
+| 3769 | `bool \|\| → &&` | `if (!grid \|\| !grid.length \|\| !(dtSec > 0)) return [];` |
 | 3779 | `cmp < → <=` | `for (let i = 0; i < n; i++) {` |
-| 3783 | `bool || → &&` | `const sd = Math.sqrt(v / n) \|\| 1;` |
+| 3783 | `bool \|\| → &&` | `const sd = Math.sqrt(v / n) \|\| 1;` |
 | 3788 | `cmp < → <=` | `if (grid[c] < thr) continue;` |
 | 3790 | `cmp <= → <` | `for (let k = c - localBins; k <= c + localBins; k++) {` |
 | 3791 | `cmp >= → >` | `if (k >= 0 && k < n && grid[k] > grid[c]) {` |
 | 3791 | `cmp < → <=` | `if (k >= 0 && k < n && grid[k] > grid[c]) {` |
 | 3798 | `cmp < → <=` | `if (sec - last < minGapSec) continue;` |
 | 3810 | `cmp < → <=` | `if (!deviceACC \|\| deviceACC.length < fs * 30) return null;` |
-| 3810 | `bool || → &&` | `if (!deviceACC \|\| deviceACC.length < fs * 30) return null;` |
+| 3810 | `bool \|\| → &&` | `if (!deviceACC \|\| deviceACC.length < fs * 30) return null;` |
 | 3810 | `num → 0` | `if (!deviceACC \|\| deviceACC.length < fs * 30) return null;` |
 | 3816 | `cmp < → <=` | `for (let i = 0; i < N; i++) vm[i] = Math.hypot(xs[i], ys[i], zs[i]);` |
-| 3817 | `bool && → ||` | `const baseOffset = ecgT0Ms && deviceACC[0].tsMs ? (deviceACC[0].tsMs - e` |
+| 3817 | `bool && → \|\|` | `const baseOffset = ecgT0Ms && deviceACC[0].tsMs ? (deviceACC[0].tsMs - e` |
 | 3817 | `num → 0` | `const baseOffset = ecgT0Ms && deviceACC[0].tsMs ? (deviceACC[0].tsMs - e` |
 | 3818 | `cmp >= → >` | `const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;` |
-| 3818 | `bool && → ||` | `const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;` |
+| 3818 | `bool && → \|\|` | `const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;` |
 | 3818 | `cmp <= → <` | `const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;` |
 | 3833 | `cmp < → <=` | `for (let i = 1; i < N; i++) {` |
 | 3835 | `negate: drop !` | `if (!Number.isFinite(d)) continue;` |
 | 3837 | `cmp >= → >` | `if (g >= 0 && g < _mvN && d > _mvGrid[g]) _mvGrid[g] = d;` |
 | 3837 | `cmp > → >=` | `if (g >= 0 && g < _mvN && d > _mvGrid[g]) _mvGrid[g] = d;` |
-| 3837 | `bool && → ||` | `if (g >= 0 && g < _mvN && d > _mvGrid[g]) _mvGrid[g] = d;` |
+| 3837 | `bool && → \|\|` | `if (g >= 0 && g < _mvN && d > _mvGrid[g]) _mvGrid[g] = d;` |
 | 3837 | `cmp < → <=` | `if (g >= 0 && g < _mvN && d > _mvGrid[g]) _mvGrid[g] = d;` |
-| 3837 | `bool && → ||` | `if (g >= 0 && g < _mvN && d > _mvGrid[g]) _mvGrid[g] = d;` |
+| 3837 | `bool && → \|\|` | `if (g >= 0 && g < _mvN && d > _mvGrid[g]) _mvGrid[g] = d;` |
 | 3845 | `cmp > → >=` | `? { mean: rrVals.length ? +mean(rrVals).toFixed(1) : null, sd: rrVals.le` |
 | 3845 | `num → 0` | `? { mean: rrVals.length ? +mean(rrVals).toFixed(1) : null, sd: rrVals.le` |
 | 3850 | `cmp > → >=` | `const edrEp = (epochs \|\| []).filter((e) => e.resp > 0).map((e) => ({ tMi` |
-| 3851 | `bool && → ||` | `if (rracc.length && edrEp.length) {` |
+| 3851 | `bool && → \|\|` | `if (rracc.length && edrEp.length) {` |
 | 3854 | `cmp >= → >` | `const inWin = hi.filter((r) => r.tStartMin >= ep.tMin && r.tStartMin < e` |
-| 3854 | `bool && → ||` | `const inWin = hi.filter((r) => r.tStartMin >= ep.tMin && r.tStartMin < e` |
+| 3854 | `bool && → \|\|` | `const inWin = hi.filter((r) => r.tStartMin >= ep.tMin && r.tStartMin < e` |
 | 3854 | `cmp < → <=` | `const inWin = hi.filter((r) => r.tStartMin >= ep.tMin && r.tStartMin < e` |
 | 3857 | `cmp >= → >` | `if (pairs.length >= 3) {` |
 | 3869 | `cmp < → <=` | `for (let i = 0; i < pairs.length; i++) {` |
 | 3876 | `cmp > → >=` | `const r = da > 0 && de > 0 ? num / Math.sqrt(da * de) : 0,` |
 | 3876 | `cmp > → >=` | `const r = da > 0 && de > 0 ? num / Math.sqrt(da * de) : 0,` |
-| 3876 | `bool && → ||` | `const r = da > 0 && de > 0 ? num / Math.sqrt(da * de) : 0,` |
+| 3876 | `bool && → \|\|` | `const r = da > 0 && de > 0 ? num / Math.sqrt(da * de) : 0,` |
 | 3877 | `cmp > → >=` | `disagree = deltas.filter((x) => Math.abs(x) > 3).length;` |
 | 3884 | `num → 0` | `disagreeRate: Math.round((disagree / pairs.length) * 100),` |
 | 3885 | `num → 0` | `loa: [+(md - 1.96 * sdd).toFixed(1), +(md + 1.96 * sdd).toFixed(1)],` |
 | 3885 | `num → 0` | `loa: [+(md - 1.96 * sdd).toFixed(1), +(md + 1.96 * sdd).toFixed(1)],` |
-| 3893 | `bool && → ||` | `if (epochs && epochs.length && stages && stages.length) {` |
-| 3893 | `bool && → ||` | `if (epochs && epochs.length && stages && stages.length) {` |
-| 3893 | `bool && → ||` | `if (epochs && epochs.length && stages && stages.length) {` |
+| 3893 | `bool && → \|\|` | `if (epochs && epochs.length && stages && stages.length) {` |
+| 3893 | `bool && → \|\|` | `if (epochs && epochs.length && stages && stages.length) {` |
+| 3893 | `bool && → \|\|` | `if (epochs && epochs.length && stages && stages.length) {` |
 | 3899 | `cmp < → <=` | `for (let i = 1; i < N; i++) dmv[i] = Math.abs(vm[i] - vm[i - 1]);` |
 | 3906 | `cmp < → <=` | `for (let i = Math.max(1, s0); i < Math.min(N, s1); i++) {` |
 | 3917 | `cmp > → >=` | `rawMot.push({ tMin: e.tMin, act: c > fs * 30 ? a / c : null });` |
@@ -1094,98 +1095,98 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3977 | `num → 0` | `if (nVoted >= 3) consensus = { rate: Math.round((agreed / nVoted) * 100)` |
 | 4098 | `num → 0` | `var cap = 1 << 16,` |
 | 4131 | `cmp < → <=` | `for (var hli = 0; hli < lines.length; hli++) {` |
-| 4136 | `cmp < → <=` | `for (var hc = 0; hc < hp.length; hc++) if (/sensor\s*timestamp/i.test(hp` |
+| 4136 | `cmp < → <=` | `for (var hc = 0; hc < hp.length; hc++) if (/sensor\\s*timestamp/i.test(hp` |
 | 4145 | `cmp >= → >` | `if (n >= cap) {` |
 | 4170 | `cmp > → >=` | `if (nsCol !== null && p.length > nsCol) {` |
-| 4170 | `bool && → ||` | `if (nsCol !== null && p.length > nsCol) {` |
-| 4178 | `bool || → &&` | `var rawNs = nsRaw === '' \|\| nsRaw == null ? NaN : Number(nsRaw);` |
+| 4170 | `bool && → \|\|` | `if (nsCol !== null && p.length > nsCol) {` |
+| 4178 | `bool \|\| → &&` | `var rawNs = nsRaw === '' \|\| nsRaw == null ? NaN : Number(nsRaw);` |
 | 4184 | `cmp < → <=` | `if (dn > 0 && dn < 50) {` |
 | 4199 | `cmp >= → >` | `if (p.length >= 3) {` |
 | 4205 | `cmp > → >=` | `if (d > 0) {` |
 | 4206 | `cmp < → <=` | `if (msStep === null && d < 50) msStep = d; // provisional step — anchors` |
-| 4206 | `bool && → ||` | `if (msStep === null && d < 50) msStep = d; // provisional step — anchors` |
+| 4206 | `bool && → \|\|` | `if (msStep === null && d < 50) msStep = d; // provisional step — anchors` |
 | 4207 | `cmp > → >=` | `if (msStep && d > msStep * 2.5) {` |
 | 4220 | `cmp < → <=` | `} else if (d < 50) {` |
 | 4233 | `cmp >= → >` | `if (t0Ms !== null && firstRelMs !== null && p.length >= 3 && (n === 1 \|\|` |
 | 4233 | `eq === → !==` | `if (t0Ms !== null && firstRelMs !== null && p.length >= 3 && (n === 1 \|\|` |
 | 4233 | `eq === → !==` | `if (t0Ms !== null && firstRelMs !== null && p.length >= 3 && (n === 1 \|\|` |
-| 4233 | `bool && → ||` | `if (t0Ms !== null && firstRelMs !== null && p.length >= 3 && (n === 1 \|\|` |
-| 4233 | `bool && → ||` | `if (t0Ms !== null && firstRelMs !== null && p.length >= 3 && (n === 1 \|\|` |
-| 4233 | `bool && → ||` | `if (t0Ms !== null && firstRelMs !== null && p.length >= 3 && (n === 1 \|\|` |
+| 4233 | `bool && → \|\|` | `if (t0Ms !== null && firstRelMs !== null && p.length >= 3 && (n === 1 \|\|` |
+| 4233 | `bool && → \|\|` | `if (t0Ms !== null && firstRelMs !== null && p.length >= 3 && (n === 1 \|\|` |
+| 4233 | `bool && → \|\|` | `if (t0Ms !== null && firstRelMs !== null && p.length >= 3 && (n === 1 \|\|` |
 | 4241 | `eq !== → ===` | `if (aTs && aTs.tMs != null && (isFinite(aRel) \|\| devNsMs !== null)) {` |
-| 4241 | `bool && → ||` | `if (aTs && aTs.tMs != null && (isFinite(aRel) \|\| devNsMs !== null)) {` |
-| 4241 | `bool || → &&` | `if (aTs && aTs.tMs != null && (isFinite(aRel) \|\| devNsMs !== null)) {` |
-| 4241 | `bool && → ||` | `if (aTs && aTs.tMs != null && (isFinite(aRel) \|\| devNsMs !== null)) {` |
-| 4244 | `bool && → ||` | `devNs: devNsMs !== null && firstNsMs !== null ? devNsMs - firstNsMs : nu` |
+| 4241 | `bool && → \|\|` | `if (aTs && aTs.tMs != null && (isFinite(aRel) \|\| devNsMs !== null)) {` |
+| 4241 | `bool \|\| → &&` | `if (aTs && aTs.tMs != null && (isFinite(aRel) \|\| devNsMs !== null)) {` |
+| 4241 | `bool && → \|\|` | `if (aTs && aTs.tMs != null && (isFinite(aRel) \|\| devNsMs !== null)) {` |
+| 4244 | `bool && → \|\|` | `devNs: devNsMs !== null && firstNsMs !== null ? devNsMs - firstNsMs : nu` |
 | 4271 | `cmp > → >=` | `else if (msStep && msStep > 0) fs = Math.round(1000 / msStep);` |
-| 4271 | `bool && → ||` | `else if (msStep && msStep > 0) fs = Math.round(1000 / msStep);` |
+| 4271 | `bool && → \|\|` | `else if (msStep && msStep > 0) fs = Math.round(1000 / msStep);` |
 | 4271 | `num → 0` | `else if (msStep && msStep > 0) fs = Math.round(1000 / msStep);` |
-| 4275 | `bool && → ||` | `if (av != null && isFinite(av)) ecgAxisPicked.push({ devMs: av, hostMs: ` |
-| 4313 | `bool && → ||` | `var ecgHostAx = typeof DexClock !== 'undefined' && DexClock.hostAxis ? D` |
+| 4275 | `bool && → \|\|` | `if (av != null && isFinite(av)) ecgAxisPicked.push({ devMs: av, hostMs: ` |
+| 4313 | `bool && → \|\|` | `var ecgHostAx = typeof DexClock !== 'undefined' && DexClock.hostAxis ? D` |
 | 4318 | `cmp >= → >` | `var ecgAxisSpanMs = ecgAxisAnchors.length >= 2 ? ecgAxisAnchors[ecgAxisA` |
 | 4332 | `cmp >= → >` | `if (ecgHostAx.ok && ecgHostAx.independent !== false && isFinite(ecgHostA` |
-| 4426 | `bool || → &&` | `stability: ecgHostAx.stability \|\| null,` |
+| 4426 | `bool \|\| → &&` | `stability: ecgHostAx.stability \|\| null,` |
 | 4429 | `num → 0` | `: 'span ' + Math.round(ecgAxisSpanMs / 1000) + ' s < ' + ECG_AXIS_MIN_SP` |
 | 4429 | `num → 0` | `: 'span ' + Math.round(ecgAxisSpanMs / 1000) + ' s < ' + ECG_AXIS_MIN_SP` |
-| 4431 | `bool || → &&` | `: { ok: false, applied: false, reason: ecgHostAx.reason \|\| 'no host anch` |
-| 4445 | `bool || → &&` | `if (!rec \|\| rec.t0Ms == null \|\| !isFinite(rec.t0Ms)) return null;` |
-| 4445 | `bool || → &&` | `if (!rec \|\| rec.t0Ms == null \|\| !isFinite(rec.t0Ms)) return null;` |
-| 4447 | `bool || → &&` | `if (!Array.isArray(gaps) \|\| !gaps.length) return null; // contiguous ⇒ n` |
+| 4431 | `bool \|\| → &&` | `: { ok: false, applied: false, reason: ecgHostAx.reason \|\| 'no host anch` |
+| 4445 | `bool \|\| → &&` | `if (!rec \|\| rec.t0Ms == null \|\| !isFinite(rec.t0Ms)) return null;` |
+| 4445 | `bool \|\| → &&` | `if (!rec \|\| rec.t0Ms == null \|\| !isFinite(rec.t0Ms)) return null;` |
+| 4447 | `bool \|\| → &&` | `if (!Array.isArray(gaps) \|\| !gaps.length) return null; // contiguous ⇒ n` |
 | 4448 | `cmp > → >=` | `var fs = rec.fs > 0 ? rec.fs : 130;` |
 | 4448 | `num → 0` | `var fs = rec.fs > 0 ? rec.fs : 130;` |
-| 4449 | `bool && → ||` | `var nSamp = rec.int16 && rec.int16.length != null ? rec.int16.length : n` |
-| 4452 | `bool && → ||` | `if (rec.firstRelMs != null && isFinite(rec.firstRelMs) && rec.lastRelMs ` |
-| 4452 | `bool && → ||` | `if (rec.firstRelMs != null && isFinite(rec.firstRelMs) && rec.lastRelMs ` |
-| 4452 | `bool && → ||` | `if (rec.firstRelMs != null && isFinite(rec.firstRelMs) && rec.lastRelMs ` |
-| 4452 | `bool && → ||` | `if (rec.firstRelMs != null && isFinite(rec.firstRelMs) && rec.lastRelMs ` |
-| 4452 | `bool && → ||` | `if (rec.firstRelMs != null && isFinite(rec.firstRelMs) && rec.lastRelMs ` |
+| 4449 | `bool && → \|\|` | `var nSamp = rec.int16 && rec.int16.length != null ? rec.int16.length : n` |
+| 4452 | `bool && → \|\|` | `if (rec.firstRelMs != null && isFinite(rec.firstRelMs) && rec.lastRelMs ` |
+| 4452 | `bool && → \|\|` | `if (rec.firstRelMs != null && isFinite(rec.firstRelMs) && rec.lastRelMs ` |
+| 4452 | `bool && → \|\|` | `if (rec.firstRelMs != null && isFinite(rec.firstRelMs) && rec.lastRelMs ` |
+| 4452 | `bool && → \|\|` | `if (rec.firstRelMs != null && isFinite(rec.firstRelMs) && rec.lastRelMs ` |
+| 4452 | `bool && → \|\|` | `if (rec.firstRelMs != null && isFinite(rec.firstRelMs) && rec.lastRelMs ` |
 | 4456 | `cmp < → <=` | `for (var i = 0; i < gaps.length; i++) {` |
-| 4458 | `bool || → &&` | `if (!g \|\| g.atRelMs == null \|\| !isFinite(g.atRelMs) \|\| g.endRelMs == nul` |
-| 4458 | `bool || → &&` | `if (!g \|\| g.atRelMs == null \|\| !isFinite(g.atRelMs) \|\| g.endRelMs == nul` |
-| 4458 | `bool || → &&` | `if (!g \|\| g.atRelMs == null \|\| !isFinite(g.atRelMs) \|\| g.endRelMs == nul` |
-| 4458 | `bool || → &&` | `if (!g \|\| g.atRelMs == null \|\| !isFinite(g.atRelMs) \|\| g.endRelMs == nul` |
+| 4458 | `bool \|\| → &&` | `if (!g \|\| g.atRelMs == null \|\| !isFinite(g.atRelMs) \|\| g.endRelMs == nul` |
+| 4458 | `bool \|\| → &&` | `if (!g \|\| g.atRelMs == null \|\| !isFinite(g.atRelMs) \|\| g.endRelMs == nul` |
+| 4458 | `bool \|\| → &&` | `if (!g \|\| g.atRelMs == null \|\| !isFinite(g.atRelMs) \|\| g.endRelMs == nul` |
+| 4458 | `bool \|\| → &&` | `if (!g \|\| g.atRelMs == null \|\| !isFinite(g.atRelMs) \|\| g.endRelMs == nul` |
 | 4461 | `cmp > → >=` | `if (!(ge > gs)) continue;` |
 | 4462 | `cmp > → >=` | `if (gs > cur) segs.push([t0 + cur, t0 + gs]);` |
 | 4466 | `cmp > → >=` | `if (endOff > cur) segs.push([t0 + cur, t0 + endOff]);` |
 | 4481 | `cmp > → >=` | `return x && x.idx != null && isFinite(x.idx) && x.ms != null && isFinite` |
-| 4481 | `bool && → ||` | `return x && x.idx != null && isFinite(x.idx) && x.ms != null && isFinite` |
-| 4481 | `bool && → ||` | `return x && x.idx != null && isFinite(x.idx) && x.ms != null && isFinite` |
-| 4481 | `bool && → ||` | `return x && x.idx != null && isFinite(x.idx) && x.ms != null && isFinite` |
-| 4481 | `bool && → ||` | `return x && x.idx != null && isFinite(x.idx) && x.ms != null && isFinite` |
-| 4481 | `bool && → ||` | `return x && x.idx != null && isFinite(x.idx) && x.ms != null && isFinite` |
+| 4481 | `bool && → \|\|` | `return x && x.idx != null && isFinite(x.idx) && x.ms != null && isFinite` |
+| 4481 | `bool && → \|\|` | `return x && x.idx != null && isFinite(x.idx) && x.ms != null && isFinite` |
+| 4481 | `bool && → \|\|` | `return x && x.idx != null && isFinite(x.idx) && x.ms != null && isFinite` |
+| 4481 | `bool && → \|\|` | `return x && x.idx != null && isFinite(x.idx) && x.ms != null && isFinite` |
+| 4481 | `bool && → \|\|` | `return x && x.idx != null && isFinite(x.idx) && x.ms != null && isFinite` |
 | 4491 | `cmp > → >=` | `if (dataMs > 0) segs.push([t0 + wall, t0 + wall + dataMs]);` |
 | 4496 | `cmp > → >=` | `if (tailMs > 0) segs.push([t0 + wall, t0 + wall + tailMs]);` |
-| 4498 | `bool && → ||` | `return typeof DexExport !== 'undefined' && DexExport && DexExport.covera` |
-| 4498 | `bool && → ||` | `return typeof DexExport !== 'undefined' && DexExport && DexExport.covera` |
+| 4498 | `bool && → \|\|` | `return typeof DexExport !== 'undefined' && DexExport && DexExport.covera` |
+| 4498 | `bool && → \|\|` | `return typeof DexExport !== 'undefined' && DexExport && DexExport.covera` |
 | 4518 | `cmp < → <=` | `if (!isFinite(rr) \|\| rr < 200 \|\| rr > 3000) continue;` |
 | 4518 | `cmp > → >=` | `if (!isFinite(rr) \|\| rr < 200 \|\| rr > 3000) continue;` |
-| 4518 | `bool || → &&` | `if (!isFinite(rr) \|\| rr < 200 \|\| rr > 3000) continue;` |
-| 4518 | `bool || → &&` | `if (!isFinite(rr) \|\| rr < 200 \|\| rr > 3000) continue;` |
+| 4518 | `bool \|\| → &&` | `if (!isFinite(rr) \|\| rr < 200 \|\| rr > 3000) continue;` |
+| 4518 | `bool \|\| → &&` | `if (!isFinite(rr) \|\| rr < 200 \|\| rr > 3000) continue;` |
 | 4518 | `num → 0` | `if (!isFinite(rr) \|\| rr < 200 \|\| rr > 3000) continue;` |
-| 4520 | `bool && → ||` | `out.push({ tsMs: ts && ts.tMs != null ? ts.tMs : null, rr: rr });` |
-| 4544 | `cmp < → <=` | `if (idx.hr < 0 && (/\bhr\b/.test(h) \|\| /heart\s*rate/.test(h) \|\| /\[bpm\` |
-| 4544 | `bool || → &&` | `if (idx.hr < 0 && (/\bhr\b/.test(h) \|\| /heart\s*rate/.test(h) \|\| /\[bpm\` |
-| 4544 | `bool || → &&` | `if (idx.hr < 0 && (/\bhr\b/.test(h) \|\| /heart\s*rate/.test(h) \|\| /\[bpm\` |
-| 4545 | `cmp < → <=` | `else if (idx.rr < 0 && (/rr[-\s]?interval/.test(h) \|\| /\bhrv\b/.test(h))` |
-| 4545 | `bool && → ||` | `else if (idx.rr < 0 && (/rr[-\s]?interval/.test(h) \|\| /\bhrv\b/.test(h))` |
-| 4545 | `bool || → &&` | `else if (idx.rr < 0 && (/rr[-\s]?interval/.test(h) \|\| /\bhrv\b/.test(h))` |
+| 4520 | `bool && → \|\|` | `out.push({ tsMs: ts && ts.tMs != null ? ts.tMs : null, rr: rr });` |
+| 4544 | `cmp < → <=` | `if (idx.hr < 0 && (/\\bhr\\b/.test(h) \|\| /heart\\s*rate/.test(h) \|\| /\\[bpm\\` |
+| 4544 | `bool \|\| → &&` | `if (idx.hr < 0 && (/\\bhr\\b/.test(h) \|\| /heart\\s*rate/.test(h) \|\| /\\[bpm\\` |
+| 4544 | `bool \|\| → &&` | `if (idx.hr < 0 && (/\\bhr\\b/.test(h) \|\| /heart\\s*rate/.test(h) \|\| /\\[bpm\\` |
+| 4545 | `cmp < → <=` | `else if (idx.rr < 0 && (/rr[-\\s]?interval/.test(h) \|\| /\\bhrv\\b/.test(h))` |
+| 4545 | `bool && → \|\|` | `else if (idx.rr < 0 && (/rr[-\\s]?interval/.test(h) \|\| /\\bhrv\\b/.test(h))` |
+| 4545 | `bool \|\| → &&` | `else if (idx.rr < 0 && (/rr[-\\s]?interval/.test(h) \|\| /\\bhrv\\b/.test(h))` |
 | 4547 | `cmp >= → >` | `return idx.hr >= 0 ? idx : null;` |
-| 4559 | `bool && → ||` | `if (cols === null && !headerless) {` |
+| 4559 | `bool && → \|\|` | `if (cols === null && !headerless) {` |
 | 4574 | `cmp > → >=` | `if (!isFinite(hr) \|\| hr < 20 \|\| hr > 260) continue;` |
 | 4574 | `cmp < → <=` | `if (!isFinite(hr) \|\| hr < 20 \|\| hr > 260) continue;` |
-| 4574 | `bool || → &&` | `if (!isFinite(hr) \|\| hr < 20 \|\| hr > 260) continue;` |
-| 4574 | `bool || → &&` | `if (!isFinite(hr) \|\| hr < 20 \|\| hr > 260) continue;` |
+| 4574 | `bool \|\| → &&` | `if (!isFinite(hr) \|\| hr < 20 \|\| hr > 260) continue;` |
+| 4574 | `bool \|\| → &&` | `if (!isFinite(hr) \|\| hr < 20 \|\| hr > 260) continue;` |
 | 4574 | `num → 0` | `if (!isFinite(hr) \|\| hr < 20 \|\| hr > 260) continue;` |
-| 4601 | `bool && → ||` | `if (p.deviceHR && !r.deviceHR) graft.deviceHR = p.deviceHR;` |
+| 4601 | `bool && → \|\|` | `if (p.deviceHR && !r.deviceHR) graft.deviceHR = p.deviceHR;` |
 | 4601 | `negate: drop !` | `if (p.deviceHR && !r.deviceHR) graft.deviceHR = p.deviceHR;` |
-| 4611 | `bool || → &&` | `deviceHR: graft.deviceHR ? null : p.deviceHR \|\| null,` |
-| 4612 | `bool || → &&` | `deviceACC: tookACC ? null : p.deviceACC \|\| null,` |
+| 4611 | `bool \|\| → &&` | `deviceHR: graft.deviceHR ? null : p.deviceHR \|\| null,` |
+| 4612 | `bool \|\| → &&` | `deviceACC: tookACC ? null : p.deviceACC \|\| null,` |
 | 4629 | `cmp < → <=` | `for (var k = 0; k < p.length; k++) {` |
 | 4633 | `cmp < → <=` | `if (nums.length < 3) continue;` |
-| 4652 | `bool && → ||` | `out.push({ tsMs: ts && ts.tMs != null ? ts.tMs : null, relNs: relNs, x: ` |
+| 4652 | `bool && → \|\|` | `out.push({ tsMs: ts && ts.tMs != null ? ts.tMs : null, relNs: relNs, x: ` |
 | 4654 | `num → 0` | `if (out.length < 30) return { acc: null, accFs: null };` |
 | 4654 | `cmp < → <=` | `if (out.length < 30) return { acc: null, accFs: null };` |
-| 4666 | `bool && → ||` | `if (isFinite(out[a].tsMs) && isFinite(out[a].relNs)) {` |
+| 4666 | `bool && → \|\|` | `if (isFinite(out[a].tsMs) && isFinite(out[a].relNs)) {` |
 | 4674 | `cmp > → >=` | `if (nNs > out.length * 0.9) {` |
 | 4674 | `num → 0` | `if (nNs > out.length * 0.9) {` |
 | 4687 | `cmp > → >=` | `if (ts2.length > 5) {` |
@@ -1193,31 +1194,31 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 4694 | `cmp > → >=` | `if (md > 0) fs = Math.max(1, Math.min(200, Math.round(1000 / md)));` |
 | 4697 | `cmp < → <=` | `for (var q = 0; q < out.length; q++) out[q].tsMs = Math.round((q / fs) *` |
 | 4697 | `num → 0` | `for (var q = 0; q < out.length; q++) out[q].tsMs = Math.round((q / fs) *` |
-| 4731 | `bool || → &&` | `? { version: (opts.kernel.version != null ? opts.kernel.version : opts.k` |
-| 4731 | `bool || → &&` | `? { version: (opts.kernel.version != null ? opts.kernel.version : opts.k` |
-| 4739 | `bool || → &&` | `generated: opts.generated \|\| new Date().toISOString(),` |
-| 4740 | `bool || → &&` | `provenance: opts.provenance \|\| null,` |
-| 4748 | `bool && → ||` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
-| 4748 | `bool && → ||` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
-| 4748 | `bool && → ||` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
-| 4748 | `bool && → ||` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
+| 4731 | `bool \|\| → &&` | `? { version: (opts.kernel.version != null ? opts.kernel.version : opts.k` |
+| 4731 | `bool \|\| → &&` | `? { version: (opts.kernel.version != null ? opts.kernel.version : opts.k` |
+| 4739 | `bool \|\| → &&` | `generated: opts.generated \|\| new Date().toISOString(),` |
+| 4740 | `bool \|\| → &&` | `provenance: opts.provenance \|\| null,` |
+| 4748 | `bool && → \|\|` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
+| 4748 | `bool && → \|\|` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
+| 4748 | `bool && → \|\|` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
+| 4748 | `bool && → \|\|` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
 | 4800 | `eq === → !==` | `tMsCorrected: r.tMsCorrected === true,` |
-| 4870 | `bool || → &&` | `return v == null \|\| (typeof v === 'number' && !isFinite(v)) ? null : v;` |
+| 4870 | `bool \|\| → &&` | `return v == null \|\| (typeof v === 'number' && !isFinite(v)) ? null : v;` |
 | 4870 | `eq === → !==` | `return v == null \|\| (typeof v === 'number' && !isFinite(v)) ? null : v;` |
-| 4924 | `bool && → ||` | `respFromEDR: r.crc && r.crc.respFromEDR != null ? nz(r.crc.respFromEDR) ` |
-| 5001 | `bool || → &&` | `position: e.position \|\| 'unknown'` |
+| 4924 | `bool && → \|\|` | `respFromEDR: r.crc && r.crc.respFromEDR != null ? nz(r.crc.respFromEDR) ` |
+| 5001 | `bool \|\| → &&` | `position: e.position \|\| 'unknown'` |
 | 5005 | `negate: drop !` | `lng && !amb && Array.isArray(r.stages)` |
-| 5013 | `bool && → ||` | `if (r.nn && r.nn.length && r.tt && r.tt.length === r.nn.length) {` |
-| 5013 | `bool && → ||` | `if (r.nn && r.nn.length && r.tt && r.tt.length === r.nn.length) {` |
-| 5013 | `bool && → ||` | `if (r.nn && r.nn.length && r.tt && r.tt.length === r.nn.length) {` |
-| 5028 | `bool && → ||` | `corrected: r.nnCorrected && r.nnCorrected.length === r.nn.length ? r.nnC` |
-| 5035 | `bool && → ||` | `conf: r.nnConf && r.nnConf.length === r.nn.length ? r.nnConf.slice() : n` |
-| 5040 | `bool && → ||` | `? { suppressed: true, suppressedReason: (r.sleepSuppressed && r.sleepSup` |
-| 5040 | `bool || → &&` | `? { suppressed: true, suppressedReason: (r.sleepSuppressed && r.sleepSup` |
-| 5042 | `bool || → &&` | `? { totalSleepMin: nz(r.totSleep), stageMinutes: r.stageMin \|\| null }` |
-| 5059 | `bool && → ||` | `suppressedReason: (r.apneaSuppressed && r.apneaSuppressed.suppressedReas` |
-| 5059 | `bool || → &&` | `suppressedReason: (r.apneaSuppressed && r.apneaSuppressed.suppressedReas` |
-| 5089 | `bool && → ||` | `cpc: r.crc && r.crc.cpc ? r.crc.cpc : null,` |
+| 5013 | `bool && → \|\|` | `if (r.nn && r.nn.length && r.tt && r.tt.length === r.nn.length) {` |
+| 5013 | `bool && → \|\|` | `if (r.nn && r.nn.length && r.tt && r.tt.length === r.nn.length) {` |
+| 5013 | `bool && → \|\|` | `if (r.nn && r.nn.length && r.tt && r.tt.length === r.nn.length) {` |
+| 5028 | `bool && → \|\|` | `corrected: r.nnCorrected && r.nnCorrected.length === r.nn.length ? r.nnC` |
+| 5035 | `bool && → \|\|` | `conf: r.nnConf && r.nnConf.length === r.nn.length ? r.nnConf.slice() : n` |
+| 5040 | `bool && → \|\|` | `? { suppressed: true, suppressedReason: (r.sleepSuppressed && r.sleepSup` |
+| 5040 | `bool \|\| → &&` | `? { suppressed: true, suppressedReason: (r.sleepSuppressed && r.sleepSup` |
+| 5042 | `bool \|\| → &&` | `? { totalSleepMin: nz(r.totSleep), stageMinutes: r.stageMin \|\| null }` |
+| 5059 | `bool && → \|\|` | `suppressedReason: (r.apneaSuppressed && r.apneaSuppressed.suppressedReas` |
+| 5059 | `bool \|\| → &&` | `suppressedReason: (r.apneaSuppressed && r.apneaSuppressed.suppressedReas` |
+| 5089 | `bool && → \|\|` | `cpc: r.crc && r.crc.cpc ? r.crc.cpc : null,` |
 | 5115 | `negate: drop !` | `if (input && input.samples != null && input.samples.length != null && !A` |
 | 5124 | `negate: drop !` | `if (!(s instanceof Int16Array)) {` |
 | 5125 | `cmp < → <=` | `for (var i = 0; i < N; i++) {` |
@@ -1228,191 +1229,372 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 5127 | `num → 0` | `int16[i] = vv > 32767 ? 32767 : vv < -32768 ? -32768 : vv;` |
 | 5127 | `num → 0` | `int16[i] = vv > 32767 ? 32767 : vv < -32768 ? -32768 : vv;` |
 | 5130 | `num → 0` | `var fs = input.fs != null ? input.fs : 130;` |
-| 5134 | `bool || → &&` | `gaps: input.gaps \|\| [],` |
-| 5137 | `bool || → &&` | `source: opts.source \|\| 'signal-frame',` |
-| 5138 | `bool || → &&` | `durSec: N / (fs \|\| 130),` |
+| 5134 | `bool \|\| → &&` | `gaps: input.gaps \|\| [],` |
+| 5137 | `bool \|\| → &&` | `source: opts.source \|\| 'signal-frame',` |
+| 5138 | `bool \|\| → &&` | `durSec: N / (fs \|\| 130),` |
 | 5138 | `num → 0` | `durSec: N / (fs \|\| 130),` |
-| 5139 | `bool || → &&` | `deviceRR: input.deviceRR \|\| null,` |
-| 5140 | `bool || → &&` | `deviceHR: input.deviceHR \|\| null,` |
-| 5141 | `bool || → &&` | `deviceACC: input.deviceACC \|\| null,` |
-| 5142 | `bool || → &&` | `accFs: input.accFs \|\| null` |
-| 5144 | `bool && → ||` | `} else if (input && input.int16 != null && input.fs != null) {` |
+| 5139 | `bool \|\| → &&` | `deviceRR: input.deviceRR \|\| null,` |
+| 5140 | `bool \|\| → &&` | `deviceHR: input.deviceHR \|\| null,` |
+| 5141 | `bool \|\| → &&` | `deviceACC: input.deviceACC \|\| null,` |
+| 5142 | `bool \|\| → &&` | `accFs: input.accFs \|\| null` |
+| 5144 | `bool && → \|\|` | `} else if (input && input.int16 != null && input.fs != null) {` |
 | 5147 | `eq === → !==` | `var txt = typeof input === 'string' ? input : input && typeof input.text` |
-| 5147 | `bool && → ||` | `var txt = typeof input === 'string' ? input : input && typeof input.text` |
-| 5147 | `bool && → ||` | `var txt = typeof input === 'string' ? input : input && typeof input.text` |
-| 5147 | `bool && → ||` | `var txt = typeof input === 'string' ? input : input && typeof input.text` |
-| 5152 | `bool && → ||` | `if (opts.offsetMin != null && rec.offsetMin == null) rec.offsetMin = opt` |
-| 5154 | `bool && → ||` | `if (r.offsetMin == null && rec.offsetMin != null) r.offsetMin = rec.offs` |
-| 5193 | `bool || → &&` | `message: 'This is a ' + (node \|\| 'non-ECGDex') + ' export \u2014 open it` |
-| 5193 | `bool || → &&` | `message: 'This is a ' + (node \|\| 'non-ECGDex') + ' export \u2014 open it` |
-| 5208 | `bool || → &&` | `return ((a && a.tMs) \|\| 0) - ((b && b.tMs) \|\| 0);` |
-| 5217 | `bool || → &&` | `generated: (json.schema && json.schema.generated) \|\| null,` |
-| 5217 | `bool && → ||` | `generated: (json.schema && json.schema.generated) \|\| null,` |
-| 5218 | `bool && → ||` | `derivedFrom: (json.schema && json.schema.derivedFrom) \|\| null,` |
-| 5218 | `bool || → &&` | `derivedFrom: (json.schema && json.schema.derivedFrom) \|\| null,` |
-| 5219 | `bool || → &&` | `kernel: json.kernel \|\| null,` |
-| 5220 | `bool && → ||` | `recording: (carrier[0] && carrier[0].recording) \|\| json.recording \|\| nul` |
-| 5220 | `bool || → &&` | `recording: (carrier[0] && carrier[0].recording) \|\| json.recording \|\| nul` |
-| 5221 | `bool || → &&` | `hrv: (carrier[0] && carrier[0].hrv) \|\| json.hrv \|\| null,` |
-| 5222 | `bool && → ||` | `quality: (carrier[0] && carrier[0].quality) \|\| json.quality \|\| null,` |
-| 5222 | `bool || → &&` | `quality: (carrier[0] && carrier[0].quality) \|\| json.quality \|\| null,` |
-| 5222 | `bool || → &&` | `quality: (carrier[0] && carrier[0].quality) \|\| json.quality \|\| null,` |
-| 5223 | `bool || → &&` | `crossNight: json.crossNight \|\| null,` |
-| 5224 | `bool && → ||` | `scrubbed: !!(json.schema && json.schema.scrubbed),` |
+| 5147 | `bool && → \|\|` | `var txt = typeof input === 'string' ? input : input && typeof input.text` |
+| 5147 | `bool && → \|\|` | `var txt = typeof input === 'string' ? input : input && typeof input.text` |
+| 5147 | `bool && → \|\|` | `var txt = typeof input === 'string' ? input : input && typeof input.text` |
+| 5152 | `bool && → \|\|` | `if (opts.offsetMin != null && rec.offsetMin == null) rec.offsetMin = opt` |
+| 5154 | `bool && → \|\|` | `if (r.offsetMin == null && rec.offsetMin != null) r.offsetMin = rec.offs` |
+| 5193 | `bool \|\| → &&` | `message: 'This is a ' + (node \|\| 'non-ECGDex') + ' export \\u2014 open it` |
+| 5193 | `bool \|\| → &&` | `message: 'This is a ' + (node \|\| 'non-ECGDex') + ' export \\u2014 open it` |
+| 5208 | `bool \|\| → &&` | `return ((a && a.tMs) \|\| 0) - ((b && b.tMs) \|\| 0);` |
+| 5217 | `bool \|\| → &&` | `generated: (json.schema && json.schema.generated) \|\| null,` |
+| 5217 | `bool && → \|\|` | `generated: (json.schema && json.schema.generated) \|\| null,` |
+| 5218 | `bool && → \|\|` | `derivedFrom: (json.schema && json.schema.derivedFrom) \|\| null,` |
+| 5218 | `bool \|\| → &&` | `derivedFrom: (json.schema && json.schema.derivedFrom) \|\| null,` |
+| 5219 | `bool \|\| → &&` | `kernel: json.kernel \|\| null,` |
+| 5220 | `bool && → \|\|` | `recording: (carrier[0] && carrier[0].recording) \|\| json.recording \|\| nul` |
+| 5220 | `bool \|\| → &&` | `recording: (carrier[0] && carrier[0].recording) \|\| json.recording \|\| nul` |
+| 5221 | `bool \|\| → &&` | `hrv: (carrier[0] && carrier[0].hrv) \|\| json.hrv \|\| null,` |
+| 5222 | `bool && → \|\|` | `quality: (carrier[0] && carrier[0].quality) \|\| json.quality \|\| null,` |
+| 5222 | `bool \|\| → &&` | `quality: (carrier[0] && carrier[0].quality) \|\| json.quality \|\| null,` |
+| 5222 | `bool \|\| → &&` | `quality: (carrier[0] && carrier[0].quality) \|\| json.quality \|\| null,` |
+| 5223 | `bool \|\| → &&` | `crossNight: json.crossNight \|\| null,` |
+| 5224 | `bool && → \|\|` | `scrubbed: !!(json.schema && json.schema.scrubbed),` |
 | 5225 | `cmp > → >=` | `multiNight: elements.length > 1,` |
 | 5246 | `eq === → !==` | `if (global.DexExport && typeof global.DexExport.scrubExport === 'functio` |
-| 5246 | `bool && → ||` | `if (global.DexExport && typeof global.DexExport.scrubExport === 'functio` |
+| 5246 | `bool && → \|\|` | `if (global.DexExport && typeof global.DexExport.scrubExport === 'functio` |
 | 5247 | `eq === → !==` | `if (typeof global.dexScrubExport === 'function') return global.dexScrubE` |
+
+## `hrvdex-dsp.js` — 176 survivor(s)
+
+| line | operator | source |
+|---:|---|---|
+| 118 | `bool \|\| → &&` | `if (v == null \|\| typeof v !== 'number' \|\| !isFinite(v)) return false;` |
+| 118 | `bool \|\| → &&` | `if (v == null \|\| typeof v !== 'number' \|\| !isFinite(v)) return false;` |
+| 134 | `cmp < → <=` | `for (var i = 0; i < arguments.length; i++) {` |
+| 155 | `cmp < → <=` | `if (_sc.length < 5) continue;` |
+| 156 | `bool && → \|\|` | `const _sd = _dIdx >= 0 && _sc[_dIdx] ? _sc[_dIdx].trim().replace(/\\r/g, ` |
+| 157 | `cmp >= → >` | `const _st = _tIdx >= 0 && _sc[_tIdx] ? _sc[_tIdx].trim().replace(/\\r/g, ` |
+| 157 | `bool && → \|\|` | `const _st = _tIdx >= 0 && _sc[_tIdx] ? _sc[_tIdx].trim().replace(/\\r/g, ` |
+| 158 | `bool && → \|\|` | `_stamps.push(_st && !/\\d{1,2}:\\d{2}/.test(_sd) ? (_sd + ' ' + _st).trim(` |
+| 158 | `bool \|\| → &&` | `_stamps.push(_st && !/\\d{1,2}:\\d{2}/.test(_sd) ? (_sd + ' ' + _st).trim(` |
+| 160 | `bool && → \|\|` | `const _order = typeof DexClock !== 'undefined' && DexClock.resolveDMY ? ` |
+| 165 | `cmp < → <=` | `if (cells.length < 5) continue;` |
+| 174 | `bool \|\| → &&` | `var _combined = _rawT && !/\\d{1,2}:\\d{2}/.test(_rawD) ? (_rawD + ' ' + _` |
+| 188 | `bool \|\| → &&` | `r._mode = numOrNull(r['Mode'] \|\| r['Mode RR']);` |
+| 189 | `bool \|\| → &&` | `r._totalPow = numOrNull(r['Total power'] \|\| r['Total Power']);` |
+| 212 | `bool && → \|\|` | `r._hrv = numOrNull(r['HRV Score'] != null && String(r['HRV Score']).trim` |
+| 219 | `bool \|\| → &&` | `return commitRows(_hrvParseSummaryRows(text), opts \|\| {});` |
+| 277 | `cmp >= → >` | `return !!(row && typeof row._spanMin === 'number' && isFinite(row._spanM` |
+| 280 | `bool && → \|\|` | `return typeof v === 'number' && isFinite(v) ? Math.round(v * 1000) / 100` |
+| 280 | `num → 0` | `return typeof v === 'number' && isFinite(v) ? Math.round(v * 1000) / 100` |
+| 280 | `eq === → !==` | `return typeof v === 'number' && isFinite(v) ? Math.round(v * 1000) / 100` |
+| 280 | `num → 0` | `return typeof v === 'number' && isFinite(v) ? Math.round(v * 1000) / 100` |
+| 295 | `eq === → !==` | `s[k] = typeof v === 'number' && isFinite(v) ? v : null;` |
+| 295 | `bool && → \|\|` | `s[k] = typeof v === 'number' && isFinite(v) ? v : null;` |
+| 305 | `bool && → \|\|` | `r[k] = typeof s[k] === 'number' && isFinite(s[k]) ? s[k] : null;` |
+| 317 | `bool \|\| → &&` | `if (!allRows \|\| !allRows.length) {` |
+| 317 | `negate: drop !` | `if (!allRows \|\| !allRows.length) {` |
+| 317 | `negate: drop !` | `if (!allRows \|\| !allRows.length) {` |
+| 334 | `cmp > → >=` | `while (kept.length > 1) {` |
+| 361 | `bool \|\| → &&` | `if (!Array.isArray(seeds) \|\| !seeds.length) return false;` |
+| 361 | `negate: drop !` | `if (!Array.isArray(seeds) \|\| !seeds.length) return false;` |
+| 361 | `negate: drop !` | `if (!Array.isArray(seeds) \|\| !seeds.length) return false;` |
+| 363 | `negate: drop !` | `if (!rows.length) return false;` |
+| 370 | `bool \|\| → &&` | `opts = opts \|\| {};` |
+| 371 | `bool \|\| → &&` | `newRows = (newRows \|\| []).filter((r) => isFinite(r._tMs));` |
+| 386 | `negate: drop !` | `if (!allRows.length) {` |
+| 394 | `num → 0` | `_ui.setProgress(100);` |
+| 404 | `eq === → !==` | `const skip = dup ? ' · ' + dup + ' duplicate' + (dup === 1 ? '' : 's') +` |
+| 405 | `eq === → !==` | `_ui.setStatus('✅ Added ' + added + ' measurement' + (added === 1 ? '' : ` |
+| 447 | `bool && → \|\|` | `if (pat && allRows && allRows.length) {` |
+| 447 | `bool && → \|\|` | `if (pat && allRows && allRows.length) {` |
+| 460 | `bool && → \|\|` | `if (sdc && sdi && allRows && allRows.length) {` |
+| 460 | `bool && → \|\|` | `if (sdc && sdi && allRows && allRows.length) {` |
+| 460 | `bool && → \|\|` | `if (sdc && sdi && allRows && allRows.length) {` |
+| 462 | `bool && → \|\|` | `sdi.innerHTML = allRows.length + ' sessions &bull; 85 metrics<br>' + (al` |
+| 475 | `bool \|\| → &&` | `if (!env \|\| typeof env !== 'object') return null;` |
+| 480 | `bool && → \|\|` | `const tMs = rec.startEpochMs != null && isFinite(rec.startEpochMs) ? +re` |
+| 488 | `bool && → \|\|` | `const n = (v) => (typeof v === 'number' && isFinite(v) ? v : null);` |
+| 502 | `cmp > → >=` | `if (t > 0) spanMin = t;` |
+| 542 | `bool && → \|\|` | `else if (data && Array.isArray(data.recordings))` |
+| 544 | `bool \|\| → &&` | `else if (data && (data.recording \|\| data.hrv)) envs = [data]; // single ` |
+| 544 | `bool && → \|\|` | `else if (data && (data.recording \|\| data.hrv)) envs = [data]; // single ` |
+| 546 | `negate: drop !` | `if (!seeds.length) {` |
+| 551 | `bool \|\| → &&` | `commitRows(rows, opts \|\| {});` |
+| 588 | `bool && → \|\|` | `var _baev = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.guar` |
+| 611 | `eq !== → ===` | `var _meanRRs0 = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.` |
+| 611 | `bool && → \|\|` | `var _meanRRs0 = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.` |
+| 622 | `cmp > → >=` | `const _hasNu = r._totalPow > 0 && r._vlf != null && r._totalPow > r._vlf` |
+| 623 | `cmp > → >=` | `const _hasBands = r._hf > 0 && r._lf > 0 && r._vlf > 0;` |
+| 623 | `cmp > → >=` | `const _hasBands = r._hf > 0 && r._lf > 0 && r._vlf > 0;` |
+| 623 | `cmp > → >=` | `const _hasBands = r._hf > 0 && r._lf > 0 && r._vlf > 0;` |
+| 623 | `bool && → \|\|` | `const _hasBands = r._hf > 0 && r._lf > 0 && r._vlf > 0;` |
+| 623 | `bool && → \|\|` | `const _hasBands = r._hf > 0 && r._lf > 0 && r._vlf > 0;` |
+| 659 | `bool && → \|\|` | `const meanRR_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits` |
+| 669 | `eq !== → ===` | `const rmssd_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.` |
+| 669 | `bool && → \|\|` | `const rmssd_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.` |
+| 678 | `cmp > → >=` | `r.d_abs = _all(r._sns, r._psns) && r._sns + r._psns > 0 ? (r._psns - r._` |
+| 703 | `cmp > → >=` | `if (r._vlf > 0 && r._lf > 0 && r._hf > 0) {` |
+| 703 | `cmp > → >=` | `if (r._vlf > 0 && r._lf > 0 && r._hf > 0) {` |
+| 703 | `bool && → \|\|` | `if (r._vlf > 0 && r._lf > 0 && r._hf > 0) {` |
+| 703 | `cmp > → >=` | `if (r._vlf > 0 && r._lf > 0 && r._hf > 0) {` |
+| 703 | `bool && → \|\|` | `if (r._vlf > 0 && r._lf > 0 && r._hf > 0) {` |
+| 712 | `cmp > → >=` | `r.d_plaw = den_s > 0 ? num_s / den_s : NaN;` |
+| 725 | `cmp >= → >` | `r.d_pns_eff = _all(r._rmssd, r._sdnn, r._pnn50) && r._pnn50 >= 1 && r._s` |
+| 729 | `negate: drop !` | `r.d_otr_sat = !isNaN(r.d_otr) && r.d_otr >= 499 ? true : false; // satur` |
+| 729 | `cmp >= → >` | `r.d_otr_sat = !isNaN(r.d_otr) && r.d_otr >= 499 ? true : false; // satur` |
+| 738 | `cmp < → <=` | `const circAdj = _hrvIsAllNight(r) ? 1.0 : mHour < 10 ? 1.08 : mHour > 16` |
+| 738 | `cmp > → >=` | `const circAdj = _hrvIsAllNight(r) ? 1.0 : mHour < 10 ? 1.08 : mHour > 16` |
+| 753 | `cmp > → >=` | `const _hrRestR = p_prof.hrrest_manual > 0 ? p_prof.hrrest_manual : r._hr` |
+| 754 | `cmp > → >=` | `const hrmax_tanaka = p_prof.hrmax_manual > 0 && p_prof.hrmax_manual >= 1` |
+| 754 | `cmp > → >=` | `const hrmax_tanaka = p_prof.hrmax_manual > 0 && p_prof.hrmax_manual >= 1` |
+| 755 | `cmp <= → <` | `const _altFR = p_prof.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((p_prof.ele` |
+| 755 | `num → 0` | `const _altFR = p_prof.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((p_prof.ele` |
+| 775 | `cmp > → >=` | `const vo2_win = _vo2win7.map((x) => x.d_vo2_hrv).filter((v) => !isNaN(v)` |
+| 834 | `bool && → \|\|` | `const dayGap = isFinite(r._tMs) && isFinite(prev._tMs) ? Math.round((r._` |
+| 835 | `bool && → \|\|` | `r.d_rmssd_delta_pct = dayGap === 1 && prev._rmssd > 0 && !isNaN(r._rmssd` |
+| 835 | `bool && → \|\|` | `r.d_rmssd_delta_pct = dayGap === 1 && prev._rmssd > 0 && !isNaN(r._rmssd` |
+| 835 | `cmp > → >=` | `r.d_rmssd_delta_pct = dayGap === 1 && prev._rmssd > 0 && !isNaN(r._rmssd` |
+| 835 | `num → 0` | `r.d_rmssd_delta_pct = dayGap === 1 && prev._rmssd > 0 && !isNaN(r._rmssd` |
+| 844 | `cmp < → <=` | `for (let j = i; j >= 0 && window7.length < 7; j--) {` |
+| 846 | `bool && → \|\|` | `if (_dk && !_seen7.has(_dk)) {` |
+| 862 | `num → 0` | `r.d_rmssd_cv7 = rmssd7.length > 1 ? (std(rmssd7) / mean7rmssd) * 100 : N` |
+| 862 | `cmp > → >=` | `r.d_rmssd_cv7 = rmssd7.length > 1 ? (std(rmssd7) / mean7rmssd) * 100 : N` |
+| 865 | `cmp > → >=` | `const stdSDNN7 = sdnn7.length > 1 ? std(sdnn7) : NaN;` |
+| 873 | `cmp < → <=` | `for (let j = i; j >= 0 && _win14ac.length < 14; j--) {` |
+| 883 | `cmp < → <=` | `for (let j = 0; j < ac_raw.length - 1; j++) {` |
+| 895 | `cmp > → >=` | `if (pnn507.length > 2) {` |
+| 905 | `cmp < → <=` | `for (let j = i; j >= 0 && window14.length < 14; j--) {` |
+| 920 | `negate: drop !` | `const ari14 = window14.map((x) => x.d_ari).filter((v) => !isNaN(v));` |
+| 921 | `cmp < → <=` | `r.d_recovery_debt = ari14.filter((v) => v < 0.9).length;` |
+| 921 | `num → 0` | `r.d_recovery_debt = ari14.filter((v) => v < 0.9).length;` |
+| 931 | `cmp > → >=` | `return arr.length > 1 ? Math.sqrt(arr.reduce((s, v) => s + (v - m) * (v ` |
+| 935 | `cmp < → <=` | `if (n < 2) return NaN;` |
+| 946 | `cmp > → >=` | `return dx * dy > 0 ? num / Math.sqrt(dx * dy) : NaN;` |
+| 957 | `eq === → !==` | `if (k === 0) return arr;` |
+| 959 | `negate: drop !` | `const slice = a.slice(Math.max(0, i - k), i + 1).filter((x) => !isNaN(x)` |
+| 972 | `negate: drop !` | `if (!el) return;` |
+| 973 | `eq !== → ===` | `var n = typeof windowDays !== 'undefined' ? windowDays : 7;` |
+| 975 | `eq === → !==` | `var mo = sc === 'morning' ? ', mornings only' : sc === 'allnight' ? ', a` |
+| 975 | `eq === → !==` | `var mo = sc === 'morning' ? ', mornings only' : sc === 'allnight' ? ', a` |
+| 976 | `cmp >= → >` | `var scope = n >= 999 ? 'all measurements' : 'last ' + n + ' day' + (n ==` |
+| 976 | `eq === → !==` | `var scope = n >= 999 ? 'all measurements' : 'last ' + n + ' day' + (n ==` |
+| 976 | `num → 0` | `var scope = n >= 999 ? 'all measurements' : 'last ' + n + ' day' + (n ==` |
+| 988 | `bool && → \|\|` | `if (sel && sel.value) return sel.value;` |
+| 990 | `bool && → \|\|` | `return legacy && /** @type {HTMLInputElement} */ (legacy).checked ? 'mor` |
+| 997 | `eq === → !==` | `if (scope === 'morning') {` |
+| 1000 | `cmp < → <=` | `rows = rows.filter((r) => !_hrvIsAllNight(r) && r._date && r._date.getUT` |
+| 1000 | `bool && → \|\|` | `rows = rows.filter((r) => !_hrvIsAllNight(r) && r._date && r._date.getUT` |
+| 1000 | `bool && → \|\|` | `rows = rows.filter((r) => !_hrvIsAllNight(r) && r._date && r._date.getUT` |
+| 1000 | `negate: drop !` | `rows = rows.filter((r) => !_hrvIsAllNight(r) && r._date && r._date.getUT` |
+| 1000 | `num → 0` | `rows = rows.filter((r) => !_hrvIsAllNight(r) && r._date && r._date.getUT` |
+| 1001 | `eq === → !==` | `} else if (scope === 'allnight') {` |
+| 1004 | `num → 0` | `if (windowDays < 999) {` |
+| 1004 | `cmp < → <=` | `if (windowDays < 999) {` |
+| 1006 | `num → 0` | `const lastMs = allRows[allRows.length - 1]._tMs - (windowDays - 1) * 864` |
+| 1007 | `cmp >= → >` | `rows = rows.filter((r) => r._tMs >= lastMs);` |
+| 1026 | `cmp > → >=` | `if (r._rmssd > 0) {` |
+| 1030 | `cmp >= → >` | `if (_all(r._pnn50) && r._pnn50 >= 0) {` |
+| 1031 | `num → 0` | `paraScore += Math.min(100, r._pnn50 * 4);` |
+| 1034 | `cmp > → >=` | `if (r._hf > 0) {` |
+| 1038 | `num → 0` | `var paraAvg = paraCount ? paraScore / paraCount : 50;` |
+| 1041 | `cmp > → >=` | `if (r._hf > 0 && r._lf > 0) {` |
+| 1041 | `cmp > → >=` | `if (r._hf > 0 && r._lf > 0) {` |
+| 1041 | `bool && → \|\|` | `if (r._hf > 0 && r._lf > 0) {` |
+| 1043 | `num → 0` | `sympPenalty = Math.max(0, (lfhf - 1.0) * 15); // penalty grows above LF/` |
+| 1043 | `num → 0` | `sympPenalty = Math.max(0, (lfhf - 1.0) * 15); // penalty grows above LF/` |
+| 1068 | `cmp < → <=` | `return (n < 10 ? '0' : '') + n;` |
+| 1068 | `num → 0` | `return (n < 10 ? '0' : '') + n;` |
+| 1077 | `bool \|\| → &&` | `if (!r \|\| !isFinite(r._tMs)) return;` |
+| 1079 | `cmp > → >=` | `if (isFinite(r._rmssd) && r._rmssd > 0 && r._rmssd < 20)` |
+| 1096 | `num → 0` | `conf: +Math.max(0.4, Math.min(0.9, (r._stress - 50) / 50)).toFixed(2),` |
+| 1110 | `bool \|\| → &&` | `opts = opts \|\| {};` |
+| 1119 | `bool && → \|\|` | `return r && isFinite(r._tMs);` |
+| 1128 | `eq !== → ===` | `var kfmt = opts.kernel ? { version: opts.kernel.VERSION, hash: opts.kern` |
+| 1128 | `bool && → \|\|` | `var kfmt = opts.kernel ? { version: opts.kernel.VERSION, hash: opts.kern` |
+| 1147 | `bool && → \|\|` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
+| 1147 | `bool && → \|\|` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
+| 1147 | `bool && → \|\|` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
+| 1159 | `bool && → \|\|` | `offsetMin: dated[0] && dated[0]._offsetMin != null ? dated[0]._offsetMin` |
+| 1163 | `bool && → \|\|` | `spanDays: t0 != null && last ? Math.round((last._tMs - t0) / 864e5) + 1 ` |
+| 1175 | `bool && → \|\|` | `spanSec: t0 != null && last && last._tMs != null ? Math.round((last._tMs` |
+| 1175 | `bool && → \|\|` | `spanSec: t0 != null && last && last._tMs != null ? Math.round((last._tMs` |
+| 1177 | `num → 0` | `var d = r._spanMin != null && isFinite(r._spanMin) ? Math.round(r._spanM` |
+| 1177 | `bool && → \|\|` | `var d = r._spanMin != null && isFinite(r._spanMin) ? Math.round(r._spanM` |
+| 1186 | `bool && → \|\|` | `return r._spanMin != null && isFinite(r._spanMin);` |
+| 1191 | `num → 0` | `return a + r._spanMin * 60;` |
+| 1197 | `bool && → \|\|` | `return r._spanMin != null && isFinite(r._spanMin);` |
+| 1207 | `cmp > → >=` | `var sd1 = r._rmssd > 0 ? r._rmssd / Math.SQRT2 : null;` |
+| 1208 | `cmp > → >=` | `var sd2 = sd1 != null && r._sdnn > 0 ? Math.sqrt(Math.max(0, 2 * r._sdnn` |
+| 1208 | `bool && → \|\|` | `var sd2 = sd1 != null && r._sdnn > 0 ? Math.sqrt(Math.max(0, 2 * r._sdnn` |
+| 1245 | `bool && → \|\|` | `return r && isFinite(r._tMs);` |
+| 1267 | `bool \|\| → &&` | `message: 'This is a ' + (node \|\| 'non-HRVDex') + ' export \\u2014 open it` |
+| 1267 | `bool \|\| → &&` | `message: 'This is a ' + (node \|\| 'non-HRVDex') + ' export \\u2014 open it` |
+| 1274 | `bool && → \|\|` | `return ((a && a.tMs) \|\| 0) - ((b && b.tMs) \|\| 0);` |
+| 1274 | `bool && → \|\|` | `return ((a && a.tMs) \|\| 0) - ((b && b.tMs) \|\| 0);` |
+| 1274 | `bool \|\| → &&` | `return ((a && a.tMs) \|\| 0) - ((b && b.tMs) \|\| 0);` |
+| 1274 | `bool \|\| → &&` | `return ((a && a.tMs) \|\| 0) - ((b && b.tMs) \|\| 0);` |
+| 1283 | `bool && → \|\|` | `generated: (json.schema && json.schema.generated) \|\| null,` |
+| 1284 | `bool && → \|\|` | `derivedFrom: (json.schema && json.schema.derivedFrom) \|\| null,` |
+| 1284 | `bool \|\| → &&` | `derivedFrom: (json.schema && json.schema.derivedFrom) \|\| null,` |
+| 1285 | `bool \|\| → &&` | `kernel: json.kernel \|\| null,` |
+| 1288 | `bool && → \|\|` | `scrubbed: !!(json.schema && json.schema.scrubbed),` |
+| 1295 | `eq !== → ===` | `var HRVDex = typeof HRVDex !== 'undefined' && HRVDex ? HRVDex : {};` |
+| 1295 | `bool && → \|\|` | `var HRVDex = typeof HRVDex !== 'undefined' && HRVDex ? HRVDex : {};` |
+| 1297 | `bool \|\| → &&` | `opts = opts \|\| {};` |
+| 1299 | `bool \|\| → &&` | `if (!rows \|\| !rows.length) return null;` |
+| 1319 | `eq === → !==` | `if (typeof DexExport !== 'undefined' && DexExport && typeof DexExport.sc` |
 
 ## `integrator-dsp.js` — 139 survivor(s)
 
 | line | operator | source |
 |---:|---|---|
-| 71 | `bool && → ||` | `if (ev && typeof ev.tMs === 'number' && isFinite(ev.tMs)) return ev.tMs;` |
-| 72 | `bool || → &&` | `if (t0Ms == null \|\| ev == null \|\| ev.t == null) return null;` |
-| 72 | `bool || → &&` | `if (t0Ms == null \|\| ev == null \|\| ev.t == null) return null;` |
+| 71 | `bool && → \|\|` | `if (ev && typeof ev.tMs === 'number' && isFinite(ev.tMs)) return ev.tMs;` |
+| 72 | `bool \|\| → &&` | `if (t0Ms == null \|\| ev == null \|\| ev.t == null) return null;` |
+| 72 | `bool \|\| → &&` | `if (t0Ms == null \|\| ev == null \|\| ev.t == null) return null;` |
 | 81 | `cmp < → <=` | `for (var i = 0; i < confs.length; i++) {` |
 | 95 | `negate: drop !` | `if (!ivs \|\| !ivs.length) return 0;` |
 | 103 | `cmp <= → <` | `if (a[i][0] <= curE) {` |
-| 125 | `bool || → &&` | `if (!e \|\| e.conf == null \|\| !isFinite(e.conf)) return null;` |
+| 125 | `bool \|\| → &&` | `if (!e \|\| e.conf == null \|\| !isFinite(e.conf)) return null;` |
 | 125 | `negate: drop !` | `if (!e \|\| e.conf == null \|\| !isFinite(e.conf)) return null;` |
-| 125 | `bool || → &&` | `if (!e \|\| e.conf == null \|\| !isFinite(e.conf)) return null;` |
+| 125 | `bool \|\| → &&` | `if (!e \|\| e.conf == null \|\| !isFinite(e.conf)) return null;` |
 | 125 | `negate: drop !` | `if (!e \|\| e.conf == null \|\| !isFinite(e.conf)) return null;` |
-| 126 | `bool || → &&` | `var q = e.sqi == null \|\| !isFinite(e.sqi) ? 1 : Math.max(0, Math.min(1, ` |
+| 126 | `bool \|\| → &&` | `var q = e.sqi == null \|\| !isFinite(e.sqi) ? 1 : Math.max(0, Math.min(1, ` |
 | 126 | `negate: drop !` | `var q = e.sqi == null \|\| !isFinite(e.sqi) ? 1 : Math.max(0, Math.min(1, ` |
-| 197 | `bool || → &&` | `return NODE_COLORS[n] \|\| NODE_COLORS.Unknown;` |
+| 197 | `bool \|\| → &&` | `return NODE_COLORS[n] \|\| NODE_COLORS.Unknown;` |
 | 202 | `cmp >= → >` | `return BUS_ALIASES.indexOf(String(v).toLowerCase()) >= 0;` |
-| 207 | `bool || → &&` | `var f = (filename \|\| '').toLowerCase();` |
-| 215 | `bool && → ||` | `if (Array.isArray(json) && json[0] && (json[0].desatProfile \|\| json[0].h` |
-| 215 | `bool && → ||` | `if (Array.isArray(json) && json[0] && (json[0].desatProfile \|\| json[0].h` |
-| 215 | `bool || → &&` | `if (Array.isArray(json) && json[0] && (json[0].desatProfile \|\| json[0].h` |
-| 215 | `bool && → ||` | `if (Array.isArray(json) && json[0] && (json[0].desatProfile \|\| json[0].h` |
-| 215 | `bool || → &&` | `if (Array.isArray(json) && json[0] && (json[0].desatProfile \|\| json[0].h` |
-| 221 | `bool || → &&` | `var t0Ms = (json.recording && json.recording.startEpochMs) \|\| json.start` |
-| 221 | `bool || → &&` | `var t0Ms = (json.recording && json.recording.startEpochMs) \|\| json.start` |
-| 227 | `bool && → ||` | `return e && typeof e.tMs === 'number' ? e.tMs : null;` |
+| 207 | `bool \|\| → &&` | `var f = (filename \|\| '').toLowerCase();` |
+| 215 | `bool && → \|\|` | `if (Array.isArray(json) && json[0] && (json[0].desatProfile \|\| json[0].h` |
+| 215 | `bool && → \|\|` | `if (Array.isArray(json) && json[0] && (json[0].desatProfile \|\| json[0].h` |
+| 215 | `bool \|\| → &&` | `if (Array.isArray(json) && json[0] && (json[0].desatProfile \|\| json[0].h` |
+| 215 | `bool && → \|\|` | `if (Array.isArray(json) && json[0] && (json[0].desatProfile \|\| json[0].h` |
+| 215 | `bool \|\| → &&` | `if (Array.isArray(json) && json[0] && (json[0].desatProfile \|\| json[0].h` |
+| 221 | `bool \|\| → &&` | `var t0Ms = (json.recording && json.recording.startEpochMs) \|\| json.start` |
+| 221 | `bool \|\| → &&` | `var t0Ms = (json.recording && json.recording.startEpochMs) \|\| json.start` |
+| 227 | `bool && → \|\|` | `return e && typeof e.tMs === 'number' ? e.tMs : null;` |
 | 227 | `eq === → !==` | `return e && typeof e.tMs === 'number' ? e.tMs : null;` |
 | 235 | `cmp < → <=` | `for (var i = 0; i < raw.length; i++) {` |
-| 241 | `bool || → &&` | `t: e.t \|\| fmtClockS(tMs),` |
-| 243 | `bool || → &&` | `node: e.node \|\| node,` |
-| 290 | `bool && → ||` | `if (_last && _last.startMs != null && isFinite(_last.startMs)) {` |
-| 290 | `bool && → ||` | `if (_last && _last.startMs != null && isFinite(_last.startMs)) {` |
-| 291 | `bool && → ||` | `var _cEnd = _last.startMs + (_last.durSec != null && isFinite(_last.durS` |
+| 241 | `bool \|\| → &&` | `t: e.t \|\| fmtClockS(tMs),` |
+| 243 | `bool \|\| → &&` | `node: e.node \|\| node,` |
+| 290 | `bool && → \|\|` | `if (_last && _last.startMs != null && isFinite(_last.startMs)) {` |
+| 290 | `bool && → \|\|` | `if (_last && _last.startMs != null && isFinite(_last.startMs)) {` |
+| 291 | `bool && → \|\|` | `var _cEnd = _last.startMs + (_last.durSec != null && isFinite(_last.durS` |
 | 291 | `num → 0` | `var _cEnd = _last.startMs + (_last.durSec != null && isFinite(_last.durS` |
-| 299 | `bool && → ||` | `if (events[i].meta && events[i].meta.offsetMin != null) {` |
-| 320 | `bool || → &&` | `summary.ambulatory = !!(json.recording && json.recording.ambulatory) \|\| ` |
-| 320 | `bool && → ||` | `summary.ambulatory = !!(json.recording && json.recording.ambulatory) \|\| ` |
-| 320 | `bool || → &&` | `summary.ambulatory = !!(json.recording && json.recording.ambulatory) \|\| ` |
-| 352 | `bool && → ||` | `summary.respRateBrpm = _hf.respRate != null && _hf.respRate > 0 ? _hf.re` |
+| 299 | `bool && → \|\|` | `if (events[i].meta && events[i].meta.offsetMin != null) {` |
+| 320 | `bool \|\| → &&` | `summary.ambulatory = !!(json.recording && json.recording.ambulatory) \|\| ` |
+| 320 | `bool && → \|\|` | `summary.ambulatory = !!(json.recording && json.recording.ambulatory) \|\| ` |
+| 320 | `bool \|\| → &&` | `summary.ambulatory = !!(json.recording && json.recording.ambulatory) \|\| ` |
+| 352 | `bool && → \|\|` | `summary.respRateBrpm = _hf.respRate != null && _hf.respRate > 0 ? _hf.re` |
 | 352 | `cmp > → >=` | `summary.respRateBrpm = _hf.respRate != null && _hf.respRate > 0 ? _hf.re` |
-| 353 | `bool || → &&` | `summary.respRateMethod = summary.respRateBrpm != null ? _hf.respRateMeth` |
+| 353 | `bool \|\| → &&` | `summary.respRateMethod = summary.respRateBrpm != null ? _hf.respRateMeth` |
 | 364 | `cmp > → >=` | `if (!_sleepSuppressed && json.sleep && json.sleep.stageMinutes && json.s` |
-| 385 | `bool || → &&` | `_dig(json, ['glucose', 'cv']) \|\| _dig(json, ['glycemic', 'cv']) \|\| _dig(` |
-| 385 | `bool || → &&` | `_dig(json, ['glucose', 'cv']) \|\| _dig(json, ['glycemic', 'cv']) \|\| _dig(` |
-| 385 | `bool || → &&` | `_dig(json, ['glucose', 'cv']) \|\| _dig(json, ['glycemic', 'cv']) \|\| _dig(` |
-| 392 | `bool || → &&` | `_dig(json, ['glucose', 'dawn', 'riseMgdl']) \|\|` |
-| 393 | `bool || → &&` | `_dig(json, ['fusion', 'dawnSurge']) \|\|` |
-| 394 | `bool || → &&` | `_dig(json, ['dawn', 'surge']) \|\|` |
-| 395 | `bool || → &&` | `(json.patterns && json.patterns.dawnPhenomenon ? json.patterns.dawnPheno` |
-| 397 | `bool && → ||` | `summary.glucoseAutonomicCorrelation = json.reserved && json.reserved.glu` |
-| 398 | `bool && → ||` | `summary.autonomicInstabilitySlope = json.reserved && json.reserved.auton` |
-| 406 | `bool || → &&` | `? { vendor: _clamp.vendor \|\| null, floor: _clamp.floor != null ? _clamp.` |
+| 385 | `bool \|\| → &&` | `_dig(json, ['glucose', 'cv']) \|\| _dig(json, ['glycemic', 'cv']) \|\| _dig(` |
+| 385 | `bool \|\| → &&` | `_dig(json, ['glucose', 'cv']) \|\| _dig(json, ['glycemic', 'cv']) \|\| _dig(` |
+| 385 | `bool \|\| → &&` | `_dig(json, ['glucose', 'cv']) \|\| _dig(json, ['glycemic', 'cv']) \|\| _dig(` |
+| 392 | `bool \|\| → &&` | `_dig(json, ['glucose', 'dawn', 'riseMgdl']) \|\|` |
+| 393 | `bool \|\| → &&` | `_dig(json, ['fusion', 'dawnSurge']) \|\|` |
+| 394 | `bool \|\| → &&` | `_dig(json, ['dawn', 'surge']) \|\|` |
+| 395 | `bool \|\| → &&` | `(json.patterns && json.patterns.dawnPhenomenon ? json.patterns.dawnPheno` |
+| 397 | `bool && → \|\|` | `summary.glucoseAutonomicCorrelation = json.reserved && json.reserved.glu` |
+| 398 | `bool && → \|\|` | `summary.autonomicInstabilitySlope = json.reserved && json.reserved.auton` |
+| 406 | `bool \|\| → &&` | `? { vendor: _clamp.vendor \|\| null, floor: _clamp.floor != null ? _clamp.` |
 | 409 | `cmp < → <=` | `for (var _ei = 0; _ei < events.length; _ei++) {` |
-| 431 | `bool && → ||` | `return { tMs: cl.tMs != null ? cl.tMs : t0c != null && cl.i != null && c` |
+| 431 | `bool && → \|\|` | `return { tMs: cl.tMs != null ? cl.tMs : t0c != null && cl.i != null && c` |
 | 431 | `num → 0` | `return { tMs: cl.tMs != null ? cl.tMs : t0c != null && cl.i != null && c` |
-| 431 | `bool && → ||` | `return { tMs: cl.tMs != null ? cl.tMs : t0c != null && cl.i != null && c` |
-| 434 | `bool && → ||` | `return cl.tMs != null && cl.v != null;` |
-| 449 | `bool || → &&` | `summary.rmssd = _dig(json, ['hrv', 'time', 'rmssd']) \|\| _dig(json, ['hrv` |
-| 449 | `bool || → &&` | `summary.rmssd = _dig(json, ['hrv', 'time', 'rmssd']) \|\| _dig(json, ['hrv` |
-| 450 | `bool || → &&` | `summary.sdnn = _dig(json, ['hrv', 'time', 'sdnn']) \|\| _dig(json, ['hrv',` |
-| 450 | `bool || → &&` | `summary.sdnn = _dig(json, ['hrv', 'time', 'sdnn']) \|\| _dig(json, ['hrv',` |
-| 451 | `bool || → &&` | `summary.lfhf = _dig(json, ['hrv', 'frequency', 'lfhf']) \|\| _dig(json, ['` |
-| 451 | `bool || → &&` | `summary.lfhf = _dig(json, ['hrv', 'frequency', 'lfhf']) \|\| _dig(json, ['` |
-| 467 | `bool && → ||` | `return m && m.sdnn != null;` |
-| 474 | `bool && → ||` | `return m && m.rmssd != null;` |
-| 489 | `bool || → &&` | `if (summary.rmssd != null \|\| summary.sdnn != null) {` |
-| 512 | `bool || → &&` | `summary.site = _dig(json, ['recording', 'site']) \|\| 'wrist';` |
+| 431 | `bool && → \|\|` | `return { tMs: cl.tMs != null ? cl.tMs : t0c != null && cl.i != null && c` |
+| 434 | `bool && → \|\|` | `return cl.tMs != null && cl.v != null;` |
+| 449 | `bool \|\| → &&` | `summary.rmssd = _dig(json, ['hrv', 'time', 'rmssd']) \|\| _dig(json, ['hrv` |
+| 449 | `bool \|\| → &&` | `summary.rmssd = _dig(json, ['hrv', 'time', 'rmssd']) \|\| _dig(json, ['hrv` |
+| 450 | `bool \|\| → &&` | `summary.sdnn = _dig(json, ['hrv', 'time', 'sdnn']) \|\| _dig(json, ['hrv',` |
+| 450 | `bool \|\| → &&` | `summary.sdnn = _dig(json, ['hrv', 'time', 'sdnn']) \|\| _dig(json, ['hrv',` |
+| 451 | `bool \|\| → &&` | `summary.lfhf = _dig(json, ['hrv', 'frequency', 'lfhf']) \|\| _dig(json, ['` |
+| 451 | `bool \|\| → &&` | `summary.lfhf = _dig(json, ['hrv', 'frequency', 'lfhf']) \|\| _dig(json, ['` |
+| 467 | `bool && → \|\|` | `return m && m.sdnn != null;` |
+| 474 | `bool && → \|\|` | `return m && m.rmssd != null;` |
+| 489 | `bool \|\| → &&` | `if (summary.rmssd != null \|\| summary.sdnn != null) {` |
+| 512 | `bool \|\| → &&` | `summary.site = _dig(json, ['recording', 'site']) \|\| 'wrist';` |
 | 542 | `cmp < → <=` | `for (var _pi = 0; _pi < events.length; _pi++) {` |
-| 566 | `bool && → ||` | `summary.therapyHours = json.recording && json.recording.therapyHours != ` |
-| 601 | `bool || → &&` | `summary.dwellFrac = mo.dwellFrac \|\| null;` |
-| 618 | `bool && → ||` | `if (summary.posture && summary.posture.length) summary.postureSource = '` |
-| 631 | `bool || → &&` | `if (tMin == null \|\| !isFinite(tMin)) return null;` |
-| 635 | `bool && → ||` | `rmssd: e.rmssd != null && isFinite(e.rmssd) ? e.rmssd : null,` |
-| 636 | `bool && → ||` | `hr: e.hr != null && isFinite(e.hr) ? e.hr : null,` |
-| 643 | `bool && → ||` | `motion: e.motionIndex != null && isFinite(e.motionIndex) ? e.motionIndex` |
+| 566 | `bool && → \|\|` | `summary.therapyHours = json.recording && json.recording.therapyHours != ` |
+| 601 | `bool \|\| → &&` | `summary.dwellFrac = mo.dwellFrac \|\| null;` |
+| 618 | `bool && → \|\|` | `if (summary.posture && summary.posture.length) summary.postureSource = '` |
+| 631 | `bool \|\| → &&` | `if (tMin == null \|\| !isFinite(tMin)) return null;` |
+| 635 | `bool && → \|\|` | `rmssd: e.rmssd != null && isFinite(e.rmssd) ? e.rmssd : null,` |
+| 636 | `bool && → \|\|` | `hr: e.hr != null && isFinite(e.hr) ? e.hr : null,` |
+| 643 | `bool && → \|\|` | `motion: e.motionIndex != null && isFinite(e.motionIndex) ? e.motionIndex` |
 | 668 | `cmp > → >=` | `var _hz = _sp.hz != null && isFinite(_sp.hz) && _sp.hz > 0 ? _sp.hz : 1;` |
-| 668 | `bool && → ||` | `var _hz = _sp.hz != null && isFinite(_sp.hz) && _sp.hz > 0 ? _sp.hz : 1;` |
-| 668 | `bool && → ||` | `var _hz = _sp.hz != null && isFinite(_sp.hz) && _sp.hz > 0 ? _sp.hz : 1;` |
-| 694 | `bool || → &&` | `timingSource: json.timingSource != null ? json.timingSource : (json.host` |
-| 713 | `bool || → &&` | `coverage: (json.recording && json.recording.coverage) \|\| null,` |
-| 720 | `bool || → &&` | `raw: { ganglior_events: json.ganglior_events \|\| json.events \|\| null },` |
-| 737 | `bool || → &&` | `if (!json \|\| t0Ms == null \|\| !isFinite(t0Ms)) return null;` |
-| 737 | `bool || → &&` | `if (!json \|\| t0Ms == null \|\| !isFinite(t0Ms)) return null;` |
-| 740 | `bool || → &&` | `if (!ser \|\| !ser.tSec \|\| !ser.tSec.length) return null;` |
+| 668 | `bool && → \|\|` | `var _hz = _sp.hz != null && isFinite(_sp.hz) && _sp.hz > 0 ? _sp.hz : 1;` |
+| 668 | `bool && → \|\|` | `var _hz = _sp.hz != null && isFinite(_sp.hz) && _sp.hz > 0 ? _sp.hz : 1;` |
+| 694 | `bool \|\| → &&` | `timingSource: json.timingSource != null ? json.timingSource : (json.host` |
+| 713 | `bool \|\| → &&` | `coverage: (json.recording && json.recording.coverage) \|\| null,` |
+| 720 | `bool \|\| → &&` | `raw: { ganglior_events: json.ganglior_events \|\| json.events \|\| null },` |
+| 737 | `bool \|\| → &&` | `if (!json \|\| t0Ms == null \|\| !isFinite(t0Ms)) return null;` |
+| 737 | `bool \|\| → &&` | `if (!json \|\| t0Ms == null \|\| !isFinite(t0Ms)) return null;` |
+| 740 | `bool \|\| → &&` | `if (!ser \|\| !ser.tSec \|\| !ser.tSec.length) return null;` |
 | 745 | `cmp < → <=` | `for (var i = 0; i < src.length; i++) {` |
-| 747 | `bool || → &&` | `if (s == null \|\| !isFinite(s)) continue;` |
-| 771 | `bool && → ||` | `var mo = (json && json.motion) \|\| {};` |
+| 747 | `bool \|\| → &&` | `if (s == null \|\| !isFinite(s)) continue;` |
+| 771 | `bool && → \|\|` | `var mo = (json && json.motion) \|\| {};` |
 | 773 | `negate: drop !` | `if (!Array.isArray(src) \|\| !src.length) return null;` |
 | 774 | `num → 0` | `var cadMs = (mo.effortCadenceSec != null ? mo.effortCadenceSec : 10) * 1` |
 | 774 | `num → 0` | `var cadMs = (mo.effortCadenceSec != null ? mo.effortCadenceSec : 10) * 1` |
 | 776 | `cmp < → <=` | `for (var i = 0; i < src.length; i++) {` |
-| 777 | `bool || → &&` | `var e = src[i] \|\| {};` |
+| 777 | `bool \|\| → &&` | `var e = src[i] \|\| {};` |
 | 817 | `cmp < → <=` | `for (var i = 0; i < evs.length; i++) {` |
-| 819 | `bool || → &&` | `if (!e \|\| e.impulse !== 'posture_change') continue;` |
-| 820 | `bool && → ||` | `var tMs = e.tMs != null ? e.tMs : t0Ms != null && e.t ? reconstructEvent` |
-| 822 | `bool && → ||` | `if (tMs != null && pos && pos !== 'unknown') steps.push({ tMs: tMs, pos:` |
-| 822 | `bool && → ||` | `if (tMs != null && pos && pos !== 'unknown') steps.push({ tMs: tMs, pos:` |
+| 819 | `bool \|\| → &&` | `if (!e \|\| e.impulse !== 'posture_change') continue;` |
+| 820 | `bool && → \|\|` | `var tMs = e.tMs != null ? e.tMs : t0Ms != null && e.t ? reconstructEvent` |
+| 822 | `bool && → \|\|` | `if (tMs != null && pos && pos !== 'unknown') steps.push({ tMs: tMs, pos:` |
+| 822 | `bool && → \|\|` | `if (tMs != null && pos && pos !== 'unknown') steps.push({ tMs: tMs, pos:` |
 | 829 | `cmp < → <=` | `for (i = 0; i < steps.length && out.length < _MOTION_POS_MAX; i++) {` |
 | 835 | `cmp < → <=` | `for (var t = from; t < to && out.length < _MOTION_POS_MAX; t += _MOTION_` |
 | 835 | `cmp < → <=` | `for (var t = from; t < to && out.length < _MOTION_POS_MAX; t += _MOTION_` |
-| 844 | `bool && → ||` | `var mo = (json && json.motion) \|\| {};` |
+| 844 | `bool && → \|\|` | `var mo = (json && json.motion) \|\| {};` |
 | 846 | `negate: drop !` | `if (!Array.isArray(src) \|\| !src.length) return null;` |
 | 847 | `num → 0` | `var cadMs = (mo.activityCadenceSec != null ? mo.activityCadenceSec : 30)` |
 | 847 | `num → 0` | `var cadMs = (mo.activityCadenceSec != null ? mo.activityCadenceSec : 30)` |
 | 849 | `cmp < → <=` | `for (var i = 0; i < src.length; i++) {` |
-| 850 | `bool || → &&` | `var e = src[i] \|\| {};` |
-| 858 | `bool || → &&` | `var acc = json.acc \|\| (json.timeseries && json.timeseries.acc) \|\| null;` |
-| 858 | `bool || → &&` | `var acc = json.acc \|\| (json.timeseries && json.timeseries.acc) \|\| null;` |
+| 850 | `bool \|\| → &&` | `var e = src[i] \|\| {};` |
+| 858 | `bool \|\| → &&` | `var acc = json.acc \|\| (json.timeseries && json.timeseries.acc) \|\| null;` |
+| 858 | `bool \|\| → &&` | `var acc = json.acc \|\| (json.timeseries && json.timeseries.acc) \|\| null;` |
 | 861 | `num → 0` | `var tMs = t0Ms != null && tMin != null ? t0Ms + tMin * 60000 : null;` |
-| 861 | `bool && → ||` | `var tMs = t0Ms != null && tMin != null ? t0Ms + tMin * 60000 : null;` |
-| 866 | `bool || → &&` | `push(a.tMin != null ? a.tMin : a.t, a.position \|\| a.pos \|\| a.bodyPositio` |
-| 866 | `bool || → &&` | `push(a.tMin != null ? a.tMin : a.t, a.position \|\| a.pos \|\| a.bodyPositio` |
-| 881 | `bool || → &&` | `var p = e.meta && (e.meta.position \|\| e.meta.pos \|\| e.meta.bodyPosition)` |
-| 881 | `bool || → &&` | `var p = e.meta && (e.meta.position \|\| e.meta.pos \|\| e.meta.bodyPosition)` |
-| 889 | `bool || → &&` | `return (a.tMs \|\| 0) - (b.tMs \|\| 0);` |
-| 889 | `bool || → &&` | `return (a.tMs \|\| 0) - (b.tMs \|\| 0);` |
-| 903 | `bool && → ||` | `var _topKernel = json && !Array.isArray(json) && json.kernel ? json.kern` |
-| 903 | `bool && → ||` | `var _topKernel = json && !Array.isArray(json) && json.kernel ? json.kern` |
+| 861 | `bool && → \|\|` | `var tMs = t0Ms != null && tMin != null ? t0Ms + tMin * 60000 : null;` |
+| 866 | `bool \|\| → &&` | `push(a.tMin != null ? a.tMin : a.t, a.position \|\| a.pos \|\| a.bodyPositio` |
+| 866 | `bool \|\| → &&` | `push(a.tMin != null ? a.tMin : a.t, a.position \|\| a.pos \|\| a.bodyPositio` |
+| 881 | `bool \|\| → &&` | `var p = e.meta && (e.meta.position \|\| e.meta.pos \|\| e.meta.bodyPosition)` |
+| 881 | `bool \|\| → &&` | `var p = e.meta && (e.meta.position \|\| e.meta.pos \|\| e.meta.bodyPosition)` |
+| 889 | `bool \|\| → &&` | `return (a.tMs \|\| 0) - (b.tMs \|\| 0);` |
+| 889 | `bool \|\| → &&` | `return (a.tMs \|\| 0) - (b.tMs \|\| 0);` |
+| 903 | `bool && → \|\|` | `var _topKernel = json && !Array.isArray(json) && json.kernel ? json.kern` |
+| 903 | `bool && → \|\|` | `var _topKernel = json && !Array.isArray(json) && json.kernel ? json.kern` |
 | 903 | `negate: drop !` | `var _topKernel = json && !Array.isArray(json) && json.kernel ? json.kern` |
 | 908 | `negate: drop !` | `var _topT0 = json && !Array.isArray(json) && json.recording && json.reco` |
-| 916 | `bool && → ||` | `var s = nn && nn.t0Ms != null ? nn.t0Ms : nn && nn.stats && nn.stats.t0M` |
-| 916 | `bool && → ||` | `var s = nn && nn.t0Ms != null ? nn.t0Ms : nn && nn.stats && nn.stats.t0M` |
-| 916 | `bool && → ||` | `var s = nn && nn.t0Ms != null ? nn.t0Ms : nn && nn.stats && nn.stats.t0M` |
-| 916 | `bool && → ||` | `var s = nn && nn.t0Ms != null ? nn.t0Ms : nn && nn.stats && nn.stats.t0M` |
-| 917 | `bool && → ||` | `var dm = nn && nn.stats && nn.stats.durationMin != null ? nn.stats.durat` |
+| 916 | `bool && → \|\|` | `var s = nn && nn.t0Ms != null ? nn.t0Ms : nn && nn.stats && nn.stats.t0M` |
+| 916 | `bool && → \|\|` | `var s = nn && nn.t0Ms != null ? nn.t0Ms : nn && nn.stats && nn.stats.t0M` |
+| 916 | `bool && → \|\|` | `var s = nn && nn.t0Ms != null ? nn.t0Ms : nn && nn.stats && nn.stats.t0M` |
+| 916 | `bool && → \|\|` | `var s = nn && nn.t0Ms != null ? nn.t0Ms : nn && nn.stats && nn.stats.t0M` |
+| 917 | `bool && → \|\|` | `var dm = nn && nn.stats && nn.stats.durationMin != null ? nn.stats.durat` |
 | 917 | `num → 0` | `var dm = nn && nn.stats && nn.stats.durationMin != null ? nn.stats.durat` |
-| 917 | `bool && → ||` | `var dm = nn && nn.stats && nn.stats.durationMin != null ? nn.stats.durat` |
-| 918 | `bool && → ||` | `return { s: s, e: s != null && dm != null ? s + dm : null };` |
-| 929 | `bool || → &&` | `if (w.s == null \|\| e.tMs < w.s) continue;` |
+| 917 | `bool && → \|\|` | `var dm = nn && nn.stats && nn.stats.durationMin != null ? nn.stats.durat` |
+| 918 | `bool && → \|\|` | `return { s: s, e: s != null && dm != null ? s + dm : null };` |
+| 929 | `bool \|\| → &&` | `if (w.s == null \|\| e.tMs < w.s) continue;` |
 | 929 | `cmp < → <=` | `if (w.s == null \|\| e.tMs < w.s) continue;` |
 | 930 | `cmp > → >=` | `if (w.e != null && e.tMs > w.e) continue;` |
-| 930 | `bool && → ||` | `if (w.e != null && e.tMs > w.e) continue;` |
+| 930 | `bool && → \|\|` | `if (w.e != null && e.tMs > w.e) continue;` |
 | 931 | `cmp > → >=` | `if (w.s > bestS) {` |
 | 937 | `cmp < → <=` | `if (best < 0) {` |
 | 938 | `cmp < → <=` | `for (var wj = 0; wj < _wins.length; wj++) {` |
-| 940 | `bool && → ||` | `if (w2.s != null && e.tMs >= w2.s && w2.s > bestS) {` |
+| 940 | `bool && → \|\|` | `if (w2.s != null && e.tMs >= w2.s && w2.s > bestS) {` |
 | 940 | `cmp > → >=` | `if (w2.s != null && e.tMs >= w2.s && w2.s > bestS) {` |
 | 940 | `cmp >= → >` | `if (w2.s != null && e.tMs >= w2.s && w2.s > bestS) {` |
-| 940 | `bool && → ||` | `if (w2.s != null && e.tMs >= w2.s && w2.s > bestS) {` |
-| 951 | `bool || → &&` | `if (!n \|\| typeof n !== 'object') return;` |
-| 954 | `bool || → &&` | `var nSamp = stats.n \|\| 0;` |
-| 956 | `bool && → ||` | `var dt = durMs && nSamp ? durMs / nSamp : 1000; // O2Ring ≈ 1 Hz` |
+| 940 | `bool && → \|\|` | `if (w2.s != null && e.tMs >= w2.s && w2.s > bestS) {` |
+| 951 | `bool \|\| → &&` | `if (!n \|\| typeof n !== 'object') return;` |
+| 954 | `bool \|\| → &&` | `var nSamp = stats.n \|\| 0;` |
+| 956 | `bool && → \|\|` | `var dt = durMs && nSamp ? durMs / nSamp : 1000; // O2Ring ≈ 1 Hz` |
 
 ## `oxydex-dsp.js` — 1477 survivor(s)
 
 | line | operator | source |
 |---:|---|---|
-| 50 | `bool || → &&` | `window.UP = window.UP \|\| {};` |
+| 50 | `bool \|\| → &&` | `window.UP = window.UP \|\| {};` |
 | 95 | `num → 0` | `HR_SPIKE_MIN_PEAK: 75, // node-local: sensitivity floor of OxyDex's oxim` |
 | 103 | `num → 0` | `HR_SPIKE_MAX_PHYSIOLOGIC_RISE: 15, // BPM per 1 s sample` |
 | 104 | `num → 0` | `SPIKE_COOLDOWN_SEC: 30, // node-local: spike-detector refractory window ` |
@@ -1424,115 +1606,115 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 128 | `num → 0` | `HR_ARTIFACT_JUMP_SOFT: 15, // node-local: BPM jump in 1 sample within ±2` |
 | 166 | `cmp < → <=` | `if (now - _lastFileSelect < 500) return;` |
 | 166 | `num → 0` | `if (now - _lastFileSelect < 500) return;` |
-| 168 | `bool && → ||` | `var files = Array.from(e.target.files \|\| (e.target && e.target.files) \|\|` |
-| 168 | `bool || → &&` | `var files = Array.from(e.target.files \|\| (e.target && e.target.files) \|\|` |
-| 168 | `bool || → &&` | `var files = Array.from(e.target.files \|\| (e.target && e.target.files) \|\|` |
-| 189 | `bool || → &&` | `var files = Array.from(/** @type {any} */ (e.dataTransfer).files \|\| []);` |
+| 168 | `bool && → \|\|` | `var files = Array.from(e.target.files \|\| (e.target && e.target.files) \|\|` |
+| 168 | `bool \|\| → &&` | `var files = Array.from(e.target.files \|\| (e.target && e.target.files) \|\|` |
+| 168 | `bool \|\| → &&` | `var files = Array.from(e.target.files \|\| (e.target && e.target.files) \|\|` |
+| 189 | `bool \|\| → &&` | `var files = Array.from(/** @type {any} */ (e.dataTransfer).files \|\| []);` |
 | 204 | `cmp < → <=` | `if (!bytes \|\| bytes.length < 40) return false;` |
 | 204 | `negate: drop !` | `if (!bytes \|\| bytes.length < 40) return false;` |
-| 204 | `bool || → &&` | `if (!bytes \|\| bytes.length < 40) return false;` |
+| 204 | `bool \|\| → &&` | `if (!bytes \|\| bytes.length < 40) return false;` |
 | 204 | `num → 0` | `if (!bytes \|\| bytes.length < 40) return false;` |
 | 206 | `cmp <= → <` | `for (var i = 2; i <= 7; i++) {` |
 | 207 | `eq !== → ===` | `if (bytes[i] !== 0x00) return false;` |
 | 213 | `cmp < → <=` | `return n < 10 ? '0' + n : '' + n;` |
-| 246 | `bool || → &&` | `var m = String(fname \|\| '').match(/(?:^\|[^0-9])(\d{14})(?:[^0-9]\|$)/);` |
+| 246 | `bool \|\| → &&` | `var m = String(fname \|\| '').match(/(?:^\|[^0-9])(\\d{14})(?:[^0-9]\|$)/);` |
 | 255 | `eq === → !==` | `if (_rt.getUTCFullYear() === _y && _rt.getUTCMonth() === _mo - 1 && _rt.` |
-| 255 | `bool && → ||` | `if (_rt.getUTCFullYear() === _y && _rt.getUTCMonth() === _mo - 1 && _rt.` |
+| 255 | `bool && → \|\|` | `if (_rt.getUTCFullYear() === _y && _rt.getUTCMonth() === _mo - 1 && _rt.` |
 | 290 | `cmp <= → <` | `for (var off = 10; off + 3 <= bytes.length; off += 3) {` |
 | 323 | `negate: drop !` | `if (!_rEl) return;` |
 | 324 | `cmp > → >=` | `_rEl.innerHTML = '<div class="results-loading">⏳ Reading ' + files.lengt` |
 | 334 | `num → 0` | `var pct = 5 + Math.round((completed / total) * 75); // 5–80% for parsing` |
 | 336 | `cmp > → >=` | `_ui.setStatus('Parsed ' + completed + ' / ' + total + ' file' + (total >` |
 | 348 | `num → 0` | `_ui.setProgress(85);` |
-| 353 | `bool || → &&` | `if (!night \|\| !night.date) return;` |
+| 353 | `bool \|\| → &&` | `if (!night \|\| !night.date) return;` |
 | 353 | `negate: drop !` | `if (!night \|\| !night.date) return;` |
 | 353 | `negate: drop !` | `if (!night \|\| !night.date) return;` |
-| 356 | `bool && → ||` | `if (night.stats && night.stats.startTs) {` |
-| 359 | `bool && → ||` | `return ex.stats && ex.stats.startTs && Math.abs(ex.stats.startTs - ts) <` |
-| 359 | `bool && → ||` | `return ex.stats && ex.stats.startTs && Math.abs(ex.stats.startTs - ts) <` |
+| 356 | `bool && → \|\|` | `if (night.stats && night.stats.startTs) {` |
+| 359 | `bool && → \|\|` | `return ex.stats && ex.stats.startTs && Math.abs(ex.stats.startTs - ts) <` |
+| 359 | `bool && → \|\|` | `return ex.stats && ex.stats.startTs && Math.abs(ex.stats.startTs - ts) <` |
 | 359 | `cmp < → <=` | `return ex.stats && ex.stats.startTs && Math.abs(ex.stats.startTs - ts) <` |
 | 359 | `num → 0` | `return ex.stats && ex.stats.startTs && Math.abs(ex.stats.startTs - ts) <` |
 | 362 | `negate: drop !` | `if (!window._csvParseErrors) window._csvParseErrors = [];` |
-| 363 | `bool || → &&` | `window._csvParseErrors.push('Skipped duplicate recording: ' + (night.fna` |
+| 363 | `bool \|\| → &&` | `window._csvParseErrors.push('Skipped duplicate recording: ' + (night.fna` |
 | 378 | `negate: drop !` | `if (!nights.length) {` |
-| 379 | `bool && → ||` | `var dbg = window._csvParseErrors && window._csvParseErrors.length ? '\n\` |
+| 379 | `bool && → \|\|` | `var dbg = window._csvParseErrors && window._csvParseErrors.length ? '\\n\\` |
 | 387 | `num → 0` | `_ui.setProgress(95);` |
 | 388 | `cmp > → >=` | `_ui.setStatus('Rendering ' + nights.length + ' night' + (nights.length >` |
 | 391 | `num → 0` | `_ui.setProgress(100);` |
-| 399 | `bool && → ||` | `if (window._csvParseErrors && window._csvParseErrors.length) {` |
+| 399 | `bool && → \|\|` | `if (window._csvParseErrors && window._csvParseErrors.length) {` |
 | 423 | `num → 0` | `}, 30);` |
 | 451 | `cmp < → <=` | `if (!_binRows \|\| _binRows.length < 60) {` |
-| 451 | `bool || → &&` | `if (!_binRows \|\| _binRows.length < 60) {` |
+| 451 | `bool \|\| → &&` | `if (!_binRows \|\| _binRows.length < 60) {` |
 | 451 | `negate: drop !` | `if (!_binRows \|\| _binRows.length < 60) {` |
 | 451 | `num → 0` | `if (!_binRows \|\| _binRows.length < 60) {` |
 | 452 | `negate: drop !` | `if (!window._csvParseErrors) window._csvParseErrors = [];` |
 | 455 | `num → 0` | `resolve(_binRows && _binRows.length >= 60 ? processNight(_binRows, file.` |
-| 455 | `bool && → ||` | `resolve(_binRows && _binRows.length >= 60 ? processNight(_binRows, file.` |
+| 455 | `bool && → \|\|` | `resolve(_binRows && _binRows.length >= 60 ? processNight(_binRows, file.` |
 | 455 | `cmp >= → >` | `resolve(_binRows && _binRows.length >= 60 ? processNight(_binRows, file.` |
 | 461 | `eq === → !==` | `if (text.charAt(0) === '{' \|\| text.charAt(0) === '[') {` |
 | 461 | `eq === → !==` | `if (text.charAt(0) === '{' \|\| text.charAt(0) === '[') {` |
-| 461 | `bool || → &&` | `if (text.charAt(0) === '{' \|\| text.charAt(0) === '[') {` |
+| 461 | `bool \|\| → &&` | `if (text.charAt(0) === '{' \|\| text.charAt(0) === '[') {` |
 | 470 | `eq === → !==` | `if (_env && _env.schema && _env.schema.name === 'ganglior.node-export') ` |
-| 470 | `bool && → ||` | `if (_env && _env.schema && _env.schema.name === 'ganglior.node-export') ` |
-| 470 | `bool && → ||` | `if (_env && _env.schema && _env.schema.name === 'ganglior.node-export') ` |
+| 470 | `bool && → \|\|` | `if (_env && _env.schema && _env.schema.name === 'ganglior.node-export') ` |
+| 470 | `bool && → \|\|` | `if (_env && _env.schema && _env.schema.name === 'ganglior.node-export') ` |
 | 472 | `negate: drop !` | `if (!_r.ok) {` |
 | 473 | `negate: drop !` | `if (!window._csvParseErrors) window._csvParseErrors = [];` |
-| 474 | `bool && → ||` | `window._csvParseErrors.push((file && file.name ? file.name + ': ' : '') ` |
-| 504 | `bool && → ||` | `if (single && single.date) {` |
+| 474 | `bool && → \|\|` | `window._csvParseErrors.push((file && file.name ? file.name + ': ' : '') ` |
+| 504 | `bool && → \|\|` | `if (single && single.date) {` |
 | 521 | `eq === → !==` | `if (cleanText.indexOf('OxyDex Night Summary') === 0 \|\| cleanText.indexOf` |
 | 521 | `eq === → !==` | `if (cleanText.indexOf('OxyDex Night Summary') === 0 \|\| cleanText.indexOf` |
-| 521 | `bool || → &&` | `if (cleanText.indexOf('OxyDex Night Summary') === 0 \|\| cleanText.indexOf` |
+| 521 | `bool \|\| → &&` | `if (cleanText.indexOf('OxyDex Night Summary') === 0 \|\| cleanText.indexOf` |
 | 522 | `negate: drop !` | `if (!window._csvParseErrors) window._csvParseErrors = [];` |
 | 532 | `cmp < → <=` | `if (!rows \|\| rows.length < 60) {` |
-| 532 | `bool || → &&` | `if (!rows \|\| rows.length < 60) {` |
+| 532 | `bool \|\| → &&` | `if (!rows \|\| rows.length < 60) {` |
 | 532 | `negate: drop !` | `if (!rows \|\| rows.length < 60) {` |
 | 532 | `num → 0` | `if (!rows \|\| rows.length < 60) {` |
 | 535 | `negate: drop !` | `if (!window._csvParseErrors) window._csvParseErrors = [];` |
 | 536 | `num → 0` | `window._csvParseErrors.push(file.name + ': ' + rows.length + ' rows pars` |
 | 538 | `num → 0` | `resolve(rows && rows.length >= 60 ? processNight(rows, file.name) : null` |
 | 538 | `cmp >= → >` | `resolve(rows && rows.length >= 60 ? processNight(rows, file.name) : null` |
-| 538 | `bool && → ||` | `resolve(rows && rows.length >= 60 ? processNight(rows, file.name) : null` |
+| 538 | `bool && → \|\|` | `resolve(rows && rows.length >= 60 ? processNight(rows, file.name) : null` |
 | 540 | `negate: drop !` | `if (!window._csvParseErrors) window._csvParseErrors = [];` |
-| 541 | `bool && → ||` | `window._csvParseErrors.push(file.name + ' ERROR: ' + (err && err.message` |
+| 541 | `bool && → \|\|` | `window._csvParseErrors.push(file.name + ' ERROR: ' + (err && err.message` |
 | 546 | `negate: drop !` | `if (!window._csvParseErrors) window._csvParseErrors = [];` |
 | 565 | `cmp < → <=` | `for (var i = 0; i < Math.min(8, lines.length); i++) {` |
 | 567 | `cmp >= → >` | `if (l.indexOf('spo2') >= 0 \|\| l.indexOf('pulse') >= 0 \|\| l.indexOf('time` |
 | 567 | `cmp >= → >` | `if (l.indexOf('spo2') >= 0 \|\| l.indexOf('pulse') >= 0 \|\| l.indexOf('time` |
 | 567 | `cmp >= → >` | `if (l.indexOf('spo2') >= 0 \|\| l.indexOf('pulse') >= 0 \|\| l.indexOf('time` |
-| 567 | `bool || → &&` | `if (l.indexOf('spo2') >= 0 \|\| l.indexOf('pulse') >= 0 \|\| l.indexOf('time` |
+| 567 | `bool \|\| → &&` | `if (l.indexOf('spo2') >= 0 \|\| l.indexOf('pulse') >= 0 \|\| l.indexOf('time` |
 | 567 | `cmp >= → >` | `if (l.indexOf('spo2') >= 0 \|\| l.indexOf('pulse') >= 0 \|\| l.indexOf('time` |
-| 567 | `bool || → &&` | `if (l.indexOf('spo2') >= 0 \|\| l.indexOf('pulse') >= 0 \|\| l.indexOf('time` |
-| 567 | `bool || → &&` | `if (l.indexOf('spo2') >= 0 \|\| l.indexOf('pulse') >= 0 \|\| l.indexOf('time` |
+| 567 | `bool \|\| → &&` | `if (l.indexOf('spo2') >= 0 \|\| l.indexOf('pulse') >= 0 \|\| l.indexOf('time` |
+| 567 | `bool \|\| → &&` | `if (l.indexOf('spo2') >= 0 \|\| l.indexOf('pulse') >= 0 \|\| l.indexOf('time` |
 | 580 | `cmp >= → >` | `var DELIM = headerLine.indexOf(';') >= 0 && (headerLine.indexOf(';') < h` |
 | 580 | `cmp < → <=` | `var DELIM = headerLine.indexOf(';') >= 0 && (headerLine.indexOf(';') < h` |
 | 580 | `cmp < → <=` | `var DELIM = headerLine.indexOf(';') >= 0 && (headerLine.indexOf(';') < h` |
 | 594 | `cmp >= → >` | `if ((c.indexOf('time') >= 0 \|\| c.indexOf('date') >= 0) && timeCol < 0) t` |
 | 594 | `cmp < → <=` | `if ((c.indexOf('time') >= 0 \|\| c.indexOf('date') >= 0) && timeCol < 0) t` |
-| 594 | `bool && → ||` | `if ((c.indexOf('time') >= 0 \|\| c.indexOf('date') >= 0) && timeCol < 0) t` |
+| 594 | `bool && → \|\|` | `if ((c.indexOf('time') >= 0 \|\| c.indexOf('date') >= 0) && timeCol < 0) t` |
 | 594 | `cmp >= → >` | `if ((c.indexOf('time') >= 0 \|\| c.indexOf('date') >= 0) && timeCol < 0) t` |
-| 594 | `bool || → &&` | `if ((c.indexOf('time') >= 0 \|\| c.indexOf('date') >= 0) && timeCol < 0) t` |
+| 594 | `bool \|\| → &&` | `if ((c.indexOf('time') >= 0 \|\| c.indexOf('date') >= 0) && timeCol < 0) t` |
 | 595 | `cmp >= → >` | `if ((c.indexOf('spo2') >= 0 \|\| c.indexOf('o2') >= 0 \|\| c.indexOf('sao2')` |
 | 595 | `cmp >= → >` | `if ((c.indexOf('spo2') >= 0 \|\| c.indexOf('o2') >= 0 \|\| c.indexOf('sao2')` |
 | 595 | `cmp >= → >` | `if ((c.indexOf('spo2') >= 0 \|\| c.indexOf('o2') >= 0 \|\| c.indexOf('sao2')` |
 | 595 | `cmp < → <=` | `if ((c.indexOf('spo2') >= 0 \|\| c.indexOf('o2') >= 0 \|\| c.indexOf('sao2')` |
 | 595 | `cmp >= → >` | `if ((c.indexOf('spo2') >= 0 \|\| c.indexOf('o2') >= 0 \|\| c.indexOf('sao2')` |
-| 595 | `bool && → ||` | `if ((c.indexOf('spo2') >= 0 \|\| c.indexOf('o2') >= 0 \|\| c.indexOf('sao2')` |
-| 595 | `bool || → &&` | `if ((c.indexOf('spo2') >= 0 \|\| c.indexOf('o2') >= 0 \|\| c.indexOf('sao2')` |
-| 595 | `bool || → &&` | `if ((c.indexOf('spo2') >= 0 \|\| c.indexOf('o2') >= 0 \|\| c.indexOf('sao2')` |
-| 595 | `bool || → &&` | `if ((c.indexOf('spo2') >= 0 \|\| c.indexOf('o2') >= 0 \|\| c.indexOf('sao2')` |
+| 595 | `bool && → \|\|` | `if ((c.indexOf('spo2') >= 0 \|\| c.indexOf('o2') >= 0 \|\| c.indexOf('sao2')` |
+| 595 | `bool \|\| → &&` | `if ((c.indexOf('spo2') >= 0 \|\| c.indexOf('o2') >= 0 \|\| c.indexOf('sao2')` |
+| 595 | `bool \|\| → &&` | `if ((c.indexOf('spo2') >= 0 \|\| c.indexOf('o2') >= 0 \|\| c.indexOf('sao2')` |
+| 595 | `bool \|\| → &&` | `if ((c.indexOf('spo2') >= 0 \|\| c.indexOf('o2') >= 0 \|\| c.indexOf('sao2')` |
 | 596 | `cmp >= → >` | `if ((c.indexOf('pulse') >= 0 \|\| c.indexOf('pr') === 0 \|\| c.indexOf('hr')` |
 | 596 | `cmp >= → >` | `if ((c.indexOf('pulse') >= 0 \|\| c.indexOf('pr') === 0 \|\| c.indexOf('hr')` |
 | 596 | `cmp < → <=` | `if ((c.indexOf('pulse') >= 0 \|\| c.indexOf('pr') === 0 \|\| c.indexOf('hr')` |
-| 596 | `bool && → ||` | `if ((c.indexOf('pulse') >= 0 \|\| c.indexOf('pr') === 0 \|\| c.indexOf('hr')` |
-| 596 | `bool || → &&` | `if ((c.indexOf('pulse') >= 0 \|\| c.indexOf('pr') === 0 \|\| c.indexOf('hr')` |
+| 596 | `bool && → \|\|` | `if ((c.indexOf('pulse') >= 0 \|\| c.indexOf('pr') === 0 \|\| c.indexOf('hr')` |
+| 596 | `bool \|\| → &&` | `if ((c.indexOf('pulse') >= 0 \|\| c.indexOf('pr') === 0 \|\| c.indexOf('hr')` |
 | 597 | `cmp < → <=` | `if (c.indexOf('motion') >= 0 && motionCol < 0) motionCol = i;` |
 | 599 | `cmp >= → >` | `if ((c.indexOf('pi') === 0 \|\| c.indexOf('perfus') >= 0) && piCol < 0) pi` |
 | 599 | `cmp < → <=` | `if ((c.indexOf('pi') === 0 \|\| c.indexOf('perfus') >= 0) && piCol < 0) pi` |
 | 604 | `cmp < → <=` | `if (timeCol < 0 \|\| spo2Col < 0 \|\| hrCol < 0) {` |
 | 604 | `cmp < → <=` | `if (timeCol < 0 \|\| spo2Col < 0 \|\| hrCol < 0) {` |
 | 604 | `cmp < → <=` | `if (timeCol < 0 \|\| spo2Col < 0 \|\| hrCol < 0) {` |
-| 604 | `bool || → &&` | `if (timeCol < 0 \|\| spo2Col < 0 \|\| hrCol < 0) {` |
-| 604 | `bool || → &&` | `if (timeCol < 0 \|\| spo2Col < 0 \|\| hrCol < 0) {` |
+| 604 | `bool \|\| → &&` | `if (timeCol < 0 \|\| spo2Col < 0 \|\| hrCol < 0) {` |
+| 604 | `bool \|\| → &&` | `if (timeCol < 0 \|\| spo2Col < 0 \|\| hrCol < 0) {` |
 | 606 | `cmp < → <=` | `for (var i = firstDataIdx; i < Math.min(firstDataIdx + 5, lines.length);` |
 | 608 | `cmp < → <=` | `if (parts.length < 3) continue;` |
 | 610 | `cmp < → <=` | `for (var j = 0; j < Math.min(parts.length, 3); j++) {` |
@@ -1544,46 +1726,46 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 626 | `cmp < → <=` | `if (hrCol < 0) hrCol = 2;` |
 | 637 | `cmp >= → >` | `if (_sp.length >= 3 && timeCol < _sp.length) _stamps.push(_sp[timeCol].t` |
 | 637 | `cmp < → <=` | `if (_sp.length >= 3 && timeCol < _sp.length) _stamps.push(_sp[timeCol].t` |
-| 637 | `bool && → ||` | `if (_sp.length >= 3 && timeCol < _sp.length) _stamps.push(_sp[timeCol].t` |
+| 637 | `bool && → \|\|` | `if (_sp.length >= 3 && timeCol < _sp.length) _stamps.push(_sp[timeCol].t` |
 | 646 | `cmp < → <=` | `var tStr = timeCol < p.length ? p[timeCol].trim() : '';` |
 | 647 | `cmp < → <=` | `var sStr = spo2Col < p.length ? p[spo2Col].trim() : '';` |
 | 648 | `cmp < → <=` | `var hStr = hrCol < p.length ? p[hrCol].trim() : '';` |
 | 666 | `cmp < → <=` | `var mStr = motionCol >= 0 && motionCol < p.length ? p[motionCol].trim() ` |
 | 666 | `cmp >= → >` | `var mStr = motionCol >= 0 && motionCol < p.length ? p[motionCol].trim() ` |
-| 667 | `bool || → &&` | `if (!sStr \|\| sStr === '- -' \|\| sStr === '--' \|\| sStr === '') continue;` |
-| 667 | `bool || → &&` | `if (!sStr \|\| sStr === '- -' \|\| sStr === '--' \|\| sStr === '') continue;` |
-| 667 | `bool || → &&` | `if (!sStr \|\| sStr === '- -' \|\| sStr === '--' \|\| sStr === '') continue;` |
+| 667 | `bool \|\| → &&` | `if (!sStr \|\| sStr === '- -' \|\| sStr === '--' \|\| sStr === '') continue;` |
+| 667 | `bool \|\| → &&` | `if (!sStr \|\| sStr === '- -' \|\| sStr === '--' \|\| sStr === '') continue;` |
+| 667 | `bool \|\| → &&` | `if (!sStr \|\| sStr === '- -' \|\| sStr === '--' \|\| sStr === '') continue;` |
 | 668 | `num → 0` | `var spo2 = parseInt(sStr, 10),` |
 | 669 | `num → 0` | `hr = parseInt(hStr, 10),` |
 | 670 | `num → 0` | `motion = mStr == null ? null : parseInt(mStr, 10) \|\| 0;` |
-| 671 | `bool || → &&` | `if (isNaN(spo2) \|\| isNaN(hr)) continue;` |
+| 671 | `bool \|\| → &&` | `if (isNaN(spo2) \|\| isNaN(hr)) continue;` |
 | 677 | `cmp >= → >` | `if (piCol >= 0 && piCol < p.length) {` |
 | 677 | `cmp < → <=` | `if (piCol >= 0 && piCol < p.length) {` |
-| 677 | `bool && → ||` | `if (piCol >= 0 && piCol < p.length) {` |
+| 677 | `bool && → \|\|` | `if (piCol >= 0 && piCol < p.length) {` |
 | 738 | `num → 0` | `FLOOR = 60;` |
 | 739 | `cmp < → <=` | `if (n < FLOOR + MIN + 1) return { head: 0, tail: 0 }; // too short to sa` |
 | 747 | `cmp >= → >` | `while (k >= 0 && k < n && rows[k].spo2 === s && rows[k].hr === h) {` |
 | 757 | `cmp < → <=` | `if (hlen >= MIN && hlen <= MAX && hlen < n) {` |
 | 757 | `cmp >= → >` | `if (hlen >= MIN && hlen <= MAX && hlen < n) {` |
 | 757 | `cmp <= → <` | `if (hlen >= MIN && hlen <= MAX && hlen < n) {` |
-| 757 | `bool && → ||` | `if (hlen >= MIN && hlen <= MAX && hlen < n) {` |
+| 757 | `bool && → \|\|` | `if (hlen >= MIN && hlen <= MAX && hlen < n) {` |
 | 760 | `cmp >= → >` | `if (dS >= SPO2_STEP \|\| dH >= HR_STEP) head = hlen;` |
 | 760 | `cmp >= → >` | `if (dS >= SPO2_STEP \|\| dH >= HR_STEP) head = hlen;` |
-| 760 | `bool || → &&` | `if (dS >= SPO2_STEP \|\| dH >= HR_STEP) head = hlen;` |
+| 760 | `bool \|\| → &&` | `if (dS >= SPO2_STEP \|\| dH >= HR_STEP) head = hlen;` |
 | 766 | `cmp <= → <` | `if (tlen >= MIN && tlen <= MAX && tlen < n - head) {` |
 | 766 | `cmp >= → >` | `if (tlen >= MIN && tlen <= MAX && tlen < n - head) {` |
 | 771 | `cmp >= → >` | `if (dS2 >= SPO2_STEP \|\| dH2 >= HR_STEP) tail = tlen;` |
 | 771 | `cmp >= → >` | `if (dS2 >= SPO2_STEP \|\| dH2 >= HR_STEP) tail = tlen;` |
-| 771 | `bool || → &&` | `if (dS2 >= SPO2_STEP \|\| dH2 >= HR_STEP) tail = tlen;` |
+| 771 | `bool \|\| → &&` | `if (dS2 >= SPO2_STEP \|\| dH2 >= HR_STEP) tail = tlen;` |
 | 775 | `cmp < → <=` | `if (n - head - tail < FLOOR) {` |
 | 776 | `cmp < → <=` | `if (n - head < FLOOR) head = Math.max(0, n - FLOOR);` |
 | 812 | `cmp >= → >` | `var isHard = Math.abs(rise) >= HARD; // catch both sudden rises AND drop` |
-| 814 | `bool && → ||` | `if (!isHard && rise >= SOFT) {` |
+| 814 | `bool && → \|\|` | `if (!isHard && rise >= SOFT) {` |
 | 814 | `cmp >= → >` | `if (!isHard && rise >= SOFT) {` |
 | 814 | `negate: drop !` | `if (!isHard && rise >= SOFT) {` |
 | 816 | `num → 0` | `minsec = t.getUTCMinutes() + t.getUTCSeconds() / 60;` |
 | 817 | `cmp <= → <` | `isSoft = minsec <= 2 \|\| minsec >= 58; // v14: full ±2min at ANY clock ho` |
-| 817 | `bool || → &&` | `isSoft = minsec <= 2 \|\| minsec >= 58; // v14: full ±2min at ANY clock ho` |
+| 817 | `bool \|\| → &&` | `isSoft = minsec <= 2 \|\| minsec >= 58; // v14: full ±2min at ANY clock ho` |
 | 817 | `cmp >= → >` | `isSoft = minsec <= 2 \|\| minsec >= 58; // v14: full ±2min at ANY clock ho` |
 | 817 | `num → 0` | `isSoft = minsec <= 2 \|\| minsec >= 58; // v14: full ±2min at ANY clock ho` |
 | 824 | `cmp > → >=` | `var isRise = rise > 0;` |
@@ -1602,7 +1784,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 969 | `cmp > → >=` | `var clusteringIdx = total > 0 ? +(lastH / total).toFixed(2) : null; // >` |
 | 978 | `cmp < → <=` | `if (!osc \|\| osc.episodeCount < 1)` |
 | 978 | `negate: drop !` | `if (!osc \|\| osc.episodeCount < 1)` |
-| 978 | `bool || → &&` | `if (!osc \|\| osc.episodeCount < 1)` |
+| 978 | `bool \|\| → &&` | `if (!osc \|\| osc.episodeCount < 1)` |
 | 997 | `cmp <= → <` | `for (var w = 0; w + WIN <= n; w += WIN) {` |
 | 1003 | `cmp >= → >` | `if (segMean >= THRESH) continue; // not an oscillating window` |
 | 1007 | `cmp < → <=` | `for (var i = 1; i < seg.length; i++) {` |
@@ -1610,10 +1792,10 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1008 | `cmp < → <=` | `var dir = seg[i] > THRESH ? 1 : seg[i] < THRESH ? -1 : 0;` |
 | 1009 | `eq !== → ===` | `if (dir !== lastDir && dir !== 0) {` |
 | 1009 | `eq !== → ===` | `if (dir !== lastDir && dir !== 0) {` |
-| 1009 | `bool && → ||` | `if (dir !== lastDir && dir !== 0) {` |
+| 1009 | `bool && → \|\|` | `if (dir !== lastDir && dir !== 0) {` |
 | 1015 | `cmp >= → >` | `if (localCross.length >= 2) crossingTimes = crossingTimes.concat(localCr` |
 | 1024 | `cmp < → <=` | `for (var i = 1; i < crossingTimes.length; i++) {` |
-| 1026 | `bool && → ||` | `if (iv > 5 && iv < 300) intervals.push(iv); // sanity: 5s–300s` |
+| 1026 | `bool && → \|\|` | `if (iv > 5 && iv < 300) intervals.push(iv); // sanity: 5s–300s` |
 | 1026 | `cmp > → >=` | `if (iv > 5 && iv < 300) intervals.push(iv); // sanity: 5s–300s` |
 | 1026 | `cmp < → <=` | `if (iv > 5 && iv < 300) intervals.push(iv); // sanity: 5s–300s` |
 | 1026 | `num → 0` | `if (iv > 5 && iv < 300) intervals.push(iv); // sanity: 5s–300s` |
@@ -1621,8 +1803,8 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1041 | `cmp > → >=` | `if (cycleIntervals.length > 1) {` |
 | 1062 | `num → 0` | `var durationHr = n / 3600;` |
 | 1063 | `cmp > → >=` | `var pbLoad = pbCycleLen && pbAmplitude && durationHr > 0 ? +((osc.episod` |
-| 1063 | `bool && → ||` | `var pbLoad = pbCycleLen && pbAmplitude && durationHr > 0 ? +((osc.episod` |
-| 1063 | `bool && → ||` | `var pbLoad = pbCycleLen && pbAmplitude && durationHr > 0 ? +((osc.episod` |
+| 1063 | `bool && → \|\|` | `var pbLoad = pbCycleLen && pbAmplitude && durationHr > 0 ? +((osc.episod` |
+| 1063 | `bool && → \|\|` | `var pbLoad = pbCycleLen && pbAmplitude && durationHr > 0 ? +((osc.episod` |
 | 1063 | `num → 0` | `var pbLoad = pbCycleLen && pbAmplitude && durationHr > 0 ? +((osc.episod` |
 | 1069 | `cmp < → <=` | `return t < t1;` |
 | 1072 | `cmp >= → >` | `return t >= t2;` |
@@ -1641,7 +1823,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1153 | `num → 0` | `for (var i = 150; i < n - 150; i++) {` |
 | 1154 | `cmp < → <=` | `if (hrSmooth[i] < hrSmooth[i - 150] && hrSmooth[i] < hrSmooth[i + 150]) ` |
 | 1154 | `cmp < → <=` | `if (hrSmooth[i] < hrSmooth[i - 150] && hrSmooth[i] < hrSmooth[i + 150]) ` |
-| 1154 | `bool && → ||` | `if (hrSmooth[i] < hrSmooth[i - 150] && hrSmooth[i] < hrSmooth[i + 150]) ` |
+| 1154 | `bool && → \|\|` | `if (hrSmooth[i] < hrSmooth[i - 150] && hrSmooth[i] < hrSmooth[i + 150]) ` |
 | 1155 | `cmp >= → >` | `if (!valleys.length \|\| i - valleys[valleys.length - 1] >= MIN_SEP) {` |
 | 1169 | `cmp < → <=` | `if (n < 60) return { odi1Rate: 0, odi1Total: 0 };` |
 | 1169 | `num → 0` | `if (n < 60) return { odi1Rate: 0, odi1Total: 0 };` |
@@ -1650,23 +1832,23 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1191 | `cmp >= → >` | `var ctHigh = ct90Min >= 5;` |
 | 1192 | `cmp >= → >` | `var odiMod = odi4Rate >= DexKernel.K.MOS_SHORT;` |
 | 1193 | `cmp >= → >` | `var ctMod = ct90Min >= 1;` |
-| 1195 | `bool && → ||` | `if (odiHigh && ctHigh) score = 4;` |
-| 1196 | `bool || → &&` | `else if (odiHigh \|\| ctHigh) score = 3;` |
+| 1195 | `bool && → \|\|` | `if (odiHigh && ctHigh) score = 4;` |
+| 1196 | `bool \|\| → &&` | `else if (odiHigh \|\| ctHigh) score = 3;` |
 | 1231 | `cmp < → <=` | `if (n < 60 \|\| !stats) return null;` |
-| 1231 | `bool || → &&` | `if (n < 60 \|\| !stats) return null;` |
+| 1231 | `bool \|\| → &&` | `if (n < 60 \|\| !stats) return null;` |
 | 1231 | `num → 0` | `if (n < 60 \|\| !stats) return null;` |
 | 1245 | `cmp <= → <` | `return v >= 94 && v <= 99;` |
 | 1287 | `cmp >= → >` | `if (inBurst && burstLen >= 3) motionBursts++;` |
 | 1292 | `cmp >= → >` | `if (inBurst && burstLen >= 3) motionBursts++;` |
-| 1292 | `bool && → ||` | `if (inBurst && burstLen >= 3) motionBursts++;` |
+| 1292 | `bool && → \|\|` | `if (inBurst && burstLen >= 3) motionBursts++;` |
 | 1297 | `cmp < → <=` | `for (var i = 0; i < n; i++) {` |
 | 1300 | `cmp > → >=` | `if (curRun > longestCleanRun) longestCleanRun = curRun;` |
-| 1306 | `bool && → ||` | `var nadirCount = desat && desat.nadir ? desat.nadir.count : 0;` |
+| 1306 | `bool && → \|\|` | `var nadirCount = desat && desat.nadir ? desat.nadir.count : 0;` |
 | 1308 | `cmp > → >=` | `var nadirDensity = durationHr > 0 ? +(nadirCount / durationHr).toFixed(2` |
-| 1312 | `bool && → ||` | `if (stats && hb) {` |
-| 1319 | `bool && → ||` | `if (odi4 && odi1 && odi1.odi1Rate > 0) {` |
+| 1312 | `bool && → \|\|` | `if (stats && hb) {` |
+| 1319 | `bool && → \|\|` | `if (odi4 && odi1 && odi1.odi1Rate > 0) {` |
 | 1319 | `cmp > → >=` | `if (odi4 && odi1 && odi1.odi1Rate > 0) {` |
-| 1319 | `bool && → ||` | `if (odi4 && odi1 && odi1.odi1Rate > 0) {` |
+| 1319 | `bool && → \|\|` | `if (odi4 && odi1 && odi1.odi1Rate > 0) {` |
 | 1344 | `cmp < → <=` | `if (n < 600) return null;` |
 | 1344 | `num → 0` | `if (n < 600) return null;` |
 | 1364 | `cmp < → <=` | `if (m < worst10) worst10 = m;` |
@@ -1679,25 +1861,25 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1417 | `cmp > → >=` | `var cdi = durationHr > 0 ? +(cdiCross / durationHr / 2).toFixed(2) : 0; ` |
 | 1427 | `cmp < → <=` | `if (postIdx < n && e.nadirIdx < n) postDipDeltas.push(hr[postIdx] - hr[e` |
 | 1427 | `cmp < → <=` | `if (postIdx < n && e.nadirIdx < n) postDipDeltas.push(hr[postIdx] - hr[e` |
-| 1427 | `bool && → ||` | `if (postIdx < n && e.nadirIdx < n) postDipDeltas.push(hr[postIdx] - hr[e` |
+| 1427 | `bool && → \|\|` | `if (postIdx < n && e.nadirIdx < n) postDipDeltas.push(hr[postIdx] - hr[e` |
 | 1441 | `cmp < → <=` | `for (var i = 1; i < n; i++) {` |
 | 1443 | `eq === → !==` | `if (decelLen === 0) decelStartHR = hr[i - 1]; // capture baseline before` |
 | 1446 | `cmp >= → >` | `if (decelLen >= 30 && decelStartHR - hr[i - 1] >= 3) hrDecelRuns++;` |
 | 1446 | `cmp >= → >` | `if (decelLen >= 30 && decelStartHR - hr[i - 1] >= 3) hrDecelRuns++;` |
-| 1446 | `bool && → ||` | `if (decelLen >= 30 && decelStartHR - hr[i - 1] >= 3) hrDecelRuns++;` |
+| 1446 | `bool && → \|\|` | `if (decelLen >= 30 && decelStartHR - hr[i - 1] >= 3) hrDecelRuns++;` |
 | 1446 | `num → 0` | `if (decelLen >= 30 && decelStartHR - hr[i - 1] >= 3) hrDecelRuns++;` |
 | 1451 | `cmp >= → >` | `if (decelLen >= 30 && decelStartHR - hr[n - 1] >= 3) hrDecelRuns++; // e` |
 | 1451 | `cmp >= → >` | `if (decelLen >= 30 && decelStartHR - hr[n - 1] >= 3) hrDecelRuns++; // e` |
 | 1451 | `num → 0` | `if (decelLen >= 30 && decelStartHR - hr[n - 1] >= 3) hrDecelRuns++; // e` |
-| 1451 | `bool && → ||` | `if (decelLen >= 30 && decelStartHR - hr[n - 1] >= 3) hrDecelRuns++; // e` |
+| 1451 | `bool && → \|\|` | `if (decelLen >= 30 && decelStartHR - hr[n - 1] >= 3) hrDecelRuns++; // e` |
 | 1462 | `cmp > → >=` | `if (dSpo2 > 0 !== dHr > 0) decoupled++;` |
 | 1462 | `cmp > → >=` | `if (dSpo2 > 0 !== dHr > 0) decoupled++;` |
 | 1473 | `cmp < → <=` | `for (var e = 0; e < 3; e++) {` |
 | 1476 | `cmp <= → <` | `if (end <= start) break;` |
 | 1510 | `num → 0` | `100` |
-| 1543 | `bool && → ||` | `if (pbMet && pbMet.pbCycleLen !== null) {` |
+| 1543 | `bool && → \|\|` | `if (pbMet && pbMet.pbCycleLen !== null) {` |
 | 1543 | `eq !== → ===` | `if (pbMet && pbMet.pbCycleLen !== null) {` |
-| 1544 | `bool && → ||` | `if (pbMet.pbCycleLen >= 40 && pbMet.pbCycleLen <= 130) cs++; // clinical` |
+| 1544 | `bool && → \|\|` | `if (pbMet.pbCycleLen >= 40 && pbMet.pbCycleLen <= 130) cs++; // clinical` |
 | 1544 | `cmp >= → >` | `if (pbMet.pbCycleLen >= 40 && pbMet.pbCycleLen <= 130) cs++; // clinical` |
 | 1544 | `num → 0` | `if (pbMet.pbCycleLen >= 40 && pbMet.pbCycleLen <= 130) cs++; // clinical` |
 | 1544 | `cmp <= → <` | `if (pbMet.pbCycleLen >= 40 && pbMet.pbCycleLen <= 130) cs++; // clinical` |
@@ -1712,8 +1894,8 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1565 | `cmp < → <=` | `if (odi4 && odi4.rate < 5 && osc && osc.episodeCount >= 3) uars++;` |
 | 1565 | `cmp >= → >` | `if (odi4 && odi4.rate < 5 && osc && osc.episodeCount >= 3) uars++;` |
 | 1566 | `cmp >= → >` | `if (comp && comp.sfi >= 2) uars++;` |
-| 1598 | `bool && → ||` | `return r && r.spo2 != null ? r.spo2 : null;` |
-| 1601 | `bool && → ||` | `return v != null && isFinite(v);` |
+| 1598 | `bool && → \|\|` | `return r && r.spo2 != null ? r.spo2 : null;` |
+| 1601 | `bool && → \|\|` | `return v != null && isFinite(v);` |
 | 1604 | `cmp < → <=` | `if (n < 256) return null;` |
 | 1604 | `num → 0` | `if (n < 256) return null;` |
 | 1616 | `cmp < → <=` | `for (var i = 0; i < n; i++) {` |
@@ -1721,8 +1903,8 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1627 | `cmp <= → <` | `for (var start = 0; start + wn <= n; start += wn) {` |
 | 1650 | `cmp > → >=` | `if (count > 0) {` |
 | 1656 | `cmp < → <=` | `logN.length < 2 \|\|` |
-| 1656 | `bool || → &&` | `logN.length < 2 \|\|` |
-| 1677 | `bool || → &&` | `var label = alpha1 === null \|\| !isFinite(alpha1) ? '—' : 'SpO₂ DFA (α1='` |
+| 1656 | `bool \|\| → &&` | `logN.length < 2 \|\|` |
+| 1677 | `bool \|\| → &&` | `var label = alpha1 === null \|\| !isFinite(alpha1) ? '—' : 'SpO₂ DFA (α1='` |
 | 1744 | `cmp > → >=` | `if (!(den > 0)) return 0;` |
 | 1748 | `cmp > → >=` | `return r > 0.999 ? 0.999 : r < 0 ? 0 : r;` |
 | 1748 | `cmp < → <=` | `return r > 0.999 ? 0.999 : r < 0 ? 0 : r;` |
@@ -1735,11 +1917,11 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1809 | `cmp < → <=` | `for (fi = 0; fi < pows.length; fi++) {` |
 | 1810 | `cmp > → >=` | `var snr = scale > 0 && bg[fi] > 0 ? pows[fi] / (scale * bg[fi]) : 0;` |
 | 1810 | `cmp > → >=` | `var snr = scale > 0 && bg[fi] > 0 ? pows[fi] / (scale * bg[fi]) : 0;` |
-| 1810 | `bool && → ||` | `var snr = scale > 0 && bg[fi] > 0 ? pows[fi] / (scale * bg[fi]) : 0;` |
+| 1810 | `bool && → \|\|` | `var snr = scale > 0 && bg[fi] > 0 ? pows[fi] / (scale * bg[fi]) : 0;` |
 | 1811 | `cmp > → >=` | `if (snr > bestSnr) {` |
 | 1816 | `cmp >= → >` | `var ok = bestFreq != null && bestSnr >= thresh;` |
-| 1816 | `bool && → ||` | `var ok = bestFreq != null && bestSnr >= thresh;` |
-| 1821 | `bool && → ||` | `if (ok && bestFreq != null) {` |
+| 1816 | `bool && → \|\|` | `var ok = bestFreq != null && bestSnr >= thresh;` |
+| 1821 | `bool && → \|\|` | `if (ok && bestFreq != null) {` |
 | 1849 | `num → 0` | `if (n < 200) return null;` |
 | 1849 | `cmp < → <=` | `if (n < 200) return null;` |
 | 1858 | `cmp > → >=` | `if (n > CAP) {` |
@@ -1748,16 +1930,16 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1886 | `cmp > → >=` | `if (Math.abs(x[i + k] - x[j + k]) > r) {` |
 | 1898 | `cmp > → >=` | `var sampEn = Bm > 0 && Am > 0 ? +(-Math.log(Am / Bm)).toFixed(4) : null;` |
 | 1898 | `cmp > → >=` | `var sampEn = Bm > 0 && Am > 0 ? +(-Math.log(Am / Bm)).toFixed(4) : null;` |
-| 1898 | `bool && → ||` | `var sampEn = Bm > 0 && Am > 0 ? +(-Math.log(Am / Bm)).toFixed(4) : null;` |
+| 1898 | `bool && → \|\|` | `var sampEn = Bm > 0 && Am > 0 ? +(-Math.log(Am / Bm)).toFixed(4) : null;` |
 | 1899 | `cmp < → <=` | `var label = sampEn === null ? '—' : sampEn < 0.5 ? 'Low (regular)' : sam` |
 | 1899 | `cmp < → <=` | `var label = sampEn === null ? '—' : sampEn < 0.5 ? 'Low (regular)' : sam` |
 | 1899 | `num → 0` | `var label = sampEn === null ? '—' : sampEn < 0.5 ? 'Low (regular)' : sam` |
 | 1905 | `cmp < → <=` | `if (!durationHr \|\| durationHr < 0.5) return null;` |
-| 1905 | `bool || → &&` | `if (!durationHr \|\| durationHr < 0.5) return null;` |
+| 1905 | `bool \|\| → &&` | `if (!durationHr \|\| durationHr < 0.5) return null;` |
 | 1905 | `num → 0` | `if (!durationHr \|\| durationHr < 0.5) return null;` |
-| 1906 | `bool && → ||` | `var spikeRate = spikes && spikes.length ? spikes.length / durationHr : 0` |
+| 1906 | `bool && → \|\|` | `var spikeRate = spikes && spikes.length ? spikes.length / durationHr : 0` |
 | 1908 | `eq !== → ===` | `var postDipAct = rolling && rolling.postDipHrResponse !== null ? Math.ma` |
-| 1908 | `bool && → ||` | `var postDipAct = rolling && rolling.postDipHrResponse !== null ? Math.ma` |
+| 1908 | `bool && → \|\|` | `var postDipAct = rolling && rolling.postDipHrResponse !== null ? Math.ma` |
 | 1908 | `num → 0` | `var postDipAct = rolling && rolling.postDipHrResponse !== null ? Math.ma` |
 | 1910 | `num → 0` | `var ssi = +(spikeRate * 0.4 + postDipAct * 0.4 + aaiLoad * 0.2).toFixed(` |
 | 1910 | `num → 0` | `var ssi = +(spikeRate * 0.4 + postDipAct * 0.4 + aaiLoad * 0.2).toFixed(` |
@@ -1776,40 +1958,40 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 2004 | `cmp > → >=` | `if (k < m && diff > r) mOk = false;` |
 | 2005 | `cmp > → >=` | `if (diff > r) mOk1 = false;` |
 | 2011 | `cmp > → >=` | `var spo2En = Bm > 0 && Am > 0 ? +(-Math.log(Am / Bm)).toFixed(4) : null;` |
-| 2011 | `bool && → ||` | `var spo2En = Bm > 0 && Am > 0 ? +(-Math.log(Am / Bm)).toFixed(4) : null;` |
+| 2011 | `bool && → \|\|` | `var spo2En = Bm > 0 && Am > 0 ? +(-Math.log(Am / Bm)).toFixed(4) : null;` |
 | 2011 | `cmp > → >=` | `var spo2En = Bm > 0 && Am > 0 ? +(-Math.log(Am / Bm)).toFixed(4) : null;` |
 | 2012 | `cmp < → <=` | `var label = spo2En === null ? '—' : spo2En < 0.3 ? 'Low(periodic)' : spo` |
 | 2012 | `cmp < → <=` | `var label = spo2En === null ? '—' : spo2En < 0.3 ? 'Low(periodic)' : spo` |
 | 2012 | `num → 0` | `var label = spo2En === null ? '—' : spo2En < 0.3 ? 'Low(periodic)' : spo` |
 | 2018 | `cmp < → <=` | `if (!odi3 \|\| durationHr < 0.5) return null;` |
-| 2018 | `bool || → &&` | `if (!odi3 \|\| durationHr < 0.5) return null;` |
+| 2018 | `bool \|\| → &&` | `if (!odi3 \|\| durationHr < 0.5) return null;` |
 | 2018 | `num → 0` | `if (!odi3 \|\| durationHr < 0.5) return null;` |
 | 2024 | `cmp > → >=` | `if (rows && rows.length > 60) {` |
-| 2024 | `bool && → ||` | `if (rows && rows.length > 60) {` |
+| 2024 | `bool && → \|\|` | `if (rows && rows.length > 60) {` |
 | 2024 | `num → 0` | `if (rows && rows.length > 60) {` |
 | 2039 | `cmp > → >=` | `nadirCount > 0` |
 | 2045 | `cmp > → >=` | `nadirCount > 0` |
 | 2051 | `cmp > → >=` | `var rate = durationHr > 0 ? +(nadirCount / durationHr).toFixed(1) : odi3` |
 | 2053 | `cmp < → <=` | `var label = hl < 1 ? 'Low' : hl < 5 ? 'Moderate' : 'High';` |
 | 2053 | `cmp < → <=` | `var label = hl < 1 ? 'Low' : hl < 5 ? 'Moderate' : 'High';` |
-| 2060 | `bool || → &&` | `var pnn3 = hrv.pnn3 \|\| 0;` |
-| 2061 | `bool || → &&` | `var hrFloor = hrv.hrFloor \|\| 60;` |
+| 2060 | `bool \|\| → &&` | `var pnn3 = hrv.pnn3 \|\| 0;` |
+| 2061 | `bool \|\| → &&` | `var hrFloor = hrv.hrFloor \|\| 60;` |
 | 2061 | `num → 0` | `var hrFloor = hrv.hrFloor \|\| 60;` |
-| 2062 | `bool || → &&` | `var cleanRun = extras.longestCleanRun \|\| 0;` |
+| 2062 | `bool \|\| → &&` | `var cleanRun = extras.longestCleanRun \|\| 0;` |
 | 2065 | `cmp < → <=` | `var label = vi < 0.01 ? 'Low' : vi < 0.05 ? 'Moderate' : 'High';` |
 | 2065 | `cmp < → <=` | `var label = vi < 0.01 ? 'Low' : vi < 0.05 ? 'Moderate' : 'High';` |
 | 2065 | `num → 0` | `var label = vi < 0.01 ? 'Low' : vi < 0.05 ? 'Moderate' : 'High';` |
-| 2071 | `bool || → &&` | `if (!slopes \|\| !slopes.meanDipSlope \|\| !slopes.meanRecSlope) return null` |
-| 2071 | `bool || → &&` | `if (!slopes \|\| !slopes.meanDipSlope \|\| !slopes.meanRecSlope) return null` |
+| 2071 | `bool \|\| → &&` | `if (!slopes \|\| !slopes.meanDipSlope \|\| !slopes.meanRecSlope) return null` |
+| 2071 | `bool \|\| → &&` | `if (!slopes \|\| !slopes.meanDipSlope \|\| !slopes.meanRecSlope) return null` |
 | 2074 | `cmp > → >=` | `var label = ri > 1.5 ? 'Fast' : ri > 0.8 ? 'Symmetric' : 'Slow';` |
 | 2074 | `cmp > → >=` | `var label = ri > 1.5 ? 'Fast' : ri > 0.8 ? 'Symmetric' : 'Slow';` |
-| 2080 | `bool || → &&` | `if (!sleepArch \|\| !extras) return null;` |
+| 2080 | `bool \|\| → &&` | `if (!sleepArch \|\| !extras) return null;` |
 | 2098 | `cmp < → <=` | `var label = spi < 5 ? 'Low' : spi < 15 ? 'Moderate' : 'High';` |
 | 2098 | `cmp < → <=` | `var label = spi < 5 ? 'Low' : spi < 15 ? 'Moderate' : 'High';` |
 | 2098 | `num → 0` | `var label = spi < 5 ? 'Low' : spi < 15 ? 'Moderate' : 'High';` |
 | 2104 | `num → 0` | `if (!rows \|\| rows.length < 60) return null;` |
 | 2104 | `cmp < → <=` | `if (!rows \|\| rows.length < 60) return null;` |
-| 2104 | `bool || → &&` | `if (!rows \|\| rows.length < 60) return null;` |
+| 2104 | `bool \|\| → &&` | `if (!rows \|\| rows.length < 60) return null;` |
 | 2115 | `cmp < → <=` | `if (nadirTimes.length < 3) return null;` |
 | 2128 | `cmp > → >=` | `var biCV = iMean > 0 ? +((iSD / iMean) * 100).toFixed(1) : null;` |
 | 2129 | `cmp < → <=` | `var label = biCV === null ? '—' : biCV < 30 ? 'Regular' : biCV < 60 ? 'V` |
@@ -1825,8 +2007,8 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 2166 | `cmp > → >=` | `var label = dip > 10 ? 'Good (intra-night)' : dip > 5 ? 'Moderate (intra` |
 | 2166 | `cmp > → >=` | `var label = dip > 10 ? 'Good (intra-night)' : dip > 5 ? 'Moderate (intra` |
 | 2166 | `num → 0` | `var label = dip > 10 ? 'Good (intra-night)' : dip > 5 ? 'Moderate (intra` |
-| 2173 | `bool || → &&` | `if (!slopes \|\| !slopes.meanRecSlope \|\| slopes.meanRecSlope === 0) return` |
-| 2173 | `bool || → &&` | `if (!slopes \|\| !slopes.meanRecSlope \|\| slopes.meanRecSlope === 0) return` |
+| 2173 | `bool \|\| → &&` | `if (!slopes \|\| !slopes.meanRecSlope \|\| slopes.meanRecSlope === 0) return` |
+| 2173 | `bool \|\| → &&` | `if (!slopes \|\| !slopes.meanRecSlope \|\| slopes.meanRecSlope === 0) return` |
 | 2175 | `cmp > → >=` | `var label = asym > 1.5 ? 'Abrupt (obstructive)' : asym > 0.7 ? 'Symmetri` |
 | 2175 | `num → 0` | `var label = asym > 1.5 ? 'Abrupt (obstructive)' : asym > 0.7 ? 'Symmetri` |
 | 2175 | `cmp > → >=` | `var label = asym > 1.5 ? 'Abrupt (obstructive)' : asym > 0.7 ? 'Symmetri` |
@@ -1873,28 +2055,28 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 2291 | `eq === → !==` | `_sq === 'Q5(high)' ? 10 : _sq === 'Q4' ? 7 : _sq === 'Q3' ? 4 : _sq === ` |
 | 2291 | `eq === → !==` | `_sq === 'Q5(high)' ? 10 : _sq === 'Q4' ? 7 : _sq === 'Q3' ? 4 : _sq === ` |
 | 2293 | `eq === → !==` | `_sq === 'Q5(high)' ? 'r' : _sq === 'Q4' ? 'w' : 'g'` |
-| 2297 | `bool || → &&` | `var _pq = n.pred3p.pred3pQ \|\| '';` |
+| 2297 | `bool \|\| → &&` | `var _pq = n.pred3p.pred3pQ \|\| '';` |
 | 2302 | `num → 0` | `_pq === 'Q5(high)' ? 10 : _pq === 'Q4' ? 7 : _pq === 'Q3' ? 4 : _pq === ` |
 | 2371 | `cmp < → <=` | `if (avgScore < 2 && worstScore < 10) severity = 'Clean night';` |
 | 2372 | `cmp < → <=` | `else if (avgScore < 3 && worstScore < 10) severity = 'Mild disruption';` |
 | 2373 | `cmp < → <=` | `else if (avgScore < 4.5) severity = 'Moderate burden';` |
 | 2375 | `cmp < → <=` | `var isolatedSevere = avgScore < 4 && worstScore >= 6; // mostly-clean ni` |
-| 2375 | `bool && → ||` | `var isolatedSevere = avgScore < 4 && worstScore >= 6; // mostly-clean ni` |
+| 2375 | `bool && → \|\|` | `var isolatedSevere = avgScore < 4 && worstScore >= 6; // mostly-clean ni` |
 | 2375 | `cmp >= → >` | `var isolatedSevere = avgScore < 4 && worstScore >= 6; // mostly-clean ni` |
 | 2442 | `cmp > → >=` | `var supportTxt = top5.length > 1 ? (leads[top5[1].key] ? leads[top5[1].k` |
 | 2468 | `cmp >= → >` | `else if (n.stab && n.stab.score != null && n.stab.score >= 80) context =` |
 | 2468 | `num → 0` | `else if (n.stab && n.stab.score != null && n.stab.score >= 80) context =` |
 | 2469 | `cmp >= → >` | `else if (n.osc && n.osc.episodeCount >= 10) context = '; high PB burden'` |
 | 2469 | `num → 0` | `else if (n.osc && n.osc.episodeCount >= 10) context = '; high PB burden'` |
-| 2499 | `bool && → ||` | `for (var si = 0; si < rawSpikes.length; si++) if (rawSpikes[si].artifact` |
-| 2506 | `bool && → ||` | `var _oscEpisodes = osc && osc.episodes ? osc.episodes : [];` |
+| 2499 | `bool && → \|\|` | `for (var si = 0; si < rawSpikes.length; si++) if (rawSpikes[si].artifact` |
+| 2506 | `bool && → \|\|` | `var _oscEpisodes = osc && osc.episodes ? osc.episodes : [];` |
 | 2520 | `num → 0` | `var blArr = computeCeilingBaselineArr(spo2s, 300, 90);` |
-| 2548 | `bool && → ||` | `if (odi4 && desat && desat.artifactCount) {` |
-| 2548 | `bool && → ||` | `if (odi4 && desat && desat.artifactCount) {` |
+| 2548 | `bool && → \|\|` | `if (odi4 && desat && desat.artifactCount) {` |
+| 2548 | `bool && → \|\|` | `if (odi4 && desat && desat.artifactCount) {` |
 | 2557 | `num → 0` | `odi4.rate = +(odi4.count / Math.max(rows.length / 3600, 0.01)).toFixed(1` |
 | 2664 | `num → 0` | `var ssi = computeSympSurge(rows, spikes, cross, rolling, rows.length / 3` |
-| 2832 | `bool && → ||` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
-| 2832 | `bool && → ||` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
+| 2832 | `bool && → \|\|` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
+| 2832 | `bool && → \|\|` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
 | 2875 | `cmp > → >=` | `if (n > 8) {` |
 | 2879 | `cmp > → >=` | `if (_dt > 0) _d.push(_dt);` |
 | 2881 | `cmp > → >=` | `if (_d.length > 4) {` |
@@ -1909,9 +2091,9 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 2989 | `num → 0` | `var pnn3 = +((nn3 / (n - 1)) * 100).toFixed(1);` |
 | 3021 | `cmp <= → <` | `for (var i = 0; i + WIN <= n; i += WIN) {` |
 | 3040 | `cmp > → >=` | `var rmssd = n > 1 ? +Math.sqrt(rmssd_ss / (n - 1)).toFixed(2) : 0;` |
-| 3088 | `bool || → &&` | `var WIN = opts.WIN \|\| 300; // 5-min clinical baseline` |
+| 3088 | `bool \|\| → &&` | `var WIN = opts.WIN \|\| 300; // 5-min clinical baseline` |
 | 3088 | `num → 0` | `var WIN = opts.WIN \|\| 300; // 5-min clinical baseline` |
-| 3089 | `bool || → &&` | `var blArr = opts.blArr \|\| computeCeilingBaselineArr(spo2, WIN, opts.pct ` |
+| 3089 | `bool \|\| → &&` | `var blArr = opts.blArr \|\| computeCeilingBaselineArr(spo2, WIN, opts.pct ` |
 | 3093 | `num → 0` | `evNadir = 100,` |
 | 3095 | `num → 0` | `evBaseline = 100;` |
 | 3114 | `cmp < → <=` | `for (var i = 0; i < n; i++) {` |
@@ -1924,7 +2106,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3165 | `cmp < → <=` | `for (var k = i - 10; k < i; k++) {` |
 | 3165 | `num → 0` | `for (var k = i - 10; k < i; k++) {` |
 | 3166 | `cmp >= → >` | `if (k >= 0 && rows[k].motion > 0) {` |
-| 3166 | `bool && → ||` | `if (k >= 0 && rows[k].motion > 0) {` |
+| 3166 | `bool && → \|\|` | `if (k >= 0 && rows[k].motion > 0) {` |
 | 3166 | `cmp > → >=` | `if (k >= 0 && rows[k].motion > 0) {` |
 | 3174 | `cmp < → <=` | `for (var k = i - 10; k < i; k++) {` |
 | 3174 | `num → 0` | `for (var k = i - 10; k < i; k++) {` |
@@ -1934,7 +2116,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3183 | `cmp < → <=` | `for (var j = i; j < Math.min(i + 12, n); j++) if (rows[j].hr > localMax1` |
 | 3185 | `cmp < → <=` | `if (localMax12 < CFG.HR_SPIKE_MIN_PEAK \|\| peakRise12 < 20) continue;` |
 | 3185 | `num → 0` | `if (localMax12 < CFG.HR_SPIKE_MIN_PEAK \|\| peakRise12 < 20) continue;` |
-| 3185 | `bool || → &&` | `if (localMax12 < CFG.HR_SPIKE_MIN_PEAK \|\| peakRise12 < 20) continue;` |
+| 3185 | `bool \|\| → &&` | `if (localMax12 < CFG.HR_SPIKE_MIN_PEAK \|\| peakRise12 < 20) continue;` |
 | 3185 | `cmp < → <=` | `if (localMax12 < CFG.HR_SPIKE_MIN_PEAK \|\| peakRise12 < 20) continue;` |
 | 3187 | `cmp < → <=` | `for (var j = i; j < Math.min(i + 18, n); j++) if (rows[j].hr >= Math.max` |
 | 3187 | `cmp >= → >` | `for (var j = i; j < Math.min(i + 18, n); j++) if (rows[j].hr >= Math.max` |
@@ -1957,7 +2139,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3229 | `cmp >= → >` | `var isArtifact = onsetRise >= CFG.HR_SPIKE_MAX_PHYSIOLOGIC_RISE;` |
 | 3239 | `cmp <= → <` | `clockAligned: secPastHour <= 60 \|\| secPastHour >= 3540,` |
 | 3239 | `cmp >= → >` | `clockAligned: secPastHour <= 60 \|\| secPastHour >= 3540,` |
-| 3239 | `bool || → &&` | `clockAligned: secPastHour <= 60 \|\| secPastHour >= 3540,` |
+| 3239 | `bool \|\| → &&` | `clockAligned: secPastHour <= 60 \|\| secPastHour >= 3540,` |
 | 3239 | `num → 0` | `clockAligned: secPastHour <= 60 \|\| secPastHour >= 3540,` |
 | 3239 | `num → 0` | `clockAligned: secPastHour <= 60 \|\| secPastHour >= 3540,` |
 | 3249 | `cmp < → <=` | `if (spikes.length < 3) return null;` |
@@ -1973,30 +2155,30 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3275 | `cmp >= → >` | `if (regularity >= 0.8 && avgInterval >= 50 && avgInterval <= 75 && sprea` |
 | 3275 | `cmp >= → >` | `if (regularity >= 0.8 && avgInterval >= 50 && avgInterval <= 75 && sprea` |
 | 3275 | `cmp <= → <` | `if (regularity >= 0.8 && avgInterval >= 50 && avgInterval <= 75 && sprea` |
-| 3275 | `bool && → ||` | `if (regularity >= 0.8 && avgInterval >= 50 && avgInterval <= 75 && sprea` |
-| 3275 | `bool && → ||` | `if (regularity >= 0.8 && avgInterval >= 50 && avgInterval <= 75 && sprea` |
+| 3275 | `bool && → \|\|` | `if (regularity >= 0.8 && avgInterval >= 50 && avgInterval <= 75 && sprea` |
+| 3275 | `bool && → \|\|` | `if (regularity >= 0.8 && avgInterval >= 50 && avgInterval <= 75 && sprea` |
 | 3275 | `cmp <= → <` | `if (regularity >= 0.8 && avgInterval >= 50 && avgInterval <= 75 && sprea` |
 | 3275 | `num → 0` | `if (regularity >= 0.8 && avgInterval >= 50 && avgInterval <= 75 && sprea` |
-| 3275 | `bool && → ||` | `if (regularity >= 0.8 && avgInterval >= 50 && avgInterval <= 75 && sprea` |
+| 3275 | `bool && → \|\|` | `if (regularity >= 0.8 && avgInterval >= 50 && avgInterval <= 75 && sprea` |
 | 3275 | `num → 0` | `if (regularity >= 0.8 && avgInterval >= 50 && avgInterval <= 75 && sprea` |
 | 3275 | `num → 0` | `if (regularity >= 0.8 && avgInterval >= 50 && avgInterval <= 75 && sprea` |
 | 3276 | `cmp >= → >` | `else if (regularity >= 0.8 && avgInterval >= 20 && avgInterval <= 45 && ` |
 | 3276 | `cmp >= → >` | `else if (regularity >= 0.8 && avgInterval >= 20 && avgInterval <= 45 && ` |
 | 3276 | `cmp <= → <` | `else if (regularity >= 0.8 && avgInterval >= 20 && avgInterval <= 45 && ` |
-| 3276 | `bool && → ||` | `else if (regularity >= 0.8 && avgInterval >= 20 && avgInterval <= 45 && ` |
+| 3276 | `bool && → \|\|` | `else if (regularity >= 0.8 && avgInterval >= 20 && avgInterval <= 45 && ` |
 | 3276 | `cmp <= → <` | `else if (regularity >= 0.8 && avgInterval >= 20 && avgInterval <= 45 && ` |
 | 3276 | `num → 0` | `else if (regularity >= 0.8 && avgInterval >= 20 && avgInterval <= 45 && ` |
-| 3276 | `bool && → ||` | `else if (regularity >= 0.8 && avgInterval >= 20 && avgInterval <= 45 && ` |
-| 3276 | `bool && → ||` | `else if (regularity >= 0.8 && avgInterval >= 20 && avgInterval <= 45 && ` |
+| 3276 | `bool && → \|\|` | `else if (regularity >= 0.8 && avgInterval >= 20 && avgInterval <= 45 && ` |
+| 3276 | `bool && → \|\|` | `else if (regularity >= 0.8 && avgInterval >= 20 && avgInterval <= 45 && ` |
 | 3276 | `num → 0` | `else if (regularity >= 0.8 && avgInterval >= 20 && avgInterval <= 45 && ` |
 | 3276 | `num → 0` | `else if (regularity >= 0.8 && avgInterval >= 20 && avgInterval <= 45 && ` |
 | 3277 | `cmp >= → >` | `else if (regularity >= 0.7 && avgInterval >= 75 && avgInterval <= 105 &&` |
 | 3277 | `cmp >= → >` | `else if (regularity >= 0.7 && avgInterval >= 75 && avgInterval <= 105 &&` |
-| 3277 | `bool && → ||` | `else if (regularity >= 0.7 && avgInterval >= 75 && avgInterval <= 105 &&` |
+| 3277 | `bool && → \|\|` | `else if (regularity >= 0.7 && avgInterval >= 75 && avgInterval <= 105 &&` |
 | 3277 | `cmp <= → <` | `else if (regularity >= 0.7 && avgInterval >= 75 && avgInterval <= 105 &&` |
 | 3277 | `cmp <= → <` | `else if (regularity >= 0.7 && avgInterval >= 75 && avgInterval <= 105 &&` |
-| 3277 | `bool && → ||` | `else if (regularity >= 0.7 && avgInterval >= 75 && avgInterval <= 105 &&` |
-| 3277 | `bool && → ||` | `else if (regularity >= 0.7 && avgInterval >= 75 && avgInterval <= 105 &&` |
+| 3277 | `bool && → \|\|` | `else if (regularity >= 0.7 && avgInterval >= 75 && avgInterval <= 105 &&` |
+| 3277 | `bool && → \|\|` | `else if (regularity >= 0.7 && avgInterval >= 75 && avgInterval <= 105 &&` |
 | 3277 | `num → 0` | `else if (regularity >= 0.7 && avgInterval >= 75 && avgInterval <= 105 &&` |
 | 3277 | `num → 0` | `else if (regularity >= 0.7 && avgInterval >= 75 && avgInterval <= 105 &&` |
 | 3277 | `num → 0` | `else if (regularity >= 0.7 && avgInterval >= 75 && avgInterval <= 105 &&` |
@@ -2013,33 +2195,33 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3330 | `eq === → !==` | `if (s === lastSign) {` |
 | 3331 | `cmp > → >=` | `if (Math.abs(d) > Math.abs(extreme)) extreme = d;` |
 | 3336 | `cmp >= → >` | `if (Math.abs(extreme) >= cfg.PB_MIN_AMP / 2) cross.push(i);` |
-| 3345 | `bool || → &&` | `var cfg = opts \|\| CFG;` |
+| 3345 | `bool \|\| → &&` | `var cfg = opts \|\| CFG;` |
 | 3348 | `cmp < → <=` | `for (var i = 1; i < cross.length; i++) halves.push(cross[i] - cross[i - ` |
 | 3351 | `cmp < → <=` | `for (var j = 0; j + 1 < halves.length; j += 2) cycles.push(halves[j] + h` |
 | 3356 | `cmp < → <=` | `for (var k = 0; k < cycles.length; k++) {` |
 | 3358 | `cmp >= → >` | `if (c >= cfg.PB_CYCLE_MIN_SEC && c <= cfg.PB_CYCLE_MAX_SEC) {` |
-| 3358 | `bool && → ||` | `if (c >= cfg.PB_CYCLE_MIN_SEC && c <= cfg.PB_CYCLE_MAX_SEC) {` |
+| 3358 | `bool && → \|\|` | `if (c >= cfg.PB_CYCLE_MIN_SEC && c <= cfg.PB_CYCLE_MAX_SEC) {` |
 | 3358 | `cmp <= → <` | `if (c >= cfg.PB_CYCLE_MIN_SEC && c <= cfg.PB_CYCLE_MAX_SEC) {` |
 | 3361 | `cmp > → >=` | `if (run > best) {` |
 | 3378 | `cmp > → >=` | `if (bestLens.length > 1) {` |
 | 3391 | `cmp >= → >` | `var periodic = best >= cfg.PB_MIN_CYCLES && cv !== null && cv < cfg.PB_M` |
 | 3391 | `cmp < → <=` | `var periodic = best >= cfg.PB_MIN_CYCLES && cv !== null && cv < cfg.PB_M` |
 | 3391 | `eq !== → ===` | `var periodic = best >= cfg.PB_MIN_CYCLES && cv !== null && cv < cfg.PB_M` |
-| 3391 | `bool && → ||` | `var periodic = best >= cfg.PB_MIN_CYCLES && cv !== null && cv < cfg.PB_M` |
-| 3391 | `bool && → ||` | `var periodic = best >= cfg.PB_MIN_CYCLES && cv !== null && cv < cfg.PB_M` |
+| 3391 | `bool && → \|\|` | `var periodic = best >= cfg.PB_MIN_CYCLES && cv !== null && cv < cfg.PB_M` |
+| 3391 | `bool && → \|\|` | `var periodic = best >= cfg.PB_MIN_CYCLES && cv !== null && cv < cfg.PB_M` |
 | 3404 | `cmp >= → >` | `if (runStart >= 0 && curLens.length >= cfg.PB_MIN_CYCLES) {` |
 | 3404 | `cmp >= → >` | `if (runStart >= 0 && curLens.length >= cfg.PB_MIN_CYCLES) {` |
-| 3404 | `bool && → ||` | `if (runStart >= 0 && curLens.length >= cfg.PB_MIN_CYCLES) {` |
+| 3404 | `bool && → \|\|` | `if (runStart >= 0 && curLens.length >= cfg.PB_MIN_CYCLES) {` |
 | 3415 | `cmp < → <=` | `if (vv < cfg.PB_MAX_CYCLE_CV) {` |
-| 3418 | `bool && → ||` | `if (sIdx != null && eIdx != null) episodes.push({ startIdx: sIdx, endIdx` |
+| 3418 | `bool && → \|\|` | `if (sIdx != null && eIdx != null) episodes.push({ startIdx: sIdx, endIdx` |
 | 3424 | `cmp < → <=` | `for (var e = 0; e < cycles.length; e++) {` |
 | 3425 | `cmp >= → >` | `if (cycles[e] >= cfg.PB_CYCLE_MIN_SEC && cycles[e] <= cfg.PB_CYCLE_MAX_S` |
 | 3425 | `cmp <= → <` | `if (cycles[e] >= cfg.PB_CYCLE_MIN_SEC && cycles[e] <= cfg.PB_CYCLE_MAX_S` |
-| 3425 | `bool && → ||` | `if (cycles[e] >= cfg.PB_CYCLE_MIN_SEC && cycles[e] <= cfg.PB_CYCLE_MAX_S` |
+| 3425 | `bool && → \|\|` | `if (cycles[e] >= cfg.PB_CYCLE_MIN_SEC && cycles[e] <= cfg.PB_CYCLE_MAX_S` |
 | 3426 | `cmp < → <=` | `if (runStart < 0) runStart = e;` |
 | 3464 | `cmp <= → <` | `for (var j = ep.startIdx + 1; j <= ep.endIdx && j < n; j++) {` |
 | 3464 | `cmp < → <=` | `for (var j = ep.startIdx + 1; j <= ep.endIdx && j < n; j++) {` |
-| 3464 | `bool && → ||` | `for (var j = ep.startIdx + 1; j <= ep.endIdx && j < n; j++) {` |
+| 3464 | `bool && → \|\|` | `for (var j = ep.startIdx + 1; j <= ep.endIdx && j < n; j++) {` |
 | 3465 | `cmp >= → >` | `if (rows[j - 1].spo2 >= CFG.SPO2_OSC_THRESHOLD !== rows[j].spo2 >= CFG.S` |
 | 3465 | `cmp >= → >` | `if (rows[j - 1].spo2 >= CFG.SPO2_OSC_THRESHOLD !== rows[j].spo2 >= CFG.S` |
 | 3465 | `eq !== → ===` | `if (rows[j - 1].spo2 >= CFG.SPO2_OSC_THRESHOLD !== rows[j].spo2 >= CFG.S` |
@@ -2070,14 +2252,14 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3578 | `num → 0` | `if (stab && stab.score != null && stab.score < 50) f.push({ code: 'POOR_` |
 | 3581 | `cmp >= → >` | `if (cross && cross.divergePct >= 75 && osc && osc.episodeCount >= 6) f.p` |
 | 3581 | `cmp >= → >` | `if (cross && cross.divergePct >= 75 && osc && osc.episodeCount >= 6) f.p` |
-| 3581 | `bool && → ||` | `if (cross && cross.divergePct >= 75 && osc && osc.episodeCount >= 6) f.p` |
+| 3581 | `bool && → \|\|` | `if (cross && cross.divergePct >= 75 && osc && osc.episodeCount >= 6) f.p` |
 | 3581 | `num → 0` | `if (cross && cross.divergePct >= 75 && osc && osc.episodeCount >= 6) f.p` |
-| 3581 | `bool && → ||` | `if (cross && cross.divergePct >= 75 && osc && osc.episodeCount >= 6) f.p` |
+| 3581 | `bool && → \|\|` | `if (cross && cross.divergePct >= 75 && osc && osc.episodeCount >= 6) f.p` |
 | 3582 | `cmp >= → >` | `if (cross && cross.autoArousalIdx >= 5) f.push({ code: 'HIGH_AROUSAL_IDX` |
 | 3583 | `cmp >= → >` | `if (comp && comp.nsi >= 80) f.push({ code: 'NOCTURNAL_STRESS(' + comp.ns` |
 | 3584 | `cmp >= → >` | `else if (comp && comp.nsi >= 60) f.push({ code: 'NOCTURNAL_STRESS(' + co` |
 | 3586 | `cmp > → >=` | `if (spo2Adv && spo2Adv.wtdsi > 5) f.push({ code: 'WTDSI_ELEVATED(' + spo` |
-| 3587 | `bool && → ||` | `if (sbii && sbii.sbiiQ === 'Q5(high)') f.push({ code: 'SBII_Q5(' + sbii.` |
+| 3587 | `bool && → \|\|` | `if (sbii && sbii.sbiiQ === 'Q5(high)') f.push({ code: 'SBII_Q5(' + sbii.` |
 | 3606 | `cmp < → <=` | `if (rows[i].spo2 < 94) burden += 94 - rows[i].spo2;` |
 | 3610 | `cmp > → >=` | `var rate = durationHr > 0 ? +(totalMin / durationHr).toFixed(1) : 0;` |
 | 3689 | `cmp > → >=` | `if (++run > best) best = run;` |
@@ -2098,30 +2280,30 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3768 | `num → 0` | `var gradeClass = score >= 80 ? 'good' : score >= 60 ? 'warn' : 'bad';` |
 | 3768 | `num → 0` | `var gradeClass = score >= 80 ? 'good' : score >= 60 ? 'warn' : 'bad';` |
 | 3791 | `num → 0` | `WIN_SEC: 10, // ± window (s) around the desat onset at 1 Hz` |
-| 3804 | `bool || → &&` | `if (onset == null \|\| !pulseSeries \|\| !pulseSeries.length) return desat;` |
-| 3804 | `bool || → &&` | `if (onset == null \|\| !pulseSeries \|\| !pulseSeries.length) return desat;` |
+| 3804 | `bool \|\| → &&` | `if (onset == null \|\| !pulseSeries \|\| !pulseSeries.length) return desat;` |
+| 3804 | `bool \|\| → &&` | `if (onset == null \|\| !pulseSeries \|\| !pulseSeries.length) return desat;` |
 | 3812 | `cmp <= → <` | `for (var i = lo; i <= hi; i++) {` |
 | 3815 | `cmp >= → >` | `if (p != null && isFinite(p) && p >= SELFGATE.PULSE_MIN && p <= SELFGATE` |
 | 3815 | `cmp <= → <` | `if (p != null && isFinite(p) && p >= SELFGATE.PULSE_MIN && p <= SELFGATE` |
 | 3817 | `cmp > → >=` | `var pulseValid = tot > 0 ? valid / tot : 0;` |
-| 3820 | `bool && → ||` | `if (spo2Series && spo2Series.length) {` |
+| 3820 | `bool && → \|\|` | `if (spo2Series && spo2Series.length) {` |
 | 3823 | `cmp <= → <` | `for (var k = a; k <= b; k++) {` |
 | 3825 | `cmp > → >=` | `if (d > fallRate) fallRate = d;` |
-| 3827 | `bool && → ||` | `} else if (desat.depth != null && desat.duration) {` |
+| 3827 | `bool && → \|\|` | `} else if (desat.depth != null && desat.duration) {` |
 | 3832 | `cmp < → <=` | `if (nadir != null && nadir < N) {` |
-| 3832 | `bool && → ||` | `if (nadir != null && nadir < N) {` |
+| 3832 | `bool && → \|\|` | `if (nadir != null && nadir < N) {` |
 | 3835 | `cmp >= → >` | `var beforeOk = pBefore != null && isFinite(pBefore) && pBefore >= SELFGA` |
-| 3835 | `bool && → ||` | `var beforeOk = pBefore != null && isFinite(pBefore) && pBefore >= SELFGA` |
+| 3835 | `bool && → \|\|` | `var beforeOk = pBefore != null && isFinite(pBefore) && pBefore >= SELFGA` |
 | 3835 | `cmp <= → <` | `var beforeOk = pBefore != null && isFinite(pBefore) && pBefore >= SELFGA` |
-| 3835 | `bool && → ||` | `var beforeOk = pBefore != null && isFinite(pBefore) && pBefore >= SELFGA` |
-| 3835 | `bool && → ||` | `var beforeOk = pBefore != null && isFinite(pBefore) && pBefore >= SELFGA` |
+| 3835 | `bool && → \|\|` | `var beforeOk = pBefore != null && isFinite(pBefore) && pBefore >= SELFGA` |
+| 3835 | `bool && → \|\|` | `var beforeOk = pBefore != null && isFinite(pBefore) && pBefore >= SELFGA` |
 | 3836 | `cmp >= → >` | `var atBad = pAt == null \|\| !isFinite(pAt) \|\| pAt < SELFGATE.PULSE_MIN \|\|` |
 | 3836 | `cmp > → >=` | `var atBad = pAt == null \|\| !isFinite(pAt) \|\| pAt < SELFGATE.PULSE_MIN \|\|` |
 | 3836 | `cmp < → <=` | `var atBad = pAt == null \|\| !isFinite(pAt) \|\| pAt < SELFGATE.PULSE_MIN \|\|` |
-| 3836 | `bool || → &&` | `var atBad = pAt == null \|\| !isFinite(pAt) \|\| pAt < SELFGATE.PULSE_MIN \|\|` |
-| 3836 | `bool || → &&` | `var atBad = pAt == null \|\| !isFinite(pAt) \|\| pAt < SELFGATE.PULSE_MIN \|\|` |
-| 3836 | `bool || → &&` | `var atBad = pAt == null \|\| !isFinite(pAt) \|\| pAt < SELFGATE.PULSE_MIN \|\|` |
-| 3836 | `bool || → &&` | `var atBad = pAt == null \|\| !isFinite(pAt) \|\| pAt < SELFGATE.PULSE_MIN \|\|` |
+| 3836 | `bool \|\| → &&` | `var atBad = pAt == null \|\| !isFinite(pAt) \|\| pAt < SELFGATE.PULSE_MIN \|\|` |
+| 3836 | `bool \|\| → &&` | `var atBad = pAt == null \|\| !isFinite(pAt) \|\| pAt < SELFGATE.PULSE_MIN \|\|` |
+| 3836 | `bool \|\| → &&` | `var atBad = pAt == null \|\| !isFinite(pAt) \|\| pAt < SELFGATE.PULSE_MIN \|\|` |
+| 3836 | `bool \|\| → &&` | `var atBad = pAt == null \|\| !isFinite(pAt) \|\| pAt < SELFGATE.PULSE_MIN \|\|` |
 | 3842 | `num → 0` | `desat.sqi = 0.2;` |
 | 3846 | `num → 0` | `desat.sqi = 0.2;` |
 | 3879 | `num → 0` | `WIN = 300;` |
@@ -2140,16 +2322,16 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3925 | `cmp < → <=` | `for (var k = e.endIdx; k < Math.min(e.endIdx + 120, n); k++) {` |
 | 3939 | `cmp > → >=` | `recoverySlope: recov > 0 ? +((e.baseline - e.nadir) / recov).toFixed(3) ` |
 | 3990 | `cmp > → >=` | `var dip3Rate = durationHr > 0 ? +(dip3Count / durationHr).toFixed(1) : 0` |
-| 4004 | `bool && → ||` | `e.tMs = rN && rN.tMs != null ? rN.tMs : null; // the nadir IS the event'` |
-| 4005 | `bool && → ||` | `e.startTMs = r0 && r0.tMs != null ? r0.tMs : null;` |
-| 4006 | `bool && → ||` | `e.endTMs = rE && rE.tMs != null ? rE.tMs : null;` |
-| 4044 | `bool && → ||` | `var ev = desat && desat.eventsAll ? desat.eventsAll : [];` |
+| 4004 | `bool && → \|\|` | `e.tMs = rN && rN.tMs != null ? rN.tMs : null; // the nadir IS the event'` |
+| 4005 | `bool && → \|\|` | `e.startTMs = r0 && r0.tMs != null ? r0.tMs : null;` |
+| 4006 | `bool && → \|\|` | `e.endTMs = rE && rE.tMs != null ? rE.tMs : null;` |
+| 4044 | `bool && → \|\|` | `var ev = desat && desat.eventsAll ? desat.eventsAll : [];` |
 | 4060 | `cmp <= → <` | `if (rows[0].spo2 <= CFG.NADIR_RAMP_START_MAX) {` |
 | 4063 | `cmp < → <=` | `while (k < lim && rows[k].spo2 < CFG.NADIR_RAMP_RECOVER) k++;` |
 | 4063 | `cmp < → <=` | `while (k < lim && rows[k].spo2 < CFG.NADIR_RAMP_RECOVER) k++;` |
 | 4064 | `cmp < → <=` | `if (k > 0 && k < lim) {` |
 | 4064 | `cmp > → >=` | `if (k > 0 && k < lim) {` |
-| 4064 | `bool && → ||` | `if (k > 0 && k < lim) {` |
+| 4064 | `bool && → \|\|` | `if (k > 0 && k < lim) {` |
 | 4067 | `cmp < → <=` | `for (var j = 1; j < k; j++) if (rows[j].spo2 < openMin) openMin = rows[j` |
 | 4067 | `cmp < → <=` | `for (var j = 1; j < k; j++) if (rows[j].spo2 < openMin) openMin = rows[j` |
 | 4068 | `cmp <= → <` | `if (rows[0].spo2 <= openMin + 1) {` |
@@ -2185,9 +2367,9 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 4247 | `cmp > → >=` | `if (spo2Means.length > 3) {` |
 | 4259 | `cmp > → >=` | `crcIdx = ds > 0 && dh > 0 ? +(num / Math.sqrt(ds * dh)).toFixed(3) : nul` |
 | 4259 | `cmp > → >=` | `crcIdx = ds > 0 && dh > 0 ? +(num / Math.sqrt(ds * dh)).toFixed(3) : nul` |
-| 4259 | `bool && → ||` | `crcIdx = ds > 0 && dh > 0 ? +(num / Math.sqrt(ds * dh)).toFixed(3) : nul` |
+| 4259 | `bool && → \|\|` | `crcIdx = ds > 0 && dh > 0 ? +(num / Math.sqrt(ds * dh)).toFixed(3) : nul` |
 | 4264 | `cmp > → >=` | `if (osc && osc.episodeCount > 0) {` |
-| 4264 | `bool && → ||` | `if (osc && osc.episodeCount > 0) {` |
+| 4264 | `bool && → \|\|` | `if (osc && osc.episodeCount > 0) {` |
 | 4270 | `num → 0` | `var divergePct = osc && osc.episodeCount > 0 ? +((divergeCount / osc.epi` |
 | 4290 | `num → 0` | `WIN = 300;` |
 | 4291 | `cmp < → <=` | `if (n < 60) return null;` |
@@ -2200,7 +2382,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 4344 | `num → 0` | `else if (nad >= 88) bins.b88_89++;` |
 | 4345 | `cmp >= → >` | `else if (nad >= 85) bins.b85_87++;` |
 | 4345 | `num → 0` | `else if (nad >= 85) bins.b85_87++;` |
-| 4355 | `bool && → ||` | `return r.motion === 0 && !r.hrArtifact;` |
+| 4355 | `bool && → \|\|` | `return r.motion === 0 && !r.hrArtifact;` |
 | 4357 | `cmp < → <=` | `if (clean.length < 60) return null;` |
 | 4357 | `num → 0` | `if (clean.length < 60) return null;` |
 | 4371 | `cmp > → >=` | `var rmssd = pairs > 0 ? +Math.sqrt(ssds / pairs).toFixed(2) : 0;` |
@@ -2210,13 +2392,13 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 4411 | `cmp >= → >` | `if (crossings >= CFG.OSC_FLAG_CROSSINGS) pbWinMeans.push(meanHRwin);` |
 | 4427 | `num → 0` | `var WIN = 300;` |
 | 4432 | `cmp > → >=` | `if (nadirEvents > 0 && spikes.length > 0) {` |
-| 4432 | `bool && → ||` | `if (nadirEvents > 0 && spikes.length > 0) {` |
+| 4432 | `bool && → \|\|` | `if (nadirEvents > 0 && spikes.length > 0) {` |
 | 4432 | `cmp > → >=` | `if (nadirEvents > 0 && spikes.length > 0) {` |
 | 4440 | `num → 0` | `var couplingScore = nadirEvents > 0 ? +((coupledCount / nadirEvents) * 1` |
 | 4445 | `cmp > → >=` | `var sfi = durationHr > 0 ? +((wasoWin + spikes.length) / durationHr).toF` |
 | 4456 | `cmp > → >=` | `var t95pct = n > 0 ? (below95 / n) * 100 : 0;` |
 | 4476 | `cmp < → <=` | `if (n < 2) return { slope: 0, r2: 0, intercept: 0 };` |
-| 4488 | `bool || → &&` | `if (denom === 0) return { slope: 0, r2: 0, intercept: ys[0] \|\| 0 };` |
+| 4488 | `bool \|\| → &&` | `if (denom === 0) return { slope: 0, r2: 0, intercept: ys[0] \|\| 0 };` |
 | 4490 | `cmp > → >=` | `var intercept = n > 0 ? (sy - slope * sx) / n : 0;` |
 | 4493 | `cmp > → >=` | `yMean = n > 0 ? sy / n : 0;` |
 | 4508 | `num → 0` | `if (n < 600) return null;` |
@@ -2232,12 +2414,12 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 4545 | `cmp > → >=` | `if (rows[i].spo2 <= baseline - 2 && rows[i - 1].spo2 > baseline - 2) cou` |
 | 4548 | `cmp > → >=` | `return { odi2Count: count, odi2Rate: durationHr > 0 ? +(count / duration` |
 | 4553 | `cmp < → <=` | `if (!desat \|\| !desat.nadir \|\| !desat.nadir.count \|\| desat.nadir.count < ` |
-| 4553 | `bool || → &&` | `if (!desat \|\| !desat.nadir \|\| !desat.nadir.count \|\| desat.nadir.count < ` |
-| 4553 | `bool || → &&` | `if (!desat \|\| !desat.nadir \|\| !desat.nadir.count \|\| desat.nadir.count < ` |
-| 4553 | `bool || → &&` | `if (!desat \|\| !desat.nadir \|\| !desat.nadir.count \|\| desat.nadir.count < ` |
+| 4553 | `bool \|\| → &&` | `if (!desat \|\| !desat.nadir \|\| !desat.nadir.count \|\| desat.nadir.count < ` |
+| 4553 | `bool \|\| → &&` | `if (!desat \|\| !desat.nadir \|\| !desat.nadir.count \|\| desat.nadir.count < ` |
+| 4553 | `bool \|\| → &&` | `if (!desat \|\| !desat.nadir \|\| !desat.nadir.count \|\| desat.nadir.count < ` |
 | 4559 | `cmp < → <=` | `for (var i = 0; i < n; i++) {` |
 | 4568 | `cmp >= → >` | `if (i < 60 \|\| i >= n - 120) continue;` |
-| 4568 | `bool || → &&` | `if (i < 60 \|\| i >= n - 120) continue;` |
+| 4568 | `bool \|\| → &&` | `if (i < 60 \|\| i >= n - 120) continue;` |
 | 4568 | `cmp < → <=` | `if (i < 60 \|\| i >= n - 120) continue;` |
 | 4568 | `num → 0` | `if (i < 60 \|\| i >= n - 120) continue;` |
 | 4568 | `num → 0` | `if (i < 60 \|\| i >= n - 120) continue;` |
@@ -2285,18 +2467,18 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 4829 | `num → 0` | `respRateLabel: bpm < 10 ? 'Slow (<10)' : bpm > 20 ? 'Fast (>20)' : 'Norm` |
 | 4836 | `cmp < → <=` | `if (n < 120) return null;` |
 | 4836 | `num → 0` | `if (n < 120) return null;` |
-| 4844 | `bool || → &&` | `if (!ups.length \|\| !downs.length) return null;` |
+| 4844 | `bool \|\| → &&` | `if (!ups.length \|\| !downs.length) return null;` |
 | 4859 | `cmp > → >=` | `hrAsymLabel: asym > 1.15 ? 'Arousal-biased' : asym < 0.85 ? 'Vagally dom` |
 | 4859 | `cmp < → <=` | `hrAsymLabel: asym > 1.15 ? 'Arousal-biased' : asym < 0.85 ? 'Vagally dom` |
 | 4859 | `num → 0` | `hrAsymLabel: asym > 1.15 ? 'Arousal-biased' : asym < 0.85 ? 'Vagally dom` |
 | 4866 | `cmp < → <=` | `if (n < 1200) return null;` |
 | 4866 | `num → 0` | `if (n < 1200) return null;` |
 | 4877 | `cmp >= → >` | `if (qs.indexOf(null) >= 0) return null;` |
-| 4880 | `bool && → ||` | `var arc = qs && qs.length >= 4 ? +(q3hr - q1hr).toFixed(1) : 0;` |
-| 4882 | `bool && → ||` | `hrQ1: qs && qs.length >= 4 ? qs[0] : null,` |
-| 4883 | `bool && → ||` | `hrQ2: qs && qs.length >= 4 ? qs[1] : null,` |
-| 4884 | `bool && → ||` | `hrQ3: qs && qs.length >= 4 ? qs[2] : null,` |
-| 4885 | `bool && → ||` | `hrQ4: qs && qs.length >= 4 ? qs[3] : null,` |
+| 4880 | `bool && → \|\|` | `var arc = qs && qs.length >= 4 ? +(q3hr - q1hr).toFixed(1) : 0;` |
+| 4882 | `bool && → \|\|` | `hrQ1: qs && qs.length >= 4 ? qs[0] : null,` |
+| 4883 | `bool && → \|\|` | `hrQ2: qs && qs.length >= 4 ? qs[1] : null,` |
+| 4884 | `bool && → \|\|` | `hrQ3: qs && qs.length >= 4 ? qs[2] : null,` |
+| 4885 | `bool && → \|\|` | `hrQ4: qs && qs.length >= 4 ? qs[3] : null,` |
 | 4887 | `cmp > → >=` | `remReemergence: /** @type {number} */ (qs[3]) > /** @type {number} */ (q` |
 | 4888 | `cmp > → >=` | `hrArcLabel: arc < -3 ? 'Good (declining arc)' : arc > 3 ? 'Rising (arous` |
 | 4888 | `cmp < → <=` | `hrArcLabel: arc < -3 ? 'Good (declining arc)' : arc > 3 ? 'Rising (arous` |
@@ -2309,29 +2491,29 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 4957 | `cmp <= → <` | `for (var lag = 0; lag <= 120; lag++) {` |
 | 4966 | `cmp > → >=` | `var cor = d1 > 0 && d2 > 0 ? num / Math.sqrt(d1 * d2) : 0;` |
 | 4966 | `cmp > → >=` | `var cor = d1 > 0 && d2 > 0 ? num / Math.sqrt(d1 * d2) : 0;` |
-| 4966 | `bool && → ||` | `var cor = d1 > 0 && d2 > 0 ? num / Math.sqrt(d1 * d2) : 0;` |
+| 4966 | `bool && → \|\|` | `var cor = d1 > 0 && d2 > 0 ? num / Math.sqrt(d1 * d2) : 0;` |
 | 4967 | `cmp > → >=` | `if (cor > bestCor) {` |
 | 4975 | `cmp < → <=` | `crossCorrLabel: bestLag < 10 ? 'Near-zero lag (central pattern)' : bestL` |
 | 4975 | `cmp < → <=` | `crossCorrLabel: bestLag < 10 ? 'Near-zero lag (central pattern)' : bestL` |
 | 4975 | `num → 0` | `crossCorrLabel: bestLag < 10 ? 'Near-zero lag (central pattern)' : bestL` |
 | 4975 | `num → 0` | `crossCorrLabel: bestLag < 10 ? 'Near-zero lag (central pattern)' : bestL` |
-| 4981 | `bool || → &&` | `if (!spikes \|\| !spikes.length) return null;` |
+| 4981 | `bool \|\| → &&` | `if (!spikes \|\| !spikes.length) return null;` |
 | 4981 | `negate: drop !` | `if (!spikes \|\| !spikes.length) return null;` |
 | 4981 | `negate: drop !` | `if (!spikes \|\| !spikes.length) return null;` |
-| 4984 | `bool || → &&` | `if (!sp \|\| sp.baseline == null \|\| sp.peak == null) return;` |
-| 4984 | `bool || → &&` | `if (!sp \|\| sp.baseline == null \|\| sp.peak == null) return;` |
+| 4984 | `bool \|\| → &&` | `if (!sp \|\| sp.baseline == null \|\| sp.peak == null) return;` |
+| 4984 | `bool \|\| → &&` | `if (!sp \|\| sp.baseline == null \|\| sp.peak == null) return;` |
 | 4984 | `negate: drop !` | `if (!sp \|\| sp.baseline == null \|\| sp.peak == null) return;` |
 | 4988 | `cmp > → >=` | `var startHr0 = rows.length > 0 ? rows[0].t.getUTCHours() * 60 + rows[0].` |
 | 4988 | `num → 0` | `var startHr0 = rows.length > 0 ? rows[0].t.getUTCHours() * 60 + rows[0].` |
 | 4988 | `num → 0` | `var startHr0 = rows.length > 0 ? rows[0].t.getUTCHours() * 60 + rows[0].` |
-| 4989 | `bool || → &&` | `var apxIdx = Math.round(((sp.mfm \|\| 0) - startHr0) * 60);` |
+| 4989 | `bool \|\| → &&` | `var apxIdx = Math.round(((sp.mfm \|\| 0) - startHr0) * 60);` |
 | 4989 | `num → 0` | `var apxIdx = Math.round(((sp.mfm \|\| 0) - startHr0) * 60);` |
 | 4990 | `num → 0` | `var s0 = Math.max(0, apxIdx - 300),` |
 | 4991 | `num → 0` | `s1 = Math.min(rows.length, apxIdx + 300);` |
 | 4992 | `cmp < → <=` | `for (var i = s0; i < s1; i++) {` |
 | 4993 | `cmp >= → >` | `if (rows[i].hr >= sp.peak - 2 && rows[i].hr >= threshold) {` |
 | 4993 | `cmp >= → >` | `if (rows[i].hr >= sp.peak - 2 && rows[i].hr >= threshold) {` |
-| 4993 | `bool && → ||` | `if (rows[i].hr >= sp.peak - 2 && rows[i].hr >= threshold) {` |
+| 4993 | `bool && → \|\|` | `if (rows[i].hr >= sp.peak - 2 && rows[i].hr >= threshold) {` |
 | 4998 | `cmp < → <=` | `if (peakIdx < 0) return;` |
 | 4999 | `cmp < → <=` | `for (var j = peakIdx + 1; j < Math.min(rows.length, peakIdx + 300); j++)` |
 | 4999 | `num → 0` | `for (var j = peakIdx + 1; j < Math.min(rows.length, peakIdx + 300); j++)` |
@@ -2343,14 +2525,14 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 5012 | `num → 0` | `return { spikeDecayMeanS: mean, spikeDecayCount: decays.length, spikeDec` |
 | 5017 | `negate: drop !` | `if (!spikes \|\| !spikes.length) return null;` |
 | 5017 | `negate: drop !` | `if (!spikes \|\| !spikes.length) return null;` |
-| 5017 | `bool || → &&` | `if (!spikes \|\| !spikes.length) return null;` |
-| 5020 | `bool || → &&` | `if (!sp \|\| sp.baseline == null \|\| sp.peak == null) return;` |
+| 5017 | `bool \|\| → &&` | `if (!spikes \|\| !spikes.length) return null;` |
+| 5020 | `bool \|\| → &&` | `if (!sp \|\| sp.baseline == null \|\| sp.peak == null) return;` |
 | 5020 | `negate: drop !` | `if (!sp \|\| sp.baseline == null \|\| sp.peak == null) return;` |
-| 5020 | `bool || → &&` | `if (!sp \|\| sp.baseline == null \|\| sp.peak == null) return;` |
+| 5020 | `bool \|\| → &&` | `if (!sp \|\| sp.baseline == null \|\| sp.peak == null) return;` |
 | 5023 | `cmp > → >=` | `var startHr1 = rows.length > 0 ? rows[0].t.getUTCHours() * 60 + rows[0].` |
 | 5023 | `num → 0` | `var startHr1 = rows.length > 0 ? rows[0].t.getUTCHours() * 60 + rows[0].` |
 | 5023 | `num → 0` | `var startHr1 = rows.length > 0 ? rows[0].t.getUTCHours() * 60 + rows[0].` |
-| 5024 | `bool || → &&` | `var apxIdx1 = Math.round(((sp.mfm \|\| 0) - startHr1) * 60);` |
+| 5024 | `bool \|\| → &&` | `var apxIdx1 = Math.round(((sp.mfm \|\| 0) - startHr1) * 60);` |
 | 5024 | `num → 0` | `var apxIdx1 = Math.round(((sp.mfm \|\| 0) - startHr1) * 60);` |
 | 5025 | `num → 0` | `var u0 = Math.max(0, apxIdx1 - 300),` |
 | 5026 | `num → 0` | `u1 = Math.min(rows.length, apxIdx1 + 300);` |
@@ -2370,10 +2552,10 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 5056 | `cmp > → >=` | `return { spikeUndershootMean: mean, spikeUndershootCount: undershoots.le` |
 | 5061 | `negate: drop !` | `if (!spikes \|\| !spikes.length) return null;` |
 | 5061 | `negate: drop !` | `if (!spikes \|\| !spikes.length) return null;` |
-| 5061 | `bool || → &&` | `if (!spikes \|\| !spikes.length) return null;` |
-| 5064 | `bool || → &&` | `if (!sp \|\| sp.baseline == null \|\| sp.peak == null \|\| !sp.duration) retur` |
-| 5064 | `bool || → &&` | `if (!sp \|\| sp.baseline == null \|\| sp.peak == null \|\| !sp.duration) retur` |
-| 5064 | `bool || → &&` | `if (!sp \|\| sp.baseline == null \|\| sp.peak == null \|\| !sp.duration) retur` |
+| 5061 | `bool \|\| → &&` | `if (!spikes \|\| !spikes.length) return null;` |
+| 5064 | `bool \|\| → &&` | `if (!sp \|\| sp.baseline == null \|\| sp.peak == null \|\| !sp.duration) retur` |
+| 5064 | `bool \|\| → &&` | `if (!sp \|\| sp.baseline == null \|\| sp.peak == null \|\| !sp.duration) retur` |
+| 5064 | `bool \|\| → &&` | `if (!sp \|\| sp.baseline == null \|\| sp.peak == null \|\| !sp.duration) retur` |
 | 5064 | `negate: drop !` | `if (!sp \|\| sp.baseline == null \|\| sp.peak == null \|\| !sp.duration) retur` |
 | 5064 | `negate: drop !` | `if (!sp \|\| sp.baseline == null \|\| sp.peak == null \|\| !sp.duration) retur` |
 | 5068 | `num → 0` | `if (rise > 0) rates.push(+(rise / 12).toFixed(2)); // bpm/s over ~12s de` |
@@ -2382,24 +2564,24 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 5076 | `cmp > → >=` | `return { spikeRiseRate: mean, spikeRiseLabel: mean > 5 ? 'Abrupt (>5 bpm` |
 | 5076 | `cmp > → >=` | `return { spikeRiseRate: mean, spikeRiseLabel: mean > 5 ? 'Abrupt (>5 bpm` |
 | 5087 | `cmp < → <=` | `if (n < 2) return null;` |
-| 5091 | `bool && → ||` | `var dt = rows[i].t != null && rows[i - 1].t != null ? (rows[i].t - rows[` |
+| 5091 | `bool && → \|\|` | `var dt = rows[i].t != null && rows[i - 1].t != null ? (rows[i].t - rows[` |
 | 5092 | `cmp > → >=` | `if (dt > GAP_STEP_SEC) {` |
 | 5094 | `cmp > → >=` | `if (dt > maxGap) maxGap = dt;` |
-| 5108 | `bool && → ||` | `var _spanSec = rows[n - 1].t != null && rows[0].t != null ? (rows[n - 1]` |
+| 5108 | `bool && → \|\|` | `var _spanSec = rows[n - 1].t != null && rows[0].t != null ? (rows[n - 1]` |
 | 5109 | `cmp > → >=` | `if (!(_spanSec > 0)) _spanSec = n + totalGap; // stampless fallback: 1 H` |
 | 5109 | `negate: drop !` | `if (!(_spanSec > 0)) _spanSec = n + totalGap; // stampless fallback: 1 H` |
 | 5114 | `cmp > → >=` | `gapLabel: maxGap > 120 ? 'Significant gap (>2min)' : maxGap > 10 ? 'Mino` |
 | 5114 | `num → 0` | `gapLabel: maxGap > 120 ? 'Significant gap (>2min)' : maxGap > 10 ? 'Mino` |
 | 5114 | `num → 0` | `gapLabel: maxGap > 120 ? 'Significant gap (>2min)' : maxGap > 10 ? 'Mino` |
 | 5114 | `cmp > → >=` | `gapLabel: maxGap > 120 ? 'Significant gap (>2min)' : maxGap > 10 ? 'Mino` |
-| 5127 | `bool || → &&` | `if (!rows \|\| rows.length < 2) return null;` |
+| 5127 | `bool \|\| → &&` | `if (!rows \|\| rows.length < 2) return null;` |
 | 5127 | `cmp < → <=` | `if (!rows \|\| rows.length < 2) return null;` |
 | 5131 | `cmp < → <=` | `for (var i = 0; i < rows.length; i++) {` |
-| 5133 | `bool || → &&` | `if (t == null \|\| !isFinite(t)) continue;` |
+| 5133 | `bool \|\| → &&` | `if (t == null \|\| !isFinite(t)) continue;` |
 | 5135 | `cmp > → >=` | `else if ((t - prev) / 1000 > GAP_STEP_SEC) {` |
-| 5141 | `bool && → ||` | `if (segStart !== null && prev !== null) segs.push([segStart, prev]);` |
-| 5147 | `bool && → ||` | `return typeof DexExport !== 'undefined' && DexExport && DexExport.covera` |
-| 5147 | `bool && → ||` | `return typeof DexExport !== 'undefined' && DexExport && DexExport.covera` |
+| 5141 | `bool && → \|\|` | `if (segStart !== null && prev !== null) segs.push([segStart, prev]);` |
+| 5147 | `bool && → \|\|` | `return typeof DexExport !== 'undefined' && DexExport && DexExport.covera` |
+| 5147 | `bool && → \|\|` | `return typeof DexExport !== 'undefined' && DexExport && DexExport.covera` |
 | 5153 | `cmp < → <=` | `if (n < 60) return null;` |
 | 5153 | `num → 0` | `if (n < 60) return null;` |
 | 5163 | `cmp > → >=` | `if (run > maxFlat) maxFlat = run;` |
@@ -2417,7 +2599,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 5197 | `cmp > → >=` | `if (run > maxCeil) maxCeil = run;` |
 | 5204 | `num → 0` | `ceilingPct: +((totalCeilSec / n) * 100).toFixed(1),` |
 | 5205 | `cmp > → >=` | `ceilingLabel: ceilingRuns > 3 ? 'Sensor lift likely' : ceilingRuns > 0 ?` |
-| 5216 | `bool || → &&` | `if (!odi1 \|\| !odi3) return null;` |
+| 5216 | `bool \|\| → &&` | `if (!odi1 \|\| !odi3) return null;` |
 | 5221 | `cmp > → >=` | `return { odri: odri, odriLabel: odri > 0.85 ? 'High (CS/PB pattern)' : o` |
 | 5221 | `cmp > → >=` | `return { odri: odri, odriLabel: odri > 0.85 ? 'High (CS/PB pattern)' : o` |
 | 5221 | `num → 0` | `return { odri: odri, odriLabel: odri > 0.85 ? 'High (CS/PB pattern)' : o` |
@@ -2434,7 +2616,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 5284 | `cmp < → <=` | `if (n < 60) return null;` |
 | 5284 | `num → 0` | `if (n < 60) return null;` |
 | 5298 | `cmp <= → <` | `if (!mean \|\| mean <= 0) return null;` |
-| 5298 | `bool || → &&` | `if (!mean \|\| mean <= 0) return null;` |
+| 5298 | `bool \|\| → &&` | `if (!mean \|\| mean <= 0) return null;` |
 | 5300 | `cmp > → >=` | `return { hrCV: cv, hrCVmean: +mean.toFixed(1), hrCVsd: +sd.toFixed(2), h` |
 | 5300 | `cmp > → >=` | `return { hrCV: cv, hrCVmean: +mean.toFixed(1), hrCVsd: +sd.toFixed(2), h` |
 | 5308 | `cmp < → <=` | `if (n < 60) return null;` |
@@ -2479,14 +2661,14 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 5436 | `cmp < → <=` | `sd1Label: sd1 < 0.4 ? 'Low (1Hz proxy)' : sd1 > 1.0 ? 'High (1Hz proxy)'` |
 | 5436 | `num → 0` | `sd1Label: sd1 < 0.4 ? 'Low (1Hz proxy)' : sd1 > 1.0 ? 'High (1Hz proxy)'` |
 | 5437 | `cmp < → <=` | `sd2Label: sd2 < 2 ? 'Low sympathetic modulation (1Hz proxy)' : 'Normal (` |
-| 5444 | `bool || → &&` | `if (!desat \|\| !desat.events \|\| !desat.events.length) return null;` |
-| 5444 | `bool || → &&` | `if (!desat \|\| !desat.events \|\| !desat.events.length) return null;` |
+| 5444 | `bool \|\| → &&` | `if (!desat \|\| !desat.events \|\| !desat.events.length) return null;` |
+| 5444 | `bool \|\| → &&` | `if (!desat \|\| !desat.events \|\| !desat.events.length) return null;` |
 | 5447 | `cmp <= → <` | `if (!ev \|\| ev.depth == null \|\| ev.depth <= 0) return;` |
-| 5447 | `bool || → &&` | `if (!ev \|\| ev.depth == null \|\| ev.depth <= 0) return;` |
-| 5447 | `bool || → &&` | `if (!ev \|\| ev.depth == null \|\| ev.depth <= 0) return;` |
+| 5447 | `bool \|\| → &&` | `if (!ev \|\| ev.depth == null \|\| ev.depth <= 0) return;` |
+| 5447 | `bool \|\| → &&` | `if (!ev \|\| ev.depth == null \|\| ev.depth <= 0) return;` |
 | 5450 | `cmp < → <=` | `if (nadirIdx < 0 \|\| nadirIdx >= rows.length) return;` |
 | 5450 | `cmp >= → >` | `if (nadirIdx < 0 \|\| nadirIdx >= rows.length) return;` |
-| 5450 | `bool || → &&` | `if (nadirIdx < 0 \|\| nadirIdx >= rows.length) return;` |
+| 5450 | `bool \|\| → &&` | `if (nadirIdx < 0 \|\| nadirIdx >= rows.length) return;` |
 | 5455 | `cmp < → <=` | `for (var j = preStart; j < nadirIdx; j++) {` |
 | 5459 | `cmp > → >=` | `var preHR = preCnt > 0 ? preSum / preCnt : rows[Math.max(0, nadirIdx - 1` |
 | 5482 | `cmp < → <=` | `return { o2hrEff: mean, o2hrEffMin: min_, o2hrEffMax: max_, o2hrEffN: ra` |
@@ -2498,31 +2680,31 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 5516 | `cmp < → <=` | `delta !== null && delta > 1 ? 'Motion artifact likely (SpO2 lower during` |
 | 5516 | `eq !== → ===` | `delta !== null && delta > 1 ? 'Motion artifact likely (SpO2 lower during` |
 | 5516 | `eq !== → ===` | `delta !== null && delta > 1 ? 'Motion artifact likely (SpO2 lower during` |
-| 5523 | `bool || → &&` | `if (!desat \|\| !desat.events \|\| desat.events.length < 4) return null;` |
-| 5523 | `bool || → &&` | `if (!desat \|\| !desat.events \|\| desat.events.length < 4) return null;` |
-| 5526 | `bool && → ||` | `return ev && ev.nadir != null;` |
+| 5523 | `bool \|\| → &&` | `if (!desat \|\| !desat.events \|\| desat.events.length < 4) return null;` |
+| 5523 | `bool \|\| → &&` | `if (!desat \|\| !desat.events \|\| desat.events.length < 4) return null;` |
+| 5526 | `bool && → \|\|` | `return ev && ev.nadir != null;` |
 | 5533 | `cmp > → >=` | `var dir = lr.slope < -0.005 ? 'Worsening (REM-load)' : lr.slope > 0.005 ` |
 | 5533 | `cmp < → <=` | `var dir = lr.slope < -0.005 ? 'Worsening (REM-load)' : lr.slope > 0.005 ` |
 | 5533 | `num → 0` | `var dir = lr.slope < -0.005 ? 'Worsening (REM-load)' : lr.slope > 0.005 ` |
 | 5533 | `num → 0` | `var dir = lr.slope < -0.005 ? 'Worsening (REM-load)' : lr.slope > 0.005 ` |
 | 5539 | `cmp < → <=` | `if (!desat \|\| !desat.events \|\| desat.events.length < 3) return null;` |
-| 5539 | `bool || → &&` | `if (!desat \|\| !desat.events \|\| desat.events.length < 3) return null;` |
-| 5539 | `bool || → &&` | `if (!desat \|\| !desat.events \|\| desat.events.length < 3) return null;` |
-| 5541 | `bool && → ||` | `return ev && ev.startIdx != null;` |
+| 5539 | `bool \|\| → &&` | `if (!desat \|\| !desat.events \|\| desat.events.length < 3) return null;` |
+| 5539 | `bool \|\| → &&` | `if (!desat \|\| !desat.events \|\| desat.events.length < 3) return null;` |
+| 5541 | `bool && → \|\|` | `return ev && ev.startIdx != null;` |
 | 5543 | `cmp < → <=` | `if (events.length < 3) return null;` |
 | 5547 | `cmp > → >=` | `if (gap > 0) intervals.push(gap);` |
 | 5559 | `cmp > → >=` | `var cv = mean > 0 ? +(sd / mean).toFixed(2) : null;` |
 | 5564 | `cmp > → >=` | `ieiLabel: cv !== null && cv < 0.3 ? 'Regular (PB/CS pattern)' : cv !== n` |
 | 5564 | `eq !== → ===` | `ieiLabel: cv !== null && cv < 0.3 ? 'Regular (PB/CS pattern)' : cv !== n` |
 | 5564 | `cmp < → <=` | `ieiLabel: cv !== null && cv < 0.3 ? 'Regular (PB/CS pattern)' : cv !== n` |
-| 5564 | `bool && → ||` | `ieiLabel: cv !== null && cv < 0.3 ? 'Regular (PB/CS pattern)' : cv !== n` |
-| 5564 | `bool && → ||` | `ieiLabel: cv !== null && cv < 0.3 ? 'Regular (PB/CS pattern)' : cv !== n` |
+| 5564 | `bool && → \|\|` | `ieiLabel: cv !== null && cv < 0.3 ? 'Regular (PB/CS pattern)' : cv !== n` |
+| 5564 | `bool && → \|\|` | `ieiLabel: cv !== null && cv < 0.3 ? 'Regular (PB/CS pattern)' : cv !== n` |
 | 5564 | `num → 0` | `ieiLabel: cv !== null && cv < 0.3 ? 'Regular (PB/CS pattern)' : cv !== n` |
-| 5570 | `bool || → &&` | `if (!desat \|\| !desat.events \|\| desat.events.length < 4) return null;` |
-| 5570 | `bool || → &&` | `if (!desat \|\| !desat.events \|\| desat.events.length < 4) return null;` |
+| 5570 | `bool \|\| → &&` | `if (!desat \|\| !desat.events \|\| desat.events.length < 4) return null;` |
+| 5570 | `bool \|\| → &&` | `if (!desat \|\| !desat.events \|\| desat.events.length < 4) return null;` |
 | 5573 | `cmp > → >=` | `return ev && ev.recoverySlope != null && ev.recoverySlope > 0;` |
-| 5573 | `bool && → ||` | `return ev && ev.recoverySlope != null && ev.recoverySlope > 0;` |
-| 5573 | `bool && → ||` | `return ev && ev.recoverySlope != null && ev.recoverySlope > 0;` |
+| 5573 | `bool && → \|\|` | `return ev && ev.recoverySlope != null && ev.recoverySlope > 0;` |
+| 5573 | `bool && → \|\|` | `return ev && ev.recoverySlope != null && ev.recoverySlope > 0;` |
 | 5597 | `cmp > → >=` | `recovSlopeCVlabel: cv > 0.6 ? 'High variability (inconsistent arousal)' ` |
 | 5597 | `cmp > → >=` | `recovSlopeCVlabel: cv > 0.6 ? 'High variability (inconsistent arousal)' ` |
 | 5613 | `cmp <= → <` | `for (var j = 0; j <= 2 * WIN && j < n; j++) {` |
@@ -2533,15 +2715,15 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 5639 | `cmp < → <=` | `hrNadirLabel: nadirFracOfNight < 0.25 ? 'Early nadir (good alignment)' :` |
 | 5639 | `cmp > → >=` | `hrNadirLabel: nadirFracOfNight < 0.25 ? 'Early nadir (good alignment)' :` |
 | 5639 | `num → 0` | `hrNadirLabel: nadirFracOfNight < 0.25 ? 'Early nadir (good alignment)' :` |
-| 5646 | `bool || → &&` | `if (n < 600 \|\| !desat \|\| !desat.events \|\| !desat.events.length) return n` |
-| 5646 | `bool || → &&` | `if (n < 600 \|\| !desat \|\| !desat.events \|\| !desat.events.length) return n` |
+| 5646 | `bool \|\| → &&` | `if (n < 600 \|\| !desat \|\| !desat.events \|\| !desat.events.length) return n` |
+| 5646 | `bool \|\| → &&` | `if (n < 600 \|\| !desat \|\| !desat.events \|\| !desat.events.length) return n` |
 | 5646 | `cmp < → <=` | `if (n < 600 \|\| !desat \|\| !desat.events \|\| !desat.events.length) return n` |
-| 5646 | `bool || → &&` | `if (n < 600 \|\| !desat \|\| !desat.events \|\| !desat.events.length) return n` |
+| 5646 | `bool \|\| → &&` | `if (n < 600 \|\| !desat \|\| !desat.events \|\| !desat.events.length) return n` |
 | 5646 | `num → 0` | `if (n < 600 \|\| !desat \|\| !desat.events \|\| !desat.events.length) return n` |
-| 5651 | `bool || → &&` | `return (a.nadir \|\| 99) < (b.nadir \|\| 99) ? a : b;` |
+| 5651 | `bool \|\| → &&` | `return (a.nadir \|\| 99) < (b.nadir \|\| 99) ? a : b;` |
 | 5651 | `num → 0` | `return (a.nadir \|\| 99) < (b.nadir \|\| 99) ? a : b;` |
 | 5651 | `num → 0` | `return (a.nadir \|\| 99) < (b.nadir \|\| 99) ? a : b;` |
-| 5653 | `bool || → &&` | `if (!worst \|\| worst.nadirIdx == null) return null;` |
+| 5653 | `bool \|\| → &&` | `if (!worst \|\| worst.nadirIdx == null) return null;` |
 | 5660 | `cmp < → <=` | `spo2NadirLabel: frac > 0.65 ? 'Late-night worst (REM-predominant)' : fra` |
 | 5660 | `cmp > → >=` | `spo2NadirLabel: frac > 0.65 ? 'Late-night worst (REM-predominant)' : fra` |
 | 5660 | `num → 0` | `spo2NadirLabel: frac > 0.65 ? 'Late-night worst (REM-predominant)' : fra` |
@@ -2555,15 +2737,15 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 5728 | `num → 0` | `rmssdArcLabel: lr.slope < -0.2 ? 'Declining (REM/arousal load)' : lr.slo` |
 | 5728 | `num → 0` | `rmssdArcLabel: lr.slope < -0.2 ? 'Declining (REM/arousal load)' : lr.slo` |
 | 5728 | `cmp < → <=` | `rmssdArcLabel: lr.slope < -0.2 ? 'Declining (REM/arousal load)' : lr.slo` |
-| 5734 | `bool || → &&` | `if (!spikes \|\| !spikes.length) return null;` |
+| 5734 | `bool \|\| → &&` | `if (!spikes \|\| !spikes.length) return null;` |
 | 5734 | `negate: drop !` | `if (!spikes \|\| !spikes.length) return null;` |
 | 5734 | `negate: drop !` | `if (!spikes \|\| !spikes.length) return null;` |
-| 5737 | `bool || → &&` | `if (!sp \|\| sp.baseline == null \|\| sp.peak == null) return;` |
-| 5737 | `bool || → &&` | `if (!sp \|\| sp.baseline == null \|\| sp.peak == null) return;` |
+| 5737 | `bool \|\| → &&` | `if (!sp \|\| sp.baseline == null \|\| sp.peak == null) return;` |
+| 5737 | `bool \|\| → &&` | `if (!sp \|\| sp.baseline == null \|\| sp.peak == null) return;` |
 | 5737 | `negate: drop !` | `if (!sp \|\| sp.baseline == null \|\| sp.peak == null) return;` |
 | 5739 | `cmp <= → <` | `if (amplitude <= 0) return;` |
 | 5740 | `num → 0` | `var halfTarget = sp.baseline + amplitude * 0.5;` |
-| 5743 | `bool || → &&` | `var spMfm = sp.mfm \|\| 0;` |
+| 5743 | `bool \|\| → &&` | `var spMfm = sp.mfm \|\| 0;` |
 | 5744 | `num → 0` | `var startHr = rows.length > 0 ? rows[0].t.getUTCHours() * 60 + rows[0].t` |
 | 5744 | `cmp > → >=` | `var startHr = rows.length > 0 ? rows[0].t.getUTCHours() * 60 + rows[0].t` |
 | 5744 | `num → 0` | `var startHr = rows.length > 0 ? rows[0].t.getUTCHours() * 60 + rows[0].t` |
@@ -2606,18 +2788,18 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 5877 | `num → 0` | `var p5idx = Math.floor(0.05 * stillHR.length);` |
 | 5881 | `cmp > → >=` | `var hrRest = UP && UP.hrRestOverride && UP.hrRestOverride > 30 && UP.hrR` |
 | 5881 | `cmp < → <=` | `var hrRest = UP && UP.hrRestOverride && UP.hrRestOverride > 30 && UP.hrR` |
-| 5881 | `bool && → ||` | `var hrRest = UP && UP.hrRestOverride && UP.hrRestOverride > 30 && UP.hrR` |
+| 5881 | `bool && → \|\|` | `var hrRest = UP && UP.hrRestOverride && UP.hrRestOverride > 30 && UP.hrR` |
 | 5881 | `num → 0` | `var hrRest = UP && UP.hrRestOverride && UP.hrRestOverride > 30 && UP.hrR` |
 | 5881 | `num → 0` | `var hrRest = UP && UP.hrRestOverride && UP.hrRestOverride > 30 && UP.hrR` |
 | 5884 | `cmp < → <=` | `if (hrRest < 30 \|\| hrRest > 100) return null;` |
 | 5884 | `num → 0` | `if (hrRest < 30 \|\| hrRest > 100) return null;` |
-| 5897 | `bool && → ||` | `var vo2raw = hrRest && hrRest > 0 ? +(15.3 * (hrMax / hrRest)).toFixed(1` |
+| 5897 | `bool && → \|\|` | `var vo2raw = hrRest && hrRest > 0 ? +(15.3 * (hrMax / hrRest)).toFixed(1` |
 | 5897 | `cmp > → >=` | `var vo2raw = hrRest && hrRest > 0 ? +(15.3 * (hrMax / hrRest)).toFixed(1` |
 | 5918 | `cmp >= → >` | `rmssdNote = 'RMSSD ' + hrv.rmssd + 'bpm (1Hz proxy) → adj ' + (rmssdAdj ` |
 | 5939 | `num → 0` | `var conf = 60; // base` |
 | 5940 | `cmp >= → >` | `if (hrRest >= 40 && hrRest <= 65) conf += 15; // plausible resting HR` |
 | 5940 | `cmp <= → <` | `if (hrRest >= 40 && hrRest <= 65) conf += 15; // plausible resting HR` |
-| 5940 | `bool && → ||` | `if (hrRest >= 40 && hrRest <= 65) conf += 15; // plausible resting HR` |
+| 5940 | `bool && → \|\|` | `if (hrRest >= 40 && hrRest <= 65) conf += 15; // plausible resting HR` |
 | 5940 | `num → 0` | `if (hrRest >= 40 && hrRest <= 65) conf += 15; // plausible resting HR` |
 | 5940 | `num → 0` | `if (hrRest >= 40 && hrRest <= 65) conf += 15; // plausible resting HR` |
 | 5940 | `num → 0` | `if (hrRest >= 40 && hrRest <= 65) conf += 15; // plausible resting HR` |
@@ -2635,23 +2817,23 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 5970 | `num → 0` | `label: vo2est >= 42 ? 'Top-25% for age ' + age : vo2est >= 35 ? 'Above a` |
 | 5997 | `cmp > → >=` | `var hasHrRestSource = (UP && UP.hrRestOverride && UP.hrRestOverride > 30` |
 | 5997 | `cmp < → <=` | `var hasHrRestSource = (UP && UP.hrRestOverride && UP.hrRestOverride > 30` |
-| 5997 | `bool && → ||` | `var hasHrRestSource = (UP && UP.hrRestOverride && UP.hrRestOverride > 30` |
+| 5997 | `bool && → \|\|` | `var hasHrRestSource = (UP && UP.hrRestOverride && UP.hrRestOverride > 30` |
 | 5997 | `num → 0` | `var hasHrRestSource = (UP && UP.hrRestOverride && UP.hrRestOverride > 30` |
 | 5997 | `num → 0` | `var hasHrRestSource = (UP && UP.hrRestOverride && UP.hrRestOverride > 30` |
 | 6000 | `num → 0` | `age = age \|\| 49;` |
 | 6004 | `cmp > → >=` | `if (UP && UP.hrRestOverride && UP.hrRestOverride > 30 && UP.hrRestOverri` |
 | 6004 | `cmp < → <=` | `if (UP && UP.hrRestOverride && UP.hrRestOverride > 30 && UP.hrRestOverri` |
-| 6004 | `bool && → ||` | `if (UP && UP.hrRestOverride && UP.hrRestOverride > 30 && UP.hrRestOverri` |
+| 6004 | `bool && → \|\|` | `if (UP && UP.hrRestOverride && UP.hrRestOverride > 30 && UP.hrRestOverri` |
 | 6004 | `num → 0` | `if (UP && UP.hrRestOverride && UP.hrRestOverride > 30 && UP.hrRestOverri` |
 | 6004 | `num → 0` | `if (UP && UP.hrRestOverride && UP.hrRestOverride > 30 && UP.hrRestOverri` |
 | 6009 | `cmp < → <=` | `if (!rows \|\| rows.length < 60) return null;` |
-| 6009 | `bool || → &&` | `if (!rows \|\| rows.length < 60) return null;` |
+| 6009 | `bool \|\| → &&` | `if (!rows \|\| rows.length < 60) return null;` |
 | 6009 | `num → 0` | `if (!rows \|\| rows.length < 60) return null;` |
 | 6012 | `cmp > → >=` | `return r.motion === 0 && r.hr > 30 && r.hr < 120;` |
 | 6012 | `cmp < → <=` | `return r.motion === 0 && r.hr > 30 && r.hr < 120;` |
-| 6012 | `bool && → ||` | `return r.motion === 0 && r.hr > 30 && r.hr < 120;` |
+| 6012 | `bool && → \|\|` | `return r.motion === 0 && r.hr > 30 && r.hr < 120;` |
 | 6012 | `num → 0` | `return r.motion === 0 && r.hr > 30 && r.hr < 120;` |
-| 6012 | `bool && → ||` | `return r.motion === 0 && r.hr > 30 && r.hr < 120;` |
+| 6012 | `bool && → \|\|` | `return r.motion === 0 && r.hr > 30 && r.hr < 120;` |
 | 6020 | `cmp < → <=` | `if (stillHR.length < 60) return null;` |
 | 6020 | `num → 0` | `if (stillHR.length < 60) return null;` |
 | 6021 | `num → 0` | `hrRest = stillHR[Math.floor(0.05 * stillHR.length)];` |
@@ -2699,7 +2881,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 6219 | `cmp <= → <` | `if (n < 60 \|\| durationHr <= 0) return { sbii: null, sbiiQ: null };` |
 | 6219 | `cmp < → <=` | `if (n < 60 \|\| durationHr <= 0) return { sbii: null, sbiiQ: null };` |
 | 6239 | `num → 0` | `return { depth: e.depth, duration: dur, desatArea: (e.depth * dur) / 60 ` |
-| 6242 | `bool && → ||` | `return isFinite(e.depth) && isFinite(e.duration);` |
+| 6242 | `bool && → \|\|` | `return isFinite(e.depth) && isFinite(e.duration);` |
 | 6257 | `cmp > → >=` | `var sbii = durationHr > 0 ? +(sum / durationHr).toFixed(3) : 0;` |
 | 6258 | `cmp < → <=` | `var q = sbii < 2.58 ? 'Q1(low)' : sbii < 6.49 ? 'Q2' : sbii < 12.8 ? 'Q3` |
 | 6258 | `num → 0` | `var q = sbii < 2.58 ? 'Q1(low)' : sbii < 6.49 ? 'Q2' : sbii < 12.8 ? 'Q3` |
@@ -2716,8 +2898,8 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 6290 | `num → 0` | `var q = pred3p < 2.78 ? 'Q1(low)' : pred3p < 6.19 ? 'Q2' : pred3p < 10.8` |
 | 6290 | `num → 0` | `var q = pred3p < 2.78 ? 'Q1(low)' : pred3p < 6.19 ? 'Q2' : pred3p < 10.8` |
 | 6305 | `cmp < → <=` | `if (n < 60) return { desSev: null };` |
-| 6329 | `bool && → ||` | `var base = e.baseline != null ? e.baseline : e.nadir != null && e.depth ` |
-| 6330 | `bool || → &&` | `if (base == null \|\| !isFinite(base)) return;` |
+| 6329 | `bool && → \|\|` | `var base = e.baseline != null ? e.baseline : e.nadir != null && e.depth ` |
+| 6330 | `bool \|\| → &&` | `if (base == null \|\| !isFinite(base)) return;` |
 | 6333 | `cmp > → >=` | `if (d > 0) totalArea += d;` |
 | 6338 | `cmp > → >=` | `var desSev = durationHr > 0 ? +(totalArea / 60 / durationHr).toFixed(2) ` |
 | 6353 | `cmp < → <=` | `for (var i = 0; i < n; i++) {` |
@@ -2726,165 +2908,165 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 6358 | `num → 0` | `if (v < 85) ct85++;` |
 | 6359 | `cmp < → <=` | `if (v < 80) ct80++;` |
 | 6359 | `num → 0` | `if (v < 80) ct80++;` |
-| 6439 | `bool || → &&` | `pnn3: obj.hrv.pnn3 \|\| 0,` |
-| 6440 | `bool || → &&` | `hrFloor: obj.hrv.hrFloor \|\| 0,` |
-| 6442 | `bool || → &&` | `rsaProxy: obj.hrv.rsaProxy \|\| 0,` |
-| 6444 | `bool || → &&` | `maxHr: obj.hrv.maxHr \|\| 0,` |
+| 6439 | `bool \|\| → &&` | `pnn3: obj.hrv.pnn3 \|\| 0,` |
+| 6440 | `bool \|\| → &&` | `hrFloor: obj.hrv.hrFloor \|\| 0,` |
+| 6442 | `bool \|\| → &&` | `rsaProxy: obj.hrv.rsaProxy \|\| 0,` |
+| 6444 | `bool \|\| → &&` | `maxHr: obj.hrv.maxHr \|\| 0,` |
 | 6458 | `num → 0` | `mfm: sp.mfm \|\| (sp.time ? parseTimeStr(sp.time) / 60 : 0)` |
-| 6458 | `bool || → &&` | `mfm: sp.mfm \|\| (sp.time ? parseTimeStr(sp.time) / 60 : 0)` |
-| 6463 | `bool || → &&` | `var cnt = (obj.hr_spikes && obj.hr_spikes.count) \|\| 0;` |
+| 6458 | `bool \|\| → &&` | `mfm: sp.mfm \|\| (sp.time ? parseTimeStr(sp.time) / 60 : 0)` |
+| 6463 | `bool \|\| → &&` | `var cnt = (obj.hr_spikes && obj.hr_spikes.count) \|\| 0;` |
 | 6464 | `cmp > → >=` | `return cnt > 0 ? { length: cnt } : [];` |
-| 6472 | `bool || → &&` | `if (s.t95pct != null) idx[95] = { pct: s.t95pct, secs: Math.round((s.t95` |
+| 6472 | `bool \|\| → &&` | `if (s.t95pct != null) idx[95] = { pct: s.t95pct, secs: Math.round((s.t95` |
 | 6472 | `num → 0` | `if (s.t95pct != null) idx[95] = { pct: s.t95pct, secs: Math.round((s.t95` |
 | 6472 | `num → 0` | `if (s.t95pct != null) idx[95] = { pct: s.t95pct, secs: Math.round((s.t95` |
 | 6472 | `num → 0` | `if (s.t95pct != null) idx[95] = { pct: s.t95pct, secs: Math.round((s.t95` |
-| 6473 | `bool || → &&` | `if (s.t90pct != null) idx[90] = { pct: s.t90pct, secs: Math.round((s.t90` |
+| 6473 | `bool \|\| → &&` | `if (s.t90pct != null) idx[90] = { pct: s.t90pct, secs: Math.round((s.t90` |
 | 6473 | `num → 0` | `if (s.t90pct != null) idx[90] = { pct: s.t90pct, secs: Math.round((s.t90` |
 | 6473 | `num → 0` | `if (s.t90pct != null) idx[90] = { pct: s.t90pct, secs: Math.round((s.t90` |
 | 6473 | `num → 0` | `if (s.t90pct != null) idx[90] = { pct: s.t90pct, secs: Math.round((s.t90` |
-| 6481 | `bool || → &&` | `stab: obj.sleepStability \|\| null,` |
-| 6482 | `bool || → &&` | `motSleep: obj.sleepQuality \|\| null,` |
-| 6483 | `bool || → &&` | `desat: obj.desatProfile \|\| null,` |
-| 6484 | `bool || → &&` | `hrProf: obj.hrProfile \|\| null,` |
-| 6485 | `bool || → &&` | `cross: obj.crossSignal \|\| null,` |
-| 6486 | `bool || → &&` | `spo2Adv: obj.spo2Advanced \|\| null,` |
-| 6487 | `bool || → &&` | `hrAdv: obj.hrAdvanced \|\| null,` |
-| 6489 | `bool || → &&` | `sbii: obj.sbii \|\| null,` |
-| 6490 | `bool || → &&` | `pred3p: obj.pred3p \|\| null,` |
-| 6491 | `bool || → &&` | `desSev: obj.desSev \|\| null,` |
-| 6498 | `bool || → &&` | `spo2Drift: (obj.newMetrics \|\| {}).spo2Drift \|\| null,` |
-| 6499 | `bool || → &&` | `odi2: (obj.newMetrics \|\| {}).odi2 \|\| null,` |
-| 6500 | `bool || → &&` | `spo2Over: (obj.newMetrics \|\| {}).spo2Overshoot \|\| null,` |
-| 6501 | `bool || → &&` | `spo2Ac1: (obj.newMetrics \|\| {}).spo2Ac1 \|\| null,` |
-| 6502 | `bool || → &&` | `hrFreq: (obj.newMetrics \|\| {}).hrFreqBands \|\| null,` |
-| 6503 | `bool || → &&` | `respRate: (obj.newMetrics \|\| {}).respRate \|\| null,` |
-| 6504 | `bool || → &&` | `hrAsym: (obj.newMetrics \|\| {}).hrAsymmetry \|\| null,` |
-| 6505 | `bool || → &&` | `hrQuart: (obj.newMetrics \|\| {}).hrQuartiles \|\| null,` |
-| 6506 | `bool || → &&` | `spo2HRLag: (obj.newMetrics \|\| {}).spo2HRLag \|\| null,` |
-| 6507 | `bool || → &&` | `spkDecay: (obj.newMetrics \|\| {}).spikeDecay \|\| null,` |
-| 6508 | `bool || → &&` | `spkUnder: (obj.newMetrics \|\| {}).spikeUndershoot \|\| null,` |
-| 6509 | `bool || → &&` | `spkRise: (obj.newMetrics \|\| {}).spikeRiseRate \|\| null,` |
-| 6510 | `bool || → &&` | `dataGaps: (obj.newMetrics \|\| {}).dataGaps \|\| null,` |
-| 6511 | `bool || → &&` | `hrFlat: (obj.newMetrics \|\| {}).hrFlatlines \|\| null,` |
-| 6513 | `bool || → &&` | `odri: (obj.newMetrics \|\| {}).odri \|\| null,` |
-| 6514 | `bool || → &&` | `spo2Pct: (obj.newMetrics \|\| {}).spo2Pct \|\| null,` |
-| 6515 | `bool || → &&` | `spo2Shape: (obj.newMetrics \|\| {}).spo2Shape \|\| null,` |
-| 6516 | `bool || → &&` | `hrCV: (obj.newMetrics \|\| {}).hrCV \|\| null,` |
-| 6518 | `bool || → &&` | `t88t85: (obj.newMetrics \|\| {}).t88t85 \|\| null,` |
-| 6520 | `bool || → &&` | `poincare: (obj.newMetrics \|\| {}).poincare \|\| null,` |
-| 6521 | `bool || → &&` | `o2hrEff: (obj.newMetrics \|\| {}).o2hrEff \|\| null,` |
-| 6522 | `bool || → &&` | `condSpo2: (obj.newMetrics \|\| {}).condSpo2 \|\| null,` |
-| 6524 | `bool || → &&` | `iei: (obj.newMetrics \|\| {}).iei \|\| null,` |
-| 6525 | `bool || → &&` | `recovCV: (obj.newMetrics \|\| {}).recovCV \|\| null,` |
-| 6526 | `bool || → &&` | `hrNadirT: (obj.newMetrics \|\| {}).hrNadirT \|\| null,` |
-| 6527 | `bool || → &&` | `spo2NadirT: (obj.newMetrics \|\| {}).spo2NadirT \|\| null,` |
-| 6528 | `bool || → &&` | `rmssdArc: (obj.newMetrics \|\| {}).rmssdArc \|\| null,` |
-| 6529 | `bool || → &&` | `spk50Rec: (obj.newMetrics \|\| {}).spk50Rec \|\| null,` |
-| 6530 | `bool || → &&` | `stageProxy: (obj.newMetrics \|\| {}).stageProxy \|\| null,` |
-| 6536 | `bool && → ||` | `if (v.hrRest && v.hrMax && v.rmssdAdj != null) {` |
-| 6536 | `bool && → ||` | `if (v.hrRest && v.hrMax && v.rmssdAdj != null) {` |
+| 6481 | `bool \|\| → &&` | `stab: obj.sleepStability \|\| null,` |
+| 6482 | `bool \|\| → &&` | `motSleep: obj.sleepQuality \|\| null,` |
+| 6483 | `bool \|\| → &&` | `desat: obj.desatProfile \|\| null,` |
+| 6484 | `bool \|\| → &&` | `hrProf: obj.hrProfile \|\| null,` |
+| 6485 | `bool \|\| → &&` | `cross: obj.crossSignal \|\| null,` |
+| 6486 | `bool \|\| → &&` | `spo2Adv: obj.spo2Advanced \|\| null,` |
+| 6487 | `bool \|\| → &&` | `hrAdv: obj.hrAdvanced \|\| null,` |
+| 6489 | `bool \|\| → &&` | `sbii: obj.sbii \|\| null,` |
+| 6490 | `bool \|\| → &&` | `pred3p: obj.pred3p \|\| null,` |
+| 6491 | `bool \|\| → &&` | `desSev: obj.desSev \|\| null,` |
+| 6498 | `bool \|\| → &&` | `spo2Drift: (obj.newMetrics \|\| {}).spo2Drift \|\| null,` |
+| 6499 | `bool \|\| → &&` | `odi2: (obj.newMetrics \|\| {}).odi2 \|\| null,` |
+| 6500 | `bool \|\| → &&` | `spo2Over: (obj.newMetrics \|\| {}).spo2Overshoot \|\| null,` |
+| 6501 | `bool \|\| → &&` | `spo2Ac1: (obj.newMetrics \|\| {}).spo2Ac1 \|\| null,` |
+| 6502 | `bool \|\| → &&` | `hrFreq: (obj.newMetrics \|\| {}).hrFreqBands \|\| null,` |
+| 6503 | `bool \|\| → &&` | `respRate: (obj.newMetrics \|\| {}).respRate \|\| null,` |
+| 6504 | `bool \|\| → &&` | `hrAsym: (obj.newMetrics \|\| {}).hrAsymmetry \|\| null,` |
+| 6505 | `bool \|\| → &&` | `hrQuart: (obj.newMetrics \|\| {}).hrQuartiles \|\| null,` |
+| 6506 | `bool \|\| → &&` | `spo2HRLag: (obj.newMetrics \|\| {}).spo2HRLag \|\| null,` |
+| 6507 | `bool \|\| → &&` | `spkDecay: (obj.newMetrics \|\| {}).spikeDecay \|\| null,` |
+| 6508 | `bool \|\| → &&` | `spkUnder: (obj.newMetrics \|\| {}).spikeUndershoot \|\| null,` |
+| 6509 | `bool \|\| → &&` | `spkRise: (obj.newMetrics \|\| {}).spikeRiseRate \|\| null,` |
+| 6510 | `bool \|\| → &&` | `dataGaps: (obj.newMetrics \|\| {}).dataGaps \|\| null,` |
+| 6511 | `bool \|\| → &&` | `hrFlat: (obj.newMetrics \|\| {}).hrFlatlines \|\| null,` |
+| 6513 | `bool \|\| → &&` | `odri: (obj.newMetrics \|\| {}).odri \|\| null,` |
+| 6514 | `bool \|\| → &&` | `spo2Pct: (obj.newMetrics \|\| {}).spo2Pct \|\| null,` |
+| 6515 | `bool \|\| → &&` | `spo2Shape: (obj.newMetrics \|\| {}).spo2Shape \|\| null,` |
+| 6516 | `bool \|\| → &&` | `hrCV: (obj.newMetrics \|\| {}).hrCV \|\| null,` |
+| 6518 | `bool \|\| → &&` | `t88t85: (obj.newMetrics \|\| {}).t88t85 \|\| null,` |
+| 6520 | `bool \|\| → &&` | `poincare: (obj.newMetrics \|\| {}).poincare \|\| null,` |
+| 6521 | `bool \|\| → &&` | `o2hrEff: (obj.newMetrics \|\| {}).o2hrEff \|\| null,` |
+| 6522 | `bool \|\| → &&` | `condSpo2: (obj.newMetrics \|\| {}).condSpo2 \|\| null,` |
+| 6524 | `bool \|\| → &&` | `iei: (obj.newMetrics \|\| {}).iei \|\| null,` |
+| 6525 | `bool \|\| → &&` | `recovCV: (obj.newMetrics \|\| {}).recovCV \|\| null,` |
+| 6526 | `bool \|\| → &&` | `hrNadirT: (obj.newMetrics \|\| {}).hrNadirT \|\| null,` |
+| 6527 | `bool \|\| → &&` | `spo2NadirT: (obj.newMetrics \|\| {}).spo2NadirT \|\| null,` |
+| 6528 | `bool \|\| → &&` | `rmssdArc: (obj.newMetrics \|\| {}).rmssdArc \|\| null,` |
+| 6529 | `bool \|\| → &&` | `spk50Rec: (obj.newMetrics \|\| {}).spk50Rec \|\| null,` |
+| 6530 | `bool \|\| → &&` | `stageProxy: (obj.newMetrics \|\| {}).stageProxy \|\| null,` |
+| 6536 | `bool && → \|\|` | `if (v.hrRest && v.hrMax && v.rmssdAdj != null) {` |
+| 6536 | `bool && → \|\|` | `if (v.hrRest && v.hrMax && v.rmssdAdj != null) {` |
 | 6537 | `num → 0` | `var base = +(15.3 * (v.hrMax / v.hrRest)).toFixed(1);` |
-| 6538 | `bool || → &&` | `var corrected = +(base + (v.dfaAdj \|\| 0) + v.rmssdAdj).toFixed(1);` |
+| 6538 | `bool \|\| → &&` | `var corrected = +(base + (v.dfaAdj \|\| 0) + v.rmssdAdj).toFixed(1);` |
 | 6539 | `eq !== → ===` | `if (corrected !== v.vo2est) v = Object.assign({}, v, { vo2est: corrected` |
-| 6543 | `bool || → &&` | `bpProj: (obj.newMetrics \|\| {}).bpProj \|\| null,` |
-| 6544 | `bool || → &&` | `karv: (obj.newMetrics \|\| {}).karv \|\| null,` |
-| 6572 | `bool && → ||` | `var o4r = obj.odi4 && obj.odi4.rate != null ? obj.odi4.rate : 0;` |
-| 6573 | `bool && → ||` | `var ct90s = obj.ctPrecise && obj.ctPrecise.ct90s != null ? obj.ctPrecise` |
-| 6581 | `bool && → ||` | `var o4r = obj.odi4 && obj.odi4.rate != null ? obj.odi4.rate : 0;` |
-| 6582 | `bool && → ||` | `var o3r = obj.odi3 && obj.odi3.rate != null ? obj.odi3.rate : 0;` |
-| 6585 | `bool && → ||` | `var dsev = obj.desSev && obj.desSev.desSev != null ? obj.desSev.desSev :` |
-| 6586 | `bool && → ||` | `var t95 = obj.stats && obj.stats.t95pct != null ? obj.stats.t95pct : 0;` |
-| 6632 | `bool && → ||` | `if (!(json && json.schema && json.schema.name === 'ganglior.node-export'` |
-| 6632 | `bool && → ||` | `if (!(json && json.schema && json.schema.name === 'ganglior.node-export'` |
-| 6642 | `bool || → &&` | `message: 'This is a ' + (node \|\| 'non-OxyDex') + ' export \u2014 open it` |
-| 6642 | `bool || → &&` | `message: 'This is a ' + (node \|\| 'non-OxyDex') + ' export \u2014 open it` |
-| 6648 | `bool && → ||` | `var carrier = Array.isArray(json.nights) ? json.nights : json.date && js` |
-| 6657 | `bool && → ||` | `if (el && el.date === n.date && el.summary != null) n.summary = el.summa` |
-| 6657 | `bool && → ||` | `if (el && el.date === n.date && el.summary != null) n.summary = el.summa` |
+| 6543 | `bool \|\| → &&` | `bpProj: (obj.newMetrics \|\| {}).bpProj \|\| null,` |
+| 6544 | `bool \|\| → &&` | `karv: (obj.newMetrics \|\| {}).karv \|\| null,` |
+| 6572 | `bool && → \|\|` | `var o4r = obj.odi4 && obj.odi4.rate != null ? obj.odi4.rate : 0;` |
+| 6573 | `bool && → \|\|` | `var ct90s = obj.ctPrecise && obj.ctPrecise.ct90s != null ? obj.ctPrecise` |
+| 6581 | `bool && → \|\|` | `var o4r = obj.odi4 && obj.odi4.rate != null ? obj.odi4.rate : 0;` |
+| 6582 | `bool && → \|\|` | `var o3r = obj.odi3 && obj.odi3.rate != null ? obj.odi3.rate : 0;` |
+| 6585 | `bool && → \|\|` | `var dsev = obj.desSev && obj.desSev.desSev != null ? obj.desSev.desSev :` |
+| 6586 | `bool && → \|\|` | `var t95 = obj.stats && obj.stats.t95pct != null ? obj.stats.t95pct : 0;` |
+| 6632 | `bool && → \|\|` | `if (!(json && json.schema && json.schema.name === 'ganglior.node-export'` |
+| 6632 | `bool && → \|\|` | `if (!(json && json.schema && json.schema.name === 'ganglior.node-export'` |
+| 6642 | `bool \|\| → &&` | `message: 'This is a ' + (node \|\| 'non-OxyDex') + ' export \\u2014 open it` |
+| 6642 | `bool \|\| → &&` | `message: 'This is a ' + (node \|\| 'non-OxyDex') + ' export \\u2014 open it` |
+| 6648 | `bool && → \|\|` | `var carrier = Array.isArray(json.nights) ? json.nights : json.date && js` |
+| 6657 | `bool && → \|\|` | `if (el && el.date === n.date && el.summary != null) n.summary = el.summa` |
+| 6657 | `bool && → \|\|` | `if (el && el.date === n.date && el.summary != null) n.summary = el.summa` |
 | 6657 | `eq === → !==` | `if (el && el.date === n.date && el.summary != null) n.summary = el.summa` |
-| 6668 | `bool && → ||` | `generated: (json.schema && json.schema.generated) \|\| null,` |
-| 6669 | `bool || → &&` | `derivedFrom: (json.schema && json.schema.derivedFrom) \|\| null,` |
-| 6669 | `bool && → ||` | `derivedFrom: (json.schema && json.schema.derivedFrom) \|\| null,` |
-| 6670 | `bool || → &&` | `kernel: json.kernel \|\| null,` |
-| 6673 | `bool && → ||` | `scrubbed: !!(json.schema && json.schema.scrubbed),` |
+| 6668 | `bool && → \|\|` | `generated: (json.schema && json.schema.generated) \|\| null,` |
+| 6669 | `bool \|\| → &&` | `derivedFrom: (json.schema && json.schema.derivedFrom) \|\| null,` |
+| 6669 | `bool && → \|\|` | `derivedFrom: (json.schema && json.schema.derivedFrom) \|\| null,` |
+| 6670 | `bool \|\| → &&` | `kernel: json.kernel \|\| null,` |
+| 6673 | `bool && → \|\|` | `scrubbed: !!(json.schema && json.schema.scrubbed),` |
 | 6674 | `cmp > → >=` | `multiNight: nights.length > 1,` |
 | 6693 | `eq === → !==` | `if (typeof DexExport !== 'undefined' && DexExport && typeof DexExport.sc` |
-| 6693 | `bool && → ||` | `if (typeof DexExport !== 'undefined' && DexExport && typeof DexExport.sc` |
+| 6693 | `bool && → \|\|` | `if (typeof DexExport !== 'undefined' && DexExport && typeof DexExport.sc` |
 | 6693 | `eq !== → ===` | `if (typeof DexExport !== 'undefined' && DexExport && typeof DexExport.sc` |
-| 6693 | `bool && → ||` | `if (typeof DexExport !== 'undefined' && DexExport && typeof DexExport.sc` |
+| 6693 | `bool && → \|\|` | `if (typeof DexExport !== 'undefined' && DexExport && typeof DexExport.sc` |
 | 6694 | `eq === → !==` | `if (typeof dexScrubExport === 'function') return dexScrubExport(envelope` |
-| 6756 | `bool || → &&` | `opts = opts \|\| {};` |
+| 6756 | `bool \|\| → &&` | `opts = opts \|\| {};` |
 | 6757 | `eq !== → ===` | `var _prov = opts.provenance !== undefined ? opts.provenance : null;` |
 | 6758 | `eq !== → ===` | `var _kernel = opts.kernel !== undefined ? opts.kernel : null;` |
 | 6759 | `eq !== → ===` | `var _ecgFusion = opts.ecgFusion !== undefined ? opts.ecgFusion : null;` |
 | 6760 | `eq !== → ===` | `var _ansAge = opts.ansAge !== undefined ? opts.ansAge : null;` |
-| 6782 | `bool && → ||` | `windows: n.motion && n.motion.windows ? n.motion.windows : []` |
-| 6812 | `bool || → &&` | `spikeDecay: n.spkDecay \|\| null,` |
-| 6813 | `bool || → &&` | `spikeUndershoot: n.spkUnder \|\| null,` |
-| 6814 | `bool || → &&` | `spikeRiseRate: n.spkRise \|\| null,` |
-| 6834 | `bool || → &&` | `spk50Rec: n.spk50Rec \|\| null,` |
-| 6836 | `bool || → &&` | `vo2est: n.vo2est \|\| null,` |
-| 6837 | `bool || → &&` | `bpProj: n.bpProj \|\| null,` |
-| 6838 | `bool || → &&` | `karv: n.karv \|\| null` |
-| 6843 | `bool || → &&` | `period: n.period \|\| null,` |
-| 6894 | `bool || → &&` | `var nSamp = stats.n \|\| 0;` |
+| 6782 | `bool && → \|\|` | `windows: n.motion && n.motion.windows ? n.motion.windows : []` |
+| 6812 | `bool \|\| → &&` | `spikeDecay: n.spkDecay \|\| null,` |
+| 6813 | `bool \|\| → &&` | `spikeUndershoot: n.spkUnder \|\| null,` |
+| 6814 | `bool \|\| → &&` | `spikeRiseRate: n.spkRise \|\| null,` |
+| 6834 | `bool \|\| → &&` | `spk50Rec: n.spk50Rec \|\| null,` |
+| 6836 | `bool \|\| → &&` | `vo2est: n.vo2est \|\| null,` |
+| 6837 | `bool \|\| → &&` | `bpProj: n.bpProj \|\| null,` |
+| 6838 | `bool \|\| → &&` | `karv: n.karv \|\| null` |
+| 6843 | `bool \|\| → &&` | `period: n.period \|\| null,` |
+| 6894 | `bool \|\| → &&` | `var nSamp = stats.n \|\| 0;` |
 | 6895 | `num → 0` | `var durMs = stats.durationMin != null ? stats.durationMin * 60000 : null` |
 | 6896 | `num → 0` | `var dt = durMs && nSamp ? durMs / nSamp : 1000; // O2Ring ≈ 1 Hz (mirror` |
-| 6896 | `bool && → ||` | `var dt = durMs && nSamp ? durMs / nSamp : 1000; // O2Ring ≈ 1 Hz (mirror` |
-| 6899 | `bool && → ||` | `var devs = dp && Array.isArray(dp.events) ? dp.events : [];` |
-| 6901 | `bool || → &&` | `if (!d \|\| d.artifact) return; // self-gated artifacts are never on the b` |
+| 6896 | `bool && → \|\|` | `var dt = durMs && nSamp ? durMs / nSamp : 1000; // O2Ring ≈ 1 Hz (mirror` |
+| 6899 | `bool && → \|\|` | `var devs = dp && Array.isArray(dp.events) ? dp.events : [];` |
+| 6901 | `bool \|\| → &&` | `if (!d \|\| d.artifact) return; // self-gated artifacts are never on the b` |
 | 6938 | `negate: drop !` | `if (!ep) return;` |
 | 6941 | `eq !== → ===` | `var W = ep.windowSec != null ? ep.windowSec : (typeof CFG !== 'undefined` |
-| 6941 | `bool || → &&` | `var W = ep.windowSec != null ? ep.windowSec : (typeof CFG !== 'undefined` |
-| 6941 | `bool && → ||` | `var W = ep.windowSec != null ? ep.windowSec : (typeof CFG !== 'undefined` |
+| 6941 | `bool \|\| → &&` | `var W = ep.windowSec != null ? ep.windowSec : (typeof CFG !== 'undefined` |
+| 6941 | `bool && → \|\|` | `var W = ep.windowSec != null ? ep.windowSec : (typeof CFG !== 'undefined` |
 | 6941 | `num → 0` | `var W = ep.windowSec != null ? ep.windowSec : (typeof CFG !== 'undefined` |
-| 6944 | `bool && → ||` | `var cycleLen = cross && cross > 0 ? +((2 * W) / cross).toFixed(1) : null` |
+| 6944 | `bool && → \|\|` | `var cycleLen = cross && cross > 0 ? +((2 * W) / cross).toFixed(1) : null` |
 | 6944 | `cmp > → >=` | `var cycleLen = cross && cross > 0 ? +((2 * W) / cross).toFixed(1) : null` |
-| 6960 | `bool && → ||` | `var depth = d && d.depth != null ? d.depth : 0;` |
-| 6961 | `bool && → ||` | `var dur = d && d.duration != null ? d.duration : 0;` |
-| 6962 | `bool && → ||` | `var rec = d && d.recovery != null ? d.recovery : 0;` |
+| 6960 | `bool && → \|\|` | `var depth = d && d.depth != null ? d.depth : 0;` |
+| 6961 | `bool && → \|\|` | `var dur = d && d.duration != null ? d.duration : 0;` |
+| 6962 | `bool && → \|\|` | `var rec = d && d.recovery != null ? d.recovery : 0;` |
 | 6963 | `num → 0` | `var base = 0.45 + Math.min(depth, 12) / 24; // depth 4→0.62 … ≥12→0.95 (` |
 | 6964 | `num → 0` | `var durB = (Math.min(dur, 60) / 60) * 0.05; // up to +0.05 for a ≥60 s s` |
 | 6964 | `num → 0` | `var durB = (Math.min(dur, 60) / 60) * 0.05; // up to +0.05 for a ≥60 s s` |
 | 6965 | `cmp > → >=` | `var recB = rec > 0 ? 0.03 : 0; // +0.03 for a clean recovery to baseline` |
 | 6965 | `num → 0` | `var recB = rec > 0 ? 0.03 : 0; // +0.03 for a clean recovery to baseline` |
-| 6979 | `bool || → &&` | `if (!arr \|\| arr.length == null) return null;` |
+| 6979 | `bool \|\| → &&` | `if (!arr \|\| arr.length == null) return null;` |
 | 6981 | `cmp < → <=` | `for (var i = 0; i < arr.length; i++) {` |
-| 6983 | `bool || → &&` | `if (!r \|\| r.tMs == null) continue;` |
-| 6984 | `bool || → &&` | `out.push({ tMs: r.tMs, t: new Date(r.tMs), spo2: r.spo2, hr: r.hr, motio` |
-| 6993 | `bool || → &&` | `if (typeof input.text === 'string') return parseCSV(input.text, input.fi` |
-| 7003 | `bool || → &&` | `if (!rows \|\| !rows.length \|\| t0Ms == null) return [];` |
+| 6983 | `bool \|\| → &&` | `if (!r \|\| r.tMs == null) continue;` |
+| 6984 | `bool \|\| → &&` | `out.push({ tMs: r.tMs, t: new Date(r.tMs), spo2: r.spo2, hr: r.hr, motio` |
+| 6993 | `bool \|\| → &&` | `if (typeof input.text === 'string') return parseCSV(input.text, input.fi` |
+| 7003 | `bool \|\| → &&` | `if (!rows \|\| !rows.length \|\| t0Ms == null) return [];` |
 | 7006 | `cmp < → <=` | `for (var i = 0; i < rows.length; i++) {` |
-| 7008 | `bool || → &&` | `if (!r \|\| r.tMs == null) continue;` |
-| 7016 | `bool && → ||` | `if (typeof r.hr === 'number' && isFinite(r.hr)) b.hr.push(r.hr);` |
-| 7017 | `bool && → ||` | `if (typeof r.motion === 'number' && isFinite(r.motion)) b.mo.push(r.moti` |
-| 7093 | `bool || → &&` | `if (!rows \|\| !rows.length \|\| t0Ms == null) return null;` |
-| 7093 | `bool || → &&` | `if (!rows \|\| !rows.length \|\| t0Ms == null) return null;` |
+| 7008 | `bool \|\| → &&` | `if (!r \|\| r.tMs == null) continue;` |
+| 7016 | `bool && → \|\|` | `if (typeof r.hr === 'number' && isFinite(r.hr)) b.hr.push(r.hr);` |
+| 7017 | `bool && → \|\|` | `if (typeof r.motion === 'number' && isFinite(r.motion)) b.mo.push(r.moti` |
+| 7093 | `bool \|\| → &&` | `if (!rows \|\| !rows.length \|\| t0Ms == null) return null;` |
+| 7093 | `bool \|\| → &&` | `if (!rows \|\| !rows.length \|\| t0Ms == null) return null;` |
 | 7095 | `cmp >= → >` | `for (var i = rows.length - 1; i >= 0; i--)` |
-| 7096 | `bool && → ||` | `if (rows[i] && rows[i].tMs != null) {` |
+| 7096 | `bool && → \|\|` | `if (rows[i] && rows[i].tMs != null) {` |
 | 7100 | `cmp < → <=` | `if (last == null \|\| last < t0Ms) return null;` |
-| 7100 | `bool || → &&` | `if (last == null \|\| last < t0Ms) return null;` |
+| 7100 | `bool \|\| → &&` | `if (last == null \|\| last < t0Ms) return null;` |
 | 7102 | `cmp > → >=` | `if (n < 2 \|\| n > 48 * 3600) return null; // a >48 h grid means a broken ` |
 | 7102 | `cmp < → <=` | `if (n < 2 \|\| n > 48 * 3600) return null; // a >48 h grid means a broken ` |
 | 7105 | `cmp < → <=` | `for (var j = 0; j < rows.length; j++) {` |
-| 7107 | `bool || → &&` | `if (!r \|\| r.tMs == null) continue;` |
+| 7107 | `bool \|\| → &&` | `if (!r \|\| r.tMs == null) continue;` |
 | 7109 | `cmp >= → >` | `if (k < 0 \|\| k >= n) continue;` |
-| 7109 | `bool || → &&` | `if (k < 0 \|\| k >= n) continue;` |
-| 7111 | `bool && → ||` | `if (typeof r[field] === 'number' && isFinite(r[field])) out[k] = r[field` |
-| 7120 | `bool && → ||` | `var n = nightsChrono && nightsChrono.length === 1 ? nightsChrono[0] : nu` |
-| 7121 | `bool || → &&` | `if (!n \|\| !Array.isArray(n.tchEpochs) \|\| !n.tchEpochs.length) return nul` |
-| 7121 | `bool || → &&` | `if (!n \|\| !Array.isArray(n.tchEpochs) \|\| !n.tchEpochs.length) return nul` |
-| 7129 | `bool && → ||` | `if (Array.isArray(n.spo2Series) && n.spo2Series.length) {` |
+| 7109 | `bool \|\| → &&` | `if (k < 0 \|\| k >= n) continue;` |
+| 7111 | `bool && → \|\|` | `if (typeof r[field] === 'number' && isFinite(r[field])) out[k] = r[field` |
+| 7120 | `bool && → \|\|` | `var n = nightsChrono && nightsChrono.length === 1 ? nightsChrono[0] : nu` |
+| 7121 | `bool \|\| → &&` | `if (!n \|\| !Array.isArray(n.tchEpochs) \|\| !n.tchEpochs.length) return nul` |
+| 7121 | `bool \|\| → &&` | `if (!n \|\| !Array.isArray(n.tchEpochs) \|\| !n.tchEpochs.length) return nul` |
+| 7129 | `bool && → \|\|` | `if (Array.isArray(n.spo2Series) && n.spo2Series.length) {` |
 | 7154 | `cmp < → <=` | `if (!rows \|\| rows.length < 1) return null;` |
-| 7154 | `bool || → &&` | `if (!rows \|\| rows.length < 1) return null;` |
-| 7155 | `bool || → &&` | `return processNight(rows, fname \|\| null);` |
+| 7154 | `bool \|\| → &&` | `if (!rows \|\| rows.length < 1) return null;` |
+| 7155 | `bool \|\| → &&` | `return processNight(rows, fname \|\| null);` |
 | 7159 | `eq !== → ===` | `var OxyDex = typeof OxyDex !== 'undefined' && OxyDex ? OxyDex : {};` |
-| 7159 | `bool && → ||` | `var OxyDex = typeof OxyDex !== 'undefined' && OxyDex ? OxyDex : {};` |
-| 7162 | `bool && → ||` | `var fname = opts.fname \|\| (input && input.provenance && input.provenance` |
-| 7162 | `bool && → ||` | `var fname = opts.fname \|\| (input && input.provenance && input.provenance` |
-| 7162 | `bool || → &&` | `var fname = opts.fname \|\| (input && input.provenance && input.provenance` |
-| 7162 | `bool || → &&` | `var fname = opts.fname \|\| (input && input.provenance && input.provenance` |
-| 7162 | `bool || → &&` | `var fname = opts.fname \|\| (input && input.provenance && input.provenance` |
+| 7159 | `bool && → \|\|` | `var OxyDex = typeof OxyDex !== 'undefined' && OxyDex ? OxyDex : {};` |
+| 7162 | `bool && → \|\|` | `var fname = opts.fname \|\| (input && input.provenance && input.provenance` |
+| 7162 | `bool && → \|\|` | `var fname = opts.fname \|\| (input && input.provenance && input.provenance` |
+| 7162 | `bool \|\| → &&` | `var fname = opts.fname \|\| (input && input.provenance && input.provenance` |
+| 7162 | `bool \|\| → &&` | `var fname = opts.fname \|\| (input && input.provenance && input.provenance` |
+| 7162 | `bool \|\| → &&` | `var fname = opts.fname \|\| (input && input.provenance && input.provenance` |
 | 7166 | `eq !== → ===` | `var el = oxyBuildNightElement(night, { provenance: opts.provenance !== u` |
 | 7175 | `eq !== → ===` | `provenance: opts.provenance !== undefined ? opts.provenance : null,` |
 | 7400 | `eq !== → ===` | `})(/** @type {any} */ (typeof globalThis !== 'undefined' ? globalThis : ` |
@@ -2895,8 +3077,8 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | line | operator | source |
 |---:|---|---|
 | 21 | `num → 0` | `return new Date(instantMs).getTimezoneOffset() * 60000;` |
-| 35 | `bool || → &&` | `if (dd.getUTCFullYear() !== y \|\| dd.getUTCMonth() !== mo0 \|\| dd.getUTCDa` |
-| 35 | `bool || → &&` | `if (dd.getUTCFullYear() !== y \|\| dd.getUTCMonth() !== mo0 \|\| dd.getUTCDa` |
+| 35 | `bool \|\| → &&` | `if (dd.getUTCFullYear() !== y \|\| dd.getUTCMonth() !== mo0 \|\| dd.getUTCDa` |
+| 35 | `bool \|\| → &&` | `if (dd.getUTCFullYear() !== y \|\| dd.getUTCMonth() !== mo0 \|\| dd.getUTCDa` |
 | 36 | `eq === → !==` | `if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000` |
 | 36 | `num → 0` | `if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000` |
 | 36 | `eq === → !==` | `if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000` |
@@ -2906,20 +3088,20 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 37 | `cmp > → >=` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
 | 37 | `cmp > → >=` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
 | 37 | `cmp > → >=` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
-| 37 | `bool || → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
-| 37 | `bool || → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
-| 37 | `bool || → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
-| 37 | `bool || → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
-| 37 | `bool || → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
-| 37 | `bool || → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
-| 37 | `bool || → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
-| 41 | `bool || → &&` | `opts = opts \|\| {};` |
-| 49 | `num → 0` | `if (/^\d{10,13}$/.test(s)) {` |
+| 37 | `bool \|\| → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
+| 37 | `bool \|\| → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
+| 37 | `bool \|\| → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
+| 37 | `bool \|\| → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
+| 37 | `bool \|\| → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
+| 37 | `bool \|\| → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
+| 37 | `bool \|\| → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
+| 41 | `bool \|\| → &&` | `opts = opts \|\| {};` |
+| 49 | `num → 0` | `if (/^\\d{10,13}$/.test(s)) {` |
 | 50 | `num → 0` | `let x = parseInt(s, 10);` |
 | 51 | `num → 0` | `if (x < 1e11) x *= 1000;` |
 | 51 | `cmp < → <=` | `if (x < 1e11) x *= 1000;` |
 | 52 | `cmp > → >=` | `if (x < 1e11 \|\| x > 4e12) return null;` |
-| 52 | `bool || → &&` | `if (x < 1e11 \|\| x > 4e12) return null;` |
+| 52 | `bool \|\| → &&` | `if (x < 1e11 \|\| x > 4e12) return null;` |
 | 52 | `cmp < → <=` | `if (x < 1e11 \|\| x > 4e12) return null;` |
 | 53 | `num → 0` | `return { tMs: x - tzOffset(x), offsetMin: -tzOffset(x) / 60000 };` |
 | 68 | `eq === → !==` | `if (m[8] === 'Z') offsetMin = 0;` |
@@ -2939,34 +3121,34 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 267 | `cmp < → <=` | `for (let i = 0; i < x.length; i++) {` |
 | 272 | `cmp <= → <` | `for (let k = i - 2; k <= i + 2; k++) {` |
 | 273 | `cmp >= → >` | `if (k === i \|\| k < 0 \|\| k >= x.length) continue;` |
-| 273 | `bool || → &&` | `if (k === i \|\| k < 0 \|\| k >= x.length) continue;` |
+| 273 | `bool \|\| → &&` | `if (k === i \|\| k < 0 \|\| k >= x.length) continue;` |
 | 273 | `cmp < → <=` | `if (k === i \|\| k < 0 \|\| k >= x.length) continue;` |
-| 273 | `bool || → &&` | `if (k === i \|\| k < 0 \|\| k >= x.length) continue;` |
+| 273 | `bool \|\| → &&` | `if (k === i \|\| k < 0 \|\| k >= x.length) continue;` |
 | 279 | `cmp > → >=` | `if (!cnt \|\| Math.abs(O2_BEAT_MARKER - sum / cnt) > O2_MARKER_ISOLATION) ` |
 | 309 | `cmp < → <=` | `for (let li = 0; li < lines.length && li < 12; li++) {` |
-| 340 | `bool && → ||` | `if (/timestamp/i.test(line) && !pcols) {` |
+| 340 | `bool && → \|\|` | `if (/timestamp/i.test(line) && !pcols) {` |
 | 354 | `eq === → !==` | `if (nCh === 1) minFields = 3;` |
-| 373 | `bool || → &&` | `if (!isFinite(v1) \|\| !isFinite(v2)) continue;` |
+| 373 | `bool \|\| → &&` | `if (!isFinite(v1) \|\| !isFinite(v2)) continue;` |
 | 378 | `cmp >= → >` | `const va = pc.amb >= 0 ? parseFloat(p[pc.amb]) : NaN;` |
 | 379 | `cmp >= → >` | `if (pc.amb >= 0 && !isFinite(va)) continue;` |
 | 389 | `cmp >= → >` | `const b = BigInt(p[pcols && pcols.ns >= 0 ? pcols.ns : 1].trim());` |
-| 389 | `bool && → ||` | `const b = BigInt(p[pcols && pcols.ns >= 0 ? pcols.ns : 1].trim());` |
-| 415 | `bool && → ||` | `if (at && isFinite(relNs)) axisAnchors.push({ devMs: relNs / 1e6, hostMs` |
+| 389 | `bool && → \|\|` | `const b = BigInt(p[pcols && pcols.ns >= 0 ? pcols.ns : 1].trim());` |
+| 415 | `bool && → \|\|` | `if (at && isFinite(relNs)) axisAnchors.push({ devMs: relNs / 1e6, hostMs` |
 | 424 | `num → 0` | `let fs = 176;` |
 | 426 | `cmp < → <=` | `for (let i = 1; i < n; i++) {` |
 | 428 | `cmp > → >=` | `if (isFinite(d) && d > 0) deltas.push(d);` |
-| 428 | `bool && → ||` | `if (isFinite(d) && d > 0) deltas.push(d);` |
+| 428 | `bool && → \|\|` | `if (isFinite(d) && d > 0) deltas.push(d);` |
 | 458 | `cmp >= → >` | `for (let li = lines.length - 1; li >= 0 && !t; li--) {` |
 | 469 | `cmp > → >=` | `if (deltas.length > 20) {` |
 | 469 | `num → 0` | `if (deltas.length > 20) {` |
 | 471 | `cmp > → >=` | `if (md > 0) fs = 1e9 / md;` |
 | 472 | `cmp > → >=` | `if (md > 0) {` |
 | 474 | `cmp < → <=` | `for (let i = 0; i < deltas.length; i++) if (deltas[i] === md) same++;` |
-| 481 | `bool && → ||` | `if (firstTs && lastTs && lastTs.tMs > firstTs.tMs) {` |
+| 481 | `bool && → \|\|` | `if (firstTs && lastTs && lastTs.tMs > firstTs.tMs) {` |
 | 481 | `cmp > → >=` | `if (firstTs && lastTs && lastTs.tMs > firstTs.tMs) {` |
-| 481 | `bool && → ||` | `if (firstTs && lastTs && lastTs.tMs > firstTs.tMs) {` |
-| 489 | `bool && → ||` | `const hostAx = typeof DexClock !== 'undefined' && DexClock.hostAxis ? De` |
-| 490 | `bool && → ||` | `if (hostAx.ok && isFinite(hostAx.ppm)) fs = fs / (1 + hostAx.ppm / 1e6);` |
+| 481 | `bool && → \|\|` | `if (firstTs && lastTs && lastTs.tMs > firstTs.tMs) {` |
+| 489 | `bool && → \|\|` | `const hostAx = typeof DexClock !== 'undefined' && DexClock.hostAxis ? De` |
+| 490 | `bool && → \|\|` | `if (hostAx.ok && isFinite(hostAx.ppm)) fs = fs / (1 + hostAx.ppm / 1e6);` |
 | 497 | `cmp >= → >` | `const axisDrawn = quantizedShare != null && quantizedShare >= 0.99;` |
 | 504 | `cmp > → >=` | `if (deltas.length > 20) {` |
 | 504 | `num → 0` | `if (deltas.length > 20) {` |
@@ -2977,9 +3159,9 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 597 | `cmp < → <=` | `for (let i = 0; i < n; i++) {` |
 | 598 | `cmp > → >=` | `if (i > 0 && relSec[i] - relSec[i - 1] > maxStep) {` |
 | 598 | `cmp > → >=` | `if (i > 0 && relSec[i] - relSec[i - 1] > maxStep) {` |
-| 657 | `bool && → ||` | `return lt && lt.tMs != null ? lt.tMs : null;` |
-| 737 | `bool || → &&` | `stability: axisSynthetic ? null : hostAx.stability \|\| null,` |
-| 740 | `bool || → &&` | `: { ok: false, reason: hostAx.reason \|\| 'no host anchors', drawn: axisSy` |
+| 657 | `bool && → \|\|` | `return lt && lt.tMs != null ? lt.tMs : null;` |
+| 737 | `bool \|\| → &&` | `stability: axisSynthetic ? null : hostAx.stability \|\| null,` |
+| 740 | `bool \|\| → &&` | `: { ok: false, reason: hostAx.reason \|\| 'no host anchors', drawn: axisSy` |
 | 761 | `cmp > → >=` | `let replicated = nCh > 1;` |
 | 762 | `cmp < → <=` | `for (let c = 1; replicated && c < nCh; c++) {` |
 | 766 | `cmp < → <=` | `for (let i = 0; i < len; i++) {` |
@@ -2988,16 +3170,16 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 792 | `cmp < → <=` | `if (s0 < 0) s0 = 0;` |
 | 793 | `eq === → !==` | `const slice = s0 === 0 && win === sig.length ? sig : sig.subarray(s0, s0` |
 | 793 | `eq === → !==` | `const slice = s0 === 0 && win === sig.length ? sig : sig.subarray(s0, s0` |
-| 793 | `bool && → ||` | `const slice = s0 === 0 && win === sig.length ? sig : sig.subarray(s0, s0` |
+| 793 | `bool && → \|\|` | `const slice = s0 === 0 && win === sig.length ? sig : sig.subarray(s0, s0` |
 | 794 | `num → 0` | `const pulse = bandpass(slice, fs, 0.7, 3.0);` |
 | 794 | `num → 0` | `const pulse = bandpass(slice, fs, 0.7, 3.0);` |
-| 817 | `bool || → &&` | `if (!a \|\| !b \|\| a.length !== b.length) return false;` |
-| 817 | `bool || → &&` | `if (!a \|\| !b \|\| a.length !== b.length) return false;` |
+| 817 | `bool \|\| → &&` | `if (!a \|\| !b \|\| a.length !== b.length) return false;` |
+| 817 | `bool \|\| → &&` | `if (!a \|\| !b \|\| a.length !== b.length) return false;` |
 | 818 | `cmp < → <=` | `for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;` |
 | 836 | `cmp > → >=` | `if (s.snr > bestScore) {` |
-| 857 | `bool || → &&` | `if (refRate == null \|\| !isFinite(refRate) \|\| refRate <= 0) return refIdx` |
+| 857 | `bool \|\| → &&` | `if (refRate == null \|\| !isFinite(refRate) \|\| refRate <= 0) return refIdx` |
 | 857 | `cmp <= → <` | `if (refRate == null \|\| !isFinite(refRate) \|\| refRate <= 0) return refIdx` |
-| 857 | `bool || → &&` | `if (refRate == null \|\| !isFinite(refRate) \|\| refRate <= 0) return refIdx` |
+| 857 | `bool \|\| → &&` | `if (refRate == null \|\| !isFinite(refRate) \|\| refRate <= 0) return refIdx` |
 | 859 | `cmp > → >=` | `for (let i = 0; i < rates.length; i++) if (i !== refIdx && rates[i] != n` |
 | 859 | `cmp < → <=` | `for (let i = 0; i < rates.length; i++) if (i !== refIdx && rates[i] != n` |
 | 862 | `cmp > → >=` | `if (!(medOther > 0)) return refIdx;` |
@@ -3005,22 +3187,22 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 866 | `cmp >= → >` | `if (!(spread < 0.15 && refRate / medOther >= 1.5)) return refIdx;` |
 | 870 | `cmp < → <=` | `for (let i = 0; i < rates.length; i++) {` |
 | 871 | `cmp >= → >` | `if (rates[i] == null \|\| Math.abs(rates[i] / medOther - 1) >= 0.15) conti` |
-| 872 | `bool && → ||` | `const s = snr && snr[i] != null ? snr[i] : 0;` |
+| 872 | `bool && → \|\|` | `const s = snr && snr[i] != null ? snr[i] : 0;` |
 | 873 | `cmp > → >=` | `if (s > bestSnr) {` |
 | 878 | `cmp >= → >` | `return pick >= 0 ? pick : refIdx;` |
 | 920 | `num → 0` | `const ORIENT_SAMPLE_SEC = 120; // ~100 beats at 50 bpm — enough for a st` |
 | 927 | `cmp > → >=` | `if (n < ORIENT_MIN_BEATS \|\| !(det.T > 0)) return null;` |
 | 927 | `cmp < → <=` | `if (n < ORIENT_MIN_BEATS \|\| !(det.T > 0)) return null;` |
-| 927 | `bool || → &&` | `if (n < ORIENT_MIN_BEATS \|\| !(det.T > 0)) return null;` |
+| 927 | `bool \|\| → &&` | `if (n < ORIENT_MIN_BEATS \|\| !(det.T > 0)) return null;` |
 | 929 | `cmp < → <=` | `for (var k = 0; k < n; k++) {` |
 | 931 | `cmp > → >=` | `if (isFinite(d) && d > 0) r.push(d);` |
-| 931 | `bool && → ||` | `if (isFinite(d) && d > 0) r.push(d);` |
+| 931 | `bool && → \|\|` | `if (isFinite(d) && d > 0) r.push(d);` |
 | 933 | `cmp < → <=` | `if (r.length < ORIENT_MIN_BEATS) return null;` |
 | 941 | `cmp <= → <` | `if (!(want > 0) \|\| n <= want) {` |
 | 941 | `cmp > → >=` | `if (!(want > 0) \|\| n <= want) {` |
-| 941 | `bool || → &&` | `if (!(want > 0) \|\| n <= want) {` |
+| 941 | `bool \|\| → &&` | `if (!(want > 0) \|\| n <= want) {` |
 | 941 | `negate: drop !` | `if (!(want > 0) \|\| n <= want) {` |
-| 949 | `bool && → ||` | `if (up == null && dn == null) return orient(bp); // undecidable → previo` |
+| 949 | `bool && → \|\|` | `if (up == null && dn == null) return orient(bp); // undecidable → previo` |
 | 952 | `cmp < → <=` | `return dn < up ? -1 : 1;` |
 | 962 | `cmp < → <=` | `for (let i = 1; i < bp.length; i++) d[i] = bp[i] - bp[i - 1];` |
 | 1008 | `cmp < → <=` | `if (!signs \|\| signs.length < 2) return 0;` |
@@ -3032,7 +3214,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1083 | `num → 0` | `const lagMin = Math.max(2, Math.round(fsd * 0.33)); // 180 bpm ceiling` |
 | 1089 | `cmp <= → <` | `for (let s = 0; s + wd <= m; s += hd) {` |
 | 1108 | `cmp > → >=` | `if (r > best) {` |
-| 1130 | `bool && → ||` | `if (bl && best > 0) {` |
+| 1130 | `bool && → \|\|` | `if (bl && best > 0) {` |
 | 1130 | `cmp > → >=` | `if (bl && best > 0) {` |
 | 1133 | `cmp < → <=` | `if (cand < lagMin) continue;` |
 | 1141 | `cmp <= → <` | `for (let d = -1; d <= 1; d++) {` |
@@ -3084,12 +3266,12 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1429 | `cmp < → <=` | `for (let j = 0; j < L; j++) {` |
 | 1431 | `cmp >= → >` | `if (idx < 0 \|\| idx >= bp.length) {` |
 | 1431 | `cmp < → <=` | `if (idx < 0 \|\| idx >= bp.length) {` |
-| 1431 | `bool || → &&` | `if (idx < 0 \|\| idx >= bp.length) {` |
-| 1444 | `bool || → &&` | `const r = mx - mn \|\| 1;` |
+| 1431 | `bool \|\| → &&` | `if (idx < 0 \|\| idx >= bp.length) {` |
+| 1444 | `bool \|\| → &&` | `const r = mx - mn \|\| 1;` |
 | 1446 | `cmp < → <=` | `for (let j = 0; j < b.length; j++) o[j] = (b[j] - mn) / r;` |
 | 1452 | `cmp < → <=` | `for (let j = 0; j < L; j++) {` |
 | 1467 | `num → 0` | `let q = Math.max(0, corr) * (0.4 + 0.6 * motFactor);` |
-| 1474 | `bool && → ||` | `else if (regular && regular[k] != null) {` |
+| 1474 | `bool && → \|\|` | `else if (regular && regular[k] != null) {` |
 | 1498 | `cmp < → <=` | `if (n < 4) return peaks.map(() => null); // no local cadence to judge ag` |
 | 1500 | `cmp < → <=` | `for (let k = 1; k < n; k++) iv.push(peaks[k] - peaks[k - 1]);` |
 | 1502 | `cmp > → >=` | `if (!(med > 0)) return peaks.map(() => null);` |
@@ -3097,38 +3279,38 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1528 | `cmp < → <=` | `for (let i = 0; i < y.length; i++) {` |
 | 1539 | `cmp < → <=` | `for (let i = 0; i < y.length && first === null; i++) if (!gap[i]) first ` |
 | 1539 | `eq === → !==` | `for (let i = 0; i < y.length && first === null; i++) if (!gap[i]) first ` |
-| 1539 | `bool && → ||` | `for (let i = 0; i < y.length && first === null; i++) if (!gap[i]) first ` |
+| 1539 | `bool && → \|\|` | `for (let i = 0; i < y.length && first === null; i++) if (!gap[i]) first ` |
 | 1539 | `negate: drop !` | `for (let i = 0; i < y.length && first === null; i++) if (!gap[i]) first ` |
 | 1540 | `eq !== → ===` | `for (let i = 0; i < y.length && gap[i]; i++) y[i] = first !== null ? fir` |
-| 1540 | `bool && → ||` | `for (let i = 0; i < y.length && gap[i]; i++) y[i] = first !== null ? fir` |
+| 1540 | `bool && → \|\|` | `for (let i = 0; i < y.length && gap[i]; i++) y[i] = first !== null ? fir` |
 | 1540 | `cmp < → <=` | `for (let i = 0; i < y.length && gap[i]; i++) y[i] = first !== null ? fir` |
-| 1578 | `bool || → &&` | `if (rmssdMs == null \|\| sdnnRobustMs == null) return false;` |
-| 1579 | `bool || → &&` | `if (!isFinite(rmssdMs) \|\| !isFinite(sdnnRobustMs) \|\| sdnnRobustMs <= 0) ` |
+| 1578 | `bool \|\| → &&` | `if (rmssdMs == null \|\| sdnnRobustMs == null) return false;` |
+| 1579 | `bool \|\| → &&` | `if (!isFinite(rmssdMs) \|\| !isFinite(sdnnRobustMs) \|\| sdnnRobustMs <= 0) ` |
 | 1586 | `cmp > → >=` | `if (!relSec \|\| !feet \|\| feet.length < 2 \|\| !(fs > 0)) return out;` |
 | 1586 | `cmp < → <=` | `if (!relSec \|\| !feet \|\| feet.length < 2 \|\| !(fs > 0)) return out;` |
-| 1586 | `bool || → &&` | `if (!relSec \|\| !feet \|\| feet.length < 2 \|\| !(fs > 0)) return out;` |
-| 1586 | `bool || → &&` | `if (!relSec \|\| !feet \|\| feet.length < 2 \|\| !(fs > 0)) return out;` |
-| 1586 | `bool || → &&` | `if (!relSec \|\| !feet \|\| feet.length < 2 \|\| !(fs > 0)) return out;` |
+| 1586 | `bool \|\| → &&` | `if (!relSec \|\| !feet \|\| feet.length < 2 \|\| !(fs > 0)) return out;` |
+| 1586 | `bool \|\| → &&` | `if (!relSec \|\| !feet \|\| feet.length < 2 \|\| !(fs > 0)) return out;` |
+| 1586 | `bool \|\| → &&` | `if (!relSec \|\| !feet \|\| feet.length < 2 \|\| !(fs > 0)) return out;` |
 | 1592 | `cmp < → <=` | `for (let i = 1; i < n; i++) {` |
 | 1593 | `cmp > → >=` | `if (relSec[i] - relSec[i - 1] > maxStep) run++;` |
 | 1597 | `cmp < → <=` | `for (let k = 0; k < nIntervals; k++) {` |
-| 1600 | `bool || → &&` | `if (a == null \|\| b == null) continue;` |
+| 1600 | `bool \|\| → &&` | `if (a == null \|\| b == null) continue;` |
 | 1603 | `cmp > → >=` | `if (i1 > i0 && prefix[i1] > prefix[i0]) out[k] = true;` |
-| 1620 | `bool || → &&` | `if (!rec \|\| rec.t0Ms == null \|\| !isFinite(rec.t0Ms)) return null;` |
-| 1620 | `bool || → &&` | `if (!rec \|\| rec.t0Ms == null \|\| !isFinite(rec.t0Ms)) return null;` |
+| 1620 | `bool \|\| → &&` | `if (!rec \|\| rec.t0Ms == null \|\| !isFinite(rec.t0Ms)) return null;` |
+| 1620 | `bool \|\| → &&` | `if (!rec \|\| rec.t0Ms == null \|\| !isFinite(rec.t0Ms)) return null;` |
 | 1623 | `cmp > → >=` | `if (!relSec \|\| !relSec.length \|\| !(fs > 0)) return null;` |
-| 1623 | `bool || → &&` | `if (!relSec \|\| !relSec.length \|\| !(fs > 0)) return null;` |
-| 1623 | `bool || → &&` | `if (!relSec \|\| !relSec.length \|\| !(fs > 0)) return null;` |
+| 1623 | `bool \|\| → &&` | `if (!relSec \|\| !relSec.length \|\| !(fs > 0)) return null;` |
+| 1623 | `bool \|\| → &&` | `if (!relSec \|\| !relSec.length \|\| !(fs > 0)) return null;` |
 | 1629 | `cmp < → <=` | `for (let i = 1; i < n; i++) {` |
 | 1630 | `cmp > → >=` | `if (relSec[i] - relSec[i - 1] > maxStep) {` |
-| 1637 | `bool && → ||` | `return typeof DexExport !== 'undefined' && DexExport && DexExport.covera` |
-| 1637 | `bool && → ||` | `return typeof DexExport !== 'undefined' && DexExport && DexExport.covera` |
+| 1637 | `bool && → \|\|` | `return typeof DexExport !== 'undefined' && DexExport && DexExport.covera` |
+| 1637 | `bool && → \|\|` | `return typeof DexExport !== 'undefined' && DexExport && DexExport.covera` |
 | 1654 | `cmp < → <=` | `for (let k = 0; k < peaks.length; k++) {` |
-| 1656 | `bool && → ||` | `const f = feet && feet[k] != null ? Math.floor(feet[k]) : p;` |
+| 1656 | `bool && → \|\|` | `const f = feet && feet[k] != null ? Math.floor(feet[k]) : p;` |
 | 1659 | `cmp <= → <` | `for (let i = lo; i <= hi; i++)` |
-| 1682 | `bool || → &&` | `const den = Math.sqrt(sa * sb) \|\| 1e-9;` |
-| 1697 | `bool || → &&` | `winSec = winSec \|\| 60;` |
-| 1700 | `bool || → &&` | `const t0 = t0Ms \|\| 0;` |
+| 1682 | `bool \|\| → &&` | `const den = Math.sqrt(sa * sb) \|\| 1e-9;` |
+| 1697 | `bool \|\| → &&` | `winSec = winSec \|\| 60;` |
+| 1700 | `bool \|\| → &&` | `const t0 = t0Ms \|\| 0;` |
 | 1701 | `num → 0` | `const secAbs = (k) => Math.floor((t0 + (peaks[k] / fs) * 1000) / 1000);` |
 | 1701 | `num → 0` | `const secAbs = (k) => Math.floor((t0 + (peaks[k] / fs) * 1000) / 1000);` |
 | 1702 | `cmp < → <=` | `if (n < 20) {` |
@@ -3138,16 +3320,16 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1712 | `cmp < → <=` | `for (let k = 0; k < n; k++) {` |
 | 1714 | `cmp >= → >` | `if (s >= 0 && s < S) {` |
 | 1714 | `cmp < → <=` | `if (s >= 0 && s < S) {` |
-| 1714 | `bool && → ||` | `if (s >= 0 && s < S) {` |
-| 1716 | `bool && → ||` | `qsum[s] += sqi && Number.isFinite(sqi[k]) ? sqi[k] : 1;` |
+| 1714 | `bool && → \|\|` | `if (s >= 0 && s < S) {` |
+| 1716 | `bool && → \|\|` | `qsum[s] += sqi && Number.isFinite(sqi[k]) ? sqi[k] : 1;` |
 | 1726 | `cmp < → <=` | `for (let i = 0; i < S; i++) {` |
 | 1734 | `cmp < → <=` | `while (lo < a) {` |
 | 1740 | `cmp > → >=` | `winSqi[i] = cAcc > 0 ? qAcc / cAcc : 0;` |
 | 1743 | `cmp > → >=` | `for (let i = 0; i < S; i++) if (winCnt[i] > 0) active.push(i);` |
 | 1743 | `cmp < → <=` | `for (let i = 0; i < S; i++) if (winCnt[i] > 0) active.push(i);` |
 | 1758 | `num → 0` | `const madC = 1.4826 * (cAbs.length ? cAbs[cAbs.length >> 1] : 0) \|\| 1;` |
-| 1758 | `bool || → &&` | `const madC = 1.4826 * (cAbs.length ? cAbs[cAbs.length >> 1] : 0) \|\| 1;` |
-| 1759 | `bool || → &&` | `const madQ = 1.4826 * (qAbs.length ? qAbs[qAbs.length >> 1] : 0) \|\| 1e-6` |
+| 1758 | `bool \|\| → &&` | `const madC = 1.4826 * (cAbs.length ? cAbs[cAbs.length >> 1] : 0) \|\| 1;` |
+| 1759 | `bool \|\| → &&` | `const madQ = 1.4826 * (qAbs.length ? qAbs[qAbs.length >> 1] : 0) \|\| 1e-6` |
 | 1759 | `num → 0` | `const madQ = 1.4826 * (qAbs.length ? qAbs[qAbs.length >> 1] : 0) \|\| 1e-6` |
 | 1761 | `cmp >= → >` | `const trust = (z) => (z <= 0 ? 1 : z >= C ? 0 : (1 - (z / C) * (z / C)) ` |
 | 1761 | `cmp <= → <` | `const trust = (z) => (z <= 0 ? 1 : z >= C ? 0 : (1 - (z / C) * (z / C)) ` |
@@ -3155,24 +3337,24 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1763 | `cmp <= → <` | `if (winCnt[i] <= 0) continue;` |
 | 1810 | `cmp >= → >` | `const inRange = rr.filter((v) => v >= 300 && v <= 2000);` |
 | 1810 | `cmp <= → <` | `const inRange = rr.filter((v) => v >= 300 && v <= 2000);` |
-| 1810 | `bool && → ||` | `const inRange = rr.filter((v) => v >= 300 && v <= 2000);` |
+| 1810 | `bool && → \|\|` | `const inRange = rr.filter((v) => v >= 300 && v <= 2000);` |
 | 1811 | `num → 0` | `const globalMed = inRange.length ? median(inRange) : 800;` |
 | 1849 | `cmp >= → >` | `if (runBad >= RESEED_AFTER) {` |
 | 1853 | `cmp <= → <` | `for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k]` |
 | 1853 | `cmp < → <=` | `for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k]` |
-| 1853 | `bool && → ||` | `for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k]` |
+| 1853 | `bool && → \|\|` | `for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k]` |
 | 1853 | `cmp <= → <` | `for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k]` |
 | 1853 | `cmp >= → >` | `for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k]` |
 | 1853 | `num → 0` | `for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k]` |
-| 1853 | `bool && → ||` | `for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k]` |
+| 1853 | `bool && → \|\|` | `for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k]` |
 | 1862 | `cmp > → >=` | `if (v < 300 \|\| v > 2000) bad = true;` |
 | 1862 | `cmp < → <=` | `if (v < 300 \|\| v > 2000) bad = true;` |
-| 1862 | `bool || → &&` | `if (v < 300 \|\| v > 2000) bad = true;` |
+| 1862 | `bool \|\| → &&` | `if (v < 300 \|\| v > 2000) bad = true;` |
 | 1862 | `num → 0` | `if (v < 300 \|\| v > 2000) bad = true;` |
 | 1863 | `cmp > → >=` | `else if (Math.abs(v - ref) / ref > PPI_ECTOPY_THR) bad = true; // >30% o` |
 | 1889 | `cmp < → <=` | `if (N < 60 \|\| !tt \|\| tt.length !== N) return { events: [], index: 0 };` |
-| 1889 | `bool || → &&` | `if (N < 60 \|\| !tt \|\| tt.length !== N) return { events: [], index: 0 };` |
-| 1889 | `bool || → &&` | `if (N < 60 \|\| !tt \|\| tt.length !== N) return { events: [], index: 0 };` |
+| 1889 | `bool \|\| → &&` | `if (N < 60 \|\| !tt \|\| tt.length !== N) return { events: [], index: 0 };` |
+| 1889 | `bool \|\| → &&` | `if (N < 60 \|\| !tt \|\| tt.length !== N) return { events: [], index: 0 };` |
 | 1889 | `num → 0` | `if (N < 60 \|\| !tt \|\| tt.length !== N) return { events: [], index: 0 };` |
 | 1892 | `cmp < → <=` | `if (M < 120) return { events: [], index: 0 }; // < 2 min → no apnea-band` |
 | 1895 | `cmp < → <=` | `for (let s = 0; s < M; s++) {` |
@@ -3182,12 +3364,12 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1903 | `cmp <= → <` | `for (let k = -2; k <= 2; k++) {` |
 | 1905 | `cmp >= → >` | `if (u >= 0 && u < M) {` |
 | 1905 | `cmp < → <=` | `if (u >= 0 && u < M) {` |
-| 1905 | `bool && → ||` | `if (u >= 0 && u < M) {` |
+| 1905 | `bool && → \|\|` | `if (u >= 0 && u < M) {` |
 | 1915 | `cmp < → <=` | `for (let s = 0; s < M; s++) {` |
 | 1918 | `cmp <= → <` | `for (let k = -half; k <= half; k++) {` |
 | 1920 | `cmp < → <=` | `if (u >= 0 && u < M) {` |
 | 1920 | `cmp >= → >` | `if (u >= 0 && u < M) {` |
-| 1920 | `bool && → ||` | `if (u >= 0 && u < M) {` |
+| 1920 | `bool && → \|\|` | `if (u >= 0 && u < M) {` |
 | 1932 | `cmp < → <=` | `for (let s = 0; s < M; s++) res[s] = hiCut[s] - lo[s];` |
 | 1934 | `cmp < → <=` | `for (let s = 0; s < M; s++) {` |
 | 1937 | `cmp <= → <` | `for (let k = -12; k <= 12; k++) {` |
@@ -3195,7 +3377,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1937 | `num → 0` | `for (let k = -12; k <= 12; k++) {` |
 | 1939 | `cmp >= → >` | `if (u >= 0 && u < M) {` |
 | 1939 | `cmp < → <=` | `if (u >= 0 && u < M) {` |
-| 1939 | `bool && → ||` | `if (u >= 0 && u < M) {` |
+| 1939 | `bool && → \|\|` | `if (u >= 0 && u < M) {` |
 | 1946 | `num → 0` | `const ENV_ON = 2.6; // bpm — sustained-oscillation gate (matches ECGDex)` |
 | 1948 | `num → 0` | `let lastT = -100;` |
 | 1949 | `cmp < → <=` | `for (let s = 8; s < M - 8; s++) {` |
@@ -3203,8 +3385,8 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1951 | `cmp <= → <` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
 | 1951 | `cmp < → <=` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
 | 1951 | `cmp < → <=` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
-| 1951 | `bool && → ||` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
-| 1951 | `bool && → ||` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
+| 1951 | `bool && → \|\|` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
+| 1951 | `bool && → \|\|` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
 | 1951 | `num → 0` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
 | 1954 | `cmp < → <=` | `for (let u = s + 8; u < Math.min(M, s + 48); u++) {` |
 | 1955 | `cmp > → >=` | `if (res[u] > pk) {` |
@@ -3212,9 +3394,9 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 1962 | `cmp > → >=` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
 | 1962 | `cmp >= → >` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
 | 1962 | `cmp <= → <` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
-| 1962 | `bool && → ||` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
-| 1962 | `bool && → ||` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
-| 1962 | `bool && → ||` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
+| 1962 | `bool && → \|\|` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
+| 1962 | `bool && → \|\|` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
+| 1962 | `bool && → \|\|` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
 | 1962 | `num → 0` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
 | 1962 | `num → 0` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
 | 1969 | `cmp > → >=` | `const index = hours > 0 ? +(events.length / hours).toFixed(1) : 0;` |
@@ -3226,14 +3408,14 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 2004 | `cmp > → >=` | `if (Math.abs(d) > 50) nn50++;` |
 | 2004 | `num → 0` | `if (Math.abs(d) > 50) nn50++;` |
 | 2013 | `num → 0` | `const b = Math.round(v / 7.8125);` |
-| 2014 | `bool || → &&` | `bins[b] = (bins[b] \|\| 0) + 1;` |
+| 2014 | `bool \|\| → &&` | `bins[b] = (bins[b] \|\| 0) + 1;` |
 | 2017 | `cmp > → >=` | `for (const k in bins) if (bins[k] > mx) mx = bins[k];` |
 | 2022 | `cmp < → <=` | `if (nn.length < 3) return null;` |
 | 2026 | `cmp < → <=` | `for (let i = 1; i < nn.length; i++) {` |
 | 2030 | `cmp < → <=` | `if (d.length < 2) {` |
 | 2032 | `cmp < → <=` | `for (let i = 1; i < nn.length; i++) d.push(nn[i] - nn[i - 1]);` |
 | 2036 | `num → 0` | `const sd2 = Math.sqrt(Math.max(0, 2 * sdnn * sdnn - 0.5 * std(d) * std(d` |
-| 2037 | `bool || → &&` | `return { sd1: r1(sd1), sd2: r1(sd2), sd1sd2: r2(sd1 / (sd2 \|\| 1)), ellAr` |
+| 2037 | `bool \|\| → &&` | `return { sd1: r1(sd1), sd2: r1(sd2), sd1sd2: r2(sd1 / (sd2 \|\| 1)), ellAr` |
 | 2060 | `cmp < → <=` | `for (let i = 0; i < N; i++) y[i] -= slope * t[i] + icpt;` |
 | 2061 | `num → 0` | `const bands = { vlf: [0.003, 0.04], lf: [0.04, 0.15], hf: [0.15, 0.4] };` |
 | 2061 | `num → 0` | `const bands = { vlf: [0.003, 0.04], lf: [0.04, 0.15], hf: [0.15, 0.4] };` |
@@ -3264,26 +3446,26 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 2292 | `cmp < → <=` | `for (let j = 0; j < t; j++) {` |
 | 2294 | `cmp < → <=` | `for (let k = 0; k < m; k++) {` |
 | 2295 | `cmp > → >=` | `if (Math.abs(nn[t + k] - nn[j + k]) > tol) {` |
-| 2307 | `bool || → &&` | `if (!B \|\| !A) return null;` |
-| 2322 | `bool || → &&` | `var p = String(headerLine \|\| '').split(';');` |
+| 2307 | `bool \|\| → &&` | `if (!B \|\| !A) return null;` |
+| 2322 | `bool \|\| → &&` | `var p = String(headerLine \|\| '').split(';');` |
 | 2332 | `cmp >= → >` | `return idx.x >= 0 && idx.y >= 0 && idx.z >= 0 ? idx : null;` |
 | 2332 | `cmp >= → >` | `return idx.x >= 0 && idx.y >= 0 && idx.z >= 0 ? idx : null;` |
-| 2332 | `bool && → ||` | `return idx.x >= 0 && idx.y >= 0 && idx.z >= 0 ? idx : null;` |
-| 2332 | `bool && → ||` | `return idx.x >= 0 && idx.y >= 0 && idx.z >= 0 ? idx : null;` |
+| 2332 | `bool && → \|\|` | `return idx.x >= 0 && idx.y >= 0 && idx.z >= 0 ? idx : null;` |
+| 2332 | `bool && → \|\|` | `return idx.x >= 0 && idx.y >= 0 && idx.z >= 0 ? idx : null;` |
 | 2332 | `cmp >= → >` | `return idx.x >= 0 && idx.y >= 0 && idx.z >= 0 ? idx : null;` |
 | 2338 | `cmp < → <=` | `for (var k = 0; k < p.length; k++) {` |
 | 2341 | `cmp < → <=` | `if (nums.length < 3) return null;` |
-| 2352 | `bool && → ||` | `if (/timestamp/i.test(t) && !cols) {` |
+| 2352 | `bool && → \|\|` | `if (/timestamp/i.test(t) && !cols) {` |
 | 2352 | `negate: drop !` | `if (/timestamp/i.test(t) && !cols) {` |
 | 2357 | `cmp < → <=` | `if (p.length < 5) continue;` |
-| 2358 | `bool || → &&` | `const c = cols \|\| xyzColsByTail(p);` |
+| 2358 | `bool \|\| → &&` | `const c = cols \|\| xyzColsByTail(p);` |
 | 2364 | `cmp >= → >` | `const b = BigInt(p[c.ns >= 0 ? c.ns : 1].trim());` |
 | 2365 | `eq === → !==` | `if (ns0 === null) ns0 = b;` |
 | 2368 | `cmp >= → >` | `const ts = parseTimestamp(p[c.phone >= 0 ? c.phone : 0]);` |
-| 2390 | `bool || → &&` | `opts = opts \|\| {};` |
-| 2394 | `bool || → &&` | `if (!grid \|\| !grid.length \|\| !(dtSec > 0)) return [];` |
+| 2390 | `bool \|\| → &&` | `opts = opts \|\| {};` |
+| 2394 | `bool \|\| → &&` | `if (!grid \|\| !grid.length \|\| !(dtSec > 0)) return [];` |
 | 2404 | `cmp < → <=` | `for (let i = 0; i < n; i++) {` |
-| 2408 | `bool || → &&` | `const sd = Math.sqrt(v / n) \|\| 1;` |
+| 2408 | `bool \|\| → &&` | `const sd = Math.sqrt(v / n) \|\| 1;` |
 | 2413 | `cmp < → <=` | `if (grid[c] < thr) continue;` |
 | 2415 | `cmp <= → <` | `for (let k = c - localBins; k <= c + localBins; k++) {` |
 | 2416 | `cmp >= → >` | `if (k >= 0 && k < n && grid[k] > grid[c]) {` |
@@ -3294,26 +3476,26 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 2456 | `cmp < → <=` | `if (!rows \|\| rows.length < 2) return true;` |
 | 2458 | `cmp < → <=` | `for (let i = 0; i < rows.length; i++) {` |
 | 2461 | `cmp < → <=` | `if (v < prev) return false;` |
-| 2470 | `bool && → ||` | `if (r.tMs != null && t0Ms != null) return (r.tMs - t0Ms) / 1000;` |
+| 2470 | `bool && → \|\|` | `if (r.tMs != null && t0Ms != null) return (r.tMs - t0Ms) / 1000;` |
 | 2485 | `cmp < → <=` | `if (!rows \|\| rows.length < 3) return null;` |
 | 2491 | `cmp > → >=` | `if (prev != null && t > prev) d.push(t - prev);` |
-| 2491 | `bool && → ||` | `if (prev != null && t > prev) d.push(t - prev);` |
-| 2497 | `bool && → ||` | `return isFinite(dm) && dm > 0 ? 1 / dm : null;` |
+| 2491 | `bool && → \|\|` | `if (prev != null && t > prev) d.push(t - prev);` |
+| 2497 | `bool && → \|\|` | `return isFinite(dm) && dm > 0 ? 1 / dm : null;` |
 | 2497 | `cmp > → >=` | `return isFinite(dm) && dm > 0 ? 1 / dm : null;` |
 | 2503 | `cmp > → >=` | `if (accRows && accRows.length > 5) {` |
 | 2548 | `cmp > → >=` | `if (gyroRows && gyroRows.length > 5) {` |
 | 2551 | `num → 0` | `const p10 = sortedGy[Math.floor(sortedGy.length * 0.1)];` |
 | 2552 | `cmp > → >=` | `gyroBias = Math.min(isFinite(p10) && p10 > 0 ? p10 : 0, GY_FULL / 4);` |
-| 2552 | `bool && → ||` | `gyroBias = Math.min(isFinite(p10) && p10 > 0 ? p10 : 0, GY_FULL / 4);` |
+| 2552 | `bool && → \|\|` | `gyroBias = Math.min(isFinite(p10) && p10 > 0 ? p10 : 0, GY_FULL / 4);` |
 | 2570 | `cmp >= → >` | `if (g >= 0 && g < nG) {` |
-| 2570 | `bool && → ||` | `if (g >= 0 && g < nG) {` |
+| 2570 | `bool && → \|\|` | `if (g >= 0 && g < nG) {` |
 | 2570 | `cmp < → <=` | `if (g >= 0 && g < nG) {` |
 | 2578 | `cmp >= → >` | `if (g >= 0 && g < nG) {` |
-| 2578 | `bool && → ||` | `if (g >= 0 && g < nG) {` |
+| 2578 | `bool && → \|\|` | `if (g >= 0 && g < nG) {` |
 | 2578 | `cmp < → <=` | `if (g >= 0 && g < nG) {` |
 | 2594 | `cmp < → <=` | `for (let i = 0; i < nG; i++) {` |
 | 2602 | `cmp >= → >` | `return g >= 0 && g < nG ? sm[g] : 0;` |
-| 2602 | `bool && → ||` | `return g >= 0 && g < nG ? sm[g] : 0;` |
+| 2602 | `bool && → \|\|` | `return g >= 0 && g < nG ? sm[g] : 0;` |
 | 2602 | `cmp < → <=` | `return g >= 0 && g < nG ? sm[g] : 0;` |
 | 2610 | `cmp >= → >` | `return g >= 0 && g < nG && covCell[g] === 1;` |
 | 2610 | `cmp < → <=` | `return g >= 0 && g < nG && covCell[g] === 1;` |
@@ -3322,11 +3504,11 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 2619 | `cmp < → <=` | `for (let i = 0; i < nG; i += stride) series.push({ x: (i * dt) / 60, y: ` |
 | 2619 | `num → 0` | `for (let i = 0; i < nG; i += stride) series.push({ x: (i * dt) / 60, y: ` |
 | 2637 | `cmp > → >=` | `const magHas = !!(magRows && magRows.length > 5);` |
-| 2645 | `bool || → &&` | `magState.base = median(magState.mag.filter(isFinite)) \|\| 0; // session \|` |
-| 2650 | `bool || → &&` | `const gn = Math.hypot(g.x, g.y, g.z) \|\| 1,` |
+| 2645 | `bool \|\| → &&` | `magState.base = median(magState.mag.filter(isFinite)) \|\| 0; // session \|` |
+| 2650 | `bool \|\| → &&` | `const gn = Math.hypot(g.x, g.y, g.z) \|\| 1,` |
 | 2661 | `cmp < → <=` | `if (Math.abs(ux) < 0.9) ax = 1;` |
 | 2661 | `num → 0` | `if (Math.abs(ux) < 0.9) ax = 1;` |
-| 2666 | `bool || → &&` | `const e1n = Math.hypot(e1x, e1y, e1z) \|\| 1;` |
+| 2666 | `bool \|\| → &&` | `const e1n = Math.hypot(e1x, e1y, e1z) \|\| 1;` |
 | 2673 | `num → 0` | `return (Math.atan2(hx * e2x + hy * e2y + hz * e2z, hx * e1x + hy * e1y +` |
 | 2675 | `num → 0` | `return (Math.atan2(My, Mx) * 180) / Math.PI;` |
 | 2677 | `cmp > → >=` | `if (accRows && accRows.length > 5) {` |
@@ -3338,20 +3520,20 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 2704 | `cmp < → <=` | `for (let i = 0; i < magState.ss.length; i++) {` |
 | 2706 | `cmp >= → >` | `if (s != null && s >= s0 && s < s1) {` |
 | 2706 | `cmp < → <=` | `if (s != null && s >= s0 && s < s1) {` |
-| 2706 | `bool && → ||` | `if (s != null && s >= s0 && s < s1) {` |
-| 2706 | `bool && → ||` | `if (s != null && s >= s0 && s < s1) {` |
+| 2706 | `bool && → \|\|` | `if (s != null && s >= s0 && s < s1) {` |
+| 2706 | `bool && → \|\|` | `if (s != null && s >= s0 && s < s1) {` |
 | 2712 | `cmp < → <=` | `if (sx.length < 3) return null;` |
 | 2718 | `negate: drop !` | `if (!magState.has) return false;` |
 | 2720 | `cmp < → <=` | `for (let i = 0; i < magState.ss.length; i++) {` |
 | 2722 | `cmp >= → >` | `if (s != null && s >= s0 && s < s1) v.push(magState.mag[i]);` |
 | 2722 | `cmp < → <=` | `if (s != null && s >= s0 && s < s1) v.push(magState.mag[i]);` |
-| 2722 | `bool && → ||` | `if (s != null && s >= s0 && s < s1) v.push(magState.mag[i]);` |
-| 2722 | `bool && → ||` | `if (s != null && s >= s0 && s < s1) v.push(magState.mag[i]);` |
+| 2722 | `bool && → \|\|` | `if (s != null && s >= s0 && s < s1) v.push(magState.mag[i]);` |
+| 2722 | `bool && → \|\|` | `if (s != null && s >= s0 && s < s1) v.push(magState.mag[i]);` |
 | 2724 | `cmp < → <=` | `if (v.length < 3) return false;` |
-| 2727 | `bool || → &&` | `bg = magState.base \|\| 1;` |
+| 2727 | `bool \|\| → &&` | `bg = magState.base \|\| 1;` |
 | 2728 | `cmp > → >=` | `return !!(sd > Math.max(0.03, 0.04 * bg) \|\| Math.abs(md - bg) / bg > 0.2` |
 | 2728 | `cmp > → >=` | `return !!(sd > Math.max(0.03, 0.04 * bg) \|\| Math.abs(md - bg) / bg > 0.2` |
-| 2728 | `bool || → &&` | `return !!(sd > Math.max(0.03, 0.04 * bg) \|\| Math.abs(md - bg) / bg > 0.2` |
+| 2728 | `bool \|\| → &&` | `return !!(sd > Math.max(0.03, 0.04 * bg) \|\| Math.abs(md - bg) / bg > 0.2` |
 | 2728 | `num → 0` | `return !!(sd > Math.max(0.03, 0.04 * bg) \|\| Math.abs(md - bg) / bg > 0.2` |
 | 2728 | `num → 0` | `return !!(sd > Math.max(0.03, 0.04 * bg) \|\| Math.abs(md - bg) / bg > 0.2` |
 | 2728 | `num → 0` | `return !!(sd > Math.max(0.03, 0.04 * bg) \|\| Math.abs(md - bg) / bg > 0.2` |
@@ -3362,8 +3544,8 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 2741 | `eq === → !==` | `if (base === 'supine' \|\| base === 'prone' \|\| base === 'upright') {` |
 | 2741 | `eq === → !==` | `if (base === 'supine' \|\| base === 'prone' \|\| base === 'upright') {` |
 | 2741 | `eq === → !==` | `if (base === 'supine' \|\| base === 'prone' \|\| base === 'upright') {` |
-| 2741 | `bool || → &&` | `if (base === 'supine' \|\| base === 'prone' \|\| base === 'upright') {` |
-| 2741 | `bool || → &&` | `if (base === 'supine' \|\| base === 'prone' \|\| base === 'upright') {` |
+| 2741 | `bool \|\| → &&` | `if (base === 'supine' \|\| base === 'prone' \|\| base === 'upright') {` |
+| 2741 | `bool \|\| → &&` | `if (base === 'supine' \|\| base === 'prone' \|\| base === 'upright') {` |
 | 2742 | `num → 0` | `const h = headingAtSec(s, s + 30);` |
 | 2744 | `num → 0` | `const rad = (h * Math.PI) / 180;` |
 | 2751 | `cmp > → >=` | `if (cnt > 0) refHeading = (Math.atan2(sumS, sumC) * 180) / Math.PI;` |
@@ -3371,10 +3553,10 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 2758 | `num → 0` | `const need = (accRows.length / durSec) * 30; // need ≥30 s of gravity sa` |
 | 2759 | `cmp < → <=` | `if (!g \|\| g.n < need / gStride) return { position: 'unknown', conf: 0, h` |
 | 2764 | `eq === → !==` | `if (base === 'lateral' && heading != null && refHeading != null && !magI` |
-| 2764 | `bool && → ||` | `if (base === 'lateral' && heading != null && refHeading != null && !magI` |
-| 2764 | `bool && → ||` | `if (base === 'lateral' && heading != null && refHeading != null && !magI` |
+| 2764 | `bool && → \|\|` | `if (base === 'lateral' && heading != null && refHeading != null && !magI` |
+| 2764 | `bool && → \|\|` | `if (base === 'lateral' && heading != null && refHeading != null && !magI` |
 | 2764 | `negate: drop !` | `if (base === 'lateral' && heading != null && refHeading != null && !magI` |
-| 2764 | `bool && → ||` | `if (base === 'lateral' && heading != null && refHeading != null && !magI` |
+| 2764 | `bool && → \|\|` | `if (base === 'lateral' && heading != null && refHeading != null && !magI` |
 | 2766 | `cmp > → >=` | `while (d > 180) d -= 360;` |
 | 2766 | `num → 0` | `while (d > 180) d -= 360;` |
 | 2766 | `num → 0` | `while (d > 180) d -= 360;` |
@@ -3384,15 +3566,15 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 2768 | `cmp >= → >` | `if (Math.abs(d) >= 30) base = d >= 0 ? 'lateral_R' : 'lateral_L';` |
 | 2768 | `num → 0` | `if (Math.abs(d) >= 30) base = d >= 0 ? 'lateral_R' : 'lateral_L';` |
 | 2768 | `cmp >= → >` | `if (Math.abs(d) >= 30) base = d >= 0 ? 'lateral_R' : 'lateral_L';` |
-| 2771 | `bool || → &&` | `const gn = Math.hypot(g.x, g.y, g.z) \|\| 1,` |
+| 2771 | `bool \|\| → &&` | `const gn = Math.hypot(g.x, g.y, g.z) \|\| 1,` |
 | 2773 | `num → 0` | `let conf = Math.max(0, Math.min(1, (dom - 0.577) / (1 - 0.577)));` |
 | 2773 | `num → 0` | `let conf = Math.max(0, Math.min(1, (dom - 0.577) / (1 - 0.577)));` |
 | 2774 | `num → 0` | `conf *= Math.max(0.3, Math.min(1, (g.n * gStride) / need));` |
 | 2775 | `eq === → !==` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
 | 2775 | `eq === → !==` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
-| 2775 | `bool && → ||` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
-| 2775 | `bool && → ||` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
-| 2775 | `bool || → &&` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
+| 2775 | `bool && → \|\|` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
+| 2775 | `bool && → \|\|` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
+| 2775 | `bool \|\| → &&` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
 | 2775 | `num → 0` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
 | 2775 | `negate: drop !` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
 | 2775 | `num → 0` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
@@ -3401,7 +3583,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 2777 | `num → 0` | `return { position: base, conf: r2(conf), heading: heading != null ? Math` |
 | 2777 | `num → 0` | `return { position: base, conf: r2(conf), heading: heading != null ? Math` |
 | 2798 | `cmp > → >=` | `gyroBiasDps: gyroRows && gyroRows.length > 5 ? r2(gyroBias) : null,` |
-| 2805 | `bool && → ||` | `refHeadingDeg: magState.has && magState.refHeading != null ? Math.round(` |
+| 2805 | `bool && → \|\|` | `refHeadingDeg: magState.has && magState.refHeading != null ? Math.round(` |
 | 2805 | `num → 0` | `refHeadingDeg: magState.has && magState.refHeading != null ? Math.round(` |
 | 2805 | `num → 0` | `refHeadingDeg: magState.has && magState.refHeading != null ? Math.round(` |
 | 2805 | `num → 0` | `refHeadingDeg: magState.has && magState.refHeading != null ? Math.round(` |
@@ -3424,7 +3606,7 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 2959 | `num → 0` | `[0.75, 'random-walk-frequency', 'wanders; a longer fit is worse than a s` |
 | 2969 | `cmp > → >=` | `const pts = (points \|\| []).filter((p) => p.adev > 0 && p.tau > 0);` |
 | 2969 | `cmp > → >=` | `const pts = (points \|\| []).filter((p) => p.adev > 0 && p.tau > 0);` |
-| 2969 | `bool && → ||` | `const pts = (points \|\| []).filter((p) => p.adev > 0 && p.tau > 0);` |
+| 2969 | `bool && → \|\|` | `const pts = (points \|\| []).filter((p) => p.adev > 0 && p.tau > 0);` |
 | 2970 | `cmp < → <=` | `if (pts.length < 3) return null; // two points fit any line and cannot b` |
 | 2982 | `cmp > → >=` | `if (!(sxx > 0)) return null;` |
 | 2986 | `cmp < → <=` | `for (let i = 0; i < k; i++) {` |
@@ -3437,11 +3619,11 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3048 | `eq === → !==` | `const lo = i === 0 ? -Infinity : Number(ALLAN_NOISE[i - 1][0]);` |
 | 3049 | `cmp < → <=` | `if (sl - half < Number(ALLAN_NOISE[i][0]) && sl + half > lo) cands.push(` |
 | 3049 | `cmp > → >=` | `if (sl - half < Number(ALLAN_NOISE[i][0]) && sl + half > lo) cands.push(` |
-| 3049 | `bool && → ||` | `if (sl - half < Number(ALLAN_NOISE[i][0]) && sl + half > lo) cands.push(` |
+| 3049 | `bool && → \|\|` | `if (sl - half < Number(ALLAN_NOISE[i][0]) && sl + half > lo) cands.push(` |
 | 3051 | `cmp > → >=` | `if (sl + half > Number(ALLAN_NOISE[ALLAN_NOISE.length - 1][0])) cands.pu` |
 | 3067 | `cmp < → <=` | `if (!selfSec \|\| !fwSec \|\| selfSec.length < ALLAN_MIN_PAIRS \|\| fwSec.leng` |
 | 3067 | `cmp < → <=` | `if (!selfSec \|\| !fwSec \|\| selfSec.length < ALLAN_MIN_PAIRS \|\| fwSec.leng` |
-| 3067 | `bool || → &&` | `if (!selfSec \|\| !fwSec \|\| selfSec.length < ALLAN_MIN_PAIRS \|\| fwSec.leng` |
+| 3067 | `bool \|\| → &&` | `if (!selfSec \|\| !fwSec \|\| selfSec.length < ALLAN_MIN_PAIRS \|\| fwSec.leng` |
 | 3071 | `cmp < → <=` | `for (let k = 0; k < selfSec.length; k++) {` |
 | 3077 | `cmp < → <=` | `if (fwSec[mid] < t) lo = mid + 1;` |
 | 3082 | `cmp < → <=` | `if (lo > 0 && Math.abs(fwSec[lo - 1] - t) < best) {` |
@@ -3450,18 +3632,18 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3091 | `cmp < → <=` | `if (ph.length < ALLAN_MIN_PAIRS) return null;` |
 | 3093 | `cmp > → >=` | `if (!(tau0 > 0)) return null;` |
 | 3095 | `cmp < → <=` | `if (curve.length < 3) return null;` |
-| 3097 | `bool && → ||` | `const cls = classifyAllan(fit && fit.slope, fit && fit.se, fit && fit.nT` |
-| 3097 | `bool && → ||` | `const cls = classifyAllan(fit && fit.slope, fit && fit.se, fit && fit.nT` |
+| 3097 | `bool && → \|\|` | `const cls = classifyAllan(fit && fit.slope, fit && fit.se, fit && fit.nT` |
+| 3097 | `bool && → \|\|` | `const cls = classifyAllan(fit && fit.slope, fit && fit.se, fit && fit.nT` |
 | 3100 | `cmp < → <=` | `for (const p of curve) if (p.adev < best.adev) best = p;` |
 | 3103 | `num → 0` | `pairedPct: r1((100 * ph.length) / selfSec.length),` |
 | 3173 | `cmp < → <=` | `for (const t of trains) if (!t \|\| t.length < TCH_MIN_TRIPLES) return nul` |
-| 3173 | `bool || → &&` | `for (const t of trains) if (!t \|\| t.length < TCH_MIN_TRIPLES) return nul` |
+| 3173 | `bool \|\| → &&` | `for (const t of trains) if (!t \|\| t.length < TCH_MIN_TRIPLES) return nul` |
 | 3180 | `cmp < → <=` | `if (arr[m] < t) lo = m + 1;` |
 | 3185 | `cmp > → >=` | `if (lo > 0 && Math.abs(arr[lo - 1] - t) < b) {` |
 | 3185 | `cmp < → <=` | `if (lo > 0 && Math.abs(arr[lo - 1] - t) < b) {` |
 | 3201 | `cmp < → <=` | `if (b.d < tol && c.d < tol) {` |
 | 3201 | `cmp < → <=` | `if (b.d < tol && c.d < tol) {` |
-| 3201 | `bool && → ||` | `if (b.d < tol && c.d < tol) {` |
+| 3201 | `bool && → \|\|` | `if (b.d < tol && c.d < tol) {` |
 | 3207 | `cmp < → <=` | `if (A.length < TCH_MIN_TRIPLES) return null;` |
 | 3209 | `cmp > → >=` | `if (!(tau0 > 0)) return null;` |
 | 3215 | `cmp < → <=` | `if (nT < 3) return null;` |
@@ -3469,20 +3651,20 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3223 | `cmp < → <=` | `for (let c = 0; c < 3; c++) if (split[c] < 0) bad = true;` |
 | 3225 | `cmp >= → >` | `for (let c = 0; c < 3; c++) per[c].push({ tau: ab[i].tau, adev: split[c]` |
 | 3232 | `cmp > → >=` | `for (const q of curve) if (q.adev != null && q.adev > 0) pts.push({ tau:` |
-| 3232 | `bool && → ||` | `for (const q of curve) if (q.adev != null && q.adev > 0) pts.push({ tau:` |
-| 3260 | `bool && → ||` | `polarityUnanimous: opts && opts.signs ? opts.signs.every((s) => s === op` |
+| 3232 | `bool && → \|\|` | `for (const q of curve) if (q.adev != null && q.adev > 0) pts.push({ tau:` |
+| 3260 | `bool && → \|\|` | `polarityUnanimous: opts && opts.signs ? opts.signs.every((s) => s === op` |
 | 3260 | `eq === → !==` | `polarityUnanimous: opts && opts.signs ? opts.signs.every((s) => s === op` |
 | 3265 | `cmp < → <=` | `if (!rr \|\| rr.length < 2) return 0;` |
-| 3265 | `bool || → &&` | `if (!rr \|\| rr.length < 2) return 0;` |
+| 3265 | `bool \|\| → &&` | `if (!rr \|\| rr.length < 2) return 0;` |
 | 3279 | `cmp > → >=` | `const dev = devicePPI.filter((d) => d.ppi > 300 && d.ppi < 2000 && (d.bl` |
 | 3279 | `cmp < → <=` | `const dev = devicePPI.filter((d) => d.ppi > 300 && d.ppi < 2000 && (d.bl` |
 | 3279 | `num → 0` | `const dev = devicePPI.filter((d) => d.ppi > 300 && d.ppi < 2000 && (d.bl` |
 | 3280 | `cmp < → <=` | `if (dev.length < 3 \|\| selfNN.length < 3) return { hasData: true, filePre` |
 | 3280 | `cmp < → <=` | `if (dev.length < 3 \|\| selfNN.length < 3) return { hasData: true, filePre` |
-| 3280 | `bool || → &&` | `if (dev.length < 3 \|\| selfNN.length < 3) return { hasData: true, filePre` |
+| 3280 | `bool \|\| → &&` | `if (dev.length < 3 \|\| selfNN.length < 3) return { hasData: true, filePre` |
 | 3286 | `cmp < → <=` | `if (self.length < 3 \|\| devc.length < 3) return { hasData: true, filePres` |
 | 3286 | `cmp < → <=` | `if (self.length < 3 \|\| devc.length < 3) return { hasData: true, filePres` |
-| 3286 | `bool || → &&` | `if (self.length < 3 \|\| devc.length < 3) return { hasData: true, filePres` |
+| 3286 | `bool \|\| → &&` | `if (self.length < 3 \|\| devc.length < 3) return { hasData: true, filePres` |
 | 3293 | `num → 0` | `const pct = (a, b) => (b ? r1((100 * Math.abs(a - b)) / b) : null);` |
 | 3294 | `num → 0` | `const agree = 100 * (1 - Math.min(1, Math.abs(sM - dM) / dM));` |
 | 3336 | `cmp < → <=` | `if (nn.length < 2) return epochs;` |
@@ -3498,12 +3680,12 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3451 | `eq === → !==` | `const perChannelAll = rec._preChannels && rec._preChannels.length === re` |
 | 3499 | `cmp > → >=` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
 | 3499 | `cmp > → >=` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
-| 3499 | `bool && → ||` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
-| 3499 | `bool && → ||` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
-| 3499 | `bool && → ||` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
+| 3499 | `bool && → \|\|` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
+| 3499 | `bool && → \|\|` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
+| 3499 | `bool && → \|\|` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
 | 3499 | `num → 0` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
 | 3499 | `num → 0` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
-| 3500 | `bool && → ||` | `const _chSnr = keepIdx.map((c) => (sel.scores && sel.scores[c] ? sel.sco` |
+| 3500 | `bool && → \|\|` | `const _chSnr = keepIdx.map((c) => (sel.scores && sel.scores[c] ? sel.sco` |
 | 3538 | `cmp < → <=` | `for (let k = 0, prevKept = -1; k < cons.peaks.length; k++) {` |
 | 3540 | `cmp >= → >` | `if (prevKept >= 0) bridged.push(k - prevKept > 1); // >= 1 beat removed ` |
 | 3551 | `num → 0` | `P(62, 'Motion gate (ACC + GYRO)…');` |
@@ -3514,9 +3696,9 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3601 | `cmp < → <=` | `const footSpineOK = !(_ratePeak < _rateFoot - PPI_SPINE_MARGIN_PP);` |
 | 3604 | `cmp > → >=` | `const ppiAgreement = _mFoot > 0 && _mPeak > 0 ? Math.min(_mFoot, _mPeak)` |
 | 3604 | `cmp > → >=` | `const ppiAgreement = _mFoot > 0 && _mPeak > 0 ? Math.min(_mFoot, _mPeak)` |
-| 3604 | `bool && → ||` | `const ppiAgreement = _mFoot > 0 && _mPeak > 0 ? Math.min(_mFoot, _mPeak)` |
-| 3625 | `bool || → &&` | `rec.t0Ms \|\| 0` |
-| 3627 | `bool || → &&` | `const _t0 = rec.t0Ms \|\| 0;` |
+| 3604 | `bool && → \|\|` | `const ppiAgreement = _mFoot > 0 && _mPeak > 0 ? Math.min(_mFoot, _mPeak)` |
+| 3625 | `bool \|\| → &&` | `rec.t0Ms \|\| 0` |
+| 3627 | `bool \|\| → &&` | `const _t0 = rec.t0Ms \|\| 0;` |
 | 3629 | `num → 0` | `const c = _pConfMap.get(Math.floor((_t0 + s * 1000) / 1000));` |
 | 3629 | `num → 0` | `const c = _pConfMap.get(Math.floor((_t0 + s * 1000) / 1000));` |
 | 3652 | `cmp < → <=` | `for (let i = 0; i < nn.length; i++) spansGap[i] = !!spansTime[i] \|\| !!(b` |
@@ -3526,38 +3708,38 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3659 | `num → 0` | `cleanMask[i] = corr.flags[i] === 0 && q0 >= 0.5 && q1 >= 0.5 && !spansGa` |
 | 3659 | `num → 0` | `cleanMask[i] = corr.flags[i] === 0 && q0 >= 0.5 && q1 >= 0.5 && !spansGa` |
 | 3664 | `cmp < → <=` | `for (let i = 0; i < nn.length; i++) {` |
-| 3667 | `bool && → ||` | `agreeI[i] = a0 != null && a1 != null ? (a0 + a1) / 2 : a0 != null ? a0 :` |
+| 3667 | `bool && → \|\|` | `agreeI[i] = a0 != null && a1 != null ? (a0 + a1) / 2 : a0 != null ? a0 :` |
 | 3679 | `cmp > → >=` | `const perfWindow = () => (dc > 0 ? r2((100 * acAmp) / dc) : null);` |
 | 3681 | `num → 0` | `P(80, 'Epochs…');` |
 | 3686 | `cmp >= → >` | `const cleanBeats = sqi.filter((s) => s >= 0.5).length;` |
 | 3688 | `num → 0` | `const motionRejected = motion.hasData ? det.peaks.filter((p, k) => /** @` |
 | 3688 | `cmp > → >=` | `const motionRejected = motion.hasData ? det.peaks.filter((p, k) => /** @` |
 | 3689 | `num → 0` | `const motionRejectedPct = det.peaks.length ? r1((100 * motionRejected) /` |
-| 3696 | `bool && → ||` | `const magInterferencePct = motion.hasMag && magKnown.length ? Math.round` |
+| 3696 | `bool && → \|\|` | `const magInterferencePct = motion.hasMag && magKnown.length ? Math.round` |
 | 3696 | `num → 0` | `const magInterferencePct = motion.hasMag && magKnown.length ? Math.round` |
-| 3732 | `bool && → ||` | `const segAll = epochs.map((e) => e.sdnn).filter((v) => v != null && isFi` |
+| 3732 | `bool && → \|\|` | `const segAll = epochs.map((e) => e.sdnn).filter((v) => v != null && isFi` |
 | 3755 | `cmp >= → >` | `const gatedEp = epochs.filter((e) => e.sdnn != null && isFinite(e.sdnn) ` |
 | 3755 | `cmp <= → <` | `const gatedEp = epochs.filter((e) => e.sdnn != null && isFinite(e.sdnn) ` |
 | 3755 | `num → 0` | `const gatedEp = epochs.filter((e) => e.sdnn != null && isFinite(e.sdnn) ` |
-| 3756 | `bool && → ||` | `const usable = gatedEp.length >= 3 ? gatedEp : epochs.filter((e) => e.sd` |
-| 3768 | `bool && → ||` | `if (sd1 != null && sdnnRobust != null) sd2Robust = r1(Math.sqrt(Math.max` |
-| 3770 | `bool && → ||` | `const lfA = usable.map((e) => e.lf).filter((v) => v != null && isFinite(` |
-| 3771 | `bool && → ||` | `const hfA = usable.map((e) => e.hf).filter((v) => v != null && isFinite(` |
-| 3772 | `bool && → ||` | `const lhA = usable.map((e) => e.lfhf).filter((v) => v != null && isFinit` |
-| 3773 | `bool && → ||` | `const vlA = usable.map((e) => e.vlf).filter((v) => v != null && isFinite` |
+| 3756 | `bool && → \|\|` | `const usable = gatedEp.length >= 3 ? gatedEp : epochs.filter((e) => e.sd` |
+| 3768 | `bool && → \|\|` | `if (sd1 != null && sdnnRobust != null) sd2Robust = r1(Math.sqrt(Math.max` |
+| 3770 | `bool && → \|\|` | `const lfA = usable.map((e) => e.lf).filter((v) => v != null && isFinite(` |
+| 3771 | `bool && → \|\|` | `const hfA = usable.map((e) => e.hf).filter((v) => v != null && isFinite(` |
+| 3772 | `bool && → \|\|` | `const lhA = usable.map((e) => e.lfhf).filter((v) => v != null && isFinit` |
+| 3773 | `bool && → \|\|` | `const vlA = usable.map((e) => e.vlf).filter((v) => v != null && isFinite` |
 | 3774 | `cmp >= → >` | `if (lfA.length >= 3) lfRobust = r1(median(lfA));` |
 | 3775 | `cmp >= → >` | `if (hfA.length >= 3) hfRobust = r1(median(hfA));` |
 | 3776 | `cmp >= → >` | `if (lhA.length >= 3) lfhfRobust = r2(median(lhA));` |
 | 3777 | `cmp >= → >` | `if (vlA.length >= 3) vlfRobust = r1(median(vlA));` |
-| 3779 | `bool && → ||` | `if (vlfRobust != null && lfRobust != null && hfRobust != null) tpRobust ` |
-| 3779 | `bool && → ||` | `if (vlfRobust != null && lfRobust != null && hfRobust != null) tpRobust ` |
+| 3779 | `bool && → \|\|` | `if (vlfRobust != null && lfRobust != null && hfRobust != null) tpRobust ` |
+| 3779 | `bool && → \|\|` | `if (vlfRobust != null && lfRobust != null && hfRobust != null) tpRobust ` |
 | 3783 | `num → 0` | `const MOT_STRICT = 0.15;` |
 | 3791 | `cmp <= → <` | `const lowMot = motKnown.filter((e) => e.motionIndex <= MOT_STRICT);` |
-| 3792 | `bool && → ||` | `const hfLM = lowMot.map((e) => e.hf).filter((v) => v != null && isFinite` |
+| 3792 | `bool && → \|\|` | `const hfLM = lowMot.map((e) => e.hf).filter((v) => v != null && isFinite` |
 | 3793 | `cmp >= → >` | `if (hfLM.length >= 3) hfRobustLowMotion = r1(median(hfLM));` |
 | 3808 | `eq === → !==` | `if (epochs[i].position === 'unknown' \|\| epochs[i - 1].position === 'unkn` |
 | 3808 | `eq === → !==` | `if (epochs[i].position === 'unknown' \|\| epochs[i - 1].position === 'unkn` |
-| 3808 | `bool || → &&` | `if (epochs[i].position === 'unknown' \|\| epochs[i - 1].position === 'unkn` |
+| 3808 | `bool \|\| → &&` | `if (epochs[i].position === 'unknown' \|\| epochs[i - 1].position === 'unkn` |
 | 3810 | `eq !== → ===` | `if (epochs[i].position !== epochs[i - 1].position) posShift++;` |
 | 3813 | `num → 0` | `const durFactor = Math.max(0, Math.min(1, rec.durSec / 60 / 60)); // VLF` |
 | 3813 | `num → 0` | `const durFactor = Math.max(0, Math.min(1, rec.durSec / 60 / 60)); // VLF` |
@@ -3566,16 +3748,16 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3833 | `num → 0` | `sdnn: qPosture == null ? null : c(qCov * qCorr * (0.6 + 0.4 * qPosture))` |
 | 3833 | `num → 0` | `sdnn: qPosture == null ? null : c(qCov * qCorr * (0.6 + 0.4 * qPosture))` |
 | 3837 | `num → 0` | `vlf: qPosture == null ? null : c(Math.min(0.7, qPosture * durFactor)),` |
-| 3844 | `bool && → ||` | `motionCoveredFrac: motion.hasData && motion.motionCoveredFrac != null ? ` |
+| 3844 | `bool && → \|\|` | `motionCoveredFrac: motion.hasData && motion.motionCoveredFrac != null ? ` |
 | 3857 | `cmp > → >=` | `ledAgree3of3Pct = cons.kept33 + cons.kept22 > 0 ? Math.round((100 * cons` |
 | 3857 | `num → 0` | `ledAgree3of3Pct = cons.kept33 + cons.kept22 > 0 ? Math.round((100 * cons` |
 | 3858 | `num → 0` | `const epLen = 300,` |
 | 3864 | `cmp >= → >` | `if (c.nAgree >= 3) bins[e].c3++;` |
 | 3865 | `eq === → !==` | `else if (c.nAgree === 2) bins[e].c2++;` |
-| 3871 | `bool || → &&` | `tot = b.c1 + b.c2 + b.c3 \|\| 1;` |
+| 3871 | `bool \|\| → &&` | `tot = b.c1 + b.c2 + b.c3 \|\| 1;` |
 | 3903 | `cmp > → >=` | `const hrvLowConfidence = analyzablePct < 60 \|\| correctionRate > 20 \|\| hr` |
 | 3903 | `cmp < → <=` | `const hrvLowConfidence = analyzablePct < 60 \|\| correctionRate > 20 \|\| hr` |
-| 3903 | `bool || → &&` | `const hrvLowConfidence = analyzablePct < 60 \|\| correctionRate > 20 \|\| hr` |
+| 3903 | `bool \|\| → &&` | `const hrvLowConfidence = analyzablePct < 60 \|\| correctionRate > 20 \|\| hr` |
 | 3903 | `num → 0` | `const hrvLowConfidence = analyzablePct < 60 \|\| correctionRate > 20 \|\| hr` |
 | 3918 | `cmp < → <=` | `if (durMin < 1) {` |
 | 3920 | `cmp < → <=` | `} else if (durMin < 5) {` |
@@ -3588,118 +3770,118 @@ audit) and none of its mutants are counted here — do not read the fleet row as
 | 3957 | `cmp < → <=` | `for (let i = 1; i < rec.beatMarkerSec.length; i++) {` |
 | 3960 | `num → 0` | `mk.push({ ppi: (rec.beatMarkerSec[i] - rec.beatMarkerSec[i - 1]) * 1000,` |
 | 3972 | `eq === → !==` | `if (validation && validation.usable && ppiSource === 'o2ring-marker' && ` |
-| 3972 | `bool && → ||` | `if (validation && validation.usable && ppiSource === 'o2ring-marker' && ` |
-| 3972 | `bool && → ||` | `if (validation && validation.usable && ppiSource === 'o2ring-marker' && ` |
+| 3972 | `bool && → \|\|` | `if (validation && validation.usable && ppiSource === 'o2ring-marker' && ` |
+| 3972 | `bool && → \|\|` | `if (validation && validation.usable && ppiSource === 'o2ring-marker' && ` |
 | 3982 | `num → 0` | `P(92, 'Finalising…');` |
-| 3983 | `bool && → ||` | `const dispHr = longRec && epochs.length ? median(epochs.map((e) => e.hr)` |
-| 3986 | `bool || → &&` | `source: rec.source \|\| 'file',` |
-| 3987 | `bool || → &&` | `fname: rec.fname \|\| '',` |
-| 4099 | `bool || → &&` | `siteSource: rec.siteSource \|\| 'device-default',` |
-| 4122 | `bool || → &&` | `sentinelRejected: rec.sentinelRejected \|\| 0,` |
-| 4123 | `bool || → &&` | `sentinelKept: rec.sentinelKept \|\| 0,` |
-| 4163 | `bool || → &&` | `if (!sqi \|\| !sqi.length \|\| !peakSec) return null;` |
-| 4163 | `bool || → &&` | `if (!sqi \|\| !sqi.length \|\| !peakSec) return null;` |
+| 3983 | `bool && → \|\|` | `const dispHr = longRec && epochs.length ? median(epochs.map((e) => e.hr)` |
+| 3986 | `bool \|\| → &&` | `source: rec.source \|\| 'file',` |
+| 3987 | `bool \|\| → &&` | `fname: rec.fname \|\| '',` |
+| 4099 | `bool \|\| → &&` | `siteSource: rec.siteSource \|\| 'device-default',` |
+| 4122 | `bool \|\| → &&` | `sentinelRejected: rec.sentinelRejected \|\| 0,` |
+| 4123 | `bool \|\| → &&` | `sentinelKept: rec.sentinelKept \|\| 0,` |
+| 4163 | `bool \|\| → &&` | `if (!sqi \|\| !sqi.length \|\| !peakSec) return null;` |
+| 4163 | `bool \|\| → &&` | `if (!sqi \|\| !sqi.length \|\| !peakSec) return null;` |
 | 4163 | `negate: drop !` | `if (!sqi \|\| !sqi.length \|\| !peakSec) return null;` |
 | 4163 | `negate: drop !` | `if (!sqi \|\| !sqi.length \|\| !peakSec) return null;` |
 | 4163 | `negate: drop !` | `if (!sqi \|\| !sqi.length \|\| !peakSec) return null;` |
 | 4166 | `cmp < → <=` | `for (let k = 0; k < peakSec.length; k++) {` |
-| 4167 | `bool && → ||` | `if (peakSec[k] != null && Math.abs(peakSec[k] - relSec) < 5) {` |
+| 4167 | `bool && → \|\|` | `if (peakSec[k] != null && Math.abs(peakSec[k] - relSec) < 5) {` |
 | 4167 | `cmp < → <=` | `if (peakSec[k] != null && Math.abs(peakSec[k] - relSec) < 5) {` |
 | 4176 | `num → 0` | `const surgeConf = (ampBpm) => r2(Math.max(0.45, Math.min(0.9, 0.45 + Mat` |
-| 4176 | `bool || → &&` | `const surgeConf = (ampBpm) => r2(Math.max(0.45, Math.min(0.9, 0.45 + Mat` |
+| 4176 | `bool \|\| → &&` | `const surgeConf = (ampBpm) => r2(Math.max(0.45, Math.min(0.9, 0.45 + Mat` |
 | 4176 | `num → 0` | `const surgeConf = (ampBpm) => r2(Math.max(0.45, Math.min(0.9, 0.45 + Mat` |
 | 4176 | `num → 0` | `const surgeConf = (ampBpm) => r2(Math.max(0.45, Math.min(0.9, 0.45 + Mat` |
 | 4176 | `num → 0` | `const surgeConf = (ampBpm) => r2(Math.max(0.45, Math.min(0.9, 0.45 + Mat` |
 | 4176 | `num → 0` | `const surgeConf = (ampBpm) => r2(Math.max(0.45, Math.min(0.9, 0.45 + Mat` |
 | 4178 | `num → 0` | `const tMs = t0Ms != null ? t0Ms + Math.round(relSec * 1000) : null;` |
-| 4179 | `bool || → &&` | `ev.push({ t: fmtClockSec(tMs != null ? tMs : relSec * 1000), tMs, impuls` |
+| 4179 | `bool \|\| → &&` | `ev.push({ t: fmtClockSec(tMs != null ? tMs : relSec * 1000), tMs, impuls` |
 | 4179 | `num → 0` | `ev.push({ t: fmtClockSec(tMs != null ? tMs : relSec * 1000), tMs, impuls` |
-| 4185 | `bool && → ||` | `if (a.rmssd && b.rmssd) {` |
+| 4185 | `bool && → \|\|` | `if (a.rmssd && b.rmssd) {` |
 | 4187 | `cmp > → >=` | `if (drop > 0.35)` |
 | 4187 | `num → 0` | `if (drop > 0.35)` |
 | 4189 | `num → 0` | `b.tMin * 60,` |
 | 4191 | `num → 0` | `0.7,` |
 | 4195 | `eq !== → ===` | `position: b.position && b.position !== 'unknown' ? b.position : null,` |
-| 4195 | `bool && → ||` | `position: b.position && b.position !== 'unknown' ? b.position : null,` |
+| 4195 | `bool && → \|\|` | `position: b.position && b.position !== 'unknown' ? b.position : null,` |
 | 4199 | `num → 0` | `sqiAt(b.tMin * 60)` |
 | 4202 | `cmp > → >=` | `if (a.hr && b.hr && b.hr - a.hr > 8) {` |
-| 4202 | `bool && → ||` | `if (a.hr && b.hr && b.hr - a.hr > 8) {` |
-| 4202 | `bool && → ||` | `if (a.hr && b.hr && b.hr - a.hr > 8) {` |
+| 4202 | `bool && → \|\|` | `if (a.hr && b.hr && b.hr - a.hr > 8) {` |
+| 4202 | `bool && → \|\|` | `if (a.hr && b.hr && b.hr - a.hr > 8) {` |
 | 4205 | `num → 0` | `b.tMin * 60,` |
 | 4210 | `eq !== → ===` | `position: b.position && b.position !== 'unknown' ? b.position : null,` |
-| 4210 | `bool && → ||` | `position: b.position && b.position !== 'unknown' ? b.position : null,` |
+| 4210 | `bool && → \|\|` | `position: b.position && b.position !== 'unknown' ? b.position : null,` |
 | 4214 | `num → 0` | `sqiAt(b.tMin * 60)` |
 | 4221 | `cmp < → <=` | `for (let k = 0; k < det.peaks.length; k++) {` |
 | 4222 | `cmp > → >=` | `const hi = peakSec[k] != null && motion.motionAtSec(peakSec[k]) > 0.5;` |
-| 4222 | `bool && → ||` | `const hi = peakSec[k] != null && motion.motionAtSec(peakSec[k]) > 0.5;` |
+| 4222 | `bool && → \|\|` | `const hi = peakSec[k] != null && motion.motionAtSec(peakSec[k]) > 0.5;` |
 | 4222 | `num → 0` | `const hi = peakSec[k] != null && motion.motionAtSec(peakSec[k]) > 0.5;` |
 | 4223 | `eq === → !==` | `if (hi && runStart === null) runStart = peakSec[k];` |
-| 4223 | `bool && → ||` | `if (hi && runStart === null) runStart = peakSec[k];` |
+| 4223 | `bool && → \|\|` | `if (hi && runStart === null) runStart = peakSec[k];` |
 | 4224 | `eq === → !==` | `if ((!hi \|\| k === det.peaks.length - 1) && runStart !== null) {` |
 | 4224 | `eq !== → ===` | `if ((!hi \|\| k === det.peaks.length - 1) && runStart !== null) {` |
-| 4224 | `bool && → ||` | `if ((!hi \|\| k === det.peaks.length - 1) && runStart !== null) {` |
-| 4224 | `bool || → &&` | `if ((!hi \|\| k === det.peaks.length - 1) && runStart !== null) {` |
+| 4224 | `bool && → \|\|` | `if ((!hi \|\| k === det.peaks.length - 1) && runStart !== null) {` |
+| 4224 | `bool \|\| → &&` | `if ((!hi \|\| k === det.peaks.length - 1) && runStart !== null) {` |
 | 4224 | `negate: drop !` | `if ((!hi \|\| k === det.peaks.length - 1) && runStart !== null) {` |
 | 4225 | `num → 0` | `evt(runStart, 'motion_artifact_segment', 0.3, {}, sqiAt(runStart));` |
-| 4243 | `bool && → ||` | `if (motion && motion.hasData && motion.grid && motion.dt) {` |
-| 4243 | `bool && → ||` | `if (motion && motion.hasData && motion.grid && motion.dt) {` |
-| 4243 | `bool && → ||` | `if (motion && motion.hasData && motion.grid && motion.dt) {` |
-| 4244 | `bool || → &&` | `const onsets = movementOnsets(motion.onsetGrid \|\| motion.grid, motion.dt` |
+| 4243 | `bool && → \|\|` | `if (motion && motion.hasData && motion.grid && motion.dt) {` |
+| 4243 | `bool && → \|\|` | `if (motion && motion.hasData && motion.grid && motion.dt) {` |
+| 4243 | `bool && → \|\|` | `if (motion && motion.hasData && motion.grid && motion.dt) {` |
+| 4244 | `bool \|\| → &&` | `const onsets = movementOnsets(motion.onsetGrid \|\| motion.grid, motion.dt` |
 | 4249 | `num → 0` | `for (const sec of onsets) evt(sec, 'movement_onset', 0.6, { streams: str` |
 | 4320 | `eq === → !==` | `if (typeof Blob === 'undefined' \|\| typeof URL === 'undefined' \|\| !URL.cr` |
 | 4320 | `eq === → !==` | `if (typeof Blob === 'undefined' \|\| typeof URL === 'undefined' \|\| !URL.cr` |
-| 4320 | `bool || → &&` | `if (typeof Blob === 'undefined' \|\| typeof URL === 'undefined' \|\| !URL.cr` |
-| 4320 | `bool || → &&` | `if (typeof Blob === 'undefined' \|\| typeof URL === 'undefined' \|\| !URL.cr` |
+| 4320 | `bool \|\| → &&` | `if (typeof Blob === 'undefined' \|\| typeof URL === 'undefined' \|\| !URL.cr` |
+| 4320 | `bool \|\| → &&` | `if (typeof Blob === 'undefined' \|\| typeof URL === 'undefined' \|\| !URL.cr` |
 | 4320 | `negate: drop !` | `if (typeof Blob === 'undefined' \|\| typeof URL === 'undefined' \|\| !URL.cr` |
 | 4372 | `eq !== → ===` | `var url = typeof Worker !== 'undefined' ? _buildWorkerURL() : null;` |
-| 4373 | `bool || → &&` | `if (!url \|\| !nCh) {` |
+| 4373 | `bool \|\| → &&` | `if (!url \|\| !nCh) {` |
 | 4373 | `negate: drop !` | `if (!url \|\| !nCh) {` |
 | 4373 | `negate: drop !` | `if (!url \|\| !nCh) {` |
 | 4392 | `cmp < → <=` | `for (var c = 0; c < nCh; c++) {` |
-| 4402 | `bool && → ||` | `if (++done === nCh && !settled) {` |
+| 4402 | `bool && → \|\|` | `if (++done === nCh && !settled) {` |
 | 4402 | `eq === → !==` | `if (++done === nCh && !settled) {` |
 | 4402 | `negate: drop !` | `if (++done === nCh && !settled) {` |
 | 4418 | `negate: drop !` | `if (!settled) serialFallback();` |
 | 4419 | `num → 0` | `}, 20000); // stall guard` |
-| 4521 | `bool || → &&` | `? { version: (opts.kernel.version != null ? opts.kernel.version : opts.k` |
-| 4521 | `bool || → &&` | `? { version: (opts.kernel.version != null ? opts.kernel.version : opts.k` |
-| 4529 | `bool || → &&` | `generated: opts.generated \|\| new Date().toISOString(),` |
-| 4530 | `bool || → &&` | `provenance: opts.provenance \|\| null,` |
+| 4521 | `bool \|\| → &&` | `? { version: (opts.kernel.version != null ? opts.kernel.version : opts.k` |
+| 4521 | `bool \|\| → &&` | `? { version: (opts.kernel.version != null ? opts.kernel.version : opts.k` |
+| 4529 | `bool \|\| → &&` | `generated: opts.generated \|\| new Date().toISOString(),` |
+| 4530 | `bool \|\| → &&` | `provenance: opts.provenance \|\| null,` |
 | 4538 | `eq !== → ===` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
-| 4538 | `bool && → ||` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
-| 4538 | `bool && → ||` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
-| 4538 | `bool && → ||` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
-| 4538 | `bool && → ||` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
-| 4561 | `bool && → ||` | `durSec: r.durSec != null && isFinite(r.durSec) ? r.durSec : null,` |
-| 4571 | `bool || → &&` | `siteSource: r.siteSource \|\| 'device-default'` |
+| 4538 | `bool && → \|\|` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
+| 4538 | `bool && → \|\|` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
+| 4538 | `bool && → \|\|` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
+| 4538 | `bool && → \|\|` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
+| 4561 | `bool && → \|\|` | `durSec: r.durSec != null && isFinite(r.durSec) ? r.durSec : null,` |
+| 4571 | `bool \|\| → &&` | `siteSource: r.siteSource \|\| 'device-default'` |
 | 4659 | `eq === → !==` | `return v == null \|\| (typeof v === 'number' && !isFinite(v)) ? null : v;` |
-| 4659 | `bool || → &&` | `return v == null \|\| (typeof v === 'number' && !isFinite(v)) ? null : v;` |
-| 4729 | `bool && → ||` | `const epochScale = r.lfRobust != null && r.hfRobust != null;` |
-| 4751 | `bool && → ||` | `respRateMethod: fq && fq.respRate != null ? 'RSA (HF-peak of RR spectrum` |
-| 4796 | `bool || → &&` | `position: e.position \|\| 'unknown',` |
-| 4806 | `bool && → ||` | `if (r.nn && r.nn.length && r.tt && r.tt.length === r.nn.length) {` |
-| 4806 | `bool && → ||` | `if (r.nn && r.nn.length && r.tt && r.tt.length === r.nn.length) {` |
-| 4806 | `bool && → ||` | `if (r.nn && r.nn.length && r.tt && r.tt.length === r.nn.length) {` |
-| 4822 | `bool && → ||` | `r.ppiFlags && r.ppiFlags.length === r.nn.length` |
-| 4835 | `bool && → ||` | `conf: r.ppiConf && r.ppiConf.length === r.nn.length ? r.ppiConf.slice() ` |
-| 4863 | `bool || → &&` | `for (var i = 0; i < n; i++) relSec[i] = i / (fs \|\| 1);` |
+| 4659 | `bool \|\| → &&` | `return v == null \|\| (typeof v === 'number' && !isFinite(v)) ? null : v;` |
+| 4729 | `bool && → \|\|` | `const epochScale = r.lfRobust != null && r.hfRobust != null;` |
+| 4751 | `bool && → \|\|` | `respRateMethod: fq && fq.respRate != null ? 'RSA (HF-peak of RR spectrum` |
+| 4796 | `bool \|\| → &&` | `position: e.position \|\| 'unknown',` |
+| 4806 | `bool && → \|\|` | `if (r.nn && r.nn.length && r.tt && r.tt.length === r.nn.length) {` |
+| 4806 | `bool && → \|\|` | `if (r.nn && r.nn.length && r.tt && r.tt.length === r.nn.length) {` |
+| 4806 | `bool && → \|\|` | `if (r.nn && r.nn.length && r.tt && r.tt.length === r.nn.length) {` |
+| 4822 | `bool && → \|\|` | `r.ppiFlags && r.ppiFlags.length === r.nn.length` |
+| 4835 | `bool && → \|\|` | `conf: r.ppiConf && r.ppiConf.length === r.nn.length ? r.ppiConf.slice() ` |
+| 4863 | `bool \|\| → &&` | `for (var i = 0; i < n; i++) relSec[i] = i / (fs \|\| 1);` |
 | 4863 | `cmp < → <=` | `for (var i = 0; i < n; i++) relSec[i] = i / (fs \|\| 1);` |
-| 4867 | `bool || → &&` | `amb: s.amb \|\| null,` |
-| 4873 | `bool || → &&` | `durSec: s.durSec != null ? s.durSec : n > 1 ? (n - 1) / (fs \|\| 1) : 0,` |
+| 4867 | `bool \|\| → &&` | `amb: s.amb \|\| null,` |
+| 4873 | `bool \|\| → &&` | `durSec: s.durSec != null ? s.durSec : n > 1 ? (n - 1) / (fs \|\| 1) : 0,` |
 | 4873 | `cmp > → >=` | `durSec: s.durSec != null ? s.durSec : n > 1 ? (n - 1) / (fs \|\| 1) : 0,` |
-| 4879 | `bool || → &&` | `siteSource: s.siteSource \|\| 'device-default',` |
-| 4880 | `bool || → &&` | `acc: input.acc \|\| null,` |
-| 4881 | `bool || → &&` | `gyro: input.gyro \|\| null,` |
-| 4882 | `bool || → &&` | `magn: input.magn \|\| null,` |
-| 4883 | `bool || → &&` | `devicePPI: input.devicePPI \|\| null,` |
-| 4884 | `bool || → &&` | `markers: input.markers \|\| null` |
+| 4879 | `bool \|\| → &&` | `siteSource: s.siteSource \|\| 'device-default',` |
+| 4880 | `bool \|\| → &&` | `acc: input.acc \|\| null,` |
+| 4881 | `bool \|\| → &&` | `gyro: input.gyro \|\| null,` |
+| 4882 | `bool \|\| → &&` | `magn: input.magn \|\| null,` |
+| 4883 | `bool \|\| → &&` | `devicePPI: input.devicePPI \|\| null,` |
+| 4884 | `bool \|\| → &&` | `markers: input.markers \|\| null` |
 | 4890 | `eq === → !==` | `typeof input === 'string' ? input : input && typeof input.text === 'stri` |
-| 4890 | `bool && → ||` | `typeof input === 'string' ? input : input && typeof input.text === 'stri` |
-| 4890 | `bool && → ||` | `typeof input === 'string' ? input : input && typeof input.text === 'stri` |
-| 4890 | `bool && → ||` | `typeof input === 'string' ? input : input && typeof input.text === 'stri` |
-| 4895 | `bool && → ||` | `if (opts.fname && !rec.fname) rec.fname = opts.fname;` |
+| 4890 | `bool && → \|\|` | `typeof input === 'string' ? input : input && typeof input.text === 'stri` |
+| 4890 | `bool && → \|\|` | `typeof input === 'string' ? input : input && typeof input.text === 'stri` |
+| 4890 | `bool && → \|\|` | `typeof input === 'string' ? input : input && typeof input.text === 'stri` |
+| 4895 | `bool && → \|\|` | `if (opts.fname && !rec.fname) rec.fname = opts.fname;` |
 | 4895 | `negate: drop !` | `if (opts.fname && !rec.fname) rec.fname = opts.fname;` |
 | 4961 | `eq === → !==` | `if (global.DexExport && typeof global.DexExport.scrubExport === 'functio` |
-| 4961 | `bool && → ||` | `if (global.DexExport && typeof global.DexExport.scrubExport === 'functio` |
+| 4961 | `bool && → \|\|` | `if (global.DexExport && typeof global.DexExport.scrubExport === 'functio` |
 | 4962 | `eq === → !==` | `if (typeof global.dexScrubExport === 'function') return global.dexScrubE` |
 

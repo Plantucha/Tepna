@@ -40,6 +40,7 @@
  *     --jobs N           worker pool          (default: cores − 2, min 2)
  *     --stall-min N      watchdog patience    (default 10)
  *     --max-restarts N   bounded auto-resume  (default 3)
+ *     --lane L           operators (default) | pseudo | delete   — see LANES; they are NOT comparable
  *     --quiet            no per-mutant lines, keep the heartbeat
  */
 import { execFileSync, spawn } from 'node:child_process';
@@ -82,6 +83,13 @@ const JOBS = Math.max(2, Number(opt('--jobs', String(Math.max(2, cpus().length -
 const STALL_MS = Math.max(60, Number(opt('--stall-min', '10')) * 60) * 1000;
 const MAX_RESTARTS = Math.max(0, Number(opt('--max-restarts', '3')));
 const QUIET = has('--quiet');
+/* An UNKNOWN lane is a stop, never a silent default. `--lane pseduo` running the operators lane and
+   reporting operator numbers under a pseudo heading is the shape of error this repo keeps paying for:
+   a run that succeeded at something other than what was asked. */
+const LANE = (() => {
+  const l = opt('--lane', 'operators');
+  return l;
+})();
 
 const log = (s) => process.stderr.write(s + '\n');
 const stateDir = () => {
@@ -121,6 +129,72 @@ export function mutantLine(rec, file) {
   if (!ks.length) return body + '\n      killed by: (the journal recorded no group — treat as unattributed)';
   const extra = ks.length > 1 ? '  (+' + (ks.length - 1) + ' more)' : '';
   return body + '\n      killed by: "' + String(ks[0]).slice(0, 88) + '"' + extra;
+}
+
+// ── the three lanes ────────────────────────────────────────────────────────────────────────────
+/*
+ * THREE KINDS OF MUTANT, ONE DRIVER. They answer different questions and this repo already had a
+ * tool for each; what it lacked was a way to run them under the same watchdog, resume and reporting.
+ *
+ *   operators  `mutate.mjs`         — change an operator (`<` → `<=`, `&&` → `||`). "Would anyone
+ *                                      notice if this comparison were wrong?"
+ *   pseudo     `extreme-mutate.mjs` — XMT/Descartes: empty a whole function body. A function whose
+ *                                      every extreme mutant survives is PSEUDO-TESTED — executed by
+ *                                      the suite, asserted by nothing. That is a different and
+ *                                      blunter finding than a surviving operator.
+ *   delete     `stmt-delete.mjs`    — remove one statement (PseudoSweep). Catches the statement that
+ *                                      no operator mutation can reach.
+ *
+ * They are NOT interchangeable and their numbers must never be added together: a pseudo-tested
+ * FUNCTION and a surviving operator MUTANT are different units. The driver keeps them in separate
+ * lanes and labels every output with which one produced it.
+ */
+export function groupTag(file) {
+  return basename(String(file)).replace(/\.js$/, '');
+}
+
+export const LANES = {
+  operators: {
+    tool: 'tools/mutate.mjs',
+    label: 'operator mutants',
+    unit: 'mutant',
+    parsed: true,
+    args: (file, jobs) => ['--file', file, '--limit', '9999', '--jobs', String(jobs), '--bail', '--json', '--quiet-stream'],
+    journal: (file) => join(ROOT, '.mutate-journal', file.replace(/[/\\]/g, '_') + '.jsonl')
+  },
+  pseudo: {
+    tool: 'tools/extreme-mutate.mjs',
+    label: 'pseudo-tested functions (XMT)',
+    unit: 'function',
+    parsed: false,
+    args: (file, jobs) => ['--file', file, '--group', groupTag(file), '--jobs', String(jobs), '--json', '--resume'],
+    journal: (file) => join(ROOT, '.mutation-sweeps', 'levela-' + String(file).replace(/[^A-Za-z0-9]+/g, '-') + '.jsonl')
+  },
+  delete: {
+    tool: 'tools/stmt-delete.mjs',
+    label: 'statement deletion',
+    unit: 'statement',
+    parsed: false,
+    args: (file, jobs) => ['--file', file, '--group', groupTag(file), '--jobs', String(jobs), '--json', '--resume'],
+    journal: (file) => join(ROOT, '.mutation-sweeps', 'levelb-' + String(file).replace(/[^A-Za-z0-9]+/g, '-') + '-' + groupTag(file).replace(/[^A-Za-z0-9]+/g, '-') + '.jsonl')
+  }
+};
+
+/**
+ * A MONOTONIC PROGRESS NUMBER THAT WORKS FOR ANY LANE.
+ *
+ * The watchdog only ever asks "did completed work increase?", and it must not need to understand a
+ * lane's record format to ask it — Level A and Level B journal different shapes through their own
+ * `ResumeLedger`. Byte length is monotonic, advances only when a verdict is appended, and cannot be
+ * faked by a process that is merely alive. For the operators lane the parsed verdict count is used
+ * instead, because it is the same signal with a unit a human can read.
+ *
+ * ⚠️ It must never fall back to mtime. A file can be touched without growing, and a watchdog that
+ * accepts "something happened to this file" as progress is the hung-vs-slow confusion again.
+ */
+export function progressSignal({ parsed, text, bytes }) {
+  if (parsed) return readJournalProgress(text || '').done;
+  return Number(bytes) || 0;
 }
 
 // ── the journal, read as progress ──────────────────────────────────────────────────────────────
@@ -197,28 +271,54 @@ function mapStatusFor(file, loaded, ident) {
 }
 
 // ── running one file ───────────────────────────────────────────────────────────────────────────
-function spawnSweep(file, resume) {
-  const args = ['tools/mutate.mjs', '--file', file, '--limit', '9999', '--jobs', String(JOBS), '--bail', '--json', '--quiet-stream'];
-  if (resume) args.push('--resume');
+function spawnSweep(file, resume, lane) {
+  const spec = LANES[lane];
+  const args = [spec.tool, ...spec.args(file, JOBS)];
+  /* The operators lane takes --resume as a flag we add; the other two already request it in their
+     own arg list, because their resume ledgers carry a fingerprint and refuse a stale one themselves. */
+  if (resume && lane === 'operators') args.push('--resume');
   return spawn('node', args, { cwd: ROOT, stdio: ['ignore', 'pipe', 'inherit'] });
 }
 
-async function runFile(file, ident, loaded) {
-  const jp = journalPath(file);
+/** The lane's progress number, whatever its record format. */
+function laneProgress(spec, jp) {
+  if (spec.parsed) {
+    try {
+      return { n: progressSignal({ parsed: true, text: readFileSync(jp, 'utf8') }), pr: readJournalProgress(readFileSync(jp, 'utf8')) };
+    } catch {
+      return null;
+    }
+  }
+  try {
+    return { n: progressSignal({ parsed: false, bytes: statSync(jp).size }), pr: null };
+  } catch {
+    return null;
+  }
+}
+
+async function runFile(file, ident, loaded, lane) {
+  const spec = LANES[lane];
+  const jp = spec.journal(file);
   const ms = mapStatusFor(file, loaded, ident);
   log('');
-  log('── ' + file);
-  log('   selection: ' + (ms.on ? 'ON — ' + ms.reason : 'OFF — ' + ms.reason + '\n              (falling back to the tag filter: slower, never wrong)'));
+  log('── ' + file + '   [lane: ' + lane + ' — ' + spec.label + ']');
+  /* Selection is an operators-lane concept: the map keys groups to LINES, and the other two lanes
+     mutate whole functions or statements through their own group filters. Saying "selection ON" for
+     them would claim a speedup that is not being applied. */
+  if (lane !== 'operators') log('   selection: n/a for this lane');
+  else log('   selection: ' + (ms.on ? 'ON — ' + ms.reason : 'OFF — ' + ms.reason + '\n              (falling back to the tag filter: slower, never wrong)'));
 
   let restarts = 0;
   const stalls = [];
   for (;;) {
     const resume = existsSync(jp);
-    if (resume) {
+    if (resume && spec.parsed) {
       const pr = readJournalProgress(readFileSync(jp, 'utf8'));
       log('   resuming: ' + pr.done + ' verdict(s) already recorded' + (pr.inFlight > 0 ? ', ' + pr.inFlight + ' will be re-tried or quarantined' : ''));
+    } else if (resume) {
+      log('   resuming: a ledger exists for this lane — the lane validates its own fingerprint and refuses a stale one');
     }
-    const child = spawnSweep(file, resume);
+    const child = spawnSweep(file, resume, lane);
     writeFileSync(pidFile(), JSON.stringify({ pid: process.pid, child: child.pid, file, startedAt: new Date().toISOString() }) + '\n');
 
     let out = '';
@@ -232,23 +332,25 @@ async function runFile(file, ident, loaded) {
     let printed = 0;
     const outcome = await new Promise((resolve) => {
       const tick = setInterval(() => {
-        let pr;
-        try {
-          pr = readJournalProgress(readFileSync(jp, 'utf8'));
-        } catch {
-          return; /* journal not created yet — mutant generation is still running */
+        const lp = laneProgress(spec, jp);
+        if (!lp) return; /* ledger not created yet — generation is still running */
+        const pr = lp.pr;
+        /* VERBOSE: every newly-recorded verdict, named, with its killer. Only the operators lane has
+           a record shape this driver understands; the other two stream their own native output on
+           inherited stderr, which is already per-subject and already labelled. Inventing a line for a
+           format we do not parse would be a summary of something never read. */
+        if (!QUIET && pr) {
+          for (let i = printed; i < pr.records.length; i++) log(mutantLine(pr.records[i], file));
+          printed = pr.records.length;
         }
-        /* VERBOSE: every newly-recorded verdict, named, with its killer. */
-        if (!QUIET) for (let i = printed; i < pr.records.length; i++) log(mutantLine(pr.records[i], file));
-        printed = pr.records.length;
 
-        const v = stallVerdict({ doneNow: pr.done, donePrev: seen, msSinceProgress: Date.now() - lastGrowth, stallMs: STALL_MS });
-        if (pr.done > seen) {
-          seen = pr.done;
+        const v = stallVerdict({ doneNow: lp.n, donePrev: seen, msSinceProgress: Date.now() - lastGrowth, stallMs: STALL_MS });
+        if (lp.n > seen) {
+          seen = lp.n;
           lastGrowth = Date.now();
         }
-        const pj = project({ done: pr.done, total: 0, elapsedMs: Date.now() - t0 });
-        if (pr.done && pr.done % 50 === 0)
+        const pj = project({ done: pr ? pr.done : 0, total: 0, elapsedMs: Date.now() - t0 });
+        if (pr && pr.done && pr.done % 50 === 0)
           log('   ♥ ' + pr.done + ' done · ' + pr.killed + ' killed · ' + (pj.perMin ? pj.perMin.toFixed(1) + '/min' : '?') + ' · elapsed ' + mmss((Date.now() - t0) / 1000));
         if (v.stuck) {
           clearInterval(tick);
@@ -280,34 +382,54 @@ async function runFile(file, ident, loaded) {
       } catch {
         /* fine */
       }
-      const pr = existsSync(jp) ? readJournalProgress(readFileSync(jp, 'utf8')) : { done: 0, killed: 0, survived: 0, invalid: 0 };
-      if (!QUIET) for (let i = printed; i < pr.records.length; i++) log(mutantLine(pr.records[i], file));
+      const pr = spec.parsed && existsSync(jp) ? readJournalProgress(readFileSync(jp, 'utf8')) : { done: 0, killed: 0, survived: 0, invalid: 0, records: [] };
+      if (!QUIET && spec.parsed) for (let i = printed; i < pr.records.length; i++) log(mutantLine(pr.records[i], file));
       const el = (Date.now() - t0) / 1000;
       /* The completion marker: written ONLY on a clean exit, and carrying the count it saw, so the
          inventory can say "complete" as a recorded fact rather than a guess about journal shape.
          A non-zero exit leaves no marker, which reads as `unknown` — correct, since a sweep that
          died mid-run has counts nobody should present as that file's result. */
-      const cv = canaryVerdict(parseSweepResult(out));
+      /* ── DO NOT SUMMARISE A LANE THIS DRIVER DOES NOT PARSE ──────────────────────────────────
+         The first version applied the operators-lane summary to every lane, and on a real pseudo run
+         it printed "0 tested · 0 killed · 0 survived" and then declared the file VOID — while
+         extreme-mutate had, on the same screen, reported its own canary PASSED, measured coverage at
+         27/52 functions, and classified 38. Every one of those zeros was this driver reporting on a
+         record format it never read, and the VOID came from looking for a `canary` key in a result
+         shape that does not carry one. Absence of a field I understand is not absence of a result.
+         So: counts and canary are reported only for the lane whose records are parsed here; the
+         others have already printed their own, natively, on inherited stderr. */
+      const cv = spec.parsed ? canaryVerdict(parseSweepResult(out)) : { publishable: true, canary: 'n/a', why: 'this lane reports its own result above; this driver does not parse its records' };
       if (outcome.code === 0)
         writeFileSync(
-          doneMarker(file),
-          JSON.stringify({ file, done: pr.done, killed: pr.killed, survived: pr.survived, invalid: pr.invalid, canary: cv.canary, publishable: cv.publishable, finishedAt: new Date().toISOString() }) +
-            '\n'
+          doneMarker(file, lane),
+          JSON.stringify({
+            file,
+            lane,
+            done: pr.done,
+            killed: pr.killed,
+            survived: pr.survived,
+            invalid: pr.invalid,
+            canary: cv.canary,
+            publishable: cv.publishable,
+            finishedAt: new Date().toISOString()
+          }) + '\n'
         );
-      log(
-        '   → ' +
-          pr.done +
-          ' tested · ' +
-          pr.killed +
-          ' killed · ' +
-          pr.survived +
-          ' survived · ' +
-          pr.invalid +
-          ' invalid · ' +
-          mmss(el) +
-          (stalls.length ? '  (auto-resumed after ' + stalls.length + ' stall(s))' : '')
-      );
-      log('   canary ' + cv.canary + ' — ' + cv.why);
+      if (!spec.parsed) log('   → finished in ' + mmss(el) + " — see the lane's own summary above (units: " + spec.unit + 's, not comparable with other lanes)');
+      else
+        log(
+          '   → ' +
+            pr.done +
+            ' tested · ' +
+            pr.killed +
+            ' killed · ' +
+            pr.survived +
+            ' survived · ' +
+            pr.invalid +
+            ' invalid · ' +
+            mmss(el) +
+            (stalls.length ? '  (auto-resumed after ' + stalls.length + ' stall(s))' : '')
+        );
+      if (spec.parsed) log('   canary ' + cv.canary + ' — ' + cv.why);
       if (!cv.publishable) log('   ⚠ VOID — this file measured NOTHING. Do not quote these counts; they are kept only for debugging.');
       /* An invalid mutant leaves the denominator SILENTLY, and a rate over a shrunken denominator
          looks healthy. ecgdex once ran 73 % invalid. Report it as a proportion, not just a count. */
@@ -466,7 +588,10 @@ async function cmdCluster(file) {
   log('\n  top 20 families cover ' + covered + ' of ' + surv.length + ' survivors (' + Math.round((100 * covered) / surv.length) + '%) — ADVISORY grouping only');
 }
 
-const doneMarker = (file) => join(stateDir(), basename(file) + '.done.json');
+/* Per LANE, not per file: a finished pseudo run says nothing about whether the operator sweep
+   completed, and one marker standing for both would let the inventory claim a completeness it never
+   observed. The inventory reads the operators marker, because those are the counts it reports. */
+const doneMarker = (file, lane = 'operators') => join(stateDir(), basename(file) + '.' + lane + '.done.json');
 
 /**
  * THE CANARY DECIDES WHETHER ANY OF THE OTHER NUMBERS MAY BE QUOTED.
@@ -607,6 +732,24 @@ function loadEquivalence() {
  * produced it lives and how to re-run it, so the file is self-locating for anyone who finds it
  * without context.
  */
+/**
+ * One markdown TABLE CELL, escaped in the right order.
+ *
+ * Three bugs lived in the one-liner this replaces, and only one of them was found by CodeQL:
+ *  1. it escaped `|` but not `\`, so a source line containing `\|` became `\\|` — a literal
+ *     backslash followed by an UNESCAPED pipe, which splits the row. DSP source is full of
+ *     backslashes (`/[/\\]/`, character classes, escaped quotes), so this was not hypothetical.
+ *  2. it truncated AFTER escaping, so the cut could land inside a `\|` pair and leave a trailing
+ *     backslash that escapes the closing backtick.
+ *  3. the OPERATOR column was not escaped at all — and operators are named `bool || → &&`. Every
+ *     such row has been splitting into extra columns for the whole document.
+ * Truncate first, then escape backslash, then escape pipe. Order is the whole of the fix.
+ */
+export function mdCell(text, max) {
+  const t = max ? String(text).slice(0, max) : String(text);
+  return t.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
+}
+
 export function renderInventory({ files, generatedAt, mapPath, staleClassifications = 0 }) {
   const L = [];
   const tot = files.reduce((a, f) => ({ done: a.done + (f.done || 0), killed: a.killed + (f.killed || 0), survived: a.survived + (f.survived || 0) }), { done: 0, killed: 0, survived: 0 });
@@ -733,7 +876,7 @@ export function renderInventory({ files, generatedAt, mapPath, staleClassificati
     L.push('');
     L.push('| line | operator | source |');
     L.push('|---:|---|---|');
-    for (const s of f.survivors) L.push('| ' + s.line + ' | `' + s.op + '` | `' + String(s.before).replace(/\|/g, '\\|').slice(0, 96) + '` |');
+    for (const s of f.survivors) L.push('| ' + s.line + ' | `' + mdCell(s.op) + '` | `' + mdCell(s.before, 96) + '` |');
     L.push('');
   }
   return L.join('\n') + '\n';
@@ -853,6 +996,19 @@ function selftest() {
   ck('parseSweepResult takes the LAST JSON line, past the progress stream', parseSweepResult('noise\n{"canary":"PASSED"}\ntrailing').canary, 'PASSED');
   ck('…and returns null when there is none, rather than a shape', parseSweepResult('no json here'), null);
 
+  console.log('\nLANES — three different questions, three different units, never added together');
+  ck('the three lanes exist', Object.keys(LANES), ['operators', 'pseudo', 'delete']);
+  /* A pseudo-tested FUNCTION and a surviving operator MUTANT are different units; labelling each lane
+     with its unit is what stops a reader summing them into a fleet number that means nothing. */
+  ck('…and each declares its unit', [LANES.operators.unit, LANES.pseudo.unit, LANES.delete.unit], ['mutant', 'function', 'statement']);
+  ck('only the operators lane has a record shape this driver parses', [LANES.operators.parsed, LANES.pseudo.parsed, LANES.delete.parsed], [true, false, false]);
+  ck('the group tag is derived, not configured', groupTag('oxydex-dsp.js'), 'oxydex-dsp');
+  ck('each lane journals somewhere different', new Set([LANES.operators.journal('a-dsp.js'), LANES.pseudo.journal('a-dsp.js'), LANES.delete.journal('a-dsp.js')]).size, 3);
+  /* Byte length is monotonic and only advances when a verdict is appended. It must never fall back to
+     mtime: a file can be touched without growing, and "something happened" is not progress. */
+  ck('progress for an unparsed lane is its ledger length', progressSignal({ parsed: false, bytes: 4096 }), 4096);
+  ck('…and zero when the ledger does not exist yet', progressSignal({ parsed: false, bytes: undefined }), 0);
+
   console.log('\ndiscoverFleet — a new node must not need this file edited');
   ck('finds every DSP', discoverFleet(['a-dsp.js', 'zz-dsp.js', 'README.md', 'clock.js']), ['a-dsp.js', 'zz-dsp.js']);
   /* The point: a node added tomorrow appears without anyone remembering to list it. */
@@ -915,6 +1071,21 @@ function selftest() {
   ck('a COMPLETE file stays complete despite unverdicted STARTs in its journal', classifySweep({ hasDoneMarker: true, markerDone: 1815, journalDone: 1815, file: 'ecgdex-dsp.js' }), 'complete');
   ck('another file being swept does not make this one in-flight', classifySweep({ runningFile: 'b.js', file: 'a.js', hasDoneMarker: true, markerDone: 5, journalDone: 5 }), 'complete');
 
+  console.log('\nmdCell — escape order is the whole of the fix');
+  const BS = String.fromCharCode(92);
+  ck('a pipe is escaped', mdCell('a|b'), 'a' + BS + '|b');
+  /* CodeQL found this one: escaping | without first escaping BS turns "a\\|b" into a literal
+     backslash followed by an UNESCAPED pipe, which splits the table row. DSP source is full of
+     backslashes, so it was never hypothetical. */
+  ck('a backslash is escaped FIRST, so the pipe stays escaped', mdCell('a' + BS + '|b'), 'a' + BS + BS + BS + '|b');
+  /* The operator column was never escaped at all — and operators are NAMED "bool || → &&", so every
+     such row had been splitting into extra columns for the whole document. */
+  ck('an operator containing || is escaped', mdCell('bool || → &&'), 'bool ' + BS + '|' + BS + '| → &&');
+  /* Truncating AFTER escaping can cut a two-character escape in half and leave a trailing backslash
+     that escapes the closing backtick. Slice first. */
+  ck('truncation happens BEFORE escaping', mdCell('aaaa|bbbb', 5), 'aaaa' + BS + '|');
+  ck('plain text is untouched', mdCell('ordinary source'), 'ordinary source');
+
   console.log('\nrenderInventory — a partial sweep must never read as a finished one');
   const fin = [{ file: 'a.js', done: 100, killed: 40, survived: 60, inFlight: 0, state: 'complete', survivors: [] }];
   const run = [{ file: 'b.js', done: 10, killed: 5, survived: 5, inFlight: 3, state: 'in flight', survivors: [] }];
@@ -973,7 +1144,27 @@ if (INVOKED_DIRECTLY) {
     const targets = files.length ? files : FLEET;
     const loaded = loadMap();
     const ident = buildIdentity(ROOT, targets);
-    log('MUTATION SUITE — ' + targets.length + ' file(s) · ' + JOBS + ' jobs · stall watchdog ' + Math.round(STALL_MS / 60000) + ' min · up to ' + MAX_RESTARTS + ' auto-resume(s)');
+    if (!LANES[LANE]) {
+      log('unknown --lane "' + LANE + '". Known lanes: ' + Object.keys(LANES).join(', ') + '. Refusing rather than running a different one.');
+      process.exit(2);
+    }
+    log(
+      'MUTATION SUITE — lane ' +
+        LANE +
+        ' (' +
+        LANES[LANE].label +
+        ') · ' +
+        targets.length +
+        ' file(s) · ' +
+        JOBS +
+        ' jobs · stall watchdog ' +
+        Math.round(STALL_MS / 60000) +
+        ' min · up to ' +
+        MAX_RESTARTS +
+        ' auto-resume(s)'
+    );
+    /* The roster is DISCOVERED, so print it: a discovered list that is wrong must be visible. */
+    if (!files.length) log('fleet discovered from the tree: ' + targets.length + ' DSP(s) — ' + targets.map((t) => t.replace('-dsp.js', '')).join(' '));
     log('map: ' + (loaded.path || 'none — run --build-map for the 10–100× selection path'));
     log('kill it with: node tools/mutation-suite.mjs --kill   (by PID — never pkill, see CLAUDE.md §👥.4)\n');
     const results = [];
@@ -982,14 +1173,19 @@ if (INVOKED_DIRECTLY) {
         log('skip ' + f + ' (not found)');
         continue;
       }
-      results.push(await runFile(f, ident, loaded));
+      results.push(await runFile(f, ident, loaded, LANE));
     }
     log('\n── suite done');
     for (const r of results)
       log(
         '   ' +
           String(r.file).padEnd(20) +
-          (r.incomplete ? 'INCOMPLETE — ' + r.reason : r.killed + ' killed of ' + r.done + (r.stalls && r.stalls.length ? '   (' + r.stalls.length + ' stall(s) auto-resumed)' : ''))
+          (r.incomplete
+            ? 'INCOMPLETE — ' + r.reason
+            : /* Only the parsed lane has counts this driver can stand behind; for the others the lane
+                 printed its own summary and repeating a zero here would contradict it. */
+              (LANES[LANE].parsed ? r.killed + ' killed of ' + r.done : 'ran — see the lane\u2019s own summary above') +
+              (r.stalls && r.stalls.length ? '   (' + r.stalls.length + ' stall(s) auto-resumed)' : ''))
       );
   }
 }
