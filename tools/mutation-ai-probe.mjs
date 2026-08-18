@@ -41,7 +41,7 @@
  *   node tools/mutation-ai-probe.mjs --file oxydex-dsp.js [--limit N] [--per-mutant K]
  *   node tools/mutation-ai-probe.mjs --selftest
  */
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, openSync, writeSync, readdirSync, statSync } from 'node:fs';
 import { basename, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
@@ -64,6 +64,7 @@ const ROOT = (() => {
 
 const HOST = 'http://127.0.0.1:11434';
 const MODEL = opt('--model', 'qwen3-coder:30b');
+const VERBOSE = !argv.includes('--quiet');
 const CTX = Number(opt('--ctx', '2048')); // larger than --draft's: the prompt carries function source
 
 /**
@@ -119,6 +120,8 @@ export function verdictFor(origStr, mutStr) {
   if (origStr.length > 100000) return { kill: false, why: 'output too large to record honestly' };
   return { kill: true, why: 'measured difference' };
 }
+
+const outDirFor = () => join(ROOT, '.mutation-crawl');
 
 function promptFor(fnName, fnSrc, before, after, op) {
   return (
@@ -241,6 +244,84 @@ export function functionIndex(src) {
   };
 }
 
+/**
+ * THE JOURNAL KEY for one probed mutant: line + operator + original text — the same triple the sweep
+ * journal uses, so a mutant is identified by WHAT IT CHANGES, not by its position in a list. A
+ * list-position key silently re-probes everything the moment the ordering shifts.
+ */
+export function probeKey(m) {
+  return [m.line, m.op, String(m.before || '').trim()].join(String.fromCharCode(0));
+}
+
+/**
+ * Which mutants are already answered, read from the append-only journal.
+ *
+ * ⚠️ THIS EXISTS BECAUSE THE FIRST VERSION WROTE ITS RESULT ONLY AT THE END. It was verbose and it
+ * was killable, and killing it destroyed everything: a run stopped at 109 of 1110 lost all 109
+ * probes and the 3 hits among them — which could not even be INSPECTED while it ran, because
+ * nothing was on disk. "Killable" without an incremental record is not killable; it is
+ * restartable-from-zero, which is the opposite of what the word promises.
+ */
+export function doneKeys(journalText) {
+  const done = new Map();
+  for (const line of String(journalText || '').split('\n')) {
+    if (!line) continue;
+    let o;
+    try {
+      o = JSON.parse(line);
+    } catch {
+      continue; // a torn last line from a kill is EXPECTED — skipped, never repaired
+    }
+    if (o && o.k) done.set(o.k, o);
+  }
+  return done;
+}
+
+/**
+ * THE CANARY — replay inputs the crawl already PROVED distinguishing, and refuse to probe at all if
+ * the harness fails to detect them.
+ *
+ * "0 newly killable" has two causes that are indistinguishable from outside: the model guessed
+ * badly, or the harness cannot detect a difference at all. This is not hypothetical — it happened
+ * here. `src.replace(before, after)` mutated the FIRST occurrence in the file instead of the
+ * mutant's line, and 4 of 6 proven-killable inputs came back "identical output". Every zero in that
+ * run would have been read as the model failing.
+ *
+ * A probe run whose canary does not fire is NOT a smaller result, it is NO result — the same rule
+ * `mutate.mjs` applies to its own canary, for the same reason.
+ */
+export function canaryFor(known, src, realm, loadFn, getFn) {
+  let checked = 0,
+    detected = 0;
+  const misses = [];
+  for (const k of known) {
+    let args;
+    try {
+      args = JSON.parse(k.input);
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(args)) continue;
+    const mutSrc = mutateAtLine(src, k.line, k.before, k.after);
+    if (!mutSrc) continue;
+    let mut;
+    try {
+      mut = loadFn(mutSrc);
+    } catch {
+      continue;
+    }
+    const target = k.callPath || k.call;
+    const a = getFn(realm, target),
+      b = getFn(mut, target);
+    if (typeof a !== 'function' || typeof b !== 'function') continue;
+    checked++;
+    if (verdictFor(resultString(a, args), resultString(b, args)).kill) detected++;
+    else misses.push(target);
+  }
+  /* checked > 0 is load-bearing: a canary that examined NOTHING must never read as green. */
+  return { checked, detected, misses, ok: checked > 0 && detected > 0 };
+}
+
 function selftest() {
   let fail = 0,
     ran = 0;
@@ -275,6 +356,29 @@ function selftest() {
   ck('…and says why, in terms that name the defect', /crash is not a contract/.test(verdictFor('THREW:x', 'null').why), true);
   ck('only the MUTANT throwing is a legitimate kill', verdictFor('null', 'THREW:boom').kill, true);
   ck('both throwing is not', verdictFor('THREW:a', 'THREW:b').kill, false);
+
+  console.log('\njournal — killable must mean "stop without losing what you did"');
+  ck('a key identifies WHAT changed, not a list position', probeKey({ line: 7, op: 'o', before: ' x ' }), probeKey({ line: 7, op: 'o', before: 'x' }));
+  ck('…a different line is a different mutant', probeKey({ line: 7, op: 'o', before: 'x' }) === probeKey({ line: 8, op: 'o', before: 'x' }), false);
+  const jt = '{"k":"a","v":"NONE"}\n{"k":"b","v":"KILL"}\n{"k":"c","v":"NON';
+  ck('answered mutants are read back', doneKeys(jt).size, 2);
+  ck('…a TORN last line from a kill is skipped, not repaired', doneKeys(jt).has('c'), false);
+  ck('…and the verdict survives, so a resume does not re-probe a hit', doneKeys(jt).get('b').v, 'KILL');
+  ck('an empty journal is an empty map, not a throw', doneKeys('').size, 0);
+
+  console.log('\ncanary — a run that detects nothing is NO result, not a small one');
+  const cSrc = 'function f(a) {\n  if (a < 3) return 1;\n  return 2;\n}';
+  const mkRealm = (t) => {
+    const o = {};
+    new Function('exports', t + '; exports.f = f;')(o);
+    return o;
+  };
+  const getf = (ctx) => ctx.f;
+  const proven = [{ call: 'f', line: 2, before: 'if (a < 3) return 1;', after: 'if (a <= 3) return 1;', input: '[3]' }];
+  ck('a proven-killable input IS detected', canaryFor(proven, cSrc, mkRealm(cSrc), mkRealm, getf).ok, true);
+  const wrongLine = [{ ...proven[0], line: 3 }];
+  ck('…and a mutation applied to the WRONG line is NOT detected — the failure mode', canaryFor(wrongLine, cSrc, mkRealm(cSrc), mkRealm, getf).ok, false);
+  ck('no checkable case at all is NOT ok — an empty canary must never read as green', canaryFor([], cSrc, mkRealm(cSrc), mkRealm, getf).ok, false);
 
   console.log('\nmutateAtLine — the bug the positive control caught');
   const dup = 'var T = 1;\nfunction f() {\n  var T = 1;\n  return T;\n}';
@@ -349,13 +453,56 @@ async function main() {
   log('  the model proposes INPUTS ONLY. Every one is RUN against real and mutant; nothing is believed.\n');
 
   const realm = loadRealm(src);
+  const path0 = (ctx, call) =>
+    String(call)
+      .split('.')
+      .reduce((o, k) => (o == null ? o : o[k]), ctx);
+
+  /* ── CANARY FIRST, ALWAYS ────────────────────────────────────────────────────────────────────
+     A probe run that cannot detect a KNOWN kill produces zeros indistinguishable from "the model
+     could not guess" — and the model takes the blame for a broken harness. That is not a risk, it
+     happened here: a whole-file `replace` mutated the wrong line and 4 of 6 proven-killable inputs
+     read as "identical output". So the harness proves itself against the crawl's own proven cases
+     before it is allowed to probe anything, and REFUSES rather than reporting an honest-looking 0. */
+  const proven = [];
+  for (const fi of crawl.findings || []) {
+    for (const m of fi.mutants || []) {
+      if (m.status === 'KILLABLE' && m.input) proven.push({ ...m, callPath: fi.callPath });
+    }
+  }
+  const can = canaryFor(proven.slice(0, 12), src, realm, loadRealm, path0);
+  if (!can.ok) {
+    log('⛔ CANARY DID NOT FIRE — ' + can.detected + ' of ' + can.checked + ' proven-killable inputs detected.');
+    log('   Every "none separated" this run would produce is meaningless, so it produces none.');
+    log('   Usual cause: the source moved since the crawl, so recorded lines no longer address this code.');
+    if (can.misses.length) log('   missed: ' + can.misses.slice(0, 6).join(', '));
+    process.exit(2);
+  }
+  log('  canary ✓ ' + can.detected + '/' + can.checked + ' proven-killable inputs detected — the harness can see a kill');
+
+  /* ── RESUME: append-only journal, flushed per mutant, so a kill costs at most one probe. ── */
+  const jOut = join(outDirFor(), basename(file) + '.ai-probe.jsonl');
+  mkdirSync(dirname(jOut), { recursive: true });
+  const done = existsSync(jOut) ? doneKeys(readFileSync(jOut, 'utf8')) : new Map();
+  if (done.size) log('  resuming — ' + done.size + ' mutant(s) already answered; they are skipped');
+  const jfd = openSync(jOut, 'a');
+  const record = (k, v, extra) => writeSync(jfd, JSON.stringify({ k, v, ...(extra || {}) }) + '\n');
+  log('  journal ' + jOut + '\n');
+
   const t0 = Date.now();
   const found = [];
+  for (const [, r0] of done) if (r0.v === 'KILL' && r0.hit) found.push(r0.hit);
   let tried = 0,
-    noProposal = 0;
+    noProposal = 0,
+    skipped = 0;
 
   for (let i = 0; i < pick.length; i++) {
     const t = pick[i];
+    const key = probeKey(t);
+    if (done.has(key)) {
+      skipped++;
+      continue;
+    }
     const fnSrc = functionSource(src, t.fn) || t.before;
     let inputs = [];
     for (let a = 0; a < 2 && !inputs.length; a++) {
@@ -368,16 +515,40 @@ async function main() {
     }
     const el = (Date.now() - t0) / 1000;
     const rate = (i + 1) / (el / 60);
+    /* A roll-up every 25 mutants: the per-line stream scrolls away, and "how is it actually going"
+       should not require the reader to tally it themselves. */
+    if (VERBOSE && i > 0 && i % 25 === 0) {
+      const seen = i + 1 - skipped;
+      log(
+        '  ── ' +
+          (i + 1) +
+          '/' +
+          pick.length +
+          '  kills ' +
+          found.length +
+          '  inputs run ' +
+          tried +
+          '  no-proposal ' +
+          noProposal +
+          '  yield ' +
+          (seen ? ((100 * found.length) / seen).toFixed(1) : '0') +
+          '%  elapsed ' +
+          Math.round((Date.now() - t0) / 60000) +
+          'm ──'
+      );
+    }
     const prog =
       '[' + String(i + 1).padStart(4) + '/' + pick.length + '  ' + rate.toFixed(1) + '/min  ETA ' + Math.round((pick.length - i - 1) / Math.max(rate, 0.01)) + 'm  found ' + found.length + ']';
     if (!inputs.length) {
       noProposal++;
+      record(key, 'NOPROPOSAL');
       log(prog + ' — ' + t.call + ' [' + t.op + ']  no parseable proposal');
       continue;
     }
 
     const mutSrc = mutateAtLine(src, t.line, t.before, t.after);
     if (!mutSrc) {
+      record(key, 'STALE');
       log(prog + ' — ' + t.call + '  recorded text is not on line ' + t.line + ' (source moved) — skipped, NOT whole-file replaced');
       continue;
     }
@@ -385,6 +556,7 @@ async function main() {
     try {
       mutRealm = loadRealm(mutSrc);
     } catch {
+      record(key, 'NOLOAD');
       log(prog + ' — ' + t.call + '  mutant does not load');
       continue;
     }
@@ -393,6 +565,7 @@ async function main() {
     const fnA = get(realm),
       fnB = get(mutRealm);
     if (typeof fnA !== 'function' || typeof fnB !== 'function') {
+      record(key, 'UNREACHABLE');
       log(prog + ' — ' + t.call + '  not reachable as a function');
       continue;
     }
@@ -409,16 +582,19 @@ async function main() {
       break;
     }
     if (!hit) {
+      record(key, 'NONE', { n: inputs.length });
       log(prog + ' — ' + t.call + ' [' + t.op + ']  ' + inputs.length + ' input(s), none separated');
       continue;
     }
-    found.push({ fn: t.fn, callPath: t.call, line: t.line, op: t.op, before: t.before, after: t.after, status: 'KILLABLE', ...hit });
+    const rec = { fn: t.fn, callPath: t.call, line: t.line, op: t.op, before: t.before, after: t.after, status: 'KILLABLE', ...hit };
+    record(key, 'KILL', { hit: rec });
+    found.push(rec);
     log(prog + ' ✓ ' + t.call + ' [' + t.op + ']  NOW KILLABLE');
     log('        input ' + hit.input.slice(0, 70));
     log('        real=' + hit.orig.slice(0, 46) + '   mutant=' + hit.mutant.slice(0, 46));
   }
 
-  const outDir = join(ROOT, '.mutation-crawl');
+  const outDir = outDirFor();
   mkdirSync(outDir, { recursive: true });
   const outPath = join(outDir, basename(file) + '.ai-probe.json');
   writeFileSync(
@@ -439,8 +615,71 @@ async function main() {
     )
   );
   const mins = (Date.now() - t0) / 60000;
-  log('\n  ' + found.length + ' newly KILLABLE of ' + pick.length + ' probed (' + tried + ' inputs run, ' + noProposal + ' with no parseable proposal) in ' + mins.toFixed(1) + ' min');
+  log(
+    '\n  ' +
+      found.length +
+      ' newly KILLABLE of ' +
+      pick.length +
+      ' (' +
+      skipped +
+      ' already answered, ' +
+      tried +
+      ' inputs run, ' +
+      noProposal +
+      ' with no parseable proposal) in ' +
+      mins.toFixed(1) +
+      ' min'
+  );
+  log('  journal: ' + jOut + '  — kill this at ANY time and re-run to resume from here');
   log('  → ' + outPath + '   (feed to `mutation-suite.mjs --draft --crawl-dir <dir>`)');
+}
+
+/**
+ * `--status`: read the journals and report, WITHOUT touching a running probe.
+ *
+ * Progress must be readable from the artefact, not from the process. Asking a running job how it is
+ * doing is how you end up killing it to find out — and the previous version of this tool had exactly
+ * that property: its only output arrived at the end, so a run in flight was unobservable.
+ */
+function cmdStatus() {
+  const dir = outDirFor();
+  if (!existsSync(dir)) return log('no probe journals yet at ' + dir);
+  const files = readdirSync(dir).filter((f) => f.endsWith('.ai-probe.jsonl'));
+  if (!files.length) return log('no probe journals yet in ' + dir);
+  let tot = 0,
+    kills = 0;
+  log('AI PROBE STATUS');
+  for (const f of files.sort()) {
+    const jp = join(dir, f);
+    const done = doneKeys(readFileSync(jp, 'utf8'));
+    const by = {};
+    for (const [, r] of done) by[r.v] = (by[r.v] || 0) + 1;
+    const k = by.KILL || 0;
+    tot += done.size;
+    kills += k;
+    const age = Math.round((Date.now() - statSync(jp).mtimeMs) / 1000);
+    log(
+      '  ' +
+        f.replace('.ai-probe.jsonl', '').padEnd(20) +
+        String(done.size).padStart(6) +
+        ' answered  ' +
+        String(k).padStart(4) +
+        ' kills  ' +
+        (done.size ? ((100 * k) / done.size).toFixed(1) : '0').padStart(5) +
+        '%  last write ' +
+        (age < 90 ? age + 's ago  ← ACTIVE' : age < 3600 ? Math.round(age / 60) + 'm ago' : Math.round(age / 3600) + 'h ago')
+    );
+    log(
+      '      ' +
+        Object.entries(by)
+          .map(([a, b]) => a + '=' + b)
+          .sort()
+          .join('  ')
+    );
+  }
+  log('  ' + '─'.repeat(60));
+  log('  TOTAL ' + tot + ' answered, ' + kills + ' newly killable (' + (tot ? ((100 * kills) / tot).toFixed(1) : '0') + '%)');
+  log('  A journal that is not being written is a run that is not going — check for a process before assuming it finished.');
 }
 
 const INVOKED_DIRECTLY = (() => {
@@ -452,5 +691,6 @@ const INVOKED_DIRECTLY = (() => {
 })();
 if (INVOKED_DIRECTLY) {
   if (has('--selftest')) process.exit(selftest());
+  else if (has('--status')) cmdStatus();
   else await main();
 }
