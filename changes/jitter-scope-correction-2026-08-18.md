@@ -28,3 +28,29 @@ median 14.7 MB.
 **The lesson:** "reproduces" is a claim about two measurements of the *same thing*, and corpus identity
 is part of the thing. I verified the method and the instrument, then asserted equivalence across an axis
 I had not checked.
+
+---
+
+**AND THE LIKE-FOR-LIKE RUN IS NOW DONE — the bound worked, and it withdraws the rest of my claim.**
+
+The baseline's corpus is named in the linked doc rather than the brief:
+`docs/PPGDEX-FINGER-HRV-VALIDATION-2026-08-03.md` §4 — `/home/michal/tepna-smoketest/captures/`, still
+on disk with 24 night dirs. Re-ran there with the documented flags, 11 nights:
+
+| | recorded 2026-08-03 | same corpus now | PSL tree now |
+|---|---|---|---|
+| Verity PPI-jitter | 8.36 ms | **4.71 ms** (IQR 4.57–5.07) | 6.09 ms |
+| `sdnnRobust` | +18.7 % | **5.89 %** (IQR −0.94–25.11) | 1.84 % |
+
+**Not a discrepancy — the bound doing its job.** `ppgdex-dsp.js` has taken 22 commits since 2026-08-03,
+including "the crystal axis ran backward" (#1229), which acts directly on beat timing. §5's rule is
+*after ≤ before*: **4.71 < 8.36** on identical data.
+
+🔴 **"The shipped `sdnnNote` string owes NOTHING" is withdrawn as stated.** `sdnnRobust` is **1.84 %** on
+the PSL tree and **5.89 %** on the baseline corpus against a ~±3.5 % bar — it **passes on one and fails
+on the other**, and the baseline IQR (−0.94 to 25.11) is too wide to call it stable there. The honest
+position is this brief's original one: **corpus-dependent and unsettled.** The +18.7 % → 5.89 %
+improvement is real; it is not the same as clearing the bar.
+
+The tool fix (blind to 54 files; now prints its denominator) is independent of all of this and stands.
+

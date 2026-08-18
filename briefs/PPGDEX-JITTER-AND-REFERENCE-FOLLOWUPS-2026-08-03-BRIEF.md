@@ -76,6 +76,41 @@ three things that outlive it.
 > selects by SIZE and the 15 largest (320–377 MB) are **all nocturnal**, while daytime files median
 > 14.7 MB. So the selection never contained anything for the filter to remove.
 >
+> 🔬 **AND THE LIKE-FOR-LIKE RUN IS NOW DONE — on the ORIGINAL corpus. The bound WORKED; my "no
+> correction owed" does NOT survive it.**
+>
+> The baseline's corpus is named after all, in the linked doc rather than here:
+> `docs/PPGDEX-FINGER-HRV-VALIDATION-2026-08-03.md` §4 — **`/home/michal/tepna-smoketest/captures/`**.
+> It is still on disk (24 night dirs), so the comparison this brief called impossible is available.
+> Re-ran there with the documented flags (`--device verity --sleep-only`), 11 nights:
+>
+> | | recorded 2026-08-03 | same corpus, 2026-08-18 | PSL tree, 2026-08-18 |
+> |---|---|---|---|
+> | Verity PPI-jitter | 8.36 ms | **4.71 ms** (IQR 4.57–5.07) | 6.09 ms (IQR 4.57–7.54) |
+> | `sdnnRobust` vs ECG | +18.7 % | **5.89 %** (IQR −0.94–25.11) | 1.84 % (IQR 0.73–3.36) |
+>
+> **This is not a discrepancy — it is the bound doing its job.** `ppgdex-dsp.js` has taken **22 commits**
+> since 2026-08-03, including *"the crystal axis ran backward — and was hiding real dropouts"* (#1229),
+> which acts directly on beat timing. §5's rule is *"the after-median may not exceed the before-median"*:
+> **4.71 < 8.36**, on identical data. The jitter genuinely improved, and the re-derivation form caught it
+> where a frozen constant could not have.
+>
+> 🔴 **What this costs my earlier claim: "the shipped `sdnnNote` string owes NOTHING" is NOT established,
+> and I withdraw it as stated.** `sdnnRobust` reads **1.84 %** on the PSL tree and **5.89 %** on the
+> baseline corpus, against a bar of ~±3.5 %. **It passes on one corpus and fails on the other**, and the
+> baseline corpus's IQR (−0.94 to 25.11) is far too wide to call the metric stable there at all. The
+> honest position is the one this brief started with — **the claim is corpus-dependent and unsettled** —
+> not "accurate, do not fix". The **+18.7 % → 5.89 %** improvement is real and worth recording; it is not
+> the same as clearing the bar.
+>
+> **What still stands:** the tool was blind to 54 wrist files and now is not, and it now prints its
+> denominator. Neither depends on any of the above.
+>
+> ⚠️ **The general fault, twice in one day, is asserting equivalence across an axis I had not checked.**
+> First corpus identity; then, having fixed that, I kept a conclusion that only one of the two corpora
+> supported. A measurement that disagrees between corpora is a statement about *corpus sensitivity*, and
+> reporting either number alone hides that.
+
 > **The lesson I take from over-claiming this:** "reproduces" is a statement about two measurements of
 > the *same thing*, and corpus identity is part of the thing. I verified the method and the instrument
 > and then asserted equivalence across an axis I had not checked at all.
