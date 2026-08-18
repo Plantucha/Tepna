@@ -181,7 +181,7 @@ function main() {
   console.log(
     '\nReleased ' +
       to +
-      '. Now:\n\n    node tools/build-docs.mjs   # projects v' +
+      '. Now:\n\n    node tools/build.mjs        # \u00a7\ud83d\udce6 re-stamps the fleet displayed version (manifestHash-INVARIANT: zero fixtures move); build:check reds until run\n    node tools/build-docs.mjs   # projects v' +
       to +
       ' into the deploy surfaces, then PRINTS the exact `git add` line for what it wrote\n' +
       '    # ↑ stage BOTH lists. The line below carries only what release.mjs itself wrote; every\n' +
