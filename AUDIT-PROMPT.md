@@ -182,6 +182,42 @@ at a time.
     `_pnn50 >= 1`; its neighbour `d_otr` gates `>= 0` and `null >= 0` is `true`. **A divergence between
     siblings is the single highest-yield grep in this codebase.**
 
+15. **The label that does not travel with its number — an artifact authoritative in FORM, unkeyed to its
+    CONTENT.** *(Added 2026-08-17 after four independent instances in ONE day, across four sessions.)* A
+    wrong value is survivable: it looks wrong, or it looks like nothing. **A wrong *label* on a right value
+    is not**, because it converts a search into a **confident wrong search** — absence makes you look, a
+    wrong pointer makes you *stop* looking. Hunt any place a **measurement** is printed beside a
+    **reference, unit, device, corpus, path or hash** that is **not selected by the same variable**.
+    **Measured instances:** `ppi-jitter-vs-ecg.mjs` labelled its device correctly at the top of the output
+    and printed `[Verity wrist reference: 5.92 ms]` at the bottom while defaulting to `--device o2ring` —
+    read through `| tail -20`, the top label was discarded, a **finger** median was compared to a **wrist**
+    reference, and the conclusion **inverted** (a written-up "non-reproduction" was actually the Verity
+    beating its own reference, 4.98 vs 5.92 ms at a 100 % beat-match rate) · `tools/build-docs.mjs` printed
+    a `git add` remediation of **nine paths, zero of which had changed**, omitting the one file it had just
+    rewritten · `tools/rebase-safe.mjs` printed **`verDex.html`** for `OverDex.html` — a remediation naming
+    a path that does not exist (a `.trim()` on porcelain) · after a rebase, `provenance/*.json` takes
+    main's copy wholesale, so a **`verifiedUnder` you just earned silently reverts to an unproven claim**
+    with the file's shape unchanged and every gate green.
+    **Three properties make this class expensive:**
+    (a) **A label at the top does not protect a number at the bottom.** Summaries are read through `tail`,
+    `grep`, and a glance at the last block, so a correct header is routinely discarded by the reader — this
+    class and `CLAUDE.md` §👥.4b's truncation trap **compose**, and each alone is survivable.
+    (b) **It survives self-review by construction** — the wrong label *is* the thing you would check
+    against. The 2026-08-17 instance was caught only when a **peer challenged a number already written into
+    a brief**; no gate, no re-read and no amount of care by the author would have surfaced it.
+    (c) **It is not the same as a stale value.** The form is intact, so integrity checks, schema checks and
+    diffs all pass; only the *binding between label and value* is broken, and nothing in this repo checks
+    bindings.
+    **How to hunt:** grep tools for format strings holding a **hardcoded** device/unit/corpus next to an
+    **interpolated** value; check every remediation line (`git add …`, "now run X") against
+    `git status --porcelain` or the filesystem rather than believing it; after any rebase re-verify fields
+    whose form is stable but whose content is authoritative (`verifiedUnder`, `manifestHash`, fixture
+    hashes) with `git show HEAD:<file> | grep -c <identifier>`; and ask of any report **"if this were
+    truncated to its last 20 lines, would a number lose its qualifier?"**
+    **The fix is always the same and it is not 'add a label':** make the label **travel with the number** —
+    repeat the device/unit/corpus on the line carrying the value, select the reference by the same variable
+    as the measurement, and if a reference cannot be keyed that way, **do not print it**.
+
 ---
 
 ## How to verify (use these — don’t eyeball)
