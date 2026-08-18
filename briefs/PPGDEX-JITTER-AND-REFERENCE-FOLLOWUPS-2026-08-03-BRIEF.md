@@ -102,8 +102,19 @@ single-device validation here should run a second device for that reason alone.
 
 - [x] **§5's regression bound RE-BASED 2026-08-03 (§6.1)** — and re-based to a *procedure*, not a number.
       Both figures were re-derived (Verity 8.36 ms · `sdnnRobust` +18.7 %); the **gap remains
-      unattributable** and is recorded as such. The shipped `sdnnNote` string is **still open** — a
-      compute-path edit to a user-facing accuracy claim, owner's call.
+      unattributable** and is recorded as such. ~~The shipped `sdnnNote` string is **still open** — a
+      compute-path edit to a user-facing accuracy claim, owner's call.~~
+      🔴 **SUPERSEDED 2026-08-18 — the shipped `sdnnNote` string owes NOTHING, and this line was the
+      dangerous half of a self-contradiction.** §1's resolution measures `sdnnRobust` at **median
+      1.84 %, IQR 0.73–3.36** over 14 nights — inside the ~±3.5 % bar the string claims. The +18.7 %
+      that made this "urgent" came from a tool that silently matched **0 of 1980** files on that corpus,
+      so it was never a measurement of the Verity at all.
+      ⚠️ **Struck through rather than deleted, because the two halves disagreed in the direction that
+      causes harm.** Once §1 was resolved this brief said "no correction owed" in one place and
+      "compute-path edit to a user-facing accuracy claim" in another. A reader ranking work by
+      Done-whens would have edited a **correct** shipped string — a regression produced by a brief
+      contradicting itself, not by anything in the code. **Resolving a finding means sweeping every
+      Done-when that cited it, not only the section it was found in.**
 - [x] **CVHR measured on sleep nights and adjudicated (§6.2), then RE-MEASURED on an enlarged corpus
       (§6.5, 2026-08-04): n = 9, median |Δ| 2.20 /h, IQR 1.50–3.00, 8/9 in band.** The IQR still sits
       entirely inside ±5, so the substance holds — but **n = 9 is still short of §3.1's ≥10-night bar**,
