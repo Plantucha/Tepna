@@ -345,6 +345,15 @@ printed `SKIP anchor` under-measured by however many it skipped.
   see §5.2). **Closed: 43 killed, 2 proven equivalent.**
 * ~~A decision is recorded on the `log.*` argument survivors.~~ **DONE 2026-08-08** — reclassified
   PROSE (§5.1). 160 moved; the ceiling was deliberately left where it was.
-* `--list`-before-`--only` is added to `MUTATION-AUDIT-RUNBOOK` alongside the name-form rule in §2,
+* ~~`--list`-before-`--only` is added to `MUTATION-AUDIT-RUNBOOK` alongside the name-form rule in §2~~
+  **DONE 2026-08-18** — added as §1's **eighth** entry (the section was titled "Seven ways" and
+  retitled), carrying the name-form table (`_now` → `x__now__`, two underscores; `run_polar` →
+  `x_run_polar__`, one) and the reason it belongs in that section rather than in §2: a wrong filter
+  makes the results dump read `not checked` for **every** mutant, which is the **third** distinct
+  cause of that same output alongside a mid-run read and a poisoned baseline. The dump cannot tell
+  them apart, so `--list` first is the only cheap discriminator.
   **and the text-anchor kill-checker is retired repo-wide in favour of §5.4's verified line map** —
   any earlier pass that printed `SKIP anchor` under-measured by however many it skipped.
+  ⚠️ *This second half is UNVERIFIED by me: no tool under `tools/` or `capture-host/tools/` still
+  emits `SKIP anchor`, which is consistent with retirement but is equally consistent with it never
+  having lived there. Left open rather than ticked on absence-of-evidence.*
