@@ -96,7 +96,25 @@ Recorded here because it was found executing this brief and would otherwise be l
 - [x] a real `*_PMDARRIVAL.csv` exists, its rows are non-degenerate, and `estimate` has been run on it
 - [x] the ring leg's `OXYLIVE_DURATION_S` pairing tested — it does NOT produce a usable fit (3851 ppm)
 - [ ] within-connection constancy tested by halves, and the result recorded either way
+      **BLOCKED ON THE SIDECAR, checked 2026-08-18 — and this is the SAME measurement as
+      `PAT-RELATIVE-REFRAME-2026-08-17-BRIEF.md` §5's "within-connection offset stability", which now
+      carries the full finding.** Recorded here too because two briefs hold the same open item, and a
+      reader arriving from either should not have to rediscover the blocker.
+      The tooling exists — `patDipEvents` already consumes `opts.segments`, and `pat-align.js:335`
+      states the assumption under test (the per-connection BLE offset being constant within a
+      connection). What is missing is **connection boundaries**: the local `uploads/captures` corpus
+      (6 nights, 2026-07-31 → 08-16) carries none, its only structured file being `QC-SUMMARY.json`
+      with zero occurrences of `connection`/`segment`/`disconnect`.
+      ⚠️ **Do not substitute `sessions`.** On 2026-08-14 there are exactly 3 sessions and 3 Verity
+      `_PPG.txt` files, so they look interchangeable — but the first session spans **43 123 s (12 h)**
+      and a single BLE link does not survive that here. Halving a session would measure constancy
+      **across reconnects** and report it as constancy **within a connection**, inverting the very
+      result this box exists to establish.
 - [ ] the anatomical sign re-checked after correcting both legs
+      **GATED ON THE BOX ABOVE** (checked 2026-08-18): §5 states the correction must not be consumed
+      until §3 shows it repairs the sign, and §3 rests on the constancy test. So both remaining items
+      are blocked on one missing input — sidecar nights from vigil — not on two separate pieces of
+      work. Sequence them together when that data lands.
 - [x] `mutate_diff.py` refuses instead of greening when mutmut is missing — **DONE 2026-08-15.**
       Two guards, because one is not enough. A **preflight** (`refusal_reason`, pure and pinned by
       `--selftest`) refuses with **exit 2** when the venv or mutmut is absent; a **post-loop** guard
