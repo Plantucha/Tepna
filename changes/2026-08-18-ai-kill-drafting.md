@@ -48,16 +48,32 @@ verification detects that, because the mutant dies either way. The output is a p
 
 | config | accepted | s/case | tok/s | accepted drafts/min |
 |---|---|---|---|---|
-| `qwen3.6:35b-a3b` ctx16384 | 7/10 | 17.4 | 1.8 | 2.4 |
+| `qwen3.6:35b-a3b` ctx16384 *(was)* | 7/10 | 17.4 | 1.8 | 2.4 |
 | `qwen3.6:35b-a3b` ctx1024 | 7/10 | 13.9 | 2.2 | 3.0 |
+| `qwen3.6:27b` ctx1024 | 7/10 | 1.7 | 31.1 | 24.7 |
 | `qwen3.8:27b` ctx1024 | 8/10 | 1.6 | 35.5 | 30.0 |
-| **`mistral-small` ctx1024** | **8/10** | **1.1** | **40.8** | **43.6** |
+| `mistral-small` ctx1024 | 8/10 | 1.1 | 40.8 | 43.6 |
+| `qwen2.5-coder:7b` ctx1024 | 6/10 | 0.4 | 106.7 | 90.0 |
+| **`qwen3-coder:30b` ctx1024** | **8/10** | **0.7** | **106.9** | **68.6** |
 
-⚠️ **The 18× is a VRAM-fit cliff, not model quality, and the direction is counter-intuitive: the
+⚠️ **The fastest model is deliberately NOT the default, because the corpus is finite.** There are
+346 killable mutants, not an endless stream, so what matters is how many ever get a draft —
+**coverage** — not how fast drafts appear. `qwen2.5-coder:7b` posts the highest drafts/min and still
+leaves 4 of 10 uncovered; retries cannot rescue a case a model simply cannot do. It also missed the
+one case with independent ground truth. Ranking on the headline rate alone would have picked it.
+
+SWE-bench was not used to choose: it measures agentic coding, while this lane is short structured
+extraction with a machine verifier. The verifier is stronger evidence here than any leaderboard.
+
+⚠️ **The 29× is a VRAM-fit cliff, not model quality, and the direction is counter-intuitive: the
 BIGGEST model is the slowest by an order of magnitude.** This box has a 20 GB RX 7900 XT;
 `qwen3.6:35b-a3b` is 23 GB, so ~17 % spills to CPU and it runs at **1.8 tok/s** — absurd for a
 3B-active MoE, and that absurdity is the tell. MoE suffers most from a spill because expert weights
-scatter across the bus. Every model that *fits* runs 30–41 tok/s regardless of family.
+scatter across the bus. Every model that *fits* runs 31–107 tok/s regardless of family.
+
+The clincher: **`qwen3-coder:30b` is the same architecture that lost** — MoE, ~3 B active — and wins
+by **59× on tok/s** purely because 18 GB fits in 20464 MiB where 23 GB does not. Verified rather than
+inferred: `ollama ps` reports `100% GPU`, card reads 18352 MiB used.
 
 ⚠️ **"Give it a bigger context" was measured as the wrong lever.** This lane's prompts are 216–509
 tokens (p50 253); 16384 → 1024 bought 20 % and moved the split only 83 → 84 %, because it is the
@@ -66,7 +82,7 @@ tokens (p50 253); 16384 → 1024 bought 20 % and moved the split only 83 → 84 
 **Retries now fire on any rejection, and change the sampling.** At temperature 0 the model is
 deterministic, so re-asking is a re-run, not a second try; attempt 1 is greedy and retries move to
 Qwen's published sampling. On the real lane this took the pilot from **2.9 → 35.2 drafts/min with 0
-rejected** (was 1 of 8).
+rejected** (was 1 of 8), and to **90.3/min** once the model fit the card — 31× end-to-end.
 
 101 selftests; **10/10 planted mutations caught**. Two were only caught after the assertions were
 strengthened: the charset allowlist had no test of its own (every escape case was also caught by the
