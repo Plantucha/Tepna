@@ -111,12 +111,28 @@ better — but the headline figure must not be quoted again without a measuremen
   `hrvdex-dsp.js:853` and `:866`, and all six were killed by one group —
   **"HRVDex Phase-9 — compute() surface + summary adapter"**.
 
-**Root cause, located but not fixed.** The three Phase-9 groups (indices 314, 323, 338) attribute
-**0 hrvdex lines** in the map, while demonstrably killing mutants on those lines — a test cannot kill
-a mutant on a line it does not execute, so the coverage measurement for those groups is wrong. They
-are **not** flagged `unknown: true`, so the fail-closed path never fires: an empty attribution is
-treated as "executes nothing", which is indistinguishable from "nothing was recorded". Line 853 is
-not in the baseline either, so the baseline-selects-everything escape does not apply.
+**Root cause: NOT determined. Two measurements contradict each other, and I have not resolved which
+is wrong.** Stated plainly because the first version of this section asserted a cause it had not
+proven.
+
+The killing group is **index 338, `HRVDex Phase-9 — compute() surface + summary adapter`** (an
+earlier note here listed 314/323/338 — those are PulseDex's and OxyDex's Phase-9 groups, matched by a
+regex that was not anchored to the node. Only 338 is relevant; the finding survives, the supporting
+detail did not).
+
+- The **mutation run** says group 338 kills mutants at `hrvdex-dsp.js:853` and `:866`.
+- A **direct c8 run of group 338 alone** says it executes 384 hrvdex lines — *exactly the load-time
+  baseline count* — and **not** 853 or 866.
+
+A test cannot kill a mutant on a line it never executes, so one of those is false. It is **not**
+baseline subtraction: 853 is absent from the raw coverage, not removed from it. Candidates not yet
+separated: c8 under-reporting for `vm.runInContext`-loaded code in the per-group runs (this file's
+history has one such bug already); or `--bail` making the journal's `ks` name only the first failing
+group, so the recorded killer is not the whole story.
+
+What is certain and sufficient to act on: the map attributes **0** lines to a group without flagging
+it `unknown: true`, so the fail-closed path never fires — an empty attribution reads as "executes
+nothing", indistinguishable from "nothing was recorded" — and six real kills were lost.
 
 **The map is QUARANTINED** (`per-group.json.QUARANTINED-underselects` in the git common dir).
 Sweeps fall back to the tag filter — slower and correct. **Do not restore it** until the empty
