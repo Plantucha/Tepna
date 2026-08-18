@@ -9,7 +9,7 @@ failure modes that do not look like failures. Read §1 before your first run.
 
 ---
 
-## 1 · Seven ways a run fails while looking fine
+## 1 · Eight ways a run fails while looking fine
 
 None of these prints anything resembling a test failure. Each cost an hour before it was recognised.
 
@@ -104,6 +104,33 @@ your own command line — that kills your shell (exit 144; it happened three tim
 until ! (ps -eo pid=,comm= | awk '$2 ~ /^python/ {print $1}' \
          | while read p; do tr '\0' ' ' < /proc/$p/cmdline | grep -q 'mutate.py <mod>' && echo x; done \
          | grep -q x); do sleep 20; done
+```
+
+**⚠️ A WRONG `--only` FILTER AND A POISONED BASELINE ARE INDISTINGUISHABLE AT THE OUTPUT — `--list`
+before `--only`.** Cost a **978-second** run (`RUN-POLAR-MUTATION-PASS` §2).
+
+mutmut names a mutant `x` + the function name **verbatim**, so the underscores are not decorative:
+
+| function | mutant name | why |
+|---|---|---|
+| `_now` | `x__now__` | **two** — the function itself starts with `_` |
+| `run_polar` | `x_run_polar__` | **one** |
+
+So `--only 'capture.x__run_polar__*'` matches **nothing**. Copying the fleet brief's
+`capture.x__now__*` example is what produces the wrong form, because that example is correct *for its
+own function*.
+
+The failure is invisible in the way this section exists to catalogue. mutmut asserts *"Filtered for
+specific mutants, but nothing matches"*; `tools/mutate.py` surfaces it as `rc=1` with a **truncated**
+traceback, and the results dump then reads **`not checked` for every mutant**.
+
+That is the third distinct cause of the same output — a mid-run read, a poisoned baseline, and now a
+filter that matched nothing all print an all-`not checked` dump. **The dump does not identify which
+one you have**, so `--list` first is not a nicety: it is the only cheap way to tell a typo from a
+broken run before spending sixteen minutes on it.
+
+```sh
+mutmut list | grep 'capture\.x_run_polar' | head        # confirm the NAME exists, then filter on it
 ```
 
 ---
