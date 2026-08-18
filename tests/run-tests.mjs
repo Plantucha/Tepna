@@ -452,6 +452,10 @@ function readSources() {
     'hrvdex-render.js',
     'pat-gate.js',
     'pat-align.js',
+    // Worker SOURCE text for the anti-inertness scan: pat-gate's clock refusals are only as real as the
+    // arguments its one runtime caller passes, and that caller is a Web Worker no behavioural test can
+    // drive (O2RING-PHASE4-PREMISE-REVIEW §4).
+    'pat-feasibility-worker.js',
     'signal-orchestrate.js',
     'dex-ingest.js',
     'cpapdex-dsp.js',

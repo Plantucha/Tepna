@@ -199,6 +199,13 @@ const SOURCE_FILES = ['tools/trio-batch.mjs','tools/pat-host-offset.mjs',
  // duration class gate surfaced it by asking all 8 node builders the same question and getting a hole
  // for exactly one — which is what a fleet gate is for. Node's run-tests.mjs already lists it.
  'motiondex-dsp.js',
+ /* pat-feasibility-worker.js — SOURCE text for `pat-align · regression`'s anti-inertness scan, which
+    asserts every `PATGate.verdict(...)` call in the worker passes an axis (a 3-arg call left the gate's
+    clock refusals unreachable; O2RING-PHASE4-PREMISE-REVIEW §4). Added to run-tests.mjs and NOT here
+    first, which reds this lane — the sibling of the motiondex-dsp.js hole above and its opposite:
+    that one had nothing to read and passed VACUOUSLY, this one asserts its own readability and so
+    fails loudly instead. The loud version is the one to copy. */
+ 'pat-feasibility-worker.js',
  /* FOLLOWUPS §3 — both cohort recall sites; the Node lane lists the same pair. */
  'cohort-regression.js','cohort-runner.html',
   /* DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS §AD — the ANALYSIS lane's two OxyDex consumers. Their text is
