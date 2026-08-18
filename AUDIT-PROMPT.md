@@ -369,3 +369,16 @@ REFUTED list (resolve it — one of you is wrong); **(2)** did you each find a *
 merge them or a partial fix ships); **(3)** does their evidence *demonstrate* one of your findings under a
 different reading. Convergence between independent passes is the strongest signal available here — and
 **where two passes overlapped in 2026-07-18 they agreed, with zero contradictions across 72 findings.**
+
+**⚠️ But convergence counts ONLY when the passes are METHODOLOGICALLY independent — two runs of one method
+are not two passes.** The 2026-07-18 agreement was strong because the passes came at the tree from
+genuinely different directions (JS compute paths vs the Vigil↔suite seam). Contrast 2026-08-17, measured:
+two sessions independently searched for a metric by its **registry id and labels**, both got zero, and
+both concluded it was unsurfaced — while `oxydex-render.js:2711` was rendering a titled section of
+**eight `metric()` cards** from it under the accessor `n.desat`, whose member labels appear nowhere in the
+registry. **The agreement was correlated method, not corroboration**, and it was worth nothing: one
+name-keyed grep run twice returns the same blind spot twice. What surfaced it was a *third* session whose
+**count** disagreed — and, separately, one of the two greps had in fact found the render lines and
+discarded them through `| head -12` (§👥.4b, committed inside an investigation *of* method failure).
+**So: when two of you agree, ask what METHOD each used before treating it as evidence — and rank a
+disagreement that comes from a different instrument above an agreement that comes from the same one.**
