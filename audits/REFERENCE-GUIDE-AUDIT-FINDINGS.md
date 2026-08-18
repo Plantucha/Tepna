@@ -263,4 +263,153 @@ judgement. The two honest routes:
 
 (b) needs no literature and matches an in-repo precedent; (a) is better if the band exists. Either is a
 render change → OxyDex re-bundle, so it should be scheduled rather than folded into an audit pass.
-**Owner's call.**
+~~**Owner's call.**~~
+
+### RESOLVED 2026-08-18 — (a) DOES NOT EXIST, so (b) is determined rather than chosen
+
+The call presupposed there was a number to pick. There is not, and searching settled it rather than
+deciding it — which is a stronger disposal, because a decision would need re-deciding the moment someone
+found a paper.
+
+**There is no consensus ODI-3 severity ladder.** What the literature carries for ODI-3 are
+**population-specific DIAGNOSTIC cut-offs against AHI**, and they scatter by cohort: ODI-3 ≥ 4.3 /hr for
+AHI ≥ 5 (ring oximeter, n = 164; and ≥ 4.3 in snoring children, n = 112), ≥ 13.1 for AHI ≥ 15, > 12 for
+AHI ≥ 5 at 100 % specificity but ≥ 26 for AHI ≥ 15 (n = 1141 + 1141), ≥ 10 in infants. A diagnostic
+threshold answers "is disease present against this reference", not "how severe is it" — different
+question, and the numbers do not form a ladder.
+
+**And the borrow was not neutral.** ODI-3 vs AHI-flow concordance is only **fair (κ = 0.32)**, with ODI-3
+systematically classifying *more* severe (Senaratna 2019, n = 296). So the site that imported ODI-4's
+bands unchanged was not making a conservative approximation — it was biased toward over-calling, in the
+direction that matters clinically.
+
+**Fixed, both sites, four metrics** — all now `neutral` / ungraded:
+
+| metric | was (smart summary) | was (night detail) |
+|---|---|---|
+| `odi3.rate` | `<5` / `<15` ← ODI-4's band verbatim | `<15` / `<30` ← shifted a notch |
+| `hrSdnn` | `>=3` / `>=2` | `>=4` / `>=2.5` |
+| `hrFloor` | `<=52` / `<=60` | `<=55` / `<=65` |
+| `hrSlope` | `<=0` / `<1` | `<0` / `<1.5` |
+
+`severity-ladder-audit` goes **5 conflicting → 1**, the survivor being the audit's own documented false
+positive (`hrvdex — v`, a shared local name colliding across unrelated metrics).
+
+**The three HR proxies rest on a different and stronger argument than ODI-3**, and it is worth keeping
+distinct: they are OxyDex-derived 1 Hz statistics with no external literature, so "no published band" is
+trivially true and proves little. What condemns them is the **internal contradiction** — two ladders means
+at least one is invented, and a reader saw the same night called two things on two screens. The precedent
+is *inside the same block*: `RMSSD` and `Noc. Dip` were **already** `neutral` for being 1 Hz proxies, and
+Night Detail already labels the section *"(relative comparison only)"* — a relative measure carrying a
+good/warn/bad ladder contradicts its own label. These three were the inconsistent members of a block that
+had already decided the question.
+
+⚠ **`odi3` keeps `evidence: 'validated'`, deliberately, and the distinction is the point.** The tier is
+for the **measurement** — AASM defines a 3 % desaturation index and counting it is validated — **not for a
+severity band**, which is exactly what has just been shown not to exist. A metric's evidence tier does not
+transfer to a ladder applied to it. Do **not** reconcile the two by restoring a ladder because the badge
+says `validated`; that is the wrong direction, and it is the `desatProfile` shape (a tier attached to
+something the code declines to adjudicate). If a published band is ever found, cite it and grade **both**
+sites at once — never one.
+
+The guide now states this at the ODI selection note, so the surface and the code agree.
+
+
+## Dimension-2 sweep, 2026-08-18 — two formulas the guide printed and the code does not compute
+
+Dimension 2 asks that a displayed formula match what the node actually computes. Swept mechanically:
+extract every formula block from `OxyDex Reference.html`, pull its distinctive numeric constants, and
+check each against the **whole** OxyDex source set. **113 formulas; 23 carry a distinctive constant; 3
+flagged; 2 real.**
+
+⚠ **The first run said 6, and 3 of those were my own denominator error** — the corpus was
+`oxydex-dsp.js` + `oxydex-render.js` only, while OxyDex is **8 files**; Karvonen lives in
+`oxydex-profile.js` and was "absent" solely because nothing had read it. Fixing the corpus took 6 → 3.
+The remaining false positive is `Azarbarzin 2019` (a citation card quoting a paper's cohort sizes and
+hazard ratio — described, never implemented), which is the shape the sweep should over-flag rather than
+miss.
+
+### LTHR — a different FORMULA, not a different constant
+
+| | |
+|---|---|
+| guide printed | `LTHR ≈ HR_rest + HRR × 0.87` — an HRR/Karvonen fraction, **uncited** |
+| code computes | `Math.round(hrMax * 0.88)` (`oxydex-dsp.js:6192`) — a fraction of **HRmax**, cited **Seiler 2010** |
+
+Not a typo: the two have different *structure*, so they diverge as a function of the user's resting HR.
+At HRmax 180 / HRrest 60 the guide's version reads **164.4 bpm** against the app's **158.4** — **6 bpm
+high** — and the gap moves with HRrest, so no single correction to the constant would reconcile them.
+The guide was corrected to state what the code computes, carrying the code's citation; the old text is
+struck rather than deleted, so a reader who remembers the HRR form sees it was withdrawn.
+
+### MAF — the formula is right and incomplete, which is worse than wrong
+
+Guide printed `MAF HR = 180 − age`. The code computes `180 − age` **and then adjusts**: `+5` when
+readiness ≥ 85, `−10` when readiness < 55 (`oxydex-dsp.js:6180–6188`). So a reader computing the printed
+formula by hand gets a number the app never shows — up to **10 bpm** apart — and nothing on the card
+said an adjustment existed. Now documented inline.
+
+### Not a finding, recorded so it is not re-investigated
+
+`SpO₂ FFT` flagged for `0.003`. The card says the dominant frequency is sought in `0.003 – 0.1 Hz`; the
+code carries no fixed probe grid at all — `OXYDEX-FFT-CYCLE-NULL-2026-08-16` replaced the hand-picked
+probes with **the record's own Fourier bins** plus a Mann & Lees (1996) red-noise significance test, so
+there is no band constant to match and the guide's range describes the search envelope rather than a
+literal. Left alone; the card's own text is not wrong, and inventing a constant to satisfy a sweep would
+be the defect this audit exists to catch.
+
+
+### Fleet sweep + the defect the sweep found by REFUSING to be helpful
+
+`tools/formula-constant-audit.mjs` (new; the dimension-2 sibling of `severity-ladder-audit.mjs`) over all
+7 guides: **381 formulas · 67 carry a distinctive constant · 6 flagged**, all six now explained —
+3 ECGDex band cards printing exact period reciprocals of the Hz bands the code uses (`1/0.15 = 6.7 s`),
+OxyDex's FFT card (no fixed probe grid exists), and two citation cards quoting a paper's cohort
+(`Azarbarzin`) and Beer–Lambert wavelengths (`Jubran`) — described, never implemented.
+
+**Five UNTERMINATED character references were live in `OxyDex Reference.html` — and, because the served
+copy is generated from it, they were live ON THE DEPLOY SURFACE.** `docs/OxyDex Reference.html` carried
+all five, so a reader of the *published* guide saw `널.8` where an accuracy spec belongs and
+`କ events/hr` in a threshold sentence. **This is a shipped user-facing defect, not source hygiene**, and
+the two get triaged very differently by whoever reads this next: the first asks "who saw it and for how
+long", the second asks "tidy it when convenient". Both copies are fixed here, the served one by
+`build-docs` regenerating from the corrected source.
+
+They render as the wrong glyph: `SEE &#xB110.8` is missing its `;`, so a browser consumes hex greedily: `&#xB110` is
+U+B110 and renders **널** — a Hangul syllable where **±** was intended. Full list, all fixed:
+
+| line | written | renders as | intended |
+|---|---|---|---|
+| 2403 | `&#xB110.8` | `널.8` | ±10.8 |
+| 2403 | `&#xB11.5` | `଑.5` | ±1.5 |
+| 2448 | `&#xB12%` | `଒%` | ±2 % |
+| 2478 | `&#xB15 events/hr` | `କ events/hr` | ±5 events/hr |
+| 1926 | `&#x201CFair&#x201D;` | **U+FFFD + “ir”** — see below | “Fair” |
+
+**Line 1926 is a different and worse failure than the four `±` cases, and the mechanism is the point.**
+`F` and `a` **are hex digits**, so a greedy parser consumes `201CFa` — not just the intended `201C` — and
+U+201CFA is **2 104 570**, past the U+10FFFF ceiling of **1 114 111**. So it is not a wrong character but
+an *invalid* one: the browser emits U+FFFD, and the word **“Fair” arrives as “ir”** because its first two
+letters were eaten INTO the reference. **A malformed entity adjacent to hex-adjacent letters destroys
+CONTENT, not punctuation** — the four `±` cases cost a glyph; this one costs a word inside a sentence
+describing a threshold. (Mechanism identified by a peer reviewing the finding; recorded because the
+severity difference is invisible from the flag itself.)
+
+⚠ **Repaired by hand at five explicit anchors, NOT by a regex pass** — and the reason is this audit's own
+thesis. A general "insert `;` into unterminated numeric references" sweep would be the lenient-decoder
+mistake wearing the other hat: **a tool that repairs what it should be reporting**. The gate keeps
+watching; the edit stays five semicolons.
+
+⚠ **An ad-hoc Python version of this same sweep did NOT find them, and the reason is the lesson.** It
+decoded entities with a forgiving parser, which silently "repaired" `&#xB110.8` into `±10.8` and reported
+the card clean. **A parser that fixes its input cannot report a broken input.** The shipped tool decodes
+only well-formed `&#xNN;` and is therefore strict where the ad-hoc version was kind; that strictness is
+what surfaced a rendering bug that has been live in a published guide. The same ad-hoc version also
+trimmed trailing zeros from **integers**, so `660` became `66` and matched anything — hiding `Jubran`'s
+660/940 nm wavelengths entirely. Two silent false negatives, both from being generous.
+
+The tool also **drops `<s>`/`<del>` content before checking**: a guide that corrects itself keeps the old
+formula struck so a reader sees it was withdrawn, and checking a retracted formula against code would
+flag every honest correction forever — making deletion of the evidence the cheapest way to go green.
+And its self-test **counts** its legs rather than printing a literal, after a hardcoded `8/8` survived a
+ninth leg being added.

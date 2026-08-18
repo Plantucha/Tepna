@@ -2047,7 +2047,16 @@ function renderSmartSummary(n) {
     html += ssKPI('T90% Time', cv(st.t90pct, 0.5, 2, '%'), st.t90pct < 0.5 ? 'good' : st.t90pct < 2 ? 'warn' : 'bad');
   }
   if (n.odi4) html += ssKPI('ODI-4 Rate', cv(n.odi4.rate, 5, 15, '/hr'), n.odi4.rate < 5 ? 'good' : n.odi4.rate < 15 ? 'warn' : 'bad');
-  if (n.odi3) html += ssKPI('ODI-3 Rate', cv(n.odi3.rate, 5, 15, '/hr'), n.odi3.rate < 5 ? 'good' : n.odi3.rate < 15 ? 'warn' : 'bad');
+  // ODI-3 IS NOT GRADED — there is no published ODI-3 severity band to grade it against
+  // (REFERENCE-GUIDE-AUDIT dim 3). The guide publishes an ODI-**4** table (AASM <5/5-14.9/15-29.9/>=30)
+  // and says of ODI-3 only that it is "more sensitive for mild hypoxemia"; `oxydex-registry.js` carries a
+  // definition citation and no thresholds. This site had borrowed ODI-4's bands VERBATIM from the line
+  // above; `nightDetail` invented a different ladder. Literature settles it: published ODI-3 numbers are
+  // population-specific DIAGNOSTIC cut-offs against AHI (4.3, 10, 12, 13.1, 26 /hr across cohorts), not a
+  // severity ladder — and ODI-3 vs AHI concordance is only FAIR (kappa 0.32) with ODI-3 systematically
+  // over-classifying, so borrowing ODI-4's ladder is a BIASED approximation, not a neutral one. Neutral,
+  // per the ODRI precedent below. Restore a ladder only WITH a citation, in both sites at once.
+  if (n.odi3) html += ssKPI('ODI-3 Rate', cv(n.odi3.rate, null, null, '/hr'), 'neutral');
   if (n.t88t85) html += ssKPI('T88 Time', cv(n.t88t85.t88Min, 0, 1, 'min'), n.t88t85.t88Min === 0 ? 'good' : n.t88t85.t88Min < 1 ? 'warn' : 'bad');
   if (n.hypDose) html += ssKPI('HD94/hr', cv(n.hypDose.hd94PerHr, 60, 200, ''), n.hypDose.hd94PerHr < 60 ? 'good' : n.hypDose.hd94PerHr < 200 ? 'warn' : 'bad');
   if (n.odri) html += ssKPI('ODRI', cv(n.odri.odri, null, null, ''), 'neutral');
@@ -2078,9 +2087,15 @@ function renderSmartSummary(n) {
   }
   if (h) {
     html += ssKPI('RMSSD', cv(h.rmssd, null, null, 'bpm*'), 'neutral'); // *1Hz proxy, not true ms
-    html += ssKPI('HR-Var SD', cv(h.hrSdnn, 2, 3, 'bpm', true), h.hrSdnn >= 3 ? 'good' : h.hrSdnn >= 2 ? 'warn' : 'bad');
-    html += ssKPI('HR Floor', cv(h.hrFloor, 52, 60, 'bpm'), h.hrFloor <= 52 ? 'good' : h.hrFloor <= 60 ? 'warn' : 'bad');
-    html += ssKPI('HR Slope', cv(h.hrSlope, 0, 1, '/hr'), h.hrSlope <= 0 ? 'good' : h.hrSlope < 1 ? 'warn' : 'bad');
+    // The three below are 1 Hz-proxy statistics with NO external ladder, and they were graded here and
+    // graded DIFFERENTLY in `nightDetail` (52/60 vs 55/65; 3/2 vs 4/2.5; 0/1 vs 0/1.5) — two ladders means
+    // at least one is invented, and a reader saw the same night called two things on two screens. Note the
+    // precedent is INSIDE this block: RMSSD (above) and Noc. Dip (below) are already `neutral` for being
+    // 1 Hz proxies, and `nightDetail` labels the whole section "(relative comparison only)". These three
+    // were the inconsistent members. Neutral until a published band exists — then grade in BOTH sites.
+    html += ssKPI('HR-Var SD', cv(h.hrSdnn, null, null, 'bpm', true), 'neutral');
+    html += ssKPI('HR Floor', cv(h.hrFloor, null, null, 'bpm'), 'neutral');
+    html += ssKPI('HR Slope', cv(h.hrSlope, null, null, '/hr'), 'neutral');
     html += ssKPI('Noc. Dip', cv(n.hrnDip ? n.hrnDip.hrnDip : null, null, null, '% (intra)'), 'neutral');
   }
   if (n.poincare) {
@@ -3021,7 +3036,9 @@ function nightDetail(n, idx) {
   html +=
     '<div class="grid">' +
     (n.odi4 ? metric('ODI-4', n.odi4.rate, 'evt/hr · ' + n.odi4.count + ' total', n.odi4.rate < 5 ? 'good' : n.odi4.rate < 15 ? 'warn' : 'bad') : '') +
-    (n.odi3 ? metric('ODI-3', n.odi3.rate, 'evt/hr · ' + n.odi3.count + ' total', n.odi3.rate < 15 ? 'good' : n.odi3.rate < 30 ? 'warn' : 'bad') : '') +
+    // ODI-3 ungraded — no published band; see renderSmartSummary for the evidence. This site had shifted
+    // ODI-4's ladder one notch; the other borrowed it unchanged. Neither was citable.
+    (n.odi3 ? metric('ODI-3', n.odi3.rate, 'evt/hr · ' + n.odi3.count + ' total (ranges not established)', '') : '') +
     metric('Mean HR', s.meanHr, 'bpm', '') +
     metric('HR Range', s.minHr + '–' + s.maxHr, 'bpm', s.maxHr > 95 ? 'warn' : '') +
     '</div>';
@@ -3033,10 +3050,12 @@ function nightDetail(n, idx) {
     html += '<div class="sec-label">HRV · 1Hz proxy <span class="cite-note">(relative comparison only)</span></div>';
     html +=
       '<div class="grid">' +
-      metric('HR-Var SD', +(h.hrSdnn || 0).toFixed(2) + 'bpm', '1Hz SD (rel. only)', h.hrSdnn >= 4 ? 'good' : h.hrSdnn >= 2.5 ? 'warn' : 'bad') +
+      // ungraded: the section is already labelled "(relative comparison only)" — a relative measure with a
+      // good/warn/bad ladder contradicts its own label, and this ladder disagreed with renderSmartSummary's
+      metric('HR-Var SD', +(h.hrSdnn || 0).toFixed(2) + 'bpm', '1Hz SD (rel. only)', '') +
       metric('pNN3-equiv', h.pnn3 + '%', 'pairs ≥3bpm', h.pnn3 >= 1.5 ? 'good' : h.pnn3 >= 0.5 ? 'warn' : 'bad') +
-      metric('HR Floor', h.hrFloor, 'bpm (p5)', h.hrFloor <= 55 ? 'good' : h.hrFloor <= 65 ? 'warn' : 'bad') +
-      metric('HR Slope', (h.hrSlope > 0 ? '+' : '') + h.hrSlope, 'bpm/hr', h.hrSlope < 0 ? 'good' : h.hrSlope < 1.5 ? 'warn' : 'bad') +
+      metric('HR Floor', h.hrFloor, 'bpm (p5)', '') +
+      metric('HR Slope', (h.hrSlope > 0 ? '+' : '') + h.hrSlope, 'bpm/hr', '') +
       metric('RSA proxy', h.rsaProxy != null ? h.rsaProxy : '—', 'SpO₂ SD/30s', '') +
       '</div>';
     html += '</div>'; // /.sec-section secondary
