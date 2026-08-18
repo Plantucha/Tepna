@@ -397,6 +397,36 @@
      tagRe PAST each element we consume, so an inlined asset body is NEVER rescanned — a `<script>`
      / `</script>` STRING LITERAL inside app JS can't be mistaken for real markup (the exact bug a
      naive multi-pass regex bundler hits: it double-tags string literals in already-inlined code). */
+  /* ── §📦 VERSION-INTO-BUNDLE — the suite version, projected into presentation anchors ─────────
+     Owner-ordered 2026-08-18, un-deferring CLAUDE.md §📦's "version-into-bundle stamping". The whole
+     design is one invariant: the stamp may only ever touch bytes OUTSIDE the data-inline-src blocks,
+     because manifestHash is a projection of those blocks alone — so a release can restamp the fleet's
+     displayed version while moving ZERO manifestHashes and ZERO fixtures. The invariant is enforced BY
+     CONSTRUCTION, not by care: every inline asset block is masked out before the regexes run and
+     restored after, so a version-shaped string inside app code is unreachable (gate-asserted with a
+     decoy in build-core-tests). Anchors, deliberately narrow — the three spots the src.htmls carry:
+       <title>… · v<semver></title> · class="logo-sub">v<semver> · class="version-badge">v<semver>
+     A bundle without an anchor (the orchestrators) is left byte-identical. No version supplied → no-op:
+     the browser lane may lack the manifest, and the node lane's build:check byte-compare then reds the
+     divergence rather than letting the lanes drift silently. */
+  function projectVersion(html, version) {
+    if (typeof html !== 'string' || !version || !/^\d+\.\d+\.\d+$/.test(String(version))) return html;
+    var vault = [];
+    var mask = function (m) {
+      vault.push(m);
+      return '\u0000DEXV' + (vault.length - 1) + '\u0000';
+    };
+    var masked = html.replace(INLINE_SCRIPT_RE, mask).replace(INLINE_STYLE_RE, mask);
+    var SEM = 'v\\d+\\.\\d+(?:\\.\\d+)?';
+    masked = masked
+      .replace(new RegExp('(<title>[^<]*\u00b7\\s*)' + SEM + '(?=[^<]*</title>)'), '$1v' + version)
+      .replace(new RegExp('(class="logo-sub">\\s*)' + SEM, 'g'), '$1v' + version)
+      .replace(new RegExp('(class="version-badge">\\s*)' + SEM, 'g'), '$1v' + version);
+    return masked.replace(/\u0000DEXV(\d+)\u0000/g, function (_m, i) {
+      return vault[+i];
+    });
+  }
+
   function build(opts) {
     opts = opts || {};
     var src = opts.srcHtml,
@@ -478,6 +508,7 @@
     }
     out += src.slice(i);
     out = applyScriptHashes(out); // CSP strict script-src: fill __DEX_SCRIPT_HASHES__ (no-op if absent)
+    out = projectVersion(out, opts.suiteVersion); // §📦 — outside every inline block, manifestHash-invariant
     return { html: out, manifestHash: manifestHashFromInline(out), assetNames: assetNames };
   }
 
@@ -492,6 +523,7 @@
     esmBundle: esmBundle,
     classicify: classicify,
     build: build,
+    projectVersion: projectVersion,
     INLINE_SCRIPT_RE: INLINE_SCRIPT_RE,
     INLINE_STYLE_RE: INLINE_STYLE_RE
   };

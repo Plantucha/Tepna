@@ -831,6 +831,35 @@
       // regularity gate must be what rejects C — not an empty run that never reached criterion 4.
       T.ok('the red-noise twin is rejected by REGULARITY, not by having no cycles at all', rC.longestRun >= 3 && rC.cycleCV !== null && rC.cycleCV >= 0.13);
 
+      /* §5 · THE UPPER BAND FROM COMMITTED BYTES (OXYDEX-PB-DETECTOR-FOLLOWUPS §5).
+         Every twin above is an array this file synthesises, so the detector's 90-130 s ceiling has only
+         ever been exercised against inputs the test itself built. The committed inputs could not reach it:
+         they run at 20 s and 50 s (`_longnight`) and ~420 s drift (the clean file), all outside the band.
+         This leg runs the SAME detector over BYTES ON DISK, parsed by the real `parseCSV` — so a
+         regression in parsing, in the baseline, or in the ceiling reds here even if the synthesised twins
+         still pass. The input is `synthetic_oxydex_o2ring_longcycle.csv`: 8 cycles at 110 s, flat either
+         side, amplitude 2 %SpO2 about the baseline. */
+      var _lcRaw = env.equiv && env.equiv.oxydex_longcycle && env.equiv.oxydex_longcycle.input;
+      var _lcParse = (env.OxyDex && env.OxyDex.parseCSV) || (OD && OD.parseCSV);
+      if (!_lcRaw) T.skip('oxydex_longcycle committed input present', 'env.equiv.oxydex_longcycle.input absent (older runner)');
+      else if (typeof _lcParse !== 'function') T.skip('parseCSV reachable for the long-cycle leg', 'no parseCSV on the OxyDex surface');
+      else {
+        var _lcRows = _lcParse(_lcRaw);
+        var _lcSeries = _lcRows.map(function (r) {
+          return r.spo2;
+        });
+        var _lc = OD.detectSpO2Periodicity(_lcSeries);
+        T.ok('§5 · the committed long-cycle night parses to a full 2 h @1Hz', _lcSeries.length === 7200, _lcSeries.length + ' samples');
+        T.ok('§5 · …and fires as periodic through the real parser', _lc.periodic === true, JSON.stringify(_lc).slice(0, 140));
+        T.eq('§5 · …at its planted 110 s cycle length', _lc.cycleLen, 110);
+        T.ok('§5 · …which is ABOVE 90 s, the ceiling a 40-90 s reading would have imposed', _lc.cycleLen > 90, 'cycleLen ' + _lc.cycleLen);
+        T.ok('§5 · …and regular enough to clear criterion 4 on its own merits', _lc.cycleCV !== null && _lc.cycleCV < 0.13, 'cycleCV ' + _lc.cycleCV);
+        /* ANTI-VACUITY, same discipline as the red-noise leg: a run of >= PB_MIN_CYCLES is what makes the
+           verdict meaningful. 8 planted cycles yield 7 inter-crossing intervals, so a detector that found
+           only 4 would still say `periodic` while having lost half the episode. */
+        T.ok('§5 · …on a run of 7 cycles, not the bare 4-cycle minimum', _lc.longestRun === 7, 'longestRun ' + _lc.longestRun);
+      }
+
       // §2.2: the count is on DISJOINT pairs, so 2 real cycles must not read as 3.
       var two = [],
         t;
@@ -11065,6 +11094,72 @@
       T.eq('three beats is too few to have an inflection', F([1000, 1010, 1000]), null);
       T.ok('…and four is enough', F([1000, 1010, 1000, 1010]) !== null);
       T.eq('an empty series is null, not a throw', F([]), null);
+    });
+
+    /* ── classifyRecording — the five branches, their constants, and the absent clock ──────────
+       Written from a mutation crawl: 7 of this function's 23 survivors carried a distinguishing
+       input, and nothing asserted the branch it picks, the confidence it attaches, or the ms→bpm
+       constant underneath both.
+
+       ⚠️ THE PROBE'S INPUTS ARE DELIBERATELY NOT USED. It found its distinguishing input for
+       `hr = 60000 / mean(a)` by calling `classifyRecording([1, 2, 3])` — RR intervals of one to
+       three MILLISECONDS, which the function faithfully reports as "mean HR 30000 bpm". Asserting
+       on that would pin nonsense and turn this group into a change-detector on impossible input.
+       The MUTATION is real, so the inputs below are physiological and kill the same mutants. A
+       probe finds a distinguishing input; choosing a MEANINGFUL one is the reader's job. */
+    group('PulseDex classifyRecording — which recording is this, and how sure (mutation-derived)', 'pulsedex-dsp · known-answer · mutation-pinned', function (T) {
+      var B = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!B || typeof B.classifyRecording !== 'function') {
+        T.skip('PulseDex._bare.classifyRecording available', 'PulseDex not co-loaded in this runner');
+        return;
+      }
+      var C = B.classifyRecording;
+      var rr = function (ms, n) {
+        return new Array(n || 20).fill(ms);
+      };
+      var at = function (h) {
+        return Date.UTC(2026, 0, 1, h, 0);
+      };
+
+      // ── 1 · EXERCISE: 120 bpm over 5 min. Pins the ms→bpm constant — mutate 60000 to 0 and the
+      //      rate collapses to 0, so the recording stops being exercise at all.
+      var ex = C(rr(500), null, 300);
+      T.eq('a 120 bpm five-minute record is exercise', ex.mode, 'exercise');
+      T.eq('…with the exercise confidence', ex.conf, 0.75);
+      T.ok('…and the reason states the rate it measured', /mean HR 120 bpm/.test(ex.why), ex.why);
+
+      // ── 2 · The branch is `hr >= 100 OR rising > 15`, not AND. This record has the rate and NO
+      //      rise, so an `&&` would demote it — the single case that separates the two operators.
+      T.eq('…on rate alone, with no HR rise at all', ex.rising, 0);
+
+      // ── 3 · AN ABSENT CLOCK IS `hour: null`, NEVER MIDNIGHT. The guard is
+      //      `t0Ms != null && isFinite(t0Ms)`; as `||` a null t0Ms passes, because `isFinite(null)`
+      //      is TRUE (`Number(null)` is 0) — and `hour` becomes 0. A recording with no clock would
+      //      then read as starting at 00:00 and feed the `hour < 11` morning branch. Absent time
+      //      rendered as a specific plausible time is the §2.6 shape (Clock Contract: never fabricate).
+      T.eq('a recording with no start time reports hour null, not midnight', ex.hour, null);
+
+      // ── 4 · RISING is measured last-fifth minus first-fifth, in bpm. Zeroing either constant
+      //      flattens it to 0 and the drift disappears silently.
+      var rise = C([1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 500, 500], null, 300);
+      T.eq('a record that ends 60 bpm faster than it began reports that rise', rise.rising, 60);
+      T.ok('…and says so in the reason', /HR rising 60/.test(rise.why), rise.why);
+
+      // ── 5 · MORNING vs SPOT is `durMin <= 8 AND hour < 11`. The pair below differs in DURATION
+      //      ONLY, both at 09:00 — so an `||` (which would make any pre-11:00 record "morning")
+      //      shows up as the 15-minute case changing class, and nothing else moves.
+      var morning = C(rr(1000), at(9), 300);
+      var spot = C(rr(1000), at(9), 900);
+      T.eq('five minutes at 09:00 is a morning spot', morning.mode, 'morning');
+      T.eq('…with the morning confidence', morning.conf, 0.7);
+      T.eq('fifteen minutes at the same hour is NOT — duration decides, not the clock', spot.mode, 'spot');
+      T.eq('…and carries the fallback confidence', spot.conf, 0.6);
+
+      // ── 6 · The long branches, so the ladder is pinned end to end rather than at its middle.
+      var night = C(rr(1000), at(23), 8 * 3600);
+      T.eq('eight hours from 23:00 is overnight', night.mode, 'overnight');
+      T.eq('…at the overnight confidence', night.conf, 0.9);
+      T.eq('twenty-one hours is continuous, not a long overnight', C(rr(1000), at(6), 21 * 3600).mode, 'continuous');
     });
 
     group('PulseDex compareIntervalSeries — two signals, one heart (mutation bootstrap)', 'pulsedex-dsp · known-answer · mutation-pinned', function (T) {
