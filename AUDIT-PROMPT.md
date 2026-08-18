@@ -214,6 +214,12 @@ at a time.
     whose form is stable but whose content is authoritative (`verifiedUnder`, `manifestHash`, fixture
     hashes) with `git show HEAD:<file> | grep -c <identifier>`; and ask of any report **"if this were
     truncated to its last 20 lines, would a number lose its qualifier?"**
+    **DISTANCE IS THE RISK, and it is the one criterion you can measure mechanically.** A label three
+    lines above its number survives; the same label at the top of a 40-line report does not, because
+    readers arrive by `tail`, by `grep`, or by a glance at the last block — so **flag any header naming a
+    mode, device, corpus or unit that sits more than a screenful above the numbers keyed to it**, even
+    when it is correct today. That distance is what turns a right label into a wrong one at the moment
+    someone truncates, which makes it a defect *before* it has produced a wrong answer.
     **The fix is always the same and it is not 'add a label':** make the label **travel with the number** —
     repeat the device/unit/corpus on the line carrying the value, select the reference by the same variable
     as the measurement, and if a reference cannot be keyed that way, **do not print it**.
