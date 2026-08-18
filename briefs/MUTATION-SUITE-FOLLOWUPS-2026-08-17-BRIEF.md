@@ -266,6 +266,33 @@ judging code correctness and **0/3** counting, and a plausible-but-wrong asserti
 it passes, it is quoted as evidence, and it could never have failed — the hollow gate this entire
 programme exists to find. Recorded here so a future session does not rediscover it as a good idea.
 
+**5b·AMENDED 2026-08-18 — the boundary was drawn in the wrong place, and the corrected one is
+sharper.** The reasoning above is sound and is unchanged; what was wrong is the conclusion drawn from
+it. "The model must not draft assertions" conflates two different acts, and only one of them is
+dangerous:
+
+| the model supplies | can it be wrong? | who checks it |
+|---|---|---|
+| an **expected value** | yes, invisibly — this is the 0/4 case | nothing; it passes and is quoted as evidence |
+| **which field to compare** | yes, but *visibly* | `projectionDiscriminates`, exactly, in microseconds |
+
+`--draft` (shipped 2026-08-18) supplies only the second. The expected value is copied **verbatim from
+the real code's recorded output**, so the model has no channel through which to state a falsehood
+about behaviour; its worst case is proposing a field that does not discriminate, which is rejected by
+a pure function over recorded JSON. The generate-and-test asymmetry is doing the work here: proposing
+is cheap and unreliable, verifying is exact and free.
+
+This was possible only because the crawl **already recorded a distinguishing input** for 346 of the
+363 killable mutants — so drafting is transcription, not search, and transcription is the regime the
+local model is measured *good* at. Had the input not been recorded, §5b as originally written would
+still be the right call.
+
+⚠️ **The residual hazard is real and is NOT covered by any of the above:** a projection can
+discriminate and still pin the **wrong** behaviour — asserting what the code does rather than what it
+should. The mutant dies either way, so no verification detects it. That is why `--draft` writes to a
+review file and never into `tests/dex-tests.js`, and why the PROPERTY line exists at all: it is the
+sentence a human reads to decide. **Nothing this lane produces may be adopted unread.**
+
 ---
 
 ## 6 · THE PATTERN WORTH CARRYING OUT OF THIS
