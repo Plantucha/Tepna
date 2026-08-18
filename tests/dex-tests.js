@@ -8070,6 +8070,87 @@
        precisely why nothing would notice. Do not "fix" the chip to match a wrong attribute on the
        assumption the attribute drives the UI — neither drives anything yet; the CHIP is what the reader
        sees, so it is the side to trust if they ever disagree. */
+    /* DORMANT REGISTRY ENTRIES — declared, graded, deliberately not in service.
+       `ppgdex-registry.js` pre-declares 21 per-site morphology metrics (32 % of that node) so the
+       per-site split inherits a reviewed tier instead of inventing one at the point of use. Measured
+       2026-08-17: nothing machine-readable said so, which makes a dormant grade drift-prone in the one
+       way no gate could see — a fleet tier sweep or a copy-paste from a live sibling would edit a
+       metric that was never in service, and every gate would stay green because there is no card to
+       disagree with. This asserts BOTH directions of the flag. */
+    group('a dormant metric is declared, graded, and has no card; a live one is not silently parked', 'ppgdex · dormant-registry', function (T) {
+      var REG = env.PPG_REGISTRY,
+        doc = env.docs && (env.docs['PpgDex Reference.html'] || env.docs['PpgDex Reference']);
+      if (!REG) {
+        T.skip('PPG_REGISTRY is loaded in this lane', 'registry not in env');
+        return;
+      }
+      var ids = Object.keys(REG).filter(function (k) {
+        return REG[k] && REG[k].label;
+      });
+      var dormant = ids.filter(function (k) {
+        return REG[k].dormant === true;
+      });
+
+      // The population is asserted by VALUE, not by ">0": a refactor that dropped the block would
+      // otherwise leave this group passing vacuously over an empty set.
+      T.eq('the dormant block is the 21 per-site morphology entries', dormant.length, 21);
+      T.ok(
+        'every dormant id carries a site suffix — the flag marks the pre-declared split, nothing else',
+        dormant.every(function (k) {
+          return /(Finger|Ankle|Assumed)$/.test(k);
+        }),
+        dormant
+          .filter(function (k) {
+            return !/(Finger|Ankle|Assumed)$/.test(k);
+          })
+          .join(',')
+      );
+
+      /* DORMANT IS NOT A TIER. Each entry keeps its real evidence grade so promotion is REMOVING the
+         flag, never re-grading — the failure mode being that a parked metric quietly becomes
+         `heuristic` and then ships at that grade. */
+      T.ok(
+        'every dormant entry still carries a real evidence tier and a citation',
+        dormant.every(function (k) {
+          return REG[k].evidence && REG[k].evidence !== 'dormant' && REG[k].cite;
+        })
+      );
+      T.ok(
+        '…and a label, so promotion needs no new authoring',
+        dormant.every(function (k) {
+          return typeof REG[k].label === 'string' && REG[k].label.length > 0;
+        })
+      );
+
+      // THE LOAD-BEARING HALF: dormant ⇒ no reader-facing card. If one ever gains a card while still
+      // flagged, the flag has become a lie and this reds.
+      if (!doc) {
+        T.skip('the PpgDex guide is readable in this lane', 'docs not in env');
+      } else {
+        var carded = dormant.filter(function (k) {
+          return doc.indexOf(REG[k].label) !== -1;
+        });
+        T.eq('no dormant metric has a guide card', carded.join(','), '');
+      }
+
+      /* THE MIRROR, without which "dormant" could be sprayed onto anything to silence the check: a
+         metric the guide DOES card must not be flagged dormant. */
+      if (doc) {
+        var cardedLive = ids.filter(function (k) {
+          return REG[k].dormant === true && doc.indexOf(REG[k].label) !== -1;
+        });
+        T.eq('nothing carded is parked as dormant', cardedLive.length, 0);
+      }
+
+      // And the base (wrist) metrics the dormant ones shadow must NOT be flagged — they are in service.
+      T.ok(
+        'the base wrist metrics are live, not dormant',
+        ['dicrotic', 'ai', 'reflectionIdx', 'pulseWidth'].every(function (k) {
+          return REG[k] && REG[k].dormant !== true;
+        })
+      );
+    });
+
     group('every metric card’s tier chip agrees with its data-tier attribute', 'cohesion-badges · guide-tier', function (T) {
       var docs = env.docs || {};
       var names = Object.keys(docs).filter(function (k) {
