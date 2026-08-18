@@ -262,6 +262,20 @@ at a time.
   choice was that baseline magnitude came out **998 and 1023 mg — 1 g**. Wrong columns, no gravity. A
   physical constant, a known total, a conserved sum: prefer the check the data can fail. A registry count
   has no such anchor, which is why `100`-vs-`24` was the only tell available and `0` had none.
+  **(2b) AND CHECK YOUR WORLD, NOT ONLY YOUR QUERY — `git rev-list --count HEAD..origin/main`, one
+  second, before any measurement you intend to report.** A correct query against a stale tree returns a
+  confident wrong answer that nothing inside the result can reveal. Measured 2026-08-17: the shared root
+  checkout was **267 commits behind** with **180 dirty paths** — and it had been **255** behind twenty
+  minutes earlier, so the drift is not a state but a **rate**. Three individually-correct things compose
+  into it: the sync timer **refuses to sync over uncommitted work** (right — clobbering a peer's only copy
+  is the worse failure); in a checkout several sessions share **something is always dirty**, so the refusal
+  is permanent rather than occasional; and its skip exits 2, mapped to `SuccessExitStatus`, so the unit is
+  green and the journal shows successful runs. **No component is wrong and the failure is unbounded.**
+  It produced **six** wrong answers across two sessions in one afternoon — a "9 stale `verifiedUnder`"
+  report whose true value was 0 stale / 14 current, a tool declared to lack a flag it has, a field declared
+  unwired that was wired. **The structural fix is to never measure in the shared root:**
+  `git worktree add ../wt-<task> origin/main` is current by construction — which is why PR work never hit
+  this and only *investigations* did.
   **(3) PREFER AN EXPLICIT ALLOWED-LIST TO A BARE ZERO.** `capture-host/find_unwired.py` reports
   **`0 unexplained, 10 allowed`** with a written reason per allowance — the allowed-list is what makes the
   zero mean something, because it distinguishes *nothing found* from *nothing looked at*.
