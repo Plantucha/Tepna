@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** REFERENCE (living — update when the tooling changes) · **last-verified:** 2026-08-03
+**Status:** REFERENCE (living — update when the tooling changes) · **last-verified:** 2026-08-18
 
 # Running a mutation audit — the runbook
 
@@ -149,6 +149,23 @@ LC_ALL=C comm -13 b.txt a.txt              # NEW survivors — must be empty, in
 A "new survivor" is usually a **timeout**, not a regression: mutmut's per-mutant budget derives from the
 baseline clean run and does **not** grow with the test selection, so adding tests to a region can push
 borderline mutants from `killed` to `timeout`. Read the survivor/timeout split separately.
+
+**⚠️ AND THE SET DIFF UNDERCOUNTS KILLS — it cannot be the rate.** "Diff the sets, not the counts" is
+right for **regressions** and wrong for the **rate**, and the two questions need different arithmetic:
+
+| question | how |
+|---|---|
+| did anything break? | `comm` over the survivor sets — a NEW survivor is a regression |
+| how many did I kill? | **`total − survived − timeout`**, from mutmut's own `*.stats.json` |
+
+The set diff **structurally cannot see a timeout resolving to killed**, because a timeout was never in
+the survivor set to begin with. So every mutant rescued by making a slow test fast is invisible to it.
+Measured 2026-08-04: `cpap_harvest` had **5** of those the moment a real-wall-clock test was given a
+synthetic clock, and `CAPTURE-HOST-SUBPROCESS-SURFACE-FOLLOWUPS`'s own draft reported the campaign as
+**204** kills before the arithmetic was corrected to **209**. A brief written by someone following this
+runbook got its headline number wrong by using the diff for both.
+
+Both numbers, every time. They are not two views of one quantity.
 
 ---
 
