@@ -80,7 +80,8 @@ anyone spends a compute-path change on it.
 5. Fix `detectPeaksB` (adaptive threshold) → revive `bSQI`.
 
 **Do 4 is CLOSED (refuted + re-scoped, 2026-08-03). Do 2 is CLOSED (refuted, 2026-08-18 — below).
-Do 3 is CLOSED (already implemented, 2026-08-18 — below).** Do 1/5 stand unmeasured — and the lesson from Do 4 applies to each: these are principle-transfer
+Do 3 is CLOSED (already implemented, 2026-08-18 — below). Do 1 is RE-SCOPED (measured 2026-08-18 — its
+named night is not special, and the leverage is 0.19 % of epochs).** Do 5 stands unmeasured — and the lesson from Do 4 applies to each: these are principle-transfer
 *hypotheses*, and the estimator's leverage on REAL data is a one-command measurement that costs far less
 than the compute-path change it would justify. Measure the ratio before writing the fix.
 
@@ -116,6 +117,41 @@ an optical artifact gate fired is not the same operation as excluding a fake des
 
 **So: nothing to build. The ODI half is done and measurably matters; the AHI half names a quantity the
 proposed mechanism does not apply to.**
+
+### ⚠ Do 1 (ECGDex-own-HRV) — MEASURED 2026-08-18: the target is wrong, and the leverage is 0.19 %
+
+Parent step 7 asks to feed `beatConfidence` into ECGDex's own pipeline **"so the 06-12 burst no longer
+inflates ECGDex's `RMSSD`/`SDNN`/epoch exports"**, and notes the cost: *"Moves ECGDex outputs ⇒ re-bundle +
+fixture regen"*. Both halves of that were measured over **55 trio nights / 4845 epochs** before paying it.
+
+**1 · At whole-night level the named burst does not stand out.** ECGDex `hrv.rmssd` on 2026-06-12 is
+**39.8** against a corpus median of 35.8 — **rank 9 of 55, 1.11× median**, well inside a 21.5–47.2 range.
+The night aggregate is not inflated in any way a reader could detect.
+
+**2 · At epoch level the spike is real but NOT unique — 06-12 is rank 4 of 55.**
+
+| night | epoch peak ÷ that night's median | peak |
+|---|---|---|
+| 2026-07-26 | **2.7×** | 96.0 |
+| 2026-08-14 | 2.6× | 89.0 |
+| 2026-08-11 | 2.6× | 87.7 |
+| **2026-06-12** | 2.4× | **96.4** |
+
+06-12 has the highest *absolute* peak and the 4th highest *relative* one. Three nights exceed it and none
+has ever been named a "burst". **Fixing "the 06-12 burst" fixes one member of a class nobody has scoped.**
+
+**3 · The class is small.** Epochs above 2× their own night's median: **9 of 4845 = 0.19 %**, on **7 of 55
+nights (13 %)**; within an affected night they are a median 1.1 % of its epochs. At ≥1.5× it is 40 of 55
+nights, i.e. mild spikes are simply normal HRV.
+
+**So the trade as written is a fleet re-bundle + fixture regen to move 0.19 % of epochs.** That is not an
+argument against doing it — it is the number the decision needs, and it was not available before.
+
+**Re-scoped, not refuted.** If it proceeds, two deliverables that step 7 bundles together should be split,
+because they cost differently: **(a) exporting per-epoch `c`** adds a field and gives the visibility the
+artifact-gate brief asked for without changing any existing metric's value; **(b) down-weighting low-`c`
+seconds in `buildNN`/`epochEngine`** changes computed outputs and is what forces the regen. (a) is
+defensible on 0.19 %; (b) needs a reason those 9 epochs reach a decision, which nobody has yet shown.
 
 ### ⛔ Do 2 (PulseDex/HRVDex robust HRV) — MEASURED 2026-08-18, and REFUTED as stated
 
