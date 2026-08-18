@@ -452,6 +452,31 @@ behind a fresh pending.
 correctly rejected: the numbers say the self-inflicted serialisation is the bigger term. Fix the cadence
 first; the ruleset is the constraint, not the defect.
 
+### 5b · COLLECTING PRs — measured 2026-08-18, the night the runner pool saturated (owner-ratified)
+
+Four sessions held 11 PRs (= **187 required-check jobs before anyone touched anything**); the pool fell to
+~1 job/min with 130 queued, and one unchanged doc PR took **4 full CI laps** to land. The rules that came
+out of it, each bought by a specific failure:
+
+- **WIP cap: ≤ 4 open PRs repo-wide.** A finished work-unit WAITS for a slot rather than becoming the
+  fifth. This is §5's "one PR per work-unit" made checkable across sessions — the 187-job pile-up was
+  legitimate work units, just too many at once.
+- **`gh pr update-branch` mostly does NOT cancel the superseded run.** Before the 2026-08-18 concurrency
+  guards, 8 of 11 workflows had no `cancel-in-progress`; a superseded 6-shard `tests` run executed
+  **43 min past its SHA being replaced**. The guards fix PR refs, but the lesson stands: an update is a
+  *purchase*, not a swap — check the pool first:
+  `gh pr list --state open --json statusCheckRollup --jq '[.[].statusCheckRollup[]?|.status]|group_by(.)|map({(.[0]):length})|add'`
+- **Collect when: the pool has drained AND (`pend=0` OR demonstrably wedged) AND every required check has
+  a terminal SUCCESS/SKIPPED conclusion.** Clause 3 exists because a *cancelled* required check reads as
+  `pend=0` with an empty conclusion — finished-looking, and completely wrong. Count conclusions, never pendings.
+- **"Wedged" is judged ONLY against that workflow's own history, never against siblings.** `tests` queued
+  3 h and passed — its siblings are single jobs of minutes, a different distribution entirely. A peer's
+  `no-network` at 3 h against its own median 5.5 min / max 11 was genuinely stuck. Same wall-clock,
+  opposite verdicts. **Never supersede a queued `tests` run under ~3 h.**
+- **Remove your worktree when the PR merges — `node tools/wt-done.mjs <path>`** (verifies MERGED via `gh`
+  + clean tree, then removes without `--force`). 329 orphaned trees ≈ 55–60 GB accumulated because the
+  merge *feels* like the end of the work-unit and is not.
+
 **And it is not available anyway — check this BEFORE re-opening the cost argument.** GitHub merge queue
 requires an **organization-owned** repository; `Tepna` is user-owned (`owner.type: User`, confirmed
 `isInOrganization: false`), so the feature is ineligible regardless of the economics. Public visibility

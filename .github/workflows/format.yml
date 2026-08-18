@@ -29,6 +29,12 @@ on:
   # the reverse order is an outage (BRIEF-COLLISION-RESIDUAL-GAP-2026-08-09-BRIEF §4).
   merge_group:
 
+# Supersede an in-flight run when the same PR is pushed again — the guarded house pattern; full
+# measured rationale in tests.yml (the 43-min dead-SHA run) and capture-host-ci.yml (why PR-only).
+concurrency:
+  group: biome-format-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   biome:
     runs-on: ubuntu-latest
