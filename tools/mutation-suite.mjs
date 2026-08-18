@@ -127,8 +127,17 @@ export function mutantLine(rec, file) {
   if (rec.v !== 'KILLED') return body;
   const ks = Array.isArray(rec.ks) ? rec.ks : [];
   if (!ks.length) return body + '\n      killed by: (the journal recorded no group — treat as unattributed)';
+  /* "FIRST TO FAIL", NOT "THE KILLER" — and the distinction is not pedantic. Sweeps run with
+     `--bail`, so the suite stops at the first failing group and the journal can only ever record
+     one. Measured 2026-08-18 on a full hrvdex sweep: 307 of 307 killed mutants recorded exactly
+     ONE group, none recorded two. So this names the group that happened to run first among those
+     that fail — other groups may kill the same mutant, and reading it as "the assertion that
+     catches this" over-claims. The `(+N more)` form is kept for `--no-bail` runs, where the set is
+     real; under the default flags it is unreachable, which is itself worth stating rather than
+     leaving as decoration that implies a set nobody ever measures. */
   const extra = ks.length > 1 ? '  (+' + (ks.length - 1) + ' more)' : '';
-  return body + '\n      killed by: "' + String(ks[0]).slice(0, 88) + '"' + extra;
+  const label = ks.length > 1 ? 'killed by' : 'first group to fail';
+  return body + '\n      ' + label + ': "' + String(ks[0]).slice(0, 88) + '"' + extra;
 }
 
 // ── the three lanes ────────────────────────────────────────────────────────────────────────────
@@ -946,7 +955,11 @@ function selftest() {
   ck('names the file and line', describeMutant(killed.k, 'ecgdex-dsp.js').where, 'ecgdex-dsp.js:77');
   ck('names the operator', describeMutant(killed.k, 'ecgdex-dsp.js').op, 'negate: drop !');
   ck('shows the source either side', [describeMutant(killed.k).before, describeMutant(killed.k).after], ['if (!a.length) return 0;', 'if (a.length) return 0;']);
-  ck('a KILLED line names the killing group', /killed by: "ECGDex accAnalyze/.test(mutantLine(killed, 'ecgdex-dsp.js')), true);
+  /* Under --bail (the sweep default) the journal can only hold ONE group, so a single entry is
+     labelled "first group to fail" — not "killed by", which claims a completeness --bail cannot
+     provide. Measured: 307 of 307 kills recorded exactly one group, none recorded two. */
+  ck('a single-group kill is labelled FIRST TO FAIL, not "the killer"', /first group to fail: "ECGDex accAnalyze/.test(mutantLine(killed, 'ecgdex-dsp.js')), true);
+  ck('…and a genuine multi-group set (--no-bail) still reads "killed by"', /killed by: "a"/.test(mutantLine({ ...killed, ks: ['a', 'b'] }, 'f.js')), true);
   ck('…and counts the others', /\(\+2 more\)/.test(mutantLine({ ...killed, ks: ['a', 'b', 'c'] }, 'f.js')), true);
   /* An unattributed kill must SAY it is unattributed rather than print a bare tick — otherwise the
      one case worth investigating is the one that looks cleanest. */
