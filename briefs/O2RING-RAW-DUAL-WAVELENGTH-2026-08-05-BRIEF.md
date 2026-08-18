@@ -336,12 +336,37 @@ link the way a failed vitals poll does — an experimental stream may not cost a
    is a valid plethysmogram — so this is unblocked by §3.1. It needs a `nCh === 2` branch and therefore
    a DSP change: three build systems re-bundled, GATE A/B, and `computeHash` re-verification against the
    real corpus per §🔏. Kept out of this changeset so a Python-only leg is not held behind the heavy gate.
-4. **OxyDex SpO₂ derivation — UNBLOCKED by §1.2④.** The ratio-of-ratios already reproduces the ring's own
-   reading to within ~1 point on one session with a textbook `110 − 25R`. What remains is calibration, not
-   identification: the ring does not publish its constants, so this must ship as a *comparison* against
-   the ring's SpO₂ (and a disagreement detector) long before it is ever a replacement. Note the honest
-   ceiling — agreement at one saturation near 97 % says little about the desaturations that matter
-   clinically, and those are exactly where a generic calibration drifts.
+4. ~~**OxyDex SpO₂ derivation — UNBLOCKED by §1.2④.**~~ **CLOSED 2026-08-17 — both routes measured
+   dead.** This item was already invalidated by §1.3 (no cardiac AC ⇒ no ratio-of-ratios; the ~1-point
+   agreement was the one-saturation coincidence this brief warns about elsewhere), but it still read
+   "unblocked", so the DC fallback was measured before letting the hope die politely:
+
+   **Cardiac route (ratio-of-ratios): dead by §1.3** — R is defined on the cardiac AC, and the
+   time-locked per-buffer cross-correlation against the *simultaneous* `0x03` pleth equals a
+   33-s-shifted null (52.3 % vs 50 %, Δ 0.005 ± 0.006, 798 buffers). There is no cardiac component to
+   ratio.
+
+   **DC route (ln(ch0/ch1) tracking SpO₂ trends): dead by sign instability.** Measured on the four
+   most desat-rich PPG2W-paired sessions, worn-masked (the contact detector's frozen thresholds),
+   30-s smoothed, ±120 s lag scan, 20-min-shifted null:
+
+   | session | hrs | SpO₂ span | r(lnRatio, SpO₂) | null r |
+   |---|---|---|---|---|
+   | 2026-08-13 202100 | 1.2 | 73–99 | **−0.358** (best −0.398 @ −10 s) | 0.033 |
+   | 2026-08-12 203422 | 8.0 | 84–99 | +0.118 | **0.180** |
+   | 2026-08-11 214053 | 6.9 | 90–99 | −0.024 | −0.060 |
+   | 2026-08-14 223001 | 6.7 | 91–99 | +0.012 | −0.041 |
+
+   **The sign flips across nights and three of four sit at or below their own null.** A physiological
+   DC-ratio tracker cannot change sign session to session; the one substantial |r| is a single short
+   session, unreproduced, and consistent with vasomotor/posture co-trending (the stream's spectrum is
+   Mayer-band dominated). No usable SpO₂ information exists at DC level either.
+
+   **What remains true:** the ring's own SpO₂ (`cmd 0x04` / the CSV) is the only SpO₂ this device
+   yields, and the raw pair now guards its *quality* instead (`nightqc ppg2w_contact`, #1439). The one
+   unexplored route to an independent SpO₂ is an undocumented opcode carrying the second wavelength's
+   **cardiac** waveform — a hardware probe on the box, speculative, and the only thing that would
+   reopen this item.
 5. **Contribute upstream — to the project that documents OUR family.**
    [`nglessner/o2ring-s-protocol`](https://github.com/nglessner/o2ring-s-protocol) — the reference
    `O2RING-PROTOCOL` §1 and `CAPTURE-HOST-FOLLOWUPS` already cite, and the one that documents THIS

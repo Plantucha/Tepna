@@ -1153,6 +1153,17 @@ def arrival_quality(night_dir: str) -> list[dict]:
                 # thresholds both fired on every stream of the first real night. See
                 # ALLAN-DEVIATION-2026-08-12-BRIEF.
                     "stability": stab,
+                    # IS A SINGLE tau0 EVEN A FAIR LABEL FOR THIS SERIES? `_tau0_of` hands `stability` the MEAN packet
+                    # interval, and every estimator in `allan.py` then treats the samples as evenly spaced by it. On the
+                    # BLE arrival axis they are not: measured over 120 sidecars, mean/median runs 0.87-1.16 on Verity
+                    # ppg (79 series) against <=0.7% on the device-counter axis the JS lane uses — same estimator, same
+                    # vocabulary, opposite answer. A UNIFORM rescale of tau is a horizontal shift in log-log, so
+                    # `classify`'s noise type is IMMUNE; what moves is where a sigma is READ — `optimal_tau`, and
+                    # `_TDEV_TAU_S` comparisons. That last one is the cost: a FIXED tau exists so nights are comparable,
+                    # and two streams quoted 'at 100 s' are not at the same 100 s when one tau0 is inflated 16% by gaps.
+                    # Reported beside the curve, never applied to it — the unbiased unequal-spacing estimator (Sesia &
+                    # Tavella 2008, 10.1088/0026-1394/45/6/S19) is the principled fix and should FOLLOW this measurement.
+                    "tau0_uniformity": allan.tau0_uniformity([p[0] for p in pairs]),
                 # Filled below where this device has a second stream to compare against; None means
                 # "no sibling stream", never "nothing shared".
                 "transport": None,
@@ -1193,6 +1204,162 @@ def arrival_quality(night_dir: str) -> list[dict]:
                         "ci": share["ci"],
                     }
     return out
+
+# ── RING CONTACT FROM THE RAW 0x05 STREAM (PPG2W) ──────────────────────────────────────────────────
+# The O2Ring's `cmd 0x05` two-channel stream (identity still open — O2RING-RAW-DUAL-WAVELENGTH) turns
+# out to carry one unambiguous fact whichever hypothesis wins: TISSUE IN THE PATH locks the two
+# channels to a ~1:1 ratio, and off-finger they diverge by FOUR ORDERS OF MAGNITUDE (ch0 rails toward
+# its ceiling while ch1 collapses to ~10^2 counts). That gives the ring an independent hardware-side
+# coupling vote where today the SpO2 CSV judges itself and the motion column is per-source-faulty.
+#
+# MEASURED vs CHOSEN — every constant is labelled, because a fitted number that later reads as a
+# discovered one is this repo's recurring failure:
+#   PPG2W_CH1_FLOOR = 15388     MEASURED: the geometric midpoint of the doffed-tail ch1 p99 maximum
+#                               (355 counts, n = 3 doffings) and the worn ch1 p1 minimum (667,065,
+#                               15 sessions). ~43x margin each side — 3.3 orders of TOTAL separation,
+#                               1.64 orders per side (the first version said "3 orders each side",
+#                               which contradicted the ~40x bar below by ~23x; a reader sizing a
+#                               firmware change against it would break the detector an order early).
+#                               It becomes WRONG if a firmware/scale change moves either population
+#                               by >~40x.
+#   PPG2W_RATIO_LO/HI = 0.5/3   CHOSEN: a ~2x margin around the MEASURED worn band (ratio
+#                               0.955-1.444 across the 15 derivation sessions). The margin earned its
+#                               keep out-of-sample: one held-out 7-min adjustment session reached
+#                               1.929 and stayed correctly inside.
+#
+# VALIDATION, with the denominators beside the rates (the in-sample caveat is structural):
+#   derivation (2026-08-05..09, 15 sessions): separates the 3 mid-stream doffings from the 12 other
+#     session tails — but the thresholds were DERIVED on these sessions, so that 3/3 + 0/12 is
+#     optimistic by construction.
+#   HELD-OUT (2026-08-11..16, 14 sessions, 161,811 one-second epochs, thresholds frozen first): the
+#     worn band held on every session; 0.49 % of epochs off-finger, concentrated in 0-1 sustained
+#     run per session; 6 session tails flagged = the doffing endings, found out-of-sample.
+#   POSITIVE EVENTS TOTAL: n = 3 derivation + 6 held-out tails. Small; the 10^4 separation is what
+#     carries the claim, not the event count.
+#
+# Reported, gated by NOTHING (the arrival-diagnostics precedent): a contact verdict folded into `ok`
+# would make a night the wearer ended early read as a capture failure.
+PPG2W_CH1_FLOOR = 15388
+PPG2W_RATIO_LO = 0.5
+PPG2W_RATIO_HI = 3.0
+_PPG2W_ROWS_PER_EPOCH = 100     # the stream is back-timed on a 10 ms grid -> 1 s epochs
+_PPG2W_MIN_EPOCHS = 60          # under a minute cannot establish a worn band -> refuse, never report
+_PPG2W_RUN_EPOCHS = 10          # a sustained off-run, vs single-epoch flicker; also the bar for
+                                # "ended off-finger" — a tail is a doffing when the trailing off-run
+                                # is itself sustained, not when some window's majority tips (a
+                                # majority-of-last-minute definition sat exactly on a tie in the first
+                                # planted test, which is what a window boundary does)
+
+
+def ppg2w_contact(ch0, ch1):
+    """Worn/off-finger summary from the 0x05 channel pair. PURE — the file walk is in the caller.
+
+    worn(row) := ch1 > PPG2W_CH1_FLOOR and PPG2W_RATIO_LO <= ch0/ch1 <= PPG2W_RATIO_HI.
+    An epoch (1 s = 100 rows) is OFF when the MAJORITY of its rows fail that predicate — a single
+    glitch row must not flip a second.
+
+    Returns None when fewer than _PPG2W_MIN_EPOCHS epochs exist: a block that cannot be computed is
+    ABSENT, never `off_epochs_pct: 0` — zero is the healthy end of that scale, and missing data
+    reading as healthy is the exact failure class this file already documents for actigraphy.
+    """
+    n_ep = min(len(ch0), len(ch1)) // _PPG2W_ROWS_PER_EPOCH
+    if n_ep < _PPG2W_MIN_EPOCHS:
+        return None
+    worn_ratios = []
+    ep_off = []
+    for e in range(n_ep):
+        lo = e * _PPG2W_ROWS_PER_EPOCH
+        bad = 0
+        for i in range(lo, lo + _PPG2W_ROWS_PER_EPOCH):
+            c1 = ch1[i]
+            if c1 > PPG2W_CH1_FLOOR and PPG2W_RATIO_LO * c1 <= ch0[i] <= PPG2W_RATIO_HI * c1:
+                worn_ratios.append(ch0[i] / c1)
+            else:
+                bad += 1
+        ep_off.append(bad * 2 > _PPG2W_ROWS_PER_EPOCH)
+    runs, cur = [], 0
+    for off in ep_off:
+        if off:
+            cur += 1
+        else:
+            if cur:
+                runs.append(cur)
+            cur = 0
+    if cur:
+        runs.append(cur)
+    # trailing off-run, in epochs from the end — the caller turns it into a wall-clock doff time
+    trail = 0
+    for off in reversed(ep_off):
+        if not off:
+            break
+        trail += 1
+    tail_off = trail >= _PPG2W_RUN_EPOCHS
+    worn_ratios.sort()
+    m = len(worn_ratios)
+    out = {
+        "epochs": n_ep,
+        "off_epochs_pct": round(100.0 * sum(ep_off) / n_ep, 2),
+        "off_runs_sustained": sum(1 for r in runs if r >= _PPG2W_RUN_EPOCHS),
+        "tail_off": tail_off,
+        "trailing_off_epochs": trail,
+        # The worn band is reported so drift OUT of it is visible before it becomes misses: these two
+        # numbers are the detector auditing itself night by night.
+        "worn_ratio_median": round(worn_ratios[m // 2], 3) if m else None,
+        "worn_ratio_iqr": round(worn_ratios[(3 * m) // 4] - worn_ratios[m // 4], 3) if m >= 4 else None,
+    }
+    return out
+
+
+def ppg2w_contact_quality(night_dir: str) -> list:
+    """One `ppg2w_contact` block per `*_PPG2W.txt` in the night. Empty list when the stream was not
+    captured — nothing to report is not the same as everything healthy, and the key stays honest by
+    holding sessions, not a verdict.
+
+    Rows that do not parse as numbers are SKIPPED, not fatal: a mid-file repeated header is a real
+    rotation artifact (seen 20260815100132) and one bad row must not erase a session's verdict.
+    """
+    out = []
+    for name in sorted(os.listdir(night_dir) if os.path.isdir(night_dir) else []):
+        if not name.endswith("_PPG2W.txt"):
+            continue
+        ch0, ch1 = [], []
+        first_ts = None
+        try:
+            with open(os.path.join(night_dir, name), "r", encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    parts = line.rstrip("\n").split(";")
+                    if len(parts) < 5:
+                        continue
+                    try:
+                        a, b = int(parts[2]), int(parts[3])
+                    except ValueError:
+                        continue
+                    if first_ts is None:
+                        first_ts = parts[0]
+                    ch0.append(a)
+                    ch1.append(b)
+        except OSError:
+            continue
+        block = ppg2w_contact(ch0, ch1)
+        if block is None:
+            out.append({"file": name, "usable": False, "reason": f"under {_PPG2W_MIN_EPOCHS} s of rows"})
+            continue
+        block["file"] = name
+        block["usable"] = True
+        # Doff wall-clock: first timestamp + (epochs - trailing_off) seconds, on the file's own
+        # back-timed axis. Only when the tail IS off — a doff time on a worn tail would be fabricated.
+        if block["tail_off"] and block["trailing_off_epochs"] and first_ts:
+            try:
+                t0 = datetime.fromisoformat(first_ts)
+                doff = t0 + timedelta(seconds=block["epochs"] - block["trailing_off_epochs"])
+                block["doff_at"] = doff.isoformat(timespec="seconds")
+            except ValueError:
+                block["doff_at"] = None
+        else:
+            block["doff_at"] = None
+        out.append(block)
+    return out
+
 
 def summarize(night_dir: str, devices: list[dict]) -> dict:
     """Roll the CURRENT capture session up against the configured devices. The session is scoped by
@@ -1447,6 +1614,9 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         # the night's physiology, and conflating the two would make a perfectly good recording read as a
         # capture failure.
         "arrival": arrival_quality(night_dir),
+        # RING CONTACT from the raw 0x05 pair — the independent coupling vote (constants + validation
+        # documented at ppg2w_contact). A session list, not a verdict; empty when never captured.
+        "ppg2w_contact": ppg2w_contact_quality(night_dir),
         # What rate the files ACTUALLY carry, against what was asked for. Coverage notices a rate swap
         # only as `degraded`, which names it a link fault; this names it a rate fault.
         "rates": _rate_rows,
