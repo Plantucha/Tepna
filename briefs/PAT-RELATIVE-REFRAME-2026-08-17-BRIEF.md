@@ -141,6 +141,22 @@ precondition to check per night, not a refutation.
 
 - [ ] Within-connection offset stability is measured on ≥ 5 sidecar nights (first/second half fit
       comparison per connection) — the dip path's one clock gate.
+      **FEASIBILITY CHECKED 2026-08-18 — blocked on the SIDECAR, not on effort or tooling.** The
+      assumption under test is stated in code at `pat-align.js:335`: *"the ~2.2 s per-connection BLE
+      offset is CONSTANT within a connection — a within-connection difference cancels it exactly,
+      which is why `segments` (connection spans) gate runs"*. So the measurement needs real
+      **connection boundaries**, which `patDipEvents` already consumes as `opts.segments`.
+      The local `uploads/captures` corpus (6 nights, 2026-07-31 → 08-16) **does not carry them**. Its
+      only structured file is `QC-SUMMARY.json`, which has `sessions` but zero occurrences of
+      `connection`/`segment`/`disconnect`. ⚠️ **`sessions` are NOT connections** — tempting, because on
+      2026-08-14 there are exactly 3 sessions and 3 Verity `_PPG.txt` files, so they look
+      interchangeable. But the first session spans **43 123 s (12 h)**, and a single BLE link does not
+      survive that here (the Verity writer drops it on a ~90 s cadence in SDK mode). A session is a
+      capture-host recording span; a connection is finer, and substituting one for the other would
+      measure stability across reconnects while reporting it as stability within a connection —
+      inverting the result the gate exists to produce.
+      **What unblocks it:** sidecar nights from vigil that record connection spans. Everything else is
+      already built — `patDipEvents` takes `segments`, and the halving is arithmetic on top.
 - [x] **BUILT same day** — `PATAlign.patDipEvents` (+ `tools/pat-dip-index.mjs`), gated by TEN twins
       in `pat-align · dip-detector`: planted Pitson-scale dips found 20/20; white-noise and ±40 ms
       red-wander nulls quiet; the 1-RR slip twin caught a real fabrication mode (a slipped foot pairs
@@ -235,6 +251,23 @@ degenerate-margin guard's first firing on live data.
       counting events outside the dip-covered span (measuring recording overlap, not coupling); and
       a foot-shift null so destructive the readability gate refused all 10 surrogates (a null that
       cannot execute is not a null — onsets are shifted instead, count-preserving).
-- [ ] The two fiducial defects of §3.4 are fixed and shown export-inert or regenerated per §🔏.
+- [x] **CLOSED 2026-08-18 — both fixed, and export-inert STRUCTURALLY rather than by assertion.**
+      ⚠️ The reference was dangling: **this brief has no §3.4** (§3 "The proposal" carries no
+      subsections). The two defects meant are the ones the *"🔧 The first ankle diagnosis was WRONG"*
+      section above describes — **self-inclusion degeneracy** in the rolling-median baseline, and
+      **biggest-file-with-biggest-file pairing** that matched non-overlapping sessions. Verified
+      present on `main` by identifier rather than by memory: `leave-self-out` in `pat-align.js`,
+      `anklePair`/`overlapMin` in `tools/pat-dip-index.mjs`.
+      **Export-inert is a property of the build graph here, not a claim:** `pat-align.js` is inlined
+      into **0** bundles and `pat-dip-index.mjs` is not in `build-analysis.mjs`'s `TOOLS`, so neither
+      file can reach any bundle's compute closure and no fixture can move. Nothing to regenerate —
+      and per §🔒 that is the *computed* form of export-inertness, not the prose form the repo
+      abolished.
+      **The box was stale against its own brief:** the prose two screens up already described both
+      fixes as applied. A later reader ranking work by unchecked boxes would have redone them.
 - [ ] `patArousalIdx` gets a registry row (`experimental`, autonomic wording) before any surface
       shows it.
+      **NOT YET ACTIONABLE, and deliberately so (checked 2026-08-18): `patArousalIdx` appears in NO
+      source file** — zero hits across `*.js`/`*.mjs`. This is a *guard on future work*, not a
+      backlog item: it fires the moment someone names the metric, and adding a registry row now
+      would grade a metric that does not exist. Leave unchecked until a surface exists.
