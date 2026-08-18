@@ -142,6 +142,41 @@ not on effort: until a zero attribution provably means zero, selection is either
 6 lost kills) or pointless (slower than the tag filter). Fixing per-group capture is the real
 prerequisite, and it was never on anyone's list because the map appeared to work.
 
+### 3a · The obvious rescue does NOT work — tested, not assumed
+
+A peer session proposed the natural fix, and it is the one anyone will propose again: *the "384 =
+exactly the baseline" signature is itself the discriminator.* Split the 188 by comparing each group's
+per-module record against the load-time baseline — `record == baseline` ⇒ capture failed ⇒ select it;
+`record ⊂ baseline` or empty ⇒ a true zero ⇒ safe to skip.
+
+**Measured, one c8 run, and it is refuted:**
+
+| group | records for `hrvdex-dsp.js` |
+|---|---:|
+| **2** — `Clock Contract — parseTimestamp` (touches `clock.js`, not hrvdex) | **384 lines** |
+| **338** — provably executes `hrvdex-dsp.js:853` (fails when it is mutated) | **384 lines** |
+
+**Identical line sets**, not merely equal counts. The reason is structural: `tests/run-tests.mjs`
+loads **every** DSP before **any** group runs, so the load-time baseline is present in every group's
+record whether or not that group touches the module. A true zero and a capture failure are not
+similar observations — they are *the same observation*.
+
+So the discriminator cannot be recovered from the coverage data as currently collected. Any real fix
+has to change what is **collected** (attribute a group's own calls back to the file), not how the
+collected data is **interpreted**. Recorded here so the next reader does not spend the run
+re-deriving it — the hypothesis was good, and it took one measurement to close.
+
+### 3b · The half of this that SURVIVES the quarantine
+
+The three `SURVIVED → KILLED` flips are a property of the **tag filter**, not of the map, so they
+outlive it: selection ran groups that execute a line without carrying the node's tag, and they killed
+mutants the tag-filtered sweep recorded as survivors.
+
+**Therefore every survivor count this programme has published is an UPPER bound, and every kill count
+a lower one.** On hrvdex the error is 3 in 489 (0.6 %). It is not large, but it is signed — always in
+the same direction — and it means "3751 survivors" should be read as "at most 3751". Cheap to
+confirm on any file: run it once with `--full`.
+
 **The map is QUARANTINED** (`per-group.json.QUARANTINED-underselects` in the git common dir).
 Sweeps fall back to the tag filter — slower and correct. **Do not restore it** until the empty
 attribution is either explained or made to fail closed.
