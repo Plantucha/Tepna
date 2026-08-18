@@ -147,6 +147,33 @@ retrieval half is the real blocker and is worth doing first:
 not-worn-edge pull that never blocks the drop), and only then the RR-vs-HR acceptance probe — through
 `polar_offline_op`, which owns the connect lock and bonds, not a standalone script.
 
+> ### ✅ RETRIEVAL HALF EXECUTED 2026-08-18 — the trigger was the whole gap
+>
+> **Most of this was already built, and the brief's framing hid it.** `pull_polar_offline_all` →
+> `polar_offline_op` → `polar_psftp.list_recordings`/`pull_recording` is a complete, working Polar pull,
+> and `charger_pull_poller` has listed `Polar` in its vendor set since **2026-07-23** (`3add29bd`) — the
+> vendor-scope complaint is true of `autopull_poller`'s hourly path only. So no retrieval code was
+> missing. **What was missing was a reachable trigger**: the H10's CR2025 coin cell keeps `charging`
+> permanently False, so the on-charger path could never fire for it. Recording without retrieval fills
+> the single onboard slot once and then silently records nothing — §0.2's fabricated-absence class.
+>
+> **`notworn_pull_due(worn, since, now, settle, already)`** is the doff-edge sibling of
+> `charger_pull_due`, wired into the same poller as a second trigger. Two things it does deliberately:
+>
+> - **`worn is False`, not falsy.** `worn` is tri-state and `None` means *no verdict* — no contact bit and
+>   no optical inference — where the device may still be on the body mid-recording. This is the same
+>   `worn is not False` convention the power drop and `cpap_harvest.blocking_devices` already use, and the
+>   test pairs the `None` denial with an explicit-`False` allowance so a predicate that never fires cannot
+>   pass.
+> - **The settle is CLAMPED above the power-drop grace, not merely defaulted above it.** A pull holds a
+>   connection; `should_drop_not_worn` closes one, so firing inside the 180 s grace would block the drop —
+>   the one thing this section forbids. Default 300 s, and any config below `_DROP_NOT_WORN_SEC + 30` is
+>   raised with a log line rather than obeyed. The drop wins, then the pull reconnects fresh.
+>
+> **Still open:** the RR-vs-HR acceptance probe (parent §6 Q1) — which this unblocks and does not answer —
+> and no H10 pull has yet been exercised against real hardware. The trigger is gate-tested; the round trip
+> is not, and that distinction is the honest state.
+
 ## 5 · Two process findings, both of which cost real time
 
 **A fake written by reading the implementation encodes the implementation, bugs included.** Fixing

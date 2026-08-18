@@ -4535,12 +4535,37 @@ async def pull_polar_offline_all(dev: dict, root: str) -> dict:
 _OPT_QUIET: set[str] = set()            # optional backup devices we have already noted as absent (log-once)
 _CHARGER_SINCE: dict[str, float] = {}   # addr -> monotonic when charging went True (absent = not charging)
 _CHARGER_PULLED: set[str] = set()       # addrs already pulled THIS charge session (cleared when off charger)
+_NOTWORN_SINCE: dict[str, float] = {}   # addr -> monotonic when worn went False (absent = worn/unknown)
+_NOTWORN_PULLED: set[str] = set()       # addrs already pulled THIS doff session (cleared when worn again)
 
 
 def charger_pull_due(charging: bool, since, now: float, settle: float, already: bool) -> bool:
     """PURE: pull this device's onboard sessions now? True once it has been ON THE CHARGER for at least
     `settle` seconds and has not already been pulled this charge session."""
     return bool(charging and not already and since is not None and (now - since) >= settle)
+
+
+def notworn_pull_due(worn, since, now: float, settle: float, already: bool) -> bool:
+    """PURE: pull this device's onboard sessions now, on the NOT-WORN edge?
+
+    WHY THIS EXISTS. `charger_pull_due` is the natural 'the night is over' trigger, and it cannot fire for
+    a device that never charges: the H10 runs on a CR2025 coin cell, so `charging` is permanently False and
+    the whole on-charger path is unreachable for it. The pull MECHANISM already works for Polar
+    (`pull_polar_offline_all` → `polar_offline_op` → PS-FTP); only the trigger was missing. Recording
+    without retrieval fills the single onboard slot once and then silently records nothing — the parent
+    brief's fabricated-absence class (`POLAR-ONBOARD-BACKUP-FOLLOWUPS` §4).
+
+    ⚠ `worn is False`, NOT falsy. `worn` is tri-state and `None` means NO VERDICT — a device with no
+    contact bit and no optical inference. Treating `None` as not-worn would pull against a device that may
+    still be on the body mid-recording, and it is the same `worn is not False` convention the power drop
+    and `cpap_harvest.blocking_devices` already use.
+
+    ⚠ THE SETTLE MUST EXCEED THE POWER-DROP GRACE, and the caller enforces it. A pull needs a connection;
+    the not-worn power drop (`should_drop_not_worn`, `_DROP_NOT_WORN_SEC` = 180 s) disconnects. Firing the
+    pull inside the grace window would hold the link open and BLOCK the drop, which is the one thing §4
+    said this must never do. With settle > grace the drop happens first and the pull reconnects fresh, so
+    the two cooperate instead of racing."""
+    return bool(worn is False and not already and since is not None and (now - since) >= settle)
 
 
 async def charger_pull_poller(cfg: dict, root: str):
@@ -4555,13 +4580,22 @@ async def charger_pull_poller(cfg: dict, root: str):
     if not pcfg.get("auto") or not pcfg.get("on_charger", True):
         return
     settle = float(pcfg.get("charger_settle_sec", 15))
+    # ⚠ THE DOFF SETTLE IS CLAMPED ABOVE THE POWER-DROP GRACE, not merely defaulted above it. A pull holds
+    # a connection; `should_drop_not_worn` wants to close one. Firing inside the grace window would block
+    # the drop — the one thing §4 forbids — so a config that sets it lower is raised rather than obeyed.
+    _doff_cfg = float(pcfg.get("notworn_settle_sec", 300))
+    doff_settle = max(_doff_cfg, _DROP_NOT_WORN_SEC + 30.0)
+    if doff_settle > _doff_cfg:
+        log.info("auto-pull (not-worn): settle raised %.0fs → %.0fs to clear the %.0fs power-drop grace",
+                 _doff_cfg, doff_settle, _DROP_NOT_WORN_SEC)
     ftype = int(pcfg.get("ftype", 0))
     devices = [d for d in cfg.get("devices", [])
                if not missing_identity(d) and d.get("vendor") in ("Wellue", "Viatom", "Polar")]
     if not devices:
         return
-    log.info("auto-pull (on-charger): armed — pulling %d device(s) %.0fs after they go on the charger",
-             len(devices), settle)
+    log.info("auto-pull: armed — %d device(s); %.0fs after going on the charger, or %.0fs after coming "
+             "off the body (the only reachable trigger for a coin-cell device such as the H10)",
+             len(devices), settle, doff_settle)
     while not _STOP.is_set():
         await asyncio.sleep(2)
         if _RECOVER.is_set() or _OXYII_PAUSE.is_set():
@@ -4570,27 +4604,45 @@ async def charger_pull_poller(cfg: dict, root: str):
         for dev in devices:
             addr = dev.get("address")
             st = STATUS["devices"].get(dev.get("name"), {})
-            if not bool(st.get("charging")):
+            # ── TRIGGER 1: on the charger ────────────────────────────────────────────────────────
+            charging = bool(st.get("charging"))
+            if not charging:
                 _CHARGER_SINCE.pop(addr, None)
                 _CHARGER_PULLED.discard(addr)          # off the charger — re-arm for next time
+            else:
+                _CHARGER_SINCE.setdefault(addr, now)
+            # ── TRIGGER 2: taken off the body (the ONLY reachable trigger for a coin-cell device) ─
+            worn = st.get("worn")
+            if worn is not False:
+                _NOTWORN_SINCE.pop(addr, None)
+                _NOTWORN_PULLED.discard(addr)          # back on the body (or no verdict) — re-arm
+            else:
+                _NOTWORN_SINCE.setdefault(addr, now)
+            by_charger = charging and charger_pull_due(
+                True, _CHARGER_SINCE.get(addr), now, settle, addr in _CHARGER_PULLED)
+            by_doff = notworn_pull_due(worn, _NOTWORN_SINCE.get(addr), now, doff_settle,
+                                       addr in _NOTWORN_PULLED)
+            if not (by_charger or by_doff):
                 continue
-            _CHARGER_SINCE.setdefault(addr, now)
-            if not charger_pull_due(True, _CHARGER_SINCE.get(addr), now, settle, addr in _CHARGER_PULLED):
-                continue
-            _CHARGER_PULLED.add(addr)                   # once per charge session (before the await)
+            trigger = "charger" if by_charger else "not-worn"
+            if by_charger:
+                _CHARGER_PULLED.add(addr)               # once per charge session (before the await)
+            if by_doff:
+                _NOTWORN_PULLED.add(addr)               # once per doff session (before the await)
             try:
                 if dev.get("vendor") in ("Wellue", "Viatom"):
                     res = await pull_oxyii_session(dev, root, which="all", ftype=ftype)
                 else:
                     res = await pull_polar_offline_all(dev, root)
                 new = (res or {}).get("new_files", []) if isinstance(res, dict) else []
-                log.info("auto-pull (on-charger): %s → %d new file(s)", dev.get("name"), len(new))
+                log.info("auto-pull (%s): %s → %d new file(s)", trigger, dev.get("name"), len(new))
                 STATUS.setdefault("autopull", {}).update({"last": _now().isoformat(timespec="seconds"),
-                                                          "new": len(new), "trigger": "charger"})
+                                                          "new": len(new), "trigger": trigger})
             except offline_lock.OfflineBusy:
                 _CHARGER_PULLED.discard(addr)           # slot held by another pull — retry next tick
+                _NOTWORN_PULLED.discard(addr)
             except Exception as e:                      # unreachable/transient — leave pulled; the hourly
-                log.info("auto-pull (on-charger): %s failed (%s) — hourly poller is the backstop",
+                log.info("auto-pull (%s): %s failed (%s) — hourly poller is the backstop", trigger,
                          dev.get("name"), type(e).__name__)   # autopull_poller is the backstop, no spam
 
 
