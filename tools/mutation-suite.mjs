@@ -1276,14 +1276,28 @@ const LOCAL_HOST = 'http://127.0.0.1:11434';
  *   qwen3.6:35b-a3b  ctx1024 vendor-sampling 7/10      11.9     2.2          3.5
  *   qwen3.6:27b      ctx1024                 7/10       1.7    31.1         24.7
  *   qwen3.8:27b      ctx1024                 8/10       1.6    35.5         30.0
- *   mistral-small    ctx1024                 8/10       1.1    40.8         43.6   ← default
+ *   mistral-small    ctx1024                 8/10       1.1    40.8         43.6
+ *   qwen2.5-coder:7b ctx1024                 6/10       0.4   106.7         90.0
+ *   qwen3-coder:30b  ctx1024                 8/10       0.7   106.9         68.6   ← default
  *
- * ⚠️ THE 18× IS A VRAM-FIT CLIFF, NOT A MODEL-QUALITY DIFFERENCE, AND THE DIRECTION IS COUNTER-
+ * ⚠️ THE FASTEST MODEL IS NOT THE DEFAULT, AND THE REASON IS THAT THE CORPUS IS FINITE. There are
+ * 346 killable mutants, not an endless stream, so what matters is how many of them ever get a draft
+ * — COVERAGE — not how fast drafts appear. `qwen2.5-coder:7b` posts the highest drafts/min and still
+ * leaves 4 of 10 uncovered; retries do not rescue a case a model cannot do, they just spend three
+ * attempts failing it. It also missed the one case with independent ground truth (`out.tsMs`, killed
+ * by hand first). Ranking on the headline rate alone would have picked it.
+ *
+ * ⚠️ THE 29× IS A VRAM-FIT CLIFF, NOT A MODEL-QUALITY DIFFERENCE, AND THE DIRECTION IS COUNTER-
  * INTUITIVE: the BIGGEST model is the SLOWEST by an order of magnitude. This box has a 20 GB
  * Radeon RX 7900 XT; `qwen3.6:35b-a3b` is 23 GB, so ~17 % of it spills to CPU and it runs at
  * 1.8 tok/s — absurd for a 3B-active MoE, and that absurdity is the diagnostic tell. MoE is hit
  * hardest by a spill because expert weights are scattered across the bus. Every model that FITS
- * runs 30–41 tok/s regardless of family.
+ * runs 31–107 tok/s regardless of family.
+ *
+ * `qwen3-coder:30b` is the same architecture that lost — MoE, ~3 B active — and wins by 59× on
+ * tok/s purely because 18 GB fits in 20464 MiB where 23 GB does not. VERIFIED, not inferred:
+ * `ollama ps` reports `100% GPU` and the card reads 18352 MiB used. If a future model lands near
+ * 20 GB, check that line before believing any throughput number.
  *
  * ⚠️ SO "GIVE IT A BIGGER CONTEXT" IS THE WRONG LEVER HERE, AND WAS MEASURED AS SUCH. The prompts
  * this lane sends are 216–509 tokens (p50 253) — the whole fleet fits in 1024 with headroom.
@@ -1291,7 +1305,7 @@ const LOCAL_HOST = 'http://127.0.0.1:11434';
  * that do not fit, not the KV cache. A larger context would only take VRAM back from the weights.
  * Re-measure both numbers if the hardware changes; neither is a property of the task.
  */
-const DRAFT_MODEL = opt('--model', 'mistral-small');
+const DRAFT_MODEL = opt('--model', 'qwen3-coder:30b');
 const DRAFT_CTX = Number(opt('--ctx', '1024'));
 
 /**
