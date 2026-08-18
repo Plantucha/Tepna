@@ -740,6 +740,86 @@
       T.ok('too short a night is still null, not a guess', OD.computeSpO2FFT(ar1(100, 0.9, 5)) === null);
     });
 
+    /* THE EXPORT SHAPE ITSELF — `oxyBuildNightElement` is the SINGLE source of the per-night export
+       element, shared by `oxydex-app.js exportJSON` AND `OxyDex.compute`, and it was entirely
+       unasserted: 14 killable mutants of 14 survivors, the fleet's best conversion rate on the
+       mutation board (handed over by the mutation lane 2026-08-18, who deliberately left it because
+       OxyDex is this lane's).
+       Every claim below was READ OFF THE REAL FUNCTION before being asserted, never predicted. That
+       matters here because the tempting assertions are change-detectors: this builder is ~90 lines of
+       field projection, and pinning all of it would fail on every honest refactor while catching
+       nothing. What is pinned instead is the four things a projection can get WRONG. */
+    group('the night-export element declares absence, projects rather than passes through, and keeps a faulted-only key', 'oxydex · export-shape', function (T) {
+      var OD = (env.OxyDex && env.OxyDex._bare) || env.OxyDex || env.OxyDSP;
+      var B = OD && (OD.oxyBuildNightElement || OD.buildNightElement);
+      if (typeof B !== 'function') {
+        T.skip('oxyBuildNightElement not in env — OxyDex keys: ' + (env.OxyDex ? Object.keys(env.OxyDex).slice(0, 12).join(',') : 'NO OxyDex'));
+        return;
+      }
+      var minimal = B({ date: '2026-08-11' });
+
+      /* 1 · ABSENCE IS DECLARED, NOT FABRICATED (§2.6). `t0Ms` and `contentId` guard on `!= null` and
+         emit an explicit null. The mutant that matters flips that guard: `Number(null)` is 0, so a
+         night with no clock would export `t0Ms: 0` — the epoch — which is a specific, plausible,
+         wrong instant rather than a refusal. Same shape as PpgDex's `cvhrIndex: 0` and the
+         `classifyRecording` midnight case, both found the same day in other lanes. */
+      T.eq('a night with no t0Ms exports null, not 0', minimal.t0Ms, null);
+      T.eq('…and no contentId exports null, not 0', minimal.contentId, null);
+      T.ok(
+        'neither is undefined — an undefined key is DROPPED by JSON.stringify and vanishes from the export',
+        minimal.t0Ms === null && minimal.contentId === null && 't0Ms' in minimal && 'contentId' in minimal
+      );
+
+      /* ⚠️ AN ABSENT FIELD AND AN EXPLICITLY-NULL ONE ARE DIFFERENT INPUTS, and only the second reaches
+         the fabrication. Found by mutation, not by reading: the mutant `isFinite(n.t0Ms) ? Number(...)`
+         SURVIVED the case above, because `n.t0Ms` is `undefined` there and `isFinite(undefined)` is
+         false — so it fell to the null branch and looked correct. It is `isFinite(null) === true` that
+         fabricates, via `Number(null) === 0`. A night carrying an explicit `t0Ms: null` — which is what
+         a parser that FAILED to find a clock emits, per Clock Contract §2.6 — is the input that exposes
+         it. Testing only the absent case pins the guard while leaving the exact defect it exists to
+         prevent unasserted. */
+      var explicitNull = B({ date: 'd', t0Ms: null, contentId: null });
+      T.eq('an EXPLICIT t0Ms: null still exports null — not 0, the epoch', explicitNull.t0Ms, null);
+      T.eq('…and an explicit contentId: null likewise', explicitNull.contentId, null);
+      T.ok('neither coerced: Number(null) is 0, so a truthiness-shaped guard would ship 1970-01-01 as a real instant', explicitNull.t0Ms !== 0 && explicitNull.contentId !== 0);
+
+      /* 2 · 0 IS CORRECT HERE, AND THE CONTRAST IS THE POINT. `hr_spikes.count` is a genuine count, so
+         0 means "measured, none found" — the honest zero. A test that turned every 0 into null would
+         be the mirror-image error, so both directions are pinned side by side. */
+      T.eq('a night with no spikes exports count 0 — a measured zero, not an absence', minimal.hr_spikes.count, 0);
+      T.eq('…with an empty events array, never null', JSON.stringify(minimal.hr_spikes.events), '[]');
+
+      /* 3 · THE FAULTED-ONLY KEY. `columnStuck` is spread in ONLY when `stats.motionColumnStuck` is
+         set, so a healthy night must not carry the key AT ALL — not `false`, absent. That is what lets
+         a consumer tell "the oximeter had no motion column" from "the column was stuck", which a null
+         `motionPct` alone cannot. A mutant that makes the spread unconditional moves every healthy
+         export, and only a key-PRESENCE assertion catches it; a value check reads `undefined` either
+         way. */
+      T.ok('a healthy night does NOT carry motionProfile.columnStuck at all', !('columnStuck' in minimal.motionProfile));
+      var faulted = B({ date: 'd', stats: { motionPct: 12, motionColumnStuck: true } });
+      T.ok('…and a faulted night DOES, set to true', faulted.motionProfile.columnStuck === true);
+
+      /* 4 · PROJECTION, NOT PASS-THROUGH. Three fields copy named members rather than the object, so an
+         upstream field cannot leak into the export by accident. The mutant replaces the projection with
+         the source object; only an assertion that an EXTRA field is absent can see it. */
+      var rich = B({
+        date: 'd',
+        odi4: { rate: 5.5, count: 44, extra: 'LEAK' },
+        stab: { score: 80, grade: 'B', components: { a: 1 }, extra: 'LEAK' },
+        flags: [{ code: 'X', msg: 'LEAK' }, { code: 'Y' }]
+      });
+      T.eq('odi4 is projected to rate+count only', JSON.stringify(rich.odi4), '{"rate":5.5,"count":44}');
+      T.eq('sleepStability is projected to score+grade+components only', JSON.stringify(rich.sleepStability), '{"score":80,"grade":"B","components":{"a":1}}');
+      T.eq('flags are reduced to their codes, dropping the message', JSON.stringify(rich.flags), '["X","Y"]');
+
+      /* 5 · `opts` DISTINGUISHES undefined FROM falsy. The guards are `!== undefined`, not `||`, so an
+         explicit `false` survives as `false` while an absent key becomes null. The `||` mutant collapses
+         both to null and would silently rewrite a caller's deliberate `false`. */
+      T.eq('an explicit falsy provenance is preserved, not coerced to null', B({ date: 'd' }, { provenance: false }).provenance, false);
+      T.eq('…while an absent one becomes null', B({ date: 'd' }, { provenance: undefined }).provenance, null);
+      T.eq('…and no opts at all is also null', B({ date: 'd' }).kernel, null);
+    });
+
     /* OXYDEX-PB-DETECTOR §3.1 — the three adversarial twins.
        The predecessor counted crossings of an absolute 95 % level, so NOTHING it computed depended on
        the spacing of those crossings: it could not separate a periodic night from an aperiodic one
