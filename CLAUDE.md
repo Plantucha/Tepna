@@ -973,9 +973,16 @@ hand-typed version onto source files — `manifestHash` already identifies code 
 - **62304/13485-ALIGNED, not conformant.** The `docs/COMPLIANCE/` set (lifecycle plan · safety class ·
   config-mgmt · SOUP · release SOP · doc-control) adopts the disciplines as good practice with **no
   certification claim**; every file carries the non-device disclaimer. Runtime SOUP is empty by design.
-- **Version-into-bundle stamping is DEFERRED** (rides the next behavioral re-bundle — don't re-bundle 8
-  apps just to carry a string; same economics as the inert license-comment/`BADGE_CSS` rules). Until
-  then the version is authoritative in `suite.manifest.json` and surfaced on the docs/deploy pages.
+- **Version-into-bundle stamping is LIVE (owner-ordered 2026-08-18 — the deferral is over, and so is its
+  reason).** `DexBuild.build` projects `suite.manifest.json`'s version into each bundle's presentation
+  anchors (`<title>… · vX.Y.Z` · `.logo-sub` · `.version-badge`) at build time, in BOTH lanes.
+  The economics that justified deferring changed: the stamp lands OUTSIDE every `data-inline-src` block
+  **by construction** (inline blocks are masked during projection), so `manifestHash` — a projection of
+  those blocks alone — is INVARIANT and a release moves **zero** fixtures. Gate-asserted with a decoy in
+  `tests/build-core-tests.mjs`. After `tools/release.mjs` bumps the version, run `node tools/build.mjs`
+  (its printed post-steps now say so) — until then `build.mjs --check`'s byte-compare reds every bundle
+  still carrying the old string, so a stale displayed version cannot ship silently. Do NOT hand-edit a
+  version string in a `.src.html`; the literals there are placeholders the build overwrites.
 
 ## ✅ Known non-issues (do NOT re-investigate or "fix" — they are intentional/resolved)
 - **Fonts / woff2:** there are no `*.woff2` files and no `@font-face`/CDN refs in source any more.

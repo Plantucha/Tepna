@@ -78,7 +78,12 @@ function buildOne(bundleFile) {
     if (!existsSync(join(ROOT, p))) throw new Error(srcFile + ' references missing asset ' + p);
     assets[p] = readT(p);
   }
-  return DexBuild.build({ srcHtml, assets }); // { html, manifestHash, assetNames }
+  // §📦 version-into-bundle: the suite version rides every build, stamped OUTSIDE the inline blocks
+  // (manifestHash-invariant by construction — see build-core projectVersion). Single source:
+  // suite.manifest.json; a release bumps it, and the byte-compare in --check reds any bundle still
+  // carrying the old string until it is rebuilt.
+  const suiteVersion = JSON.parse(readT('suite.manifest.json')).version;
+  return DexBuild.build({ srcHtml, assets, suiteVersion }); // { html, manifestHash, assetNames }
 }
 
 // Re-stamp a bundle's manifestHash into its per-app provenance/ fragment (P3 — the two monolith

@@ -61,6 +61,17 @@ function sanitize(t){ return t.replace(/<style\b[^>]*\bdata-omelette\b[^>]*>[\s\
                               .replace(/<style\b[^>]*\bid="__om-edit-overrides"[^>]*>[\s\S]*?<\/style>/gi, ''); }
 function hostMutates(rawSrc, rawCommitted){ return /data-omelette|data-cc-id|__om-edit-overrides|data-dm-ref/i.test((rawSrc||'') + (rawCommitted||'')); }
 
+// §📦 version-into-bundle — same single source as the node lane (build.mjs). Fetched once; if the
+// manifest is unreachable the stamp no-ops and the node lane's --check byte-compare reds the drift,
+// which is the honest failure (lanes must not diverge silently).
+let SUITE_VERSION = null;
+async function suiteVersion(){
+  if (SUITE_VERSION === null) {
+    try { SUITE_VERSION = JSON.parse(await fetchText('suite.manifest.json')).version || false; }
+    catch (_e) { SUITE_VERSION = false; }
+  }
+  return SUITE_VERSION || undefined;
+}
 async function buildOne(bundleFile){
   const rawSrc = await fetchRaw(bundleFile.replace(/\.html$/, '.src.html'));
   const src = rawSrc == null ? null : sanitize(rawSrc);
@@ -68,8 +79,9 @@ async function buildOne(bundleFile){
   const refs = DexBuild.scanRefs(src);
   const assets = {};
   for (const p of [...refs.styles, ...refs.scripts]) { const t = await fetchText(p); if (t == null) return { err:'missing asset ' + p }; assets[p] = t; }
-  let r; try { r = DexBuild.build({ srcHtml: src, assets }); } catch(e){ return { err: e.message }; }
-  const r2 = DexBuild.build({ srcHtml: src, assets });
+  const sv = await suiteVersion();
+  let r; try { r = DexBuild.build({ srcHtml: src, assets, suiteVersion: sv }); } catch(e){ return { err: e.message }; }
+  const r2 = DexBuild.build({ srcHtml: src, assets, suiteVersion: sv });
   r.deterministic = (r.html === r2.html && r.manifestHash === r2.manifestHash);
   r.async = await ManifestGate.manifestHashFromText(r.html);
   const rawCommitted = await fetchRaw(bundleFile);
