@@ -882,6 +882,14 @@ def test_a_frozen_device_stamp_is_reported_as_absent_not_merely_refused(tmp_path
     # the refusal is still the estimator's, unchanged -- this explains it, it does not replace it
     assert row["offset"]["ok"] is False
     assert row["offset"]["reason"] == "implausible-skew"
+    # ⚠ AND THE LATTICE MUST REFUSE IT TOO. `device_axis_is_clock` is `not (quantised or frozen)`, and
+    # the `quantised` half ALONE carries the ring (`_DURATION_S`) — so every other test is decided by
+    # that term and the frozen one could be deleted unnoticed. This stream is frozen WITHOUT being
+    # name-quantised, the Verity `ppi` case, which is the only input that exercises it. The diff-scoped
+    # gate proved the gap: `bool(stamp_frozen)` -> `bool(None)` SURVIVED, i.e. the guard would have kept
+    # working for the ring and silently stopped working for the stream it was written for.
+    assert row["lattice"]["ok"] is False, row["lattice"]
+    assert row["lattice"]["reason"] == "device-axis-not-a-clock"
 
 
 def test_a_GENUINE_skew_is_refused_WITHOUT_being_called_absent(tmp_path):
