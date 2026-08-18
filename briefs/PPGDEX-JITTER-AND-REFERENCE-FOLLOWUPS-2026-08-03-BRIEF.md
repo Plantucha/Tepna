@@ -50,6 +50,36 @@ three things that outlive it.
 > of them is a fact about the data. The tool now prints `N walked · N matched · N paired ECG` on every run
 > and **exits 2 with a diagnosis** when nothing matches, so this specific failure cannot recur quietly.
 >
+> ⚠️ **SELF-CORRECTION 2026-08-18, same day — the word "reproduces" above was too strong for the
+> jitter row, and I am scoping it rather than leaving it to be read as settled.**
+>
+> **What survives unchanged.** The tool was blind to 54 wrist files and now is not; that defect and its
+> fix are independent of everything below. And `sdnnRobust` at **1.84 %** is a direct measurement of
+> what the shipped string claims — 14 nights, 100 % median match — so **the "no correction owed"
+> conclusion stands**, scoped to this corpus.
+>
+> **What does not survive: the 8.36 ms and my 6.09 ms are not the same comparison.** I checked the
+> regex's history — `/VeritySense.*_PPG\.txt$/` was present in the **original** apparatus commit
+> (`569c9804`, PR #756), not introduced later. The PSL tree contains **zero** files matching it. So the
+> 8.36 ms figure, reported over 15 nights *with an IQR*, cannot have come from the PSL tree at all — it
+> was measured on a corpus using capture-host naming (`Polar_VeritySense_*`). My 6.09 ms is from the PSL
+> tree. **Two corpora, not one**, so 6.09 does not refute 8.36 and I should not have implied it did.
+>
+> Whether **5.92 ms** came from the PSL tree is likewise unestablished; if it did, 6.09 is a genuine
+> re-derivation of it, and if it did not, the comparison is as unattributable as this brief originally
+> said. The original §2.1 IQR (3.98–10.61) is much wider than mine (4.57–7.54), which is itself evidence
+> the two runs saw different data.
+>
+> **Method check, since the bound's procedure specifies it.** I ran without `--sleep-only` first, then
+> with it: **byte-identical** statistics. That is a genuine no-op here rather than an inert flag —
+> verified by control: 10 of 54 wrist files ARE daytime and would be excluded, but `--max-nights 15`
+> selects by SIZE and the 15 largest (320–377 MB) are **all nocturnal**, while daytime files median
+> 14.7 MB. So the selection never contained anything for the filter to remove.
+>
+> **The lesson I take from over-claiming this:** "reproduces" is a statement about two measurements of
+> the *same thing*, and corpus identity is part of the thing. I verified the method and the instrument
+> and then asserted equivalence across an axis I had not checked at all.
+
 > **Scope:** n = 14 nights, PSL tree (phone-captured, so no independent second clock — the same condition
 > the reference was measured under, which is what makes it like-for-like). Two nights sit high
 > (2026-07-01 at 15.13 ms with a 94.5 % match rate; 2026-06-20 at 11.70 ms), which is why the **median and
