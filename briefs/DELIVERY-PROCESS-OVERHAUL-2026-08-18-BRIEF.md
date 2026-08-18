@@ -83,6 +83,6 @@ fact, but the *authorization* to step on possibly-live work is the owner's to gi
 - [x] §1 five workflows guarded + verified live (founding PR)
 - [x] §3 cap written into CLAUDE.md §5b
 - [x] §4 `wt-done.mjs` shipped with selftest
-- [ ] §2 first fold executed (→ 0 pending changesets) and the cadence written into this brief's header
-- [ ] §5 owner decision recorded here (either way), CLAUDE.md §5 amended if yes
-- [ ] §6 root drained, `git status --porcelain` empty in root, sync timer observed catching up
+- [x] §2 first fold EXECUTED — v2.5.0 → **v2.6.0** (#1467, 221 changesets folded, tag `v2.6.0` pushed on the merge commit); cadence: ≥25 pending or weekly, attended
+- [ ] §5 owner decision **still pending** (the one open item) — 7 workflows are `merge_group`-wired, the flip is minutes of ruleset work when the yes comes
+- [x] §6 root DRAINED — 180 paths rescue-snapshotted (byte-verified) + tar; all three peer sessions confirmed nothing live (one nested-worktree branch judged superseded by its owner); porcelain 0, and the sync timer's FIRST REAL TICK is in the journal: `main fast-forwarded 1 commit(s): 4c42cab7 -> 3b5b93fe` on both checkouts
