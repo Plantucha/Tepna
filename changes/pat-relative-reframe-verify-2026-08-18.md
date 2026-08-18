@@ -59,3 +59,17 @@ nights with a long **simultaneous** connection on both devices" — scarce, sinc
 16–327 times a night. The tool withholds its own p90 below n=10 and prints the shortfall instead:
 at n=2 the p90 printed *below* the median and read as reassurance.
 
+**Plus `PAT-NO-VALID-ANCHOR` Route 1 UNBLOCKED — the single-segment box night exists.** That brief
+records that no box night had both legs unfragmented (*"2026-07-30 has 13 PPG fragments"*). True of the
+tree as it stood; the corpus now runs to 2026-08-16, and **2026-08-11** meets every §7 criterion:
+ONE `_ECG.txt` (7.83 h, **0** gaps >5 s) and ONE Verity `_PPG.txt` (6.61 h, **0** gaps), starting 8 s
+apart, nocturnal, with `hostAxis.independent: true` on **both** legs (spread 491.9 / 1064.7 ms — a real
+second clock, not a derived host column at ~1 ms).
+
+The night also makes the correction quantitative: the crystals differ **5.2 ppm** (−26.7 vs −31.9),
+i.e. **124 ms of uncorrected relative drift over the 6.61 h overlap — 1.37× the ±90 ms PAT tolerance.**
+Host-disciplining is load-bearing there, not cosmetic.
+
+Data finding only: the per-fragment Δ implementation and the derivation stay open — they are simply no
+longer waiting on a capture.
+
