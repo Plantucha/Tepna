@@ -122,7 +122,23 @@
        tri-device corpus is run. Timing/rate metrics are unaffected and keep their own grades: HR,
        PPI and rate-domain HRV come off the SAME audited pipeline and are NOT re-tiered here.
        Promote only on evidence that the finger pleth reproduces plausible fiducials. */
+    /* ── DORMANT BY DESIGN — declared, graded, and NOT COMPUTED (21 entries) ────────────────────
+       `dormant: true` marks a metric this registry PRE-DECLARES: the grade and citation are settled
+       so that when the per-site split ships it inherits a reviewed tier instead of inventing one at
+       the point of use. Nothing computes these, nothing renders them, and no guide card exists.
+
+       WHY THE FLAG, rather than leaving the intent in the prose above: measured 2026-08-17, these 21
+       are 32 % of this node's registry, and NOTHING machine-readable said so. A dormant grade can
+       drift — a later edit, a fleet-wide tier sweep, a copy-paste from a live sibling — with no gate
+       able to see that the entry was never in service. The flag makes the intent checkable, and
+       `ppgdex · dormant-registry` asserts both halves: a dormant metric has NO guide card, and a
+       non-dormant one is not silently parked.
+
+       ⚠ DORMANT IS NOT A LOWER TIER. Each carries its real `evidence` (`experimental` here, for the
+       reason the block below states — the ring's unknown on-device transfer function). Promotion is
+       removing the flag when the metric ships, not editing the grade. */
     dicroticFinger: {
+      dormant: true,
       label: 'Dicrotic notch (finger)',
       unit: '',
       goodDirection: 'up',
@@ -131,6 +147,7 @@
       cite: 'Dicrotic-notch detection at the O2Ring FINGER site — unknown on-device transfer function; enters below the wrist grade until the tri-device corpus validates it (PPGDEX-O2RING-FINGER-SITE §5)'
     },
     aiFinger: {
+      dormant: true,
       label: 'Aug. index (finger)',
       unit: '%',
       goodDirection: 'down',
@@ -139,6 +156,7 @@
       cite: 'Augmentation index at the O2Ring FINGER site — reflection timing is site-sensitive AND filtered on-device; not the wrist-validated quantity (PPGDEX-O2RING-FINGER-SITE §5)'
     },
     reflectionIdxFinger: {
+      dormant: true,
       label: 'Reflection index (finger)',
       unit: '',
       goodDirection: 'down',
@@ -147,6 +165,7 @@
       cite: 'PPG reflection index at the O2Ring FINGER site — diastolic÷systolic amplitude ratio, distorted by the ring’s on-device AC-coupling/gain normalisation (PPGDEX-O2RING-FINGER-SITE §5)'
     },
     sdppgBAFinger: {
+      dormant: true,
       label: 'SDPPG b/a (finger)',
       unit: '',
       goodDirection: 'down',
@@ -155,6 +174,7 @@
       cite: '2nd-derivative PPG b/a (Takazawa 1998) at the O2Ring FINGER site — a 2nd derivative amplifies any unknown filter in the chain, so the wrist’s emerging grade is not inherited (PPGDEX-O2RING-FINGER-SITE §5)'
     },
     agingIdxFinger: {
+      dormant: true,
       label: 'Aging index (finger)',
       unit: '',
       goodDirection: 'down',
@@ -163,6 +183,7 @@
       cite: 'SDPPG aging index (b−c−d−e)/a (Takazawa 1998) at the O2Ring FINGER site — same 2nd-derivative caveat as sdppgBAFinger (PPGDEX-O2RING-FINGER-SITE §5)'
     },
     notchTimeFinger: {
+      dormant: true,
       label: 'Notch time (finger)',
       unit: 'ms',
       goodDirection: 'up',
@@ -171,6 +192,7 @@
       cite: 'Foot→dicrotic-notch timing at the O2Ring FINGER site — the wrist entry is `measured`, which a site change does NOT confer: notch LOCATION is what an unknown on-device filter moves (PPGDEX-O2RING-FINGER-SITE §5)'
     },
     pulseWidthFinger: {
+      dormant: true,
       label: 'Pulse width (finger)',
       unit: 'ms',
       goodDirection: 'up',
@@ -191,6 +213,7 @@
        untouched: HR, PPI and rate-domain HRV come off the same audited pipeline and do not care
        where on the body the beat was seen. */
     dicroticAnkle: {
+      dormant: true,
       label: 'Dicrotic notch (ankle)',
       unit: '',
       goodDirection: 'up',
@@ -199,6 +222,7 @@
       cite: 'Dicrotic-notch detection at an ANKLE site — notch visibility falls with distance from the heart and rising vessel stiffness; the wrist grade is not inherited (PPGDEX-SITE-WIRING §2)'
     },
     aiAnkle: {
+      dormant: true,
       label: 'Aug. index (ankle)',
       unit: '%',
       goodDirection: 'down',
@@ -207,6 +231,7 @@
       cite: 'Augmentation index at an ANKLE site — AI is DEFINED by reflected-wave arrival relative to the systolic peak, and that timing is exactly what moves down the arterial tree; not the wrist-validated quantity (PPGDEX-SITE-WIRING §2)'
     },
     reflectionIdxAnkle: {
+      dormant: true,
       label: 'Reflection index (ankle)',
       unit: '',
       goodDirection: 'down',
@@ -215,6 +240,7 @@
       cite: 'PPG reflection index at an ANKLE site — diastolic÷systolic amplitude ratio, and the reflection it measures is site-determined (PPGDEX-SITE-WIRING §2)'
     },
     sdppgBAAnkle: {
+      dormant: true,
       label: 'SDPPG b/a (ankle)',
       unit: '',
       goodDirection: 'down',
@@ -223,6 +249,7 @@
       cite: '2nd-derivative PPG b/a (Takazawa 1998) at an ANKLE site — Takazawa\u2019s norms are finger-derived and a 2nd derivative amplifies any waveform difference; the wrist grade is not inherited (PPGDEX-SITE-WIRING §2)'
     },
     agingIdxAnkle: {
+      dormant: true,
       label: 'Aging index (ankle)',
       unit: '',
       goodDirection: 'down',
@@ -231,6 +258,7 @@
       cite: 'SDPPG aging index (b−c−d−e)/a (Takazawa 1998) at an ANKLE site — same site-transfer caveat as sdppgBAAnkle (PPGDEX-SITE-WIRING §2)'
     },
     notchTimeAnkle: {
+      dormant: true,
       label: 'Notch time (ankle)',
       unit: 'ms',
       goodDirection: 'up',
@@ -239,6 +267,7 @@
       cite: 'Foot→dicrotic-notch timing at an ANKLE site — the wrist entry is `measured`, which a site change does NOT confer: notch timing is the single quantity most directly moved by arterial distance (PPGDEX-SITE-WIRING §2)'
     },
     pulseWidthAnkle: {
+      dormant: true,
       label: 'Pulse width (ankle)',
       unit: 'ms',
       goodDirection: 'up',
@@ -260,6 +289,7 @@
        a 1-column O2Ring pleth comes from a finger ring, so there the layout really does fix the
        site. Wrist is the only site this suite infers that the hardware does not guarantee. */
     dicroticAssumed: {
+      dormant: true,
       label: 'Dicrotic notch (site assumed)',
       unit: '',
       goodDirection: 'up',
@@ -268,6 +298,7 @@
       cite: 'Dicrotic-notch detection with the optical site ASSUMED, not observed — the wrist grade rests on a limb nobody confirmed; declare the site to earn it back (PPGDEX-SITE-WIRING §3)'
     },
     aiAssumed: {
+      dormant: true,
       label: 'Aug. index (site assumed)',
       unit: '%',
       goodDirection: 'down',
@@ -276,6 +307,7 @@
       cite: 'Augmentation index with the optical site ASSUMED — AI is site-defined, so a wrist tier on an unconfirmed limb is a grade the metric did not earn (PPGDEX-SITE-WIRING §3)'
     },
     reflectionIdxAssumed: {
+      dormant: true,
       label: 'Reflection index (site assumed)',
       unit: '',
       goodDirection: 'down',
@@ -284,6 +316,7 @@
       cite: 'PPG reflection index with the optical site ASSUMED — the reflection it measures is site-determined (PPGDEX-SITE-WIRING §3)'
     },
     sdppgBAAssumed: {
+      dormant: true,
       label: 'SDPPG b/a (site assumed)',
       unit: '',
       goodDirection: 'down',
@@ -292,6 +325,7 @@
       cite: '2nd-derivative PPG b/a with the optical site ASSUMED — Takazawa norms are site-specific (PPGDEX-SITE-WIRING §3)'
     },
     agingIdxAssumed: {
+      dormant: true,
       label: 'Aging index (site assumed)',
       unit: '',
       goodDirection: 'down',
@@ -300,6 +334,7 @@
       cite: 'SDPPG aging index with the optical site ASSUMED — same site-transfer caveat as sdppgBAAssumed (PPGDEX-SITE-WIRING §3)'
     },
     notchTimeAssumed: {
+      dormant: true,
       label: 'Notch time (site assumed)',
       unit: 'ms',
       goodDirection: 'up',
@@ -308,6 +343,7 @@
       cite: 'Foot→dicrotic-notch timing with the optical site ASSUMED — `measured` is a claim about a KNOWN fiducial at a KNOWN site (PPGDEX-SITE-WIRING §3)'
     },
     pulseWidthAssumed: {
+      dormant: true,
       label: 'Pulse width (site assumed)',
       unit: 'ms',
       goodDirection: 'up',
