@@ -34,6 +34,7 @@ const ROOT = join(__dirname, '..');
 const require = createRequire(import.meta.url);
 const DexBuild = require(join(ROOT, 'tools', 'build-core.js'));
 const ManifestGate = require(join(ROOT, 'manifest-gate.js'));
+const SUITE_VERSION = JSON.parse(readFileSync(join(ROOT, 'suite.manifest.json'), 'utf8')).version; // §📦 — the owned-bundle legs must build the way build.mjs builds
 
 const C = { reset: '\x1b[0m', red: '\x1b[31m', green: '\x1b[32m', dim: '\x1b[2m', bold: '\x1b[1m' };
 const paint = (s, c) => (process.stdout.isTTY ? c + s + C.reset : s);
@@ -53,7 +54,7 @@ function buildOne(bundleFile) {
   const refs = DexBuild.scanRefs(srcHtml);
   const assets = {};
   for (const p of [...refs.styles, ...refs.scripts]) assets[p] = readT(p);
-  return DexBuild.build({ srcHtml, assets });
+  return DexBuild.build({ srcHtml, assets, suiteVersion: SUITE_VERSION });
 }
 
 async function main() {
@@ -70,6 +71,37 @@ async function main() {
   const owned = BUNDLES.filter((b) => existsSync(join(ROOT, b)) && DexBuild.isPlainInline(readT(b)));
   console.log('\n' + paint('\u25b8 owned (plain-inline) bundles: ' + (owned.length ? owned.join(', ') : '(none yet)'), C.bold));
 
+  /* ── §📦 projectVersion — the stamp is manifestHash-INVARIANT by construction ─────────────────
+     The whole license to stamp versions per release is this invariance; if it ever breaks, releases
+     start moving every fixture and the deferral's original objection comes back. So it is gated with
+     a DECOY: a version-shaped string inside an inline script block must be unreachable. */
+  {
+    const q = String.fromCharCode(34);
+    const synth = [
+      '<title>SynthDex \u00b7 v1.0</title>',
+      '<div class=' + q + 'logo-sub' + q + '>v1.0 \u00b7 Tepna</div>',
+      '<script data-inline-src=' + q + 'a.js' + q + '>var deco = ' + q + 'class=\\' + q + 'version-badge\\' + q + '>v9.9' + q + ';</scr' + 'ipt>',
+      '<span class=' + q + 'version-badge' + q + '>v1.0</span>'
+    ].join('\n');
+    const stamped = DexBuild.projectVersion(synth, '3.1.4');
+    ok(stamped.includes('<title>SynthDex \u00b7 v3.1.4</title>'), 'projectVersion stamps the title anchor');
+    ok(stamped.includes('logo-sub' + q + '>v3.1.4'), 'projectVersion stamps .logo-sub');
+    ok(stamped.includes('version-badge' + q + '>v3.1.4</span>'), 'projectVersion stamps .version-badge');
+    ok(stamped.includes('v9.9'), 'DECOY inside an inline script is untouched \u2014 inline blocks are masked, not trusted');
+    ok(DexBuild.projectVersion(synth) === synth, 'no version \u2192 byte-identical no-op');
+    ok(DexBuild.projectVersion(synth, 'v; alert(1)') === synth, 'non-semver version \u2192 no-op (never interpolated)');
+    ok(DexBuild.projectVersion(stamped, '3.1.4') === stamped, 'idempotent');
+    const noAnchors = '<title>Orchestrator</title><p>no version UI</p>';
+    ok(DexBuild.projectVersion(noAnchors, '3.1.4') === noAnchors, 'bundle without anchors \u2192 byte-identical (orchestrators)');
+    // THE invariance leg: same source built with and without the stamp \u2192 SAME manifestHash, different html
+    // (no tag-filter regex here — CodeQL js/bad-tag-filter fires on any such pattern, and a fixture
+    //  needs no parsing: build the source string directly, once, and hand it to both builds)
+    const src2 = '<html><head><title>S \u00b7 v1.0</title></head><body><script src=' + q + 'x.js' + q + '></scr' + 'ipt></body></html>';
+    const plain = DexBuild.build({ srcHtml: src2, assets: { 'x.js': 'var x=1;' } });
+    const withV = DexBuild.build({ srcHtml: src2, assets: { 'x.js': 'var x=1;' }, suiteVersion: '3.1.4' });
+    ok(plain.manifestHash === withV.manifestHash, 'manifestHash INVARIANT under the version stamp', plain.manifestHash);
+    ok(plain.html !== withV.html && withV.html.includes('v3.1.4'), 'html differs only by the stamp');
+  }
   for (const b of owned) {
     console.log(paint('  \u2500 ' + b, C.dim));
     const r1 = buildOne(b),
@@ -82,7 +114,7 @@ async function main() {
     for (const p of [...rf.styles, ...rf.scripts]) a[p] = readT(p);
     const firstScript = rf.scripts[0];
     a[firstScript] = a[firstScript] + '\n;/*drift*/';
-    const rMut = DexBuild.build({ srcHtml: s, assets: a });
+    const rMut = DexBuild.build({ srcHtml: s, assets: a, suiteVersion: SUITE_VERSION });
     ok(rMut.manifestHash !== r1.manifestHash, b + ' manifestHash moves on an executed-code change');
     // CROSS-HASHER PARITY: sync core === async manifest-gate (crypto.subtle)
     const gateHash = await ManifestGate.manifestHashFromText(r1.html);
