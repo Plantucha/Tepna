@@ -883,7 +883,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <tr class="bd"><td>15&#x202F;&#x2013;&#x202F;29.9</td><td class="nr">Moderate</td><td>Corresponds to moderate OSA range</td></tr>
   <tr class="cr"><td>&#x2265;&#x202F;30</td><td class="nr">Severe</td><td>Corresponds to severe OSA range</td></tr></table></div>
   <div class="co co-w" style="margin-top:12px"><span class="co-ic">&#x26A0;&#xFE0F;</span><div><strong>Severe-night caveat.</strong> ODI-4 still modestly <strong>under-counts</strong> AHI on clinically severe nights &#x2014; dense back-to-back desaturations sag the 5-minute rolling baseline and hide later events. The v22.36 ceiling-baseline detector removed most of the bias (severe-night mean bias &#x2212;30.6&#x202F;&#x2192;&#x202F;&#x2212;15.7 ev/h), but a residual through-origin relation of <strong>truth-AHI &#x2248; 1.4&#xD7;&#x202F;ODI-4</strong> remains. Read a <em>low</em> ODI-4 on an otherwise clinically severe night with care.</div></div>
-  <div class="co co-i" style="margin-top:12px"><span class="co-ic">&#x2139;&#xFE0F;</span><div><strong>Which ODI to use?</strong> ODI-4 (&#x2265;4% desaturations) is the most widely used AHI surrogate in oximetry studies. ODI-3 is more sensitive for mild hypoxemia. ODI-2 and ODI-1 are primarily useful for periodic breathing pattern detection via the ODRI ratio. <em>Note: the precise ODI-4&#x2192;AHI conversion is OxyDex internal calibration, not a single published constant.</em></div></div>
+  <div class="co co-i" style="margin-top:12px"><span class="co-ic">&#x2139;&#xFE0F;</span><div><strong>Which ODI to use?</strong> ODI-4 (&#x2265;4% desaturations) is the most widely used AHI surrogate in oximetry studies. ODI-3 is more sensitive for mild hypoxemia. <em>ODI-3 is reported UNGRADED in the app (no good/warn/bad band): the classification table below is the ODI-<strong>4</strong> band, and there is no consensus ODI-3 severity ladder to publish here. What the literature carries for ODI-3 are population-specific DIAGNOSTIC cut-offs against AHI (~4.3&#x2013;26 events/hr across cohorts), not severity boundaries; ODI-3 also agrees with AHI only fairly (&#x3BA;&#x2248;0.32) and classifies more severely, so re-using the ODI-4 band would be a biased approximation rather than a neutral one. Reviewed 2026-08-18 (REFERENCE-GUIDE-AUDIT dim 3).</em> ODI-2 and ODI-1 are primarily useful for periodic breathing pattern detection via the ODRI ratio. <em>Note: the precise ODI-4&#x2192;AHI conversion is OxyDex internal calibration, not a single published constant.</em></div></div>
 <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 </div><!-- /spo2-basics -->
 
@@ -1847,7 +1847,7 @@ body.light .ev-measured { border-color:var(--surface); }
 <div class="mc" data-tier="secondary">
   <div class="mh"><div class="mi"><span class="ma">Karvonen Z1&#x202F;&#x2013;&#x202F;Z5</span><span class="mf">Heart Rate Reserve Zones</span></div><span class="mt ta">Advanced</span></div>
   <p class="md">Five training intensity zones from HRR (= HRmax &#x2212; HRrest), where HRrest = nocturnal HR floor. Each zone is a percentage range of HRR added to HRrest. HRR-based zones are more individualized than age-predicted fixed-percent zones.</p>
-  <div class="fb"><div class="fl">Karvonen formula</div><div class="ft">Z_lo = HR_rest + HRR &#xD7; lo_frac;  Z_hi = HR_rest + HRR &#xD7; hi_frac&#x0A;Z1 Recovery:     50&#x202F;&#x2013;&#x202F;60% HRR&#x0A;Z2 Aerobic Base: 60&#x202F;&#x2013;&#x202F;70% HRR  &#x2190; Zone 2 target&#x0A;Z3 Tempo:        70&#x202F;&#x2013;&#x202F;80% HRR&#x0A;Z4 Threshold:    80&#x202F;&#x2013;&#x202F;90% HRR&#x0A;Z5 VO&#x2082;max:      90&#x202F;&#x2013;&#x202F;100% HRR&#x0A;MAF HR = 180 &#x2212; age  (Maffetone aerobic ceiling)&#x0A;LTHR &#x2248; HR_rest + HRR &#xD7; 0.87</div></div>
+  <div class="fb"><div class="fl">Karvonen formula</div><div class="ft">Z_lo = HR_rest + HRR &#xD7; lo_frac;  Z_hi = HR_rest + HRR &#xD7; hi_frac&#x0A;Z1 Recovery:     50&#x202F;&#x2013;&#x202F;60% HRR&#x0A;Z2 Aerobic Base: 60&#x202F;&#x2013;&#x202F;70% HRR  &#x2190; Zone 2 target&#x0A;Z3 Tempo:        70&#x202F;&#x2013;&#x202F;80% HRR&#x0A;Z4 Threshold:    80&#x202F;&#x2013;&#x202F;90% HRR&#x0A;Z5 VO&#x2082;max:      90&#x202F;&#x2013;&#x202F;100% HRR&#x0A;MAF HR = 180 &#x2212; age  (Maffetone aerobic ceiling), then readiness-adjusted: +5 if readiness &#x2265; 85, &#x2212;10 if readiness &lt; 55, else unadjusted <em>(so the displayed value can sit up to 10 bpm below the bare formula &#x2014; the adjustment was undocumented here until 2026-08-18, REFERENCE-GUIDE-AUDIT dim 2)</em>&#x0A;LTHR &#x2248; HRmax &#xD7; 0.88 <em>(Seiler 2010, recreational-athlete estimate &#x2014; what the app actually computes: a fraction of HRmax, NOT an HRR/Karvonen fraction. Corrected 2026-08-18: this read <s>HR_rest + HRR &#xD7; 0.87</s>, an HRR-based formula the code has never implemented, reading ~6 bpm high at HRmax 180 / HRrest 60. REFERENCE-GUIDE-AUDIT dim 2.)</em></div></div>
   <div class="fb" style="border-left-color:var(--green);margin-top:10px"><div class="fl">Readiness Score (0&#x202F;&#x2013;&#x202F;100)</div><div class="ft">Composite of RMSSD proxy, SpO&#x2082; mean, Sleep Stability Score,&#x0A;HR floor vs. 7-night mean, WASO, nocturnal HR slope.&#x0A;&gt;&#x202F;75: High &#x2014; train at planned intensity&#x0A;60&#x202F;&#x2013;&#x202F;75: Good &#x2014; moderate intensity appropriate&#x0A;45&#x202F;&#x2013;&#x202F;60: Fair &#x2014; consider reduced volume&#x0A;&lt;&#x202F;45: Low &#x2014; recovery day recommended</div></div>
 <span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
 </div><!-- /karvonen -->
@@ -1923,7 +1923,7 @@ body.light .ev-measured { border-color:var(--surface); }
     <div class="mi"><span class="ma">Poor Nights %</span><span class="mf">Fraction of Nights with Sleep Stability Score &lt; 50</span></div>
     <span class="mt ta">Advanced</span>
   </div>
-  <p class="md">Percentage of loaded nights where the Sleep Stability Score falls below 50 (&#x201CFair&#x201D; threshold). A high poor-nights percentage despite acceptable average metrics reveals that bad nights are being averaged away by good nights &#x2014; clinically important for CPAP titration monitoring.</p>
+  <p class="md">Percentage of loaded nights where the Sleep Stability Score falls below 50 (&#x201C;Fair&#x201D; threshold). A high poor-nights percentage despite acceptable average metrics reveals that bad nights are being averaged away by good nights &#x2014; clinically important for CPAP titration monitoring.</p>
   <div class="fb"><div class="fl">Formula</div><div class="ft">PoorNightsPct = count(stabilityScore &lt; 50) / totalNights &times; 100</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>Poor Nights %</th><th>Interpretation</th></tr><tr class="ok"><td>< 20</td><td class="nr">Most nights adequate</td></tr><tr class="wn"><td>20 &#x2013; 40</td><td class="nr">Frequent poor nights</td></tr><tr class="bd"><td>> 40</td><td class="nr">Majority poor &#x2014; treatment inadequate</td></tr></table></div>
@@ -2400,7 +2400,7 @@ body.light .ev-measured { border-color:var(--surface); }
         <p class="md"><strong>Uth N, S&#xF8;rensen H, Overgaard K, Pedersen PK.</strong> Estimation of VO&#x2082;max from the ratio between HRmax and HRrest &#x2014; the Heart Rate Ratio Method. <em>Eur J Appl Physiol.</em> 2004;91(1):111&#x2013;115. doi: <a href="https://doi.org/10.1007/s00421-003-0988-y" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1007/s00421-003-0988-y</a></p>
         <div class="fb">
           <div class="fl">Metrics covered</div>
-          <div class="ft">VO&#x2082;max &#x2248; 15.3 &#xD7; (HRmax / HRrest). r=0.82, SEE &#xB110.8 ml&#xB7;kg&#xB9;&#xB7;min&#xB9;. RMSSD adjustment &#xB11.5 ml&#xB7;kg&#xB9;&#xB7;min&#xB9; based on vagal-tone proxy applied in OxyDex VO&#x2082;max card.</div>
+          <div class="ft">VO&#x2082;max &#x2248; 15.3 &#xD7; (HRmax / HRrest). r=0.82, SEE &#xB1;10.8 ml&#xB7;kg&#xB9;&#xB7;min&#xB9;. RMSSD adjustment &#xB1;1.5 ml&#xB7;kg&#xB9;&#xB7;min&#xB9; based on vagal-tone proxy applied in OxyDex VO&#x2082;max card.</div>
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
@@ -2445,7 +2445,7 @@ body.light .ev-measured { border-color:var(--surface); }
         <p class="md"><strong>Jubran A.</strong> Pulse oximetry. <em>Crit Care.</em> 1999;3(2):R11&#x2013;R17. doi: <a href="https://doi.org/10.1186/cc341" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1186/cc341</a></p>
         <div class="fb">
           <div class="fl">Metrics covered</div>
-          <div class="ft">Beer&#x2013;Lambert dual-wavelength (660 nm red / 940 nm IR) absorption principle; &#xB12% accuracy spec and reliability range 70&#x2013;100%. Basis for SpO&#x2082; device disclaimer in OxyDex.</div>
+          <div class="ft">Beer&#x2013;Lambert dual-wavelength (660 nm red / 940 nm IR) absorption principle; &#xB1;2% accuracy spec and reliability range 70&#x2013;100%. Basis for SpO&#x2082; device disclaimer in OxyDex.</div>
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
@@ -2475,7 +2475,7 @@ body.light .ev-measured { border-color:var(--surface); }
         <p class="md"><strong>P&#xe9;pin J-L, Bailly S, Tamisier R.</strong> Big Data in sleep apnoea: Opportunities and challenges. <em>Respirology.</em> 2020;25(5):486&#x2013;494. doi: <a href="https://doi.org/10.1111/resp.13669" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1111/resp.13669</a></p>
         <div class="fb">
           <div class="fl">Metrics covered</div>
-          <div class="ft">Consumer wearable screening performance and uncertainty; informs OxyDex uncertainty language (&ldquo;directional proxy,&rdquo; &ldquo;not validated home PSG,&rdquo; &ldquo;&#xB15 events/hr individual uncertainty&rdquo; on AHI Estimate card).</div>
+          <div class="ft">Consumer wearable screening performance and uncertainty; informs OxyDex uncertainty language (&ldquo;directional proxy,&rdquo; &ldquo;not validated home PSG,&rdquo; &ldquo;&#xB1;5 events/hr individual uncertainty&rdquo; on AHI Estimate card).</div>
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
@@ -3053,6 +3053,6 @@ document.querySelectorAll('.mob-drawer-panel .nav a').forEach(function(a){
   <div class="dxl-seg"><span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span></div>
 </div>
 
-<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.5.0</div>
+<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.6.0</div>
 </body>
 </html>

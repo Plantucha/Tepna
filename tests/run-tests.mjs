@@ -718,6 +718,9 @@ function readEquiv() {
   pairCommitted('oxydex_mdy', 'synthetic_oxydex_o2ring_mdy.csv', null);
   pairCommitted('oxydex_lossy', 'synthetic_oxydex_o2ring_lossy.csv', null);
   pairCommitted('oxydex_longnight', 'synthetic_oxydex_o2ring_longnight.csv', null);
+  // §10 LONG-CYCLE (OXYDEX-PB-DETECTOR-FOLLOWUPS §5): 8 cycles at 110 s — the 90-130 s upper band,
+  // which no other committed input reaches (the others run at 20 s, 50 s and ~420 s drift).
+  pairCommitted('oxydex_longcycle', 'synthetic_oxydex_o2ring_longcycle.csv', null);
   pairCommitted('oxydex_odibasis', 'synthetic_oxydex_o2ring_gap.csv', null); // §5: a gap+artifact night that diverges the two ODI time bases
   pair('pulsedex_synth', 'synthetic_pulsedex_rr.txt', 'synthetic_pulsedex_golden.node-export.json');
   pair('hrvdex_synth', 'synthetic_hrvdex_welltory.csv', 'synthetic_hrvdex_golden.node-export.json');

@@ -10,9 +10,10 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2WHPFL3uXuRerYT+eLir2wPwqNePBvn2imXxM/bNFj8=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-CNOVvL0rgtW4HsMGf9KUI693quAn6scT+2m6vEtOyG8=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ehtOJVhvZerljrUlVQZ5RqIxLKhKMD8DwTxrPw3fIzw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-kU1tjeTFtsIMswCZfdVnVaVpv8Dxs4SBggntk5rBqkI=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-wnMcMNb2Ox5gzonOiO2wNUAWc0Prqb3nVjEWndGTrsc=' 'sha256-znfSiWXixA/5Q5RqwKxfNRQARu3UmbSi5LZS809lzb8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2WHPFL3uXuRerYT+eLir2wPwqNePBvn2imXxM/bNFj8=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-CNOVvL0rgtW4HsMGf9KUI693quAn6scT+2m6vEtOyG8=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ehtOJVhvZerljrUlVQZ5RqIxLKhKMD8DwTxrPw3fIzw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gwNqVAKKLRnZSqPkmbPH0eDYciNT1BUiyiNm/9xyaFs=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-kU1tjeTFtsIMswCZfdVnVaVpv8Dxs4SBggntk5rBqkI=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-znfSiWXixA/5Q5RqwKxfNRQARu3UmbSi5LZS809lzb8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OxyDex — Nocturnal Oximetry Analyzer · v1.0.0</title>
+<!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
+<title>OxyDex — Nocturnal Oximetry Analyzer · v2.6.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <style data-inline-src="licensing/dex-license.css">/*
  * dex-license.css — reusable Tepna license / attribution stamp styles
@@ -6117,7 +6118,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
     <div class="logo-badge"><svg viewBox="0 0 100 100" aria-hidden="true" style="width:23px;height:23px" fill="none" stroke="#06121A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></svg></div>
     <div>
       <div class="logo-title">OxyDex</div>
-      <div class="logo-sub">v1.0 · Tepna</div>
+      <div class="logo-sub">v2.6.0 · Tepna</div>
     </div>
   </div>
   <hr class="sidebar-logo-rule">
@@ -6157,7 +6158,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
 
 <div class="topbar">
   <div>
-    <div class="topbar-title">OxyDex <span class="version-badge">v1.0.0</span></div>
+    <div class="topbar-title">OxyDex <span class="version-badge">v2.6.0</span></div>
     <div class="topbar-sub" id="topbarSub">Nocturnal oximetry · SpO₂ · HR · HRV · 75+ metrics · Tepna</div>
   </div>
   <div class="topbar-actions">
@@ -21774,7 +21775,16 @@ function renderSmartSummary(n) {
     html += ssKPI('T90% Time', cv(st.t90pct, 0.5, 2, '%'), st.t90pct < 0.5 ? 'good' : st.t90pct < 2 ? 'warn' : 'bad');
   }
   if (n.odi4) html += ssKPI('ODI-4 Rate', cv(n.odi4.rate, 5, 15, '/hr'), n.odi4.rate < 5 ? 'good' : n.odi4.rate < 15 ? 'warn' : 'bad');
-  if (n.odi3) html += ssKPI('ODI-3 Rate', cv(n.odi3.rate, 5, 15, '/hr'), n.odi3.rate < 5 ? 'good' : n.odi3.rate < 15 ? 'warn' : 'bad');
+  // ODI-3 IS NOT GRADED — there is no published ODI-3 severity band to grade it against
+  // (REFERENCE-GUIDE-AUDIT dim 3). The guide publishes an ODI-**4** table (AASM <5/5-14.9/15-29.9/>=30)
+  // and says of ODI-3 only that it is "more sensitive for mild hypoxemia"; `oxydex-registry.js` carries a
+  // definition citation and no thresholds. This site had borrowed ODI-4's bands VERBATIM from the line
+  // above; `nightDetail` invented a different ladder. Literature settles it: published ODI-3 numbers are
+  // population-specific DIAGNOSTIC cut-offs against AHI (4.3, 10, 12, 13.1, 26 /hr across cohorts), not a
+  // severity ladder — and ODI-3 vs AHI concordance is only FAIR (kappa 0.32) with ODI-3 systematically
+  // over-classifying, so borrowing ODI-4's ladder is a BIASED approximation, not a neutral one. Neutral,
+  // per the ODRI precedent below. Restore a ladder only WITH a citation, in both sites at once.
+  if (n.odi3) html += ssKPI('ODI-3 Rate', cv(n.odi3.rate, null, null, '/hr'), 'neutral');
   if (n.t88t85) html += ssKPI('T88 Time', cv(n.t88t85.t88Min, 0, 1, 'min'), n.t88t85.t88Min === 0 ? 'good' : n.t88t85.t88Min < 1 ? 'warn' : 'bad');
   if (n.hypDose) html += ssKPI('HD94/hr', cv(n.hypDose.hd94PerHr, 60, 200, ''), n.hypDose.hd94PerHr < 60 ? 'good' : n.hypDose.hd94PerHr < 200 ? 'warn' : 'bad');
   if (n.odri) html += ssKPI('ODRI', cv(n.odri.odri, null, null, ''), 'neutral');
@@ -21805,9 +21815,15 @@ function renderSmartSummary(n) {
   }
   if (h) {
     html += ssKPI('RMSSD', cv(h.rmssd, null, null, 'bpm*'), 'neutral'); // *1Hz proxy, not true ms
-    html += ssKPI('HR-Var SD', cv(h.hrSdnn, 2, 3, 'bpm', true), h.hrSdnn >= 3 ? 'good' : h.hrSdnn >= 2 ? 'warn' : 'bad');
-    html += ssKPI('HR Floor', cv(h.hrFloor, 52, 60, 'bpm'), h.hrFloor <= 52 ? 'good' : h.hrFloor <= 60 ? 'warn' : 'bad');
-    html += ssKPI('HR Slope', cv(h.hrSlope, 0, 1, '/hr'), h.hrSlope <= 0 ? 'good' : h.hrSlope < 1 ? 'warn' : 'bad');
+    // The three below are 1 Hz-proxy statistics with NO external ladder, and they were graded here and
+    // graded DIFFERENTLY in `nightDetail` (52/60 vs 55/65; 3/2 vs 4/2.5; 0/1 vs 0/1.5) — two ladders means
+    // at least one is invented, and a reader saw the same night called two things on two screens. Note the
+    // precedent is INSIDE this block: RMSSD (above) and Noc. Dip (below) are already `neutral` for being
+    // 1 Hz proxies, and `nightDetail` labels the whole section "(relative comparison only)". These three
+    // were the inconsistent members. Neutral until a published band exists — then grade in BOTH sites.
+    html += ssKPI('HR-Var SD', cv(h.hrSdnn, null, null, 'bpm', true), 'neutral');
+    html += ssKPI('HR Floor', cv(h.hrFloor, null, null, 'bpm'), 'neutral');
+    html += ssKPI('HR Slope', cv(h.hrSlope, null, null, '/hr'), 'neutral');
     html += ssKPI('Noc. Dip', cv(n.hrnDip ? n.hrnDip.hrnDip : null, null, null, '% (intra)'), 'neutral');
   }
   if (n.poincare) {
@@ -22748,7 +22764,9 @@ function nightDetail(n, idx) {
   html +=
     '<div class="grid">' +
     (n.odi4 ? metric('ODI-4', n.odi4.rate, 'evt/hr · ' + n.odi4.count + ' total', n.odi4.rate < 5 ? 'good' : n.odi4.rate < 15 ? 'warn' : 'bad') : '') +
-    (n.odi3 ? metric('ODI-3', n.odi3.rate, 'evt/hr · ' + n.odi3.count + ' total', n.odi3.rate < 15 ? 'good' : n.odi3.rate < 30 ? 'warn' : 'bad') : '') +
+    // ODI-3 ungraded — no published band; see renderSmartSummary for the evidence. This site had shifted
+    // ODI-4's ladder one notch; the other borrowed it unchanged. Neither was citable.
+    (n.odi3 ? metric('ODI-3', n.odi3.rate, 'evt/hr · ' + n.odi3.count + ' total (ranges not established)', '') : '') +
     metric('Mean HR', s.meanHr, 'bpm', '') +
     metric('HR Range', s.minHr + '–' + s.maxHr, 'bpm', s.maxHr > 95 ? 'warn' : '') +
     '</div>';
@@ -22760,10 +22778,12 @@ function nightDetail(n, idx) {
     html += '<div class="sec-label">HRV · 1Hz proxy <span class="cite-note">(relative comparison only)</span></div>';
     html +=
       '<div class="grid">' +
-      metric('HR-Var SD', +(h.hrSdnn || 0).toFixed(2) + 'bpm', '1Hz SD (rel. only)', h.hrSdnn >= 4 ? 'good' : h.hrSdnn >= 2.5 ? 'warn' : 'bad') +
+      // ungraded: the section is already labelled "(relative comparison only)" — a relative measure with a
+      // good/warn/bad ladder contradicts its own label, and this ladder disagreed with renderSmartSummary's
+      metric('HR-Var SD', +(h.hrSdnn || 0).toFixed(2) + 'bpm', '1Hz SD (rel. only)', '') +
       metric('pNN3-equiv', h.pnn3 + '%', 'pairs ≥3bpm', h.pnn3 >= 1.5 ? 'good' : h.pnn3 >= 0.5 ? 'warn' : 'bad') +
-      metric('HR Floor', h.hrFloor, 'bpm (p5)', h.hrFloor <= 55 ? 'good' : h.hrFloor <= 65 ? 'warn' : 'bad') +
-      metric('HR Slope', (h.hrSlope > 0 ? '+' : '') + h.hrSlope, 'bpm/hr', h.hrSlope < 0 ? 'good' : h.hrSlope < 1.5 ? 'warn' : 'bad') +
+      metric('HR Floor', h.hrFloor, 'bpm (p5)', '') +
+      metric('HR Slope', (h.hrSlope > 0 ? '+' : '') + h.hrSlope, 'bpm/hr', '') +
       metric('RSA proxy', h.rsaProxy != null ? h.rsaProxy : '—', 'SpO₂ SD/30s', '') +
       '</div>';
     html += '</div>'; // /.sec-section secondary
@@ -26712,6 +26732,6 @@ function toggleResearchAccordion(el) {
      sink that only survived because it ran on DOMContentLoaded, already fired in
      the bundle). Dropping raw-at-rest removes both the storage and the payload. -->
 
-<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.5.0</div>
+<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.6.0</div>
 </body>
 </html>

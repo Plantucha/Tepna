@@ -831,6 +831,35 @@
       // regularity gate must be what rejects C — not an empty run that never reached criterion 4.
       T.ok('the red-noise twin is rejected by REGULARITY, not by having no cycles at all', rC.longestRun >= 3 && rC.cycleCV !== null && rC.cycleCV >= 0.13);
 
+      /* §5 · THE UPPER BAND FROM COMMITTED BYTES (OXYDEX-PB-DETECTOR-FOLLOWUPS §5).
+         Every twin above is an array this file synthesises, so the detector's 90-130 s ceiling has only
+         ever been exercised against inputs the test itself built. The committed inputs could not reach it:
+         they run at 20 s and 50 s (`_longnight`) and ~420 s drift (the clean file), all outside the band.
+         This leg runs the SAME detector over BYTES ON DISK, parsed by the real `parseCSV` — so a
+         regression in parsing, in the baseline, or in the ceiling reds here even if the synthesised twins
+         still pass. The input is `synthetic_oxydex_o2ring_longcycle.csv`: 8 cycles at 110 s, flat either
+         side, amplitude 2 %SpO2 about the baseline. */
+      var _lcRaw = env.equiv && env.equiv.oxydex_longcycle && env.equiv.oxydex_longcycle.input;
+      var _lcParse = (env.OxyDex && env.OxyDex.parseCSV) || (OD && OD.parseCSV);
+      if (!_lcRaw) T.skip('oxydex_longcycle committed input present', 'env.equiv.oxydex_longcycle.input absent (older runner)');
+      else if (typeof _lcParse !== 'function') T.skip('parseCSV reachable for the long-cycle leg', 'no parseCSV on the OxyDex surface');
+      else {
+        var _lcRows = _lcParse(_lcRaw);
+        var _lcSeries = _lcRows.map(function (r) {
+          return r.spo2;
+        });
+        var _lc = OD.detectSpO2Periodicity(_lcSeries);
+        T.ok('§5 · the committed long-cycle night parses to a full 2 h @1Hz', _lcSeries.length === 7200, _lcSeries.length + ' samples');
+        T.ok('§5 · …and fires as periodic through the real parser', _lc.periodic === true, JSON.stringify(_lc).slice(0, 140));
+        T.eq('§5 · …at its planted 110 s cycle length', _lc.cycleLen, 110);
+        T.ok('§5 · …which is ABOVE 90 s, the ceiling a 40-90 s reading would have imposed', _lc.cycleLen > 90, 'cycleLen ' + _lc.cycleLen);
+        T.ok('§5 · …and regular enough to clear criterion 4 on its own merits', _lc.cycleCV !== null && _lc.cycleCV < 0.13, 'cycleCV ' + _lc.cycleCV);
+        /* ANTI-VACUITY, same discipline as the red-noise leg: a run of >= PB_MIN_CYCLES is what makes the
+           verdict meaningful. 8 planted cycles yield 7 inter-crossing intervals, so a detector that found
+           only 4 would still say `periodic` while having lost half the episode. */
+        T.ok('§5 · …on a run of 7 cycles, not the bare 4-cycle minimum', _lc.longestRun === 7, 'longestRun ' + _lc.longestRun);
+      }
+
       // §2.2: the count is on DISJOINT pairs, so 2 real cycles must not read as 3.
       var two = [],
         t;
@@ -6667,9 +6696,17 @@
       var shallow = run(300, { cvhrPeriodSec: 60, cvhrDepth: 0.01 });
       T.eq('a 1 % oscillation is below the sustained-oscillation gate', shallow.cvhrIndex, 0);
 
-      // ── 5 · THE SHORT-RECORD REFUSAL — under 2 minutes no apnea-band train can be resolved ─────
+      /* ── 5 · THE SHORT-RECORD REFUSAL — under 2 minutes no apnea-band train can be resolved ─────
+         §2.6: a value that could not be measured must be VISIBLE, never fabricated. This assertion
+         used to read `brief.cvhrIndex, 0` — its NAME already said "refuses rather than guessing"
+         while the constant it pinned WAS the guess, so the test held the defect in place.
+         `0` is not free to mean "not measurable" here: ppgdex-dsp.js:4759 spends it explicitly —
+         "cvhrIndex=0 = none detected" — and §2's flat-HR case above asserts exactly that meaning on
+         a record that DID resolve. One value cannot carry both, so the unmeasurable case takes null.
+         `cvhrEvents` stays `[]`→0: the event list genuinely is empty, and its length is not a
+         measurement that can be absent. */
       var brief = run(90, { cvhrPeriodSec: 40, cvhrDepth: 0.18 });
-      T.eq('a 90 s recording refuses rather than guessing', brief.cvhrIndex, 0);
+      T.eq('a 90 s recording refuses rather than guessing', brief.cvhrIndex, null);
       T.eq('…and reports no events', brief.cvhrEvents, 0);
     });
 
@@ -11059,6 +11096,72 @@
       T.eq('an empty series is null, not a throw', F([]), null);
     });
 
+    /* ── classifyRecording — the five branches, their constants, and the absent clock ──────────
+       Written from a mutation crawl: 7 of this function's 23 survivors carried a distinguishing
+       input, and nothing asserted the branch it picks, the confidence it attaches, or the ms→bpm
+       constant underneath both.
+
+       ⚠️ THE PROBE'S INPUTS ARE DELIBERATELY NOT USED. It found its distinguishing input for
+       `hr = 60000 / mean(a)` by calling `classifyRecording([1, 2, 3])` — RR intervals of one to
+       three MILLISECONDS, which the function faithfully reports as "mean HR 30000 bpm". Asserting
+       on that would pin nonsense and turn this group into a change-detector on impossible input.
+       The MUTATION is real, so the inputs below are physiological and kill the same mutants. A
+       probe finds a distinguishing input; choosing a MEANINGFUL one is the reader's job. */
+    group('PulseDex classifyRecording — which recording is this, and how sure (mutation-derived)', 'pulsedex-dsp · known-answer · mutation-pinned', function (T) {
+      var B = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!B || typeof B.classifyRecording !== 'function') {
+        T.skip('PulseDex._bare.classifyRecording available', 'PulseDex not co-loaded in this runner');
+        return;
+      }
+      var C = B.classifyRecording;
+      var rr = function (ms, n) {
+        return new Array(n || 20).fill(ms);
+      };
+      var at = function (h) {
+        return Date.UTC(2026, 0, 1, h, 0);
+      };
+
+      // ── 1 · EXERCISE: 120 bpm over 5 min. Pins the ms→bpm constant — mutate 60000 to 0 and the
+      //      rate collapses to 0, so the recording stops being exercise at all.
+      var ex = C(rr(500), null, 300);
+      T.eq('a 120 bpm five-minute record is exercise', ex.mode, 'exercise');
+      T.eq('…with the exercise confidence', ex.conf, 0.75);
+      T.ok('…and the reason states the rate it measured', /mean HR 120 bpm/.test(ex.why), ex.why);
+
+      // ── 2 · The branch is `hr >= 100 OR rising > 15`, not AND. This record has the rate and NO
+      //      rise, so an `&&` would demote it — the single case that separates the two operators.
+      T.eq('…on rate alone, with no HR rise at all', ex.rising, 0);
+
+      // ── 3 · AN ABSENT CLOCK IS `hour: null`, NEVER MIDNIGHT. The guard is
+      //      `t0Ms != null && isFinite(t0Ms)`; as `||` a null t0Ms passes, because `isFinite(null)`
+      //      is TRUE (`Number(null)` is 0) — and `hour` becomes 0. A recording with no clock would
+      //      then read as starting at 00:00 and feed the `hour < 11` morning branch. Absent time
+      //      rendered as a specific plausible time is the §2.6 shape (Clock Contract: never fabricate).
+      T.eq('a recording with no start time reports hour null, not midnight', ex.hour, null);
+
+      // ── 4 · RISING is measured last-fifth minus first-fifth, in bpm. Zeroing either constant
+      //      flattens it to 0 and the drift disappears silently.
+      var rise = C([1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 500, 500], null, 300);
+      T.eq('a record that ends 60 bpm faster than it began reports that rise', rise.rising, 60);
+      T.ok('…and says so in the reason', /HR rising 60/.test(rise.why), rise.why);
+
+      // ── 5 · MORNING vs SPOT is `durMin <= 8 AND hour < 11`. The pair below differs in DURATION
+      //      ONLY, both at 09:00 — so an `||` (which would make any pre-11:00 record "morning")
+      //      shows up as the 15-minute case changing class, and nothing else moves.
+      var morning = C(rr(1000), at(9), 300);
+      var spot = C(rr(1000), at(9), 900);
+      T.eq('five minutes at 09:00 is a morning spot', morning.mode, 'morning');
+      T.eq('…with the morning confidence', morning.conf, 0.7);
+      T.eq('fifteen minutes at the same hour is NOT — duration decides, not the clock', spot.mode, 'spot');
+      T.eq('…and carries the fallback confidence', spot.conf, 0.6);
+
+      // ── 6 · The long branches, so the ladder is pinned end to end rather than at its middle.
+      var night = C(rr(1000), at(23), 8 * 3600);
+      T.eq('eight hours from 23:00 is overnight', night.mode, 'overnight');
+      T.eq('…at the overnight confidence', night.conf, 0.9);
+      T.eq('twenty-one hours is continuous, not a long overnight', C(rr(1000), at(6), 21 * 3600).mode, 'continuous');
+    });
+
     group('PulseDex compareIntervalSeries — two signals, one heart (mutation bootstrap)', 'pulsedex-dsp · known-answer · mutation-pinned', function (T) {
       var B = (env.PulseDex && env.PulseDex._bare) || null;
       if (!B || typeof B.compareIntervalSeries !== 'function') {
@@ -12653,7 +12756,19 @@
       }
       T.ok('the golden carries hrv.frequency', !!(rich.hrv && rich.hrv.frequency));
       T.ok('the golden carries hrv.confidence', !!(rich.hrv && rich.hrv.confidence));
-      T.ok('the golden carries apnea.cvhrIndex (a number — 0 is a measurement, null is not)', !!rich.apnea && typeof rich.apnea.cvhrIndex === 'number', JSON.stringify(rich.apnea));
+      /* ⚠️ This assertion used to demand a NUMBER — "0 is a measurement, null is not" — and it was
+         right about the principle and wrong about this fixture. All three committed PpgDex goldens
+         are SHORTER than cvhrFromNN's 120 s guard (39.99 / 39.99 / 40.23 s), so the number it was
+         pinning was the guard's fabricated zero, not a measurement, and GATE-B was enforcing it.
+         The field must be PRESENT and must not be a fabricated value; on a record too short to
+         resolve an apnea-band train, null is the only honest answer (§2.6, FABRICATED-DEFAULTS-FLEET
+         §3). A longer fixture would legitimately carry a number here, so the assertion checks the
+         key exists and holds either a real number or an explicit refusal — never `undefined`. */
+      T.ok(
+        'the golden carries apnea.cvhrIndex — a number when resolvable, null when the record is too short',
+        !!rich.apnea && 'cvhrIndex' in rich.apnea && (typeof rich.apnea.cvhrIndex === 'number' || rich.apnea.cvhrIndex === null),
+        JSON.stringify(rich.apnea)
+      );
       T.eq('the golden carries recording.site, the field that routes wrist vs finger', rich.recording && rich.recording.site, 'wrist');
 
       /* CONTROL — the LIGHT export on the SAME input must carry none of it. This is what makes the
@@ -17140,16 +17255,31 @@
       //    rich export alongside hrv, not the light one) must populate summary.cvhrIndexWave. This runs the
       //    ACTUAL compute → apnea.cvhrIndex → normalizer link on a committed synthetic input. ──
       if (env.PpgDex && typeof env.PpgDex.compute === 'function' && env.equiv && env.equiv.ppgdex_synth && env.equiv.ppgdex_synth.input && typeof env.adaptEnvelopeNode === 'function') {
+        /* ⚠️ THIS FIXTURE CANNOT SUPPORT THE CLAIM THE ASSERTIONS USED TO MAKE. `ppgdex_synth` is
+           `synthetic_ppgdex_verity.txt` — a 39.99 s record — and `cvhrFromNN` refuses under 120 s
+           because no apnea-band train can be resolved in two minutes. So the old assertions
+           (`cvhrIndex != null`, `cv != null && isFinite`) were passing on a FABRICATED zero, and the
+           failure text — "the corroboration would silently never fire on real data" — drew a
+           conclusion about real data from a fixture too short to be real. Measured 2026-08-18: on 44
+           real corpus nights the guard fires 0 times, so on real data the corroboration ALWAYS has a
+           number (FABRICATED-DEFAULTS-FLEET §4).
+           What this fixture CAN prove is the link: compute → apnea.cvhrIndex → normalizer →
+           summary.cvhrIndexWave, carrying the value through UNCHANGED whether it is a number or an
+           explicit refusal. That is what the end-to-end test is for; asserting a magnitude it cannot
+           produce is how a short fixture came to certify a long-record behaviour. */
         var pr = env.PpgDex.compute({ text: env.equiv.ppgdex_synth.input }, { rich: true });
-        T.ok('the rich PpgDex export carries an apnea.cvhrIndex block', pr && pr.apnea && pr.apnea.cvhrIndex != null, 'apnea=' + JSON.stringify(pr && pr.apnea));
+        T.ok('the rich PpgDex export carries an apnea.cvhrIndex block', !!(pr && pr.apnea) && 'cvhrIndex' in pr.apnea, 'apnea=' + JSON.stringify(pr && pr.apnea));
         var pR = env.adaptEnvelopeNode(pr, 'PpgDex', 'synthetic_ppgdex_verity.txt');
         var _pRec = Array.isArray(pR) ? pR[0] : pR && pR.recs && pR.recs[0];
         var cv = _pRec && _pRec.summary ? _pRec.summary.cvhrIndexWave : undefined;
         T.ok(
-          'a REAL PpgDex export sets summary.cvhrIndexWave (the finger CVHR reaches the fusion)',
-          cv != null && isFinite(cv),
-          'got ' + cv + ' — the corroboration would silently never fire on real data'
+          'the finger CVHR reaches the fusion — apnea.cvhrIndex propagates to summary.cvhrIndexWave unchanged',
+          cv === (pr && pr.apnea ? pr.apnea.cvhrIndex : 'MISSING'),
+          'export=' + JSON.stringify(pr && pr.apnea && pr.apnea.cvhrIndex) + ' summary=' + JSON.stringify(cv) + ' — the link is what this 40 s fixture can prove; a NUMBER needs a >=120 s record'
         );
+        /* And the refusal must survive the trip: a normalizer that turned null into 0 on the way
+           through would re-fabricate exactly what the DSP just stopped fabricating. */
+        T.ok('…and a refusal arrives as a refusal, not as 0', !(cv === 0 && pr.apnea.cvhrIndex === null), 'summary.cvhrIndexWave=' + JSON.stringify(cv));
       }
     });
 
@@ -36199,6 +36329,43 @@
      future edit could silently break (re-import idempotency, distinct-session survival,
      SI-input coverage). Source-mirror group (these fns are page-scope, not headless-
      loadable like parseTimestamp) — runs in BOTH runners off env.sources. */
+    /* ── A ROW WITH NO CLOCK MUST NOT COME BACK DATED TO 1970 ────────────────────────────────
+       Found by generalising a mutation finding: `isFinite(x)` standing where `x != null` was meant
+       is one character from fabricating, because `isFinite(null)` is TRUE and `Number(null)` is 0.
+       Here the coercion happens BEFORE the guard, so the guard cannot help — `_rowFromSeed` did
+       `r._tMs = +s.tMs`, and `+null` is 0.
+       The round trip is the whole defect: an unparsed row carries `_tMs: NaN`, `JSON.stringify(NaN)`
+       writes **null**, and reading it back produced `_tMs: 0` → `_date: 1970-01-01T00:00:00.000Z`.
+       Two callers then filter with `isFinite(r._tMs)` SPECIFICALLY to drop timeless rows, and
+       `isFinite(0)` is true — so the row survived the filter it was written to fail and entered the
+       analysis dated to the epoch.
+       `_seedFromRow`'s own comment claims the opposite discipline — "Preserve absence through
+       persistence: a null transparent field round-trips as null, NOT a fabricated 0" — and applies it
+       to `offsetMin` and every seed field. `tMs` was the one field copied raw. */
+    group('HRVDex seed round-trip — an absent timestamp survives persistence as absent (§2.6)', 'hrvdex-dsp · clock-contract · fabricated-absence', function (T) {
+      var B = (env.HRVDex && env.HRVDex._bare) || env.HRVDex || null;
+      if (!B || typeof B._seedFromRow !== 'function' || typeof B._rowFromSeed !== 'function') {
+        T.skip('HRVDex seed helpers available', 'HRVDex not co-loaded in this runner');
+        return;
+      }
+
+      // A row whose timestamp could not be parsed. NaN is this file's in-memory sentinel for that
+      // (`r._tMs = _ts ? _ts.tMs : NaN`), so this is the shape a real unparsed row has.
+      var seed = JSON.parse(JSON.stringify(B._seedFromRow({ _tMs: NaN, _offsetMin: null, _hr: 60 })));
+      T.eq('an unparsed timestamp persists as null, not a number', seed.tMs, null);
+
+      var back = B._rowFromSeed(seed);
+      T.ok('…and comes back NOT finite, so it cannot pass a finiteness filter', !isFinite(back._tMs), '_tMs=' + JSON.stringify(back._tMs));
+      T.eq('…with no date fabricated for it', back._date, null);
+
+      // The control, differing in ONE property: a row that DOES have a clock must round-trip intact.
+      // Without this, a fix that simply nulled every timestamp would score as a pass.
+      var t = Date.UTC(2026, 0, 2, 3, 4, 5);
+      var okBack = B._rowFromSeed(JSON.parse(JSON.stringify(B._seedFromRow({ _tMs: t, _offsetMin: null, _hr: 60 }))));
+      T.eq('a real timestamp round-trips unchanged', okBack._tMs, t);
+      T.eq('…and keeps its date', okBack._date && okBack._date.toISOString(), new Date(t).toISOString());
+    });
+
     group('HRVDex additive ingest — merge/dedup/ECGDex-map (P3/P4)', 'hrvdex-dsp · ecgdex-app', function (T) {
       var s = (env.sources || {})['hrvdex-dsp.js'];
       if (s == null) {
