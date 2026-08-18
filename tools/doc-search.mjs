@@ -146,11 +146,43 @@ export function rank(queryVec, entries, query, topN = 8) {
   return [...best.values()].sort((a, b) => b.score - a.score).slice(0, topN);
 }
 
+/**
+ * Every comment body in a JS source file, as plain prose.
+ *
+ * Deliberately a lexer-free scan: this feeds a semantic index, not a compiler, so the cost of
+ * mistaking a `//` inside a string literal for a comment is one slightly noisy chunk — while the
+ * cost of a heavyweight parse is a dependency and a failure mode on any file that does not parse.
+ * The repo has `tools/js-lex.mjs` for the cases where precision matters (mutation must never land
+ * inside a comment); ranking prose is not one of them.
+ */
+export function jsComments(src) {
+  const out = [];
+  const s = String(src || '');
+  /* Block comments first, then line comments, then collapse the decoration authors use for headers
+     (`* ─────`, leading `*`) so the indexed text reads as sentences rather than box-drawing. */
+  for (const m of s.matchAll(/\/\*[\s\S]*?\*\//g)) out.push(m[0].slice(2, -2));
+  for (const m of s.matchAll(/(^|[^:"'`\\])\/\/(.*)$/gm)) out.push(m[2]);
+  return out
+    .join('\n')
+    .replace(/^[ \t]*\*[ \t]?/gm, '')
+    .replace(/[─━═─-╿]{3,}/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .trim();
+}
+
 /* A reference guide is a document even when it ships as a page. Script and style bodies are dropped
    entirely — an inlined bundle would otherwise flood the index with minified JS that matches every
    query weakly and nothing well. */
 export function readDoc(path, raw) {
   const t = String(raw || '');
+  /* For SOURCE, index the COMMENTS and not the code — the same argument that strips script bodies
+     out of a bundle, applied one layer down. Code matches every query weakly and nothing well: it is
+     mostly identifiers and punctuation, and embedding it would bury the 278 decision-bearing lines
+     under 100 000 lines of `for (var i = 0; ...)`. The comments ARE the document; the code beside
+     them is what the comments are about. Provenance is the other half of the reason: a rationale
+     found this way is attributed to `oxydex-registry.js`, where someone can act on it, rather than
+     to a bundle that merely contains a copy of it. */
+  if (/\.mjs$|\.js$/i.test(path)) return jsComments(t);
   if (!/\.html?$/i.test(path)) return t;
   return t
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
@@ -190,6 +222,11 @@ export function corpusProblem(files) {
   if (!has('ORIENTATION.md')) return 'ORIENTATION.md is not in the corpus — ROOT is probably wrong';
   const briefs = files.filter((f) => f.startsWith('briefs/')).length;
   if (briefs < 50) return `only ${briefs} briefs indexed — the brief set is never this small`;
+  /* The SOURCE surface needs an anchor of its own, for exactly the reason the others have one: it
+     was absent for months and the only symptom was answers that said "nothing found". `clock.js` is
+     the safest anchor in the repo — CLAUDE.md's Clock Contract is single-sourced there, so a corpus
+     without it is a corpus that cannot answer the most-cited decision in the project. */
+  if (!has('clock.js')) return 'clock.js is not in the corpus — source comments are the largest ratification surface here and are not being indexed';
   return null;
 }
 export function listDocs(root, dirs = DIRS) {
@@ -203,8 +240,21 @@ export function listDocs(root, dirs = DIRS) {
       continue;
     }
     /* `papers/` carries prose as .html as well as .md — a reference guide is a document even when it
-       ships as a page. Tags are stripped at read time so the index sees the words, not the markup. */
-    for (const f of names) if (f.endsWith('.md') || f.endsWith('.html')) out.push(d === '.' ? f : `${d}/${f}`);
+       ships as a page. Tags are stripped at read time so the index sees the words, not the markup.
+
+       ⚠️ `.js` IS A DOCUMENT SURFACE HERE, AND OMITTING IT DEFEATED THIS TOOL'S PURPOSE.
+       This tool answers "was this already decided?", and in this repo the largest ratification
+       surface is not prose — it is SOURCE COMMENTS. `oxydex-registry.js` carries owner-ratified
+       tier decisions with dates; `clock.js` carries the Clock Contract; every DSP carries measured
+       findings and DO-NOT-REVERT rationales beside the code they govern.
+       Measured 2026-08-17: 278 decision-bearing comment lines among 11 669 comment lines across 112
+       root `.js` files, none of it indexed. A question about any of them returned a clean EMPTY
+       result — which reads as "not decided" in the one tool built to prove the opposite. Two
+       sessions re-derived five already-ratified decisions in a single evening this way, and the
+       lesson they drew — "I should have run doc-search" — was itself wrong, because running it
+       would have returned nothing. An out-of-scope corpus is worse than a cold cache: a cold cache
+       costs ~200 s and announces itself, an absent corpus is indistinguishable from a real negative. */
+    for (const f of names) if (f.endsWith('.md') || f.endsWith('.html') || f.endsWith('.js')) out.push(d === '.' ? f : `${d}/${f}`);
   }
   return out.sort();
 }
@@ -333,7 +383,35 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   ok('…and one missing ORIENTATION.md', corpusProblem(['CLAUDE.md'].concat(Array.from({ length: 60 }, (_, i) => `briefs/b${i}.md`))) !== null);
   /* the floor is not `> 0`: half a brief set missing must still refuse */
   ok('a handful of briefs is refused — a floor of >0 would pass this', corpusProblem(['CLAUDE.md', 'ORIENTATION.md', 'briefs/one.md']) !== null);
+  /* The SOURCE anchor. `clock.js` was absent from the corpus for months and the only symptom was
+     answers that said "nothing found" — which is what this whole function exists to prevent. */
+  ok('a corpus with no source files is refused', corpusProblem(['CLAUDE.md', 'ORIENTATION.md'].concat(Array.from({ length: 60 }, (_, i) => `briefs/b${i}.md`))) !== null);
+  ok(
+    '…and it names the source surface, not a generic failure',
+    /source comments/.test(String(corpusProblem(['CLAUDE.md', 'ORIENTATION.md'].concat(Array.from({ length: 60 }, (_, i) => `briefs/b${i}.md`)))))
+  );
   ok('a real corpus passes', corpusProblem(listDocs(ROOT)) === null, String(corpusProblem(listDocs(ROOT))));
+  /* End-to-end against the real tree: the fix is that these are in the corpus at all. */
+  ok('the doc list now includes source', listDocs(ROOT).includes('clock.js'));
+  ok(
+    '…including the registries that carry ratified decisions',
+    listDocs(ROOT).some((f) => /-registry\.js$/.test(f))
+  );
+
+  /* Comments are the document; code is what they are about. Indexing code would bury 278
+     decision-bearing lines under 100 000 lines of loop syntax. */
+  ok('jsComments keeps a block comment', jsComments('/* owner-ratified 2026-08-16 */\nvar x = 1;').includes('owner-ratified'));
+  ok('…and a line comment', jsComments('var x = 1; // DO NOT revert, measured\n').includes('DO NOT revert'));
+  ok('…and drops the code', !/var x = 1/.test(jsComments('/* keep */\nvar x = 1;\n')));
+  ok('…and strips the leading asterisks authors decorate with', !/^\s*\*/.test(jsComments('/*\n * a decision\n */')));
+  /* A `//` inside a URL is not a comment start; getting this wrong would swallow the rest of a line
+     of real prose in the very files being indexed. */
+  /* Asserting the result is EMPTY is stronger than asserting one host is absent, and it avoids a
+     CodeQL false positive: `.includes('<host>')` pattern-matches as URL-substring sanitization, which
+     this is not — it is a lexer assertion. The `//` here is preceded by `:` and must not open a
+     comment; if it did, the rest of a real line of prose would be swallowed. */
+  ok('a URL is not mistaken for a comment', jsComments("var u = 'https://host/x';") === '');
+  ok('an empty source yields empty, not a crash', jsComments('') === '');
   ok(
     'the doc list finds briefs',
     listDocs(ROOT).some((f) => f.startsWith('briefs/'))

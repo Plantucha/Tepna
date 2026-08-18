@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-03 (**§6: all 4 boxes closed or decided** — the jitter bound is re-based on a re-derivation; the sdnnNote string and the RMSSD-surfacing question were both owner-decided 2026-08-04 (§5). CVHR is re-measured on an enlarged corpus (§6.5): **n = 9, 8/9 in band** — still short of the ≥10 bar, and the first out-of-band night has appeared.) · **Created:** 2026-08-03 · **Follows:** `O2RING-FINGER-HRV-VALIDATION-2026-07-21-BRIEF.md` §8/§8.6 · **Verdict doc:** `docs/PPGDEX-FINGER-HRV-VALIDATION-2026-08-03.md` · **Apparatus:** `tools/ppi-jitter-vs-ecg.mjs`
+**Status:** IN-PROGRESS — 2026-08-17 (**§6.6: CVHR RATIFIED at n = 13** — four new box nights cleared §3.1's ≥10-night bar, 12/13 in band; §1's two reference figures remain open — and §6.7 records that the Verity leg on these nights reads 4.98 ms, BEATING the 5.92 reference, so the non-reproduction is corpus-dependent rather than settled. **§6: all 4 boxes closed or decided** — the jitter bound is re-based on a re-derivation; the sdnnNote string and the RMSSD-surfacing question were both owner-decided 2026-08-04 (§5). CVHR is re-measured on an enlarged corpus (§6.5): **n = 9, 8/9 in band** — still short of the ≥10 bar, and the first out-of-band night has appeared.) · **Created:** 2026-08-03 · **Follows:** `O2RING-FINGER-HRV-VALIDATION-2026-07-21-BRIEF.md` §8/§8.6 · **Verdict doc:** `docs/PPGDEX-FINGER-HRV-VALIDATION-2026-08-03.md` · **Apparatus:** `tools/ppi-jitter-vs-ecg.mjs`
 
 # Two published PPG reference figures do not reproduce, and the jitter budget says why nothing can promote
 
@@ -227,6 +227,85 @@ logging `org.bluez.Error.InProgress` on the O2Ring and repeated *"offline op exc
 abandoned"* on the Verity — the adapter-wedge signature — which is the likely reason recent nights keep
 missing a device, and therefore the real obstacle to reaching n = 10.
 
+## §6.6 · ✅ RATIFIED 2026-08-17 — n = 13, and the gate was the transfer again, not the sleep
+
+§6.5 ended on *"one more clean trio sleep night"* and named the adapter wedge as the obstacle. **Four
+arrived.** 2026-08-13 → 16 were pulled from `vigil:/srv/tepna/captures` today and run through the same
+committed apparatus (`tools/ppi-jitter-vs-ecg.mjs`, unchanged):
+
+| night | epochs | jitter sd | match % | CVHR \|Δ\| |
+|---|---|---|---|---|
+| 2026-08-13 | 92 | 8.21 ms | 99.2 | ✓ in band |
+| 2026-08-14 | 90 | 7.43 ms | 99.3 | ✓ |
+| 2026-08-15 | 98 | 8.05 ms | 99.2 | ✓ |
+| 2026-08-16 | 73 | 6.08 ms | 99.6 | ✓ |
+| **pooled (these 4)** | | **median 7.74, IQR 7.10–8.09** | **median 99.25** | **4/4**, median \|Δ\| **0.15 /h**, IQR 0.07–0.53 |
+
+**n = 9 + 4 = 13, past §3.1's ≥10-night bar for the first time.** The CVHR criterion **ratifies**: 12 of
+13 nights in the ±5 band (§6.5's single out-of-band night stands and is not re-litigated), and on the
+new four the finger and ECG medians are *identical* at 4.95 /h with median |Δ| 0.15 /h — an order of
+magnitude tighter than §6.5's 2.20.
+
+⚠️ **The out-of-band night is retained in the denominator.** 12/13 is the number, not 4/4 — §6.5 already
+warned that "7/7 was a small-sample artifact as much as a result", and quoting only the new nights would
+repeat that in the flattering direction.
+
+**§6.5's lesson repeated exactly, and it is worth saying twice.** That section concluded *"a corpus-size
+claim should be checked against the SOURCE, not the working copy"* — and then the brief sat blocked on
+one night for **two weeks while four accumulated on the box**. The adapter wedge was real but was not
+the binding constraint; the transfer was, again. **A brief blocked on data volume should re-check the
+source before anyone treats the block as a fact about the world.**
+
+### §6.7 · ⚠️ AND THE FIRST JITTER NUMBER I QUOTED HERE WAS THE WRONG DEVICE — corrected within the hour
+
+The table above was produced by `ppi-jitter-vs-ecg.mjs` **without `--device`**, and that flag defaults
+to **`o2ring`**. So 7.74 ms is the **FINGER**. The tool nonetheless prints `[Verity wrist reference:
+5.92 ms]` beside whatever it measured, and I compared a finger median to a wrist reference and called
+it a non-reproduction. **Re-run with `--device verity` on the same four nights:**
+
+| device (same 4 nights) | PPI-jitter median | IQR | beat match |
+|---|---|---|---|
+| **Verity (wrist)** — the device 5.92 ms describes | **4.98 ms** | 4.93–5.03 | **100.00 %** |
+| O2Ring (finger) | 7.74 ms | 7.10–8.09 | 99.25 % |
+
+**On these nights the Verity BEATS its own `[CORPUS]` reference — 4.98 against 5.92 — and does it at a
+100 % beat match rate**, so the figure is not describing a subset of lucky beats. That is the opposite
+of what §1 recorded (8.36 ms, +41 %) and the opposite of what I wrote an hour ago.
+
+**This does not settle §1; it sharpens it, and only by one step.** Three measurements of the same
+quantity now exist — 5.92 (original, uncommitted apparatus), 8.36 (2026-08-03, 15 nights, committed
+apparatus), 4.98 (today, 4 nights, same committed apparatus). The 2026-08-03 run and today's used the
+SAME tool, so **the apparatus is excluded as an explanation for the gap between those two.**
+
+⚠️ **It does NOT follow that corpus explains it, and an earlier draft of this section said it did.**
+4 nights against 15 differ in **precision** as well as in content: an IQR of 4.93–5.03 is the spread of
+**four numbers**, not a confidence interval on the median, and it will read far tighter than the
+estimate actually is. Before "corpus" is recorded as the explanation, the two medians must be compared
+*through* their uncertainties at matched n — or, cheaper and better, **the 15-night set re-run with
+`--device verity`** so the comparison is like-for-like at both ends. Until then the honest statement is
+that the apparatus is excluded and the cause is still open.
+
+**The load-bearing result here does not depend on any of that:** the Verity leg pairs at a **100 % beat
+match rate** across all four nights. That is a property of the pairing, not of the σ, and it stands
+whichever way the reference question resolves.
+
+⚠️ **The trap, stated precisely — and my first account of it was itself half wrong.** I told a peer the
+tool was unlabelled. It is not: line 230 prints `device: Polar Verity Sense (WRIST …)` / `Wellue O2Ring
+(FINGER …)` correctly, at the top. **I lost that label by reading the output through `| tail -20`** —
+CLAUDE.md §👥.4b, the truncation that discards the part carrying the verdict's meaning. So the defect is
+a *joint* one: a correct label at the top, an unkeyed reference at the bottom, and a reader who
+truncates. Any one of the three alone is survivable.
+
+**Fixed at the durable end** (`tools/ppi-jitter-vs-ecg.mjs`): the reference line is now device-keyed and
+repeats the device on the line — `[Verity WRIST reference: 5.92 ms — like-for-like]` under
+`--device verity`, and under the o2ring default `[no published reference for the O2Ring FINGER; 5.92 ms
+is the VERITY WRIST figure and is NOT comparable]`. **A label must travel with the number it labels**,
+because the reader who most needs it is the one who truncated the page.
+
+**What §6.6 does NOT ratify:** `sdnnRobust` reads median **+7.81 %** (finger) / **+9.35 %** (Verity)
+against the ~±3.5 % promotion bar, still failing it on both devices, with IQRs spanning the bar in
+both directions. Not overwritten here, per §1's own instruction.
+
 ---
 
 ## §7 · The corpus is roughly DOUBLE what the apparatus could see — session fragmentation (2026-08-04)
@@ -321,3 +400,45 @@ a merged night carries its largest session's index. The CVHR row in a merged run
 and **does not** satisfy §3.1's ≥10-night bar. Exporting them is a compute-path change with a re-bundle
 and `verify-fixtures` behind it — the natural next unit, and the one that would let the CVHR criterion be
 adjudicated on merged nights and on total paired overlap rather than on a night count.
+
+### §6.8 · The two devices SEPARATE on clean nights — which makes §1's 8.36 ms the suspect number, not 5.92
+
+Re-ran §1's owed re-derivation on `uploads/captures` (2026-07-31 → 08-16, merged mode), pointing the same
+instrument at both devices on the **same nights, same corpus, same code** — §4's discipline, applied
+deliberately rather than by luck:
+
+| device | median jitter | IQR | nights | median match |
+|---|---|---|---|---|
+| Polar Verity Sense (WRIST) | **4.97 ms** | 4.92–5.03 | 4 | **100.0 %** |
+| Wellue O2Ring (FINGER) | **8.05 ms** | 7.43–8.21 | 5 | 99.3 % |
+
+**The finger replicates; the wrist does not.** §3 recorded *"finger 8.16 ms, wrist 8.36 ms"* — the finger
+figure reproduces here to within 0.11 ms across two different corpora, while the wrist moved by **3.39 ms**.
+A number that survives a corpus change and one that does not are not equally trustworthy, and only one of
+these two was ever used as a reason to distrust the published reference.
+
+**§4's own rule says which one to doubt, and it points at the wrist.** *"An artifact of construction
+appears as a constant across devices; a real device property does not."* §3's pair sits **0.20 ms apart** —
+a wrist and a finger sensor, different optics, different site, different coupling, agreeing to 2.4 %. That
+near-equality is the signature §4 warns about. Here they sit **3.08 ms apart**, which is what two genuinely
+different measurement sites look like. So the earlier wrist figure most likely carried the same
+construction artifact as the finger leg rather than measuring the wrist.
+
+**Consequence for §1 and §5: 5.92 ms is reproducible, and the gap it was asked to explain may not exist.**
+On these nights the Verity lands at 4.97 ms — *below* the deep-dive's figure, and below §3's 4.98 ms
+2 %-RMSSD-bias bar by a hair. §5's decision to re-base the bound to a **procedure rather than a number**,
+and its explicit refusal to overwrite 5.92 with 8.36, are both vindicated: the number it declined to trust
+is the one that failed to replicate.
+
+**What this is NOT.** n = 4 wrist nights from a single 16-day window, all at a 100.0 % match rate — an
+unusually clean subset, and cleanliness is plausibly *why* the wrist separates here. This does **not**
+re-base §5's bound, does not restore 5.92 ms as a gate, and does not retire §1: it moves the burden onto
+the 8.36 ms figure and names the test that settles it — **re-run the wrist leg on the ORIGINAL 15-night
+set with the match rate beside it** (that corpus is not on this volume; see `corpora-live-on-the-box`). If
+the wrist reads ~8.4 there with a low match rate, the difference is night quality and both figures stand as
+corpus-conditional; if it reads ~5 with a high one, the 8.36 was the apparatus and §1's first row closes.
+
+⚠️ **The device-keyed reference line this run needed is not yet on `main`** — it ships in this same PR.
+Until it lands, the tool prints `[Verity wrist reference: 5.92 ms]` beside an **O2Ring** figure, which is
+exactly the unkeyed-label defect (`AUDIT-PROMPT.md` class 15) that produced the mis-attribution corrected
+in §6.7. The footer above was read against the run's own `device:` header line, not the bracket.

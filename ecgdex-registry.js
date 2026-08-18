@@ -65,7 +65,18 @@
     lfhf: { label: 'LF/HF', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'LF:HF power ratio — sympatho-vagal balance proxy' },
 
     /* ── EMERGING — companion-accelerometer cross-checks (ACC sub-cards) ─────── */
+    /* 🔒 DORMANT — DECLARED, NOT IMPLEMENTED. `dormant: true` asserts exactly that and nothing more:
+       no compute site exists, so the metric reaches no export and no surface. It is NOT a tier and NOT
+       a claim that the grade below was reviewed — verified 2026-08-17, these entries appear in no
+       `*_DEFS` crossnight projection, no brief and no doc, so there is no adjudication to inherit and
+       nothing in the repo records what was measured or against what. Contrast the PpgDex per-site block,
+       which is backed by PPGDEX-O2RING-FINGER-SITE-2026-07-18-BRIEF.md; these are not.
+       PROMOTION IS REMOVING THE FLAG once the metric is computed AND surfaced — and re-adjudicating the
+       grade at that moment, because shipping the tier below on the strength of its mere presence is the
+       failure this flag exists to make visible. Found by a registry-vs-surface sweep (445 live metrics,
+       44 authored surfaces); "unsurfaced" was confirmed per-name — id, label and every alias. */
     rraccRate: {
+      dormant: true,
       label: 'ACC Resp Rate',
       unit: 'br/min',
       goodDirection: 'down',
@@ -81,7 +92,18 @@
       evidence: 'emerging',
       cite: 'Bland–Altman agreement of ACC-respiration vs ECG-derived respiration — a cross-validation of two surrogate respiration signals'
     },
+    /* 🔒 DORMANT — DECLARED, NOT IMPLEMENTED. `dormant: true` asserts exactly that and nothing more:
+       no compute site exists, so the metric reaches no export and no surface. It is NOT a tier and NOT
+       a claim that the grade below was reviewed — verified 2026-08-17, these entries appear in no
+       `*_DEFS` crossnight projection, no brief and no doc, so there is no adjudication to inherit and
+       nothing in the repo records what was measured or against what. Contrast the PpgDex per-site block,
+       which is backed by PPGDEX-O2RING-FINGER-SITE-2026-07-18-BRIEF.md; these are not.
+       PROMOTION IS REMOVING THE FLAG once the metric is computed AND surfaced — and re-adjudicating the
+       grade at that moment, because shipping the tier below on the strength of its mere presence is the
+       failure this flag exists to make visible. Found by a registry-vs-surface sweep (445 live metrics,
+       44 authored surfaces); "unsurfaced" was confirmed per-name — id, label and every alias. */
     edrDisagree: {
+      dormant: true,
       label: 'EDR Disagreement',
       unit: '%',
       goodDirection: 'down',

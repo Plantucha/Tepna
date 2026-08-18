@@ -21651,6 +21651,39 @@
        one on the next purely from which artifacts happened to be dirty.
        So: the unstaged+unquoted case is pinned as the one that MUST be right, with the three immune
        shapes beside it — without the pair, a "fix" that simply quoted everything would also pass. */
+
+    /* A REBASE CAN SILENTLY DISCHARGE A VERIFICATION, and nothing downstream catches it.
+       `provenance/<App>.json` is generated, so rebase-safe correctly auto-resolves it to the base's copy
+       — carrying the base's `verifiedUnder` and throwing away a stamp this branch had earned. GATE A
+       compares `manifestHash`; `verifiedUnder` is not a build product but a claim that somebody RAN the
+       app on the real corpus. Clean tree, green gates, unproven claim. Measured 2026-08-17: three
+       sessions nearly lost one in a single evening.
+       ⚠ THE THREE-WAY SPLIT IS THE CONTENT. Alarming on every stale stamp would fire on any branch with
+       a deliberately-unverified fixture, on EVERY rebase — and a warning that cries when nothing is wrong
+       is one people scroll past, which leaves the failure exactly where it was plus noise. */
+    group('Rebase-safe — a discharged stamp is told apart from one already stale', 'tools · rebase-safe-stamps', function (T) {
+      var cs = env.rebaseClassifyStamps;
+      if (typeof cs !== 'function') {
+        T.skip('stamp guard is wired into this lane', 'browser lane cannot import tools/rebase-safe.mjs');
+        return;
+      }
+      // THE CASE THE GUARD EXISTS FOR: verified before, stale after.
+      var r = cs({ 'OxyDex · f.json': true }, { 'OxyDex · f.json': false });
+      T.eq('a stamp THIS rebase discharged is reported', r.staled.join(), 'OxyDex · f.json');
+      T.eq('…and is not miscounted as pre-existing', r.pre.length, 0);
+      // ANTI-VACUITY: without these three the guard could report EVERY stale stamp and still pass above.
+      var q = cs({ 'A · f': false }, { 'A · f': false });
+      T.eq('a stamp already stale BEFORE the rebase is not blamed on it', q.staled.length, 0);
+      T.eq('…it is mentioned quietly instead', q.pre.join(), 'A · f');
+      var s2 = cs({ 'B · f': false }, { 'B · f': true });
+      T.eq('a rebase that RESTORED a stamp is reported as restored, not damage', s2.restored.join(), 'B · f');
+      T.eq('…and raises no alarm', s2.staled.length, 0);
+      // A fixture this branch ADDS was never verified here, so the rebase cannot have discharged it.
+      T.eq('a key absent from the before-snapshot is silent', cs({}, { 'C · new': false }).staled.length, 0);
+      // Still-verified is the common case and must stay completely quiet.
+      var ok = cs({ 'D · f': true }, { 'D · f': true });
+      T.eq('an untouched, still-verified stamp reports nothing at all', ok.staled.length + ok.pre.length + ok.restored.length, 0);
+    });
     group('Rebase-safe — the porcelain parse keeps the first path intact (REBASE-SAFE)', 'tools · rebase-safe-porcelain', function (T) {
       var pp = env.rebaseParsePorcelain;
       if (typeof pp !== 'function') {

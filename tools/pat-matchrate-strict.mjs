@@ -135,6 +135,17 @@ function ppgFootTimes(text) {
   const rec = PPGDSP.parsePPG(text);
   if (rec.t0Ms == null) throw new Error('PPG file carried no phone timestamp.');
   const per = rec.ch.map((c) => PPGDSP.detectChannel(c, rec.fs));
+  /* CONSENSUS POLARITY — the node's `analyze` applies this and THIS TOOL CHAIN DID NOT, so every PAT
+     measurement ran on per-channel polarity guesses the shipping node would have overruled.
+     `orientByRise` decides each channel independently, and on a split night the dissenting channel is
+     detected UPSIDE DOWN: its "feet" are peaks, ~half a cardiac cycle out. Measured on the box nights
+     behind the ΔPAT work — 2026-08-14 splits [+1,+1,-1] while 08-13/15/16 are unanimous — and 08-14 is
+     exactly the night that produced the first arousal-shaped dip index and a sub-chance Katz fraction.
+     PPG-FOOT-PLACEMENT §0 is the same defect one layer down (`orient` vs `orientByRise`); this is its
+     WIRING half: a fix that ships in the node but never reaches the tools measuring it.
+     `applyConsensusPolarity` re-detects exactly the dissenters with the majority sign, and is a no-op
+     on a unanimous set. */
+  const flipped = PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn));
   let refIdx = 0,
     best = -1;
   per.forEach((p, i) => {
@@ -153,7 +164,7 @@ function ppgFootTimes(text) {
     const sec = rel && rel[idx] != null && isFinite(rel[idx]) ? rel[idx] : idx / fs;
     t[i] = t0 + sec * 1000;
   }
-  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, times: t, n: cons.feet.length };
+  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, times: t, n: cons.feet.length, polarityFlipped: flipped };
 }
 
 /* ── per-block alignment, via the repo's own anchor aligner ───────────────────────────────────────

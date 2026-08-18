@@ -230,7 +230,125 @@ function rebuild() {
   }
 }
 
-function main() {
+/* ── VERIFICATION-STAMP GUARD ────────────────────────────────────────────────────────────────────
+   A rebase can silently DISCHARGE a verification. `provenance/<App>.json` is a generated artifact, so
+   the auto-resolve above correctly takes `onto`'s copy — and that copy carries `onto`'s `verifiedUnder`,
+   throwing away a stamp this branch had already earned. Nothing downstream catches it: GATE A compares
+   `manifestHash`, and `verifiedUnder` is not a build product at all — it is a claim that somebody RAN
+   the app on the real corpus and reproduced those bytes. Clean tree, green gates, unproven claim.
+
+   Measured 2026-08-17: three sessions nearly lost a stamp to a rebase in one evening. That is a missing
+   guard, not three mistakes.
+
+   REPORTS, NEVER FAILS. A legitimate rebase onto a moved `onto` WILL stale a stamp, and the remedy is a
+   corpus run this tool cannot perform — the recordings are gitignored, so a contributor without them
+   could never green a hard failure. Same split `verify-fixtures` already makes: report in CI, block at
+   release.
+
+   ⚠ AND IT DISTINGUISHES *THIS* REBASE'S DAMAGE FROM PRE-EXISTING DRIFT. Without the before/after
+   comparison, any branch carrying a deliberately-unverified fixture prints a red line on EVERY rebase —
+   and a warning that fires when nothing is wrong is one people learn to scroll past, which is exactly
+   the failure that motivated the guard. Quiet until it matters. */
+function stampSnapshot() {
+  const out = {};
+  const dir = join(ROOT, 'provenance');
+  if (!existsSync(dir)) return out;
+  let MG;
+  try {
+    MG = require(join(ROOT, 'manifest-gate.js'));
+  } catch {
+    return out; // no gate module ⇒ no claim, not a false all-clear
+  }
+  if (!MG || typeof MG.computeHashFromText !== 'function') return out;
+  for (const f of require('node:fs').readdirSync(dir)) {
+    if (!f.endsWith('.json') || f.startsWith('_') || f === 'index.json') continue;
+    const app = f.slice(0, -5);
+    const html = join(ROOT, app + '.html');
+    if (!existsSync(html)) continue;
+    let j;
+    try {
+      j = JSON.parse(readFileSync(join(dir, f), 'utf8'));
+    } catch {
+      continue;
+    }
+    const fixtures = {};
+    for (const k of Object.keys(j.fixtures || {})) {
+      const fx = j.fixtures[k];
+      if (fx && !fx.historical && fx.verifiedUnder) fixtures[k] = fx.verifiedUnder;
+    }
+    if (Object.keys(fixtures).length) out[app] = { html, fixtures };
+  }
+  return out;
+}
+
+async function stampStates(snap) {
+  const MG = require(join(ROOT, 'manifest-gate.js'));
+  const st = {};
+  for (const app of Object.keys(snap)) {
+    let ch = null;
+    try {
+      ch = await MG.computeHashFromText(readFileSync(snap[app].html, 'utf8'));
+    } catch {
+      continue;
+    }
+    for (const [k, v] of Object.entries(snap[app].fixtures)) st[app + ' · ' + k] = v === ch;
+  }
+  return st;
+}
+
+/* The decision core, pure and exported so the self-test can reach it without running a rebase.
+
+   THE THREE-WAY SPLIT IS THE POINT, not bookkeeping. A guard that reports every stale stamp fires on
+   any branch carrying a deliberately-unverified fixture — on EVERY rebase — and a warning that cries
+   when nothing is wrong is one people learn to scroll past. That would leave the failure exactly where
+   it was, with an extra line of output nobody reads.
+
+     before  after   meaning
+     MATCH   stale   this rebase discharged it        ← the only case worth alarming on
+     stale   stale   pre-existing, untouched here     ← mention once, quietly
+     stale   MATCH   the rebase RESTORED it (rebased onto the code it was verified under)
+
+   A key absent from `before` (a fixture this branch adds) is deliberately NOT reported: it was never
+   verified here, so this rebase cannot have discharged it. */
+export function classifyStamps(before, after) {
+  const staled = [],
+    pre = [],
+    restored = [];
+  for (const [key, ok] of Object.entries(after || {})) {
+    const was = (before || {})[key];
+    if (was === true && ok === false) staled.push(key);
+    else if (was === false && ok === false) pre.push(key);
+    else if (was === false && ok === true) restored.push(key);
+  }
+  return { staled, pre, restored };
+}
+
+async function reportStampDamage(before) {
+  if (!before || !Object.keys(before).length) return;
+  let after;
+  try {
+    after = await stampStates(stampSnapshot());
+  } catch {
+    return;
+  }
+  const { staled, pre, restored } = classifyStamps(before, after);
+  if (staled.length) {
+    console.log(paint('\n⚠ THIS REBASE DISCHARGED ' + staled.length + ' VERIFICATION(S) — the stamp reverted to ' + "the base's:", C.red));
+    staled.forEach((k) => console.log('    ' + k));
+    console.log('  Re-verify BEFORE pushing, or the branch ships an unproven claim behind green gates:');
+    console.log('    DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs');
+    console.log("  (If a fixture's BYTES moved, regenerate first — re-verifying a moved golden stamps");
+    console.log('   verifiedUnder over content the code does not reproduce.)');
+  }
+  if (restored.length) {
+    console.log(paint('\n⚙ the rebase RESTORED ' + restored.length + ' stamp(s) (you rebased onto the code they were verified under).', C.grn));
+  }
+  if (pre.length && !staled.length) {
+    console.log(paint('\n· ' + pre.length + ' stamp(s) were already stale before this rebase — unchanged by it, not reported as damage.', C.yel));
+  }
+}
+
+async function main() {
   const argv = process.argv.slice(2);
   const gen = generatedSet();
 
@@ -245,6 +363,16 @@ function main() {
   }
 
   const onto = argv.includes('--onto') ? argv[argv.indexOf('--onto') + 1] : 'origin/main';
+
+  /* Snapshot the verification stamps BEFORE anything moves, so the report below can tell a stamp THIS
+     rebase discharged from one that was already stale. Cheap: it hashes the bundles once. */
+  let stampsBefore = null;
+  try {
+    stampsBefore = await stampStates(stampSnapshot());
+  } catch {
+    stampsBefore = null; // no snapshot ⇒ the report stays silent rather than guessing
+  }
+
   const doBuild = !argv.includes('--no-build');
 
   if (git('status', '--porcelain')) {
@@ -307,8 +435,14 @@ function main() {
       console.log(paint('  no artifact moved — nothing to amend', C.grn));
     }
   }
+  await reportStampDamage(stampsBefore);
+
   console.log(paint('\n✓ rebase-safe done. VERIFY YOUR OWN CHANGES SURVIVED before pushing, e.g.', C.bold));
   console.log('    git show HEAD:<file> | grep -c <an identifier your change adds>');
 }
 
-if (process.argv[1] && process.argv[1].endsWith('rebase-safe.mjs')) main();
+if (process.argv[1] && process.argv[1].endsWith('rebase-safe.mjs'))
+  main().catch((e) => {
+    console.error(String((e && e.stack) || e));
+    process.exit(2);
+  });
