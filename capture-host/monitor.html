@@ -1853,6 +1853,28 @@ function renderBoxHealth(storage, qc, host, alerts){
       <div class="sub">${bad?('pinned '+esc(host.adapter_mac||'?')+' not found')
                             :('since '+esc(when)+(host.adapter_resolved?(' · '+esc(host.adapter_resolved)):''))}</div></div>`);
   }
+  // SYSTEM-FILE DRIFT — VIGIL-AUTO-UPDATE-FOLLOWUPS §2a Option C (owner-signed 2026-08-17).
+  // `check-system-files.sh` has DETECTED this since PR #435; the measured failure was never detection,
+  // it was that nobody read it — #914's helpers ran eight days behind in a log nobody opened. So the
+  // detector's own verdict is surfaced where the box is already watched, as a first-class red.
+  // Deliberately NOT automated: installing the drift is a root-writes-fetched-code path, and Option A
+  // (the one needing a new grant) was declined by its own author. Detection you can perform beats
+  // remediation you cannot.
+  // ⚠ `null` is DRAWN, not skipped. nightqc.system_file_drift() returns null for every unhappy path —
+  // not a deployed host, script absent, timed out, unparseable — and an ABSENT tile would read exactly
+  // like a clean one. 'unchecked' is the honest third state, and invisibility is the failure this
+  // whole section exists to end.
+  if(qc && 'system_files' in qc){
+    const sf = qc.system_files;
+    const drifted = sf ? Number(sf.drifted||0) : 0;
+    const colour = !sf ? 'var(--status-caution)' : (drifted>0 ? 'var(--status-bad)' : 'var(--status-ok)');
+    cards.push(`<div class="ov-stat" style="border-left-color:${colour}">
+      <div class="lab">System files</div>
+      <div class="val" style="font-size:15px">${!sf ? 'unchecked' : (drifted>0 ? (drifted+' drifted') : 'in sync')}</div>
+      <div class="sub">${!sf ? 'no claim — not a deployed host, or the detector could not run'
+                             : (drifted>0 ? 'root-owned helpers differ from the repo · needs a human install'
+                                          : (esc(sf.managed||0)+' managed · matches the repo'))}</div></div>`);
+  }
   if(storage){
     const warn = !!storage.low;
     const keep = storage.keep_nights>0 ? ('keep '+storage.keep_nights+' nights') : 'no auto-prune';

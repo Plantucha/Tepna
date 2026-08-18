@@ -201,6 +201,7 @@ const OPS = [
 const SKIP_LINE = /^\s*(import\s|export\s+\{)/;
 
 import { codeMask } from './js-lex.mjs'; // the ONE regex-aware lexer — see that file
+import { buildIdentity, resolveMapPath, verifyFor } from './mutation-map.mjs'; // map location + staleness
 
 function mutantsFor(src) {
   const lines = src.split('\n');
@@ -399,16 +400,45 @@ export function verdictFromOutput(out) {
    Every failure path here therefore returns null and the caller falls back to the tag filter:
    no map, unreadable map, file absent from the map, line attributable to nothing. Selecting too
    many groups costs time; selecting none costs the measurement. */
-const PGMAP = (() => {
-  const p = opt('--per-group-map', join(ROOT, '.mutation-sweeps/per-group.json'));
-  if (!existsSync(p)) return null;
+/* ── AND IT MUST NEVER APPLY A MAP BUILT FOR DIFFERENT LINE NUMBERS ────────────────────────────
+   The paragraph above is about narrowing to ZERO. There is a second route to the same fabricated
+   SURVIVED, and it is quieter: a map that is present, well-formed, and STALE. Selection is keyed on
+   line numbers, and lines move for reasons as small as a comment — #1422 inserted 16 comment lines
+   into oxydex-dsp.js and shifted everything below line 1023. Applied after that, the map returns the
+   groups that used to cover a line, the mutant runs tests that never execute it, and it survives.
+
+   So the map is now STAMPED with the hash of every source it maps plus `tests/dex-tests.js` (group
+   INDICES shift when a group is inserted, which no source hash would catch), and it is verified PER
+   FILE — one moved DSP must not discard selection for the other seven. Unstamped maps (everything
+   built before this) are refused: they may be perfectly good, and there is no way to tell.
+   Every refusal falls back to the tag filter, loudly. Slow is a cost; wrong is a lie. */
+const PGMAP_PATH = opt('--per-group-map', null) || resolveMapPath(ROOT);
+const PGMAP_RAW = (() => {
+  if (!PGMAP_PATH || !existsSync(PGMAP_PATH)) return null;
   try {
-    const m = JSON.parse(readFileSync(p, 'utf8'));
+    const m = JSON.parse(readFileSync(PGMAP_PATH, 'utf8'));
     return m && Array.isArray(m.groups) && m.groups.length ? m : null;
   } catch {
     return null;
   }
 })();
+
+/* Verified PER FILE and memoised, because `--file` is repeatable and the answer differs per file:
+   one moved DSP must not discard selection for the other seven. Announced once per file so a run's
+   log states plainly whether it took the fast path — a speedup you cannot confirm from the output is
+   a speedup you will eventually mistake for a correct one. */
+const _pgSeen = new Map();
+function pgmapFor(file) {
+  if (!PGMAP_RAW) return null;
+  const key = basename(file);
+  if (_pgSeen.has(key)) return _pgSeen.get(key);
+  const v = verifyFor(PGMAP_RAW, key, buildIdentity(ROOT, [key]));
+  if (!v.ok) process.stderr.write('  ⚠ COVERAGE MAP NOT APPLIED to ' + key + ' — ' + v.reason + '\n    falling back to the tag filter: slower, never wrong.\n');
+  else process.stderr.write('  ✓ coverage map applied to ' + key + ' — ' + v.reason + '\n');
+  const res = v.ok ? PGMAP_RAW : null;
+  _pgSeen.set(key, res);
+  return res;
+}
 
 /* THE UNION of every group that touches ANY line of `file` — the widest run per-mutant selection can
    produce, and therefore what the TIMEOUT must be sized on.
@@ -857,7 +887,7 @@ async function runFile(file) {
   /* Coverage-directed selection, per mutant. Falls back to `filter` whenever the map cannot answer
      — see selectIndices: it returns null rather than an empty list, because a zero-group run fails
      nothing and would report every mutant SURVIVED. `--full` keeps its meaning (no narrowing). */
-  const sel = (mu) => (FULL ? filter : selectIndices(PGMAP, basename(file), mu && mu.line) || filter);
+  const sel = (mu) => (FULL ? filter : selectIndices(pgmapFor(file), basename(file), mu && mu.line) || filter);
   if (!FULL && (!g || !g.count)) return { file, error: 'NO GROUPS tagged "' + (g ? g.stem : '?') + '" — every mutant would survive trivially. Use --full, or give this file a tagged group.' };
 
   /* TIME ONE CLEAN RUN FIRST. Two things depend on it and both were guesses before.
@@ -879,7 +909,7 @@ async function runFile(file) {
      than merely late. */
   /* Size the timeout against what the sweep WILL run — the union of groups touching this file when
      a coverage map is present, the tag filter otherwise. See calibrationIndices. */
-  const calSel = FULL ? filter : calibrationIndices(PGMAP, basename(file)) || filter;
+  const calSel = FULL ? filter : calibrationIndices(pgmapFor(file), basename(file)) || filter;
   const calDesc = Array.isArray(calSel) ? calSel.length + ' selected group(s)' : calSel ? 'group "' + calSel + '"' : 'FULL SUITE';
   process.stderr.write('  calibrating: one clean ' + calDesc + ' run to size the timeout — no mutant is tested yet\n');
   const t0 = Date.now();
