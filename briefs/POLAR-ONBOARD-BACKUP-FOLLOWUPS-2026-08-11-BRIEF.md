@@ -9,6 +9,17 @@
 > cover. Four fixes already shipped; three items remain, and one of them is holding a safety setting
 > disabled on the live box. Every number here is measured — the session's own lesson was that the
 > unmeasured ones are the dangerous ones.
+>
+> **✅ THE SAFETY SETTING IS NO LONGER DISABLED — verified on the live box 2026-08-18.**
+> `/opt/tepna/capture-host/config.yaml` carries `power.drop_not_worn_sec: 180.0` and
+> `not_worn_recheck_sec: 90.0` — and, the half that matters because config presence is not behaviour, the
+> journal shows it **firing**: `not worn for 180s — dropping`, **91 events in 7 days** across the two Polar
+> devices (H10 7, Verity 84). The sentence above is left standing rather than rewritten: it was true when
+> written, and the correction is the useful part.
+>
+> ⚠ **Check the SYSTEM journal, not the user one.** `journalctl --user -u tepna-capture` returns **0 lines**
+> here — the unit is a system service — and a zero from the wrong journal reads exactly like a setting that
+> never fires. That misread happened once while verifying this and is recorded so it does not happen twice.
 
 ## 0 · The state it leaves the box in
 
