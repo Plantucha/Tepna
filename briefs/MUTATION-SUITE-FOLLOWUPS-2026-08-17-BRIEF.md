@@ -82,18 +82,54 @@ is recoverable, inheriting "unkillable" from a neighbour hides a real gap for go
 
 ---
 
-## 3 · BUILD THE MAP — sequencing, not difficulty
+## 3 · ⚠️ THE MAP UNDER-SELECTS AND MANUFACTURES FALSE SURVIVORS — measured 2026-08-18, QUARANTINED
 
-`node tools/mutation-suite.mjs --build-map` (~10 min, needs a quiet box). It must run **after** a
-`tests/dex-tests.js` change settles: the map's values are group **indices**, so an inserted group
-shifts every later one and the identity stamp correctly refuses the map. #1453 inserts a group at
-line 7760; building before it merges buys a map the guard immediately rejects.
+**This section replaces a "build the map" task with a defect report, because building it is what
+found the defect.** Built successfully (494 groups, 354 s, 9 sources stamped, written to the git
+common dir so every worktree sees it). Then measured, paired, fresh journals, identical `--jobs 6`:
 
-**Done when:** `--status` reports `selection ON` for every DSP, and a sweep's per-file line reads
-`✓ coverage map applied`. §6's estimate is 10–100×; **that number is quoted, not measured here**, and
-this brief is not done until a before/after on one real file replaces it.
+| | tested | killed | survived | wall |
+|---|---:|---:|---:|---:|
+| tag filter (no map) | 489 | **307** | 182 | 3 m 52 s |
+| coverage selection | 489 | **304** | 185 | 2 m 39 s |
 
----
+**Two findings, and the second is the one that matters.**
+
+**(a) The speedup is 1.46×, not 10–100×.** §6's estimate is a projection nobody had measured; this is
+the first real number and it is 7–70× smaller. hrvdex has cheap groups, so a heavier file may do
+better — but the headline figure must not be quoted again without a measurement beside it.
+
+**(b) SELECTION CHANGED VERDICTS IN BOTH DIRECTIONS — 9 flips in 484 mutants.**
+
+- **3 SURVIVED → KILLED.** Selection is a genuine *gain* here: it runs groups that execute the line
+  without carrying the node's tag, which the tag filter never runs at all. The tool documents this
+  ("selection is NOT a subset of the tag filter"), and it means the tag-filtered numbers this
+  programme has published are themselves slightly under-counted.
+- **6 KILLED → SURVIVED.** This is manufactured blindness, the failure `per-group-coverage.mjs`'s own
+  header names: *"a selection map that silently drops a group stops running tests that would have
+  killed mutants, and reports the resulting survivors as findings."* All six are at
+  `hrvdex-dsp.js:853` and `:866`, and all six were killed by one group —
+  **"HRVDex Phase-9 — compute() surface + summary adapter"**.
+
+**Root cause, located but not fixed.** The three Phase-9 groups (indices 314, 323, 338) attribute
+**0 hrvdex lines** in the map, while demonstrably killing mutants on those lines — a test cannot kill
+a mutant on a line it does not execute, so the coverage measurement for those groups is wrong. They
+are **not** flagged `unknown: true`, so the fail-closed path never fires: an empty attribution is
+treated as "executes nothing", which is indistinguishable from "nothing was recorded". Line 853 is
+not in the baseline either, so the baseline-selects-everything escape does not apply.
+
+**The map is QUARANTINED** (`per-group.json.QUARANTINED-underselects` in the git common dir).
+Sweeps fall back to the tag filter — slower and correct. **Do not restore it** until the empty
+attribution is either explained or made to fail closed.
+
+**Done when:** an attribution of zero lines for a group that the suite can be shown to execute is
+treated as `unknown` (fail closed) rather than as "executes nothing"; the paired hrvdex comparison
+shows **zero** KILLED→SURVIVED flips; and the speedup is re-measured and quoted *with* the file and
+job count it was measured on.
+
+⚠️ This is the third time in two days that a mechanism failed by reporting an empty result rather
+than an error, and the first time it would have corrupted a published number rather than merely
+costing time.
 
 ## 4 · WIRE THE REMAINING LANES INTO THE INVENTORY
 
