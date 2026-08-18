@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** REFERENCE (living — update when the tooling changes) · **last-verified:** 2026-08-03
+**Status:** REFERENCE (living — update when the tooling changes) · **last-verified:** 2026-08-18
 
 # Running a mutation audit — the runbook
 
@@ -9,7 +9,7 @@ failure modes that do not look like failures. Read §1 before your first run.
 
 ---
 
-## 1 · Seven ways a run fails while looking fine
+## 1 · Eight ways a run fails while looking fine
 
 None of these prints anything resembling a test failure. Each cost an hour before it was recognised.
 
@@ -106,6 +106,33 @@ until ! (ps -eo pid=,comm= | awk '$2 ~ /^python/ {print $1}' \
          | grep -q x); do sleep 20; done
 ```
 
+**⚠️ A WRONG `--only` FILTER AND A POISONED BASELINE ARE INDISTINGUISHABLE AT THE OUTPUT — `--list`
+before `--only`.** Cost a **978-second** run (`RUN-POLAR-MUTATION-PASS` §2).
+
+mutmut names a mutant `x` + the function name **verbatim**, so the underscores are not decorative:
+
+| function | mutant name | why |
+|---|---|---|
+| `_now` | `x__now__` | **two** — the function itself starts with `_` |
+| `run_polar` | `x_run_polar__` | **one** |
+
+So `--only 'capture.x__run_polar__*'` matches **nothing**. Copying the fleet brief's
+`capture.x__now__*` example is what produces the wrong form, because that example is correct *for its
+own function*.
+
+The failure is invisible in the way this section exists to catalogue. mutmut asserts *"Filtered for
+specific mutants, but nothing matches"*; `tools/mutate.py` surfaces it as `rc=1` with a **truncated**
+traceback, and the results dump then reads **`not checked` for every mutant**.
+
+That is the third distinct cause of the same output — a mid-run read, a poisoned baseline, and now a
+filter that matched nothing all print an all-`not checked` dump. **The dump does not identify which
+one you have**, so `--list` first is not a nicety: it is the only cheap way to tell a typo from a
+broken run before spending sixteen minutes on it.
+
+```sh
+mutmut list | grep 'capture\.x_run_polar' | head        # confirm the NAME exists, then filter on it
+```
+
 ---
 
 ## 2 · The procedure
@@ -149,6 +176,23 @@ LC_ALL=C comm -13 b.txt a.txt              # NEW survivors — must be empty, in
 A "new survivor" is usually a **timeout**, not a regression: mutmut's per-mutant budget derives from the
 baseline clean run and does **not** grow with the test selection, so adding tests to a region can push
 borderline mutants from `killed` to `timeout`. Read the survivor/timeout split separately.
+
+**⚠️ AND THE SET DIFF UNDERCOUNTS KILLS — it cannot be the rate.** "Diff the sets, not the counts" is
+right for **regressions** and wrong for the **rate**, and the two questions need different arithmetic:
+
+| question | how |
+|---|---|
+| did anything break? | `comm` over the survivor sets — a NEW survivor is a regression |
+| how many did I kill? | **`total − survived − timeout`**, from mutmut's own `*.stats.json` |
+
+The set diff **structurally cannot see a timeout resolving to killed**, because a timeout was never in
+the survivor set to begin with. So every mutant rescued by making a slow test fast is invisible to it.
+Measured 2026-08-04: `cpap_harvest` had **5** of those the moment a real-wall-clock test was given a
+synthetic clock, and `CAPTURE-HOST-SUBPROCESS-SURFACE-FOLLOWUPS`'s own draft reported the campaign as
+**204** kills before the arithmetic was corrected to **209**. A brief written by someone following this
+runbook got its headline number wrong by using the diff for both.
+
+Both numbers, every time. They are not two views of one quantity.
 
 ---
 

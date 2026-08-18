@@ -180,15 +180,45 @@ symmetry, §6.3 would have refused a real absence.
 ## 7 · Done when
 
 - [ ] Reachability measured per node, on **both** capture trees, before that node is touched.
-- [ ] Each site returns `null` (or null-valued fields) and every consumer tolerates it — checking
-      especially derived expressions, where fabrication re-enters one line after the guard
+- [x] **DONE.** Each site returns `null` (or null-valued fields) and every consumer tolerates it —
+      checking especially derived expressions, where fabrication re-enters one line after the guard
       (`+pg.sd1.toFixed(2)` throws on null; `+null` is `0`; the `|| 1` shape recurs).
-- [ ] PpgDex `cvhrFromNN` fixed **with** ECGDex `detectCVHR`, since they promise a shared method.
-- [ ] OxyDex's quintile labels (`sbiiQ`, `pred3pQ`) refuse rather than defaulting to `Q1`. **This is
-      the highest-severity item in the brief** — it fabricates a clinical stratification, not a number.
-- [ ] `std` / `median` / `quant` returning `0` on empty or `<2` input: **last, and separately.**
-      Used throughout, highest blast radius.
-- [ ] Registry tiers unchanged throughout.
+      ECGDex #1397 · OxyDex #1402 · PpgDex #1464. The PpgDex consumer sweep is worth recording as a
+      NEGATIVE: every reader already refuses — `integrator-dsp.js:526` digs the field into
+      `cvhrIndexWave` and `:3034` requires `!= null && isFinite`, so an unmeasurable finger leg makes
+      the corroboration return `null` rather than compute a gap against nothing; `oxydex-fusion.js:552`
+      skips its tile; `fnum` renders "—". Unlike OxyDex's `ahiKulkas`, no consumer completed the
+      fabrication, so the guard was the only defect.
+- [x] **DONE** — PpgDex `cvhrFromNN` (#1464) with ECGDex `detectCVHR` (#1397). Note the direction:
+      ECGDex was fixed first, so *leaving PpgDex alone had become the state that broke the shared-method
+      promise*, not the conservative one.
+- [x] **DONE** (#1402) — verified on `main`: `oxydex-dsp.js:6234` returns `{ sbii: null, sbiiQ: null }`
+      and `:6286` `{ pred3p: null, pred3pQ: null }`. **`:6266` deliberately still returns
+      `{ sbii: 0, sbiiQ: 'Q1(low)' }`** and that is correct: `!nadirEvents.length` on a night with
+      enough data is a genuine *measured* absence of instability, not an absence of measurement. The
+      whole point of this brief is that those two are different, so nulling both would be the
+      mirror-image error.
+- [ ] `std` returning `0` on `<2` input: **last, and separately.** ⚠️ **Scope measured 2026-08-18 and
+      it is far narrower than this line implied.** `median` and `mean` already return `NaN`, and
+      GlucoDex's `quantile` already returns `null` — the defect is **`std` alone, in two files**:
+
+      | file | line | current |
+      |---|---|---|
+      | `ppgdex-dsp.js` | 87 | `if (a.length < 2) return 0;` |
+      | `hrvdex-dsp.js` | 931 | `arr.length > 1 ? Math.sqrt(…) : 0` |
+
+      The sample standard deviation of ONE observation is undefined — the denominator is `n − 1 = 0` —
+      so `0` claims *"no variability"* from data that cannot support the claim. An SDNN of 0 ms reads
+      as a perfectly regular heart.
+      **Reachability: LATENT, 0 of 132.** Across 132 real node-exports (corpus-trio + trio-all) not one
+      carries an exact-zero `sdnn`, `rmssd` or `sdnnIndex`. (The query was checked before the count was
+      believed: `hrv.time.sdnn` resolves in 26 of 39 sampled files, the other 13 being OxyDex exports
+      with no HRV block, and sample values read 50.2 / 159.9 / 61.)
+      So this stays **last** — but for the right reason now. It is not deferred because the blast
+      radius is unknown; it is deferred because the blast radius is real and the defect is latent, and
+      that is a different trade from the one this line originally described.
+- [x] **DONE** — no registry file was touched by #1397, #1402 or #1464. This was a refusal fix, not a
+      re-grading.
 
 ## 8 · Related
 

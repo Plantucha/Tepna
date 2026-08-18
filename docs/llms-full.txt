@@ -1,5 +1,5 @@
 # Tepna — the Dex Suite — concatenated authoritative context
-# Generated 2026-08-13. Public docs only (the internal build/gate constitution CLAUDE.md is intentionally excluded).
+# Generated 2026-08-18. Public docs only (the internal build/gate constitution CLAUDE.md is intentionally excluded).
 
 
 
@@ -23,7 +23,7 @@
 A fleet of local-only, single-signal physiological analyzers. No upload. No accounts. No network.
 
 [![Live at tepna.net](https://img.shields.io/badge/live-tepna.net-2a6fdb?style=for-the-badge)](https://tepna.net)
-[![Suite v2.5.0](https://img.shields.io/badge/suite-v2.5.0-2a6fdb?style=for-the-badge)](CHANGELOG.md)
+[![Suite v2.6.0](https://img.shields.io/badge/suite-v2.6.0-2a6fdb?style=for-the-badge)](CHANGELOG.md)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a6fdb?style=for-the-badge)](LICENSE)
 
 [![No network · CI-enforced](https://img.shields.io/badge/no_network-CI--enforced-1f8a5b)](no-network.html)
@@ -32,7 +32,7 @@ A fleet of local-only, single-signal physiological analyzers. No upload. No acco
 [![Every metric graded](https://img.shields.io/badge/every_metric-evidence_graded-8a5cf6)](#the-evidence-ladder-every-metric-is-graded)
 [![Reproducible](https://img.shields.io/badge/every_paper-regenerates_from_its_tool-8a5cf6)](papers/papers.html)
 ![Nodes](https://img.shields.io/badge/nodes-8_live_%C2%B7_1_planned-555)
-![Releases](https://img.shields.io/badge/releases-31_shipped-555)
+![Releases](https://img.shields.io/badge/releases-32_shipped-555)
 
 **[tepna.net](https://tepna.net)**  ·  [github.com/Plantucha/Tepna](https://github.com/Plantucha/Tepna)
 
@@ -49,7 +49,7 @@ A fleet of local-only, single-signal physiological analyzers. No upload. No acco
 
 ## 📊 Suite at a glance
 
-**Suite version:** 2.5.0 &nbsp;—&nbsp; **31** ledger-backed releases, each computed from a green tree.
+**Suite version:** 2.6.0 &nbsp;—&nbsp; **32** ledger-backed releases, each computed from a green tree.
 
 | | |
 |---|---|
