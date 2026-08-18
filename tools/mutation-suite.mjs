@@ -113,7 +113,13 @@ export function describeMutant(key, file) {
   const p = String(key).split('\u0000');
   if (p.length < 4) return { where: (file || '?') + ':?', line: 0, op: String(key).slice(0, 40), before: '', after: '' };
   const trim = (s) => String(s).trim().replace(/\s+/g, ' ').slice(0, 72);
-  return { where: (file || '?') + ':' + p[0], line: Number(p[0]) || 0, op: p[1], before: trim(p[2]), after: trim(p[3]) };
+  /* `before`/`after` are DISPLAY fields — trimmed, whitespace-collapsed and cut to 72 chars so a
+     terminal line stays readable. `rawBefore`/`rawAfter` are the untouched source text.
+     ⚠️ Only the RAW pair may be used as a classification key. Keying on the display text would
+     match on the first 72 characters and silently conflate two different mutations of the same long
+     line — the truncation-reads-as-the-whole failure, applied to the thing that decides whether a
+     survivor counts as resolved. */
+  return { where: (file || '?') + ':' + p[0], line: Number(p[0]) || 0, op: p[1], before: trim(p[2]), after: trim(p[3]), rawBefore: p[2], rawAfter: p[3] };
 }
 
 /**
@@ -691,21 +697,44 @@ function sweepState(file) {
  * classification whose line no longer holds that operator simply does not match, and the survivor is
  * reported as open. Over-reporting open work is recoverable; hiding a real gap is not.
  */
+/**
+ * The classification key: the mutation's TEXT, not its line.
+ *
+ * ⚠️ KEYING ON THE LINE NUMBER IS WHAT ROTTED THE LEDGER. Lines move for reasons as small as a
+ * comment, and a classification that stops matching is indistinguishable from one that never
+ * existed — so 379 of 383 keys had silently stopped applying, taking real human triage effort with
+ * them. Measured 2026-08-18 on the one file with a journal to check against: keyed by `(line, op)`
+ * **4 of 129** classifications still matched; keyed by `(op, before, after)`, **126**.
+ *
+ * The fields were already in the ledger. Nothing about its format changes — only what is read.
+ *
+ * Exact text, NOT a truncated prefix. Cutting both sides to 100 chars scores the same 126 while
+ * introducing **33 colliding journal keys** — distinct mutants whose first 100 characters agree —
+ * so it buys nothing and costs the ability to tell them apart. The cost of exactness is that the 39
+ * ledger entries whose `before` is exactly 100 chars were themselves written truncated and can
+ * never match; that is reported by `staleClassifications` rather than hidden, which is the whole
+ * invariant: a key that stops matching must SAY so.
+ */
+export function classificationKey(file, op, before, after) {
+  return file + '\u0001' + String(op) + '\u0001' + String(before == null ? '' : before).trim() + '\u0001' + String(after == null ? '' : after).trim();
+}
+
 export function classificationIndex(ledger) {
   const idx = new Map();
   for (const [file, entries] of Object.entries(ledger || {})) {
     if (!Array.isArray(entries)) continue; // `_README` is prose
     for (const e of entries) {
-      if (!e || e.line == null || !e.op) continue;
-      const k = file + '\u0001' + e.line + '\u0001' + e.op;
+      if (!e || !e.op || e.before == null) continue;
+      const k = classificationKey(file, e.op, e.before, e.after);
       const cls = e.class || 'unclassified';
       const prev = idx.get(k);
-      /* (line, op) IS NOT UNIQUE — one line can host the same operator twice (two `||` in one
-         condition), and the ledger holds both: 419 entries collapse to 383 keys. Where colliding
-         entries AGREE the answer is unambiguous; where they DISAGREE, one of those mutants is
-         equivalent and the other is a real gap, and nothing in the key says which. Marking the key
-         ambiguous makes BOTH report as open work — over-reporting is recoverable, while silently
-         inheriting "unkillable" from a neighbour hides a real gap permanently. */
+      /* THE KEY IS STILL NOT GUARANTEED UNIQUE — one line can host the same operator twice (two
+         `||` in one condition) and produce identical before/after text, so the ledger can hold two
+         entries under one key. Where they AGREE the answer is unambiguous; where they DISAGREE, one
+         of those mutants is equivalent and the other is a real gap, and nothing in the key says
+         which. Marking the key ambiguous makes BOTH report as open work — over-reporting is
+         recoverable, while silently inheriting "unkillable" from a neighbour hides a real gap
+         permanently. */
       if (prev !== undefined && prev !== cls) idx.set(k, 'ambiguous');
       else if (prev === undefined) idx.set(k, cls);
     }
@@ -713,8 +742,8 @@ export function classificationIndex(ledger) {
   return idx;
 }
 
-export function classifySurvivor(idx, file, line, op) {
-  const c = idx.get(file + '\u0001' + line + '\u0001' + op);
+export function classifySurvivor(idx, file, op, before, after) {
+  const c = idx.get(classificationKey(file, op, before, after));
   return !c || c === 'ambiguous' ? null : c;
 }
 
@@ -904,7 +933,7 @@ function cmdInventory() {
       .filter((r) => r.v !== 'KILLED' && r.v !== 'INVALID')
       .map((r) => {
         const d = describeMutant(r.k, f);
-        return { line: d.line, op: d.op, before: d.before, cls: classifySurvivor(eq, f, d.line, d.op) };
+        return { line: d.line, op: d.op, before: d.before, cls: classifySurvivor(eq, f, d.op, d.rawBefore, d.rawAfter) };
       })
       .sort((a, b) => a.line - b.line);
     /* A survivor already proven to have NO distinguishing input is RESOLVED, not outstanding. Keeping
@@ -1030,10 +1059,23 @@ function selftest() {
   ck('ignores non-DSP files', discoverFleet(['dsp.js', 'x-dsp.js.bak']).length, 0);
 
   console.log('\nclassificationIndex — a resolved survivor is not outstanding work, and a tie is not resolved');
-  const idx = classificationIndex({ 'f.js': [{ line: 10, op: 'cmp < → <=', class: 'no-distinguishing-input' }], _README: ['prose'] });
+  const idx = classificationIndex({
+    'f.js': [{ line: 10, op: 'cmp < → <=', before: 'for (i = 0; i < n; i++)', after: 'for (i = 0; i <= n; i++)', class: 'no-distinguishing-input' }],
+    _README: ['prose']
+  });
   ck('prose keys are skipped', idx.size, 1);
-  ck('a classified mutant is found', classifySurvivor(idx, 'f.js', 10, 'cmp < → <='), 'no-distinguishing-input');
-  ck('an unclassified one is null, not a default', classifySurvivor(idx, 'f.js', 11, 'cmp < → <='), null);
+  ck('a classified mutant is found by its TEXT', classifySurvivor(idx, 'f.js', 'cmp < → <=', 'for (i = 0; i < n; i++)', 'for (i = 0; i <= n; i++)'), 'no-distinguishing-input');
+  /* THE POINT OF THE RE-ANCHOR: the ledger entry above records line 10, and nothing here supplies a
+     line at all — the classification resolves purely from the text. Keyed by line, a moved line
+     returned null and the classification was lost; 379 of 383 of them were, in practice. */
+  ck('…but NOT when the source text itself changed', classifySurvivor(idx, 'f.js', 'cmp < → <=', 'for (i = 0; i < LIMIT; i++)', 'for (i = 0; i <= LIMIT; i++)'), null);
+  ck('an unclassified one is null, not a default', classifySurvivor(idx, 'f.js', 'cmp > → >=', 'a > b', 'a >= b'), null);
+  /* Whitespace is normalised on both sides, so a reindent does not invalidate a classification. */
+  /* An entry with no source text cannot be keyed at all and must be DROPPED, never indexed under a
+     partial key — a half-key would resolve the wrong mutants to it. Planted and confirmed surviving
+     before this line existed. */
+  ck('an entry with no source text is not indexed at all', classificationIndex({ 'f.js': [{ line: 10, op: 'x', class: 'real-gap' }] }).size, 0);
+  ck('leading/trailing whitespace does not break the match', classifySurvivor(idx, 'f.js', 'cmp < → <=', '   for (i = 0; i < n; i++)  ', '  for (i = 0; i <= n; i++) '), 'no-distinguishing-input');
   /* (line, op) is NOT unique — one line can host the same operator twice. Where colliding entries
      DISAGREE, one is equivalent and one is a real gap and the key cannot say which; inheriting either
      answer would hide a real gap permanently, so both must report as open. */
@@ -1042,13 +1084,14 @@ function selftest() {
     classifySurvivor(
       classificationIndex({
         'f.js': [
-          { line: 10, op: 'x', class: 'no-distinguishing-input' },
-          { line: 10, op: 'x', class: 'real-gap' }
+          { line: 10, op: 'x', before: 'a', after: 'b', class: 'no-distinguishing-input' },
+          { line: 22, op: 'x', before: 'a', after: 'b', class: 'real-gap' }
         ]
       }),
       'f.js',
-      10,
-      'x'
+      'x',
+      'a',
+      'b'
     ),
     null
   );
@@ -1057,13 +1100,14 @@ function selftest() {
     classifySurvivor(
       classificationIndex({
         'f.js': [
-          { line: 10, op: 'x', class: 'real-gap' },
-          { line: 10, op: 'x', class: 'real-gap' }
+          { line: 10, op: 'x', before: 'a', after: 'b', class: 'real-gap' },
+          { line: 22, op: 'x', before: 'a', after: 'b', class: 'real-gap' }
         ]
       }),
       'f.js',
-      10,
-      'x'
+      'x',
+      'a',
+      'b'
     ),
     'real-gap'
   );
