@@ -1192,6 +1192,23 @@ function selftest() {
   ck('the drafted call is built from the probe-found input', /const out = P\.parse\(""\);/.test(drafted), true);
   ck('…the expectation is the recorded REAL output', /JSON\.stringify\(out\.tsMs\), "null"\)/.test(drafted), true);
   ck('…and the draft says out loud that the property line is model-written', /model-written, needs a human read/.test(drafted), true);
+  /* ⚠️ THE MODEL WRITES THIS LABEL, so it is untrusted text being emitted into source. The first
+     version escaped quotes and THEN truncated, so a cut landing mid-escape left a trailing backslash
+     that swallowed the closing quote — the same defect already fixed in `mdCell` in this file. The
+     assertion is that the OUTPUT PARSES, not that some regex matched, because the failure is a
+     syntax error rather than a wrong-looking string. */
+  const parses = (txt) => {
+    try {
+      new Function(txt.replace(/P\.parse/g, '(() => ({ tsMs: null }))').replace(/T\.eq/g, '((a, b, c) => 0)'));
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const mk = (prop) => renderDraft({ call: 'P.parse', input: '[""]', op: 'o', before: 'b' }, 'out.tsMs', prop, 'null');
+  ck('a label ending in a backslash still emits parseable code', parses(mk('ends with a backslash \\')), true);
+  ck('…a label full of quotes too', parses(mk("it returns \"null\", not '' — the parser's rule")), true);
+  ck('…and a label longer than the 110-char cut, sliced mid-escape', parses(mk('x'.repeat(108) + " \\'" + 'y'.repeat(40))), true);
 
   /* Two probe batteries reach the same mutant, so the same assertion arrives twice; counting it
      twice inflates the only number anyone reads. */
@@ -1247,7 +1264,48 @@ function selftest() {
  */
 const CRAWL_DIR = opt('--crawl-dir', join(ROOT, '.mutation-crawl'));
 const LOCAL_HOST = 'http://127.0.0.1:11434';
-const DRAFT_MODEL = opt('--model', 'qwen3.6:35b-a3b');
+
+/**
+ * MODEL AND CONTEXT ARE MEASURED, NOT CHOSEN. Benchmarked 2026-08-18 over a fixed 10-case sample
+ * drawn across five files, scored by `projectionDiscriminates` — an objective grader, which is what
+ * makes this a measurement rather than an impression:
+ *
+ *   model / context                        accepted   s/case   tok/s   ACCEPTED DRAFTS/min
+ *   qwen3.6:35b-a3b  ctx16384  (was)         7/10      17.4     1.8          2.4
+ *   qwen3.6:35b-a3b  ctx1024                 7/10      13.9     2.2          3.0
+ *   qwen3.6:35b-a3b  ctx1024 vendor-sampling 7/10      11.9     2.2          3.5
+ *   qwen3.6:27b      ctx1024                 7/10       1.7    31.1         24.7
+ *   qwen3.8:27b      ctx1024                 8/10       1.6    35.5         30.0
+ *   mistral-small    ctx1024                 8/10       1.1    40.8         43.6   ← default
+ *
+ * ⚠️ THE 18× IS A VRAM-FIT CLIFF, NOT A MODEL-QUALITY DIFFERENCE, AND THE DIRECTION IS COUNTER-
+ * INTUITIVE: the BIGGEST model is the SLOWEST by an order of magnitude. This box has a 20 GB
+ * Radeon RX 7900 XT; `qwen3.6:35b-a3b` is 23 GB, so ~17 % of it spills to CPU and it runs at
+ * 1.8 tok/s — absurd for a 3B-active MoE, and that absurdity is the diagnostic tell. MoE is hit
+ * hardest by a spill because expert weights are scattered across the bus. Every model that FITS
+ * runs 30–41 tok/s regardless of family.
+ *
+ * ⚠️ SO "GIVE IT A BIGGER CONTEXT" IS THE WRONG LEVER HERE, AND WAS MEASURED AS SUCH. The prompts
+ * this lane sends are 216–509 tokens (p50 253) — the whole fleet fits in 1024 with headroom.
+ * Dropping 16384 → 1024 bought 20 % and moved the split only 83 % → 84 %, because it is the WEIGHTS
+ * that do not fit, not the KV cache. A larger context would only take VRAM back from the weights.
+ * Re-measure both numbers if the hardware changes; neither is a property of the task.
+ */
+const DRAFT_MODEL = opt('--model', 'mistral-small');
+const DRAFT_CTX = Number(opt('--ctx', '1024'));
+
+/**
+ * RETRY MUST CHANGE THE SAMPLING OR IT CHANGES NOTHING. At temperature 0 the model is deterministic,
+ * so re-asking an identical prompt returns a byte-identical answer — a retry loop that looks like it
+ * is exploring while provably re-running one draw. Attempt 1 is greedy (reproducible, and the
+ * benchmark's default); every retry moves to Qwen's published sampling so it can actually land
+ * somewhere else. Qwen's model card additionally warns that greedy decoding can degrade output and
+ * cause endless repetition, which is a second reason not to retry into it.
+ * Retries are nearly free at ~1 s a draft, and every attempt is scored by the same exact verifier,
+ * so more attempts cannot lower quality — only spend time.
+ */
+const DRAFT_ATTEMPTS = Number(opt('--attempts', '3'));
+const SAMPLING = [{ temperature: 0 }, { temperature: 0.7, top_p: 0.8, top_k: 20, min_p: 0 }, { temperature: 1.0, top_p: 0.95, top_k: 20, min_p: 0, presence_penalty: 1.5 }];
 
 /**
  * A projection is MODEL-SUPPLIED TEXT THAT WE ARE ABOUT TO EVALUATE, so it is charset-restricted
@@ -1336,9 +1394,15 @@ export function renderDraft(c, projection, property, origValue) {
     '    const out = ' +
     call +
     ';\n' +
-    "    T.eq('" +
-    property.replace(/'/g, "\\'").slice(0, 110) +
-    "', JSON.stringify(" +
+    /* ⚠️ JSON.stringify, NOT hand-quoting — AND SLICE BEFORE ESCAPING. The first version did
+       `.replace(/'/g, "\\'").slice(0, 110)`, which escapes and THEN truncates, so a cut landing
+       mid-escape leaves a trailing backslash that swallows the closing quote and emits a file that
+       does not parse. That is the SAME defect already fixed once in `mdCell` in this very file
+       (CodeQL js/incomplete-sanitization), reintroduced ten lines away — proximity is not
+       protection. The model writes this string, so it is untrusted input by construction. */
+    '    T.eq(' +
+    JSON.stringify(property.slice(0, 110)) +
+    ', JSON.stringify(' +
     projection +
     '), ' +
     JSON.stringify(origValue) +
@@ -1347,11 +1411,17 @@ export function renderDraft(c, projection, property, origValue) {
   );
 }
 
-async function askLocal(prompt, model) {
+async function askLocal(prompt, model, attempt = 0) {
   const res = await fetch(LOCAL_HOST + '/api/generate', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ model, prompt, stream: false, think: false, options: { temperature: 0, num_predict: 260 } })
+    body: JSON.stringify({
+      model,
+      prompt,
+      stream: false,
+      think: false,
+      options: { num_ctx: DRAFT_CTX, num_predict: 260, ...SAMPLING[Math.min(attempt, SAMPLING.length - 1)] }
+    })
   });
   const j = await res.json();
   return j.response || '';
@@ -1425,15 +1495,37 @@ async function cmdDraft(file) {
   for (let i = 0; i < pick.length; i++) {
     const c = pick[i];
     const name = c.call + ' [' + c.op + '] @ ' + String(c.before).slice(0, 54);
-    let reply = '';
-    try {
-      reply = await askLocal(draftPrompt(c), DRAFT_MODEL);
-      if (!String(reply).trim()) reply = await askLocal(draftPrompt(c), DRAFT_MODEL); // one retry: empty is a refusal
-    } catch {
-      log('✗ local model unreachable at ' + LOCAL_HOST + ' — stopping. No drafts are produced (a refusal, not an empty result).');
-      return;
+    /* RETRY ON ANY REJECTION, NOT JUST ON AN EMPTY REPLY. The earlier version retried only the empty
+       case, which left the two commonest failures — an unparseable reply and a field that does not
+       discriminate — costing a draft on the first attempt. Both are recoverable, both are detected
+       exactly, and at ~1 s a draft the retries are free. Each attempt uses different sampling (see
+       SAMPLING) because a greedy retry is a re-run, not a second try. */
+    let parsed = null;
+    let disc = null;
+    let lastWhy = '';
+    for (let a = 0; a < DRAFT_ATTEMPTS; a++) {
+      let reply = '';
+      try {
+        reply = await askLocal(draftPrompt(c), DRAFT_MODEL, a);
+      } catch {
+        log('✗ local model unreachable at ' + LOCAL_HOST + ' — stopping. No drafts are produced (a refusal, not an empty result).');
+        return;
+      }
+      const p2 = parseDraftReply(reply);
+      if (!p2.ok) {
+        lastWhy = p2.why;
+        if (p2.refused) break; // an explicit REFUSE is an answer; asking again is badgering it
+        continue;
+      }
+      const d2 = projectionDiscriminates(p2.projection, c.orig, c.mutant);
+      if (d2.ok) {
+        parsed = p2;
+        disc = d2;
+        break;
+      }
+      lastWhy = d2.why;
     }
-    const parsed = parseDraftReply(reply);
+    if (!parsed) parsed = { ok: false, why: lastWhy || 'no attempt produced a usable draft' };
     const el = (Date.now() - t0) / 1000;
     const rate = (i + 1) / (el / 60);
     const eta = rate > 0 ? Math.round((pick.length - i - 1) / rate) : 0;
@@ -1443,13 +1535,6 @@ async function cmdDraft(file) {
       rejected.push({ name, why: parsed.why });
       log(prog + ' ✗ ' + name);
       log('      ' + parsed.why);
-      continue;
-    }
-    const disc = projectionDiscriminates(parsed.projection, c.orig, c.mutant);
-    if (!disc.ok) {
-      rejected.push({ name, why: disc.why });
-      log(prog + ' ✗ ' + name);
-      log('      ' + disc.why);
       continue;
     }
     /* DEDUPE ON THE ASSERTION, NOT ON THE MUTANT. The probe reaches the same mutant from more than

@@ -43,6 +43,34 @@ field. The model reached `out.tsMs` independently, with the property named corre
 still pin the *wrong* behaviour — asserting what the code does rather than what it should. No
 verification detects that, because the mutant dies either way. The output is a proposal queue.
 
-Measured 2.9 drafts/min. 98 selftests; **9/9 planted mutations caught** — the ninth only after the
-charset allowlist was found to have no test of its own (every escape case was also caught by the
-denylist backstop, so deleting the primary defence survived).
+**Model and context are measured, not chosen**, scored by that same objective verifier over a fixed
+10-case sample across five files:
+
+| config | accepted | s/case | tok/s | accepted drafts/min |
+|---|---|---|---|---|
+| `qwen3.6:35b-a3b` ctx16384 | 7/10 | 17.4 | 1.8 | 2.4 |
+| `qwen3.6:35b-a3b` ctx1024 | 7/10 | 13.9 | 2.2 | 3.0 |
+| `qwen3.8:27b` ctx1024 | 8/10 | 1.6 | 35.5 | 30.0 |
+| **`mistral-small` ctx1024** | **8/10** | **1.1** | **40.8** | **43.6** |
+
+⚠️ **The 18× is a VRAM-fit cliff, not model quality, and the direction is counter-intuitive: the
+BIGGEST model is the slowest by an order of magnitude.** This box has a 20 GB RX 7900 XT;
+`qwen3.6:35b-a3b` is 23 GB, so ~17 % spills to CPU and it runs at **1.8 tok/s** — absurd for a
+3B-active MoE, and that absurdity is the tell. MoE suffers most from a spill because expert weights
+scatter across the bus. Every model that *fits* runs 30–41 tok/s regardless of family.
+
+⚠️ **"Give it a bigger context" was measured as the wrong lever.** This lane's prompts are 216–509
+tokens (p50 253); 16384 → 1024 bought 20 % and moved the split only 83 → 84 %, because it is the
+**weights** that do not fit, not the KV cache. A larger context would take VRAM back from the weights.
+
+**Retries now fire on any rejection, and change the sampling.** At temperature 0 the model is
+deterministic, so re-asking is a re-run, not a second try; attempt 1 is greedy and retries move to
+Qwen's published sampling. On the real lane this took the pilot from **2.9 → 35.2 drafts/min with 0
+rejected** (was 1 of 8).
+
+101 selftests; **10/10 planted mutations caught**. Two were only caught after the assertions were
+strengthened: the charset allowlist had no test of its own (every escape case was also caught by the
+denylist *backstop*, so deleting the *primary* defence survived), and the model-written label was
+escaped **then** truncated — a cut landing mid-escape leaves a trailing backslash that swallows the
+closing quote. That second one is the `mdCell` defect already fixed once in this same file, ten lines
+away. Proximity is not protection.
