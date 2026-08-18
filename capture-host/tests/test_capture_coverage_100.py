@@ -1509,3 +1509,70 @@ def test_a_dead_sidecar_still_warns_the_journal_with_NO_webhook(tmp_path, monkey
     dead = [r for r in caplog.records if "arrival sidecar" in r.getMessage()]
     assert len(dead) == 1, f"the journal must still carry it: {[r.getMessage()[:60] for r in caplog.records]}"
     capture.STATUS["devices"].pop("Verity", None)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════
+# the NOT-WORN trigger — the only reachable one for a coin-cell device (POLAR-ONBOARD-BACKUP-FU §4)
+# ═══════════════════════════════════════════════════════════════════════════════════════════
+def test_a_device_taken_off_the_body_is_pulled_once_per_doff(tmp_path, monkeypatch):
+    """The H10 runs on a CR2025 coin cell, so `charging` is permanently False and the on-charger
+    trigger can NEVER fire for it — recording without retrieval fills the one onboard slot and then
+    silently records nothing. The doff edge is the reachable trigger. Once per doff, marked before
+    the await, exactly as the charger path is."""
+    strap = _dev(name="Strap", vendor="Polar", model="H10", address="C2:11:44:AB:9E:01")
+    cfg = {"pull": {"auto": True, "notworn_settle_sec": 300}, "devices": [strap]}
+    capture.STATUS["devices"]["Strap"] = {"charging": False, "worn": False}
+    capture._NOTWORN_SINCE.clear()
+    capture._NOTWORN_PULLED.clear()
+    # already off the body long enough — the clamp puts the real settle above the 180 s drop grace,
+    # so seeding the arming stamp is how a unit test reaches the due state without sleeping past it.
+    capture._NOTWORN_SINCE[strap["address"]] = capture._time.monotonic() - 10_000.0
+    pulls = []
+
+    async def fake_polar_pull(dev, root):
+        pulls.append(dev["name"])
+        return {"new_files": ["Polar_Offline_x/RR.txt"]}
+    monkeypatch.setattr(capture, "pull_polar_offline_all", fake_polar_pull)
+    _stop_after(monkeypatch, 3)                    # three ticks — exactly one pull
+    _run(capture.charger_pull_poller(cfg, str(tmp_path)))
+    assert pulls == ["Strap"], "once per doff session, not once per tick"
+    assert capture.STATUS["autopull"]["trigger"] == "not-worn"
+    capture._NOTWORN_SINCE.clear()
+    capture._NOTWORN_PULLED.clear()
+
+
+def test_worn_again_re_arms_the_doff_pull(tmp_path, monkeypatch):
+    """The ALLOW twin of the test above. Putting the strap back on clears the arming stamp, so the
+    NEXT doff pulls again — otherwise a device is pulled once and never again for the life of the
+    daemon. `worn is not False` covers both True and the no-verdict None."""
+    strap = _dev(name="Strap2", vendor="Polar", model="H10", address="C2:11:44:AB:9E:02")
+    cfg = {"pull": {"auto": True, "notworn_settle_sec": 300}, "devices": [strap]}
+    capture.STATUS["devices"]["Strap2"] = {"charging": False, "worn": True}
+    capture._NOTWORN_SINCE[strap["address"]] = capture._time.monotonic() - 10_000.0
+    capture._NOTWORN_PULLED.add(strap["address"])
+    pulls = []
+
+    async def fake_polar_pull(dev, root):
+        pulls.append(dev["name"])
+        return {"new_files": []}
+    monkeypatch.setattr(capture, "pull_polar_offline_all", fake_polar_pull)
+    _stop_after(monkeypatch, 2)
+    _run(capture.charger_pull_poller(cfg, str(tmp_path)))
+    assert pulls == [], "worn again ⇒ nothing to pull this tick"
+    assert strap["address"] not in capture._NOTWORN_SINCE, "the arming stamp must be cleared"
+    assert strap["address"] not in capture._NOTWORN_PULLED, "and the once-per-doff latch re-armed"
+
+
+def test_a_doff_settle_inside_the_drop_grace_is_RAISED_not_obeyed(tmp_path, monkeypatch, caplog):
+    """THE INVARIANT. A pull holds a connection; `should_drop_not_worn` closes one. A settle inside
+    the 180 s grace would keep the link open and BLOCK the drop — the one thing §4 forbids. A config
+    that asks for it is raised, loudly, rather than silently winning."""
+    strap = _dev(name="Strap3", vendor="Polar", model="H10", address="C2:11:44:AB:9E:03")
+    cfg = {"pull": {"auto": True, "notworn_settle_sec": 5}, "devices": [strap]}
+    capture.STATUS["devices"]["Strap3"] = {"charging": False, "worn": None}
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level("INFO"):
+        _run(capture.charger_pull_poller(cfg, str(tmp_path)))
+    msgs = " ".join(r.getMessage() for r in caplog.records)
+    assert "settle raised" in msgs, "a clamped settle must say so — a silent clamp is a silent policy"
+    assert "power-drop grace" in msgs
