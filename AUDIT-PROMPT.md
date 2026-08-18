@@ -248,6 +248,23 @@ at a time.
 
 - **Contracts-as-tests:** `tests/dex-tests.js` (one assertion lib, two runners — `node tests/run-tests.mjs`
   + `Dex-Test-Suite.html`). **Add a failing assertion to PROVE a finding**, then it becomes a regression gate.
+- **🔴 VERIFY YOUR OWN SWEEP BEFORE YOU BELIEVE IT — a clean report is a claim about a SET, and you have not
+  checked the set.** Any script you write to audit the tree is itself unaudited code, and it fails in two
+  directions that need opposite responses. Measured 2026-08-17, same tool, ten minutes apart: v1 flagged
+  **~100** unsurfaced metrics because it matched ids and the alias table but not each entry's own `label:`
+  field (rendering here is *"zero-touch … auto-wired by label"*), and v2 then reported **`0 missing`** for a
+  node whose entry-block regex had captured **16** of its entries — the metric under investigation was
+  never examined. **The over-report announced itself; the `0` looked exactly like success.** So:
+  **(1) PRINT THE DENOMINATOR on every run** — "checked N of M" — because a filter matching nothing, a
+  parser capturing a fraction, and a genuinely clean tree all print the same `0`.
+  **(2) ANCHOR ON A QUANTITY WHOSE CORRECT VALUE YOU KNOW INDEPENDENTLY OF THE CODE.** A sibling session's
+  tap detector read x/y/z by **column position** without reading the header; what actually validated the
+  choice was that baseline magnitude came out **998 and 1023 mg — 1 g**. Wrong columns, no gravity. A
+  physical constant, a known total, a conserved sum: prefer the check the data can fail. A registry count
+  has no such anchor, which is why `100`-vs-`24` was the only tell available and `0` had none.
+  **(3) PREFER AN EXPLICIT ALLOWED-LIST TO A BARE ZERO.** `capture-host/find_unwired.py` reports
+  **`0 unexplained, 10 allowed`** with a written reason per allowance — the allowed-list is what makes the
+  zero mean something, because it distinguishes *nothing found* from *nothing looked at*.
 - **Reproduce a metric:** re-run the node’s `compute()` on a committed input and diff vs its fixture — the
   equiv gate already does exactly this (volatile-stripped). A finding that survives this diff is real.
 - **Metric truth** = each `*-registry.js` (label/unit/good-direction/evidence; kept honest by `cohesion-badges`).
