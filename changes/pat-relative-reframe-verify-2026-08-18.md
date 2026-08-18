@@ -29,3 +29,11 @@ finished work and graded a metric that does not exist.
   files, which invites the substitution, but the first session spans **43 123 s (12 h)** and a single
   BLE link does not survive that here. Using sessions would measure stability *across* reconnects and
   report it as stability *within* a connection — inverting the gate's result.
+
+**Plus `O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS` §1 CONFIRMED** — its "blocked, costs one night worn" note
+was recorded 2026-08-04 and fourteen nights have been worn since; 35 of 45 local `OXYFRAME` files now
+carry the columns. Measured over **162 576 frames**: `ppg_dur_step` 1 → median `ppg_n` **126**,
+`ppg_dur_step` 2 → **127** (not ~252). So a `+2` step is one device-second with a skipped counter, read
+off the declared count rather than inferred from arrival-stamp matching — §7.2's indirect recovery was
+right. Also records that the shipped header has `ppg_offset`, not the `ppg_expected` §1 names.
+
