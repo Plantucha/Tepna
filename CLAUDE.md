@@ -1072,9 +1072,16 @@ correction**; call `hostAxis` and consume `correctionAt()`.
   n=41, 0.6 % at n=801, 0.17 % on the real 2873-anchor O2Ring geometry. This is a *second*, independent
   reason `ppm` must never be quoted without its anchor count and span beside it; the first is leverage.
 - **≥3 anchors, and that minimum is a contract, not a nicety.** Two points define a line through any
-  jitter and cannot be checked; three is the least that can show curvature — and the O2Ring's real error
-  is **non-linear** (−3035 ppm decaying to −1622 ppm), so a line is the wrong model, not merely an
-  imprecise one. Fewer than three ⇒ **refuse**.
+  jitter and cannot be checked; three is the least that can show curvature — and the O2Ring's observed
+  divergence is **non-linear**, so a line is the wrong model, not merely an imprecise one. Fewer than
+  three ⇒ **refuse**.
+  ⚠ **That curvature is the LINK, not the crystal — do not repeat the old attribution.** This text used to
+  read "the O2Ring's real error is −3035 ppm decaying to −1622 ppm" and call it crystal behaviour. Measured
+  2026-08-18 against the host on a 7.2 h night: the ring holds **flat at ~4 s lag for hours 0–3**, i.e.
+  **sub-ppm**, and only then degrades at ~12.5 s/h — the onset is the first BLE dropout, not a temperature
+  ramp. A crystal does not change rate by thousands of ppm; a stalled link does, and a single linear fit
+  through the stalls renders it as a smooth "decay". **The ≥3-anchor contract is unchanged and is if
+  anything stronger**, because dropout-driven divergence bends harder than any crystal would.
 - **A running MEDIAN (width 21), never a fit.** Host stamps carry BLE delivery jitter (~0.1 s, up to
   470 ms observed); interpolating raw anchors injects that straight into beat times, which for HRV is
   worse than the drift being removed. The width was chosen by planted recovery against ±100 ms jitter on
@@ -1083,9 +1090,13 @@ correction**; call `hostAxis` and consume `correctionAt()`.
   is the whole point, and a fit would also re-introduce the "one ppm describes the night" error.
 - **Linear between anchors; FLAT outside them.** Past the last anchor there is no measurement, and
   extending a slope there fabricates one — §2.6's rule applied to the rate.
-- **`CK_AXIS_MAX_PPM = 50000` (5 %) is a REFUSAL bound, not a clamp.** A crystal is wrong by ppm; the
-  worst real one in this corpus is −3035, so 5 % leaves 16× headroom. Beyond it the two columns are not
-  the two clocks we think they are — a misparse, a unit mismatch, a shifted column — and "correcting" by
+- **`CK_AXIS_MAX_PPM = 50000` (5 %) is a REFUSAL bound, not a clamp.** The largest apparent divergence in
+  this corpus is −3035 ppm, so 5 % leaves 16× headroom. ⚠ Read that as a **link** figure, not a crystal
+  one — the ring's crystal measures sub-ppm between dropouts (above). That makes the bound **more**
+  necessary rather than less: a crystal's error is bounded by physics, whereas a stalled link can
+  manufacture an arbitrarily large apparent rate, and this bound is the only thing standing between such
+  an artifact and a fabricated timebase. Beyond it the two columns are not the two clocks we think they
+  are — a misparse, a unit mismatch, a shifted column — and "correcting" by
   that amount fabricates a timebase (caught by a fixture whose ms column advanced at 2× its host stamps:
   unbounded, a −500000 ppm "correction" that doubled `fs` from 130 to 259.9). Out of bounds ⇒ **refuse**.
 - **A refusal returns `{ ok:false, reason, n }` and NO `correctionAt`.** A caller must not be able to
