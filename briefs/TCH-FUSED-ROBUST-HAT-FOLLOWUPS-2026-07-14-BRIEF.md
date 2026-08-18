@@ -79,10 +79,43 @@ anyone spends a compute-path change on it.
 4. GlucoDex robust variability.
 5. Fix `detectPeaksB` (adaptive threshold) → revive `bSQI`.
 
-**Do 4 is CLOSED (refuted + re-scoped, 2026-08-03). Do 2 is CLOSED (refuted, 2026-08-18 — below).**
-Do 1/3/5 stand unmeasured — and the lesson from Do 4 applies to each: these are principle-transfer
+**Do 4 is CLOSED (refuted + re-scoped, 2026-08-03). Do 2 is CLOSED (refuted, 2026-08-18 — below).
+Do 3 is CLOSED (already implemented, 2026-08-18 — below).** Do 1/5 stand unmeasured — and the lesson from Do 4 applies to each: these are principle-transfer
 *hypotheses*, and the estimator's leverage on REAL data is a one-command measurement that costs far less
 than the compute-path change it would justify. Measure the ratio before writing the fix.
+
+### ✅ Do 3 (OxyDex ODI / CPAPDex AHI artifact suppression) — MEASURED 2026-08-18, ALREADY SHIPPED
+
+Unlike Do 2 and Do 4 this is not a refutation: the suppression Do 3 asks for **already exists**, and the
+corpus shows it is load-bearing rather than decorative — which is the part worth recording, because
+"already implemented" and "implemented and doing nothing" are the two outcomes this repo confuses.
+
+**OxyDex.** `processNight` subtracts artifacts from ODI-4 (`odi4.count -= desat.artifactCount`, surfaced as
+`odi4.artifactExcluded`) and the ODI-3 path is artifact-gated via `pulseSeries`. Measured over **55 corpus
+nights** (`desatProfile.artifactCount` vs `events` / `eventsAll`):
+
+| | |
+|---|---|
+| artifacts suppressed per night | median **0**, mean 0.87, max **7** |
+| nights where it removed ≥1 event | **23 of 55 (42 %)** |
+| artifacts as a share of raw ODI-4 | median 0 %, **max 55.6 %** |
+
+⚠ **The decisive night is 2026-07-21: `artifactCount=7, events=0, eventsAll=7`.** Every detected
+desaturation that night was an artifact. Without the gate that night scores **ODI-4 = 7 instead of 0** — a
+fully fabricated index, not an inflated one. A median of 0 would, on its own, have read as machinery that
+never fires; it fires on 42 % of nights and decides the verdict on at least one.
+
+**CPAPDex.** Same gating on its oximetry path — *"ODI: artifact desats are excluded and never emitted
+downstream"*, filtered by `!e.artifact` with its own `artifactCount`.
+
+⚠ **The "AHI" half of Do 3 is a category error and should not be built.** CPAPDex's `residualAHI` is not a
+desaturation index — it comes from CPAPDex's own **flow** classification (`'OA' // obstructive component
+scored toward AHI`), and the code already records a *deliberate* divergence from the device's count. The
+desat-artifact machinery does not touch it and should not: suppressing device-corroborated apneas because
+an optical artifact gate fired is not the same operation as excluding a fake desaturation.
+
+**So: nothing to build. The ODI half is done and measurably matters; the AHI half names a quantity the
+proposed mechanism does not apply to.**
 
 ### ⛔ Do 2 (PulseDex/HRVDex robust HRV) — MEASURED 2026-08-18, and REFUTED as stated
 
