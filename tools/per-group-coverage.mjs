@@ -56,6 +56,7 @@ import { cpus } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { executedLines, findRecord } from './mutation-reach.mjs';
+import { buildIdentity } from './mutation-map.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -248,7 +249,28 @@ if (IS_MAIN && !has('--selftest')) {
   results.sort((a, b) => a.index - b.index);
 
   const unknown = results.filter((r) => r.unknown);
-  const map = { generated: null, totalGroups: results.length, unknownGroups: unknown.length, baselineSubtracted: !!baseline, baseline: baseline || null, groups: results };
+  /* ── STAMP IT, OR A LATER SWEEP CANNOT TELL WHETHER IT STILL APPLIES ───────────────────────────
+     This record used to be written with `generated: null` and no hashes at all, which made a stale
+     map indistinguishable from a fresh one. That asymmetry matters: an ABSENT map costs time (the
+     consumer falls back to the tag filter), while a PRESENT, STALE map selects groups that do not
+     execute the mutant's line — and a mutant no test executes SURVIVES. Staleness therefore
+     manufactures findings, arriving disguised as a speedup.
+     A map is a function of LINE NUMBERS, and lines move for reasons as trivial as a comment: #1422
+     inserted 16 comment lines into oxydex-dsp.js and shifted everything below line 1023. The suite
+     hash is in there too because the map's values are group INDICES — insert a group and every
+     later index shifts, which no per-file source hash would catch. */
+  const mapped = new Set();
+  for (const r of results) for (const f of Object.keys((r && r.files) || {})) mapped.add(f);
+  const identity = buildIdentity(ROOT, [...mapped]);
+  const map = {
+    generated: new Date().toISOString(),
+    identity,
+    totalGroups: results.length,
+    unknownGroups: unknown.length,
+    baselineSubtracted: !!baseline,
+    baseline: baseline || null,
+    groups: results
+  };
   writeFileSync(out, JSON.stringify(map));
   rmSync(tmpDir, { recursive: true, force: true });
 
