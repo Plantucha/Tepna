@@ -256,7 +256,28 @@ residual. `O2RING-PROTOCOL` §3b already flags the rate as unit-specific; the sa
 the lock and the counter quantization.
 
 ## Done when
-- [ ] §1 confirmed from a real night's `ppg_n` column — **BLOCKED on a capture, not on work
+- [x] **§1 CONFIRMED 2026-08-18, directly from `ppg_n` — the prediction holds and the blocker had
+      gone stale.** The 2026-08-04 note above was right at the time and wrong by the 18th: it cost
+      "one night worn", and fourteen nights have been worn since. **35 of 45 local `OXYFRAME` files now
+      carry the columns** (newest 2026-08-16); the 10 without are pre-restart, exactly as the note
+      predicted.
+      Measured over **162 576 frames**, grouping `ppg_n` by `ppg_dur_step` as §1 specifies:
+
+      | `ppg_dur_step` | frames | median `ppg_n` | mean | min | max |
+      |---|---|---|---|---|---|
+      | 0 | 55 424 | **0** | 1.8 | 0 | 177 |
+      | 1 | 106 495 | **126** | 126.4 | 0 | 197 |
+      | 2 | 656 | **127** | 127.6 | 67 | 177 |
+
+      **A `+2` step carries ~127, not ~252** — the §1 prediction, now read off the device's own declared
+      count rather than inferred from arrival-stamp matching. So a `+2` is one device-second of samples
+      with the duration counter having skipped, **not** two seconds of data: the counter is quantized,
+      and §7.2's indirect recovery was correct. The `dur_step 0 → ppg_n 0` row is the same fact from the
+      other side — no advance, no samples.
+      ⚠️ **One naming discrepancy worth recording:** §1 names `ppg_n` / `ppg_dur_step` / **`ppg_expected`**.
+      The shipped header carries `ppg_n` / `ppg_dur_step` / **`ppg_offset`** — there is no `ppg_expected`
+      column. The two the measurement needs are present, so this does not block §1, but a reader
+      grepping for `ppg_expected` will find nothing and should not read that as the columns being absent. — **BLOCKED on a capture, not on work
       (checked 2026-08-04).** `ppg_n`/`ppg_dur_step`/`ppg_expected` landed in `capture-host/writers.py`
       on **2026-08-03** (`ec85357`). No OXYFRAME on disk carries them: the newest ring capture is
       2026-08-03 and still writes the old 10-column header, and 2026-08-04 has Verity files only — no
