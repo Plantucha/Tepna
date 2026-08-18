@@ -141,6 +141,78 @@ precondition to check per night, not a refutation.
 
 - [ ] Within-connection offset stability is measured on ≥ 5 sidecar nights (first/second half fit
       comparison per connection) — the dip path's one clock gate.
+      **FEASIBILITY CHECKED 2026-08-18 — blocked on the SIDECAR, not on effort or tooling.** The
+      assumption under test is stated in code at `pat-align.js:335`: *"the ~2.2 s per-connection BLE
+      offset is CONSTANT within a connection — a within-connection difference cancels it exactly,
+      which is why `segments` (connection spans) gate runs"*. So the measurement needs real
+      **connection boundaries**, which `patDipEvents` already consumes as `opts.segments`.
+      The local `uploads/captures` corpus (6 nights, 2026-07-31 → 08-16) **does not carry them**. Its
+      only structured file is `QC-SUMMARY.json`, which has `sessions` but zero occurrences of
+      `connection`/`segment`/`disconnect`. ⚠️ **`sessions` are NOT connections** — tempting, because on
+      2026-08-14 there are exactly 3 sessions and 3 Verity `_PPG.txt` files, so they look
+      interchangeable. But the first session spans **43 123 s (12 h)**, and a single BLE link does not
+      survive that here (the Verity writer drops it on a ~90 s cadence in SDK mode). A session is a
+      capture-host recording span; a connection is finer, and substituting one for the other would
+      measure stability across reconnects while reporting it as stability within a connection —
+      inverting the result the gate exists to produce.
+      **What unblocks it:** sidecar nights from vigil that record connection spans. Everything else is
+      already built — `patDipEvents` takes `segments`, and the halving is arithmetic on top.
+
+      🔴 **CORRECTION 2026-08-18, same day — THE ABOVE IS WRONG. The sidecars are here, and they always
+      were.** Every one of the 6 local capture nights carries `*_LINK.csv`, whose columns are
+      `Phone timestamp;device;connected;rssi_dbm;…;link_epoch;address` — i.e. exactly the
+      connection boundaries the paragraph above says are missing. Connection counts per night:
+
+      | night | LINK files | Verity connections | H10 connections |
+      |---|---|---|---|
+      | 2026-07-31 | 2 | 243 | 23 |
+      | 2026-08-11 | 12 | 17 | 2 |
+      | 2026-08-13 | 9 | 327 | 4 |
+      | 2026-08-14 | 12 | 16 | 2 |
+      | 2026-08-15 | 8 | 20 | 5 |
+      | 2026-08-16 | 5 | 17 | 1 |
+
+      **6 nights of 6, against a done-when that asks for ≥ 5.** So this item is NOT data-blocked; it is
+      unstarted.
+      **How I got it wrong, because the mechanism matters more than the fact:** I searched for the
+      *word* — `-iname "*sidecar*"`, `-iname "*.jsonl"` — and read `QC-SUMMARY.json`, then concluded
+      absence. I never listed the directory's file extensions. The sidecar is real, local, and named
+      something I did not guess. Identical in shape to the `ppg_expected`/`ppg_offset` trap recorded in
+      `O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS` §1 the same hour: **a grep for the vocabulary you expect
+      returns empty against data that is present under another name, and empty reads as absent.**
+      The `sessions`-are-not-connections warning above still stands and is now *more* useful, not less:
+      `link_epoch` is the right key, and a session still is not one.
+      ⚠️ **One real caveat for whoever runs it:** the Verity reconnects hard — 243 and 327 connections
+      on two nights — so most connections will be far too short to halve and fit. The measurement needs
+      a minimum-duration filter per connection, and the honest denominator is *connections long enough
+      to halve*, not connections observed.
+
+      🔬 **MEASURED 2026-08-18 — the tool now exists (`tools/pat-connection-stability.mjs`), and the
+      answer is that THIS CORPUS CANNOT ANSWER IT YET. n = 2.**
+
+      | night | Verity spans ≥300 s | scored | med \|Δ\| | max \|Δ\| |
+      |---|---|---|---|---|
+      | 2026-07-31 | 5 | **2** | 76.5 ms | 111.8 ms |
+      | 2026-08-11 / 13 / 14 | 1 each | 0 | — | span too short of beats on BOTH signals |
+      | 2026-08-15 | 0 | 0 | — | no Verity span inside one H10 connection |
+      | 2026-08-16 | — | — | — | no ECG captured |
+
+      **The first run said median \|Δ\| 110.3 ms over 9 connections, and that number is invalid.** It
+      gated on the **Verity's** connection spans while pooling H10 beats across the **H10's own**
+      reconnects — so it measured an ACROSS-reconnect offset and would have reported it as
+      within-connection drift. A PAT lag is ECG-to-PPG and inherits **both** links; the span must be
+      inside one connection on **both** devices. That is the same error as substituting `sessions`,
+      one device over, and I made it while holding the note warning against it.
+      **With the guard: only 8 of 113 Verity spans ≥ 300 s sit inside a single H10 connection**, and
+      only 2 of those carry ≥ 60 beats of both signals. So the constraint is not "≥ 5 nights of
+      capture" — it is **≥ 5 nights with a long SIMULTANEOUS connection on both devices**, which is a
+      much scarcer thing given the Verity reconnects 16–327 times a night.
+      **Do not quote the 76.5 ms.** At n = 2 it is a number, not a result; the tool now withholds its
+      own p90 below n = 10 and prints the shortfall instead, because at n = 2 the p90 printed *below*
+      the median and read as reassurance.
+      **What would actually close this:** nights with fewer Verity reconnects (a stable link), or a
+      lower `--min-span-sec` paired with a beats-based rather than duration-based span filter. The
+      machinery is built either way — this is now a data question with a known shape, not an unknown.
 - [x] **BUILT same day** — `PATAlign.patDipEvents` (+ `tools/pat-dip-index.mjs`), gated by TEN twins
       in `pat-align · dip-detector`: planted Pitson-scale dips found 20/20; white-noise and ±40 ms
       red-wander nulls quiet; the 1-RR slip twin caught a real fabrication mode (a slipped foot pairs
@@ -235,6 +307,23 @@ degenerate-margin guard's first firing on live data.
       counting events outside the dip-covered span (measuring recording overlap, not coupling); and
       a foot-shift null so destructive the readability gate refused all 10 surrogates (a null that
       cannot execute is not a null — onsets are shifted instead, count-preserving).
-- [ ] The two fiducial defects of §3.4 are fixed and shown export-inert or regenerated per §🔏.
+- [x] **CLOSED 2026-08-18 — both fixed, and export-inert STRUCTURALLY rather than by assertion.**
+      ⚠️ The reference was dangling: **this brief has no §3.4** (§3 "The proposal" carries no
+      subsections). The two defects meant are the ones the *"🔧 The first ankle diagnosis was WRONG"*
+      section above describes — **self-inclusion degeneracy** in the rolling-median baseline, and
+      **biggest-file-with-biggest-file pairing** that matched non-overlapping sessions. Verified
+      present on `main` by identifier rather than by memory: `leave-self-out` in `pat-align.js`,
+      `anklePair`/`overlapMin` in `tools/pat-dip-index.mjs`.
+      **Export-inert is a property of the build graph here, not a claim:** `pat-align.js` is inlined
+      into **0** bundles and `pat-dip-index.mjs` is not in `build-analysis.mjs`'s `TOOLS`, so neither
+      file can reach any bundle's compute closure and no fixture can move. Nothing to regenerate —
+      and per §🔒 that is the *computed* form of export-inertness, not the prose form the repo
+      abolished.
+      **The box was stale against its own brief:** the prose two screens up already described both
+      fixes as applied. A later reader ranking work by unchecked boxes would have redone them.
 - [ ] `patArousalIdx` gets a registry row (`experimental`, autonomic wording) before any surface
       shows it.
+      **NOT YET ACTIONABLE, and deliberately so (checked 2026-08-18): `patArousalIdx` appears in NO
+      source file** — zero hits across `*.js`/`*.mjs`. This is a *guard on future work*, not a
+      backlog item: it fires the moment someone names the metric, and adding a registry row now
+      would grade a metric that does not exist. Leave unchecked until a surface exists.
