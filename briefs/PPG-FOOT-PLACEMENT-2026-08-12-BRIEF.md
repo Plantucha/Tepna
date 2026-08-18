@@ -252,7 +252,23 @@ Fixing that outranks any estimator change — it blocks every PAT measurement, n
 - [ ] only THEN: re-score CFD against it, and adopt or reject on that number
 - [x] ~~the mode is PREDICTED by sampling rate~~ — **RETRACTED §1b**: it was the polarity bug
 - [x] the mode-splitting MECHANISM identified — **`orient()` picks the wrong sign** (§0)
-- [ ] implement the rise-time polarity rule in `ppgdex-dsp.js` (moves exports — regen + full gate)
+- [x] **ALREADY SHIPPED — verified 2026-08-17, not implemented anew.** `orientByRise` IS the
+      rise-time rule and is already `detectChannel`'s default (`ppgdex-dsp.js:1299`); the old
+      `orient` survives only as the undecidable fallback (`up == null && dn == null`). The box was
+      stale, not open.
+      🔴 **But its WIRING half was genuinely open, and is fixed here.** The node's `analyze` applies
+      `applyConsensusPolarity` (re-detect dissenting channels with the device-majority sign); the PAT
+      **tool chain did not** — `tools/pat-matchrate-strict.mjs ppgFootTimes` called `detectChannel`
+      raw, so every PAT measurement ever taken ran on per-channel guesses the shipping node would
+      have overruled. On a split session the dissenter's "feet" are peaks, ~half a cardiac cycle out.
+      **Measured, box corpus 2026-08-13 → 17: 16 of 32 sessions >5 MB split** — the brief's "half the
+      corpus" figure reproduced at session granularity, a year of tooling later.
+      ⚠️ **It does NOT move the ΔPAT numbers, and saying so is the point.** The four nights analysed
+      in `PAT-RELATIVE-REFRAME` pair on their NOCTURNAL sessions, and those are unanimous; the splits
+      fall on daytime sessions (an early probe picked the largest file, hit a daytime split, and
+      briefly looked like the ΔPAT result was affected — it is not). The fix is correct, systemic,
+      and inert on the current results. `ppgFootTimes` now returns `polarityFlipped` so a future
+      run cannot be silently on either side of it.
 - [ ] explain the RESIDUAL 2.2–13.2 ms spread that survives the polarity fix
 
 Related: [`CROSS-DOMAIN-METHODS-2026-08-12-BRIEF.md`](CROSS-DOMAIN-METHODS-2026-08-12-BRIEF.md) ·
