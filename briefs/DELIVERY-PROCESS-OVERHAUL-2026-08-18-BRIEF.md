@@ -47,6 +47,21 @@ and an unattended fold that hits one would either die silently or be pressured i
 
 ## §3 · WIP cap ≤ 4 open PRs repo-wide — EXECUTED (CLAUDE.md §👥.5b)
 
+> ### ▶ AMENDMENT PROPOSED 2026-08-18 — the cap assumes WIP is DRAINABLE by its holder
+>
+> Measured within hours of shipping it: the queue sat at 5–6 open with **four belonging to a session
+> whose `update-branch` is denied by its permission classifier**. Those PRs are green, `BEHIND`, and
+> cannot be merged by their author at all — so under a literal reading the cap froze *two* sessions'
+> finished work indefinitely, while the PRs causing the freeze were the ones contributing **no**
+> contention: a PR that structurally cannot merge is not racing for the merge window and re-runs no CI.
+>
+> **Proposed wording:** the cap counts PRs their holder *can* act on. A PR blocked by a permission or
+> tooling condition outside the holder's control is **parked**, not work-in-progress, and is excluded
+> from the count while it stays that way — with the state named out loud so "parked" cannot become a
+> way to hold an unlimited queue. Raised by Brief runner from inside the block; recorded here rather
+> than edited into `CLAUDE.md`, because the constitution is the owner's.
+
+
 The 187-job pile-up was **legitimate work units, just too many at once** — the flattering explanation
 ("our collection discipline caused it") was measured false: collections were ~68 jobs against 131 queued.
 The cap is §5's "one PR per work-unit" made checkable across sessions. A finished unit waits for a slot.
