@@ -382,3 +382,11 @@ name-keyed grep run twice returns the same blind spot twice. What surfaced it wa
 discarded them through `| head -12` (§👥.4b, committed inside an investigation *of* method failure).
 **So: when two of you agree, ask what METHOD each used before treating it as evidence — and rank a
 disagreement that comes from a different instrument above an agreement that comes from the same one.**
+**COUNT DISTINCT METHODS, NOT DISTINCT REVIEWERS: unanimity among passes sharing a technique is ONE vote.**
+Independence of *reviewers* is not independence of *technique*, and it is the technique that bounds what
+is visible. The cheap operational half: **grep the ACCESSOR, not the identifier** — a rename at the
+consumer boundary (`desatProfile` → `n.desat`) defeats every name-keyed sweep *simultaneously*, which is
+also why any gate asserting "this metric reaches a surface" must walk accessors or it reproduces this
+failure inside the gate built to prevent it. And when two passes conflict, **adjudicate by re-deriving
+the answer yourself, not by weighing whose report reads better** — that is the step that recovered this
+one, and unlike being lucky in method it is repeatable.
