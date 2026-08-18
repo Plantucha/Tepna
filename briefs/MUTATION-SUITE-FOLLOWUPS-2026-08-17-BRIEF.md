@@ -196,6 +196,20 @@ That matters because the obvious alternative — loading DSPs lazily per group �
 `dex-coload.js` and the co-load gate deliberately pin `clock.js` before every delegating DSP, and
 deferring loads would change semantics the suite exists to hold.
 
+⚠️ **RESET-ON-READ MAKES THE COUNTER A SHARED, DESTRUCTIVE RESOURCE — do not compose this with c8.**
+Whoever reads the interval consumes it. If the map-build harness reads throughout a process that c8
+also wraps, c8's totals collapse to whatever the last interval happened to contain — and it does not
+error, it reports *lower* coverage, so a floor either reds for a fabricated reason or passes on a
+number describing one group.
+
+Measured, partially: c8 collects via **`NODE_V8_COVERAGE`** (a file dump at exit), not an in-process
+inspector session, so the two may not collide at all. I could not settle it — two attempts to probe
+the interaction were both silently excluded by c8's own path/include filtering, first because the
+subject sat outside the project root and then because it was not in the configured include set. That
+is the third instance tonight of a check that ran and examined nothing, and it is the reason to stop
+probing and **take the guard instead of the claim**: the harness should refuse to start when
+`NODE_V8_COVERAGE` is set, which costs one line and is correct whether or not they interact.
+
 **Not implemented.** `run-tests.mjs` already runs one group per process via `--group-index`, so the
 snapshot pair can live in the harness without giving `group()` start/end callbacks — which is the
 change this file's header rejected, because `tests/dex-tests.js` is the file every parallel PR
