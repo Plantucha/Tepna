@@ -205,6 +205,14 @@ at a time.
     (b) **It survives self-review by construction** — the wrong label *is* the thing you would check
     against. The 2026-08-17 instance was caught only when a **peer challenged a number already written into
     a brief**; no gate, no re-read and no amount of care by the author would have surfaced it.
+    **And it PROPAGATES, because a summary is the natural reading surface.** Reviewers read PR bodies,
+    headers and abstracts rather than files — so an unkeyed summary hands the wrong label to everyone
+    downstream, and they reason from it correctly. Measured, inside the change that added this class: a PR
+    body compressed this very entry's hunt section to a parenthetical, and a peer — who had spent that day
+    telling three sessions to check the artifact rather than the label — proposed adding a recipe **already
+    present in the file**. Neither author nor reviewer was careless; both read a surface. **The only defence
+    is mechanical: before acting on any summary of an artifact, open the artifact** — `git show
+    HEAD:<file> | grep -n <the claim>`. That single habit caught the instance above; nothing else did.
     (c) **It is not the same as a stale value.** The form is intact, so integrity checks, schema checks and
     diffs all pass; only the *binding between label and value* is broken, and nothing in this repo checks
     bindings.
