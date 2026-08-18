@@ -182,12 +182,103 @@ at a time.
     `_pnn50 >= 1`; its neighbour `d_otr` gates `>= 0` and `null >= 0` is `true`. **A divergence between
     siblings is the single highest-yield grep in this codebase.**
 
+15. **The label that does not travel with its number — an artifact authoritative in FORM, unkeyed to its
+    CONTENT.** *(Added 2026-08-17 after four independent instances in ONE day, across four sessions.)* A
+    wrong value is survivable: it looks wrong, or it looks like nothing. **A wrong *label* on a right value
+    is not**, because it converts a search into a **confident wrong search** — absence makes you look, a
+    wrong pointer makes you *stop* looking. Hunt any place a **measurement** is printed beside a
+    **reference, unit, device, corpus, path or hash** that is **not selected by the same variable**.
+    **Measured instances:** `ppi-jitter-vs-ecg.mjs` labelled its device correctly at the top of the output
+    and printed `[Verity wrist reference: 5.92 ms]` at the bottom while defaulting to `--device o2ring` —
+    read through `| tail -20`, the top label was discarded, a **finger** median was compared to a **wrist**
+    reference, and the conclusion **inverted** (a written-up "non-reproduction" was actually the Verity
+    beating its own reference, 4.98 vs 5.92 ms at a 100 % beat-match rate) · `tools/build-docs.mjs` printed
+    a `git add` remediation of **nine paths, zero of which had changed**, omitting the one file it had just
+    rewritten · `tools/rebase-safe.mjs` printed **`verDex.html`** for `OverDex.html` — a remediation naming
+    a path that does not exist (a `.trim()` on porcelain) · after a rebase, `provenance/*.json` takes
+    main's copy wholesale, so a **`verifiedUnder` you just earned silently reverts to an unproven claim**
+    with the file's shape unchanged and every gate green.
+    **Three properties make this class expensive:**
+    (a) **A label at the top does not protect a number at the bottom.** Summaries are read through `tail`,
+    `grep`, and a glance at the last block, so a correct header is routinely discarded by the reader — this
+    class and `CLAUDE.md` §👥.4b's truncation trap **compose**, and each alone is survivable.
+    (b) **It survives self-review by construction** — the wrong label *is* the thing you would check
+    against. The 2026-08-17 instance was caught only when a **peer challenged a number already written into
+    a brief**; no gate, no re-read and no amount of care by the author would have surfaced it.
+    **And it PROPAGATES, because a summary is the natural reading surface.** Reviewers read PR bodies,
+    headers and abstracts rather than files — so an unkeyed summary hands the wrong label to everyone
+    downstream, and they reason from it correctly. Measured, inside the change that added this class: a PR
+    body compressed this very entry's hunt section to a parenthetical, and a peer — who had spent that day
+    telling three sessions to check the artifact rather than the label — proposed adding a recipe **already
+    present in the file**. Neither author nor reviewer was careless; both read a surface. **The only defence
+    is mechanical: before acting on any summary of an artifact, open the artifact** — `git show
+    HEAD:<file> | grep -n <the claim>`. That single habit caught the instance above; nothing else did.
+    (c) **It is not the same as a stale value.** The form is intact, so integrity checks, schema checks and
+    diffs all pass; only the *binding between label and value* is broken, and nothing in this repo checks
+    bindings.
+    **How to hunt:** grep tools for format strings holding a **hardcoded** device/unit/corpus next to an
+    **interpolated** value; check every remediation line (`git add …`, "now run X") against
+    `git status --porcelain` or the filesystem rather than believing it; after any rebase re-verify fields
+    whose form is stable but whose content is authoritative (`verifiedUnder`, `manifestHash`, fixture
+    hashes) with `git show HEAD:<file> | grep -c <identifier>`; and ask of any report **"if this were
+    truncated to its last 20 lines, would a number lose its qualifier?"**
+    **DISTANCE IS THE RISK, and it is the one criterion you can measure mechanically.** A label three
+    lines above its number survives; the same label at the top of a 40-line report does not, because
+    readers arrive by `tail`, by `grep`, or by a glance at the last block — so **flag any header naming a
+    mode, device, corpus or unit that sits more than a screenful above the numbers keyed to it**, even
+    when it is correct today. That distance is what turns a right label into a wrong one at the moment
+    someone truncates, which makes it a defect *before* it has produced a wrong answer.
+    **The fix is always the same and it is not 'add a label':** make the label **travel with the number** —
+    repeat the device/unit/corpus on the line carrying the value, select the reference by the same variable
+    as the measurement, and if a reference cannot be keyed that way, **do not print it**.
+    **NOT to be confused with its sibling family, which is already named canonically — see
+    `CLAUDE.md` §👥.4b: *"the check ran, and reported success about something it never examined."*** That
+    is about **execution paths** (a truncated verdict, a pipeline exit code, a `grep -q`, an `npx` no-op,
+    a `-k` filter matching nothing); this class is about **labels**. Deliberately kept as a pointer rather
+    than restated — a second copy would drift from the first, and §👥.4b is the better statement. **When
+    auditing, note that §👥.4b's own examples are all commands, while the same shape reaches further:** a
+    **parameter** (a correct guard whose only caller omits the argument that switches it on, so it never
+    fires) and an **identifier** (four functions whose names agree and whose jobs differ, so a grep
+    over-reports a capability that does not exist) are the same defect off the command line. The check
+    that covers both: **ask who calls it and with what arguments — never whether the name appears.**
+
 ---
 
 ## How to verify (use these — don’t eyeball)
 
 - **Contracts-as-tests:** `tests/dex-tests.js` (one assertion lib, two runners — `node tests/run-tests.mjs`
   + `Dex-Test-Suite.html`). **Add a failing assertion to PROVE a finding**, then it becomes a regression gate.
+- **🔴 VERIFY YOUR OWN SWEEP BEFORE YOU BELIEVE IT — a clean report is a claim about a SET, and you have not
+  checked the set.** Any script you write to audit the tree is itself unaudited code, and it fails in two
+  directions that need opposite responses. Measured 2026-08-17, same tool, ten minutes apart: v1 flagged
+  **~100** unsurfaced metrics because it matched ids and the alias table but not each entry's own `label:`
+  field (rendering here is *"zero-touch … auto-wired by label"*), and v2 then reported **`0 missing`** for a
+  node whose entry-block regex had captured **16** of its entries — the metric under investigation was
+  never examined. **The over-report announced itself; the `0` looked exactly like success.** So:
+  **(1) PRINT THE DENOMINATOR on every run** — "checked N of M" — because a filter matching nothing, a
+  parser capturing a fraction, and a genuinely clean tree all print the same `0`.
+  **(2) ANCHOR ON A QUANTITY WHOSE CORRECT VALUE YOU KNOW INDEPENDENTLY OF THE CODE.** A sibling session's
+  tap detector read x/y/z by **column position** without reading the header; what actually validated the
+  choice was that baseline magnitude came out **998 and 1023 mg — 1 g**. Wrong columns, no gravity. A
+  physical constant, a known total, a conserved sum: prefer the check the data can fail. A registry count
+  has no such anchor, which is why `100`-vs-`24` was the only tell available and `0` had none.
+  **(2b) AND CHECK YOUR WORLD, NOT ONLY YOUR QUERY — `git rev-list --count HEAD..origin/main`, one
+  second, before any measurement you intend to report.** A correct query against a stale tree returns a
+  confident wrong answer that nothing inside the result can reveal. Measured 2026-08-17: the shared root
+  checkout was **267 commits behind** with **180 dirty paths** — and it had been **255** behind twenty
+  minutes earlier, so the drift is not a state but a **rate**. Three individually-correct things compose
+  into it: the sync timer **refuses to sync over uncommitted work** (right — clobbering a peer's only copy
+  is the worse failure); in a checkout several sessions share **something is always dirty**, so the refusal
+  is permanent rather than occasional; and its skip exits 2, mapped to `SuccessExitStatus`, so the unit is
+  green and the journal shows successful runs. **No component is wrong and the failure is unbounded.**
+  It produced **six** wrong answers across two sessions in one afternoon — a "9 stale `verifiedUnder`"
+  report whose true value was 0 stale / 14 current, a tool declared to lack a flag it has, a field declared
+  unwired that was wired. **The structural fix is to never measure in the shared root:**
+  `git worktree add ../wt-<task> origin/main` is current by construction — which is why PR work never hit
+  this and only *investigations* did.
+  **(3) PREFER AN EXPLICIT ALLOWED-LIST TO A BARE ZERO.** `capture-host/find_unwired.py` reports
+  **`0 unexplained, 10 allowed`** with a written reason per allowance — the allowed-list is what makes the
+  zero mean something, because it distinguishes *nothing found* from *nothing looked at*.
 - **Reproduce a metric:** re-run the node’s `compute()` on a committed input and diff vs its fixture — the
   equiv gate already does exactly this (volatile-stripped). A finding that survives this diff is real.
 - **Metric truth** = each `*-registry.js` (label/unit/good-direction/evidence; kept honest by `cohesion-badges`).
@@ -278,3 +369,25 @@ REFUTED list (resolve it — one of you is wrong); **(2)** did you each find a *
 merge them or a partial fix ships); **(3)** does their evidence *demonstrate* one of your findings under a
 different reading. Convergence between independent passes is the strongest signal available here — and
 **where two passes overlapped in 2026-07-18 they agreed, with zero contradictions across 72 findings.**
+
+**⚠️ But convergence counts ONLY when the passes are METHODOLOGICALLY independent — two runs of one method
+are not two passes.** The 2026-07-18 agreement was strong because the passes came at the tree from
+genuinely different directions (JS compute paths vs the Vigil↔suite seam). Contrast 2026-08-17, measured:
+two sessions independently searched for a metric by its **registry id and labels**, both got zero, and
+both concluded it was unsurfaced — while `oxydex-render.js:2711` was rendering a titled section of
+**eight `metric()` cards** from it under the accessor `n.desat`. The parent id genuinely reaches no
+surface; its *members* are separately registered, rendered and badged, so the object was on screen the
+whole time and no search for the parent's own name could see it. **The agreement was correlated method, not corroboration**, and it was worth nothing: one
+name-keyed grep run twice returns the same blind spot twice. What surfaced it was a *third* session whose
+**count** disagreed — and, separately, one of the two greps had in fact found the render lines and
+discarded them through `| head -12` (§👥.4b, committed inside an investigation *of* method failure).
+**So: when two of you agree, ask what METHOD each used before treating it as evidence — and rank a
+disagreement that comes from a different instrument above an agreement that comes from the same one.**
+**COUNT DISTINCT METHODS, NOT DISTINCT REVIEWERS: unanimity among passes sharing a technique is ONE vote.**
+Independence of *reviewers* is not independence of *technique*, and it is the technique that bounds what
+is visible. The cheap operational half: **grep the ACCESSOR, not the identifier** — a rename at the
+consumer boundary (`desatProfile` → `n.desat`) defeats every name-keyed sweep *simultaneously*, which is
+also why any gate asserting "this metric reaches a surface" must walk accessors or it reproduces this
+failure inside the gate built to prevent it. And when two passes conflict, **adjudicate by re-deriving
+the answer yourself, not by weighing whose report reads better** — that is the step that recovered this
+one, and unlike being lucky in method it is repeatable.

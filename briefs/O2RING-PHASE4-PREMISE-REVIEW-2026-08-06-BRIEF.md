@@ -2,7 +2,7 @@
 Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (deferred 2026-08-06 — §4 must be answered before any of §3 is worth doing) · **Created:** 2026-08-06
+**Status:** PROPOSED (deferred 2026-08-06 — §4 must be answered before any of §3 is worth doing; **§4 EXECUTED 2026-08-17**, see §4's closing note — §1–§3 remain open, which is what keeps this PROPOSED) · **Created:** 2026-08-06
 
 # Phase 4 review — its premise moved, and a bigger timeline defect sits next to it
 
@@ -78,6 +78,57 @@ That comment is now **half stale and half still true**, and the still-true half 
 | **`integrator-dsp.js` `_tchHat`** | ❌ — filters only on `ptsFn(s).length >= 12` (line 2550) |
 | **`pat-gate.js`** | ❌ zero mentions |
 | **`pat-feasibility-worker.js`** | ❌ zero mentions |
+
+> **VERIFIED AND CORRECTED 2026-08-17 — three of those five rows had gone stale, and the diagnosis of a
+> fourth was wrong in a way that mattered.** The table above is left as written; it is the premise this
+> review was deferred on. Read it with this note.
+>
+> | consumer | state on 2026-08-17 |
+> |---|---|
+> | `integrator-dsp.js` closure | ✅ still guarded (line ~5460) |
+> | `tools/tch-multinight.mjs`, `tools/tch-corpus.js` | ✅ still guarded |
+> | `integrator-dsp.js` `_tchHat` | ✅ **now guarded** — `if (s.timingSource === 'none')` at line 2573, landed since this brief. The TCH lane's work, not this one's. |
+> | `pat-gate.js` | ⚠️ **premise right, reason wrong** — see below |
+> | `pat-feasibility-worker.js` | ❌ confirmed, **fixed 2026-08-17** |
+>
+> **"Zero mentions" was true of `pat-gate.js` and was not the defect.** The gate had acquired a correct
+> clock refusal in the meantime — `NO SHARED CLOCK` on `ax.independent === false`, six assertions behind
+> it. What shipped broken is that its only runtime caller, `pat-feasibility-worker.js:423`, invoked it as
+> `PATGate.verdict(ov, cp, sc)` — **three arguments**. Nothing could reach the fourth, so the guard had
+> never once fired. Both parsers already held `rec.hostAxis` and dropped it in their reshape — the lesson
+> `ppgdex-dsp.js` states three lines above `timingSource`'s own definition, re-applied one layer down.
+>
+> That distinction is the transferable part. A grep for `timingSource` reports an absent guard; a grep
+> for `PATGate.verdict` reports a healthy, heavily-exercised one. **Neither can see an argument that is
+> never passed.** The check has to be *who calls it, with what arguments* — not *does the name appear*.
+> `integrator-dsp.js:694` records the identical failure one lane over ("WITHOUT IT THIS GUARD WAS
+> INERT"), so this is two independent instances of one shape inside the same subsystem.
+>
+> **The severity was also inverted from what this section assumed.** `timingSource:'none'` is a
+> `hostAxis` *refusal*, so it carries no `independent` member at all — `undefined`, not `false`. The leg
+> with **no clock** therefore walked straight through the guard that catches the leg with an **unshared**
+> clock: the more degenerate input passed. It is now a separate `DRAWN AXIS` refusal rather than a
+> widening of the old one, because it is a different claim — not "these two clocks are not shared" but
+> "this recording carries no timing at all".
+>
+> **Impact, measured rather than asserted — and it cut the claim down.** Across the corpus's 89 PpgDex
+> exports: **0** `'none'`, 27 `'device'`, 31 `'host'`, 31 `'device+host'`. The drawn-axis refusal is
+> therefore **prophylactic today**, and §4's "the estimator returns a confident number about nothing" is
+> a statement about the 27 `'device'` nights, not the drawn ones. `'host'` — drawn, but real host
+> anchors then placed it on host time — is deliberately **not** refused: those 31 nights genuinely do
+> sit on one timebase, and refusing them would discard the largest single class, including the box
+> nights that are the only ones with a second clock at all.
+>
+> **Cost was over-estimated.** §4 closes by pricing this as a shipped-bundle change carrying re-bundle
+> and GATE A/B. That was true of its `_tchHat` half, which has since landed. `pat-gate.js` and
+> `pat-feasibility-worker.js` are named in prose by `Integrator.html`, `PAT Feasibility.html` and two
+> analysis tools but **inlined by none of them**, so this half was source-only: no bundle, no fixture,
+> no GATE A/B.
+>
+> Anti-inertness is pinned by a **source scan** in `pat-align · regression` — every
+> `PATGate.verdict(...)` in the worker must carry ≥4 arguments — because the caller is a Web Worker that
+> no behavioural test can drive. That unavailability is precisely why the defect survived. Reverting the
+> call to three arguments fails the assertion.
 
 The **offline tools were taught the rule and the shipped runtime was not.** This is the same failure
 `CLOCK-CLOSURE-THREE-SOURCE` hit — *"six nights failed with all legs confident"* — and the same one

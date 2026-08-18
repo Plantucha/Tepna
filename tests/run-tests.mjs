@@ -18,7 +18,7 @@
    ════════════════════════════════════════════════════════════════════════ */
 import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { classify as rebaseClassify, parsePorcelain as rebaseParsePorcelain } from '../tools/rebase-safe.mjs';
+import { classify as rebaseClassify, parsePorcelain as rebaseParsePorcelain, classifyStamps as rebaseClassifyStamps } from '../tools/rebase-safe.mjs';
 import { decide as landDecide } from '../tools/land-pr.mjs';
 import { classify as qdClassify, pick as qdPick, IDLE_MIN as QD_IDLE_MIN } from '../tools/queue-doctor.mjs';
 import { classify as commitShape } from '../tools/commit-shape.mjs';
@@ -452,6 +452,10 @@ function readSources() {
     'hrvdex-render.js',
     'pat-gate.js',
     'pat-align.js',
+    // Worker SOURCE text for the anti-inertness scan: pat-gate's clock refusals are only as real as the
+    // arguments its one runtime caller passes, and that caller is a Web Worker no behavioural test can
+    // drive (O2RING-PHASE4-PREMISE-REVIEW §4).
+    'pat-feasibility-worker.js',
     'signal-orchestrate.js',
     'dex-ingest.js',
     'cpapdex-dsp.js',
@@ -1722,6 +1726,11 @@ async function main() {
     rebaseClassify: rebaseClassify,
     /* the porcelain parse, separated from the I/O so the gate can drive it by value — see the group */
     rebaseParsePorcelain: rebaseParsePorcelain,
+    /* The verification-stamp guard's decision core. Pure, so the gate drives it by value rather than
+       running a rebase. The three-way split IS the content: a guard alarming on every stale stamp would
+       fire on any branch with a deliberately-unverified fixture, and a warning that cries when nothing
+       is wrong is one people scroll past — leaving the failure where it was, plus noise. */
+    rebaseClassifyStamps: rebaseClassifyStamps,
     /* land-pr's PURE decision core. Same shape and same reason as rebaseClassify above: the tool's
        value is a state machine that must not be re-derived by hand in every session, and a state
        machine is only trustworthy if something drives it. Node-lane only (an ESM import of a tool),
