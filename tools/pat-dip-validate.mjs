@@ -28,12 +28,12 @@
  *
  *   node tools/pat-dip-validate.mjs <captures-root> --cpap <cpap-exports.json> --trio <trio-root> [--json]
  */
-import { readdirSync, readFileSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { anklePair } from './pat-dip-index.mjs';
-import { loadDsps } from './pat-matchrate-strict.mjs';
+import { loadDsps, getDsps } from './pat-matchrate-strict.mjs';
 
 const require = createRequire(import.meta.url);
 const PATAlign = require('../pat-align.js');
@@ -53,9 +53,13 @@ const DESAT_WIN = [0, 90000]; // desat onset after event start, for the δ ancho
 const SWEEP = { loMs: -70 * 60000, hiMs: 70 * 60000, stepMs: 30000 };
 
 function respEvents(cpapNight) {
+  /* Scored at event END, not start — Katz's construction is that events "TERMINATE in a PTT
+     arousal": the dip follows the resumption of breathing, so a start-anchored window misses any
+     event longer than the window (first run scored starts; every event here carries meta.durSec,
+     10-22 s on the anchorable night). durSec 0 or absent degrades to the start honestly. */
   return (cpapNight.ganglior_events || [])
     .filter((e) => /apnea|hypopnea/.test(e.impulse) && e.tMs != null)
-    .map((e) => e.tMs)
+    .map((e) => e.tMs + ((e.meta && e.meta.durSec) || 0) * 1000)
     .sort((a, b) => a - b);
 }
 function frac(events, onsets, delta, win) {
@@ -157,19 +161,82 @@ function main() {
       rows.push({ night, skip: `only ${coverable.length}/${events.length} CPAP events fall inside the dip-covered span` });
       continue;
     }
+    /* MOTION GATE — the leading suspect for the first run's SUB-chance Katz (7 % vs 36 %): a dip
+       coincident with movement is ambiguous between autonomic response and mechanical artifact, and
+       CPAP-scored sleep is exactly the quiet part of the night. The SENSOR'S OWN ACC decides (the
+       Verity wears the feet, so its motion is what corrupts them): per-second motion envelope, a
+       second is MOVING above mean + 2σ, and a dip is QUIET only if no moving second touches
+       [onset − 10 s, onset + dur + 5 s]. Both splits are reported — silently dropping the motion
+       dips would hide the very confound being tested. */
+    let quietOnsets = onsets,
+      nQuiet = onsets.length,
+      quietShare = null;
+    {
+      const { PPGDSP } = getDsps();
+      let acc = null;
+      for (const f of readdirSync(join(ROOT, night)).filter((x) => /VeritySense.*_ACC\.txt$/i.test(x))) {
+        try {
+          const sArr = PPGDSP.parseSensorXYZ(readFileSync(join(ROOT, night, f), 'utf8'));
+          if (!sArr || !sArr.length || sArr[0].tMs == null) continue;
+          const ov = Math.min(spanHi, sArr[sArr.length - 1].tMs) - Math.max(spanLo, sArr[0].tMs);
+          if (ov > (acc?.ov ?? 0)) acc = { ov, samples: sArr };
+        } catch {}
+      }
+      if (acc && acc.ov > 0) {
+        const grid = PATAlign.envelope(acc.samples, spanLo, spanHi, { dtMs: 1000 });
+        if (grid) {
+          let m = 0;
+          for (let i = 0; i < grid.length; i++) m += grid[i];
+          m /= grid.length;
+          let v = 0;
+          for (let i = 0; i < grid.length; i++) v += (grid[i] - m) * (grid[i] - m);
+          const thr = m + 2 * Math.sqrt(v / grid.length);
+          const moving = (t) => {
+            const b = Math.floor((t - spanLo) / 1000);
+            return b >= 0 && b < grid.length && grid[b] > thr;
+          };
+          let movingSecs = 0;
+          for (let i = 0; i < grid.length; i++) if (grid[i] > thr) movingSecs++;
+          quietShare = 1 - movingSecs / grid.length;
+          quietOnsets = real.events
+            .filter((e) => {
+              for (let t = e.tMs - 10000; t <= e.tMs + e.durMs + 5000; t += 1000) if (moving(t)) return false;
+              return true;
+            })
+            .map((e) => e.tMs);
+          nQuiet = quietOnsets.length;
+        }
+      }
+    }
     const katz = frac(coverable, onsets, bestDelta, DIP_WIN);
+    const katzQuiet = frac(coverable, quietOnsets, bestDelta, DIP_WIN);
     /* NULL = CIRCULAR SHIFTS OF THE DIP ONSETS within the covered span — not of the foot train. A
        foot shift destroys the R↔F alignment itself, so the surrogate night fails the readability
        gate and the null cannot run (measured: 10/10 surrogates refused — a null that cannot execute
        is not a null). Shifting the ONSETS preserves the dip count and rate exactly and destroys only
        their alignment with CPAP events, which is the thing under test — event-coupling.js's own
        construction. */
-    const chanceK = [];
+    const chanceK = [],
+      chanceKq = [];
     const span = spanHi - spanLo;
     for (let k = 1; k <= K_SHIFT; k++) {
       const sh = (k * span) / (K_SHIFT + 1);
-      const shifted = onsets.map((t) => spanLo + ((t - spanLo + sh) % span));
-      chanceK.push(frac(coverable, shifted, bestDelta, DIP_WIN) || 0);
+      chanceK.push(
+        frac(
+          coverable,
+          onsets.map((t) => spanLo + ((t - spanLo + sh) % span)),
+          bestDelta,
+          DIP_WIN
+        ) || 0
+      );
+      chanceKq.push(
+        frac(
+          coverable,
+          quietOnsets.map((t) => spanLo + ((t - spanLo + sh) % span)),
+          bestDelta,
+          DIP_WIN
+        ) || 0
+      );
     }
     const med = (a) => (a.length ? a.slice().sort((x, y) => x - y)[a.length >> 1] : null);
     rows.push({
@@ -182,6 +249,10 @@ function main() {
       dipIdx: +real.dipIndexPerHr.toFixed(1),
       katzPct: +(100 * katz).toFixed(0),
       chanceKatzPct: chanceK.length ? +(100 * med(chanceK)).toFixed(0) : null,
+      nQuiet,
+      quietSharePct: quietShare == null ? null : +(100 * quietShare).toFixed(0),
+      katzQuietPct: +(100 * katzQuiet).toFixed(0),
+      chanceKatzQuietPct: chanceKq.length ? +(100 * med(chanceKq)).toFixed(0) : null,
       nSurrogates: chanceK.length
     });
   }
@@ -190,14 +261,14 @@ function main() {
     return;
   }
   console.log('ΔPAT validation — CPAP clock anchored per night on desats; null = ' + K_SHIFT + ' circular shifts of the dip onsets\n');
-  console.log('night        δ(min)  anchor%  events(coverable)  dips  dips/h  Katz%  chanceKatz%');
+  console.log('night        δ(min)  anchor%  events(cov)  dips(quiet)  quietTime%  Katz%/chance  KatzQUIET%/chance');
   for (const r of rows) {
     if (r.skip) {
       console.log(`${r.night}  ⊘ ${r.skip}`);
       continue;
     }
     console.log(
-      `${r.night}  ${String(r.deltaMin).padStart(6)}  ${String(r.anchorPct).padStart(6)}  ${String(r.nCpapEvents + '(' + r.nCoverable + ')').padStart(17)}  ${String(r.nDips).padStart(4)}  ${String(r.dipIdx).padStart(6)}  ${String(r.katzPct).padStart(5)}  ${String(r.chanceKatzPct == null ? '—' : r.chanceKatzPct).padStart(11)}`
+      `${r.night}  ${String(r.deltaMin).padStart(6)}  ${String(r.anchorPct).padStart(6)}  ${String(r.nCpapEvents + '(' + r.nCoverable + ')').padStart(11)}  ${String(r.nDips + '(' + r.nQuiet + ')').padStart(11)}  ${String(r.quietSharePct == null ? '—' : r.quietSharePct).padStart(10)}  ${String(r.katzPct + '/' + (r.chanceKatzPct == null ? '—' : r.chanceKatzPct)).padStart(12)}  ${String(r.katzQuietPct + '/' + (r.chanceKatzQuietPct == null ? '—' : r.chanceKatzQuietPct)).padStart(17)}`
     );
   }
 }
