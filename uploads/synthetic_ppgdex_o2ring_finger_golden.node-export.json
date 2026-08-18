@@ -99,7 +99,7 @@
     }
   },
   "apnea": {
-    "cvhrIndex": 0,
+    "cvhrIndex": null,
     "cvhrEvents": 0,
     "cvhrMethod": "CVHR events/h from finger PPI NN (Hayano apnea-band 20–45 s; ports ECGDex detectCVHR)",
     "cvhrTier": "emerging"

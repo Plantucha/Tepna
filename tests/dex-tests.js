@@ -6667,9 +6667,17 @@
       var shallow = run(300, { cvhrPeriodSec: 60, cvhrDepth: 0.01 });
       T.eq('a 1 % oscillation is below the sustained-oscillation gate', shallow.cvhrIndex, 0);
 
-      // ── 5 · THE SHORT-RECORD REFUSAL — under 2 minutes no apnea-band train can be resolved ─────
+      /* ── 5 · THE SHORT-RECORD REFUSAL — under 2 minutes no apnea-band train can be resolved ─────
+         §2.6: a value that could not be measured must be VISIBLE, never fabricated. This assertion
+         used to read `brief.cvhrIndex, 0` — its NAME already said "refuses rather than guessing"
+         while the constant it pinned WAS the guess, so the test held the defect in place.
+         `0` is not free to mean "not measurable" here: ppgdex-dsp.js:4759 spends it explicitly —
+         "cvhrIndex=0 = none detected" — and §2's flat-HR case above asserts exactly that meaning on
+         a record that DID resolve. One value cannot carry both, so the unmeasurable case takes null.
+         `cvhrEvents` stays `[]`→0: the event list genuinely is empty, and its length is not a
+         measurement that can be absent. */
       var brief = run(90, { cvhrPeriodSec: 40, cvhrDepth: 0.18 });
-      T.eq('a 90 s recording refuses rather than guessing', brief.cvhrIndex, 0);
+      T.eq('a 90 s recording refuses rather than guessing', brief.cvhrIndex, null);
       T.eq('…and reports no events', brief.cvhrEvents, 0);
     });
 
@@ -12653,7 +12661,19 @@
       }
       T.ok('the golden carries hrv.frequency', !!(rich.hrv && rich.hrv.frequency));
       T.ok('the golden carries hrv.confidence', !!(rich.hrv && rich.hrv.confidence));
-      T.ok('the golden carries apnea.cvhrIndex (a number — 0 is a measurement, null is not)', !!rich.apnea && typeof rich.apnea.cvhrIndex === 'number', JSON.stringify(rich.apnea));
+      /* ⚠️ This assertion used to demand a NUMBER — "0 is a measurement, null is not" — and it was
+         right about the principle and wrong about this fixture. All three committed PpgDex goldens
+         are SHORTER than cvhrFromNN's 120 s guard (39.99 / 39.99 / 40.23 s), so the number it was
+         pinning was the guard's fabricated zero, not a measurement, and GATE-B was enforcing it.
+         The field must be PRESENT and must not be a fabricated value; on a record too short to
+         resolve an apnea-band train, null is the only honest answer (§2.6, FABRICATED-DEFAULTS-FLEET
+         §3). A longer fixture would legitimately carry a number here, so the assertion checks the
+         key exists and holds either a real number or an explicit refusal — never `undefined`. */
+      T.ok(
+        'the golden carries apnea.cvhrIndex — a number when resolvable, null when the record is too short',
+        !!rich.apnea && 'cvhrIndex' in rich.apnea && (typeof rich.apnea.cvhrIndex === 'number' || rich.apnea.cvhrIndex === null),
+        JSON.stringify(rich.apnea)
+      );
       T.eq('the golden carries recording.site, the field that routes wrist vs finger', rich.recording && rich.recording.site, 'wrist');
 
       /* CONTROL — the LIGHT export on the SAME input must carry none of it. This is what makes the

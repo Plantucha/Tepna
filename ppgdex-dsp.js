@@ -1884,12 +1884,25 @@
   // detector + events-per-hour index. Reusing the ECGDex algorithm (not re-deriving one) is deliberate:
   // the Integrator corroborates finger CVHR against ECGDex cardiac CVHR, so they MUST share a method.
   // `nn` in ms, `tt` cumulative times in SECONDS (buildPPI/correctRR units). Returns { index, events }.
+  /* ── §2.6: NOT MEASURABLE IS NOT ZERO ────────────────────────────────────────────────────────
+     Both guards below used to return `index: 0`, and `0` is not free to mean "could not measure"
+     here — this file spends it explicitly at the export site (§"cvhrIndex=0 = none detected"), and
+     the suite asserts that meaning on a flat-HR record that DID resolve. One value cannot carry
+     both "the detector looked and found no cyclic variation" and "the detector could not look",
+     and the second silently reads as the first: a reassuring finding on a record too short to have
+     produced one.
+     Measured 2026-08-18: latent on real data (0 of 44 corpus nights trip it, because cvhrFromNN
+     runs once per RECORD, not per epoch) but ACTIVE in the committed fixtures —
+     `synthetic_ppgdex_inverted_golden.node-export.json` is 39.99 s, so `M = 39 < 120`, and its
+     `cvhrIndex: 0` is this guard's fabricated value, byte-pinned and enforced by GATE-B.
+     `events` stays `[]`: the event list genuinely is empty, and a list's absence is not a number
+     awaiting measurement. Only the INDEX becomes null. */
   function cvhrFromNN(nn, tt) {
     const N = nn.length;
-    if (N < 60 || !tt || tt.length !== N) return { events: [], index: 0 };
+    if (N < 60 || !tt || tt.length !== N) return { events: [], index: null };
     const tEnd = tt[N - 1];
     const M = Math.floor(tEnd);
-    if (M < 120) return { events: [], index: 0 }; // < 2 min → no apnea-band train can be resolved
+    if (M < 120) return { events: [], index: null }; // < 2 min → no apnea-band train can be RESOLVED, so no index exists
     const hr = new Float64Array(M);
     let j = 0;
     for (let s = 0; s < M; s++) {
