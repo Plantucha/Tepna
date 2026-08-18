@@ -306,6 +306,31 @@
     ultradianCycles: { label: 'Ultradian Cycles', unit: 'count', goodDirection: 'up', depth: 'advanced', evidence: 'heuristic', cite: 'Count of detected ultradian cycles — the detector is ours' },
     ultradianValleys: { label: 'HR Valleys', unit: 'count', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: 'Valley count from the same detector' },
     crcIdx: { label: 'CRC Index', unit: '', goodDirection: 'up', depth: 'research', evidence: 'heuristic', cite: 'Cardio-respiratory coupling index, bespoke' },
+    /* OXYDEX-FFT-CYCLE-NULL §6 — `computeSpO2FFT`'s two published fields. Both reach the user (the CSV
+       carries "FFT Peak Freq (Hz)" / "FFT Cycle Length (s)") and neither had a registry row, so any
+       badge helper resolving them fell through to the fabricated-`experimental` default rather than a
+       graded one — a tier that happened to be right for the wrong reason.
+       `experimental`, and NOT higher, matching the published guide card (`ev-experimental`): the metric
+       now has a genuine null — it returns `null` rather than a periodogram argmax when no peak clears a
+       fitted background, and publishes `snr`/`threshold`/`rhoLag1` so the verdict is auditable — but the
+       claim that the surviving peak is a *physiological* cycle has no external reference behind it.
+       `heuristic` would undersell the null work; `emerging` would assert a validation nobody has done. */
+    peakCycSec: {
+      label: 'FFT Cycle Length',
+      unit: 's',
+      goodDirection: 'neutral',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Periodogram peak converted to a period, gated by a fitted-background significance test; null when no peak clears it'
+    },
+    peakFreqHz: {
+      label: 'FFT Peak Freq',
+      unit: 'Hz',
+      goodDirection: 'neutral',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Dominant SpO2 frequency (DFT), same significance gate as FFT Cycle Length'
+    },
     pbDivergeCount: { label: 'PB Diverge', unit: 'count', goodDirection: 'down', depth: 'advanced', evidence: 'experimental', cite: 'Count of periodic-breathing divergence events, bespoke detector' },
     pbDivergePct: { label: 'Diverge %', unit: '%', goodDirection: 'down', depth: 'advanced', evidence: 'experimental', cite: 'Share form of the divergence count' },
     couplingScore: { label: 'Coupling', unit: '%', goodDirection: 'up', depth: 'research', evidence: 'experimental', cite: 'Coupling score, bespoke composite' },
@@ -653,6 +678,17 @@
     'oscillation windows': 'oscWindows',
     /* event-stream impulse label → grade (OXYDEX-NODE-EXPORT-ENVELOPE §2b) */
     'periodic breathing': 'periodicBreathing',
+    /* OXYDEX-FFT-CYCLE-NULL §6 — the CSV headers and the reference guide's card title. The guide names
+       the card "SpO₂ FFT" with the formula "Dominant Frequency (DFT)", so both spellings of the
+       subscript are covered: `_norm` lowercases but does not fold ₂ to 2, and the guide emits the HTML
+       entity, so a reader copying either form resolves. */
+    'fft cycle length': 'peakCycSec',
+    'fft cycle length (s)': 'peakCycSec',
+    'fft peak freq': 'peakFreqHz',
+    'fft peak freq (hz)': 'peakFreqHz',
+    'spo₂ fft': 'peakFreqHz',
+    'spo2 fft': 'peakFreqHz',
+    'dominant frequency (dft)': 'peakFreqHz',
     periodic_breathing: 'periodicBreathing',
     /* night-row chip + center-KPI short labels */
     z2: 'z2win',
