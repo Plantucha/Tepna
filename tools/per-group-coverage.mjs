@@ -186,6 +186,27 @@ if (IS_MAIN && has('--selftest')) {
   ok('a NON-baseline line still selects narrowly', JSON.stringify(groupsForLine(BMAP, 'ppgdex-dsp.js', 10)) === '[0,3]');
   ok('a baseline for ANOTHER file does not widen this one', groupsForLine({ baseline: { 'oxydex-dsp.js': [10] }, groups: MAP.groups }, 'ppgdex-dsp.js', 10).length === 2);
   ok('a map with NO baseline behaves as before (un-subtracted, over-selects)', JSON.stringify(groupsForLine(MAP, 'ppgdex-dsp.js', 10)) === '[0,3]');
+  /* THE MAP MUST BE STAMPED OVER THE FILES IT IS ABOUT, not only those some group attributed.
+     Building the set from per-group attributions alone stamped ZERO sources whenever no group
+     attributed a line, and every consumer then refused the map — fail-safe but silently useless.
+     Caught on a 2-group probe in one second instead of after a ten-minute build; the baseline is the
+     honest scope because it records every DSP the realm loaded, measured, before any group ran. */
+  {
+    const base = { 'a-dsp.js': [1, 2], 'b-dsp.js': [3] };
+    const res = [{ files: { 'c-dsp.js': [9] } }, { files: {} }];
+    const set = new Set(Object.keys(base));
+    for (const r of res) for (const f of Object.keys((r && r.files) || {})) set.add(f);
+    ok('the stamp set covers baseline files no group attributed', set.has('a-dsp.js') && set.has('b-dsp.js'));
+    ok('…and still covers files a group DID attribute', set.has('c-dsp.js'));
+    ok(
+      '…so a run where nothing was attributed still stamps every DSP',
+      (() => {
+        const s2 = new Set(Object.keys(base));
+        for (const r of [{ files: {} }]) for (const f of Object.keys(r.files)) s2.add(f);
+        return s2.size === 2;
+      })()
+    );
+  }
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
   process.exit(fail ? 1 : 0);
 }
@@ -259,9 +280,17 @@ if (IS_MAIN && !has('--selftest')) {
      inserted 16 comment lines into oxydex-dsp.js and shifted everything below line 1023. The suite
      hash is in there too because the map's values are group INDICES — insert a group and every
      later index shifts, which no per-file source hash would catch. */
-  const mapped = new Set();
+  /* STAMP THE FILES THE MAP IS ABOUT, NOT ONLY THE ONES SOME GROUP HAPPENED TO ATTRIBUTE.
+     The first version built this set from `r.files` alone — the per-group attributions — so a run in
+     which no group attributed a line stamped ZERO sources, and `verifyFor` then refused every file:
+     fail-safe, but silently useless, and the map gave no clue why. Caught on a 2-group probe that
+     wrote `identity.sources = {}` in one second rather than after a ten-minute build.
+     The BASELINE is the honest scope: it records every DSP the realm loaded, measured, before any
+     group ran. Union it with the attributions so a file that IS covered is never missed either. */
+  const mapped = new Set(Object.keys(baseline || {}));
   for (const r of results) for (const f of Object.keys((r && r.files) || {})) mapped.add(f);
   const identity = buildIdentity(ROOT, [...mapped]);
+  if (!Object.keys(identity.sources).length) console.log('  ⚠ NO SOURCE FILES STAMPED — every consumer will refuse this map. It is not usable for selection.');
   const map = {
     generated: new Date().toISOString(),
     identity,
