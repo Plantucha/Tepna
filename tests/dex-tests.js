@@ -11096,6 +11096,72 @@
       T.eq('an empty series is null, not a throw', F([]), null);
     });
 
+    /* ── classifyRecording — the five branches, their constants, and the absent clock ──────────
+       Written from a mutation crawl: 7 of this function's 23 survivors carried a distinguishing
+       input, and nothing asserted the branch it picks, the confidence it attaches, or the ms→bpm
+       constant underneath both.
+
+       ⚠️ THE PROBE'S INPUTS ARE DELIBERATELY NOT USED. It found its distinguishing input for
+       `hr = 60000 / mean(a)` by calling `classifyRecording([1, 2, 3])` — RR intervals of one to
+       three MILLISECONDS, which the function faithfully reports as "mean HR 30000 bpm". Asserting
+       on that would pin nonsense and turn this group into a change-detector on impossible input.
+       The MUTATION is real, so the inputs below are physiological and kill the same mutants. A
+       probe finds a distinguishing input; choosing a MEANINGFUL one is the reader's job. */
+    group('PulseDex classifyRecording — which recording is this, and how sure (mutation-derived)', 'pulsedex-dsp · known-answer · mutation-pinned', function (T) {
+      var B = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!B || typeof B.classifyRecording !== 'function') {
+        T.skip('PulseDex._bare.classifyRecording available', 'PulseDex not co-loaded in this runner');
+        return;
+      }
+      var C = B.classifyRecording;
+      var rr = function (ms, n) {
+        return new Array(n || 20).fill(ms);
+      };
+      var at = function (h) {
+        return Date.UTC(2026, 0, 1, h, 0);
+      };
+
+      // ── 1 · EXERCISE: 120 bpm over 5 min. Pins the ms→bpm constant — mutate 60000 to 0 and the
+      //      rate collapses to 0, so the recording stops being exercise at all.
+      var ex = C(rr(500), null, 300);
+      T.eq('a 120 bpm five-minute record is exercise', ex.mode, 'exercise');
+      T.eq('…with the exercise confidence', ex.conf, 0.75);
+      T.ok('…and the reason states the rate it measured', /mean HR 120 bpm/.test(ex.why), ex.why);
+
+      // ── 2 · The branch is `hr >= 100 OR rising > 15`, not AND. This record has the rate and NO
+      //      rise, so an `&&` would demote it — the single case that separates the two operators.
+      T.eq('…on rate alone, with no HR rise at all', ex.rising, 0);
+
+      // ── 3 · AN ABSENT CLOCK IS `hour: null`, NEVER MIDNIGHT. The guard is
+      //      `t0Ms != null && isFinite(t0Ms)`; as `||` a null t0Ms passes, because `isFinite(null)`
+      //      is TRUE (`Number(null)` is 0) — and `hour` becomes 0. A recording with no clock would
+      //      then read as starting at 00:00 and feed the `hour < 11` morning branch. Absent time
+      //      rendered as a specific plausible time is the §2.6 shape (Clock Contract: never fabricate).
+      T.eq('a recording with no start time reports hour null, not midnight', ex.hour, null);
+
+      // ── 4 · RISING is measured last-fifth minus first-fifth, in bpm. Zeroing either constant
+      //      flattens it to 0 and the drift disappears silently.
+      var rise = C([1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 500, 500], null, 300);
+      T.eq('a record that ends 60 bpm faster than it began reports that rise', rise.rising, 60);
+      T.ok('…and says so in the reason', /HR rising 60/.test(rise.why), rise.why);
+
+      // ── 5 · MORNING vs SPOT is `durMin <= 8 AND hour < 11`. The pair below differs in DURATION
+      //      ONLY, both at 09:00 — so an `||` (which would make any pre-11:00 record "morning")
+      //      shows up as the 15-minute case changing class, and nothing else moves.
+      var morning = C(rr(1000), at(9), 300);
+      var spot = C(rr(1000), at(9), 900);
+      T.eq('five minutes at 09:00 is a morning spot', morning.mode, 'morning');
+      T.eq('…with the morning confidence', morning.conf, 0.7);
+      T.eq('fifteen minutes at the same hour is NOT — duration decides, not the clock', spot.mode, 'spot');
+      T.eq('…and carries the fallback confidence', spot.conf, 0.6);
+
+      // ── 6 · The long branches, so the ladder is pinned end to end rather than at its middle.
+      var night = C(rr(1000), at(23), 8 * 3600);
+      T.eq('eight hours from 23:00 is overnight', night.mode, 'overnight');
+      T.eq('…at the overnight confidence', night.conf, 0.9);
+      T.eq('twenty-one hours is continuous, not a long overnight', C(rr(1000), at(6), 21 * 3600).mode, 'continuous');
+    });
+
     group('PulseDex compareIntervalSeries — two signals, one heart (mutation bootstrap)', 'pulsedex-dsp · known-answer · mutation-pinned', function (T) {
       var B = (env.PulseDex && env.PulseDex._bare) || null;
       if (!B || typeof B.compareIntervalSeries !== 'function') {
