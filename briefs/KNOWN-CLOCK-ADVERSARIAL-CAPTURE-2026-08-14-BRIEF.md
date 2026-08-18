@@ -228,7 +228,12 @@ and *no* end-to-end timing test — outside the experiment entirely, which would
       *(Correctly open — targets 6–8 are unrun, and the Phase-1 table quotes no span/anchor counts.)*
 - [✗] **TESTED AND FALSIFIED 2026-08-16 — this is Defect A, not an untested box.** The O2Ring did NOT
       refuse: on its real monotonic run it returned `ok:true`, `ppm 2765.5`, `independent TRUE` — a
-      confident rate for a device with no oscillator. The whole-file run refused only by luck (a
+      confident rate for a device whose PPG axis carries no per-sample device timing.
+      **⚠ Wording corrected 2026-08-18 (#1460): the O2Ring is NOT "a device with no oscillator".** It has a
+      clock and displays the time; `OXYFRAME.duration_s` is a device-side counter that measures **sub-ppm
+      against the host for the first ~3 h** of a night, degrading only after the first BLE dropout. The
+      defect is real and the refusal is still owed — but it is owed because the *PPG stream* is
+      host-disciplined (`sensor timestamp [ns] = 0`), not because the hardware lacks an oscillator. The whole-file run refused only by luck (a
       counter reset makes the span negative, tripping the plausibility bound). **A preregistered
       prediction that fails is the experiment working**, and leaving it unticked read as though it had
       never been run.
@@ -236,6 +241,24 @@ and *no* end-to-end timing test — outside the experiment entirely, which would
       results table's ✅ for target 1 was VACUOUS** — its criterion cannot fail, since `hostAxis`
       subtracts `r0` and a 1 000 000 ms offset passes `< 0.5 ppm` at float noise. Row re-marked `⊘`;
       see the amendment under the results table.
+      **⚠ THE MARKER REQUIREMENT IS NOW MEASURED (2026-08-18) — read this before capturing another one.**
+      Two owner-run tap sessions were attempted as the aperiodic marker and **both are unusable, for a
+      reason that is not force, timing precision, or coupling**: the taps were *rhythmic*. Cross-correlating
+      the two accelerometer magnitude traces on their own device axes over ±6 s returns a peak at −0.805 s
+      that is only **2.26× the median lag correlation**, with competing peaks at −1.065 (84.8 %), −0.550
+      (75.4 %) and −1.315 (74.8 %) — spaced **0.26 s apart, exactly the tap interval** — and a 50 %-of-peak
+      band spanning the **entire ±6 s search range**. That is aliasing on the tap period: a periodic marker
+      pins an offset only *modulo its own period*, the identical failure as beat alignment mod one RR, which
+      is what this box exists to escape. **A rhythm is the one pattern guaranteed not to work.**
+      What an admissible marker needs, each term measured rather than assumed:
+      **(a) aperiodic** — deliberately irregular gaps (1 s, 4 s, 2 s, 6 s …), 6–8 events is sufficient once
+      the spacing is unequal; **(b) rigidly coupled** — both devices on one hard surface, tapping the
+      *surface*: worn on the body, the H10 saw the tap at **SNR 110×** while the Verity saw **9 mg against a
+      3.8 mg floor (SNR 2.3×)**, i.e. no detection at all; **(c) quiet either side** — handling the devices
+      raised the noise floors to **135 mg and 427 mg** (SNR 7.4× / 3.6×) versus **10 mg** when untouched.
+      Resolution ceiling is one sample at the measured 51.8 Hz ⇒ **~±19 ms**, against the ~0.2 s the host
+      route gives on box-captured nights, so the marker is worth capturing correctly — it is ~10× better
+      than what it replaces.
 - [ ] Adapter assignment is recorded per night and held fixed across the set. *(Correctly open — needs
       the multi-night blind set; Phase 1 was a single night.)*
 - [x] **DONE.** The result is written up whether it passes or fails — a failed recovery is the more valuable
