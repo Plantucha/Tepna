@@ -23,6 +23,12 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-format.sh\"",
             "timeout": 15,
             "statusMessage": "checking staged JS is Biome-clean"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-ruff.sh\"",
+            "timeout": 15,
+            "statusMessage": "checking staged capture-host Python is ruff-clean"
           }
         ]
       },
