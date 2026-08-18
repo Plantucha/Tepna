@@ -11107,6 +11107,66 @@
        on that would pin nonsense and turn this group into a change-detector on impossible input.
        The MUTATION is real, so the inputs below are physiological and kill the same mutants. A
        probe finds a distinguishing input; choosing a MEANINGFUL one is the reader's job. */
+    /* ── parseRRInput — the physiological window, and the four reasons it can refuse ────────────
+       Mutation-derived: 7 of this function's 41 survivors carried a distinguishing input, clustered
+       on `v >= 250 && v <= 3000` (240 bpm to 20 bpm) and on the reason strings that tell a caller
+       WHY a file yielded nothing.
+       ⚠️ The probe's inputs were `""` and `"0"`. `"0"` is genuinely one of the real cases — CLAUDE.md
+       records that the Verity's onboard `_HR.txt` is all-zero and its `_PPI.txt` often header-only —
+       but a bare `"0"` is one value, and the boundary this function actually defends is a RANGE. So
+       the cases below are twelve-beat streams at physiological and non-physiological rates, which
+       kill the same mutants and also say what the window is FOR. */
+    group('PulseDex parseRRInput — the physiological window, and why a file yields nothing (mutation-derived)', 'pulsedex-dsp · known-answer · mutation-pinned', function (T) {
+      var B = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!B || typeof B.parseRRInput !== 'function') {
+        T.skip('PulseDex._bare.parseRRInput available', 'PulseDex not co-loaded in this runner');
+        return;
+      }
+      var P = B.parseRRInput;
+      var beats = function (ms, n) {
+        return new Array(n || 12).fill(String(ms)).join('\n');
+      };
+
+      // ── 1 · A normal record is usable. The control every refusal below is measured against.
+      var ok = P(beats(1000));
+      T.eq('twelve 1000 ms beats parse', ok.vals.length, 12);
+      T.ok('…and the record is usable', ok.usable === true, 'usable=' + ok.usable);
+
+      // ── 2 · THE WINDOW IS A RANGE, AND BOTH EDGES ARE LOAD-BEARING. 200 ms is 300 bpm and 4000 ms
+      //      is 15 bpm; neither is a heart. Mutating `&&` to `||` in the range test admits both,
+      //      and zeroing the lower bound admits the all-zero stream below.
+      T.ok('200 ms intervals (300 bpm) are not physiological', P(beats(200)).usable === false, 'usable=' + P(beats(200)).usable);
+      T.ok('4000 ms intervals (15 bpm) are not physiological either', P(beats(4000)).usable === false, 'usable=' + P(beats(4000)).usable);
+
+      // ── 3 · The real corpus case: a device that logged no beats at all. CLAUDE.md records the
+      //      Verity's onboard _HR.txt as all-zero — this must refuse LOUDLY, not analyse zeros.
+      var zeros = P(beats(0));
+      T.ok('an all-zero stream is refused', zeros.usable === false, 'usable=' + zeros.usable);
+      T.ok('…and says the values are outside the physiological range', /outside the physiological range/.test(String(zeros.reason)), 'reason=' + zeros.reason);
+
+      // ── 4 · THE REASONS MUST BE DISTINGUISHABLE. Three different failures, three different
+      //      sentences: a caller that cannot tell "no numbers" from "wrong numbers" from "too few"
+      //      cannot tell a broken file from a short one.
+      var few = P(beats(1000, 5));
+      var empty = P('');
+      T.ok('five usable intervals is too few, and says how many', /only 5 usable intervals/.test(String(few.reason)), 'reason=' + few.reason);
+      T.ok('an empty file says no numbers were found', /no numeric intervals found/.test(String(empty.reason)), 'reason=' + empty.reason);
+      T.ok('…and the three refusals do not share a reason', new Set([String(zeros.reason), String(few.reason), String(empty.reason)]).size === 3, 'reasons collapsed');
+
+      // ── 5 · §2.6: no timestamp column ⇒ t0Ms is null, never a fabricated instant. A bare interval
+      //      list carries no clock, and `tsValid` is what keeps that absence visible.
+      T.eq('a bare interval list has no start time', ok.t0Ms, null);
+      T.eq('…and no UTC offset either', ok.offsetMin, null);
+      /* NULL, NOT []. An empty array says "there is a timestamp series and it happens to be empty";
+         null says "there is no timestamp series". A caller reading `tsMs.length` gets 0 from the
+         first and would read it as "no beats were timed" rather than "this file carries no clock".
+         This is the assertion that kills the `tsValid` guard's `&&`→`||`: with `||` the three gated
+         fields are published for a file that has no stamps at all, and `tsMs` comes back `[]`.
+         t0Ms and offsetMin alone do NOT catch it — they are null either way, because they were never
+         assigned. Found by planting the mutant and diffing every field, not by reading the guard. */
+      T.eq('…and no timestamp series at all — null, not an empty array', ok.tsMs, null);
+    });
+
     group('PulseDex classifyRecording — which recording is this, and how sure (mutation-derived)', 'pulsedex-dsp · known-answer · mutation-pinned', function (T) {
       var B = (env.PulseDex && env.PulseDex._bare) || null;
       if (!B || typeof B.classifyRecording !== 'function') {
