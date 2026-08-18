@@ -36,6 +36,7 @@
  *   node tools/mutation-suite.mjs --build-map          # (re)build the coverage map, stamped
  *   node tools/mutation-suite.mjs --inventory          # write docs/MUTATION-INVENTORY.md (the public list)
  *   node tools/mutation-suite.mjs --cluster <file>     # local-AI survivor families (ADVISORY)
+ *   node tools/mutation-suite.mjs --draft <file>       # local-AI drafts a killing assertion per killable mutant
  *   node tools/mutation-suite.mjs --selftest           # known-answer, touches nothing
  *     --jobs N           worker pool          (default: cores − 2, min 2)
  *     --stall-min N      watchdog patience    (default 10)
@@ -1167,11 +1168,469 @@ function selftest() {
   ck('a missing vector is dropped, not clustered blind', clusterKeys(['a', 'b'], [A, null]).flat(), ['a']);
   ck('families come back largest first', clusterKeys(['a', 'b', 'c'], [A, B, B])[0].length, 2);
 
+  console.log('\nlocal-AI kill drafting — the model may pick the FIELD, never the EXPECTED VALUE');
+  /* The whole safety argument is that a wrong projection cannot survive, so these assert the
+     rejection paths at least as hard as the acceptance one. */
+  ck('an empty reply is a REFUSAL, not an absent finding', parseDraftReply('').ok, false);
+  ck('…and says so in terms a reader can act on', /empty reply/.test(parseDraftReply('   ').why), true);
+  ck('a reply missing PROJECTION is rejected', parseDraftReply('PROPERTY: it counts beats').ok, false);
+  ck('a reply missing PROPERTY is rejected', parseDraftReply('PROJECTION: out.n').ok, false);
+  ck('an explicit REFUSE is honoured and flagged as such', parseDraftReply('PROJECTION: out.a\nPROPERTY: REFUSE').refused, true);
+  ck('a well-formed reply parses', parseDraftReply('PROJECTION: out.nUsable\nPROPERTY: it counts only physiological beats'), {
+    ok: true,
+    projection: 'out.nUsable',
+    property: 'it counts only physiological beats'
+  });
+  /* MODEL OUTPUT IS ABOUT TO BE EVALUATED. The allowlist is the only thing between a generated
+     string and `new Function`, so each escape shape gets its own assertion rather than one blanket
+     "rejects bad input" — a single case passes while the others are wide open. */
+  ck('a projection calling out is rejected', safeProjection('require("fs")'), null);
+  ck('…process', safeProjection('out[process.env.X]'), null);
+  ck('…constructor escape', safeProjection('out.constructor'), null);
+  /* ⚠ THESE TWO EXIST BECAUSE THE ALLOWLIST HAD NO TEST OF ITS OWN. Every other escape case above
+     is also caught by the denylist, so deleting the charset allowlist — the PRIMARY defence, the
+     denylist is only a backstop — survived a planted mutation. Both strings below carry a character
+     the allowlist rejects and an identifier the denylist has never heard of, so only the allowlist
+     can catch them. A guard with no assertion that fails when it is removed is not a guard. */
+  ck('a statement separator is rejected — only the allowlist can see this', safeProjection('out.a; sideEffect(9)'), null);
+  ck('…as is a template literal', safeProjection('out[`a`]'), null);
+  ck('…assignment, not comparison', safeProjection('out.a = 1'), null);
+  ck('…but a comparison is fine', safeProjection('out.a === 1'), 'out.a === 1');
+  ck('a projection that never reads `out` is rejected', safeProjection('1 + 1'), null);
+  ck('a plain field access is allowed', safeProjection('out.tsMs'), 'out.tsMs');
+
+  /* THE ONE CHECK THAT DECIDES: does the field actually differ between the two RECORDED outputs.
+     Pure function over committed JSON — no model, no test run, no opinion. */
+  ck('a discriminating projection is accepted', projectionDiscriminates('out.tsMs', '{"tsMs":null}', '{"tsMs":[]}').ok, true);
+  ck('…reporting both observed values', [projectionDiscriminates('out.n', '{"n":0}', '{"n":1}').orig, projectionDiscriminates('out.n', '{"n":0}', '{"n":1}').mutant], ['0', '1']);
+  ck("a NON-discriminating projection is REJECTED — this is the model's only failure mode", projectionDiscriminates('out.n', '{"n":5,"m":1}', '{"n":5,"m":2}').ok, false);
+  ck('…and says why', /does NOT discriminate/.test(projectionDiscriminates('out.n', '{"n":5}', '{"n":5}').why), true);
+  ck('a field absent from both sides is rejected, not silently undefined===undefined', projectionDiscriminates('out.nope', '{"n":1}', '{"n":2}').ok, false);
+  ck('a projection that throws is rejected rather than crashing the run', projectionDiscriminates('out.a.b', '{"a":null}', '{"a":{"b":1}}').ok, false);
+  ck('non-JSON recorded output is refused', projectionDiscriminates('out.a', 'TIMEOUT', '{"a":1}').ok, false);
+
+  /* A timeout is not a distinguishing input: you cannot ship an assertion that real code hangs. */
+  const crawlish = {
+    findings: [
+      {
+        fn: 'f',
+        callPath: 'X.f',
+        mutants: [
+          { status: 'KILLABLE', orig: '"TIMEOUT:2000ms — did not terminate"', mutant: 'null', input: '[]', op: 'o', before: 'b' },
+          { status: 'KILLABLE', orig: '{"a":1}', mutant: '{"a":2}', input: '[]', op: 'o', before: 'b' },
+          { status: 'SURVIVED', orig: '{"a":1}', mutant: '{"a":2}', input: '[]', op: 'o', before: 'b' }
+        ]
+      }
+    ]
+  };
+  ck('a killable whose REAL code times out is dropped, not drafted', usableKillables(crawlish).length, 1);
+  ck(
+    '…and non-killable mutants are never drafted at all',
+    usableKillables(crawlish).every((m) => m.status === 'KILLABLE'),
+    true
+  );
+
+  /* The emitted assertion must carry the REAL code's value. If the model could reach this, the whole
+     safety argument collapses, so it is pinned. */
+  const drafted = renderDraft({ call: 'P.parse', input: '[""]', op: 'bool && → ||', before: 'x && y' }, 'out.tsMs', 'timestamps are null when absent', 'null');
+  ck('the drafted call is built from the probe-found input', /const out = P\.parse\(""\);/.test(drafted), true);
+  ck('…the expectation is the recorded REAL output', /JSON\.stringify\(out\.tsMs\), "null"\)/.test(drafted), true);
+  ck('…and the draft says out loud that the property line is model-written', /model-written, needs a human read/.test(drafted), true);
+  /* ⚠️ THE MODEL WRITES THIS LABEL, so it is untrusted text being emitted into source. The first
+     version escaped quotes and THEN truncated, so a cut landing mid-escape left a trailing backslash
+     that swallowed the closing quote — the same defect already fixed in `mdCell` in this file. The
+     assertion is that the OUTPUT PARSES, not that some regex matched, because the failure is a
+     syntax error rather than a wrong-looking string. */
+  const parses = (txt) => {
+    try {
+      new Function(txt.replace(/P\.parse/g, '(() => ({ tsMs: null }))').replace(/T\.eq/g, '((a, b, c) => 0)'));
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const mk = (prop) => renderDraft({ call: 'P.parse', input: '[""]', op: 'o', before: 'b' }, 'out.tsMs', prop, 'null');
+  ck('a label ending in a backslash still emits parseable code', parses(mk('ends with a backslash \\')), true);
+  ck('…a label full of quotes too', parses(mk("it returns \"null\", not '' — the parser's rule")), true);
+  ck('…and a label longer than the 110-char cut, sliced mid-escape', parses(mk('x'.repeat(108) + " \\'" + 'y'.repeat(40))), true);
+
+  /* Two probe batteries reach the same mutant, so the same assertion arrives twice; counting it
+     twice inflates the only number anyone reads. */
+  const c1 = { call: 'X.f', input: '[1]' };
+  ck('the same call+input+field+expectation is ONE assertion', assertionIdentity(c1, 'out.a', '0') === assertionIdentity({ ...c1 }, 'out.a', '0'), true);
+  ck('…a different field is a different assertion', assertionIdentity(c1, 'out.a', '0') === assertionIdentity(c1, 'out.b', '0'), false);
+  ck('…and so is a different input', assertionIdentity(c1, 'out.a', '0') === assertionIdentity({ call: 'X.f', input: '[2]' }, 'out.a', '0'), false);
+
   /* `all N selftests passed` is the form tools/selftest-all.mjs parses for a COUNT; a bare
      'all green' is recognised but countless, and a count is what makes a silent drop from 30
      assertions to 3 visible in CI. */
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all ' + ran + ' selftests passed');
   return fail ? 1 : 0;
+}
+
+// ── local-AI kill drafting ─────────────────────────────────────────────────────────────────────
+/**
+ * DRAFT A KILLING ASSERTION FOR EVERY *KILLABLE* MUTANT, USING THE LOCAL MODEL — BUT NEVER LETTING
+ * IT SAY WHAT IS CORRECT.
+ *
+ * The crawl's probe already did the expensive half: for 346 of the 363 killable mutants it recorded
+ * a concrete `(callPath, input, orig, mutant)` — an input that provably distinguishes the real code
+ * from the mutant, together with what each one returned. Writing the test is therefore not a search;
+ * it is transcription. That distinction is the whole basis for using a local model here.
+ *
+ * ⚠️ THE MODEL IS NOT ALLOWED TO SUPPLY AN EXPECTED VALUE, EVER. `MUTATION-SUITE-FOLLOWUPS` §5b
+ * recorded model-drafted assertions as a NON-GOAL, on a measured 0/4 at judging code correctness:
+ * a plausible-but-wrong assertion passes, is quoted as evidence, and could never have failed — the
+ * hollow gate this whole programme exists to find. That reasoning is still right, and this lane does
+ * not overturn it; it routes around it. The model is asked for exactly two things:
+ *
+ *   PROJECTION — which field of the output to compare. MACHINE-CHECKED: `projectionDiscriminates`
+ *                evaluates it against the two RECORDED outputs and requires them to differ. A wrong
+ *                projection cannot survive, because the check is exact and needs no model opinion.
+ *   PROPERTY   — an English sentence naming the behaviour. NOT machine-checkable; it is a label for
+ *                a human, and it is why every draft lands in a review file rather than in the suite.
+ *
+ * The expected value is copied VERBATIM from the recorded output of the REAL code. So the model
+ * cannot state a falsehood about behaviour — its only failure mode is proposing a field that does
+ * not discriminate, which is caught in microseconds by a pure function over recorded JSON.
+ *
+ * ⚠️ WHAT THIS STILL CANNOT DO, and why nothing here is auto-committed: a projection can discriminate
+ * and still pin the WRONG behaviour — asserting what the code does rather than what it should do.
+ * That is `assertions-encode-shape-not-contract`, and no amount of verification detects it, because
+ * the mutant dies either way. A human reads the PROPERTY line and decides. The lane's output is a
+ * proposal queue, not a patch.
+ *
+ * ⚠️ `think: false` IS LOAD-BEARING. qwen3.6 is a reasoning model, and left to deliberate it spends
+ * its whole token budget inside `<think>` and returns `response: ""` with HTTP 200 — no error, no
+ * warning. Measured 2026-08-18: 0 of 3 usable at 130–202 s each with thinking on; 3 of 3 correct at
+ * 20–24 s with it off. An empty reply is therefore treated as a REFUSAL to retry and report, never
+ * as "the model had nothing to say" — that is `empty-result-is-not-a-negative` in a new costume.
+ */
+const CRAWL_DIR = opt('--crawl-dir', join(ROOT, '.mutation-crawl'));
+const LOCAL_HOST = 'http://127.0.0.1:11434';
+
+/**
+ * MODEL AND CONTEXT ARE MEASURED, NOT CHOSEN. Benchmarked 2026-08-18 over a fixed 10-case sample
+ * drawn across five files, scored by `projectionDiscriminates` — an objective grader, which is what
+ * makes this a measurement rather than an impression:
+ *
+ *   model / context                        accepted   s/case   tok/s   ACCEPTED DRAFTS/min
+ *   qwen3.6:35b-a3b  ctx16384  (was)         7/10      17.4     1.8          2.4
+ *   qwen3.6:35b-a3b  ctx1024                 7/10      13.9     2.2          3.0
+ *   qwen3.6:35b-a3b  ctx1024 vendor-sampling 7/10      11.9     2.2          3.5
+ *   qwen3.6:27b      ctx1024                 7/10       1.7    31.1         24.7
+ *   qwen3.8:27b      ctx1024                 8/10       1.6    35.5         30.0
+ *   mistral-small    ctx1024                 8/10       1.1    40.8         43.6
+ *   qwen2.5-coder:7b ctx1024                 6/10       0.4   106.7         90.0
+ *   qwen3-coder:30b  ctx1024                 8/10       0.7   106.9         68.6   ← default
+ *
+ * ⚠️ THE FASTEST MODEL IS NOT THE DEFAULT, AND THE REASON IS THAT THE CORPUS IS FINITE. There are
+ * 346 killable mutants, not an endless stream, so what matters is how many of them ever get a draft
+ * — COVERAGE — not how fast drafts appear. `qwen2.5-coder:7b` posts the highest drafts/min and still
+ * leaves 4 of 10 uncovered; retries do not rescue a case a model cannot do, they just spend three
+ * attempts failing it. It also missed the one case with independent ground truth (`out.tsMs`, killed
+ * by hand first). Ranking on the headline rate alone would have picked it.
+ *
+ * ⚠️ THE 29× IS A VRAM-FIT CLIFF, NOT A MODEL-QUALITY DIFFERENCE, AND THE DIRECTION IS COUNTER-
+ * INTUITIVE: the BIGGEST model is the SLOWEST by an order of magnitude. This box has a 20 GB
+ * Radeon RX 7900 XT; `qwen3.6:35b-a3b` is 23 GB, so ~17 % of it spills to CPU and it runs at
+ * 1.8 tok/s — absurd for a 3B-active MoE, and that absurdity is the diagnostic tell. MoE is hit
+ * hardest by a spill because expert weights are scattered across the bus. Every model that FITS
+ * runs 31–107 tok/s regardless of family.
+ *
+ * `qwen3-coder:30b` is the same architecture that lost — MoE, ~3 B active — and wins by 59× on
+ * tok/s purely because 18 GB fits in 20464 MiB where 23 GB does not. VERIFIED, not inferred:
+ * `ollama ps` reports `100% GPU` and the card reads 18352 MiB used. If a future model lands near
+ * 20 GB, check that line before believing any throughput number.
+ *
+ * ⚠️ SO "GIVE IT A BIGGER CONTEXT" IS THE WRONG LEVER HERE, AND WAS MEASURED AS SUCH. The prompts
+ * this lane sends are 216–509 tokens (p50 253) — the whole fleet fits in 1024 with headroom.
+ * Dropping 16384 → 1024 bought 20 % and moved the split only 83 % → 84 %, because it is the WEIGHTS
+ * that do not fit, not the KV cache. A larger context would only take VRAM back from the weights.
+ * Re-measure both numbers if the hardware changes; neither is a property of the task.
+ */
+const DRAFT_MODEL = opt('--model', 'qwen3-coder:30b');
+const DRAFT_CTX = Number(opt('--ctx', '1024'));
+
+/**
+ * RETRY MUST CHANGE THE SAMPLING OR IT CHANGES NOTHING. At temperature 0 the model is deterministic,
+ * so re-asking an identical prompt returns a byte-identical answer — a retry loop that looks like it
+ * is exploring while provably re-running one draw. Attempt 1 is greedy (reproducible, and the
+ * benchmark's default); every retry moves to Qwen's published sampling so it can actually land
+ * somewhere else. Qwen's model card additionally warns that greedy decoding can degrade output and
+ * cause endless repetition, which is a second reason not to retry into it.
+ * Retries are nearly free at ~1 s a draft, and every attempt is scored by the same exact verifier,
+ * so more attempts cannot lower quality — only spend time.
+ */
+const DRAFT_ATTEMPTS = Number(opt('--attempts', '3'));
+const SAMPLING = [{ temperature: 0 }, { temperature: 0.7, top_p: 0.8, top_k: 20, min_p: 0 }, { temperature: 1.0, top_p: 0.95, top_k: 20, min_p: 0, presence_penalty: 1.5 }];
+
+/**
+ * A projection is MODEL-SUPPLIED TEXT THAT WE ARE ABOUT TO EVALUATE, so it is charset-restricted
+ * before it goes anywhere near a `Function`. This runs in dev tooling over recorded JSON rather than
+ * in a bundle, but "the input came from a generative model" is precisely when an allowlist stops
+ * being paranoia. Property access, indexing, literals and comparison only — no calls, no assignment.
+ */
+export function safeProjection(expr) {
+  const s = String(expr || '').trim();
+  if (!s || s.length > 200) return null;
+  if (!/^[A-Za-z0-9_.[\]'"\s?!=<>&|+\-*/%()]+$/.test(s)) return null;
+  if (/\b(require|import|process|global|eval|Function|constructor|__proto__|await|new)\b/.test(s)) return null;
+  /* Reject ASSIGNMENT while allowing COMPARISON. The first version stripped `[!<>=]=` and then
+     looked for a bare `=`, which mangles `===` into `= 1` and rejected every equality test — caught
+     by the selftest below, which is why the allowed case is asserted alongside the rejected ones. */
+  if (/=/.test(s.replace(/([!<>=])?={1,2}/g, (m) => (/^[!<>=]?={1,2}$/.test(m) && m !== '=' ? '' : m)))) return null;
+  if (!/\bout\b/.test(s)) return null; // must actually read the return value
+  return s;
+}
+
+/** Parse the model's two-line reply. Anything else — including empty — is a refusal, reported as one. */
+export function parseDraftReply(text) {
+  const t = String(text || '')
+    .replace(/<think>[\s\S]*?<\/think>/g, '')
+    .trim();
+  if (!t) return { ok: false, why: 'empty reply — the model returned nothing (see the think:false note above)' };
+  const proj = /PROJECTION:\s*(.+)/i.exec(t);
+  const prop = /PROPERTY:\s*([\s\S]+?)(?:\n\s*\n|$)/i.exec(t);
+  if (prop && /^REFUSE\b/i.test(prop[1].trim())) return { ok: false, why: 'model declined — it could not name a behaviour behind the difference', refused: true };
+  if (!proj || !prop) return { ok: false, why: 'reply did not carry both PROJECTION and PROPERTY lines' };
+  const safe = safeProjection(proj[1]);
+  if (!safe) return { ok: false, why: 'projection rejected by the charset allowlist: ' + proj[1].trim().slice(0, 80) };
+  return { ok: true, projection: safe, property: prop[1].trim().replace(/\s+/g, ' ') };
+}
+
+/**
+ * THE ONLY CHECK THAT MATTERS, AND IT NEEDS NO MODEL AND NO TEST RUN. Both outputs were recorded by
+ * the probe, so asking "does this field actually differ" is a pure function over committed JSON —
+ * exact, instant, and independent of everything the model said.
+ */
+export function projectionDiscriminates(expr, origText, mutantText) {
+  const safe = safeProjection(expr);
+  if (!safe) return { ok: false, why: 'unsafe projection' };
+  let a, b;
+  try {
+    a = JSON.parse(origText);
+    b = JSON.parse(mutantText);
+  } catch {
+    return { ok: false, why: 'recorded outputs are not both JSON — cannot compare a projection over them' };
+  }
+  let fn;
+  try {
+    fn = new Function('out', '"use strict"; return (' + safe + ');');
+  } catch {
+    return { ok: false, why: 'projection is not a valid expression' };
+  }
+  let va, vb;
+  try {
+    va = fn(a);
+    vb = fn(b);
+  } catch (e) {
+    return { ok: false, why: 'projection threw when applied: ' + String(e && e.message).slice(0, 80) };
+  }
+  const sa = JSON.stringify(va) ?? 'undefined';
+  const sb = JSON.stringify(vb) ?? 'undefined';
+  if (sa === sb) return { ok: false, why: 'projection does NOT discriminate — both sides give ' + sa.slice(0, 60), orig: sa, mutant: sb };
+  if (va === undefined && vb === undefined) return { ok: false, why: 'projection reads a field that exists on neither side' };
+  return { ok: true, orig: sa, mutant: sb };
+}
+
+/** The assertion text. The expected value comes from the RECORDED REAL OUTPUT — never from the model. */
+export function renderDraft(c, projection, property, origValue) {
+  const call = c.call + '(' + String(c.input).replace(/^\[|\]$/g, '') + ')';
+  return (
+    '  /* mutant: ' +
+    c.op +
+    '  @ ' +
+    c.before +
+    '\n' +
+    "     drafted from a probe-found distinguishing input; expected value is the REAL code's recorded\n" +
+    '     output, not a model claim. PROPERTY (model-written, needs a human read):\n' +
+    '     ' +
+    property +
+    ' */\n' +
+    '  {\n' +
+    '    const out = ' +
+    call +
+    ';\n' +
+    /* ⚠️ JSON.stringify, NOT hand-quoting — AND SLICE BEFORE ESCAPING. The first version did
+       `.replace(/'/g, "\\'").slice(0, 110)`, which escapes and THEN truncates, so a cut landing
+       mid-escape leaves a trailing backslash that swallows the closing quote and emits a file that
+       does not parse. That is the SAME defect already fixed once in `mdCell` in this very file
+       (CodeQL js/incomplete-sanitization), reintroduced ten lines away — proximity is not
+       protection. The model writes this string, so it is untrusted input by construction. */
+    '    T.eq(' +
+    JSON.stringify(property.slice(0, 110)) +
+    ', JSON.stringify(' +
+    projection +
+    '), ' +
+    JSON.stringify(origValue) +
+    ');\n' +
+    '  }\n'
+  );
+}
+
+async function askLocal(prompt, model, attempt = 0) {
+  const res = await fetch(LOCAL_HOST + '/api/generate', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      prompt,
+      stream: false,
+      think: false,
+      options: { num_ctx: DRAFT_CTX, num_predict: 260, ...SAMPLING[Math.min(attempt, SAMPLING.length - 1)] }
+    })
+  });
+  const j = await res.json();
+  return j.response || '';
+}
+
+function draftPrompt(c) {
+  return (
+    'You are helping write a regression test. Below is a real function call, what the CORRECT code returns, and what a BUGGY variant returns. Both outputs are given verbatim; do NOT invent or recompute values.\n\n' +
+    'CALL:    ' +
+    c.call +
+    '(...' +
+    c.input +
+    ')\n' +
+    'CORRECT: ' +
+    String(c.orig).slice(0, 700) +
+    '\n' +
+    'BUGGY:   ' +
+    String(c.mutant).slice(0, 700) +
+    '\n' +
+    'The bug was introduced by changing: ' +
+    c.before +
+    '   (operator mutation: ' +
+    c.op +
+    ')\n\n' +
+    'Answer with exactly two lines and nothing else:\n' +
+    'PROJECTION: a JavaScript expression over a variable named `out` (the return value) that has a DIFFERENT value for CORRECT vs BUGGY. Prefer the smallest, most meaningful field. Example: out.nUsable\n' +
+    'PROPERTY: one short English sentence naming the behaviour this protects, written for a reader who has not seen the bug. If you cannot name a real behaviour (the difference is an opaque constant with no meaning), write exactly: REFUSE'
+  );
+}
+
+/** Pull every killable mutant that carries a usable distinguishing input out of a crawl result. */
+export function usableKillables(crawl) {
+  const out = [];
+  for (const fi of (crawl && crawl.findings) || []) {
+    for (const m of fi.mutants || []) {
+      if (m.status !== 'KILLABLE') continue;
+      const o = String(m.orig ?? ''),
+        mu = String(m.mutant ?? '');
+      /* A "distinguishing input" where the REAL code TIMES OUT is not a test case — you cannot ship
+         an assertion that production code hangs. Dropped, and counted, rather than drafted. */
+      if (/TIMEOUT/.test(o) || /TIMEOUT/.test(mu)) continue;
+      if (/^"?(THREW|ERROR)/.test(o) && /^"?(THREW|ERROR)/.test(mu)) continue;
+      out.push({ fn: fi.fn, call: fi.callPath, ...m });
+    }
+  }
+  return out;
+}
+
+/** The identity of a DRAFTED ASSERTION: same call, same input, same field, same expectation. */
+export function assertionIdentity(c, projection, expected) {
+  return [c.call, String(c.input), String(projection).trim(), String(expected)].join(String.fromCharCode(1));
+}
+
+async function cmdDraft(file) {
+  const cp = join(CRAWL_DIR, basename(file) + '.crawl.json');
+  if (!existsSync(cp)) return log('no crawl result for ' + file + ' at ' + cp + ' — crawl it first (this is a refusal, not an empty result)');
+  const crawl = JSON.parse(readFileSync(cp, 'utf8'));
+  const cases = usableKillables(crawl);
+  const limit = Number(opt('--limit', '0')) || cases.length;
+  const pick = cases.slice(0, limit);
+  if (!pick.length) return log('no killable mutant in ' + file + ' carries a usable distinguishing input — nothing to draft');
+
+  log('KILL DRAFTING — ' + file);
+  log('  model ' + DRAFT_MODEL + ' (think:false — a reasoning reply returns EMPTY, see the header)');
+  log('  ' + cases.length + ' killable mutant(s) carry a distinguishing input; drafting ' + pick.length);
+  log("  the model picks WHICH FIELD to assert on; the expected VALUE is the real code's recorded output.\n");
+
+  const t0 = Date.now();
+  const kept = [];
+  const rejected = [];
+  for (let i = 0; i < pick.length; i++) {
+    const c = pick[i];
+    const name = c.call + ' [' + c.op + '] @ ' + String(c.before).slice(0, 54);
+    /* RETRY ON ANY REJECTION, NOT JUST ON AN EMPTY REPLY. The earlier version retried only the empty
+       case, which left the two commonest failures — an unparseable reply and a field that does not
+       discriminate — costing a draft on the first attempt. Both are recoverable, both are detected
+       exactly, and at ~1 s a draft the retries are free. Each attempt uses different sampling (see
+       SAMPLING) because a greedy retry is a re-run, not a second try. */
+    let parsed = null;
+    let disc = null;
+    let lastWhy = '';
+    for (let a = 0; a < DRAFT_ATTEMPTS; a++) {
+      let reply = '';
+      try {
+        reply = await askLocal(draftPrompt(c), DRAFT_MODEL, a);
+      } catch {
+        log('✗ local model unreachable at ' + LOCAL_HOST + ' — stopping. No drafts are produced (a refusal, not an empty result).');
+        return;
+      }
+      const p2 = parseDraftReply(reply);
+      if (!p2.ok) {
+        lastWhy = p2.why;
+        if (p2.refused) break; // an explicit REFUSE is an answer; asking again is badgering it
+        continue;
+      }
+      const d2 = projectionDiscriminates(p2.projection, c.orig, c.mutant);
+      if (d2.ok) {
+        parsed = p2;
+        disc = d2;
+        break;
+      }
+      lastWhy = d2.why;
+    }
+    if (!parsed) parsed = { ok: false, why: lastWhy || 'no attempt produced a usable draft' };
+    const el = (Date.now() - t0) / 1000;
+    const rate = (i + 1) / (el / 60);
+    const eta = rate > 0 ? Math.round((pick.length - i - 1) / rate) : 0;
+    const prog = '[' + String(i + 1).padStart(3) + '/' + pick.length + '  ' + rate.toFixed(1) + '/min  ETA ' + eta + 'm  kept ' + kept.length + ']';
+
+    if (!parsed.ok) {
+      rejected.push({ name, why: parsed.why });
+      log(prog + ' ✗ ' + name);
+      log('      ' + parsed.why);
+      continue;
+    }
+    /* DEDUPE ON THE ASSERTION, NOT ON THE MUTANT. The probe reaches the same mutant from more than
+       one battery, so a raw `kept` count double-counts: the first pilot reported 7 kept for 5
+       distinct assertions. One assertion covering several mutants is real efficiency and is reported
+       as `covers`; the same assertion counted twice is an inflated number, and this repo has paid for
+       enough of those. */
+    const aid = assertionIdentity(c, parsed.projection, disc.orig);
+    const prev = kept.find((k) => k.aid === aid);
+    if (prev) {
+      prev.covers++;
+      log(prog + ' ✓ ' + name + '  (same assertion as an earlier draft — covers ' + prev.covers + ' mutants, not counted twice)');
+      continue;
+    }
+    kept.push({ aid, covers: 1, c, ...parsed, disc, text: renderDraft(c, parsed.projection, parsed.property, disc.orig) });
+    log(prog + ' ✓ ' + name);
+    log('      killed by ' + parsed.projection + ':  real=' + disc.orig.slice(0, 40) + '   mutant=' + disc.mutant.slice(0, 40));
+    log('      "' + parsed.property.slice(0, 96) + '"');
+  }
+
+  const outPath = join(stateDir(), basename(file) + '.drafts.js');
+  const header =
+    '/* DRAFTED ASSERTIONS — ' +
+    file +
+    '\n' +
+    ' * Generated by `mutation-suite.mjs --draft`. Every PROJECTION below was machine-verified to\n' +
+    " * discriminate the real code from its mutant, and every expected value is the real code's\n" +
+    ' * recorded output. NOTHING HERE IS VERIFIED TO ASSERT THE *INTENDED* BEHAVIOUR — a projection\n' +
+    ' * can discriminate and still pin a bug in place. Read each PROPERTY line before adopting it.\n' +
+    ' */\n\n';
+  writeFileSync(outPath, header + kept.map((k) => k.text).join('\n'));
+  const mins = (Date.now() - t0) / 60000;
+  const covered = kept.reduce((a, k) => a + k.covers, 0);
+  log(
+    '\n  ' + kept.length + ' DISTINCT assertion(s) covering ' + covered + ' mutant(s); ' + rejected.length + ' rejected, in ' + mins.toFixed(1) + ' min (' + (pick.length / mins).toFixed(1) + '/min)'
+  );
+  log('  → ' + outPath);
+  log('  These are PROPOSALS. Each still needs a human read for whether it pins the intended behaviour.');
 }
 
 // ── main ───────────────────────────────────────────────────────────────────────────────────────
@@ -1194,6 +1653,7 @@ if (INVOKED_DIRECTLY) {
   else if (has('--build-map')) cmdBuildMap();
   else if (has('--inventory')) cmdInventory();
   else if (has('--cluster')) await cmdCluster(opt('--cluster', FLEET[0]));
+  else if (has('--draft')) await cmdDraft(opt('--draft', FLEET[0]));
   else {
     mkdirSync(stateDir(), { recursive: true });
     const files = [];
