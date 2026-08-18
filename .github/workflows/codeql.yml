@@ -35,6 +35,12 @@ on:
     # weekly full sweep, so a new query pack still sees the tree even in a quiet week
     - cron: '17 3 * * 1'
 
+# Supersede an in-flight run when the same PR is pushed again — the guarded house pattern; full
+# measured rationale in tests.yml (the 43-min dead-SHA run) and capture-host-ci.yml (why PR-only).
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})

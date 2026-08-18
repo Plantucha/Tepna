@@ -79,7 +79,37 @@ anyone spends a compute-path change on it.
 4. GlucoDex robust variability.
 5. Fix `detectPeaksB` (adaptive threshold) → revive `bSQI`.
 
-**Do 4 is CLOSED (refuted + re-scoped, 2026-08-03).** Do 1/2/3/5 stand unmeasured — and the lesson from
-Do 4 applies to each: these are principle-transfer *hypotheses*, and the estimator's leverage on REAL
-data is a one-command measurement that costs far less than the compute-path change it would justify.
-Measure the ratio before writing the fix.
+**Do 4 is CLOSED (refuted + re-scoped, 2026-08-03). Do 2 is CLOSED (refuted, 2026-08-18 — below).**
+Do 1/3/5 stand unmeasured — and the lesson from Do 4 applies to each: these are principle-transfer
+*hypotheses*, and the estimator's leverage on REAL data is a one-command measurement that costs far less
+than the compute-path change it would justify. Measure the ratio before writing the fix.
+
+### ⛔ Do 2 (PulseDex/HRVDex robust HRV) — MEASURED 2026-08-18, and REFUTED as stated
+
+Same discriminator as Do 4 (`SD / MADn`, MADn = 1.4826·median|x−med|), on **38 real H10 RR nights** from
+the capture corpus. The proposal is `beatConfidence`-weighted robust `RMSSD`/`SDNN` **on top of** the
+existing pipeline, so the leverage must be measured **after** `correctRR`, not on raw intervals.
+
+| measured on | SD/MADn |
+|---|---|
+| RR **levels**, whole night, post-`correctRR` | 1.349 |
+| **successive differences** (what `RMSSD` estimates) | 1.144 |
+| **per 5-min epoch** — the grain HRV is reported at | **1.077** |
+| *Do 4's refuting value, for reference* | *1.074* |
+
+**1.077 against Do 4's 1.074.** At the grain the metric is actually computed, RR carries no more tail than
+the CGM series that refuted Do 4 — because `correctRR` already does the robust job: it gates each interval
+against the median of the last 7 **accepted** values (0.20 Malik for ECG-derived RR) and substitutes the
+reference on rejection. Median rejection rate **12.7 %**, and `RMSSD` already falls 51.2 → 33.5 ms across
+the corpus from that correction alone. A second robust layer has almost nothing left to remove.
+
+⚠ **The first measurement said the opposite, and the error is the instructive part.** Raw whole-night RR
+**levels** give SD/MADn **1.438** (max 3.049) and `RMSSD` inflated 67 % — which reads as strong support for
+Do 2. It is an artifact of measuring the wrong quantity: whole-night RR levels legitimately span the range
+as HR tracks sleep stage, so a heavy-tailed *level* distribution is physiology, not artifact. `RMSSD` is a
+**successive-difference** statistic evaluated **per epoch**; measured there, the support evaporates. Measure
+the quantity the estimator actually consumes, at the grain it is reported at.
+
+**Not a blanket "no".** Per-epoch **p90 is 1.332**, so ~10 % of epochs do carry real excess. That is a
+targeted opportunity — flagging or down-weighting *those* epochs — and not a case for changing the fleet's
+variance estimators, which is what Do 2 as written proposes.
