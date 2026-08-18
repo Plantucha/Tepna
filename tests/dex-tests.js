@@ -17160,16 +17160,31 @@
       //    rich export alongside hrv, not the light one) must populate summary.cvhrIndexWave. This runs the
       //    ACTUAL compute → apnea.cvhrIndex → normalizer link on a committed synthetic input. ──
       if (env.PpgDex && typeof env.PpgDex.compute === 'function' && env.equiv && env.equiv.ppgdex_synth && env.equiv.ppgdex_synth.input && typeof env.adaptEnvelopeNode === 'function') {
+        /* ⚠️ THIS FIXTURE CANNOT SUPPORT THE CLAIM THE ASSERTIONS USED TO MAKE. `ppgdex_synth` is
+           `synthetic_ppgdex_verity.txt` — a 39.99 s record — and `cvhrFromNN` refuses under 120 s
+           because no apnea-band train can be resolved in two minutes. So the old assertions
+           (`cvhrIndex != null`, `cv != null && isFinite`) were passing on a FABRICATED zero, and the
+           failure text — "the corroboration would silently never fire on real data" — drew a
+           conclusion about real data from a fixture too short to be real. Measured 2026-08-18: on 44
+           real corpus nights the guard fires 0 times, so on real data the corroboration ALWAYS has a
+           number (FABRICATED-DEFAULTS-FLEET §4).
+           What this fixture CAN prove is the link: compute → apnea.cvhrIndex → normalizer →
+           summary.cvhrIndexWave, carrying the value through UNCHANGED whether it is a number or an
+           explicit refusal. That is what the end-to-end test is for; asserting a magnitude it cannot
+           produce is how a short fixture came to certify a long-record behaviour. */
         var pr = env.PpgDex.compute({ text: env.equiv.ppgdex_synth.input }, { rich: true });
-        T.ok('the rich PpgDex export carries an apnea.cvhrIndex block', pr && pr.apnea && pr.apnea.cvhrIndex != null, 'apnea=' + JSON.stringify(pr && pr.apnea));
+        T.ok('the rich PpgDex export carries an apnea.cvhrIndex block', !!(pr && pr.apnea) && 'cvhrIndex' in pr.apnea, 'apnea=' + JSON.stringify(pr && pr.apnea));
         var pR = env.adaptEnvelopeNode(pr, 'PpgDex', 'synthetic_ppgdex_verity.txt');
         var _pRec = Array.isArray(pR) ? pR[0] : pR && pR.recs && pR.recs[0];
         var cv = _pRec && _pRec.summary ? _pRec.summary.cvhrIndexWave : undefined;
         T.ok(
-          'a REAL PpgDex export sets summary.cvhrIndexWave (the finger CVHR reaches the fusion)',
-          cv != null && isFinite(cv),
-          'got ' + cv + ' — the corroboration would silently never fire on real data'
+          'the finger CVHR reaches the fusion — apnea.cvhrIndex propagates to summary.cvhrIndexWave unchanged',
+          cv === (pr && pr.apnea ? pr.apnea.cvhrIndex : 'MISSING'),
+          'export=' + JSON.stringify(pr && pr.apnea && pr.apnea.cvhrIndex) + ' summary=' + JSON.stringify(cv) + ' — the link is what this 40 s fixture can prove; a NUMBER needs a >=120 s record'
         );
+        /* And the refusal must survive the trip: a normalizer that turned null into 0 on the way
+           through would re-fabricate exactly what the DSP just stopped fabricating. */
+        T.ok('…and a refusal arrives as a refusal, not as 0', !(cv === 0 && pr.apnea.cvhrIndex === null), 'summary.cvhrIndexWave=' + JSON.stringify(cv));
       }
     });
 
