@@ -142,6 +142,91 @@ not on effort: until a zero attribution provably means zero, selection is either
 6 lost kills) or pointless (slower than the tag filter). Fixing per-group capture is the real
 prerequisite, and it was never on anyone's list because the map appeared to work.
 
+### 3a · The obvious rescue does NOT work — tested, not assumed
+
+A peer session proposed the natural fix, and it is the one anyone will propose again: *the "384 =
+exactly the baseline" signature is itself the discriminator.* Split the 188 by comparing each group's
+per-module record against the load-time baseline — `record == baseline` ⇒ capture failed ⇒ select it;
+`record ⊂ baseline` or empty ⇒ a true zero ⇒ safe to skip.
+
+**Measured, one c8 run, and it is refuted:**
+
+| group | records for `hrvdex-dsp.js` |
+|---|---:|
+| **2** — `Clock Contract — parseTimestamp` (touches `clock.js`, not hrvdex) | **384 lines** |
+| **338** — provably executes `hrvdex-dsp.js:853` (fails when it is mutated) | **384 lines** |
+
+**Identical line sets**, not merely equal counts. The reason is structural: `tests/run-tests.mjs`
+loads **every** DSP before **any** group runs, so the load-time baseline is present in every group's
+record whether or not that group touches the module. A true zero and a capture failure are not
+similar observations — they are *the same observation*.
+
+So the discriminator cannot be recovered from the coverage data as currently collected. Any real fix
+has to change what is **collected** (attribute a group's own calls back to the file), not how the
+collected data is **interpreted**. Recorded here so the next reader does not spend the run
+re-deriving it — the hypothesis was good, and it took one measurement to close.
+
+### 3c · ✅ A MECHANISM THAT DOES WORK — interval coverage, validated 2026-08-18
+
+§3a proves the *interpretation* layer cannot recover the distinction. It does not follow that the fix
+is expensive. A peer proposed snapshotting V8 coverage around each group and diffing, on the
+assumption that counts accumulate — and named the control that had to fire first: **counts must be
+monotonic, or a before/after diff is wrong in a way that looks fine.**
+
+**The control fired, and it refuted the method while validating the goal.** `Profiler.takePreciseCoverage`
+**resets on read** on Node 22: `work()` called once before each of two snapshots reported `1` and `1`,
+not `1` and `2`.
+
+Which makes the fix *simpler* than the proposal, because reset-on-read means each snapshot already
+**is** the interval:
+
+| interval | what ran | reported |
+|---|---|---:|
+| 1 | 3 calls | **3** |
+| 2 | nothing | **0** |
+| 3 | 1 call | **1** |
+
+So per-group attribution needs **no diff**: `startPreciseCoverage({callCount:true, detailed:true})` →
+load everything in the normal co-load order → **take once and discard** (that snapshot is the
+load-time baseline) → run the group → **take again**. The second snapshot is exactly that group's own
+execution, with the baseline already gone. Nothing about load order, module identity, or group
+execution changes — only the accounting.
+
+That matters because the obvious alternative — loading DSPs lazily per group — is *not* available:
+`dex-coload.js` and the co-load gate deliberately pin `clock.js` before every delegating DSP, and
+deferring loads would change semantics the suite exists to hold.
+
+⚠️ **RESET-ON-READ MAKES THE COUNTER A SHARED, DESTRUCTIVE RESOURCE — do not compose this with c8.**
+Whoever reads the interval consumes it. If the map-build harness reads throughout a process that c8
+also wraps, c8's totals collapse to whatever the last interval happened to contain — and it does not
+error, it reports *lower* coverage, so a floor either reds for a fabricated reason or passes on a
+number describing one group.
+
+Measured, partially: c8 collects via **`NODE_V8_COVERAGE`** (a file dump at exit), not an in-process
+inspector session, so the two may not collide at all. I could not settle it — two attempts to probe
+the interaction were both silently excluded by c8's own path/include filtering, first because the
+subject sat outside the project root and then because it was not in the configured include set. That
+is the third instance tonight of a check that ran and examined nothing, and it is the reason to stop
+probing and **take the guard instead of the claim**: the harness should refuse to start when
+`NODE_V8_COVERAGE` is set, which costs one line and is correct whether or not they interact.
+
+**Not implemented.** `run-tests.mjs` already runs one group per process via `--group-index`, so the
+snapshot pair can live in the harness without giving `group()` start/end callbacks — which is the
+change this file's header rejected, because `tests/dex-tests.js` is the file every parallel PR
+conflicts in. **Done when:** a rebuilt map shows group 338 attributing `hrvdex-dsp.js:853`, and the
+paired hrvdex comparison of §3 shows **zero** KILLED→SURVIVED flips.
+
+### 3b · The half of this that SURVIVES the quarantine
+
+The three `SURVIVED → KILLED` flips are a property of the **tag filter**, not of the map, so they
+outlive it: selection ran groups that execute a line without carrying the node's tag, and they killed
+mutants the tag-filtered sweep recorded as survivors.
+
+**Therefore every survivor count this programme has published is an UPPER bound, and every kill count
+a lower one.** On hrvdex the error is 3 in 489 (0.6 %). It is not large, but it is signed — always in
+the same direction — and it means "3751 survivors" should be read as "at most 3751". Cheap to
+confirm on any file: run it once with `--full`.
+
 **The map is QUARANTINED** (`per-group.json.QUARANTINED-underselects` in the git common dir).
 Sweeps fall back to the tag filter — slower and correct. **Do not restore it** until the empty
 attribution is either explained or made to fail closed.
