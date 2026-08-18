@@ -43,7 +43,7 @@
  *     --quiet            no per-mutant lines, keep the heartbeat
  */
 import { execFileSync, spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync, unlinkSync } from 'node:fs';
 import { cpus } from 'node:os';
 import { dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -57,7 +57,25 @@ const opt = (f, d) => {
   return i >= 0 && argv[i + 1] != null ? argv[i + 1] : d;
 };
 
-const FLEET = ['hrvdex-dsp.js', 'motiondex-dsp.js', 'pulsedex-dsp.js', 'cpapdex-dsp.js', 'glucodex-dsp.js', 'ppgdex-dsp.js', 'ecgdex-dsp.js', 'oxydex-dsp.js', 'integrator-dsp.js'];
+/**
+ * DISCOVERED, NOT LISTED — this suite must not need editing when Tepna grows a node.
+ *
+ * A literal fleet array is correct on the day it is written and silently wrong afterwards: the next
+ * node (EEGDex, SpiroDex) would be swept by nobody while the fleet total kept printing as though it
+ * covered everything. An omission with no symptom is the exact failure this lane exists to expose,
+ * so the roster is read off the filesystem — and the count is REPORTED on every run, because a
+ * discovered roster that is wrong must be visible rather than assumed.
+ */
+export function discoverFleet(names) {
+  return names.filter((f) => /-dsp\.js$/.test(f)).sort();
+}
+const FLEET = (() => {
+  try {
+    return discoverFleet(readdirSync(ROOT));
+  } catch {
+    return [];
+  }
+})();
 
 /* cores − 2 leaves the box usable and matches what every other tool here defaults to. Never 0. */
 const JOBS = Math.max(2, Number(opt('--jobs', String(Math.max(2, cpus().length - 2)))) || 2);
@@ -269,7 +287,13 @@ async function runFile(file, ident, loaded) {
          inventory can say "complete" as a recorded fact rather than a guess about journal shape.
          A non-zero exit leaves no marker, which reads as `unknown` — correct, since a sweep that
          died mid-run has counts nobody should present as that file's result. */
-      if (outcome.code === 0) writeFileSync(doneMarker(file), JSON.stringify({ file, done: pr.done, killed: pr.killed, survived: pr.survived, finishedAt: new Date().toISOString() }) + '\n');
+      const cv = canaryVerdict(parseSweepResult(out));
+      if (outcome.code === 0)
+        writeFileSync(
+          doneMarker(file),
+          JSON.stringify({ file, done: pr.done, killed: pr.killed, survived: pr.survived, invalid: pr.invalid, canary: cv.canary, publishable: cv.publishable, finishedAt: new Date().toISOString() }) +
+            '\n'
+        );
       log(
         '   → ' +
           pr.done +
@@ -283,7 +307,13 @@ async function runFile(file, ident, loaded) {
           mmss(el) +
           (stalls.length ? '  (auto-resumed after ' + stalls.length + ' stall(s))' : '')
       );
-      return { file, ...pr, stalls, exit: outcome.code };
+      log('   canary ' + cv.canary + ' — ' + cv.why);
+      if (!cv.publishable) log('   ⚠ VOID — this file measured NOTHING. Do not quote these counts; they are kept only for debugging.');
+      /* An invalid mutant leaves the denominator SILENTLY, and a rate over a shrunken denominator
+         looks healthy. ecgdex once ran 73 % invalid. Report it as a proportion, not just a count. */
+      if (pr.invalid && pr.invalid / (pr.done + pr.invalid) > 0.1)
+        log('   ⚠ ' + Math.round((100 * pr.invalid) / (pr.done + pr.invalid)) + ' % of mutants were INVALID — they left the denominator; treat the rate as provisional');
+      return { file, ...pr, canary: cv.canary, publishable: cv.publishable, stalls, exit: outcome.code };
     }
 
     stalls.push(new Date().toISOString());
@@ -439,6 +469,44 @@ async function cmdCluster(file) {
 const doneMarker = (file) => join(stateDir(), basename(file) + '.done.json');
 
 /**
+ * THE CANARY DECIDES WHETHER ANY OF THE OTHER NUMBERS MAY BE QUOTED.
+ *
+ * Every sweep carries a mutant KNOWN to die. If it survives, the harness was not detecting kills at
+ * all, and the run's counts describe nothing — `mutate.mjs` already nulls `killed`/`rate` and sets
+ * `voided: true` for exactly this reason, and `mutation-crawl.mjs` records the file as VOID rather
+ * than as a low score.
+ *
+ * ⚠️ The first version of this driver took its counts from the JOURNAL and never read mutate's JSON
+ * result, so it bypassed all of that: it would have published a kill rate produced by a harness that
+ * detected nothing, and the run would have looked entirely normal. A voided sweep is not a smaller
+ * result — it is NO result, and the distinction is invisible unless someone reads this field.
+ */
+export function canaryVerdict(resultJson) {
+  if (!resultJson || typeof resultJson !== 'object') return { publishable: false, canary: 'UNKNOWN', why: 'no machine-readable result from the sweep — nothing can be vouched for' };
+  const c = resultJson.canary;
+  if (c === 'FAILED' || resultJson.voided === true)
+    return { publishable: false, canary: 'FAILED', why: 'the canary mutant SURVIVED — the harness was not detecting kills, so these counts measure nothing' };
+  if (c === 'PASSED') return { publishable: true, canary: 'PASSED', why: 'a mutant known to die did die — the harness detects kills' };
+  /* NONE / STALE / PENDING: a file that has never learned a canary. Not a failure — but not proof
+     either, and the difference between "proved" and "not disproved" is the whole point of a canary. */
+  return { publishable: true, canary: String(c || 'NONE'), why: 'no canary was available for this file — kills are unverified, not disproved' };
+}
+
+/** The last JSON object mutate.mjs printed on stdout, or null. */
+export function parseSweepResult(stdout) {
+  for (const line of String(stdout).split('\n').reverse()) {
+    const t = line.trim();
+    if (!t.startsWith('{')) continue;
+    try {
+      return JSON.parse(t);
+    } catch {
+      /* not the result line */
+    }
+  }
+  return null;
+}
+
+/**
  * COMPLETE / IN FLIGHT / UNKNOWN — recorded, never inferred.
  *
  * The journal cannot answer this. A finished sweep still ends with unverdicted START records (the
@@ -473,6 +541,56 @@ function sweepState(file) {
   return classifySweep({ hasDoneMarker: !!marker, markerDone: marker && marker.done, journalDone, runningFile, file });
 }
 
+/*
+ * ALREADY-CLASSIFIED SURVIVORS ARE NOT OUTSTANDING WORK.
+ *
+ * `tools/mutate-equivalence.json` records mutants that were examined and found to have NO
+ * distinguishing input — they cannot be killed by any test, so no test should be written for them
+ * (MUTATION-EQUIVALENCE-2026-08-04 §5/§6.1). 416 of the 3627 survivors in the first inventory were
+ * already in that ledger, listed as though open: an 11 % overstatement that invites exactly the
+ * wasted effort the ledger exists to prevent.
+ *
+ * Matched on `line + op`, not on the source text: `before` is a display field, truncated for the
+ * page, so matching on it would silently miss the long lines — and a matcher that quietly matches
+ * less is the failure this file keeps re-learning. Line drift is handled by refusing to guess: a
+ * classification whose line no longer holds that operator simply does not match, and the survivor is
+ * reported as open. Over-reporting open work is recoverable; hiding a real gap is not.
+ */
+export function classificationIndex(ledger) {
+  const idx = new Map();
+  for (const [file, entries] of Object.entries(ledger || {})) {
+    if (!Array.isArray(entries)) continue; // `_README` is prose
+    for (const e of entries) {
+      if (!e || e.line == null || !e.op) continue;
+      const k = file + '\u0001' + e.line + '\u0001' + e.op;
+      const cls = e.class || 'unclassified';
+      const prev = idx.get(k);
+      /* (line, op) IS NOT UNIQUE — one line can host the same operator twice (two `||` in one
+         condition), and the ledger holds both: 419 entries collapse to 383 keys. Where colliding
+         entries AGREE the answer is unambiguous; where they DISAGREE, one of those mutants is
+         equivalent and the other is a real gap, and nothing in the key says which. Marking the key
+         ambiguous makes BOTH report as open work — over-reporting is recoverable, while silently
+         inheriting "unkillable" from a neighbour hides a real gap permanently. */
+      if (prev !== undefined && prev !== cls) idx.set(k, 'ambiguous');
+      else if (prev === undefined) idx.set(k, cls);
+    }
+  }
+  return idx;
+}
+
+export function classifySurvivor(idx, file, line, op) {
+  const c = idx.get(file + '\u0001' + line + '\u0001' + op);
+  return !c || c === 'ambiguous' ? null : c;
+}
+
+function loadEquivalence() {
+  try {
+    return classificationIndex(JSON.parse(readFileSync(join(ROOT, 'tools/mutate-equivalence.json'), 'utf8')));
+  } catch {
+    return new Map();
+  }
+}
+
 // ── the public list ────────────────────────────────────────────────────────────────────────────
 /*
  * A COMMITTED, READABLE INVENTORY — because everything this lane knows currently lives in
@@ -489,7 +607,7 @@ function sweepState(file) {
  * produced it lives and how to re-run it, so the file is self-locating for anyone who finds it
  * without context.
  */
-export function renderInventory({ files, generatedAt, mapPath }) {
+export function renderInventory({ files, generatedAt, mapPath, staleClassifications = 0 }) {
   const L = [];
   const tot = files.reduce((a, f) => ({ done: a.done + (f.done || 0), killed: a.killed + (f.killed || 0), survived: a.survived + (f.survived || 0) }), { done: 0, killed: 0, survived: 0 });
   L.push('<!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->');
@@ -517,8 +635,21 @@ export function renderInventory({ files, generatedAt, mapPath }) {
   L.push('');
   L.push('## Totals');
   L.push('');
-  L.push('| file | tested | killed | survived | kill rate | state |');
-  L.push('|---|---:|---:|---:|---:|---|');
+  L.push('**Scope: the JavaScript DSPs only.** `capture-host/` is a separate lane (mutmut, ~74.6 % at last');
+  L.push('audit) and none of its mutants are counted here — do not read the fleet row as a project-wide figure.');
+  L.push('');
+  L.push('- **open** — survivors with no recorded classification: the actual outstanding work.');
+  L.push('- **classified** — survivors already proven to have no distinguishing input (`tools/mutate-equivalence.json`).');
+  L.push('  They cannot be killed by any test, so writing one for them is wasted effort.');
+  L.push('- **invalid** — mutants that failed to run. They leave the denominator SILENTLY, so a kill rate');
+  L.push('  computed beside a large invalid count is provisional (one file once ran 73 % invalid).');
+  L.push('- **state** — `complete` is recorded on a clean exit; `unknown` means nothing here can vouch for it.');
+  L.push('- **stale classifications** — ledger entries that no longer match any survivor. The ledger is keyed');
+  L.push('  by LINE, and lines move, so a classification silently stops applying when the file is edited.');
+  L.push('  A VOID file (its canary survived) measured nothing at all and its counts must not be quoted.');
+  L.push('');
+  L.push('| file | tested | killed | survived | **open** | classified | invalid | kill rate | state |');
+  L.push('|---|---:|---:|---:|---:|---:|---:|---:|---|');
   /* A PARTIAL SWEEP IS NOT A SMALL RESULT, IT IS AN UNFINISHED ONE — printing its counts in the same
      shape as a finished file invites them to be read as that file's kill RATE, which they are not.
      ⚠️ The first version inferred this from `inFlight > 0` (a START record with no verdict). That is
@@ -529,9 +660,30 @@ export function renderInventory({ files, generatedAt, mapPath }) {
      and a journal this suite did not produce is UNKNOWN rather than assumed complete. */
   for (const f of files)
     L.push(
-      '| `' + f.file + '` | ' + (f.done || 0) + ' | ' + (f.killed || 0) + ' | ' + (f.survived || 0) + ' | ' + (f.done ? Math.round((100 * f.killed) / f.done) + ' %' : '—') + ' | ' + f.state + ' |'
+      '| `' +
+        f.file +
+        '` | ' +
+        (f.done || 0) +
+        ' | ' +
+        (f.killed || 0) +
+        ' | ' +
+        (f.survived || 0) +
+        ' | **' +
+        (f.open == null ? f.survived || 0 : f.open) +
+        '** | ' +
+        (f.classified || 0) +
+        ' | ' +
+        (f.invalid || 0) +
+        ' | ' +
+        (f.done ? Math.round((100 * f.killed) / f.done) + ' %' : '—') +
+        ' | ' +
+        f.state +
+        ' |'
     );
   const partial = files.filter((f) => f.state !== 'complete');
+  const totOpen = files.reduce((a, f) => a + (f.open == null ? f.survived || 0 : f.open), 0);
+  const totCls = files.reduce((a, f) => a + (f.classified || 0), 0);
+  const totInv = files.reduce((a, f) => a + (f.invalid || 0), 0);
   L.push(
     '| **fleet** | **' +
       tot.done +
@@ -540,12 +692,32 @@ export function renderInventory({ files, generatedAt, mapPath }) {
       '** | **' +
       tot.survived +
       '** | **' +
+      totOpen +
+      '** | ' +
+      totCls +
+      ' | ' +
+      totInv +
+      ' | **' +
       (tot.done ? Math.round((100 * tot.killed) / tot.done) + ' %' : '—') +
       '** | ' +
-      (partial.length ? '**includes ' + partial.length + ' partial**' : 'complete') +
+      (partial.length ? '**includes ' + partial.length + ' unconfirmed**' : 'complete') +
       ' |'
   );
   L.push('');
+  /* THE LEDGER HAS ROTTED, AND NOTHING WAS WATCHING. Measured 2026-08-18: of ppgdex's 129 recorded
+     classifications only 4 still land on a survivor, and 117 point at lines that hold no survivor at
+     all. That is real human triage effort — someone examined those mutants and proved them unkillable
+     — now unmatchable because the ledger is keyed by line number and lines move. Reporting the number
+     is the minimum; the fix is to key classifications by something drift-resistant (mutate.mjs already
+     computes an enclosing-function hash for exactly this reason), which is a change to the ledger
+     format and belongs in its own work-unit rather than smuggled in here. */
+  if (staleClassifications > 0) {
+    L.push('> ⚠ **' + staleClassifications + ' recorded classification(s) no longer match any survivor.** The equivalence ledger is');
+    L.push('> keyed by line number, and lines move — so triage work that was really done has silently stopped');
+    L.push('> applying. Those mutants are counted as **open** here, which over-states the work rather than');
+    L.push('> hiding a gap, but the classifications need re-anchoring to be worth anything again.');
+    L.push('');
+  }
   if (partial.length) {
     L.push('> ⚠ **' + partial.map((f) => '`' + f.file + '`').join(', ') + ' are not confirmed-complete sweeps.** A row marked');
     L.push('> `in flight` is a snapshot of a running sweep — the counts will grow and the rate will move.');
@@ -569,6 +741,7 @@ export function renderInventory({ files, generatedAt, mapPath }) {
 
 function cmdInventory() {
   const loaded = loadMap();
+  const eq = loadEquivalence();
   const files = [];
   for (const f of FLEET) {
     const jp = journalPath(f);
@@ -578,10 +751,25 @@ function cmdInventory() {
       .filter((r) => r.v !== 'KILLED' && r.v !== 'INVALID')
       .map((r) => {
         const d = describeMutant(r.k, f);
-        return { line: Number(String(r.k).split('\u0000')[0]) || 0, op: d.op, before: d.before };
+        return { line: d.line, op: d.op, before: d.before, cls: classifySurvivor(eq, f, d.line, d.op) };
       })
       .sort((a, b) => a.line - b.line);
-    files.push({ file: f, done: pr.done, killed: pr.killed, survived: pr.survived, inFlight: pr.inFlight, state: sweepState(f), survivors });
+    /* A survivor already proven to have NO distinguishing input is RESOLVED, not outstanding. Keeping
+       it in the same count as real gaps overstated the work by 11 % and invites someone to write a
+       test for a mutant this repo already proved cannot be killed. */
+    const open = survivors.filter((x) => x.cls !== 'no-distinguishing-input');
+    files.push({
+      file: f,
+      done: pr.done,
+      killed: pr.killed,
+      survived: pr.survived,
+      invalid: pr.invalid,
+      inFlight: pr.inFlight,
+      state: sweepState(f),
+      survivors,
+      open: open.length,
+      classified: survivors.length - open.length
+    });
   }
   if (!files.length) {
     /* An inventory of nothing must not be written as if it were an inventory of zero survivors. */
@@ -590,7 +778,12 @@ function cmdInventory() {
   }
   const dest = join(ROOT, 'docs', 'MUTATION-INVENTORY.md');
   mkdirSync(dirname(dest), { recursive: true });
-  writeFileSync(dest, renderInventory({ files, generatedAt: new Date().toISOString().slice(0, 10), mapPath: loaded.path }));
+  /* Every ledger key that no survivor claimed. Counted against the keys actually indexed, so a
+     duplicate (line, op) pair is not double-counted. */
+  const claimed = new Set();
+  for (const f of files) for (const sv of f.survivors) if (sv.cls) claimed.add(f.file + ':' + sv.line + ':' + sv.op);
+  const staleClassifications = Math.max(0, eq.size - claimed.size);
+  writeFileSync(dest, renderInventory({ files, generatedAt: new Date().toISOString().slice(0, 10), mapPath: loaded.path, staleClassifications }));
   log('✓ wrote ' + dest + ' — ' + files.length + ' file(s), ' + files.reduce((a, f) => a + f.survivors.length, 0) + ' survivor(s) listed');
 }
 
@@ -647,6 +840,64 @@ function selftest() {
   ck('no elapsed time ⇒ no rate, rather than Infinity', project({ done: 5, total: 10, elapsedMs: 0 }).perMin, null);
   ck('no completions ⇒ no rate', project({ done: 0, total: 10, elapsedMs: 5000 }).perMin, null);
 
+  console.log('\ncanaryVerdict — the field that decides whether any other number may be quoted');
+  ck('a canary that died means kills are being detected', canaryVerdict({ canary: 'PASSED' }).publishable, true);
+  /* A voided sweep is not a smaller result, it is NO result. The first version of this driver took its
+     counts from the JOURNAL and never looked at this field, so it would have published a kill rate
+     from a harness that detected nothing — and the run would have looked entirely normal. */
+  ck('a SURVIVING canary voids the file', canaryVerdict({ canary: 'FAILED' }).publishable, false);
+  ck('…and `voided` alone is enough, whatever the canary field says', canaryVerdict({ canary: 'PASSED', voided: true }).publishable, false);
+  ck('no machine-readable result ⇒ nothing may be vouched for', canaryVerdict(null).publishable, false);
+  /* NONE/STALE is not a failure, but it is not proof either — "not disproved" is not "proved". */
+  ck('a file with no canary is publishable but says kills are UNVERIFIED', /unverified/.test(canaryVerdict({ canary: 'NONE' }).why), true);
+  ck('parseSweepResult takes the LAST JSON line, past the progress stream', parseSweepResult('noise\n{"canary":"PASSED"}\ntrailing').canary, 'PASSED');
+  ck('…and returns null when there is none, rather than a shape', parseSweepResult('no json here'), null);
+
+  console.log('\ndiscoverFleet — a new node must not need this file edited');
+  ck('finds every DSP', discoverFleet(['a-dsp.js', 'zz-dsp.js', 'README.md', 'clock.js']), ['a-dsp.js', 'zz-dsp.js']);
+  /* The point: a node added tomorrow appears without anyone remembering to list it. */
+  ck('…including one that did not exist when this was written', discoverFleet(['eegdex-dsp.js']).length, 1);
+  ck('ignores non-DSP files', discoverFleet(['dsp.js', 'x-dsp.js.bak']).length, 0);
+
+  console.log('\nclassificationIndex — a resolved survivor is not outstanding work, and a tie is not resolved');
+  const idx = classificationIndex({ 'f.js': [{ line: 10, op: 'cmp < → <=', class: 'no-distinguishing-input' }], _README: ['prose'] });
+  ck('prose keys are skipped', idx.size, 1);
+  ck('a classified mutant is found', classifySurvivor(idx, 'f.js', 10, 'cmp < → <='), 'no-distinguishing-input');
+  ck('an unclassified one is null, not a default', classifySurvivor(idx, 'f.js', 11, 'cmp < → <='), null);
+  /* (line, op) is NOT unique — one line can host the same operator twice. Where colliding entries
+     DISAGREE, one is equivalent and one is a real gap and the key cannot say which; inheriting either
+     answer would hide a real gap permanently, so both must report as open. */
+  ck(
+    'two entries that DISAGREE resolve to neither',
+    classifySurvivor(
+      classificationIndex({
+        'f.js': [
+          { line: 10, op: 'x', class: 'no-distinguishing-input' },
+          { line: 10, op: 'x', class: 'real-gap' }
+        ]
+      }),
+      'f.js',
+      10,
+      'x'
+    ),
+    null
+  );
+  ck(
+    '…but two that agree are unambiguous',
+    classifySurvivor(
+      classificationIndex({
+        'f.js': [
+          { line: 10, op: 'x', class: 'real-gap' },
+          { line: 10, op: 'x', class: 'real-gap' }
+        ]
+      }),
+      'f.js',
+      10,
+      'x'
+    ),
+    'real-gap'
+  );
+
   console.log('\nclassifySweep — recorded, never inferred from the journal’s shape');
   ck('the file a running suite names is IN FLIGHT', classifySweep({ runningFile: 'a.js', file: 'a.js', hasDoneMarker: true, markerDone: 5, journalDone: 5 }), 'in flight');
   ck('a marker whose count matches the journal is COMPLETE', classifySweep({ hasDoneMarker: true, markerDone: 100, journalDone: 100, file: 'a.js' }), 'complete');
@@ -674,7 +925,7 @@ function selftest() {
      point of having a third state rather than a boolean. */
   const unk = [{ file: 'c.js', done: 7, killed: 3, survived: 4, inFlight: 0, state: 'unknown', survivors: [] }];
   ck('an unknown file is caveated too, not treated as complete', /not confirmed-complete/.test(renderInventory({ files: unk, generatedAt: '2026-01-01', mapPath: null })), true);
-  ck('…and the fleet row says how many are unconfirmed', /includes 1 partial/.test(renderInventory({ files: unk, generatedAt: '2026-01-01', mapPath: null })), true);
+  ck('…and the fleet row says how many are unconfirmed', /includes 1 unconfirmed/.test(renderInventory({ files: unk, generatedAt: '2026-01-01', mapPath: null })), true);
   ck('a fully complete fleet claims no caveat', /not confirmed-complete/.test(renderInventory({ files: fin, generatedAt: '2026-01-01', mapPath: null })), false);
   /* Self-locating: someone who finds this file with no context must be able to get back to the tool. */
   ck('the list says where the suite lives', /tools\/mutation-suite\.mjs/.test(renderInventory({ files: fin, generatedAt: '2026-01-01', mapPath: null })), true);

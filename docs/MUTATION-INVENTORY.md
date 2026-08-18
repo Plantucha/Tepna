@@ -23,833 +23,38 @@ bug; some are legitimately untestable. Triage is the reader’s.
 
 ## Totals
 
-| file | tested | killed | survived | kill rate | state |
-|---|---:|---:|---:|---:|---|
-| `ppgdex-dsp.js` | 1360 | 538 | 808 | 40 % | unknown |
-| `ecgdex-dsp.js` | 1815 | 601 | 1203 | 33 % | unknown |
-| `oxydex-dsp.js` | 2732 | 1239 | 1477 | 45 % | unknown |
-| `integrator-dsp.js` | 312 | 173 | 139 | 55 % | unknown |
-| **fleet** | **6219** | **2551** | **3627** | **41 %** | **includes 4 partial** |
+**Scope: the JavaScript DSPs only.** `capture-host/` is a separate lane (mutmut, ~74.6 % at last
+audit) and none of its mutants are counted here — do not read the fleet row as a project-wide figure.
 
-> ⚠ **`ppgdex-dsp.js`, `ecgdex-dsp.js`, `oxydex-dsp.js`, `integrator-dsp.js` are not confirmed-complete sweeps.** A row marked
+- **open** — survivors with no recorded classification: the actual outstanding work.
+- **classified** — survivors already proven to have no distinguishing input (`tools/mutate-equivalence.json`).
+  They cannot be killed by any test, so writing one for them is wasted effort.
+- **invalid** — mutants that failed to run. They leave the denominator SILENTLY, so a kill rate
+  computed beside a large invalid count is provisional (one file once ran 73 % invalid).
+- **state** — `complete` is recorded on a clean exit; `unknown` means nothing here can vouch for it.
+- **stale classifications** — ledger entries that no longer match any survivor. The ledger is keyed
+  by LINE, and lines move, so a classification silently stops applying when the file is edited.
+  A VOID file (its canary survived) measured nothing at all and its counts must not be quoted.
+
+| file | tested | killed | survived | **open** | classified | invalid | kill rate | state |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| `ecgdex-dsp.js` | 1815 | 601 | 1203 | **1203** | 0 | 11 | 33 % | unknown |
+| `integrator-dsp.js` | 312 | 173 | 139 | **139** | 0 | 0 | 55 % | unknown |
+| `oxydex-dsp.js` | 2732 | 1239 | 1477 | **1477** | 0 | 16 | 45 % | unknown |
+| `ppgdex-dsp.js` | 1360 | 538 | 808 | **804** | 4 | 14 | 40 % | unknown |
+| **fleet** | **6219** | **2551** | **3627** | **3623** | 4 | 41 | **41 %** | **includes 4 unconfirmed** |
+
+> ⚠ **379 recorded classification(s) no longer match any survivor.** The equivalence ledger is
+> keyed by line number, and lines move — so triage work that was really done has silently stopped
+> applying. Those mutants are counted as **open** here, which over-states the work rather than
+> hiding a gap, but the classifications need re-anchoring to be worth anything again.
+
+> ⚠ **`ecgdex-dsp.js`, `integrator-dsp.js`, `oxydex-dsp.js`, `ppgdex-dsp.js` are not confirmed-complete sweeps.** A row marked
 > `in flight` is a snapshot of a running sweep — the counts will grow and the rate will move.
 > A row marked `unknown` came from a journal this suite did not finish itself, so its
 > completeness cannot be asserted; it is not a claim that the file is unfinished, only that
 > nothing here can vouch for it. Re-run `--inventory` after a sweep to resolve either.
 > The fleet row inherits that caveat.
-
-## `ppgdex-dsp.js` — 808 survivor(s)
-
-| line | operator | source |
-|---:|---|---|
-| 21 | `num → 0` | `return new Date(instantMs).getTimezoneOffset() * 60000;` |
-| 35 | `bool || → &&` | `if (dd.getUTCFullYear() !== y \|\| dd.getUTCMonth() !== mo0 \|\| dd.getUTCDa` |
-| 35 | `bool || → &&` | `if (dd.getUTCFullYear() !== y \|\| dd.getUTCMonth() !== mo0 \|\| dd.getUTCDa` |
-| 36 | `eq === → !==` | `if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000` |
-| 36 | `num → 0` | `if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000` |
-| 36 | `eq === → !==` | `if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000` |
-| 36 | `num → 0` | `if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000` |
-| 36 | `eq === → !==` | `if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000` |
-| 37 | `cmp > → >=` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
-| 37 | `cmp > → >=` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
-| 37 | `cmp > → >=` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
-| 37 | `cmp > → >=` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
-| 37 | `bool || → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
-| 37 | `bool || → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
-| 37 | `bool || → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
-| 37 | `bool || → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
-| 37 | `bool || → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
-| 37 | `bool || → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
-| 37 | `bool || → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
-| 41 | `bool || → &&` | `opts = opts \|\| {};` |
-| 49 | `num → 0` | `if (/^\d{10,13}$/.test(s)) {` |
-| 50 | `num → 0` | `let x = parseInt(s, 10);` |
-| 51 | `num → 0` | `if (x < 1e11) x *= 1000;` |
-| 51 | `cmp < → <=` | `if (x < 1e11) x *= 1000;` |
-| 52 | `cmp > → >=` | `if (x < 1e11 \|\| x > 4e12) return null;` |
-| 52 | `bool || → &&` | `if (x < 1e11 \|\| x > 4e12) return null;` |
-| 52 | `cmp < → <=` | `if (x < 1e11 \|\| x > 4e12) return null;` |
-| 53 | `num → 0` | `return { tMs: x - tzOffset(x), offsetMin: -tzOffset(x) / 60000 };` |
-| 68 | `eq === → !==` | `if (m[8] === 'Z') offsetMin = 0;` |
-| 71 | `eq === → !==` | `offsetMin = (z[0] === '-' ? -1 : 1) * (parseInt(z.slice(1, 3), 10) * 60 ` |
-| 71 | `num → 0` | `offsetMin = (z[0] === '-' ? -1 : 1) * (parseInt(z.slice(1, 3), 10) * 60 ` |
-| 71 | `num → 0` | `offsetMin = (z[0] === '-' ? -1 : 1) * (parseInt(z.slice(1, 3), 10) * 60 ` |
-| 71 | `num → 0` | `offsetMin = (z[0] === '-' ? -1 : 1) * (parseInt(z.slice(1, 3), 10) * 60 ` |
-| 87 | `cmp < → <=` | `if (a.length < 2) return 0;` |
-| 103 | `negate: drop !` | `if (!a.length) return NaN;` |
-| 108 | `eq === → !==` | `return lo === hi ? b[lo] : b[lo] + (b[hi] - b[lo]) * (p - lo);` |
-| 149 | `cmp < → <=` | `for (let i = 0; i < x.length; i++) {` |
-| 162 | `cmp < → <=` | `for (let i = 0; i < x.length; i++) y[i] = x[x.length - 1 - i];` |
-| 213 | `cmp >= → >` | `if (ch.length >= 3) return { chIdx: [ch[0], ch[1], ch[2]], amb, ns, phon` |
-| 223 | `cmp < → <=` | `for (let k = 0; k < p.length; k++) if (isFinite(parseFloat(p[k]))) nums.` |
-| 225 | `cmp >= → >` | `if (n >= 5) return { chIdx: [nums[n - 4], nums[n - 3], nums[n - 2]], amb` |
-| 226 | `eq === → !==` | `if (n === 3) return { chIdx: [nums[n - 1]], amb: -1, ns: 1, phone: 0 };` |
-| 267 | `cmp < → <=` | `for (let i = 0; i < x.length; i++) {` |
-| 272 | `cmp <= → <` | `for (let k = i - 2; k <= i + 2; k++) {` |
-| 273 | `cmp >= → >` | `if (k === i \|\| k < 0 \|\| k >= x.length) continue;` |
-| 273 | `bool || → &&` | `if (k === i \|\| k < 0 \|\| k >= x.length) continue;` |
-| 273 | `cmp < → <=` | `if (k === i \|\| k < 0 \|\| k >= x.length) continue;` |
-| 273 | `bool || → &&` | `if (k === i \|\| k < 0 \|\| k >= x.length) continue;` |
-| 279 | `cmp > → >=` | `if (!cnt \|\| Math.abs(O2_BEAT_MARKER - sum / cnt) > O2_MARKER_ISOLATION) ` |
-| 309 | `cmp < → <=` | `for (let li = 0; li < lines.length && li < 12; li++) {` |
-| 340 | `bool && → ||` | `if (/timestamp/i.test(line) && !pcols) {` |
-| 354 | `eq === → !==` | `if (nCh === 1) minFields = 3;` |
-| 373 | `bool || → &&` | `if (!isFinite(v1) \|\| !isFinite(v2)) continue;` |
-| 378 | `cmp >= → >` | `const va = pc.amb >= 0 ? parseFloat(p[pc.amb]) : NaN;` |
-| 379 | `cmp >= → >` | `if (pc.amb >= 0 && !isFinite(va)) continue;` |
-| 389 | `cmp >= → >` | `const b = BigInt(p[pcols && pcols.ns >= 0 ? pcols.ns : 1].trim());` |
-| 389 | `bool && → ||` | `const b = BigInt(p[pcols && pcols.ns >= 0 ? pcols.ns : 1].trim());` |
-| 415 | `bool && → ||` | `if (at && isFinite(relNs)) axisAnchors.push({ devMs: relNs / 1e6, hostMs` |
-| 424 | `num → 0` | `let fs = 176;` |
-| 426 | `cmp < → <=` | `for (let i = 1; i < n; i++) {` |
-| 428 | `cmp > → >=` | `if (isFinite(d) && d > 0) deltas.push(d);` |
-| 428 | `bool && → ||` | `if (isFinite(d) && d > 0) deltas.push(d);` |
-| 458 | `cmp >= → >` | `for (let li = lines.length - 1; li >= 0 && !t; li--) {` |
-| 469 | `cmp > → >=` | `if (deltas.length > 20) {` |
-| 469 | `num → 0` | `if (deltas.length > 20) {` |
-| 471 | `cmp > → >=` | `if (md > 0) fs = 1e9 / md;` |
-| 472 | `cmp > → >=` | `if (md > 0) {` |
-| 474 | `cmp < → <=` | `for (let i = 0; i < deltas.length; i++) if (deltas[i] === md) same++;` |
-| 481 | `bool && → ||` | `if (firstTs && lastTs && lastTs.tMs > firstTs.tMs) {` |
-| 481 | `cmp > → >=` | `if (firstTs && lastTs && lastTs.tMs > firstTs.tMs) {` |
-| 481 | `bool && → ||` | `if (firstTs && lastTs && lastTs.tMs > firstTs.tMs) {` |
-| 489 | `bool && → ||` | `const hostAx = typeof DexClock !== 'undefined' && DexClock.hostAxis ? De` |
-| 490 | `bool && → ||` | `if (hostAx.ok && isFinite(hostAx.ppm)) fs = fs / (1 + hostAx.ppm / 1e6);` |
-| 497 | `cmp >= → >` | `const axisDrawn = quantizedShare != null && quantizedShare >= 0.99;` |
-| 504 | `cmp > → >=` | `if (deltas.length > 20) {` |
-| 504 | `num → 0` | `if (deltas.length > 20) {` |
-| 505 | `cmp < → <=` | `for (let i = 0; i < n; i++) {` |
-| 514 | `cmp < → <=` | `for (let i = 0; i < n; i++) relSec[i] = i / fs;` |
-| 591 | `cmp > → >=` | `if (timebase === 'device-crystal' && site === 'finger' && n > 0) {` |
-| 593 | `cmp > → >=` | `const maxStep = TIME_GAP_STEPS / (fs > 0 ? fs : O2_ADC_HZ); // gap detec` |
-| 597 | `cmp < → <=` | `for (let i = 0; i < n; i++) {` |
-| 598 | `cmp > → >=` | `if (i > 0 && relSec[i] - relSec[i - 1] > maxStep) {` |
-| 598 | `cmp > → >=` | `if (i > 0 && relSec[i] - relSec[i - 1] > maxStep) {` |
-| 657 | `bool && → ||` | `return lt && lt.tMs != null ? lt.tMs : null;` |
-| 737 | `bool || → &&` | `stability: axisSynthetic ? null : hostAx.stability \|\| null,` |
-| 740 | `bool || → &&` | `: { ok: false, reason: hostAx.reason \|\| 'no host anchors', drawn: axisSy` |
-| 761 | `cmp > → >=` | `let replicated = nCh > 1;` |
-| 762 | `cmp < → <=` | `for (let c = 1; replicated && c < nCh; c++) {` |
-| 766 | `cmp < → <=` | `for (let i = 0; i < len; i++) {` |
-| 790 | `num → 0` | `const win = Math.min(sig.length, Math.max(Math.round(fs * 90), Math.roun` |
-| 790 | `num → 0` | `const win = Math.min(sig.length, Math.max(Math.round(fs * 90), Math.roun` |
-| 792 | `cmp < → <=` | `if (s0 < 0) s0 = 0;` |
-| 793 | `eq === → !==` | `const slice = s0 === 0 && win === sig.length ? sig : sig.subarray(s0, s0` |
-| 793 | `eq === → !==` | `const slice = s0 === 0 && win === sig.length ? sig : sig.subarray(s0, s0` |
-| 793 | `bool && → ||` | `const slice = s0 === 0 && win === sig.length ? sig : sig.subarray(s0, s0` |
-| 794 | `num → 0` | `const pulse = bandpass(slice, fs, 0.7, 3.0);` |
-| 794 | `num → 0` | `const pulse = bandpass(slice, fs, 0.7, 3.0);` |
-| 817 | `bool || → &&` | `if (!a \|\| !b \|\| a.length !== b.length) return false;` |
-| 817 | `bool || → &&` | `if (!a \|\| !b \|\| a.length !== b.length) return false;` |
-| 818 | `cmp < → <=` | `for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;` |
-| 836 | `cmp > → >=` | `if (s.snr > bestScore) {` |
-| 857 | `bool || → &&` | `if (refRate == null \|\| !isFinite(refRate) \|\| refRate <= 0) return refIdx` |
-| 857 | `cmp <= → <` | `if (refRate == null \|\| !isFinite(refRate) \|\| refRate <= 0) return refIdx` |
-| 857 | `bool || → &&` | `if (refRate == null \|\| !isFinite(refRate) \|\| refRate <= 0) return refIdx` |
-| 859 | `cmp > → >=` | `for (let i = 0; i < rates.length; i++) if (i !== refIdx && rates[i] != n` |
-| 859 | `cmp < → <=` | `for (let i = 0; i < rates.length; i++) if (i !== refIdx && rates[i] != n` |
-| 862 | `cmp > → >=` | `if (!(medOther > 0)) return refIdx;` |
-| 866 | `cmp < → <=` | `if (!(spread < 0.15 && refRate / medOther >= 1.5)) return refIdx;` |
-| 866 | `cmp >= → >` | `if (!(spread < 0.15 && refRate / medOther >= 1.5)) return refIdx;` |
-| 870 | `cmp < → <=` | `for (let i = 0; i < rates.length; i++) {` |
-| 871 | `cmp >= → >` | `if (rates[i] == null \|\| Math.abs(rates[i] / medOther - 1) >= 0.15) conti` |
-| 872 | `bool && → ||` | `const s = snr && snr[i] != null ? snr[i] : 0;` |
-| 873 | `cmp > → >=` | `if (s > bestSnr) {` |
-| 878 | `cmp >= → >` | `return pick >= 0 ? pick : refIdx;` |
-| 920 | `num → 0` | `const ORIENT_SAMPLE_SEC = 120; // ~100 beats at 50 bpm — enough for a st` |
-| 927 | `cmp > → >=` | `if (n < ORIENT_MIN_BEATS \|\| !(det.T > 0)) return null;` |
-| 927 | `cmp < → <=` | `if (n < ORIENT_MIN_BEATS \|\| !(det.T > 0)) return null;` |
-| 927 | `bool || → &&` | `if (n < ORIENT_MIN_BEATS \|\| !(det.T > 0)) return null;` |
-| 929 | `cmp < → <=` | `for (var k = 0; k < n; k++) {` |
-| 931 | `cmp > → >=` | `if (isFinite(d) && d > 0) r.push(d);` |
-| 931 | `bool && → ||` | `if (isFinite(d) && d > 0) r.push(d);` |
-| 933 | `cmp < → <=` | `if (r.length < ORIENT_MIN_BEATS) return null;` |
-| 941 | `cmp <= → <` | `if (!(want > 0) \|\| n <= want) {` |
-| 941 | `cmp > → >=` | `if (!(want > 0) \|\| n <= want) {` |
-| 941 | `bool || → &&` | `if (!(want > 0) \|\| n <= want) {` |
-| 941 | `negate: drop !` | `if (!(want > 0) \|\| n <= want) {` |
-| 949 | `bool && → ||` | `if (up == null && dn == null) return orient(bp); // undecidable → previo` |
-| 952 | `cmp < → <=` | `return dn < up ? -1 : 1;` |
-| 962 | `cmp < → <=` | `for (let i = 1; i < bp.length; i++) d[i] = bp[i] - bp[i - 1];` |
-| 1008 | `cmp < → <=` | `if (!signs \|\| signs.length < 2) return 0;` |
-| 1011 | `cmp < → <=` | `for (let i = 0; i < signs.length; i++) {` |
-| 1017 | `cmp > → >=` | `return neg > pos ? -1 : 1;` |
-| 1068 | `num → 0` | `const SUBH_FRAC = 0.4;` |
-| 1073 | `cmp < → <=` | `if (n < WIN + HOP) return null;` |
-| 1082 | `cmp < → <=` | `for (let i = 0; i < m; i++) x[i] = lp[i * D];` |
-| 1083 | `num → 0` | `const lagMin = Math.max(2, Math.round(fsd * 0.33)); // 180 bpm ceiling` |
-| 1089 | `cmp <= → <` | `for (let s = 0; s + wd <= m; s += hd) {` |
-| 1108 | `cmp > → >=` | `if (r > best) {` |
-| 1130 | `bool && → ||` | `if (bl && best > 0) {` |
-| 1130 | `cmp > → >=` | `if (bl && best > 0) {` |
-| 1133 | `cmp < → <=` | `if (cand < lagMin) continue;` |
-| 1141 | `cmp <= → <` | `for (let d = -1; d <= 1; d++) {` |
-| 1143 | `cmp >= → >` | `if (c2 >= lagMin && c2 <= lagMax && corr[c2] > bv) {` |
-| 1143 | `cmp <= → <` | `if (c2 >= lagMin && c2 <= lagMax && corr[c2] > bv) {` |
-| 1143 | `cmp > → >=` | `if (c2 >= lagMin && c2 <= lagMax && corr[c2] > bv) {` |
-| 1148 | `cmp >= → >` | `if (bv >= SUBH_FRAC * best) {` |
-| 1163 | `cmp < → <=` | `for (let i = 0; i < n; i++) {` |
-| 1164 | `cmp < → <=` | `while (k < ws.length - 2 && i > ws[k + 1]) k++;` |
-| 1164 | `cmp > → >=` | `while (k < ws.length - 2 && i > ws[k + 1]) k++;` |
-| 1165 | `cmp <= → <` | `if (i <= ws[0]) out[i] = ts[0];` |
-| 1166 | `cmp >= → >` | `else if (i >= ws[ws.length - 1]) out[i] = ts[ts.length - 1];` |
-| 1182 | `cmp < → <=` | `if (n < 3) return { peaks, feet: [], T: Math.round(fs * 0.85) };` |
-| 1182 | `num → 0` | `if (n < 3) return { peaks, feet: [], T: Math.round(fs * 0.85) };` |
-| 1191 | `cmp < → <=` | `for (let i = 1; i < n; i++) {` |
-| 1193 | `cmp > → >=` | `z[i] = dv > 0 ? dv * dv : 0;` |
-| 1199 | `num → 0` | `const minW = Math.max(2, Math.round(fs * 0.05)); // min systolic-block w` |
-| 1210 | `cmp < → <=` | `while (i < n) {` |
-| 1213 | `cmp < → <=` | `while (j < n && maPeak[j] > maBeat[j]) j++;` |
-| 1213 | `cmp > → >=` | `while (j < n && maPeak[j] > maBeat[j]) j++;` |
-| 1214 | `cmp >= → >` | `if (j - i >= minW) {` |
-| 1222 | `cmp > → >=` | `if (v > sv) {` |
-| 1231 | `cmp >= → >` | `if (peaks.length === 0 \|\| sp - peaks[peaks.length - 1] >= refr) peaks.pu` |
-| 1232 | `cmp > → >=` | `else if (bp[sp] > bp[peaks[peaks.length - 1]]) peaks[peaks.length - 1] =` |
-| 1239 | `num → 0` | `let T = Math.round(fs * 0.85);` |
-| 1240 | `cmp > → >=` | `if (peaks.length > 2) {` |
-| 1242 | `cmp < → <=` | `for (let k = 1; k < peaks.length; k++) dd.push(peaks[k] - peaks[k - 1]);` |
-| 1244 | `cmp > → >=` | `if (md > 0) T = Math.round(md);` |
-| 1260 | `cmp < → <=` | `if (bp[j] < mv) {` |
-| 1267 | `cmp < → <=` | `for (let j = mi; j < p; j++) {` |
-| 1269 | `cmp > → >=` | `if (dv > msv) {` |
-| 1275 | `cmp > → >=` | `if (msv > 1e-9) {` |
-| 1285 | `cmp < → <=` | `for (let i = 0; i < x.length; i++) y[i] = -x[i];` |
-| 1323 | `cmp < → <=` | `if (nCh < 2) {` |
-| 1327 | `num → 0` | `const tol = Math.max(1, Math.round(0.05 * fs)); // ±50 ms agreement wind` |
-| 1354 | `cmp <= → <` | `while (j < ev.length && ev[j].s - ev[j - 1].s <= tol) {` |
-| 1371 | `num → 0` | `const refr = Math.round(fs * 0.3);` |
-| 1375 | `cmp < → <=` | `if (peaks.length && rawPeaks[k] - peaks[peaks.length - 1] < refr) {` |
-| 1376 | `cmp > → >=` | `if (refBp[rawPeaks[k]] > refBp[peaks[peaks.length - 1]]) {` |
-| 1385 | `num → 0` | `let T = Math.round(fs * 0.85);` |
-| 1386 | `cmp > → >=` | `if (peaks.length > 2) {` |
-| 1388 | `cmp < → <=` | `for (let k = 1; k < peaks.length; k++) dd.push(peaks[k] - peaks[k - 1]);` |
-| 1390 | `cmp > → >=` | `if (md > 0) T = Math.round(md);` |
-| 1398 | `cmp < → <=` | `for (let i = 0; i < x.length; i++) {` |
-| 1407 | `cmp > → >=` | `for (let i = i0; i < i1; i++) if (a[i] > m) m = a[i];` |
-| 1407 | `cmp < → <=` | `for (let i = i0; i < i1; i++) if (a[i] > m) m = a[i];` |
-| 1420 | `num → 0` | `const pre = Math.round(fs * 0.2),` |
-| 1425 | `cmp < → <=` | `for (let k = 0; k < n; k++) {` |
-| 1429 | `cmp < → <=` | `for (let j = 0; j < L; j++) {` |
-| 1431 | `cmp >= → >` | `if (idx < 0 \|\| idx >= bp.length) {` |
-| 1431 | `cmp < → <=` | `if (idx < 0 \|\| idx >= bp.length) {` |
-| 1431 | `bool || → &&` | `if (idx < 0 \|\| idx >= bp.length) {` |
-| 1444 | `bool || → &&` | `const r = mx - mn \|\| 1;` |
-| 1446 | `cmp < → <=` | `for (let j = 0; j < b.length; j++) o[j] = (b[j] - mn) / r;` |
-| 1452 | `cmp < → <=` | `for (let j = 0; j < L; j++) {` |
-| 1467 | `num → 0` | `let q = Math.max(0, corr) * (0.4 + 0.6 * motFactor);` |
-| 1474 | `bool && → ||` | `else if (regular && regular[k] != null) {` |
-| 1498 | `cmp < → <=` | `if (n < 4) return peaks.map(() => null); // no local cadence to judge ag` |
-| 1500 | `cmp < → <=` | `for (let k = 1; k < n; k++) iv.push(peaks[k] - peaks[k - 1]);` |
-| 1502 | `cmp > → >=` | `if (!(med > 0)) return peaks.map(() => null);` |
-| 1510 | `num → 0` | `out.push(Math.max(0.6, 1 - Math.min(1, d / 0.5) * 0.4));` |
-| 1528 | `cmp < → <=` | `for (let i = 0; i < y.length; i++) {` |
-| 1539 | `cmp < → <=` | `for (let i = 0; i < y.length && first === null; i++) if (!gap[i]) first ` |
-| 1539 | `eq === → !==` | `for (let i = 0; i < y.length && first === null; i++) if (!gap[i]) first ` |
-| 1539 | `bool && → ||` | `for (let i = 0; i < y.length && first === null; i++) if (!gap[i]) first ` |
-| 1539 | `negate: drop !` | `for (let i = 0; i < y.length && first === null; i++) if (!gap[i]) first ` |
-| 1540 | `eq !== → ===` | `for (let i = 0; i < y.length && gap[i]; i++) y[i] = first !== null ? fir` |
-| 1540 | `bool && → ||` | `for (let i = 0; i < y.length && gap[i]; i++) y[i] = first !== null ? fir` |
-| 1540 | `cmp < → <=` | `for (let i = 0; i < y.length && gap[i]; i++) y[i] = first !== null ? fir` |
-| 1578 | `bool || → &&` | `if (rmssdMs == null \|\| sdnnRobustMs == null) return false;` |
-| 1579 | `bool || → &&` | `if (!isFinite(rmssdMs) \|\| !isFinite(sdnnRobustMs) \|\| sdnnRobustMs <= 0) ` |
-| 1586 | `cmp > → >=` | `if (!relSec \|\| !feet \|\| feet.length < 2 \|\| !(fs > 0)) return out;` |
-| 1586 | `cmp < → <=` | `if (!relSec \|\| !feet \|\| feet.length < 2 \|\| !(fs > 0)) return out;` |
-| 1586 | `bool || → &&` | `if (!relSec \|\| !feet \|\| feet.length < 2 \|\| !(fs > 0)) return out;` |
-| 1586 | `bool || → &&` | `if (!relSec \|\| !feet \|\| feet.length < 2 \|\| !(fs > 0)) return out;` |
-| 1586 | `bool || → &&` | `if (!relSec \|\| !feet \|\| feet.length < 2 \|\| !(fs > 0)) return out;` |
-| 1592 | `cmp < → <=` | `for (let i = 1; i < n; i++) {` |
-| 1593 | `cmp > → >=` | `if (relSec[i] - relSec[i - 1] > maxStep) run++;` |
-| 1597 | `cmp < → <=` | `for (let k = 0; k < nIntervals; k++) {` |
-| 1600 | `bool || → &&` | `if (a == null \|\| b == null) continue;` |
-| 1603 | `cmp > → >=` | `if (i1 > i0 && prefix[i1] > prefix[i0]) out[k] = true;` |
-| 1620 | `bool || → &&` | `if (!rec \|\| rec.t0Ms == null \|\| !isFinite(rec.t0Ms)) return null;` |
-| 1620 | `bool || → &&` | `if (!rec \|\| rec.t0Ms == null \|\| !isFinite(rec.t0Ms)) return null;` |
-| 1623 | `cmp > → >=` | `if (!relSec \|\| !relSec.length \|\| !(fs > 0)) return null;` |
-| 1623 | `bool || → &&` | `if (!relSec \|\| !relSec.length \|\| !(fs > 0)) return null;` |
-| 1623 | `bool || → &&` | `if (!relSec \|\| !relSec.length \|\| !(fs > 0)) return null;` |
-| 1629 | `cmp < → <=` | `for (let i = 1; i < n; i++) {` |
-| 1630 | `cmp > → >=` | `if (relSec[i] - relSec[i - 1] > maxStep) {` |
-| 1637 | `bool && → ||` | `return typeof DexExport !== 'undefined' && DexExport && DexExport.covera` |
-| 1637 | `bool && → ||` | `return typeof DexExport !== 'undefined' && DexExport && DexExport.covera` |
-| 1654 | `cmp < → <=` | `for (let k = 0; k < peaks.length; k++) {` |
-| 1656 | `bool && → ||` | `const f = feet && feet[k] != null ? Math.floor(feet[k]) : p;` |
-| 1659 | `cmp <= → <` | `for (let i = lo; i <= hi; i++)` |
-| 1682 | `bool || → &&` | `const den = Math.sqrt(sa * sb) \|\| 1e-9;` |
-| 1697 | `bool || → &&` | `winSec = winSec \|\| 60;` |
-| 1700 | `bool || → &&` | `const t0 = t0Ms \|\| 0;` |
-| 1701 | `num → 0` | `const secAbs = (k) => Math.floor((t0 + (peaks[k] / fs) * 1000) / 1000);` |
-| 1701 | `num → 0` | `const secAbs = (k) => Math.floor((t0 + (peaks[k] / fs) * 1000) / 1000);` |
-| 1702 | `cmp < → <=` | `if (n < 20) {` |
-| 1702 | `num → 0` | `if (n < 20) {` |
-| 1703 | `cmp < → <=` | `for (let k = 0; k < n; k++) out.set(secAbs(k), 1);` |
-| 1709 | `cmp < → <=` | `if (S < 1) return out;` |
-| 1712 | `cmp < → <=` | `for (let k = 0; k < n; k++) {` |
-| 1714 | `cmp >= → >` | `if (s >= 0 && s < S) {` |
-| 1714 | `cmp < → <=` | `if (s >= 0 && s < S) {` |
-| 1714 | `bool && → ||` | `if (s >= 0 && s < S) {` |
-| 1716 | `bool && → ||` | `qsum[s] += sqi && Number.isFinite(sqi[k]) ? sqi[k] : 1;` |
-| 1726 | `cmp < → <=` | `for (let i = 0; i < S; i++) {` |
-| 1734 | `cmp < → <=` | `while (lo < a) {` |
-| 1740 | `cmp > → >=` | `winSqi[i] = cAcc > 0 ? qAcc / cAcc : 0;` |
-| 1743 | `cmp > → >=` | `for (let i = 0; i < S; i++) if (winCnt[i] > 0) active.push(i);` |
-| 1743 | `cmp < → <=` | `for (let i = 0; i < S; i++) if (winCnt[i] > 0) active.push(i);` |
-| 1758 | `num → 0` | `const madC = 1.4826 * (cAbs.length ? cAbs[cAbs.length >> 1] : 0) \|\| 1;` |
-| 1758 | `bool || → &&` | `const madC = 1.4826 * (cAbs.length ? cAbs[cAbs.length >> 1] : 0) \|\| 1;` |
-| 1759 | `bool || → &&` | `const madQ = 1.4826 * (qAbs.length ? qAbs[qAbs.length >> 1] : 0) \|\| 1e-6` |
-| 1759 | `num → 0` | `const madQ = 1.4826 * (qAbs.length ? qAbs[qAbs.length >> 1] : 0) \|\| 1e-6` |
-| 1761 | `cmp >= → >` | `const trust = (z) => (z <= 0 ? 1 : z >= C ? 0 : (1 - (z / C) * (z / C)) ` |
-| 1761 | `cmp <= → <` | `const trust = (z) => (z <= 0 ? 1 : z >= C ? 0 : (1 - (z / C) * (z / C)) ` |
-| 1762 | `cmp < → <=` | `for (let i = 0; i < S; i++) {` |
-| 1763 | `cmp <= → <` | `if (winCnt[i] <= 0) continue;` |
-| 1810 | `cmp >= → >` | `const inRange = rr.filter((v) => v >= 300 && v <= 2000);` |
-| 1810 | `cmp <= → <` | `const inRange = rr.filter((v) => v >= 300 && v <= 2000);` |
-| 1810 | `bool && → ||` | `const inRange = rr.filter((v) => v >= 300 && v <= 2000);` |
-| 1811 | `num → 0` | `const globalMed = inRange.length ? median(inRange) : 800;` |
-| 1849 | `cmp >= → >` | `if (runBad >= RESEED_AFTER) {` |
-| 1853 | `cmp <= → <` | `for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k]` |
-| 1853 | `cmp < → <=` | `for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k]` |
-| 1853 | `bool && → ||` | `for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k]` |
-| 1853 | `cmp <= → <` | `for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k]` |
-| 1853 | `cmp >= → >` | `for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k]` |
-| 1853 | `num → 0` | `for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k]` |
-| 1853 | `bool && → ||` | `for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k]` |
-| 1862 | `cmp > → >=` | `if (v < 300 \|\| v > 2000) bad = true;` |
-| 1862 | `cmp < → <=` | `if (v < 300 \|\| v > 2000) bad = true;` |
-| 1862 | `bool || → &&` | `if (v < 300 \|\| v > 2000) bad = true;` |
-| 1862 | `num → 0` | `if (v < 300 \|\| v > 2000) bad = true;` |
-| 1863 | `cmp > → >=` | `else if (Math.abs(v - ref) / ref > PPI_ECTOPY_THR) bad = true; // >30% o` |
-| 1889 | `cmp < → <=` | `if (N < 60 \|\| !tt \|\| tt.length !== N) return { events: [], index: 0 };` |
-| 1889 | `bool || → &&` | `if (N < 60 \|\| !tt \|\| tt.length !== N) return { events: [], index: 0 };` |
-| 1889 | `bool || → &&` | `if (N < 60 \|\| !tt \|\| tt.length !== N) return { events: [], index: 0 };` |
-| 1889 | `num → 0` | `if (N < 60 \|\| !tt \|\| tt.length !== N) return { events: [], index: 0 };` |
-| 1892 | `cmp < → <=` | `if (M < 120) return { events: [], index: 0 }; // < 2 min → no apnea-band` |
-| 1895 | `cmp < → <=` | `for (let s = 0; s < M; s++) {` |
-| 1896 | `cmp < → <=` | `while (j < N - 1 && tt[j + 1] < s) j++;` |
-| 1896 | `cmp < → <=` | `while (j < N - 1 && tt[j + 1] < s) j++;` |
-| 1900 | `cmp < → <=` | `for (let s = 0; s < M; s++) {` |
-| 1903 | `cmp <= → <` | `for (let k = -2; k <= 2; k++) {` |
-| 1905 | `cmp >= → >` | `if (u >= 0 && u < M) {` |
-| 1905 | `cmp < → <=` | `if (u >= 0 && u < M) {` |
-| 1905 | `bool && → ||` | `if (u >= 0 && u < M) {` |
-| 1915 | `cmp < → <=` | `for (let s = 0; s < M; s++) {` |
-| 1918 | `cmp <= → <` | `for (let k = -half; k <= half; k++) {` |
-| 1920 | `cmp < → <=` | `if (u >= 0 && u < M) {` |
-| 1920 | `cmp >= → >` | `if (u >= 0 && u < M) {` |
-| 1920 | `bool && → ||` | `if (u >= 0 && u < M) {` |
-| 1932 | `cmp < → <=` | `for (let s = 0; s < M; s++) res[s] = hiCut[s] - lo[s];` |
-| 1934 | `cmp < → <=` | `for (let s = 0; s < M; s++) {` |
-| 1937 | `cmp <= → <` | `for (let k = -12; k <= 12; k++) {` |
-| 1937 | `num → 0` | `for (let k = -12; k <= 12; k++) {` |
-| 1937 | `num → 0` | `for (let k = -12; k <= 12; k++) {` |
-| 1939 | `cmp >= → >` | `if (u >= 0 && u < M) {` |
-| 1939 | `cmp < → <=` | `if (u >= 0 && u < M) {` |
-| 1939 | `bool && → ||` | `if (u >= 0 && u < M) {` |
-| 1946 | `num → 0` | `const ENV_ON = 2.6; // bpm — sustained-oscillation gate (matches ECGDex)` |
-| 1948 | `num → 0` | `let lastT = -100;` |
-| 1949 | `cmp < → <=` | `for (let s = 8; s < M - 8; s++) {` |
-| 1950 | `cmp < → <=` | `if (env[s] < ENV_ON) continue;` |
-| 1951 | `cmp <= → <` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
-| 1951 | `cmp < → <=` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
-| 1951 | `cmp < → <=` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
-| 1951 | `bool && → ||` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
-| 1951 | `bool && → ||` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
-| 1951 | `num → 0` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
-| 1954 | `cmp < → <=` | `for (let u = s + 8; u < Math.min(M, s + 48); u++) {` |
-| 1955 | `cmp > → >=` | `if (res[u] > pk) {` |
-| 1962 | `cmp >= → >` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
-| 1962 | `cmp > → >=` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
-| 1962 | `cmp >= → >` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
-| 1962 | `cmp <= → <` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
-| 1962 | `bool && → ||` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
-| 1962 | `bool && → ||` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
-| 1962 | `bool && → ||` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
-| 1962 | `num → 0` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
-| 1962 | `num → 0` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
-| 1969 | `cmp > → >=` | `const index = hours > 0 ? +(events.length / hours).toFixed(1) : 0;` |
-| 1979 | `cmp < → <=` | `if (nn.length < 2) return null;` |
-| 1981 | `cmp >= → >` | `const base = keep.length >= 2 ? keep : nn; // never let the omission emp` |
-| 1997 | `cmp > → >=` | `if (Math.abs(d) > 50) nn50++;` |
-| 1999 | `cmp < → <=` | `if (cnt < 1) {` |
-| 2000 | `cmp < → <=` | `for (let i = 1; i < nn.length; i++) {` |
-| 2004 | `cmp > → >=` | `if (Math.abs(d) > 50) nn50++;` |
-| 2004 | `num → 0` | `if (Math.abs(d) > 50) nn50++;` |
-| 2013 | `num → 0` | `const b = Math.round(v / 7.8125);` |
-| 2014 | `bool || → &&` | `bins[b] = (bins[b] \|\| 0) + 1;` |
-| 2017 | `cmp > → >=` | `for (const k in bins) if (bins[k] > mx) mx = bins[k];` |
-| 2022 | `cmp < → <=` | `if (nn.length < 3) return null;` |
-| 2026 | `cmp < → <=` | `for (let i = 1; i < nn.length; i++) {` |
-| 2030 | `cmp < → <=` | `if (d.length < 2) {` |
-| 2032 | `cmp < → <=` | `for (let i = 1; i < nn.length; i++) d.push(nn[i] - nn[i - 1]);` |
-| 2036 | `num → 0` | `const sd2 = Math.sqrt(Math.max(0, 2 * sdnn * sdnn - 0.5 * std(d) * std(d` |
-| 2037 | `bool || → &&` | `return { sd1: r1(sd1), sd2: r1(sd2), sd1sd2: r2(sd1 / (sd2 \|\| 1)), ellAr` |
-| 2060 | `cmp < → <=` | `for (let i = 0; i < N; i++) y[i] -= slope * t[i] + icpt;` |
-| 2061 | `num → 0` | `const bands = { vlf: [0.003, 0.04], lf: [0.04, 0.15], hf: [0.15, 0.4] };` |
-| 2061 | `num → 0` | `const bands = { vlf: [0.003, 0.04], lf: [0.04, 0.15], hf: [0.15, 0.4] };` |
-| 2061 | `num → 0` | `const bands = { vlf: [0.003, 0.04], lf: [0.04, 0.15], hf: [0.15, 0.4] };` |
-| 2063 | `num → 0` | `fmax = 0.4,` |
-| 2079 | `cmp > → >=` | `const fNyq = _meanPPIs > 0 ? 1 / (2 * _meanPPIs) : fmax;` |
-| 2087 | `cmp <= → <` | `for (let f = fmin; f <= fCal; f += df) {` |
-| 2113 | `cmp < → <=` | `if (f >= bands.vlf[0] && f < bands.vlf[1]) vlf += pw;` |
-| 2114 | `cmp >= → >` | `else if (f >= bands.lf[0] && f < bands.lf[1]) lf += pw;` |
-| 2114 | `cmp < → <=` | `else if (f >= bands.lf[0] && f < bands.lf[1]) lf += pw;` |
-| 2115 | `cmp >= → >` | `else if (f >= bands.hf[0] && f < bands.hf[1]) {` |
-| 2115 | `cmp < → <=` | `else if (f >= bands.hf[0] && f < bands.hf[1]) {` |
-| 2171 | `cmp < → <=` | `if (nn.length < 50) return null;` |
-| 2171 | `num → 0` | `if (nn.length < 50) return null;` |
-| 2176 | `cmp < → <=` | `for (let i = 0; i < N; i++) {` |
-| 2181 | `cmp <= → <` | `for (let s = 4; s <= 16; s++) scales.push(s);` |
-| 2186 | `cmp < → <=` | `if (nWin < 1) continue;` |
-| 2241 | `cmp > → >=` | `if (N > MAXN) {` |
-| 2244 | `cmp < → <=` | `for (let i = 0; i < N; i += stride) dec.push(nn[i]);` |
-| 2267 | `cmp > → >=` | `if (nA > 0) {` |
-| 2269 | `cmp < → <=` | `for (let i = 0; i < nA; i++) ord[i] = i;` |
-| 2273 | `cmp < → <=` | `for (let a = 0; a < nA; a++) {` |
-| 2275 | `cmp < → <=` | `for (let b = a + 1; b < nA; b++) {` |
-| 2277 | `cmp > → >=` | `if (nn[j] - nn[i] > tol) break; // ordered ⇒ every later j is further st` |
-| 2280 | `cmp > → >=` | `if (Math.abs(nn[i + k] - nn[j + k]) > tol) {` |
-| 2285 | `negate: drop !` | `if (!ok) continue;` |
-| 2287 | `cmp <= → <` | `if (Math.abs(nn[i + m] - nn[j + m]) <= tol) A++;` |
-| 2292 | `cmp < → <=` | `for (let j = 0; j < t; j++) {` |
-| 2294 | `cmp < → <=` | `for (let k = 0; k < m; k++) {` |
-| 2295 | `cmp > → >=` | `if (Math.abs(nn[t + k] - nn[j + k]) > tol) {` |
-| 2307 | `bool || → &&` | `if (!B \|\| !A) return null;` |
-| 2322 | `bool || → &&` | `var p = String(headerLine \|\| '').split(';');` |
-| 2332 | `cmp >= → >` | `return idx.x >= 0 && idx.y >= 0 && idx.z >= 0 ? idx : null;` |
-| 2332 | `cmp >= → >` | `return idx.x >= 0 && idx.y >= 0 && idx.z >= 0 ? idx : null;` |
-| 2332 | `bool && → ||` | `return idx.x >= 0 && idx.y >= 0 && idx.z >= 0 ? idx : null;` |
-| 2332 | `bool && → ||` | `return idx.x >= 0 && idx.y >= 0 && idx.z >= 0 ? idx : null;` |
-| 2332 | `cmp >= → >` | `return idx.x >= 0 && idx.y >= 0 && idx.z >= 0 ? idx : null;` |
-| 2338 | `cmp < → <=` | `for (var k = 0; k < p.length; k++) {` |
-| 2341 | `cmp < → <=` | `if (nums.length < 3) return null;` |
-| 2352 | `bool && → ||` | `if (/timestamp/i.test(t) && !cols) {` |
-| 2352 | `negate: drop !` | `if (/timestamp/i.test(t) && !cols) {` |
-| 2357 | `cmp < → <=` | `if (p.length < 5) continue;` |
-| 2358 | `bool || → &&` | `const c = cols \|\| xyzColsByTail(p);` |
-| 2364 | `cmp >= → >` | `const b = BigInt(p[c.ns >= 0 ? c.ns : 1].trim());` |
-| 2365 | `eq === → !==` | `if (ns0 === null) ns0 = b;` |
-| 2368 | `cmp >= → >` | `const ts = parseTimestamp(p[c.phone >= 0 ? c.phone : 0]);` |
-| 2390 | `bool || → &&` | `opts = opts \|\| {};` |
-| 2394 | `bool || → &&` | `if (!grid \|\| !grid.length \|\| !(dtSec > 0)) return [];` |
-| 2404 | `cmp < → <=` | `for (let i = 0; i < n; i++) {` |
-| 2408 | `bool || → &&` | `const sd = Math.sqrt(v / n) \|\| 1;` |
-| 2413 | `cmp < → <=` | `if (grid[c] < thr) continue;` |
-| 2415 | `cmp <= → <` | `for (let k = c - localBins; k <= c + localBins; k++) {` |
-| 2416 | `cmp >= → >` | `if (k >= 0 && k < n && grid[k] > grid[c]) {` |
-| 2416 | `cmp < → <=` | `if (k >= 0 && k < n && grid[k] > grid[c]) {` |
-| 2423 | `cmp < → <=` | `if (sec - last < minGapSec) continue;` |
-| 2439 | `cmp > → >=` | `const has = (accRows && accRows.length > 5) \|\| (gyroRows && gyroRows.len` |
-| 2439 | `cmp > → >=` | `const has = (accRows && accRows.length > 5) \|\| (gyroRows && gyroRows.len` |
-| 2456 | `cmp < → <=` | `if (!rows \|\| rows.length < 2) return true;` |
-| 2458 | `cmp < → <=` | `for (let i = 0; i < rows.length; i++) {` |
-| 2461 | `cmp < → <=` | `if (v < prev) return false;` |
-| 2470 | `bool && → ||` | `if (r.tMs != null && t0Ms != null) return (r.tMs - t0Ms) / 1000;` |
-| 2485 | `cmp < → <=` | `if (!rows \|\| rows.length < 3) return null;` |
-| 2491 | `cmp > → >=` | `if (prev != null && t > prev) d.push(t - prev);` |
-| 2491 | `bool && → ||` | `if (prev != null && t > prev) d.push(t - prev);` |
-| 2497 | `bool && → ||` | `return isFinite(dm) && dm > 0 ? 1 / dm : null;` |
-| 2497 | `cmp > → >=` | `return isFinite(dm) && dm > 0 ? 1 / dm : null;` |
-| 2503 | `cmp > → >=` | `if (accRows && accRows.length > 5) {` |
-| 2548 | `cmp > → >=` | `if (gyroRows && gyroRows.length > 5) {` |
-| 2551 | `num → 0` | `const p10 = sortedGy[Math.floor(sortedGy.length * 0.1)];` |
-| 2552 | `cmp > → >=` | `gyroBias = Math.min(isFinite(p10) && p10 > 0 ? p10 : 0, GY_FULL / 4);` |
-| 2552 | `bool && → ||` | `gyroBias = Math.min(isFinite(p10) && p10 > 0 ? p10 : 0, GY_FULL / 4);` |
-| 2570 | `cmp >= → >` | `if (g >= 0 && g < nG) {` |
-| 2570 | `bool && → ||` | `if (g >= 0 && g < nG) {` |
-| 2570 | `cmp < → <=` | `if (g >= 0 && g < nG) {` |
-| 2578 | `cmp >= → >` | `if (g >= 0 && g < nG) {` |
-| 2578 | `bool && → ||` | `if (g >= 0 && g < nG) {` |
-| 2578 | `cmp < → <=` | `if (g >= 0 && g < nG) {` |
-| 2594 | `cmp < → <=` | `for (let i = 0; i < nG; i++) {` |
-| 2602 | `cmp >= → >` | `return g >= 0 && g < nG ? sm[g] : 0;` |
-| 2602 | `bool && → ||` | `return g >= 0 && g < nG ? sm[g] : 0;` |
-| 2602 | `cmp < → <=` | `return g >= 0 && g < nG ? sm[g] : 0;` |
-| 2610 | `cmp >= → >` | `return g >= 0 && g < nG && covCell[g] === 1;` |
-| 2610 | `cmp < → <=` | `return g >= 0 && g < nG && covCell[g] === 1;` |
-| 2613 | `cmp < → <=` | `for (let i = 0; i < nG; i++) if (covCell[i]) _nCov++;` |
-| 2618 | `num → 0` | `const stride = Math.max(1, Math.floor(nG / 600));` |
-| 2619 | `cmp < → <=` | `for (let i = 0; i < nG; i += stride) series.push({ x: (i * dt) / 60, y: ` |
-| 2619 | `num → 0` | `for (let i = 0; i < nG; i += stride) series.push({ x: (i * dt) / 60, y: ` |
-| 2637 | `cmp > → >=` | `const magHas = !!(magRows && magRows.length > 5);` |
-| 2645 | `bool || → &&` | `magState.base = median(magState.mag.filter(isFinite)) \|\| 0; // session \|` |
-| 2650 | `bool || → &&` | `const gn = Math.hypot(g.x, g.y, g.z) \|\| 1,` |
-| 2661 | `cmp < → <=` | `if (Math.abs(ux) < 0.9) ax = 1;` |
-| 2661 | `num → 0` | `if (Math.abs(ux) < 0.9) ax = 1;` |
-| 2666 | `bool || → &&` | `const e1n = Math.hypot(e1x, e1y, e1z) \|\| 1;` |
-| 2673 | `num → 0` | `return (Math.atan2(hx * e2x + hy * e2y + hz * e2z, hx * e1x + hy * e1y +` |
-| 2675 | `num → 0` | `return (Math.atan2(My, Mx) * 180) / Math.PI;` |
-| 2677 | `cmp > → >=` | `if (accRows && accRows.length > 5) {` |
-| 2678 | `num → 0` | `const w = Math.max(3, Math.round((accRows.length / durSec) * 2.0)); // ~` |
-| 2689 | `cmp < → <=` | `for (let i = 0; i < ss.length; i += gStride) {` |
-| 2690 | `cmp >= → >` | `if (ss[i] != null && ss[i] >= s0 && ss[i] < s1) {` |
-| 2690 | `cmp < → <=` | `if (ss[i] != null && ss[i] >= s0 && ss[i] < s1) {` |
-| 2700 | `negate: drop !` | `if (!magState.has) return null;` |
-| 2704 | `cmp < → <=` | `for (let i = 0; i < magState.ss.length; i++) {` |
-| 2706 | `cmp >= → >` | `if (s != null && s >= s0 && s < s1) {` |
-| 2706 | `cmp < → <=` | `if (s != null && s >= s0 && s < s1) {` |
-| 2706 | `bool && → ||` | `if (s != null && s >= s0 && s < s1) {` |
-| 2706 | `bool && → ||` | `if (s != null && s >= s0 && s < s1) {` |
-| 2712 | `cmp < → <=` | `if (sx.length < 3) return null;` |
-| 2718 | `negate: drop !` | `if (!magState.has) return false;` |
-| 2720 | `cmp < → <=` | `for (let i = 0; i < magState.ss.length; i++) {` |
-| 2722 | `cmp >= → >` | `if (s != null && s >= s0 && s < s1) v.push(magState.mag[i]);` |
-| 2722 | `cmp < → <=` | `if (s != null && s >= s0 && s < s1) v.push(magState.mag[i]);` |
-| 2722 | `bool && → ||` | `if (s != null && s >= s0 && s < s1) v.push(magState.mag[i]);` |
-| 2722 | `bool && → ||` | `if (s != null && s >= s0 && s < s1) v.push(magState.mag[i]);` |
-| 2724 | `cmp < → <=` | `if (v.length < 3) return false;` |
-| 2727 | `bool || → &&` | `bg = magState.base \|\| 1;` |
-| 2728 | `cmp > → >=` | `return !!(sd > Math.max(0.03, 0.04 * bg) \|\| Math.abs(md - bg) / bg > 0.2` |
-| 2728 | `cmp > → >=` | `return !!(sd > Math.max(0.03, 0.04 * bg) \|\| Math.abs(md - bg) / bg > 0.2` |
-| 2728 | `bool || → &&` | `return !!(sd > Math.max(0.03, 0.04 * bg) \|\| Math.abs(md - bg) / bg > 0.2` |
-| 2728 | `num → 0` | `return !!(sd > Math.max(0.03, 0.04 * bg) \|\| Math.abs(md - bg) / bg > 0.2` |
-| 2728 | `num → 0` | `return !!(sd > Math.max(0.03, 0.04 * bg) \|\| Math.abs(md - bg) / bg > 0.2` |
-| 2728 | `num → 0` | `return !!(sd > Math.max(0.03, 0.04 * bg) \|\| Math.abs(md - bg) / bg > 0.2` |
-| 2737 | `cmp < → <=` | `for (let s = 0; s < durSec; s += 30) {` |
-| 2737 | `num → 0` | `for (let s = 0; s < durSec; s += 30) {` |
-| 2738 | `num → 0` | `const g = gravMed(s, s + 30);` |
-| 2739 | `negate: drop !` | `if (!g) continue;` |
-| 2741 | `eq === → !==` | `if (base === 'supine' \|\| base === 'prone' \|\| base === 'upright') {` |
-| 2741 | `eq === → !==` | `if (base === 'supine' \|\| base === 'prone' \|\| base === 'upright') {` |
-| 2741 | `eq === → !==` | `if (base === 'supine' \|\| base === 'prone' \|\| base === 'upright') {` |
-| 2741 | `bool || → &&` | `if (base === 'supine' \|\| base === 'prone' \|\| base === 'upright') {` |
-| 2741 | `bool || → &&` | `if (base === 'supine' \|\| base === 'prone' \|\| base === 'upright') {` |
-| 2742 | `num → 0` | `const h = headingAtSec(s, s + 30);` |
-| 2744 | `num → 0` | `const rad = (h * Math.PI) / 180;` |
-| 2751 | `cmp > → >=` | `if (cnt > 0) refHeading = (Math.atan2(sumS, sumC) * 180) / Math.PI;` |
-| 2751 | `num → 0` | `if (cnt > 0) refHeading = (Math.atan2(sumS, sumC) * 180) / Math.PI;` |
-| 2758 | `num → 0` | `const need = (accRows.length / durSec) * 30; // need ≥30 s of gravity sa` |
-| 2759 | `cmp < → <=` | `if (!g \|\| g.n < need / gStride) return { position: 'unknown', conf: 0, h` |
-| 2764 | `eq === → !==` | `if (base === 'lateral' && heading != null && refHeading != null && !magI` |
-| 2764 | `bool && → ||` | `if (base === 'lateral' && heading != null && refHeading != null && !magI` |
-| 2764 | `bool && → ||` | `if (base === 'lateral' && heading != null && refHeading != null && !magI` |
-| 2764 | `negate: drop !` | `if (base === 'lateral' && heading != null && refHeading != null && !magI` |
-| 2764 | `bool && → ||` | `if (base === 'lateral' && heading != null && refHeading != null && !magI` |
-| 2766 | `cmp > → >=` | `while (d > 180) d -= 360;` |
-| 2766 | `num → 0` | `while (d > 180) d -= 360;` |
-| 2766 | `num → 0` | `while (d > 180) d -= 360;` |
-| 2767 | `cmp < → <=` | `while (d < -180) d += 360;` |
-| 2767 | `num → 0` | `while (d < -180) d += 360;` |
-| 2767 | `num → 0` | `while (d < -180) d += 360;` |
-| 2768 | `cmp >= → >` | `if (Math.abs(d) >= 30) base = d >= 0 ? 'lateral_R' : 'lateral_L';` |
-| 2768 | `num → 0` | `if (Math.abs(d) >= 30) base = d >= 0 ? 'lateral_R' : 'lateral_L';` |
-| 2768 | `cmp >= → >` | `if (Math.abs(d) >= 30) base = d >= 0 ? 'lateral_R' : 'lateral_L';` |
-| 2771 | `bool || → &&` | `const gn = Math.hypot(g.x, g.y, g.z) \|\| 1,` |
-| 2773 | `num → 0` | `let conf = Math.max(0, Math.min(1, (dom - 0.577) / (1 - 0.577)));` |
-| 2773 | `num → 0` | `let conf = Math.max(0, Math.min(1, (dom - 0.577) / (1 - 0.577)));` |
-| 2774 | `num → 0` | `conf *= Math.max(0.3, Math.min(1, (g.n * gStride) / need));` |
-| 2775 | `eq === → !==` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
-| 2775 | `eq === → !==` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
-| 2775 | `bool && → ||` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
-| 2775 | `bool && → ||` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
-| 2775 | `bool || → &&` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
-| 2775 | `num → 0` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
-| 2775 | `negate: drop !` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
-| 2775 | `num → 0` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
-| 2776 | `num → 0` | `if (magInterf) conf *= 0.6;` |
-| 2777 | `num → 0` | `return { position: base, conf: r2(conf), heading: heading != null ? Math` |
-| 2777 | `num → 0` | `return { position: base, conf: r2(conf), heading: heading != null ? Math` |
-| 2777 | `num → 0` | `return { position: base, conf: r2(conf), heading: heading != null ? Math` |
-| 2798 | `cmp > → >=` | `gyroBiasDps: gyroRows && gyroRows.length > 5 ? r2(gyroBias) : null,` |
-| 2805 | `bool && → ||` | `refHeadingDeg: magState.has && magState.refHeading != null ? Math.round(` |
-| 2805 | `num → 0` | `refHeadingDeg: magState.has && magState.refHeading != null ? Math.round(` |
-| 2805 | `num → 0` | `refHeadingDeg: magState.has && magState.refHeading != null ? Math.round(` |
-| 2805 | `num → 0` | `refHeadingDeg: magState.has && magState.refHeading != null ? Math.round(` |
-| 2816 | `cmp >= → >` | `if (Math.abs(uz) >= 0.7) return uz > 0 ? 'supine' : 'prone';` |
-| 2816 | `cmp > → >=` | `if (Math.abs(uz) >= 0.7) return uz > 0 ? 'supine' : 'prone';` |
-| 2817 | `cmp >= → >` | `if (Math.abs(uy) >= 0.55) return 'upright';` |
-| 2832 | `negate: drop !` | `if (!t) continue;` |
-| 2834 | `cmp < → <=` | `if (p.length < 2) continue;` |
-| 2836 | `negate: drop !` | `if (!isFinite(ppi)) continue;` |
-| 2886 | `cmp < → <=` | `for (let i = 0; i < vals.length; i++) {` |
-| 2887 | `num → 0` | `acc += vals[i] / 1000;` |
-| 2923 | `num → 0` | `const ALLAN_MIN_PAIRS = 64; // below this the octave ladder has too few ` |
-| 2934 | `cmp < → <=` | `if (N < 3) return [];` |
-| 2936 | `cmp < → <=` | `for (let j = 0; j < N; j++) pre[j + 1] = pre[j] + y[j];` |
-| 2938 | `cmp <= → <` | `for (let m = 1; 2 * m + 1 <= N; m *= 2) {` |
-| 2946 | `cmp < → <=` | `if (cnt < 8) break; // an estimate from a handful of terms is wider than` |
-| 2956 | `num → 0` | `[-0.75, 'white/flicker-phase', 'jitter — averages away fast'],` |
-| 2957 | `num → 0` | `[-0.25, 'white-frequency', 'benign; averaging helps as √N'],` |
-| 2958 | `num → 0` | `[0.25, 'flicker-frequency', 'A FLOOR — more averaging buys nothing'],` |
-| 2959 | `num → 0` | `[0.75, 'random-walk-frequency', 'wanders; a longer fit is worse than a s` |
-| 2969 | `cmp > → >=` | `const pts = (points \|\| []).filter((p) => p.adev > 0 && p.tau > 0);` |
-| 2969 | `cmp > → >=` | `const pts = (points \|\| []).filter((p) => p.adev > 0 && p.tau > 0);` |
-| 2969 | `bool && → ||` | `const pts = (points \|\| []).filter((p) => p.adev > 0 && p.tau > 0);` |
-| 2970 | `cmp < → <=` | `if (pts.length < 3) return null; // two points fit any line and cannot b` |
-| 2982 | `cmp > → >=` | `if (!(sxx > 0)) return null;` |
-| 2986 | `cmp < → <=` | `for (let i = 0; i < k; i++) {` |
-| 3030 | `cmp > → >=` | `const half = se > 0 ? 1.96 * se : 0;` |
-| 3030 | `num → 0` | `const half = se > 0 ? 1.96 * se : 0;` |
-| 3031 | `cmp < → <=` | `const straddled = edges.filter((e) => sl - half < e && e < sl + half);` |
-| 3031 | `cmp < → <=` | `const straddled = edges.filter((e) => sl - half < e && e < sl + half);` |
-| 3035 | `cmp < → <=` | `if (sl < Number(ALLAN_NOISE[i][0])) {` |
-| 3047 | `cmp < → <=` | `for (let i = 0; i < ALLAN_NOISE.length; i++) {` |
-| 3048 | `eq === → !==` | `const lo = i === 0 ? -Infinity : Number(ALLAN_NOISE[i - 1][0]);` |
-| 3049 | `cmp < → <=` | `if (sl - half < Number(ALLAN_NOISE[i][0]) && sl + half > lo) cands.push(` |
-| 3049 | `cmp > → >=` | `if (sl - half < Number(ALLAN_NOISE[i][0]) && sl + half > lo) cands.push(` |
-| 3049 | `bool && → ||` | `if (sl - half < Number(ALLAN_NOISE[i][0]) && sl + half > lo) cands.push(` |
-| 3051 | `cmp > → >=` | `if (sl + half > Number(ALLAN_NOISE[ALLAN_NOISE.length - 1][0])) cands.pu` |
-| 3067 | `cmp < → <=` | `if (!selfSec \|\| !fwSec \|\| selfSec.length < ALLAN_MIN_PAIRS \|\| fwSec.leng` |
-| 3067 | `cmp < → <=` | `if (!selfSec \|\| !fwSec \|\| selfSec.length < ALLAN_MIN_PAIRS \|\| fwSec.leng` |
-| 3067 | `bool || → &&` | `if (!selfSec \|\| !fwSec \|\| selfSec.length < ALLAN_MIN_PAIRS \|\| fwSec.leng` |
-| 3071 | `cmp < → <=` | `for (let k = 0; k < selfSec.length; k++) {` |
-| 3077 | `cmp < → <=` | `if (fwSec[mid] < t) lo = mid + 1;` |
-| 3082 | `cmp < → <=` | `if (lo > 0 && Math.abs(fwSec[lo - 1] - t) < best) {` |
-| 3082 | `cmp > → >=` | `if (lo > 0 && Math.abs(fwSec[lo - 1] - t) < best) {` |
-| 3086 | `cmp < → <=` | `if (best < tol) {` |
-| 3091 | `cmp < → <=` | `if (ph.length < ALLAN_MIN_PAIRS) return null;` |
-| 3093 | `cmp > → >=` | `if (!(tau0 > 0)) return null;` |
-| 3095 | `cmp < → <=` | `if (curve.length < 3) return null;` |
-| 3097 | `bool && → ||` | `const cls = classifyAllan(fit && fit.slope, fit && fit.se, fit && fit.nT` |
-| 3097 | `bool && → ||` | `const cls = classifyAllan(fit && fit.slope, fit && fit.se, fit && fit.nT` |
-| 3100 | `cmp < → <=` | `for (const p of curve) if (p.adev < best.adev) best = p;` |
-| 3103 | `num → 0` | `pairedPct: r1((100 * ph.length) / selfSec.length),` |
-| 3173 | `cmp < → <=` | `for (const t of trains) if (!t \|\| t.length < TCH_MIN_TRIPLES) return nul` |
-| 3173 | `bool || → &&` | `for (const t of trains) if (!t \|\| t.length < TCH_MIN_TRIPLES) return nul` |
-| 3180 | `cmp < → <=` | `if (arr[m] < t) lo = m + 1;` |
-| 3185 | `cmp > → >=` | `if (lo > 0 && Math.abs(arr[lo - 1] - t) < b) {` |
-| 3185 | `cmp < → <=` | `if (lo > 0 && Math.abs(arr[lo - 1] - t) < b) {` |
-| 3201 | `cmp < → <=` | `if (b.d < tol && c.d < tol) {` |
-| 3201 | `cmp < → <=` | `if (b.d < tol && c.d < tol) {` |
-| 3201 | `bool && → ||` | `if (b.d < tol && c.d < tol) {` |
-| 3207 | `cmp < → <=` | `if (A.length < TCH_MIN_TRIPLES) return null;` |
-| 3209 | `cmp > → >=` | `if (!(tau0 > 0)) return null;` |
-| 3215 | `cmp < → <=` | `if (nT < 3) return null;` |
-| 3223 | `cmp < → <=` | `for (let c = 0; c < 3; c++) if (split[c] < 0) bad = true;` |
-| 3223 | `cmp < → <=` | `for (let c = 0; c < 3; c++) if (split[c] < 0) bad = true;` |
-| 3225 | `cmp >= → >` | `for (let c = 0; c < 3; c++) per[c].push({ tau: ab[i].tau, adev: split[c]` |
-| 3232 | `cmp > → >=` | `for (const q of curve) if (q.adev != null && q.adev > 0) pts.push({ tau:` |
-| 3232 | `bool && → ||` | `for (const q of curve) if (q.adev != null && q.adev > 0) pts.push({ tau:` |
-| 3260 | `bool && → ||` | `polarityUnanimous: opts && opts.signs ? opts.signs.every((s) => s === op` |
-| 3260 | `eq === → !==` | `polarityUnanimous: opts && opts.signs ? opts.signs.every((s) => s === op` |
-| 3265 | `cmp < → <=` | `if (!rr \|\| rr.length < 2) return 0;` |
-| 3265 | `bool || → &&` | `if (!rr \|\| rr.length < 2) return 0;` |
-| 3279 | `cmp > → >=` | `const dev = devicePPI.filter((d) => d.ppi > 300 && d.ppi < 2000 && (d.bl` |
-| 3279 | `cmp < → <=` | `const dev = devicePPI.filter((d) => d.ppi > 300 && d.ppi < 2000 && (d.bl` |
-| 3279 | `num → 0` | `const dev = devicePPI.filter((d) => d.ppi > 300 && d.ppi < 2000 && (d.bl` |
-| 3280 | `cmp < → <=` | `if (dev.length < 3 \|\| selfNN.length < 3) return { hasData: true, filePre` |
-| 3280 | `cmp < → <=` | `if (dev.length < 3 \|\| selfNN.length < 3) return { hasData: true, filePre` |
-| 3280 | `bool || → &&` | `if (dev.length < 3 \|\| selfNN.length < 3) return { hasData: true, filePre` |
-| 3286 | `cmp < → <=` | `if (self.length < 3 \|\| devc.length < 3) return { hasData: true, filePres` |
-| 3286 | `cmp < → <=` | `if (self.length < 3 \|\| devc.length < 3) return { hasData: true, filePres` |
-| 3286 | `bool || → &&` | `if (self.length < 3 \|\| devc.length < 3) return { hasData: true, filePres` |
-| 3293 | `num → 0` | `const pct = (a, b) => (b ? r1((100 * Math.abs(a - b)) / b) : null);` |
-| 3294 | `num → 0` | `const agree = 100 * (1 - Math.min(1, Math.abs(sM - dM) / dM));` |
-| 3336 | `cmp < → <=` | `if (nn.length < 2) return epochs;` |
-| 3339 | `cmp < → <=` | `for (let e0 = 0; e0 < tEnd; e0 += epLen) {` |
-| 3341 | `cmp < → <=` | `for (let i = 0; i < tt.length; i++) {` |
-| 3342 | `cmp >= → >` | `if (tt[i] >= e0 && tt[i] < e0 + epLen) idx.push(i);` |
-| 3342 | `cmp < → <=` | `if (tt[i] >= e0 && tt[i] < e0 + epLen) idx.push(i);` |
-| 3344 | `cmp < → <=` | `if (idx.length < 5) continue;` |
-| 3411 | `cmp < → <=` | `return (x < 10 ? '0' : '') + x;` |
-| 3411 | `num → 0` | `return (x < 10 ? '0' : '') + x;` |
-| 3438 | `num → 0` | `P(45, 'Ranking optical channels…');` |
-| 3446 | `num → 0` | `P(55, 'Optical beat detection · 3-LED (systolic feet)…');` |
-| 3451 | `eq === → !==` | `const perChannelAll = rec._preChannels && rec._preChannels.length === re` |
-| 3499 | `cmp > → >=` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
-| 3499 | `cmp > → >=` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
-| 3499 | `bool && → ||` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
-| 3499 | `bool && → ||` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
-| 3499 | `bool && → ||` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
-| 3499 | `num → 0` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
-| 3499 | `num → 0` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
-| 3500 | `bool && → ||` | `const _chSnr = keepIdx.map((c) => (sel.scores && sel.scores[c] ? sel.sco` |
-| 3538 | `cmp < → <=` | `for (let k = 0, prevKept = -1; k < cons.peaks.length; k++) {` |
-| 3540 | `cmp >= → >` | `if (prevKept >= 0) bridged.push(k - prevKept > 1); // >= 1 beat removed ` |
-| 3551 | `num → 0` | `P(62, 'Motion gate (ACC + GYRO)…');` |
-| 3555 | `num → 0` | `P(68, 'Per-beat SQI (× 3-LED agreement)…');` |
-| 3570 | `num → 0` | `P(74, 'PPI + HRV…');` |
-| 3599 | `num → 0` | `const _rateFoot = _ppiFoot.rr.length ? (100 * _corrFoot.nCorr) / _ppiFoo` |
-| 3600 | `num → 0` | `const _ratePeak = _ppiPeak.rr.length ? (100 * _corrPeak.nCorr) / _ppiPea` |
-| 3601 | `cmp < → <=` | `const footSpineOK = !(_ratePeak < _rateFoot - PPI_SPINE_MARGIN_PP);` |
-| 3604 | `cmp > → >=` | `const ppiAgreement = _mFoot > 0 && _mPeak > 0 ? Math.min(_mFoot, _mPeak)` |
-| 3604 | `cmp > → >=` | `const ppiAgreement = _mFoot > 0 && _mPeak > 0 ? Math.min(_mFoot, _mPeak)` |
-| 3604 | `bool && → ||` | `const ppiAgreement = _mFoot > 0 && _mPeak > 0 ? Math.min(_mFoot, _mPeak)` |
-| 3625 | `bool || → &&` | `rec.t0Ms \|\| 0` |
-| 3627 | `bool || → &&` | `const _t0 = rec.t0Ms \|\| 0;` |
-| 3629 | `num → 0` | `const c = _pConfMap.get(Math.floor((_t0 + s * 1000) / 1000));` |
-| 3629 | `num → 0` | `const c = _pConfMap.get(Math.floor((_t0 + s * 1000) / 1000));` |
-| 3652 | `cmp < → <=` | `for (let i = 0; i < nn.length; i++) spansGap[i] = !!spansTime[i] \|\| !!(b` |
-| 3655 | `cmp < → <=` | `for (let i = 0; i < nn.length; i++) {` |
-| 3659 | `cmp >= → >` | `cleanMask[i] = corr.flags[i] === 0 && q0 >= 0.5 && q1 >= 0.5 && !spansGa` |
-| 3659 | `cmp >= → >` | `cleanMask[i] = corr.flags[i] === 0 && q0 >= 0.5 && q1 >= 0.5 && !spansGa` |
-| 3659 | `num → 0` | `cleanMask[i] = corr.flags[i] === 0 && q0 >= 0.5 && q1 >= 0.5 && !spansGa` |
-| 3659 | `num → 0` | `cleanMask[i] = corr.flags[i] === 0 && q0 >= 0.5 && q1 >= 0.5 && !spansGa` |
-| 3664 | `cmp < → <=` | `for (let i = 0; i < nn.length; i++) {` |
-| 3667 | `bool && → ||` | `agreeI[i] = a0 != null && a1 != null ? (a0 + a1) / 2 : a0 != null ? a0 :` |
-| 3679 | `cmp > → >=` | `const perfWindow = () => (dc > 0 ? r2((100 * acAmp) / dc) : null);` |
-| 3681 | `num → 0` | `P(80, 'Epochs…');` |
-| 3686 | `cmp >= → >` | `const cleanBeats = sqi.filter((s) => s >= 0.5).length;` |
-| 3688 | `num → 0` | `const motionRejected = motion.hasData ? det.peaks.filter((p, k) => /** @` |
-| 3688 | `cmp > → >=` | `const motionRejected = motion.hasData ? det.peaks.filter((p, k) => /** @` |
-| 3689 | `num → 0` | `const motionRejectedPct = det.peaks.length ? r1((100 * motionRejected) /` |
-| 3696 | `bool && → ||` | `const magInterferencePct = motion.hasMag && magKnown.length ? Math.round` |
-| 3696 | `num → 0` | `const magInterferencePct = motion.hasMag && magKnown.length ? Math.round` |
-| 3732 | `bool && → ||` | `const segAll = epochs.map((e) => e.sdnn).filter((v) => v != null && isFi` |
-| 3755 | `cmp >= → >` | `const gatedEp = epochs.filter((e) => e.sdnn != null && isFinite(e.sdnn) ` |
-| 3755 | `cmp <= → <` | `const gatedEp = epochs.filter((e) => e.sdnn != null && isFinite(e.sdnn) ` |
-| 3755 | `num → 0` | `const gatedEp = epochs.filter((e) => e.sdnn != null && isFinite(e.sdnn) ` |
-| 3756 | `bool && → ||` | `const usable = gatedEp.length >= 3 ? gatedEp : epochs.filter((e) => e.sd` |
-| 3768 | `bool && → ||` | `if (sd1 != null && sdnnRobust != null) sd2Robust = r1(Math.sqrt(Math.max` |
-| 3770 | `bool && → ||` | `const lfA = usable.map((e) => e.lf).filter((v) => v != null && isFinite(` |
-| 3771 | `bool && → ||` | `const hfA = usable.map((e) => e.hf).filter((v) => v != null && isFinite(` |
-| 3772 | `bool && → ||` | `const lhA = usable.map((e) => e.lfhf).filter((v) => v != null && isFinit` |
-| 3773 | `bool && → ||` | `const vlA = usable.map((e) => e.vlf).filter((v) => v != null && isFinite` |
-| 3774 | `cmp >= → >` | `if (lfA.length >= 3) lfRobust = r1(median(lfA));` |
-| 3775 | `cmp >= → >` | `if (hfA.length >= 3) hfRobust = r1(median(hfA));` |
-| 3776 | `cmp >= → >` | `if (lhA.length >= 3) lfhfRobust = r2(median(lhA));` |
-| 3777 | `cmp >= → >` | `if (vlA.length >= 3) vlfRobust = r1(median(vlA));` |
-| 3779 | `bool && → ||` | `if (vlfRobust != null && lfRobust != null && hfRobust != null) tpRobust ` |
-| 3779 | `bool && → ||` | `if (vlfRobust != null && lfRobust != null && hfRobust != null) tpRobust ` |
-| 3783 | `num → 0` | `const MOT_STRICT = 0.15;` |
-| 3791 | `cmp <= → <` | `const lowMot = motKnown.filter((e) => e.motionIndex <= MOT_STRICT);` |
-| 3792 | `bool && → ||` | `const hfLM = lowMot.map((e) => e.hf).filter((v) => v != null && isFinite` |
-| 3793 | `cmp >= → >` | `if (hfLM.length >= 3) hfRobustLowMotion = r1(median(hfLM));` |
-| 3808 | `eq === → !==` | `if (epochs[i].position === 'unknown' \|\| epochs[i - 1].position === 'unkn` |
-| 3808 | `eq === → !==` | `if (epochs[i].position === 'unknown' \|\| epochs[i - 1].position === 'unkn` |
-| 3808 | `bool || → &&` | `if (epochs[i].position === 'unknown' \|\| epochs[i - 1].position === 'unkn` |
-| 3810 | `eq !== → ===` | `if (epochs[i].position !== epochs[i - 1].position) posShift++;` |
-| 3813 | `num → 0` | `const durFactor = Math.max(0, Math.min(1, rec.durSec / 60 / 60)); // VLF` |
-| 3813 | `num → 0` | `const durFactor = Math.max(0, Math.min(1, rec.durSec / 60 / 60)); // VLF` |
-| 3824 | `cmp < → <=` | `motion: motKnown.length === 0 ? 'none' : motKnown.length < epochs.length` |
-| 3825 | `cmp < → <=` | `posture: posPairs === 0 ? 'none' : posPairs < epochs.length - 1 ? 'parti` |
-| 3833 | `num → 0` | `sdnn: qPosture == null ? null : c(qCov * qCorr * (0.6 + 0.4 * qPosture))` |
-| 3833 | `num → 0` | `sdnn: qPosture == null ? null : c(qCov * qCorr * (0.6 + 0.4 * qPosture))` |
-| 3837 | `num → 0` | `vlf: qPosture == null ? null : c(Math.min(0.7, qPosture * durFactor)),` |
-| 3844 | `bool && → ||` | `motionCoveredFrac: motion.hasData && motion.motionCoveredFrac != null ? ` |
-| 3857 | `cmp > → >=` | `ledAgree3of3Pct = cons.kept33 + cons.kept22 > 0 ? Math.round((100 * cons` |
-| 3857 | `num → 0` | `ledAgree3of3Pct = cons.kept33 + cons.kept22 > 0 ? Math.round((100 * cons` |
-| 3858 | `num → 0` | `const epLen = 300,` |
-| 3864 | `cmp >= → >` | `if (c.nAgree >= 3) bins[e].c3++;` |
-| 3865 | `eq === → !==` | `else if (c.nAgree === 2) bins[e].c2++;` |
-| 3871 | `bool || → &&` | `tot = b.c1 + b.c2 + b.c3 \|\| 1;` |
-| 3903 | `cmp > → >=` | `const hrvLowConfidence = analyzablePct < 60 \|\| correctionRate > 20 \|\| hr` |
-| 3903 | `cmp < → <=` | `const hrvLowConfidence = analyzablePct < 60 \|\| correctionRate > 20 \|\| hr` |
-| 3903 | `bool || → &&` | `const hrvLowConfidence = analyzablePct < 60 \|\| correctionRate > 20 \|\| hr` |
-| 3903 | `num → 0` | `const hrvLowConfidence = analyzablePct < 60 \|\| correctionRate > 20 \|\| hr` |
-| 3918 | `cmp < → <=` | `if (durMin < 1) {` |
-| 3920 | `cmp < → <=` | `} else if (durMin < 5) {` |
-| 3922 | `cmp < → <=` | `} else if (durMin < 90) {` |
-| 3922 | `num → 0` | `} else if (durMin < 90) {` |
-| 3925 | `cmp >= → >` | `const longRec = durMin >= 90;` |
-| 3925 | `num → 0` | `const longRec = durMin >= 90;` |
-| 3955 | `cmp > → >=` | `if ((!ppiSeries \|\| !ppiSeries.length) && rec.beatMarkerSec && rec.beatMa` |
-| 3955 | `negate: drop !` | `if ((!ppiSeries \|\| !ppiSeries.length) && rec.beatMarkerSec && rec.beatMa` |
-| 3957 | `cmp < → <=` | `for (let i = 1; i < rec.beatMarkerSec.length; i++) {` |
-| 3960 | `num → 0` | `mk.push({ ppi: (rec.beatMarkerSec[i] - rec.beatMarkerSec[i - 1]) * 1000,` |
-| 3972 | `eq === → !==` | `if (validation && validation.usable && ppiSource === 'o2ring-marker' && ` |
-| 3972 | `bool && → ||` | `if (validation && validation.usable && ppiSource === 'o2ring-marker' && ` |
-| 3972 | `bool && → ||` | `if (validation && validation.usable && ppiSource === 'o2ring-marker' && ` |
-| 3982 | `num → 0` | `P(92, 'Finalising…');` |
-| 3983 | `bool && → ||` | `const dispHr = longRec && epochs.length ? median(epochs.map((e) => e.hr)` |
-| 3986 | `bool || → &&` | `source: rec.source \|\| 'file',` |
-| 3987 | `bool || → &&` | `fname: rec.fname \|\| '',` |
-| 4099 | `bool || → &&` | `siteSource: rec.siteSource \|\| 'device-default',` |
-| 4122 | `bool || → &&` | `sentinelRejected: rec.sentinelRejected \|\| 0,` |
-| 4123 | `bool || → &&` | `sentinelKept: rec.sentinelKept \|\| 0,` |
-| 4163 | `bool || → &&` | `if (!sqi \|\| !sqi.length \|\| !peakSec) return null;` |
-| 4163 | `bool || → &&` | `if (!sqi \|\| !sqi.length \|\| !peakSec) return null;` |
-| 4163 | `negate: drop !` | `if (!sqi \|\| !sqi.length \|\| !peakSec) return null;` |
-| 4163 | `negate: drop !` | `if (!sqi \|\| !sqi.length \|\| !peakSec) return null;` |
-| 4163 | `negate: drop !` | `if (!sqi \|\| !sqi.length \|\| !peakSec) return null;` |
-| 4166 | `cmp < → <=` | `for (let k = 0; k < peakSec.length; k++) {` |
-| 4167 | `bool && → ||` | `if (peakSec[k] != null && Math.abs(peakSec[k] - relSec) < 5) {` |
-| 4167 | `cmp < → <=` | `if (peakSec[k] != null && Math.abs(peakSec[k] - relSec) < 5) {` |
-| 4176 | `num → 0` | `const surgeConf = (ampBpm) => r2(Math.max(0.45, Math.min(0.9, 0.45 + Mat` |
-| 4176 | `bool || → &&` | `const surgeConf = (ampBpm) => r2(Math.max(0.45, Math.min(0.9, 0.45 + Mat` |
-| 4176 | `num → 0` | `const surgeConf = (ampBpm) => r2(Math.max(0.45, Math.min(0.9, 0.45 + Mat` |
-| 4176 | `num → 0` | `const surgeConf = (ampBpm) => r2(Math.max(0.45, Math.min(0.9, 0.45 + Mat` |
-| 4176 | `num → 0` | `const surgeConf = (ampBpm) => r2(Math.max(0.45, Math.min(0.9, 0.45 + Mat` |
-| 4176 | `num → 0` | `const surgeConf = (ampBpm) => r2(Math.max(0.45, Math.min(0.9, 0.45 + Mat` |
-| 4178 | `num → 0` | `const tMs = t0Ms != null ? t0Ms + Math.round(relSec * 1000) : null;` |
-| 4179 | `bool || → &&` | `ev.push({ t: fmtClockSec(tMs != null ? tMs : relSec * 1000), tMs, impuls` |
-| 4179 | `num → 0` | `ev.push({ t: fmtClockSec(tMs != null ? tMs : relSec * 1000), tMs, impuls` |
-| 4185 | `bool && → ||` | `if (a.rmssd && b.rmssd) {` |
-| 4187 | `cmp > → >=` | `if (drop > 0.35)` |
-| 4187 | `num → 0` | `if (drop > 0.35)` |
-| 4189 | `num → 0` | `b.tMin * 60,` |
-| 4191 | `num → 0` | `0.7,` |
-| 4195 | `eq !== → ===` | `position: b.position && b.position !== 'unknown' ? b.position : null,` |
-| 4195 | `bool && → ||` | `position: b.position && b.position !== 'unknown' ? b.position : null,` |
-| 4199 | `num → 0` | `sqiAt(b.tMin * 60)` |
-| 4202 | `cmp > → >=` | `if (a.hr && b.hr && b.hr - a.hr > 8) {` |
-| 4202 | `bool && → ||` | `if (a.hr && b.hr && b.hr - a.hr > 8) {` |
-| 4202 | `bool && → ||` | `if (a.hr && b.hr && b.hr - a.hr > 8) {` |
-| 4205 | `num → 0` | `b.tMin * 60,` |
-| 4210 | `eq !== → ===` | `position: b.position && b.position !== 'unknown' ? b.position : null,` |
-| 4210 | `bool && → ||` | `position: b.position && b.position !== 'unknown' ? b.position : null,` |
-| 4214 | `num → 0` | `sqiAt(b.tMin * 60)` |
-| 4221 | `cmp < → <=` | `for (let k = 0; k < det.peaks.length; k++) {` |
-| 4222 | `cmp > → >=` | `const hi = peakSec[k] != null && motion.motionAtSec(peakSec[k]) > 0.5;` |
-| 4222 | `bool && → ||` | `const hi = peakSec[k] != null && motion.motionAtSec(peakSec[k]) > 0.5;` |
-| 4222 | `num → 0` | `const hi = peakSec[k] != null && motion.motionAtSec(peakSec[k]) > 0.5;` |
-| 4223 | `eq === → !==` | `if (hi && runStart === null) runStart = peakSec[k];` |
-| 4223 | `bool && → ||` | `if (hi && runStart === null) runStart = peakSec[k];` |
-| 4224 | `eq === → !==` | `if ((!hi \|\| k === det.peaks.length - 1) && runStart !== null) {` |
-| 4224 | `eq !== → ===` | `if ((!hi \|\| k === det.peaks.length - 1) && runStart !== null) {` |
-| 4224 | `bool && → ||` | `if ((!hi \|\| k === det.peaks.length - 1) && runStart !== null) {` |
-| 4224 | `bool || → &&` | `if ((!hi \|\| k === det.peaks.length - 1) && runStart !== null) {` |
-| 4224 | `negate: drop !` | `if ((!hi \|\| k === det.peaks.length - 1) && runStart !== null) {` |
-| 4225 | `num → 0` | `evt(runStart, 'motion_artifact_segment', 0.3, {}, sqiAt(runStart));` |
-| 4243 | `bool && → ||` | `if (motion && motion.hasData && motion.grid && motion.dt) {` |
-| 4243 | `bool && → ||` | `if (motion && motion.hasData && motion.grid && motion.dt) {` |
-| 4243 | `bool && → ||` | `if (motion && motion.hasData && motion.grid && motion.dt) {` |
-| 4244 | `bool || → &&` | `const onsets = movementOnsets(motion.onsetGrid \|\| motion.grid, motion.dt` |
-| 4249 | `num → 0` | `for (const sec of onsets) evt(sec, 'movement_onset', 0.6, { streams: str` |
-| 4320 | `eq === → !==` | `if (typeof Blob === 'undefined' \|\| typeof URL === 'undefined' \|\| !URL.cr` |
-| 4320 | `eq === → !==` | `if (typeof Blob === 'undefined' \|\| typeof URL === 'undefined' \|\| !URL.cr` |
-| 4320 | `bool || → &&` | `if (typeof Blob === 'undefined' \|\| typeof URL === 'undefined' \|\| !URL.cr` |
-| 4320 | `bool || → &&` | `if (typeof Blob === 'undefined' \|\| typeof URL === 'undefined' \|\| !URL.cr` |
-| 4320 | `negate: drop !` | `if (typeof Blob === 'undefined' \|\| typeof URL === 'undefined' \|\| !URL.cr` |
-| 4372 | `eq !== → ===` | `var url = typeof Worker !== 'undefined' ? _buildWorkerURL() : null;` |
-| 4373 | `bool || → &&` | `if (!url \|\| !nCh) {` |
-| 4373 | `negate: drop !` | `if (!url \|\| !nCh) {` |
-| 4373 | `negate: drop !` | `if (!url \|\| !nCh) {` |
-| 4392 | `cmp < → <=` | `for (var c = 0; c < nCh; c++) {` |
-| 4402 | `bool && → ||` | `if (++done === nCh && !settled) {` |
-| 4402 | `eq === → !==` | `if (++done === nCh && !settled) {` |
-| 4402 | `negate: drop !` | `if (++done === nCh && !settled) {` |
-| 4418 | `negate: drop !` | `if (!settled) serialFallback();` |
-| 4419 | `num → 0` | `}, 20000); // stall guard` |
-| 4521 | `bool || → &&` | `? { version: (opts.kernel.version != null ? opts.kernel.version : opts.k` |
-| 4521 | `bool || → &&` | `? { version: (opts.kernel.version != null ? opts.kernel.version : opts.k` |
-| 4529 | `bool || → &&` | `generated: opts.generated \|\| new Date().toISOString(),` |
-| 4530 | `bool || → &&` | `provenance: opts.provenance \|\| null,` |
-| 4538 | `eq !== → ===` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
-| 4538 | `bool && → ||` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
-| 4538 | `bool && → ||` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
-| 4538 | `bool && → ||` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
-| 4538 | `bool && → ||` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
-| 4561 | `bool && → ||` | `durSec: r.durSec != null && isFinite(r.durSec) ? r.durSec : null,` |
-| 4571 | `bool || → &&` | `siteSource: r.siteSource \|\| 'device-default'` |
-| 4659 | `eq === → !==` | `return v == null \|\| (typeof v === 'number' && !isFinite(v)) ? null : v;` |
-| 4659 | `bool || → &&` | `return v == null \|\| (typeof v === 'number' && !isFinite(v)) ? null : v;` |
-| 4729 | `bool && → ||` | `const epochScale = r.lfRobust != null && r.hfRobust != null;` |
-| 4751 | `bool && → ||` | `respRateMethod: fq && fq.respRate != null ? 'RSA (HF-peak of RR spectrum` |
-| 4796 | `bool || → &&` | `position: e.position \|\| 'unknown',` |
-| 4806 | `bool && → ||` | `if (r.nn && r.nn.length && r.tt && r.tt.length === r.nn.length) {` |
-| 4806 | `bool && → ||` | `if (r.nn && r.nn.length && r.tt && r.tt.length === r.nn.length) {` |
-| 4806 | `bool && → ||` | `if (r.nn && r.nn.length && r.tt && r.tt.length === r.nn.length) {` |
-| 4822 | `bool && → ||` | `r.ppiFlags && r.ppiFlags.length === r.nn.length` |
-| 4835 | `bool && → ||` | `conf: r.ppiConf && r.ppiConf.length === r.nn.length ? r.ppiConf.slice() ` |
-| 4863 | `bool || → &&` | `for (var i = 0; i < n; i++) relSec[i] = i / (fs \|\| 1);` |
-| 4863 | `cmp < → <=` | `for (var i = 0; i < n; i++) relSec[i] = i / (fs \|\| 1);` |
-| 4867 | `bool || → &&` | `amb: s.amb \|\| null,` |
-| 4873 | `bool || → &&` | `durSec: s.durSec != null ? s.durSec : n > 1 ? (n - 1) / (fs \|\| 1) : 0,` |
-| 4873 | `cmp > → >=` | `durSec: s.durSec != null ? s.durSec : n > 1 ? (n - 1) / (fs \|\| 1) : 0,` |
-| 4879 | `bool || → &&` | `siteSource: s.siteSource \|\| 'device-default',` |
-| 4880 | `bool || → &&` | `acc: input.acc \|\| null,` |
-| 4881 | `bool || → &&` | `gyro: input.gyro \|\| null,` |
-| 4882 | `bool || → &&` | `magn: input.magn \|\| null,` |
-| 4883 | `bool || → &&` | `devicePPI: input.devicePPI \|\| null,` |
-| 4884 | `bool || → &&` | `markers: input.markers \|\| null` |
-| 4890 | `eq === → !==` | `typeof input === 'string' ? input : input && typeof input.text === 'stri` |
-| 4890 | `bool && → ||` | `typeof input === 'string' ? input : input && typeof input.text === 'stri` |
-| 4890 | `bool && → ||` | `typeof input === 'string' ? input : input && typeof input.text === 'stri` |
-| 4890 | `bool && → ||` | `typeof input === 'string' ? input : input && typeof input.text === 'stri` |
-| 4895 | `bool && → ||` | `if (opts.fname && !rec.fname) rec.fname = opts.fname;` |
-| 4895 | `negate: drop !` | `if (opts.fname && !rec.fname) rec.fname = opts.fname;` |
-| 4961 | `eq === → !==` | `if (global.DexExport && typeof global.DexExport.scrubExport === 'functio` |
-| 4961 | `bool && → ||` | `if (global.DexExport && typeof global.DexExport.scrubExport === 'functio` |
-| 4962 | `eq === → !==` | `if (typeof global.dexScrubExport === 'function') return global.dexScrubE` |
 
 ## `ecgdex-dsp.js` — 1203 survivor(s)
 
@@ -2058,6 +1263,150 @@ bug; some are legitimately untestable. Triage is the reader’s.
 | 5246 | `eq === → !==` | `if (global.DexExport && typeof global.DexExport.scrubExport === 'functio` |
 | 5246 | `bool && → ||` | `if (global.DexExport && typeof global.DexExport.scrubExport === 'functio` |
 | 5247 | `eq === → !==` | `if (typeof global.dexScrubExport === 'function') return global.dexScrubE` |
+
+## `integrator-dsp.js` — 139 survivor(s)
+
+| line | operator | source |
+|---:|---|---|
+| 71 | `bool && → ||` | `if (ev && typeof ev.tMs === 'number' && isFinite(ev.tMs)) return ev.tMs;` |
+| 72 | `bool || → &&` | `if (t0Ms == null \|\| ev == null \|\| ev.t == null) return null;` |
+| 72 | `bool || → &&` | `if (t0Ms == null \|\| ev == null \|\| ev.t == null) return null;` |
+| 81 | `cmp < → <=` | `for (var i = 0; i < confs.length; i++) {` |
+| 95 | `negate: drop !` | `if (!ivs \|\| !ivs.length) return 0;` |
+| 103 | `cmp <= → <` | `if (a[i][0] <= curE) {` |
+| 125 | `bool || → &&` | `if (!e \|\| e.conf == null \|\| !isFinite(e.conf)) return null;` |
+| 125 | `negate: drop !` | `if (!e \|\| e.conf == null \|\| !isFinite(e.conf)) return null;` |
+| 125 | `bool || → &&` | `if (!e \|\| e.conf == null \|\| !isFinite(e.conf)) return null;` |
+| 125 | `negate: drop !` | `if (!e \|\| e.conf == null \|\| !isFinite(e.conf)) return null;` |
+| 126 | `bool || → &&` | `var q = e.sqi == null \|\| !isFinite(e.sqi) ? 1 : Math.max(0, Math.min(1, ` |
+| 126 | `negate: drop !` | `var q = e.sqi == null \|\| !isFinite(e.sqi) ? 1 : Math.max(0, Math.min(1, ` |
+| 197 | `bool || → &&` | `return NODE_COLORS[n] \|\| NODE_COLORS.Unknown;` |
+| 202 | `cmp >= → >` | `return BUS_ALIASES.indexOf(String(v).toLowerCase()) >= 0;` |
+| 207 | `bool || → &&` | `var f = (filename \|\| '').toLowerCase();` |
+| 215 | `bool && → ||` | `if (Array.isArray(json) && json[0] && (json[0].desatProfile \|\| json[0].h` |
+| 215 | `bool && → ||` | `if (Array.isArray(json) && json[0] && (json[0].desatProfile \|\| json[0].h` |
+| 215 | `bool || → &&` | `if (Array.isArray(json) && json[0] && (json[0].desatProfile \|\| json[0].h` |
+| 215 | `bool && → ||` | `if (Array.isArray(json) && json[0] && (json[0].desatProfile \|\| json[0].h` |
+| 215 | `bool || → &&` | `if (Array.isArray(json) && json[0] && (json[0].desatProfile \|\| json[0].h` |
+| 221 | `bool || → &&` | `var t0Ms = (json.recording && json.recording.startEpochMs) \|\| json.start` |
+| 221 | `bool || → &&` | `var t0Ms = (json.recording && json.recording.startEpochMs) \|\| json.start` |
+| 227 | `bool && → ||` | `return e && typeof e.tMs === 'number' ? e.tMs : null;` |
+| 227 | `eq === → !==` | `return e && typeof e.tMs === 'number' ? e.tMs : null;` |
+| 235 | `cmp < → <=` | `for (var i = 0; i < raw.length; i++) {` |
+| 241 | `bool || → &&` | `t: e.t \|\| fmtClockS(tMs),` |
+| 243 | `bool || → &&` | `node: e.node \|\| node,` |
+| 290 | `bool && → ||` | `if (_last && _last.startMs != null && isFinite(_last.startMs)) {` |
+| 290 | `bool && → ||` | `if (_last && _last.startMs != null && isFinite(_last.startMs)) {` |
+| 291 | `bool && → ||` | `var _cEnd = _last.startMs + (_last.durSec != null && isFinite(_last.durS` |
+| 291 | `num → 0` | `var _cEnd = _last.startMs + (_last.durSec != null && isFinite(_last.durS` |
+| 299 | `bool && → ||` | `if (events[i].meta && events[i].meta.offsetMin != null) {` |
+| 320 | `bool || → &&` | `summary.ambulatory = !!(json.recording && json.recording.ambulatory) \|\| ` |
+| 320 | `bool && → ||` | `summary.ambulatory = !!(json.recording && json.recording.ambulatory) \|\| ` |
+| 320 | `bool || → &&` | `summary.ambulatory = !!(json.recording && json.recording.ambulatory) \|\| ` |
+| 352 | `bool && → ||` | `summary.respRateBrpm = _hf.respRate != null && _hf.respRate > 0 ? _hf.re` |
+| 352 | `cmp > → >=` | `summary.respRateBrpm = _hf.respRate != null && _hf.respRate > 0 ? _hf.re` |
+| 353 | `bool || → &&` | `summary.respRateMethod = summary.respRateBrpm != null ? _hf.respRateMeth` |
+| 364 | `cmp > → >=` | `if (!_sleepSuppressed && json.sleep && json.sleep.stageMinutes && json.s` |
+| 385 | `bool || → &&` | `_dig(json, ['glucose', 'cv']) \|\| _dig(json, ['glycemic', 'cv']) \|\| _dig(` |
+| 385 | `bool || → &&` | `_dig(json, ['glucose', 'cv']) \|\| _dig(json, ['glycemic', 'cv']) \|\| _dig(` |
+| 385 | `bool || → &&` | `_dig(json, ['glucose', 'cv']) \|\| _dig(json, ['glycemic', 'cv']) \|\| _dig(` |
+| 392 | `bool || → &&` | `_dig(json, ['glucose', 'dawn', 'riseMgdl']) \|\|` |
+| 393 | `bool || → &&` | `_dig(json, ['fusion', 'dawnSurge']) \|\|` |
+| 394 | `bool || → &&` | `_dig(json, ['dawn', 'surge']) \|\|` |
+| 395 | `bool || → &&` | `(json.patterns && json.patterns.dawnPhenomenon ? json.patterns.dawnPheno` |
+| 397 | `bool && → ||` | `summary.glucoseAutonomicCorrelation = json.reserved && json.reserved.glu` |
+| 398 | `bool && → ||` | `summary.autonomicInstabilitySlope = json.reserved && json.reserved.auton` |
+| 406 | `bool || → &&` | `? { vendor: _clamp.vendor \|\| null, floor: _clamp.floor != null ? _clamp.` |
+| 409 | `cmp < → <=` | `for (var _ei = 0; _ei < events.length; _ei++) {` |
+| 431 | `bool && → ||` | `return { tMs: cl.tMs != null ? cl.tMs : t0c != null && cl.i != null && c` |
+| 431 | `num → 0` | `return { tMs: cl.tMs != null ? cl.tMs : t0c != null && cl.i != null && c` |
+| 431 | `bool && → ||` | `return { tMs: cl.tMs != null ? cl.tMs : t0c != null && cl.i != null && c` |
+| 434 | `bool && → ||` | `return cl.tMs != null && cl.v != null;` |
+| 449 | `bool || → &&` | `summary.rmssd = _dig(json, ['hrv', 'time', 'rmssd']) \|\| _dig(json, ['hrv` |
+| 449 | `bool || → &&` | `summary.rmssd = _dig(json, ['hrv', 'time', 'rmssd']) \|\| _dig(json, ['hrv` |
+| 450 | `bool || → &&` | `summary.sdnn = _dig(json, ['hrv', 'time', 'sdnn']) \|\| _dig(json, ['hrv',` |
+| 450 | `bool || → &&` | `summary.sdnn = _dig(json, ['hrv', 'time', 'sdnn']) \|\| _dig(json, ['hrv',` |
+| 451 | `bool || → &&` | `summary.lfhf = _dig(json, ['hrv', 'frequency', 'lfhf']) \|\| _dig(json, ['` |
+| 451 | `bool || → &&` | `summary.lfhf = _dig(json, ['hrv', 'frequency', 'lfhf']) \|\| _dig(json, ['` |
+| 467 | `bool && → ||` | `return m && m.sdnn != null;` |
+| 474 | `bool && → ||` | `return m && m.rmssd != null;` |
+| 489 | `bool || → &&` | `if (summary.rmssd != null \|\| summary.sdnn != null) {` |
+| 512 | `bool || → &&` | `summary.site = _dig(json, ['recording', 'site']) \|\| 'wrist';` |
+| 542 | `cmp < → <=` | `for (var _pi = 0; _pi < events.length; _pi++) {` |
+| 566 | `bool && → ||` | `summary.therapyHours = json.recording && json.recording.therapyHours != ` |
+| 601 | `bool || → &&` | `summary.dwellFrac = mo.dwellFrac \|\| null;` |
+| 618 | `bool && → ||` | `if (summary.posture && summary.posture.length) summary.postureSource = '` |
+| 631 | `bool || → &&` | `if (tMin == null \|\| !isFinite(tMin)) return null;` |
+| 635 | `bool && → ||` | `rmssd: e.rmssd != null && isFinite(e.rmssd) ? e.rmssd : null,` |
+| 636 | `bool && → ||` | `hr: e.hr != null && isFinite(e.hr) ? e.hr : null,` |
+| 643 | `bool && → ||` | `motion: e.motionIndex != null && isFinite(e.motionIndex) ? e.motionIndex` |
+| 668 | `cmp > → >=` | `var _hz = _sp.hz != null && isFinite(_sp.hz) && _sp.hz > 0 ? _sp.hz : 1;` |
+| 668 | `bool && → ||` | `var _hz = _sp.hz != null && isFinite(_sp.hz) && _sp.hz > 0 ? _sp.hz : 1;` |
+| 668 | `bool && → ||` | `var _hz = _sp.hz != null && isFinite(_sp.hz) && _sp.hz > 0 ? _sp.hz : 1;` |
+| 694 | `bool || → &&` | `timingSource: json.timingSource != null ? json.timingSource : (json.host` |
+| 713 | `bool || → &&` | `coverage: (json.recording && json.recording.coverage) \|\| null,` |
+| 720 | `bool || → &&` | `raw: { ganglior_events: json.ganglior_events \|\| json.events \|\| null },` |
+| 737 | `bool || → &&` | `if (!json \|\| t0Ms == null \|\| !isFinite(t0Ms)) return null;` |
+| 737 | `bool || → &&` | `if (!json \|\| t0Ms == null \|\| !isFinite(t0Ms)) return null;` |
+| 740 | `bool || → &&` | `if (!ser \|\| !ser.tSec \|\| !ser.tSec.length) return null;` |
+| 745 | `cmp < → <=` | `for (var i = 0; i < src.length; i++) {` |
+| 747 | `bool || → &&` | `if (s == null \|\| !isFinite(s)) continue;` |
+| 771 | `bool && → ||` | `var mo = (json && json.motion) \|\| {};` |
+| 773 | `negate: drop !` | `if (!Array.isArray(src) \|\| !src.length) return null;` |
+| 774 | `num → 0` | `var cadMs = (mo.effortCadenceSec != null ? mo.effortCadenceSec : 10) * 1` |
+| 774 | `num → 0` | `var cadMs = (mo.effortCadenceSec != null ? mo.effortCadenceSec : 10) * 1` |
+| 776 | `cmp < → <=` | `for (var i = 0; i < src.length; i++) {` |
+| 777 | `bool || → &&` | `var e = src[i] \|\| {};` |
+| 817 | `cmp < → <=` | `for (var i = 0; i < evs.length; i++) {` |
+| 819 | `bool || → &&` | `if (!e \|\| e.impulse !== 'posture_change') continue;` |
+| 820 | `bool && → ||` | `var tMs = e.tMs != null ? e.tMs : t0Ms != null && e.t ? reconstructEvent` |
+| 822 | `bool && → ||` | `if (tMs != null && pos && pos !== 'unknown') steps.push({ tMs: tMs, pos:` |
+| 822 | `bool && → ||` | `if (tMs != null && pos && pos !== 'unknown') steps.push({ tMs: tMs, pos:` |
+| 829 | `cmp < → <=` | `for (i = 0; i < steps.length && out.length < _MOTION_POS_MAX; i++) {` |
+| 835 | `cmp < → <=` | `for (var t = from; t < to && out.length < _MOTION_POS_MAX; t += _MOTION_` |
+| 835 | `cmp < → <=` | `for (var t = from; t < to && out.length < _MOTION_POS_MAX; t += _MOTION_` |
+| 844 | `bool && → ||` | `var mo = (json && json.motion) \|\| {};` |
+| 846 | `negate: drop !` | `if (!Array.isArray(src) \|\| !src.length) return null;` |
+| 847 | `num → 0` | `var cadMs = (mo.activityCadenceSec != null ? mo.activityCadenceSec : 30)` |
+| 847 | `num → 0` | `var cadMs = (mo.activityCadenceSec != null ? mo.activityCadenceSec : 30)` |
+| 849 | `cmp < → <=` | `for (var i = 0; i < src.length; i++) {` |
+| 850 | `bool || → &&` | `var e = src[i] \|\| {};` |
+| 858 | `bool || → &&` | `var acc = json.acc \|\| (json.timeseries && json.timeseries.acc) \|\| null;` |
+| 858 | `bool || → &&` | `var acc = json.acc \|\| (json.timeseries && json.timeseries.acc) \|\| null;` |
+| 861 | `num → 0` | `var tMs = t0Ms != null && tMin != null ? t0Ms + tMin * 60000 : null;` |
+| 861 | `bool && → ||` | `var tMs = t0Ms != null && tMin != null ? t0Ms + tMin * 60000 : null;` |
+| 866 | `bool || → &&` | `push(a.tMin != null ? a.tMin : a.t, a.position \|\| a.pos \|\| a.bodyPositio` |
+| 866 | `bool || → &&` | `push(a.tMin != null ? a.tMin : a.t, a.position \|\| a.pos \|\| a.bodyPositio` |
+| 881 | `bool || → &&` | `var p = e.meta && (e.meta.position \|\| e.meta.pos \|\| e.meta.bodyPosition)` |
+| 881 | `bool || → &&` | `var p = e.meta && (e.meta.position \|\| e.meta.pos \|\| e.meta.bodyPosition)` |
+| 889 | `bool || → &&` | `return (a.tMs \|\| 0) - (b.tMs \|\| 0);` |
+| 889 | `bool || → &&` | `return (a.tMs \|\| 0) - (b.tMs \|\| 0);` |
+| 903 | `bool && → ||` | `var _topKernel = json && !Array.isArray(json) && json.kernel ? json.kern` |
+| 903 | `bool && → ||` | `var _topKernel = json && !Array.isArray(json) && json.kernel ? json.kern` |
+| 903 | `negate: drop !` | `var _topKernel = json && !Array.isArray(json) && json.kernel ? json.kern` |
+| 908 | `negate: drop !` | `var _topT0 = json && !Array.isArray(json) && json.recording && json.reco` |
+| 916 | `bool && → ||` | `var s = nn && nn.t0Ms != null ? nn.t0Ms : nn && nn.stats && nn.stats.t0M` |
+| 916 | `bool && → ||` | `var s = nn && nn.t0Ms != null ? nn.t0Ms : nn && nn.stats && nn.stats.t0M` |
+| 916 | `bool && → ||` | `var s = nn && nn.t0Ms != null ? nn.t0Ms : nn && nn.stats && nn.stats.t0M` |
+| 916 | `bool && → ||` | `var s = nn && nn.t0Ms != null ? nn.t0Ms : nn && nn.stats && nn.stats.t0M` |
+| 917 | `bool && → ||` | `var dm = nn && nn.stats && nn.stats.durationMin != null ? nn.stats.durat` |
+| 917 | `num → 0` | `var dm = nn && nn.stats && nn.stats.durationMin != null ? nn.stats.durat` |
+| 917 | `bool && → ||` | `var dm = nn && nn.stats && nn.stats.durationMin != null ? nn.stats.durat` |
+| 918 | `bool && → ||` | `return { s: s, e: s != null && dm != null ? s + dm : null };` |
+| 929 | `bool || → &&` | `if (w.s == null \|\| e.tMs < w.s) continue;` |
+| 929 | `cmp < → <=` | `if (w.s == null \|\| e.tMs < w.s) continue;` |
+| 930 | `cmp > → >=` | `if (w.e != null && e.tMs > w.e) continue;` |
+| 930 | `bool && → ||` | `if (w.e != null && e.tMs > w.e) continue;` |
+| 931 | `cmp > → >=` | `if (w.s > bestS) {` |
+| 937 | `cmp < → <=` | `if (best < 0) {` |
+| 938 | `cmp < → <=` | `for (var wj = 0; wj < _wins.length; wj++) {` |
+| 940 | `bool && → ||` | `if (w2.s != null && e.tMs >= w2.s && w2.s > bestS) {` |
+| 940 | `cmp > → >=` | `if (w2.s != null && e.tMs >= w2.s && w2.s > bestS) {` |
+| 940 | `cmp >= → >` | `if (w2.s != null && e.tMs >= w2.s && w2.s > bestS) {` |
+| 940 | `bool && → ||` | `if (w2.s != null && e.tMs >= w2.s && w2.s > bestS) {` |
+| 951 | `bool || → &&` | `if (!n \|\| typeof n !== 'object') return;` |
+| 954 | `bool || → &&` | `var nSamp = stats.n \|\| 0;` |
+| 956 | `bool && → ||` | `var dt = durMs && nSamp ? durMs / nSamp : 1000; // O2Ring ≈ 1 Hz` |
 
 ## `oxydex-dsp.js` — 1477 survivor(s)
 
@@ -3541,147 +2890,816 @@ bug; some are legitimately untestable. Triage is the reader’s.
 | 7400 | `eq !== → ===` | `})(/** @type {any} */ (typeof globalThis !== 'undefined' ? globalThis : ` |
 | 7400 | `eq !== → ===` | `})(/** @type {any} */ (typeof globalThis !== 'undefined' ? globalThis : ` |
 
-## `integrator-dsp.js` — 139 survivor(s)
+## `ppgdex-dsp.js` — 808 survivor(s)
 
 | line | operator | source |
 |---:|---|---|
-| 71 | `bool && → ||` | `if (ev && typeof ev.tMs === 'number' && isFinite(ev.tMs)) return ev.tMs;` |
-| 72 | `bool || → &&` | `if (t0Ms == null \|\| ev == null \|\| ev.t == null) return null;` |
-| 72 | `bool || → &&` | `if (t0Ms == null \|\| ev == null \|\| ev.t == null) return null;` |
-| 81 | `cmp < → <=` | `for (var i = 0; i < confs.length; i++) {` |
-| 95 | `negate: drop !` | `if (!ivs \|\| !ivs.length) return 0;` |
-| 103 | `cmp <= → <` | `if (a[i][0] <= curE) {` |
-| 125 | `bool || → &&` | `if (!e \|\| e.conf == null \|\| !isFinite(e.conf)) return null;` |
-| 125 | `negate: drop !` | `if (!e \|\| e.conf == null \|\| !isFinite(e.conf)) return null;` |
-| 125 | `bool || → &&` | `if (!e \|\| e.conf == null \|\| !isFinite(e.conf)) return null;` |
-| 125 | `negate: drop !` | `if (!e \|\| e.conf == null \|\| !isFinite(e.conf)) return null;` |
-| 126 | `bool || → &&` | `var q = e.sqi == null \|\| !isFinite(e.sqi) ? 1 : Math.max(0, Math.min(1, ` |
-| 126 | `negate: drop !` | `var q = e.sqi == null \|\| !isFinite(e.sqi) ? 1 : Math.max(0, Math.min(1, ` |
-| 197 | `bool || → &&` | `return NODE_COLORS[n] \|\| NODE_COLORS.Unknown;` |
-| 202 | `cmp >= → >` | `return BUS_ALIASES.indexOf(String(v).toLowerCase()) >= 0;` |
-| 207 | `bool || → &&` | `var f = (filename \|\| '').toLowerCase();` |
-| 215 | `bool && → ||` | `if (Array.isArray(json) && json[0] && (json[0].desatProfile \|\| json[0].h` |
-| 215 | `bool && → ||` | `if (Array.isArray(json) && json[0] && (json[0].desatProfile \|\| json[0].h` |
-| 215 | `bool || → &&` | `if (Array.isArray(json) && json[0] && (json[0].desatProfile \|\| json[0].h` |
-| 215 | `bool && → ||` | `if (Array.isArray(json) && json[0] && (json[0].desatProfile \|\| json[0].h` |
-| 215 | `bool || → &&` | `if (Array.isArray(json) && json[0] && (json[0].desatProfile \|\| json[0].h` |
-| 221 | `bool || → &&` | `var t0Ms = (json.recording && json.recording.startEpochMs) \|\| json.start` |
-| 221 | `bool || → &&` | `var t0Ms = (json.recording && json.recording.startEpochMs) \|\| json.start` |
-| 227 | `bool && → ||` | `return e && typeof e.tMs === 'number' ? e.tMs : null;` |
-| 227 | `eq === → !==` | `return e && typeof e.tMs === 'number' ? e.tMs : null;` |
-| 235 | `cmp < → <=` | `for (var i = 0; i < raw.length; i++) {` |
-| 241 | `bool || → &&` | `t: e.t \|\| fmtClockS(tMs),` |
-| 243 | `bool || → &&` | `node: e.node \|\| node,` |
-| 290 | `bool && → ||` | `if (_last && _last.startMs != null && isFinite(_last.startMs)) {` |
-| 290 | `bool && → ||` | `if (_last && _last.startMs != null && isFinite(_last.startMs)) {` |
-| 291 | `bool && → ||` | `var _cEnd = _last.startMs + (_last.durSec != null && isFinite(_last.durS` |
-| 291 | `num → 0` | `var _cEnd = _last.startMs + (_last.durSec != null && isFinite(_last.durS` |
-| 299 | `bool && → ||` | `if (events[i].meta && events[i].meta.offsetMin != null) {` |
-| 320 | `bool || → &&` | `summary.ambulatory = !!(json.recording && json.recording.ambulatory) \|\| ` |
-| 320 | `bool && → ||` | `summary.ambulatory = !!(json.recording && json.recording.ambulatory) \|\| ` |
-| 320 | `bool || → &&` | `summary.ambulatory = !!(json.recording && json.recording.ambulatory) \|\| ` |
-| 352 | `bool && → ||` | `summary.respRateBrpm = _hf.respRate != null && _hf.respRate > 0 ? _hf.re` |
-| 352 | `cmp > → >=` | `summary.respRateBrpm = _hf.respRate != null && _hf.respRate > 0 ? _hf.re` |
-| 353 | `bool || → &&` | `summary.respRateMethod = summary.respRateBrpm != null ? _hf.respRateMeth` |
-| 364 | `cmp > → >=` | `if (!_sleepSuppressed && json.sleep && json.sleep.stageMinutes && json.s` |
-| 385 | `bool || → &&` | `_dig(json, ['glucose', 'cv']) \|\| _dig(json, ['glycemic', 'cv']) \|\| _dig(` |
-| 385 | `bool || → &&` | `_dig(json, ['glucose', 'cv']) \|\| _dig(json, ['glycemic', 'cv']) \|\| _dig(` |
-| 385 | `bool || → &&` | `_dig(json, ['glucose', 'cv']) \|\| _dig(json, ['glycemic', 'cv']) \|\| _dig(` |
-| 392 | `bool || → &&` | `_dig(json, ['glucose', 'dawn', 'riseMgdl']) \|\|` |
-| 393 | `bool || → &&` | `_dig(json, ['fusion', 'dawnSurge']) \|\|` |
-| 394 | `bool || → &&` | `_dig(json, ['dawn', 'surge']) \|\|` |
-| 395 | `bool || → &&` | `(json.patterns && json.patterns.dawnPhenomenon ? json.patterns.dawnPheno` |
-| 397 | `bool && → ||` | `summary.glucoseAutonomicCorrelation = json.reserved && json.reserved.glu` |
-| 398 | `bool && → ||` | `summary.autonomicInstabilitySlope = json.reserved && json.reserved.auton` |
-| 406 | `bool || → &&` | `? { vendor: _clamp.vendor \|\| null, floor: _clamp.floor != null ? _clamp.` |
-| 409 | `cmp < → <=` | `for (var _ei = 0; _ei < events.length; _ei++) {` |
-| 431 | `bool && → ||` | `return { tMs: cl.tMs != null ? cl.tMs : t0c != null && cl.i != null && c` |
-| 431 | `num → 0` | `return { tMs: cl.tMs != null ? cl.tMs : t0c != null && cl.i != null && c` |
-| 431 | `bool && → ||` | `return { tMs: cl.tMs != null ? cl.tMs : t0c != null && cl.i != null && c` |
-| 434 | `bool && → ||` | `return cl.tMs != null && cl.v != null;` |
-| 449 | `bool || → &&` | `summary.rmssd = _dig(json, ['hrv', 'time', 'rmssd']) \|\| _dig(json, ['hrv` |
-| 449 | `bool || → &&` | `summary.rmssd = _dig(json, ['hrv', 'time', 'rmssd']) \|\| _dig(json, ['hrv` |
-| 450 | `bool || → &&` | `summary.sdnn = _dig(json, ['hrv', 'time', 'sdnn']) \|\| _dig(json, ['hrv',` |
-| 450 | `bool || → &&` | `summary.sdnn = _dig(json, ['hrv', 'time', 'sdnn']) \|\| _dig(json, ['hrv',` |
-| 451 | `bool || → &&` | `summary.lfhf = _dig(json, ['hrv', 'frequency', 'lfhf']) \|\| _dig(json, ['` |
-| 451 | `bool || → &&` | `summary.lfhf = _dig(json, ['hrv', 'frequency', 'lfhf']) \|\| _dig(json, ['` |
-| 467 | `bool && → ||` | `return m && m.sdnn != null;` |
-| 474 | `bool && → ||` | `return m && m.rmssd != null;` |
-| 489 | `bool || → &&` | `if (summary.rmssd != null \|\| summary.sdnn != null) {` |
-| 512 | `bool || → &&` | `summary.site = _dig(json, ['recording', 'site']) \|\| 'wrist';` |
-| 542 | `cmp < → <=` | `for (var _pi = 0; _pi < events.length; _pi++) {` |
-| 566 | `bool && → ||` | `summary.therapyHours = json.recording && json.recording.therapyHours != ` |
-| 601 | `bool || → &&` | `summary.dwellFrac = mo.dwellFrac \|\| null;` |
-| 618 | `bool && → ||` | `if (summary.posture && summary.posture.length) summary.postureSource = '` |
-| 631 | `bool || → &&` | `if (tMin == null \|\| !isFinite(tMin)) return null;` |
-| 635 | `bool && → ||` | `rmssd: e.rmssd != null && isFinite(e.rmssd) ? e.rmssd : null,` |
-| 636 | `bool && → ||` | `hr: e.hr != null && isFinite(e.hr) ? e.hr : null,` |
-| 643 | `bool && → ||` | `motion: e.motionIndex != null && isFinite(e.motionIndex) ? e.motionIndex` |
-| 668 | `cmp > → >=` | `var _hz = _sp.hz != null && isFinite(_sp.hz) && _sp.hz > 0 ? _sp.hz : 1;` |
-| 668 | `bool && → ||` | `var _hz = _sp.hz != null && isFinite(_sp.hz) && _sp.hz > 0 ? _sp.hz : 1;` |
-| 668 | `bool && → ||` | `var _hz = _sp.hz != null && isFinite(_sp.hz) && _sp.hz > 0 ? _sp.hz : 1;` |
-| 694 | `bool || → &&` | `timingSource: json.timingSource != null ? json.timingSource : (json.host` |
-| 713 | `bool || → &&` | `coverage: (json.recording && json.recording.coverage) \|\| null,` |
-| 720 | `bool || → &&` | `raw: { ganglior_events: json.ganglior_events \|\| json.events \|\| null },` |
-| 737 | `bool || → &&` | `if (!json \|\| t0Ms == null \|\| !isFinite(t0Ms)) return null;` |
-| 737 | `bool || → &&` | `if (!json \|\| t0Ms == null \|\| !isFinite(t0Ms)) return null;` |
-| 740 | `bool || → &&` | `if (!ser \|\| !ser.tSec \|\| !ser.tSec.length) return null;` |
-| 745 | `cmp < → <=` | `for (var i = 0; i < src.length; i++) {` |
-| 747 | `bool || → &&` | `if (s == null \|\| !isFinite(s)) continue;` |
-| 771 | `bool && → ||` | `var mo = (json && json.motion) \|\| {};` |
-| 773 | `negate: drop !` | `if (!Array.isArray(src) \|\| !src.length) return null;` |
-| 774 | `num → 0` | `var cadMs = (mo.effortCadenceSec != null ? mo.effortCadenceSec : 10) * 1` |
-| 774 | `num → 0` | `var cadMs = (mo.effortCadenceSec != null ? mo.effortCadenceSec : 10) * 1` |
-| 776 | `cmp < → <=` | `for (var i = 0; i < src.length; i++) {` |
-| 777 | `bool || → &&` | `var e = src[i] \|\| {};` |
-| 817 | `cmp < → <=` | `for (var i = 0; i < evs.length; i++) {` |
-| 819 | `bool || → &&` | `if (!e \|\| e.impulse !== 'posture_change') continue;` |
-| 820 | `bool && → ||` | `var tMs = e.tMs != null ? e.tMs : t0Ms != null && e.t ? reconstructEvent` |
-| 822 | `bool && → ||` | `if (tMs != null && pos && pos !== 'unknown') steps.push({ tMs: tMs, pos:` |
-| 822 | `bool && → ||` | `if (tMs != null && pos && pos !== 'unknown') steps.push({ tMs: tMs, pos:` |
-| 829 | `cmp < → <=` | `for (i = 0; i < steps.length && out.length < _MOTION_POS_MAX; i++) {` |
-| 835 | `cmp < → <=` | `for (var t = from; t < to && out.length < _MOTION_POS_MAX; t += _MOTION_` |
-| 835 | `cmp < → <=` | `for (var t = from; t < to && out.length < _MOTION_POS_MAX; t += _MOTION_` |
-| 844 | `bool && → ||` | `var mo = (json && json.motion) \|\| {};` |
-| 846 | `negate: drop !` | `if (!Array.isArray(src) \|\| !src.length) return null;` |
-| 847 | `num → 0` | `var cadMs = (mo.activityCadenceSec != null ? mo.activityCadenceSec : 30)` |
-| 847 | `num → 0` | `var cadMs = (mo.activityCadenceSec != null ? mo.activityCadenceSec : 30)` |
-| 849 | `cmp < → <=` | `for (var i = 0; i < src.length; i++) {` |
-| 850 | `bool || → &&` | `var e = src[i] \|\| {};` |
-| 858 | `bool || → &&` | `var acc = json.acc \|\| (json.timeseries && json.timeseries.acc) \|\| null;` |
-| 858 | `bool || → &&` | `var acc = json.acc \|\| (json.timeseries && json.timeseries.acc) \|\| null;` |
-| 861 | `num → 0` | `var tMs = t0Ms != null && tMin != null ? t0Ms + tMin * 60000 : null;` |
-| 861 | `bool && → ||` | `var tMs = t0Ms != null && tMin != null ? t0Ms + tMin * 60000 : null;` |
-| 866 | `bool || → &&` | `push(a.tMin != null ? a.tMin : a.t, a.position \|\| a.pos \|\| a.bodyPositio` |
-| 866 | `bool || → &&` | `push(a.tMin != null ? a.tMin : a.t, a.position \|\| a.pos \|\| a.bodyPositio` |
-| 881 | `bool || → &&` | `var p = e.meta && (e.meta.position \|\| e.meta.pos \|\| e.meta.bodyPosition)` |
-| 881 | `bool || → &&` | `var p = e.meta && (e.meta.position \|\| e.meta.pos \|\| e.meta.bodyPosition)` |
-| 889 | `bool || → &&` | `return (a.tMs \|\| 0) - (b.tMs \|\| 0);` |
-| 889 | `bool || → &&` | `return (a.tMs \|\| 0) - (b.tMs \|\| 0);` |
-| 903 | `bool && → ||` | `var _topKernel = json && !Array.isArray(json) && json.kernel ? json.kern` |
-| 903 | `bool && → ||` | `var _topKernel = json && !Array.isArray(json) && json.kernel ? json.kern` |
-| 903 | `negate: drop !` | `var _topKernel = json && !Array.isArray(json) && json.kernel ? json.kern` |
-| 908 | `negate: drop !` | `var _topT0 = json && !Array.isArray(json) && json.recording && json.reco` |
-| 916 | `bool && → ||` | `var s = nn && nn.t0Ms != null ? nn.t0Ms : nn && nn.stats && nn.stats.t0M` |
-| 916 | `bool && → ||` | `var s = nn && nn.t0Ms != null ? nn.t0Ms : nn && nn.stats && nn.stats.t0M` |
-| 916 | `bool && → ||` | `var s = nn && nn.t0Ms != null ? nn.t0Ms : nn && nn.stats && nn.stats.t0M` |
-| 916 | `bool && → ||` | `var s = nn && nn.t0Ms != null ? nn.t0Ms : nn && nn.stats && nn.stats.t0M` |
-| 917 | `bool && → ||` | `var dm = nn && nn.stats && nn.stats.durationMin != null ? nn.stats.durat` |
-| 917 | `num → 0` | `var dm = nn && nn.stats && nn.stats.durationMin != null ? nn.stats.durat` |
-| 917 | `bool && → ||` | `var dm = nn && nn.stats && nn.stats.durationMin != null ? nn.stats.durat` |
-| 918 | `bool && → ||` | `return { s: s, e: s != null && dm != null ? s + dm : null };` |
-| 929 | `bool || → &&` | `if (w.s == null \|\| e.tMs < w.s) continue;` |
-| 929 | `cmp < → <=` | `if (w.s == null \|\| e.tMs < w.s) continue;` |
-| 930 | `cmp > → >=` | `if (w.e != null && e.tMs > w.e) continue;` |
-| 930 | `bool && → ||` | `if (w.e != null && e.tMs > w.e) continue;` |
-| 931 | `cmp > → >=` | `if (w.s > bestS) {` |
-| 937 | `cmp < → <=` | `if (best < 0) {` |
-| 938 | `cmp < → <=` | `for (var wj = 0; wj < _wins.length; wj++) {` |
-| 940 | `bool && → ||` | `if (w2.s != null && e.tMs >= w2.s && w2.s > bestS) {` |
-| 940 | `cmp > → >=` | `if (w2.s != null && e.tMs >= w2.s && w2.s > bestS) {` |
-| 940 | `cmp >= → >` | `if (w2.s != null && e.tMs >= w2.s && w2.s > bestS) {` |
-| 940 | `bool && → ||` | `if (w2.s != null && e.tMs >= w2.s && w2.s > bestS) {` |
-| 951 | `bool || → &&` | `if (!n \|\| typeof n !== 'object') return;` |
-| 954 | `bool || → &&` | `var nSamp = stats.n \|\| 0;` |
-| 956 | `bool && → ||` | `var dt = durMs && nSamp ? durMs / nSamp : 1000; // O2Ring ≈ 1 Hz` |
+| 21 | `num → 0` | `return new Date(instantMs).getTimezoneOffset() * 60000;` |
+| 35 | `bool || → &&` | `if (dd.getUTCFullYear() !== y \|\| dd.getUTCMonth() !== mo0 \|\| dd.getUTCDa` |
+| 35 | `bool || → &&` | `if (dd.getUTCFullYear() !== y \|\| dd.getUTCMonth() !== mo0 \|\| dd.getUTCDa` |
+| 36 | `eq === → !==` | `if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000` |
+| 36 | `num → 0` | `if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000` |
+| 36 | `eq === → !==` | `if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000` |
+| 36 | `num → 0` | `if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000` |
+| 36 | `eq === → !==` | `if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000` |
+| 37 | `cmp > → >=` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
+| 37 | `cmp > → >=` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
+| 37 | `cmp > → >=` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
+| 37 | `cmp > → >=` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
+| 37 | `bool || → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
+| 37 | `bool || → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
+| 37 | `bool || → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
+| 37 | `bool || → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
+| 37 | `bool || → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
+| 37 | `bool || → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
+| 37 | `bool || → &&` | `if (h < 0 \|\| h > 23 \|\| mi < 0 \|\| mi > 59 \|\| se < 0 \|\| se > 59 \|\| ms < 0 ` |
+| 41 | `bool || → &&` | `opts = opts \|\| {};` |
+| 49 | `num → 0` | `if (/^\d{10,13}$/.test(s)) {` |
+| 50 | `num → 0` | `let x = parseInt(s, 10);` |
+| 51 | `num → 0` | `if (x < 1e11) x *= 1000;` |
+| 51 | `cmp < → <=` | `if (x < 1e11) x *= 1000;` |
+| 52 | `cmp > → >=` | `if (x < 1e11 \|\| x > 4e12) return null;` |
+| 52 | `bool || → &&` | `if (x < 1e11 \|\| x > 4e12) return null;` |
+| 52 | `cmp < → <=` | `if (x < 1e11 \|\| x > 4e12) return null;` |
+| 53 | `num → 0` | `return { tMs: x - tzOffset(x), offsetMin: -tzOffset(x) / 60000 };` |
+| 68 | `eq === → !==` | `if (m[8] === 'Z') offsetMin = 0;` |
+| 71 | `eq === → !==` | `offsetMin = (z[0] === '-' ? -1 : 1) * (parseInt(z.slice(1, 3), 10) * 60 ` |
+| 71 | `num → 0` | `offsetMin = (z[0] === '-' ? -1 : 1) * (parseInt(z.slice(1, 3), 10) * 60 ` |
+| 71 | `num → 0` | `offsetMin = (z[0] === '-' ? -1 : 1) * (parseInt(z.slice(1, 3), 10) * 60 ` |
+| 71 | `num → 0` | `offsetMin = (z[0] === '-' ? -1 : 1) * (parseInt(z.slice(1, 3), 10) * 60 ` |
+| 87 | `cmp < → <=` | `if (a.length < 2) return 0;` |
+| 103 | `negate: drop !` | `if (!a.length) return NaN;` |
+| 108 | `eq === → !==` | `return lo === hi ? b[lo] : b[lo] + (b[hi] - b[lo]) * (p - lo);` |
+| 149 | `cmp < → <=` | `for (let i = 0; i < x.length; i++) {` |
+| 162 | `cmp < → <=` | `for (let i = 0; i < x.length; i++) y[i] = x[x.length - 1 - i];` |
+| 213 | `cmp >= → >` | `if (ch.length >= 3) return { chIdx: [ch[0], ch[1], ch[2]], amb, ns, phon` |
+| 223 | `cmp < → <=` | `for (let k = 0; k < p.length; k++) if (isFinite(parseFloat(p[k]))) nums.` |
+| 225 | `cmp >= → >` | `if (n >= 5) return { chIdx: [nums[n - 4], nums[n - 3], nums[n - 2]], amb` |
+| 226 | `eq === → !==` | `if (n === 3) return { chIdx: [nums[n - 1]], amb: -1, ns: 1, phone: 0 };` |
+| 267 | `cmp < → <=` | `for (let i = 0; i < x.length; i++) {` |
+| 272 | `cmp <= → <` | `for (let k = i - 2; k <= i + 2; k++) {` |
+| 273 | `cmp >= → >` | `if (k === i \|\| k < 0 \|\| k >= x.length) continue;` |
+| 273 | `bool || → &&` | `if (k === i \|\| k < 0 \|\| k >= x.length) continue;` |
+| 273 | `cmp < → <=` | `if (k === i \|\| k < 0 \|\| k >= x.length) continue;` |
+| 273 | `bool || → &&` | `if (k === i \|\| k < 0 \|\| k >= x.length) continue;` |
+| 279 | `cmp > → >=` | `if (!cnt \|\| Math.abs(O2_BEAT_MARKER - sum / cnt) > O2_MARKER_ISOLATION) ` |
+| 309 | `cmp < → <=` | `for (let li = 0; li < lines.length && li < 12; li++) {` |
+| 340 | `bool && → ||` | `if (/timestamp/i.test(line) && !pcols) {` |
+| 354 | `eq === → !==` | `if (nCh === 1) minFields = 3;` |
+| 373 | `bool || → &&` | `if (!isFinite(v1) \|\| !isFinite(v2)) continue;` |
+| 378 | `cmp >= → >` | `const va = pc.amb >= 0 ? parseFloat(p[pc.amb]) : NaN;` |
+| 379 | `cmp >= → >` | `if (pc.amb >= 0 && !isFinite(va)) continue;` |
+| 389 | `cmp >= → >` | `const b = BigInt(p[pcols && pcols.ns >= 0 ? pcols.ns : 1].trim());` |
+| 389 | `bool && → ||` | `const b = BigInt(p[pcols && pcols.ns >= 0 ? pcols.ns : 1].trim());` |
+| 415 | `bool && → ||` | `if (at && isFinite(relNs)) axisAnchors.push({ devMs: relNs / 1e6, hostMs` |
+| 424 | `num → 0` | `let fs = 176;` |
+| 426 | `cmp < → <=` | `for (let i = 1; i < n; i++) {` |
+| 428 | `cmp > → >=` | `if (isFinite(d) && d > 0) deltas.push(d);` |
+| 428 | `bool && → ||` | `if (isFinite(d) && d > 0) deltas.push(d);` |
+| 458 | `cmp >= → >` | `for (let li = lines.length - 1; li >= 0 && !t; li--) {` |
+| 469 | `cmp > → >=` | `if (deltas.length > 20) {` |
+| 469 | `num → 0` | `if (deltas.length > 20) {` |
+| 471 | `cmp > → >=` | `if (md > 0) fs = 1e9 / md;` |
+| 472 | `cmp > → >=` | `if (md > 0) {` |
+| 474 | `cmp < → <=` | `for (let i = 0; i < deltas.length; i++) if (deltas[i] === md) same++;` |
+| 481 | `bool && → ||` | `if (firstTs && lastTs && lastTs.tMs > firstTs.tMs) {` |
+| 481 | `cmp > → >=` | `if (firstTs && lastTs && lastTs.tMs > firstTs.tMs) {` |
+| 481 | `bool && → ||` | `if (firstTs && lastTs && lastTs.tMs > firstTs.tMs) {` |
+| 489 | `bool && → ||` | `const hostAx = typeof DexClock !== 'undefined' && DexClock.hostAxis ? De` |
+| 490 | `bool && → ||` | `if (hostAx.ok && isFinite(hostAx.ppm)) fs = fs / (1 + hostAx.ppm / 1e6);` |
+| 497 | `cmp >= → >` | `const axisDrawn = quantizedShare != null && quantizedShare >= 0.99;` |
+| 504 | `cmp > → >=` | `if (deltas.length > 20) {` |
+| 504 | `num → 0` | `if (deltas.length > 20) {` |
+| 505 | `cmp < → <=` | `for (let i = 0; i < n; i++) {` |
+| 514 | `cmp < → <=` | `for (let i = 0; i < n; i++) relSec[i] = i / fs;` |
+| 591 | `cmp > → >=` | `if (timebase === 'device-crystal' && site === 'finger' && n > 0) {` |
+| 593 | `cmp > → >=` | `const maxStep = TIME_GAP_STEPS / (fs > 0 ? fs : O2_ADC_HZ); // gap detec` |
+| 597 | `cmp < → <=` | `for (let i = 0; i < n; i++) {` |
+| 598 | `cmp > → >=` | `if (i > 0 && relSec[i] - relSec[i - 1] > maxStep) {` |
+| 598 | `cmp > → >=` | `if (i > 0 && relSec[i] - relSec[i - 1] > maxStep) {` |
+| 657 | `bool && → ||` | `return lt && lt.tMs != null ? lt.tMs : null;` |
+| 737 | `bool || → &&` | `stability: axisSynthetic ? null : hostAx.stability \|\| null,` |
+| 740 | `bool || → &&` | `: { ok: false, reason: hostAx.reason \|\| 'no host anchors', drawn: axisSy` |
+| 761 | `cmp > → >=` | `let replicated = nCh > 1;` |
+| 762 | `cmp < → <=` | `for (let c = 1; replicated && c < nCh; c++) {` |
+| 766 | `cmp < → <=` | `for (let i = 0; i < len; i++) {` |
+| 790 | `num → 0` | `const win = Math.min(sig.length, Math.max(Math.round(fs * 90), Math.roun` |
+| 790 | `num → 0` | `const win = Math.min(sig.length, Math.max(Math.round(fs * 90), Math.roun` |
+| 792 | `cmp < → <=` | `if (s0 < 0) s0 = 0;` |
+| 793 | `eq === → !==` | `const slice = s0 === 0 && win === sig.length ? sig : sig.subarray(s0, s0` |
+| 793 | `eq === → !==` | `const slice = s0 === 0 && win === sig.length ? sig : sig.subarray(s0, s0` |
+| 793 | `bool && → ||` | `const slice = s0 === 0 && win === sig.length ? sig : sig.subarray(s0, s0` |
+| 794 | `num → 0` | `const pulse = bandpass(slice, fs, 0.7, 3.0);` |
+| 794 | `num → 0` | `const pulse = bandpass(slice, fs, 0.7, 3.0);` |
+| 817 | `bool || → &&` | `if (!a \|\| !b \|\| a.length !== b.length) return false;` |
+| 817 | `bool || → &&` | `if (!a \|\| !b \|\| a.length !== b.length) return false;` |
+| 818 | `cmp < → <=` | `for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;` |
+| 836 | `cmp > → >=` | `if (s.snr > bestScore) {` |
+| 857 | `bool || → &&` | `if (refRate == null \|\| !isFinite(refRate) \|\| refRate <= 0) return refIdx` |
+| 857 | `cmp <= → <` | `if (refRate == null \|\| !isFinite(refRate) \|\| refRate <= 0) return refIdx` |
+| 857 | `bool || → &&` | `if (refRate == null \|\| !isFinite(refRate) \|\| refRate <= 0) return refIdx` |
+| 859 | `cmp > → >=` | `for (let i = 0; i < rates.length; i++) if (i !== refIdx && rates[i] != n` |
+| 859 | `cmp < → <=` | `for (let i = 0; i < rates.length; i++) if (i !== refIdx && rates[i] != n` |
+| 862 | `cmp > → >=` | `if (!(medOther > 0)) return refIdx;` |
+| 866 | `cmp < → <=` | `if (!(spread < 0.15 && refRate / medOther >= 1.5)) return refIdx;` |
+| 866 | `cmp >= → >` | `if (!(spread < 0.15 && refRate / medOther >= 1.5)) return refIdx;` |
+| 870 | `cmp < → <=` | `for (let i = 0; i < rates.length; i++) {` |
+| 871 | `cmp >= → >` | `if (rates[i] == null \|\| Math.abs(rates[i] / medOther - 1) >= 0.15) conti` |
+| 872 | `bool && → ||` | `const s = snr && snr[i] != null ? snr[i] : 0;` |
+| 873 | `cmp > → >=` | `if (s > bestSnr) {` |
+| 878 | `cmp >= → >` | `return pick >= 0 ? pick : refIdx;` |
+| 920 | `num → 0` | `const ORIENT_SAMPLE_SEC = 120; // ~100 beats at 50 bpm — enough for a st` |
+| 927 | `cmp > → >=` | `if (n < ORIENT_MIN_BEATS \|\| !(det.T > 0)) return null;` |
+| 927 | `cmp < → <=` | `if (n < ORIENT_MIN_BEATS \|\| !(det.T > 0)) return null;` |
+| 927 | `bool || → &&` | `if (n < ORIENT_MIN_BEATS \|\| !(det.T > 0)) return null;` |
+| 929 | `cmp < → <=` | `for (var k = 0; k < n; k++) {` |
+| 931 | `cmp > → >=` | `if (isFinite(d) && d > 0) r.push(d);` |
+| 931 | `bool && → ||` | `if (isFinite(d) && d > 0) r.push(d);` |
+| 933 | `cmp < → <=` | `if (r.length < ORIENT_MIN_BEATS) return null;` |
+| 941 | `cmp <= → <` | `if (!(want > 0) \|\| n <= want) {` |
+| 941 | `cmp > → >=` | `if (!(want > 0) \|\| n <= want) {` |
+| 941 | `bool || → &&` | `if (!(want > 0) \|\| n <= want) {` |
+| 941 | `negate: drop !` | `if (!(want > 0) \|\| n <= want) {` |
+| 949 | `bool && → ||` | `if (up == null && dn == null) return orient(bp); // undecidable → previo` |
+| 952 | `cmp < → <=` | `return dn < up ? -1 : 1;` |
+| 962 | `cmp < → <=` | `for (let i = 1; i < bp.length; i++) d[i] = bp[i] - bp[i - 1];` |
+| 1008 | `cmp < → <=` | `if (!signs \|\| signs.length < 2) return 0;` |
+| 1011 | `cmp < → <=` | `for (let i = 0; i < signs.length; i++) {` |
+| 1017 | `cmp > → >=` | `return neg > pos ? -1 : 1;` |
+| 1068 | `num → 0` | `const SUBH_FRAC = 0.4;` |
+| 1073 | `cmp < → <=` | `if (n < WIN + HOP) return null;` |
+| 1082 | `cmp < → <=` | `for (let i = 0; i < m; i++) x[i] = lp[i * D];` |
+| 1083 | `num → 0` | `const lagMin = Math.max(2, Math.round(fsd * 0.33)); // 180 bpm ceiling` |
+| 1089 | `cmp <= → <` | `for (let s = 0; s + wd <= m; s += hd) {` |
+| 1108 | `cmp > → >=` | `if (r > best) {` |
+| 1130 | `bool && → ||` | `if (bl && best > 0) {` |
+| 1130 | `cmp > → >=` | `if (bl && best > 0) {` |
+| 1133 | `cmp < → <=` | `if (cand < lagMin) continue;` |
+| 1141 | `cmp <= → <` | `for (let d = -1; d <= 1; d++) {` |
+| 1143 | `cmp >= → >` | `if (c2 >= lagMin && c2 <= lagMax && corr[c2] > bv) {` |
+| 1143 | `cmp <= → <` | `if (c2 >= lagMin && c2 <= lagMax && corr[c2] > bv) {` |
+| 1143 | `cmp > → >=` | `if (c2 >= lagMin && c2 <= lagMax && corr[c2] > bv) {` |
+| 1148 | `cmp >= → >` | `if (bv >= SUBH_FRAC * best) {` |
+| 1163 | `cmp < → <=` | `for (let i = 0; i < n; i++) {` |
+| 1164 | `cmp < → <=` | `while (k < ws.length - 2 && i > ws[k + 1]) k++;` |
+| 1164 | `cmp > → >=` | `while (k < ws.length - 2 && i > ws[k + 1]) k++;` |
+| 1165 | `cmp <= → <` | `if (i <= ws[0]) out[i] = ts[0];` |
+| 1166 | `cmp >= → >` | `else if (i >= ws[ws.length - 1]) out[i] = ts[ts.length - 1];` |
+| 1182 | `cmp < → <=` | `if (n < 3) return { peaks, feet: [], T: Math.round(fs * 0.85) };` |
+| 1182 | `num → 0` | `if (n < 3) return { peaks, feet: [], T: Math.round(fs * 0.85) };` |
+| 1191 | `cmp < → <=` | `for (let i = 1; i < n; i++) {` |
+| 1193 | `cmp > → >=` | `z[i] = dv > 0 ? dv * dv : 0;` |
+| 1199 | `num → 0` | `const minW = Math.max(2, Math.round(fs * 0.05)); // min systolic-block w` |
+| 1210 | `cmp < → <=` | `while (i < n) {` |
+| 1213 | `cmp < → <=` | `while (j < n && maPeak[j] > maBeat[j]) j++;` |
+| 1213 | `cmp > → >=` | `while (j < n && maPeak[j] > maBeat[j]) j++;` |
+| 1214 | `cmp >= → >` | `if (j - i >= minW) {` |
+| 1222 | `cmp > → >=` | `if (v > sv) {` |
+| 1231 | `cmp >= → >` | `if (peaks.length === 0 \|\| sp - peaks[peaks.length - 1] >= refr) peaks.pu` |
+| 1232 | `cmp > → >=` | `else if (bp[sp] > bp[peaks[peaks.length - 1]]) peaks[peaks.length - 1] =` |
+| 1239 | `num → 0` | `let T = Math.round(fs * 0.85);` |
+| 1240 | `cmp > → >=` | `if (peaks.length > 2) {` |
+| 1242 | `cmp < → <=` | `for (let k = 1; k < peaks.length; k++) dd.push(peaks[k] - peaks[k - 1]);` |
+| 1244 | `cmp > → >=` | `if (md > 0) T = Math.round(md);` |
+| 1260 | `cmp < → <=` | `if (bp[j] < mv) {` |
+| 1267 | `cmp < → <=` | `for (let j = mi; j < p; j++) {` |
+| 1269 | `cmp > → >=` | `if (dv > msv) {` |
+| 1275 | `cmp > → >=` | `if (msv > 1e-9) {` |
+| 1285 | `cmp < → <=` | `for (let i = 0; i < x.length; i++) y[i] = -x[i];` |
+| 1323 | `cmp < → <=` | `if (nCh < 2) {` |
+| 1327 | `num → 0` | `const tol = Math.max(1, Math.round(0.05 * fs)); // ±50 ms agreement wind` |
+| 1354 | `cmp <= → <` | `while (j < ev.length && ev[j].s - ev[j - 1].s <= tol) {` |
+| 1371 | `num → 0` | `const refr = Math.round(fs * 0.3);` |
+| 1375 | `cmp < → <=` | `if (peaks.length && rawPeaks[k] - peaks[peaks.length - 1] < refr) {` |
+| 1376 | `cmp > → >=` | `if (refBp[rawPeaks[k]] > refBp[peaks[peaks.length - 1]]) {` |
+| 1385 | `num → 0` | `let T = Math.round(fs * 0.85);` |
+| 1386 | `cmp > → >=` | `if (peaks.length > 2) {` |
+| 1388 | `cmp < → <=` | `for (let k = 1; k < peaks.length; k++) dd.push(peaks[k] - peaks[k - 1]);` |
+| 1390 | `cmp > → >=` | `if (md > 0) T = Math.round(md);` |
+| 1398 | `cmp < → <=` | `for (let i = 0; i < x.length; i++) {` |
+| 1407 | `cmp > → >=` | `for (let i = i0; i < i1; i++) if (a[i] > m) m = a[i];` |
+| 1407 | `cmp < → <=` | `for (let i = i0; i < i1; i++) if (a[i] > m) m = a[i];` |
+| 1420 | `num → 0` | `const pre = Math.round(fs * 0.2),` |
+| 1425 | `cmp < → <=` | `for (let k = 0; k < n; k++) {` |
+| 1429 | `cmp < → <=` | `for (let j = 0; j < L; j++) {` |
+| 1431 | `cmp >= → >` | `if (idx < 0 \|\| idx >= bp.length) {` |
+| 1431 | `cmp < → <=` | `if (idx < 0 \|\| idx >= bp.length) {` |
+| 1431 | `bool || → &&` | `if (idx < 0 \|\| idx >= bp.length) {` |
+| 1444 | `bool || → &&` | `const r = mx - mn \|\| 1;` |
+| 1446 | `cmp < → <=` | `for (let j = 0; j < b.length; j++) o[j] = (b[j] - mn) / r;` |
+| 1452 | `cmp < → <=` | `for (let j = 0; j < L; j++) {` |
+| 1467 | `num → 0` | `let q = Math.max(0, corr) * (0.4 + 0.6 * motFactor);` |
+| 1474 | `bool && → ||` | `else if (regular && regular[k] != null) {` |
+| 1498 | `cmp < → <=` | `if (n < 4) return peaks.map(() => null); // no local cadence to judge ag` |
+| 1500 | `cmp < → <=` | `for (let k = 1; k < n; k++) iv.push(peaks[k] - peaks[k - 1]);` |
+| 1502 | `cmp > → >=` | `if (!(med > 0)) return peaks.map(() => null);` |
+| 1510 | `num → 0` | `out.push(Math.max(0.6, 1 - Math.min(1, d / 0.5) * 0.4));` |
+| 1528 | `cmp < → <=` | `for (let i = 0; i < y.length; i++) {` |
+| 1539 | `cmp < → <=` | `for (let i = 0; i < y.length && first === null; i++) if (!gap[i]) first ` |
+| 1539 | `eq === → !==` | `for (let i = 0; i < y.length && first === null; i++) if (!gap[i]) first ` |
+| 1539 | `bool && → ||` | `for (let i = 0; i < y.length && first === null; i++) if (!gap[i]) first ` |
+| 1539 | `negate: drop !` | `for (let i = 0; i < y.length && first === null; i++) if (!gap[i]) first ` |
+| 1540 | `eq !== → ===` | `for (let i = 0; i < y.length && gap[i]; i++) y[i] = first !== null ? fir` |
+| 1540 | `bool && → ||` | `for (let i = 0; i < y.length && gap[i]; i++) y[i] = first !== null ? fir` |
+| 1540 | `cmp < → <=` | `for (let i = 0; i < y.length && gap[i]; i++) y[i] = first !== null ? fir` |
+| 1578 | `bool || → &&` | `if (rmssdMs == null \|\| sdnnRobustMs == null) return false;` |
+| 1579 | `bool || → &&` | `if (!isFinite(rmssdMs) \|\| !isFinite(sdnnRobustMs) \|\| sdnnRobustMs <= 0) ` |
+| 1586 | `cmp > → >=` | `if (!relSec \|\| !feet \|\| feet.length < 2 \|\| !(fs > 0)) return out;` |
+| 1586 | `cmp < → <=` | `if (!relSec \|\| !feet \|\| feet.length < 2 \|\| !(fs > 0)) return out;` |
+| 1586 | `bool || → &&` | `if (!relSec \|\| !feet \|\| feet.length < 2 \|\| !(fs > 0)) return out;` |
+| 1586 | `bool || → &&` | `if (!relSec \|\| !feet \|\| feet.length < 2 \|\| !(fs > 0)) return out;` |
+| 1586 | `bool || → &&` | `if (!relSec \|\| !feet \|\| feet.length < 2 \|\| !(fs > 0)) return out;` |
+| 1592 | `cmp < → <=` | `for (let i = 1; i < n; i++) {` |
+| 1593 | `cmp > → >=` | `if (relSec[i] - relSec[i - 1] > maxStep) run++;` |
+| 1597 | `cmp < → <=` | `for (let k = 0; k < nIntervals; k++) {` |
+| 1600 | `bool || → &&` | `if (a == null \|\| b == null) continue;` |
+| 1603 | `cmp > → >=` | `if (i1 > i0 && prefix[i1] > prefix[i0]) out[k] = true;` |
+| 1620 | `bool || → &&` | `if (!rec \|\| rec.t0Ms == null \|\| !isFinite(rec.t0Ms)) return null;` |
+| 1620 | `bool || → &&` | `if (!rec \|\| rec.t0Ms == null \|\| !isFinite(rec.t0Ms)) return null;` |
+| 1623 | `cmp > → >=` | `if (!relSec \|\| !relSec.length \|\| !(fs > 0)) return null;` |
+| 1623 | `bool || → &&` | `if (!relSec \|\| !relSec.length \|\| !(fs > 0)) return null;` |
+| 1623 | `bool || → &&` | `if (!relSec \|\| !relSec.length \|\| !(fs > 0)) return null;` |
+| 1629 | `cmp < → <=` | `for (let i = 1; i < n; i++) {` |
+| 1630 | `cmp > → >=` | `if (relSec[i] - relSec[i - 1] > maxStep) {` |
+| 1637 | `bool && → ||` | `return typeof DexExport !== 'undefined' && DexExport && DexExport.covera` |
+| 1637 | `bool && → ||` | `return typeof DexExport !== 'undefined' && DexExport && DexExport.covera` |
+| 1654 | `cmp < → <=` | `for (let k = 0; k < peaks.length; k++) {` |
+| 1656 | `bool && → ||` | `const f = feet && feet[k] != null ? Math.floor(feet[k]) : p;` |
+| 1659 | `cmp <= → <` | `for (let i = lo; i <= hi; i++)` |
+| 1682 | `bool || → &&` | `const den = Math.sqrt(sa * sb) \|\| 1e-9;` |
+| 1697 | `bool || → &&` | `winSec = winSec \|\| 60;` |
+| 1700 | `bool || → &&` | `const t0 = t0Ms \|\| 0;` |
+| 1701 | `num → 0` | `const secAbs = (k) => Math.floor((t0 + (peaks[k] / fs) * 1000) / 1000);` |
+| 1701 | `num → 0` | `const secAbs = (k) => Math.floor((t0 + (peaks[k] / fs) * 1000) / 1000);` |
+| 1702 | `cmp < → <=` | `if (n < 20) {` |
+| 1702 | `num → 0` | `if (n < 20) {` |
+| 1703 | `cmp < → <=` | `for (let k = 0; k < n; k++) out.set(secAbs(k), 1);` |
+| 1709 | `cmp < → <=` | `if (S < 1) return out;` |
+| 1712 | `cmp < → <=` | `for (let k = 0; k < n; k++) {` |
+| 1714 | `cmp >= → >` | `if (s >= 0 && s < S) {` |
+| 1714 | `cmp < → <=` | `if (s >= 0 && s < S) {` |
+| 1714 | `bool && → ||` | `if (s >= 0 && s < S) {` |
+| 1716 | `bool && → ||` | `qsum[s] += sqi && Number.isFinite(sqi[k]) ? sqi[k] : 1;` |
+| 1726 | `cmp < → <=` | `for (let i = 0; i < S; i++) {` |
+| 1734 | `cmp < → <=` | `while (lo < a) {` |
+| 1740 | `cmp > → >=` | `winSqi[i] = cAcc > 0 ? qAcc / cAcc : 0;` |
+| 1743 | `cmp > → >=` | `for (let i = 0; i < S; i++) if (winCnt[i] > 0) active.push(i);` |
+| 1743 | `cmp < → <=` | `for (let i = 0; i < S; i++) if (winCnt[i] > 0) active.push(i);` |
+| 1758 | `num → 0` | `const madC = 1.4826 * (cAbs.length ? cAbs[cAbs.length >> 1] : 0) \|\| 1;` |
+| 1758 | `bool || → &&` | `const madC = 1.4826 * (cAbs.length ? cAbs[cAbs.length >> 1] : 0) \|\| 1;` |
+| 1759 | `bool || → &&` | `const madQ = 1.4826 * (qAbs.length ? qAbs[qAbs.length >> 1] : 0) \|\| 1e-6` |
+| 1759 | `num → 0` | `const madQ = 1.4826 * (qAbs.length ? qAbs[qAbs.length >> 1] : 0) \|\| 1e-6` |
+| 1761 | `cmp >= → >` | `const trust = (z) => (z <= 0 ? 1 : z >= C ? 0 : (1 - (z / C) * (z / C)) ` |
+| 1761 | `cmp <= → <` | `const trust = (z) => (z <= 0 ? 1 : z >= C ? 0 : (1 - (z / C) * (z / C)) ` |
+| 1762 | `cmp < → <=` | `for (let i = 0; i < S; i++) {` |
+| 1763 | `cmp <= → <` | `if (winCnt[i] <= 0) continue;` |
+| 1810 | `cmp >= → >` | `const inRange = rr.filter((v) => v >= 300 && v <= 2000);` |
+| 1810 | `cmp <= → <` | `const inRange = rr.filter((v) => v >= 300 && v <= 2000);` |
+| 1810 | `bool && → ||` | `const inRange = rr.filter((v) => v >= 300 && v <= 2000);` |
+| 1811 | `num → 0` | `const globalMed = inRange.length ? median(inRange) : 800;` |
+| 1849 | `cmp >= → >` | `if (runBad >= RESEED_AFTER) {` |
+| 1853 | `cmp <= → <` | `for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k]` |
+| 1853 | `cmp < → <=` | `for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k]` |
+| 1853 | `bool && → ||` | `for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k]` |
+| 1853 | `cmp <= → <` | `for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k]` |
+| 1853 | `cmp >= → >` | `for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k]` |
+| 1853 | `num → 0` | `for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k]` |
+| 1853 | `bool && → ||` | `for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k]` |
+| 1862 | `cmp > → >=` | `if (v < 300 \|\| v > 2000) bad = true;` |
+| 1862 | `cmp < → <=` | `if (v < 300 \|\| v > 2000) bad = true;` |
+| 1862 | `bool || → &&` | `if (v < 300 \|\| v > 2000) bad = true;` |
+| 1862 | `num → 0` | `if (v < 300 \|\| v > 2000) bad = true;` |
+| 1863 | `cmp > → >=` | `else if (Math.abs(v - ref) / ref > PPI_ECTOPY_THR) bad = true; // >30% o` |
+| 1889 | `cmp < → <=` | `if (N < 60 \|\| !tt \|\| tt.length !== N) return { events: [], index: 0 };` |
+| 1889 | `bool || → &&` | `if (N < 60 \|\| !tt \|\| tt.length !== N) return { events: [], index: 0 };` |
+| 1889 | `bool || → &&` | `if (N < 60 \|\| !tt \|\| tt.length !== N) return { events: [], index: 0 };` |
+| 1889 | `num → 0` | `if (N < 60 \|\| !tt \|\| tt.length !== N) return { events: [], index: 0 };` |
+| 1892 | `cmp < → <=` | `if (M < 120) return { events: [], index: 0 }; // < 2 min → no apnea-band` |
+| 1895 | `cmp < → <=` | `for (let s = 0; s < M; s++) {` |
+| 1896 | `cmp < → <=` | `while (j < N - 1 && tt[j + 1] < s) j++;` |
+| 1896 | `cmp < → <=` | `while (j < N - 1 && tt[j + 1] < s) j++;` |
+| 1900 | `cmp < → <=` | `for (let s = 0; s < M; s++) {` |
+| 1903 | `cmp <= → <` | `for (let k = -2; k <= 2; k++) {` |
+| 1905 | `cmp >= → >` | `if (u >= 0 && u < M) {` |
+| 1905 | `cmp < → <=` | `if (u >= 0 && u < M) {` |
+| 1905 | `bool && → ||` | `if (u >= 0 && u < M) {` |
+| 1915 | `cmp < → <=` | `for (let s = 0; s < M; s++) {` |
+| 1918 | `cmp <= → <` | `for (let k = -half; k <= half; k++) {` |
+| 1920 | `cmp < → <=` | `if (u >= 0 && u < M) {` |
+| 1920 | `cmp >= → >` | `if (u >= 0 && u < M) {` |
+| 1920 | `bool && → ||` | `if (u >= 0 && u < M) {` |
+| 1932 | `cmp < → <=` | `for (let s = 0; s < M; s++) res[s] = hiCut[s] - lo[s];` |
+| 1934 | `cmp < → <=` | `for (let s = 0; s < M; s++) {` |
+| 1937 | `cmp <= → <` | `for (let k = -12; k <= 12; k++) {` |
+| 1937 | `num → 0` | `for (let k = -12; k <= 12; k++) {` |
+| 1937 | `num → 0` | `for (let k = -12; k <= 12; k++) {` |
+| 1939 | `cmp >= → >` | `if (u >= 0 && u < M) {` |
+| 1939 | `cmp < → <=` | `if (u >= 0 && u < M) {` |
+| 1939 | `bool && → ||` | `if (u >= 0 && u < M) {` |
+| 1946 | `num → 0` | `const ENV_ON = 2.6; // bpm — sustained-oscillation gate (matches ECGDex)` |
+| 1948 | `num → 0` | `let lastT = -100;` |
+| 1949 | `cmp < → <=` | `for (let s = 8; s < M - 8; s++) {` |
+| 1950 | `cmp < → <=` | `if (env[s] < ENV_ON) continue;` |
+| 1951 | `cmp <= → <` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
+| 1951 | `cmp < → <=` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
+| 1951 | `cmp < → <=` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
+| 1951 | `bool && → ||` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
+| 1951 | `bool && → ||` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
+| 1951 | `num → 0` | `if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {` |
+| 1954 | `cmp < → <=` | `for (let u = s + 8; u < Math.min(M, s + 48); u++) {` |
+| 1955 | `cmp > → >=` | `if (res[u] > pk) {` |
+| 1962 | `cmp >= → >` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
+| 1962 | `cmp > → >=` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
+| 1962 | `cmp >= → >` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
+| 1962 | `cmp <= → <` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
+| 1962 | `bool && → ||` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
+| 1962 | `bool && → ||` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
+| 1962 | `bool && → ||` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
+| 1962 | `num → 0` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
+| 1962 | `num → 0` | `if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {` |
+| 1969 | `cmp > → >=` | `const index = hours > 0 ? +(events.length / hours).toFixed(1) : 0;` |
+| 1979 | `cmp < → <=` | `if (nn.length < 2) return null;` |
+| 1981 | `cmp >= → >` | `const base = keep.length >= 2 ? keep : nn; // never let the omission emp` |
+| 1997 | `cmp > → >=` | `if (Math.abs(d) > 50) nn50++;` |
+| 1999 | `cmp < → <=` | `if (cnt < 1) {` |
+| 2000 | `cmp < → <=` | `for (let i = 1; i < nn.length; i++) {` |
+| 2004 | `cmp > → >=` | `if (Math.abs(d) > 50) nn50++;` |
+| 2004 | `num → 0` | `if (Math.abs(d) > 50) nn50++;` |
+| 2013 | `num → 0` | `const b = Math.round(v / 7.8125);` |
+| 2014 | `bool || → &&` | `bins[b] = (bins[b] \|\| 0) + 1;` |
+| 2017 | `cmp > → >=` | `for (const k in bins) if (bins[k] > mx) mx = bins[k];` |
+| 2022 | `cmp < → <=` | `if (nn.length < 3) return null;` |
+| 2026 | `cmp < → <=` | `for (let i = 1; i < nn.length; i++) {` |
+| 2030 | `cmp < → <=` | `if (d.length < 2) {` |
+| 2032 | `cmp < → <=` | `for (let i = 1; i < nn.length; i++) d.push(nn[i] - nn[i - 1]);` |
+| 2036 | `num → 0` | `const sd2 = Math.sqrt(Math.max(0, 2 * sdnn * sdnn - 0.5 * std(d) * std(d` |
+| 2037 | `bool || → &&` | `return { sd1: r1(sd1), sd2: r1(sd2), sd1sd2: r2(sd1 / (sd2 \|\| 1)), ellAr` |
+| 2060 | `cmp < → <=` | `for (let i = 0; i < N; i++) y[i] -= slope * t[i] + icpt;` |
+| 2061 | `num → 0` | `const bands = { vlf: [0.003, 0.04], lf: [0.04, 0.15], hf: [0.15, 0.4] };` |
+| 2061 | `num → 0` | `const bands = { vlf: [0.003, 0.04], lf: [0.04, 0.15], hf: [0.15, 0.4] };` |
+| 2061 | `num → 0` | `const bands = { vlf: [0.003, 0.04], lf: [0.04, 0.15], hf: [0.15, 0.4] };` |
+| 2063 | `num → 0` | `fmax = 0.4,` |
+| 2079 | `cmp > → >=` | `const fNyq = _meanPPIs > 0 ? 1 / (2 * _meanPPIs) : fmax;` |
+| 2087 | `cmp <= → <` | `for (let f = fmin; f <= fCal; f += df) {` |
+| 2113 | `cmp < → <=` | `if (f >= bands.vlf[0] && f < bands.vlf[1]) vlf += pw;` |
+| 2114 | `cmp >= → >` | `else if (f >= bands.lf[0] && f < bands.lf[1]) lf += pw;` |
+| 2114 | `cmp < → <=` | `else if (f >= bands.lf[0] && f < bands.lf[1]) lf += pw;` |
+| 2115 | `cmp >= → >` | `else if (f >= bands.hf[0] && f < bands.hf[1]) {` |
+| 2115 | `cmp < → <=` | `else if (f >= bands.hf[0] && f < bands.hf[1]) {` |
+| 2171 | `cmp < → <=` | `if (nn.length < 50) return null;` |
+| 2171 | `num → 0` | `if (nn.length < 50) return null;` |
+| 2176 | `cmp < → <=` | `for (let i = 0; i < N; i++) {` |
+| 2181 | `cmp <= → <` | `for (let s = 4; s <= 16; s++) scales.push(s);` |
+| 2186 | `cmp < → <=` | `if (nWin < 1) continue;` |
+| 2241 | `cmp > → >=` | `if (N > MAXN) {` |
+| 2244 | `cmp < → <=` | `for (let i = 0; i < N; i += stride) dec.push(nn[i]);` |
+| 2267 | `cmp > → >=` | `if (nA > 0) {` |
+| 2269 | `cmp < → <=` | `for (let i = 0; i < nA; i++) ord[i] = i;` |
+| 2273 | `cmp < → <=` | `for (let a = 0; a < nA; a++) {` |
+| 2275 | `cmp < → <=` | `for (let b = a + 1; b < nA; b++) {` |
+| 2277 | `cmp > → >=` | `if (nn[j] - nn[i] > tol) break; // ordered ⇒ every later j is further st` |
+| 2280 | `cmp > → >=` | `if (Math.abs(nn[i + k] - nn[j + k]) > tol) {` |
+| 2285 | `negate: drop !` | `if (!ok) continue;` |
+| 2287 | `cmp <= → <` | `if (Math.abs(nn[i + m] - nn[j + m]) <= tol) A++;` |
+| 2292 | `cmp < → <=` | `for (let j = 0; j < t; j++) {` |
+| 2294 | `cmp < → <=` | `for (let k = 0; k < m; k++) {` |
+| 2295 | `cmp > → >=` | `if (Math.abs(nn[t + k] - nn[j + k]) > tol) {` |
+| 2307 | `bool || → &&` | `if (!B \|\| !A) return null;` |
+| 2322 | `bool || → &&` | `var p = String(headerLine \|\| '').split(';');` |
+| 2332 | `cmp >= → >` | `return idx.x >= 0 && idx.y >= 0 && idx.z >= 0 ? idx : null;` |
+| 2332 | `cmp >= → >` | `return idx.x >= 0 && idx.y >= 0 && idx.z >= 0 ? idx : null;` |
+| 2332 | `bool && → ||` | `return idx.x >= 0 && idx.y >= 0 && idx.z >= 0 ? idx : null;` |
+| 2332 | `bool && → ||` | `return idx.x >= 0 && idx.y >= 0 && idx.z >= 0 ? idx : null;` |
+| 2332 | `cmp >= → >` | `return idx.x >= 0 && idx.y >= 0 && idx.z >= 0 ? idx : null;` |
+| 2338 | `cmp < → <=` | `for (var k = 0; k < p.length; k++) {` |
+| 2341 | `cmp < → <=` | `if (nums.length < 3) return null;` |
+| 2352 | `bool && → ||` | `if (/timestamp/i.test(t) && !cols) {` |
+| 2352 | `negate: drop !` | `if (/timestamp/i.test(t) && !cols) {` |
+| 2357 | `cmp < → <=` | `if (p.length < 5) continue;` |
+| 2358 | `bool || → &&` | `const c = cols \|\| xyzColsByTail(p);` |
+| 2364 | `cmp >= → >` | `const b = BigInt(p[c.ns >= 0 ? c.ns : 1].trim());` |
+| 2365 | `eq === → !==` | `if (ns0 === null) ns0 = b;` |
+| 2368 | `cmp >= → >` | `const ts = parseTimestamp(p[c.phone >= 0 ? c.phone : 0]);` |
+| 2390 | `bool || → &&` | `opts = opts \|\| {};` |
+| 2394 | `bool || → &&` | `if (!grid \|\| !grid.length \|\| !(dtSec > 0)) return [];` |
+| 2404 | `cmp < → <=` | `for (let i = 0; i < n; i++) {` |
+| 2408 | `bool || → &&` | `const sd = Math.sqrt(v / n) \|\| 1;` |
+| 2413 | `cmp < → <=` | `if (grid[c] < thr) continue;` |
+| 2415 | `cmp <= → <` | `for (let k = c - localBins; k <= c + localBins; k++) {` |
+| 2416 | `cmp >= → >` | `if (k >= 0 && k < n && grid[k] > grid[c]) {` |
+| 2416 | `cmp < → <=` | `if (k >= 0 && k < n && grid[k] > grid[c]) {` |
+| 2423 | `cmp < → <=` | `if (sec - last < minGapSec) continue;` |
+| 2439 | `cmp > → >=` | `const has = (accRows && accRows.length > 5) \|\| (gyroRows && gyroRows.len` |
+| 2439 | `cmp > → >=` | `const has = (accRows && accRows.length > 5) \|\| (gyroRows && gyroRows.len` |
+| 2456 | `cmp < → <=` | `if (!rows \|\| rows.length < 2) return true;` |
+| 2458 | `cmp < → <=` | `for (let i = 0; i < rows.length; i++) {` |
+| 2461 | `cmp < → <=` | `if (v < prev) return false;` |
+| 2470 | `bool && → ||` | `if (r.tMs != null && t0Ms != null) return (r.tMs - t0Ms) / 1000;` |
+| 2485 | `cmp < → <=` | `if (!rows \|\| rows.length < 3) return null;` |
+| 2491 | `cmp > → >=` | `if (prev != null && t > prev) d.push(t - prev);` |
+| 2491 | `bool && → ||` | `if (prev != null && t > prev) d.push(t - prev);` |
+| 2497 | `bool && → ||` | `return isFinite(dm) && dm > 0 ? 1 / dm : null;` |
+| 2497 | `cmp > → >=` | `return isFinite(dm) && dm > 0 ? 1 / dm : null;` |
+| 2503 | `cmp > → >=` | `if (accRows && accRows.length > 5) {` |
+| 2548 | `cmp > → >=` | `if (gyroRows && gyroRows.length > 5) {` |
+| 2551 | `num → 0` | `const p10 = sortedGy[Math.floor(sortedGy.length * 0.1)];` |
+| 2552 | `cmp > → >=` | `gyroBias = Math.min(isFinite(p10) && p10 > 0 ? p10 : 0, GY_FULL / 4);` |
+| 2552 | `bool && → ||` | `gyroBias = Math.min(isFinite(p10) && p10 > 0 ? p10 : 0, GY_FULL / 4);` |
+| 2570 | `cmp >= → >` | `if (g >= 0 && g < nG) {` |
+| 2570 | `bool && → ||` | `if (g >= 0 && g < nG) {` |
+| 2570 | `cmp < → <=` | `if (g >= 0 && g < nG) {` |
+| 2578 | `cmp >= → >` | `if (g >= 0 && g < nG) {` |
+| 2578 | `bool && → ||` | `if (g >= 0 && g < nG) {` |
+| 2578 | `cmp < → <=` | `if (g >= 0 && g < nG) {` |
+| 2594 | `cmp < → <=` | `for (let i = 0; i < nG; i++) {` |
+| 2602 | `cmp >= → >` | `return g >= 0 && g < nG ? sm[g] : 0;` |
+| 2602 | `bool && → ||` | `return g >= 0 && g < nG ? sm[g] : 0;` |
+| 2602 | `cmp < → <=` | `return g >= 0 && g < nG ? sm[g] : 0;` |
+| 2610 | `cmp >= → >` | `return g >= 0 && g < nG && covCell[g] === 1;` |
+| 2610 | `cmp < → <=` | `return g >= 0 && g < nG && covCell[g] === 1;` |
+| 2613 | `cmp < → <=` | `for (let i = 0; i < nG; i++) if (covCell[i]) _nCov++;` |
+| 2618 | `num → 0` | `const stride = Math.max(1, Math.floor(nG / 600));` |
+| 2619 | `cmp < → <=` | `for (let i = 0; i < nG; i += stride) series.push({ x: (i * dt) / 60, y: ` |
+| 2619 | `num → 0` | `for (let i = 0; i < nG; i += stride) series.push({ x: (i * dt) / 60, y: ` |
+| 2637 | `cmp > → >=` | `const magHas = !!(magRows && magRows.length > 5);` |
+| 2645 | `bool || → &&` | `magState.base = median(magState.mag.filter(isFinite)) \|\| 0; // session \|` |
+| 2650 | `bool || → &&` | `const gn = Math.hypot(g.x, g.y, g.z) \|\| 1,` |
+| 2661 | `cmp < → <=` | `if (Math.abs(ux) < 0.9) ax = 1;` |
+| 2661 | `num → 0` | `if (Math.abs(ux) < 0.9) ax = 1;` |
+| 2666 | `bool || → &&` | `const e1n = Math.hypot(e1x, e1y, e1z) \|\| 1;` |
+| 2673 | `num → 0` | `return (Math.atan2(hx * e2x + hy * e2y + hz * e2z, hx * e1x + hy * e1y +` |
+| 2675 | `num → 0` | `return (Math.atan2(My, Mx) * 180) / Math.PI;` |
+| 2677 | `cmp > → >=` | `if (accRows && accRows.length > 5) {` |
+| 2678 | `num → 0` | `const w = Math.max(3, Math.round((accRows.length / durSec) * 2.0)); // ~` |
+| 2689 | `cmp < → <=` | `for (let i = 0; i < ss.length; i += gStride) {` |
+| 2690 | `cmp >= → >` | `if (ss[i] != null && ss[i] >= s0 && ss[i] < s1) {` |
+| 2690 | `cmp < → <=` | `if (ss[i] != null && ss[i] >= s0 && ss[i] < s1) {` |
+| 2700 | `negate: drop !` | `if (!magState.has) return null;` |
+| 2704 | `cmp < → <=` | `for (let i = 0; i < magState.ss.length; i++) {` |
+| 2706 | `cmp >= → >` | `if (s != null && s >= s0 && s < s1) {` |
+| 2706 | `cmp < → <=` | `if (s != null && s >= s0 && s < s1) {` |
+| 2706 | `bool && → ||` | `if (s != null && s >= s0 && s < s1) {` |
+| 2706 | `bool && → ||` | `if (s != null && s >= s0 && s < s1) {` |
+| 2712 | `cmp < → <=` | `if (sx.length < 3) return null;` |
+| 2718 | `negate: drop !` | `if (!magState.has) return false;` |
+| 2720 | `cmp < → <=` | `for (let i = 0; i < magState.ss.length; i++) {` |
+| 2722 | `cmp >= → >` | `if (s != null && s >= s0 && s < s1) v.push(magState.mag[i]);` |
+| 2722 | `cmp < → <=` | `if (s != null && s >= s0 && s < s1) v.push(magState.mag[i]);` |
+| 2722 | `bool && → ||` | `if (s != null && s >= s0 && s < s1) v.push(magState.mag[i]);` |
+| 2722 | `bool && → ||` | `if (s != null && s >= s0 && s < s1) v.push(magState.mag[i]);` |
+| 2724 | `cmp < → <=` | `if (v.length < 3) return false;` |
+| 2727 | `bool || → &&` | `bg = magState.base \|\| 1;` |
+| 2728 | `cmp > → >=` | `return !!(sd > Math.max(0.03, 0.04 * bg) \|\| Math.abs(md - bg) / bg > 0.2` |
+| 2728 | `cmp > → >=` | `return !!(sd > Math.max(0.03, 0.04 * bg) \|\| Math.abs(md - bg) / bg > 0.2` |
+| 2728 | `bool || → &&` | `return !!(sd > Math.max(0.03, 0.04 * bg) \|\| Math.abs(md - bg) / bg > 0.2` |
+| 2728 | `num → 0` | `return !!(sd > Math.max(0.03, 0.04 * bg) \|\| Math.abs(md - bg) / bg > 0.2` |
+| 2728 | `num → 0` | `return !!(sd > Math.max(0.03, 0.04 * bg) \|\| Math.abs(md - bg) / bg > 0.2` |
+| 2728 | `num → 0` | `return !!(sd > Math.max(0.03, 0.04 * bg) \|\| Math.abs(md - bg) / bg > 0.2` |
+| 2737 | `cmp < → <=` | `for (let s = 0; s < durSec; s += 30) {` |
+| 2737 | `num → 0` | `for (let s = 0; s < durSec; s += 30) {` |
+| 2738 | `num → 0` | `const g = gravMed(s, s + 30);` |
+| 2739 | `negate: drop !` | `if (!g) continue;` |
+| 2741 | `eq === → !==` | `if (base === 'supine' \|\| base === 'prone' \|\| base === 'upright') {` |
+| 2741 | `eq === → !==` | `if (base === 'supine' \|\| base === 'prone' \|\| base === 'upright') {` |
+| 2741 | `eq === → !==` | `if (base === 'supine' \|\| base === 'prone' \|\| base === 'upright') {` |
+| 2741 | `bool || → &&` | `if (base === 'supine' \|\| base === 'prone' \|\| base === 'upright') {` |
+| 2741 | `bool || → &&` | `if (base === 'supine' \|\| base === 'prone' \|\| base === 'upright') {` |
+| 2742 | `num → 0` | `const h = headingAtSec(s, s + 30);` |
+| 2744 | `num → 0` | `const rad = (h * Math.PI) / 180;` |
+| 2751 | `cmp > → >=` | `if (cnt > 0) refHeading = (Math.atan2(sumS, sumC) * 180) / Math.PI;` |
+| 2751 | `num → 0` | `if (cnt > 0) refHeading = (Math.atan2(sumS, sumC) * 180) / Math.PI;` |
+| 2758 | `num → 0` | `const need = (accRows.length / durSec) * 30; // need ≥30 s of gravity sa` |
+| 2759 | `cmp < → <=` | `if (!g \|\| g.n < need / gStride) return { position: 'unknown', conf: 0, h` |
+| 2764 | `eq === → !==` | `if (base === 'lateral' && heading != null && refHeading != null && !magI` |
+| 2764 | `bool && → ||` | `if (base === 'lateral' && heading != null && refHeading != null && !magI` |
+| 2764 | `bool && → ||` | `if (base === 'lateral' && heading != null && refHeading != null && !magI` |
+| 2764 | `negate: drop !` | `if (base === 'lateral' && heading != null && refHeading != null && !magI` |
+| 2764 | `bool && → ||` | `if (base === 'lateral' && heading != null && refHeading != null && !magI` |
+| 2766 | `cmp > → >=` | `while (d > 180) d -= 360;` |
+| 2766 | `num → 0` | `while (d > 180) d -= 360;` |
+| 2766 | `num → 0` | `while (d > 180) d -= 360;` |
+| 2767 | `cmp < → <=` | `while (d < -180) d += 360;` |
+| 2767 | `num → 0` | `while (d < -180) d += 360;` |
+| 2767 | `num → 0` | `while (d < -180) d += 360;` |
+| 2768 | `cmp >= → >` | `if (Math.abs(d) >= 30) base = d >= 0 ? 'lateral_R' : 'lateral_L';` |
+| 2768 | `num → 0` | `if (Math.abs(d) >= 30) base = d >= 0 ? 'lateral_R' : 'lateral_L';` |
+| 2768 | `cmp >= → >` | `if (Math.abs(d) >= 30) base = d >= 0 ? 'lateral_R' : 'lateral_L';` |
+| 2771 | `bool || → &&` | `const gn = Math.hypot(g.x, g.y, g.z) \|\| 1,` |
+| 2773 | `num → 0` | `let conf = Math.max(0, Math.min(1, (dom - 0.577) / (1 - 0.577)));` |
+| 2773 | `num → 0` | `let conf = Math.max(0, Math.min(1, (dom - 0.577) / (1 - 0.577)));` |
+| 2774 | `num → 0` | `conf *= Math.max(0.3, Math.min(1, (g.n * gStride) / need));` |
+| 2775 | `eq === → !==` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
+| 2775 | `eq === → !==` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
+| 2775 | `bool && → ||` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
+| 2775 | `bool && → ||` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
+| 2775 | `bool || → &&` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
+| 2775 | `num → 0` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
+| 2775 | `negate: drop !` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
+| 2775 | `num → 0` | `if (magState.has && !magInterf && (base === 'lateral_L' \|\| base === 'lat` |
+| 2776 | `num → 0` | `if (magInterf) conf *= 0.6;` |
+| 2777 | `num → 0` | `return { position: base, conf: r2(conf), heading: heading != null ? Math` |
+| 2777 | `num → 0` | `return { position: base, conf: r2(conf), heading: heading != null ? Math` |
+| 2777 | `num → 0` | `return { position: base, conf: r2(conf), heading: heading != null ? Math` |
+| 2798 | `cmp > → >=` | `gyroBiasDps: gyroRows && gyroRows.length > 5 ? r2(gyroBias) : null,` |
+| 2805 | `bool && → ||` | `refHeadingDeg: magState.has && magState.refHeading != null ? Math.round(` |
+| 2805 | `num → 0` | `refHeadingDeg: magState.has && magState.refHeading != null ? Math.round(` |
+| 2805 | `num → 0` | `refHeadingDeg: magState.has && magState.refHeading != null ? Math.round(` |
+| 2805 | `num → 0` | `refHeadingDeg: magState.has && magState.refHeading != null ? Math.round(` |
+| 2816 | `cmp >= → >` | `if (Math.abs(uz) >= 0.7) return uz > 0 ? 'supine' : 'prone';` |
+| 2816 | `cmp > → >=` | `if (Math.abs(uz) >= 0.7) return uz > 0 ? 'supine' : 'prone';` |
+| 2817 | `cmp >= → >` | `if (Math.abs(uy) >= 0.55) return 'upright';` |
+| 2832 | `negate: drop !` | `if (!t) continue;` |
+| 2834 | `cmp < → <=` | `if (p.length < 2) continue;` |
+| 2836 | `negate: drop !` | `if (!isFinite(ppi)) continue;` |
+| 2886 | `cmp < → <=` | `for (let i = 0; i < vals.length; i++) {` |
+| 2887 | `num → 0` | `acc += vals[i] / 1000;` |
+| 2923 | `num → 0` | `const ALLAN_MIN_PAIRS = 64; // below this the octave ladder has too few ` |
+| 2934 | `cmp < → <=` | `if (N < 3) return [];` |
+| 2936 | `cmp < → <=` | `for (let j = 0; j < N; j++) pre[j + 1] = pre[j] + y[j];` |
+| 2938 | `cmp <= → <` | `for (let m = 1; 2 * m + 1 <= N; m *= 2) {` |
+| 2946 | `cmp < → <=` | `if (cnt < 8) break; // an estimate from a handful of terms is wider than` |
+| 2956 | `num → 0` | `[-0.75, 'white/flicker-phase', 'jitter — averages away fast'],` |
+| 2957 | `num → 0` | `[-0.25, 'white-frequency', 'benign; averaging helps as √N'],` |
+| 2958 | `num → 0` | `[0.25, 'flicker-frequency', 'A FLOOR — more averaging buys nothing'],` |
+| 2959 | `num → 0` | `[0.75, 'random-walk-frequency', 'wanders; a longer fit is worse than a s` |
+| 2969 | `cmp > → >=` | `const pts = (points \|\| []).filter((p) => p.adev > 0 && p.tau > 0);` |
+| 2969 | `cmp > → >=` | `const pts = (points \|\| []).filter((p) => p.adev > 0 && p.tau > 0);` |
+| 2969 | `bool && → ||` | `const pts = (points \|\| []).filter((p) => p.adev > 0 && p.tau > 0);` |
+| 2970 | `cmp < → <=` | `if (pts.length < 3) return null; // two points fit any line and cannot b` |
+| 2982 | `cmp > → >=` | `if (!(sxx > 0)) return null;` |
+| 2986 | `cmp < → <=` | `for (let i = 0; i < k; i++) {` |
+| 3030 | `cmp > → >=` | `const half = se > 0 ? 1.96 * se : 0;` |
+| 3030 | `num → 0` | `const half = se > 0 ? 1.96 * se : 0;` |
+| 3031 | `cmp < → <=` | `const straddled = edges.filter((e) => sl - half < e && e < sl + half);` |
+| 3031 | `cmp < → <=` | `const straddled = edges.filter((e) => sl - half < e && e < sl + half);` |
+| 3035 | `cmp < → <=` | `if (sl < Number(ALLAN_NOISE[i][0])) {` |
+| 3047 | `cmp < → <=` | `for (let i = 0; i < ALLAN_NOISE.length; i++) {` |
+| 3048 | `eq === → !==` | `const lo = i === 0 ? -Infinity : Number(ALLAN_NOISE[i - 1][0]);` |
+| 3049 | `cmp < → <=` | `if (sl - half < Number(ALLAN_NOISE[i][0]) && sl + half > lo) cands.push(` |
+| 3049 | `cmp > → >=` | `if (sl - half < Number(ALLAN_NOISE[i][0]) && sl + half > lo) cands.push(` |
+| 3049 | `bool && → ||` | `if (sl - half < Number(ALLAN_NOISE[i][0]) && sl + half > lo) cands.push(` |
+| 3051 | `cmp > → >=` | `if (sl + half > Number(ALLAN_NOISE[ALLAN_NOISE.length - 1][0])) cands.pu` |
+| 3067 | `cmp < → <=` | `if (!selfSec \|\| !fwSec \|\| selfSec.length < ALLAN_MIN_PAIRS \|\| fwSec.leng` |
+| 3067 | `cmp < → <=` | `if (!selfSec \|\| !fwSec \|\| selfSec.length < ALLAN_MIN_PAIRS \|\| fwSec.leng` |
+| 3067 | `bool || → &&` | `if (!selfSec \|\| !fwSec \|\| selfSec.length < ALLAN_MIN_PAIRS \|\| fwSec.leng` |
+| 3071 | `cmp < → <=` | `for (let k = 0; k < selfSec.length; k++) {` |
+| 3077 | `cmp < → <=` | `if (fwSec[mid] < t) lo = mid + 1;` |
+| 3082 | `cmp < → <=` | `if (lo > 0 && Math.abs(fwSec[lo - 1] - t) < best) {` |
+| 3082 | `cmp > → >=` | `if (lo > 0 && Math.abs(fwSec[lo - 1] - t) < best) {` |
+| 3086 | `cmp < → <=` | `if (best < tol) {` |
+| 3091 | `cmp < → <=` | `if (ph.length < ALLAN_MIN_PAIRS) return null;` |
+| 3093 | `cmp > → >=` | `if (!(tau0 > 0)) return null;` |
+| 3095 | `cmp < → <=` | `if (curve.length < 3) return null;` |
+| 3097 | `bool && → ||` | `const cls = classifyAllan(fit && fit.slope, fit && fit.se, fit && fit.nT` |
+| 3097 | `bool && → ||` | `const cls = classifyAllan(fit && fit.slope, fit && fit.se, fit && fit.nT` |
+| 3100 | `cmp < → <=` | `for (const p of curve) if (p.adev < best.adev) best = p;` |
+| 3103 | `num → 0` | `pairedPct: r1((100 * ph.length) / selfSec.length),` |
+| 3173 | `cmp < → <=` | `for (const t of trains) if (!t \|\| t.length < TCH_MIN_TRIPLES) return nul` |
+| 3173 | `bool || → &&` | `for (const t of trains) if (!t \|\| t.length < TCH_MIN_TRIPLES) return nul` |
+| 3180 | `cmp < → <=` | `if (arr[m] < t) lo = m + 1;` |
+| 3185 | `cmp > → >=` | `if (lo > 0 && Math.abs(arr[lo - 1] - t) < b) {` |
+| 3185 | `cmp < → <=` | `if (lo > 0 && Math.abs(arr[lo - 1] - t) < b) {` |
+| 3201 | `cmp < → <=` | `if (b.d < tol && c.d < tol) {` |
+| 3201 | `cmp < → <=` | `if (b.d < tol && c.d < tol) {` |
+| 3201 | `bool && → ||` | `if (b.d < tol && c.d < tol) {` |
+| 3207 | `cmp < → <=` | `if (A.length < TCH_MIN_TRIPLES) return null;` |
+| 3209 | `cmp > → >=` | `if (!(tau0 > 0)) return null;` |
+| 3215 | `cmp < → <=` | `if (nT < 3) return null;` |
+| 3223 | `cmp < → <=` | `for (let c = 0; c < 3; c++) if (split[c] < 0) bad = true;` |
+| 3223 | `cmp < → <=` | `for (let c = 0; c < 3; c++) if (split[c] < 0) bad = true;` |
+| 3225 | `cmp >= → >` | `for (let c = 0; c < 3; c++) per[c].push({ tau: ab[i].tau, adev: split[c]` |
+| 3232 | `cmp > → >=` | `for (const q of curve) if (q.adev != null && q.adev > 0) pts.push({ tau:` |
+| 3232 | `bool && → ||` | `for (const q of curve) if (q.adev != null && q.adev > 0) pts.push({ tau:` |
+| 3260 | `bool && → ||` | `polarityUnanimous: opts && opts.signs ? opts.signs.every((s) => s === op` |
+| 3260 | `eq === → !==` | `polarityUnanimous: opts && opts.signs ? opts.signs.every((s) => s === op` |
+| 3265 | `cmp < → <=` | `if (!rr \|\| rr.length < 2) return 0;` |
+| 3265 | `bool || → &&` | `if (!rr \|\| rr.length < 2) return 0;` |
+| 3279 | `cmp > → >=` | `const dev = devicePPI.filter((d) => d.ppi > 300 && d.ppi < 2000 && (d.bl` |
+| 3279 | `cmp < → <=` | `const dev = devicePPI.filter((d) => d.ppi > 300 && d.ppi < 2000 && (d.bl` |
+| 3279 | `num → 0` | `const dev = devicePPI.filter((d) => d.ppi > 300 && d.ppi < 2000 && (d.bl` |
+| 3280 | `cmp < → <=` | `if (dev.length < 3 \|\| selfNN.length < 3) return { hasData: true, filePre` |
+| 3280 | `cmp < → <=` | `if (dev.length < 3 \|\| selfNN.length < 3) return { hasData: true, filePre` |
+| 3280 | `bool || → &&` | `if (dev.length < 3 \|\| selfNN.length < 3) return { hasData: true, filePre` |
+| 3286 | `cmp < → <=` | `if (self.length < 3 \|\| devc.length < 3) return { hasData: true, filePres` |
+| 3286 | `cmp < → <=` | `if (self.length < 3 \|\| devc.length < 3) return { hasData: true, filePres` |
+| 3286 | `bool || → &&` | `if (self.length < 3 \|\| devc.length < 3) return { hasData: true, filePres` |
+| 3293 | `num → 0` | `const pct = (a, b) => (b ? r1((100 * Math.abs(a - b)) / b) : null);` |
+| 3294 | `num → 0` | `const agree = 100 * (1 - Math.min(1, Math.abs(sM - dM) / dM));` |
+| 3336 | `cmp < → <=` | `if (nn.length < 2) return epochs;` |
+| 3339 | `cmp < → <=` | `for (let e0 = 0; e0 < tEnd; e0 += epLen) {` |
+| 3341 | `cmp < → <=` | `for (let i = 0; i < tt.length; i++) {` |
+| 3342 | `cmp >= → >` | `if (tt[i] >= e0 && tt[i] < e0 + epLen) idx.push(i);` |
+| 3342 | `cmp < → <=` | `if (tt[i] >= e0 && tt[i] < e0 + epLen) idx.push(i);` |
+| 3344 | `cmp < → <=` | `if (idx.length < 5) continue;` |
+| 3411 | `cmp < → <=` | `return (x < 10 ? '0' : '') + x;` |
+| 3411 | `num → 0` | `return (x < 10 ? '0' : '') + x;` |
+| 3438 | `num → 0` | `P(45, 'Ranking optical channels…');` |
+| 3446 | `num → 0` | `P(55, 'Optical beat detection · 3-LED (systolic feet)…');` |
+| 3451 | `eq === → !==` | `const perChannelAll = rec._preChannels && rec._preChannels.length === re` |
+| 3499 | `cmp > → >=` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
+| 3499 | `cmp > → >=` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
+| 3499 | `bool && → ||` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
+| 3499 | `bool && → ||` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
+| 3499 | `bool && → ||` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
+| 3499 | `num → 0` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
+| 3499 | `num → 0` | `const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.leng` |
+| 3500 | `bool && → ||` | `const _chSnr = keepIdx.map((c) => (sel.scores && sel.scores[c] ? sel.sco` |
+| 3538 | `cmp < → <=` | `for (let k = 0, prevKept = -1; k < cons.peaks.length; k++) {` |
+| 3540 | `cmp >= → >` | `if (prevKept >= 0) bridged.push(k - prevKept > 1); // >= 1 beat removed ` |
+| 3551 | `num → 0` | `P(62, 'Motion gate (ACC + GYRO)…');` |
+| 3555 | `num → 0` | `P(68, 'Per-beat SQI (× 3-LED agreement)…');` |
+| 3570 | `num → 0` | `P(74, 'PPI + HRV…');` |
+| 3599 | `num → 0` | `const _rateFoot = _ppiFoot.rr.length ? (100 * _corrFoot.nCorr) / _ppiFoo` |
+| 3600 | `num → 0` | `const _ratePeak = _ppiPeak.rr.length ? (100 * _corrPeak.nCorr) / _ppiPea` |
+| 3601 | `cmp < → <=` | `const footSpineOK = !(_ratePeak < _rateFoot - PPI_SPINE_MARGIN_PP);` |
+| 3604 | `cmp > → >=` | `const ppiAgreement = _mFoot > 0 && _mPeak > 0 ? Math.min(_mFoot, _mPeak)` |
+| 3604 | `cmp > → >=` | `const ppiAgreement = _mFoot > 0 && _mPeak > 0 ? Math.min(_mFoot, _mPeak)` |
+| 3604 | `bool && → ||` | `const ppiAgreement = _mFoot > 0 && _mPeak > 0 ? Math.min(_mFoot, _mPeak)` |
+| 3625 | `bool || → &&` | `rec.t0Ms \|\| 0` |
+| 3627 | `bool || → &&` | `const _t0 = rec.t0Ms \|\| 0;` |
+| 3629 | `num → 0` | `const c = _pConfMap.get(Math.floor((_t0 + s * 1000) / 1000));` |
+| 3629 | `num → 0` | `const c = _pConfMap.get(Math.floor((_t0 + s * 1000) / 1000));` |
+| 3652 | `cmp < → <=` | `for (let i = 0; i < nn.length; i++) spansGap[i] = !!spansTime[i] \|\| !!(b` |
+| 3655 | `cmp < → <=` | `for (let i = 0; i < nn.length; i++) {` |
+| 3659 | `cmp >= → >` | `cleanMask[i] = corr.flags[i] === 0 && q0 >= 0.5 && q1 >= 0.5 && !spansGa` |
+| 3659 | `cmp >= → >` | `cleanMask[i] = corr.flags[i] === 0 && q0 >= 0.5 && q1 >= 0.5 && !spansGa` |
+| 3659 | `num → 0` | `cleanMask[i] = corr.flags[i] === 0 && q0 >= 0.5 && q1 >= 0.5 && !spansGa` |
+| 3659 | `num → 0` | `cleanMask[i] = corr.flags[i] === 0 && q0 >= 0.5 && q1 >= 0.5 && !spansGa` |
+| 3664 | `cmp < → <=` | `for (let i = 0; i < nn.length; i++) {` |
+| 3667 | `bool && → ||` | `agreeI[i] = a0 != null && a1 != null ? (a0 + a1) / 2 : a0 != null ? a0 :` |
+| 3679 | `cmp > → >=` | `const perfWindow = () => (dc > 0 ? r2((100 * acAmp) / dc) : null);` |
+| 3681 | `num → 0` | `P(80, 'Epochs…');` |
+| 3686 | `cmp >= → >` | `const cleanBeats = sqi.filter((s) => s >= 0.5).length;` |
+| 3688 | `num → 0` | `const motionRejected = motion.hasData ? det.peaks.filter((p, k) => /** @` |
+| 3688 | `cmp > → >=` | `const motionRejected = motion.hasData ? det.peaks.filter((p, k) => /** @` |
+| 3689 | `num → 0` | `const motionRejectedPct = det.peaks.length ? r1((100 * motionRejected) /` |
+| 3696 | `bool && → ||` | `const magInterferencePct = motion.hasMag && magKnown.length ? Math.round` |
+| 3696 | `num → 0` | `const magInterferencePct = motion.hasMag && magKnown.length ? Math.round` |
+| 3732 | `bool && → ||` | `const segAll = epochs.map((e) => e.sdnn).filter((v) => v != null && isFi` |
+| 3755 | `cmp >= → >` | `const gatedEp = epochs.filter((e) => e.sdnn != null && isFinite(e.sdnn) ` |
+| 3755 | `cmp <= → <` | `const gatedEp = epochs.filter((e) => e.sdnn != null && isFinite(e.sdnn) ` |
+| 3755 | `num → 0` | `const gatedEp = epochs.filter((e) => e.sdnn != null && isFinite(e.sdnn) ` |
+| 3756 | `bool && → ||` | `const usable = gatedEp.length >= 3 ? gatedEp : epochs.filter((e) => e.sd` |
+| 3768 | `bool && → ||` | `if (sd1 != null && sdnnRobust != null) sd2Robust = r1(Math.sqrt(Math.max` |
+| 3770 | `bool && → ||` | `const lfA = usable.map((e) => e.lf).filter((v) => v != null && isFinite(` |
+| 3771 | `bool && → ||` | `const hfA = usable.map((e) => e.hf).filter((v) => v != null && isFinite(` |
+| 3772 | `bool && → ||` | `const lhA = usable.map((e) => e.lfhf).filter((v) => v != null && isFinit` |
+| 3773 | `bool && → ||` | `const vlA = usable.map((e) => e.vlf).filter((v) => v != null && isFinite` |
+| 3774 | `cmp >= → >` | `if (lfA.length >= 3) lfRobust = r1(median(lfA));` |
+| 3775 | `cmp >= → >` | `if (hfA.length >= 3) hfRobust = r1(median(hfA));` |
+| 3776 | `cmp >= → >` | `if (lhA.length >= 3) lfhfRobust = r2(median(lhA));` |
+| 3777 | `cmp >= → >` | `if (vlA.length >= 3) vlfRobust = r1(median(vlA));` |
+| 3779 | `bool && → ||` | `if (vlfRobust != null && lfRobust != null && hfRobust != null) tpRobust ` |
+| 3779 | `bool && → ||` | `if (vlfRobust != null && lfRobust != null && hfRobust != null) tpRobust ` |
+| 3783 | `num → 0` | `const MOT_STRICT = 0.15;` |
+| 3791 | `cmp <= → <` | `const lowMot = motKnown.filter((e) => e.motionIndex <= MOT_STRICT);` |
+| 3792 | `bool && → ||` | `const hfLM = lowMot.map((e) => e.hf).filter((v) => v != null && isFinite` |
+| 3793 | `cmp >= → >` | `if (hfLM.length >= 3) hfRobustLowMotion = r1(median(hfLM));` |
+| 3808 | `eq === → !==` | `if (epochs[i].position === 'unknown' \|\| epochs[i - 1].position === 'unkn` |
+| 3808 | `eq === → !==` | `if (epochs[i].position === 'unknown' \|\| epochs[i - 1].position === 'unkn` |
+| 3808 | `bool || → &&` | `if (epochs[i].position === 'unknown' \|\| epochs[i - 1].position === 'unkn` |
+| 3810 | `eq !== → ===` | `if (epochs[i].position !== epochs[i - 1].position) posShift++;` |
+| 3813 | `num → 0` | `const durFactor = Math.max(0, Math.min(1, rec.durSec / 60 / 60)); // VLF` |
+| 3813 | `num → 0` | `const durFactor = Math.max(0, Math.min(1, rec.durSec / 60 / 60)); // VLF` |
+| 3824 | `cmp < → <=` | `motion: motKnown.length === 0 ? 'none' : motKnown.length < epochs.length` |
+| 3825 | `cmp < → <=` | `posture: posPairs === 0 ? 'none' : posPairs < epochs.length - 1 ? 'parti` |
+| 3833 | `num → 0` | `sdnn: qPosture == null ? null : c(qCov * qCorr * (0.6 + 0.4 * qPosture))` |
+| 3833 | `num → 0` | `sdnn: qPosture == null ? null : c(qCov * qCorr * (0.6 + 0.4 * qPosture))` |
+| 3837 | `num → 0` | `vlf: qPosture == null ? null : c(Math.min(0.7, qPosture * durFactor)),` |
+| 3844 | `bool && → ||` | `motionCoveredFrac: motion.hasData && motion.motionCoveredFrac != null ? ` |
+| 3857 | `cmp > → >=` | `ledAgree3of3Pct = cons.kept33 + cons.kept22 > 0 ? Math.round((100 * cons` |
+| 3857 | `num → 0` | `ledAgree3of3Pct = cons.kept33 + cons.kept22 > 0 ? Math.round((100 * cons` |
+| 3858 | `num → 0` | `const epLen = 300,` |
+| 3864 | `cmp >= → >` | `if (c.nAgree >= 3) bins[e].c3++;` |
+| 3865 | `eq === → !==` | `else if (c.nAgree === 2) bins[e].c2++;` |
+| 3871 | `bool || → &&` | `tot = b.c1 + b.c2 + b.c3 \|\| 1;` |
+| 3903 | `cmp > → >=` | `const hrvLowConfidence = analyzablePct < 60 \|\| correctionRate > 20 \|\| hr` |
+| 3903 | `cmp < → <=` | `const hrvLowConfidence = analyzablePct < 60 \|\| correctionRate > 20 \|\| hr` |
+| 3903 | `bool || → &&` | `const hrvLowConfidence = analyzablePct < 60 \|\| correctionRate > 20 \|\| hr` |
+| 3903 | `num → 0` | `const hrvLowConfidence = analyzablePct < 60 \|\| correctionRate > 20 \|\| hr` |
+| 3918 | `cmp < → <=` | `if (durMin < 1) {` |
+| 3920 | `cmp < → <=` | `} else if (durMin < 5) {` |
+| 3922 | `cmp < → <=` | `} else if (durMin < 90) {` |
+| 3922 | `num → 0` | `} else if (durMin < 90) {` |
+| 3925 | `cmp >= → >` | `const longRec = durMin >= 90;` |
+| 3925 | `num → 0` | `const longRec = durMin >= 90;` |
+| 3955 | `cmp > → >=` | `if ((!ppiSeries \|\| !ppiSeries.length) && rec.beatMarkerSec && rec.beatMa` |
+| 3955 | `negate: drop !` | `if ((!ppiSeries \|\| !ppiSeries.length) && rec.beatMarkerSec && rec.beatMa` |
+| 3957 | `cmp < → <=` | `for (let i = 1; i < rec.beatMarkerSec.length; i++) {` |
+| 3960 | `num → 0` | `mk.push({ ppi: (rec.beatMarkerSec[i] - rec.beatMarkerSec[i - 1]) * 1000,` |
+| 3972 | `eq === → !==` | `if (validation && validation.usable && ppiSource === 'o2ring-marker' && ` |
+| 3972 | `bool && → ||` | `if (validation && validation.usable && ppiSource === 'o2ring-marker' && ` |
+| 3972 | `bool && → ||` | `if (validation && validation.usable && ppiSource === 'o2ring-marker' && ` |
+| 3982 | `num → 0` | `P(92, 'Finalising…');` |
+| 3983 | `bool && → ||` | `const dispHr = longRec && epochs.length ? median(epochs.map((e) => e.hr)` |
+| 3986 | `bool || → &&` | `source: rec.source \|\| 'file',` |
+| 3987 | `bool || → &&` | `fname: rec.fname \|\| '',` |
+| 4099 | `bool || → &&` | `siteSource: rec.siteSource \|\| 'device-default',` |
+| 4122 | `bool || → &&` | `sentinelRejected: rec.sentinelRejected \|\| 0,` |
+| 4123 | `bool || → &&` | `sentinelKept: rec.sentinelKept \|\| 0,` |
+| 4163 | `bool || → &&` | `if (!sqi \|\| !sqi.length \|\| !peakSec) return null;` |
+| 4163 | `bool || → &&` | `if (!sqi \|\| !sqi.length \|\| !peakSec) return null;` |
+| 4163 | `negate: drop !` | `if (!sqi \|\| !sqi.length \|\| !peakSec) return null;` |
+| 4163 | `negate: drop !` | `if (!sqi \|\| !sqi.length \|\| !peakSec) return null;` |
+| 4163 | `negate: drop !` | `if (!sqi \|\| !sqi.length \|\| !peakSec) return null;` |
+| 4166 | `cmp < → <=` | `for (let k = 0; k < peakSec.length; k++) {` |
+| 4167 | `bool && → ||` | `if (peakSec[k] != null && Math.abs(peakSec[k] - relSec) < 5) {` |
+| 4167 | `cmp < → <=` | `if (peakSec[k] != null && Math.abs(peakSec[k] - relSec) < 5) {` |
+| 4176 | `num → 0` | `const surgeConf = (ampBpm) => r2(Math.max(0.45, Math.min(0.9, 0.45 + Mat` |
+| 4176 | `bool || → &&` | `const surgeConf = (ampBpm) => r2(Math.max(0.45, Math.min(0.9, 0.45 + Mat` |
+| 4176 | `num → 0` | `const surgeConf = (ampBpm) => r2(Math.max(0.45, Math.min(0.9, 0.45 + Mat` |
+| 4176 | `num → 0` | `const surgeConf = (ampBpm) => r2(Math.max(0.45, Math.min(0.9, 0.45 + Mat` |
+| 4176 | `num → 0` | `const surgeConf = (ampBpm) => r2(Math.max(0.45, Math.min(0.9, 0.45 + Mat` |
+| 4176 | `num → 0` | `const surgeConf = (ampBpm) => r2(Math.max(0.45, Math.min(0.9, 0.45 + Mat` |
+| 4178 | `num → 0` | `const tMs = t0Ms != null ? t0Ms + Math.round(relSec * 1000) : null;` |
+| 4179 | `bool || → &&` | `ev.push({ t: fmtClockSec(tMs != null ? tMs : relSec * 1000), tMs, impuls` |
+| 4179 | `num → 0` | `ev.push({ t: fmtClockSec(tMs != null ? tMs : relSec * 1000), tMs, impuls` |
+| 4185 | `bool && → ||` | `if (a.rmssd && b.rmssd) {` |
+| 4187 | `cmp > → >=` | `if (drop > 0.35)` |
+| 4187 | `num → 0` | `if (drop > 0.35)` |
+| 4189 | `num → 0` | `b.tMin * 60,` |
+| 4191 | `num → 0` | `0.7,` |
+| 4195 | `eq !== → ===` | `position: b.position && b.position !== 'unknown' ? b.position : null,` |
+| 4195 | `bool && → ||` | `position: b.position && b.position !== 'unknown' ? b.position : null,` |
+| 4199 | `num → 0` | `sqiAt(b.tMin * 60)` |
+| 4202 | `cmp > → >=` | `if (a.hr && b.hr && b.hr - a.hr > 8) {` |
+| 4202 | `bool && → ||` | `if (a.hr && b.hr && b.hr - a.hr > 8) {` |
+| 4202 | `bool && → ||` | `if (a.hr && b.hr && b.hr - a.hr > 8) {` |
+| 4205 | `num → 0` | `b.tMin * 60,` |
+| 4210 | `eq !== → ===` | `position: b.position && b.position !== 'unknown' ? b.position : null,` |
+| 4210 | `bool && → ||` | `position: b.position && b.position !== 'unknown' ? b.position : null,` |
+| 4214 | `num → 0` | `sqiAt(b.tMin * 60)` |
+| 4221 | `cmp < → <=` | `for (let k = 0; k < det.peaks.length; k++) {` |
+| 4222 | `cmp > → >=` | `const hi = peakSec[k] != null && motion.motionAtSec(peakSec[k]) > 0.5;` |
+| 4222 | `bool && → ||` | `const hi = peakSec[k] != null && motion.motionAtSec(peakSec[k]) > 0.5;` |
+| 4222 | `num → 0` | `const hi = peakSec[k] != null && motion.motionAtSec(peakSec[k]) > 0.5;` |
+| 4223 | `eq === → !==` | `if (hi && runStart === null) runStart = peakSec[k];` |
+| 4223 | `bool && → ||` | `if (hi && runStart === null) runStart = peakSec[k];` |
+| 4224 | `eq === → !==` | `if ((!hi \|\| k === det.peaks.length - 1) && runStart !== null) {` |
+| 4224 | `eq !== → ===` | `if ((!hi \|\| k === det.peaks.length - 1) && runStart !== null) {` |
+| 4224 | `bool && → ||` | `if ((!hi \|\| k === det.peaks.length - 1) && runStart !== null) {` |
+| 4224 | `bool || → &&` | `if ((!hi \|\| k === det.peaks.length - 1) && runStart !== null) {` |
+| 4224 | `negate: drop !` | `if ((!hi \|\| k === det.peaks.length - 1) && runStart !== null) {` |
+| 4225 | `num → 0` | `evt(runStart, 'motion_artifact_segment', 0.3, {}, sqiAt(runStart));` |
+| 4243 | `bool && → ||` | `if (motion && motion.hasData && motion.grid && motion.dt) {` |
+| 4243 | `bool && → ||` | `if (motion && motion.hasData && motion.grid && motion.dt) {` |
+| 4243 | `bool && → ||` | `if (motion && motion.hasData && motion.grid && motion.dt) {` |
+| 4244 | `bool || → &&` | `const onsets = movementOnsets(motion.onsetGrid \|\| motion.grid, motion.dt` |
+| 4249 | `num → 0` | `for (const sec of onsets) evt(sec, 'movement_onset', 0.6, { streams: str` |
+| 4320 | `eq === → !==` | `if (typeof Blob === 'undefined' \|\| typeof URL === 'undefined' \|\| !URL.cr` |
+| 4320 | `eq === → !==` | `if (typeof Blob === 'undefined' \|\| typeof URL === 'undefined' \|\| !URL.cr` |
+| 4320 | `bool || → &&` | `if (typeof Blob === 'undefined' \|\| typeof URL === 'undefined' \|\| !URL.cr` |
+| 4320 | `bool || → &&` | `if (typeof Blob === 'undefined' \|\| typeof URL === 'undefined' \|\| !URL.cr` |
+| 4320 | `negate: drop !` | `if (typeof Blob === 'undefined' \|\| typeof URL === 'undefined' \|\| !URL.cr` |
+| 4372 | `eq !== → ===` | `var url = typeof Worker !== 'undefined' ? _buildWorkerURL() : null;` |
+| 4373 | `bool || → &&` | `if (!url \|\| !nCh) {` |
+| 4373 | `negate: drop !` | `if (!url \|\| !nCh) {` |
+| 4373 | `negate: drop !` | `if (!url \|\| !nCh) {` |
+| 4392 | `cmp < → <=` | `for (var c = 0; c < nCh; c++) {` |
+| 4402 | `bool && → ||` | `if (++done === nCh && !settled) {` |
+| 4402 | `eq === → !==` | `if (++done === nCh && !settled) {` |
+| 4402 | `negate: drop !` | `if (++done === nCh && !settled) {` |
+| 4418 | `negate: drop !` | `if (!settled) serialFallback();` |
+| 4419 | `num → 0` | `}, 20000); // stall guard` |
+| 4521 | `bool || → &&` | `? { version: (opts.kernel.version != null ? opts.kernel.version : opts.k` |
+| 4521 | `bool || → &&` | `? { version: (opts.kernel.version != null ? opts.kernel.version : opts.k` |
+| 4529 | `bool || → &&` | `generated: opts.generated \|\| new Date().toISOString(),` |
+| 4530 | `bool || → &&` | `provenance: opts.provenance \|\| null,` |
+| 4538 | `eq !== → ===` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
+| 4538 | `bool && → ||` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
+| 4538 | `bool && → ||` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
+| 4538 | `bool && → ||` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
+| 4538 | `bool && → ||` | `typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.compute` |
+| 4561 | `bool && → ||` | `durSec: r.durSec != null && isFinite(r.durSec) ? r.durSec : null,` |
+| 4571 | `bool || → &&` | `siteSource: r.siteSource \|\| 'device-default'` |
+| 4659 | `eq === → !==` | `return v == null \|\| (typeof v === 'number' && !isFinite(v)) ? null : v;` |
+| 4659 | `bool || → &&` | `return v == null \|\| (typeof v === 'number' && !isFinite(v)) ? null : v;` |
+| 4729 | `bool && → ||` | `const epochScale = r.lfRobust != null && r.hfRobust != null;` |
+| 4751 | `bool && → ||` | `respRateMethod: fq && fq.respRate != null ? 'RSA (HF-peak of RR spectrum` |
+| 4796 | `bool || → &&` | `position: e.position \|\| 'unknown',` |
+| 4806 | `bool && → ||` | `if (r.nn && r.nn.length && r.tt && r.tt.length === r.nn.length) {` |
+| 4806 | `bool && → ||` | `if (r.nn && r.nn.length && r.tt && r.tt.length === r.nn.length) {` |
+| 4806 | `bool && → ||` | `if (r.nn && r.nn.length && r.tt && r.tt.length === r.nn.length) {` |
+| 4822 | `bool && → ||` | `r.ppiFlags && r.ppiFlags.length === r.nn.length` |
+| 4835 | `bool && → ||` | `conf: r.ppiConf && r.ppiConf.length === r.nn.length ? r.ppiConf.slice() ` |
+| 4863 | `bool || → &&` | `for (var i = 0; i < n; i++) relSec[i] = i / (fs \|\| 1);` |
+| 4863 | `cmp < → <=` | `for (var i = 0; i < n; i++) relSec[i] = i / (fs \|\| 1);` |
+| 4867 | `bool || → &&` | `amb: s.amb \|\| null,` |
+| 4873 | `bool || → &&` | `durSec: s.durSec != null ? s.durSec : n > 1 ? (n - 1) / (fs \|\| 1) : 0,` |
+| 4873 | `cmp > → >=` | `durSec: s.durSec != null ? s.durSec : n > 1 ? (n - 1) / (fs \|\| 1) : 0,` |
+| 4879 | `bool || → &&` | `siteSource: s.siteSource \|\| 'device-default',` |
+| 4880 | `bool || → &&` | `acc: input.acc \|\| null,` |
+| 4881 | `bool || → &&` | `gyro: input.gyro \|\| null,` |
+| 4882 | `bool || → &&` | `magn: input.magn \|\| null,` |
+| 4883 | `bool || → &&` | `devicePPI: input.devicePPI \|\| null,` |
+| 4884 | `bool || → &&` | `markers: input.markers \|\| null` |
+| 4890 | `eq === → !==` | `typeof input === 'string' ? input : input && typeof input.text === 'stri` |
+| 4890 | `bool && → ||` | `typeof input === 'string' ? input : input && typeof input.text === 'stri` |
+| 4890 | `bool && → ||` | `typeof input === 'string' ? input : input && typeof input.text === 'stri` |
+| 4890 | `bool && → ||` | `typeof input === 'string' ? input : input && typeof input.text === 'stri` |
+| 4895 | `bool && → ||` | `if (opts.fname && !rec.fname) rec.fname = opts.fname;` |
+| 4895 | `negate: drop !` | `if (opts.fname && !rec.fname) rec.fname = opts.fname;` |
+| 4961 | `eq === → !==` | `if (global.DexExport && typeof global.DexExport.scrubExport === 'functio` |
+| 4961 | `bool && → ||` | `if (global.DexExport && typeof global.DexExport.scrubExport === 'functio` |
+| 4962 | `eq === → !==` | `if (typeof global.dexScrubExport === 'function') return global.dexScrubE` |
 
