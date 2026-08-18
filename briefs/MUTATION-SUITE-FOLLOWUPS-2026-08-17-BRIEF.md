@@ -42,8 +42,15 @@ while a sweep was running, is more than one change can verify. **Done when:** ea
 is tried first.
 
 ⚠️ `mutation-worklist.mjs`'s selftest already asserts *"NO sweep path lives in /tmp — a tmpfs loses
-the queue on reboot"*. That assertion **fails from any worktree under `/tmp`**, which is where sweeps
-run. Fixing the path resolution and leaving that assertion as-is will red the tool for everyone.
+the queue on reboot"*, and that assertion **fails from any worktree under `/tmp`** — the failure is a
+false red that reads as a tool bug, so whoever migrates the paths should expect it.
+
+*(Corrected 2026-08-17, same day: the first version of this line said `/tmp` "is where sweeps run".
+That generalised from my own setup. Measured: **288 of 329 worktrees** sit on the work volume as
+`../wt-*` siblings, which is what CLAUDE.md §👥.1's `git worktree add ../wt-<task>` produces; only
+**22** are under `/tmp`, mine among them. So this is a real minority hazard, not the normal case —
+and the overstatement is the same error as the rest of this brief, one layer up: a claim about the
+world inferred from the one instance in front of me.)*
 
 ---
 
