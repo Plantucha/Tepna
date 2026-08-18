@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-17 (**§6.6: CVHR RATIFIED at n = 13** — four new box nights cleared §3.1's ≥10-night bar, 12/13 in band; §1's two non-reproducing reference figures remain open and are the only thing keeping this brief off DONE. **§6: all 4 boxes closed or decided** — the jitter bound is re-based on a re-derivation; the sdnnNote string and the RMSSD-surfacing question were both owner-decided 2026-08-04 (§5). CVHR is re-measured on an enlarged corpus (§6.5): **n = 9, 8/9 in band** — still short of the ≥10 bar, and the first out-of-band night has appeared.) · **Created:** 2026-08-03 · **Follows:** `O2RING-FINGER-HRV-VALIDATION-2026-07-21-BRIEF.md` §8/§8.6 · **Verdict doc:** `docs/PPGDEX-FINGER-HRV-VALIDATION-2026-08-03.md` · **Apparatus:** `tools/ppi-jitter-vs-ecg.mjs`
+**Status:** IN-PROGRESS — 2026-08-17 (**§6.6: CVHR RATIFIED at n = 13** — four new box nights cleared §3.1's ≥10-night bar, 12/13 in band; §1's two reference figures remain open — and §6.7 records that the Verity leg on these nights reads 4.98 ms, BEATING the 5.92 reference, so the non-reproduction is corpus-dependent rather than settled. **§6: all 4 boxes closed or decided** — the jitter bound is re-based on a re-derivation; the sdnnNote string and the RMSSD-surfacing question were both owner-decided 2026-08-04 (§5). CVHR is re-measured on an enlarged corpus (§6.5): **n = 9, 8/9 in band** — still short of the ≥10 bar, and the first out-of-band night has appeared.) · **Created:** 2026-08-03 · **Follows:** `O2RING-FINGER-HRV-VALIDATION-2026-07-21-BRIEF.md` §8/§8.6 · **Verdict doc:** `docs/PPGDEX-FINGER-HRV-VALIDATION-2026-08-03.md` · **Apparatus:** `tools/ppi-jitter-vs-ecg.mjs`
 
 # Two published PPG reference figures do not reproduce, and the jitter budget says why nothing can promote
 
@@ -256,11 +256,37 @@ one night for **two weeks while four accumulated on the box**. The adapter wedge
 the binding constraint; the transfer was, again. **A brief blocked on data volume should re-check the
 source before anyone treats the block as a fact about the world.**
 
-**What this does NOT ratify:** the jitter median is **7.74 ms** against the `[CORPUS]` reference of
-5.92 ms — §1's non-reproduction is unchanged and if anything firmer at n = 13 (7.03 at n = 9, 7.74 here).
-`sdnnRobust` reads median **+7.81 %** against the ~±3.5 % promotion bar, still failing it, with an IQR
-(−1.85 to +18.55) spanning the bar in both directions. Neither figure is overwritten here, per §1's own
-instruction not to replace one unverified number with another.
+### §6.7 · ⚠️ AND THE FIRST JITTER NUMBER I QUOTED HERE WAS THE WRONG DEVICE — corrected within the hour
+
+The table above was produced by `ppi-jitter-vs-ecg.mjs` **without `--device`**, and that flag defaults
+to **`o2ring`**. So 7.74 ms is the **FINGER**. The tool nonetheless prints `[Verity wrist reference:
+5.92 ms]` beside whatever it measured, and I compared a finger median to a wrist reference and called
+it a non-reproduction. **Re-run with `--device verity` on the same four nights:**
+
+| device (same 4 nights) | PPI-jitter median | IQR | beat match |
+|---|---|---|---|
+| **Verity (wrist)** — the device 5.92 ms describes | **4.98 ms** | 4.93–5.03 | **100.00 %** |
+| O2Ring (finger) | 7.74 ms | 7.10–8.09 | 99.25 % |
+
+**On these nights the Verity BEATS its own `[CORPUS]` reference — 4.98 against 5.92 — and does it at a
+100 % beat match rate**, so the figure is not describing a subset of lucky beats. That is the opposite
+of what §1 recorded (8.36 ms, +41 %) and the opposite of what I wrote an hour ago.
+
+**This does not settle §1; it sharpens it.** Three measurements of the same quantity now exist — 5.92
+(original, uncommitted apparatus), 8.36 (2026-08-03, 15 nights, committed apparatus), 4.98 (today, 4
+nights, same committed apparatus). The 2026-08-03 run and today's used the SAME tool, so **the
+apparatus is no longer a candidate explanation for the gap between those two** — corpus is. §1's
+instruction stands and is now better founded: do not overwrite the reference; the spread across nights
+is the finding, and a single median from any four nights cannot represent it.
+
+⚠️ **The trap for the next person, since it caught me:** the tool prints the Verity reference beside
+an O2Ring measurement, so the output *invites* a cross-device comparison that its own default makes
+wrong. Pass `--device` explicitly, always, and read the reference line as a constant string rather
+than as a like-for-like.
+
+**What §6.6 does NOT ratify:** `sdnnRobust` reads median **+7.81 %** (finger) / **+9.35 %** (Verity)
+against the ~±3.5 % promotion bar, still failing it on both devices, with IQRs spanning the bar in
+both directions. Not overwritten here, per §1's own instruction.
 
 ---
 
