@@ -46,8 +46,28 @@ from a good one.
 
 - [x] **DONE #1254.** Surface it. Cheapest honest option: `webmon`'s device projection + a monitor pill, since `worn_why`
       already establishes the "verdict plus its reason" pattern.
-- [ ] Decide whether `nightqc` should carry it per night — that is the artefact an analysis actually
-      reads months later, and the one place the fact still matters after the session ends.
+- [x] **DECIDED 2026-08-17 — NO, not as `nightqc` reads it today; the need is real but the naive
+      implementation fabricates.** The premise above is right: the per-night row *is* the artefact an
+      analysis reads months later. But `clock_uncorrectable` is **live device state, not a property of a
+      night**. `capture.py:1536 _set()` does `d.update(kv)` into `STATUS["devices"][name]` — a mutable
+      current-state dict with **no history** — and `:1432` *clears* the flag on a successful sync. So a
+      night is never stamped with it; only the device is, and only as of now.
+
+      `nightqc` post-processes night FILES. Reading `STATUS` at QC time and writing that value onto a night
+      captured three days earlier attributes **today's** device state to that night. On a device that has
+      since re-synced it reads clean when the capture was uncorrectable, and on one docked since it reads
+      uncorrectable when the capture was fine. That is a fabricated per-night fact, and it is exactly what
+      the Clock Contract §2.6 forbids — *a missing value must be visible (null), never invented.*
+
+      **The honest route already exists and is one line from where the flag is set.** `_set()` forwards
+      `link_epoch` into the **LINK sidecar (E5)** through this same call path, for this same reason — a live
+      device fact that had to be pinned to the session it described. `clock_uncorrectable` riding the LINK
+      sidecar the way `link_epoch` does would make it a genuine per-night fact, at which point `nightqc`
+      can read it per night **honestly, from the night's own bytes**, and this box reopens as a real task.
+
+      Recorded as a decline **with its condition**, not a rejection of the need: stamp it at capture time
+      first. Doing it in `nightqc` without that step would surface a verdict nobody could trust — which is
+      the failure this whole brief was written about, one layer over.
 
 ## 2 · `alerts.arrival_canary` — an alert nothing invokes
 
@@ -66,9 +86,16 @@ The docstring also records that its *other* arm (`smeared`) was correctly retire
 stream on 2026-08-11. That retirement was right; it left the surviving arm wired to nothing.
 
 - [x] **DONE #1258.** Call it from `alert_loop`, where the other per-tick predicates already run.
-- [ ] ⚠️ Before wiring: run it against real QC output for a few nights. The retired arm fired on **every
-      stream on the first real night** because its premise (a 5 ms floor) was never reachable. Wiring the
-      DEAD arm without that check risks repeating the same mistake, one arm over.
+- [x] **DONE — the check WAS run, in #1258, before the wiring landed.** The box stayed unticked while the
+      work shipped, so recording the evidence here rather than the tick alone: #1258 ran the DEAD arm
+      against the real corpus and measured **0 gaps across 4 nights, zero false positives on every session
+      since 2026-08-11** (the first night with any sidecar). The abstention on earlier nights is historical
+      — they have no sidecar to advance — and is reported as abstention, not as a pass. A behavioural test
+      now drives `qc_poller` and reads the journal, so the wiring itself is gated rather than asserted.
+
+      ⚠️ Before wiring, the risk was real and is preserved for the record: the retired `smeared` arm fired
+      on **every stream on the first real night** because its premise (a 5 ms floor) was never reachable.
+      The DEAD arm avoided that fate by measurement, not by argument.
 
 ## 3 · `helper_path.grant_warning` never warns, and its condition is reachable
 
@@ -199,8 +226,15 @@ from CI. A green local run is evidence about this machine, not about the code.
 
 ## 8 · Done when
 
-- [ ] §1, §2, §3 are wired or explicitly declined in writing — they are one work-unit, all three being
-      "a correct answer with no consumer".
-- [ ] §4 is unified or its divergence is justified in a comment.
-- [ ] §6's script exists and has been run once, with its allowlist curated.
-- [ ] §7 is still true — re-check before any change to the O2Ring worn path.
+- [x] **§1, §2, §3 are wired or explicitly declined in writing.** §1 surfaced to `webmon` + a monitor pill
+      (#1254), and its remaining per-night question **declined in writing above** with the condition that
+      reopens it — that decline, added 2026-08-17, is what actually closes this box: until then §1 was
+      neither fully wired nor declined, only half-answered. §2 wired into `alert_loop` (#1258). §3
+      `grant_warning` called at boot + `SYSTEM_DIRS` comment corrected (#1257).
+- [x] **§4 is unified** — the `charging` check added so both spellings of the gate agree (#1259).
+- [x] **§6's script exists and has been run**, allowlist curated — `tools/find_unwired.py` (#1260); its
+      first run found three orphans the hand audit had missed (§6.1), two of which were §1/§2-class and
+      were surfaced rather than allowlisted (#1269).
+- [ ] **STANDING, not completable — do not tick.** §7 is still true — re-check before any change to the
+      O2Ring worn path. This box is a precondition on future work, so an unticked state is its correct
+      resting state; ticking it would assert a check that has no expiry.
