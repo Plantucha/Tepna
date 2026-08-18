@@ -49,24 +49,40 @@ export const MAP_BASENAME = 'per-group.json';
 /** Short content hash — the same 16-hex projection the sweep-state stamp uses. */
 export const sha16 = (s) => createHash('sha256').update(String(s)).digest('hex').slice(0, 16);
 
-/**
- * Candidate map locations, most-preferred first.
+/*
+ * Candidate locations for a shared cache file, most-preferred first.
  *
- * The git COMMON dir is the point: `git rev-parse --git-common-dir` resolves to the SAME directory
- * from the main checkout and from every linked worktree, so a map written there is visible to all
- * of them — which is precisely what the untracked `.mutation-sweeps/` copy was not. The legacy
- * in-tree path stays as a fallback so an existing map keeps working.
+ * ⚠️ THE MAP IS ONE INSTANCE OF A STRUCTURAL TRAP, NOT THE WHOLE OF IT.
+ *
+ * Measured 2026-08-17: **ten** tools read from `.mutation-sweeps/` — `mutation-worklist.mjs` (the
+ * work queue), `survivor-witness.mjs`, `assertion-strength.mjs`, `witness-baseline.mjs`,
+ * `per-group-coverage.mjs`, `stmt-delete.mjs`, `extreme-mutate.mjs`, `doc-search.mjs` and both
+ * halves of this suite. That directory is **gitignored**, and CLAUDE.md §👥.1 instructs every
+ * session to work in a private worktree — which is a fresh tree that ignored files do not follow.
+ *
+ * So the trap is not "somebody forgot to commit a file". It is that ANY tool here which caches to a
+ * repo-relative ignored path is guaranteed to find nothing in the checkout where the work actually
+ * happens, and to fail quietly, because an empty cache is indistinguishable from a cold start.
+ *
+ * `sharedStatePath` is the general fix and the other nine can adopt it unchanged: the git COMMON
+ * directory resolves to the SAME place from the main checkout and from every linked worktree, so
+ * one copy serves all of them. The in-tree path is kept as a fallback so existing caches keep
+ * working and nothing has to be migrated in a hurry.
  */
-export function mapCandidates(root) {
+export function sharedStatePath(root, name) {
   const out = [];
   try {
     const common = execFileSync('git', ['rev-parse', '--git-common-dir'], { cwd: root, encoding: 'utf8' }).trim();
-    if (common) out.push(join(common.startsWith('/') ? common : join(root, common), 'tepna-mutation', MAP_BASENAME));
+    if (common) out.push(join(common.startsWith('/') ? common : join(root, common), 'tepna-mutation', name));
   } catch {
     /* not a git checkout ⇒ no shared location; the in-tree path below still works */
   }
-  out.push(join(root, '.mutation-sweeps', MAP_BASENAME));
+  out.push(join(root, '.mutation-sweeps', name));
   return out;
+}
+
+export function mapCandidates(root) {
+  return sharedStatePath(root, MAP_BASENAME);
 }
 
 /** First candidate that exists, or null. */
@@ -174,6 +190,11 @@ function selftest() {
     null
   );
   ck('the shared location is tried FIRST', /tepna-mutation/.test(mapCandidates(process.cwd())[0]), true);
+  /* Ten tools cache to the gitignored .mutation-sweeps/, and §👥.1 puts every session in a worktree
+     that ignored files do not follow. The general resolver is what the other nine can adopt. */
+  ck('sharedStatePath is general, not map-specific', /tepna-mutation\/worklist\.json$/.test(sharedStatePath(process.cwd(), 'worklist.json')[0]), true);
+  ck('…and always offers the legacy in-tree path as a fallback', /\.mutation-sweeps\/worklist\.json$/.test(sharedStatePath(process.cwd(), 'worklist.json')[1]), true);
+  ck('mapCandidates is now just one caller of it', mapCandidates(process.cwd())[0], sharedStatePath(process.cwd(), MAP_BASENAME)[0]);
 
   /* `all N selftests passed` is the form tools/selftest-all.mjs parses for a COUNT; a bare
      'all green' is recognised but countless, and a count is what makes a silent drop from 30
