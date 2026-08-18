@@ -173,6 +173,22 @@ not-worn-edge pull that never blocks the drop), and only then the RR-vs-HR accep
 > **Still open:** the RR-vs-HR acceptance probe (parent §6 Q1) — which this unblocks and does not answer —
 > and no H10 pull has yet been exercised against real hardware. The trigger is gate-tested; the round trip
 > is not, and that distinction is the honest state.
+>
+> **✅ THE TRIGGER'S PRECONDITION IS CONFIRMED ON REAL HARDWARE (box journal, 2026-08-18).** A trigger keyed
+> on a state the device never reaches would be dead machinery, so it was checked rather than assumed. The
+> H10 *does* earn a `worn=False` verdict and *does* drop on it — **7 events in 7 days**, essentially one per
+> night, at night-end times (06:03, 06:25, 04:19, 02:10, 04:21). One doff per night is exactly the cadence a
+> nightly backup wants, and the clamped settle (≥ `_DROP_NOT_WORN_SEC + 30` = 210 s) places the pull ~30 s
+> after that drop, as designed.
+>
+> ⚠ **THE TWO DEVICES DIFFER 12×, AND THE VERITY IS THE ONE TO WATCH.** Same window: **84** Verity drops
+> against the H10's 7 — ~12 per day, consistent with its unreliable contact bit and SDK-mode link churn.
+> Each is a fresh doff session, so this trigger would take the connect lock ~12×/day for it. The pulls are
+> bounded, connect-locked and idempotent (`pull_session` skips a session already on disk at the same
+> device-reported size), so the cost is **lock contention, not duplicated bytes** — but it is a real cost and
+> it was invisible before this count. If it proves chatty the fix is a per-device minimum interval between
+> doff pulls; **not** widening the settle, which would push the pull back into the power-drop grace it is
+> deliberately clamped out of.
 
 ## 5 · Two process findings, both of which cost real time
 
