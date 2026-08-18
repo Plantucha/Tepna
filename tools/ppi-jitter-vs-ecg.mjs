@@ -468,7 +468,17 @@ const S = nights.filter((n) => n.sdnnBias != null).map((n) => n.sdnnBias);
 const R = nights.map((n) => n.rate * 100);
 const fmt = (a) => (a.length ? `median ${median(a).toFixed(2)}  IQR ${quantile(a, 0.25).toFixed(2)}–${quantile(a, 0.75).toFixed(2)}` : 'n/a');
 console.log(`\n${nights.length} night(s) with ≥${MIN_EPOCHS} comparable epochs\n`);
-console.log(`  PPI-jitter sd (PRIMARY)   ${fmt(J)} ms      [Verity wrist reference: 5.92 ms]`);
+/* The reference is DEVICE-KEYED and repeats the device name on the line. It used to print
+   "[Verity wrist reference: 5.92 ms]" beside whatever `--device` selected — and `--device` defaults to
+   o2ring, so a finger median printed next to a wrist reference as if the two were a matched pair.
+   The header at the top of this output DOES name the device correctly, which is exactly why the
+   failure survives: anyone reading the summary through `| tail` (CLAUDE.md §👥.4b) keeps the unkeyed
+   reference and discards the label. Measured 2026-08-17 — a finger 7.74 read as a +31 % miss against
+   5.92 when the Verity leg on the same nights read 4.98, i.e. BETTER than the reference. A label must
+   travel with the number it labels, not sit at the top of the page. */
+console.log(
+  `  PPI-jitter sd (PRIMARY)   ${fmt(J)} ms      [${DEVICE === 'verity' ? 'Verity WRIST reference: 5.92 ms — like-for-like' : 'no published reference for the O2Ring FINGER; 5.92 ms is the VERITY WRIST figure and is NOT comparable'}]`
+);
 console.log(`  beat match rate           ${fmt(R)} %`);
 console.log(`  RMSSD bias vs ECG         ${fmt(Bs)} %`);
 /* §4: CVHR promotes only if the finger agrees with ECGDex within the Integrator's band on SLEEP nights.
