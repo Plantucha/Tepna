@@ -17,6 +17,44 @@ three things that outlive it.
 | Verity PPI-jitter **5.92 ms** | `PPGDEX-ALGORITHM-DEEP-DIVE` §2.1 table, `[CORPUS]` | **8.36 ms** (+41 %) |
 | `sdnnRobust` **~+3.5 % vs ECG truth** | **shipped string**, `ppgdex-dsp.js` `hrv.time.sdnnNote` | **+18.7 %** on the Verity |
 
+> 🔴 **§1 RESOLVED 2026-08-18 — BOTH FIGURES REPRODUCE. The gap was the TOOL, not the corpus.**
+>
+> `tools/ppi-jitter-vs-ecg.mjs --device verity` matched the Verity by `/VeritySense.*_PPG\.txt$/` only.
+> The armband is written **`Polar_VeritySense_<serial>`** by the capture host and **`Polar_Sense_<serial>`**
+> by Polar Sensor Logger — one device, two spellings, identical serial (`0C301E3F`). On the PSL tree the
+> old pattern matched **0 of 1980 files** while **54** wrist PPG and **50** paired H10 ECG sat there. The
+> run reported *"nothing to report"*, which reads as *the corpus cannot answer this* rather than *the tool
+> cannot see it*. (The repo already treated the PSL spelling as the Verity: PpgDex's own equivalence input
+> is `Polar_Sense_BBBBBBBB_20260621_060523_PPG.txt`.)
+>
+> **Re-run over the corpus the reference came from, n = 14 nights:**
+>
+> | claim | recorded here | measured 2026-08-18 | verdict |
+> |---|---|---|---|
+> | Verity PPI-jitter **5.92 ms** | 8.36 ms (+41 %) | **median 6.09 ms**, IQR 4.57–7.54 | **reproduces** — the IQR contains 5.92 |
+> | `sdnnRobust` within **~±3.5 %** | +18.7 % | **median 1.84 %**, IQR 0.73–3.36 | **reproduces** — inside the bar |
+>
+> Beat match rate median **100.00 %** (IQR 99.74–100.00), so these are not figures from whichever beats
+> happened to pair. CVHR |Δ| 14/14 within the Integrator band.
+>
+> **Consequences, and the second is the one that ships:**
+> 1. **§5's regression bound stands as written.** 5.92 ms is re-derived, not re-based; §5 was right to
+>    refuse to overwrite it with 8.36.
+> 2. **The shipped `sdnnNote` string does NOT owe a correction.** §1 flagged it as the urgent half
+>    *("it ships to users as guidance")* on the strength of +18.7 %. At **1.84 %** the shipped claim is
+>    accurate and no compute-path edit is owed. **Do not "fix" it.**
+>
+> ⚠️ **What was actually wrong was the 8.36 / +18.7 % pair, and the mechanism is worth keeping.** Both
+> were produced by a tool that silently matched no wrist files — so whatever they measured, it was not
+> the Verity on this corpus. An empty pattern and an empty corpus produce the same silence, and only one
+> of them is a fact about the data. The tool now prints `N walked · N matched · N paired ECG` on every run
+> and **exits 2 with a diagnosis** when nothing matches, so this specific failure cannot recur quietly.
+>
+> **Scope:** n = 14 nights, PSL tree (phone-captured, so no independent second clock — the same condition
+> the reference was measured under, which is what makes it like-for-like). Two nights sit high
+> (2026-07-01 at 15.13 ms with a 94.5 % match rate; 2026-06-20 at 11.70 ms), which is why the **median and
+> IQR** are quoted rather than a mean.
+
 **Neither gap can be attributed today**, and that is the actual problem. The deep-dive's §2.2 apparatus
 was never committed — §2.2 names the method and no tool — so corpus, method, or the original figure could
 each explain it and nothing can distinguish them.
