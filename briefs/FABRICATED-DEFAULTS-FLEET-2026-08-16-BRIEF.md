@@ -103,7 +103,23 @@ exist in this repo.
 | node | measured | result |
 |---|---|---|
 | ECGDex | box **152** + phone **2154** `lombScargle` calls | **0 refusals, min N = 37** |
+| **PpgDex** | **44 real `PpgDex_*.node-export.json`** (corpus-trio + trio-all), 2026-08-18 | **0 refusals — every night published a real `cvhrIndex`** |
 | everything else | — | **not measured** |
+
+**PpgDex measured 2026-08-18: LATENT, 0 of 44.** Not one night hit `N < 60` or `M < 120`; every
+export carries a numeric `apnea.cvhrIndex` (first file reads 4.2). The reason is structural rather
+than lucky — unlike ECGDex's `lombScargle`, which is called **per epoch** and so meets every short
+fragment, `cvhrFromNN` is called **once per record** on the whole corrected beat train, so a full
+night cannot be short enough to trip it. What reaches it is a *truncated capture*: a fragment, a
+battery death, a session cut before two minutes.
+
+⚠️ The check that mattered was that the query examined something. `absent: 0` beside `zero: 0` is
+precisely the shape of a path that silently resolved to nothing, so the field was printed before the
+count was believed: `.apnea.cvhrIndex` resolves and reads 4.2.
+
+So the PpgDex fix is a **correctness** change, not an active-harm one, and this brief should not imply
+otherwise. Worth stating precisely because §1's OxyDex sites were the opposite — eleven of them, on a
+metric whose quintile label reads as a judgement already made.
 
 **Latent is not unreachable.** `analyze` already throws on a whole-record shortfall, so these guards
 only ever protect the **per-epoch** calls — precisely what a fragmented night, a doffing gap or a
