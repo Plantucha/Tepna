@@ -59,6 +59,7 @@ first — this index maps the ~60 *markdown* docs; the block below surfaces the 
 | [`ARCHITECTURE-PRINCIPLES.md`](ARCHITECTURE-PRINCIPLES.md) | The durable design principles behind the suite — three layers, downhill deps, contracts-as-product, the epistemic/fusion principles, **plus §8 "Adding a new Dex" pointer-checklist** (the ordered index of where each rule lives, for EEGDex/SpiroDex; the adapter-only subset is `ADD-AN-ADAPTER.md`) | Authoritative |
 | [`LEXICON.md`](docs/LEXICON.md) | Canonical terminology (Ganglior, Integrator, node, tier, …) | Authoritative |
 | [`WHY-THIS-EXISTS.md`](docs/WHY-THIS-EXISTS.md) | The *why* — philosophy, constraints, jokes (styled mirror: `Why This Exists.html`) | Narrative |
+| [`MUTATION-INVENTORY.md`](docs/MUTATION-INVENTORY.md) | The public mutant list — every surviving mutant per DSP with per-file kill rates and a `complete`/`in flight`/`unknown` state. **Generated**, never hand-edited (`node tools/mutation-suite.mjs --inventory`); self-locating — it names the driver and every command to reproduce it | Reference *(living)* |
 | [`HANDOFF.md`](briefs/HANDOFF.md) | "Get current in one read" remediation handoff (dated — check the timestamp) | Reference *(DONE 2026-08-03)* |
 
 ---
