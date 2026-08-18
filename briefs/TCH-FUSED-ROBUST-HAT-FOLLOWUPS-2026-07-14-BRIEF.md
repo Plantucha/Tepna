@@ -118,6 +118,31 @@ an optical artifact gate fired is not the same operation as excluding a fake des
 **So: nothing to build. The ODI half is done and measurably matters; the AHI half names a quantity the
 proposed mechanism does not apply to.**
 
+### 🔒 Do 5 / finding 6 (revive `bSQI`) — the dead-cue audit CANNOT BE RUN, and that is why it has sat
+
+Finding 6 asserts `bSQI` is *"silently ≈ 0 corpus-wide"*. Attempting to verify it 2026-08-18 established
+three things, the third of which blocks the other two:
+
+1. **`bSQI` is absent from every export.** All 55 ECGDex trio nights carry `quality:
+   {analyzablePct, cleanBeatPct, coveragePct}` and no `bSQI` at any depth. No consumer can see it, which is
+   the simplest explanation for why a suspected dead cue went unnoticed for so long.
+2. **It carries 0.28 of the composite per-beat SQI** — `0.30·kSQI + 0.28·bSQI + 0.24·rrPlaus + 0.18·ampOK`,
+   the second-largest term. If the assertion is true, that composite has been running on 72 % of its
+   intended inputs.
+3. **It is unreachable from outside the module.** `detectPeaksB` is module-internal (not on `ECGDSP`), and
+   the exported `computeSQI(int16, fs, peaks, times, peaksB)` *requires `peaksB` as an argument* — which
+   only `detectPeaksB` can produce. `hrConfidence` computes both internally but returns beat confidence,
+   not the SQI terms. So there is no path to a `bSQI` number without changing code.
+
+**Therefore the first step of Do 5 is NOT "fix `detectPeaksB`" — it is "make `bSQI` observable".** Export
+the detector (or surface the per-term SQI breakdown), measure the corpus, and only then decide whether the
+adaptive threshold is worth building. Fixing a detector whose output nobody has measured is how the
+0-leverage changes in Do 2 and Do 4 nearly got built.
+
+⚠ **Do not "verify" this by re-implementing `detectPeaksB` outside the module.** That measures the
+reimplementation, not the shipped detector — the same trap as a fake written by reading the implementation
+(`POLAR-ONBOARD-BACKUP-FOLLOWUPS` §5). It was considered and rejected here.
+
 ### ⚠ Do 1 (ECGDex-own-HRV) — MEASURED 2026-08-18: the target is wrong, and the leverage is 0.19 %
 
 Parent step 7 asks to feed `beatConfidence` into ECGDex's own pipeline **"so the 06-12 burst no longer
