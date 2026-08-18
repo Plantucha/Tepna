@@ -41,7 +41,7 @@
  *   node tools/mutation-ai-probe.mjs --file oxydex-dsp.js [--limit N] [--per-mutant K]
  *   node tools/mutation-ai-probe.mjs --selftest
  */
-import { existsSync, readFileSync, writeFileSync, mkdirSync, openSync, writeSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, openSync, writeSync, readdirSync, statSync, unlinkSync } from 'node:fs';
 import { basename, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
@@ -460,6 +460,32 @@ export function canaryFor(known, src, realm, loadFn, getFn) {
   return { checked, detected, misses, ok: checked > 0 && detected > 0 };
 }
 
+/**
+ * SINGLE-INSTANCE GUARD, PER FILE.
+ *
+ * ⚠️ TWO PROBES RAN ON THE SAME FILE AND THE SAME JOURNAL AT ONCE, for over an hour, because every
+ * `pkill -f "mutation-ai-probe --file"` I issued matched NOTHING: the real command line contains
+ * `mutation-ai-probe.mjs --file`, so the pattern had a `.mjs` gap in it and quietly killed zero
+ * processes while reporting success. That is this repo's signature defect — a check that ran,
+ * examined nothing, and read as clean — and it let a stale process running OLD code keep appending
+ * to a journal I was reading numbers off.
+ *
+ * A pid file makes the condition impossible to reach silently rather than relying on anyone getting
+ * a pattern right. `staleLock` is pure so the decision is testable without spawning anything.
+ */
+export function staleLock(lockText, isAlive) {
+  if (!lockText) return { take: true, why: 'no lock' };
+  let o;
+  try {
+    o = JSON.parse(lockText);
+  } catch {
+    return { take: true, why: 'unreadable lock — treated as stale' };
+  }
+  if (!o || !o.pid) return { take: true, why: 'lock has no pid' };
+  if (isAlive(o.pid)) return { take: false, pid: o.pid, why: 'another probe (pid ' + o.pid + ') is already running on this file' };
+  return { take: true, why: 'lock held by pid ' + o.pid + ', which is gone — stale, reclaimed' };
+}
+
 function selftest() {
   let fail = 0,
     ran = 0;
@@ -494,6 +520,14 @@ function selftest() {
   ck('…and says why, in terms that name the defect', /crash is not a contract/.test(verdictFor('THREW:x', 'null').why), true);
   ck('only the MUTANT throwing is a legitimate kill', verdictFor('null', 'THREW:boom').kill, true);
   ck('both throwing is not', verdictFor('THREW:a', 'THREW:b').kill, false);
+
+  console.log('\nsingle-instance guard — two probes shared one journal for an hour');
+  const alive = (pid) => pid === 1234;
+  ck('no lock ⇒ take it', staleLock('', alive).take, true);
+  ck('a LIVE holder blocks a second run on the same file', staleLock('{"pid":1234}', alive).take, false);
+  ck('…and names the pid, so the fix is obvious', staleLock('{"pid":1234}', alive).pid, 1234);
+  ck('a DEAD holder is reclaimed rather than blocking forever', staleLock('{"pid":9999}', alive).take, true);
+  ck('an unreadable lock is treated as stale, not as a permanent block', staleLock('{oops', alive).take, true);
 
   console.log('\nseed pool + bge ranking — cheaper than asking, and no weaker a verdict');
   const jk = [
@@ -684,6 +718,32 @@ async function main() {
   mkdirSync(dirname(jOut), { recursive: true });
   const done = existsSync(jOut) ? doneKeys(readFileSync(jOut, 'utf8')) : new Map();
   if (done.size) log('  resuming — ' + done.size + ' mutant(s) already answered; they are skipped');
+  const lockPath = jOut + '.lock';
+  const lk = staleLock(existsSync(lockPath) ? readFileSync(lockPath, 'utf8') : '', (pid) => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  if (!lk.take) {
+    log('⛔ ' + lk.why + ' — refusing. Two probes appending to one journal produce numbers neither of them earned.');
+    log('   Stop it first:  kill ' + lk.pid + '   (note the command line contains "mutation-ai-probe.mjs", so a pattern without .mjs matches nothing)');
+    process.exit(3);
+  }
+  if (!/no lock/.test(lk.why)) log('  ' + lk.why);
+  writeFileSync(lockPath, JSON.stringify({ pid: process.pid, file, startedAt: new Date().toISOString() }) + '\n');
+  const dropLock = () => {
+    try {
+      if (existsSync(lockPath) && JSON.parse(readFileSync(lockPath, 'utf8')).pid === process.pid) unlinkSync(lockPath);
+    } catch {
+      /* releasing a lock must never be the thing that fails a run */
+    }
+  };
+  process.on('exit', dropLock);
+  for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => process.exit(130));
+
   const jfd = openSync(jOut, 'a');
   const record = (k, v, extra) => writeSync(jfd, JSON.stringify({ k, v, ...(extra || {}) }) + '\n');
   log('  journal ' + jOut + '\n');
