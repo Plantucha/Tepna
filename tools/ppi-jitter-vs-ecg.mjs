@@ -91,7 +91,16 @@ const isSleepNight = (name, durSec) => {
   return hh >= 20 || hh < 4;
 };
 const DEVICE = String(opt('--device', 'o2ring')).toLowerCase();
-const PPG_RE = DEVICE === 'verity' ? /VeritySense.*_PPG\.txt$/i : /O2Ring.*_PPG\.txt$/i;
+/* ⚠️ THE SAME DEVICE IS NAMED TWO WAYS, and matching only one reports an EMPTY corpus as no data.
+   The Verity Sense appears as `Polar_VeritySense_<serial>` when the capture host wrote it and as
+   `Polar_Sense_<serial>` when Polar Sensor Logger did — identical serial (`0C301E3F` on this corpus),
+   one physical armband. The repo already treats the PSL spelling as the Verity elsewhere: PpgDex's
+   equivalence input is `Polar_Sense_BBBBBBBB_20260621_060523_PPG.txt`.
+   Measured 2026-08-18 on the PSL tree: the old `/VeritySense/` pattern matched **0 of 1980** files
+   while **54** wrist PPG and **50** paired H10 ECG files were present. A `--device verity` run there
+   reported nothing to report, which reads as "the corpus cannot answer this" rather than "the tool
+   cannot see it" — and that is the reading that kept a settling measurement looking impossible. */
+const PPG_RE = DEVICE === 'verity' ? /(?:VeritySense|Polar_Sense).*_PPG\.txt$/i : /O2Ring.*_PPG\.txt$/i;
 
 import { EPOCH_MS, MATCH_MS, HR_BIN_MS, MAX_LAG_MS, mean, sd, quantile, median, hrEnvelope, envelopeLagMs, refineLagByMatch, matchBeats, refinePeaks, ppiJitterMs } from './ppi-match.mjs';
 /* Re-exported so the existing import surface of this file is unchanged for any consumer. */
@@ -220,10 +229,20 @@ const walk = (d, o = []) => {
   return o;
 };
 const all = walk(DIR);
-const fingerFiles = all
-  .filter((f) => PPG_RE.test(f.p))
-  .sort((a, b) => b.size - a.size)
-  .slice(0, MAX_NIGHTS);
+const _ppgMatched = all.filter((f) => PPG_RE.test(f.p));
+const fingerFiles = _ppgMatched.sort((a, b) => b.size - a.size).slice(0, MAX_NIGHTS);
+/* PRINT THE DENOMINATOR. A pattern that matches nothing and a corpus that holds nothing produce the
+   same silence, and only one of them is a fact about the data. Stating files-walked beside
+   files-matched makes a naming mismatch visible in the output instead of leaving it to be inferred
+   from an empty table. */
+console.log(`corpus: ${all.length} file(s) walked · ${_ppgMatched.length} matched ${DEVICE} PPG · ${all.filter((f) => /H10.*_ECG\.txt$/i.test(f.p)).length} paired H10 ECG`);
+if (!_ppgMatched.length) {
+  console.error(`\n⊘ NO ${DEVICE.toUpperCase()} PPG FILE MATCHED under ${DIR}.`);
+  console.error('  This is a statement about the PATTERN, not about the corpus. Check the vendor naming:');
+  console.error('  the Verity is `Polar_VeritySense_*` from the capture host and `Polar_Sense_*` from');
+  console.error('  Polar Sensor Logger — the same armband, two spellings.');
+  process.exit(2);
+}
 const ecgs = all.filter((f) => /H10.*_ECG\.txt$/i.test(f.p));
 
 console.log('O2RING-FINGER-HRV-VALIDATION §3 — PPI-jitter sd vs paired H10 ECG (per-epoch alignment)');
