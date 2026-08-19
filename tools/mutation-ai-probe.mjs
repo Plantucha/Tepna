@@ -45,6 +45,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, openSync, writeSync
 import { basename, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import vm from 'node:vm';
 import { loadRealm, isRealmArtefact } from './mutation-crawl.mjs';
 
 const argv = process.argv.slice(2);
@@ -183,10 +184,33 @@ export function parseProposedInputs(text, max = 12) {
   return out;
 }
 
-/** A stable, comparable string for a call result — the same shape mutation-crawl records. */
-export function resultString(fn, args, timeoutNote = 'THREW') {
+/**
+ * A stable, comparable string for a call result — the same shape mutation-crawl records.
+ *
+ * ⚠️ PASS THE REALM `ctx` WHENEVER YOU HAVE ONE. Mutation testing MANUFACTURES infinite loops —
+ * deleting the body of `while (t < prev) t += 86400000;` leaves `while (cond) ;` — and a bare
+ * `fn.apply` from the host has no timeout and cannot be interrupted, so ONE such mutant wedges an
+ * overnight run forever, and a resume then re-attempts the same mutant and wedges again: a crash
+ * loop with no exit. The realm returned by `loadRealm` is a vm context, so the call can be made
+ * through `vm.runInContext` with a hard timeout — the identical pattern `mutation-crawl.mjs` uses
+ * for the identical reason. The bare path is kept only for the selftest's plain-object realms.
+ */
+const PROBE_TIMEOUT_MS = Number(opt('--probe-timeout-ms', '2000'));
+export function resultString(fn, args, ctx = null) {
   try {
-    const v = fn.apply(null, args);
+    let v;
+    if (ctx && vm.isContext && vm.isContext(ctx)) {
+      ctx.__probeFn = fn;
+      ctx.__probeArgs = args;
+      try {
+        v = vm.runInContext('__probeFn.apply(null, __probeArgs)', ctx, { timeout: PROBE_TIMEOUT_MS });
+      } finally {
+        delete ctx.__probeFn;
+        delete ctx.__probeArgs;
+      }
+    } else {
+      v = fn.apply(null, args);
+    }
     if (v === undefined) return 'undefined';
     try {
       return JSON.stringify(v);
@@ -194,7 +218,8 @@ export function resultString(fn, args, timeoutNote = 'THREW') {
       return '[unserialisable ' + typeof v + ']';
     }
   } catch (e) {
-    return timeoutNote + ':' + String((e && e.message) || e).slice(0, 120);
+    const msg = String((e && e.message) || e);
+    return /Script execution timed out|ERR_SCRIPT_EXECUTION_TIMEOUT/i.test(msg) ? 'TIMEOUT:' + PROBE_TIMEOUT_MS + 'ms — did not terminate' : 'THREW:' + msg.slice(0, 120);
   }
 }
 
@@ -205,6 +230,9 @@ export function resultString(fn, args, timeoutNote = 'THREW') {
 export function verdictFor(origStr, mutStr) {
   if (origStr === mutStr) return { kill: false, why: 'identical output' };
   if (/^THREW/.test(origStr)) return { kill: false, why: 'the REAL code throws on this input — a crash is not a contract, and the assertion would not even run' };
+  /* Same rule for a hang: "the real code does not terminate on this input" is not assertable, so an
+     input that wedges the ORIGINAL is not a distinguishing input — it is a finding about the probe. */
+  if (/^TIMEOUT/.test(origStr)) return { kill: false, why: 'the REAL code does not terminate on this input — a hang is not an assertable contract' };
   if (/^THREW/.test(mutStr) && /^THREW/.test(origStr)) return { kill: false, why: 'both threw' };
   if (origStr.length > 100000) return { kill: false, why: 'output too large to record honestly' };
   return { kill: true, why: 'measured difference' };
@@ -453,7 +481,9 @@ export function canaryFor(known, src, realm, loadFn, getFn) {
       b = getFn(mut, target);
     if (typeof a !== 'function' || typeof b !== 'function') continue;
     checked++;
-    if (verdictFor(resultString(a, args), resultString(b, args)).kill) detected++;
+    /* The realms double as vm contexts so the calls carry the hard timeout — a canary that can be
+       wedged by the very hang-mutants it exists to detect would be worse than no canary. */
+    if (verdictFor(resultString(a, args, realm), resultString(b, args, mut)).kill) detected++;
     else misses.push(target);
   }
   /* checked > 0 is load-bearing: a canary that examined NOTHING must never read as green. */
@@ -816,6 +846,14 @@ async function main() {
     const prog =
       '[' + String(i + 1).padStart(4) + '/' + pick.length + '  ' + rate.toFixed(1) + '/min  ETA ' + Math.round((pick.length - i - 1) / Math.max(rate, 0.01)) + 'm  found ' + found.length + ']';
 
+    /* CRASH-LOOP BELT: record the ATTEMPT before executing anything. The vm timeout stops ordinary
+       infinite loops, but a mutant that OOMs or hard-crashes the process leaves no verdict — and a
+       journal with no verdict would re-attempt the same mutant on every resume, forever. A dangling
+       TRYING (never superseded by a real verdict) means "this mutant took the process down"; the
+       resume skip treats it as answered, `--status` counts it, and an overnight loop converges past
+       it instead of dying on it every pass. */
+    record(key, 'TRYING');
+
     /* Build the mutant BEFORE asking. Every reason to skip this mutant — stale line, will not load,
        no call handle — is knowable without spending a single model call, and spending one anyway is
        how a probe run burns an hour on mutants it was never going to be able to test. */
@@ -843,8 +881,10 @@ async function main() {
     const runInputs = (ins) => {
       for (const args of ins) {
         tried++;
-        const a = resultString(fnA, args);
-        const b = resultString(fnB, args);
+        /* Realm contexts carry the vm timeout — see resultString. A model-proposed input reaching a
+           mutant-manufactured infinite loop is the EXPECTED collision here, not an edge case. */
+        const a = resultString(fnA, args, realm);
+        const b = resultString(fnB, args, mutRealm);
         if (!verdictFor(a, b).kill) continue;
         if (isRealmArtefact && isRealmArtefact(a, b, () => true) === true) continue;
         return { input: JSON.stringify(args), orig: a.slice(0, 2000), mutant: b.slice(0, 2000) };
