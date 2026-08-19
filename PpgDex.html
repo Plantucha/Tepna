@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0pHmjOWVWKZiHkGneSGNsJ5xhbG2vv79swPU8BaqgLk=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-haXlV4mtLdwoslHOZ4k+3vK6o7SIRMBQuPt5xEIbyzY=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8G0021kLB/8L6BJR/hptrWblaOWJZB9ikV63WK/9Pd8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-haXlV4mtLdwoslHOZ4k+3vK6o7SIRMBQuPt5xEIbyzY=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.6.0</title>
@@ -6689,8 +6689,17 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     for (let i = 0; i < a.length; i++) s += a[i];
     return s / a.length;
   }
+  /* §2.6 — the sample SD of fewer than two observations is UNDEFINED, not zero: the denominator is
+     `n - 1 = 0`. Returning `0` claims "no variability" from data that cannot support the claim, and on
+     an HRV surface an SDNN of 0 ms reads as a perfectly regular heart — the fabricated-defaults class
+     (FABRICATED-DEFAULTS-FLEET-2026-08-16 §7).
+     NaN, NOT null, and the choice is load-bearing. This file's own `mean` already returns NaN for an
+     empty array, and every caller that can decline already tests with `isNaN` or an `|| fallback`.
+     `null` would pass BOTH — `isFinite(null)` and `isNaN(null)` are `false` — so switching to null
+     would convert a visible refusal into an invisible one. Match the file's existing honest answer.
+     ⚠️ DEFENSIVE, and measured to be so: no current caller can reach it. */
   function std(a) {
-    if (a.length < 2) return 0;
+    if (a.length < 2) return NaN;
     const m = mean(a);
     let s = 0;
     for (let i = 0; i < a.length; i++) {
