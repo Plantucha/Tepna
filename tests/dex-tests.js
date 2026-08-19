@@ -46022,6 +46022,67 @@
       );
     });
 
+    group('Integrator DSP floor — 22 drafts adopted: refusals, honest reasons, and the summary route (mutation-derived)', 'integrator-dsp · known-answer · mutation-pinned', function (T) {
+      var I = env.IntegratorDSP || env.INTEGRATOR;
+      if (!I || typeof I.normalizeFile !== 'function') {
+        T.skip('IntegratorDSP available', 'Integrator not co-loaded in this runner');
+        return;
+      }
+      /* Adopted from the AI-probe draft bank: every projection machine-verified to discriminate a
+         then-surviving mutant, batch-verified green on the current tree (22/22 — the only bank with
+         zero discards), kill-verified by re-applying all 14 unique mutants. The pins are the guard
+         floor: refusals return null/[]/{reason} — never a throw, never a fabricated verdict. */
+      var out;
+      out = I.normalizeFile(0);
+      T.eq('I.normalizeFile(0) → """file" — unrecognized format, no events found; skipped""', JSON.stringify(out.warnings[0]), '"\\"file\\" — unrecognized format, no events found; skipped"');
+      out = I.deltaModeSec(null);
+      T.eq('I.deltaModeSec(null) → "null"', JSON.stringify(out), 'null');
+      out = I.deltaModeSec(null);
+      T.eq('I.deltaModeSec(null) → "true"', JSON.stringify(out === null), 'true');
+      out = I._wrappedSlopeFit(1, null);
+      T.eq('I._wrappedSlopeFit(1,null) → "true"', JSON.stringify(out === null), 'true');
+      out = I._wrappedSlopeFit(null);
+      T.eq('I._wrappedSlopeFit(null) → "true"', JSON.stringify(out === null), 'true');
+      out = I._wrappedSlopeFit(1);
+      T.eq('I._wrappedSlopeFit(1) → "true"', JSON.stringify(out === null), 'true');
+      out = I._wrappedSlopeFit(null);
+      T.eq('I._wrappedSlopeFit(null) → "null"', JSON.stringify(out), 'null');
+      out = I.refineLagByDeltaMode(null);
+      T.eq('I.refineLagByDeltaMode(null) → "null"', JSON.stringify(out), 'null');
+      out = I.reconstructEventTMs(null, 0);
+      T.eq('I.reconstructEventTMs(null,0) → "true"', JSON.stringify(out == null), 'true');
+      out = I.reconstructEventTMs(null, 0);
+      T.eq('I.reconstructEventTMs(null,0) → "null"', JSON.stringify(out), 'null');
+      out = I.reconstructEventTMs(null);
+      T.eq('I.reconstructEventTMs(null) → "true"', JSON.stringify(out === null), 'true');
+      out = I.pickHRAuthority(null);
+      T.eq('I.pickHRAuthority(null) → "true"', JSON.stringify(out === null), 'true');
+      out = I.pickHRAuthority([1, 2, 3]);
+      T.eq('I.pickHRAuthority([1,2,3]) → "null"', JSON.stringify(out), 'null');
+      out = I.fitClockDrift(null);
+      T.eq('I.fitClockDrift(null) → "false"', JSON.stringify(out.confident), 'false');
+      out = I.detectClockSkew(null);
+      T.eq('I.detectClockSkew(null) → "[]"', JSON.stringify(out.findings), '[]');
+      out = I.estimateEventLag(null);
+      T.eq('I.estimateEventLag(null) → "null"', JSON.stringify(out), 'null');
+      out = I.fitClockOffset(null);
+      T.eq('I.fitClockOffset(null) → "null"', JSON.stringify(out.offsetSec), 'null');
+      out = I.normalizeFile('abc', 'test.json');
+      T.eq(
+        'I.normalizeFile("abc","test.json") → """test.json" — unrecognized format, no events found; skipped""',
+        JSON.stringify(out.warnings[0]),
+        '"\\"test.json\\" — unrecognized format, no events found; skipped"'
+      );
+      out = I.normalizeFile({ t0Ms: 1609459200000, windows: [], durMin: 30 }, 'PulseDex');
+      T.eq('I.normalizeFile({"t0Ms":1609459200000,"windows":[],"durMin":30},"PulseDex") → "1"', JSON.stringify(out.warnings.length), '1');
+      out = I.normalizeFile(true, 'PulseDex');
+      T.eq('I.normalizeFile(true,"PulseDex") → "0"', JSON.stringify(out.warnings.length), '0');
+      out = I.normalizeFile(0);
+      T.eq('I.normalizeFile(0) → one warning: the Unknown-node line is included', JSON.stringify(out.warnings.length), '1');
+      out = I.fitClockDrift(null);
+      T.eq('I.fitClockDrift(null) → reason "too few beats" — the refusal names its floor', JSON.stringify(out.reason), '"too few beats"');
+    });
+
     /* DEEP-AUDIT-III §3.2 — `apneaCoupling.real` must be a TEST, not a coin flip.
        It was `usable && lift > 1 && observedPct > chancePct`. `chancePct` IS the mean of the
        surrogate distribution, so under the null "observed > chance" is a fair coin by construction:
