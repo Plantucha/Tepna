@@ -13737,6 +13737,32 @@
       T.ok('two rows is refused with a message naming the two columns it needs', /timestamp \+ glucose/.test(tiny.error || ''), JSON.stringify(tiny.error || '').slice(0, 90));
     });
 
+    group('GlucoDex helper floor — 6 drafts adopted: coreMetrics floors, clamp detection, pearson (mutation-derived)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
+      var G = env.GLUDSP || (env.GlucoDex && env.GlucoDex._bare) || env.GlucoDex;
+      if (!G || typeof G.coreMetrics !== 'function') {
+        T.skip('GLUDSP available', 'GlucoDex not co-loaded in this runner');
+        return;
+      }
+      /* Adopted from the AI-probe draft bank: 6/6 batch-verified green, zero discards. */
+      var out;
+      out = G.detectClampSaturation([1, 2, 3]);
+      T.eq('G.detectClampSaturation([1,2,3]) → "null"', JSON.stringify(out.floor), 'null');
+      out = G.coreMetrics('');
+      T.eq('G.coreMetrics("") → "0"', JSON.stringify(out.cv), '0');
+      out = G.coreMetrics([0, 0, 0], [0]);
+      T.eq('G.coreMetrics([0,0,0],[0]) → "0"', JSON.stringify(out.cv), '0');
+      out = G.coreMetrics([100, 150, 200, 250, 300], [100, 150, 200, 250, 300]);
+      T.eq('G.coreMetrics([100,150,200,250,300],[100,150,200,250,300]) → "250"', JSON.stringify(out.p75), '250');
+      out = G.detectClampSaturation([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], null);
+      T.eq(
+        'G.detectClampSaturation([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],null) → "{"value":1,"co',
+        JSON.stringify(out.floor),
+        '{"value":1,"count":1,"pct":5,"saturated":false,"innerMean":1,"ratio":1}'
+      );
+      out = G.pearson([1, 2, 3], [4, 5, 6]);
+      T.eq('G.pearson([1,2,3],[4,5,6]) → "1"', JSON.stringify(out), '1');
+    });
+
     group('MotionDex inferAccUnit — three gravity bands, all bounds exclusive (mutation bootstrap)', 'motiondex-dsp · known-answer · mutation-pinned', function (T) {
       var M = env.MOTIONDSP;
       if (!M || typeof M.parseSensorXYZ !== 'function') {
