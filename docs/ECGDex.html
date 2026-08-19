@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-8gb6/m/2OufqbcAqU5vez2xYBksYRHRxMt0s1E3tWEw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HFDSXcBDW8u7XD7M1mWyyx1aMdalHFgIYSeJ6kXEWU8=' 'sha256-KT37bp0y0ke8bMQOKs4x1LCCi2NIvgysOwzCVi14uPk=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-h7eDzXk9Q/+enhnS4yodXMepA0sXv6KmnkfDwFY8x0c=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0mqhj4PCQsNRywYOCDIa/lI1dB/pbF/OnCPxEs9VBIo=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-8gb6/m/2OufqbcAqU5vez2xYBksYRHRxMt0s1E3tWEw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-KT37bp0y0ke8bMQOKs4x1LCCi2NIvgysOwzCVi14uPk=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-h7eDzXk9Q/+enhnS4yodXMepA0sXv6KmnkfDwFY8x0c=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.6.0</title>
@@ -15536,40 +15536,13 @@ __exports.ECGUI = window.ECGUI;
   }
 
   // ── predictive sublabels ─────────────────────────────────────────────────────────
-  function computeHints(r) {
-    if (DP()) return; // unified panel owns the field hints now (legacy DOM inputs removed)
-    const set = (id, txt, est) => {
-      const l = $(id);
-      if (!l) return;
-      l.textContent = txt;
-      l.classList.toggle('est', !!est);
-    };
-    const p = getProfile();
-    const n = popNorms(p.sex);
-    // ANS age annotation removed 2026-06-23 (WP-A R9) — lbl_ecgAge no longer shows an autonomic age.
-    const ideal = +(22.5 * ((parseFloat($('ecgHeight').value) || n.h) / 100) ** 2).toFixed(1);
-    set('lbl_ecgWeight', '~ pop. avg ' + n.w + ' kg · ideal ' + ideal + ' kg');
-    set('lbl_ecgHeight', '~ pop. avg ' + n.h + ' cm');
-    if (r) {
-      const hm = r.hrmaxEff || Math.round(208 - 0.7 * p.age),
-        rh = Math.round(r.rhrEff || r.dispHr);
-      const altTxt = r.altFactor && r.altFactor < 1 ? ' · alt ×' + r.altFactor : '';
-      set('lbl_ecgVO2', '~ Uth–Sørensen → ' + r.vo2base + ' (HRmax ' + hm + '/rest ' + rh + altTxt + ')');
-      if (r.hrmaxRejected) set('lbl_ecgHRmax', '⚠ entry too low — using Tanaka ' + r.tanaka + ' bpm', true);
-      else {
-        const hrIn = Number($('ecgHRmax').value) || 0;
-        set('lbl_ecgHRmax', hrIn > 0 ? '✓ your value ' + hm + ' bpm' : '~ Tanaka: 208 − 0.7 × age = ' + r.tanaka);
-      }
-      const ev = Number($('ecgElev').value) || 0;
-      if (ev >= 2500) set('lbl_ecgElev', '🏔 ' + ev.toLocaleString() + ' m · VO₂ ×' + r.altFactor + ' · HRV norms = sea-level (caution)', true);
-      else if (ev > 1500) set('lbl_ecgElev', '⛰ ' + ev.toLocaleString() + ' m · VO₂ ×' + r.altFactor, true);
-      else set('lbl_ecgElev', '~ sea level · adjusts VO₂max above 1500 m');
-      const rhrIn = Number($('ecgRHR').value) || 0;
-      if (rhrIn > 0) set('lbl_ecgRHR', '✓ your value');
-      else if (r.longRec && r.hrFloor != null) set('lbl_ecgRHR', '~ nocturnal floor ' + r.hrFloor + ' + 8 = ' + r.autoRHR + ' bpm (awake est)', true);
-      else set('lbl_ecgRHR', '~ measured ' + Math.round(r.dispHr) + ' bpm', true);
-    }
-  }
+  /* `computeHints()` REMOVED 2026-08-19 (DEAD-FIELD-HINTS-FLEET). It wrote 11 field hints to `lbl_ecg*`
+     ids, and `ECGDex.src.html` defines NONE of them — nor any `lbl_` id at all. It was also unreachable
+     for a second, stronger reason: it read `$('ecgHeight').value`, and `ecgHeight` does not exist
+     either, so the body would have thrown a TypeError had it ever run. Its `if (DP()) return;` guard was
+     therefore load-bearing against a CRASH, not merely an early exit for a superseded panel — which is
+     why deleting the body is safer than leaving it guarded. The unified panel (`DexProfile`) owns these
+     hints now. */
 
   // ── orchestration entry ──────────────────────────────────────────────────────────
   function render(r) {
@@ -15577,7 +15550,6 @@ __exports.ECGUI = window.ECGUI;
     $('sec-profile').style.display = 'block';
     $('profilePanel').style.display = 'block';
     personalize(r);
-    computeHints(r);
     renderHero(r);
     renderHrvBench(r);
     if (_dexPanel) _dexPanel.refresh();
