@@ -83,8 +83,17 @@
     for (let i = 0; i < a.length; i++) s += a[i];
     return s / a.length;
   }
+  /* §2.6 — the sample SD of fewer than two observations is UNDEFINED, not zero: the denominator is
+     `n - 1 = 0`. Returning `0` claims "no variability" from data that cannot support the claim, and on
+     an HRV surface an SDNN of 0 ms reads as a perfectly regular heart — the fabricated-defaults class
+     (FABRICATED-DEFAULTS-FLEET-2026-08-16 §7).
+     NaN, NOT null, and the choice is load-bearing. This file's own `mean` already returns NaN for an
+     empty array, and every caller that can decline already tests with `isNaN` or an `|| fallback`.
+     `null` would pass BOTH — `isFinite(null)` and `isNaN(null)` are `false` — so switching to null
+     would convert a visible refusal into an invisible one. Match the file's existing honest answer.
+     ⚠️ DEFENSIVE, and measured to be so: no current caller can reach it. */
   function std(a) {
-    if (a.length < 2) return 0;
+    if (a.length < 2) return NaN;
     const m = mean(a);
     let s = 0;
     for (let i = 0; i < a.length; i++) {

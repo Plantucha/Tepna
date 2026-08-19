@@ -267,7 +267,7 @@ const walk = (d, o = []) => {
   } catch (_e) {}
   return o;
 };
-const PPG_RE = DEVICE === 'verity' ? /VeritySense.*_PPG\.txt$/i : /O2Ring.*_PPG\.txt$/i;
+const PPG_RE = DEVICE === 'verity' ? /(?:VeritySense|Polar_Sense).*_PPG\.txt$/i : /O2Ring.*_PPG\.txt$/i;
 const all = walk(DIR);
 const ppgs = all
   .filter((f) => PPG_RE.test(f.p))
@@ -276,9 +276,15 @@ const ppgs = all
 const ecgs = all.filter((f) => /H10.*_ECG\.txt$/i.test(f.p));
 
 const stampOf = (p) => {
-  const m = /_(\d{14})_/.exec(p) || /(\d{14})/.exec(p.split('/').pop() || '');
+  /* TWO STAMP LAYOUTS, one device. The capture host writes 14 contiguous digits
+     (`..._20260610211539_PPG.txt`); Polar Sensor Logger splits them
+     (`..._20260610_211539_PPG.txt`). Matching only the first made every PSL file parse to `null` —
+     and because the FILENAME still matched the device pattern, the file was found and then silently
+     dropped one line later, which is quieter than not matching at all. Found 2026-08-18 after the
+     device-name fix alone still yielded 0 usable PSL nights. */
+  const m = /_(\d{14})_/.exec(p) || /_(\d{8})_(\d{6})_/.exec(p) || /(\d{14})/.exec(p.split('/').pop() || '');
   if (!m) return null;
-  const s = m[1];
+  const s = m.length > 2 && m[2] ? m[1] + m[2] : m[1];
   return Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(8, 10), +s.slice(10, 12), +s.slice(12, 14));
 };
 const plausiblyOverlaps = (p, t0) => {
