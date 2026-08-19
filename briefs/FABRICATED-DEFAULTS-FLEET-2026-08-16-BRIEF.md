@@ -1,5 +1,12 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-08-16
+**Status:** DONE — 2026-08-18 · **Created:** 2026-08-16
+
+> ⚠️ **This brief read `PROPOSED` for two days while every node in it had already SHIPPED**, and that
+> cost a near-miss worth recording: on 2026-08-18 a session read the status line, found the OxyDex work
+> apparently undone, and was three tool calls from reimplementing all 11 guard sites before
+> `rebase-safe` reported `skipped previously applied commit` and `rev-list --count origin/main..X`
+> returned **0**. A stale status line is not a cosmetic defect; it is an instruction to redo finished
+> work. **ECGDex #1397 · OxyDex #1402 · PpgDex #1464 · `std` #(this PR).**
 
 # Fabricated defaults — the DSPs never inherited §2.6, and every one fails toward "healthy"
 
@@ -179,7 +186,13 @@ symmetry, §6.3 would have refused a real absence.
 
 ## 7 · Done when
 
-- [ ] Reachability measured per node, on **both** capture trees, before that node is touched.
+- [x] **PARTIAL, and closed as such rather than claimed.** Measured for **ECGDex** (152 box + 2154
+      phone `lombScargle` calls, 0 refusals, min N 37), **PpgDex** (44 exports, 0 refusals) and now
+      **`std`** (0 exact-zero `sdnn`/`rmssd`/`sdnnIndex` across 132 exports, plus 66 public-call
+      differential comparisons across 11 exported functions — 0 differ). **Not** measured for the five
+      nodes that turned out to need no fix, and that is the honest reason it stayed unmeasured: the
+      condition was "before that node is touched", and they were not touched. Do not read this box as
+      fleet-wide reachability coverage.
 - [x] **DONE.** Each site returns `null` (or null-valued fields) and every consumer tolerates it —
       checking especially derived expressions, where fabrication re-enters one line after the guard
       (`+pg.sd1.toFixed(2)` throws on null; `+null` is `0`; the `|| 1` shape recurs).
@@ -198,7 +211,7 @@ symmetry, §6.3 would have refused a real absence.
       enough data is a genuine *measured* absence of instability, not an absence of measurement. The
       whole point of this brief is that those two are different, so nulling both would be the
       mirror-image error.
-- [ ] `std` returning `0` on `<2` input: **last, and separately.** ⚠️ **Scope measured 2026-08-18 and
+- [x] **DONE** — `std` returning `0` on `<2` input, shipped last and separately as designed. ⚠️ **Scope measured 2026-08-18 and
       it is far narrower than this line implied.** `median` and `mean` already return `NaN`, and
       GlucoDex's `quantile` already returns `null` — the defect is **`std` alone, in two files**:
 
@@ -217,6 +230,27 @@ symmetry, §6.3 would have refused a real absence.
       So this stays **last** — but for the right reason now. It is not deferred because the blast
       radius is unknown; it is deferred because the blast radius is real and the defect is latent, and
       that is a different trade from the one this line originally described.
+
+      **RESOLVED 2026-08-18 — both sites return `NaN`.** The return VALUE was the whole decision, not
+      the guard: every caller that declines here tests with `isNaN` or an `|| fallback`, and **both
+      `isNaN(null)` and `isFinite(null)` are `false`**, so `null` would have passed every existing
+      guard and converted a visible refusal into an invisible one — this brief's own defect, committed
+      inside its fix. `NaN` is already what each file's `mean` returns (and hrvdex's `pearsonCorr` for
+      `n < 2`), so the honest answer was present in both files and this is inheritance.
+
+      **The fix is DEFENSIVE and that is measured, not assumed:** no public path reaches it —
+      `timeDomain` returns null under 2 and clamps `base` to ≥ 2 · `sampEn` guards `N < 60` ·
+      `magInterfAtSec` guards `< 3` · both hrvdex call sites pre-check `length > 1`. Differential
+      execution over `origin/main` vs fixed: **66 public-call comparisons across 11 exported functions
+      on six degenerate inputs, 0 differ.** No golden needed regenerating, unlike PpgDex #1464 where
+      three had the fabricated `0` byte-pinned.
+
+      **So the assertions pin the REASON the fix is safe, not the fix** — `ppgdex-dsp ·
+      degenerate-refusal` (8 legs) asserts the public boundary refuses, which is the property that
+      would have to break for the fabricated `0` to become reachable again. Testing `std` directly
+      would assert a line nothing calls. ⚠️ Its anti-vacuity legs fired immediately: the draft used 16
+      points as "adequate input" and FAILED, revealing adequacy had been assumed rather than measured
+      (`riseFraction` null at 16, `0.713` at 64).
 - [x] **DONE** — no registry file was touched by #1397, #1402 or #1464. This was a refusal fix, not a
       re-grading.
 
