@@ -251,9 +251,20 @@ if (IS_MAIN && has('--selftest')) {
   const AR = ['function plain(a) {', '  return a;', '}', 'const rmssd = (x) => {', '  return x + 1;', '};', 'const tiny = () => 1;'].join('\n');
   {
     const rs = functionRanges(AR);
-    ok('an arrow const appears in functionRanges', rs.some((r) => r.fn === 'rmssd' && r.start === 4 && r.end === 6), JSON.stringify(rs));
-    ok('a concise arrow is a single-line range, never file-long', rs.some((r) => r.fn === 'tiny' && r.start === 7 && r.end === 7), JSON.stringify(rs.filter((r) => r.fn === 'tiny')));
-    ok('plain functions still resolve beside them', rs.some((r) => r.fn === 'plain' && r.end === 3));
+    ok(
+      'an arrow const appears in functionRanges',
+      rs.some((r) => r.fn === 'rmssd' && r.start === 4 && r.end === 6),
+      JSON.stringify(rs)
+    );
+    ok(
+      'a concise arrow is a single-line range, never file-long',
+      rs.some((r) => r.fn === 'tiny' && r.start === 7 && r.end === 7),
+      JSON.stringify(rs.filter((r) => r.fn === 'tiny'))
+    );
+    ok(
+      'plain functions still resolve beside them',
+      rs.some((r) => r.fn === 'plain' && r.end === 3)
+    );
   }
   ok('the default dir is one of the two declared candidates, nothing invented', stateDirs(ROOT).includes(sweepDir()), sweepDir());
   ok('DEX_SWEEP_DIR overrides it', sweepPathFor('oxydex-dsp.js', '/elsewhere') === '/elsewhere/oxydex-dsp.json');

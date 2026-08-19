@@ -269,10 +269,31 @@ function selftest() {
   ck('…and when NOTHING exists resolves to the SHARED one, so first write lands where all read', /tepna-mutation\/w\.json$/.test(resolveStatePath(process.cwd(), 'w.json', () => false)), true);
   ck('stateDirs orders shared before in-tree', /tepna-mutation$/.test(stateDirs(process.cwd())[0]) && /\.mutation-sweeps$/.test(stateDirs(process.cwd())[1]), true);
   const sjf = stateJsonFiles(process.cwd(), { existsFn: () => true, readdirFn: (d) => (/tepna-mutation/.test(d) ? ['a.json', 'b.txt'] : ['a.json', 'c.json']) });
-  ck('stateJsonFiles UNIONS both dirs — a split state is read whole, not one side', sjf.map((f) => f.name).sort().join(','), 'a.json,c.json');
+  ck(
+    'stateJsonFiles UNIONS both dirs — a split state is read whole, not one side',
+    sjf
+      .map((f) => f.name)
+      .sort()
+      .join(','),
+    'a.json,c.json'
+  );
   ck('…the SHARED copy wins a basename tie', /tepna-mutation/.test(sjf.find((f) => f.name === 'a.json').path), true);
-  ck('…non-json entries never leak through', sjf.some((f) => f.name === 'b.txt'), false);
-  ck('…an unreadable dir contributes nothing while the other still scans', stateJsonFiles(process.cwd(), { existsFn: () => true, readdirFn: (d) => { if (/tepna-mutation/.test(d)) throw new Error('EACCES'); return ['x.json']; } }).length, 1);
+  ck(
+    '…non-json entries never leak through',
+    sjf.some((f) => f.name === 'b.txt'),
+    false
+  );
+  ck(
+    '…an unreadable dir contributes nothing while the other still scans',
+    stateJsonFiles(process.cwd(), {
+      existsFn: () => true,
+      readdirFn: (d) => {
+        if (/tepna-mutation/.test(d)) throw new Error('EACCES');
+        return ['x.json'];
+      }
+    }).length,
+    1
+  );
   ck('resolveStateDir falls back to an existing in-tree dir', /\.mutation-sweeps$/.test(resolveStateDir(process.cwd(), (p) => /\.mutation-sweeps$/.test(p))), true);
 
   console.log('\nresolveMapPath — the git COMMON dir, so every worktree sees one map');

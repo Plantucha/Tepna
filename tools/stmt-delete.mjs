@@ -413,7 +413,7 @@ export function classifyStatementVerdict(ran, suitePassed) {
 async function runLevelB(file, group, jobs, covPath, resumePath) {
   const { execFileSync, execFile } = await import('node:child_process');
   const { mkdtempSync, readFileSync, writeFileSync, rmSync, symlinkSync, readdirSync, existsSync } = await import('node:fs');
-  const { join, dirname, resolve } = await import('node:path');
+  const { join, dirname } = await import('node:path');
   const { fileURLToPath } = await import('node:url');
   const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
   const abs = join(ROOT, file);

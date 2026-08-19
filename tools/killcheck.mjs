@@ -178,9 +178,12 @@ if (IS_MAIN && has('--selftest')) {
   ok('…and `o*ter` matches nothing rather than everything', functionRange(SRC, 'o*ter') === null);
   ok('escapeRe leaves a plain identifier alone', escapeRe('parseJSONL') === 'parseJSONL');
   ok('escapeRe still escapes `$`, the one that occurs here', escapeRe('_$scope') === '_\\$scope', escapeRe('_$scope'));
-  ok('§8: an arrow const resolves', JSON.stringify(functionRange('const q = (a) => {\n  return a;\n};', 'q')) === JSON.stringify({ start: 1, end: 3 }), JSON.stringify(functionRange('const q = (a) => {\n  return a;\n};', 'q')));
+  ok(
+    '§8: an arrow const resolves',
+    JSON.stringify(functionRange('const q = (a) => {\n  return a;\n};', 'q')) === JSON.stringify({ start: 1, end: 3 }),
+    JSON.stringify(functionRange('const q = (a) => {\n  return a;\n};', 'q'))
+  );
   ok('§8: a concise arrow is its own line', JSON.stringify(functionRange('const c = () => 5;', 'c')) === JSON.stringify({ start: 1, end: 1 }));
-
 
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
   process.exit(fail ? 1 : 0);

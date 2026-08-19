@@ -430,10 +430,28 @@ if (IS_MAIN && has('--selftest')) {
   );
 
   // §8 — arrow consts are now first-class declarations
-  const ARROWSRC = ['const rmssd = (a) => {', '  return a + 1;', '};', 'let f2 = async (x) => {', '  return x;', '};', 'var pi2 = () => 3.14;', 'const g = x => {', '  return x * 2;', '};', 'const h = function (q) {', '  return q;', '};'].join('\n');
+  const ARROWSRC = [
+    'const rmssd = (a) => {',
+    '  return a + 1;',
+    '};',
+    'let f2 = async (x) => {',
+    '  return x;',
+    '};',
+    'var pi2 = () => 3.14;',
+    'const g = x => {',
+    '  return x * 2;',
+    '};',
+    'const h = function (q) {',
+    '  return q;',
+    '};'
+  ].join('\n');
   ok('a block-body arrow const resolves', JSON.stringify(functionRange(ARROWSRC, 'rmssd')) === JSON.stringify({ start: 1, end: 3 }), JSON.stringify(functionRange(ARROWSRC, 'rmssd')));
   ok('an async arrow resolves', functionRange(ARROWSRC, 'f2') !== null && functionRange(ARROWSRC, 'f2').start === 4);
-  ok('a CONCISE arrow is its own line — never a fake file-long range', JSON.stringify(functionRange(ARROWSRC, 'pi2')) === JSON.stringify({ start: 7, end: 7 }), JSON.stringify(functionRange(ARROWSRC, 'pi2')));
+  ok(
+    'a CONCISE arrow is its own line — never a fake file-long range',
+    JSON.stringify(functionRange(ARROWSRC, 'pi2')) === JSON.stringify({ start: 7, end: 7 }),
+    JSON.stringify(functionRange(ARROWSRC, 'pi2'))
+  );
   ok('a single-param no-parens arrow resolves', functionRange(ARROWSRC, 'g') !== null && functionRange(ARROWSRC, 'g').start === 8);
   ok('a const function-expression resolves', functionRange(ARROWSRC, 'h') !== null && functionRange(ARROWSRC, 'h').start === 11);
   ok('…and a name that is only a SUFFIX of another does not match it', functionRange(ARROWSRC, 'i2') === null, JSON.stringify(functionRange(ARROWSRC, 'i2')));

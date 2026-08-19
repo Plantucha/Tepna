@@ -513,7 +513,12 @@ export function parseZeroBaseline(jsonText) {
 function runZeroSet(zeroIdx, cwd, timeoutMs) {
   let out = '';
   try {
-    out = execFileSync(process.execPath, [join(ROOT, 'tests/run-tests.mjs'), '--group-index=' + zeroIdx.join(','), '--json'], { cwd, timeout: timeoutMs || 300000, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+    out = execFileSync(process.execPath, [join(ROOT, 'tests/run-tests.mjs'), '--group-index=' + zeroIdx.join(','), '--json'], {
+      cwd,
+      timeout: timeoutMs || 300000,
+      encoding: 'utf8',
+      maxBuffer: 256 * 1024 * 1024
+    });
   } catch (e) {
     out = String((e && e.stdout) || '');
   }

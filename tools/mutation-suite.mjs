@@ -922,7 +922,6 @@ export function renderInventory({ files, generatedAt, mapPath, staleClassificati
   return L.join('\n') + '\n';
 }
 
-
 // ── §4 · THE OTHER TWO LANES, REPORTED IN THEIR OWN UNITS ─────────────────────────────────────
 /**
  * Parse a ResumeLedger JSONL (the persistent record `extreme-mutate` / `stmt-delete` write under
@@ -1062,7 +1061,10 @@ function cmdInventory() {
   const lanes = { pseudo: { files: [] }, del: { files: [] } };
   for (const f of FLEET) {
     const cand = laneLedgerCandidates(ROOT, f);
-    for (const [key, paths] of [['pseudo', cand.pseudo], ['del', cand.del]]) {
+    for (const [key, paths] of [
+      ['pseudo', cand.pseudo],
+      ['del', cand.del]
+    ]) {
       let merged = '';
       for (const p of paths) {
         try {
@@ -1291,7 +1293,11 @@ function selftest() {
   });
   ck('the pseudo ledger is found in the SHARED dir', cands.pseudo.length === 1 && /tepna-mutation/.test(cands.pseudo[0]), true);
   ck('delete-lane ledgers collect across BOTH dirs and ALL groups', cands.del.length, 2);
-  ck('…and another file\'s ledger never leaks in', cands.del.some((p) => /oxydex/.test(p)), false);
+  ck(
+    "…and another file's ledger never leaks in",
+    cands.del.some((p) => /oxydex/.test(p)),
+    false
+  );
   const laneMd = renderLaneSections({ pseudo: { files: [{ file: 'x.js', total: 3, byVerdict: { tested: 2, 'not-covered': 1 } }] }, del: { files: [] } }).join('\n');
   ck('each lane section names its UNIT in the header', /unit: \*\*functions\*\*/.test(laneMd) && /unit: \*\*statements\*\*/.test(laneMd), true);
   ck('verdicts are reported verbatim, not re-mapped', /`not-covered` 1/.test(laneMd), true);
