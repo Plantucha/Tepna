@@ -3,7 +3,9 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (**P1.1 — the brief's own "single most important software fix" — and P1.4 both DONE 2026-08-04**, hysteresis on recovery + the power-cycle budget, 5 mutants killed. ⚠️ **P1.2/P1.3's privilege half is DONE 2026-08-05 — and the 2026-08-04 "blocked on a deploy, not on code" diagnosis below was WRONG on both counts.** `tepna-usbreset.sh` is a Polar-dock re-enumerator that must never touch a radio; installing it moved this rung not at all. The real blocker was code: `_usb_rebind` wrote root-only sysfs from an unprivileged daemon, failed every time with `PermissionError`, and logged it at INFO as "skipped" — while `usb_path: 1-2` being SET silenced the only warning on the path. Fixed via a new root helper `tepna-btreset.sh` + a preflight that reports an inoperable rung. See §P1.2/P1.3. ⚠️ Field-gated remainder: the rung is now OBSERVED WORKING on hardware (2026-08-08, RC=0, adapter returned, sensors self-recovered) — but no real wedge has occurred since, so it is not yet observed CLEARING one. P1.4·P1.5·P2.x remain) · **Created:** 2026-07-24
+**Status:** PROPOSED (**P1.1 — the brief's own "single most important software fix" — and P1.4 both DONE 2026-08-04**, hysteresis on recovery + the power-cycle budget, 5 mutants killed. ⚠️ **P1.2/P1.3's privilege half is DONE 2026-08-05 — and the 2026-08-04 "blocked on a deploy, not on code" diagnosis below was WRONG on both counts.** `tepna-usbreset.sh` is a Polar-dock re-enumerator that must never touch a radio; installing it moved this rung not at all. The real blocker was code: `_usb_rebind` wrote root-only sysfs from an unprivileged daemon, failed every time with `PermissionError`, and logged it at INFO as "skipped" — while `usb_path: 1-2` being SET silenced the only warning on the path. Fixed via a new root helper `tepna-btreset.sh` + a preflight that reports an inoperable rung. See §P1.2/P1.3. ⚠️ Field-gated remainder: the rung is now OBSERVED WORKING on hardware (2026-08-08, RC=0, adapter returned, sensors self-recovered) — but no real wedge has occurred since, so it is not yet observed CLEARING one. P1.4·P1.5·P2.x remain — ⚠ that list said P1.4 while this same header records P1.4 DONE; it meant P1.5.
+**P2.x VERIFIED IN CODE 2026-08-19, and five of six are SHIPPED — see the P2 verification block below.**
+Genuinely open: P1.5 (dual-radio failover) and P2.2 (resume the file-set on reconnect)) · **Created:** 2026-07-24
 
 # Vigil overnight findings — the night the dongle wedged (2026-07-23 → 24)
 
@@ -244,6 +246,22 @@ both a de-suspended dongle and the internal radio fail you.*
   The box already has the second radio — use it.
 
 ### P2 — data quality & efficiency under a bad link (reduce the damage a flap does)
+> ### 📊 P2 VERIFIED IN CODE, 2026-08-19 — five of six shipped; the brief read as fully open and was not
+>
+> Checked item by item against the current daemon (the DEEP-ANALYSIS phase-map pattern):
+>
+> | item | state |
+> |---|---|
+> | P2.1 backoff | ✅ `backoff = min(backoff*2, 300)` from 5 s, reset **only on a viable session** (E3 — a bare connect does not reset it, or a flapping link would pin it at the floor). `capture.py:2470-2496` |
+> | P2.2 resume file-set | ⛔ **OPEN** — reconnects still mint a new file-set (15 Verity sets on 2026-08-18 alone). The one real remaining P2 item, and an architecture change: gate it on its own brief. |
+> | P2.3 pull vs dead adapter | ✅ pulls gate on `_RECOVER`/pause state; the charger/doff pollers skip mid-recovery |
+> | P2.4 coverage rollup | ✅ per-stream `coverage_pct` (timeline), per-device coverage in `QC-SUMMARY.json`, monitor renders "% captured" — and the **morning digest** (2026-08-19) now pushes it daily via the webhook, which closed the "surfaced" half |
+> | P2.5 pull progress | ✅ `pull_progress` set during pulls, cleared even on failure, surfaced through webmon |
+> | P2.6 relink logging | 〰 **PARTIAL, differently-shaped:** `link_epoch` is tracked and written to the LINK sidecar + status (E5) — a *recorded* surface the 25 s sampler cannot miss — but the literal ask (an INFO line with outage duration) is not implemented. The sidecar arguably supersedes it; saying so here rather than ticking it. |
+>
+> P1.5 (dual-radio failover) remains open and is now the section's only *large* item: the box has **two**
+> adapters today (the third was removed with the hardware swap), so the premise still holds.
+
 - **P2.1 Backoff on hopeless reconnects.** The O2Ring logged ~185 relink attempts; a device that has failed
   service discovery N times running will not succeed on N+1 fired 10 s later. Exponential backoff
   (15 s→30 s→60 s→120 s, cap ~5 min, reset on a real link) cuts battery drain, log volume (~10×), file
