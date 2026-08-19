@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2c+NhGS5baEp+dkR92QyPev/wf2fl0amYca/JbyYiCk=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-Ddk7xzmjZ2q6DaZkS+vfwOBaCm4CGdM0Np9fprcSIzY=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-P+WBHl2NZMnspXKVsRndFmJ2S3rONWAPda5O6KP93tk=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-f6vurbLk34C9/YSKIMTqV+W+LV0GxGNA1T0lB/MWjPI=' 'sha256-qzpUtdWH1TlUe+keMoviP5ddzz3oKD3bFygdJMXw118='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2c+NhGS5baEp+dkR92QyPev/wf2fl0amYca/JbyYiCk=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7xQ3yWR2EpiBDMPUDFxtl1NKMYlxsxc9AVgtJkApTU8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-P+WBHl2NZMnspXKVsRndFmJ2S3rONWAPda5O6KP93tk=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-f6vurbLk34C9/YSKIMTqV+W+LV0GxGNA1T0lB/MWjPI=' 'sha256-qzpUtdWH1TlUe+keMoviP5ddzz3oKD3bFygdJMXw118='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>GlucoDex — Continuous Glucose Analyzer · v2.6.0</title>
@@ -9441,13 +9441,14 @@ __exports.GLUUI = window.GLUUI;
   }
 
   // ── predictive sublabels ───────────────────────────────────────────────────────
+  /* ⚠️ THIS FUNCTION IS *NOT* THE PpgDex/ECGDex TWIN, and the fleet sweep nearly deleted it as one.
+     Its 5 `set('lbl_glu…')` hints WERE dead — `GlucoDex.src.html` defines no `lbl_` id — and they are
+     gone. But the `calibRow`/`calibState` block below is LIVE: both ids EXIST, this function has no
+     `if (DP()) return;` guard, and it is the only thing that shows/hides the lab-A1c calibration row
+     and writes its state text. Removing the body, as the brief's Done-when proposed, would have taken
+     out working user-visible behaviour. Read the call graph per node; the shared NAME is not a shared
+     shape. */
   function computeHints(r) {
-    const set = (id, txt, est) => {
-      const l = $(id);
-      if (!l) return;
-      l.textContent = txt;
-      l.classList.toggle('est', !!est);
-    };
     const p = getProfile();
     // calibration row: only meaningful with a lab A1c
     const calibRow = $('calibRow');
@@ -9461,21 +9462,6 @@ __exports.GLUUI = window.GLUUI;
             : `· detected ${r.calib.bias > 0 ? '+' : ''}${window.GluDisp.delta(r.calib.bias)} ${window.GluDisp.label()} (mean ${window.GluDisp.val(r.calib.sensorMean)} vs lab-implied ${window.GluDisp.val(r.calib.labEAG)})`;
         } else cs.textContent = '';
       }
-    }
-    set('lbl_gluAge', '— tunes communication &amp; norms');
-    set('lbl_gluDiab', 'shifts which thresholds matter & how hypo reads');
-    set('lbl_gluTherapy', ['basal', 'mdi', 'pump'].includes(p.therapy) ? '⚠ on insulin — hypo (TBR) goal tightens to <4%' : 'reframes hypo risk vs insulin therapy');
-    if (r) {
-      set('lbl_gluTgt', 'target ' + window.GluDisp.range(r.tgtLo, r.tgtHi) + ' ' + window.GluDisp.label() + (r.tgtLo !== 70 || r.tgtHi !== 180 ? ' (override)' : ' · consensus default'));
-      if (r.gmiCheck)
-        set(
-          'lbl_gluA1c',
-          r.gmiCheck.agree
-            ? '✓ GMI ' + r.gmi + '% ≈ lab ' + p.a1c + '% (Δ' + r.gmiCheck.delta + ')'
-            : '⚠ GMI ' + r.gmi + '% vs lab ' + p.a1c + '% — Δ' + r.gmiCheck.delta + '% (they measure differently)',
-          !r.gmiCheck.agree
-        );
-      else set('lbl_gluA1c', 'optional · validates the GMI proxy against your lab value');
     }
   }
 
