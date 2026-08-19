@@ -13788,6 +13788,44 @@
       T.eq('…and eight is enough', unitOf(8, 1000), 'mg');
     });
 
+    group('MotionDex helper floor — 8 drafts adopted: every entry guard refuses junk with hasData false (mutation-derived)', 'motiondex-dsp · known-answer · mutation-pinned', function (T) {
+      var M = env.MOTIONDSP || (env.MotionDex && env.MotionDex._bare);
+      if (!M || typeof M.actigraphy !== 'function') {
+        T.skip('MOTIONDSP available', 'MotionDex not co-loaded in this runner');
+        return;
+      }
+      var out;
+      out = M.actigraphy(null);
+      T.eq('M.actigraphy(null) → "false"', JSON.stringify(out.hasData), 'false');
+      out = M.actigraphy('x');
+      T.eq('M.actigraphy("x") → "false"', JSON.stringify(out.hasData), 'false');
+      out = M.respiratoryRate(null);
+      T.eq('M.respiratoryRate(null) → "false"', JSON.stringify(out.hasData), 'false');
+      out = M.motionSQI('x');
+      T.eq('M.motionSQI("x") → "0"', JSON.stringify(out.conf), '0');
+      out = M.motionSQI(null);
+      T.eq('M.motionSQI(null) → "0"', JSON.stringify(out.conf), '0');
+      out = M.bodyPosition(null);
+      T.eq('M.bodyPosition(null) → "false"', JSON.stringify(out.hasData), 'false');
+      out = M.bodyPosition('x');
+      T.eq('M.bodyPosition("x") → "false"', JSON.stringify(out.hasData), 'false');
+      out = M.streamKindFromName(null);
+      T.eq('M.streamKindFromName(null) → "null"', JSON.stringify(out), 'null');
+      // Sharpened after first kill-verify — the two mutants a junk-input pin cannot reach:
+      var shortRows = [];
+      var posRows = [];
+      for (var ri = 0; ri < 10; ri++) shortRows.push({ tMs: ri * 40, x: 0, y: 0, z: 1 });
+      for (var pi = 0; pi < 200; pi++) posRows.push({ tMs: pi * 250, x: 0, y: 0, z: 1 });
+      out = M.respiratoryEffort(shortRows);
+      T.eq('a 10-row refusal is BARE hasData:false — no fabricated zero-rate payload rides along', JSON.stringify(out), '{"hasData":false}');
+      out = M.bodyPosition(posRows);
+      T.eq(
+        'the dwell table has EXACTLY the six positions — one extra loop pass mints an "undefined" position',
+        JSON.stringify(Object.keys(out.dwellFrac)),
+        '["supine","prone","left","right","upright","unknown"]'
+      );
+    });
+
     /* ════ _leakCV — PSEUDO-TESTED, and it is a NEAR-ZERO-DIVISION GUARD ══════════════════════
        Leak CV is the coefficient of variation of mask leak: sd ÷ |mean| × 100. On a well-sealed
        mask the mean approaches zero and the quotient blows up, which is why there is a floor —
