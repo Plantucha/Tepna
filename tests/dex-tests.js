@@ -13922,6 +13922,34 @@
       T.eq('a bare array is refused', N([]), null);
     });
 
+    group('CPAPDex helper floor — 9 drafts adopted: prepare defaults, envelope guards, EDF refusals (mutation-derived)', 'cpapdex-dsp · known-answer · mutation-pinned', function (T) {
+      var C = env.CpapDsp || env.CPAPDSP;
+      if (!C || typeof C.prepare !== 'function') {
+        T.skip('CpapDsp available', 'CPAPDex not co-loaded in this runner');
+        return;
+      }
+      /* Adopted from the AI-probe draft bank: 9/9 batch-verified green, zero discards. */
+      var out;
+      out = C.detectBreaths(1);
+      T.eq('C.detectBreaths(1) → "true"', JSON.stringify(out === null), 'true');
+      out = C.prepare(0);
+      T.eq('C.prepare(0) → "[]"', JSON.stringify(out.pressureMaskOn), '[]');
+      out = C.prepare(0);
+      T.eq('C.prepare(0) → "1"', JSON.stringify(out.fs), '1');
+      out = C.prepare(0);
+      T.eq('C.prepare(0) → "null"', JSON.stringify(out.mode), 'null');
+      out = C.prepare(0);
+      T.eq('C.prepare(0) → "0"', JSON.stringify(out.usageHours), '0');
+      out = C.buildSessionFromEdf(null);
+      T.eq('C.buildSessionFromEdf(null) → "true"', JSON.stringify(out === null), 'true');
+      out = C.pressureEnvelope('x');
+      T.eq('C.pressureEnvelope("x") → "0"', JSON.stringify(out.length), '0');
+      out = C.pressureEnvelope([1, 2, 3], null);
+      T.eq('C.pressureEnvelope([1,2,3],null) → "0"', JSON.stringify(out.length), '0');
+      out = C.buildLongitudinal(null);
+      T.eq('C.buildLongitudinal(null) → "0"', JSON.stringify(out.nights), '0');
+    });
+
     group('CPAPDex co-import — a surge corroborates ONE apnea, and lands on the right night (§6.3/§6.4)', 'cpapdex-coimport · fusion', function (T) {
       var CN = env.CpapCoimport;
       if (!CN || typeof CN.normalizeEcg !== 'function' || typeof CN.autonomicCorroboration !== 'function') {
