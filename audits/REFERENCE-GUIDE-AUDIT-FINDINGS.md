@@ -510,3 +510,30 @@ The reciprocal and thousands-separator cases are mechanically separable and wort
 extractor; the Jubran case is not (a "constant the cited hardware uses, which we do not implement" cannot
 be told from a missing one by inspection). Left as **5 standing questions rather than a suppression
 list** — a list of known-fine flags goes stale silently, which is the failure this whole audit is about.
+
+## Dimension-7 sweep, 2026-08-18 — NOT APPLICABLE, which is a different answer from CLEAN
+
+Dimension 7 asks that Clock Contract examples in the guides obey the contract (floating `tMs`, `getUTC*`
+readback, explicit vendor regexes, never a fabricated `now()`). Swept all 7 guides. The result is **zero
+defects, and that number means nothing on its own** — so here is the denominator instead:
+
+| probe | hits across 7 guides |
+|---|---|
+| ISO / `YYYY-MM-DD HH:MM` / vendor `DD/MM/YYYY` / 14-digit stamps | **0** |
+| wall-clock `HH:MM[:SS]` strings | **2**, both in one GlucoDex formula |
+| `tMs` | 0 · `getUTC` | 1 · "floating" | 3 |
+
+The 14-digit "stamps" an early pass reported were **DOI fragments** (`10.1056/NEJM198710223171717`) —
+a reminder that the probe, not the corpus, produced them.
+
+The two real hits are one card: *"count of distinct episodes &lt; 70 mg/dL during 00:00–06:00"*. That is
+a **nocturnal window definition, not a parsing example**, and it is contract-consistent as written: the
+binning runs on floating `tMs` read back with `getUTC*`, so `00:00–06:00` is the recording's own local
+civil night and is viewer-timezone-independent by construction. No fix.
+
+**So dimension 7 is closed as NOT APPLICABLE to this corpus, not as PASSED.** The reference guides are
+metric-definition documents; they define what a number means, and never demonstrate parsing a vendor
+timestamp. A dimension with no surface cannot be evidence that the surface is correct — reporting "0
+defects" here would be precisely the vacuous green this audit keeps finding elsewhere. If Clock Contract
+examples are to be audited, the surface is the app code, `docs/**`, and `CLAUDE.md` §🔒 itself — all of
+which do carry them — and that is a different brief.
