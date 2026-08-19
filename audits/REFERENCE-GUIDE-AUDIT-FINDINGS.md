@@ -453,3 +453,120 @@ from `abbrs[]`, so the abbreviation index had no entry for it. Added from the gu
 
 In both cases the first number was larger and more alarming than the truth. A sweep that over-reports is
 recoverable; the discipline is to read every flag before believing any of it.
+
+---
+
+## Dimension-2, second pass 2026-08-18 — the card that documented the method its code REPUDIATES
+
+The first dimension-2 pass swept OxyDex only. Run fleet-wide (`tools/formula-constant-audit.mjs`, 7
+guides, 381 formulas, 67 constant-bearing) it raised **6 flags**. Five are questions the tool is right to
+ask and wrong to call defects; **one is the most serious guide defect found in this audit.**
+
+### 🔴 `SpO₂ FFT` — stale on four independent counts, describing a method the code calls uninformative
+
+The card was written for the pre-2026-08-16 implementation and was never revised when
+`OXYDEX-FFT-CYCLE-NULL-2026-08-16-BRIEF` replaced it — **two days before this sweep.**
+
+| the card said | `oxydex-dsp.js` does |
+|---|---|
+| `argmax \|X(f)\|²` | tests peak **HEIGHT** against a fitted AR(1) red background (Mann & Lees 1996) |
+| band `0.003 – 0.1 Hz` | `_FFT_LO_HZ = 0.005` → `_FFT_HI_HZ = 0.05` (200 – 20 s) |
+| `DFT on ≤3600 samples` | the record's **own Fourier bins** (k/N), `_FFT_MAX_BINS = 400`, strided |
+| `None / >120 s` ⇒ no pattern | returns **null** whenever no bin clears significance, at ANY period |
+
+Only the constant `0.003` was mechanically detectable — the tool flags a number in a formula that appears
+nowhere in the node's source. The other three came from **reading the card against the code once the
+constant had pointed at it.** That is the intended use and worth stating plainly: the sweep is a
+*finder*, not a *judge*, and its yield here was one true positive that opened onto three more.
+
+The method claim is the serious one, because the code does not merely differ — it **argues against the
+card**: *"in a red spectrum the argmax sits near the low-frequency end by construction, so its position
+carries no information."* A reader following the guide would attribute meaning to a number the
+implementers deliberately stopped producing. The band error compounds it: `0.003 Hz` is a 333 s period,
+outside the searched range entirely, so the card promises detections the code cannot return.
+
+**Fixed** — card rewritten to state the periodogram, the real band and bin policy, the red-noise
+background, the Šidák + ×2.2 inflation threshold, and the null return. The `>120 s` row became `None`,
+since a long period is now reported as null rather than as a long period.
+
+⚠️ **`oxydex-dsp.js:1696`'s own header comment is ALSO stale** — it reads `0.01–0.05 Hz band` against
+constants of `0.005–0.05`. **Deliberately NOT fixed here.** A comment edit changes the inlined asset
+text, so `manifestHash` **and** `computeHash` both move, which owes a corpus re-verification of every
+OxyDex fixture (§🔏) for a cosmetic gain. It should ride the next PR that touches that file's compute
+path for a real reason. Recorded so it is neither lost nor re-discovered as new.
+
+### The five non-defects, triaged (a flag is a question)
+
+- **ECGDex ×3 — `6.7`, `6.7`, `333` in a `Band` field.** All are reciprocal restatements for the reader:
+  `1/0.15 = 6.7 s`, `1/0.04 = 25 s`, `1/0.003 = 333 s`. The Hz bounds themselves are all present in the
+  code. Not independent constants, and the guide is *more* readable for including them.
+- **OxyDex `Azarbarzin 2019` — `743`, `2.73`.** Extractor noise from the cohort sizes `n=2,743 / n=5,111`;
+  the thousands separator splits one number into two. A citation's sample size is not a formula constant.
+- **OxyDex `Jubran 1999` — `660`, `940`.** The red/IR wavelengths in **nm** of the sensor's Beer–Lambert
+  principle, described in the cited paper. OxyDex consumes SpO₂; it never computes from raw absorbance,
+  so these correctly appear nowhere in its source.
+
+The reciprocal and thousands-separator cases are mechanically separable and worth encoding in the
+extractor; the Jubran case is not (a "constant the cited hardware uses, which we do not implement" cannot
+be told from a missing one by inspection). Left as **5 standing questions rather than a suppression
+list** — a list of known-fine flags goes stale silently, which is the failure this whole audit is about.
+
+## Dimension-7 sweep, 2026-08-18 — NOT APPLICABLE, which is a different answer from CLEAN
+
+Dimension 7 asks that Clock Contract examples in the guides obey the contract (floating `tMs`, `getUTC*`
+readback, explicit vendor regexes, never a fabricated `now()`). Swept all 7 guides. The result is **zero
+defects, and that number means nothing on its own** — so here is the denominator instead:
+
+| probe | hits across 7 guides |
+|---|---|
+| ISO / `YYYY-MM-DD HH:MM` / vendor `DD/MM/YYYY` / 14-digit stamps | **0** |
+| wall-clock `HH:MM[:SS]` strings | **2**, both in one GlucoDex formula |
+| `tMs` | 0 · `getUTC` | 1 · "floating" | 3 |
+
+The 14-digit "stamps" an early pass reported were **DOI fragments** (`10.1056/NEJM198710223171717`) —
+a reminder that the probe, not the corpus, produced them.
+
+The two real hits are one card: *"count of distinct episodes &lt; 70 mg/dL during 00:00–06:00"*. That is
+a **nocturnal window definition, not a parsing example**, and it is contract-consistent as written: the
+binning runs on floating `tMs` read back with `getUTC*`, so `00:00–06:00` is the recording's own local
+civil night and is viewer-timezone-independent by construction. No fix.
+
+**So dimension 7 is closed as NOT APPLICABLE to this corpus, not as PASSED.** The reference guides are
+metric-definition documents; they define what a number means, and never demonstrate parsing a vendor
+timestamp. A dimension with no surface cannot be evidence that the surface is correct — reporting "0
+defects" here would be precisely the vacuous green this audit keeps finding elsewhere. If Clock Contract
+examples are to be audited, the surface is the app code, `docs/**`, and `CLAUDE.md` §🔒 itself — all of
+which do carry them — and that is a different brief.
+
+## Dimension-3, fleet attempt 2026-08-18 — the mechanical proxy DOES NOT WORK, and this is why
+
+Dimension 3 asks that no interpretation band be invented — every cut-point traceable to a published
+source or else honestly marked. The OxyDex pass did this by hand for ODI-3 and it cost real effort, so
+the obvious move was a mechanical proxy over the other six guides. **Three proxies were tried and all
+three are wrong.** Recorded in full because the next session will reach for the same shortcut.
+
+| proxy | result | why it is wrong |
+|---|---|---|
+| banded card with **no citation in the card** | **135 / 166** | most bands are node-computed composites; the evidence ladder exists so those are *marked*, not forbidden. A `heuristic` disc IS the disclosure. |
+| ...restricted to tier **`measured`/`validated`** | **68** | `measured` is the correct tier for a direct reading — *Usage Hours*, *% Analyzable*, *N (beats)*, *Coverage*. A direct measurement needs no citation, and its "band" is a descriptive range, not a clinical cut-point. |
+| ...restricted to **`validated`** alone | ~26 | **every one is a real published standard** — ATTD/Battelino for TIR·TBR·TAR, Bergenstal GMI, Kovatchev LBGI/HBGI, Bazett QTc, Baevsky SI, AASM ODI. Not invented. |
+
+**The last row is the informative one.** `Time in Range` reads *"the consensus goal for most adults is
+>70%"* and bands `>70% / 50–70%` with no in-card citation — and Battelino 2019 (`10.2337/dci19-0028`)
+**is in the guide**, in its references section, along with 8 other DOIs. The band is real, published,
+correct, and present in the document; the card simply does not link to it.
+
+So the proxy measures **citation LOCALITY**, and this suite centralises citations by design. That is a
+house-style question — arguably a traceability improvement, since a reader at the card must scroll to
+find the authority — but it is emphatically **not** dimension 3, and shipping 68 rows of it as findings
+would have buried the one real defect (the `SpO₂ FFT` card above) in noise it manufactured.
+
+**Closure: dimension 3 across the remaining six guides is NOT mechanically decidable and remains OPEN.**
+It requires reading each band against its cited source, one metric at a time, as the ODI-3 pass did.
+What this attempt genuinely establishes is narrower and still worth having: **no `validated`-tier band in
+any of the 7 guides is invented** — all ~26 trace to a named published standard. The unresolved part is
+the `emerging`/`experimental`/`heuristic` bands, where the tier already disclaims external validation, so
+the question is whether the *disclaimer* is honest rather than whether the *citation* exists.
+
+⚠️ Do not re-run a citation-presence sweep for dimension 3. It answers a different question, and it
+answers it loudly.

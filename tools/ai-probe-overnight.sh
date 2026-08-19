@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+#
+# ai-probe-overnight.sh — run the AI input probe to CONVERGENCE, then draft assertions for
+# everything it found. Designed to be left running overnight, unattended.
+#
+#   tools/ai-probe-overnight.sh                    # all files with a journal, until converged
+#   AI_PROBE_LIMIT=20 tools/ai-probe-overnight.sh  # smoke mode: cap mutants per file per pass
+#
+# WHAT "RESOLVED" MEANS HERE, precisely — because "run until it resolves all kills" has a false
+# reading. The terminal state is NOT "every mutant killed". It is: every survivor either
+#   (a) has a PROVEN distinguishing input recorded (KILL — a drafted assertion follows), or
+#   (b) has exhausted the 5-tier sampling ladder without one (NONE, tier 5/5), or
+#   (c) is structurally unreachable (no call handle / mutant will not load / source moved past
+#       the ±40-line window / took the process down).
+# (b) and (c) are honest residue, not failure: a probe cannot promise every mutant is killable —
+# some genuinely are equivalent. What it promises is that nothing REACHABLE is left untried.
+#
+# CONVERGENCE, not a fixed pass count: a pass that adds 0 kills AND runs 0 inputs across every
+# file means the retry filter found nothing left with ladder room — nothing a further pass could
+# do differently. Stop there. MAX_PASSES is a backstop against a driver bug, not the mechanism.
+#
+# Every per-mutant verdict is journalled as it happens (kill the driver at ANY time; re-running
+# resumes), each file is pid-locked against concurrent probes, and a hang-mutant is bounded by the
+# vm timeout — the three failures that were each hit once before this script existed.
+set -u
+W="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+C="${AI_PROBE_CRAWL:-/run/media/michal/647A504F7A50205A/crawl-results-2026-08-18}"
+LIMIT="${AI_PROBE_LIMIT:-0}"
+MAX_PASSES="${AI_PROBE_MAX_PASSES:-8}"
+LOG_FILTER='tier [0-9] tried'   # per-input noise; the journal keeps everything
+
+cd "$W" || exit 1
+FILES=()
+for j in .mutate-journal/*.jsonl; do
+  [ -e "$j" ] || continue
+  f="$(basename "$j" .jsonl)"
+  [ -f "$f" ] && FILES+=("$f")
+done
+if [ "${#FILES[@]}" -eq 0 ]; then
+  echo "no journals in $W/.mutate-journal — nothing to probe" >&2
+  exit 2
+fi
+echo "OVERNIGHT AI PROBE — ${#FILES[@]} file(s): ${FILES[*]}"
+echo "  crawl dir $C · per-file limit ${LIMIT:-none} · max passes $MAX_PASSES"
+
+pass=0
+while [ "$pass" -lt "$MAX_PASSES" ]; do
+  pass=$((pass + 1))
+  echo "########## PASS $pass  $(date '+%F %T') ##########"
+  pass_kills=0
+  pass_inputs=0
+  for f in "${FILES[@]}"; do
+    echo "═══ $f (pass $pass) ═══"
+    LIM=()
+    [ "$LIMIT" != "0" ] && LIM=(--limit "$LIMIT")
+    out="$(timeout 5400 node tools/mutation-ai-probe.mjs --file "$f" --retry-none "${LIM[@]}" --crawl-dir "$C" 2>&1)"
+    rc=$?
+    printf '%s\n' "$out" | grep -vE "$LOG_FILTER"
+    # A canary refusal (exit 2) or lock refusal (exit 3) is a per-file verdict, not a driver error.
+    [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ] && [ "$rc" -ne 3 ] && echo "!! $f exited $rc — journal retains everything answered so far"
+    # Progress accounting from the summary line the tool always prints:
+    #   "N newly KILLABLE of M (K already answered, T inputs run, ...)"
+    line="$(printf '%s\n' "$out" | grep -oE '[0-9]+ newly KILLABLE of [0-9]+ \([0-9]+ already answered, [0-9]+ inputs run' | tail -1)"
+    if [ -n "$line" ]; then
+      k="$(printf '%s' "$line" | grep -oE '^[0-9]+')"
+      t="$(printf '%s' "$line" | grep -oE '[0-9]+ inputs run' | grep -oE '[0-9]+')"
+      pass_kills=$((pass_kills + k))
+      pass_inputs=$((pass_inputs + t))
+    fi
+  done
+  echo "── pass $pass: $pass_kills new kill(s), $pass_inputs input(s) run ──"
+  node tools/mutation-ai-probe.mjs --status 2>&1
+  if [ "$pass_kills" -eq 0 ] && [ "$pass_inputs" -eq 0 ]; then
+    echo "CONVERGED after $pass pass(es) — nothing reachable has ladder room left."
+    break
+  fi
+done
+
+echo "########## DRAFTING  $(date '+%F %T') ##########"
+# Every killable — crawl-found and probe-found — becomes a proposed assertion in a review file.
+# Drafts are PROPOSALS: a projection can discriminate and still pin the wrong behaviour, so nothing
+# here lands in tests/dex-tests.js without a human read.
+for f in "${FILES[@]}"; do
+  echo "═══ draft $f ═══"
+  timeout 3600 node tools/mutation-suite.mjs --draft "$f" --crawl-dir "$C" 2>&1 | tail -4
+done
+echo "########## DONE  $(date '+%F %T') ##########"
+node tools/mutation-ai-probe.mjs --status 2>&1
+echo "drafts: $(ls "$W"/.git/tepna-mutation/*.drafts.js 2>/dev/null | wc -l) file(s) in .git/tepna-mutation/ — each needs a human read before adoption"

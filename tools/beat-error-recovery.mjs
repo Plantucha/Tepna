@@ -271,7 +271,7 @@ function main(argv) {
     const i = argv.indexOf(k);
     return i >= 0 ? argv[i + 1] : null;
   };
-  if (argv.includes('--self-test')) return selfTest();
+  if (argv.includes('--selftest') || argv.includes('--self-test')) return selfTest();
   const root = arg('--root') || process.env.DEX_CAPTURES;
   if (!root) {
     console.error('usage: node tools/beat-error-recovery.mjs --root <captures-dir> [--out f.json]\n   or: --self-test');
