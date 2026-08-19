@@ -923,6 +923,29 @@ function readSrcHtml() {
   return out;
 }
 
+/* DEAD-FIELD-HINTS-FLEET §5 — the dead-field-hint gate resolves each node's `lbl_*` writes against
+   the ids that node's OWN .src.html defines, so it needs both halves together. Returns the surface
+   text too (rather than leaning on readSrcHtml) because that list omits MotionDex and carries
+   Integrator: a node missing from it would contribute zero ids and read as trivially clean, which is
+   the vacuous-pass this gate exists to prevent. The JS list is READ FROM the <script src> block the
+   bundler inlines — never globbed — so a module added to a node is covered automatically. */
+function readNodeSurfaces() {
+  const out = {};
+  for (const node of ['CPAPDex', 'ECGDex', 'GlucoDex', 'HRVDex', 'MotionDex', 'OxyDex', 'PpgDex', 'PulseDex']) {
+    const p = join(ROOT, node + '.src.html');
+    if (!existsSync(p)) continue;
+    const html = readFileSync(p, 'utf8');
+    const js = {};
+    for (const m of html.matchAll(/<script[^>]*src="([^"]+\.js)"/g)) {
+      if (/^https?:/i.test(m[1])) continue;
+      const jp = join(ROOT, m[1]);
+      if (existsSync(jp)) js[m[1]] = readFileSync(jp, 'utf8');
+    }
+    out[node] = { html: html, js: js };
+  }
+  return out;
+}
+
 /* CLAUDE.md wins on every conflict and is the first thing a session reads — so a FALSE claim in it
    misleads more reliably than a bug does. Nothing checked its factual assertions, and one had rotted:
    it said `clock.js` is "inlined by the owned bundler into every bundle" when three of the eight app
@@ -1886,6 +1909,7 @@ async function main() {
     odiPilot: readOdiPilot(),
     hosts: readHosts(),
     srcHtml: readSrcHtml(),
+    nodeSurfaces: readNodeSurfaces(),
     nonBundleCsp: readNonBundleCsp(),
     claudeMdClaims: readClaudeMdClaims(),
     onGroup: PROGRESS ? progressReporter() : undefined,
