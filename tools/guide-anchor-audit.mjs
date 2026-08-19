@@ -41,7 +41,25 @@ export function decodeKey(t) {
 }
 
 export function stripScripts(html) {
-  return String(html).replace(/<script[\s\S]*?<\/script>/gi, '');
+  /* The closing tag may carry whitespace — `</script >` is valid HTML and a `<\/script>` literal misses
+     it, letting the ENTIRE script body through as "markup". That is not cosmetic here: it regenerates
+     precisely the seven phantom dead links this strip exists to prevent, because a runtime-built
+     `href="#'+target+'"` would then be read as a real anchor. Found by CodeQL (`js/bad-tag-filter`) on
+     the PR that introduced this file, and reproduced before fixing — latent today only because no guide
+     currently spaces that tag.
+     Two further hardenings, neither cosmetic:
+       · loop to a FIXPOINT — one pass can leave a `<script` behind on nested or malformed markup;
+       · if an UNCLOSED `<script` survives the loop, drop from it to end-of-input. An unterminated script
+         is the worst case: `[\s\S]*?` finds no partner, so the whole tail would be mined as content.
+         Truncating is the honest read — everything after an unclosed script tag IS script. */
+  let cur = String(html);
+  let prev;
+  do {
+    prev = cur;
+    cur = cur.replace(/<script\b[\s\S]*?<\/script\s*>/gi, '');
+  } while (cur !== prev);
+  const orphan = /<script\b/i.exec(cur);
+  return orphan ? cur.slice(0, orphan.index) : cur;
 }
 
 export function auditGuide(html) {
@@ -98,6 +116,9 @@ if (process.argv.includes('--self-test')) {
   const q = String.fromCharCode(34);
   eq(stripScripts(`<a href=${q}#real${q}></a><scr${'ipt'}>x='#'+t</scr${'ipt'}>`).includes('#real'), 'markup survives script strip');
   eq(!stripScripts(`<scr${'ipt'}>href=${q}#'+t+'${q}</scr${'ipt'}>`).includes("'+t+'"), 'runtime-built href is NOT read as markup');
+  eq(!stripScripts(`<scr${'ipt'}>href=${q}#'+t+'${q}</scr${'ipt'} >`).includes("'+t+'"), 'SPACED closing tag </script > is still stripped');
+  eq(!stripScripts(`<a href=${q}#s${q}></a><scr${'ipt'}>href=${q}#'+t+'${q}`).includes("'+t+'"), 'UNCLOSED script truncates rather than leaking its tail');
+  eq(stripScripts(`<a href=${q}#s${q}></a><scr${'ipt'}>x</scr${'ipt'}>`).includes('#s'), 'real markup before a script survives');
   eq(decodeKey('SpO\\u2082') === 'SpO₂', 'backslash-u decoded');
   eq(decodeKey('SpO&#x2082;') === 'SpO₂', 'numeric entity decoded');
   const good = auditGuide(`<a href=${q}#s${q}></a><div id=${q}s${q}></div>`);
