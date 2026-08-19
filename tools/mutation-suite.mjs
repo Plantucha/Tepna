@@ -49,7 +49,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSyn
 import { cpus } from 'node:os';
 import { dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildIdentity, mapCandidates, resolveMapPath, verifyFor } from './mutation-map.mjs';
+import { buildIdentity, mapCandidates, resolveMapPath, stateDirs, verifyFor } from './mutation-map.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -789,7 +789,7 @@ export function mdCell(text, max) {
   return t.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
 }
 
-export function renderInventory({ files, generatedAt, mapPath, staleClassifications = 0 }) {
+export function renderInventory({ files, generatedAt, mapPath, staleClassifications = 0, lanes = null }) {
   const L = [];
   const tot = files.reduce((a, f) => ({ done: a.done + (f.done || 0), killed: a.killed + (f.killed || 0), survived: a.survived + (f.survived || 0) }), { done: 0, killed: 0, survived: 0 });
   L.push('<!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->');
@@ -909,6 +909,7 @@ export function renderInventory({ files, generatedAt, mapPath, staleClassificati
     L.push('> The fleet row inherits that caveat.');
     L.push('');
   }
+  if (lanes) for (const line of renderLaneSections(lanes)) L.push(line);
   for (const f of files) {
     if (!f.survivors || !f.survivors.length) continue;
     L.push('## `' + f.file + '` — ' + f.survivors.length + ' survivor(s)');
@@ -919,6 +920,98 @@ export function renderInventory({ files, generatedAt, mapPath, staleClassificati
     L.push('');
   }
   return L.join('\n') + '\n';
+}
+
+
+// ── §4 · THE OTHER TWO LANES, REPORTED IN THEIR OWN UNITS ─────────────────────────────────────
+/**
+ * Parse a ResumeLedger JSONL (the persistent record `extreme-mutate` / `stmt-delete` write under
+ * `--resume`). Last record per key wins — a ledger REPLAYS on resume, so an early verdict can be
+ * superseded — and a torn final line (a kill mid-append) is skipped, never repaired.
+ */
+export function parseLaneLedger(text) {
+  const done = new Map();
+  for (const line of String(text || '').split('\n')) {
+    if (!line) continue;
+    let o;
+    try {
+      o = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (o && o.key != null) done.set(String(o.key), o);
+  }
+  const byVerdict = {};
+  for (const [, r] of done) {
+    const v = r.verdict == null ? '(none)' : String(r.verdict);
+    byVerdict[v] = (byVerdict[v] || 0) + 1;
+  }
+  return { byVerdict, total: done.size };
+}
+
+/** Where each lane's ledgers may live for a file — both state dirs, shared first (§1). */
+export function laneLedgerCandidates(root, file, { readdirFn = readdirSync, existsFn = existsSync } = {}) {
+  const slug = String(file).replace(/[^A-Za-z0-9]+/g, '-');
+  const out = { pseudo: [], del: [] };
+  for (const dir of stateDirs(root)) {
+    if (!existsFn(dir)) continue;
+    let names = [];
+    try {
+      names = readdirFn(dir);
+    } catch {
+      continue;
+    }
+    for (const n of names) {
+      if (n === 'levela-' + slug + '.jsonl') out.pseudo.push(join(dir, n));
+      /* delete-lane ledgers are per file+GROUP — all of them count, each a separate run */
+      if (n.startsWith('levelb-' + slug + '-') && n.endsWith('.jsonl')) out.del.push(join(dir, n));
+    }
+  }
+  return out;
+}
+
+/**
+ * The per-lane inventory sections. ⚠️ UNITS ARE THE WHOLE POINT AND THEY NEVER SUM: the operators
+ * table above counts MUTANTS, the pseudo lane classifies FUNCTIONS, the delete lane judges
+ * STATEMENTS. One number across them would be meaningless, so none is computed — each section
+ * carries its own unit in its own header, and a lane with no recorded run says so instead of
+ * printing zeros (an absent ledger is a missing INPUT, not a clean lane).
+ */
+export function renderLaneSections(lanes) {
+  const L = [];
+  L.push('## The other two lanes — different UNITS, never summed with the mutant table above');
+  L.push('');
+  L.push('Pseudo (XMT/Descartes) classifies **functions**; statement deletion judges **statements**.');
+  L.push('Neither is a mutant count, and no combined total exists on purpose.');
+  L.push('');
+  for (const [key, title, unit] of [
+    ['pseudo', 'Pseudo lane (`extreme-mutate.mjs`)', 'functions'],
+    ['del', 'Statement-deletion lane (`stmt-delete.mjs`)', 'statements']
+  ]) {
+    const lane = lanes && lanes[key];
+    L.push('### ' + title + ' — unit: **' + unit + '**');
+    L.push('');
+    if (!lane || !lane.files || !lane.files.length) {
+      L.push('_No recorded run found in either state location. This is an absent INPUT — the lane may');
+      L.push('have run without `--resume` (no persistent ledger) or not at all; it is NOT a clean bill._');
+      L.push('');
+      continue;
+    }
+    L.push('| file | ' + unit + ' recorded | verdicts |');
+    L.push('|---|---:|---|');
+    for (const f of lane.files) {
+      const verdicts = Object.entries(f.byVerdict)
+        .sort((a, b) => b[1] - a[1])
+        .map(([v, n]) => '`' + mdCell(v) + '` ' + n)
+        .join(' · ');
+      L.push('| `' + f.file + '` | ' + f.total + ' | ' + verdicts + ' |');
+    }
+    L.push('');
+    L.push('_A ledger records only what a `--resume` run wrote; a lane run without `--resume` leaves no');
+    L.push('trace here. Verdicts are reported verbatim from the lane, never re-mapped._');
+    L.push('');
+  }
+  return L;
 }
 
 function cmdInventory() {
@@ -965,7 +1058,25 @@ function cmdInventory() {
   const claimed = new Set();
   for (const f of files) for (const sv of f.survivors) if (sv.cls) claimed.add(f.file + ':' + sv.line + ':' + sv.op);
   const staleClassifications = Math.max(0, eq.size - claimed.size);
-  writeFileSync(dest, renderInventory({ files, generatedAt: new Date().toISOString().slice(0, 10), mapPath: loaded.path, staleClassifications }));
+  /* §4: gather the other two lanes' persistent ledgers, per file, both state dirs. */
+  const lanes = { pseudo: { files: [] }, del: { files: [] } };
+  for (const f of FLEET) {
+    const cand = laneLedgerCandidates(ROOT, f);
+    for (const [key, paths] of [['pseudo', cand.pseudo], ['del', cand.del]]) {
+      let merged = '';
+      for (const p of paths) {
+        try {
+          merged += readFileSync(p, 'utf8');
+        } catch {
+          /* an unreadable ledger contributes nothing; the others still count */
+        }
+      }
+      if (!merged) continue;
+      const parsed = parseLaneLedger(merged);
+      if (parsed.total) lanes[key].files.push({ file: f, ...parsed });
+    }
+  }
+  writeFileSync(dest, renderInventory({ files, generatedAt: new Date().toISOString().slice(0, 10), mapPath: loaded.path, staleClassifications, lanes }));
   log('✓ wrote ' + dest + ' — ' + files.length + ' file(s), ' + files.reduce((a, f) => a + f.survivors.length, 0) + ' survivor(s) listed');
 }
 
@@ -1167,6 +1278,25 @@ function selftest() {
   ck('orthogonal vectors do not', clusterKeys(['a', 'b'], [A, B]).length, 2);
   ck('a missing vector is dropped, not clustered blind', clusterKeys(['a', 'b'], [A, null]).flat(), ['a']);
   ck('families come back largest first', clusterKeys(['a', 'b', 'c'], [A, B, B])[0].length, 2);
+
+  console.log('\n§4 lanes — different units, never summed, absent means ABSENT');
+  const ll = parseLaneLedger('{"key":"a","verdict":"pseudo-tested"}\n{"key":"b","verdict":"tested"}\n{"key":"a","verdict":"tested"}\n{"key":"c","verd');
+  ck('last record per key wins — a resumed ledger replays', ll.byVerdict.tested, 2);
+  ck('…so the superseded verdict is gone', ll.byVerdict['pseudo-tested'], undefined);
+  ck('…and a torn final line is skipped, not repaired', ll.total, 2);
+  ck('an empty ledger parses to zero, not a throw', parseLaneLedger('').total, 0);
+  const cands = laneLedgerCandidates(process.cwd(), 'ppgdex-dsp.js', {
+    existsFn: () => true,
+    readdirFn: (d) => (/tepna-mutation/.test(d) ? ['levela-ppgdex-dsp-js.jsonl', 'levelb-ppgdex-dsp-js-g1.jsonl', 'levelb-oxydex-dsp-js-g1.jsonl'] : ['levelb-ppgdex-dsp-js-g2.jsonl'])
+  });
+  ck('the pseudo ledger is found in the SHARED dir', cands.pseudo.length === 1 && /tepna-mutation/.test(cands.pseudo[0]), true);
+  ck('delete-lane ledgers collect across BOTH dirs and ALL groups', cands.del.length, 2);
+  ck('…and another file\'s ledger never leaks in', cands.del.some((p) => /oxydex/.test(p)), false);
+  const laneMd = renderLaneSections({ pseudo: { files: [{ file: 'x.js', total: 3, byVerdict: { tested: 2, 'not-covered': 1 } }] }, del: { files: [] } }).join('\n');
+  ck('each lane section names its UNIT in the header', /unit: \*\*functions\*\*/.test(laneMd) && /unit: \*\*statements\*\*/.test(laneMd), true);
+  ck('verdicts are reported verbatim, not re-mapped', /`not-covered` 1/.test(laneMd), true);
+  ck('an empty lane REFUSES: absent input, not a clean bill', /NOT a clean bill/.test(laneMd), true);
+  ck('no combined cross-lane total exists anywhere in the section', /never summed/.test(laneMd) && !/fleet total/i.test(laneMd), true);
 
   console.log('\nlocal-AI kill drafting — the model may pick the FIELD, never the EXPECTED VALUE');
   /* The whole safety argument is that a wrong projection cannot survive, so these assert the

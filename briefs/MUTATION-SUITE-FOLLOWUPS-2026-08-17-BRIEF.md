@@ -291,7 +291,21 @@ job count it was measured on.
 than an error, and the first time it would have corrupted a published number rather than merely
 costing time.
 
-## 4 · WIRE THE REMAINING LANES INTO THE INVENTORY
+## 4 · ✅ DONE 2026-08-19 — per-lane sections, units kept apart, absence reported as ABSENT
+
+> **Executed.** `parseLaneLedger` reads the ResumeLedger JSONL the two lanes persist under
+> `--resume` (last record per key wins — a resumed ledger replays; a torn final line is skipped),
+> `laneLedgerCandidates` finds them across BOTH state dirs per §1 (delete-lane per file+group, all
+> groups counted), and the inventory now carries a per-lane section each — pseudo in **functions**,
+> deletion in **statements**, the operators table above in **mutants**, with no cross-lane total
+> anywhere by construction. A lane with no persistent ledger prints an explicit refusal ("absent
+> INPUT — NOT a clean bill") rather than zeros, which is also the LIVE state today: neither lane has
+> a surviving `--resume` ledger post-reboot, and the regenerated inventory says exactly that.
+> 12 selftests; 3 planted mutations (first-record-wins, cross-file ledger leak, empty-lane-as-clean)
+> all killed. One honest limit recorded in the section itself: a lane run WITHOUT `--resume` leaves
+> no persistent record, so the inventory can only ever report resumed runs.
+
+## 4 (original) · WIRE THE REMAINING LANES INTO THE INVENTORY
 
 `--lane pseudo` and `--lane delete` run, are watchdogged and resume — but this driver does not parse
 their record formats, so the public list reports the **operators** lane only. That is honest today
