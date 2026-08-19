@@ -83,6 +83,27 @@ But the more useful measurement is the ratio. The host's RMS offset is **19.5 µ
 jitter into this same pipeline is **~100 ms, with 470 ms observed** (`clock.js` §7). The host is
 already **~4 orders of magnitude** tighter than the transport that immediately follows it.
 
+> **📊 RE-MEASURED ON THE LIVE BOX 2026-08-18 — the floor holds, and it has TWO numbers, not one.**
+> `chronyc tracking`: **RMS offset 14.6 µs** (better than the 19.5 µs recorded above), system time 2.7 µs
+> slow, last offset −4.7 µs, **stratum 2** locked to the stratum-1 LAN server at `192.168.0.123`
+> (`+54 µs ± 1356 µs`).
+>
+> ⚠ **But `Root dispersion` is 1.47 ms, and that — not the RMS offset — is the bound on ABSOLUTE time.**
+> RMS offset measures how tightly the local clock tracks its source; root dispersion bounds how wrong that
+> source chain may be. Target 8's criterion says *"must include the 19.5 µs floor"*, and a run that quotes
+> only the µs figure would overstate the host by ~100×.
+>
+> The conclusion is unchanged and survives either number — that is the point of stating both:
+>
+> | host figure | vs BLE ~100 ms | ratio |
+> |---|---|---|
+> | RMS offset 14.6 µs | tracking precision | **~6 800×** |
+> | root dispersion 1.47 ms | absolute bound | **~68×** |
+>
+> So §2.1's "do not let a GPS/PPS hat gate the experiment" stands on the *conservative* reading too: even
+> at 1.47 ms the host is two orders below the transport it feeds. **Report the pair.** Quoting 14.6 µs
+> alone would be the same error as quoting a `ppm` without its span.
+
 **So: putting a GPS/PPS hat on the box buys precision that BLE destroys in the next hop.** Do it if
 it is cheap, but do not let it gate the experiment, and do not report it as the thing that made the
 result trustworthy. The honest framing is the opposite — the experiment is a good test of whether
