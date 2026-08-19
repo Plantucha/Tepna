@@ -11351,6 +11351,108 @@
       T.eq('twenty-one hours is continuous, not a long overnight', C(rr(1000), at(6), 21 * 3600).mode, 'continuous');
     });
 
+    group('PulseDex helper floor — 24 drafts adopted, with physiological inputs (mutation-derived)', 'pulsedex-dsp · known-answer · mutation-pinned', function (T) {
+      var B = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!B || typeof B.artifactClean !== 'function') {
+        T.skip('PulseDex._bare helpers available', 'PulseDex not co-loaded in this runner');
+        return;
+      }
+      var P = env.PulseDex;
+      var rr = function (ms, n) {
+        return new Array(n).fill(ms);
+      };
+
+      // ── 1 · AN EMPTY FILE IS AN HONEST REFUSAL, with the reason naming what was absent.
+      //      tsValid is `tsOK && lengths match && any` — as `||` an empty file claims a timestamp axis.
+      var empty = P.parseRRInput('');
+      T.eq('an empty file has no timestamp axis', empty.tsMs, null);
+      T.eq('…and the reason says nothing numeric was found', empty.reason, 'no numeric intervals found in the file');
+
+      // ── 2 · AN ALL-ZERO STREAM (the Verity onboard _HR.txt shape) is counted as 0 usable, and the
+      //      reason distinguishes "outside range" from "not numeric" — the `===0` vs `!==0` branch.
+      var zeros = P.parseRRInput('0\n0\n0');
+      T.eq('an all-zero device stream has zero usable intervals', zeros.nUsable, 0);
+      T.eq(
+        '…and the reason names the range, not a parse failure',
+        zeros.reason,
+        'all 3 values are outside the physiological range (e.g. an all-zero HR/PPI stream) — the device logged no usable beats'
+      );
+
+      // ── 3 · GUARDS RETURN NULL, NEVER THROW — the `||` guards read null.length as `&&`.
+      T.eq('pdComputeResult(null) refuses, not throws', B.pdComputeResult(null), null);
+      T.eq('_pdSeriesStats(null) refuses, not throws', B._pdSeriesStats(null), null);
+      T.eq('_pdNormalizeRRInput(null) normalizes to honest nulls', JSON.stringify(B._pdNormalizeRRInput(null)), '{"vals":null,"tsMs":null,"t0Ms":null,"offsetMin":null}');
+      T.eq('lineChartSVG with no beats renders nothing, not a frame', B.lineChartSVG(0), '');
+
+      // ── 4 · AND THE SAME GUARDS PASS REAL DATA — the refusal thresholds are pinned from both sides.
+      T.eq('three beats is enough for series stats', JSON.stringify(B._pdSeriesStats([800, 810, 790])), '{"n":3,"meanRR":800,"hr":75,"sdnn":10,"rmssd":15.8,"pnn50":0}');
+      var alt = function (n) {
+        return new Array(n).fill(0).map(function (_, i) {
+          return 800 + (i % 2 ? 40 : -40);
+        });
+      };
+      T.eq('dfaAlpha1 refuses 15 VARYING beats — a constant series nulls either way and proves nothing', B.dfaAlpha1(alt(15)), null);
+      T.eq('…and 16 is already enough: the floor is < 16, not <= 16', B.dfaAlpha1(alt(16)), 0.051);
+      T.eq('…and measures an alternating 64-beat series', B.dfaAlpha1(alt(64)), 0.051);
+      T.eq('periodicBreathingIndex refuses 119 beats (floor is 120)', B.periodicBreathingIndex(rr(800, 119)), null);
+
+      // ── 5 · COLUMN DISCOVERY IS BY PHYSIOLOGICAL RANGE — zeroing the 300 ms bound admits junk.
+      T.eq('a column of ~800 ms intervals is the RR column', B._pdIntervalColByRange([[800, 810, 790]]), 0);
+      T.eq('a column of single-digit values is NOT', B._pdIntervalColByRange([[5, 7, 9]]), -1);
+
+      // ── 6 · ARTIFACT CLEANING: one 150 ms drop in ten beats. The flag lands on the artifact
+      //      (an `&&` would need it out of range AND deviant), pct is n-scaled, and the replacement
+      //      is a plausible beat, not the artifact echoed back.
+      var ac = B.artifactClean([800, 810, 790, 805, 150, 795, 800, 810, 805, 790]);
+      T.eq('the 150 ms beat is the one flagged', ac.flags.join(''), '0000100000');
+      T.eq('one artifact in ten beats is 10 %', ac.pct, 10);
+      T.eq('…and the replacement is the neighbourhood, not the artifact', ac.clean[4], 800);
+      //      Each bound is its own contract: the floor and ceiling are hard breaches flagged even when
+      //      the neighbourhood AGREES (290 among 300s deviates 3 %, 2210 among 2200s under 1 %) — an
+      //      `&&` on either clause un-flags them; `<=`/`>=` flags the legal 300/2200 beats around them.
+      T.eq('a 290 ms beat is flagged even though its neighbours nearly agree', B.artifactClean([300, 300, 300, 290, 300, 300]).flags.join(''), '000100');
+      T.eq('a 2210 ms beat likewise, at the ceiling', B.artifactClean([2200, 2200, 2200, 2210, 2200, 2200]).flags.join(''), '000100');
+      T.eq('an in-range beat 25 % off its neighbourhood is flagged on deviation alone', B.artifactClean([800, 800, 800, 1000, 800, 800]).flags.join(''), '000100');
+      T.eq('deviation is > 0.2 STRICT — a beat at exactly 20 % stays', B.artifactClean([800, 800, 800, 800, 800, 960]).flags.join(''), '000000');
+
+      // ── 7 · VO₂ LADDER — Uth-Sørensen base, the lnRMSSD adjustment and its ±8 % clamps, the
+      //      altitude factor with its 1500 m knee and 0.55 floor. Cited constants, each zeroable.
+      T.eq('VO₂base: rest 60 / max 190 → 15.3×190/60', B.vo2Base(60, 190), 48.45);
+      T.eq('lnRMSSD 3.4 is the reference — no adjustment', B.vo2Adj(48, 3.4), 48);
+      T.eq('lnRMSSD 4.4 caps at +8 %', +B.vo2Adj(48, 4.4).toFixed(2), 51.84);
+      T.eq('lnRMSSD 2.0 floors at −8 %', +B.vo2Adj(48, 2.0).toFixed(2), 44.16);
+      T.eq('1500 m is still sea-level capacity', B.altVO2Factor(1500), 1);
+      T.eq('3000 m costs 5 %', B.altVO2Factor(3000), 0.95);
+      T.eq('the altitude penalty floors at 0.55', B.altVO2Factor(15000), 0.55);
+
+      // ── 8 · GEOMETRIC / COUNTING HRV — the 10 ms bin, the strict >50 ms rule, the ±25 ms mode band.
+      T.eq('the modal 10 ms bin of a 6-beat series', B.modeV([800, 800, 800, 810, 810, 790]), 800);
+      T.eq('…and HTI is N over that bin count', B.triangularIndex([800, 800, 800, 810, 810, 790]), 2);
+      T.eq('nn50 counts >50 strictly — a 50 ms step does not count', B.nn50c([800, 860, 810, 880, 805]), 3);
+      T.eq('AMo50: three of four beats within ±25 ms of the mode', B.amo50([800, 810, 820, 900], 800), 75);
+
+      // ── 9 · ANS BALANCE (hf, lf) — a real quotient or nothing.
+      T.eq('LF absent reads null, never a fabricated share', B.ansBalance(1, null).sns, null);
+      T.eq('HF 500 / LF 600 → sympathetic share 56', JSON.stringify(B.ansBalance(500, 600)), '{"sns":56,"psns":44,"snsBal":1.2,"psnsBal":0.833}');
+
+      // ── 10 · SMALL PURE HELPERS — beat clock, normalized units, least squares, wall clock.
+      T.eq('beatTimes: cumulative seconds, first beat at 0', JSON.stringify(B.beatTimes([800, 810, 790])), '[0,0.8,1.61]');
+      T.eq('nu(400,1000) is 40 normalized units', B.nu(400, 1000), 40);
+      T.eq('linfit fits y=2x+1 exactly — one extra loop pass reads past the data and NaNs it', JSON.stringify(B.linfit([0, 1, 2], [1, 3, 5])), '{"slope":2,"intercept":1}');
+      T.eq('_pdClockS zero-pads all three fields', B._pdClockS(9 * 3600000 + 5 * 60000 + 3000), '09:05:03');
+
+      // ── 11 · MULTIPART MERGE (Polar Sensor Logger `_partNNofNN`) — two parts become ONE recording
+      //      with the repeated header dropped; a plain file passes through untouched.
+      var merged = B.mergeMultipart([
+        { name: 'rec_RR_part01of02.txt', text: 'rr_ms\n800\n810\n' },
+        { name: 'rec_RR_part02of02.txt', text: 'rr_ms\n790\n805' }
+      ]);
+      T.eq('two parts merge to one recording', merged.length, 1);
+      T.eq('…under the part-stripped name', merged[0].name, 'rec_RR.txt');
+      T.eq('…with the repeated header dropped', merged[0].text, 'rr_ms\n800\n810\n790\n805');
+      T.eq('a file with no part suffix passes through', JSON.stringify(B.mergeMultipart([{ name: 'solo.txt', text: '800' }])), '[{"name":"solo.txt","text":"800"}]');
+    });
+
     group('PulseDex compareIntervalSeries — two signals, one heart (mutation bootstrap)', 'pulsedex-dsp · known-answer · mutation-pinned', function (T) {
       var B = (env.PulseDex && env.PulseDex._bare) || null;
       if (!B || typeof B.compareIntervalSeries !== 'function') {
