@@ -24,6 +24,7 @@ import { readdirSync, readFileSync, writeFileSync, unlinkSync, existsSync } from
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -200,5 +201,9 @@ function main() {
       '\n'
   );
 }
-
-main();
+/* ⚠️ ENTRY GUARD — WITHOUT IT THIS FILE RUNS ITS CLI THE MOMENT ANYTHING IMPORTS IT.
+   Compared by RESOLVED PATH so it survives a symlink, a rename or a wrapper (the same reason
+   `doc-search.mjs`'s `isEntryPoint` resolves rather than string-compares). Swept 2026-08-19 after
+   `device-stability.mjs` was found unimportable for the sibling reason: of 143 `tools/*.mjs`, 48
+   guarded, 90 have no entry point at all, and a handful executed on import. */
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
