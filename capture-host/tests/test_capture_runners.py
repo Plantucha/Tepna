@@ -2476,7 +2476,10 @@ def _qc_night(tmp_path, monkeypatch, missing=True):
         with open(night / "Polar_H10_02849638_20260719_ACC.txt", "w") as f:
             f.write("h\n1\n2\n")
     streams = ["ecg", "acc"]
-    return {"qc": {"poll_sec": 1, "alert_after_sec": 3600},
+    # digest_hour: -1 — these tests exercise the MISSING-STREAM ALERT path and assert exact `sent`
+    # contents; the unconditional morning digest (own tests in test_capture_coverage_100) would
+    # otherwise make them time-of-day dependent: green before 09:00 local, red after.
+    return {"qc": {"poll_sec": 1, "alert_after_sec": 3600, "digest_hour": -1},
             "devices": [{"name": "H10", "device_id": "02849638", "streams": streams}]}
 
 

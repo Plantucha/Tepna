@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-16 · **Affects:** `papers/`, `docs/`, `audits/CITATION-VERIFICATION-2026-08-05.json` · **Follows:** `LITERATURE-USE-POLICY-2026-07-11-BRIEF.md`, `PAPERS-ROADMAP-2026-06-24-BRIEF.md`
+**Status:** REFERENCE (living — last-verified 2026-08-18) · **Created:** 2026-08-16 · **Affects:** `papers/`, `docs/`, `audits/CITATION-VERIFICATION-2026-08-05.json` · **Follows:** `LITERATURE-USE-POLICY-2026-07-11-BRIEF.md`, `PAPERS-ROADMAP-2026-06-24-BRIEF.md`
 
 > **The measured gap:** this repository holds **86 author-verified DOIs**, and **exactly one** is
 > outside clinical medicine. Meanwhile the suite's live problems are a three-cornered hat, a host
@@ -9,6 +9,17 @@
 > to author · year · venue and, where one exists, DOI.
 
 ---
+
+> **Why REFERENCE and not PROPOSED or DONE** (status corrected 2026-08-18). §0 states what this is:
+> *"a reading queue, not a set of adopted methods"*, whose entries are *"surfaced by search and checked
+> for existence, author and venue"* rather than read end to end. Nothing here is executable, so there is
+> no state in which it becomes DONE — **a reading queue is never finished, only current.** `PROPOSED`
+> was wrong for the opposite reason: it reads as *work not yet started* on a document already in daily
+> use through `tools/doc-search.mjs`, and this repo has just paid for a stale status line
+> (`FABRICATED-DEFAULTS-FLEET` read PROPOSED for two days after every fix in it had shipped, and nearly
+> bought a full reimplementation of 11 guard sites). `CLAUDE.md` §📌 reserves `REFERENCE (living …)`
+> with a `last-verified` date for exactly this shape. All four tracked action items closed 2026-08-17;
+> **re-stamp `last-verified` when entries are added, rather than waiting for a DONE that cannot arrive.**
 
 ## 0 · Why this exists, and what it is not
 

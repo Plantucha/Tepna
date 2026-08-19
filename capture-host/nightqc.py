@@ -1621,3 +1621,44 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         # only as `degraded`, which names it a link fault; this names it a rate fault.
         "rates": _rate_rows,
     }
+
+
+def qc_digest(summ) -> str | None:
+    """One line of night QC for the webhook — the unconditional 'how did tonight go', as opposed to the
+    missing-stream alert that fires only when something is wrong (VIGIL-OVERNIGHT-FINDINGS §P2.4: the
+    coverage number 'is computed but not surfaced … it is the number that matters').
+
+    Returns None when there is nothing measured to say — a digest of an empty night would train the
+    reader that the message is noise, and an unconditional sender with no content check is the vacuous
+    twin of the alert it complements. Devices with an empty coverage dict (configured but absent all
+    night) are named rather than averaged in as zeros.
+    """
+    if not isinstance(summ, dict):
+        return None
+    devs = summ.get("devices") or []
+    parts: list[str] = []
+    absent: list[str] = []
+    for d in devs:
+        if not isinstance(d, dict):
+            continue
+        name = str(d.get("name") or "?")
+        cov = d.get("coverage") or {}
+        vals = [v for v in cov.values() if isinstance(v, (int, float))]
+        if not vals:
+            absent.append(name)
+            continue
+        lo = min(vals)
+        hi = max(vals)
+        # one number when the streams agree, a range when they do not — a device whose acc and ppg
+        # diverge 41 %/95 % must not be summarised as 68 %.
+        pct = f"{lo * 100:.0f}%" if (hi - lo) < 0.05 else f"{lo * 100:.0f}–{hi * 100:.0f}%"
+        parts.append(f"{name} {pct}")
+    if not parts and not absent:
+        return None
+    seg = [", ".join(parts)] if parts else []
+    if absent:
+        seg.append("no data: " + ", ".join(absent))
+    missing = summ.get("missing") or []
+    if missing:
+        seg.append("missing: " + ", ".join(str(m) for m in missing[:4]))
+    return f"night {summ.get('night') or '?'} — " + " · ".join(seg)

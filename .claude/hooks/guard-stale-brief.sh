@@ -60,9 +60,39 @@ f="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // empty' 2>/dev/null
 cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null)"
 [ -z "$f" ] && [ -z "$cmd" ] && exit 0
 
+# ── RESOLVE THE REPOSITORY FROM THE EDITED FILE, NOT FROM THE HOOK'S CWD ───────
+#    A PreToolUse hook runs with cwd = $CLAUDE_PROJECT_DIR (the shared root). CLAUDE.md §👥.1
+#    MANDATES working in a private worktree, so in the real deployment the tree being EDITED is
+#    almost never the tree this process is standing in — and every `git` below silently answered
+#    about the wrong one. Two independent defects, both fixed by `-C`:
+#      · `--show-toplevel` returned the ROOT, so `rel="${f#"$root"/}"` failed to strip a path from
+#        another worktree, `cands` came out empty, and the hook ALLOWED.
+#      · `merge-base HEAD origin/main` read the ROOT's HEAD, so staleness was asked of a tree the
+#        author was not editing.
+#    Measured 2026-08-18: with the root at origin/main (which `tepna-sync-main.timer` now keeps it
+#    at, every 15 min) `base` IS `origin/main`, so `base..origin/main` is empty BY CONSTRUCTION and
+#    the guard allowed EVERY edit, repo-wide. It could only ever block while the root was stale —
+#    i.e. it worked only while the root was broken, and fixing the root silently switched it off.
+#    See briefs/STALE-BRIEF-GUARD-MEASURES-THE-WRONG-TREE-2026-08-18-BRIEF.md.
+#
+#    ⚠ The Bash path has no file argument, so it still falls back to the hook's cwd. That residual
+#      gap is documented rather than hidden: a computed edit from a worktree is measured against the
+#      root until the payload carries a cwd we can trust.
+edit_dir="."
+[ -n "$f" ] && edit_dir="$(dirname "$f")"
+[ -d "$edit_dir" ] || edit_dir="."
+
 # Repo-relative, so an absolute path from the tool matches the same rule as a relative one.
-root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+root="$(git -C "$edit_dir" rev-parse --show-toplevel 2>/dev/null)" || exit 0
 [ -z "$root" ] && exit 0
+
+# ⚠ ANCHOR EVERY LATER QUERY AT `$root`, NOT AT `$edit_dir`. `git -C <dir>` also makes PATHSPECS
+#   relative to <dir>, so `-- briefs/X.md` from inside `briefs/` looks for `briefs/briefs/X.md` and
+#   matches nothing — which reads as "did not move upstream" and ALLOWS. The first draft of this fix
+#   did exactly that and turned three DENY cases into ALLOWs; the self-test's anti-vacuity legs are
+#   what caught it. `$root` is the edited file's own worktree toplevel, so pathspecs resolve as the
+#   guarded-set rule already assumes.
+G() { git -C "$root" "$@"; }
 
 # GUARDED SET — the hot shared docs. `briefs/*.md` is where the collision happened;
 # DOCS-INDEX.md is the dashboard every brief change touches, so it collides for the
@@ -108,16 +138,16 @@ elif looks_like_write "$cmd"; then
 fi
 [ -z "$cands" ] && exit 0
 
-git rev-parse --verify -q HEAD >/dev/null 2>&1 || exit 0
-git rev-parse --verify -q origin/main >/dev/null 2>&1 || exit 0
-base="$(git merge-base HEAD origin/main 2>/dev/null)" || exit 0
+G rev-parse --verify -q HEAD >/dev/null 2>&1 || exit 0
+G rev-parse --verify -q origin/main >/dev/null 2>&1 || exit 0
+base="$(G merge-base HEAD origin/main 2>/dev/null)" || exit 0
 [ -z "$base" ] && exit 0
 
 # Commits on origin/main touching EACH candidate that your branch does not have.
 report=""; first=""; n=0
 while IFS= read -r rel; do
   [ -z "$rel" ] && continue
-  missed="$(git log --oneline --no-decorate "$base"..origin/main -- "$rel" 2>/dev/null)" || continue
+  missed="$(G log --oneline --no-decorate "$base"..origin/main -- "$rel" 2>/dev/null)" || continue
   [ -z "$missed" ] && continue
   [ -z "$first" ] && first="$rel"
   n=$((n + $(printf '%s\n' "$missed" | grep -c .)))

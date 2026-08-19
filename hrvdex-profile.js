@@ -112,24 +112,9 @@ function inferFromData() {
   setIfEmpty('prof_vo2gt', vo2Est, true);
   setIfEmpty('prof_hrmax', 0, false); // keep 0 = auto (use Tanaka)
 
-  // Show the calculated projection value in each sublabel (visible above the input),
-  // so the projection stays visible even after a manual override (matches OxyDex).
-  function _setSub(id, txt) {
-    var el = document.getElementById(id);
-    if (el) {
-      el.textContent = txt;
-      el.style.display = '';
-    }
-  }
-  _setSub('lbl_vo2gt', '∼ Uth-Sørensen → ' + vo2Est + ' (HRmax ' + Math.round(_hrmaxV) + '/HRrest ' + Math.round(_hrRestV) + (_altF < 1 ? ' · alt ×' + _altF.toFixed(2) : '') + ')');
-
   // Age is NOT auto-filled from HRV anymore (ANS-age removed 2026-06-23,
   // DEX-METRIC-REMOVAL-AUDIT 🔴). The field keeps its neutral default; the user enters
   // their real chronological age. No HRV→age sublabel.
-  var _lblAge = document.getElementById('lbl_age');
-  if (_lblAge) {
-    _lblAge.style.display = 'none';
-  }
   // Auto-fill weight + height from population norms for this age/sex
   applyAgeNorms(false);
 
@@ -303,19 +288,6 @@ function applyAgeNorms(useIdeal) {
   heightEl.value = h;
   weightEl.style.borderColor = '';
   heightEl.style.borderColor = '';
-
-  // Update labels — show the computed values (matches OxyDex richness)
-  const wLabel = document.getElementById('lbl_weight');
-  const hLabel = document.getElementById('lbl_height');
-  const idealW = Math.round(22.5 * (h / 100) ** 2 * 10) / 10;
-  if (wLabel) {
-    wLabel.textContent = useIdeal ? '∼ ideal (BMI 22.5) ' + w + ' kg' : '∼ CDC pop avg ' + norm.w + ' kg · ideal (BMI 22.5) ' + idealW + ' kg';
-    wLabel.style.display = '';
-  }
-  if (hLabel) {
-    hLabel.textContent = '∼ CDC pop avg ' + h + ' cm';
-    hLabel.style.display = '';
-  }
 
   updateProfile();
 }
@@ -529,20 +501,10 @@ function updateProfile() {
         )
     );
 
-  // Field hints: HRmax guard, resting HR, elevation
+  // Altitude factor for the VO₂ projection below. The lbl_* field hints that used to
+  // render here were removed 2026-08-19: HRVDex.src.html defines no lbl_ id at all, so
+  // every write was a guarded no-op (DEAD-FIELD-HINTS-FLEET-2026-08-19-BRIEF.md).
   const altFactor = p.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((p.elev - 1500) / 300) * 0.01);
-  const _set = (id, txt, est) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.textContent = txt;
-    el.classList.toggle('est', !!est);
-  };
-  if (hrmaxRejected) _set('lbl_hrmax', '⚠ entry too low — using Tanaka ' + tanaka + ' bpm', true);
-  else _set('lbl_hrmax', p.hrmax_manual > 0 ? '✓ your value ' + hrmax + ' bpm' : '~ Tanaka: 208 − 0.7 × age = ' + tanaka);
-  _set('lbl_hrrest', p.hrrest_manual > 0 ? '✓ your value' : '~ from morning readings: ' + _hrRest0 + ' bpm (median)', p.hrrest_manual <= 0);
-  if (p.elev >= 2500) _set('lbl_elev', '🏔 ' + p.elev.toLocaleString() + ' m · VO₂ ×' + altFactor.toFixed(2) + ' · HRV norms = sea-level (caution)', true);
-  else if (p.elev > 1500) _set('lbl_elev', '⛰ ' + p.elev.toLocaleString() + ' m · VO₂ ×' + altFactor.toFixed(2), true);
-  else _set('lbl_elev', '~ sea level · adjusts VO₂max above 1500 m');
   window._hrvProfileAlt = altFactor; // consumed by VO₂ projection
 
   // Recompute the VO₂ projection live (inferFromData only runs at load, so
@@ -551,8 +513,6 @@ function updateProfile() {
   if (_rhrProj > 0) {
     const vo2Proj = Math.round(15.3 * (hrmax / _rhrProj) * altFactor * 10) / 10;
     window._projVO2 = vo2Proj;
-    const lv = document.getElementById('lbl_vo2gt');
-    if (lv) lv.textContent = '∼ Uth-Sørensen → ' + vo2Proj + ' (HRmax ' + hrmax + '/HRrest ' + Math.round(_rhrProj) + (altFactor < 1 ? ' · alt ×' + altFactor.toFixed(2) : '') + ')';
     if (typeof renderANSAgeCard === 'function' && typeof allRows !== 'undefined' && allRows.length) renderANSAgeCard();
   }
 

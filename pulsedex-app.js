@@ -4,7 +4,7 @@
    Orchestration & glue: theme, mobile nav, scroll-spy, file ingest (RR + Welltory
    CSV), action wiring, the main calculate() pipeline, CSV/JSON exports, reset,
    and shared helpers. Loaded LAST. Reads pulsedex-{dsp,render}.js + the overview
-   module (loadProfile / renderOverviewPx / computeProfileHints).
+   module (loadProfile / renderOverviewPx).
    ES module (ESM-MIGRATION deep-3): the imports below make the DSP → render → overview →
    app load order a real dependency edge (the bundler + browser guarantee it), replacing the
    former script-tag-order convention. Immediate-execution glue lives here.

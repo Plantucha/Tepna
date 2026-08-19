@@ -166,6 +166,46 @@ else
 fi
 
 echo
+echo "### THE TREE THE HOOK MEASURES — every case above runs with cwd INSIDE the repo under test,"
+echo "### so hook-cwd and edit-target are the SAME tree by construction and cannot disagree."
+# 0 That is why this file passed while the guard was a repo-wide no-op. CLAUDE.md mandates worktrees,
+#   so the real deployment ALWAYS has hook-cwd (= $CLAUDE_PROJECT_DIR, the shared root) different from
+#   the tree being edited. Two independent defects appear only when they differ:
+#     - `root="$(git rev-parse --show-toplevel)"` resolves in the hook's cwd, so `rel="${f#"$root"/}"`
+#       fails to strip a path from ANOTHER worktree; `cands` ends up empty and the hook ALLOWs.
+#     - `base="$(git merge-base HEAD origin/main)"` likewise reads the hook's cwd HEAD, so staleness
+#       is asked of the wrong tree entirely.
+#   Measured 2026-08-18 on the live repo: with the root at origin/main the hook's own query returned
+#   '' for DOCS-INDEX.md and for a brief that had moved within 20 commits. It allowed everything.
+STALE="$TMP/stale-worktree"
+CUR="$TMP/current-worktree"
+git -C "$WORK" worktree add -q --detach "$STALE" mine 2>/dev/null
+git -C "$WORK" worktree add -q --detach "$CUR" origin/main 2>/dev/null
+
+run_from() { # run_from <cwd> <file_path>
+  ( cd "$1" && printf '{"tool_input":{"file_path":"%s"}}' "$2" | bash "$H" >/dev/null 2>&1
+    [ $? -eq 2 ] && echo DENY || echo ALLOW )
+}
+expect_from() { # expect_from <want> <label> <cwd> <file>
+  local got; got="$(run_from "$3" "$4")"
+  if [ "$got" = "$1" ]; then printf '  ok    %-58s %s\n' "$2" "$got"
+  else printf '  FAIL  %-58s got %s, want %s\n' "$2" "$got" "$1"; fail=$((fail+1)); fi
+}
+
+# THE FALSE NEGATIVE - the dangerous direction. The EDITED tree is genuinely stale while the tree the
+# hook happens to sit in is current. This is exactly the overwrite the guard exists to stop.
+expect_from DENY  "STALE worktree edited while cwd-tree is CURRENT" "$CUR" "$STALE/briefs/SHARED-BRIEF.md"
+
+# THE FALSE POSITIVE - the mirror, and the one that merely annoys: the edited tree already HAS the
+# commit while the tree the hook sits in does not, so a block denies a perfectly safe edit.
+expect_from ALLOW "CURRENT worktree edited while cwd-tree is STALE" "$STALE" "$CUR/briefs/SHARED-BRIEF.md"
+
+# ANTI-VACUITY: the same two trees must still answer correctly when cwd IS the edited tree, so a
+# "fix" that stopped resolving anything cannot pass by blanket-allowing or blanket-denying.
+expect_from DENY  "...stale tree, cwd inside IT - still denied"     "$STALE" "$STALE/briefs/SHARED-BRIEF.md"
+expect_from ALLOW "...current tree, cwd inside IT - still allowed"  "$CUR"   "$CUR/briefs/SHARED-BRIEF.md"
+
+echo
 echo "### file integrity"
 if grep -qP '[\x00-\x08\x0b\x0c\x0e-\x1f]' "$H"; then
   echo "  FAIL  control character in the hook"; fail=$((fail+1))
