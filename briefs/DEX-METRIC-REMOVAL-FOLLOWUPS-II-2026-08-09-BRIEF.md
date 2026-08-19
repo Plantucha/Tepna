@@ -128,9 +128,28 @@ Spawned as `briefs/DEAD-FIELD-HINTS-FLEET-2026-08-19-BRIEF.md` rather than folde
 functions across three nodes is a second work-unit, and fusing it with this one is the failure
 `CLAUDE.md` §👥.2 records permanently in `cabd7f7`.
 
-⚠️ **A second finding, about this repo's own docs rather than its code:** `CLAUDE.md` §🔒 describes
-`computeHash` as the computed proof of export-inertness, but **it exists nowhere in `manifest-gate.js`
-or `provenance/`**. Reporting these edits export-inert because it "did not move" would have been a claim
-about an ABSENT field — indistinguishable from a stable one in a diff, and exactly the vacuous-green
-shape this repo keeps paying for. Settled empirically instead: `verify-fixtures` re-stamped 4 fixtures,
-10 already current, suite green.
+⚠️ **A second finding, about this repo's own docs rather than its code:** `CLAUDE.md` §🔒 names
+`computeHash` as the computed proof of export-inertness, and the value **is not recorded in
+`provenance/*.json`** — those fragments carry `manifestHash` and `verifiedUnder` only. So it could not
+be used as the proof here: reporting these edits export-inert because it "did not move" would have been
+a claim about a field absent from the ledger, indistinguishable from a stable one in a diff. Settled
+empirically instead — `verify-fixtures` re-stamped 4 fixtures, 10 already current, suite green.
+
+> 🔴 **CORRECTION 2026-08-19 — the original wording of this paragraph was WRONG, and the cause is worth
+> more than the fix.** It read *"it exists nowhere in `manifest-gate.js` or `provenance/`"*. The
+> `provenance/` half is right; the `manifest-gate.js` half is false — that file defines
+> **`computeHashFromText`** and mentions `computeHash` **11 times**, including the whole §🔒 rationale.
+>
+> **`grep` cannot see `manifest-gate.js`.** It returns a clean no-match (exit 1) for a file with 11
+> matches. Offset 10629 is `assets[i].name + '\x00' + sha256hex(...)` — the `logicalName \0
+> sha256(assetText)` separator §🔏 mandates for the `manifestHash` projection. That single deliberate
+> NUL makes `file -b` report `data`, and this shell's `grep` wraps `ugrep -I` (skip binary), so it is
+> skipped silently. The file is valid UTF-8 and the NUL is load-bearing — **do not "fix" it**, it would
+> move every `manifestHash` in the repo.
+>
+> **Use `git grep` in this repo.** A `grep` zero-result about a tracked file is not evidence of absence;
+> the discriminator is `file -b <path>` — if it says `data`, the wrapper skipped it. (A hard-link theory
+> was tried first and refuted: 139 root files have >1 link and grep reads them all.)
+>
+> The highest-stakes file in the tree — the one defining BOTH provenance gates — is the one the default
+> search tool is blind to, and it fails in the direction that reads as *"this identifier does not exist."*
