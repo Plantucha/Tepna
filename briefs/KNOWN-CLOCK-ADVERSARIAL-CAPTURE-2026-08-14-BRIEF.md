@@ -179,6 +179,26 @@ harder: 3.3 s exceeds several RR intervals and the sign is unambiguous.
 | 4 | packet loss | yes | recovered gap count/position vs injected |
 | 5 | timestamp jumps | yes — `maxStepMs` exists for this | step localised to the right anchor gap |
 | 6 | beat-matching errors | yes, if injected as labelled FP/FN | precision/recall vs injected labels |
+> **📊 TARGET 6 RUN 2026-08-19 — 89 real streams, labelled injection, P/R against the labels.**
+> `beat-error-recovery.mjs` now returns labels from its injectors and joins them to `correctRR`'s
+> per-interval `flags` (a 1:1 join — the corrector substitutes, never deletes). Across the box corpus:
+>
+> | injected | rate | recall (median · min) | precision (median) |
+> |---|---|---|---|
+> | missed beats | 0.1 % → 5 % | **1.000** · 0.936 | 0.26 → 0.95 |
+> | spurious beats | 0.1 % → 5 % | **1.000** · 0.972* | 0.58 → 0.98 |
+>
+> *min 0.500 at the 0.1 % rate, where one stream had 2 injections and caught 1.
+>
+> **Recall is the verdict: the shipped corrector catches essentially every injected beat error.** The
+> low precision at low rates is NOT imprecision — it is base-rate arithmetic, and the null control
+> proves it: on UNINJECTED real data `correctRR` flags a median **0.20 %** of intervals (its ordinary,
+> correct work on real ectopy), and those flags count against injected-only ground truth. The model
+> `P = f/(f + 0.002)` reproduces the measured curve within 0.08 at every rate (0.338/0.261 ·
+> 0.718/0.640 · 0.911/0.889 · 0.962/0.946). **Precision vs injected labels UNDERSTATES the corrector**
+> — the criterion is exactly as preregistered, and this is the caveat it needs beside it.
+> Synthetic control (clean train, no background): P=1.000 R=1.000 (miss), P=1.000 R=0.993 (fp) — the
+> base-rate explanation, run in reverse.
 | 7 | sensor-specific noise | **confounded with adapter** (§2.4) | requires fixed adapter assignment |
 | 8 | host-induced artifacts | yes | must include the 19.5 µs floor (§2.1) |
 

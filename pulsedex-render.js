@@ -159,7 +159,6 @@ function reRender() {
     r.vo2adj = +vo2Adj(r.vo2base, r.lnrmssd).toFixed(1);
     const gtIn = _pp.vo2gt;
     r.vo2gt = gtIn > 0 ? +Number(gtIn).toFixed(1) : null;
-    computeProfileHints(r);
     renderContext(r);
     renderHeroPx(r);
     renderKpiGridPx(r);
