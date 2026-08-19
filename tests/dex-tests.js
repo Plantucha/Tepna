@@ -28791,6 +28791,90 @@
       );
     });
 
+    group('ECGDex helper floor — 22 drafts adopted: the guards refuse, the formulas are pinned (mutation-derived)', 'ecgdex-dsp · known-answer · mutation-pinned', function (T) {
+      var E = env.ECGDSP || env.EcgDsp;
+      if (!E || typeof E.poincareGeo !== 'function') {
+        T.skip('ECGDSP helpers available', 'ECGDex not co-loaded in this runner');
+        return;
+      }
+
+      // ── 1 · EVERY VALIDATION GUARD REFUSES ABSENT INPUT — null, never a throw. Each `||` chain
+      //      reads null.length as `&&`; each dropped `!` inverts a refusal into a crash.
+      T.eq('validateHR(null) refuses', E.validateHR(null), null);
+      T.eq('validateHR([]) refuses — empty is absent, not zero disagreement', E.validateHR([]), null);
+      T.eq('validateHR on a non-array refuses', E.validateHR('x'), null);
+      T.eq('validateRR(null) refuses', E.validateRR(null), null);
+      T.eq('alignFirmwareRR below the pair floor refuses', E.alignFirmwareRR([], 1), null);
+      T.eq('accExtras(null) refuses', E.accExtras(null), null);
+      T.eq('accExtras on a non-array refuses', E.accExtras('x'), null);
+      T.eq('epochMotion with no ACC refuses', E.epochMotion(1), null);
+      T.eq('hrvStability needs ≥12 epochs — an empty hour is null', E.hrvStability([]), null);
+      T.eq('hrvStability(null) refuses, not throws', E.hrvStability(null), null);
+      T.eq('stampEpochPositions(null) is an empty list, not a crash', JSON.stringify(E.stampEpochPositions(null)), '[]');
+      // (duck-typed: instanceof Map fails across the co-load realm boundary)
+      T.ok('hrConfidence(null) is an EMPTY MAP — the shape consumers iterate', typeof E.hrConfidence(null).get === 'function' && E.hrConfidence(null).size === 0, 'not an empty Map');
+      T.eq('parseDeviceACC(null) reports acc null, never a fabricated series', JSON.stringify(E.parseDeviceACC(null)), '{"acc":null,"accFs":null}');
+      T.eq('parseDeviceACC on unparseable rows likewise', JSON.stringify(E.parseDeviceACC([1, 2, 3])), '{"acc":null,"accFs":null}');
+
+      // ── 2 · POINCARÉ GEOMETRY — three beats is the floor (< 3, not <= 3), and the ellipse axes
+      //      are the SDSD-family values, not zeros.
+      T.eq('two beats cannot make an ellipse', JSON.stringify(E.poincareGeo([800, 810])), '{"sd1":null,"sd2":null}');
+      T.eq('three beats already can — the floor is < 3', JSON.stringify(E.poincareGeo([800, 810, 790])), '{"sd1":15,"sd2":0}');
+      var rr = [800, 810, 790, 805, 795, 815, 800, 790, 810, 800];
+      T.eq('…and a 10-beat series has both axes', JSON.stringify({ sd1: +E.poincareGeo(rr).sd1.toFixed(3), sd2: +E.poincareGeo(rr).sd2.toFixed(3) }), '{"sd1":11.319,"sd2":4.108}');
+
+      // ── 3 · BAEVSKY GEOMETRY on the same series — the modal bin wins by STRICT >, so the first
+      //      max keeps the mode; AMo50 and MxDMn ride the same bins.
+      T.eq('mode 800, AMo50 100 %, MxDMn 25 ms', JSON.stringify(E.baevskyGeom(rr, null)), '{"mode":800,"amo50":100,"mxDMn":0.025}');
+
+      // ── 4 · DFA BOX LADDER runs 4..16 INCLUSIVE — dropping the 16-beat box moves alpha1.
+      T.eq('the near-constant probe series reads alpha1 0.341 with the full ladder', E.dfaAlpha1([16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 17], null), 0.341);
+
+      // ── 5 · buildNN COVERAGE — spanSec > 0 STRICT picks the computed path; zero span falls back
+      //      to 100 by declaration, and >= would send 0/0 (NaN) through instead.
+      T.eq('no beats: coverage declared 100, corrected 0', JSON.stringify({ c: E.buildNN(null, []).coveragePct, n: E.buildNN(null, []).nCorrected }), '{"c":100,"n":0}');
+      T.eq('a real 8-beat train: coverage COMPUTED 100', E.buildNN('buildNN', [440, 480, 500, 550, 600, 650, 700, 750], 0.3, 0.2).coveragePct, 100);
+
+      // ── 6 · classifyMode DURATION — 300 s is a 5 min reading; zeroing the /60 makes it Infinity.
+      T.eq('300 seconds reads as 5 min', E.classifyMode(300).modeWhy, '5 min reading');
+
+      // ── 7 · ACC ANALYSIS with NO SIGNAL — defaults declared, confidence FALSE. The tsMs
+      //      base-offset needs BOTH clocks (`&&`), and the axis race is strict `>` (x keeps ties).
+      var acc = E.accAnalyze([], []);
+      T.eq('empty ACC: resp rate 0, axis x by convention', JSON.stringify({ r: acc.respRate, a: acc.respAxis }), '{"r":0,"a":"x"}');
+      T.eq('…and respConfident is FALSE — the honesty bit that makes the defaults safe', acc.respConfident, false);
+
+      // ── 8 · validateHR END TO END — a valid pair VALIDATES. This is the case the guard mutants
+      //      cannot fake: negating any of the four clauses turns a working comparison into null.
+      var hrSeries = new Array(120).fill(70);
+      var devHR = [];
+      for (var i = 0; i < 120; i++) devHR.push({ tsMs: i * 1000, hr: 70 + (i % 3) });
+      var vhr = E.validateHR(hrSeries, devHR, 0);
+      T.ok('a 2-minute ECG-vs-device comparison returns a report, not null', vhr !== null, 'null');
+      T.eq('…covering all 120 seconds at MAE 1 bpm', JSON.stringify({ n: vhr.n, mae: vhr.mae }), '{"n":120,"mae":1}');
+
+      // ── 9 · parseDeviceRR rides the Clock Contract — an unparseable stamp is tsMs NULL on that
+      //      row (never a throw, never a fabricated time), a real stamp is the floating tMs.
+      T.eq('a garbage timestamp keeps the beat and nulls the clock', JSON.stringify(E.parseDeviceRR('garbage;800\n')), '[{"tsMs":null,"rr":800}]');
+      T.eq('a real stamp parses to floating tMs', JSON.stringify(E.parseDeviceRR('2026-06-10T22:00:00.123;800\n')), '[{"tsMs":1781128800123,"rr":800}]');
+
+      // ── 10 · epochMotion HONORS THE HOST-CLOCK OFFSET, and offset-starved coverage reads NULL,
+      //      not "still". ACC starting 270 s after the ECG leaves epoch 0 with <30 s of aligned
+      //      coverage, so it is DROPPED from the map — with no ECG clock the offset is 0 and both
+      //      epochs score. `||` fabricates an offset from a lone ACC clock; zeroing /1000 blows the
+      //      offset past the clamp and silently un-shifts the night.
+      var mkAcc = function (t0) {
+        var out = [];
+        for (var i = 0; i < 2400; i++) out.push({ tsMs: t0 + i * 250, x: 0, y: 0, z: 9.81 + (i < 1200 && i % 2 ? 2 : 0) });
+        return out;
+      };
+      var two = [{ tMin: 0 }, { tMin: 5 }];
+      var emNoClock = E.epochMotion(mkAcc(270000), 4, 0, 600, [{ tMin: 0 }, { tMin: 5 }]);
+      T.eq('no ECG clock: offset 0, both epochs observed', JSON.stringify(Array.from(emNoClock.keys())), '["0.0","5.0"]');
+      var emShift = E.epochMotion(mkAcc(271000), 4, 1000, 600, two);
+      T.eq('ACC 270 s late against a real ECG clock: epoch 0 is DROPPED, not stilled', JSON.stringify(Array.from(emShift.keys())), '["5.0"]');
+    });
+
     /* ════ 22 · OXIMETER SELF-GATE & CONSEQUENCE-COROBORATION ════
      Part A self-gate lives in oxydex-dsp.js / cpapdex-dsp.js (node-local, like
      parseTimestamp — not loadable headless, so verified by source mirror, as
