@@ -188,8 +188,34 @@ measures that.
       enumerated 67 ms; the selection was worth ~20 ms, a third of the bar.
 - [x] **Scatter measured offset-free — DONE 2026-08-04 (§2b).** 67 ms enumerated over 29 pairs against
       §3j's 92 ms arm→finger: better by ~27 %, still above the 60 ms bar.
-- [ ] Resolve `07-29`/`07-30`/`08-01`/`08-03`, whose lags (−381 −360 −313 −269) crowd the −400 ms window
-      edge and may simply be truncated rather than uncoupled.
+- [x] ✅ **TRUNCATED, not uncoupled — CONFIRMED 2026-08-18 on `07-29` by widening the window.** The
+      hypothesis in this line was right, and the test is a one-parameter change (`--window`):
+
+      | 2026-07-29 | ±400 ms (as recorded) | ±800 ms |
+      |---|---|---|
+      | medLag | +315 ms | **+428 ms** |
+      | strict match | 11 % | **25 %** |
+      | ratio vs chance | 1.79 | **3.96** |
+      | p | 0.020 | 0.010 |
+
+      **428 > 400: the true lag lies OUTSIDE the window that was measuring it.** And widening did not
+      merely relocate the estimate — the coupling **more than doubled** (1.79 → 3.96). That is the
+      signature of censoring rather than of absence: a truncated window keeps an edge-biased remnant and
+      every statistic below is computed on it. Same failure `pat-gate.js` records for `[PHYS_LO, PHYS_HI]`
+      — *"treated as a plausibility filter; it is a censoring cut"* — in a second tool.
+
+      ⚠️ **Scope, and it is narrow: n = 1 night of the four.** `07-30` at ±400 reads −350 ms at **p =
+      0.228** (not significant, ratio 1.15), and `08-01`/`08-03` produced no scorable row at ±400 at all.
+      So the four are **not one phenomenon** and should stop being cited as a set: one is demonstrably
+      censored, one is not significant, two do not currently score.
+      ⚠️ **The recorded signs do not match either.** This line lists −381 for `07-29`; the tool now reads
+      **+315**, and its own header says *"POSITIVE is the only anatomically possible sign"* (the leg path
+      is longer than the arm, so ankle must lag finger). Whatever produced the negative figures is a
+      separate question from the censoring, and closing this box does not close that.
+
+      **Cost note for whoever re-runs it:** the search is roughly quadratic in pair count. One night is
+      ~9 s at ±400 and ~20 min at ±800; a whole-corpus call over 24 nights ran **1 h 50 m at 100 % CPU
+      with no output** before being killed. Always pass `--night`.
 
 ## 5 · What is already usable regardless
 
