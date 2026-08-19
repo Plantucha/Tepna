@@ -41759,6 +41759,43 @@
        The ORDER matters and is asserted: a drawn DEVICE axis outranks a derived HOST column, because it
        names a different and more serious defect, and a length complaint must never pre-empt either —
        "too short" invites "so use a longer file", which on a phone capture is exactly wrong. */
+    /* CROSS-DEVICE-DRIFT-FOLLOWUPS §Done-when — "sharing ONE implementation with device-stability.mjs".
+       The crystal bound was authored in `dual-clock-rate.mjs` and COPIED into `device-stability.mjs`,
+       whose own comment says it "must apply here too or this tool re-prints the numbers that one
+       rejects". Two copies of a decision rule drift SILENTLY: nothing fails when only one is updated,
+       and the two tools then disagree about the same night while each looks self-consistent.
+       `dual-clock-rate` now delegates to `crystalVerdict`, and this group is what keeps that true —
+       a shared implementation nobody checks is just a claim about the past. */
+    group('the crystal rule is ONE implementation, not two copies', 'tools · clock · crystal-single-source', function (T) {
+      const DC = env.DualClock;
+      const DS = env.deviceStability;
+      if (!DC || !DS || typeof DC.crystalCoherence !== 'function' || typeof DS.crystalVerdict !== 'function') {
+        T.skip('both clock tools available', 'Node-lane only');
+        return;
+      }
+      T.eq('the bound is the SAME object, not two equal literals', DC.MAX_CRYSTAL_SPREAD_PPM, DS.MAX_CRYSTAL_SPREAD_PPM);
+      /* Agreement across the boundary and both sides of it. A single sample would pass on two
+         independent copies that happen to share today's constant — the point is the RULE, not the 50. */
+      const cases = [[], [10], [10, 20], [10, 100], [0, DS.MAX_CRYSTAL_SPREAD_PPM], [0, DS.MAX_CRYSTAL_SPREAD_PPM + 0.1], [-3035, -3030], [-3035, 100]];
+      for (const v of cases) {
+        T.eq('same verdict for ' + JSON.stringify(v), DC.crystalCoherence(v).verdict, DS.crystalVerdict(v).verdict);
+      }
+      /* ANTI-VACUITY: without these the group passes if BOTH sides always said the same thing —
+         e.g. if crystalCoherence returned a constant. The rule must actually discriminate. */
+      T.eq('a tight cluster IS a crystal', DC.crystalCoherence([10, 20]).incoherent, false);
+      T.eq('a wide spread is NOT', DC.crystalCoherence([10, 100]).incoherent, true);
+      T.eq('one fragment cannot disagree with itself', DC.crystalCoherence([10]).verdict, 'unchallenged');
+      /* The uncertainty path exists in the shared implementation even though this tool cannot feed it
+         yet (it computes no per-fragment sigma). Asserted on device-stability's side so the branch is
+         covered and its absence here stays a KNOWN gap rather than an invisible one. */
+      const withSigma = DS.crystalVerdict([
+        { ppm: 0, ppmUncertainty: 40 },
+        { ppm: 90, ppmUncertainty: 40 }
+      ]);
+      T.eq('a wide spread WITH error bars can still be one crystal', withSigma.verdict, 'crystal');
+      T.ok('…and it reports the reduced chi-square it used', isFinite(withSigma.chi2));
+    });
+
     group('A rate is refused when there is no second clock — WEARABLE-DRIFT-DIRECT §6', 'tools · clock · independence', function (T) {
       var DC = env.DualClock;
       if (!DC || typeof DC.classifyRate !== 'function') {

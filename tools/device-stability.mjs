@@ -575,4 +575,12 @@ function selftest() {
   process.exit(fails ? 1 : 0);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) main();
+/* ⚠️ `process.argv[1] &&` IS LOAD-BEARING — without it this file cannot be IMPORTED at all.
+   `pathToFileURL(undefined)` throws `ERR_INVALID_ARG_TYPE`, and argv[1] is undefined under
+   `node -e`, `node --eval`, a REPL, and any embedding host. That made this module unimportable in
+   exactly the contexts a consumer uses, and the failure is worse than a crash: `tests/run-tests.mjs`
+   wraps its tool imports in `try { … } catch { return null }`, so an importing gate would have gone
+   silently to SKIP rather than red. The sibling `dual-clock-rate.mjs:223` has always carried the
+   guard; this file did not, and the gap only surfaced when something tried to import it
+   (CROSS-DEVICE-DRIFT-FOLLOWUPS §Done-when, sharing the crystal rule). */
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
