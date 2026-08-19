@@ -26,6 +26,9 @@ concurrency:
 jobs:
   no-network:
     runs-on: ubuntu-latest
+    # A wedged Playwright wait held this job in_progress for hours (2026-08-19, twice in one
+    # afternoon; successes run 1–6 min, worst outlier 16). Terminal-and-visible beats pending-forever.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 

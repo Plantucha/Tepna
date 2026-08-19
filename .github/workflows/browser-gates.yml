@@ -90,6 +90,9 @@ jobs:
     needs: changes
     if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
+    # Same wedge class as no-network (2026-08-19): a hung run sat in_progress 30–65 min against a
+    # 4–7 min success history. Terminal-and-visible beats pending-forever.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
