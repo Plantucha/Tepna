@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-18 · **Affects:** `.claude/hooks/guard-stale-brief.sh`
+**Status:** DONE — 2026-08-18 · **Created:** 2026-08-18 · **Affects:** `.claude/hooks/guard-stale-brief.sh`
 
 # The stale-brief guard measures the SHARED ROOT, not the worktree you are editing in
 
@@ -103,16 +103,26 @@ root's — so the one-checkout case is unchanged and the worktree case starts be
 
 **Done when**
 
-- [ ] The hook resolves `HEAD` from the edited file's directory.
-- [ ] `npm run test:hooks` covers **both** directions with a control that must fire: a stale worktree
-      whose brief moved must be **DENIED**, and a current worktree whose root lags must be **ALLOWED**.
-      A one-directional test would pass today.
+- [x] **DONE** — the hook resolves the repository from the edited file's directory, and anchors every
+      later query at that worktree's toplevel.
+      ⚠️ **The first draft of the fix was WRONG and the self-test caught it.** Running the queries with
+      `git -C "$edit_dir"` also makes **pathspecs** relative to that directory, so `-- briefs/X.md`
+      from inside `briefs/` looks for `briefs/briefs/X.md`, matches nothing, and reads as *"did not
+      move upstream"* → ALLOW. It converted three passing DENY cases into ALLOWs. Anchoring at
+      `$root` (the edited file's own toplevel) is correct. The anti-vacuity legs — *"still denied when
+      cwd IS the edited tree"* — are what failed; without them the fix would have shipped having
+      turned the guard off in a new way while the headline case read green.
+- [x] **DONE** — four legs added to `guard-stale-brief.test.sh`, seen to fail first: the false negative
+      (`STALE worktree edited while cwd-tree is CURRENT`) read **ALLOW** before the fix and **DENY**
+      after. Its mirror and two anti-vacuity legs pin that the guard still answers correctly when the
+      two trees coincide. `npm run test:hooks` EXIT=0.
 - [x] **DONE 2026-08-18 — §3's false negative is MEASURED** (root at `origin/main`; the hook's own
       query returns empty for two briefs that moved within 20 commits). It is not occasional: the guard
       is a no-op whenever the root is current, which the 15-minute sync timer now guarantees.
-- [ ] A test that would have caught THIS: assert the guard blocks when the EDITING tree is stale while
-      the root is current. Today every hook test runs in one checkout, where the two are the same tree,
-      so no existing test can distinguish them.
+- [x] **DONE** — and the root cause of the blind spot is now recorded in the test file itself: every
+      pre-existing case ran `cd "$WORK"` first, so hook-cwd and edit-target were **the same tree by
+      construction and could not disagree.** The suite could not have caught this defect at any
+      thoroughness, because the fixture never built the situation §👥.1 mandates.
 
 ## 5 · A second, smaller finding
 

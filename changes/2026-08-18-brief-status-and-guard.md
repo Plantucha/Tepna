@@ -54,5 +54,24 @@ block — and `npm run test:hooks` exercises the hook's logic, not the tree that
 ⚠️ This retires the reassurance in `CLAUDE.md` §👥.2b-bis: *"hook-enforced means … in a checkout that
 pulled it"* implies a pulled checkout is the SAFE state. For this guard it is the DISABLED state.
 
-No code change here — the one-line fix (`git -C "$(dirname "$file")"`) needs a two-directional hook
-test to accompany it, since a one-directional test passes today.
+**FIXED AND GATED.** The hook now resolves the repository from the **edited file's** directory and
+anchors every later query at that worktree's toplevel. Four legs added to
+`guard-stale-brief.test.sh`, the decisive one **seen to fail first**:
+
+```
+before:  STALE worktree edited while cwd-tree is CURRENT   got ALLOW, want DENY
+after:   STALE worktree edited while cwd-tree is CURRENT   DENY
+```
+
+`npm run test:hooks` EXIT=0.
+
+⚠️ **The FIRST draft of the fix was wrong, and the anti-vacuity legs caught it.** Running the queries
+as `git -C "$edit_dir"` also makes **pathspecs** relative to that directory, so `-- briefs/X.md` from
+inside `briefs/` looks for `briefs/briefs/X.md`, matches nothing, and reads as *"did not move
+upstream"* → ALLOW. It converted three passing DENY cases into ALLOWs — i.e. it disabled the guard a
+second way while the headline case went green. Anchoring at `$root` is correct.
+
+⚠️ **Why the existing suite could never have caught the original defect:** every pre-existing case runs
+`cd "$WORK"` before driving the hook, so hook-cwd and edit-target are **the same tree by construction
+and cannot disagree**. The fixture never built the situation §👥.1 mandates, so no amount of added
+thoroughness inside that shape would have found it. That is now stated in the test file itself.
