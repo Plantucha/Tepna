@@ -390,44 +390,19 @@
       );
   }
 
-  function computeHints(r) {
-    if (DP()) return; // unified panel owns the field hints now (legacy DOM inputs removed)
-    const set = (id, txt, est) => {
-      const l = $(id);
-      if (!l) return;
-      l.textContent = txt;
-      l.classList.toggle('est', !!est);
-    };
-    const p = getProfile();
-    const n = popNorms(p.sex);
-    const ideal = +(22.5 * ((parseFloat($('ppgHeight').value) || n.h) / 100) ** 2).toFixed(1);
-    set('lbl_ppgWeight', '~ pop. avg ' + n.w + ' kg · ideal ' + ideal + ' kg');
-    set('lbl_ppgHeight', '~ pop. avg ' + n.h + ' cm');
-    if (r) {
-      const hm = r.hrmaxEff || Math.round(208 - 0.7 * p.age),
-        rh = Math.round(r.rhrEff || r.dispHr);
-      const altTxt = r.altFactor && r.altFactor < 1 ? ' · alt ×' + r.altFactor : '';
-      set('lbl_ppgVO2', '~ Uth–Sørensen → ' + r.vo2base + ' (HRmax ' + hm + '/rest ' + rh + altTxt + ')');
-      if (r.hrmaxRejected) set('lbl_ppgHRmax', '⚠ entry too low — using Tanaka ' + r.tanaka + ' bpm', true);
-      else {
-        const hrIn = Number($('ppgHRmax').value) || 0;
-        set('lbl_ppgHRmax', hrIn > 0 ? '✓ your value ' + hm + ' bpm' : '~ Tanaka: 208 − 0.7 × age = ' + r.tanaka);
-      }
-      const ev = Number($('ppgElev').value) || 0;
-      if (ev > 1500) set('lbl_ppgElev', '⛰ ' + ev.toLocaleString() + ' m · VO₂ ×' + r.altFactor, true);
-      else set('lbl_ppgElev', '~ sea level · adjusts VO₂max above 1500 m');
-      const rhrIn = Number($('ppgRHR').value) || 0;
-      if (rhrIn > 0) set('lbl_ppgRHR', '✓ your value');
-      else set('lbl_ppgRHR', '~ measured ' + Math.round(r.dispHr) + ' bpm', true);
-    }
-  }
+  /* `computeHints()` REMOVED 2026-08-19 (DEAD-FIELD-HINTS-FLEET). It wrote 9 field hints to `lbl_ppg*`
+     ids, and `PpgDex.src.html` defines NONE of them — nor any `lbl_` id at all. It was also unreachable
+     for a second, stronger reason: it read `$('ppgHeight').value`, and `ppgHeight` does not exist
+     either, so the body would have thrown a TypeError had it ever run. Its `if (DP()) return;` guard was
+     therefore load-bearing against a CRASH, not merely an early exit for a superseded panel — which is
+     why deleting the body is safer than leaving it guarded. The unified panel (`DexProfile`) owns these
+     hints now. */
 
   function render(r) {
     $('heroTop').style.display = 'grid';
     $('sec-profile').style.display = 'block';
     $('profilePanel').style.display = 'block';
     personalize(r);
-    computeHints(r);
     renderHero(r);
     renderHrvBench(r);
     if (_dexPanel) _dexPanel.refresh();
