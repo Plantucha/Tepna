@@ -15477,6 +15477,42 @@
       T.eq('computeDerived still produces 62 derived columns', produced.length, 62);
     });
 
+    group('HRVDex helper floor — 13 drafts adopted: numeric honesty, persistence guards, the clock pad (mutation-derived)', 'hrvdex-dsp · known-answer · mutation-pinned', function (T) {
+      var H = env.HRVDex && env.HRVDex._bare;
+      if (!H || typeof H._hrvNum !== 'function') {
+        T.skip('HRVDex._bare available', 'HRVDex not co-loaded in this runner');
+        return;
+      }
+      /* Adopted from the AI-probe draft bank: 13/13 batch-verified green, zero discards. */
+      var out;
+      out = H.computeCAMQ(1);
+      T.eq('H.computeCAMQ(1) → "50"', JSON.stringify(out), '50');
+      out = H._hrvNum(1);
+      T.eq('H._hrvNum(1) → "1"', JSON.stringify(out), '1');
+      out = H._hrvNum(null);
+      T.eq('H._hrvNum(null) → "true"', JSON.stringify(out === ''), 'true');
+      out = H._hrvNum(null);
+      T.eq('H._hrvNum(null) → "true"', JSON.stringify(out === ''), 'true');
+      out = H._hrvNum(0);
+      T.eq('H._hrvNum(0) → "false"', JSON.stringify(out === null), 'false');
+      out = H.persistHRVRows(null);
+      T.eq('H.persistHRVRows(null) → "true"', JSON.stringify(out.ok), 'true');
+      out = H.restoreHRVRows(null);
+      T.eq('H.restoreHRVRows(null) → "true"', JSON.stringify(out === false), 'true');
+      out = H.restoreHRVRows(null);
+      T.eq('H.restoreHRVRows(null) → "false"', JSON.stringify(out), 'false');
+      out = H._envToSeed(null);
+      T.eq('H._envToSeed(null) → "null"', JSON.stringify(out), 'null');
+      out = H.smooth([1, 2, 3]);
+      T.eq('H.smooth([1,2,3]) → "1"', JSON.stringify(out[0]), '1');
+      out = H._hrvClockS(null);
+      T.eq('H._hrvClockS(null) → "8"', JSON.stringify(out.length), '8');
+      out = H._hrvRowsFromInput([1, 2, 3]);
+      T.eq('H._hrvRowsFromInput([1,2,3]) → "0"', JSON.stringify(out.length), '0');
+      out = H._hrvNum('0', '-0');
+      T.eq('H._hrvNum("0","-0") → "true"', JSON.stringify(out === ''), 'true');
+    });
+
     /* ── THE GUARDS, not the outputs ────────────────────────────────────────────────────────────
        The group above pins all 52 derived columns on ONE fully-populated row, and 149 mutants
        survived it. They survived for a structural reason, not a coverage one: every derivation in
