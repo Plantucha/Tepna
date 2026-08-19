@@ -291,6 +291,39 @@ job count it was measured on.
 than an error, and the first time it would have corrupted a published number rather than merely
 costing time.
 
+### 3d · ✅ EXECUTED 2026-08-19 — interval coverage BUILT and the quarantine RE-CONFIRMED on better evidence
+
+**§3c's design is implemented** (`tests/run-tests.mjs --interval-coverage`, consumed by
+`per-group-coverage.mjs` — no more c8): inspector session started before any load, baseline take
+discarded, second take = the group's own interval. The collection defect is FIXED and the signature
+reversed: the Clock-Contract group, which under c8 carried hrvdex's entire 384-line load baseline,
+now attributes NOTHING; a certain-execution group attributes 243 real hrvdex lines; 22 groups
+attribute hrvdex where c8's data could not distinguish any.
+
+**And with correct collection, per-line selection is STILL unsound — three mechanisms, each measured:**
+
+1. **State-dependent paths.** hrvdex:801/869 are absent from the killing group's SOLO interval and
+   present when the tag set runs together — the executing branch depends on state earlier groups
+   build. A per-group map is blind to it by construction.
+2. **Load-executed lines.** 158/174/487/537/1319 appear in NO group's interval (the baseline discard
+   is the design), yet their mutants alter load state and die under the tag filter.
+3. **Non-behavioural reds.** Widening selection to the zero-attribution groups first manufactured
+   **22/22 fabricated kills** — the undeclared-skip audit red in `.git`-less workers (now fixed
+   properly: three `known-drift` declarations in `tests/expected-skips.json`, with the incident
+   noted). Two probe layers (worker-clean baseline + a comment-only integrity probe) now vet the
+   zero set inside `mutate.mjs`.
+
+Final paired measurement, hrvdex, fresh journals: tag 38 kills / selection **31** — 7 real kills
+lost. **Selection is therefore OPT-IN (`--use-coverage-map`) and the default stays the tag filter**;
+the evidence lives at the refusal site in `pgmapFor`. The map itself remains valuable as a
+diagnostic (reachability, invalidation hints, the §4 inventory).
+
+**The sound design, recorded for whoever builds it:** UNION-WITH-TAG — selected = tag-matched
+groups ∪ map line-groups ∪ vetted zeros. A superset of the tag set cannot lose a tag kill by
+construction, and the first (unsound) A/B showed 3 genuine SURVIVED→KILLED gains from cross-node
+groups the tag filter misses, so the union buys real kills at ~tag cost. Not built tonight: it needs
+tag→index resolution in `mutate.mjs` and its own paired measurement.
+
 ## 4 · ✅ DONE 2026-08-19 — per-lane sections, units kept apart, absence reported as ABSENT
 
 > **Executed.** `parseLaneLedger` reads the ResumeLedger JSONL the two lanes persist under

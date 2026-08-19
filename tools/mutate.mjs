@@ -430,6 +430,25 @@ const PGMAP_RAW = (() => {
 const _pgSeen = new Map();
 function pgmapFor(file) {
   if (!PGMAP_RAW) return null;
+  /* ⚠️ SELECTION IS OPT-IN (--use-coverage-map), QUARANTINE RE-CONFIRMED 2026-08-19 with the
+     interval-coverage collector — better collection did NOT make per-line selection sound. Measured
+     on hrvdex, paired sweeps: 7 of 38 tag-kills became survivors under selection. Mechanisms, each
+     proven separately:
+       · lines whose execution depends on STATE built by earlier groups (801, 869: absent from the
+         killing group's SOLO interval, present when the tag set runs together);
+       · LOAD-executed lines (158/174/487/537/1319: never in any group interval by design — the
+         baseline discard — yet their mutants change load state and die under tag);
+       · integrity/audit interactions (fixed separately via tests/expected-skips.json, and the
+         fabricated 22/22 "kills" they produced are why every number here was re-measured).
+     The sound design is UNION-WITH-TAG (a superset of the tag set can never lose a tag kill) plus
+     the vetted zeros — not yet built. Until it is, the map stays a diagnostic, not a filter. */
+  if (!process.argv.includes('--use-coverage-map')) {
+    if (!_pgSeen.has('__warned')) {
+      process.stderr.write('  ℹ coverage map present but NOT applied (selection is opt-in: --use-coverage-map) — see the §3 quarantine note in pgmapFor\n');
+      _pgSeen.set('__warned', true);
+    }
+    return null;
+  }
   const key = basename(file);
   if (_pgSeen.has(key)) return _pgSeen.get(key);
   const v = verifyFor(PGMAP_RAW, key, buildIdentity(ROOT, [key]));
@@ -464,6 +483,94 @@ export function calibrationIndices(map, file) {
   return out.length ? out : null;
 }
 
+/* Groups proven red in THIS RUN'S OWN ENVIRONMENT without any mutant — excluded from the
+   always-selected zero set. See zeroBaselineExcludes; empty until that baseline runs. */
+const SELECTION_EXCLUDE = new Set();
+
+/**
+ * THE ENVIRONMENT-MATCHED BASELINE (§3d). Widening selection to the zero-attribution groups
+ * converted 22 hrvdex survivors into "kills" in one run — every one attributed to the same two
+ * repo-inspection groups ("Demo-inputs git-tracked", "Fixture verification"), which red inside the
+ * hard-linked worker trees (no `.git`) for reasons no mutant caused. The tag filter had simply
+ * never run them, so the tag legs looked clean by omission.
+ *
+ * The calibration run could not catch this: it runs in ROOT, where those groups pass. A group is
+ * only excludable by failing a CLEAN run in the SAME environment the mutants will run in — so this
+ * runs the zero set once in worker 0 (or ROOT on the serial path, where it will find nothing, which
+ * is correct: there the groups pass for real). Excluded groups are REPORTED, loudly and in the JSON:
+ * an exclusion nobody can see is how a real kill goes missing next.
+ */
+export function parseZeroBaseline(jsonText) {
+  try {
+    const j = JSON.parse(jsonText);
+    const red = (j.groups || []).filter((g) => (g.tests || []).some((t) => t && !t.pass && !t.skip));
+    return { red: red.map((g) => ({ index: g.index, title: g.title })), parsed: true };
+  } catch {
+    return { red: [], parsed: false };
+  }
+}
+
+function runZeroSet(zeroIdx, cwd, timeoutMs) {
+  let out = '';
+  try {
+    out = execFileSync(process.execPath, [join(ROOT, 'tests/run-tests.mjs'), '--group-index=' + zeroIdx.join(','), '--json'], { cwd, timeout: timeoutMs || 300000, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+  } catch (e) {
+    out = String((e && e.stdout) || '');
+  }
+  return parseZeroBaseline(out);
+}
+
+function zeroBaselineExcludes(zeroIdx, cwd, timeoutMs, targetRel) {
+  if (!zeroIdx.length) return [];
+
+  /* PHASE 1 — clean run in the worker environment: catches groups red for ENVIRONMENT reasons. */
+  const clean = runZeroSet(zeroIdx, cwd, timeoutMs);
+  if (!clean.parsed) {
+    /* An unreadable baseline must FAIL CLOSED into the old behaviour: no widening at all beats
+       widening with unvetted groups — 22 fabricated kills measured says so. */
+    process.stderr.write('  ⚠ zero-set baseline unparseable — zero-attribution groups will NOT be auto-selected this run\n');
+    return null;
+  }
+
+  /* PHASE 2 — THE COMMENT-ONLY PROBE: catches CHANGE-DETECTOR groups. The 22 fabricated hrvdex
+     kills came from two groups that PASS the clean baseline and red on ANY byte change to a source
+     file — fixture/GATE-B-class integrity checks that hash the inputs. They would "kill" every
+     mutant of every file identically, which is a fact about the LEDGER, not about test quality, and
+     it would mask every genuine survivor. A comment appended to the target changes zero behaviour,
+     so any group that reds on it is asserting INTEGRITY, not behaviour — excluded, loudly.
+     (Unlink before writing — the worker file is a hard link to the real source.) */
+  let probeRed = { red: [], parsed: true };
+  if (targetRel) {
+    const wf = join(cwd, targetRel);
+    try {
+      const orig = readFileSync(wf, 'utf8');
+      rmSync(wf, { force: true });
+      writeFileSync(wf, orig + '\n// mutation-harness integrity probe (comment-only; removed after one run)\n');
+      probeRed = runZeroSet(zeroIdx, cwd, timeoutMs);
+      rmSync(wf, { force: true });
+      writeFileSync(wf, orig);
+      if (!probeRed.parsed) {
+        process.stderr.write('  ⚠ integrity-probe run unparseable — zero-attribution groups will NOT be auto-selected this run\n');
+        return null;
+      }
+    } catch (e) {
+      process.stderr.write('  ⚠ integrity probe failed (' + String((e && e.message) || e).slice(0, 60) + ') — zero-attribution groups will NOT be auto-selected this run\n');
+      return null;
+    }
+  }
+
+  const seen = new Map();
+  for (const g of clean.red) seen.set(g.index, { ...g, why: 'red in the worker environment without any change' });
+  for (const g of probeRed.red) if (!seen.has(g.index)) seen.set(g.index, { ...g, why: 'red on a COMMENT-ONLY change — an integrity check, not a behaviour test' });
+  const red = [...seen.values()];
+  for (const g of red) SELECTION_EXCLUDE.add(g.index);
+  if (red.length) {
+    process.stderr.write('  ⚠ ' + red.length + ' zero-attribution group(s) excluded from selection — red without any behavioural change:\n');
+    for (const g of red.slice(0, 6)) process.stderr.write('      #' + g.index + ' ' + String(g.title).slice(0, 66) + ' — ' + g.why + '\n');
+  }
+  return red;
+}
+
 export function selectIndices(map, file, line) {
   if (!map || !Array.isArray(map.groups) || !map.groups.length) return null;
   if (!Number.isFinite(line)) return null;
@@ -488,7 +595,19 @@ export function selectIndices(map, file, line) {
       continue;
     }
     const ls = g.files && g.files[file];
-    if (Array.isArray(ls) && ls.includes(line)) out.push(g.index);
+    if (Array.isArray(ls) && ls.includes(line)) {
+      out.push(g.index);
+      continue;
+    }
+    /* ⚠️ ZERO-ATTRIBUTION GROUPS ARE ALWAYS SELECTED — §3's three residual manufactured blinds were
+       all THIS: groups that kill by REGEX-TESTING THE SOURCE TEXT (`env.sources[...]` assertions),
+       which execute zero DSP lines by construction, so no coverage collector can ever attribute
+       them. Skipping them converted three real, textual kills into survivors. The price was measured
+       before this was written, not assumed: all 189 zero-attribution groups together cost ~3.5 s —
+       they ARE the cheap textual/ledger checks — so safe selection lands at ~2 % of the full suite
+       and the old "the safe map is slower than the tag filter" arithmetic no longer holds. */
+    const touchesAnything = g.files && Object.keys(g.files).length > 0;
+    if (!touchesAnything && !SELECTION_EXCLUDE.has(g.index)) out.push(g.index);
   }
   return out.length ? out : null; // never an empty selection — see the note above
 }
@@ -1336,6 +1455,15 @@ async function runFile(file) {
          file, so no two mutants ever race on the same bytes — and the caller's tree is never written
          to at all on this path. */
       trees.push(...workerPool());
+      /* §3d: vet the zero-attribution groups in the environment mutants will actually run in.
+         Runs once per sweep, costs one ~4 s pass of the cheapest groups in the suite. */
+      {
+        const pg = pgmapFor(file);
+        if (pg && trees.length) {
+          const zeroIdx = pg.groups.filter((gr) => !gr.unknown && (!gr.files || !Object.keys(gr.files).length)).map((gr) => gr.index);
+          zeroBaselineExcludes(zeroIdx, trees[0], timeoutMs, file);
+        }
+      }
       if (!trees.length) {
         /* No worker could be created — degrade to the serial in-place path rather than doing nothing.
            The backup/recovery machinery is keyed on JOBS === 1, so mark this file dirty explicitly. */

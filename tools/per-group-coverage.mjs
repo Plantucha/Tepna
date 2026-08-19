@@ -117,16 +117,22 @@ function listGroups() {
 
 function coverOne(index, tmpDir) {
   return new Promise((res) => {
-    const dir = join(tmpDir, 'g' + index);
-    const ch = spawn('npx', ['-y', 'c8@10.1.2', '--reporter=json', '--report-dir=' + dir, process.execPath, join(ROOT, 'tests/run-tests.mjs'), '--group-index=' + index], {
+    /* INTERVAL COVERAGE (MUTATION-SUITE-FOLLOWUPS §3c) replaces c8 here. c8's per-group report
+       attributed only the load-time baseline to the DSPs — 188 of 494 groups read as executing
+       nothing, six real kills were manufactured into survivors, and §3a proved the collected data
+       could not be re-interpreted around it. The runner now collects the group's OWN interval via
+       the V8 inspector (`--interval-coverage`): baseline take discarded after load, second take is
+       the group's execution alone. Validated: a certain-execution group attributes 243 hrvdex lines
+       where c8 attributed the baseline-only 384-line load set to everything. */
+    const f = join(tmpDir, 'g' + index + '.json');
+    const ch = spawn(process.execPath, [join(ROOT, 'tests/run-tests.mjs'), '--group-index=' + index, '--interval-coverage=' + f], {
       cwd: ROOT,
       stdio: 'ignore'
     });
     const kill = setTimeout(() => ch.kill('SIGKILL'), 900000);
     ch.on('close', () => {
       clearTimeout(kill);
-      const f = join(dir, 'coverage-final.json');
-      if (!existsSync(f)) return res({ index, unknown: true, reason: 'no coverage report' });
+      if (!existsSync(f)) return res({ index, unknown: true, reason: 'no interval report' });
       let cov;
       try {
         cov = JSON.parse(readFileSync(f, 'utf8'));
@@ -135,10 +141,10 @@ function coverOne(index, tmpDir) {
       }
       const files = {};
       for (const df of DSP_FILES) {
-        const ex = executedLines(findRecord(cov, df));
-        if (ex.size) files[df] = [...ex].sort((a, b) => a - b);
+        const lines = (cov.files && cov.files[df]) || [];
+        if (lines.length) files[df] = lines;
       }
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(f, { force: true });
       res({ index, files });
     });
     ch.on('error', (e) => {

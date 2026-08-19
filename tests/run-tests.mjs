@@ -246,6 +246,161 @@ const GROUP_INDICES = (() => {
   return new Set(idx);
 })();
 
+/* --interval-coverage=<out.json> — per-group INTERVAL coverage via the V8 inspector
+   (MUTATION-SUITE-FOLLOWUPS §3c). c8's per-group runs attributed ONLY the load-time baseline to the
+   DSPs (188 of 494 groups read as executing nothing; six real kills were manufactured into
+   survivors), and §3a proved the collected data cannot be re-interpreted around that. This changes
+   what is COLLECTED: `Profiler.takePreciseCoverage` RESETS ON READ on this Node, so each snapshot IS
+   an interval — take once after load and DISCARD (that is the baseline), run the group, take again:
+   the second snapshot is the group's own execution with the baseline already gone.
+   ⚠️ RESET-ON-READ MAKES THE COUNTER A SHARED, DESTRUCTIVE RESOURCE — never compose this flag with
+   c8 or any other in-process coverage reader: whoever reads the interval consumes it, and c8 would
+   then report whatever the last interval happened to contain, LOWER, without erroring. */
+const INTERVAL_COV = (() => {
+  const a = process.argv.slice(2);
+  const hit = a.find((x) => /^--?interval-coverage(=|$)/i.test(x));
+  if (!hit) return null;
+  const raw = hit.includes('=') ? hit.split('=').slice(1).join('=') : a[a.indexOf(hit) + 1] || '';
+  if (!raw) {
+    console.error('✗ --interval-coverage needs an output path');
+    process.exit(2);
+  }
+  return raw;
+})();
+let __covPost = null;
+if (INTERVAL_COV) {
+  /* ⚠️ PIN EVERY VM CONTEXT UNTIL THE FINAL TAKE — this is the §3 root cause, unified. V8 DROPS a
+     script's coverage when its context is garbage-collected, and several groups build short-lived
+     realms (a fresh co-load per group), so their entire execution vanished from c8 AND from the
+     inspector takes alike: counts existed (a no-discard probe read maxCount 12) and the take
+     reported the script ABSENT once the realm was collectable. Keeping a reference until after the
+     take is the whole fix; the array is released immediately after the interval is written. */
+  const __vm = await import('node:vm');
+  const __keepAlive = [];
+  globalThis.__covKeepAlive = __keepAlive;
+  const __origCreate = __vm.default.createContext;
+  __vm.default.createContext = function (...a) {
+    const c = __origCreate.apply(this, a);
+    __keepAlive.push(c);
+    return c;
+  };
+  const { Session } = await import('node:inspector');
+  const ses = new Session();
+  ses.connect();
+  __covPost = (method, params) => new Promise((resv, rej) => ses.post(method, params || {}, (e, r) => (e ? rej(e) : resv(r))));
+  await __covPost('Profiler.enable');
+  /* Started HERE — before any DSP loads — so the first take captures the entire load phase. */
+  await __covPost('Profiler.startPreciseCoverage', { callCount: true, detailed: true });
+}
+
+/** Offset-range V8 coverage → executed LINE set, per file under ROOT. Exported-shape helper kept
+ *  local: paint outer-to-inner so a count-0 sub-block correctly unmarks its lines (an else-branch
+ *  inside an executed function must not read as executed). Offsets are into the COMPILED source —
+ *  `classicify` rewrites line contents in place, so when disk offsets disagree we re-derive the
+ *  transformed text rather than mis-map. */
+/* COUNT-DIFF MODE (§3d): the discard-take approach loses re-entries into pre-baseline vm scripts in
+   this runner (measured: a no-discard take shows hrvdex maxCount 12 for a group whose interval take
+   reports the script ABSENT — V8 counts the calls, the post-reset take drops the script). Instead of
+   fighting that, run WITHOUT discard and subtract a once-measured BASELINE COUNT per line: the load
+   phase is deterministic (§3a measured identical line sets across groups; counts inherit that), so
+   `count > baselineCount` ⇔ the group itself executed the line. */
+function intervalToCounts(v8result) {
+  const files = {};
+  for (const scr of v8result.result || []) {
+    const url = String(scr.url || '');
+    const p = url.startsWith('file://') ? url.slice(7) : url;
+    if (!p.startsWith(ROOT) || !p.endsWith('.js') || p.includes('node_modules')) continue;
+    let src;
+    try {
+      src = readFileSync(p, 'utf8');
+    } catch {
+      continue;
+    }
+    const ranges = [];
+    let maxEnd = 0;
+    for (const fn of scr.functions || [])
+      for (const r of fn.ranges || []) {
+        ranges.push(r);
+        if (r.endOffset > maxEnd) maxEnd = r.endOffset;
+      }
+    if (!ranges.length) continue;
+    if (maxEnd > src.length + 8) {
+      try {
+        src = DexBuild.classicify(src);
+      } catch {}
+    }
+    const lineOfOffset = [];
+    {
+      let line = 1;
+      for (let i = 0; i < src.length; i++) {
+        lineOfOffset[i] = line;
+        if (src[i] === '\n') line++;
+      }
+      lineOfOffset[src.length] = line;
+    }
+    ranges.sort((a, b) => a.startOffset - b.startOffset || b.endOffset - a.endOffset);
+    const lineCount = {};
+    for (const r of ranges) {
+      const a = lineOfOffset[Math.min(r.startOffset, src.length)] || 1;
+      const b = lineOfOffset[Math.max(0, Math.min(r.endOffset - 1, src.length))] || a;
+      for (let ln = a; ln <= b; ln++) lineCount[ln] = r.count;
+    }
+    const rel = p.slice(ROOT.length).replace(/^\/+/, '');
+    files[rel] = lineCount;
+  }
+  return files;
+}
+
+function intervalToLines(v8result) {
+  const files = {};
+  for (const scr of v8result.result || []) {
+    const url = String(scr.url || '');
+    const p = url.startsWith('file://') ? url.slice(7) : url;
+    if (!p.startsWith(ROOT) || !p.endsWith('.js') || p.includes('node_modules')) continue;
+    let src;
+    try {
+      src = readFileSync(p, 'utf8');
+    } catch {
+      continue;
+    }
+    const ranges = [];
+    let maxEnd = 0;
+    for (const fn of scr.functions || []) for (const r of fn.ranges || []) {
+      ranges.push(r);
+      if (r.endOffset > maxEnd) maxEnd = r.endOffset;
+    }
+    if (!ranges.length) continue;
+    if (maxEnd > src.length + 8) {
+      try {
+        src = DexBuild.classicify(src);
+      } catch {
+        /* keep disk source; worst case is a clipped tail line */
+      }
+    }
+    const lineOfOffset = [];
+    {
+      let line = 1;
+      for (let i = 0; i < src.length; i++) {
+        lineOfOffset[i] = line;
+        if (src[i] === '\n') line++;
+      }
+      lineOfOffset[src.length] = line;
+    }
+    /* outer-to-inner: wider ranges first, then nested overrides repaint. */
+    ranges.sort((a, b) => a.startOffset - b.startOffset || b.endOffset - a.endOffset);
+    const lineCount = new Map();
+    for (const r of ranges) {
+      const a = lineOfOffset[Math.min(r.startOffset, src.length)] || 1;
+      const b = lineOfOffset[Math.max(0, Math.min(r.endOffset - 1, src.length))] || a;
+      for (let ln = a; ln <= b; ln++) lineCount.set(ln, r.count);
+    }
+    const rel = p.slice(ROOT.length).replace(/^\//, '');
+    const lines = [...lineCount.entries()].filter(([, c]) => c > 0).map(([ln]) => ln).sort((x, y) => x - y);
+    if (lines.length) files[rel] = lines;
+  }
+  return files;
+}
+
 /* --quiet / -q (D3 · EFFICIENCY-AUDIT-FINDINGS-2026-07-12): collapse the full per-assertion tree —
    print a header + assertions ONLY for failing groups, and always a trailing FAILURES recap. A red
    run otherwise emits ~169 KB and names the failure once, mid-log, so `| tail` yields nothing
@@ -1938,8 +2093,19 @@ async function main() {
     SHARD.unknown = unknown.length;
   }
 
-  const forked = JOBS && !SHARD && !AS_JSON && !LIST_ONLY ? await runForked(JOBS) : null;
+  if (__covPost && !process.env.DEX_IV_NODISCARD && !process.env.DEX_IV_COUNTS) await __covPost('Profiler.takePreciseCoverage'); // DISCARD: the load-time baseline (skipped in COUNTS mode — see intervalToCounts)
+  const forked = JOBS && !SHARD && !AS_JSON && !LIST_ONLY && !INTERVAL_COV ? await runForked(JOBS) : null;
   const { groups, totalGroups, groupFilter } = forked ? { groups: forked, totalGroups: forked.length, groupFilter: GROUP_FILTER || null } : runDexTests(env);
+  if (__covPost && process.env.DEX_IV_COUNTS) {
+    const iv = await __covPost('Profiler.takePreciseCoverage');
+    writeFileSync(INTERVAL_COV, JSON.stringify({ groupIndices: GROUP_INDICES ? [...GROUP_INDICES] : null, counts: intervalToCounts(iv) }));
+    if (globalThis.__covKeepAlive) globalThis.__covKeepAlive.length = 0;
+  } else if (__covPost) {
+    const iv = await __covPost('Profiler.takePreciseCoverage'); // the GROUP interval, baseline-free
+    if (process.env.DEX_IV_DEBUG) writeFileSync(INTERVAL_COV + '.raw', JSON.stringify((iv.result || []).filter((r) => r.url && !/node:|node_modules/.test(r.url)).map((r) => ({ url: r.url, fns: (r.functions || []).length, maxCount: Math.max(0, ...(r.functions || []).flatMap((f) => (f.ranges || []).map((x) => x.count))) }))));
+    writeFileSync(INTERVAL_COV, JSON.stringify({ groupIndices: GROUP_INDICES ? [...GROUP_INDICES] : null, files: intervalToLines(iv) }));
+    if (globalThis.__covKeepAlive) globalThis.__covKeepAlive.length = 0;
+  }
 
   // Machine-readable lanes (--list inventory / --json results) — no human report, no colour.
   if (AS_JSON || LIST_ONLY) {
