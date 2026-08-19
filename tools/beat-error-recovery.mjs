@@ -368,7 +368,7 @@ function main(argv) {
       continue;
     }
     if (rr.length < 500) continue;
-    const dev = /VeritySense/i.test(f) ? 'Verity' : /H10/i.test(f) ? 'H10' : 'other';
+    const dev = /VeritySense|Polar_Sense/i.test(f) ? 'Verity' : /H10/i.test(f) ? 'H10' : 'other';
     results.push({ file: basename(f), night: basename(dirname(f)), device: dev, beats: rr.length, ...measure(rr, ctx) });
   }
   const doc = { tool: 'beat-error-recovery', substrate: root, streams: results.length, results };
