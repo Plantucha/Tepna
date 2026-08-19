@@ -38,6 +38,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 import { pathToFileURL } from 'node:url';
+import { MAX_CRYSTAL_SPREAD_PPM, crystalVerdict } from './device-stability.mjs';
 
 const DIR = process.argv[2] || '/home/michal/tepna-smoketest/captures/2026-07-26';
 
@@ -55,7 +56,29 @@ export const INDEPENDENT_MIN_SPREAD_MS = 2 * HOST_QUANTUM_MS;
    99.4 % on 2026-07-27 → 2.2 %), so the drawn check no longer catches it — and it promptly reported a
    median of 160.5 ppm at a spread of 2282.6. Something in the capture changed; it did not become a
    clock. A device can fail this check for a new reason after passing an old one. */
-export const MAX_CRYSTAL_SPREAD_PPM = 50;
+/* ONE IMPLEMENTATION, OWNED BY `device-stability.mjs` (CROSS-DEVICE-DRIFT-FOLLOWUPS §Done-when).
+   The bound was authored here and COPIED there, which is why that file carries the comment "…and it
+   must apply here too or this tool re-prints the numbers that one rejects". Two copies of a decision
+   rule drift silently: nothing fails when only one is updated, and the two tools then disagree about
+   the same night. The richer verdict lives there — it adds a weighted-χ² test THROUGH the error bars —
+   so the direction of the merge is toward it, and this re-export keeps the name importable here.
+
+   ⚠️ HALF OF THAT DONE-WHEN ITEM IS **NOT** SATISFIED, AND SAYING SO IS THE POINT. It asks that this
+   tool's rule "read uncertainties". It cannot yet: this tool computes NO per-fragment uncertainty —
+   there is no `ppmUncertainty`, `sigma` or `stderr` anywhere in it, and `device-stability.mjs`
+   sources its own from σ_y at the recording's own span, i.e. from the Allan machinery this tool does
+   not run. So `crystalVerdict` here takes its no-uncertainties branch and falls back to the raw
+   bound — deliberately, since that branch exists precisely to refuse inventing a σ, and a fabricated
+   error bar would make every spread explicable. Sharing the implementation is real and lands now;
+   READING uncertainties needs σ_y computed here first, and is a separate change. */
+export { MAX_CRYSTAL_SPREAD_PPM };
+
+/* PURE decision predicate for the per-device roll-up, separated from the I/O for the same reason
+   `classifyRate` is — so it is gateable on values rather than by scanning the streaming loop. */
+export function crystalCoherence(vals) {
+  const v = crystalVerdict(vals || []);
+  return { incoherent: v.verdict === 'not-a-crystal', verdict: v.verdict, spreadPpm: v.spreadPpm, n: v.n };
+}
 
 /* PURE decision predicate — what this tool is entitled to CONCLUDE from one fragment's fit. Separated
    from the I/O so it is gateable on values (tests/dex-tests.js `dual-clock-rate`), which a source scan
@@ -258,7 +281,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const md = s2[s2.length >> 1];
     const spread = s2[s2.length - 1] - s2[0];
     const nDrawn = drawnBy[dev] || 0;
-    const incoherent = vals.length > 1 && spread > MAX_CRYSTAL_SPREAD_PPM;
+    const incoherent = crystalCoherence(vals).incoherent;
     const why = nDrawn
       ? `   ← ${nDrawn} fragment(s) have a DRAWN axis: no device clock in the file, so those ppm are drawing error`
       : incoherent
