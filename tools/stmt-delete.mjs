@@ -415,7 +415,6 @@ async function runLevelB(file, group, jobs, covPath, resumePath) {
   const { mkdtempSync, readFileSync, writeFileSync, rmSync, symlinkSync, readdirSync, existsSync } = await import('node:fs');
   const { join, dirname, resolve } = await import('node:path');
   const { fileURLToPath } = await import('node:url');
-  const { resolveStatePath } = await import('./mutation-map.mjs');
   const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
   const abs = join(ROOT, file);
   const src = readFileSync(abs, 'utf8');
@@ -873,6 +872,14 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
 }
 
 if (IS_MAIN && !process.argv.includes('--selftest')) {
+  /* §1's covPath/resumePath defaults resolve through the shared-state helper — imported HERE, the
+     scope that uses it. The first version imported it inside runLevelB (which never touches it), so
+     every REAL invocation threw ReferenceError at covPath while the selftest — which cannot reach
+     this block — stayed green. CI's biome unused-variable red caught a latent crash. */
+  const { join: _j, dirname: _d } = await import('node:path');
+  const { fileURLToPath: _f } = await import('node:url');
+  const { resolveStatePath } = await import('./mutation-map.mjs');
+  const ROOT = _j(_d(_f(import.meta.url)), '..');
   const argv = process.argv.slice(2);
   const opt = (f, d) => {
     const i = argv.indexOf(f);
@@ -885,7 +892,9 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   const covPath = opt('--cov', resolveStatePath(ROOT, 'cov/coverage-final.json')); /* §1: shared-first */
   /* Resume is OPT-IN: a stale ledger silently reused would be worse than a slow restart, so the
      operator asks for it and the fingerprint decides whether it is honoured. */
-  const resumePath = argv.includes('--resume') ? opt('--resume-file', resolveStatePath(ROOT, 'levelb-' + file.replace(/[^A-Za-z0-9]+/g, '-') + '-' + group.replace(/[^A-Za-z0-9]+/g, '-') + '.jsonl')) /* §1 */ : null;
+  const resumePath = argv.includes('--resume')
+    ? opt('--resume-file', resolveStatePath(ROOT, 'levelb-' + file.replace(/[^A-Za-z0-9]+/g, '-') + '-' + group.replace(/[^A-Za-z0-9]+/g, '-') + '.jsonl')) /* §1 */
+    : null;
   if (!file || !group) {
     console.error('usage: node tools/stmt-delete.mjs --file <f> --group <g> [--jobs N] [--json] [--cov <f>] [--resume [--resume-file <f>]]');
     process.exit(2);

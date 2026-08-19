@@ -422,7 +422,11 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
     listDocs(ROOT).some((f) => f.startsWith('briefs/'))
   );
   ok('…and root docs like CLAUDE.md', listDocs(ROOT).includes('CLAUDE.md'));
-  ok('§1: the index cache resolves within a declared state candidate', stateDirs(ROOT).some((d) => CACHE.startsWith(d)), CACHE);
+  ok(
+    '§1: the index cache resolves within a declared state candidate',
+    stateDirs(ROOT).some((d) => CACHE.startsWith(d)),
+    CACHE
+  );
   console.log(fail ? '\n✗ ' + fail + ' failed, ' + pass + ' passed' : '\n✓ all ' + pass + ' selftests passed');
   process.exit(fail ? 1 : 0);
 }

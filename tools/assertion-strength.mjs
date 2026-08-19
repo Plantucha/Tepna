@@ -183,7 +183,11 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   ok('verdicts parse by index', v[0].verdict === 'VALUE' && v[1].verdict === 'BOUND' && v[2].verdict === 'SKIP');
   ok('…and carry the reason', /power law/.test(v[0].why));
   ok('out-of-range indices are ignored', parseVerdicts('9: VALUE x', 2).length === 0);
-  ok('§1: the resume ledger resolves within a declared state candidate', stateDirs(ROOT).some((d) => resolveStatePath(ROOT, 'assertion-strength.jsonl').startsWith(d)), resolveStatePath(ROOT, 'assertion-strength.jsonl'));
+  ok(
+    '§1: the resume ledger resolves within a declared state candidate',
+    stateDirs(ROOT).some((d) => resolveStatePath(ROOT, 'assertion-strength.jsonl').startsWith(d)),
+    resolveStatePath(ROOT, 'assertion-strength.jsonl')
+  );
   console.log(fail ? '\n✗ ' + fail + ' failed, ' + pass + ' passed' : '\n✓ all ' + pass + ' selftests passed');
   process.exit(fail ? 1 : 0);
 }

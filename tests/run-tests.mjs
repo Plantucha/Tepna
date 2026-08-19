@@ -365,10 +365,11 @@ function intervalToLines(v8result) {
     }
     const ranges = [];
     let maxEnd = 0;
-    for (const fn of scr.functions || []) for (const r of fn.ranges || []) {
-      ranges.push(r);
-      if (r.endOffset > maxEnd) maxEnd = r.endOffset;
-    }
+    for (const fn of scr.functions || [])
+      for (const r of fn.ranges || []) {
+        ranges.push(r);
+        if (r.endOffset > maxEnd) maxEnd = r.endOffset;
+      }
     if (!ranges.length) continue;
     if (maxEnd > src.length + 8) {
       try {
@@ -395,7 +396,10 @@ function intervalToLines(v8result) {
       for (let ln = a; ln <= b; ln++) lineCount.set(ln, r.count);
     }
     const rel = p.slice(ROOT.length).replace(/^\//, '');
-    const lines = [...lineCount.entries()].filter(([, c]) => c > 0).map(([ln]) => ln).sort((x, y) => x - y);
+    const lines = [...lineCount.entries()]
+      .filter(([, c]) => c > 0)
+      .map(([ln]) => ln)
+      .sort((x, y) => x - y);
     if (lines.length) files[rel] = lines;
   }
   return files;
@@ -2102,7 +2106,15 @@ async function main() {
     if (globalThis.__covKeepAlive) globalThis.__covKeepAlive.length = 0;
   } else if (__covPost) {
     const iv = await __covPost('Profiler.takePreciseCoverage'); // the GROUP interval, baseline-free
-    if (process.env.DEX_IV_DEBUG) writeFileSync(INTERVAL_COV + '.raw', JSON.stringify((iv.result || []).filter((r) => r.url && !/node:|node_modules/.test(r.url)).map((r) => ({ url: r.url, fns: (r.functions || []).length, maxCount: Math.max(0, ...(r.functions || []).flatMap((f) => (f.ranges || []).map((x) => x.count))) }))));
+    if (process.env.DEX_IV_DEBUG)
+      writeFileSync(
+        INTERVAL_COV + '.raw',
+        JSON.stringify(
+          (iv.result || [])
+            .filter((r) => r.url && !/node:|node_modules/.test(r.url))
+            .map((r) => ({ url: r.url, fns: (r.functions || []).length, maxCount: Math.max(0, ...(r.functions || []).flatMap((f) => (f.ranges || []).map((x) => x.count))) }))
+        )
+      );
     writeFileSync(INTERVAL_COV, JSON.stringify({ groupIndices: GROUP_INDICES ? [...GROUP_INDICES] : null, files: intervalToLines(iv) }));
     if (globalThis.__covKeepAlive) globalThis.__covKeepAlive.length = 0;
   }
