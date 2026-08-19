@@ -227,7 +227,7 @@ function* sidecars(root) {
   }
 }
 
-const deviceOf = (f) => (/O2Ring/i.test(f) ? 'O2Ring' : /VeritySense/i.test(f) ? 'Verity' : /H10/i.test(f) ? 'H10' : 'other');
+const deviceOf = (f) => (/O2Ring/i.test(f) ? 'O2Ring' : /VeritySense|Polar_Sense/i.test(f) ? 'Verity' : /H10/i.test(f) ? 'H10' : 'other');
 
 /* ── BLINDING ────────────────────────────────────────────────────────────────────────────────────
    WHY THIS IS IN THE TOOL RATHER THAN A PROCEDURE NOTE. This work preregistered its criteria and still

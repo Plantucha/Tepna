@@ -238,12 +238,16 @@ const walk = (d) => {
 const nights = new Map();
 for (const f of walk(ROOT)) {
   const b = path.basename(f);
-  const h10 = /^Polar_H10_[0-9A-Fa-f]+_(\d{14})_ACC\.txt$/.exec(b);
-  const ver = h10 ? null : /^Polar_VeritySense_[0-9A-Fa-f]+_(\d{14})_ACC\.txt$/.exec(b);
+  const h10 = /^Polar_H10_[0-9A-Fa-f]+_(\d{8}_?\d{6})_ACC\.txt$/.exec(b);
+  const ver = h10 ? null : /^Polar_(?:VeritySense|Sense)_[0-9A-Fa-f]+_(\d{8}_?\d{6})_ACC\.txt$/.exec(b);
   const m = h10 || ver;
   if (!m) continue;
   const dev = h10 ? 'h10' : 'ver';
-  const st = m[1];
+  /* PSL writes the stamp as YYYYMMDD_HHMMSS (underscore inside); the capture host writes 14
+     contiguous digits. Normalise so the positional slices below stay valid for both — the spelling
+     fix alone matched 0 PSL files, because the stamp shape was a SECOND, independent blindness
+     that only the 0->54 control exposed. */
+  const st = m[1].replace('_', '');
   const abs = Date.UTC(+st.slice(0, 4), +st.slice(4, 6) - 1, +st.slice(6, 8), +st.slice(8, 10), +st.slice(10, 12), +st.slice(12, 14));
   const night = new Date(abs - 12 * 3600e3).toISOString().slice(0, 10); // noon-to-noon
   if (!nights.has(night)) nights.set(night, { h10: [], ver: [] });
