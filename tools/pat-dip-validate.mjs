@@ -174,7 +174,7 @@ function main() {
     {
       const { PPGDSP } = getDsps();
       let acc = null;
-      for (const f of readdirSync(join(ROOT, night)).filter((x) => /VeritySense.*_ACC\.txt$/i.test(x))) {
+      for (const f of readdirSync(join(ROOT, night)).filter((x) => /(?:VeritySense|Polar_Sense).*_ACC\.txt$/i.test(x))) {
         try {
           const sArr = PPGDSP.parseSensorXYZ(readFileSync(join(ROOT, night, f), 'utf8'));
           if (!sArr || !sArr.length || sArr[0].tMs == null) continue;

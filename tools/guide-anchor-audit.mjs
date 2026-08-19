@@ -26,11 +26,12 @@
  * The tool decodes `\uXXXX` and `&#xNN;` on BOTH sides before comparing.
  *
  *     node tools/guide-anchor-audit.mjs            # sweep every guide
- *     node tools/guide-anchor-audit.mjs --self-test
+ *     node tools/guide-anchor-audit.mjs --selftest
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
+import { selfTest as stripSelfTest, stripElement } from './strip-markup.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -40,26 +41,12 @@ export function decodeKey(t) {
     .replace(/&#x([0-9a-fA-F]+);/g, (_m, h) => String.fromCodePoint(Number.parseInt(h, 16)));
 }
 
+/* Delegates to the shared index scanner. It used to be a regex HERE, and it was wrong three times —
+   each fix satisfied the previous CodeQL example and left the class open (`</script >`, then
+   `</script foo>`). See `tools/strip-markup.mjs` for why scanning replaced pattern-matching and what a
+   leak costs this specific tool: the seven phantom dead links it was built to remove. */
 export function stripScripts(html) {
-  /* The closing tag may carry whitespace — `</script >` is valid HTML and a `<\/script>` literal misses
-     it, letting the ENTIRE script body through as "markup". That is not cosmetic here: it regenerates
-     precisely the seven phantom dead links this strip exists to prevent, because a runtime-built
-     `href="#'+target+'"` would then be read as a real anchor. Found by CodeQL (`js/bad-tag-filter`) on
-     the PR that introduced this file, and reproduced before fixing — latent today only because no guide
-     currently spaces that tag.
-     Two further hardenings, neither cosmetic:
-       · loop to a FIXPOINT — one pass can leave a `<script` behind on nested or malformed markup;
-       · if an UNCLOSED `<script` survives the loop, drop from it to end-of-input. An unterminated script
-         is the worst case: `[\s\S]*?` finds no partner, so the whole tail would be mined as content.
-         Truncating is the honest read — everything after an unclosed script tag IS script. */
-  let cur = String(html);
-  let prev;
-  do {
-    prev = cur;
-    cur = cur.replace(/<script\b[\s\S]*?<\/script\s*>/gi, '');
-  } while (cur !== prev);
-  const orphan = /<script\b/i.exec(cur);
-  return orphan ? cur.slice(0, orphan.index) : cur;
+  return stripElement(html, 'script');
 }
 
 export function auditGuide(html) {
@@ -104,7 +91,15 @@ function main() {
   return bad === 0 ? 0 : 1;
 }
 
-if (process.argv.includes('--self-test')) {
+/* ⚠️ THE FLAG IS `--selftest`, UNHYPHENATED, AND THAT IS LOAD-BEARING — `--self-test` is accepted only
+   as an alias. Both the CI step (`tests.yml`, "Analysis-tool selftests", a `grep -rln -- '--selftest'`
+   loop) and `tools/selftest-all.mjs` DISCOVER tools by that literal. This file originally spelled it
+   hyphenated and used `===`, so it matched neither discovery form and was silently NOT ENROLLED: 44
+   tools ran, this one never did, and its absence was indistinguishable from it passing. The CI step's
+   "refuse a run finding fewer than ten" floor cannot see it either — the floor was met by the other 44.
+   The banner must also read `all N selftests passed`: that is the string the runner parses for the
+   COUNT, and a count is what makes a suite silently shrinking from 12 legs to 3 visible. */
+if (process.argv.includes('--selftest') || process.argv.includes('--self-test')) {
   let legs = 0;
   const eq = (c, m) => {
     legs++;
@@ -117,6 +112,8 @@ if (process.argv.includes('--self-test')) {
   eq(stripScripts(`<a href=${q}#real${q}></a><scr${'ipt'}>x='#'+t</scr${'ipt'}>`).includes('#real'), 'markup survives script strip');
   eq(!stripScripts(`<scr${'ipt'}>href=${q}#'+t+'${q}</scr${'ipt'}>`).includes("'+t+'"), 'runtime-built href is NOT read as markup');
   eq(!stripScripts(`<scr${'ipt'}>href=${q}#'+t+'${q}</scr${'ipt'} >`).includes("'+t+'"), 'SPACED closing tag </script > is still stripped');
+  eq(!stripScripts(`<scr${'ipt'}>href=${q}#'+t+'${q}</scr${'ipt'} foo>`).includes("'+t+'"), 'ATTRIBUTED closing tag </script foo> is stripped');
+  eq(stripSelfTest() === 12, "the shared scanner's own 12 legs pass");
   eq(!stripScripts(`<a href=${q}#s${q}></a><scr${'ipt'}>href=${q}#'+t+'${q}`).includes("'+t+'"), 'UNCLOSED script truncates rather than leaking its tail');
   eq(stripScripts(`<a href=${q}#s${q}></a><scr${'ipt'}>x</scr${'ipt'}>`).includes('#s'), 'real markup before a script survives');
   eq(decodeKey('SpO\\u2082') === 'SpO₂', 'backslash-u decoded');
@@ -127,7 +124,7 @@ if (process.argv.includes('--self-test')) {
   eq(dead.dead.length === 1 && dead.dead[0] === 'gone', 'dead link found');
   const dupd = auditGuide(`<div id=${q}s${q}></div><div id=${q}s${q}></div>`);
   eq(dupd.dup.length === 1, 'duplicate id found');
-  console.log(`self-test: ${legs}/${legs} ok`);
+  console.log(`all ${legs} selftests passed`);
   process.exit(0);
 }
 if (resolve(process.argv[1] || '') === resolve(fileURLToPath(import.meta.url))) process.exit(main());
