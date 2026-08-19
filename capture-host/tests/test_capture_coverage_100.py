@@ -1582,12 +1582,21 @@ def test_a_doff_settle_inside_the_drop_grace_is_RAISED_not_obeyed(tmp_path, monk
 # the MORNING QC DIGEST (VIGIL-OVERNIGHT-FINDINGS §P2.4) — coverage is the number that matters,
 # and the failure alert alone never sends it: a good night says nothing.
 # ═══════════════════════════════════════════════════════════════════════════════════════════
-def test_qc_digest_due_fires_at_the_hour_once_per_day():
-    assert capture.qc_digest_due(9, 9, False) is True     # at the hour, not yet sent → due
-    assert capture.qc_digest_due(23, 9, False) is True    # late is still due (box was down at 9)
-    assert capture.qc_digest_due(8, 9, False) is False    # before the hour
-    assert capture.qc_digest_due(9, 9, True) is False     # already sent today — the ALLOW twin above
-    assert capture.qc_digest_due(9, -1, False) is False   # -1 disables, at any hour
+def test_qc_digest_due_is_a_bounded_window_not_a_floor():
+    """Delegates to cpap_harvest.due_now — the primitive whose docstring records the floor variant as
+    'wrong and shipped once' (a 19:25 restart re-armed a 13:00 job). The first draft of THIS function
+    was that floor; these pin the window semantics so it cannot quietly return."""
+    import datetime as dt
+    at = lambda h, m=0: dt.datetime(2026, 8, 18, h, m)
+    assert capture.qc_digest_due(at(9), 9, None) is True         # in the window, never sent → due
+    assert capture.qc_digest_due(at(11, 59), 9, None) is True    # still inside [9, 12)
+    assert capture.qc_digest_due(at(8, 59), 9, None) is False    # before the window
+    assert capture.qc_digest_due(at(19, 25), 9, None) is False   # THE 2026-07-26 BUG: restart after the
+    #                                                              window must NOT consider itself due
+    import cpap_harvest
+    d = cpap_harvest.window_start_date(at(9), 9, 3)
+    assert capture.qc_digest_due(at(10), 9, d) is False          # already sent this window — ALLOW twin
+    assert capture.qc_digest_due(at(10), -1, None) is False      # -1 disables, at any hour
 
 
 def test_the_morning_digest_sends_coverage_once(tmp_path, monkeypatch):
@@ -1605,8 +1614,12 @@ def test_the_morning_digest_sends_coverage_once(tmp_path, monkeypatch):
         async def send(self, title, message, **kw):
             sent.append((title, message, kw.get("key")))
             return True
+    import datetime as dt
+    monkeypatch.setattr(capture, "_now", lambda: dt.datetime(2026, 8, 18, 9, 30))  # pinned INSIDE the
+    # window — the first draft used digest_hour 0 as "always due", which under bounded-window semantics
+    # is only true before 03:00 local: the very time-dependence this feature red-flagged in CI.
     _stop_after(monkeypatch, 3)                     # three polls; ONE digest
-    cfg = {"qc": {"poll_sec": 1, "digest_hour": 0}, "devices": []}   # hour 0 ⇒ always past it
+    cfg = {"qc": {"poll_sec": 1, "digest_hour": 9}, "devices": []}
     _run(capture.qc_poller(cfg, str(tmp_path), _N()))
     digests = [s for s in sent if s[0] == "Tepna night QC"]
     assert len(digests) == 1, f"once per day, not per poll: {digests}"
@@ -1648,7 +1661,9 @@ def test_the_digest_disabled_by_hour_minus_one(tmp_path, monkeypatch):
 
 def test_an_empty_night_sends_no_digest_even_when_due(tmp_path, monkeypatch):
     """The `_line is None` branch: due, notifier present, nothing measured — silence, deliberately."""
-    sent, polls = _digest_deny_case(tmp_path, monkeypatch, {"poll_sec": 1, "digest_hour": 0})
+    import datetime as dt
+    monkeypatch.setattr(capture, "_now", lambda: dt.datetime(2026, 8, 18, 9, 30))
+    sent, polls = _digest_deny_case(tmp_path, monkeypatch, {"poll_sec": 1, "digest_hour": 9})
     assert polls > 0, "the tick must actually run — a zero-tick pass proves nothing"
     assert sent == [], f"an empty summ must send nothing: {sent}"
 

@@ -4254,12 +4254,20 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                         alerted.add(name)
 
 
-def qc_digest_due(hour_now: int, digest_hour: int, sent_today: bool) -> bool:
-    """PURE: send the morning QC digest now? True once per local day, at or after `digest_hour`.
-    `digest_hour < 0` disables — an owner who wants only the failure alert should not be paged daily.
-    Same predicate style as `charger_pull_due`/`notworn_pull_due`, for the same reason: the decision is
-    testable without the loop around it."""
-    return digest_hour >= 0 and not sent_today and hour_now >= digest_hour
+def qc_digest_due(now, digest_hour: int, last_sent_date) -> bool:
+    """PURE: send the morning QC digest now? `digest_hour < 0` disables.
+
+    Delegates to `cpap_harvest.due_now` — a BOUNDED window with a wrap-safe once-per-day key — rather
+    than a bare `now.hour >= digest_hour` floor. That floor was this function's first draft, and it is
+    the exact pattern `due_now`'s docstring records as "wrong and shipped once": every daemon restart
+    after the hour re-arms the job, so a 19:25 restart would re-send the morning digest at bedtime.
+    The precedent existed 300 lines away, tested, with the bug's measured cost written on it; this is
+    the inheritance the first draft skipped (same shape as the DSPs never inheriting §2.6)."""
+    if digest_hour < 0:
+        return False
+    import cpap_harvest  # function-local, matching this file's existing cpap imports — keeps
+    #                      `import capture` free of the telemetry chain until the feature is used
+    return cpap_harvest.due_now(now, digest_hour, last_sent_date, window_h=3)
 
 
 async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = None):
@@ -4276,8 +4284,12 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
     alert_after = float(qcfg.get("alert_after_sec", 3600))
     # Morning digest (VIGIL-OVERNIGHT-FINDINGS §P2.4): the missing-stream alert fires only when
     # something is WRONG, so a good night sends nothing and the coverage number never reaches the
-    # owner. This is the unconditional once-a-day counterpart. -1 disables.
-    digest_hour = int(qcfg.get("digest_hour", 9))
+    # owner. This is the unconditional once-a-day counterpart.
+    # ⚠ DEFAULT IS OFF (-1), deliberately — enable per box via `qc.digest_hour`. An on-by-default
+    # hour makes every test that reaches this poller with a notifier TIME-OF-DAY DEPENDENT, and that
+    # is measured, not theoretical: the same commit ran green locally before 09:00 EDT and red in CI
+    # at ≥09:00 UTC. A default whose test outcome depends on the wall clock is a flake generator.
+    digest_hour = int(qcfg.get("digest_hour", -1))
     digest_sent_date = None
     # A CONNECTED SENSOR THAT HAS STOPPED SENDING. Much shorter grace than alert_after: this is not
     # "the night has not started yet", it is "the link is up and the bytes are not coming". Every PMD
@@ -4318,12 +4330,15 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             n = summ["night"]
             first_seen.setdefault(n, _time.monotonic())
             # ── morning digest — once per LOCAL day, unconditional (§P2.4) ──────────────────────
-            _today = _now().date()
-            if notifier and qc_digest_due(_now().hour, digest_hour, digest_sent_date == _today):
+            _dnow = _now()
+            if notifier and qc_digest_due(_dnow, digest_hour, digest_sent_date):
                 _line = nightqc.qc_digest(summ)
                 if _line:  # an empty night sends NOTHING — the digest must never train the reader that
-                    digest_sent_date = _today  # it is noise. Marked before the await, like every sender here.
-                    await notifier.send("Tepna night QC", _line, key=f"qc-digest-{_today}")
+                    # it is noise. The consumed key is the WINDOW's start date (wrap-safe), marked
+                    # before the await like every sender here.
+                    import cpap_harvest
+                    digest_sent_date = cpap_harvest.window_start_date(_dnow, digest_hour, 3)
+                    await notifier.send("Tepna night QC", _line, key=f"qc-digest-{digest_sent_date}")
             # A SENSOR THAT IS CONNECTED AND SENDING NOTHING. Distinct from `missing` (which means
             # "produced nothing all night" and therefore cannot see a mid-night freeze) and from the
             # offline alert (which needs the link to actually drop). This is the 2026-07-25 Verity:
