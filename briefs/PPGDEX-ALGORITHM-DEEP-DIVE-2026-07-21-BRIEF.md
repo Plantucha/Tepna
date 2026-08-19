@@ -263,6 +263,44 @@ Ordered by gain ÷ cost. **★ = do first.** Sites are `ppgdex-dsp.js` unless st
 | 11 | **Epoch validity by time + per-band minimum durations** | new | Converts "we computed rMSSD" into a bounded claim; stops silently reporting boundary-limited HF | Some nights emit `null` where they emitted a number — correct, but consumer-visible | Very high |
 | 12 | **Fix the `:161` comment** — it says *"three co-located photodiodes"*; it is **one** photodiode and three LED pairs, and the site is the upper arm, not the wrist | `:161` | Documentation correctness (§1.1) | None | Very high |
 
+### ⚠️ #8 has a PRECONDITION — measured 2026-08-19, before implementing it
+
+The ceiling mechanism is confirmed exactly as described, in source:
+
+```
+ppgdex-morph.js:40   const pre = Math.round(fs * 0.15);   // template starts 150 ms before the peak
+ppgdex-morph.js:79   let footI = 0, footV = beat[0];      // foot = global min over [0, sysI)
+ppgdex-morph.js:135  const riseTimeMs = ms(sysI - footI);
+```
+
+`footI` cannot precede the template, and `sysI ≈ pre`, so **`riseTimeMs ≤ ms(pre) = 150 ms`** — the
+150 ms bound the brief observed as 147.4 ms. The defect is real and the site is right.
+
+⚠️ **But the bare constant swap 0.15 → 0.50 trades the artefact for an HR-dependent one, and the
+parenthetical *"(or feed it `det.feet`)"* is the part that matters.** `footI` searches `[0, sysI)`,
+i.e. `pre` seconds back. The previous beat's own foot enters that window when
+
+```
+RR < pre + riseTime  =  0.50 + ~0.25  =  0.75 s      ->   HR > 80 bpm
+```
+
+Above ~80 bpm the global minimum over the widened window can be the PREVIOUS beat's foot, and
+`riseTimeMs` becomes pinned to the new 500 ms window instead of the old 150 ms one — the same defect,
+relocated and harder to spot because 500 ms is a physiologically plausible number where 147.4 was not.
+
+*(The weaker bound `pre+post > RR`, i.e. HR > 57 bpm, is NOT the failure point: the template spanning
+more than one RR is harmless because the foot search never looks at `post`, and the previous beat's
+diastolic decay approaches the foot from ABOVE, so it cannot win a minimum search.)*
+
+**Committed-corpus HR is 66 and 48 bpm (RR 909 / 1250 ms), so the sleep regime is safe** — but PpgDex
+reads a Verity Sense, a sports armband, and >80 bpm is not exotic there.
+
+**So #8 should ship as one of:** (a) `det.feet` fed in directly, which removes the search and the bound
+together; or (b) `pre = 0.50` **with the foot search bounded** to a plausible rise interval before
+`sysI` rather than the whole window. Shipping the bare constant is only correct if the node is declared
+sleep-only, which it is not. **Not implemented here** — the choice between (a) and (b) is a design call,
+and this is the measurement that should precede it.
+
 **Landing order** (one gated change at a time per `CLAUDE.md` §👥.3):
 `4 ✅ → 12 ✅ → 8 → 1 → 6 → 7 → 2 → 10 → 5 → 11 → [9 experiment]` *(#3 withdrawn; #4 and #12 SHIPPED 2026-07-21, mutation-verified both directions, real-corpus equiv leg reproduces byte-identical)*
 
