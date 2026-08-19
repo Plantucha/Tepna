@@ -86,31 +86,46 @@ export function hrv(rr) {
 export const BEAT = {
   /* A MISSED beat: the detector fails to fire, so two adjacent intervals MERGE into one. This is the
      physically correct model — a dropped beat does not shorten the record, it fuses two RRs. */
-  miss: (rr, frac, seed) => {
+  /* Labelled core (target 6's criterion is precision/recall VS INJECTED LABELS, so the injector must
+     say where it injected). `labels[k]` is true iff output interval k is a MERGED one. The unlabelled
+     form below is a wrapper over this, so the two cannot drift. */
+  missLabelled: (rr, frac, seed) => {
     const r = lcg(seed),
-      out = [];
+      out = [],
+      labels = [];
     for (let i = 0; i < rr.length; i++) {
       if (i < rr.length - 1 && r() < frac) {
         out.push(rr[i] + rr[i + 1]);
+        labels.push(true);
         i++;
-      } else out.push(rr[i]);
+      } else {
+        out.push(rr[i]);
+        labels.push(false);
+      }
     }
-    return out;
+    return { rr: out, labels };
   },
+  miss: (rr, frac, seed) => BEAT.missLabelled(rr, frac, seed).rr,
   /* A FALSE POSITIVE: a spurious detection SPLITS one interval into two. Split point is drawn but
      bounded away from the ends, because a detector firing 1 ms after a real beat is a different
      artefact (and is what refractory logic removes). */
-  falsePositive: (rr, frac, seed) => {
+  fpLabelled: (rr, frac, seed) => {
     const r = lcg(seed ^ 0x5f),
-      out = [];
+      out = [],
+      labels = [];
     for (const x of rr) {
       if (r() < frac) {
         const f = 0.3 + r() * 0.4;
         out.push(x * f, x * (1 - f));
-      } else out.push(x);
+        labels.push(true, true); // BOTH halves of a split are injected artefacts
+      } else {
+        out.push(x);
+        labels.push(false);
+      }
     }
-    return out;
+    return { rr: out, labels };
   },
+  falsePositive: (rr, frac, seed) => BEAT.fpLabelled(rr, frac, seed).rr,
   /* JITTER: the beat is found, but ±ms off. This is detector imprecision rather than a miscount, and
      it is the one that should hurt rMSSD most per unit of error, since rMSSD differentiates. */
   jitter: (rr, ms, seed) => {
@@ -118,6 +133,33 @@ export const BEAT = {
     return rr.map((x) => x + (r() - 0.5) * 2 * ms);
   }
 };
+
+/* Join the corrector's per-interval verdicts to the injection labels. `flags[i] = 1` means
+   correctRR REJECTED interval i (ppgdex-dsp.js:1877) and substituted its reference; correctRR never
+   deletes, so flags aligns 1:1 with the injected train — that alignment is the whole reason precision/
+   recall is computable here at all. Precision is null (not 1) when the corrector flagged nothing:
+   0/0 as "perfect" is exactly the vacuous green this suite catalogues. */
+export function precisionRecall(labels, flags) {
+  if (!Array.isArray(labels) || !Array.isArray(flags) || labels.length !== flags.length) return null;
+  let tp = 0,
+    fpN = 0,
+    fnN = 0;
+  for (let i = 0; i < labels.length; i++) {
+    const hit = !!flags[i];
+    if (labels[i] && hit) tp++;
+    else if (!labels[i] && hit) fpN++;
+    else if (labels[i] && !hit) fnN++;
+  }
+  const nInjected = tp + fnN,
+    nFlagged = tp + fpN;
+  return {
+    nInjected,
+    nFlagged,
+    tp,
+    precision: nFlagged ? tp / nFlagged : null,
+    recall: nInjected ? tp / nInjected : null
+  };
+}
 
 export function measure(rrTrue, ctx, opts = {}) {
   const seed = opts.seed ?? 4242;
@@ -134,10 +176,11 @@ export function measure(rrTrue, ctx, opts = {}) {
   const tt = rrTrue.map((_, i) => i); // correctRR takes (rr, t); index time is sufficient for gating
   const out = { truth, malikAvailable: hasMalik, targets: {} };
 
-  const run = (label, rr) => {
+  const run = (label, rr, labels = null) => {
     const raw = hrv(rr);
     let corrected = null,
-      nCorr = null;
+      nCorr = null,
+      pr = null;
     if (hasMalik) {
       try {
         /* The shipped return is `{ nn, tt, nCorr, flags }`. An earlier version of this tool looked for
@@ -155,6 +198,7 @@ export function measure(rrTrue, ctx, opts = {}) {
           corrected = hrv(arr.filter(Number.isFinite));
           nCorr = c.nCorr ?? null;
         }
+        if (labels && c && Array.isArray(c.flags)) pr = precisionRecall(labels, c.flags);
       } catch {
         /* correctRR refused — recorded as null, never silently treated as a pass */
       }
@@ -181,6 +225,7 @@ export function measure(rrTrue, ctx, opts = {}) {
       label,
       nRaw: raw ? raw.n : null,
       nCorr,
+      pr,
       correctedFrac: nCorr != null && raw ? nCorr / raw.n : null,
       ecgCorrRmssdErr,
       ecgNCorr,
@@ -189,8 +234,14 @@ export function measure(rrTrue, ctx, opts = {}) {
     };
   };
 
-  out.targets.miss = [0.001, 0.005, 0.02, 0.05].map((f) => ({ frac: f, ...run(`miss ${f}`, BEAT.miss(rrTrue, f, seed)) }));
-  out.targets.falsePositive = [0.001, 0.005, 0.02, 0.05].map((f) => ({ frac: f, ...run(`fp ${f}`, BEAT.falsePositive(rrTrue, f, seed)) }));
+  out.targets.miss = [0.001, 0.005, 0.02, 0.05].map((f) => {
+    const inj = BEAT.missLabelled(rrTrue, f, seed);
+    return { frac: f, ...run(`miss ${f}`, inj.rr, inj.labels) };
+  });
+  out.targets.falsePositive = [0.001, 0.005, 0.02, 0.05].map((f) => {
+    const inj = BEAT.fpLabelled(rrTrue, f, seed);
+    return { frac: f, ...run(`fp ${f}`, inj.rr, inj.labels) };
+  });
   out.targets.jitter = [2, 10, 30].map((m) => ({ ms: m, ...run(`jitter ${m}`, BEAT.jitter(rrTrue, m, seed)) }));
   /* CONTROL: no injection. Must reproduce truth exactly, and must not be quietly "corrected" into
      something else — if Malik moves an unperturbed train, that is a finding about Malik. */
@@ -262,6 +313,36 @@ function selfTest() {
     miss5.correctedErrPct !== null && miss5.nCorr !== null,
     `corrected=${JSON.stringify(miss5.correctedErrPct && miss5.correctedErrPct.rmssd)} nCorr=${miss5.nCorr}`
   );
+  /* ── target 6's CRITERION: precision/recall vs injected labels ─────────────────────────────
+     The join controls are exact math, so they pin the arithmetic; the measured legs pin that the
+     wiring actually reaches correctRR's flags. Precision on nFlagged=0 is NULL, never 1 — a corrector
+     that flags nothing has not demonstrated precision, and 0/0-as-perfect is the vacuous green this
+     suite catalogues. */
+  const L = [true, false, true, false];
+  const prP = precisionRecall(L, [1, 0, 1, 0]);
+  ok('P/R join: perfect flags → P=1 R=1', prP.precision === 1 && prP.recall === 1);
+  const prN = precisionRecall(L, [0, 0, 0, 0]);
+  ok('P/R join: no flags → precision NULL (not 1), recall 0', prN.precision === null && prN.recall === 0);
+  const prA = precisionRecall(L, [1, 1, 1, 1]);
+  ok('P/R join: flag-everything → P=0.5 R=1', prA.precision === 0.5 && prA.recall === 1);
+  ok('P/R join: length mismatch refuses', precisionRecall(L, [1]) === null);
+  const inj = BEAT.missLabelled(rr, 0.05, 4242);
+  ok('labelled injector: labels align with output', inj.labels.length === inj.rr.length);
+  const nInj = inj.labels.filter(Boolean).length;
+  ok('ANTI-VACUITY: the 5 % miss actually injected', nInj > 50, `nInjected=${nInj}`);
+  ok('unlabelled wrapper is byte-identical to the labelled core', JSON.stringify(BEAT.miss(rr, 0.05, 4242)) === JSON.stringify(inj.rr));
+  ok(
+    'measured leg carries P/R for miss',
+    miss5.pr && miss5.pr.nInjected > 0 && miss5.pr.recall !== null,
+    miss5.pr ? `P=${miss5.pr.precision === null ? 'null' : miss5.pr.precision.toFixed(3)} R=${miss5.pr.recall.toFixed(3)}` : 'pr missing'
+  );
+  const fp5 = m.targets.falsePositive.find((x) => x.frac === 0.05);
+  ok(
+    'measured leg carries P/R for falsePositive',
+    fp5.pr && fp5.pr.nInjected > 0,
+    fp5.pr ? `P=${fp5.pr.precision === null ? 'null' : fp5.pr.precision.toFixed(3)} R=${fp5.pr.recall.toFixed(3)}` : 'pr missing'
+  );
+
   console.log(fail ? `\n${fail} self-test FAILURE(S)` : '\nself-test: all green');
   return fail ? 1 : 0;
 }
