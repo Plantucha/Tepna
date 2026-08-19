@@ -71,6 +71,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { resolveStatePath, stateDirs } from './mutation-map.mjs';
 import { fileURLToPath } from 'node:url';
 import { ResumeLedger, fingerprint, fmtDuration, progressLine } from './run-progress.mjs';
 
@@ -182,6 +183,11 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   ok('verdicts parse by index', v[0].verdict === 'VALUE' && v[1].verdict === 'BOUND' && v[2].verdict === 'SKIP');
   ok('…and carry the reason', /power law/.test(v[0].why));
   ok('out-of-range indices are ignored', parseVerdicts('9: VALUE x', 2).length === 0);
+  ok(
+    '§1: the resume ledger resolves within a declared state candidate',
+    stateDirs(ROOT).some((d) => resolveStatePath(ROOT, 'assertion-strength.jsonl').startsWith(d)),
+    resolveStatePath(ROOT, 'assertion-strength.jsonl')
+  );
   console.log(fail ? '\n✗ ' + fail + ' failed, ' + pass + ' passed' : '\n✓ all ' + pass + ' selftests passed');
   process.exit(fail ? 1 : 0);
 }
@@ -198,7 +204,7 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   const src = readFileSync(join(ROOT, 'tests/dex-tests.js'), 'utf8');
   const cands = extractCandidates(src);
   const fp = fingerprint({ tool: 'assertion-strength@1', model: MODEL, n: cands.length });
-  const ledger = new ResumeLedger(argv.includes('--resume') ? join(ROOT, '.mutation-sweeps/assertion-strength.jsonl') : null, fp).load();
+  const ledger = new ResumeLedger(argv.includes('--resume') ? resolveStatePath(ROOT, 'assertion-strength.jsonl') /* §1: shared-first, legacy in-tree fallback */ : null, fp).load();
   if (ledger.stale) process.stderr.write('  ⚠ ledger describes different inputs — starting from zero\n');
   ledger.begin();
   const todo = cands.filter((c) => !ledger.has(c.line));

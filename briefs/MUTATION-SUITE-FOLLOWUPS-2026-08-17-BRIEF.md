@@ -25,7 +25,31 @@ share, and the reason they lasted.
 
 ---
 
-## 1 · MIGRATE THE OTHER NINE TOOLS TO `sharedStatePath`
+## 1 · ✅ DONE 2026-08-19 — MIGRATED, and the queue reads from a worktree for the first time
+
+> **Executed.** Eight of the nine migrated (`mutation-reach` turned out to have NO implicit state
+> path — its `--cov` is explicit-only, so there was nothing to migrate; recorded rather than forced).
+> Helpers live in `mutation-map.mjs` (`resolveStatePath` · `stateDirs` · `resolveStateDir` ·
+> `stateJsonFiles`), each tool imports them, and every selftest asserts the shared location is tried
+> first — 267 selftests green across the lane after the change.
+>
+> **Two design points the execution settled, both paid for by a wrong first draft:**
+> - **Resolution is per-FILE, not per-directory.** First draft picked first-existing-DIR — and the
+>   shared dir already existed (the drafts live there), so eight present sweeps read as a lost queue.
+>   Existence of a directory says nothing about which files are in it.
+> - **The directory-scanners UNION both candidates** (`stateJsonFiles`, shared wins basename ties),
+>   because during the transition the state is genuinely split.
+>
+> The predicted `/tmp`-worktree false red did not fire (this checkout is on the volume); the
+> worklist's OLD "default dir is inside the repo" assertion DID fire and was rewritten to the
+> surviving invariant — resolves to a declared candidate, never an invented third place.
+>
+> **Data placed:** the nine crawl sweeps (1.5 MB) copied into `.git/tepna-mutation/` under the
+> derived names, each parse-verified. Measured payoff: `mutation-worklist` from a linked worktree
+> now prints the real queue — 4487/9938 distinguishable, 5451 unresolved — where before the
+> migration every worktree printed `NO SWEEP DATA`.
+
+## 1 (original) · MIGRATE THE OTHER NINE TOOLS TO `sharedStatePath`
 
 `tools/mutation-map.mjs` exports `sharedStatePath(root, name)` — the git **common** directory, which
 resolves to the same place from the main checkout and every linked worktree. `mutation-map` and
@@ -267,7 +291,54 @@ job count it was measured on.
 than an error, and the first time it would have corrupted a published number rather than merely
 costing time.
 
-## 4 · WIRE THE REMAINING LANES INTO THE INVENTORY
+### 3d · ✅ EXECUTED 2026-08-19 — interval coverage BUILT and the quarantine RE-CONFIRMED on better evidence
+
+**§3c's design is implemented** (`tests/run-tests.mjs --interval-coverage`, consumed by
+`per-group-coverage.mjs` — no more c8): inspector session started before any load, baseline take
+discarded, second take = the group's own interval. The collection defect is FIXED and the signature
+reversed: the Clock-Contract group, which under c8 carried hrvdex's entire 384-line load baseline,
+now attributes NOTHING; a certain-execution group attributes 243 real hrvdex lines; 22 groups
+attribute hrvdex where c8's data could not distinguish any.
+
+**And with correct collection, per-line selection is STILL unsound — three mechanisms, each measured:**
+
+1. **State-dependent paths.** hrvdex:801/869 are absent from the killing group's SOLO interval and
+   present when the tag set runs together — the executing branch depends on state earlier groups
+   build. A per-group map is blind to it by construction.
+2. **Load-executed lines.** 158/174/487/537/1319 appear in NO group's interval (the baseline discard
+   is the design), yet their mutants alter load state and die under the tag filter.
+3. **Non-behavioural reds.** Widening selection to the zero-attribution groups first manufactured
+   **22/22 fabricated kills** — the undeclared-skip audit red in `.git`-less workers (now fixed
+   properly: three `known-drift` declarations in `tests/expected-skips.json`, with the incident
+   noted). Two probe layers (worker-clean baseline + a comment-only integrity probe) now vet the
+   zero set inside `mutate.mjs`.
+
+Final paired measurement, hrvdex, fresh journals: tag 38 kills / selection **31** — 7 real kills
+lost. **Selection is therefore OPT-IN (`--use-coverage-map`) and the default stays the tag filter**;
+the evidence lives at the refusal site in `pgmapFor`. The map itself remains valuable as a
+diagnostic (reachability, invalidation hints, the §4 inventory).
+
+**The sound design, recorded for whoever builds it:** UNION-WITH-TAG — selected = tag-matched
+groups ∪ map line-groups ∪ vetted zeros. A superset of the tag set cannot lose a tag kill by
+construction, and the first (unsound) A/B showed 3 genuine SURVIVED→KILLED gains from cross-node
+groups the tag filter misses, so the union buys real kills at ~tag cost. Not built tonight: it needs
+tag→index resolution in `mutate.mjs` and its own paired measurement.
+
+## 4 · ✅ DONE 2026-08-19 — per-lane sections, units kept apart, absence reported as ABSENT
+
+> **Executed.** `parseLaneLedger` reads the ResumeLedger JSONL the two lanes persist under
+> `--resume` (last record per key wins — a resumed ledger replays; a torn final line is skipped),
+> `laneLedgerCandidates` finds them across BOTH state dirs per §1 (delete-lane per file+group, all
+> groups counted), and the inventory now carries a per-lane section each — pseudo in **functions**,
+> deletion in **statements**, the operators table above in **mutants**, with no cross-lane total
+> anywhere by construction. A lane with no persistent ledger prints an explicit refusal ("absent
+> INPUT — NOT a clean bill") rather than zeros, which is also the LIVE state today: neither lane has
+> a surviving `--resume` ledger post-reboot, and the regenerated inventory says exactly that.
+> 12 selftests; 3 planted mutations (first-record-wins, cross-file ledger leak, empty-lane-as-clean)
+> all killed. One honest limit recorded in the section itself: a lane run WITHOUT `--resume` leaves
+> no persistent record, so the inventory can only ever report resumed runs.
+
+## 4 (original) · WIRE THE REMAINING LANES INTO THE INVENTORY
 
 `--lane pseudo` and `--lane delete` run, are watchdogged and resume — but this driver does not parse
 their record formats, so the public list reports the **operators** lane only. That is honest today

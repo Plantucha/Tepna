@@ -233,7 +233,19 @@ posture-only null control, and **invariance of the peak to the search range**.
       boundary** (3850 ms at ±4 s, 5750 at ±6 s, 9000 at ±9 s), which is what an argmax of noise does
       and a real lock never does. `tools/aperiodic-offset.mjs` is kept as the instrument that *would*
       detect a deliberate marker. The brief's original claim stands.
-- [ ] Adapter assignment is written into night metadata and held fixed across a capture set.
+- [x] **SATISFIED ALREADY — MEASURED 2026-08-18. Both halves, and target 7's confound does not exist.**
+      **Written:** every `Tepna_*_LINK.csv` opens with `# adapter=AC:A7:F1:29:9D:1D hci=hci0` — the adapter
+      **MAC**, not merely the `hci` index. That is the right identity to record, because hci indices
+      re-enumerate (the reason `adapter_hci()` exists at all), so an index-only record would silently
+      re-label the same radio.
+      **Held fixed:** across every capture in the corpus, **257 sessions on `AC:A7:…:9D:1D` (hci0)** and
+      **1 on `C6:CF:3C:4E:75:F0` (hci2)**. No night contains two adapters.
+      ⚠ **And the single outlier does not create the confound either** — `2026-07-26 14:56:03`, 16 rows,
+      carries **all four devices** (COOSPO · H10 · Verity · O2Ring) on that one adapter. So adapter is a
+      **between-session constant, never a within-session variable**, and target 7's *"sensor-specific noise
+      confounded with adapter"* requires adapter to vary **with sensor**. It never does.
+      **What remains true:** a comparison spanning that 07-26 session and any other is adapter-crossed. It
+      is 1 of 258 and identifiable by header, so the mitigation is to name it, not to re-capture anything.
 - [x] **DONE 2026-08-15** — `integrator-dsp.js` (#1274) and `tools/pat-host-offset.mjs` (#1278) read
       `deviceDrawn`; `ecgdex-dsp.js` and `pat-gate.js` deliberately do not, on measured zero exposure
       (§3). The parent's `KNOWN HOLE` assertion stands unchanged and correct: `hostAxis.independent`

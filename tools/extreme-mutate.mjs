@@ -52,6 +52,7 @@ import { execFile, execFileSync } from 'node:child_process';
 import { ResumeLedger, etaSeconds, fingerprint, fmtDuration, progressLine } from './run-progress.mjs';
 import { mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { resolveStatePath, stateDirs } from './mutation-map.mjs';
 import { fileURLToPath } from 'node:url';
 import { stripNonCode } from './probe-equivalence.mjs';
 
@@ -341,6 +342,11 @@ if (IS_MAIN && has('--selftest')) {
     IDENT.replace(/\s+/g, ' ')
   );
 
+  ok(
+    '§1: the resume default resolves within a declared state candidate',
+    stateDirs(ROOT).some((d) => resolveStatePath(ROOT, 'levela-x.jsonl').startsWith(d)),
+    resolveStatePath(ROOT, 'levela-x.jsonl')
+  );
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
   process.exit(fail ? 1 : 0);
 }
@@ -349,7 +355,9 @@ if (IS_MAIN && has('--selftest')) {
 if (IS_MAIN && !has('--selftest')) {
   const file = opt('--file', '');
   const group = opt('--group', '');
-  const resumePathA = process.argv.includes('--resume') ? opt('--resume-file', '') || '.mutation-sweeps/levela-' + String(opt('--file', 'x')).replace(/[^A-Za-z0-9]+/g, '-') + '.jsonl' : null;
+  const resumePathA = process.argv.includes('--resume')
+    ? opt('--resume-file', '') || resolveStatePath(ROOT, 'levela-' + String(opt('--file', 'x')).replace(/[^A-Za-z0-9]+/g, '-') + '.jsonl') /* §1 */
+    : null;
   const jobsWanted = Math.max(1, Number(opt('--jobs', String((await import('node:os')).cpus().length))) || 1);
   if (!file || !group) {
     console.error('usage: node tools/extreme-mutate.mjs --file <dsp.js> --group <test group filter> [--jobs N] [--json]');

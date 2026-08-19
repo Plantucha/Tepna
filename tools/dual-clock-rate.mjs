@@ -198,7 +198,7 @@ async function rateOf(file) {
 /* Importable: the predicate above is gated on VALUES by tests/dex-tests.js, and importing a module
    must not fire its I/O. Only a direct `node tools/dual-clock-rate.mjs …` runs the report. */
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const files = fs.readdirSync(DIR).filter((f) => /(H10.*_ECG|VeritySense.*_PPG|O2Ring.*_PPG)\.txt$/.test(f));
+  const files = fs.readdirSync(DIR).filter((f) => /(H10.*_ECG|(?:Verity)?Sense.*_PPG|O2Ring.*_PPG)\.txt$/.test(f));
   const big = files
     .map((f) => ({ f, sz: fs.statSync(path.join(DIR, f)).size }))
     .filter((x) => x.sz > 3e6)
