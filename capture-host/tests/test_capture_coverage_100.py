@@ -1576,3 +1576,102 @@ def test_a_doff_settle_inside_the_drop_grace_is_RAISED_not_obeyed(tmp_path, monk
     msgs = " ".join(r.getMessage() for r in caplog.records)
     assert "settle raised" in msgs, "a clamped settle must say so — a silent clamp is a silent policy"
     assert "power-drop grace" in msgs
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════
+# the MORNING QC DIGEST (VIGIL-OVERNIGHT-FINDINGS §P2.4) — coverage is the number that matters,
+# and the failure alert alone never sends it: a good night says nothing.
+# ═══════════════════════════════════════════════════════════════════════════════════════════
+def test_qc_digest_due_fires_at_the_hour_once_per_day():
+    assert capture.qc_digest_due(9, 9, False) is True     # at the hour, not yet sent → due
+    assert capture.qc_digest_due(23, 9, False) is True    # late is still due (box was down at 9)
+    assert capture.qc_digest_due(8, 9, False) is False    # before the hour
+    assert capture.qc_digest_due(9, 9, True) is False     # already sent today — the ALLOW twin above
+    assert capture.qc_digest_due(9, -1, False) is False   # -1 disables, at any hour
+
+
+def test_the_morning_digest_sends_coverage_once(tmp_path, monkeypatch):
+    """The digest is UNCONDITIONAL — it fires on a healthy night, which the missing-stream alert never
+    does. Once per local day, marked before the await like every sender in this file."""
+    import os as _os
+    _os.makedirs(str(tmp_path / "captures" / "2026-08-18"), exist_ok=True)
+    monkeypatch.setattr(capture, "_current_night", lambda captures, settle: "2026-08-18")
+    monkeypatch.setattr(capture.nightqc, "summarize", lambda night, devices: {
+        "night": "2026-08-18", "missing": [],
+        "devices": [{"name": "H10", "coverage": {"ecg": 0.96, "acc": 0.95}}]})
+    sent = []
+
+    class _N:
+        async def send(self, title, message, **kw):
+            sent.append((title, message, kw.get("key")))
+            return True
+    _stop_after(monkeypatch, 3)                     # three polls; ONE digest
+    cfg = {"qc": {"poll_sec": 1, "digest_hour": 0}, "devices": []}   # hour 0 ⇒ always past it
+    _run(capture.qc_poller(cfg, str(tmp_path), _N()))
+    digests = [s for s in sent if s[0] == "Tepna night QC"]
+    assert len(digests) == 1, f"once per day, not per poll: {digests}"
+    assert "H10 95%" in digests[0][1] or "H10 96%" in digests[0][1]
+    assert digests[0][2] and digests[0][2].startswith("qc-digest-")
+
+
+def _digest_deny_case(tmp_path, monkeypatch, qc_cfg):
+    """Shared DENY harness. Returns (sent, polls) — and the caller MUST assert polls > 0, because the
+    first version of this test ran two `_run`s in one test, the first left `_STOP` set, the second
+    executed ZERO ticks, and `sent == []` passed vacuously. Coverage caught it (the `_line`-falsy
+    branch was never taken); the poll counter is the assertion that keeps it caught."""
+    import os as _os
+    _os.makedirs(str(tmp_path / "captures" / "2026-08-18"), exist_ok=True)
+    monkeypatch.setattr(capture, "_current_night", lambda captures, settle: "2026-08-18")
+    polls = {"n": 0}
+
+    def _summ(night, devices):
+        polls["n"] += 1
+        return {"night": "2026-08-18", "missing": [], "devices": []}
+    monkeypatch.setattr(capture.nightqc, "summarize", _summ)
+    sent = []
+
+    class _N:
+        async def send(self, title, message, **kw):
+            sent.append(title)
+            return True
+    capture._STOP.clear()
+    _stop_after(monkeypatch, 1)
+    _run(capture.qc_poller({"qc": qc_cfg, "devices": []}, str(tmp_path), _N()))
+    return sent, polls["n"]
+
+
+def test_the_digest_disabled_by_hour_minus_one(tmp_path, monkeypatch):
+    sent, polls = _digest_deny_case(tmp_path, monkeypatch, {"poll_sec": 1, "digest_hour": -1})
+    assert polls > 0, "the tick must actually run — a zero-tick pass proves nothing"
+    assert sent == [], f"digest_hour=-1 must send nothing: {sent}"
+
+
+def test_an_empty_night_sends_no_digest_even_when_due(tmp_path, monkeypatch):
+    """The `_line is None` branch: due, notifier present, nothing measured — silence, deliberately."""
+    sent, polls = _digest_deny_case(tmp_path, monkeypatch, {"poll_sec": 1, "digest_hour": 0})
+    assert polls > 0, "the tick must actually run — a zero-tick pass proves nothing"
+    assert sent == [], f"an empty summ must send nothing: {sent}"
+
+
+def test_qc_digest_formats_ranges_and_absences():
+    """Pure formatting: one number when streams agree, a RANGE when they diverge (41/95 must not read
+    as 68), absent-coverage devices NAMED rather than averaged in as zeros, missing streams appended."""
+    import nightqc
+    line = nightqc.qc_digest({
+        "night": "2026-08-18",
+        "devices": [
+            {"name": "O2Ring", "coverage": {"spo2": 0.63, "ppg": 0.63}},
+            {"name": "Verity", "coverage": {"acc": 0.41, "ppg": 0.95}},
+            {"name": "COOSPO", "coverage": {}},
+        ],
+        "missing": ["Verity:ppi"],
+    })
+    assert "O2Ring 63%" in line
+    assert "Verity 41–95%" in line
+    assert "no data: COOSPO" in line
+    assert "missing: Verity:ppi" in line
+    assert nightqc.qc_digest({"night": "x", "devices": []}) is None
+    assert nightqc.qc_digest(None) is None
+    # a junk (non-dict) device entry is SKIPPED, not crashed on — and the rest still formats
+    j = nightqc.qc_digest({"night": "x", "devices": ["garbage", {"name": "H10", "coverage": {"ecg": 0.9}}]})
+    assert j is not None and "H10 90%" in j and "garbage" not in j

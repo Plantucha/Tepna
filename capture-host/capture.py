@@ -4254,6 +4254,14 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                         alerted.add(name)
 
 
+def qc_digest_due(hour_now: int, digest_hour: int, sent_today: bool) -> bool:
+    """PURE: send the morning QC digest now? True once per local day, at or after `digest_hour`.
+    `digest_hour < 0` disables — an owner who wants only the failure alert should not be paged daily.
+    Same predicate style as `charger_pull_due`/`notworn_pull_due`, for the same reason: the decision is
+    testable without the loop around it."""
+    return digest_hour >= 0 and not sent_today and hour_now >= digest_hour
+
+
 async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = None):
     """Summarise the CURRENT night's capture completeness — rows per configured stream, which declared
     streams produced nothing (the header-only files a rejected START / never-worn sensor leaves). Turns
@@ -4266,6 +4274,11 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
     qcfg = cfg.get("qc") or {}
     interval = float(qcfg.get("poll_sec", 600))
     alert_after = float(qcfg.get("alert_after_sec", 3600))
+    # Morning digest (VIGIL-OVERNIGHT-FINDINGS §P2.4): the missing-stream alert fires only when
+    # something is WRONG, so a good night sends nothing and the coverage number never reaches the
+    # owner. This is the unconditional once-a-day counterpart. -1 disables.
+    digest_hour = int(qcfg.get("digest_hour", 9))
+    digest_sent_date = None
     # A CONNECTED SENSOR THAT HAS STOPPED SENDING. Much shorter grace than alert_after: this is not
     # "the night has not started yet", it is "the link is up and the bytes are not coming". Every PMD
     # stream we start delivers many rows a second, so ten minutes of nothing behind a live link is
@@ -4304,6 +4317,13 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             os.replace(_qc + ".tmp", _qc)   # atomic
             n = summ["night"]
             first_seen.setdefault(n, _time.monotonic())
+            # ── morning digest — once per LOCAL day, unconditional (§P2.4) ──────────────────────
+            _today = _now().date()
+            if notifier and qc_digest_due(_now().hour, digest_hour, digest_sent_date == _today):
+                _line = nightqc.qc_digest(summ)
+                if _line:  # an empty night sends NOTHING — the digest must never train the reader that
+                    digest_sent_date = _today  # it is noise. Marked before the await, like every sender here.
+                    await notifier.send("Tepna night QC", _line, key=f"qc-digest-{_today}")
             # A SENSOR THAT IS CONNECTED AND SENDING NOTHING. Distinct from `missing` (which means
             # "produced nothing all night" and therefore cannot see a mid-night freeze) and from the
             # offline alert (which needs the link to actually drop). This is the 2026-07-25 Verity:
