@@ -18,7 +18,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
-import time
+from time import monotonic
 
 sys.path.insert(0, ".")
 from link_guard import require_free_link   # noqa: E402
@@ -69,13 +69,8 @@ def diff(a: bytes, b: bytes, gap_s: float) -> list[str]:
     return out
 
 
-async def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--address", required=True)
-    ap.add_argument("--gap", type=float, default=10.0)
-    args = ap.parse_args()
-    require_free_link()
-    async with BleakClient(args.address, timeout=25.0) as c:
+async def main(address: str, gap: float) -> int:
+    async with BleakClient(address, timeout=25.0) as c:
         ch = Chan(c)
         await ch.start()
         # handshake per oxyii live path
@@ -85,9 +80,9 @@ async def main() -> int:
         for name, op in READS.items():
             first[name] = await ch.ask(op, 1)
             print(f"  {name}: {'%d bytes' % len(first[name]) if first[name] else 'NO REPLY'}")
-        t0 = time.monotonic()
-        await asyncio.sleep(args.gap)
-        actual = time.monotonic() - t0
+        t0 = monotonic()
+        await asyncio.sleep(gap)
+        actual = monotonic() - t0
         changed_any = False
         for name, op in READS.items():
             second = await ch.ask(op, 2)
@@ -106,5 +101,11 @@ async def main() -> int:
             print("\n  VERDICT: no read opcode carries the RTC — pull-time does not exist on this surface.")
         return 0
 
+
 if __name__ == "__main__":
-    sys.exit(asyncio.run(main()))
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--address", required=True)
+    ap.add_argument("--gap", type=float, default=10.0)
+    args = ap.parse_args()
+    require_free_link()
+    sys.exit(asyncio.run(main(args.address, args.gap)))
