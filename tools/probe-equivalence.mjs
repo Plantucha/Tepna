@@ -173,7 +173,13 @@ export function stripNonCode(src) {
 export function functionRange(src, name) {
   const code = stripNonCode(src);
   const lines = code.split('\n');
-  const decl = new RegExp('(?:^|[^\\w$.])function\\s+' + name.replace(/[$]/g, '\\$') + '\\s*\\(');
+  /* §8 (MUTATION-PROGRAM-FOLLOWUPS): arrow consts were INVISIBLE — `const rmssd = (a) => {…}`
+     resolved to null, so whole families claimed nothing and probe-coverage warned unresolved-fn.
+     The declaration is now any of: `function NAME(` · `const/let/var NAME = (…) =>` (async ok,
+     single-param-no-parens ok) · `const/let/var NAME = function`. Escaping also widened from `$`
+     alone to every metacharacter — same three-character fix killcheck's copy already carries. */
+  const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const decl = new RegExp('(?:^|[^\\w$.])(?:function\\s+' + esc + '\\s*\\(|(?:const|let|var)\\s+' + esc + '\\s*=\\s*(?:async\\s*)?(?:function\\b|\\(|[\\w$]+\\s*=>))');
   let start = -1;
   for (let i = 0; i < lines.length; i++)
     if (decl.test(lines[i])) {
@@ -181,6 +187,11 @@ export function functionRange(src, name) {
       break;
     }
   if (start < 0) return null;
+  /* A CONCISE arrow (`=> expr`, no braces) has no block to count — its range is its own line. The
+     brace counter below would otherwise swallow the rest of the file into a fake range. Multi-line
+     concise bodies are an accepted, documented miss: rare here, and a miss returns a 1-line range
+     (under-claims) rather than a wrong big one. */
+  if (/=>\s*[^\s{]/.test(lines[start])) return { start: start + 1, end: start + 1 };
   let depth = 0,
     seen = false;
   for (let i = start; i < lines.length; i++) {
@@ -417,6 +428,15 @@ if (IS_MAIN && has('--selftest')) {
     })(),
     'so the emitter must write `before` verbatim, never re-trim it'
   );
+
+  // §8 — arrow consts are now first-class declarations
+  const ARROWSRC = ['const rmssd = (a) => {', '  return a + 1;', '};', 'let f2 = async (x) => {', '  return x;', '};', 'var pi2 = () => 3.14;', 'const g = x => {', '  return x * 2;', '};', 'const h = function (q) {', '  return q;', '};'].join('\n');
+  ok('a block-body arrow const resolves', JSON.stringify(functionRange(ARROWSRC, 'rmssd')) === JSON.stringify({ start: 1, end: 3 }), JSON.stringify(functionRange(ARROWSRC, 'rmssd')));
+  ok('an async arrow resolves', functionRange(ARROWSRC, 'f2') !== null && functionRange(ARROWSRC, 'f2').start === 4);
+  ok('a CONCISE arrow is its own line — never a fake file-long range', JSON.stringify(functionRange(ARROWSRC, 'pi2')) === JSON.stringify({ start: 7, end: 7 }), JSON.stringify(functionRange(ARROWSRC, 'pi2')));
+  ok('a single-param no-parens arrow resolves', functionRange(ARROWSRC, 'g') !== null && functionRange(ARROWSRC, 'g').start === 8);
+  ok('a const function-expression resolves', functionRange(ARROWSRC, 'h') !== null && functionRange(ARROWSRC, 'h').start === 11);
+  ok('…and a name that is only a SUFFIX of another does not match it', functionRange(ARROWSRC, 'i2') === null, JSON.stringify(functionRange(ARROWSRC, 'i2')));
 
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
   process.exit(fail ? 1 : 0);

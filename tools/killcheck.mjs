@@ -93,9 +93,11 @@ export function functionRange(src, name) {
      Neither failure is loud in the right place. Names come from a generated work list rather than
      from a user, so this is correctness rather than a security boundary, but the fix is the same
      three characters wider. */
-  const re = new RegExp('(?:^|[^\\w$.])function\\s+' + escapeRe(name) + '\\s*\\(');
+  /* §8: arrow consts included — mirrors probe-equivalence so the three copies keep agreeing. */
+  const re = new RegExp('(?:^|[^\\w$.])(?:function\\s+' + escapeRe(name) + '\\s*\\(|(?:const|let|var)\\s+' + escapeRe(name) + '\\s*=\\s*(?:async\\s*)?(?:function\\b|\\(|[\\w$]+\\s*=>))');
   for (let i = 0; i < lines.length; i++) {
     if (!re.test(lines[i])) continue;
+    if (/=>\s*[^\s{]/.test(lines[i])) return { start: i + 1, end: i + 1 }; // concise arrow: its own line
     let d = 0,
       seen = false;
     for (let j = i; j < lines.length; j++) {
@@ -176,6 +178,9 @@ if (IS_MAIN && has('--selftest')) {
   ok('…and `o*ter` matches nothing rather than everything', functionRange(SRC, 'o*ter') === null);
   ok('escapeRe leaves a plain identifier alone', escapeRe('parseJSONL') === 'parseJSONL');
   ok('escapeRe still escapes `$`, the one that occurs here', escapeRe('_$scope') === '_\\$scope', escapeRe('_$scope'));
+  ok('§8: an arrow const resolves', JSON.stringify(functionRange('const q = (a) => {\n  return a;\n};', 'q')) === JSON.stringify({ start: 1, end: 3 }), JSON.stringify(functionRange('const q = (a) => {\n  return a;\n};', 'q')));
+  ok('§8: a concise arrow is its own line', JSON.stringify(functionRange('const c = () => 5;', 'c')) === JSON.stringify({ start: 1, end: 1 }));
+
 
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
   process.exit(fail ? 1 : 0);
