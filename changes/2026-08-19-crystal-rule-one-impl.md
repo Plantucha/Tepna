@@ -54,3 +54,43 @@ it covered and keeps the gap visible rather than silent.
 *A shared implementation nobody checks is just a claim about the past.*
 
 `npm run check` EXIT=0.
+
+---
+
+**The entry-guard defect was a CLASS, and the sweep found five more.**
+
+Fixing `device-stability.mjs` prompted a sweep of all **143 `tools/*.mjs`**. Six files could run — or
+crash — the moment something imported them:
+
+| file | what importing it did |
+|---|---|
+| `device-stability.mjs` | threw `ERR_INVALID_ARG_TYPE` (unguarded `pathToFileURL`) |
+| `beat-leg-closure.mjs` | same — **and `tch-third-corner.mjs:246` imports it**, so this chain is broken today |
+| `build.mjs` | ran `main()`; prints usage and `process.exit()`s, killing the importer |
+| `release.mjs` | ran `main()` → `readChangesets()` → **pre-flight toward cutting a release** |
+| `tch-fused-corpus.mjs` | ran `main()`; 2 × `process.exit` |
+| `tch-multinight.mjs` | ran `main()`; 3 × `process.exit`, including `exit(1)` on a failed self-test |
+
+**`release.mjs` is the one to read twice**: with pending changesets present — there are several — a
+single `await import()` from a future test would begin a release.
+
+**Why the consequence is worse than a crash:** `tests/run-tests.mjs` wraps tool imports in
+`try { … } catch { return null }`, so a throw surfaces as a **silent SKIP**, and a `process.exit`
+surfaces as a **killed parent**. Neither is ever a red.
+
+All six now guarded with the resolved-path idiom the house already uses. **Verified both directions per
+file:** the CLI still works (`build.mjs --check` → ✓ clean, 11 owned · `tch-multinight --selftest` →
+30/30 · `beat-leg-closure --selftest` → 7 passed) and importing is inert.
+
+⚠️ **The scan is a FLOOR, not a census.** `tch-third-corner.mjs` also executes on import and the static
+pattern **missed it**, because its invocation is not a bare top-level `main()`. A true census would have
+to import each file in a throwaway process — and `release.mjs` is precisely why that must not be done
+naively.
+
+⚠️ **No coverage figure is published here on purpose.** Three patterns give three answers over the same
+143 files — `import.meta.url` present: 120 · strict `pathToFileURL(process.argv[1])`: 16 · "has some
+entry guard": 48. None is wrong; they count different things, and a denominator without its pattern
+stated is the failure this repo keeps paying for.
+
+The three `tch-*` files have **0 real importers** (verified: every apparent hit is prose naming the
+tool), so those three are preventive rather than urgent. `beat-leg-closure` is the live one.

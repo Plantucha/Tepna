@@ -219,7 +219,12 @@ function selftest() {
   process.exit(fail ? 1 : 0);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+/* ⚠️ `process.argv[1] &&` IS LOAD-BEARING — `pathToFileURL(undefined)` throws ERR_INVALID_ARG_TYPE,
+   so without it this module cannot be IMPORTED at all (node -e, --eval, a REPL, any embedding host).
+   `tools/tch-third-corner.mjs:246` imports it dynamically, and `tests/run-tests.mjs` wraps tool
+   imports in `try { … } catch { return null }` — so the throw would surface as a SILENT SKIP rather
+   than a red. Same defect and same consequence as `device-stability.mjs` (#1530). */
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const argv = process.argv.slice(2);
   const arg = (k) => {
     const i = argv.indexOf(k);
