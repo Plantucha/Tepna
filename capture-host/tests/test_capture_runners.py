@@ -2095,12 +2095,14 @@ def test_main_applies_overrides_and_migrates_wellue_ppg(tmp_path, monkeypatch):
            "o2ring": {"rtc_resync_sec": 3600},
            "power": {"drop_not_worn_sec": 120, "not_worn_recheck_sec": 45},
            "stream": {"stall_sec": 45},
+           "write": {"resume_window_sec": 120},
            "devices": [{"name": "Ring", "vendor": "Wellue", "model": "O2Ring-S",
                         "device_id": "S8AW", "address": "D1:98:62:7C:92:B3", "streams": ["spo2"]}]}
     _main_with_cfg(tmp_path, monkeypatch, cfg)
     assert capture._OXYII_RTC_RESYNC_SEC == 3600
     assert capture._DROP_NOT_WORN_SEC == 120 and capture._NOT_WORN_RECHECK_S == 45
     assert capture._STREAM_STALL_S == 45
+    assert capture._RESUME_WINDOW_S == 120.0   # CAPTURE-FILESET-RESUME: write.resume_window_sec applies
     ring = next(d for d in capture._CFG["devices"] if d["name"] == "Ring")
     assert "ppg" in ring["streams"], "the implicit 125 Hz pleth was made explicit"
     assert capture.STATUS["host"]["started_at"] and capture.STATUS["host"]["adapter_ok"] is True
@@ -4745,3 +4747,63 @@ def test_stop_ends_a_PAUSED_session_even_with_a_real_sleep(tmp_path, monkeypatch
     finally:
         capture._STOP.set()
         capture._POLAR_PAUSED.clear()
+
+
+def test_run_polar_resumes_a_recent_fileset(tmp_path, monkeypatch, caplog):
+    """CAPTURE-FILESET-RESUME §2 wiring: when this device's newest set wrote within the window, the
+    runner adopts its stamp — so every capture_filename() regenerates the identical names. Tested at
+    the decision point (resumable_stamp is consulted and `started` replaced) rather than by driving the
+    whole BLE stack: the writers' append behaviour has its own tests."""
+    import datetime as dt
+    calls = {}
+
+    def spy(ndir, vendor, model, device_id, now, window):
+        calls["args"] = (vendor, model, device_id, window)
+        return dt.datetime(2026, 8, 19, 21, 0, 0)
+    monkeypatch.setattr(capture, "resumable_stamp", spy)
+
+    async def _bonded(addr, adapter):
+        return True
+    monkeypatch.setattr(capture.bonding, "ensure_bonded", _bonded)
+    class _NoBle(Exception):
+        pass
+
+    class _FailClient:
+        def __init__(self, *a, **k):
+            raise _NoBle()                  # the decision under test happens BEFORE the connect
+    monkeypatch.setattr(capture, "BleakClient", _FailClient, raising=False)
+    monkeypatch.setattr(capture, "night_dir", lambda root, when: str(tmp_path))
+    dev = {"name": "H10", "address": "C2:11:44:AB:9E:01", "vendor": "Polar",
+           "model": "H10", "device_id": "02849638", "streams": ["ecg"]}
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level("INFO"):
+        _run(capture.run_polar(dev, str(tmp_path)))
+    assert calls["args"] == ("Polar", "H10", "02849638", capture._RESUME_WINDOW_S)
+    msgs = [r.getMessage() for r in caplog.records]
+    assert any("resuming file-set 20260819210000" in m for m in msgs), \
+        f"the adopt decision must be logged: {[m for m in msgs if 'resum' in m.lower()]}"
+
+
+def test_run_polar_resume_disabled_by_zero_window(tmp_path, monkeypatch):
+    """DENY twin: write.resume_window_sec 0 must not even consult the resolver."""
+    consulted = []
+    monkeypatch.setattr(capture, "resumable_stamp", lambda *a: consulted.append(a))
+
+    async def _bonded(addr, adapter):
+        return True
+    monkeypatch.setattr(capture.bonding, "ensure_bonded", _bonded)
+
+    class _NoBle(Exception):
+        pass
+
+    class _FailClient:
+        def __init__(self, *a, **k):
+            raise _NoBle()
+    monkeypatch.setattr(capture, "BleakClient", _FailClient, raising=False)
+    monkeypatch.setattr(capture, "night_dir", lambda root, when: str(tmp_path))
+    monkeypatch.setattr(capture, "_RESUME_WINDOW_S", 0.0)
+    dev = {"name": "H10", "address": "C2:11:44:AB:9E:01", "vendor": "Polar",
+           "model": "H10", "device_id": "02849638", "streams": ["ecg"]}
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(dev, str(tmp_path)))
+    assert consulted == [], "window 0 must not consult the resolver"
