@@ -80,11 +80,13 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { resolveStatePath, stateDirs } from './mutation-map.mjs';
 import { fileURLToPath } from 'node:url';
 import { stripCode } from './strip-markup.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const CACHE = join(ROOT, '.mutation-sweeps', 'doc-search-index.json');
+/* §1: shared-first through the git common dir — one index serves every worktree. */
+const CACHE = resolveStatePath(ROOT, 'doc-search-index.json');
 const OLLAMA = process.env.DEX_OLLAMA || 'http://localhost:11434';
 const EMBED_MODEL = process.env.DEX_EMBED || 'bge-m3';
 const DIRS = ['briefs', 'audits', 'docs', 'papers', '.'];
@@ -420,6 +422,7 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
     listDocs(ROOT).some((f) => f.startsWith('briefs/'))
   );
   ok('…and root docs like CLAUDE.md', listDocs(ROOT).includes('CLAUDE.md'));
+  ok('§1: the index cache resolves within a declared state candidate', stateDirs(ROOT).some((d) => CACHE.startsWith(d)), CACHE);
   console.log(fail ? '\n✗ ' + fail + ' failed, ' + pass + ' passed' : '\n✓ all ' + pass + ' selftests passed');
   process.exit(fail ? 1 : 0);
 }

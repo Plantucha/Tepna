@@ -40,8 +40,8 @@
  */
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const MAP_BASENAME = 'per-group.json';
@@ -83,6 +83,59 @@ export function sharedStatePath(root, name) {
 
 export function mapCandidates(root) {
   return sharedStatePath(root, MAP_BASENAME);
+}
+
+/**
+ * READ resolution over the candidates: first that exists, else the SHARED location — so a fresh
+ * worktree reads the state every other checkout wrote, and a tool that then writes creates it in
+ * the place all of them will find. The in-tree `.mutation-sweeps/` survives purely as legacy READ
+ * fallback for state written before the migration (MUTATION-SUITE-FOLLOWUPS §1).
+ */
+export function resolveStatePath(root, name, existsFn = existsSync) {
+  const c = sharedStatePath(root, name);
+  for (const p of c) if (existsFn(p)) return p;
+  return c[0];
+}
+
+/**
+ * Directory-level candidates, for the tools that scan a sweeps DIRECTORY rather than opening one
+ * named file (`mutation-worklist`, `survivor-witness`, `witness-baseline`). Same order and the same
+ * argument as above: shared first, in-tree as legacy fallback.
+ */
+export function stateDirs(root) {
+  return sharedStatePath(root, '.').map((p) => dirname(join(p, 'x')));
+}
+
+/** First state DIRECTORY that exists, else the shared one (created by whoever writes first). */
+export function resolveStateDir(root, existsFn = existsSync) {
+  const c = stateDirs(root);
+  for (const p of c) if (existsFn(p)) return p;
+  return c[0];
+}
+
+/**
+ * UNION scan for the directory-readers (`survivor-witness`, `witness-baseline`): every `*.json`
+ * across BOTH candidate dirs, shared copy winning a basename tie. During the §1 transition the state
+ * is genuinely split — old sweeps in-tree, new state shared — and picking ONE dir at either grain
+ * mis-reads the world: the first draft of this migration chose first-existing-DIR and eight present
+ * sweeps read as a lost queue, because the shared dir existed for other reasons.
+ */
+export function stateJsonFiles(root, { existsFn = existsSync, readdirFn = readdirSync } = {}) {
+  const seen = new Map();
+  for (const dir of stateDirs(root)) {
+    if (!existsFn(dir)) continue;
+    let names = [];
+    try {
+      names = readdirFn(dir);
+    } catch {
+      continue; // an unreadable dir contributes nothing, and the OTHER candidate still scans
+    }
+    for (const n of names) {
+      if (!n.endsWith('.json')) continue;
+      if (!seen.has(n)) seen.set(n, join(dir, n)); // shared-first order ⇒ shared wins ties
+    }
+  }
+  return [...seen.entries()].map(([name, path]) => ({ name, path }));
 }
 
 /** First candidate that exists, or null. */
@@ -207,6 +260,20 @@ function selftest() {
   ck('a readable file is stamped', typeof id.sources['ok.js'], 'string');
   ck('an unreadable file is simply not claimed', 'gone.js' in id.sources, false);
   ck('identical content hashes identically', buildIdentity('/r', ['ok.js'], rd).sources['ok.js'], id.sources['ok.js']);
+
+  console.log('\nresolveStatePath / stateDirs — the §1 migration contract, shared-first everywhere');
+  /* THE ORDER IS THE CONTRACT (MUTATION-SUITE-FOLLOWUPS §1): the shared location is tried FIRST, so
+     every worktree converges on one copy; the in-tree path survives only as legacy READ fallback. */
+  ck('resolveStatePath tries the SHARED location first', /tepna-mutation\/w\.json$/.test(resolveStatePath(process.cwd(), 'w.json', () => true)), true);
+  ck('…falls back to the in-tree path when only it exists', /\.mutation-sweeps\/w\.json$/.test(resolveStatePath(process.cwd(), 'w.json', (p) => /\.mutation-sweeps/.test(p))), true);
+  ck('…and when NOTHING exists resolves to the SHARED one, so first write lands where all read', /tepna-mutation\/w\.json$/.test(resolveStatePath(process.cwd(), 'w.json', () => false)), true);
+  ck('stateDirs orders shared before in-tree', /tepna-mutation$/.test(stateDirs(process.cwd())[0]) && /\.mutation-sweeps$/.test(stateDirs(process.cwd())[1]), true);
+  const sjf = stateJsonFiles(process.cwd(), { existsFn: () => true, readdirFn: (d) => (/tepna-mutation/.test(d) ? ['a.json', 'b.txt'] : ['a.json', 'c.json']) });
+  ck('stateJsonFiles UNIONS both dirs — a split state is read whole, not one side', sjf.map((f) => f.name).sort().join(','), 'a.json,c.json');
+  ck('…the SHARED copy wins a basename tie', /tepna-mutation/.test(sjf.find((f) => f.name === 'a.json').path), true);
+  ck('…non-json entries never leak through', sjf.some((f) => f.name === 'b.txt'), false);
+  ck('…an unreadable dir contributes nothing while the other still scans', stateJsonFiles(process.cwd(), { existsFn: () => true, readdirFn: (d) => { if (/tepna-mutation/.test(d)) throw new Error('EACCES'); return ['x.json']; } }).length, 1);
+  ck('resolveStateDir falls back to an existing in-tree dir', /\.mutation-sweeps$/.test(resolveStateDir(process.cwd(), (p) => /\.mutation-sweeps$/.test(p))), true);
 
   console.log('\nresolveMapPath — the git COMMON dir, so every worktree sees one map');
   ck('prefers the first existing candidate', resolveMapPath('/r', (p) => p.endsWith('.mutation-sweeps/per-group.json')).endsWith('.mutation-sweeps/per-group.json'), true);

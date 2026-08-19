@@ -25,7 +25,31 @@ share, and the reason they lasted.
 
 ---
 
-## 1 · MIGRATE THE OTHER NINE TOOLS TO `sharedStatePath`
+## 1 · ✅ DONE 2026-08-19 — MIGRATED, and the queue reads from a worktree for the first time
+
+> **Executed.** Eight of the nine migrated (`mutation-reach` turned out to have NO implicit state
+> path — its `--cov` is explicit-only, so there was nothing to migrate; recorded rather than forced).
+> Helpers live in `mutation-map.mjs` (`resolveStatePath` · `stateDirs` · `resolveStateDir` ·
+> `stateJsonFiles`), each tool imports them, and every selftest asserts the shared location is tried
+> first — 267 selftests green across the lane after the change.
+>
+> **Two design points the execution settled, both paid for by a wrong first draft:**
+> - **Resolution is per-FILE, not per-directory.** First draft picked first-existing-DIR — and the
+>   shared dir already existed (the drafts live there), so eight present sweeps read as a lost queue.
+>   Existence of a directory says nothing about which files are in it.
+> - **The directory-scanners UNION both candidates** (`stateJsonFiles`, shared wins basename ties),
+>   because during the transition the state is genuinely split.
+>
+> The predicted `/tmp`-worktree false red did not fire (this checkout is on the volume); the
+> worklist's OLD "default dir is inside the repo" assertion DID fire and was rewritten to the
+> surviving invariant — resolves to a declared candidate, never an invented third place.
+>
+> **Data placed:** the nine crawl sweeps (1.5 MB) copied into `.git/tepna-mutation/` under the
+> derived names, each parse-verified. Measured payoff: `mutation-worklist` from a linked worktree
+> now prints the real queue — 4487/9938 distinguishable, 5451 unresolved — where before the
+> migration every worktree printed `NO SWEEP DATA`.
+
+## 1 (original) · MIGRATE THE OTHER NINE TOOLS TO `sharedStatePath`
 
 `tools/mutation-map.mjs` exports `sharedStatePath(root, name)` — the git **common** directory, which
 resolves to the same place from the main checkout and every linked worktree. `mutation-map` and

@@ -415,6 +415,7 @@ async function runLevelB(file, group, jobs, covPath, resumePath) {
   const { mkdtempSync, readFileSync, writeFileSync, rmSync, symlinkSync, readdirSync, existsSync } = await import('node:fs');
   const { join, dirname, resolve } = await import('node:path');
   const { fileURLToPath } = await import('node:url');
+  const { resolveStatePath } = await import('./mutation-map.mjs');
   const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
   const abs = join(ROOT, file);
   const src = readFileSync(abs, 'utf8');
@@ -881,10 +882,10 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   const group = opt('--group', '');
   /* Default to the sweep programme's own coverage artefact, so the precondition is ON unless the
      file genuinely has no record. An absent default would make the safe path the one nobody types. */
-  const covPath = opt('--cov', '.mutation-sweeps/cov/coverage-final.json');
+  const covPath = opt('--cov', resolveStatePath(ROOT, 'cov/coverage-final.json')); /* §1: shared-first */
   /* Resume is OPT-IN: a stale ledger silently reused would be worse than a slow restart, so the
      operator asks for it and the fingerprint decides whether it is honoured. */
-  const resumePath = argv.includes('--resume') ? opt('--resume-file', '.mutation-sweeps/levelb-' + file.replace(/[^A-Za-z0-9]+/g, '-') + '-' + group.replace(/[^A-Za-z0-9]+/g, '-') + '.jsonl') : null;
+  const resumePath = argv.includes('--resume') ? opt('--resume-file', resolveStatePath(ROOT, 'levelb-' + file.replace(/[^A-Za-z0-9]+/g, '-') + '-' + group.replace(/[^A-Za-z0-9]+/g, '-') + '.jsonl')) /* §1 */ : null;
   if (!file || !group) {
     console.error('usage: node tools/stmt-delete.mjs --file <f> --group <g> [--jobs N] [--json] [--cov <f>] [--resume [--resume-file <f>]]');
     process.exit(2);

@@ -23,12 +23,14 @@
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { stateDirs, stateJsonFiles } from './mutation-map.mjs';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { checkWitness, probesFrom } from './survivor-witness.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const SWEEPS = join(ROOT, '.mutation-sweeps');
+/* MUTATION-SUITE-FOLLOWUPS §1: union-read both state dirs, shared git-common location first. */
+const STATE_DIRS = stateDirs(ROOT);
 
 /* The ladder. Chosen to cover the shapes these guards actually test — nullish, numeric boundary,
    non-finite, empty vs non-empty container, wrong type — and NOT tuned per probe, because a ladder
@@ -166,21 +168,24 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   ok('an || → && guard is found', !!enumerate('!x || !x.length', '!x && !x.length'));
   ok('a genuinely equivalent pair returns null', enumerate('a > 1', 'a > 1.0') === null);
   ok('too many variables declines rather than exploding', enumerate('a||b||c||d||e', 'a&&b&&c&&d&&e') === null);
+  ok('§1: state dirs try the shared tepna-mutation location first', /tepna-mutation$/.test(STATE_DIRS[0]) && /\.mutation-sweeps$/.test(STATE_DIRS[1]));
   console.log(fail ? '\n✗ ' + fail + ' failed, ' + pass + ' passed' : '\n✓ all ' + pass + ' selftests passed');
   process.exit(fail ? 1 : 0);
 }
 
 if (IS_MAIN && !process.argv.includes('--selftest')) {
-  if (!existsSync(SWEEPS)) {
-    console.error('✗ no .mutation-sweeps — a missing INPUT, not a finding of zero.');
+  const entries = stateJsonFiles(ROOT);
+  if (!entries.length && !STATE_DIRS.some((d) => existsSync(d))) {
+    console.error('✗ no state dir at either candidate — a missing INPUT, not a finding of zero.');
+    console.error('  tried: ' + STATE_DIRS.join('  then  '));
     process.exit(2);
   }
   const files = [];
-  for (const f of readdirSync(SWEEPS).filter((x) => x.endsWith('.json'))) {
+  for (const e of entries) {
     try {
-      const j = JSON.parse(readFileSync(join(SWEEPS, f), 'utf8'));
+      const j = JSON.parse(readFileSync(e.path, 'utf8'));
       const s = j.survivors || j.results || j.mutants;
-      if (Array.isArray(s)) files.push({ file: j.file || f, survivors: s });
+      if (Array.isArray(s)) files.push({ file: j.file || e.name, survivors: s });
     } catch {}
   }
   const probes = probesFrom(files);

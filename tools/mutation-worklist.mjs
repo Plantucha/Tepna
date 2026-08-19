@@ -47,6 +47,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { executedLines, findRecord, partitionSurvivors } from './mutation-reach.mjs';
+import { resolveStateDir, stateDirs } from './mutation-map.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -83,12 +84,26 @@ export const SWEEP_FILES = ['oxydex-dsp.js', 'ecgdex-dsp.js', 'integrator-dsp.js
 
 export function sweepDir() {
   const flag = opt('--sweep-dir', '');
-  return flag || process.env.DEX_SWEEP_DIR || join(ROOT, '.mutation-sweeps');
+  /* MUTATION-SUITE-FOLLOWUPS §1: shared-first through the git COMMON dir, so the queue is ONE queue
+     no matter which worktree asks; in-tree `.mutation-sweeps` stays as legacy READ fallback. Flag
+     and env still outrank both — an explicit override is an explicit override. */
+  return flag || process.env.DEX_SWEEP_DIR || resolveStateDir(ROOT);
 }
 
-/* Derived, never hand-written: `ppgdex-dsp.js` -> `<dir>/ppgdex-dsp.json`. */
+/* Derived, never hand-written: `ppgdex-dsp.js` -> `<dir>/ppgdex-dsp.json`.
+
+   ⚠️ RESOLUTION IS PER-FILE, NOT PER-DIRECTORY — the first draft of this migration picked one dir
+   and looked for every sweep inside it, and that reintroduced the exact failure §NO-SWEEP documents:
+   the shared `tepna-mutation/` dir EXISTS (the drafts live there), so it won the dir-level race
+   while the sweep JSONs still sat in the legacy in-tree location — and eight present sweeps would
+   have read as a lost queue. Existence of a directory says nothing about which files are in it. */
 export function sweepPathFor(file, dir) {
-  return join(dir || sweepDir(), String(file).replace(/\.js$/, '') + '.json');
+  const name = String(file).replace(/\.js$/, '') + '.json';
+  if (dir) return join(dir, name);
+  const flag = opt('--sweep-dir', '');
+  const explicit = flag || process.env.DEX_SWEEP_DIR;
+  if (explicit) return join(explicit, name);
+  return resolveStatePath(ROOT, name);
 }
 
 export function resolveSweeps(dir) {
@@ -216,8 +231,16 @@ if (IS_MAIN && has('--selftest')) {
   ok('all eight DSPs are expected', SWEEP_FILES.length === 8, String(SWEEP_FILES.length));
   ok('a sweep path is DERIVED from the filename, not hand-written', sweepPathFor('ppgdex-dsp.js', '/d') === '/d/ppgdex-dsp.json', sweepPathFor('ppgdex-dsp.js', '/d'));
   ok('…so the ad-hoc suffixes that had accreted cannot come back', !SWEEP_FILES.some((f) => /-fresh|2\.json/.test(sweepPathFor(f, '/d'))));
+  /* §1 migration contract: with no flag/env, the SHARED location is tried first — one queue for
+     every worktree. Asserted on the candidate ORDER (pure), not on what happens to exist here. */
+  ok('sweepDir tries the git-common tepna-mutation location FIRST', /tepna-mutation$/.test(stateDirs(ROOT)[0]) && (sweepDir() === stateDirs(ROOT)[0] || sweepDir() === stateDirs(ROOT)[1]), sweepDir());
+  ok('…and the in-tree path survives only as the fallback candidate', /\.mutation-sweeps$/.test(stateDirs(ROOT)[1]), stateDirs(ROOT)[1]);
   ok('NO sweep path lives in /tmp — a tmpfs loses the queue on reboot', !Object.values(resolveSweeps()).some((p) => p.startsWith('/tmp/')), Object.values(resolveSweeps())[0]);
-  ok('the default dir is inside the repo, beside .mutation-crawl', sweepDir().startsWith(ROOT), sweepDir());
+  /* REWRITTEN for §1 (was: "inside the repo, beside .mutation-crawl" — the pre-migration contract).
+     From a linked worktree the git COMMON dir lives under the MAIN checkout, so "inside ROOT" is
+     exactly what the migration abolishes. The surviving invariant: wherever it resolves, it is one
+     of the two declared candidates and never an invented third place. */
+  ok('the default dir is one of the two declared candidates, nothing invented', stateDirs(ROOT).includes(sweepDir()), sweepDir());
   ok('DEX_SWEEP_DIR overrides it', sweepPathFor('oxydex-dsp.js', '/elsewhere') === '/elsewhere/oxydex-dsp.json');
   ok('every expected file resolves to a distinct path', new Set(Object.values(resolveSweeps())).size === 8);
 

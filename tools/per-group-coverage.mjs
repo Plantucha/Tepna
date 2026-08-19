@@ -56,7 +56,7 @@ import { cpus } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { executedLines, findRecord } from './mutation-reach.mjs';
-import { buildIdentity } from './mutation-map.mjs';
+import { buildIdentity, mapCandidates } from './mutation-map.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -207,6 +207,7 @@ if (IS_MAIN && has('--selftest')) {
       })()
     );
   }
+  ok('§1: the default --out IS the shared candidate mutation-map reads first', /tepna-mutation\/per-group\.json$/.test(mapCandidates(ROOT)[0]), mapCandidates(ROOT)[0]);
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
   process.exit(fail ? 1 : 0);
 }
@@ -215,9 +216,12 @@ if (IS_MAIN && has('--selftest')) {
 if (IS_MAIN && !has('--selftest')) {
   const jobs = Math.max(1, Number(opt('--jobs', String(Math.max(1, Math.min(16, cpus().length - 2))))) || 1);
   const limit = Number(opt('--limit', '0')) || 0;
-  const out = opt('--out', join(ROOT, '.mutation-sweeps/per-group.json'));
+  /* §1: the map's default home is the SHARED location — the exact first candidate
+     `mutation-map.resolveMapPath` reads — so a map built anywhere serves every worktree.
+     (The in-tree path was how a 1.76 MB map sat invisible to every sweep for three days.) */
+  const out = opt('--out', mapCandidates(ROOT)[0]);
   mkdirSync(dirname(out), { recursive: true });
-  const tmpDir = join(ROOT, '.mutation-sweeps/.pgc-tmp');
+  const tmpDir = join(dirname(opt('--out', mapCandidates(ROOT)[0])), '.pgc-tmp'); /* beside the map it builds */
   mkdirSync(tmpDir, { recursive: true });
 
   let groups = listGroups();
