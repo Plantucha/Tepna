@@ -100,7 +100,22 @@ function legs(rs) {
     vCE: varr(dCE),
     vCP: varr(dCP),
     vEP: varr(dEP),
-    // residual correlation ECG↔PPG, measured against CPAP as truth
+    /* ⚠️ THIS IS NOT AN INDEPENDENT MEASUREMENT — it is the POLARIZATION IDENTITY, and the comment
+       that used to sit here ("measured against CPAP as truth") is exactly the reading that produced a
+       recommendation now withdrawn. For any three series,
+
+           corr(a−c, b−c)  ≡  ½(V_AC + V_BC − V_AB) / √(V_AC · V_BC)
+
+       so this `rho` is a deterministic function of `vCE`/`vCP`/`vEP` — the same three pairwise
+       variances TCH already consumes, returned two fields above. Verified by simulation over arbitrary
+       correlation structure: direct 0.807329359259 vs identity 0.807329359259, difference 1.3e-15.
+
+       It therefore carries ZERO information beyond the variances. It cannot validate the motion proxy
+       (`_tchRhoFromMotion`), and a low correlation between the two is not evidence against the proxy —
+       it is two different functions of overlapping inputs disagreeing. See
+       CROSS-DOMAIN-METHODS-FOLLOWUPS-2026-08-14 §1: ρ is NOT identifiable from three sources.
+       Kept because the number is still a useful diagnostic of the variance triple; renamed in meaning,
+       not in value. */
     rho: corr(
       rs.map((r) => r.ecg - r.cpap),
       rs.map((r) => r.ppg - r.cpap)
