@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** IN-PROGRESS (§1 swept — 2 stale parks + a 2nd pass · **§2 ANSWERED** — MotionDex accidental, CPAPDex deliberate · **§3 MEASURED 2026-08-16 — cap stays at 3; the binding constraint is the Float32 intermediate (~196 MB resident for 20.3 MB of Int16), not the raw samples** · §4 spawned) · **Created:** 2026-08-08 · **Follows:** `GENERATOR-FOLLOWUPS-II-BRIEF.md` (§3 executed 2026-08-08)
+**Status:** DONE — 2026-08-18 (every Done-when box was already [x]; this flip only records it. §1 swept — 2 stale parks reported · §2 ANSWERED with a standing verdict (MotionDex accidental, CPAPDex deliberate) · §3 MEASURED 2026-08-16, cap stays at 3, the binding constraint is the Float32 intermediate. **§4 DEFERRED** — it is successor content, not this brief's work: a MotionDex multi-recording SPINE is the prerequisite before any generator wiring, the payoff is bounded (§2 ADDENDUM), and no session should start it without deciding multi-night MotionDex is wanted at all. No new follow-up brief spawned: §4 already IS the captured follow-up, kept in place with its full reasoning) · **Created:** 2026-08-08 · **Follows:** `GENERATOR-FOLLOWUPS-II-BRIEF.md` (§3 executed 2026-08-08)
 
 # Generator follow-ups, Round III — what §3's execution surfaced
 
@@ -247,7 +247,7 @@ no UI change and no re-bundle is owed.
       the *measure* branch, so no UI hedge and no re-bundle — see §3-RESULT for what the run does
       and does not establish (Node not browser; cost not correctness).
 
-## 4. Spawned by §2 — MotionDex needs a multi-recording spine BEFORE a generator
+## 4. DEFERRED (successor content, see header) — MotionDex needs a multi-recording spine BEFORE a generator
 
 > **⚠️ REWRITTEN 2026-08-08.** This section previously read *"give MotionDex the generator it already
 > fits"* and led with adding the script tags. The ordering is wrong, but **not because "accidental"
