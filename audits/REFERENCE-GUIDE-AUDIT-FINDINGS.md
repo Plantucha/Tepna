@@ -537,3 +537,36 @@ timestamp. A dimension with no surface cannot be evidence that the surface is co
 defects" here would be precisely the vacuous green this audit keeps finding elsewhere. If Clock Contract
 examples are to be audited, the surface is the app code, `docs/**`, and `CLAUDE.md` §🔒 itself — all of
 which do carry them — and that is a different brief.
+
+## Dimension-3, fleet attempt 2026-08-18 — the mechanical proxy DOES NOT WORK, and this is why
+
+Dimension 3 asks that no interpretation band be invented — every cut-point traceable to a published
+source or else honestly marked. The OxyDex pass did this by hand for ODI-3 and it cost real effort, so
+the obvious move was a mechanical proxy over the other six guides. **Three proxies were tried and all
+three are wrong.** Recorded in full because the next session will reach for the same shortcut.
+
+| proxy | result | why it is wrong |
+|---|---|---|
+| banded card with **no citation in the card** | **135 / 166** | most bands are node-computed composites; the evidence ladder exists so those are *marked*, not forbidden. A `heuristic` disc IS the disclosure. |
+| ...restricted to tier **`measured`/`validated`** | **68** | `measured` is the correct tier for a direct reading — *Usage Hours*, *% Analyzable*, *N (beats)*, *Coverage*. A direct measurement needs no citation, and its "band" is a descriptive range, not a clinical cut-point. |
+| ...restricted to **`validated`** alone | ~26 | **every one is a real published standard** — ATTD/Battelino for TIR·TBR·TAR, Bergenstal GMI, Kovatchev LBGI/HBGI, Bazett QTc, Baevsky SI, AASM ODI. Not invented. |
+
+**The last row is the informative one.** `Time in Range` reads *"the consensus goal for most adults is
+>70%"* and bands `>70% / 50–70%` with no in-card citation — and Battelino 2019 (`10.2337/dci19-0028`)
+**is in the guide**, in its references section, along with 8 other DOIs. The band is real, published,
+correct, and present in the document; the card simply does not link to it.
+
+So the proxy measures **citation LOCALITY**, and this suite centralises citations by design. That is a
+house-style question — arguably a traceability improvement, since a reader at the card must scroll to
+find the authority — but it is emphatically **not** dimension 3, and shipping 68 rows of it as findings
+would have buried the one real defect (the `SpO₂ FFT` card above) in noise it manufactured.
+
+**Closure: dimension 3 across the remaining six guides is NOT mechanically decidable and remains OPEN.**
+It requires reading each band against its cited source, one metric at a time, as the ODI-3 pass did.
+What this attempt genuinely establishes is narrower and still worth having: **no `validated`-tier band in
+any of the 7 guides is invented** — all ~26 trace to a named published standard. The unresolved part is
+the `emerging`/`experimental`/`heuristic` bands, where the tier already disclaims external validation, so
+the question is whether the *disclaimer* is honest rather than whether the *citation* exists.
+
+⚠️ Do not re-run a citation-presence sweep for dimension 3. It answers a different question, and it
+answers it loudly.
