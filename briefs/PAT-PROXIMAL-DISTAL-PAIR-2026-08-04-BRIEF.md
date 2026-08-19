@@ -204,6 +204,40 @@ measures that.
       every statistic below is computed on it. Same failure `pat-gate.js` records for `[PHYS_LO, PHYS_HI]`
       — *"treated as a plausibility filter; it is a censoring cut"* — in a second tool.
 
+      🔬 **FULL-CORPUS PAIRED RUN 2026-08-19 — the separation is PERFECT, and it corrects the scope note
+      below.** Both widths over every night that scores at both, 11 pairs:
+
+      | night | ±400 lag | strict | p | ±800 lag | strict | p | |
+      |---|---|---|---|---|---|---|---|
+      | 07-20 | 80 | 72 % | 0.010 | 80 | 72 % | 0.010 | unchanged |
+      | 07-21 | 124 | 50 % | 0.010 | 124 | 50 % | 0.010 | unchanged |
+      | 07-22 | −49 | 73 % | 0.010 | −49 | 73 % | 0.010 | unchanged |
+      | 07-24 | 13 | 8 % | 0.069 | 2 | 7 % | 0.158 | unchanged |
+      | 07-25 | 57 | 75 % | 0.010 | 57 | 75 % | 0.010 | unchanged |
+      | 07-26 | 126 | 20 % | 0.010 | 125 | 20 % | 0.010 | unchanged |
+      | 07-27 | 126 | 51 % | 0.010 | 126 | 51 % | 0.010 | unchanged |
+      | **07-28** | **−300** | 40 % | 0.010 | **−534** | **55 %** | 0.010 | **censored** |
+      | **07-29** | **315** | 11 % | 0.020 | **428** | **25 %** | 0.010 | **censored** |
+      | **07-30** | **−350** | 7 % | **0.228** | **−478** | **34 %** | **0.010** | **censored** |
+      | **08-01** | **−363** | 18 % | 0.010 | **−435** | **47 %** | 0.010 | **censored** |
+
+      **Every night with |lag| ≤ 126 ms is byte-identical at both widths; every night with |lag| in
+      300–363 ms moved beyond ±400 AND improved its strict match.** No exceptions in either direction —
+      the window was binding on exactly the nights that crowded it and on no others. That is a cleaner
+      censoring signature than the single-night test could give.
+
+      🔴 **This CORRECTS the scope note below, which I wrote from n = 1.** I recorded that `07-30` was
+      *"not significant, ratio 1.15"* and concluded **"the four are not one phenomenon"**. At ±800 it is
+      **p = 0.010 with 34 % strict** — it was censored, not null. **The four ARE one phenomenon**, and
+      the null reading was itself an artefact of the truncating window. A censored measurement does not
+      merely shrink; it can cross a significance threshold, so "not significant at the narrow window" was
+      never evidence of absence.
+
+      ⚠️ **Still unresolved: the sign.** Three of the four censored nights are NEGATIVE (−534, −478,
+      −435) and the tool's header says positive is the only anatomically possible direction. Widening the
+      window made them *more* significant without making them anatomically sensible, so the sign question
+      is now sharper, not answered.
+
       ⚠️ **Scope, and it is narrow: n = 1 night of the four.** `07-30` at ±400 reads −350 ms at **p =
       0.228** (not significant, ratio 1.15), and `08-01`/`08-03` produced no scorable row at ±400 at all.
       So the four are **not one phenomenon** and should stop being cited as a set: one is demonstrably
