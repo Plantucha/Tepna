@@ -18289,6 +18289,185 @@
       T.eq('…and no top5', bare.top5.length, 0);
     });
 
+    group('OxyDex compute* floor — 72 drafts adopted: every guard refuses, null never throws (mutation-derived)', 'oxydex-dsp · known-answer · mutation-pinned', function (T) {
+      var O = env.OxyDex;
+      var B = O && O._bare;
+      if (!O || !B || typeof B.computeSpikeDecay !== 'function') {
+        T.skip('OxyDex._bare helpers available', 'OxyDex not co-loaded in this runner');
+        return;
+      }
+      /* Adopted from the AI-probe draft bank (mutation-suite --draft): each projection below was
+         machine-verified to discriminate the real code from a then-surviving mutant, batch-verified
+         green against the current tree, and kill-verified by re-applying the mutants (changeset has
+         the tally). The bank's fabrication-adjacent value pins (composite scores on empty input,
+         sub-stats of 0 beside a null primary) were NOT adopted — pinning those would lock the
+         fabricated-absence warts the §B groups exist to catch. */
+      var out;
+      out = O.parseCSV('');
+      T.eq('O.parseCSV("") → "0"', JSON.stringify(out.length), '0');
+      out = B.computePBmetrics(0);
+      T.eq('B.computePBmetrics(0) → "0"', JSON.stringify(out.pbEarlyCount), '0');
+      out = B.computeSpikeUndershoot(null);
+      T.eq('B.computeSpikeUndershoot(null) → "null"', JSON.stringify(out), 'null');
+      out = B.computeSpikeUndershoot(null, 1);
+      T.eq('B.computeSpikeUndershoot(null,1) → "null"', JSON.stringify(out), 'null');
+      out = B.computeSpikeDecay(null);
+      T.eq('B.computeSpikeDecay(null) → "null"', JSON.stringify(out), 'null');
+      out = B.computeSpikeDecay(null);
+      T.eq('B.computeSpikeDecay(null) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeSpikeDecay(null, 1);
+      T.eq('B.computeSpikeDecay(null,1) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeSpike50PctRecovery(null);
+      T.eq('B.computeSpike50PctRecovery(null) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeSpike50PctRecovery(null);
+      T.eq('B.computeSpike50PctRecovery(null) → "null"', JSON.stringify(out), 'null');
+      out = B.computeSpike50PctRecovery(null, 1);
+      T.eq('B.computeSpike50PctRecovery(null,1) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeSpO2Overshoot(null);
+      T.eq('B.computeSpO2Overshoot(null) → "null"', JSON.stringify(out), 'null');
+      out = B.computeSpO2Overshoot(null, 1);
+      T.eq('B.computeSpO2Overshoot(null,1) → "null"', JSON.stringify(out), 'null');
+      out = B.computeSleepStageProxy('');
+      T.eq('B.computeSleepStageProxy("") → "true"', JSON.stringify(out === null), 'true');
+      out = O.cleanArtifactHR([1, 2, 3]);
+      T.eq('O.cleanArtifactHR([1,2,3]) → "0"', JSON.stringify(out), '0');
+      out = B.computeNightExtras([], 1);
+      T.eq('B.computeNightExtras([],1) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeNightExtras(0);
+      T.eq('B.computeNightExtras(0) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeHypoxicDose('');
+      T.eq('B.computeHypoxicDose("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.oxyComputeNight(null);
+      T.eq('B.oxyComputeNight(null) → "null"', JSON.stringify(out), 'null');
+      out = B.computeSpikeRiseRate(null);
+      T.eq('B.computeSpikeRiseRate(null) → "null"', JSON.stringify(out), 'null');
+      out = B.computeSpikeRiseRate(1);
+      T.eq('B.computeSpikeRiseRate(1) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeO2HREfficiency(null);
+      T.eq('B.computeO2HREfficiency(null) → "null"', JSON.stringify(out), 'null');
+      out = B.computeO2HREfficiency(null, 1);
+      T.eq('B.computeO2HREfficiency(null,1) → "null"', JSON.stringify(out), 'null');
+      out = B.computeIEI(null);
+      T.eq('B.computeIEI(null) → "null"', JSON.stringify(out), 'null');
+      out = B.computeIEI(1);
+      T.eq('B.computeIEI(1) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeSpO2NadirTime(0);
+      T.eq('B.computeSpO2NadirTime(0) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeSpO2NadirTime(0, 1);
+      T.eq('B.computeSpO2NadirTime(0,1) → "true"', JSON.stringify(out === null), 'true');
+      out = B.oxyBuildSpo2Series(null);
+      T.eq('B.oxyBuildSpo2Series(null) → "true"', JSON.stringify(out === null), 'true');
+      out = B.oxyBuildSpo2Series([1, 2, 3], { a: 1 });
+      T.eq('B.oxyBuildSpo2Series([1,2,3],{"a":1}) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeSympSurge(null);
+      T.eq('B.computeSympSurge(null) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeHypoxicLoad(null);
+      T.eq('B.computeHypoxicLoad(null) → "null"', JSON.stringify(out), 'null');
+      out = B.computeHypoxicLoad(null, 1);
+      T.eq('B.computeHypoxicLoad(null,1) → "null"', JSON.stringify(out.hypoxicLoad), 'null');
+      out = B.computeHRQuartileTrend('x');
+      T.eq('B.computeHRQuartileTrend("x") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeDataGaps([1, 2, 3]);
+      T.eq('B.computeDataGaps([1,2,3]) → "0"', JSON.stringify(out.gapPct), '0');
+      out = B.computeT88T85('');
+      T.eq('B.computeT88T85("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeHRProfile([]);
+      T.eq('B.computeHRProfile([]) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeSpO2Ceiling('');
+      T.eq('B.computeSpO2Ceiling("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computePoincareSD('');
+      T.eq('B.computePoincareSD("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeBreathingIrregularity(null);
+      T.eq('B.computeBreathingIrregularity(null) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeCrossSignal(0);
+      T.eq('B.computeCrossSignal(0) → "0"', JSON.stringify(out.autoArousalIdx), '0');
+      out = B.computeHRAdvanced([]);
+      T.eq('B.computeHRAdvanced([]) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeSpO2Autocorr('');
+      T.eq('B.computeSpO2Autocorr("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeHRFlatlines('');
+      T.eq('B.computeHRFlatlines("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeHRFlatlines(0);
+      T.eq('B.computeHRFlatlines(0) → "0"', JSON.stringify(out.flatlineCount), '0');
+      out = B.computeSpO2Shape('');
+      T.eq('B.computeSpO2Shape("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeLCSP('');
+      T.eq('B.computeLCSP("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeNadirTrend(null);
+      T.eq('B.computeNadirTrend(null) → "null"', JSON.stringify(out), 'null');
+      out = B.computeNadirTrend(1);
+      T.eq('B.computeNadirTrend(1) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeRecoverySlopeCV(null);
+      T.eq('B.computeRecoverySlopeCV(null) → "null"', JSON.stringify(out), 'null');
+      out = B.computeRecoverySlopeCV(1);
+      T.eq('B.computeRecoverySlopeCV(1) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeDesatAsymmetry(null);
+      T.eq('B.computeDesatAsymmetry(null) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeODI2('');
+      T.eq('B.computeODI2("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeHRCV('');
+      T.eq('B.computeHRCV("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeConditionalSpO2('');
+      T.eq('B.computeConditionalSpO2("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeDesatSlopes('');
+      T.eq('B.computeDesatSlopes("") → "null"', JSON.stringify(out), 'null');
+      out = B.computeRollingMetrics('');
+      T.eq('B.computeRollingMetrics("") → "null"', JSON.stringify(out), 'null');
+      out = B.computeRecoveryIndex(null);
+      T.eq('B.computeRecoveryIndex(null) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeSleepPressure(null, 1);
+      T.eq('B.computeSleepPressure(null,1) → "null"', JSON.stringify(out), 'null');
+      out = B.computeHRNoctDip(1, 1);
+      T.eq('B.computeHRNoctDip(1,1) → "0"', JSON.stringify(out.hrnDip), '0');
+      out = B.computeMotionProfile(0);
+      T.eq('B.computeMotionProfile(0) → "0"', JSON.stringify(out.arousalIndex), '0');
+      out = B.oxyDesatConf(null);
+      T.eq('B.oxyDesatConf(null) → "0.45"', JSON.stringify(out), '0.45');
+      out = B._oxyEnsureRows(null);
+      T.eq('B._oxyEnsureRows(null) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeODI1('');
+      T.eq('B.computeODI1("") → "0"', JSON.stringify(out.odi1Rate), '0');
+      out = B.computeCT94('');
+      T.eq('B.computeCT94("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeCircadianHR('');
+      T.eq('B.computeCircadianHR("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeHypoxicBurden('');
+      T.eq('B.computeHypoxicBurden("") → "0"', JSON.stringify(out.rate), '0');
+      out = B.computeSpO2Percentiles('');
+      T.eq('B.computeSpO2Percentiles("") → "null"', JSON.stringify(out), 'null');
+      out = B.oxyLoadOwnExport(null);
+      T.eq('B.oxyLoadOwnExport(null) → "false"', JSON.stringify(out.ok), 'false');
+      out = B.computeODRI(1);
+      T.eq('B.computeODRI(1) → "true"', JSON.stringify(out === null), 'true');
+      out = B._o2p2('10');
+      T.eq('B._o2p2("10") → "2"', JSON.stringify(out.length), '2');
+      out = B._o2DateAnchorMs([20230228000000, null], [20230228000000, null]);
+      T.eq('B._o2DateAnchorMs([20230228000000,null],[20230228000000,null]) → "1677542400000"', JSON.stringify(out), '1677542400000');
+      out = B._o2DateAnchorMs([20231301000000, null]);
+      T.eq('B._o2DateAnchorMs([20231301000000,null]) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeCT94(['a', 'b', 'c', 'd', 'e'], null);
+      T.eq('B.computeCT94(["a","b","c","d","e"],null) → "true"', JSON.stringify(out === null), 'true');
+      // ── Sharpened after first kill-verify: the null-pins above pass THROUGH these guards both
+      //    ways, so the mutants needed inputs that reach the clause itself.
+      T.eq('a slopes OBJECT with a null recovery leg still refuses — null, not NaN asymmetry', B.computeDesatAsymmetry({ meanDipSlope: -2, meanRecSlope: null }), null);
+      out = B.computeDesatAsymmetry({ meanDipSlope: -3, meanRecSlope: 1.5 });
+      T.eq('dip 3x recovery reads asym 2, labelled obstructive', JSON.stringify(out), '{"desatAsym":2,"asymLabel":"Abrupt (obstructive)"}');
+      T.eq('buildEpochSeries(null rows) is an empty grid, not a crash', JSON.stringify(O.buildEpochSeries(null, 0)), '[]');
+      T.eq('…and a missing t0Ms refuses the grid too — epochs need the anchor', JSON.stringify(O.buildEpochSeries([{ tMs: 0, hr: 60 }], null)), '[]');
+
+      // ── And the two long-line MANUAL targets, applied by hand and pinned by contract:
+      //    the filename date-anchor round-trip (Clock Contract §2.7 — a rolled component is a
+      //    fabricated night) and the nocturnal-dip label bands at their exact boundary.
+      T.eq('a real 14-digit filename stamp anchors the night', B._o2DateAnchorMs('O2Ring_20260610220000.csv', null), Date.UTC(2026, 5, 10));
+      T.eq('month 13 day 45 is DATE UNKNOWN, never a rolled instant', B._o2DateAnchorMs('O2Ring_20261345120000.csv', null), null);
+      T.eq(
+        'a 10.0 % intra-night descent is Moderate — the Good band is > 10 STRICT',
+        JSON.stringify(B.computeHRNoctDip({ hrFloor: 54 }, { meanHr: 60 })),
+        '{"hrnDip":10,"hrnDipLabel":"Moderate (intra-night)"}'
+      );
+      T.eq('16.7 % is Good', JSON.stringify(B.computeHRNoctDip({ hrFloor: 50 }, { meanHr: 60 })), '{"hrnDip":16.7,"hrnDipLabel":"Good (intra-night)"}');
+    });
+
     /* ── parseJSONL — 144 unclassified survivors, the fleet's third-largest cluster, UNTESTED ────
        `parseJSONL` reads the unified `_summary.json` / JSONL night export and reconstructs a night
        object field by field. It is ~50 assignments of two shapes, and the difference between them is
