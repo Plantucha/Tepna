@@ -453,3 +453,60 @@ from `abbrs[]`, so the abbreviation index had no entry for it. Added from the gu
 
 In both cases the first number was larger and more alarming than the truth. A sweep that over-reports is
 recoverable; the discipline is to read every flag before believing any of it.
+
+---
+
+## Dimension-2, second pass 2026-08-18 — the card that documented the method its code REPUDIATES
+
+The first dimension-2 pass swept OxyDex only. Run fleet-wide (`tools/formula-constant-audit.mjs`, 7
+guides, 381 formulas, 67 constant-bearing) it raised **6 flags**. Five are questions the tool is right to
+ask and wrong to call defects; **one is the most serious guide defect found in this audit.**
+
+### 🔴 `SpO₂ FFT` — stale on four independent counts, describing a method the code calls uninformative
+
+The card was written for the pre-2026-08-16 implementation and was never revised when
+`OXYDEX-FFT-CYCLE-NULL-2026-08-16-BRIEF` replaced it — **two days before this sweep.**
+
+| the card said | `oxydex-dsp.js` does |
+|---|---|
+| `argmax \|X(f)\|²` | tests peak **HEIGHT** against a fitted AR(1) red background (Mann & Lees 1996) |
+| band `0.003 – 0.1 Hz` | `_FFT_LO_HZ = 0.005` → `_FFT_HI_HZ = 0.05` (200 – 20 s) |
+| `DFT on ≤3600 samples` | the record's **own Fourier bins** (k/N), `_FFT_MAX_BINS = 400`, strided |
+| `None / >120 s` ⇒ no pattern | returns **null** whenever no bin clears significance, at ANY period |
+
+Only the constant `0.003` was mechanically detectable — the tool flags a number in a formula that appears
+nowhere in the node's source. The other three came from **reading the card against the code once the
+constant had pointed at it.** That is the intended use and worth stating plainly: the sweep is a
+*finder*, not a *judge*, and its yield here was one true positive that opened onto three more.
+
+The method claim is the serious one, because the code does not merely differ — it **argues against the
+card**: *"in a red spectrum the argmax sits near the low-frequency end by construction, so its position
+carries no information."* A reader following the guide would attribute meaning to a number the
+implementers deliberately stopped producing. The band error compounds it: `0.003 Hz` is a 333 s period,
+outside the searched range entirely, so the card promises detections the code cannot return.
+
+**Fixed** — card rewritten to state the periodogram, the real band and bin policy, the red-noise
+background, the Šidák + ×2.2 inflation threshold, and the null return. The `>120 s` row became `None`,
+since a long period is now reported as null rather than as a long period.
+
+⚠️ **`oxydex-dsp.js:1696`'s own header comment is ALSO stale** — it reads `0.01–0.05 Hz band` against
+constants of `0.005–0.05`. **Deliberately NOT fixed here.** A comment edit changes the inlined asset
+text, so `manifestHash` **and** `computeHash` both move, which owes a corpus re-verification of every
+OxyDex fixture (§🔏) for a cosmetic gain. It should ride the next PR that touches that file's compute
+path for a real reason. Recorded so it is neither lost nor re-discovered as new.
+
+### The five non-defects, triaged (a flag is a question)
+
+- **ECGDex ×3 — `6.7`, `6.7`, `333` in a `Band` field.** All are reciprocal restatements for the reader:
+  `1/0.15 = 6.7 s`, `1/0.04 = 25 s`, `1/0.003 = 333 s`. The Hz bounds themselves are all present in the
+  code. Not independent constants, and the guide is *more* readable for including them.
+- **OxyDex `Azarbarzin 2019` — `743`, `2.73`.** Extractor noise from the cohort sizes `n=2,743 / n=5,111`;
+  the thousands separator splits one number into two. A citation's sample size is not a formula constant.
+- **OxyDex `Jubran 1999` — `660`, `940`.** The red/IR wavelengths in **nm** of the sensor's Beer–Lambert
+  principle, described in the cited paper. OxyDex consumes SpO₂; it never computes from raw absorbance,
+  so these correctly appear nowhere in its source.
+
+The reciprocal and thousands-separator cases are mechanically separable and worth encoding in the
+extractor; the Jubran case is not (a "constant the cited hardware uses, which we do not implement" cannot
+be told from a missing one by inspection). Left as **5 standing questions rather than a suppression
+list** — a list of known-fine flags goes stale silently, which is the failure this whole audit is about.
