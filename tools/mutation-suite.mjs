@@ -1537,6 +1537,34 @@ async function cmdDraft(file) {
   const cp = join(CRAWL_DIR, basename(file) + '.crawl.json');
   if (!existsSync(cp)) return log('no crawl result for ' + file + ' at ' + cp + ' — crawl it first (this is a refusal, not an empty result)');
   const crawl = JSON.parse(readFileSync(cp, 'utf8'));
+
+  /* ⚠️ MERGE THE AI PROBE'S FINDINGS — this seam shipped BROKEN and untested. `mutation-ai-probe.mjs`
+     converts undistinguished survivors into killables and its own output said "feed to --draft",
+     while --draft read only `<file>.crawl.json` and never looked at `<file>.ai-probe.json` sitting
+     beside it (or in the repo-local `.mutation-crawl/`). So an overnight probe run would have
+     produced killables and exactly zero drafts, and both halves would have looked healthy alone —
+     the classic seam failure: two tools, each verified, joined by a filename convention nobody ran. */
+  let aiKillable = 0;
+  for (const dir of [CRAWL_DIR, join(ROOT, '.mutation-crawl')]) {
+    const ap = join(dir, basename(file) + '.ai-probe.json');
+    if (!existsSync(ap)) continue;
+    try {
+      const probe = JSON.parse(readFileSync(ap, 'utf8'));
+      for (const fi of probe.findings || []) {
+        /* The probe emits per-mutant callPath on each mutant record; lift it to the finding shape
+           usableKillables expects (callPath at the finding level). */
+        for (const m of fi.mutants || []) {
+          crawl.findings = crawl.findings || [];
+          crawl.findings.push({ fn: m.fn || fi.fn, callPath: m.callPath || fi.callPath, mutants: [m] });
+          if (m.status === 'KILLABLE') aiKillable++;
+        }
+      }
+      break; // first hit wins; the two locations are the same artefact at different roots
+    } catch {
+      log('  ⚠ unreadable ai-probe result at ' + ap + ' — drafting from the crawl alone');
+    }
+  }
+
   const cases = usableKillables(crawl);
   const limit = Number(opt('--limit', '0')) || cases.length;
   const pick = cases.slice(0, limit);
@@ -1544,7 +1572,7 @@ async function cmdDraft(file) {
 
   log('KILL DRAFTING — ' + file);
   log('  model ' + DRAFT_MODEL + ' (think:false — a reasoning reply returns EMPTY, see the header)');
-  log('  ' + cases.length + ' killable mutant(s) carry a distinguishing input; drafting ' + pick.length);
+  log('  ' + cases.length + ' killable mutant(s) carry a distinguishing input (' + aiKillable + ' from the AI probe); drafting ' + pick.length);
   log("  the model picks WHICH FIELD to assert on; the expected VALUE is the real code's recorded output.\n");
 
   const t0 = Date.now();
