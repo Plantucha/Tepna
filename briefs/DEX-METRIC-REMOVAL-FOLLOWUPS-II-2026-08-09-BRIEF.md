@@ -2,7 +2,7 @@
 
 # DEX-METRIC-REMOVAL — Follow-ups II
 
-**Status:** PROPOSED · **Created:** 2026-08-09 · **Owner brand:** Tepna
+**Status:** DONE — 2026-08-19 · **Created:** 2026-08-09 · **Owner brand:** Tepna
 **Parent:** `DEX-METRIC-REMOVAL-FOLLOWUPS-2026-06-23-BRIEF.md` (DONE 2026-06-29)
 **Grandparent:** `DEX-METRIC-REMOVAL-AUDIT-BRIEF.md`
 
@@ -101,6 +101,36 @@ inlined into a bundle, so it rides the next PulseDex re-bundle.
 - [x] §4 of the parent executed: guides carry no rendered `ANS Age` / `BP Projection` mention.
 - [x] The rendered-text correction-history gate exists, was shown to RED before it was shown to PASS,
       and protects the tombstones.
-- [ ] §2.1 `ppgdex-profile.js` `ansAge()` deleted on the next PpgDex re-bundle.
-- [ ] §2.2 `oxydex-fusion.js` dead `bpProj` render branch deleted on the next OxyDex re-bundle.
-- [ ] §2.3 `pulsedex-overview.js:235` stale comment corrected on the next PulseDex re-bundle.
+- [x] **DONE 2026-08-19** — `ansAge()` deleted. ⚠️ **This brief listed THREE sites and there were FOUR:**
+      `const aa = ansAge(...)` (which feeds the `ansAge: aa` assignment) was missed. Removed by
+      identifier and asserted to zero occurrences afterwards, rather than by the line numbers above —
+      which had already drifted.
+- [x] **DONE 2026-08-19** — the unreachable `BP projection` row is gone and the guard is now
+      `if (n.karv || n.vo2est)`. The export's `bpProj: null` stays, per this brief.
+- [x] **DONE 2026-08-19** — corrected, and it now says WHY it was wrong rather than silently agreeing
+      with line 70, so the next reader sees the contradiction was resolved rather than tidied away.
+
+---
+
+## 4 · Executed 2026-08-19 — all three in ONE re-bundle, and §2.1 generalised
+
+§2's economics rule was followed to the letter: the three residues rode a single build/provenance/
+verify cycle across PpgDex · OxyDex · PulseDex rather than causing three.
+
+⚠️ **§2.1's justification proved to be far bigger than §2.1.** Its argument for deadness was that
+`lbl_ppgAge` appears in no `.src.html`. Run without the metric-specific filter, the same grep says
+`PpgDex.src.html` has **no `lbl_` id at all** — and neither do ECGDex's or GlucoDex's. So every sibling
+call in `computeHints()` is equally unreachable: **PpgDex 10 · ECGDex 11 · GlucoDex 5 = 26 writes to
+ids that exist nowhere.** All three functions are dead on two independent grounds (the `if (DP()) return`
+early exit AND the missing ids).
+
+Spawned as `briefs/DEAD-FIELD-HINTS-FLEET-2026-08-19-BRIEF.md` rather than folded in here: three
+functions across three nodes is a second work-unit, and fusing it with this one is the failure
+`CLAUDE.md` §👥.2 records permanently in `cabd7f7`.
+
+⚠️ **A second finding, about this repo's own docs rather than its code:** `CLAUDE.md` §🔒 describes
+`computeHash` as the computed proof of export-inertness, but **it exists nowhere in `manifest-gate.js`
+or `provenance/`**. Reporting these edits export-inert because it "did not move" would have been a claim
+about an ABSENT field — indistinguishable from a stable one in a diff, and exactly the vacuous-green
+shape this repo keeps paying for. Settled empirically instead: `verify-fixtures` re-stamped 4 fixtures,
+10 already current, suite green.

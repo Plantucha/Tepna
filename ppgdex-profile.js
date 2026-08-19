@@ -167,27 +167,6 @@
     const d = lnrm - 3.4;
     return base * (1 + Math.max(-0.08, Math.min(0.08, d * 0.1)));
   }
-  function ansAge(rmssd, sdnn, hr) {
-    const clamp = (v) => Math.min(85, Math.max(22, Math.round(v)));
-    const c1 = rmssd > 0 ? clamp(120 - 18 * Math.log(rmssd)) : null;
-    const c2 = sdnn > 0 ? clamp(100 - (Math.log(sdnn) - 2.5) * 30) : null;
-    const c3 = hr > 30 && hr < 120 ? clamp(20 + (hr - 45) * 1.3) : null;
-    let cs = 0,
-      ws = 0;
-    if (c1 != null) {
-      cs += 0.25 * c1;
-      ws += 0.25;
-    }
-    if (c2 != null) {
-      cs += 0.4 * c2;
-      ws += 0.4;
-    }
-    if (c3 != null) {
-      cs += 0.35 * c3;
-      ws += 0.35;
-    }
-    return { age: ws ? clamp(cs / ws) : null, c1, c2, c3 };
-  }
   function hrvScore(rm) {
     return Math.round(Math.max(0, Math.min(100, 1.494 * rm - 13.37)));
   }
@@ -216,7 +195,6 @@
     const lnrm = Math.log(Math.max(1, r.dispRm));
     const vo2b = +(vo2Base(rhrEff, hrmaxEff) * altF).toFixed(1);
     const vo2a = +vo2Adj(vo2b, lnrm).toFixed(1);
-    const aa = ansAge(r.dispRm, r.dispSd, r.dispHr);
     Object.assign(r, {
       profile: p,
       tanaka,
@@ -229,7 +207,6 @@
       vo2adj: vo2a,
       vo2gt: p.vo2gt > 0 ? p.vo2gt : null,
       cpapInUse: p.cpap,
-      ansAge: aa,
       hrvScore: hrvScore(r.dispRm),
       expRmssd: expectedRmssd(p.age),
       expRHR: expectedRHR(p.age)
@@ -423,10 +400,6 @@
     };
     const p = getProfile();
     const n = popNorms(p.sex);
-    if (r) {
-      const aa = r.ansAge || ansAge(r.dispRm, r.dispSd, r.dispHr);
-      if (aa.age != null) set('lbl_ppgAge', '↑ chronological age · HRV-estimated autonomic age ≈ ' + aa.age + ' yr', true);
-    }
     const ideal = +(22.5 * ((parseFloat($('ppgHeight').value) || n.h) / 100) ** 2).toFixed(1);
     set('lbl_ppgWeight', '~ pop. avg ' + n.w + ' kg · ideal ' + ideal + ' kg');
     set('lbl_ppgHeight', '~ pop. avg ' + n.h + ' cm');
