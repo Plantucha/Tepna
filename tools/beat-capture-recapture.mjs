@@ -421,7 +421,7 @@ function main(argv) {
     const i = argv.indexOf(k);
     return i >= 0 ? argv[i + 1] : null;
   };
-  if (argv.includes('--self-test')) return selfTest();
+  if (argv.includes('--selftest') || argv.includes('--self-test')) return selfTest();
   const fe = arg('--ecg'),
     fa = arg('--ppg-a'),
     fb = arg('--ppg-b');

@@ -481,7 +481,7 @@ function main(argv) {
     const i = argv.indexOf(k);
     return i >= 0 ? argv[i + 1] : null;
   };
-  if (argv.includes('--self-test')) return selfTest();
+  if (argv.includes('--selftest') || argv.includes('--self-test')) return selfTest();
   const f = arg('--ecg');
   if (!f) {
     console.error('usage: --ecg <ECG.txt> [--n 200] [--seed 7]');
