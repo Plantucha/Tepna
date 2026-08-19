@@ -570,3 +570,57 @@ the question is whether the *disclaimer* is honest rather than whether the *cita
 
 ⚠️ Do not re-run a citation-presence sweep for dimension 3. It answers a different question, and it
 answers it loudly.
+
+## Dimension 3 — the honesty reading of the lower-tier disclaimers (2026-08-19, CLOSES the dimension)
+
+The open half was *"whether the `emerging`/`experimental`/`heuristic` disclaimers are honest"*. It is a
+reading, and the brief said so; a sweep was tried first anyway and had to be discarded.
+
+### The instrument that did not work (a fourth time)
+
+A citation-presence proxy over lower-tier banded cards flagged **69 of 76**. That is the same
+citation-**locality** artefact that already produced 135/166, then 68, then ~26 — this suite
+centralises citations by design, so absence of a local citation is not absence of a source. Recorded
+because the proxy is the obvious thing to build and it has now misled four times.
+
+### The filter that did
+
+Not *is the band cited* but **does the band issue a clinical directive it has not earned**. Of 186
+lower-tier cards, 76 carry a band, 53 use verdict language (Normal/Mild/Severe) — but only **3**
+instruct the reader to act. Three is small enough to read, which is the point.
+
+| card | tier | verdict |
+|---|---|---|
+| **OxyCrash Count / Rate** | heuristic | **DEFECT — fixed.** Cut-points 2/8/20 per hour are internal, with no citation, no `no-norm-note` and a generic badge title, ending *"Severe — evaluate immediately"*. Satisfies neither (a) nor (b). Directive removed; note added naming the 5 pp/30 s rule as our own choosing. |
+| **Positional Shifts** | heuristic | **DEFECT — fixed.** Prose hedges (*"may indicate restless legs syndrome"*); the band hardened it to *"screen for PLMS/RLS"* at an invented >20 cut. The card contradicted itself, tightening as it got terser. Softened to match its prose; note added. |
+| **MOS** | heuristic | **NOT a defect — deliberately left.** Carries the fleet's strongest directive (*"Urgent sleep specialist referral"*), and also its strongest disclaimer: *"Not the published McGill Oximetry Score"*, named as pediatric (Brouillette/Nixon), *"is not validated"*, repeated in the badge title. This is what (b) looks like when done properly. |
+
+**The transferable result: the strongest wording had the strongest hedge, and the quiet cards were the
+dishonest ones.** Ranking by how alarming a band *sounds* would have found MOS and missed both real
+defects. Positional Shifts is the sharper lesson — the same card hedged in prose and asserted in the
+table, so the defect was not the author's belief but the compression: a table cell has no room for
+*"may"*, and the hedge is what gets dropped.
+
+## Dimension 6 — two survivors of a "clean" claim (2026-08-19)
+
+The brief header said *"dimension 6 clean, after fixing 3 correction-history violations this audit's
+own execution introduced."* Re-running the rule over the fleet found **2 more**, both OxyDex, both
+verbatim the `"vXX fix"` pattern §6 names in its own definition:
+
+- **ApEn** — *"Formula corrected in v22.15 — prior versions used log(mean) instead of mean(log),
+  biasing values low."*
+- **Ultradian Cycles** — *"Centered window corrected in v22.15 (prior trailing window displaced
+  valleys ~2.5 min forward)."*
+
+Both now state the clean final fact; the provenance moved into an HTML comment, which §6 explicitly
+permits (*"Invisible HTML/// comments are fine"*).
+
+**Why they survived a pass that declared the dimension clean:** that pass checked the violations it
+had just *introduced* — its own diff — rather than re-running the invariant over the fleet. An audit
+that greps its own changes will always come back clean. The rule is cheap to re-run; the diff is the
+tempting thing to check.
+
+⚠️ **A bare grep for "corrected" over-reports 44 → 2.** ECGDex (19) and PpgDex (10) use it as the
+DOMAIN term — Bazett/Fridericia rate correction, Malik correction, beat correction, k-corrected
+thresholds. The discriminating pattern is revision narration (`corrected in vN`, *prior versions*,
+*previously stated*), not the word itself.

@@ -52,6 +52,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const AS = createRequire(import.meta.url)(join(ROOT, 'analysis-stats.js'));
@@ -270,4 +271,12 @@ function main() {
   console.log('\n  A median over nights is NOT the pooled-seconds hat the papers quote; it is the\n' + '  across-night distribution. Report it with N and the IQR, never as a bare σ.\n');
 }
 
-main();
+/* ⚠️ ENTRY GUARD — without it this file runs its CLI the moment anything imports it, and calls `process.exit` (2 sites), which
+   terminates the importing process rather than throwing something catchable.
+   Swept 2026-08-19 alongside `device-stability.mjs` and `beat-leg-closure.mjs`: a bare top-level
+   `main()` is indistinguishable from a module until something imports it, and `tests/run-tests.mjs`
+   wraps tool imports in `try { … } catch { return null }` — so the consequence surfaces as a
+   SILENT SKIP or a killed parent, never as a red. No importer exists for this file today (verified:
+   0 real `import` statements repo-wide, the apparent hits being prose that names it), so this is
+   PREVENTIVE — the guard costs one line and the absence costs a debugging session. */
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

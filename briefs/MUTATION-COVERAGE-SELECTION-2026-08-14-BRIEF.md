@@ -275,7 +275,24 @@ installed pytest-cov and would replace the heuristic with a measured mapping.
       pass and invalid fell 1324 -> 15 and 178 -> 8.
 - [ ] The uncorrected-denominator hypothesis (§1c) still untested — those three remain at ZERO
       ledger entries, so their denominators are still uncorrected even though their sweeps are fresh.
-- [ ] `cpapdex` · `glucodex` · `hrvdex` · `motiondex` re-swept WITH selection (still pre-selection data).
+- [~] ~~`cpapdex` · `glucodex` · `hrvdex` · `motiondex` re-swept WITH selection~~ — **OVERTAKEN
+      2026-08-19 by `MUTATION-SUITE-FOLLOWUPS` §3d**: selection is quarantined (opt-in only) after
+      interval coverage was built and per-line selection still lost 7 of 38 real kills on paired
+      hrvdex sweeps (state-dependent paths · load-executed lines · non-behavioural reds). Re-sweeping
+      WITH selection would ship those losses; the box's premise no longer stands. If the §3d
+      union-with-tag design lands, this box revives under that mechanism.
 - [ ] Owner decision: does `pulsedex-dsp.js` join `SWEEP_FILES` (§1b)?
 - [x] ppgdex re-swept outright (no journal existed for the truncated run).
-- [ ] Declared equivalences harvested into `mutate-equivalence.json`.
+- [x] **Declared equivalences harvested into `mutate-equivalence.json` — 2026-08-19.** All five
+      comment-declared equivalents located and reconciled against the current sweeps:
+      · pulsedex:448 + ecgdex:1283 (`f[k] > maxC` tie) — **added**, class `equivalent`, proofs attached;
+      · hrvdex elev-1500 + stress-floor — already present at DRIFTED line numbers under the weaker
+        `no-distinguishing-input`; the text-anchored key matched them anyway (#1486 doing its job) and
+        both are **upgraded to `equivalent` with their proofs**;
+      · the oxydex cross-cap pair (declared 2026-08-12) has **no surviving mutants in the current
+        sweep** — killed since; nothing to ledger;
+      · the glucodex `meals` guard declaration does NOT cover the mutant that actually survives:
+        the declared-equivalent `||→&&` form is gone, and the survivor is `negate: drop !` on
+        `!meals.length` — which nulls every WITH-meals call and survives only because **nothing
+        asserts the with-meals path of `analyze()`**. That is a REAL kill lead, not an equivalence;
+        recorded here rather than mis-ledgered.

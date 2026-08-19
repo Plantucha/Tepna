@@ -11351,6 +11351,108 @@
       T.eq('twenty-one hours is continuous, not a long overnight', C(rr(1000), at(6), 21 * 3600).mode, 'continuous');
     });
 
+    group('PulseDex helper floor — 24 drafts adopted, with physiological inputs (mutation-derived)', 'pulsedex-dsp · known-answer · mutation-pinned', function (T) {
+      var B = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!B || typeof B.artifactClean !== 'function') {
+        T.skip('PulseDex._bare helpers available', 'PulseDex not co-loaded in this runner');
+        return;
+      }
+      var P = env.PulseDex;
+      var rr = function (ms, n) {
+        return new Array(n).fill(ms);
+      };
+
+      // ── 1 · AN EMPTY FILE IS AN HONEST REFUSAL, with the reason naming what was absent.
+      //      tsValid is `tsOK && lengths match && any` — as `||` an empty file claims a timestamp axis.
+      var empty = P.parseRRInput('');
+      T.eq('an empty file has no timestamp axis', empty.tsMs, null);
+      T.eq('…and the reason says nothing numeric was found', empty.reason, 'no numeric intervals found in the file');
+
+      // ── 2 · AN ALL-ZERO STREAM (the Verity onboard _HR.txt shape) is counted as 0 usable, and the
+      //      reason distinguishes "outside range" from "not numeric" — the `===0` vs `!==0` branch.
+      var zeros = P.parseRRInput('0\n0\n0');
+      T.eq('an all-zero device stream has zero usable intervals', zeros.nUsable, 0);
+      T.eq(
+        '…and the reason names the range, not a parse failure',
+        zeros.reason,
+        'all 3 values are outside the physiological range (e.g. an all-zero HR/PPI stream) — the device logged no usable beats'
+      );
+
+      // ── 3 · GUARDS RETURN NULL, NEVER THROW — the `||` guards read null.length as `&&`.
+      T.eq('pdComputeResult(null) refuses, not throws', B.pdComputeResult(null), null);
+      T.eq('_pdSeriesStats(null) refuses, not throws', B._pdSeriesStats(null), null);
+      T.eq('_pdNormalizeRRInput(null) normalizes to honest nulls', JSON.stringify(B._pdNormalizeRRInput(null)), '{"vals":null,"tsMs":null,"t0Ms":null,"offsetMin":null}');
+      T.eq('lineChartSVG with no beats renders nothing, not a frame', B.lineChartSVG(0), '');
+
+      // ── 4 · AND THE SAME GUARDS PASS REAL DATA — the refusal thresholds are pinned from both sides.
+      T.eq('three beats is enough for series stats', JSON.stringify(B._pdSeriesStats([800, 810, 790])), '{"n":3,"meanRR":800,"hr":75,"sdnn":10,"rmssd":15.8,"pnn50":0}');
+      var alt = function (n) {
+        return new Array(n).fill(0).map(function (_, i) {
+          return 800 + (i % 2 ? 40 : -40);
+        });
+      };
+      T.eq('dfaAlpha1 refuses 15 VARYING beats — a constant series nulls either way and proves nothing', B.dfaAlpha1(alt(15)), null);
+      T.eq('…and 16 is already enough: the floor is < 16, not <= 16', B.dfaAlpha1(alt(16)), 0.051);
+      T.eq('…and measures an alternating 64-beat series', B.dfaAlpha1(alt(64)), 0.051);
+      T.eq('periodicBreathingIndex refuses 119 beats (floor is 120)', B.periodicBreathingIndex(rr(800, 119)), null);
+
+      // ── 5 · COLUMN DISCOVERY IS BY PHYSIOLOGICAL RANGE — zeroing the 300 ms bound admits junk.
+      T.eq('a column of ~800 ms intervals is the RR column', B._pdIntervalColByRange([[800, 810, 790]]), 0);
+      T.eq('a column of single-digit values is NOT', B._pdIntervalColByRange([[5, 7, 9]]), -1);
+
+      // ── 6 · ARTIFACT CLEANING: one 150 ms drop in ten beats. The flag lands on the artifact
+      //      (an `&&` would need it out of range AND deviant), pct is n-scaled, and the replacement
+      //      is a plausible beat, not the artifact echoed back.
+      var ac = B.artifactClean([800, 810, 790, 805, 150, 795, 800, 810, 805, 790]);
+      T.eq('the 150 ms beat is the one flagged', ac.flags.join(''), '0000100000');
+      T.eq('one artifact in ten beats is 10 %', ac.pct, 10);
+      T.eq('…and the replacement is the neighbourhood, not the artifact', ac.clean[4], 800);
+      //      Each bound is its own contract: the floor and ceiling are hard breaches flagged even when
+      //      the neighbourhood AGREES (290 among 300s deviates 3 %, 2210 among 2200s under 1 %) — an
+      //      `&&` on either clause un-flags them; `<=`/`>=` flags the legal 300/2200 beats around them.
+      T.eq('a 290 ms beat is flagged even though its neighbours nearly agree', B.artifactClean([300, 300, 300, 290, 300, 300]).flags.join(''), '000100');
+      T.eq('a 2210 ms beat likewise, at the ceiling', B.artifactClean([2200, 2200, 2200, 2210, 2200, 2200]).flags.join(''), '000100');
+      T.eq('an in-range beat 25 % off its neighbourhood is flagged on deviation alone', B.artifactClean([800, 800, 800, 1000, 800, 800]).flags.join(''), '000100');
+      T.eq('deviation is > 0.2 STRICT — a beat at exactly 20 % stays', B.artifactClean([800, 800, 800, 800, 800, 960]).flags.join(''), '000000');
+
+      // ── 7 · VO₂ LADDER — Uth-Sørensen base, the lnRMSSD adjustment and its ±8 % clamps, the
+      //      altitude factor with its 1500 m knee and 0.55 floor. Cited constants, each zeroable.
+      T.eq('VO₂base: rest 60 / max 190 → 15.3×190/60', B.vo2Base(60, 190), 48.45);
+      T.eq('lnRMSSD 3.4 is the reference — no adjustment', B.vo2Adj(48, 3.4), 48);
+      T.eq('lnRMSSD 4.4 caps at +8 %', +B.vo2Adj(48, 4.4).toFixed(2), 51.84);
+      T.eq('lnRMSSD 2.0 floors at −8 %', +B.vo2Adj(48, 2.0).toFixed(2), 44.16);
+      T.eq('1500 m is still sea-level capacity', B.altVO2Factor(1500), 1);
+      T.eq('3000 m costs 5 %', B.altVO2Factor(3000), 0.95);
+      T.eq('the altitude penalty floors at 0.55', B.altVO2Factor(15000), 0.55);
+
+      // ── 8 · GEOMETRIC / COUNTING HRV — the 10 ms bin, the strict >50 ms rule, the ±25 ms mode band.
+      T.eq('the modal 10 ms bin of a 6-beat series', B.modeV([800, 800, 800, 810, 810, 790]), 800);
+      T.eq('…and HTI is N over that bin count', B.triangularIndex([800, 800, 800, 810, 810, 790]), 2);
+      T.eq('nn50 counts >50 strictly — a 50 ms step does not count', B.nn50c([800, 860, 810, 880, 805]), 3);
+      T.eq('AMo50: three of four beats within ±25 ms of the mode', B.amo50([800, 810, 820, 900], 800), 75);
+
+      // ── 9 · ANS BALANCE (hf, lf) — a real quotient or nothing.
+      T.eq('LF absent reads null, never a fabricated share', B.ansBalance(1, null).sns, null);
+      T.eq('HF 500 / LF 600 → sympathetic share 56', JSON.stringify(B.ansBalance(500, 600)), '{"sns":56,"psns":44,"snsBal":1.2,"psnsBal":0.833}');
+
+      // ── 10 · SMALL PURE HELPERS — beat clock, normalized units, least squares, wall clock.
+      T.eq('beatTimes: cumulative seconds, first beat at 0', JSON.stringify(B.beatTimes([800, 810, 790])), '[0,0.8,1.61]');
+      T.eq('nu(400,1000) is 40 normalized units', B.nu(400, 1000), 40);
+      T.eq('linfit fits y=2x+1 exactly — one extra loop pass reads past the data and NaNs it', JSON.stringify(B.linfit([0, 1, 2], [1, 3, 5])), '{"slope":2,"intercept":1}');
+      T.eq('_pdClockS zero-pads all three fields', B._pdClockS(9 * 3600000 + 5 * 60000 + 3000), '09:05:03');
+
+      // ── 11 · MULTIPART MERGE (Polar Sensor Logger `_partNNofNN`) — two parts become ONE recording
+      //      with the repeated header dropped; a plain file passes through untouched.
+      var merged = B.mergeMultipart([
+        { name: 'rec_RR_part01of02.txt', text: 'rr_ms\n800\n810\n' },
+        { name: 'rec_RR_part02of02.txt', text: 'rr_ms\n790\n805' }
+      ]);
+      T.eq('two parts merge to one recording', merged.length, 1);
+      T.eq('…under the part-stripped name', merged[0].name, 'rec_RR.txt');
+      T.eq('…with the repeated header dropped', merged[0].text, 'rr_ms\n800\n810\n790\n805');
+      T.eq('a file with no part suffix passes through', JSON.stringify(B.mergeMultipart([{ name: 'solo.txt', text: '800' }])), '[{"name":"solo.txt","text":"800"}]');
+    });
+
     group('PulseDex compareIntervalSeries — two signals, one heart (mutation bootstrap)', 'pulsedex-dsp · known-answer · mutation-pinned', function (T) {
       var B = (env.PulseDex && env.PulseDex._bare) || null;
       if (!B || typeof B.compareIntervalSeries !== 'function') {
@@ -25820,6 +25922,59 @@
       T.eq('no meal markers ⇒ null', (G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: tMs[0], source: 'synthetic' }, null, {}) || {}).postprandial, null);
     });
 
+    /* ════ GlucoDex excursions — meal ANNOTATION reaches the event (mutation-derived kill) ═══════
+       Found by the 2026-08-19 equivalence harvest, as the opposite of what it was filed as: the
+       comment above declares the `|| !meals.length` guard-half equivalent, but the mutant that
+       actually SURVIVES is `negate: drop !` on that clause inside `matchMeal` — which returns null
+       for every excursion precisely WHEN MEALS EXIST. Every excursion loses its meal attribution
+       (`meal: null, mealCat: null, annotated: false`) and nothing red, because no assertion ever
+       drove an excursion WITH meal markers present. The postprandial group above uses the same
+       designed lunch curve but reads `res.postprandial`; this one reads `res.excursions`, the other
+       consumer of the markers. The curve trips the excursion detector by construction: trough 106,
+       peak 160 ⇒ rise 54 ≥ 45, rate 54/45 = 1.2 ≥ 1.0, trough < 160. */
+    group('GlucoDex excursions — a meal-adjacent excursion is ANNOTATED, not silently orphaned', 'glucodex-dsp · excursions · mutation-pinned', function (T) {
+      var G = (env.GLUDSP && env.GLUDSP.analyze && env.GLUDSP) || (env.GlucoDex && env.GlucoDex.analyze && env.GlucoDex) || null;
+      if (!G) {
+        T.skip('GLUDSP.analyze available', 'GLUDSP not co-loaded in this runner');
+        return;
+      }
+      var t0 = Date.UTC(2026, 5, 13, 0, 0, 0);
+      var tMs = [],
+        vMgdl = [];
+      for (var k = 0; k < 288; k++) {
+        var mins = k * 5;
+        var rel = mins - 720;
+        var v = 120;
+        if (mins >= 690 && mins < 720) v = 100;
+        else if (rel >= 0 && rel <= 45) v = 106 + (54 * rel) / 45;
+        else if (rel > 45 && rel <= 120) v = 160 - (52 * (rel - 45)) / 75;
+        else if (rel > 120 && rel <= 180) v = 108;
+        tMs.push(t0 + mins * 60000);
+        vMgdl.push(Math.round(v));
+      }
+      var meals = [{ label: 'Lunch', category: 'medium', minOfDay: 720, carbsAvg: 60 }];
+      var withM = G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: tMs[0], source: 'synthetic' }, null, { mealMarkers: meals });
+      var ex = (withM && withM.excursions) || [];
+      T.ok('the designed lunch curve trips the excursion detector', ex.length >= 1, 'excursions=' + ex.length);
+      var e = ex[0] || {};
+      /* THE KILL: with the surviving mutant, matchMeal nulls exactly when meals EXIST, so all three
+         of these read as the no-meals case while markers are present. */
+      T.eq('…and the excursion is annotated with the meal LABEL', e.meal, 'Lunch');
+      T.eq('…and the meal CATEGORY rides along', e.mealCat, 'medium');
+      T.eq('…and `annotated` says so', e.annotated, true);
+      /* CONTROL, both directions: without markers the same curve is an honest orphan — null, not a
+         fabricated match — so hard-coding the annotation cannot pass either. */
+      var noM = G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: tMs[0], source: 'synthetic' }, null, {});
+      var e0 = ((noM && noM.excursions) || [])[0] || {};
+      T.eq('no markers ⇒ meal is null, never fabricated', e0.meal, null);
+      T.eq('no markers ⇒ annotated false', e0.annotated, false);
+      /* And a marker OUTSIDE the −20…+75 min window must not match: dinner at 20:00 against a noon
+         excursion. Pins the window rather than "any meal anywhere". */
+      var farM = G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: tMs[0], source: 'synthetic' }, null, { mealMarkers: [{ label: 'Dinner', category: 'large', minOfDay: 1200 }] });
+      var ef = ((farM && farM.excursions) || [])[0] || {};
+      T.eq('a marker outside the ±window does not annotate', ef.annotated, false);
+    });
+
     group('GlucoDex genSynthetic — the generator honours its three options (mutation bootstrap)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
       var G = (env.GLUDSP && env.GLUDSP.genSynthetic && env.GLUDSP) || (env.GlucoDex && env.GlucoDex.genSynthetic && env.GlucoDex) || null;
       if (!G) {
@@ -28634,6 +28789,90 @@
         !!(expN && expN.recording) && expN.recording.startEpochMs == null,
         'startEpochMs=' + (expN && expN.recording && expN.recording.startEpochMs)
       );
+    });
+
+    group('ECGDex helper floor — 22 drafts adopted: the guards refuse, the formulas are pinned (mutation-derived)', 'ecgdex-dsp · known-answer · mutation-pinned', function (T) {
+      var E = env.ECGDSP || env.EcgDsp;
+      if (!E || typeof E.poincareGeo !== 'function') {
+        T.skip('ECGDSP helpers available', 'ECGDex not co-loaded in this runner');
+        return;
+      }
+
+      // ── 1 · EVERY VALIDATION GUARD REFUSES ABSENT INPUT — null, never a throw. Each `||` chain
+      //      reads null.length as `&&`; each dropped `!` inverts a refusal into a crash.
+      T.eq('validateHR(null) refuses', E.validateHR(null), null);
+      T.eq('validateHR([]) refuses — empty is absent, not zero disagreement', E.validateHR([]), null);
+      T.eq('validateHR on a non-array refuses', E.validateHR('x'), null);
+      T.eq('validateRR(null) refuses', E.validateRR(null), null);
+      T.eq('alignFirmwareRR below the pair floor refuses', E.alignFirmwareRR([], 1), null);
+      T.eq('accExtras(null) refuses', E.accExtras(null), null);
+      T.eq('accExtras on a non-array refuses', E.accExtras('x'), null);
+      T.eq('epochMotion with no ACC refuses', E.epochMotion(1), null);
+      T.eq('hrvStability needs ≥12 epochs — an empty hour is null', E.hrvStability([]), null);
+      T.eq('hrvStability(null) refuses, not throws', E.hrvStability(null), null);
+      T.eq('stampEpochPositions(null) is an empty list, not a crash', JSON.stringify(E.stampEpochPositions(null)), '[]');
+      // (duck-typed: instanceof Map fails across the co-load realm boundary)
+      T.ok('hrConfidence(null) is an EMPTY MAP — the shape consumers iterate', typeof E.hrConfidence(null).get === 'function' && E.hrConfidence(null).size === 0, 'not an empty Map');
+      T.eq('parseDeviceACC(null) reports acc null, never a fabricated series', JSON.stringify(E.parseDeviceACC(null)), '{"acc":null,"accFs":null}');
+      T.eq('parseDeviceACC on unparseable rows likewise', JSON.stringify(E.parseDeviceACC([1, 2, 3])), '{"acc":null,"accFs":null}');
+
+      // ── 2 · POINCARÉ GEOMETRY — three beats is the floor (< 3, not <= 3), and the ellipse axes
+      //      are the SDSD-family values, not zeros.
+      T.eq('two beats cannot make an ellipse', JSON.stringify(E.poincareGeo([800, 810])), '{"sd1":null,"sd2":null}');
+      T.eq('three beats already can — the floor is < 3', JSON.stringify(E.poincareGeo([800, 810, 790])), '{"sd1":15,"sd2":0}');
+      var rr = [800, 810, 790, 805, 795, 815, 800, 790, 810, 800];
+      T.eq('…and a 10-beat series has both axes', JSON.stringify({ sd1: +E.poincareGeo(rr).sd1.toFixed(3), sd2: +E.poincareGeo(rr).sd2.toFixed(3) }), '{"sd1":11.319,"sd2":4.108}');
+
+      // ── 3 · BAEVSKY GEOMETRY on the same series — the modal bin wins by STRICT >, so the first
+      //      max keeps the mode; AMo50 and MxDMn ride the same bins.
+      T.eq('mode 800, AMo50 100 %, MxDMn 25 ms', JSON.stringify(E.baevskyGeom(rr, null)), '{"mode":800,"amo50":100,"mxDMn":0.025}');
+
+      // ── 4 · DFA BOX LADDER runs 4..16 INCLUSIVE — dropping the 16-beat box moves alpha1.
+      T.eq('the near-constant probe series reads alpha1 0.341 with the full ladder', E.dfaAlpha1([16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 17], null), 0.341);
+
+      // ── 5 · buildNN COVERAGE — spanSec > 0 STRICT picks the computed path; zero span falls back
+      //      to 100 by declaration, and >= would send 0/0 (NaN) through instead.
+      T.eq('no beats: coverage declared 100, corrected 0', JSON.stringify({ c: E.buildNN(null, []).coveragePct, n: E.buildNN(null, []).nCorrected }), '{"c":100,"n":0}');
+      T.eq('a real 8-beat train: coverage COMPUTED 100', E.buildNN('buildNN', [440, 480, 500, 550, 600, 650, 700, 750], 0.3, 0.2).coveragePct, 100);
+
+      // ── 6 · classifyMode DURATION — 300 s is a 5 min reading; zeroing the /60 makes it Infinity.
+      T.eq('300 seconds reads as 5 min', E.classifyMode(300).modeWhy, '5 min reading');
+
+      // ── 7 · ACC ANALYSIS with NO SIGNAL — defaults declared, confidence FALSE. The tsMs
+      //      base-offset needs BOTH clocks (`&&`), and the axis race is strict `>` (x keeps ties).
+      var acc = E.accAnalyze([], []);
+      T.eq('empty ACC: resp rate 0, axis x by convention', JSON.stringify({ r: acc.respRate, a: acc.respAxis }), '{"r":0,"a":"x"}');
+      T.eq('…and respConfident is FALSE — the honesty bit that makes the defaults safe', acc.respConfident, false);
+
+      // ── 8 · validateHR END TO END — a valid pair VALIDATES. This is the case the guard mutants
+      //      cannot fake: negating any of the four clauses turns a working comparison into null.
+      var hrSeries = new Array(120).fill(70);
+      var devHR = [];
+      for (var i = 0; i < 120; i++) devHR.push({ tsMs: i * 1000, hr: 70 + (i % 3) });
+      var vhr = E.validateHR(hrSeries, devHR, 0);
+      T.ok('a 2-minute ECG-vs-device comparison returns a report, not null', vhr !== null, 'null');
+      T.eq('…covering all 120 seconds at MAE 1 bpm', JSON.stringify({ n: vhr.n, mae: vhr.mae }), '{"n":120,"mae":1}');
+
+      // ── 9 · parseDeviceRR rides the Clock Contract — an unparseable stamp is tsMs NULL on that
+      //      row (never a throw, never a fabricated time), a real stamp is the floating tMs.
+      T.eq('a garbage timestamp keeps the beat and nulls the clock', JSON.stringify(E.parseDeviceRR('garbage;800\n')), '[{"tsMs":null,"rr":800}]');
+      T.eq('a real stamp parses to floating tMs', JSON.stringify(E.parseDeviceRR('2026-06-10T22:00:00.123;800\n')), '[{"tsMs":1781128800123,"rr":800}]');
+
+      // ── 10 · epochMotion HONORS THE HOST-CLOCK OFFSET, and offset-starved coverage reads NULL,
+      //      not "still". ACC starting 270 s after the ECG leaves epoch 0 with <30 s of aligned
+      //      coverage, so it is DROPPED from the map — with no ECG clock the offset is 0 and both
+      //      epochs score. `||` fabricates an offset from a lone ACC clock; zeroing /1000 blows the
+      //      offset past the clamp and silently un-shifts the night.
+      var mkAcc = function (t0) {
+        var out = [];
+        for (var i = 0; i < 2400; i++) out.push({ tsMs: t0 + i * 250, x: 0, y: 0, z: 9.81 + (i < 1200 && i % 2 ? 2 : 0) });
+        return out;
+      };
+      var two = [{ tMin: 0 }, { tMin: 5 }];
+      var emNoClock = E.epochMotion(mkAcc(270000), 4, 0, 600, [{ tMin: 0 }, { tMin: 5 }]);
+      T.eq('no ECG clock: offset 0, both epochs observed', JSON.stringify(Array.from(emNoClock.keys())), '["0.0","5.0"]');
+      var emShift = E.epochMotion(mkAcc(271000), 4, 1000, 600, two);
+      T.eq('ACC 270 s late against a real ECG clock: epoch 0 is DROPPED, not stilled', JSON.stringify(Array.from(emShift.keys())), '["5.0"]');
     });
 
     /* ════ 22 · OXIMETER SELF-GATE & CONSEQUENCE-COROBORATION ════
@@ -41604,6 +41843,43 @@
        The ORDER matters and is asserted: a drawn DEVICE axis outranks a derived HOST column, because it
        names a different and more serious defect, and a length complaint must never pre-empt either —
        "too short" invites "so use a longer file", which on a phone capture is exactly wrong. */
+    /* CROSS-DEVICE-DRIFT-FOLLOWUPS §Done-when — "sharing ONE implementation with device-stability.mjs".
+       The crystal bound was authored in `dual-clock-rate.mjs` and COPIED into `device-stability.mjs`,
+       whose own comment says it "must apply here too or this tool re-prints the numbers that one
+       rejects". Two copies of a decision rule drift SILENTLY: nothing fails when only one is updated,
+       and the two tools then disagree about the same night while each looks self-consistent.
+       `dual-clock-rate` now delegates to `crystalVerdict`, and this group is what keeps that true —
+       a shared implementation nobody checks is just a claim about the past. */
+    group('the crystal rule is ONE implementation, not two copies', 'tools · clock · crystal-single-source', function (T) {
+      const DC = env.DualClock;
+      const DS = env.deviceStability;
+      if (!DC || !DS || typeof DC.crystalCoherence !== 'function' || typeof DS.crystalVerdict !== 'function') {
+        T.skip('both clock tools available', 'Node-lane only');
+        return;
+      }
+      T.eq('the bound is the SAME object, not two equal literals', DC.MAX_CRYSTAL_SPREAD_PPM, DS.MAX_CRYSTAL_SPREAD_PPM);
+      /* Agreement across the boundary and both sides of it. A single sample would pass on two
+         independent copies that happen to share today's constant — the point is the RULE, not the 50. */
+      const cases = [[], [10], [10, 20], [10, 100], [0, DS.MAX_CRYSTAL_SPREAD_PPM], [0, DS.MAX_CRYSTAL_SPREAD_PPM + 0.1], [-3035, -3030], [-3035, 100]];
+      for (const v of cases) {
+        T.eq('same verdict for ' + JSON.stringify(v), DC.crystalCoherence(v).verdict, DS.crystalVerdict(v).verdict);
+      }
+      /* ANTI-VACUITY: without these the group passes if BOTH sides always said the same thing —
+         e.g. if crystalCoherence returned a constant. The rule must actually discriminate. */
+      T.eq('a tight cluster IS a crystal', DC.crystalCoherence([10, 20]).incoherent, false);
+      T.eq('a wide spread is NOT', DC.crystalCoherence([10, 100]).incoherent, true);
+      T.eq('one fragment cannot disagree with itself', DC.crystalCoherence([10]).verdict, 'unchallenged');
+      /* The uncertainty path exists in the shared implementation even though this tool cannot feed it
+         yet (it computes no per-fragment sigma). Asserted on device-stability's side so the branch is
+         covered and its absence here stays a KNOWN gap rather than an invisible one. */
+      const withSigma = DS.crystalVerdict([
+        { ppm: 0, ppmUncertainty: 40 },
+        { ppm: 90, ppmUncertainty: 40 }
+      ]);
+      T.eq('a wide spread WITH error bars can still be one crystal', withSigma.verdict, 'crystal');
+      T.ok('…and it reports the reduced chi-square it used', isFinite(withSigma.chi2));
+    });
+
     group('A rate is refused when there is no second clock — WEARABLE-DRIFT-DIRECT §6', 'tools · clock · independence', function (T) {
       var DC = env.DualClock;
       if (!DC || typeof DC.classifyRate !== 'function') {
