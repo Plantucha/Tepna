@@ -1038,10 +1038,10 @@ body.light .ev-measured { border-color:var(--surface); }
 
 <div class="mc" data-tier="research">
   <div class="mh"><div class="mi"><span class="ma">SpO&#x2082; FFT</span><span class="mf">Dominant Frequency (DFT)</span></div><span class="mt tr">Research</span></div>
-  <p class="md">Strongest periodic component in SpO&#x2082; signal. Used to estimate PB/CS cycle length. Dominant frequency 0.02&#x202F;&#x2013;&#x202F;0.04&#x202F;Hz corresponds to 25&#x202F;&#x2013;&#x202F;50&#x202F;s period (typical CS/PB range).</p>
-  <div class="fb"><div class="fl">Method</div><div class="ft">DFT on mean-subtracted SpO&#x2082; (&#x2264;3600 samples)&#x0A;Dominant f = argmax |X(f)|&#xB2; in 0.003&#x202F;&#x2013;&#x202F;0.1&#x202F;Hz&#x0A;Period = 1/f (seconds)</div></div>
+  <p class="md">Periodic component in the SpO&#x2082; signal that clears a significance test against the signal&#x2019;s own red-noise background. Used to estimate PB/CS cycle length. A cycle of 0.02&#x202F;&#x2013;&#x202F;0.04&#x202F;Hz corresponds to a 25&#x202F;&#x2013;&#x202F;50&#x202F;s period (typical CS/PB range). The test is on peak HEIGHT, not peak location: in a red spectrum the strongest bin sits near the low-frequency end by construction, so its position alone carries no information.</p>
+  <div class="fb"><div class="fl">Method</div><div class="ft">Periodogram of the mean-removed series, evaluated ON the record&#x2019;s own Fourier bins (k/N), not a fixed probe grid&#x0A;Band 0.005&#x202F;&#x2013;&#x202F;0.05&#x202F;Hz (200&#x202F;&#x2013;&#x202F;20&#x202F;s); at most 400 bins, strided if the night is longer&#x0A;Background: AR(1) red spectrum from the lag-1 autocorrelation, scaled by the MEDIAN observed/theoretical ratio&#x0A;Significance: peak/background is ~exponential, so a &#x160;id&#xE1;k-corrected 95&#x202F;% threshold over the bins actually tested, inflated &#xD7;2.2 for the fitted (not known) background&#x0A;Returns null when no bin clears the bar&#x0A;Period = 1/f (seconds)</div></div>
   <div class="nt-wrap"><table class="nt"><tr><th>Dominant period</th><th>Pattern</th></tr>
-  <tr class="ok"><td>None / &gt;120&#x202F;s</td><td class="nr">No significant periodic pattern</td></tr>
+  <tr class="ok"><td>None</td><td class="nr">No bin cleared significance &#x2014; reported as null, not as a long period</td></tr>
   <tr class="wn"><td>25&#x202F;&#x2013;&#x202F;50&#x202F;s</td><td class="nr">Cheyne-Stokes / PB range</td></tr>
   <tr class="bd"><td>60&#x202F;&#x2013;&#x202F;90&#x202F;s</td><td class="nr">OSA cycling range</td></tr></table></div>
 <span class="ev-corner ev-experimental" title="Experimental — plausible node-computed composite, not externally validated"></span></div>

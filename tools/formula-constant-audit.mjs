@@ -57,7 +57,7 @@
  * Inventing a constant in code to silence a flag would be the defect this audit exists to catch.
  *
  *     node tools/formula-constant-audit.mjs            # sweep every guide
- *     node tools/formula-constant-audit.mjs --self-test
+ *     node tools/formula-constant-audit.mjs --selftest
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -173,7 +173,15 @@ function main() {
   return 0;
 }
 
-if (process.argv.includes('--self-test')) {
+/* ⚠️ THE FLAG IS `--selftest`, UNHYPHENATED, AND THAT IS LOAD-BEARING — `--self-test` is accepted only
+   as an alias. Both the CI step (`tests.yml`, "Analysis-tool selftests", a `grep -rln -- '--selftest'`
+   loop) and `tools/selftest-all.mjs` DISCOVER tools by that literal. This file originally spelled it
+   hyphenated and used `===`, so it matched neither discovery form and was silently NOT ENROLLED: 44
+   tools ran, this one never did, and its absence was indistinguishable from it passing. The CI step's
+   "refuse a run finding fewer than ten" floor cannot see it either — the floor was met by the other 44.
+   The banner must also read `all N selftests passed`: that is the string the runner parses for the
+   COUNT, and a count is what makes a suite silently shrinking from 12 legs to 3 visible. */
+if (process.argv.includes('--selftest') || process.argv.includes('--self-test')) {
   /* The pass count is COUNTED, never written down — a hardcoded "8/8" survives the ninth leg being added
      and then reports a number about a set it no longer describes. */
   let legs = 0;
@@ -202,7 +210,7 @@ if (process.argv.includes('--self-test')) {
   eq(fx('<b>a</b><i>b</i>') === 'ab', 'tags stripped to fixpoint');
   const struck = parseGuide('<div class="mh"><span class="ma">S</span><div class="ft">now 0.88 <s>was 0.87</s></div></div>');
   eq(struck[0].formula.includes('0.88') && !struck[0].formula.includes('0.87'), 'struck text is dropped, not merely untagged');
-  console.log(`self-test: ${legs}/${legs} ok`);
+  console.log(`all ${legs} selftests passed`);
   process.exit(0);
 }
 if (resolve(process.argv[1] || '') === resolve(fileURLToPath(import.meta.url))) process.exit(main());
