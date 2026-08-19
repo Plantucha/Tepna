@@ -10028,6 +10028,75 @@
       T.approx('…and that VLF power reaches totalPower', vlow && vlow.totalPower, vlow && vlow.vlf + vlow.lf + vlow.hf, 1e-9);
     });
 
+    group('PpgDex DSP floor — 19 drafts adopted: beat guards, small stats, and the Malik clamp (mutation-derived)', 'ppgdex-dsp · known-answer · mutation-pinned', function (T) {
+      var P = env.PPGDSP || env.PpgDex;
+      if (!P || typeof P.detectBeats !== 'function') {
+        T.skip('PPGDSP available', 'PpgDex not co-loaded in this runner');
+        return;
+      }
+      /* Adopted from the AI-probe draft bank: machine-verified discriminating projections,
+         batch-verified green on the current tree. Three discards, one of them the right kind of
+         stale: the drafted poincare(0).sd1sd2 === 0 pin predates #1504's honesty fix — the code
+         now returns null there, and a pin would have locked the retired wart back in. */
+      var out;
+      // Sharpened after first kill-verify: the node-local parseTimestamp's opts default was
+      // reachable only by a call with NO opts on a path that reads them — which is also the
+      // Clock Contract §2.5 pin: time-only with no anchor is null, never a throw, never today.
+      T.eq('parseTimestamp("22:00:00") with no opts at all → null (no anchor, no fabricated date)', P.parseTimestamp('22:00:00'), null);
+      T.eq('parseTimestamp ISO without opts → floating tMs', JSON.stringify(P.parseTimestamp('2026-06-10 22:00:00')), '{"tMs":1781128800000,"offsetMin":null}');
+      //      A jittered TREND series exercises the full ellipse — both axes and the ratio nonzero —
+      //      which is what pins the sd1/sd2 quotient's denominator (its `|| 1` fallback mutated to
+      //      `&& 1` silently divides by 1 always, and only a nonzero-sd2 series can see that).
+      T.eq('a jittered rising trend has a full Poincaré ellipse', JSON.stringify(P.poincare([700, 725, 735, 765, 775, 805])), '{"sd1":7.2,"sd2":53.3,"sd1sd2":0.14,"ellArea":1212}');
+      out = P.detectBeats([], 1);
+      T.eq('P.detectBeats([],1) → "1"', JSON.stringify(out.T), '1');
+      out = P.detectBeats(0, 1);
+      T.eq('P.detectBeats(0,1) → "1"', JSON.stringify(out.T), '1');
+      out = P.timeDomain([1, 2, 3], 1);
+      T.eq('P.timeDomain([1,2,3],1) → "1"', JSON.stringify(out.rmssd), '1');
+      out = P.timeDomain([1, 2, 3], 1);
+      T.eq('P.timeDomain([1,2,3],1) → "0"', JSON.stringify(out.pnn50), '0');
+      out = P.timeDomain([1, 2, 3]);
+      T.eq('P.timeDomain([1,2,3]) → "1"', JSON.stringify(out.triIdx), '1');
+      out = P.movementOnsets(null);
+      T.eq('P.movementOnsets(null) → "0"', JSON.stringify(out.length), '0');
+      out = P.orientByRise(0, null);
+      T.eq('P.orientByRise(0,null) → "-1"', JSON.stringify(out), '-1');
+      out = P.orientByRise(0);
+      T.eq('P.orientByRise(0) → "-1"', JSON.stringify(out), '-1');
+      out = P.poincare([1, 2, 3]);
+      T.eq('P.poincare([1,2,3]) → "1.4"', JSON.stringify(out.sd2), '1.4');
+      out = P.poincare([1, 2, 3], 1);
+      T.eq('P.poincare([1,2,3],1) → "1.4"', JSON.stringify(out.sd2), '1.4');
+      out = P.intervalsSpanningTimeGap(1);
+      T.eq('P.intervalsSpanningTimeGap(1) → "1"', JSON.stringify(out.length), '1');
+      out = P.correctRR([1, 2, 3], 0);
+      T.eq('P.correctRR([1,2,3],0) → "800"', JSON.stringify(out.nn[0]), '800');
+      out = P.quantile([1, 2, 3, 4], 0.5);
+      T.eq('P.quantile([1,2,3,4],0.5) → "2.5"', JSON.stringify(out), '2.5');
+      out = P.std([-1, 1]);
+      T.eq('P.std([-1,1]) → "1.4142135623730951"', JSON.stringify(out), '1.4142135623730951');
+      out = P.pickChannel(
+        {
+          ch: [
+            [1, 2, 3],
+            [1, 2, 3]
+          ],
+          fs: 100
+        },
+        null
+      );
+      T.eq('P.pickChannel({"ch":[[1,2,3],[1,2,3]],"fs":100},null) → "0"', JSON.stringify(out.idx), '0');
+      out = P.detectBeats([1, 2], 130);
+      T.eq('P.detectBeats([1,2],130) → "111"', JSON.stringify(out.T), '111');
+      out = P.beatRegularity([0, 0, 0, 1], [0, 0, 0, 1]);
+      T.eq('P.beatRegularity([0,0,0,1],[0,0,0,1]) → "null"', JSON.stringify(out[3]), 'null');
+      out = P.timeDomain([250, 300, 250, 300], null);
+      T.eq('P.timeDomain([250,300,250,300],null) → "0"', JSON.stringify(out.pnn50), '0');
+      out = P.movementOnsets([1, 1, 1], 1);
+      T.eq('P.movementOnsets([1,1,1],1) → "0"', JSON.stringify(out.length), '0');
+    });
+
     /* ── INSUFFICIENT INPUT REFUSES; IT DOES NOT REPORT ZERO (Clock Contract §2.6) ──────────────
        §2.6 says a missing stamp must be visible, never fabricated. The PARSER honours that. The
        statistical and spectral paths never inherited it: below their minimum-N guards they returned
