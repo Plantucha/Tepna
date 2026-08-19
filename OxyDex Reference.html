@@ -1201,7 +1201,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <p class="md">Count and per-hour rate of rapid SpO&#x2082; drops where the signal falls &ge;5 percentage points within any 30-second window, with a 30-second refractory cooldown to prevent re-counting sustained drops. Captures acute, fast-onset desaturations that may not meet the 10-second ODI minimum-duration criterion.</p>
   <div class="fb"><div class="fl">Formula</div><div class="ft">Crash if SpO&#x2082;[t&#x2212;30] &#x2212; SpO&#x2082;[t] &ge; 5&#x000A;Rate = count / recHrs</div>
   </div>
-  <div class="nt-wrap"><table class="nt"><tr><th>OxyCrash rate (/hr)</th><th>Grade</th></tr><tr class="ok"><td>< 2</td><td class="nr">Normal</td></tr><tr class="wn"><td>2 &#x2013; 8</td><td class="nr">Mildly elevated</td></tr><tr class="bd"><td>8 &#x2013; 20</td><td class="nr">Significant rapid desaturation</td></tr><tr class="cr"><td>> 20</td><td class="nr">Severe &#x2014; evaluate immediately</td></tr></table></div>
+  <div class="nt-wrap"><table class="nt"><tr><th>OxyCrash rate (/hr)</th><th>Grade</th></tr><tr class="ok"><td>< 2</td><td class="nr">Normal</td></tr><tr class="wn"><td>2 &#x2013; 8</td><td class="nr">Mildly elevated</td></tr><tr class="bd"><td>8 &#x2013; 20</td><td class="nr">Significant rapid desaturation</td></tr><tr class="cr"><td>> 20</td><td class="nr">Severe &#x2014; markedly elevated for this metric</td></tr></table><div class="no-norm-note">These cut-points are internal to OxyDex and have <strong>no published equivalent</strong> &#x2014; OxyCrash is a heuristic built on a 5&#x202F;pp/30&#x202F;s rule of our own choosing, not a scored clinical index. Read the bands <strong>relative to your own nights</strong>, not as diagnostic thresholds.</div></div>
 <span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
 <div class="mc" data-tier="secondary">
   <div class="mh">
@@ -1672,7 +1672,7 @@ body.light .ev-measured { border-color:var(--surface); }
     <span class="mt ta">Advanced</span>
   </div>
   <p class="md">Number of abrupt motion bursts (&ge;3 seconds of motion signal after a &ge;5-minute quiet period) detected across the night. Proxy for major position changes. Very high counts may indicate restless legs syndrome or periodic limb movements. Very low counts (&lt;2) in a long recording suggest complete immobility.</p>
-  <div class="nt-wrap"><table class="nt"><tr><th>Positional Shifts</th><th>Interpretation</th></tr><tr class="ok"><td>3 &#x2013; 12</td><td class="nr">Normal sleep repositioning</td></tr><tr class="wn"><td>> 20</td><td class="nr">Restless &#x2014; screen for PLMS/RLS</td></tr><tr class="wn"><td>< 2</td><td class="nr">Immobility &#x2014; possible deep sedation or artifact</td></tr></table></div>
+  <div class="nt-wrap"><table class="nt"><tr><th>Positional Shifts</th><th>Interpretation</th></tr><tr class="ok"><td>3 &#x2013; 12</td><td class="nr">Normal sleep repositioning</td></tr><tr class="wn"><td>> 20</td><td class="nr">Restless &#x2014; frequent repositioning</td></tr><tr class="wn"><td>< 2</td><td class="nr">Immobility &#x2014; possible deep sedation or artifact</td></tr></table><div class="no-norm-note">A motion-burst proxy, not actigraphy: the 3/12/20 boundaries are internal to OxyDex with <strong>no published equivalent</strong>. Read relative to your own nights.</div></div>
 <span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
 <div class="mc" data-tier="secondary">
   <div class="mh">
