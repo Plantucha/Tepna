@@ -154,6 +154,31 @@ be filled before any runtime constant, per `LITERATURE-USE-POLICY`.
 > nights at **5/6 against the original 6/12** — and it was excluded by construction, not by data quality,
 > when *"the corpus cannot yet decide"* was written.
 >
+> ✅ **FULL TREE RUN 2026-08-18 — §2's QUESTION IS NOW ANSWERABLE, AND THE ANSWER IS A NULL.** The
+> 6-night note below was a capped sample; here are all 20:
+>
+> | | shipped consensus | mean-of-3 | PCA-1 |
+> |---|---|---|---|
+> | jitter median | **6.37 ms** (IQR 4.61–7.92) | 6.47 (IQR 4.63–7.60) | 6.47 |
+> | PPV median | **100.00 %** (IQR 99.91–100) | 100.00 | 100.00 |
+>
+> **18 of 20 nights are physiologically plausible** (PPV ≥ 99.5 %); exactly **one** shows the
+> alternation defect (jitter > 20 ms). Against §2's *6 of 12*, the corpus is no longer
+> artifact-dominated — so the objection that *"judging a waveform-source change on a corpus where half
+> the nights are already artifact-dominated would measure the artifact"* **no longer applies**.
+>
+> **And the change does not help.** Paired per night: mean-of-3 is better on **12 of 19** (ties dropped)
+> — **sign test p = 0.359, not significant** — while the *median* favours the shipped consensus by
+> 0.10 ms. Wins slightly more often, loses slightly bigger; the two summaries disagree, which is itself
+> the answer. **No detectable benefit from fusion on this corpus**, and §5's rule (after ≤ before) gives
+> fusion no claim on the shipped path.
+>
+> 🔴 **This corrects the 6-night note below, which I wrote an hour earlier.** There I said the deltas
+> *"point the same direction as the original finding"*. They do not: on 6 nights mean-of-3 led 9.08 vs
+> 9.42, on 20 it trails 6.47 vs 6.37. **The direction reversed with sample size**, which is exactly what
+> a capped sample cannot tell you — and I flagged the cap as a limitation while still describing a
+> direction from it. The limitation was real and I under-weighted my own warning.
+
 > ⚠️ **This does NOT overturn the verdict, and I am not claiming it does.** The re-run capped at
 > `--max-nights 6` of ~20 available, the alternation defect is real and unchanged, and the fusion deltas
 > here are small (mean-of-3 9.08 vs shipped 9.42 ms — the same direction as the original finding, not a

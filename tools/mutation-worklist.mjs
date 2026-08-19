@@ -47,6 +47,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { executedLines, findRecord, partitionSurvivors } from './mutation-reach.mjs';
+import { resolveStateDir, resolveStatePath, stateDirs } from './mutation-map.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -83,18 +84,33 @@ export const SWEEP_FILES = ['oxydex-dsp.js', 'ecgdex-dsp.js', 'integrator-dsp.js
 
 export function sweepDir() {
   const flag = opt('--sweep-dir', '');
-  return flag || process.env.DEX_SWEEP_DIR || join(ROOT, '.mutation-sweeps');
+  /* MUTATION-SUITE-FOLLOWUPS §1: shared-first through the git COMMON dir, so the queue is ONE queue
+     no matter which worktree asks; in-tree `.mutation-sweeps` stays as legacy READ fallback. Flag
+     and env still outrank both — an explicit override is an explicit override. */
+  return flag || process.env.DEX_SWEEP_DIR || resolveStateDir(ROOT);
 }
 
-/* Derived, never hand-written: `ppgdex-dsp.js` -> `<dir>/ppgdex-dsp.json`. */
+/* Derived, never hand-written: `ppgdex-dsp.js` -> `<dir>/ppgdex-dsp.json`.
+
+   ⚠️ RESOLUTION IS PER-FILE, NOT PER-DIRECTORY — the first draft of this migration picked one dir
+   and looked for every sweep inside it, and that reintroduced the exact failure §NO-SWEEP documents:
+   the shared `tepna-mutation/` dir EXISTS (the drafts live there), so it won the dir-level race
+   while the sweep JSONs still sat in the legacy in-tree location — and eight present sweeps would
+   have read as a lost queue. Existence of a directory says nothing about which files are in it. */
 export function sweepPathFor(file, dir) {
-  return join(dir || sweepDir(), String(file).replace(/\.js$/, '') + '.json');
+  const name = String(file).replace(/\.js$/, '') + '.json';
+  if (dir) return join(dir, name);
+  const flag = opt('--sweep-dir', '');
+  const explicit = flag || process.env.DEX_SWEEP_DIR;
+  if (explicit) return join(explicit, name);
+  return resolveStatePath(ROOT, name);
 }
 
 export function resolveSweeps(dir) {
-  const d = dir || sweepDir();
+  /* No explicit dir ⇒ PER-FILE resolution (see sweepPathFor's warning). Forcing sweepDir() here
+     would resurrect the dir-grain bug through the back door — the first draft did exactly that. */
   const out = {};
-  for (const f of SWEEP_FILES) out[f] = sweepPathFor(f, d);
+  for (const f of SWEEP_FILES) out[f] = sweepPathFor(f, dir);
   return out;
 }
 
@@ -137,8 +153,14 @@ export function functionRanges(src) {
   const lines = String(src || '').split('\n');
   const out = [];
   for (let i = 0; i < lines.length; i++) {
-    const m = lines[i].match(/(?:^|[^\w$.])function\s+(\w+)\s*\(/);
+    /* §8: arrow consts included. Two alternatives, two capture groups — the name is whichever hit. */
+    const m = lines[i].match(/(?:^|[^\w$.])(?:function\s+(\w+)\s*\(|(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s*)?(?:function\b|\(|[\w$]+\s*=>))/);
     if (!m) continue;
+    const fnName = m[1] || m[2];
+    if (/=>\s*[^\s{]/.test(lines[i])) {
+      out.push({ fn: fnName, start: i + 1, end: i + 1 }); // concise arrow: its own line
+      continue;
+    }
     let depth = 0,
       seen = false;
     for (let j = i; j < lines.length; j++) {
@@ -149,7 +171,7 @@ export function functionRanges(src) {
         } else if (ch === '}') {
           depth--;
           if (seen && depth === 0) {
-            out.push({ fn: m[1], start: i + 1, end: j + 1 });
+            out.push({ fn: fnName, start: i + 1, end: j + 1 });
             j = lines.length;
             break;
           }
@@ -216,8 +238,35 @@ if (IS_MAIN && has('--selftest')) {
   ok('all eight DSPs are expected', SWEEP_FILES.length === 8, String(SWEEP_FILES.length));
   ok('a sweep path is DERIVED from the filename, not hand-written', sweepPathFor('ppgdex-dsp.js', '/d') === '/d/ppgdex-dsp.json', sweepPathFor('ppgdex-dsp.js', '/d'));
   ok('…so the ad-hoc suffixes that had accreted cannot come back', !SWEEP_FILES.some((f) => /-fresh|2\.json/.test(sweepPathFor(f, '/d'))));
+  /* §1 migration contract: with no flag/env, the SHARED location is tried first — one queue for
+     every worktree. Asserted on the candidate ORDER (pure), not on what happens to exist here. */
+  ok('sweepDir tries the git-common tepna-mutation location FIRST', /tepna-mutation$/.test(stateDirs(ROOT)[0]) && (sweepDir() === stateDirs(ROOT)[0] || sweepDir() === stateDirs(ROOT)[1]), sweepDir());
+  ok('…and the in-tree path survives only as the fallback candidate', /\.mutation-sweeps$/.test(stateDirs(ROOT)[1]), stateDirs(ROOT)[1]);
   ok('NO sweep path lives in /tmp — a tmpfs loses the queue on reboot', !Object.values(resolveSweeps()).some((p) => p.startsWith('/tmp/')), Object.values(resolveSweeps())[0]);
-  ok('the default dir is inside the repo, beside .mutation-crawl', sweepDir().startsWith(ROOT), sweepDir());
+  /* REWRITTEN for §1 (was: "inside the repo, beside .mutation-crawl" — the pre-migration contract).
+     From a linked worktree the git COMMON dir lives under the MAIN checkout, so "inside ROOT" is
+     exactly what the migration abolishes. The surviving invariant: wherever it resolves, it is one
+     of the two declared candidates and never an invented third place. */
+  // §8 — arrow consts are visible to the scanner
+  const AR = ['function plain(a) {', '  return a;', '}', 'const rmssd = (x) => {', '  return x + 1;', '};', 'const tiny = () => 1;'].join('\n');
+  {
+    const rs = functionRanges(AR);
+    ok(
+      'an arrow const appears in functionRanges',
+      rs.some((r) => r.fn === 'rmssd' && r.start === 4 && r.end === 6),
+      JSON.stringify(rs)
+    );
+    ok(
+      'a concise arrow is a single-line range, never file-long',
+      rs.some((r) => r.fn === 'tiny' && r.start === 7 && r.end === 7),
+      JSON.stringify(rs.filter((r) => r.fn === 'tiny'))
+    );
+    ok(
+      'plain functions still resolve beside them',
+      rs.some((r) => r.fn === 'plain' && r.end === 3)
+    );
+  }
+  ok('the default dir is one of the two declared candidates, nothing invented', stateDirs(ROOT).includes(sweepDir()), sweepDir());
   ok('DEX_SWEEP_DIR overrides it', sweepPathFor('oxydex-dsp.js', '/elsewhere') === '/elsewhere/oxydex-dsp.json');
   ok('every expected file resolves to a distinct path', new Set(Object.values(resolveSweeps())).size === 8);
 

@@ -1576,3 +1576,117 @@ def test_a_doff_settle_inside_the_drop_grace_is_RAISED_not_obeyed(tmp_path, monk
     msgs = " ".join(r.getMessage() for r in caplog.records)
     assert "settle raised" in msgs, "a clamped settle must say so — a silent clamp is a silent policy"
     assert "power-drop grace" in msgs
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════
+# the MORNING QC DIGEST (VIGIL-OVERNIGHT-FINDINGS §P2.4) — coverage is the number that matters,
+# and the failure alert alone never sends it: a good night says nothing.
+# ═══════════════════════════════════════════════════════════════════════════════════════════
+def test_qc_digest_due_is_a_bounded_window_not_a_floor():
+    """Delegates to cpap_harvest.due_now — the primitive whose docstring records the floor variant as
+    'wrong and shipped once' (a 19:25 restart re-armed a 13:00 job). The first draft of THIS function
+    was that floor; these pin the window semantics so it cannot quietly return."""
+    import datetime as dt
+    at = lambda h, m=0: dt.datetime(2026, 8, 18, h, m)
+    assert capture.qc_digest_due(at(9), 9, None) is True         # in the window, never sent → due
+    assert capture.qc_digest_due(at(11, 59), 9, None) is True    # still inside [9, 12)
+    assert capture.qc_digest_due(at(8, 59), 9, None) is False    # before the window
+    assert capture.qc_digest_due(at(19, 25), 9, None) is False   # THE 2026-07-26 BUG: restart after the
+    #                                                              window must NOT consider itself due
+    import cpap_harvest
+    d = cpap_harvest.window_start_date(at(9), 9, 3)
+    assert capture.qc_digest_due(at(10), 9, d) is False          # already sent this window — ALLOW twin
+    assert capture.qc_digest_due(at(10), -1, None) is False      # -1 disables, at any hour
+
+
+def test_the_morning_digest_sends_coverage_once(tmp_path, monkeypatch):
+    """The digest is UNCONDITIONAL — it fires on a healthy night, which the missing-stream alert never
+    does. Once per local day, marked before the await like every sender in this file."""
+    import os as _os
+    _os.makedirs(str(tmp_path / "captures" / "2026-08-18"), exist_ok=True)
+    monkeypatch.setattr(capture, "_current_night", lambda captures, settle: "2026-08-18")
+    monkeypatch.setattr(capture.nightqc, "summarize", lambda night, devices: {
+        "night": "2026-08-18", "missing": [],
+        "devices": [{"name": "H10", "coverage": {"ecg": 0.96, "acc": 0.95}}]})
+    sent = []
+
+    class _N:
+        async def send(self, title, message, **kw):
+            sent.append((title, message, kw.get("key")))
+            return True
+    import datetime as dt
+    monkeypatch.setattr(capture, "_now", lambda: dt.datetime(2026, 8, 18, 9, 30))  # pinned INSIDE the
+    # window — the first draft used digest_hour 0 as "always due", which under bounded-window semantics
+    # is only true before 03:00 local: the very time-dependence this feature red-flagged in CI.
+    _stop_after(monkeypatch, 3)                     # three polls; ONE digest
+    cfg = {"qc": {"poll_sec": 1, "digest_hour": 9}, "devices": []}
+    _run(capture.qc_poller(cfg, str(tmp_path), _N()))
+    digests = [s for s in sent if s[0] == "Tepna night QC"]
+    assert len(digests) == 1, f"once per day, not per poll: {digests}"
+    assert "H10 95%" in digests[0][1] or "H10 96%" in digests[0][1]
+    assert digests[0][2] and digests[0][2].startswith("qc-digest-")
+
+
+def _digest_deny_case(tmp_path, monkeypatch, qc_cfg):
+    """Shared DENY harness. Returns (sent, polls) — and the caller MUST assert polls > 0, because the
+    first version of this test ran two `_run`s in one test, the first left `_STOP` set, the second
+    executed ZERO ticks, and `sent == []` passed vacuously. Coverage caught it (the `_line`-falsy
+    branch was never taken); the poll counter is the assertion that keeps it caught."""
+    import os as _os
+    _os.makedirs(str(tmp_path / "captures" / "2026-08-18"), exist_ok=True)
+    monkeypatch.setattr(capture, "_current_night", lambda captures, settle: "2026-08-18")
+    polls = {"n": 0}
+
+    def _summ(night, devices):
+        polls["n"] += 1
+        return {"night": "2026-08-18", "missing": [], "devices": []}
+    monkeypatch.setattr(capture.nightqc, "summarize", _summ)
+    sent = []
+
+    class _N:
+        async def send(self, title, message, **kw):
+            sent.append(title)
+            return True
+    capture._STOP.clear()
+    _stop_after(monkeypatch, 1)
+    _run(capture.qc_poller({"qc": qc_cfg, "devices": []}, str(tmp_path), _N()))
+    return sent, polls["n"]
+
+
+def test_the_digest_disabled_by_hour_minus_one(tmp_path, monkeypatch):
+    sent, polls = _digest_deny_case(tmp_path, monkeypatch, {"poll_sec": 1, "digest_hour": -1})
+    assert polls > 0, "the tick must actually run — a zero-tick pass proves nothing"
+    assert sent == [], f"digest_hour=-1 must send nothing: {sent}"
+
+
+def test_an_empty_night_sends_no_digest_even_when_due(tmp_path, monkeypatch):
+    """The `_line is None` branch: due, notifier present, nothing measured — silence, deliberately."""
+    import datetime as dt
+    monkeypatch.setattr(capture, "_now", lambda: dt.datetime(2026, 8, 18, 9, 30))
+    sent, polls = _digest_deny_case(tmp_path, monkeypatch, {"poll_sec": 1, "digest_hour": 9})
+    assert polls > 0, "the tick must actually run — a zero-tick pass proves nothing"
+    assert sent == [], f"an empty summ must send nothing: {sent}"
+
+
+def test_qc_digest_formats_ranges_and_absences():
+    """Pure formatting: one number when streams agree, a RANGE when they diverge (41/95 must not read
+    as 68), absent-coverage devices NAMED rather than averaged in as zeros, missing streams appended."""
+    import nightqc
+    line = nightqc.qc_digest({
+        "night": "2026-08-18",
+        "devices": [
+            {"name": "O2Ring", "coverage": {"spo2": 0.63, "ppg": 0.63}},
+            {"name": "Verity", "coverage": {"acc": 0.41, "ppg": 0.95}},
+            {"name": "COOSPO", "coverage": {}},
+        ],
+        "missing": ["Verity:ppi"],
+    })
+    assert "O2Ring 63%" in line
+    assert "Verity 41–95%" in line
+    assert "no data: COOSPO" in line
+    assert "missing: Verity:ppi" in line
+    assert nightqc.qc_digest({"night": "x", "devices": []}) is None
+    assert nightqc.qc_digest(None) is None
+    # a junk (non-dict) device entry is SKIPPED, not crashed on — and the rest still formats
+    j = nightqc.qc_digest({"night": "x", "devices": ["garbage", {"name": "H10", "coverage": {"ecg": 0.9}}]})
+    assert j is not None and "H10 90%" in j and "garbage" not in j

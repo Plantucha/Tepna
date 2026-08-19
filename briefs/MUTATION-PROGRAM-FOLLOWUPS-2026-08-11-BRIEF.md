@@ -219,9 +219,14 @@ they are insufficiently varied.
 
 ## 8 · SMALLER ITEMS
 
-- **`functionRange` cannot resolve arrow consts.** `const rmssd = (a) => {}` is invisible to it, so
-  those families claim nothing. Surfaced by `probe-coverage`'s unresolved-`fn` warning; costs coverage
-  in every battery. One regex.
+- ~~**`functionRange` cannot resolve arrow consts.**~~ ✅ FIXED 2026-08-19 — all THREE copies
+  (probe-equivalence · killcheck · mutation-worklist's scanner) now resolve `const NAME = (…) =>`
+  (async and single-param-no-parens included) and `const NAME = function`, and a CONCISE arrow
+  (`=> expr`) is its own single-line range rather than a fake file-long one. probe-equivalence's
+  copy also inherited killcheck's full metacharacter escaping (it still escaped `$` alone).
+  11 new selftests across the three; planted removal of the arrow alternative reds each copy's own
+  tests (verified as assertion failures, not crashes). Known accepted miss, documented in code:
+  a MULTI-line concise body under-claims to one line rather than over-claiming.
 - **oxydex and integrator have no battery at all** — 1763 and 934 survivors, 0 % claimable.
 - **`capture.py` is unaudited** — the largest file in the project.
 - **cpapdex `selfTest` holds 122 survivors** (a quarter of that file) in *test scaffolding*. Whether

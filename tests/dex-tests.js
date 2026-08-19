@@ -9088,6 +9088,57 @@
       });
     });
 
+    /* ════ DEAD FIELD HINTS — a write to an id that NO surface defines ════
+       DEAD-FIELD-HINTS-FLEET-2026-08-19: five nodes wrote 42 `lbl_*` field hints through guarded
+       setters (`if (!el) return`) to ids no .src.html defines. Every write was a silent no-op, which
+       is why nothing surfaced them for months — the render-side twin of a metric shown without an
+       evidence badge, and this repo prefers that class to fail VISIBLY.
+
+       Matched by PROPERTY, not by call shape, and that distinction is the whole gate. The brief
+       scoped itself to `set('lbl_X')` and undercounted HRVDex 6 -> 11, because five sites reached the
+       DOM through a bare getElementById instead. So: ANY `lbl_*` string literal in a node's inlined
+       JS must resolve to an id in that node's own .src.html. No `lbl_` id is created dynamically
+       anywhere in the tree (checked 2026-08-19), so a static rule cannot false-positive on injected
+       markup.
+
+       Node-lane only — env.nodeSurfaces is fs-read; the browser lane can't readdir, so it SKIPs
+       (mirrors docs-ledger / release-ledger / analysis-tools). */
+    group('Field hints never write to an id no surface defines', 'cohesion · dead-field-hints · render', function (T) {
+      var NS = env.nodeSurfaces;
+      if (!NS) {
+        T.skip('env.nodeSurfaces provided to the runner', 'Node-lane only — wire env.nodeSurfaces (run-tests.mjs readNodeSurfaces)');
+        return;
+      }
+      var nodes = Object.keys(NS);
+      T.ok('nodes available to the dead-hint gate', nodes.length >= 8, nodes.length + ': ' + nodes.join(', '));
+      nodes.forEach(function (node) {
+        var html = (NS[node] && NS[node].html) || '';
+        var js = (NS[node] && NS[node].js) || {};
+        var files = Object.keys(js);
+        // Anti-vacuity: a node whose sources went unread would contribute no references and read
+        // as clean. That is the "examined nothing, reported success" shape, so assert the scan
+        // actually had something to look at before believing its verdict.
+        T.ok(node + ' · inlined sources were actually read', files.length > 0 && html.length > 0, files.length + ' js file(s), ' + html.length + ' bytes of surface');
+        var ids = {};
+        var idRe = /id="([^"]+)"/g,
+          im;
+        while ((im = idRe.exec(html))) ids[im[1]] = true;
+        var dead = [];
+        files.forEach(function (f) {
+          (js[f] || '').split('\n').forEach(function (line, i) {
+            var re = /['"](lbl_[A-Za-z0-9_]+)['"]/g,
+              m;
+            while ((m = re.exec(line))) if (!ids[m[1]]) dead.push(f + ':' + (i + 1) + ' ' + m[1]);
+          });
+        });
+        T.ok(
+          node + ' · every lbl_* reference resolves to an id it defines',
+          dead.length === 0,
+          dead.length ? dead.length + ' dead — ' + dead.slice(0, 6).join(' · ') + (dead.length > 6 ? ' …' : '') : 'clean'
+        );
+      });
+    });
+
     /* ════ ANALYSIS TOOLS — self-contained / file://-safe (LOCAL-DOWNLOAD fix) ════
        The 9 science tools were bundled to single-file HTML by tools/build-analysis.mjs so they RUN when a
        user downloads one .html and opens it over file:// (verified with Playwright). Under file:// the
