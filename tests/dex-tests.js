@@ -13737,6 +13737,32 @@
       T.ok('two rows is refused with a message naming the two columns it needs', /timestamp \+ glucose/.test(tiny.error || ''), JSON.stringify(tiny.error || '').slice(0, 90));
     });
 
+    group('GlucoDex helper floor — 6 drafts adopted: coreMetrics floors, clamp detection, pearson (mutation-derived)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
+      var G = env.GLUDSP || (env.GlucoDex && env.GlucoDex._bare) || env.GlucoDex;
+      if (!G || typeof G.coreMetrics !== 'function') {
+        T.skip('GLUDSP available', 'GlucoDex not co-loaded in this runner');
+        return;
+      }
+      /* Adopted from the AI-probe draft bank: 6/6 batch-verified green, zero discards. */
+      var out;
+      out = G.detectClampSaturation([1, 2, 3]);
+      T.eq('G.detectClampSaturation([1,2,3]) → "null"', JSON.stringify(out.floor), 'null');
+      out = G.coreMetrics('');
+      T.eq('G.coreMetrics("") → "0"', JSON.stringify(out.cv), '0');
+      out = G.coreMetrics([0, 0, 0], [0]);
+      T.eq('G.coreMetrics([0,0,0],[0]) → "0"', JSON.stringify(out.cv), '0');
+      out = G.coreMetrics([100, 150, 200, 250, 300], [100, 150, 200, 250, 300]);
+      T.eq('G.coreMetrics([100,150,200,250,300],[100,150,200,250,300]) → "250"', JSON.stringify(out.p75), '250');
+      out = G.detectClampSaturation([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], null);
+      T.eq(
+        'G.detectClampSaturation([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],null) → "{"value":1,"co',
+        JSON.stringify(out.floor),
+        '{"value":1,"count":1,"pct":5,"saturated":false,"innerMean":1,"ratio":1}'
+      );
+      out = G.pearson([1, 2, 3], [4, 5, 6]);
+      T.eq('G.pearson([1,2,3],[4,5,6]) → "1"', JSON.stringify(out), '1');
+    });
+
     group('MotionDex inferAccUnit — three gravity bands, all bounds exclusive (mutation bootstrap)', 'motiondex-dsp · known-answer · mutation-pinned', function (T) {
       var M = env.MOTIONDSP;
       if (!M || typeof M.parseSensorXYZ !== 'function') {
@@ -13786,6 +13812,44 @@
       /* The ≥8-row floor: fewer samples than that cannot establish a median worth trusting. */
       T.eq('seven rows is too few to infer a unit', unitOf(7, 1000), null);
       T.eq('…and eight is enough', unitOf(8, 1000), 'mg');
+    });
+
+    group('MotionDex helper floor — 8 drafts adopted: every entry guard refuses junk with hasData false (mutation-derived)', 'motiondex-dsp · known-answer · mutation-pinned', function (T) {
+      var M = env.MOTIONDSP || (env.MotionDex && env.MotionDex._bare);
+      if (!M || typeof M.actigraphy !== 'function') {
+        T.skip('MOTIONDSP available', 'MotionDex not co-loaded in this runner');
+        return;
+      }
+      var out;
+      out = M.actigraphy(null);
+      T.eq('M.actigraphy(null) → "false"', JSON.stringify(out.hasData), 'false');
+      out = M.actigraphy('x');
+      T.eq('M.actigraphy("x") → "false"', JSON.stringify(out.hasData), 'false');
+      out = M.respiratoryRate(null);
+      T.eq('M.respiratoryRate(null) → "false"', JSON.stringify(out.hasData), 'false');
+      out = M.motionSQI('x');
+      T.eq('M.motionSQI("x") → "0"', JSON.stringify(out.conf), '0');
+      out = M.motionSQI(null);
+      T.eq('M.motionSQI(null) → "0"', JSON.stringify(out.conf), '0');
+      out = M.bodyPosition(null);
+      T.eq('M.bodyPosition(null) → "false"', JSON.stringify(out.hasData), 'false');
+      out = M.bodyPosition('x');
+      T.eq('M.bodyPosition("x") → "false"', JSON.stringify(out.hasData), 'false');
+      out = M.streamKindFromName(null);
+      T.eq('M.streamKindFromName(null) → "null"', JSON.stringify(out), 'null');
+      // Sharpened after first kill-verify — the two mutants a junk-input pin cannot reach:
+      var shortRows = [];
+      var posRows = [];
+      for (var ri = 0; ri < 10; ri++) shortRows.push({ tMs: ri * 40, x: 0, y: 0, z: 1 });
+      for (var pi = 0; pi < 200; pi++) posRows.push({ tMs: pi * 250, x: 0, y: 0, z: 1 });
+      out = M.respiratoryEffort(shortRows);
+      T.eq('a 10-row refusal is BARE hasData:false — no fabricated zero-rate payload rides along', JSON.stringify(out), '{"hasData":false}');
+      out = M.bodyPosition(posRows);
+      T.eq(
+        'the dwell table has EXACTLY the six positions — one extra loop pass mints an "undefined" position',
+        JSON.stringify(Object.keys(out.dwellFrac)),
+        '["supine","prone","left","right","upright","unknown"]'
+      );
     });
 
     /* ════ _leakCV — PSEUDO-TESTED, and it is a NEAR-ZERO-DIVISION GUARD ══════════════════════
@@ -13882,6 +13946,34 @@
       T.eq('an EMPTY sets array is refused, not treated as a night with no sessions', N({ sets: [] }), null);
       T.eq('a non-array `sets` is refused', N({ sets: 'no' }), null);
       T.eq('a bare array is refused', N([]), null);
+    });
+
+    group('CPAPDex helper floor — 9 drafts adopted: prepare defaults, envelope guards, EDF refusals (mutation-derived)', 'cpapdex-dsp · known-answer · mutation-pinned', function (T) {
+      var C = env.CpapDsp || env.CPAPDSP;
+      if (!C || typeof C.prepare !== 'function') {
+        T.skip('CpapDsp available', 'CPAPDex not co-loaded in this runner');
+        return;
+      }
+      /* Adopted from the AI-probe draft bank: 9/9 batch-verified green, zero discards. */
+      var out;
+      out = C.detectBreaths(1);
+      T.eq('C.detectBreaths(1) → "true"', JSON.stringify(out === null), 'true');
+      out = C.prepare(0);
+      T.eq('C.prepare(0) → "[]"', JSON.stringify(out.pressureMaskOn), '[]');
+      out = C.prepare(0);
+      T.eq('C.prepare(0) → "1"', JSON.stringify(out.fs), '1');
+      out = C.prepare(0);
+      T.eq('C.prepare(0) → "null"', JSON.stringify(out.mode), 'null');
+      out = C.prepare(0);
+      T.eq('C.prepare(0) → "0"', JSON.stringify(out.usageHours), '0');
+      out = C.buildSessionFromEdf(null);
+      T.eq('C.buildSessionFromEdf(null) → "true"', JSON.stringify(out === null), 'true');
+      out = C.pressureEnvelope('x');
+      T.eq('C.pressureEnvelope("x") → "0"', JSON.stringify(out.length), '0');
+      out = C.pressureEnvelope([1, 2, 3], null);
+      T.eq('C.pressureEnvelope([1,2,3],null) → "0"', JSON.stringify(out.length), '0');
+      out = C.buildLongitudinal(null);
+      T.eq('C.buildLongitudinal(null) → "0"', JSON.stringify(out.nights), '0');
     });
 
     group('CPAPDex co-import — a surge corroborates ONE apnea, and lands on the right night (§6.3/§6.4)', 'cpapdex-coimport · fusion', function (T) {
@@ -15475,6 +15567,42 @@
          d_rmssd_rolling_ln, d_stress_auc, d_rmssd_cv7, d_sdnn_z, d_stress_ac, d_pnn50_slope,
          d_hrv_momentum, d_recovery_debt. The no-argument path is unchanged. */
       T.eq('computeDerived still produces 62 derived columns', produced.length, 62);
+    });
+
+    group('HRVDex helper floor — 13 drafts adopted: numeric honesty, persistence guards, the clock pad (mutation-derived)', 'hrvdex-dsp · known-answer · mutation-pinned', function (T) {
+      var H = env.HRVDex && env.HRVDex._bare;
+      if (!H || typeof H._hrvNum !== 'function') {
+        T.skip('HRVDex._bare available', 'HRVDex not co-loaded in this runner');
+        return;
+      }
+      /* Adopted from the AI-probe draft bank: 13/13 batch-verified green, zero discards. */
+      var out;
+      out = H.computeCAMQ(1);
+      T.eq('H.computeCAMQ(1) → "50"', JSON.stringify(out), '50');
+      out = H._hrvNum(1);
+      T.eq('H._hrvNum(1) → "1"', JSON.stringify(out), '1');
+      out = H._hrvNum(null);
+      T.eq('H._hrvNum(null) → "true"', JSON.stringify(out === ''), 'true');
+      out = H._hrvNum(null);
+      T.eq('H._hrvNum(null) → "true"', JSON.stringify(out === ''), 'true');
+      out = H._hrvNum(0);
+      T.eq('H._hrvNum(0) → "false"', JSON.stringify(out === null), 'false');
+      out = H.persistHRVRows(null);
+      T.eq('H.persistHRVRows(null) → "true"', JSON.stringify(out.ok), 'true');
+      out = H.restoreHRVRows(null);
+      T.eq('H.restoreHRVRows(null) → "true"', JSON.stringify(out === false), 'true');
+      out = H.restoreHRVRows(null);
+      T.eq('H.restoreHRVRows(null) → "false"', JSON.stringify(out), 'false');
+      out = H._envToSeed(null);
+      T.eq('H._envToSeed(null) → "null"', JSON.stringify(out), 'null');
+      out = H.smooth([1, 2, 3]);
+      T.eq('H.smooth([1,2,3]) → "1"', JSON.stringify(out[0]), '1');
+      out = H._hrvClockS(null);
+      T.eq('H._hrvClockS(null) → "8"', JSON.stringify(out.length), '8');
+      out = H._hrvRowsFromInput([1, 2, 3]);
+      T.eq('H._hrvRowsFromInput([1,2,3]) → "0"', JSON.stringify(out.length), '0');
+      out = H._hrvNum('0', '-0');
+      T.eq('H._hrvNum("0","-0") → "true"', JSON.stringify(out === ''), 'true');
     });
 
     /* ── THE GUARDS, not the outputs ────────────────────────────────────────────────────────────
