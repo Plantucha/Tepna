@@ -50,7 +50,7 @@ const LEG = opt('--leg', 'finger'); // finger (O2Ring, via the coupler's own pai
    point is not falling back to the wrist), so the ankle leg gets its own selector with the SAME
    overlap-max rule. Pairing biggest-with-biggest instead is how this tool's first ankle probe read
    floors of ~1150 ms: two non-overlapping sessions, nearest-lag ≈ uniform mod one RR. */
-const RE_VERITY = /VeritySense.*_PPG\.txt$/i;
+const RE_VERITY = /(?:VeritySense|Polar_Sense).*_PPG\.txt$/i;
 const RE_ECG2 = /_ECG\.txt$/i;
 function anklePair(dir) {
   const cand = (re) =>

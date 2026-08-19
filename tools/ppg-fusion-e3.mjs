@@ -267,7 +267,7 @@ const walk = (d, o = []) => {
   } catch (_e) {}
   return o;
 };
-const PPG_RE = DEVICE === 'verity' ? /VeritySense.*_PPG\.txt$/i : /O2Ring.*_PPG\.txt$/i;
+const PPG_RE = DEVICE === 'verity' ? /(?:VeritySense|Polar_Sense).*_PPG\.txt$/i : /O2Ring.*_PPG\.txt$/i;
 const all = walk(DIR);
 const ppgs = all
   .filter((f) => PPG_RE.test(f.p))
