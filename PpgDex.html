@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8G0021kLB/8L6BJR/hptrWblaOWJZB9ikV63WK/9Pd8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-haXlV4mtLdwoslHOZ4k+3vK6o7SIRMBQuPt5xEIbyzY=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4JN+i/GRp6aBDPvsKYQI1efICXbyR9/miokz/mBxuFM=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8G0021kLB/8L6BJR/hptrWblaOWJZB9ikV63WK/9Pd8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-haXlV4mtLdwoslHOZ4k+3vK6o7SIRMBQuPt5xEIbyzY=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.6.0</title>
@@ -13378,27 +13378,6 @@ __exports.PPGUI = window.PPGUI;
     const d = lnrm - 3.4;
     return base * (1 + Math.max(-0.08, Math.min(0.08, d * 0.1)));
   }
-  function ansAge(rmssd, sdnn, hr) {
-    const clamp = (v) => Math.min(85, Math.max(22, Math.round(v)));
-    const c1 = rmssd > 0 ? clamp(120 - 18 * Math.log(rmssd)) : null;
-    const c2 = sdnn > 0 ? clamp(100 - (Math.log(sdnn) - 2.5) * 30) : null;
-    const c3 = hr > 30 && hr < 120 ? clamp(20 + (hr - 45) * 1.3) : null;
-    let cs = 0,
-      ws = 0;
-    if (c1 != null) {
-      cs += 0.25 * c1;
-      ws += 0.25;
-    }
-    if (c2 != null) {
-      cs += 0.4 * c2;
-      ws += 0.4;
-    }
-    if (c3 != null) {
-      cs += 0.35 * c3;
-      ws += 0.35;
-    }
-    return { age: ws ? clamp(cs / ws) : null, c1, c2, c3 };
-  }
   function hrvScore(rm) {
     return Math.round(Math.max(0, Math.min(100, 1.494 * rm - 13.37)));
   }
@@ -13427,7 +13406,6 @@ __exports.PPGUI = window.PPGUI;
     const lnrm = Math.log(Math.max(1, r.dispRm));
     const vo2b = +(vo2Base(rhrEff, hrmaxEff) * altF).toFixed(1);
     const vo2a = +vo2Adj(vo2b, lnrm).toFixed(1);
-    const aa = ansAge(r.dispRm, r.dispSd, r.dispHr);
     Object.assign(r, {
       profile: p,
       tanaka,
@@ -13440,7 +13418,6 @@ __exports.PPGUI = window.PPGUI;
       vo2adj: vo2a,
       vo2gt: p.vo2gt > 0 ? p.vo2gt : null,
       cpapInUse: p.cpap,
-      ansAge: aa,
       hrvScore: hrvScore(r.dispRm),
       expRmssd: expectedRmssd(p.age),
       expRHR: expectedRHR(p.age)
@@ -13634,10 +13611,6 @@ __exports.PPGUI = window.PPGUI;
     };
     const p = getProfile();
     const n = popNorms(p.sex);
-    if (r) {
-      const aa = r.ansAge || ansAge(r.dispRm, r.dispSd, r.dispHr);
-      if (aa.age != null) set('lbl_ppgAge', '↑ chronological age · HRV-estimated autonomic age ≈ ' + aa.age + ' yr', true);
-    }
     const ideal = +(22.5 * ((parseFloat($('ppgHeight').value) || n.h) / 100) ** 2).toFixed(1);
     set('lbl_ppgWeight', '~ pop. avg ' + n.w + ' kg · ideal ' + ideal + ' kg');
     set('lbl_ppgHeight', '~ pop. avg ' + n.h + ' cm');

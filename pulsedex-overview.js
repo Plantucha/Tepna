@@ -232,7 +232,10 @@ function renderHeroPx(r) {
 
 // ── PROJECTED ANS AGE + projected-BP card REMOVED 2026-06-21 (external-review WP-A):
 //    a population age regression + cuffless BP from HRV. VO₂ remains at research depth
-//    in the KPI grid; pxAnsAge() is still used for the KPI delta.
+//    in the KPI grid. ⚠️ This line used to claim pxAnsAge() was "still used for the KPI delta". It
+//    is NOT: pxAnsAge has no call site anywhere in the tree, and line 70 of this same file already
+//    says the tile and its composite are deleted. Two comments in one file asserting opposite
+//    things about the same removed function is a trap for the next reader (FOLLOWUPS-II §2.3).
 
 // ── SECONDARY HERO: VALIDATED HRV BENCH (time-domain) ─────────────────────────
 //    Replaces the removed ANS-age card in the #heroTop secondary slot with the
