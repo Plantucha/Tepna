@@ -136,6 +136,32 @@ be filled before any runtime constant, per `LITERATURE-USE-POLICY`.
 > **So ambient subtraction is NOT inert** — §8 anticipated a possible negative result, and this is not
 > one. It is negligible on four nights and **doubles rMSSD on 2026-07-19**.
 >
+> 🔬 **THE CORPUS WAS LARGER THAN THE TOOL COULD SEE — measured 2026-08-18.** `ppg-fusion-e3` matched
+> the Verity by `/VeritySense.*_PPG\.txt$/` only, and Polar Sensor Logger writes the same armband as
+> `Polar_Sense_<serial>` (identical serial `0C301E3F`). It also parsed timestamps with `\d{14}`, while
+> PSL splits them (`..._20260610_211539_...`). **Two independent blindnesses**, so the whole PSL tree was
+> invisible to this tool — it returned **0 nights** there. Both fixed (#1503, #1506).
+>
+> **Re-run on that tree, 6 nights:**
+>
+>     consensus (SHIPPED)   jitter median 9.42  IQR 7.32-11.57 ms   PPV 99.64
+>     best single channel   jitter median 9.43  IQR 7.41-11.80 ms   PPV 99.64
+>     mean-of-3 fusion      jitter median 9.08  IQR 7.28-11.54 ms   PPV 99.82
+>     PCA-1 fusion          jitter median 9.08  IQR 7.28-11.54 ms
+>
+> **5 of 6 are physiologically plausible** (PPV ≥ 99.5 %, jitter 5.9–11.7 ms); the sixth is the same
+> beat-alternation shape §2 already describes (PPV 32 %, jitter 42.5 ms). So this tree yields plausible
+> nights at **5/6 against the original 6/12** — and it was excluded by construction, not by data quality,
+> when *"the corpus cannot yet decide"* was written.
+>
+> ⚠️ **This does NOT overturn the verdict, and I am not claiming it does.** The re-run capped at
+> `--max-nights 6` of ~20 available, the alternation defect is real and unchanged, and the fusion deltas
+> here are small (mean-of-3 9.08 vs shipped 9.42 ms — the same direction as the original finding, not a
+> new one). What changed is that **the sentence's premise is no longer true**: the corpus was never fully
+> visible, so "cannot yet decide" was a statement about the tool as much as the data. The item is
+> **re-openable on evidence** rather than blocked, and the honest next step is the full tree with the
+> alternation detector applied per night.
+
 > **⚠️ But the corpus cannot yet decide whether that is an improvement, and this is the finding that
 > matters.** Only **6 of 12** nights produce a physiologically plausible rMSSD at all. The other six read
 > **164, 251, 253, 278, 324 and 2332 ms** — impossible for a resting adult, and matching the known
