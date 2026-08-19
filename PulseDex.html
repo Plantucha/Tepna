@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0HBhMJiuRosV3WFtoxnOr6uXufKmQavN6RxdtfvAXA0=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-MnP9wt46pmURQuPdQy2UqyTKBewz1pHaLL5EkHLHJvg=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-ROdYy6ar8B2yHmk6uf+E7Sh/1qv8PNrYPUBhxTQX4f4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-l7+aJgsMD55W+OVW3ZgKnu0aySX2YViv57Gwk5Dhu+M=' 'sha256-nghmP9jMX0rAyZ78QklkJKcGr9ZiroYj+56iLDFYjLY=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3OFGZyAYmpNjgdIo8HIK3mH80DZJcnoVZHx/nLdDpa4=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-ZOZrXVPboAP+8At/P4MiABzCGh99952BRym6mgp2xpc=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-l7+aJgsMD55W+OVW3ZgKnu0aySX2YViv57Gwk5Dhu+M=' 'sha256-n4iELeLN4xR2wiFU5lenc+GD6lzf0vrweipgHN0rplc=' 'sha256-nghmP9jMX0rAyZ78QklkJKcGr9ZiroYj+56iLDFYjLY=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PulseDex — Raw RR Analyzer · v2.6.0</title>
@@ -8591,7 +8591,6 @@ function reRender() {
     r.vo2adj = +vo2Adj(r.vo2base, r.lnrmssd).toFixed(1);
     const gtIn = _pp.vo2gt;
     r.vo2gt = gtIn > 0 ? +Number(gtIn).toFixed(1) : null;
-    computeProfileHints(r);
     renderContext(r);
     renderHeroPx(r);
     renderKpiGridPx(r);
@@ -9687,7 +9686,6 @@ function renderOverviewPx(r) {
   document.getElementById('heroTop').style.display = 'grid';
   document.getElementById('sec-profile').style.display = 'block';
   document.getElementById('profilePanel').style.display = 'block';
-  computeProfileHints(r);
   renderHeroPx(r);
   renderHrvBenchPx(r);
   renderProfileDerivedPx();
@@ -9829,48 +9827,6 @@ function applyAgeNorms(ideal) {
   reRender();
 }
 
-// predictive sublabels — show what each field WOULD be if auto-estimated
-function computeProfileHints(r) {
-  if (!document.getElementById('profSex')) return; // unified panel active — legacy hint inputs removed
-  const set = (id, txt, est) => {
-    const l = document.getElementById(id);
-    if (!l) return;
-    l.textContent = txt;
-    l.classList.toggle('est', !!est);
-  };
-  const sex = document.getElementById('profSex').value;
-  const age = parseFloat(document.getElementById('profAge').value) || 40;
-  const n = popNorms(sex, age);
-  // ANS-age age hint REMOVED 2026-06-21 (external-review WP-A) — population age regression.
-  // Weight ← pop avg + ideal
-  const ideal = +(22.5 * ((parseFloat(document.getElementById('profHeight').value) || n.h) / 100) ** 2).toFixed(1);
-  set('lbl_weight', '~ pop. avg ' + n.w + ' kg · ideal ' + ideal + ' kg');
-  set('lbl_height', '~ pop. avg ' + n.h + ' cm');
-  // SBP/DBP HRV-projection hints REMOVED 2026-06-21 (external-review WP-A) — cuffless BP from HRV.
-  // VO2 ← Uth-Sørensen base (HRmax over awake resting HR), altitude-corrected
-  if (r) {
-    const hm = r.hrmaxEff || Math.round(208 - 0.7 * age);
-    const rh = Math.round(r.rhrEff || r.dispHr);
-    const altTxt = r.altFactor && r.altFactor < 1 ? ' · alt ×' + r.altFactor : '';
-    set('lbl_vo2gt', '~ Uth-Sørensen → ' + r.vo2base + ' (HRmax ' + hm + '/HRrest ' + rh + altTxt + ')');
-    // HRmax field: warn if an implausible entry was rejected
-    if (r.hrmaxRejected) set('lbl_hrmax', '⚠ entry too low — using Tanaka ' + r.tanaka + ' bpm', true);
-    else {
-      const hrIn = Number(document.getElementById('profHRmax').value) || 0;
-      set('lbl_hrmax', hrIn > 0 ? '✓ your value ' + hm + ' bpm' : '~ Tanaka: 208 − 0.7 × age = ' + r.tanaka);
-    }
-    // Elevation hint
-    const ev = Number(document.getElementById('profElev').value) || 0;
-    if (ev >= 2500) set('lbl_elev', '🏔 ' + ev.toLocaleString() + ' m · VO₂ ×' + r.altFactor + ' · HRV norms = sea-level (caution)', true);
-    else if (ev > 1500) set('lbl_elev', '⛰ ' + ev.toLocaleString() + ' m · VO₂ ×' + r.altFactor, true);
-    else set('lbl_elev', '~ sea level · adjusts VO₂max & norms above 1500 m');
-    const rhrIn = Number(document.getElementById('profRHR').value) || 0;
-    if (rhrIn > 0) set('lbl_rhr', '✓ your value');
-    else if (r.longRec && r.hrFloor != null) set('lbl_rhr', '~ nocturnal floor ' + r.hrFloor + ' + 8 = ' + r.autoRHR + ' bpm (awake est)', true);
-    else set('lbl_rhr', '~ measured ' + Math.round(r.dispHr) + ' bpm (awake reading)', true);
-  }
-}
-
 // expose for inline handlers + the cross-file surface (ESM-MIGRATION deep-3: overview is now an
 // ES module, so pulsedex-render / -app resolve these as bare globals through window at call time)
 Object.assign(window, {
@@ -9879,7 +9835,6 @@ Object.assign(window, {
   applyAgeNorms,
   loadProfile,
   saveProfile,
-  computeProfileHints,
   renderOverviewPx,
   pxProfile,
   renderHeroPx,
@@ -12025,7 +11980,7 @@ Object.assign(window, {
    Orchestration & glue: theme, mobile nav, scroll-spy, file ingest (RR + Welltory
    CSV), action wiring, the main calculate() pipeline, CSV/JSON exports, reset,
    and shared helpers. Loaded LAST. Reads pulsedex-{dsp,render}.js + the overview
-   module (loadProfile / renderOverviewPx / computeProfileHints).
+   module (loadProfile / renderOverviewPx).
    ES module (ESM-MIGRATION deep-3): the imports below make the DSP → render → overview →
    app load order a real dependency edge (the bundler + browser guarantee it), replacing the
    former script-tag-order convention. Immediate-execution glue lives here.
