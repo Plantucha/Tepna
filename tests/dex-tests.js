@@ -25820,6 +25820,60 @@
       T.eq('no meal markers ⇒ null', (G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: tMs[0], source: 'synthetic' }, null, {}) || {}).postprandial, null);
     });
 
+    /* ════ GlucoDex excursions — meal ANNOTATION reaches the event (mutation-derived kill) ═══════
+       Found by the 2026-08-19 equivalence harvest, as the opposite of what it was filed as: the
+       comment above declares the `|| !meals.length` guard-half equivalent, but the mutant that
+       actually SURVIVES is `negate: drop !` on that clause inside `matchMeal` — which returns null
+       for every excursion precisely WHEN MEALS EXIST. Every excursion loses its meal attribution
+       (`meal: null, mealCat: null, annotated: false`) and nothing red, because no assertion ever
+       drove an excursion WITH meal markers present. The postprandial group above uses the same
+       designed lunch curve but reads `res.postprandial`; this one reads `res.excursions`, the other
+       consumer of the markers. The curve trips the excursion detector by construction: trough 106,
+       peak 160 ⇒ rise 54 ≥ 45, rate 54/45 = 1.2 ≥ 1.0, trough < 160. */
+    group('GlucoDex excursions — a meal-adjacent excursion is ANNOTATED, not silently orphaned', 'glucodex-dsp · excursions · mutation-pinned', function (T) {
+      var G = (env.GLUDSP && env.GLUDSP.analyze && env.GLUDSP) || (env.GlucoDex && env.GlucoDex.analyze && env.GlucoDex) || null;
+      if (!G) {
+        T.skip('GLUDSP.analyze available', 'GLUDSP not co-loaded in this runner');
+        return;
+      }
+      var t0 = Date.UTC(2026, 5, 13, 0, 0, 0);
+      var tMs = [],
+        vMgdl = [];
+      for (var k = 0; k < 288; k++) {
+        var mins = k * 5;
+        var rel = mins - 720;
+        var v = 120;
+        if (mins >= 690 && mins < 720) v = 100;
+        else if (rel >= 0 && rel <= 45) v = 106 + (54 * rel) / 45;
+        else if (rel > 45 && rel <= 120) v = 160 - (52 * (rel - 45)) / 75;
+        else if (rel > 120 && rel <= 180) v = 108;
+        tMs.push(t0 + mins * 60000);
+        vMgdl.push(Math.round(v));
+      }
+      var meals = [{ label: 'Lunch', category: 'medium', minOfDay: 720, carbsAvg: 60 }];
+      var withM = G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: tMs[0], source: 'synthetic' }, null, { mealMarkers: meals });
+      var ex = (withM && withM.excursions) || [];
+      T.ok('the designed lunch curve trips the excursion detector', ex.length >= 1, 'excursions=' + ex.length);
+      var e = ex[0] || {};
+      /* THE KILL: with the surviving mutant, matchMeal nulls exactly when meals EXIST, so all three
+         of these read as the no-meals case while markers are present. */
+      T.eq('…and the excursion is annotated with the meal LABEL', e.meal, 'Lunch');
+      T.eq('…and the meal CATEGORY rides along', e.mealCat, 'medium');
+      T.eq('…and `annotated` says so', e.annotated, true);
+      /* CONTROL, both directions: without markers the same curve is an honest orphan — null, not a
+         fabricated match — so hard-coding the annotation cannot pass either. */
+      var noM = G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: tMs[0], source: 'synthetic' }, null, {});
+      var e0 = ((noM && noM.excursions) || [])[0] || {};
+      T.eq('no markers ⇒ meal is null, never fabricated', e0.meal, null);
+      T.eq('no markers ⇒ annotated false', e0.annotated, false);
+      /* And a marker OUTSIDE the −20…+75 min window must not match: dinner at 20:00 against a noon
+         excursion. Pins the window rather than "any meal anywhere". */
+      var farM = G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: tMs[0], source: 'synthetic' }, null, { mealMarkers: [{ label: 'Dinner', category: 'large', minOfDay: 1200 }] });
+      var ef = ((farM && farM.excursions) || [])[0] || {};
+      T.eq('a marker outside the ±window does not annotate', ef.annotated, false);
+    });
+
+
     group('GlucoDex genSynthetic — the generator honours its three options (mutation bootstrap)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
       var G = (env.GLUDSP && env.GLUDSP.genSynthetic && env.GLUDSP) || (env.GlucoDex && env.GlucoDex.genSynthetic && env.GlucoDex) || null;
       if (!G) {
