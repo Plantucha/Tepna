@@ -125,7 +125,22 @@ merge conflict when it goes wrong.
 ## 7 · Done when
 
 - [ ] `atShortestPpm` / `atLongestPpm` added additively to `hostAxis.stability`, on the next spine PR
-- [ ] `dual-clock-rate.mjs`'s crystal rule reads uncertainties, sharing ONE implementation with `device-stability.mjs`
+- [~] **HALF DONE — #1530, 2026-08-19.** *Sharing one implementation* is done: `dual-clock-rate.mjs`
+      imports `crystalVerdict` and delegates through a pure `crystalCoherence()`, its duplicate
+      `MAX_CRYSTAL_SPREAD_PPM` is now a re-export, and a 14-assertion group
+      (`tools · clock · crystal-single-source`) asserts the two entry points agree across the boundary
+      and the corpus extremes — because a shared implementation nobody checks is just a claim about
+      the past. Behaviour preserved exactly (`[0,50]` crystal, `[0,50.1]` not).
+
+      ⚠️ ***Reads uncertainties* is NOT done, and cannot be from this side.** `dual-clock-rate.mjs`
+      computes **no per-fragment uncertainty at all** — no `ppmUncertainty`, `sigma` or `stderr`
+      anywhere in it — while `device-stability.mjs` sources its own from σ_y at the recording's own
+      span, i.e. from Allan machinery this tool does not run. So the shared verdict takes its
+      **no-uncertainties branch** and falls back to the raw bound. That is the correct behaviour, not
+      a shortfall: the branch exists to refuse inventing a σ, and a fabricated error bar would make
+      every spread explicable. **§2's "protected today only by its length filter" therefore still
+      stands** — the filter excludes imprecise fragments rather than reasoning about them. Closing
+      this half needs σ_y computed in `dual-clock-rate`, which is a separate work-unit.
 - [x] **DONE — verified 2026-08-19.** `WEARABLE-DRIFT-DIRECT-2026-08-02` already reads
       **`Status: DONE — 2026-08-17`** (*"every §6 item re-verified against the tree, and the recorded ppm
       caveat DISCHARGED BY RE-MEASUREMENT"*). Its Done-when list is fully `[x]`; the single `[~]` is a
@@ -146,4 +161,30 @@ merge conflict when it goes wrong.
       Presence of a retracted number is not evidence the retraction is missing; read the context.
 
 - [ ] per-channel offset σ extracted, or recorded as declined with a reason
+      > **Investigated 2026-08-19 — still open, but sharper, and one premise in §4 needs correcting.**
+      >
+      > **§4 says `inverseVarianceWeights` is "exported" and idle. It is exported AND USED** — at
+      > `integrator-tch.js:428`, inside the three-cornered-hat decomposition. What is true is the
+      > narrower claim: **`fitClockOffsetPooled` (`integrator-dsp.js:5611`) does not use it**, and the
+      > two sit one file apart. "Exported without meeting" reads as unused; it is not.
+      >
+      > **`device-stability.mjs:152` already declines to reuse it, with a measured reason** — and its
+      > comment claims to close this very item: *"(This is the §3.4 open item, answered with a
+      > reason.)"* ⚠️ **It answers a DIFFERENT CONSUMER's question.** Its reasoning is that
+      > `inverseVarianceWeights` **floors each σ² at 8 % of the largest**, to stop a near-zero σ²
+      > capturing all the weight on short records — and that where the σ span two orders of magnitude
+      > (2.4 ppm against 376 ppm) *the smallest is the most trustworthy*, so the floor would discard
+      > exactly the fragment carrying the answer. Decisive for `device-stability`. **It says nothing
+      > about `fitClockOffsetPooled`, whose per-channel σ separation is precisely the unmeasured
+      > quantity this box asks for.**
+      >
+      > So the extraction is still the thing to do, and it now has a **decision rule attached**: if
+      > `fitClockOffsetPooled`'s per-channel σ turn out widely separated, the floor makes
+      > `inverseVarianceWeights` the wrong function there too, for the reason already written down
+      > next door. If they are comparable, the floor is harmless and equal weighting was never
+      > costing much either. **Either way the σ answers it — which is why this box, not the wiring,
+      > is the open item.**
+      >
+      > NOT done here: the extraction needs a corpus pass, and bulk traversal of the corpus trees is
+      > one of the operations currently wedging on this volume (18 processes in D-state).
 - [x] ~~`doc-search.mjs` landed or its citations removed~~ — WITHDRAWN 2026-08-17: it was already on `main` (§6)
