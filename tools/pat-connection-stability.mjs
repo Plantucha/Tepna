@@ -146,7 +146,7 @@ function main() {
         })
         .filter(Boolean);
     const E = parse(big(/_ECG\.txt$/i), ecgRpeakTimes);
-    const P = parse(big(/VeritySense.*_PPG\.txt$/i), ppgFootTimes);
+    const P = parse(big(/(?:VeritySense|Polar_Sense).*_PPG\.txt$/i), ppgFootTimes);
     if (!E.length || !P.length) {
       rows.push({ night, skip: `no parseable ECG (${E.length}) / Verity PPG (${P.length})` });
       continue;
