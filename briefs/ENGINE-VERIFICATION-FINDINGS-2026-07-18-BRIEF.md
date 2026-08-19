@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-19 (**§1.1, §1.2, §1.3, §1.5 EXECUTED + gated — re-checked against `main` on 2026-07-19, in code, not from this header.** §1.1: `pairCompanions` over the real 250-file `Ecg nightly/` H10 corpus answered §6's open question — the defect is **not latent**, **147 of 153** companion slots paired to the wrong night, fixed to **153/153**; `fnameStampMs` anchored + numeric-id two-night gate. §1.2: `dex-ingest.js` `deviceKey`/`stampMs` widened for the contiguous capture-host stamp (PR #221). §1.3: `ppgdex-dsp.js` dedupes bit-identical channels before the consensus vote, so a replicated channel reports `ledAgreement: null` instead of a `measured`-tier 100 (PR #225). §1.5: `pat-gate.js` single-sources the promotion gate and publishes `vdCorr` (PR #217). §1.6 is **half closed by another brief** — the Integrator now assigns `summary.respRateBrpm` via `MULTI-SENSOR-DERIVATIONS`, but PpgDex's `lombScargle` still never retains the HF argmax, so the PpgDex link remains open. **§1.8 CLOSED 2026-07-22** — re-verified against `main`: the Gauss→mag/µT fix shipped as `DEEP-AUDIT-II §7.9` (PR #332) with a both-direction gate (`tests/dex-tests.js:19874`); the parse-boundary conversion resolves the finding's "unreachable" note (see §1.8). **§1.7 CLOSED 2026-08-01** — re-verified in the tree: the finding stands (5 of 8 nodes emit; MotionDex is blind), ONE of its two prose items was owed (`integrator-longitudinal.js` corrected + gated by `integrator-longitudinal · docs · source-scan`, mutation-verified), and the other was **already fixed** — `CROSSNIGHT-ENVELOPE-SPEC §7` now carries a full 8-node adoption table. Note §1.7's own text says "5 of 9"; there are eight nodes. **§1.4 CLOSED 2026-08-01** — its blocker (ii) was STALE (`PPGDEX-O2RING-FINGER-SITE` has been DONE since 2026-07-20; verified in the code, not off the status line), so the O2Ring finger pleth now routes to its own `adapters/o2ring-ppg.js` at 0.97 instead of tying 0.95/0.85 and being dropped as `ambiguous`. Fixing it exposed a THIRD, latent defect: the layout→site rule lived only in `parsePPG`, so every frame-routed recording exported `site:'wrist'` by default — harmless while only the 3-LED Verity could route, and a wrist-validated morphology tier on a fingertip pleth the moment one could. `deriveSiteFromLayout` is single-sourced now. And **§1.6 CLOSED 2026-08-01** — `lombScargle` retains the HF argmax and the export publishes `respRate`; link (iii) turned out never to have been missing. **Every §1 finding is now closed.** ⚠️ This header previously read "§1.2 … still owed. §1.3–§1.8 untouched" while three of those had landed, and a session acting on it nearly redid them: **verify against the tree, not against a status line.**) · **Created:** 2026-07-18
+**Status:** DONE — 2026-08-18 (all eight findings closed: §1.1/§1.2/§1.4/§1.6/§1.7/§1.8 were already executed+gated in place; §1.3 was fixed at both ends by PPGDEX-O2RING-FINGER-SITE + the site-by-replication guard and gated in both directions, closed here with the evidence; §1.5 closed as MOOT — its "fix before PAT-VASCULAR Phase 0" purpose ended when Phase 0 ran with the coupler fixed as pat-align.js and the PAT question closed terminally. §4 Done-when audited item by item, including the three cross-brief prose corrections. NO follow-up brief spawned: the 2026-08-18 verification pass surfaced nothing new — every remaining item was closed by later, already-gated work, and this close only records where) · **Created:** 2026-07-18
 
 # Engine-verification findings — what an executed audit of the Vigil↔suite seam actually found
 
@@ -131,7 +131,23 @@ candidate returns eligible, so a Verity ACC/GYRO becomes a legal motion-gate com
 
 ---
 
-### 1.3 🟡 MEDIUM — `ledAgreementPct: 100` is fabricated on a one-photodiode device and reaches five surfaces
+### 1.3 ✅ CLOSED 2026-08-18 — fixed at BOTH ends by later briefs; verified in tree and gates, then marked
+
+> Never closed here, but closed in fact, twice over — this note records the evidence rather than
+> re-doing the work:
+> - **Producer:** `capture-host/capture.py` no longer writes the replicated `(v, v, v)` — the O2Ring
+>   pleth goes through the 1-column `write_ppg((v,))` branch (see the comment at capture.py:351,
+>   citing `PPGDEX-O2RING-FINGER-SITE` §3/§7).
+> - **Consumer:** legacy replicated 3-column files are detected by DATA, not header —
+>   `deriveSiteFromLayout` (`ppgdex-dsp.js:~761`, PR "site by replication": 100 % identical across
+>   526 O2Ring files vs 0 % across 261 Verity files, perfect separation) routes them to the finger
+>   single-channel lane where `ledAgreementPct` is null.
+> - **Gated in BOTH directions** (`tests/dex-tests.js:13999,14003,14328`): replicated → null, never a
+>   fabricated 100; three independent channels → still reported — so hard-coding null cannot pass.
+>
+> ~~🟡 MEDIUM~~ original finding kept below for the record.
+
+### 1.3 (original) — `ledAgreementPct: 100` is fabricated on a one-photodiode device and reaches five surfaces
 
 `capture-host/capture.py:651` writes the decoded O2Ring pleth as `write_ppg(ph, ns, 0.0, (v, v, v), 0)` — one
 8-bit sample replicated across all three PSL channels. `ppgdex-dsp.js consensusBeats` then sees `nCh = 3`, so
@@ -248,7 +264,20 @@ bundles rebuilt.
 
 ---
 
-### 1.5 🟢 LOW — the PAT tool decides its verdict on *uncorrected* drift, and has an undocumented fourth gate
+### 1.5 ✅ CLOSED 2026-08-18 AS MOOT — its purpose was "fix before PAT-VASCULAR Phase 0", and that story is over
+
+> Phase 0 ran (2026-07-29, twice) with the coupler defect this finding pointed at extracted and fixed
+> as `pat-align.js coupleRtoFoot` — 16 gated assertions, including the slip case (`tests/dex-tests.js`
+> "PAT coupler: a missing foot contributes nothing, never the next beat"). The verdict question this
+> tool's `cpCorr` handling could have distorted is now settled TERMINALLY by
+> `PAT-VERDICT-CONSOLIDATED` (every analysis-side candidate eliminated; the ~96 ms floor moves only
+> with a tighter foot or a longer transit path) and `INTEGRATOR-PAT-VASCULAR` is DONE
+> (executed-and-refuted, 2026-08-18). Re-instrumenting a feasibility tool whose feasibility question
+> has a final answer would be work with no consumer.
+>
+> ~~🟢 LOW~~ original finding kept below for the record.
+
+### 1.5 (original) — the PAT tool decides its verdict on *uncorrected* drift, and has an undocumented fourth gate
 
 Two divergences between the prose gate and the code, neither in any brief. Both verified in
 `pat-feasibility-worker.js`:
