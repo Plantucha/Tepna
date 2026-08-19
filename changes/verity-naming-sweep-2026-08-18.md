@@ -33,3 +33,36 @@ tool would have been blind on the PSL tree.
 
 Regression-checked: `pat-ppg-ppg-control` on a vigil night returns byte-identical output before and
 after (−38 ms, 89 % strict, ratio 13.18). `lint` 0.
+
+---
+
+**⚠️ THE DEVICE-NAME FIX ALONE WAS HALF A FIX — a second, independent blindness sat one line later.**
+
+Polar Sensor Logger splits the timestamp: `Polar_Sense_0C301E3F_20260610_211539_PPG.txt`. The capture
+host writes 14 contiguous digits. `ppg-fusion-e3` and `ppg-foot-consensus-e1` both parsed stamps with
+
+    /_(\d{14})_/ || /(\d{14})/
+
+and a PSL name contains **no 14-digit run at all**, so `stampOf` returned `null`. After the name fix the
+file *matched* and was then dropped one line later — **quieter than not matching**: files found, nights
+silently absent. Both now also accept `_(\d{8})_(\d{6})_`; verified on real names from both trees. The
+other four tools have no stamp parse and were already complete.
+
+**End-to-end control — the one that actually counts.** `ppg-fusion-e3` on the PSL tree, previously
+**0 nights**, now returns six:
+
+    consensus (SHIPPED)   jitter median 9.42  IQR 7.32-11.57 ms   PPV 99.64
+    best single channel   jitter median 9.43  IQR 7.41-11.80 ms   PPV 99.64
+    mean-of-3 fusion      jitter median 9.08  IQR 7.28-11.54 ms   PPV 99.82
+    PCA-1 fusion          jitter median 9.08  IQR 7.28-11.54 ms
+
+**5 of 6 are physiologically plausible** (PPV ≥ 99.5 %); the sixth is the known beat-alternation shape
+(PPV 32 %, jitter 42.5 ms). Against `PPGDEX-MULTICHANNEL-FUSION` §2's *"only 6 of 12 nights"*, this tree
+adds nights at a **better** plausible rate than the corpus that verdict was reached on — and it was
+entirely invisible when that verdict was written.
+
+**A device is identified by NAME, STAMP LAYOUT and STREAM SUFFIX — three independent conventions**, and a
+capture app may differ on any of them. Fixing one and confirming files are *reachable* does not show
+they are *usable*; only running the pipeline end-to-end does. (Third instance, not fixed here because
+none of these six touch it: the magnetometer is `MAGN` on PSL against `MAG` from the capture host.)
+
