@@ -81,6 +81,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stripCode } from './strip-markup.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CACHE = join(ROOT, '.mutation-sweeps', 'doc-search-index.json');
@@ -184,9 +185,11 @@ export function readDoc(path, raw) {
      to a bundle that merely contains a copy of it. */
   if (/\.mjs$|\.js$/i.test(path)) return jsComments(t);
   if (!/\.html?$/i.test(path)) return t;
-  return t
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+  /* `stripCode` INDEX-SCANS rather than pattern-matching. The regex that stood here missed `</script >`
+     and `</script foo>` — both legal — and a leak is not cosmetic for THIS tool: the escaped body
+     becomes searchable text, so hits land in minified `for (var i = 0; ...)` instead of the
+     decision-bearing prose the comment above says is the document. */
+  return stripCode(t)
     .replace(/<[^>]+>/g, ' ')
     .replace(/&[a-z]+;/gi, ' ');
 }
