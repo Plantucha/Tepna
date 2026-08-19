@@ -270,6 +270,46 @@ spacing**, which is the signature of a fixed buffer cap — `cmd = 0x03` behaves
 250 — not of a sample rate. A constant count under a varying poll interval cannot distinguish "200 Hz,
 buffer full" from "102 Hz, buffer sized to the poll".
 
+> 🔬 **ANSWERED 2026-08-18 — it is ~101.6 Hz, and the discrimination this paragraph says is impossible
+> IS possible from continuous capture.** The probe could not separate the two hypotheses because it saw
+> only replies; the stream is written continuously as `*_PPG2W.txt`, so the *timestamps between* buffers
+> are observable.
+>
+> **Rate, 11 files:** median **101.53 Hz**, range 101.47–101.65, across sessions of 146 s → 24 393 s.
+> Stable to ±0.1 % over two orders of magnitude of session length.
+>
+> **The buffer is real, and it is 102 — confirmed, not assumed.** Scanning candidate periods over
+> 60 000 samples, the inter-row delta at a buffer boundary differs from the interior at **period 102 and
+> nowhere else** in 98–107:
+>
+>     period   98  99 100 101 [102] 103 104 105 106 107
+>     boundary 10  10  10  10 [ 5 ]  10  10  10  10  10   ms (median)
+>
+> **And that is what settles it:**
+>
+>     102 samples x 9.844 ms  = 1004.1 ms   -> one SECOND of signal per buffer
+>     200 Hz truncated to 102 =  510   ms   -> a ~490 ms boundary gap would follow
+>     measured boundary gap   =    5   ms
+>
+> A 200 Hz stream sampled by a ~1 Hz poll would drop half its samples and leave a half-second hole at
+> every buffer edge. There is no hole. **The 102-record reply is a full second at ~101.6 Hz, not a
+> truncated buffer of a faster stream**, so the SDK's 200 Hz does not describe this opcode.
+> (99.03 % of deltas are 9 or 10 ms — millisecond quantisation of a true 9.844 ms period; only 0.028 %
+> exceed 50 ms.)
+>
+> ⚠️ **This is a HOST-derived rate and must be reported as one.** `sensor timestamp [ns]` is still 0 on
+> every row, so the device exposes no clock here and the figure is the rate at which samples arrive and
+> are stamped. That equals the device rate only if nothing is dropped — and the 5 ms boundary is
+> precisely the evidence that nothing is. Stated this way it is a *measurement*, which is what
+> `DEVICE-RATE-TRUTH` asks for; stated as "the device runs at 101.6 Hz" it would be a claim about
+> hardware this data cannot make.
+>
+> **Consequence for `BUS.register("o2ppg2w", …, fs = 0)`:** `fs = 0` was correct while the rate was
+> unmeasured. It is now measured, so the honest options are a declared **measured** rate with its
+> provenance, or keeping 0 and citing this note. That is a capture-host change and is **not made here** —
+> flagged for whoever owns `BUS.register`, because a rate declared without the host-derived caveat above
+> would reintroduce exactly the fabrication `fs = 0` was protecting against.
+
 Consequences, all deliberate:
 
 - `BUS.register("o2ppg2w", …, fs = 0)` — declaring an unmeasured rate would put a fabricated number on

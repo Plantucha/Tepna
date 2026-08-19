@@ -301,3 +301,50 @@ def test_EVERY_link_error_site_routes_through_the_one_formatter():
     assert code.count("link_error_text(e)") == 3, (
         "expected all three sites to route through the formatter, found %d"
         % code.count("link_error_text(e)"))
+
+
+# ── NOT-WORN PULL TRIGGER (POLAR-ONBOARD-BACKUP-FOLLOWUPS §4) ────────────────────────────────
+# The H10 runs on a CR2025 coin cell, so `charging` is permanently False and the on-charger trigger
+# is unreachable for it. These pin the doff trigger that reaches it. Each DENY is paired with an
+# ALLOW, so a predicate that simply never fires cannot pass.
+
+def test_notworn_pull_due_fires_after_the_settle_window():
+    # off the body 400 s, settle 300 s, not yet pulled → due
+    assert capture.notworn_pull_due(False, 1000.0, 1400.0, 300.0, False) is True
+
+
+def test_notworn_pull_not_due_before_the_settle_window():
+    assert capture.notworn_pull_due(False, 1000.0, 1200.0, 300.0, False) is False
+
+
+def test_notworn_pull_not_due_when_already_pulled_this_doff():
+    # the ALLOW twin of the line above: identical inputs, only `already` differs
+    assert capture.notworn_pull_due(False, 1000.0, 1400.0, 300.0, True) is False
+    assert capture.notworn_pull_due(False, 1000.0, 1400.0, 300.0, False) is True
+
+
+def test_notworn_pull_not_due_while_worn():
+    assert capture.notworn_pull_due(True, 1000.0, 1400.0, 300.0, False) is False
+
+
+def test_notworn_pull_treats_unknown_worn_as_NOT_a_doff():
+    """`worn` is tri-state: None means NO VERDICT (no contact bit, no optical inference), and the
+    device may still be on the body mid-recording. Falsy-testing instead of `is False` would pull
+    against it — and would diverge from the `worn is not False` convention the power drop and
+    `cpap_harvest.blocking_devices` both use."""
+    assert capture.notworn_pull_due(None, 1000.0, 1400.0, 300.0, False) is False
+    # ALLOW twin — the same call with an explicit False verdict DOES fire
+    assert capture.notworn_pull_due(False, 1000.0, 1400.0, 300.0, False) is True
+
+
+def test_notworn_pull_not_due_without_an_arming_timestamp():
+    assert capture.notworn_pull_due(False, None, 1400.0, 300.0, False) is False
+
+
+def test_notworn_settle_default_clears_the_power_drop_grace():
+    """THE INVARIANT, not a preference. A pull holds a connection; `should_drop_not_worn` closes one.
+    A doff settle inside the grace window would block the drop — the one thing §4 forbids. The default
+    must clear it, and the poller clamps any config that does not."""
+    assert 300.0 > capture._DROP_NOT_WORN_SEC
+    # and the clamp the poller applies is strictly above the grace, not merely equal to it
+    assert max(10.0, capture._DROP_NOT_WORN_SEC + 30.0) > capture._DROP_NOT_WORN_SEC

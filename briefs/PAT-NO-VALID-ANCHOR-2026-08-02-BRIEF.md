@@ -331,7 +331,35 @@ corrected. What would make it publishable is a **second logging app or phone** s
       implementation remains open below. What changed is that it is no longer waiting on a capture, and
       that there is now one night on which a derived — not fitted — rate produces a signal to test it
       against.
-- [ ] **Per-fragment Δ**, not one per night — the likeliest fix, since box nights fail uniformly (0/13)
+- [x] ✅ **ALREADY IMPLEMENTED — verified in the shipped tool 2026-08-18, and by a stronger mechanism
+      than this item proposes.** `tools/pat-host-offset.mjs` does not compute one Δ per night, and never
+      fits one:
+
+      | layer | code | unit |
+      |---|---|---|
+      | fragment pairing | `for (const ef of E) for (const pf of P)` | every ECG-file × PPG-file pair, scored separately |
+      | Δ per fragment | `ea = hostAnchors(ef.f); pa = hostAnchors(pf.f)` → `DexClock.hostAxis(...)` | **per FILE**, so Δ is per-fragment by construction |
+      | within a pair | `for (let w = lo; w + WINDOW <= hi; w += WINDOW)` | per 120-min window |
+
+      So the granularity is **finer** than "per fragment" — per window *within* per fragment pair — and
+      the offset is **READ from each fragment's own host-disciplined axis rather than fitted**, which is
+      the tool's stated design (*"THE OFFSET IS READ, NOT ESTIMATED FROM MOTION"*, header §1). A fitted
+      per-fragment Δ, which is what this item asks for, would be a step backwards from what ships.
+
+      **This item describes the scout, not the shipped form.** It was written against the state before
+      `PAT-UNDER-PERBLOCK-ALIGNMENT` §3e.4 replaced the estimator; nothing marked it stale when that
+      landed.
+
+      ⚠️ **And the diagnosis it rests on was wrong, which matters more than the item being done.** The
+      reasoning was *"box nights fail uniformly (0/13) … while a single Δ describes the whole timeline"*
+      — but there was never a single Δ. The 2026-08-11 run (§ above) shows what actually separates a
+      working box night from a failing one: **fragment LENGTH, not fragment Δ.** One unfragmented
+      segment on both legs cleared the null on 2/3 windows; the 0/13 nights carry 24 ECG / 68 PPG
+      fragments whose individual overlaps are too short to reach the tool's own `WINDOW_MIN` and beat
+      counts, so they are **refused before any Δ is applied**. Fixing Δ granularity could not have
+      helped them, because the granularity was already right and the windows never ran.
+
+- [ ] ~~**Per-fragment Δ**~~ (original text retained below for provenance), not one per night — the likeliest fix, since box nights fail uniformly (0/13)
       with 24 ECG / 68 PPG fragments while a single Δ describes the whole timeline. Supersedes Route 1 as
       the next step; a single-segment box night would still be needed to DERIVE the rate rather than fit it.
 - [x] Decide whether `hostAxis` should DECLARE an inert axis — **DONE 2026-08-03 (§11). Yes, and the

@@ -172,7 +172,35 @@ Searched the DIY/paper literature and Chinese sources (Viatom is Shenzhen-based;
 ## 7 · What is still open
 
 1. **What `0x05` actually is.** Two 24-bit signed channels, ~153 Hz, r = 0.9991, AC/DC 0.83 %, no
-   consistent beats. The signedness points at a *difference* register. Untested candidates: an
+   consistent beats.
+
+   > 🔬 **MEASURED ON FULL NIGHTS 2026-08-18 — the probe's characterisation GENERALISES, except the
+   > rate, which is wrong.** `0x05` is captured continuously as `*_PPG2W.txt`
+   > (`capture-host/nightqc.py:1208` names the mapping outright), so the corpus now holds **13 files /
+   > 2.4 M rows per night**, not a short probe.
+   >
+   > | property | this brief (probe) | measured, 11 files |
+   > |---|---|---|
+   > | rate | ~153 Hz | **101.53 Hz** (median; range 101.47–101.65 across sessions of 146 s → 24 393 s) |
+   > | r(ch0, ch1) | 0.9991 | **0.9899** (10 s windows, IQR 0.9599–0.9988) |
+   > | AC/DC | 0.83 % | **1.22 % / 1.00 %** (ch0/ch1, 10 s windows) |
+   > | signed | inferred | **confirmed** — ch1 reaches **−35** on real data |
+   >
+   > **The rate is the discrepancy, and it is not link loss.** 101.5 Hz holds to ±0.1 % across sessions
+   > spanning two orders of magnitude in length; a stream losing packets over BLE would vary with link
+   > quality and session length, and this does not. So `~153 Hz` should be treated as unconfirmed
+   > rather than as a property of the stream. *(Unverified observation, recorded because it is cheap to
+   > check and would explain it: 153 × ⅔ = 102.0, within 0.5 % of the measured rate.)*
+   >
+   > **The signedness result is directly usable** for §7.5's upstream contribution to
+   > `nglessner/o2ring-s-protocol`: a negative sample on real overnight data is stronger evidence for
+   > the signed-24-bit field format than a probe inference.
+   >
+   > ⚠️ **METHOD NOTE, because the first pass got this wrong.** Computed over a whole night, the same
+   > data gives r = 0.79 and AC/DC = 21.6 % — which reads as a completely different stream. Those
+   > numbers are DC wander (posture, perfusion, doffing) and are not the AC/DC ratio the term denotes.
+   > The arithmetic was right and the statistic was wrong. **Any comparison against a short probe must
+   > be windowed to the probe's timescale**, or it compares a night's drift against a probe's pulse. The signedness points at a *difference* register. Untested candidates: an
    ambient-corrected pair at a gain that suppresses pulsatility, an AGC/ambient telemetry pair, a
    decimated envelope.
 2. **Wavelength identity** — needs an optical stimulus that solves §5's catch-22. §5.1's sunlight walk
