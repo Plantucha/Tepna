@@ -1386,7 +1386,7 @@ body.light .ev-measured { border-color:var(--surface); }
 
 <div class="mc" data-tier="research">
   <div class="mh"><div class="mi"><span class="ma">ApEn</span><span class="mf">Approximate Entropy (Pincus 1991)</span></div><span class="mt tr">Research</span></div>
-  <p class="md">Nonlinear HR regularity measure. Low ApEn = repetitive, predictable (autonomic suppression, severe OSA). High ApEn = complex, irregular (healthy variability). Computed on subsampled HR (&#x2264;300 points). <strong>Formula corrected in v22.15</strong> &#x2014; prior versions used log(mean) instead of mean(log), biasing values low.</p>
+  <p class="md">Nonlinear HR regularity measure. Low ApEn = repetitive, predictable (autonomic suppression, severe OSA). High ApEn = complex, irregular (healthy variability). Computed on subsampled HR (&#x2264;300 points). The mean is taken over log ratios (mean&#x202F;of&#x202F;log, not log&#x202F;of&#x202F;mean).</p><!-- dim6: revision history removed 2026-08-19 (REFERENCE-GUIDE-AUDIT). Was: "Formula corrected in v22.15 - prior versions used log(mean) instead of mean(log), biasing values low." -->
   <div class="fb"><div class="fl">Formula</div><div class="ft">ApEn(m,r,N) = &#x3D5;(m) &#x2212; &#x3D5;(m+1)&#x0A;&#x3D5;(m) = (1/N) &#xD7; &#x2211;&#x1D62; log(C&#x1D62;&#x1D50; / N)&#x0A;m=2, r=0.2&#xD7;SD(HR_subsample)</div></div>
   <div class="nt-wrap"><table class="nt"><tr><th>ApEn</th><th>HR complexity</th></tr>
   <tr class="ok"><td>&gt;&#x202F;0.8</td><td class="nr">High complexity &#x2014; healthy autonomic regulation</td></tr>
@@ -1606,7 +1606,7 @@ body.light .ev-measured { border-color:var(--surface); }
 
 <div class="mc" data-tier="secondary">
   <div class="mh"><div class="mi"><span class="ma">Ultradian Cycles</span><span class="mf">HR Valley Count (90-min cycle proxy)</span></div><span class="mt ta">Advanced</span></div>
-  <p class="md">Valleys in the 5-min centered-smoothed HR signal, separated by &#x2265;&#x202F;60&#x202F;min. Normal adult sleep has 4&#x202F;&#x2013;&#x202F;6 cycles of ~90&#x202F;min. HR dips at NREM&#x2192;REM transitions create detectable valleys. Centered window corrected in v22.15 (prior trailing window displaced valleys ~2.5&#x202F;min forward).</p>
+  <p class="md">Valleys in the 5-min centered-smoothed HR signal, separated by &#x2265;&#x202F;60&#x202F;min. Normal adult sleep has 4&#x202F;&#x2013;&#x202F;6 cycles of ~90&#x202F;min. HR dips at NREM&#x2192;REM transitions create detectable valleys. The smoothing window is <strong>centered</strong>, so valleys are not displaced in time.</p><!-- dim6: revision history removed 2026-08-19 (REFERENCE-GUIDE-AUDIT). Was: "Centered window corrected in v22.15 (prior trailing window displaced valleys ~2.5 min forward)." -->
   <div class="fb"><div class="fl">Method (centered)</div><div class="ft">hrSmooth[i] = mean(HR[i&#x2212;150..i+150]) (centered 300-s)&#x0A;Valley: hrSmooth[i] &lt; hrSmooth[i&#xB1;150]&#x0A;Min gap: 3600&#x202F;s; Cycles = valleys &#x2212; 1</div></div>
   <div class="nt-wrap"><table class="nt"><tr><th>Cycles</th><th>Interpretation</th></tr>
   <tr class="ok"><td>4&#x202F;&#x2013;&#x202F;6</td><td class="nr">Normal adult sleep structure</td></tr>
