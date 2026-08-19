@@ -1561,13 +1561,14 @@
       "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
     },
     {
-      "line": 736,
+      "line": 755,
       "op": "cmp <= → <",
       "before": "const _altFR = p_prof.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((p_prof.elev - 1500) / 300) * 0.01);",
       "after": "const _altFR = p_prof.elev < 1500 ? 1 : Math.max(0.55, 1 - ((p_prof.elev - 1500) / 300) * 0.01);",
-      "class": "no-distinguishing-input",
-      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
-      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+      "class": "equivalent",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input. — UPGRADED 2026-08-19 from no-distinguishing-input to EQUIVALENT with proof (declared at the dex-tests altitude boundary): at elev exactly 1500 the else-branch computes max(0.55, 1 − 0/300×0.01) = 1, identical to the <= branch. The two forms agree on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
+      "brief": " · MUTATION-COVERAGE-SELECTION §4.4 harvest 2026-08-19"
     },
     {
       "line": 736,
@@ -1768,13 +1769,14 @@
       "probe": "hrvBuildNodeExport · assembly/ordering: 36 inputs, 26 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
     },
     {
-      "line": 1067,
+      "line": 1096,
       "op": "num → 0",
       "before": "conf: +Math.max(0.4, Math.min(0.9, (r._stress - 50) / 50)).toFixed(2),",
       "after": "conf: +Math.max(0, Math.min(0.9, (r._stress - 50) / 50)).toFixed(2),",
-      "class": "no-distinguishing-input",
-      "why": "In hrvEventsFromRows. Original and mutant produced byte-identical output on every input.",
-      "probe": "hrvEventsFromRows · thresholding/emission: 28 inputs, 17 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+      "class": "equivalent",
+      "why": "In hrvEventsFromRows. Original and mutant produced byte-identical output on every input. — UPGRADED 2026-08-19 to EQUIVALENT with structural proof (declared at the stress_high conf assertions): the event fires only at stress ≥ 70 and (70−50)/50 = 0.4 exactly, so the 0.4 floor is never entered from below; floor and trigger coincide by construction.",
+      "probe": "hrvEventsFromRows · thresholding/emission: 28 inputs, 17 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
+      "brief": " · MUTATION-COVERAGE-SELECTION §4.4 harvest 2026-08-19"
     },
     {
       "line": 140,
@@ -3383,6 +3385,15 @@
       "class": "no-distinguishing-input",
       "why": "In fragmentation. Original and mutant produced byte-identical output on every input.",
       "probe": "fragmentation + periodicBreathingIndex · NN-series indices: 56 inputs, 26 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 448,
+      "op": "cmp > → >=",
+      "before": "if (f[k] > maxC) maxC = f[k];",
+      "after": "if (f[k] >= maxC) maxC = f[k];",
+      "class": "equivalent",
+      "why": "EQUIVALENT, declared at the assertion site (tests/dex-tests.js, HRV-geometry group): only the VALUE of maxC is kept, and on a tie `>` and `>=` assign the identical value. No input can distinguish them. Do not add an assertion chasing it.",
+      "brief": "MUTATION-COVERAGE-SELECTION-2026-08-14-BRIEF.md §4.4 — declared in code comments, harvested 2026-08-19"
     }
   ],
   "glucodex-dsp.js": [
@@ -3817,6 +3828,17 @@
       "class": "no-distinguishing-input",
       "why": "In parseCSV. Original and mutant produced byte-identical output on every input.",
       "probe": "parseCSV · CGM ingest (reaches locateColumns): 28 inputs, 17 distinct baseline answers; 8/8 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    }
+  ],
+  "ecgdex-dsp.js": [
+    {
+      "line": 1283,
+      "op": "cmp > → >=",
+      "before": "if (f[k] > maxC) maxC = f[k];",
+      "after": "if (f[k] >= maxC) maxC = f[k];",
+      "class": "equivalent",
+      "why": "EQUIVALENT — the ecgdex twin of pulsedex:448's declared equivalent (same shared HRV-geometry helper): on a tie the assigned maxC is identical either way.",
+      "brief": "MUTATION-COVERAGE-SELECTION-2026-08-14-BRIEF.md §4.4 — declared in code comments, harvested 2026-08-19"
     }
   ]
 }
