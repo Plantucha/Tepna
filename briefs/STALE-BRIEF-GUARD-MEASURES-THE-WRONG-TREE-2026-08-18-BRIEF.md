@@ -41,17 +41,53 @@ The merge-base the hook printed (`82f80c5b…`) belongs to the root checkout, wh
 one confused rebase (`rebase-safe` correctly reported *"already up to date — nothing to rebase"*, which
 is the tell), then the escape hatch used on a branch that needed no hatch. Annoying, visible, survivable.
 
-**FALSE NEGATIVE — INFERRED FROM THE SAME LINE, NOT DEMONSTRATED.** If the root is current and your
-worktree is old, `merge-base(root HEAD, origin/main)` is `origin/main`, the query returns nothing, and
-the hook **passes** — while your worktree genuinely predates the brief's latest edit. That is exactly
-the overwrite the guard was built to stop, and it would be silent, because §📌 already records that this
-failure produces **no merge conflict**.
+**FALSE NEGATIVE — NOW MEASURED, AND IT IS TOTAL RATHER THAN OCCASIONAL.** An earlier draft of this
+brief called this direction *inferred, not demonstrated*, and declined to claim it. It is now
+demonstrated, without needing the stale worktree the first attempt timed out on — because the whole
+decision path is four lines and the last one is unconditional:
 
-⚠️ **This direction is reasoned from the source, not observed.** An attempt to demonstrate it with a
-`--detach HEAD~60` worktree was abandoned when the checkout exceeded the command timeout on this
-volume. **Do not cite it as measured until someone runs it.** Stating it as proven would be the same
-defect this repo keeps paying for — and the asymmetry is the reason it still belongs in this brief: the
-false positive announces itself, the false negative cannot.
+```sh
+base="$(git merge-base HEAD origin/main)"          # resolved in the ROOT
+missed="$(git log "$base"..origin/main -- "$rel")" # per guarded path
+[ -z "$first" ] && exit 0                          # nothing missed → ALLOW
+```
+
+There is no other check; the full function was read end to end. So **if the root sits at `origin/main`,
+`base` IS `origin/main`, and `base..origin/main` is empty BY CONSTRUCTION for every path** — the guard
+allows every edit, from every worktree, however stale.
+
+Measured 2026-08-18, in the shared root:
+
+```
+root HEAD    6857a286
+origin/main  6857a286        rev-list --count HEAD..origin/main = 0
+merge-base HEAD origin/main == origin/main   → YES
+
+hook query for DOCS-INDEX.md                                → ''   (empty)
+hook query for briefs/FABRICATED-DEFAULTS-FLEET-…-BRIEF.md  → ''   (empty)
+```
+
+Both files **moved on `origin/main` within the last 20 commits**. The guard would have allowed an edit
+to either from a worktree of any age. **It is a no-op right now, for everyone.**
+
+## 3b · The part that makes this urgent: TWO CORRECT FIXES COMBINED INTO A SILENT HOLE
+
+The guard's answer depends on the root being STALE. It can only ever block when
+`merge-base(root HEAD, origin/main) ≠ origin/main`.
+
+`tepna-sync-main.timer` fast-forwards the root every **15 minutes**, and the 2026-08-18 root drain
+removed the permanent-skip condition that had been defeating it. Both were correct and both were wanted.
+Their combined effect is that the root now tracks `origin/main` continuously — **so the stale-brief
+guard is disabled continuously.**
+
+Inverted, and this is the sentence to remember: **the guard only worked while the root was broken.**
+Every hour spent fixing root staleness was an hour spent silently switching this off, and nothing
+reported it, because a guard that allows everything is indistinguishable from a guard with nothing to
+block. `npm run test:hooks` cannot see it either — its self-test exercises the hook's own logic, not the
+tree the logic reads.
+
+⚠️ This also retires the reassurance in §👥.2b-bis. *"Hook-enforced means Claude Code, in a checkout that
+pulled it"* implies a pulled checkout is the SAFE state. For this guard it is the DISABLED state.
 
 ## 4 · Fix
 
@@ -71,7 +107,12 @@ root's — so the one-checkout case is unchanged and the worktree case starts be
 - [ ] `npm run test:hooks` covers **both** directions with a control that must fire: a stale worktree
       whose brief moved must be **DENIED**, and a current worktree whose root lags must be **ALLOWED**.
       A one-directional test would pass today.
-- [ ] §3's false negative is measured and this brief updated to say so — or refuted and struck.
+- [x] **DONE 2026-08-18 — §3's false negative is MEASURED** (root at `origin/main`; the hook's own
+      query returns empty for two briefs that moved within 20 commits). It is not occasional: the guard
+      is a no-op whenever the root is current, which the 15-minute sync timer now guarantees.
+- [ ] A test that would have caught THIS: assert the guard blocks when the EDITING tree is stale while
+      the root is current. Today every hook test runs in one checkout, where the two are the same tree,
+      so no existing test can distinguish them.
 
 ## 5 · A second, smaller finding
 

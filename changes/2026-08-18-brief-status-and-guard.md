@@ -35,11 +35,24 @@ of `CLAUDE.md` says not to trust.
 `merge-base --is-ancestor` true, `rev-list --count HEAD..origin/main` 0. `rebase-safe` replying
 *"already up to date — nothing to rebase"* is the tell.
 
-⚠️ **The false-negative direction — current root, stale worktree, hook passes silently — is INFERRED
-FROM THE SOURCE AND NOT DEMONSTRATED.** The `--detach HEAD~60` demonstration exceeded the command
-timeout on this volume and was abandoned rather than reported as done. The brief says so explicitly.
-The asymmetry is why it is still recorded: the false positive announces itself; the false negative
-cannot, and §📌 already notes this failure raises **no merge conflict**.
+🔴 **The false-negative direction is MEASURED, and it is TOTAL, not occasional.** The whole decision
+path is four lines and the last is unconditional (`[ -z "$first" ] && exit 0`), so **if the root sits at
+`origin/main`, `base` IS `origin/main` and `base..origin/main` is empty BY CONSTRUCTION for every path**.
+Measured in the shared root: `HEAD == origin/main` (`rev-list --count` 0), and the hook's own query
+returns `''` for both `DOCS-INDEX.md` and `FABRICATED-DEFAULTS-FLEET` — **files that moved on
+`origin/main` within the last 20 commits**. The guard is a **no-op right now, for everyone**, from a
+worktree of any age. (An earlier draft called this inferred-not-demonstrated; the `HEAD~60` worktree test
+timed out, but it was never needed — reading the full path and querying the live root settles it.)
+
+🔴 **Two correct fixes combined into a silent hole.** The guard can only block when the root is STALE.
+`tepna-sync-main.timer` fast-forwards the root every 15 minutes, and the 2026-08-18 root drain removed
+the permanent-skip that had defeated it. Both were right; together they mean the root now tracks
+`origin/main` continuously, so **the guard only ever worked while the root was broken.** Nothing
+reported the change, because a guard that allows everything looks exactly like a guard with nothing to
+block — and `npm run test:hooks` exercises the hook's logic, not the tree that logic reads.
+
+⚠️ This retires the reassurance in `CLAUDE.md` §👥.2b-bis: *"hook-enforced means … in a checkout that
+pulled it"* implies a pulled checkout is the SAFE state. For this guard it is the DISABLED state.
 
 No code change here — the one-line fix (`git -C "$(dirname "$file")"`) needs a two-directional hook
 test to accompany it, since a one-directional test passes today.
