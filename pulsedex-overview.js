@@ -232,7 +232,10 @@ function renderHeroPx(r) {
 
 // ── PROJECTED ANS AGE + projected-BP card REMOVED 2026-06-21 (external-review WP-A):
 //    a population age regression + cuffless BP from HRV. VO₂ remains at research depth
-//    in the KPI grid; pxAnsAge() is still used for the KPI delta.
+//    in the KPI grid. ⚠️ This line used to claim pxAnsAge() was "still used for the KPI delta". It
+//    is NOT: pxAnsAge has no call site anywhere in the tree, and line 70 of this same file already
+//    says the tile and its composite are deleted. Two comments in one file asserting opposite
+//    things about the same removed function is a trap for the next reader (FOLLOWUPS-II §2.3).
 
 // ── SECONDARY HERO: VALIDATED HRV BENCH (time-domain) ─────────────────────────
 //    Replaces the removed ANS-age card in the #heroTop secondary slot with the
@@ -516,7 +519,6 @@ function renderOverviewPx(r) {
   document.getElementById('heroTop').style.display = 'grid';
   document.getElementById('sec-profile').style.display = 'block';
   document.getElementById('profilePanel').style.display = 'block';
-  computeProfileHints(r);
   renderHeroPx(r);
   renderHrvBenchPx(r);
   renderProfileDerivedPx();
@@ -658,48 +660,6 @@ function applyAgeNorms(ideal) {
   reRender();
 }
 
-// predictive sublabels — show what each field WOULD be if auto-estimated
-function computeProfileHints(r) {
-  if (!document.getElementById('profSex')) return; // unified panel active — legacy hint inputs removed
-  const set = (id, txt, est) => {
-    const l = document.getElementById(id);
-    if (!l) return;
-    l.textContent = txt;
-    l.classList.toggle('est', !!est);
-  };
-  const sex = document.getElementById('profSex').value;
-  const age = parseFloat(document.getElementById('profAge').value) || 40;
-  const n = popNorms(sex, age);
-  // ANS-age age hint REMOVED 2026-06-21 (external-review WP-A) — population age regression.
-  // Weight ← pop avg + ideal
-  const ideal = +(22.5 * ((parseFloat(document.getElementById('profHeight').value) || n.h) / 100) ** 2).toFixed(1);
-  set('lbl_weight', '~ pop. avg ' + n.w + ' kg · ideal ' + ideal + ' kg');
-  set('lbl_height', '~ pop. avg ' + n.h + ' cm');
-  // SBP/DBP HRV-projection hints REMOVED 2026-06-21 (external-review WP-A) — cuffless BP from HRV.
-  // VO2 ← Uth-Sørensen base (HRmax over awake resting HR), altitude-corrected
-  if (r) {
-    const hm = r.hrmaxEff || Math.round(208 - 0.7 * age);
-    const rh = Math.round(r.rhrEff || r.dispHr);
-    const altTxt = r.altFactor && r.altFactor < 1 ? ' · alt ×' + r.altFactor : '';
-    set('lbl_vo2gt', '~ Uth-Sørensen → ' + r.vo2base + ' (HRmax ' + hm + '/HRrest ' + rh + altTxt + ')');
-    // HRmax field: warn if an implausible entry was rejected
-    if (r.hrmaxRejected) set('lbl_hrmax', '⚠ entry too low — using Tanaka ' + r.tanaka + ' bpm', true);
-    else {
-      const hrIn = Number(document.getElementById('profHRmax').value) || 0;
-      set('lbl_hrmax', hrIn > 0 ? '✓ your value ' + hm + ' bpm' : '~ Tanaka: 208 − 0.7 × age = ' + r.tanaka);
-    }
-    // Elevation hint
-    const ev = Number(document.getElementById('profElev').value) || 0;
-    if (ev >= 2500) set('lbl_elev', '🏔 ' + ev.toLocaleString() + ' m · VO₂ ×' + r.altFactor + ' · HRV norms = sea-level (caution)', true);
-    else if (ev > 1500) set('lbl_elev', '⛰ ' + ev.toLocaleString() + ' m · VO₂ ×' + r.altFactor, true);
-    else set('lbl_elev', '~ sea level · adjusts VO₂max & norms above 1500 m');
-    const rhrIn = Number(document.getElementById('profRHR').value) || 0;
-    if (rhrIn > 0) set('lbl_rhr', '✓ your value');
-    else if (r.longRec && r.hrFloor != null) set('lbl_rhr', '~ nocturnal floor ' + r.hrFloor + ' + 8 = ' + r.autoRHR + ' bpm (awake est)', true);
-    else set('lbl_rhr', '~ measured ' + Math.round(r.dispHr) + ' bpm (awake reading)', true);
-  }
-}
-
 // expose for inline handlers + the cross-file surface (ESM-MIGRATION deep-3: overview is now an
 // ES module, so pulsedex-render / -app resolve these as bare globals through window at call time)
 Object.assign(window, {
@@ -708,7 +668,6 @@ Object.assign(window, {
   applyAgeNorms,
   loadProfile,
   saveProfile,
-  computeProfileHints,
   renderOverviewPx,
   pxProfile,
   renderHeroPx,

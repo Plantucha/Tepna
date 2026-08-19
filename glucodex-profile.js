@@ -329,13 +329,14 @@
   }
 
   // ── predictive sublabels ───────────────────────────────────────────────────────
+  /* ⚠️ THIS FUNCTION IS *NOT* THE PpgDex/ECGDex TWIN, and the fleet sweep nearly deleted it as one.
+     Its 5 `set('lbl_glu…')` hints WERE dead — `GlucoDex.src.html` defines no `lbl_` id — and they are
+     gone. But the `calibRow`/`calibState` block below is LIVE: both ids EXIST, this function has no
+     `if (DP()) return;` guard, and it is the only thing that shows/hides the lab-A1c calibration row
+     and writes its state text. Removing the body, as the brief's Done-when proposed, would have taken
+     out working user-visible behaviour. Read the call graph per node; the shared NAME is not a shared
+     shape. */
   function computeHints(r) {
-    const set = (id, txt, est) => {
-      const l = $(id);
-      if (!l) return;
-      l.textContent = txt;
-      l.classList.toggle('est', !!est);
-    };
     const p = getProfile();
     // calibration row: only meaningful with a lab A1c
     const calibRow = $('calibRow');
@@ -349,21 +350,6 @@
             : `· detected ${r.calib.bias > 0 ? '+' : ''}${window.GluDisp.delta(r.calib.bias)} ${window.GluDisp.label()} (mean ${window.GluDisp.val(r.calib.sensorMean)} vs lab-implied ${window.GluDisp.val(r.calib.labEAG)})`;
         } else cs.textContent = '';
       }
-    }
-    set('lbl_gluAge', '— tunes communication &amp; norms');
-    set('lbl_gluDiab', 'shifts which thresholds matter & how hypo reads');
-    set('lbl_gluTherapy', ['basal', 'mdi', 'pump'].includes(p.therapy) ? '⚠ on insulin — hypo (TBR) goal tightens to <4%' : 'reframes hypo risk vs insulin therapy');
-    if (r) {
-      set('lbl_gluTgt', 'target ' + window.GluDisp.range(r.tgtLo, r.tgtHi) + ' ' + window.GluDisp.label() + (r.tgtLo !== 70 || r.tgtHi !== 180 ? ' (override)' : ' · consensus default'));
-      if (r.gmiCheck)
-        set(
-          'lbl_gluA1c',
-          r.gmiCheck.agree
-            ? '✓ GMI ' + r.gmi + '% ≈ lab ' + p.a1c + '% (Δ' + r.gmiCheck.delta + ')'
-            : '⚠ GMI ' + r.gmi + '% vs lab ' + p.a1c + '% — Δ' + r.gmiCheck.delta + '% (they measure differently)',
-          !r.gmiCheck.agree
-        );
-      else set('lbl_gluA1c', 'optional · validates the GMI proxy against your lab value');
     }
   }
 

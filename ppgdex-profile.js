@@ -167,27 +167,6 @@
     const d = lnrm - 3.4;
     return base * (1 + Math.max(-0.08, Math.min(0.08, d * 0.1)));
   }
-  function ansAge(rmssd, sdnn, hr) {
-    const clamp = (v) => Math.min(85, Math.max(22, Math.round(v)));
-    const c1 = rmssd > 0 ? clamp(120 - 18 * Math.log(rmssd)) : null;
-    const c2 = sdnn > 0 ? clamp(100 - (Math.log(sdnn) - 2.5) * 30) : null;
-    const c3 = hr > 30 && hr < 120 ? clamp(20 + (hr - 45) * 1.3) : null;
-    let cs = 0,
-      ws = 0;
-    if (c1 != null) {
-      cs += 0.25 * c1;
-      ws += 0.25;
-    }
-    if (c2 != null) {
-      cs += 0.4 * c2;
-      ws += 0.4;
-    }
-    if (c3 != null) {
-      cs += 0.35 * c3;
-      ws += 0.35;
-    }
-    return { age: ws ? clamp(cs / ws) : null, c1, c2, c3 };
-  }
   function hrvScore(rm) {
     return Math.round(Math.max(0, Math.min(100, 1.494 * rm - 13.37)));
   }
@@ -216,7 +195,6 @@
     const lnrm = Math.log(Math.max(1, r.dispRm));
     const vo2b = +(vo2Base(rhrEff, hrmaxEff) * altF).toFixed(1);
     const vo2a = +vo2Adj(vo2b, lnrm).toFixed(1);
-    const aa = ansAge(r.dispRm, r.dispSd, r.dispHr);
     Object.assign(r, {
       profile: p,
       tanaka,
@@ -229,7 +207,6 @@
       vo2adj: vo2a,
       vo2gt: p.vo2gt > 0 ? p.vo2gt : null,
       cpapInUse: p.cpap,
-      ansAge: aa,
       hrvScore: hrvScore(r.dispRm),
       expRmssd: expectedRmssd(p.age),
       expRHR: expectedRHR(p.age)
@@ -413,48 +390,19 @@
       );
   }
 
-  function computeHints(r) {
-    if (DP()) return; // unified panel owns the field hints now (legacy DOM inputs removed)
-    const set = (id, txt, est) => {
-      const l = $(id);
-      if (!l) return;
-      l.textContent = txt;
-      l.classList.toggle('est', !!est);
-    };
-    const p = getProfile();
-    const n = popNorms(p.sex);
-    if (r) {
-      const aa = r.ansAge || ansAge(r.dispRm, r.dispSd, r.dispHr);
-      if (aa.age != null) set('lbl_ppgAge', '↑ chronological age · HRV-estimated autonomic age ≈ ' + aa.age + ' yr', true);
-    }
-    const ideal = +(22.5 * ((parseFloat($('ppgHeight').value) || n.h) / 100) ** 2).toFixed(1);
-    set('lbl_ppgWeight', '~ pop. avg ' + n.w + ' kg · ideal ' + ideal + ' kg');
-    set('lbl_ppgHeight', '~ pop. avg ' + n.h + ' cm');
-    if (r) {
-      const hm = r.hrmaxEff || Math.round(208 - 0.7 * p.age),
-        rh = Math.round(r.rhrEff || r.dispHr);
-      const altTxt = r.altFactor && r.altFactor < 1 ? ' · alt ×' + r.altFactor : '';
-      set('lbl_ppgVO2', '~ Uth–Sørensen → ' + r.vo2base + ' (HRmax ' + hm + '/rest ' + rh + altTxt + ')');
-      if (r.hrmaxRejected) set('lbl_ppgHRmax', '⚠ entry too low — using Tanaka ' + r.tanaka + ' bpm', true);
-      else {
-        const hrIn = Number($('ppgHRmax').value) || 0;
-        set('lbl_ppgHRmax', hrIn > 0 ? '✓ your value ' + hm + ' bpm' : '~ Tanaka: 208 − 0.7 × age = ' + r.tanaka);
-      }
-      const ev = Number($('ppgElev').value) || 0;
-      if (ev > 1500) set('lbl_ppgElev', '⛰ ' + ev.toLocaleString() + ' m · VO₂ ×' + r.altFactor, true);
-      else set('lbl_ppgElev', '~ sea level · adjusts VO₂max above 1500 m');
-      const rhrIn = Number($('ppgRHR').value) || 0;
-      if (rhrIn > 0) set('lbl_ppgRHR', '✓ your value');
-      else set('lbl_ppgRHR', '~ measured ' + Math.round(r.dispHr) + ' bpm', true);
-    }
-  }
+  /* `computeHints()` REMOVED 2026-08-19 (DEAD-FIELD-HINTS-FLEET). It wrote 9 field hints to `lbl_ppg*`
+     ids, and `PpgDex.src.html` defines NONE of them — nor any `lbl_` id at all. It was also unreachable
+     for a second, stronger reason: it read `$('ppgHeight').value`, and `ppgHeight` does not exist
+     either, so the body would have thrown a TypeError had it ever run. Its `if (DP()) return;` guard was
+     therefore load-bearing against a CRASH, not merely an early exit for a superseded panel — which is
+     why deleting the body is safer than leaving it guarded. The unified panel (`DexProfile`) owns these
+     hints now. */
 
   function render(r) {
     $('heroTop').style.display = 'grid';
     $('sec-profile').style.display = 'block';
     $('profilePanel').style.display = 'block';
     personalize(r);
-    computeHints(r);
     renderHero(r);
     renderHrvBench(r);
     if (_dexPanel) _dexPanel.refresh();

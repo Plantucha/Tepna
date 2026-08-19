@@ -877,12 +877,15 @@ function buildFullMetricsTable(n) {
   }
 
   // ── Readiness / projections ──
-  if (n.karv || n.vo2est || n.bpProj) {
+  /* `bpProj` is HARD-NULL in oxydex-dsp.js (REMOVED 2026-06-21, external-review WP-A: cuffless BP from
+     sleep oximetry is indefensible), so it could never open this block on its own and the row it guarded
+     was unreachable. Dropped per DEX-METRIC-REMOVAL-FOLLOWUPS-II §2.2. The `bpProj: null` the EXPORT
+     still writes STAYS — that is node-export back-compat and says nothing about this render surface. */
+  if (n.karv || n.vo2est) {
     sec('Readiness & Projections');
     if (n.karv)
       r('Recovery readiness', _oxyFmt(n.karv.readiness), '/100', '≥70', n.karv.readinessColor === 'good' ? 'ok' : n.karv.readinessColor === 'warn' ? 'warn' : 'bad', n.karv.readinessTier || '');
     if (n.vo2est) r('VO₂max estimate', _oxyFmt(n.vo2est.vo2est, 1), 'ml/kg/min', '≥35', _oxySev(42, 35, n.vo2est.vo2est), n.vo2est.vo2Category || 'Uth–Sørensen, HRV-adj');
-    if (n.bpProj) r('BP projection', _oxyFmt(n.bpProj.sbpEst) + '/' + _oxyFmt(n.bpProj.dbpEst), 'mmHg', '<120/80', n.bpProj.sbpColor || '', '⚠ epidemiological estimate, not a measurement');
   }
 
   // ── ECG-paired (real) ──
