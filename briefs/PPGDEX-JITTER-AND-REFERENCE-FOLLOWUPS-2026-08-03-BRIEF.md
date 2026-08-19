@@ -50,6 +50,71 @@ three things that outlive it.
 > of them is a fact about the data. The tool now prints `N walked · N matched · N paired ECG` on every run
 > and **exits 2 with a diagnosis** when nothing matches, so this specific failure cannot recur quietly.
 >
+> ⚠️ **SELF-CORRECTION 2026-08-18, same day — the word "reproduces" above was too strong for the
+> jitter row, and I am scoping it rather than leaving it to be read as settled.**
+>
+> **What survives unchanged.** The tool was blind to 54 wrist files and now is not; that defect and its
+> fix are independent of everything below. And `sdnnRobust` at **1.84 %** is a direct measurement of
+> what the shipped string claims — 14 nights, 100 % median match — so **the "no correction owed"
+> conclusion stands**, scoped to this corpus.
+>
+> **What does not survive: the 8.36 ms and my 6.09 ms are not the same comparison.** I checked the
+> regex's history — `/VeritySense.*_PPG\.txt$/` was present in the **original** apparatus commit
+> (`569c9804`, PR #756), not introduced later. The PSL tree contains **zero** files matching it. So the
+> 8.36 ms figure, reported over 15 nights *with an IQR*, cannot have come from the PSL tree at all — it
+> was measured on a corpus using capture-host naming (`Polar_VeritySense_*`). My 6.09 ms is from the PSL
+> tree. **Two corpora, not one**, so 6.09 does not refute 8.36 and I should not have implied it did.
+>
+> Whether **5.92 ms** came from the PSL tree is likewise unestablished; if it did, 6.09 is a genuine
+> re-derivation of it, and if it did not, the comparison is as unattributable as this brief originally
+> said. The original §2.1 IQR (3.98–10.61) is much wider than mine (4.57–7.54), which is itself evidence
+> the two runs saw different data.
+>
+> **Method check, since the bound's procedure specifies it.** I ran without `--sleep-only` first, then
+> with it: **byte-identical** statistics. That is a genuine no-op here rather than an inert flag —
+> verified by control: 10 of 54 wrist files ARE daytime and would be excluded, but `--max-nights 15`
+> selects by SIZE and the 15 largest (320–377 MB) are **all nocturnal**, while daytime files median
+> 14.7 MB. So the selection never contained anything for the filter to remove.
+>
+> 🔬 **AND THE LIKE-FOR-LIKE RUN IS NOW DONE — on the ORIGINAL corpus. The bound WORKED; my "no
+> correction owed" does NOT survive it.**
+>
+> The baseline's corpus is named after all, in the linked doc rather than here:
+> `docs/PPGDEX-FINGER-HRV-VALIDATION-2026-08-03.md` §4 — **`/home/michal/tepna-smoketest/captures/`**.
+> It is still on disk (24 night dirs), so the comparison this brief called impossible is available.
+> Re-ran there with the documented flags (`--device verity --sleep-only`), 11 nights:
+>
+> | | recorded 2026-08-03 | same corpus, 2026-08-18 | PSL tree, 2026-08-18 |
+> |---|---|---|---|
+> | Verity PPI-jitter | 8.36 ms | **4.71 ms** (IQR 4.57–5.07) | 6.09 ms (IQR 4.57–7.54) |
+> | `sdnnRobust` vs ECG | +18.7 % | **5.89 %** (IQR −0.94–25.11) | 1.84 % (IQR 0.73–3.36) |
+>
+> **This is not a discrepancy — it is the bound doing its job.** `ppgdex-dsp.js` has taken **22 commits**
+> since 2026-08-03, including *"the crystal axis ran backward — and was hiding real dropouts"* (#1229),
+> which acts directly on beat timing. §5's rule is *"the after-median may not exceed the before-median"*:
+> **4.71 < 8.36**, on identical data. The jitter genuinely improved, and the re-derivation form caught it
+> where a frozen constant could not have.
+>
+> 🔴 **What this costs my earlier claim: "the shipped `sdnnNote` string owes NOTHING" is NOT established,
+> and I withdraw it as stated.** `sdnnRobust` reads **1.84 %** on the PSL tree and **5.89 %** on the
+> baseline corpus, against a bar of ~±3.5 %. **It passes on one corpus and fails on the other**, and the
+> baseline corpus's IQR (−0.94 to 25.11) is far too wide to call the metric stable there at all. The
+> honest position is the one this brief started with — **the claim is corpus-dependent and unsettled** —
+> not "accurate, do not fix". The **+18.7 % → 5.89 %** improvement is real and worth recording; it is not
+> the same as clearing the bar.
+>
+> **What still stands:** the tool was blind to 54 wrist files and now is not, and it now prints its
+> denominator. Neither depends on any of the above.
+>
+> ⚠️ **The general fault, twice in one day, is asserting equivalence across an axis I had not checked.**
+> First corpus identity; then, having fixed that, I kept a conclusion that only one of the two corpora
+> supported. A measurement that disagrees between corpora is a statement about *corpus sensitivity*, and
+> reporting either number alone hides that.
+
+> **The lesson I take from over-claiming this:** "reproduces" is a statement about two measurements of
+> the *same thing*, and corpus identity is part of the thing. I verified the method and the instrument
+> and then asserted equivalence across an axis I had not checked at all.
+
 > **Scope:** n = 14 nights, PSL tree (phone-captured, so no independent second clock — the same condition
 > the reference was measured under, which is what makes it like-for-like). Two nights sit high
 > (2026-07-01 at 15.13 ms with a 94.5 % match rate; 2026-06-20 at 11.70 ms), which is why the **median and
