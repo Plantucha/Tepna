@@ -54,6 +54,22 @@ export function declaresSelftest(src) {
   return /has\(['"]--selftest['"]\)|includes\(['"]--selftest['"]\)|argv\.indexOf\(['"]--selftest['"]\)/.test(s);
 }
 
+/* A tool that HAS a selftest under a name discovery does not recognise is invisible, and invisibility
+   here is indistinguishable from passing. Measured 2026-08-18: three tools spelled the flag
+   `--self-test` (hyphenated) and compared it with `===`; the CI loop greps for the literal
+   `--selftest` and `declaresSelftest` matches only `has(…)`/`includes(…)`/`indexOf(…)`, so **44 tools
+   ran and those three never did** — for two independent reasons at once. Neither the loop's
+   "fewer than ten is a failure" floor nor this script's count could see it: the floor was met by the
+   other 44, and a tool that is never run contributes no count to miss.
+   So the near-miss is now REPORTED rather than skipped. This predicate deliberately looks for the
+   selftest MACHINERY (an exported/decl `selfTest`, or the hyphenated flag) in a file that
+   `declaresSelftest` rejected — presence of a test with no way to reach it. */
+export function declaresNearMissSelftest(src) {
+  const s = String(src || '');
+  if (declaresSelftest(s)) return false;
+  return /--self-test/.test(s) || /function\s+selfTest\b/.test(s);
+}
+
 const files = readdirSync(TOOLS)
   .filter((f) => f.endsWith('.mjs') && f !== 'selftest-all.mjs')
   .filter((f) => {
@@ -64,6 +80,31 @@ const files = readdirSync(TOOLS)
     }
   })
   .sort();
+
+/* This script is excluded from its own DISCOVERY list, which would leave its predicates ungated — the
+   exact shape it exists to catch. `--selftest` therefore runs them; the CI loop finds this file by that
+   same literal and runs it, so the detector is gated by the mechanism it guards. */
+if (argv.includes('--selftest')) {
+  let n = 0;
+  const eq = (c, m) => {
+    n++;
+    if (!c) {
+      console.error(`  \u2717 FAILED: ${m}`);
+      process.exit(1);
+    }
+  };
+  eq(declaresSelftest("if (argv.includes('--selftest')) {"), 'includes() form is recognised');
+  eq(declaresSelftest("if (has('--selftest')) {"), 'has() form is recognised');
+  eq(declaresSelftest("if (argv.indexOf('--selftest') >= 0) {"), 'indexOf() form is recognised');
+  eq(!declaresSelftest(' * usage: node tools/x.mjs --selftest'), 'a usage COMMENT alone does not enrol a tool');
+  eq(!declaresSelftest("if (process.argv[2] === '--self-test') {"), 'the hyphenated === form is NOT recognised (this is the bug)');
+  eq(declaresNearMissSelftest("if (process.argv[2] === '--self-test') { selfTest(); }"), 'the hyphenated flag is reported as a near miss');
+  eq(declaresNearMissSelftest('export function selfTest() { return 3; }'), 'selftest machinery with no reachable flag is a near miss');
+  eq(!declaresNearMissSelftest("if (argv.includes('--selftest')) { selfTest(); }"), 'a correctly-enrolled tool is NOT a near miss');
+  eq(!declaresNearMissSelftest('export function main() { return 0; }'), 'a tool with no selftest at all is not a near miss');
+  console.log(`all ${n} selftests passed`);
+  process.exit(0);
+}
 
 if (argv.includes('--list')) {
   console.log(files.map((f) => '  tools/' + f).join('\n'));
@@ -78,6 +119,17 @@ const run = (f) =>
       res({ f, ok: !err, n: m && m[1] ? Number(m[1]) : null, readable: !!m, out });
     });
   });
+
+const nearMiss = readdirSync(TOOLS)
+  .filter((f) => f.endsWith('.mjs') && f !== 'selftest-all.mjs')
+  .filter((f) => {
+    try {
+      return declaresNearMissSelftest(readFileSync(join(TOOLS, f), 'utf8'));
+    } catch (_) {
+      return false;
+    }
+  })
+  .sort();
 
 const results = await Promise.all(files.map(run));
 let failed = 0,
@@ -109,5 +161,10 @@ for (const r of results) {
     console.log(`  ✓ tools/${r.f}${r.n ? '  ' + r.n + ' assertions' : '  green'}`);
   }
 }
-console.log(`\n${failed ? `✗ ${failed} tool selftest(s) FAILED` : `✓ ${results.length} tools, ${total}+ assertions — all green`}${warned ? `  (${warned} green but unparseable)` : ''}`);
-process.exit(failed ? 1 : 0);
+for (const f of nearMiss) {
+  console.log(`  ✗ tools/${f}  HAS a selftest that discovery cannot reach — rename the flag to \`--selftest\` and match it with \`.includes()\``);
+}
+console.log(
+  `\n${failed || nearMiss.length ? `✗ ${failed} tool selftest(s) FAILED${nearMiss.length ? `, ${nearMiss.length} unreachable` : ''}` : `✓ ${results.length} tools, ${total}+ assertions — all green`}${warned ? `  (${warned} green but unparseable)` : ''}`
+);
+process.exit(failed || nearMiss.length ? 1 : 0);
