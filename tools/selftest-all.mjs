@@ -81,7 +81,6 @@ const files = readdirSync(TOOLS)
   })
   .sort();
 
-
 /* This script is excluded from its own DISCOVERY list, which would leave its predicates ungated — the
    exact shape it exists to catch. `--selftest` therefore runs them; the CI loop finds this file by that
    same literal and runs it, so the detector is gated by the mechanism it guards. */
@@ -165,5 +164,7 @@ for (const r of results) {
 for (const f of nearMiss) {
   console.log(`  ✗ tools/${f}  HAS a selftest that discovery cannot reach — rename the flag to \`--selftest\` and match it with \`.includes()\``);
 }
-console.log(`\n${failed || nearMiss.length ? `✗ ${failed} tool selftest(s) FAILED${nearMiss.length ? `, ${nearMiss.length} unreachable` : ''}` : `✓ ${results.length} tools, ${total}+ assertions — all green`}${warned ? `  (${warned} green but unparseable)` : ''}`);
+console.log(
+  `\n${failed || nearMiss.length ? `✗ ${failed} tool selftest(s) FAILED${nearMiss.length ? `, ${nearMiss.length} unreachable` : ''}` : `✓ ${results.length} tools, ${total}+ assertions — all green`}${warned ? `  (${warned} green but unparseable)` : ''}`
+);
 process.exit(failed || nearMiss.length ? 1 : 0);
