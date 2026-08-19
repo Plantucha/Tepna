@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** IN-PROGRESS — 25 of 42 removed 2026-08-19 · **Created:** 2026-08-19 · **Follows:** `DEX-METRIC-REMOVAL-FOLLOWUPS-II-2026-08-09-BRIEF.md` (DONE — 2026-08-19) · **Affects:** `ppgdex-profile.js`, `ecgdex-profile.js`, `glucodex-profile.js`
+**Status:** DONE — 2026-08-19 · **Created:** 2026-08-19 · **Follows:** `DEX-METRIC-REMOVAL-FOLLOWUPS-II-2026-08-09-BRIEF.md` (DONE — 2026-08-19) · **Affects:** `ppgdex-profile.js`, `ecgdex-profile.js`, `glucodex-profile.js`, `hrvdex-profile.js`, `pulsedex-overview.js`, `pulsedex-render.js`, `pulsedex-app.js`
 
 # `computeHints()` is dead in three nodes — 26 writes to ids that exist nowhere
 
@@ -17,6 +17,26 @@
 own defect.
 
 **Removed 2026-08-19: PpgDex 9 · ECGDex 11 · GlucoDex 5 = 25. Remaining: HRVDex 6 · PulseDex 11 = 17.**
+
+### ⚠️ A FOURTH time — and the remaining count was wrong in the same way, again (closed 2026-08-19)
+
+| §0 said | measured when the last two were executed |
+|---|---|
+| `Remaining: HRVDex 6 · PulseDex 11 = 17` | **22** — HRVDex is **11**, not 6 |
+| PulseDex's writes live in a `*-profile.js` | they live in **`pulsedex-overview.js`**; there is no `pulsedex-profile.js` at all |
+
+The five missing HRVDex sites reach the DOM through a bare `document.getElementById('lbl_…')` rather
+than a setter, so **scoping by `set('lbl_X')` could not see them** — the same call-shape blindness §0
+already records twice, surviving its own correction. §0 fixed the *character class*
+(`lbl_[A-Za-z]+` → `lbl_[A-Za-z0-9_]+`) and left the *call shape* assumed.
+
+⚠️ **A count taken by grepping a nonexistent path reads as `0`, not as an error.** Measuring
+`pulsedex-profile.js` returned "0 writes" — clean, plausible, and about a file that does not exist.
+That is the repo's own "a check that examined nothing and reported cleanly" failure, inside the
+instrument built to close this very class.
+
+**The fix now matches by PROPERTY, not by call shape** — any `lbl_*` string literal, whatever syntax
+reaches it — and that rule is what the §5 gate enforces, so the blindness cannot return.
 
 ⚠️ **The two remaining nodes are the GlucoDex shape, not the PpgDex shape** — HRVDex's writes sit inside
 a live `updateProfile()`, and PulseDex's `computeProfileHints` has not had its call graph read. Removing
@@ -76,16 +96,39 @@ permanently in `cabd7f7`.
 
 ## 5 · Done when
 
-- [x] **DONE for 3 of 5 nodes.** PpgDex/ECGDex: whole body removed. GlucoDex: **surgical** — 5 dead
-      writes out, `calibRow`/`calibState` kept, because that half is live. HRVDex and PulseDex still owe
-      this read.
-- [ ] The three bodies are removed, one re-bundle covering all three, with the ids re-counted at
-      execution time rather than trusted from this table.
-- [ ] A gate for *"a `set('lbl_X')` whose id exists in no `.src.html`"* — **now known VIABLE**: no `lbl_`
+- [x] **DONE for all 5 nodes.** PpgDex/ECGDex: whole body removed. GlucoDex: **surgical** — 5 dead
+      writes out, `calibRow`/`calibState` kept, because that half is live.
+- [x] **HRVDex — surgical (11 sites).** Its writes sit inside a **live** `updateProfile()`, so only the
+      dead statements went: `altFactor` stays (it feeds `window._hrvProfileAlt`), and the VO₂ projection
+      block keeps `window._projVO2` + `renderANSAgeCard()` — only the `lv.textContent` line inside it was
+      removed. Orphaned by the removal and therefore also gone: the `_setSub`/`_set` helpers and `idealW`.
+      `vo2Est` and its chain were checked and **kept** — used at lines 86/89/112, not only by the dead write.
+- [x] **PulseDex — whole function (11 sites).** `computeProfileHints` was dead on **two** independent
+      grounds, the PpgDex shape rather than the GlucoDex one §0 feared: it opens
+      `if (!document.getElementById('profSex')) return;` and `PulseDex.src.html` defines no `profSex`, so
+      it returned at its first line on every call. Removed with its two call sites
+      (`pulsedex-overview.js`, `pulsedex-render.js`), its `window` export, and the now-orphaned `nu` import.
+- [x] The bodies are removed, **one re-bundle per affected node**, with the ids re-counted at execution
+      time rather than trusted from this table — which is how the 17→22 correction above was found.
+- [x] A gate for *"a `set('lbl_X')` whose id exists in no `.src.html`"* — **now known VIABLE**: no `lbl_`
       id is created dynamically anywhere in the tree (checked 2026-08-19), so a static rule cannot
       false-positive on injected markup. Build it WITH the last 17, so it can be seen to RED first. ⚠️ Note this is the same shape as the badge-coverage mandate: a write to a surface
       that does not exist is the render-side twin of a metric surfaced without a badge, and this repo
       already prefers such things to fail VISIBLY rather than silently.
+
+      **Built and seen to RED first.** `dead-field-hints` (`tests/dex-tests.js`, fed by
+      `run-tests.mjs readNodeSurfaces`) resolves every `lbl_*` literal in a node's inlined JS against the
+      ids that node's own `.src.html` defines. Run against pristine `main` it **failed with exactly the 22**
+      (HRVDex 11 · PulseDex 11) while all six already-cleaned nodes passed — so it discriminates rather
+      than merely failing. Against the fix: 17/17 green.
+      - **Matched by property, not call shape** — the specific blindness that made this brief wrong twice.
+      - **Sources read from each `.src.html`'s own `<script src>` list**, never globbed, so a module added
+        to a node is covered automatically.
+      - **Anti-vacuity leg:** each node asserts its sources were actually read (`N js file(s), N bytes`)
+        before its verdict is believed — a node whose files went unread would otherwise contribute no
+        references and report "clean".
+      - It reads its own surface list rather than `env.srcHtml`, which omits MotionDex and carries
+        Integrator; a node missing from that list would have contributed zero ids and passed vacuously.
 
 ## 6 · Related
 
