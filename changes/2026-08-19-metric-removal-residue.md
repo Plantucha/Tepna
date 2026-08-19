@@ -29,11 +29,15 @@ PpgDex · OxyDex · PulseDex costs one build/provenance/verify cycle rather than
 **Every death claim was re-verified by identifier before deleting**, not inherited from the brief — line
 numbers drift, and one claim was already off by a site.
 
-⚠️ **`computeHash` DOES NOT EXIST under that name in this checkout.** `CLAUDE.md` §🔒 describes it as the
-export-inertness proof, but it appears nowhere in `manifest-gate.js` or `provenance/`. I nearly reported
-these edits export-inert on the grounds that it "did not move" — it is **ABSENT, not stable**, and
-absence reads identically to stability in a diff. Settled empirically instead: `verify-fixtures`
-re-stamped **4** fixtures (OxyDex ×2, PulseDex ×2), 10 already current, suite green.
+⚠️ **`computeHash` is not RECORDED in `provenance/*.json`** (those fragments carry `manifestHash` and
+`verifiedUnder` only), so §🔒's export-inertness proof could not be used here; settled empirically by
+`verify-fixtures` instead — 4 re-stamped, 10 already current, suite green.
+
+> 🔴 **CORRECTION 2026-08-19:** this paragraph originally said `computeHash` "DOES NOT EXIST under that
+> name in this checkout". False — `manifest-gate.js` defines `computeHashFromText` and mentions
+> `computeHash` 11 times. **`grep` is blind to that file**: one deliberate NUL at offset 10629 (the
+> `logicalName \0 sha256(assetText)` separator §🔏 mandates) makes `file` classify it as `data`, and the
+> shell's `grep` wraps `ugrep -I`. Use `git grep`.
 
 `npm run check` with `DEX_UPLOADS`: EXIT=0, **7815 assertions, 499 groups**, equivalence legs RUN
 (PpgDex 12/12 + 3/3). Registry tiers untouched — removal of dead render code, not a re-grading.
