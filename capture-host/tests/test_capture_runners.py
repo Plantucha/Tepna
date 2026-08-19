@@ -4762,16 +4762,17 @@ def test_run_polar_resumes_a_recent_fileset(tmp_path, monkeypatch, caplog):
         return dt.datetime(2026, 8, 19, 21, 0, 0)
     monkeypatch.setattr(capture, "resumable_stamp", spy)
 
-    async def _bonded(addr, adapter):
+    async def _bonded(addr, adapter, force=False):
         return True
     monkeypatch.setattr(capture.bonding, "ensure_bonded", _bonded)
-    class _NoBle(Exception):
-        pass
+    monkeypatch.setattr(capture.bonding, "is_bonded", _bonded)
 
-    class _FailClient:
-        def __init__(self, *a, **k):
-            raise _NoBle()                  # the decision under test happens BEFORE the connect
-    monkeypatch.setattr(capture, "BleakClient", _FailClient, raising=False)
+    async def _no_sync(name, addr):
+        return None                        # the real one runs a ~30 s BLE discovery — not in a unit test
+    monkeypatch.setattr(capture, "auto_sync_clock", _no_sync)
+    def _no_ble(addr):
+        raise RuntimeError("stop before BLE")   # _connect is the first thing after the resume decision
+    monkeypatch.setattr(capture, "_connect", _no_ble)
     monkeypatch.setattr(capture, "night_dir", lambda root, when: str(tmp_path))
     dev = {"name": "H10", "address": "C2:11:44:AB:9E:01", "vendor": "Polar",
            "model": "H10", "device_id": "02849638", "streams": ["ecg"]}
@@ -4789,17 +4790,18 @@ def test_run_polar_resume_disabled_by_zero_window(tmp_path, monkeypatch):
     consulted = []
     monkeypatch.setattr(capture, "resumable_stamp", lambda *a: consulted.append(a))
 
-    async def _bonded(addr, adapter):
+    async def _bonded(addr, adapter, force=False):
         return True
     monkeypatch.setattr(capture.bonding, "ensure_bonded", _bonded)
+    monkeypatch.setattr(capture.bonding, "is_bonded", _bonded)
 
-    class _NoBle(Exception):
-        pass
+    async def _no_sync(name, addr):
+        return None                        # the real one runs a ~30 s BLE discovery — not in a unit test
+    monkeypatch.setattr(capture, "auto_sync_clock", _no_sync)
 
-    class _FailClient:
-        def __init__(self, *a, **k):
-            raise _NoBle()
-    monkeypatch.setattr(capture, "BleakClient", _FailClient, raising=False)
+    def _no_ble(addr):
+        raise RuntimeError("stop before BLE")   # _connect is the first thing after the decision
+    monkeypatch.setattr(capture, "_connect", _no_ble)
     monkeypatch.setattr(capture, "night_dir", lambda root, when: str(tmp_path))
     monkeypatch.setattr(capture, "_RESUME_WINDOW_S", 0.0)
     dev = {"name": "H10", "address": "C2:11:44:AB:9E:01", "vendor": "Polar",
