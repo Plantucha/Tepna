@@ -62,7 +62,8 @@ export function readSpo2Csv(path) {
   return out;
 }
 
-/** Integer-second lag that best aligns two SpO2 series (by minimum SAD over the overlap). PURE. */
+/** Integer-second lag that best aligns two 1 Hz series (by minimum SAD over the overlap). Generic over
+ *  the matched column — SpO2 OR pulse; both slide the same way. PURE. */
 export function bestLag(datSpo2, csvSpo2, maxLag) {
   // both are 1 Hz; index k of each is one second. Slide the .dat against the csv.
   let best = Infinity,
@@ -89,6 +90,14 @@ export function bestLag(datSpo2, csvSpo2, maxLag) {
     }
   }
   return Number.isFinite(best) ? { lagS: bestK, meanAbsErr: best, n: bestN } : null;
+}
+
+/** Do two independent fits agree to within `tol` seconds? null if either fit is missing. PURE.
+ *  SpO2 is a coarse 1%-integer observable; pulse (bpm) is finer, so an agreeing pulse lag CONFIRMS the
+ *  SpO2 lag with a sharper column — and a disagreement means one of the two fits is spurious. */
+export function lagsAgree(a, b, tol = 1) {
+  if (!a || !b) return null;
+  return Math.abs(a.lagS - b.lagS) <= tol;
 }
 
 function selftest() {
@@ -125,7 +134,22 @@ function selftest() {
   const withGap = base.slice();
   for (let i = 100; i < 300; i++) withGap[i] = 0;
   ok('zero-SpO2 dropouts do not fake a match', bestLag(new Array(LAG).fill(97).concat(withGap), base, 120).lagS === LAG);
-  console.log(fail ? `\n${fail} FAILURE(S)` : '\nall green');
+  // the SAME machinery on a PULSE-like series (50–80 bpm) recovers a planted lag — pulse is a valid column
+  const pbase = [];
+  let pr = 62;
+  for (let i = 0; i < 1200; i++) {
+    pr += i % 5 === 0 ? -1 : i % 8 === 0 ? 2 : 0;
+    pr = Math.max(50, Math.min(80, pr));
+    pbase.push(pr);
+  }
+  const pdat = new Array(23).fill(62).concat(pbase);
+  ok('pulse series recovers a planted +23 s lag', bestLag(pdat, pbase, 120)?.lagS === 23);
+  // the SpO2↔pulse cross-check
+  ok('agreeing lags → true', lagsAgree({ lagS: 37 }, { lagS: 37 }) === true);
+  ok('lags within tol agree', lagsAgree({ lagS: 37 }, { lagS: 38 }) === true);
+  ok('disagreeing lags → false', lagsAgree({ lagS: 37 }, { lagS: 50 }) === false);
+  ok('a missing fit → null (not a false agreement)', lagsAgree(null, { lagS: 37 }) === null);
+  console.log(fail ? `\n${fail} FAILURE(S)` : `\n${pass} assertions — all green`);
   return fail ? 1 : 0;
 }
 
@@ -140,23 +164,37 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const maxLag = Number(arg('--maxlag') || 600);
   const dat = readDat(datP),
     csv = readSpo2Csv(csvP);
-  console.log(`  dat : ${dat.length} s   spo2 median ${dat.map((r) => r.spo2).sort((a, b) => a - b)[dat.length >> 1]}`);
+  const med = (a) => [...a].sort((x, y) => x - y)[a.length >> 1];
+  console.log(`  dat : ${dat.length} s   spo2 median ${med(dat.map((r) => r.spo2))}  pulse median ${med(dat.map((r) => r.pr))}`);
   console.log(`  csv : ${csv.length} s   host-stamped ${new Date(csv[0]?.tMs).toISOString().slice(11, 19)}–${new Date(csv[csv.length - 1]?.tMs).toISOString().slice(11, 19)} (floating)`);
-  const r = bestLag(
+  // fit on BOTH columns: SpO2 (coarse 1%-integer) and pulse (finer). Two independent observables.
+  const spo2 = bestLag(
     dat.map((x) => x.spo2),
     csv.map((x) => x.spo2),
     maxLag
   );
-  if (!r) {
+  const pulse = bestLag(
+    dat.map((x) => x.pr),
+    csv.map((x) => x.pr),
+    maxLag
+  );
+  if (!spo2 && !pulse) {
     console.log('  no lag with enough overlap — is this the same session?');
     process.exit(1);
   }
-  console.log(`\n  BEST LAG: dat leads csv by ${r.lagS} s   (mean |ΔSpO₂| ${r.meanAbsErr.toFixed(3)} over ${r.n} s)`);
-  if (r.meanAbsErr > 1.5) console.log('  ⚠ mean error > 1.5 %SpO₂ — the fit is weak; treat the lag as unconfirmed');
-  // host time of the .dat's first sample = csv host time at the aligning index
+  const report = (nm, r, unit) => console.log(r ? `  ${nm} lag: dat leads csv by ${r.lagS} s   (mean |Δ${unit}| ${r.meanAbsErr.toFixed(3)} over ${r.n} s)` : `  ${nm} lag: no fit`);
+  console.log('');
+  report('SpO₂ ', spo2, 'SpO₂');
+  report('pulse', pulse, 'bpm');
+  const agree = lagsAgree(spo2, pulse);
+  if (agree === true) console.log(`  ✓ the two columns AGREE — the lag is confirmed by an independent, finer observable`);
+  else if (agree === false) console.log(`  ⚠ SpO₂ ${spo2.lagS}s vs pulse ${pulse.lagS}s DISAGREE by ${Math.abs(spo2.lagS - pulse.lagS)}s — one fit is spurious; treat as unconfirmed`);
+  if (spo2 && spo2.meanAbsErr > 1.5) console.log('  ⚠ SpO₂ mean error > 1.5 % — that fit is weak on its own');
+  // prefer pulse (finer) when it exists and either agrees with SpO2 or SpO2 is absent
+  const chosen = pulse && (agree === true || !spo2) ? pulse : spo2;
   const anchorMs = csv[0]?.tMs;
-  if (anchorMs != null) {
-    const datStartHostMs = anchorMs - r.lagS * 1000;
+  if (anchorMs != null && chosen) {
+    const datStartHostMs = anchorMs - chosen.lagS * 1000;
     console.log(`  ⇒ .dat sample 0 sits at host ${new Date(datStartHostMs).toISOString().slice(11, 19)} (floating) — its RTC stamp can now be checked against this`);
   }
 }
