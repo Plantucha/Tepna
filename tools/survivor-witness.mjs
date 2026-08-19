@@ -37,12 +37,16 @@
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { resolveStatePath, stateDirs, stateJsonFiles } from './mutation-map.mjs';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { ResumeLedger, etaFromThroughput, fingerprint, fmtDuration } from './run-progress.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const SWEEPS = join(ROOT, '.mutation-sweeps');
+/* MUTATION-SUITE-FOLLOWUPS §1: reads UNION both state dirs (shared git-common location first,
+   legacy in-tree as fallback); writes land in the SHARED dir so every worktree sees them. */
+const STATE_DIRS = stateDirs(ROOT);
+const WRITE_DIR = STATE_DIRS[0];
 const OLLAMA = process.env.DEX_OLLAMA || 'http://localhost:11434';
 const MODEL = process.env.DEX_MODEL || 'qwen3.8:27b';
 
@@ -152,6 +156,10 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
     }
   ]);
   ok('identical condition pairs collapse to one probe', p.length === 1, String(p.length));
+  /* §1 migration contract: the shared git-common location is tried FIRST. */
+  ok('state dirs try the shared tepna-mutation location first', /tepna-mutation$/.test(STATE_DIRS[0]) && /\.mutation-sweeps$/.test(STATE_DIRS[1]));
+  ok('writes land in the shared dir', WRITE_DIR === STATE_DIRS[0]);
+
   console.log(fail ? '\n✗ ' + fail + ' failed, ' + pass + ' passed' : '\n✓ all ' + pass + ' selftests passed');
   process.exit(fail ? 1 : 0);
 }
@@ -168,16 +176,18 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
      worktree has none — and crashing with a readdir stack trace tells the operator nothing about
      what to do, while an empty run would have been worse: indistinguishable from 'nothing is
      killable'. */
-  if (!existsSync(SWEEPS)) {
-    console.error('✗ no .mutation-sweeps directory — run the operator sweeps first, or point at a');
-    console.error('  checkout that has them. This is a missing INPUT, not a finding of zero.');
+  const sweepEntries = stateJsonFiles(ROOT);
+  if (!sweepEntries.length && !STATE_DIRS.some((d) => existsSync(d))) {
+    console.error('✗ no state directory at either candidate — run the operator sweeps first, or point');
+    console.error('  at a checkout that has them. This is a missing INPUT, not a finding of zero.');
+    console.error('  tried: ' + STATE_DIRS.join('  then  '));
     process.exit(2);
   }
-  for (const f of readdirSync(SWEEPS).filter((x) => x.endsWith('.json'))) {
+  for (const e of sweepEntries) {
     try {
-      const j = JSON.parse(readFileSync(join(SWEEPS, f), 'utf8'));
+      const j = JSON.parse(readFileSync(e.path, 'utf8'));
       const s = j.survivors || j.results || j.mutants;
-      if (Array.isArray(s)) files.push({ file: j.file || f, survivors: s });
+      if (Array.isArray(s)) files.push({ file: j.file || e.name, survivors: s });
     } catch {}
   }
   const probes = probesFrom(files);
@@ -189,9 +199,9 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   }
   /* Append-only, streamed: a kill costs ONE probe, not the whole run. The previous harness wrote its
      witnesses once at the end and would have lost 423 of them to a Ctrl-C. */
-  const out = join(SWEEPS, 'survivor-witnesses.jsonl');
-  mkdirSync(SWEEPS, { recursive: true });
-  const led = new ResumeLedger(argv.includes('--resume') ? join(SWEEPS, 'witness-progress.jsonl') : null, fingerprint({ tool: 'survivor-witness@1', model: MODEL, n: probes.length })).load();
+  const out = join(WRITE_DIR, 'survivor-witnesses.jsonl');
+  mkdirSync(WRITE_DIR, { recursive: true });
+  const led = new ResumeLedger(argv.includes('--resume') ? resolveStatePath(ROOT, 'witness-progress.jsonl') : null, fingerprint({ tool: 'survivor-witness@1', model: MODEL, n: probes.length })).load();
   if (led.stale) process.stderr.write('  ⚠ ledger describes different inputs — starting from zero\n');
   led.begin();
   const todo = probes.filter((p) => !led.has(p.key));
