@@ -126,6 +126,24 @@ merge conflict when it goes wrong.
 
 - [ ] `atShortestPpm` / `atLongestPpm` added additively to `hostAxis.stability`, on the next spine PR
 - [ ] `dual-clock-rate.mjs`'s crystal rule reads uncertainties, sharing ONE implementation with `device-stability.mjs`
-- [ ] `WEARABLE-DRIFT-DIRECT`'s header re-verified against its Done-when list and flipped, or its gaps recorded (`HOSTAXIS-STABILITY` needs nothing — it is already DONE; see §3's correction)
+- [x] **DONE — verified 2026-08-19.** `WEARABLE-DRIFT-DIRECT-2026-08-02` already reads
+      **`Status: DONE — 2026-08-17`** (*"every §6 item re-verified against the tree, and the recorded ppm
+      caveat DISCHARGED BY RE-MEASUREMENT"*). Its Done-when list is fully `[x]`; the single `[~]` is a
+      **retraction note**, not open work — it withdraws a same-day "cannot be run on this corpus" claim
+      after the author found they had checked the wrong artifact.
+
+      **Spot-checked against the tree rather than taken on the header's word**, since a status line is
+      exactly the thing this repo keeps finding stale:
+      · `tools/dual-clock-rate.mjs` exists (13 584 B) — *"shipped as a tool, not left in a scratch script"* ✓
+      · its no-second-clock refusal is present (`independent`/`spreadMs` guards) ✓
+      · `papers/wearable-clock-drift.html` carries the scope-note retraction ✓
+
+      ⚠️ **That last one nearly went down as a defect.** A case-sensitive grep for `Corrections` returned
+      **0** while `90–216` still appeared **4 times**, which reads as *"the retraction never landed."* It
+      had: case-insensitively the paper has 23 correction mentions, and every `90–216` occurrence is
+      **retraction context** — *"contradicted by a direct measurement"*, *"it is retracted as a statement
+      about the device"*, *"≈7 ppm, not 90–216"*. The figure is present **because** it is being retracted.
+      Presence of a retracted number is not evidence the retraction is missing; read the context.
+
 - [ ] per-channel offset σ extracted, or recorded as declined with a reason
 - [x] ~~`doc-search.mjs` landed or its citations removed~~ — WITHDRAWN 2026-08-17: it was already on `main` (§6)
