@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-03 · **Follows:** `CPAP-AUTOHARVEST-FOLLOWUPS-2026-07-28-BRIEF.md` (DONE — 2026-08-03)
+**Status:** DONE — 2026-08-19 (§1(a) delivery OBSERVED: `send() = True`, `delivered: 1, failed: 0, last_error: None` through the daemon's own `Notifier` under the daemon venv — the last unproven link. Box re-measured **0 behind** at close. No follow-up brief: nothing surfaced during execution beyond what §4 already parks) · **Created:** 2026-08-03 · **Follows:** `CPAP-AUTOHARVEST-FOLLOWUPS-2026-07-28-BRIEF.md` (DONE — 2026-08-03)
 
 # What the guarantee sweep left behind — two owner-owed deploy items, one probe, and a method worth reusing
 
@@ -155,12 +155,13 @@ a full backfill is using the slower one.
 
 ## 5 · Done when
 
-- [~] §1 — **`alerts:` IS configured and IS read by the running daemon (verified 2026-08-04, §1 above);
-      `aiohttp` is present in the daemon venv; the failure predicates fire.** Two of the section's three
-      links are proven. Outstanding: (a) one execution of `/tmp/alerttest.py` under
-      `/opt/tepna/capture-host/.venv/bin/python` to observe a real delivery, and (b) the deploy — the box
-      is **111 commits behind** and the raising-harvest alert is confirmed absent from the deployed
-      `capture.py`, so that alert cannot fire in the field regardless of transport.
+- [x] §1 — **ALL THREE LINKS PROVEN, 2026-08-19.** (a) is now observed: the reboot had wiped
+      `/tmp/alerttest.py`, so it was recreated to the same spec — the daemon's own `alerts.Notifier`,
+      the live `config.yaml`, the daemon venv interpreter — and one real delivery went through:
+      `send() = True`, `stats = {delivered: 1, failed: 0, suppressed: 0, last_error: None}`, title
+      `Tepna alert-path test` on the configured ntfy channel. *A configured webhook is now a DELIVERED
+      one.* (b) was already closed 2026-08-15; re-measured at close: the box is **0 commits behind**.
+      (The 111 → 3 → 0 progression is why this box re-measures rather than trusts any prior count.)
       - **(b) IS DONE — re-measured 2026-08-15.** The box is 3 commits behind with a clean tree at an
         ancestor of `origin/main`, so `capture-host/` is deployed by construction (deployed
         `cpap_harvest.py` byte-matches `origin/main`); the hourly `tepna-update.timer` closed it without
