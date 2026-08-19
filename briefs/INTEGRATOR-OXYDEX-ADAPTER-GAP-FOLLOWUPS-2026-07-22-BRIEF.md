@@ -153,7 +153,30 @@ value. That rename is unlikely to be the only one — `adaptOxyDex` also reads `
 actually emits**, and add an anti-vacuity assertion (source-present ⇒ adapted-non-null) per field, the pattern
 the §4.3 gate now uses. A field that is *always* null across the whole corpus should be a RED, not a shrug.
 
-## 4 · The generic normalizer's `node === 'OxyDex'` branch is now unreachable-by-construction
+## 4 · ✅ CLOSED 2026-08-18 — option (a): the fallback stays, GATED — ~~unreachable-by-construction~~
+
+> ### ✅ EXECUTED 2026-08-18 — the gate exists, and its route-proof is the interesting part
+>
+> Option (a), deliberately: deleting the branch buys nothing (it is dead weight only until a future
+> OxyDex payload fails the predicate, which is exactly when it earns its keep), while an untested
+> fallback was §4's own "worst option". The `Integrator OxyDex fallback branch emits the SAME summary
+> as adaptOxyDex (ADAPTER-GAP-FOLLOWUPS §4)` group (tests/dex-tests.js, `integrator-dsp`) drives BOTH
+> routes through the public `normalizeFile` with identical underlying values — bare payload (fails the
+> intercept predicate → fallback) vs the same payload + `hr_spikes: []` (→ adaptOxyDex) — and pins
+> `pulseHr1Hz`/`rmssd1Hz`/`hrVarSd1Hz` equal, plus null-on-absent for both routes (§2.6's rule).
+>
+> **The route-proof is built on the one measured divergence.** adaptOxyDex guards
+> `isFinite(stats.meanHr)`; the fallback `_dig`s it raw. A `meanHr: Infinity` payload therefore
+> surfaces Infinity ONLY through the fallback — so that assertion doubles as proof the bare payload
+> really took the fallback route. If a future edit widens the intercept predicate, it reds, and §4's
+> decision must be re-made deliberately instead of decaying silently into adaptOxyDex-vs-itself
+> (a vacuous reconcile). The divergence itself is left in place ON PURPOSE: fixing it means editing
+> `integrator-dsp.js`, which moves 5 manifestHashes + computeHash + a corpus re-verification — not a
+> price a dead branch's cosmetics justifies, and the gate makes the asymmetry visible instead of latent.
+>
+> Mutation-verified both ways: fallback reading `hrv.sdnn` instead of `hrv.rmssd` → 7 assertions red;
+> fallback fabricating `|| 0` for absent stats → 3 red.
+
 
 `normalizeFile`'s predicate cannot miss any OxyDex shape, so that branch is dead for OxyDex today. It was left
 in place, reconciled and commented, as the fallback for a future payload that fails the predicate. Decide
