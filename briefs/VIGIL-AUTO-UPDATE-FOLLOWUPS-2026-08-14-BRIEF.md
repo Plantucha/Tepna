@@ -150,6 +150,16 @@ PID 1 *is* reachable from inside (the `reload` verb's `daemon-reload` proves it)
 > prediction §3 makes — *"any new helper that writes outside that list will fail the same way, and the
 > failure looks like a permissions bug rather than a sandbox one"* — had already come true in a
 > different subsystem before the brief was written.
+>
+> **✅ RESOLVED 2026-08-18 — it was FIXED IN CODE, and the leg is still reached.** The note above left the
+> two possibilities open and said so; both are now settled. A four-commit chain lands exactly when the
+> errors stop: `76fa742c` *"probe for a writable wpa control dir — /tmp is read-only in the unit"* (07-28),
+> `3d62a4b6` (07-28), `cb63b31a` (07-28), `aa1ed645` *"wpa_cli could not reach the supplicant from inside
+> the sandbox"* (07-29). The errors ran 07-26 → 07-29 and stopped there.
+>
+> **And the leg is not merely quiet:** the box logged **358 harvest/wpa lines in the last 7 days with ZERO
+> `Read-only file system` errors** — so this is a fix, not an unreached branch. Both halves were measured,
+> because *"it stopped erroring"* and *"it stopped running"* are indistinguishable from an error count alone.
 
 ## 4 · The interlock ratio is real data, and nobody is looking at it
 
@@ -194,6 +204,22 @@ look identical in `systemctl status`.
 
 - [ ] Distinguish "failed once, recovered" from "failing every tick since Tuesday". A consecutive-failure
       count in the report, or a `RESTART-OWED`-style marker, would do it.
+      **📊 MEASURED 2026-08-18 — "failing every tick since Tuesday" is not hypothetical. It happened.**
+      Classifying 30 days of `journalctl -u tepna-update`: **38 failure events against 300 success/defer**,
+      with consecutive-failure runs of **[30, 5, 3]**.
+
+      | | |
+      |---|---|
+      | longest streak | **30 consecutive failure events** |
+      | from → to | 2026-08-04 22:00:37 → 2026-08-05 07:20:44 |
+      | **wall-clock span** | **9.3 hours** |
+
+      For 9.3 hours the box could not update and — exactly as this section predicts — `systemctl status`
+      showed what a single transient failure shows. **Nobody noticed.** A streak of 3 also occurred, so it
+      is not one freak event.
+      ⚠ Caveat: these are failure *events* in the journal, not ticks, so 30 is a lower bound on ticks
+      affected and **9.3 h is the reliable figure**. The counter this box asks for is justified — it would
+      have fired three times in 30 days, once for most of a night.
 
 ## 6 · Done when
 

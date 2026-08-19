@@ -81,7 +81,7 @@ const AXIS = arg('--axis', 'host');
    (#936, wearer-confirmed 2026-08-04). The identifier it replaces, `RE_WRIST`, encoded the wrong
    anatomy AND was never defined in any revision — see the §NEVER-RAN note in the header. */
 const RE_RING = /o2ring.*_PPG\.txt$/i; // FINGER — Wellue_O2Ring-S_<sn>_<stamp>_PPG.txt
-const RE_ANKLE = /veritysense.*_PPG\.txt$/i; // ANKLE — Polar_VeritySense_<id>_<stamp>_PPG.txt
+const RE_ANKLE = /(?:veritysense|polar_sense).*_PPG\.txt$/i; // ANKLE — Polar_VeritySense_<id>_<stamp>_PPG.txt
 /* SCATTER mode — the only statistic comparable with the PAT family's 84-99 ms.
    PAT-VERDICT-CONSOLIDATED §5: strictMatchRate.residIQR is an IQR over ONLY the residuals its own
    ±40 ms window accepted, so it reads 31-44 ms regardless of signal and must never be compared to the

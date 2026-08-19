@@ -481,40 +481,13 @@
   }
 
   // ── predictive sublabels ─────────────────────────────────────────────────────────
-  function computeHints(r) {
-    if (DP()) return; // unified panel owns the field hints now (legacy DOM inputs removed)
-    const set = (id, txt, est) => {
-      const l = $(id);
-      if (!l) return;
-      l.textContent = txt;
-      l.classList.toggle('est', !!est);
-    };
-    const p = getProfile();
-    const n = popNorms(p.sex);
-    // ANS age annotation removed 2026-06-23 (WP-A R9) — lbl_ecgAge no longer shows an autonomic age.
-    const ideal = +(22.5 * ((parseFloat($('ecgHeight').value) || n.h) / 100) ** 2).toFixed(1);
-    set('lbl_ecgWeight', '~ pop. avg ' + n.w + ' kg · ideal ' + ideal + ' kg');
-    set('lbl_ecgHeight', '~ pop. avg ' + n.h + ' cm');
-    if (r) {
-      const hm = r.hrmaxEff || Math.round(208 - 0.7 * p.age),
-        rh = Math.round(r.rhrEff || r.dispHr);
-      const altTxt = r.altFactor && r.altFactor < 1 ? ' · alt ×' + r.altFactor : '';
-      set('lbl_ecgVO2', '~ Uth–Sørensen → ' + r.vo2base + ' (HRmax ' + hm + '/rest ' + rh + altTxt + ')');
-      if (r.hrmaxRejected) set('lbl_ecgHRmax', '⚠ entry too low — using Tanaka ' + r.tanaka + ' bpm', true);
-      else {
-        const hrIn = Number($('ecgHRmax').value) || 0;
-        set('lbl_ecgHRmax', hrIn > 0 ? '✓ your value ' + hm + ' bpm' : '~ Tanaka: 208 − 0.7 × age = ' + r.tanaka);
-      }
-      const ev = Number($('ecgElev').value) || 0;
-      if (ev >= 2500) set('lbl_ecgElev', '🏔 ' + ev.toLocaleString() + ' m · VO₂ ×' + r.altFactor + ' · HRV norms = sea-level (caution)', true);
-      else if (ev > 1500) set('lbl_ecgElev', '⛰ ' + ev.toLocaleString() + ' m · VO₂ ×' + r.altFactor, true);
-      else set('lbl_ecgElev', '~ sea level · adjusts VO₂max above 1500 m');
-      const rhrIn = Number($('ecgRHR').value) || 0;
-      if (rhrIn > 0) set('lbl_ecgRHR', '✓ your value');
-      else if (r.longRec && r.hrFloor != null) set('lbl_ecgRHR', '~ nocturnal floor ' + r.hrFloor + ' + 8 = ' + r.autoRHR + ' bpm (awake est)', true);
-      else set('lbl_ecgRHR', '~ measured ' + Math.round(r.dispHr) + ' bpm', true);
-    }
-  }
+  /* `computeHints()` REMOVED 2026-08-19 (DEAD-FIELD-HINTS-FLEET). It wrote 11 field hints to `lbl_ecg*`
+     ids, and `ECGDex.src.html` defines NONE of them — nor any `lbl_` id at all. It was also unreachable
+     for a second, stronger reason: it read `$('ecgHeight').value`, and `ecgHeight` does not exist
+     either, so the body would have thrown a TypeError had it ever run. Its `if (DP()) return;` guard was
+     therefore load-bearing against a CRASH, not merely an early exit for a superseded panel — which is
+     why deleting the body is safer than leaving it guarded. The unified panel (`DexProfile`) owns these
+     hints now. */
 
   // ── orchestration entry ──────────────────────────────────────────────────────────
   function render(r) {
@@ -522,7 +495,6 @@
     $('sec-profile').style.display = 'block';
     $('profilePanel').style.display = 'block';
     personalize(r);
-    computeHints(r);
     renderHero(r);
     renderHrvBench(r);
     if (_dexPanel) _dexPanel.refresh();

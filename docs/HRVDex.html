@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8xl10cAQf4uU3kHgylt+xAf/7cbfiBHN7juHfIjC3xs=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-EUAm8HOe3qna7MaqXJZ2RjnuT3nxDMxTbc3GxMeGn40=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-FvE6kpPiOZOKf/shR8PEze9RQRPBsmlvDgLxIHG+CUc=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-SrFwk9bRUfiRDBY2OhWTdA1NPKRAPPgqf8ik64Wh5ZA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-otez0gtgOzP+MHJg+clI/i3fptlBfHRiXK8CAY45L/M=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-EUAm8HOe3qna7MaqXJZ2RjnuT3nxDMxTbc3GxMeGn40=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-FvE6kpPiOZOKf/shR8PEze9RQRPBsmlvDgLxIHG+CUc=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-SrFwk9bRUfiRDBY2OhWTdA1NPKRAPPgqf8ik64Wh5ZA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-pqFA/JDyPgcz+OzxDHraJF7kLYMYu0hWpVVQQnWb/2E='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>HRVDex — Heart Rate Variability Analyzer · v2.6.0</title>
@@ -9559,9 +9559,19 @@ body.light .topbar::after{ opacity:.25; }
   function mean(arr) {
     return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : NaN;
   }
+  /* §2.6 — the sample SD of fewer than two observations is UNDEFINED, not zero: the denominator is
+     `n - 1 = 0`. Returning `0` claims "no variability" from data that cannot support the claim, and on
+     an HRV surface an SDNN of 0 ms reads as a perfectly regular heart — the fabricated-defaults class
+     (FABRICATED-DEFAULTS-FLEET-2026-08-16 §7).
+     NaN, NOT null, and the choice is load-bearing. This file's own `mean` already returns NaN for an
+     empty array, and every caller that can decline already tests with `isNaN` or an `|| fallback`.
+     `null` would pass BOTH — `isFinite(null)` and `isNaN(null)` are `false` — so switching to null
+     would convert a visible refusal into an invisible one. Match the file's existing honest answer.
+     ⚠️ DEFENSIVE, and measured to be so: no current caller can reach it. */
   function std(arr) {
+    if (arr.length < 2) return NaN;
     const m = mean(arr);
-    return arr.length > 1 ? Math.sqrt(arr.reduce((s, v) => s + (v - m) * (v - m), 0) / (arr.length - 1)) : 0;
+    return Math.sqrt(arr.reduce((s, v) => s + (v - m) * (v - m), 0) / (arr.length - 1));
   }
   function pearsonCorr(x, y) {
     const n = Math.min(x.length, y.length);
@@ -11728,24 +11738,9 @@ function inferFromData() {
   setIfEmpty('prof_vo2gt', vo2Est, true);
   setIfEmpty('prof_hrmax', 0, false); // keep 0 = auto (use Tanaka)
 
-  // Show the calculated projection value in each sublabel (visible above the input),
-  // so the projection stays visible even after a manual override (matches OxyDex).
-  function _setSub(id, txt) {
-    var el = document.getElementById(id);
-    if (el) {
-      el.textContent = txt;
-      el.style.display = '';
-    }
-  }
-  _setSub('lbl_vo2gt', '∼ Uth-Sørensen → ' + vo2Est + ' (HRmax ' + Math.round(_hrmaxV) + '/HRrest ' + Math.round(_hrRestV) + (_altF < 1 ? ' · alt ×' + _altF.toFixed(2) : '') + ')');
-
   // Age is NOT auto-filled from HRV anymore (ANS-age removed 2026-06-23,
   // DEX-METRIC-REMOVAL-AUDIT 🔴). The field keeps its neutral default; the user enters
   // their real chronological age. No HRV→age sublabel.
-  var _lblAge = document.getElementById('lbl_age');
-  if (_lblAge) {
-    _lblAge.style.display = 'none';
-  }
   // Auto-fill weight + height from population norms for this age/sex
   applyAgeNorms(false);
 
@@ -11919,19 +11914,6 @@ function applyAgeNorms(useIdeal) {
   heightEl.value = h;
   weightEl.style.borderColor = '';
   heightEl.style.borderColor = '';
-
-  // Update labels — show the computed values (matches OxyDex richness)
-  const wLabel = document.getElementById('lbl_weight');
-  const hLabel = document.getElementById('lbl_height');
-  const idealW = Math.round(22.5 * (h / 100) ** 2 * 10) / 10;
-  if (wLabel) {
-    wLabel.textContent = useIdeal ? '∼ ideal (BMI 22.5) ' + w + ' kg' : '∼ CDC pop avg ' + norm.w + ' kg · ideal (BMI 22.5) ' + idealW + ' kg';
-    wLabel.style.display = '';
-  }
-  if (hLabel) {
-    hLabel.textContent = '∼ CDC pop avg ' + h + ' cm';
-    hLabel.style.display = '';
-  }
 
   updateProfile();
 }
@@ -12145,20 +12127,10 @@ function updateProfile() {
         )
     );
 
-  // Field hints: HRmax guard, resting HR, elevation
+  // Altitude factor for the VO₂ projection below. The lbl_* field hints that used to
+  // render here were removed 2026-08-19: HRVDex.src.html defines no lbl_ id at all, so
+  // every write was a guarded no-op (DEAD-FIELD-HINTS-FLEET-2026-08-19-BRIEF.md).
   const altFactor = p.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((p.elev - 1500) / 300) * 0.01);
-  const _set = (id, txt, est) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.textContent = txt;
-    el.classList.toggle('est', !!est);
-  };
-  if (hrmaxRejected) _set('lbl_hrmax', '⚠ entry too low — using Tanaka ' + tanaka + ' bpm', true);
-  else _set('lbl_hrmax', p.hrmax_manual > 0 ? '✓ your value ' + hrmax + ' bpm' : '~ Tanaka: 208 − 0.7 × age = ' + tanaka);
-  _set('lbl_hrrest', p.hrrest_manual > 0 ? '✓ your value' : '~ from morning readings: ' + _hrRest0 + ' bpm (median)', p.hrrest_manual <= 0);
-  if (p.elev >= 2500) _set('lbl_elev', '🏔 ' + p.elev.toLocaleString() + ' m · VO₂ ×' + altFactor.toFixed(2) + ' · HRV norms = sea-level (caution)', true);
-  else if (p.elev > 1500) _set('lbl_elev', '⛰ ' + p.elev.toLocaleString() + ' m · VO₂ ×' + altFactor.toFixed(2), true);
-  else _set('lbl_elev', '~ sea level · adjusts VO₂max above 1500 m');
   window._hrvProfileAlt = altFactor; // consumed by VO₂ projection
 
   // Recompute the VO₂ projection live (inferFromData only runs at load, so
@@ -12167,8 +12139,6 @@ function updateProfile() {
   if (_rhrProj > 0) {
     const vo2Proj = Math.round(15.3 * (hrmax / _rhrProj) * altFactor * 10) / 10;
     window._projVO2 = vo2Proj;
-    const lv = document.getElementById('lbl_vo2gt');
-    if (lv) lv.textContent = '∼ Uth-Sørensen → ' + vo2Proj + ' (HRmax ' + hrmax + '/HRrest ' + Math.round(_rhrProj) + (altFactor < 1 ? ' · alt ×' + altFactor.toFixed(2) : '') + ')';
     if (typeof renderANSAgeCard === 'function' && typeof allRows !== 'undefined' && allRows.length) renderANSAgeCard();
   }
 

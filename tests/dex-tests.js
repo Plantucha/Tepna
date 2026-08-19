@@ -1377,6 +1377,58 @@
       T.ok('…and its own SE', ha2.stability && ha2.stability.slopeSE > 0);
     });
 
+    /* FABRICATED-DEFAULTS-FLEET §7's last box. `std` returned 0 for n < 2 in both ppgdex-dsp.js and
+       hrvdex-dsp.js; the sample SD of one observation is UNDEFINED (denominator n-1 = 0), so 0 claimed
+       "no variability" from data that cannot support it — an SDNN of 0 ms reads as a perfectly regular
+       heart. Both now return NaN, matching each file's own `mean` (and hrvdex's `pearsonCorr`).
+
+       ⚠️ NaN, NOT null, and that choice is the assertion-worthy part: every caller that declines here
+       tests with `isNaN` or an `|| fallback`, and BOTH `isNaN(null)` and `isFinite(null)` are false —
+       so null would have converted a visible refusal into an invisible one. The fix would have moved
+       the fabrication rather than removed it.
+
+       ⚠️ WHY THIS GROUP DOES NOT TEST `std` DIRECTLY. It is internal to both files, and the honest
+       finding is that NO public path can reach it: every entry pre-guards (`timeDomain` returns null
+       under 2 and clamps `base` to >= 2; `sampEn` guards N < 60; `magInterfAtSec` guards < 3; both
+       hrvdex call sites pre-check `length > 1`). Measured: 66 public-call comparisons across 11
+       exported functions on six degenerate inputs, main vs fixed — 0 differ. So the change is
+       DEFENSIVE, and what actually needs pinning is the property that makes it defensive: the guards
+       at the public boundary. If one of those is ever removed, the fabricated 0 becomes reachable and
+       this group is what fires. Testing `std` itself would assert the fix; this asserts the reason the
+       fix is safe. */
+    group('the public boundary refuses degenerate input, which is what keeps std unreachable', 'ppgdex-dsp · degenerate-refusal', function (T) {
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!P || typeof P.allanFromPhase !== 'function') {
+        T.skip('PPGDSP available', 'not loaded');
+        return;
+      }
+      var SHORT = [[], [1]];
+      for (var i = 0; i < SHORT.length; i++) {
+        var a = SHORT[i];
+        var lbl = 'n=' + a.length;
+        T.eq('allanFromPhase refuses ' + lbl + ' with an empty tau set, not a fabricated deviation', JSON.stringify(P.allanFromPhase(a, 1)), '[]');
+        T.eq('detectorStability refuses ' + lbl, P.detectorStability(a, 1), null);
+        T.eq('riseFraction refuses ' + lbl, P.riseFraction(a, 1), null);
+      }
+      /* ANTI-VACUITY. Without these three the group passes if every function simply always refused —
+         which is the mirror-image fabrication (absence invented instead of presence), and the failure
+         mode §6.2 of that brief exists to name. A refusal is only honest if the same function returns
+         a real answer when it CAN look.
+         ⚠️ It already earned its place: the first draft used 16 points, on which `riseFraction` and
+         `detectorStability` BOTH still return null, so the leg failed and revealed that "adequate"
+         had been assumed rather than measured. 64 is the measured floor for `riseFraction`
+         (null at 16, 0.713 at 64). `detectorStability` needs a different call shape and stays in the
+         refusal legs only — an anti-vacuity leg that cannot be made true is not evidence. */
+      var ok = [];
+      var seed = 7;
+      for (var k = 0; k < 64; k++) {
+        seed = (16807 * seed) % 2147483647; // MINSTD, exact in a double — no Math.random
+        ok.push(k + (seed / 2147483647 - 0.5) * 0.01);
+      }
+      T.ok('allanFromPhase still RETURNS taus on adequate input — the refusals above are not blanket', P.allanFromPhase(ok, 1).length > 0);
+      T.ok('riseFraction still answers on adequate input, so its nulls above mean "could not look"', P.riseFraction(ok, 1) !== null);
+    });
+
     group('PpgDex Allan deviation agrees with BOTH sibling implementations, in two languages', 'ppgdex-dsp · detector-stability', function (T) {
       var P = env.PPGDSP || env.PpgDSP;
       if (!P || typeof P.allanFromPhase !== 'function') {
@@ -9032,6 +9084,57 @@
           n + " · object-src/base-uri/form-action 'none' (plugin/base/form-exfil closed)",
           /object-src\s+'none'/.test(content) && /base-uri\s+'none'/.test(content) && /form-action\s+'none'/.test(content),
           content
+        );
+      });
+    });
+
+    /* ════ DEAD FIELD HINTS — a write to an id that NO surface defines ════
+       DEAD-FIELD-HINTS-FLEET-2026-08-19: five nodes wrote 42 `lbl_*` field hints through guarded
+       setters (`if (!el) return`) to ids no .src.html defines. Every write was a silent no-op, which
+       is why nothing surfaced them for months — the render-side twin of a metric shown without an
+       evidence badge, and this repo prefers that class to fail VISIBLY.
+
+       Matched by PROPERTY, not by call shape, and that distinction is the whole gate. The brief
+       scoped itself to `set('lbl_X')` and undercounted HRVDex 6 -> 11, because five sites reached the
+       DOM through a bare getElementById instead. So: ANY `lbl_*` string literal in a node's inlined
+       JS must resolve to an id in that node's own .src.html. No `lbl_` id is created dynamically
+       anywhere in the tree (checked 2026-08-19), so a static rule cannot false-positive on injected
+       markup.
+
+       Node-lane only — env.nodeSurfaces is fs-read; the browser lane can't readdir, so it SKIPs
+       (mirrors docs-ledger / release-ledger / analysis-tools). */
+    group('Field hints never write to an id no surface defines', 'cohesion · dead-field-hints · render', function (T) {
+      var NS = env.nodeSurfaces;
+      if (!NS) {
+        T.skip('env.nodeSurfaces provided to the runner', 'Node-lane only — wire env.nodeSurfaces (run-tests.mjs readNodeSurfaces)');
+        return;
+      }
+      var nodes = Object.keys(NS);
+      T.ok('nodes available to the dead-hint gate', nodes.length >= 8, nodes.length + ': ' + nodes.join(', '));
+      nodes.forEach(function (node) {
+        var html = (NS[node] && NS[node].html) || '';
+        var js = (NS[node] && NS[node].js) || {};
+        var files = Object.keys(js);
+        // Anti-vacuity: a node whose sources went unread would contribute no references and read
+        // as clean. That is the "examined nothing, reported success" shape, so assert the scan
+        // actually had something to look at before believing its verdict.
+        T.ok(node + ' · inlined sources were actually read', files.length > 0 && html.length > 0, files.length + ' js file(s), ' + html.length + ' bytes of surface');
+        var ids = {};
+        var idRe = /id="([^"]+)"/g,
+          im;
+        while ((im = idRe.exec(html))) ids[im[1]] = true;
+        var dead = [];
+        files.forEach(function (f) {
+          (js[f] || '').split('\n').forEach(function (line, i) {
+            var re = /['"](lbl_[A-Za-z0-9_]+)['"]/g,
+              m;
+            while ((m = re.exec(line))) if (!ids[m[1]]) dead.push(f + ':' + (i + 1) + ' ' + m[1]);
+          });
+        });
+        T.ok(
+          node + ' · every lbl_* reference resolves to an id it defines',
+          dead.length === 0,
+          dead.length ? dead.length + ' dead — ' + dead.slice(0, 6).join(' · ') + (dead.length > 6 ? ' …' : '') : 'clean'
         );
       });
     });
