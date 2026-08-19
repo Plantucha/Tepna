@@ -1,7 +1,7 @@
 {
   "_doc": "ALLOW-LIST of skips (⊘ = neither pass nor fail). Every skip the suite emits MUST appear here, or the run REDS. why=corpus-absent → the leg needs a raw recording from the gitignored uploads/ corpus, so it cannot run on a fresh clone (CI, or the worktree CLAUDE.md §👥 mandates); point DEX_UPLOADS=<path> at a real corpus to actually run it. why=known-drift → a deliberate, documented environmental skip. Adding an entry here is a DELIBERATE act that shrinks the gate — justify it in the PR. See EFFICIENCY-AUDIT-FINDINGS-2026-07-12 §G1.",
   "corpusAbsent": 12,
-  "knownDrift": 0,
+  "knownDrift": 3,
   "allow": [
     {
       "group": "HRVDex recording block — startEpochMs earliest, spanDays ≥ 0 (VII §1)",
@@ -62,6 +62,24 @@
       "group": "Phase-9 compute() ≡ committed export — equivalence gate",
       "test": "CPAPDex (real EDF, 1 session — was code-gated with no leg) compute() ≡ committed export",
       "why": "corpus-absent"
+    },
+    {
+      "group": "Demo-inputs — every shipped demo path is git-tracked (CPAP-REAL-CORPUS-FOLLOWUPS-II §3)",
+      "test": "env.sources + env.trackedFiles provided to the runner",
+      "why": "known-drift",
+      "_note": "NO-GIT environment (mutate.mjs hard-linked workers exclude .git by design). readTrackedFiles returns null and the group skips — the DESIGNED degradation. Undeclared, this skip red the audit in every worker, and every mutant of every file scored a fabricated KILL from it (measured: 22 of 22 hrvdex conversions, 2026-08-19)."
+    },
+    {
+      "group": "Pre-push parity — `npm run check` runs every CI drift guard",
+      "test": "preflight sources wired",
+      "why": "known-drift",
+      "_note": "Same NO-GIT worker environment: preflight reads package.json/.github via git truth; absent .git ⇒ skip, declared here so the skip-audit stays strict everywhere else."
+    },
+    {
+      "group": "Fixture verification — no fixture may claim reproducibility nobody checked",
+      "test": "§3.1 · every corpus-backed fixture carries a verifiedUnder",
+      "why": "known-drift",
+      "_note": "Same NO-GIT worker environment: needs `git ls-files` truth. Skips by design; declared so mutation workers do not manufacture kills out of the audit."
     }
   ]
 }
