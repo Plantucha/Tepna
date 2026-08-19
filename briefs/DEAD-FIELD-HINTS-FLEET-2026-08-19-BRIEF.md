@@ -35,6 +35,37 @@ already records twice, surviving its own correction. §0 fixed the *character cl
 That is the repo's own "a check that examined nothing and reported cleanly" failure, inside the
 instrument built to close this very class.
 
+### The fleet total depends on the UNIT, and this brief never states which (added 2026-08-19)
+
+A peer recounted the last two nodes as **17** against this brief's **22** and was right — in a different
+unit. Both totals are correct; they count different things, and mixing them is what makes the arithmetic
+look broken:
+
+| unit | PpgDex | ECGDex | GlucoDex | HRVDex | PulseDex | fleet |
+|---|--:|--:|--:|--:|--:|--:|
+| `set('lbl_X')` **call sites** | 9 | 11 | 5 | 6 | 11 | **42** |
+| `lbl_*` **references**, any call shape | 9 | 11 | 6 | 11 | 11 | **48** |
+
+- **42** is what this brief's own `25 + 17` arithmetic counts, and it is an **undercount of the
+  defect** — it cannot see `_setSub(…)` or a bare `getElementById('lbl_…')`.
+- **48** is the number of writes that could not reach a surface, which is what "dead field-hint write" means.
+- **GlucoDex is the tell**: 5 hints, 6 references — `lbl_gluA1c` is written twice.
+
+⚠️ **Neither number is wrong; a number without its unit is.** Quote the unit beside the count, or the next
+reader has to choose between two true figures with nothing to choose on — which is exactly the
+re-derivation this brief's §0 exists to prevent.
+
+⚠️ **A stale count outlives the code.** `git grep -c "set('lbl_" glucodex-profile.js` still returns
+**1** on current main. It is a **comment** (line 333, prose describing the removal), not a surviving call —
+a raw grep count cannot tell code from the prose written about it.
+
+**The gate's premise was independently re-measured, by the session that raised the count** — no
+`lbl_` id is constructed anywhere on main: zero `'lbl_' + …`, zero `"lbl_" + …`, zero
+``lbl_${…}``. So a static rule cannot miss one, and the property-based gate is sound rather than
+merely convenient. That sweep also found **zero live `lbl_` references fleet-wide** — every surviving
+occurrence in tracked `.js` is a comment describing the removal, plus the gate's own assertions. The class
+is **closed**, not merely reduced.
+
 **The fix now matches by PROPERTY, not by call shape** — any `lbl_*` string literal, whatever syntax
 reaches it — and that rule is what the §5 gate enforces, so the blindness cannot return.
 
