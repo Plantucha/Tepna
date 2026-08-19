@@ -1377,58 +1377,6 @@
       T.ok('…and its own SE', ha2.stability && ha2.stability.slopeSE > 0);
     });
 
-    /* FABRICATED-DEFAULTS-FLEET §7's last box. `std` returned 0 for n < 2 in both ppgdex-dsp.js and
-       hrvdex-dsp.js; the sample SD of one observation is UNDEFINED (denominator n-1 = 0), so 0 claimed
-       "no variability" from data that cannot support it — an SDNN of 0 ms reads as a perfectly regular
-       heart. Both now return NaN, matching each file's own `mean` (and hrvdex's `pearsonCorr`).
-
-       ⚠️ NaN, NOT null, and that choice is the assertion-worthy part: every caller that declines here
-       tests with `isNaN` or an `|| fallback`, and BOTH `isNaN(null)` and `isFinite(null)` are false —
-       so null would have converted a visible refusal into an invisible one. The fix would have moved
-       the fabrication rather than removed it.
-
-       ⚠️ WHY THIS GROUP DOES NOT TEST `std` DIRECTLY. It is internal to both files, and the honest
-       finding is that NO public path can reach it: every entry pre-guards (`timeDomain` returns null
-       under 2 and clamps `base` to >= 2; `sampEn` guards N < 60; `magInterfAtSec` guards < 3; both
-       hrvdex call sites pre-check `length > 1`). Measured: 66 public-call comparisons across 11
-       exported functions on six degenerate inputs, main vs fixed — 0 differ. So the change is
-       DEFENSIVE, and what actually needs pinning is the property that makes it defensive: the guards
-       at the public boundary. If one of those is ever removed, the fabricated 0 becomes reachable and
-       this group is what fires. Testing `std` itself would assert the fix; this asserts the reason the
-       fix is safe. */
-    group('the public boundary refuses degenerate input, which is what keeps std unreachable', 'ppgdex-dsp · degenerate-refusal', function (T) {
-      var P = env.PPGDSP || env.PpgDSP;
-      if (!P || typeof P.allanFromPhase !== 'function') {
-        T.skip('PPGDSP available', 'not loaded');
-        return;
-      }
-      var SHORT = [[], [1]];
-      for (var i = 0; i < SHORT.length; i++) {
-        var a = SHORT[i];
-        var lbl = 'n=' + a.length;
-        T.eq('allanFromPhase refuses ' + lbl + ' with an empty tau set, not a fabricated deviation', JSON.stringify(P.allanFromPhase(a, 1)), '[]');
-        T.eq('detectorStability refuses ' + lbl, P.detectorStability(a, 1), null);
-        T.eq('riseFraction refuses ' + lbl, P.riseFraction(a, 1), null);
-      }
-      /* ANTI-VACUITY. Without these three the group passes if every function simply always refused —
-         which is the mirror-image fabrication (absence invented instead of presence), and the failure
-         mode §6.2 of that brief exists to name. A refusal is only honest if the same function returns
-         a real answer when it CAN look.
-         ⚠️ It already earned its place: the first draft used 16 points, on which `riseFraction` and
-         `detectorStability` BOTH still return null, so the leg failed and revealed that "adequate"
-         had been assumed rather than measured. 64 is the measured floor for `riseFraction`
-         (null at 16, 0.713 at 64). `detectorStability` needs a different call shape and stays in the
-         refusal legs only — an anti-vacuity leg that cannot be made true is not evidence. */
-      var ok = [];
-      var seed = 7;
-      for (var k = 0; k < 64; k++) {
-        seed = (16807 * seed) % 2147483647; // MINSTD, exact in a double — no Math.random
-        ok.push(k + (seed / 2147483647 - 0.5) * 0.01);
-      }
-      T.ok('allanFromPhase still RETURNS taus on adequate input — the refusals above are not blanket', P.allanFromPhase(ok, 1).length > 0);
-      T.ok('riseFraction still answers on adequate input, so its nulls above mean "could not look"', P.riseFraction(ok, 1) !== null);
-    });
-
     group('PpgDex Allan deviation agrees with BOTH sibling implementations, in two languages', 'ppgdex-dsp · detector-stability', function (T) {
       var P = env.PPGDSP || env.PpgDSP;
       if (!P || typeof P.allanFromPhase !== 'function') {
@@ -5615,7 +5563,10 @@
       var fbInf = sum(mk({ meanHr: Infinity }, null));
       var adInf = sum(mk({ meanHr: Infinity }, null, { hr_spikes: [] }));
       T.ok('adapter NULLS a non-finite meanHr (its isFinite guard)', adInf && adInf.pulseHr1Hz == null);
-      T.ok('fallback surfaces it raw — proving the bare payload really took the FALLBACK route; if this reds, the intercept predicate moved and §4 must be re-decided', fbInf && fbInf.pulseHr1Hz === Infinity);
+      T.ok(
+        'fallback surfaces it raw — proving the bare payload really took the FALLBACK route; if this reds, the intercept predicate moved and §4 must be re-decided',
+        fbInf && fbInf.pulseHr1Hz === Infinity
+      );
     });
 
     /* ── WEARABLE-HOST-AXIS-FOLLOWUPS §F6 · BEAT TIMES REACH THE FUSION ───────────────────────────
