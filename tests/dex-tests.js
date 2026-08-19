@@ -25873,7 +25873,6 @@
       T.eq('a marker outside the ±window does not annotate', ef.annotated, false);
     });
 
-
     group('GlucoDex genSynthetic — the generator honours its three options (mutation bootstrap)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
       var G = (env.GLUDSP && env.GLUDSP.genSynthetic && env.GLUDSP) || (env.GlucoDex && env.GlucoDex.genSynthetic && env.GlucoDex) || null;
       if (!G) {
