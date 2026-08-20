@@ -88,13 +88,16 @@ def set_time_frame(dt, seq: int = 0) -> bytes:
 # timeout against a ~4.1 s FILE_LIST reply. Do not re-introduce an MTU precondition.
 OP_FILE_LIST, OP_FILE_START, OP_FILE_DATA, OP_FILE_END = 0xF1, 0xF2, 0xF3, 0xF4
 OP_GET_CONFIG, OP_GET_INFO, OP_GET_BATTERY = 0x00, 0xE1, 0xE4   # read-only device queries
-# ⚠️ DELIBERATELY NOT IMPLEMENTED — these WRITE persistent device state, the class this project gates
-# (cf. the Verity trigger writes in POLAR-PMD-COMMAND-SURFACE §5). Named so the opcodes are not reused:
-#   0x01 SET_CONFIG        — writes one settings field (plaintext on 2D010001; AES path unused)
+# ⚠️ NEVER IMPLEMENT — persistent DESTRUCTIVE writes. Named so the opcodes are not reused:
 #   0xE3 FACTORY_RESET     — wipes settings AND every recording; no settings-only path
 #   0xEE FACTORY_RESET_ALL — powers the ring off, needs USB to wake. DO NOT ISSUE.
+# 0x01 SET_CONFIG sat on this list until 2026-08-19 (owner-ordered): it is a REVERSIBLE settings write
+# (brightness, vibration intensity, alarm thresholds — the knobs the vendor app exposes), now gated
+# behind set_config_frame's field whitelist + ring_config.py's full-struct read-back. It shares nothing
+# with the resets above except an opcode neighbourhood — which is exactly why the gate is field-level.
 # Ref: nglessner/o2ring-s-protocol (this device's OxyII family; frame codec byte-verified against ours,
 # CRC fixture A5 E1 1E 00 02 00 00 -> BF matches encode(0xE1, seq=2)).
+OP_SET_CONFIG = 0x01
 OP_RT_PPG = 0x05          # raw TWO-CHANNEL optical buffer (see parse_rt_ppg + WHICH-IS-WHICH)
 
 
@@ -555,6 +558,43 @@ def parse_battery(payload: bytes) -> dict | None:
     if len(payload) < 2:
         return None
     return {"state": payload[0], "level": payload[1]}
+
+
+# ── SET_CONFIG (0x01) — the GATED settings writer (owner-ordered 2026-08-19) ─────────────────────────
+# Payload per nglessner/o2ring-s-protocol: 8 bytes LE, [field_index, 0, 0, 0, value, 0, 0, 0].
+# ⚠️ The WRITE-side field indices are a DIFFERENT enumeration from parse_config's READ-side byte
+# offsets — MOTOR is write-field 6 but read-byte 4 ("motor"), BRIGHTNESS write-field 9 but read-byte 7.
+# `readback` names the parse_config key each write should move so ring_config.py can verify the exact
+# byte; None for the two alarm switches, which fold into bitfields (alarm_flags/motor/buzzer) where
+# only the full-struct diff can judge the effect. Value ranges: BRIGHTNESS is documented (0/1/2);
+# every other range is UNDOCUMENTED upstream — a byte is accepted and the mandatory read-back is the
+# real validator (upstream's own advice: discover ranges empirically via GET_CONFIG before/after).
+SET_CONFIG_FIELDS = {
+    "spo2_switch":  {"index": 1, "max": 255, "readback": None},
+    "spo2_low":     {"index": 2, "max": 255, "readback": "spo2_low"},
+    "hr_switch":    {"index": 3, "max": 255, "readback": None},
+    "hr_low":       {"index": 4, "max": 255, "readback": "hr_low"},
+    "hr_high":      {"index": 5, "max": 255, "readback": "hr_high"},
+    "motor":        {"index": 6, "max": 255, "readback": "motor"},
+    "display_mode": {"index": 8, "max": 255, "readback": "display_mode"},
+    "brightness":   {"index": 9, "max": 2, "readback": "brightness"},
+    "interval":     {"index": 10, "max": 255, "readback": "storage_interval"},
+}
+
+
+def set_config_frame(field: str, value: int, seq: int = 0) -> bytes:
+    """One whitelisted settings write. Raises ValueError on an unknown field or out-of-range value —
+    the whitelist is the gate that keeps this opcode's neighbourhood (0xE3/0xEE factory resets)
+    unreachable by construction: only a name in SET_CONFIG_FIELDS can produce a frame, and the frame's
+    opcode is hard-coded. Callers MUST read the config back after writing (ring_config.py does a
+    full-struct diff); a write without read-back is a claim, not a setting."""
+    spec = SET_CONFIG_FIELDS.get(field)
+    if spec is None:
+        raise ValueError(f"unknown SET_CONFIG field {field!r} — whitelist: {sorted(SET_CONFIG_FIELDS)}")
+    v = int(value)
+    if not 0 <= v <= spec["max"]:
+        raise ValueError(f"{field}={value} out of range 0..{spec['max']}")
+    return encode(OP_SET_CONFIG, bytes([spec["index"], 0, 0, 0, v, 0, 0, 0]), seq)
 
 
 # ── STORED-FILE (Format A) SESSION-STATS TRAILER ────────────────────────────────────────────────────
