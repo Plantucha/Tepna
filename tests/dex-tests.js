@@ -44555,6 +44555,46 @@
       T.eq('…nor does an absent name throw', R.sessionStamp(null), null);
     });
 
+    /* ════ …AND THE TOOL MUST NOT KEEP ITS OWN COPY OF THAT RULE ═══════════════════════════════════
+       The group above fixed and gated the PARSER. `tools/resp-acc-headless.mjs` kept a private
+       `_YYYYMMDD_HHMMSS_ACC` regex in its pre-flight, and nothing pointed at it — so the fix landed in
+       one of the two places that implement the rule and the tool went on announcing the old answer.
+
+       Measured 2026-08-20 on 193 real capture-host files, in a single run's output:
+
+           193 ACC file(s), 0 of them name-matching groupFiles()          <- the tool's pre-flight
+           ⚠ none match — box captures write YYYYMMDDHHMMSS ...           <- and its conclusion
+           grouped 188 night(s) with both ACC and CPAP flow               <- the page, 3 lines later
+
+       A confident wrong pre-flight is worse than no pre-flight: it tells a reader the corpus is
+       unanalysable when it is not, which is precisely the false conclusion MOTIONDEX-RESPIRATORY-RATE
+       §11 had to correct at corpus scale ("Nobody had looked"). The tool now CALLS `sessionStamp`.
+
+       This is a SOURCE SCAN, in the same spirit as the one forbidding `build.mjs` to write
+       `verifiedUnder`: the property being protected is "there is one implementation", and only reading
+       the file can assert that. A behavioural test cannot — the tool needs a browser and a gitignored
+       corpus, so CI can never run it, and a gate that cannot run is the hollow-gate pattern this
+       repo keeps finding. */
+    group('the resp-acc headless tool does not re-implement sessionStamp', 'resp-acc-analysis · corpus · single-source', function (T) {
+      var src = env.respAccHeadlessSrc;
+      if (typeof src !== 'string' || !src) {
+        T.skip('tools/resp-acc-headless.mjs readable', 'source not wired into this lane (browser lane cannot read files)');
+        return;
+      }
+      T.ok('ANTI-VACUITY · the source really was loaded', src.length > 2000 && src.indexOf('resp-acc-analysis.html') >= 0, 'len=' + src.length);
+      T.ok('the tool delegates to RespAccAnalysis.sessionStamp', src.indexOf('sessionStamp') >= 0, 'no reference to the shared parser');
+      /* The exact shape that drifted: a date-time regex applied to an ACC filename, anywhere in the
+         tool. `sessionStamp` is the only thing allowed to know that grammar. */
+      /* ⚠ The first draft of this line used `[^)]` between the two digit runs — which excludes the
+            very `)` that sits between the capture groups in `_(\d{8})_(\d{6})_ACC`, so it matched
+            nothing and the leg passed WITH the regression planted. Verified by re-planting it. */
+      var privateRe = /\\d\{8\}[\s\S]{0,30}\\d\{6\}[\s\S]{0,30}_ACC/;
+      T.ok('…and keeps NO private _YYYYMMDD_HHMMSS_ACC regex of its own', !privateRe.test(src), 'a second copy of the filename grammar is present');
+      /* And it must not fall back to one when the parser cannot be loaded — failing OPEN there is how
+         the two copies would silently diverge again. */
+      T.ok('…and says so rather than guessing when the parser will not load', /pre-flight SKIPPED, not guessed/.test(src), 'the no-parser branch should refuse, not fall back');
+    });
+
     /* ════ THE FIGURE LAYER'S ARITHMETIC — Bland–Altman, gated because it is PUBLISHED ═════════════
      Until 2026-08-06 `resp-acc-analysis.html` rendered tables only: no `<canvas>` anywhere and no
      export path, so no run of it could emit a PNG and three preprints were blocked on a capability
