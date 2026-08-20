@@ -143,9 +143,11 @@ precisely when it mattered most.
       corpora re-folded so all 39 nights carry band fields. AUC barely moves (0.610 → 0.599) so the
       verdict is unchanged, but prevalence (14.3 → 11.8 %) and the break-even (a coarse-grid "~0.70",
       really 0.664 → 0.684) were both wrong and are corrected there.
-- [ ] **A better LABEL** — PSG, or flow-based apnea scoring not gated on a 3 % desaturation. §9.6 bounds
+- [~] **A better LABEL** — PSG, or flow-based apnea scoring not gated on a 3 % desaturation. §9.6 bounds
       why: ~50 % of "clean" Deep epochs would have to hide unscored apnea before VLF's true power
       clears the actionable threshold. This is the only remaining lever, and it is not a code change.
+      > **PARTLY ANSWERED 2026-08-20 — the label EXISTS, on 29 of these nights, and it already narrows
+      > the hatch by an order of magnitude. See §11.**
 
 ## 7 · Re-measured on the grown corpus (2026-07-30) — confirms one thing, weakens another
 
@@ -703,3 +705,67 @@ so a future edit cannot quietly re-write the brief's own numbers. The next re-ru
 One casualty is permanent: the normal-model script behind §11.2's break-even figures (0.664 / 0.684)
 was not recoverable, so §12 decides on the **empirical** operating-point net instead, which needs no
 model. §11.2's numbers stand as published; they are not re-derived here.
+
+## 11 · The "better LABEL" is not PSG-only — the ResMed already scores flow, desat-independently (2026-08-20)
+
+§6's last box reads as blocked on data nobody has: *"PSG, or flow-based apnea scoring not gated on a 3 %
+desaturation … not a code change."* The second half of that disjunction is **available**, on the same
+nights, through a parser this repo already ships.
+
+**The ResMed writes its own event scoring to `*_EVE.edf`, and it has no oximeter** — so its
+apnea/hypopnea labels cannot be gated on a 3 % desaturation, which is exactly the independence §9.6
+needs. `CpapEdf.readEDF` + `CpapDsp.eveEvents` already parse them into typed events; no new code.
+
+**Overlap with this brief's corpus: 31 nights carry both, 29 of them with usable event files.**
+(`uploads/trio` ∩ `Ecg-nightly-archive/CPAP`, 192 CPAP nights available in total.)
+
+| | |
+|---|---|
+| nights with flow labels **and** trio signals | **29** |
+| recorded hours (denominator from `_BRP.edf`, `numRecords × recDurSec`) | **186.1** |
+| flow-scored events | **647** — Central Apnea 492 · Hypopnea 118 · Obstructive Apnea 37 |
+| device residual AHI | median **2.9/h** (1.11 – 7.08) |
+| event-time as a share of recorded time | median **0.96 %**, pooled **1.27 %**, worst night 3.08 % |
+| **30 s epochs touched by ANY flow event — upper bound** | **1197 of 22336 = 5.36 %** |
+
+The epoch figure is a deliberate **upper** bound: an event of duration D is charged `ceil(D/30) + 1`
+epochs, so a 13 s event (the median) costs 2 epochs even when it falls inside one.
+
+### What it does and does not settle
+
+**§9.6's escape hatch needs ~50 % of clean Deep epochs to hide unscored apnea. A desat-INDEPENDENT
+instrument, on these same nights, finds flow events touching at most 5.36 % of ALL epochs.** That is an
+order of magnitude short, and it is measured rather than assumed.
+
+⚠️ **It does not close the hatch outright, and the reason is worth stating precisely.** The bound is over
+*all* epochs; §9.6 is about *Deep* epochs specifically. If every residual event concentrated into Deep
+sleep — say 15–20 % of the night — Deep-epoch contamination could reach **~27–36 %**, which is below 50 %
+but no longer by an order of magnitude. Ruling that out needs the events matched to staged epochs, which
+needs per-night clock alignment (see `cpap-clock-42min-offset`: the ResMed ran 42 min behind on
+2026-07-26, and the Integrator caught it). **The prevalence bound above is alignment-INDEPENDENT** — it
+counts event-seconds against recorded seconds within one device's own file — which is why it is reported
+first and separately.
+
+⚠️ **Second limit: this is a TREATED patient.** CPAP is suppressing the events, so a low residual is the
+therapy working, not evidence about untreated physiology. That does not weaken the argument for *this*
+brief — its epochs come from these same treated nights, so the label noise on those epochs is what the
+verdict rests on — but it does mean the number must never be quoted as an apnea prevalence.
+
+⚠️ **Third: the bound is conditional on the ResMed's own sensitivity.** A flow-limitation event the
+device does not score is invisible here too. This narrows the hatch; it does not seal it.
+
+**Owed next, and now cheap:** match the 647 events to staged epochs on the 29 nights (clock-aligned per
+night, refusing any night whose skew cannot be established) and read the Deep-epoch share directly. That
+turns the 5.36 % all-epoch bound into the Deep-epoch number §9.6 actually asks for.
+
+### Method note — three well-formed zeros on the way here
+
+Getting these numbers produced **three** clean, plausible zeros in a row, each from a guessed API name
+inside a `try/catch`: `parseEDF` (the function is `readEDF`), then `nRecords`/`recordDurSec` (they are
+`numRecords`/`recDurSec`), then a duration of 0 from the `_EVE` files themselves — which is **correct**,
+because an annotation-only EDF has `recDurSec = 0` and the denominator has to come from `_BRP`.
+
+The first two printed *"29 nights, 0 events"* and *"0 nights with a readable duration"* — both
+well-formed, both wrong, and the first would have been written up as *"the CPAP corpus has no event
+data"*. `CLAUDE.md` §👥.4b's family exactly. **Read the API, do not guess it; and never let a `catch`
+swallow the error that would have told you.**
