@@ -7113,6 +7113,79 @@
        does not (the centroid removes the window's bias). Anyone re-running the sweep on a different
        deployment — which the change's own comment says is warranted, since it is calibrated on one —
        needs those two properties to still hold, or the sweep means something else. */
+    /* The sibling group pins that the POOLED point estimate is the support's centroid, not the argmax,
+       because a +/-matchSec window makes the peak a plateau ~2*matchSec wide. That correction was
+       applied to the pooled value and NOT to the per-channel one, in the same function — so
+       `ownOffsetSec` carried the whole plateau bias. Measured 2026-08-19 at +/-0.1 s jitter:
+
+         matchSec   10    20    30    45    90
+         own bias   -7   -17   -27   -42   -87     <- almost exactly -matchSec
+         pooled     +0.5 +0.5  +0.5  +0.5  +0.5
+
+       User-visible, not internal: `integrator-app.js` renders it as "(own peak N min - does NOT
+       support this offset)". This group is what keeps the two estimators together. */
+    group("a channel's OWN offset is centroid-corrected too, not just the pooled one", 'integrator-dsp · clock-fit-pooled · own-offset-bias', function (T) {
+      const D = env.IntegratorDSP || env.D || null;
+      const pooled = D && D.fitClockOffsetPooled;
+      if (typeof pooled !== 'function') {
+        T.skip('fitClockOffsetPooled available', 'integrator-dsp not loaded');
+        return;
+      }
+      let seed = 7;
+      const rnd = () => {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed / 0x7fffffff;
+      };
+      const T0 = Date.UTC(2026, 7, 1, 23, 0, 0);
+      const OFF = 137;
+      const runAt = (matchSec) => {
+        seed = 7;
+        const A = [];
+        let t = T0;
+        for (let i = 0; i < 40; i++) {
+          A.push(t);
+          t += 208000 * (0.3 + 1.4 * rnd());
+        }
+        /* +/-0.1 s jitter — near-perfect data, so any offset error is the ESTIMATOR, not the input. */
+        const ch = [{ node: 'N', channel: 'c', times: A.map((x) => x + OFF * 1000 + (rnd() - 0.5) * 200) }];
+        const o = pooled(A, ch, { matchSec: matchSec, stepSec: 5 });
+        return { pooled: o.offsetSec, own: ((o.channels || o.perChannel || [])[0] || {}).ownOffsetSec };
+      };
+      /* THE WINDOW SWEEP IS THE POINT. A single window could pass on a lucky fixture; the defect was a
+         bias that SCALED with matchSec, so only sweeping it distinguishes "corrected" from "corrected
+         at 30 by coincidence". */
+      for (const ms of [10, 20, 30, 45, 90]) {
+        const r = runAt(ms);
+        T.ok(
+          'matchSec ' + ms + ': own offset is within 2 s of planted (was off by ~-matchSec)',
+          r.own != null && Math.abs(r.own - OFF) <= 2,
+          'own=' + r.own + ' planted=' + OFF + ' err=' + (r.own == null ? 'null' : (r.own - OFF).toFixed(1))
+        );
+        T.ok('matchSec ' + ms + ': own agrees with pooled to 2 s', r.own != null && Math.abs(r.own - r.pooled) <= 2, 'own=' + r.own + ' pooled=' + r.pooled);
+      }
+      /* ANTI-VACUITY: without this the group passes if `ownOffsetSec` were hard-wired to the pooled
+         value. A genuinely disagreeing channel must still report ITS OWN answer — that is the whole
+         reason the field exists ("what makes a genuinely disagreeing sensor visible"). */
+      seed = 7;
+      const A2 = [];
+      let t2 = T0;
+      for (let i = 0; i < 40; i++) {
+        A2.push(t2);
+        t2 += 208000 * (0.3 + 1.4 * rnd());
+      }
+      const two = pooled(
+        A2,
+        [
+          { node: 'A', channel: 'a', times: A2.map((x) => x + 137000 + (rnd() - 0.5) * 200) },
+          { node: 'B', channel: 'b', times: A2.map((x) => x + 900000 + (rnd() - 0.5) * 200) }
+        ],
+        { matchSec: 30, stepSec: 5 }
+      );
+      const recs = two.channels || two.perChannel || [];
+      const owns = recs.map((r) => r.ownOffsetSec);
+      T.ok('a disagreeing channel still reports its OWN peak, not the pooled one', owns.length === 2 && Math.abs(owns[0] - owns[1]) > 300, owns.join(' vs '));
+    });
+
     group('the match window buys resolution, not accuracy', 'integrator-dsp · clock-fit-pooled · window-sweep', function (T) {
       var D = env.IntegratorDSP || env.D || null;
       var pooled = D && D.fitClockOffsetPooled;
