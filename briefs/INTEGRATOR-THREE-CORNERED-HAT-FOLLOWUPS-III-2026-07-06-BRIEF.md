@@ -97,6 +97,53 @@ the quiet-order shape) and promotes the **coupled-pair-weighted ρ** from candid
 `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-IV-2026-07-13-BRIEF.md` §1. Analysis-only: no runtime code, bundle,
 `manifestHash`, or fixture moved.
 
+## §1-RERUN · 2026-08-20 — the data gate this brief named is OPEN, and the harness behind it was BROKEN
+
+This brief closed §1 saying the multi-night distribution *"is now **data-gated, not code-gated** — it
+needs more nights' three node-export JSONs committed"*, on **24** trio nights. `uploads/trio/` now
+holds **55** nights, **54** of them carrying all three of ECGDex + PpgDex + OxyDex (one lacks PpgDex).
+The data gate is satisfied.
+
+**The code gate had closed behind it.** `tools/tch-multinight.mjs --dir` — the committed harness this
+brief points at — died on its first real night:
+
+```
+ReferenceError: prov is not defined
+    at readNightDir (tools/tch-multinight.mjs:301)
+```
+
+`prov` and `pseudo` are both written inside `readNightDir` and returned from it, and neither was ever
+declared. They arrived with **#1418**, whose title is *"the drawn-axis TCH guard has been inert since
+it shipped"* — a fix for an inert guard that itself shipped inert on the only path that exercises it.
+**Nothing in this repo could have caught it:** `--selftest` (the CI-safe path) never calls
+`readNightDir`, and `--dir` needs the gitignored corpus, so no gate and no CI lane reaches that code.
+Fixed here; `--selftest` still passes 30/30.
+
+**The rerun, on 55 nights (47 estimated, 8 excluded):**
+
+```
+    8 EXCLUDED — negative classic variance: the correlated fit sits on the non-negativity
+      boundary, so the boundary member's σ is ~0 by construction, not by measurement
+    median culprit σ (ρ-on) = 1.44 bpm
+    median σ[ECGDex]  classic=0.40  ρ-on=0.44 bpm
+    median σ[PpgDex]  classic=0.39  ρ-on=0.53 bpm
+    median σ[OxyDex]  classic=1.10  ρ-on=1.31 bpm
+```
+
+🔴 **DO NOT read these against this brief's 24-night figures (ECGDex 0.79 / OxyDex 1.08 / PpgDex 2.20),
+and in particular do not conclude the corner ranking inverted.** The tool prints *"all 55 night(s)
+from one producing code version"* and `readNightDir`'s own comment states the reason: a
+`quality.timingSource` cohort split *"made two published σ medians incomparable."* The 2026-07-13
+figures were produced by **older node code**; every export in `uploads/trio/` has since been
+regenerated. The medians moved a great deal — PpgDex most — but **producing-code version is
+confounded with corpus composition here**, and separating them needs a same-code A/B, not a
+side-by-side of two published numbers. That is the exact error this brief's own tooling was built to
+prevent.
+
+**What is now true:** §1's distribution is runnable on 47 estimated nights instead of 24, through the
+shipped kernel, from a committed harness that works. **What is not yet true:** any claim about how the
+σ ranking changed.
+
 ## §2 — a real-signal (not in-code) golden variant, once a synth raw-ECG generator exists 🟢 (LOW) — RE-DEFERRED 2026-07-13 → FU-IV §2
 The §2 golden rebuilds its three inputs **in-code** (the `cpapdex_synthetic_golden` precedent) — deliberately, so
 it gates on Integrator code alone. The heavier "run each node's real `compute()` on co-recorded raw streams"
