@@ -7191,7 +7191,8 @@
         /* +/-0.1 s jitter — near-perfect data, so any offset error is the ESTIMATOR, not the input. */
         const ch = [{ node: 'N', channel: 'c', times: A.map((x) => x + OFF * 1000 + (rnd() - 0.5) * 200) }];
         const o = pooled(A, ch, { matchSec: matchSec, stepSec: 5 });
-        return { pooled: o.offsetSec, own: ((o.channels || o.perChannel || [])[0] || {}).ownOffsetSec };
+        const c0 = (o.channels || o.perChannel || [])[0] || {};
+        return { pooled: o.offsetSec, own: c0.ownOffsetSec, ownSpread: c0.ownSpreadSec, poolSpread: o.spreadSec };
       };
       /* THE WINDOW SWEEP IS THE POINT. A single window could pass on a lucky fixture; the defect was a
          bias that SCALED with matchSec, so only sweeping it distinguishes "corrected" from "corrected
@@ -7204,7 +7205,22 @@
           'own=' + r.own + ' planted=' + OFF + ' err=' + (r.own == null ? 'null' : (r.own - OFF).toFixed(1))
         );
         T.ok('matchSec ' + ms + ': own agrees with pooled to 2 s', r.own != null && Math.abs(r.own - r.pooled) <= 2, 'own=' + r.own + ' pooled=' + r.pooled);
+        /* ── THE PER-CHANNEL SUPPORT WIDTH (CROSS-DEVICE-DRIFT-FOLLOWUPS box 163) ──────────────
+           `ownSpreadSec` is the width of the interval this channel alone cannot distinguish from its
+           own peak — the per-channel twin of the pooled `spreadSec`, by the same unit-noise rule.
+           Pinned against the MATCH WINDOW rather than to a constant: a hard +/-matchSec window makes
+           the peak a plateau about 2*matchSec wide, so the support must GROW with the window. A field
+           hard-wired to any fixed value, or accidentally aliased to the pooled spread, fails here. */
+        T.ok('matchSec ' + ms + ': ownSpreadSec is published and positive', r.ownSpread > 0, 'ownSpread=' + r.ownSpread);
+        T.ok('matchSec ' + ms + ': the support is on the order of the plateau the window creates', r.ownSpread <= 4 * ms + 20, 'ownSpread=' + r.ownSpread + ' matchSec=' + ms);
       }
+      /* ANTI-VACUITY for the width, and the one a constant would survive: a WIDER match window must
+         produce a WIDER support. This is the property that distinguishes a measured resolution from a
+         published constant, and it is checked across the sweep's own endpoints rather than asserted. */
+      var narrow = runAt(5).ownSpread,
+        wide = runAt(30).ownSpread;
+      T.ok('a wider match window widens the support it resolves to', wide > narrow, 'matchSec 5 -> ' + narrow + ' s, matchSec 30 -> ' + wide + ' s');
+
       /* ANTI-VACUITY: without this the group passes if `ownOffsetSec` were hard-wired to the pooled
          value. A genuinely disagreeing channel must still report ITS OWN answer — that is the whole
          reason the field exists ("what makes a genuinely disagreeing sensor visible"). */
