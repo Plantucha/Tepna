@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-08-03 (**Do 4 MEASURED and REFUTED** — on the real 28-day CGM corpus `SD/MADn` is 1.07, so a robust scale moves CV by 0.85 pp; the committed synthetic reads 2.48 and would have "confirmed" it. The nocturnal artifact is a LEVEL shift, not variance. Do 1/2/3/5 unmeasured) · **Created:** 2026-07-14 · **Follows:** `TCH-FUSED-ROBUST-HAT-2026-07-14-BRIEF.md`
+**Status:** DONE — 2026-08-20 (**all five Do items closed**: Do 1 owes no build — (a) already satisfied by `timeseries.rr.conf`, (b) unjustified at 0.19 % of epochs · Do 2 REFUTED · Do 3 already shipped and load-bearing · Do 4 REFUTED · Do 5 EXECUTED — bSQI made observable, the "≈0 corpus-wide" claim refuted, and the real defect found and fixed) · **Created:** 2026-07-14 · **Follows:** `TCH-FUSED-ROBUST-HAT-2026-07-14-BRIEF.md` · **Followed-by:** `TCH-FUSED-ROBUST-HAT-FOLLOWUPS-II-2026-08-20-BRIEF.md`
 
 # Fused-hat follow-ups — where `beatConfidence` + robust-variance generalize across the Dex fleet
 
@@ -282,6 +282,27 @@ because they cost differently: **(a) exporting per-epoch `c`** adds a field and 
 artifact-gate brief asked for without changing any existing metric's value; **(b) down-weighting low-`c`
 seconds in `buildNN`/`epochEngine`** changes computed outputs and is what forces the regen. (a) is
 defensible on 0.19 %; (b) needs a reason those 9 epochs reach a decision, which nobody has yet shown.
+
+#### Do 1(a) is ALREADY SATISFIED — verified against the committed export, 2026-08-20
+
+Before building (a), the export was checked rather than assumed — this brief's own recurring finding is
+that *"already implemented"* and *"implemented and doing nothing"* are the two outcomes this repo
+confuses. The RICH node export already carries the fused-hat `c`, and at **finer** granularity than (a)
+asks for: `timeseries.rr.conf` is a **per-beat** array, verified present in the committed
+`synthetic_ecgdex_rich_golden.node-export.json` (n = 60, range 0.950–1.000), documented in source as
+*"the per-beat weight `tchSigmasFused` multiplies in"* and explicitly distinguished there from
+`epochs[].sqi` (a 5-min mean) and from `corrected` (an interpolation flag).
+
+Each epoch publishes `tMin` and the beat array publishes `tSec`, so a **per-epoch mean of `c` is
+derivable by any consumer** from what already ships. Adding one would be a convenience field carrying no
+new information — and it would move every ECGDex fixture output to do it.
+
+⚠️ The rich export is the one the **Integrator** consumes (`signal-orchestrate.emitEcgNodeExport` is the
+only caller passing `opts.rich`), so the consumer (a) exists for is exactly the one already served. The
+LIGHT export carries no `timeseries` at all, by design; that is not a gap (a) would close either.
+
+**So Do 1 owes no build.** (a) is done; (b) still needs a reason those 9 epochs (0.19 % of 4845) reach a
+decision, which nobody has shown — carried to the follow-up as the one live question.
 
 ### ⛔ Do 2 (PulseDex/HRVDex robust HRV) — MEASURED 2026-08-18, and REFUTED as stated
 
