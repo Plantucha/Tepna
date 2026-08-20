@@ -543,12 +543,41 @@ the pool on 2026-08-20 — from full-price to a millisecond kill. `oxydex` shoul
   hypothesis. Rank is robust to any uniform slowdown. **Falsified if `integrator` finishes in the top
   three by wall-clock** among the fleet's files.
 - 🔴 **PRECONDITION, and it must be checked BEFORE any verdict is recorded: #1579's guard group has to
-  be in the sweeping checkout's tree when integrator's worker pool is built.** The sweep runs from a
+  be in the tree the WORKERS hold when integrator's pool is built** — which is not the same file as the
+  checkout's, and the difference is measurable rather than theoretical (below). The sweep runs from a
   checkout that was pinned when it started; if the group is not pulled in before that file begins, a
   slow integrator **falsifies nothing** — it is simply the 2026-08-20 scenario re-run, and reading it
   as a refutation would retire a correct account on evidence that never tested it. A fabricated
   disproof is worse than a fabricated proof here, because nothing downstream re-examines a hypothesis
   already marked dead.
+
+**HOW to check the precondition — grep the WORKER tree, not the checkout.** Workers are `cp -al`
+hard-linked copies built once per file, so a `git merge` into the sweeping checkout **breaks the link
+and leaves the running pool frozen on the old bytes**. Measured live on 2026-08-20 while #1579 was
+merged mid-`ecgdex`:
+
+| file read | inode | `_wrappedSlopeFit` occurrences |
+|---|---|---|
+| the running pool's `w0/tests/dex-tests.js` | 1848293 | **10** (pre-#1579) |
+| the checkout's `tests/dex-tests.js` | 1857358 | **21** (post-#1579) |
+
+Eleven occurrences apart, while `git log`, `git status` and a grep of the checkout all agreed the group
+had landed. So:
+
+```sh
+w=~/.mutate-w0-$(jq -r .child < .git/tepna-mutation/suite.pid)
+grep -c _wrappedSlopeFit "$w/tests/dex-tests.js"     # 21 ⇒ precondition MET
+```
+
+The pool directory is suffixed with the **child pid**, which `suite.pid` records, so it names the right
+pool even while a superseded pool is still draining. **21 there is the precondition; anything else is
+not, whatever `git log` says.** One more rung of the same ladder: `origin/main` proves the commit
+landed · the checkout proves it was pulled · **only the worker tree proves the processes that produce
+the verdicts can see it.**
+
+⚠️ **Consequence for the ledger, not just the prediction: `ecgdex`'s numbers came from the PRE-guard
+suite** — its pool was built before the merge and stayed frozen, by construction. So ecgdex is not
+comparable with `glucodex` onward, and a fleet kill-rate that pools them is mixing two suites.
 
 If the prediction fails **with** the precondition met, the expensive class at integrator is not (only)
 the guard cluster, and §7.2's account needs **reopening rather than extending** — that cost lands on
