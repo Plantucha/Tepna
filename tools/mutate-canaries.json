@@ -17,6 +17,15 @@
       "CPAPDex §6.2 — ODI is rated over ANALYZABLE oximeter time, not the therapy span"
     ]
   },
+  "ecgdex-dsp.js": {
+    "line": 68,
+    "op": "num → 0",
+    "before": "for (let i = 1; i < a.length; i++) if (Math.abs(a[i] - a[i - 1]) > 50) n++;",
+    "after": "for (let i = 1; i < a.length; i++) if (Math.abs(a[i] - a[i - 1]) > 0) n++;",
+    "killers": [
+      "ECGDex rich export ≡ its committed golden — Integrator-facing surface"
+    ]
+  },
   "glucodex-dsp.js": {
     "line": 44,
     "op": "negate: drop !",
@@ -35,6 +44,17 @@
       "HRVDex — an absent column yields NaN, never a fabricated number (§1.1–1.9)"
     ]
   },
+  "oxydex-dsp.js": {
+    "line": 72,
+    "op": "eq === → !==",
+    "before": "if (h) for (var k in _ui) if (typeof h[k] === 'function') _ui[k] = h[k];",
+    "after": "if (h) for (var k in _ui) if (typeof h[k] !== 'function') _ui[k] = h[k];",
+    "killers": [
+      "ODI-4 pilot — the paper Table 1 numbers, on committed bytes",
+      "OxyDex publishes absence as absence — a missing sensor and an uncomputed correlation (DA-V §2.3)",
+      "§17-§21 hygiene — no fabricated date, no 0-for-undefined, no pop-default-as-you, pooled indices, badged heroes"
+    ]
+  },
   "ppgdex-dsp.js": {
     "line": 31,
     "op": "bool || → &&",
@@ -51,17 +71,6 @@
     "after": "for (let i = 0; i <= a.length; i++) {",
     "killers": [
       "PulseDex compareIntervalSeries — two signals, one heart (mutation bootstrap)"
-    ]
-  },
-  "oxydex-dsp.js": {
-    "line": 72,
-    "op": "eq === → !==",
-    "before": "if (h) for (var k in _ui) if (typeof h[k] === 'function') _ui[k] = h[k];",
-    "after": "if (h) for (var k in _ui) if (typeof h[k] !== 'function') _ui[k] = h[k];",
-    "killers": [
-      "ODI-4 pilot — the paper Table 1 numbers, on committed bytes",
-      "OxyDex publishes absence as absence — a missing sensor and an uncomputed correlation (DA-V §2.3)",
-      "§17-§21 hygiene — no fabricated date, no 0-for-undefined, no pop-default-as-you, pooled indices, badged heroes"
     ]
   }
 }
