@@ -16,5 +16,14 @@
     "killers": [
       "HRVDex — an absent column yields NaN, never a fabricated number (§1.1–1.9)"
     ]
+  },
+  "ppgdex-dsp.js": {
+    "line": 35,
+    "op": "eq !== → ===",
+    "before": "if (dd.getUTCFullYear() !== y || dd.getUTCMonth() !== mo0 || dd.getUTCDate() !== d) return null; // ",
+    "after": "if (dd.getUTCFullYear() === y || dd.getUTCMonth() !== mo0 || dd.getUTCDate() !== d) return null; // ",
+    "killers": [
+      "PpgDex rich export ≡ its committed golden — Integrator-facing surface"
+    ]
   }
 }
