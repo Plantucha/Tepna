@@ -403,6 +403,53 @@ IS the result, and it is more useful than any single window choice.
 > MAE **cannot be used to score any estimator change** — which is a larger claim than this section set
 > out to test, and it is the thing to settle first.
 >
+> ### 🔴 THE CONTROL WAS BUILT, AND IT FAILS — the served constant never reaches the running estimator
+>
+> Re-run 2026-08-20 with the control the paragraph below asks for. **The sweep is not merely
+> unvalidated; the manipulation provably does not arrive.**
+>
+> **Positive control first — the harness IS alive.** Re-staging the corpus with the recipe §1 records
+> (`ACC > 30 MB`, the set one browser pass can hold) changed every statistic: **MAE 0.94 → 0.97,
+> r 0.359 → 0.326, bias −0.42 → −0.45**, 3 nights → 2. So the apparatus responds to its input. It just
+> does not respond to `RR_WIN_SEC`.
+>
+> **Then a BINARY control, which removes all judgement.** `respiratoryRate` opens with
+> `if (N < nWin) return { hasData: false }`. At `RR_FS = 5 Hz`, a 12-minute synthetic gives `N = 3600`;
+> a **900 s** window is `nWin = 4500 > N`, so the function MUST refuse. Driven in-page, on the same
+> load, reading the constant back through the page's own origin:
+>
+> | served `RR_WIN_SEC` | expected | observed |
+> |---|---|---|
+> | 60 | 23 windows | 23 windows, first 14.9 brpm |
+> | 120 | **21** windows | **23** windows, first 14.9 brpm |
+> | **900** | **`hasData: false`** | **23 windows, first 14.9 brpm** |
+>
+> `fetch('/motiondex-dsp.js')` **inside that same page** returned text containing `RR_WIN_SEC = 900`.
+> The refusal did not fire. **The executing `MOTIONDSP.respiratoryRate` is not parameterised by the
+> source the page is serving.**
+>
+> **Excluded, each by test rather than by argument:**
+> · corpus staging — two independent sets, and the numbers moved between them (positive control above);
+> · browser profile cache — a fresh Chromium profile per launch;
+> · HTTP / script-tag cache — `src="motiondex-dsp.js?bust=900"`, and the 900 s test repeated under it,
+>   unchanged;
+> · a second definition — `global.MOTIONDSP` is assigned **once**, unconditionally
+>   (`motiondex-dsp.js:1393`), and `respiratoryRate` has **one** definition (`:877`), exported directly
+>   (`:1401`); `integrator-dsp.js` does not define it;
+> · the wrong field being read — `pair()` scores `n.est.series[i].brpm`, and `est` is exactly
+>   `M.respiratoryRate(rows, t0, 'mg')` (`resp-acc-analysis-app.js:253`), called with **no `opts`**.
+>
+> **Mechanism: UNRESOLVED, and deliberately not guessed at.** The constant demonstrably feeds
+> `nWin` → the Hann window → the STFT frame loop → `series` → `pred` → the agreement table. Every step
+> is readable and every alternative above is closed. Something between "the file the origin serves" and
+> "the function that runs" is not what it appears to be, and naming it needs someone who knows this page
+> better than a source read can convey.
+>
+> **The operative consequence stands either way:** §5's sweep **cannot be run through this tool as it
+> is**, and — the larger claim — **the tool's MAE cannot be used to score any change to the estimator's
+> spectral parameters**, because a 15× change in the analysis window moves it by nothing. Anything
+> already scored that way should be re-checked against a control of this kind.
+>
 > **The control the experiment needs, and lacked:** a leg that proves the window reached the output at
 > all — e.g. assert `est.rateSeries` differs between two windows on ONE night before any MAE is read.
 > Without it the "flattens" branch is unfalsifiable, because "no change" is also what a broken harness
