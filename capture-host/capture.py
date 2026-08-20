@@ -1101,6 +1101,70 @@ async def adapter_hci() -> str | None:
     return hci
 
 
+# ── DUAL-RADIO FAILOVER (VIGIL-OVERNIGHT-FINDINGS P1.5) ──────────────────────────────────────────────
+# The night the dongle wedged, hci1 sat healthy and idle for ~110 min while the pinned dongle was down.
+# The recovery ladder (adapter_watchdog) resets the SAME radio; when that budget is spent, fail capture
+# over to a healthy spare instead of giving up. The pin is a process global (ADAPTER) resolved MAC->hciN
+# FRESH on every reconnect (adapter_kw/adapter_hci), so repointing it alone moves every device task —
+# the whole failover is: pick a spare, repoint, re-bond the sensors there.
+def parse_hciconfig(text: str) -> list[dict]:
+    """`hciconfig -a` → [{'hci','mac','up'}], one per controller. PURE. A controller block starts at a
+    left-margin `hciN:`; `BD Address: XX:..` gives the MAC; `UP RUNNING` anywhere in the block means up.
+    A block with no MAC is dropped — an adapter we cannot address is not a failover target."""
+    out: list[dict] = []
+    cur: dict | None = None
+    for line in text.splitlines():
+        if line[:3] == "hci" and not line[:1].isspace() and ":" in line.split()[0]:
+            if cur and cur["mac"]:
+                out.append(cur)
+            cur = {"hci": line.split(":", 1)[0].strip(), "mac": None, "up": False}
+            continue
+        if cur is None:
+            continue
+        if "BD Address:" in line:
+            frag = line.split("BD Address:", 1)[1].split()
+            if frag and len(frag[0]) == 17 and frag[0].count(":") == 5:
+                cur["mac"] = frag[0].upper()
+        if "UP RUNNING" in line:
+            cur["up"] = True
+    if cur and cur["mac"]:
+        out.append(cur)
+    return out
+
+
+def failover_target(pinned_mac: str | None, adapters: list[dict]) -> str | None:
+    """A healthy adapter to fail over to — UP, addressable, and NOT the pinned (wedged) one — or None.
+    PURE. A down spare is no spare; without a MAC the reconnect cannot be pinned to it (adapter_kw needs
+    the MAC); and never the pinned adapter itself, which is the one that just wedged."""
+    pin = (pinned_mac or "").upper()
+    for a in adapters:
+        mac = (a.get("mac") or "").upper()
+        if mac and mac != pin and a.get("up"):
+            return mac
+    return None
+
+
+async def list_adapters() -> list[dict]:
+    """Enumerate BLE controllers via `hciconfig -a` → parse_hciconfig. [] on ANY failure — a failover
+    onto an adapter we could not confirm UP is worse than staying put on the wedged one, so an
+    unconfirmable spare is no spare."""
+    try:
+        p = await asyncio.create_subprocess_exec(
+            "hciconfig", "-a", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        out, _ = await asyncio.wait_for(p.communicate(), timeout=8)
+        return parse_hciconfig(out.decode("utf-8", "replace"))
+    except Exception as e:
+        log.debug("list_adapters: %r", e)
+        return []
+
+
+def _set_active_adapter(mac: str) -> None:
+    """Repoint the process-wide adapter pin. Every device task resolves ADAPTER->hciN FRESH on each
+    reconnect, so this one assignment moves capture onto `mac` — the failover mechanism itself."""
+    global ADAPTER
+    ADAPTER = mac
+
+
 def _connect_timeout(addr: str) -> TimeoutError:
     """The bounded connect's error as the OPERATOR reads it at 07:00. `asyncio.wait_for` raises a BARE
     `TimeoutError()`, which lands in `last_error` and the log saying nothing at all — where the unbounded
@@ -3863,7 +3927,8 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
     # pre-hysteresis behaviour — which is a legible opt-out, not a footgun. A guard whose removal no
     # test can detect is a claim nobody is checking.
     recover = int(wcfg.get("recover_checks", 2))
-    consecutive = cycles = silent = healthy_run = 0
+    consecutive = cycles = silent = healthy_run = failovers = 0
+    max_failovers = int(wcfg.get("max_failovers", 3))   # P1.5: cap ping-pong between two flaky radios
     sel = f"select {adapter_mac}\n" if adapter_mac else ""
     while not _STOP.is_set():
         await asyncio.sleep(interval)
@@ -3949,6 +4014,32 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                 pass
         if consecutive >= grace:                      # L2: power-cycle the controller
             if cycles >= max_cycles:
+                # L3 (P1.5): resetting THIS radio is spent — fail over to a healthy spare before giving up.
+                # hci1 sat idle for 110 min the night this brief was written; use it.
+                spare = failover_target(adapter_mac, await list_adapters()) \
+                    if wcfg.get("failover", True) and failovers < max_failovers else None
+                if spare:
+                    failovers += 1
+                    log.critical("watchdog: %s STILL wedged after %d power-cycles — FAILING OVER to spare "
+                                 "%s (failover %d/%d)", adapter_mac, max_cycles, spare, failovers, max_failovers)
+                    _RECOVER.set()
+                    try:
+                        await asyncio.sleep(1.5)      # let the device tasks drop the wedged links first
+                        _set_active_adapter(spare)    # every reconnect now resolves the spare (adapter_kw)
+                        adapter_mac = spare
+                        sel = f"select {adapter_mac}\n"
+                        for d in cfg.get("devices", []):
+                            if d.get("optional"):
+                                continue              # a backup that never joined is not worth a bond wait
+                            try:                      # bond on the spare so the reconnect can authenticate
+                                await bonding.ensure_bonded(d["address"], adapter_mac, force=True)
+                            except Exception as e:
+                                log.warning("watchdog: failover bond of %s on %s failed: %r",
+                                            d["name"], adapter_mac, e)
+                    finally:
+                        _RECOVER.clear()              # device tasks resume + reconnect on the spare
+                    cycles = consecutive = 0          # a fresh reset budget on the new radio
+                    continue
                 if wcfg.get("exit_on_giveup"):
                     log.critical("watchdog: adapter STILL wedged after %d power-cycles — exiting non-zero "
                                  "so systemd re-execs with a fresh bleak/D-Bus stack", max_cycles)
