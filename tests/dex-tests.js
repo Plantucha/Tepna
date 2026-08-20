@@ -10535,6 +10535,98 @@
       }
     });
 
+    /* ════ ONE ARTIFACT MUST NOT DISABLE DETECTOR B — TCH-FUSED-ROBUST-HAT-FOLLOWUPS Do 5 ════
+       `detectPeaksB` scaled BOTH its thresholds off the global maximum of |bp|, and the floor
+       `Math.max(0.3·env, 0.18·mx)` is the one that bites: a max is a 1-sample order statistic, so a
+       single artifact lifts the floor above every real R peak for the WHOLE record and the running
+       envelope beside it — the part that adapts — can never bring it back down.
+
+       Measured on the corpus once bSQI became observable: one H10 segment carried an artifact 9.8×
+       the median R amplitude, so the floor sat at 436 against a median R peak of 247. Detector B
+       found 7 peaks where A found 2074 — bSQI 0.0019 — while `cleanBeatPct` read 99.8, so nothing
+       downstream showed that 0.28 of the composite had gone to zero.
+
+       The fix is a CAP, `min(mx, 3 × median window max)`, not a replacement. That distinction is
+       load-bearing and these legs pin both halves of it: a record whose largest sample is already a
+       plausible R peak must come through IDENTICAL, and only a record carrying an outlier changes.
+       (A p99 reference — replacing rather than capping — was tried first and measured worse: it
+       lowered the threshold on every record, and the extra detections consumed the 0.22 s refractory
+       window and blocked real beats, costing 0.11 of bSQI on six segments to rescue one.) */
+    group('one artifact must not disable detector B for the whole record — Do 5', 'ecgdex-dsp · sqi · detector-b-robust', function (T) {
+      var D = env.ECGDSP;
+      if (!D || typeof D.detectPeaksB !== 'function') {
+        T.skip('env.ECGDSP.detectPeaksB available', 'ECGDSP.detectPeaksB not exposed in this runner');
+        return;
+      }
+      var FS = 130,
+        N = 60,
+        PER = FS,
+        len = N * PER + PER;
+      // A clean band-passed beat train: a narrow triangular R at 60 bpm on a silent baseline.
+      function train() {
+        var bp = new Float64Array(len);
+        for (var k = 0; k < N; k++) {
+          var i = PER / 2 + k * PER;
+          for (var d = -4; d <= 4; d++) bp[i + d] = 250 * (1 - Math.abs(d) / 5);
+        }
+        return bp;
+      }
+      var clean = train();
+      var cleanPeaks = D.detectPeaksB(clean, FS);
+      T.ok('CONTROL · detector B finds the clean train', cleanPeaks.length >= N - 2, 'peaks=' + cleanPeaks.length + ' of ' + N);
+
+      /* The artifact: ONE sample at ~10× the R amplitude, the corpus geometry (9.8×). Placed inside a
+         beat-free stretch so it cannot be confused with suppressing a real beat. */
+      var spiked = train();
+      var artefactAt = PER / 2 + 30 * PER + Math.round(0.4 * PER);
+      spiked[artefactAt] = 2500;
+
+      // ANTI-VACUITY · the artifact really does move the global max, so the legs below are not
+      // passing because nothing happened. Without this the whole group could be vacuous.
+      var mxClean = 0,
+        mxSpiked = 0;
+      for (var i2 = 0; i2 < len; i2++) {
+        if (Math.abs(clean[i2]) > mxClean) mxClean = Math.abs(clean[i2]);
+        if (Math.abs(spiked[i2]) > mxSpiked) mxSpiked = Math.abs(spiked[i2]);
+      }
+      T.ok('ANTI-VACUITY · the planted artifact moves the global max by ~10×', mxSpiked / mxClean > 9, 'ratio=' + (mxSpiked / mxClean).toFixed(1));
+      T.ok('…and the OLD floor 0.18·max would have sat above every real R peak', 0.18 * mxSpiked > 250, '0.18·max=' + (0.18 * mxSpiked).toFixed(0) + ' vs R amp 250');
+
+      var spikedPeaks = D.detectPeaksB(spiked, FS);
+      T.ok('detector B still finds the beats with the artifact present', spikedPeaks.length >= N - 3, 'peaks=' + spikedPeaks.length + ' of ' + N);
+
+      /* ── the CAP half: a record with no outlier must be UNCHANGED. `min` guarantees it exactly, so
+            this is an equality, not a tolerance — and it is what makes the fix safe to ship without
+            re-recording every clean fixture. */
+      var ref = 0;
+      for (var k2 = 0; k2 < cleanPeaks.length; k2++) ref += cleanPeaks[k2];
+      var spikedNear = spikedPeaks.filter(function (i3) {
+        return Math.abs(i3 - artefactAt) > FS;
+      });
+      var cleanNear = cleanPeaks.filter(function (i3) {
+        return Math.abs(i3 - artefactAt) > FS;
+      });
+      T.eq('a record with no outlier keeps the SAME peak count (the reference is capped, not replaced)', D.detectPeaksB(clean, FS).length, cleanPeaks.length);
+      T.eq('…and away from the artifact the spiked record finds the same beats', spikedNear.length, cleanNear.length);
+
+      /* ── and the consequence in the units the term is actually spent in: bSQI, computed against a
+            detector-A peak set, must survive the artifact. This is the number that read 0.0019. */
+      if (typeof D.computeSQI === 'function') {
+        var A = [],
+          times = [];
+        for (var k3 = 0; k3 < N; k3++) {
+          A.push(PER / 2 + k3 * PER);
+          times.push((PER / 2 + k3 * PER) / FS);
+        }
+        var x = new Int16Array(len);
+        for (var i4 = 0; i4 < len; i4++) x[i4] = Math.round(spiked[i4]);
+        var terms = D.computeSQI(x, FS, Int32Array.from(A), Float64Array.from(times), spikedPeaks).terms;
+        T.ok('bSQI survives the artifact (it read 0.0019 on the corpus segment that motivated this)', terms.bSQI > 0.9, 'bSQI=' + terms.bSQI);
+      } else {
+        T.skip('bSQI survives the artifact', 'ECGDSP.computeSQI not exposed in this runner');
+      }
+    });
+
     /* ════ THE EDR RESPIRATION AUTOCORR WINDOW — deep-scout §EP-rest, the slow-respiration fixture ════
        `cardiorespCoupling` measures respiration DIRECTLY off the EDR band by autocorrelation:
        `_autocorrPeriod(edrB, FS, 2.5, 10)` — periods 2.5–10 s, i.e. 6–24 breaths/min — and surfaces it as

@@ -186,12 +186,57 @@ envelope at `Math.max(0.3·env, 0.18·mx)`. **The floor defeats the adaptation**
 median R amplitude lifts `0.18·mx` above the entire rest of the record, and the detector goes silent for
 the whole segment. The adaptive envelope is present and cannot act.
 
-**So Do 5's prescription is now justified and precisely scoped** — the fix is to make B's floor local
+### Do 5 step 2 EXECUTED 2026-08-20 — the reference is CAPPED, and 15 of 16 segments are untouched
+
+`detectPeaksB`'s amplitude reference is now `min(mx, 3 x median-window-max)` -- a **cap**, not a
+replacement, and that distinction is the whole result. Re-measured on the same 16 segments:
+
+| | before | after |
+|---|---|---|
+| segments whose terms moved **at all** | -- | **1 of 16** |
+| the broken segment's bSQI | 0.0019 | **0.9947** |
+| median bSQI | 0.9951 | 0.9951 (unchanged) |
+| `cleanBeatPct` on the broken segment | 99.80 | 99.90 |
+
+A record whose largest sample is already a plausible R peak keeps `mx` **exactly**, so its thresholds,
+its peaks and everything downstream are byte-identical. Only a record carrying an outlier is touched.
+
+**The first two attempts were WORSE, and are recorded because the failure is instructive.** Replacing
+the reference -- rather than capping it -- lowers the threshold on *every* record, and a lower threshold
+is not free: the extra spurious detections consume the **0.22 s refractory window** and BLOCK real
+beats, so agreement falls. Measured, per segment:
+
+| reference | broken segment | median bSQI | p25 | segments degraded |
+|---|---|---|---|---|
+| p99 of abs(bp) | 0.0019 -> 0.5644 | 0.9951 -> **0.9463** | 0.8102 -> 0.6454 | **15 of 16** |
+| median window max (uncapped) | 0.0019 -> 0.9894 | 0.9951 -> 0.9861 | 0.8102 -> 0.7080 | 15 of 16 |
+| **min(mx, 3x median window max)** | 0.0019 -> **0.9947** | **unchanged** | **unchanged** | **0** |
+
+The uncapped variant cost **0.11 of bSQI across six segments of one noisier night** to rescue one -- a
+trade that reads as a win on the aggregate and is a loss on the per-segment diff. **The aggregate hid
+it**: the median moved 0.009 while six individual segments moved 0.11. Only the paired per-segment
+comparison separated the three candidates, which is why this brief asks for a before/after pass rather
+than an after-only number.
+
+The 3x constant is **not fitted**: it is an upper bound on plausible physiological R-amplitude variation
+(respiration, posture, ectopy). The rescued segment sits at **9.8x** and the healthy ones at **~1.2x**,
+so nothing in this corpus is near the boundary -- the constant is not doing the separating, the geometry
+is.
+
+Gated by `ecgdex-dsp . sqi . detector-b-robust` (7 assertions), including the anti-vacuity leg that the
+planted artifact really does move the global max 10x and that the OLD floor would have sat above every
+real R peak -- without it the group could pass while testing nothing.
+
+**Do 5 is now CLOSED.**
+
+---
+
+**So Do 5's prescription was justified and precisely scoped** — the fix is to make B's floor local
 (a running amplitude quantile) rather than a fraction of the global max, not to rewrite the detector.
 Leverage: 1 segment in 16 (~6 %), on which 0.28 of the composite is silently zero. **Deliberately NOT
-built here**, per this brief's own sequencing and because it moves the composite for real recordings —
+built in that work-unit**, per this brief's own sequencing and because it moves the composite for real recordings —
 that is a behavioural change owing its own before/after corpus measurement, its own gates and a
-`regen-ecgdex-goldens` pass.
+`regen-ecgdex-goldens` pass. Built in the next one; see the step-2 section above.
 
 ⚠️ **Scope of the measurement, stated so it is not over-read:** 16 segments from **one device** (H10
 `02849638`), top-level `uploads/` only, ≥1 MB. It is enough to refute a *"corpus-wide ≈ 0"* claim — one

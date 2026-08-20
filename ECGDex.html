@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0mqhj4PCQsNRywYOCDIa/lI1dB/pbF/OnCPxEs9VBIo=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-8gb6/m/2OufqbcAqU5vez2xYBksYRHRxMt0s1E3tWEw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-VAEb+wm/rwgpWp+kD4Shu82CAB0FL8gWS8JCyjkZfTU=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-h7eDzXk9Q/+enhnS4yodXMepA0sXv6KmnkfDwFY8x0c=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0mqhj4PCQsNRywYOCDIa/lI1dB/pbF/OnCPxEs9VBIo=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-8gb6/m/2OufqbcAqU5vez2xYBksYRHRxMt0s1E3tWEw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-G8T1c38HwLBl265H8MWt+Jqx7dj3Cj7O3Kl0EA7ny0s=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-h7eDzXk9Q/+enhnS4yodXMepA0sXv6KmnkfDwFY8x0c=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.6.0</title>
@@ -9262,6 +9262,53 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
 
   // Secondary detector (different front-end: slope+amplitude on band-passed signal)
   // used only for bSQI two-detector agreement.
+  /* AMPLITUDE REFERENCE — the p99 of |bp|, NOT the maximum (TCH-FUSED-ROBUST-HAT-FOLLOWUPS Do 5).
+     Both of this detector's thresholds used to be fractions of the GLOBAL MAXIMUM, and the floor
+     `Math.max(0.3·env, 0.18·mx)` is the one that bites: a single artifact lifts `mx` and the floor
+     rises above every real R peak for the WHOLE record, so the running envelope beside it — the part
+     that is supposed to adapt — can never bring the threshold back down. Measured on the corpus
+     (bSQI became observable in the commit before this one): on one H10 segment the largest |bp| was
+     9.8× the median R amplitude, putting the floor at 436 against a median R peak of 247, and this
+     detector found 7 peaks where detector A found 2074 — bSQI 0.0019 while `cleanBeatPct` read 99.8.
+
+     A max is a 1-sample order statistic and one artifact IS that sample. The p99 is the same quantity
+     computed where the beats actually are: a QRS complex spans ~7 % of samples at these rates, so the
+     99th percentile sits inside the R peaks and tracks them, while a lone spike moves it by nothing.
+     Histogram rather than a sort — O(N) with one pass and no allocation proportional to N, and
+     deterministic (a strided SAMPLE could alias against the heart rate and systematically miss QRS). */
+  /* 3× the typical R peak. An R amplitude genuinely varies within a record — respiration, posture,
+     ectopy — but not by 3×; beyond that it is an artifact, not a heartbeat. Deliberately NOT fitted to
+     the corpus: it is an upper bound on plausible physiological variation, and the segment it rescues
+     sits at 9.8× with the healthy segments at ~1.2×, so nothing in this corpus is near the boundary. */
+  const CK_AMPREF_MAX_RATIO = 3;
+
+  function _ampRefB(bp, fs, mx) {
+    if (!(mx > 0)) return 0;
+    const N = bp.length,
+      W = Math.max(1, Math.round(10 * fs)),
+      maxima = [];
+    for (let s0 = 0; s0 < N; s0 += W) {
+      const e = Math.min(N, s0 + W);
+      let m = 0;
+      for (let i = s0; i < e; i++) {
+        const a = Math.abs(bp[i]);
+        if (a > m) m = a;
+      }
+      if (e - s0 >= W / 2) maxima.push(m);
+    }
+    if (!maxima.length) return mx;
+    maxima.sort((a, b) => a - b);
+    const h = maxima.length >> 1;
+    const typ = maxima.length % 2 ? maxima[h] : (maxima[h - 1] + maxima[h]) / 2;
+    /* A CAP, not a replacement. `Math.min` means a record whose largest |bp| is already a plausible
+       R peak keeps `mx` EXACTLY — identical thresholds, identical peaks, byte-identical downstream —
+       and only a record carrying an outlier is touched at all. Replacing the reference outright was
+       tried first and measured WORSE: a p99 reference lowered the threshold on every record, and on
+       a noisier night the extra spurious detections consumed the 0.22 s refractory window and BLOCKED
+       real beats, costing 0.11 of bSQI across six segments to rescue one. */
+    return Math.min(mx, CK_AMPREF_MAX_RATIO * typ);
+  }
+
   function detectPeaksB(bp, fs) {
     const N = bp.length,
       refractory = Math.round(0.22 * fs);
@@ -9270,7 +9317,10 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       const a = Math.abs(bp[i]);
       if (a > mx) mx = a;
     }
-    let thr = 0.35 * mx,
+    /* The reference is capped at `mx` by construction, so it can only ever LOWER a threshold — it
+       cannot make this detector stricter than it was, on any input. */
+    const ref = _ampRefB(bp, fs, mx);
+    let thr = 0.35 * ref,
       last = -refractory;
     const peaks = [];
     // running amplitude estimate
@@ -9278,7 +9328,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     for (let i = 1; i < N - 1; i++) {
       const a = Math.abs(bp[i]);
       env = 0.999 * env + 0.001 * a;
-      const t = Math.max(0.3 * env, 0.18 * mx);
+      const t = Math.max(0.3 * env, 0.18 * ref);
       if (bp[i] > bp[i - 1] && bp[i] >= bp[i + 1] && bp[i] > t && i - last > refractory) {
         peaks.push(i);
         last = i;
