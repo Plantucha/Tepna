@@ -148,7 +148,12 @@ desktop.ini
 .idea/
 
 # ── Node (none committed today, but guard against it) ───────────────────────
-node_modules/
+# NO trailing slash, deliberately. `node_modules/` is directory-only and does NOT match a
+# SYMLINK — and symlinking the root's node_modules into a worktree is the documented way to
+# work around a fresh worktree having none. The link then reads as untracked, so
+# `tools/wt-done.mjs` REFUSES to clean that worktree up ("may be someone's only copy"),
+# which is how orphaned trees accumulate — the failure §5b of CLAUDE.md measures in GB.
+node_modules
 npm-debug.log*
 
 # ── Raw biosignal recordings outside uploads/ (June 2026 miss) ──────────────
