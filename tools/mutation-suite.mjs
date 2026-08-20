@@ -1404,6 +1404,35 @@ function selftest() {
      dead spawns a second worker pool into the same cores; declaring a dead one live only stalls. */
   ck('an unparseable startedAt with a live pid resolves LIVE, never dead', suiteRecordLiveness({ rec: { pid: 4242, file: 'a.js', startedAt: 'whenever' }, bootMs: BOOT, pidAlive: true }).live, true);
   ck('the boot test states WHY, so a reader is not left guessing', suiteRecordLiveness({ rec: stale, bootMs: BOOT, pidAlive: true }).reason.includes('boot'), true);
+  ck('the suite driver dying does not stop its child — that is ORPHANED, not stale', suiteRecordLiveness({ rec: fresh, bootMs: BOOT, pidAlive: false, childAlive: true }).state, 'orphaned');
+  ck('…and an ORPHANED file still counts as being SWEPT, so nothing starts a second sweep of it', suiteRecordLiveness({ rec: fresh, bootMs: BOOT, pidAlive: false, childAlive: true }).sweeping, true);
+  ck('…but it is NOT live: no watchdog, no stall-restart, and no done-marker will be written', suiteRecordLiveness({ rec: fresh, bootMs: BOOT, pidAlive: false, childAlive: true }).live, false);
+  ck('a child alive from BEFORE the boot is impossible — the boot proof still wins', suiteRecordLiveness({ rec: stale, bootMs: BOOT, pidAlive: true, childAlive: true }).state, 'stale');
+
+  console.log('\nparseArgv — an unknown flag must not launch a multi-hour sweep');
+  ck('--help is a known flag, and asks for help', parseArgv(['--help']), { unknown: [], help: true });
+  ck('-h too', parseArgv(['-h']).help, true);
+  ck('a typo is UNKNOWN rather than a fleet launch', parseArgv(['--satus']), { unknown: ['--satus'], help: false });
+  /* Arity, not pattern: the value of a known flag is consumed, so it is never reported as unknown. */
+  ck('a flag value is not mistaken for a flag', parseArgv(['--file', 'oxydex-dsp.js', '--jobs', '22']), { unknown: [], help: false });
+  ck('…including a value that itself looks like a flag', parseArgv(['--lane', '--weird']), { unknown: [], help: false });
+  ck('a bare positional is refused — it reads as one file and would sweep all nine', parseArgv(['oxydex-dsp.js']), { unknown: ['oxydex-dsp.js'], help: false });
+  /* No arguments IS the documented fleet launch; the guard must not break it. */
+  ck('no arguments is not an error — that is the fleet sweep', parseArgv([]), { unknown: [], help: false });
+  ck(
+    'every declared flag parses clean at its own arity',
+    Object.entries(CLI_FLAGS)
+      .filter(([f, n]) => parseArgv(n ? [f, 'x'] : [f]).unknown.length > 0)
+      .map(([f]) => f),
+    []
+  );
+  /* The same trap from the other side: a flag documented in --help but missing from the table would
+     be REFUSED, and the refusal would point at the very text that recommended it. */
+  ck(
+    'every flag the usage text names is one the parser accepts',
+    (USAGE.match(/(?<![\w-])--[a-z][a-z-]*/g) || []).filter((f) => !Object.hasOwn(CLI_FLAGS, f)),
+    []
+  );
 
   console.log('\nmdCell — escape order is the whole of the fix');
   const BS = String.fromCharCode(92);
@@ -1963,6 +1992,75 @@ async function cmdDraft(file) {
 // ── main ───────────────────────────────────────────────────────────────────────────────────────
 /* Acts only when INVOKED AS A PROGRAM — importing this file to test its exports must not start a
    multi-hour sweep. `mutation-crawl.mjs` documents having learned that the hard way. */
+/*
+ * ── AN UNRECOGNISED FLAG MUST NOT START A MULTI-HOUR SWEEP ─────────────────────────────────────
+ *
+ * The dispatch below is a chain of `has('--x')` tests ending in an `else` that launches the fleet.
+ * So EVERY unrecognised argument falls through to the launch — including `--help`, which is what a
+ * reader types precisely because they do not yet know what the tool does. Measured 2026-08-20: a
+ * peer ran `--help` and started a full fleet sweep with a 22-worker pool, and noticed only from the
+ * heartbeat. A typo'd `--satus` does the same thing, silently and for hours.
+ *
+ * The file already holds the right precedent one level down — `--lane wibble` prints "Refusing
+ * rather than running a different one" and exits 2. This is that rule applied to the argument list
+ * as a whole. A bare positional is refused too: `mutation-suite.mjs oxydex-dsp.js` reads as a
+ * one-file request and is in fact a whole-fleet launch.
+ *
+ * VALUES ARE SKIPPED BY ARITY, never pattern-matched — otherwise `--lane operators` would report
+ * `operators` as an unknown argument, and a checker that cries wolf gets bypassed.
+ */
+export const CLI_FLAGS = {
+  '--selftest': 0,
+  '--kill': 0,
+  '--status': 0,
+  '--build-map': 0,
+  '--inventory': 0,
+  '--quiet': 0,
+  '--help': 0,
+  '-h': 0,
+  '--cluster': 1,
+  '--draft': 1,
+  '--file': 1,
+  '--jobs': 1,
+  '--stall-min': 1,
+  '--max-restarts': 1,
+  '--lane': 1
+};
+
+export function parseArgv(args, flags = CLI_FLAGS) {
+  const unknown = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (Object.hasOwn(flags, a)) {
+      i += flags[a];
+      continue;
+    }
+    unknown.push(a);
+  }
+  return { unknown, help: args.includes('--help') || args.includes('-h') };
+}
+
+const USAGE = [
+  'USAGE',
+  '  node tools/mutation-suite.mjs                      # sweep the fleet, resuming what it can',
+  '  node tools/mutation-suite.mjs --file oxydex-dsp.js # one file (repeatable)',
+  '  node tools/mutation-suite.mjs --status             # read state, run nothing',
+  '  node tools/mutation-suite.mjs --kill               # stop a running suite, by PID',
+  '  node tools/mutation-suite.mjs --build-map          # (re)build the coverage map, stamped',
+  '  node tools/mutation-suite.mjs --inventory          # write docs/MUTATION-INVENTORY.md',
+  '  node tools/mutation-suite.mjs --cluster <file>     # local-AI survivor families (ADVISORY)',
+  '  node tools/mutation-suite.mjs --draft <file>       # local-AI drafts a killing assertion',
+  '  node tools/mutation-suite.mjs --selftest           # known-answer, touches nothing',
+  '    --jobs N           worker pool          (default: cores minus 2, min 2)',
+  '    --stall-min N      watchdog patience    (default 10)',
+  '    --max-restarts N   bounded auto-resume  (default 3)',
+  '    --lane L           operators (default) | pseudo | delete   — they are NOT comparable',
+  '    --quiet            no per-mutant lines, keep the heartbeat',
+  '',
+  'With NO arguments this launches a multi-hour fleet sweep. That is why an unknown argument',
+  'refuses (exit 2) instead of falling through to it.'
+].join('\n');
+
 const INVOKED_DIRECTLY = (() => {
   try {
     /* realpath on BOTH sides, matching mutation-crawl.mjs: a normalise-only comparison misses the
@@ -1974,6 +2072,17 @@ const INVOKED_DIRECTLY = (() => {
 })();
 
 if (INVOKED_DIRECTLY) {
+  const cli = parseArgv(argv);
+  if (cli.help) {
+    log(USAGE);
+    process.exit(0);
+  }
+  if (cli.unknown.length) {
+    log('unknown argument(s): ' + cli.unknown.join(' '));
+    log('Refusing rather than launching a fleet sweep, which is what this tool does with no command.');
+    log('`node tools/mutation-suite.mjs --help` lists what it accepts.');
+    process.exit(2);
+  }
   if (has('--selftest')) process.exit(selftest());
   else if (has('--kill')) cmdKill();
   else if (has('--status')) cmdStatus();
