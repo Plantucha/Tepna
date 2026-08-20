@@ -1430,7 +1430,7 @@ async function loadSettings(){
         ? `<div class="rate-why"><b>${esc(adv.head)}</b>${adv.why ? ' — ' + esc(adv.why) : ''}</div>`
         : '';
       return `<label class="setrow"><input type="checkbox" data-addr="${esc(d.address)}" data-stream="${esc(k)}" ${on?'checked':''}>
-        <span class="k">${esc(k)}</span>${sel}<span class="mb" data-mb="${esc(d.address)}|${esc(k)}"></span>${advHtml}</label>`;
+        <span class="k">${esc(STREAM_LABEL[k]||k)}</span>${sel}<span class="mb" data-mb="${esc(d.address)}|${esc(k)}"></span>${advHtml}</label>`;
     }).join('');
     // ── SDK MODE ────────────────────────────────────────────────────────────────────────────────
     // Rendered ONLY where the device advertises feature 0x9 (server-derived `sdk_capable`): a switch
@@ -1465,7 +1465,37 @@ async function loadSettings(){
         <b>Costs PPI and HR</b> — a Verity cannot serve those in SDK mode, and they go quiet rather than erroring.
         <em style="opacity:.75">(needs reconnect · measured: 176 Hz PPG costs 8.60 %/h against 4.74, ~11.6 h runtime — PPG-SAMPLE-RATE-AND-PAT)</em></span></label>`;
     })();
-    return `<div style="margin-bottom:.7rem"><div class="name">${esc(d.name)}</div>${sdk}${boxes||'<span class="hint">no streams reported yet</span>'}</div>`;
+    // ── O2RING DEVICE SETTINGS (RTC readback + the gated SET_CONFIG writer, 2026-08-19) ─────────
+    // Rendered only for the ring. Shows the ring's clock vs the host (GET_INFO [24:31] — a 0xC0 push
+    // that failed to land is visible here, not silently trusted) and the two vendor-app knobs the
+    // daemon can now set over its own link. Values shown are the RING's read-back (`ring_config`),
+    // never the value that was asked for; the verdict line is the daemon's applied/NOT-applied word.
+    const ring = !/o2ring/i.test(d.model||'') ? '' : (() => {
+      const rc = d.ring_config || {};
+      const off = d.ring_rtc_offset_s;
+      const clock = off == null
+        ? '<span class="hint">ring clock not read yet — first readback lands within a poll cycle of the next connect</span>'
+        : `ring clock <b>${off>=0?'+':''}${off} s</b> vs host <span class="hint">(±1 s read quantum · read ${esc(String(d.ring_rtc_read||'').slice(11,19))})</span>`;
+      const verdict = d.ring_config_verdict
+        ? `<div class="rate-why"><b>${esc(d.ring_config_verdict)}</b></div>` : '';
+      const bsel = [0,1,2].map(v =>
+        `<option value="${v}" ${rc.brightness===v?'selected':''}>${['Low','Medium','High'][v]}</option>`).join('');
+      return `<div class="setrow" style="display:block;margin-top:.4rem">
+        <span class="k">ring device</span>
+        <span class="mb">${clock}</span>
+        <div style="margin-top:.3rem">
+          display brightness
+          <select class="ringcfg" data-addr="${esc(d.address)}" data-field="brightness">${bsel}</select>
+          &nbsp;·&nbsp; vibration intensity
+          <input class="ringcfg" data-addr="${esc(d.address)}" data-field="motor" type="number"
+                 min="0" max="255" value="${rc.motor!=null?rc.motor:''}" style="width:5em">
+          <span class="hint">${rc.motor!=null?`ring reports ${rc.motor}`:'not read yet'} — applied on the next poll (~1 s connected), then read back</span>
+          &nbsp;·&nbsp;
+          <button class="ringbuzz" data-addr="${esc(d.address)}" title="fire ONE ~1.1 s vibration — the cross-device fiducial marker">🔔 buzz</button>
+          <span class="hint">${d.ring_buzz_at?('last fired '+esc(String(d.ring_buzz_at).slice(11,23))):''}</span>
+        </div>${verdict}</div>`;
+    })();
+    return `<div style="margin-bottom:.7rem"><div class="name">${esc(d.name)}</div>${sdk}${ring}${boxes||'<span class="hint">no streams reported yet</span>'}</div>`;
   }).join('');
   // Every field is POPULATED — from config.yaml if set, otherwise from the daemon's own default (the
   // schema is the single source of truth for those, so the UI cannot advertise a default that differs
@@ -1487,6 +1517,7 @@ async function loadSettings(){
   }).join('');
   updateSetTotal();
   sd.querySelectorAll('input,select').forEach(el=>el.addEventListener('change', updateSetTotal));
+  bindRingCfg();
 }
 // The rate the daemon would pick with no override: its built-in preference if offered, else the max.
 const PREF_RATE = {ecg:130, ppg:55, acc:50, gyro:52, mag:20};   // mirrors polar_pmd._PREF_RATE
@@ -1515,6 +1546,13 @@ const RATE_WHY = {
   // look" are different, and the operator cannot tell them apart from an empty space.
   spo2: 'the ring reports oximetry on its own schedule; there is no rate to choose',
   ppg2w: 'the second wavelength arrives with the first — one stream, one device-side rate'
+};
+// Human names for stream keys whose wire name is jargon. The KEY stays the config/protocol identifier
+// (ppg2w everywhere in code and files); only the label a person reads changes.
+const STREAM_LABEL = {
+  ppg2w: 'raw 2-wavelength optical (ppg2w)',
+  spo2: 'oximetry (spo2)',
+  ppg: 'pleth waveform (ppg)'
 };
 // The advice for one stream on one device, resolved against what the device ACTUALLY offers.
 // Returns null when there is nothing useful to say, so callers render nothing rather than an empty row.
@@ -1565,6 +1603,36 @@ function updateSetTotal(){
     if(el.checked) bps += b;
   });
   $('#setTotal').textContent = `selected: ~${mbNight(bps)} MB per 9 h night (${(bps/1024).toFixed(1)} kB/s)`;
+}
+// Ring settings post IMMEDIATELY on change (not via the Save button): a device-state write with its own
+// read-back verdict is a different transaction from the config.yaml save, and folding it in would make
+// "saving…" claim success for a write whose fate only the ring's read-back can report.
+function bindRingCfg(){
+  document.querySelectorAll('#setStreams button.ringbuzz').forEach(el=>{
+    el.addEventListener('click', async (ev)=>{
+      ev.preventDefault();
+      try{
+        const r = await api('/api/ring/buzz', {method:'POST',
+          headers:{'content-type':'application/json'},
+          body: JSON.stringify({address: el.dataset.addr})});
+        $('#setMsg').textContent = r.ok ? 'buzz queued — fires on the next poll (~1 s)' : `refused: ${r.error||'unknown'}`;
+      }catch(e){ $('#setMsg').textContent = 'buzz failed: '+e; }
+    });
+  });
+  document.querySelectorAll('#setStreams .ringcfg').forEach(el=>{
+    el.addEventListener('change', async ()=>{
+      const v = parseInt(el.value, 10);
+      if(!Number.isFinite(v)) return;
+      try{
+        const r = await api('/api/ring/config', {method:'POST',
+          headers:{'content-type':'application/json'},
+          body: JSON.stringify({address: el.dataset.addr, field: el.dataset.field, value: v})});
+        $('#setMsg').textContent = r.ok
+          ? `${el.dataset.field} queued — the ring's read-back will confirm`
+          : `refused: ${r.error||'unknown'}`;
+      }catch(e){ $('#setMsg').textContent = 'ring settings write failed: '+e; }
+    });
+  });
 }
 async function saveSettings(btn){
   const t0=btn.textContent; btn.disabled=true; btn.textContent='saving…';

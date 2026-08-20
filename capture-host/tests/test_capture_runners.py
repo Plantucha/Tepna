@@ -4749,6 +4749,214 @@ def test_stop_ends_a_PAUSED_session_even_with_a_real_sleep(tmp_path, monkeypatch
         capture._POLAR_PAUSED.clear()
 
 
+# ── run_oxyii: RTC readback + monitor-queued settings writes (2026-08-19) ───────────────────────────
+import datetime as _dt
+
+
+def _o2_info_reply(y=2026, mo=8, d=19, h=21, mi=50, s=0):
+    p = bytearray(60)
+    p[9:17] = b"2D010002"
+    p[24:31] = bytes([y & 0xFF, (y >> 8) & 0xFF, mo, d, h, mi, s])
+    return oxyii.encode(oxyii.OP_GET_INFO, bytes(p))
+
+
+def _o2_config_reply(brightness=0, motor=60):
+    p = bytearray(40)
+    p[1], p[2], p[3] = 88, 50, 120
+    p[4], p[7], p[8] = motor, brightness, 1
+    return oxyii.encode(oxyii.OP_GET_CONFIG, bytes(p))
+
+
+def _o2_ring_responder(c, cfg_state):
+    """A ring that answers live, info, and config — and APPLIES a 0x01 settings write to cfg_state
+    (write-field 9 → brightness, 6 → motor), exactly as the real firmware was measured to."""
+    def on(data):
+        op = data[1]
+        if op == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif op == oxyii.OP_GET_INFO:
+            c.notify(0, _o2_info_reply(mi=50, s=0))
+        elif op == oxyii.OP_GET_CONFIG:
+            c.notify(0, _o2_config_reply(**cfg_state))
+        elif op == oxyii.OP_SET_CONFIG:
+            fld, val = data[7], data[11]
+            if fld == 9:
+                cfg_state["brightness"] = val
+            elif fld == 6:
+                cfg_state["motor"] = val
+    return on
+
+
+def test_ring_clock_offset_is_component_arithmetic():
+    rtc = {"year": 2026, "month": 8, "day": 19, "hour": 19, "minute": 48, "second": 26}
+    assert capture.ring_clock_offset_s(rtc, _dt.datetime(2026, 8, 19, 19, 48, 26)) == 0
+    assert capture.ring_clock_offset_s(rtc, _dt.datetime(2026, 8, 19, 19, 48, 25)) == 1
+    assert capture.ring_clock_offset_s(rtc, _dt.datetime(2026, 8, 19, 19, 49, 0)) == -34
+
+
+def test_queue_ring_config_validates_at_enqueue():
+    """Nothing invalid may sit in the queue waiting for a link: the whitelist raises HERE."""
+    import pytest
+    capture._OXYII_CFG_PENDING.clear()
+    with pytest.raises(ValueError):
+        capture.queue_ring_config("AA:BB:CC:DD:EE:FF", "factory_reset", 1)
+    with pytest.raises(ValueError):
+        capture.queue_ring_config("AA:BB:CC:DD:EE:FF", "brightness", 3)
+    assert capture._OXYII_CFG_PENDING == {}, "a refused write must leave no queue entry"
+    capture.queue_ring_config("AA:BB:CC:DD:EE:FF", "brightness", 1)
+    capture.queue_ring_config("AA:BB:CC:DD:EE:FF", "brightness", 2)   # last click wins
+    assert capture._OXYII_CFG_PENDING["AA:BB:CC:DD:EE:FF"] == ("brightness", 2)
+    capture._OXYII_CFG_PENDING.clear()
+
+
+def test_run_oxyii_publishes_the_ring_rtc_offset(tmp_path, monkeypatch):
+    """The session's first poll reads GET_INFO; on_data publishes ring-vs-host offset to STATUS."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_CFG_PENDING.clear()
+    c = FakeGattClient()
+    c.on_live = _o2_ring_responder(c, {"brightness": 0, "motor": 60})
+    _inject_connect_scan(monkeypatch, c)
+    monkeypatch.setattr(capture, "_now", lambda: _dt.datetime(2026, 8, 19, 21, 50, 5))
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    st = capture.STATUS["devices"]["Ring"]
+    assert st["ring_rtc_offset_s"] == -5.0            # ring reads 21:50:00 vs host 21:50:05
+    assert st["ring_rtc_read"].startswith("2026-08-19T21:50")
+    # the session-start config read populated the struct without any write happening
+    assert st["ring_config"]["brightness"] == 0 and st["ring_config"]["motor"] == 60
+
+
+def test_run_oxyii_unset_rtc_publishes_none_not_year_zero(tmp_path, monkeypatch):
+    """Clock Contract §2.7 at the STATUS boundary: an unset RTC region is absence, never arithmetic."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()
+    def on(data):
+        op = data[1]
+        if op == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif op == oxyii.OP_GET_INFO:
+            c.notify(0, oxyii.encode(oxyii.OP_GET_INFO, bytes(60)))   # zeros: unset RTC
+    c.on_live = on
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    st = capture.STATUS["devices"]["Ring"]
+    assert st["ring_rtc_offset_s"] is None
+    assert st["ring_rtc_read"] is not None            # the READ happened; the value is honestly absent
+
+
+def test_run_oxyii_applies_a_queued_settings_write_and_verifies_it(tmp_path, monkeypatch):
+    """queue_ring_config → the live loop sends 0x01 + a 0x00 read-back → on_data publishes the verdict
+    from what the RING reports. The fake ring APPLIES the write, so the verdict must be 'applied'."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_CFG_PENDING.clear()
+    dev = _o2dev()
+    cfg_state = {"brightness": 0, "motor": 60}
+    c = FakeGattClient()
+    c.on_live = _o2_ring_responder(c, cfg_state)
+    _inject_connect_scan(monkeypatch, c)
+    capture.queue_ring_config(dev["address"], "brightness", 2)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(dev, str(tmp_path)))
+    st = capture.STATUS["devices"]["Ring"]
+    assert cfg_state["brightness"] == 2, "the write must actually reach the ring"
+    assert st["ring_config"]["brightness"] == 2
+    assert st["ring_config_verdict"] == "brightness=2 applied"
+    assert capture._OXYII_CFG_PENDING == {}, "a sent write must not requeue"
+
+
+def test_run_oxyii_reports_a_settings_write_the_ring_ignored(tmp_path, monkeypatch, caplog):
+    """The ring acks nothing and applies nothing: the verdict must say NOT applied, loudly."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_CFG_PENDING.clear()
+    dev = _o2dev()
+    c = FakeGattClient()
+    def on(data):
+        op = data[1]
+        if op == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif op == oxyii.OP_GET_INFO:
+            c.notify(0, _o2_info_reply())
+        elif op == oxyii.OP_GET_CONFIG:
+            c.notify(0, _o2_config_reply(brightness=0))     # never changes — the write was ignored
+    c.on_live = on
+    _inject_connect_scan(monkeypatch, c)
+    capture.queue_ring_config(dev["address"], "brightness", 2)
+    _stop_after(monkeypatch, 4)
+    with caplog.at_level("WARNING"):
+        _run(capture.run_oxyii(dev, str(tmp_path)))
+    st = capture.STATUS["devices"]["Ring"]
+    assert "NOT applied" in st["ring_config_verdict"]
+    assert any("did not land" in r.getMessage() for r in caplog.records)
+
+
+def test_run_oxyii_settings_write_failure_surfaces_in_the_verdict(tmp_path, monkeypatch):
+    """The 0x01 write itself raises: the verdict says so instead of silently retrying forever."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_CFG_PENDING.clear()
+    dev = _o2dev()
+    c = FakeGattClient()
+    real_write = c.write_gatt_char
+    async def write(char, data, response=False):
+        if data[1] == oxyii.OP_SET_CONFIG:
+            raise RuntimeError("gatt refused")
+        await real_write(char, data, response)
+    c.write_gatt_char = write
+    def on(data):
+        if data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+    c.on_live = on
+    _inject_connect_scan(monkeypatch, c)
+    capture.queue_ring_config(dev["address"], "brightness", 1)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(dev, str(tmp_path)))
+    st = capture.STATUS["devices"]["Ring"]
+    assert "write failed" in st["ring_config_verdict"]
+    assert capture._OXYII_CFG_PENDING == {}
+
+
+def test_run_oxyii_rtc_poll_failure_costs_only_the_reading(tmp_path, monkeypatch):
+    """The GET_INFO write raises: vitals continue, the link survives, no offset is published."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_CFG_PENDING.clear()
+    c = FakeGattClient()
+    real_write = c.write_gatt_char
+    async def write(char, data, response=False):
+        if data[1] == oxyii.OP_GET_INFO:
+            raise RuntimeError("gatt refused the info read")
+        await real_write(char, data, response)
+    c.write_gatt_char = write
+    def on(data):
+        if data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+    c.on_live = on
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    st = capture.STATUS["devices"]["Ring"]
+    assert st["spo2"] == 96, "vitals must survive a failed optional read"
+    assert st.get("ring_rtc_offset_s") is None and st.get("ring_rtc_read") is None
+
+
+def test_run_oxyii_unparseable_config_reply_publishes_nothing(tmp_path, monkeypatch):
+    """A short 0x00 reply parses to None: no ring_config, no verdict — never a partial struct."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_CFG_PENDING.clear()
+    c = FakeGattClient()
+    def on(data):
+        op = data[1]
+        if op == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif op == oxyii.OP_GET_INFO:
+            c.notify(0, _o2_info_reply())
+        elif op == oxyii.OP_GET_CONFIG:
+            c.notify(0, oxyii.encode(oxyii.OP_GET_CONFIG, bytes(4)))    # 4 B — too short to parse
+    c.on_live = on
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    st = capture.STATUS["devices"]["Ring"]
+    assert st.get("ring_config") is None and st.get("ring_config_verdict") is None
 def test_run_polar_resumes_a_recent_fileset(tmp_path, monkeypatch, caplog):
     """CAPTURE-FILESET-RESUME §2 wiring: when this device's newest set wrote within the window, the
     runner adopts its stamp — so every capture_filename() regenerates the identical names. Tested at
@@ -4809,3 +5017,46 @@ def test_run_polar_resume_disabled_by_zero_window(tmp_path, monkeypatch):
     _stop_after(monkeypatch, 1)
     _run(capture.run_polar(dev, str(tmp_path)))
     assert consulted == [], "window 0 must not consult the resolver"
+
+
+def test_run_oxyii_fires_a_queued_buzz_exactly_once(tmp_path, monkeypatch):
+    """queue_ring_buzz → ONE 0x83 on the next poll, the command instant published to STATUS. Exactly
+    one: the fiducial is a marker, and a repeat would write a second artifact into every stream."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_BUZZ_PENDING.clear()
+    dev = _o2dev()
+    c = FakeGattClient()
+    c.on_live = _o2_ring_responder(c, {"brightness": 0, "motor": 60})
+    _inject_connect_scan(monkeypatch, c)
+    capture.queue_ring_buzz(dev["address"])
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(dev, str(tmp_path)))
+    buzzes = [w for w in c.writes if w[1] == 0x83]
+    assert len(buzzes) == 1, f"exactly ONE buzz frame, got {len(buzzes)}"
+    assert capture.STATUS["devices"]["Ring"]["ring_buzz_at"] is not None
+    assert capture._OXYII_BUZZ_PENDING == set()
+
+
+def test_run_oxyii_buzz_write_failure_is_reported_not_retried(tmp_path, monkeypatch, caplog):
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_BUZZ_PENDING.clear()
+    dev = _o2dev()
+    c = FakeGattClient()
+    real_write = c.write_gatt_char
+    async def write(char, data, response=False):
+        if data[1] == 0x83:
+            raise RuntimeError("gatt refused the buzz")
+        await real_write(char, data, response)
+    c.write_gatt_char = write
+    def on(data):
+        if data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+    c.on_live = on
+    _inject_connect_scan(monkeypatch, c)
+    capture.queue_ring_buzz(dev["address"])
+    _stop_after(monkeypatch, 4)
+    with caplog.at_level("WARNING"):
+        _run(capture.run_oxyii(dev, str(tmp_path)))
+    assert capture.STATUS["devices"]["Ring"]["ring_buzz_at"] is None
+    assert any("buzz command failed" in r.getMessage() for r in caplog.records)
+    assert capture._OXYII_BUZZ_PENDING == set(), "a failed buzz must not silently retry forever"
