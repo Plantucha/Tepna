@@ -30,7 +30,7 @@ probes and the whole `0x80`–`0x86` cluster in a region a linear crawl reaches 
 |---|---|---|
 | `0x03` | count-prefixed sample buffer | **PPG waveform tap — see §3** |
 | `0x83` | empty ack | **VIBRATION MOTOR — see §2** |
-| `0xE1` | 60 B, ASCII `2D010002`, `2592302100` | model / serial strings |
+| `0xE1` | 60 B, ASCII `2D010002`, `2592302100` | fw / serial — **and the RTC, bytes [24:31] — see §9** |
 | `0x06` | ASCII `20260527040055`, later just `00` | see §5 — conditional, do not quote as a constant |
 | `0x84` `0x86` `0xE4` | 4 B, **differ between reads** | live counters, not identity |
 | `0x05` | up to 922 B | unidentified buffer |
@@ -165,3 +165,42 @@ every one was caught by running a control rather than by reasoning about the dat
   45. `bluetoothctl power off/on` sometimes clears it; **`tepna-restart.sh radio` reliably does**.
 - **Reachability**: worn = continuously discoverable; docked = a brief burst around the plug event only.
   See [[o2ring-ble-reachability]].
+
+## 9 · 2026-08-19 — the read surface byte-mapped; THE RTC IS READABLE (0xE1 [24:31])
+
+A 13-read × 10 s classifier over the three read-only queries (device `2592302100`, fw `2D010002`,
+worn, battery 100 %), each byte classified CONST · CLOCK · COUNTER · NOISY. Tool: the differential
+method §6 argued for, systematised (`probe_rtc_read.py` found it; a one-shot dump then mapped the
+absolute layout against the freshly-synced host clock).
+
+**`GET_INFO` (0xE1, 60 B) — the headline: bytes [24:31] are the RTC**, in exactly `set_time_frame`'s
+write layout: year u16 LE · month · day · hour · minute · second, local civil time, stored verbatim.
+Proven twice independently: byte[30] advanced by the gap mod 60 with byte[29] carrying (differential),
+and an absolute read 4 min after a 0xC0 push matched the host to the second (2026-08-19 19:48:26 ==
+host). A later `--clock` read measured **ring +1 s vs host 19 min after sync** — the pull-side drift
+check now exists (`probe_rtc_read.py --clock`; `oxyii.parse_get_info` decodes `rtc`). This settles
+"push-only" as FALSE: time can be pulled from the ring, so every 0xC0 push is now verifiable and
+free-run drift is measurable per-interval without touching the onboard .dat.
+
+Full 0xE1 map: `[0:9]` const header (`42 00 05 00 01 02 00 00 00`) · `[9:17]` fw ASCII ·
+`[17:24]` const (`01 40 08 52 16 01 00`) · `[24:31]` **RTC** · `[31:33]` u16 LE = **2016** const — a
+frozen date-year (manufacture/epoch?), semantics unverified, do not decode · `[33:37]` zeros ·
+`[37]` serial length · `[38:48]` **wire serial** `2592302100` — note this is NOT the BLE-name-derived
+`S8AW2100` the capture filenames use · `[48:60]` zeros.
+
+**`GET_CONFIG` (0x00, 40 B): all 40 bytes CONST** across the window (as a settings struct should be).
+Notable live values: `motor=0x3C` (=60 — the vibration intensity the §2 buzz runs at), `spo2_low=88`,
+`hr_low=50`, `hr_high=120`, `storage_interval=1 s`, `tz_byte=0xCE`. Bytes [20:40] all zero here.
+
+**`GET_BATTERY` (0xE4, 4 B): byte[2] is ANALOG** — bidirectional over `0xE2–0xF7` (226–247) at a
+constant 100 % level, i.e. a voltage/ADC-like channel, not a counter (the §1 "live counters" reading
+for 0xE4 was half right: [0] state and [1] level are const-at-rest; [2] is the mover). `[3]=0x10`
+const, unknown.
+
+**And `0x83`'s artifact is characterised (the buzz-fiducial brief's step 1, DONE).** Two commanded
+buzzes while streaming the raw 0x05 dual-wavelength+motion: empty-payload 0x83 drives a **~1.1 s**
+vibration; the **motion channel** carries it unambiguously (0 → peak 22 over ~81 samples against a
+perfectly-still baseline of 0) while the optical σ is direction-inconsistent across the two fires —
+motion is the detector, optical is not. Onset-after-command measured ~419 ms but is **buffer-limited
+(±~0.5 s)** — the raw stream is back-timed from ~1 s arrivals, so a per-fire latency distribution
+(step 2) needs either many fires averaged or the 125 Hz pleth path.

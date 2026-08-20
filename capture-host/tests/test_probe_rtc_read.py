@@ -169,3 +169,66 @@ def test_module_has_a_cli_guard():
     src = open(probe.__file__).read()
     assert 'if __name__ == "__main__":' in src
     assert "require_free_link()" in src  # the daemon-stop guard runs before any connect, in the entry
+
+
+# ── --clock: the pull-side drift check the differential probe made possible ────────────────────────
+def _rtc_payload(y, mo, d, h, mi, s):
+    p = bytearray(60)
+    p[24:31] = bytes([y & 0xFF, (y >> 8) & 0xFF, mo, d, h, mi, s])
+    return bytes(p)
+
+
+def _install_clock(monkeypatch, ring, host):
+    """read_clock needs only the client + a pinned host instant; it never reads monotonic()."""
+    import datetime as dt
+    monkeypatch.setattr(probe, "BleakClient", lambda addr, **kw: ring)
+
+    async def no_sleep(_s):
+        return None
+    monkeypatch.setattr(probe.asyncio, "sleep", no_sleep)
+
+    class _Now(dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return host
+    monkeypatch.setattr(dt, "datetime", _Now)
+
+
+def test_clock_offset_is_signed_component_arithmetic():
+    import datetime as dt
+    rtc = {"year": 2026, "month": 8, "day": 19, "hour": 19, "minute": 48, "second": 26}
+    assert probe.clock_offset_s(rtc, dt.datetime(2026, 8, 19, 19, 48, 26)) == 0
+    assert probe.clock_offset_s(rtc, dt.datetime(2026, 8, 19, 19, 45, 55)) == 151   # the measured free-run drift
+    assert probe.clock_offset_s(rtc, dt.datetime(2026, 8, 19, 19, 49, 0)) == -34    # ring can lag too
+
+
+def test_read_clock_reports_ring_vs_host(monkeypatch, capsys):
+    import datetime as dt
+    ring = _Ring({oxyii.OP_GET_INFO: lambda _c: _rtc_payload(2026, 8, 19, 19, 48, 26)})
+    _install_clock(monkeypatch, ring, dt.datetime(2026, 8, 19, 19, 48, 21))
+    assert _run(probe.read_clock("MAC")) == 0
+    out = capsys.readouterr().out
+    assert "2026-08-19 19:48:26" in out
+    assert "+5 s" in out
+
+
+def test_read_clock_no_reply_is_a_failure_not_a_zero(monkeypatch, capsys):
+    import datetime as dt
+    _install_clock(monkeypatch, _Ring({}), dt.datetime(2026, 8, 19, 19, 48, 21))
+
+    _real_wait_for = asyncio.wait_for
+
+    async def quick(coro, _t):
+        return await _real_wait_for(coro, 0.02)
+    monkeypatch.setattr(probe.asyncio, "wait_for", quick)
+    assert _run(probe.read_clock("MAC")) == 1
+    assert "NO REPLY" in capsys.readouterr().out
+
+
+def test_read_clock_out_of_range_rtc_is_a_failure(monkeypatch, capsys):
+    """An unset RTC region (zeros) must read as 'not a clock', never as year-0 with offset math."""
+    import datetime as dt
+    ring = _Ring({oxyii.OP_GET_INFO: lambda _c: bytes(60)})
+    _install_clock(monkeypatch, ring, dt.datetime(2026, 8, 19, 19, 48, 21))
+    assert _run(probe.read_clock("MAC")) == 1
+    assert "out of range" in capsys.readouterr().out
