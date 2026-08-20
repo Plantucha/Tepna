@@ -419,7 +419,7 @@ Same PR: an unrecognised argument no longer falls through the `has('--x')` chain
 launch. **`--help` started a full 22-worker sweep** — the flag a reader types *because* they do not
 know what the tool does.
 
-### 7.2 · ⚠️ OPEN — the stall was the WHOLE POOL, not a jammed mutant, and `--resume` assumes the latter
+### 7.2 · ✅ RESOLVED 2026-08-20 — the stall was the WHOLE POOL, and the cost was never the mutants'
 
 `integrator-dsp.js` stopped writing at **09:24** and the box stayed up until **14:12** — 4 h 48 m of
 nothing, past `--stall-min 10` and `--max-restarts 3`, and the suite never advanced to `motiondex`
@@ -440,16 +440,46 @@ re-enters the same hole with 22 fresh chances to wedge, and three bounded restar
 That is a different failure from the 11 h 11 m single-probe wedge the watchdog was built for, and the
 same watchdog cannot be assumed to cover it.
 
-**A hypothesis to test, NOT a cause** — `integrator-dsp.js:5070` is
-`if (!rows || rows.length < 4 || !(rrMs > 0)) return null;`, the sole early-out of `_wrappedSlopeFit`,
-which is a **grid search of ~1600 ppm steps over every row**. Mutating that guard is precisely the way
-to make the most expensive function in the file run on the inputs it was written to reject. Slow-but-
-bounded is not the same as hung, and telling them apart is the whole point of the watchdog; whether a
-per-mutant timeout fires here has not been checked. Do not write this down as the cause without
-running it.
+**The hypothesis was `_wrappedSlopeFit`, and it was RUN rather than assumed** (probe by the session
+driving the fleet re-sweep; child process, 120 s hard timeout, 30k-row synthetic `{tMs, off}` trains,
+20 case-runs, **zero timeouts**, nothing over 17.3 s):
 
-**What would settle it:** re-run just those 23 keys under `--jobs 1` with the process state captured,
-and check whether `mutate.mjs`'s per-mutant timeout fires at all on that line.
+| case | cost |
+|---|---|
+| `bool \|\|`→`&&` (2nd), `rrMs` 0 | 16.9 s |
+| `bool \|\|`→`&&` (2nd), `rrMs` NaN | 16.7 s |
+| `cmp >`→`>=`, `rrMs` 0 | 16.9 s |
+| **CONTROL — valid input, UNMUTATED semantics** | **17.2 s** |
+| `negate: drop !` | instant (throws on null rows) |
+
+**Read the control row first, because it inverts the obvious reading.** Valid input costs the same
+17 s as any mutant, so the mutants did not make the function slow — **`_wrappedSlopeFit` is
+intrinsically ~17 s on night-sized rows**, a ~1600-step ppm grid search over every one of 30 000 rows,
+and the guard is simply what decides how often that price is paid. Nor is `negate` slow at all: it
+throws immediately. So "the guard mutants are expensive" is the wrong sentence, and it is the sentence
+this section would have shipped had the probe not been run. The right one is that a guard mutant
+**survives cheap scrutiny and can only be killed by an assertion big enough to be slow**.
+
+**The collapse arithmetic:** ~17 s per call × several calls per equivalence leg × **22 contending
+workers**, each lap further slowed by every sibling's lap. No single call ever hung — the per-mutant
+timeout had nothing to fire on, which is exactly why 4 h 48 m produced zero verdicts instead of a
+quarantine. And the 6 double-dispatched keys close it: the watchdog's re-dispatch bought a 23rd ticket
+into the same queue.
+
+**The fix is test-placement economics, not tooling** (#1579, and this distinction matters for anyone
+reaching for the watchdog). The new guard group does **not** change `--bail` pricing — it *exploits*
+it. Its inputs are 3–60 synthetic blocks rather than a corpus night, so the sweep's priced group
+ordering runs it early, a guard mutant reds in **milliseconds**, and the expensive legs never run for
+that lap. It pins refusals (null · 3 blocks · `rrMs` 0 · `rrMs` NaN), the exact floor (**four blocks
+are enough — `< 4`, not `<= 4`**), and the fit itself (a planted 50 ppm drift recovered at
+concentration 1; a driftless train reading 0 ppm at zero residual). All five guard variants verified
+killed by direct re-application.
+
+**Carried forward:** the watchdog hole in the first paragraph is NOT closed by #1579 — it is merely no
+longer reachable through *this* function. Any other intrinsically-expensive function whose killing
+assertion is corpus-sized can reproduce the same collective collapse, and the watchdog still cannot
+see it, because nothing is hung. **The generalisable guard is pricing: a mutant whose only killer is a
+slow assertion is a pool-collapse risk, independent of which function it lives in.**
 
 ### 7.3 · The pid file is unlinked on exactly ONE of four exit paths — and that is not why 7.2 stranded
 
@@ -459,6 +489,24 @@ but it did **not** produce the stranded record above, because a give-up would ha
 `motiondex` and rewritten the file, and it never did. Recorded so the tempting tidy-up is not mistaken
 for a fix to 7.2. The reader-side check in 7.1 is the one that covers every path, including `SIGKILL`,
 which no producer-side cleanup can.
+
+### 7.4 · A required context can be ABSENT because it is PENDING — the benign twin of the matrix trap
+
+Noticed while landing 7.1, and recorded here because it costs a queue-watcher the same hour the real
+trap does. The required context **`test` does not exist in a PR's check rollup at all until the six
+`suite (shard N/6)` jobs finish** — it is the aggregate over them. So a healthy PR sits with **7 of 8
+required contexts green and the 8th simply not there**.
+
+That is byte-for-byte the signature of the failure CLAUDE.md §5 warns about — *a required context that
+was never reported at all*, where a skipped matrix job leaves an unexpanded literal name and **waiting
+cannot fix it**. The two states need opposite responses (wait vs stop and fix the workflow) and the
+rollup renders them identically, as an absence.
+
+**The discriminator is the shards, not the aggregate:** shards still in flight ⇒ absent-because-pending
+⇒ wait. Shards all terminal with `test` still missing ⇒ absent-because-never-coming ⇒ stop. Confirmed
+against a merged PR of the same day, whose rollup carries `test` and whose only difference was that
+its shards had finished. **Never conclude "never reported" from the aggregate alone** — an absence is
+not a verdict until you have looked at what produces it, which is §0's table one more time.
 
 ---
 
