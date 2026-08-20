@@ -20,27 +20,45 @@
  *
  * ⚠ The picker is `<input webkitdirectory>`, so Playwright must be handed a DIRECTORY path, not a file
  * list — `setInputFiles` with individual paths fails outright. The directory must be shaped the way
- * `groupFiles()` expects: `Polar_H10_*_YYYYMMDD_HHMMSS_ACC.txt` at the top level, and the matching
- * flow beside it under `CPAP/YYYYMMDD/*_BRP.edf`. Note the ACC name needs the underscore BETWEEN date
- * and time — the capture-host box writes `..._YYYYMMDDHHMMSS_ACC.txt` (no separator), which the regex
- * does not match, so a box-captured night silently contributes nothing. Phone (Polar Sensor Logger)
- * nights do match. Stage by HARDLINK, not copy — an ACC night is ~300 MB:
+ * `groupFiles()` expects: `Polar_H10_*_ACC.txt` at the top level, and the matching flow beside it
+ * under `CPAP/YYYYMMDD/*_BRP.edf`.
+ *
+ * BOTH capture layouts are accepted — `_YYYYMMDD_HHMMSS_ACC.txt` (phone / Polar Sensor Logger) and
+ * `_YYYYMMDDHHMMSS_ACC.txt` (capture host, no separator). This paragraph used to say the box layout
+ * "silently contributes nothing"; that was true of `groupFiles()` once, was fixed in the parser
+ * (`RespAccAnalysis.sessionStamp`, gated by `resp-acc-analysis · corpus · absence`), and the fix never
+ * reached this file — see the pre-flight below, which kept its own copy of the OLD regex and therefore
+ * announced "0 of 193 name-matching" three lines before the page grouped 188 nights from them.
+ * The pre-flight now CALLS `sessionStamp`, so there is one rule and it cannot drift again.
+ *
+ * Stage by HARDLINK, not copy — an ACC night is ~300 MB:
  *     T=/path/staged; mkdir -p "$T/CPAP/20260610"
  *     ln "<corpus>/Polar_H10_..._20260610_211538_ACC.txt" "$T/"
  *     ln "<corpus>/CPAP/20260610/20260610_204840_BRP.edf" "$T/CPAP/20260610/"
  * (hardlink needs one filesystem; the corpus and the staging dir are both on the data volume.)
  *
  * Usage:
- *   node tools/resp-acc-headless.mjs <staged-dir> [--url http://127.0.0.1:8080]
+ *   node tools/resp-acc-headless.mjs <staged-dir> [--url http://127.0.0.1:8080] [--figures <out-dir>]
  *   (serve the repo first: python3 -m http.server 8080 --bind 127.0.0.1)
+ *
+ * `--figures <out-dir>` writes the page's three canvases — Bland-Altman, coverage, per-night MAE — as
+ * PNGs named exactly as the page's own download buttons name them, so a run reproduces the published
+ * figures rather than a look-alike. Read straight off the live canvas via `toDataURL`; nothing is
+ * re-plotted here, so there is no second drawing implementation to drift from the one on screen.
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 import fs from 'node:fs';
 import path from 'node:path';
+import vm from 'node:vm';
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const DIR = process.argv[2];
 const uArg = process.argv.indexOf('--url');
 const URL_ = uArg > 0 ? process.argv[uArg + 1] : 'http://127.0.0.1:8080';
+const fArg = process.argv.indexOf('--figures');
+const FIGDIR = fArg > 0 ? process.argv[fArg + 1] : null;
 
 if (!DIR || !fs.existsSync(DIR)) {
   console.error('usage: node tools/resp-acc-headless.mjs <staged-dir> [--url http://host:port]');
@@ -76,11 +94,37 @@ let chromium;
   }
 }
 
+/* ONE RULE, NOT A SECOND COPY. This pre-flight used to run its own `_YYYYMMDD_HHMMSS_` regex — the
+   phone-only form — while the page had long since moved to `sessionStamp`, which accepts the capture
+   host's separator-less run too. The two disagreed in the same output: "193 ACC file(s), 0 of them
+   name-matching" followed three lines later by "grouped 188 night(s)". A confident, wrong pre-flight
+   is worse than none, because it tells a reader the corpus is unanalysable when it is not — which is
+   the conclusion MOTIONDEX-RESPIRATORY-RATE §11 had to correct at corpus scale. */
+const stampOf = (() => {
+  try {
+    const src = fs.readFileSync(path.join(REPO, 'resp-acc-analysis.js'), 'utf8');
+    const sb = { console };
+    sb.window = sb;
+    sb.self = sb;
+    sb.globalThis = sb;
+    vm.createContext(sb);
+    vm.runInContext(src, sb, { filename: 'resp-acc-analysis.js' });
+    const A = sb.RespAccAnalysis;
+    if (A && typeof A.sessionStamp === 'function') return (n) => A.sessionStamp(n);
+  } catch {}
+  return null;
+})();
 const acc = fs.readdirSync(DIR).filter((f) => /Polar_H10.*_ACC\.txt$/i.test(f));
-const dated = acc.filter((f) => /_(\d{8})_(\d{6})_ACC\.txt$/i.test(f));
 console.log(`▸ staged dir: ${DIR}`);
-console.log(`  ${acc.length} ACC file(s), ${dated.length} of them name-matching groupFiles()`);
-if (acc.length && !dated.length) console.log('  ⚠ none match — box captures write YYYYMMDDHHMMSS with no separator; groupFiles() needs the underscore');
+if (!stampOf) {
+  /* FAIL LOUD, NOT OPEN. If the shared parser cannot be loaded, this tool must not fall back to a
+     private regex — that is how the two copies diverged in the first place. */
+  console.log(`  ${acc.length} ACC file(s) · ⚠ could not load RespAccAnalysis.sessionStamp — pre-flight SKIPPED, not guessed`);
+} else {
+  const dated = acc.filter((f) => stampOf(f) != null);
+  console.log(`  ${acc.length} ACC file(s), ${dated.length} of them carrying a session stamp the page can read`);
+  if (acc.length && !dated.length) console.log('  ⚠ none carry a recognisable stamp — expected _YYYYMMDD_HHMMSS_ACC.txt (phone) or _YYYYMMDDHHMMSS_ACC.txt (capture host)');
+}
 
 const b = await chromium.launch();
 const p = await b.newPage();
@@ -111,6 +155,47 @@ for (const id of ['refSummary', 'driftSummary']) {
 const rows = await p.evaluate(() => document.querySelectorAll('table tbody tr').length);
 console.log(`\n▸ ${rows} table row(s) rendered · ${errs.length} console error(s)`);
 for (const e of errs.slice(0, 5)) console.log('    ✕ ' + e);
+
+/* FIGURES — read off the LIVE canvases, never re-plotted here. The names match the page's own
+   download buttons (resp-acc-analysis-app.js), so what a run writes is what a human clicking Save
+   would get. A canvas that never drew is reported as SKIPPED with its id, never written as a blank
+   PNG: an empty figure in papers/figures/ is indistinguishable from a real one at a glance, and this
+   corpus can legitimately produce a page with no confident locks to plot. */
+if (FIGDIR) {
+  const FIGS = [
+    ['figBA', 'acc-resp-bland-altman.png'],
+    ['figCov', 'acc-resp-coverage.png'],
+    ['figNights', 'acc-resp-per-night.png']
+  ];
+  fs.mkdirSync(FIGDIR, { recursive: true });
+  console.log('\n▸ FIGURES → ' + FIGDIR);
+  for (const [id, name] of FIGS) {
+    const shot = await p.evaluate((cid) => {
+      const c = document.getElementById(cid);
+      if (!c || !c.width || !c.height) return null;
+      // A canvas that was sized but never painted is uniformly transparent; treat that as "no figure"
+      // rather than writing an empty PNG that reads as a result.
+      const ctx = c.getContext('2d');
+      const d = ctx.getImageData(0, 0, c.width, c.height).data;
+      let painted = false;
+      for (let i = 3; i < d.length; i += 4) {
+        if (d[i] !== 0) {
+          painted = true;
+          break;
+        }
+      }
+      return painted ? { url: c.toDataURL('image/png'), w: c.width, h: c.height } : null;
+    }, id);
+    if (!shot) {
+      console.log(`    ⊘ ${name} — #${id} drew nothing (no figure written)`);
+      continue;
+    }
+    const buf = Buffer.from(shot.url.split(',')[1], 'base64');
+    fs.writeFileSync(path.join(FIGDIR, name), buf);
+    console.log(`    ✓ ${name}  ${shot.w}x${shot.h}  ${(buf.length / 1024).toFixed(0)} KB`);
+  }
+}
+
 await b.close();
 // A run that rendered nothing is a failure even when nothing threw — the whole point is the render path.
 process.exit(rows > 0 && !errs.length ? 0 : 1);
