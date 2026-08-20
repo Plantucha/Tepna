@@ -273,11 +273,18 @@ function synthCorpus() {
 function readNightDir(dir) {
   const files = readdirSync(dir).filter((f) => /\.json$/i.test(f));
   const series = {},
-    motion = {};
+    motion = {},
+    /* Per-corner axis provenance AND the pseudo-TCH flag. Both were used at the bottom of this
+       loop and returned at the end WITHOUT ever being declared (#1418), so `--dir` threw
+       `ReferenceError: prov is not defined` on its first real night — the tool's entire
+       real-data path. `--selftest` never calls readNightDir, and `--dir` needs the gitignored
+       corpus, so no gate in this repo could see it. */
+    prov = {};
   /* The producing-code marker, read off the export rather than remembered. `quality.timingSource` is
      the field the host-axis work added, so its ABSENCE dates a night to before that change — which is
      exactly the cohort split that made two published σ medians incomparable. */
   let marker;
+  let pseudo = false;
   for (const f of files) {
     let j;
     try {
