@@ -30,6 +30,17 @@
  * negative, so it cannot be detected reference-free — pass opts.rho (an externally
  * estimated common-mode correlation, e.g. from co-motion) to remove it; the auto
  * min-rho search only engages on the negative-variance failure mode.
+ *
+ * ⚠️ "EXTERNALLY estimated" IS LOAD-BEARING, AND ONE TEMPTING SOURCE IS NOT EXTERNAL.
+ * A rho computed as corr(a−c, b−c) from the same three streams — which is what
+ * tools/tch-per-epoch-rho.mjs returns — is the POLARIZATION IDENTITY:
+ *     corr(a−c, b−c) ≡ ½(V_AC + V_BC − V_AB) / √(V_AC · V_BC)
+ * i.e. a deterministic function of the three pairwise variances this solver already
+ * has. Feeding it back as opts.rho adds no information and cannot break the
+ * degeneracy it appears to resolve. Verified by simulation to 1.3e-15.
+ * CROSS-DOMAIN-METHODS-FOLLOWUPS-2026-08-14 §1 proved rho is NOT identifiable from
+ * three sources and WITHDREW the recommendation to "measure it directly" — this note
+ * exists so that recommendation cannot be re-made from the code alone.
  * ════════════════════════════════════════════════════════════════════════ */
 (function (root) {
   'use strict';
