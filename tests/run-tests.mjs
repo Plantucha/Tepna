@@ -1889,6 +1889,15 @@ async function main() {
     CohortFull: ctx.CohortFull,
     AnalysisStats: ctx.AnalysisStats,
     RespAccAnalysis: ctx.RespAccAnalysis,
+    /* The TOOL's source, for the single-source scan beside the parser's own gate. Node-lane only —
+       the browser lane cannot read a file off disk, and that group SKIPs there. */
+    respAccHeadlessSrc: (() => {
+      try {
+        return readFileSync(join(ROOT, 'tools', 'resp-acc-headless.mjs'), 'utf8');
+      } catch {
+        return null;
+      }
+    })(),
     DriftReport: ctx.DriftReport,
     TchCorpus: ctx.TchCorpus,
     docs: readDocs(),
