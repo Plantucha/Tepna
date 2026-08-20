@@ -77,3 +77,16 @@ def test_an_unwired_daemon_answers_501_not_200(tmp_path):
     quietly queues into nothing."""
     status, body = _post(tmp_path, {"address": "AA:BB:CC:DD:EE:FF", "field": "brightness", "value": 1}, None)
     assert status == 501 and "not wired" in body["error"]
+
+
+def test_a_malformed_body_is_the_shared_bad_body_response(tmp_path):
+    """Same malformed-JSON contract as every other POST: reject before touching the queue."""
+    rc, calls = _recorder()
+    app, *_ = _mk(tmp_path, ring_config=rc)
+
+    async def go(c):
+        r = await c.post("/api/ring/config", data=b"{not json", headers={"content-type": "application/json"})
+        return r.status
+    status = _serve(app, go)
+    assert status == 400
+    assert calls == []

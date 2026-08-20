@@ -4911,3 +4911,47 @@ def test_run_oxyii_settings_write_failure_surfaces_in_the_verdict(tmp_path, monk
     st = capture.STATUS["devices"]["Ring"]
     assert "write failed" in st["ring_config_verdict"]
     assert capture._OXYII_CFG_PENDING == {}
+
+
+def test_run_oxyii_rtc_poll_failure_costs_only_the_reading(tmp_path, monkeypatch):
+    """The GET_INFO write raises: vitals continue, the link survives, no offset is published."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_CFG_PENDING.clear()
+    c = FakeGattClient()
+    real_write = c.write_gatt_char
+    async def write(char, data, response=False):
+        if data[1] == oxyii.OP_GET_INFO:
+            raise RuntimeError("gatt refused the info read")
+        await real_write(char, data, response)
+    c.write_gatt_char = write
+    def on(data):
+        if data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+    c.on_live = on
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    st = capture.STATUS["devices"]["Ring"]
+    assert st["spo2"] == 96, "vitals must survive a failed optional read"
+    assert st.get("ring_rtc_offset_s") is None and st.get("ring_rtc_read") is None
+
+
+def test_run_oxyii_unparseable_config_reply_publishes_nothing(tmp_path, monkeypatch):
+    """A short 0x00 reply parses to None: no ring_config, no verdict — never a partial struct."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_CFG_PENDING.clear()
+    c = FakeGattClient()
+    def on(data):
+        op = data[1]
+        if op == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif op == oxyii.OP_GET_INFO:
+            c.notify(0, _o2_info_reply())
+        elif op == oxyii.OP_GET_CONFIG:
+            c.notify(0, oxyii.encode(oxyii.OP_GET_CONFIG, bytes(4)))    # 4 B — too short to parse
+    c.on_live = on
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    st = capture.STATUS["devices"]["Ring"]
+    assert st.get("ring_config") is None and st.get("ring_config_verdict") is None
