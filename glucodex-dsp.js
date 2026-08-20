@@ -222,13 +222,20 @@
     if (typeof raw !== 'string') return NaN;
     var s = raw.trim().replace(/^["']|["']$/g, '');
     var m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-    if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3]);
+    if (m) {
+      // SIGNAL-PATH-AUDIT F1: this was the ONE stamp path in the file that skipped _ckMk, so a corrupt
+      // date (2026-13-45, Feb 30) silently ROLLED onto a plausible wrong day and fed the meal↔glucose
+      // join (Clock Contract §2.7). Route through the same round-trip every other path uses.
+      var mk = _ckMk(+m[1], +m[2] - 1, +m[3], 0, 0, 0, 0);
+      return mk == null ? NaN : mk;
+    }
     m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (m) {
       var o = opts || {},
         dm = _ckDMY(+m[1], +m[2], o.preferDMY, o.dmyLocked);
       if (!dm) return NaN; // row contradicts the file's proven order → honest NaN, never a guess
-      return Date.UTC(+m[3], dm.mo - 1, dm.d);
+      var mk2 = _ckMk(+m[3], dm.mo - 1, dm.d, 0, 0, 0, 0); // same §2.7 round-trip on the MDY/DMY branch
+      return mk2 == null ? NaN : mk2;
     }
     return NaN;
   }
