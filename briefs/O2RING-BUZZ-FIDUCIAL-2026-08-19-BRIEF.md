@@ -101,6 +101,31 @@ recording on one box clock; command instants logged to the ms). Aperiodic patter
   threshold baseline it must beat, selftested (planted varied latencies ±40 ms, no-burst refusal,
   planted +150 ms pairwise offset recovered).
 
+### §5b · Matched-filter estimator + the 2026-08-20 morning calibration — THE ≤30 ms BAND IS MET
+
+`buzz-onset-extract.mjs --xcorr`: whole-pattern normalized cross-correlation of the two devices'
+HF-energy series (every burst contributes at once; the aperiodic pattern makes the peak unique), with
+per-event xcorr for the spread and a boxcar template train for per-device latency. ⚠ Its ACCURACY
+carries a coupling-dependent centroid bias (a slow-rising coupling drags the lag late by ~rise/2 —
+constant per geometry, cancelling across sessions); its PRECISION is rise-shape-insensitive, which is
+the property the ≤30 ms band needed. Gate-tested both ways: matched couplings recover a planted
++150 ms exactly; mismatched couplings show the bounded positive bias; the threshold baseline's bias is
+pinned as the control.
+
+Measured, morning calibration (motor 60, 3-way stack, 04:33): **per-event SD 42.8 ms, SE 19.1 ms**
+(n=5, peak r 0.90) vs the threshold baseline's 82–129 ms — the pre-stated ≤30 ms per-pattern band is
+met. Cross-session H10↔Verity (threshold estimator, comparable convention): night +193.5 ± 64 →
+morning +118.5 ± 41 → pooled **+140 ± 35 ms**, the ~0.2 s systematic reproduced. Cross-session H10
+latency stable (+0.147 → +0.167 s), so the command stamp alone is a ~±50 ms anchor. Night run C reads
+LOW CONFIDENCE under the matched filter (peak r 0.38 — bottom-of-stack Verity coupling), and the tool
+now says so rather than reporting a lag.
+
+Intensity floor (2026-08-20 sweep): **motor 60 IS the through-stack detection floor** (40 → 1/3,
+20 → ~0/3) while the finger still FEELS 20–40 — the floor is mechanical coupling, not motor output;
+quiet settings remain usable ring-only. Two vendor behaviours found: writing `motor` DEMO-BUZZES the
+ring at the new intensity (a second commanded-vibration path, journal-stamped), and the ring
+self-buzzes on contact loss (a confound for felt-buzz reports).
+
 ## Done when
 
 - [x] The `0x83` artifact shape is characterised on hardware (width, channel, amplitude) — DONE 2026-08-19, §3.1.
