@@ -753,6 +753,53 @@
 
   // Secondary detector (different front-end: slope+amplitude on band-passed signal)
   // used only for bSQI two-detector agreement.
+  /* AMPLITUDE REFERENCE — the p99 of |bp|, NOT the maximum (TCH-FUSED-ROBUST-HAT-FOLLOWUPS Do 5).
+     Both of this detector's thresholds used to be fractions of the GLOBAL MAXIMUM, and the floor
+     `Math.max(0.3·env, 0.18·mx)` is the one that bites: a single artifact lifts `mx` and the floor
+     rises above every real R peak for the WHOLE record, so the running envelope beside it — the part
+     that is supposed to adapt — can never bring the threshold back down. Measured on the corpus
+     (bSQI became observable in the commit before this one): on one H10 segment the largest |bp| was
+     9.8× the median R amplitude, putting the floor at 436 against a median R peak of 247, and this
+     detector found 7 peaks where detector A found 2074 — bSQI 0.0019 while `cleanBeatPct` read 99.8.
+
+     A max is a 1-sample order statistic and one artifact IS that sample. The p99 is the same quantity
+     computed where the beats actually are: a QRS complex spans ~7 % of samples at these rates, so the
+     99th percentile sits inside the R peaks and tracks them, while a lone spike moves it by nothing.
+     Histogram rather than a sort — O(N) with one pass and no allocation proportional to N, and
+     deterministic (a strided SAMPLE could alias against the heart rate and systematically miss QRS). */
+  /* 3× the typical R peak. An R amplitude genuinely varies within a record — respiration, posture,
+     ectopy — but not by 3×; beyond that it is an artifact, not a heartbeat. Deliberately NOT fitted to
+     the corpus: it is an upper bound on plausible physiological variation, and the segment it rescues
+     sits at 9.8× with the healthy segments at ~1.2×, so nothing in this corpus is near the boundary. */
+  const CK_AMPREF_MAX_RATIO = 3;
+
+  function _ampRefB(bp, fs, mx) {
+    if (!(mx > 0)) return 0;
+    const N = bp.length,
+      W = Math.max(1, Math.round(10 * fs)),
+      maxima = [];
+    for (let s0 = 0; s0 < N; s0 += W) {
+      const e = Math.min(N, s0 + W);
+      let m = 0;
+      for (let i = s0; i < e; i++) {
+        const a = Math.abs(bp[i]);
+        if (a > m) m = a;
+      }
+      if (e - s0 >= W / 2) maxima.push(m);
+    }
+    if (!maxima.length) return mx;
+    maxima.sort((a, b) => a - b);
+    const h = maxima.length >> 1;
+    const typ = maxima.length % 2 ? maxima[h] : (maxima[h - 1] + maxima[h]) / 2;
+    /* A CAP, not a replacement. `Math.min` means a record whose largest |bp| is already a plausible
+       R peak keeps `mx` EXACTLY — identical thresholds, identical peaks, byte-identical downstream —
+       and only a record carrying an outlier is touched at all. Replacing the reference outright was
+       tried first and measured WORSE: a p99 reference lowered the threshold on every record, and on
+       a noisier night the extra spurious detections consumed the 0.22 s refractory window and BLOCKED
+       real beats, costing 0.11 of bSQI across six segments to rescue one. */
+    return Math.min(mx, CK_AMPREF_MAX_RATIO * typ);
+  }
+
   function detectPeaksB(bp, fs) {
     const N = bp.length,
       refractory = Math.round(0.22 * fs);
@@ -761,7 +808,10 @@
       const a = Math.abs(bp[i]);
       if (a > mx) mx = a;
     }
-    let thr = 0.35 * mx,
+    /* The reference is capped at `mx` by construction, so it can only ever LOWER a threshold — it
+       cannot make this detector stricter than it was, on any input. */
+    const ref = _ampRefB(bp, fs, mx);
+    let thr = 0.35 * ref,
       last = -refractory;
     const peaks = [];
     // running amplitude estimate
@@ -769,7 +819,7 @@
     for (let i = 1; i < N - 1; i++) {
       const a = Math.abs(bp[i]);
       env = 0.999 * env + 0.001 * a;
-      const t = Math.max(0.3 * env, 0.18 * mx);
+      const t = Math.max(0.3 * env, 0.18 * ref);
       if (bp[i] > bp[i - 1] && bp[i] >= bp[i + 1] && bp[i] > t && i - last > refractory) {
         peaks.push(i);
         last = i;
