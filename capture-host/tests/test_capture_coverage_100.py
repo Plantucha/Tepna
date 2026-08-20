@@ -1690,3 +1690,179 @@ def test_qc_digest_formats_ranges_and_absences():
     # a junk (non-dict) device entry is SKIPPED, not crashed on — and the rest still formats
     j = nightqc.qc_digest({"night": "x", "devices": ["garbage", {"name": "H10", "coverage": {"ecg": 0.9}}]})
     assert j is not None and "H10 90%" in j and "garbage" not in j
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════
+# CAPTURE-FILESET-RESUME — a reconnect inside the window reuses the set; outside it, fragments.
+# Each of the brief's §3 invariants is a test here, not a hope.
+# ═══════════════════════════════════════════════════════════════════════════════════════════
+def test_resumable_stamp_finds_the_set_inside_the_window(tmp_path):
+    import writers, datetime as dt, os, time
+    d = str(tmp_path)
+    f = tmp_path / "Polar_H10_02849638_20260819210000_ECG.txt"
+    f.write_text("hdr\n1;2;3;4\n")
+    now = dt.datetime.now()
+    got = writers.resumable_stamp(d, "Polar", "H10", "02849638", now, 300.0)
+    assert got == dt.datetime(2026, 8, 19, 21, 0, 0), got
+    # DENY twin: age the file past the window — a true outage must fragment
+    old = time.time() - 400
+    os.utime(str(f), (old, old))
+    assert writers.resumable_stamp(d, "Polar", "H10", "02849638", now, 300.0) is None
+    # and a different device's set is never adopted
+    assert writers.resumable_stamp(d, "Polar", "H10", "DEADBEEF", now, 300.0) is None
+    # missing dir refuses rather than raising
+    assert writers.resumable_stamp(str(tmp_path / "nope"), "Polar", "H10", "x", now, 300.0) is None
+
+
+def test_resumable_stamp_ignores_stampless_and_unparseable_names(tmp_path):
+    import writers, datetime as dt
+    (tmp_path / "Polar_H10_02849638_notes.txt").write_text("x\n")
+    assert writers.resumable_stamp(str(tmp_path), "Polar", "H10", "02849638",
+                                   dt.datetime.now(), 300.0) is None
+
+
+def test_stream_writer_resumes_without_a_second_header(tmp_path):
+    """§2: same path ⇒ append; the header is written once, by the FIRST open."""
+    import writers
+    p = str(tmp_path / "Polar_H10_x_20260819210000_ACC.txt")
+    import datetime as dt
+    w1 = writers.StreamWriter(p, "acc", fsync=False)
+    w1.write_acc(dt.datetime(2026, 8, 19, 21, 0, 0), 1, 0.0, 1, 2, 3)
+    w1.close()
+    w2 = writers.StreamWriter(p, "acc", fsync=False)
+    assert w2.resumed is True
+    w2.write_acc(dt.datetime(2026, 8, 19, 21, 3, 0), 2, 0.0, 4, 5, 6)
+    w2.close()
+    lines = open(p).read().splitlines()
+    assert sum(1 for x in lines if x.startswith("Phone timestamp")) == 1, lines
+    assert len(lines) == 3   # header + two rows — nothing lost, nothing duplicated
+
+
+def test_stream_writer_truncates_a_torn_tail_before_appending(tmp_path):
+    """§3.5: a crash mid-write leaves no trailing newline; appending after it would fuse two rows."""
+    import writers
+    p = str(tmp_path / "Polar_H10_x_20260819210000_ACC.txt")
+    import datetime as dt
+    w1 = writers.StreamWriter(p, "acc", fsync=False)
+    w1.write_acc(dt.datetime(2026, 8, 19, 21, 0, 0), 1, 0.0, 1, 2, 3)
+    w1.close()
+    with open(p, "a", newline="\n") as fh:
+        fh.write("2026-08-19T21:00:01.000;2;7;8")     # torn — no newline
+    w2 = writers.StreamWriter(p, "acc", fsync=False)
+    w2.write_acc(dt.datetime(2026, 8, 19, 21, 3, 0), 3, 0.0, 9, 9, 9)
+    w2.close()
+    lines = open(p).read().splitlines()
+    assert not any(";7;8" in x and ";9" in x for x in lines), f"fused row: {lines}"
+    assert lines[-1].endswith(";9;9;9")
+    assert all(x.count(";") in (0, 4) for x in lines), lines   # every surviving row is complete
+
+
+def test_resumed_ecg_keeps_its_relative_ms_anchor(tmp_path):
+    """§3.2 (no re-anchor): the `timestamp [ms]` column must NOT restart at 0.0 mid-file — ECGDex
+    infers fs from this column's step, and a reset fabricates a step the size of the recording."""
+    import writers
+    p = str(tmp_path / "Polar_H10_x_20260819210000_ECG.txt")
+    import datetime as dt
+    w1 = writers.StreamWriter(p, "ecg", fsync=False)
+    w1.write_ecg(dt.datetime(2026, 8, 19, 21, 0, 0), 1_000_000_000, 0.0, 100)
+    w1.write_ecg(dt.datetime(2026, 8, 19, 21, 0, 0, 8000), 1_007_692_288, 0.0, 101)
+    w1.close()
+    w2 = writers.StreamWriter(p, "ecg", fsync=False)
+    assert w2._first_ns == 1_000_000_000, w2._first_ns
+    w2.write_ecg(dt.datetime(2026, 8, 19, 21, 3, 0), 181_000_000_000, 0.0, 102)
+    w2.close()
+    rows = [x for x in open(p).read().splitlines() if not x.startswith("Phone")]
+    rel = [float(r.split(";")[2]) for r in rows]
+    assert rel[0] == 0.0
+    assert abs(rel[2] - 180_000.0) < 1.0, rel   # anchored to the ORIGINAL first sample, not reset
+
+
+def test_resumed_hr_writer_appends_the_rr_sibling_too(tmp_path):
+    import writers
+    p = str(tmp_path / "Polar_H10_x_20260819210000_HR.txt")
+    w1 = writers.StreamWriter(p, "hr", fsync=False)
+    w1.close()
+    w2 = writers.StreamWriter(p, "hr", fsync=False)
+    w2.close()
+    rr = open(str(tmp_path / "Polar_H10_x_20260819210000_RR.txt")).read().splitlines()
+    assert sum(1 for x in rr if x.startswith("Phone timestamp")) == 1, rr
+
+
+def test_resumable_stamp_survives_races_and_junk_dates(tmp_path, monkeypatch):
+    """The unhappy paths: a file deleted between listdir and getmtime is skipped, not raised; a token
+    that matches the stamp REGEX but is not a real date (month 13) refuses rather than crashing."""
+    import writers, datetime as dt, os as _os
+    (tmp_path / "Polar_H10_02849638_20261340000000_ECG.txt").write_text("h\n")   # month 13
+    now = dt.datetime.now()
+    assert writers.resumable_stamp(str(tmp_path), "Polar", "H10", "02849638", now, 300.0) is None
+    (tmp_path / "Polar_H10_02849638_20260819210000_ECG.txt").write_text("h\n")
+    real = _os.path.getmtime
+
+    def flaky(p):
+        if "20260819210000" in p:
+            raise OSError("raced away")
+        return real(p)
+    monkeypatch.setattr(writers.os.path, "getmtime", flaky)
+    # the raced file is skipped; the junk-date one is newest-by-mtime and then refuses on strptime
+    assert writers.resumable_stamp(str(tmp_path), "Polar", "H10", "02849638", now, 300.0) is None
+
+
+def test_resumed_ecg_anchor_skips_comments_and_junk_rows(tmp_path):
+    """The anchor scan must step over `#` comments and a non-numeric ns column, and give up cleanly
+    (lazy init) when no row qualifies — a worse column, never a crash."""
+    import writers
+    p = str(tmp_path / "Polar_H10_x_20260819210000_ECG.txt")
+    with open(p, "w", newline="\n") as fh:
+        fh.write("# timebase=host\n")
+        fh.write(writers.StreamWriter.HEADERS["ecg"] + "\n")
+        fh.write("2026-08-19T21:00:00.000;junk;0.0;100\n")          # non-numeric ns
+        fh.write("2026-08-19T21:00:00.008;2000000000;7.7;101\n")    # the first valid row
+    w = writers.StreamWriter(p, "ecg", fsync=False)
+    assert w.resumed is True and w._first_ns == 2_000_000_000
+    w.close()
+    # exhausted scan: nothing but comments/junk → lazy init (None), still opens
+    p2 = str(tmp_path / "Polar_H10_x_20260819210500_ECG.txt")
+    with open(p2, "w", newline="\n") as fh:
+        fh.write(writers.StreamWriter.HEADERS["ecg"] + "\n")
+        fh.write("2026-08-19T21:05:00.000;junk;0.0;100\n")
+    w2 = writers.StreamWriter(p2, "ecg", fsync=False)
+    assert w2.resumed is True and w2._first_ns is None
+    w2.close()
+
+
+def test_arrival_writer_resumes_and_heals_a_torn_tail(tmp_path):
+    import writers, datetime as dt
+    p = str(tmp_path / "Polar_H10_x_20260819210000_PMDARRIVAL.csv")
+    w1 = writers.PmdArrivalLogWriter(p, fsync=False)
+    w1.write(dt.datetime(2026, 8, 19, 21, 0, 0), "H10", "ecg", 1, 2, 73)
+    w1.close()
+    with open(p, "a", newline="\n") as fh:
+        fh.write("2026-08-19T21:00:01.000;H10;acc;3;4")             # torn
+    w2 = writers.PmdArrivalLogWriter(p, fsync=False)
+    w2.write(dt.datetime(2026, 8, 19, 21, 3, 0), "H10", "ecg", 5, 6, 73)
+    w2.close()
+    lines = open(p).read().splitlines()
+    assert sum(1 for x in lines if x.startswith("Phone timestamp")) == 1
+    assert not any(";3;4" in x and ";5;6" in x for x in lines), lines
+
+
+
+def test_resumed_ecg_anchor_survives_an_unreadable_file(tmp_path, monkeypatch):
+    """The anchor scan's own read racing away (OSError) degrades to lazy init — a worse column,
+    never a crash. The append handle is already open by then, so the writer still works."""
+    import writers, builtins, datetime as dt
+    p = str(tmp_path / "Polar_H10_x_20260819210000_ECG.txt")
+    w1 = writers.StreamWriter(p, "ecg", fsync=False)
+    w1.write_ecg(dt.datetime(2026, 8, 19, 21, 0, 0), 1_000_000_000, 0.0, 100)
+    w1.close()
+    real_open = builtins.open
+
+    def flaky(f, mode="r", *a, **k):
+        if f == p and mode == "r":
+            raise OSError("raced away")
+        return real_open(f, mode, *a, **k)
+    monkeypatch.setattr(builtins, "open", flaky)
+    w2 = writers.StreamWriter(p, "ecg", fsync=False)
+    assert w2.resumed is True and w2._first_ns is None
+    w2.write_ecg(dt.datetime(2026, 8, 19, 21, 3, 0), 2_000_000_000, 0.0, 101)
+    w2.close()
