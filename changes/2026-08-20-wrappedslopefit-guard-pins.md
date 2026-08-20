@@ -3,7 +3,7 @@
 bump: patch
 type: added
 nodes: [Integrator]
-brief: MUTATION-SUITE-FOLLOWUPS-2026-08-11-BRIEF.md
+brief: MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md
 ---
 The fix the 2026-08-20 sweep-stall post-mortem (§7) asked for, as a test: _wrappedSlopeFit's guard
 is the only thing between junk input and a ~1600-step ppm grid search over every row, and its
