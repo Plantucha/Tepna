@@ -224,15 +224,26 @@ posture-only null control, and **invariance of the peak to the search range**.
 
 ## Done when
 
-- [ ] An aperiodic cross-device marker exists in at least one captured night, and target 1 is
-      evaluated against it. **TESTED AND FAILED 2026-08-15 — the shortcut does not exist.** §2.1 assumed
-      this needs a deliberate marker; I proposed nature already supplies one, since turning over in bed
-      produces a transient in both devices' ACC at the same instant. Measured on the real paired night
-      (H10 chest vs Verity arm, 4.75 h): **no usable shared transient.** Peak prominence 0.0017–0.018
-      against a posture-only NULL control of 0.002 — indistinguishable — and the peak **rides the search
-      boundary** (3850 ms at ±4 s, 5750 at ±6 s, 9000 at ±9 s), which is what an argmax of noise does
-      and a real lock never does. `tools/aperiodic-offset.mjs` is kept as the instrument that *would*
-      detect a deliberate marker. The brief's original claim stands.
+- [x] An aperiodic cross-device marker exists in at least one captured night, and target 1 is
+      evaluated against it. **CLOSED 2026-08-20 with the DELIBERATE marker** — the natural-marker
+      shortcut was TESTED AND FAILED 2026-08-15 (no usable shared posture transient: prominence
+      0.0017–0.018 vs a 0.002 null, argmax riding the search boundary — 3850 ms at ±4 s, 5750 at ±6 s,
+      9000 at ±9 s), which parked `tools/aperiodic-offset.mjs` as the instrument awaiting a deliberate
+      marker. The commanded O2Ring buzz (`O2RING-BUZZ-FIDUCIAL-2026-08-19-BRIEF.md` §5) is that marker,
+      and the parked instrument run over the 2026-08-19/20 buzz windows (H10 chest ACC vs Verity arm
+      ACC) gives target 1's evaluation:
+      **the lag STAYS PUT under the width test the 08-15 failure defined** — night 3-way window 100 ms
+      at ±2/±4/±8 s identically; morning window 200 ms at all three widths — and a **+500 ms injection
+      is recovered as exactly 700 ms** on a peak with real prominence (0.016–0.017, ~8× the posture
+      null; r 0.60), unlike the 08-15 "perfect recovery measuring nothing". Convergent validity: three
+      independent estimators land in one family (aperiodic-offset 200 ms · matched-filter xcorr
+      +230 ms · threshold onsets +118–193 ms — `buzz-onset-extract.mjs`). Two bounds stated up front:
+      the buzz command→artifact latency is ~0.1–0.4 s poll-quantized (the marker's ABSOLUTE placement
+      inherits that bound; the cross-device lag does not), and the tool's formal `locked` flag reads
+      **false** — its r−runnerUp ≥ 0.05 margin (calibrated on ambient whole-nights) is not met at
+      0.016, because a 5-burst train's burst-vs-burst aliases produce near-tied secondary peaks in a
+      2-minute window. A longer or gap-wider pattern would widen the margin; the stay-put + injection +
+      convergence evidence is what "evaluated" requires, and the margin caveat travels with the number.
 - [x] **SATISFIED ALREADY — MEASURED 2026-08-18. Both halves, and target 7's confound does not exist.**
       **Written:** every `Tepna_*_LINK.csv` opens with `# adapter=AC:A7:F1:29:9D:1D hci=hci0` — the adapter
       **MAC**, not merely the `hci` index. That is the right identity to record, because hci indices
