@@ -63,50 +63,13 @@ const MAX_NIGHTS = +opt('--max-nights', 12);
 const TARGET_MS = +opt('--target-ms', 450); // the brief's own bar
 const BLOCKS = (opt('--blocks', '300,600,900,1200,1800') || '').split(',').map(Number);
 
-/* Robust sigma from the IQR. 1.349 is the IQR of a unit normal, so this reads on the same scale as an
-   sd for clean data and ignores the outlying block that an sd would let dominate. */
-export function robustSigma(a) {
-  if (!a || a.length < 4) return null;
-  return (quantile(a, 0.75) - quantile(a, 0.25)) / 1.349;
-}
-export function sd(a) {
-  if (!a || a.length < 2) return null;
-  const m = a.reduce((x, y) => x + y, 0) / a.length;
-  return Math.sqrt(a.reduce((s, v) => s + (v - m) * (v - m), 0) / (a.length - 1));
-}
-
-/* Least-squares line through (x,y); returns residuals in y units. */
-export function lineResiduals(x, y) {
-  const n = x.length;
-  if (n < 3) return null;
-  let sx = 0,
-    sy = 0;
-  for (let i = 0; i < n; i++) {
-    sx += x[i];
-    sy += y[i];
-  }
-  const mx = sx / n,
-    my = sy / n;
-  let num = 0,
-    den = 0;
-  for (let i = 0; i < n; i++) {
-    num += (x[i] - mx) * (y[i] - my);
-    den += (x[i] - mx) * (x[i] - mx);
-  }
-  const slope = den === 0 ? 0 : num / den;
-  const res = [];
-  for (let i = 0; i < n; i++) res.push(y[i] - (my + slope * (x[i] - mx)));
-  return { slope, res };
-}
-
-/* Remove a linear rate from a timebase: b'(t) = b - ppm*1e-6*(b - t0). Pure; t0 anchors the
-   correction at the first beat so the transform is identity at the start and grows, matching the
-   convention `hostAxis` uses (CLAUDE.md §7). */
-export function dedrift(times, ppm, t0) {
-  if (!ppm) return times.slice();
-  const k = ppm * 1e-6;
-  return times.map((t) => t - k * (t - t0));
-}
+/* The scatter primitives live in `block-scatter.mjs` and are re-exported here so every existing
+   caller and this file's own selftest keep working against ONE implementation. They moved because
+   `unwrap-night-covariates.mjs` needs the identical definition, and importing it FROM this file
+   runs this file's top-level argv parsing and `process.exit()` in the importer — see the header of
+   `block-scatter.mjs` for the measurement. */
+export { robustSigma, sd, lineResiduals, dedrift } from './block-scatter.mjs';
+import { dedrift, lineResiduals, robustSigma, sd } from './block-scatter.mjs';
 
 /* ════════════════════════════════════════════ SELFTEST ═════════════════════════════════════════ */
 function selftest() {
