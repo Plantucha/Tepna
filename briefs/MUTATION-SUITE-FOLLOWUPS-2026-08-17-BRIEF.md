@@ -575,9 +575,26 @@ not, whatever `git log` says.** One more rung of the same ladder: `origin/main` 
 landed · the checkout proves it was pulled · **only the worker tree proves the processes that produce
 the verdicts can see it.**
 
-⚠️ **Consequence for the ledger, not just the prediction: `ecgdex`'s numbers came from the PRE-guard
-suite** — its pool was built before the merge and stayed frozen, by construction. So ecgdex is not
-comparable with `glucodex` onward, and a fleet kill-rate that pools them is mixing two suites.
+**Consequence for the ledger — stated carefully, because the careless version plants a false asterisk.**
+`ecgdex` ran on the pre-guard file, by construction. Its verdicts are **nonetheless comparable in this
+run**, and that was checked rather than assumed — diffing the two files directly:
+
+```
+removed lines: 0      added lines: 28      distinct group() calls added: 1
+added group:  'Integrator _wrappedSlopeFit — the guard is CHEAP and the fit recovers a planted drift'
+              tagged 'integrator-dsp · known-answer · mutation-pinned'
+lines mentioning ecgdex: 0
+```
+
+The sole delta is one group outside ecgdex's tag selection, so ecgdex sees the same groups and the same
+assertions under either file. **The general warning stands and the instance does not**: a pool frozen
+across a merge is only incomparable when the delta **intersects that file's group set**, and here it
+provably does not.
+
+⚠️ Worth the extra paragraph, because the lazy version — "ecgdex's numbers are suspect" — is a **false
+asterisk**, and a false asterisk is the small cousin of the fabricated disproof this brief warns about
+elsewhere: it is never re-examined, so it quietly devalues a good measurement forever. Check whether
+the delta touches the selection before qualifying anyone's numbers.
 
 If the prediction fails **with** the precondition met, the expensive class at integrator is not (only)
 the guard cluster, and §7.2's account needs **reopening rather than extending** — that cost lands on
