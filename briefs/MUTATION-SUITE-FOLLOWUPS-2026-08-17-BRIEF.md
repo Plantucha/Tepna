@@ -419,7 +419,7 @@ Same PR: an unrecognised argument no longer falls through the `has('--x')` chain
 launch. **`--help` started a full 22-worker sweep** — the flag a reader types *because* they do not
 know what the tool does.
 
-### 7.2 · ⚠️ OPEN — the stall was the WHOLE POOL, not a jammed mutant, and `--resume` assumes the latter
+### 7.2 · ✅ RESOLVED 2026-08-20 — the stall was the WHOLE POOL, and the cost was never the mutants'
 
 `integrator-dsp.js` stopped writing at **09:24** and the box stayed up until **14:12** — 4 h 48 m of
 nothing, past `--stall-min 10` and `--max-restarts 3`, and the suite never advanced to `motiondex`
@@ -430,9 +430,18 @@ preserved journal (`.git/tepna-mutation/journals-pre-resweep-2026-08-20/integrat
 | signal | value | what it rules in or out |
 |---|---|---|
 | STARTed, never verdicted | **23** | the run had 22 jobs — this is the ENTIRE pool plus one, dispatched and never returning |
-| keys STARTed twice | **6** (max 2) | the watchdog DID fire at least once and re-dispatched; it did not sit inert |
+| keys STARTed twice | **6** (max 2) | consistent with the watchdog firing and re-dispatching — see the caveat below |
 | verdicts recorded | 1424 of 1447 dispatched | the run was healthy right up to the wedge |
 | last three dispatches | all **line 5070** | `_wrappedSlopeFit`'s only early-out guard |
+
+⚠️ **The doubled-key row needs a caveat, found while writing §7.5.** `mutate.mjs` had a duplicated
+`jwrite({ k })` (introduced in #1178) that emits **two** START records per mutant — so a doubled key
+is not, on its own, evidence of a re-dispatch. It fires only on the **serial fallback** taken when no
+worker tree can be created, and this run had 22 workers (23 unverdicted keys against a pool of 22),
+so that path was not taken and re-dispatch remains the reading. The duplicate is fixed here regardless:
+`readJournalProgress` derives `inFlight = started − done`, which the resume line publishes as "N will
+be re-tried or quarantined" and the inventory carries — so a degraded-mode run reported roughly twice
+the in-flight work it had. **A count is only evidence once you know every way it can be incremented.**
 
 **The load-bearing point is the first row.** `--resume`'s recovery model is *quarantine the jammed
 mutant* — which presumes ONE poison mutant. What happened here leaves 22 more behind it, so a restart
@@ -440,16 +449,46 @@ re-enters the same hole with 22 fresh chances to wedge, and three bounded restar
 That is a different failure from the 11 h 11 m single-probe wedge the watchdog was built for, and the
 same watchdog cannot be assumed to cover it.
 
-**A hypothesis to test, NOT a cause** — `integrator-dsp.js:5070` is
-`if (!rows || rows.length < 4 || !(rrMs > 0)) return null;`, the sole early-out of `_wrappedSlopeFit`,
-which is a **grid search of ~1600 ppm steps over every row**. Mutating that guard is precisely the way
-to make the most expensive function in the file run on the inputs it was written to reject. Slow-but-
-bounded is not the same as hung, and telling them apart is the whole point of the watchdog; whether a
-per-mutant timeout fires here has not been checked. Do not write this down as the cause without
-running it.
+**The hypothesis was `_wrappedSlopeFit`, and it was RUN rather than assumed** (probe by the session
+driving the fleet re-sweep; child process, 120 s hard timeout, 30k-row synthetic `{tMs, off}` trains,
+20 case-runs, **zero timeouts**, nothing over 17.3 s):
 
-**What would settle it:** re-run just those 23 keys under `--jobs 1` with the process state captured,
-and check whether `mutate.mjs`'s per-mutant timeout fires at all on that line.
+| case | cost |
+|---|---|
+| `bool \|\|`→`&&` (2nd), `rrMs` 0 | 16.9 s |
+| `bool \|\|`→`&&` (2nd), `rrMs` NaN | 16.7 s |
+| `cmp >`→`>=`, `rrMs` 0 | 16.9 s |
+| **CONTROL — valid input, UNMUTATED semantics** | **17.2 s** |
+| `negate: drop !` | instant (throws on null rows) |
+
+**Read the control row first, because it inverts the obvious reading.** Valid input costs the same
+17 s as any mutant, so the mutants did not make the function slow — **`_wrappedSlopeFit` is
+intrinsically ~17 s on night-sized rows**, a ~1600-step ppm grid search over every one of 30 000 rows,
+and the guard is simply what decides how often that price is paid. Nor is `negate` slow at all: it
+throws immediately. So "the guard mutants are expensive" is the wrong sentence, and it is the sentence
+this section would have shipped had the probe not been run. The right one is that a guard mutant
+**survives cheap scrutiny and can only be killed by an assertion big enough to be slow**.
+
+**The collapse arithmetic:** ~17 s per call × several calls per equivalence leg × **22 contending
+workers**, each lap further slowed by every sibling's lap. No single call ever hung — the per-mutant
+timeout had nothing to fire on, which is exactly why 4 h 48 m produced zero verdicts instead of a
+quarantine. And the 6 double-dispatched keys close it: the watchdog's re-dispatch bought a 23rd ticket
+into the same queue.
+
+**The fix is test-placement economics, not tooling** (#1579, and this distinction matters for anyone
+reaching for the watchdog). The new guard group does **not** change `--bail` pricing — it *exploits*
+it. Its inputs are 3–60 synthetic blocks rather than a corpus night, so the sweep's priced group
+ordering runs it early, a guard mutant reds in **milliseconds**, and the expensive legs never run for
+that lap. It pins refusals (null · 3 blocks · `rrMs` 0 · `rrMs` NaN), the exact floor (**four blocks
+are enough — `< 4`, not `<= 4`**), and the fit itself (a planted 50 ppm drift recovered at
+concentration 1; a driftless train reading 0 ppm at zero residual). All five guard variants verified
+killed by direct re-application.
+
+**Carried forward:** the watchdog hole in the first paragraph is NOT closed by #1579 — it is merely no
+longer reachable through *this* function. Any other intrinsically-expensive function whose killing
+assertion is corpus-sized can reproduce the same collective collapse, and the watchdog still cannot
+see it, because nothing is hung. **The generalisable guard is pricing: a mutant whose only killer is a
+slow assertion is a pool-collapse risk, independent of which function it lives in.**
 
 ### 7.3 · The pid file is unlinked on exactly ONE of four exit paths — and that is not why 7.2 stranded
 
@@ -459,6 +498,141 @@ but it did **not** produce the stranded record above, because a give-up would ha
 `motiondex` and rewritten the file, and it never did. Recorded so the tempting tidy-up is not mistaken
 for a fix to 7.2. The reader-side check in 7.1 is the one that covers every path, including `SIGKILL`,
 which no producer-side cleanup can.
+
+### 7.5 · FOLLOW-UP — ENUMERATE the expensive-guard class instead of meeting it one collapse at a time
+
+§7.2's carried-forward says the class is open: *any* function that is intrinsically expensive and whose
+guard's only killer is corpus-sized can collapse a pool, and the watchdog cannot see it because nothing
+hangs. Proposed by the session that measured §7.2, and it is a **query, not a new instrument** —
+`mutate.mjs` already calibrates a clean lap per file (`baseMs`, and `calibrationIndices` over the union)
+and already times laps; the missing piece is that **the journal does not persist a lap duration**, so
+this needs one extra field on the verdict record before it becomes a query.
+
+With that field:
+
+- a **KILLED** mutant whose lap ran far over calibration was killed *only* by an expensive group —
+  under `--bail` the cheap groups all passed, so its cheap killers do not exist. That is the class
+  membership test, stated per mutant.
+- a file's **SURVIVORS** need no timing at all: a survivor by definition ran **every** group, so it
+  pays the full price by construction. Collapse exposure for a file is therefore roughly
+  *survivor count × full-group-set cost*, and both terms are already known. This is the cheaper half
+  and can be computed today.
+
+The payoff is turning "you will meet it again at another file" into "here are the files you will meet
+it at". **That list now exists, and it is recorded here BEFORE the sweep reaches those
+files so it can be wrong in public.** Survivor counts from the fleet re-sweep in progress:
+
+| file | survivors | file | survivors |
+|---|---|---|---|
+| oxydex | 1477 | glucodex | 479 |
+| ecgdex | 1203 | pulsedex | 379 |
+| integrator | 976 | motiondex | 257 |
+| ppgdex | 808 | hrvdex | 182 |
+
+⚠️ **This is the survivor term ONLY** — the full estimate is *survivors × full-group-set cost*, and the
+second factor is not folded in numerically here (the sweep prints each file's calibration as it starts,
+so it is available per file, not yet as a table). Read the ranking as an ordering hypothesis, not a
+cost.
+
+**The prediction, stated so it can fail:** `integrator` ranks third on survivors but should **not** be
+among the worst legs, because #1579 converts its guard-mutant cluster — the exact class that collapsed
+the pool on 2026-08-20 — from full-price to a millisecond kill. `oxydex` should be the worst.
+
+- **Observable: RANK by wall-clock, never absolute time.** A days-scale sweep shares the box with
+  whatever else runs on it, so absolute times are confounded by load that has nothing to do with the
+  hypothesis. Rank is robust to any uniform slowdown. **Falsified if `integrator` finishes in the top
+  three by wall-clock** among the fleet's files.
+- 🔴 **PRECONDITION, and it must be checked BEFORE any verdict is recorded: #1579's guard group has to
+  be in the tree the WORKERS hold when integrator's pool is built** — which is not the same file as the
+  checkout's, and the difference is measurable rather than theoretical (below). The sweep runs from a
+  checkout that was pinned when it started; if the group is not pulled in before that file begins, a
+  slow integrator **falsifies nothing** — it is simply the 2026-08-20 scenario re-run, and reading it
+  as a refutation would retire a correct account on evidence that never tested it. A fabricated
+  disproof is worse than a fabricated proof here, because nothing downstream re-examines a hypothesis
+  already marked dead.
+
+**HOW to check the precondition — grep the WORKER tree, not the checkout.** Workers are `cp -al`
+hard-linked copies built once per file, so a `git merge` into the sweeping checkout **breaks the link
+and leaves the running pool frozen on the old bytes**. Measured live on 2026-08-20 while #1579 was
+merged mid-`ecgdex`:
+
+| file read | inode | `_wrappedSlopeFit` occurrences |
+|---|---|---|
+| the running pool's `w0/tests/dex-tests.js` | 1848293 | **10** (pre-#1579) |
+| the checkout's `tests/dex-tests.js` | 1857358 | **21** (post-#1579) |
+
+Eleven occurrences apart, while `git log`, `git status` and a grep of the checkout all agreed the group
+had landed. So:
+
+```sh
+w=~/.mutate-w0-$(jq -r .child < .git/tepna-mutation/suite.pid)
+grep -c _wrappedSlopeFit "$w/tests/dex-tests.js"     # 21 ⇒ precondition MET
+```
+
+The pool directory is suffixed with the **child pid**, which `suite.pid` records, so it names the right
+pool even while a superseded pool is still draining. **21 there is the precondition; anything else is
+not, whatever `git log` says.** One more rung of the same ladder: `origin/main` proves the commit
+landed · the checkout proves it was pulled · **only the worker tree proves the processes that produce
+the verdicts can see it.**
+
+**Consequence for the ledger — stated carefully, because the careless version plants a false asterisk.**
+`ecgdex` ran on the pre-guard file, by construction. Its verdicts are **nonetheless comparable in this
+run**, and that was checked rather than assumed — diffing the two files directly:
+
+```
+removed lines: 0      added lines: 28      distinct group() calls added: 1
+added group:  'Integrator _wrappedSlopeFit — the guard is CHEAP and the fit recovers a planted drift'
+              tagged 'integrator-dsp · known-answer · mutation-pinned'
+lines mentioning ecgdex: 0
+```
+
+The sole delta is one group outside ecgdex's tag selection, so ecgdex sees the same groups and the same
+assertions under either file. **The general warning stands and the instance does not**: a pool frozen
+across a merge is only incomparable when the delta **intersects that file's group set**, and here it
+provably does not.
+
+⚠️ Worth the extra paragraph, because the lazy version — "ecgdex's numbers are suspect" — is a **false
+asterisk**, and a false asterisk is the small cousin of the fabricated disproof this brief warns about
+elsewhere: it is never re-examined, so it quietly devalues a good measurement forever. Check whether
+the delta touches the selection before qualifying anyone's numbers.
+
+If the prediction fails **with** the precondition met, the expensive class at integrator is not (only)
+the guard cluster, and §7.2's account needs **reopening rather than extending** — that cost lands on
+§7.2, which is the right place for it, since §7.2 is what generated the prediction. ⚠️ Do not price a file by its *mean* lap — the distribution is what matters, and integrator's
+own history is the warning: calibration alone was **312 s of a 339 s run** while the mutants cost ~25 s
+(`mutate.mjs` §calibration). A mean over that is a number about the wrong thing.
+
+### 7.4 · A required context can be ABSENT because it is PENDING — the benign twin of the matrix trap
+
+Noticed while landing 7.1, and recorded here because it costs a queue-watcher the same hour the real
+trap does. The required context **`test` does not exist in a PR's check rollup at all until the six
+`suite (shard N/6)` jobs finish** — it is the aggregate over them. So a healthy PR sits with **7 of 8
+required contexts green and the 8th simply not there**.
+
+That is byte-for-byte the signature of the failure CLAUDE.md §5 warns about — *a required context that
+was never reported at all*, where a skipped matrix job leaves an unexpanded literal name and **waiting
+cannot fix it**. The two states need opposite responses (wait vs stop and fix the workflow) and the
+rollup renders them identically, as an absence.
+
+**The discriminator is the shards, not the aggregate:** shards still in flight ⇒ absent-because-pending
+⇒ wait. Shards all terminal with `test` still missing ⇒ absent-because-never-coming ⇒ stop. Confirmed
+against a merged PR of the same day, whose rollup carries `test` and whose only difference was that
+its shards had finished. **Never conclude "never reported" from the aggregate alone** — an absence is
+not a verdict until you have looked at what produces it, which is §0's table one more time.
+
+✅ **`tools/land-pr.mjs` ALREADY GETS THIS RIGHT — cite it rather than re-deriving it.** Read before
+writing this section, and the trap it documents is one the toolchain met and fixed on **#1293**, where
+`suite (shard 1/6)` was pending, is not itself required, so `requiredPending` was 0 — and the tool fell
+through to `merge` on a PR whose required `test` had never reported. Its `decide` now carries **both**
+branches, and the discriminator it uses is broader than the shard-specific one above: *anything*
+pending ⇒ the absent context is **LATE** (`wait`); nothing pending ⇒ **never coming** (`stuck`). It
+also guards the failure mode one level up — an **unreadable** snapshot (a GraphQL TLS timeout on #1183)
+returns `wait`, not `stuck`, because a failed measurement is not an empty result.
+
+So this section is a note for **humans reading a rollup by eye**, which is where the misreading actually
+happens; the tool is not exposed to it. Two independent confirmations, both measurements rather than
+agreement: a peer's `land-pr` logs on two PRs today (`-> wait (… required context(s) not yet reported:
+test)` at 18:48, `MERGED` at 18:52), and the `decide` source itself.
 
 ---
 
