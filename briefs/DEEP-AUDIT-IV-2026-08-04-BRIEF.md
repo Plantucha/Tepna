@@ -446,6 +446,40 @@ true `hrSdnn` of exactly `0.00` over ≥120 real samples requires perfectly cons
 an export *is* the fabricated one — and across the corpus **54 of 54** hrv blocks are non-zero and
 present.
 
+#### 3-RESULT-II · Sharpened the same day — the two classes are NOT alike, and one sentence above was misleading
+
+§3-RESULT called all three sites "unreachable" on an empirical basis, and wrote that a NaN "would
+need a non-finite `r.hr` surviving a filter that tests `motion`/`hrArtifact` but not HR validity."
+**That points at an open path, and the path is closed.** Read to the line:
+
+- `oxydex-dsp.js:671-672` — the CSV row parser rejects the value outright: `if (isNaN(spo2) ||
+  isNaN(hr)) continue;` then `if (spo2 < 50 || spo2 > 100 || hr < 20 || hr > 250) continue;`. **Every
+  pushed row carries a finite HR in [20, 250].**
+- The one place a row's `hr` is later *reassigned* — the artifact repair at `:835`, `rows[k].hr =
+  baseline` — sets `rows[k].hrArtifact = true` on the same rows, and `computeHRV`'s filter excludes
+  exactly those. So even a bad baseline cannot reach `hrs`.
+
+⇒ **`oxydex-render.js:3055` and `oxydex-dsp.js:6453` are unreachable BY CONSTRUCTION, not by corpus.**
+They can only fire if the parser's range check is removed. That is a proof, where §3-RESULT had a
+sample of 54.
+
+**The integrator site is a different class, and it is the one that stays live.** All four in-fleet
+emitters of the fusable types set a `conf` that is finite by construction —
+`cpapdex-fusion.js:117` (`Math.min(0.95, 0.5 + (d.depth || 0)/20)`), `ecgdex-dsp.js:2192`
+(`surgeConf`, clamped 0.45–0.95 off `ampBpm || 0`), `ppgdex-dsp.js:4203` (same shape, 0.45–0.9),
+`oxydex-dsp.js:6974` (`oxyDesatConf`, null-defaulted and clamped 0–1). Adapters emit **no** events at
+all (`grep -c impulse adapters/*.js` ⇒ 0 across all ten; they are input-side normalizers).
+
+**So the trigger has a name: a FOREIGN or LEGACY `ganglior.node-export`.** That is not hypothetical —
+the Clock Contract §6 requires consumers to *"still tolerate `t`-only legacy exports"*, so third-party
+and older exports are an expected input class, and `gather()` filters on type and union membership
+only. The integrator site is latent-with-a-named-trigger; the two OxyDex sites are dead code paths.
+
+⚠️ **Process note, since it is the lesson this repo keeps paying for:** §3-RESULT shipped (#1589)
+before this analysis was done, so it published an empirical "unreachable today" and an open-sounding
+path in the same breath. CLAUDE.md §👥.5 — *"Diagnose fully, then ship"* — and the cost here was a
+second PR to correct a sentence rather than a wrong number.
+
 **Disposition: leads remain leads — no code changed.** All three are currently unreachable, two of the
 three fixes would move `computeHash` and owe a fixture cycle, and §3's own framing (*"none is
 demonstrated to move a user-visible number"*) survives the measurement. What changes is that the
