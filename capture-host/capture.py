@@ -11,8 +11,8 @@
 from __future__ import annotations
 import argparse, asyncio, contextlib, json, logging, math, os, signal, time as _time, datetime as _dt
 from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter,
-                     HostClockLogWriter, capture_filename, missing_identity, night_dir,
-                     open_sample_writers)
+                     HostClockLogWriter, PmdArrivalLogWriter, capture_filename, missing_identity,
+                     night_dir, open_sample_writers)
 import proc_util
 import polar_pmd as pmd
 import viatom
@@ -1533,6 +1533,38 @@ async def _enter_sdk_mode(ctrl, name: str) -> bool | None:
     return on
 
 
+async def _exit_sdk_mode(ctrl, name: str) -> bool | None:
+    """Ask the device OUT of SDK mode, then ASK IT WHETHER IT IS. Same contract as `_enter_sdk_mode`:
+    returns what the DEVICE said — `True` still on, `False` off, `None` it did not say.
+
+    ⚠️ WITHOUT THIS, THE SWITCH IS ONE-WAY. SDK mode is DEVICE state that persists until a power cycle;
+    turning the config flag off only stopped us re-entering it, so the device stayed in SDK mode
+    indefinitely. That is not a cosmetic asymmetry, because on a Verity Sense SDK mode DISABLES two
+    streams outright — Polar's own product doc: "PPI online stream or offline recording is not
+    supported in SDK MODE", likewise HR. Measured 2026-08-10: PPI last started at 11:37, then answered
+    `invalid_state` on every attempt for the rest of the day and the whole night, and the night's QC
+    recorded `Polar Verity Sense:hr` and 0 PPI rows. Switching SDK mode off changed nothing; only
+    power-cycling the armband by hand brought them back.
+
+    So `off` must mean OFF. The exit is issued with streams stopped, for the same reason the entry is
+    (the device refuses the transition otherwise), and the verdict comes from a status read rather than
+    the ack — an ack is "accepted", which this file already learned the hard way for the clock."""
+    ack = await ctrl(pmd.sdk_mode_cmd(False))
+    st = ack[3] if len(ack) >= 4 else pmd.NO_ACK
+    if not (pmd.is_started(st) or st == pmd.ALREADY_STREAMING):
+        log.warning("%s SDK mode STOP → %s", name, pmd.CTRL_STATUS.get(st, hex(st)))
+    on = pmd.parse_sdk_mode_status(await ctrl(pmd.sdk_mode_status_cmd()))
+    if on is None:
+        log.warning("%s SDK mode: the device did not report its mode after the exit — UNKNOWN, not "
+                    "off; PPI and HR stay unavailable while it is still in SDK mode", name)
+    elif on:
+        log.warning("%s SDK mode: STILL ON after an exit request — PPI and HR remain unavailable; a "
+                    "power cycle clears it", name)
+    else:
+        log.info("%s SDK mode: off (PPI and HR are available again)", name)
+    return on
+
+
 async def run_polar(dev: dict, root: str):
     """Polar PMD + the standard Heart Rate characteristic. Despite the name this is also the path for any
     third-party HR strap, because `hr` is SIG-standard — so the Polar-SPECIFIC rituals below have to be
@@ -1625,6 +1657,9 @@ async def run_polar(dev: dict, root: str):
                                            # rate. Per-connection scope: a reconnect must NOT carry a stale
                                            # seam across the gap (the guard would reject it anyway).
         hr_writer = None
+        # Declared out here, not inside the connect block, so the `finally` can close it even when the
+        # session dies before a single packet lands — the same reason hr_writer lives here.
+        arr_wr = None
         started = _now()
         ndir = night_dir(root, started)
         charging_hold = False              # device refused PMD because it is on the charger (status 0x0D).
@@ -1648,6 +1683,16 @@ async def run_polar(dev: dict, root: str):
                     p = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, stream, ext))
                     return StreamWriter(p, stream)
                 tag = _dev_tag(dev)
+                # PACKET-ARRIVAL SIDECAR (PAT-PACKET-ARRIVAL). The per-sample `phone` stamps this
+                # session writes are BACK-TIMED across each packet from one arrival, so the inter-device
+                # offset cannot be recovered from them: the minimum of (host - device) has no floor,
+                # only a smear the width of the packet. Measured, that minimum sits 27-115 ms below the
+                # 1st percentile — an outlier, not an edge. This records the TRUE arrival instant beside
+                # the device timestamp of the packet's first sample, which is the one pairing that makes
+                # the per-connection offset measurable. Opened per session, alongside the stream files.
+                arr_wr = PmdArrivalLogWriter(
+                    os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"],
+                                                        started, "pmdarrival", "csv")))
                 meas_of = {"ecg": pmd.ECG, "acc": pmd.ACC, "ppg": pmd.PPG,
                            "gyro": pmd.GYRO, "mag": pmd.MAG, "ppi": pmd.PPI}
 
@@ -1716,6 +1761,20 @@ async def run_polar(dev: dict, root: str):
                         _set(name, last_error=str(e)); return   # only ValueError — a decoder must never disturb the callback
                     if samples:
                         prev_ns[meas] = samples[-1].sensor_ns   # seam anchor for the next frame's step
+                        # THE TRUE ARRIVAL, paired with the device stamp of this packet's FIRST sample.
+                        # Written before the `writers.get(meas)` gate below on purpose: a stream with no
+                        # writer still carries a usable arrival↔device pair, and the offset is a property
+                        # of the LINK, not of whichever streams happen to be enabled.
+                        # No `is not None` guard: `arr_wr` is assigned before this callback is even
+                        # DEFINED, and the callback cannot fire before `start_notify` later still, so the
+                        # false arm is unreachable — it showed up as the one partial branch under
+                        # `--cov-branch` and a test for it could only have been a lie. The try/except is
+                        # the real guard, and it is the one that matters.
+                        try:
+                            arr_wr.write(arrival, name, pmd.MEAS_NAME.get(meas, meas),
+                                         samples[0].sensor_ns, samples[-1].sensor_ns, len(samples))
+                        except Exception:   # telemetry must never disturb the data callback
+                            pass
                     # Diagnostic (inert unless PMD_FRAME_PROBE names a file): records what each frame
                     # ACTUALLY carried vs how many samples we got out of it. Written to answer the Verity
                     # IMU starvation — ACC/GYRO/MAG deliver ~35-44% of nominal with no decode error, so we
@@ -1730,7 +1789,13 @@ async def run_polar(dev: dict, root: str):
                     # whenever it leaves the strap, so it must be watched, not assumed).
                     try:
                         dev_dt = _POLAR_EPOCH + _dt.timedelta(microseconds=samples[-1].sensor_ns / 1000)
+                        # `arrival_rows` rides along here because the arrival write above is wrapped in a
+                        # bare `except: pass` — correct, since telemetry must never disturb the data
+                        # callback, but it makes a PERSISTENT writer failure invisible: a dead sidecar
+                        # would look exactly like a quiet night. A count that stops advancing while
+                        # samples keep arriving is the tell, and it costs one field.
                         _set(name, device_time=dev_dt.isoformat(timespec="seconds"),
+                             arrival_rows=(arr_wr.rows if arr_wr is not None else None),
                              clock_skew_sec=round((dev_dt - _utcnow()).total_seconds(), 2))
                     except Exception:  # pragma: no cover — sensor_ns is an unsigned 64-bit int, so
                         pass           # _POLAR_EPOCH + timedelta(µs=ns/1000) is bounded far inside
@@ -1978,6 +2043,18 @@ async def run_polar(dev: dict, root: str):
                             for meas in list(writers):
                                 await _ctrl(pmd.stop_cmd(meas))
                             _set(name, sdk_mode=await _enter_sdk_mode(_ctrl, name))
+                        elif hex(pmd.SDK_MODE) in (STATUS["devices"].get(name, {})
+                                                   .get("pmd_supported") or []):
+                            # OFF MUST MEAN OFF. SDK mode is device state that outlives the config: not
+                            # re-entering it leaves a device that is already in it there until someone
+                            # power-cycles the hardware. Ask first and act only on a `True`, so a device
+                            # that was never in SDK mode costs one status read and no state change.
+                            # Gated on the feature bit because a device without it (the H10) answers op
+                            # 6 with `invalid_op_code`, and asking every pass would be noise.
+                            if pmd.parse_sdk_mode_status(await _ctrl(pmd.sdk_mode_status_cmd())):
+                                for meas in list(writers):
+                                    await _ctrl(pmd.stop_cmd(meas))
+                                _set(name, sdk_mode=await _exit_sdk_mode(_ctrl, name))
                         for meas in list(writers):
                             await _ctrl(pmd.stop_cmd(meas))   # clear any stale stream from a prior session
                             # Ask the device what settings it offers, then START from THOSE (fixed table is a
@@ -2241,6 +2318,8 @@ async def run_polar(dev: dict, root: str):
             # its file for exactly this reason; this generalises it to every way a session can end.
             # discard(), never os.remove(wr.path): the writer knows every file it owns and `path` names
             # only the primary — see StreamWriter.paths (CAPTURE-HOST-DEEP-AUDIT §C8).
+            if arr_wr is not None:
+                arr_wr.close()
             for wr in list(writers.values()) + ([hr_writer] if hr_writer else []):
                 if not wr.rows:
                     names = ", ".join(os.path.basename(p) for p in wr.paths)
@@ -2534,6 +2613,19 @@ async def run_oxyii(dev: dict, root: str):
                 oxyflagwr = OxyFrameLogWriter(os.path.join(
                     ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"],
                                            started, "oxyframe", "txt")))
+                # PACKET-ARRIVAL SIDECAR FOR THE RING (PAT-PACKET-ARRIVAL §6). The Polar path records
+                # arrival↔device from `sensor_ns`; the ring exposes no such clock on any streaming
+                # opcode. What it DOES expose is `duration` — seconds into its own session — and that
+                # counter measures 1-55 ppm against the host once segmented on its resets, i.e. a real
+                # device clock, just a coarse one. Pairing it with the true frame arrival gives the ring
+                # the same estimator the Polars get.
+                # ⚠️ 1 s QUANTISATION means the RING'S offset must be fitted, not min-filtered: a
+                # minimum over a quantised counter returns the quantum, not the floor. The intercept of
+                # a regression over thousands of frames recovers it to ~4 ms. The file records the
+                # pairing; choosing the estimator is the reader's job, and `meas` names which is which.
+                oxy_arr_wr = PmdArrivalLogWriter(os.path.join(
+                    ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"],
+                                           started, "pmdarrival", "csv")))
                 reasm = oxyii.Reassembler()
                 # Previous session duration. NOT a drop/dup tally any more: the counters those fields
                 # fed were derived from a misread byte, so they reported phantom loss. The ring exposes
@@ -2670,6 +2762,14 @@ async def run_oxyii(dev: dict, root: str):
                         _seq[0] = live["duration"]
                         _OXYII_LAST_DURATION[addr] = live["duration"]   # survives the next dropout
                         now = _now()
+                        # Arrival↔device pairing, one row per live frame. `duration` is SECONDS, carried
+                        # in the ns column so the file has one shape for every device; the `meas` value
+                        # says which estimator applies (see the writer note above).
+                        try:
+                            _dur_ns = int(live["duration"]) * 1_000_000_000
+                            oxy_arr_wr.write(now, name, "OXYLIVE_DURATION_S", _dur_ns, _dur_ns, 1)
+                        except Exception:   # telemetry must never disturb the data callback
+                            pass
                         if live["spo2"] is not None:
                             # `live["pr"]` passed through AS-IS, including None — `or 0` used to turn an
                             # unreadable pulse rate into a written 0 (VIGIL-PPG-GRID-AUDIT §5.2). The
@@ -2682,6 +2782,7 @@ async def run_oxyii(dev: dict, root: str):
                             note_data(name, _time.monotonic())
                             _set(name, rows=wr.rows, spo2=live["spo2"], pr=live["pr"], battery=live["batt"],
                                  motion=live["motion"], worn=True, last_sample=now.isoformat(),
+                                 arrival_rows=oxy_arr_wr.rows,
                                  charging=bool(live.get("batt_state")), last_error=None)
                         else:
                             BUS.push("motion_o2", [live["motion"]])
@@ -2784,6 +2885,10 @@ async def run_oxyii(dev: dict, root: str):
             _set(name, connected=False, last_error=repr(e))
             log.warning("%s link error: %r", name, e)
         finally:
+            try:
+                oxy_arr_wr.close()
+            except Exception:
+                pass
             # Report the honest gaps this session inserted. Silence here would re-create the very problem
             # the gap insertion fixes — a lossy link that LOOKS clean. Logged even at zero, so "no gaps"
             # is an observation rather than an absence of evidence.
@@ -3099,11 +3204,16 @@ def publish_recording(now_mono: float, grace_sec: float) -> bool:
     return any_rec
 
 
+_NOTIFIER = None        # set in main(); read by status_loop to publish alert-transport health
+
+
 async def status_loop(root: str, data_stale_sec: float = 120.0):
     path = os.path.join(root, "captures", "status.json")
     while not _STOP.is_set():
         STATUS["updated"] = _now().isoformat()
         STATUS["recording"] = publish_recording(_time.monotonic(), data_stale_sec)
+        if _NOTIFIER is not None:
+            STATUS["alerts"] = _NOTIFIER.stats()
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             _tmp = path + ".tmp"
@@ -4627,6 +4737,11 @@ async def main():
     # Push-alert transport (webhook) — disabled unless config sets alerts.enabled + alerts.webhook_url.
     _acfg = cfg.get("alerts") or {}
     notifier = alerts.Notifier(_acfg.get("webhook_url"), enabled=bool(_acfg.get("enabled")))
+    # Published every status tick (see status_loop). Module-level rather than threaded through a dozen
+    # signatures because the ONE thing this needs is to reach the same surface as everything else it
+    # guards — an alert transport whose own health is invisible is the failure it exists to prevent.
+    global _NOTIFIER
+    _NOTIFIER = notifier
 
     # EVERY background task is supervised. Several of them are the recovery ladder itself — adapter_watchdog
     # is the one thing that un-wedges a dead radio — so a task dying quietly is strictly worse here than

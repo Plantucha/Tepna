@@ -698,6 +698,95 @@ class LinkLogWriter:
             pass
 
 
+class PmdArrivalLogWriter:
+    """Per-session PACKET-ARRIVAL sidecar — the one measurement that makes the inter-device offset knowable.
+
+    THE PROBLEM IT EXISTS FOR. Every wearable pair in this corpus is separated by a per-connection BLE
+    buffering delay of hundreds of milliseconds — measured Verity-minus-H10 across nights: -867 to
+    +1321 ms. PAT needs ~10 ms. The offset is CONSTANT per connection and arbitrary between them, so
+    seven of ten nights come out anatomically impossible (the ankle, the longer path, arriving before
+    the finger) and the usable corpus is two nights instead of ten.
+
+    WHY IT CANNOT BE RECOVERED FROM THE SIGNAL FILES. The obvious estimator is the minimum of
+    (host arrival - device timestamp) over a night: buffering is ONE-SIDED, so its minimum is the true
+    offset, which is how NTP's minimum filter works. It was tried and it fails here, and the reason is
+    in this file's sibling: `StreamWriter` records each sample's `phone` stamp BACK-TIMED across the
+    packet from a single arrival. Every per-sample host stamp is therefore a derived quantity, and the
+    lower edge of the distribution is smeared by the packet span rather than being an edge at all —
+    measured, the minimum sits 27-115 ms below the 1st percentile, i.e. an outlier and not a floor.
+
+    WHAT THIS RECORDS. The TRUE arrival instant of each PMD packet, beside the device timestamp of that
+    packet's first and last sample. Nothing is derived and nothing is back-timed, so
+    `min(arrival - first_sensor_ns)` has a real floor and the per-connection offset becomes measurable.
+    `n_samples` is kept because the packet span is exactly the width of the smear this replaces.
+
+    DELIBERATELY A SIDECAR, for the reason LinkLogWriter states: the vendor `*_ECG.txt` / `*_PPG.txt`
+    layouts are a POSITIONAL contract that ECGDex/PPGDex/MotionDex parse by index, and adding a field to
+    them silently corrupted consumers once already (2026-07-18). One extra file cannot.
+
+    It is TELEMETRY, not physiology: it must never enter a `ganglior.node-export` as a metric.
+    """
+
+    def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True):
+        self.path = path
+        self._fh = open(path, "w", buffering=1 << 16, newline="\n")
+        self._fh.write("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n")
+        self.rows = 0
+        self._flush_interval = flush_interval
+        self._fsync = fsync
+        self._last_flush = _time.monotonic()
+
+    def write(self, arrival: _dt.datetime, device: str, meas, first_ns, last_ns, n_samples: int) -> None:
+        def _f(v):
+            return "" if v is None else str(v)          # blank, never a fabricated 0
+        self._fh.write(f"{_phone_ts(arrival)};{device};{_f(meas)};"
+                       f"{_f(first_ns)};{_f(last_ns)};{n_samples}\n")
+        self.rows += 1
+        now = _time.monotonic()
+        if now - self._last_flush >= self._flush_interval:
+            self.flush()
+            self._last_flush = now
+
+    def flush(self) -> None:
+        try:
+            self._fh.flush()
+            if self._fsync:
+                import os as _os
+                _os.fsync(self._fh.fileno())
+        except (OSError, ValueError):
+            pass
+
+    def close(self) -> None:
+        try:
+            self.flush()
+            self._fh.close()
+        except (OSError, ValueError):
+            pass
+
+    @staticmethod
+    def floor_ms(diffs_ms, q: float = 0.01):
+        """The offset estimate, and whether it is a FLOOR or a smear — both, never one alone.
+
+        NOT the bare minimum. Buffering is one-sided so the minimum is the estimator in principle, but a
+        single anomalously early arrival — a scheduling artifact, a chrony step — moves it and nothing
+        says so. A low QUANTILE is robust to that, and the GAP between the two is the diagnostic that
+        made this sidecar necessary in the first place: on the back-timed per-sample stamps the minimum
+        sat 27-115 ms below the 1st percentile, which is what a smeared edge looks like. A real floor has
+        the two nearly coincident.
+
+        Returns (estimate, spread), where spread = quantile - min. Small spread ⇒ a genuine floor and the
+        estimate is usable; large spread ⇒ the edge is smeared and the number must NOT be spent as an
+        offset. Callers are expected to check the second value; returning only the first is how the
+        earlier attempt produced a confident answer from noise.
+        """
+        vals = sorted(v for v in diffs_ms if v is not None and v == v)
+        if len(vals) < 100:
+            return (None, None)          # too few to have an edge at all — refuse, do not guess
+        lo = vals[0]
+        qv = vals[min(len(vals) - 1, int(q * len(vals)))]
+        return (qv, qv - lo)
+
+
 class Spo2CsvWriter:
     """ViHealth-layout SpO2 CSV — `Time,Oxygen Level,Pulse Rate,Motion` with `HH:MM:SS DD/MM/YYYY`
     stamps, the exact shape OxyDex's oxydex-spo2 adapter reads (Clock Contract §2.4 vendor regex parses

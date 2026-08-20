@@ -63,3 +63,20 @@ jobs:
             echo '```'
             echo '</details>'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Pseudo-tested ratchet (extreme mutation — Descartes-style)
+        if: always()
+        run: |
+          # Deleting a function's whole body and finding the suite still green means NOTHING asserts
+          # on it. This gates GROWTH, not the count: a file absent from the baseline is not gated at
+          # all, because recording an unmeasured file as `[]` would assert a claim nobody checked.
+          #
+          # NOT per-PR: a full fleet run is ~8-10 min and would roughly double the merge critical path
+          # CLAUDE.md §👥.5 already fights, to re-report a number that moves only when someone writes
+          # a test. Weekly is enough to catch a regression; the baselined files cost ~30 s.
+          set -o pipefail
+          fail=0
+          for f in glucodex cpapdex motiondex; do
+            node tools/extreme-mutate.mjs --file "$f-dsp.js" --group "$f-dsp" --baseline || fail=1
+          done
+          exit $fail

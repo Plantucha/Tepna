@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 
+import clock_offset
 import writers
 from datetime import datetime, timedelta
 
@@ -284,6 +285,74 @@ def newest_data_mtime(night_dir: str) -> float | None:
     return newest
 
 
+
+def arrival_quality(night_dir: str) -> list[dict]:
+    """Per-device floor quality from the `*_PMDARRIVAL.csv` sidecars.
+
+    `min(arrival - device)` is the offset estimator only where the distribution has a genuine lower
+    EDGE. The measurement that proves it does is the gap between the minimum and a low quantile: on the
+    back-timed per-sample stamps this sidecar replaces, that gap ran 27-115 ms — a smear, not a floor.
+    A real floor has the two nearly coincident.
+
+    Ring rows are reported but NOT floor-judged: `duration` is quantised to 1 s, and the spread between
+    its minimum and a low quantile is then a property of the quantum rather than of the link, so the
+    smear verdict does not mean there what it means elsewhere. Judging it by the same rule would
+    manufacture a failure every night.
+
+    `offset` carries the actual estimate, from `clock_offset.estimate`, and it runs on EVERY device
+    including the ring — counter quantisation and BLE buffering are both one-sided positive, so one
+    lower envelope serves both. It is what a consumer should spend. `floor_*` stays as the smear
+    diagnostic that showed the per-sample stamps were unusable, and remains ring-exempt.
+
+    ⚠️ The two answer DIFFERENT questions and will not agree on a night with any skew, because
+    `floor_ms` has no time model: it returns one number for a quantity that moved across the recording.
+    Measured on a real 8 h H10 capture it sat 242 ms from the fitted value, against PAT's 10 ms budget.
+    Prefer `offset`; read `floor_ok` as "did this stream have an edge at all".
+    """
+    import csv as _csv
+    out = []
+    try:
+        names = [n for n in sorted(os.listdir(night_dir)) if n.endswith("_PMDARRIVAL.csv")]
+    except OSError:
+        return out
+    for name in names:
+        path = os.path.join(night_dir, name)
+        per: dict[tuple[str, str], list[float]] = {}
+        try:
+            with open(path, newline="") as fh:
+                for row in _csv.DictReader(fh, delimiter=";"):
+                    ns = row.get("first_sensor_ns") or ""
+                    ts = row.get("Phone timestamp") or ""
+                    if not ns or not ts:
+                        continue                      # blank is "absent", never a fabricated 0
+                    try:
+                        host_ms = datetime.fromisoformat(ts).timestamp() * 1000.0
+                        per.setdefault((row.get("device", ""), row.get("meas", "")), []).append(
+                            (host_ms, host_ms - int(ns) / 1e6))
+                    except (ValueError, TypeError):
+                        continue
+        except OSError:
+            continue
+        for (device, meas), pairs in sorted(per.items()):
+            quantised = meas.endswith("_DURATION_S")
+            diffs = [d for _, d in pairs]
+            est, spread = (None, None) if quantised else writers.PmdArrivalLogWriter.floor_ms(diffs)
+            # t relative to this stream's first packet, in seconds — the estimator quotes its offset at
+            # the centroid of t, so the absolute host epoch must not leak into the fit.
+            t0 = pairs[0][0]
+            offset = clock_offset.estimate([((h - t0) / 1000.0, d) for h, d in pairs])
+            out.append({
+                "file": name, "device": device, "meas": meas, "rows": len(diffs),
+                "quantised": quantised,
+                "offset": offset,
+                "floor_spread_ms": None if spread is None else round(spread, 1),
+                # The verdict a reader should branch on. None where it cannot be judged — an unknown is
+                # not a pass, and the earlier attempt's whole failure was reporting a number that had
+                # not earned one.
+                "floor_ok": None if spread is None else bool(spread < 5.0),
+            })
+    return out
+
 def summarize(night_dir: str, devices: list[dict]) -> dict:
     """Roll the CURRENT capture session up against the configured devices. The session is scoped by
     file-activity (see _SESSION_GAP_SEC) and unified across midnight (see below), NOT the whole date
@@ -461,4 +530,13 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         # A hole in the night is a reason to look, exactly like a missing or degraded stream. `ok` is a
         # claim about THE NIGHT; if half of it was excluded from the judgement, the claim is unsupported.
         "ok": not missing and not degraded and not gaps,
+        # THE ARRIVAL SIDECAR IS ONLY WORTH WRITING IF ITS EDGE IS AN EDGE (PAT-PACKET-ARRIVAL §3).
+        # It exists so `min(arrival - device)` recovers the per-connection BLE offset, which works only
+        # because buffering is one-sided. If a night's distribution comes back SMEARED anyway — a wedged
+        # stack, a clock step, a device that batches differently — the number is unusable, and without
+        # this check that would surface weeks later in an analysis rather than the morning after.
+        # Reported, never folded into `ok`: a smeared floor is a defect of the OFFSET measurement, not of
+        # the night's physiology, and conflating the two would make a perfectly good recording read as a
+        # capture failure.
+        "arrival": arrival_quality(night_dir),
     }

@@ -1,0 +1,18 @@
+{
+  "glucodex-dsp.js": [
+    "_ckZoneMin",
+    "postprandial",
+    "agp",
+    "carbCategory"
+  ],
+  "cpapdex-dsp.js": [
+    "_p2",
+    "fmtClock",
+    "fmtDate",
+    "fmtDateTime",
+    "_leakCV"
+  ],
+  "motiondex-dsp.js": [
+    "fmtClock"
+  ]
+}

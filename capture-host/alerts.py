@@ -14,6 +14,7 @@
 # swallowed; the worst case is a missed notification, never a missed night.
 from __future__ import annotations
 import logging
+import time as _time
 from urllib.parse import urlsplit
 
 _log = logging.getLogger("tepna-capture")
@@ -100,6 +101,30 @@ class Notifier:
         self.enabled = bool(enabled and url)
         self._post = _post or _http_post       # resolved here (not a default arg) so tests can patch it
         self._last: dict[str, float] = {}      # dedupe key → monotonic ts of the last send
+        # ── DELIVERY IS RECORDED, NOT JUST ATTEMPTED ────────────────────────────────────────────────
+        # Failure was already logged; SUCCESS was silent and nothing was published anywhere. So
+        # "delivered", "suppressed by dedupe" and "never attempted" were indistinguishable after the
+        # fact, and the only way to know an alert arrived was to have been looking at your phone.
+        # Measured 2026-08-11: 32 alerts FIRED in 24 h and the journal held exactly ONE delivery
+        # outcome in 48 h — a failure. Nothing said whether the other 32 landed.
+        #
+        # That is the last line of defence for every silent-absence failure this daemon guards against
+        # ("every failure mode here looks like a green box with a short file"), so its own health has
+        # to be visible on the same surface as the capture it protects.
+        self.delivered = 0     # ARRIVED, not attempted — the word `sent` blurs exactly that line
+        self.failed = 0
+        self.suppressed = 0
+        self.last_ok: float | None = None       # wall-clock epoch of the last DELIVERED alert
+        self.last_error: str | None = None      # why the last attempt failed; None once one succeeds
+        self.last_title: str | None = None
+
+    def stats(self) -> dict:
+        """What the monitor shows. A notifier that has never delivered anything reports
+        `last_ok: None`, which is a different state from "delivered a while ago" and must render as
+        one — the same tri-state discipline `sdk_mode_actual` uses."""
+        return {"enabled": self.enabled, "delivered": self.delivered, "failed": self.failed,
+                "suppressed": self.suppressed, "last_ok": self.last_ok,
+                "last_error": self.last_error, "last_title": self.last_title}
 
     async def send(self, title: str, message: str, *, key: str | None = None,
                    dedupe_sec: float = 0.0, now: float = 0.0) -> bool:
@@ -109,8 +134,10 @@ class Notifier:
         if key is not None and dedupe_sec > 0:
             last = self._last.get(key)
             if last is not None and (now - last) < dedupe_sec:
+                self.suppressed += 1           # counted: a suppressed alert is not a delivered one
                 return False                   # too soon — suppress the repeat
             self._last[key] = now
+        self.last_title = title
         try:
             ok = bool(await self._post(self.url, {"title": title, "message": message}))
         except Exception as e:
@@ -121,10 +148,21 @@ class Notifier:
             # nothing to find afterwards either. The alert is lost either way; the RECORD of losing it
             # need not be.
             _log.warning("alert %r not delivered: %r", title, e)
+            self.failed += 1
+            self.last_error = f"{type(e).__name__}: {e}"
             return False
         if not ok:
             _log.warning("alert %r rejected by the webhook (non-2xx)", title)
-        return ok
+            self.failed += 1
+            self.last_error = "rejected by the webhook (non-2xx)"
+            return False
+        # LOGGED AT INFO ON SUCCESS TOO. Absence of a failure line is not evidence of delivery — that
+        # asymmetry is what made 32 alerts unaccountable.
+        _log.info("alert %r delivered", title)
+        self.delivered += 1
+        self.last_ok = _time.time()
+        self.last_error = None
+        return True
 
     def reset(self, key: str) -> None:
         """Forget a dedupe key so the NEXT occurrence alerts immediately (call when a sensor recovers)."""
@@ -227,6 +265,43 @@ def offline_alert_suppressed(optional: bool, ever_connected: bool) -> bool:
 #   has written something                          — a device that produced nothing all night is
 #                                                    `missing`, which already alerts. Two names for
 #                                                    one fault is noise.
+def arrival_canary(qc: dict, live: dict) -> list[str]:
+    """THE CANARY for the packet-arrival sidecar — streams whose offset floor has stopped being a floor.
+
+    The sidecar exists so `min(arrival - device)` recovers the per-connection BLE offset, which works
+    only because buffering is one-sided and therefore has a hard lower EDGE. Two things can silently
+    take that away: the writer dying (rows stop while samples continue) and the edge smearing (a wedged
+    stack, a clock step, a device that starts batching differently). Neither shows up in the data files,
+    and without this both surface weeks later inside an analysis — which is exactly how the back-timed
+    stamps this replaces went unnoticed for the whole corpus.
+
+    Two failures, deliberately reported as one list a human can act on:
+      * SMEARED — nightqc measured `floor_ok: False`, i.e. the minimum sits far below the low quantile.
+      * DEAD    — the device is connected and writing samples, but its sidecar row count is not
+                  advancing. The write is wrapped in a bare `except: pass` (telemetry must never disturb
+                  the data callback), so a persistent failure is invisible by construction; this is the
+                  only thing that would notice.
+
+    NEVER fires on `floor_ok: None`. That is the QUANTISED ring, whose offset must be fitted rather than
+    min-filtered — judging it by the floor rule would page someone every single night, and an alert that
+    always fires is one nobody reads.
+    """
+    out = []
+    for row in qc.get("arrival") or []:
+        if row.get("floor_ok") is False:                      # is False, never falsy — None means unjudged
+            out.append(f"{row.get('device')} {row.get('meas')} — arrival floor smeared "
+                       f"({row.get('floor_spread_ms')} ms below the 1st percentile)")
+    for name, st in (live or {}).items():
+        if not st or not st.get("connected"):
+            continue
+        rows, arr = st.get("rows"), st.get("arrival_rows")
+        # Only a device that is DEMONSTRABLY producing data can have a dead sidecar. `arrival_rows` is
+        # absent on non-PMD devices and None before the first frame — neither is a fault.
+        if arr is not None and rows and arr == 0:
+            out.append(f"{name} — writing samples but the arrival sidecar has no rows")
+    return out
+
+
 def frozen_devices(qc: dict, live: dict, threshold_sec: float) -> list[str]:
     """Devices that are connected and awake but have stopped producing data.
 

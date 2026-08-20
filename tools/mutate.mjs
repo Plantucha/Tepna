@@ -97,11 +97,12 @@
  * on-disk `<file>.mutate-backup` that exists for the whole window, plus `recoverStale()` at startup
  * which restores any leftover before doing anything else and says so.
  */
-import { readFileSync, writeFileSync, existsSync, rmSync, readdirSync, copyFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, appendFileSync, existsSync, rmSync, readdirSync, copyFileSync, mkdirSync } from 'node:fs';
 import { cpus } from 'node:os';
 import { execFileSync, execSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, basename } from 'node:path';
+import { createHash } from 'node:crypto';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -137,6 +138,14 @@ const BUDGET = +opt('--budget', '0');
    to a run. */
 const DRY = has('--dry-run');
 const AS_JSON = has('--json');
+/* ── RESUME + STREAM ─────────────────────────────────────────────────────────────────────────
+   `--resume`   pick up from the journal, quarantining any mutant that started and never finished
+   `--journal`  path override; `--no-journal` disables recording entirely
+   `--quiet-stream` suppress the per-mutant line (the aggregate progress line still prints) */
+const RESUME = has('--resume');
+const INCREMENTAL = has('--incremental');
+const JOURNAL = has('--no-journal') ? false : opt('--journal', null);
+const STREAM = !has('--quiet-stream');
 /* Mutants are independent, so this is embarrassingly parallel — but every mutant rewrites the SAME
    file, so they cannot share a tree. Each worker gets its own `git worktree` (shares the object store)
    and mutates its own copy: the isolation CLAUDE.md §👥 already prescribes, applied to the harness
@@ -214,8 +223,7 @@ function mutantsFor(src) {
     };
     for (const op of OPS) {
       const re = new RegExp(op.re.source, op.re.flags);
-      let m;
-      while ((m = re.exec(L)) !== null) {
+      for (let m = re.exec(L); m !== null; m = re.exec(L)) {
         if (!isCode(m.index, m[0].length)) continue; // inside a comment or a string literal
         const mutatedLine = L.slice(0, m.index) + m[0].replace(new RegExp(op.re.source), op.to) + L.slice(m.index + m[0].length);
         if (mutatedLine === L) continue;
@@ -361,7 +369,10 @@ export function changedLinesFromDiff(diffText) {
     const count = m[2] === undefined ? 1 : Number(m[2]);
     if (!count) continue; // a pure DELETION adds no line to test — not a gap, just nothing there
     let set = out.get(path);
-    if (!set) out.set(path, (set = new Set()));
+    if (!set) {
+      set = new Set();
+      out.set(path, set);
+    }
     for (let i = 0; i < count; i++) set.add(start + i);
   }
   return out;
@@ -417,9 +428,8 @@ function runSuiteAsync(filter, cwd, timeoutMs) {
          mutant that merely makes a group throw still counts as killed. */
       if (verdictFromOutput(out) === 'INVALID') return resolve({ verdict: 'INVALID', killers: [], reason });
       const seen = new Set();
-      let m;
       KILLER_RE.lastIndex = 0;
-      while ((m = KILLER_RE.exec(out))) seen.add(m[1]);
+      for (let m = KILLER_RE.exec(out); m !== null; m = KILLER_RE.exec(out)) seen.add(m[1]);
       resolve({ verdict: 'KILLED', killers: Array.from(seen) });
     });
   });
@@ -571,6 +581,103 @@ const EXCUSING = new Set(['no-distinguishing-input', 'untestable-by-design']);
 /* PURE, so the selftest can pin it without a sweep. Matched on (line, op, before) -- the same key
    `findCanary` uses; `after` is documentation, so changing an operator's output text cannot silently
    orphan an entry. */
+/* ── readJournal — the resume decision, PURE so it is known-answer testable ───────────────────
+   Returns { done, jammed }:
+     done   Map(key -> record)   every mutant that reached a verdict, with its fingerprints
+     jammed [key]                every mutant that STARTED and never finished
+
+   A start with no verdict can only mean the process died while that mutant was in flight — the
+   signature of a mutant that JAMS the harness (an infinite loop the timeout should have caught and
+   occasionally does not; it has happened on this fleet). Those are QUARANTINED on resume rather than
+   retried, because retrying is what turns one jam into an infinite loop across restarts.
+
+   A TORN FINAL LINE IS DISCARDED, not fatal: the process may have been killed mid-write, and half a
+   record must not cost the thirteen hours in front of it. */
+/* ── INCREMENTAL SWEEPS — what may soundly be reused, and what may not ───────────────────────
+   A full fleet re-sweep is ~24 h and the 99 % programme runs ~15 of them. Most of that work is
+   repeated: between sweeps we add ONE test group and change nothing else.
+
+   ⚠️ THE TEMPTING VERSION IS UNSOUND. "Nothing changed, so reuse everything" is false for SURVIVORS:
+   a newly added group can kill any survivor anywhere, and without per-test coverage there is no way
+   to know which. Reusing a survived verdict would silently record a mutant as alive that the new test
+   already kills — a wrong number that looks like progress.
+
+   What IS sound is the other half. A mutant KILLED by group G stays killed as long as
+     (a) the enclosing function's source is byte-identical, and
+     (b) group G still exists with byte-identical body.
+   Nothing else in the file can resurrect it. That is 3702 of 9996 mutants on the current fleet — a
+   third of the work, not the ninety per cent an optimistic reading suggests.
+
+   `groupBodies` extracts each `group('title', 'tags', function … )` body by brace matching, so a
+   change to ONE group invalidates only the mutants that group killed. Hashing the whole test file
+   instead would invalidate everything on every commit and save nothing at all, which is the version
+   that looks like it works and does not. */
+export function groupBodies(src) {
+  const out = new Map();
+  const s = String(src || '');
+  const re = /group\(\s*(['"`])((?:\\.|(?!\1).)*)\1/g;
+  for (let m = re.exec(s); m !== null; m = re.exec(s)) {
+    const title = m[2];
+    let i = s.indexOf('{', m.index);
+    if (i < 0) continue;
+    let d = 0;
+    for (let j = i; j < s.length; j++) {
+      const ch = s[j];
+      if (ch === '{') d++;
+      else if (ch === '}') {
+        d--;
+        if (d === 0) {
+          out.set(title, s.slice(i, j + 1));
+          break;
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/* Reuse decision for ONE journal record. PURE — the whole rule in one testable place. */
+export function mayReuse(rec, fnHashNow, groupHashNow) {
+  if (!rec || rec.v !== 'KILLED') return false; // survivors and invalids must be re-tested
+  if (!rec.fh || rec.fh !== fnHashNow) return false; // the mutated function changed
+  if (!rec.ks || !rec.ks.length) return false; // killed by nothing we can name ⇒ cannot verify
+  for (const g of rec.ks) if (groupHashNow.get(g) !== undefined && rec.gh && rec.gh[g] === groupHashNow.get(g)) return true;
+  return false; // the killing group is gone or edited
+}
+
+export function readJournal(text) {
+  const done = new Map();
+  const starts = new Map(); // key -> how many times it has been STARTED without finishing
+  for (const line of String(text || '').split('\n')) {
+    if (!line.trim()) continue;
+    let rec;
+    try {
+      rec = JSON.parse(line);
+    } catch (_) {
+      continue; // torn or partial — the only safe reading is to ignore it
+    }
+    if (!rec || typeof rec.k !== 'string') continue;
+    if (rec.v === undefined) starts.set(rec.k, (starts.get(rec.k) || 0) + 1);
+    else done.set(rec.k, rec); // the WHOLE record — incremental needs its fingerprints
+  }
+  /* ⚠️ ONE UNFINISHED START IS NOT A JAM, and treating it as one throws away good work. With 16
+     workers, up to 16 mutants are in flight at any instant, so ANY interrupt leaves ~16 started and
+     unfinished — measured: a SIGTERM mid-sweep left 13, none of them faulty. Quarantining those
+     would discard 16 innocent mutants per interrupt and, worse, teach the tool to skip code it never
+     actually tested.
+
+     The signal for a real jam is that IT JAMS AGAIN: a mutant retried on resume and still unfinished
+     has now hung twice. So `retry` (started once, never finished) is re-queued, and `jammed`
+     (started twice or more, never finished) is quarantined and reported. */
+  const jammed = [];
+  const retry = [];
+  for (const [k, n] of starts) {
+    if (done.has(k)) continue;
+    (n >= 2 ? jammed : retry).push(k);
+  }
+  return { done, jammed, retry };
+}
+
 export function classifySurvivors(entries, survivors, generated) {
   const key = (m) => m.line + ' ' + m.op + ' ' + m.before;
   const surv = new Set((survivors || []).map(key));
@@ -696,7 +803,7 @@ async function runFile(file) {
      gate as the one place with no proof that kills are still being detected. */
   const touched = DIFF ? DIFF_LINES.get(file) || new Set() : null;
   const all = touched ? allGenerated.filter((m) => touched.has(m.line)) : allGenerated;
-  const picked = thin(all, LIMIT);
+  let picked = thin(all, LIMIT);
   /* The canary rides along as an extra mutant. It is EXCLUDED from every counter (see classify), so
      it can never flatter or dent the reported rate — it only decides whether that rate is reportable. */
   const canaryWant = loadCanaries()[file];
@@ -739,7 +846,218 @@ async function runFile(file) {
      sitting in the earlier run's invalid bucket. A REAL COVERAGE GAP HID INSIDE THE COUNT, and the
      run that missed it looked like the clean one — it matched the prediction exactly.
      Two runs are now comparable mutant-by-mutant, in both buckets. */
+  /* ── THE JOURNAL — resume, and the jammed-mutant problem ────────────────────────────────────
+     A full sweep is up to 13.8 h (integrator). Verdicts used to exist only in memory until the run
+     completed, so an interrupt at hour 13 lost all thirteen. And some mutants JAM the harness — an
+     infinite loop the timeout should catch but occasionally does not — after which a naive resume
+     re-runs the jammer and jams again, forever.
+
+     Both are solved by writing TWO records per mutant: a `start` BEFORE it runs and a verdict AFTER.
+     On resume, an entry with a start and NO verdict is, by construction, the mutant that was in
+     flight when the run died — the jammer. It is QUARANTINED rather than retried, and reported, so a
+     resumed sweep makes progress instead of re-entering the same hole.
+
+     Append-only NDJSON: each line is one small atomic O_APPEND write, so concurrent workers cannot
+     interleave a partial record, and a torn final line is discarded by the reader rather than
+     crashing it. */
+  /* ── INCREMENTAL fingerprints ────────────────────────────────────────────────────────────────
+     `fnHash(line)` hashes the source of the function ENCLOSING that line, so an edit anywhere else in
+     the file does not invalidate a mutant. `groupHash` is the current body of every test group, so an
+     edit to one group invalidates only what that group killed. Hashing the whole file on either side
+     would invalidate everything on every commit — the version that looks incremental and saves
+     nothing. */
+  const _fnRanges = (() => {
+    const out = [];
+    const ls = original.split('\n');
+    for (let i = 0; i < ls.length; i++) {
+      const mm = ls[i].match(/(?:^|[^\w$.])function\s+(\w+)\s*\(/);
+      if (!mm) continue;
+      let d = 0,
+        seen = false;
+      for (let j = i; j < ls.length; j++) {
+        for (const ch of ls[j]) {
+          if (ch === '{') {
+            d++;
+            seen = true;
+          } else if (ch === '}') {
+            d--;
+            if (seen && d === 0) {
+              out.push({ start: i + 1, end: j + 1, text: ls.slice(i, j + 1).join('\n') });
+              j = ls.length;
+              break;
+            }
+          }
+        }
+        if (out.length && out[out.length - 1].start === i + 1) break;
+      }
+    }
+    return out;
+  })();
+  const _sha = (s) => createHash('sha256').update(s).digest('hex').slice(0, 16);
+  const fnHash = (line) => {
+    let best = null;
+    for (const r of _fnRanges) if (line >= r.start && line <= r.end && (!best || r.end - r.start < best.end - best.start)) best = r;
+    return best ? _sha(best.text) : _sha('(top level)');
+  };
+  let _groupHash = new Map();
+  try {
+    const gb = groupBodies(readFileSync(join(ROOT, 'tests/dex-tests.js'), 'utf8'));
+    for (const [k, v] of gb) _groupHash.set(k, _sha(v));
+  } catch (_) {
+    /* no test file readable ⇒ no group hashes ⇒ nothing is reusable, which fails CLOSED */
+  }
+
+  const journalPath = JOURNAL || join(ROOT, '.mutate-journal', file.replace(/[/\\]/g, '_') + '.jsonl');
+  const jkey = (m) => m.line + '\u0000' + m.op + '\u0000' + m.before + '\u0000' + m.after;
+  let prior = { done: new Map(), jammed: [] };
+  if ((RESUME || INCREMENTAL) && existsSync(journalPath)) {
+    prior = readJournal(readFileSync(journalPath, 'utf8'));
+    process.stderr.write(
+      '  resuming: ' + prior.done.size + ' mutant(s) already recorded' + (prior.jammed.length ? ', ' + prior.jammed.length + ' QUARANTINED as jammed (started, never finished)' : '') + '\n'
+    );
+  }
+  if (JOURNAL !== false) {
+    try {
+      mkdirSync(dirname(journalPath), { recursive: true });
+      /* Truncating here would destroy the very history --incremental reads. Only a plain cold run
+         starts a fresh journal. */
+      if (!RESUME && !INCREMENTAL) writeFileSync(journalPath, '');
+    } catch (_) {
+      /* an unwritable journal must not stop the sweep — it only costs resumability */
+    }
+  }
+  let journalBroken = false;
+  const jwrite = (rec) => {
+    if (JOURNAL === false || journalBroken) return;
+    try {
+      appendFileSync(journalPath, JSON.stringify(rec) + '\n');
+    } catch (e) {
+      /* SAY SO ONCE. The first version swallowed this silently and the journal stayed empty for a
+         whole run — appendFileSync was simply not imported, and every write threw into a bare catch.
+         A resumability feature that quietly records nothing is worse than none, because you only
+         discover it when you try to resume. */
+      journalBroken = true;
+      process.stderr.write('  ⚠ JOURNAL DISABLED — ' + String((e && e.message) || e).slice(0, 90) + '\n    this run is NOT resumable.\n');
+    }
+  };
+
+  /* Apply the journal: replay recorded verdicts into the counters, and DROP both the finished
+     mutants and the quarantined jammers from the queue. `picked` is re-bound rather than mutated so
+     `picked.length` stays the honest denominator of what this run will actually attempt. */
+  let quarantined = [];
+  const applyResume = () => {
+    if (!(RESUME && prior.done.size + prior.jammed.length)) return;
+    const jam = new Set(prior.jammed);
+    quarantined = picked.filter((m) => jam.has(jkey(m))).map((m) => ({ line: m.line, op: m.op, before: m.before, after: m.after }));
+    /* The FULL mutant set for this run, captured before the replayed and quarantined ones are
+       filtered out — so the resume line can state a denominator. Without it the readout gives two
+       numbers that a reader cannot check against anything, which is how the first resume printed
+       `tested 12` for a 60-mutant sweep and looked partial rather than wrong. */
+    const total = picked.length;
+    /* FOLD THE PRIOR VERDICTS INTO THIS RUN'S COUNTERS BEFORE DROPPING THEM FROM THE QUEUE.
+       Without this a resumed sweep reports only the mutants IT tested — the first resume here read
+       `tested 12` for a 60-mutant sweep, which is not a partial result but a WRONG one: the rate
+       would be computed against a denominator missing 48 mutants. Survivors are reconstructed by
+       matching the journal's key back onto the freshly generated mutant, so the survivor list stays
+       a list of real mutant records rather than bare keys. */
+    for (const m of picked) {
+      const rec0 = prior.done.get(jkey(m));
+      if (rec0 === undefined) continue;
+      const v = rec0.v;
+      if (v === 'KILLED') killed++;
+      else if (v === 'INVALID') {
+        invalid++;
+        invalids.push({ ...m, reason: 'recorded in a previous run' });
+      } else survivors.push(m);
+      done++;
+      resumedCount++;
+    }
+    picked = picked.filter((m) => !prior.done.has(jkey(m)) && !jam.has(jkey(m)));
+    process.stderr.write(
+      '  resume: ' +
+        resumedCount +
+        ' verdicts replayed (' +
+        killed +
+        ' already killed), ' +
+        quarantined.length +
+        ' quarantined as JAMMED — ' +
+        picked.length +
+        ' left to test of ' +
+        total +
+        ' total' +
+        (prior.retry.length ? ', incl. ' + prior.retry.length + ' retried (in flight when the last run died)' : '') +
+        '\n'
+    );
+  };
+
+  /* One duration formatter for all three readouts — the heartbeat, the per-mutant ETA and the
+     aggregate line. It was local to tick(), so the other two referenced it out of scope and the
+     sweep died on the ninth mutant with `mmss is not defined`. */
+  const mmss = (s) => Math.floor(s / 60) + 'm' + String(Math.round(s % 60)).padStart(2, '0') + 's';
+
+  /* ── HEARTBEAT — proof of life on a run measured in hours ────────────────────────────────────
+     A 13.8 h sweep that prints only on completion is indistinguishable from a hung one, and the
+     per-mutant stream can itself go quiet for minutes when a single mutant is slow. So an
+     unconditional timer writes one line a minute with elapsed, progress and a projected finish. It is
+     driven by a TIMER, not by mutant completions, which is the entire point: if the mutants have
+     stopped, the heartbeat is what keeps saying so. `unref()` so it can never hold the process open. */
+  let heartbeat = null;
+  const startHeartbeat = () => {
+    heartbeat = setInterval(() => {
+      const el = (Date.now() - _t0) / 1000;
+      const r = done > 0 ? done / el : 0;
+      const left = r > 0 ? Math.round((picked.length - done) / r) : 0;
+      process.stderr.write(
+        '  ♥ alive  ' +
+          done +
+          '/' +
+          picked.length +
+          '  killed ' +
+          killed +
+          '  elapsed ' +
+          mmss(el) +
+          (r > 0 ? '  eta ' + mmss(left) + '  finishes ~' + new Date(Date.now() + left * 1000).toTimeString().slice(0, 5) : '  eta ?') +
+          '\n'
+      );
+    }, 60000);
+    if (heartbeat.unref) heartbeat.unref();
+  };
+  const stopHeartbeat = () => {
+    if (heartbeat) clearInterval(heartbeat);
+    heartbeat = null;
+  };
+
+  /* INCREMENTAL: replay only the kills that are still provably kills, and re-test everything else.
+     Separate from --resume, which replays a partial run of the SAME code; this replays across code
+     and test changes, and is therefore the one that has to be conservative. */
+  const applyIncremental = () => {
+    if (!INCREMENTAL || !prior.done.size) return;
+    const before = picked.length;
+    const keep = [];
+    for (const m of picked) {
+      const rec0 = prior.done.get(jkey(m));
+      if (rec0 && mayReuse(rec0, fnHash(m.line), _groupHash)) {
+        killed++;
+        done++;
+        reusedCount++;
+        for (const g of rec0.ks || []) killers.set(g, (killers.get(g) || 0) + 1);
+      } else keep.push(m);
+    }
+    picked = keep;
+    process.stderr.write(
+      '  incremental: ' +
+        reusedCount +
+        ' kill(s) replayed unchanged, ' +
+        (before - reusedCount) +
+        ' to re-test' +
+        (reusedCount === 0 ? '  ⚠ NOTHING REUSED — the journal is empty, or every function/group hash moved' : '') +
+        '\n    (survivors are ALWAYS re-tested — a new group can kill any of them)\n'
+    );
+  };
+
   const invalids = [];
+  let reusedCount = 0;
+  let resumedCount = 0;
   let killed = 0,
     invalid = 0,
     done = 0;
@@ -792,13 +1110,16 @@ async function runFile(file) {
     }
     const etaS = rate > 0 ? Math.round((picked.length - done) / rate) : 0;
     const etaWarm = _stamps.length >= 3;
-    const mmss = (t) => Math.floor(t / 60) + 'm' + String(Math.round(t % 60)).padStart(2, '0') + 's';
     process.stderr.write('  ' + body + '  elapsed ' + mmss(el) + (done < picked.length ? '  eta ' + mmss(etaS) + (etaWarm ? '' : ' (warming — includes pool build)') : '  done') + '\n');
   };
   /* `v` is either the legacy string (the serial in-place path, which still uses the sync runner) or
      `{ verdict, killers }` from the async pool. Normalising here keeps both paths on one classifier
      rather than duplicating the bookkeeping. */
   const killers = new Map(); // group title → how many mutants it killed
+  /* Both replays run AFTER every counter they write to exists —  is one of them, and
+     calling earlier died in the temporal dead zone. */
+  applyResume();
+  applyIncremental();
   const classify = (v, mu) => {
     const verdict = typeof v === 'string' ? v : v.verdict;
     const ks = (typeof v === 'string' ? [] : v.killers) || [];
@@ -818,9 +1139,56 @@ async function runFile(file) {
       invalid++;
       invalids.push({ ...mu, reason: (typeof v === 'string' ? null : v.reason) || 'no-output' });
     } else survivors.push(mu);
+    jwrite({
+      k: jkey(mu),
+      v: verdict,
+      ks: ks.length ? ks : undefined,
+      r: typeof v === 'string' ? undefined : v.reason,
+      fh: fnHash(mu.line),
+      gh: ks.length ? Object.fromEntries(ks.map((g) => [g, _groupHash.get(g)])) : undefined
+    });
+    /* ONE LINE PER MUTANT, on stderr so stdout stays pure NDJSON. An aggregate counter tells you a
+       sweep is alive; it does not tell you WHAT it is finding, and on a 13 h run the difference
+       between "still working" and "working on something useful" is worth a line each. */
+    if (STREAM) {
+      const mark = verdict === 'KILLED' ? '✓ KILLED  ' : verdict === 'INVALID' ? '⊘ invalid ' : '✗ SURVIVED';
+      /* ETA from the SAME trailing window the aggregate line uses, so the two can never disagree.
+         Below 3 completions the rate is dominated by pool build-out and is marked `~` rather than
+         printed as if it were a measurement. */
+      const _el = (Date.now() - _t0) / 1000;
+      let _r = done > 0 ? done / _el : 0;
+      if (_stamps.length >= 3) {
+        const sp = _stamps[_stamps.length - 1] - _stamps[0];
+        if (sp > 0) _r = (_stamps.length - 1) / sp;
+      }
+      const _left = _r > 0 ? Math.round((picked.length - done - 1) / _r) : 0;
+      const _eta = _r > 0 ? (_stamps.length >= 3 ? '' : '~') + mmss(_left) : '?';
+      process.stderr.write(
+        '  ' +
+          mark +
+          ' ' +
+          String(done + 1).padStart(5) +
+          '/' +
+          picked.length +
+          '  L' +
+          String(mu.line).padEnd(5) +
+          ' [' +
+          String(mu.op).padEnd(15) +
+          '] ' +
+          String(mu.before || '')
+            .trim()
+            .slice(0, 46)
+            .padEnd(46) +
+          '  eta ' +
+          _eta +
+          (verdict === 'KILLED' && ks.length ? '  ← ' + ks[0].slice(0, 28) : '') +
+          '\n'
+      );
+    }
     tick();
   };
 
+  startHeartbeat();
   try {
     if (JOBS > 1) {
       /* One disposable worktree per worker, detached at HEAD. Each worker mutates ITS OWN copy of the
@@ -834,6 +1202,8 @@ async function runFile(file) {
         _dirty.set(abs, original);
         for (const mu of picked) {
           writeFileSync(abs, mu.apply());
+          jwrite({ k: jkey(mu) });
+          jwrite({ k: jkey(mu) });
           classify(runSuite(filter, ROOT, timeoutMs), mu);
         }
         writeFileSync(abs, original);
@@ -847,7 +1217,7 @@ async function runFile(file) {
           generated: all.length,
           generatedInFile: touched ? allGenerated.length : undefined,
           touchedLines: touched ? touched.size : undefined,
-          tested: picked.length,
+          tested: picked.length + resumedCount,
           killed,
           invalid,
           invalids,
@@ -864,6 +1234,7 @@ async function runFile(file) {
           const i = next++;
           if (i >= picked.length) return;
           writeFileSync(wAbs, picked[i].apply());
+          jwrite({ k: jkey(picked[i]) });
           classify(await runSuiteAsync(filter, dir, timeoutMs), picked[i]);
         }
       };
@@ -875,6 +1246,7 @@ async function runFile(file) {
       }
     }
   } finally {
+    stopHeartbeat();
     restore(); // the shared pool is torn down once, by dropPool() at the end of the run
   }
   if (!AS_JSON) process.stderr.write('\r' + ' '.repeat(78) + '\r');
@@ -932,7 +1304,7 @@ async function runFile(file) {
     generatedInFile: touched ? allGenerated.length : undefined,
     touchedLines: touched ? touched.size : undefined,
     // the canary is scaffolding, not a measurement — it must not enter the denominator it guards
-    tested: picked.length - (canaryMu ? 1 : 0),
+    tested: picked.length - (canaryMu ? 1 : 0) + resumedCount + reusedCount,
     killed: canaryState === 'FAILED' ? null : killed,
     invalid,
     // the mutants that never RAN — listed, so a survivor can never hide as a bare count again
@@ -1157,6 +1529,45 @@ function selftest() {
   /* An empty classification must change nothing -- the mechanism is opt-in per file. */
   const none = classifySurvivors(undefined, survived, genAll);
   ck('classify · no entries ⇒ every survivor unclassified, nothing excused', none.unclassified.length + ':' + none.excused.length, '3:0');
+
+  /* ── incremental · groupBodies + mayReuse ───────────────────────────────────────────────────── */
+  const GB = groupBodies("group('alpha', 'tag', function (T) { a({ b: 1 }); });\ngroup(\"beta\", 't', function (T) { c(); });");
+  ck('groups · both titles are found', [...GB.keys()].join(','), 'alpha,beta');
+  ck('groups · a body with NESTED braces is captured whole', GB.get('alpha').includes('{ b: 1 }'), true);
+  ck('groups · …and stops at its own closing brace', GB.get('alpha').endsWith('}'), true);
+  ck('groups · an empty source yields nothing', groupBodies('').size, 0);
+
+  const H = new Map([['G', 'ghash']]);
+  ck('reuse · a KILLED mutant with matching function + group hashes is reusable', mayReuse({ v: 'KILLED', fh: 'f', ks: ['G'], gh: { G: 'ghash' } }, 'f', H), true);
+  ck('reuse · …but NOT if the function source moved', mayReuse({ v: 'KILLED', fh: 'OLD', ks: ['G'], gh: { G: 'ghash' } }, 'f', H), false);
+  ck('reuse · …NOT if the killing group was edited', mayReuse({ v: 'KILLED', fh: 'f', ks: ['G'], gh: { G: 'STALE' } }, 'f', H), false);
+  ck('reuse · …NOT if the killing group is gone', mayReuse({ v: 'KILLED', fh: 'f', ks: ['GONE'], gh: { GONE: 'x' } }, 'f', H), false);
+  /* THE LOAD-BEARING REFUSAL: a survivor can be killed by any newly added group, so reusing it would
+     record a mutant as alive that the new test already kills — a wrong number wearing the shape of
+     progress. Survivors and invalids are ALWAYS re-tested. */
+  ck('reuse · a SURVIVED verdict is never reusable, however unchanged', mayReuse({ v: 'SURVIVED', fh: 'f', ks: ['G'], gh: { G: 'ghash' } }, 'f', H), false);
+  ck('reuse · an INVALID verdict is never reusable', mayReuse({ v: 'INVALID', fh: 'f', ks: ['G'], gh: { G: 'ghash' } }, 'f', H), false);
+  ck('reuse · a kill with no named killer cannot be verified, so is re-tested', mayReuse({ v: 'KILLED', fh: 'f', ks: [], gh: {} }, 'f', H), false);
+  /* ── readJournal · resume + the JAMMED-mutant detection ─────────────────────────────────────
+     The whole point of the two-record scheme: a `start` with no verdict is the mutant that was in
+     flight when the process died, i.e. the one that jammed. Retrying it turns one jam into an
+     infinite loop across restarts, so it must be QUARANTINED and reported. */
+  const J = readJournal(['{"k":"a"}', '{"k":"a","v":"KILLED"}', '{"k":"JAMMER"}', '{"k":"c","v":"SURVIVED"}', '{"k":"d","v":"INVALID"}', '{"k":"tor'].join('\n'));
+  ck('journal · a finished mutant is recorded with its verdict', J.done.get('a').v, 'KILLED');
+  ck('journal · every verdict kind round-trips', J.done.get('c').v + '/' + J.done.get('d').v, 'SURVIVED/INVALID');
+  ck('journal · ONE unfinished start is a RETRY, not a jam (it was merely in flight)', J.retry.join(','), 'JAMMER');
+  ck('journal · …and nothing is quarantined on a single interrupt', J.jammed.length, 0);
+  ck('journal · …and a finished mutant is neither', J.jammed.includes('a') || J.retry.includes('a'), false);
+  /* TWO unfinished starts means it was retried and hung again — that is the jam. */
+  const J2 = readJournal(['{"k":"J"}', '{"k":"J"}', '{"k":"ok"}', '{"k":"ok","v":"KILLED"}'].join('\n'));
+  ck('journal · TWO unfinished starts IS the jam', J2.jammed.join(','), 'J');
+  ck('journal · …and it is no longer offered for retry', J2.retry.length, 0);
+  ck('journal · a mutant that finished after a retry is done, not jammed', readJournal('{"k":"x"}\n{"k":"x"}\n{"k":"x","v":"KILLED"}').jammed.length, 0);
+  ck('journal · a TORN final line is ignored, not fatal', J.done.has('tor') || J.jammed.includes('tor'), false);
+  ck('journal · an empty journal yields nothing to skip', readJournal('').done.size + ':' + readJournal('').jammed.length, '0:0');
+  ck('journal · junk lines are skipped', readJournal('not json\n{"k":"z","v":"KILLED"}').done.get('z').v, 'KILLED');
+  ck('journal · a record with no key is ignored', readJournal('{"v":"KILLED"}').done.size, 0);
+
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
   return fail;
 }

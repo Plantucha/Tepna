@@ -119,6 +119,32 @@ def test_status_loop_writes_status_json(tmp_path, monkeypatch):
     assert (tmp_path / "captures" / "status.json").exists()
 
 
+def test_status_loop_publishes_the_ALERT_TRANSPORTS_OWN_HEALTH(tmp_path, monkeypatch):
+    """The alert path is the last line of defence for every silent-absence failure the daemon guards
+    against, so its own health has to reach the same surface as the capture it protects. Measured
+    2026-08-11: 32 alerts fired in 24 h and the journal held ONE delivery outcome in 48 h — nothing
+    said whether the rest landed, because success was silent and nothing was published anywhere."""
+    import alerts as _alerts
+    monkeypatch.setattr(capture, "_NOTIFIER", _alerts.Notifier(url="https://hook", enabled=True))
+    capture.STATUS.pop("alerts", None)
+    _stop_after(monkeypatch, 1)
+    _run(capture.status_loop(str(tmp_path)))
+    st = capture.STATUS.get("alerts")
+    assert st is not None, "the alert transport's health never reached status.json"
+    # `enabled and nothing delivered` is UNPROVEN, not healthy — the state the real box was in.
+    assert st["enabled"] is True and st["last_ok"] is None and st["delivered"] == 0
+
+
+def test_status_loop_works_with_NO_notifier_configured(tmp_path, monkeypatch):
+    """The other side of the branch: alerting off (or main() not yet reached) must publish nothing
+    rather than an empty dict that renders as a card claiming a transport exists."""
+    monkeypatch.setattr(capture, "_NOTIFIER", None)
+    capture.STATUS.pop("alerts", None)
+    _stop_after(monkeypatch, 1)
+    _run(capture.status_loop(str(tmp_path)))
+    assert "alerts" not in capture.STATUS
+
+
 # ── adapter_watchdog ────────────────────────────────────────────────────────────────────────────────
 def test_adapter_watchdog_disabled_returns_immediately(monkeypatch):
     _run(capture.adapter_watchdog("hci0", {"watchdog": {"enabled": False}}))   # early return, no loop
@@ -1086,6 +1112,15 @@ class FlexPolarClient(FakePolarClient):
             return
         ctrl = self.cbs.get(pmd.PMD_CONTROL)
         if not ctrl:
+            return
+        # PARAMETERLESS OPS ARE ONE BYTE — `cmd[1]` IndexErrors on them, `_ctrl` catches the exception
+        # and returns b"", and the caller reads that as "the device did not answer". The BASE class has
+        # handled this since the SDK-mode work; this override lost it, which silently made every
+        # parameterless op (SDK-mode status 0x06, measurement status 0x05) untestable through the fake
+        # every test in this file uses. `_ctrl` pairs a reply by `got[1] == cmd[0]`, so the envelope
+        # must echo the OPCODE at [1], not a measurement type.
+        if len(cmd) < 2:
+            ctrl(0, bytes([0xF0, cmd[0], pmd.SDK_MODE, 0x00, 0x00, int(self.sdk_mode_on)]))
             return
         op, meas = cmd[0], cmd[1]
         if op == 0x01:
@@ -4528,3 +4563,83 @@ def test_only_the_clock_sync_call_site_opts_in():
     sites = [l for l in src.splitlines() if "presence_check_s=" in l and "def " not in l]
     assert len(sites) == 1, f"exactly one caller may opt in, found: {sites}"
     assert "_CLOCK_SYNC_PRESENCE_S" in sites[0]
+
+
+# ── the arrival sidecar's failure paths (PAT-PACKET-ARRIVAL §3) ─────────────────────────────────────
+def test_run_polar_swallows_a_raising_arrival_writer(tmp_path, monkeypatch):
+    """A failing arrival sidecar must NOT disturb the data callback, and must not cost the ECG file.
+
+    The write is wrapped in a bare `except Exception` on purpose — telemetry can never be allowed to
+    break capture — which is exactly why the failure is otherwise invisible and why `alerts.arrival_canary`
+    exists to notice it. This pins the swallow; the canary tests pin the noticing.
+    """
+    _polar_common(monkeypatch)
+
+    class _Boom(capture.PmdArrivalLogWriter):
+        def write(self, *a, **k):
+            raise RuntimeError("sidecar disk full")
+
+    monkeypatch.setattr(capture, "PmdArrivalLogWriter", _Boom)
+    c = FlexPolarClient(data_frames=[_ecg_frame()], start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(streams=["ecg"]), str(tmp_path)))
+    assert list((tmp_path / "captures").rglob("*_ECG.txt")), "a raising sidecar cost the ECG capture"
+
+
+def test_run_polar_writes_the_arrival_sidecar(tmp_path, monkeypatch):
+    """The happy path: one PMD frame yields one arrival row carrying the packet's own device stamps."""
+    _polar_common(monkeypatch)
+    c = FlexPolarClient(data_frames=[_ecg_frame()], start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(streams=["ecg"]), str(tmp_path)))
+    found = list((tmp_path / "captures").rglob("*_PMDARRIVAL.csv"))
+    assert found, "no arrival sidecar was written"
+    lines = found[0].read_text().splitlines()
+    assert lines[0].startswith("Phone timestamp;device;meas;first_sensor_ns")
+    assert len(lines) >= 2, "the sidecar has a header but no rows"
+    # `pmd.MEAS_NAME` is lower-case; asserted as it actually is rather than as assumed
+    assert lines[1].split(";")[2] == "ecg"
+
+
+def test_run_oxyii_writes_the_arrival_sidecar(tmp_path, monkeypatch):
+    """The ring gets the same arrival pairing as the Polars, from `duration` — its only device clock.
+
+    The ring exposes no `sensor_ns` on any streaming opcode, but `duration` (seconds into its session)
+    measures 1-55 ppm against the host, so pairing it with the true frame arrival gives the ring an
+    offset estimator too. ⚠️ 1 s quantised, so it must be FITTED, not min-filtered — which is why the
+    `meas` column names it and nightqc refuses to floor-judge it.
+    """
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()
+    c.on_live = lambda data: (c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None)
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    found = list((tmp_path / "captures").rglob("*_PMDARRIVAL.csv"))
+    assert found, "the ring wrote no arrival sidecar"
+    lines = found[0].read_text().splitlines()
+    assert len(lines) >= 2 and lines[1].split(";")[2] == "OXYLIVE_DURATION_S", lines[:2]
+
+
+def test_run_oxyii_swallows_a_raising_arrival_writer(tmp_path, monkeypatch):
+    """A failing sidecar must not cost the SpO2 capture — telemetry never disturbs the data path.
+
+    Its own test rather than a second run inside the previous one: two runner invocations in one test
+    share `_stop_after`'s counter and the module globals, and the second silently produced nothing —
+    which read as a swallow failure when it was fixture bleed.
+    """
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+
+    class _Boom(capture.PmdArrivalLogWriter):
+        def write(self, *a, **k):
+            raise RuntimeError("sidecar disk full")
+
+    monkeypatch.setattr(capture, "PmdArrivalLogWriter", _Boom)
+    c = FakeGattClient()
+    c.on_live = lambda data: (c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None)
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    assert list((tmp_path / "captures").rglob("*_SPO2.csv")), "a raising sidecar cost the SpO2 capture"
