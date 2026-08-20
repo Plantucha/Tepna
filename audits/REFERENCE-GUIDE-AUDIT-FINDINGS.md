@@ -624,3 +624,35 @@ tempting thing to check.
 DOMAIN term — Bazett/Fridericia rate correction, Malik correction, beat correction, k-corrected
 thresholds. The discriminating pattern is revision narration (`corrected in vN`, *prior versions*,
 *previously stated*), not the word itself.
+
+## Dimension 3 — the apparatus is now committed, and it immediately found 2 more (2026-08-19)
+
+`#1529` closed dimension 3's honesty half and published four numbers — **186 lower-tier cards / 76
+carrying a band / 53 using verdict words / 3 issuing a clinical directive**. The script that produced
+them lived only in `/tmp`.
+
+That is the failure `PPGDEX-ALGORITHM-DEEP-DIVE` §5 records verbatim: a jitter bound became
+unverifiable because *"the apparatus was never committed"*, and had to be re-derived with a new
+instrument. **A number whose tool is not committed is a citation, not a measurement.** The tool is now
+`tools/guide-directive-audit.mjs`, and it reproduces 186 / 76 / 53 exactly.
+
+**Committing it found 2 defects #1529 missed**, both OxyDex, both `heuristic`, both matching on a word
+the scratch pattern lacked (`urgent`):
+
+| card | band said | fix |
+|---|---|---|
+| **Nadir Depth Bins** | `< 85%` → *"Severe — urgent"* | directive dropped; note added — the five bins are an internal histogram, not a published grading |
+| **LCSP** | `< 5 min` → *"Persistent hypoxemia — urgent evaluation"* | directive dropped; note added — the 5/20/60-minute cuts have no published equivalent |
+
+**The lesson is the one this dimension keeps teaching: the instrument was narrower than the class it
+was testing.** #1529's regex enumerated the directive phrasings its author happened to think of. The
+committed tool is not immune to that either — but a committed regex can be widened by the next reader,
+and a `/tmp` one cannot.
+
+⚠️ **Two `measured`-tier cards also say "urgent evaluation" and are NOT flagged, correctly**: the SpO₂
+and Worst-10-min cards use the published <90 % severe-hypoxemia threshold, which is exactly the
+option-(a) citation dimension 3 asks for. The tool scopes to lower tiers for that reason — a directive
+is only an overclaim when the evidence tier has not earned it.
+
+**MOS remains the one declared exception**, recorded in the tool with its disclaiming text quoted
+rather than silently suppressed.
