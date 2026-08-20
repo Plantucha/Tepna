@@ -2,7 +2,7 @@
 Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-20 · **Follows:** `TCH-FUSED-ROBUST-HAT-FOLLOWUPS-2026-07-14-BRIEF.md` (all five Do items closed 2026-08-20) · **Affects:** `ecgdex-dsp.js` composite per-beat SQI
+**Status:** IN-PROGRESS · **Created:** 2026-08-20 · **Follows:** `TCH-FUSED-ROBUST-HAT-FOLLOWUPS-2026-07-14-BRIEF.md` (all five Do items closed 2026-08-20) · **Affects:** `ecgdex-dsp.js` composite per-beat SQI
 
 # What closing the fused-hat transfer map surfaced
 
@@ -48,8 +48,49 @@ within a record (variance across beats, and its correlation with the other three
 near-constant? A term that is constant carries no information regardless of its level, and that answer
 decides between (a) and (b) without changing a line of compute.
 
-- [ ] `kSQI` per-beat distribution measured WITHIN records, not just its per-record mean
-- [ ] (a) vs (b) decided against that, or recorded as declined with a reason
+- [x] `kSQI` per-beat distribution measured WITHIN records, not just its per-record mean
+- [x] (a) vs (b) decided against that — **(b), and a re-scale is DECLINED with a reason**
+
+### ANSWERED 2026-08-20, same day — it discriminates, and re-scaling would make kurtosis alone sufficient
+
+The discriminator was the cheap one this section named: does `kSQI` VARY within a record? Per-beat, over
+8 segments (~2400 beats each), replaying the same 0.13 s kurtosis window `computeSQI` uses:
+
+| segment | n | mean | sd | **CV** | p5 | p95 | clamped@0 | **clamped@1** |
+|---|---|---|---|---|---|---|---|---|
+| 0617 part01of05 | 2524 | 0.369 | 0.167 | **0.452** | 0.077 | 0.634 | 38 | **0** |
+| 0617 part02of05 | 2383 | 0.406 | 0.145 | 0.357 | 0.158 | 0.648 | 5 | **0** |
+| 0617 part03of05 | 2400 | 0.344 | 0.147 | 0.427 | 0.079 | 0.576 | 27 | **0** |
+| 0617 part04of05 | 2461 | 0.326 | 0.162 | **0.498** | 0.047 | 0.596 | 52 | **0** |
+| 0625 part01of10 | 2074 | 0.468 | 0.070 | 0.150 | 0.387 | 0.560 | 14 | **0** |
+| 0625 part02of10 | 2060 | 0.468 | 0.056 | **0.120** | 0.376 | 0.558 | 0 | **0** |
+| 0625 part03of10 | 2064 | 0.504 | 0.061 | 0.122 | 0.407 | 0.606 | 0 | **0** |
+
+**It is not near-constant — reading (b).** CV runs 0.12–0.50 and p5→p95 spans 0.047→0.596 on the noisier
+night. The term is doing exactly the fine-grained discrimination §1 offered as the benign explanation,
+and it separates the two nights too (0625 tight at CV ~0.12, 0617 broad at ~0.45 — the same night that
+is noisier by every other measure).
+
+**But the level offset is real, and the reason not to correct it is the interesting part.**
+`clamped@1 = 0` on every segment: no real beat EVER saturates the top of the mapping, so the effective
+range is ~[0, 0.65] rather than [0, 1] and `kSQI` contributes at most ~0.20 of its nominal 0.30. (It
+CAN saturate — the `sqi · known-answer` group's single-sample spike reaches exactly 1.000 — just not on
+ECG.)
+
+⚠️ **Re-scaling is DECLINED because of what it would do at the threshold, not because the offset is
+harmless.** The offset is uniform, so it changes no ORDERING — but `buildNN` gates on an absolute
+`sqiThr` of 0.3, and 0.30 × 1.0 = 0.30 **is** that threshold. Re-scaling `kSQI` to use its full range
+would make a good-kurtosis beat pass the gate **on the kurtosis term alone**, with detector B
+disagreeing, an implausible RR and a dead-lead amplitude. Worked from the corpus's typical values, a
+beat with `bSQI = 0` and `ampOK = 0` scores **0.135 today (excluded)** and would score **0.54
+(included)** after a re-scale.
+
+So the current low level is **protective**: it forces a beat to earn its place from more than one cue.
+That is a stronger design than the nominal weights suggest, and correcting the "loss" would weaken it.
+The composite's realistic ceiling for a clean real beat is ~0.85–0.90 rather than 1.0, which is worth
+knowing when reading a `meanSQI`, and is not a defect.
+
+**§1 is CLOSED. No compute change, as predicted — the measurement decided it.**
 
 ## 2 · Do 1(b) is the parent's one live question, carried forward
 
