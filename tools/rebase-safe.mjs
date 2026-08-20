@@ -103,7 +103,19 @@ export function classify(path, gen) {
   const p = String(path == null ? '' : path);
   if (!p || p.startsWith('/') || p.split('/').includes('..') || p.split('/').includes('.')) return 'source';
   if (gen.has(p)) return 'generated';
-  if (p.startsWith('docs/')) return 'generated'; // served copies, written by build-docs.mjs
+  /* `docs/` IS NOT WHOLLY GENERATED, and treating it as such was destructive in exactly the way this
+     classifier exists to prevent. Measured 2026-08-05: the tree holds 149 files and `build-docs.mjs
+     --check` accounts for 119 (53 pages · 59 assets · 6 artifacts · 1 preserved). The 30 it does not
+     manage are precisely the `.md` — authored specs and narrative, among them `docs/EVENT-LEXICON.md`,
+     which CLAUDE.md names as a file the suite reads, and `docs/CROSSNIGHT-ENVELOPE-SPEC.md`, a
+     published contract. Auto-resolving one of those took a side and then "rebuilt" with a builder that
+     never writes `.md`, so the discarded side vanished silently — the whole failure mode this tool
+     exists to stop, carried out with its blessing.
+     ⚠ RESIDUAL, stated rather than buried: 119 accounted-for leaves the json/xml/txt artifacts here
+     unverified individually — build-docs reports six artifacts and eleven such files exist. They stay
+     classified generated. If one of them is authored it has the same hole; the `.md` set is the part
+     that is measured. */
+  if (p.startsWith('docs/')) return p.endsWith('.md') ? 'source' : 'generated';
   if (p.startsWith('provenance/')) return 'generated'; // ledger fragments, written by build.mjs
   return 'source';
 }

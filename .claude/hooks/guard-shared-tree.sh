@@ -172,7 +172,43 @@ fi
 # does not help: a heredoc body is not quoted. So this rule alone also tests a copy with `<<'W' … W`
 # bodies removed. Same tradeoff, and same reason, as the quote-stripping on `git commit -a` above.
 cmd_nohd="$(printf '%s' "$cmdn" | sed -E "s/<<-?'?([A-Za-z_][A-Za-z0-9_]*)'?.*[[:space:]]\\1([[:space:]]|$)/ /g")"
-if grep -qE "$GITX"'(checkout|restore)[[:space:]]+([^;&|]*[[:space:]])?(--[[:space:]]+)?[^;&|]*\.(js|mjs|md|json|css|src\.html)([[:space:]]|$)' <<<"$cmd_nohd"    && grep -qE "$GITX"'(checkout|restore)[[:space:]]+([^;&|]*[[:space:]=])?(origin/|HEAD|[0-9a-f]{7,40})' <<<"$cmd_nohd"    && ! grep -qE '(^|[[:space:]])(provenance/|docs/)' <<<"$cmd_nohd"; then
+# ── ADVERSARIAL PASS 2026-08-05 · three ways this rule was walked past ─────────────────────────────
+# (1) THE CANONICAL FORM WAS NOT BLOCKED. The rule required a literal file EXTENSION in the command
+#     text, and the destructive form everyone actually types has none — the paths do not exist until
+#     runtime:
+#         git checkout origin/main -- $(git diff --name-only --diff-filter=U)
+#     That is the exact line CLAUDE.md §2c prints under "NEVER", and it was ALLOWED. So were the
+#     `| xargs git checkout origin/main --` and `for f in $(…)` variants. The rule guarded the
+#     ILLUSTRATIVE form (literal paths) and not the real one.
+# (2) ONE GENERATED PATH EXEMPTED THE WHOLE COMMAND. The exemption was per-COMMAND, so
+#         git checkout origin/main -- docs/OxyDex.html oxydex-dsp.js
+#     passed and reverted the source file. That inverts on precisely the input this rule exists for —
+#     a MIXED conflict list — which is the case the docs lead with. Now filtered per TOKEN.
+# (3) THE EXTENSION LIST OMITTED .py, .sh, .yaml, .html AND EXTENSIONLESS FILES. `capture-host/` is
+#     ~60 Python modules and none of them were covered.
+# Residual, stated not buried: a runtime-computed path with no extension and no substitution marker
+# (e.g. read from a variable set earlier) is still not visible to a text matcher. This stops the
+# accidental forms, not a determined one.
+_gx_ref() { grep -qE "$GITX"'(checkout|restore)[[:space:]]+([^;&|]*[[:space:]=])?(origin/|HEAD|[0-9a-f]{7,40})' <<<"$1"; }
+_src_tok=0
+if _gx_ref "$cmd_nohd"; then
+  # (1) a ref-restore whose paths come from a substitution or xargs is the canonical destructive form
+  if grep -qE '(\$\(|`)' <<<"$cmd_nohd" \
+     || grep -qE 'xargs[^;&|]*'"$GITX"'(checkout|restore)' <<<"$cmd_nohd"; then
+    _src_tok=1
+  else
+    # (2)+(3) test each token on its own; drop only the tokens that are themselves generated
+    while read -r _t; do
+      _t="${_t%\"}"; _t="${_t#\"}"; _t="${_t%\'}"; _t="${_t#\'}"; _t="${_t#./}"
+      case "$_t" in docs/*|provenance/*) continue ;; esac
+      case "$_t" in
+        *.js|*.mjs|*.md|*.json|*.css|*.src.html|*.py|*.sh|*.yaml|*.yml|*.txt|*.cff|*.toml|*.ts)
+          _src_tok=1; break ;;
+      esac
+    done < <(tr -s '[:space:]' '\n' <<<"$cmd_nohd")
+  fi
+fi
+if [ "$_src_tok" = 1 ]; then
   deny "BLOCKED: 'git checkout <ref> -- <source path>' in a shared checkout.
 
 This is the mid-rebase conflict shortcut, and it is the one that fails SILENTLY. It is correct for a

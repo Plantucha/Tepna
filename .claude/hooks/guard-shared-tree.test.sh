@@ -39,7 +39,7 @@ chk(){ # chk <expected> <command>
 }
 
 echo "### MUST DENY                                                 now   main"
-while IFS= read -r c; do [ -n "$c" ] && chk DENY "$c"; done <<'DENY'
+while IFS= read -r c; do [ -n "$c" ] && [ "${c#\#}" = "$c" ] && chk DENY "$c"; done <<'DENY'
 git add -A
 git add .
 git add -u
@@ -78,6 +78,25 @@ git branch -f main abc
 git branch --force main abc
 git push . HEAD:main
 git symbolic-ref HEAD refs/heads/other
+# ── adversarial pass 2026-08-05 · every one of these was ALLOWED before ──────────────────────────
+# (1) the canonical form. The rule needed a literal file EXTENSION in the command text, and the line
+#     CLAUDE.md prints under "NEVER" has none — its paths do not exist until runtime.
+git checkout origin/main -- $(git diff --name-only --diff-filter=U)
+git checkout origin/main -- `git diff --name-only --diff-filter=U`
+git diff --name-only --diff-filter=U | xargs git checkout origin/main --
+for f in $(git diff --name-only --diff-filter=U); do git checkout origin/main -- "$f"; done
+# (2) one generated path exempted the WHOLE command — so a MIXED conflict list, the case the rule
+#     exists for, passed straight through and reverted the source file beside it.
+git checkout origin/main -- docs/OxyDex.html oxydex-dsp.js
+git checkout origin/main -- provenance/OxyDex.json tests/dex-tests.js
+git checkout origin/main -- oxydex-dsp.js docs/OxyDex.html
+# (3) the extension list omitted .py (capture-host is ~60 Python modules), .yaml, .sh, .html
+git checkout origin/main -- capture-host/oxyii.py
+git checkout origin/main -- capture-host/capture.py capture-host/writers.py
+git restore --source=origin/main -- capture-host/capture.py
+git checkout origin/main -- capture-host/config.example.yaml
+git checkout origin/main -- .claude/hooks/guard-shared-tree.sh
+git -C /tmp/wt checkout origin/main -- capture-host/oxyii.py
 DENY
 
 echo
@@ -101,7 +120,7 @@ printf '  '; chk DENY "$(printf 'git add \\\n  -A')"
 
 echo
 echo "### MUST ALLOW — ordinary work"
-while IFS= read -r c; do [ -n "$c" ] && chk allow "$c"; done <<'ALLOW'
+while IFS= read -r c; do [ -n "$c" ] && [ "${c#\#}" = "$c" ] && chk allow "$c"; done <<'ALLOW'
 git add path/to/file.js
 git add -- src/a.js src/b.js
 git commit -m "feat: thing"
@@ -137,6 +156,16 @@ git -c user.email=a@b -c user.name=t commit -m "normal"
 ls -l /usr/bin/git
 digit add -A
 legit add -A
+# ── adversarial pass 2026-08-05 · the fix must not over-reach ────────────────────────────────────
+# A restore of a PURELY generated path is the legitimate case: neither side is authoritative, you
+# take either and rebuild. Denying these would push people back to hand-resolution.
+git checkout origin/main -- docs/OxyDex.html
+git checkout origin/main -- provenance/OxyDex.json
+git checkout origin/main -- docs/dex-badges.css
+# reading is never destructive, whatever the extension
+git log --oneline -5 -- capture-host/capture.py
+git diff origin/main -- capture-host/oxyii.py
+git show origin/main:capture-host/oxyii.py
 ALLOW
 
 echo
