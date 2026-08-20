@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-15 (**§1 EXECUTED elsewhere** as #956, verified in the tree; **§2 EXECUTED 2026-08-15**. Punch-list item 2 — the alternation cross-check — **RUN 2026-08-16: 2 of 5 nights measured, both FULL ACC (negative); 3 blocked on raw data absent from all four corpus trees. Also corrects the count: FIVE alternation nights, not six** (§7.2-RUN); §3 remain leads) · **Created:** 2026-08-04 · **Charter:** `AUDIT-PROMPT.md` · **Follows:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` (DONE 2026-07-29) · `DEEP-AUDIT-III-FOLLOWUPS-II-2026-07-29-BRIEF.md` (DONE 2026-07-31)
+**Status:** IN-PROGRESS — 2026-08-15 (**§1 EXECUTED elsewhere** as #956, verified in the tree; **§2 EXECUTED 2026-08-15**. Punch-list item 2 — the alternation cross-check — **RUN 2026-08-16: 2 of 5 nights measured, both FULL ACC (negative); 3 blocked on raw data absent from all four corpus trees. Also corrects the count: FIVE alternation nights, not six** (§7.2-RUN). ⚠️ **That absence was WRONG — re-checked 2026-08-20 (§7.2-RUN-II): two of the three are on the box, fragmented across link reconnects AND across the date directory. 4 of 5 now measured, ALL NEGATIVE including the highest-ratio night; only 2026-08-08 is genuinely absent.** §3 remain leads) · **Created:** 2026-08-04 · **Charter:** `AUDIT-PROMPT.md` · **Follows:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` (DONE 2026-07-29) · `DEEP-AUDIT-III-FOLLOWUPS-II-2026-07-29-BRIEF.md` (DONE 2026-07-31)
 
 # Deep audit IV — the fifth instance of 3a, in the file the 3a fix shipped in yesterday
 
@@ -297,6 +297,62 @@ date, so a coverage check run without comparing spans would have read the 2-seco
 and reported "full ACC coverage, 53.1 Hz" — a clean-looking answer about the wrong recording. The
 pairing test (export `durSec` ≡ raw span) is what separates them, and it is the step to keep if anyone
 re-runs this.
+
+### 7.2-RUN-II · Re-checked 2026-08-20 — **the data was NOT absent. 4 of 5 now measured, all NEGATIVE.**
+
+Two of the three "blocked" nights are on the box after all. The run above is sound in method and its
+two measurements stand; the absence conclusion does not. **A night is not a file, and a night is not a
+date.** Two independent indexing assumptions each truncated the search:
+
+1. **The Verity link drops, and the capture host opens a NEW FILE per reconnect.** A night is the
+   *union* of fragments. 7.2-RUN's pairing test (export `durSec` ≡ raw span) is the right test and is
+   why it did not accept a fragment — but applied *per file* it rejects a real night as absent. The
+   "2 seconds / 129 PPG rows" reported for 2026-08-06 is `…_20260806064732_PPG.txt`, a stub from the
+   *previous morning's* session; that night's actual first fragment is `…_20260806205425_PPG.txt`.
+2. **A night crosses the date directory.** Directories are named for session start, so the tail of the
+   2026-08-04 night lives in `/srv/tepna/captures/**2026-08-05**/`. A per-date glob truncates it — which
+   is why 08-04 still looked 14 min short even after the fragments were unioned.
+
+**2026-08-06 — pairs EXACTLY.** Export `startEpochMs` 20:54:30, `durSec` 33787.637 (9.385 h) → ends
+06:17:38. Fragments tile `20:54:30 → 22:03:30 · 22:04:13 → 22:05:06 · 22:05:37 → 22:47:36 ·
+22:48:16 → 23:26:06 · 23:26:42 → 06:17:38`. Union = **20:54:30 → 06:17:38**, to the second.
+
+**2026-08-04 — pairs EXACTLY once the day boundary is crossed.** Export 22:49:42, `durSec` 29409.248
+(8.169 h) → ends **06:59:51**. Fragments `22:49:42 → 22:50:46 · 22:51:23 → 22:54:45 · 22:55:40 →
+22:58:25 · 22:59:18 → 23:00:02 · 23:00:41 → 06:46:00` (all in `2026-08-04/`) then
+`…20260805064633…` at **06:46:37 → 06:59:52** in `2026-08-05/`. Last raw row 06:59:52 vs predicted
+06:59:51.
+
+**Both answer the question NEGATIVE — the ACC was on throughout.** Every PPG fragment on both nights
+has an ACC twin opening 1–2 s earlier and closing within a second, with no PPG fragment lacking one.
+Effective rates confirm no interior gaps: the dominant fragments give **51.7 Hz** ACC against 52 Hz
+nominal on both (08-04: 1 443 000 rows / 27 919 s; 08-06: 1 274 461 / 24 654), matching the 51.7 Hz
+7.2-RUN measured on 2026-08-07. The inter-fragment gaps (31–43 s) are link dropouts where **neither**
+stream exists, so they are not the "ACC off while PPG on" condition §1's defect requires.
+
+**2026-08-08 remains genuinely absent** — no `Polar_VeritySense_*` PPG or ACC anywhere on the box for
+that date, checked without a name or size filter. That one was reported correctly.
+
+| night | ratio | ACC coverage | basis |
+|---|---|---|---|
+| 2026-07-01 | 1.09 | FULL | 7.2-RUN, PSL tree |
+| 2026-08-04 | 1.09 | **FULL** | this run — 6 fragments across two date dirs |
+| 2026-08-06 | 1.09 | **FULL** | this run — 5 fragments |
+| 2026-08-07 | **1.27** | FULL | 7.2-RUN, single file |
+| 2026-08-08 | 1.17 | unknown | raw absent |
+
+**Status of item 2: 4 of 5 measured, all negative — including the highest-ratio night.** On the
+evidence §1's defect suppressed no flag on any measurable alternation night. Retiring the concern is
+now a one-night call rather than a three-night one; 2026-08-08 at ratio 1.17 is the only gap.
+
+⚠️ **The general lesson, since this is the fifth false absence on this corpus:** the previous entry's
+own warning was that *"each of those directories exists and is named for the right date, so a coverage
+check run without comparing spans would have read the 2-second capture as a night."* That was right,
+and it still under-reached — because the fix (compare spans) was applied to the same wrong unit. The
+trap is not only "a fragment is not a night"; it is that **the index you enumerate over — file, date —
+is itself an assumption.** See [`docs/CORPUS-LOCATIONS.md`](../docs/CORPUS-LOCATIONS.md).
+
+**Superseded framing of item 2 below is kept verbatim; its two measurements remain valid.**
 
 **Status of item 2: advanced, not closed.** 2/5 measured negative, 3/5 blocked on raw data that is not
 in any of the four locations `docs/CORPUS-LOCATIONS.md` lists. Closing it needs those three recordings
