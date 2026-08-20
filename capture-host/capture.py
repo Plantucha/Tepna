@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 import argparse, asyncio, contextlib, json, logging, math, os, signal, time as _time, datetime as _dt
-from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter,
+from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, resumable_stamp,
                      HostClockLogWriter, PmdArrivalLogWriter, capture_filename, missing_identity,
                      night_dir, open_sample_writers)
 import proc_util
@@ -1334,6 +1334,10 @@ def charging_retry_in_place(connected, stopped, paused, recovering) -> bool:
 # long: a real wear is never not-worn for minutes (a roll-over or strap tug is seconds), and dropping
 # during genuine use would cost real data. Only devices that actually REPORT contact are affected;
 # worn=None (no contact bit) is never dropped. Set drop_not_worn_sec=0 to disable.
+_RESUME_WINDOW_S = 300.0            # CAPTURE-FILESET-RESUME: reconnect gap below this reuses the
+#                                     file-set; >= it mints a fresh one. 0 disables. Override via
+#                                     write.resume_window_sec. Must stay ABOVE the drop_not_worn recheck
+#                                     cadence (90 s) or the duty cycle it exists to collapse escapes it.
 _DROP_NOT_WORN_SEC = 180.0          # continuous not-worn before dropping; override via power.drop_not_worn_sec
 _NOT_WORN_RECHECK_S = 90.0          # how often to reconnect-and-check once dropped; power.not_worn_recheck_sec
 _WORN_SINCE: dict[str, float] = {}  # addr -> monotonic ts contact went False (absent = worn/unknown)
@@ -1781,6 +1785,22 @@ async def run_polar(dev: dict, root: str):
         arr_wr = None
         started = _now()
         ndir = night_dir(root, started)
+        # ── CAPTURE-FILESET-RESUME §2 — reuse the set when the gap is small ─────────────────
+        # One decision at the single point every filename derives from: if THIS device's newest set
+        # in tonight's dir wrote within `write.resume_window_sec` (default 300), adopt its stamp —
+        # every capture_filename() below regenerates the identical names and every writer opens in
+        # append mode. A true outage (>= window) keeps fragmenting, deliberately: that fragmentation
+        # is information (the 37/75-minute wedges must stay visible). The dominant collapsed case is
+        # the drop_not_worn duty cycle (drop 180 s, recheck 90 s — measured 2,154 sets across 76
+        # device-nights, 28.3x). `link_epoch` still increments per reconnect (E5): resume changes
+        # where SAMPLES land, never what the LINK sidecar records.
+        _rw = _RESUME_WINDOW_S
+        if _rw > 0:
+            _prev = resumable_stamp(ndir, dev["vendor"], dev["model"], dev["device_id"], started, _rw)
+            if _prev is not None:
+                log.info("%s: resuming file-set %s (gap < %.0fs)",
+                         dev.get("name") or dev["address"], f"{_prev:%Y%m%d%H%M%S}", _rw)
+                started = _prev
         charging_hold = False              # device refused PMD because it is on the charger (status 0x0D).
         drop_for_power = False             # not-worn long enough that we dropped the link to save battery
         stalled = False                    # started streams went silent behind a live link — re-negotiate
@@ -5165,6 +5185,10 @@ async def main():
         _DROP_NOT_WORN_SEC = float(_pw["drop_not_worn_sec"])     # 0 disables
     if float(_pw.get("not_worn_recheck_sec") or 0) > 0:
         _NOT_WORN_RECHECK_S = float(_pw["not_worn_recheck_sec"])
+    global _RESUME_WINDOW_S
+    _wr = cfg.get("write") or {}
+    if "resume_window_sec" in _wr:
+        _RESUME_WINDOW_S = float(_wr["resume_window_sec"])       # 0 disables resume entirely
     global _STREAM_STALL_S
     _sc = cfg.get("stream") or {}
     if "stall_sec" in _sc:

@@ -138,6 +138,48 @@ def file_stamp(fname: str) -> str | None:
     return tok if _DATE14.match(tok) else None
 
 
+def resumable_stamp(ndir: str, vendor: str, model: str, device_id: str,
+                    now: _dt.datetime, window_s: float) -> _dt.datetime | None:
+    """CAPTURE-FILESET-RESUME §2: the stamp of THIS device's newest file-set in `ndir`, IF its last
+    write is younger than `window_s` — else None (mint a fresh set).
+
+    PURE decision, filesystem-read-only. The window is judged on the newest member file's MTIME, not
+    the set's stamp: the stamp says when the set STARTED, and a set that started hours ago but wrote
+    ten seconds ago is exactly the one to resume. A true outage (>= window) returns None so it still
+    fragments — that fragmentation is information (the 37/75-minute wedges must stay visible).
+
+    Measured driver (2026-08-19): 2,154 sets across 76 device-nights (28.3x), and the majority case is
+    the drop_not_worn duty cycle — drop at 180 s, recheck at 90 s, a fresh set per recheck. Its cadence
+    sits INSIDE the default 300 s window, which is the point.
+    """
+    prefix = f"{vendor}_{model}_{device_id}_"
+    newest: tuple[float, str] | None = None
+    try:
+        names = os.listdir(ndir)
+    except OSError:
+        return None
+    for f in names:
+        if not f.startswith(prefix):
+            continue
+        st = file_stamp(f)
+        if st is None:
+            continue
+        try:
+            m = os.path.getmtime(os.path.join(ndir, f))
+        except OSError:
+            continue
+        if newest is None or m > newest[0]:
+            newest = (m, st)
+    if newest is None:
+        return None
+    if (now.timestamp() - newest[0]) >= window_s:
+        return None
+    try:
+        return _dt.datetime.strptime(newest[1], "%Y%m%d%H%M%S")
+    except ValueError:
+        return None
+
+
 def file_device_id(fname: str) -> str | None:
     """The device_id FIELD of a capture filename — the exact inverse of capture_filename's id slot.
 
@@ -250,7 +292,23 @@ class StreamWriter:
                  fsync: bool = True, timebase: str | None = None):
         self.path = path
         self.stream = stream
-        self._fh = open(path, "w", buffering=1 << 20, newline="\n")
+        # CAPTURE-FILESET-RESUME §2/§3: when the path already exists with a valid tail, APPEND instead
+        # of truncating — a reconnect inside the resume window reuses the set. `resuming` is decided
+        # here, once, so every branch below (headers, timebase comment, the HR sibling) keys off the
+        # same fact. A torn tail (no trailing newline — the write the crash interrupted) is truncated
+        # back to the last complete line BEFORE opening in append mode: appending after a torn row
+        # would fuse two rows into an unparseable one (§3.5).
+        self.resumed = False
+        if os.path.exists(path) and os.path.getsize(path) > 0:
+            with open(path, "rb+") as _t:
+                _t.seek(-1, 2)
+                if _t.read(1) != b"\n":
+                    _t.seek(0)
+                    _data = _t.read()
+                    _cut = _data.rfind(b"\n")
+                    _t.truncate(_cut + 1 if _cut >= 0 else 0)
+            self.resumed = os.path.getsize(path) > 0
+        self._fh = open(path, "a" if self.resumed else "w", buffering=1 << 20, newline="\n")
         # O2RING-ADAPTIVE-TIMEBASE Stage 3b: stamp the per-capture RATE decision into the O2Ring optical
         # files as a `# timebase=…` comment BEFORE the header — the same header-comment shape
         # LinkLogWriter uses for `# adapter=`. It travels WITH the data, so a reader gets it (PpgDex's
@@ -265,9 +323,10 @@ class StreamWriter:
         # session as a stamped `_PPG.txt`. Latent rather than live, since nothing parses `ppg2w` yet —
         # which is why it was worth fixing now rather than later: the recordings accumulate, and a
         # timebase that was never written cannot be recovered afterwards.
-        if stream in ("ppg1", "ppg2w") and timebase:
-            self._fh.write(f"# timebase={timebase}\n")
-        self._fh.write(self.HEADERS[stream] + "\n")
+        if not self.resumed:
+            if stream in ("ppg1", "ppg2w") and timebase:
+                self._fh.write(f"# timebase={timebase}\n")
+            self._fh.write(self.HEADERS[stream] + "\n")
         # The HR writer owns a sibling _RR.txt (PSL layout — see the "hr"/"rr" header note). rsplit replaces
         # only the LAST "_HR." so a device name never triggers it. `rr` never opens its own StreamWriter —
         # it exists solely as this sibling of `hr`.
@@ -278,11 +337,29 @@ class StreamWriter:
             if rr_path == path:                       # path lacks the "_HR." token — never collide with it
                 base, dot, ext = path.rpartition(".")
                 rr_path = f"{base}_RR.{ext}" if dot else path + "_RR"
-            self._rr_fh = open(rr_path, "w", buffering=1 << 20, newline="\n")
-            self._rr_fh.write(self.HEADERS["rr"] + "\n")
+            _rr_resume = self.resumed and os.path.exists(rr_path) and os.path.getsize(rr_path) > 0
+            self._rr_fh = open(rr_path, "a" if _rr_resume else "w", buffering=1 << 20, newline="\n")
+            if not _rr_resume:
+                self._rr_fh.write(self.HEADERS["rr"] + "\n")
             self._rr_path = rr_path                   # remembered so `paths`/`discard` can see it
         self._n = 0
         self._first_ns: int | None = None   # per-file anchor for the relative `timestamp [ms]` column
+        # §3.2 (no re-anchor): on a resumed ECG file the relative `timestamp [ms]` column must keep the
+        # ORIGINAL anchor — left to its lazy init it would restart at 0.0 mid-file, and ECGDex's headless
+        # parser infers fs from this column's STEP, so one reset fabricates a step the size of the whole
+        # recording. Recover the anchor from the file's own first data row (col 1, sensor ns).
+        if self.resumed and stream == "ecg":
+            try:
+                with open(path, "r", newline="\n") as _r:
+                    for _ln in _r:
+                        if _ln.startswith("#") or _ln.startswith("Phone"):
+                            continue
+                        _c = _ln.rstrip("\n").split(";")
+                        if len(_c) > 1 and _c[1].strip().lstrip("-").isdigit():
+                            self._first_ns = int(_c[1])
+                            break
+            except OSError:
+                pass                       # unreadable ⇒ lazy init; worse column, never a crash
         self._flush_interval = flush_interval
         self._fsync = fsync
         self._last_flush = _time.monotonic()
@@ -737,8 +814,21 @@ class PmdArrivalLogWriter:
 
     def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True):
         self.path = path
-        self._fh = open(path, "w", buffering=1 << 16, newline="\n")
-        self._fh.write("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n")
+        # CAPTURE-FILESET-RESUME: a resumed set reuses this sidecar's name too — append, keep the header.
+        # Torn-tail handling matches StreamWriter's (§3.5).
+        _resume = False
+        if os.path.exists(path) and os.path.getsize(path) > 0:
+            with open(path, "rb+") as _t:
+                _t.seek(-1, 2)
+                if _t.read(1) != b"\n":
+                    _t.seek(0)
+                    _d = _t.read()
+                    _c = _d.rfind(b"\n")
+                    _t.truncate(_c + 1 if _c >= 0 else 0)
+            _resume = os.path.getsize(path) > 0
+        self._fh = open(path, "a" if _resume else "w", buffering=1 << 16, newline="\n")
+        if not _resume:
+            self._fh.write("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n")
         self.rows = 0
         self._flush_interval = flush_interval
         self._fsync = fsync
