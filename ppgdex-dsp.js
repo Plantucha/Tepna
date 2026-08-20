@@ -3136,8 +3136,13 @@
          differently shaped for no reason — parity is the property the cross-lane gate protects. */
       candidates: cls.candidates,
       meaning: cls.meaning,
+      /* ⚠️ `…Ms` IS A MISNOMER, kept for back-compat — see the same note in `clock.js`. Phase is fed
+         in ms and τ in seconds, so `adev` is ms/s: a RATE. PpgDex keeps its own copy of this because
+         it does not inline `clock.js` (CLAUDE.md §✅), so the two must stay in step by hand. */
       atShortestMs: r2(curve[0].adev),
       atLongestMs: curve[curve.length - 1].adev,
+      atShortestPpm: r2(curve[0].adev * 1000),
+      atLongestPpm: curve[curve.length - 1].adev * 1000,
       tauMaxSec: Math.round(curve[curve.length - 1].tau),
       /* The averaging window a measurement built on this pair should actually use — the principled
          replacement for a window length chosen by intuition. On a pure-jitter pair it is simply the
@@ -4640,6 +4645,8 @@
               tau0Sec: _v.stability.tau0Sec,
               atShortestMs: _v.stability.atShortestMs,
               atLongestMs: _v.stability.atLongestMs,
+              atShortestPpm: _v.stability.atShortestPpm,
+              atLongestPpm: _v.stability.atLongestPpm,
               tauMaxSec: _v.stability.tauMaxSec,
               optimalTauSec: _v.stability.optimalTauSec,
               /* KEPT, with corrected text rather than deleted: a consumer may key on its presence, and

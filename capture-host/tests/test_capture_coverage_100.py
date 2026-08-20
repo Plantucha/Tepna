@@ -461,6 +461,10 @@ def test_the_last_power_cycle_escalates_to_hci_reset_and_a_usb_rebind(monkeypatc
         ran.append(("rebind", dev_id))
         return True
     monkeypatch.setattr(capture, "_usb_rebind", fake_rebind)
+
+    async def no_spare(*a, **k):
+        return []                                  # P1.5: no healthy spare → the ladder still exits
+    monkeypatch.setattr(capture, "list_adapters", no_spare)
     _stop_after(monkeypatch, 40)                   # safety net; the give-up return should fire first
     capture._EXIT_CODE[0] = 0
     cfg = {"devices": [_dev(name="H10")],
@@ -1866,3 +1870,128 @@ def test_resumed_ecg_anchor_survives_an_unreadable_file(tmp_path, monkeypatch):
     assert w2.resumed is True and w2._first_ns is None
     w2.write_ecg(dt.datetime(2026, 8, 19, 21, 3, 0), 2_000_000_000, 0.0, 101)
     w2.close()
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# dual-radio failover (VIGIL-OVERNIGHT-FINDINGS P1.5) — the watchdog's L3 rung
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+_HCI_TWO = ("hci1:\tType: Primary  Bus: USB\n\tBD Address: F0:D5:BF:1E:79:21\n\tUP RUNNING \n\n"
+            "hci0:\tType: Primary  Bus: USB\n\tBD Address: AC:A7:F1:29:9D:1D\n\tUP RUNNING \n")
+
+
+def test_list_adapters_parses_the_probe(monkeypatch):
+    class _P:
+        async def communicate(self, stdin=None):     # proc_util.communicate calls proc.communicate(stdin)
+            return (_HCI_TWO.encode(), b"")
+
+    async def fake_exec(*a, **k):
+        return _P()
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", fake_exec)
+    a = _run(capture.list_adapters())
+    assert {x["hci"] for x in a} == {"hci0", "hci1"}
+
+
+def test_list_adapters_is_empty_when_hciconfig_is_missing(monkeypatch):
+    async def boom(*a, **k):
+        raise FileNotFoundError("hciconfig")
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", boom)
+    assert _run(capture.list_adapters()) == []
+
+
+def _failover_rig(monkeypatch, spare_list):
+    """A wedged pinned radio, quiet deafness probe, stubbed power-cycle, and `list_adapters` → spare_list."""
+    _wedge_rig(monkeypatch, adapter_up=False)
+    _quiet_deafness_probe(monkeypatch)
+
+    async def fake_cmd(cmd):
+        return True
+    monkeypatch.setattr(capture, "_adapter_cmd", fake_cmd)
+
+    async def adapters(*a, **k):
+        return list(spare_list)
+    monkeypatch.setattr(capture, "list_adapters", adapters)
+
+
+def test_the_watchdog_fails_over_to_a_healthy_spare_then_exhausts(monkeypatch, caplog):
+    """The rung: reset of THIS radio is spent → repoint ADAPTER to the healthy spare (every reconnect
+    resolves it fresh) and re-bond the sensors there. With the failover budget spent, the next give-up
+    exits, so two flaky radios cannot ping-pong forever."""
+    _failover_rig(monkeypatch, [{"hci": "hci1", "mac": "F0:D5:BF:1E:79:21", "up": True}])
+    bonded = []
+
+    async def fake_bond(addr, mac, *, force=False):
+        bonded.append((addr, mac))
+        return True
+    monkeypatch.setattr(capture.bonding, "ensure_bonded", fake_bond)
+    orig = capture.ADAPTER
+    _stop_after(monkeypatch, 60)
+    capture._EXIT_CODE[0] = 0
+    cfg = {"devices": [_dev(name="H10"),
+                       _dev(name="Backup", address="11:22:33:44:55:66", optional=True)],
+           "watchdog": {"interval_sec": 1, "grace_checks": 1, "max_adapter_cycles": 1,
+                        "max_failovers": 1, "exit_on_giveup": True}}
+    try:
+        with caplog.at_level("CRITICAL"):
+            _run(capture.adapter_watchdog("AC:A7:F1:29:9D:1D", cfg))
+        msgs = [r.getMessage() for r in caplog.records]
+        assert any("FAILING OVER to spare F0:D5:BF:1E:79:21" in m for m in msgs)
+        assert capture.ADAPTER == "F0:D5:BF:1E:79:21"                  # repoint IS the failover
+        assert any(mac == "F0:D5:BF:1E:79:21" for _a, mac in bonded)   # sensors bonded on the spare
+        assert ("11:22:33:44:55:66", "F0:D5:BF:1E:79:21") not in bonded  # the optional backup is skipped
+        assert capture._EXIT_CODE[0] == 1                              # budget spent → the ladder exits
+    finally:
+        capture.ADAPTER = orig
+        capture._EXIT_CODE[0] = 0
+
+
+def test_failover_can_be_disabled_and_does_not_even_probe(monkeypatch):
+    """watchdog.failover:false must not so much as enumerate the adapters — the pinned-radio ladder
+    behaves exactly as before, exiting on give-up."""
+    probed = []
+
+    async def spare(*a, **k):
+        probed.append(1)
+        return [{"hci": "hci1", "mac": "SPARE", "up": True}]
+    _wedge_rig(monkeypatch, adapter_up=False)
+    _quiet_deafness_probe(monkeypatch)
+
+    async def fake_cmd(cmd):
+        return True
+    monkeypatch.setattr(capture, "_adapter_cmd", fake_cmd)
+    monkeypatch.setattr(capture, "list_adapters", spare)
+    _stop_after(monkeypatch, 40)
+    capture._EXIT_CODE[0] = 0
+    cfg = {"devices": [_dev(name="H10")],
+           "watchdog": {"interval_sec": 1, "grace_checks": 1, "max_adapter_cycles": 1,
+                        "failover": False, "exit_on_giveup": True}}
+    try:
+        _run(capture.adapter_watchdog("PIN", cfg))
+        assert probed == [], "failover:false must not probe the adapters"
+        assert capture._EXIT_CODE[0] == 1
+    finally:
+        capture._EXIT_CODE[0] = 0
+
+
+def test_failover_survives_a_bond_failure_on_the_spare(monkeypatch, caplog):
+    """A sensor that will not re-pair on the spare must be logged, not fatal — the failover still moves
+    capture onto the healthy radio; a bond can be retried on the next reconnect."""
+    _failover_rig(monkeypatch, [{"hci": "hci1", "mac": "SPARE", "up": True}])
+
+    async def bad_bond(addr, mac, *, force=False):
+        raise RuntimeError("no pair")
+    monkeypatch.setattr(capture.bonding, "ensure_bonded", bad_bond)
+    orig = capture.ADAPTER
+    _stop_after(monkeypatch, 60)
+    capture._EXIT_CODE[0] = 0
+    cfg = {"devices": [_dev(name="H10")],
+           "watchdog": {"interval_sec": 1, "grace_checks": 1, "max_adapter_cycles": 1,
+                        "max_failovers": 1, "exit_on_giveup": True}}
+    try:
+        with caplog.at_level("WARNING"):
+            _run(capture.adapter_watchdog("PIN", cfg))
+        msgs = [r.getMessage() for r in caplog.records]
+        assert any("failover bond of" in m and "failed" in m for m in msgs)
+        assert capture.ADAPTER == "SPARE"                              # failover happened despite the bond error
+    finally:
+        capture.ADAPTER = orig
+        capture._EXIT_CODE[0] = 0

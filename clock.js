@@ -620,8 +620,18 @@
           noise: cls.noise,
           candidates: cls.candidates,
           meaning: cls.meaning,
+          /* ⚠️ `…Ms` IS A MISNOMER AND IS KEPT ONLY FOR BACK-COMPAT — these are a RATE, not a duration.
+             `_ckAllanFromPhase` is handed phase in MILLISECONDS and τ in SECONDS, so `adev` is a
+             fractional frequency in ms/s. `ppmUncertainty` below multiplies the same number by 1000,
+             which is only correct because of that: ms/s ÷ 1000 is dimensionless, × 1e6 is ppm.
+             Read as milliseconds these two understate themselves by 1000×, and CLAUDE.md §📏 rates a
+             wrong unit at the severity of a wrong number. Prefer the `…Ppm` pair below. Renaming in
+             place is NOT available — `integrator-dsp.js` and `ppgdex-*` read these names. */
           atShortestMs: curve[0].adev,
           atLongestMs: curve[curve.length - 1].adev,
+          /* The same two values in the unit they are actually in. */
+          atShortestPpm: curve[0].adev * 1000,
+          atLongestPpm: curve[curve.length - 1].adev * 1000,
           tauMaxSec: curve[curve.length - 1].tau,
           /* The averaging time minimising σ_y — the window a measurement on this pair should use, in
              place of one chosen by intuition. On a pure-jitter clock it is simply the longest τ

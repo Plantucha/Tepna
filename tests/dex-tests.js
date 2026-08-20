@@ -1375,6 +1375,25 @@
       T.ok('an independent pair produces a curve', ha2.ok === true && ha2.stability != null, 'independent=' + ha2.independent);
       T.ok('…carrying the ppm uncertainty the ppm should never be quoted without', ha2.stability && ha2.stability.ppmUncertainty > 0, JSON.stringify(ha2.stability && ha2.stability.ppmUncertainty));
       T.ok('…and its own SE', ha2.stability && ha2.stability.slopeSE > 0);
+      /* The `…Ms` pair is a RATE (ms/s), not a duration — `…Ppm` is the same number in its real unit,
+         and `ppmUncertainty` has always applied that identical 1000x conversion. Pinned by VALUE, so a
+         field that merely EXISTS carrying the ms number cannot pass and reproduce the mislabel under a
+         new name. */
+      T.ok(
+        'atLongestPpm is atLongestMs expressed in ppm',
+        ha2.stability && Math.abs(ha2.stability.atLongestPpm - ha2.stability.atLongestMs * 1000) < 1e-9,
+        'ppm=' + (ha2.stability && ha2.stability.atLongestPpm)
+      );
+      T.ok(
+        '…and equals ppmUncertainty, which reads the same tau',
+        ha2.stability && Math.abs(ha2.stability.atLongestPpm - ha2.stability.ppmUncertainty) < 1e-9,
+        'ppm=' + (ha2.stability && ha2.stability.atLongestPpm)
+      );
+      T.ok(
+        'the legacy …Ms pair survives, so integrator-dsp and ppgdex readers do not break',
+        ha2.stability && typeof ha2.stability.atShortestMs === 'number',
+        'atShortestMs=' + (ha2.stability && ha2.stability.atShortestMs)
+      );
     });
 
     group('PpgDex Allan deviation agrees with BOTH sibling implementations, in two languages', 'ppgdex-dsp · detector-stability', function (T) {
@@ -1497,6 +1516,29 @@
          constant inter-detector latency (184 ms here, ~190 ms on real nights) never inflates this
          curve. An implementation that leaked the offset in would report ~184 ms at every tau. */
       T.ok('the 184 ms latency does not appear in the curve at all', st.atShortestMs < 20, 'atShortestMs=' + st.atShortestMs + ' ms against a 184 ms offset');
+      /* ── THE `…Ms` FIELDS ARE A RATE, NOT A DURATION ───────────────────────────────────────
+         Phase is fed in ms and tau in seconds, so `adev` is ms/s — a fractional frequency. The
+         `…Ppm` pair is the same number in the unit it is actually in, and the 1000x is the same
+         conversion `ppmUncertainty` has always applied (ms/s / 1000 is dimensionless, x 1e6 is ppm).
+         Pinned by VALUE, not by presence: a field that exists but carries the ms number would pass a
+         presence check and reproduce the mislabel one name further on. */
+      T.ok(
+        'atLongestPpm is atLongestMs expressed in ppm — the 1000x is the ms/s -> ppm conversion',
+        Math.abs(st.atLongestPpm - st.atLongestMs * 1000) < 1e-9,
+        'ppm=' + st.atLongestPpm + ' vs ms*1000=' + st.atLongestMs * 1000
+      );
+      /* PpgDex deliberately publishes NO `ppmUncertainty`: its sigma measures two DETECTORS
+         disagreeing, not a clock's rate, so there is no ppm figure for it to qualify. The clock.js
+         sibling does publish one, and the equality leg lives in the hostaxis-stability group. */
+      /* The short-tau field rounds at 2dp in this node, so compare through that rounding rather than
+         demanding exactness a rounded field cannot deliver. */
+      T.ok(
+        'atShortestPpm is the short-tau sigma_y in ppm',
+        st.atShortestPpm > 0 && Math.abs(st.atShortestPpm - st.atShortestMs * 1000) <= 10,
+        'ppm=' + st.atShortestPpm + ' vs ms*1000=' + st.atShortestMs * 1000
+      );
+      /* The back-compat pair must SURVIVE — removing it breaks integrator-dsp and ppgdex readers. */
+      T.ok('the legacy …Ms pair is still published, so no reader breaks', typeof st.atShortestMs === 'number' && typeof st.atLongestMs === 'number', 'atShortestMs=' + st.atShortestMs);
       T.eq('too few pairs refuses rather than reporting a thin curve', P.detectorStability([1, 2, 3], [1, 2, 3]), null);
       T.eq('a missing firmware series refuses', P.detectorStability(a, null), null);
     });

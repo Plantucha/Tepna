@@ -5361,6 +5361,8 @@ function readDetectorStability(nodeExport) {
     tau0Sec: num(s.tau0Sec),
     atShortestMs: num(s.atShortestMs),
     atLongestMs: num(s.atLongestMs),
+    atShortestPpm: num(s.atShortestPpm),
+    atLongestPpm: num(s.atLongestPpm),
     optimalTauSec: num(s.optimalTauSec),
     /* The one derived field, and it is a THRESHOLD RESTATEMENT rather than a fresh inference: a slope
        below the white/flicker-phase boundary (the same −0.75 midpoint `capture-host/allan.py` and
