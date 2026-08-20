@@ -34,5 +34,14 @@
     "killers": [
       "O2Ring device-crystal is invariant to a corrupted host clock — bad-host acceptance"
     ]
+  },
+  "pulsedex-dsp.js": {
+    "line": 60,
+    "op": "num → 0",
+    "before": "const PD_MAX_TIME_RATIO = 2.0;",
+    "after": "const PD_MAX_TIME_RATIO = 0;",
+    "killers": [
+      "§B — fail-open layers: an interval must conserve time; absence is not zero"
+    ]
   }
 }
