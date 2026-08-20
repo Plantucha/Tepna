@@ -13,7 +13,9 @@ each mutation-verified by reintroducing the original bug. **§5's window sweep i
 *built* artifact that inlines the DSP, so the sweep must rebuild rather than re-serve. **§5's sweep
 is then RUN the same day: MAE has a plateau minimum at 45–60 s and the shipped 60 s sits in it, so
 the window is already right — measured over 3 box nights, and REPLICATED on the 2 disjoint pre-step
-nights, whose clock drifts the opposite way.** **NOT done:** §2's proposed shared `nativeHz`
+nights, whose clock drifts the opposite way. The remaining ceiling — the 5 s drift-consistency gate —
+was then MEASURED and is LOAD-BEARING: loosening it buys 5.7x the epochs but costs MAE 0.84 -> ~1.0,
+so n here is a precision trade, not a cap that can be lifted.** **NOT done:** §2's proposed shared `nativeHz`
 spine helper — deliberately deferred, see §2a. §1 and §6–§9 are untouched.) · **Created:** 2026-07-22
 
 # Respiratory-rate follow-ups — what executing the estimator brief surfaced
@@ -637,6 +639,54 @@ IS the result, and it is more useful than any single window choice.
 > same n in one pool, but it is not a substitute for n. The remaining §5 work is unchanged — more
 > scoreable nights — and the binding constraint is the **drift-consistency gate** (3 of 19, 2 of 4),
 > not the number of nights staged.
+
+> ### 🧪 THE BINDING CONSTRAINT MEASURED 2026-08-20 — the drift gate is load-bearing, and n is a PRECISION TRADE
+>
+> The two sweeps above left one open item: only **3 of 19** (and 2 of 4) nights score, so the ceiling
+> on §5/§1 is the **drift-consistency gate**, not the nights staged. That gate is
+> `resp-acc-analysis-app.js:858` — `var good = isFinite(delta) ? Math.abs(delta) < 5 : d.lock.r >= 0.4;`
+> — a hardcoded **5 s** bound on |recovered − predicted| against the fleet drift model.
+>
+> **The prior was that it is over-tight**, and it was a reasonable prior: the median respiratory period
+> here is **3.60 s**, so 5 s already exceeds one whole breath, and the gate is therefore not enforcing
+> physical alignment but *model fit* — which the clock step above shows can fail a perfectly good lock.
+> **Decision bands were written down before the run** (in-CI ⇒ free win · out-of-CI but ≪ null ⇒
+> judgement call · near null ⇒ load-bearing). Swept by patching that line and rebuilding, control
+> asserted each time.
+>
+> | drift tol | nights | epochs | MAE | 95 % CI | RMSE | LoA | ≤2 brpm | r |
+> |---|---|---|---|---|---|---|---|---|
+> | **5 s — shipped** | 3 | 2,260 | **0.84** | 0.80–0.87 | 1.45 | ±2.82 | 93.6 % | 0.692 |
+> | 10 s | 6 | 4,634 | 0.97 | 0.87–1.08 | 2.01 | ±3.90 | 92.0 % | 0.498 |
+> | 15 s | 8 | 5,517 | 0.99 | 0.89–1.09 | 2.14 | ±4.15 | 91.7 % | 0.459 |
+> | 25 s | 12 | 8,427 | 1.03 | 0.92–1.15 | 2.53 | ±4.89 | 91.6 % | 0.395 |
+> | 40 s | 13 | 9,526 | 1.03 | 0.93–1.13 | 2.43 | ±4.70 | 91.7 % | 0.421 |
+> | 75 s | 17 | 12,967 | 1.01 | 0.91–1.11 | 2.33 | ±4.51 | 91.5 % | 0.446 |
+>
+> **Verdict: band 2 — the prior was WRONG and the gate is load-bearing.** MAE at 15 s is 0.99, outside
+> the shipped tolerance's 0.80–0.87. Loosening is not free. **Do not widen it to buy n**, and above all
+> do not re-derive a published MAE at a loose tolerance — that would inflate the error estimate by
+> folding in misaligned nights and call it a bigger sample.
+>
+> **But the cost is bounded and the shape is informative.** The whole penalty lands on the FIRST step
+> (5 → 10 s, +0.13); from 10 s to 75 s MAE is flat at 0.97–1.03 while nights go 6 → 17. And the metrics
+> do not degrade together: **RMSE +75 % and LoA +73 % against MAE +20 % and ≤2 brpm −2.1 pp**. A night
+> that were merely *harder* would move all of them proportionally; a *misaligned* night produces a
+> minority of grossly wrong epochs, which is exactly a tail that inflates RMSE/LoA while leaving the
+> median epoch alone. So the added nights are mis-registered, not intrinsically noisier — the gate is
+> catching what it claims to catch.
+>
+> **The real finding is that ONE constant is serving TWO purposes.** A headline accuracy claim wants
+> the tight bound (report 0.84 on 3 nights). Statistical power for a *relative* comparison — which is
+> all the window sweep needed — tolerates the loose one and gets **5.7× the epochs** (2,260 → 12,967)
+> at MAE still far below the 1.36 null. Conflating them is what makes the ceiling look immovable.
+> ⚠️ Note also that the drift MODEL is unchanged across every row (4.681 s/day, SD 30.47 s, 8
+> confidently-locked nights) — tolerance selects which nights *score*, it does not refit anything. That
+> is what makes this a clean selection experiment rather than a confounded one.
+>
+> **Not proposed here:** splitting the constant into a scoring bound and a power bound. It is a change
+> to a shipped analysis tool that would move published numbers, and it needs the owner, not a sweep.
+> The measurement is recorded so the decision has one.
 
 **Cheap to run, because the apparatus now exists.** `resp-acc-analysis.html` drives the shipped DSP over
 the corpus headlessly in ~54 s per pass (§11 of the parent), so the whole sweep is minutes of compute.
