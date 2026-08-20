@@ -182,20 +182,48 @@ check now exists (`probe_rtc_read.py --clock`; `oxyii.parse_get_info` decodes `r
 "push-only" as FALSE: time can be pulled from the ring, so every 0xC0 push is now verifiable and
 free-run drift is measurable per-interval without touching the onboard .dat.
 
-Full 0xE1 map: `[0:9]` const header (`42 00 05 00 01 02 00 00 00`) · `[9:17]` fw ASCII ·
-`[17:24]` const (`01 40 08 52 16 01 00`) · `[24:31]` **RTC** · `[31:33]` u16 LE = **2016** const — a
-frozen date-year (manufacture/epoch?), semantics unverified, do not decode · `[33:37]` zeros ·
-`[37]` serial length · `[38:48]` **wire serial** `2592302100` — note this is NOT the BLE-name-derived
-`S8AW2100` the capture filenames use · `[48:60]` zeros.
+### `GET_INFO` (0xE1) — 60 bytes, fully classified
 
-**`GET_CONFIG` (0x00, 40 B): all 40 bytes CONST** across the window (as a settings struct should be).
-Notable live values: `motor=0x3C` (=60 — the vibration intensity the §2 buzz runs at), `spo2_low=88`,
-`hr_low=50`, `hr_high=120`, `storage_interval=1 s`, `tz_byte=0xCE`. Bytes [20:40] all zero here.
+| bytes | class | value observed | reading |
+|---|---|---|---|
+| `[0:9]` | CONST | `42 00 05 00 01 02 00 00 00` | header/device constants — semantics unknown |
+| `[9:17]` | CONST | ASCII `2D010002` | **firmware version** (parsed) |
+| `[17:24]` | CONST | `01 40 08 52 16 01 00` | unknown constants |
+| `[24:26]` | CONST* | u16 LE `07EA` = 2026 | **RTC year** (*const within the window; a clock field) |
+| `[26]` | CONST* | `08` | **RTC month** |
+| `[27]` | CONST* | `13` = 19 | **RTC day** |
+| `[28]` | CONST* | `13` = 19 | **RTC hour** |
+| `[29]` | CLOCK | carried on sec-wrap | **RTC minute** |
+| `[30]` | CLOCK | advanced ≡ gap mod 60 | **RTC second** |
+| `[31:33]` | CONST | u16 LE `07E0` = **2016** | frozen date-year (manufacture/epoch?) — **semantics unverified, do not decode** |
+| `[33:37]` | CONST | `00 00 00 00` | zeros |
+| `[37]` | CONST | `0A` = 10 | **serial length** (parsed) |
+| `[38:48]` | CONST | ASCII `2592302100` | **wire serial** — NOT the BLE-name-derived `S8AW2100` the capture filenames use |
+| `[48:60]` | CONST | zeros | padding |
 
-**`GET_BATTERY` (0xE4, 4 B): byte[2] is ANALOG** — bidirectional over `0xE2–0xF7` (226–247) at a
-constant 100 % level, i.e. a voltage/ADC-like channel, not a counter (the §1 "live counters" reading
-for 0xE4 was half right: [0] state and [1] level are const-at-rest; [2] is the mover). `[3]=0x10`
-const, unknown.
+### `GET_CONFIG` (0x00) — 40 bytes, all CONST (a settings struct at rest)
+
+| bytes | field | live value | note |
+|---|---|---|---|
+| `[0]` | alarm_flags | `01` | |
+| `[1]` | spo2_low | 88 | alarm threshold |
+| `[2]` | hr_low | 50 | |
+| `[3]` | hr_high | 120 | |
+| `[4]` | motor | **60** (`0x3C`) | the vibration intensity §2's buzz runs at |
+| `[5:8]` | buzzer · display_mode · brightness | 0 · 0 · 0 | |
+| `[8]` | storage_interval | 1 s | onboard .dat cadence |
+| `[9]` | tz_byte | `0xCE` | matches set_time_frame's tail byte |
+| `[10:20]` | auto_switch … func_switch | all 0 | per the existing `_CONFIG_FIELDS` map |
+| `[20:40]` | — | all 0 | firmware-variant region, empty on this fw |
+
+### `GET_BATTERY` (0xE4) — 4 bytes
+
+| byte | class | value observed | reading |
+|---|---|---|---|
+| `[0]` | CONST | `00` | state (0 = discharging) |
+| `[1]` | CONST | `64` = 100 | **level %** (parsed) |
+| `[2]` | **NOISY** | bidirectional `E2–F7` (226–247) | **analog voltage/ADC-like channel** — not a counter; §1's "live counters" reading for 0xE4 was only this byte |
+| `[3]` | CONST | `10` | unknown |
 
 **And `0x83`'s artifact is characterised (the buzz-fiducial brief's step 1, DONE).** Two commanded
 buzzes while streaming the raw 0x05 dual-wavelength+motion: empty-payload 0x83 drives a **~1.1 s**
