@@ -225,6 +225,18 @@ free-run drift is measurable per-interval without touching the onboard .dat.
 | `[2]` | **NOISY** | bidirectional `E2–F7` (226–247) | **analog voltage/ADC-like channel** — not a counter; §1's "live counters" reading for 0xE4 was only this byte |
 | `[3]` | CONST | `10` | unknown |
 
+**`0x01 SET_CONFIG` is now GATED-IMPLEMENTED (owner-ordered 2026-08-19), and live-verified.**
+Payload per upstream: 8 bytes LE, `[field_index, 0, 0, 0, value, 0, 0, 0]`. ⚠️ The write-side field
+indices are a DIFFERENT enumeration from GET_CONFIG's byte offsets — MOTOR is write-field **6** but
+read-byte 4; BRIGHTNESS write-field **9** but read-byte 7 (0=Low · 1=Medium · 2=High, the one
+documented range). `oxyii.set_config_frame` whitelists the 9 documented fields (nothing off-list can
+produce a frame — the gate that keeps the 0xE3/0xEE neighbourhood unreachable); `ring_config.py`
+brackets every write with a full-struct GET_CONFIG diff and reports applied ONLY if exactly the
+expected byte moved to the expected value. Live on fw `2D010002`: brightness 0→1 verified
+(`byte[7] 0 → 1`, nothing else moved), restored 0→0 — so the plaintext write path works on this
+firmware, and the vendor app's brightness + vibration-intensity knobs are now settable from the box.
+MOTOR intensity (currently 60) is the buzz-fiducial tuning knob.
+
 **And `0x83`'s artifact is characterised (the buzz-fiducial brief's step 1, DONE).** Two commanded
 buzzes while streaming the raw 0x05 dual-wavelength+motion: empty-payload 0x83 drives a **~1.1 s**
 vibration; the **motion channel** carries it unambiguously (0 → peak 22 over ~81 samples against a
