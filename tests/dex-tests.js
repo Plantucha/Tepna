@@ -11279,6 +11279,55 @@
      isNaN(null)===false both PASS a null (coerced to 0, or null.toFixed() → throw). Render-layer twin
      of the DSP sdnn7 fix — the two pattern-explorer direct reads, the heatmap's _patPearson (fed RAW
      nullable series), and the table fmt. A genuine 0 must SURVIVE (physiological, e.g. pNN50). */
+    /* ════ AN ABSENT RECOVERY INDEX MUST NOT GRANT A TRAINING GREEN LIGHT ══════════════════════════
+       DEEP-AUDIT-IV §3 filed this as a HYPOTHESIS: the strong-recovery branch accepted a NULL index as
+       equivalent to a passing one, so it rendered
+       *"Strong parasympathetic recovery — a green light for higher-intensity training"* when the
+       Recovery subscore is ABSENT — the same `== null` passes-the-gate shape as its §1, in the
+       presentation layer. Executed 2026-08-20; it is real, and the absence is deliberate.
+
+       `hrvdex-dsp.js:869` sets `d_ari = … : NaN` when the row's own rMSSD is absent or
+       `window7.length < 4`, and its comment names the reason: DEEP-AUDIT §Finding 5 added that guard
+       to stop a fabricated `d_ari = 0` firing a false RED *"recovery collapse"* alert. `num()` in the
+       render maps NaN → null. So Finding 5's careful red became an equally fabricated GREEN — and
+       structurally, not rarely: the FIRST THREE DAYS of any series clear `window7.length < 4`, as does
+       every day with no rMSSD reading.
+
+       The subscore grid immediately below the note renders Recovery as absent at the same moment the
+       note asserts it is strong, which is the tell a reader could have seen and no gate could.
+
+       Source-text assertions, whitespace-agnostic for the same reason the group below is — they must
+       track the PROPERTY, not Biome's layout. */
+    group('HRVDex render — an ABSENT Recovery index does not grant the training green light', 'sources', function (T) {
+      var rnd = (env.sources || {})['hrvdex-render.js'];
+      if (!rnd) {
+        T.ok('hrvdex-render.js source provided', false, 'runner passed no hrvdex-render.js');
+        return;
+      }
+      // ANTI-VACUITY · the branch being gated is actually present in the file.
+      T.ok('ANTI-VACUITY · the green-light note exists in the render', /green light for higher-intensity training/.test(rnd), 'the note text is absent — this group is testing nothing');
+      /* THE DEFECT: `ari == null` must no longer satisfy the strong-recovery branch. */
+      T.ok('a null Recovery index no longer PASSES the strong-recovery gate', !/ari\s*==\s*null\s*\|\|\s*ari\s*>=\s*1/.test(rnd), 'the permissive `(ari == null || ari >= 1)` is still present');
+      /* …and the replacement demands the measurement positively, rather than merely dropping the
+         null-check (which would let an absent ari throw or coerce). */
+      T.ok('…it requires a MEASURED index instead', /ari\s*!=\s*null\s*&&\s*ari\s*>=\s*1/.test(rnd), 'expected `ari != null && ari >= 1`');
+      /* The fall-through must still exist, or the fix trades a false green for a missing note. */
+      T.ok('an absent index falls through to the measured `score >= 45` note', /score\s*>=\s*45\)\s*note\s*=\s*'Balanced autonomic state/.test(rnd), 'the balanced-state fall-through is gone');
+      /* And the DSP guard this rests on must stay — if `d_ari` stopped being NaN on an absent row,
+         the render change would be guarding a state that no longer occurs, and Finding 5's red would
+         be back. Gated here because the two halves are only correct together. */
+      var dsp = (env.sources || {})['hrvdex-dsp.js'];
+      if (dsp) {
+        T.ok(
+          '…and the DSP still yields NaN rather than a fabricated 0 (Finding 5 intact)',
+          /d_ari\s*=\s*r\._rmssd\s*>\s*0\s*&&\s*mean7rmssd\s*>\s*0\s*&&\s*window7\.length\s*>=\s*4/.test(dsp),
+          'the d_ari guard changed — re-check both halves together'
+        );
+      } else {
+        T.skip('DSP guard still intact', 'hrvdex-dsp.js source not wired into this lane');
+      }
+    });
+
     group('HRVDex render — nullable fields drop null/NaN but keep a real 0 (FOLLOWUPS-II §1)', 'sources', function (T) {
       var rnd = (env.sources || {})['hrvdex-render.js'];
       if (!rnd) {
