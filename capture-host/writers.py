@@ -698,6 +698,64 @@ class HostClockLogWriter:
             pass
 
 
+class RingClockLogWriter:
+    """Per-session RING CLOCK sidecar — the O2Ring's RTC watched against the host, on disk.
+
+    The RTC became READABLE 2026-08-19 (GET_INFO [24:31]); the daemon reads it every ~10 min and pushes
+    0xC0 six-hourly. STATUS shows the latest reading and forgets the rest — but the ring's crystal is a
+    clock this suite characterises (allan.py), a 0xC0 push is a claim until a readback confirms it, and
+    an RTC RESET (battery event) silently ruins a stored .dat's timebase. All three need the history,
+    not the latest value. One row per event:
+
+        Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3
+
+    `event`: read (periodic readback) · push (0xC0 sent — offset column blank; the NEXT read is its
+    verification) · reset-suspect (offset jumped > threshold between reads: a battery event, flagged
+    the moment it is seen instead of when a .dat fit fails) · battery (0xE4 poll; battery_raw2 is the
+    ANALOG voltage-like byte mapped 2026-08-19 — logged raw because logging IS its characterisation).
+
+    Same disciplines as LinkLogWriter: a SIDECAR, never a column in a vendor layout; TELEMETRY, never a
+    ganglior export metric; blanks, never fabricated zeros."""
+
+    def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True):
+        self.path = path
+        self._fh = open(path, "w", buffering=1 << 16, newline="\n")
+        self._fh.write("Phone timestamp;event;rtc_offset_s;battery_state;battery_level;"
+                       "battery_raw2;battery_raw3\n")
+        self.rows = 0
+        self._flush_interval = flush_interval
+        self._fsync = fsync
+        self._last_flush = _time.monotonic()
+
+    def write(self, when: _dt.datetime, event: str, rtc_offset_s=None,
+              battery_state=None, battery_level=None, battery_raw2=None, battery_raw3=None) -> None:
+        def _f(v):
+            return "" if v is None else str(v)
+        self._fh.write(f"{_phone_ts(when)};{event};{_f(rtc_offset_s)};{_f(battery_state)};"
+                       f"{_f(battery_level)};{_f(battery_raw2)};{_f(battery_raw3)}\n")
+        self.rows += 1
+        now = _time.monotonic()
+        if now - self._last_flush >= self._flush_interval:
+            self.flush()
+            self._last_flush = now
+
+    def flush(self) -> None:
+        try:
+            self._fh.flush()
+            if self._fsync:
+                import os as _os
+                _os.fsync(self._fh.fileno())
+        except (OSError, ValueError):
+            pass
+
+    def close(self) -> None:
+        try:
+            self.flush()
+            self._fh.close()
+        except (OSError, ValueError):
+            pass
+
+
 class LinkLogWriter:
     """Per-session LINK PROVENANCE sidecar — the CONDITIONS a night was captured under.
 

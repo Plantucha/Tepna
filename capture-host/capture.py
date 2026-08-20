@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 import argparse, asyncio, contextlib, json, logging, math, os, signal, time as _time, datetime as _dt
-from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, resumable_stamp,
+from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, RingClockLogWriter, resumable_stamp,
                      HostClockLogWriter, PmdArrivalLogWriter, capture_filename, missing_identity,
                      night_dir, open_sample_writers)
 import proc_util
@@ -345,6 +345,10 @@ def oxyii_rtc_due(last_sync, now, session_restarted: bool, resync_sec: float) ->
 # in-session with a 0x00 read-back so the monitor shows the value the RING reports, never the value
 # that was merely asked for.
 _OXYII_INFO_EVERY_S = 600.0                        # RTC read cadence; one 60 B frame per 10 min
+_OXYII_RTC_JUMP_S = 5.0                            # |Δoffset| between reads above this = battery-event
+#                                                    reset suspect (quantum is ±1 s; 10-min drift ≪ 1 s)
+_OXYII_LAST_RTC_OFF: dict[str, float] = {}         # addr -> previous read offset (survives reconnects,
+#                                                    which is where battery swaps actually happen)
 _OXYII_CFG_PENDING: dict[str, tuple[str, int]] = {}   # addr -> (field, value) queued by webmon
 
 
@@ -2828,7 +2832,8 @@ async def run_oxyii(dev: dict, root: str):
         path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "spo2", "csv"))
         ppg_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "ppg", "txt"))
         ppg2w_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "ppg2w", "txt"))
-        wr = ppgwr = oxyflagwr = ppg2wr = None
+        rtclog_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "rtclog", "csv"))
+        wr = ppgwr = oxyflagwr = ppg2wr = rtcwr = None
         # The synthesized PPG sample clock (O2RING-PPG-GAP §1 + CAPTURE-HOST-DEEP-AUDIT §A3), per
         # SESSION — a reconnect opens a new file and a new grid, so it is rebuilt with the writers
         # rather than persisting across links. Boxed so the BLE callback can reach it.
@@ -2879,6 +2884,7 @@ async def run_oxyii(dev: dict, root: str):
                 # link and ~920 B per reply, so it costs airtime that the 1 Hz vitals poll currently owns.
                 # Same ring, same host clock, same `_tb` — the timebase decision is per DEVICE, so it
                 # rides this stream too (O2RING-ADAPTIVE-TIMEBASE-FOLLOWUPS §1a).
+                rtcwr = RingClockLogWriter(rtclog_path)
                 ppg2wr = (StreamWriter(ppg2w_path, "ppg2w", timebase=_tb)
                           if "ppg2w" in (dev.get("streams") or []) else None)
                 # Byte-11 identification experiment (see writers.OxyFrameLogWriter). ~1 Hz, ~1 MB/night,
@@ -2934,10 +2940,42 @@ async def run_oxyii(dev: dict, root: str):
                         if r and r[0] == oxyii.OP_GET_INFO:
                             _info = oxyii.parse_get_info(r[1])
                             _rtc = _info.get("rtc") if _info else None
-                            _set(name,
-                                 ring_rtc_offset_s=(round(ring_clock_offset_s(_rtc, _now()), 1)
-                                                    if _rtc else None),
+                            _off = round(ring_clock_offset_s(_rtc, _now()), 1) if _rtc else None
+                            _set(name, ring_rtc_offset_s=_off,
                                  ring_rtc_read=_now().isoformat(timespec="seconds"))
+                            if _off is not None:
+                                # RTC RESET DETECTION. Between two reads the offset moves by drift (≪1 s
+                                # per 10 min) or by a 0xC0 push we made ourselves — a jump beyond
+                                # _OXYII_RTC_JUMP_S with no push means the RTC restarted (battery event,
+                                # the documented failure that silently ruins a stored .dat's timebase).
+                                # Flag it the moment it is SEEN, and clear _OXYII_RTC_AT so the very next
+                                # loop re-pushes (oxyii_rtc_due reads it as first contact).
+                                _prev_off = _OXYII_LAST_RTC_OFF.get(addr)
+                                _OXYII_LAST_RTC_OFF[addr] = _off
+                                if _prev_off is not None and abs(_off - _prev_off) > _OXYII_RTC_JUMP_S:
+                                    _set(name, ring_rtc_reset_suspect=_now().isoformat(timespec="seconds"))
+                                    _OXYII_RTC_AT.pop(addr, None)
+                                    log.warning("%s: RTC JUMPED %+.1f s -> %+.1f s between reads — battery-event "
+                                                "reset suspected; re-push queued, stored .dat timebase suspect",
+                                                name, _prev_off, _off)
+                                    if rtcwr:
+                                        rtcwr.write(_now(), "reset-suspect", rtc_offset_s=_off)
+                                elif rtcwr:
+                                    rtcwr.write(_now(), "read", rtc_offset_s=_off)
+                            elif rtcwr:
+                                rtcwr.write(_now(), "read")
+                            continue
+                        # BATTERY POLL REPLY (0xE4). level/state mirror the live header; raw2 is the
+                        # ANALOG voltage-like byte (mapped 2026-08-19, semantics unverified) — logged raw
+                        # because the log IS its characterisation. raw3: constant 0x10 so far; logged so
+                        # a firmware where it moves is caught by data, not by assumption.
+                        if r and r[0] == oxyii.OP_GET_BATTERY:
+                            _b = oxyii.parse_battery(r[1])
+                            if _b and rtcwr:
+                                rtcwr.write(_now(), "battery", battery_state=_b["state"],
+                                            battery_level=_b["level"],
+                                            battery_raw2=(r[1][2] if len(r[1]) > 2 else None),
+                                            battery_raw3=(r[1][3] if len(r[1]) > 3 else None))
                             continue
                         # SETTINGS READ-BACK (GET_CONFIG). Always publishes the parsed struct; when a
                         # queued write is awaiting its verdict, compares the RING's value to the request.
@@ -3143,6 +3181,8 @@ async def run_oxyii(dev: dict, root: str):
                 async def _rtc_sync(why: str) -> None:
                     _clk = _now()
                     await _bounded_setup(client.write_gatt_char(wch, oxyii.set_time_frame(_clk), response=False))  # 0xC0
+                    if rtcwr:
+                        rtcwr.write(_now(), "push")
                     _OXYII_RTC_AT[addr] = _clk
                     _set(name, clock_synced=_clk.isoformat(timespec="seconds"))
                     log.info("%s RTC synced to host %s (%s)", name,
@@ -3187,6 +3227,9 @@ async def run_oxyii(dev: dict, root: str):
                         try:
                             await asyncio.wait_for(
                                 client.write_gatt_char(wch, oxyii.info_frame(), response=False),
+                                _PMD_CTRL_TIMEOUT_S)
+                            await asyncio.wait_for(
+                                client.write_gatt_char(wch, oxyii.battery_frame(), response=False),
                                 _PMD_CTRL_TIMEOUT_S)
                             # Once per session, also read the settings struct — so the monitor's
                             # brightness/vibration controls show the ring's ACTUAL values instead of
@@ -3294,7 +3337,7 @@ async def run_oxyii(dev: dict, root: str):
             # nothing but its header — indistinguishable from a real capture until something opens it,
             # and the Dex ingest walks this directory. On the documented 359-reconnect night that was
             # ~1000 junk files in one night dir. The Polar path already solved this; the ring never got it.
-            for _w in (wr, ppgwr, oxyflagwr, ppg2wr):
+            for _w in (wr, ppgwr, oxyflagwr, ppg2wr, rtcwr):
                 if not _w:
                     continue
                 _empty, _p = not _w.rows, _w.path
