@@ -146,7 +146,7 @@ def _warn_comment_loss(path: str) -> None:
 
 def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_device,
              pull_stored=None, polar_pause=None, sync_time=None, forget_device=None,
-             on_tz_change=None, notifier=None, ring_config=None) -> web.Application:
+             on_tz_change=None, notifier=None, ring_config=None, ring_buzz=None) -> web.Application:
     # Optional shared-secret gate on the CONTROL surface. When web.token is set, every POST (bond / forget
     # / remember / pull / settings / clock — all the state-changing verbs) needs the token; GET reads stay
     # open so the monitor can still display without it. Default OFF (no token → current wide-open behaviour;
@@ -248,6 +248,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         # not echoed anywhere — only what the device confirmed.
                         "ring_config": st.get("ring_config"),
                         "ring_config_verdict": st.get("ring_config_verdict"),
+                        "ring_buzz_at": st.get("ring_buzz_at"),
                         "charging": bool(st.get("charging")),
                         "last_error": st.get("last_error")})
         return out
@@ -376,6 +377,22 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         if forget_device:                     # stop the runner too — else it reconnects a dropped device
             forget_device(body["address"])
         return web.json_response(res)
+
+    async def ring_buzz_h(req):
+        """POST /api/ring/buzz {address} — fire ONE commanded vibration on the ring's next poll.
+        The buzz-fiducial marker: operator-commanded from the monitor while every device records, so
+        one mechanical event lands in N streams on one box clock. The response reports queued, not
+        fired — the daemon logs + publishes `ring_buzz_at` when the frame actually goes out."""
+        if ring_buzz is None:
+            return web.json_response({"ok": False, "error": "buzz not wired on this daemon"}, status=501)
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
+        if not _valid_mac(body.get("address")):
+            return web.json_response({"ok": False, "error": "invalid device address"}, status=400)
+        ring_buzz(body["address"])
+        return web.json_response({"ok": True, "queued": True,
+                                  "note": "fires on the ring's next poll; ring_buzz_at on /api/state stamps the command"})
 
     async def ring_config_h(req):
         """POST /api/ring/config {address, field, value} — queue ONE whitelisted O2Ring settings write.
@@ -1266,6 +1283,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         web.post("/api/bond", bond),
         web.post("/api/forget", forget),
         web.post("/api/ring/config", ring_config_h),
+        web.post("/api/ring/buzz", ring_buzz_h),
         web.post("/api/remember", remember),
         web.post("/api/pull", pull_stored_h),
         web.get("/api/settings", settings_get),

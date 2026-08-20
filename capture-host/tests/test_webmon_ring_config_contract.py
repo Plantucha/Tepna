@@ -90,3 +90,46 @@ def test_a_malformed_body_is_the_shared_bad_body_response(tmp_path):
     status = _serve(app, go)
     assert status == 400
     assert calls == []
+
+
+# ── /api/ring/buzz — the fiducial trigger ───────────────────────────────────────────────────────────
+def test_buzz_queues_and_reports_queued_not_fired(tmp_path):
+    fired = []
+    app, *_ = _mk(tmp_path, ring_buzz=fired.append)
+
+    async def go(c):
+        r = await c.post("/api/ring/buzz", json={"address": "AA:BB:CC:DD:EE:FF"})
+        return r.status, await r.json()
+    status, body = _serve(app, go)
+    assert status == 200 and body["ok"] is True and body["queued"] is True
+    assert "ring_buzz_at" in body["note"], "the response must point at the daemon's own stamp"
+    assert fired == ["AA:BB:CC:DD:EE:FF"]
+
+
+def test_buzz_bad_address_is_400(tmp_path):
+    fired = []
+    app, *_ = _mk(tmp_path, ring_buzz=fired.append)
+
+    async def go(c):
+        r = await c.post("/api/ring/buzz", json={"address": "nope"})
+        return r.status
+    assert _serve(app, go) == 400 and fired == []
+
+
+def test_buzz_unwired_daemon_is_501(tmp_path):
+    app, *_ = _mk(tmp_path, ring_buzz=None)
+
+    async def go(c):
+        r = await c.post("/api/ring/buzz", json={"address": "AA:BB:CC:DD:EE:FF"})
+        return r.status
+    assert _serve(app, go) == 501
+
+
+def test_buzz_malformed_body_is_400(tmp_path):
+    fired = []
+    app, *_ = _mk(tmp_path, ring_buzz=fired.append)
+
+    async def go(c):
+        r = await c.post("/api/ring/buzz", data=b"{nope", headers={"content-type": "application/json"})
+        return r.status
+    assert _serve(app, go) == 400 and fired == []

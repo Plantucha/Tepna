@@ -5017,3 +5017,46 @@ def test_run_polar_resume_disabled_by_zero_window(tmp_path, monkeypatch):
     _stop_after(monkeypatch, 1)
     _run(capture.run_polar(dev, str(tmp_path)))
     assert consulted == [], "window 0 must not consult the resolver"
+
+
+def test_run_oxyii_fires_a_queued_buzz_exactly_once(tmp_path, monkeypatch):
+    """queue_ring_buzz → ONE 0x83 on the next poll, the command instant published to STATUS. Exactly
+    one: the fiducial is a marker, and a repeat would write a second artifact into every stream."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_BUZZ_PENDING.clear()
+    dev = _o2dev()
+    c = FakeGattClient()
+    c.on_live = _o2_ring_responder(c, {"brightness": 0, "motor": 60})
+    _inject_connect_scan(monkeypatch, c)
+    capture.queue_ring_buzz(dev["address"])
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(dev, str(tmp_path)))
+    buzzes = [w for w in c.writes if w[1] == 0x83]
+    assert len(buzzes) == 1, f"exactly ONE buzz frame, got {len(buzzes)}"
+    assert capture.STATUS["devices"]["Ring"]["ring_buzz_at"] is not None
+    assert capture._OXYII_BUZZ_PENDING == set()
+
+
+def test_run_oxyii_buzz_write_failure_is_reported_not_retried(tmp_path, monkeypatch, caplog):
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_BUZZ_PENDING.clear()
+    dev = _o2dev()
+    c = FakeGattClient()
+    real_write = c.write_gatt_char
+    async def write(char, data, response=False):
+        if data[1] == 0x83:
+            raise RuntimeError("gatt refused the buzz")
+        await real_write(char, data, response)
+    c.write_gatt_char = write
+    def on(data):
+        if data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+    c.on_live = on
+    _inject_connect_scan(monkeypatch, c)
+    capture.queue_ring_buzz(dev["address"])
+    _stop_after(monkeypatch, 4)
+    with caplog.at_level("WARNING"):
+        _run(capture.run_oxyii(dev, str(tmp_path)))
+    assert capture.STATUS["devices"]["Ring"]["ring_buzz_at"] is None
+    assert any("buzz command failed" in r.getMessage() for r in caplog.records)
+    assert capture._OXYII_BUZZ_PENDING == set(), "a failed buzz must not silently retry forever"

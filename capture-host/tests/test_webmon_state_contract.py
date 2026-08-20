@@ -45,6 +45,7 @@ FULL_STATUS = {
     "ring_rtc_read": "2026-08-19T21:56:12",
     "ring_config": {"brightness": 2, "motor": 61},
     "ring_config_verdict": "brightness=2 applied",
+    "ring_buzz_at": "2026-08-19T22:41:03.117",
 }
 
 DEV = {"name": "H10", "vendor": "Polar", "model": "H10", "device_id": "12345678",
@@ -61,7 +62,7 @@ DEVICE_KEYS = {
     "clock_uncorrectable", "last_sample",
     # The ring's readable clock + gated settings (2026-08-19): the RTC-vs-host offset (GET_INFO [24:31]),
     # when it was read, the ring's own 0x00-read-back settings struct, and the last write's verdict.
-    "ring_rtc_offset_s", "ring_rtc_read", "ring_config", "ring_config_verdict",
+    "ring_rtc_offset_s", "ring_rtc_read", "ring_config", "ring_config_verdict", "ring_buzz_at",
 }
 
 
@@ -108,6 +109,7 @@ def test_a_device_projects_every_field_it_promises(tmp_path):
     assert d["ring_rtc_read"] == "2026-08-19T21:56:12"
     assert d["ring_config"] == {"brightness": 2, "motor": 61}
     assert d["ring_config_verdict"] == "brightness=2 applied"
+    assert d["ring_buzz_at"] == "2026-08-19T22:41:03.117"
 
 
 def test_an_unreported_device_yields_nulls_not_missing_keys(tmp_path):

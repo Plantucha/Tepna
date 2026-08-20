@@ -348,6 +348,18 @@ _OXYII_INFO_EVERY_S = 600.0                        # RTC read cadence; one 60 B 
 _OXYII_CFG_PENDING: dict[str, tuple[str, int]] = {}   # addr -> (field, value) queued by webmon
 
 
+_OXYII_BUZZ_PENDING: set[str] = set()              # addr -> fire ONE 0x83 on the next poll cycle
+
+
+def queue_ring_buzz(addr: str) -> None:
+    """Queue ONE commanded vibration (0x83, empty payload — measured ~1.1 s) for the ring's next poll.
+    The buzz-fiducial marker (O2RING-BUZZ-FIDUCIAL §2b): fired while EVERY device keeps recording on
+    the daemon, the buzz lands in the ring's own motion channel AND in whatever the ring is touching
+    (H10/Verity ACC) — one mechanical event, N records, one box clock. Operator-commanded only (the
+    monitor's button); never scheduled, never mid-night (brief §4)."""
+    _OXYII_BUZZ_PENDING.add(addr)
+
+
 def queue_ring_config(addr: str, field: str, value: int) -> None:
     """Queue ONE whitelisted settings write for the ring's next poll cycle (~1 s when connected).
     Validation happens HERE, at enqueue: oxyii.set_config_frame raises on an off-whitelist field or an
@@ -3190,6 +3202,22 @@ async def run_oxyii(dev: dict, root: str):
                     # on_data can publish the verdict from what the ring reports. Failure requeues nothing:
                     # a write whose fate is unknown must surface as an unanswered verdict, not silently
                     # retry forever against a ring that is refusing it.
+                    # OPERATOR-COMMANDED BUZZ (queue_ring_buzz). One 0x83, empty payload; the command
+                    # instant is logged + published so the analysis knows when the marker was ASKED for
+                    # (the artifact's own position in each stream is what carries the timing).
+                    if addr in _OXYII_BUZZ_PENDING:
+                        _OXYII_BUZZ_PENDING.discard(addr)
+                        _buzz_at = _now()
+                        try:
+                            await asyncio.wait_for(
+                                client.write_gatt_char(wch, oxyii.encode(0x83, b"", 0), response=False),
+                                _PMD_CTRL_TIMEOUT_S)
+                            _set(name, ring_buzz_at=_buzz_at.isoformat(timespec="milliseconds"))
+                            log.info("%s: BUZZ fired at %s (fiducial marker)", name,
+                                     _buzz_at.isoformat(timespec="milliseconds"))
+                        except Exception as e:
+                            _set(name, ring_buzz_at=None)
+                            log.warning("%s: buzz command failed (%r)", name, e)
                     _pending = _OXYII_CFG_PENDING.pop(addr, None)
                     if _pending is not None:
                         _fld, _val = _pending
@@ -5286,7 +5314,7 @@ async def main():
                             pull_stored=_pull, polar_pause=polar_offline_op,
                             sync_time=sync_device_time, forget_device=_forget,
                             on_tz_change=reset_clock_anchor, notifier=notifier,
-                            ring_config=queue_ring_config), host, port)
+                            ring_config=queue_ring_config, ring_buzz=queue_ring_buzz), host, port)
         log.info("monitor: http://%s:%d/", host, port)
 
     # Surface the resolved adapter at boot: a silent mis-pin (hci re-enumeration) is exactly the failure

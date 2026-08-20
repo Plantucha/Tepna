@@ -1490,6 +1490,9 @@ async function loadSettings(){
           <input class="ringcfg" data-addr="${esc(d.address)}" data-field="motor" type="number"
                  min="0" max="255" value="${rc.motor!=null?rc.motor:''}" style="width:5em">
           <span class="hint">${rc.motor!=null?`ring reports ${rc.motor}`:'not read yet'} — applied on the next poll (~1 s connected), then read back</span>
+          &nbsp;·&nbsp;
+          <button class="ringbuzz" data-addr="${esc(d.address)}" title="fire ONE ~1.1 s vibration — the cross-device fiducial marker">🔔 buzz</button>
+          <span class="hint">${d.ring_buzz_at?('last fired '+esc(String(d.ring_buzz_at).slice(11,23))):''}</span>
         </div>${verdict}</div>`;
     })();
     return `<div style="margin-bottom:.7rem"><div class="name">${esc(d.name)}</div>${sdk}${ring}${boxes||'<span class="hint">no streams reported yet</span>'}</div>`;
@@ -1605,6 +1608,17 @@ function updateSetTotal(){
 // read-back verdict is a different transaction from the config.yaml save, and folding it in would make
 // "saving…" claim success for a write whose fate only the ring's read-back can report.
 function bindRingCfg(){
+  document.querySelectorAll('#setStreams button.ringbuzz').forEach(el=>{
+    el.addEventListener('click', async (ev)=>{
+      ev.preventDefault();
+      try{
+        const r = await api('/api/ring/buzz', {method:'POST',
+          headers:{'content-type':'application/json'},
+          body: JSON.stringify({address: el.dataset.addr})});
+        $('#setMsg').textContent = r.ok ? 'buzz queued — fires on the next poll (~1 s)' : `refused: ${r.error||'unknown'}`;
+      }catch(e){ $('#setMsg').textContent = 'buzz failed: '+e; }
+    });
+  });
   document.querySelectorAll('#setStreams .ringcfg').forEach(el=>{
     el.addEventListener('change', async ()=>{
       const v = parseInt(el.value, 10);
