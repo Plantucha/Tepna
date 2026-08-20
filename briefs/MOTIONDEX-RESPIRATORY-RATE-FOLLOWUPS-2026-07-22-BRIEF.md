@@ -10,8 +10,11 @@ rested on the comment above it. It is wired into both lanes and the three failur
 known answers that reproduce the brief's own published figures (1.19 % rate error · −36.7 dB at 0.8 Hz),
 each mutation-verified by reintroducing the original bug. **§5's window sweep is UNBLOCKED
 2026-08-20** — the "served constant never reaches the estimator" defect is resolved: the tool is a
-*built* artifact that inlines the DSP, so the sweep must rebuild rather than re-serve. **NOT done:** §2's proposed shared `nativeHz`
-spine helper — deliberately deferred, see §2a. §1 and §5–§9 are untouched.) · **Created:** 2026-07-22
+*built* artifact that inlines the DSP, so the sweep must rebuild rather than re-serve. **§5's sweep
+is then RUN the same day: MAE has a plateau minimum at 45–60 s and the shipped 60 s sits in it, so
+the window is already right — measured over 3 box nights, and REPLICATED on the 2 disjoint pre-step
+nights, whose clock drifts the opposite way.** **NOT done:** §2's proposed shared `nativeHz`
+spine helper — deliberately deferred, see §2a. §1 and §6–§9 are untouched.) · **Created:** 2026-07-22
 
 # Respiratory-rate follow-ups — what executing the estimator brief surfaced
 
@@ -523,6 +526,117 @@ IS the result, and it is more useful than any single window choice.
 > ("the tool's MAE cannot score any estimator change") is **WITHDRAWN** — it was an artifact of the
 > harness, not a property of the tool, and anything scored through this tool by varying a **corpus** or a
 > **runtime argument** was never affected. Only manipulations of module constants were inert.
+
+> ### ✅ THE SWEEP IS RUN — 2026-08-20. There IS a turning point, and the shipped 60 s sits in it.
+>
+> Run with the rebuild recipe above (patch `motiondex-dsp.js` → `node tools/build-analysis.mjs` →
+> serve the REBUILT page), one rebuild per window, in a throwaway worktree. **The control ran first
+> every time:** the inlined constant in the built HTML was read back and asserted equal to the source
+> value before any statistic was read. All six passed.
+>
+> | `RR_WIN_SEC` | epochs | MAE | 95 % CI | bias | RMSE | LoA | ≤2 brpm | r |
+> |---|---|---|---|---|---|---|---|---|
+> | 20 | 2094 | 0.95 | 0.91–1.01 | −0.05 | 1.49 | ±2.92 | 91.1 % | 0.649 |
+> | 45 | 2238 | **0.84** | 0.79–0.90 | −0.19 | **1.37** | **±2.65** | **93.7 %** | **0.712** |
+> | **60 — shipped** | 2260 | **0.84** | 0.80–0.87 | −0.19 | 1.45 | ±2.82 | 93.6 % | 0.692 |
+> | 90 | 2279 | 0.91 | 0.85–0.97 | −0.18 | 1.54 | ±3.00 | 92.1 % | 0.648 |
+> | 120 | 2288 | 0.98 | 0.91–1.03 | −0.19 | 1.61 | ±3.14 | 90.7 % | 0.613 |
+> | 180 | 2293 | 1.05 | 0.97–1.13 | −0.18 | 1.66 | ±3.23 | 88.6 % | 0.587 |
+>
+> **The manipulation demonstrably arrives this time, and there are TWO controls saying so.** Every
+> estimator statistic moves monotonically away from the minimum — MAE, RMSE, LoA, ≤2 brpm and r all
+> agree on the same ordering. And the **null baseline is invariant at exactly `1.36 / n = 2297` in all
+> six runs**, as it must be: it is the corpus median, not an estimator output. A pipeline that moves
+> the estimator while holding the corpus-derived null fixed is sensitive in precisely the right place.
+> Contrast the VOID run, where *everything* was identical to three decimals.
+>
+> **The answer: the window is already right, and this time that is a measurement rather than an
+> artifact.** The minimum is a plateau at **45–60 s**; leaving it costs +0.11 br/min at 20 s and
+> +0.21 at 180 s. §5 proposed the window as "the one change that could actually move MAE" — it moves
+> MAE, but only *upward* from where the estimator already sits.
+>
+> **45 s is NOT a recommendation.** Its MAE is identical to 0.84 and the confidence intervals overlap
+> almost entirely (0.79–0.90 vs 0.80–0.87); RMSE, LoA and r favour it by margins well inside that
+> overlap. Judged through the error bars, 45 and 60 are indistinguishable — and a change to a shipped
+> DSP constant needs a difference, not a tie.
+>
+> **Limits, stated because they bound what this can be used for:**
+> · **3 nights / 2,260 epochs**, not §1's 7 / 3,665 — this is a different corpus (see below), so the
+>   MAE **0.84** here is NOT comparable to the published **0.95**. Only the *shape* across windows is.
+> · **The rows are not a paired comparison.** `n` climbs 2094 → 2293 with the window, so each row
+>   scores a slightly different epoch set — a longer window yields more confident epochs at the edges.
+>   The trend is large relative to that drift, but it is a confound and not a controlled one.
+> · Epochs within a night are autocorrelated, so the 95 % CI is optimistic.
+> · Staging `*_EVE.edf` (22 files) changed only the pooled-leg diagnostics, not the scored set — 3
+>   nights and MAE 0.84 either way. A robustness check, not an improvement.
+>
+> #### ⚠ Where the corpus came from — and why it could not have come from this checkout
+>
+> **`uploads/` in the repo cannot run this tool at all.** It holds 113 `*_ACC.txt` across 14 dates and
+> EDFs on **three** dates (2026-06-12/13/16), and **the two sets do not intersect** — so zero nights
+> pair and zero groups form. Anyone re-running §5 from a clean checkout gets "no ACC+BRP night pairs
+> found", which is *also* what the §11.1 `sessionStamp` bug used to print. **The corpus lives on the
+> capture box** (`vigil:/srv/tepna/captures`), where 23 dates carry both. Staged: 23 H10 ACC
+> (`Polar_H10` only — `resp-acc-analysis-app.js:56` filters Verity out) + 30 `_BRP.edf`, 1.4 GB.
+>
+> #### 🔴 A ONE-HOUR CPAP CLOCK STEP splits this corpus, and it vetoes scoring outright
+>
+> On all 23 nights the tool refused: **"no night aligned well enough to score", 0 of 23
+> drift-consistent**, drift fit **168.4 s/day with residual SD 544 s**. The recovered offsets are
+> bimodal — **≈ −2330 s** for 07-26→07-29 and **≈ +1270 s** for 08-01→08-19. The gap is ~3600 s.
+>
+> A linear drift fit cannot represent a step; it renders one as enormous scatter and then correctly
+> refuses everything. Restricting to the post-step cluster (19 nights) collapses the fit to
+> **4.681 s/day, residual SD 30.47 s** and 3 nights become scoreable. **The refusal was right and
+> specific, not a failure** — and it is the same class as the ResMed skew the Integrator vetoed on
+> 2026-07-26. Anything pooling CPAP nights across 2026-07-30 must handle this step explicitly rather
+> than fitting through it.
+>
+> **Reproducing this.** `tools/resp-acc-headless.mjs` now prints every rendered table, so the
+> agreement row is readable from the run rather than only on screen — without it the numbers above
+> could not be re-derived, which is the PAPERS-ROADMAP §5.2 requirement. The DSP was reverted to
+> `RR_WIN_SEC = 60` and rebuilt; the rebuilt tool is **byte-identical to the committed one**, which
+> also re-confirms the build is deterministic.
+>
+> **§5 Done-when: MET for the turning point, PARTIAL on the corpus** — measured and stated over 3
+> nights rather than 7, on box data rather than `uploads/`. The remaining work is n, not method.
+
+> ### 🔁 REPLICATED 2026-08-20 on the PRE-STEP cluster — the turning point is the estimator's, not the corpus's
+>
+> The sweep above ran on the post-step (August) nights. The clock step that forced that split also
+> hands the experiment a **second, disjoint corpus for free**: the 4 pre-step nights (07-26 → 07-29),
+> whose own lock spread is 11 s (−2335 / −2325 / −2336 / −2333) and which fit
+> **−5.794 s/day, residual SD 5.00 s** — tighter than August's 30.47 s, and of the **opposite sign**
+> to August's +4.681 s/day. 2 of 4 score, 1,309 epochs. Same rebuild recipe, same control before each
+> read; all six passed.
+>
+> | `RR_WIN_SEC` | Aug MAE (3 nights) | **Jul MAE (2 nights)** | Jul 95 % CI | Jul RMSE | Jul ≤2 brpm | Jul r |
+> |---|---|---|---|---|---|---|
+> | 20 | 0.95 | 0.89 | 0.88–0.89 | 1.54 | 91.5 % | 0.607 |
+> | 45 | **0.84** | **0.82** | 0.74–0.88 | 1.65 | 92.1 % | 0.611 |
+> | **60 — shipped** | **0.84** | 0.85 | 0.79–0.89 | 1.47 | 91.5 % | **0.666** |
+> | 90 | 0.91 | 0.96 | 0.90–1.01 | 1.75 | 90.3 % | 0.565 |
+> | 120 | 0.98 | 1.00 | 0.93–1.05 | 1.78 | 89.4 % | 0.545 |
+> | 180 | 1.05 | 1.06 | 0.98–1.12 | 1.83 | 87.3 % | 0.506 |
+>
+> **The same shape, on nights that share nothing.** Minimum in 45–60 s, monotonic rise beyond it, a
+> penalty at 20 s. The two curves converge at the long end (180 s: 1.05 vs 1.06) and differ most at
+> 20 s (0.95 vs 0.89). The null baseline is again invariant within each sweep (1.34–1.35, vs August's
+> 1.36) and again does not track the estimator.
+>
+> **This is what makes "the window is already right" a property of the estimator rather than of three
+> August nights.** Two disjoint night sets, two different CPAP clock regimes — opposite drift signs —
+> and one turning point.
+>
+> **45 s remains a tie, and now twice over.** Aug: 0.84 (0.79–0.90) vs 0.84 (0.80–0.87). Jul: 0.82
+> (0.74–0.88) vs 0.85 (0.79–0.89). Both overlap heavily, and 60 s wins Jul's `r` (0.666 vs 0.611) and
+> RMSE (1.47 vs 1.65) while 45 s wins Aug's. **Keep 60.** A shipped DSP constant needs a difference
+> that survives its error bars, and this one does not — in either direction.
+>
+> ⚠️ **Still small: 2 and 3 nights.** Replication across disjoint corpora is stronger evidence than the
+> same n in one pool, but it is not a substitute for n. The remaining §5 work is unchanged — more
+> scoreable nights — and the binding constraint is the **drift-consistency gate** (3 of 19, 2 of 4),
+> not the number of nights staged.
 
 **Cheap to run, because the apparatus now exists.** `resp-acc-analysis.html` drives the shipped DSP over
 the corpus headlessly in ~54 s per pass (§11 of the parent), so the whole sweep is minutes of compute.
