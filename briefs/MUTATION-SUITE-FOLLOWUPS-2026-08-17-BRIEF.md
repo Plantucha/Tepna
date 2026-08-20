@@ -393,6 +393,75 @@ sentence a human reads to decide. **Nothing this lane produces may be adopted un
 
 ---
 
+## 7 · ✅/⚠️ 2026-08-20 — THE PID FILE WAS A CLAIM, AND THE WATCHDOG DID NOT RECOVER INTEGRATOR
+
+Found picking the fleet re-sweep back up after the 14:12 reboot. Three findings; the first is fixed,
+the second is open and is the one worth someone's time, the third is a code fact that is **not** the
+cause of the second and is recorded here so nobody spends an hour deciding it was.
+
+### 7.1 · ✅ FIXED (#1575) — `suite.pid` reported a dead sweep as running, and the wrong file
+
+`--status` printed `running: {"pid":74542,…,"file":"integrator-dsp.js"}` when neither pid existed and
+a *different* file was being swept. Both halves wrong, nothing said so. The record is written at start
+and unlinked only on a clean per-file exit, so every crash, SIGKILL and reboot leaves one that reads
+exactly like a live sweep. Worse than cosmetic: `sweepState` fed the same record to `classifySweep`,
+which returns **`in flight`** for the file it names — so a crashed file classified as somebody-else's
+work forever and no sweep would pick it up. §0's table again, one row longer.
+
+Now verified before it is believed, by two independent tests: a **boot** test (a record whose
+`startedAt` precedes the current boot cannot describe a live process — the only test that survives
+**PID reuse**, which after a reboot is not hypothetical) and `kill(pid, 0)`. The record names **two**
+processes and they die separately, so `sweeping` (is this file being worked?) is now a different
+question from `live` (is the driver there?) — the box was caught in exactly that state at 14:24, suite
+54384 gone with its child 54591 still sweeping and reparented to `systemd --user`.
+
+Same PR: an unrecognised argument no longer falls through the `has('--x')` chain into the fleet
+launch. **`--help` started a full 22-worker sweep** — the flag a reader types *because* they do not
+know what the tool does.
+
+### 7.2 · ⚠️ OPEN — the stall was the WHOLE POOL, not a jammed mutant, and `--resume` assumes the latter
+
+`integrator-dsp.js` stopped writing at **09:24** and the box stayed up until **14:12** — 4 h 48 m of
+nothing, past `--stall-min 10` and `--max-restarts 3`, and the suite never advanced to `motiondex`
+(no journal for it, then or since). So it was neither progressing nor giving up. Measured from the
+preserved journal (`.git/tepna-mutation/journals-pre-resweep-2026-08-20/integrator-dsp.js.jsonl`,
+2871 records, none torn):
+
+| signal | value | what it rules in or out |
+|---|---|---|
+| STARTed, never verdicted | **23** | the run had 22 jobs — this is the ENTIRE pool plus one, dispatched and never returning |
+| keys STARTed twice | **6** (max 2) | the watchdog DID fire at least once and re-dispatched; it did not sit inert |
+| verdicts recorded | 1424 of 1447 dispatched | the run was healthy right up to the wedge |
+| last three dispatches | all **line 5070** | `_wrappedSlopeFit`'s only early-out guard |
+
+**The load-bearing point is the first row.** `--resume`'s recovery model is *quarantine the jammed
+mutant* — which presumes ONE poison mutant. What happened here leaves 22 more behind it, so a restart
+re-enters the same hole with 22 fresh chances to wedge, and three bounded restarts cannot climb out.
+That is a different failure from the 11 h 11 m single-probe wedge the watchdog was built for, and the
+same watchdog cannot be assumed to cover it.
+
+**A hypothesis to test, NOT a cause** — `integrator-dsp.js:5070` is
+`if (!rows || rows.length < 4 || !(rrMs > 0)) return null;`, the sole early-out of `_wrappedSlopeFit`,
+which is a **grid search of ~1600 ppm steps over every row**. Mutating that guard is precisely the way
+to make the most expensive function in the file run on the inputs it was written to reject. Slow-but-
+bounded is not the same as hung, and telling them apart is the whole point of the watchdog; whether a
+per-mutant timeout fires here has not been checked. Do not write this down as the cause without
+running it.
+
+**What would settle it:** re-run just those 23 keys under `--jobs 1` with the process state captured,
+and check whether `mutate.mjs`'s per-mutant timeout fires at all on that line.
+
+### 7.3 · The pid file is unlinked on exactly ONE of four exit paths — and that is not why 7.2 stranded
+
+`unlinkSync(pidFile())` appears **once**, inside `if (!outcome.stuck)`. So a give-up after
+`MAX_RESTARTS`, the end of the fleet loop, and any crash all leave the record behind. Worth tidying —
+but it did **not** produce the stranded record above, because a give-up would have advanced to
+`motiondex` and rewritten the file, and it never did. Recorded so the tempting tidy-up is not mistaken
+for a fix to 7.2. The reader-side check in 7.1 is the one that covers every path, including `SIGKILL`,
+which no producer-side cleanup can.
+
+---
+
 ## 6 · THE PATTERN WORTH CARRYING OUT OF THIS
 
 Every finding above is the same shape, and it is the shape CLAUDE.md §👥.4b already names: **a check
