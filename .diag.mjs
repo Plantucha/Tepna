@@ -1,0 +1,14 @@
+import { chromium } from 'playwright';
+const b = await chromium.launch({ args:['--no-sandbox'] });
+const p = await b.newPage();
+const errs = [];
+p.on('pageerror', e => errs.push('PAGEERROR: ' + e.message));
+p.on('response', r => { if (r.status() >= 400) errs.push('HTTP ' + r.status() + ' ' + r.url()); });
+await p.goto('http://127.0.0.1:8099/Dex-Test-Suite.html?full', { waitUntil:'domcontentloaded' });
+await p.waitForFunction(() => window.__rcState === 'done', null, { timeout: 900000, polling: 500 });
+console.log('--- distinct errors ---');
+console.log([...new Set(errs)].slice(0,25).join('\n'));
+console.log('--- rcTimings ---');
+const t = await p.evaluate(() => window.__rcTimings || []);
+console.log(JSON.stringify(t));
+await b.close();
