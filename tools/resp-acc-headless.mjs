@@ -152,6 +152,23 @@ for (const id of ['refSummary', 'driftSummary']) {
   const t = await txt('#' + id);
   if (t) console.log(`▸ ${id}\n    ${t}`);
 }
+/* Dump every rendered table. The agreement row — MAE / CI / bias / RMSE / LoA / r — has no
+   element id, so before this it was visible on screen and nowhere in a run's output. A sweep that
+   cannot print its own headline statistic cannot be re-derived by anyone else, which is the
+   PAPERS-ROADMAP §5.2 requirement; MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS §5 needed it to report the
+   RR_WIN_SEC curve. Read straight off the DOM, so there is no second formatting of the numbers. */
+const tables = await p.evaluate(() => {
+  const out = [];
+  document.querySelectorAll('table').forEach((t, i) => {
+    const cap = ((t.previousElementSibling && t.previousElementSibling.textContent) || '').trim().slice(0, 90);
+    out.push('TABLE ' + i + ' :: ' + cap);
+    t.querySelectorAll('tr').forEach((r) => {
+      out.push('  ' + [...r.children].map((c) => c.textContent.trim()).join(' | '));
+    });
+  });
+  return out.join('\n');
+});
+console.log('\n▸ TABLES\n' + tables);
 const rows = await p.evaluate(() => document.querySelectorAll('table tbody tr').length);
 console.log(`\n▸ ${rows} table row(s) rendered · ${errs.length} console error(s)`);
 for (const e of errs.slice(0, 5)) console.log('    ✕ ' + e);
