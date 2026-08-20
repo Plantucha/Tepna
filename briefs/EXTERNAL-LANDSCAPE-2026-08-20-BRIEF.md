@@ -71,6 +71,30 @@ our box-night figures. SET_CONFIG has exactly one public sibling (DataFetcher).
   sleep) is ahead of the published record, and the ±19 ms buzz fiducial is precisely the instrument a
   publication of that assessment needs.
 
+## 4b · Receiver-side clock sync — the one paper in our problem class, and three that are NOT
+
+(Contributed by the Brief-runner session's sweep, 2026-08-20; triage preserved verbatim in spirit.)
+
+- **Lai et al. (2025), IEEE BIBE, *Synchronization of Wearable Sensor Data for Vital Sign Monitoring***
+  — the only found paper in OUR constraint class: *"consumer wearables, where there is zero access to
+  both firmware and hardware … all synchronization can only be done on the receiving end."* Two-part
+  method (one-time calibration of the fixed processing offset, then sampling-rate fine-tuning for the
+  wireless offset), reporting **1 ms with interpolation** under packet loss and drift. ⚠ Two checks
+  gate any transfer, both from our own measurements: (1) rate-tuning presumes a stable nominal rate —
+  `DEVICE-RATE-TRUTH` measured every advertised rate wrong by 0.01–2.9 %, and the O2Ring's divergence
+  is **dropout-driven and non-linear** (flat for hours, then ~12.5 s/h from the first BLE stall), which
+  a rate model would mis-read as rate error; (2) it presumes two independent clocks — our
+  phone-captured tree has ONE (`spreadMs` 0.13–1.00 ms = the stamp quantum), so only box nights
+  (spread 102–5124 ms) can even test it.
+- **⚠ CATEGORY-ERROR GUARD — do not cite these beside our numbers:** Wang 2023 (384 µs), Li 2023
+  (69–477 µs), Biagetti 2025 (47 µs RMS) all OWN the peripheral (application code on TI/Nordic parts
+  or custom sensors). We own neither end of an H10 or a Verity; their microseconds and our ~0.1 s
+  arrival spread measure different quantities in different problem classes. The 100–1000× gap is a
+  difference of access, not of competence — recorded so it is never quoted as a deficit.
+- HAEST (Nasrullah 2024, IEEE RTAS — already in the sync-fiducial bibliography) harvests AMBIENT
+  events at sub-ms on a body-area network; corroborates the buzz approach (ours is the commanded form)
+  and gives the resolution target.
+
 ## 5 · Actions this feeds (each already has a home)
 
 1. Diff `O2Ring-DataFetcher`'s settings payloads vs `oxyii.set_config_frame` (independent witness).
