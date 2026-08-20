@@ -5735,7 +5735,37 @@ function fitClockOffsetPooled(anchorTimes, channels, opts) {
       own = 0;
     for (var s2 = 1; s2 < zc.length; s2++) if (zc[s2] > zc[own]) own = s2;
     live[c2].rec.zAtPeak = +zc[bestIdx].toFixed(2);
-    live[c2].rec.ownOffsetSec = lagOf(own);
+    /* THE SAME CENTROID THE POOLED PATH USES, AND FOR THE SAME REASON — it was applied there and not
+       here, in this one function. `ownOffsetSec` took the raw per-channel argmax, so it inherited the
+       whole plateau bias the block above documents ("the argmax landed 37 s low; the centroid lands
+       within a second"). Measured 2026-08-19 on planted data at +/-0.1 s jitter, single channel:
+
+         matchSec   10    20    30    45    90
+         own bias   -7   -17   -27   -42   -87      (pooled error: +0.5 s at every one)
+
+       i.e. the bias is almost exactly -matchSec, so with the shipped default of 30 every per-channel
+       offset read ~27 s low, at ANY true offset (checked at 0, 37, 137, 300, -137). That is not
+       internal: `integrator-app.js` renders it to the user as "(own peak N min - does NOT support this
+       offset)", so a channel that agreed could be shown disagreeing by ~0.45 min, and `trio-batch`
+       prints it in the batch report.
+
+       The pooled path computes this same centroid inline (with its own grid rounding and `spreadSec`);
+       it is deliberately NOT refactored here, because touching it would move numbers this function has
+       shipped for months to fix a defect that never existed on that side. */
+    var ownLo = own,
+      ownHi = own,
+      ownPeak = zc[own];
+    while (ownLo > 0 && zc[ownLo - 1] >= ownPeak - 1) ownLo--;
+    while (ownHi < zc.length - 1 && zc[ownHi + 1] >= ownPeak - 1) ownHi++;
+    var ownWSum = 0,
+      ownWLag = 0;
+    for (var p3 = ownLo; p3 <= ownHi; p3++) {
+      var w3 = zc[p3] - (ownPeak - 1);
+      if (w3 <= 0) continue;
+      ownWSum += w3;
+      ownWLag += w3 * lagOf(p3);
+    }
+    live[c2].rec.ownOffsetSec = ownWSum > 0 ? +(ownWLag / ownWSum).toFixed(3) : lagOf(own);
     live[c2].rec.agreed = zc[bestIdx] >= 1;
     if (live[c2].rec.node) nodes[live[c2].rec.node] = 1;
   }
