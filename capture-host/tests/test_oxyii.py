@@ -511,6 +511,29 @@ def test_get_info_rtc_is_none_when_components_are_impossible():
     assert oxyii.parse_get_info(bytes(p))["rtc"] is None
 
 
+def test_set_config_frame_builds_the_documented_payload():
+    """[field_index, 0, 0, 0, value, 0, 0, 0] per nglessner/o2ring-s-protocol — brightness is write-field
+    9, motor 6 (a DIFFERENT enumeration from parse_config's read offsets 7 and 4)."""
+    f = oxyii.set_config_frame("brightness", 2, seq=3)
+    assert f[1] == oxyii.OP_SET_CONFIG == 0x01
+    assert f[7:15] == bytes([9, 0, 0, 0, 2, 0, 0, 0])
+    assert oxyii.set_config_frame("motor", 60)[7:15] == bytes([6, 0, 0, 0, 60, 0, 0, 0])
+
+
+def test_set_config_frame_refuses_off_whitelist_and_out_of_range():
+    """The whitelist IS the safety gate: 0x01's opcode neighbours are factory resets, so nothing off the
+    list may produce a frame, and brightness's documented 0..2 range is enforced."""
+    import pytest
+    with pytest.raises(ValueError, match="unknown SET_CONFIG field"):
+        oxyii.set_config_frame("factory_reset", 1)
+    with pytest.raises(ValueError, match="out of range"):
+        oxyii.set_config_frame("brightness", 3)
+    with pytest.raises(ValueError, match="out of range"):
+        oxyii.set_config_frame("motor", 256)
+    with pytest.raises(ValueError, match="out of range"):
+        oxyii.set_config_frame("motor", -1)
+
+
 def test_config_parses_the_settings_struct():
     p = bytearray(40)
     p[1] = 88            # spo2_low
