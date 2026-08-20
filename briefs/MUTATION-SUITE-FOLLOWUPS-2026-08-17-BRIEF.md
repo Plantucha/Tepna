@@ -519,7 +519,27 @@ With that field:
   and can be computed today.
 
 The payoff is turning "you will meet it again at another file" into "here are the files you will meet
-it at". ⚠️ Do not price a file by its *mean* lap — the distribution is what matters, and integrator's
+it at". **That list now exists, and it is recorded here BEFORE the sweep reaches those
+files so it can be wrong in public.** Survivor counts from the fleet re-sweep in progress:
+
+| file | survivors | file | survivors |
+|---|---|---|---|
+| oxydex | 1477 | glucodex | 479 |
+| ecgdex | 1203 | pulsedex | 379 |
+| integrator | 976 | motiondex | 257 |
+| ppgdex | 808 | hrvdex | 182 |
+
+⚠️ **This is the survivor term ONLY** — the full estimate is *survivors × full-group-set cost*, and the
+second factor is not folded in numerically here (the sweep prints each file's calibration as it starts,
+so it is available per file, not yet as a table). Read the ranking as an ordering hypothesis, not a
+cost.
+
+**The prediction, stated so it can fail:** `integrator` ranks third on survivors but should **not** be
+among the worst legs, because #1579 converts its guard-mutant cluster — the exact class that collapsed
+the pool on 2026-08-20 — from full-price to a millisecond kill. `oxydex` should be the worst.
+**Falsified if** integrator's wall-clock still lands near the top once it runs with the guard group
+in-tree; that would mean the expensive class there is not (only) the guard cluster, and §7.2's account
+would need reopening rather than extending. ⚠️ Do not price a file by its *mean* lap — the distribution is what matters, and integrator's
 own history is the warning: calibration alone was **312 s of a 339 s run** while the mutants cost ~25 s
 (`mutate.mjs` §calibration). A mean over that is a number about the wrong thing.
 
