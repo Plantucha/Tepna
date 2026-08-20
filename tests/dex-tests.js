@@ -10028,6 +10028,75 @@
       T.approx('…and that VLF power reaches totalPower', vlow && vlow.totalPower, vlow && vlow.vlf + vlow.lf + vlow.hf, 1e-9);
     });
 
+    group('PpgDex DSP floor — 19 drafts adopted: beat guards, small stats, and the Malik clamp (mutation-derived)', 'ppgdex-dsp · known-answer · mutation-pinned', function (T) {
+      var P = env.PPGDSP || env.PpgDex;
+      if (!P || typeof P.detectBeats !== 'function') {
+        T.skip('PPGDSP available', 'PpgDex not co-loaded in this runner');
+        return;
+      }
+      /* Adopted from the AI-probe draft bank: machine-verified discriminating projections,
+         batch-verified green on the current tree. Three discards, one of them the right kind of
+         stale: the drafted poincare(0).sd1sd2 === 0 pin predates #1504's honesty fix — the code
+         now returns null there, and a pin would have locked the retired wart back in. */
+      var out;
+      // Sharpened after first kill-verify: the node-local parseTimestamp's opts default was
+      // reachable only by a call with NO opts on a path that reads them — which is also the
+      // Clock Contract §2.5 pin: time-only with no anchor is null, never a throw, never today.
+      T.eq('parseTimestamp("22:00:00") with no opts at all → null (no anchor, no fabricated date)', P.parseTimestamp('22:00:00'), null);
+      T.eq('parseTimestamp ISO without opts → floating tMs', JSON.stringify(P.parseTimestamp('2026-06-10 22:00:00')), '{"tMs":1781128800000,"offsetMin":null}');
+      //      A jittered TREND series exercises the full ellipse — both axes and the ratio nonzero —
+      //      which is what pins the sd1/sd2 quotient's denominator (its `|| 1` fallback mutated to
+      //      `&& 1` silently divides by 1 always, and only a nonzero-sd2 series can see that).
+      T.eq('a jittered rising trend has a full Poincaré ellipse', JSON.stringify(P.poincare([700, 725, 735, 765, 775, 805])), '{"sd1":7.2,"sd2":53.3,"sd1sd2":0.14,"ellArea":1212}');
+      out = P.detectBeats([], 1);
+      T.eq('P.detectBeats([],1) → "1"', JSON.stringify(out.T), '1');
+      out = P.detectBeats(0, 1);
+      T.eq('P.detectBeats(0,1) → "1"', JSON.stringify(out.T), '1');
+      out = P.timeDomain([1, 2, 3], 1);
+      T.eq('P.timeDomain([1,2,3],1) → "1"', JSON.stringify(out.rmssd), '1');
+      out = P.timeDomain([1, 2, 3], 1);
+      T.eq('P.timeDomain([1,2,3],1) → "0"', JSON.stringify(out.pnn50), '0');
+      out = P.timeDomain([1, 2, 3]);
+      T.eq('P.timeDomain([1,2,3]) → "1"', JSON.stringify(out.triIdx), '1');
+      out = P.movementOnsets(null);
+      T.eq('P.movementOnsets(null) → "0"', JSON.stringify(out.length), '0');
+      out = P.orientByRise(0, null);
+      T.eq('P.orientByRise(0,null) → "-1"', JSON.stringify(out), '-1');
+      out = P.orientByRise(0);
+      T.eq('P.orientByRise(0) → "-1"', JSON.stringify(out), '-1');
+      out = P.poincare([1, 2, 3]);
+      T.eq('P.poincare([1,2,3]) → "1.4"', JSON.stringify(out.sd2), '1.4');
+      out = P.poincare([1, 2, 3], 1);
+      T.eq('P.poincare([1,2,3],1) → "1.4"', JSON.stringify(out.sd2), '1.4');
+      out = P.intervalsSpanningTimeGap(1);
+      T.eq('P.intervalsSpanningTimeGap(1) → "1"', JSON.stringify(out.length), '1');
+      out = P.correctRR([1, 2, 3], 0);
+      T.eq('P.correctRR([1,2,3],0) → "800"', JSON.stringify(out.nn[0]), '800');
+      out = P.quantile([1, 2, 3, 4], 0.5);
+      T.eq('P.quantile([1,2,3,4],0.5) → "2.5"', JSON.stringify(out), '2.5');
+      out = P.std([-1, 1]);
+      T.eq('P.std([-1,1]) → "1.4142135623730951"', JSON.stringify(out), '1.4142135623730951');
+      out = P.pickChannel(
+        {
+          ch: [
+            [1, 2, 3],
+            [1, 2, 3]
+          ],
+          fs: 100
+        },
+        null
+      );
+      T.eq('P.pickChannel({"ch":[[1,2,3],[1,2,3]],"fs":100},null) → "0"', JSON.stringify(out.idx), '0');
+      out = P.detectBeats([1, 2], 130);
+      T.eq('P.detectBeats([1,2],130) → "111"', JSON.stringify(out.T), '111');
+      out = P.beatRegularity([0, 0, 0, 1], [0, 0, 0, 1]);
+      T.eq('P.beatRegularity([0,0,0,1],[0,0,0,1]) → "null"', JSON.stringify(out[3]), 'null');
+      out = P.timeDomain([250, 300, 250, 300], null);
+      T.eq('P.timeDomain([250,300,250,300],null) → "0"', JSON.stringify(out.pnn50), '0');
+      out = P.movementOnsets([1, 1, 1], 1);
+      T.eq('P.movementOnsets([1,1,1],1) → "0"', JSON.stringify(out.length), '0');
+    });
+
     /* ── INSUFFICIENT INPUT REFUSES; IT DOES NOT REPORT ZERO (Clock Contract §2.6) ──────────────
        §2.6 says a missing stamp must be visible, never fabricated. The PARSER honours that. The
        statistical and spectral paths never inherited it: below their minimum-N guards they returned
@@ -13668,6 +13737,32 @@
       T.ok('two rows is refused with a message naming the two columns it needs', /timestamp \+ glucose/.test(tiny.error || ''), JSON.stringify(tiny.error || '').slice(0, 90));
     });
 
+    group('GlucoDex helper floor — 6 drafts adopted: coreMetrics floors, clamp detection, pearson (mutation-derived)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
+      var G = env.GLUDSP || (env.GlucoDex && env.GlucoDex._bare) || env.GlucoDex;
+      if (!G || typeof G.coreMetrics !== 'function') {
+        T.skip('GLUDSP available', 'GlucoDex not co-loaded in this runner');
+        return;
+      }
+      /* Adopted from the AI-probe draft bank: 6/6 batch-verified green, zero discards. */
+      var out;
+      out = G.detectClampSaturation([1, 2, 3]);
+      T.eq('G.detectClampSaturation([1,2,3]) → "null"', JSON.stringify(out.floor), 'null');
+      out = G.coreMetrics('');
+      T.eq('G.coreMetrics("") → "0"', JSON.stringify(out.cv), '0');
+      out = G.coreMetrics([0, 0, 0], [0]);
+      T.eq('G.coreMetrics([0,0,0],[0]) → "0"', JSON.stringify(out.cv), '0');
+      out = G.coreMetrics([100, 150, 200, 250, 300], [100, 150, 200, 250, 300]);
+      T.eq('G.coreMetrics([100,150,200,250,300],[100,150,200,250,300]) → "250"', JSON.stringify(out.p75), '250');
+      out = G.detectClampSaturation([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], null);
+      T.eq(
+        'G.detectClampSaturation([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],null) → "{"value":1,"co',
+        JSON.stringify(out.floor),
+        '{"value":1,"count":1,"pct":5,"saturated":false,"innerMean":1,"ratio":1}'
+      );
+      out = G.pearson([1, 2, 3], [4, 5, 6]);
+      T.eq('G.pearson([1,2,3],[4,5,6]) → "1"', JSON.stringify(out), '1');
+    });
+
     group('MotionDex inferAccUnit — three gravity bands, all bounds exclusive (mutation bootstrap)', 'motiondex-dsp · known-answer · mutation-pinned', function (T) {
       var M = env.MOTIONDSP;
       if (!M || typeof M.parseSensorXYZ !== 'function') {
@@ -13717,6 +13812,44 @@
       /* The ≥8-row floor: fewer samples than that cannot establish a median worth trusting. */
       T.eq('seven rows is too few to infer a unit', unitOf(7, 1000), null);
       T.eq('…and eight is enough', unitOf(8, 1000), 'mg');
+    });
+
+    group('MotionDex helper floor — 8 drafts adopted: every entry guard refuses junk with hasData false (mutation-derived)', 'motiondex-dsp · known-answer · mutation-pinned', function (T) {
+      var M = env.MOTIONDSP || (env.MotionDex && env.MotionDex._bare);
+      if (!M || typeof M.actigraphy !== 'function') {
+        T.skip('MOTIONDSP available', 'MotionDex not co-loaded in this runner');
+        return;
+      }
+      var out;
+      out = M.actigraphy(null);
+      T.eq('M.actigraphy(null) → "false"', JSON.stringify(out.hasData), 'false');
+      out = M.actigraphy('x');
+      T.eq('M.actigraphy("x") → "false"', JSON.stringify(out.hasData), 'false');
+      out = M.respiratoryRate(null);
+      T.eq('M.respiratoryRate(null) → "false"', JSON.stringify(out.hasData), 'false');
+      out = M.motionSQI('x');
+      T.eq('M.motionSQI("x") → "0"', JSON.stringify(out.conf), '0');
+      out = M.motionSQI(null);
+      T.eq('M.motionSQI(null) → "0"', JSON.stringify(out.conf), '0');
+      out = M.bodyPosition(null);
+      T.eq('M.bodyPosition(null) → "false"', JSON.stringify(out.hasData), 'false');
+      out = M.bodyPosition('x');
+      T.eq('M.bodyPosition("x") → "false"', JSON.stringify(out.hasData), 'false');
+      out = M.streamKindFromName(null);
+      T.eq('M.streamKindFromName(null) → "null"', JSON.stringify(out), 'null');
+      // Sharpened after first kill-verify — the two mutants a junk-input pin cannot reach:
+      var shortRows = [];
+      var posRows = [];
+      for (var ri = 0; ri < 10; ri++) shortRows.push({ tMs: ri * 40, x: 0, y: 0, z: 1 });
+      for (var pi = 0; pi < 200; pi++) posRows.push({ tMs: pi * 250, x: 0, y: 0, z: 1 });
+      out = M.respiratoryEffort(shortRows);
+      T.eq('a 10-row refusal is BARE hasData:false — no fabricated zero-rate payload rides along', JSON.stringify(out), '{"hasData":false}');
+      out = M.bodyPosition(posRows);
+      T.eq(
+        'the dwell table has EXACTLY the six positions — one extra loop pass mints an "undefined" position',
+        JSON.stringify(Object.keys(out.dwellFrac)),
+        '["supine","prone","left","right","upright","unknown"]'
+      );
     });
 
     /* ════ _leakCV — PSEUDO-TESTED, and it is a NEAR-ZERO-DIVISION GUARD ══════════════════════
@@ -13813,6 +13946,34 @@
       T.eq('an EMPTY sets array is refused, not treated as a night with no sessions', N({ sets: [] }), null);
       T.eq('a non-array `sets` is refused', N({ sets: 'no' }), null);
       T.eq('a bare array is refused', N([]), null);
+    });
+
+    group('CPAPDex helper floor — 9 drafts adopted: prepare defaults, envelope guards, EDF refusals (mutation-derived)', 'cpapdex-dsp · known-answer · mutation-pinned', function (T) {
+      var C = env.CpapDsp || env.CPAPDSP;
+      if (!C || typeof C.prepare !== 'function') {
+        T.skip('CpapDsp available', 'CPAPDex not co-loaded in this runner');
+        return;
+      }
+      /* Adopted from the AI-probe draft bank: 9/9 batch-verified green, zero discards. */
+      var out;
+      out = C.detectBreaths(1);
+      T.eq('C.detectBreaths(1) → "true"', JSON.stringify(out === null), 'true');
+      out = C.prepare(0);
+      T.eq('C.prepare(0) → "[]"', JSON.stringify(out.pressureMaskOn), '[]');
+      out = C.prepare(0);
+      T.eq('C.prepare(0) → "1"', JSON.stringify(out.fs), '1');
+      out = C.prepare(0);
+      T.eq('C.prepare(0) → "null"', JSON.stringify(out.mode), 'null');
+      out = C.prepare(0);
+      T.eq('C.prepare(0) → "0"', JSON.stringify(out.usageHours), '0');
+      out = C.buildSessionFromEdf(null);
+      T.eq('C.buildSessionFromEdf(null) → "true"', JSON.stringify(out === null), 'true');
+      out = C.pressureEnvelope('x');
+      T.eq('C.pressureEnvelope("x") → "0"', JSON.stringify(out.length), '0');
+      out = C.pressureEnvelope([1, 2, 3], null);
+      T.eq('C.pressureEnvelope([1,2,3],null) → "0"', JSON.stringify(out.length), '0');
+      out = C.buildLongitudinal(null);
+      T.eq('C.buildLongitudinal(null) → "0"', JSON.stringify(out.nights), '0');
     });
 
     group('CPAPDex co-import — a surge corroborates ONE apnea, and lands on the right night (§6.3/§6.4)', 'cpapdex-coimport · fusion', function (T) {
@@ -15406,6 +15567,42 @@
          d_rmssd_rolling_ln, d_stress_auc, d_rmssd_cv7, d_sdnn_z, d_stress_ac, d_pnn50_slope,
          d_hrv_momentum, d_recovery_debt. The no-argument path is unchanged. */
       T.eq('computeDerived still produces 62 derived columns', produced.length, 62);
+    });
+
+    group('HRVDex helper floor — 13 drafts adopted: numeric honesty, persistence guards, the clock pad (mutation-derived)', 'hrvdex-dsp · known-answer · mutation-pinned', function (T) {
+      var H = env.HRVDex && env.HRVDex._bare;
+      if (!H || typeof H._hrvNum !== 'function') {
+        T.skip('HRVDex._bare available', 'HRVDex not co-loaded in this runner');
+        return;
+      }
+      /* Adopted from the AI-probe draft bank: 13/13 batch-verified green, zero discards. */
+      var out;
+      out = H.computeCAMQ(1);
+      T.eq('H.computeCAMQ(1) → "50"', JSON.stringify(out), '50');
+      out = H._hrvNum(1);
+      T.eq('H._hrvNum(1) → "1"', JSON.stringify(out), '1');
+      out = H._hrvNum(null);
+      T.eq('H._hrvNum(null) → "true"', JSON.stringify(out === ''), 'true');
+      out = H._hrvNum(null);
+      T.eq('H._hrvNum(null) → "true"', JSON.stringify(out === ''), 'true');
+      out = H._hrvNum(0);
+      T.eq('H._hrvNum(0) → "false"', JSON.stringify(out === null), 'false');
+      out = H.persistHRVRows(null);
+      T.eq('H.persistHRVRows(null) → "true"', JSON.stringify(out.ok), 'true');
+      out = H.restoreHRVRows(null);
+      T.eq('H.restoreHRVRows(null) → "true"', JSON.stringify(out === false), 'true');
+      out = H.restoreHRVRows(null);
+      T.eq('H.restoreHRVRows(null) → "false"', JSON.stringify(out), 'false');
+      out = H._envToSeed(null);
+      T.eq('H._envToSeed(null) → "null"', JSON.stringify(out), 'null');
+      out = H.smooth([1, 2, 3]);
+      T.eq('H.smooth([1,2,3]) → "1"', JSON.stringify(out[0]), '1');
+      out = H._hrvClockS(null);
+      T.eq('H._hrvClockS(null) → "8"', JSON.stringify(out.length), '8');
+      out = H._hrvRowsFromInput([1, 2, 3]);
+      T.eq('H._hrvRowsFromInput([1,2,3]) → "0"', JSON.stringify(out.length), '0');
+      out = H._hrvNum('0', '-0');
+      T.eq('H._hrvNum("0","-0") → "true"', JSON.stringify(out === ''), 'true');
     });
 
     /* ── THE GUARDS, not the outputs ────────────────────────────────────────────────────────────
@@ -18287,6 +18484,185 @@
       T.ok('an empty night yields a result object, not an exception', !!(bare && bare.ranked), typeof bare);
       T.eq('…with no ranked metrics', bare.ranked.length, 0);
       T.eq('…and no top5', bare.top5.length, 0);
+    });
+
+    group('OxyDex compute* floor — 72 drafts adopted: every guard refuses, null never throws (mutation-derived)', 'oxydex-dsp · known-answer · mutation-pinned', function (T) {
+      var O = env.OxyDex;
+      var B = O && O._bare;
+      if (!O || !B || typeof B.computeSpikeDecay !== 'function') {
+        T.skip('OxyDex._bare helpers available', 'OxyDex not co-loaded in this runner');
+        return;
+      }
+      /* Adopted from the AI-probe draft bank (mutation-suite --draft): each projection below was
+         machine-verified to discriminate the real code from a then-surviving mutant, batch-verified
+         green against the current tree, and kill-verified by re-applying the mutants (changeset has
+         the tally). The bank's fabrication-adjacent value pins (composite scores on empty input,
+         sub-stats of 0 beside a null primary) were NOT adopted — pinning those would lock the
+         fabricated-absence warts the §B groups exist to catch. */
+      var out;
+      out = O.parseCSV('');
+      T.eq('O.parseCSV("") → "0"', JSON.stringify(out.length), '0');
+      out = B.computePBmetrics(0);
+      T.eq('B.computePBmetrics(0) → "0"', JSON.stringify(out.pbEarlyCount), '0');
+      out = B.computeSpikeUndershoot(null);
+      T.eq('B.computeSpikeUndershoot(null) → "null"', JSON.stringify(out), 'null');
+      out = B.computeSpikeUndershoot(null, 1);
+      T.eq('B.computeSpikeUndershoot(null,1) → "null"', JSON.stringify(out), 'null');
+      out = B.computeSpikeDecay(null);
+      T.eq('B.computeSpikeDecay(null) → "null"', JSON.stringify(out), 'null');
+      out = B.computeSpikeDecay(null);
+      T.eq('B.computeSpikeDecay(null) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeSpikeDecay(null, 1);
+      T.eq('B.computeSpikeDecay(null,1) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeSpike50PctRecovery(null);
+      T.eq('B.computeSpike50PctRecovery(null) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeSpike50PctRecovery(null);
+      T.eq('B.computeSpike50PctRecovery(null) → "null"', JSON.stringify(out), 'null');
+      out = B.computeSpike50PctRecovery(null, 1);
+      T.eq('B.computeSpike50PctRecovery(null,1) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeSpO2Overshoot(null);
+      T.eq('B.computeSpO2Overshoot(null) → "null"', JSON.stringify(out), 'null');
+      out = B.computeSpO2Overshoot(null, 1);
+      T.eq('B.computeSpO2Overshoot(null,1) → "null"', JSON.stringify(out), 'null');
+      out = B.computeSleepStageProxy('');
+      T.eq('B.computeSleepStageProxy("") → "true"', JSON.stringify(out === null), 'true');
+      out = O.cleanArtifactHR([1, 2, 3]);
+      T.eq('O.cleanArtifactHR([1,2,3]) → "0"', JSON.stringify(out), '0');
+      out = B.computeNightExtras([], 1);
+      T.eq('B.computeNightExtras([],1) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeNightExtras(0);
+      T.eq('B.computeNightExtras(0) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeHypoxicDose('');
+      T.eq('B.computeHypoxicDose("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.oxyComputeNight(null);
+      T.eq('B.oxyComputeNight(null) → "null"', JSON.stringify(out), 'null');
+      out = B.computeSpikeRiseRate(null);
+      T.eq('B.computeSpikeRiseRate(null) → "null"', JSON.stringify(out), 'null');
+      out = B.computeSpikeRiseRate(1);
+      T.eq('B.computeSpikeRiseRate(1) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeO2HREfficiency(null);
+      T.eq('B.computeO2HREfficiency(null) → "null"', JSON.stringify(out), 'null');
+      out = B.computeO2HREfficiency(null, 1);
+      T.eq('B.computeO2HREfficiency(null,1) → "null"', JSON.stringify(out), 'null');
+      out = B.computeIEI(null);
+      T.eq('B.computeIEI(null) → "null"', JSON.stringify(out), 'null');
+      out = B.computeIEI(1);
+      T.eq('B.computeIEI(1) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeSpO2NadirTime(0);
+      T.eq('B.computeSpO2NadirTime(0) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeSpO2NadirTime(0, 1);
+      T.eq('B.computeSpO2NadirTime(0,1) → "true"', JSON.stringify(out === null), 'true');
+      out = B.oxyBuildSpo2Series(null);
+      T.eq('B.oxyBuildSpo2Series(null) → "true"', JSON.stringify(out === null), 'true');
+      out = B.oxyBuildSpo2Series([1, 2, 3], { a: 1 });
+      T.eq('B.oxyBuildSpo2Series([1,2,3],{"a":1}) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeSympSurge(null);
+      T.eq('B.computeSympSurge(null) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeHypoxicLoad(null);
+      T.eq('B.computeHypoxicLoad(null) → "null"', JSON.stringify(out), 'null');
+      out = B.computeHypoxicLoad(null, 1);
+      T.eq('B.computeHypoxicLoad(null,1) → "null"', JSON.stringify(out.hypoxicLoad), 'null');
+      out = B.computeHRQuartileTrend('x');
+      T.eq('B.computeHRQuartileTrend("x") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeDataGaps([1, 2, 3]);
+      T.eq('B.computeDataGaps([1,2,3]) → "0"', JSON.stringify(out.gapPct), '0');
+      out = B.computeT88T85('');
+      T.eq('B.computeT88T85("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeHRProfile([]);
+      T.eq('B.computeHRProfile([]) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeSpO2Ceiling('');
+      T.eq('B.computeSpO2Ceiling("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computePoincareSD('');
+      T.eq('B.computePoincareSD("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeBreathingIrregularity(null);
+      T.eq('B.computeBreathingIrregularity(null) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeCrossSignal(0);
+      T.eq('B.computeCrossSignal(0) → "0"', JSON.stringify(out.autoArousalIdx), '0');
+      out = B.computeHRAdvanced([]);
+      T.eq('B.computeHRAdvanced([]) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeSpO2Autocorr('');
+      T.eq('B.computeSpO2Autocorr("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeHRFlatlines('');
+      T.eq('B.computeHRFlatlines("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeHRFlatlines(0);
+      T.eq('B.computeHRFlatlines(0) → "0"', JSON.stringify(out.flatlineCount), '0');
+      out = B.computeSpO2Shape('');
+      T.eq('B.computeSpO2Shape("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeLCSP('');
+      T.eq('B.computeLCSP("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeNadirTrend(null);
+      T.eq('B.computeNadirTrend(null) → "null"', JSON.stringify(out), 'null');
+      out = B.computeNadirTrend(1);
+      T.eq('B.computeNadirTrend(1) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeRecoverySlopeCV(null);
+      T.eq('B.computeRecoverySlopeCV(null) → "null"', JSON.stringify(out), 'null');
+      out = B.computeRecoverySlopeCV(1);
+      T.eq('B.computeRecoverySlopeCV(1) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeDesatAsymmetry(null);
+      T.eq('B.computeDesatAsymmetry(null) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeODI2('');
+      T.eq('B.computeODI2("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeHRCV('');
+      T.eq('B.computeHRCV("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeConditionalSpO2('');
+      T.eq('B.computeConditionalSpO2("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeDesatSlopes('');
+      T.eq('B.computeDesatSlopes("") → "null"', JSON.stringify(out), 'null');
+      out = B.computeRollingMetrics('');
+      T.eq('B.computeRollingMetrics("") → "null"', JSON.stringify(out), 'null');
+      out = B.computeRecoveryIndex(null);
+      T.eq('B.computeRecoveryIndex(null) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeSleepPressure(null, 1);
+      T.eq('B.computeSleepPressure(null,1) → "null"', JSON.stringify(out), 'null');
+      out = B.computeHRNoctDip(1, 1);
+      T.eq('B.computeHRNoctDip(1,1) → "0"', JSON.stringify(out.hrnDip), '0');
+      out = B.computeMotionProfile(0);
+      T.eq('B.computeMotionProfile(0) → "0"', JSON.stringify(out.arousalIndex), '0');
+      out = B.oxyDesatConf(null);
+      T.eq('B.oxyDesatConf(null) → "0.45"', JSON.stringify(out), '0.45');
+      out = B._oxyEnsureRows(null);
+      T.eq('B._oxyEnsureRows(null) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeODI1('');
+      T.eq('B.computeODI1("") → "0"', JSON.stringify(out.odi1Rate), '0');
+      out = B.computeCT94('');
+      T.eq('B.computeCT94("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeCircadianHR('');
+      T.eq('B.computeCircadianHR("") → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeHypoxicBurden('');
+      T.eq('B.computeHypoxicBurden("") → "0"', JSON.stringify(out.rate), '0');
+      out = B.computeSpO2Percentiles('');
+      T.eq('B.computeSpO2Percentiles("") → "null"', JSON.stringify(out), 'null');
+      out = B.oxyLoadOwnExport(null);
+      T.eq('B.oxyLoadOwnExport(null) → "false"', JSON.stringify(out.ok), 'false');
+      out = B.computeODRI(1);
+      T.eq('B.computeODRI(1) → "true"', JSON.stringify(out === null), 'true');
+      out = B._o2p2('10');
+      T.eq('B._o2p2("10") → "2"', JSON.stringify(out.length), '2');
+      out = B._o2DateAnchorMs([20230228000000, null], [20230228000000, null]);
+      T.eq('B._o2DateAnchorMs([20230228000000,null],[20230228000000,null]) → "1677542400000"', JSON.stringify(out), '1677542400000');
+      out = B._o2DateAnchorMs([20231301000000, null]);
+      T.eq('B._o2DateAnchorMs([20231301000000,null]) → "true"', JSON.stringify(out === null), 'true');
+      out = B.computeCT94(['a', 'b', 'c', 'd', 'e'], null);
+      T.eq('B.computeCT94(["a","b","c","d","e"],null) → "true"', JSON.stringify(out === null), 'true');
+      // ── Sharpened after first kill-verify: the null-pins above pass THROUGH these guards both
+      //    ways, so the mutants needed inputs that reach the clause itself.
+      T.eq('a slopes OBJECT with a null recovery leg still refuses — null, not NaN asymmetry', B.computeDesatAsymmetry({ meanDipSlope: -2, meanRecSlope: null }), null);
+      out = B.computeDesatAsymmetry({ meanDipSlope: -3, meanRecSlope: 1.5 });
+      T.eq('dip 3x recovery reads asym 2, labelled obstructive', JSON.stringify(out), '{"desatAsym":2,"asymLabel":"Abrupt (obstructive)"}');
+      T.eq('buildEpochSeries(null rows) is an empty grid, not a crash', JSON.stringify(O.buildEpochSeries(null, 0)), '[]');
+      T.eq('…and a missing t0Ms refuses the grid too — epochs need the anchor', JSON.stringify(O.buildEpochSeries([{ tMs: 0, hr: 60 }], null)), '[]');
+
+      // ── And the two long-line MANUAL targets, applied by hand and pinned by contract:
+      //    the filename date-anchor round-trip (Clock Contract §2.7 — a rolled component is a
+      //    fabricated night) and the nocturnal-dip label bands at their exact boundary.
+      T.eq('a real 14-digit filename stamp anchors the night', B._o2DateAnchorMs('O2Ring_20260610220000.csv', null), Date.UTC(2026, 5, 10));
+      T.eq('month 13 day 45 is DATE UNKNOWN, never a rolled instant', B._o2DateAnchorMs('O2Ring_20261345120000.csv', null), null);
+      T.eq(
+        'a 10.0 % intra-night descent is Moderate — the Good band is > 10 STRICT',
+        JSON.stringify(B.computeHRNoctDip({ hrFloor: 54 }, { meanHr: 60 })),
+        '{"hrnDip":10,"hrnDipLabel":"Moderate (intra-night)"}'
+      );
+      T.eq('16.7 % is Good', JSON.stringify(B.computeHRNoctDip({ hrFloor: 50 }, { meanHr: 60 })), '{"hrnDip":16.7,"hrnDipLabel":"Good (intra-night)"}');
     });
 
     /* ── parseJSONL — 144 unclassified survivors, the fleet's third-largest cluster, UNTESTED ────
@@ -45841,6 +46217,67 @@
           return r.device === 'Wellue O2Ring-S';
         })
       );
+    });
+
+    group('Integrator DSP floor — 22 drafts adopted: refusals, honest reasons, and the summary route (mutation-derived)', 'integrator-dsp · known-answer · mutation-pinned', function (T) {
+      var I = env.IntegratorDSP || env.INTEGRATOR;
+      if (!I || typeof I.normalizeFile !== 'function') {
+        T.skip('IntegratorDSP available', 'Integrator not co-loaded in this runner');
+        return;
+      }
+      /* Adopted from the AI-probe draft bank: every projection machine-verified to discriminate a
+         then-surviving mutant, batch-verified green on the current tree (22/22 — the only bank with
+         zero discards), kill-verified by re-applying all 14 unique mutants. The pins are the guard
+         floor: refusals return null/[]/{reason} — never a throw, never a fabricated verdict. */
+      var out;
+      out = I.normalizeFile(0);
+      T.eq('I.normalizeFile(0) → """file" — unrecognized format, no events found; skipped""', JSON.stringify(out.warnings[0]), '"\\"file\\" — unrecognized format, no events found; skipped"');
+      out = I.deltaModeSec(null);
+      T.eq('I.deltaModeSec(null) → "null"', JSON.stringify(out), 'null');
+      out = I.deltaModeSec(null);
+      T.eq('I.deltaModeSec(null) → "true"', JSON.stringify(out === null), 'true');
+      out = I._wrappedSlopeFit(1, null);
+      T.eq('I._wrappedSlopeFit(1,null) → "true"', JSON.stringify(out === null), 'true');
+      out = I._wrappedSlopeFit(null);
+      T.eq('I._wrappedSlopeFit(null) → "true"', JSON.stringify(out === null), 'true');
+      out = I._wrappedSlopeFit(1);
+      T.eq('I._wrappedSlopeFit(1) → "true"', JSON.stringify(out === null), 'true');
+      out = I._wrappedSlopeFit(null);
+      T.eq('I._wrappedSlopeFit(null) → "null"', JSON.stringify(out), 'null');
+      out = I.refineLagByDeltaMode(null);
+      T.eq('I.refineLagByDeltaMode(null) → "null"', JSON.stringify(out), 'null');
+      out = I.reconstructEventTMs(null, 0);
+      T.eq('I.reconstructEventTMs(null,0) → "true"', JSON.stringify(out == null), 'true');
+      out = I.reconstructEventTMs(null, 0);
+      T.eq('I.reconstructEventTMs(null,0) → "null"', JSON.stringify(out), 'null');
+      out = I.reconstructEventTMs(null);
+      T.eq('I.reconstructEventTMs(null) → "true"', JSON.stringify(out === null), 'true');
+      out = I.pickHRAuthority(null);
+      T.eq('I.pickHRAuthority(null) → "true"', JSON.stringify(out === null), 'true');
+      out = I.pickHRAuthority([1, 2, 3]);
+      T.eq('I.pickHRAuthority([1,2,3]) → "null"', JSON.stringify(out), 'null');
+      out = I.fitClockDrift(null);
+      T.eq('I.fitClockDrift(null) → "false"', JSON.stringify(out.confident), 'false');
+      out = I.detectClockSkew(null);
+      T.eq('I.detectClockSkew(null) → "[]"', JSON.stringify(out.findings), '[]');
+      out = I.estimateEventLag(null);
+      T.eq('I.estimateEventLag(null) → "null"', JSON.stringify(out), 'null');
+      out = I.fitClockOffset(null);
+      T.eq('I.fitClockOffset(null) → "null"', JSON.stringify(out.offsetSec), 'null');
+      out = I.normalizeFile('abc', 'test.json');
+      T.eq(
+        'I.normalizeFile("abc","test.json") → """test.json" — unrecognized format, no events found; skipped""',
+        JSON.stringify(out.warnings[0]),
+        '"\\"test.json\\" — unrecognized format, no events found; skipped"'
+      );
+      out = I.normalizeFile({ t0Ms: 1609459200000, windows: [], durMin: 30 }, 'PulseDex');
+      T.eq('I.normalizeFile({"t0Ms":1609459200000,"windows":[],"durMin":30},"PulseDex") → "1"', JSON.stringify(out.warnings.length), '1');
+      out = I.normalizeFile(true, 'PulseDex');
+      T.eq('I.normalizeFile(true,"PulseDex") → "0"', JSON.stringify(out.warnings.length), '0');
+      out = I.normalizeFile(0);
+      T.eq('I.normalizeFile(0) → one warning: the Unknown-node line is included', JSON.stringify(out.warnings.length), '1');
+      out = I.fitClockDrift(null);
+      T.eq('I.fitClockDrift(null) → reason "too few beats" — the refusal names its floor', JSON.stringify(out.reason), '"too few beats"');
     });
 
     /* DEEP-AUDIT-III §3.2 — `apneaCoupling.real` must be a TEST, not a coin flip.
