@@ -4,144 +4,138 @@
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * THE ONE MEASUREMENT THE ΔPAT DIP INDEX NEEDS AND THE SIDECAR CANNOT GIVE:
- *   is the cross-device timing offset CONSTANT within a connection?
+ * DRIFT OR NOISE? — decompose a buzz sequence's per-event timing offsets into the two components the
+ * ΔPAT dip index cares about, on the captures that already exist.
  *
- * WHY THIS TOOL EXISTS. The relative-PAT dip index (PAT-RELATIVE-REFRAME) rests on one assumption stated
- * at pat-align.js:335 — the per-connection BLE offset is constant within a connection, so a within-
- * connection *difference* (a dip) cancels it. `pat-connection-stability.mjs` tries to test that from the
- * arrival sidecar by splitting a connection in half, but the corpus yields only 2 scorable connections
- * (they disagree 2.7×) because connections fragment. A commanded APERIODIC buzz settles it directly: it
- * is one mechanical event both devices record, immune to the BLE scheduler and to beat pairing. Fire a
- * schedule within ONE connection; each buzz gives an independent cross-device offset; the SPREAD of those
- * offsets over the ~20 s IS the within-connection stability the dip index needs.
+ * REPURPOSED 2026-08-20. The first version of this tool was an acquisition instrument waiting for a
+ * cross-device capture; the capture had already been made and analysed (O2RING-BUZZ-FIDUCIAL §5:
+ * ring→H10 5/5, matched-filter SE 19.1 ms) by `buzz-onset-extract.mjs`, whose primitives this tool now
+ * imports instead of duplicating. What nobody had computed is the DECOMPOSITION: §5b's per-event SD
+ * (42.8 ms) is one number for two different worlds —
+ *   · WHITE estimator noise (rise-shape, 20 ms ACC quantum): averages away under the dip index's
+ *     rolling-median detrend; the ~15 ms arousal dip survives.
+ *   · WITHIN-CONNECTION DRIFT (the offset moving between events): does NOT average away; at the
+ *     20 s–3 min scale it is exactly the defect pat-align.js:335 assumes absent, and would swamp a dip.
+ * The discriminators, per event series (t = command instant, off = per-event offset):
+ *   · OLS slope with SE → drift rate (ms/min) and its significance;
+ *   · von Neumann ratio VN = mean(Δoff²)/var(off) → ≈2 for white noise, ≪2 for a trend;
+ *   · residual SD about the fit → the noise floor after removing any linear drift.
+ * PRE-STATED bands (set before running on real data, per the house rule): over a 60 s dip window,
+ * |drift| ≤ 5 ms → CLEAN · ≤ 15 ms → MARGINAL · > 15 ms → SWAMPED (15 ms = the Pitson arousal dip the
+ * index must resolve). n < 3 events → null (two points cannot separate a trend from scatter).
  *
- * Both device streams are HOST-stamped from the SAME host clock, so a buzz at real time T lands at
- * T+delay_A in device A and T+delay_B in device B; offset = delay_A − delay_B is exactly the inter-device
- * timing error, and its drift across the buzz sequence is the instability. A stable offset (small spread)
- * says the dip assumption holds for that connection; a drifting one localises how much of the sub-chance
- * dip result is a real clock defect vs beat-detection noise.
- *
- * Usage: node tools/pat-buzz-stability.mjs --a <H10_ACC.txt> --b <ring_PPG2W.txt> [--tol 0.5]
+ * Event sources (either):
+ *   --cmds HH:MM:SS.mmm,...  --a <ACC|PPG2W>            → cmd→device latency series (single-device leg)
+ *   --cmds ...  --a <ACC> --b <ACC|PPG2W>               → device↔device offset series (cross-device leg)
+ * Per-event offsets come from buzz-onset-extract's xcorr on a ±window around each command (matched
+ * filter — the estimator §5b showed beats the threshold detector 2–3×).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 import fs from 'node:fs';
+import { loadStream, hfEnergy, resample, xcorrLag, secOfDay } from './buzz-onset-extract.mjs';
 
 const arg = (k) => {
   const i = process.argv.indexOf(k);
   return i > 0 ? process.argv[i + 1] : null;
 };
 
-/** PSL/PPG2W stamp `YYYY-MM-DDThh:mm:ss.mmm` → floating seconds (Clock Contract). PURE. */
-export function parseHostS(s) {
-  const m = /(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.(\d{3})/.exec(s || '');
-  return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6], +m[7]) / 1000 : null;
-}
-
-/** Median of a numeric array. PURE. null when empty. */
-export function median(a) {
-  if (!a.length) return null;
-  const s = [...a].sort((x, y) => x - y);
-  const m = s.length >> 1;
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-}
-
-/** Rising-edge onsets: the leading edge of each run where the signal exceeds a data-driven level after
- *  being quiet, with a refractory gap. series: [{t, v}] (v >= 0, a buzz-energy signal). PURE.
- *  Level = median + `k`·(max − median): a still baseline is ~0, so this is forgiving; a buzz spikes it. */
-export function detectOnsets(series, { k = 0.35, refractoryS = 0.5 } = {}) {
-  if (series.length === 0) return [];
-  const v = series.map((r) => r.v);
-  const sorted = [...v].sort((a, b) => a - b);
-  const med = sorted[sorted.length >> 1];
-  const max = sorted[sorted.length - 1];
-  const level = med + k * (max - med);
-  const onsets = [];
-  let armed = true;
-  let last = -Infinity;
-  for (const r of series) {
-    if (armed && r.v > level && r.t - last >= refractoryS) {
-      onsets.push(r.t);
-      last = r.t;
-      armed = false;
-    } else if (!armed && r.v <= level) {
-      armed = true;
+/** Per-event offsets, TIME KEPT (unlike xcorrAnalyze's bare list — a drift fit needs (t, off) pairs).
+ *  For each command: xcorr the two signals' HF-energy in [c−0.5, c+2.5] (or the template for a single
+ *  leg). Low-confidence events (r < rMin, or no lag) are dropped WITH a reason count — never silently.
+ *  PURE over its inputs. */
+export function perEventSeries(sigA, sigB, cmds, { fs: fsr = 100, rMin = 0.3 } = {}) {
+  const events = [];
+  const dropped = { lowR: 0, noLag: 0 };
+  for (const c of cmds) {
+    const e0 = c - 0.5,
+      e1 = c + 2.5;
+    let lag, r;
+    if (sigB) {
+      const ga = resample(sigA, e0, e1, fsr);
+      const gb = resample(sigB, e0, e1, fsr);
+      const x = xcorrLag(ga, gb, fsr, 1.5);
+      lag = x.lagS;
+      r = x.r;
+    } else {
+      // single leg: xcorr the device energy against a boxcar burst template at the command
+      const ga = resample(sigA, e0, e1, fsr);
+      const template = [];
+      for (let t = e0; t <= e1; t += 1 / fsr) template.push(t >= c && t < c + 1.1 ? 1 : 0);
+      const x = xcorrLag(template, ga, fsr, 1.5);
+      lag = x.lagS;
+      r = x.r;
     }
-  }
-  return onsets;
-}
-
-/** Pair each onset in A with the NEAREST onset in B within `tolS`; the offset is a − b. Because both
- *  streams share the host clock, a well-aligned pair's offset is small; the SPREAD over the sequence is
- *  the within-connection instability. Unpaired onsets (a buzz one device missed) are dropped, not forced.
- *  Returns [{a, b, offset}]. PURE. */
-export function crossDeviceOffsets(onsetsA, onsetsB, tolS = 0.5) {
-  const out = [];
-  for (const a of onsetsA) {
-    let best = null;
-    let bestD = Infinity;
-    for (const b of onsetsB) {
-      const d = Math.abs(a - b);
-      if (d < bestD) {
-        bestD = d;
-        best = b;
-      }
+    if (lag == null) {
+      dropped.noLag++;
+      continue;
     }
-    if (best !== null && bestD <= tolS) out.push({ a, b: best, offset: a - best });
+    if (r != null && r < rMin) {
+      dropped.lowR++;
+      continue;
+    }
+    events.push({ t: c, offS: lag, r });
   }
-  return out;
+  return { events, dropped };
 }
 
-/** The verdict: median offset (the per-connection level, which a dip cancels) and its SPREAD (the
- *  within-connection instability, which a dip does NOT cancel). `stable` when the spread sits under the
- *  arousal dip it must not swamp (~15 ms) — the reframe's own budget. PURE. null when < 2 paired buzzes:
- *  a spread needs at least two points, and one point is a level, not a stability. */
-export function stabilityReport(matches, { arousalDipMs = 15 } = {}) {
-  if (matches.length < 2) return null;
-  const offs = matches.map((m) => m.offset);
-  const s = [...offs].sort((a, b) => a - b);
-  const spreadMs = (s[s.length - 1] - s[0]) * 1000;
+/** OLS drift + noise decomposition of (t, offS) events. PURE. null when n < 3 — two points cannot
+ *  separate a trend from scatter, and reporting one anyway would be a level dressed as a stability. */
+export function driftDecompose(events) {
+  const n = events.length;
+  if (n < 3) return null;
+  const t0 = events[0].t;
+  const xs = events.map((e) => e.t - t0);
+  const ys = events.map((e) => e.offS);
+  const mx = xs.reduce((p, c) => p + c, 0) / n;
+  const my = ys.reduce((p, c) => p + c, 0) / n;
+  let sxx = 0,
+    sxy = 0;
+  for (let i = 0; i < n; i++) {
+    sxx += (xs[i] - mx) ** 2;
+    sxy += (xs[i] - mx) * (ys[i] - my);
+  }
+  const slope = sxx > 0 ? sxy / sxx : 0; // s of offset per s of time
+  const resid = ys.map((y, i) => y - (my + slope * (xs[i] - mx)));
+  const residVar = resid.reduce((p, c) => p + c * c, 0) / (n - 2);
+  const slopeSE = sxx > 0 ? Math.sqrt(residVar / sxx) : null;
+  const rawVar = ys.reduce((p, c) => p + (c - my) ** 2, 0) / (n - 1);
+  // von Neumann ratio: successive squared diffs over variance — ≈2 white, ≪2 trending
+  let ssd = 0;
+  for (let i = 1; i < n; i++) ssd += (ys[i] - ys[i - 1]) ** 2;
+  const vn = rawVar > 0 ? ssd / (n - 1) / rawVar : null;
   return {
-    n: matches.length,
-    medianOffsetMs: median(offs) * 1000,
-    spreadMs,
-    stable: spreadMs <= arousalDipMs,
-    arousalDipMs
+    n,
+    spanS: xs[n - 1],
+    slopeMsPerMin: slope * 1000 * 60,
+    slopeSEMsPerMin: slopeSE != null ? slopeSE * 1000 * 60 : null,
+    rawSdMs: Math.sqrt(rawVar) * 1000,
+    residSdMs: Math.sqrt(residVar) * 1000,
+    vonNeumann: vn
   };
 }
 
-/** Read a PPG2W-format capture → [{t, v}] using the motion column (index 4) as the buzz-energy signal. */
-export function readPpg2wMotion(path) {
-  const L = fs.readFileSync(path, 'utf8').trim().split('\n').slice(1);
-  const out = [];
-  for (const ln of L) {
-    const p = ln.split(';');
-    const t = parseHostS(p[0]);
-    const v = Math.abs(Number(p[4]));
-    if (t != null && Number.isFinite(v)) out.push({ t, v });
-  }
-  return out;
+/** The verdict against the dip index's budget. PRE-STATED bands over a 60 s dip window:
+ *  |drift| ≤ 5 ms CLEAN · ≤ 15 ms MARGINAL · > 15 ms SWAMPED. Drift is only CHARGED when the slope is
+ *  resolved (|slope| > 2·SE); an unresolved slope reports the upper bound |slope|+2SE honestly instead
+ *  of pretending zero. PURE. */
+export function dipHeadroom(dec, { dipMs = 15, windowS = 60 } = {}) {
+  if (!dec) return null;
+  const resolved = dec.slopeSEMsPerMin != null && Math.abs(dec.slopeMsPerMin) > 2 * dec.slopeSEMsPerMin;
+  const chargeMsPerMin = resolved ? Math.abs(dec.slopeMsPerMin) : Math.abs(dec.slopeMsPerMin) + 2 * (dec.slopeSEMsPerMin ?? 0);
+  const drift60 = chargeMsPerMin * (windowS / 60);
+  const verdict = drift60 <= 5 ? 'CLEAN' : drift60 <= dipMs ? 'MARGINAL' : 'SWAMPED';
+  return { drift60Ms: drift60, driftResolved: resolved, verdict, dipMs, windowS };
 }
 
-/** Read a Polar ACC-format capture → [{t, v}] where v is a high-passed acceleration-magnitude ENERGY (a
- *  buzz is a high-frequency vibration; gravity is DC and is removed by differencing consecutive samples).
- *  The physical coupling (ring touching the H10 pod) is what puts the buzz into this stream at all. */
-export function readAccEnergy(path) {
-  const L = fs.readFileSync(path, 'utf8').trim().split('\n').slice(1);
-  const rows = [];
-  for (const ln of L) {
-    const p = ln.split(';');
-    const t = parseHostS(p[0]);
-    const x = Number(p[2]),
-      y = Number(p[3]),
-      z = Number(p[4]);
-    if (t != null && Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) {
-      rows.push({ t, mag: Math.sqrt(x * x + y * y + z * z) });
-    }
-  }
-  const out = [];
-  for (let i = 1; i < rows.length; i++) out.push({ t: rows[i].t, v: Math.abs(rows[i].mag - rows[i - 1].mag) });
-  return out;
+/** The capture-protocol prescription: the span a buzz sequence needs before its slope SE can bound
+ *  drift at the dip budget. From SE_slope = sigma/sqrt(Sxx) and Sxx ~ (n/12)*T^2 for n fires spread
+ *  evenly over T: solving SE_slope*window <= budget/2 (2-sigma bound) gives T. PURE. Says what the
+ *  16-29 s bursts could not: how long the NEXT sequence must be for the same hardware to answer. */
+export function requiredSpanS(sigmaMs, n, { dipMs = 15, windowS = 60 } = {}) {
+  if (!(sigmaMs > 0) || !(n >= 3)) return null;
+  const seBudgetMsPerS = dipMs / 2 / windowS; // 2*SE*window = dipMs at the bound
+  const sqrtSxx = sigmaMs / seBudgetMsPerS; // seconds
+  return sqrtSxx / Math.sqrt(n / 12);
 }
 
 function selftest() {
@@ -151,61 +145,67 @@ function selftest() {
     c ? (pass++, console.log(`  ok   ${nm}`)) : (fail++, console.log(`  FAIL ${nm}${d ? ' — ' + d : ''}`));
   };
 
-  ok('parseHostS floating seconds', Math.abs(parseHostS('2026-08-19T23:39:09.065') - Date.UTC(2026, 7, 19, 23, 39, 9, 65) / 1000) < 1e-9);
-  ok('parseHostS rejects junk', parseHostS('x') === null);
-  ok('median of evens averages', median([1, 3, 5, 7]) === 4);
-  ok('median empty → null', median([]) === null);
+  // WHITE noise: offsets scatter with no trend → VN ≈ 2, slope unresolved, drift charge = 2SE bound
+  const tset = [0, 6, 8, 13, 16, 23, 27, 29, 36, 40];
+  const white = tset.map((t, i) => ({ t, offS: 0.1 + [3, -2, 1, -4, 2, 0, -1, 4, -3, 1][i] * 0.01 }));
+  const dw = driftDecompose(white);
+  ok('white: slope unresolved', Math.abs(dw.slopeMsPerMin) < 2 * dw.slopeSEMsPerMin, JSON.stringify(dw));
+  ok('white: von Neumann near 2', dw.vonNeumann > 1.2, `VN=${dw.vonNeumann?.toFixed(2)}`);
+  ok('white: residual ≈ raw SD', Math.abs(dw.residSdMs - dw.rawSdMs) < 0.35 * dw.rawSdMs, `${dw.residSdMs?.toFixed(1)} vs ${dw.rawSdMs?.toFixed(1)}`);
 
-  // build two device signals: aperiodic buzzes, device B offset from A by OFF, with optional drift
-  const build = (buzzTimes, offsets) => {
-    const A = [],
-      B = [];
-    for (let t = 0; t < 40; t += 0.01) {
-      let a = 0,
-        b = 0;
-      buzzTimes.forEach((c, i) => {
-        if (t >= c && t < c + 1.1) a = 20;
-        const cb = c + offsets[i];
-        if (t >= cb && t < cb + 1.1) b = 20;
+  // DRIFT: a 60 ms/min ramp with small noise → slope recovered, VN small, verdict SWAMPED
+  const ramp = tset.map((t, i) => ({ t, offS: 0.1 + t * 0.001 + [1, -1, 0, 1, -1, 0, 1, -1, 0, 1][i] * 0.002 }));
+  const dr = driftDecompose(ramp);
+  ok('ramp: slope recovered ~60 ms/min', Math.abs(dr.slopeMsPerMin - 60) < 10, `${dr.slopeMsPerMin?.toFixed(1)}`);
+  ok('ramp: von Neumann far below 2', dr.vonNeumann < 0.8, `VN=${dr.vonNeumann?.toFixed(2)}`);
+  ok('ramp: verdict SWAMPED', dipHeadroom(dr).verdict === 'SWAMPED', JSON.stringify(dipHeadroom(dr)));
+  ok('white: verdict not SWAMPED by an unresolved slope alone', dipHeadroom(dw).verdict !== 'SWAMPED' || dipHeadroom(dw).drift60Ms > 15, JSON.stringify(dipHeadroom(dw)));
+
+  // n guard
+  ok(
+    'n=2 → null',
+    driftDecompose([
+      { t: 0, offS: 0.1 },
+      { t: 5, offS: 0.12 }
+    ]) === null
+  );
+  ok('headroom(null) → null', dipHeadroom(null) === null);
+
+  // per-event series on synthetic streams: B lags A by a KNOWN per-event schedule; times kept
+  const cmds = [10, 16, 18, 23, 26];
+  const offs = [0.1, 0.1, 0.1, 0.1, 0.1];
+  const mk = (delay) => {
+    const sig = [];
+    for (let t = 5; t < 32; t += 0.02) {
+      let v = 0;
+      cmds.forEach((c, i) => {
+        const s = c + (delay ? offs[i] : 0) + 0.12;
+        if (t >= s && t < s + 1.1) v = 20 + (((t * 50) | 0) % 2); // vibration texture so hfEnergy sees it
       });
-      A.push({ t, v: a });
-      B.push({ t, v: b });
+      sig.push({ t, v });
     }
-    return { A, B };
+    return sig;
   };
-  const buzz = [10, 12.5, 16.5, 19.5, 25.5]; // gaps 2.5,4,3,6 — all > 1.1 s buzz width, aperiodic
-  // STABLE: constant 40 ms offset → spread ~0 → stable
-  {
-    const { A, B } = build(
-      buzz,
-      buzz.map(() => 0.04)
-    );
-    const m = crossDeviceOffsets(detectOnsets(A), detectOnsets(B), 0.5);
-    ok('every buzz is paired across the two devices', m.length === buzz.length, `got ${m.length}`);
-    const r = stabilityReport(m);
-    ok('a constant offset reads as its level', Math.abs(r.medianOffsetMs - -40) < 5, `${r.medianOffsetMs?.toFixed(1)}`);
-    ok('a constant offset is STABLE (spread ≪ 15 ms)', r.stable === true && r.spreadMs < 5, JSON.stringify(r));
-  }
-  // DRIFTING: offset ramps 0 → 80 ms across the sequence → spread ~80 ms → NOT stable (the sub-chance cause)
-  {
-    const offs = buzz.map((_c, i) => (i / (buzz.length - 1)) * 0.08);
-    const { A, B } = build(buzz, offs);
-    const r = stabilityReport(crossDeviceOffsets(detectOnsets(A), detectOnsets(B), 0.5));
-    ok('a within-connection drift is DETECTED', r.stable === false && r.spreadMs > 60, JSON.stringify(r));
-  }
-  // CONTROL: a device that saw no buzz → no pairs → null verdict (never a false "stable")
-  {
-    const { A } = build(
-      buzz,
-      buzz.map(() => 0)
-    );
-    const flat = A.map((r) => ({ t: r.t, v: 0 }));
-    ok('one silent device → no pairs → null (not a false stable)', stabilityReport(crossDeviceOffsets(detectOnsets(A), detectOnsets(flat), 0.5)) === null);
-  }
-  // CONTROL: an unpaired buzz beyond tol is dropped, not force-matched
-  ok('an onset with no partner within tol is dropped', crossDeviceOffsets([10], [12], 0.5).length === 0);
-  // a single paired buzz is a LEVEL, not a stability → null
-  ok('one paired buzz → null (a spread needs two)', stabilityReport(crossDeviceOffsets([10], [10.04], 0.5)) === null);
+  const A = hfEnergy(mk(false));
+  const B = hfEnergy(mk(true));
+  const { events, dropped } = perEventSeries(A, B, cmds);
+  ok('per-event: all commands paired, times kept', events.length === 5 && events.every((e, i) => e.t === cmds[i]), JSON.stringify({ n: events.length, dropped }));
+  ok(
+    'per-event: the planted 100 ms offset is recovered',
+    events.every((e) => Math.abs(e.offS - 0.1) < 0.04),
+    events.map((e) => e.offS.toFixed(3)).join(',')
+  );
+
+  // one device silent → all events dropped with a REASON, never a fake series
+  const flat = A.map((r) => ({ t: r.t, v: 0 }));
+  const sil = perEventSeries(A, flat, cmds);
+  ok('silent device → 0 events, reasons counted', sil.events.length === 0 && sil.dropped.noLag + sil.dropped.lowR === 5, JSON.stringify(sil.dropped));
+
+  // required-span prescription: with 50 ms noise and 10 fires, ~7-8 min is needed; more fires shrink it
+  const rs = requiredSpanS(50, 10);
+  ok('required span ~7-8 min for sigma=50, n=10', rs > 380 && rs < 480, `${rs?.toFixed(0)}s`);
+  ok('more fires shrink the required span', requiredSpanS(50, 40) < rs);
+  ok('required span guards its inputs', requiredSpanS(0, 10) === null && requiredSpanS(50, 2) === null);
 
   console.log(fail ? `\n${fail} FAILURE(S)` : `\n${pass} assertions — all green`);
   return fail ? 1 : 0;
@@ -213,28 +213,40 @@ function selftest() {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   if (process.argv.includes('--selftest')) process.exit(selftest());
-  const aP = arg('--a'),
-    bP = arg('--b');
-  if (!aP || !bP) {
-    console.log('usage: --a <H10_ACC.txt> --b <ring_PPG2W.txt> [--tol 0.5]');
+  const cmdsRaw = arg('--cmds');
+  const aP = arg('--a');
+  if (!cmdsRaw || !aP) {
+    console.log('usage: --cmds HH:MM:SS.mmm,... --a <ACC|PPG2W> [--b <ACC|PPG2W>] [--rmin 0.3]');
     process.exit(2);
   }
-  const tol = Number(arg('--tol') || 0.5);
-  const A = detectOnsets(readAccEnergy(aP));
-  const B = detectOnsets(readPpg2wMotion(bP));
-  console.log(`  device A (ACC): ${A.length} buzz onset(s) · device B (motion): ${B.length}`);
-  const matches = crossDeviceOffsets(A, B, tol);
-  const r = stabilityReport(matches);
-  if (!r) {
-    console.log(`  ✗ fewer than 2 paired buzzes (${matches.length}) — cannot measure stability. Was the buzz`);
-    console.log(`    fired into BOTH devices (ring touching the H10 pod), aperiodic, within one connection?`);
+  const cmds = cmdsRaw.split(',').map((s) => secOfDay(s.trim()));
+  if (cmds.some((c) => c == null)) {
+    console.log('unparseable command stamp');
+    process.exit(2);
+  }
+  const cols = (p) => (/PPG2W/i.test(p) ? [4] : [2, 3, 4]);
+  const sigA = hfEnergy(loadStream(aP, cols(aP)));
+  const bP = arg('--b');
+  const sigB = bP ? hfEnergy(loadStream(bP, cols(bP))) : null;
+  const rMin = Number(arg('--rmin') || 0.3);
+  const { events, dropped } = perEventSeries(sigA, sigB, cmds, { rMin });
+  console.log(`  ${cmds.length} commands → ${events.length} usable event(s) (dropped: lowR ${dropped.lowR}, noLag ${dropped.noLag})`);
+  if (events.length) console.log(`  offsets (ms): ${events.map((e) => (e.offS * 1000).toFixed(0)).join(', ')}`);
+  const dec = driftDecompose(events);
+  if (!dec) {
+    console.log('  ✗ fewer than 3 usable events — drift and noise cannot be separated. Not a pass.');
     process.exit(1);
   }
-  console.log(`  cross-device offsets (ms): ${matches.map((m) => (m.offset * 1000).toFixed(0)).join(', ')}`);
-  console.log(`  median offset ${r.medianOffsetMs.toFixed(1)} ms · WITHIN-CONNECTION SPREAD ${r.spreadMs.toFixed(1)} ms (n=${r.n})`);
-  console.log(
-    r.stable
-      ? `  ✓ STABLE — spread ≤ the ${r.arousalDipMs} ms arousal dip; the dip index's constancy assumption holds here.`
-      : `  ✗ UNSTABLE — spread > the ${r.arousalDipMs} ms arousal dip; a dip would be swamped. This is a real clock defect, not beat noise.`
-  );
+  console.log(`  span ${dec.spanS.toFixed(1)} s · raw SD ${dec.rawSdMs.toFixed(1)} ms`);
+  console.log(`  DRIFT  : ${dec.slopeMsPerMin.toFixed(1)} ± ${dec.slopeSEMsPerMin?.toFixed(1)} ms/min (von Neumann ${dec.vonNeumann?.toFixed(2)} — ≈2 white, ≪2 trend)`);
+  console.log(`  NOISE  : ${dec.residSdMs.toFixed(1)} ms residual SD about the fit`);
+  const h = dipHeadroom(dec);
+  console.log(`  DIP HEADROOM (60 s window, 15 ms budget): drift charge ${h.drift60Ms.toFixed(1)} ms${h.driftResolved ? '' : ' (UNRESOLVED slope — charged at |slope|+2SE)'} → ${h.verdict}`);
+  if (!h.driftResolved) {
+    const need = requiredSpanS(dec.residSdMs, dec.n);
+    if (need != null)
+      console.log(
+        `  → to BOUND drift at the 15 ms budget with this noise (${dec.residSdMs.toFixed(0)} ms, n=${dec.n}): spread the fires over ~${(need / 60).toFixed(1)} min (this sequence spanned ${(dec.spanS / 60).toFixed(1)} min)`
+      );
+  }
 }

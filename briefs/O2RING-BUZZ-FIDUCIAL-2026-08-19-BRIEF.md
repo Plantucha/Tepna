@@ -101,6 +101,31 @@ recording on one box clock; command instants logged to the ms). Aperiodic patter
   threshold baseline it must beat, selftested (planted varied latencies ±40 ms, no-burst refusal,
   planted +150 ms pairwise offset recovered).
 
+### §5d · Drift-or-noise decomposition (2026-08-20) — noise-consistent, and the burst is too SHORT to bound drift
+
+`tools/pat-buzz-stability.mjs` (repurposed from its pre-capture acquisition framing; now imports
+`buzz-onset-extract`'s primitives) decomposes a per-event offset series into DRIFT (OLS slope + SE,
+von Neumann ratio) vs NOISE (residual SD), against the ΔPAT dip index's pre-stated budget (15 ms over a
+60 s window; |drift| ≤5 CLEAN · ≤15 MARGINAL · >15 SWAMPED).
+
+Run on the morning motor-60 calibration (cmd→H10 leg, n=5, 16 s): **von Neumann 2.18 (white-noise
+signature), residual SD 49.6 ms, slope −233 ± 238 ms/min — UNRESOLVED.** Extending to n=8/29 s: VN 1.21,
+slope 150 ± 116, still unresolved. So the scatter is **consistent with pure estimator noise** (good for
+the dip index) — but a 16–29 s burst with ~50 ms/event noise **structurally cannot bound drift at the
+15 ms scale**: the honest charge (|slope|+2·SE) reads SWAMPED because the geometry is insufficient, not
+because drift was seen.
+
+**The computed prescription (`requiredSpanS`): with σ≈50 ms and n=5, the fires must span ~10.3 min
+(n=10 → ~7.3 min) for the slope SE to bound drift at the budget.** The next capture is therefore the
+SAME hardware and pattern, with the aperiodic fires spread across minutes of ONE connection — e.g. 10
+fires over 8 min — not a longer burst. That single sequence settles pat-align.js:335's constancy
+assumption at the scale the dip needs.
+
+⚠ Two exclusions the raw log forces: the solo 04:31:37 pre-test fire (+1405 ms, ring not yet settled)
+and the 04:34:13+ intensity-sweep fires (motor 40/20 — mostly undetectable, and the xcorr then locks on
+spurious −512 ms peaks with r above the 0.3 floor). Sweep fires must be excluded by command list, not
+trusted to the r-filter.
+
 ### §5c · The marker closes KNOWN-CLOCK-ADVERSARIAL-CAPTURE-FOLLOWUPS' open box
 
 `KNOWN-CLOCK-ADVERSARIAL-CAPTURE-FOLLOWUPS-2026-08-14-BRIEF.md` tested-and-failed the NATURAL
