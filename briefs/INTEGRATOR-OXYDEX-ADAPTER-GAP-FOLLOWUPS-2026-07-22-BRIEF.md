@@ -91,7 +91,9 @@ whatever the code did on the day they were written, silently. That is the same s
 - The stale export is a **gitignored working file belonging to whoever generated it** — regenerating it is
   a local action and was NOT done here (§👥.2: don't step on another session's artifacts). Whoever owns
   the corpus should re-run it; the tool says which.
-- Wire the staleness check into the corpus-run path, so a stale input reds before an analysis reads it.
+- ~~Wire the staleness check into the corpus-run path, so a stale input reds before an analysis reads it.~~
+  **RESOLVED 2026-08-20 — the guard already exists for every summary that HAS a reader, and adding a
+  global one would red on someone else's file. See §3.**
 - 7 of 8 exports in `uploads/` were skipped because their named source is not on disk. The check is only
   as good as the raw files present, and it says so rather than reporting a clean sweep.
 
@@ -198,3 +200,55 @@ re-runs the Integrator's fusion against a real multi-node night**. Same gap as �
   tracks the corpus-gated `emerging → validated` re-tier.
 - Code: `integrator-dsp.js` `adaptOxyDex` summary literal + the generic `node === 'OxyDex'` branch;
   `oxydex-dsp.js:5712` (the `hb` → `hypoxicBurden` export rename).
+
+---
+
+## 3 · The staleness wiring, resolved by finding out who actually reads these (2026-08-20)
+
+§2.2 asked to *"wire the staleness check into the corpus-run path"*. Before wiring a guard, the question
+is which artifacts have a consumer — a guard over a path nobody walks is the hollow-gate pattern.
+
+**Five `OxyDex_*_summary.json` sit in `uploads/`. Exactly two are read by anything in the tree:**
+
+| summary | read by | already guarded? |
+|---|---|---|
+| `_2026-06-13_1056` | `tests/run-tests.mjs:847` — the **equiv gate**, paired to `O2Ring S 2100_20260612230016.csv` | **YES** |
+| `_2026-06-25_0439` | `tests/run-tests.mjs:852` — the equiv gate, paired to `O2Ring S 2100_20260624222730.csv` | **YES** |
+| `_2026-06-27_0745` · `_2026-07-01_2143` · `_2026-07-02_2205` | nothing | n/a — no reader |
+
+The equiv/GATE-C leg **re-runs `compute()` on the export's own named raw source and compares**, which is
+precisely the check §2.2 asks for. It already covers both summaries that have a consumer, and it runs on
+every suite pass where the corpus is present. `integrator-dsp.js` and `overdex-app.js` mention
+`_summary.json` only in **comments** (an adapter-naming note), not as a corpus read.
+
+⚠️ **So a global staleness gate is deliberately NOT added, and the reason is §👥.2.** These are
+**gitignored working artifacts belonging to whoever generated them**. Wiring the check into `npm run
+check` would turn another session's un-regenerated local file into a RED gate for everyone who happens
+to hold it — breaking a shared gate over a file the failing session does not own and cannot be expected
+to have. The check stays a tool you run against a corpus you own, which is what its own header says
+(*"Exit 1 if any export fails to reproduce, so this can gate a corpus run"* — a corpus run, not the
+fleet gate).
+
+### 3.1 · Re-measured, and the 2026-08-15 numbers reproduce exactly
+
+```sh
+node tools/oxydex-export-staleness.mjs uploads \
+     --raw "/run/media/michal/647A504F7A50205A/Ecg nightly"
+```
+
+**4 checked · 1 no longer reproduces · 4 skipped** — identical to the table above, five days on. The
+staleness is **stable and isolated to one file**, `OxyDex_2026-07-02_2205_summary.json`, with the same
+four deltas (`hrv.rmssd null → 0.5`, `hrv.n null → 22013`, `durationMin 368.4 → 368`,
+`minSpo2 84 → 87`). Without `--raw` only 1 night is checkable, so the bare invocation under-reports by
+4× — quote the flag with the number.
+
+The tool is also already swept by `tools/selftest-all.mjs` (57 tools), so its own logic is gated even
+though its corpus run cannot be.
+
+⚠️ **`REAL_EXIT=1` — verified without a pipe.** Read through `| tail`, the same run reports `EXIT=0`,
+because `$?` is then **tail's** status (CLAUDE.md §👥.4b). The tool's exit code is correct; a first pass
+here nearly recorded a defect that did not exist.
+
+**Still owed, and it is a local action for whoever owns the corpus, unchanged from §2.2:** regenerate
+`OxyDex_2026-07-02_2205_summary.json`, or delete it. Nothing reads it today, so it is not corrupting an
+analysis — but it is indistinguishable from a live export to the next person who globs the directory.
