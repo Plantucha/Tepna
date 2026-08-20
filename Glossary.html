@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  Glossary.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+
+  REPO-DISCOVERABILITY-FOLLOWUPS-II §2 — the reader-facing render of docs/LEXICON.md.
+
+  ⚠️ THIS PAGE IS A RENDER, NOT A SOURCE. Every definition below is carried from a
+  document that is already authoritative and already gated:
+     · the naming system + one-line glossary  → docs/LEXICON.md
+     · the evidence ladder                    → dex-badges.css (linked, not inlined)
+     · the time model                         → CLAUDE.md, THE CLOCK CONTRACT
+  If a definition here and its source disagree, the SOURCE wins and this page is the
+  bug — the same rule the reference guides follow against the metric registry.
+
+  It deliberately defines NO per-metric clinical term. Metric identity, units and
+  evidence tier are node facts owned by each `<node>-registry.js`; restating them here
+  would fork the grade table that CLAUDE.md §🎫 requires to have exactly one source.
+
+  Badge discs are LINKED from dex-badges.css, never hand-drawn (cohesion-badges C3).
+  100% local — no @font-face, no CDN, no fetch of any kind.
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glossary — Tepna</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="stylesheet" href="licensing/dex-license.css">
+<link rel="stylesheet" href="dex-badges.css">
+<style>
+:root{
+  --bg:#0B0F14; --surface:#121821; --surface2:#18212C; --surface3:#1E2835;
+  --border:#1e2d42; --border2:#253550;
+  --text:#F4F7FB; --text2:#9FB0C3; --text3:#8C9DB3; --text4:#6E7F94;
+  --teal:#3DE0D0; --blue:#58A6FF; --green:#39D98A; --amber:#FFB84D; --violet:#A78BFA;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --content:820px;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+  font-size:17px;line-height:1.68;-webkit-font-smoothing:antialiased;
+  background-image:
+    radial-gradient(circle at 12% -6%,rgba(61,224,208,.06),transparent 42%),
+    radial-gradient(circle at 95% 1%,rgba(88,166,255,.05),transparent 40%);
+}
+a{color:var(--teal);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.wrap{max-width:var(--content);margin:0 auto;padding:0 28px;}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--teal);}
+code,.mono{font-family:var(--mono);font-size:.92em;}
+code{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:1px 6px;color:var(--text);}
+
+/* ── nav ── */
+header.nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(12px);
+  background:rgba(11,15,20,.72);border-bottom:1px solid var(--border);}
+.nav-in{max-width:1080px;margin:0 auto;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+.brand{display:flex;align-items:center;gap:13px;font-weight:800;letter-spacing:-.025em;font-size:22px;}
+.brand .wm{line-height:1;}
+.brand small{font-family:var(--mono);font-weight:500;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--text4);}
+.nav-back{font-family:var(--mono);font-size:12.5px;color:var(--text3);}
+.nav-back:hover{color:var(--teal);text-decoration:none;}
+
+/* ── masthead ── */
+.mast{padding:74px 0 10px;}
+h1{font-size:clamp(34px,6vw,52px);line-height:1.05;letter-spacing:-.03em;margin:.28em 0 .2em;}
+.kicker{color:var(--text2);font-size:19px;margin:0 0 6px;}
+h2{font-size:26px;letter-spacing:-.02em;margin:0 0 6px;}
+h3{font-size:18px;letter-spacing:-.01em;margin:22px 0 6px;color:var(--text);}
+article{padding-bottom:26px;}
+section{margin:44px 0;}
+p{margin:0 0 14px;}
+
+/* ── the arc diagram ── */
+.arc{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:18px 0 6px;}
+.arc-cell{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 15px;}
+.arc-cell .role{font-family:var(--mono);font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--text4);}
+.arc-cell .who{font-weight:700;margin-top:5px;font-size:16px;}
+.arc-cell .who.n1{color:var(--teal);} .arc-cell .who.n2{color:var(--blue);}
+.arc-cell .who.n3{color:var(--violet);} .arc-cell .who.n4{color:var(--green);}
+.arc-cell p{margin:6px 0 0;font-size:13.5px;color:var(--text2);line-height:1.5;}
+
+/* ── definition list ── */
+dl.gloss{margin:12px 0 0;}
+dl.gloss dt{font-weight:700;font-size:17px;margin:20px 0 3px;color:var(--text);}
+dl.gloss dt .tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--text4);border:1px solid var(--border2);border-radius:20px;padding:2px 8px;margin-left:9px;vertical-align:2px;font-weight:500;}
+dl.gloss dd{margin:0;color:var(--text2);font-size:15.5px;line-height:1.62;}
+dl.gloss dd + dd{margin-top:5px;}
+
+/* ── tables ── */
+table{width:100%;border-collapse:collapse;margin:16px 0 4px;font-size:14.5px;}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:top;}
+th{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text4);font-weight:500;}
+td.say{color:var(--green);} td.dont{color:var(--text4);text-decoration:line-through;}
+.tbl-scroll{overflow-x:auto;}
+
+/* ── ladder ── */
+.ladder{list-style:none;padding:0;margin:16px 0 0;}
+.ladder li{display:flex;gap:13px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--border);}
+.ladder .name{font-weight:700;min-width:118px;}
+.ladder .desc{color:var(--text2);font-size:14.5px;line-height:1.55;}
+.ladder .rank{font-family:var(--mono);font-size:11px;color:var(--text4);min-width:52px;padding-top:3px;}
+
+.note{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--teal);
+  border-radius:0 12px 12px 0;padding:15px 18px;margin:20px 0;font-size:14.5px;color:var(--text2);}
+.note b{color:var(--text);}
+.src{font-size:13px;color:var(--text4);font-family:var(--mono);margin-top:8px;}
+</style>
+<!-- meta:auto — roster-derived by tools/build-docs.mjs (REPO-DISCOVERABILITY-FOLLOWUPS §5.3/§5.6); do not hand-edit, re-run the builder -->
+<meta name="description" content="The vocabulary Tepna uses and what each word is bound to: the reflex-arc naming system, the five-tier evidence ladder, and the floating wall-clock time model.">
+<link rel="canonical" href="https://tepna.net/Glossary.html">
+<meta name="theme-color" content="#070A0E">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Tepna">
+<meta property="og:title" content="Glossary — Tepna">
+<meta property="og:description" content="The vocabulary Tepna uses and what each word is bound to: the reflex-arc naming system, the five-tier evidence ladder, and the floating wall-clock time model.">
+<meta property="og:url" content="https://tepna.net/Glossary.html">
+<meta property="og:image" content="https://tepna.net/tepna-og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Glossary — Tepna">
+<meta name="twitter:description" content="The vocabulary Tepna uses and what each word is bound to: the reflex-arc naming system, the five-tier evidence ladder, and the floating wall-clock time model.">
+<meta name="twitter:image" content="https://tepna.net/tepna-og.png">
+<!-- /meta:auto -->
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-in">
+    <a class="brand" href="index.html" style="color:var(--text)"><svg class="brandmark" viewBox="0 0 100 100" aria-hidden="true" style="width:24px;height:24px;flex:none;filter:drop-shadow(0 0 7px rgba(61,224,208,.4))"><defs><linearGradient id="tgrad" x1="14" y1="10" x2="86" y2="88" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3DE0D0"/><stop offset=".58" stop-color="#58A6FF"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs><g fill="none" stroke="url(#tgrad)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></g></svg><span class="wm">Tepna</span> <small>by the&nbsp;-Dex&nbsp;suite</small></a>
+    <span style="display:flex;gap:18px;align-items:center"><a class="nav-back" href="Science.html">science</a><a class="nav-back" href="Architecture.html">architecture</a><a class="nav-back" href="index.html">← back to the suite</a></span>
+  </div>
+</header>
+
+<div class="wrap mast">
+  <div class="eyebrow">Reference</div>
+  <h1>Glossary</h1>
+  <p class="kicker">The words this suite uses, and what each one is bound to.</p>
+</div>
+
+<article class="wrap">
+
+  <section>
+    <p>Tepna is a fleet of single-signal analyzers that share one spine. The vocabulary below is not
+    decoration — each term names a <b>role</b> in that spine, and using the wrong word usually means
+    reaching for the wrong part.</p>
+    <div class="note">
+      <b>This page is a render, not a source.</b> Every definition here is carried from a document that
+      is already authoritative: the naming system from <code>docs/LEXICON.md</code>, the evidence ladder
+      from <code>dex-badges.css</code>, the time model from the Clock Contract. Where this page and its
+      source disagree, <b>the source wins and this page is the bug</b>.
+      <div class="src">It defines no per-metric clinical term on purpose — a metric's identity, unit and evidence tier are node facts owned by that node's registry, and restating them here would fork a table that is required to have exactly one source.</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">The metaphor</div>
+    <h2>One nervous system</h2>
+    <p>Read end to end, the suite is a literal <b>reflex arc</b>. The names already encode it, which is
+    why they are worth learning once.</p>
+    <div class="arc">
+      <div class="arc-cell">
+        <div class="role">afferent · receptors</div>
+        <div class="who n1">the -Dex nodes</div>
+        <p>Each senses exactly one signal and reports it inward. A receptor does one transduction well — that is why a node is single-signal.</p>
+      </div>
+      <div class="arc-cell">
+        <div class="role">relay</div>
+        <div class="who n2">Ganglior</div>
+        <p>The event bus. <i>Ganglia</i> are the nerve junctions where signals are routed; this is where node exports converge as events.</p>
+      </div>
+      <div class="arc-cell">
+        <div class="role">integration centre</div>
+        <div class="who n3">the Integrator</div>
+        <p>Afferent signals converge and become one coherent percept — the cross-signal picture no single receptor can produce.</p>
+      </div>
+      <div class="arc-cell">
+        <div class="role">efferent · insight</div>
+        <div class="who n4">“Tepna”</div>
+        <p>The read-out. It names what the system <i>produces</i>, not a fourth product standing next to the nodes.</p>
+      </div>
+    </div>
+    <p style="margin-top:16px">This is the same arc a knee-jerk follows: receptor → relay → integration → response.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">Role language</div>
+    <h2>Say the role, not the file</h2>
+    <p>When you describe any part of the suite, name its role in the arc. A node <b>senses</b> and
+    <b>emits</b>; the bus <b>relays</b>; the Integrator <b>fuses</b>; the system <b>surfaces insight</b>.</p>
+    <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Part</th><th>Role word</th><th>Say</th><th>Don’t say</th></tr></thead>
+      <tbody>
+        <tr><td>A <code>*Dex</code> app</td><td>receptor / node</td><td class="say">the OxyDex <b>node</b> senses SpO₂</td><td class="dont">the OxyDex app/tool/product</td></tr>
+        <tr><td><code>Ganglior</code></td><td>relay / bus</td><td class="say">emit onto the <b>Ganglior</b> bus</td><td class="dont">the Ganglior format/file</td></tr>
+        <tr><td>Integrator</td><td>integration centre</td><td class="say">the Integrator <b>fuses</b> afferent nodes</td><td class="dont">the Integrator dashboard</td></tr>
+        <tr><td>Tepna</td><td>the read-out</td><td class="say">surfaces <b>ANS-intelligence</b> insight</td><td class="dont">the Tepna app</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Trust</div>
+    <h2>The evidence ladder</h2>
+    <p>Every number this suite shows you wears an evidence badge — every KPI, every card, every chart
+    series, every table row. The <b>disc shape</b> encodes how much the number can be trusted, so the
+    trust channel never collides with a status colour. Five tiers, ordered most to least trusted:</p>
+    <ul class="ladder">
+      <li><span class="ev ev-measured" title="Measured"></span><span class="rank">rank 0</span><span class="name">measured</span><span class="desc">A direct sensor reading or a raw statistic of the recorded signal — mean, min, max, nadir, duration. Ground truth, not computed.</span></li>
+      <li><span class="ev ev-validated" title="Validated"></span><span class="rank">rank 1</span><span class="name">validated</span><span class="desc">An established, externally validated, clinically meaningful derived metric.</span></li>
+      <li><span class="ev ev-emerging" title="Emerging"></span><span class="rank">rank 2</span><span class="name">emerging</span><span class="desc">Published and promising, but less standardized or device-dependent.</span></li>
+      <li><span class="ev ev-experimental" title="Experimental"></span><span class="rank">rank 3</span><span class="name">experimental</span><span class="desc">A plausible node-computed composite that has not been externally validated. Directional only.</span></li>
+      <li><span class="ev ev-heuristic" title="Heuristic"></span><span class="rank">rank 4</span><span class="name">heuristic</span><span class="desc">A convenience estimate or population proxy. A trend, not a measurement.</span></li>
+    </ul>
+    <div class="note" style="margin-top:22px">
+      <b>The order is frozen and the vocabulary is closed.</b> Retired words — <i>proxy</i>, <i>composite</i>,
+      <i>provisionally validated</i> — must never reappear; they map onto <i>heuristic</i>,
+      <i>experimental</i> and <i>emerging</i> respectively. A tier is a fact about a metric, recorded once
+      in that node’s registry, and no document may re-grade it.
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Terms</div>
+    <h2>One-line glossary</h2>
+    <dl class="gloss">
+      <dt>-Dex node</dt>
+      <dd>A single-signal afferent receptor. It senses one physiological signal and emits events. OxyDex senses oxygen, ECGDex cardiac electrical activity, PulseDex raw beat-to-beat timing, GlucoDex glucose, CPAPDex therapy data, MotionDex inertial motion; HRVDex summarizes variability.</dd>
+
+      <dt>Ganglior <span class="tag">frozen name</span></dt>
+      <dd>The relay / event bus where node exports converge. The name is frozen and is not a candidate for renaming; a <code>fascia</code> input alias is read for backwards compatibility only.</dd>
+
+      <dt>Integrator</dt>
+      <dd>The central integration layer. It fuses afferent nodes into a longitudinal, cross-signal percept.</dd>
+
+      <dt>Tepna</dt>
+      <dd>The name for the system’s autonomic read-out — the product brand, and the tagline for what the suite produces. It is not a node, and it is a distinct thing from the frozen bus codename above.</dd>
+
+      <dt>Metric registry</dt>
+      <dd>The per-node declarative map that gives each metric its label, unit, direction, depth and evidence tier. It ships inside the app and is the single source for all four; every other surface is a projection of it.</dd>
+
+      <dt>Depth</dt>
+      <dd>How <i>much</i> you see: Core · Advanced · Research. Progressive disclosure — an axis about volume, entirely independent of trust.</dd>
+
+      <dt>Evidence</dt>
+      <dd>How <i>trustworthy</i> a number is: the five-tier ladder above. The fill of the disc is the confidence ladder; the hue carries no meaning.</dd>
+
+      <dt>Node export</dt>
+      <dd>The cross-node currency — a JSON document a node emits for the bus, carrying the recording’s anchor and its list of events. It is the only thing nodes exchange; they never call each other.</dd>
+
+      <dt>Floating wall-clock time</dt>
+      <dd>The suite’s canonical time unit: the recording’s <i>local civil time encoded as if it were UTC</i>. Wearables speak local time with no zone, so storing a real instant and rendering it with local getters would make a New-York night read as 03:00 in London. Floating time is viewer-timezone-independent by construction, and two devices recording the same wall-clock minute produce the same value without anyone sharing a timezone.</dd>
+
+      <dt>Local-only</dt>
+      <dd>Not a policy but a property: every analyzer is one self-contained file that runs in your browser. There is no upload, no account, no backend, and no network fetch of any kind — a gate refuses to ship a page that adds one.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <div class="note">
+      <b>Naming a new node?</b> The recipe, the capitalization rules and the full naming system live in
+      <code>docs/LEXICON.md</code>. Branding becomes systematic through that document — not through
+      renames.
+      <div class="src">Sources · docs/LEXICON.md (naming system, one-line glossary) · dex-badges.css (the ladder) · CLAUDE.md, THE CLOCK CONTRACT (the time model)</div>
+    </div>
+  </section>
+
+</article>
+
+<!-- ════ LICENSE STAMP ════ -->
+<div class="dxl" style="max-width:900px;margin:36px auto 14px;padding:0 28px">
+  <div class="dxl-notice">
+    <div class="dxl-k">Intended use &amp; safety</div>
+    <p><b>Tepna</b> computes biometric patterns from your wearable and sensor data to support personal self-quantification. It is <b>not a medical device</b>, does not <b>diagnose, treat, cure, screen for, or prevent</b> any disease or condition, and is <b>not a substitute for professional clinical evaluation</b>. Always consult a qualified healthcare provider about your health. For research and personal use only. 100% local — no data leaves your device.</p>
+  </div>
+</div>
+<div class="dxl dxl-ribbon" style="max-width:1000px;margin:0 auto 36px;">
+  <div class="dxl-seg">
+    <span class="dxl-mark">T</span>
+    <span style="display:flex;flex-direction:column">
+      <b style="font-size:13px">Tepna</b>
+      <span class="dxl-colophon">physiological-signal suite</span>
+    </span>
+  </div>
+  <div class="dxl-seg dxl-grow">
+    <span style="font-size:11.5px;color:var(--text2)">© 2026 <b>Michal Planicka</b> — Concept · Architecture · Algorithms</span>
+    <span class="dxl-disclaimer">Not a medical device · does not diagnose or treat · research &amp; personal use only · ◈ Made in Asheville, NC</span>
+  </div>
+  <div class="dxl-seg"><span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span></div>
+</div>
+
+</body>
+</html>

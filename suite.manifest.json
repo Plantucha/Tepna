@@ -126,6 +126,11 @@
       "description": "Record your own biosignals for Tepna: device-by-device capture guides for O2Ring oximetry, Polar H10 ECG, Verity Sense PPG, CGM glucose, and CPAP therapy data."
     },
     {
+      "label": "Glossary",
+      "href": "Glossary.html",
+      "description": "The vocabulary Tepna uses and what each word is bound to: the reflex-arc naming system, the five-tier evidence ladder, and the floating wall-clock time model."
+    },
+    {
       "label": "About",
       "href": "Why This Exists.html",
       "description": "Why Tepna exists: read one raw biosignal from a wearable you own, keep it 100% on your device, and get evidence-graded answers — no account, no upload, no product."

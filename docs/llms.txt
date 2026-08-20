@@ -17,6 +17,7 @@ Repository: https://github.com/Plantucha/Tepna · License: Apache-2.0 · Author:
 - [Science](https://tepna.net/Science.html)
 - [Architecture](https://tepna.net/Architecture.html)
 - [How to Collect Data](https://tepna.net/How%20to%20Collect%20Data.html)
+- [Glossary](https://tepna.net/Glossary.html)
 - [About](https://tepna.net/Why%20This%20Exists.html)
 - [Papers](https://tepna.net/papers/papers.html)
 
