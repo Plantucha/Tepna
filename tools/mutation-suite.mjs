@@ -123,18 +123,29 @@ const journalPath = (file) => join(ROOT, '.mutate-journal', file.replace(/[/\\]/
  *   PID    Otherwise `kill(pid, 0)` — no signal sent, ESRCH iff no such process. EPERM means the
  *          process exists and is not ours to signal, which is alive for our purposes.
  *
+ * THE RECORD NAMES TWO PROCESSES, AND THEY DIE SEPARATELY. Probing only `pid` misreports the state
+ * this box was actually in at 14:24 on 2026-08-20: suite 54384 gone, sweep child 54591 STILL RUNNING
+ * and reparented to `systemd --user`. Calling that "not running" invites a second sweep of the same
+ * file into the same cores; calling it "running" claims a watchdog, a stall-restart and a done-marker
+ * that no longer exist — nothing will ever write the completion record for that file. It is its own
+ * state, ORPHANED, and it is the one worth naming: work is still being done and nobody is watching it.
+ * Hence `sweeping` (is this file being worked?) is a DIFFERENT question from `live` (is the driver
+ * there?), and the two callers below want different ones.
+ *
  * Unparseable `startedAt` with a live pid resolves to LIVE. That direction is deliberate: wrongly
  * declaring a live sweep dead spawns a second worker pool into the same cores, which corrupts both
  * runs; wrongly declaring a dead one live only stalls, and the stall is visible in the journal age
  * printed beside it.
  */
-export function suiteRecordLiveness({ rec, bootMs, pidAlive }) {
-  if (!rec || typeof rec !== 'object') return { live: false, reason: 'no record' };
-  if (!Number.isFinite(rec.pid)) return { live: false, reason: 'record carries no pid' };
+export function suiteRecordLiveness({ rec, bootMs, pidAlive, childAlive }) {
+  const R = (state, reason) => ({ state, reason, live: state === 'running', sweeping: state === 'running' || state === 'orphaned' });
+  if (!rec || typeof rec !== 'object') return R('none', 'no record');
+  if (!Number.isFinite(rec.pid)) return R('stale', 'record carries no pid');
   const started = Date.parse(rec.startedAt);
-  if (Number.isFinite(bootMs) && Number.isFinite(started) && started < bootMs) return { live: false, reason: 'started before the current boot — the machine has restarted since' };
-  if (!pidAlive) return { live: false, reason: 'no process with pid ' + rec.pid };
-  return { live: true, reason: 'pid ' + rec.pid + ' is running' };
+  if (Number.isFinite(bootMs) && Number.isFinite(started) && started < bootMs) return R('stale', 'started before the current boot — the machine has restarted since');
+  if (pidAlive) return R('running', 'pid ' + rec.pid + ' is running');
+  if (childAlive) return R('orphaned', 'the suite (pid ' + rec.pid + ') is gone but its sweep child (pid ' + rec.child + ') is still running');
+  return R('stale', 'no process with pid ' + rec.pid);
 }
 
 const bootMs = () => Date.now() - osUptime() * 1000;
@@ -155,8 +166,13 @@ function readSuiteRecord() {
   } catch {
     return { rec: null, live: false, reason: 'no record' };
   }
-  const v = suiteRecordLiveness({ rec, bootMs: bootMs(), pidAlive: Number.isFinite(rec.pid) && pidAlive(rec.pid) });
-  return { rec, live: v.live, reason: v.reason };
+  const v = suiteRecordLiveness({
+    rec,
+    bootMs: bootMs(),
+    pidAlive: Number.isFinite(rec.pid) && pidAlive(rec.pid),
+    childAlive: Number.isFinite(rec.child) && pidAlive(rec.child)
+  });
+  return { rec, ...v };
 }
 
 // ── formatting ─────────────────────────────────────────────────────────────────────────────────
@@ -397,7 +413,7 @@ async function runFile(file, ident, loaded, lane) {
        only reach one of them. Warn rather than refuse: a deliberate second `--file` run is a real
        workflow, and a refusal here would be unfixable without deleting state by hand. */
     const prior = readSuiteRecord();
-    if (prior.live && prior.rec.pid !== process.pid)
+    if (prior.sweeping && prior.rec.pid !== process.pid)
       log('   ⚠ another suite is ALREADY RUNNING (pid ' + prior.rec.pid + ', file ' + prior.rec.file + ') — both will share this core pool, and only the newer one stays addressable by --kill');
     const child = spawnSweep(file, resume, lane);
     writeFileSync(pidFile(), JSON.stringify({ pid: process.pid, child: child.pid, file, startedAt: new Date().toISOString() }) + '\n');
@@ -542,7 +558,30 @@ function cmdKill() {
   /* A stale record has nothing to kill, and signalling its pids is worse than useless after a
      reboot: the numbers may have been REUSED by unrelated processes. Clear it instead — that is
      the whole of what "stop the suite" means once the suite is already gone. */
-  const v = suiteRecordLiveness({ rec, bootMs: bootMs(), pidAlive: Number.isFinite(rec.pid) && pidAlive(rec.pid) });
+  const v = suiteRecordLiveness({
+    rec,
+    bootMs: bootMs(),
+    pidAlive: Number.isFinite(rec.pid) && pidAlive(rec.pid),
+    childAlive: Number.isFinite(rec.child) && pidAlive(rec.child)
+  });
+  if (v.state === 'orphaned') {
+    /* The driver is already gone — signalling its pid is a no-op at best and hits a REUSED pid at
+       worst. Kill the one process that is actually there. */
+    log('the suite driver is gone; its sweep child is not — ' + v.reason);
+    try {
+      process.kill(rec.child, 'SIGTERM');
+      log('SIGTERM → child pid ' + rec.child);
+    } catch {
+      log('child pid ' + rec.child + ' went away before we could signal it');
+    }
+    try {
+      unlinkSync(p);
+      log('cleared ' + p + ' — journal is preserved, re-run the suite to resume');
+    } catch {
+      /* fine */
+    }
+    return;
+  }
   if (!v.live) {
     log('no suite is running — STALE pid file (' + v.reason + ')');
     log('  it claimed ' + rec.file + '; sending no signals (the pids may have been reused since)');
@@ -604,10 +643,23 @@ function cmdStatus() {
   if (!any) log('    (none — nothing has been swept in this checkout)');
   const cur = readSuiteRecord();
   if (!cur.rec) log('  running: no');
-  else if (cur.live) log('  running: ' + JSON.stringify(cur.rec));
-  else {
+  else if (cur.state === 'running') log('  running: ' + JSON.stringify(cur.rec));
+  else if (cur.state === 'orphaned') {
+    log('  running: ORPHANED — ' + cur.reason);
+    log('           ' + cur.rec.file + ' is still being swept, but with no watchdog, no stall-restart and');
+    log('           nobody left to write its done-marker. Let it finish and re-run the suite, or --kill it.');
+    log('           record: ' + JSON.stringify(cur.rec));
+  } else {
     log('  running: no — STALE pid file (' + cur.reason + ')');
-    log('           it claims ' + cur.rec.file + '; the journal above is intact, so re-running the suite RESUMES it');
+    /* Only claim the journal is there if it IS there. Journals are per-checkout (`ROOT/.mutate-journal`)
+       while this record lives in the git COMMON dir, so from a worktree the record routinely names a
+       file whose journal is in a different checkout — promising a resume that would start from zero. */
+    const jp = journalPath(cur.rec.file);
+    log(
+      '           it claims ' +
+        cur.rec.file +
+        (existsSync(jp) ? '; its journal here is intact, so re-running the suite RESUMES it' : '; NO journal for it in this checkout, so a re-run here starts from zero')
+    );
     log('           stale record: ' + JSON.stringify(cur.rec));
   }
 }
@@ -754,7 +806,9 @@ function sweepState(file) {
   /* Only a VERIFIED-live record names a file that is in flight; a stale one names a file that
      crashed, and calling that 'in flight' hides it from the sweep forever. */
   const cur = readSuiteRecord();
-  const runningFile = cur.live ? cur.rec.file : null;
+  /* `sweeping`, not `live`: an ORPHANED child is still mutating that file, so starting a second
+     sweep of it would double the work and interleave two writers into one journal. */
+  const runningFile = cur.sweeping ? cur.rec.file : null;
   let marker = null;
   try {
     marker = JSON.parse(readFileSync(doneMarker(file), 'utf8'));
