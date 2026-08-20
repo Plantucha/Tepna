@@ -792,7 +792,104 @@ _RING_QUANTUM_MS = 1000.0      # the O2Ring's duration axis is 1 s quantised —
 _UNIFORM_DIVISOR = math.sqrt(12.0)   # GUM 4.3.7: a rectangular half-width a has u = a/sqrt(3), full width w = w/sqrt(12)
 
 
-def timing_uncertainty(jitter, *, quantised=False, stability=None, tau_s=None):
+# ── RJ / DJ DECOMPOSITION (dual-Dirac) ──────────────────────────────────────────────────────────────
+# INTERDISCIPLINARY-LITERATURE §7. `spreadMs` is published as ONE number, and it conflates two things
+# with opposite behaviour: DETERMINISTIC jitter is BOUNDED (BLE's connection interval — arrival latency
+# spans 0 to exactly one interval, and no more), while RANDOM jitter is UNBOUNDED Gaussian (scheduler
+# contention, which has no worst case). Allan deviation names noise TYPES; it does not separate bounded
+# from unbounded, and a single spread hides a hard physical bound inside a tail that has none.
+#
+# It matters here because `timing_uncertainty` used IQR/1.349, which assumes Gaussian. Measured on the
+# real corpus, the H10 is emphatically not: SD/robust = 2.26 (acc) and 2.20 (ecg) against ~1.0 for a
+# normal. The Verity is close to Gaussian (0.89-1.17). So one estimator was right for one device and
+# wrong by a factor of two for the other.
+#
+# Keysight, "Jitter Analysis: The Dual-Dirac Model, RJ/DJ, and Q-Scale", app note 5989-3206EN.
+_RJDJ_TAIL_LO = 0.0002        # fit from this quantile...
+_RJDJ_TAIL_HI = 0.02          # ...to this one, each tail
+_RJDJ_MIN_N = 200
+_RJDJ_MIN_TAIL = 20
+
+
+def _norm_ppf(p):
+    """Inverse standard-normal CDF (Acklam), |error| < 1.2e-9. Written out because this box runs three
+    packages and none of them is scipy."""
+    a = (-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02,
+         1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00)
+    b = (-5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02,
+         6.680131188771972e+01, -1.328068155288572e+01)
+    c = (-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00,
+         -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00)
+    d = (7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00, 3.754408661907416e+00)
+    lo = 0.02425
+    if p < lo:
+        q = math.sqrt(-2 * math.log(p))
+        return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / \
+               ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
+    if p > 1 - lo:
+        q = math.sqrt(-2 * math.log(1 - p))
+        return -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / \
+               ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
+    q = p - 0.5
+    r = q * q
+    return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / \
+           (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1)
+
+
+def _tail_fit(pairs):
+    """Least-squares intercept and slope of value against normal quantile. None on no spread in q."""
+    n = len(pairs)
+    mq = sum(q for q, _ in pairs) / n
+    mx = sum(x for _, x in pairs) / n
+    den = sum((q - mq) ** 2 for q, _ in pairs)
+    if den <= 0:
+        return None
+    slope = sum((q - mq) * (x - mx) for q, x in pairs) / den
+    return mx - slope * mq, slope
+
+
+def jitter_decompose(vals, lo=_RJDJ_TAIL_LO, hi=_RJDJ_TAIL_HI):
+    """Split a jitter sample into BOUNDED (dj_ms) and UNBOUNDED (rj_ms) parts, in ms. None when short.
+
+    Q-scale tail fit: on a normal-quantile axis a dual-Dirac distribution is two straight lines whose
+    SLOPE is the random jitter and whose extrapolated INTERCEPTS are separated by the deterministic
+    jitter. Fitting the tails rather than the body is the whole method — the centre is where the two
+    lobes overlap and tell you nothing.
+
+    KNOWN-ANSWER VALIDATED against planted dual-Dirac (two deltas separated by D, each convolved with
+    Gaussian sigma), 60 000 samples:
+
+        planted DJ 10.0 RJ 2.0  ->  8.43 / 2.10      planted DJ 30.0 RJ 5.0  ->  26.06 / 5.26
+        planted DJ  7.5 RJ 1.0  ->  6.71 / 1.05      planted DJ  0.0 RJ 4.0  ->   ~0   / 3.92
+
+    ⚠️ **`rj_ms` is accurate to ~5 %; `dj_ms` is a LOWER BOUND, biased ~11-16 % low.** That is inherent
+    to the dual-Dirac: DJ(delta-delta) is an EFFECTIVE separation, and the fitted tails still carry some
+    of the near lobe. The bias is toward under-stating the bounded part, which is the conservative
+    direction for a bound and the wrong one for a claim about worst case. Do not quote `dj_ms` as a
+    peak-to-peak span.
+    """
+    x = sorted(float(v) for v in vals if v is not None and v == v and abs(v) != float("inf"))
+    n = len(x)
+    if n < _RJDJ_MIN_N:
+        return None
+    left, right = [], []
+    for i in range(n):
+        p = (i + 0.5) / n
+        if lo <= p <= hi:
+            left.append((_norm_ppf(p), x[i]))
+        if lo <= 1.0 - p <= hi:
+            right.append((_norm_ppf(p), x[i]))
+    if len(left) < _RJDJ_MIN_TAIL or len(right) < _RJDJ_MIN_TAIL:
+        return None
+    fl, fr = _tail_fit(left), _tail_fit(right)
+    if fl is None or fr is None:
+        return None
+    return {"dj_ms": round(fr[0] - fl[0], 3),
+            "rj_ms": round((abs(fl[1]) + abs(fr[1])) / 2.0, 3),
+            "n": n}
+
+
+def timing_uncertainty(jitter, *, quantised=False, stability=None, tau_s=None, rjdj=None):
     """Combined standard uncertainty, in ms, for an event time read off a BLE arrival stamp.
 
     GUM (JCGM 100:2008) in its plainest form: identify the inputs, express each as a standard
@@ -824,7 +921,18 @@ def timing_uncertainty(jitter, *, quantised=False, stability=None, tau_s=None):
     if not isinstance(jitter, dict) or jitter.get("iqr_ms") is None:
         return None
     comps = {}
-    comps["delivery"] = float(jitter["iqr_ms"]) / _IQR_TO_SIGMA
+    # DELIVERY, SPLIT WHERE THE SPLIT EXISTS. IQR/1.349 assumes Gaussian; the H10's arrival jitter is
+    # not (SD/robust 2.26 vs ~1.0 for a normal), so one estimator was right for the Verity and wrong by
+    # a factor of two for the H10. Given an RJ/DJ decomposition, the UNBOUNDED part enters as a sigma
+    # and the BOUNDED part as a rectangular term — the same treatment the stamp quantum already gets,
+    # because that is what a bound is. Falls back to IQR/1.349 when no decomposition was supplied.
+    if isinstance(rjdj, dict) and rjdj.get("rj_ms") is not None:
+        comps["delivery_random"] = float(rjdj["rj_ms"])
+        dj = abs(float(rjdj.get("dj_ms") or 0.0))
+        if dj > 0:
+            comps["delivery_bounded"] = dj / _UNIFORM_DIVISOR
+    else:
+        comps["delivery"] = float(jitter["iqr_ms"]) / _IQR_TO_SIGMA
     comps["quantum"] = (_RING_QUANTUM_MS if quantised else _STAMP_QUANTUM_MS) / _UNIFORM_DIVISOR
     total = math.sqrt(sum(v * v for v in comps.values()))
     dominant = max(comps, key=lambda k: comps[k])
@@ -972,6 +1080,10 @@ def arrival_quality(night_dir: str) -> list[dict]:
             offset = clock_offset.estimate([((h - t0) / 1000.0, d) for h, d in pairs])
             # Hoisted so the uncertainty budget below composes them rather than recomputing.
             jit = host_jitter(diffs)
+            # Per-packet delivery jitter, split into its bounded and unbounded parts (see
+            # jitter_decompose). Differences of consecutive `arrival - device` — the same series
+            # host_jitter summarises, decomposed rather than summarised.
+            rj = jitter_decompose([diffs[i] - diffs[i - 1] for i in range(1, len(diffs))])
             stab = allan.stability(diffs, _tau0_of(pairs), _TDEV_TAU_S)
             out.append({
                 "file": name, "device": device, "meas": meas, "rows": len(diffs),
@@ -982,7 +1094,8 @@ def arrival_quality(night_dir: str) -> list[dict]:
                     # consumer gets one number with its parts rather than four diagnostics to weigh.
                     # `tau` is the stability curve's own optimal averaging time — where `adev_min` was
                     # read — so the oscillator term stays self-consistent with the curve it came from.
-                    "u_time": timing_uncertainty(jit, quantised=quantised, stability=stab,
+                    "rjdj": rj,
+                    "u_time": timing_uncertainty(jit, rjdj=rj, quantised=quantised, stability=stab,
                                                  tau_s=(stab or {}).get("optimal_tau")),
                 # CLOCK STABILITY AS A CURVE. `arrival - device` is a phase (time-error) series, ADEV's
                 # native input, and the SLOPE names a mechanism where a ppm cannot: measured 2026-08-11,
