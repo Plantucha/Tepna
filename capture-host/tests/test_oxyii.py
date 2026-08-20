@@ -473,6 +473,44 @@ def test_get_info_parses_firmware_and_serial():
     assert oxyii.parse_get_info(b"\x00" * 40) is None          # too short → None, never a partial dict
 
 
+def test_get_info_decodes_the_rtc_from_the_hardware_bytes():
+    """Bytes [24:31] measured on device 2592302100 on 2026-08-19 19:48:26, four minutes after a 0xC0
+    sync — the readback matched the host to the second. Layout is set_time_frame's write payload."""
+    p = bytearray(60)
+    p[24:31] = bytes([0xEA, 0x07, 0x08, 0x13, 0x13, 0x30, 0x1A])   # 2026-08-19 19:48:26
+    rtc = oxyii.parse_get_info(bytes(p))["rtc"]
+    assert rtc == {"year": 2026, "month": 8, "day": 19, "hour": 19, "minute": 48, "second": 26}
+
+
+def test_get_info_rtc_roundtrips_set_time_frame():
+    """Pull must invert push: decode(set_time_frame(dt)'s fields placed at [24:31]) == dt's components.
+    If either side's layout moves, this is the test that names it."""
+    import datetime as dt
+    when = dt.datetime(2031, 12, 5, 23, 59, 58)
+    frame = oxyii.set_time_frame(when)
+    p = bytearray(60)
+    p[24:31] = frame[7:14]               # the 7 time bytes of the 8-byte payload (skip the 0xCE tail)
+    rtc = oxyii.parse_get_info(bytes(p))["rtc"]
+    assert rtc == {"year": 2031, "month": 12, "day": 5, "hour": 23, "minute": 59, "second": 58}
+
+
+def test_get_info_rtc_is_none_when_components_are_impossible():
+    """Clock Contract §2.7: out-of-range components must be VISIBLE as absence, never rolled into a
+    plausible wrong instant. An unset RTC region (all zeros: year 0, month 0) is the common case."""
+    assert oxyii.parse_get_info(bytes(60))["rtc"] is None                    # zeros: unset
+    p = bytearray(60)
+    p[24:31] = bytes([0xEA, 0x07, 13, 19, 19, 48, 26])                       # month 13
+    assert oxyii.parse_get_info(bytes(p))["rtc"] is None
+    p[24:31] = bytes([0xEA, 0x07, 8, 19, 24, 0, 0])                          # hour 24
+    assert oxyii.parse_get_info(bytes(p))["rtc"] is None
+    p[24:31] = bytes([0xEA, 0x07, 8, 19, 19, 60, 0])                         # minute 60
+    assert oxyii.parse_get_info(bytes(p))["rtc"] is None
+    p[24:31] = bytes([0xEA, 0x07, 8, 32, 19, 48, 26])                        # day 32, alone
+    assert oxyii.parse_get_info(bytes(p))["rtc"] is None
+    p[24:31] = bytes([0xEA, 0x07, 8, 19, 19, 48, 60])                        # second 60, alone
+    assert oxyii.parse_get_info(bytes(p))["rtc"] is None
+
+
 def test_config_parses_the_settings_struct():
     p = bytearray(40)
     p[1] = 88            # spo2_low
