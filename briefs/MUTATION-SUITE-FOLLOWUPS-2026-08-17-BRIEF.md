@@ -430,9 +430,18 @@ preserved journal (`.git/tepna-mutation/journals-pre-resweep-2026-08-20/integrat
 | signal | value | what it rules in or out |
 |---|---|---|
 | STARTed, never verdicted | **23** | the run had 22 jobs — this is the ENTIRE pool plus one, dispatched and never returning |
-| keys STARTed twice | **6** (max 2) | the watchdog DID fire at least once and re-dispatched; it did not sit inert |
+| keys STARTed twice | **6** (max 2) | consistent with the watchdog firing and re-dispatching — see the caveat below |
 | verdicts recorded | 1424 of 1447 dispatched | the run was healthy right up to the wedge |
 | last three dispatches | all **line 5070** | `_wrappedSlopeFit`'s only early-out guard |
+
+⚠️ **The doubled-key row needs a caveat, found while writing §7.5.** `mutate.mjs` had a duplicated
+`jwrite({ k })` (introduced in #1178) that emits **two** START records per mutant — so a doubled key
+is not, on its own, evidence of a re-dispatch. It fires only on the **serial fallback** taken when no
+worker tree can be created, and this run had 22 workers (23 unverdicted keys against a pool of 22),
+so that path was not taken and re-dispatch remains the reading. The duplicate is fixed here regardless:
+`readJournalProgress` derives `inFlight = started − done`, which the resume line publishes as "N will
+be re-tried or quarantined" and the inventory carries — so a degraded-mode run reported roughly twice
+the in-flight work it had. **A count is only evidence once you know every way it can be incremented.**
 
 **The load-bearing point is the first row.** `--resume`'s recovery model is *quarantine the jammed
 mutant* — which presumes ONE poison mutant. What happened here leaves 22 more behind it, so a restart
@@ -489,6 +498,30 @@ but it did **not** produce the stranded record above, because a give-up would ha
 `motiondex` and rewritten the file, and it never did. Recorded so the tempting tidy-up is not mistaken
 for a fix to 7.2. The reader-side check in 7.1 is the one that covers every path, including `SIGKILL`,
 which no producer-side cleanup can.
+
+### 7.5 · FOLLOW-UP — ENUMERATE the expensive-guard class instead of meeting it one collapse at a time
+
+§7.2's carried-forward says the class is open: *any* function that is intrinsically expensive and whose
+guard's only killer is corpus-sized can collapse a pool, and the watchdog cannot see it because nothing
+hangs. Proposed by the session that measured §7.2, and it is a **query, not a new instrument** —
+`mutate.mjs` already calibrates a clean lap per file (`baseMs`, and `calibrationIndices` over the union)
+and already times laps; the missing piece is that **the journal does not persist a lap duration**, so
+this needs one extra field on the verdict record before it becomes a query.
+
+With that field:
+
+- a **KILLED** mutant whose lap ran far over calibration was killed *only* by an expensive group —
+  under `--bail` the cheap groups all passed, so its cheap killers do not exist. That is the class
+  membership test, stated per mutant.
+- a file's **SURVIVORS** need no timing at all: a survivor by definition ran **every** group, so it
+  pays the full price by construction. Collapse exposure for a file is therefore roughly
+  *survivor count × full-group-set cost*, and both terms are already known. This is the cheaper half
+  and can be computed today.
+
+The payoff is turning "you will meet it again at another file" into "here are the files you will meet
+it at". ⚠️ Do not price a file by its *mean* lap — the distribution is what matters, and integrator's
+own history is the warning: calibration alone was **312 s of a 339 s run** while the mutants cost ~25 s
+(`mutate.mjs` §calibration). A mean over that is a number about the wrong thing.
 
 ### 7.4 · A required context can be ABSENT because it is PENDING — the benign twin of the matrix trap
 
