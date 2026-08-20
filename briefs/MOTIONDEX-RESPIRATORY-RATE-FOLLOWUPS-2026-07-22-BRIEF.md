@@ -8,7 +8,9 @@
 in `resp-acc-analysis.js`; none had a test, and the module was loaded by NEITHER runner, so each fix
 rested on the comment above it. It is wired into both lanes and the three failure modes are pinned by
 known answers that reproduce the brief's own published figures (1.19 % rate error · −36.7 dB at 0.8 Hz),
-each mutation-verified by reintroducing the original bug. **NOT done:** §2's proposed shared `nativeHz`
+each mutation-verified by reintroducing the original bug. **§5's window sweep is UNBLOCKED
+2026-08-20** — the "served constant never reaches the estimator" defect is resolved: the tool is a
+*built* artifact that inlines the DSP, so the sweep must rebuild rather than re-serve. **NOT done:** §2's proposed shared `nativeHz`
 spine helper — deliberately deferred, see §2a. §1 and §5–§9 are untouched.) · **Created:** 2026-07-22
 
 # Respiratory-rate follow-ups — what executing the estimator brief surfaced
@@ -371,6 +373,10 @@ IS the result, and it is more useful than any single window choice.
 
 > ### ⛔ ATTEMPTED 2026-08-20 — and the run is VOID. Read this before running it again.
 >
+> → **RESOLVED 2026-08-20 — skip to “MECHANISM RESOLVED” below for the cause and the working
+> recipe.** The two blocks that follow are kept verbatim because the reasoning in them is sound and the
+> conclusion is still wrong; that gap is the point.
+>
 > The sweep was run end to end through `resp-acc-analysis.html` (the shipped orchestration, only
 > `RR_WIN_SEC` patched in the served `motiondex-dsp.js`, verified byte-for-byte over HTTP each time)
 > across **45 / 60 / 90 / 120 / 180 s**, then once more at **20 s**. Every configuration returned:
@@ -456,6 +462,67 @@ IS the result, and it is more useful than any single window choice.
 > prints. (A Node-side probe was attempted as that control and did not produce one: the synthetic rows
 > it fed `respiratoryRate` yielded 0 epochs, so it measured nothing either — recorded so the next
 > attempt starts from a REAL night, not a hand-built array.)
+
+> ### ✅ MECHANISM RESOLVED 2026-08-20 — `resp-acc-analysis.html` is a BUILT tool and INLINES the DSP
+>
+> The section above says the mechanism "needs someone who knows this page better than a source read can
+> convey." It does not. **The page never loads `motiondex-dsp.js` at all.**
+>
+> `resp-acc-analysis.html` is one of the ten **generated** analysis tools (`tools/build-analysis.mjs`
+> `TOOLS`, line 62). All six of its scripts are `data-inline-src` blocks with the source text **embedded
+> at build time** — there is **no** `<script src="motiondex-dsp.js">` tag anywhere in the file:
+>
+> ```
+> clock.js                  41015 chars   RR_WIN_SEC refs 0
+> kernel-constants.js        2237          0
+> integrator-dsp.js        352630          0
+> motiondex-dsp.js          68103          2   ← defines RR_WIN_SEC = 60, frozen at build time
+> resp-acc-analysis.js      38626          0
+> resp-acc-analysis-app.js  49248          0
+> ```
+>
+> **Every observation follows, and each of the five exclusions is answered rather than contradicted:**
+>
+> | observation | why |
+> |---|---|
+> | `fetch('/motiondex-dsp.js')` returned `RR_WIN_SEC = 900` | true, and irrelevant — the static server serves a real file the page does not read |
+> | identical stats over 20–180 s | the executing constant was `60` on every run |
+> | 900 s did not trip `if (N < nWin) return {hasData:false}` | `nWin` was built from `60`, never from `900` |
+> | `src="motiondex-dsp.js?bust=900"` changed nothing | there is no script tag to bust |
+> | one unconditional `global.MOTIONDSP`, one `respiratoryRate` (`:1393`, `:877`) | correct **about the file on disk**, which is not the executing code |
+> | corpus re-staging DID move MAE 0.94 → 0.97 | the corpus is genuine runtime input; `RR_WIN_SEC` never was |
+>
+> **It could not have worked even in principle.** `motiondex-dsp.js` on disk is an **ES module** — it
+> ends `export const MOTIONDSP = window.MOTIONDSP;`. The builder strips those two `export` keywords when
+> inlining (the only diff between the file and the inlined block, 1434 → 1436 lines). A classic
+> `<script src>` tag cannot load the disk file as-is, so hand-adding the tag the harness assumed was
+> there would have failed too.
+>
+> **The repo's own gate says this, in one line, for free.** With the source patched and the tool not
+> rebuilt, `node tools/build-analysis.mjs --check` — which `npm run check` runs as `verify:analysis` —
+> exits 1 with `STALE (1): resp-acc-analysis.html` and prints `run: node tools/build-analysis.mjs`.
+> **The drift guard was available throughout and was not run.** CLAUDE.md §🔏 already names the three
+> generated trees and warns that `--check` alone is not the drift guard; the sweep hit the mirror-image
+> error — it patched a **source** and served a **built artifact**, and never asked the builder.
+>
+> **The correct sweep recipe (verified, not proposed):**
+>
+> ```sh
+> sed -i 's/RR_WIN_SEC = 60/RR_WIN_SEC = <W>/' motiondex-dsp.js
+> node tools/build-analysis.mjs        # → "bundled 1 of 10 tool(s): resp-acc-analysis.html"
+> # serve and run the REBUILT resp-acc-analysis.html
+> ```
+>
+> Demonstrated in a throwaway worktree at `W = 900`: the inlined constant moved `60 → 900` and exactly
+> one line of the built file changed. Revert the DSP before anything ships — the tunable must not
+> survive the sweep, as this section already requires.
+>
+> **The general shape, since this is the third instance.** The exclusion list is careful, complete, and
+> reasons entirely about *the file where the property is stored* rather than *the artifact that runs* —
+> the locality artefact. §5's sweep is re-runnable as soon as the recipe above is used; the broader claim
+> ("the tool's MAE cannot score any estimator change") is **WITHDRAWN** — it was an artifact of the
+> harness, not a property of the tool, and anything scored through this tool by varying a **corpus** or a
+> **runtime argument** was never affected. Only manipulations of module constants were inert.
 
 **Cheap to run, because the apparatus now exists.** `resp-acc-analysis.html` drives the shipped DSP over
 the corpus headlessly in ~54 s per pass (§11 of the parent), so the whole sweep is minutes of compute.
