@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2c+NhGS5baEp+dkR92QyPev/wf2fl0amYca/JbyYiCk=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8G0021kLB/8L6BJR/hptrWblaOWJZB9ikV63WK/9Pd8=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-KT37bp0y0ke8bMQOKs4x1LCCi2NIvgysOwzCVi14uPk=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-Zg0VuZposJeHUmYwdGlxPYv7/96XL9I90WDHTkIO/fI=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-g678JM9JDJbmkD1/sSKP5i30P209ddIHdyhTlCi2onk=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-znfSiWXixA/5Q5RqwKxfNRQARu3UmbSi5LZS809lzb8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2c+NhGS5baEp+dkR92QyPev/wf2fl0amYca/JbyYiCk=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8G0021kLB/8L6BJR/hptrWblaOWJZB9ikV63WK/9Pd8=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VAEb+wm/rwgpWp+kD4Shu82CAB0FL8gWS8JCyjkZfTU=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-Zg0VuZposJeHUmYwdGlxPYv7/96XL9I90WDHTkIO/fI=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-g678JM9JDJbmkD1/sSKP5i30P209ddIHdyhTlCi2onk=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-znfSiWXixA/5Q5RqwKxfNRQARu3UmbSi5LZS809lzb8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -30058,6 +30058,17 @@ __exports.PpgDex = window.PpgDex;
       }
       matchB[k] = found ? 1 : 0;
     }
+    /* TERM ACCUMULATORS — TCH-FUSED-ROBUST-HAT-FOLLOWUPS Do 5, step 1: "make bSQI observable".
+       The composite below is 0.30·kSQI + 0.28·matchB + 0.24·rrPlaus + 0.18·ampOK, and until now only
+       the COMPOSITE left this function. That made a dead term indistinguishable from a live one — a
+       bSQI stuck at 0 would silently run the score on 72 % of its intended inputs and nothing
+       downstream could see it. These are means over the record, computed in the loop that already
+       computes each term, so the cost is four adds per beat and the arithmetic below is untouched. */
+    let sumK = 0,
+      sumB = 0,
+      sumR = 0,
+      sumA = 0,
+      nFlat = 0;
     for (let k = 0; k < n; k++) {
       const i = peaks[k];
       const s = Math.max(0, i - Math.round(0.13 * fs)),
@@ -30101,8 +30112,27 @@ __exports.PpgDex = window.PpgDex;
       let q = 0.3 * kSQI + 0.28 * matchB[k] + 0.24 * rrPlaus + 0.18 * ampOK;
       if (flatBad) q *= 0.15;
       sqi[k] = Math.max(0, Math.min(1, q));
+      sumK += kSQI;
+      sumB += matchB[k];
+      sumR += rrPlaus;
+      sumA += ampOK;
+      if (flatBad) nFlat++;
     }
-    return { sqi, rr };
+    /* REFUSE, DO NOT FABRICATE (Clock Contract §2.6, applied to the term breakdown): with no beats
+       there is no mean, and a 0 would read as "measured, and the term is dead" — the exact confusion
+       this breakdown exists to end. Null-VALUED fields rather than a null object, matching the
+       lombScargle precedent a few hundred lines up: callers read `terms.bSQI` and a bare null would
+       crash them; the absence has to be visible without breaking the shape. */
+    const mean = n > 0 ? (x) => +(x / n).toFixed(4) : () => null;
+    const terms = {
+      n,
+      kSQI: mean(sumK),
+      bSQI: mean(sumB),
+      rrPlaus: mean(sumR),
+      ampOK: mean(sumA),
+      flatBadPct: n > 0 ? +((100 * nFlat) / n).toFixed(2) : null
+    };
+    return { sqi, rr, terms };
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -31494,7 +31524,7 @@ __exports.PpgDex = window.PpgDex;
       }
     }
     prog(46, 'Per-beat signal-quality scoring…');
-    const { sqi, rr } = computeSQI(int16, fs, peaks, times, peaksB);
+    const { sqi, rr, terms: sqiTerms } = computeSQI(int16, fs, peaks, times, peaksB);
     prog(56, 'Gating + NN interpolation…');
     const nnRes = buildNN(times, rr, sqi);
     // TCH-FUSED-ROBUST-HAT: exclude SUSTAINED-artifact windows the per-beat gate misses (a burst of
@@ -31830,6 +31860,10 @@ __exports.PpgDex = window.PpgDex;
       nEctopyCorrected: nnRes.nEctopyCorrected,
       cleanBeatPct: nnRes.cleanBeatPct,
       coveragePct: nnRes.coveragePct,
+      /* Per-term means of the composite per-beat SQI (Do 5 step 1). Additive: `cleanBeatPct` above is
+         a THRESHOLD count of the composite and cannot say WHICH term moved it, so a term pinned at 0
+         and a term doing real work produce the same `cleanBeatPct` story. */
+      sqiTerms,
       nGaps: nnRes.nGaps,
       artifactSec,
       spanMin: +(spanSec / 60).toFixed(1),
@@ -33254,6 +33288,12 @@ __exports.PpgDex = window.PpgDex;
        lets a test hand it crafted beats in which exactly ONE term differs, so each weight is pinned by a
        DIFFERENCE. Export-only: no call site changes, so this is compute-inert. */
     computeSQI,
+    /* Additive, and it is what makes `computeSQI` REACHABLE from outside for the bSQI term.
+       TCH-FUSED-ROBUST-HAT-FOLLOWUPS Do 5 finding 3: `computeSQI(int16, fs, peaks, times, peaksB)`
+       requires `peaksB`, and only `detectPeaksB` produces it — so exporting the scorer without its
+       second detector left the two-detector-agreement term unreachable, and a suspected-dead cue
+       unmeasurable, from any consumer or gate. Export-only: no call site changes, compute-inert. */
+    detectPeaksB,
     buildNN,
     beatConfidence,
     hrConfidence,
