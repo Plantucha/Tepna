@@ -1476,7 +1476,12 @@ async function runFile(file) {
         _dirty.set(abs, original);
         for (const mu of picked) {
           writeFileSync(abs, mu.apply());
-          jwrite({ k: jkey(mu) });
+          /* ONE start record per mutant. This line was duplicated (#1178), which only ever fired on
+             this serial fallback — so it survived every pooled run. `readJournalProgress` derives
+             `inFlight = started − done`, so a doubled START inflates it by one per mutant, and that
+             number is what the resume line reports as "will be re-tried or quarantined" and what the
+             inventory publishes. A degraded-mode run therefore reported roughly twice the in-flight
+             work it had. */
           jwrite({ k: jkey(mu) });
           classify(runSuite(sel(mu), ROOT, timeoutMs), mu);
         }
