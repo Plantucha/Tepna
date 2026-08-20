@@ -537,9 +537,22 @@ cost.
 **The prediction, stated so it can fail:** `integrator` ranks third on survivors but should **not** be
 among the worst legs, because #1579 converts its guard-mutant cluster — the exact class that collapsed
 the pool on 2026-08-20 — from full-price to a millisecond kill. `oxydex` should be the worst.
-**Falsified if** integrator's wall-clock still lands near the top once it runs with the guard group
-in-tree; that would mean the expensive class there is not (only) the guard cluster, and §7.2's account
-would need reopening rather than extending. ⚠️ Do not price a file by its *mean* lap — the distribution is what matters, and integrator's
+
+- **Observable: RANK by wall-clock, never absolute time.** A days-scale sweep shares the box with
+  whatever else runs on it, so absolute times are confounded by load that has nothing to do with the
+  hypothesis. Rank is robust to any uniform slowdown. **Falsified if `integrator` finishes in the top
+  three by wall-clock** among the fleet's files.
+- 🔴 **PRECONDITION, and it must be checked BEFORE any verdict is recorded: #1579's guard group has to
+  be in the sweeping checkout's tree when integrator's worker pool is built.** The sweep runs from a
+  checkout that was pinned when it started; if the group is not pulled in before that file begins, a
+  slow integrator **falsifies nothing** — it is simply the 2026-08-20 scenario re-run, and reading it
+  as a refutation would retire a correct account on evidence that never tested it. A fabricated
+  disproof is worse than a fabricated proof here, because nothing downstream re-examines a hypothesis
+  already marked dead.
+
+If the prediction fails **with** the precondition met, the expensive class at integrator is not (only)
+the guard cluster, and §7.2's account needs **reopening rather than extending** — that cost lands on
+§7.2, which is the right place for it, since §7.2 is what generated the prediction. ⚠️ Do not price a file by its *mean* lap — the distribution is what matters, and integrator's
 own history is the warning: calibration alone was **312 s of a 339 s run** while the mutants cost ~25 s
 (`mutate.mjs` §calibration). A mean over that is a number about the wrong thing.
 
