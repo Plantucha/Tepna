@@ -733,9 +733,13 @@ epochs, so a 13 s event (the median) costs 2 epochs even when it falls inside on
 
 ### What it does and does not settle
 
-**§9.6's escape hatch needs ~50 % of clean Deep epochs to hide unscored apnea. A desat-INDEPENDENT
-instrument, on these same nights, finds flow events touching at most 5.36 % of ALL epochs.** That is an
-order of magnitude short, and it is measured rather than assumed.
+🔴 **CORRECTED 2026-08-20, same day — the 5.36 % below was computed at the WRONG GRANULARITY and the
+"order of magnitude" claim it supported is WITHDRAWN. The corrected figures and the Deep-epoch join are
+in §11a; read that instead of this paragraph.**
+
+> ~~**§9.6's escape hatch needs ~50 % of clean Deep epochs to hide unscored apnea. A desat-INDEPENDENT
+> instrument, on these same nights, finds flow events touching at most 5.36 % of ALL epochs.** That is an
+> order of magnitude short, and it is measured rather than assumed.~~
 
 ⚠️ **It does not close the hatch outright, and the reason is worth stating precisely.** The bound is over
 *all* epochs; §9.6 is about *Deep* epochs specifically. If every residual event concentrated into Deep
@@ -769,3 +773,63 @@ The first two printed *"29 nights, 0 events"* and *"0 nights with a readable dur
 well-formed, both wrong, and the first would have been written up as *"the CPAP corpus has no event
 data"*. `CLAUDE.md` §👥.4b's family exactly. **Read the API, do not guess it; and never let a `catch`
 swallow the error that would have told you.**
+
+## 11a · CORRECTION and the Deep-epoch join — the hatch narrows to a factor of ~2, not 10 (2026-08-20)
+
+### The error
+
+§11 bounded contamination on **30-second** epochs. **This brief works in 5-minute epochs** — §2 says so
+explicitly (*"Tested link by link, per 5-min epoch"*, 156 + 1720 = 1876 epochs across 24 nights), and the
+ECGDex node exports it reads carry `timeseries.epochs[]` and `sleepStages[]` on a **5-min** grid.
+
+A 5-min window is ten times likelier to contain a 13 s event than a 30 s one, so the granularity was not a
+detail — it was most of the answer. Recomputed, counting **distinct epochs containing ≥1 flow event**:
+
+| granularity | epochs | touched | share |
+|---|---|---|---|
+| 30 s | 22336 | 853 | **3.82 %** |
+| **5 min — the brief's own unit** | **2221** | **402** | **18.1 %** |
+
+(Per night, the 5-min share runs 5.8 % – **40.8 %**, median 16.9 %.)
+
+**18.1 % against §9.6's ~50 % is a factor of 2.8, not an order of magnitude.** The withdrawn sentence
+overstated the result, and it did so because I picked an epoch length without checking the one the brief
+uses — an assumption that happened to flatter the conclusion.
+
+### The Deep-epoch join, which is the number §9.6 actually asks for
+
+§11 flagged the open risk: the bound was over *all* epochs, and if events concentrated into Deep sleep the
+Deep share could approach 50 %. **Measured — they do not concentrate.** 29 nights joined
+(`ECGDex_<date>.node-export.json` `sleepStages` × `_EVE.edf` absolute event times), swept over ±45 min of
+clock offset so the ResMed skew risk is bounded rather than assumed away:
+
+| clock shift (min) | Deep epochs | Deep with an event | **Deep %** | non-Deep % |
+|---|---|---|---|---|
+| −45 | 345 | 38 | 11.0 | 13.3 |
+| −30 | 345 | 46 | 13.3 | 13.5 |
+| −15 | 345 | 64 | 18.6 | 12.9 |
+| **0** | 345 | 58 | **16.8** | 13.8 |
+| +15 | 345 | 61 | 17.7 | 14.1 |
+| +30 | 345 | 65 | 18.8 | 15.1 |
+| +45 | 345 | 90 | **26.1** | 14.7 |
+
+**Three readings:**
+
+1. **Deep is NOT enriched for flow events** — 16.8 % against 13.8 % non-Deep at nominal alignment, and
+   non-Deep stays flat at 12.9–15.1 % across every shift. The concentration scenario §11 raised as the
+   reason it could not close the hatch is **empirically absent**.
+2. **The worst case over ANY tested misalignment is 26.1 %.** Quoting that rather than the nominal 16.8 %
+   makes the conclusion robust to the 42-minute ResMed skew that motivated the sweep — no per-night
+   alignment proof is needed for the bound to hold.
+3. **So §9.6's hatch requires roughly twice the contamination that a desat-independent instrument can
+   find, under the least favourable alignment.** Narrowed substantially; **not closed**. A factor of 2 is
+   not a factor of 10, and the honest verdict is that the label-noise explanation is *unlikely* rather
+   than *excluded*.
+
+⚠️ Every limit from §11 still applies unchanged: a **treated** patient (residual events are the therapy
+working, never an apnea prevalence), and a bound conditional on the **ResMed's own sensitivity**.
+
+⚠️ The shift sweep is a sensitivity analysis, **not** a clock calibration — it does not identify the true
+offset. Deep % varies 11.0 → 26.1 across it, which is larger than binomial noise on 345 epochs (SE ≈ 2 pp),
+so alignment does carry real signal. Establishing the true per-night offset would tighten the number; it
+cannot loosen it past 26.1 %.
