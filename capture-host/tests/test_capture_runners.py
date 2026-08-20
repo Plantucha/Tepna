@@ -5170,3 +5170,26 @@ def test_run_oxyii_short_battery_reply_logs_blanks_not_fabrications(tmp_path, mo
     rows = _rtclog_rows(tmp_path)
     batt = next(r for r in rows if r[1] == "battery")
     assert batt[4] == "87" and batt[5] == "" and batt[6] == ""
+
+
+def test_run_oxyii_unparseable_battery_reply_writes_no_row(tmp_path, monkeypatch):
+    """A 1-byte 0xE4 reply parses to None: no sidecar row at all — a row of blanks would claim a
+    reading happened when nothing was decoded."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_LAST_RTC_OFF.clear()
+    c = FakeGattClient()
+    def on(data):
+        op = data[1]
+        if op == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif op == oxyii.OP_GET_INFO:
+            c.notify(0, _o2_info_reply())
+        elif op == oxyii.OP_GET_BATTERY:
+            c.notify(0, oxyii.encode(oxyii.OP_GET_BATTERY, bytes([0])))   # 1 byte — unparseable
+    c.on_live = on
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    rows = _rtclog_rows(tmp_path)
+    assert not any(r[1] == "battery" for r in rows)
+    assert any(r[1] == "read" for r in rows), "the info read still lands — only the battery row is absent"
