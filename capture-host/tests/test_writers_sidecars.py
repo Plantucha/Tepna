@@ -13,7 +13,7 @@ import datetime as dt
 
 import pytest
 
-from writers import (HostClockLogWriter, LinkLogWriter, OxyFrameLogWriter, Spo2CsvWriter,
+from writers import (HostClockLogWriter, LinkLogWriter, OxyFrameLogWriter, RingClockLogWriter, Spo2CsvWriter,
                      OXYFRAME_COLUMNS, OXYFRAME_HEADER)
 
 WHEN = dt.datetime(2026, 7, 19, 3, 4, 5, 678000)
@@ -598,3 +598,57 @@ def test_oxyframe_columns_are_append_only_at_the_known_prefix():
         "Phone timestamp", "duration_s", "pi_pct", "motion", "spo2", "pr", "contact", "battery_pct",
         "batt_state", "flag")
     assert len(set(OXYFRAME_COLUMNS)) == len(OXYFRAME_COLUMNS), "duplicate column name"
+
+
+# ── RingClockLogWriter — the ring's RTC history on disk ─────────────────────────────────────────────
+def test_ring_clock_log_header_and_blank_discipline(tmp_path):
+    """Blanks, never fabricated zeros: a push row has no offset (the NEXT read verifies it), and a
+    read row has no battery fields."""
+    w = RingClockLogWriter(str(tmp_path / "x_RTCLOG.csv"))
+    w.write(dt.datetime(2026, 8, 20, 5, 0, 0), "push")
+    w.write(dt.datetime(2026, 8, 20, 5, 0, 2), "read", rtc_offset_s=0.3)
+    w.write(dt.datetime(2026, 8, 20, 5, 0, 3), "battery", battery_state=0, battery_level=100,
+            battery_raw2=242, battery_raw3=16)
+    w.close()
+    lines = (tmp_path / "x_RTCLOG.csv").read_text().splitlines()
+    assert lines[0] == "Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3"
+    assert lines[1].endswith(";push;;;;;"), lines[1]
+    assert ";read;0.3;;;;" in lines[2]
+    assert ";battery;;0;100;242;16" in lines[3]
+    assert w.rows == 3
+
+
+def test_ring_clock_log_close_is_guarded(tmp_path):
+    """Same guarantee as every sibling: flush/close after close must swallow, not raise — including a
+    handle whose close itself raises (a torn filesystem), which a double-close alone never exercises."""
+    w = RingClockLogWriter(str(tmp_path / "y_RTCLOG.csv"))
+    w.write(dt.datetime(2026, 8, 20, 5, 0, 0), "read", rtc_offset_s=-1.2)
+    w.close()
+    w.flush()
+    w.close()
+
+    class _Torn:
+        def flush(self):
+            raise OSError("gone")
+        def close(self):
+            raise OSError("gone")
+        def fileno(self):
+            raise OSError("gone")
+    w2 = RingClockLogWriter(str(tmp_path / "y2_RTCLOG.csv"))
+    w2._fh.close()
+    w2._fh = _Torn()
+    w2.flush()                                   # OSError swallowed
+    w2.close()                                   # OSError swallowed
+
+
+def test_ring_clock_log_flush_interval(tmp_path, monkeypatch):
+    """Rows inside the interval buffer; a row past it flushes — the same cadence contract as LinkLog."""
+    import writers as _writers_mod
+    t = [1000.0]
+    monkeypatch.setattr(_writers_mod._time, "monotonic", lambda: t[0])
+    w = RingClockLogWriter(str(tmp_path / "z_RTCLOG.csv"), flush_interval=10, fsync=False)
+    w.write(dt.datetime(2026, 8, 20, 5, 0, 0), "read", rtc_offset_s=0.1)
+    t[0] = 1011.0
+    w.write(dt.datetime(2026, 8, 20, 5, 0, 30), "read", rtc_offset_s=0.2)
+    assert "0.2" in (tmp_path / "z_RTCLOG.csv").read_text()
+    w.close()
