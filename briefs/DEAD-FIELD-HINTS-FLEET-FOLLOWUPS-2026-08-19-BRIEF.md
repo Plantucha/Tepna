@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-19 · **Follows:** `DEAD-FIELD-HINTS-FLEET-2026-08-19-BRIEF.md` (DONE — 2026-08-19)
+**Status:** DONE — 2026-08-20 ((b) executed; (c) REFUTED by measurement) · **Created:** 2026-08-19 · **Follows:** `DEAD-FIELD-HINTS-FLEET-2026-08-19-BRIEF.md` (DONE — 2026-08-19)
 
 # HRVDex's legacy profile DOM is gone, and more than the label writes is unreachable
 
@@ -46,6 +46,46 @@ these blocks by the same reflex would repeat exactly that, one level up.
 
 **(b) is the lean default.** (c) is only worth building if the measured false-positive rate is near
 zero — establish that before writing the gate, not after.
+
+## 3a · (c) is REFUTED — measured 2026-08-20, before building it
+
+The brief required the false-positive rate be measured FIRST. It was, over all 8 nodes:
+
+```
+generalised rule: any getElementById literal vs its own node's ids
+  total literals   284
+  unresolved        94   = 33.1 %
+```
+
+**One in three would be a false positive**, and the cause is structural rather than fixable: the
+unresolved set is dominated by ids the ENGINE INJECTS at runtime — `metric-registry-css`,
+`dex-profile-css` and siblings, present in every node. The `lbl_` prefix was safe precisely because
+nothing creates one dynamically (re-measured three ways by a peer: no concatenation, no template
+literal, none in markup). **That property does not generalise, so neither does the rule.**
+
+At 33 % this is exactly the *"noisy red that gets routed around rather than read"* the brief
+predicted. **(c) is closed.** Reopening it needs a way to tell an INJECTED id from a MISSING one,
+which is a different problem from the one the gate solves.
+
+## 3b · (b) EXECUTED — 2026-08-20
+
+Three guards now state why they never pass, naming the absent id and the date:
+
+| site | guard | absent id |
+|---|---|---|
+| `applyAgeNorms` | `if (!weightEl || !heightEl) return;` | `prof_weight` / `prof_height` |
+| `updateProfile` | persistence branch | `prof_age` |
+| HR zones | `const pz = …` | `profileZones` |
+
+`renderANSAgeCard` already carried its rationale (card DOM deleted 2026-06-21) and was left alone —
+a fourth comment there would have been noise.
+
+**Kept, not deleted, for the reason (a) was rejected:** the guards are what make these functions safe
+if a per-field profile surface is ever restored. Deleting them trades a no-op for a crash.
+
+⚠️ **Export-inert, PROVEN not asserted:** `computeHash` 7fe268e6b141 unchanged across the re-bundle
+(`manifestHash` 0721aadb5190 → 44d68225a833), and `verifiedUnder` still matches — so no fixture
+re-verification is owed. Comments in a `*-profile.js` sit outside the compute closure.
 
 ## 4 · Done when
 

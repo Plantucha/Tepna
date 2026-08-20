@@ -275,6 +275,12 @@ function applyAgeNorms(useIdeal) {
   const norm = POP_NORMS[p.sex]?.[band];
   if (!norm) return;
 
+  /* UNREACHABLE TAIL, deliberately kept. HRVDex.src.html has defined NO `prof_*` id since the
+     unified DexProfile panel replaced the per-field form, so this guard always returns and every
+     line below it is dead on the current surface (measured 2026-08-19,
+     DEAD-FIELD-HINTS-FLEET-FOLLOWUPS option (b)). Kept rather than deleted because it is what makes
+     the function safe if a per-field profile surface is ever restored — deleting it would trade a
+     no-op for a crash. Do not "simplify" this away without re-checking the ids. */
   const weightEl = document.getElementById('prof_weight');
   const heightEl = document.getElementById('prof_height');
   if (!weightEl || !heightEl) return;
@@ -297,6 +303,9 @@ function updateProfile() {
   // across the suite. Override fields keep `0 = auto` (stored only when set).
   // Skipped during load (`_hrvLoading`) so HTML defaults never contaminate the record.
   if (DXP()) {
+    /* `prof_age` is absent from HRVDex.src.html (unified panel, 2026-08-19) so this branch does
+       not run on the current surface; the DexProfile record is written by the panel itself. Guard
+       kept for the restored-surface case — see applyAgeNorms above. */
     if (!_hrvLoading && document.getElementById('prof_age'))
       try {
         const g = (id) => {
@@ -517,6 +526,8 @@ function updateProfile() {
   }
 
   // Populate HR zones separately
+  /* `profileZones` is absent from HRVDex.src.html (2026-08-19), so the HR-zone table below never
+     renders on the current surface. Guarded, not deleted — same reasoning as applyAgeNorms. */
   const pz = document.getElementById('profileZones');
   if (pz) {
     const zr = (label, lo, hi, cls) => `<div class="prof-zone-row ${cls}"><span class="prof-zone-label">${label}</span><span class="prof-zone-val">${lo}–${hi} bpm</span></div>`;
