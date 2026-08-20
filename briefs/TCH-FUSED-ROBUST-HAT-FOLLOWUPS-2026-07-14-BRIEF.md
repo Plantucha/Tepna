@@ -139,6 +139,66 @@ the detector (or surface the per-term SQI breakdown), measure the corpus, and on
 adaptive threshold is worth building. Fixing a detector whose output nobody has measured is how the
 0-leverage changes in Do 2 and Do 4 nearly got built.
 
+### ✅ Do 5 step 1 EXECUTED 2026-08-20 — observable, measured, and finding 6 is REFUTED as written
+
+Both routes were taken, because they close different halves: `detectPeaksB` is now **exported** (finding
+3's blocker — the exported `computeSQI` requires `peaksB`, which only that detector produces, so the
+scorer was reachable and the term was not), and `computeSQI` now returns a **`terms` breakdown** —
+`{ n, kSQI, bSQI, rrPlaus, ampOK, flatBadPct }`, means over the record — surfaced by `analyze` as
+`sqiTerms`. Both additive; export projection untouched, so no fixture output moves. Gated by
+`ecgdex-dsp · sqi · terms-observable` (19 assertions), which deliberately does **not** assert that bSQI is
+healthy: a gate demanding a high bSQI would fail on exactly the corrupted input the term exists to flag.
+It gates that the number is reachable, in range, and **responsive** — a dead term and a live one must
+produce different values. With no beats every term is `null`, never 0, per the `lombScargle` precedent in
+the same file.
+
+**Finding 6 said `bSQI` is *"silently ≈ 0 corpus-wide"*. Measured over 16 real H10 segments, 30,306
+beats, it is not:**
+
+| term | min | p25 | median | p75 | max |
+|---|---|---|---|---|---|
+| **bSQI** | 0.0019 | 0.8102 | **0.9951** | 0.9991 | 1.0000 |
+| kSQI | 0.3262 | 0.3694 | 0.4572 | 0.4785 | 0.5199 |
+| rrPlaus | 0.9930 | 0.9994 | 1.0000 | 1.0000 | 1.0000 |
+| ampOK | 0.9991 | 1.0000 | 1.0000 | 1.0000 | 1.0000 |
+
+bSQI is the **second-healthiest** term on real data. The one running structurally low is **kSQI**, median
+0.457 — i.e. the composite is losing ~0.16 of its 0.30 kurtosis share on every clean beat, which is a
+different question from the one Do 5 asks and is recorded here rather than acted on.
+
+### ⚠️ But the finding survives in a sharper form, on 1 segment in 16 — and `cleanBeatPct` cannot see it
+
+`…_20260625_215300_ECG_part01of10` reads **bSQI = 0.0019** — detector B confirms **4 of 2074** beats —
+while `cleanBeatPct` reads **99.8** and every other term is ~1. The composite still clears `sqiThr` 0.3
+(0.30·0.47 + 0 + 0.24 + 0.18 ≈ 0.56), so the whole HRV chain proceeds on 72 % of its intended inputs and
+**nothing downstream shows it**. That is finding 6's real content: not a corpus-wide zero, but a silent,
+segment-scoped collapse invisible to the only quality number that was published.
+
+**The mechanism is measured, not inferred:**
+
+| segment | A-peaks | B-peaks | max \|bp\| | median R amp | ratio | B's floor `0.18·max` |
+|---|---|---|---|---|---|---|
+| part01of10 | 2074 | **7** | 2423 | 247 | **9.8** | **436 — above nearly every real R peak** |
+| part08of10 | 2089 | 2486 | 277 | 229 | 1.2 | 50 |
+
+`detectPeaksB` anchors its threshold to the **global** maximum (`thr = 0.35·mx`) and floors its running
+envelope at `Math.max(0.3·env, 0.18·mx)`. **The floor defeats the adaptation**: one artifact 10× the
+median R amplitude lifts `0.18·mx` above the entire rest of the record, and the detector goes silent for
+the whole segment. The adaptive envelope is present and cannot act.
+
+**So Do 5's prescription is now justified and precisely scoped** — the fix is to make B's floor local
+(a running amplitude quantile) rather than a fraction of the global max, not to rewrite the detector.
+Leverage: 1 segment in 16 (~6 %), on which 0.28 of the composite is silently zero. **Deliberately NOT
+built here**, per this brief's own sequencing and because it moves the composite for real recordings —
+that is a behavioural change owing its own before/after corpus measurement, its own gates and a
+`regen-ecgdex-goldens` pass.
+
+⚠️ **Scope of the measurement, stated so it is not over-read:** 16 segments from **one device** (H10
+`02849638`), top-level `uploads/` only, ≥1 MB. It is enough to refute a *"corpus-wide ≈ 0"* claim — one
+healthy segment does that — and enough to establish the mechanism, which reproduces exactly. It is **not**
+a prevalence estimate; 1-in-16 is a count, not a rate.
+
+
 ⚠ **Do not "verify" this by re-implementing `detectPeaksB` outside the module.** That measures the
 reimplementation, not the shipped detector — the same trap as a fake written by reading the implementation
 (`POLAR-ONBOARD-BACKUP-FOLLOWUPS` §5). It was considered and rejected here.

@@ -860,6 +860,17 @@
       }
       matchB[k] = found ? 1 : 0;
     }
+    /* TERM ACCUMULATORS — TCH-FUSED-ROBUST-HAT-FOLLOWUPS Do 5, step 1: "make bSQI observable".
+       The composite below is 0.30·kSQI + 0.28·matchB + 0.24·rrPlaus + 0.18·ampOK, and until now only
+       the COMPOSITE left this function. That made a dead term indistinguishable from a live one — a
+       bSQI stuck at 0 would silently run the score on 72 % of its intended inputs and nothing
+       downstream could see it. These are means over the record, computed in the loop that already
+       computes each term, so the cost is four adds per beat and the arithmetic below is untouched. */
+    let sumK = 0,
+      sumB = 0,
+      sumR = 0,
+      sumA = 0,
+      nFlat = 0;
     for (let k = 0; k < n; k++) {
       const i = peaks[k];
       const s = Math.max(0, i - Math.round(0.13 * fs)),
@@ -903,8 +914,27 @@
       let q = 0.3 * kSQI + 0.28 * matchB[k] + 0.24 * rrPlaus + 0.18 * ampOK;
       if (flatBad) q *= 0.15;
       sqi[k] = Math.max(0, Math.min(1, q));
+      sumK += kSQI;
+      sumB += matchB[k];
+      sumR += rrPlaus;
+      sumA += ampOK;
+      if (flatBad) nFlat++;
     }
-    return { sqi, rr };
+    /* REFUSE, DO NOT FABRICATE (Clock Contract §2.6, applied to the term breakdown): with no beats
+       there is no mean, and a 0 would read as "measured, and the term is dead" — the exact confusion
+       this breakdown exists to end. Null-VALUED fields rather than a null object, matching the
+       lombScargle precedent a few hundred lines up: callers read `terms.bSQI` and a bare null would
+       crash them; the absence has to be visible without breaking the shape. */
+    const mean = n > 0 ? (x) => +(x / n).toFixed(4) : () => null;
+    const terms = {
+      n,
+      kSQI: mean(sumK),
+      bSQI: mean(sumB),
+      rrPlaus: mean(sumR),
+      ampOK: mean(sumA),
+      flatBadPct: n > 0 ? +((100 * nFlat) / n).toFixed(2) : null
+    };
+    return { sqi, rr, terms };
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -2296,7 +2326,7 @@
       }
     }
     prog(46, 'Per-beat signal-quality scoring…');
-    const { sqi, rr } = computeSQI(int16, fs, peaks, times, peaksB);
+    const { sqi, rr, terms: sqiTerms } = computeSQI(int16, fs, peaks, times, peaksB);
     prog(56, 'Gating + NN interpolation…');
     const nnRes = buildNN(times, rr, sqi);
     // TCH-FUSED-ROBUST-HAT: exclude SUSTAINED-artifact windows the per-beat gate misses (a burst of
@@ -2632,6 +2662,10 @@
       nEctopyCorrected: nnRes.nEctopyCorrected,
       cleanBeatPct: nnRes.cleanBeatPct,
       coveragePct: nnRes.coveragePct,
+      /* Per-term means of the composite per-beat SQI (Do 5 step 1). Additive: `cleanBeatPct` above is
+         a THRESHOLD count of the composite and cannot say WHICH term moved it, so a term pinned at 0
+         and a term doing real work produce the same `cleanBeatPct` story. */
+      sqiTerms,
       nGaps: nnRes.nGaps,
       artifactSec,
       spanMin: +(spanSec / 60).toFixed(1),
@@ -4056,6 +4090,12 @@
        lets a test hand it crafted beats in which exactly ONE term differs, so each weight is pinned by a
        DIFFERENCE. Export-only: no call site changes, so this is compute-inert. */
     computeSQI,
+    /* Additive, and it is what makes `computeSQI` REACHABLE from outside for the bSQI term.
+       TCH-FUSED-ROBUST-HAT-FOLLOWUPS Do 5 finding 3: `computeSQI(int16, fs, peaks, times, peaksB)`
+       requires `peaksB`, and only `detectPeaksB` produces it — so exporting the scorer without its
+       second detector left the two-detector-agreement term unreachable, and a suspected-dead cue
+       unmeasurable, from any consumer or gate. Export-only: no call site changes, compute-inert. */
+    detectPeaksB,
     buildNN,
     beatConfidence,
     hrConfidence,

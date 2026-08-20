@@ -10439,6 +10439,102 @@
       T.ok('CONTROL · the clean beat sits well above sqiThr 0.3', clean > 0.6, 'clean=' + clean.toFixed(4));
     });
 
+    /* ════ THE SQI TERM BREAKDOWN IS OBSERVABLE — TCH-FUSED-ROBUST-HAT-FOLLOWUPS Do 5, step 1 ════
+       Do 5 ("revive bSQI") sat unexecuted because the assertion behind it — bSQI is *"silently ≈ 0
+       corpus-wide"* — COULD NOT BE CHECKED. Three facts, the third blocking the other two: bSQI appears
+       in no export; it carries 0.28 of the composite, the second-largest term; and it was unreachable
+       from outside, because `detectPeaksB` was module-internal while the exported
+       `computeSQI(int16, fs, peaks, times, peaksB)` REQUIRES the peaks only that detector produces.
+
+       So the first step is not "fix the detector" — it is make the term OBSERVABLE, which is what these
+       legs gate. Note what the group does NOT do: it does not assert bSQI is healthy. A gate that
+       demanded a high bSQI would fail on exactly the corrupted input the term exists to flag. It gates
+       that the number is REACHABLE, in RANGE, and RESPONSIVE — that a dead term and a live one produce
+       different values — which is the property whose absence hid the question for a month.
+
+       The distinction matters because `cleanBeatPct` already existed and could not answer it: it is a
+       THRESHOLD count of the composite, so a term pinned at 0 and a term doing real work move it the
+       same way. Only the per-term means separate them. */
+    group('the per-beat SQI terms are reachable, in range, and responsive — Do 5 step 1', 'ecgdex-dsp · sqi · terms-observable', function (T) {
+      var D = env.ECGDSP;
+      if (!D || typeof D.computeSQI !== 'function') {
+        T.skip('env.ECGDSP.computeSQI available', 'ECGDSP.computeSQI not exposed in this runner');
+        return;
+      }
+
+      /* ── FINDING 3, the blocker itself: `detectPeaksB` must be exported, or bSQI has no producer and
+            `computeSQI`'s fifth argument can only be faked. Faking it is what every existing test does
+            (`Int32Array.from(t.peaks)` — detector A standing in for detector B), which pins the WEIGHT
+            perfectly and says nothing about what the real detector finds. */
+      T.ok('ECGDSP.detectPeaksB is exported — bSQI now has a reachable producer', typeof D.detectPeaksB === 'function', 'typeof=' + typeof D.detectPeaksB);
+
+      var FS = 130,
+        N = 40,
+        PER = FS;
+      // A clean triangular-QRS train on a silent baseline — the same construction the weights group
+      // uses, long enough that detector B's running envelope settles.
+      var len = N * PER + PER,
+        x = new Int16Array(len),
+        bp = new Float64Array(len),
+        peaks = [],
+        times = [];
+      for (var k = 0; k < N; k++) {
+        var i = PER / 2 + k * PER;
+        for (var d = -4; d <= 4; d++) {
+          var v = Math.round(1000 * (1 - Math.abs(d) / 5));
+          x[i + d] = v;
+          bp[i + d] = v;
+        }
+        peaks.push(i);
+        times.push(i / FS);
+      }
+      var P = Int32Array.from(peaks),
+        Tm = Float64Array.from(times);
+
+      /* ── the real detector on the real band-passed signal — the path that had no caller. */
+      var B = D.detectPeaksB(bp, FS);
+      T.ok('detector B finds beats on a clean train (it is not returning empty)', B.length >= N - 2, 'B=' + B.length + ' of ' + N);
+
+      var live = D.computeSQI(x, FS, P, Tm, B).terms;
+      T.ok('computeSQI returns a `terms` breakdown', live && typeof live === 'object', 'terms=' + JSON.stringify(live));
+      T.eq('…carrying the beat count it was computed over', live.n, N);
+
+      // Every term is a fraction. A term outside [0,1] would mean the mean is being taken over the
+      // wrong denominator — the failure that makes a breakdown worse than none.
+      ['kSQI', 'bSQI', 'rrPlaus', 'ampOK'].forEach(function (key) {
+        T.ok('term ' + key + ' is a fraction in [0,1]', live[key] >= 0 && live[key] <= 1, key + '=' + live[key]);
+      });
+
+      /* ── RESPONSIVE, the leg that makes the rest non-vacuous. Hand the SAME beats a detector-B set
+            that confirms nothing: bSQI must go to 0 while the other three terms do not move. A
+            breakdown that reported a constant would satisfy every leg above and answer nothing. */
+      var dead = D.computeSQI(x, FS, P, Tm, Int32Array.from([])).terms;
+      T.eq('bSQI is 0 when detector B confirms no beat', dead.bSQI, 0);
+      T.ok('…and it was NOT 0 with the real detector — the term discriminates', live.bSQI > 0.9, 'live bSQI=' + live.bSQI);
+      T.eq('…while kSQI is unmoved by detector B (the terms are separable)', dead.kSQI, live.kSQI);
+      T.eq('…and so is rrPlaus', dead.rrPlaus, live.rrPlaus);
+      T.eq('…and so is ampOK', dead.ampOK, live.ampOK);
+
+      /* ── the refusal, mirroring the lombScargle precedent in the same file: with no beats there is no
+            mean, and a 0 would read as "measured, and the term is dead" — precisely the confusion this
+            breakdown exists to end. */
+      var empty = D.computeSQI(x, FS, Int32Array.from([]), Float64Array.from([]), B).terms;
+      T.eq('no beats ⇒ n = 0', empty.n, 0);
+      T.eq('…and bSQI is NULL, not 0 — an absent measurement, never a default', empty.bSQI, null);
+      T.eq('…same for kSQI', empty.kSQI, null);
+      T.eq('…and flatBadPct', empty.flatBadPct, null);
+
+      /* ── `analyze` surfaces it, so the corpus can be measured without reaching into internals. */
+      if (typeof D.genSynthetic === 'function' && typeof D.analyze === 'function') {
+        var syn = D.genSynthetic({ minutes: 3, seed: 42 });
+        var r = D.analyze({ int16: syn.int16, fs: syn.fs });
+        T.ok('analyze() surfaces sqiTerms', r.sqiTerms && typeof r.sqiTerms.bSQI === 'number', 'sqiTerms=' + JSON.stringify(r.sqiTerms));
+        T.ok('…over every beat it scored', r.sqiTerms.n > 100, 'n=' + r.sqiTerms.n);
+      } else {
+        T.skip('analyze() surfaces sqiTerms', 'genSynthetic/analyze not exposed in this runner');
+      }
+    });
+
     /* ════ THE EDR RESPIRATION AUTOCORR WINDOW — deep-scout §EP-rest, the slow-respiration fixture ════
        `cardiorespCoupling` measures respiration DIRECTLY off the EDR band by autocorrelation:
        `_autocorrPeriod(edrB, FS, 2.5, 10)` — periods 2.5–10 s, i.e. 6–24 breaths/min — and surfaces it as
