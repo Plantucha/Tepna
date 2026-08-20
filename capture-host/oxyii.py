@@ -513,19 +513,38 @@ def battery_frame(seq: int = 0) -> bytes:
 
 
 def parse_get_info(payload: bytes) -> dict | None:
-    """cmd=0xE1 reply (60-byte plaintext) → device identity, or None if too short.
+    """cmd=0xE1 reply (60-byte plaintext) → device identity + the ring's RTC, or None if too short.
 
     Firmware version is the field that matters operationally: this device's behaviour is
     firmware-dependent (the F2 MTU gate differs between 2D010001/2/3), so a capture should record which
-    firmware produced it. Only firmware + serial are surfaced; everything else stays in `raw` because
-    the layout is only partially verified — offsets 4–7 / 22–23 / 32–35 do not vary across the upstream
-    author's captures and must not be relied on."""
+    firmware produced it.
+
+    THE RTC IS READABLE — bytes [24:31], measured on device 2592302100 2026-08-19. The layout is
+    EXACTLY set_time_frame's write payload: year u16 LE, month, day, hour, minute, second (local civil
+    time, stored verbatim, no timezone). Proven two independent ways: a differential double-read
+    (probe_rtc_read: byte[30] advanced by the gap mod 60 and byte[29] carried) and an absolute read 4 min
+    after a 0xC0 sync matching the host wall clock to the second. So time can be PULLED from the ring,
+    not only pushed — a one-read drift check against the NTP-disciplined host (probe_rtc_read --clock).
+    `rtc` carries the six components, or None when any is out of range (a fabricated instant must be
+    visible, never silently plausible — Clock Contract §2.7). Consumers build a floating tMs from it via
+    Date.UTC semantics; nothing here converts zones.
+
+    Remaining bytes stay unmapped ON EVIDENCE: a 13-read × 10 s classifier (2026-08-19) found every
+    other offset CONSTANT — [0:9]/[17:24] device constants, [31:33] u16 LE = 2016 (a frozen date-year;
+    semantics unverified — do not decode), [33:37]/[48:60] zeros. [37] is the serial length and
+    [38:38+len] the WIRE serial (2592302100 here) — note this is NOT the BLE-name-derived id
+    (S8AW2100) the capture filenames use."""
     if len(payload) < 48:
         return None
     fw = payload[9:17].decode("ascii", "replace").rstrip("\x00")
     sn_len = payload[37]
     sn = payload[38:38 + sn_len].decode("ascii", "replace") if 0 < sn_len and 38 + sn_len <= len(payload) else ""
-    return {"firmware": fw, "serial": sn, "raw_len": len(payload)}
+    y = payload[24] | (payload[25] << 8)
+    mo, d, h, mi, s = payload[26], payload[27], payload[28], payload[29], payload[30]
+    rtc = None
+    if 2000 <= y <= 2255 and 1 <= mo <= 12 and 1 <= d <= 31 and h <= 23 and mi <= 59 and s <= 59:
+        rtc = {"year": y, "month": mo, "day": d, "hour": h, "minute": mi, "second": s}
+    return {"firmware": fw, "serial": sn, "rtc": rtc, "raw_len": len(payload)}
 
 
 # GET_CONFIG field layout (first 20 of the 40-byte reply). Bytes 20+ are firmware-variant; opaque.
