@@ -1151,7 +1151,7 @@ async def list_adapters() -> list[dict]:
     try:
         p = await asyncio.create_subprocess_exec(
             "hciconfig", "-a", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
-        out, _ = await asyncio.wait_for(p.communicate(), timeout=8)
+        out, _ = await proc_util.communicate(p, 8)   # bounds AND kills+reaps the child on timeout
         return parse_hciconfig(out.decode("utf-8", "replace"))
     except Exception as e:
         log.debug("list_adapters: %r", e)

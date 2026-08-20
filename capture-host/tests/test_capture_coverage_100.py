@@ -1881,7 +1881,7 @@ _HCI_TWO = ("hci1:\tType: Primary  Bus: USB\n\tBD Address: F0:D5:BF:1E:79:21\n\t
 
 def test_list_adapters_parses_the_probe(monkeypatch):
     class _P:
-        async def communicate(self):
+        async def communicate(self, stdin=None):     # proc_util.communicate calls proc.communicate(stdin)
             return (_HCI_TWO.encode(), b"")
 
     async def fake_exec(*a, **k):
