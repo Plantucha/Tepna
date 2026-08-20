@@ -67,7 +67,10 @@ const BUILD_DATE = (() => {
   }
   return newest.date;
 })();
-const CHECK = process.argv.includes('--check');
+// `--list-owned` prints the docs/ paths this builder WRITES and exits (consumed by
+// tools/rebase-safe.mjs, which must not guess). It implies CHECK so the listing run never writes.
+const LIST_OWNED = process.argv.includes('--list-owned');
+const CHECK = process.argv.includes('--check') || LIST_OWNED;
 const FORCE_DELINK = process.argv.includes('--force-delink');
 
 // ── walk a dir for files (relative paths) ───────────────────────────────────
@@ -267,6 +270,24 @@ function syncAsset(rel) {
   }
 }
 for (const rel of assetFiles) syncAsset(rel);
+
+// ── `--list-owned` — THIS BUILDER'S OWNED SET, so no other tool has to guess it ───────────────
+// WHY. `tools/rebase-safe.mjs` auto-resolves a rebase conflict in a GENERATED path (neither side is
+// authoritative; you take either and rebuild) and STOPS on a source one. It classified the whole
+// `docs/` prefix as generated — but this builder writes only what has a ROOT TWIN, plus the Phase-2
+// artifacts. The 30 archival `.md` under docs/ (docs/COMPLIANCE/*, EVENT-LEXICON.md, the specs) have
+// no twin: `.md` is excluded from `assetFiles` and was never in `htmlPages`, so neither loop touches
+// them. Measured 2026-08-05: modify docs/EVENT-LEXICON.md and `--check` still reports "docs/ current",
+// and a full run leaves the edit in place. Under the old prefix rule a conflict there was auto-resolved
+// to the base's copy and the rebuild could not put it back — the exact silent revert rebase-safe
+// exists to prevent, performed by the tool itself and reported as success.
+// So the set is ASKED FOR here rather than guessed there, the same rule as MANIFEST_BUNDLES.
+if (LIST_OWNED) {
+  const twin = (rel) => existsSync(join(ROOT, rel));
+  const owned = new Set([...htmlPages.filter(twin), ...assetFiles.filter(twin), ...ARTIFACT_NAMES]);
+  for (const rel of [...owned].sort()) console.log(DEPLOY_REL + '/' + rel);
+  process.exit(0);
+}
 
 // ── VERSION STAMP RULES — declared HERE, above Phase 2, because Phase 2 CONSUMES them ───────
 //   The rules are APPLIED by Phase 3 below (writing README + both index.html twins); they are declared

@@ -88,6 +88,29 @@ function generatedSet() {
   if (!orch || !tools) return null;
   orch.forEach((b) => bundles.add(b));
   tools.forEach((b) => bundles.add(b));
+
+  /* `docs/` IS NOT A GENERATED PREFIX — ask build-docs.mjs which paths it actually writes.
+     It syncs a docs/ file only where a ROOT TWIN exists, plus six Phase-2 artifacts. The 30 archival
+     `.md` under docs/ (docs/COMPLIANCE/*, EVENT-LEXICON.md, the specs) have no twin and no builder —
+     `.md` is filtered out of its asset list entirely. Measured 2026-08-05: edit docs/EVENT-LEXICON.md
+     and `build-docs.mjs --check` still reports "docs/ current", and a full rebuild leaves the edit in
+     place. So the old `startsWith('docs/') → generated` rule auto-resolved a conflict in an authored
+     spec to the base's copy, the rebuild could not put it back, and this tool printed ✓ — the exact
+     silent revert it exists to prevent, performed BY the tool and reported as success. */
+  let docsOwned;
+  try {
+    docsOwned = execFileSync(process.execPath, [join(ROOT, 'tools/build-docs.mjs'), '--list-owned'], {
+      cwd: ROOT,
+      encoding: 'utf8'
+    })
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  } catch {
+    return null; // fail CLOSED — a builder we cannot ask means we call nothing generated
+  }
+  if (!docsOwned.length) return null;
+  docsOwned.forEach((b) => bundles.add(b));
   return bundles;
 }
 
@@ -102,8 +125,7 @@ export function classify(path, gen) {
      is wrong in the SAFE direction and a prefix test that can be walked out of is not. */
   const p = String(path == null ? '' : path);
   if (!p || p.startsWith('/') || p.split('/').includes('..') || p.split('/').includes('.')) return 'source';
-  if (gen.has(p)) return 'generated';
-  if (p.startsWith('docs/')) return 'generated'; // served copies, written by build-docs.mjs
+  if (gen.has(p)) return 'generated'; // includes the docs/ paths build-docs.mjs said it owns
   if (p.startsWith('provenance/')) return 'generated'; // ledger fragments, written by build.mjs
   return 'source';
 }
