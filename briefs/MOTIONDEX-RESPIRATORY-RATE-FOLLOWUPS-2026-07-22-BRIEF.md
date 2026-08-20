@@ -369,6 +369,47 @@ and the CPAP reference is epoched at **30 s** — a window several times the ref
 something the reference is not. Expect MAE to turn back up past some length; finding that turning point
 IS the result, and it is more useful than any single window choice.
 
+> ### ⛔ ATTEMPTED 2026-08-20 — and the run is VOID. Read this before running it again.
+>
+> The sweep was run end to end through `resp-acc-analysis.html` (the shipped orchestration, only
+> `RR_WIN_SEC` patched in the served `motiondex-dsp.js`, verified byte-for-byte over HTTP each time)
+> across **45 / 60 / 90 / 120 / 180 s**, then once more at **20 s**. Every configuration returned:
+>
+> ```
+> MAE 0.94 · 95% CI 0.63–1.19 · bias −0.42 · RMSE 2.75 · LoA ±5.32 · ≤2 brpm 93.3% · r 0.359
+> ```
+>
+> **Byte-identical, to every digit, across a 9× range of window length — including Pearson r.** That is
+> not the "MAE flattens" outcome. A flattened curve still jitters; an estimator whose analysis window
+> changes 20 s → 180 s cannot reproduce `r` to three decimals. **The manipulation did not reach the
+> measured quantity**, and the result therefore supports neither branch.
+>
+> ⚠️ **This is the failure worth recording, because the near-miss was expensive.** Had the numbers moved
+> even slightly, the honest-looking conclusion — *"MAE flattens ⇒ the window is already right and no
+> spectral work will improve it"* — would have been written up, and it would have closed off the one
+> avenue this section identifies. **An invariant result is only evidence when you have shown the input
+> actually varied.**
+>
+> **What was excluded**, so the next attempt does not re-tread it:
+> · the served file really changed (`curl` on the running server showed `RR_WIN_SEC = 20`);
+> · a fresh Chromium profile per run, so no browser cache carried across;
+> · **the app caches nothing** — no `localStorage`, no `indexedDB`, no cache key anywhere in
+>   `resp-acc-analysis-app.js`;
+> · the estimator is called with **no `opts`** (`M.respiratoryRate(rows, t0, 'mg')`, line 253), so the
+>   module constant is the only window control there is.
+>
+> **So the open question is now sharper than the sweep itself:** with no caching and no override, why do
+> the agreement statistics not move under `RR_WIN_SEC ∈ [20, 180]`? Until that is answered, the tool's
+> MAE **cannot be used to score any estimator change** — which is a larger claim than this section set
+> out to test, and it is the thing to settle first.
+>
+> **The control the experiment needs, and lacked:** a leg that proves the window reached the output at
+> all — e.g. assert `est.rateSeries` differs between two windows on ONE night before any MAE is read.
+> Without it the "flattens" branch is unfalsifiable, because "no change" is also what a broken harness
+> prints. (A Node-side probe was attempted as that control and did not produce one: the synthetic rows
+> it fed `respiratoryRate` yielded 0 epochs, so it measured nothing either — recorded so the next
+> attempt starts from a REAL night, not a hand-built array.)
+
 **Cheap to run, because the apparatus now exists.** `resp-acc-analysis.html` drives the shipped DSP over
 the corpus headlessly in ~54 s per pass (§11 of the parent), so the whole sweep is minutes of compute.
 The only code change is making `RR_WIN_SEC` injectable for the sweep rather than a module constant —
