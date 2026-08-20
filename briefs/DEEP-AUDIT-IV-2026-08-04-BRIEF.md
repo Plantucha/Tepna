@@ -315,11 +315,31 @@ Filed as leads because each is real code but none is demonstrated to move a user
   ≈1.7 % low). Both surfaced numbers are explicitly documented as *proxies* (*"NOT RR-interval SDNN"*),
   so this is a consistency lead, not a wrong number. **Do not "unify" without checking §5's warning
   about deliberate per-signal differences.**
-- **`hrvdex-render.js:238`** — `score >= 55 && (ari == null || ari >= 1)` renders *"Strong parasympathetic
-  recovery — a green light for higher-intensity training"* when the Recovery subscore is **absent**. Same
-  `== null` passes-the-gate shape as §1, in the presentation layer. The gating `score` is itself measured,
-  so this is a recommendation resting on one fewer input than it implies rather than a fabricated number.
-  **HYPOTHESIS** — not executed.
+- **`hrvdex-render.js:238`** — ~~**HYPOTHESIS** — not executed.~~ **EXECUTED 2026-08-20 — REAL, and the
+  absence it trusts is DELIBERATE.** The branch rendered *"Strong parasympathetic recovery — a green
+  light for higher-intensity training"* whenever the Recovery subscore was **absent**, because a null
+  index satisfied the test.
+
+  **The chain, read to the line:** `hrvdex-dsp.js:869` sets `d_ari = … : NaN` when the row's own rMSSD
+  is absent **or** `window7.length < 4`, and its own comment says why — DEEP-AUDIT §**Finding 5** added
+  that guard to stop a fabricated `d_ari = 0` firing a false **RED** *"recovery collapse"* alert.
+  `hrvdex-render.js:211`'s `num()` maps that NaN to `null`. The branch then read the null as passing.
+  **Finding 5's careful red became an equally fabricated GREEN — on a recommendation to train harder.**
+
+  **Not a rare edge case, and this is what upgrades it from a lead:** `window7.length < 4` holds for the
+  **first three days of ANY series**, and `r._rmssd > 0` fails on **every day with no rMSSD reading**.
+  The subscore grid directly beneath the note renders Recovery as *absent* at the same moment the note
+  asserts it is *strong* — visible to a reader, invisible to every gate.
+
+  **Fixed** by requiring the measurement positively (`ari != null && ari >= 1`); an absent index now
+  falls through to the measured `score >= 45` note (*"Balanced autonomic state — proceed with your
+  planned training load"*), which rests only on `score` and claims nothing about recovery. Gated by
+  `HRVDex render — an ABSENT Recovery index does not grant the training green light` (5 assertions,
+  source-scan — the established pattern for this file), which also pins **Finding 5's DSP guard**,
+  since the two halves are only correct together.
+
+  **Render-only ⇒ export-inert, and computed rather than claimed:** `computeHash` is `7fe268e6b141`
+  before and after; only `manifestHash` moved (`44d68225a833 → 1f9e6a0c60b4`).
 - **`integrator-dsp.js:1823-1824`** — `effConf: +(effConf(d) || 0).toFixed(3)` writes `0` into a
   finding's `sources[]` provenance trail when `conf` was absent (`effConf` correctly returns `null`).
   The fused posterior is unaffected — `combineConf` skips nulls properly — so this is an audit-trail

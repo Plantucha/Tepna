@@ -144,6 +144,44 @@ corpus) are simply high-jitter epochs: median jitter 35.0 ms vs 5.5 ms, with 91 
 ≤ **6.11 ms** → 3 %; ≤ **7.93 ms** → 5 %. Current operating point **5.92 ms**. *Every* accuracy proposal
 must be scored as "how many ms of jitter does it remove", or it is not addressing the error.
 
+> ### ⚠️ THE BUDGET NEEDS AN INTERVAL, NOT A POINT — and the table above already supplies it (2026-08-20)
+>
+> *"Current operating point 5.92 ms"* reads as a single number the bands can be applied to. **It is a
+> median whose own IQR, two rows up, is 3.98 – 10.61 ms.** Laid against the budget's own thresholds:
+>
+> | | σ (ms) | implied rMSSD bias |
+> |---|---|---|
+> | lower quartile of nights | 3.98 | ~1.5 % |
+> | **median — the quoted operating point** | **5.92** | **~3 %** |
+> | upper quartile of nights | **10.61** | **beyond the 5 % band** |
+>
+> So the middle **50 %** of nights spans roughly 1.5 % to over 5 % bias. The operating point is not
+> 5.92 ms; it is a distribution whose interquartile width is **6.6 ms** — wider than the entire
+> 3.51 → 7.93 ms budget it is being scored against.
+>
+> **The consequence for the rule this section states.** *"Every accuracy proposal must be scored as how
+> many ms of jitter does it remove"* is right, and incomplete: a proposal removing 1–2 ms **cannot be
+> distinguished from night-to-night variation** at this dispersion. Scoring one against the median alone
+> will call noise a win. The scoring rule needs an n and an interval — the paired-night design already
+> supports it, since every row here was computed per night before being summarised.
+>
+> ### The 8.36 ms "failure to reproduce" was never a discrepancy, and BOTH tables said so
+>
+> `PPGDEX-JITTER-AND-REFERENCE-FOLLOWUPS` §1 opened on this figure not reproducing — measured 8.36 ms
+> against this 5.92, *"+41 %"*. Symmetrically:
+>
+> - **8.36 sits inside THIS table's IQR** (3.98 – 10.61), and
+> - **5.92 sits inside the 15-night run's IQR** (4.63 – 31.61, `O2RING-FINGER-HRV-VALIDATION` §8.1).
+>
+> Neither median is an outlier for the other. The two runs agree to within their own recorded
+> dispersions, and each brief printed the IQR that shows it directly beside the median that did not use
+> it. A whole followups brief was opened on a difference that the source tables already contained the
+> means to dismiss.
+>
+> **The transferable rule:** when a figure is quoted here as a headline, quote it as *median (IQR, n)*
+> and compare through the interval. `[CORPUS]` marks these as corpus measurements, and a corpus
+> measurement without its spread is a point estimate wearing the authority of a distribution.
+
 ### 2.2 Alignment methodology (required for any future ECG-referenced work)
 
 A **single global affine time map fails** and fails deceptively: it yields a physiologically impossible

@@ -249,6 +249,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         "ring_config": st.get("ring_config"),
                         "ring_config_verdict": st.get("ring_config_verdict"),
                         "ring_buzz_at": st.get("ring_buzz_at"),
+                        # A battery-event RTC reset, flagged the moment a readback sees the jump — the
+                        # stored .dat timebase is suspect from this instant until the next verified push.
+                        "ring_rtc_reset_suspect": st.get("ring_rtc_reset_suspect"),
                         "charging": bool(st.get("charging")),
                         "last_error": st.get("last_error")})
         return out

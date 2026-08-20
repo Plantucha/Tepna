@@ -4778,6 +4778,8 @@ def _o2_ring_responder(c, cfg_state):
             c.notify(0, _o2_info_reply(mi=50, s=0))
         elif op == oxyii.OP_GET_CONFIG:
             c.notify(0, _o2_config_reply(**cfg_state))
+        elif op == oxyii.OP_GET_BATTERY:
+            c.notify(0, oxyii.encode(oxyii.OP_GET_BATTERY, bytes([0, 100, 0xF2, 0x10])))
         elif op == oxyii.OP_SET_CONFIG:
             fld, val = data[7], data[11]
             if fld == 9:
@@ -5060,3 +5062,134 @@ def test_run_oxyii_buzz_write_failure_is_reported_not_retried(tmp_path, monkeypa
     assert capture.STATUS["devices"]["Ring"]["ring_buzz_at"] is None
     assert any("buzz command failed" in r.getMessage() for r in caplog.records)
     assert capture._OXYII_BUZZ_PENDING == set(), "a failed buzz must not silently retry forever"
+
+
+# ── the ring-clock sidecar (RTCLOG): drift history, push claims, reset detection ────────────────────
+def _rtclog_rows(tmp_path):
+    files = list((tmp_path / "captures").rglob("*_RTCLOG.csv"))
+    assert len(files) == 1, f"exactly one rtclog expected, got {files}"
+    lines = files[0].read_text().splitlines()
+    assert lines[0].startswith("Phone timestamp;event;rtc_offset_s;battery_state;battery_level")
+    return [l.split(";") for l in lines[1:]]
+
+
+def test_run_oxyii_writes_the_ring_clock_sidecar(tmp_path, monkeypatch):
+    """A session writes read + battery rows (the first poll fires both), and the 0xC0 first-contact
+    push writes its claim row — history on disk, not just the latest value in STATUS."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_LAST_RTC_OFF.clear()
+    c = FakeGattClient()
+    c.on_live = _o2_ring_responder(c, {"brightness": 0, "motor": 60})
+    _inject_connect_scan(monkeypatch, c)
+    monkeypatch.setattr(capture, "_now", lambda: _dt.datetime(2026, 8, 20, 5, 30, 5))
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    rows = _rtclog_rows(tmp_path)
+    events = [r[1] for r in rows]
+    assert "push" in events, "the first-contact 0xC0 must leave its claim row"
+    assert "read" in events, "the readback row is the push's verification"
+    assert "battery" in events
+    read = next(r for r in rows if r[1] == "read")
+    assert read[2] != "", "a decoded RTC read carries its offset"
+    batt = next(r for r in rows if r[1] == "battery")
+    assert batt[4] == "100" and batt[5] == "242" and batt[6] == "16", \
+        "battery level + the ANALOG raw2 byte + const raw3 land as data, not assumptions"
+
+
+def test_run_oxyii_flags_an_rtc_jump_as_a_battery_reset(tmp_path, monkeypatch, caplog):
+    """The offset moved > _OXYII_RTC_JUMP_S between reads with no push of ours: reset-suspect is
+    published, the sidecar rows say so, and the re-push is queued by clearing _OXYII_RTC_AT."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_LAST_RTC_OFF.clear()
+    dev = _o2dev()
+    capture._OXYII_LAST_RTC_OFF[dev["address"]] = 0.0     # a previous session read the RTC on time
+    c = FakeGattClient()
+    def on(data):
+        op = data[1]
+        if op == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif op == oxyii.OP_GET_INFO:
+            c.notify(0, _o2_info_reply(h=19, mi=0, s=0))   # ring says 19:00:00 — hours off the host
+    c.on_live = on
+    _inject_connect_scan(monkeypatch, c)
+    monkeypatch.setattr(capture, "_now", lambda: _dt.datetime(2026, 8, 19, 21, 50, 0))
+    _stop_after(monkeypatch, 4)
+    with caplog.at_level("WARNING"):
+        _run(capture.run_oxyii(dev, str(tmp_path)))
+    st = capture.STATUS["devices"]["Ring"]
+    assert st["ring_rtc_reset_suspect"] is not None
+    assert any("RTC JUMPED" in r.getMessage() for r in caplog.records)
+    assert dev["address"] not in capture._OXYII_RTC_AT, "the re-push must be queued (first-contact state)"
+    rows = _rtclog_rows(tmp_path)
+    assert any(r[1] == "reset-suspect" for r in rows)
+    capture._OXYII_LAST_RTC_OFF.clear()
+
+
+def test_run_oxyii_small_drift_is_a_read_not_a_reset(tmp_path, monkeypatch):
+    """The DENY twin: a 1 s move between reads (quantum-level) must stay an ordinary read row."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_LAST_RTC_OFF.clear()
+    dev = _o2dev()
+    capture._OXYII_LAST_RTC_OFF[dev["address"]] = -6.0
+    c = FakeGattClient()
+    def on(data):
+        op = data[1]
+        if op == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif op == oxyii.OP_GET_INFO:
+            c.notify(0, _o2_info_reply(h=21, mi=49, s=55))   # host 21:50:00 → offset −5.0 (Δ=1.0 s)
+    c.on_live = on
+    _inject_connect_scan(monkeypatch, c)
+    monkeypatch.setattr(capture, "_now", lambda: _dt.datetime(2026, 8, 19, 21, 50, 0))
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(dev, str(tmp_path)))
+    st = capture.STATUS["devices"]["Ring"]
+    assert st.get("ring_rtc_reset_suspect") is None
+    rows = _rtclog_rows(tmp_path)
+    assert any(r[1] == "read" for r in rows) and not any(r[1] == "reset-suspect" for r in rows)
+    capture._OXYII_LAST_RTC_OFF.clear()
+
+
+def test_run_oxyii_short_battery_reply_logs_blanks_not_fabrications(tmp_path, monkeypatch):
+    """A 2-byte 0xE4 reply has no raw2/raw3: the sidecar row carries blanks, never invented bytes."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_LAST_RTC_OFF.clear()
+    c = FakeGattClient()
+    def on(data):
+        op = data[1]
+        if op == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif op == oxyii.OP_GET_INFO:
+            c.notify(0, _o2_info_reply())
+        elif op == oxyii.OP_GET_BATTERY:
+            c.notify(0, oxyii.encode(oxyii.OP_GET_BATTERY, bytes([0, 87])))   # state+level only
+    c.on_live = on
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    rows = _rtclog_rows(tmp_path)
+    batt = next(r for r in rows if r[1] == "battery")
+    assert batt[4] == "87" and batt[5] == "" and batt[6] == ""
+
+
+def test_run_oxyii_unparseable_battery_reply_writes_no_row(tmp_path, monkeypatch):
+    """A 1-byte 0xE4 reply parses to None: no sidecar row at all — a row of blanks would claim a
+    reading happened when nothing was decoded."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_LAST_RTC_OFF.clear()
+    c = FakeGattClient()
+    def on(data):
+        op = data[1]
+        if op == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif op == oxyii.OP_GET_INFO:
+            c.notify(0, _o2_info_reply())
+        elif op == oxyii.OP_GET_BATTERY:
+            c.notify(0, oxyii.encode(oxyii.OP_GET_BATTERY, bytes([0])))   # 1 byte — unparseable
+    c.on_live = on
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    rows = _rtclog_rows(tmp_path)
+    assert not any(r[1] == "battery" for r in rows)
+    assert any(r[1] == "read" for r in rows), "the info read still lands — only the battery row is absent"
