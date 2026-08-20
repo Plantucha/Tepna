@@ -46,7 +46,7 @@
  */
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync, unlinkSync } from 'node:fs';
-import { cpus } from 'node:os';
+import { cpus, uptime as osUptime } from 'node:os';
 import { dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildIdentity, mapCandidates, resolveMapPath, stateDirs, verifyFor } from './mutation-map.mjs';
@@ -99,6 +99,81 @@ const stateDir = () => {
 };
 const pidFile = () => join(stateDir(), 'suite.pid');
 const journalPath = (file) => join(ROOT, '.mutate-journal', file.replace(/[/\\]/g, '_') + '.jsonl');
+
+/*
+ * ── A PID FILE IS A CLAIM, NOT AN OBSERVATION ──────────────────────────────────────────────────
+ *
+ * `suite.pid` is written when a sweep starts and unlinked when it exits cleanly. Every other exit —
+ * a crash, a SIGKILL, a reboot — leaves the record behind, and it then reads exactly like a running
+ * sweep. Measured 2026-08-20: the box rebooted at 14:12 while a sweep of `integrator-dsp.js` was
+ * jammed; afterwards `--status` printed `running: {"pid":74542,…,"file":"integrator-dsp.js"}` while
+ * the truth was that integrator had been dead for hours and a DIFFERENT file was being swept. Both
+ * halves of the answer were wrong, and nothing said so. That is this repo's dominant defect shape —
+ * a check that reported about something it never examined (CLAUDE.md §👥.4b).
+ *
+ * It is not cosmetic: `classifySweep` reads the same record and returns `in flight` for the file it
+ * names, so a crashed file classifies as somebody-else's-work FOREVER and no sweep ever picks it up.
+ *
+ * Two independent tests, cheapest and most decisive first:
+ *
+ *   BOOT   A record `startedAt` BEFORE the current boot cannot describe a live process — a process
+ *          cannot predate its own kernel. This is a PROOF of staleness, not a heuristic, and it is
+ *          the only one that survives PID REUSE: after a reboot, pid 74542 may well exist again as
+ *          something unrelated, and probing it would report the stale sweep as alive.
+ *   PID    Otherwise `kill(pid, 0)` — no signal sent, ESRCH iff no such process. EPERM means the
+ *          process exists and is not ours to signal, which is alive for our purposes.
+ *
+ * THE RECORD NAMES TWO PROCESSES, AND THEY DIE SEPARATELY. Probing only `pid` misreports the state
+ * this box was actually in at 14:24 on 2026-08-20: suite 54384 gone, sweep child 54591 STILL RUNNING
+ * and reparented to `systemd --user`. Calling that "not running" invites a second sweep of the same
+ * file into the same cores; calling it "running" claims a watchdog, a stall-restart and a done-marker
+ * that no longer exist — nothing will ever write the completion record for that file. It is its own
+ * state, ORPHANED, and it is the one worth naming: work is still being done and nobody is watching it.
+ * Hence `sweeping` (is this file being worked?) is a DIFFERENT question from `live` (is the driver
+ * there?), and the two callers below want different ones.
+ *
+ * Unparseable `startedAt` with a live pid resolves to LIVE. That direction is deliberate: wrongly
+ * declaring a live sweep dead spawns a second worker pool into the same cores, which corrupts both
+ * runs; wrongly declaring a dead one live only stalls, and the stall is visible in the journal age
+ * printed beside it.
+ */
+export function suiteRecordLiveness({ rec, bootMs, pidAlive, childAlive }) {
+  const R = (state, reason) => ({ state, reason, live: state === 'running', sweeping: state === 'running' || state === 'orphaned' });
+  if (!rec || typeof rec !== 'object') return R('none', 'no record');
+  if (!Number.isFinite(rec.pid)) return R('stale', 'record carries no pid');
+  const started = Date.parse(rec.startedAt);
+  if (Number.isFinite(bootMs) && Number.isFinite(started) && started < bootMs) return R('stale', 'started before the current boot — the machine has restarted since');
+  if (pidAlive) return R('running', 'pid ' + rec.pid + ' is running');
+  if (childAlive) return R('orphaned', 'the suite (pid ' + rec.pid + ') is gone but its sweep child (pid ' + rec.child + ') is still running');
+  return R('stale', 'no process with pid ' + rec.pid);
+}
+
+const bootMs = () => Date.now() - osUptime() * 1000;
+const pidAlive = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return !!e && e.code === 'EPERM';
+  }
+};
+
+/** Read `suite.pid` and say whether it describes a process that is actually there. */
+function readSuiteRecord() {
+  let rec = null;
+  try {
+    rec = JSON.parse(readFileSync(pidFile(), 'utf8'));
+  } catch {
+    return { rec: null, live: false, reason: 'no record' };
+  }
+  const v = suiteRecordLiveness({
+    rec,
+    bootMs: bootMs(),
+    pidAlive: Number.isFinite(rec.pid) && pidAlive(rec.pid),
+    childAlive: Number.isFinite(rec.child) && pidAlive(rec.child)
+  });
+  return { rec, ...v };
+}
 
 // ── formatting ─────────────────────────────────────────────────────────────────────────────────
 export const mmss = (s) =>
@@ -334,6 +409,12 @@ async function runFile(file, ident, loaded, lane) {
     } else if (resume) {
       log('   resuming: a ledger exists for this lane — the lane validates its own fingerprint and refuses a stale one');
     }
+    /* One pid file, so a second suite silently overwrites the first's record and `--kill` can then
+       only reach one of them. Warn rather than refuse: a deliberate second `--file` run is a real
+       workflow, and a refusal here would be unfixable without deleting state by hand. */
+    const prior = readSuiteRecord();
+    if (prior.sweeping && prior.rec.pid !== process.pid)
+      log('   ⚠ another suite is ALREADY RUNNING (pid ' + prior.rec.pid + ', file ' + prior.rec.file + ') — both will share this core pool, and only the newer one stays addressable by --kill');
     const child = spawnSweep(file, resume, lane);
     writeFileSync(pidFile(), JSON.stringify({ pid: process.pid, child: child.pid, file, startedAt: new Date().toISOString() }) + '\n');
 
@@ -474,6 +555,44 @@ function cmdKill() {
   } catch {
     return log('pid file unreadable — refusing to guess which process to kill');
   }
+  /* A stale record has nothing to kill, and signalling its pids is worse than useless after a
+     reboot: the numbers may have been REUSED by unrelated processes. Clear it instead — that is
+     the whole of what "stop the suite" means once the suite is already gone. */
+  const v = suiteRecordLiveness({
+    rec,
+    bootMs: bootMs(),
+    pidAlive: Number.isFinite(rec.pid) && pidAlive(rec.pid),
+    childAlive: Number.isFinite(rec.child) && pidAlive(rec.child)
+  });
+  if (v.state === 'orphaned') {
+    /* The driver is already gone — signalling its pid is a no-op at best and hits a REUSED pid at
+       worst. Kill the one process that is actually there. */
+    log('the suite driver is gone; its sweep child is not — ' + v.reason);
+    try {
+      process.kill(rec.child, 'SIGTERM');
+      log('SIGTERM → child pid ' + rec.child);
+    } catch {
+      log('child pid ' + rec.child + ' went away before we could signal it');
+    }
+    try {
+      unlinkSync(p);
+      log('cleared ' + p + ' — journal is preserved, re-run the suite to resume');
+    } catch {
+      /* fine */
+    }
+    return;
+  }
+  if (!v.live) {
+    log('no suite is running — STALE pid file (' + v.reason + ')');
+    log('  it claimed ' + rec.file + '; sending no signals (the pids may have been reused since)');
+    try {
+      unlinkSync(p);
+      log('  cleared ' + p + ' — journal preserved, re-run the suite to resume');
+    } catch {
+      log('  could not remove ' + p);
+    }
+    return;
+  }
   /* BY PID, never by pattern. `pkill -f "mutate"` matches the killer's OWN command line, which is
      the documented self-deadlock (CLAUDE.md §👥.4). A pid we recorded ourselves cannot be ambiguous. */
   for (const [label, pid] of [
@@ -522,8 +641,27 @@ function cmdStatus() {
     log('    ' + f.padEnd(20) + pr.done + ' tested · ' + pr.killed + ' killed · ' + pr.survived + ' survived   (last write ' + age + ' min ago)');
   }
   if (!any) log('    (none — nothing has been swept in this checkout)');
-  const p = pidFile();
-  log('  running: ' + (existsSync(p) ? readFileSync(p, 'utf8').trim() : 'no'));
+  const cur = readSuiteRecord();
+  if (!cur.rec) log('  running: no');
+  else if (cur.state === 'running') log('  running: ' + JSON.stringify(cur.rec));
+  else if (cur.state === 'orphaned') {
+    log('  running: ORPHANED — ' + cur.reason);
+    log('           ' + cur.rec.file + ' is still being swept, but with no watchdog, no stall-restart and');
+    log('           nobody left to write its done-marker. Let it finish and re-run the suite, or --kill it.');
+    log('           record: ' + JSON.stringify(cur.rec));
+  } else {
+    log('  running: no — STALE pid file (' + cur.reason + ')');
+    /* Only claim the journal is there if it IS there. Journals are per-checkout (`ROOT/.mutate-journal`)
+       while this record lives in the git COMMON dir, so from a worktree the record routinely names a
+       file whose journal is in a different checkout — promising a resume that would start from zero. */
+    const jp = journalPath(cur.rec.file);
+    log(
+      '           it claims ' +
+        cur.rec.file +
+        (existsSync(jp) ? '; its journal here is intact, so re-running the suite RESUMES it' : '; NO journal for it in this checkout, so a re-run here starts from zero')
+    );
+    log('           stale record: ' + JSON.stringify(cur.rec));
+  }
 }
 
 // ── local model (ADVISORY ONLY) ────────────────────────────────────────────────────────────────
@@ -665,12 +803,12 @@ export function classifySweep({ hasDoneMarker, markerDone, journalDone, runningF
 }
 
 function sweepState(file) {
-  let runningFile = null;
-  try {
-    runningFile = JSON.parse(readFileSync(pidFile(), 'utf8')).file;
-  } catch {
-    /* no suite running here */
-  }
+  /* Only a VERIFIED-live record names a file that is in flight; a stale one names a file that
+     crashed, and calling that 'in flight' hides it from the sweep forever. */
+  const cur = readSuiteRecord();
+  /* `sweeping`, not `live`: an ORPHANED child is still mutating that file, so starting a second
+     sweep of it would double the work and interleave two writers into one journal. */
+  const runningFile = cur.sweeping ? cur.rec.file : null;
   let marker = null;
   try {
     marker = JSON.parse(readFileSync(doneMarker(file), 'utf8'));
@@ -1242,6 +1380,60 @@ function selftest() {
   ck('a COMPLETE file stays complete despite unverdicted STARTs in its journal', classifySweep({ hasDoneMarker: true, markerDone: 1815, journalDone: 1815, file: 'ecgdex-dsp.js' }), 'complete');
   ck('another file being swept does not make this one in-flight', classifySweep({ runningFile: 'b.js', file: 'a.js', hasDoneMarker: true, markerDone: 5, journalDone: 5 }), 'complete');
 
+  console.log('\nsuiteRecordLiveness — a pid file is a claim; these are the two ways to check it');
+  const BOOT = Date.parse('2026-08-20T18:12:00Z');
+  /* The real record left behind by the 2026-08-20 reboot, verbatim. */
+  const stale = { pid: 74542, child: 251629, file: 'integrator-dsp.js', startedAt: '2026-08-20T06:36:00.538Z' };
+  ck('a record predating the current boot is STALE even though its pid probes ALIVE (pid reuse)', suiteRecordLiveness({ rec: stale, bootMs: BOOT, pidAlive: true }).live, false);
+  ck(
+    '…and the file it names is therefore NOT in flight, so a sweep can pick it up again',
+    classifySweep({
+      runningFile: suiteRecordLiveness({ rec: stale, bootMs: BOOT, pidAlive: true }).live ? stale.file : null,
+      file: 'integrator-dsp.js',
+      hasDoneMarker: false,
+      journalDone: 1424
+    }),
+    'unknown'
+  );
+  const fresh = { pid: 4242, child: 4243, file: 'oxydex-dsp.js', startedAt: '2026-08-20T19:00:00.000Z' };
+  ck('a post-boot record whose pid is running is LIVE', suiteRecordLiveness({ rec: fresh, bootMs: BOOT, pidAlive: true }).live, true);
+  ck('a post-boot record whose pid is GONE is stale — the crash case, no reboot needed', suiteRecordLiveness({ rec: fresh, bootMs: BOOT, pidAlive: false }).live, false);
+  ck('no record at all is not a running suite', suiteRecordLiveness({ rec: null, bootMs: BOOT, pidAlive: true }).live, false);
+  ck('a record carrying no pid cannot vouch for anything', suiteRecordLiveness({ rec: { file: 'a.js' }, bootMs: BOOT, pidAlive: true }).live, false);
+  /* The documented fail-direction: unreadable timestamp + live pid ⇒ LIVE. Declaring a live sweep
+     dead spawns a second worker pool into the same cores; declaring a dead one live only stalls. */
+  ck('an unparseable startedAt with a live pid resolves LIVE, never dead', suiteRecordLiveness({ rec: { pid: 4242, file: 'a.js', startedAt: 'whenever' }, bootMs: BOOT, pidAlive: true }).live, true);
+  ck('the boot test states WHY, so a reader is not left guessing', suiteRecordLiveness({ rec: stale, bootMs: BOOT, pidAlive: true }).reason.includes('boot'), true);
+  ck('the suite driver dying does not stop its child — that is ORPHANED, not stale', suiteRecordLiveness({ rec: fresh, bootMs: BOOT, pidAlive: false, childAlive: true }).state, 'orphaned');
+  ck('…and an ORPHANED file still counts as being SWEPT, so nothing starts a second sweep of it', suiteRecordLiveness({ rec: fresh, bootMs: BOOT, pidAlive: false, childAlive: true }).sweeping, true);
+  ck('…but it is NOT live: no watchdog, no stall-restart, and no done-marker will be written', suiteRecordLiveness({ rec: fresh, bootMs: BOOT, pidAlive: false, childAlive: true }).live, false);
+  ck('a child alive from BEFORE the boot is impossible — the boot proof still wins', suiteRecordLiveness({ rec: stale, bootMs: BOOT, pidAlive: true, childAlive: true }).state, 'stale');
+
+  console.log('\nparseArgv — an unknown flag must not launch a multi-hour sweep');
+  ck('--help is a known flag, and asks for help', parseArgv(['--help']), { unknown: [], help: true });
+  ck('-h too', parseArgv(['-h']).help, true);
+  ck('a typo is UNKNOWN rather than a fleet launch', parseArgv(['--satus']), { unknown: ['--satus'], help: false });
+  /* Arity, not pattern: the value of a known flag is consumed, so it is never reported as unknown. */
+  ck('a flag value is not mistaken for a flag', parseArgv(['--file', 'oxydex-dsp.js', '--jobs', '22']), { unknown: [], help: false });
+  ck('…including a value that itself looks like a flag', parseArgv(['--lane', '--weird']), { unknown: [], help: false });
+  ck('a bare positional is refused — it reads as one file and would sweep all nine', parseArgv(['oxydex-dsp.js']), { unknown: ['oxydex-dsp.js'], help: false });
+  /* No arguments IS the documented fleet launch; the guard must not break it. */
+  ck('no arguments is not an error — that is the fleet sweep', parseArgv([]), { unknown: [], help: false });
+  ck(
+    'every declared flag parses clean at its own arity',
+    Object.entries(CLI_FLAGS)
+      .filter(([f, n]) => parseArgv(n ? [f, 'x'] : [f]).unknown.length > 0)
+      .map(([f]) => f),
+    []
+  );
+  /* The same trap from the other side: a flag documented in --help but missing from the table would
+     be REFUSED, and the refusal would point at the very text that recommended it. */
+  ck(
+    'every flag the usage text names is one the parser accepts',
+    (USAGE.match(/(?<![\w-])--[a-z][a-z-]*/g) || []).filter((f) => !Object.hasOwn(CLI_FLAGS, f)),
+    []
+  );
+
   console.log('\nmdCell — escape order is the whole of the fix');
   const BS = String.fromCharCode(92);
   ck('a pipe is escaped', mdCell('a|b'), 'a' + BS + '|b');
@@ -1800,6 +1992,75 @@ async function cmdDraft(file) {
 // ── main ───────────────────────────────────────────────────────────────────────────────────────
 /* Acts only when INVOKED AS A PROGRAM — importing this file to test its exports must not start a
    multi-hour sweep. `mutation-crawl.mjs` documents having learned that the hard way. */
+/*
+ * ── AN UNRECOGNISED FLAG MUST NOT START A MULTI-HOUR SWEEP ─────────────────────────────────────
+ *
+ * The dispatch below is a chain of `has('--x')` tests ending in an `else` that launches the fleet.
+ * So EVERY unrecognised argument falls through to the launch — including `--help`, which is what a
+ * reader types precisely because they do not yet know what the tool does. Measured 2026-08-20: a
+ * peer ran `--help` and started a full fleet sweep with a 22-worker pool, and noticed only from the
+ * heartbeat. A typo'd `--satus` does the same thing, silently and for hours.
+ *
+ * The file already holds the right precedent one level down — `--lane wibble` prints "Refusing
+ * rather than running a different one" and exits 2. This is that rule applied to the argument list
+ * as a whole. A bare positional is refused too: `mutation-suite.mjs oxydex-dsp.js` reads as a
+ * one-file request and is in fact a whole-fleet launch.
+ *
+ * VALUES ARE SKIPPED BY ARITY, never pattern-matched — otherwise `--lane operators` would report
+ * `operators` as an unknown argument, and a checker that cries wolf gets bypassed.
+ */
+export const CLI_FLAGS = {
+  '--selftest': 0,
+  '--kill': 0,
+  '--status': 0,
+  '--build-map': 0,
+  '--inventory': 0,
+  '--quiet': 0,
+  '--help': 0,
+  '-h': 0,
+  '--cluster': 1,
+  '--draft': 1,
+  '--file': 1,
+  '--jobs': 1,
+  '--stall-min': 1,
+  '--max-restarts': 1,
+  '--lane': 1
+};
+
+export function parseArgv(args, flags = CLI_FLAGS) {
+  const unknown = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (Object.hasOwn(flags, a)) {
+      i += flags[a];
+      continue;
+    }
+    unknown.push(a);
+  }
+  return { unknown, help: args.includes('--help') || args.includes('-h') };
+}
+
+const USAGE = [
+  'USAGE',
+  '  node tools/mutation-suite.mjs                      # sweep the fleet, resuming what it can',
+  '  node tools/mutation-suite.mjs --file oxydex-dsp.js # one file (repeatable)',
+  '  node tools/mutation-suite.mjs --status             # read state, run nothing',
+  '  node tools/mutation-suite.mjs --kill               # stop a running suite, by PID',
+  '  node tools/mutation-suite.mjs --build-map          # (re)build the coverage map, stamped',
+  '  node tools/mutation-suite.mjs --inventory          # write docs/MUTATION-INVENTORY.md',
+  '  node tools/mutation-suite.mjs --cluster <file>     # local-AI survivor families (ADVISORY)',
+  '  node tools/mutation-suite.mjs --draft <file>       # local-AI drafts a killing assertion',
+  '  node tools/mutation-suite.mjs --selftest           # known-answer, touches nothing',
+  '    --jobs N           worker pool          (default: cores minus 2, min 2)',
+  '    --stall-min N      watchdog patience    (default 10)',
+  '    --max-restarts N   bounded auto-resume  (default 3)',
+  '    --lane L           operators (default) | pseudo | delete   — they are NOT comparable',
+  '    --quiet            no per-mutant lines, keep the heartbeat',
+  '',
+  'With NO arguments this launches a multi-hour fleet sweep. That is why an unknown argument',
+  'refuses (exit 2) instead of falling through to it.'
+].join('\n');
+
 const INVOKED_DIRECTLY = (() => {
   try {
     /* realpath on BOTH sides, matching mutation-crawl.mjs: a normalise-only comparison misses the
@@ -1811,6 +2072,17 @@ const INVOKED_DIRECTLY = (() => {
 })();
 
 if (INVOKED_DIRECTLY) {
+  const cli = parseArgv(argv);
+  if (cli.help) {
+    log(USAGE);
+    process.exit(0);
+  }
+  if (cli.unknown.length) {
+    log('unknown argument(s): ' + cli.unknown.join(' '));
+    log('Refusing rather than launching a fleet sweep, which is what this tool does with no command.');
+    log('`node tools/mutation-suite.mjs --help` lists what it accepts.');
+    process.exit(2);
+  }
   if (has('--selftest')) process.exit(selftest());
   else if (has('--kill')) cmdKill();
   else if (has('--status')) cmdStatus();
