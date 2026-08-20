@@ -2958,11 +2958,10 @@ async def run_oxyii(dev: dict, root: str):
                                     log.warning("%s: RTC JUMPED %+.1f s -> %+.1f s between reads — battery-event "
                                                 "reset suspected; re-push queued, stored .dat timebase suspect",
                                                 name, _prev_off, _off)
-                                    if rtcwr:
-                                        rtcwr.write(_now(), "reset-suspect", rtc_offset_s=_off)
-                                elif rtcwr:
+                                    rtcwr.write(_now(), "reset-suspect", rtc_offset_s=_off)
+                                else:
                                     rtcwr.write(_now(), "read", rtc_offset_s=_off)
-                            elif rtcwr:
+                            else:
                                 rtcwr.write(_now(), "read")
                             continue
                         # BATTERY POLL REPLY (0xE4). level/state mirror the live header; raw2 is the
@@ -2971,7 +2970,7 @@ async def run_oxyii(dev: dict, root: str):
                         # a firmware where it moves is caught by data, not by assumption.
                         if r and r[0] == oxyii.OP_GET_BATTERY:
                             _b = oxyii.parse_battery(r[1])
-                            if _b and rtcwr:
+                            if _b:
                                 rtcwr.write(_now(), "battery", battery_state=_b["state"],
                                             battery_level=_b["level"],
                                             battery_raw2=(r[1][2] if len(r[1]) > 2 else None),
@@ -3181,8 +3180,7 @@ async def run_oxyii(dev: dict, root: str):
                 async def _rtc_sync(why: str) -> None:
                     _clk = _now()
                     await _bounded_setup(client.write_gatt_char(wch, oxyii.set_time_frame(_clk), response=False))  # 0xC0
-                    if rtcwr:
-                        rtcwr.write(_now(), "push")
+                    rtcwr.write(_now(), "push")
                     _OXYII_RTC_AT[addr] = _clk
                     _set(name, clock_synced=_clk.isoformat(timespec="seconds"))
                     log.info("%s RTC synced to host %s (%s)", name,

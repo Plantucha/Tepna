@@ -619,12 +619,26 @@ def test_ring_clock_log_header_and_blank_discipline(tmp_path):
 
 
 def test_ring_clock_log_close_is_guarded(tmp_path):
-    """Same guarantee as every sibling: flush/close after close must swallow, not raise."""
+    """Same guarantee as every sibling: flush/close after close must swallow, not raise — including a
+    handle whose close itself raises (a torn filesystem), which a double-close alone never exercises."""
     w = RingClockLogWriter(str(tmp_path / "y_RTCLOG.csv"))
     w.write(dt.datetime(2026, 8, 20, 5, 0, 0), "read", rtc_offset_s=-1.2)
     w.close()
     w.flush()
     w.close()
+
+    class _Torn:
+        def flush(self):
+            raise OSError("gone")
+        def close(self):
+            raise OSError("gone")
+        def fileno(self):
+            raise OSError("gone")
+    w2 = RingClockLogWriter(str(tmp_path / "y2_RTCLOG.csv"))
+    w2._fh.close()
+    w2._fh = _Torn()
+    w2.flush()                                   # OSError swallowed
+    w2.close()                                   # OSError swallowed
 
 
 def test_ring_clock_log_flush_interval(tmp_path, monkeypatch):

@@ -5148,3 +5148,25 @@ def test_run_oxyii_small_drift_is_a_read_not_a_reset(tmp_path, monkeypatch):
     rows = _rtclog_rows(tmp_path)
     assert any(r[1] == "read" for r in rows) and not any(r[1] == "reset-suspect" for r in rows)
     capture._OXYII_LAST_RTC_OFF.clear()
+
+
+def test_run_oxyii_short_battery_reply_logs_blanks_not_fabrications(tmp_path, monkeypatch):
+    """A 2-byte 0xE4 reply has no raw2/raw3: the sidecar row carries blanks, never invented bytes."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_LAST_RTC_OFF.clear()
+    c = FakeGattClient()
+    def on(data):
+        op = data[1]
+        if op == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif op == oxyii.OP_GET_INFO:
+            c.notify(0, _o2_info_reply())
+        elif op == oxyii.OP_GET_BATTERY:
+            c.notify(0, oxyii.encode(oxyii.OP_GET_BATTERY, bytes([0, 87])))   # state+level only
+    c.on_live = on
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    rows = _rtclog_rows(tmp_path)
+    batt = next(r for r in rows if r[1] == "battery")
+    assert batt[4] == "87" and batt[5] == "" and batt[6] == ""
