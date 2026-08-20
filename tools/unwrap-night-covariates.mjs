@@ -85,6 +85,13 @@ const SPLIT_MS = +opt('--split', 450); // the brief's own bar, not a tuned cut
 const BOOT = +opt('--boot', 4000);
 const SEED = +opt('--seed', 20260820);
 const JSON_OUT = opt('--json', null);
+/* Re-render a SAVED run's statistics without recomputing the scatter. The scatter is ~34 s per night
+   of `fitClockDrift`; the statistics are milliseconds. Re-running an hour of compute to add a column
+   to a table is how a measurement quietly stops being re-examined, so the saved `nights[]` — which
+   already carries every per-night scatter AND every covariate — is a first-class input. `results` in
+   the JSON is deliberately IGNORED and recomputed, so a re-render reflects the CURRENT statistics
+   code rather than replaying whatever the old run concluded. */
+const FROM_JSON = opt('--from-json', null);
 
 /* ══════════════════════════════════════════ STATISTICS ═════════════════════════════════════════ */
 
@@ -251,39 +258,23 @@ function selftest() {
 }
 
 if (SELFTEST) process.exit(selftest() ? 1 : 0);
-if (!DIR) {
-  console.error('need --dir <trio-dir>  (or --selftest)');
+if (!DIR && !FROM_JSON) {
+  console.error('need --dir <trio-dir>  (or --from-json <saved.json>, or --selftest)');
   process.exit(2);
 }
 
-/* ═══════════════════════════════════════════ CORPUS RUN ════════════════════════════════════════ */
-const B = await import(join(ROOT, 'tools/build-core.js'));
-const classicify = B.classicify || B.default?.classicify;
-function realm(files) {
-  const sb = { console: { log() {}, warn() {}, error() {} }, setTimeout, clearTimeout, addEventListener() {}, removeEventListener() {} };
-  sb.window = sb;
-  sb.globalThis = sb;
-  sb.self = sb;
-  sb.document = {
-    getElementById: () => null,
-    querySelector: () => null,
-    createElement: () => ({ style: {}, appendChild() {} }),
-    head: { appendChild() {} },
-    addEventListener() {},
-    documentElement: { outerHTML: '' }
-  };
-  sb.navigator = { userAgent: 'v' };
-  sb.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
-  const ctx = vm.createContext(sb);
-  for (const f of files) vm.runInContext(classicify(readFileSync(join(ROOT, f), 'utf8')), ctx, { filename: f });
-  return sb;
-}
-const I = realm(['clock.js', 'kernel-constants.js', 'metric-registry.js', 'integrator-dsp.js']).IntegratorDSP;
-if (!I || typeof I.fitClockDrift !== 'function') {
-  console.error('IntegratorDSP.fitClockDrift unavailable');
-  process.exit(2);
-}
+/* ═══════════════════════════════ ROWS: from a saved run, or from the corpus ═══════════════════ */
+let rows;
+let BLOCK_USED = BLOCK_SEC;
+/* ── COVARIATES ARE CHEAP; SCATTER IS NOT ────────────────────────────────────────────────────────
+   These read node exports and nothing else — milliseconds per night. `scatterOf` below costs ~34 s
+   per night because it runs the real `fitClockDrift`. Keeping the cheap half OUTSIDE the corpus
+   branch is what lets `--from-json --dir` re-derive every covariate against a SAVED scatter: a
+   covariate can then be fixed or added without re-paying an hour of compute, which is the
+   difference between a measurement that gets re-examined and one that does not.
 
+   That is not hypothetical. `motionMed` was a median over a zero-inflated series and came back 0 on
+   all 54 nights; replacing it needed the covariates recomputed and the scatter untouched. */
 function loadNode(dir, node) {
   try {
     const f = readdirSync(join(DIR, dir)).find((x) => x.startsWith(`${node}_`) && x.endsWith('.json'));
@@ -319,16 +310,24 @@ function gapStats(ms) {
    a long night does not read as restless purely for being long. */
 function postureStats(j) {
   const ep = j?.timeseries?.epochs;
-  if (!Array.isArray(ep) || ep.length < 3) return { posChangesPerHr: null, supinePct: null, motionMed: null };
+  if (!Array.isArray(ep) || ep.length < 3) return { posChangesPerHr: null, supinePct: null, motionP90: null, motionActivePct: null };
   const pos = ep.map((e) => e.position).filter((p) => typeof p === 'string');
   let changes = 0;
   for (let i = 1; i < pos.length; i++) if (pos[i] !== pos[i - 1]) changes++;
   const hours = ep.length > 1 ? (ep[ep.length - 1].tMin - ep[0].tMin) / 60 : 0;
   const mot = ep.map((e) => e.motionIndex).filter((v) => typeof v === 'number');
+  const ms = mot.slice().sort((a, b) => a - b);
   return {
     posChangesPerHr: hours > 0 && pos.length ? changes / hours : null,
     supinePct: pos.length ? (100 * pos.filter((p) => p === 'supine').length) / pos.length : null,
-    motionMed: mot.length ? median(mot.slice().sort((a, b) => a - b)) : null
+    /* ⚠️ NOT the median. `motionIndex` is heavily zero-inflated — a sleeping body is still for most
+       epochs — so its median is 0 on ALL 54 nights, which reads as "constant across nights" and
+       would have retired one of the brief's four NAMED candidates (posture) on an artefact of the
+       summariser rather than on the data. The per-epoch series is not flat at all: 38-39 distinct
+       values spanning 0-100 on the two nights checked. A zero-inflated variable needs an upper
+       quantile and a burden share, not a central one. */
+    motionP90: ms.length ? quantile(ms, 0.9) : null,
+    motionActivePct: mot.length ? (100 * mot.filter((v) => v > 0).length) / mot.length : null
   };
 }
 
@@ -338,82 +337,139 @@ const correctedFrac = (j, key) => {
 };
 
 /* Per-night robust scatter at ONE block length — the estimator held fixed, per §2. */
-function scatterOf(A, Bt) {
-  let r = null;
-  try {
-    r = I.fitClockDrift(A, Bt, { blockMs: BLOCK_SEC * 1000 });
-  } catch {
-    return null;
-  }
-  if (!r || !Array.isArray(r.perBlock) || r.perBlock.length < 5) return null;
-  const lr = lineResiduals(
-    r.perBlock.map((b) => b.tMs),
-    r.perBlock.map((b) => b.off)
-  );
-  if (!lr) return null;
-  return {
-    scatter: robustSigma(lr.res.slice().sort((a, b) => a - b)),
-    blocks: r.perBlock.length,
-    ppm: r.driftPpm,
-    conc: r.wrappedConcentration ?? null
-  };
-}
 
-const nights = readdirSync(DIR)
-  .filter((d) => {
-    try {
-      return statSync(join(DIR, d)).isDirectory();
-    } catch {
-      return false;
-    }
-  })
-  .sort();
-
-console.log('JOINT-UNWRAP-ATTEMPT-FOLLOWUPS §3 — what distinguishes a lockable night from an un-lockable one?');
-console.log(`block ${BLOCK_SEC} s (estimator FIXED — this is not a sweep) · split at ${SPLIT_MS} ms · ${BOOT} bootstrap resamples · seed ${SEED}\n`);
-
-const rows = [];
-for (const n of nights) {
-  const E = loadNode(n, 'ECGDex');
-  const P = loadNode(n, 'PpgDex');
-  if (!E || !P) continue;
+/* The covariate vector for one night, from exports alone. Shared by the corpus run and by the
+   `--from-json --dir` re-join, so a saved scatter is never paired with a DIFFERENT definition of a
+   covariate than the one being reported. Returns null when either leg is missing. */
+function covOf(dir) {
+  const E = loadNode(dir, 'ECGDex');
+  const P = loadNode(dir, 'PpgDex');
+  if (!E || !P) return null;
   const A = beatMs(E, 'rr'),
     Bt = beatMs(P, 'ppi');
-  if (!A || !Bt) continue;
-  const s = scatterOf(A, Bt);
-  if (!s || s.scatter == null) continue;
-
   const gE = gapStats(A),
     gP = gapStats(Bt);
   const post = postureStats(E);
-  rows.push({
-    night: n,
-    scatter: s.scatter,
-    blocks: s.blocks,
-    ppm: s.ppm,
-    conc: s.conc,
-    cov: {
-      slipPpgPct: P.quality?.correctionRatePct ?? correctedFrac(P, 'ppi'),
-      slipEcgPct: correctedFrac(E, 'rr'),
-      coveragePpgPct: P.quality?.coveragePct ?? null,
-      coverageEcgPct: E.quality?.coveragePct ?? null,
-      analyzablePpgPct: P.quality?.analyzablePct ?? null,
-      motionRejectedPct: P.quality?.motionRejectedPct ?? null,
-      ledAgreementPct: P.quality?.ledAgreementPct ?? null,
-      axisQuantizedShare: P.quality?.axisQuantizedShare ?? null,
-      /* 1 when the PPG leg carries a genuinely INDEPENDENT host clock, 0 when its axis is the device
-         stamp alone. Encoded numerically so it flows through the same rank machinery as the rest; it
-         is binary, so `rho` here IS the rank-biserial form of the AUC beside it. */
-      hostClockPresent: P.quality?.timingSource == null ? null : P.quality.timingSource === 'device+host' ? 1 : 0,
-      maxGapPpgSec: gP.maxGapSec,
-      gapFracPpgPct: gP.gapFrac,
-      maxGapEcgSec: gE.maxGapSec,
-      posChangesPerHr: post.posChangesPerHr,
-      supinePct: post.supinePct,
-      motionMed: post.motionMed
+  return {
+    slipPpgPct: P.quality?.correctionRatePct ?? correctedFrac(P, 'ppi'),
+    slipEcgPct: correctedFrac(E, 'rr'),
+    coveragePpgPct: P.quality?.coveragePct ?? null,
+    coverageEcgPct: E.quality?.coveragePct ?? null,
+    analyzablePpgPct: P.quality?.analyzablePct ?? null,
+    motionRejectedPct: P.quality?.motionRejectedPct ?? null,
+    ledAgreementPct: P.quality?.ledAgreementPct ?? null,
+    axisQuantizedShare: P.quality?.axisQuantizedShare ?? null,
+    /* 1 when the PPG leg carries a genuinely INDEPENDENT host clock, 0 when its axis is the device
+       stamp alone. Encoded numerically so it flows through the same rank machinery as the rest; it is
+       binary, so `rho` here IS the rank-biserial form of the AUC beside it. */
+    hostClockPresent: P.quality?.timingSource == null ? null : P.quality.timingSource === 'device+host' ? 1 : 0,
+    maxGapPpgSec: gP.maxGapSec,
+    gapFracPpgPct: gP.gapFrac,
+    maxGapEcgSec: gE.maxGapSec,
+    posChangesPerHr: post.posChangesPerHr,
+    supinePct: post.supinePct,
+    motionP90: post.motionP90,
+    motionActivePct: post.motionActivePct
+  };
+}
+
+if (FROM_JSON) {
+  const saved = JSON.parse(readFileSync(FROM_JSON, 'utf8'));
+  if (!Array.isArray(saved.nights) || !saved.nights.length) {
+    console.error(`--from-json: ${FROM_JSON} carries no nights[]`);
+    process.exit(2);
+  }
+  rows = saved.nights;
+  BLOCK_USED = saved.blockSec ?? BLOCK_SEC;
+  /* With --dir as well, RE-DERIVE every covariate from the corpus and keep only the saved scatter.
+     The saved `cov` is whatever the code believed when the run was made; re-deriving means a fixed or
+     added covariate is reported against the same scatter without an hour of recompute. Nights whose
+     exports no longer resolve are dropped rather than silently carrying stale covariates. */
+  if (DIR) {
+    const before = rows.length;
+    rows = rows.map((r) => ({ ...r, cov: covOf(r.night) })).filter((r) => r.cov);
+    console.log(`covariates RE-DERIVED from ${DIR} against the saved scatter — ${rows.length} of ${before} night(s) re-joined.`);
+  }
+  console.log('JOINT-UNWRAP-ATTEMPT-FOLLOWUPS §3 — what distinguishes a lockable night from an un-lockable one?');
+  console.log(`RE-RENDERED from ${FROM_JSON} — scatter as measured at block ${BLOCK_USED} s; statistics recomputed by the current code.`);
+  console.log(`split at ${SPLIT_MS} ms · ${BOOT} bootstrap resamples · seed ${SEED}`);
+} else {
+  /* ═══════════════════════════════════════════ CORPUS RUN ════════════════════════════════════════ */
+  const B = await import(join(ROOT, 'tools/build-core.js'));
+  const classicify = B.classicify || B.default?.classicify;
+  function realm(files) {
+    const sb = { console: { log() {}, warn() {}, error() {} }, setTimeout, clearTimeout, addEventListener() {}, removeEventListener() {} };
+    sb.window = sb;
+    sb.globalThis = sb;
+    sb.self = sb;
+    sb.document = {
+      getElementById: () => null,
+      querySelector: () => null,
+      createElement: () => ({ style: {}, appendChild() {} }),
+      head: { appendChild() {} },
+      addEventListener() {},
+      documentElement: { outerHTML: '' }
+    };
+    sb.navigator = { userAgent: 'v' };
+    sb.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
+    const ctx = vm.createContext(sb);
+    for (const f of files) vm.runInContext(classicify(readFileSync(join(ROOT, f), 'utf8')), ctx, { filename: f });
+    return sb;
+  }
+  const I = realm(['clock.js', 'kernel-constants.js', 'metric-registry.js', 'integrator-dsp.js']).IntegratorDSP;
+  if (!I || typeof I.fitClockDrift !== 'function') {
+    console.error('IntegratorDSP.fitClockDrift unavailable');
+    process.exit(2);
+  }
+
+  function scatterOf(A, Bt) {
+    let r = null;
+    try {
+      r = I.fitClockDrift(A, Bt, { blockMs: BLOCK_SEC * 1000 });
+    } catch {
+      return null;
     }
-  });
-  console.log(`  ${n}  scatter ${s.scatter.toFixed(0).padStart(5)} ms  (${String(s.blocks).padStart(3)} blocks, ${s.ppm == null ? 'n/a' : s.ppm.toFixed(1)} ppm)`);
+    if (!r || !Array.isArray(r.perBlock) || r.perBlock.length < 5) return null;
+    const lr = lineResiduals(
+      r.perBlock.map((b) => b.tMs),
+      r.perBlock.map((b) => b.off)
+    );
+    if (!lr) return null;
+    return {
+      scatter: robustSigma(lr.res.slice().sort((a, b) => a - b)),
+      blocks: r.perBlock.length,
+      ppm: r.driftPpm,
+      conc: r.wrappedConcentration ?? null
+    };
+  }
+
+  const nights = readdirSync(DIR)
+    .filter((d) => {
+      try {
+        return statSync(join(DIR, d)).isDirectory();
+      } catch {
+        return false;
+      }
+    })
+    .sort();
+
+  console.log('JOINT-UNWRAP-ATTEMPT-FOLLOWUPS §3 — what distinguishes a lockable night from an un-lockable one?');
+  console.log(`block ${BLOCK_SEC} s (estimator FIXED — this is not a sweep) · split at ${SPLIT_MS} ms · ${BOOT} bootstrap resamples · seed ${SEED}\n`);
+
+  rows = [];
+  for (const n of nights) {
+    const E = loadNode(n, 'ECGDex');
+    const P = loadNode(n, 'PpgDex');
+    if (!E || !P) continue;
+    const A = beatMs(E, 'rr'),
+      Bt = beatMs(P, 'ppi');
+    if (!A || !Bt) continue;
+    const s = scatterOf(A, Bt);
+    if (!s || s.scatter == null) continue;
+
+    rows.push({ night: n, scatter: s.scatter, blocks: s.blocks, ppm: s.ppm, conc: s.conc, cov: covOf(n) });
+    console.log(`  ${n}  scatter ${s.scatter.toFixed(0).padStart(5)} ms  (${String(s.blocks).padStart(3)} blocks, ${s.ppm == null ? 'n/a' : s.ppm.toFixed(1)} ppm)`);
+  }
 }
 
 if (rows.length < 6) {
@@ -502,7 +558,26 @@ for (const k of KEYS) {
     aucCI: aucCI ? { lo: aucCI.lo, hi: aucCI.hi } : null,
     aucP: aucCI ? bootP(aucCI.dist, 0.5) : null,
     medLock: lock.length ? median(srt(have.filter((r) => r.scatter < SPLIT_MS).map((r) => r.cov[k]))) : null,
-    medUnlock: unlock.length ? median(srt(have.filter((r) => r.scatter >= SPLIT_MS).map((r) => r.cov[k]))) : null
+    medUnlock: unlock.length ? median(srt(have.filter((r) => r.scatter >= SPLIT_MS).map((r) => r.cov[k]))) : null,
+    /* THE COVARIATE'S OWN SPREAD, carried so a null can be read correctly. A covariate that barely
+       varies across the corpus cannot separate anything, and its non-significant p is then a
+       statement about THIS CORPUS rather than about the covariate. Measured here: `coveragePct` has
+       an IQR of 1.0 point over 54 nights and `ledAgreementPct` takes 5 distinct values. Reporting p
+       without this invites reading "no association" where the honest reading is "no contrast to
+       test". Same failure the TCH brief records for a near-constant kSQI. */
+    uniq,
+    /* Share of nights sitting on the MODAL value. This, not the distinct count, is what "no contrast
+       to test" means: `coveragePpgPct` has 10 distinct values and still puts 30 of 54 nights on 98,
+       so its ranks are nearly all ties and no rank test can see anything. A distinct-count rule
+       misses exactly that case while flagging a deliberately binary covariate. */
+    modalShare: (() => {
+      const c = new Map();
+      for (const v of xs) c.set(v, (c.get(v) || 0) + 1);
+      return Math.max(...c.values()) / xs.length;
+    })(),
+    iqr: quantile(srt(xs), 0.75) - quantile(srt(xs), 0.25),
+    lo: Math.min(...xs),
+    hi: Math.max(...xs)
   });
 }
 
@@ -521,8 +596,8 @@ testedA.forEach((r, i) => {
 
 const f3 = (v) => (v == null ? '  n/a' : (v >= 0 ? ' ' : '') + v.toFixed(2));
 const fp = (v) => (v == null ? ' n/a ' : v < 0.001 ? '<.001' : v.toFixed(3));
-console.log(`\n  covariate              n    rho  [95% CI]        p    p(Holm)     AUC  [95% CI]        p    p(Holm)   med(lock) med(unlock)`);
-console.log(`  ${'─'.repeat(120)}`);
+console.log(`\n  covariate              n    rho  [95% CI]        p    p(Holm)     AUC  [95% CI]        p    p(Holm)   med(lock) med(unlock)   spread(IQR · range · distinct)`);
+console.log(`  ${'─'.repeat(152)}`);
 for (const r of results) {
   if (r.skip) {
     console.log(`  ${r.key.padEnd(20)} ${String(r.n).padStart(3)}   — ${r.skip}`);
@@ -532,7 +607,8 @@ for (const r of results) {
   const aci = r.aucCI ? `[${f3(r.aucCI.lo)},${f3(r.aucCI.hi)}]` : '     n/a     ';
   console.log(
     `  ${r.key.padEnd(20)} ${String(r.n).padStart(3)}  ${f3(r.rho)} ${ci}  ${fp(r.rhoP)}  ${fp(r.rhoPAdj)}   ${f3(r.auc)} ${aci}  ${fp(r.aucP)}  ${fp(r.aucPAdj)}   ` +
-      `${r.medLock == null ? '   n/a' : r.medLock.toFixed(2).padStart(7)} ${r.medUnlock == null ? '   n/a' : r.medUnlock.toFixed(2).padStart(9)}`
+      `${r.medLock == null ? '   n/a' : r.medLock.toFixed(2).padStart(7)} ${r.medUnlock == null ? '   n/a' : r.medUnlock.toFixed(2).padStart(9)}` +
+      `   ${r.iqr.toFixed(3).padStart(7)} · ${r.lo.toFixed(2)}–${r.hi.toFixed(2)} · ${r.uniq}`
   );
 }
 
@@ -550,6 +626,21 @@ if (separators.length) {
   console.log('  the named candidates (slip rate, coverage, posture, off-body period) do not classify a');
   console.log('  night in advance, so no unwrap can be gated on them.');
 }
+/* A null on a covariate that barely varies is not evidence of no relationship. Name those explicitly
+   so the negative branch is not over-read — the brief's acceptable outcome is "none of the named
+   candidates separates them", which is a different claim from "none of them could have". */
+/* `hostClockPresent` is binary BY DESIGN — two values is its full range, not a shortage of one — so
+   it is exempt here exactly as it is exempt from the 2-value skip above. Everything else is judged on
+   concentration: half the corpus or more sharing one value leaves almost nothing for a rank test. */
+const flat = results.filter((r) => !r.skip && r.modalShare != null && r.key !== 'hostClockPresent' && (r.modalShare >= 0.5 || r.iqr === 0));
+if (flat.length) {
+  console.log(`\n  ⚠️ ${flat.length} covariate(s) are NEAR-CONSTANT on this corpus — a non-significant p for these`);
+  console.log('     says the corpus carries no contrast to test, NOT that the covariate is unrelated:');
+  for (const r of flat)
+    console.log(
+      `       · ${r.key.padEnd(20)} ${(100 * r.modalShare).toFixed(0)}% of nights share one value · ${r.uniq} distinct · IQR ${r.iqr.toFixed(3)} · range ${r.lo.toFixed(2)}–${r.hi.toFixed(2)}`
+    );
+}
 if (associated.length && !separators.length) {
   console.log(`  (${associated.length} covariate(s) show a rank association with the continuous scatter but do not`);
   console.log('   separate the populations — an association within a cluster is not a classifier.)');
@@ -557,6 +648,6 @@ if (associated.length && !separators.length) {
 console.log('\n  NO UNWRAP IS PROPOSED HERE — §4 puts that out of scope until a night can be classified before the fit.');
 
 if (JSON_OUT) {
-  writeFileSync(JSON_OUT, `${JSON.stringify({ blockSec: BLOCK_SEC, splitMs: SPLIT_MS, boot: BOOT, seed: SEED, nights: rows, results }, null, 2)}\n`);
+  writeFileSync(JSON_OUT, `${JSON.stringify({ blockSec: BLOCK_USED, splitMs: SPLIT_MS, boot: BOOT, seed: SEED, nights: rows, results }, null, 2)}\n`);
   console.log(`\n  wrote ${JSON_OUT}`);
 }
