@@ -959,6 +959,8 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
   const t0 = Date.now();
   const queue = splitNodes ? work.flatMap((p) => TRIO_NODES.map((n) => ({ p, node: n }))) : work.map((p) => ({ p, node: null }));
   const queue0 = queue.length; // immutable job count — `queue` is drained by the workers
+  // How long to wait for a dead child's pipes to drain before reporting without them (see `settle`).
+  const CHILD_STDIO_GRACE_MS = 5000;
   const nightOutcome = new Map(); // night key → { ok, total } so the parent can stamp a fully-green night
   let done = 0,
     failed = 0;
@@ -980,7 +982,39 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
       ch.stderr.on('data', (d) => {
         out += d;
       });
-      ch.on('close', (code) => {
+      /* ── THE RUN MUST NOT BE ABLE TO HANG AFTER THE WORK IS DONE (2026-08-13) ────────────────────
+         `close` fires only once the child has exited AND every stdio pipe has reached EOF. Those are
+         different events, and the second one can simply never arrive — a pipe held open leaves the
+         parent waiting on a child that is already dead. Measured here: 17 nights computed, every
+         `.trio-stamp` written, and the coordinator then sat for 32 minutes at 0 % CPU with a DEFUNCT
+         child it had never reaped, because nothing but `close` could resolve this promise.
+
+         That is the worst shape a hang can take: all the work is finished and none of it is reported,
+         so it is indistinguishable from a slow night. `exit` is the event that actually means the
+         process is gone, so it is the one that decides — `close` is still preferred when it arrives
+         first (its stdio is complete), and `exit` arms a short grace period for the pipes to drain
+         before resolving with what was captured.
+
+         `error` is handled for the same reason: an unhandled `error` on a child emitter THROWS, so a
+         spawn failure (EAGAIN under load, a bad interpreter path) would take down a run that has
+         already computed most of its nights rather than failing that one job. */
+      let settled = false;
+      let graceT = null;
+      const settle = (code, why) => {
+        if (settled) return;
+        settled = true;
+        if (graceT) clearTimeout(graceT);
+        if (why) out += `\n[trio-batch] child ${why}\n`;
+        finish(code);
+      };
+      ch.on('error', (e) => settle(1, `spawn/runtime error: ${e && e.message ? e.message : e}`));
+      ch.on('exit', (code, signal) => {
+        // The process is GONE. Give the pipes a moment to flush, then report regardless.
+        graceT = setTimeout(() => settle(code == null ? (signal ? 1 : 0) : code, `exited (${signal || code}) but its stdio never closed — reporting anyway`), CHILD_STDIO_GRACE_MS);
+        if (graceT.unref) graceT.unref();
+      });
+      ch.on('close', (code) => settle(code, null));
+      function finish(code) {
         done++;
         // Print each night's block whole, so interleaved children never shred each other's output.
         const body = out
@@ -1033,7 +1067,7 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
           }
         }
         res();
-      });
+      }
     });
   const workers = Array.from({ length: Math.min(plan.jobs, queue.length) }, async () => {
     while (queue.length) await runOne(queue.shift());
