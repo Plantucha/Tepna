@@ -26376,6 +26376,12 @@
         T.eq('§5.5 · a date-only export parses its rows (pre-fix EVERY row was silently dropped)', dOnly.daily.length, 2);
         T.eq('§5.5 · …anchored at midnight UTC — a daily row is a DAY, not a fabricated instant', iso(dOnly.daily[0].ms), '2026-07-13');
         T.eq('§5.5 · …and hasTime is honestly false for such a file', dOnly.hasTime, false);
+        // SIGNAL-PATH-AUDIT F1 — _ckDateOnly was the ONE stamp path skipping _ckMk's round-trip, so a
+        // corrupt date SILENTLY ROLLED (2026-13-45 -> 2027-02-14; Feb 30 -> Mar 2) and fed the
+        // meal-glucose join a fabricated day. Now: an impossible date drops the row; valid rows survive.
+        var corrupt = pn('Date,Energy (kcal),Net Carbs (g)\n2026-13-45,2100,200\n2026-02-30,1950,180\n2026-07-14,1800,150');
+        T.eq('F1 · calendar-impossible dates are DROPPED, never rolled to a plausible wrong day', corrupt.daily.length, 1);
+        T.eq('F1 · the valid sibling row survives the corrupt ones', iso(corrupt.daily[0].ms), '2026-07-14');
         // (b) 13/07 PROVES DMY, so 05/07 is 5 July — not 7 May.
         T.eq(
           '§5.5 · a European file locks DMY from its own evidence (05/07 → 5 Jul, not 7 May)',
@@ -28389,6 +28395,15 @@
         T.eq('post-midnight event rolls forward a day', RT({ t: '01:30:00' }, t0), U(2026, 5, 8, 1, 30, 0));
         T.eq('same-evening event stays same day', RT({ t: '23:00:00' }, t0), U(2026, 5, 7, 23, 0, 0));
         T.eq('absolute tMs passes through unchanged', RT({ t: '01:30:00', tMs: t0 + 999 }, t0), t0 + 999);
+        // SIGNAL-PATH-AUDIT F3 — the [12 h, 24 h) band. The parser's 12 h roll slack refused the
+        // day-roll for a t-only event 12-24 h after t0, landing it 24 h EARLY (before the recording
+        // began). Executed reproduction before the fix: t0 20:00, '08:00:00' -> 12 h BEFORE t0.
+        T.eq('t-only event +12 h lands next morning, not 12 h before start', RT({ t: '08:00:00' }, U(2026, 5, 7, 20, 0, 0)), U(2026, 5, 8, 8, 0, 0));
+        T.eq('t-only event +15 h lands next morning too', RT({ t: '11:00:00' }, U(2026, 5, 7, 20, 0, 0)), U(2026, 5, 8, 11, 0, 0));
+        // the 60 s grace: second-rounding jitter just BEFORE t0 keeps same-day placement...
+        T.eq('an event 30 s before t0 keeps its same-day placement (grace)', RT({ t: '21:59:30' }, t0), U(2026, 5, 7, 21, 59, 30));
+        // ...but past the grace the window rule advances it (pure in (t, t0Ms), order-independent)
+        T.eq('an event 2 min before t0 is next-day (outside the grace)', RT({ t: '21:58:00' }, t0), U(2026, 5, 8, 21, 58, 0));
       } else T.ok('reconstructEventTMs present', false);
       // matching: one surge confirms exactly one desat (single-use, no double-count);
       // findings emitted in deterministic ascending tMs order.
