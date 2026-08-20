@@ -13,21 +13,50 @@ carries what turned up on the way and is **not** part of that work unit.
 
 ---
 
-## 1 · `hostAxis.stability`'s σ fields are named `…Ms` and are not milliseconds
+## 1 · ✅ DONE 2026-08-20 — and the mislabel was NOT harmless: it reached a user-facing card
 
 `clock.js` publishes `atShortestMs` / `atLongestMs`. `allanFromPhase` is handed phase in **ms** and τ
 in **seconds**, so its `adev` is a fractional frequency in **ms/s** — which is exactly why the same
 object computes `ppmUncertainty: adev * 1000`. If the field were milliseconds that multiplier would
 be wrong.
 
-So the two names understate their own values by 1000× to anyone who reads them as written. Nothing
-is numerically wrong today — every in-repo consumer either uses `ppmUncertainty` or treats the value
-opaquely — but this is a unit mislabel in shipped spine code, and CLAUDE.md rates a wrong unit at the
-same severity as a wrong number. `HOSTAXIS-STABILITY` §2's own prose already writes the correct unit
+So the two names understate their own values by 1000× to anyone who reads them as written.
+
+> ### ⛔ CORRECTED 2026-08-20 during execution — this paragraph's central claim was FALSE.
+>
+> It read: *"Nothing is numerically wrong today — **every in-repo consumer either uses
+> `ppmUncertainty` or treats the value opaquely**."* That is what made the item look cosmetic for
+> three days, and one `git grep` refutes it.
+>
+> **`ppgdex-app.js` renders BOTH fields to the user, labelled `ms disagreement`.** They are σ_y in
+> ms/s — a *rate*. The long-τ card is wrong by a factor of **τ**: it displayed `0.0065` as
+> milliseconds where the disagreement over a 60-minute window is ~23 ms. The short-τ card only looked
+> right by arithmetic accident, because τ₀ ≈ 1 s makes the multiplier ≈ 1.
+>
+> So this was a **shipped, user-facing wrong unit**, not an internal naming wart — the severity
+> CLAUDE.md §📏 actually names.
+>
+> ⚠️ **The warning below also names the wrong file.** `atLongestMs` is NOT read by `ecgdex-dsp.js`;
+> its readers are `integrator-dsp.js`, `ppgdex-dsp.js` and `ppgdex-app.js`. The instruction it carries
+> (do not rename in place) is right; its evidence was not.
+
+This is a unit mislabel in shipped spine code, and CLAUDE.md rates a wrong unit at the same severity
+as a wrong number. `HOSTAXIS-STABILITY` §2's own prose already writes the correct unit
 ("194 ms/s @ 0.15 s"), so the brief and the field disagree.
 
-- **Fix:** add `atShortestPpm` / `atLongestPpm` alongside, deprecate the `…Ms` pair in comment. Additive,
-  so no consumer breaks — the same additive discipline `stability` itself shipped under.
+- **Fix (EXECUTED):** `atShortestPpm` / `atLongestPpm` added alongside, `…Ms` deprecated in comment.
+  Additive, so no consumer breaks. **Twice over** — `ppgdex-dsp.js` keeps its own copy because PpgDex
+  does not inline `clock.js` (§✅), so the pair had to be added in both and they stay in step by hand.
+- **Also fixed, and the reason the item was worth more than its three lines:** the PpgDex card renders
+  **ppm** with σ_y(τ) labels instead of `ms disagreement`, plus a paragraph saying why no millisecond
+  figure is offered. **ppm rather than a converted duration is deliberate:** σ_y(τ)·τ is a time error
+  only up to a **noise-type-dependent factor** (TDEV's √3 holds for white PM alone), so rendering that
+  product as plain ms would swap a wrong *unit* for a fabricated *precision*, and doing it honestly
+  would mean routing the classifier's verdict into display to produce a number **less** comparable than
+  the one it replaced. Recorded at the render site so it is not "fixed" back to ms later.
+- **Cost, as predicted:** a spine change — 11 bundles rebuilt. ⚠️ Measured while executing: **no
+  analysis tool inlines `ppgdex-*` at all** (0 of 10), so the third-tree rule binds here through
+  `clock.js` (via `odi-bias-analysis.html` + `resp-acc-analysis.html`), not through the node.
 - **Cost:** `clock.js` is a **shared-spine change** (CLAUDE.md §👥.3) — it re-stamps all 8
   `provenance/<App>.json` fragments and serialises against every bundle-touching PR. That is the whole
   cost; the edit is three lines. Land it with other spine work, not alone.
@@ -124,7 +153,7 @@ merge conflict when it goes wrong.
 
 ## 7 · Done when
 
-- [ ] `atShortestPpm` / `atLongestPpm` added additively to `hostAxis.stability`, on the next spine PR
+- [x] **DONE 2026-08-20** — added additively to `hostAxis.stability` **and** to `ppgdex-dsp.js`'s own copy; the user-facing `ms disagreement` render fixed with it. Full `npm run check` green (8110 assertions, 518 groups, 0 failing).
 - [~] **HALF DONE — #1530, 2026-08-19.** *Sharing one implementation* is done: `dual-clock-rate.mjs`
       imports `crystalVerdict` and delegates through a pure `crystalCoherence()`, its duplicate
       `MAX_CRYSTAL_SPREAD_PPM` is now a re-export, and a 14-assertion group

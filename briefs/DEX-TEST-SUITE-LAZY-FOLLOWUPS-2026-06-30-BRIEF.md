@@ -60,6 +60,27 @@ in this environment (no Node/playwright), so §1 is closed on inspection + the i
 rather than held open indefinitely — the owed run is superseded as a blocker, not a pending code change.
 If a served checkout ever exists, run it as a confirmation; no code change is expected.
 
+> **✅ CONFIRMED ON EVIDENCE — 2026-08-20. The served checkout exists, and the environment claim is
+> long obsolete.** The owed command was run verbatim against a locally served tree
+> (`python3 -m http.server 8080` + `BASE_URL=http://127.0.0.1:8080 node tests/browser-gates.mjs`):
+>
+> ```
+> ▸ Dex-Test-Suite.html …
+>    summary: ✓ all green 7584 passed 52 skipped 533 groups
+> ▸ verify-provenance.html …   9 bundles · 31 fixtures audited
+> ▸ no-network.html …          static:true runtime:true python:true canary:true
+> ✓ browser gates passed (render-coverage + provenance)
+> ```
+>
+> That is this section's Done-when string, met. **No code change was needed, as predicted.**
+>
+> ⚠️ **And it had been achievable far longer than this note assumed.** `.github/workflows/browser-gates.yml`
+> installs `playwright@1.48.0` + chromium and runs exactly `BASE_URL=http://127.0.0.1:8080 npm run
+> gates:browser`, and **`browser-gates` is one of the eight REQUIRED status checks** — so the command
+> called "un-runnable in this environment" has gated every PR since that workflow landed. Closing on
+> inspection was right at the time; what was missing is that nothing re-tests an environment claim once
+> it is written down. The blocker dissolved silently and the brief kept asserting it.
+
 ---
 
 ## 2 · Doc / consumer sweep — other on-load-full-run assumptions
