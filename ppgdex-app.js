@@ -634,11 +634,21 @@ import { PPGUI } from './ppgdex-render.js';
       <div style="font-weight:700;margin-bottom:4px">Detector stability vs averaging time <span class="dim" style="font-weight:400"> · overlapping Allan deviation</span></div>
       <div class="q-grid" style="margin:8px 0">
         <div class="q-stat"><div class="q-val ${good ? 'ok' : 'warn'}">${s.slope}</div><div class="q-lbl">slope${evBadge('Detector stability')}</div><div class="q-sub">${s.noise}</div></div>
-        <div class="q-stat"><div class="q-val neutral">${s.atShortestMs}</div><div class="q-lbl">per beat${evBadge('Detector stability')}</div><div class="q-sub">ms disagreement</div></div>
-        <div class="q-stat"><div class="q-val neutral">${s.atLongestMs < 0.01 ? s.atLongestMs.toExponential(1) : s.atLongestMs.toFixed(3)}</div><div class="q-lbl">over ${s.tauMaxSec >= 60 ? Math.round(s.tauMaxSec / 60) + ' min' : s.tauMaxSec + ' s'}${evBadge('Detector stability')}</div><div class="q-sub">ms disagreement</div></div>
+        <!-- ppm, NOT milliseconds, and this is deliberate — do not "fix" it back because ms reads friendlier.
+             sigma_y is a RATE (the fields still named …Ms are ms/s, kept only for back-compat). Converting to a
+             duration is sigma_y(tau) x tau ONLY up to a noise-type-dependent factor — TDEV's sqrt(3) holds for
+             white PM alone — so rendering that product as plain "ms" would replace a wrong UNIT with a fabricated
+             PRECISION, which is the failure the evidence-badge rules exist to prevent. Doing it honestly means
+             routing the classifier's verdict into display, to produce a number LESS comparable than this one.
+             Two sigma_y values at two taus also carry the CURVE'S SHAPE (that difference is the slope, the whole
+             point of the card); in ms the long-tau slot is dominated by the tau multiplication and the shape
+             drowns. CLAUDE.md §7's "never quote ppm without its tau" is satisfied by the labels below. -->
+        <div class="q-stat"><div class="q-val neutral">${s.atShortestPpm < 0.01 ? s.atShortestPpm.toExponential(1) : s.atShortestPpm.toFixed(1)}</div><div class="q-lbl">per beat${evBadge('Detector stability')}</div><div class="q-sub">ppm &sigma;<sub>y</sub>(&tau;<sub>0</sub>)</div></div>
+        <div class="q-stat"><div class="q-val neutral">${s.atLongestPpm < 0.01 ? s.atLongestPpm.toExponential(1) : s.atLongestPpm.toFixed(1)}</div><div class="q-lbl">over ${s.tauMaxSec >= 60 ? Math.round(s.tauMaxSec / 60) + ' min' : s.tauMaxSec + ' s'}${evBadge('Detector stability')}</div><div class="q-sub">ppm &sigma;<sub>y</sub>(&tau;)</div></div>
         <div class="q-stat"><div class="q-val neutral">${s.optimalTauSec >= 60 ? Math.round(s.optimalTauSec / 60) + ' min' : s.optimalTauSec + ' s'}</div><div class="q-lbl">best averaging window${evBadge('Detector stability')}</div><div class="q-sub">${s.nPaired} beats paired</div></div>
       </div>
       <b>What this is.</b> How much PpgDex's own beat detector and the ring's firmware detector disagree — plotted against how long you average. Both watch the <i>same heart</i> through the <i>same file</i>, so the heartbeat itself cancels out of the difference and what is left is detector noise alone. The technique is standard in clock metrology (the usual way to ask whether an oscillator's error shrinks with averaging); applying it to two <i>detectors</i> rather than two clocks is the unusual part, and it works for the same reason: a difference between two observers of one signal is exactly what the statistic is built for. It exists because a single standard deviation cannot answer the question — for several common noise types SD grows with sample count instead of settling (NIST SP&nbsp;1065).
+      <br><br><b>Why ppm and not milliseconds.</b> &sigma;<sub>y</sub> is a <i>rate</i> — how fast the two detectors drift apart per unit of averaging time — not a duration. Turning it into &ldquo;milliseconds of disagreement&rdquo; means multiplying by the averaging window, and that step is only exact once the <i>noise type</i> above is known; the factor differs between them. Quoting a millisecond figure without it would look more precise than the measurement is. Read the two numbers against each other instead: their ratio across the two averaging times <i>is</i> the slope.
       <br><br><b>How to read the slope.</b> <b>−1</b> pure jitter, averages away fast · <b>−½</b> benign · <b>0</b> a floor, more averaging buys nothing · <b>+½</b> wander · <b>+1</b> drift, must be removed not averaged through.
       <br><br><b>What this one licenses.</b> ${
         good
@@ -1150,6 +1160,8 @@ import { PPGUI } from './ppgdex-render.js';
                     tau0Sec: r.validation.stability.tau0Sec,
                     atShortestMs: r.validation.stability.atShortestMs,
                     atLongestMs: r.validation.stability.atLongestMs,
+                    atShortestPpm: r.validation.stability.atShortestPpm,
+                    atLongestPpm: r.validation.stability.atLongestPpm,
                     tauMaxSec: r.validation.stability.tauMaxSec,
                     optimalTauSec: r.validation.stability.optimalTauSec,
                     method: 'overlapping Allan deviation of the two detectors’ beat-time difference (phase); the shared physiology cancels, so the curve is detector noise alone',

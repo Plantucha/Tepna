@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-LK5VOOBa0EEy7ufo1WyQm1kSFnDsFWmUvZ1fThFN8ws=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-WX3tg5nB5jJc0s/PB7pucD792EqjTHiSRYGiLYS8LEM=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-i3reGRzkJM7QjIg1lbF4DPDdb5yytZOi+1xN8393YJc=' 'sha256-l6FqHwmtcveZ/sEp4seD0HSvL8vz+C6dZSH6TXGqEYw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-LK5VOOBa0EEy7ufo1WyQm1kSFnDsFWmUvZ1fThFN8ws=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-WX3tg5nB5jJc0s/PB7pucD792EqjTHiSRYGiLYS8LEM=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-i3reGRzkJM7QjIg1lbF4DPDdb5yytZOi+1xN8393YJc=' 'sha256-psCNI6L+RVB3F77zf3oNwebbh8Z+Ml5lnVD4nzvTKxM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.6.0</title>
@@ -5095,8 +5095,18 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
           noise: cls.noise,
           candidates: cls.candidates,
           meaning: cls.meaning,
+          /* ⚠️ `…Ms` IS A MISNOMER AND IS KEPT ONLY FOR BACK-COMPAT — these are a RATE, not a duration.
+             `_ckAllanFromPhase` is handed phase in MILLISECONDS and τ in SECONDS, so `adev` is a
+             fractional frequency in ms/s. `ppmUncertainty` below multiplies the same number by 1000,
+             which is only correct because of that: ms/s ÷ 1000 is dimensionless, × 1e6 is ppm.
+             Read as milliseconds these two understate themselves by 1000×, and CLAUDE.md §📏 rates a
+             wrong unit at the severity of a wrong number. Prefer the `…Ppm` pair below. Renaming in
+             place is NOT available — `integrator-dsp.js` and `ppgdex-*` read these names. */
           atShortestMs: curve[0].adev,
           atLongestMs: curve[curve.length - 1].adev,
+          /* The same two values in the unit they are actually in. */
+          atShortestPpm: curve[0].adev * 1000,
+          atLongestPpm: curve[curve.length - 1].adev * 1000,
           tauMaxSec: curve[curve.length - 1].tau,
           /* The averaging time minimising σ_y — the window a measurement on this pair should use, in
              place of one chosen by intuition. On a pure-jitter clock it is simply the longest τ
