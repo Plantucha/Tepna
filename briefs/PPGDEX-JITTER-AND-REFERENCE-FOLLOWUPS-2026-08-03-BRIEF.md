@@ -552,6 +552,43 @@ set with the match rate beside it** (that corpus is not on this volume; see `cor
 the wrist reads ~8.4 there with a low match rate, the difference is night quality and both figures stand as
 corpus-conditional; if it reads ~5 with a high one, the 8.36 was the apparatus and §1's first row closes.
 
+> ### 🔴 THAT TEST IS ALREADY ANSWERED — the match rate was recorded beside 8.36 all along (2026-08-20)
+>
+> The discriminator above asks for *"the ORIGINAL 15-night set with the match rate beside it"*. It is in
+> `O2RING-FINGER-HRV-VALIDATION-2026-07-21-BRIEF.md` §8.1, in the row that produced 8.36:
+>
+> | | nights | PPI-jitter sd (median) | IQR | beat match rate |
+> |---|---|---|---|---|
+> | **Verity WRIST** | 15 | **8.36 ms** | **4.63 – 31.61** | **100 % (IQR 86.7–100)** |
+>
+> **The wrist reads ~8.4 with a HIGH match rate — neither branch the test poses.** It offers
+> "8.4 + low match ⇒ night quality" or "5 + high match ⇒ apparatus"; the actual pair is
+> **8.4 + 100 %**, which the framing did not anticipate, so no corpus re-run can resolve it *as posed*.
+>
+> **And the discrepancy that motivated all of §1 is not statistically present.** That IQR spans
+> **4.63 – 31.61 ms** — and **5.92 sits inside it**, comfortably. *"8.36 ms: 41 % higher"* compares a
+> median against a point value with the spread discarded, on a distribution ~27 ms wide. §8.2's own
+> honest line — *"I cannot attribute it"* — was written directly beneath the IQR that shows there is
+> little to attribute. §1's re-run (median **6.09**, IQR 4.57–7.54) is consistent with both figures for
+> the same reason.
+>
+> ⚠️ **This is also why §6.8's 4-night IQR must not be read as the tighter measurement.** 4.92–5.03 is
+> the spread of **four numbers**; 4.63–31.61 is the spread of fifteen. The narrow one looks ~300× more
+> precise and is not — §6.8 already warns about exactly this, and the warning applies to the comparison
+> the section then invites. Two medians of different precision cannot be differenced; they have to be
+> judged through their dispersions, which is what this box does.
+>
+> **So the corpus transfer buys precision, not a verdict.** For anyone who wants it anyway: the box
+> holds **26 nights carrying both Verity PPG and H10 ECG** under `/srv/tepna/captures` (27 nights
+> total), **13 GB** of paired files — more than the 15 the test names. But the original fifteen are
+> *not identified anywhere*, so a 26-night run produces a **fourth** number for this quantity rather
+> than adjudicating the existing three. Naming the nights is the prerequisite, not the transfer.
+>
+> **What remains genuinely open** is narrower than the section above implies: not *"which figure is
+> right"* — they are not distinguishable at the recorded precision — but *"what is the wrist's PPI
+> jitter with an interval anyone can quote"*, which needs an n large enough to make the median stable.
+> The 15-night IQR says the current answer is not that.
+
 ⚠️ **The device-keyed reference line this run needed is not yet on `main`** — it ships in this same PR.
 Until it lands, the tool prints `[Verity wrist reference: 5.92 ms]` beside an **O2Ring** figure, which is
 exactly the unkeyed-label defect (`AUDIT-PROMPT.md` class 15) that produced the mis-attribution corrected
