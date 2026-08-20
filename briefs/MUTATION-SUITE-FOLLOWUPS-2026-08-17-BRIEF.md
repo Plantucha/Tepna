@@ -574,6 +574,20 @@ against a merged PR of the same day, whose rollup carries `test` and whose only 
 its shards had finished. **Never conclude "never reported" from the aggregate alone** — an absence is
 not a verdict until you have looked at what produces it, which is §0's table one more time.
 
+✅ **`tools/land-pr.mjs` ALREADY GETS THIS RIGHT — cite it rather than re-deriving it.** Read before
+writing this section, and the trap it documents is one the toolchain met and fixed on **#1293**, where
+`suite (shard 1/6)` was pending, is not itself required, so `requiredPending` was 0 — and the tool fell
+through to `merge` on a PR whose required `test` had never reported. Its `decide` now carries **both**
+branches, and the discriminator it uses is broader than the shard-specific one above: *anything*
+pending ⇒ the absent context is **LATE** (`wait`); nothing pending ⇒ **never coming** (`stuck`). It
+also guards the failure mode one level up — an **unreadable** snapshot (a GraphQL TLS timeout on #1183)
+returns `wait`, not `stuck`, because a failed measurement is not an empty result.
+
+So this section is a note for **humans reading a rollup by eye**, which is where the misreading actually
+happens; the tool is not exposed to it. Two independent confirmations, both measurements rather than
+agreement: a peer's `land-pr` logs on two PRs today (`-> wait (… required context(s) not yet reported:
+test)` at 18:48, `MERGED` at 18:52), and the `decide` source itself.
+
 ---
 
 ## 6 · THE PATTERN WORTH CARRYING OUT OF THIS
