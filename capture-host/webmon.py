@@ -146,7 +146,7 @@ def _warn_comment_loss(path: str) -> None:
 
 def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_device,
              pull_stored=None, polar_pause=None, sync_time=None, forget_device=None,
-             on_tz_change=None, notifier=None) -> web.Application:
+             on_tz_change=None, notifier=None, ring_config=None) -> web.Application:
     # Optional shared-secret gate on the CONTROL surface. When web.token is set, every POST (bond / forget
     # / remember / pull / settings / clock — all the state-changing verbs) needs the token; GET reads stay
     # open so the monitor can still display without it. Default OFF (no token → current wide-open behaviour;
@@ -238,6 +238,16 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         "worn_why": st.get("worn_why"),
                         "worn_optical": st.get("worn_optical"),
                         "worn_optical_why": st.get("worn_optical_why"),
+                        # THE RING'S OWN CLOCK vs the host (GET_INFO [24:31], readable since 2026-08-19).
+                        # The 6-hourly 0xC0 push was previously trusted blind; this read-back says whether
+                        # it landed and how far the free-running RTC has wandered since.
+                        "ring_rtc_offset_s": st.get("ring_rtc_offset_s"),
+                        "ring_rtc_read": st.get("ring_rtc_read"),
+                        # The ring's settings struct AS THE RING REPORTS IT (0x00 read-back), plus the
+                        # verdict of the last monitor-queued write. The requested value is deliberately
+                        # not echoed anywhere — only what the device confirmed.
+                        "ring_config": st.get("ring_config"),
+                        "ring_config_verdict": st.get("ring_config_verdict"),
                         "charging": bool(st.get("charging")),
                         "last_error": st.get("last_error")})
         return out
@@ -366,6 +376,33 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         if forget_device:                     # stop the runner too — else it reconnects a dropped device
             forget_device(body["address"])
         return web.json_response(res)
+
+    async def ring_config_h(req):
+        """POST /api/ring/config {address, field, value} — queue ONE whitelisted O2Ring settings write.
+        Validation is capture.queue_ring_config's (it builds the frame via oxyii.set_config_frame, so an
+        off-whitelist field or out-of-range value 400s HERE and nothing invalid ever waits on a link).
+        The write itself lands on the ring's next live poll (~1 s when connected); the monitor then shows
+        the ring's own read-back (`ring_config` + `ring_config_verdict` on /api/state), never the value
+        that was merely requested."""
+        if ring_config is None:
+            return web.json_response({"ok": False, "error": "ring settings not wired on this daemon"},
+                                     status=501)
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
+        if not _valid_mac(body.get("address")):
+            return web.json_response({"ok": False, "error": "invalid device address"}, status=400)
+        field = body.get("field")
+        try:
+            value = int(body.get("value"))
+        except (TypeError, ValueError):
+            return web.json_response({"ok": False, "error": "value must be an integer"}, status=400)
+        try:
+            ring_config(body["address"], field, value)
+        except ValueError as e:
+            return web.json_response({"ok": False, "error": str(e)}, status=400)
+        return web.json_response({"ok": True, "queued": {"field": field, "value": value},
+                                  "note": "applied on the ring's next poll; verify via ring_config on /api/state"})
 
     async def remember(req):
         dev = await _body(req)
@@ -1228,6 +1265,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         web.post("/api/cpap/pull", cpap_pull),
         web.post("/api/bond", bond),
         web.post("/api/forget", forget),
+        web.post("/api/ring/config", ring_config_h),
         web.post("/api/remember", remember),
         web.post("/api/pull", pull_stored_h),
         web.get("/api/settings", settings_get),

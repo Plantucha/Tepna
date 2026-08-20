@@ -317,16 +317,17 @@ _OXYII_RTC_RESYNC_SEC = 6 * 3600                   # drift backstop; override vi
 def oxyii_rtc_due(last_sync, now, session_restarted: bool, resync_sec: float) -> str | None:
     """Why the ring's RTC needs writing right now, or None if it does not.
 
-    The ring is WRITE-ONLY on time: its opcode set is AUTH/SETUP/LIVE/SET_TIME + the file transfer ops,
-    with no get-time, and the live frame carries no clock field. So "read it back and skip the write if
-    it's already right" is not implementable — the only observable copy of its RTC is the file-list
-    naming (`YYYYMMDDhhmmss`), which needs the offline path and a pause of live capture, i.e.
-    strictly more traffic than the blind write it would save.
+    (This function's WRITE cadence predates the RTC becoming READABLE — GET_INFO [24:31], measured
+    2026-08-19, oxyii.parse_get_info — and deliberately keeps its shape: a read-then-maybe-write per
+    reconnect would double the control traffic to save a write that costs one frame. The readback's job
+    is VERIFICATION, not gating: the live loop now reads the RTC periodically and publishes the ring-vs-
+    host offset to STATUS, so a 0xC0 push that failed to land is visible on the monitor instead of
+    silently trusted.)
 
-    Instead of asking "is the time wrong?" (unanswerable) this asks "could it have gone wrong in a way
-    that MATTERS?" — which is answerable, because the RTC's only consumer is the stored .dat, and that
-    stamps a session at its START. Hence: first contact, a new recording session, and a slow drift
-    backstop. A BLE reconnect is none of those and must not trigger a write."""
+    Instead of asking "is the time wrong?" this asks "could it have gone wrong in a way that MATTERS?" —
+    answerable, because the RTC's only consumer is the stored .dat, and that stamps a session at its
+    START. Hence: first contact, a new recording session, and a slow drift backstop. A BLE reconnect is
+    none of those and must not trigger a write."""
     if last_sync is None:
         return "first contact"
     if session_restarted:
@@ -335,6 +336,33 @@ def oxyii_rtc_due(last_sync, now, session_restarted: bool, resync_sec: float) ->
     if age >= resync_sec:
         return f"drift backstop, {age / 3600:.1f} h since last"
     return None
+
+
+# ── Ring RTC readback + gated settings writes over the LIVE link (monitor-facing, 2026-08-19) ────────
+# The RTC is readable (GET_INFO [24:31]) and SET_CONFIG is a gated writer (oxyii.set_config_frame).
+# Both ride the live session's existing ~1/s poll cadence: a 0xE1 read every _OXYII_INFO_EVERY_S
+# publishes the ring-vs-host clock offset to STATUS, and a monitor-queued settings write is applied
+# in-session with a 0x00 read-back so the monitor shows the value the RING reports, never the value
+# that was merely asked for.
+_OXYII_INFO_EVERY_S = 600.0                        # RTC read cadence; one 60 B frame per 10 min
+_OXYII_CFG_PENDING: dict[str, tuple[str, int]] = {}   # addr -> (field, value) queued by webmon
+
+
+def queue_ring_config(addr: str, field: str, value: int) -> None:
+    """Queue ONE whitelisted settings write for the ring's next poll cycle (~1 s when connected).
+    Validation happens HERE, at enqueue: oxyii.set_config_frame raises on an off-whitelist field or an
+    out-of-range value, so nothing invalid can sit in the queue waiting for a link. One slot per ring —
+    a second queued write replaces the first (last click wins, matching what the operator sees)."""
+    oxyii.set_config_frame(field, int(value))      # raises ValueError — the caller surfaces it
+    _OXYII_CFG_PENDING[addr] = (field, int(value))
+
+
+def ring_clock_offset_s(rtc: dict, host: _dt.datetime) -> float:
+    """Seconds the ring's RTC reads AHEAD of the host's local civil clock. Both sides are naive local
+    wall time (the ring stores set_time_frame's fields verbatim), so this is component arithmetic —
+    no zones anywhere (Clock Contract). PURE."""
+    ring = _dt.datetime(rtc["year"], rtc["month"], rtc["day"], rtc["hour"], rtc["minute"], rtc["second"])
+    return (ring - host).total_seconds()
 
 # Phase-0/1 diagnostic (O2RING-LIVE-PPG-WAVEFORM brief): with OXYII_PPG_PROBE=1, DUMP the first N live 0x04
 # replies (full hex + host timestamp) to a JSONL file so the ~100 Hz PPG body can be reconstructed +
@@ -2855,10 +2883,51 @@ async def run_oxyii(dev: dict, root: str):
                 # row-based guard would tear down a perfectly healthy link every time it was taken off.
                 # A decoded live frame means the ring is still talking to us, worn or not.
                 frames = [0]
+                # The expectation a queued settings write leaves for its 0x00 read-back: the parse_config
+                # key that should now read `value`. Cleared by on_data when the read-back arrives, so the
+                # monitor shows a verdict about what the RING reports, not about what was asked.
+                _cfg_expect: list[tuple[str, int] | None] = [None]
+                # Per-connection RTC-read clock: None forces a read on the FIRST poll of every session,
+                # so each reconnect republishes a fresh ring-vs-host offset (and after a 0xC0 push the
+                # next session shows whether it landed).
+                _info_last: list[float | None] = [None]
 
                 def on_data(_s, d):
                     for frame in reasm.feed(bytes(d)):
                         r = oxyii.decode(frame)
+                        # RING RTC READBACK (GET_INFO [24:31], readable since 2026-08-19). Publishes the
+                        # ring-vs-host offset so a 0xC0 push that failed to land is VISIBLE on the monitor
+                        # rather than silently trusted. An unset/out-of-range RTC publishes None — absence,
+                        # never year-0 arithmetic (Clock Contract §2.7).
+                        if r and r[0] == oxyii.OP_GET_INFO:
+                            _info = oxyii.parse_get_info(r[1])
+                            _rtc = _info.get("rtc") if _info else None
+                            _set(name,
+                                 ring_rtc_offset_s=(round(ring_clock_offset_s(_rtc, _now()), 1)
+                                                    if _rtc else None),
+                                 ring_rtc_read=_now().isoformat(timespec="seconds"))
+                            continue
+                        # SETTINGS READ-BACK (GET_CONFIG). Always publishes the parsed struct; when a
+                        # queued write is awaiting its verdict, compares the RING's value to the request.
+                        if r and r[0] == oxyii.OP_GET_CONFIG:
+                            _cfgd = oxyii.parse_config(r[1])
+                            if _cfgd:
+                                _set(name, ring_config={k: _cfgd[k] for k in
+                                                        ("brightness", "motor", "spo2_low", "hr_low",
+                                                         "hr_high", "storage_interval")})
+                                exp = _cfg_expect[0]
+                                if exp is not None:
+                                    _fld, _val = exp
+                                    _rb = oxyii.SET_CONFIG_FIELDS[_fld]["readback"]
+                                    _ok = _rb is None or _cfgd.get(_rb) == _val
+                                    _set(name, ring_config_verdict=(
+                                        f"{_fld}={_val} applied" if _ok
+                                        else f"{_fld}={_val} NOT applied — ring reports {_cfgd.get(_rb)}"))
+                                    if not _ok:
+                                        log.warning("%s: settings write %s=%s did not land (ring reports %s)",
+                                                    name, _fld, _val, _cfgd.get(_rb))
+                                    _cfg_expect[0] = None
+                            continue
                         # RAW DUAL-WAVELENGTH reply. Handled before the OP_LIVE gate below, which would
                         # otherwise drop it — it is a different opcode carrying a different payload.
                         if r and r[0] == oxyii.OP_RT_PPG and ppg2wr:
@@ -3078,6 +3147,44 @@ async def run_oxyii(dev: dict, root: str):
                                 _PMD_CTRL_TIMEOUT_S)
                         except Exception as e:
                             log.debug("%s: raw IR/RED poll failed (%r) — vitals unaffected", name, e)
+                    # RING RTC READBACK — one 60 B GET_INFO per _OXYII_INFO_EVERY_S; on_data publishes
+                    # the ring-vs-host offset. Optional traffic, so a failure costs only this reading.
+                    if _info_last[0] is None or _time.monotonic() - _info_last[0] >= _OXYII_INFO_EVERY_S:
+                        _first_info = _info_last[0] is None
+                        _info_last[0] = _time.monotonic()
+                        try:
+                            await asyncio.wait_for(
+                                client.write_gatt_char(wch, oxyii.info_frame(), response=False),
+                                _PMD_CTRL_TIMEOUT_S)
+                            # Once per session, also read the settings struct — so the monitor's
+                            # brightness/vibration controls show the ring's ACTUAL values instead of
+                            # "not read yet" until the first write happens to trigger a read-back.
+                            if _first_info:
+                                await asyncio.wait_for(
+                                    client.write_gatt_char(wch, oxyii.config_frame(), response=False),
+                                    _PMD_CTRL_TIMEOUT_S)
+                        except Exception as e:
+                            log.debug("%s: RTC readback poll failed (%r) — vitals unaffected", name, e)
+                    # MONITOR-QUEUED SETTINGS WRITE (queue_ring_config → oxyii.set_config_frame, already
+                    # whitelist-validated at enqueue). Applied once, then read back with GET_CONFIG so
+                    # on_data can publish the verdict from what the ring reports. Failure requeues nothing:
+                    # a write whose fate is unknown must surface as an unanswered verdict, not silently
+                    # retry forever against a ring that is refusing it.
+                    _pending = _OXYII_CFG_PENDING.pop(addr, None)
+                    if _pending is not None:
+                        _fld, _val = _pending
+                        try:
+                            await asyncio.wait_for(
+                                client.write_gatt_char(wch, oxyii.set_config_frame(_fld, _val), response=False),
+                                _PMD_CTRL_TIMEOUT_S)
+                            _cfg_expect[0] = (_fld, _val)
+                            await asyncio.wait_for(
+                                client.write_gatt_char(wch, oxyii.config_frame(), response=False),
+                                _PMD_CTRL_TIMEOUT_S)
+                            log.info("%s: settings write %s=%s sent, read-back requested", name, _fld, _val)
+                        except Exception as e:
+                            _set(name, ring_config_verdict=f"{_fld}={_val} write failed: {e!r}")
+                            log.warning("%s: settings write %s=%s failed (%r)", name, _fld, _val, e)
                     await asyncio.sleep(1.0)
                     # Same stall guard as the Polar path: a ring that holds its link but stops answering
                     # (auth/setup never accepted, every frame failing CRC, a handler raising inside
@@ -5154,7 +5261,8 @@ async def main():
             webmon.make_app(BUS, cfg, args.config, ADAPTER, STATUS, _spawn,
                             pull_stored=_pull, polar_pause=polar_offline_op,
                             sync_time=sync_device_time, forget_device=_forget,
-                            on_tz_change=reset_clock_anchor, notifier=notifier), host, port)
+                            on_tz_change=reset_clock_anchor, notifier=notifier,
+                            ring_config=queue_ring_config), host, port)
         log.info("monitor: http://%s:%d/", host, port)
 
     # Surface the resolved adapter at boot: a silent mis-pin (hci re-enumeration) is exactly the failure

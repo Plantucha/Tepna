@@ -40,6 +40,11 @@ FULL_STATUS = {
     "worn_optical_why": "not worn per ambient-stability",
     "charging": True,
     "last_error": "gatt write failed",
+    # The ring's readable clock + gated settings (2026-08-19) — values distinct from everything above.
+    "ring_rtc_offset_s": -1.3,
+    "ring_rtc_read": "2026-08-19T21:56:12",
+    "ring_config": {"brightness": 2, "motor": 61},
+    "ring_config_verdict": "brightness=2 applied",
 }
 
 DEV = {"name": "H10", "vendor": "Polar", "model": "H10", "device_id": "12345678",
@@ -54,6 +59,9 @@ DEVICE_KEYS = {
     "link_epoch", "worn", "worn_why", "worn_optical", "worn_optical_why", "charging", "last_error",
     "clock_uncorrectable", "rate_unmet",
     "clock_uncorrectable", "last_sample",
+    # The ring's readable clock + gated settings (2026-08-19): the RTC-vs-host offset (GET_INFO [24:31]),
+    # when it was read, the ring's own 0x00-read-back settings struct, and the last write's verdict.
+    "ring_rtc_offset_s", "ring_rtc_read", "ring_config", "ring_config_verdict",
 }
 
 
@@ -94,6 +102,12 @@ def test_a_device_projects_every_field_it_promises(tmp_path):
     assert d["worn_optical_why"] == "not worn per ambient-stability"
     assert d["charging"] is True
     assert d["last_error"] == "gatt write failed"
+    # The ring's clock and settings read-backs: published into STATUS by the oxyii session, and — the
+    # rule this file exists to enforce — forwarded here or not published at all.
+    assert d["ring_rtc_offset_s"] == -1.3
+    assert d["ring_rtc_read"] == "2026-08-19T21:56:12"
+    assert d["ring_config"] == {"brightness": 2, "motor": 61}
+    assert d["ring_config_verdict"] == "brightness=2 applied"
 
 
 def test_an_unreported_device_yields_nulls_not_missing_keys(tmp_path):
