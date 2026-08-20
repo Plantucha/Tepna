@@ -45935,6 +45935,87 @@
        These assertions pin the fixture, not the classifier. They read the planted truth from
        `rec.stageTruth` rather than re-deriving the cycle maths, because a test that re-derives its
        fixture's ground truth is a second source that drifts the moment the first is tuned. */
+    /* ════ stageSleep's MOTION ARGUMENT HAS A SCALE, AND IT IS NOT THE FLEET'S ════
+       `stageSleep(epochs, motionByTMin)` vetoes REM on gross movement — the group below pins that REM
+       is atonic and that the veto is what keeps a movement burst out of REM. That veto is an ABSOLUTE
+       threshold (`m >= 60`), so it is only meaningful on the scale ECGDex's own `motionIndex` uses.
+
+       **The fleet does not agree on that scale.** Measured over 12 trio nights (~1000 epochs each):
+
+         ECGDex `motionIndex`   min 0.000  p50 0.000  p90 72.200  max 100.000
+         PpgDex `motionIndex`   min 0.020  p50 0.030  p90  0.070  max   0.670
+
+       Same field name, and PpgDex publishes `units: { motionIndex: '0..1' }` in its own export — so
+       both are self-consistent and neither is wrong. But PpgDex carries everything `stageSleep`
+       needs (`tMin`, `hr`, `rmssd`, `lfhf`) and NO stages of its own (`sleep: null`), which makes
+       "run the existing stager on the wrist node" the obvious way to build the second staging leg
+       `MULTI-SENSOR-DERIVATIONS` §2.1 asks for. On the 0..1 scale `m >= 60` can never fire.
+
+       ⚠️ **It does not degrade to "no veto" — it degrades to FABRICATED REM.** A movement burst has
+       the REM HRV signature (elevated HR, suppressed RMSSD, high LF/HF); the motion veto is the only
+       thing standing between it and a REM call. Remove it and every burst becomes REM — the precise
+       failure the oracle group below exists to prevent, reintroduced through a units mismatch rather
+       than a threshold change.
+
+       This group is the executable form of that warning. It asserts the CONTRACT (`stageSleep` takes
+       motion on 0..100) by showing what the same physical motion does on each scale. It is NOT a
+       claim that PpgDex should change: a future wrist stager must SCALE its motion, or take a
+       threshold argument — and this group is what will tell whoever writes it. */
+    group("stageSleep's motion veto is scale-bound — 0..1 motion fabricates REM", 'ecgdex-dsp · staging · motion-scale-contract', function (T) {
+      var D = env.ECGDSP;
+      if (!D || typeof D.stageSleep !== 'function') {
+        T.skip('env.ECGDSP.stageSleep available', 'ECGDSP.stageSleep not exposed in this runner');
+        return;
+      }
+      // 60 five-minute epochs; every 5th carries gross movement AND the REM HRV signature, so the
+      // veto is the only discriminator. Both maps describe the SAME physical motion — one is exactly
+      // 100x the other — which is what makes any difference below attributable to the scale alone.
+      var eps = [],
+        mot100 = new Map(),
+        mot01 = new Map(),
+        movingIdx = [];
+      for (var k = 0; k < 60; k++) {
+        var moving = k % 5 === 0;
+        if (moving) movingIdx.push(k);
+        eps.push({ tMin: k * 5, hr: moving ? 72 : 58, rmssd: moving ? 18 : 45, lfhf: moving ? 2.4 : 0.8, sdnn: 60, sqi: 0.9, n: 300 });
+        var key = (k * 5).toFixed(1);
+        mot100.set(key, moving ? 95 : 2); // ECGDex convention, 0..100
+        mot01.set(key, moving ? 0.95 : 0.02); // PpgDex convention, 0..1 — the same motion
+      }
+      // ANTI-VACUITY · the two maps are one scale factor apart, so nothing else can explain a
+      // difference in the hypnograms they produce.
+      T.eq(
+        'ANTI-VACUITY · the two motion maps are exactly 100x apart on every epoch',
+        movingIdx.concat([1, 2, 3]).every(function (i) {
+          var key = (i * 5).toFixed(1);
+          return Math.abs(mot100.get(key) - 100 * mot01.get(key)) < 1e-9;
+        }),
+        true
+      );
+
+      var onScale = D.stageSleep(eps, mot100);
+      var offScale = D.stageSleep(eps, mot01);
+      T.eq('both scales still produce a hypnogram of the same length', offScale.length, onScale.length);
+
+      var remOn = movingIdx.filter(function (i) {
+        return onScale[i] && onScale[i].stage === 'REM';
+      }).length;
+      var remOff = movingIdx.filter(function (i) {
+        return offScale[i] && offScale[i].stage === 'REM';
+      }).length;
+
+      T.eq('on the 0..100 scale the veto holds — NO movement epoch is called REM', remOn, 0);
+      T.eq('…on the 0..1 scale EVERY movement epoch becomes REM', remOff, movingIdx.length);
+      T.ok('…so the units alone decide 20 % of the night', remOff - remOn === movingIdx.length, movingIdx.length + ' of ' + eps.length + ' epochs flip');
+
+      // And the difference is confined to the planted epochs — a stage change anywhere else would
+      // mean the scale is doing something other than gating the veto, and the story above is wrong.
+      var differ = onScale.filter(function (x, i) {
+        return offScale[i] && x.stage !== offScale[i].stage;
+      }).length;
+      T.eq('the hypnograms differ on EXACTLY the planted movement epochs, nowhere else', differ, movingIdx.length);
+    });
+
     group('ECGDex synthetic oracle — REM is atonic, and says so (§4a/§4b)', 'ecgdex-dsp · synthetic · oracle', function (T) {
       var E = env.ECGDSP;
       if (!E || typeof E.genSynthetic !== 'function' || typeof E.analyze !== 'function' || typeof E.epochMotion !== 'function') {
