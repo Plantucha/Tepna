@@ -80,7 +80,7 @@ const IS_MAIN = !!process.argv[1] && resolve(process.argv[1]) === fileURLToPath(
 
    `.mutation-sweeps/` sits in the repo root and is gitignored, exactly as `.mutation-crawl/` already
    is. Override with `DEX_SWEEP_DIR` or `--sweep-dir` for a scratch volume elsewhere. */
-export const SWEEP_FILES = ['oxydex-dsp.js', 'ecgdex-dsp.js', 'integrator-dsp.js', 'ppgdex-dsp.js', 'glucodex-dsp.js', 'cpapdex-dsp.js', 'hrvdex-dsp.js', 'motiondex-dsp.js'];
+export const SWEEP_FILES = ['oxydex-dsp.js', 'ecgdex-dsp.js', 'integrator-dsp.js', 'ppgdex-dsp.js', 'glucodex-dsp.js', 'cpapdex-dsp.js', 'hrvdex-dsp.js', 'motiondex-dsp.js', 'pulsedex-dsp.js'];
 
 export function sweepDir() {
   const flag = opt('--sweep-dir', '');
@@ -235,7 +235,7 @@ if (IS_MAIN && has('--selftest')) {
   /* ── sweep-path resolution (2026-08-14) ────────────────────────────────────────────────────
      The regression these pin is not a wrong number, it is a wrong PLACE: eight `/tmp` paths that a
      reboot wiped, after which the tool reported a finished queue. */
-  ok('all eight DSPs are expected', SWEEP_FILES.length === 8, String(SWEEP_FILES.length));
+  ok('all NINE DSPs are expected — pulsedex was the missing ninth for the whole first programme', SWEEP_FILES.length === 9, String(SWEEP_FILES.length));
   ok('a sweep path is DERIVED from the filename, not hand-written', sweepPathFor('ppgdex-dsp.js', '/d') === '/d/ppgdex-dsp.json', sweepPathFor('ppgdex-dsp.js', '/d'));
   ok('…so the ad-hoc suffixes that had accreted cannot come back', !SWEEP_FILES.some((f) => /-fresh|2\.json/.test(sweepPathFor(f, '/d'))));
   /* §1 migration contract: with no flag/env, the SHARED location is tried first — one queue for
@@ -268,7 +268,7 @@ if (IS_MAIN && has('--selftest')) {
   }
   ok('the default dir is one of the two declared candidates, nothing invented', stateDirs(ROOT).includes(sweepDir()), sweepDir());
   ok('DEX_SWEEP_DIR overrides it', sweepPathFor('oxydex-dsp.js', '/elsewhere') === '/elsewhere/oxydex-dsp.json');
-  ok('every expected file resolves to a distinct path', new Set(Object.values(resolveSweeps())).size === 8);
+  ok('every expected file resolves to a distinct path', new Set(Object.values(resolveSweeps())).size === SWEEP_FILES.length);
 
   /* The honesty property, stated as arithmetic: a zero denominator must not become a percentage.
      `0/0` is NaN, and `NaN.toFixed(1)` is the string "NaN" — which printed beside "target 99%" and
