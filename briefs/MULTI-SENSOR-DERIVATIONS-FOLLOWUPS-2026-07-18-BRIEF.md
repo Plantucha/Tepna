@@ -167,8 +167,9 @@ just hand-built `recs`. Worth generalising into the TEST-AUDIT lineage: hand-bui
 function, not the wiring.
 
 ## 4 · Residual derivations
-- **§2.1 cardiorespiratory/actigraphic sleep staging** — the last unexecuted Tier-1/2 item. All its inputs
-  now exist (MotionDex `activitySeries` + HRV from ECGDex/PulseDex), so it is unblocked.
+- **§2.1 cardiorespiratory/actigraphic sleep staging** — ~~the last unexecuted Tier-1/2 item. All its inputs
+  now exist (MotionDex `activitySeries` + HRV from ECGDex/PulseDex), so it is unblocked.~~
+  > **CORRECTED 2026-08-20 — it is NOT unexecuted. See §6.**
 - **§2.2** is complete at **2 of 3 legs** (see §2 above), and the parent brief says so rather than
   claiming a 3-way fusion.
 
@@ -185,3 +186,70 @@ function, not the wiring.
 ## Done-when
 Each item is executed or carries an explicit park reason. §1 (3a audit pass) and §2 (PpgDex RIIV) are the
 two with real engineering behind them; §3 is a testing rule to propagate; §4 is the remaining agenda.
+
+## 6 · §2.1 is SUBSTANTIALLY BUILT — and the obvious way to finish it fabricates REM (2026-08-20)
+
+### The item is not unexecuted
+
+`ecgdex-dsp.js` `stageSleep(epochs, motionByTMin)` is already a cardiorespiratory **and** actigraphic
+stager: it classifies from HRV (`rmssd`, `hr`, `lfhf` — the LF/HF gate is what separates REM from deep
+sleep) with **motion as an explicit veto**, and its own comments record why the ordering matters
+(`REM-STAGING-REDESIGN` §4c: a Wake branch tested first swallowed 9 of 9 planted REM epochs). It ships
+in the ECGDex export as `timeseries.sleepStages[]` and `sleep.stageMinutes`, on a 5-min grid.
+
+So the "SpO₂/HR sleep-stability proxy" §2.1 proposes to replace **has already been replaced**, by a
+different brief. What §2.1 still describes accurately is the *Vigil-unique* part: the parent notes the
+papers use chest **or** wrist, ECG **or** PPG, while this rig has all four at once.
+
+### What is genuinely missing: the wrist leg
+
+**PpgDex publishes no stages at all** (`sleep: null`), while its epochs already carry everything
+`stageSleep` consumes — `tMin`, `hr`, `rmssd`, `lfhf`, plus `motionIndex`. So "run the existing stager
+on the wrist node" is both the obvious next step and, done naively, **wrong**.
+
+### 🔴 The trap: `motionIndex` is the same field name on two different scales
+
+Measured over 12 trio nights, ~1000 epochs each:
+
+| node | min | p50 | p90 | max |
+|---|---|---|---|---|
+| ECGDex `motionIndex` | 0.000 | 0.000 | **72.200** | **100.000** |
+| PpgDex `motionIndex` | 0.020 | 0.030 | **0.070** | **0.670** |
+
+Neither is wrong — PpgDex declares `units: { motionIndex: '0..1' }` in its own export, and both are
+internally consistent. But `stageSleep`'s veto is the **absolute** test `m >= 60`, which on a 0..1
+scale **can never fire**.
+
+⚠️ **And it does not degrade to "no veto" — it degrades to FABRICATED REM.** A movement burst carries
+the REM HRV signature (elevated HR, suppressed RMSSD, high LF/HF); the motion veto is the only thing
+between it and a REM call. Planted 60 epochs with every 5th moving, and fed the identical physical
+motion on each scale:
+
+| motion scale | movement epochs called REM |
+|---|---|
+| 0..100 (ECGDex) | **0 of 12** |
+| 0..1 (PpgDex) | **12 of 12** |
+
+**20 % of the night changes stage on the units alone**, and it lands on the one stage the code's own
+comments say motion must rule out. Gated by `ecgdex-dsp · staging · motion-scale-contract`
+(6 assertions), which pins the contract by showing both scales and asserts the hypnograms differ on
+*exactly* the planted epochs and nowhere else.
+
+### Not a defect today — a latent one
+
+Checked before claiming either way. The Integrator carries `epochs[].motionIndex` from every node into
+`hrvEpochs.motion` (`integrator-dsp.js:643`) and uses it twice:
+
+- **`_tchAlignedMotion` → `_tchPearson`** — a correlation, which is **scale-invariant**. Safe.
+- **`_meanMotion` → `r.coMotion`** — a per-node mean, and `coMotion` is **written and never read** by
+  anything in the tree. Inert.
+
+So there is no live miscomputation. The hazard is entirely in front of whoever executes §2.1, which is
+why it is recorded here and pinned by a test rather than "fixed" by renaming a field or rescaling an
+export (either would move every fixture for a bug nobody has yet).
+
+**Owed for §2.1's wrist leg:** scale PpgDex motion to the stager's convention, or give `stageSleep` an
+explicit threshold argument (additive, last, optional — the back-compat rule). Then the two hypnograms
+become an inter-sensor agreement measurement, which is the only validation instrument available here —
+there is no PSG in this corpus, so κ against truth is not computable and chest-vs-wrist agreement is
+the honest substitute.
