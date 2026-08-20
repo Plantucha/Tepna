@@ -212,14 +212,70 @@ export function sampleEvenly(arr, n) {
 
 export const mutantKey = (m) => m.line + '|' + m.op + '|' + (m.after || '').trim();
 
+/* ── A SWEEP ARRIVES IN TWO FORMATS, AND THIS TOOL COULD ONLY READ ONE ────────────────────────
+   `mutate.mjs --json` emits NDJSON — one dense line per file — so the original reader took the first
+   line starting with `{` and parsed that. `tools/mutation-crawl.mjs:365` writes the SAME record
+   `JSON.stringify(rec, null, 2)`, pretty-printed, whose first `{`-line is the bare character `{`.
+
+   The two tools were built to feed each other and could not. MUTATION-PROGRAM §2a says the crawl
+   sweeps sit on disk "each with its complete survivor list in exactly the shape `probe-equivalence`
+   reads"; that was written from the record's field names, never from running it, and it is false.
+   Measured 2026-08-09 on `hrvdex-dsp.js.sweep.json`: `SyntaxError: Expected property name or '}' at
+   position 1`, under an error message that told the reader the file had no JSON object in it when
+   the whole file IS one. 298 survivors were unreachable behind a newline.
+
+   Whole-file first, because it is the unambiguous case: a pretty-printed record cannot be valid
+   NDJSON, and a one-line NDJSON record with a single file in it parses identically either way. The
+   line scan stays for the genuine multi-file NDJSON stream. */
+export function parseSweep(text) {
+  const t = text.trim();
+  if (!t) throw new Error('empty file — a sweep that wrote nothing is not a sweep of nothing');
+  try {
+    return JSON.parse(t);
+  } catch (_) {
+    /* not whole-file JSON — fall through to the NDJSON stream */
+  }
+  const line = text.split('\n').find((l) => l.trim().startsWith('{'));
+  if (!line) throw new Error('neither whole-file JSON nor NDJSON — no parseable JSON object found');
+  try {
+    return JSON.parse(line);
+  } catch (e) {
+    throw new Error('found a `{` line but it does not parse: ' + String(e && e.message).slice(0, 80));
+  }
+}
+
 /* A baseline whose every input produced the same answer proves the subject never ran (rule 2). */
 export function batteryIsDegenerate(baseline, minDistinct) {
   return new Set(baseline).size < minDistinct;
 }
 
+/* ── RE-APPLYING A MUTANT FROM JSON, WITHOUT REBUILDING IT FROM A DISPLAY FIELD ───────────────
+   `mutate.mjs` records `before`/`after` TRUNCATED AT 100 CHARACTERS — they are what a terminal
+   prints and what `(line, op, before)` keys on, never a copy of the line. The executable mutation is
+   a closure `apply()` that JSON cannot carry. This function used to rebuild the line as
+   `indent + after.trim()`, so on any source line longer than 100 chars it wrote back a line cut
+   mid-expression, and the realm then failed to parse it.
+
+   That failed CLOSED — an unparseable realm is never emitted as an equivalence — but it failed
+   SILENTLY and at scale: measured 2026-08-09 on hrvdex-dsp.js, 42 of 217 probed survivors reported
+   `REALM-FAIL … Unexpected token 'const'`, which reads as a fact about the mutant and was a fact
+   about this line. 19 % of the file's survivors were dropped from the measurement while the run
+   printed a confident count of the rest. CLAUDE.md §👥.4b, in a third tool.
+
+   `mutate.mjs --dry-run --json` now also emits `mutated` — the same line, untruncated. Prefer it.
+   Without it, REFUSE: a truncated reconstruction is indistinguishable from a mutant that genuinely
+   does not parse, and guessing here is what produced the 42. */
 export function applyMutant(lines, m) {
   const L = lines.slice();
-  L[m.line - 1] = L[m.line - 1].match(/^\s*/)[0] + (m.after || '').trim();
+  if (typeof m.mutated === 'string') {
+    L[m.line - 1] = m.mutated;
+    return L.join('\n');
+  }
+  const after = (m.after || '').trim();
+  const src = L[m.line - 1];
+  if (after.length >= 100 && src.trim().length > after.length)
+    throw new Error(`mutant L${m.line} [${m.op}] has no \`mutated\` field and its \`after\` is truncated at ${after.length} chars — re-enumerate with a current mutate.mjs`);
+  L[m.line - 1] = src.match(/^\s*/)[0] + after;
   return L.join('\n');
 }
 
@@ -286,8 +342,81 @@ if (IS_MAIN && has('--selftest')) {
   ok('batteryIsDegenerate accepts a varied baseline', batteryIsDegenerate(['x', 'y', 'z'], 2) === false);
   ok('batteryIsDegenerate counts DISTINCT, not length', batteryIsDegenerate(new Array(500).fill('same'), 2) === true, '500 identical inputs is still one answer');
 
+  const REC = { file: 'x.js', killed: 2, survivors: [{ line: 9, op: 'cmp', after: 'a >= b' }], invalids: [] };
+  ok('parseSweep reads NDJSON — one dense line, the mutate.mjs --json shape', parseSweep(JSON.stringify(REC) + '\n').survivors[0].line === 9);
+  ok(
+    'parseSweep reads a PRETTY-PRINTED whole file — the mutation-crawl shape the old reader could not',
+    parseSweep(JSON.stringify(REC, null, 2) + '\n').survivors[0].line === 9,
+    'its first `{`-line is the bare character `{`'
+  );
+  ok('parseSweep takes the FIRST record of a multi-file NDJSON stream', parseSweep([JSON.stringify(REC), JSON.stringify({ file: 'y.js', survivors: [] })].join('\n')).file === 'x.js');
+  ok('parseSweep tolerates a leading progress/banner line before the NDJSON', parseSweep('sweeping x.js …\n' + JSON.stringify(REC) + '\n').survivors[0].line === 9);
+  ok(
+    'parseSweep REFUSES an empty file rather than reading it as an empty sweep',
+    (() => {
+      try {
+        parseSweep('   \n');
+        return false;
+      } catch (e) {
+        return /empty file/.test(e.message);
+      }
+    })(),
+    'a sweep that wrote nothing must not read as a sweep with no survivors'
+  );
+  ok(
+    'parseSweep REFUSES a truncated record instead of silently probing a prefix',
+    (() => {
+      try {
+        parseSweep(JSON.stringify(REC).slice(0, 40));
+        return false;
+      } catch (e) {
+        return /does not parse|no parseable/.test(e.message);
+      }
+    })()
+  );
+
   ok('applyMutant preserves indentation', applyMutant(['    if (a > b) x();'], { line: 1, after: 'if (a >= b) x();' })[0] === ' ', 'leading run kept');
+  ok(
+    'applyMutant uses `mutated` VERBATIM when present — the untruncated line',
+    (() => {
+      const long = '      const x = ' + 'a'.repeat(120) + ' > 0 ? 1 : 2;';
+      const mut = long.replace('> 0', '>= 0');
+      return applyMutant([long], { line: 1, op: 'cmp > → >=', after: mut.trim().slice(0, 100), mutated: mut }) === mut;
+    })(),
+    'a 100-char `after` would have cut it mid-expression'
+  );
+  ok(
+    'applyMutant REFUSES a truncated `after` with no `mutated` rather than writing invalid code',
+    (() => {
+      const long = '      const x = ' + 'a'.repeat(120) + ' > 0 ? 1 : 2;';
+      try {
+        applyMutant([long], { line: 1, op: 'cmp > → >=', after: long.replace('> 0', '>= 0').trim().slice(0, 100) });
+        return false;
+      } catch (e) {
+        return /truncated/.test(e.message);
+      }
+    })(),
+    'the 42-of-217 hrvdex failure, caught at the source'
+  );
+  ok(
+    'applyMutant still accepts a SHORT `after` with no `mutated` — an older sweep is not broken',
+    applyMutant(['  if (a > b) x();'], { line: 1, op: 'cmp > → >=', after: 'if (a >= b) x();' }).trim() === 'if (a >= b) x();'
+  );
   ok('mutantKey ignores surrounding whitespace in `after`', mutantKey({ line: 5, op: 'cmp', after: '  x  ' }) === mutantKey({ line: 5, op: 'cmp', after: 'x' }));
+  ok(
+    'the LEDGER key is `line op before` UNTRIMMED — a 100-char cut landing on a space must still match',
+    (() => {
+      /* mutate.mjs: before = L.trim().slice(0, 100). On a long line that can end in a space, and
+         classifySurvivors keys on it verbatim. Trimming when emitting orphaned 6 real entries. */
+      /* 99 chars then a space at index 99 — the real case was hrvdex-dsp.js L735, a 154-char
+         `const hrmax_tanaka = …` whose 100th character is the space before `_hrRestR`. */
+      const line = '  const hrmax_tanaka = ' + 'p'.repeat(76) + ' > _hrRestR + 45 ? x : y;';
+      const before = line.trim().slice(0, 100);
+      const ledgerKey = (e) => e.line + ' ' + e.op + ' ' + e.before;
+      return before.endsWith(' ') && ledgerKey({ line: 735, op: 'num → 0', before }) !== ledgerKey({ line: 735, op: 'num → 0', before: before.trim() });
+    })(),
+    'so the emitter must write `before` verbatim, never re-trim it'
+  );
 
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
   process.exit(fail ? 1 : 0);
@@ -371,14 +500,13 @@ async function main() {
   const dry = JSON.parse(readFileSync(dryPath, 'utf8')).files[0].mutants;
   unlinkSync(dryPath);
 
-  const sweepLine = readFileSync(SWEEP, 'utf8')
-    .split('\n')
-    .find((l) => l.trim().startsWith('{'));
-  if (!sweepLine) {
-    console.error(`${SWEEP} has no JSON object — mutate.mjs --json emits NDJSON, one line per file`);
+  let sweep;
+  try {
+    sweep = parseSweep(readFileSync(SWEEP, 'utf8'));
+  } catch (e) {
+    console.error(`${SWEEP}: ${e.message}`);
     process.exit(2);
   }
-  const sweep = JSON.parse(sweepLine);
   const survKeys = new Set((sweep.survivors || []).map(mutantKey));
   /* ⚠ INVALID IS A THIRD STATE, AND TREATING IT AS "KILLED" HANGS THE RUN.
      A sweep partitions mutants into killed / survived / INVALID (non-terminating, or producing no
@@ -572,8 +700,15 @@ async function main() {
         emit.push({
           line: m.line,
           op: m.op,
-          before: (m.before || '').trim(),
-          after: (m.after || '').trim(),
+          /* ⚠ VERBATIM, NOT RE-TRIMMED. `classifySurvivors` and `findCanary` key on
+             `line + ' ' + op + ' ' + before` with NO normalisation, and `mutate.mjs` builds `before`
+             as `L.trim().slice(0, 100)` — a 100-char cut that can land ON A SPACE. Re-trimming it
+             here produced a 99-char key that matched nothing, and the entry then read as ORPHANED:
+             "excluded from every count until re-verified", i.e. silently dropped. Measured
+             2026-08-09 — 6 of hrvdex's 69 entries, all on one long line (L735). The emitted key must
+             be byte-identical to the one the matcher builds. */
+          before: m.before,
+          after: m.after,
           class: 'no-distinguishing-input',
           why: `In ${fam.fn}. Original and mutant produced byte-identical output on every input.`,
           probe: `${fam.name}: ${baseFp.length} inputs, ${new Set(baseFp).size} distinct baseline answers; ${ctlRan}/${ctlRan} same-function controls separated. tools/probe-equivalence.mjs --file ${FILE}`
@@ -601,8 +736,12 @@ async function main() {
     const path = join(ROOT, 'tools/mutate-equivalence.json');
     const doc = JSON.parse(readFileSync(path, 'utf8'));
     const existing = doc[FILE] || [];
-    const seen = new Set(existing.map((e) => e.line + '|' + e.op + '|' + (e.before || '').trim()));
-    const added = emit.filter((e) => !seen.has(e.line + '|' + e.op + '|' + e.before));
+    /* Both sides of the dedup must build the key the SAME way, and the way `classifySurvivors` does:
+       no trim. The two halves disagreed (`(e.before||'').trim()` here against a raw `e.before`
+       there), so an entry whose `before` ended in a space could be re-emitted as a duplicate. */
+    const ekey = (e) => e.line + '|' + e.op + '|' + e.before;
+    const seen = new Set(existing.map(ekey));
+    const added = emit.filter((e) => !seen.has(ekey(e)));
     doc[FILE] = existing.concat(added);
     writeFileSync(path, JSON.stringify(doc, null, 2) + '\n');
     console.log(`emitted ${added.length} new entr${added.length === 1 ? 'y' : 'ies'} for ${FILE} (${emit.length - added.length} already recorded)`);
