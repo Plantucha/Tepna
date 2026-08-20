@@ -1158,3 +1158,99 @@ def test_ppg2w_a_truncated_row_is_skipped_like_the_repeated_header(tmp_path):
                 f.write("bad;row\n")               # a truncated row — rotation tears mid-line too
     out = nightqc.ppg2w_contact_quality(str(tmp_path))
     assert out[0]["usable"] is True and out[0]["off_epochs_pct"] == 0.0
+
+
+# ── ring-clock drift summary (O2Ring _rtclog.csv → nightly verdict) ─────────────────────────────────
+def _write_rtclog(tmp_path, rows, name="Wellue_O2Ring-S_S8AW2100_20260819220000_rtclog.csv"):
+    hdr = "Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3\n"
+    p = tmp_path / name
+    p.write_text(hdr + "".join(r + "\n" for r in rows), encoding="utf-8")
+    return str(p)
+
+
+def test_rtc_drift_summary_rolls_reads_into_a_verdict(tmp_path):
+    p = _write_rtclog(tmp_path, [
+        "2026-08-19T22:00:00.000;read;1.0;;;;",
+        "2026-08-19T22:00:00.000;push;;;;;",          # push has a blank offset — not counted as a read
+        "2026-08-20T05:20:00.000;read;3.4;;;;",
+    ])
+    r = nightqc.rtc_drift_summary(p)
+    assert r["reads"] == 2
+    assert r["first_offset_s"] == 1.0 and r["last_offset_s"] == 3.4
+    assert r["drift_s"] == 2.4                          # free-run since the last push
+    assert r["span_h"] == 7.3
+    assert r["pushes"] == 1 and r["resets"] == 0
+
+
+def test_rtc_drift_summary_counts_a_battery_reset(tmp_path):
+    p = _write_rtclog(tmp_path, [
+        "2026-08-19T22:00:00.000;read;0.0;;;;",
+        "2026-08-20T01:00:00.000;reset-suspect;-151.0;;;;",   # a battery event: offset jumped
+    ])
+    r = nightqc.rtc_drift_summary(p)
+    assert r["resets"] == 1 and r["reads"] == 2          # reset-suspect carries an offset, so it counts
+    assert r["drift_s"] == -151.0
+
+
+def test_rtc_drift_summary_none_when_no_readback(tmp_path):
+    # a log with only a push (offset blank) has nothing to summarise
+    assert nightqc.rtc_drift_summary(_write_rtclog(tmp_path, ["2026-08-19T22:00:00.000;push;;;;;"])) is None
+    assert nightqc.rtc_drift_summary(str(tmp_path / "nonexistent_rtclog.csv")) is None
+
+
+def test_rtc_drift_summary_survives_a_torn_row(tmp_path):
+    p = _write_rtclog(tmp_path, [
+        "2026-08-19T22:00:00.000;read;0.5;;;;",
+        "truncated",                                     # a torn tail must not crash the roll-up
+        "2026-08-19T22:00:00.000;read;notanumber;;;;",   # nor a garbled offset
+    ])
+    r = nightqc.rtc_drift_summary(p)
+    assert r["reads"] == 1
+
+
+def test_rtc_drift_summary_span_none_on_bad_stamp(tmp_path):
+    p = _write_rtclog(tmp_path, [
+        "notatimestamp;read;1.0;;;;",
+        "alsobad;read;2.0;;;;",
+    ])
+    r = nightqc.rtc_drift_summary(p)
+    assert r["reads"] == 2 and r["span_h"] is None
+
+
+def test_qc_digest_appends_ring_drift():
+    summ = {"night": "2026-08-19", "devices": [
+        {"name": "O2Ring", "coverage": {"spo2": 0.98},
+         "rtc": {"reads": 3, "drift_s": 2.4, "span_h": 7.3, "resets": 0, "pushes": 1}}]}
+    line = nightqc.qc_digest(summ)
+    assert "O2Ring 98%" in line and "RTC +2.4s" in line
+
+
+def test_qc_digest_flags_a_battery_reset():
+    summ = {"night": "n", "devices": [
+        {"name": "O2Ring", "coverage": {"spo2": 0.9},
+         "rtc": {"reads": 2, "drift_s": -151.0, "span_h": 3.0, "resets": 1, "pushes": 0}}]}
+    assert "1⚠reset" in nightqc.qc_digest(summ)
+
+
+def test_qc_digest_omits_rtc_when_absent():
+    summ = {"night": "n", "devices": [{"name": "H10", "coverage": {"ecg": 0.99}, "rtc": None}]}
+    line = nightqc.qc_digest(summ)
+    assert "H10 99%" in line and "RTC" not in line
+
+
+def test_summarize_attaches_ring_rtc_drift(tmp_path):
+    """The discovery path: a `_rtclog.csv` beside the ring's capture files is found by device id and
+    rolled into that device's per-device entry — the false branch (no rtclog → rtc None) is already
+    covered by every other summarize test."""
+    night = str(tmp_path / "2026-07-19"); os.makedirs(night)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260719_SPO2.csv", 900)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260719_PPG.txt", 8000)
+    hdr = "Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3\n"
+    (tmp_path / "2026-07-19" / "Wellue_O2Ring-S_S8AW_20260719_rtclog.csv").write_text(
+        hdr + "2026-07-19T22:00:00.000;read;0.0;;;;\n2026-07-20T05:00:00.000;read;1.0;;;;\n", encoding="utf-8")
+    s = nightqc.summarize(night, _devices())
+    ring = next(d for d in s["devices"] if d["name"] == "Ring")
+    assert ring["rtc"] is not None
+    assert ring["rtc"]["reads"] == 2 and ring["rtc"]["drift_s"] == 1.0
+    # a non-ring device gets no rtc
+    assert all(d["rtc"] is None for d in s["devices"] if d["name"] != "Ring")

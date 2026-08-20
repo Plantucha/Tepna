@@ -1361,6 +1361,50 @@ def ppg2w_contact_quality(night_dir: str) -> list:
     return out
 
 
+def rtc_drift_summary(path: str) -> dict | None:
+    """Roll a `_rtclog.csv` (RingClockLogWriter) into one night's ring-clock verdict, or None when there
+    is no readback to summarise. The daemon watches the O2Ring's RTC against the host every ~10 min and
+    logs each event; STATUS keeps only the latest, so WITHOUT this the night's drift and any battery-reset
+    live only in a CSV nobody opens. Fields: `reads` (periodic readbacks), `drift_s` (last − first
+    offset — the free-run the 0xC0 push corrects), `span_h` (first→last read), `resets` (offset jumped
+    past threshold = a battery event that silently ruins the stored .dat's timebase), `pushes` (0xC0
+    sent). Rows are `Phone timestamp;event;rtc_offset_s;…`; PURE-ish (reads a path)."""
+    try:
+        lines = open(path, encoding="utf-8").read().splitlines()
+    except OSError:
+        return None
+    offsets: list[float] = []
+    times: list[str] = []
+    resets = pushes = 0
+    for ln in lines[1:]:
+        p = ln.split(";")
+        if len(p) < 3:
+            continue
+        event = p[1]
+        if event == "push":
+            pushes += 1
+        elif event == "reset-suspect":
+            resets += 1
+        if event in ("read", "reset-suspect"):
+            try:
+                offsets.append(float(p[2]))
+                times.append(p[0])
+            except ValueError:
+                continue
+    if not offsets:
+        return None
+    span_h = None
+    try:
+        t0 = datetime.fromisoformat(times[0]).timestamp()
+        t1 = datetime.fromisoformat(times[-1]).timestamp()
+        span_h = round((t1 - t0) / 3600, 1)
+    except ValueError:
+        span_h = None
+    return {"reads": len(offsets), "first_offset_s": offsets[0], "last_offset_s": offsets[-1],
+            "drift_s": round(offsets[-1] - offsets[0], 1), "span_h": span_h,
+            "resets": resets, "pushes": pushes}
+
+
 def summarize(night_dir: str, devices: list[dict]) -> dict:
     """Roll the CURRENT capture session up against the configured devices. The session is scoped by
     file-activity (see _SESSION_GAP_SEC) and unified across midnight (see below), NOT the whole date
@@ -1560,8 +1604,16 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         # has its own alert.
         _mine = [f["mtime"] for f in current if writers.file_device_id(f["file"]) in dids]
         silent = round(newest - max(_mine)) if _mine and newest else None
+        # RING-CLOCK DRIFT — the O2Ring's `_rtclog.csv` rolled into one verdict (None for non-ring devices
+        # and rings on firmware before the readback). Discovered by listing rather than the stream scan,
+        # so it does not depend on the scan tagging a sidecar it was written before.
+        rtc = None
+        for fn in sorted(os.listdir(night_dir)) if os.path.isdir(night_dir) else []:
+            if fn.endswith("_rtclog.csv") and writers.file_device_id(fn) in dids:
+                rtc = rtc_drift_summary(os.path.join(night_dir, fn))
+                break
         per_device.append({"name": name, "streams": streams, "coverage": coverage,
-                           "silent_sec": silent})
+                           "silent_sec": silent, "rtc": rtc})
     return {
         "night": os.path.basename(night_dir.rstrip("/")),
         # Reported beside the capture verdict, never folded into it — see the note on system_file_drift.
@@ -1652,7 +1704,16 @@ def qc_digest(summ) -> str | None:
         # one number when the streams agree, a range when they do not — a device whose acc and ppg
         # diverge 41 %/95 % must not be summarised as 68 %.
         pct = f"{lo * 100:.0f}%" if (hi - lo) < 0.05 else f"{lo * 100:.0f}–{hi * 100:.0f}%"
-        parts.append(f"{name} {pct}")
+        seg_dev = f"{name} {pct}"
+        # ring-clock drift, appended to the device that has it — the number that says whether the 6-hourly
+        # 0xC0 push is holding and whether a battery reset silently corrupted the night's stored .dat.
+        rtc = d.get("rtc")
+        if isinstance(rtc, dict) and rtc.get("reads"):
+            extra = f"RTC {rtc['drift_s']:+g}s"
+            if rtc.get("resets"):
+                extra += f"/{rtc['resets']}⚠reset"
+            seg_dev += f" ({extra})"
+        parts.append(seg_dev)
     if not parts and not absent:
         return None
     seg = [", ".join(parts)] if parts else []
