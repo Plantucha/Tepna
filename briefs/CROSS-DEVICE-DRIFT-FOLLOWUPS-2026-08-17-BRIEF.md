@@ -185,6 +185,50 @@ merge conflict when it goes wrong.
       > costing much either. **Either way the σ answers it — which is why this box, not the wiring,
       > is the open item.**
       >
-      > NOT done here: the extraction needs a corpus pass, and bulk traversal of the corpus trees is
-      > one of the operations currently wedging on this volume (18 processes in D-state).
+      > ~~NOT done here: the extraction needs a corpus pass, and bulk traversal of the corpus trees is
+      > one of the operations currently wedging on this volume (18 processes in D-state).~~
+      > *(The volume fault is over — the checkout moved to ext4 on 2026-08-19 and a corpus pass is
+      > cheap again. The extraction was attempted; what stopped it was not the disk.)*
+      >
+      > ### ⚠️ 2026-08-20 — the box's own PREMISE is false: `zAtPeak` SATURATES, so there is no σ to extract
+      >
+      > §3.4 reasons that the estimator "already computes each channel's curve", so a per-channel σ is a
+      > matter of *recording* what exists. **Measured, it is not.** Planting a known offset with a known
+      > jitter and sweeping the jitter over a 24× range gives ONE value of the recorded quantity:
+      >
+      > | planted σ (s) | 0.5 | 1 | 2 | 4 | 8 | 12 | ~16 |
+      > |---|---|---|---|---|---|---|---|
+      > | `zAtPeak` | 11.45 | 11.45 | 11.45 | 11.45 | 11.45 | 11.45 | falls |
+      >
+      > It only moves once σ approaches **half the ±`matchSec` window**, i.e. when the match starts
+      > failing outright. `zAtPeak` is a **match-count**, not a precision proxy: within the window every
+      > beat matches regardless of how tightly it matches, so the height carries the number of pairs and
+      > the *width* carries the precision. The width is computed inside `fitClockOffsetPooled` and never
+      > recorded. **So the decision rule above cannot be evaluated from the current exports** — this box
+      > needs NEW machinery (record the support width, or a σ from the half-height crossings), not a
+      > corpus pass over existing fields. That is the correction owed to §3.4, and it is why the box
+      > stays open rather than closing as "declined".
+      >
+      > **The attempt was not wasted — it surfaced a shipped, user-visible defect (#1549, merged).**
+      > `ownOffsetSec` was biased low by almost exactly `matchSec`, at every true offset:
+      >
+      > | `matchSec` | 10 | 20 | 30 | 45 | 90 |
+      > |---|---|---|---|---|---|
+      > | own-offset bias (s) | −7 | −17 | −27 | −42 | −87 |
+      > | pooled bias (s) | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 |
+      >
+      > Same cause as the saturation, one level down: the ±`matchSec` window makes the peak a **plateau
+      > ~2·`matchSec` wide**, so its argmax is biased and its support-weighted centroid is not.
+      > `fitClockOffsetPooled` already applies that centroid correction — its own comment says *"the
+      > argmax landed 37 s low; the centroid lands within a second"* — but applied it to the pooled
+      > value ONLY, leaving the per-channel `ownOffsetSec` on the raw argmax. `integrator-app.js:95`
+      > renders that number as *"(own peak N min — does NOT support this offset)"*, so a channel that
+      > agreed could be shown to the user as dissenting. Fixed by mirroring the pooled support+centroid;
+      > all five windows now read +0.5 s. Gated by `integrator-dsp · clock-fit-pooled · own-offset-bias`
+      > (11 assertions, sweeps `matchSec` 10/20/30/45/90, with an anti-vacuity leg).
+      >
+      > **The transferable shape:** a quantity that is *derived from* a search over a window inherits
+      > that window's resolution, and a plateau-argmax is biased by half its width. Two independent
+      > defects here — one blocking a measurement, one shipping a wrong number to a user — are the same
+      > mistake about what a match window does.
 - [x] ~~`doc-search.mjs` landed or its citations removed~~ — WITHDRAWN 2026-08-17: it was already on `main` (§6)
