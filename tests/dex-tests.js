@@ -46711,6 +46711,34 @@
       T.eq('I.fitClockDrift(null) → reason "too few beats" — the refusal names its floor', JSON.stringify(out.reason), '"too few beats"');
     });
 
+    group('Integrator _wrappedSlopeFit — the guard is CHEAP and the fit recovers a planted drift', 'integrator-dsp · known-answer · mutation-pinned', function (T) {
+      var I = env.IntegratorDSP || env.INTEGRATOR;
+      if (!I || typeof I._wrappedSlopeFit !== 'function') {
+        T.skip('IntegratorDSP._wrappedSlopeFit available', 'Integrator not co-loaded in this runner');
+        return;
+      }
+      /* WHY THIS GROUP EXISTS, beyond the three surviving mutants it kills: the guard at the top of
+         _wrappedSlopeFit is the ONLY thing standing between junk input and a ~1600-step ppm grid
+         search over every row. The 2026-08-20 sweep stall post-mortem (MUTATION-SUITE-FOLLOWUPS §7)
+         found all 22 workers wedged on guard mutants here — each lap re-ran the full corpus-sized
+         search on inputs the guard exists to reject, and the pool collapsed under its own contention.
+         A guard mutant must die in MILLISECONDS, in a group priced near zero, so --bail ends its lap
+         before the expensive legs ever run. That is what this group is. */
+      var mk = function (n, ppm) {
+        var out = [];
+        for (var i = 0; i < n; i++) out.push({ tMs: i * 60000, off: ppm * 1e-6 * i * 60000 });
+        return out;
+      };
+      T.eq('null rows refuse — null, not a grid search or a throw', I._wrappedSlopeFit(null, 800), null);
+      T.eq('three blocks are below the floor (< 4)', I._wrappedSlopeFit(mk(3, 50), 800), null);
+      T.eq('four blocks are ALREADY enough — the floor is < 4, not <= 4', I._wrappedSlopeFit(mk(4, 50), 800).driftPpm, 50);
+      T.eq('rrMs 0 refuses — the wrap would divide by it', I._wrappedSlopeFit(mk(6, 50), 0), null);
+      T.eq('rrMs NaN refuses — !(NaN > 0) is the honest direction', I._wrappedSlopeFit(mk(6, 50), NaN), null);
+      var fit = I._wrappedSlopeFit(mk(60, 50), 800);
+      T.eq('a planted 50 ppm drift is recovered exactly, at concentration 1', JSON.stringify({ ppm: fit.driftPpm, R: fit.concentration, n: fit.blocks }), '{"ppm":50,"R":1,"n":60}');
+      T.eq('and a driftless train reads 0 ppm with zero residual', JSON.stringify(I._wrappedSlopeFit(mk(60, 0), 800)), '{"driftPpm":0,"offsetMs":0,"residRmsMs":0,"concentration":1,"blocks":60}');
+    });
+
     /* DEEP-AUDIT-III §3.2 — `apneaCoupling.real` must be a TEST, not a coin flip.
        It was `usable && lift > 1 && observedPct > chancePct`. `chancePct` IS the mean of the
        surrogate distribution, so under the null "observed > chance" is a fair coin by construction:
