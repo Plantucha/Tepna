@@ -66,10 +66,23 @@ our box-night figures. SET_CONFIG has exactly one public sibling (DataFetcher).
   r=0.87; Gu W et al. (2020), *JCSM*, DOI 10.5664/jcsm.8592 — Belun ring REI-AHI r=0.894.
 - Schäfer et al. (2013), *Int J Cardiology*, DOI 10.1016/j.ijcard.2012.03.119 — PRV≈HRV at rest/sleep
   but a distinct biomarker.
-- **The gap that is OURS: no published study assesses any ring oximeter's PLETHYSMOGRAM for
-  beat-timing fidelity.** Our in-house result (O2Ring finger PPG reproduces chest-ECG HRV on clean
-  sleep) is ahead of the published record, and the ±19 ms buzz fiducial is precisely the instrument a
-  publication of that assessment needs.
+- **The publishable claim, NARROWED after peer review falsified the broad form** (Brief-runner
+  session, 2026-08-20 — the broad claim "no ring pleth has been assessed for beat timing" dies to one
+  citation): ring-PPG beat timing IS covered in print — Haddad et al. 2021 (IEEE EMBC; Senbiosys ring
+  vs Shimmer3 ECG, 72.2 h incl. 37.1 h sleep, best fusion 99.22 % detection, IBI MAE 7.42 ms) plus the
+  Oura nocturnal HRV-vs-ECG literature (Cao 2021 JMIR; Kinnunen 2020 Physiol Meas). **What survives:
+  the Wellue O2Ring SPECIFICALLY has no published beat-timing assessment** — its literature is
+  ODI-level — and the likely reason is ACCESS: its raw pleth (our 0x05 stream) appears publicly
+  unreachable, which reframes the paper from "a gap in validation" to "a capability nobody else has,
+  and the first assessment". One check owed before that framing ships: confirm no published work
+  exposes the O2Ring waveform by any route.
+- **Two load-bearing methods papers for the fiducial number** (same source): Zaunseder et al. 2022 —
+  in beat-to-beat interval estimation, SNR and PULSE-SHAPE stability dominate sampling rate (tripling
+  14→50 Hz buys ~14 %; shape variation raises error **up to 800 %**). Consequence: argue the ±19 ms
+  fiducial from SNR/shape stability, never from the ~100 Hz rate — and measure the pleth's shape
+  stability across a night before publishing the number. Charlton et al. 2022 (Physiol Meas) — 15
+  open-source PPG beat detectors benchmarked vs ECG across 8 datasets, framework freely available
+  (`MSPTD` + `qppg` best): the cheap external answer if our detector is ever questioned.
 
 ## 4b · Receiver-side clock sync — the one paper in our problem class, and three that are NOT
 
