@@ -197,6 +197,52 @@ path and confirm the upgraded guard is correct — not merely that OxyDex's own 
 **Re-measure, do not assume either way**, and check an **export**, not the source (the source contains
 the string in a comment and would read as a false positive).
 
+### 3b.1 · MEASURED 2026-08-20 — the axis is DRAWN, so the guard cannot upgrade for this input at all
+
+§3b says *"re-measure, do not assume either way"*. Measured, on the input OxyDex actually parses — the
+ring's own CSV export — using the discriminator the Clock Contract §7 already defines: *"a stream whose
+inter-sample deltas concentrate on one value (≥99 %) was constructed as `sample_index × an assumed rate`
+and carries no independent timing."*
+
+| night | samples | distinct deltas | modal delta | share |
+|---|---|---|---|---|
+| `…_20260503210952` | 27 006 | **1** | 1 s | **100.000 %** |
+| `…_20260504202108` | 28 483 | **1** | 1 s | **100.000 %** |
+| `…_20260505202850` | 28 255 | **1** | 1 s | **100.000 %** |
+| `…_20260506200404` | 28 928 | **1** | 1 s | **100.000 %** |
+| `…_20260508202715` | 27 901 | **1** | 1 s | **100.000 %** |
+| `…_20260509205816` | 35 479 | **1** | 1 s | **100.000 %** |
+
+**Six nights, ~176 000 samples, `distinct = 1` on every one.** Not "≥ 99 %" — exactly one value, no
+exceptions anywhere. The row count equals the span in seconds on every file, so there is not one
+missing second across the corpus either.
+
+**So OxyDex's honest declaration is `'host'` — never `device` or `device+host`.** Which means the
+condition §3b is waiting for **cannot be satisfied from this input format**, and the "self-upgrading
+guard whose trigger nobody watches" is, for OxyDex-from-CSV, **unreachable**. That materially reduces
+the hazard: the danger was a silent behaviour change, and the declaration that would cause it is one
+the data does not support anyone making.
+
+⚠️ **What this does and does not prove.** A uniform 1 s delta cannot separate *"the vendor drew the
+column"* from *"the device samples at a true 1 Hz and the stamp is quantised to whole seconds"* —
+1 s quantisation would hide real jitter either way. The operative property is the one §7 names and it
+holds under both readings: **no independent per-sample timing is observable, so the axis may be placed
+on the host timeline but must never be spent as a second clock.** Do not upgrade this to "the vendor
+synthesises it" without a second instrument; [[o2ring-timestamp-is-drawn]] reaches the same conclusion
+by a different route.
+
+⚠️ **This is the CSV path only.** The live BLE path is a different question and is moving — the ring's
+RTC was shown readable on 2026-08-19 (`GET_INFO [24:31]`, #1543). A future capture route that stamps
+samples from that clock could legitimately declare `device+host`, and **that** is when §3b's obligation
+becomes live. It is the BLE work, not the CSV parser, that should be watching this trigger.
+
+**Recommended, and NOT taken here:** have OxyDex emit `quality.timingSource: 'host'` explicitly. It
+changes no Integrator behaviour — `'host'` and absent both fail the positive check identically — but it
+converts an absence into a declaration, which is the difference between a guard that is inert because
+the premise is false and one that is inert because nobody said. It is an additive export field, so it
+moves OxyDex's fixture outputs and needs `tools/regen-oxydex-goldens.mjs` plus the Integrator TCH re-run
+§3b mandates; that is a work-unit, not a footnote.
+
 ## 4 · 🟡 κ rests on 4 device-positive nights
 
 §3.3's κ = +0.149 (from −0.036) is real and paired, and it is **fragile**: the CPAP scored PB on 4 of 56
