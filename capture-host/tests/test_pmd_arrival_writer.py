@@ -555,3 +555,195 @@ def test_arrival_quality_asks_for_tdev_at_the_FIXED_comparison_tau(tmp_path, mon
     assert seen, "arrival_quality never reached the stability call"
     assert all(t == nightqc._TDEV_TAU_S for t in seen), seen
     assert nightqc._TDEV_TAU_S == 300.0
+
+
+# ─── transport share: how much of a stream's ADEV is its OWN packet noise ────────────────────────
+
+def _write_two_streams(path, phases_a, phases_b, meas_a="ecg", meas_b="acc", dev="Polar H10 X"):
+    """Two streams of ONE device on a 1 s cadence, each with its own arrival phase series."""
+    w = PmdArrivalLogWriter(path, fsync=False)
+    base = 500_000_000_000
+    for meas, phases in ((meas_a, phases_a), (meas_b, phases_b)):
+        for i, ph in enumerate(phases):
+            dev_ns = base + i * 1_000_000_000
+            arr = _T0 + _dt.timedelta(milliseconds=(dev_ns - base) / 1e6 + ph)
+            w.write(arr, dev, meas, dev_ns, dev_ns, 10)
+    w.close()
+
+
+def _clock_plus_noise(n=900, noise=0.5, seed=1):
+    """One shared random-walk clock seen by two streams, each with independent arrival noise."""
+    import random
+    r = random.Random(seed)
+    clk, v = [], 0.0
+    for _ in range(n):
+        v += r.gauss(0, 1.0)
+        clk.append(v)
+    return ([c + r.gauss(0, noise) for c in clk], [c + r.gauss(0, noise) for c in clk])
+
+
+def test_transport_share_finds_the_shared_clock_under_independent_arrival_noise(tmp_path):
+    """The capability: single-stream ADEV cannot separate clock from its own packet noise; the sibling
+    stream can, because the noise is independent and the clock is not."""
+    import nightqc
+    a, b = _clock_plus_noise()
+    _write_two_streams(os.path.join(tmp_path, "Tepna_20_PMDARRIVAL.csv"), a, b)
+    rows = [r for r in nightqc.arrival_quality(str(tmp_path)) if r.get("transport")]
+    assert len(rows) == 2, rows
+    for r in rows:
+        assert 0.4 < r["transport"]["shared"] < 1.3, r["transport"]
+        assert r["transport"]["partner"] != r["meas"]
+
+
+def test_transport_share_SEPARATES_a_shared_clock_from_two_unrelated_streams(tmp_path):
+    """ANTI-VACUITY, as a RELATIVE comparison rather than a fitted threshold.
+
+    ⚠️ `shared` is a ratio of DEVIATIONS, so it decays as a square root and small variance shares look
+    large: a 5 % shared VARIANCE reads as sqrt(0.05) = 0.22 here. Independent streams therefore land
+    around 0.18-0.29 rather than near zero, and a test asserting "< 0.25" was fitting noise — it passed
+    on one seed and failed on the next. What must hold is the SEPARATION between the two cases.
+    """
+    import nightqc, random
+    a, b = _clock_plus_noise()
+    _write_two_streams(os.path.join(tmp_path, "Tepna_21a_PMDARRIVAL.csv"), a, b)
+    shared_clock = [r["transport"]["shared"]
+                    for r in nightqc.arrival_quality(str(tmp_path)) if r.get("transport")]
+
+    d2 = tmp_path / "unrelated"
+    d2.mkdir()
+    r1 = random.Random(2)
+    x = [r1.gauss(0, 5) for _ in range(900)]
+    y = [r1.gauss(0, 5) for _ in range(900)]
+    _write_two_streams(os.path.join(d2, "Tepna_21b_PMDARRIVAL.csv"), x, y)
+    unrelated = [r["transport"]["shared"]
+                 for r in nightqc.arrival_quality(str(d2)) if r.get("transport")]
+
+    assert shared_clock and unrelated
+    assert min(shared_clock) > 2.0 * max(unrelated), (shared_clock, unrelated)
+
+
+def test_each_stream_gets_its_OWN_adev_as_the_denominator(tmp_path):
+    """Regression for a real defect found by running this on the corpus: the covariance is symmetric but
+    the two ADEVs are not, and publishing one `shared` attached the denser stream's denominator to its
+    partner's record — where it read as that stream's own noise fraction. Measured on 2026-08-14, the
+    Verity's acc stream then reported 0.208 (the ppg's) instead of its true 0.032."""
+    import nightqc
+    a, b = _clock_plus_noise()
+    b = [v * 4.0 for v in b]                       # make the two ADEVs plainly different
+    _write_two_streams(os.path.join(tmp_path, "Tepna_22_PMDARRIVAL.csv"), a, b)
+    rows = {r["meas"]: r["transport"] for r in nightqc.arrival_quality(str(tmp_path)) if r.get("transport")}
+    assert set(rows) == {"ecg", "acc"}
+    assert rows["ecg"]["adev"] != rows["acc"]["adev"], rows
+    assert rows["ecg"]["shared"] != rows["acc"]["shared"], rows
+    assert rows["ecg"]["gcov"] == rows["acc"]["gcov"]        # the covariance IS symmetric
+
+
+def test_a_lone_stream_reports_no_transport_rather_than_a_zero(tmp_path):
+    """None means "no sibling to compare against", which is not the same as "nothing shared"."""
+    import nightqc
+    _write_sidecar(os.path.join(tmp_path, "Tepna_23_PMDARRIVAL.csv"), "ECG",
+                   [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30])
+    rows = nightqc.arrival_quality(str(tmp_path))
+    assert rows and all(r["transport"] is None for r in rows)
+
+
+def test_the_quantised_ring_stream_is_never_paired(tmp_path):
+    """Pairing against a 1 s quantised axis would measure the quantum, not the link."""
+    import nightqc
+    a, _ = _clock_plus_noise()
+    _write_two_streams(os.path.join(tmp_path, "Tepna_24_PMDARRIVAL.csv"), a, a,
+                       meas_a="OXYLIVE_DURATION_S", meas_b="OXYLIVE_DURATION_S", dev="Wellue")
+    rows = nightqc.arrival_quality(str(tmp_path))
+    assert rows and all(r["transport"] is None for r in rows)
+
+
+def test_transport_share_returns_None_when_the_pair_is_too_short():
+    import nightqc
+    assert nightqc.transport_share([], []) is None
+    tiny = [(1000.0 * i, 0.5) for i in range(4)]
+    assert nightqc.transport_share(tiny, tiny) is None
+
+
+def test_phase_grid_bins_on_ABSOLUTE_time_so_two_streams_cannot_be_shifted():
+    """A per-stream-relative index would align bin 0 of one with bin 0 of the other — comparing
+    different instants while returning a well-formed number."""
+    import nightqc
+    early = nightqc._phase_grid([(1_000.0, 5.0), (1_999.0, 7.0)])
+    late = nightqc._phase_grid([(9_000.0, 5.0)])
+    assert set(early) == {1}, early
+    assert set(late) == {9}, late
+    assert early[1] == 6.0                        # both samples in bin 1 are averaged
+
+
+def test_a_gappy_partner_does_not_inflate_the_shared_fraction(tmp_path):
+    """Regression for a defect the corpus exposed and the unit tests could not.
+
+    `shared` is gdev/adev. If the covariance runs over the bins where BOTH streams delivered while the
+    ADEV runs over every bin its own stream delivered, the two are computed on different series and the
+    ratio is not a ratio of anything. Measured on the Verity, whose acc covers about half the ppg's
+    bins: numerator over 20 955 terms against a denominator over 42 468, inflating `shared` 0.259 ->
+    0.319 — i.e. UNDER-reporting transport noise exactly where the gaps are worst, while looking
+    entirely well-formed.
+
+    The invariant that makes it impossible: both records report the SAME `n`, and it is the common-bin
+    count, not either stream's own.
+    """
+    import nightqc
+    a, b = _clock_plus_noise(n=900)
+    holed = list(b)
+    for i in range(0, len(holed), 2):
+        holed[i] = None                                   # deliver only every other bin
+    pairs_a = [(1000.0 * i, v) for i, v in enumerate(a)]
+    pairs_b = [(1000.0 * i, v) for i, v in enumerate(holed) if v is not None]
+    share = nightqc.transport_share(pairs_a, pairs_b)
+    assert share is not None
+    # the term count must reflect the COMMON bins (~450), never stream a's 900
+    assert share["n"] < 500, share
+    # and the denominator must be the ADEV over those same bins, not over all 900 of a's
+    from allan import adev
+    over_all = adev([v for v in a], 1.0)[0]["adev"]
+    assert share["adev_a"] != over_all, (share["adev_a"], over_all)
+
+
+def test_transport_is_attached_to_the_RIGHT_device_when_two_are_in_one_file(tmp_path):
+    """The pairing pass scans every record accumulated so far, so it must skip the ones belonging to
+    another device — otherwise one device's figure lands on another's stream."""
+    import nightqc
+    a, b = _clock_plus_noise(seed=11)
+    c, d = _clock_plus_noise(seed=12, noise=2.0)
+    p = os.path.join(tmp_path, "Tepna_30_PMDARRIVAL.csv")
+    w = PmdArrivalLogWriter(p, fsync=False)
+    base = 500_000_000_000
+    for dev, m1, m2, s1, s2 in (("Polar H10 A", "ecg", "acc", a, b),
+                                ("Polar Verity B", "ppg", "acc", c, d)):
+        for meas, phases in ((m1, s1), (m2, s2)):
+            for i, ph in enumerate(phases):
+                dev_ns = base + i * 1_000_000_000
+                w.write(_T0 + _dt.timedelta(milliseconds=(dev_ns - base) / 1e6 + ph),
+                        dev, meas, dev_ns, dev_ns, 10)
+    w.close()
+    rows = [r for r in nightqc.arrival_quality(str(tmp_path)) if r.get("transport")]
+    assert len(rows) == 4, rows
+    by_dev = {}
+    for r in rows:
+        by_dev.setdefault(r["device"], set()).add(r["transport"]["gcov"])
+    # each device has ONE covariance, and the two devices' differ
+    assert all(len(v) == 1 for v in by_dev.values()), by_dev
+    assert len({next(iter(v)) for v in by_dev.values()}) == 2, by_dev
+
+
+def test_two_streams_too_short_to_measure_leave_transport_None(tmp_path):
+    """`transport_share` declining must leave the field None, not raise and not zero it."""
+    import nightqc
+    _write_two_streams(os.path.join(tmp_path, "Tepna_31_PMDARRIVAL.csv"),
+                       [0.1, 0.2, 0.3, 0.4, 0.5], [0.2, 0.1, 0.4, 0.3, 0.6])
+    rows = nightqc.arrival_quality(str(tmp_path))
+    assert rows and all(r["transport"] is None for r in rows)
+
+
+def test_a_perfectly_linear_phase_has_no_adev_to_divide_by_and_returns_None():
+    """A constant-rate series has zero second difference, so ADEV is exactly 0 and `shared` would be a
+    division by it. None rather than an exception or an infinity."""
+    import nightqc
+    ramp = [(1000.0 * i, 2.0 * i) for i in range(400)]
+    assert nightqc.transport_share(ramp, ramp) is None

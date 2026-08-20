@@ -559,6 +559,81 @@ def newest_data_mtime(night_dir: str) -> float | None:
 # rather than an arrival series, and reads white-frequency at ~5 s.
 _TDEV_TAU_S = 300.0
 
+# Bin width for putting two streams of one device on ONE grid, in seconds. `gcov` requires both series
+# sampled at the same instants and refuses unequal lengths; two BLE streams never are, so they are
+# averaged into fixed absolute bins first. 1 s is chosen because every stream here delivers at least one
+# packet per second, so a bin is a mean rather than an interpolation of an absent sample.
+_TRANSPORT_BIN_S = 1.0
+
+
+def _phase_grid(pairs, bin_s=_TRANSPORT_BIN_S):
+    """`arrival - device` averaged into fixed ABSOLUTE bins, keyed by bin index.
+
+    Absolute rather than per-stream-relative: the two streams start at different instants, and a
+    relative index would align bin 0 of one with bin 0 of the other — i.e. compare different times
+    while producing a perfectly well-formed number.
+    """
+    acc: dict[int, list[float]] = {}
+    for host_ms, phase in pairs:
+        acc.setdefault(int(host_ms / 1000.0 / bin_s), []).append(phase)
+    return {k: sum(v) / len(v) for k, v in acc.items()}
+
+
+def transport_share(pairs_a, pairs_b, bin_s=_TRANSPORT_BIN_S):
+    """How much of one stream's arrival ADEV is SHARED with a sibling stream of the same device.
+
+    ADEV squares a single series, so it reports clock + that stream's own packet-arrival noise and
+    cannot separate them. Two streams of one device share the device clock and the host, and carry
+    independent per-packet noise, so `allan.gcov` of the pair keeps the shared part and averages the
+    rest away. `shared` = gdev/adev is therefore the fraction of the single-stream figure that is NOT
+    per-stream noise. Measured on 2026-08-14: H10 ecg-vs-acc **0.71**, Verity ppg-vs-acc **0.33** at
+    1 s — i.e. two thirds of the Verity's single-stream ADEV is not clock at all.
+
+    ⚠️ **A FLOOR on the shared part, not a clock measurement.** Both streams ride the SAME BLE
+    connection, so arrival jitter common to a connection event is shared and is retained rather than
+    rejected — `gcov` cannot tell shared clock from shared measurement noise. Read it as "at least this
+    much of the ADEV is per-stream noise", never as "the clock is this stable".
+
+    `shared` may exceed 1 or go negative: it is a covariance over a variance, not a proportion. None
+    where the pair cannot support the shortest tau at all.
+
+    ⚠️ **IT IS A RATIO OF DEVIATIONS, so it decays as a SQUARE ROOT and small shares look large.** A 5 %
+    shared VARIANCE reads as sqrt(0.05) = 0.22 here, and two entirely unrelated streams measure 0.18-0.29
+    rather than ~0. Do not read 0.2 as "a fifth of this is clock"; square it first. This is also why no
+    threshold is applied — a fitted one passes on one night and fails on the next.
+
+    ⚠️ **`adev_a` and `adev_b` are BOTH returned, and the caller must divide by its OWN stream's.** The
+    covariance is symmetric but the two ADEVs are not, so one `shared` cannot describe both streams —
+    publishing a single figure attaches the denser stream's denominator to its partner's record, where
+    it silently reads as that stream's own noise fraction.
+    """
+    ga, gb = _phase_grid(pairs_a, bin_s), _phase_grid(pairs_b, bin_s)
+    keys = sorted(set(ga) | set(gb))
+    # ONE series feeds the covariance AND both denominators: only bins where BOTH streams delivered.
+    # Taking each ADEV over its own bins instead makes `shared` a ratio between two different series —
+    # measured 2026-08-14 on the Verity, whose acc covers half the ppg's bins, the numerator ran over
+    # 20 955 terms against a denominator over 42 468 and inflated `shared` from 0.259 to 0.319. It
+    # under-reports transport noise exactly where the gaps are worst, and it reads as a real result.
+    xs = [ga[k] for k in keys if k in ga and k in gb]
+    ys = [gb[k] for k in keys if k in ga and k in gb]
+    solo_a = allan.adev(xs, bin_s)
+    solo_b = allan.adev(ys, bin_s)
+    both = allan.gcov(xs, ys, bin_s)
+    if not solo_a or not solo_b or not both:
+        return None
+    at = {p["tau"]: p for p in both}
+    tau = solo_a[0]["tau"]
+    if tau not in at or not solo_a[0]["adev"] or solo_b[0]["tau"] != tau or not solo_b[0]["adev"]:
+        return None
+    return {
+        "tau": tau,
+        "adev_a": solo_a[0]["adev"],
+        "adev_b": solo_b[0]["adev"],
+        "gcov": at[tau]["gcov"],
+        "gdev": at[tau]["gdev"],
+        "n": at[tau]["n"],
+    }
+
 
 def _tau0_of(pairs) -> float:
     """Mean packet interval in SECONDS — ADEV's sample interval. Measured from the HOST stamps, which
@@ -707,12 +782,41 @@ def arrival_quality(night_dir: str) -> list[dict]:
                 # thresholds both fired on every stream of the first real night. See
                 # ALLAN-DEVIATION-2026-08-12-BRIEF.
                 "stability": allan.stability(diffs, _tau0_of(pairs), _TDEV_TAU_S),
+                # Filled below where this device has a second stream to compare against; None means
+                # "no sibling stream", never "nothing shared".
+                "transport": None,
                 "floor_spread_ms": None if spread is None else round(spread, 1),
                 # The verdict a reader should branch on. None where it cannot be judged — an unknown is
                 # not a pass, and the earlier attempt's whole failure was reporting a number that had
                 # not earned one.
                 "floor_ok": None if spread is None else bool(spread < 5.0),
             })
+        # SECOND PASS, per device: how much of each stream's ADEV is its own packet-arrival noise.
+        # Needs two streams of one device, so it cannot be computed inside the per-stream loop above.
+        # `_DURATION_S` is excluded because the ring's axis is 1 s quantised — pairing against it would
+        # measure the quantum rather than the link.
+        by_device: dict[str, list[tuple[str, list]]] = {}
+        for (device, meas), pairs in per.items():
+            if not meas.endswith("_DURATION_S"):
+                by_device.setdefault(device, []).append((meas, pairs))
+        for device, streams in by_device.items():
+            if len(streams) < 2:
+                continue
+            # The two densest streams: the pair with the most bins in common, without searching.
+            streams.sort(key=lambda s: (-len(s[1]), s[0]))
+            (first, pairs_a), (second, pairs_b) = streams[0], streams[1]
+            share = transport_share(pairs_a, pairs_b)
+            if share is None:
+                continue
+            for rec in out:
+                if rec["file"] == name and rec["device"] == device and rec["meas"] in (first, second):
+                    mine = "adev_a" if rec["meas"] == first else "adev_b"
+                    rec["transport"] = {
+                        "tau": share["tau"], "n": share["n"], "gcov": share["gcov"],
+                        "partner": second if rec["meas"] == first else first,
+                        "adev": share[mine],                       # THIS stream's, not the pair's
+                        "shared": share["gdev"] / share[mine],
+                    }
     return out
 
 def summarize(night_dir: str, devices: list[dict]) -> dict:
