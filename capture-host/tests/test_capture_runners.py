@@ -1825,6 +1825,10 @@ def test_adapter_watchdog_stops_after_the_power_cycle_cap(monkeypatch):
             return "Connected: yes\n"        # permanently phantom → wedged every check
         return ""
     monkeypatch.setattr(capture.bonding, "_btctl", fake_btctl)
+
+    async def no_spare(*a, **k):
+        return []                                # P1.5: no healthy spare → the give-up STOP path (1258-60)
+    monkeypatch.setattr(capture, "list_adapters", no_spare)
     # Count only the top-of-loop interval sleep (1.0 s), not the power-cycle's internal 1.5/2/3 s sleeps,
     # so the loop reaches a SECOND wedged check with cycles already at the cap.
     ticks = {"n": 0}

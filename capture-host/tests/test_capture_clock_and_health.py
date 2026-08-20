@@ -525,3 +525,78 @@ def test_a_phantom_link_is_still_a_wedge_while_another_device_streams():
             {"name": "Ring", "address": "BB", "connected": False, "bluez_connected": True}]
     h = capture.classify_adapter_health(devs, adapter_up=True)
     assert h["wedged"] is True and h["phantom"] == ["BB"]
+
+
+# ── dual-radio failover: the pure parser + decision (VIGIL-OVERNIGHT-FINDINGS P1.5) ──────────────────
+_HCICONFIG_A = """hci1:\tType: Primary  Bus: USB
+\tBD Address: F0:D5:BF:1E:79:21  ACL MTU: 1021:4  SCO MTU: 96:6
+\tUP RUNNING\x20
+\tRX bytes:200530 acl:2105 sco:0 events:5714 errors:0
+\tName: 'vigil'
+
+hci0:\tType: Primary  Bus: USB
+\tBD Address: AC:A7:F1:29:9D:1D  ACL MTU: 1021:6  SCO MTU: 255:12
+\tUP RUNNING\x20
+\tName: 'vigil #1'
+"""
+
+
+def test_parse_hciconfig_reads_both_controllers():
+    a = capture.parse_hciconfig(_HCICONFIG_A)
+    assert [x["hci"] for x in a] == ["hci1", "hci0"]
+    assert a[0]["mac"] == "F0:D5:BF:1E:79:21" and a[0]["up"] is True
+    assert a[1]["mac"] == "AC:A7:F1:29:9D:1D" and a[1]["up"] is True
+
+
+def test_parse_hciconfig_marks_a_down_radio():
+    text = "hci0:\tType: Primary  Bus: USB\n\tBD Address: AA:BB:CC:DD:EE:FF\n\tDOWN\n"
+    a = capture.parse_hciconfig(text)
+    assert a == [{"hci": "hci0", "mac": "AA:BB:CC:DD:EE:FF", "up": False}]
+
+
+def test_parse_hciconfig_drops_a_block_with_no_address():
+    # an adapter we cannot address is not a failover target — it must not appear
+    text = "hci9:\tType: Primary\n\tUP RUNNING\n"
+    assert capture.parse_hciconfig(text) == []
+
+
+def test_parse_hciconfig_empty_input_is_empty():
+    assert capture.parse_hciconfig("") == []
+
+
+def test_failover_target_picks_a_healthy_spare():
+    adapters = capture.parse_hciconfig(_HCICONFIG_A)
+    # pinned = the wedged dongle hci0 → fail over to hci1
+    assert capture.failover_target("AC:A7:F1:29:9D:1D", adapters) == "F0:D5:BF:1E:79:21"
+
+
+def test_failover_target_never_returns_the_pinned_adapter():
+    # only the pinned adapter is up → no spare, even though something is UP
+    adapters = [{"hci": "hci0", "mac": "AA:BB:CC:DD:EE:FF", "up": True}]
+    assert capture.failover_target("aa:bb:cc:dd:ee:ff", adapters) is None   # case-insensitive
+
+
+def test_failover_target_skips_a_down_spare():
+    adapters = [{"hci": "hci0", "mac": "PIN", "up": False},
+                {"hci": "hci1", "mac": "SPARE", "up": False}]
+    assert capture.failover_target("PIN", adapters) is None
+
+
+def test_failover_target_skips_a_spare_with_no_mac():
+    adapters = [{"hci": "hci1", "mac": None, "up": True}]
+    assert capture.failover_target("PIN", adapters) is None
+
+
+def test_failover_target_none_pin_still_finds_a_spare():
+    adapters = [{"hci": "hci1", "mac": "SPARE", "up": True}]
+    assert capture.failover_target(None, adapters) == "SPARE"
+
+
+def test_parse_hciconfig_tolerates_leading_junk_and_a_malformed_address():
+    text = ("Devices sorted by:\n"                      # a non-hci line BEFORE any block → cur is None
+            "hci0:\tType: Primary\n"
+            "\tBD Address: NOT-A-MAC here\n"             # malformed token → not captured
+            "\tSome detail line\n"                       # a detail line with no UP RUNNING
+            "\tBD Address: AA:BB:CC:DD:EE:FF\n"          # the real address, later in the block
+            "\tUP RUNNING\n")
+    assert capture.parse_hciconfig(text) == [{"hci": "hci0", "mac": "AA:BB:CC:DD:EE:FF", "up": True}]
