@@ -235,7 +235,22 @@ function renderHero(r, prev) {
   const ari = num(r.d_ari);
   let note;
   if (score == null) note = 'Upload a Welltory export to see your autonomic readiness.';
-  else if (score >= 55 && (ari == null || ari >= 1)) note = 'Strong parasympathetic recovery — a green light for higher-intensity training.';
+  /* AN ABSENT RECOVERY INDEX MUST NOT READ AS A PASSING ONE (DEEP-AUDIT-IV §3, executed 2026-08-20).
+     This branch used to accept a NULL index as equivalent to a passing one, so a MISSING `d_ari`
+     satisfied it and the user
+     was told "strong parasympathetic recovery" on the strength of the one input that names recovery
+     being unavailable — while the subscore grid directly below rendered Recovery as absent.
+
+     The absence is deliberate and structural, not exotic. `hrvdex-dsp.js:869` sets
+     `d_ari = ... : NaN` when the row's own rMSSD is absent OR `window7.length < 4`, and its comment
+     says why: DEEP-AUDIT §Finding 5 introduced that guard to stop a fabricated `d_ari = 0` firing a
+     false RED "recovery collapse" alert. So the first three days of ANY series, and every day with no
+     rMSSD reading, arrive here as null — and the permissive test converted Finding 5's careful red
+     into an equally fabricated GREEN, on a recommendation to train harder.
+
+     Requiring the measurement positively drops those rows to the `score >= 55` case below — "Balanced
+     autonomic state — proceed with your planned training load" — which rests only on `score`, is
+     measured, and claims nothing about recovery. */ else if (score >= 55 && ari != null && ari >= 1) note = 'Strong parasympathetic recovery — a green light for higher-intensity training.';
   else if (score >= 45) note = 'Balanced autonomic state — proceed with your planned training load.';
   else if (score >= 33) note = 'HRV is below your baseline — favour easy aerobic work and recovery today.';
   else note = 'Marked autonomic strain — prioritise rest, sleep and downregulation.';
