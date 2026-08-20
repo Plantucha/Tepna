@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-15 (**§1 EXECUTED elsewhere** as #956, verified in the tree; **§2 EXECUTED 2026-08-15**. Punch-list item 2 — the alternation cross-check — **RUN 2026-08-16: 2 of 5 nights measured, both FULL ACC (negative); 3 blocked on raw data absent from all four corpus trees. Also corrects the count: FIVE alternation nights, not six** (§7.2-RUN). ⚠️ **That absence was WRONG — re-checked 2026-08-20 (§7.2-RUN-II): two of the three are on the box, fragmented across link reconnects AND across the date directory. 4 of 5 now measured, ALL NEGATIVE including the highest-ratio night; only 2026-08-08 is genuinely absent.** §3 remain leads) · **Created:** 2026-08-04 · **Charter:** `AUDIT-PROMPT.md` · **Follows:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` (DONE 2026-07-29) · `DEEP-AUDIT-III-FOLLOWUPS-II-2026-07-29-BRIEF.md` (DONE 2026-07-31)
+**Status:** IN-PROGRESS — 2026-08-15 (**§1 EXECUTED elsewhere** as #956, verified in the tree; **§2 EXECUTED 2026-08-15**. Punch-list item 2 — the alternation cross-check — **RUN 2026-08-16: 2 of 5 nights measured, both FULL ACC (negative); 3 blocked on raw data absent from all four corpus trees. Also corrects the count: FIVE alternation nights, not six** (§7.2-RUN). ⚠️ **That absence was WRONG — re-checked 2026-08-20 (§7.2-RUN-II): two of the three are on the box, fragmented across link reconnects AND across the date directory. 4 of 5 now measured, ALL NEGATIVE including the highest-ratio night; only 2026-08-08 is genuinely absent.** §3 remain leads — both surviving ones MEASURED 2026-08-20 (§3-RESULT): unreachable on the corpus (0 of 3,155 fusable events lack `conf`; 54 of 54 hrv blocks non-zero), and the `|| 0` shape is a **3-site fleet pattern** including a user-facing OxyDex card) · **Created:** 2026-08-04 · **Charter:** `AUDIT-PROMPT.md` · **Follows:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` (DONE 2026-07-29) · `DEEP-AUDIT-III-FOLLOWUPS-II-2026-07-29-BRIEF.md` (DONE 2026-07-31)
 
 # Deep audit IV — the fifth instance of 3a, in the file the 3a fix shipped in yesterday
 
@@ -400,6 +400,58 @@ Filed as leads because each is real code but none is demonstrated to move a user
   finding's `sources[]` provenance trail when `conf` was absent (`effConf` correctly returns `null`).
   The fused posterior is unaffected — `combineConf` skips nulls properly — so this is an audit-trail
   honesty nit, and "no evidence" arguably *is* 0 here. Noted, not filed.
+
+### 3-RESULT · Both surviving leads MEASURED 2026-08-20 — unreachable on the corpus, and the shape is a FLEET pattern
+
+The two open leads were dispositions rather than measurements (*"noted, not filed"*, *"a consistency
+lead"*). Both are now measured. **Both hold — and the reason to record it is that the dismissal
+reasoning for the `effConf` one (*"'no evidence' arguably is 0 here"*) is the same reasoning that
+failed one bullet above it,** where an absent Recovery index satisfying a test produced a fabricated
+GREEN. A disposition that reads identical to a known failure is worth converting into a number.
+
+**`integrator-dsp.js:1837-1838` — unreachable.** `gather()` filters on event type and union membership
+only, never on `conf`, so an event with absent `conf` *would* reach the line and render
+`conf: null` beside `effConf: 0` — contradicting the tool's own published formula
+(`effConf = conf × (sqi ?? 1)`, surfaced at `:6557`, which also tells the reader those fields are
+retained in `sources[]`). It does not happen: across **220 committed exports**, of **3,155** fusable
+events (`autonomic_surge` 2,493 · `desat_event` 662; the `spo2_desaturation` and `autonomic_arousal`
+aliases appear **0** times), **zero** lack a finite `conf`. The posterior claim also verifies —
+`:1826` passes `effConf(d)` *unrounded* to `combineConf`, so the `|| 0` never reaches the fusion.
+
+**`oxydex-dsp.js` `stdDev` — still the lone population form, still undocumented.** ⚠️ **The audit's
+line 6213 has drifted to `:6723`**; it is `Math.sqrt(avg(squared deviations))`, ÷N, with no comment
+recording the choice. Magnitude is analytic, not empirical: `√(N/(N−1))` ⇒ **1.71 % low at N = 30**
+(`rsaProxy`'s window), <0.05 % on night-length arrays. Unchanged disposition — §5's warning about
+deliberate per-signal differences still stands, and documenting it in code would move `computeHash`
+and owe a full fixture re-verification **for a comment**, which is the chain CLAUDE.md §🔏 warns about.
+
+**NEW — the `|| 0` fabricated-zero shape is a 3-site fleet pattern, not an integrator one-off.**
+`git grep '|| 0)\.toFixed'` over the root `*.js` returns exactly three production sites (the other
+seven hits are assertion-message formatting in `tests/dex-tests.js`):
+
+| site | what an absent value renders as | surfaced? |
+|---|---|---|
+| `integrator-dsp.js:1837-1838` | `effConf: 0` in `sources[]` | audit trail, reader-visible per `:6557` |
+| **`oxydex-render.js:3055`** | **`HR-Var SD  0.00 bpm`** | **a metric CARD** |
+| `oxydex-dsp.js:6453` | `hrSdnn: 0` | node export |
+
+**The render site is the notable one, because the correct idiom sits five lines below it in the same
+grid:** `metric('RSA proxy', h.rsaProxy != null ? h.rsaProxy : '—', …)`. Same object, same `<div class="grid">`,
+one honest and one fabricating.
+
+**Also unreachable today, and measured the same way.** `computeHRV` returns `null` below 120 clean
+samples and the card is guarded by `if (n.hrv)`, so `hrs.length ≥ 120` whenever it draws; NaN would
+need a non-finite `r.hr` surviving a filter that tests `motion`/`hrArtifact` but not HR validity. A
+true `hrSdnn` of exactly `0.00` over ≥120 real samples requires perfectly constant HR, so a zero in
+an export *is* the fabricated one — and across the corpus **54 of 54** hrv blocks are non-zero and
+present.
+
+**Disposition: leads remain leads — no code changed.** All three are currently unreachable, two of the
+three fixes would move `computeHash` and owe a fixture cycle, and §3's own framing (*"none is
+demonstrated to move a user-visible number"*) survives the measurement. What changes is that the
+landing spot is now named: if any node ever emits an event without `conf`, or an HR series that
+poisons `stdDev`, these are the three places absence becomes a zero — and `oxydex-render.js:3055` is
+the one a user would read.
 
 ---
 
