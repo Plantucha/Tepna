@@ -39827,14 +39827,21 @@
          CPAPDex    recording.durSec        8400 s span / 1200 s data  ENVELOPE ✓ (2 h hole included)
          HRVDex     coverage.recordedSec    null, nWithDuration 0/3    HONEST ✓ (declines to sum to 0)
          PulseDex   durMin  (+timestamps)   2700 s = span             ENVELOPE ✓
-         PulseDex   durMin  (NO timestamps) 1800 s = data, cov 100 %  ✗ KNOWN DEFECT
+         PulseDex   durMin  (NO timestamps) 1800 s = data, cov NULL   FIXED ✓ 2026-08-15 (§1)
          GlucoDex   coverage.recordedSec    == spanSec, 6 h hole      ✗ KNOWN DEFECT
 
-       The two ✓ pairs are a real ratchet: they red if anyone redefines the field. The two ✗ are pinned
-       as CHARACTERIZATION — the values are wrong, they are recorded so a fix must update this group
-       DELIBERATELY rather than silently, and they are routed to
-       NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS-II. Pinning a defect is not endorsing it; leaving it
-       unpinned is how it survives another six audits. */
+       The ✓ rows are a real ratchet: they red if anyone redefines the field. The remaining ✗ is pinned
+       as CHARACTERIZATION — the value is wrong, it is recorded so a fix must update this group
+       DELIBERATELY rather than silently, and it is routed to
+       NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS-II §2. Pinning a defect is not endorsing it; leaving it
+       unpinned is how it survives another six audits.
+
+       PulseDex's row was one of those pins and is now CONTRACT. The pin did its job exactly as
+       designed: fixing the DSP reddened this group and forced the assertions to be rewritten rather
+       than quietly satisfied. `durMin` still reads 1800 s on the untimed branch and that is now
+       CORRECT-BY-CONTRACT rather than a silent second meaning — `durationBasis` names it `beat-sum`,
+       `spanMin` is null because there is no envelope to measure, and `coverage` is null because
+       coverage needs one. See the block below for why `durMin` itself was deliberately not nulled. */
     group('The four ungated nodes — duration tracks the ENVELOPE on a gapped twin — §3', 'pulsedex-dsp · glucodex-dsp · cpapdex-dsp · hrvdex-dsp · export · duration-semantics', function (T) {
       var GAP_S = 900;
 
@@ -39939,21 +39946,40 @@
           'coverage=' + (timed && timed.coverage)
         );
 
-        /* ⚠️ KNOWN DEFECT — PINNED, NOT ENDORSED. Routed to NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS-II §1.
-           `beatTimes` has two branches: with timestamps it returns a wall SPAN (correct, asserted above);
-           without them it cumulates RR, so `durMin` silently changes meaning to DATA seconds — the exact
-           defect §1 of the parent fixed in ECGDex, surviving one branch away. Worse, `coverage` is
-           initialised to 100 and only overwritten on the timestamped path, so an untimed stream asserts
-           a completeness it cannot know. These two assertions pin the WRONG values so that fixing them
-           reds this group and forces a deliberate update. Do NOT "make them pass" by editing them. */
+        /* ── FIXED 2026-08-15, FOLLOWUPS-II §1 — these were KNOWN DEFECT pins and are now CONTRACT.
+           The defect: `beatTimes` has two branches — with timestamps a wall SPAN, without them a
+           cumulative RR sum — so `durMin` silently changed meaning between them, and `coverage` was
+           initialised to 100 and only ever overwritten on the timestamped path, asserting a
+           completeness it could not know.
+
+           The resolution is HRVDex's sparse-block template: the ENVELOPE and the DATA get DIFFERENT
+           NAMES, and the one that cannot be known is null rather than estimated. `durMin` deliberately
+           KEEPS its value — `classifyRecording` does arithmetic on it and `adaptEnvelopeNode` builds
+           this node's fusion window from the exported `durationMin`, so nulling it would collapse that
+           window to a POINT, which is the DEEP-AUDIT-III §6.2 regression HRVDex already paid for. The
+           ambiguity is therefore resolved by LABELLING, and these assertions pin the label. */
         var untimed = P.computeResult({ vals: vals });
         var dU = untimed && untimed.durMin != null ? untimed.durMin * 60 : null;
         T.ok(
-          'KNOWN DEFECT (FOLLOWUPS-II §1) · PulseDex with NO timestamps publishes DATA seconds as durMin',
-          dU != null && Math.abs(dU - data) < 30,
-          'durMin*60=' + dU + ' — should be span ' + span + ' or null, is data ' + data
+          'PulseDex with NO timestamps · durMin is the beat-sum, and durationBasis SAYS SO',
+          dU != null && Math.abs(dU - data) < 30 && untimed.durationBasis === 'beat-sum',
+          'durMin*60=' + dU + ' (data ' + data + ') basis=' + (untimed && untimed.durationBasis)
         );
-        T.eq('KNOWN DEFECT (FOLLOWUPS-II §1) · …and asserts coverage 100 % on a stream it cannot place in time', untimed && untimed.coverage, 100);
+        T.eq('…and coverage is NULL, not a manufactured 100 — absent is not complete', untimed && untimed.coverage, null);
+        T.eq('…and spanMin is NULL — a stream with no wall clock has no envelope', untimed && untimed.spanMin, null);
+        T.ok(
+          '…while recordedMin still reports what the beats DO account for',
+          untimed && Math.abs(untimed.recordedMin * 60 - (data + RR / 1000)) < 30,
+          'recordedMin*60=' + (untimed && untimed.recordedMin * 60) + ' · data+1beat=' + (data + RR / 1000)
+        );
+        /* The timestamped branch must carry the SAME three keys with the opposite verdicts, or the
+           discriminator is only half-wired and a consumer still cannot tell the branches apart. */
+        T.eq('PulseDex WITH timestamps · durationBasis is the envelope', timed && timed.durationBasis, 'envelope');
+        T.ok(
+          '…and spanMin is the measured envelope, distinct from recordedMin by ~the hole',
+          timed && timed.spanMin != null && Math.abs(timed.spanMin * 60 - span) < 30 && timed.spanMin - timed.recordedMin > 10,
+          'spanMin=' + (timed && timed.spanMin) + ' recordedMin=' + (timed && timed.recordedMin)
+        );
       })();
 
       /* ── GlucoDex · 24 h of 5-min CGM cells, a 6 h sensor dropout, 24 h more ────────────────────── */
