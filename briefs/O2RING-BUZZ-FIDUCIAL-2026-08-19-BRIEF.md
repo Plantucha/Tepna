@@ -101,6 +101,17 @@ recording on one box clock; command instants logged to the ms). Aperiodic patter
   threshold baseline it must beat, selftested (planted varied latencies ±40 ms, no-burst refusal,
   planted +150 ms pairwise offset recovered).
 
+### §5c · The marker closes KNOWN-CLOCK-ADVERSARIAL-CAPTURE-FOLLOWUPS' open box
+
+`KNOWN-CLOCK-ADVERSARIAL-CAPTURE-FOLLOWUPS-2026-08-14-BRIEF.md` tested-and-failed the NATURAL
+aperiodic marker (2026-08-15) and parked `tools/aperiodic-offset.mjs` awaiting a deliberate one. This
+brief's buzz is that marker: run over the 08-19/20 buzz windows the instrument's lag STAYS PUT under
+the width test that failure defined (100 ms night / 200 ms morning, identical at ±2/±4/±8 s), a
++500 ms injection recovers as exactly 700 ms on a genuinely prominent peak, and three estimators agree
+within ~100 ms. Its formal `locked` margin is not met (near-tied burst-alias runner-ups in a 2-min
+window — see the box text there for the full caveat). Target 1 of the parent brief is thereby
+EVALUATED with a deliberate marker, as its §2.1 originally specified.
+
 ### §5b · Matched-filter estimator + the 2026-08-20 morning calibration — THE ≤30 ms BAND IS MET
 
 `buzz-onset-extract.mjs --xcorr`: whole-pattern normalized cross-correlation of the two devices'
