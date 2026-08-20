@@ -8,6 +8,24 @@
       "clock.js — wave 8: duplicate anchors, and an anchor that is not a number"
     ]
   },
+  "cpapdex-dsp.js": {
+    "line": 37,
+    "op": "eq !== → ===",
+    "before": "var _EDF = typeof require !== 'undefined' ? /** @type {any} */ (require)('./cpapdex-edf.js') : root ",
+    "after": "var _EDF = typeof require === 'undefined' ? /** @type {any} */ (require)('./cpapdex-edf.js') : root ",
+    "killers": [
+      "CPAPDex §6.2 — ODI is rated over ANALYZABLE oximeter time, not the therapy span"
+    ]
+  },
+  "glucodex-dsp.js": {
+    "line": 44,
+    "op": "negate: drop !",
+    "before": "if (!sorted.length) return null;",
+    "after": "if (sorted.length) return null;",
+    "killers": [
+      "GlucoDex §5.1/§5.2 — a truncated grid says so, and the session span cannot overflow"
+    ]
+  },
   "hrvdex-dsp.js": {
     "line": 101,
     "op": "cmp < → <=",
@@ -15,6 +33,33 @@
     "after": "for (var i = 0; i <= arguments.length; i++) {",
     "killers": [
       "HRVDex — an absent column yields NaN, never a fabricated number (§1.1–1.9)"
+    ]
+  },
+  "motiondex-dsp.js": {
+    "line": 30,
+    "op": "cmp < → <=",
+    "before": "while (v.length < (w || 2)) v = '0' + v;",
+    "after": "while (v.length <= (w || 2)) v = '0' + v;",
+    "killers": [
+      "MotionDex: rate, coverage and plausibility — §4"
+    ]
+  },
+  "ppgdex-dsp.js": {
+    "line": 32,
+    "op": "bool || → &&",
+    "before": "ms = ms || 0;",
+    "after": "ms = ms && 0;",
+    "killers": [
+      "PpgDex rich export ≡ its committed golden — Integrator-facing surface"
+    ]
+  },
+  "pulsedex-dsp.js": {
+    "line": 66,
+    "op": "cmp < → <=",
+    "before": "for (let i = 0; i < a.length; i++) {",
+    "after": "for (let i = 0; i <= a.length; i++) {",
+    "killers": [
+      "PulseDex §8 — Poincaré SD1 uses SDSD (÷N−1)/√2, not rMSSD/√2"
     ]
   }
 }
