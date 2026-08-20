@@ -25,6 +25,13 @@
  *   posture       ECGDex `epochs[].position` — changes per hour, and the supine fraction
  *   off-body      PpgDex `quality.motionRejectedPct`, the largest inter-beat gap, and gap fraction
  *
+ * ⚠️ ONE COVARIATE IS ADDED TO THE NAMED FOUR, flagged as an addition rather than smuggled in:
+ * `hostClockPresent` (PpgDex `quality.timingSource === 'device+host'`). CLAUDE.md §7 is explicit that a
+ * phone-captured recording HAS NO SECOND CLOCK — its host column is the device stamp rounded — so on
+ * such a night there is no independent phase for any unwrap to lock onto. That is a mechanism, not a
+ * fishing expedition, and unlike the named four it is knowable BEFORE the fit, which is exactly the
+ * property §3 bullet 2 asks for. It sits in the Holm family like everything else.
+ *
  * Two more are included because they are free and they are the mechanism CLAUDE.md §7 warns about:
  * `axisQuantizedShare` and `ledAgreementPct`. A night whose PPG axis was DRAWN rather than measured
  * cannot carry an independent phase, which is a *predictive* property available before any fit.
@@ -394,6 +401,10 @@ for (const n of nights) {
       motionRejectedPct: P.quality?.motionRejectedPct ?? null,
       ledAgreementPct: P.quality?.ledAgreementPct ?? null,
       axisQuantizedShare: P.quality?.axisQuantizedShare ?? null,
+      /* 1 when the PPG leg carries a genuinely INDEPENDENT host clock, 0 when its axis is the device
+         stamp alone. Encoded numerically so it flows through the same rank machinery as the rest; it
+         is binary, so `rho` here IS the rank-biserial form of the AUC beside it. */
+      hostClockPresent: P.quality?.timingSource == null ? null : P.quality.timingSource === 'device+host' ? 1 : 0,
       maxGapPpgSec: gP.maxGapSec,
       gapFracPpgPct: gP.gapFrac,
       maxGapEcgSec: gE.maxGapSec,
@@ -439,8 +450,16 @@ for (const k of KEYS) {
   const xs = have.map((r) => r.cov[k]);
   const ys = have.map((r) => r.scatter);
   const uniq = new Set(xs).size;
-  if (uniq < 3) {
+  /* <3 distinct values is normally a saturated percentage carrying no ordering. A genuinely BINARY
+     covariate is the exception and must not be skipped as one: `hostClockPresent` takes exactly two
+     values by construction, and it is the one candidate available before any fit. Only a CONSTANT
+     (1 distinct value) is uninformative. */
+  if (uniq < 2) {
     results.push({ key: k, n: have.length, skip: `constant across nights (${uniq} distinct value(s))` });
+    continue;
+  }
+  if (uniq === 2 && k !== 'hostClockPresent') {
+    results.push({ key: k, n: have.length, skip: 'only 2 distinct values — saturated, not a ranking' });
     continue;
   }
 
