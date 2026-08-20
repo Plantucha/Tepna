@@ -46,7 +46,7 @@
  */
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync, unlinkSync } from 'node:fs';
-import { cpus } from 'node:os';
+import { cpus, uptime as osUptime } from 'node:os';
 import { dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildIdentity, mapCandidates, resolveMapPath, stateDirs, verifyFor } from './mutation-map.mjs';
@@ -99,6 +99,65 @@ const stateDir = () => {
 };
 const pidFile = () => join(stateDir(), 'suite.pid');
 const journalPath = (file) => join(ROOT, '.mutate-journal', file.replace(/[/\\]/g, '_') + '.jsonl');
+
+/*
+ * ── A PID FILE IS A CLAIM, NOT AN OBSERVATION ──────────────────────────────────────────────────
+ *
+ * `suite.pid` is written when a sweep starts and unlinked when it exits cleanly. Every other exit —
+ * a crash, a SIGKILL, a reboot — leaves the record behind, and it then reads exactly like a running
+ * sweep. Measured 2026-08-20: the box rebooted at 14:12 while a sweep of `integrator-dsp.js` was
+ * jammed; afterwards `--status` printed `running: {"pid":74542,…,"file":"integrator-dsp.js"}` while
+ * the truth was that integrator had been dead for hours and a DIFFERENT file was being swept. Both
+ * halves of the answer were wrong, and nothing said so. That is this repo's dominant defect shape —
+ * a check that reported about something it never examined (CLAUDE.md §👥.4b).
+ *
+ * It is not cosmetic: `classifySweep` reads the same record and returns `in flight` for the file it
+ * names, so a crashed file classifies as somebody-else's-work FOREVER and no sweep ever picks it up.
+ *
+ * Two independent tests, cheapest and most decisive first:
+ *
+ *   BOOT   A record `startedAt` BEFORE the current boot cannot describe a live process — a process
+ *          cannot predate its own kernel. This is a PROOF of staleness, not a heuristic, and it is
+ *          the only one that survives PID REUSE: after a reboot, pid 74542 may well exist again as
+ *          something unrelated, and probing it would report the stale sweep as alive.
+ *   PID    Otherwise `kill(pid, 0)` — no signal sent, ESRCH iff no such process. EPERM means the
+ *          process exists and is not ours to signal, which is alive for our purposes.
+ *
+ * Unparseable `startedAt` with a live pid resolves to LIVE. That direction is deliberate: wrongly
+ * declaring a live sweep dead spawns a second worker pool into the same cores, which corrupts both
+ * runs; wrongly declaring a dead one live only stalls, and the stall is visible in the journal age
+ * printed beside it.
+ */
+export function suiteRecordLiveness({ rec, bootMs, pidAlive }) {
+  if (!rec || typeof rec !== 'object') return { live: false, reason: 'no record' };
+  if (!Number.isFinite(rec.pid)) return { live: false, reason: 'record carries no pid' };
+  const started = Date.parse(rec.startedAt);
+  if (Number.isFinite(bootMs) && Number.isFinite(started) && started < bootMs) return { live: false, reason: 'started before the current boot — the machine has restarted since' };
+  if (!pidAlive) return { live: false, reason: 'no process with pid ' + rec.pid };
+  return { live: true, reason: 'pid ' + rec.pid + ' is running' };
+}
+
+const bootMs = () => Date.now() - osUptime() * 1000;
+const pidAlive = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return !!e && e.code === 'EPERM';
+  }
+};
+
+/** Read `suite.pid` and say whether it describes a process that is actually there. */
+function readSuiteRecord() {
+  let rec = null;
+  try {
+    rec = JSON.parse(readFileSync(pidFile(), 'utf8'));
+  } catch {
+    return { rec: null, live: false, reason: 'no record' };
+  }
+  const v = suiteRecordLiveness({ rec, bootMs: bootMs(), pidAlive: Number.isFinite(rec.pid) && pidAlive(rec.pid) });
+  return { rec, live: v.live, reason: v.reason };
+}
 
 // ── formatting ─────────────────────────────────────────────────────────────────────────────────
 export const mmss = (s) =>
@@ -334,6 +393,12 @@ async function runFile(file, ident, loaded, lane) {
     } else if (resume) {
       log('   resuming: a ledger exists for this lane — the lane validates its own fingerprint and refuses a stale one');
     }
+    /* One pid file, so a second suite silently overwrites the first's record and `--kill` can then
+       only reach one of them. Warn rather than refuse: a deliberate second `--file` run is a real
+       workflow, and a refusal here would be unfixable without deleting state by hand. */
+    const prior = readSuiteRecord();
+    if (prior.live && prior.rec.pid !== process.pid)
+      log('   ⚠ another suite is ALREADY RUNNING (pid ' + prior.rec.pid + ', file ' + prior.rec.file + ') — both will share this core pool, and only the newer one stays addressable by --kill');
     const child = spawnSweep(file, resume, lane);
     writeFileSync(pidFile(), JSON.stringify({ pid: process.pid, child: child.pid, file, startedAt: new Date().toISOString() }) + '\n');
 
@@ -474,6 +539,21 @@ function cmdKill() {
   } catch {
     return log('pid file unreadable — refusing to guess which process to kill');
   }
+  /* A stale record has nothing to kill, and signalling its pids is worse than useless after a
+     reboot: the numbers may have been REUSED by unrelated processes. Clear it instead — that is
+     the whole of what "stop the suite" means once the suite is already gone. */
+  const v = suiteRecordLiveness({ rec, bootMs: bootMs(), pidAlive: Number.isFinite(rec.pid) && pidAlive(rec.pid) });
+  if (!v.live) {
+    log('no suite is running — STALE pid file (' + v.reason + ')');
+    log('  it claimed ' + rec.file + '; sending no signals (the pids may have been reused since)');
+    try {
+      unlinkSync(p);
+      log('  cleared ' + p + ' — journal preserved, re-run the suite to resume');
+    } catch {
+      log('  could not remove ' + p);
+    }
+    return;
+  }
   /* BY PID, never by pattern. `pkill -f "mutate"` matches the killer's OWN command line, which is
      the documented self-deadlock (CLAUDE.md §👥.4). A pid we recorded ourselves cannot be ambiguous. */
   for (const [label, pid] of [
@@ -522,8 +602,14 @@ function cmdStatus() {
     log('    ' + f.padEnd(20) + pr.done + ' tested · ' + pr.killed + ' killed · ' + pr.survived + ' survived   (last write ' + age + ' min ago)');
   }
   if (!any) log('    (none — nothing has been swept in this checkout)');
-  const p = pidFile();
-  log('  running: ' + (existsSync(p) ? readFileSync(p, 'utf8').trim() : 'no'));
+  const cur = readSuiteRecord();
+  if (!cur.rec) log('  running: no');
+  else if (cur.live) log('  running: ' + JSON.stringify(cur.rec));
+  else {
+    log('  running: no — STALE pid file (' + cur.reason + ')');
+    log('           it claims ' + cur.rec.file + '; the journal above is intact, so re-running the suite RESUMES it');
+    log('           stale record: ' + JSON.stringify(cur.rec));
+  }
 }
 
 // ── local model (ADVISORY ONLY) ────────────────────────────────────────────────────────────────
@@ -665,12 +751,10 @@ export function classifySweep({ hasDoneMarker, markerDone, journalDone, runningF
 }
 
 function sweepState(file) {
-  let runningFile = null;
-  try {
-    runningFile = JSON.parse(readFileSync(pidFile(), 'utf8')).file;
-  } catch {
-    /* no suite running here */
-  }
+  /* Only a VERIFIED-live record names a file that is in flight; a stale one names a file that
+     crashed, and calling that 'in flight' hides it from the sweep forever. */
+  const cur = readSuiteRecord();
+  const runningFile = cur.live ? cur.rec.file : null;
   let marker = null;
   try {
     marker = JSON.parse(readFileSync(doneMarker(file), 'utf8'));
@@ -1241,6 +1325,31 @@ function selftest() {
      inFlight-based rule called a complete file partial. Completion must not depend on that number. */
   ck('a COMPLETE file stays complete despite unverdicted STARTs in its journal', classifySweep({ hasDoneMarker: true, markerDone: 1815, journalDone: 1815, file: 'ecgdex-dsp.js' }), 'complete');
   ck('another file being swept does not make this one in-flight', classifySweep({ runningFile: 'b.js', file: 'a.js', hasDoneMarker: true, markerDone: 5, journalDone: 5 }), 'complete');
+
+  console.log('\nsuiteRecordLiveness — a pid file is a claim; these are the two ways to check it');
+  const BOOT = Date.parse('2026-08-20T18:12:00Z');
+  /* The real record left behind by the 2026-08-20 reboot, verbatim. */
+  const stale = { pid: 74542, child: 251629, file: 'integrator-dsp.js', startedAt: '2026-08-20T06:36:00.538Z' };
+  ck('a record predating the current boot is STALE even though its pid probes ALIVE (pid reuse)', suiteRecordLiveness({ rec: stale, bootMs: BOOT, pidAlive: true }).live, false);
+  ck(
+    '…and the file it names is therefore NOT in flight, so a sweep can pick it up again',
+    classifySweep({
+      runningFile: suiteRecordLiveness({ rec: stale, bootMs: BOOT, pidAlive: true }).live ? stale.file : null,
+      file: 'integrator-dsp.js',
+      hasDoneMarker: false,
+      journalDone: 1424
+    }),
+    'unknown'
+  );
+  const fresh = { pid: 4242, child: 4243, file: 'oxydex-dsp.js', startedAt: '2026-08-20T19:00:00.000Z' };
+  ck('a post-boot record whose pid is running is LIVE', suiteRecordLiveness({ rec: fresh, bootMs: BOOT, pidAlive: true }).live, true);
+  ck('a post-boot record whose pid is GONE is stale — the crash case, no reboot needed', suiteRecordLiveness({ rec: fresh, bootMs: BOOT, pidAlive: false }).live, false);
+  ck('no record at all is not a running suite', suiteRecordLiveness({ rec: null, bootMs: BOOT, pidAlive: true }).live, false);
+  ck('a record carrying no pid cannot vouch for anything', suiteRecordLiveness({ rec: { file: 'a.js' }, bootMs: BOOT, pidAlive: true }).live, false);
+  /* The documented fail-direction: unreadable timestamp + live pid ⇒ LIVE. Declaring a live sweep
+     dead spawns a second worker pool into the same cores; declaring a dead one live only stalls. */
+  ck('an unparseable startedAt with a live pid resolves LIVE, never dead', suiteRecordLiveness({ rec: { pid: 4242, file: 'a.js', startedAt: 'whenever' }, bootMs: BOOT, pidAlive: true }).live, true);
+  ck('the boot test states WHY, so a reader is not left guessing', suiteRecordLiveness({ rec: stale, bootMs: BOOT, pidAlive: true }).reason.includes('boot'), true);
 
   console.log('\nmdCell — escape order is the whole of the fix');
   const BS = String.fromCharCode(92);
