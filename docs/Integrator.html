@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-SNU6RzbeW7HiCUQXzX2+PowuinkZoDeOOQCHYi2cBJY=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-k+FV7AZrEGGuFvXlh73TfpK+yAoc1Q7YRwHKGyqH0NY=' 'sha256-psCNI6L+RVB3F77zf3oNwebbh8Z+Ml5lnVD4nzvTKxM=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-SnWUcseakkpRlT+jrm2C+BPdjIR6kxmEImH2PoT6vdE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-k+FV7AZrEGGuFvXlh73TfpK+yAoc1Q7YRwHKGyqH0NY=' 'sha256-psCNI6L+RVB3F77zf3oNwebbh8Z+Ml5lnVD4nzvTKxM=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Integrator · Fusion Layer</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -10740,6 +10740,131 @@ function desatOnsetsFromSeries(spo2, opts) {
    PURE: numbers in, numbers out. `chanceCorrespondence` runs the identical search on a deliberately
    wrong alignment, because the block fit maximises the very statistic it reports — without that
    control a flat, meaningless sweep still returns a confident-looking best block. */
+/* CPAP CLOCK — STEP-AWARE LONGITUDINAL OFFSET MODEL (CPAP-CLOCK-LONGITUDINAL-SEGMENT-2026-08-21).
+   The per-fusion path measures a night's CPAP offset when a co-recorded reference exists; this fills the
+   OTHER nights (CPAP-only) by fitting the drift WITHIN step-bounded segments, and REFUSES across steps
+   and on extrapolation rather than smearing one offset over the corpus (the CPAP clock drifts AND steps
+   on travel — #1606). Pure + deterministic (no Date.now); the fit never overrides a real measurement.
+
+   nightOffsets: [{ dateMs, offsetSec, confident }]  (unanchored nights carry offsetSec:null)
+   → { nights:[{ dateMs, offsetSec, source:'measured'|'interpolated'|'refused', reason? }], segments:[…] } */
+var CLK_SEG = {
+  STEP_ABS_SEC: 600, // a >10 min jump between adjacent anchors is a step (travel), not crystal drift
+  STEP_PPM_MAX: 200, // …or an implied rate over 200 ppm between anchors — beyond any crystal
+  FIT_RES_SEC: 90, // a usable segment fit leaves ≤90 s RMS residual
+  FIT_PPM_MAX: 200 // …and a plausible crystal rate (|ppm| ≤ 200); else the segment is refused wholesale
+};
+function fitClockOffsetSegments(nightOffsets, opts) {
+  opts = opts || {};
+  var C = {
+    STEP_ABS_SEC: opts.stepAbsSec != null ? opts.stepAbsSec : CLK_SEG.STEP_ABS_SEC,
+    STEP_PPM_MAX: opts.stepPpmMax != null ? opts.stepPpmMax : CLK_SEG.STEP_PPM_MAX,
+    FIT_RES_SEC: opts.fitResSec != null ? opts.fitResSec : CLK_SEG.FIT_RES_SEC,
+    FIT_PPM_MAX: opts.fitPpmMax != null ? opts.fitPpmMax : CLK_SEG.FIT_PPM_MAX
+  };
+  var nights = (nightOffsets || [])
+    .filter(function (n) {
+      return n && isFinite(n.dateMs);
+    })
+    .slice()
+    .sort(function (x, y) {
+      return x.dateMs - y.dateMs;
+    });
+  var anchors = nights.filter(function (n) {
+    return n.confident && n.offsetSec != null && isFinite(n.offsetSec);
+  });
+  /** @type {{nights:any[], segments:any[]}} */
+  var out = { nights: [], segments: [] };
+  if (!anchors.length) {
+    out.nights = nights.map(function (n) {
+      return { dateMs: n.dateMs, offsetSec: null, source: 'refused', reason: 'no confident anchor in the corpus' };
+    });
+    return out;
+  }
+  // segment the anchors at steps
+  var PPM = function (dSec, dMs) {
+    return dMs > 0 ? (dSec * 1000 * 1e6) / dMs : Infinity;
+  };
+  var segs = [];
+  var cur = [anchors[0]];
+  for (var i = 1; i < anchors.length; i++) {
+    var a = anchors[i - 1],
+      b = anchors[i];
+    var dSec = b.offsetSec - a.offsetSec,
+      dMs = b.dateMs - a.dateMs;
+    var isStep = Math.abs(dSec) >= C.STEP_ABS_SEC || Math.abs(PPM(dSec, dMs)) > C.STEP_PPM_MAX;
+    if (isStep) {
+      segs.push(cur);
+      cur = [b];
+    } else cur.push(b);
+  }
+  segs.push(cur);
+  // fit each segment (least squares offsetSec vs dateMs), validate
+  /** @type {{lo:number,hi:number,anchors:number,slope?:number,intercept?:number,resRmsSec?:number,ppm?:number,ok:boolean,reason:(string|null)}[]} */
+  var fitted = segs.map(function (s) {
+    var lo = s[0].dateMs,
+      hi = s[s.length - 1].dateMs;
+    if (s.length < 2) return { lo: lo, hi: hi, anchors: s.length, ok: false, reason: 'single-anchor segment (drift not fittable)' };
+    var n = s.length,
+      mx = 0,
+      my = 0;
+    for (var j = 0; j < n; j++) {
+      mx += s[j].dateMs;
+      my += s[j].offsetSec;
+    }
+    mx /= n;
+    my /= n;
+    var sxx = 0,
+      sxy = 0;
+    for (j = 0; j < n; j++) {
+      var dx = s[j].dateMs - mx;
+      sxx += dx * dx;
+      sxy += dx * (s[j].offsetSec - my);
+    }
+    var slope = sxx > 0 ? sxy / sxx : 0,
+      icept = my - slope * mx;
+    var ss = 0;
+    for (j = 0; j < n; j++) {
+      var e = s[j].offsetSec - (icept + slope * s[j].dateMs);
+      ss += e * e;
+    }
+    var resRms = Math.sqrt(ss / n);
+    var ppm = slope * 1e6; // slope is sec/ms → ×1e6 = ppm
+    var ok = resRms <= C.FIT_RES_SEC && Math.abs(ppm) <= C.FIT_PPM_MAX;
+    return {
+      lo: lo,
+      hi: hi,
+      anchors: n,
+      slope: slope,
+      intercept: icept,
+      resRmsSec: Math.round(resRms * 100) / 100,
+      ppm: Math.round(ppm * 100) / 100,
+      ok: ok,
+      reason: ok ? null : resRms > C.FIT_RES_SEC ? 'segment fit residual too large (' + resRms.toFixed(0) + ' s)' : 'implied rate implausible (' + ppm.toFixed(0) + ' ppm)'
+    };
+  });
+  out.segments = fitted;
+  var segFor = function (ms) {
+    for (var k = 0; k < segs.length; k++) if (ms >= fitted[k].lo && ms <= fitted[k].hi) return fitted[k];
+    return null;
+  };
+  var anchorAt = {};
+  anchors.forEach(function (an) {
+    anchorAt[an.dateMs] = an.offsetSec;
+  });
+  out.nights = nights.map(function (nn) {
+    if (Object.prototype.hasOwnProperty.call(anchorAt, nn.dateMs)) {
+      return { dateMs: nn.dateMs, offsetSec: anchorAt[nn.dateMs], source: 'measured', reason: null };
+    }
+    var sg = segFor(nn.dateMs); // only matches INSIDE a segment's anchor span (no extrapolation)
+    if (!sg) return { dateMs: nn.dateMs, offsetSec: null, source: 'refused', reason: 'outside all fitted segments (extrapolation refused)' };
+    if (!sg.ok || sg.intercept == null || sg.slope == null) return { dateMs: nn.dateMs, offsetSec: null, source: 'refused', reason: sg.reason };
+    var off = sg.intercept + sg.slope * nn.dateMs;
+    return { dateMs: nn.dateMs, offsetSec: Math.round(off * 100) / 100, source: 'interpolated', reason: null };
+  });
+  return out;
+}
+
 function fitClockDrift(aTimes, bTimes, opts) {
   opts = opts || {};
   var blockMs = opts.blockMs != null ? opts.blockMs : 300000;
@@ -12680,6 +12805,7 @@ window.IntegratorDSP = {
      fit; do not add callers here. */
   fitClockOffset,
   fitClockOffsetPooled,
+  fitClockOffsetSegments,
   maxTolerableDriftPpm,
   maxSafeSpanSec,
   MEASURED_WEARABLE_PAIR_PPM,
