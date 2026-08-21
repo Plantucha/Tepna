@@ -339,6 +339,59 @@ together; or (b) `pre = 0.50` **with the foot search bounded** to a plausible ri
 sleep-only, which it is not. **Not implemented here** — the choice between (a) and (b) is a design call,
 and this is the measurement that should precede it.
 
+### ▶ #2 RE-SCOPED 2026-08-21 — half of it already shipped, and the rest is FOUR consumers with THREE different correct treatments
+
+#2 reads *"`buildPPI` gap flag; `correctRR` EXCLUDES, never fills"*, and costs the exported series at
+the file's own 28.8 % correction rate. Read against the tree before implementing, **both halves have
+moved**:
+
+**The gap flag EXISTS.** `:3705-3713` computes `spansTime` (`intervalsSpanningTimeGap`) and `bridged`
+(intervals whose beats had one removed between them) and unions them into **`spansGap`**. Nothing to
+build.
+
+**And three of the six named consumers already exclude the fabrications.** `:3720` builds
+`cleanMask[i] = corr.flags[i] === 0 && q0 >= 0.5 && q1 >= 0.5 && !spansGap[i]`, and every consumer
+that receives it skips any PAIR touching a flagged interval —
+`if (cleanMask && !(cleanMask[i-1] && cleanMask[i])) continue;` (`:2049`, `:2083`):
+
+| consumer | call site | fabricated values reach it? |
+|---|---|---|
+| `timeDomain` → SDNN · rMSSD · pNN50 | `:3731` `timeDomain(nn, cleanMask, spansGap)` | **no — masked** |
+| `poincare` → SD1 · SD2 | `:3732` `poincare(nn, cleanMask)` | **no — masked** |
+| `buildEpochs` → the epoch series | `:3743` `buildEpochs(…, cleanMask, agreeI)` | **no — masked** |
+| `lombScargle` → VLF · LF · HF · totalPower · lfhf | `:3733` `lombScargle(corr.tt, nn)` | **YES** |
+| `dfaAlpha1` → DFA-α1 | `:3734` `dfaAlpha1(nn)` | **YES** |
+| `sampEn` → SampEn | `:3735` `sampEn(nn)` | **YES** |
+| `cvhrFromNN` → cvhrIndex | `:3696` `cvhrFromNN(corr.nn, corr.tt)` | **YES** |
+
+So the row's *"flows into `nn`, SDNN, LF/HF, DFA-α1, SampEn, CVHR, epochs and `contentId`"* is **half
+stale** — SDNN, rMSSD and the epochs were closed by `cleanMask` (and by PPGDEX-CORRECTRR-LOCKIN's
+re-seed, 2026-08-13). Four consumers remain.
+
+🔴 **"Exclude, never fill" is NOT one change, and that is the part worth deciding before coding.** The
+four remaining consumers need three *different* treatments, because dropping a sample means something
+different to each:
+
+1. **`lombScargle` — dropping is exactly right.** Lomb-Scargle exists to spectrally analyse
+   **irregularly sampled** series; it takes `(tt, nn)` pairs and has no notion of adjacency. Filtering
+   both arrays by `cleanMask` is the textbook use, not a compromise.
+2. **`dfaAlpha1` and `sampEn` — dropping is WRONG, and silently so.** Both are *sequence-structure*
+   statistics: DFA integrates a cumulative walk and SampEn matches m-length templates. Deleting an
+   interval splices two non-adjacent beats together and manufactures a pattern that was never in the
+   record — trading a fabricated VALUE for a fabricated ADJACENCY, which is harder to see and no more
+   honest. These need gap-aware **segmentation** (compute per contiguous run, combine), or an explicit
+   refusal when the clean runs are too short.
+3. **`cvhrFromNN` — needs the gap, not the mask.** It band-passes toward ~0.022–0.05 Hz, so it is
+   sensitive to the time axis rather than to individual values; a removed interval must leave a HOLE
+   in time, not close up. It is a faithful port of ECGDex's `detectCVHR`, so whatever is done here
+   must be done there too or the Integrator loses its cross-node comparability (this file says so at
+   `:1925`).
+
+**Recommendation: land these as three separate changes, not one #2.** Only (1) is unambiguous. (2) is
+a method choice with a real refusal threshold behind it, and (3) reaches a second node. Landing them
+together would move every frequency, complexity and CVHR number at once with one changeset to explain
+it.
+
 ### 🔴 THE PUNCH LIST IS ONE OWNER DECISION, NOT NINE ENGINEERING ITEMS (2026-08-20)
 
 This brief has sat `IN-PROGRESS` since 2026-07-21 with exactly two items shipped. **Those two are
