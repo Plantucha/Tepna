@@ -187,7 +187,26 @@ exclusively**. It now tests the **union** — which is what `eraseAll()` actuall
 
 - [ ] GPU lane covers the ρ/duration sweeps (or the tool can export the N-sweep alone), so a 50k run finishes.
 - [ ] Reproduce the **published** tables at the 10-night hat at the paper's stated trial count — proves the harness.
-- [ ] Re-fit all three σ copies to the 15-night hat **and** regenerate Tables 1–3 **in the same change** (the gate's expected triple moves with them).
+- [⛔] **GATED 2026-08-20 — do not do this yet, and the reason is new.** Re-fit all three σ copies to
+      the 15-night hat **and** regenerate Tables 1–3 **in the same change** (the gate's expected triple
+      moves with them).
+
+      > 🔴 **`SENSOR-TRIO-NIGHTS-PAPER` carries a STANDING INSTRUCTION not to swap re-derived σ into the
+      > paper**, and this box would do exactly that. The published Verity σ (**1.42**) has never been
+      > reproduced: a 2026-08-08 re-derivation gave **3.51**, and a 2026-08-20 re-run of one estimator
+      > over one corpus gives **0.94–1.03** — with three candidate explanations now *measured and
+      > eliminated* (censoring #1600 · corpus re-fold #1601 · capture tree #1601). Neither corpus state
+      > reproduces the 3.51 either, so the figures were never over the same population.
+      >
+      > **Regenerating Tables 1–3 against a σ triple nobody can reproduce would bake an unexplained
+      > discrepancy into the published tables**, and the gate's expected triple would move with it —
+      > making the gate agree with whichever number was last written rather than catching the problem.
+      >
+      > **Unblocks when** the SENSOR-TRIO discrepancy is explained — the named next step there is the
+      > **pooled-seconds hat**, not another median over nights (`tch-fused-corpus` prints that caveat
+      > itself). Box 2 above — *reproduce the published tables at the 10-night hat, proves the harness* —
+      > is the right thing to do FIRST and is not gated: if the harness cannot reproduce what is already
+      > published, re-fitting to 15 nights is measuring with an uncalibrated instrument.
 - [~] **The "720 vs 50,000" half is STALE — already reconciled (verified 2026-08-04).** §44 records
       *"Table 1 caption says 50,000 MC trials/cell; abstract says 720"*. The paper has **no "50,000"
       anywhere**; it says **720 trials/cell in all 8 places**. `6001983` (2026-07-14, *"sigma papers to
