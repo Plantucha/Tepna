@@ -205,6 +205,43 @@ expect_from ALLOW "CURRENT worktree edited while cwd-tree is STALE" "$STALE" "$C
 expect_from DENY  "...stale tree, cwd inside IT - still denied"     "$STALE" "$STALE/briefs/SHARED-BRIEF.md"
 expect_from ALLOW "...current tree, cwd inside IT - still allowed"  "$CUR"   "$CUR/briefs/SHARED-BRIEF.md"
 
+# ── THE BASH ROUTE'S TREE — the residual gap the hook's own header documented ──────────────────
+# The file_path route resolves from the edited file; the Bash route carried no file, so it fell
+# back to the hook's cwd (the shared root) and asked staleness of a tree the author was not
+# editing. Measured 2026-08-20: three FALSE DENIALS in one session, each naming a commit the
+# editing worktree already had. These are the same two directions as above, through `cd`.
+runcmd_from() { # runcmd_from <cwd> <command>
+  ( cd "$1" && jq -nc --arg c "$2" '{tool_input:{command:$c}}' | bash "$H" >/dev/null 2>&1
+    [ $? -eq 2 ] && echo DENY || echo ALLOW )
+}
+expectcmd_from() { # expectcmd_from <want> <label> <cwd> <command>
+  local got; got="$(runcmd_from "$3" "$4")"
+  if [ "$got" = "$1" ]; then printf '  ok    %-58s %s\n' "$2" "$got"
+  else printf '  FAIL  %-58s got %s, want %s\n' "$2" "$got" "$1"; fail=$((fail+1)); fi
+}
+
+# FALSE POSITIVE — the one measured in the wild. The `cd` names a CURRENT tree while the hook
+# sits in a STALE one; without the cd-resolution this DENIES a perfectly safe edit.
+expectcmd_from ALLOW "bash cd->CURRENT tree while cwd-tree is STALE" "$STALE" \
+  "cd $CUR && python3 -c \"open('briefs/SHARED-BRIEF.md','w').write('v3')\""
+
+# FALSE NEGATIVE — the dangerous mirror. The `cd` names a STALE tree while the hook sits in a
+# CURRENT one, so cwd-fallback would ALLOW the overwrite this guard exists to stop.
+expectcmd_from DENY  "bash cd->STALE tree while cwd-tree is CURRENT" "$CUR" \
+  "cd $STALE && python3 -c \"open('briefs/SHARED-BRIEF.md','w').write('v3')\""
+
+# ANTI-VACUITY: a "fix" that blanket-allows or blanket-denies must not pass. Same two trees,
+# cwd already inside the tree the cd names.
+expectcmd_from DENY  "bash cd->STALE, cwd inside IT - still denied"  "$STALE" \
+  "cd $STALE && python3 -c \"open('briefs/SHARED-BRIEF.md','w').write('v3')\""
+expectcmd_from ALLOW "bash cd->CURRENT, cwd inside IT - still allowed" "$CUR" \
+  "cd $CUR && python3 -c \"open('briefs/SHARED-BRIEF.md','w').write('v3')\""
+
+# ...and an unparseable/absent cd must fall back to the old behaviour rather than erroring:
+# cwd is the STALE tree and nothing names another, so the stale answer still applies.
+expectcmd_from DENY  "bash with NO cd - falls back to cwd (stale)"   "$STALE" \
+  "python3 -c \"open('briefs/SHARED-BRIEF.md','w').write('v3')\""
+
 echo
 echo "### file integrity"
 if grep -qP '[\x00-\x08\x0b\x0c\x0e-\x1f]' "$H"; then

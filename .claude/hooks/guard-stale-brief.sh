@@ -80,6 +80,26 @@ cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null
 #      root until the payload carries a cwd we can trust.
 edit_dir="."
 [ -n "$f" ] && edit_dir="$(dirname "$f")"
+
+# ── THE BASH ROUTE'S TREE, from a leading `cd` ────────────────────────────────
+#    The gap the block above documents: a computed edit carries no file_path, so `edit_dir`
+#    stayed "." — the hook's cwd, i.e. the shared root — and staleness was asked of a tree the
+#    author was not editing. Measured 2026-08-20: three consecutive FALSE DENIALS in one session,
+#    each naming a commit the editing worktree already contained, because the root had drifted a
+#    few commits behind while the worktree was current.
+#
+#    A computed edit in this repo almost always announces its tree, because CLAUDE.md §👥.1
+#    mandates a worktree and the hook's own cwd is the root: the command opens `cd <worktree> &&`.
+#    Take the FIRST such `cd` — later ones in a compound command are subdirectory hops, and the
+#    repo toplevel resolves the same from either. Anything unparseable leaves `edit_dir` alone, so
+#    this can only ever move the query CLOSER to the edited tree, never further.
+if [ -z "$f" ] && [ -n "$cmd" ]; then
+  cd_dir="$(printf '%s' "$cmd" \
+    | grep -oE '(^|[;&|][[:space:]]*)cd[[:space:]]+([^[:space:];&|]+)' \
+    | head -1 | sed -E 's/^.*cd[[:space:]]+//' | tr -d '\042\047')"
+  [ -n "$cd_dir" ] && [ -d "$cd_dir" ] && edit_dir="$cd_dir"
+fi
+
 [ -d "$edit_dir" ] || edit_dir="."
 
 # Repo-relative, so an absolute path from the tool matches the same rule as a relative one.
