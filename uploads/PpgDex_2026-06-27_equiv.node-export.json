@@ -12,7 +12,7 @@
   },
   "recording": {
     "source": "ppg",
-    "contentId": "7dc38a37fd60",
+    "contentId": "001d93d64b83",
     "startEpochMs": 1782021923891,
     "endEpochMs": 1782022313021,
     "durSec": 389.1370903730582,
@@ -30,19 +30,19 @@
     "channelStability": {
       "channels": [
         {
-          "sigmaShortestMs": 7.03,
+          "sigmaShortestMs": 6.98,
           "slope": -1.06
         },
         {
-          "sigmaShortestMs": 12.41,
+          "sigmaShortestMs": 12.43,
           "slope": -1.05
         },
         {
-          "sigmaShortestMs": 10.31,
+          "sigmaShortestMs": 10.3,
           "slope": -1.03
         }
       ],
-      "beatsTripled": 334,
+      "beatsTripled": 335,
       "negativeVarianceTaus": 0,
       "independent": true,
       "polarity": [

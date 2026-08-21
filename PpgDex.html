@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-i6jRg4w3FkJGmcHdy4VzKqroE3ERveXtU1iJw7vqCBQ=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-sEEnnGtQ3WZzpPa7gTX9mVYX7vYKfkNPF+WKya+4VZA=' 'sha256-xDdfYuI6Fahc27eADb+kgn4F7ggKcqwXnrH4FeVZBgo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4+IEKQL1mEmL+q4aKPYQ9Y0Nd1V8Y8/VoG9x7KiCET8=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-i6jRg4w3FkJGmcHdy4VzKqroE3ERveXtU1iJw7vqCBQ=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-sEEnnGtQ3WZzpPa7gTX9mVYX7vYKfkNPF+WKya+4VZA='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.6.0</title>
@@ -6777,12 +6777,46 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     for (let i = 0; i < x.length; i++) y[i] = x[x.length - 1 - i];
     return y;
   }
-  function filtfilt(x, c) {
-    return reverse(applyBiquad(reverse(applyBiquad(x, c)), c));
+  /* ODD-REFLECTED PADDING — PPGDEX-ALGORITHM-DEEP-DIVE §4 #1.
+     `applyBiquad` starts from zero state (x1=x2=y1=y2=0), so the first samples of a record whose
+     baseline sits far from zero are filtered against a step the size of that baseline. filtfilt
+     then runs the same filter BACKWARDS, so the transient appears at BOTH ends, and `bandpass`
+     repeats the whole thing for the low-pass. Unpadded, that edge energy is what produced a
+     spurious terminal beat, a 65x `orient` skew and a 6.18x `std(bp)`.
+
+     ODD reflection — 2*x[0] - x[k] — continues the signal's slope through the boundary instead of
+     mirroring it. A MIRROR (x[k]) creates an artificial peak at each end, which is the defect in a
+     different costume; odd reflection is what SciPy's filtfilt uses for the same reason.
+
+     `pad` is supplied by the caller because the length that matters is set by the SLOWEST corner
+     the filter must settle, which `filtfilt` cannot see from `c` alone. It is clamped to the record
+     so a short segment degrades to the old behaviour instead of reading past its own ends. */
+  function filtfilt(x, c, pad) {
+    const n = x.length;
+    const p = Math.max(0, Math.min(pad | 0, n - 1));
+    if (p === 0) return reverse(applyBiquad(reverse(applyBiquad(x, c)), c));
+    const ext = new Float32Array(n + 2 * p);
+    for (let i = 0; i < p; i++) ext[i] = 2 * x[0] - x[p - i];
+    ext.set(x, p);
+    for (let i = 0; i < p; i++) ext[p + n + i] = 2 * x[n - 1] - x[n - 2 - i];
+    const y = reverse(applyBiquad(reverse(applyBiquad(ext, c)), c));
+    return y.slice(p, p + n);
   }
   function bandpass(x, fs, lo, hi) {
-    let y = filtfilt(x, biquad('hp', lo, fs, 0.707));
-    y = filtfilt(y, biquad('lp', hi, fs, 0.707));
+    if (!x.length) return new Float32Array(0);
+    /* PAD = 3 * fs / lo — three periods of the high-pass corner, the slowest component the
+       cascade has to settle. The low-pass settles far faster, so the same length covers both.
+
+       ⚠ #1 ALSO PRESCRIBED "subtract record median". It was implemented, MEASURED, and DROPPED:
+       padding alone already takes the edge/mid SD ratio from 12.07x to 1.00x on a synthetic raw
+       channel (DC 120000, 1.1 Hz pulse, 0.02 Hz wander) — the median adds nothing on top — while it
+       DID flip a gated behaviour, `cadenceSamples`'s 120 bpm + notch-1.2 case from ratio 1.040 to
+       2.000 (reading the HR half). That is the sub-harmonic defect the gate exists to catch. The
+       effect is deterministic and length-independent (identical at 60/120/180/300 s), so it is not
+       a resolution artefact. Do not re-add it without re-running that group. */
+    const pad = Math.round((3 * fs) / lo);
+    let y = filtfilt(x, biquad('hp', lo, fs, 0.707), pad);
+    y = filtfilt(y, biquad('lp', hi, fs, 0.707), pad);
     return y;
   }
 
