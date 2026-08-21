@@ -509,6 +509,18 @@ def test_get_info_rtc_is_none_when_components_are_impossible():
     assert oxyii.parse_get_info(bytes(p))["rtc"] is None
     p[24:31] = bytes([0xEA, 0x07, 8, 19, 19, 48, 60])                        # second 60, alone
     assert oxyii.parse_get_info(bytes(p))["rtc"] is None
+    # CALENDAR-impossible: each component is in its own range but the DATE does not exist. The original
+    # per-field guard (1 <= d <= 31) let these through — and the consumer ring_clock_offset_s then throws
+    # datetime()'s "day is out of range for month", silently killing the RTC-offset telemetry.
+    p[24:31] = bytes([0xEA, 0x07, 2, 31, 10, 0, 0])                           # Feb 31
+    assert oxyii.parse_get_info(bytes(p))["rtc"] is None
+    p[24:31] = bytes([0xEA, 0x07, 4, 31, 10, 0, 0])                           # Apr 31
+    assert oxyii.parse_get_info(bytes(p))["rtc"] is None
+    p[24:31] = bytes([0xEA, 0x07, 2, 30, 10, 0, 0])                           # Feb 30
+    assert oxyii.parse_get_info(bytes(p))["rtc"] is None
+    # and a REAL date still decodes (the guard rejects only the impossible)
+    p[24:31] = bytes([0xEA, 0x07, 2, 28, 10, 0, 0])
+    assert oxyii.parse_get_info(bytes(p))["rtc"] == {"year": 2026, "month": 2, "day": 28, "hour": 10, "minute": 0, "second": 0}
 
 
 def test_set_config_frame_builds_the_documented_payload():
