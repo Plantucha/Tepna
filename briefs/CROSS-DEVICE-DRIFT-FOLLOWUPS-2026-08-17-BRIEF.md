@@ -119,13 +119,39 @@ The flip is still not done here: a status flip claims every acceptance item was 
 them is its own work unit. Whoever takes it should re-run the Done-when list — and read it from
 `origin/main`.
 
-## 4 · The real precondition for inverse-variance weighting is still unbuilt
+## 4 · ✅ DONE 2026-08-20 — and it was not unbuilt, it was computed and discarded
 
 §5's inverse-variance item is answered NO for a reason that names what would change it: a **per-channel
 σ of the offset estimate**, not a per-device clock σ. §3.4 observes the estimator already computes each
 channel's curve, so the quantity is close to hand. Nobody has extracted it.
 
 This is the one item in that thread that is genuinely open rather than refuted, and it is small.
+
+> ### ✅ EXECUTED 2026-08-20 — it was closer to hand than "close to hand"
+>
+> `fitClockOffsetPooled` **already computed the interval and threw it away.** `ownLo`/`ownHi` bound the
+> lags a channel alone cannot distinguish from its own peak, by the identical *"within 1 unit of the
+> peak"* rule the pooled `spreadSec` uses; they were consumed as the centroid window for
+> `ownOffsetSec` and then dropped. So this was a **publish**, not a derivation — now
+> `rec.ownSpreadSec`, present-and-null on the refusal paths like its siblings.
+>
+> **The transfer condition was checked, not assumed.** The 1-unit rule is only meaningful on a
+> unit-noise statistic. `zc` is a per-channel z and the pooled `Z` is those summed over √n, so both are
+> unit-noise by construction and the rule carries over unchanged.
+>
+> 🔴 **It is a RESOLUTION, not a σ, and it ships under a name that says so.** §3.4 wants a per-channel
+> *precision* so `inverseVarianceWeights` can replace the pooled fit's equal weighting. This is the raw
+> material and **not** the weight: mapping a support width to a variance requires assuming a peak
+> shape, and asserting one would manufacture precisely the precision the weighting exists to measure.
+> The width ships in the unit it is actually in and **the mapping remains a deliberate open step** —
+> the same discipline as #1587's σ_y ppm fields, one thread later.
+>
+> **Behaves like a measurement:** 15 / 35 / 55 s of support for match windows of 10 / 20 / 30 s,
+> tracking the ~2·matchSec plateau the window creates. Gate-backed by a leg a published constant fails
+> (planted: hard-wiring 42 reds *"a wider match window widens the support it resolves to"*).
+>
+> **Still owed for inverse-variance weighting, and now the only thing owed:** a defensible width→σ
+> mapping. That is a statistics decision, not an extraction.
 
 ## 5 · Recorded, NOT acted on — the PAT item belongs to another thread
 
@@ -189,7 +215,7 @@ merge conflict when it goes wrong.
       about the device"*, *"≈7 ppm, not 90–216"*. The figure is present **because** it is being retracted.
       Presence of a retracted number is not evidence the retraction is missing; read the context.
 
-- [ ] per-channel offset σ extracted, or recorded as declined with a reason
+- [x] **DONE 2026-08-20** — extracted as `ownSpreadSec`, the per-channel support **width**, deliberately NOT called σ: the width→variance mapping needs an assumed peak shape and stays an open step. It was already computed and discarded, so this was a publish rather than a derivation.
       > **Investigated 2026-08-19 — still open, but sharper, and one premise in §4 needs correcting.**
       >
       > **§4 says `inverseVarianceWeights` is "exported" and idle. It is exported AND USED** — at

@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2c+NhGS5baEp+dkR92QyPev/wf2fl0amYca/JbyYiCk=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G8T1c38HwLBl265H8MWt+Jqx7dj3Cj7O3Kl0EA7ny0s=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-Zg0VuZposJeHUmYwdGlxPYv7/96XL9I90WDHTkIO/fI=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psCNI6L+RVB3F77zf3oNwebbh8Z+Ml5lnVD4nzvTKxM=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-tgWNqJXHr4lOvrxC+o+EaM6LlfSSzJVewmHmqjk8jV0=' 'sha256-xDdfYuI6Fahc27eADb+kgn4F7ggKcqwXnrH4FeVZBgo=' 'sha256-znfSiWXixA/5Q5RqwKxfNRQARu3UmbSi5LZS809lzb8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0wrnC0lVV+CrxqFX7kyOj6IsM0aoYU6jEFEXzId9FCU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G8T1c38HwLBl265H8MWt+Jqx7dj3Cj7O3Kl0EA7ny0s=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-SNU6RzbeW7HiCUQXzX2+PowuinkZoDeOOQCHYi2cBJY=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-Zg0VuZposJeHUmYwdGlxPYv7/96XL9I90WDHTkIO/fI=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psCNI6L+RVB3F77zf3oNwebbh8Z+Ml5lnVD4nzvTKxM=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-xDdfYuI6Fahc27eADb+kgn4F7ggKcqwXnrH4FeVZBgo=' 'sha256-znfSiWXixA/5Q5RqwKxfNRQARu3UmbSi5LZS809lzb8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -2361,11 +2361,21 @@ function fmtDayShort(ms) {
    ⚠️ prevTMs is DELIBERATELY pinned to t0Ms — NOT threaded from the previously
    reconstructed event (DEEP-AUDIT-II #42). A fixed anchor keeps reconstruction
    ORDER-INDEPENDENT: every event resolves on its own, so the result never
-   depends on iteration order or on which events were seen first. That is EXACT
-   for any recording ≤ 24 h — the entire domain of a ganglior.node-export (one
-   night/session; Clock Contract §4/§6). Do NOT "fix" this into a stateful
-   prevTMs roll: it would trade a real invariant (order-independence) for a case
-   that cannot arise here.
+   depends on iteration order or on which events were seen first. Do NOT "fix"
+   this into a stateful prevTMs roll: it would trade a real invariant
+   (order-independence) for nothing.
+
+   ⚠ SIGNAL-PATH-AUDIT F3 (2026-08-20): this comment used to claim the pinned
+   anchor was "EXACT for any recording ≤ 24 h". FALSE — the parser's day-roll
+   slack is 12 h, so a t-only event whose true offset lay in [12 h, 24 h) got a
+   same-date candidate 0–12 h BEFORE t0Ms (inside the slack), the roll was
+   refused, and the event landed 24 h early — before the recording began.
+   Executed reproduction: t0 = 20:00, t:"08:00:00" (+12 h) → −24.00 h. The
+   post-correction below restores the true ≤ 24 h contract while staying a pure
+   function of (ev.t, t0Ms): an event belongs to [t0Ms − grace, t0Ms + 24 h), so
+   a candidate below that window is advanced exactly one day. The 60 s grace
+   absorbs second-rounding jitter between an event stamp and t0 without
+   re-admitting the bug (the failure band started at +12 h, far above it).
 
    Known limit (latent, out-of-contract): a t-ONLY event whose true offset from
    t0Ms exceeds 24 h can only roll one day, so its date is genuinely UNKNOWN.
@@ -2377,7 +2387,10 @@ function reconstructEventTMs(ev, t0Ms) {
   if (ev && typeof ev.tMs === 'number' && isFinite(ev.tMs)) return ev.tMs; // already absolute
   if (t0Ms == null || ev == null || ev.t == null) return null;
   var p = parseTimestamp(ev.t, { dateAnchorMs: t0Ms, prevTMs: t0Ms });
-  return p ? p.tMs : null;
+  if (!p) return null;
+  var t = p.tMs;
+  if (t < t0Ms - 60000) t += 86400000; // F3: the event window is [t0 − 60 s, t0 + 24 h); see above
+  return t;
 }
 
 /* ── confidence blend: 1 − Π(1 − cᵢ), capped 0.97 (never invent precision) ── */
@@ -7989,6 +8002,8 @@ function fitClockOffsetPooled(anchorTimes, channels, opts) {
       usable: false,
       zAtPeak: null,
       ownOffsetSec: null,
+      /* Present-and-null on the refusal paths too, so every record is one shape. */
+      ownSpreadSec: null,
       agreed: false,
       reason: null
     };
@@ -8074,6 +8089,21 @@ function fitClockOffsetPooled(anchorTimes, channels, opts) {
       ownWLag += w3 * lagOf(p3);
     }
     live[c2].rec.ownOffsetSec = ownWSum > 0 ? +(ownWLag / ownWSum).toFixed(3) : lagOf(own);
+    /* THE WIDTH THE CENTROID WAS TAKEN OVER — published, because it was already computed and thrown
+       away. `ownLo`/`ownHi` bound the lags this channel alone cannot distinguish from its own peak,
+       by the same "within 1 unit of the peak" rule the pooled `spreadSec` uses, and on the same
+       unit-noise footing (`zc` is a per-channel z; the pooled `Z` is those summed over sqrt(n), so
+       both are unit-noise by construction and the rule transfers unchanged).
+
+       ⚠️ THIS IS A RESOLUTION, NOT A sigma, AND THE DISTINCTION IS THE WHOLE VALUE OF THE FIELD.
+       `CROSS-DEVICE-DRIFT-AND-CLOSURE` §3.4 wants a per-channel PRECISION so `inverseVarianceWeights`
+       can replace the pooled fit's equal weighting. This is the raw material for that and is NOT
+       itself the weight: mapping a support width to a variance needs an assumed peak shape, and
+       asserting one here would manufacture exactly the precision the weighting is meant to measure.
+       So the width ships under its own name and the mapping stays an open, deliberate step.
+       Same discipline as the sigma_y ppm fields (#1587): publish the quantity in the unit it is
+       actually in, rather than a converted one that implies more than was measured. */
+    live[c2].rec.ownSpreadSec = +(lagOf(ownHi) - lagOf(ownLo)).toFixed(3);
     live[c2].rec.agreed = zc[bestIdx] >= 1;
     if (live[c2].rec.node) nodes[live[c2].rec.node] = 1;
   }
@@ -22226,13 +22256,20 @@ __exports.PulseDex = window.PulseDex;
     if (typeof raw !== 'string') return NaN;
     var s = raw.trim().replace(/^["']|["']$/g, '');
     var m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-    if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3]);
+    if (m) {
+      // SIGNAL-PATH-AUDIT F1: this was the ONE stamp path in the file that skipped _ckMk, so a corrupt
+      // date (2026-13-45, Feb 30) silently ROLLED onto a plausible wrong day and fed the meal↔glucose
+      // join (Clock Contract §2.7). Route through the same round-trip every other path uses.
+      var mk = _ckMk(+m[1], +m[2] - 1, +m[3], 0, 0, 0, 0);
+      return mk == null ? NaN : mk;
+    }
     m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (m) {
       var o = opts || {},
         dm = _ckDMY(+m[1], +m[2], o.preferDMY, o.dmyLocked);
       if (!dm) return NaN; // row contradicts the file's proven order → honest NaN, never a guess
-      return Date.UTC(+m[3], dm.mo - 1, dm.d);
+      var mk2 = _ckMk(+m[3], dm.mo - 1, dm.d, 0, 0, 0, 0); // same §2.7 round-trip on the MDY/DMY branch
+      return mk2 == null ? NaN : mk2;
     }
     return NaN;
   }

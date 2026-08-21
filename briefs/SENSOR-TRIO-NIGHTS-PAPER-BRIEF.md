@@ -44,7 +44,115 @@
 >    ratio 0.94–1.04), so this is not mis-detection inflating σ; it is the real beat-to-beat spread.
 >    The likeliest cause is the one `TRIO-ARTIFACT-GATE` §2 already named — *"Verity's CI was optimistic
 >    because a quality gate had been censoring the hard nights"* — and this is that finding reproduced
->    on the full corpus with a committed-artifact tool. **Do not swap these numbers into the paper
+>    on the full corpus with a committed-artifact tool.
+>
+>    > ### ⛔ THAT ATTRIBUTION IS REFUTED BY ITS OWN SOURCE — checked 2026-08-20
+>    >
+>    > `TRIO-ARTIFACT-GATE` §2 **measured** what censoring does to the Verity σ, and it does not do
+>    > this. Its own table: median σ **1.94 (N=10, censored) → 1.85 (N=15, uncensored)** — a move of
+>    > **0.09 bpm (−4.6 %), in the WRONG DIRECTION**, under a section whose stated conclusion is *"The
+>    > **median is robust** (1.94 → 1.85), so the papers' **headline σ stands**. It is the **mean and
+>    > the CI** that were optimistic."*
+>    >
+>    > The open discrepancy is a **median** discrepancy — published **1.42** [0.96–1.88] against
+>    > re-derived **3.51** [2.72–4.97] / **3.17**, i.e. **~2.5×**. A mechanism measured at −4.6 % on the
+>    > median cannot produce it, and censoring pushes the median DOWN where the gap needs it UP.
+>    > Citing §2 here reads as support because §2 *is* about Verity σ being optimistic — but it is about
+>    > the **CI**, and this is the **point estimate**. Same node, same quantity name, different statistic.
+>    >
+>    > ⚠️ Note also that neither of §2's medians (1.94 / 1.85) equals the published **1.42**, so the
+>    > paper's headline is a *third* derivation — three numbers for "Verity σ" whose commensurability
+>    > nobody has established.
+>    >
+>    > **The better-supported candidate is CORPUS COMPOSITION, not censoring.** The paper states its
+>    > number over a **twenty-six-night** corpus; the re-fit ran **N = 17, box-captured, host-axis
+>    > corrected**. This brief's own provenance section (below) establishes that the other capture tree
+>    > is **phone-captured** — `spreadMs = 1.000`, `independent = false`, the top of §7's phone band —
+>    > so the two derivations may not be over the same population at all. That is a *hypothesis*, not a
+>    > result: I have not established which nights the paper's 26 comprise.
+>    >
+>    > **The discriminator, and it is cheap:** re-run `tools/tch-fused-corpus.mjs` over the paper's own
+>    > 26-night set and over its box-captured subset. If the gap tracks capture tree or N rather than
+>    > any quality gate, the attribution above is simply wrong and the paper's number is a
+>    > different-population estimate rather than a censored one. **Until that runs, the discrepancy is
+>    > UNEXPLAINED** — which is a different and more honest state than "explained by censoring", and it
+>    > does not change the standing instruction not to swap the numbers in. **Do not swap these numbers into the paper
+>    >
+>    > ### 🔬 IT RAN, 2026-08-20 — and it refuted the replacement hypothesis too
+>    >
+>    > One estimator (`tools/tch-fused-corpus.mjs`), one corpus (`uploads/trio`), population split by a
+>    > covariate **read per night from the exports** (`quality.timingSource`) rather than by which tree
+>    > someone folded. 54 solvable nights, 10 negative-variance excluded, 53/54 carrying per-beat `conf`.
+>    > Decision bands were written down **before** the run.
+>    >
+>    > **A CONTROL was planted and it FIRED.** The corpus was re-folded under current code on
+>    > 2026-08-15 (#1309 — 16 stale `PpgDexFinger` exports predating #1229, one unusable ECGDex removed),
+>    > *after* the 2026-08-08 re-derivation above. So "the exports changed underneath it" was the obvious
+>    > explanation. It is wrong. Re-running the identical tool on the pre-re-fold corpus, reconstructed
+>    > from git at `5a64fe44^`:
+>    >
+>    > | corpus state | BOX n | O2 | H10 | Verity |
+>    > |---|---|---|---|---|
+>    > | pre-re-fold (existed 2026-08-08) | 12 | 3.28 [2.96–3.36] | 1.35 [1.21–1.41] | **1.03** [0.75–1.33] |
+>    > | post-re-fold (current) | 25 | 3.13 [2.82–3.36] | 1.24 [1.14–1.41] | **0.94** [0.72–1.37] |
+>    >
+>    > The re-fold moves Verity by **0.09 bpm**. Not the cause.
+>    >
+>    > 🔴 **The load-bearing result: NEITHER corpus state reproduces 3.51.** Pre-re-fold gives **1.03**.
+>    > So the 3.51 is not obtainable from `uploads/trio` at the state that existed when it was written,
+>    > and its stated **N = 17** matches neither arm (n = 12 then, n = 25 now). The two figures were
+>    > therefore **never over the same population**, and no single mechanism — censoring, capture tree,
+>    > or re-fold — needs to explain a gap between quantities that were never the same measurement.
+>    >
+>    > **What this run positively establishes on `uploads/trio`:** the H10 corner reproduces the paper
+>    > well (**1.24–1.35** against a published **1.28**); O2 sits somewhat high (**3.13–3.28** against
+>    > **2.41**); and **Verity is the QUIETEST corner, not the noisiest** (0.94–1.03), in *both* corpus
+>    > states. The banner's headline — *"both derivations put Verity noisiest"* and *"the ordering
+>    > inverts"* — does **not** hold on this corpus under this tool.
+>    >
+>    > ⚠️ **The pre-stated decision bands did not apply, and that is reported rather than forced.** They
+>    > asked whether box-vs-phone explains a 2.5× gap (box 0.94 vs phone 0.50 [0.40–0.67], n = 19). Both
+>    > arms sit *below* the published 1.42, so the bands' premise — that 3.51 is reproducible and needs
+>    > explaining — was falsified by the control before the comparison could be made. Answering them
+>    > anyway would have been fitting a verdict to a dead premise.
+>    >
+>    > ⚠️ **Still not the paper's statistic.** `tch-fused-corpus` prints its own caveat: *"A median over
+>    > nights is NOT the pooled-seconds hat the papers quote; it is the across-night distribution."*
+>    > Everything above is a median over nights; closing that last gap means running the pooled hat, not
+>    > another median.
+>    >
+>    > ### 📐 THE REAL SHAPE OF THIS: "Verity σ" NAMES FOUR DIFFERENT QUANTITIES (2026-08-20)
+>    >
+>    > Tracing the numbers rather than the mechanisms settles why nothing reconciles. **The paper itself
+>    > publishes TWO triples, and says so** — `papers/sensor-trio-nights.html` reads verbatim:
+>    > *"Planted σ = 2.7 / 1.9 / 1.9 (the pre-fused raw-ECG estimates; the fused real hat is
+>    > 2.41 / 1.28 / 1.42, §3.4)."*
+>    >
+>    > | triple (O2 / H10 / Verity) | what it actually is | where |
+>    > |---|---|---|
+>    > | **2.72 / 1.86 / 1.94** | **planted σ, 10-night hat** — the *truth the Monte-Carlo tables simulate* | `TRIO-POWER-N15` §115 |
+>    > | **2.41 / 1.28 / 1.42** | **fused real hat** — the headline | paper §3.4 |
+>    > | **2.60 / 1.58 / 1.85** | **15-night hat**, post detector-fix — never shipped | `TRIO-POWER-N15` |
+>    > | **2.99 / 1.78 / 3.51** | the 2026-08-08 re-derivation | banner above |
+>    > | **3.13 / 1.24 / 0.94** | median over nights, box arm, one tool one corpus | the run above |
+>    >
+>    > **So the "discrepancy" has been computed between rows of this table as though they were the same
+>    > row.** A planted σ is an *input* to a simulation; a fused real hat is an *output* of an estimator;
+>    > a median-over-nights is a *third* statistic the tool itself warns is not the pooled hat. They are
+>    > not rival measurements of one quantity, and no mechanism — censoring, capture tree, re-fold — was
+>    > ever going to reconcile them, which is exactly what three eliminations in a row demonstrated.
+>    >
+>    > ⚠️ **This does NOT dissolve the whole problem, and saying so would be too convenient.** Two things
+>    > still want explaining: the 2026-08-08 **3.51** matches no row and is not reproducible from
+>    > `uploads/trio` at either corpus state; and this run's **Verity 0.94** sits well below every
+>    > published row while its **H10 1.24** lands almost on the fused hat's 1.28 — a corner-specific
+>    > divergence, not a global offset, which is the shape a detector or gating difference makes rather
+>    > than a population one.
+>    >
+>    > **What this changes for anyone picking the thread up:** stop hunting for a mechanism that moves a
+>    > σ by 2.5x, and start by naming which row you mean. `TRIO-POWER-N15` box 2 — *reproduce the
+>    > published tables at the 10-night hat* — is the right next action precisely because it pins **one**
+>    > row with the harness that produced it, and it is un-gated (#1602 gates only the re-fit).
 >    yet**: a σ that moves 2.5× on re-derivation needs its discrepancy explained, not published.
 > 3. **The fused weighting barely matters on this corpus** — fused vs unweighted differ by ≤0.12 bpm on
 >    every corner. Most artifact rejection already happened upstream, where ECGDex *drops* beats below
