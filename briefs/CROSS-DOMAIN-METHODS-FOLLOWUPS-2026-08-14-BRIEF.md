@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-14
+**Status:** PROPOSED (⚠️ **audited 2026-08-20 — 3 of 5 Done-when boxes were ALREADY SATISFIED in this brief's own text and merely unticked**; what remains is one HARDWARE-BLOCKED item and one awaiting an occasion, so nothing here is unstarted work) · **Created:** 2026-08-14
 
 # The second sweep — five more fields, and a proof that one of our questions has no answer
 
@@ -793,11 +793,19 @@ implementations to disagree with**, which §7 argues is the only thing that can 
 
 ## Done when
 
-- [ ] §1 is cross-referenced from `integrator-tch.js` and `tools/tch-per-epoch-rho.mjs` so the identity
-      is visible at both call sites, and the withdrawn recommendation cannot be re-made from the code
+- [x] **DONE (verified in code 2026-08-20, shipped #1538)** — §1 is cross-referenced at both call
+      sites. `integrator-tch.js:41` states §1 "WITHDREW the recommendation to 'measure it directly' —
+      this note exists so that recommendation cannot be re-made from the code alone"; the second clause
+      of this box, verbatim. `tools/tch-per-epoch-rho.mjs:116` carries the companion note (ρ "carries
+      ZERO information beyond the variances", so a low correlation with the motion proxy is not
+      evidence against it). Checked by reading both sites, not by grepping for the brief's name.
 - [x] §4 built (`tools/hostaxis-estimator-bakeoff.mjs` — the width-21 experiment is re-runnable for the
       first time), measured, and **REJECTED** with the numbers in §4.3
-- [ ] §7 blinded validation protocol written down and used once, on a real detector change
+- [~] **HALF DONE — awaiting an occasion, not work.** The protocol is written (§7) and has been used
+      once — §3's "power-analysed BEFORE running (§7 discipline, first use)" above. But this box asks
+      for it on a **real detector change**, and a power analysis before an experiment is not that. It
+      needs the next genuine detector change to ride along with; it cannot be manufactured, and
+      inventing a detector change to exercise a protocol would invert the point of the protocol.
 - [x] §3 power-analysed BEFORE running (§7 discipline, first use): E-QC has a structural 2-fold
       ambiguity — pair vs its complement, 51.7 % exact / 98.3 % class at N=5000,
       N-independent
@@ -805,11 +813,28 @@ implementations to disagree with**, which §7 argues is the only thing that can 
       epochs, 93 % class accuracy). The first scoping read `uploads/` and undercounted 183 dates to 3
 - [x] §3 E-QC attempted on the real corpus (`tools/eqc-run.mjs`) and correctly REFUSED: the CPAP
       `Pulse.1s` channel is −1 fill in all 189 SA2 files, so there is no fourth stream at any N
-- [ ] §3 rerun once a genuine fourth HR source exists (ResMed oximeter attached, or another device)
-- [ ] §5 closure tolerance re-derived under HAC with a bandwidth sensitivity table, or explicitly
-      deferred with the reason
-- [ ] §6 either the weighted-slope fixed point lands, or the section is downgraded to REFERENCE with a
-      note that `classifyAllan`'s refusal is the accepted behaviour
+- [⛔] **HARDWARE-BLOCKED, and the hardware does not exist** (confirmed 2026-08-20 against
+      `R5-HR-TRIPLET-REFERENCE-2026-07-12-BRIEF.md`, whose 2026-08-08 banner records the owner
+      confirming there is no ResMed oximeter module — items there need a **purchase**, not a cable).
+      This is not deferred for lack of will: §3 already refused correctly on the real corpus because
+      the CPAP `Pulse.1s` channel is −1 fill in all 189 SA2 files, so there is no fourth stream at any
+      N. Nothing in software moves this.
+- [x] **DONE — and satisfied BOTH ways (audited 2026-08-20)**. §5.1 carries the HAC re-derivation
+      *and* the bandwidth sensitivity table the box asks for: Newey–West at **L = 0 / 2 / 4 / 8**, all
+      four giving the same 12 pass / 2 void split — the insensitivity is itself the result. Adoption is
+      *also* explicitly deferred with its reason: **"do NOT flip the constant on n = 14"**, re-run when
+      more nights carry the third leg (`PpgDexFinger`, 25 of 51 exports, 14 with three confident fits).
+      The calibration argument is the load-bearing one — HAC voids 14 % against the magnitude rule's
+      57 %, and 57 % is not credible as "wrong fit" — not the raw count and not the correlation, which
+      §5.1 shows pointing the *other* way (r = +0.460) on a different fold and declines to settle at
+      n = 14.
+- [x] **DONE via the second branch (audited 2026-08-20)** — the fixed point did **not** land and §6.1
+      already records why: EDF weighting measured on ten real curves changed **0 of 10**
+      classifications, largest Δslope **0.018** against a nearest boundary ~**14× further away**. So
+      `classifyAllan`'s refusal IS the accepted behaviour, and it covers the same case more cheaply —
+      it says "undecided" where weighting would produce a better-weighted guess. ⚠️ This closes the
+      *weighting* step only; **GMWM is untouched and stays listed, unmeasured, and last** — "stop
+      reading a noise type off a slope at all" is a different claim that nothing here tests.
 
 ## 7 · PROPOSED — epidemiology already solved "how many did BOTH detectors miss"
 
