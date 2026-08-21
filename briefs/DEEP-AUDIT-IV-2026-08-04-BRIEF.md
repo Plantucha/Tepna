@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-15 (**§1 EXECUTED elsewhere** as #956, verified in the tree; **§2 EXECUTED 2026-08-15**. Punch-list item 2 — the alternation cross-check — **RUN 2026-08-16: 2 of 5 nights measured, both FULL ACC (negative); 3 blocked on raw data absent from all four corpus trees. Also corrects the count: FIVE alternation nights, not six** (§7.2-RUN). ⚠️ **That absence was WRONG — re-checked 2026-08-20 (§7.2-RUN-II): two of the three are on the box, fragmented across link reconnects AND across the date directory. 4 of 5 now measured, ALL NEGATIVE including the highest-ratio night; only 2026-08-08 is genuinely absent.** §3 remain leads — both surviving ones MEASURED 2026-08-20 (§3-RESULT): unreachable on the corpus (0 of 3,155 fusable events lack `conf`; 54 of 54 hrv blocks non-zero), and the `|| 0` shape is a **3-site fleet pattern** including a user-facing OxyDex card) · **Created:** 2026-08-04 · **Charter:** `AUDIT-PROMPT.md` · **Follows:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` (DONE 2026-07-29) · `DEEP-AUDIT-III-FOLLOWUPS-II-2026-07-29-BRIEF.md` (DONE 2026-07-31)
+**Status:** IN-PROGRESS — 2026-08-15 (**§1 EXECUTED elsewhere** as #956, verified in the tree; **§2 EXECUTED 2026-08-15**. Punch-list item 2 — the alternation cross-check — **RUN 2026-08-16: 2 of 5 nights measured, both FULL ACC (negative); 3 blocked on raw data absent from all four corpus trees. Also corrects the count: FIVE alternation nights, not six** (§7.2-RUN). ⚠️ **That absence was WRONG — re-checked 2026-08-20 (§7.2-RUN-II): two of the three are on the box, fragmented across link reconnects AND across the date directory. 4 of 5 now measured, ALL NEGATIVE including the highest-ratio night; only 2026-08-08 is genuinely absent. ✅ **Item 2 RETIRED on that evidence — owner decision 2026-08-21**; the unmeasured 2026-08-08 (ratio 1.17) is named, not swept.** §3 remain leads — both surviving ones MEASURED 2026-08-20 (§3-RESULT): unreachable on the corpus (0 of 3,155 fusable events lack `conf`; 54 of 54 hrv blocks non-zero), and the `|| 0` shape is a **3-site fleet pattern** including a user-facing OxyDex card) · **Created:** 2026-08-04 · **Charter:** `AUDIT-PROMPT.md` · **Follows:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` (DONE 2026-07-29) · `DEEP-AUDIT-III-FOLLOWUPS-II-2026-07-29-BRIEF.md` (DONE 2026-07-31)
 
 # Deep audit IV — the fifth instance of 3a, in the file the 3a fix shipped in yesterday
 
@@ -341,9 +341,18 @@ that date, checked without a name or size filter. That one was reported correctl
 | 2026-08-07 | **1.27** | FULL | 7.2-RUN, single file |
 | 2026-08-08 | 1.17 | unknown | raw absent |
 
-**Status of item 2: 4 of 5 measured, all negative — including the highest-ratio night.** On the
-evidence §1's defect suppressed no flag on any measurable alternation night. Retiring the concern is
-now a one-night call rather than a three-night one; 2026-08-08 at ratio 1.17 is the only gap.
+**Status of item 2: ✅ RETIRED — owner decision 2026-08-21, on 4 of 5 measured all negative.** The
+call §7.2-RUN itself framed (*"an explicit decision that … clean negatives on the … highest-ratio
+available nights is enough to retire the concern"*) was put to the owner and answered **retire**.
+
+On the evidence §1's defect suppressed no flag on any measurable alternation night — four of five,
+including **2026-08-07 at ratio 1.27, the strongest alternation in the corpus**. The item is closed;
+it is not "closed because nobody chased it".
+
+⚠️ **The one unmeasured night is named, not swept under the close.** **2026-08-08, ratio 1.17** — no
+`Polar_VeritySense_*` PPG or ACC exists for that date anywhere on the box, checked without a name or
+size filter (§7.2-RUN-II). If that recording ever surfaces, the join is a re-run of the same method,
+not new work. Retiring on 4 of 5 is a judgement about sufficiency, not a claim that the fifth agrees.
 
 ⚠️ **The general lesson, since this is the fifth false absence on this corpus:** the previous entry's
 own warning was that *"each of those directories exists and is named for the right date, so a coverage
