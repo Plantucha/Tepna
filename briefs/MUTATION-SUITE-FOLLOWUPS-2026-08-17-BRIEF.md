@@ -581,6 +581,24 @@ survives. But the *magnitude* does not: if kills cost ~3.9 min, converting a sur
 12.75 min lap into a 3.9 min one — a **3× saving, not elimination**. Anyone budgeting off "kills are
 free" will over-promise by that factor.
 
+
+⚠️ **EVERYTHING ABOVE IS *CONSISTENT-WITH*, NOT MEASURED — and the distinction is the point of §7.5.**
+The 29 % residual is reconciled by *either* a 12.75 min set price *or* ~3.9 min kills, and nothing here
+separates them: both are algebra over one wall-clock total, not observations. So the corrected model is
+no better established than the one it corrects — it merely fits a number the other missed.
+
+**The decisive instrument is the per-verdict LAP DURATION field this section already proposed.** With
+it, "3.9 min per kill" stops being residual arithmetic and becomes a *distribution* — quantiles by
+verdict, with killer-group position in the priced ordering as a covariate. That single field settles
+the set-price question, the kill-cost question and future leg forecasting together.
+
+**Why the assumption was seductive, recorded because it generalises** (the peer who made it named it):
+the guard group was priced **early by design**, so guard-cluster kills genuinely *were* cheap — and
+that true observation was generalised to *all* kills, for which nothing was measured. A cheap kill is
+evidence about **where its killer sits in the ordering**, never about kills as a class.
+
+**So the honest status of the falsification analysis: BLOCKED on that field** at any precision worth
+budgeting from. The falsification itself stands — it rests on wall-clock rank, which is observed.
 **The pre-registration earned its keep.** The prediction was recorded before the run with an explicit
 falsification condition and a precondition check; it failed, the failure is attributable to a specific
 wrong step rather than to noise, and the mechanism it exposed is more useful than the prediction would
