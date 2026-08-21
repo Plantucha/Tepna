@@ -3730,7 +3730,30 @@
     }
     const td = /** @type {any} */ (timeDomain(nn, cleanMask, spansGap) || {});
     const poin = poincare(nn, cleanMask);
-    const freq = lombScargle(corr.tt, nn);
+    /* ── #2 treatment (1): the frequency domain must not see correctRR's substitutes ──────────────
+       A rejected interval is replaced by the local-median reference and pushed into `nn`, so at this
+       file's own correction rates a real share of the series is a repeated constant. `timeDomain`
+       and `poincare` already refuse those via `cleanMask`; `lombScargle` did not, and a constant run
+       is not spectrally neutral — it is power at DC that the detrend spreads across the band.
+
+       Dropping is the RIGHT treatment here and only here. Lomb-Scargle exists to analyse
+       IRREGULARLY sampled series: it consumes (time, value) pairs and has no notion of adjacency, so
+       removing a sample removes exactly that sample. `dfaAlpha1` and `sampEn` below read SEQUENCE
+       STRUCTURE, where the same removal would splice two non-adjacent beats together and fabricate a
+       pattern — a fabricated ADJACENCY in place of a fabricated value. They are deliberately left
+       alone; see the brief's "#2 RE-SCOPED" block.
+
+       Sparse-clean records degrade HONESTLY rather than silently: `lombScargle` already refuses
+       under 8 samples (`return null`), and every frequency consumer already handles a null block. */
+    const _fqT = [],
+      _fqV = [];
+    for (let i = 0; i < nn.length; i++) {
+      if (cleanMask[i]) {
+        _fqT.push(corr.tt[i]);
+        _fqV.push(nn[i]);
+      }
+    }
+    const freq = lombScargle(_fqT, _fqV);
     const dfa1 = dfaAlpha1(nn);
     const se = sampEn(nn);
 
