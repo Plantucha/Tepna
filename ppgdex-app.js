@@ -51,19 +51,28 @@ import { PPGUI } from './ppgdex-render.js';
     if (!res || !res.usable) {
       el.innerHTML =
         '<div class="sec-label">Waveform SpO\u2082 (experimental)</div>' +
-        '<div class="dim">Not rendered \u2014 ' + ((res && res.reason) || 'no usable pair') + '. The device SpO\u2082 remains the measurement.</div>';
+        '<div class="dim">Not rendered \u2014 ' +
+        ((res && res.reason) || 'no usable pair') +
+        '. The device SpO\u2082 remains the measurement.</div>';
       return;
     }
-    const s = res.summary, c = res.calib;
+    const s = res.summary,
+      c = res.calib;
     const row = (label, v, u, note) =>
       '<tr><td class="fmt-m">' + evBadge(label) + label + '</td><td class="mono">' + v + '</td><td class="dim">' + (u || '') + '</td><td class="dim">' + (note || '') + '</td></tr>';
     el.innerHTML =
-      '<div class="sec-label">Waveform SpO\u2082 (experimental) \u00b7 ' + fname + '</div>' +
-      '<div class="dim" style="margin:4px 0 8px">Per-session self-calibration vs the device\u2019s own SpO\u2082 (r=' + c.r.toFixed(3) + ', n=' + c.n + ' bins). A second, waveform-provenance estimate \u2014 never a replacement; extremes are compressed by the regression.</div>' +
+      '<div class="sec-label">Waveform SpO\u2082 (experimental) \u00b7 ' +
+      fname +
+      '</div>' +
+      '<div class="dim" style="margin:4px 0 8px">Per-session self-calibration vs the device\u2019s own SpO\u2082 (r=' +
+      c.r.toFixed(3) +
+      ', n=' +
+      c.n +
+      ' bins). A second, waveform-provenance estimate \u2014 never a replacement; extremes are compressed by the regression.</div>' +
       '<table class="data-table"><thead><tr><th>Metric</th><th>Value</th><th>Unit</th><th>Note</th></tr></thead><tbody>' +
-      row('SpO\u2082w median', s.medianSpo2w.toFixed(1), '%', 'calibrated trend median') +
-      row('SpO\u2082w min', s.minSpo2w.toFixed(1), '%', 'trend minimum \u2014 depth compressed vs device') +
-      row('SpO\u2082w track r', s.trackR.toFixed(3), '', 'self-calibration quality (\u2265 0.3 required)') +
+      row('SpO₂w median', s.medianSpo2w.toFixed(1), '%', 'calibrated trend median') +
+      row('SpO₂w min', s.minSpo2w.toFixed(1), '%', 'trend minimum \u2014 depth compressed vs device') +
+      row('SpO₂w track r', s.trackR.toFixed(3), '', 'self-calibration quality (\u2265 0.3 required)') +
       '</tbody></table>';
   }
 
@@ -153,13 +162,18 @@ import { PPGUI } from './ppgdex-render.js';
               }
             }
             if (!done && (w2.length || sp.length)) {
-              showOK(w2.length && !sp.length
-                ? 'PPG2W dropped without its matching `_SPO2.csv` — the waveform SpO₂ trend needs BOTH (self-calibration).'
-                : !w2.length && sp.length
-                  ? 'SPO2.csv noted — drop the matching `_PPG2W.txt` with it for the waveform SpO₂ trend.'
-                  : 'PPG2W/SPO2 stamps do not match — the trend needs the SAME session pair.');
+              showOK(
+                w2.length && !sp.length
+                  ? 'PPG2W dropped without its matching `_SPO2.csv` — the waveform SpO₂ trend needs BOTH (self-calibration).'
+                  : !w2.length && sp.length
+                    ? 'SPO2.csv noted — drop the matching `_PPG2W.txt` with it for the waveform SpO₂ trend.'
+                    : 'PPG2W/SPO2 stamps do not match — the trend needs the SAME session pair.'
+              );
             }
-            if (!parsed.length) { progress(0, ''); return; }   // the drop was ONLY the pair — done
+            if (!parsed.length) {
+              progress(0, '');
+              return;
+            } // the drop was ONLY the pair — done
           }
         }
         parsed = DSP.mergeMultipart(parsed); // fold `…_partNNofMM.txt` into one stream per base

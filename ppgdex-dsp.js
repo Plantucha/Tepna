@@ -4471,7 +4471,9 @@
       if (p.length < 5) continue;
       var ts = parseTimestamp(p[0]);
       if (!ts) continue;
-      var a = +p[2], b = +p[3], mo = +p[4];
+      var a = +p[2],
+        b = +p[3],
+        mo = +p[4];
       if (!isFinite(a) || !isFinite(b)) continue;
       rows.push({ tMs: ts.tMs, ch0: a, ch1: b, motion: isFinite(mo) ? mo : 0 });
     }
@@ -4497,95 +4499,177 @@
     return out;
   }
 
-  /** Per-buffer {ac, dc}: linear-detrended peak-to-peak + |mean|. The 2026-08-20 corpus estimator —
-   *  deliberately unchanged so the shipped metric matches the validated measurement. PURE. */
+  /** Per-buffer {ac, dc}: linear-detrended RMS + |mean|. RMS (not peak-to-peak) won the 2026-08-20
+   *  brute-force sweep — 1344 estimator/model configs over all 49 corpus sessions; the winning config
+   *  (RMS AC · 60 s mean bins · +10 s firmware lag) holds LOO held-out pooled r 0.659, per-session
+   *  median r 0.723, 28/28 positive, RMSE 0.56 %. PURE. */
   function _w2AcDc(vals) {
     var n = vals.length;
     var m = 0;
     for (var i = 0; i < n; i++) m += vals[i];
     m /= n;
-    var mx = (n - 1) / 2, sxx = 0, sxy = 0;
-    for (i = 0; i < n; i++) { sxx += (i - mx) * (i - mx); sxy += (i - mx) * (vals[i] - m); }
+    var mx = (n - 1) / 2,
+      sxx = 0,
+      sxy = 0;
+    for (i = 0; i < n; i++) {
+      sxx += (i - mx) * (i - mx);
+      sxy += (i - mx) * (vals[i] - m);
+    }
     var sl = sxx > 0 ? sxy / sxx : 0;
-    var lo = Infinity, hi = -Infinity;
+    var ss = 0,
+      cnt = 0;
     for (i = 2; i < n - 2; i++) {
       var v = vals[i] - m - sl * (i - mx);
-      if (v < lo) lo = v;
-      if (v > hi) hi = v;
+      ss += v * v;
+      cnt++;
     }
-    return { ac: hi - lo, dc: Math.abs(m) };
+    return { ac: cnt ? Math.sqrt(ss / cnt) : 0, dc: Math.abs(m) };
   }
 
-  /** The trend: buffer-split (re-anchor jumps), per-buffer R = (AC/DC)₀/(AC/DC)₁, 15 s median bins,
-   *  per-session OLS self-calibration SpO₂ ≈ a + b·R against the co-recorded device series, and the
-   *  calibrated waveform trend + summary. REFUSES (usable:false + reason) rather than guessing:
+  /** The trend: buffer-split (re-anchor jumps), per-buffer R = (AC/DC)₀/(AC/DC)₁, 60 s MEAN bins,
+   *  device series read at +10 s lag (the firmware's own averaging delay — its 1 Hz output lags the
+   *  waveform that produced it; sweep-measured, peak of the lag marginal), per-session OLS
+   *  self-calibration SpO₂ ≈ a + b·R against the co-recorded device series, and the calibrated
+   *  waveform trend + summary. The three knobs (RMS AC · 60 s mean · +10 s lag) are the winners of
+   *  the 2026-08-20 brute-force sweep (1344 configs, 49 sessions, LOO-validated — see the brief's
+   *  full-corpus re-fit block); 60 s bins are the single biggest lever (marginal median r 0.368 at
+   *  5 s → 0.585 at 60 s). REFUSES (usable:false + reason) rather than guessing:
    *  no device series → 'no co-recorded device SpO₂ (self-calibration impossible)';
    *  < 40 usable bins → 'too little paired data'; |r| < 0.3 → 'ratio does not track this session'.
    *  The r floor is the honesty gate — an uncalibratable session must not render a trend. */
   function spo2WaveformTrend(rec, spo2Rows, opts) {
     opts = opts || {};
-    var binS = opts.binS || 15;
+    var binS = opts.binS || 60;
+    var lagS = opts.lagS != null ? opts.lagS : 10;
+    /** @type {{usable:boolean, reason:(string|null), bins:any[], calib:(any|null), summary:(any|null), trend?:any[]}} */
     var out = { usable: false, reason: null, bins: [], calib: null, summary: null };
-    if (!rec || !rec.rows || rec.rows.length < 5000) { out.reason = 'no usable ppg2w stream (need ≥5000 samples)'; return out; }
-    if (!spo2Rows || !spo2Rows.length) { out.reason = 'no co-recorded device SpO₂ (self-calibration impossible)'; return out; }
+    if (!rec || !rec.rows || rec.rows.length < 5000) {
+      out.reason = 'no usable ppg2w stream (need ≥5000 samples)';
+      return out;
+    }
+    if (!spo2Rows || !spo2Rows.length) {
+      out.reason = 'no co-recorded device SpO₂ (self-calibration impossible)';
+      return out;
+    }
     var sp = {};
     for (var i = 0; i < spo2Rows.length; i++) sp[Math.floor(spo2Rows[i].tMs / 1000)] = spo2Rows[i].spo2;
     // buffer split at re-anchor jumps (|Δ − modal| ≥ 3 ms)
-    var rows = rec.rows, d = [], hist = {};
+    var rows = rec.rows,
+      d = [],
+      hist = {};
     for (i = 1; i < rows.length; i++) {
       var dd = Math.round(rows[i].tMs - rows[i - 1].tMs);
       d.push(dd);
       hist[dd] = (hist[dd] || 0) + 1;
     }
-    var modal = null, best = -1;
-    for (var k in hist) if (hist[k] > best) { best = hist[k]; modal = +k; }
-    if (modal == null) { out.reason = 'no cadence'; return out; }
-    var pts = [], s0 = 0;
+    var modal = null,
+      best = -1;
+    for (var k in hist)
+      if (hist[k] > best) {
+        best = hist[k];
+        modal = +k;
+      }
+    if (modal == null) {
+      out.reason = 'no cadence';
+      return out;
+    }
+    var pts = [],
+      s0 = 0;
     var flush = function (b) {
       if (b.length < 90) return;
-      var A = _w2AcDc(b.map(function (r) { return r.ch0; }));
-      var B = _w2AcDc(b.map(function (r) { return r.ch1; }));
+      var A = _w2AcDc(
+        b.map(function (r) {
+          return r.ch0;
+        })
+      );
+      var B = _w2AcDc(
+        b.map(function (r) {
+          return r.ch1;
+        })
+      );
       if (A.dc < 1 || B.dc < 1 || A.ac <= 0 || B.ac <= 0) return;
-      var R = (A.ac / A.dc) / (B.ac / B.dc);
+      var R = A.ac / A.dc / (B.ac / B.dc);
       var tm = b[(b.length / 2) | 0].tMs;
-      var sec = Math.floor(tm / 1000);
+      var sec = Math.floor(tm / 1000) + lagS;
       var s = sp[sec] != null ? sp[sec] : sp[sec - 1] != null ? sp[sec - 1] : sp[sec + 1];
       if (s != null && isFinite(R) && R > 0) pts.push({ tMs: tm, R: R, s: s });
     };
     for (i = 0; i < d.length; i++) {
-      if (Math.abs(d[i] - modal) >= 3) { flush(rows.slice(s0, i + 1)); s0 = i + 1; }
+      if (Math.abs(d[i] - modal) >= 3) {
+        flush(rows.slice(s0, i + 1));
+        s0 = i + 1;
+      }
     }
     flush(rows.slice(s0));
-    // 15 s median bins
-    var bins = {}, kk;
-    var med = function (a) { var s2 = a.slice().sort(function (x, y) { return x - y; }); return s2.length ? s2[s2.length >> 1] : null; };
+    // 60 s MEAN bins (sweep winner — mean beats median at every bin width, marginal 0.549 vs 0.482)
+    var bins = {},
+      kk;
+    var med = function (a) {
+      var s2 = a.slice().sort(function (x, y) {
+        return x - y;
+      });
+      return s2.length ? s2[s2.length >> 1] : null;
+    };
+    // only ever called behind the ≥8-points-per-bin guard, so a.length > 0 by construction
+    var avg = function (a) {
+      var t2 = 0;
+      for (var j = 0; j < a.length; j++) t2 += a[j];
+      return t2 / a.length;
+    };
     for (i = 0; i < pts.length; i++) {
       kk = Math.floor(pts[i].tMs / (binS * 1000));
       if (!bins[kk]) bins[kk] = { R: [], s: [], t: [] };
-      bins[kk].R.push(pts[i].R); bins[kk].s.push(pts[i].s); bins[kk].t.push(pts[i].tMs);
+      bins[kk].R.push(pts[i].R);
+      bins[kk].s.push(pts[i].s);
+      bins[kk].t.push(pts[i].tMs);
     }
     var B2 = [];
-    for (kk in bins) if (bins[kk].R.length >= 8) B2.push({ tMs: med(bins[kk].t), R: med(bins[kk].R), s: med(bins[kk].s) });
-    B2.sort(function (a, b) { return a.tMs - b.tMs; });
-    if (B2.length < 40) { out.reason = 'too little paired data (' + B2.length + ' bins, need ≥40)'; return out; }
-    // OLS self-calibration SpO₂ = a + b·R, and its r
-    var n = B2.length, mR = 0, mS = 0;
-    for (i = 0; i < n; i++) { mR += B2[i].R; mS += B2[i].s; }
-    mR /= n; mS /= n;
-    var sRR = 0, sSS = 0, sRS = 0;
-    for (i = 0; i < n; i++) {
-      var dr = B2[i].R - mR, ds = B2[i].s - mS;
-      sRR += dr * dr; sSS += ds * ds; sRS += dr * ds;
+    for (kk in bins) if (bins[kk].R.length >= 8) B2.push({ tMs: med(bins[kk].t), R: avg(bins[kk].R), s: avg(bins[kk].s) });
+    B2.sort(function (a, b) {
+      return a.tMs - b.tMs;
+    });
+    if (B2.length < 40) {
+      out.reason = 'too little paired data (' + B2.length + ' bins, need ≥40)';
+      return out;
     }
-    if (!(sRR > 0) || !(sSS > 0)) { out.reason = 'zero variance — nothing to calibrate against'; return out; }
+    // OLS self-calibration SpO₂ = a + b·R, and its r
+    var n = B2.length,
+      mR = 0,
+      mS = 0;
+    for (i = 0; i < n; i++) {
+      mR += B2[i].R;
+      mS += B2[i].s;
+    }
+    mR /= n;
+    mS /= n;
+    var sRR = 0,
+      sSS = 0,
+      sRS = 0;
+    for (i = 0; i < n; i++) {
+      var dr = B2[i].R - mR,
+        ds = B2[i].s - mS;
+      sRR += dr * dr;
+      sSS += ds * ds;
+      sRS += dr * ds;
+    }
+    if (!(sRR > 0) || !(sSS > 0)) {
+      out.reason = 'zero variance — nothing to calibrate against';
+      return out;
+    }
     var r = sRS / Math.sqrt(sRR * sSS);
-    if (!(r >= 0.3)) { out.reason = 'ratio does not track this session (r=' + r.toFixed(2) + ' < 0.3) — trend refused'; return out; }
-    var b1 = sRS / sRR, a1 = mS - b1 * mR;
+    if (!(r >= 0.3)) {
+      out.reason = 'ratio does not track this session (r=' + r.toFixed(2) + ' < 0.3) — trend refused';
+      return out;
+    }
+    var b1 = sRS / sRR,
+      a1 = mS - b1 * mR;
     var trend = B2.map(function (bb) {
       var w = a1 + b1 * bb.R;
       return { tMs: bb.tMs, spo2w: Math.max(60, Math.min(100, w)), dev: bb.s };
     });
-    var ws = trend.map(function (t) { return t.spo2w; });
+    var ws = trend.map(function (t) {
+      return t.spo2w;
+    });
     out.usable = true;
     out.bins = B2;
     out.calib = { a: a1, b: b1, r: r, n: n };
@@ -4593,7 +4677,14 @@
     out.summary = {
       medianSpo2w: med(ws),
       minSpo2w: Math.min.apply(null, ws),
-      pctBelow90: Math.round((ws.filter(function (w) { return w < 90; }).length / ws.length) * 1000) / 10,
+      pctBelow90:
+        Math.round(
+          (ws.filter(function (w) {
+            return w < 90;
+          }).length /
+            ws.length) *
+            1000
+        ) / 10,
       trackR: Math.round(r * 1000) / 1000,
       bins: n
     };

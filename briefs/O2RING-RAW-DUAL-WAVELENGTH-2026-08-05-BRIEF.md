@@ -176,6 +176,74 @@ calibration curve; and the AC estimator is deliberately crude on saturated gap-s
 double-drain fix (#1596) yields contiguous data that should sharpen r before anything ships to a user
 surface. The §5.2 ban stands for METRICS: still do not surface SpO₂ from these columns.
 
+**§5.2-AMENDED (owner order, 2026-08-20): the metrics ban is LIFTED for exactly one surface — the
+per-session SELF-CALIBRATED waveform SpO₂ trend, experimental tier.** Shipped in PpgDex ("ship spo2
+metrics"): `PPGDSP.parsePPG2W` + `parseO2RingSpo2Csv` + `spo2WaveformTrend` — per-buffer
+ratio-of-ratios, 15 s bins, OLS self-calibration against the co-recorded device SpO₂, rendered as
+`SpO₂w median / min / track r` at **experimental** tier beside (never instead of) the device series.
+The honesty gates are in the code, not prose: no co-recorded device SpO₂ → refused; < 40 paired bins →
+refused; session r < 0.3 → refused with the r printed; trend clamped to [60,100]; the section text
+names the extreme-compression (the 73 % device desat reads ~93 on the trend). **Full-corpus re-fit (2026-08-20, owner asked "did you use maximum nights?" — no, and here is the
+maximum).** The 15-session fit above was the LOCAL tree only; the box held the rest. At maximum —
+**49 usable sessions, 26,118 paired bins** (every `_PPG2W`+`_SPO2` pair on vigil + local, ppg2w
+capture began 2026-08-05) — pooled **r = 0.455**, LOO [0.438, 0.471]; dose–response unchanged
+(0.835 / 0.925 / 1.005, monotonic). The dip vs 0.500 is composition, not contradiction: the 34 added
+sessions are mostly short fragments (21–460 bins) whose within-window SpO₂ variance is too small to
+track. Split by length, the **13 full overnight sessions (≥1000 bins) carry median r = 0.58**
+(0.32–0.73), best nights 0.68–0.73. Quote the 49-session figures, not the 15-session ones.
+
+**Brute-force sweep (owner-ordered 2026-08-20, "brute force it on maximum eligible nights").**
+1344 estimator/model configs (AC measure × sat-filter × min-buffer-len × bin width × bin stat ×
+lag × 4 model families) over ALL 49 corpus sessions, 389,125 buffers. Winner: **RMS AC · 60 s MEAN
+bins · +10 s lag** — and the knobs, not the physics, were the bottleneck. Marginals: bin width is
+the dominant lever (median global-r 0.368 @5 s → 0.585 @60 s); mean beats median at every width
+(0.549 vs 0.482); lag peaks at +5–10 s (the firmware's own averaging delay — physically expected,
+which argues against overfit); AC measure and clip-filter are nearly flat; the contiguous-only
+filter (len ≥ 190) starved out entirely — pre-#1596 data has no long buffers, so term (1) is only
+attackable with new captures. **LOO-validated** (fit on 27 sessions, predict the 28th): held-out
+pooled r = 0.659 vs in-sample 0.665 (selection optimism ≈ nil), held-out per-session median
+r = 0.723, positive 28/28, RMSE 0.56 %, 98.9 % of minutes within ±2 %. Against the pre-stated bands
+(≥0.70 strong recovery · 0.55–0.70 estimator-real-AGC-visible · ≤0.55 baseline): the TRUE-GLOBAL
+single fixed line sits at the top of the middle band, and the per-session family reaches r 0.749
+pooled. The residual against the quantized device output is now ~0.5 % RMSE — approaching the
+integer quantum itself. The shipped PpgDex estimator adopts the winning knobs (RMS · 60 s mean ·
++10 s lag); the per-session self-calibration model is retained over the global line because it is
+the honest n=1-device choice, not because it scores higher. Sweep apparatus + full table:
+session scratch (`ppg2w-sweep.mjs` → `/tmp/ppg2w-sweep-results.json`), to be promoted to `tools/`
+if a second device ever needs it.
+
+**Reframing (owner, 2026-08-20): the 1 Hz SpO₂ is COMPUTED FROM this same stream, so the mapping
+is in principle fully recoverable — r = 1 is the ceiling and every missing point is OUR deficiency,
+not reference noise.** The residual decomposes into four separable terms, each attackable: (1) we
+hold a damaged copy of the firmware's input — 102-sample ring-buffer drains with ~18 % pre-#1596
+loss vs the firmware's continuous internal stream; (2) hidden AGC state — the AFE4403's dynamic
+LED-current/gain settings are known to firmware, unobserved in 0x05, and a per-session intercept is
+exactly what absorbs the resulting level shifts; (3) rail-clipped buffers biasing AC amplitude;
+(4) an integer-quantized, hold-averaged output — measured 2026-08-20: **91.1 % of all overnight
+1 Hz samples (695,071 samples, 39 sessions) sit on just THREE integer values, zero non-integer in
+the whole corpus** — capping within-night Pearson r regardless of estimator quality. Attack order: contiguous-only post-#1596
+data → per-beat cardiac-cycle R instead of buffer peak-to-peak → fit the firmware's fixed
+R→SpO₂ curve (Maxim-style quadratic LUT, not per-session linear) → quantization-aware scoring.
+A large residual SURVIVING all four is the evidence for hidden AGC state, and the next move is then
+protocol archaeology for gain telemetry, not estimator tuning.
+
+**Literature comparison (2026-08-20, owner-requested).** Converting the fit to the literature's
+convention (R_classic = RED/IR = 1/R_ours; at the operating point R_ours ≈ 1.25) the pooled line's local
+slope is ≈ **−10.7 %/unit R** — same functional form and sign as the classical transmission
+approximation `SpO₂ = 110 − 25R` and a contactless-calibration study's `−39.4R + 112.9`
+(DOI-carrying source: PMC5145250), but **2–4× shallower**, and the pooled r 0.50 sits under the
+wearable-reflectance literature's 0.89 (sternum study, RMSE 2.6 %). Three attenuators, all known:
+errors-in-x regression dilution from the noisy per-buffer R; the saturated gap-spliced buffers + crude
+peak-to-peak AC (both addressed by #1596's contiguous drains); and reflectance-vs-transmission geometry
+(every ring paper calibrates per-design — the subject-specific `m·R + b_subject` model this ship uses is
+the SAME structure that literature validates). Falsifiable trajectory: post-#1596 data should steepen
+the converted slope toward the −25 family and lift r toward 0.7–0.9; if it does not, the functional
+claim gets re-examined, not the calibration constants.
+
+What stays banned:
+any un-calibrated or pooled-constant SpO₂, any tier above experimental, and any feed of SpO₂w into
+OxyDex metrics or the Integrator — those wait on the sunlight assignment + #1596 contiguous data.
+
 **What the same data still supports:** the two channels are genuinely distinct optical channels, not one
 photodiode at two gains — fitting `ch1 = k · ch0` gives `k` drifting 0.7139 → 0.5320 with residual RMS
 from 0.049 % to 7.06 % of DC, where a gain pair would hold `k` constant at ~zero residual by
