@@ -44,6 +44,31 @@
   'use strict';
 
   var CPAP_REGISTRY = {
+    /* ── DEVICE SUMMARY (STR.edf — device-declared / device-scored, not waveform-derived) ── */
+    deviceMode: {
+      label: 'Device Mode',
+      unit: '',
+      goodDirection: 'neutral',
+      depth: 'basic',
+      evidence: 'measured',
+      cite: 'Therapy mode DECLARED by the device (STR.edf OPERATING_MODE) — ground truth vs the inferred classifyMode'
+    },
+    deviceRera: {
+      label: 'Device RERA',
+      unit: '/hr',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Respiratory-effort-related arousals per hour — device-scored (STR.edf RIN), distinct from the flow-shape reraIndex CPAPDex estimates'
+    },
+    deviceCsr: {
+      label: 'Device CSR',
+      unit: '%',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Cheyne-Stokes respiration fraction scored by the device (STR.edf CSR) — a cross-check on CPAPDex’s own CSR'
+    },
     /* ── USAGE & ADHERENCE ──────────────────────────────────────────────── */
     usageHours: { label: 'Usage Hours', unit: 'hr', goodDirection: 'up', depth: 'basic', evidence: 'measured', cite: 'Total mask-on hours (pressure > 0) — direct recording stat' },
     compliancePct: {

@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0wrnC0lVV+CrxqFX7kyOj6IsM0aoYU6jEFEXzId9FCU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G8T1c38HwLBl265H8MWt+Jqx7dj3Cj7O3Kl0EA7ny0s=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-SNU6RzbeW7HiCUQXzX2+PowuinkZoDeOOQCHYi2cBJY=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-W7m5EJur7zz9xJVj4s2diLK2Ex8nuYlUeh9vJ0nqr8U=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-Zg0VuZposJeHUmYwdGlxPYv7/96XL9I90WDHTkIO/fI=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-nKK7xOfxhM7P75DL06pRugSuqGPyW1xEGOI6874nb64=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psCNI6L+RVB3F77zf3oNwebbh8Z+Ml5lnVD4nzvTKxM=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0wrnC0lVV+CrxqFX7kyOj6IsM0aoYU6jEFEXzId9FCU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-9pcgddjwATDE1P/+Ue5Tz21VCRq1r7R7G8zoRQbGCks=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G8T1c38HwLBl265H8MWt+Jqx7dj3Cj7O3Kl0EA7ny0s=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-SNU6RzbeW7HiCUQXzX2+PowuinkZoDeOOQCHYi2cBJY=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-W7m5EJur7zz9xJVj4s2diLK2Ex8nuYlUeh9vJ0nqr8U=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-nKK7xOfxhM7P75DL06pRugSuqGPyW1xEGOI6874nb64=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psCNI6L+RVB3F77zf3oNwebbh8Z+Ml5lnVD4nzvTKxM=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -37680,6 +37680,112 @@ __exports.ECGDex = window.ECGDex;
     return build(night);
   }
 
+  /* ── STR.edf DAILY SUMMARY (CPAPDEX-STR-SUMMARY-INGEST-2026-08-21) ───────────────────────────────
+   CPAPDex ingests only the per-session waveform EDFs (BRP/PLD/SA2/EVE) and computes everything from
+   them; the device's own daily-summary STR.edf carries three things the waveforms CANNOT give — the
+   device-DECLARED therapy mode (vs our inferred `classifyMode`), the device-scored RERA index (RIN;
+   we cannot compute RERA from flow), and the PRESCRIPTION (S.* settings). This is a PURE parse over
+   CpapEdf.readEDF's signal map. It attaches as NEW fields and never touches the validated inference.
+
+   Encodings (decoded from a real STR.edf 2026-08-21): Date = days since 1970 (one/record); MaskOn/Off
+   = minutes since NOON (≤20 session slots/record, -1 = unused); settings/mode/RIN/CSR = one/record.
+   readEDF already returns physical-unit values, so no re-scaling here. */
+  var STR_NOON_MS = 12 * 3600 * 1000;
+  // ResMed AirSense OPERATING_MODE (airbreak 0x020D) — map ONLY the known codes; an unmapped code
+  // yields deviceMode:null (never a fabricated label — mirrors classifyMode's null-not-a-coin-flip).
+  var STR_MODE = { 0: 'CPAP', 1: 'APAP' };
+  function _strSig(edf, label) {
+    return edf && edf.signals && edf.signals[label] ? edf.signals[label] : null;
+  }
+  function _strAt(sig, rec, spr, k) {
+    // physical value of signal `sig` at record `rec`, sample `k` (spr = samples/record); null if absent
+    if (!sig || !sig.data) return null;
+    var idx = rec * spr + (k || 0);
+    return idx < sig.data.length ? sig.data[idx] : null;
+  }
+  function parseStrSummary(edf) {
+    var dateSig = _strSig(edf, 'Date');
+    if (!dateSig || !dateSig.data || !dateSig.data.length) return [];
+    var nRec = dateSig.data.length; // Date is 1 sample/record → record count
+    var onSig = _strSig(edf, 'MaskOn'),
+      offSig = _strSig(edf, 'MaskOff');
+    var onSpr = onSig ? onSig._spr || 1 : 1,
+      offSpr = offSig ? offSig._spr || 1 : 1;
+    var modeSig = _strSig(edf, 'Mode'),
+      rinSig = _strSig(edf, 'RIN'),
+      csrSig = _strSig(edf, 'CSR');
+    // prescription signals — label → output key (present-or-null, never fabricated)
+    var RX = {
+      eprEnable: 'S.EPR.EPREnable',
+      eprType: 'S.EPR.EPRType',
+      eprLevel: 'S.EPR.Level',
+      rampMin: 'S.RampTime',
+      pressMax: 'S.A.MaxPress',
+      pressMin: 'S.A.MinPress',
+      pressSet: 'S.C.Press',
+      mask: 'S.Mask',
+      tube: 'S.Tube',
+      humLevel: 'S.HumLevel'
+    };
+    var out = [];
+    for (var r = 0; r < nRec; r++) {
+      var days = dateSig.data[r];
+      if (!(days >= 0) || days > 24836) continue; // out-of-range Date ⇒ drop (never fabricate a day)
+      var dateMs = Date.UTC(1970, 0, 1) + Math.round(days) * 86400000;
+      // sessions: noon-anchored MaskOn/MaskOff pairs, -1 fill dropped
+      var sessions = [];
+      var nSlot = Math.min(onSpr, offSpr);
+      for (var k = 0; k < nSlot; k++) {
+        var on = _strAt(onSig, r, onSpr, k),
+          off = _strAt(offSig, r, offSpr, k);
+        if (on == null || off == null || on < 0 || off < 0) continue;
+        sessions.push({ onMs: dateMs + STR_NOON_MS + Math.round(on) * 60000, offMs: dateMs + STR_NOON_MS + Math.round(off) * 60000 });
+      }
+      var modeCode = modeSig ? Math.round(_strAt(modeSig, r, 1, 0)) : null;
+      var rin = rinSig ? _strAt(rinSig, r, 1, 0) : null;
+      var csr = csrSig ? _strAt(csrSig, r, 1, 0) : null;
+      var prescription = {};
+      for (var key in RX) {
+        var s = _strSig(edf, RX[key]);
+        prescription[key] = s ? _strAt(s, r, s._spr || 1, 0) : null;
+      }
+      out.push({
+        dateMs: dateMs,
+        deviceModeCode: modeCode,
+        // known code → label; unknown → null (deviceModeCode is preserved for the caller either way)
+        deviceMode: modeCode != null && Object.prototype.hasOwnProperty.call(STR_MODE, modeCode) ? STR_MODE[modeCode] : null,
+        deviceRera: rin != null && isFinite(rin) ? +rin.toFixed(2) : null,
+        deviceCsr: csr != null && isFinite(csr) ? +csr.toFixed(2) : null,
+        prescription: prescription,
+        sessions: sessions
+      });
+    }
+    return out;
+  }
+  /* Attach a STR summary to already-built nights by matching the UTC day. Mutates + returns `nights`.
+   The inferred `mode` is left untouched; device fields land as NEW keys so a consumer can prefer the
+   declaration and fall back to the inference. A night with no STR match keeps its fields absent. */
+  function attachStrSummary(nights, summary) {
+    if (!nights || !nights.length || !summary || !summary.length) return nights;
+    var byDay = {};
+    for (var i = 0; i < summary.length; i++) byDay[Math.floor(summary[i].dateMs / 86400000)] = summary[i];
+    for (var n = 0; n < nights.length; n++) {
+      var night = nights[n];
+      var t0 = night && (night.t0Ms != null ? night.t0Ms : night.stats && night.stats.t0Ms);
+      if (t0 == null) continue;
+      // a CPAP night that starts before midnight belongs to the STR `Date` of that evening — match the
+      // day the session STARTED, then the day before (a session logged under the prior civil day).
+      var rec = byDay[Math.floor(t0 / 86400000)] || byDay[Math.floor(t0 / 86400000) - 1];
+      if (!rec) continue;
+      night.deviceMode = rec.deviceMode;
+      night.deviceModeCode = rec.deviceModeCode;
+      night.deviceRera = rec.deviceRera;
+      night.deviceCsr = rec.deviceCsr;
+      night.prescription = rec.prescription;
+    }
+    return nights;
+  }
+
   /* ── exports + CLI ──────────────────────────────────────────────────────── */
   var api = {
     fmtClock: fmtClock,
@@ -37707,6 +37813,8 @@ __exports.ECGDex = window.ECGDex;
     periodicBreathingSec: periodicBreathingSec,
     periodicBreathingSpans: periodicBreathingSpans,
     buildSessionFromEdf: buildSessionFromEdf,
+    parseStrSummary: parseStrSummary,
+    attachStrSummary: attachStrSummary,
     nightMetrics: nightMetrics,
     compute: compute,
     _nightFromInput: _nightFromInput,

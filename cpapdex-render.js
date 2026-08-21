@@ -123,6 +123,26 @@ import { CpapDsp } from './cpapdex-dsp.js';
         esc(lbl('odi')) +
         '</div><div class="kpi-sub">no oximeter</div></div>';
     out += kpiTile('periodicBreathingPct', fnum(nm.periodicBreathingPct, 1) + '<span class="kpi-u">%</span>', sev(2, 10, nm.periodicBreathingPct, true), 'Cheyne-Stokes / PB');
+    // DEVICE SUMMARY (STR.edf) — device-DECLARED mode + prescription + device-scored RERA/CSR. Only
+    // shown when a STR.edf was loaded; every value badged; the device declaration sits beside (never
+    // replaces) the inferred `mode` above. A cross-check line pairs device CSR with CPAPDex's own PB%.
+    if (night.deviceMode != null || (night.prescription && night.prescription.eprLevel != null) || night.deviceRera != null || night.deviceCsr != null) {
+      var rx = night.prescription || {};
+      var rxBits = [];
+      if (rx.pressMin != null && rx.pressMax != null) rxBits.push('range ' + fnum(rx.pressMin, 0) + '–' + fnum(rx.pressMax, 0) + ' cmH₂O');
+      else if (rx.pressSet != null) rxBits.push('set ' + fnum(rx.pressSet, 1) + ' cmH₂O');
+      if (rx.eprLevel != null) rxBits.push('EPR ' + fnum(rx.eprLevel, 0));
+      if (rx.rampMin != null) rxBits.push('ramp ' + fnum(rx.rampMin, 0) + ' min');
+      out +=
+        '<div class="device-summary" style="grid-column:1/-1;margin-top:6px;font-size:.85em;opacity:.9">' +
+        evBadge('deviceMode') +
+        '<b>Device:</b> ' +
+        esc(night.deviceMode || (night.deviceModeCode != null ? 'mode ' + night.deviceModeCode : '—')) +
+        (rxBits.length ? ' · ' + esc(rxBits.join(' · ')) : '') +
+        (night.deviceRera != null ? ' · ' + evBadge('deviceRera') + 'RERA ' + fnum(night.deviceRera, 1) + '/hr' : '') +
+        (night.deviceCsr != null ? ' · ' + evBadge('deviceCsr') + 'CSR ' + fnum(night.deviceCsr, 1) + '% (device)' : '') +
+        '</div>';
+    }
     return out;
   }
 
