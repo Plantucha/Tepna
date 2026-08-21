@@ -833,3 +833,36 @@ working, never an apnea prevalence), and a bound conditional on the **ResMed's o
 offset. Deep % varies 11.0 → 26.1 across it, which is larger than binomial noise on 345 epochs (SE ≈ 2 pp),
 so alignment does carry real signal. Establishing the true per-night offset would tighten the number; it
 cannot loosen it past 26.1 %.
+
+### 11b · ⚠️ The GLOBAL sweep cannot represent this corpus — the CPAP clock STEPS by an hour mid-corpus (2026-08-20)
+
+The sweep applies **one shift to all 29 nights**, and §11a's reading 2 rests on that family being wide
+enough (*"the worst case over ANY tested misalignment"*). **It is not, and the true configuration is not
+in it.** The ResMed offset on these nights is **bimodal**, from two independent sources:
+
+| cohort | offset | source | trio nights |
+|---|---|---|---|
+| before ~2026-07-30 | **≈ −39.5 min** | `integrator-dsp.js:3743` — *"the independently-established 39.5 min offset"*, holding **37.5–40.0 min across every partner** | **39** |
+| 2026-08-01 onward | **≈ +21.2 min** (+1270 s) | measured 2026-08-20 over 23 box nights, `MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS` §"one-hour CPAP clock step" (#1581) | **16** |
+
+The gap is **≈ 60.7 min — one hour**, and it lands *inside* this brief's corpus (`uploads/trio` spans
+2026-06-10 → 08-14). Consequences for the table above:
+
+- **No row is the aligned case.** At shift 0 the 39 pre-step nights are ~39.5 min out and the 16
+  post-step nights ~21.2 min out — simultaneously, in opposite directions.
+- **Aligning either cohort throws the other outside the swept range.** At −39.5 min the post-step nights
+  sit **~61 min** from truth, beyond ±45; at +21.2 the pre-step nights sit ~61 min the other way.
+- So *"it cannot loosen it past 26.1 %"* is **not established**. A per-night mixture is not a global
+  shift and lies outside the tested family entirely, so the sweep's maximum does not bound it.
+
+🔴 **This does NOT overturn §11a's conclusion, and the reason matters.** Reading 1 — Deep is not enriched
+— rests on the **non-Deep** line staying flat at 12.9–15.1 % across every shift, i.e. on the comparison
+being insensitive to alignment, which the step does not disturb. The verdict *"label-noise is unlikely
+rather than excluded"* stands. What falls is the specific claim that 26.1 % is an upper bound.
+
+**Cheap to settle, and the inputs now exist.** Per-night offsets are measurable from the same files by
+the method #1581 used (cross-correlate band-passed H10 ACC against `_BRP.edf` flow), and the 42-minute
+skew `cpap-clock-42min-offset` records for 2026-07-26 is the pre-step cohort's value, not an anomaly.
+Redo the join with a **per-night** offset rather than a swept global one and the number stops being a
+range. ⚠️ Split the corpus at the step; a single linear drift fit through it renders the jump as
+scatter and refuses every night (measured — 168 s/day, residual SD 544 s, 0 of 23 drift-consistent).
