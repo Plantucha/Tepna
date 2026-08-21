@@ -77,6 +77,49 @@
 >    > different-population estimate rather than a censored one. **Until that runs, the discrepancy is
 >    > UNEXPLAINED** — which is a different and more honest state than "explained by censoring", and it
 >    > does not change the standing instruction not to swap the numbers in. **Do not swap these numbers into the paper
+>    >
+>    > ### 🔬 IT RAN, 2026-08-20 — and it refuted the replacement hypothesis too
+>    >
+>    > One estimator (`tools/tch-fused-corpus.mjs`), one corpus (`uploads/trio`), population split by a
+>    > covariate **read per night from the exports** (`quality.timingSource`) rather than by which tree
+>    > someone folded. 54 solvable nights, 10 negative-variance excluded, 53/54 carrying per-beat `conf`.
+>    > Decision bands were written down **before** the run.
+>    >
+>    > **A CONTROL was planted and it FIRED.** The corpus was re-folded under current code on
+>    > 2026-08-15 (#1309 — 16 stale `PpgDexFinger` exports predating #1229, one unusable ECGDex removed),
+>    > *after* the 2026-08-08 re-derivation above. So "the exports changed underneath it" was the obvious
+>    > explanation. It is wrong. Re-running the identical tool on the pre-re-fold corpus, reconstructed
+>    > from git at `5a64fe44^`:
+>    >
+>    > | corpus state | BOX n | O2 | H10 | Verity |
+>    > |---|---|---|---|---|
+>    > | pre-re-fold (existed 2026-08-08) | 12 | 3.28 [2.96–3.36] | 1.35 [1.21–1.41] | **1.03** [0.75–1.33] |
+>    > | post-re-fold (current) | 25 | 3.13 [2.82–3.36] | 1.24 [1.14–1.41] | **0.94** [0.72–1.37] |
+>    >
+>    > The re-fold moves Verity by **0.09 bpm**. Not the cause.
+>    >
+>    > 🔴 **The load-bearing result: NEITHER corpus state reproduces 3.51.** Pre-re-fold gives **1.03**.
+>    > So the 3.51 is not obtainable from `uploads/trio` at the state that existed when it was written,
+>    > and its stated **N = 17** matches neither arm (n = 12 then, n = 25 now). The two figures were
+>    > therefore **never over the same population**, and no single mechanism — censoring, capture tree,
+>    > or re-fold — needs to explain a gap between quantities that were never the same measurement.
+>    >
+>    > **What this run positively establishes on `uploads/trio`:** the H10 corner reproduces the paper
+>    > well (**1.24–1.35** against a published **1.28**); O2 sits somewhat high (**3.13–3.28** against
+>    > **2.41**); and **Verity is the QUIETEST corner, not the noisiest** (0.94–1.03), in *both* corpus
+>    > states. The banner's headline — *"both derivations put Verity noisiest"* and *"the ordering
+>    > inverts"* — does **not** hold on this corpus under this tool.
+>    >
+>    > ⚠️ **The pre-stated decision bands did not apply, and that is reported rather than forced.** They
+>    > asked whether box-vs-phone explains a 2.5× gap (box 0.94 vs phone 0.50 [0.40–0.67], n = 19). Both
+>    > arms sit *below* the published 1.42, so the bands' premise — that 3.51 is reproducible and needs
+>    > explaining — was falsified by the control before the comparison could be made. Answering them
+>    > anyway would have been fitting a verdict to a dead premise.
+>    >
+>    > ⚠️ **Still not the paper's statistic.** `tch-fused-corpus` prints its own caveat: *"A median over
+>    > nights is NOT the pooled-seconds hat the papers quote; it is the across-night distribution."*
+>    > Everything above is a median over nights; closing that last gap means running the pooled hat, not
+>    > another median.
 >    yet**: a σ that moves 2.5× on re-derivation needs its discrepancy explained, not published.
 > 3. **The fused weighting barely matters on this corpus** — fused vs unweighted differ by ≤0.12 bpm on
 >    every corner. Most artifact rejection already happened upstream, where ECGDex *drops* beats below
