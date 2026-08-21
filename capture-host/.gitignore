@@ -21,3 +21,8 @@ config.yaml.*
 # otherwise trip test_shell_surface.py's inventory gate as unclassified scripts.
 mutants/
 .mutmut-cache
+
+# AS11 BLE pairing credentials (clientId + session master key) — reverse-engineered CPAP-over-BLE
+# tooling writes as11_creds.json; it holds a secret key and must NEVER be committed.
+as11_creds.json
+*_creds.json
