@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-21 (**§4 #4 row-atomic column validation and #12 the hardware comment are EXECUTED**; **#3 WITHDRAWN** — verified already fixed by DEEP-AUDIT-II §8.1 before implementing. Remaining items unexecuted.) · **Created:** 2026-07-21
+**Status:** IN-PROGRESS — 2026-07-21 (**§4 #4 row-atomic column validation and #12 the hardware comment are EXECUTED**; **#3 WITHDRAWN** — verified already fixed by DEEP-AUDIT-II §8.1 before implementing. 🔴 **The remaining items are ONE OWNER DECISION, not nine engineering items** — the two shipped are exactly the two with Risk "None", and every item left changes published PpgDex values; see the block before §4's table. #8's design call is resolved and specified 2026-08-20, awaiting only that answer.) · **Created:** 2026-07-21
 
 # PpgDex optical algorithm — deep dive, ECG-validated baseline, and the ranked change list
 
@@ -338,6 +338,47 @@ together; or (b) `pre = 0.50` **with the foot search bounded** to a plausible ri
 `sysI` rather than the whole window. Shipping the bare constant is only correct if the node is declared
 sleep-only, which it is not. **Not implemented here** — the choice between (a) and (b) is a design call,
 and this is the measurement that should precede it.
+
+### 🔴 THE PUNCH LIST IS ONE OWNER DECISION, NOT NINE ENGINEERING ITEMS (2026-08-20)
+
+This brief has sat `IN-PROGRESS` since 2026-07-21 with exactly two items shipped. **Those two are
+exactly the two whose Risk column reads "None"** — and that is not a coincidence, it is the whole
+pattern:
+
+| item | Risk column | status |
+|---|---|---|
+| #4 | *"None; byte-inert on clean captures"* | ✅ **shipped** 2026-07-21 |
+| #12 | *"None"* (a comment correction) | ✅ **shipped** 2026-07-21 |
+| #3 | — | withdrawn, claim was stale |
+| **#1 ★** | *"**Moves every fixture**; `env.equiv` PPG leg reds by design"* | open |
+| **#2 ★** | ~29 % of the exported series stops being a fabricated constant | open |
+| #5 | motion gates shift where they were wrong | open |
+| #6 | *"Reference identity changes ⇒ downstream moves on those nights"* | open |
+| #7 | *"Surfaced number changes 2–3.4×; docs must move with it"* | open |
+| #8 | every morphology value (measured above) | open |
+| #10 | peak times shift by a near-constant | open |
+| #11 | *"Some nights emit `null` where they emitted a number — consumer-visible"* | open |
+| #9 | experiment; *"measure before merging"* | open |
+
+**Every remaining item changes published PpgDex numbers.** So the brief is not stalled on difficulty,
+on measurement, or on missing tooling — three passes have now confirmed the diagnoses, resolved #8's
+design call, and established that the regen machinery exists. It is stalled on a **decision that has
+never been put to the owner**: *are PpgDex's exported values allowed to move?*
+
+**Framed as nine items it looks like nine judgement calls, which is why each pass stopped at the same
+line.** It is one: the answer unblocks #1, #2, #5, #6, #7, #8, #10 and #11 together, and the landing
+order already sequences them. A "no" is equally decisive — it converts the list from open work into a
+recorded set of known-and-accepted defects, which is a different and cheaper thing to maintain than
+eight items that each read as actionable.
+
+⚠️ **Two of them are marked ★ and are not cosmetic.** #1 repairs five surfaced numbers at once
+(spurious terminal beat, a 65× `orient` skew, 6.18× `std(bp)`, `channelSNR` 2.92 → 10.9–21.0). #2 stops
+`correctRR` **fabricating** rejected intervals from a running median — at the file's own 28.8 %
+correction rate, roughly a third of the exported series is currently a filled constant flowing into
+SDNN, LF/HF, DFA-α1, SampEn, CVHR and `contentId`. Both make the published numbers *more* honest, so
+"do not move the numbers" preserves known-wrong ones.
+
+**Nothing here is implemented, and nothing should be until that answer exists.**
 
 ### ▶ #8's DESIGN CALL RESOLVED 2026-08-20 — it is neither (a) nor (b), it is BOTH, and the cost was mis-rated
 
