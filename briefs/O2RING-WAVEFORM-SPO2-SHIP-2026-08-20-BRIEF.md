@@ -1,0 +1,73 @@
+<!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
+**Status:** IN-PROGRESS — 2026-08-20 · **Created:** 2026-08-20
+
+# O2Ring waveform SpO₂ — the ship brief (one night's arc, owner-driven)
+
+**One line:** the 0x05 two-channel raw stream now produces a shipped, badged, refusal-first SpO₂
+trend in **OxyDex** (owner routing call), with a 1 Hz signal and an ECGDex-pattern firmware
+comparator — estimator chosen by brute force over the whole corpus, LOO-validated, and demoed live
+in Chrome on the real desat night. Ships in **PR #1609**.
+
+This brief is the work-unit summary; the *evidence* blocks live as dated amendments in
+[`O2RING-RAW-DUAL-WAVELENGTH-2026-08-05-BRIEF.md`](O2RING-RAW-DUAL-WAVELENGTH-2026-08-05-BRIEF.md)
+(§5.2-AMENDED · literature comparison · full-corpus re-fit · reverse-engineerability reframe ·
+brute-force sweep · routing · comparator). Read that brief for the numbers' full context; read this
+one to know what shipped and what is still owed.
+
+## What shipped (all in #1609, one work-unit)
+
+1. **DSP** (`oxydex-dsp.js`): `parsePPG2W` (Clock-Contract strict) + `spo2WaveformTrend` —
+   per-buffer ratio-of-ratios R = (AC/DC)₀/(AC/DC)₁, per-session OLS self-calibration against the
+   co-recorded device SpO₂, refusal-first (no pair / <40 bins / r<0.3 / zero variance ⇒ named
+   refusal, never a number). The device-CSV half reuses OxyDex's **own** `parseCSV` — no second
+   SpO₂ parser exists.
+2. **The estimator is the sweep winner, not the first draft:** RMS AC · 60 s mean bins · +10 s
+   firmware lag (1344 configs × 49 sessions, 389k buffers; LOO held-out per-session median
+   r = 0.723, 28/28 positive, RMSE 0.56 %, 98.9 % within ±2 %). Bin width was the dominant lever;
+   the +10 s lag matches the firmware's averaging delay.
+3. **1 Hz signal + comparator** — ECGDex `alignFirmwareRR` transposed: sliding 60 s mean at 1 Hz
+   cadence, device side smoothed to the SAME bandwidth (corrected-vs-corrected), per-decile |error|
+   fan, best-window baseline, tolerance = max(3× best, the 1 % display quantum), `nonUniform` flag +
+   longest clean run. Bias is ~0 **by construction** and labeled as such. First real night
+   (20260813202100): MAE 0.80 %, within ±2 % 92.1 %, decay correctly localized to the desat at the
+   START — the best-window baseline catching exactly what a first-window baseline would have hidden.
+4. **Surfaces:** six `OXY_REGISTRY` metrics, all **experimental** (spo2wMedian/Min/TrackR/Bias/Mae/
+   Within2), badged inline; paired `_PPG2W.txt` + `_SPO2.csv` intake (the CSV still loads as a
+   normal night — the trend is an extra card, never a replacement); app card with the fan and a
+   plain-language decay verdict.
+5. **Gates:** a 27-assertion suite group (parsers, synthetic tracking session with the lag encoded,
+   refusals, planted-decay localization, registry tiers, and a source-scan guard on the pairing
+   fix); full chain + `verify-fixtures` re-verification.
+
+## What the work found along the way (each recorded where it belongs)
+
+- **Routing** — owner: "probably in OxyDex since its spo2." Implemented as a full relocation
+  (PpgDex restored to main's state, verified pure-insertion diff first); the 0x05 stream itself
+  remains PpgDex's for future raw-PPG/HRV use.
+- **The browser demo caught a real intake bug** (2026-08-20): the lone-pair exclusivity matcher
+  paired a fresh waveform with a STALE device series from an earlier drop (zero overlap), consumed
+  the stash, and the real partner found nothing. Fix: the fallback only commits when the trend is
+  usable; exact-stem pairs always render, including refusals. Gate-backed by source scan.
+- **The corpus question** — owner: "did you use maximum nights?" No: the first fit was local-tree
+  only (15 sessions); the box held the rest. At maximum (49 sessions / 26,118 bins) pooled r = 0.455
+  — composition, not contradiction (34 added short fragments; overnight-session median r = 0.58).
+  Quote the 49-session numbers.
+- **The framing correction** — owner: the 1 Hz output is COMPUTED from this same stream, so r = 1 is
+  the ceiling and every missing point is ours. Four separable residual terms (damaged input copy ·
+  hidden AFE4403 AGC state · rail clipping · quantized hold-averaged output — measured: three
+  integer values carry 91.1 % of 695k overnight samples). Attack order recorded in the evidence
+  brief.
+
+## Still owed (the follow-up surface)
+
+- [ ] **#1609 lands** → flip this brief DONE. (Chain green locally; queue is monitor-driven.)
+- [ ] **Post-#1596 re-fit**: contiguous double-drain nights should steepen the converted slope
+      toward the literature's −25 %/R family and lift r toward 0.7–0.9. If they do not, re-examine
+      the functional claim, not the calibration constants.
+- [ ] **Sunlight spectral test** (field-gated): the channel-identity confirmation the functional
+      sign cannot give.
+- [ ] **LUT recovery**: per-beat R (not buffer-wise), then fit the firmware's fixed R→SpO₂ curve
+      globally; a residual surviving that is the fingerprint of hidden AGC state → protocol
+      archaeology for gain telemetry.
+- [ ] **Sweep apparatus promotion**: `ppg2w-sweep.mjs` lives in session scratch; promote to
+      `tools/` if a second device or a post-#1596 re-sweep needs it.

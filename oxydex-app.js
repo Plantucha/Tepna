@@ -774,5 +774,77 @@ Object.assign(window, {
   exportCSV,
   downloadParser
 });
+// Waveform SpO₂ trend section (experimental; owner-ordered 2026-08-20, moved from PpgDex — OxyDex is
+// the SpO₂ node). Badge mandate: every number badged, inline-before-label (evBadge), matching the
+// table pattern; the device series is ALWAYS named beside the trend so the regression's
+// extreme-compression is visible rather than implied away. Called by the DSP's pairing intake.
+window.oxyRenderSpo2w = function (res, stem) {
+  var el = document.getElementById('spo2wSection');
+  if (!el) return;
+  var badge = function (label) {
+    return typeof evBadge === 'function' ? evBadge(label) : '';
+  };
+  el.style.display = '';
+  if (!res || !res.usable) {
+    el.innerHTML =
+      '<div class="sec-label">Waveform SpO\u2082 (experimental)</div>' +
+      '<div class="dim">Not rendered \u2014 ' +
+      ((res && res.reason) || 'no usable pair') +
+      '. The device SpO\u2082 remains the measurement.</div>';
+    return;
+  }
+  var s = res.summary;
+  var c = res.calib;
+  var row = function (label, v, u, note) {
+    return '<tr><td>' + badge(label) + label + '</td><td class="mono">' + v + '</td><td class="dim">' + (u || '') + '</td><td class="dim">' + (note || '') + '</td></tr>';
+  };
+  el.innerHTML =
+    '<div class="sec-label">Waveform SpO\u2082 (experimental) \u00b7 ' +
+    stem +
+    '</div>' +
+    '<div class="dim" style="margin:4px 0 8px">Per-session self-calibration vs the device\u2019s own SpO\u2082 (r=' +
+    c.r.toFixed(3) +
+    ', n=' +
+    c.n +
+    ' bins). A second, waveform-provenance estimate \u2014 never a replacement; extremes are compressed by the regression.</div>' +
+    '<table><thead><tr><th>Metric</th><th>Value</th><th>Unit</th><th>Note</th></tr></thead><tbody>' +
+    row('SpO₂w median', s.medianSpo2w.toFixed(1), '%', 'calibrated trend median') +
+    row('SpO₂w min', s.minSpo2w.toFixed(1), '%', 'trend minimum \u2014 depth compressed vs device') +
+    row('SpO₂w track r', s.trackR.toFixed(3), '', 'self-calibration quality (\u2265 0.3 required)') +
+    (res.compare
+      ? row('SpO₂w bias', res.compare.bias.toFixed(3), '%', '~0 by construction (OLS) \u2014 the fan is the content') +
+        row(
+          'SpO₂w MAE',
+          res.compare.mae.toFixed(2),
+          '%',
+          '1 Hz vs device \u00b7 decile fan: ' +
+            res.compare.byWindow
+              .map(function (v) {
+                return v == null ? '\u2014' : v.toFixed(1);
+              })
+              .join(' ')
+        ) +
+        row('SpO₂w within ±2%', res.compare.within2Pct.toFixed(1), '%', 'n=' + res.compare.n + ' s compared')
+      : '') +
+    '</tbody></table>' +
+    (res.compare
+      ? '<div class="dim" style="margin-top:6px">' +
+        (res.compare.nonUniform
+          ? '\u26a0 Agreement DECAYS across the night: worst decile ' +
+            res.compare.worst.toFixed(2) +
+            '% vs best ' +
+            res.compare.best.toFixed(2) +
+            '% (tolerance ' +
+            res.compare.tol.toFixed(2) +
+            '%, the looser of 3\u00d7 best and the device\u2019s 1% display quantum). Longest clean stretch: deciles ' +
+            (res.compare.runFrom + 1) +
+            '\u2013' +
+            (res.compare.runTo + 1) +
+            '. Trust the trend there; treat the rest as unpaired.'
+          : '\u2713 Agreement is uniform across the night (every decile within ' + res.compare.tol.toFixed(2) + '% tolerance).') +
+        '</div>'
+      : '');
+};
+
 // FOLLOWUPS-II item 3: inject app's UI hooks into the DSP (it no longer reaches them as bare globals).
 if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ setStatus, setProgress, showError });

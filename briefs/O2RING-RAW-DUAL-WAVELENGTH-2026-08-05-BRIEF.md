@@ -192,6 +192,27 @@ sessions are mostly short fragments (21–460 bins) whose within-window SpO₂ v
 track. Split by length, the **13 full overnight sessions (≥1000 bins) carry median r = 0.58**
 (0.32–0.73), best nights 0.68–0.73. Quote the 49-session figures, not the 15-session ones.
 
+**1 Hz signal + firmware comparator (owner-ordered 2026-08-20, same work-unit).** ECGDex's
+alignFirmwareRR pattern transposed to SpO₂: a 1 Hz waveform signal (sliding 60 s mean — the sweep's
+proven bandwidth — evaluated every second) compared second-by-second against the device's own 1 Hz
+output, BOTH at the same bandwidth (the device side gets the identical 60 s window; asymmetric
+smoothing turns a fast real desat into fake estimator disagreement — corrected-vs-corrected).
+Reported: n · bias (~0 BY CONSTRUCTION, the OLS zeroes it — stated, not hidden) · MAE · RMSE · r ·
+within ±1/±2 % · the per-decile |error| fan · best-window baseline · tolerance = max(3× best, 1 % =
+the device display quantum, playing ECGDex's one-sample-period role) · nonUniform flag + longest
+within-tolerance run. First real-night run (desat night 20260813202100, 4191 s): MAE 0.80 %, within
+±2 % 92.1 %, fan [1.91 0.68 0.63 1.20 0.95 0.50 0.62 0.25 0.26 0.29] → nonUniform, damage at the
+START, clean run deciles 5–10 — the best-window baseline catches a bad start that a first-window
+baseline would have used as the yardstick, which is precisely why the pattern was worth transposing.
+
+**Routing (owner, 2026-08-20): the shipped surface lives in OXYDEX, not PpgDex.** "implement
+processing in tepna. probably in OxyDex since its spo2" — and the call is right: OxyDex is the
+oximetry node, already owns the O2Ring's native CSV parser (`parseCSV` supplies the device-series
+half of the pair — no second SpO₂ parser was added), and its users are the ones looking at SpO₂.
+The 0x05 stream still belongs to PpgDex for any future raw-PPG (HRV) use; only the SpO₂ trend
+surface lives in OxyDex. Single home — a metric forked across two node registries is exactly what
+the badge/no-fork rules exist to prevent.
+
 **Brute-force sweep (owner-ordered 2026-08-20, "brute force it on maximum eligible nights").**
 1344 estimator/model configs (AC measure × sat-filter × min-buffer-len × bin width × bin stat ×
 lag × 4 model families) over ALL 49 corpus sessions, 389,125 buffers. Winner: **RMS AC · 60 s MEAN

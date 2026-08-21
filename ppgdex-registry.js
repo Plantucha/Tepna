@@ -31,33 +31,6 @@
     pi: { label: 'Perfusion Idx', unit: '%', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: 'AC/DC perfusion index — direct optical contact measure' },
     riseTime: { label: 'Rise time', unit: 'ms', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: 'Foot→systolic-peak rise time — direct pulse-wave timing' },
     motion: { label: 'Motion-rejected', unit: '%', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'ACC+GYRO motion-gated rejection — direct quality stat' },
-    // Waveform-derived SpO₂ trend (owner-ordered ship 2026-08-20; O2RING-RAW-DUAL-WAVELENGTH ④-REOPENED).
-    // EXPERIMENTAL by definition: a per-session self-calibrated regression against the co-recorded device
-    // SpO₂ (pooled corpus r 0.500), functional red+IR evidence only — never a replacement for device SpO₂.
-    spo2wMedian: {
-      label: 'SpO₂w median',
-      unit: '%',
-      goodDirection: 'up',
-      depth: 'advanced',
-      evidence: 'experimental',
-      cite: 'Waveform-derived SpO₂ trend median — 0x05 ratio-of-ratios, per-session self-calibrated vs device SpO₂'
-    },
-    spo2wMin: {
-      label: 'SpO₂w min',
-      unit: '%',
-      goodDirection: 'up',
-      depth: 'advanced',
-      evidence: 'experimental',
-      cite: 'Waveform-derived SpO₂ trend minimum — same channel; extremes compressed by the regression'
-    },
-    spo2wTrackR: {
-      label: 'SpO₂w track r',
-      unit: '',
-      goodDirection: 'up',
-      depth: 'advanced',
-      evidence: 'experimental',
-      cite: 'Pearson r of the waveform ratio vs device SpO₂ this session — the self-calibration quality gate (≥0.3 required)'
-    },
     analyzable: { label: '% Analyzable', unit: '%', goodDirection: 'up', depth: 'basic', evidence: 'measured', cite: 'Fraction of recording analyzable — direct coverage' },
     correction: { label: 'Correction', unit: '%', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'PPIs corrected during cleaning — direct quality stat' },
     meanSqi: { label: 'Mean SQI', unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: 'Mean signal-quality index — direct per-pulse quality' },

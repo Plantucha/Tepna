@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0wrnC0lVV+CrxqFX7kyOj6IsM0aoYU6jEFEXzId9FCU=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G8T1c38HwLBl265H8MWt+Jqx7dj3Cj7O3Kl0EA7ny0s=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-Zg0VuZposJeHUmYwdGlxPYv7/96XL9I90WDHTkIO/fI=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psCNI6L+RVB3F77zf3oNwebbh8Z+Ml5lnVD4nzvTKxM=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-sKL54GW7Jmjx9dtvVCTWrdY9rtOAlw+uDB+j5AcTGUE=' 'sha256-znfSiWXixA/5Q5RqwKxfNRQARu3UmbSi5LZS809lzb8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0wrnC0lVV+CrxqFX7kyOj6IsM0aoYU6jEFEXzId9FCU=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G8T1c38HwLBl265H8MWt+Jqx7dj3Cj7O3Kl0EA7ny0s=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-Zg0VuZposJeHUmYwdGlxPYv7/96XL9I90WDHTkIO/fI=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-nKK7xOfxhM7P75DL06pRugSuqGPyW1xEGOI6874nb64=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psCNI6L+RVB3F77zf3oNwebbh8Z+Ml5lnVD4nzvTKxM=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-xDdfYuI6Fahc27eADb+kgn4F7ggKcqwXnrH4FeVZBgo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -3725,6 +3725,33 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
           // also removes F1's payload). The window._cacheO2CSV definition went with the shell block.
           _ui.setStatus('');
           _ui.renderAll();
+          // Waveform SpO₂ pairs (0x05 stream + device CSV): compute + render once both halves are in.
+          // A lone pair matches by exclusivity when the stems differ (e.g. re-exported filenames).
+          try {
+            var _w2 = window._oxyW2 || {};
+            var _w2s = window._oxyW2S || {};
+            var _wk = Object.keys(_w2);
+            var _sk = Object.keys(_w2s);
+            _wk.forEach(function (stem) {
+              var exact = Object.prototype.hasOwnProperty.call(_w2s, stem);
+              var rows2 = exact ? _w2s[stem] : _wk.length === 1 && _sk.length === 1 ? _w2s[_sk[0]] : null;
+              if (!rows2) return;
+              var res = spo2WaveformTrend(parsePPG2W(_w2[stem]), rows2);
+              /* An EXACT-stem pair always renders — including its refusals; that is the honesty
+                 surface. The lone-pair exclusivity fallback exists for re-exported filenames, and it
+                 can guess WRONG across sessions (measured 2026-08-20: it paired a fresh waveform with
+                 a stale device series from an earlier drop — zero time overlap — then consumed the
+                 stash, so the REAL pair arriving one drop later found nothing to pair with). So the
+                 fallback only COMMITS (renders + consumes) when the trend is actually usable; an
+                 unusable guess leaves the stash intact for the right partner. */
+              if (exact || res.usable) {
+                if (typeof window.oxyRenderSpo2w === 'function') window.oxyRenderSpo2w(res, stem);
+                delete _w2[stem];
+              }
+            });
+          } catch (_ew2) {
+            /* a trend failure must never block night rendering */
+          }
           safeSet('fileInput', 'value', '');
           // Surface any per-file parse warnings as a non-blocking banner
           if (window._csvParseErrors && window._csvParseErrors.length) {
@@ -3849,6 +3876,15 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
           // use its .json export — parseJSONL / single-JSON round-trips the full night losslessly.
           var cleanText = text.replace(/^[\uFEFF\r\n\s]+/, '');
           // N2: removed console.log of raw cleanText bytes.
+          // Waveform SpO₂ pair intake (owner-ordered 2026-08-20, moved from PpgDex — OxyDex is the
+          // SpO₂ node): a capture-host `_PPG2W.txt` is the O2Ring 0x05 raw two-channel stream, not a
+          // night CSV. Stash it for pairing with its `_SPO2.csv` sibling; the pairing + trend render
+          // happen after ALL dropped files are read, so drop order cannot matter. Never a night alone.
+          if (/_PPG2W\.txt$/i.test(file.name)) {
+            (window._oxyW2 = window._oxyW2 || {})[file.name.replace(/_PPG2W\.txt$/i, '')] = text;
+            resolve(null);
+            return;
+          }
           if (cleanText.indexOf('OxyDex Night Summary') === 0 || cleanText.indexOf('O2Ring Night Summary') === 0) {
             if (!window._csvParseErrors) window._csvParseErrors = [];
             window._csvParseErrors.push(
@@ -3860,6 +3896,11 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
 
           // Raw CSV path
           var rows = parseCSV(text, { fname: file.name, file: file });
+          // The _SPO2.csv half of a waveform pair: keep the parsed rows for spo2WaveformTrend (the
+          // night itself still loads normally below — the trend is an EXTRA card, never a replacement).
+          if (/_SPO2\.csv$/i.test(file.name) && rows && rows.length) {
+            (window._oxyW2S = window._oxyW2S || {})[file.name.replace(/_SPO2\.csv$/i, '')] = rows;
+          }
           if (!rows || rows.length < 60) {
             // Debug: store first lines for error reporting
             var preview = text.split(/\r?\n/).slice(0, 3).join(' | ');
@@ -10573,6 +10614,411 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   // SAME decoder rather than a second copy of the 3-byte layout / 0xFFFF trailer / motion×2 rules.
   OxyDex.isO2RingBin = isO2RingBin;
   OxyDex.decodeO2RingBinToCSV = decodeO2RingBinToCSV;
+  // Waveform SpO₂ (0x05 pair) — pure, exposed for the test suite + headless callers.
+  OxyDex.parsePPG2W = parsePPG2W;
+  OxyDex.spo2WaveformTrend = spo2WaveformTrend;
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  WAVEFORM-DERIVED SpO₂ TREND (owner-ordered ship, 2026-08-20; moved PpgDex→OxyDex same day — OxyDex is the SpO₂ node — experimental tier)
+  //  O2RING-RAW-DUAL-WAVELENGTH §1.2④-REOPENED: the 0x05 two-channel ratio tracks the device's own
+  //  SpO₂ at corpus scale (19,006 bins, pooled r 0.500, LOO [0.484,0.511], monotonic dose–response;
+  //  functionally ch0=IR, ch1=RED). This ships it HONESTLY: per-session SELF-CALIBRATED against the
+  //  co-recorded device SpO₂ (a per-device regression, never a universal curve), badged experimental,
+  //  and REFUSED (usable:false + reason) when the pair is absent or the session's ratio does not
+  //  track. The device SpO₂ is never replaced — the trend is a second, waveform-provenance estimate
+  //  rendered beside it.
+  // ════════════════════════════════════════════════════════════════════════
+
+  /** Parse the capture host's `_PPG2W.txt` (Phone timestamp;sensor ns;channel 0;channel 1;motion).
+   *  Strict Clock Contract: the ISO phone stamp via the local parseTimestamp; no fabricated dates.
+   *  Returns { t0Ms, rows:[{tMs, ch0, ch1, motion}] } or { rows: [] } when nothing parses. */
+  function parsePPG2W(text) {
+    var rows = [];
+    var lines = String(text || '').split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+      var ln = lines[i];
+      if (!ln || ln.charCodeAt(0) === 0x50 /* 'P'hone header */) continue;
+      var p = ln.split(';');
+      if (p.length < 5) continue;
+      var ts = parseTimestamp(p[0]);
+      if (!ts) continue;
+      var a = +p[2],
+        b = +p[3],
+        mo = +p[4];
+      if (!isFinite(a) || !isFinite(b)) continue;
+      rows.push({ tMs: ts.tMs, ch0: a, ch1: b, motion: isFinite(mo) ? mo : 0 });
+    }
+    return { t0Ms: rows.length ? rows[0].tMs : null, rows: rows };
+  }
+
+  /** Per-buffer {ac, dc}: linear-detrended RMS + |mean|. RMS (not peak-to-peak) won the 2026-08-20
+   *  brute-force sweep — 1344 estimator/model configs over all 49 corpus sessions; the winning config
+   *  (RMS AC · 60 s mean bins · +10 s firmware lag) holds LOO held-out pooled r 0.659, per-session
+   *  median r 0.723, 28/28 positive, RMSE 0.56 %. PURE. */
+  function _w2AcDc(vals) {
+    var n = vals.length;
+    var m = 0;
+    for (var i = 0; i < n; i++) m += vals[i];
+    m /= n;
+    var mx = (n - 1) / 2,
+      sxx = 0,
+      sxy = 0;
+    for (i = 0; i < n; i++) {
+      sxx += (i - mx) * (i - mx);
+      sxy += (i - mx) * (vals[i] - m);
+    }
+    var sl = sxx > 0 ? sxy / sxx : 0;
+    var ss = 0,
+      cnt = 0;
+    for (i = 2; i < n - 2; i++) {
+      var v = vals[i] - m - sl * (i - mx);
+      ss += v * v;
+      cnt++;
+    }
+    return { ac: cnt ? Math.sqrt(ss / cnt) : 0, dc: Math.abs(m) };
+  }
+
+  /** The trend: buffer-split (re-anchor jumps), per-buffer R = (AC/DC)₀/(AC/DC)₁, 60 s MEAN bins,
+   *  device series read at +10 s lag (the firmware's own averaging delay — its 1 Hz output lags the
+   *  waveform that produced it; sweep-measured, peak of the lag marginal), per-session OLS
+   *  self-calibration SpO₂ ≈ a + b·R against the co-recorded device series, and the calibrated
+   *  waveform trend + summary. The three knobs (RMS AC · 60 s mean · +10 s lag) are the winners of
+   *  the 2026-08-20 brute-force sweep (1344 configs, 49 sessions, LOO-validated — see the brief's
+   *  full-corpus re-fit block); 60 s bins are the single biggest lever (marginal median r 0.368 at
+   *  5 s → 0.585 at 60 s). REFUSES (usable:false + reason) rather than guessing:
+   *  no device series → 'no co-recorded device SpO₂ (self-calibration impossible)';
+   *  < 40 usable bins → 'too little paired data'; |r| < 0.3 → 'ratio does not track this session'.
+   *  The r floor is the honesty gate — an uncalibratable session must not render a trend. */
+  function spo2WaveformTrend(rec, spo2Rows, opts) {
+    opts = opts || {};
+    var binS = opts.binS || 60;
+    var lagS = opts.lagS != null ? opts.lagS : 10;
+    /** @type {{usable:boolean, reason:(string|null), bins:any[], calib:(any|null), summary:(any|null), trend?:any[], oneHz?:any[], compare?:(any|null)}} */
+    var out = { usable: false, reason: null, bins: [], calib: null, summary: null };
+    if (!rec || !rec.rows || rec.rows.length < 5000) {
+      out.reason = 'no usable ppg2w stream (need ≥5000 samples)';
+      return out;
+    }
+    if (!spo2Rows || !spo2Rows.length) {
+      out.reason = 'no co-recorded device SpO₂ (self-calibration impossible)';
+      return out;
+    }
+    var sp = {};
+    for (var i = 0; i < spo2Rows.length; i++) sp[Math.floor(spo2Rows[i].tMs / 1000)] = spo2Rows[i].spo2;
+    // buffer split at re-anchor jumps (|Δ − modal| ≥ 3 ms)
+    var rows = rec.rows,
+      d = [],
+      hist = {};
+    for (i = 1; i < rows.length; i++) {
+      var dd = Math.round(rows[i].tMs - rows[i - 1].tMs);
+      d.push(dd);
+      hist[dd] = (hist[dd] || 0) + 1;
+    }
+    var modal = null,
+      best = -1;
+    for (var k in hist)
+      if (hist[k] > best) {
+        best = hist[k];
+        modal = +k;
+      }
+    if (modal == null) {
+      out.reason = 'no cadence';
+      return out;
+    }
+    var pts = [],
+      s0 = 0;
+    var flush = function (b) {
+      if (b.length < 90) return;
+      var A = _w2AcDc(
+        b.map(function (r) {
+          return r.ch0;
+        })
+      );
+      var B = _w2AcDc(
+        b.map(function (r) {
+          return r.ch1;
+        })
+      );
+      if (A.dc < 1 || B.dc < 1 || A.ac <= 0 || B.ac <= 0) return;
+      var R = A.ac / A.dc / (B.ac / B.dc);
+      var tm = b[(b.length / 2) | 0].tMs;
+      var sec = Math.floor(tm / 1000) + lagS;
+      var s = sp[sec] != null ? sp[sec] : sp[sec - 1] != null ? sp[sec - 1] : sp[sec + 1];
+      if (s != null && isFinite(R) && R > 0) pts.push({ tMs: tm, R: R, s: s });
+    };
+    for (i = 0; i < d.length; i++) {
+      if (Math.abs(d[i] - modal) >= 3) {
+        flush(rows.slice(s0, i + 1));
+        s0 = i + 1;
+      }
+    }
+    flush(rows.slice(s0));
+    // 60 s MEAN bins (sweep winner — mean beats median at every bin width, marginal 0.549 vs 0.482)
+    var bins = {},
+      kk;
+    var med = function (a) {
+      var s2 = a.slice().sort(function (x, y) {
+        return x - y;
+      });
+      return s2.length ? s2[s2.length >> 1] : null;
+    };
+    // only ever called behind the ≥8-points-per-bin guard, so a.length > 0 by construction
+    var avg = function (a) {
+      var t2 = 0;
+      for (var j = 0; j < a.length; j++) t2 += a[j];
+      return t2 / a.length;
+    };
+    for (i = 0; i < pts.length; i++) {
+      kk = Math.floor(pts[i].tMs / (binS * 1000));
+      if (!bins[kk]) bins[kk] = { R: [], s: [], t: [] };
+      bins[kk].R.push(pts[i].R);
+      bins[kk].s.push(pts[i].s);
+      bins[kk].t.push(pts[i].tMs);
+    }
+    var B2 = [];
+    for (kk in bins) if (bins[kk].R.length >= 8) B2.push({ tMs: med(bins[kk].t), R: avg(bins[kk].R), s: avg(bins[kk].s) });
+    B2.sort(function (a, b) {
+      return a.tMs - b.tMs;
+    });
+    if (B2.length < 40) {
+      out.reason = 'too little paired data (' + B2.length + ' bins, need ≥40)';
+      return out;
+    }
+    // OLS self-calibration SpO₂ = a + b·R, and its r
+    var n = B2.length,
+      mR = 0,
+      mS = 0;
+    for (i = 0; i < n; i++) {
+      mR += B2[i].R;
+      mS += B2[i].s;
+    }
+    mR /= n;
+    mS /= n;
+    var sRR = 0,
+      sSS = 0,
+      sRS = 0;
+    for (i = 0; i < n; i++) {
+      var dr = B2[i].R - mR,
+        ds = B2[i].s - mS;
+      sRR += dr * dr;
+      sSS += ds * ds;
+      sRS += dr * ds;
+    }
+    if (!(sRR > 0) || !(sSS > 0)) {
+      out.reason = 'zero variance — nothing to calibrate against';
+      return out;
+    }
+    var r = sRS / Math.sqrt(sRR * sSS);
+    if (!(r >= 0.3)) {
+      out.reason = 'ratio does not track this session (r=' + r.toFixed(2) + ' < 0.3) — trend refused';
+      return out;
+    }
+    var b1 = sRS / sRR,
+      a1 = mS - b1 * mR;
+    var trend = B2.map(function (bb) {
+      var w = a1 + b1 * bb.R;
+      return { tMs: bb.tMs, spo2w: Math.max(60, Math.min(100, w)), dev: bb.s };
+    });
+    var ws = trend.map(function (t) {
+      return t.spo2w;
+    });
+    out.usable = true;
+    out.bins = B2;
+    out.calib = { a: a1, b: b1, r: r, n: n };
+    out.trend = trend;
+    out.summary = {
+      medianSpo2w: med(ws),
+      minSpo2w: Math.min.apply(null, ws),
+      pctBelow90:
+        Math.round(
+          (ws.filter(function (w) {
+            return w < 90;
+          }).length /
+            ws.length) *
+            1000
+        ) / 10,
+      trackR: Math.round(r * 1000) / 1000,
+      bins: n
+    };
+    /* ── 1 Hz SIGNAL + FIRMWARE COMPARATOR (owner-ordered 2026-08-20) ──────────────────────────────
+       ECGDex's alignFirmwareRR pattern transposed to SpO₂: the device's own 1 Hz output is compared
+       second-by-second against a waveform-derived 1 Hz signal, and the DECAY STRUCTURE is reported,
+       never averaged over — a comparison whose agreement silently degrades produces a number rather
+       than an error, which is the failure mode this suite keeps paying for (ECGDex measured a night
+       flat at ~2.3 ms for five deciles then climbing to 30 ms while every whole-record summary stayed
+       green). Direct transpositions: the per-decile |error| fan replaces the per-decile |ΔRR| fan; the
+       baseline is the BEST decile (not the first — a bad start must not become the yardstick); the
+       tolerance is the looser of 3× best and the DEVICE'S 1 % DISPLAY QUANTUM, which plays exactly the
+       role ECGDex gives one ECG sample period — a disagreement below the output's own resolution is
+       not a detectable disagreement at all.
+       ⚠️ The whole-record BIAS is ~0 BY CONSTRUCTION (the OLS self-calibration zeroes the mean
+       residual over its bins), so bias is reported for honesty but carries no information — the fan,
+       the worst window, and the longest within-tolerance run are the content. */
+    var oneHzHalf = Math.floor(binS / 2);
+    var secAgg = {};
+    for (i = 0; i < pts.length; i++) {
+      var sc = Math.floor(pts[i].tMs / 1000);
+      if (!secAgg[sc]) secAgg[sc] = { sum: 0, n: 0 };
+      secAgg[sc].sum += pts[i].R;
+      secAgg[sc].n++;
+    }
+    var secKeys = Object.keys(secAgg)
+      .map(Number)
+      .sort(function (x, y) {
+        return x - y;
+      });
+    var firstSec = secKeys[0];
+    var span = secKeys[secKeys.length - 1] - firstSec + 1;
+    var series = [];
+    if (span > 0 && span < 48 * 3600) {
+      var pSum = new Float64Array(span + 1);
+      var pN = new Float64Array(span + 1);
+      for (i = 0; i < span; i++) {
+        var ag = secAgg[firstSec + i];
+        pSum[i + 1] = pSum[i] + (ag ? ag.sum : 0);
+        pN[i + 1] = pN[i] + (ag ? ag.n : 0);
+      }
+      for (i = 0; i < span; i++) {
+        var loW = Math.max(0, i - oneHzHalf);
+        var hiW = Math.min(span, i + oneHzHalf + 1);
+        var nW = pN[hiW] - pN[loW];
+        if (nW < 8) continue; // a second whose window holds under 8 buffers renders nothing — §2.6
+        var wv = a1 + (b1 * (pSum[hiW] - pSum[loW])) / nW;
+        series.push({ sec: firstSec + i, spo2w: Math.max(60, Math.min(100, wv)) });
+      }
+    }
+    out.oneHz = series;
+    /* Pair each 1 Hz second with the device value at the same +lag the calibration used — with the
+       device side put through the SAME 60 s centered mean as the waveform side. ECGDex's
+       corrected-vs-corrected rule: both sides at one bandwidth, or a fast real transient (a desat!)
+       reads as estimator disagreement when it is only a bandwidth mismatch. */
+    var dSecs = Object.keys(sp)
+      .map(Number)
+      .sort(function (x, y) {
+        return x - y;
+      });
+    var dFirst = dSecs.length ? dSecs[0] : 0;
+    var dSpan = dSecs.length ? dSecs[dSecs.length - 1] - dFirst + 1 : 0;
+    var devAt = function (sec2) {
+      return sp[sec2] != null ? sp[sec2] : sp[sec2 - 1] != null ? sp[sec2 - 1] : sp[sec2 + 1];
+    };
+    var devSmooth = devAt; // fallback: raw lookup when the span is degenerate
+    if (dSpan > 0 && dSpan < 48 * 3600) {
+      var dpSum = new Float64Array(dSpan + 1);
+      var dpN = new Float64Array(dSpan + 1);
+      for (i = 0; i < dSpan; i++) {
+        var dvv = sp[dFirst + i];
+        dpSum[i + 1] = dpSum[i] + (dvv != null ? dvv : 0);
+        dpN[i + 1] = dpN[i] + (dvv != null ? 1 : 0);
+      }
+      devSmooth = function (sec2) {
+        var lo2 = Math.max(0, sec2 - dFirst - oneHzHalf);
+        var hi2 = Math.min(dSpan, sec2 - dFirst + oneHzHalf + 1);
+        if (hi2 <= lo2) return null;
+        var nn2 = dpN[hi2] - dpN[lo2];
+        // require the device window at least half-populated — a sparse window is not the same signal
+        return nn2 >= (hi2 - lo2) / 2 ? (dpSum[hi2] - dpSum[lo2]) / nn2 : null;
+      };
+    }
+    var pairs = [];
+    for (i = 0; i < series.length; i++) {
+      var dv = devSmooth(series[i].sec + lagS);
+      if (dv != null) pairs.push({ w: series[i].spo2w, d: dv });
+    }
+    out.compare = null;
+    if (pairs.length >= 300) {
+      // 300 paired seconds = 5 min, mirroring ECGDex's RR_ALIGN_MIN_PAIRS floor
+      var sumE = 0;
+      var sumAbs = 0;
+      var sumSq = 0;
+      var w1 = 0;
+      var w2c = 0;
+      for (i = 0; i < pairs.length; i++) {
+        var e = pairs[i].w - pairs[i].d;
+        sumE += e;
+        sumAbs += Math.abs(e);
+        sumSq += e * e;
+        if (Math.abs(e) <= 1) w1++;
+        if (Math.abs(e) <= 2) w2c++;
+      }
+      var mW = 0;
+      var mD = 0;
+      for (i = 0; i < pairs.length; i++) {
+        mW += pairs[i].w;
+        mD += pairs[i].d;
+      }
+      mW /= pairs.length;
+      mD /= pairs.length;
+      var sWW = 0;
+      var sDD = 0;
+      var sWD = 0;
+      for (i = 0; i < pairs.length; i++) {
+        sWW += (pairs[i].w - mW) * (pairs[i].w - mW);
+        sDD += (pairs[i].d - mD) * (pairs[i].d - mD);
+        sWD += (pairs[i].w - mW) * (pairs[i].d - mD);
+      }
+      var rHz = sWW > 0 && sDD > 0 ? sWD / Math.sqrt(sWW * sDD) : null;
+      // per-decile median |error| — the fan a single median hides
+      var W = 10;
+      var stepW = Math.floor(pairs.length / W);
+      var byWindow = [];
+      for (var kd = 0; kd < W; kd++) {
+        var errs = [];
+        for (i = kd * stepW; i < (kd + 1) * stepW && i < pairs.length; i++) errs.push(Math.abs(pairs[i].w - pairs[i].d));
+        if (!errs.length) {
+          byWindow.push(null);
+          continue;
+        }
+        errs.sort(function (x, y) {
+          return x - y;
+        });
+        byWindow.push(Math.round(errs[errs.length >> 1] * 100) / 100);
+      }
+      var seenW = byWindow.filter(function (v) {
+        return v != null;
+      });
+      var bestW = seenW.length ? Math.min.apply(null, seenW) : null;
+      var worstW = seenW.length ? Math.max.apply(null, seenW) : null;
+      // tolerance: looser of 3× best and the device's 1 % display quantum (the "one sample" floor)
+      var tol = bestW != null ? Math.max(3 * bestW, 1.0) : Infinity;
+      var nonUniform = bestW != null && worstW != null && worstW > tol;
+      // longest contiguous within-tolerance run of deciles — where the match holds, not just how long
+      var runFrom = -1;
+      var runTo = -1;
+      var bestLen = 0;
+      var curFrom = -1;
+      for (var kk2 = 0; kk2 <= byWindow.length; kk2++) {
+        var wv2 = kk2 < byWindow.length ? byWindow[kk2] : null;
+        if (wv2 != null && wv2 <= tol) {
+          if (curFrom < 0) curFrom = kk2;
+        } else {
+          if (curFrom >= 0 && kk2 - curFrom > bestLen) {
+            bestLen = kk2 - curFrom;
+            runFrom = curFrom;
+            runTo = kk2 - 1;
+          }
+          curFrom = -1;
+        }
+      }
+      out.compare = {
+        n: pairs.length,
+        bias: Math.round((sumE / pairs.length) * 1000) / 1000,
+        mae: Math.round((sumAbs / pairs.length) * 100) / 100,
+        rmse: Math.round(Math.sqrt(sumSq / pairs.length) * 100) / 100,
+        r: rHz != null ? Math.round(rHz * 1000) / 1000 : null,
+        within1Pct: Math.round((w1 / pairs.length) * 1000) / 10,
+        within2Pct: Math.round((w2c / pairs.length) * 1000) / 10,
+        byWindow: byWindow,
+        best: bestW,
+        worst: worstW,
+        tol: Math.round(tol * 100) / 100,
+        nonUniform: nonUniform,
+        runFrom: runFrom,
+        runTo: runTo
+      };
+    }
+    return out;
+  }
 
   // ── public namespace (always) ──
   root.OxyDex = OxyDex;
@@ -20602,255 +21048,8 @@ __exports.GlucoDex = window.GlucoDex;
     });
   }
 
-  // ════════════════════════════════════════════════════════════════════════
-  //  WAVEFORM-DERIVED SpO₂ TREND (owner-ordered ship, 2026-08-20 — experimental tier)
-  //  O2RING-RAW-DUAL-WAVELENGTH §1.2④-REOPENED: the 0x05 two-channel ratio tracks the device's own
-  //  SpO₂ at corpus scale (19,006 bins, pooled r 0.500, LOO [0.484,0.511], monotonic dose–response;
-  //  functionally ch0=IR, ch1=RED). This ships it HONESTLY: per-session SELF-CALIBRATED against the
-  //  co-recorded device SpO₂ (a per-device regression, never a universal curve), badged experimental,
-  //  and REFUSED (usable:false + reason) when the pair is absent or the session's ratio does not
-  //  track. The device SpO₂ is never replaced — the trend is a second, waveform-provenance estimate
-  //  rendered beside it.
-  // ════════════════════════════════════════════════════════════════════════
-
-  /** Parse the capture host's `_PPG2W.txt` (Phone timestamp;sensor ns;channel 0;channel 1;motion).
-   *  Strict Clock Contract: the ISO phone stamp via the local parseTimestamp; no fabricated dates.
-   *  Returns { t0Ms, rows:[{tMs, ch0, ch1, motion}] } or { rows: [] } when nothing parses. */
-  function parsePPG2W(text) {
-    var rows = [];
-    var lines = String(text || '').split(/\r?\n/);
-    for (var i = 0; i < lines.length; i++) {
-      var ln = lines[i];
-      if (!ln || ln.charCodeAt(0) === 0x50 /* 'P'hone header */) continue;
-      var p = ln.split(';');
-      if (p.length < 5) continue;
-      var ts = parseTimestamp(p[0]);
-      if (!ts) continue;
-      var a = +p[2],
-        b = +p[3],
-        mo = +p[4];
-      if (!isFinite(a) || !isFinite(b)) continue;
-      rows.push({ tMs: ts.tMs, ch0: a, ch1: b, motion: isFinite(mo) ? mo : 0 });
-    }
-    return { t0Ms: rows.length ? rows[0].tMs : null, rows: rows };
-  }
-
-  /** Parse the O2Ring/ViHealth live SpO₂ CSV (`Time,Oxygen Level,Pulse Rate,Motion`, DMY stamps) into
-   *  [{tMs, spo2}]. DMY per the Clock Contract's O2Ring rule; out-of-band SpO₂ (<60|>100) dropped. */
-  function parseO2RingSpo2Csv(text) {
-    var out = [];
-    var lines = String(text || '').split(/\r?\n/);
-    for (var i = 0; i < lines.length; i++) {
-      var ln = lines[i];
-      if (!ln || /^Time/i.test(ln)) continue;
-      var p = ln.split(',');
-      if (p.length < 2) continue;
-      var m = /^(\d{2}):(\d{2}):(\d{2})\s+(\d{2})\/(\d{2})\/(\d{4})/.exec(p[0]);
-      if (!m) continue;
-      var tMs = Date.UTC(+m[6], +m[5] - 1, +m[4], +m[1], +m[2], +m[3]); // DMY, floating (Clock Contract)
-      var v = +p[1];
-      if (v >= 60 && v <= 100) out.push({ tMs: tMs, spo2: v });
-    }
-    return out;
-  }
-
-  /** Per-buffer {ac, dc}: linear-detrended RMS + |mean|. RMS (not peak-to-peak) won the 2026-08-20
-   *  brute-force sweep — 1344 estimator/model configs over all 49 corpus sessions; the winning config
-   *  (RMS AC · 60 s mean bins · +10 s firmware lag) holds LOO held-out pooled r 0.659, per-session
-   *  median r 0.723, 28/28 positive, RMSE 0.56 %. PURE. */
-  function _w2AcDc(vals) {
-    var n = vals.length;
-    var m = 0;
-    for (var i = 0; i < n; i++) m += vals[i];
-    m /= n;
-    var mx = (n - 1) / 2,
-      sxx = 0,
-      sxy = 0;
-    for (i = 0; i < n; i++) {
-      sxx += (i - mx) * (i - mx);
-      sxy += (i - mx) * (vals[i] - m);
-    }
-    var sl = sxx > 0 ? sxy / sxx : 0;
-    var ss = 0,
-      cnt = 0;
-    for (i = 2; i < n - 2; i++) {
-      var v = vals[i] - m - sl * (i - mx);
-      ss += v * v;
-      cnt++;
-    }
-    return { ac: cnt ? Math.sqrt(ss / cnt) : 0, dc: Math.abs(m) };
-  }
-
-  /** The trend: buffer-split (re-anchor jumps), per-buffer R = (AC/DC)₀/(AC/DC)₁, 60 s MEAN bins,
-   *  device series read at +10 s lag (the firmware's own averaging delay — its 1 Hz output lags the
-   *  waveform that produced it; sweep-measured, peak of the lag marginal), per-session OLS
-   *  self-calibration SpO₂ ≈ a + b·R against the co-recorded device series, and the calibrated
-   *  waveform trend + summary. The three knobs (RMS AC · 60 s mean · +10 s lag) are the winners of
-   *  the 2026-08-20 brute-force sweep (1344 configs, 49 sessions, LOO-validated — see the brief's
-   *  full-corpus re-fit block); 60 s bins are the single biggest lever (marginal median r 0.368 at
-   *  5 s → 0.585 at 60 s). REFUSES (usable:false + reason) rather than guessing:
-   *  no device series → 'no co-recorded device SpO₂ (self-calibration impossible)';
-   *  < 40 usable bins → 'too little paired data'; |r| < 0.3 → 'ratio does not track this session'.
-   *  The r floor is the honesty gate — an uncalibratable session must not render a trend. */
-  function spo2WaveformTrend(rec, spo2Rows, opts) {
-    opts = opts || {};
-    var binS = opts.binS || 60;
-    var lagS = opts.lagS != null ? opts.lagS : 10;
-    /** @type {{usable:boolean, reason:(string|null), bins:any[], calib:(any|null), summary:(any|null), trend?:any[]}} */
-    var out = { usable: false, reason: null, bins: [], calib: null, summary: null };
-    if (!rec || !rec.rows || rec.rows.length < 5000) {
-      out.reason = 'no usable ppg2w stream (need ≥5000 samples)';
-      return out;
-    }
-    if (!spo2Rows || !spo2Rows.length) {
-      out.reason = 'no co-recorded device SpO₂ (self-calibration impossible)';
-      return out;
-    }
-    var sp = {};
-    for (var i = 0; i < spo2Rows.length; i++) sp[Math.floor(spo2Rows[i].tMs / 1000)] = spo2Rows[i].spo2;
-    // buffer split at re-anchor jumps (|Δ − modal| ≥ 3 ms)
-    var rows = rec.rows,
-      d = [],
-      hist = {};
-    for (i = 1; i < rows.length; i++) {
-      var dd = Math.round(rows[i].tMs - rows[i - 1].tMs);
-      d.push(dd);
-      hist[dd] = (hist[dd] || 0) + 1;
-    }
-    var modal = null,
-      best = -1;
-    for (var k in hist)
-      if (hist[k] > best) {
-        best = hist[k];
-        modal = +k;
-      }
-    if (modal == null) {
-      out.reason = 'no cadence';
-      return out;
-    }
-    var pts = [],
-      s0 = 0;
-    var flush = function (b) {
-      if (b.length < 90) return;
-      var A = _w2AcDc(
-        b.map(function (r) {
-          return r.ch0;
-        })
-      );
-      var B = _w2AcDc(
-        b.map(function (r) {
-          return r.ch1;
-        })
-      );
-      if (A.dc < 1 || B.dc < 1 || A.ac <= 0 || B.ac <= 0) return;
-      var R = A.ac / A.dc / (B.ac / B.dc);
-      var tm = b[(b.length / 2) | 0].tMs;
-      var sec = Math.floor(tm / 1000) + lagS;
-      var s = sp[sec] != null ? sp[sec] : sp[sec - 1] != null ? sp[sec - 1] : sp[sec + 1];
-      if (s != null && isFinite(R) && R > 0) pts.push({ tMs: tm, R: R, s: s });
-    };
-    for (i = 0; i < d.length; i++) {
-      if (Math.abs(d[i] - modal) >= 3) {
-        flush(rows.slice(s0, i + 1));
-        s0 = i + 1;
-      }
-    }
-    flush(rows.slice(s0));
-    // 60 s MEAN bins (sweep winner — mean beats median at every bin width, marginal 0.549 vs 0.482)
-    var bins = {},
-      kk;
-    var med = function (a) {
-      var s2 = a.slice().sort(function (x, y) {
-        return x - y;
-      });
-      return s2.length ? s2[s2.length >> 1] : null;
-    };
-    // only ever called behind the ≥8-points-per-bin guard, so a.length > 0 by construction
-    var avg = function (a) {
-      var t2 = 0;
-      for (var j = 0; j < a.length; j++) t2 += a[j];
-      return t2 / a.length;
-    };
-    for (i = 0; i < pts.length; i++) {
-      kk = Math.floor(pts[i].tMs / (binS * 1000));
-      if (!bins[kk]) bins[kk] = { R: [], s: [], t: [] };
-      bins[kk].R.push(pts[i].R);
-      bins[kk].s.push(pts[i].s);
-      bins[kk].t.push(pts[i].tMs);
-    }
-    var B2 = [];
-    for (kk in bins) if (bins[kk].R.length >= 8) B2.push({ tMs: med(bins[kk].t), R: avg(bins[kk].R), s: avg(bins[kk].s) });
-    B2.sort(function (a, b) {
-      return a.tMs - b.tMs;
-    });
-    if (B2.length < 40) {
-      out.reason = 'too little paired data (' + B2.length + ' bins, need ≥40)';
-      return out;
-    }
-    // OLS self-calibration SpO₂ = a + b·R, and its r
-    var n = B2.length,
-      mR = 0,
-      mS = 0;
-    for (i = 0; i < n; i++) {
-      mR += B2[i].R;
-      mS += B2[i].s;
-    }
-    mR /= n;
-    mS /= n;
-    var sRR = 0,
-      sSS = 0,
-      sRS = 0;
-    for (i = 0; i < n; i++) {
-      var dr = B2[i].R - mR,
-        ds = B2[i].s - mS;
-      sRR += dr * dr;
-      sSS += ds * ds;
-      sRS += dr * ds;
-    }
-    if (!(sRR > 0) || !(sSS > 0)) {
-      out.reason = 'zero variance — nothing to calibrate against';
-      return out;
-    }
-    var r = sRS / Math.sqrt(sRR * sSS);
-    if (!(r >= 0.3)) {
-      out.reason = 'ratio does not track this session (r=' + r.toFixed(2) + ' < 0.3) — trend refused';
-      return out;
-    }
-    var b1 = sRS / sRR,
-      a1 = mS - b1 * mR;
-    var trend = B2.map(function (bb) {
-      var w = a1 + b1 * bb.R;
-      return { tMs: bb.tMs, spo2w: Math.max(60, Math.min(100, w)), dev: bb.s };
-    });
-    var ws = trend.map(function (t) {
-      return t.spo2w;
-    });
-    out.usable = true;
-    out.bins = B2;
-    out.calib = { a: a1, b: b1, r: r, n: n };
-    out.trend = trend;
-    out.summary = {
-      medianSpo2w: med(ws),
-      minSpo2w: Math.min.apply(null, ws),
-      pctBelow90:
-        Math.round(
-          (ws.filter(function (w) {
-            return w < 90;
-          }).length /
-            ws.length) *
-            1000
-        ) / 10,
-      trackR: Math.round(r * 1000) / 1000,
-      bins: n
-    };
-    return out;
-  }
-
   global.PPGDSP = {
     parsePPG,
-    parsePPG2W,
-    parseO2RingSpo2Csv,
-    spo2WaveformTrend,
     parseSensorXYZ,
     parseDevicePPI,
     analyze,
