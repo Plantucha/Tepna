@@ -3338,7 +3338,26 @@ async def run_oxyii(dev: dict, root: str):
                         except Exception as e:
                             _set(name, ring_config_verdict=f"{_fld}={_val} write failed: {e!r}")
                             log.warning("%s: settings write %s=%s failed (%r)", name, _fld, _val, e)
-                    await asyncio.sleep(1.0)
+                    # ── 0x05 SATURATION FIX (RAW-DUAL-WAVELENGTH §2.1, measured 2026-08-20) ──────────
+                    # At a 1 Hz drain the raw buffer pins at its 102-record reply cap on essentially
+                    # every poll (282,402 of 284,420 buffers across 39 real files), so the device fills
+                    # FASTER than we drain and the excess is silently lost — the delivered ~100 Hz is
+                    # CAP × poll rate, not the device rate (fill > 102 Hz; the 125.000 ADC remains the
+                    # prediction). Ask for the raw buffer a second time mid-cycle: ~0.5 s drains sit
+                    # well under the cap, so capture is COMPLETE and every night's unsaturated counts
+                    # measure the true fill rate for free. Vitals cadence unchanged (0x04 rides the
+                    # full cycle); without the raw stream the loop sleeps exactly as before.
+                    if ppg2wr:
+                        await asyncio.sleep(0.5)
+                        try:
+                            await asyncio.wait_for(
+                                client.write_gatt_char(wch, oxyii.rt_ppg_frame(), response=False),
+                                _PMD_CTRL_TIMEOUT_S)
+                        except Exception as e:
+                            log.debug("%s: mid-cycle raw IR/RED poll failed (%r) — vitals unaffected", name, e)
+                        await asyncio.sleep(0.5)
+                    else:
+                        await asyncio.sleep(1.0)
                     # Same stall guard as the Polar path: a ring that holds its link but stops answering
                     # (auth/setup never accepted, every frame failing CRC, a handler raising inside
                     # bleak's dispatch) is indistinguishable from a healthy one from out here.

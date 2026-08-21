@@ -5197,3 +5197,53 @@ def test_run_oxyii_unparseable_battery_reply_writes_no_row(tmp_path, monkeypatch
     rows = _rtclog_rows(tmp_path)
     assert not any(r[1] == "battery" for r in rows)
     assert any(r[1] == "read" for r in rows), "the info read still lands — only the battery row is absent"
+
+
+def test_run_oxyii_drains_the_raw_buffer_twice_per_cycle(tmp_path, monkeypatch):
+    """The 0x05 SATURATION FIX (RAW-DUAL-WAVELENGTH §2.1, measured 2026-08-20): at a 1 Hz drain the raw
+    buffer pins at its 102-record reply cap on 282,402 of 284,420 real buffers, silently losing the
+    excess — so the runner must ask for it a SECOND time mid-cycle (~0.5 s drains stay under the cap,
+    making capture complete and every night's counts a fill-rate measurement). The vitals cadence is
+    untouched: 0x04 still rides the full cycle. Without the stream, no raw asks at all — and the loop
+    keeps its original single sleep."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    counts = {"live": 0, "raw": 0}
+    payload = (2).to_bytes(2, "little") + b"".join(
+        a.to_bytes(4, "little") + b.to_bytes(4, "little") + bytes([m]) for a, b, m in [(1, 2, 0), (3, 4, 1)])
+
+    c = FakeGattClient()
+
+    def on_live(data):
+        if data[1] == oxyii.OP_LIVE:
+            counts["live"] += 1
+            c.notify(0, _o2ring_live_reply())
+        elif data[1] == oxyii.OP_RT_PPG:
+            counts["raw"] += 1
+            c.notify(0, oxyii.encode(oxyii.OP_RT_PPG, payload))
+
+    c.on_live = on_live
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 8)
+    _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2", "ppg2w"]), str(tmp_path)))
+    assert counts["live"] >= 2, f"the live loop must have cycled: {counts}"
+    # two raw drains per completed cycle (one beside the vitals poll, one mid-sleep). The loop's tail
+    # cycle can be cut by _STOP between the two asks, so allow exactly one straggler less.
+    assert counts["raw"] >= 2 * counts["live"] - 1, f"raw drains must run 2x the vitals cadence: {counts}"
+
+    # DENY twin: without the stream, zero raw asks (and no crash from the split-sleep branch).
+    # Fresh _STOP: the first run's _stop_after left it SET, and an Event binds to the loop that made it.
+    capture._STOP = asyncio.Event()
+    counts2 = {"live": 0, "raw": 0}
+    c2 = FakeGattClient()
+
+    def on_live2(data):
+        if data[1] == oxyii.OP_LIVE:
+            counts2["live"] += 1
+            c2.notify(0, _o2ring_live_reply())
+        elif data[1] == oxyii.OP_RT_PPG:
+            counts2["raw"] += 1
+    c2.on_live = on_live2
+    _inject_connect_scan(monkeypatch, c2)
+    _stop_after(monkeypatch, 6)
+    _run(capture.run_oxyii(_o2dev(name="Ring2", streams=["spo2"]), str(tmp_path)))
+    assert counts2["live"] >= 2 and counts2["raw"] == 0, f"no raw stream -> no raw asks: {counts2}"
