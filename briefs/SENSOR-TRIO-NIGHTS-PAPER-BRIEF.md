@@ -120,6 +120,39 @@
 >    > nights is NOT the pooled-seconds hat the papers quote; it is the across-night distribution."*
 >    > Everything above is a median over nights; closing that last gap means running the pooled hat, not
 >    > another median.
+>    >
+>    > ### 📐 THE REAL SHAPE OF THIS: "Verity σ" NAMES FOUR DIFFERENT QUANTITIES (2026-08-20)
+>    >
+>    > Tracing the numbers rather than the mechanisms settles why nothing reconciles. **The paper itself
+>    > publishes TWO triples, and says so** — `papers/sensor-trio-nights.html` reads verbatim:
+>    > *"Planted σ = 2.7 / 1.9 / 1.9 (the pre-fused raw-ECG estimates; the fused real hat is
+>    > 2.41 / 1.28 / 1.42, §3.4)."*
+>    >
+>    > | triple (O2 / H10 / Verity) | what it actually is | where |
+>    > |---|---|---|
+>    > | **2.72 / 1.86 / 1.94** | **planted σ, 10-night hat** — the *truth the Monte-Carlo tables simulate* | `TRIO-POWER-N15` §115 |
+>    > | **2.41 / 1.28 / 1.42** | **fused real hat** — the headline | paper §3.4 |
+>    > | **2.60 / 1.58 / 1.85** | **15-night hat**, post detector-fix — never shipped | `TRIO-POWER-N15` |
+>    > | **2.99 / 1.78 / 3.51** | the 2026-08-08 re-derivation | banner above |
+>    > | **3.13 / 1.24 / 0.94** | median over nights, box arm, one tool one corpus | the run above |
+>    >
+>    > **So the "discrepancy" has been computed between rows of this table as though they were the same
+>    > row.** A planted σ is an *input* to a simulation; a fused real hat is an *output* of an estimator;
+>    > a median-over-nights is a *third* statistic the tool itself warns is not the pooled hat. They are
+>    > not rival measurements of one quantity, and no mechanism — censoring, capture tree, re-fold — was
+>    > ever going to reconcile them, which is exactly what three eliminations in a row demonstrated.
+>    >
+>    > ⚠️ **This does NOT dissolve the whole problem, and saying so would be too convenient.** Two things
+>    > still want explaining: the 2026-08-08 **3.51** matches no row and is not reproducible from
+>    > `uploads/trio` at either corpus state; and this run's **Verity 0.94** sits well below every
+>    > published row while its **H10 1.24** lands almost on the fused hat's 1.28 — a corner-specific
+>    > divergence, not a global offset, which is the shape a detector or gating difference makes rather
+>    > than a population one.
+>    >
+>    > **What this changes for anyone picking the thread up:** stop hunting for a mechanism that moves a
+>    > σ by 2.5x, and start by naming which row you mean. `TRIO-POWER-N15` box 2 — *reproduce the
+>    > published tables at the 10-night hat* — is the right next action precisely because it pins **one**
+>    > row with the harness that produced it, and it is un-gated (#1602 gates only the re-fit).
 >    yet**: a σ that moves 2.5× on re-derivation needs its discrepancy explained, not published.
 > 3. **The fused weighting barely matters on this corpus** — fused vs unweighted differ by ≤0.12 bpm on
 >    every corner. Most artifact rejection already happened upstream, where ECGDex *drops* beats below
