@@ -6563,6 +6563,8 @@ function fitClockOffsetPooled(anchorTimes, channels, opts) {
       usable: false,
       zAtPeak: null,
       ownOffsetSec: null,
+      /* Present-and-null on the refusal paths too, so every record is one shape. */
+      ownSpreadSec: null,
       agreed: false,
       reason: null
     };
@@ -6648,6 +6650,21 @@ function fitClockOffsetPooled(anchorTimes, channels, opts) {
       ownWLag += w3 * lagOf(p3);
     }
     live[c2].rec.ownOffsetSec = ownWSum > 0 ? +(ownWLag / ownWSum).toFixed(3) : lagOf(own);
+    /* THE WIDTH THE CENTROID WAS TAKEN OVER — published, because it was already computed and thrown
+       away. `ownLo`/`ownHi` bound the lags this channel alone cannot distinguish from its own peak,
+       by the same "within 1 unit of the peak" rule the pooled `spreadSec` uses, and on the same
+       unit-noise footing (`zc` is a per-channel z; the pooled `Z` is those summed over sqrt(n), so
+       both are unit-noise by construction and the rule transfers unchanged).
+
+       ⚠️ THIS IS A RESOLUTION, NOT A sigma, AND THE DISTINCTION IS THE WHOLE VALUE OF THE FIELD.
+       `CROSS-DEVICE-DRIFT-AND-CLOSURE` §3.4 wants a per-channel PRECISION so `inverseVarianceWeights`
+       can replace the pooled fit's equal weighting. This is the raw material for that and is NOT
+       itself the weight: mapping a support width to a variance needs an assumed peak shape, and
+       asserting one here would manufacture exactly the precision the weighting is meant to measure.
+       So the width ships under its own name and the mapping stays an open, deliberate step.
+       Same discipline as the sigma_y ppm fields (#1587): publish the quantity in the unit it is
+       actually in, rather than a converted one that implies more than was measured. */
+    live[c2].rec.ownSpreadSec = +(lagOf(ownHi) - lagOf(ownLo)).toFixed(3);
     live[c2].rec.agreed = zc[bestIdx] >= 1;
     if (live[c2].rec.node) nodes[live[c2].rec.node] = 1;
   }
