@@ -813,8 +813,15 @@ app on its committed inputs and re-exporting** (NEVER hand-edit an export), then
 `{ manifestHash, inputHashes, outputHash }`. Because `manifestHash` is deterministic, an **export-inert
 rebuild of identical source moves nothing** — no re-record. A fixture-only re-record needs no rebuild.
 The regen tools are per-node and are the ONLY sanctioned way to move an output byte:
-`tools/regen-cpap-goldens.mjs` (CPAPDex, 5 fixtures) · `tools/regen-glucodex-goldens.mjs` (GlucoDex, 3) ·
-`tools/regen-pulsedex-goldens.mjs` (PulseDex, 3).
+**`tools/regen-<node>-goldens.mjs` — NINE of them, one per node, plus two shared cores.** (This line
+named only CPAPDex/GlucoDex/PulseDex until 2026-08-20 and read as "write one if your node lacks it";
+`tests/dex-tests.js:24609` already referenced `regen-ppgdex-goldens.mjs` by name, so the tests knew
+before this file did. Not `CLAIM`-marked, so no gate caught it — unlike `ownedBundles`/`clockBundles`.)
+`cpap` (CPAPDex, 5 fixtures) · `ecgdex` (ECGDex, 4) · `glucodex` (GlucoDex, 3) · `hrvdex` (HRVDex, 3) ·
+`integrator` (Integrator, 3) · `motiondex` (MotionDex, 1) · `oxydex` (OxyDex, 3) · `ppgdex` (PpgDex, 6) ·
+`pulsedex` (PulseDex, 3); `regen-goldens.mjs` + `regen-goldens-core.mjs` are the shared machinery.
+**Check for your node's tool before concluding a regeneration is expensive** — costing an item as
+"needs a regen tool written first" when one ships is the same stale-capability error §📌 keeps finding.
 Each re-runs the real modules in a co-loaded realm, preserves the volatile keys the equiv gate excludes
 (`file`/`provenance`/`kernel`/`generated`), and re-records the ledger from the bytes it wrote — so an
 **output-only** regeneration under UNCHANGED code (the case `build.mjs` does *not* cover: it re-stamps
