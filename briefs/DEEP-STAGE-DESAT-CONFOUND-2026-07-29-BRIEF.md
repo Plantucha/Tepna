@@ -866,3 +866,45 @@ skew `cpap-clock-42min-offset` records for 2026-07-26 is the pre-step cohort's v
 Redo the join with a **per-night** offset rather than a swept global one and the number stops being a
 range. ⚠️ Split the corpus at the step; a single linear drift fit through it renders the jump as
 scatter and refuses every night (measured — 168 s/day, residual SD 544 s, 0 of 23 drift-consistent).
+
+### 11c · The per-cohort join, RUN — Deep contamination is **8.6 – 14.5 %**, and the 26.1 % bound is superseded (2026-08-20)
+
+`tools/deep-flow-join.mjs` (new) does §11b's owed join: `ECGDex sleepStages` (5-min) × `*_EVE.edf`,
+with a **per-cohort** offset instead of one global shift. 53 nights carry both (38 pre / 15 post).
+
+**Sign convention is measured, not assumed** — applying an offset backwards is the easiest way to get a
+confident wrong number here, so the tool runs BOTH directions and reports both. The correct direction is
+the one under which the cohorts **converge**; a misapplied sign adds ~2x the offset to one cohort:
+
+| applied sign | pre Deep % | post Deep % | cohort gap |
+|---|---|---|---|
+| **+** (pre −39.5, post +21.2) | **11.0** | **8.6** | **2.4 pp** |
+| − (pre +39.5, post −21.2) | 33.6 | 25.5 | 8.1 pp |
+
+Sign **+** wins by 2.4 pp against 8.1, and is corroborated independently: under it Deep (11.0 / 8.6 %)
+sits near non-Deep (12.8 / 13.6 %), whereas sign − manufactures a Deep *enrichment* to 33.6 % against
+12.2 % non-Deep — the signature of misalignment smearing events into the wrong epochs.
+
+**`--sweep` bounds it over the plausible offset space** (pre −45…−34 × post +16…+26, both estimates):
+
+```
+    Deep % BOUND across the whole space: 8.6 – 14.5 %
+    cells where Deep EXCEEDS non-Deep:  11 of 30
+```
+
+🔴 **Quote the BOUND, not the ordering.** *"Deep contamination ≤ 14.5 % across every plausible
+per-cohort offset"* is robust. *"Deep sits below non-Deep"* is **not** — it holds at the central
+estimates and flips in 11 of 30 cells, at both edges. This section first claimed depletion; the sweep
+withdrew it, which is the whole reason the sweep exists.
+
+**What this changes.** §11a's 26.1 % was the max over a family of *global* shifts that §11b showed
+cannot contain the truth. Under per-cohort alignment the entire plausible space stays **under 15 %** —
+so §9.6's ~50 % hatch is a factor of **3.5 – 6** away, not 2. **The label-noise explanation is
+correspondingly less likely; it is still not excluded**, and every §11 limit stands unchanged: a
+**treated** patient (never quote as an apnea prevalence) and a bound conditional on the ResMed's own
+sensitivity.
+
+⚠️ **Not a like-for-like replacement for §11a's numbers.** 53 nights here against its 29 (it also
+required BRP; this needs only `_EVE.edf` + the ECGDex export), so the denominators differ. The
+Deep-vs-non-Deep comparison is internally consistent within each run; the absolute shares are not
+directly comparable across them.
