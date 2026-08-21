@@ -29,6 +29,55 @@
   /* keep label/unit/goodDirection identical to oxydex-cross.js OXY_DEFS so the
    registry and the self-describing envelope never diverge. */
   var OXY_REGISTRY = {
+    /* ── EXPERIMENTAL — waveform-derived SpO₂ (0x05 raw stream, owner-ordered 2026-08-20) ── */
+    spo2wMedian: {
+      label: 'SpO₂w median',
+      unit: '%',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'experimental',
+      cite: 'Waveform-derived SpO₂ trend median — 0x05 ratio-of-ratios, per-session self-calibrated vs device SpO₂'
+    },
+    spo2wMin: {
+      label: 'SpO₂w min',
+      unit: '%',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'experimental',
+      cite: 'Waveform-derived SpO₂ trend minimum — same channel; extremes compressed by the regression'
+    },
+    spo2wTrackR: {
+      label: 'SpO₂w track r',
+      unit: '',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'experimental',
+      cite: 'Pearson r of the waveform ratio vs device SpO₂ this session — the self-calibration quality gate (≥0.3 required)'
+    },
+    spo2wBias: {
+      label: 'SpO₂w bias',
+      unit: '%',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'experimental',
+      cite: '1 Hz comparator mean error vs the device output — ~0 by construction (OLS zeroes the mean residual); reported for honesty, the fan carries the content'
+    },
+    spo2wMae: {
+      label: 'SpO₂w MAE',
+      unit: '%',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'experimental',
+      cite: '1 Hz comparator mean |error| vs the device output — ECGDex alignFirmwareRR pattern transposed; the per-decile fan beside it is the decay view'
+    },
+    spo2wWithin2: {
+      label: 'SpO₂w within ±2%',
+      unit: '%',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'experimental',
+      cite: 'Share of compared seconds where the waveform 1 Hz signal is within ±2 % of the device output'
+    },
     /* ── VALIDATED — established, externally validated, clinically meaningful ── */
     odi4: {
       label: 'ODI-4',
