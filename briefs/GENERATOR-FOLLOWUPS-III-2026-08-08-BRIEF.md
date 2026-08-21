@@ -66,6 +66,45 @@ check the claim before re-affirming the park. `AUDIT-PROMPT.md`'s bug-classes co
 > returns `…20260718180614_PPG.txt`, whose "0614" is the time field 18:06:14; the `n0614a` companions
 > are genuinely absent (the capture corpus starts 2026-07-16, zero June directories).
 
+> ### THIRD PASS 2026-08-20 — the sweep's SCOPE is the blind spot, and it hid the two live instances
+>
+> The 2026-08-08 method is stated above and is deliberate: *"extract the park reason from each
+> **PROPOSED** brief's **status header**"*. That scoping is what gave it precision — and it is also why
+> it saw neither instance that was live on 2026-08-20. **Both are `DONE` briefs carrying the stale
+> claim in the BODY**, which the method cannot reach by construction:
+>
+> | brief | the claim | why the sweep missed it | verdict |
+> |---|---|---|---|
+> | `DEX-TEST-SUITE-LAZY-FOLLOWUPS` §1 | *"could not run Node/playwright in this environment"* | status is DONE; claim is in §1 body | **STALE** — the owed command ran clean 2026-08-20 (`✓ browser gates passed`, 7584 assertions), and `browser-gates.yml` has run exactly it as a REQUIRED check for months |
+> | `INTEGRATOR-TCH-FOLLOWUPS-III` §1 | *"data-gated … needs more nights' three node-export JSONs committed"* (24 nights) | status is DONE; claim is in the header's tail prose, not a park reason | **STALE** — 54 nights now carry all three; the harness behind it was also broken (#1595) |
+>
+> **So the class has two sub-shapes, and only one of them was being swept.** Measured over every DONE
+> brief:
+>
+> - **capability sub-shape** — a capability claim, a *named unblock condition* and a deferral verb
+>   co-located within ±2 lines. Returns **exactly the two rows above, with zero false positives**. ⚠️ It
+>   was written *after* seeing them, so its **precision is measured and its recall is not**; a bare
+>   capability phrase over-matches badly (100 DONE briefs / 169 hits), which is the same over-match the
+>   2026-08-08 method notes already warned about.
+> - **brief-dependency sub-shape** — "deferred/blocked **behind** `<brief>`" where that brief is now
+>   `DONE`. Fully mechanical, no NLP. Corpus-wide there is **exactly 1** such edge —
+>   `PAPER-ODI4-REPRODUCIBILITY` §6.6 behind `SYNTH-GEN-DESAT-KINETICS` — and it is **already resolved**
+>   (that brief's §7.1, *"the deferral's blocker had been gone for two days"*, and it counts itself the
+>   **fourth** stale premise found that way). **Zero live edges today.**
+>
+> ⚠️ **That zero is only believable because a control fires, and two earlier zeros were FALSE.** The
+> query returned 0 twice before it was right: once because the reference regex required a
+> `-BRIEF.md` suffix the corpus does not always write (`§6.6 deferred the pin behind
+> `SYNTH-GEN-DESAT-KINETICS`` — bare stem), and once because it accepted `Deferred → X` as a
+> dependency when the arrow means *handed off to* X, the opposite relation — 16 of 16 edges were
+> handoffs. Both zeros read exactly like a clean negative. Retaining the one known positive as a
+> control is what separated them.
+>
+> **Not proposed as a gate.** The capability sub-shape needs judgement (a phrase is not a park reason)
+> and the dependency sub-shape currently has nothing to find. What is worth carrying forward is the
+> scope correction: **re-checking parks must read DONE briefs' bodies, not only PROPOSED headers** —
+> a claim inside a closed brief is exactly where nobody looks again, and it is where both live ones were.
+
 > ### SECOND PASS 2026-08-08 — the streak breaks, and how it breaks refines the method
 >
 > `MUTATION-EQUIVALENCE-2026-08-04` checked, since it carries the densest capability language in the
