@@ -14354,6 +14354,95 @@
        Hand-derived, and `_sd` is the SAMPLE deviation (n − 1), which is what makes these exact:
          [10, 10, 20, 20] ⇒ mean 15, sd = √(100/3) = 5.7735, CV = 38.49 ⇒ 38.5
          a constant series ⇒ sd 0 ⇒ CV 0.0, neither null nor NaN */
+    group('CPAPDex STR.edf daily summary — device mode/RERA/CSR/prescription, refuses to fabricate', 'cpapdex-dsp · cpapdex-registry · str-summary', function (T) {
+      var C = env.CpapDsp;
+      if (!C || typeof C.parseStrSummary !== 'function') {
+        T.ok('CpapDsp.parseStrSummary present', false, 'export missing — CPAPDEX-STR-SUMMARY-INGEST');
+        return;
+      }
+      // Synthetic STR.edf shaped exactly like CpapEdf.readEDF output (physical-unit signal map),
+      // modelled on the decoded real file: 3 daily records, Date 20663..20665, noon-anchored sessions
+      // (record 2 is a SPLIT night with two pairs), -1 fills, a mode/RIN/CSR + prescription block.
+      var sig = function (arr, spr) {
+        return { data: Float32Array.from(arr), _spr: spr, fs: 0, dim: '' };
+      };
+      var FILL = function (pairsPerRec) {
+        // 3 records × 20 slots; pairsPerRec[r] = [[on,off],...]; unused slots = -1
+        var on = [],
+          off = [];
+        for (var r = 0; r < 3; r++) {
+          var ps = pairsPerRec[r] || [];
+          for (var k = 0; k < 20; k++) {
+            on.push(k < ps.length ? ps[k][0] : -1);
+            off.push(k < ps.length ? ps[k][1] : -1);
+          }
+        }
+        return { on: on, off: off };
+      };
+      var f = FILL([
+        [[597, 1024]],
+        [[631, 1037]],
+        [
+          [585, 882],
+          [983, 1206]
+        ]
+      ]);
+      var edf = {
+        signals: {
+          Date: sig([20663, 20664, 20665], 1),
+          MaskOn: sig(f.on, 20),
+          MaskOff: sig(f.off, 20),
+          Mode: sig([1, 0, 7], 1), // APAP, CPAP, unknown-code
+          RIN: sig([2.5, 0, 4.1], 1),
+          CSR: sig([3.0, 0, 12.4], 1),
+          'S.EPR.Level': sig([3, 3, 3], 1),
+          'S.A.MaxPress': sig([12, 12, 12], 1),
+          'S.A.MinPress': sig([6, 6, 6], 1),
+          'S.RampTime': sig([15, 15, 15], 1)
+        }
+      };
+      var s = C.parseStrSummary(edf);
+      T.eq('one record per STR day', s.length, 3);
+      T.ok(
+        'Date decodes to a floating UTC day (20663 → 2026-07-29)',
+        new Date(s[0].dateMs).getUTCFullYear() === 2026 && new Date(s[0].dateMs).getUTCMonth() === 6 && new Date(s[0].dateMs).getUTCDate() === 29,
+        new Date(s[0].dateMs).toISOString()
+      );
+      T.ok(
+        'mask session is noon-anchored (597 min after noon → 21:57 UTC)',
+        new Date(s[0].sessions[0].onMs).getUTCHours() === 21 && new Date(s[0].sessions[0].onMs).getUTCMinutes() === 57,
+        new Date(s[0].sessions[0].onMs).toISOString()
+      );
+      T.eq('a split night yields two sessions', s[2].sessions.length, 2);
+      T.eq('unused -1 slots are dropped', s[1].sessions.length, 1);
+      T.eq('known mode code maps (1 → APAP)', s[0].deviceMode, 'APAP');
+      T.eq('known mode code maps (0 → CPAP)', s[1].deviceMode, 'CPAP');
+      T.ok('UNKNOWN mode code refuses a label (null), keeps the raw code', s[2].deviceMode === null && s[2].deviceModeCode === 7, JSON.stringify([s[2].deviceMode, s[2].deviceModeCode]));
+      T.eq('RERA index extracted', s[0].deviceRera, 2.5);
+      T.eq('device CSR extracted', s[2].deviceCsr, 12.4);
+      T.ok(
+        'prescription carries the settings present, null for absent',
+        s[0].prescription.eprLevel === 3 && s[0].prescription.pressMax === 12 && s[0].prescription.pressMin === 6 && s[0].prescription.mask === null,
+        JSON.stringify(s[0].prescription)
+      );
+      // absence is absence — an STR with no Date signal yields [], never a fabricated record
+      T.eq('no Date signal → empty (never fabricated)', C.parseStrSummary({ signals: {} }).length, 0);
+      // attach by day, leaving the inferred mode untouched
+      if (typeof C.attachStrSummary === 'function') {
+        var night = { t0Ms: s[0].dateMs + 22 * 3600 * 1000, mode: null }; // 22:00 that evening, inferred null
+        C.attachStrSummary([night], s);
+        T.ok('attach matches by day and adds deviceMode without touching inferred mode', night.deviceMode === 'APAP' && night.mode === null, JSON.stringify([night.deviceMode, night.mode]));
+        T.eq('…and attaches the RERA index', night.deviceRera, 2.5);
+      }
+      // registry tier — the three device-scored metrics exist at measured tier
+      var REG = env.CPAP_REGISTRY || (env.CpapRegistry && env.CpapRegistry.REGISTRY);
+      if (REG) {
+        ['deviceMode', 'deviceRera', 'deviceCsr'].forEach(function (id) {
+          T.ok('registry ' + id + ' at measured tier', REG[id] && REG[id].evidence === 'measured', JSON.stringify(REG[id] || null));
+        });
+      }
+    });
+
     group('CPAPDex _leakCV — the CV, and the near-zero-mean floor', 'cpapdex-dsp · leakcv', function (T) {
       var C = env.CpapDsp;
       if (!C || typeof C.prepare !== 'function' || typeof C.computeMetrics !== 'function') {

@@ -256,6 +256,22 @@ import { CpapRender } from './cpapdex-render.js';
     var nights = groups.map(function (g) {
       return CpapDsp.buildNight(g.ss);
     });
+    // STR.edf daily summary (CPAPDEX-STR-SUMMARY-INGEST): the device's own declared mode + RERA + CSR +
+    // prescription. It carries no timestamp prefix and no FILE_TYPES suffix, so it never clustered into
+    // a session above — parse it separately here and attach to matching nights (inferred mode untouched).
+    if (typeof CpapDsp.parseStrSummary === 'function') {
+      var strEntry = entries.filter(function (e) {
+        return /(^|[\\/])STR\.edf$/i.test(e.name);
+      })[0];
+      if (strEntry) {
+        try {
+          var strSummary = CpapDsp.parseStrSummary(global.CpapEdf.readEDF(strEntry.buf));
+          if (strSummary.length) CpapDsp.attachStrSummary(nights, strSummary);
+        } catch (errStr) {
+          console.warn('STR.edf summary parse failed', errStr);
+        }
+      }
+    }
     return { nights: nights, clusters: clusters, sessions: sessions };
   }
 

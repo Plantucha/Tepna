@@ -1987,6 +1987,112 @@
     return build(night);
   }
 
+  /* ── STR.edf DAILY SUMMARY (CPAPDEX-STR-SUMMARY-INGEST-2026-08-21) ───────────────────────────────
+   CPAPDex ingests only the per-session waveform EDFs (BRP/PLD/SA2/EVE) and computes everything from
+   them; the device's own daily-summary STR.edf carries three things the waveforms CANNOT give — the
+   device-DECLARED therapy mode (vs our inferred `classifyMode`), the device-scored RERA index (RIN;
+   we cannot compute RERA from flow), and the PRESCRIPTION (S.* settings). This is a PURE parse over
+   CpapEdf.readEDF's signal map. It attaches as NEW fields and never touches the validated inference.
+
+   Encodings (decoded from a real STR.edf 2026-08-21): Date = days since 1970 (one/record); MaskOn/Off
+   = minutes since NOON (≤20 session slots/record, -1 = unused); settings/mode/RIN/CSR = one/record.
+   readEDF already returns physical-unit values, so no re-scaling here. */
+  var STR_NOON_MS = 12 * 3600 * 1000;
+  // ResMed AirSense OPERATING_MODE (airbreak 0x020D) — map ONLY the known codes; an unmapped code
+  // yields deviceMode:null (never a fabricated label — mirrors classifyMode's null-not-a-coin-flip).
+  var STR_MODE = { 0: 'CPAP', 1: 'APAP' };
+  function _strSig(edf, label) {
+    return edf && edf.signals && edf.signals[label] ? edf.signals[label] : null;
+  }
+  function _strAt(sig, rec, spr, k) {
+    // physical value of signal `sig` at record `rec`, sample `k` (spr = samples/record); null if absent
+    if (!sig || !sig.data) return null;
+    var idx = rec * spr + (k || 0);
+    return idx < sig.data.length ? sig.data[idx] : null;
+  }
+  function parseStrSummary(edf) {
+    var dateSig = _strSig(edf, 'Date');
+    if (!dateSig || !dateSig.data || !dateSig.data.length) return [];
+    var nRec = dateSig.data.length; // Date is 1 sample/record → record count
+    var onSig = _strSig(edf, 'MaskOn'),
+      offSig = _strSig(edf, 'MaskOff');
+    var onSpr = onSig ? onSig._spr || 1 : 1,
+      offSpr = offSig ? offSig._spr || 1 : 1;
+    var modeSig = _strSig(edf, 'Mode'),
+      rinSig = _strSig(edf, 'RIN'),
+      csrSig = _strSig(edf, 'CSR');
+    // prescription signals — label → output key (present-or-null, never fabricated)
+    var RX = {
+      eprEnable: 'S.EPR.EPREnable',
+      eprType: 'S.EPR.EPRType',
+      eprLevel: 'S.EPR.Level',
+      rampMin: 'S.RampTime',
+      pressMax: 'S.A.MaxPress',
+      pressMin: 'S.A.MinPress',
+      pressSet: 'S.C.Press',
+      mask: 'S.Mask',
+      tube: 'S.Tube',
+      humLevel: 'S.HumLevel'
+    };
+    var out = [];
+    for (var r = 0; r < nRec; r++) {
+      var days = dateSig.data[r];
+      if (!(days >= 0) || days > 24836) continue; // out-of-range Date ⇒ drop (never fabricate a day)
+      var dateMs = Date.UTC(1970, 0, 1) + Math.round(days) * 86400000;
+      // sessions: noon-anchored MaskOn/MaskOff pairs, -1 fill dropped
+      var sessions = [];
+      var nSlot = Math.min(onSpr, offSpr);
+      for (var k = 0; k < nSlot; k++) {
+        var on = _strAt(onSig, r, onSpr, k),
+          off = _strAt(offSig, r, offSpr, k);
+        if (on == null || off == null || on < 0 || off < 0) continue;
+        sessions.push({ onMs: dateMs + STR_NOON_MS + Math.round(on) * 60000, offMs: dateMs + STR_NOON_MS + Math.round(off) * 60000 });
+      }
+      var modeCode = modeSig ? Math.round(_strAt(modeSig, r, 1, 0)) : null;
+      var rin = rinSig ? _strAt(rinSig, r, 1, 0) : null;
+      var csr = csrSig ? _strAt(csrSig, r, 1, 0) : null;
+      var prescription = {};
+      for (var key in RX) {
+        var s = _strSig(edf, RX[key]);
+        prescription[key] = s ? _strAt(s, r, s._spr || 1, 0) : null;
+      }
+      out.push({
+        dateMs: dateMs,
+        deviceModeCode: modeCode,
+        // known code → label; unknown → null (deviceModeCode is preserved for the caller either way)
+        deviceMode: modeCode != null && Object.prototype.hasOwnProperty.call(STR_MODE, modeCode) ? STR_MODE[modeCode] : null,
+        deviceRera: rin != null && isFinite(rin) ? +rin.toFixed(2) : null,
+        deviceCsr: csr != null && isFinite(csr) ? +csr.toFixed(2) : null,
+        prescription: prescription,
+        sessions: sessions
+      });
+    }
+    return out;
+  }
+  /* Attach a STR summary to already-built nights by matching the UTC day. Mutates + returns `nights`.
+   The inferred `mode` is left untouched; device fields land as NEW keys so a consumer can prefer the
+   declaration and fall back to the inference. A night with no STR match keeps its fields absent. */
+  function attachStrSummary(nights, summary) {
+    if (!nights || !nights.length || !summary || !summary.length) return nights;
+    var byDay = {};
+    for (var i = 0; i < summary.length; i++) byDay[Math.floor(summary[i].dateMs / 86400000)] = summary[i];
+    for (var n = 0; n < nights.length; n++) {
+      var night = nights[n];
+      var t0 = night && (night.t0Ms != null ? night.t0Ms : night.stats && night.stats.t0Ms);
+      if (t0 == null) continue;
+      // a CPAP night that starts before midnight belongs to the STR `Date` of that evening — match the
+      // day the session STARTED, then the day before (a session logged under the prior civil day).
+      var rec = byDay[Math.floor(t0 / 86400000)] || byDay[Math.floor(t0 / 86400000) - 1];
+      if (!rec) continue;
+      night.deviceMode = rec.deviceMode;
+      night.deviceModeCode = rec.deviceModeCode;
+      night.deviceRera = rec.deviceRera;
+      night.deviceCsr = rec.deviceCsr;
+      night.prescription = rec.prescription;
+    }
+    return nights;
+  }
+
   /* ── exports + CLI ──────────────────────────────────────────────────────── */
   var api = {
     fmtClock: fmtClock,
@@ -2014,6 +2120,8 @@
     periodicBreathingSec: periodicBreathingSec,
     periodicBreathingSpans: periodicBreathingSpans,
     buildSessionFromEdf: buildSessionFromEdf,
+    parseStrSummary: parseStrSummary,
+    attachStrSummary: attachStrSummary,
     nightMetrics: nightMetrics,
     compute: compute,
     _nightFromInput: _nightFromInput,
