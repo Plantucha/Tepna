@@ -542,6 +542,50 @@ the pool on 2026-08-20 — from full-price to a millisecond kill. `oxydex` shoul
   whatever else runs on it, so absolute times are confounded by load that has nothing to do with the
   hypothesis. Rank is robust to any uniform slowdown. **Falsified if `integrator` finishes in the top
   three by wall-clock** among the fleet's files.
+
+### ⛔ THE PREDICTION IS FALSIFIED — measured 2026-08-21, and the precondition WAS met
+
+`integrator` finished **1859/1859 · 912 killed (+47 vs the old ledger) · 938 survived · 543 m 35 s
+(9 h 04 m)**. Leg times so far: cpapdex 1.5 m · motiondex 1.3 m · hrvdex 2 m · glucodex 16 m ·
+ecgdex ~5 h · **integrator 9 h 04 m**, with oxydex tracking ~2.7 h and only ppgdex/pulsedex left.
+Integrator ranks **no worse than 3rd** by wall-clock however the remaining legs land, which is the
+falsification condition as written.
+
+**This is a REAL falsification, not an untested one.** The precondition was verified at the rung that
+matters — 21 occurrences in the worker tree at pool build, same inode as the checkout — and the guard
+group demonstrably worked *at the mutant level*: guard-cluster mutants died fast and kills rose by 47.
+The fix did what it claimed; the prediction built on it did not.
+
+**What the failure exposes.** The prediction's implicit claim was *"guard fix ⇒ cheap leg"*. That is
+wrong for a reason the exposure model already contained and the prediction hand-waved: **kills are
+cheap, survivors always pay the full set price, and #1579 barely moves the survivor count.** The guard
+group fixed a **COLLAPSE** mode, not a **COST** mode — §7.2's stall account stands unchanged; what
+falls is the inference that removing the collapse makes the leg fast.
+
+⚠️ **The exposure arithmetic does NOT close, and the discrepancy is load-bearing.** Checked rather than
+accepted:
+
+| | predicted | measured |
+|---|---|---|
+| integrator, survivors-only at the ~9 min calibration set price | 938 × 9 ÷ 22 = **6.40 h** | **9.06 h** — a **29 % shortfall** |
+| ecgdex cross-check, 1203 survivors × ~2.5 min | offered as ≈ 5 h | **2.28 h** — off by ~2× |
+
+11 959 worker-minutes were actually spent. Reconciling them needs **either** a set price of
+**12.75 min** rather than 9, **or** kills costing **~3.9 min each** rather than ~0. So *"kills are
+cheap"* — the model's load-bearing assumption — is **not established**, and under `--bail` it need not
+hold: a kill is only cheap if the killing group runs EARLY in the priced ordering.
+
+**Consequence for the prescription.** Reducing integrator's leg means reducing **survivors** (kills,
+equivalence-ledger entries) or the **set price** (splitting the corpus-priced groups) — that direction
+survives. But the *magnitude* does not: if kills cost ~3.9 min, converting a survivor to a kill turns a
+12.75 min lap into a 3.9 min one — a **3× saving, not elimination**. Anyone budgeting off "kills are
+free" will over-promise by that factor.
+
+**The pre-registration earned its keep.** The prediction was recorded before the run with an explicit
+falsification condition and a precondition check; it failed, the failure is attributable to a specific
+wrong step rather than to noise, and the mechanism it exposed is more useful than the prediction would
+have been had it held.
+
 - 🔴 **PRECONDITION, and it must be checked BEFORE any verdict is recorded: #1579's guard group has to
   be in the tree the WORKERS hold when integrator's pool is built** — which is not the same file as the
   checkout's, and the difference is measurable rather than theoretical (below). The sweep runs from a
