@@ -7,15 +7,33 @@
   <updated>2026-08-18T00:00:00Z</updated>
   <author><name>Michal Planicka</name></author>
   <entry>
+    <title>Respiratory rate from a Polar H10 chest accelerometer — Tepna preprint</title>
+    <link href="https://tepna.net/papers/acc-respiratory-rate.html"/>
+    <id>https://tepna.net/papers/acc-respiratory-rate.html</id>
+    <updated>2026-08-18T00:00:00Z</updated>
+  </entry>
+  <entry>
     <title>CGM variability ↔ nocturnal autonomic coupling — Tepna preprint</title>
     <link href="https://tepna.net/papers/cgm-hrv-coupling.html"/>
     <id>https://tepna.net/papers/cgm-hrv-coupling.html</id>
     <updated>2026-08-18T00:00:00Z</updated>
   </entry>
   <entry>
+    <title>CPAP flow as a reference standard for wearable respiratory algorithms — Tepna preprint</title>
+    <link href="https://tepna.net/papers/cpap-flow-reference.html"/>
+    <id>https://tepna.net/papers/cpap-flow-reference.html</id>
+    <updated>2026-08-18T00:00:00Z</updated>
+  </entry>
+  <entry>
     <title>A map of the walls: negative results in consumer physiological-signal analysis — Tepna preprint</title>
     <link href="https://tepna.net/papers/dead-ends.html"/>
     <id>https://tepna.net/papers/dead-ends.html</id>
+    <updated>2026-08-18T00:00:00Z</updated>
+  </entry>
+  <entry>
+    <title>Chest-accelerometer effort does not type apneas under CPAP — Tepna preprint</title>
+    <link href="https://tepna.net/papers/effort-typing-null.html"/>
+    <id>https://tepna.net/papers/effort-typing-null.html</id>
     <updated>2026-08-18T00:00:00Z</updated>
   </entry>
   <entry>
