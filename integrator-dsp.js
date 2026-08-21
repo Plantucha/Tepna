@@ -55,11 +55,21 @@ function fmtDayShort(ms) {
    ⚠️ prevTMs is DELIBERATELY pinned to t0Ms — NOT threaded from the previously
    reconstructed event (DEEP-AUDIT-II #42). A fixed anchor keeps reconstruction
    ORDER-INDEPENDENT: every event resolves on its own, so the result never
-   depends on iteration order or on which events were seen first. That is EXACT
-   for any recording ≤ 24 h — the entire domain of a ganglior.node-export (one
-   night/session; Clock Contract §4/§6). Do NOT "fix" this into a stateful
-   prevTMs roll: it would trade a real invariant (order-independence) for a case
-   that cannot arise here.
+   depends on iteration order or on which events were seen first. Do NOT "fix"
+   this into a stateful prevTMs roll: it would trade a real invariant
+   (order-independence) for nothing.
+
+   ⚠ SIGNAL-PATH-AUDIT F3 (2026-08-20): this comment used to claim the pinned
+   anchor was "EXACT for any recording ≤ 24 h". FALSE — the parser's day-roll
+   slack is 12 h, so a t-only event whose true offset lay in [12 h, 24 h) got a
+   same-date candidate 0–12 h BEFORE t0Ms (inside the slack), the roll was
+   refused, and the event landed 24 h early — before the recording began.
+   Executed reproduction: t0 = 20:00, t:"08:00:00" (+12 h) → −24.00 h. The
+   post-correction below restores the true ≤ 24 h contract while staying a pure
+   function of (ev.t, t0Ms): an event belongs to [t0Ms − grace, t0Ms + 24 h), so
+   a candidate below that window is advanced exactly one day. The 60 s grace
+   absorbs second-rounding jitter between an event stamp and t0 without
+   re-admitting the bug (the failure band started at +12 h, far above it).
 
    Known limit (latent, out-of-contract): a t-ONLY event whose true offset from
    t0Ms exceeds 24 h can only roll one day, so its date is genuinely UNKNOWN.
@@ -71,7 +81,10 @@ function reconstructEventTMs(ev, t0Ms) {
   if (ev && typeof ev.tMs === 'number' && isFinite(ev.tMs)) return ev.tMs; // already absolute
   if (t0Ms == null || ev == null || ev.t == null) return null;
   var p = parseTimestamp(ev.t, { dateAnchorMs: t0Ms, prevTMs: t0Ms });
-  return p ? p.tMs : null;
+  if (!p) return null;
+  var t = p.tMs;
+  if (t < t0Ms - 60000) t += 86400000; // F3: the event window is [t0 − 60 s, t0 + 24 h); see above
+  return t;
 }
 
 /* ── confidence blend: 1 − Π(1 − cᵢ), capped 0.97 (never invent precision) ── */
@@ -5683,6 +5696,8 @@ function fitClockOffsetPooled(anchorTimes, channels, opts) {
       usable: false,
       zAtPeak: null,
       ownOffsetSec: null,
+      /* Present-and-null on the refusal paths too, so every record is one shape. */
+      ownSpreadSec: null,
       agreed: false,
       reason: null
     };
@@ -5768,6 +5783,21 @@ function fitClockOffsetPooled(anchorTimes, channels, opts) {
       ownWLag += w3 * lagOf(p3);
     }
     live[c2].rec.ownOffsetSec = ownWSum > 0 ? +(ownWLag / ownWSum).toFixed(3) : lagOf(own);
+    /* THE WIDTH THE CENTROID WAS TAKEN OVER — published, because it was already computed and thrown
+       away. `ownLo`/`ownHi` bound the lags this channel alone cannot distinguish from its own peak,
+       by the same "within 1 unit of the peak" rule the pooled `spreadSec` uses, and on the same
+       unit-noise footing (`zc` is a per-channel z; the pooled `Z` is those summed over sqrt(n), so
+       both are unit-noise by construction and the rule transfers unchanged).
+
+       ⚠️ THIS IS A RESOLUTION, NOT A sigma, AND THE DISTINCTION IS THE WHOLE VALUE OF THE FIELD.
+       `CROSS-DEVICE-DRIFT-AND-CLOSURE` §3.4 wants a per-channel PRECISION so `inverseVarianceWeights`
+       can replace the pooled fit's equal weighting. This is the raw material for that and is NOT
+       itself the weight: mapping a support width to a variance needs an assumed peak shape, and
+       asserting one here would manufacture exactly the precision the weighting is meant to measure.
+       So the width ships under its own name and the mapping stays an open, deliberate step.
+       Same discipline as the sigma_y ppm fields (#1587): publish the quantity in the unit it is
+       actually in, rather than a converted one that implies more than was measured. */
+    live[c2].rec.ownSpreadSec = +(lagOf(ownHi) - lagOf(ownLo)).toFixed(3);
     live[c2].rec.agreed = zc[bestIdx] >= 1;
     if (live[c2].rec.node) nodes[live[c2].rec.node] = 1;
   }
