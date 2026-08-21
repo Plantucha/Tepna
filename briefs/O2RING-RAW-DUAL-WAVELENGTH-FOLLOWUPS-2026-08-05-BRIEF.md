@@ -54,6 +54,23 @@ single samples**; on the recorded `0x04` pleth, 466 occurrences, **99 % isolated
 same insertion, same ~100 baseline. One mechanism, two streams — which is why subtracting it recovers a
 clean 125.000 from a messy 126.06.
 
+### 2.1a · RATE UPDATE (2026-08-20) — 100 Hz REFUTED; the delivered rate is the CAP, not the device
+
+A whole-corpus sweep (39 `_PPG2W.txt` files, **284,420 buffers**) found **282,402 pinned at exactly the
+102-record reply cap** (99.3 %) at the daemon's ~1 Hz drain (median inter-arrival 1.005 s). That is the
+saturation signature: the device fills FASTER than the drain and the excess is silently discarded, so
+every whole-night "~100 Hz" measurement (`ppg2w-rate.mjs` 100.19/100.99, frame-cadence 101.65) was
+**cap × poll rate — a drain artifact, not the fill rate**. The owner's 100 Hz hypothesis is thereby
+refuted: sustained delivery of 102 records per 1.005 s bounds the fill **> 102 Hz**, consistent with
+the parent brief's 125.000 (ADC) prediction though not yet pinning it. (Short-dt capped pairs suggest
+more, but arrival spacing ≠ fill interval under BLE jitter — not quoted.) The decisive instrument
+remains the fast-spacing starvation run (`/tmp/probe_rt_ppg_rate.py`, deployed on the box, pre-stated
+bands [95,105]→100 · [118,132]→125); FIELD-GATED on the ring being worn (it was not, 2026-08-20 19:40).
+
+**Wired (capture-host):** the runner now drains the raw buffer TWICE per live cycle (~0.5 s spacing) —
+buffers sit well under the cap, so capture is COMPLETE and every night's unsaturated counts measure the
+fill rate for free. Gate-tested (two asks per cycle with the stream, zero without).
+
 ### 2.1 · OPEN: the marker rate is not the heart rate
 
 | stream | markers | implied bpm | reported HR | ratio |
