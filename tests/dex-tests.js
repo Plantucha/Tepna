@@ -40401,7 +40401,16 @@
          CONSTANT for long runs, and constant intervals have zero successive differences, so rMSSD was
          DEFLATED. On the real corpus the same defect imputed 1789 of 7437 intervals (24 % of a night).
          The fix raises it toward truth; the direction is the one the mechanism predicts. */
-      T.eq('PpgDex rMSSD known-answer (seed 12345)', res.ppgRmssd, 42.1);
+      /* 42.1 → 41.4 (PPGDEX-ALGORITHM-DEEP-DIVE #1, 2026-08-21). Same standard as the note above:
+         not a re-baseline, a mechanism with a predicted DIRECTION. `filtfilt` ran unpadded from zero
+         state, so both record ends carried a transient the size of the DC pedestal — measured
+         edge/mid SD 12.07x on a synthetic raw channel, 1.00x after odd-reflected padding. Edge
+         transients manufacture spurious beats, spurious beats manufacture abnormally short and long
+         intervals, and those INFLATE rMSSD (it is a successive-difference statistic). Removing them
+         must therefore lower it, which is what happened. Corroborated on independent surfaces: the
+         geometry harness recovers 12 real edge pairs (nPairs 1787 → 1799) and the regenerated equiv
+         night moves cleanBeatPct 98 → 100 with correctionRatePct 4.8 → 0. */
+      T.eq('PpgDex rMSSD known-answer (seed 12345)', res.ppgRmssd, 41.4);
       T.ok('the worker reported no per-detector errors', res.errors && Object.keys(res.errors).length === 0, JSON.stringify(res.errors));
 
       // a worker changes WHEN the work runs, never WHAT — a second reconstruction is byte-identical
@@ -47521,7 +47530,46 @@
          shows on three nights, and this is the first evidence the mechanism actually is a rate
          mismatch rather than something that merely resembles one. */
       T.ok('§6 …as a SAWTOOTH, confirming the real-night mechanism', ppgRate.fired.indexOf('sawtooth') >= 0);
-      T.ok('§6 a planted defect moves the median lag well off the clean value', Math.abs(ppgStep.medLag - clean.medLag) > 100);
+      /* ⚠ This read `Math.abs(ppgStep.medLag - clean.medLag) > 100` until 2026-08-21. That statistic
+         is a COIN FLIP on this fixture and carries no information about the planted step. The step
+         makes the lag distribution exactly BIMODAL — `lagIqr` 400.0 IS the planted magnitude, and
+         `binMed` reads 257 257 257 | 657 657 657 — so `medLag` reports whichever mode holds >=50 %
+         of pairs, not how far the defect moved anything.
+         PPGDEX-ALGORITHM-DEEP-DIVE #1 (filtfilt padding) recovers 12 edge pairs, 1787 -> 1799. That
+         alone tipped the median from the upper mode to the lower one — 490.7 -> 257.6 — while
+         `binMed`, `lagIqr` and BOTH probes stayed byte-identical, i.e. the defect never became one
+         bit less visible. A gate that flips on a pair count it does not claim to measure is
+         measuring nothing; assert the statistics that DO encode the step. */
+      T.ok(
+        '§6 a planted defect moves the lag SPREAD by the planted magnitude',
+        Math.abs(ppgStep.lagIqr - 400) < 40 && clean.lagIqr < 40,
+        'clean IQR=' + clean.lagIqr.toFixed(1) + ' step IQR=' + ppgStep.lagIqr.toFixed(1) + ' (planted 400)'
+      );
+      /* …and it must appear as a STEP in time, not a smear: consecutive 5-min medians jump by the
+         planted amount exactly once. A masked defect flattens this; a drift would ramp it. */
+      var bmJumps = (ppgStep.binMed || []).slice(1).map(function (v, i) {
+        return v - ppgStep.binMed[i];
+      });
+      var bigJumps = bmJumps.filter(function (d) {
+        return Math.abs(d) > 100;
+      });
+      T.ok(
+        '§6 …and it appears as ONE step in the per-bin medians, not a smear',
+        bigJumps.length === 1 && Math.abs(Math.abs(bigJumps[0]) - 400) < 40,
+        'binMed=[' +
+          (ppgStep.binMed || [])
+            .map(function (v) {
+              return v.toFixed(0);
+            })
+            .join(',') +
+          '] jumps>100: [' +
+          bigJumps
+            .map(function (v) {
+              return v.toFixed(0);
+            })
+            .join(',') +
+          ']'
+      );
     });
 
     group('geometry-probe — five timeline shapes, and each probe fires on ONLY its own', 'geometry-probe · timeline · alignment · specificity', function (T) {

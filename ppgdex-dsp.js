@@ -171,12 +171,46 @@
     for (let i = 0; i < x.length; i++) y[i] = x[x.length - 1 - i];
     return y;
   }
-  function filtfilt(x, c) {
-    return reverse(applyBiquad(reverse(applyBiquad(x, c)), c));
+  /* ODD-REFLECTED PADDING — PPGDEX-ALGORITHM-DEEP-DIVE §4 #1.
+     `applyBiquad` starts from zero state (x1=x2=y1=y2=0), so the first samples of a record whose
+     baseline sits far from zero are filtered against a step the size of that baseline. filtfilt
+     then runs the same filter BACKWARDS, so the transient appears at BOTH ends, and `bandpass`
+     repeats the whole thing for the low-pass. Unpadded, that edge energy is what produced a
+     spurious terminal beat, a 65x `orient` skew and a 6.18x `std(bp)`.
+
+     ODD reflection — 2*x[0] - x[k] — continues the signal's slope through the boundary instead of
+     mirroring it. A MIRROR (x[k]) creates an artificial peak at each end, which is the defect in a
+     different costume; odd reflection is what SciPy's filtfilt uses for the same reason.
+
+     `pad` is supplied by the caller because the length that matters is set by the SLOWEST corner
+     the filter must settle, which `filtfilt` cannot see from `c` alone. It is clamped to the record
+     so a short segment degrades to the old behaviour instead of reading past its own ends. */
+  function filtfilt(x, c, pad) {
+    const n = x.length;
+    const p = Math.max(0, Math.min(pad | 0, n - 1));
+    if (p === 0) return reverse(applyBiquad(reverse(applyBiquad(x, c)), c));
+    const ext = new Float32Array(n + 2 * p);
+    for (let i = 0; i < p; i++) ext[i] = 2 * x[0] - x[p - i];
+    ext.set(x, p);
+    for (let i = 0; i < p; i++) ext[p + n + i] = 2 * x[n - 1] - x[n - 2 - i];
+    const y = reverse(applyBiquad(reverse(applyBiquad(ext, c)), c));
+    return y.slice(p, p + n);
   }
   function bandpass(x, fs, lo, hi) {
-    let y = filtfilt(x, biquad('hp', lo, fs, 0.707));
-    y = filtfilt(y, biquad('lp', hi, fs, 0.707));
+    if (!x.length) return new Float32Array(0);
+    /* PAD = 3 * fs / lo — three periods of the high-pass corner, the slowest component the
+       cascade has to settle. The low-pass settles far faster, so the same length covers both.
+
+       ⚠ #1 ALSO PRESCRIBED "subtract record median". It was implemented, MEASURED, and DROPPED:
+       padding alone already takes the edge/mid SD ratio from 12.07x to 1.00x on a synthetic raw
+       channel (DC 120000, 1.1 Hz pulse, 0.02 Hz wander) — the median adds nothing on top — while it
+       DID flip a gated behaviour, `cadenceSamples`'s 120 bpm + notch-1.2 case from ratio 1.040 to
+       2.000 (reading the HR half). That is the sub-harmonic defect the gate exists to catch. The
+       effect is deterministic and length-independent (identical at 60/120/180/300 s), so it is not
+       a resolution artefact. Do not re-add it without re-running that group. */
+    const pad = Math.round((3 * fs) / lo);
+    let y = filtfilt(x, biquad('hp', lo, fs, 0.707), pad);
+    y = filtfilt(y, biquad('lp', hi, fs, 0.707), pad);
     return y;
   }
 
