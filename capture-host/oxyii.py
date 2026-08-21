@@ -545,8 +545,13 @@ def parse_get_info(payload: bytes) -> dict | None:
     y = payload[24] | (payload[25] << 8)
     mo, d, h, mi, s = payload[26], payload[27], payload[28], payload[29], payload[30]
     rtc = None
-    if 2000 <= y <= 2255 and 1 <= mo <= 12 and 1 <= d <= 31 and h <= 23 and mi <= 59 and s <= 59:
-        rtc = {"year": y, "month": mo, "day": d, "hour": h, "minute": mi, "second": s}
+    if 2000 <= y <= 2255:
+        import datetime as _dt
+        try:
+            _dt.datetime(y, mo, d, h, mi, s)   # calendar round-trip: rejects Feb 31 / Apr 31 and every
+            rtc = {"year": y, "month": mo, "day": d, "hour": h, "minute": mi, "second": s}
+        except ValueError:                     # out-of-range component — §2.7: absence, never a rolled instant
+            rtc = None
     return {"firmware": fw, "serial": sn, "rtc": rtc, "raw_len": len(payload)}
 
 
