@@ -5837,6 +5837,89 @@
        separately, through unrelated mechanisms, is what turns an estimate into a measurement — and a
        channel that could NOT contribute has to say so, because a silently missing sensor is exactly
        the class of failure this suite keeps finding. */
+    group('Integrator step-aware longitudinal CPAP offset — segments, interpolates, refuses across steps', 'integrator-dsp · clock · longitudinal · CPAP-CLOCK-LONGITUDINAL-SEGMENT', function (T) {
+      var D = env.IntegratorDSP;
+      var f = D && D.fitClockOffsetSegments;
+      if (typeof f !== 'function') {
+        T.ok('IntegratorDSP.fitClockOffsetSegments present', false, 'export missing');
+        return;
+      }
+      var DAY = 86400000;
+      var d0 = Date.UTC(2026, 6, 1); // 2026-07-01 anchor
+      var mk = function (i, off, conf) {
+        return { dateMs: d0 + i * DAY, offsetSec: off, confident: conf !== false };
+      };
+      // ── (1) linear drift within one segment: anchors on days 0,2,4,6; unanchored day 3 must interpolate
+      var lin = f([mk(0, -1320), mk(2, -1322), mk(3, null, false), mk(4, -1324), mk(6, -1326)]);
+      T.eq('one segment for a clean linear drift', lin.segments.length, 1);
+      T.ok('segment fit passes plausibility (residual small, ppm plausible)', lin.segments[0].ok, JSON.stringify(lin.segments[0]));
+      var byDay = {};
+      lin.nights.forEach(function (n) {
+        byDay[n.dateMs] = n;
+      });
+      T.eq('anchored day → measured', byDay[d0 + 0 * DAY].source, 'measured');
+      T.eq('unanchored day inside segment → interpolated', byDay[d0 + 3 * DAY].source, 'interpolated');
+      T.ok('interpolated value on the fitted line', Math.abs(byDay[d0 + 3 * DAY].offsetSec - -1323) < 0.5, String(byDay[d0 + 3 * DAY].offsetSec));
+      // ── (2) planted 1-hour step (vacation): day 0..4 near -1320s, day 5..9 near +2280s
+      var step = f([mk(0, -1320), mk(2, -1322), mk(4, -1324), mk(5, 2280), mk(7, 2278), mk(9, 2276), mk(6, null, false), mk(8, null, false)]);
+      T.eq(
+        'planted step yields TWO segments',
+        step.segments.length,
+        2,
+        JSON.stringify(
+          step.segments.map(function (s) {
+            return [s.anchors, s.ok];
+          })
+        )
+      );
+      var b2 = {};
+      step.nights.forEach(function (n) {
+        b2[n.dateMs] = n;
+      });
+      T.eq('day 6 (inside 2nd segment, unanchored) → interpolated', b2[d0 + 6 * DAY].source, 'interpolated');
+      T.eq('day 8 (inside 2nd segment, unanchored) → interpolated', b2[d0 + 8 * DAY].source, 'interpolated');
+      T.ok('interpolated day 6 sits with the SECOND segment, not the first', b2[d0 + 6 * DAY].offsetSec > 2000, String(b2[d0 + 6 * DAY].offsetSec));
+      // ── (3) extrapolation refused — a night before every anchor, and one after
+      var ext = f([mk(-3, null, false), mk(0, -1320), mk(2, -1322), mk(4, -1324), mk(10, null, false)]);
+      var eb = {};
+      ext.nights.forEach(function (n) {
+        eb[n.dateMs] = n;
+      });
+      T.eq('night before all anchors → refused (extrapolation)', eb[d0 - 3 * DAY].source, 'refused');
+      T.ok('…with the extrapolation reason named', /extrapolation/.test(eb[d0 - 3 * DAY].reason || ''), eb[d0 - 3 * DAY].reason);
+      T.eq('night after all anchors → refused', eb[d0 + 10 * DAY].source, 'refused');
+      // ── (4) single-anchor segment (isolated post-step point) — refused wholesale
+      var iso = f([mk(0, -1320), mk(2, -1322), mk(4, -1324), mk(6, 2280), mk(7, null, false)]);
+      var lastSeg = iso.segments[iso.segments.length - 1];
+      T.ok('single-anchor segment marked unfittable', lastSeg.ok === false && /single-anchor/.test(lastSeg.reason || ''), JSON.stringify(lastSeg));
+      var b4 = {};
+      iso.nights.forEach(function (n) {
+        b4[n.dateMs] = n;
+      });
+      T.eq('unanchored night inside a refused segment → refused (not fabricated)', b4[d0 + 7 * DAY].source, 'refused');
+      // ── (5) truth wins: the fit never overrides a real measurement
+      var truth = f([mk(0, -1320), mk(2, -1322), mk(3, -1500, true), mk(4, -1324)]); // day 3 measured OFF the line
+      var b5 = {};
+      truth.nights.forEach(function (n) {
+        b5[n.dateMs] = n;
+      });
+      T.eq('measured day survives even when off the fitted line', b5[d0 + 3 * DAY].offsetSec, -1500);
+      T.eq('…and stays labelled measured, not interpolated', b5[d0 + 3 * DAY].source, 'measured');
+      // ── (6) determinism: same input → identical output (no Date.now() drift)
+      var det1 = f([mk(0, -1320), mk(2, -1322), mk(4, -1324), mk(3, null, false)]);
+      var det2 = f([mk(0, -1320), mk(2, -1322), mk(4, -1324), mk(3, null, false)]);
+      T.eq('deterministic — identical inputs, identical outputs', JSON.stringify(det1), JSON.stringify(det2));
+      // ── (7) empty corpus → no fabrication
+      T.eq('empty input → empty output, never fabricated', f([]).nights.length, 0);
+      T.eq(
+        'all-unanchored corpus → all refused',
+        f([mk(0, null, false), mk(1, null, false)]).nights.every(function (n) {
+          return n.source === 'refused';
+        }),
+        true
+      );
+    });
+
     group('Integrator pins the clock offset to seconds and says which sensor found it', 'integrator-dsp · clock-fit', function (T) {
       var D = env.IntegratorDSP || env.D || null;
       var fit = D && D.fitClockOffset,
