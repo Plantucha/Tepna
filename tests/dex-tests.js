@@ -6890,6 +6890,61 @@
       T.eq('…and reports no events', brief.cvhrEvents, 0);
     });
 
+    group('PpgDex waveform SpO2 trend — self-calibrated, refuses without its pair, experimental tier', 'ppgdex-dsp · ppgdex-registry · spo2w', function (T) {
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!P || typeof P.spo2WaveformTrend !== 'function') {
+        T.ok('PPGDSP.spo2WaveformTrend present', false, 'export missing');
+        return;
+      }
+      // ── parsers ──
+      var w2 = P.parsePPG2W('Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion\n2026-08-13T20:21:35.339;0;1526307;1535107;0\n2026-08-13T20:21:35.349;0;1526799;1535263;2\n');
+      T.eq('parsePPG2W reads rows', w2.rows.length, 2);
+      T.ok('parsePPG2W tMs is floating (getUTC round-trip)', new Date(w2.rows[0].tMs).getUTCHours() === 20, 'got ' + new Date(w2.rows[0].tMs).getUTCHours());
+      T.eq('parsePPG2W junk → empty', P.parsePPG2W('garbage\nmore').rows.length, 0);
+      var sp = P.parseO2RingSpo2Csv('Time,Oxygen Level,Pulse Rate,Motion\n20:21:36 13/08/2026,96,52,0\n20:21:37 13/08/2026,95,53,0\n');
+      T.eq('parseO2RingSpo2Csv reads DMY rows', sp.length, 2);
+      T.ok('…as floating tMs, May-13 style DMY (13/08 is 13 August)', new Date(sp[0].tMs).getUTCMonth() === 7 && new Date(sp[0].tMs).getUTCDate() === 13);
+      T.eq('…out-of-band SpO2 dropped', P.parseO2RingSpo2Csv('Time,Oxygen Level\n20:21:36 13/08/2026,300\n').length, 0);
+      // ── synthetic tracking session: R is BUILT to track SpO2; calibration must recover it ──
+      var t0 = Date.UTC(2026, 7, 13, 20, 0, 0);
+      var mk = function (track) {
+        var rows = [], spo2 = [], t = t0;
+        for (var buf = 0; buf < 640; buf++) {                      // 640 buffers ≈ 10.7 min → 40+ 15 s bins
+          var sec = Math.floor((t - t0) / 1000);
+          var s = 90 + (Math.floor(sec / 15) % 8);                 // SpO2 walks 90..97 per 15 s
+          spo2.push({ tMs: t0 + sec * 1000, spo2: s });
+          var amp0 = track ? 50 * (1 + 0.05 * (s - 93)) : 50;      // ch0 AC encodes SpO2 when tracking
+          for (var i = 0; i < 100; i++) {
+            rows.push({ tMs: t + i * 10, ch0: 100000 + amp0 * Math.sin(i / 6), ch1: 200000 + 50 * Math.sin(i / 6), motion: 0 });
+          }
+          t += 1005;                                                // re-anchor jump splits buffers
+        }
+        return { rec: { t0Ms: rows[0].tMs, rows: rows }, spo2: spo2 };
+      };
+      // 640×100 = 64,000 rows — comfortably over the 5000 floor and 40-bin gate
+      var g = mk(true);
+      var res = P.spo2WaveformTrend(g.rec, g.spo2);
+      T.ok('tracking session is usable', res.usable === true, res.reason || '');
+      if (res.usable) {
+        T.ok('self-calibration r is strong on built-to-track data', res.calib.r > 0.8, 'r=' + res.calib.r);
+        T.ok('trend median lands inside the SpO2 walk band', res.summary.medianSpo2w > 89 && res.summary.medianSpo2w < 98, String(res.summary.medianSpo2w));
+        T.ok('trend is clamped to a physiologic band', res.trend.every(function (x) { return x.spo2w >= 60 && x.spo2w <= 100; }));
+      }
+      // ── refusals: absence must be absence, never a number ──
+      T.ok('no device series → usable:false with the self-calibration reason', P.spo2WaveformTrend(g.rec, []).usable === false);
+      var bad = mk(false);                                          // non-tracking: flat ratio
+      var res2 = P.spo2WaveformTrend(bad.rec, bad.spo2);
+      T.ok('a non-tracking session is REFUSED (r floor), never rendered', res2.usable === false && /does not track|zero variance/.test(res2.reason || ''), res2.reason || '');
+      T.ok('a short stream is refused', P.spo2WaveformTrend({ rows: [] }, g.spo2).usable === false);
+      // ── registry: the three surfaced metrics exist at EXPERIMENTAL tier — the shipping condition ──
+      var REG = env.PPG_REGISTRY || (env.PpgRegistry && env.PpgRegistry.REGISTRY);
+      if (REG) {
+        ['spo2wMedian', 'spo2wMin', 'spo2wTrackR'].forEach(function (id) {
+          T.ok('registry ' + id + ' present at experimental tier', REG[id] && REG[id].evidence === 'experimental', JSON.stringify(REG[id] || null));
+        });
+      } else T.ok('PPG_REGISTRY reachable in env', false);
+    });
+
     group('PpgDex distinguishes a missing device PPI from an empty one', 'ppgdex-dsp · ppgdex-app · device-ppi', function (T) {
       /* Asserted, not skipped. The first draft looked this up on the wrong namespace and reported a
          green "(skipped)" while testing nothing — a hollow gate, which is the failure this suite

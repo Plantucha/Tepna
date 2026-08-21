@@ -41,6 +41,32 @@ import { PPGUI } from './ppgdex-render.js';
   // streams the old default-to-'ppg' would have fed to parsePPG → throw / mis-analyze: raw `*_ECG` (→ ECGDex),
   // O2Ring/Wellue SpO₂ (→ OxyDex), Libre/CGM (→ GlucoDex). PPG's companion kinds stay acc/gyro/magn/ppi/marker
   // (the asymmetry to ECG's rr/hr/acc, preserved). Device `*_HR` is still ignored-with-note downstream.
+  // Waveform SpO₂ trend section (experimental). Badge mandate: every number badged, inline-before-label
+  // (`evBadge`), matching the metricsTable pattern; the device series is ALWAYS named beside the trend so
+  // the regression's extreme-compression is visible rather than implied away.
+  function renderSpo2w(res, fname) {
+    const el = document.getElementById('spo2wSection');
+    if (!el) return;
+    el.style.display = '';
+    if (!res || !res.usable) {
+      el.innerHTML =
+        '<div class="sec-label">Waveform SpO\u2082 (experimental)</div>' +
+        '<div class="dim">Not rendered \u2014 ' + ((res && res.reason) || 'no usable pair') + '. The device SpO\u2082 remains the measurement.</div>';
+      return;
+    }
+    const s = res.summary, c = res.calib;
+    const row = (label, v, u, note) =>
+      '<tr><td class="fmt-m">' + evBadge(label) + label + '</td><td class="mono">' + v + '</td><td class="dim">' + (u || '') + '</td><td class="dim">' + (note || '') + '</td></tr>';
+    el.innerHTML =
+      '<div class="sec-label">Waveform SpO\u2082 (experimental) \u00b7 ' + fname + '</div>' +
+      '<div class="dim" style="margin:4px 0 8px">Per-session self-calibration vs the device\u2019s own SpO\u2082 (r=' + c.r.toFixed(3) + ', n=' + c.n + ' bins). A second, waveform-provenance estimate \u2014 never a replacement; extremes are compressed by the regression.</div>' +
+      '<table class="data-table"><thead><tr><th>Metric</th><th>Value</th><th>Unit</th><th>Note</th></tr></thead><tbody>' +
+      row('SpO\u2082w median', s.medianSpo2w.toFixed(1), '%', 'calibrated trend median') +
+      row('SpO\u2082w min', s.minSpo2w.toFixed(1), '%', 'trend minimum \u2014 depth compressed vs device') +
+      row('SpO\u2082w track r', s.trackR.toFixed(3), '', 'self-calibration quality (\u2265 0.3 required)') +
+      '</tbody></table>';
+  }
+
   function classify(name) {
     return ING.ppgKind(name);
   }
@@ -98,6 +124,42 @@ import { PPGUI } from './ppgdex-render.js';
               progress(0, '');
               return;
             }
+          }
+        }
+        // ── WAVEFORM SpO₂ TREND PAIR (owner-ordered ship 2026-08-20, experimental tier) ─────────────
+        // A `_PPG2W.txt` + `_SPO2.csv` pair (same 14-digit stamp) is the O2Ring raw two-channel stream
+        // plus its own device SpO₂ — the self-calibration input. Intercepted HERE, before the PPG
+        // pipeline, because neither file is a `_PPG` primary (the sniff would set them aside as
+        // foreign). Removed from `parsed` either way so the rest of the pipeline never sees them.
+        {
+          const w2 = parsed.filter((p) => /_PPG2W\.txt$/i.test(p.name || ''));
+          const sp = parsed.filter((p) => /_SPO2\.csv$/i.test(p.name || ''));
+          if (w2.length || sp.length) {
+            parsed = parsed.filter((p) => !/_PPG2W\.txt$/i.test(p.name || '') && !/_SPO2\.csv$/i.test(p.name || ''));
+            let done = false;
+            for (const w of w2) {
+              const stamp = (w.name.match(/(\d{14})/) || [])[1];
+              const mate = sp.find((x) => stamp && (x.name || '').indexOf(stamp) >= 0) || (sp.length === 1 && w2.length === 1 ? sp[0] : null);
+              if (!mate) continue;
+              try {
+                const rec2 = DSP.parsePPG2W(w.text);
+                const rows2 = DSP.parseO2RingSpo2Csv(mate.text);
+                const res = DSP.spo2WaveformTrend(rec2, rows2);
+                renderSpo2w(res, w.name);
+                done = true;
+                break; // one pair per drop (v1)
+              } catch (e) {
+                showErr('SpO₂w pair failed: ' + (e.message || e));
+              }
+            }
+            if (!done && (w2.length || sp.length)) {
+              showOK(w2.length && !sp.length
+                ? 'PPG2W dropped without its matching `_SPO2.csv` — the waveform SpO₂ trend needs BOTH (self-calibration).'
+                : !w2.length && sp.length
+                  ? 'SPO2.csv noted — drop the matching `_PPG2W.txt` with it for the waveform SpO₂ trend.'
+                  : 'PPG2W/SPO2 stamps do not match — the trend needs the SAME session pair.');
+            }
+            if (!parsed.length) { progress(0, ''); return; }   // the drop was ONLY the pair — done
           }
         }
         parsed = DSP.mergeMultipart(parsed); // fold `…_partNNofMM.txt` into one stream per base
