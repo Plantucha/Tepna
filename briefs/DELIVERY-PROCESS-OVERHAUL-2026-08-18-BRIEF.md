@@ -93,6 +93,46 @@ second copy, then restore the tree and let the existing 15-min timer work. **Own
 destroys working-tree state that may be another session's only copy** — the snapshot makes it safe in
 fact, but the *authorization* to step on possibly-live work is the owner's to give, per §👥.2's own rule.
 
+## §7 · Acting on ANOTHER SESSION's PR — base-merge freely, arm never (2026-08-21)
+
+Parallel sessions routinely find each other's PRs stuck. The line below was converged on independently
+by two sessions and then tested by a near-miss; it was written nowhere, so it is written here.
+
+| action on someone else's PR | permitted | why |
+|---|---|---|
+| `gh pr update-branch` on a **green-and-stuck** PR | **yes, no ask** | queue mechanics — adds none of your content, is exactly what the `queue-doctor` timer does repo-wide, and under `strict: true` the deadlock **never** self-resolves, so waiting for the owner's round-trip is pure loss |
+| `gh pr merge --auto` | **no** | not content, but it decides **when their work lands**. That is the owner's call |
+| pushing commits, editing files, amending, force-pushing | **no** | branch content is owner-only |
+
+**The near-miss that tested it.** A session ran `gh pr merge <N> --squash --auto` on another session's
+PR, having read back the wrong number — its own was N+1. It disclosed, and then did **not** disarm.
+That restraint was right, and the timeline shows it was right for a stronger reason than the one given:
+
+```
+PR created            09:33:40Z
+auto_squash_enabled   09:33:41Z   ← the OWNER's own create-and-arm chain, one second later
+```
+
+Exactly **one** such event exists in the timeline. GitHub records nothing for enabling auto-merge on a
+PR that already has it, so the stray command **returned success and changed no state**. Disarming
+would therefore have been the *only* action either party took on that branch — a strictly **larger**
+intervention than the thing it was correcting.
+
+**Two rules fall out, and the second is the transferable one:**
+
+1. **Read back the PR number before acting on it.** Arming and base-merging take the same argument
+   shape, so a fat-finger silently retargets a *different session's* work.
+2. **When you discover you may have touched someone else's branch, disclose and STOP — do not tidy.**
+   The instinct to undo is an instinct to take a second unilateral action on a branch you have already
+   established is not yours. Check whether the first one even did anything: `gh api
+   repos/<o>/<r>/issues/<N>/timeline` distinguishes *"I changed their state"* from *"my command was a
+   no-op"*, and those need opposite responses.
+
+⚠️ **The arm-at-create convention made both behaviours identical here.** That is a coincidence of
+convention, not evidence the boundary is unnecessary — under any other convention the same command
+lands someone's work earlier than they intended.
+
+
 ## Done when
 
 - [x] §1 five workflows guarded + verified live (founding PR)
