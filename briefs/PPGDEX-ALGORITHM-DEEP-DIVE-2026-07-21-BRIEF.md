@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-21 (**§4 #4 row-atomic column validation and #12 the hardware comment are EXECUTED**; **#3 WITHDRAWN** — verified already fixed by DEEP-AUDIT-II §8.1 before implementing. Remaining items unexecuted.) · **Created:** 2026-07-21
+**Status:** IN-PROGRESS — 2026-07-21 (**§4 #4 row-atomic column validation and #12 the hardware comment are EXECUTED**; **#3 WITHDRAWN** — verified already fixed by DEEP-AUDIT-II §8.1 before implementing. 🔴 **The remaining items are ONE OWNER DECISION, not nine engineering items** — the two shipped are exactly the two with Risk "None", and every item left changes published PpgDex values; see the block before §4's table. #8's design call is resolved and specified 2026-08-20, awaiting only that answer.) · **Created:** 2026-07-21
 
 # PpgDex optical algorithm — deep dive, ECG-validated baseline, and the ranked change list
 
@@ -338,6 +338,86 @@ together; or (b) `pre = 0.50` **with the foot search bounded** to a plausible ri
 `sysI` rather than the whole window. Shipping the bare constant is only correct if the node is declared
 sleep-only, which it is not. **Not implemented here** — the choice between (a) and (b) is a design call,
 and this is the measurement that should precede it.
+
+### 🔴 THE PUNCH LIST IS ONE OWNER DECISION, NOT NINE ENGINEERING ITEMS (2026-08-20)
+
+This brief has sat `IN-PROGRESS` since 2026-07-21 with exactly two items shipped. **Those two are
+exactly the two whose Risk column reads "None"** — and that is not a coincidence, it is the whole
+pattern:
+
+| item | Risk column | status |
+|---|---|---|
+| #4 | *"None; byte-inert on clean captures"* | ✅ **shipped** 2026-07-21 |
+| #12 | *"None"* (a comment correction) | ✅ **shipped** 2026-07-21 |
+| #3 | — | withdrawn, claim was stale |
+| **#1 ★** | *"**Moves every fixture**; `env.equiv` PPG leg reds by design"* | open |
+| **#2 ★** | ~29 % of the exported series stops being a fabricated constant | open |
+| #5 | motion gates shift where they were wrong | open |
+| #6 | *"Reference identity changes ⇒ downstream moves on those nights"* | open |
+| #7 | *"Surfaced number changes 2–3.4×; docs must move with it"* | open |
+| #8 | every morphology value (measured above) | open |
+| #10 | peak times shift by a near-constant | open |
+| #11 | *"Some nights emit `null` where they emitted a number — consumer-visible"* | open |
+| #9 | experiment; *"measure before merging"* | open |
+
+**Every remaining item changes published PpgDex numbers.** So the brief is not stalled on difficulty,
+on measurement, or on missing tooling — three passes have now confirmed the diagnoses, resolved #8's
+design call, and established that the regen machinery exists. It is stalled on a **decision that has
+never been put to the owner**: *are PpgDex's exported values allowed to move?*
+
+**Framed as nine items it looks like nine judgement calls, which is why each pass stopped at the same
+line.** It is one: the answer unblocks #1, #2, #5, #6, #7, #8, #10 and #11 together, and the landing
+order already sequences them. A "no" is equally decisive — it converts the list from open work into a
+recorded set of known-and-accepted defects, which is a different and cheaper thing to maintain than
+eight items that each read as actionable.
+
+⚠️ **Two of them are marked ★ and are not cosmetic.** #1 repairs five surfaced numbers at once
+(spurious terminal beat, a 65× `orient` skew, 6.18× `std(bp)`, `channelSNR` 2.92 → 10.9–21.0). #2 stops
+`correctRR` **fabricating** rejected intervals from a running median — at the file's own 28.8 %
+correction rate, roughly a third of the exported series is currently a filled constant flowing into
+SDNN, LF/HF, DFA-α1, SampEn, CVHR and `contentId`. Both make the published numbers *more* honest, so
+"do not move the numbers" preserves known-wrong ones.
+
+**Nothing here is implemented, and nothing should be until that answer exists.**
+
+### ▶ #8's DESIGN CALL RESOLVED 2026-08-20 — it is neither (a) nor (b), it is BOTH, and the cost was mis-rated
+
+The precondition left the choice open between **(a)** *"feed it `det.feet`"* and **(b)** `pre = 0.50`
+with a bounded foot search. Read to the line, **(a) is already half-present and is not sufficient
+alone**:
+
+- `medianPulse(bp, det, fs, sqi)` already destructures **`const { peaks, feet } = det;`**
+  (`ppgdex-morph.js:36`), so no signature change is needed — `det.feet` is in scope today.
+- It is **already trusted** for amplitude: `:52` normalises each beat by
+  `bp[Math.round(feet[k])]`. The detected feet are good enough to divide by; only the *template-level*
+  foot falls back to a global-minimum search (`:79-86`).
+- **But the template is too short to hold the answer.** `pre = 0.15 s` spans 150 ms before the peak
+  while the true foot sits at **~296 ms** (this brief's own figure, against the 147.4 ms ceiling). A
+  `det.feet`-derived `footI` would land **outside** the window. (a) alone therefore cannot express the
+  correct foot.
+
+⇒ **#8 must widen `pre` AND derive `footI` from `det.feet`.** Widening alone re-creates the defect at
+HR > 80 bpm (the precondition's finding); `det.feet` alone cannot reach the foot. Together, the search
+disappears — so the previous beat's foot can never win a minimum, at any heart rate — and the window
+merely has to *contain* 296 ms, which 0.50 s does with headroom.
+
+⚠️ **The blast radius is wider than the punch-list row states.** It reads *"`riseTimeMs`/`crestTimeMs`
+… fixes `augmentationIndexPct`, `reflectionIndex`, SDPPG a-wave"*. `footI`/`footV` also feed the
+template **amplitude** normalisation (`:87`), `halfV` and the half-width search (`:119-122`), P1/P2
+(`:141-142`), the a-wave search **start** (`:165`), `notchTimeMs` (`:221`) and the exported `marks`
+block (`:214`). Every morphology number moves, not four of them.
+
+✅ **And the cost was over-rated in the other direction: PpgDex HAS a regen tool.**
+`tools/regen-ppgdex-goldens.mjs` ships and covers all **6** `provenance/PpgDex.json` fixtures, so #8
+needs no new machinery — `CLAUDE.md` §🔏's list naming only CPAPDex/GlucoDex/PulseDex was stale and is
+corrected in this PR. The row's *"cheapest gate in the list"* stands; what changes is that the
+regeneration is routine rather than a prerequisite project.
+
+**Still NOT implemented here, deliberately.** This resolves the design question the precondition
+posed, but #8 moves every exported morphology value on a shipped node — that is an owner-visible
+change to published health numbers, and the two prior passes both stopped at the same line. The
+implementation is now unblocked and specified; the decision to move those numbers is not this brief's
+to take unilaterally.
 
 **Landing order** (one gated change at a time per `CLAUDE.md` §👥.3):
 `4 ✅ → 12 ✅ → 8 → 1 → 6 → 7 → 2 → 10 → 5 → 11 → [9 experiment]` *(#3 withdrawn; #4 and #12 SHIPPED 2026-07-21, mutation-verified both directions, real-corpus equiv leg reproduces byte-identical)*

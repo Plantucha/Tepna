@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-15 (§4 RE-MEASURED: eight of its nine "still open" items are closed, F8 alone remains and is data-blocked. §1's three decisions are OWNER calls with the `no-fabricated-tier` ratchet holding meanwhile; §4 Tier-4 coverage debt stands) · **Created:** 2026-08-05 · **Follows:** `DEEP-AUDIT-V-2026-08-04-BRIEF.md` (DONE — 2026-08-15) · `DEEP-AUDIT-IV-2026-08-04-BRIEF.md` (IN-PROGRESS)
+**Status:** IN-PROGRESS — 2026-08-15 (§4 RE-MEASURED: eight of its nine "still open" items are closed, F8 alone remains and is data-blocked. §1's three decisions are OWNER calls with the `no-fabricated-tier` ratchet holding meanwhile; §4 Tier-4 coverage debt RE-MEASURED 2026-08-20 — **3 of its 4 items are STALE**; only `cohort-worker.js` survives, and it is the row a grep count would have wrongly cleared) · **Created:** 2026-08-05 · **Follows:** `DEEP-AUDIT-V-2026-08-04-BRIEF.md` (DONE — 2026-08-15) · `DEEP-AUDIT-IV-2026-08-04-BRIEF.md` (IN-PROGRESS)
 
 # Fixing the audit found a 94-label class, and it needs THREE decisions, not one
 
@@ -166,6 +166,30 @@ by nobody.
 audit V and every fix PR since · `tools/mutate.mjs` and `mutmut`, never invoked in either language ·
 the E2E fold (`trio-batch` → `tch-multinight`) · `cohort-worker.js` (644 lines, zero test-group
 mentions, the engine behind four shipped analysis pages).
+
+> ### ▶ TIER 4 RE-MEASURED 2026-08-20 — **3 of 4 are STALE**; only `cohort-worker.js` survives
+>
+> This list is the sibling of §4's own warning two paragraphs up — *"a stale 'still open' list costs
+> more than a stale DONE … a false 'there is work here' is caught by nobody."* It has been costing that
+> since 2026-08-05.
+>
+> | item | verdict | evidence |
+> |---|---|---|
+> | browser lane "run by NOTHING" | **STALE** | run 2026-08-20 against a served checkout: `✓ browser gates passed`, **7584 passed · 52 skipped · 533 groups**, 9 bundles + 31 fixtures audited. And it is not even manual — `browser-gates.yml` installs playwright + chromium and runs exactly it, as **one of the eight REQUIRED status checks**, so it has gated every PR for months |
+> | `mutate.mjs` / `mutmut` "never invoked in either language" | **STALE, both** | JS: `.git/tepna-mutation/` holds **16 ledgers and 9 draft banks** (cpapdex, ecgdex, …) plus `*.operators.done.json`; three PRs this week fix `mutate.mjs` internals (#1575 · #1579 · #1580). Python: `capture-host/mutation_triage.py` ships, and the runbook commits — *"`--list` before `--only`"*, *"the survivor-set diff UNDERCOUNTS kills"* — are lessons only obtainable by **running** mutmut |
+> | E2E fold `trio-batch` → `tch-multinight` | **STALE** | `tch-multinight --dir` run over **55 nights** on 2026-08-20; the run also found its real-data path had been dead since #1418 (`ReferenceError: prov is not defined`), fixed in **#1595** |
+> | `cohort-worker.js` zero test-group mentions | **UPHELD** | still uncovered |
+>
+> ⚠️ **The upheld row was nearly mis-scored, and the near-miss is the transferable part.**
+> `git grep -c cohort-worker -- tests/` now returns **1**, which reads as "covered". The hit is **prose
+> inside a comment** in the *qrs-yield* group, explaining why cohort-worker is a **documented gap**
+> (*"KIND-parameterized … materially heavier + lower value; left as documented gaps"*). A grep proves a
+> string occurs, never that a symbol is exercised — so the one row that survives is the row a count
+> would have wrongly cleared, and the three that fell are rows a count would have wrongly kept.
+>
+> **F8 above is UNAFFECTED and remains correctly blocked** — it needs untreated OSA nights, the
+> committed CPAP night carries 20 events (13 apnea / 7 hypopnea), and that is a clinical decision, not
+> an engineering one. Nothing here touches it.
 
 ---
 
