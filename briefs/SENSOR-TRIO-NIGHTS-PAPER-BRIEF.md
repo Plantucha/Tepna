@@ -44,7 +44,39 @@
 >    ratio 0.94–1.04), so this is not mis-detection inflating σ; it is the real beat-to-beat spread.
 >    The likeliest cause is the one `TRIO-ARTIFACT-GATE` §2 already named — *"Verity's CI was optimistic
 >    because a quality gate had been censoring the hard nights"* — and this is that finding reproduced
->    on the full corpus with a committed-artifact tool. **Do not swap these numbers into the paper
+>    on the full corpus with a committed-artifact tool.
+>
+>    > ### ⛔ THAT ATTRIBUTION IS REFUTED BY ITS OWN SOURCE — checked 2026-08-20
+>    >
+>    > `TRIO-ARTIFACT-GATE` §2 **measured** what censoring does to the Verity σ, and it does not do
+>    > this. Its own table: median σ **1.94 (N=10, censored) → 1.85 (N=15, uncensored)** — a move of
+>    > **0.09 bpm (−4.6 %), in the WRONG DIRECTION**, under a section whose stated conclusion is *"The
+>    > **median is robust** (1.94 → 1.85), so the papers' **headline σ stands**. It is the **mean and
+>    > the CI** that were optimistic."*
+>    >
+>    > The open discrepancy is a **median** discrepancy — published **1.42** [0.96–1.88] against
+>    > re-derived **3.51** [2.72–4.97] / **3.17**, i.e. **~2.5×**. A mechanism measured at −4.6 % on the
+>    > median cannot produce it, and censoring pushes the median DOWN where the gap needs it UP.
+>    > Citing §2 here reads as support because §2 *is* about Verity σ being optimistic — but it is about
+>    > the **CI**, and this is the **point estimate**. Same node, same quantity name, different statistic.
+>    >
+>    > ⚠️ Note also that neither of §2's medians (1.94 / 1.85) equals the published **1.42**, so the
+>    > paper's headline is a *third* derivation — three numbers for "Verity σ" whose commensurability
+>    > nobody has established.
+>    >
+>    > **The better-supported candidate is CORPUS COMPOSITION, not censoring.** The paper states its
+>    > number over a **twenty-six-night** corpus; the re-fit ran **N = 17, box-captured, host-axis
+>    > corrected**. This brief's own provenance section (below) establishes that the other capture tree
+>    > is **phone-captured** — `spreadMs = 1.000`, `independent = false`, the top of §7's phone band —
+>    > so the two derivations may not be over the same population at all. That is a *hypothesis*, not a
+>    > result: I have not established which nights the paper's 26 comprise.
+>    >
+>    > **The discriminator, and it is cheap:** re-run `tools/tch-fused-corpus.mjs` over the paper's own
+>    > 26-night set and over its box-captured subset. If the gap tracks capture tree or N rather than
+>    > any quality gate, the attribution above is simply wrong and the paper's number is a
+>    > different-population estimate rather than a censored one. **Until that runs, the discrepancy is
+>    > UNEXPLAINED** — which is a different and more honest state than "explained by censoring", and it
+>    > does not change the standing instruction not to swap the numbers in. **Do not swap these numbers into the paper
 >    yet**: a σ that moves 2.5× on re-derivation needs its discrepancy explained, not published.
 > 3. **The fused weighting barely matters on this corpus** — fused vs unweighted differ by ≤0.12 bpm on
 >    every corner. Most artifact rejection already happened upstream, where ECGDex *drops* beats below
