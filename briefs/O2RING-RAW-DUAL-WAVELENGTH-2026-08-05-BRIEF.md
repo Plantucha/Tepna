@@ -152,6 +152,30 @@ So the 97.8 % agreement is not a validated ratio-of-ratios; it may be coincidenc
 at one saturation is exactly the evidence this brief has twice refused elsewhere. **Do not assign
 wavelengths on this basis, and do not compute SpO₂ from these columns.**
 
+**④-REOPENED (2026-08-20) — the refutation's evidence base is INVALIDATED, and the functional test now
+PASSES at corpus scale.** Two discoveries changed the ground: (a) the corpus sweep found **99.3 % of all
+0x05 buffers pinned at the 102-record reply cap** (FOLLOWUPS §2.1a) — so the "no cardiac periodicity"
+check ran on gap-spliced data whose ~1 s phase jumps destroy autocorrelation by construction, and its
+within-buffer leg used a 0.82 s window that cannot hold a 0.91 s beat; (b) a per-buffer phase test shows
+the one-swing-per-buffer **phase-locks to the device's own beat period** (Rayleigh R 0.183, p ≈ 0.007,
+vs 0.01–0.08 on wrong-period and shuffled controls) — the channels ARE plethysmographic.
+
+The functional wavelength test (`tools/ppg2w-spo2-fit.mjs` — committed apparatus): per-buffer
+R = (AC/DC)₀/(AC/DC)₁, 15 s-binned, per-session normalised, fitted against the device's own 1 Hz SpO₂
+across the WHOLE corpus. Measured 2026-08-20: **19,006 bins · pooled r = 0.500 · leave-one-session-out
+r ∈ [0.484, 0.511] · monotonic dose–response** (SpO₂ < 92 % → Rn 0.835 · 92–94 % → 0.928 ·
+≥ 96 % → 1.007), per-session r positive in 14 of 15 substantive sessions, including a 73 % desat night
+(r 0.437; desat bins Rn 0.904 vs 1.286). Sign ⇒ **functionally ch0 = IR, ch1 = RED** — note this is the
+OPPOSITE assignment from ④'s withdrawn claim. Three independent lines now agree: the AFE4403 structural
+prior (a two-LED pulse-ox front-end computing displayed SpO₂ has no other channel identity to expose),
+the cardiac phase-lock, and the functional tracking.
+
+**What this does NOT establish:** it is functional evidence, not spectral proof — the sunlight
+experiment (§5.1) remains the assignment's confirmation; the fit is a per-device regression, not a
+calibration curve; and the AC estimator is deliberately crude on saturated gap-spliced buffers — the
+double-drain fix (#1596) yields contiguous data that should sharpen r before anything ships to a user
+surface. The §5.2 ban stands for METRICS: still do not surface SpO₂ from these columns.
+
 **What the same data still supports:** the two channels are genuinely distinct optical channels, not one
 photodiode at two gains — fitting `ch1 = k · ch0` gives `k` drifting 0.7139 → 0.5320 with residual RMS
 from 0.049 % to 7.06 % of DC, where a gain pair would hold `k` constant at ~zero residual by
