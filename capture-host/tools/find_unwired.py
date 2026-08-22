@@ -91,6 +91,18 @@ ALLOW_FUNCS = {
     "is_offline_cmd": "the READ half of a write/read pair whose write half IS used — `as_offline` sets "
                       "the bit in probe_verity_offline and probe_verity_survey; nothing needs to ask "
                       "the question back. Same shape as busy_with",
+    # ── CPAP-over-BLE pull core (CPAP-BLE-CAPTURE-2026-08-21-BRIEF). as11_link.py + as11_pull.py are the
+    # pure, clean-room AS11 protocol layer; their only consumer is the UN-COMMITTED operator probe
+    # `cpap_ble_pull.py` (which wires bleak + the real AES cipher against the device). Same shape as the
+    # config_frame / is_offline_cmd probe-only entries: a protocol builder used solely by a probe reads
+    # as "unwired" by this scan's daemon-centric definition, which the header calls legitimate. Only the
+    # 5 whose bare name has no internal cross-reference surface; the rest (fig_frame, session_key,
+    # establish, …) is wired module-internally.
+    "fig_unframe": "CPAP-BLE pull core — reassembles device notifications in the operator probe (see note)",
+    "start_key_exchange": "CPAP-BLE pull core — SRP pairing builder, used by the pairing probe (see note)",
+    "confirm_key_exchange": "CPAP-BLE pull core — SRP pairing builder, used by the pairing probe (see note)",
+    "get_items": "CPAP-BLE pull core — the Get RPC builder; the probe's live encrypted-Get validator (see note)",
+    "pull_spool": "CPAP-BLE pull core — the multi-round spool driver the operator probe calls (see note)",
 }
 
 
