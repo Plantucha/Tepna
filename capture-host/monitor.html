@@ -575,6 +575,14 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
           <span class="spin" id="cpapPullState"></span>
         </div>
         <p class="hint" id="cpapHint"></p>
+        <div style="display:flex;gap:.5rem;align-items:center;margin:12px 0 2px;flex-wrap:wrap;border-top:1px solid var(--line,#2a2a2a);padding-top:12px">
+          <span style="font-size:12px;color:var(--text3)">Pair over BLE:</span>
+          <input id="cpapPin" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="10" size="12"
+                 spellcheck="false" autocomplete="off" placeholder="PIN on CPAP screen">
+          <button class="btn" id="cpapPairBtn">Pair ResMed</button>
+          <span class="spin" id="cpapPairState"></span>
+        </div>
+        <p class="hint">First put the CPAP in pairing mode (its menu → Bluetooth), then type the passkey it shows and press Pair. One-time; credentials are stored on the box for later BLE pulls.</p>
       </div>
 
       <div class="card" id="clockCard">
@@ -1261,6 +1269,26 @@ document.addEventListener('click', async e => {
   }catch(err){ st.textContent = '✗ ' + err; }
   btns.forEach(x => x.disabled = false);
   loadState();
+});
+
+// ResMed BLE pairing. SRP-6a against the passkey the CPAP shows on its screen (its menu → Bluetooth).
+// The handshake is plaintext — nothing but the one-time PIN the operator reads off the device leaves
+// the box — and the daemon owns the radios, so a 501 means this daemon build has no AS11 support yet.
+// The button is disabled for the round-trip; the PIN never goes in a URL, only the POST body.
+$('#cpapPairBtn')?.addEventListener('click', async () => {
+  const pin = ($('#cpapPin').value || '').trim();
+  const st = $('#cpapPairState'), btn = $('#cpapPairBtn');
+  if(!/^\d{4,10}$/.test(pin)){ st.textContent = '✗ enter the 4–10 digit PIN shown on the CPAP'; return; }
+  btn.disabled = true; st.textContent = 'pairing… (put the CPAP in Bluetooth pairing mode)';
+  try{
+    const r = await fetch('/api/cpap/pair', {method:'POST', headers:{'Content-Type':'application/json'},
+                                             body: JSON.stringify({passkey: pin})});
+    const j = await r.json();
+    if(r.status===501)      st.textContent = '✗ pairing not supported by this daemon build yet';
+    else if(!j.ok)          st.textContent = '✗ ' + (j.error || 'pairing failed');
+    else { st.textContent = '✓ paired'; $('#cpapPin').value = ''; }
+  }catch(err){ st.textContent = '✗ ' + err; }
+  btn.disabled = false;
 });
 
 // Refresh the clock/NTP readout only while the Devices view is open.

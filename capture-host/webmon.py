@@ -146,7 +146,8 @@ def _warn_comment_loss(path: str) -> None:
 
 def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_device,
              pull_stored=None, polar_pause=None, sync_time=None, forget_device=None,
-             on_tz_change=None, notifier=None, ring_config=None, ring_buzz=None) -> web.Application:
+             on_tz_change=None, notifier=None, ring_config=None, ring_buzz=None,
+             cpap_pair=None) -> web.Application:
     # Optional shared-secret gate on the CONTROL surface. When web.token is set, every POST (bond / forget
     # / remember / pull / settings / clock — all the state-changing verbs) needs the token; GET reads stay
     # open so the monitor can still display without it. Default OFF (no token → current wide-open behaviour;
@@ -354,6 +355,33 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         st.update(state="ok" if res.get("ok") else "error", **{k: v for k, v in res.items()
                   if k in ("files", "bytes", "nights", "skipped", "short", "errors", "nights_on_card")})
         return web.json_response({"scope": scope, **res})
+
+    async def cpap_pair_h(req):
+        """POST /api/cpap/pair {passkey} — run the ResMed AS11 SRP-6a pairing using the passkey the
+        CPAP shows on its screen, and store the credentials for later BLE pulls (as11_creds.json).
+
+        The pairing exchange is PLAINTEXT SRP (no AES, no extra dependency); the BLE handshake itself
+        runs on the daemon, which owns the radios — so a build without AS11 support answers 501, never
+        a 200 that paired nothing. The device must be in Bluetooth pairing mode (its menu → Bluetooth)
+        so it shows a passkey; without that there is nothing to enter here. The response carries whatever
+        the daemon's pairing op reports (verified/stored), never a bare 'queued' — pairing either
+        completed against the device or it did not."""
+        if cpap_pair is None:
+            return web.json_response(
+                {"ok": False, "error": "CPAP BLE pairing is not wired on this daemon"}, status=501)
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
+        passkey = str(body.get("passkey", "")).strip()
+        if not (passkey.isdigit() and 4 <= len(passkey) <= 10):
+            return web.json_response(
+                {"ok": False, "error": "passkey must be the 4–10 digit code shown on the CPAP screen"},
+                status=400)
+        try:
+            res = await cpap_pair(passkey)
+        except Exception as e:            # noqa: BLE001 — a pairing attempt must never 500 the monitor
+            return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+        return web.json_response(res)
 
     async def scan(_req):
         found = await bonding.scan(adapter_mac)
@@ -1283,6 +1311,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         web.get("/api/state", state),
         web.post("/api/scan", scan),
         web.post("/api/cpap/pull", cpap_pull),
+        web.post("/api/cpap/pair", cpap_pair_h),
         web.post("/api/bond", bond),
         web.post("/api/forget", forget),
         web.post("/api/ring/config", ring_config_h),
