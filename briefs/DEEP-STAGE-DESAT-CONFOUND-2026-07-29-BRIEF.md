@@ -946,3 +946,51 @@ hardcoded cohort constants, which cannot express drift within a cohort and canno
 tool to consume it is the next step here**, and it needs per-night measured anchors as input rather
 than the cohort approximation — after which the range above collapses to a single number per night.
 Until then, two models coexist and this one is the approximation.
+
+### 11e · The per-night collapse is NOT reachable on this corpus — and the canonical model is why (2026-08-22)
+
+§11d called wiring `deep-flow-join.mjs` to `fitClockOffsetSegments` "the next step here". It was
+attempted. **It does not collapse the range, and the reason is the canonical model behaving correctly.**
+
+**The anchors exist and were measured.** `resp-acc-headless` over the 23 staged H10 ACC nights reports
+a per-night ACC↔`_BRP.edf` lock — the same quantity #1581 used — giving **20 distinct anchor nights
+spanning 2026-07-26 → 08-19**. Fed to `fitClockOffsetSegments` (all marked confident) it returns
+**10 segments, 23/23 `measured`**: with a direct measurement per night there is nothing to fill, which
+is the honest answer and also why the segment model adds nothing *here*. Gated at `r ≥ 0.30` instead
+(15 anchors) it returns 5 segments and **refuses 5, interpolates 2** — the refusals all
+*"outside all fitted segments (extrapolation refused)"*.
+
+**But the join corpus barely overlaps the anchors:**
+
+| | nights |
+|---|---|
+| `uploads/trio` join set (2026-06-10 → 08-14) | **55** |
+| …inside the anchor span at all | 20 |
+| …**with their own measured anchor** | **15** |
+| …**predating every anchor** (June → mid-July) | **35** |
+
+So a per-night wiring covers **15 of 53** scored nights and the canonical model **refuses the other
+35** rather than extrapolating backwards — which is exactly what `CLK_SEG` was built to do and what
+`#1606` said a single smeared offset must never do.
+
+🔴 **This inverts §11d's framing, and the inversion is the finding.** §11d called the tool's two
+cohort constants "the approximation" and the segment model "strictly better". On this corpus that is
+wrong: **the constants are not a coarser version of the canonical model — they do something it
+declines to do.** The pre-step cohort's 37.5–40.0 min comes from `integrator-dsp.js:3743` as a
+*corpus-level* fact established across partners, not a per-night measurement, and it is the only thing
+that covers the unanchored 35. Swapping wholesale would not tighten the bound; it would **drop two
+thirds of the corpus**.
+
+**What is actually owed, restated:** not "wire the tool to the model", but *label which nights are
+anchored*. A per-night offset where one was measured, the cohort constant elsewhere **marked as
+extrapolation the canonical model would refuse**, and the Deep % reported separately for the two
+populations. That is a smaller change than §11d implied and it is the honest one — the 15 anchored
+nights can carry a measured number, and the 35 cannot, and a single figure over both hides which is
+which.
+
+⚠️ **Two of the 20 anchors are visibly wrong and survive `all-confident`:** `2026-08-03` at **+2490 s**
+and `2026-08-04` at **−430 s**, against neighbours clustered at ~+1270 s. Both carry the lowest
+correlations in the set (`r` 0.19 / 0.15). Marking every night confident makes the segmenter treat
+them as genuine **steps** — that is where 10 segments comes from, against 5 under `r ≥ 0.30`. A
+per-night wiring must gate its anchors on `r`, and that threshold is a judgement this brief has not
+made.
