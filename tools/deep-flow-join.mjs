@@ -110,11 +110,29 @@ const arg = (k, d) => {
 const TRIO = arg('--trio', 'uploads/trio');
 const EVE = arg('--eve', null);
 const STEP = arg('--step', '2026-07-30'); // cohort boundary
+/* --anchors <file>: per-night MEASURED offsets, one `YYYYMMDD <offsetSec> <r>` row per line, as
+   `resp-acc-headless` reports them (`lock=` against _BRP.edf flow). Brief §11e: a night that has one
+   carries a measurement; a night that does not carries the COHORT CONSTANT, which is an
+   extrapolation `fitClockOffsetSegments` would refuse outright. The two populations are reported
+   SEPARATELY — one Deep % over both hides which is which. */
+const ANCH = arg('--anchors', null);
+const R_MIN = Number(arg('--anchor-r-min', 0)); // 0 = accept every anchor; §11e names two bad ones
 const PRE = Number(arg('--pre-min', -39.5)); // integrator-dsp.js:3743
 const POST = Number(arg('--post-min', 21.2)); // measured, PR #1581
 if (!EVE) {
   console.error('usage: node tools/deep-flow-join.mjs --eve <dir> [--trio uploads/trio]');
   process.exit(2);
+}
+
+const anchors = new Map();
+if (ANCH) {
+  for (const line of fs.readFileSync(ANCH, 'utf8').trim().split('\n')) {
+    const [d, off, r] = line.trim().split(/\s+/);
+    if (!/^\d{8}$/.test(d || '')) continue;
+    if (Number(r) < R_MIN) continue; // gated out: not an anchor, falls back to the cohort constant
+    const key = `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
+    if (!anchors.has(key)) anchors.set(key, { offsetSec: Number(off), r: Number(r) });
+  }
 }
 
 const ctx = cpapRealm();
@@ -187,18 +205,32 @@ const nights = fs
   .sort();
 const cohortOf = (n) => (n < STEP ? 'pre' : 'post');
 
+/* Split by PROVENANCE of the offset, not only by cohort. `anchored` nights carry a per-night
+   measurement; `extrapolated` nights carry the cohort constant, which `fitClockOffsetSegments`
+   would refuse as extrapolation (§11e: 15 of 53 anchored here, 35 predating every anchor). */
 function runAll(sign) {
-  const agg = { pre: { deep: 0, deepHit: 0, other: 0, otherHit: 0, n: 0 }, post: { deep: 0, deepHit: 0, other: 0, otherHit: 0, n: 0 } };
+  const blank = () => ({ deep: 0, deepHit: 0, other: 0, otherHit: 0, n: 0 });
+  const agg = { pre: blank(), post: blank(), anchored: blank(), extrapolated: blank() };
   for (const n of nights) {
     const c = cohortOf(n);
-    const r = joinNight(n, sign * (c === 'pre' ? PRE : POST));
+    const an = anchors.get(n);
+    /* An anchor is a measured lock in SECONDS against the SAME pair of clocks the cohort constants
+       describe, and in the same sense: post-step anchors read ~+1270 s where POST is +21.2 min
+       (= +1272 s). So it converts by /60 with NO negation. (It was negated in the first draft, which
+       put the anchored population at Deep 23.2 % against the cohort constant's 8.6 % on essentially
+       the same nights — the provenance split surfaced the sign error immediately, which is a second
+       reason to report the two populations apart rather than pooled.) */
+    const shiftMin = an ? an.offsetSec / 60 : sign * (c === 'pre' ? PRE : POST);
+    const r = joinNight(n, shiftMin);
     if (!r) continue;
-    const a = agg[c];
-    a.deep += r.deep;
-    a.deepHit += r.deepHit;
-    a.other += r.other;
-    a.otherHit += r.otherHit;
-    a.n++;
+    for (const key of [c, an ? 'anchored' : 'extrapolated']) {
+      const a = agg[key];
+      a.deep += r.deep;
+      a.deepHit += r.deepHit;
+      a.other += r.other;
+      a.otherHit += r.otherHit;
+      a.n++;
+    }
   }
   return agg;
 }
@@ -217,6 +249,14 @@ for (const sign of [+1, -1]) {
   }
   const d = Math.abs(Number(pct(a.pre.deepHit, a.pre.deep)) - Number(pct(a.post.deepHit, a.post.deep)));
   console.log(`    → cohort Deep%% gap = ${isFinite(d) ? d.toFixed(1) : '—'} pp\n`);
+  if (ANCH) {
+    for (const k of ['anchored', 'extrapolated']) {
+      const g = a[k];
+      if (!g.n) continue;
+      console.log(`    ${k.padEnd(12)} n=${String(g.n).padStart(2)}  Deep ${pct(g.deepHit, g.deep).padStart(5)} %   non-Deep ${pct(g.otherHit, g.other).padStart(5)} %`);
+    }
+    console.log('');
+  }
 }
 console.log('  The correct sign is the one with the SMALLER cohort gap: a misapplied sign adds');
 console.log('  ~2x the offset to one cohort, so the two populations separate rather than converge.');

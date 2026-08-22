@@ -994,3 +994,38 @@ correlations in the set (`r` 0.19 / 0.15). Marking every night confident makes t
 them as genuine **steps** — that is where 10 segments comes from, against 5 under `r ≥ 0.30`. A
 per-night wiring must gate its anchors on `r`, and that threshold is a judgement this brief has not
 made.
+
+### 11f · The extrapolation is now BOUNDED, not assumed — 1.0 pp against per-night measurement (2026-08-22)
+
+§11e restated the owed work as *"label which nights are anchored … and report Deep % separately for
+the two populations"*. Done: `deep-flow-join.mjs --anchors <file>` takes the per-night measured locks
+and splits the report by **offset provenance** — `anchored` (a measurement) vs `extrapolated` (the
+cohort constant `fitClockOffsetSegments` would refuse).
+
+**The question §11e could not answer: what does the extrapolation COST?** Answered by running both
+offset sources over the **same 15 anchored nights**:
+
+| offset source (identical nights) | Deep % | non-Deep % |
+|---|---|---|
+| cohort constants (3 pre + 12 post, pooled 21/198) | **10.6** | 13.7 |
+| per-night measured anchors | **9.6** | 13.9 |
+
+**1.0 pp apart.** So the cohort constant is not merely defensible — its disagreement with per-night
+measurement is *measured*, on the nights where both exist, and it is small. That bounds the error the
+38 unanchored nights inherit, which §11e had to leave open. It does **not** license extrapolating
+further: the bound is observed on post-step-dominated nights and says nothing about a cohort with a
+different clock regime.
+
+⚠️ **The set overlap is NOT what it looks like, and assuming it would have produced a wrong number.**
+`anchored` (15) and `post-step` (16) are *different sets*: three anchored nights (07-26/27/29) are
+**pre-step**, and four post-step nights (07-30, 07-31, 08-02, 08-08) have **no anchor**. Comparing the
+whole-corpus `post` figure against the whole-corpus `anchored` figure therefore compares different
+nights — it gave a plausible-looking 1.4 pp that meant nothing. The 1.0 pp above is from a corpus
+restricted to the 15 anchored nights so both arms score identically the same data.
+
+⚠️ **A sign error was caught by the provenance split itself, which is the second argument for
+reporting the populations apart.** The first draft negated the anchor when converting seconds to
+minutes. Post-step anchors read ~+1270 s and `POST` is +21.2 min (= +1272 s) — the same sense — so the
+negation put the anchored population at Deep **23.2 %** against the cohort constant's 8.2 % on nearly
+the same nights. A pooled figure would have absorbed that; two populations side by side made it
+immediate.
