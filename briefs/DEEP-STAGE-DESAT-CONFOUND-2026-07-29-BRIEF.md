@@ -908,3 +908,89 @@ sensitivity.
 required BRP; this needs only `_EVE.edf` + the ECGDex export), so the denominators differ. The
 Deep-vs-non-Deep comparison is internally consistent within each run; the absolute shares are not
 directly comparable across them.
+
+### 11d · The offsets are now MEASURED, not assumed — bound tightens to 8.2–13.5 %, and a canonical model exists (2026-08-22)
+
+§11c swept an **assumed** ±5 min around each cohort's offset. Two things landed since that replace the
+assumption with measurement.
+
+**An independent method agrees with #1581's post-step figure.** `CPAP-CLOCK-LONGITUDINAL-SEGMENT`
+(#1621) reports the per-fusion pooled offset as **−21.9 ± 0.6 min over 19/24 nights**, measured by
+`fitClockOffsetPooled` against a co-recorded reference. #1581 measured **+21.2 min** by
+cross-correlating band-passed H10 ACC against `_BRP.edf` flow. Opposite sign conventions, **0.7 min
+apart — inside about one of its error bars**, from two methods sharing no machinery. That is the
+cross-validation §11b asked for and could not supply.
+
+**Re-swept over measured/documented ranges only** (post: −21.9 ± 0.6 plus #1581's 21.2; pre: the
+37.5–40.0 min band `integrator-dsp.js:3743` documents):
+
+| cohort | offset range | Deep % | non-Deep % |
+|---|---|---|---|
+| pre-step (38 nights) | 37.5 – 40.0 min | **11.0 – 13.5** | 12.7 – 13.3 |
+| post-step (15 nights) | 20.6 – 22.5 min | **8.2 – 9.1** | 13.1 – 13.6 |
+
+**Bound: 8.2 – 13.5 %**, against §11c's 8.6 – 14.5 %. The upper end fell because §11c's worst cell was
+`post = 16 min`, which the measurement now excludes at roughly **ten error bars** — it was never a
+plausible offset, only an untested one.
+
+🔴 **The ordering still cannot be claimed, and this reaffirms §11c's withdrawal rather than reversing
+it.** Post-step Deep (8.2–9.1) sits clearly below non-Deep (13.1–13.6); pre-step Deep (11.0–13.5)
+**overlaps** non-Deep (12.7–13.3) across its whole range. One cohort showing depletion is not the
+corpus showing it. Quote the bound.
+
+⚠️ **`tools/deep-flow-join.mjs` now holds the repo's SECOND clock-offset model, and it is the ad-hoc
+one.** #1621 shipped `fitClockOffsetSegments` (`integrator-dsp.js:4834`, exported, pure, gated) — it
+fits drift *within* step-bounded segments and returns per-night `source: measured | interpolated |
+refused`, refusing across steps rather than smearing. That is strictly better than this tool's two
+hardcoded cohort constants, which cannot express drift within a cohort and cannot refuse. **Wiring the
+tool to consume it is the next step here**, and it needs per-night measured anchors as input rather
+than the cohort approximation — after which the range above collapses to a single number per night.
+Until then, two models coexist and this one is the approximation.
+
+### 11e · The per-night collapse is NOT reachable on this corpus — and the canonical model is why (2026-08-22)
+
+§11d called wiring `deep-flow-join.mjs` to `fitClockOffsetSegments` "the next step here". It was
+attempted. **It does not collapse the range, and the reason is the canonical model behaving correctly.**
+
+**The anchors exist and were measured.** `resp-acc-headless` over the 23 staged H10 ACC nights reports
+a per-night ACC↔`_BRP.edf` lock — the same quantity #1581 used — giving **20 distinct anchor nights
+spanning 2026-07-26 → 08-19**. Fed to `fitClockOffsetSegments` (all marked confident) it returns
+**10 segments, 23/23 `measured`**: with a direct measurement per night there is nothing to fill, which
+is the honest answer and also why the segment model adds nothing *here*. Gated at `r ≥ 0.30` instead
+(15 anchors) it returns 5 segments and **refuses 5, interpolates 2** — the refusals all
+*"outside all fitted segments (extrapolation refused)"*.
+
+**But the join corpus barely overlaps the anchors:**
+
+| | nights |
+|---|---|
+| `uploads/trio` join set (2026-06-10 → 08-14) | **55** |
+| …inside the anchor span at all | 20 |
+| …**with their own measured anchor** | **15** |
+| …**predating every anchor** (June → mid-July) | **35** |
+
+So a per-night wiring covers **15 of 53** scored nights and the canonical model **refuses the other
+35** rather than extrapolating backwards — which is exactly what `CLK_SEG` was built to do and what
+`#1606` said a single smeared offset must never do.
+
+🔴 **This inverts §11d's framing, and the inversion is the finding.** §11d called the tool's two
+cohort constants "the approximation" and the segment model "strictly better". On this corpus that is
+wrong: **the constants are not a coarser version of the canonical model — they do something it
+declines to do.** The pre-step cohort's 37.5–40.0 min comes from `integrator-dsp.js:3743` as a
+*corpus-level* fact established across partners, not a per-night measurement, and it is the only thing
+that covers the unanchored 35. Swapping wholesale would not tighten the bound; it would **drop two
+thirds of the corpus**.
+
+**What is actually owed, restated:** not "wire the tool to the model", but *label which nights are
+anchored*. A per-night offset where one was measured, the cohort constant elsewhere **marked as
+extrapolation the canonical model would refuse**, and the Deep % reported separately for the two
+populations. That is a smaller change than §11d implied and it is the honest one — the 15 anchored
+nights can carry a measured number, and the 35 cannot, and a single figure over both hides which is
+which.
+
+⚠️ **Two of the 20 anchors are visibly wrong and survive `all-confident`:** `2026-08-03` at **+2490 s**
+and `2026-08-04` at **−430 s**, against neighbours clustered at ~+1270 s. Both carry the lowest
+correlations in the set (`r` 0.19 / 0.15). Marking every night confident makes the segmenter treat
+them as genuine **steps** — that is where 10 segments comes from, against 5 under `r ≥ 0.30`. A
+per-night wiring must gate its anchors on `r`, and that threshold is a judgement this brief has not
+made.
