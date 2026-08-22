@@ -147,17 +147,36 @@ def test_round_single_fragment_no_more():
     assert body == b"hello" and more is False and nxt is None
 
 
-def test_round_sends_from_dt_in_the_start_spool_request():
-    # regression: the device rejects an empty spool address — the round MUST carry fromDateTime
+def test_round_sends_the_start_spool_then_pull_fragments_requests():
+    # regression: the device rejects an empty spool address — the round MUST carry fromDateTime — and
+    # the follow-up PullSpoolFragments MUST carry the spoolId the StartSpool result handed back.
+    # NON-DEFAULT rpc ids on purpose: `start_id`/`pull_id` must be threaded into the builders, not left
+    # to the builders' own (coinciding) defaults, or dropping the wiring would be invisible.
+    dev = FakeAS11([
+        _enc({"id": 99, "result": {"spoolId": 5}}),
+        _frag(0, b"x", "SPOOL_COMPLETE_NO_MORE_DATA"),
+    ])
+    _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT, start_id=99, pull_id=88))
+    start = json.loads(L.fig_unframe(dev.written[0])[1])  # first write is StartSpool
+    assert start["method"] == "StartSpool" and start["id"] == 99
+    assert start["params"]["spoolAddress"]["Summary"] == {"fromDateTime": FROM_DT}
+    assert start["params"]["maxSpoolSize"] == 4096
+    frags = json.loads(L.fig_unframe(dev.written[1])[1])  # second write is PullSpoolFragments
+    assert frags["method"] == "PullSpoolFragments" and frags["id"] == 88
+    assert frags["params"]["spoolId"] == 5  # the id the StartSpool result returned, not a constant
+
+
+def test_round_uses_the_default_rpc_ids_when_not_overridden():
+    # the default start_id=14 / pull_id=15 must actually reach the wire — a changed default is caught here
+    # (the non-default test above catches a DROPPED id kwarg; this catches a WRONG default).
     dev = FakeAS11([
         _enc({"id": 14, "result": {"spoolId": 5}}),
         _frag(0, b"x", "SPOOL_COMPLETE_NO_MORE_DATA"),
     ])
     _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT))
-    start = json.loads(L.fig_unframe(dev.written[0])[1])  # first write is StartSpool
-    assert start["method"] == "StartSpool"
-    assert start["params"]["spoolAddress"]["Summary"] == {"fromDateTime": FROM_DT}
-    assert start["params"]["maxSpoolSize"] == 4096
+    start = json.loads(L.fig_unframe(dev.written[0])[1])
+    frags = json.loads(L.fig_unframe(dev.written[1])[1])
+    assert start["id"] == 14 and frags["id"] == 15
 
 
 def test_round_reassembles_multiple_fragments_by_seq():
@@ -204,7 +223,7 @@ def test_round_raises_on_data_unavailable():
         _enc({"id": 14, "result": {"spoolId": 5}}),
         _frag(0, None, "ERROR_DATA_UNAVAILABLE"),
     ])
-    with pytest.raises(P.As11Error):
+    with pytest.raises(P.As11Error, match="data unavailable"):
         _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT))
 
 
@@ -233,12 +252,44 @@ def test_pull_spool_continues_across_rounds():
     assert _run(P.pull_spool(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT)) == b"R1R2"
 
 
-def test_pull_spool_bounds_runaway_rounds():
-    # a device that always says MORE_DATA_PENDING must not loop forever
+def _pending(seq_body):
+    return _frag(0, seq_body, "SPOOL_COMPLETE_MORE_DATA_PENDING", next_dt="2026-05-01T00:00:00.000Z")
+
+
+def test_pull_spool_runs_exactly_the_rounds_the_device_reports():
+    # completes in EXACTLY 3 rounds (two continuations then a terminal). Pins the round counter: a
+    # start-at-1, a +=2, or an off-by-one on the loop bound all mis-count and would raise or truncate.
+    dev = FakeAS11([
+        _enc({"id": 14, "result": {"spoolId": 5}}), _pending(b"R1"),
+        _enc({"id": 14, "result": {"spoolId": 5}}), _pending(b"R2"),
+        _enc({"id": 14, "result": {"spoolId": 5}}), _frag(0, b"R3", "SPOOL_COMPLETE_NO_MORE_DATA"),
+    ])
+    assert _run(P.pull_spool(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT, max_rounds=3)) == b"R1R2R3"
+
+
+def test_pull_spool_bounds_runaway_rounds_at_exactly_max_rounds():
+    # a device that always says MORE_DATA_PENDING must stop at the cap. EXACTLY max_rounds rounds of
+    # frames: the correct loop consumes all 3 then raises; an off-by-one that would run a 4th finds an
+    # empty transport and errors instead — so the boundary is pinned, not just "raised eventually".
     frames = []
     for _ in range(3):
         frames.append(_enc({"id": 14, "result": {"spoolId": 5}}))
-        frames.append(_frag(0, b"x", "SPOOL_COMPLETE_MORE_DATA_PENDING", next_dt="2026-05-01T00:00:00.000Z"))
+        frames.append(_pending(b"x"))
     dev = FakeAS11(frames)
-    with pytest.raises(P.As11Error):
-        _run(P.pull_spool(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT, max_rounds=2))
+    with pytest.raises(P.As11Error, match="exceeded"):
+        _run(P.pull_spool(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT, max_rounds=3))
+
+
+def test_pull_spool_default_cap_stops_at_exactly_64_rounds():
+    # the documented default ceiling. EXACTLY 64 all-pending rounds of frames: the default loop consumes
+    # all 64 then raises; a default of 65 would reach for a 65th round, find the transport empty, and
+    # error instead — so this pins the default bound behaviourally (no max_rounds passed).
+    frames = []
+    for _ in range(64):
+        frames.append(_enc({"id": 14, "result": {"spoolId": 5}}))
+        frames.append(_pending(b"x"))
+    dev = FakeAS11(frames)
+    with pytest.raises(P.As11Error, match="exceeded"):
+        _run(P.pull_spool(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT))
+
+

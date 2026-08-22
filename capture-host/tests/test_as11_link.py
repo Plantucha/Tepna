@@ -119,12 +119,13 @@ def test_start_spool_requires_from_dt_and_max_spool_size():
     obj = json.loads(L.start_spool("Summary", "2026-04-29T00:00:00.000Z"))
     assert obj["params"]["spoolAddress"]["Summary"] == {"fromDateTime": "2026-04-29T00:00:00.000Z"}
     assert obj["params"]["maxSpoolSize"] == 4096
+    assert obj["method"] == "StartSpool" and obj["id"] == 14 and obj["jsonrpc"] == "1.0"
 
 
 def test_start_spool_rejects_a_missing_from_dt():
-    # an empty spool address is what the device rejects — so it must never be built
+    # an empty spool address is what the device rejects — so it must never be built; the message names it
     for bad in (None, ""):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="fromDateTime"):
             L.start_spool("Summary", bad)
 
 
