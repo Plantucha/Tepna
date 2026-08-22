@@ -11613,18 +11613,10 @@
          empty `_flagged` (any reason, including "no metric scored at all") rendered the green.
          The property to hold: BEFORE reaching the green branch, code must positively count the
          normal-scored metrics. */
-      T.ok(
-        'the reassurance is guarded by a POSITIVE count (_normalCnt > 0), not by an else on _flagged',
-        /_normalCnt\s*>\s*0/.test(rnd),
-        'expected `_normalCnt > 0` guarding the "all normal" branch'
-      );
+      T.ok('the reassurance is guarded by a POSITIVE count (_normalCnt > 0), not by an else on _flagged', /_normalCnt\s*>\s*0/.test(rnd), 'expected `_normalCnt > 0` guarding the "all normal" branch');
       /* The count is INCREMENTED against sev === 'good' only — a 'neutral' metric must not satisfy
          it (a metric we cannot grade is not evidence of normality). */
-      T.ok(
-        'the count is incremented only when the metric is severity=good',
-        /_sevCls\s*===\s*['"]good['"]\)\s*_normalCnt\+\+/.test(rnd),
-        'expected `_sevCls === "good"` on the increment site'
-      );
+      T.ok('the count is incremented only when the metric is severity=good', /_sevCls\s*===\s*['"]good['"]\)\s*_normalCnt\+\+/.test(rnd), 'expected `_sevCls === "good"` on the increment site');
       /* The reassurance text now names the count — the reader sees the evidence base at a glance
          and a 1-metric night no longer reads as a suite-wide green. */
       T.ok(
@@ -11633,11 +11625,7 @@
         'expected the count concatenated into the "All … scored metrics" string'
       );
       /* And a truly-empty tally falls through to an honest "no metrics scored", never a green. */
-      T.ok(
-        'a zero count falls through to an honest empty, not the green',
-        /no\s+metrics\s+scored\s+this\s+night/.test(rnd),
-        'expected the "no metrics scored this night" fall-through text'
-      );
+      T.ok('a zero count falls through to an honest empty, not the green', /no\s+metrics\s+scored\s+this\s+night/.test(rnd), 'expected the "no metrics scored this night" fall-through text');
       /* Regression guard on the OLD pattern — the pre-fix `if (_m.score === 0) continue;` inside
          the loop conflated "genuinely-scored-good" with "silently-defaulted-to-0", which was the
          mechanism that let a fabricated 0 satisfy the branch. */
