@@ -11594,6 +11594,60 @@
       }
     });
 
+    /* FINISHED-WORK-IMPROVEMENTS §B1 (2026-08-20) — same #1571-class trap, this time in
+       oxydex-render.js's Smart Summary. Source-text assertions (whitespace-agnostic) so they track
+       the property rather than Biome's layout. */
+    group('OxyDex render — the flagged-metrics reassurance requires positive evidence, never satisfies by absence', 'sources', function (T) {
+      var rnd = (env.sources || {})['oxydex-render.js'];
+      if (!rnd) {
+        T.ok('oxydex-render.js source provided', false, 'runner passed no oxydex-render.js');
+        return;
+      }
+      // ANTI-VACUITY · the branch we are gating actually exists in the file.
+      T.ok(
+        'ANTI-VACUITY · the flagged-metrics reassurance branch exists',
+        /All\s[\s\S]+?scored\s+metrics\s+within\s+normal\s+range/.test(rnd),
+        'the reassurance text is absent — this group is testing nothing'
+      );
+      /* THE DEFECT: the pre-fix branch was `if (_flagged.length) { … } else { … green }` — so an
+         empty `_flagged` (any reason, including "no metric scored at all") rendered the green.
+         The property to hold: BEFORE reaching the green branch, code must positively count the
+         normal-scored metrics. */
+      T.ok(
+        'the reassurance is guarded by a POSITIVE count (_normalCnt > 0), not by an else on _flagged',
+        /_normalCnt\s*>\s*0/.test(rnd),
+        'expected `_normalCnt > 0` guarding the "all normal" branch'
+      );
+      /* The count is INCREMENTED against sev === 'good' only — a 'neutral' metric must not satisfy
+         it (a metric we cannot grade is not evidence of normality). */
+      T.ok(
+        'the count is incremented only when the metric is severity=good',
+        /_sevCls\s*===\s*['"]good['"]\)\s*_normalCnt\+\+/.test(rnd),
+        'expected `_sevCls === "good"` on the increment site'
+      );
+      /* The reassurance text now names the count — the reader sees the evidence base at a glance
+         and a 1-metric night no longer reads as a suite-wide green. */
+      T.ok(
+        'the green reassurance text quotes the count',
+        /All\s*'\s*\+\s*_normalCnt\s*\+\s*'\s*scored\s+metrics\s+within\s+normal\s+range/.test(rnd),
+        'expected the count concatenated into the "All … scored metrics" string'
+      );
+      /* And a truly-empty tally falls through to an honest "no metrics scored", never a green. */
+      T.ok(
+        'a zero count falls through to an honest empty, not the green',
+        /no\s+metrics\s+scored\s+this\s+night/.test(rnd),
+        'expected the "no metrics scored this night" fall-through text'
+      );
+      /* Regression guard on the OLD pattern — the pre-fix `if (_m.score === 0) continue;` inside
+         the loop conflated "genuinely-scored-good" with "silently-defaulted-to-0", which was the
+         mechanism that let a fabricated 0 satisfy the branch. */
+      T.ok(
+        'the old `if (_m.score === 0) continue;` skip inside the flagged-scan is gone',
+        !/_m\.score\s*===\s*0\)\s*continue/.test(rnd),
+        'the old score===0 skip is still present — the fix conflates good with defaulted-to-0'
+      );
+    });
+
     group('HRVDex render — nullable fields drop null/NaN but keep a real 0 (FOLLOWUPS-II §1)', 'sources', function (T) {
       var rnd = (env.sources || {})['hrvdex-render.js'];
       if (!rnd) {

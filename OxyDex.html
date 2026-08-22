@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-CNOVvL0rgtW4HsMGf9KUI693quAn6scT+2m6vEtOyG8=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-MxxN+JKp3rkq/1Gflo392ij7wvjzolgaZz7QZtvo/MI=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-d/fY1ggGH+dOgrHCOKz19Csyb6MrnZ6RivEEwg+WDEo=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gwNqVAKKLRnZSqPkmbPH0eDYciNT1BUiyiNm/9xyaFs=' 'sha256-ibthVwnHAm8V3L4QxpSuywLhy9DElV6PFhEVR7s1FRM=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-nKK7xOfxhM7P75DL06pRugSuqGPyW1xEGOI6874nb64=' 'sha256-psCNI6L+RVB3F77zf3oNwebbh8Z+Ml5lnVD4nzvTKxM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-CNOVvL0rgtW4HsMGf9KUI693quAn6scT+2m6vEtOyG8=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-MxxN+JKp3rkq/1Gflo392ij7wvjzolgaZz7QZtvo/MI=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-d/fY1ggGH+dOgrHCOKz19Csyb6MrnZ6RivEEwg+WDEo=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-ibthVwnHAm8V3L4QxpSuywLhy9DElV6PFhEVR7s1FRM=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-nKK7xOfxhM7P75DL06pRugSuqGPyW1xEGOI6874nb64=' 'sha256-psCNI6L+RVB3F77zf3oNwebbh8Z+Ml5lnVD4nzvTKxM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-x3iN3njNfbGdV8rN5N1rMwHHTX3I2KRB4XZ36LEqZoQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.6.0</title>
@@ -22753,11 +22753,17 @@ function nightDetail(n, idx) {
       // signal the cards don't convey — instead of repeating the whole list.
       var _sevMap = { g: 'good', w: 'warn', r: 'bad' };
       var _flagged = [];
+      // FINISHED-WORK-IMPROVEMENTS §B1 (2026-08-20) — the #1571-class trap: the reassurance branch
+      // fired whenever _flagged was empty, so a night with no scored metrics at all (Recovery-index-
+      // absent → sev='g' by fallback, or fabricated 0 defaults) satisfied the "all normal" branch by
+      // ABSENCE rather than by measurement. The outer `> 5` guard is not enough; count evidence
+      // positively. Same fix shape as #1571.
+      var _normalCnt = 0;
       for (var _i = 0; _i < n.summary.ranked.length; _i++) {
         var _m = n.summary.ranked[_i];
-        if (_m.score === 0) continue;
         var _sevCls = _sevMap[_m.sev] || _m.sev || 'neutral';
         if (_sevCls === 'warn' || _sevCls === 'bad') _flagged.push({ m: _m, sev: _sevCls });
+        else if (_sevCls === 'good') _normalCnt++;
       }
       if (_flagged.length) {
         html += '<div class="sec-label mt-sm">Flagged metrics <span class="cite-note">· ranked by severity (' + _flagged.length + ')</span></div>';
@@ -22785,9 +22791,13 @@ function nightDetail(n, idx) {
             '</div>';
         });
         html += '</div>';
-      } else {
+      } else if (_normalCnt > 0) {
         html += '<div class="sec-label mt-sm">Flagged metrics</div>';
-        html += '<div class="all-normal-note">✓ All scored metrics within normal range this night.</div>';
+        html += '<div class="all-normal-note">✓ All ' + _normalCnt + ' scored metrics within normal range this night.</div>';
+      } else {
+        // No positive evidence — honest empty, never a green reassurance by absence (see comment above).
+        html += '<div class="sec-label mt-sm">Flagged metrics</div>';
+        html += '<div class="all-normal-note">— no metrics scored this night.</div>';
       }
     }
   } else {

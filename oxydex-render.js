@@ -2519,11 +2519,17 @@ function nightDetail(n, idx) {
       // signal the cards don't convey — instead of repeating the whole list.
       var _sevMap = { g: 'good', w: 'warn', r: 'bad' };
       var _flagged = [];
+      // FINISHED-WORK-IMPROVEMENTS §B1 (2026-08-20) — the #1571-class trap: the reassurance branch
+      // fired whenever _flagged was empty, so a night with no scored metrics at all (Recovery-index-
+      // absent → sev='g' by fallback, or fabricated 0 defaults) satisfied the "all normal" branch by
+      // ABSENCE rather than by measurement. The outer `> 5` guard is not enough; count evidence
+      // positively. Same fix shape as #1571.
+      var _normalCnt = 0;
       for (var _i = 0; _i < n.summary.ranked.length; _i++) {
         var _m = n.summary.ranked[_i];
-        if (_m.score === 0) continue;
         var _sevCls = _sevMap[_m.sev] || _m.sev || 'neutral';
         if (_sevCls === 'warn' || _sevCls === 'bad') _flagged.push({ m: _m, sev: _sevCls });
+        else if (_sevCls === 'good') _normalCnt++;
       }
       if (_flagged.length) {
         html += '<div class="sec-label mt-sm">Flagged metrics <span class="cite-note">· ranked by severity (' + _flagged.length + ')</span></div>';
@@ -2551,9 +2557,13 @@ function nightDetail(n, idx) {
             '</div>';
         });
         html += '</div>';
-      } else {
+      } else if (_normalCnt > 0) {
         html += '<div class="sec-label mt-sm">Flagged metrics</div>';
-        html += '<div class="all-normal-note">✓ All scored metrics within normal range this night.</div>';
+        html += '<div class="all-normal-note">✓ All ' + _normalCnt + ' scored metrics within normal range this night.</div>';
+      } else {
+        // No positive evidence — honest empty, never a green reassurance by absence (see comment above).
+        html += '<div class="sec-label mt-sm">Flagged metrics</div>';
+        html += '<div class="all-normal-note">— no metrics scored this night.</div>';
       }
     }
   } else {

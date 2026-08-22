@@ -154,7 +154,7 @@ self-measures).
 ## Done when
 
 - [ ] A: the wiring brief's four boxes closed (2a gated, 2b veto fixture, 2c in a real arrival JSON, §4 decided as B3).
-- [ ] B1: the vacuous green fixed + gated; the 6-sibling scan recorded (hits fixed or a clean negative written here).
+- [x] B1: the vacuous green fixed + gated; the 6-sibling scan recorded (hits fixed or a clean negative written here). **Landed 2026-08-22.** Reassurance now guarded by a positive `_normalCnt > 0`; zero count falls through to an honest "no metrics scored this night" (never a green by absence). Regression: 6-assertion source-scan group patterned on the #1571 gate — plants the fix and reds on the pre-fix code (verified 5/6 red on plant-check). **Sibling scan clean negative:** the other 6 render layers grepped for the same shape (`grep -rn "all-normal|within normal range|clean night|no findings|green light"` across `*-render.js`) turned up two peers, both already honest: `integrator-render.js:1049` names both possibilities in its empty state ("a clean night, or signals that don't corroborate"), and `hrvdex-render.js:253` is the #1571 fix itself (`ari != null && ari >= 1`). No third instance survives.
 - [ ] B2–B6: each closed in its home brief with this brief's row ticked.
 - [ ] C: all four field results recorded in their home briefs after one box session.
 - [ ] D items: opened as their own executable units when picked up; this brief only orders them.
