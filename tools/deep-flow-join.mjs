@@ -18,6 +18,16 @@
  * the residual misalignment on one cohort and leaves the other worse, so the cohorts diverge.
  * That is a measured discriminator, not a convention read off a comment.
  *
+ * ⚠ THIS IS NOW THE REPO'S SECOND CLOCK-OFFSET MODEL, AND IT IS THE AD-HOC ONE.
+ * `integrator-dsp.js:4834 fitClockOffsetSegments` (#1621, exported + gated) fits the drift WITHIN
+ * step-bounded segments and returns per-night `source: measured | interpolated | refused`, refusing
+ * across a step instead of smearing one number over the corpus. This tool's two hardcoded cohort
+ * constants cannot express drift inside a cohort and cannot refuse. Wiring this to consume it is the
+ * owed next step (brief §11d); until then prefer its answer over these defaults where they disagree.
+ *
+ * The defaults are not invented, though: post ≈ +21.2 min is #1581's ACC↔BRP cross-correlation, which
+ * agrees with #1621's independently-measured −21.9 ± 0.6 min (opposite sign convention) to 0.7 min.
+ *
  * Inputs (nothing is committed — both are gitignored corpora):
  *   --trio <dir>   uploads/trio-shaped: <night>/ECGDex_<night>.node-export.json  (5-min sleepStages)
  *   --eve  <dir>   flat directory of ResMed *_EVE.edf
