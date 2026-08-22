@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-20 · **Follows:** `AUDIT-PROMPT.md` (the charter this ran under), `DEEP-AUDIT-V-FOLLOWUPS-2026-08-05-BRIEF.md`
+**Status:** DONE — 2026-08-22 · **Created:** 2026-08-20 · **Follows:** `AUDIT-PROMPT.md` (the charter this ran under), `DEEP-AUDIT-V-FOLLOWUPS-2026-08-05-BRIEF.md`
 
 # Whole-signal-path audit (owner-requested) — three date/clock divergences, one shared root pattern
 
@@ -90,8 +90,9 @@ slack — so the roll is refused and the event lands **24 h early** (before the 
 
 ## Done when
 
-- [ ] F1 fixed + gated (`2026-13-45 → NaN` assertion) — GlucoDex lane.
-- [ ] F2 landed (branch exists; owner go-ahead) — capture-host lane.
-- [ ] F3 fixed (option i) or the false comment corrected to ≤ 12 h (option ii), with the reproduction
-      as a gate either way — Integrator lane.
-- [ ] The three fixes reference this brief; §4's negatives stand as the record for the next audit.
+- [x] F1 fixed + gated (`2026-13-45 → NaN` assertion) — GlucoDex lane. **Landed #1594.**
+- [x] F2 landed (branch exists; owner go-ahead) — capture-host lane. **Landed #1593** (renamed branch).
+- [x] F3 fixed (option i) — a pure post-correction advances a below-window candidate one day and the
+      false comment is rewritten; four regression cases (band + 60 s grace + past-grace boundary) —
+      Integrator lane. **Landed #1594.**
+- [x] The three fixes reference this brief; §4's negatives stand as the record for the next audit.
