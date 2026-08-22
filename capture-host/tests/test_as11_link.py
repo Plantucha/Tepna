@@ -114,11 +114,19 @@ def test_get_items_builds_array_and_rejects_bad_names():
             L.get_items(bad)
 
 
-def test_start_spool_with_and_without_from_dt():
-    with_dt = json.loads(L.start_spool("Summary", "2026-04-29T00:00:00.000Z"))
-    assert with_dt["params"]["spoolAddress"]["Summary"]["fromDateTime"].startswith("2026")
-    without = json.loads(L.start_spool("Summary"))
-    assert without["params"]["spoolAddress"]["Summary"] == {}
+def test_start_spool_requires_from_dt_and_max_spool_size():
+    # HARDWARE-CONFIRMED shape: fromDateTime AND maxSpoolSize both present, or the AS11 answers -32602.
+    obj = json.loads(L.start_spool("Summary", "2026-04-29T00:00:00.000Z"))
+    assert obj["params"]["spoolAddress"]["Summary"] == {"fromDateTime": "2026-04-29T00:00:00.000Z"}
+    assert obj["params"]["maxSpoolSize"] == 4096
+    assert obj["method"] == "StartSpool" and obj["id"] == 14 and obj["jsonrpc"] == "1.0"
+
+
+def test_start_spool_rejects_a_missing_from_dt():
+    # an empty spool address is what the device rejects — so it must never be built; the message names it
+    for bad in (None, ""):
+        with pytest.raises(ValueError, match="fromDateTime"):
+            L.start_spool("Summary", bad)
 
 
 def test_pull_spool_fragments_builder():

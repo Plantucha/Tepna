@@ -181,9 +181,17 @@ def get_items(names, rpc_id: int = 12) -> bytes:
     return rpc("Get", names, rpc_id, "1.0")
 
 
-def start_spool(spool_type: str, from_dt: str | None = None, max_spool_size: int = 4096, rpc_id: int = 14) -> bytes:
-    """StartSpool (cmd 0x5e). One spool type; optional ISO-8601 `fromDateTime`."""
-    addr: dict = {} if from_dt is None else {"fromDateTime": from_dt}
+def start_spool(spool_type: str, from_dt: str, max_spool_size: int = 4096, rpc_id: int = 14) -> bytes:
+    """StartSpool (cmd 0x5e). One spool type; a REQUIRED ISO-8601 `fromDateTime`.
+
+    `fromDateTime` is mandatory — HARDWARE-CONFIRMED against a real AirSense 11: an empty address
+    (`spoolAddress.<type>: {}`) is rejected with `Invalid Params (-32602)`, as is a request that
+    omits `maxSpoolSize`. There is no known "from the beginning" sentinel; to pull all retained data,
+    pass a far-past date. A falsy `from_dt` therefore raises here rather than building a request the
+    device will refuse."""
+    if not from_dt:
+        raise ValueError("StartSpool requires a fromDateTime (the device rejects an empty address)")
+    addr = {"fromDateTime": from_dt}
     return rpc("StartSpool", {"spoolAddress": {spool_type: addr}, "maxSpoolSize": max_spool_size}, rpc_id, "1.0")
 
 

@@ -80,11 +80,12 @@ async def get_date_time(write, recv_frame, seal, unseal, *, rpc_id=13):
 _ROUND_DONE = ("SPOOL_COMPLETE_MORE_DATA_PENDING", "SPOOL_COMPLETE_NO_MORE_DATA")
 
 
-async def pull_spool_round(write, recv_frame, seal, unseal, spool_type, from_dt=None, *, start_id=14, pull_id=15):
+async def pull_spool_round(write, recv_frame, seal, unseal, spool_type, from_dt, *, start_id=14, pull_id=15):
     """Pull ONE spool round. Returns (data_bytes, more_pending, next_from_dt).
 
-    StartSpool opens the reader; PullSpoolFragments drives SpoolFragment notifications whose
-    Base64 `data` is reassembled in strict `seq` order until a terminal status.
+    `from_dt` is REQUIRED (hardware-confirmed — see as11_link.start_spool). StartSpool opens the
+    reader; PullSpoolFragments drives SpoolFragment notifications whose Base64 `data` is reassembled
+    in strict `seq` order until a terminal status.
     """
     await _send_enc(write, seal, L.start_spool(spool_type, from_dt, rpc_id=start_id))
     started = await _await_result(recv_frame, start_id, unseal)
@@ -109,10 +110,12 @@ async def pull_spool_round(write, recv_frame, seal, unseal, spool_type, from_dt=
             return body, more, nxt
 
 
-async def pull_spool(write, recv_frame, seal, unseal, spool_type, from_dt=None, *, max_rounds=64):
+async def pull_spool(write, recv_frame, seal, unseal, spool_type, from_dt, *, max_rounds=64):
     """Pull a spool to completion across rounds; concatenate every round's reassembled bytes.
 
-    `max_rounds` bounds a pathological device that never reports NO_MORE_DATA.
+    `from_dt` is REQUIRED (the device rejects an empty spool address — see as11_link.start_spool);
+    to pull everything retained, pass a far-past ISO-8601 date. `max_rounds` bounds a pathological
+    device that never reports NO_MORE_DATA.
     """
     out = bytearray()
     rounds = 0
