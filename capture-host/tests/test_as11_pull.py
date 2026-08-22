@@ -20,6 +20,7 @@ import pytest
 PAIR_KEY = b"K" * 32
 NONCE = bytes.fromhex("00112233445566778899aabbccddeeff")
 SESSION_KEY = L.session_key(PAIR_KEY, NONCE)
+FROM_DT = "2026-08-20T00:00:00.000Z"  # required — the device rejects an empty spool address
 
 
 def _seal(payload):
@@ -142,8 +143,21 @@ def test_round_single_fragment_no_more():
         _enc({"id": 15, "result": {"spoolId": 5}}),  # PullSpoolFragments echo (skipped)
         _frag(0, b"hello", "SPOOL_COMPLETE_NO_MORE_DATA"),
     ])
-    body, more, nxt = _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary"))
+    body, more, nxt = _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT))
     assert body == b"hello" and more is False and nxt is None
+
+
+def test_round_sends_from_dt_in_the_start_spool_request():
+    # regression: the device rejects an empty spool address — the round MUST carry fromDateTime
+    dev = FakeAS11([
+        _enc({"id": 14, "result": {"spoolId": 5}}),
+        _frag(0, b"x", "SPOOL_COMPLETE_NO_MORE_DATA"),
+    ])
+    _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT))
+    start = json.loads(L.fig_unframe(dev.written[0])[1])  # first write is StartSpool
+    assert start["method"] == "StartSpool"
+    assert start["params"]["spoolAddress"]["Summary"] == {"fromDateTime": FROM_DT}
+    assert start["params"]["maxSpoolSize"] == 4096
 
 
 def test_round_reassembles_multiple_fragments_by_seq():
@@ -153,7 +167,7 @@ def test_round_reassembles_multiple_fragments_by_seq():
         _frag(1, b"BBB", "SPOOL_INCOMPLETE"),
         _frag(2, b"CCC", "SPOOL_COMPLETE_NO_MORE_DATA"),
     ])
-    body, more, nxt = _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary"))
+    body, more, nxt = _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT))
     assert body == b"AAABBBCCC" and more is False
 
 
@@ -162,7 +176,7 @@ def test_round_more_pending_reports_next_address():
         _enc({"id": 14, "result": {"spoolId": 5}}),
         _frag(0, b"part1", "SPOOL_COMPLETE_MORE_DATA_PENDING", next_dt="2026-04-29T11:00:00.000Z"),
     ])
-    body, more, nxt = _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary"))
+    body, more, nxt = _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT))
     assert body == b"part1" and more is True and nxt == "2026-04-29T11:00:00.000Z"
 
 
@@ -172,7 +186,7 @@ def test_round_skips_a_non_spoolfragment_notification():
         _enc({"jsonrpc": "2.0", "method": "HeartBeat"}),  # not a SpoolFragment — skipped
         _frag(0, b"z", "SPOOL_COMPLETE_NO_MORE_DATA"),
     ])
-    body, _more, _nxt = _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary"))
+    body, _more, _nxt = _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT))
     assert body == b"z"
 
 
@@ -181,7 +195,7 @@ def test_round_terminal_fragment_with_no_data():
         _enc({"id": 14, "result": {"spoolId": 5}}),
         _frag(0, None, "SPOOL_COMPLETE_NO_MORE_DATA"),  # empty terminal round
     ])
-    body, more, _nxt = _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary"))
+    body, more, _nxt = _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT))
     assert body == b"" and more is False
 
 
@@ -191,13 +205,13 @@ def test_round_raises_on_data_unavailable():
         _frag(0, None, "ERROR_DATA_UNAVAILABLE"),
     ])
     with pytest.raises(P.As11Error):
-        _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary"))
+        _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT))
 
 
 def test_round_raises_on_start_spool_error():
     dev = FakeAS11([_enc({"id": 14, "error": {"message": "no such spool"}})])
     with pytest.raises(P.As11Error):
-        _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary"))
+        _run(P.pull_spool_round(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT))
 
 
 # ── pull_spool (multi-round) ─────────────────────────────────────────────────
@@ -206,7 +220,7 @@ def test_pull_spool_single_round():
         _enc({"id": 14, "result": {"spoolId": 5}}),
         _frag(0, b"one", "SPOOL_COMPLETE_NO_MORE_DATA"),
     ])
-    assert _run(P.pull_spool(dev.write, dev.recv_frame, _seal, _unseal, "Summary")) == b"one"
+    assert _run(P.pull_spool(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT)) == b"one"
 
 
 def test_pull_spool_continues_across_rounds():
@@ -216,7 +230,7 @@ def test_pull_spool_continues_across_rounds():
         _enc({"id": 14, "result": {"spoolId": 5}}),
         _frag(0, b"R2", "SPOOL_COMPLETE_NO_MORE_DATA"),
     ])
-    assert _run(P.pull_spool(dev.write, dev.recv_frame, _seal, _unseal, "Summary")) == b"R1R2"
+    assert _run(P.pull_spool(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT)) == b"R1R2"
 
 
 def test_pull_spool_bounds_runaway_rounds():
@@ -227,4 +241,4 @@ def test_pull_spool_bounds_runaway_rounds():
         frames.append(_frag(0, b"x", "SPOOL_COMPLETE_MORE_DATA_PENDING", next_dt="2026-05-01T00:00:00.000Z"))
     dev = FakeAS11(frames)
     with pytest.raises(P.As11Error):
-        _run(P.pull_spool(dev.write, dev.recv_frame, _seal, _unseal, "Summary", max_rounds=2))
+        _run(P.pull_spool(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT, max_rounds=2))
