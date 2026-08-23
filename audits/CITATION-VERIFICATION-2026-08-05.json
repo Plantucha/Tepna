@@ -2,8 +2,48 @@
   "_note": "Author-time verification of every DOI cited anywhere in this repo, resolved against api.crossref.org. NOT a runtime input and NEVER fetched by a bundle — the no-network rule governs shipped code; this file is the OFFLINE record of a network check, so a later reader can re-check a citation without repeating it. `year` is Crossref's issued year, which for online-first papers is up to one year before the print/issue year a citation normally quotes; treat a one-year gap as agreement.",
   "_verifiedOn": "2026-08-05",
   "_resolver": "https://api.crossref.org/works/{doi}",
-  "_count": 96,
+  "_count": 103,
   "dois": {
+  "10.5664/jcsm.9814": {
+    "firstAuthor": "Ni",
+    "year": "2022",
+    "container": "Journal of Clinical Sleep Medicine",
+    "authorAliases": [
+      "Yue-Nan"
+    ],
+    "aliasNote": "Crossref's family name is \"Ni\" — two letters, below the citation gate's \u22653-char name-part floor, so firstAuthor alone can never whole-word match. The given name Yue-Nan is the matchable alias; the guide cites the full form \"Ni Yue-Nan\".",
+    "aliasSource": "crossref-variant"
+  },
+  "10.5664/jcsm.6056": {
+    "firstAuthor": "Reiter",
+    "year": "2016",
+    "container": "Journal of Clinical Sleep Medicine"
+  },
+  "10.1097/MCP.0000000000001113": {
+    "firstAuthor": "Richter",
+    "year": "2024",
+    "container": "Current Opinion in Pulmonary Medicine"
+  },
+  "10.1007/s11325-022-02740-w": {
+    "firstAuthor": "Richter",
+    "year": "2022",
+    "container": "Sleep and Breathing"
+  },
+  "10.3389/fphys.2025.1630032": {
+    "firstAuthor": "Kantrowitz",
+    "year": "2025",
+    "container": "Frontiers in Physiology"
+  },
+  "10.1111/psyp.14604": {
+    "firstAuthor": "Quigley",
+    "year": "2024",
+    "container": "Psychophysiology"
+  },
+  "10.3390/jcm8030337": {
+    "firstAuthor": "Liang",
+    "year": "2019",
+    "container": "Journal of Clinical Medicine"
+  },
     "10.1001/archinte.1916.00080130010002": {
       "firstAuthor": "Du BOIS",
       "year": "1916",

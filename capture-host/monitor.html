@@ -1049,26 +1049,52 @@ async function daemonWaitForReturn(tries){
   return false;
 }
 
-function daemonRestart(btn){ return daemonPost(btn, {verb:'restart'}, 'restarting\u2026'); }
+// ONE ON-BODY GUARD FOR THE THREE SELF-KILLING VERBS (restart/stop/reboot). Each ends the daemon and
+// drops every BLE link, so the server refuses with 409 + a `worn` list when a sensor is recording on a
+// body — losing that night's data (measured 2026-08-23: a restart mid-capture dropped 13 streams). The
+// flow is fire → on 409-worn NAME the sensors and re-fire with force → otherwise done. The predicate is
+// on-body, NOT `connected`: a docked sensor reports connected while producing nothing, and warning on
+// that is the false positive that trains an operator to always force. `worn` is read from SERVER state
+// (only the daemon knows), never the page's cache. `preconfirm` is an extra upfront gate for `stop`,
+// which is a deliberate timed outage worth confirming even when nothing is worn.
+async function daemonKill(btn, body, pending, opts){
+  opts = opts || {};
+  if(opts.preconfirm && !confirm(opts.preconfirm)) return;
+  btn.disabled = true; $('#dmnMsg').textContent = pending;
+  try{
+    let r = await api('/api/daemon',{method:'POST',headers:{'content-type':'application/json'},
+                                     body:JSON.stringify(body)});
+    if(!r.ok && Array.isArray(r.worn) && r.worn.length){
+      const act = {restart:'Restart', stop:'Stop capture', reboot:'Reboot'}[body.verb] || body.verb;
+      if(!confirm('RECORDING ON-BODY: ' + r.worn.join(', ') +
+                  '\n\nThis ends tonight\u2019s recording for those sensors. ' + act + ' anyway?')){
+        $('#dmnMsg').textContent = 'cancelled'; return;
+      }
+      r = await api('/api/daemon',{method:'POST',headers:{'content-type':'application/json'},
+                                   body:JSON.stringify(Object.assign({}, body, {force:true}))});
+    }
+    if(!r.ok){ $('#dmnMsg').innerHTML = `<span class="bad">${esc(r.error||'failed')}</span>`; return; }
+    $('#dmnMsg').innerHTML = `<span class="ok">${esc(r.detail||'done')}</span>`;
+    await daemonWaitForReturn(opts.waitTries);
+  }catch(e){ $('#dmnMsg').innerHTML = `<span class="bad">${esc(e)}</span>`; }
+  finally{ btn.disabled = false; }
+}
+
+function daemonRestart(btn){ return daemonKill(btn, {verb:'restart'}, 'restarting\u2026'); }
 
 // A RELOAD IS NOT A RESTART, and the reply says so rather than leaving the operator to assume. It
 // re-reads unit files after a pull brought a new unit definition; it does not touch the running
 // process, so nothing drops and no [Service] change reaches the daemon until it is also restarted.
 function daemonReload(btn){ return daemonPost(btn, {verb:'reload'}, 'reloading unit files\u2026', false); }
 
-// SHOW WHAT IS LIVE BEFORE ACTING. "Stop capture" at 23:00 with three sensors streaming is a different
-// act from the same click at noon, and the button cannot tell them apart — the operator can, given the
-// list. Read at click time rather than from cached state, so it cannot be stale.
+// Stop is a deliberate timed outage, so it confirms the minutes upfront; daemonKill then names any
+// on-body sensor from SERVER state. WHAT-IS-LIVE is left to that worn gate rather than a client
+// `connected` filter — a docked sensor is connected but idle, and "LIVE NOW: …" listing it is exactly
+// the false alarm the on-body predicate removes.
 async function daemonStop(btn){
   const mins = parseInt($v('dmnMin'),10) || 30;
-  let live = [];
-  try{ const st = await api('/api/state');
-       live = (st.devices||[]).filter(d=>d.connected).map(d=>d.name); }catch(e){}
-  const what = live.length ? 'LIVE NOW: ' + live.join(', ') + '\nThose links will drop.'
-                           : 'Nothing is streaming right now.';
-  if(!confirm('Stop capture for ' + mins + ' minutes?\n\n' + what +
-              '\n\nThe daemon restarts itself afterwards.')) return;
-  return daemonPost(btn, {verb:'stop', minutes:mins}, 'stopping\u2026');
+  return daemonKill(btn, {verb:'stop', minutes:mins}, 'stopping\u2026',
+    {preconfirm:'Stop capture for ' + mins + ' minutes?\n\nThe daemon restarts itself afterwards.'});
 }
 
 // ── the recovery ladder ─────────────────────────────────────────────────────────────────────────────
@@ -1088,25 +1114,10 @@ function daemonRebind(btn){
   return daemonPost(btn, {verb:'rebind'}, 're-binding adapter\u2026', false);
 }
 
-// REBOOT ASKS THE SERVER WHAT IS LIVE, rather than trusting the page's cached state. The 409 carries the
-// list, so the confirm can name the sensors that are actually streaming — "are you sure?" with no
-// specifics is the prompt everyone clicks through.
-async function daemonReboot(btn){
-  btn.disabled = true; $('#dmnMsg').textContent = 'checking what is live\u2026';
-  try{
-    const r = await api('/api/daemon',{method:'POST',headers:{'content-type':'application/json'},
-                                       body:JSON.stringify({verb:'reboot'})});
-    if(r.ok){ $('#dmnMsg').innerHTML = `<span class="ok">${esc(r.detail||'rebooting')}</span>`;
-              await daemonWaitForReturn(90); return; }
-    if(!r.live){ $('#dmnMsg').innerHTML = `<span class="bad">${esc(r.error||'failed')}</span>`; return; }
-    if(!confirm('STREAMING RIGHT NOW: ' + r.live.join(', ') +
-                '\n\nA reboot ends tonight\u2019s recording for those sensors. Reboot anyway?')) {
-      $('#dmnMsg').textContent = 'cancelled'; return;
-    }
-  }catch(e){ $('#dmnMsg').innerHTML = `<span class="bad">${esc(e)}</span>`; return; }
-  finally{ btn.disabled = false; }
-  return daemonPost(btn, {verb:'reboot', force:true}, 'rebooting\u2026', true);
-}
+// REBOOT ASKS THE SERVER WHAT IS ON-BODY, rather than trusting the page's cached state. The 409 carries
+// the `worn` list, so the confirm can name the sensors actually recording — "are you sure?" with no
+// specifics is the prompt everyone clicks through. Longer poll-back (90 s) because a reboot is slow.
+function daemonReboot(btn){ return daemonKill(btn, {verb:'reboot'}, 'rebooting…', {waitTries:90}); }
 
 // DEPLOY IS TWO CLICKS ON PURPOSE. `--no-restart` means the response survives to be read, so the
 // operator learns what moved and whether the daemon is still on the old build. Restarting inline would

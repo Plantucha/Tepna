@@ -53,9 +53,15 @@ CONSUMERS = ("webmon.py", "alerts.py", "nightqc.py", "timeline.py", "telemetry.p
 ALLOW_KEYS = {
     "tool": "read by webmon.py and monitor.html under a quoting form scan 1 does not model",
 }
-# Fields the API publishes deliberately for a consumer OTHER than the monitor. `/api/state` is not the
-# monitor's private channel — but "something else reads it" must be stated, not assumed.
-ALLOW_RENDERED: dict = {}
+# Fields the API publishes that the monitor does not draw — either for a consumer OTHER than the monitor,
+# or a monitor draw that is PENDING and tracked. `/api/state` is not the monitor's private channel — but
+# "something else reads it" / "a draw is coming" must be STATED, not assumed. An entry here without a
+# real follow-up is exactly the stale suppression this file warns against, so the tracker is load-bearing.
+ALLOW_RENDERED: dict = {
+    "ring_rtc_reset_suspect": "forwarded in STATUS; monitor draw PENDING — the ring RTC battery-reset "
+                              "alarm needs a ring-card indicator, tracked as a follow-up micro-PR that "
+                              "draws it and removes this line",
+}
 
 # Handlers defined in monitor.html that nothing calls. Same rule, same reason.
 ALLOW_JS: dict = {}
@@ -72,6 +78,17 @@ ALLOW_FUNCS = {
     # ── investigated 2026-08-14 (brief §5). Each is CAPABILITY THAT EXISTS ELSEWHERE, not a gap. The
     # reason is recorded here so the next reader spends a line rather than an investigation — which is
     # the allowlist's whole job, and why every entry prints with its justification.
+    # ── OxyII acquisition charter G2 (2026-08-23). The inventory ledger ships as a STANDALONE module
+    # by design: charter §4 sequences G2 (the vocabulary) before G1 (the `_pull_once` wiring that
+    # consumes it), the same shape the CPAP arm used. So these are not unwired-by-oversight, they are
+    # unwired-by-schedule, and the entries come OUT when G1 lands rather than staying forever.
+    # ⚠️ Deliberately NOT a module-wide exemption. `classify`, `reconcile`, `identity` and `current`
+    # are the logic G1 must call, so if THOSE ever appear here it means the wiring regressed and the
+    # gate should say so. Only the plumbing is listed.
+    "append_row": "oxy_inventory G2 — standalone until G1 wires the ledger into _pull_once (charter §4)",
+    "load_rows": "oxy_inventory G2 — standalone until G1 wires the ledger into _pull_once (charter §4)",
+    "make_row": "oxy_inventory G2 — standalone until G1 wires the ledger into _pull_once (charter §4)",
+    "sha256_bytes": "oxy_inventory G2 — standalone until G1 wires the ledger into _pull_once (charter §4)",
     "oxy_is_finalized": "redundant — pull_session.py already gates re-pulls on finalisation via "
                         "parse_trailer, which that caller needs anyway for the device summary",
     "busy_with": "redundant — offline_lock.slot() raises OfflineBusy(_busy), so the label already "
@@ -113,6 +130,12 @@ ALLOW_FUNCS = {
     "build_brp": "CPAP EDF writer — constructs a bit-accurate BRP.edf (flow+pressure) from captured data",
     "build_pld": "CPAP EDF writer — constructs a bit-accurate PLD.edf (derived 2 s channels) from captured data",
     "build_eve": "CPAP EDF writer — constructs a bit-accurate EVE.edf (EDF+ event annotations) from captured data",
+    # cpap_ingest.py is the CPAP acquisition gap-accounting layer (audit G4/G7): classify_frame makes a
+    # foreign-streamId or malformed frame COUNTABLE instead of silently dropped. It is the public
+    # classifier consumed by the tests today and by the P1+P3 ingestion wiring next — the single
+    # capture.py/cpap_stream.py touch that lands after the feature-arm controller-race fix (audit §7/§8).
+    # Same shape as the AS11 protocol builders and CPAP EDF constructors above: real, tested, wired next.
+    "classify_frame": "CPAP gap-accounting — counts foreign/malformed frames; consumed by tests today, wired by the P1+P3 ingestion touch next (after the controller-race fix)",
 }
 
 
