@@ -46,16 +46,27 @@ def gate(status_devices) -> str | None:
 
 
 async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
-                        channels=None, sample_interval_ms=40, cipher_factory=as11_cipher.make_cipher,
-                        max_batches=None, should_stop=None):
-    """Establish the encrypted session, then pump AS11 StreamData batches onto `bus`. Returns the number
-    of batches pushed.
+                        channels=None, extra_sinks=None, sample_interval_ms=40,
+                        cipher_factory=as11_cipher.make_cipher, max_batches=None, should_stop=None):
+    """Establish the encrypted session, then fan each AS11 StreamData batch out to `bus` AND to any
+    `extra_sinks`. Returns the number of batches delivered.
+
+    ONE INGESTION SEAM, PEERS ON IT. The bus card is the built-in consumer; `extra_sinks` (the on-disk
+    EDF writer, a future raw sidecar) join it on the SAME batch loop — none is the sole consumer, and a
+    new tap is one entry in the list, not a second stream. Each `extra_sink` implements open(channels,fs)
+    / on_batch(batch) / close(); the bus is pushed inline as its samples are values, not a file to finalize.
 
     `channels` maps dataId → (bus_key, label, unit); defaults to flow + pressure. Each stream is
     registered ONCE (so the card shows immediately, even before the first frame), then every batch's
     samples are pushed under the matching bus key. `should_stop` (an asyncio.Event, optional) ends the
     pump cleanly between batches — the monitor's stop button. `cipher_factory` is injectable ONLY for
     tests (an identity cipher over plaintext frames); production uses the real AES factory.
+
+    DRAIN-ON-DISCONNECT. A dropped link raises out of the batch loop (a recv times out with nothing left),
+    and a StreamData fragment can even arrive ~230 ms AFTER the drop — the loop consumes any such buffered
+    batch before the read fails. So every sink is CLOSED in a finally: a disconnect is never treated as
+    end-of-data, and each delivered batch is finalized rather than lost with the exception. The file an
+    EDF sink writes is only whole once closed, so this is what makes an interrupted night's EDF readable.
     """
     channels = channels or BRP_CHANNELS
     fs = 1000.0 / sample_interval_ms
@@ -63,17 +74,26 @@ async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
     seal, unseal = cipher_factory(session_key)
     for _did, (key, label, unit) in channels.items():
         bus.register(key, label, unit, fs, chans=1)
-    pushed = 0
-    async for batch in as11_pull.stream(write, recv_frame, seal, unseal, list(channels),
-                                        sample_interval_ms=sample_interval_ms, max_batches=max_batches):
-        for did, (key, _label, _unit) in channels.items():
-            samples = batch["channels"].get(did)
-            if samples:
-                bus.push(key, samples, fs)
-        pushed += 1
-        if should_stop is not None and should_stop.is_set():
-            break
-    return pushed
+    sinks = list(extra_sinks or ())
+    for s in sinks:
+        s.open(channels, fs)
+    delivered = 0
+    try:
+        async for batch in as11_pull.stream(write, recv_frame, seal, unseal, list(channels),
+                                            sample_interval_ms=sample_interval_ms, max_batches=max_batches):
+            for did, (key, _label, _unit) in channels.items():
+                samples = batch["channels"].get(did)
+                if samples:
+                    bus.push(key, samples, fs)
+            for s in sinks:
+                s.on_batch(batch)
+            delivered += 1
+            if should_stop is not None and should_stop.is_set():
+                break
+    finally:
+        for s in sinks:
+            s.close()
+    return delivered
 
 
 class LiveStreamController:
@@ -84,13 +104,17 @@ class LiveStreamController:
     is here and unit-tested; the only un-covered edge is the bleak connect itself, which lives in the
     daemon shim. One controller per daemon; `op("start"|"stop")` is what the endpoint calls."""
 
-    def __init__(self, bus, connect, load_creds, devices, *, channels=None, pump=stream_to_bus):
+    def __init__(self, bus, connect, load_creds, devices, *, channels=None, pump=stream_to_bus,
+                 edf_sink_factory=None):
         self._bus = bus
         self._connect = connect
         self._load_creds = load_creds
         self._devices = devices        # () -> the daemon's device-status map, for the on-body gate
         self._channels = channels or BRP_CHANNELS
         self._pump = pump
+        # () -> a fresh on-disk EDF sink for this session, or None to stream to the bus alone. The daemon
+        # supplies one; a bus-only controller (and every existing test) leaves it None and is unaffected.
+        self._edf_sink_factory = edf_sink_factory
         self._task = None
         self._stop = None
         self._disconnect = None
@@ -116,9 +140,13 @@ class LiveStreamController:
         write, recv_frame, disconnect = await self._connect()
         self._disconnect = disconnect
         self._stop = asyncio.Event()
+        kw = {"channels": self._channels, "should_stop": self._stop}
+        if self._edf_sink_factory is not None:
+            # A fresh sink per session — the file is named from this session's device start_time. Only
+            # passed when configured, so a bus-only pump (and the injected test pumps) never see the kwarg.
+            kw["extra_sinks"] = [self._edf_sink_factory()]
         self._task = asyncio.create_task(self._pump(
-            self._bus, write, recv_frame, bytes.fromhex(creds["masterPairKey"]), creds["clientId"],
-            channels=self._channels, should_stop=self._stop))
+            self._bus, write, recv_frame, bytes.fromhex(creds["masterPairKey"]), creds["clientId"], **kw))
         return {"ok": True, "streaming": True, "channels": self._keys()}
 
     async def _stop_op(self):

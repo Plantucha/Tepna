@@ -1,0 +1,171 @@
+# tepna-capture — tests/test_cpap_edf_writer.py
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+"""EdfSink — the live BLE StreamData → BRP.edf-on-disk sink.
+
+The two invariants worth their own tests are QUARANTINE (an unpinned-flow-scale file must not land where
+the harvest/CPAPDex chain ingests it as therapy data) and the device-clock start (verbatim, never
+host-corrected or fabricated). The rest pins the accumulate→build→atomic-write path against the
+byte-accurate cpap_edf builder proven in #1669.
+"""
+
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import cpap_edf  # noqa: E402
+import cpap_edf_writer as W  # noqa: E402
+import pytest  # noqa: E402
+
+SERIAL = "23211234567"
+
+
+def _batch(start, flow, press):
+    return {"start_time": start, "interval_ms": 40,
+            "channels": {"PatientFlow": list(flow), "MaskPressure": list(press)}}
+
+
+def _run(sink, n_seconds, start="2026-08-23T22:15:03.000Z", flow=0.1, press=5.0):
+    """Feed `n_seconds` of 25 Hz batches (one batch = one second = 25 samples) and close."""
+    sink.open({"PatientFlow": None, "MaskPressure": None}, 25.0)
+    for _ in range(n_seconds):
+        sink.on_batch(_batch(start, [flow] * 25, [press] * 25))
+    sink.close()
+
+
+# ── QUARANTINE ────────────────────────────────────────────────────────────────────────────────────────
+def test_an_UNVERIFIED_flow_scale_is_QUARANTINED_outside_the_ingest_root(tmp_path):
+    """⚠️ THE BINDING INVARIANT. The StreamData PatientFlow physical scale (L/s vs L/min) is not yet
+    pinned, and a 60x-off flow that still parses cleanly is the 'valid-looking file, wrong data' class
+    this repo keeps paying for. So the DEFAULT (flow_scale_verified False) writes under a PENDING subtree
+    that is NOT under the harvest ingest root — CPAPDex cannot read it as therapy data."""
+    out = tmp_path / "cpap-ble"
+    sink = W.EdfSink(str(out), SERIAL)                  # default: unverified
+    _run(sink, 61)
+    assert os.path.sep + W.EdfSink.PENDING + os.path.sep in sink.path, "must be under PENDING"
+    ingest_root = str(tmp_path / "captures" / "cpap")   # where the SD-card harvest lands
+    assert not sink.path.startswith(ingest_root), "an unpinned file must not enter the ingest set"
+    assert os.path.exists(sink.path)
+
+
+def test_a_VERIFIED_flow_scale_writes_to_the_committed_root_not_PENDING(tmp_path):
+    """The mirror image: once the factor is pinned, flow_scale_verified True routes to the committed root,
+    so the quarantine is a gate that actually opens rather than a permanent detour."""
+    out = tmp_path / "cpap-ble"
+    sink = W.EdfSink(str(out), SERIAL, flow_scale_verified=True)
+    _run(sink, 61)
+    assert os.path.sep + W.EdfSink.PENDING + os.path.sep not in sink.path
+    assert sink.path.startswith(str(out))
+
+
+def test_unverified_is_the_DEFAULT(tmp_path):
+    """A caller that forgets the flag gets the SAFE behavior — the quarantine is opt-out, not opt-in."""
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL)
+    assert sink._verified is False
+
+
+# ── DEVICE CLOCK (verbatim, validated, never fabricated) ────────────────────────────────────────────────
+def test_the_EDF_start_is_the_DEVICE_stamp_verbatim(tmp_path):
+    """The EDF startdate/starttime come from the device's own start_time, taken as floating civil time
+    (the zone-free convention the SD-card BRP.edf uses), NOT from any host clock."""
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL)
+    _run(sink, 2, start="2026-01-05T03:07:09.000Z")
+    edf = cpap_edf.read_edf(open(sink.path, "rb").read())
+    assert edf.startdate == "05.01.26" and edf.starttime == "03.07.09"
+    assert sink.path.endswith("20260105_030709_BRP.edf")
+
+
+def test_an_unparseable_start_REFUSES_rather_than_fabricating_a_date(tmp_path):
+    """Clock Contract §2.6 — a missing/garbage stamp is null, never now(). The sink raises rather than
+    dating the night with the host clock."""
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL)
+    sink.open({}, 25.0)
+    with pytest.raises(ValueError, match="unparseable"):
+        sink.on_batch(_batch("not-a-timestamp", [0.1] * 25, [5.0] * 25))
+
+
+def test_a_missing_start_time_is_refused_not_dated_from_the_host(tmp_path):
+    """A batch with no start_time at all (None) is the same honesty case as a garbage one — refuse,
+    never fall back to the host clock."""
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL)
+    sink.open({}, 25.0)
+    with pytest.raises(ValueError, match="unparseable"):
+        sink.on_batch({"interval_ms": 40, "channels": {"PatientFlow": [0.1] * 25}})
+
+
+def test_an_out_of_range_stamp_is_refused_not_silently_rolled(tmp_path):
+    """§2.7 — Date-style rolling (month 13 → next Jan) fabricates a wrong instant. A calendar-invalid
+    stamp is refused."""
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL)
+    sink.open({}, 25.0)
+    with pytest.raises(ValueError):
+        sink.on_batch(_batch("2026-02-30T25:99:00.000Z", [0.1] * 25, [5.0] * 25))
+
+
+def test_24_00_00_end_of_day_rolls_to_next_day(tmp_path):
+    """The one legal ISO overflow (§2.7): 24:00:00 → 00:00:00 the next calendar day."""
+    assert W._start_components("2026-08-23T24:00:00Z") == (2026, 8, 24, 0, 0, 0)
+
+
+# ── ACCUMULATE → BUILD → ATOMIC WRITE ───────────────────────────────────────────────────────────────────
+def test_two_batches_produce_a_readable_bit_accurate_BRP(tmp_path):
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL)
+    _run(sink, 120)                                    # two whole 60 s records
+    edf = cpap_edf.read_edf(open(sink.path, "rb").read())
+    assert [s.label.strip() for s in edf.signals] == ["Flow.40ms", "Press.40ms", "Crc16"]
+    assert edf.n_records == 2
+
+
+def test_the_flow_conversion_is_injectable_and_applied(tmp_path):
+    """The unit factor lives at ONE tap. A /60 conversion (the L/min→L/s hypothesis) must reach the
+    written physical samples — this is the seam the pinned factor plugs into."""
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL, flow_to_lps=lambda v: v / 60.0)
+    _run(sink, 60, flow=60.0)                          # 60 L/min in → 1.0 L/s stored
+    edf = cpap_edf.read_edf(open(sink.path, "rb").read())
+    flow = edf.signals[0]
+    # digital→physical round-trip of the first sample; 1.0 L/s within one quantum of the ±2/3 range
+    phys = cpap_edf._digital(1.0, -2.0, 3.0, -1000, 1500)
+    assert flow.samples[0] == phys
+
+
+def test_the_final_name_only_appears_after_close_atomic(tmp_path):
+    """During capture only a .part exists; the final path is os.replace'd into being on close, so a
+    reader never sees a half-written EDF under the real name."""
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL)
+    sink.open({}, 25.0)
+    for _ in range(61):
+        sink.on_batch(_batch("2026-08-23T22:15:03.000Z", [0.1] * 25, [5.0] * 25))
+    assert os.path.exists(sink.path + ".part"), "the .part carries the in-progress capture"
+    assert not os.path.exists(sink.path), "the final name must not exist mid-capture"
+    sink.close()
+    assert os.path.exists(sink.path) and not os.path.exists(sink.path + ".part")
+
+
+def test_a_double_close_is_a_noop(tmp_path):
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL)
+    _run(sink, 2)
+    first = os.path.getmtime(sink.path)
+    sink.close()                                       # must not raise or rewrite
+    assert os.path.getmtime(sink.path) == first
+
+
+def test_a_session_that_never_streamed_writes_no_file(tmp_path):
+    """A stream that opened but delivered nothing must not leave an empty EDF — no start, no file."""
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL)
+    sink.open({}, 25.0)
+    sink.close()
+    assert sink.path is None
+
+
+def test_a_partial_batch_missing_a_channel_does_not_crash_or_desync(tmp_path):
+    """A batch carrying only one channel contributes to that channel alone; the two are padded to equal
+    length only at build time, so a dropped channel never shifts flow and pressure out of lockstep."""
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL)
+    sink.open({}, 25.0)
+    sink.on_batch({"start_time": "2026-08-23T22:15:03.000Z", "interval_ms": 40,
+                   "channels": {"PatientFlow": [0.1] * 25}})          # no pressure
+    sink.on_batch({"start_time": "2026-08-23T22:15:04.000Z", "interval_ms": 40,
+                   "channels": {"MaskPressure": [5.0] * 25}})         # no flow
+    sink.close()
+    edf = cpap_edf.read_edf(open(sink.path, "rb").read())
+    assert edf.n_records == 1                                          # padded to one whole record
