@@ -23349,6 +23349,61 @@
         }),
         'running'
       );
+      /* An UNARMED PR mid-CI cannot merge, so it cannot re-BEHIND anyone — the serialise premise
+         fails for it exactly as it does for an absent context. Measured on this timer's own journal:
+         a deliberately-held unarmed PR blocked three consecutive runs (17:51, 18:01, 18:11) with zero
+         chance of merging in any of them. Holding a PR unarmed is normal and correct here; it should
+         not stop the queue draining around it. */
+      T.eq(
+        'a PR mid-CI but UNARMED is classified apart from `running`',
+        k({
+          autoMerge: false,
+          checks: [
+            { name: 'test', bucket: 'pending' },
+            { name: 'biome', bucket: 'pass' }
+          ]
+        }),
+        'running-unarmed'
+      );
+      T.ok(
+        '…and does not block a stuck PR from being updated',
+        (function () {
+          var out = pk([
+            wrap(
+              P({
+                number: 9,
+                autoMerge: false,
+                checks: [
+                  { name: 'test', bucket: 'pending' },
+                  { name: 'biome', bucket: 'pass' }
+                ]
+              })
+            ),
+            wrap(P({ number: 1, updatedAtMs: NOW - (IDLE + 5) * 60000 }))
+          ]);
+          return out.action === 'update' && out.pr.number === 1;
+        })(),
+        'nothing merges an unarmed PR, so waiting on it can never pay'
+      );
+      T.ok(
+        '…while an ARMED one mid-CI still serialises',
+        (function () {
+          var out = pk([
+            wrap(
+              P({
+                number: 9,
+                checks: [
+                  { name: 'test', bucket: 'pending' },
+                  { name: 'biome', bucket: 'pass' }
+                ]
+              })
+            ),
+            wrap(P({ number: 1, updatedAtMs: NOW - (IDLE + 5) * 60000 }))
+          ]);
+          return out.action === 'wait';
+        })(),
+        'the distinction must be observable, or it is a rename'
+      );
       T.ok(
         'an ABSENT-context PR no longer blocks the queue',
         (function () {

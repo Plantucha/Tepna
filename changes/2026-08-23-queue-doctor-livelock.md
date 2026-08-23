@@ -13,7 +13,8 @@ the day's queue was hand-drained.
 time, not tuned to the outcome. The narrower fix — only serialise behind a PR that is not itself
 BEHIND — was tried first and does not work: a mid-CI PR was just pushed, so it is usually current.
 
-Also splits ABSENT required checks out of `running` into `awaiting`. They needed opposite responses
+Also splits two states out of `running` that CANNOT MERGE, so cannot re-BEHIND anyone and must not
+serialise: an UNARMED PR mid-CI (`running-unarmed`) and an ABSENT required check (`awaiting`). They needed opposite responses
 — a pending check resolves, an absent one may never report — and collapsing them meant an unreported
 context BLOCKED the queue while being excluded from the candidates that could fix it. Measured from
 the timer's journal over six hours: 22 blocked runs were genuinely pending, 10 were `awaiting: test`.

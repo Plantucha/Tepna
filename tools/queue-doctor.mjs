@@ -81,7 +81,19 @@ export function classify(pr, required, nowMs) {
      four unreported contexts; stated here rather than inherited, because this tool counts too. */
   const seen = new Set(names.map((c) => c.name));
   const absent = required.filter((c) => !seen.has(c));
-  if (pending.length) return { k: 'running', why: `${pending.length} required check(s) running` };
+  /* 🔴 AN UNARMED PR MID-CI CANNOT MERGE, SO IT CANNOT RE-BEHIND ANYONE — it must not serialise.
+     The whole premise of the wait below is "this one is about to merge and re-BEHIND everything
+     else, so a second update is guaranteed waste". Nothing merges an unarmed PR: `stuck-unarmed`
+     already says so a few lines down ("updating cannot land it"), and the same fact makes it a
+     harmless neighbour rather than a blocker.
+     Measured on this timer's own journal, 2026-08-23: #1687 was deliberately held UNARMED for a
+     coordination window, and blocked three consecutive runs — 17:51, 18:01, 18:11 — each
+     `wait: #1687 is mid-CI … serialising`, with zero chance of merging in any of them. Holding a PR
+     unarmed is a normal, correct thing to do here; it should not stop the queue draining around it. */
+  if (pending.length) {
+    if (!pr.autoMerge) return { k: 'running-unarmed', why: `${pending.length} required check(s) running, but UNARMED — cannot merge, so cannot block` };
+    return { k: 'running', why: `${pending.length} required check(s) running` };
+  }
   /* 🔴 ABSENT IS NOT PENDING, AND COLLAPSING THEM DEADLOCKED THE QUEUE. Both used to return
      `running`, so both blocked the picker below — but they need OPPOSITE responses. A pending check
      will resolve; an absent one may never report at all, and CLAUDE.md §5 says so about this tool's
