@@ -39,11 +39,19 @@ import time
 # The four states a recording moves through. Ordered: a later state never silently regresses to an
 # earlier one without a row saying so, which is what makes the JSONL an audit rather than a cache.
 DISCOVERED = "DISCOVERED"   # the ring listed it; we may have no bytes at all
+DOWNLOADING = "DOWNLOADING" # a transfer was in flight when this row was written
 PARTIAL = "PARTIAL"         # bytes on disk, but NOT finalised (or short of the reported size)
+VERIFYING = "VERIFYING"     # bytes complete on disk, validation in flight
 VERIFIED = "VERIFIED"       # bytes on disk, trailer finalised, hash recorded
 COMMITTED = "COMMITTED"     # verified AND accepted into the night tree (G1 does the atomic rename)
+FAILED = "FAILED"           # a transfer attempt ended badly; `failure` says whether to retry
 
-STATES = (DISCOVERED, PARTIAL, VERIFIED, COMMITTED)
+# ⚠️ DOWNLOADING and VERIFYING are states a CRASH LEAVES BEHIND, never evidence of a live transfer
+# (G1 brief §3, crash points 3–5). Nothing in this process can observe another process's in-flight
+# work, so a reader that finds one must treat it exactly as PARTIAL. They are distinct from PARTIAL
+# only in saying WHERE the crash happened, which is what makes the ten crash points diagnosable.
+
+STATES = (DISCOVERED, DOWNLOADING, PARTIAL, VERIFYING, VERIFIED, COMMITTED, FAILED)
 _RANK = {s: i for i, s in enumerate(STATES)}
 
 
@@ -90,7 +98,8 @@ def classify(data: bytes | None, reported_size: int | None, parse_trailer) -> tu
 def make_row(device_id: str, session_stamp: str, state: str, *, reason: str = "",
              size: int | None = None, reported_size: int | None = None,
              sha256: str | None = None, path: str | None = None,
-             attempt: int | None = None, at: float | None = None) -> dict:
+             attempt: int | None = None, failure: str | None = None,
+             at: float | None = None) -> dict:
     """One ledger row. `at` is injectable so tests are deterministic and so no row ever carries a
     fabricated time — a caller that has a real clock passes it, and the default reads the real one."""
     if state not in _RANK:
@@ -106,6 +115,10 @@ def make_row(device_id: str, session_stamp: str, state: str, *, reason: str = ""
         "sha256": sha256,
         "path": path,
         "attempt": attempt,
+        # The failure CLASS label, not prose. `reason` explains to a human; this is what the retry
+        # policy branches on, and `recoverable` is a field of the class rather than an inference
+        # from the message — so a permanent failure can never be retried by a string mismatch.
+        "failure": failure,
         "at": time.time() if at is None else at,
     }
 

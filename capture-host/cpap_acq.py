@@ -114,6 +114,9 @@ class FailureClass(Enum):
     FRAME_CORRUPTION = ("frame_corruption", True)
     STREAM_STALL = ("stream_stall", True)
     DEVICE_UNAVAILABLE = ("device_unavailable", True)
+    # The peer stopped sending mid-file: neither a timeout (the link is alive) nor corruption
+    # (the bytes received are good) — it has its own retry policy, so it gets its own class.
+    TRUNCATED_TRANSFER = ("truncated_transfer", True)
     RECOVERABLE_ERROR = ("recoverable_error", True)
     AUTHENTICATION_FAILURE = ("authentication_failure", False)
     PROTOCOL_FAILURE = ("protocol_failure", False)

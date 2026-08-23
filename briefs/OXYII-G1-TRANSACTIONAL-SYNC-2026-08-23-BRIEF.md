@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-23 · **Follows:** `OXYII-ACQUISITION-CHARTER-2026-08-23-BRIEF.md` (G1, spec §8–§19) · **Builds on:** `oxy_inventory.py` (G2, #1681), `oxy_restart.py` (G3, #1689) · **Affects:** `capture-host/pull_session.py`, a new transfer module
+**Status:** DONE — 2026-08-23 · **Created:** 2026-08-23 · **Follows:** `OXYII-ACQUISITION-CHARTER-2026-08-23-BRIEF.md` (G1, spec §8–§19) · **Builds on:** `oxy_inventory.py` (G2, #1681), `oxy_restart.py` (G3, #1689) · **Affects:** `capture-host/pull_session.py`, a new transfer module
 
 # G1 — the download becomes a transaction, and every crash point gets a planted control
 
@@ -126,11 +126,61 @@ fails three times is unavailable for three hours; with retries inside one window
 
 ## 7 · Done when
 
-- [ ] The five functions exist separately, with `select()` pure and unit-tested without a device.
-- [ ] All ten crash points have a planted control; each verified by re-application, not assertion.
-- [ ] Validation states which LAYER a `VERIFIED` row was verified at — no single flag spanning
+- [x] The five functions exist separately, with `select()` pure and unit-tested without a device.
+- [x] All ten crash points have a planted control; each verified by re-application, not assertion.
+- [x] Validation states which LAYER a `VERIFIED` row was verified at — no single flag spanning
       "size+finalised" and "parses".
-- [ ] The semantic-validation gap is either closed by a parser port or recorded as an open item with
+- [x] The semantic-validation gap is either closed by a parser port or recorded as an open item with
       its cost — never implied to exist.
-- [ ] `resume_strategy` is the only place the re-serve/resume choice appears, provable by grep.
-- [ ] The retry bound is stated in link-seconds against the p90, not as a bare count.
+- [x] `resume_strategy` is the only place the re-serve/resume choice appears, provable by grep.
+- [x] The retry bound is stated in link-seconds against the p90, not as a bare count.
+
+---
+
+## 8 · What execution actually changed about the design
+
+Three of these were found by taking §7's "verified by re-application, not assertion" literally. They
+are recorded because in each case the design as written *read* correct and the control did not bite.
+
+**The `.part` discipline was a CONVENTION, and conventions are not invariants.** §3's crash points 3
+and 4 require that a kill mid-transfer leaves something no reader can adopt. As designed, that held
+only because the caller passed a `.part` path — so the controls pinned the test's own wiring, not the
+module, and a single wrong argument would have written a half file under a real recording's name.
+`download()` now REFUSES a target that does not end in `.part`. That is the only version of the
+invariant the module can hold by itself.
+
+**`select()` built a second `Resume` behind §5's back.** The new-recording branch constructed
+`Resume(RESTART, 0, "new")` inline — true today, and wrong the first time the policy changes.
+⚠️ An AST check for `return Resume(` **missed it**, because the construction sat inside a
+`Selection(...)` argument list; the plain grep §7 asks for is what caught it. The criterion said
+"provable by grep" for a reason, and the cleverer check was the one that failed. All four
+construction sites are now inside `resume_strategy`.
+
+**The crash-9 control only ever tested the consistent case.** "COMMITTED and consistent" has two
+halves, and the test asserted one: a committed recording whose bytes CHANGED underneath us passed it.
+Planting "a size mismatch under VERIFIED is ignored" survived the whole suite. The control now pins
+`size_drift`, and the same defect re-applied is killed.
+
+**The resume path shipped a splice bug, found by reading it against §5's own warning.** `r+b` seeks
+but does not truncate, so resuming over a *longer* stale `.part` leaves the old tail attached:
+measured, offset 2 over `b"ABXYZW"` writing `b"cd"` produced **`b"ABcdZW"`** while `bytes_written`
+reported 4 and the file was 6. That is "the right size and silently corrupt" — the exact phrase §5
+uses to justify re-serve-from-start — reproduced inside the module that quotes it. It was LATENT,
+because `allow_resume` defaults False, and it would have activated on the day the drop test flipped
+that flag: the one moment nobody would be looking for a new corruption path. Fixed with an explicit
+`truncate`, with a control that dies when the truncate is removed.
+
+**Two invariants are MEASURED-unverifiable, and are not claimed as covered.** Removing either fsync —
+the file's before verify, the directory's after rename — leaves all 42 tests passing, because
+durability is not observable from a unit test. That was confirmed by re-application rather than
+assumed, and it is stated here instead of being papered over by a coverage percentage.
+
+⚠️ **"Unverifiable" here means AT THE UNIT LAYER — it is not a permanent unknown, and filing it as
+one would be its own quiet false completion.** fsync removal IS observable to fault injection: a
+crash-at-syscall harness can kill between the write and the rename and check what survived. So this
+is a named OPEN ITEM for the OxyII chaos lane (the P7 analog), not a property that cannot be tested.
+The unit suite cannot see it; that is a statement about the instrument, not about the invariant.
+
+**Still open, and deliberately not implied to exist:** semantic (layer-3) validation, which needs a
+subset port of the JS record parser; and the physical drop test that decides `resume_strategy`'s one
+flag. Wiring into `pull_session.py` lands separately, after review of this module.
