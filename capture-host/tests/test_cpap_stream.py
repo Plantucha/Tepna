@@ -14,6 +14,7 @@ import json
 
 import as11_link as L
 import cpap_stream as CS
+import pytest
 
 PAIR_KEY = b"K" * 32
 NONCE = bytes.fromhex("00112233445566778899aabbccddeeff")
@@ -76,6 +77,25 @@ class FakeBus:
 
     def push(self, stream, values, fs=None, dev_ns=None):
         self.pushed.append((stream, list(values), fs))
+
+
+class _RecordingSink:
+    """A minimal extra-sink (open/on_batch/close) that records what the pump fed it — stands in for the
+    EDF writer so the fan-out and the drain-on-disconnect can be asserted without touching a file."""
+
+    def __init__(self):
+        self.opened = None
+        self.batches = []
+        self.closed = 0
+
+    def open(self, channels, fs):
+        self.opened = (channels, fs)
+
+    def on_batch(self, batch):
+        self.batches.append(batch)
+
+    def close(self):
+        self.closed += 1
 
 
 def _run(coro):
@@ -172,6 +192,37 @@ def test_a_custom_channel_map_is_honoured():
     start = next(json.loads(L.fig_unframe(f)[1]) for f in dev.written
                  if json.loads(L.fig_unframe(f)[1]).get("method") == "StartStream")
     assert start["params"]["sampleIntervalMs"] == 1000
+
+
+# ── extra sinks: PEERS on the one seam + drain-on-disconnect ─────────────────────
+def test_an_extra_sink_is_opened_fed_every_batch_and_closed():
+    """The EDF writer (here a recording stand-in) is a PEER of the bus on ONE loop: opened once with the
+    channel map + derived rate, handed every batch the bus is, and closed on clean completion."""
+    sink = _RecordingSink()
+    dev = FakeDev(_handshake() + [_ack(), _data([0.1], [5.0]), _data([0.2], [5.1])])
+    bus = FakeBus()
+    delivered = _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                                      cipher_factory=_identity_factory, extra_sinks=[sink], max_batches=2))
+    assert delivered == 2
+    assert sink.opened == (CS.BRP_CHANNELS, 25.0), "opened with the channel map + derived rate"
+    assert len(sink.batches) == 2, "fed every batch the bus was"
+    assert sink.closed == 1, "closed exactly once on clean completion"
+
+
+def test_a_dropped_link_still_FINALIZES_the_sink_with_every_delivered_batch():
+    """⚠️ DRAIN-ON-DISCONNECT. A link drop raises out of the batch loop, but every batch already delivered
+    — INCLUDING one that arrived late, at the instant of the drop — must reach the sink, and the sink must
+    be CLOSED so its file is finalized. A disconnect is not end-of-data. Here the third frame is the late
+    fragment; the read after it fails (the link is gone), and all three batches must survive that."""
+    sink = _RecordingSink()
+    # handshake + ack + THREE data frames, then the recv underflows (IndexError) → the link is gone
+    dev = FakeDev(_handshake() + [_ack(), _data([0.1], [5.0]), _data([0.2], [5.1]), _data([0.3], [5.2])])
+    bus = FakeBus()
+    with pytest.raises(IndexError):     # the drop propagates — the caller (controller task) handles it
+        _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                              cipher_factory=_identity_factory, extra_sinks=[sink]))
+    assert len(sink.batches) == 3, "all three delivered batches — incl. the late one — reached the sink"
+    assert sink.closed == 1, "the sink was finalized despite the disconnect, not left half-open"
 
 
 # ── gate — on-body, NOT stream-active (single-sourced on telemetry.on_body) ─────────────────────────────
@@ -307,6 +358,38 @@ def test_controller_start_spawns_a_stream_and_stop_tears_it_down():
     _run(go())
 
 
+def test_controller_passes_a_fresh_edf_sink_to_the_pump_when_configured():
+    """With an edf_sink_factory, _start builds a FRESH sink per session (named from that session's device
+    start_time) and hands it to the pump as an extra_sink, making the on-disk EDF a peer of the bus.
+    Without the factory — every other controller test — the kwarg is never passed, which is exactly why
+    the bus-only pumps stay untouched."""
+    async def go():
+        connect, _ = _connector()
+        made = []
+
+        def factory():
+            s = _RecordingSink()
+            made.append(s)
+            return s
+
+        seen = {}
+
+        async def pump(bus, write, recv_frame, pk, cid, *, channels=None, extra_sinks=None, should_stop=None):
+            seen["extra_sinks"] = extra_sinks
+            while should_stop is None or not should_stop.is_set():
+                await asyncio.sleep(0.005)
+            return 0
+
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices,
+                                    pump=pump, edf_sink_factory=factory)
+        await c.op("start")
+        await asyncio.sleep(0.01)
+        assert len(made) == 1, "one fresh sink built for the session"
+        assert seen["extra_sinks"] == made, "the sink is handed to the pump as an extra_sink"
+        await c.op("stop")
+    _run(go())
+
+
 def test_controller_start_is_idempotent_while_running():
     async def go():
         connect, events = _connector()
@@ -439,6 +522,33 @@ def test_build_controller_honours_an_explicit_creds_path_and_adapter(tmp_path):
     cfg = {"cpap": {"ble_stream": {"creds_path": str(creds), "adapter": "hci3"}}}
     ctl = capture._build_cpap_controller(object(), cfg, str(tmp_path / "config.yaml"))
     assert ctl._load_creds()["clientId"] == "z"
+
+
+def test_build_controller_wires_a_QUARANTINED_edf_sink_when_edf_dir_is_set(tmp_path):
+    """Setting cpap.ble_stream.edf_dir enables the on-disk EDF sink: the controller gets a factory that
+    builds a fresh EdfSink rooted there and — critically — DEFAULT-QUARANTINED (flow scale unverified), so
+    a provisional-unit file cannot reach the trusted set. The serial comes from config (provisional)."""
+    import capture
+    import cpap_edf_writer
+    out = tmp_path / "cpap-ble"
+    cfg = {"cpap": {"ble_stream": {"edf_dir": str(out), "serial": "23211234567"}}}
+    ctl = capture._build_cpap_controller(object(), cfg, str(tmp_path / "config.yaml"))
+    assert ctl._edf_sink_factory is not None, "edf_dir enables the sink"
+    sink = ctl._edf_sink_factory()
+    assert isinstance(sink, cpap_edf_writer.EdfSink)
+    assert sink._out_root == str(out) and sink._serial == "23211234567"
+    assert sink._verified is False, "quarantined by default — the flow scale is not yet pinned"
+    # serial is provisional — an absent config value falls back to a clear placeholder, never a wrong guess
+    ctl2 = capture._build_cpap_controller(object(), {"cpap": {"ble_stream": {"edf_dir": str(out)}}},
+                                          str(tmp_path / "config.yaml"))
+    assert ctl2._edf_sink_factory()._serial == "UNKNOWN"
+
+
+def test_build_controller_leaves_the_edf_sink_off_without_edf_dir(tmp_path):
+    """The mirror: no edf_dir means bus-only — the prior behaviour, no EDF files written."""
+    import capture
+    ctl = capture._build_cpap_controller(object(), {"cpap": {}}, str(tmp_path / "config.yaml"))
+    assert ctl._edf_sink_factory is None
 
 
 # ── capture._cpap_ble_connect (the bleak I/O edge, mocked) ───────────────────────
