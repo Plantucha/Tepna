@@ -584,6 +584,36 @@
          was actually disciplined. `spreadMs` is published so the call is checkable rather than trusted. */
       spreadMs: spreadMs,
       independent: independent,
+      /* THE STACK-JITTER COMPONENT, ISOLATED (ZEPHYR-INSTRUMENT §Task 2, layer 3). `spreadMs` above
+         is the RAW min-max of the divergence, so it carries the whole night's drift; this is the
+         residual the running median REMOVED — r_i − sm[i] — which is precisely the BLE/host-stack
+         delivery jitter the smoother exists to keep out of the correction. Same estimator as the
+         sibling instruments (tools/ble-jitter-probe.py, capture-host/jitterfloor.py): HALF-IQR, not
+         MAD — alternating ±J residuals (delivery jitter's common shape) are bimodal and the median
+         lands ON a cluster; MAD read 1.2 ms against a 5.5 ms plant (measured 2026-08-23). Measured
+         context for a reader of the number: HCI-layer floor ≈4.5–6 ms, production sidecar floor
+         14 ms, H10 streams ≈23 ms = half the 45 ms connection interval (2026-08-21 night).
+         NULL when `independent` is false, same reasoning as `stability`: a host column that is the
+         device stamp rounded would report its quantisation as jitter. Additive and gated by
+         nothing downstream — a diagnostic, not a knob.
+         ⚠ A LOWER BOUND, not the whole jitter: this measures what the smoother removed, and a
+         running median TRACKS structured jitter instead of removing it — a strictly alternating
+         ±J plant reads ~0 because the window's parity-majority follows the plant (measured), and
+         a period-9 plant reads ~half. Real BLE delivery jitter is aperiodic, where recovery is
+         honest (uniform ±4.5 plant → 2.51 against the ideal 2.25). Read it as "at least this
+         much stack noise", never as "only this much". */
+      stackJitterMs: (function () {
+        if (!independent) return null;
+        var res = [];
+        for (var z = 0; z < n; z++) res.push(pts[z].r - r0 - sm[z]);
+        res.sort(function (a, b) {
+          return a - b;
+        });
+        var half = n >> 1;
+        var q1 = _ckMedian(res.slice(0, half));
+        var q3 = _ckMedian(res.slice(n - half));
+        return (q3 - q1) / 2;
+      })(),
       /* HOW FAR TO TRUST THE `ppm` ABOVE — σ_y(τ) for the host-vs-device divergence, plus the noise
          type its slope names. §7 has always said "never quote a `ppm` without the span beside it";
          this is that rule computed rather than asserted.
