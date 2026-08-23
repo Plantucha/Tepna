@@ -156,6 +156,46 @@ self-measures).
 - [~] A: the wiring brief's four boxes closed (2a gated, 2b veto fixture, 2c in a real arrival JSON, §4 decided as B3).
       **2c landed 2026-08-22** (`trio-batch.mjs` ringClock block, PR #1635). **2a + 2b landed 2026-08-23** — OxyDex now DECLARES the ring's RTC offset against a dropped `_rtclog.csv` sidecar (`timingSource:'device+host-verified'` + `rtcOffsetS` + `rtcVerifiedAtMs`, or `rtcResetSuspect:true` blocking verification) additively on `recording:{}` (the coveragePct posture, existing fixtures byte-identical); Integrator ingestion carries the fields onto the rec, `detectClockSkew` emits a `source:'rtc-readback'` finding for `|rtcOffsetS| > tolerance` (rides the existing applied/attributed pipeline), and `rtcResetSuspect` becomes a `vetoes[]` entry beside `findings[]` with the rec EXCLUDED from event-pair estimation. 14 source-scan + 10 functional (OxyDex) + 14 functional (Integrator) — 38 assertions. Fixture bytes unchanged (verified against `verify-fixtures`). §4 belongs to B3 and is B3's row (below).
 - [x] B1: the vacuous green fixed + gated; the 6-sibling scan recorded (hits fixed or a clean negative written here). **Landed 2026-08-22.** Reassurance now guarded by a positive `_normalCnt > 0`; zero count falls through to an honest "no metrics scored this night" (never a green by absence). Regression: 6-assertion source-scan group patterned on the #1571 gate — plants the fix and reds on the pre-fix code (verified 5/6 red on plant-check). **Sibling scan clean negative:** the other 6 render layers grepped for the same shape (`grep -rn "all-normal|within normal range|clean night|no findings|green light"` across `*-render.js`) turned up two peers, both already honest: `integrator-render.js:1049` names both possibilities in its empty state ("a clean night, or signals that don't corroborate"), and `hrvdex-render.js:253` is the #1571 fix itself (`ari != null && ari >= 1`). No third instance survives.
-- [ ] B2–B6: each closed in its home brief with this brief's row ticked.
+- [~] B2–B6: each closed in its home brief with this brief's row ticked. **Swept 2026-08-23 — two of
+      the five were ALREADY CLOSED when this brief was written or the day after, and a third's state
+      is mis-stated. Verified in the files, not inferred:**
+
+      - **B2 · retention prune gated on `.archived` — ALREADY DONE, and more strongly than the item
+        asks.** `nightarchive.unarchived_nights()` exists, names `VIGIL-OVERNIGHT-FINDINGS §P3.2` as
+        its purpose, and is **wired** at `capture.py:4421` into `plan_prune`'s `protect` set. It is
+        also better than the item's own suggestion: B2 proposes "skip any night lacking `.archived`",
+        but that module's docstring records why a marker-only gate is unsafe — measured on the box
+        2026-07-25, **6 of 10 nights carried the marker while the backup volume was absent**, so
+        marker-only would have deleted both copies. The shipped gate confirms the mirror **per file
+        at the destination**, and a missing dest protects every night. The regression the item asks
+        for exists verbatim: `test_nightarchive.py:106` — *"no second copy ⇒ nothing is deleted"* —
+        alongside the dest-absent, premature-archive and `retention is HELD` warning cases.
+        ⚠️ One residual, already known and tested around, recorded so it is not mistaken for a hole:
+        the gate is computed only when `archive_enabled`, so `archive.enabled:false` with
+        `keep_nights > 0` prunes by age alone. `test_capture_runners.py:2289` names that arm
+        explicitly. It is a declared operator choice ("no second copy is being made"), not an
+        oversight — but if it is ever to become a refusal, that is a **new** item, not this one.
+
+      - **B6 · rMSSD-alternation punch-list — ALREADY RETIRED, by owner decision 2026-08-21**, the day
+        after this brief was written. `DEEP-AUDIT-IV`'s header carries it: the item says "check vigil;
+        if truly absent, write the retirement decision", and §7.2-RUN-II did exactly that on
+        2026-08-20 — two of the three "absent" nights were on the box after all, fragmented across
+        link reconnects *and* across the date directory, taking the count to **4 of 5 measured, all
+        negative including the highest-ratio night**. Only 2026-08-08 (ratio 1.17) is genuinely
+        absent, and it is named rather than swept. Nothing is owed here.
+
+      - **B4 · run `o2ring-dat-timefit` routinely — HALF DONE as of 2026-08-23, and the item's wording
+        is now out of date.** "Nothing invokes it" is still true, but #1647 landed the enabler the same
+        day: a pure `fitDatToSpo2Csv({dat, csv, maxLag})` helper and a `--json` mode, explicitly
+        labelled `§B4 prep`. What remains is only the **hook** — invoke it where stored `.dat`s are
+        visible and surface the fit beside #1578's RTC digest, flagging disagreement beyond ±1 s +
+        drift. Left unclaimed here deliberately: the enabler landed minutes before this sweep, so a
+        session is plausibly mid-work-unit on the consumer, and §👥.2d's collision is on the remote
+        between two private trees where no hook can see it.
+
+      - **B3 · TCH fiducial-network decision** and **B5 · a genuinely blind KNOWN-CLOCK scoring run**
+        remain genuinely open. B5 is **procedural and cannot be discharged by one session** — its
+        whole point is that one operator ran both legs — so it needs two, and a single session ticking
+        it would reproduce the defect it exists to fix.
 - [ ] C: all four field results recorded in their home briefs after one box session.
 - [ ] D items: opened as their own executable units when picked up; this brief only orders them.
