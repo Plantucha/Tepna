@@ -5355,9 +5355,13 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
         import cpap_edf_writer
 
         serial = cbs.get("serial") or "UNKNOWN"
+        # flow_scale_verified is now TRUE by default — the 2026-08-23 pin confirmed the StreamData flow is
+        # L/s (identity, no 60x conversion), so the writer no longer quarantines under PENDING. Overridable
+        # to False to re-quarantine. Files land in the committed root now that the clock is local-civil too.
+        verified = bool(cbs.get("flow_scale_verified", True))
 
         def edf_sink_factory():
-            return cpap_edf_writer.EdfSink(edf_dir, serial)
+            return cpap_edf_writer.EdfSink(edf_dir, serial, flow_scale_verified=verified)
 
     # devices provider for the on-body gate: the daemon's live device-status map. The 2.4 GHz coexistence
     # interlock is DISABLED BY OWNER ORDER (2026-08-23) — default False — so a stream no longer refuses
