@@ -407,7 +407,11 @@ version of the same fact, and it is why the ladder leads and the count follows.
 
 ## 💰 The hardware — what this actually runs on
 
-Max information, minimum hardware, priced honestly. Every signal in the suite comes off this kit
+Max information, minimum hardware, priced honestly — and **everything is bone-stock**: no firmware
+modifications, no rooting, no hardware mods. Every sensor, the CPAP included, runs exactly as it
+shipped from the factory and is spoken to over the vendor's own protocol. Where therapy is involved
+the code is **read-only by construction** — the CPAP link contains no write commands at all; Tepna
+only reads what the machine records. Every signal in the suite comes off this kit
 (approximate US street prices, August 2026; the box was bought **used**):
 
 | Hardware | Role | Approx. price |
