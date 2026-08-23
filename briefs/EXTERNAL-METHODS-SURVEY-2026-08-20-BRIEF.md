@@ -153,6 +153,63 @@ surface. This may be why they succeed where we did not, in which case the method
 *negative* result is the anomaly worth re-examining — or their pairs simply share more signal, in which
 case it does not transfer at all. **That is the question to answer first**, before implementing anything.
 
+### MEASURED 2026-08-23 — our pair shares very little, and it is NOT a coverage limit
+
+`tools/acc-shared-movement.mjs`, 38 nights, **36 measured** (2 have no parseable H10 ACC). It runs
+only the alignment leg, and reports the two halves `alignByAnchors` already separates:
+**candidates** (movements found in the CHEST envelope at all) and **anchors** (those the ARM
+corroborated well enough to yield a lag).
+
+| | median | IQR | range |
+|---|---|---|---|
+| chest candidates | 247 | 110 – 523 | 3 – 3286 |
+| arm-corroborated anchors | 10.5 | 5 – 24 | 0 – 57 |
+| **corroboration rate** | **0.064** | 0.009 – 0.124 | 0 – 0.333 |
+
+**~94 % of chest movements have no arm counterpart**, and only **3 of 36** nights corroborate above
+0.20. The anchors that do survive are not marginal — median correlation **r = 0.664** (min 0.624), so
+this is not a weak-corroboration regime but a binary one: a movement either appears at both sites or
+it does not.
+
+**It is not that the subject failed to move.** The five refusing nights carry a *higher* median
+candidate count than the aligning ones — **302 vs 246** — and 3 of the 5 exceed the aligning median.
+2026-07-29 turns 302 chest movements into **0** anchors; 2026-08-18 turns 1459 into **1**. Meanwhile
+2026-07-23 aligns from 34 candidates. Candidate count carries almost no information about anchor
+yield (Spearman **ρ = +0.109**) and is *negatively* related to the corroboration rate
+(**ρ = −0.663**) — more chest movement makes the ratio worse, not better.
+
+**What separates the failing nights is the candidate RATE**, and the split is 22×:
+
+| chest candidate rate | n | median corroboration | refusals |
+|---|---|---|---|
+| ≤ 200 / h | 24 | **0.110** | 1 |
+| > 200 / h | 12 | **0.005** | 4 |
+
+Aligning nights fire at a median 62.7 candidates/h; refusing nights at **559/h**. A candidate every
+four seconds is not gross body movement, so on those nights the chest detector is firing on something
+local to the strap that the arm cannot see. *(That mechanism is an inference from the rate; what is
+measured is rate ⇒ corroboration ⇒ refusal.)*
+
+**Answer to §3: their pairs share more signal, and the method does not transfer.** Brønd's method
+consumes exactly this input, and on a chest/arm pair there is little of it to consume — a
+shared-movement floor is a property of the wear sites, not of an algorithm. This is the same verdict
+§2 reached from the other direction: Nearest Advocate, a published method built for short noisy
+series with missing events, did not rescue the alignment either. **Two independent method swaps have
+now failed to move it. Stop swapping methods.**
+
+⚠️ **Two limits, stated because they bound the claim.** (1) "Candidate" means *at the threshold
+`findAnchors` uses* — a different detector would enumerate a different set, and the rate finding
+above is precisely a statement about that threshold. (2) We have not measured Brønd's data; "their
+pairs share more" is an inference from their reported wear locations (hip/thigh/wrist — all pairs
+sharing gross posture) and not a measurement. What IS measured is our own floor, and it bounds any
+method including theirs.
+
+**The lever this exposes is not a published method — it is our own candidate threshold.** A rate of
+559/h predicting failure says the detector admits non-postural chest activity on exactly the nights
+that fail. That is a cheaper and more local thing to fix than importing an alignment algorithm, and
+it belongs to `PAT-NO-VALID-ANCHOR` rather than to this survey. §3 is answered: **do not implement
+Brønd.**
+
 ## 4 · 🟢 The buzz fiducial has a published analogue — useful as corroboration, not as a method
 
 Nasrullah et al. (2024, *IEEE RTAS*) — **HAEST** — synchronise heterogeneous IoT devices by
@@ -205,6 +262,25 @@ brief's related work; not worth building against.
       (`pat · fiducial · half-amplitude`, 3 assertions confirmed failing under the pre-fix indexing).
       Had that shipped unnoticed, §1 would have read as "the half-amplitude fiducial is unusable on
       our hardware" — a wrong conclusion in the paper's favour.
+- [x] §3 answered — **DONE 2026-08-23, and the answer is NO: do not implement Brønd. Their pairs
+      share more signal; ours has a shared-movement floor that bounds any method.**
+
+      `tools/acc-shared-movement.mjs` over 38 nights, **36 measured**. Median **247** chest movement
+      candidates per night against **10.5** arm-corroborated anchors — a corroboration rate of
+      **0.064**, above 0.20 on only 3 of 36 nights, while the anchors that do survive are strong
+      (median r **0.664**). ~94 % of chest movements have no arm counterpart.
+
+      **Not a coverage limit.** The five refusing nights carry MORE chest movement than the aligning
+      ones (median 302 vs 246); 2026-07-29 yields 0 anchors from 302 candidates while 2026-07-23
+      aligns from 34. Candidate count barely predicts anchor yield (Spearman ρ = +0.109) and is
+      negatively related to corroboration (ρ = −0.663). What separates failure is the candidate
+      RATE: ≤ 200/h corroborates at 0.110 with 1 refusal in 24 nights; > 200/h at **0.005** with 4
+      in 12. Full tables in §3.
+
+      This is §2's verdict from the other direction — two independent method swaps have now failed
+      to move this alignment. **Stop swapping methods.** The lever the measurement exposes is our own
+      candidate threshold, not a published algorithm, and it belongs to `PAT-NO-VALID-ANCHOR`.
+
 - [x] §2 measured — **DONE 2026-08-23, and the answer is NO. Nearest Advocate does not rescue the
       alignment; it replaces a VISIBLY broken estimator with a QUIETLY broken one.**
 
