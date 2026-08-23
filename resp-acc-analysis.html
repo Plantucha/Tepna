@@ -1578,7 +1578,10 @@ function adaptEnvelopeNode(json, node, filename) {
          on the whole trio corpus. The comment above cites `ppgdex-dsp.js:3333` for a top-level field;
          that line is `buildEpochs` today, so the reference drifted and the path was never re-checked
          against an actual export. */
-      timingSource: json.timingSource != null ? json.timingSource : (json.quality && json.quality.timingSource) || (json.hostAxis && json.hostAxis.timingSource) || null,
+      timingSource:
+        json.timingSource != null
+          ? json.timingSource
+          : (json.quality && json.quality.timingSource) || (json.hostAxis && json.hostAxis.timingSource) || (json.recording && json.recording.timingSource) || null,
       events: events,
       series: seriesOut,
       summary: summary,
@@ -1598,6 +1601,16 @@ function adaptEnvelopeNode(json, node, filename) {
          segmentsOverlap). Null for every node that records continuously, which is all of them today
          except HRVDex — the envelope path is unchanged for those. */
       coverage: (json.recording && json.recording.coverage) || null,
+      /* FINISHED-WORK-IMPROVEMENTS §A 2b — RTC verification fields the source node's export declares
+         when a `*_rtclog.csv` sidecar was matched (see 2a in oxydex-dsp.js). Carried onto the rec so
+         the clock-skew path can DECLARE (not silently correct) a large `|rtcOffsetS|` as a finding
+         with `source:'rtc-readback'` and VETO a rec whose ring RTC reset mid-recording (a reset's
+         offset is unmeasured by definition — the rec's placement is FLAGGED, never auto-shifted).
+         Absent on every non-OxyDex node and on OxyDex nights that carried no sidecar — the rec keeps
+         its historical shape and existing fixtures do not move. */
+      rtcOffsetS: json.recording && json.recording.rtcOffsetS != null && isFinite(json.recording.rtcOffsetS) ? json.recording.rtcOffsetS : null,
+      rtcVerifiedAtMs: json.recording && json.recording.rtcVerifiedAtMs != null && isFinite(json.recording.rtcVerifiedAtMs) ? json.recording.rtcVerifiedAtMs : null,
+      rtcResetSuspect: !!(json.recording && json.recording.rtcResetSuspect),
       /* §F6 — a SLIM beat array, so beat-level timing is reachable inside the fusion.
          P9 above dropped the whole `json` because keeping multi-MB timeseries alive per recording
          bloated multi-night batches, and that decision stands: this carries beat INSTANTS only, as a
@@ -6959,8 +6972,24 @@ function detectClockSkew(recs, opts) {
   // so 3 sat inside the noise. The partner-agreement test below is what actually separates them;
   // this only keeps the weakest claims out of the running.
   var minPeak = opts.minPeakOverFloor != null ? opts.minPeakOverFloor : 4;
+  /* FINISHED-WORK-IMPROVEMENTS §A 2b — a rec whose ring RTC RESET mid-recording is VETOED from the
+     event-pair estimator. Its own placement is unmeasured by definition (a reset's offset is), so it
+     can neither be shifted itself nor drag another node's pair estimate toward it. The veto is
+     surfaced separately below so the fusion output records WHICH rec was excluded and WHY. */
+  var vetoes = (recs || [])
+    .filter(function (r) {
+      return r && r.rtcResetSuspect === true;
+    })
+    .map(function (r) {
+      return {
+        node: r.node,
+        source: 'rtc-reset-suspect',
+        rtcVerifiedAtMs: r.rtcVerifiedAtMs != null && isFinite(r.rtcVerifiedAtMs) ? r.rtcVerifiedAtMs : null,
+        note: r.node + ' RTC reset-suspect on this rec — placement UNMEASURED (excluded from anchor fits).'
+      };
+    });
   var dated = (recs || []).filter(function (r) {
-    return r && !r.dateUnknown && r.events && r.events.length;
+    return r && !r.dateUnknown && !r.rtcResetSuspect && r.events && r.events.length;
   });
   var times = function (r) {
     return r.events
@@ -7051,7 +7080,30 @@ function detectClockSkew(recs, opts) {
       note: node + ' timestamps appear ' + Math.abs(Math.round(medLag / 60)) + ' min ' + (medLag > 0 ? 'BEHIND' : 'AHEAD OF') + ' every other node — its internal clock is wrong, not its physiology.'
     });
   });
-  return { pairs: pairs, findings: findings, beatCheck: _beatSkewCheck(recs, pairs, opts) };
+  /* FINISHED-WORK-IMPROVEMENTS §A 2b — declared RTC-readback findings. A rec that carries a
+     `rtcOffsetS` above the same tolerance the pairwise estimator uses is a claim from a DEVICE+HOST
+     RTC readback (the ring's crystal watched against the host, `_rtclog.csv` via
+     `capture-host/writers.RingClockLogWriter`). It rides the existing applied/attributed pipeline
+     with `source:'rtc-readback'` (distinct from `pairwise`/`pooled`) so a consumer can tell where the
+     number came from. Reset-suspect recs are excluded above; their placement is unmeasured, not
+     off by a knowable amount. */
+  (recs || []).forEach(function (r) {
+    if (!r || r.rtcResetSuspect === true) return;
+    var o = r.rtcOffsetS;
+    if (o == null || !isFinite(o)) return;
+    if (Math.abs(o) <= tolSec) return;
+    findings.push({
+      node: r.node,
+      offsetSec: o,
+      againstNodes: [],
+      peakOverFloor: null,
+      method: 'device+host RTC readback (`_rtclog.csv` via capture-host/writers.RingClockLogWriter, matched within \u00b112 h of the recording start)',
+      source: 'rtc-readback',
+      rtcVerifiedAtMs: r.rtcVerifiedAtMs != null && isFinite(r.rtcVerifiedAtMs) ? r.rtcVerifiedAtMs : null,
+      note: r.node + ' RTC readback declares clock ' + Math.abs(Math.round(o)) + 's ' + (o > 0 ? 'BEHIND' : 'AHEAD OF') + ' host — declared, not silently corrected.'
+    });
+  });
+  return { pairs: pairs, findings: findings, beatCheck: _beatSkewCheck(recs, pairs, opts), vetoes: vetoes };
 }
 
 /* ── BEAT-LEVEL CORROBORATION OF THE EVENT-DERIVED SKEW (§F6) ──────────────────────────────────────
@@ -7540,7 +7592,7 @@ function runFusion(recs, opts) {
     /* CROSS-DEVICE-CLOCK-SKEW §3.1 — always present, so a consumer can tell "checked, clean" from
        "never checked". `findings` names the offending node and the fitted offset; `applied` names
        what was actually shifted before fusing; `pairs` is the raw per-pair evidence. */
-    clockSkew: { findings: skew.findings, applied: skewApplied, pairs: skew.pairs, fits: skewFits },
+    clockSkew: { findings: skew.findings, applied: skewApplied, pairs: skew.pairs, fits: skewFits, vetoes: skew.vetoes && skew.vetoes.length ? skew.vetoes : undefined },
     hrSource: hrSource,
     pairs: pairs,
     apnea: apnea,
