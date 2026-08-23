@@ -168,16 +168,27 @@ def test_summarize_scopes_coverage_to_the_current_session(tmp_path):
     assert h10["coverage"]["hr"] == 1.0                 # live stream reads full — not diluted to ~0 by daytime
     assert s["degraded"] == []
     assert h10["streams"]["hr"] == 2000                 # the CURRENT session's rows (the 500 daytime excluded)
-    # ...AND THE EXCLUSION IS REPORTED (CAPTURE-HOST-DEEP-AUDIT §A2). `ok is True` here was the
-    # assertion pinning the defect green: this test's scenario is a benign daytime sitting, but the
-    # file-activity signature is IDENTICAL to a night interrupted by a >1 h box-wide outage — in which
-    # case the same code path discarded the whole pre-outage half and graded the remainder green.
-    # Nothing here can tell the two apart, so the exclusion is surfaced instead of guessed about, and
-    # the benign case is visible in `gaps` as exactly what it is.
-    assert s["ok"] is False, "a session was excluded from the judgement — `ok` cannot claim the night"
+    # ...AND THE EXCLUSION IS REPORTED (CAPTURE-HOST-DEEP-AUDIT §A2), BUT NO LONGER REDS THE NIGHT
+    # (FINISHED-WORK §D). The history matters. `ok is True` here was once the assertion pinning a real
+    # defect green — the file-activity signature of this benign sitting is IDENTICAL to a night
+    # interrupted by a >1 h box-wide outage, and that path discarded the pre-outage half and graded
+    # the remainder green. So the exclusion was surfaced and `ok` went false rather than guessing.
+    #
+    # What changed is that a SECOND discriminator exists, and it is not the file-activity signature:
+    # WHERE the excluded session sits against the judged night's band. This sitting ran 00:00->00:15,
+    # wholly before the judged evening session's band opens at 20:00 — it belongs to the previous
+    # night, so it cannot be a hole in this one. The 2026-07-24 outage below sits INSIDE the band and
+    # still reds, which is the pair this rule has to get right.
+    #
+    # `ok` false on every day carrying any daytime capture is what made it uninformative: the module's
+    # own comment records it false on 20 of the last 20 nights.
+    assert s["ok"] is True, "an exclusion outside the judged night's band is not a hole in this night"
     assert len(s["sessions"]) == 2
     assert s["prior_gap_sec"] == round(eve_start - (day_start + 900))
+    # STILL REPORTED, and now labelled — the exclusion is never hidden, it is only re-scoped.
     assert "excluded from coverage" in s["gaps"][0] and "500 rows" in s["gaps"][0]
+    assert "[outside-band]" in s["gaps"][0], "the class must be visible, never a silent green"
+    assert s["gaps_in_night"] == [], "nothing was excluded from the night itself"
 
 
 def test_summarize_flags_a_degraded_trickle(tmp_path):
@@ -291,6 +302,11 @@ def test_a_box_wide_outage_does_not_get_the_night_graded_green(tmp_path):
     # The discarded half is now AFTER the judged one, which one-sided detection could not see.
     assert s["gaps"], "the outage must be named"
     assert "7200 rows" in s["gaps"][0] and "later session" in s["gaps"][0]
+    # THE GUARD ON §D's RE-SCOPING. This half sits at 02:30-04:30, inside the judged night's band, so
+    # it must classify in-night and keep reding. If the placement rule ever admitted it, the regression
+    # this whole test exists for would be back with a green on top.
+    assert "[in-night]" in s["gaps"][0]
+    assert s["gaps_in_night"] == s["gaps"], "an in-night hole is exactly what `ok` must read"
     assert s["prior_gap_sec"] is None, "nothing precedes the judged half; the hole is on the other side"
 
 
@@ -1254,3 +1270,25 @@ def test_summarize_attaches_ring_rtc_drift(tmp_path):
     assert ring["rtc"]["reads"] == 2 and ring["rtc"]["drift_s"] == 1.0
     # a non-ring device gets no rtc
     assert all(d["rtc"] is None for d in s["devices"] if d["name"] != "Ring")
+
+
+def test_gap_class_fails_closed_on_every_branch():
+    """`_gap_class` is the only thing in this module that can turn a red into a green, so each of its
+    branches is pinned directly rather than left to whichever ones `summarize` happens to reach.
+
+    The degenerate-band case is UNREACHABLE through `summarize` — `night_band` always returns a real
+    interval — which is exactly why it needs a unit test: an unreachable branch is untested code that
+    reads as covered, and this one decides whether an unjudgeable night keeps its gaps."""
+    b0, b1 = 1000.0, 2000.0
+    assert nightqc._gap_class([[1500, 2500]], b0, b1) == "in-night", "overlapping the band is a hole"
+    assert nightqc._gap_class([[2100, 2500]], b0, b1) == "outside-band", "wholly after it is out of scope"
+    assert nightqc._gap_class([[0, 500]], b0, b1) == "outside-band", "wholly before it is out of scope"
+    # STRADDLING COUNTS AS IN-NIGHT. Part of the excluded capture IS inside the night, so the night
+    # has a hole; that the rest of it is not does not make the hole smaller.
+    assert nightqc._gap_class([[1900, 2100]], b0, b1) == "in-night", "straddling the edge is still a hole"
+    # ANY overlapping member condemns the whole entry — one out-of-scope session does not launder it.
+    assert nightqc._gap_class([[0, 500], [1500, 1600]], b0, b1) == "in-night"
+    # A BAND THAT IS NOT A BAND CANNOT GRANT A GREEN. This rule's only power is to relax a verdict, so
+    # it must act on positive evidence that the excluded time was outside the night — never on absence.
+    assert nightqc._gap_class([[2100, 2500]], 2000.0, 1000.0) == "in-night", "no usable band ⇒ keep the gap"
+    assert nightqc._gap_class([[2100, 2500]], 1000.0, 1000.0) == "in-night", "a zero-width band is not a band"

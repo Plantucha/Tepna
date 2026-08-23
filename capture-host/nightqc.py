@@ -162,6 +162,35 @@ def _overlap(a0: float, a1: float, b0: float, b1: float) -> float:
     return max(0.0, min(a1, b1) - max(b0, a0))
 
 
+def _gap_class(excluded: list, b0: float, b1: float) -> str:
+    """Is excluded capture a HOLE IN THIS NIGHT, or capture lying outside the judged night's band?
+
+    `excluded` is the list of sessions left out of the judgement; `b0`/`b1` are the night band of the
+    session that WAS judged. Returns `"in-night"` or `"outside-band"`.
+
+    ⚠️ THE CLASS IS "outside-band", NOT "daytime", AND THE DIFFERENCE IS REAL. `FINISHED-WORK` §D
+    words this as "in-night hole vs post-night daytime", but the test that actually discriminates is
+    placement against THE JUDGED NIGHT'S band, and something can be outside it while being the middle
+    of the night — a 00:15 sitting belongs to the PREVIOUS night's band, not to the day. Labelling it
+    "daytime" would state a fact not in evidence. What is in evidence is that it does not bear on the
+    night being judged, which is the only thing `ok` needs.
+
+    ⚠️ FAILS CLOSED, and every branch here is that rule. Any excluded session overlapping the band —
+    including one merely straddling its edge — makes the whole entry `in-night`. Only when EVERY
+    excluded session lies wholly outside the band is it out of scope. A band that is not a band
+    (`b1 <= b0`) classifies as in-night, because a rule that cannot see must not grant a green.
+
+    The asymmetry is deliberate: this function's only power is to turn a red into a labelled green, so
+    it may act on positive evidence that the excluded time was outside the night, never on absence.
+    That is the same posture as `unarchived_nights` — a second copy you can currently SEE."""
+    if not (b1 > b0):
+        return "in-night"
+    for sess in excluded:
+        if _overlap(sess[0], sess[1], b0, b1) > 0:
+            return "in-night"
+    return "outside-band"
+
+
 def night_view(session, files) -> "dict | None":
     """What of a session actually fell in the night band — span, and rows APPORTIONED to it.
 
@@ -1488,10 +1517,26 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
     # (Measured: the 2026-07-24 03:33->04:32 box-wide silence ran 58.6 min, 85 s under the threshold.
     # This has already come within a minute and a half of firing on the real box.)
     #
-    # Since the two cases cannot be distinguished, they are not guessed between: everything is reported
-    # and `ok` goes false, so a human looks. A benign daytime sitting shows up in `gaps` as exactly what
-    # it is. Silently keeping the green was the defect.
+    # Since the two cases cannot be distinguished BY FILE-ACTIVITY SIGNATURE, they are not guessed
+    # between: everything is reported. A benign daytime sitting shows up in `gaps` as exactly what it
+    # is. Silently keeping the green was the defect.
+    #
+    # ⚠️ THEY ARE, HOWEVER, DISTINGUISHABLE BY WALL-CLOCK PLACEMENT — and that is a different question
+    # from the one the paragraph above answers. Nothing about WHEN a session sits helps decide whether
+    # it is "this night, interrupted" or "an unrelated earlier run"; but it does decide whether the
+    # excluded time is part of the night being judged at all. An excluded session that overlaps the
+    # night band is a HOLE IN THIS NIGHT and must red. One lying wholly outside it is a daytime
+    # sitting: real, reportable, and not a defect of the night.
+    #
+    # This is what made `ok` uninformative. Its own comment above records it false on 20 of the last
+    # 20 nights; the session-judging fix removed the spurious `missing`, and this removes the other
+    # half — every day carrying any daytime capture still produced a gap, so the alarm stayed on.
+    #
+    # FAILS CLOSED, deliberately: a session that STRADDLES the band edge counts as in-night, and a
+    # night with no judgeable band keeps every gap. The rule may only ever turn a red into a labelled
+    # green when it can positively show the excluded time was outside the night — never by absence.
     gaps: list[str] = []
+    gaps_in_night: list[str] = []
     if data:
         sessions = merge_sessions(data)
         # ⚠️ JUDGE THE SUBSTANTIVE SESSION, NOT THE MOST RECENT ONE.
@@ -1535,17 +1580,28 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
             after = [s for s in others if s[0] >= cur[1]]
             # `prior_gap_sec` keeps naming the gap to the nearest EARLIER session, which is what its
             # consumers read; the nearest later one is reported in the message rather than renamed.
+            b0, b1 = night_band((cur[0] + cur[1]) / 2.0)
             if before:
                 prev = max(before, key=lambda s: s[1])
                 prior_gap = cur[0] - prev[1]
-                gaps.append(f"{_hhmm(prev[1])}->{_hhmm(cur[0])} {round(prior_gap / 60)}min gap; "
-                            f"{len(before)} earlier session(s), "
-                            f"{sum(f['rows'] for s in before for f in s[2])} rows, excluded from coverage")
+                cls = _gap_class(before, b0, b1)
+                line = (f"{_hhmm(prev[1])}->{_hhmm(cur[0])} {round(prior_gap / 60)}min gap; "
+                        f"{len(before)} earlier session(s), "
+                        f"{sum(f['rows'] for s in before for f in s[2])} rows, excluded from coverage"
+                        f" [{cls}]")
+                gaps.append(line)
+                if cls == "in-night":
+                    gaps_in_night.append(line)
             if after:
                 nxt = min(after, key=lambda s: s[0])
-                gaps.append(f"{_hhmm(cur[1])}->{_hhmm(nxt[0])} {round((nxt[0] - cur[1]) / 60)}min gap; "
-                            f"{len(after)} later session(s), "
-                            f"{sum(f['rows'] for s in after for f in s[2])} rows, excluded from coverage")
+                cls = _gap_class(after, b0, b1)
+                line = (f"{_hhmm(cur[1])}->{_hhmm(nxt[0])} {round((nxt[0] - cur[1]) / 60)}min gap; "
+                        f"{len(after)} later session(s), "
+                        f"{sum(f['rows'] for s in after for f in s[2])} rows, excluded from coverage"
+                        f" [{cls}]")
+                gaps.append(line)
+                if cls == "in-night":
+                    gaps_in_night.append(line)
     per_device = []
     newest = max((f["mtime"] for f in current), default=None)
     missing = []
@@ -1622,6 +1678,10 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         "missing": missing,
         "degraded": degraded,
         "gaps": gaps,
+        # THE SUBSET THAT ACTUALLY BEARS ON THE NIGHT, and the only one `ok` reads. `gaps` stays
+        # complete so nothing is hidden — a daytime sitting is still reported, still labelled, and a
+        # consumer that wants every exclusion reads `gaps` exactly as before.
+        "gaps_in_night": gaps_in_night,
         "optional_absent": optional_absent,
         # Every session on this night, oldest first — so `span_sec`/`coverage`/`missing`/`silent_sec`
         # being CURRENT-session-scoped is visible rather than implied.
@@ -1656,7 +1716,7 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         "scope_suspect": bool(devices) and not data,
         # A hole in the night is a reason to look, exactly like a missing or degraded stream. `ok` is a
         # claim about THE NIGHT; if half of it was excluded from the judgement, the claim is unsupported.
-        "ok": not missing and not degraded and not gaps,
+        "ok": not missing and not degraded and not gaps_in_night,
         # THE ARRIVAL SIDECAR IS ONLY WORTH WRITING IF ITS EDGE IS AN EDGE (PAT-PACKET-ARRIVAL §3).
         # It exists so `min(arrival - device)` recovers the per-connection BLE offset, which works only
         # because buffering is one-sided. If a night's distribution comes back SMEARED anyway — a wedged
