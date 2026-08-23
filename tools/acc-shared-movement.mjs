@@ -77,7 +77,7 @@ function loadAll(cand, PPGDSP) {
   return out;
 }
 
-export function nightSharedMovement(dir) {
+export function nightSharedMovement(dir, sigmas) {
   const { PPGDSP, PATAlign } = getDsps();
   const As = loadAll(biggestAcc(dir, /H10.*_ACC\.txt$/i, 3), PPGDSP); // chest
   const Bs = loadAll(biggestAcc(dir, /verity.*_ACC\.txt$/i, 3), PPGDSP); // arm
@@ -109,18 +109,28 @@ export function nightSharedMovement(dir) {
   const eA = PATAlign.envelope(A, t0, t1, {});
   const eB = PATAlign.envelope(B, t0, t1, {});
   if (!eA || !eB) return { skipped: 'envelope failed' };
+  /* The sweep reuses ONE parse and ONE envelope pair across every sigma — the parse is the whole
+     cost here (a night's Verity ACC is ~339 MB), and re-parsing per step would also risk the two
+     steps disagreeing about which fragments the night has, which is FOLLOWUPS §2's open defect. */
+  if (sigmas) return { overlapH: +((t1 - t0) / 3600000).toFixed(2), sweep: sigmas.map((k) => ({ sigma: k, ...score(PATAlign.alignByAnchors(eA, eB, t0, { anchorSigma: k }), t1 - t0) })) };
   const r = PATAlign.alignByAnchors(eA, eB, t0, {});
+  return {
+    overlapH: +((t1 - t0) / 3600000).toFixed(2),
+    ...score(r, t1 - t0)
+  };
+}
+
+function score(r, spanMs) {
   const nAnchors = r.anchors ? r.anchors.length : 0;
   const corrs = (r.anchors || []).map((a) => a.corr).filter(Number.isFinite);
   return {
-    overlapH: +((t1 - t0) / 3600000).toFixed(2),
     /* CANDIDATES is chest movement; ANCHORS is chest movement the ARM corroborated. The ratio is
        the whole point — reporting anchors alone cannot tell a still night from an uncorroborated
        one, and those two have opposite implications for §3. */
     candidates: r.candidates ?? null,
     anchors: nAnchors,
     corroborated: r.candidates ? +(nAnchors / r.candidates).toFixed(3) : null,
-    candidatesPerHour: r.candidates ? +(r.candidates / ((t1 - t0) / 3600000)).toFixed(1) : null,
+    candidatesPerHour: r.candidates ? +(r.candidates / (spanMs / 3600000)).toFixed(1) : null,
     ok: !!r.ok,
     reason: r.ok ? null : r.reason,
     medianCorr: corrs.length ? +median(corrs).toFixed(3) : null,
@@ -183,6 +193,7 @@ if (IS_CLI) {
   if (argv.includes('--selftest')) process.exit(selftest());
   const DIR = av('--dir');
   const ONLY = av('--only');
+  const SIGMAS = av('--sigmas') ? av('--sigmas').split(',').map(Number) : null;
   if (!DIR || !existsSync(DIR)) {
     console.error('acc-shared-movement: pass --dir <corpus>. The raw corpus is gitignored and is not in the repo.');
     process.exit(2);
@@ -196,11 +207,15 @@ if (IS_CLI) {
   for (const n of nights) {
     let r;
     try {
-      r = { night: n, ...nightSharedMovement(join(DIR, n)) };
+      r = { night: n, ...nightSharedMovement(join(DIR, n), SIGMAS) };
     } catch (e) {
       r = { night: n, skipped: 'threw: ' + e.message };
     }
     rows.push(r);
+    if (r.sweep) {
+      console.error(`  ${n}  ` + r.sweep.map((x) => `s${x.sigma}:${x.candidates}/${x.anchors}=${x.corroborated}${x.ok ? '' : '\u2717'}`).join('  '));
+      continue;
+    }
     console.error(
       r.skipped
         ? `  ${n}  SKIP  ${r.skipped}`
@@ -208,6 +223,46 @@ if (IS_CLI) {
     );
   }
   const used = rows.filter((r) => !r.skipped);
+  if (SIGMAS) {
+    /* ┌─ DECISION BAND, PRE-STATED (FOLLOWUPS §1) ────────────────────────────────────────────────┐
+       │ Written before the sweep ran, and derived from what the detector is SUPPOSED to catch —   │
+       │ gross postural change, which sleep-posture work puts at roughly 10-40 position changes a  │
+       │ night (order 1-6/h) — NOT from which value comes out looking best. A threshold chosen to  │
+       │ maximise alignments on 36 nights is fitted to those 36 nights.                            │
+       │                                                                                           │
+       │   TARGET    median candidate rate <= 60/h (one a minute) — tens, not hundreds             │
+       │   CONFIRMS  median corroboration >= 0.20, i.e. about 3x the sigma-4 baseline of 0.064     │
+       │   GUARD     refusals must not exceed the sigma-4 baseline of 5, and no aligning night may │
+       │             drop below minAnchors = 2                                                    │
+       │   REFUTES   corroboration flat while anchors fall in step with candidates — that would    │
+       │             mean the discarded candidates were NOT the uncorroborated ones, and the       │
+       │             "the detector admits non-postural activity" story is wrong                   │
+       └───────────────────────────────────────────────────────────────────────────────────────────┘ */
+    const bySigma = SIGMAS.map((k, i) => {
+      const col = used.map((r) => r.sweep[i]).filter(Boolean);
+      const f = (key) => {
+        const v = col.map((c) => c[key]).filter(Number.isFinite);
+        return v.length ? +median(v).toFixed(3) : null;
+      };
+      return {
+        sigma: k,
+        nights: col.length,
+        medCandidatesPerHour: f('candidatesPerHour'),
+        medAnchors: f('anchors'),
+        medCorroborated: f('corroborated'),
+        refusals: col.filter((c) => !c.ok).length,
+        totalAnchors: col.reduce((a, c) => a + c.anchors, 0),
+        totalCandidates: col.reduce((a, c) => a + (c.candidates || 0), 0)
+      };
+    });
+    console.error('');
+    for (const b of bySigma)
+      console.error(
+        `  sigma=${String(b.sigma).padStart(4)}  cand/h ${String(b.medCandidatesPerHour).padStart(6)}  anchors ${String(b.medAnchors).padStart(5)}  corrob ${String(b.medCorroborated).padStart(6)}  refusals ${b.refusals}/${b.nights}`
+      );
+    console.log(JSON.stringify({ sigmas: SIGMAS, nights: rows.length, measured: used.length, bySigma, rows }, null, 2));
+    process.exit(0);
+  }
   const pass = used.filter((r) => r.ok);
   const failn = used.filter((r) => !r.ok);
   const st = (rs, k) => {
