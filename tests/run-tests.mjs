@@ -1729,6 +1729,57 @@ async function main() {
 
   let PatHostOffset = null;
   let PatStrict = null;
+  /* ── THE COHORT WORKER, IN A RECONSTRUCTED REALM (DEEP-AUDIT-V-FOLLOWUPS Tier-4) ─────────────
+     `cohort-worker.js` is 644 lines with zero test-group mentions, and Tier-4's own re-measurement
+     found it the ONE row a grep count would have wrongly cleared: the single hit in tests/ is prose
+     in a comment calling it a documented gap. So it is executed here rather than mentioned.
+     The `pulse` KIND is the lean one — synth-gen + cohort-gen + kernel + clock + pulsedex-dsp — which
+     is enough to prove the realm boots, the DSPs co-load without colliding, and a job returns a real
+     envelope. ~4 s for one seed.
+     ⚠️ `importScripts` must CLASSICIFY. The browser hands the worker classic scripts; in Node a
+     dual-mode ESM source throws under plain eval, `loadScript` falls through to its served-only
+     XHR path, and the boot fails with "XMLHttpRequest is not defined" — which is a fact about the
+     harness, not the worker. Measured while writing this. */
+  let CohortWorker = null;
+  try {
+    const { readFileSync: _rf } = await import('node:fs');
+    const { join: _join } = await import('node:path');
+    const _vm = (await import('node:vm')).default;
+    const _req = (await import('node:module')).createRequire(import.meta.url);
+    const _DexBuild = _req('../tools/build-core.js');
+    const _root = new URL('..', import.meta.url).pathname;
+    const boot = (kind) => {
+      const posted = [];
+      const ctx = _vm.createContext({});
+      ctx.globalThis = ctx;
+      ctx.self = ctx;
+      ctx.postMessage = (m) => posted.push(m);
+      ctx.performance = { now: () => Date.now() };
+      ctx.console = { log() {}, warn() {}, error() {} };
+      ctx.setTimeout = setTimeout;
+      ctx.clearTimeout = clearTimeout;
+      ctx.importScripts = (...urls) => {
+        for (const u of urls) _vm.runInContext(_DexBuild.classicify(_rf(_join(_root, u), 'utf8')), ctx, { filename: u });
+      };
+      _vm.runInContext(_rf(_join(_root, 'cohort-worker.js'), 'utf8'), ctx, { filename: 'cohort-worker.js' });
+      ctx.onmessage({ data: { type: 'init', kind } });
+      return { posted, ctx };
+    };
+    const w = boot('pulse');
+    const ready = w.posted[0];
+    let done = null;
+    if (ready && !ready.err) {
+      w.ctx.onmessage({ data: { type: 'job', seed: 1, reqId: 7 } });
+      done = w.posted[1];
+    }
+    /* An UNKNOWN kind exercises the failure path, so the assertions can show the ready/err contract
+       discriminates rather than merely reporting success on the happy path. */
+    const bad = boot('no-such-kind');
+    CohortWorker = { ready, done, badReady: bad.posted[0] };
+  } catch (e) {
+    console.error(paint('  ! cohort-worker realm failed to build: ' + e.message, C.yellow));
+  }
+
   let PatFiducial = null;
   try {
     PatFiducial = await import(new URL('../tools/pat-fiducial.mjs', import.meta.url).href);
@@ -1749,6 +1800,7 @@ async function main() {
   const env = {
     PatStrict: PatStrict,
     PatFiducial: PatFiducial,
+    CohortWorker: CohortWorker,
     NsrrStage: NsrrStage,
     MutTriage: MutTriage,
     PatHostOffset: PatHostOffset,
