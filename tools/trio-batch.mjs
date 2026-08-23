@@ -79,6 +79,7 @@ import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
+import { fitDatToSpo2Csv, readDat, readSpo2Csv, timefitDisagrees } from './o2ring-dat-timefit.mjs';
 
 const __filename = fileURLToPath(import.meta.url); // re-spawned as the child (see DISPATCH)
 const __dirname = dirname(__filename);
@@ -1314,16 +1315,143 @@ function writeArrival(dir, key, p) {
      status. A push is a CLAIM until the next read confirms it; a reset-suspect ruins the stored
      .dat's timebase, and finding one after the fold is the point of persisting the rows. */
   const ringClock = readRingClockLog(dirs, inWindow, DexClock);
+  const datTimefit = readDatTimefit(dirs, winLo, winHi, ringClock);
   console.log(
     `    ⇄ arrival sidecar: ${devices.length} device(s), ${rows} packet(s)` +
       `  usable-clock: ${indep}/${devices.length}` +
       devices.map((d) => `  ${d.device.split(' ')[1] || d.device}:${d.ppm == null ? '—' : d.ppm + 'ppm'}/${d.spreadMs == null ? '—' : d.spreadMs + 'ms'}`).join('') +
-      (ringClock ? `  ring-rtc: ${ringClock.reads}r/${ringClock.pushes}p/${ringClock.resets}x  drift ${ringClock.driftS == null ? '—' : ringClock.driftS + 's'}` : '')
+      (ringClock ? `  ring-rtc: ${ringClock.reads}r/${ringClock.pushes}p/${ringClock.resets}x  drift ${ringClock.driftS == null ? '—' : ringClock.driftS + 's'}` : '') +
+      (datTimefit ? `  dat-timefit: ${datTimefit.converged ? datTimefit.lagS + 's' : 'unconverged'}${datTimefit.disagrees ? ' ⚠DISAGREES' : ''}` : '')
   );
   const artefact = { night: key, packets: rows, files: files.length, devices };
   if (ringClock) artefact.ringClock = ringClock;
+  if (datTimefit) artefact.datTimefit = datTimefit;
   writeFileSync(join(dir, `arrival_${key}.json`), JSON.stringify(artefact, null, 2) + '\n');
   return devices;
+}
+
+/* ── THE STORED .dat's CLOCK, FITTED TO HOST TIME (FINISHED-WORK §B4) ────────────────────────────
+   `tools/o2ring-dat-timefit.mjs` cross-correlates the ring's onboard `.dat` against the live,
+   host-stamped `_SPO2.csv` of the SAME 1 Hz session. Its header has claimed since it shipped that it
+   "runs on every night on disk" and "VALIDATES the 0xC0 time-push, which nothing else measures" —
+   and until now NOTHING INVOKED IT. This is that invocation.
+
+   WHY HERE. `ringClock` above reads the RTC offset the ring REPORTS. The fit measures the offset the
+   ring's stored data actually EXHIBITS. Two independent measurements of one quantity, so they can be
+   checked against each other — which is the whole value, and neither alone can do it.
+
+   🔴 BRANCH ON `converged`, NEVER ON `ok`. `ok` says a lag was chosen; `converged` says two
+   independent columns, both strictly inside the search window, agreed on it. On a real pair the
+   difference is not academic: at maxLag 600 the SpO2 leg survives at 400 s and at 3600 the pulse leg
+   survives at 3581 s, both `ok`, disagreeing by 3181 s — the answer tracking the search width. Only
+   a converged fit is recorded as a lag; an unconverged one is recorded as a REFUSAL with its reason,
+   because "we looked and could not tell" is a different fact from "we did not look".
+
+   ⚠️ maxLag is 4 h, and it is not generous. The observed lags across this corpus run to ±13509 s,
+   so a narrow window does not merely miss a fit — it produces a boundary-pinned number that reads
+   like one. `bestLag`'s `atBoundary` is what makes that visible; the width is what makes it rare. */
+function readDatTimefit(dirs, winLo, winHi, ringClock) {
+  /* ⚠️ FUNCTION-SCOPED, NOT MODULE-SCOPED, AND THAT IS LOAD-BEARING. These began as module-level
+     `const`s below `writeArrival` and crashed the first real run with `Cannot access
+     'DAT_STAMP_SLOP_MS' before initialization`: this file starts spawning children during module
+     evaluation, and a child's exit callback reaches `writeArrival` before evaluation has walked far
+     enough down the file to leave the temporal dead zone. Nothing in a type-check or an import
+     smoke-test sees that — only a real fold does. */
+  const DAT_MAX_LAG_S = 14400;
+  const DAT_STAMP_SLOP_MS = 12 * 3600 * 1000;
+  if (!isFinite(winLo) || !isFinite(winHi)) return null; // no host window ⇒ nothing to fit against
+  const stampOf = (f) => {
+    const m = /_(\d{14})_/.exec(f);
+    if (!m) return null;
+    const v = m[1];
+    return Date.UTC(+v.slice(0, 4), +v.slice(4, 6) - 1, +v.slice(6, 8), +v.slice(8, 10), +v.slice(10, 12), +v.slice(12, 14));
+  };
+  /* The stored sessions sit in a `stored/` SIBLING of the night dirs, not inside them. */
+  const datFiles = [];
+  for (const d of dirs) {
+    const st = join(dirname(d), 'stored');
+    try {
+      for (const n of readdirSync(st)) if (n.endsWith('_STORED.dat')) datFiles.push({ f: join(st, n), t: stampOf(n) });
+    } catch {
+      /* no stored/ dir → the ordinary phone-captured case, silently unchanged */
+    }
+  }
+  const csvFiles = [];
+  for (const d of dirs) {
+    try {
+      for (const n of readdirSync(d)) if (n.endsWith('_SPO2.csv')) csvFiles.push({ f: join(d, n), t: stampOf(n) });
+    } catch {
+      /* unreadable dir → contributes no candidate */
+    }
+  }
+  if (!datFiles.length || !csvFiles.length) return null;
+
+  /* ⚠️ THE `.dat` STAMP IS THE RING'S UNVERIFIED RTC — the very thing being measured — so it can only
+     SHORTLIST, never select. The slop is wide (±12 h) because a battery event resets that clock by an
+     unbounded amount, and the fit is what confirms. Selecting on the stamp would be assuming the
+     answer. */
+  const cands = datFiles.filter((d) => d.t != null && d.t > winLo - DAT_STAMP_SLOP_MS && d.t < winHi + DAT_STAMP_SLOP_MS);
+  const csvs = csvFiles.filter((c) => c.t != null && c.t > winLo - DAT_STAMP_SLOP_MS && c.t < winHi + DAT_STAMP_SLOP_MS);
+  if (!cands.length || !csvs.length) return null;
+
+  let best = null;
+  let attempts = 0;
+  for (const dd of cands) {
+    let dat;
+    try {
+      dat = readDat(dd.f);
+    } catch {
+      continue;
+    }
+    if (dat.length < 300) continue; // under 5 min of session — not enough shared fingerprint
+    for (const cc of csvs) {
+      let csv;
+      try {
+        csv = readSpo2Csv(cc.f);
+      } catch {
+        continue;
+      }
+      if (csv.length < 300) continue;
+      attempts++;
+      const fit = fitDatToSpo2Csv({ dat, csv, maxLag: DAT_MAX_LAG_S });
+      if (!fit.converged) continue;
+      /* Among converged fits, the PULSE column's error ranks them — measured 2026-08-23 over 48
+         corpus pairs, SpO2 error does not discriminate a real match (it admits a 13626 s
+         disagreement even below 0.5, because SpO2 barely moves overnight) while pulse error caps
+         the disagreement at 8 s. Same reasoning as `AGREE_TOL_S`. */
+      const err = fit.pulse ? fit.pulse.meanAbsErr : Infinity;
+      if (!best || err < best.err) best = { err, fit, dat: dd.f, csv: cc.f };
+    }
+  }
+  if (!best) return { converged: false, attempts, reason: 'no candidate .dat/_SPO2.csv pair produced a converged fit', dats: cands.length, csvs: csvs.length };
+
+  const lagS = best.fit.chosen.lagS;
+  /* THE CROSS-CHECK B4 ASKS FOR. `ringClock.lastOffsetS` is what the ring SAYS its clock is off by;
+     `lagS` is what its stored data SHOWS. They should match to the second, plus whatever the clock
+     drifted between the readback and the session. Beyond that the two disagree, and a disagreement
+     between two independent measurements of one quantity is the finding — not something to average. */
+  const reported = ringClock && ringClock.lastOffsetS != null ? ringClock.lastOffsetS : null;
+  const driftAllowance = ringClock && ringClock.driftS != null ? Math.abs(ringClock.driftS) : 0;
+  const delta = reported != null ? Math.round((lagS - reported) * 10) / 10 : null;
+  /* `null`, not `false`, when there is no readback to compare against — see `timefitDisagrees`. A
+     consumer must be able to tell "the two measurements agree" from "there is only one". */
+  const disagrees = timefitDisagrees(lagS, reported, ringClock ? ringClock.driftS : null);
+  return {
+    converged: true,
+    attempts,
+    lagS,
+    datStartHostMs: best.fit.datStartHostMs,
+    spo2LagS: best.fit.spo2 ? best.fit.spo2.lagS : null,
+    pulseLagS: best.fit.pulse ? best.fit.pulse.lagS : null,
+    pulseErr: best.fit.pulse ? Math.round(best.fit.pulse.meanAbsErr * 1000) / 1000 : null,
+    dat: basename(best.dat),
+    csv: basename(best.csv),
+    /* Both sides of the cross-check travel, so a consumer can re-judge it without re-fitting. */
+    reportedOffsetS: reported,
+    deltaS: delta,
+    driftAllowanceS: driftAllowance,
+    disagrees
+  };
 }
 
 /* Roll every `*_rtclog.csv` in the arrival scope into ONE ring-clock verdict, or null when no sidecar

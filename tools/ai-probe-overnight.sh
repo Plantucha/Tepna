@@ -46,8 +46,20 @@ echo "OVERNIGHT AI PROBE — ${#FILES[@]} file(s): ${FILES[*]}"
 echo "  crawl dir $C · per-file limit ${LIMIT:-none} · max passes $MAX_PASSES"
 
 pass=0
+prev_jlines=-1
 while [ "$pass" -lt "$MAX_PASSES" ]; do
   pass=$((pass + 1))
+  # Convergence is measured on the JOURNAL, not the pass tally. The per-file "N newly KILLABLE"
+  # counts seed-pool re-hits every pass (deterministic seeds re-fire), so pass_kills can never
+  # reach 0 on a file with any seed-killable key — measured 2026-08-23: passes 4-8 identical at
+  # 53 "new" kills, and the CONVERGED line below never printed; the driver always ran to
+  # MAX_PASSES. A pass that appended nothing to any journal learned nothing, whatever it counted.
+  jlines=$(cat "$C"/*.ai-probe.jsonl 2>/dev/null | wc -l)
+  if [ "$jlines" -eq "$prev_jlines" ]; then
+    echo "CONVERGED after $((pass - 1)) pass(es) — journals unchanged across a full pass (fixed point)."
+    break
+  fi
+  prev_jlines=$jlines
   echo "########## PASS $pass  $(date '+%F %T') ##########"
   pass_kills=0
   pass_inputs=0

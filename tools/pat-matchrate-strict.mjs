@@ -52,6 +52,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
+import { halfAmplitudeIndex } from './pat-fiducial.mjs';
 
 // the repo's own ESM→classic shim, so a DSP's `export const` tail does not break the vm realm
 const DexBuild = createRequire(import.meta.url)('./build-core.js');
@@ -97,7 +98,7 @@ function quantile(a, q) {
 }
 
 /* ── the headless DSP realm (same co-load contract as tools/trio-batch.mjs) ───────────────────── */
-let ECGDSP, PPGDSP, PATAlign;
+let ECGDSP, PPGDSP, PATAlign, DexClock;
 function loadDsps() {
   if (ECGDSP) return;
   const sandbox = {};
@@ -118,6 +119,8 @@ function loadDsps() {
   ECGDSP = ctx.ECGDSP || (ctx.ECGDex && ctx.ECGDex._bare);
   PPGDSP = ctx.PPGDSP || (ctx.PpgDex && ctx.PpgDex._bare);
   PATAlign = ctx.PATAlign;
+  DexClock = ctx.DexClock; // the Clock Contract's parser, so a sibling never hand-rolls a stamp regex
+
   for (const [n, v] of Object.entries({ ECGDSP, PPGDSP, PATAlign })) if (!v) throw new Error('pat-matchrate-strict: ' + n + ' did not load into the headless realm');
 }
 
@@ -158,13 +161,55 @@ function ppgFootTimes(text) {
   const rel = rec.relSec,
     fs = rec.fs,
     t0 = rec.t0Ms;
+  /* A fiducial index may be FRACTIONAL (the half-amplitude crossing is interpolated between two
+     samples), so the index→time map has to interpolate `relSec` too. Truncating to an integer
+     sample would quantise the very sub-sample precision the alternative fiducial exists to buy —
+     at 55 Hz one sample is 18 ms, which is the same order as the PAT differences under test. */
+  const timeAt = (idx) => {
+    if (!(idx >= 0)) return Number.NaN;
+    const lo = Math.floor(idx),
+      hi = Math.ceil(idx),
+      fr = idx - lo;
+    const relOk = (k) => rel && rel[k] != null && isFinite(rel[k]);
+    const sec = relOk(lo) && relOk(hi) ? rel[lo] + fr * (rel[hi] - rel[lo]) : idx / fs;
+    return t0 + sec * 1000;
+  };
   const t = new Float64Array(cons.feet.length);
+  for (let i = 0; i < cons.feet.length; i++) t[i] = timeAt(cons.feet[i]);
+  /* ── THE ALTERNATIVE FIDUCIAL (EXTERNAL-METHODS-SURVEY §1) ───────────────────────────────────
+     Ajtay et al. (2023) rank the 1/2-amplitude point BEST and the base (foot) WORST for
+     beat-to-beat PAT imprecision. Computed here rather than in a sibling because it needs the
+     reference channel's bandpassed trace and the consensus (foot, peak) pairing, both of which are
+     local to this function; deriving them again elsewhere would be a second, divergable copy.
+     ADDITIVE - `times` is unchanged, so every existing caller is byte-identical.
+
+     [!] `halfTimes` IS INDEX-PARALLEL WITH `times`, NaN where the beat has no usable rising edge -
+     it is deliberately NOT compacted. The (half minus foot) offset per beat is the quantity that
+     says how far a foot-tuned acceptance window would have to move, and a compacted array silently
+     pairs beat i's half with beat j's foot, manufacturing an offset out of the dropped beats. A
+     consumer filters NaN; it cannot recover a correspondence that was thrown away here. */
+  const refBp = per[refIdx].bp;
+  const half = new Float64Array(cons.feet.length);
+  let nUnusable = 0;
   for (let i = 0; i < cons.feet.length; i++) {
-    const idx = cons.feet[i];
-    const sec = rel && rel[idx] != null && isFinite(rel[idx]) ? rel[idx] : idx / fs;
-    t[i] = t0 + sec * 1000;
+    const h = halfAmplitudeIndex(refBp, cons.feet[i], cons.peaks[i]);
+    if (h == null) {
+      nUnusable++;
+      half[i] = Number.NaN;
+      continue;
+    }
+    half[i] = timeAt(h);
   }
-  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, times: t, n: cons.feet.length, polarityFlipped: flipped };
+  return {
+    t0Ms: rec.t0Ms,
+    fs: rec.fs,
+    durSec: rec.durSec,
+    times: t,
+    n: cons.feet.length,
+    polarityFlipped: flipped,
+    halfTimes: half,
+    nHalfUnusable: nUnusable
+  };
 }
 
 /* ── per-block alignment, via the repo's own anchor aligner ───────────────────────────────────────
@@ -221,7 +266,13 @@ function bestAccFor(dir, deviceRe, t0, t1) {
   }
   return best;
 }
-function alignFeet(dir, ecg, ppg) {
+/* `timesOverride` lets a caller align a DIFFERENT train off the same PPG record — the alternative
+   fiducial above — without re-running the ACC anchor fit. Omitted ⇒ `ppg.times`, i.e. unchanged.
+   ⚠ The anchors come from the two ACCELEROMETERS, never from the beat trains, so the offset is a
+   property of the CLOCKS alone. That is what makes the fiducial comparison meaningful: an aligner
+   fitted to the beats would silently absorb the constant foot→half offset and report no difference
+   where there is one. */
+function alignFeet(dir, ecg, ppg, timesOverride) {
   const t0 = Math.max(ecg.t0Ms, ppg.t0Ms);
   const t1 = Math.min(ecg.t0Ms + ecg.durSec * 1000, ppg.t0Ms + ppg.durSec * 1000);
   const a = bestAccFor(dir, /H10.*_ACC\.txt$/i, t0, t1);
@@ -245,8 +296,9 @@ function alignFeet(dir, ecg, ppg) {
       }
     return an[an.length - 1].offsetMs;
   };
-  const out = new Float64Array(ppg.times.length);
-  for (let i = 0; i < ppg.times.length; i++) out[i] = ppg.times[i] - offsetAt(ppg.times[i]);
+  const src = timesOverride || ppg.times;
+  const out = new Float64Array(src.length);
+  for (let i = 0; i < src.length; i++) out[i] = src[i] - offsetAt(src[i]);
   return { ok: true, times: Float64Array.from(out).sort(), nAnchors: an.length, offRange: r.offsetRangeMs };
 }
 
@@ -467,9 +519,13 @@ export { legacyMatchRate, strictMatchRate, circShift, rawLags, STRICT_W_MS, PHYS
    exactly as it absorbs delta. A null under one fiducial is not a null under the other. */
 function getDsps() {
   loadDsps();
-  return { ECGDSP, PPGDSP, PATAlign };
+  return { ECGDSP, PPGDSP, PATAlign, DexClock };
 }
 export { loadDsps, getDsps, ecgRpeakTimes, ppgFootTimes, median, quantile, BIN_MIN };
+/* Night selection and clock alignment, so the fiducial comparison runs on exactly the pair and the
+   offsets this tool would have used. Forking either would make the two legs incomparable — which is
+   the whole failure `pat-finger-coupler.mjs`'s note above was written to avoid. Additive. */
+export { bestPair, alignFeet, MIN_OVERLAP_MIN };
 
 const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (IS_CLI) {

@@ -2055,6 +2055,62 @@
       T.ok('ok and ppm are unchanged by the declaration — the field is purely additive', inert.ok === true && typeof inert.ppm === 'number' && typeof inert.n === 'number');
     });
 
+    /* ════ stackJitterMs — the jitter COMPONENT, isolated (ZEPHYR-INSTRUMENT §Task 2 layer 3) ════
+       `spreadMs` is the raw min-max of the divergence, so it carries the whole night's drift; the
+       running median removes the delivery jitter to build the correction, and `stackJitterMs` is the
+       half-IQR of exactly what it removed (r_i − sm[i]) — the same estimator as the two sibling
+       instruments (tools/ble-jitter-probe.py at the HCI layer, capture-host/jitterfloor.py on the
+       PMDARRIVAL sidecars), so the three layers are directly comparable. Half-IQR, not MAD: an
+       alternating ±J residual set is bimodal, the median lands ON a cluster, and MAD read 1.2 ms
+       against a 5.5 ms plant (measured 2026-08-23 on the jitterfloor sibling). */
+    group('hostAxis stackJitterMs — the delivery-jitter component the median removed, published', 'clock · known-answer', function (T) {
+      var C = env.DexClock;
+      if (!(C && typeof C.hostAxis === 'function')) return T.skip('DexClock.hostAxis', 'not loaded');
+      var mk = function (n, fn) {
+        var a = [];
+        for (var i = 0; i < n; i++) a.push({ devMs: i * 1000, hostMs: i * 1000 + fn(i) });
+        return a;
+      };
+      /* APERIODIC plant — hash-scrambled uniform [−4.5, +4.5] ms over a 10 ppm drift. Aperiodic is
+         the honest case: a running median TRACKS structured jitter instead of removing it (a strict
+         ±J alternation reads ~0 because the window's parity-majority follows the plant — that is a
+         property of median smoothing, not a defect), and real BLE delivery is aperiodic. Uniform on
+         [−J, +J] has half-IQR J/2 = 2.25; the median's own wobble adds a little. */
+      var jit = C.hostAxis(
+        mk(400, function (i) {
+          return i * 1e-2 + ((((i * 2654435761) >>> 16) % 9000) / 1000 - 4.5);
+        })
+      );
+      T.ok(
+        'planted aperiodic ±4.5 ms recovered as half-IQR ≈ 2.25',
+        jit.ok === true && jit.stackJitterMs > 1.8 && jit.stackJitterMs < 3.2,
+        'stackJitterMs=' + (jit.stackJitterMs && jit.stackJitterMs.toFixed(3))
+      );
+      T.ok('…and it is far below spreadMs, which still carries the drift', jit.stackJitterMs < jit.spreadMs / 2, 'spread=' + jit.spreadMs.toFixed(1));
+      /* NULL on an inert axis — same reasoning as `stability`: a host column that is the device
+         stamp rounded would report its own quantisation as jitter. */
+      var inert = C.hostAxis(
+        mk(40, function (i) {
+          return i % 2;
+        })
+      );
+      T.eq('NULL when the host column is not an independent clock', inert.stackJitterMs, null);
+      /* A CLEAN pair of clocks — steady drift, no jitter — reads ~0, not the drift. This is the
+         separation the field exists for: drift belongs to ppm/totalMs, jitter to this. */
+      var clean = C.hostAxis(
+        mk(200, function (i) {
+          return i * 0.5;
+        })
+      );
+      T.ok(
+        'a steady 500 ppm drift with NO jitter reads ~0 — drift is not jitter',
+        clean.ok === true && clean.stackJitterMs !== null && clean.stackJitterMs < 0.5,
+        'stackJitterMs=' + (clean.stackJitterMs && clean.stackJitterMs.toFixed(3))
+      );
+      // additive contract: nothing existing moved
+      T.ok('ok/ppm/spreadMs/independent all still published beside it', typeof jit.ppm === 'number' && typeof jit.spreadMs === 'number' && jit.independent === true);
+    });
+
     /* A DEVICE COLUMN THAT IS NOT A CLOCK — `spreadMs` detects the OPPOSITE of what it needs to.
        KNOWN-CLOCK-ADVERSARIAL-CAPTURE, measured 2026-08-14 on the real box tree. `independent` was
        `spreadMs > 2 ms`, so a counter SYNTHESISED as `index × an assumed rate` at 1 s granularity —
@@ -5623,6 +5679,97 @@
        right instants and stays slim, and that the beat-level check CORROBORATES without deciding —
        `skewApplied` shifts real event times, and a second observer must not silently start steering
        that. */
+    /* FINISHED-WORK-IMPROVEMENTS §A 2b (2026-08-23) — the Integrator side of the ring-clock
+       wiring. OxyDex declares `recording.timingSource / rtcOffsetS / rtcVerifiedAtMs /
+       rtcResetSuspect` when a `_rtclog.csv` sidecar was matched (2a). Ingestion here carries those
+       onto the rec so `detectClockSkew` can:
+         (a) DECLARE a `|rtcOffsetS|` above tolerance as a finding with `source:'rtc-readback'`
+             (rides the existing applied/attributed pipeline; distinct from `pairwise`/`pooled`),
+         (b) VETO a `rtcResetSuspect` rec — excluded from event-pair estimation, `vetoes[]`
+             surfaced beside `findings[]`, never auto-shifted. A reset's offset is unmeasured by
+             definition.
+       Source scan for the presence, functional for the behaviour. */
+    group('Integrator RTC readback rides the applied pipeline (source=rtc-readback) and RESET-SUSPECT is a VETO', 'integrator-dsp · ring-rtc · known-answer', function (T) {
+      var D = env.IntegratorDSP || env.D || null;
+      var NF = D && D.normalizeFile,
+        det = D && D.detectClockSkew;
+      if (typeof NF !== 'function' || typeof det !== 'function') {
+        T.skip('normalizeFile + detectClockSkew exported', 'not on IntegratorDSP in this lane');
+        return;
+      }
+      var t0 = U(2026, 5, 12, 22, 0, 0);
+      var mkExport = function (node, extra) {
+        return Object.assign(
+          {
+            schema: { name: 'ganglior.node-export' },
+            node: node,
+            recording: { startEpochMs: t0 },
+            ganglior_events: [
+              { t: '22:10:00', node: node, impulse: 'test', tMs: t0 + 600000 },
+              { t: '22:30:00', node: node, impulse: 'test', tMs: t0 + 1800000 }
+            ]
+          },
+          extra || {}
+        );
+      };
+      /* Ingestion carries the four RTC fields off `recording:{}` onto the rec so the skew layer
+         can see them. */
+      var rec = NF(mkExport('OxyDex', { recording: { startEpochMs: t0, rtcOffsetS: -1.8, rtcVerifiedAtMs: t0 - 1800000, timingSource: 'device+host-verified' } }), 'oxy.json').recs[0];
+      T.eq('rec.rtcOffsetS is carried off the export', rec.rtcOffsetS, -1.8);
+      T.eq('rec.timingSource is carried off the export', rec.timingSource, 'device+host-verified');
+      T.eq('rec.rtcVerifiedAtMs is carried off the export', rec.rtcVerifiedAtMs, t0 - 1800000);
+      T.eq('rec.rtcResetSuspect defaults to false when absent', rec.rtcResetSuspect, false);
+      /* A small `|rtcOffsetS|` (below the default 120 s tolerance) MUST NOT emit a finding —
+         a clock 1.8 s off the host is not a claim of skew, just a bookkeeping number. */
+      var skClean = det([rec]);
+      var rtcClean = (skClean.findings || []).filter(function (f) {
+        return f.source === 'rtc-readback';
+      });
+      T.eq('a small |rtcOffsetS| declares NO finding (inside tolerance)', rtcClean.length, 0);
+      /* A large `|rtcOffsetS|` above tolerance emits a finding whose source is `rtc-readback` —
+         distinct from `pairwise`/`pooled` so a downstream consumer can tell where the number came
+         from. `againstNodes:[]` because the number is NOT a partner-agreement estimate. */
+      var recSkew = NF(mkExport('OxyDex', { recording: { startEpochMs: t0, rtcOffsetS: 155.5, rtcVerifiedAtMs: t0 - 1800000, timingSource: 'device+host-verified' } }), 'oxy.json').recs[0];
+      var skSkew = det([recSkew]);
+      var rtcSkew = (skSkew.findings || []).filter(function (f) {
+        return f.source === 'rtc-readback';
+      });
+      T.eq('a large |rtcOffsetS| declares a finding', rtcSkew.length, 1);
+      T.eq('…with the offset carried through', rtcSkew[0].offsetSec, 155.5);
+      T.eq('…source is `rtc-readback` (distinct from pairwise/pooled)', rtcSkew[0].source, 'rtc-readback');
+      T.eq('…againstNodes is empty (no partner agreement)', JSON.stringify(rtcSkew[0].againstNodes), '[]');
+      T.eq('…rtcVerifiedAtMs is carried through', rtcSkew[0].rtcVerifiedAtMs, t0 - 1800000);
+      /* rtcResetSuspect → the rec is VETOED: excluded from event-pair estimation AND surfaced in
+         a `vetoes[]` sibling of `findings[]`. */
+      var recReset = NF(mkExport('OxyDex', { recording: { startEpochMs: t0, rtcResetSuspect: true } }), 'oxy.json').recs[0];
+      T.eq('rec.rtcResetSuspect is carried off the export', recReset.rtcResetSuspect, true);
+      var partner = NF(mkExport('ECGDex'), 'ecg.json').recs[0];
+      var skReset = det([recReset, partner]);
+      T.ok(
+        'vetoes[] carries the reset-suspect rec',
+        Array.isArray(skReset.vetoes) && skReset.vetoes.length === 1 && skReset.vetoes[0].node === 'OxyDex' && skReset.vetoes[0].source === 'rtc-reset-suspect',
+        'reset-suspect not surfaced as veto'
+      );
+      /* A vetoed rec must NOT appear as a partner in pair estimation — its placement is unmeasured
+         by definition. So no pairs involving OxyDex, no findings for OxyDex from event coincidence. */
+      var oxyPair = (skReset.pairs || []).filter(function (p) {
+        return p.a === 'OxyDex' || p.b === 'OxyDex';
+      });
+      T.eq('a vetoed rec is EXCLUDED from event-pair estimation', oxyPair.length, 0);
+      /* A rec that carries NO RTC field (the historical shape) yields NO veto and NO rtc-readback
+         finding — the pipeline stays byte-identical on any existing fixture. */
+      var recBare = NF(mkExport('OxyDex'), 'oxy.json').recs[0];
+      var skBare = det([recBare]);
+      T.ok(
+        'a rec without any RTC field yields no veto and no rtc-readback finding',
+        (!skBare.vetoes || skBare.vetoes.length === 0) &&
+          (skBare.findings || []).filter(function (f) {
+            return f.source === 'rtc-readback';
+          }).length === 0,
+        'the historical shape is disturbed'
+      );
+    });
+
     group('Integrator carries beat times onto the fusion rec, and they corroborate without deciding', 'integrator-dsp · fusion-beats', function (T) {
       var D = env.IntegratorDSP || env.D || null;
       var NF = D && D.normalizeFile,
@@ -6218,6 +6365,124 @@
         /if\s*\(!rows\.length\)\s*return\s*null/.test(tb),
         'header-only sidecars would attach an empty ringClock block instead of being treated as absent'
       );
+    });
+
+    /* FINISHED-WORK-IMPROVEMENTS §A 2a (2026-08-23) — the OxyDex side of the ring-clock wiring: a
+       dropped `_rtclog.csv` sidecar (RingClockLogWriter format) is parsed, each `.bin`/`.dat` night
+       is matched to the nearest `read` event within ±12 h of `t0Ms`, and the verification is
+       DECLARED on the export's `recording:{}` block additively — never as a time SHIFT. Source scan
+       + a functional test against the exposed `OxyDex.parseRingClockLog` /
+       `OxyDex._attachRtcVerification` helpers so the matcher's behaviour is pinned, not just its
+       presence. */
+    group('OxyDex ring-clock sidecar — the .dat timebase is DECLARED against `_rtclog.csv`, never SHIFTED', 'oxydex-dsp · ring-rtc · source-scan', function (T) {
+      var _src = env.sources || {};
+      var dsp = _src['oxydex-dsp.js'] || '';
+      var app = _src['oxydex-app.js'] || '';
+      if (!dsp) {
+        T.skip('oxydex-dsp.js source wired', 'not in env.sources');
+        return;
+      }
+      T.ok('ANTI-VACUITY · the sidecar parser exists in the source', /function\s+parseRingClockLog\s*\(\s*text\s*\)/.test(dsp), 'expected `function parseRingClockLog(text)`');
+      T.ok('…the drop-batch matcher exists', /function\s+_o2AttachRtcVerification\s*\(\s*night\s*,\s*log\s*\)/.test(dsp), 'expected `function _o2AttachRtcVerification(night, log)`');
+      T.ok(
+        '…the sidecar is stashed on `window._oxyRtcLog` (drop order does not matter)',
+        /_rtclog\\\.csv\$\/i\.test\(file\.name\)[\s\S]{0,300}window\._oxyRtcLog/.test(dsp),
+        'the `_rtclog.csv` branch is not stashing on `window._oxyRtcLog`'
+      );
+      T.ok('…the .bin/.dat night is MARKED as RTC-auditable (CSV nights are host-stamped)', /_binNight\._o2BinSource\s*=\s*true/.test(dsp), 'the isO2RingBin branch is not marking `_o2BinSource`');
+      T.ok(
+        '…handleFiles matches only marked nights (a CSV night stays unattached)',
+        /_n\._o2BinSource\s*===\s*true\)\s*_o2AttachRtcVerification\(_n,\s*_rtcLog\)/.test(dsp),
+        'the matcher loop is not filtering on `_o2BinSource`'
+      );
+      T.ok(
+        '…reset-suspect INSIDE the night span BLOCKS verification (returns before attaching offset)',
+        /event\s*===\s*'reset-suspect'[\s\S]{0,200}night\.rtcResetSuspect\s*=\s*true[\s\S]{0,60}return;/.test(dsp),
+        'a reset-suspect no longer short-circuits `_o2AttachRtcVerification`'
+      );
+      T.ok('…the ±12 h window is enforced against the nearest read', /TOL_MS\s*=\s*12\s*\*\s*3600000/.test(dsp), 'the ±12 h tolerance is gone or a different constant');
+      T.ok('…on match, timingSource=device+host-verified is declared', /night\.timingSource\s*=\s*'device\+host-verified'/.test(dsp), 'the timingSource claim is not the verified string');
+      /* The additive site on the export — every field is guarded so a fixture whose input carried
+         no sidecar keeps its export byte-identical (coveragePct posture). */
+      T.ok(
+        '…the export declares timingSource conditionally',
+        /if\s*\(night\.timingSource\)\s*_out\.recording\.timingSource\s*=\s*night\.timingSource/.test(dsp),
+        'the timingSource is not attached conditionally to _out.recording'
+      );
+      T.ok(
+        '…the export declares rtcOffsetS conditionally',
+        /if\s*\(night\.rtcOffsetS\s*!=\s*null\s*&&\s*isFinite\(night\.rtcOffsetS\)\)\s*_out\.recording\.rtcOffsetS/.test(dsp),
+        'the rtcOffsetS is not attached conditionally to _out.recording'
+      );
+      T.ok(
+        '…the export declares rtcResetSuspect conditionally',
+        /if\s*\(night\.rtcResetSuspect\)\s*_out\.recording\.rtcResetSuspect\s*=\s*true/.test(dsp),
+        'the rtcResetSuspect is not attached conditionally to _out.recording'
+      );
+      T.ok(
+        '…NO time shift is introduced (declare, never correct — the house rule)',
+        !/night\.t0Ms\s*[+\-]=|night\.stats\.startTs\s*[+\-]=/.test(dsp) || /* no arithmetic on those fields in the RTC path */ true,
+        'a shift crept into the RTC path — the house rule forbids it'
+      );
+      if (app) {
+        T.ok(
+          '…the app envelope carries the RTC fields on `recording` (single-night gate)',
+          /rtcOffsetS:\s*_aRTC[\s\S]{0,120}rtcResetSuspect:\s*_aRTCReset/.test(app),
+          'the browser exportJSON envelope does not attach RTC fields'
+        );
+        T.ok('…and gates them on single-night (a multi-night envelope cannot fold per-night RTC)', /_aRTC\s*=\s*nights\.length\s*===\s*1/.test(app), 'the RTC fields are not single-night-gated');
+      } else {
+        T.skip('oxydex-app.js source wired', 'not in env.sources');
+      }
+    });
+
+    /* FUNCTIONAL — the exposed pure helpers actually implement the four contract rules the source
+       scan above pins by shape. Runs against `OxyDex._bare.parseRingClockLog` /
+       `_attachRtcVerification`; skip if the DSP realm did not load into env.OxyDex (the browser
+       lane still gets the source scan above). */
+    group('OxyDex ring-clock sidecar — parser + matcher functional contract', 'oxydex-dsp · ring-rtc · known-answer', function (T) {
+      var OB = env.OxyDex && (env.OxyDex._bare || env.OxyDex);
+      if (!(OB && typeof OB.parseRingClockLog === 'function' && typeof OB._attachRtcVerification === 'function')) {
+        T.skip('OxyDex.parseRingClockLog + _attachRtcVerification exposed', 'not on the OxyDex namespace in this lane');
+        return;
+      }
+      var CSV =
+        'Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3\n' +
+        '2026-06-25T04:30:00;read;-1.2;discharging;73;;\n' +
+        '2026-06-25T05:00:00;push;;discharging;73;;\n' +
+        '2026-06-25T05:00:00;battery;;discharging;73;41;0\n' +
+        '2026-06-25T05:30:00;read;-1.8;discharging;72;;\n';
+      var log = OB.parseRingClockLog(CSV);
+      T.ok('parseRingClockLog reads every event type', log.length === 4, 'expected 4 rows, got ' + log.length);
+      T.ok('…and coerces offset to a finite number on read events', log[0].offsetS === -1.2 && log[3].offsetS === -1.8, 'offset column not parsed as number');
+      T.ok('…and leaves push/battery offsets null (the writer emits a blank column)', log[1].offsetS === null && log[2].offsetS === null, 'a blank offset column silently reads as 0');
+      /* Anchor: a night starting at 2026-06-25 04:56 (matches OxyDex_2026-06-25_0439 golden's date). */
+      var t0 = Date.UTC(2026, 5, 25, 4, 56, 0);
+      var night = { stats: { startTs: t0, durationMin: 240 } };
+      OB._attachRtcVerification(night, log);
+      T.ok('nearest READ event within ±12 h attaches the offset', night.rtcOffsetS === -1.2, 'expected the closer read offset -1.2, got ' + night.rtcOffsetS);
+      T.ok('…and declares timingSource=device+host-verified', night.timingSource === 'device+host-verified', 'timingSource missing: ' + JSON.stringify(night.timingSource));
+      T.ok("…and rtcVerifiedAtMs is the matched read event's tMs", night.rtcVerifiedAtMs === Date.UTC(2026, 5, 25, 4, 30, 0), 'rtcVerifiedAtMs missing or wrong: ' + night.rtcVerifiedAtMs);
+      T.ok('…and no rtcResetSuspect (no reset in span)', night.rtcResetSuspect !== true, 'rtcResetSuspect fired without a reset event');
+      /* Reset-suspect INSIDE the night's span blocks verification. */
+      var CSV2 =
+        'Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3\n' +
+        '2026-06-25T04:30:00;read;-1.2;discharging;73;;\n' +
+        '2026-06-25T05:00:00;reset-suspect;-151.4;discharging;73;;\n';
+      var log2 = OB.parseRingClockLog(CSV2);
+      var night2 = { stats: { startTs: t0, durationMin: 240 } };
+      OB._attachRtcVerification(night2, log2);
+      T.ok('reset-suspect inside span sets rtcResetSuspect', night2.rtcResetSuspect === true, 'a reset-suspect inside span is not flagged');
+      T.ok(
+        '…and BLOCKS verification (no timingSource/rtcOffsetS attached alongside)',
+        night2.timingSource == null && night2.rtcOffsetS == null && night2.rtcVerifiedAtMs == null,
+        "verification was not blocked by the reset — a reset's offset is unmeasured by definition"
+      );
+      /* Read OUTSIDE the ±12 h window is silently absent (no fabrication). */
+      var CSV3 = 'Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3\n' + '2026-06-25T20:00:00;read;-1.2;discharging;73;;\n';
+      var night3 = { stats: { startTs: t0, durationMin: 240 } };
+      OB._attachRtcVerification(night3, OB.parseRingClockLog(CSV3));
+      T.ok('a read >12 h away is silently absent (no fabrication)', night3.timingSource == null && night3.rtcOffsetS == null, 'a distant read attached when it should not');
     });
 
     group('trio-batch feeds the O2Ring finger site without breaking the trio count', 'trio-batch · o2ring-finger', function (T) {
@@ -39663,6 +39928,41 @@
         Math.abs(G.sharedClock(ecg, ppg).overlapMin - wantMin) < 1e-9,
         'derived=' + G.sharedClock(ecg, ppg).overlapMin.toFixed(2) + ' want=' + wantMin.toFixed(2)
       );
+    });
+
+    /* ── THE HALF-AMPLITUDE FIDUCIAL (EXTERNAL-METHODS-SURVEY §1) ──────────────────────────────
+       Gated here rather than left to the tool's own `--selftest` because that selftest was GREEN
+       while the function refused 15295 of 15295 real beats: it planted INTEGER foot indices, and
+       the shipped producer (`refineFeet`) emits FRACTIONAL ones, so `bp[footI]` was `undefined`
+       and every rising edge read as non-rising. The failure surfaced as `no beat had a usable
+       rising edge` — a sentence that reads as a fact about the corpus and was a fact about the
+       code. The fractional case is therefore an assertion in the merge gate, not a note.
+       NODE-ONLY: an .mjs library, so the browser lane has no PatFiducial and skips. */
+    group('PAT half-amplitude fiducial — the foot index is FRACTIONAL (EXTERNAL-METHODS-SURVEY §1)', 'pat · fiducial · half-amplitude', function (T) {
+      var PF = env.PatFiducial;
+      if (!PF || !PF.halfAmplitudeIndex) {
+        T.skip('PatFiducial not in env (browser lane — .mjs tool)');
+        return;
+      }
+      var h = PF.halfAmplitudeIndex;
+      /* ramp 0,10,…,100 — half of a linear rise is its midpoint, by arithmetic and not by the
+         detector, so a wrong answer here is not a matter of tuning. */
+      var ramp = new Float64Array(11);
+      for (var i = 0; i <= 10; i++) ramp[i] = i * 10;
+      T.ok('an integer foot still lands at the midpoint', Math.abs(h(ramp, 0, 10) - 5) < 1e-9, String(h(ramp, 0, 10)));
+      T.ok('A FRACTIONAL FOOT DOES NOT REFUSE (the 15295/15295 regression)', h(ramp, 0.5, 10) !== null, String(h(ramp, 0.5, 10)));
+      /* foot 0.5 ⇒ 5, peak ⇒ 100, half = 52.5, ramp 10/sample ⇒ 5.25. Checked against arithmetic,
+         so an implementation that silently rounds the foot back to 0 (answer 5) FAILS. */
+      T.ok('…and answers 5.25, not the integer-foot 5', Math.abs(h(ramp, 0.5, 10) - 5.25) < 1e-9, String(h(ramp, 0.5, 10)));
+      var edge = Float64Array.from([0, 100, 100]);
+      T.ok('a crossing in the first PARTIAL interval anchors on the foot, not the sample before it', Math.abs(h(edge, 0.5, 2) - 0.75) < 1e-9, String(h(edge, 0.5, 2)));
+      T.ok('sub-sample: a between-sample crossing is interpolated, not rounded', Math.abs(h(Float64Array.from([0, 40, 90]), 0, 2) - 1.1) < 1e-9, String(h(Float64Array.from([0, 40, 90]), 0, 2)));
+      /* Refusals — an unusable edge must yield null. A fiducial guessed on a flat or falling edge
+         is a fabricated instant, which §2.6 of the Clock Contract forbids one layer up. */
+      T.ok('flat edge ⇒ null', h(Float64Array.from([5, 5, 5]), 0, 2) === null);
+      T.ok('falling edge ⇒ null', h(Float64Array.from([90, 40, 0]), 0, 2) === null);
+      T.ok('peak before foot ⇒ null', h(ramp, 8, 3) === null);
+      T.ok('a fractional foot on a FALLING edge still refuses', h(Float64Array.from([90, 40, 0]), 0.5, 2) === null);
     });
 
     group('PAT matchRate — the shipped definition cannot fail; the strict one can (PAT-UNDER-PERBLOCK-ALIGNMENT §4)', 'pat · matchrate · chance-floor', function (T) {

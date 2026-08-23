@@ -104,33 +104,72 @@ by two sessions and then tested by a near-miss; it was written nowhere, so it is
 | `gh pr merge --auto` | **no** | not content, but it decides **when their work lands**. That is the owner's call |
 | pushing commits, editing files, amending, force-pushing | **no** | branch content is owner-only |
 
-**The near-miss that tested it.** A session ran `gh pr merge <N> --squash --auto` on another session's
-PR, having read back the wrong number — its own was N+1. It disclosed, and then did **not** disarm.
-That restraint was right, and the timeline shows it was right for a stronger reason than the one given:
+**Two near-misses tested it, and the second one falsified the first's heuristic** (2026-08-22).
+Both cases: a session ran a mutating command with the wrong PR number — its own was N+1. Both
+disclosed. Both did not tidy. Both were right. The reasoning has two parts, and it took the second
+case to disentangle them.
+
+**Part one: check whether the command CHANGED STATE.** GitHub records nothing for enabling auto-merge
+on a PR that already has it, so a stray `gh pr merge <N> --auto` on an already-armed PR **returned
+success and did nothing**. Disarming would then have been the *only* real action either party took —
+a strictly *larger* intervention than the thing it was correcting. Read the timeline: `gh api
+repos/<o>/<r>/issues/<N>/timeline` distinguishes *"I changed their state"* from *"my command was a
+no-op"*, and those need opposite responses (leave it, or tell the owner).
+
+**Part two — and this is where the first draft was wrong.** The first draft used a shape rule to
+identify the no-op:
+
+> `auto_squash_enabled` at PR-create-time + 1 s ⇒ the owner's own create-and-arm chain, so you did nothing.
+
+The heuristic is **unsound in both directions**, and the second case demonstrated it. The delta
+measures how fast the *owner's* create-and-arm CHAIN ran — a property of their tooling and the
+network, not of whether anyone else acted. A chain with a slower step, a retry, or a `land-pr`
+handoff sits at +3–5 s just as innocently. And it fails the other way too: if a PR is NOT armed at
+create and a stray command arms it hours later, that lands at PR-time+N seconds — correctly flagged
+by the delta rule, but only because the delta is huge. Shrink the gap (a stray arm 3 s after someone
+else creates a PR) and the rule silently clears a **real** intrusion.
+
+**The reliable discriminator is different — it is the event timestamp against YOUR OWN
+wall-clock time when you ran the mutating command.** That is the only quantity that distinguishes
+*"they armed it"* from *"I armed it"*, and it is always directly available to you: you know when you
+ran the thing.
 
 ```
-PR created            09:33:40Z
-auto_squash_enabled   09:33:41Z   ← the OWNER's own create-and-arm chain, one second later
+auto_squash_enabled ≈ PR-creation time                        → owner's chain; you were a no-op
+auto_squash_enabled ≈ the wall-clock when YOU ran the command → you did the arm; it was NOT a no-op
 ```
 
-Exactly **one** such event exists in the timeline. GitHub records nothing for enabling auto-merge on a
-PR that already has it, so the stray command **returned success and changed no state**. Disarming
-would therefore have been the *only* action either party took on that branch — a strictly **larger**
-intervention than the thing it was correcting.
+The **count** still does load-bearing work underneath: GitHub records nothing for arming an
+already-armed PR, so *exactly one* event on the timeline means **at most one arm actually took
+effect**. That is what makes the "no-op" verdict verifiable at all.
 
-**Two rules fall out, and the second is the transferable one:**
+**A second axis, discovered on the same day and stated because the first draft treated all mutating
+commands alike.** `gh pr merge --auto` on an already-armed PR is a **flag set** — GitHub's
+server-side handler rejects it or records it as a no-op, so it *structurally* cannot act. `land-pr
+<N>` is a genuinely different beast: it is a **state-dependent actor** that base-merges when the PR
+is `BEHIND` and squash-merges when it is green. Its blast radius depends on the PR's state at the
+moment the command runs, and it lands the owner's work if that state happens to be green.
 
-1. **Read back the PR number before acting on it.** Arming and base-merging take the same argument
-   shape, so a fat-finger silently retargets a *different session's* work.
-2. **When you discover you may have touched someone else's branch, disclose and STOP — do not tidy.**
-   The instinct to undo is an instinct to take a second unilateral action on a branch you have already
-   established is not yours. Check whether the first one even did anything: `gh api
-   repos/<o>/<r>/issues/<N>/timeline` distinguishes *"I changed their state"* from *"my command was a
-   no-op"*, and those need opposite responses.
+| shape | example | blast radius on a wrong PR number |
+|---|---|---|
+| **flag set / idempotent** | `gh pr merge <N> --auto`, `gh pr enable-auto-merge` | none — server rejects or records a no-op |
+| **state-dependent actor** | `node tools/land-pr.mjs <N>`, `gh pr merge <N> --squash` (no `--auto`) | merges when state permits — a green stranger's PR lands |
 
-⚠️ **The arm-at-create convention made both behaviours identical here.** That is a coincidence of
-convention, not evidence the boundary is unnecessary — under any other convention the same command
-lands someone's work earlier than they intended.
+**So the read-back-the-number rule matters MORE for the actor family than for the idempotent one,
+and the check-what-actually-happened rule applies to both.** A rule that treats them the same is
+over-cautious for the flag and under-cautious for the lander.
+
+**Two rules fall out, restated with the corrections:**
+
+1. **Read back the PR number before running any actor-family command.** Actor-family and
+   idempotent-family take the same argument shape, so a fat-finger silently retargets a *different
+   session's* work. The cost of the mistake diverges hugely: on `gh pr merge --auto` it is nothing;
+   on `land-pr <N>` it lands their work early.
+2. **When you discover you may have touched someone else's branch, DISCLOSE AND STOP — do not tidy.**
+   The instinct to undo is an instinct to take a *second* unilateral action on a branch you have
+   already established is not yours. Check the timeline first; report the finding regardless. If the
+   first action was a no-op, the second (disarming, re-updating, whatever) would be the only real
+   action either party took.
 
 
 ## Done when
@@ -139,5 +178,5 @@ lands someone's work earlier than they intended.
 - [x] §3 cap written into CLAUDE.md §5b
 - [x] §4 `wt-done.mjs` shipped with selftest
 - [x] §2 first fold EXECUTED — v2.5.0 → **v2.6.0** (#1467, 221 changesets folded, tag `v2.6.0` pushed on the merge commit); cadence: ≥25 pending or weekly, attended
-- [ ] §5 owner decision **still pending** (the one open item) — 7 workflows are `merge_group`-wired, the flip is minutes of ruleset work when the yes comes
+- [x] §5 **CLOSED — declined by availability (owner-ratified 2026-08-23).** GitHub merge queue requires an organization-owned repository; Tepna is user-owned (`owner.type: User`, `isInOrganization: false`, API rejects a `merge_queue` rule outright — all three verified 2026-08-16, CLAUDE.md §👥.5/5b). The question was never economic. The 7 `merge_group` triggers stay wired at zero cost — they fire only if a queue ever exists, and removing them would recreate the BRIEF-COLLISION-RESIDUAL-GAP §4 outage risk if ownership ever changes. Re-open ONLY on a repository-ownership change, not on throughput arguments.
 - [x] §6 root DRAINED — 180 paths rescue-snapshotted (byte-verified) + tar; all three peer sessions confirmed nothing live (one nested-worktree branch judged superseded by its owner); porcelain 0, and the sync timer's FIRST REAL TICK is in the journal: `main fast-forwarded 1 commit(s): 4c42cab7 -> 3b5b93fe` on both checkouts

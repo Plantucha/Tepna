@@ -281,7 +281,7 @@ installed pytest-cov and would replace the heuristic with a measured mapping.
       hrvdex sweeps (state-dependent paths · load-executed lines · non-behavioural reds). Re-sweeping
       WITH selection would ship those losses; the box's premise no longer stands. If the §3d
       union-with-tag design lands, this box revives under that mechanism.
-- [ ] Owner decision: does `pulsedex-dsp.js` join `SWEEP_FILES` (§1b)?
+- [x] Owner decision: does `pulsedex-dsp.js` join `SWEEP_FILES` (§1b)? **YES — decided 2026-08-23, and ALREADY SHIPPED**: `tools/mutation-worklist.mjs:83` carries it as the ninth entry, and the selftest pins the count (`all NINE DSPs are expected — pulsedex was the missing ninth for the whole first programme`). The owner's answer and the code converged independently; this box records the ratification.
 - [x] ppgdex re-swept outright (no journal existed for the truncated run).
 - [x] **Declared equivalences harvested into `mutate-equivalence.json` — 2026-08-19.** All five
       comment-declared equivalents located and reconciled against the current sweeps:
