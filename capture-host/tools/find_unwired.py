@@ -53,9 +53,15 @@ CONSUMERS = ("webmon.py", "alerts.py", "nightqc.py", "timeline.py", "telemetry.p
 ALLOW_KEYS = {
     "tool": "read by webmon.py and monitor.html under a quoting form scan 1 does not model",
 }
-# Fields the API publishes deliberately for a consumer OTHER than the monitor. `/api/state` is not the
-# monitor's private channel — but "something else reads it" must be stated, not assumed.
-ALLOW_RENDERED: dict = {}
+# Fields the API publishes that the monitor does not draw — either for a consumer OTHER than the monitor,
+# or a monitor draw that is PENDING and tracked. `/api/state` is not the monitor's private channel — but
+# "something else reads it" / "a draw is coming" must be STATED, not assumed. An entry here without a
+# real follow-up is exactly the stale suppression this file warns against, so the tracker is load-bearing.
+ALLOW_RENDERED: dict = {
+    "ring_rtc_reset_suspect": "forwarded in STATUS; monitor draw PENDING — the ring RTC battery-reset "
+                              "alarm needs a ring-card indicator, tracked as a follow-up micro-PR that "
+                              "draws it and removes this line",
+}
 
 # Handlers defined in monitor.html that nothing calls. Same rule, same reason.
 ALLOW_JS: dict = {}
