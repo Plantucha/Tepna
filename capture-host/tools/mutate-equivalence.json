@@ -3879,5 +3879,42 @@
       "probe": "non-ASCII round-trip (\"réveil du capteur — 温度 drift, 0.5 °C\") through append_row → load_rows: byte-identical under encoding=\"utf-8\", encoding=None and the argument omitted. Also attempted and REJECTED as a distinguishing input: monkeypatching locale.getpreferredencoding to 'ascii' — CPython's open() does not consult the patched Python-level function, verified empirically.",
       "brief": "OXYII-ACQUISITION-CHARTER G2"
     }
+  ],
+  "oxy_transfer.py": [
+    {
+      "key": "- fh.truncate(selection.resume.offset) | + fh.truncate(None)",
+      "class": "no-distinguishing-input",
+      "why": "`file.truncate(None)` truncates at the CURRENT stream position, and the line immediately above is `fh.seek(selection.resume.offset)` — so the position already IS that offset and the two calls compute the same thing. The explicit argument stays because it states the intent independently of the preceding seek: if a later edit moves or removes that seek, the explicit form keeps working and the implicit one silently truncates somewhere else.",
+      "probe": "existing content in {b'', b'AB', b'ABXYZW', b'A'*50} x offset in {0,1,2,6,50} x chunk sets {(cd), (c,d), (empty), none} — 52 cases, 0 produced differing bytes",
+      "brief": "OXYII-G1-TRANSACTIONAL-SYNC-2026-08-23-BRIEF.md §5"
+    },
+    {
+      "key": "- resume_strategy(0, reported, allow_resume=allow_resume), 1)) | + resume_strategy(0, reported, allow_resume=allow_resume), ))",
+      "class": "untestable-by-design",
+      "why": "The dropped literal is `attempt=1`, and `Selection.attempt` is a dataclass field whose DEFAULT is 1 — so the explicit argument and the default are the same value by construction. Verified as dataclass equality, not by argument alone.",
+      "probe": "Selection(..., 1) == Selection(...) with attempt defaulted -> True; both .attempt == 1",
+      "brief": "OXYII-G1-TRANSACTIONAL-SYNC-2026-08-23-BRIEF.md §2"
+    },
+    {
+      "key": "- resume_strategy(0, reported, allow_resume=allow_resume), 1)) | + resume_strategy(0, None, allow_resume=allow_resume), 1))",
+      "class": "untestable-by-design",
+      "why": "The call site passes the LITERAL 0 as partial_bytes, and `resume_strategy` returns `Resume(RESTART, 0, 'no partial bytes on disk')` on that first branch before reading either later argument. So no input to `select()` can reach a use of them here — the difference is unreachable by construction at this call site, not merely untested. ⚠ It is equivalent HERE and nowhere else: the same operators on the OTHER `resume_strategy(have, reported, ...)` call (where `have` comes from the ledger) ARE killable and are killed by test_select_feeds_the_ledger_size_and_the_reported_size_into_the_decision and test_select_passes_allow_resume_through.",
+      "probe": "resume_strategy(0, X, allow_resume=Y) evaluated over X in {None,0,1,8,500,1e9} x Y in {True,False} — 12 combinations, 1 distinct result: ('restart', 0, 'no partial bytes on disk')",
+      "brief": "OXYII-G1-TRANSACTIONAL-SYNC-2026-08-23-BRIEF.md §5"
+    },
+    {
+      "key": "- resume_strategy(0, reported, allow_resume=allow_resume), 1)) | + resume_strategy(0, reported, allow_resume=None), 1))",
+      "class": "untestable-by-design",
+      "why": "The call site passes the LITERAL 0 as partial_bytes, and `resume_strategy` returns `Resume(RESTART, 0, 'no partial bytes on disk')` on that first branch before reading either later argument. So no input to `select()` can reach a use of them here — the difference is unreachable by construction at this call site, not merely untested. ⚠ It is equivalent HERE and nowhere else: the same operators on the OTHER `resume_strategy(have, reported, ...)` call (where `have` comes from the ledger) ARE killable and are killed by test_select_feeds_the_ledger_size_and_the_reported_size_into_the_decision and test_select_passes_allow_resume_through.",
+      "probe": "resume_strategy(0, X, allow_resume=Y) evaluated over X in {None,0,1,8,500,1e9} x Y in {True,False} — 12 combinations, 1 distinct result: ('restart', 0, 'no partial bytes on disk')",
+      "brief": "OXYII-G1-TRANSACTIONAL-SYNC-2026-08-23-BRIEF.md §5"
+    },
+    {
+      "key": "- resume_strategy(0, reported, allow_resume=allow_resume), 1)) | + resume_strategy(0, reported, ), 1))",
+      "class": "untestable-by-design",
+      "why": "The call site passes the LITERAL 0 as partial_bytes, and `resume_strategy` returns `Resume(RESTART, 0, 'no partial bytes on disk')` on that first branch before reading either later argument. So no input to `select()` can reach a use of them here — the difference is unreachable by construction at this call site, not merely untested. ⚠ It is equivalent HERE and nowhere else: the same operators on the OTHER `resume_strategy(have, reported, ...)` call (where `have` comes from the ledger) ARE killable and are killed by test_select_feeds_the_ledger_size_and_the_reported_size_into_the_decision and test_select_passes_allow_resume_through.",
+      "probe": "resume_strategy(0, X, allow_resume=Y) evaluated over X in {None,0,1,8,500,1e9} x Y in {True,False} — 12 combinations, 1 distinct result: ('restart', 0, 'no partial bytes on disk')",
+      "brief": "OXYII-G1-TRANSACTIONAL-SYNC-2026-08-23-BRIEF.md §5"
+    }
   ]
 }

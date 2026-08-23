@@ -36,9 +36,13 @@ def _sel(*, mode=tr.RESTART, offset=0, attempt=1):
     return tr.Selection(IDENT, "R", "S", "download", "test", tr.Resume(mode, offset, "test"), attempt)
 
 
-def _fetch(*chunks):
+def _fetch(*chunks, seen=None):
+    """`seen` records the offset the transport was actually asked for — the argument is part of the
+    contract, and a test that ignores it cannot tell `fetch(0)` from `fetch(1)`."""
     def f(offset):
         assert isinstance(offset, int)
+        if seen is not None:
+            seen.append(offset)
         return list(chunks)
     return f
 
@@ -56,7 +60,21 @@ def test_real_trailer_parser_returns_none_rather_than_raising():
 # ── resume_strategy — brief §5 ─────────────────────────────────────────────────────────────────────
 
 def test_resume_restarts_when_no_partial_bytes():
-    assert tr.resume_strategy(0, 500).mode == tr.RESTART
+    r = tr.resume_strategy(0, 500)
+    assert r.mode == tr.RESTART and r.offset == 0
+    # The reason is carried, not re-derived — the ledger records the sentence the policy used, so a
+    # blank one is a real defect and not cosmetic.
+    assert r.reason == "no partial bytes on disk"
+
+
+def test_resume_boundary_is_zero_bytes_not_one():
+    """`<= 0` vs `< 0` and `<= 1` differ only at 0 and 1, and both mutations are invisible to a test
+    that checks the mode alone: every branch here returns RESTART by default. The REASON is what
+    separates them, which is the second argument for carrying it."""
+    assert tr.resume_strategy(0, 500).reason == "no partial bytes on disk"
+    # one byte IS partial data — it must take the discarding path, not the nothing-on-disk path
+    assert tr.resume_strategy(1, 500).reason != "no partial bytes on disk"
+    assert "discarding 1 B" in tr.resume_strategy(1, 500).reason
 
 
 def test_resume_restarts_when_size_complete_but_unfinalised():
@@ -75,6 +93,7 @@ def test_resume_default_is_re_serve_from_start():
 def test_resume_resumes_only_when_explicitly_allowed():
     r = tr.resume_strategy(200, 500, allow_resume=True)
     assert r.mode == tr.RESUME and r.offset == 200
+    assert r.reason == "resuming at 200 B of 500 B"
 
 
 # ── list_sessions — brief §2 ───────────────────────────────────────────────────────────────────────
@@ -90,8 +109,13 @@ def test_list_sessions_drops_entries_with_no_formable_identity():
         {"device_id": "R", "session": "S", "reported_size": 10},
         {"device_id": "", "session": "S"},
         {"device_id": "R"},
+        # ⚠️ A GOOD ENTRY AFTER THE BAD ONES, deliberately: with the bad entries last, `continue`
+        # and `break` produce identical output and the skip logic is untested. Ordering is the
+        # whole test.
+        {"device_id": "R2", "session": "S2", "reported_size": 20},
     ])
-    assert got == [{"device_id": "R", "session": "S", "reported_size": 10}]
+    assert got == [{"device_id": "R", "session": "S", "reported_size": 10},
+                   {"device_id": "R2", "session": "S2", "reported_size": 20}]
 
 
 # ── select — PURE, brief §2/§15 ────────────────────────────────────────────────────────────────────
@@ -103,6 +127,81 @@ def _listing(size=500):
 def test_select_downloads_what_the_ledger_has_never_seen():
     got = tr.select(_listing(), [])
     assert len(got) == 1 and got[0].action == "download" and got[0].attempt == 1
+    # The Selection must CARRY a decision, not a hole: a None resume reaches download() as "start
+    # from 0" by accident rather than by policy, and reads identically at the call site.
+    assert got[0].resume is not None
+    assert got[0].resume.mode == tr.RESTART and got[0].resume.offset == 0
+    # A new recording has NO partial bytes — that specific reason, not the discarding one.
+    assert got[0].resume.reason == "no partial bytes on disk"
+
+
+def test_select_keeps_going_after_a_skip():
+    """⚠️ The skipped entry comes FIRST. With it last, `continue` and `break` produce identical
+    output and every skip branch in the loop is untested — the same ordering blindness as
+    list_sessions. Three skip reasons are exercised ahead of a live download."""
+    listing = [
+        {"device_id": "R", "session": "DONE", "reported_size": 8},
+        {"device_id": "R", "session": "PERM", "reported_size": 8},
+        {"device_id": "R", "session": "SPENT", "reported_size": 8},
+        {"device_id": "R", "session": "FRESH", "reported_size": 8},
+    ]
+    rows = [
+        inv.make_row("R", "DONE", inv.COMMITTED, at=1.0),
+        inv.make_row("R", "PERM", inv.FAILED, attempt=1,
+                     failure=FailureClass.VALIDATION_FAILURE.label, at=1.0),
+        inv.make_row("R", "SPENT", inv.FAILED, attempt=9,
+                     failure=FailureClass.TIMEOUT.label, at=1.0),
+    ]
+    got = {g.session: g.action for g in tr.select(listing, rows)}
+    assert got == {"DONE": "skip", "PERM": "skip", "SPENT": "skip", "FRESH": "download"}
+
+
+def test_select_keeps_going_after_a_new_recording():
+    """The mirror of the test above, for the branch it CANNOT reach. With the unledgered entry last,
+    `continue` → `break` in the new-recording arm produces identical output — so the fresh one has to
+    come FIRST for the loop to prove it kept going. Found by mutation, not by reading the code: the
+    two arms look symmetrical and only one was actually covered."""
+    listing = [
+        {"device_id": "R", "session": "FRESH", "reported_size": 8},
+        {"device_id": "R", "session": "DONE", "reported_size": 8},
+    ]
+    rows = [inv.make_row("R", "DONE", inv.COMMITTED, at=1.0)]
+    got = {g.session: g.action for g in tr.select(listing, rows)}
+    assert got == {"FRESH": "download", "DONE": "skip"}
+
+
+def test_select_attempt_bound_is_exclusive_at_the_boundary():
+    """`attempt > max_attempts` vs `>=` differ ONLY at equality, and a test at attempt=3/max=3 skips
+    under both. The third attempt is one we are still owed."""
+    rows = [inv.make_row("R", "S", inv.FAILED, attempt=2,
+                         failure=FailureClass.TIMEOUT.label, at=1.0)]
+    got = tr.select(_listing(), rows)[0]
+    assert got.action == "download" and got.attempt == 3
+
+
+def test_select_feeds_the_ledger_size_and_the_reported_size_into_the_decision():
+    """Both arguments reach `resume_strategy`, and dropping either leaves a decision that still says
+    RESTART — so only the reason can tell them apart. With resume allowed and the bytes already
+    size-complete, the answer must name the TRAILER, which is reachable only if BOTH values arrive."""
+    rows = [inv.make_row("R", "S", inv.PARTIAL, size=500, at=1.0)]
+    got = tr.select(_listing(size=500), rows, allow_resume=True)[0]
+    assert got.action == "download" and got.resume.mode == tr.RESTART
+    assert "trailer" in got.resume.reason
+
+
+def test_select_passes_allow_resume_through():
+    """A dropped `allow_resume` silently reverts every caller to re-serve — safe, and therefore
+    invisible to any assertion that only checks the file is fetched."""
+    rows = [inv.make_row("R", "S", inv.PARTIAL, size=200, at=1.0)]
+    got = tr.select(_listing(size=500), rows, allow_resume=True)[0]
+    assert got.resume.mode == tr.RESUME and got.resume.offset == 200
+
+
+def test_select_reads_the_partial_size_from_the_row():
+    """`row.get("size")` → `row.get(None)` yields 0, which still RESTARTS — the mode cannot see it."""
+    rows = [inv.make_row("R", "S", inv.PARTIAL, size=200, at=1.0)]
+    got = tr.select(_listing(size=500), rows)[0]
+    assert "discarding 200 B" in got.resume.reason
 
 
 @pytest.mark.parametrize("state", [inv.VERIFIED, inv.COMMITTED])
@@ -167,6 +266,18 @@ def test_download_writes_all_the_bytes(tmp_path):
     res = tr.download(_fetch(b"ab", b"cd"), part, _sel(), reported_size=4)
     assert res.complete and res.bytes_written == 4
     assert open(part, "rb").read() == b"abcd"
+    # The reason travels into the ledger row; a blank one loses the only record of what was moved.
+    assert res.reason == "4 B received"
+
+
+def test_download_with_no_resume_decision_asks_the_transport_for_offset_zero(tmp_path):
+    """A missing Resume must mean "from the start". Any other offset silently drops leading bytes and
+    still produces a file, so the returned size cannot see it — only the transport's argument can."""
+    seen = []
+    part = str(tmp_path / "x.part")
+    sel = tr.Selection("i", "R", "S", "download", "no resume", None, 1)
+    tr.download(_fetch(b"abc", seen=seen), part, sel)
+    assert seen == [0]
 
 
 def test_download_with_no_resume_decision_starts_from_zero(tmp_path):
@@ -200,6 +311,10 @@ def test_a_short_file_is_truncated_transfer_not_a_timeout(tmp_path):
     assert res.complete is False
     assert res.failure is FailureClass.TRUNCATED_TRANSFER
     assert res.failure.recoverable is True
+    # How much arrived is what the retry decides from — losing it turns a resumable partial into an
+    # unknown, and the reason is what a human reads in the ledger.
+    assert res.bytes_written == 2
+    assert res.reason == "short: 2 B of 99 B"
 
 
 def test_download_refuses_a_target_that_is_not_a_part_file(tmp_path):
@@ -214,6 +329,7 @@ def test_download_refuses_a_target_that_is_not_a_part_file(tmp_path):
 def test_download_reports_a_write_failure_as_storage(tmp_path):
     res = tr.download(_fetch(b"ab"), str(tmp_path / "nope" / "x.part"), _sel())
     assert res.failure is FailureClass.STORAGE_FAILURE and res.failure.recoverable is False
+    assert res.reason.startswith("write failed: ")
 
 
 def test_download_reports_a_transport_exception_as_transport(tmp_path):
@@ -221,6 +337,7 @@ def test_download_reports_a_transport_exception_as_transport(tmp_path):
         raise ValueError("link dropped")
     res = tr.download(boom, str(tmp_path / "x.part"), _sel())
     assert res.failure is FailureClass.TRANSPORT_FAILURE and res.failure.recoverable is True
+    assert "link dropped" in res.reason
 
 
 # ── verify — brief §4 ──────────────────────────────────────────────────────────────────────────────
@@ -230,6 +347,7 @@ def test_verify_accepts_a_finalised_file_of_the_right_size(tmp_path):
     p.write_bytes(b"data" + TRAILER_MAGIC)
     res = tr.verify(str(p), 8, _finalised)
     assert res.ok and res.sha256 == inv.sha256_bytes(b"data" + TRAILER_MAGIC)
+    assert res.size == 8 and res.reason == "size+finalised at 8 B"
 
 
 def test_verify_records_the_depth_it_actually_checked(tmp_path):
