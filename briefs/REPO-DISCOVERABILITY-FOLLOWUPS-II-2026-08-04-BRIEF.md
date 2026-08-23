@@ -41,8 +41,14 @@ If built, they inherit the machinery that already exists rather than adding any:
 ## 3 · Done when
 
 - [ ] A DOI is minted and surfaced, **or** the item is consciously dropped and this brief says so.
-- [ ] The glossary/FAQ pages exist and are gated by `build-docs --check`, **or** they are consciously
+- [x] The glossary/FAQ pages exist and are gated by `build-docs --check`, **or** they are consciously
       dropped and this brief says so.
+      **BUILT 2026-08-23 (owner said KEEP)** — `Glossary.html`: a 15-term glossary (mirroring
+      `docs/LEXICON.md`'s reflex-arc naming + the Clock Contract vocabulary, inventing nothing the
+      code does not carry) and a 10-question FAQ (privacy, devices, correctness mechanisms, clock
+      disagreement, citing via the new DOI). Registered in `suite.manifest.json` `content[]` so
+      Phase 0 injects roster-derived meta; first manual `docs/` copy made; linked from the front-door
+      footer; in `sitemap.xml` + `llms.txt`. `build-docs --check` covers it from now on.
 - [ ] Neither introduces a network fetch into any bundle or page.
 
 > **Standing note.** Both items have now been carried across three briefs without landing. That is not a
