@@ -52,26 +52,34 @@ step, so each night's seven rows differ **only** in `anchorSigma`.
 
 | σ | median cand/h | median anchors | median corroboration | refusals | pooled cand | pooled anchors |
 |---|---|---|---|---|---|---|
-| 3 | 420.8 | 14 | 0.028 | **5** | 58409 | 664 |
-| **4 (default)** | 103.2 | **10** | 0.063 | **5** | 20905 | 531 |
-| 5 | 44.7 | 8 | 0.076 | 6 | 7524 | 412 |
-| 6 | 25.3 | 7 | 0.101 | 6 | 3414 | 343 |
-| 8 | 11.5 | 4 | 0.119 | 9 | 1813 | 249 |
-| 10 | 8.8 | 3 | 0.137 | 11 | 1336 | 203 |
-| 12 | 6.75 | 3 | 0.152 | 13 | 1037 | 167 |
+| 3 | 135.9 | 14 | 0.035 | **4** | 58308 | 666 |
+| **4 (default)** | 67.1 | **10** | 0.064 | **4** | 20863 | 533 |
+| 5 | 44.5 | 8 | 0.084 | 5 | 7512 | 414 |
+| 6 | 25.3 | 7 | 0.101 | 5 | 3414 | 345 |
+| 8 | 11.5 | 4 | 0.124 | 8 | 1818 | 251 |
+| 10 | 8.9 | 3 | 0.138 | 10 | 1341 | 205 |
+| 12 | 6.8 | 3 | 0.154 | 12 | 1041 | 169 |
 
-**Against the band as written:** TARGET (≤ 60 cand/h) is met from σ5. **CONFIRMS (corroboration ≥ 0.20)
-is never met** — the maximum is 0.152 at σ12. GUARD (refusals ≤ 5) holds only at σ3 and σ4. **The
-TARGET and the GUARD are mutually unsatisfiable on this corpus**, and that is the result: there is no
-threshold that buys the corroboration rate without buying refusals with it.
+*(Re-measured under §2's corrected fragment selection. The first run of this table used the
+size-ranked shortlist and is superseded: every refusal count was one higher, and the σ3/σ4 candidate
+rates were inflated — 420.8 and 103.2 per hour against 135.9 and 67.1 — because a wrong-span fragment
+contributes candidates over a span the other device never covered. **Nothing else moved and no
+conclusion changed**: corroboration is identical to three decimals at σ4, still never reaches 0.20,
+refusals still rise monotonically, still zero conversions and zero non-monotone anchor counts.)*
 
-**σ4 is already the answer.** It is the largest σ at the refusal minimum, and σ3 buys nothing for 3×
-the candidates. Going up: **zero** nights convert refusal → alignment at any σ above 4, while **8
+**Against the band as written:** TARGET (≤ 60 cand/h) is essentially met at σ4 itself (67.1) and
+fully from σ5. **CONFIRMS (corroboration ≥ 0.20) is never met** — the maximum is 0.154 at σ12. GUARD
+(refusals ≤ 5, and the floor is now 4) holds only at σ3–σ5. **The TARGET and the CONFIRMS clause are
+unreachable together on this corpus**, and that is the result: there is no threshold that buys the
+corroboration rate without buying refusals with it.
+
+**σ4 is already the answer.** It is the largest σ at the refusal minimum of 4, and σ3 buys nothing for
+twice the candidates. Going up: **zero** nights convert refusal → alignment at any σ above 4, while **8
 nights that align at σ4 are LOST** (2026-07-16 goes 16 anchors → 1 at σ8; 07-19 goes 18 → 1 at σ10).
 
 ⚠️ **THE HYPOTHESIS ABOVE WAS HALF WRONG, AND THE WRONG HALF WAS THE OPERATIONAL ONE.** Its mechanism
-holds: pooled candidates fall **20×** (20905 → 1037) while pooled anchors fall only **3.2×**
-(531 → 167), so the efficiency ratio climbs 0.025 → 0.161 and the threshold genuinely does discard
+holds: pooled candidates fall **20×** (20863 → 1041) while pooled anchors fall only **3.2×**
+(533 → 169), so the efficiency ratio climbs 0.026 → 0.162 and the threshold genuinely does discard
 uncorroborated candidates preferentially. But the conclusion drawn from it — that this could reduce
 refusals — is impossible **by construction**, and the draft should have said so before any sweep ran:
 anchors are a SUBSET of candidates, a refusal is `anchors < minAnchors`, so raising a threshold can
@@ -116,6 +124,53 @@ it. A third selection rule is a third chance to get it wrong.
 one rule is adopted by both tools with the difference table as the evidence, or the divergence is
 recorded as intentional with the condition that selects each.
 
+### MEASURED 2026-08-23 — the shortlist is the defect, and it was never needed
+
+`tools/acc-select-compare.mjs`, 37 of 39 nights. It bounds **every** ACC fragment from its first and
+last LINE — no parsing — computes the true best-overlapping pair over the complete set, and asks what
+each rule's top-3 would have kept.
+
+**The economy that justified the shortlist does not exist.** Bounding every fragment on all 39 nights
+takes **0.77 s**; parsing them takes ~20 minutes. The two numbers a shortlist needs are the two ends
+of the file. Both PAT tools were guessing which fragments to parse when they could simply have looked.
+
+**The rules agree on 36 of 37 nights.** The exception is **2026-07-30**, where the size-ranked top-3
+picks a **0.08 h** overlap against a true **0.39 h**. Feeding the true pair to
+`acc-shared-movement.mjs` flips that night **REFUSES (60 candidates, 0 anchors) → ALIGNS (18, 2)**:
+the shortlist was manufacturing a refusal. Nights here run to **162** Verity fragments — a top-3 over
+162 is a lottery that mostly wins.
+
+⚠️ **§2 as drafted mis-attributed the divergence, and the measurement says so.** The two tools do NOT
+mainly disagree because of the shortlist — they agree on 36/37. They disagree because
+`pat-matchrate-strict` intersects with the **beat pipeline's span** while `acc-shared-movement` takes
+the best ACC↔ACC overlap. **That difference is INTENTIONAL and stays**: one is selecting ACC that
+covers the beats being aligned, the other is selecting the best shared-movement evidence, and those
+are different questions with different right answers. What is *not* intentional, and is now gone from
+`acc-shared-movement`, is the arbitrary top-3 in front of both.
+
+**Resolution — one bounding mechanism, two target criteria.** `acc-shared-movement.mjs` now
+enumerates every fragment and parses only the winning pair. `pat-matchrate-strict.mjs` keeps both its
+time-targeting and its shortlist, because §5 measured that shortlist and **it loses nothing**.
+
+⚠️ **AMENDED by §5, and the amendment matters more than the fix did.** The sentence this paragraph
+originally carried — that the arbitrary top-3 in front of *both* tools was the defect — is **wrong**.
+Measured against each shortlist's own criterion, `pat-matchrate-strict`'s ECG/PPG top-4-by-size keeps
+the true pair 37/37 and its ACC top-3-by-time-proximity keeps the best beat-span overlap 37/37. The
+discriminator is not whether a shortlist exists but **what it is keyed on**: time overlap against a
+target span is the quantity being optimised, so shortlisting on it is sound; file size is a *proxy*
+for it, and proxies decouple — ACC fragments are short and numerous, so the largest is routinely not
+the best-overlapping, which is exactly how 2026-07-30 was lost. Enumerating everything is still
+preferable at 0.77 s because it removes the question, but "shortlists are the bug" was a
+generalisation from one instance.
+
+**Re-running §3 under the corrected selection changed the answer in no material way**, which is worth
+recording as plainly as the bug: 37 nights measured, refusals 5 → **4** (the 07-30 conversion),
+corroboration median **0.064 → 0.064**, candidates 247 → 248, anchors 10.5 → 10.0. The relationship
+that carries §3's conclusion got *stronger* — Spearman(candidates, corroboration) **−0.663 → −0.768**
+— and the rate split sharpened: ≤ 200/h corroborates at **0.111** with 1 refusal in 25 nights,
+> 200/h at **0.005** with 3 in 12. Refusing nights still carry more chest movement than aligning ones
+(median 322 vs 246). **§3's verdict is unchanged.**
+
 ## 3 · 🟢 Three method swaps, three negatives, one shape — record it before the next survey
 
 Not a task. A pattern that cost three measurements to establish and should cost the next survey none:
@@ -159,13 +214,34 @@ recovery figure there carries its denominator and its acceptance rule.
 
 - [x] §1 — **DONE 2026-08-23. The band was pre-stated in source before the run, and NOT met. σ4
       stays; the candidate threshold is not a lever.** Seven σ values over 37 nights. TARGET
-      (≤ 60 cand/h) is met from σ5, CONFIRMS (corroboration ≥ 0.20) is never met at all (max 0.152),
+      (≤ 60 cand/h) is essentially met at σ4 itself, CONFIRMS (corroboration ≥ 0.20) is never met at all (max 0.154),
       and GUARD (refusals ≤ 5) holds only at σ3–σ4 — the target and the guard are mutually
       unsatisfiable here. Zero refusal→alignment conversions above σ4; 8 nights that align at σ4 are
       lost above it. The hypothesis' mechanism held (pooled candidates fall 20× against anchors 3.2×)
       but its operational claim was impossible by construction, since anchors ⊆ candidates makes the
-      anchor count non-increasing in σ — measured with zero exceptions across 37 nights.
-- [ ] §2 — the two ACC-selection rules tabulated against each other; one adopted, or the divergence
-      recorded with its condition.
+      anchor count non-increasing in σ — measured with zero exceptions across 37 nights. Table
+      re-measured 2026-08-23 under §2's corrected fragment selection; no conclusion changed.
+- [x] §2 — **DONE 2026-08-23. Both, as it turns out.** The rules agree on 36 of 37 nights, so the
+      real divergence is not the shortlist but the target: `pat-matchrate-strict` selects ACC
+      covering the BEAT SPAN, `acc-shared-movement` the best ACC↔ACC overlap. That difference is
+      intentional and is recorded with its condition. The shortlist in front of both is not, and is
+      removed from `acc-shared-movement`: bounding every fragment across 39 nights costs **0.77 s**
+      against ~20 min to parse them, and the size-ranked top-3 was manufacturing a refusal on
+      2026-07-30 (0.08 h chosen against a true 0.39 h; the night flips to ALIGNS once corrected).
+      Re-running §3 under the corrected selection left every headline unchanged and strengthened the
+      key relationship (ρ −0.663 → −0.768).
+
+- [x] §5 — **DONE 2026-08-23, and it is a NO-OP. `pat-matchrate-strict.mjs`'s shortlists lose
+      nothing, so §1's published numbers stand and no re-run is owed.** Measured with the same cheap
+      bounds, against each shortlist's OWN criterion: the ECG/PPG top-4-by-size keeps the true best
+      pair on **37 of 37** nights (including nights of 323 and 344 PPG fragments), and the ACC
+      top-3-by-time-proximity keeps the best beat-span overlap on **37 of 37**, per device.
+
+      **The correction this forces is worth more than the change would have been.** §2 recorded "the
+      arbitrary top-3 in front of both" as the defect. It is not. A shortlist keyed on the quantity
+      being optimised — time overlap against a target span — is sound; one keyed on a PROXY for it —
+      file size — is not, and that is the only one that lost a night. `nearInTime` was already
+      right. Enumerating everything remains preferable because at 0.77 s it removes the question
+      rather than answering it, but the defect was **the key, not the shortlist**.
 - [x] §3 — recorded 2026-08-23. Nothing to execute.
 - [ ] §4 — `PAT-NO-VALID-ANCHOR`'s recovery figure carries its denominator and acceptance rule.
