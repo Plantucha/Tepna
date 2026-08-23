@@ -1,336 +1,346 @@
 {
-  "_README": [
-    "THE EQUIVALENCE CLASSIFICATION for capture-host's diff-scoped mutation gate.",
-    "Sibling of the repo-root tools/mutate-equivalence.json, same rules, same failure modes.",
-    "",
-    "A surviving mutant is not automatically a test gap. Some cannot be killed by ANY input, because a",
-    "guard the mutation weakens is followed by code that rejects the same cases anyway. Leaving those",
-    "red forever is how mutate_diff.py's own header says a gate dies ('trains people to ignore it');",
-    "waving them through in a PR comment is how it starts lying. This file is the third option.",
-    "",
-    "KEYED ON THE MUTANT'S DIFF (its -/+ line pair, whitespace-normalised) — never on mutmut's",
-    "__mutmut_N index, which renumbers whenever anything earlier in the function changes and would",
-    "silently start excusing a different mutation.",
-    "",
-    "THE CLASSES, and they are not interchangeable:",
-    "  no-distinguishing-input  a battery of inputs was run against original and mutant and every one",
-    "                           agreed. STRONG EVIDENCE, NOT PROOF: a proof needs an argument over the",
-    "                           whole domain. `probe` records what was actually run so the claim can be",
-    "                           re-checked or widened.",
-    "  untestable-by-design     a log string, or a branch unreachable by construction. The argument in",
-    "                           `why` must be about the CODE, not about the test suite.",
-    "  real-gap                 killable, no test yet. STILL FAILS THE GATE. Debt, not an excuse.",
-    "",
-    "THIS FILE CANNOT FLATTER THE VERDICT. mutate_diff.py reports three states loudly:",
-    "  REFUTED   an entry claims equivalence and the mutant was KILLED. The claim is wrong; fix the",
-    "            ENTRY, never the test. This FAILS the gate — it is the only way a stale file could",
-    "            hide a real gap.",
-    "  ORPHANED  an entry matches no generated mutant (the line moved). Excluded from every count, so",
-    "            a stale entry shrinks nothing.",
-    "  unclassified survivors fail the gate exactly as before. Silence is never equivalence."
-  ],
-  "clock_offset.py": [
-    {
-      "key": "- for j in range(i + 1, len(mins)) | + for j in range(len(mins))",
-      "class": "no-distinguishing-input",
-      "why": "A PROOF, not a sample. A pair's slope is symmetric under exchange: (v_j-v_i)/(t_j-t_i) and (v_i-v_j)/(t_i-t_j) negate BOTH operands, and IEEE-754 gives (-a)/(-b) == a/b bit-exactly. So widening the inner range from j>i to all j adds, for every unordered pair, a second copy of a slope already present (j==i is removed by the existing t_j != t_i guard). The estimator then takes a MEDIAN, and doubling every element of a multiset leaves its median unchanged: for sorted s_0..s_{m-1} the doubled list has its two middle slots at s_[(m-1)//2] and s_[m//2], which is the definition of the original median for both parities. The intercept is a median over `mins`, which this mutation does not touch.",
-      "probe": "4000 random point-sets (n uniform 3-60, t uniform 0-1000, d uniform -50..50, seed 11): 0 differed. CANARY on the same 4000 sets: the chunk-stride mutant differs on 3960/4000, so the battery has power and a zero here is a measurement, not a blind spot. Also checked on the committed `_paxson_fixture` — deliberately a sawtooth with drift, because monotone and symmetric shapes are provably blind to pair-set changes and three such fixtures were rejected here first.",
-      "recorded": "2026-08-11",
-      "found_by": "diff-scoped mutation gate on PR #1170"
-    },
-    {
-      "key": "- for j in range(i + 1, len(mins)) | + for j in range(i + 1, )",
-      "class": "no-distinguishing-input",
-      "why": "`range(i + 1, )` is `range(i + 1)`, so j runs 0..i instead of i+1..n-1. Over the whole double loop that enumerates every unordered pair EXACTLY ONCE — the mirror image of the original enumeration — with j == i removed by the t_j != t_i guard. By the same exchange symmetry as the sibling entry each mirrored pair yields a bit-identical slope, so the median is handed the SAME multiset, not merely one with the same median.",
-      "probe": "The same 4000 random point-sets: 0 differed, against the same 3960/4000 chunk-stride canary. Also checked on the committed fixture.",
-      "recorded": "2026-08-11",
-      "found_by": "diff-scoped mutation gate on PR #1170"
-    },
-    {
-      "key": "- k = max(2, min(n_subsets, len(pts))) | + k = max(3, min(n_subsets, len(pts)))",
-      "class": "no-distinguishing-input",
-      "why": "The forms differ only where min(n_subsets, len(pts)) < 3, and n_subsets is 20, so only for len(pts) in {0, 1, 2} — a domain small enough to enumerate rather than sample. len 0: every stripe empty under both, no minima, both return None. len 1: the sole point is its own stripe under both, one minimum, no pair with distinct t, both None. len 2: k=2 gives stripes [0:1],[1:2]; k=3 gives [0:0] (empty, skipped), [0:1], [1:2] — the SAME two minima, hence the same slope and intercept. For len >= 3 max() returns its second argument in both forms and the expression is identical.",
-      "probe": "Exhaustive over the reachable domain: all 21 point-sets of size 0, 1 and 2 drawn from four distinct points ((0,0), (1,5), (1,-5), (2,3)) — 4^0+4^1+4^2 = 21 — comparing k-floor 2 against 3. 0 differed. Note `estimate` cannot reach this at all: it refuses below MIN_POINTS = 100, so the difference is reachable only by calling `paxson` directly.",
-      "recorded": "2026-08-11",
-      "found_by": "diff-scoped mutation gate on PR #1170"
-    },
-    {
-      "key": "- continue # an empty stripe when k > len(pts) cannot contribute a minimum | + break # an empty stripe when k > len(pts) cannot contribute a minimum",
-      "class": "no-distinguishing-input",
-      "why": "The arm is reached only when a stripe is empty, which needs k > len(pts). Since k = max(2, min(20, len(pts))), that holds only for len(pts) in {0, 1} — verified as a predicate, not assumed. At len 0 every stripe is empty so both forms leave `mins` empty. At len 1 the first stripe is empty and the second holds the point: `continue` collects one minimum, `break` collects none — but one minimum yields no pair with distinct t, so `slopes` is empty either way and BOTH return None at the very next statement. The difference exists in `mins` and is erased before anything can observe it.",
-      "probe": "Enumerated the entire reachable domain — all 5 point-sets of size 0 and 1 over the same four distinct points — comparing the continue and break forms: 0 differed, both returning None throughout. Reachability confirmed by evaluating max(2,min(20,n)) > n for n in 0..4: True only at n = 0 and 1.",
-      "recorded": "2026-08-11",
-      "found_by": "diff-scoped mutation gate on PR #1170"
-    },
-    {
-      "key": "- if d < out[-1][1]: | + if d <= out[-1][1]:",
-      "class": "untestable-by-design",
-      "why": "A proof over the whole domain, needing no battery. The branch sits inside `if out and out[-1][0] == t`, so the incumbent's time is ALREADY equal to t. The forms differ only when d == out[-1][1], and there the assignment is `out[-1] = (t, d)` with t == out[-1][0] and d == out[-1][1] — it overwrites the tuple with an equal tuple. The mutation changes how many assignments happen and nothing about the value of any of them; `_floor_by_t` returns list CONTENTS and no caller can observe tuple identity.",
-      "probe": "The argument is exhaustive by construction, so the probe only confirms it: 4000 random point-sets drawn from just 8 distinct t values so collisions are frequent (3904 of the 4000 did contain a duplicate t), compared element-by-element — 0 differed. CANARY: the duplicate-t collapse path is genuinely exercised, firing on 195/200 sets, so this is not a battery that never reached the branch.",
-      "recorded": "2026-08-11",
-      "found_by": "diff-scoped mutation gate on PR #1170"
-    }
-  ],
-  "probe_verity_survey.py": [
-    {
-      "key": "- if not (len(tail) == 6 and tail.isdigit()): | + if not (len(tail) == 6 or tail.isdigit()):",
-      "class": "no-distinguishing-input",
-      "mutant_when_recorded": "probe_verity_survey.x__session_matches__mutmut_12",
-      "why": "The weakened guard lets through exactly two extra shapes: len==6 but not all digits, and all digits but len!=6. Both then reach strptime(tail, '%H%M%S'), which raises ValueError for either, and the except returns False — the same value the guard would have returned. The guard is a fast path, not a semantic gate, so no input can separate them.",
-      "probe": "133,495 directory names: 26,699 tails (lengths 0-8 over digits+letters+' -:.', plus the hand-picked 120059/995959/9999XX/12345/1234567/240000/000000/235959/00000/0000000) crossed with 5 prefixes (dated matching, dated non-matching, undated, bare, three-part). Original vs mutant differed on 0.",
-      "recorded": "2026-08-09",
-      "found_by": "diff-scoped mutation gate on PR #1090"
-    }
-  ],
-  "probe_polar_usb.py": [
-    {
-      "key": "- initial = False | + initial = None",
-      "class": "no-distinguishing-input",
-      "mutant_when_recorded": "probe_polar_usb.x_fetch__mutmut_108",
-      "why": "`initial` is read in exactly ONE place — `reply_body(rep, initial)`, whose body is `off = _HDR_FIRST if initial else _HDR_REST`. That is a truthiness test, and `bool(False) == bool(None) == False`, so both values select the same branch by construction rather than by coincidence. No report can separate them: the variable never reaches a comparison, an arithmetic operator, a return value or the result dict.",
-      "probe": "Exhaustive over the shape space of a 64-byte HID report: size 0..63 x flags 0..3 = 256 report shapes, each passed to reply_body() with `False` and with `None`. 0 of 256 differed. Widening it is pointless — the argument is consumed by `if initial` and nothing else.",
-      "recorded": "2026-08-09",
-      "found_by": "diff-scoped mutation gate on PR #1117"
-    },
-    {
-      "key": "- while real + idle < max_packets and time.monotonic() < deadline: | + while real + idle < max_packets and time.monotonic() <= deadline:",
-      "class": "no-distinguishing-input",
-      "mutant_when_recorded": "probe_polar_usb.x_fetch__mutmut_50",
-      "why": "`<` and `<=` differ on exactly one point of the domain: `time.monotonic() == deadline` EXACTLY, as floats. `deadline` is computed once from an earlier `monotonic()` read plus a window, and the clock advances monotonically at nanosecond resolution between the two reads — so hitting it requires a later read to land bit-identically on a value derived from an earlier one. A test cannot arrange it without patching the clock, and patching the clock to a fixed value would make the loop condition constant and test nothing about the deadline. Note the consequence even IF it occurred is one extra loop iteration, which the `max_packets` bound and the `select` timeout both still cap.",
-      "probe": "2,000,000 consecutive `time.monotonic()` reads compared against a deadline captured before the loop: 0 exact matches. `time.get_clock_info('monotonic').resolution` is 1e-09 s on this platform.",
-      "recorded": "2026-08-09",
-      "found_by": "diff-scoped mutation gate on PR #1117"
-    }
-  ],
-  "polar_pmd.py": [
-    {
-      "key": "- fs = fs or SAMPLE_HZ.get(meas, 0) or 1 | + fs = fs or SAMPLE_HZ.get(meas, None) or 1",
-      "class": "no-distinguishing-input",
-      "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_26",
-      "why": "The .get default is only consulted for a meas ABSENT from SAMPLE_HZ, and decode_frame raises ValueError('not decoded') for every such meas before the value is ever spent. So the default is unreachable; and even where it were reached, 0 and None are both falsy and the trailing `or 1` maps them to the same 1.",
-      "probe": "Enumerated SAMPLE_HZ: every decodable meas (ECG/PPG/ACC/GYRO/MAG/PPI) is a KEY, so .get hits and the default is never used. Drove decode_frame over 80 frame/fs/prev_last_ns combinations (4 meas x 4 fs incl. None x 5 prev) — the default is consulted 0 times. An unknown meas (0x3E) raises before reaching it."
-    },
-    {
-      "key": "- fs = fs or SAMPLE_HZ.get(meas, 0) or 1 | + fs = fs or SAMPLE_HZ.get(meas, ) or 1",
-      "class": "no-distinguishing-input",
-      "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_28",
-      "why": "Dropping the default makes .get return None on a miss — falsy, so the trailing `or 1` yields the same 1 as the falsy 0 it replaced. And the miss branch is unreachable anyway (see mutmut_26).",
-      "probe": "Same 80-combination battery. SAMPLE_HZ.get(PPI, 0) or 1 == SAMPLE_HZ.get(PPI) or 1 == 1."
-    },
-    {
-      "key": "- fs = fs or SAMPLE_HZ.get(meas, 0) or 1 | + fs = fs or SAMPLE_HZ.get(meas, 1) or 1",
-      "class": "no-distinguishing-input",
-      "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_29",
-      "why": "A default of 1 is truthy so `or 1` is skipped, but the value is 1 either way. Identical result, and the branch is unreachable regardless.",
-      "probe": "Same 80-combination battery; SAMPLE_HZ.get(PPI, 1) or 1 == 1 == SAMPLE_HZ.get(PPI, 0) or 1."
-    },
-    {
-      "key": "- fs = fs or SAMPLE_HZ.get(meas, 0) or 1 | + fs = fs or SAMPLE_HZ.get(meas, 0) or 2",
-      "class": "no-distinguishing-input",
-      "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_30",
-      "why": "The `or` fallback fires only when SAMPLE_HZ[meas] is falsy, and PPI (rate 0) is the ONLY such meas. PPI frames set ppi=True, which forces back=0 for every sample, so step_ns is computed and never spent — no output byte depends on whether the fallback is 1 or 2.",
-      "probe": "[k for k,v in SAMPLE_HZ.items() if not v] == [3] (PPI). Decoded PPI frames with fs=None at both fallbacks: sensor_ns, t_ms, phone and values byte-identical, because `back = 0 if ppi else (n-1-i)`."
-    },
-    {
-      "key": "- truncated = False | + truncated = None",
-      "class": "no-distinguishing-input",
-      "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_32",
-      "why": "`truncated` is a local consumed only by `if truncated: raise`. None and False are both falsy, so the raise fires identically and no caller can observe which was assigned — the name never leaves the function.",
-      "probe": "455-case battery, `tools/probe_equivalence.py --module polar_pmd.py` (committed, re-runnable): 7 frame shapes x 5 fs (None/52/130/176/1000) x 13 prev_last_ns including the EXACT 0.9x / 1.0x / 1.1x / 0.5x / 1.5x nominal boundaries per fs, plus 0, 1, 3 and n ns. Compared sensor_ns, phone and values byte-for-byte; 0/455 differ. The battery's canaries all fire (sign flip 150/455, PPI >>8 65/455, 1.1-strict 6/455, clamp-lower 45/455), so a zero here is a measurement, not a blind spot — an earlier 160-case battery returned 0 for two of those canaries and was rejected."
-    },
-    {
-      "key": "- if prev_last_ns is not None and n > 0: | + if prev_last_ns is not None and n > 1:",
-      "class": "no-distinguishing-input",
-      "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_233",
-      "why": "The guard only gates computing `step_ns` from the device clock. At n == 1 the single sample has back = 0, so neither `sensor_ns` (last_ns - 0) nor `phone` (arrival - 0) depends on step_ns. The branch is reachable at n == 1 and changes nothing observable there; at n == 0 both forms skip it.",
-      "probe": "455-case battery, `tools/probe_equivalence.py --module polar_pmd.py` (committed, re-runnable): 7 frame shapes x 5 fs (None/52/130/176/1000) x 13 prev_last_ns including the EXACT 0.9x / 1.0x / 1.1x / 0.5x / 1.5x nominal boundaries per fs, plus 0, 1, 3 and n ns. Compared sensor_ns, phone and values byte-for-byte; 0/455 differ. The battery's canaries all fire (sign flip 150/455, PPI >>8 65/455, 1.1-strict 6/455, clamp-lower 45/455), so a zero here is a measurement, not a blind spot — an earlier 160-case battery returned 0 for two of those canaries and was rejected."
-    },
-    {
-      "key": "- if 0.9 * step_ns <= est <= 1.1 * step_ns: # a dropped frame / restart inflates est — keep nominal | + if 0.9 / step_ns <= est <= 1.1 * step_ns: # a dropped frame / restart inflates est — keep nominal",
-      "class": "no-distinguishing-input",
-      "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_237",
-      "why": "Replacing the lower bound with 0.9/step_ns makes it ~1e-7 ns, so the if-branch now also accepts every est in (0, 0.9*step). But the ELIF below (`0 < est < step_ns`) already assigned `step_ns = est` for exactly that range, so the same value is assigned by a different branch. Above 1.1*step both forms refuse; at or below 0 both refuse.",
-      "probe": "455-case battery, `tools/probe_equivalence.py --module polar_pmd.py` (committed, re-runnable): 7 frame shapes x 5 fs (None/52/130/176/1000) x 13 prev_last_ns including the EXACT 0.9x / 1.0x / 1.1x / 0.5x / 1.5x nominal boundaries per fs, plus 0, 1, 3 and n ns. Compared sensor_ns, phone and values byte-for-byte; 0/455 differ. The battery's canaries all fire (sign flip 150/455, PPI >>8 65/455, 1.1-strict 6/455, clamp-lower 45/455), so a zero here is a measurement, not a blind spot — an earlier 160-case battery returned 0 for two of those canaries and was rejected."
-    },
-    {
-      "key": "- if 0.9 * step_ns <= est <= 1.1 * step_ns: # a dropped frame / restart inflates est — keep nominal | + if 0.9 * step_ns < est <= 1.1 * step_ns: # a dropped frame / restart inflates est — keep nominal",
-      "class": "no-distinguishing-input",
-      "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_239",
-      "why": "Differs only when est == 0.9*step_ns exactly. There the strict form falls to the elif `0 < est < step_ns`, which is true (0.9*step < step) and assigns the identical `step_ns = est`. Probed at that exact boundary for every fs, including fs=1000 where 0.9*nominal*n is an exact integer.",
-      "probe": "455-case battery, `tools/probe_equivalence.py --module polar_pmd.py` (committed, re-runnable): 7 frame shapes x 5 fs (None/52/130/176/1000) x 13 prev_last_ns including the EXACT 0.9x / 1.0x / 1.1x / 0.5x / 1.5x nominal boundaries per fs, plus 0, 1, 3 and n ns. Compared sensor_ns, phone and values byte-for-byte; 0/455 differ. The battery's canaries all fire (sign flip 150/455, PPI >>8 65/455, 1.1-strict 6/455, clamp-lower 45/455), so a zero here is a measurement, not a blind spot — an earlier 160-case battery returned 0 for two of those canaries and was rejected."
-    },
-    {
-      "key": "- elif 0 < est < step_ns: | + elif 0 < est <= step_ns:",
-      "class": "no-distinguishing-input",
-      "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_246",
-      "why": "Differs only when est == step_ns exactly — and that value is already inside [0.9*step, 1.1*step], so the IF above matched first and the elif is never reached. Unreachable difference.",
-      "probe": "455-case battery, `tools/probe_equivalence.py --module polar_pmd.py` (committed, re-runnable): 7 frame shapes x 5 fs (None/52/130/176/1000) x 13 prev_last_ns including the EXACT 0.9x / 1.0x / 1.1x / 0.5x / 1.5x nominal boundaries per fs, plus 0, 1, 3 and n ns. Compared sensor_ns, phone and values byte-for-byte; 0/455 differ. The battery's canaries all fire (sign flip 150/455, PPI >>8 65/455, 1.1-strict 6/455, clamp-lower 45/455), so a zero here is a measurement, not a blind spot — an earlier 160-case battery returned 0 for two of those canaries and was rejected."
-    },
-    {
-      "key": "- phone=arrival - _dt.timedelta(seconds=back * step_ns / 1e9), | + phone=arrival - _dt.timedelta(seconds=back * step_ns / 1000000001.0),",
-      "class": "no-distinguishing-input",
-      "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_282",
-      "why": "A 1e-9 relative change to the divisor. The largest back*step_ns in any real frame is ~a few hundred ms, so the delta is ~1e-10 s — four orders below datetime's 1 us resolution, which quantises it away before it can be observed.",
-      "probe": "455-case battery, `tools/probe_equivalence.py --module polar_pmd.py` (committed, re-runnable): 7 frame shapes x 5 fs (None/52/130/176/1000) x 13 prev_last_ns including the EXACT 0.9x / 1.0x / 1.1x / 0.5x / 1.5x nominal boundaries per fs, plus 0, 1, 3 and n ns. Compared sensor_ns, phone and values byte-for-byte; 0/455 differ. The battery's canaries all fire (sign flip 150/455, PPI >>8 65/455, 1.1-strict 6/455, clamp-lower 45/455), so a zero here is a measurement, not a blind spot — an earlier 160-case battery returned 0 for two of those canaries and was rejected."
-    },
-    {
-      "key": "- meas, state = b & 0x3F, (b & 0xC0) >> 6 | + meas, state = b & 0x3F, (b & 193) >> 6",
-      "class": "untestable-by-design",
-      "mutant_when_recorded": "polar_pmd.x_parse_status_response__mutmut_20",
-      "why": "193 is 0xC1: the mutation sets bit 0 in the mask. The very next operation is `>> 6`, which discards bits 0-5, so bit 0 cannot reach the result for ANY byte. This is a proof over the whole domain, not a sample — the domain is one byte and it was enumerated exhaustively.",
-      "probe": "for b in range(256): assert ((b & 0xC0) >> 6) == ((b & 193) >> 6)  -> 0 differing values over all 256 bytes (2026-08-11)."
-    },
-    {
-      "key": "- if len(body) < 4 or body[3] != 0x00: # not SUCCESS ⇒ the reply carries no parameters | + if len(body) <= 4 or body[3] != 0x00: # not SUCCESS ⇒ the reply carries no parameters",
-      "class": "no-distinguishing-input",
-      "mutant_when_recorded": "polar_pmd.x_parse_status_response__mutmut_7",
-      "why": "The boundary can only differ at len(body) == 4. A 4-byte reply is header-ONLY: the layout is [0xF0, op, meas, status, moreFlag, <payload>] (PmdControlPointResponse.kt), so the payload starts at index 5 and a 4-byte frame has none. Original: passes the guard, slices body[5:] to b'' and the loop yields {}. Mutant: returns {} directly. Same value by two routes, and there is no 4-byte frame carrying a measurement byte for either to disagree about.",
-      "probe": "5316 synthesised frames (lengths 0-7 x statuses 0x00/0x01/0x02 x payload bytes 0x00/0x01/0x41/0x81/0xC1/0xC2/0xFF) run through original and mutant: 0 differing outputs (2026-08-11)."
-    },
-    {
-      "key": "- if len(body) < 4 or body[3] != 0x00: # not SUCCESS ⇒ the reply carries no parameters | + if len(body) < 5 or body[3] != 0x00: # not SUCCESS ⇒ the reply carries no parameters",
-      "class": "no-distinguishing-input",
-      "mutant_when_recorded": "polar_pmd.x_parse_status_response__mutmut_8",
-      "why": "Same boundary, same argument as the <=4 sibling: the two differ only at len(body) == 4, which is a header-only frame with no payload, and both routes return {}. 4 rather than 5 is written because that is the shortest frame whose STATUS byte can be read at index 3 — the guard's purpose is to reject an error reply, not to require a payload.",
-      "probe": "the same 5316-frame sweep: 0 differing outputs (2026-08-11)."
-    }
-  ],
-  "allan.py": [
-    {
-      "key": "- taus = _octave_taus(n, tau0, _terms_mdev) | + taus = _octave_taus(n, tau0, None)",
-      "class": "no-distinguishing-input",
-      "why": "The `terms_at` argument does NOT gate which taus are reported — the in-loop `if terms < _MIN_TERMS: continue` does, and it runs on every tau regardless of how the ladder was built. Passing the estimator's own counter only stops `_octave_taus` from GENERATING taus that the loop would then skip, so dropping it (or defaulting it to ADEV's) yields a longer candidate list and an IDENTICAL result list. It is an efficiency and intent refinement, not a correctness guard. ⚠️ This CORRECTS the claim originally made in this PR's brief and changeset, which said reusing ADEV's count would 'publish a thin estimate'. It would not — the guard that prevents that is the in-loop check, and that check IS killable and IS pinned (see test_hdev_includes_a_tau_with_EXACTLY_the_minimum_terms and test_mdev_and_hdev_stop_earlier_than_adev_on_a_short_series). The mutation gate found the overclaim.",
-      "probe": "Ran original vs mutant over 784 (series, estimator) pairs: every n in 10..399 plus n=1000 and n=4096, seeded Gaussian phase, tau0=1.0, for BOTH mdev and hdev, comparing the full result list (tau, deviation, n) elementwise. Zero differences. Not a proof over the whole domain — the ladder cap m <= n/(2*_MIN_SPAN_MULTIPLE) is estimator-independent, so the only divergence available is a tau the loop skips anyway; an input that separates them would need the in-loop guard to accept a tau the ladder refused, which is impossible while the ladder is a superset."
-    },
-    {
-      "key": "- taus = _octave_taus(n, tau0, _terms_mdev) | + taus = _octave_taus(n, tau0, )",
-      "class": "no-distinguishing-input",
-      "why": "The `terms_at` argument does NOT gate which taus are reported — the in-loop `if terms < _MIN_TERMS: continue` does, and it runs on every tau regardless of how the ladder was built. Passing the estimator's own counter only stops `_octave_taus` from GENERATING taus that the loop would then skip, so dropping it (or defaulting it to ADEV's) yields a longer candidate list and an IDENTICAL result list. It is an efficiency and intent refinement, not a correctness guard. ⚠️ This CORRECTS the claim originally made in this PR's brief and changeset, which said reusing ADEV's count would 'publish a thin estimate'. It would not — the guard that prevents that is the in-loop check, and that check IS killable and IS pinned (see test_hdev_includes_a_tau_with_EXACTLY_the_minimum_terms and test_mdev_and_hdev_stop_earlier_than_adev_on_a_short_series). The mutation gate found the overclaim.",
-      "probe": "Ran original vs mutant over 784 (series, estimator) pairs: every n in 10..399 plus n=1000 and n=4096, seeded Gaussian phase, tau0=1.0, for BOTH mdev and hdev, comparing the full result list (tau, deviation, n) elementwise. Zero differences. Not a proof over the whole domain — the ladder cap m <= n/(2*_MIN_SPAN_MULTIPLE) is estimator-independent, so the only divergence available is a tau the loop skips anyway; an input that separates them would need the in-loop guard to accept a tau the ladder refused, which is impossible while the ladder is a superset."
-    },
-    {
-      "key": "- taus = _octave_taus(n, tau0, _terms_hdev) | + taus = _octave_taus(n, tau0, None)",
-      "class": "no-distinguishing-input",
-      "why": "The `terms_at` argument does NOT gate which taus are reported — the in-loop `if terms < _MIN_TERMS: continue` does, and it runs on every tau regardless of how the ladder was built. Passing the estimator's own counter only stops `_octave_taus` from GENERATING taus that the loop would then skip, so dropping it (or defaulting it to ADEV's) yields a longer candidate list and an IDENTICAL result list. It is an efficiency and intent refinement, not a correctness guard. ⚠️ This CORRECTS the claim originally made in this PR's brief and changeset, which said reusing ADEV's count would 'publish a thin estimate'. It would not — the guard that prevents that is the in-loop check, and that check IS killable and IS pinned (see test_hdev_includes_a_tau_with_EXACTLY_the_minimum_terms and test_mdev_and_hdev_stop_earlier_than_adev_on_a_short_series). The mutation gate found the overclaim.",
-      "probe": "Ran original vs mutant over 784 (series, estimator) pairs: every n in 10..399 plus n=1000 and n=4096, seeded Gaussian phase, tau0=1.0, for BOTH mdev and hdev, comparing the full result list (tau, deviation, n) elementwise. Zero differences. Not a proof over the whole domain — the ladder cap m <= n/(2*_MIN_SPAN_MULTIPLE) is estimator-independent, so the only divergence available is a tau the loop skips anyway; an input that separates them would need the in-loop guard to accept a tau the ladder refused, which is impossible while the ladder is a superset."
-    },
-    {
-      "key": "- taus = _octave_taus(n, tau0, _terms_hdev) | + taus = _octave_taus(n, tau0, )",
-      "class": "no-distinguishing-input",
-      "why": "The `terms_at` argument does NOT gate which taus are reported — the in-loop `if terms < _MIN_TERMS: continue` does, and it runs on every tau regardless of how the ladder was built. Passing the estimator's own counter only stops `_octave_taus` from GENERATING taus that the loop would then skip, so dropping it (or defaulting it to ADEV's) yields a longer candidate list and an IDENTICAL result list. It is an efficiency and intent refinement, not a correctness guard. ⚠️ This CORRECTS the claim originally made in this PR's brief and changeset, which said reusing ADEV's count would 'publish a thin estimate'. It would not — the guard that prevents that is the in-loop check, and that check IS killable and IS pinned (see test_hdev_includes_a_tau_with_EXACTLY_the_minimum_terms and test_mdev_and_hdev_stop_earlier_than_adev_on_a_short_series). The mutation gate found the overclaim.",
-      "probe": "Ran original vs mutant over 784 (series, estimator) pairs: every n in 10..399 plus n=1000 and n=4096, seeded Gaussian phase, tau0=1.0, for BOTH mdev and hdev, comparing the full result list (tau, deviation, n) elementwise. Zero differences. Not a proof over the whole domain — the ladder cap m <= n/(2*_MIN_SPAN_MULTIPLE) is estimator-independent, so the only divergence available is a tau the loop skips anyway; an input that separates them would need the in-loop guard to accept a tau the ladder refused, which is impossible while the ladder is a superset."
-    },
-    {
-      "key": "- if n < 3 or not tau0 or tau0 <= 0: | + if n <= 3 or not tau0 or tau0 <= 0:",
-      "class": "no-distinguishing-input",
-      "why": "The early length/tau0 guard is REDUNDANT with the per-tau term-count check that follows it, so weakening or widening it cannot change any output. Every path that the mutated guard lets through reaches `_octave_taus` and the in-loop `if terms < _MIN_TERMS: continue`, which reject the same cases: with n below the guard the term count is at most a handful, far under _MIN_TERMS, so the ladder is empty and the result is [] either way. The `tau0 <= 0` vs `< 0` pair differ only at tau0 == 0, which the preceding `not tau0` already catches. The `or`->`and` variant only lets tiny-n series through, which then return [] for the same reason. This is the SAME structural fact as the `terms_at` entries above: two checks defend one property and only the inner one is load-bearing. Kept anyway — it is a cheap early exit and states intent.",
-      "probe": "Ran original vs each mutant over 630 (series, tau0, estimator) combinations: n = 0..39 plus 100 and 500, tau0 in {1.0, 0.0, -1.0, 0.5, 2.0}, across adev/mdev/hdev, comparing the full result list and catching exceptions as comparable values. Zero differences for all eight mutants. Strong evidence, not proof: an input separating them would need the in-loop term check to ACCEPT a tau while n sits below the early guard, which cannot happen while _MIN_TERMS exceeds the guard's threshold."
-    },
-    {
-      "key": "- if n < 3 or not tau0 or tau0 <= 0: | + if n < 4 or not tau0 or tau0 <= 0:",
-      "class": "no-distinguishing-input",
-      "why": "The early length/tau0 guard is REDUNDANT with the per-tau term-count check that follows it, so weakening or widening it cannot change any output. Every path that the mutated guard lets through reaches `_octave_taus` and the in-loop `if terms < _MIN_TERMS: continue`, which reject the same cases: with n below the guard the term count is at most a handful, far under _MIN_TERMS, so the ladder is empty and the result is [] either way. The `tau0 <= 0` vs `< 0` pair differ only at tau0 == 0, which the preceding `not tau0` already catches. The `or`->`and` variant only lets tiny-n series through, which then return [] for the same reason. This is the SAME structural fact as the `terms_at` entries above: two checks defend one property and only the inner one is load-bearing. Kept anyway — it is a cheap early exit and states intent.",
-      "probe": "Ran original vs each mutant over 630 (series, tau0, estimator) combinations: n = 0..39 plus 100 and 500, tau0 in {1.0, 0.0, -1.0, 0.5, 2.0}, across adev/mdev/hdev, comparing the full result list and catching exceptions as comparable values. Zero differences for all eight mutants. Strong evidence, not proof: an input separating them would need the in-loop term check to ACCEPT a tau while n sits below the early guard, which cannot happen while _MIN_TERMS exceeds the guard's threshold."
-    },
-    {
-      "key": "- if n < 3 or not tau0 or tau0 <= 0: | + if n < 3 or not tau0 or tau0 < 0:",
-      "class": "no-distinguishing-input",
-      "why": "The early length/tau0 guard is REDUNDANT with the per-tau term-count check that follows it, so weakening or widening it cannot change any output. Every path that the mutated guard lets through reaches `_octave_taus` and the in-loop `if terms < _MIN_TERMS: continue`, which reject the same cases: with n below the guard the term count is at most a handful, far under _MIN_TERMS, so the ladder is empty and the result is [] either way. The `tau0 <= 0` vs `< 0` pair differ only at tau0 == 0, which the preceding `not tau0` already catches. The `or`->`and` variant only lets tiny-n series through, which then return [] for the same reason. This is the SAME structural fact as the `terms_at` entries above: two checks defend one property and only the inner one is load-bearing. Kept anyway — it is a cheap early exit and states intent.",
-      "probe": "Ran original vs each mutant over 630 (series, tau0, estimator) combinations: n = 0..39 plus 100 and 500, tau0 in {1.0, 0.0, -1.0, 0.5, 2.0}, across adev/mdev/hdev, comparing the full result list and catching exceptions as comparable values. Zero differences for all eight mutants. Strong evidence, not proof: an input separating them would need the in-loop term check to ACCEPT a tau while n sits below the early guard, which cannot happen while _MIN_TERMS exceeds the guard's threshold."
-    },
-    {
-      "key": "- if n < 3 or not tau0 or tau0 <= 0: | + if n < 3 and not tau0 or tau0 <= 0:",
-      "class": "no-distinguishing-input",
-      "why": "The early length/tau0 guard is REDUNDANT with the per-tau term-count check that follows it, so weakening or widening it cannot change any output. Every path that the mutated guard lets through reaches `_octave_taus` and the in-loop `if terms < _MIN_TERMS: continue`, which reject the same cases: with n below the guard the term count is at most a handful, far under _MIN_TERMS, so the ladder is empty and the result is [] either way. The `tau0 <= 0` vs `< 0` pair differ only at tau0 == 0, which the preceding `not tau0` already catches. The `or`->`and` variant only lets tiny-n series through, which then return [] for the same reason. This is the SAME structural fact as the `terms_at` entries above: two checks defend one property and only the inner one is load-bearing. Kept anyway — it is a cheap early exit and states intent.",
-      "probe": "Ran original vs each mutant over 630 (series, tau0, estimator) combinations: n = 0..39 plus 100 and 500, tau0 in {1.0, 0.0, -1.0, 0.5, 2.0}, across adev/mdev/hdev, comparing the full result list and catching exceptions as comparable values. Zero differences for all eight mutants. Strong evidence, not proof: an input separating them would need the in-loop term check to ACCEPT a tau while n sits below the early guard, which cannot happen while _MIN_TERMS exceeds the guard's threshold."
-    },
-    {
-      "key": "- if n < 4 or not tau0 or tau0 <= 0: | + if n <= 4 or not tau0 or tau0 <= 0:",
-      "class": "no-distinguishing-input",
-      "why": "The early length/tau0 guard is REDUNDANT with the per-tau term-count check that follows it, so weakening or widening it cannot change any output. Every path that the mutated guard lets through reaches `_octave_taus` and the in-loop `if terms < _MIN_TERMS: continue`, which reject the same cases: with n below the guard the term count is at most a handful, far under _MIN_TERMS, so the ladder is empty and the result is [] either way. The `tau0 <= 0` vs `< 0` pair differ only at tau0 == 0, which the preceding `not tau0` already catches. The `or`->`and` variant only lets tiny-n series through, which then return [] for the same reason. This is the SAME structural fact as the `terms_at` entries above: two checks defend one property and only the inner one is load-bearing. Kept anyway — it is a cheap early exit and states intent.",
-      "probe": "Ran original vs each mutant over 630 (series, tau0, estimator) combinations: n = 0..39 plus 100 and 500, tau0 in {1.0, 0.0, -1.0, 0.5, 2.0}, across adev/mdev/hdev, comparing the full result list and catching exceptions as comparable values. Zero differences for all eight mutants. Strong evidence, not proof: an input separating them would need the in-loop term check to ACCEPT a tau while n sits below the early guard, which cannot happen while _MIN_TERMS exceeds the guard's threshold."
-    },
-    {
-      "key": "- if n < 4 or not tau0 or tau0 <= 0: | + if n < 5 or not tau0 or tau0 <= 0:",
-      "class": "no-distinguishing-input",
-      "why": "The early length/tau0 guard is REDUNDANT with the per-tau term-count check that follows it, so weakening or widening it cannot change any output. Every path that the mutated guard lets through reaches `_octave_taus` and the in-loop `if terms < _MIN_TERMS: continue`, which reject the same cases: with n below the guard the term count is at most a handful, far under _MIN_TERMS, so the ladder is empty and the result is [] either way. The `tau0 <= 0` vs `< 0` pair differ only at tau0 == 0, which the preceding `not tau0` already catches. The `or`->`and` variant only lets tiny-n series through, which then return [] for the same reason. This is the SAME structural fact as the `terms_at` entries above: two checks defend one property and only the inner one is load-bearing. Kept anyway — it is a cheap early exit and states intent.",
-      "probe": "Ran original vs each mutant over 630 (series, tau0, estimator) combinations: n = 0..39 plus 100 and 500, tau0 in {1.0, 0.0, -1.0, 0.5, 2.0}, across adev/mdev/hdev, comparing the full result list and catching exceptions as comparable values. Zero differences for all eight mutants. Strong evidence, not proof: an input separating them would need the in-loop term check to ACCEPT a tau while n sits below the early guard, which cannot happen while _MIN_TERMS exceeds the guard's threshold."
-    },
-    {
-      "key": "- if n < 4 or not tau0 or tau0 <= 0: | + if n < 4 or not tau0 or tau0 < 0:",
-      "class": "no-distinguishing-input",
-      "why": "The early length/tau0 guard is REDUNDANT with the per-tau term-count check that follows it, so weakening or widening it cannot change any output. Every path that the mutated guard lets through reaches `_octave_taus` and the in-loop `if terms < _MIN_TERMS: continue`, which reject the same cases: with n below the guard the term count is at most a handful, far under _MIN_TERMS, so the ladder is empty and the result is [] either way. The `tau0 <= 0` vs `< 0` pair differ only at tau0 == 0, which the preceding `not tau0` already catches. The `or`->`and` variant only lets tiny-n series through, which then return [] for the same reason. This is the SAME structural fact as the `terms_at` entries above: two checks defend one property and only the inner one is load-bearing. Kept anyway — it is a cheap early exit and states intent.",
-      "probe": "Ran original vs each mutant over 630 (series, tau0, estimator) combinations: n = 0..39 plus 100 and 500, tau0 in {1.0, 0.0, -1.0, 0.5, 2.0}, across adev/mdev/hdev, comparing the full result list and catching exceptions as comparable values. Zero differences for all eight mutants. Strong evidence, not proof: an input separating them would need the in-loop term check to ACCEPT a tau while n sits below the early guard, which cannot happen while _MIN_TERMS exceeds the guard's threshold."
-    },
-    {
-      "key": "- if n < 4 or not tau0 or tau0 <= 0: | + if n < 4 and not tau0 or tau0 <= 0:",
-      "class": "no-distinguishing-input",
-      "why": "The early length/tau0 guard is REDUNDANT with the per-tau term-count check that follows it, so weakening or widening it cannot change any output. Every path that the mutated guard lets through reaches `_octave_taus` and the in-loop `if terms < _MIN_TERMS: continue`, which reject the same cases: with n below the guard the term count is at most a handful, far under _MIN_TERMS, so the ladder is empty and the result is [] either way. The `tau0 <= 0` vs `< 0` pair differ only at tau0 == 0, which the preceding `not tau0` already catches. The `or`->`and` variant only lets tiny-n series through, which then return [] for the same reason. This is the SAME structural fact as the `terms_at` entries above: two checks defend one property and only the inner one is load-bearing. Kept anyway — it is a cheap early exit and states intent.",
-      "probe": "Ran original vs each mutant over 630 (series, tau0, estimator) combinations: n = 0..39 plus 100 and 500, tau0 in {1.0, 0.0, -1.0, 0.5, 2.0}, across adev/mdev/hdev, comparing the full result list and catching exceptions as comparable values. Zero differences for all eight mutants. Strong evidence, not proof: an input separating them would need the in-loop term check to ACCEPT a tau while n sits below the early guard, which cannot happen while _MIN_TERMS exceeds the guard's threshold."
-    }
-  ],
-  "nightqc.py": [
-    {
-      "key": "- before = [s for s in others if s[1] <= cur[0]] | + before = [s for s in others if s[1] < cur[0]]",
-      "class": "no-distinguishing-input",
-      "why": "A PROOF FROM merge_sessions, not a sample. Sessions are built in START order and a file opens a NEW session only when `st > sessions[-1][1] + gap_sec` — so consecutive sessions satisfy b.start > a.end + 3600 STRICTLY. Three consequences settle this whole family. (1) No before-session can end exactly at cur[0] and no after-session can begin exactly at cur[1]; the boundary the </<= and >/>= mutants move is UNREACHABLE, so they select the same set. (2) Because sessions are disjoint, a before-session has end < cur[0] < cur[1] and an after-session has end > cur[1], so testing s[1] against cur[1] instead of cur[0] partitions identically. (3) Disjointness makes ordering by start and ordering by end the SAME order, so min/max keyed on s[0], on s[1], or on the list itself (key=None compares element 0 first, and starts are unique) all pick the same session. NOT an effort estimate — these have no distinguishing input while merge_sessions holds.",
-      "probe": "20000 random file-sets (n uniform 2-12, start uniform 0-86400 s, mtime = start + one of {0,5,60,900,4000,20000} s) through merge_sessions, checking every consecutive session pair: sessions NOT gap-separated = 0, start-order != end-order = 0, s[1] == cur[0] = 0. Run 2026-08-15, seed 20260815. If merge_sessions ever stops separating sessions by gap_sec, this class is void and these mutants become killable — that is the condition to re-check."
-    },
-    {
-      "key": "- before = [s for s in others if s[1] <= cur[0]] | + before = [s for s in others if s[1] <= cur[1]]",
-      "class": "no-distinguishing-input",
-      "why": "A PROOF FROM merge_sessions, not a sample. Sessions are built in START order and a file opens a NEW session only when `st > sessions[-1][1] + gap_sec` — so consecutive sessions satisfy b.start > a.end + 3600 STRICTLY. Three consequences settle this whole family. (1) No before-session can end exactly at cur[0] and no after-session can begin exactly at cur[1]; the boundary the </<= and >/>= mutants move is UNREACHABLE, so they select the same set. (2) Because sessions are disjoint, a before-session has end < cur[0] < cur[1] and an after-session has end > cur[1], so testing s[1] against cur[1] instead of cur[0] partitions identically. (3) Disjointness makes ordering by start and ordering by end the SAME order, so min/max keyed on s[0], on s[1], or on the list itself (key=None compares element 0 first, and starts are unique) all pick the same session. NOT an effort estimate — these have no distinguishing input while merge_sessions holds.",
-      "probe": "20000 random file-sets (n uniform 2-12, start uniform 0-86400 s, mtime = start + one of {0,5,60,900,4000,20000} s) through merge_sessions, checking every consecutive session pair: sessions NOT gap-separated = 0, start-order != end-order = 0, s[1] == cur[0] = 0. Run 2026-08-15, seed 20260815. If merge_sessions ever stops separating sessions by gap_sec, this class is void and these mutants become killable — that is the condition to re-check."
-    },
-    {
-      "key": "- after = [s for s in others if s[0] >= cur[1]] | + after = [s for s in others if s[1] >= cur[1]]",
-      "class": "no-distinguishing-input",
-      "why": "A PROOF FROM merge_sessions, not a sample. Sessions are built in START order and a file opens a NEW session only when `st > sessions[-1][1] + gap_sec` — so consecutive sessions satisfy b.start > a.end + 3600 STRICTLY. Three consequences settle this whole family. (1) No before-session can end exactly at cur[0] and no after-session can begin exactly at cur[1]; the boundary the </<= and >/>= mutants move is UNREACHABLE, so they select the same set. (2) Because sessions are disjoint, a before-session has end < cur[0] < cur[1] and an after-session has end > cur[1], so testing s[1] against cur[1] instead of cur[0] partitions identically. (3) Disjointness makes ordering by start and ordering by end the SAME order, so min/max keyed on s[0], on s[1], or on the list itself (key=None compares element 0 first, and starts are unique) all pick the same session. NOT an effort estimate — these have no distinguishing input while merge_sessions holds.",
-      "probe": "20000 random file-sets (n uniform 2-12, start uniform 0-86400 s, mtime = start + one of {0,5,60,900,4000,20000} s) through merge_sessions, checking every consecutive session pair: sessions NOT gap-separated = 0, start-order != end-order = 0, s[1] == cur[0] = 0. Run 2026-08-15, seed 20260815. If merge_sessions ever stops separating sessions by gap_sec, this class is void and these mutants become killable — that is the condition to re-check."
-    },
-    {
-      "key": "- after = [s for s in others if s[0] >= cur[1]] | + after = [s for s in others if s[0] > cur[1]]",
-      "class": "no-distinguishing-input",
-      "why": "A PROOF FROM merge_sessions, not a sample. Sessions are built in START order and a file opens a NEW session only when `st > sessions[-1][1] + gap_sec` — so consecutive sessions satisfy b.start > a.end + 3600 STRICTLY. Three consequences settle this whole family. (1) No before-session can end exactly at cur[0] and no after-session can begin exactly at cur[1]; the boundary the </<= and >/>= mutants move is UNREACHABLE, so they select the same set. (2) Because sessions are disjoint, a before-session has end < cur[0] < cur[1] and an after-session has end > cur[1], so testing s[1] against cur[1] instead of cur[0] partitions identically. (3) Disjointness makes ordering by start and ordering by end the SAME order, so min/max keyed on s[0], on s[1], or on the list itself (key=None compares element 0 first, and starts are unique) all pick the same session. NOT an effort estimate — these have no distinguishing input while merge_sessions holds.",
-      "probe": "20000 random file-sets (n uniform 2-12, start uniform 0-86400 s, mtime = start + one of {0,5,60,900,4000,20000} s) through merge_sessions, checking every consecutive session pair: sessions NOT gap-separated = 0, start-order != end-order = 0, s[1] == cur[0] = 0. Run 2026-08-15, seed 20260815. If merge_sessions ever stops separating sessions by gap_sec, this class is void and these mutants become killable — that is the condition to re-check."
-    },
-    {
-      "key": "- prev = max(before, key=lambda s: s[1]) | + prev = max(before, key=None)",
-      "class": "no-distinguishing-input",
-      "why": "A PROOF FROM merge_sessions, not a sample. Sessions are built in START order and a file opens a NEW session only when `st > sessions[-1][1] + gap_sec` — so consecutive sessions satisfy b.start > a.end + 3600 STRICTLY. Three consequences settle this whole family. (1) No before-session can end exactly at cur[0] and no after-session can begin exactly at cur[1]; the boundary the </<= and >/>= mutants move is UNREACHABLE, so they select the same set. (2) Because sessions are disjoint, a before-session has end < cur[0] < cur[1] and an after-session has end > cur[1], so testing s[1] against cur[1] instead of cur[0] partitions identically. (3) Disjointness makes ordering by start and ordering by end the SAME order, so min/max keyed on s[0], on s[1], or on the list itself (key=None compares element 0 first, and starts are unique) all pick the same session. NOT an effort estimate — these have no distinguishing input while merge_sessions holds.",
-      "probe": "20000 random file-sets (n uniform 2-12, start uniform 0-86400 s, mtime = start + one of {0,5,60,900,4000,20000} s) through merge_sessions, checking every consecutive session pair: sessions NOT gap-separated = 0, start-order != end-order = 0, s[1] == cur[0] = 0. Run 2026-08-15, seed 20260815. If merge_sessions ever stops separating sessions by gap_sec, this class is void and these mutants become killable — that is the condition to re-check."
-    },
-    {
-      "key": "- prev = max(before, key=lambda s: s[1]) | + prev = max(before, )",
-      "class": "no-distinguishing-input",
-      "why": "A PROOF FROM merge_sessions, not a sample. Sessions are built in START order and a file opens a NEW session only when `st > sessions[-1][1] + gap_sec` — so consecutive sessions satisfy b.start > a.end + 3600 STRICTLY. Three consequences settle this whole family. (1) No before-session can end exactly at cur[0] and no after-session can begin exactly at cur[1]; the boundary the </<= and >/>= mutants move is UNREACHABLE, so they select the same set. (2) Because sessions are disjoint, a before-session has end < cur[0] < cur[1] and an after-session has end > cur[1], so testing s[1] against cur[1] instead of cur[0] partitions identically. (3) Disjointness makes ordering by start and ordering by end the SAME order, so min/max keyed on s[0], on s[1], or on the list itself (key=None compares element 0 first, and starts are unique) all pick the same session. NOT an effort estimate — these have no distinguishing input while merge_sessions holds.",
-      "probe": "20000 random file-sets (n uniform 2-12, start uniform 0-86400 s, mtime = start + one of {0,5,60,900,4000,20000} s) through merge_sessions, checking every consecutive session pair: sessions NOT gap-separated = 0, start-order != end-order = 0, s[1] == cur[0] = 0. Run 2026-08-15, seed 20260815. If merge_sessions ever stops separating sessions by gap_sec, this class is void and these mutants become killable — that is the condition to re-check."
-    },
-    {
-      "key": "- nxt = min(after, key=lambda s: s[0]) | + nxt = min(after, key=None)",
-      "class": "no-distinguishing-input",
-      "why": "A PROOF FROM merge_sessions, not a sample. Sessions are built in START order and a file opens a NEW session only when `st > sessions[-1][1] + gap_sec` — so consecutive sessions satisfy b.start > a.end + 3600 STRICTLY. Three consequences settle this whole family. (1) No before-session can end exactly at cur[0] and no after-session can begin exactly at cur[1]; the boundary the </<= and >/>= mutants move is UNREACHABLE, so they select the same set. (2) Because sessions are disjoint, a before-session has end < cur[0] < cur[1] and an after-session has end > cur[1], so testing s[1] against cur[1] instead of cur[0] partitions identically. (3) Disjointness makes ordering by start and ordering by end the SAME order, so min/max keyed on s[0], on s[1], or on the list itself (key=None compares element 0 first, and starts are unique) all pick the same session. NOT an effort estimate — these have no distinguishing input while merge_sessions holds.",
-      "probe": "20000 random file-sets (n uniform 2-12, start uniform 0-86400 s, mtime = start + one of {0,5,60,900,4000,20000} s) through merge_sessions, checking every consecutive session pair: sessions NOT gap-separated = 0, start-order != end-order = 0, s[1] == cur[0] = 0. Run 2026-08-15, seed 20260815. If merge_sessions ever stops separating sessions by gap_sec, this class is void and these mutants become killable — that is the condition to re-check."
-    },
-    {
-      "key": "- nxt = min(after, key=lambda s: s[0]) | + nxt = min(after, )",
-      "class": "no-distinguishing-input",
-      "why": "A PROOF FROM merge_sessions, not a sample. Sessions are built in START order and a file opens a NEW session only when `st > sessions[-1][1] + gap_sec` — so consecutive sessions satisfy b.start > a.end + 3600 STRICTLY. Three consequences settle this whole family. (1) No before-session can end exactly at cur[0] and no after-session can begin exactly at cur[1]; the boundary the </<= and >/>= mutants move is UNREACHABLE, so they select the same set. (2) Because sessions are disjoint, a before-session has end < cur[0] < cur[1] and an after-session has end > cur[1], so testing s[1] against cur[1] instead of cur[0] partitions identically. (3) Disjointness makes ordering by start and ordering by end the SAME order, so min/max keyed on s[0], on s[1], or on the list itself (key=None compares element 0 first, and starts are unique) all pick the same session. NOT an effort estimate — these have no distinguishing input while merge_sessions holds.",
-      "probe": "20000 random file-sets (n uniform 2-12, start uniform 0-86400 s, mtime = start + one of {0,5,60,900,4000,20000} s) through merge_sessions, checking every consecutive session pair: sessions NOT gap-separated = 0, start-order != end-order = 0, s[1] == cur[0] = 0. Run 2026-08-15, seed 20260815. If merge_sessions ever stops separating sessions by gap_sec, this class is void and these mutants become killable — that is the condition to re-check."
-    },
-    {
-      "key": "- nxt = min(after, key=lambda s: s[0]) | + nxt = min(after, key=lambda s: s[1])",
-      "class": "no-distinguishing-input",
-      "why": "A PROOF FROM merge_sessions, not a sample. Sessions are built in START order and a file opens a NEW session only when `st > sessions[-1][1] + gap_sec` — so consecutive sessions satisfy b.start > a.end + 3600 STRICTLY. Three consequences settle this whole family. (1) No before-session can end exactly at cur[0] and no after-session can begin exactly at cur[1]; the boundary the </<= and >/>= mutants move is UNREACHABLE, so they select the same set. (2) Because sessions are disjoint, a before-session has end < cur[0] < cur[1] and an after-session has end > cur[1], so testing s[1] against cur[1] instead of cur[0] partitions identically. (3) Disjointness makes ordering by start and ordering by end the SAME order, so min/max keyed on s[0], on s[1], or on the list itself (key=None compares element 0 first, and starts are unique) all pick the same session. NOT an effort estimate — these have no distinguishing input while merge_sessions holds.",
-      "probe": "20000 random file-sets (n uniform 2-12, start uniform 0-86400 s, mtime = start + one of {0,5,60,900,4000,20000} s) through merge_sessions, checking every consecutive session pair: sessions NOT gap-separated = 0, start-order != end-order = 0, s[1] == cur[0] = 0. Run 2026-08-15, seed 20260815. If merge_sessions ever stops separating sessions by gap_sec, this class is void and these mutants become killable — that is the condition to re-check."
-    }
-  ],
-  "as11_link.py": [
-    {
-      "key": "- \"1.0\", | - ) | + )",
-      "class": "no-distinguishing-input",
-      "why": "A PROOF, not a sample. Deleting the explicit \"1.0\" version argument leaves rpc()'s own default (version=\"1.0\", the sole JSON-RPC version this device speaks), so json.dumps produces byte-identical output. No input can distinguish them — same failure class as the polar_pmd/allan explicit-default-arg deletions already recorded here.",
-      "probe": "python3 -c \"import as11_link as L; assert L.start_stream(['PatientFlow'],40,rpc_id=16) == L.rpc('StartStream',{'dataIds':['PatientFlow'],'sampleIntervalMs':40,'reportIntervalMs':200},16)\" -> byte-identical (verified 2026-08-23)."
-    }
-  ]
+ "_README": [
+  "THE EQUIVALENCE CLASSIFICATION for capture-host's diff-scoped mutation gate.",
+  "Sibling of the repo-root tools/mutate-equivalence.json, same rules, same failure modes.",
+  "",
+  "A surviving mutant is not automatically a test gap. Some cannot be killed by ANY input, because a",
+  "guard the mutation weakens is followed by code that rejects the same cases anyway. Leaving those",
+  "red forever is how mutate_diff.py's own header says a gate dies ('trains people to ignore it');",
+  "waving them through in a PR comment is how it starts lying. This file is the third option.",
+  "",
+  "KEYED ON THE MUTANT'S DIFF (its -/+ line pair, whitespace-normalised) \u2014 never on mutmut's",
+  "__mutmut_N index, which renumbers whenever anything earlier in the function changes and would",
+  "silently start excusing a different mutation.",
+  "",
+  "THE CLASSES, and they are not interchangeable:",
+  "  no-distinguishing-input  a battery of inputs was run against original and mutant and every one",
+  "                           agreed. STRONG EVIDENCE, NOT PROOF: a proof needs an argument over the",
+  "                           whole domain. `probe` records what was actually run so the claim can be",
+  "                           re-checked or widened.",
+  "  untestable-by-design     a log string, or a branch unreachable by construction. The argument in",
+  "                           `why` must be about the CODE, not about the test suite.",
+  "  real-gap                 killable, no test yet. STILL FAILS THE GATE. Debt, not an excuse.",
+  "",
+  "THIS FILE CANNOT FLATTER THE VERDICT. mutate_diff.py reports three states loudly:",
+  "  REFUTED   an entry claims equivalence and the mutant was KILLED. The claim is wrong; fix the",
+  "            ENTRY, never the test. This FAILS the gate \u2014 it is the only way a stale file could",
+  "            hide a real gap.",
+  "  ORPHANED  an entry matches no generated mutant (the line moved). Excluded from every count, so",
+  "            a stale entry shrinks nothing.",
+  "  unclassified survivors fail the gate exactly as before. Silence is never equivalence."
+ ],
+ "clock_offset.py": [
+  {
+   "key": "- for j in range(i + 1, len(mins)) | + for j in range(len(mins))",
+   "class": "no-distinguishing-input",
+   "why": "A PROOF, not a sample. A pair's slope is symmetric under exchange: (v_j-v_i)/(t_j-t_i) and (v_i-v_j)/(t_i-t_j) negate BOTH operands, and IEEE-754 gives (-a)/(-b) == a/b bit-exactly. So widening the inner range from j>i to all j adds, for every unordered pair, a second copy of a slope already present (j==i is removed by the existing t_j != t_i guard). The estimator then takes a MEDIAN, and doubling every element of a multiset leaves its median unchanged: for sorted s_0..s_{m-1} the doubled list has its two middle slots at s_[(m-1)//2] and s_[m//2], which is the definition of the original median for both parities. The intercept is a median over `mins`, which this mutation does not touch.",
+   "probe": "4000 random point-sets (n uniform 3-60, t uniform 0-1000, d uniform -50..50, seed 11): 0 differed. CANARY on the same 4000 sets: the chunk-stride mutant differs on 3960/4000, so the battery has power and a zero here is a measurement, not a blind spot. Also checked on the committed `_paxson_fixture` \u2014 deliberately a sawtooth with drift, because monotone and symmetric shapes are provably blind to pair-set changes and three such fixtures were rejected here first.",
+   "recorded": "2026-08-11",
+   "found_by": "diff-scoped mutation gate on PR #1170"
+  },
+  {
+   "key": "- for j in range(i + 1, len(mins)) | + for j in range(i + 1, )",
+   "class": "no-distinguishing-input",
+   "why": "`range(i + 1, )` is `range(i + 1)`, so j runs 0..i instead of i+1..n-1. Over the whole double loop that enumerates every unordered pair EXACTLY ONCE \u2014 the mirror image of the original enumeration \u2014 with j == i removed by the t_j != t_i guard. By the same exchange symmetry as the sibling entry each mirrored pair yields a bit-identical slope, so the median is handed the SAME multiset, not merely one with the same median.",
+   "probe": "The same 4000 random point-sets: 0 differed, against the same 3960/4000 chunk-stride canary. Also checked on the committed fixture.",
+   "recorded": "2026-08-11",
+   "found_by": "diff-scoped mutation gate on PR #1170"
+  },
+  {
+   "key": "- k = max(2, min(n_subsets, len(pts))) | + k = max(3, min(n_subsets, len(pts)))",
+   "class": "no-distinguishing-input",
+   "why": "The forms differ only where min(n_subsets, len(pts)) < 3, and n_subsets is 20, so only for len(pts) in {0, 1, 2} \u2014 a domain small enough to enumerate rather than sample. len 0: every stripe empty under both, no minima, both return None. len 1: the sole point is its own stripe under both, one minimum, no pair with distinct t, both None. len 2: k=2 gives stripes [0:1],[1:2]; k=3 gives [0:0] (empty, skipped), [0:1], [1:2] \u2014 the SAME two minima, hence the same slope and intercept. For len >= 3 max() returns its second argument in both forms and the expression is identical.",
+   "probe": "Exhaustive over the reachable domain: all 21 point-sets of size 0, 1 and 2 drawn from four distinct points ((0,0), (1,5), (1,-5), (2,3)) \u2014 4^0+4^1+4^2 = 21 \u2014 comparing k-floor 2 against 3. 0 differed. Note `estimate` cannot reach this at all: it refuses below MIN_POINTS = 100, so the difference is reachable only by calling `paxson` directly.",
+   "recorded": "2026-08-11",
+   "found_by": "diff-scoped mutation gate on PR #1170"
+  },
+  {
+   "key": "- continue # an empty stripe when k > len(pts) cannot contribute a minimum | + break # an empty stripe when k > len(pts) cannot contribute a minimum",
+   "class": "no-distinguishing-input",
+   "why": "The arm is reached only when a stripe is empty, which needs k > len(pts). Since k = max(2, min(20, len(pts))), that holds only for len(pts) in {0, 1} \u2014 verified as a predicate, not assumed. At len 0 every stripe is empty so both forms leave `mins` empty. At len 1 the first stripe is empty and the second holds the point: `continue` collects one minimum, `break` collects none \u2014 but one minimum yields no pair with distinct t, so `slopes` is empty either way and BOTH return None at the very next statement. The difference exists in `mins` and is erased before anything can observe it.",
+   "probe": "Enumerated the entire reachable domain \u2014 all 5 point-sets of size 0 and 1 over the same four distinct points \u2014 comparing the continue and break forms: 0 differed, both returning None throughout. Reachability confirmed by evaluating max(2,min(20,n)) > n for n in 0..4: True only at n = 0 and 1.",
+   "recorded": "2026-08-11",
+   "found_by": "diff-scoped mutation gate on PR #1170"
+  },
+  {
+   "key": "- if d < out[-1][1]: | + if d <= out[-1][1]:",
+   "class": "untestable-by-design",
+   "why": "A proof over the whole domain, needing no battery. The branch sits inside `if out and out[-1][0] == t`, so the incumbent's time is ALREADY equal to t. The forms differ only when d == out[-1][1], and there the assignment is `out[-1] = (t, d)` with t == out[-1][0] and d == out[-1][1] \u2014 it overwrites the tuple with an equal tuple. The mutation changes how many assignments happen and nothing about the value of any of them; `_floor_by_t` returns list CONTENTS and no caller can observe tuple identity.",
+   "probe": "The argument is exhaustive by construction, so the probe only confirms it: 4000 random point-sets drawn from just 8 distinct t values so collisions are frequent (3904 of the 4000 did contain a duplicate t), compared element-by-element \u2014 0 differed. CANARY: the duplicate-t collapse path is genuinely exercised, firing on 195/200 sets, so this is not a battery that never reached the branch.",
+   "recorded": "2026-08-11",
+   "found_by": "diff-scoped mutation gate on PR #1170"
+  }
+ ],
+ "probe_verity_survey.py": [
+  {
+   "key": "- if not (len(tail) == 6 and tail.isdigit()): | + if not (len(tail) == 6 or tail.isdigit()):",
+   "class": "no-distinguishing-input",
+   "mutant_when_recorded": "probe_verity_survey.x__session_matches__mutmut_12",
+   "why": "The weakened guard lets through exactly two extra shapes: len==6 but not all digits, and all digits but len!=6. Both then reach strptime(tail, '%H%M%S'), which raises ValueError for either, and the except returns False \u2014 the same value the guard would have returned. The guard is a fast path, not a semantic gate, so no input can separate them.",
+   "probe": "133,495 directory names: 26,699 tails (lengths 0-8 over digits+letters+' -:.', plus the hand-picked 120059/995959/9999XX/12345/1234567/240000/000000/235959/00000/0000000) crossed with 5 prefixes (dated matching, dated non-matching, undated, bare, three-part). Original vs mutant differed on 0.",
+   "recorded": "2026-08-09",
+   "found_by": "diff-scoped mutation gate on PR #1090"
+  }
+ ],
+ "probe_polar_usb.py": [
+  {
+   "key": "- initial = False | + initial = None",
+   "class": "no-distinguishing-input",
+   "mutant_when_recorded": "probe_polar_usb.x_fetch__mutmut_108",
+   "why": "`initial` is read in exactly ONE place \u2014 `reply_body(rep, initial)`, whose body is `off = _HDR_FIRST if initial else _HDR_REST`. That is a truthiness test, and `bool(False) == bool(None) == False`, so both values select the same branch by construction rather than by coincidence. No report can separate them: the variable never reaches a comparison, an arithmetic operator, a return value or the result dict.",
+   "probe": "Exhaustive over the shape space of a 64-byte HID report: size 0..63 x flags 0..3 = 256 report shapes, each passed to reply_body() with `False` and with `None`. 0 of 256 differed. Widening it is pointless \u2014 the argument is consumed by `if initial` and nothing else.",
+   "recorded": "2026-08-09",
+   "found_by": "diff-scoped mutation gate on PR #1117"
+  },
+  {
+   "key": "- while real + idle < max_packets and time.monotonic() < deadline: | + while real + idle < max_packets and time.monotonic() <= deadline:",
+   "class": "no-distinguishing-input",
+   "mutant_when_recorded": "probe_polar_usb.x_fetch__mutmut_50",
+   "why": "`<` and `<=` differ on exactly one point of the domain: `time.monotonic() == deadline` EXACTLY, as floats. `deadline` is computed once from an earlier `monotonic()` read plus a window, and the clock advances monotonically at nanosecond resolution between the two reads \u2014 so hitting it requires a later read to land bit-identically on a value derived from an earlier one. A test cannot arrange it without patching the clock, and patching the clock to a fixed value would make the loop condition constant and test nothing about the deadline. Note the consequence even IF it occurred is one extra loop iteration, which the `max_packets` bound and the `select` timeout both still cap.",
+   "probe": "2,000,000 consecutive `time.monotonic()` reads compared against a deadline captured before the loop: 0 exact matches. `time.get_clock_info('monotonic').resolution` is 1e-09 s on this platform.",
+   "recorded": "2026-08-09",
+   "found_by": "diff-scoped mutation gate on PR #1117"
+  }
+ ],
+ "polar_pmd.py": [
+  {
+   "key": "- fs = fs or SAMPLE_HZ.get(meas, 0) or 1 | + fs = fs or SAMPLE_HZ.get(meas, None) or 1",
+   "class": "no-distinguishing-input",
+   "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_26",
+   "why": "The .get default is only consulted for a meas ABSENT from SAMPLE_HZ, and decode_frame raises ValueError('not decoded') for every such meas before the value is ever spent. So the default is unreachable; and even where it were reached, 0 and None are both falsy and the trailing `or 1` maps them to the same 1.",
+   "probe": "Enumerated SAMPLE_HZ: every decodable meas (ECG/PPG/ACC/GYRO/MAG/PPI) is a KEY, so .get hits and the default is never used. Drove decode_frame over 80 frame/fs/prev_last_ns combinations (4 meas x 4 fs incl. None x 5 prev) \u2014 the default is consulted 0 times. An unknown meas (0x3E) raises before reaching it."
+  },
+  {
+   "key": "- fs = fs or SAMPLE_HZ.get(meas, 0) or 1 | + fs = fs or SAMPLE_HZ.get(meas, ) or 1",
+   "class": "no-distinguishing-input",
+   "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_28",
+   "why": "Dropping the default makes .get return None on a miss \u2014 falsy, so the trailing `or 1` yields the same 1 as the falsy 0 it replaced. And the miss branch is unreachable anyway (see mutmut_26).",
+   "probe": "Same 80-combination battery. SAMPLE_HZ.get(PPI, 0) or 1 == SAMPLE_HZ.get(PPI) or 1 == 1."
+  },
+  {
+   "key": "- fs = fs or SAMPLE_HZ.get(meas, 0) or 1 | + fs = fs or SAMPLE_HZ.get(meas, 1) or 1",
+   "class": "no-distinguishing-input",
+   "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_29",
+   "why": "A default of 1 is truthy so `or 1` is skipped, but the value is 1 either way. Identical result, and the branch is unreachable regardless.",
+   "probe": "Same 80-combination battery; SAMPLE_HZ.get(PPI, 1) or 1 == 1 == SAMPLE_HZ.get(PPI, 0) or 1."
+  },
+  {
+   "key": "- fs = fs or SAMPLE_HZ.get(meas, 0) or 1 | + fs = fs or SAMPLE_HZ.get(meas, 0) or 2",
+   "class": "no-distinguishing-input",
+   "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_30",
+   "why": "The `or` fallback fires only when SAMPLE_HZ[meas] is falsy, and PPI (rate 0) is the ONLY such meas. PPI frames set ppi=True, which forces back=0 for every sample, so step_ns is computed and never spent \u2014 no output byte depends on whether the fallback is 1 or 2.",
+   "probe": "[k for k,v in SAMPLE_HZ.items() if not v] == [3] (PPI). Decoded PPI frames with fs=None at both fallbacks: sensor_ns, t_ms, phone and values byte-identical, because `back = 0 if ppi else (n-1-i)`."
+  },
+  {
+   "key": "- truncated = False | + truncated = None",
+   "class": "no-distinguishing-input",
+   "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_32",
+   "why": "`truncated` is a local consumed only by `if truncated: raise`. None and False are both falsy, so the raise fires identically and no caller can observe which was assigned \u2014 the name never leaves the function.",
+   "probe": "455-case battery, `tools/probe_equivalence.py --module polar_pmd.py` (committed, re-runnable): 7 frame shapes x 5 fs (None/52/130/176/1000) x 13 prev_last_ns including the EXACT 0.9x / 1.0x / 1.1x / 0.5x / 1.5x nominal boundaries per fs, plus 0, 1, 3 and n ns. Compared sensor_ns, phone and values byte-for-byte; 0/455 differ. The battery's canaries all fire (sign flip 150/455, PPI >>8 65/455, 1.1-strict 6/455, clamp-lower 45/455), so a zero here is a measurement, not a blind spot \u2014 an earlier 160-case battery returned 0 for two of those canaries and was rejected."
+  },
+  {
+   "key": "- if prev_last_ns is not None and n > 0: | + if prev_last_ns is not None and n > 1:",
+   "class": "no-distinguishing-input",
+   "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_233",
+   "why": "The guard only gates computing `step_ns` from the device clock. At n == 1 the single sample has back = 0, so neither `sensor_ns` (last_ns - 0) nor `phone` (arrival - 0) depends on step_ns. The branch is reachable at n == 1 and changes nothing observable there; at n == 0 both forms skip it.",
+   "probe": "455-case battery, `tools/probe_equivalence.py --module polar_pmd.py` (committed, re-runnable): 7 frame shapes x 5 fs (None/52/130/176/1000) x 13 prev_last_ns including the EXACT 0.9x / 1.0x / 1.1x / 0.5x / 1.5x nominal boundaries per fs, plus 0, 1, 3 and n ns. Compared sensor_ns, phone and values byte-for-byte; 0/455 differ. The battery's canaries all fire (sign flip 150/455, PPI >>8 65/455, 1.1-strict 6/455, clamp-lower 45/455), so a zero here is a measurement, not a blind spot \u2014 an earlier 160-case battery returned 0 for two of those canaries and was rejected."
+  },
+  {
+   "key": "- if 0.9 * step_ns <= est <= 1.1 * step_ns: # a dropped frame / restart inflates est \u2014 keep nominal | + if 0.9 / step_ns <= est <= 1.1 * step_ns: # a dropped frame / restart inflates est \u2014 keep nominal",
+   "class": "no-distinguishing-input",
+   "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_237",
+   "why": "Replacing the lower bound with 0.9/step_ns makes it ~1e-7 ns, so the if-branch now also accepts every est in (0, 0.9*step). But the ELIF below (`0 < est < step_ns`) already assigned `step_ns = est` for exactly that range, so the same value is assigned by a different branch. Above 1.1*step both forms refuse; at or below 0 both refuse.",
+   "probe": "455-case battery, `tools/probe_equivalence.py --module polar_pmd.py` (committed, re-runnable): 7 frame shapes x 5 fs (None/52/130/176/1000) x 13 prev_last_ns including the EXACT 0.9x / 1.0x / 1.1x / 0.5x / 1.5x nominal boundaries per fs, plus 0, 1, 3 and n ns. Compared sensor_ns, phone and values byte-for-byte; 0/455 differ. The battery's canaries all fire (sign flip 150/455, PPI >>8 65/455, 1.1-strict 6/455, clamp-lower 45/455), so a zero here is a measurement, not a blind spot \u2014 an earlier 160-case battery returned 0 for two of those canaries and was rejected."
+  },
+  {
+   "key": "- if 0.9 * step_ns <= est <= 1.1 * step_ns: # a dropped frame / restart inflates est \u2014 keep nominal | + if 0.9 * step_ns < est <= 1.1 * step_ns: # a dropped frame / restart inflates est \u2014 keep nominal",
+   "class": "no-distinguishing-input",
+   "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_239",
+   "why": "Differs only when est == 0.9*step_ns exactly. There the strict form falls to the elif `0 < est < step_ns`, which is true (0.9*step < step) and assigns the identical `step_ns = est`. Probed at that exact boundary for every fs, including fs=1000 where 0.9*nominal*n is an exact integer.",
+   "probe": "455-case battery, `tools/probe_equivalence.py --module polar_pmd.py` (committed, re-runnable): 7 frame shapes x 5 fs (None/52/130/176/1000) x 13 prev_last_ns including the EXACT 0.9x / 1.0x / 1.1x / 0.5x / 1.5x nominal boundaries per fs, plus 0, 1, 3 and n ns. Compared sensor_ns, phone and values byte-for-byte; 0/455 differ. The battery's canaries all fire (sign flip 150/455, PPI >>8 65/455, 1.1-strict 6/455, clamp-lower 45/455), so a zero here is a measurement, not a blind spot \u2014 an earlier 160-case battery returned 0 for two of those canaries and was rejected."
+  },
+  {
+   "key": "- elif 0 < est < step_ns: | + elif 0 < est <= step_ns:",
+   "class": "no-distinguishing-input",
+   "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_246",
+   "why": "Differs only when est == step_ns exactly \u2014 and that value is already inside [0.9*step, 1.1*step], so the IF above matched first and the elif is never reached. Unreachable difference.",
+   "probe": "455-case battery, `tools/probe_equivalence.py --module polar_pmd.py` (committed, re-runnable): 7 frame shapes x 5 fs (None/52/130/176/1000) x 13 prev_last_ns including the EXACT 0.9x / 1.0x / 1.1x / 0.5x / 1.5x nominal boundaries per fs, plus 0, 1, 3 and n ns. Compared sensor_ns, phone and values byte-for-byte; 0/455 differ. The battery's canaries all fire (sign flip 150/455, PPI >>8 65/455, 1.1-strict 6/455, clamp-lower 45/455), so a zero here is a measurement, not a blind spot \u2014 an earlier 160-case battery returned 0 for two of those canaries and was rejected."
+  },
+  {
+   "key": "- phone=arrival - _dt.timedelta(seconds=back * step_ns / 1e9), | + phone=arrival - _dt.timedelta(seconds=back * step_ns / 1000000001.0),",
+   "class": "no-distinguishing-input",
+   "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_282",
+   "why": "A 1e-9 relative change to the divisor. The largest back*step_ns in any real frame is ~a few hundred ms, so the delta is ~1e-10 s \u2014 four orders below datetime's 1 us resolution, which quantises it away before it can be observed.",
+   "probe": "455-case battery, `tools/probe_equivalence.py --module polar_pmd.py` (committed, re-runnable): 7 frame shapes x 5 fs (None/52/130/176/1000) x 13 prev_last_ns including the EXACT 0.9x / 1.0x / 1.1x / 0.5x / 1.5x nominal boundaries per fs, plus 0, 1, 3 and n ns. Compared sensor_ns, phone and values byte-for-byte; 0/455 differ. The battery's canaries all fire (sign flip 150/455, PPI >>8 65/455, 1.1-strict 6/455, clamp-lower 45/455), so a zero here is a measurement, not a blind spot \u2014 an earlier 160-case battery returned 0 for two of those canaries and was rejected."
+  },
+  {
+   "key": "- meas, state = b & 0x3F, (b & 0xC0) >> 6 | + meas, state = b & 0x3F, (b & 193) >> 6",
+   "class": "untestable-by-design",
+   "mutant_when_recorded": "polar_pmd.x_parse_status_response__mutmut_20",
+   "why": "193 is 0xC1: the mutation sets bit 0 in the mask. The very next operation is `>> 6`, which discards bits 0-5, so bit 0 cannot reach the result for ANY byte. This is a proof over the whole domain, not a sample \u2014 the domain is one byte and it was enumerated exhaustively.",
+   "probe": "for b in range(256): assert ((b & 0xC0) >> 6) == ((b & 193) >> 6)  -> 0 differing values over all 256 bytes (2026-08-11)."
+  },
+  {
+   "key": "- if len(body) < 4 or body[3] != 0x00: # not SUCCESS \u21d2 the reply carries no parameters | + if len(body) <= 4 or body[3] != 0x00: # not SUCCESS \u21d2 the reply carries no parameters",
+   "class": "no-distinguishing-input",
+   "mutant_when_recorded": "polar_pmd.x_parse_status_response__mutmut_7",
+   "why": "The boundary can only differ at len(body) == 4. A 4-byte reply is header-ONLY: the layout is [0xF0, op, meas, status, moreFlag, <payload>] (PmdControlPointResponse.kt), so the payload starts at index 5 and a 4-byte frame has none. Original: passes the guard, slices body[5:] to b'' and the loop yields {}. Mutant: returns {} directly. Same value by two routes, and there is no 4-byte frame carrying a measurement byte for either to disagree about.",
+   "probe": "5316 synthesised frames (lengths 0-7 x statuses 0x00/0x01/0x02 x payload bytes 0x00/0x01/0x41/0x81/0xC1/0xC2/0xFF) run through original and mutant: 0 differing outputs (2026-08-11)."
+  },
+  {
+   "key": "- if len(body) < 4 or body[3] != 0x00: # not SUCCESS \u21d2 the reply carries no parameters | + if len(body) < 5 or body[3] != 0x00: # not SUCCESS \u21d2 the reply carries no parameters",
+   "class": "no-distinguishing-input",
+   "mutant_when_recorded": "polar_pmd.x_parse_status_response__mutmut_8",
+   "why": "Same boundary, same argument as the <=4 sibling: the two differ only at len(body) == 4, which is a header-only frame with no payload, and both routes return {}. 4 rather than 5 is written because that is the shortest frame whose STATUS byte can be read at index 3 \u2014 the guard's purpose is to reject an error reply, not to require a payload.",
+   "probe": "the same 5316-frame sweep: 0 differing outputs (2026-08-11)."
+  }
+ ],
+ "allan.py": [
+  {
+   "key": "- taus = _octave_taus(n, tau0, _terms_mdev) | + taus = _octave_taus(n, tau0, None)",
+   "class": "no-distinguishing-input",
+   "why": "The `terms_at` argument does NOT gate which taus are reported \u2014 the in-loop `if terms < _MIN_TERMS: continue` does, and it runs on every tau regardless of how the ladder was built. Passing the estimator's own counter only stops `_octave_taus` from GENERATING taus that the loop would then skip, so dropping it (or defaulting it to ADEV's) yields a longer candidate list and an IDENTICAL result list. It is an efficiency and intent refinement, not a correctness guard. \u26a0\ufe0f This CORRECTS the claim originally made in this PR's brief and changeset, which said reusing ADEV's count would 'publish a thin estimate'. It would not \u2014 the guard that prevents that is the in-loop check, and that check IS killable and IS pinned (see test_hdev_includes_a_tau_with_EXACTLY_the_minimum_terms and test_mdev_and_hdev_stop_earlier_than_adev_on_a_short_series). The mutation gate found the overclaim.",
+   "probe": "Ran original vs mutant over 784 (series, estimator) pairs: every n in 10..399 plus n=1000 and n=4096, seeded Gaussian phase, tau0=1.0, for BOTH mdev and hdev, comparing the full result list (tau, deviation, n) elementwise. Zero differences. Not a proof over the whole domain \u2014 the ladder cap m <= n/(2*_MIN_SPAN_MULTIPLE) is estimator-independent, so the only divergence available is a tau the loop skips anyway; an input that separates them would need the in-loop guard to accept a tau the ladder refused, which is impossible while the ladder is a superset."
+  },
+  {
+   "key": "- taus = _octave_taus(n, tau0, _terms_mdev) | + taus = _octave_taus(n, tau0, )",
+   "class": "no-distinguishing-input",
+   "why": "The `terms_at` argument does NOT gate which taus are reported \u2014 the in-loop `if terms < _MIN_TERMS: continue` does, and it runs on every tau regardless of how the ladder was built. Passing the estimator's own counter only stops `_octave_taus` from GENERATING taus that the loop would then skip, so dropping it (or defaulting it to ADEV's) yields a longer candidate list and an IDENTICAL result list. It is an efficiency and intent refinement, not a correctness guard. \u26a0\ufe0f This CORRECTS the claim originally made in this PR's brief and changeset, which said reusing ADEV's count would 'publish a thin estimate'. It would not \u2014 the guard that prevents that is the in-loop check, and that check IS killable and IS pinned (see test_hdev_includes_a_tau_with_EXACTLY_the_minimum_terms and test_mdev_and_hdev_stop_earlier_than_adev_on_a_short_series). The mutation gate found the overclaim.",
+   "probe": "Ran original vs mutant over 784 (series, estimator) pairs: every n in 10..399 plus n=1000 and n=4096, seeded Gaussian phase, tau0=1.0, for BOTH mdev and hdev, comparing the full result list (tau, deviation, n) elementwise. Zero differences. Not a proof over the whole domain \u2014 the ladder cap m <= n/(2*_MIN_SPAN_MULTIPLE) is estimator-independent, so the only divergence available is a tau the loop skips anyway; an input that separates them would need the in-loop guard to accept a tau the ladder refused, which is impossible while the ladder is a superset."
+  },
+  {
+   "key": "- taus = _octave_taus(n, tau0, _terms_hdev) | + taus = _octave_taus(n, tau0, None)",
+   "class": "no-distinguishing-input",
+   "why": "The `terms_at` argument does NOT gate which taus are reported \u2014 the in-loop `if terms < _MIN_TERMS: continue` does, and it runs on every tau regardless of how the ladder was built. Passing the estimator's own counter only stops `_octave_taus` from GENERATING taus that the loop would then skip, so dropping it (or defaulting it to ADEV's) yields a longer candidate list and an IDENTICAL result list. It is an efficiency and intent refinement, not a correctness guard. \u26a0\ufe0f This CORRECTS the claim originally made in this PR's brief and changeset, which said reusing ADEV's count would 'publish a thin estimate'. It would not \u2014 the guard that prevents that is the in-loop check, and that check IS killable and IS pinned (see test_hdev_includes_a_tau_with_EXACTLY_the_minimum_terms and test_mdev_and_hdev_stop_earlier_than_adev_on_a_short_series). The mutation gate found the overclaim.",
+   "probe": "Ran original vs mutant over 784 (series, estimator) pairs: every n in 10..399 plus n=1000 and n=4096, seeded Gaussian phase, tau0=1.0, for BOTH mdev and hdev, comparing the full result list (tau, deviation, n) elementwise. Zero differences. Not a proof over the whole domain \u2014 the ladder cap m <= n/(2*_MIN_SPAN_MULTIPLE) is estimator-independent, so the only divergence available is a tau the loop skips anyway; an input that separates them would need the in-loop guard to accept a tau the ladder refused, which is impossible while the ladder is a superset."
+  },
+  {
+   "key": "- taus = _octave_taus(n, tau0, _terms_hdev) | + taus = _octave_taus(n, tau0, )",
+   "class": "no-distinguishing-input",
+   "why": "The `terms_at` argument does NOT gate which taus are reported \u2014 the in-loop `if terms < _MIN_TERMS: continue` does, and it runs on every tau regardless of how the ladder was built. Passing the estimator's own counter only stops `_octave_taus` from GENERATING taus that the loop would then skip, so dropping it (or defaulting it to ADEV's) yields a longer candidate list and an IDENTICAL result list. It is an efficiency and intent refinement, not a correctness guard. \u26a0\ufe0f This CORRECTS the claim originally made in this PR's brief and changeset, which said reusing ADEV's count would 'publish a thin estimate'. It would not \u2014 the guard that prevents that is the in-loop check, and that check IS killable and IS pinned (see test_hdev_includes_a_tau_with_EXACTLY_the_minimum_terms and test_mdev_and_hdev_stop_earlier_than_adev_on_a_short_series). The mutation gate found the overclaim.",
+   "probe": "Ran original vs mutant over 784 (series, estimator) pairs: every n in 10..399 plus n=1000 and n=4096, seeded Gaussian phase, tau0=1.0, for BOTH mdev and hdev, comparing the full result list (tau, deviation, n) elementwise. Zero differences. Not a proof over the whole domain \u2014 the ladder cap m <= n/(2*_MIN_SPAN_MULTIPLE) is estimator-independent, so the only divergence available is a tau the loop skips anyway; an input that separates them would need the in-loop guard to accept a tau the ladder refused, which is impossible while the ladder is a superset."
+  },
+  {
+   "key": "- if n < 3 or not tau0 or tau0 <= 0: | + if n <= 3 or not tau0 or tau0 <= 0:",
+   "class": "no-distinguishing-input",
+   "why": "The early length/tau0 guard is REDUNDANT with the per-tau term-count check that follows it, so weakening or widening it cannot change any output. Every path that the mutated guard lets through reaches `_octave_taus` and the in-loop `if terms < _MIN_TERMS: continue`, which reject the same cases: with n below the guard the term count is at most a handful, far under _MIN_TERMS, so the ladder is empty and the result is [] either way. The `tau0 <= 0` vs `< 0` pair differ only at tau0 == 0, which the preceding `not tau0` already catches. The `or`->`and` variant only lets tiny-n series through, which then return [] for the same reason. This is the SAME structural fact as the `terms_at` entries above: two checks defend one property and only the inner one is load-bearing. Kept anyway \u2014 it is a cheap early exit and states intent.",
+   "probe": "Ran original vs each mutant over 630 (series, tau0, estimator) combinations: n = 0..39 plus 100 and 500, tau0 in {1.0, 0.0, -1.0, 0.5, 2.0}, across adev/mdev/hdev, comparing the full result list and catching exceptions as comparable values. Zero differences for all eight mutants. Strong evidence, not proof: an input separating them would need the in-loop term check to ACCEPT a tau while n sits below the early guard, which cannot happen while _MIN_TERMS exceeds the guard's threshold."
+  },
+  {
+   "key": "- if n < 3 or not tau0 or tau0 <= 0: | + if n < 4 or not tau0 or tau0 <= 0:",
+   "class": "no-distinguishing-input",
+   "why": "The early length/tau0 guard is REDUNDANT with the per-tau term-count check that follows it, so weakening or widening it cannot change any output. Every path that the mutated guard lets through reaches `_octave_taus` and the in-loop `if terms < _MIN_TERMS: continue`, which reject the same cases: with n below the guard the term count is at most a handful, far under _MIN_TERMS, so the ladder is empty and the result is [] either way. The `tau0 <= 0` vs `< 0` pair differ only at tau0 == 0, which the preceding `not tau0` already catches. The `or`->`and` variant only lets tiny-n series through, which then return [] for the same reason. This is the SAME structural fact as the `terms_at` entries above: two checks defend one property and only the inner one is load-bearing. Kept anyway \u2014 it is a cheap early exit and states intent.",
+   "probe": "Ran original vs each mutant over 630 (series, tau0, estimator) combinations: n = 0..39 plus 100 and 500, tau0 in {1.0, 0.0, -1.0, 0.5, 2.0}, across adev/mdev/hdev, comparing the full result list and catching exceptions as comparable values. Zero differences for all eight mutants. Strong evidence, not proof: an input separating them would need the in-loop term check to ACCEPT a tau while n sits below the early guard, which cannot happen while _MIN_TERMS exceeds the guard's threshold."
+  },
+  {
+   "key": "- if n < 3 or not tau0 or tau0 <= 0: | + if n < 3 or not tau0 or tau0 < 0:",
+   "class": "no-distinguishing-input",
+   "why": "The early length/tau0 guard is REDUNDANT with the per-tau term-count check that follows it, so weakening or widening it cannot change any output. Every path that the mutated guard lets through reaches `_octave_taus` and the in-loop `if terms < _MIN_TERMS: continue`, which reject the same cases: with n below the guard the term count is at most a handful, far under _MIN_TERMS, so the ladder is empty and the result is [] either way. The `tau0 <= 0` vs `< 0` pair differ only at tau0 == 0, which the preceding `not tau0` already catches. The `or`->`and` variant only lets tiny-n series through, which then return [] for the same reason. This is the SAME structural fact as the `terms_at` entries above: two checks defend one property and only the inner one is load-bearing. Kept anyway \u2014 it is a cheap early exit and states intent.",
+   "probe": "Ran original vs each mutant over 630 (series, tau0, estimator) combinations: n = 0..39 plus 100 and 500, tau0 in {1.0, 0.0, -1.0, 0.5, 2.0}, across adev/mdev/hdev, comparing the full result list and catching exceptions as comparable values. Zero differences for all eight mutants. Strong evidence, not proof: an input separating them would need the in-loop term check to ACCEPT a tau while n sits below the early guard, which cannot happen while _MIN_TERMS exceeds the guard's threshold."
+  },
+  {
+   "key": "- if n < 3 or not tau0 or tau0 <= 0: | + if n < 3 and not tau0 or tau0 <= 0:",
+   "class": "no-distinguishing-input",
+   "why": "The early length/tau0 guard is REDUNDANT with the per-tau term-count check that follows it, so weakening or widening it cannot change any output. Every path that the mutated guard lets through reaches `_octave_taus` and the in-loop `if terms < _MIN_TERMS: continue`, which reject the same cases: with n below the guard the term count is at most a handful, far under _MIN_TERMS, so the ladder is empty and the result is [] either way. The `tau0 <= 0` vs `< 0` pair differ only at tau0 == 0, which the preceding `not tau0` already catches. The `or`->`and` variant only lets tiny-n series through, which then return [] for the same reason. This is the SAME structural fact as the `terms_at` entries above: two checks defend one property and only the inner one is load-bearing. Kept anyway \u2014 it is a cheap early exit and states intent.",
+   "probe": "Ran original vs each mutant over 630 (series, tau0, estimator) combinations: n = 0..39 plus 100 and 500, tau0 in {1.0, 0.0, -1.0, 0.5, 2.0}, across adev/mdev/hdev, comparing the full result list and catching exceptions as comparable values. Zero differences for all eight mutants. Strong evidence, not proof: an input separating them would need the in-loop term check to ACCEPT a tau while n sits below the early guard, which cannot happen while _MIN_TERMS exceeds the guard's threshold."
+  },
+  {
+   "key": "- if n < 4 or not tau0 or tau0 <= 0: | + if n <= 4 or not tau0 or tau0 <= 0:",
+   "class": "no-distinguishing-input",
+   "why": "The early length/tau0 guard is REDUNDANT with the per-tau term-count check that follows it, so weakening or widening it cannot change any output. Every path that the mutated guard lets through reaches `_octave_taus` and the in-loop `if terms < _MIN_TERMS: continue`, which reject the same cases: with n below the guard the term count is at most a handful, far under _MIN_TERMS, so the ladder is empty and the result is [] either way. The `tau0 <= 0` vs `< 0` pair differ only at tau0 == 0, which the preceding `not tau0` already catches. The `or`->`and` variant only lets tiny-n series through, which then return [] for the same reason. This is the SAME structural fact as the `terms_at` entries above: two checks defend one property and only the inner one is load-bearing. Kept anyway \u2014 it is a cheap early exit and states intent.",
+   "probe": "Ran original vs each mutant over 630 (series, tau0, estimator) combinations: n = 0..39 plus 100 and 500, tau0 in {1.0, 0.0, -1.0, 0.5, 2.0}, across adev/mdev/hdev, comparing the full result list and catching exceptions as comparable values. Zero differences for all eight mutants. Strong evidence, not proof: an input separating them would need the in-loop term check to ACCEPT a tau while n sits below the early guard, which cannot happen while _MIN_TERMS exceeds the guard's threshold."
+  },
+  {
+   "key": "- if n < 4 or not tau0 or tau0 <= 0: | + if n < 5 or not tau0 or tau0 <= 0:",
+   "class": "no-distinguishing-input",
+   "why": "The early length/tau0 guard is REDUNDANT with the per-tau term-count check that follows it, so weakening or widening it cannot change any output. Every path that the mutated guard lets through reaches `_octave_taus` and the in-loop `if terms < _MIN_TERMS: continue`, which reject the same cases: with n below the guard the term count is at most a handful, far under _MIN_TERMS, so the ladder is empty and the result is [] either way. The `tau0 <= 0` vs `< 0` pair differ only at tau0 == 0, which the preceding `not tau0` already catches. The `or`->`and` variant only lets tiny-n series through, which then return [] for the same reason. This is the SAME structural fact as the `terms_at` entries above: two checks defend one property and only the inner one is load-bearing. Kept anyway \u2014 it is a cheap early exit and states intent.",
+   "probe": "Ran original vs each mutant over 630 (series, tau0, estimator) combinations: n = 0..39 plus 100 and 500, tau0 in {1.0, 0.0, -1.0, 0.5, 2.0}, across adev/mdev/hdev, comparing the full result list and catching exceptions as comparable values. Zero differences for all eight mutants. Strong evidence, not proof: an input separating them would need the in-loop term check to ACCEPT a tau while n sits below the early guard, which cannot happen while _MIN_TERMS exceeds the guard's threshold."
+  },
+  {
+   "key": "- if n < 4 or not tau0 or tau0 <= 0: | + if n < 4 or not tau0 or tau0 < 0:",
+   "class": "no-distinguishing-input",
+   "why": "The early length/tau0 guard is REDUNDANT with the per-tau term-count check that follows it, so weakening or widening it cannot change any output. Every path that the mutated guard lets through reaches `_octave_taus` and the in-loop `if terms < _MIN_TERMS: continue`, which reject the same cases: with n below the guard the term count is at most a handful, far under _MIN_TERMS, so the ladder is empty and the result is [] either way. The `tau0 <= 0` vs `< 0` pair differ only at tau0 == 0, which the preceding `not tau0` already catches. The `or`->`and` variant only lets tiny-n series through, which then return [] for the same reason. This is the SAME structural fact as the `terms_at` entries above: two checks defend one property and only the inner one is load-bearing. Kept anyway \u2014 it is a cheap early exit and states intent.",
+   "probe": "Ran original vs each mutant over 630 (series, tau0, estimator) combinations: n = 0..39 plus 100 and 500, tau0 in {1.0, 0.0, -1.0, 0.5, 2.0}, across adev/mdev/hdev, comparing the full result list and catching exceptions as comparable values. Zero differences for all eight mutants. Strong evidence, not proof: an input separating them would need the in-loop term check to ACCEPT a tau while n sits below the early guard, which cannot happen while _MIN_TERMS exceeds the guard's threshold."
+  },
+  {
+   "key": "- if n < 4 or not tau0 or tau0 <= 0: | + if n < 4 and not tau0 or tau0 <= 0:",
+   "class": "no-distinguishing-input",
+   "why": "The early length/tau0 guard is REDUNDANT with the per-tau term-count check that follows it, so weakening or widening it cannot change any output. Every path that the mutated guard lets through reaches `_octave_taus` and the in-loop `if terms < _MIN_TERMS: continue`, which reject the same cases: with n below the guard the term count is at most a handful, far under _MIN_TERMS, so the ladder is empty and the result is [] either way. The `tau0 <= 0` vs `< 0` pair differ only at tau0 == 0, which the preceding `not tau0` already catches. The `or`->`and` variant only lets tiny-n series through, which then return [] for the same reason. This is the SAME structural fact as the `terms_at` entries above: two checks defend one property and only the inner one is load-bearing. Kept anyway \u2014 it is a cheap early exit and states intent.",
+   "probe": "Ran original vs each mutant over 630 (series, tau0, estimator) combinations: n = 0..39 plus 100 and 500, tau0 in {1.0, 0.0, -1.0, 0.5, 2.0}, across adev/mdev/hdev, comparing the full result list and catching exceptions as comparable values. Zero differences for all eight mutants. Strong evidence, not proof: an input separating them would need the in-loop term check to ACCEPT a tau while n sits below the early guard, which cannot happen while _MIN_TERMS exceeds the guard's threshold."
+  }
+ ],
+ "nightqc.py": [
+  {
+   "key": "- before = [s for s in others if s[1] <= cur[0]] | + before = [s for s in others if s[1] < cur[0]]",
+   "class": "no-distinguishing-input",
+   "why": "A PROOF FROM merge_sessions, not a sample. Sessions are built in START order and a file opens a NEW session only when `st > sessions[-1][1] + gap_sec` \u2014 so consecutive sessions satisfy b.start > a.end + 3600 STRICTLY. Three consequences settle this whole family. (1) No before-session can end exactly at cur[0] and no after-session can begin exactly at cur[1]; the boundary the </<= and >/>= mutants move is UNREACHABLE, so they select the same set. (2) Because sessions are disjoint, a before-session has end < cur[0] < cur[1] and an after-session has end > cur[1], so testing s[1] against cur[1] instead of cur[0] partitions identically. (3) Disjointness makes ordering by start and ordering by end the SAME order, so min/max keyed on s[0], on s[1], or on the list itself (key=None compares element 0 first, and starts are unique) all pick the same session. NOT an effort estimate \u2014 these have no distinguishing input while merge_sessions holds.",
+   "probe": "20000 random file-sets (n uniform 2-12, start uniform 0-86400 s, mtime = start + one of {0,5,60,900,4000,20000} s) through merge_sessions, checking every consecutive session pair: sessions NOT gap-separated = 0, start-order != end-order = 0, s[1] == cur[0] = 0. Run 2026-08-15, seed 20260815. If merge_sessions ever stops separating sessions by gap_sec, this class is void and these mutants become killable \u2014 that is the condition to re-check."
+  },
+  {
+   "key": "- before = [s for s in others if s[1] <= cur[0]] | + before = [s for s in others if s[1] <= cur[1]]",
+   "class": "no-distinguishing-input",
+   "why": "A PROOF FROM merge_sessions, not a sample. Sessions are built in START order and a file opens a NEW session only when `st > sessions[-1][1] + gap_sec` \u2014 so consecutive sessions satisfy b.start > a.end + 3600 STRICTLY. Three consequences settle this whole family. (1) No before-session can end exactly at cur[0] and no after-session can begin exactly at cur[1]; the boundary the </<= and >/>= mutants move is UNREACHABLE, so they select the same set. (2) Because sessions are disjoint, a before-session has end < cur[0] < cur[1] and an after-session has end > cur[1], so testing s[1] against cur[1] instead of cur[0] partitions identically. (3) Disjointness makes ordering by start and ordering by end the SAME order, so min/max keyed on s[0], on s[1], or on the list itself (key=None compares element 0 first, and starts are unique) all pick the same session. NOT an effort estimate \u2014 these have no distinguishing input while merge_sessions holds.",
+   "probe": "20000 random file-sets (n uniform 2-12, start uniform 0-86400 s, mtime = start + one of {0,5,60,900,4000,20000} s) through merge_sessions, checking every consecutive session pair: sessions NOT gap-separated = 0, start-order != end-order = 0, s[1] == cur[0] = 0. Run 2026-08-15, seed 20260815. If merge_sessions ever stops separating sessions by gap_sec, this class is void and these mutants become killable \u2014 that is the condition to re-check."
+  },
+  {
+   "key": "- after = [s for s in others if s[0] >= cur[1]] | + after = [s for s in others if s[1] >= cur[1]]",
+   "class": "no-distinguishing-input",
+   "why": "A PROOF FROM merge_sessions, not a sample. Sessions are built in START order and a file opens a NEW session only when `st > sessions[-1][1] + gap_sec` \u2014 so consecutive sessions satisfy b.start > a.end + 3600 STRICTLY. Three consequences settle this whole family. (1) No before-session can end exactly at cur[0] and no after-session can begin exactly at cur[1]; the boundary the </<= and >/>= mutants move is UNREACHABLE, so they select the same set. (2) Because sessions are disjoint, a before-session has end < cur[0] < cur[1] and an after-session has end > cur[1], so testing s[1] against cur[1] instead of cur[0] partitions identically. (3) Disjointness makes ordering by start and ordering by end the SAME order, so min/max keyed on s[0], on s[1], or on the list itself (key=None compares element 0 first, and starts are unique) all pick the same session. NOT an effort estimate \u2014 these have no distinguishing input while merge_sessions holds.",
+   "probe": "20000 random file-sets (n uniform 2-12, start uniform 0-86400 s, mtime = start + one of {0,5,60,900,4000,20000} s) through merge_sessions, checking every consecutive session pair: sessions NOT gap-separated = 0, start-order != end-order = 0, s[1] == cur[0] = 0. Run 2026-08-15, seed 20260815. If merge_sessions ever stops separating sessions by gap_sec, this class is void and these mutants become killable \u2014 that is the condition to re-check."
+  },
+  {
+   "key": "- after = [s for s in others if s[0] >= cur[1]] | + after = [s for s in others if s[0] > cur[1]]",
+   "class": "no-distinguishing-input",
+   "why": "A PROOF FROM merge_sessions, not a sample. Sessions are built in START order and a file opens a NEW session only when `st > sessions[-1][1] + gap_sec` \u2014 so consecutive sessions satisfy b.start > a.end + 3600 STRICTLY. Three consequences settle this whole family. (1) No before-session can end exactly at cur[0] and no after-session can begin exactly at cur[1]; the boundary the </<= and >/>= mutants move is UNREACHABLE, so they select the same set. (2) Because sessions are disjoint, a before-session has end < cur[0] < cur[1] and an after-session has end > cur[1], so testing s[1] against cur[1] instead of cur[0] partitions identically. (3) Disjointness makes ordering by start and ordering by end the SAME order, so min/max keyed on s[0], on s[1], or on the list itself (key=None compares element 0 first, and starts are unique) all pick the same session. NOT an effort estimate \u2014 these have no distinguishing input while merge_sessions holds.",
+   "probe": "20000 random file-sets (n uniform 2-12, start uniform 0-86400 s, mtime = start + one of {0,5,60,900,4000,20000} s) through merge_sessions, checking every consecutive session pair: sessions NOT gap-separated = 0, start-order != end-order = 0, s[1] == cur[0] = 0. Run 2026-08-15, seed 20260815. If merge_sessions ever stops separating sessions by gap_sec, this class is void and these mutants become killable \u2014 that is the condition to re-check."
+  },
+  {
+   "key": "- prev = max(before, key=lambda s: s[1]) | + prev = max(before, key=None)",
+   "class": "no-distinguishing-input",
+   "why": "A PROOF FROM merge_sessions, not a sample. Sessions are built in START order and a file opens a NEW session only when `st > sessions[-1][1] + gap_sec` \u2014 so consecutive sessions satisfy b.start > a.end + 3600 STRICTLY. Three consequences settle this whole family. (1) No before-session can end exactly at cur[0] and no after-session can begin exactly at cur[1]; the boundary the </<= and >/>= mutants move is UNREACHABLE, so they select the same set. (2) Because sessions are disjoint, a before-session has end < cur[0] < cur[1] and an after-session has end > cur[1], so testing s[1] against cur[1] instead of cur[0] partitions identically. (3) Disjointness makes ordering by start and ordering by end the SAME order, so min/max keyed on s[0], on s[1], or on the list itself (key=None compares element 0 first, and starts are unique) all pick the same session. NOT an effort estimate \u2014 these have no distinguishing input while merge_sessions holds.",
+   "probe": "20000 random file-sets (n uniform 2-12, start uniform 0-86400 s, mtime = start + one of {0,5,60,900,4000,20000} s) through merge_sessions, checking every consecutive session pair: sessions NOT gap-separated = 0, start-order != end-order = 0, s[1] == cur[0] = 0. Run 2026-08-15, seed 20260815. If merge_sessions ever stops separating sessions by gap_sec, this class is void and these mutants become killable \u2014 that is the condition to re-check."
+  },
+  {
+   "key": "- prev = max(before, key=lambda s: s[1]) | + prev = max(before, )",
+   "class": "no-distinguishing-input",
+   "why": "A PROOF FROM merge_sessions, not a sample. Sessions are built in START order and a file opens a NEW session only when `st > sessions[-1][1] + gap_sec` \u2014 so consecutive sessions satisfy b.start > a.end + 3600 STRICTLY. Three consequences settle this whole family. (1) No before-session can end exactly at cur[0] and no after-session can begin exactly at cur[1]; the boundary the </<= and >/>= mutants move is UNREACHABLE, so they select the same set. (2) Because sessions are disjoint, a before-session has end < cur[0] < cur[1] and an after-session has end > cur[1], so testing s[1] against cur[1] instead of cur[0] partitions identically. (3) Disjointness makes ordering by start and ordering by end the SAME order, so min/max keyed on s[0], on s[1], or on the list itself (key=None compares element 0 first, and starts are unique) all pick the same session. NOT an effort estimate \u2014 these have no distinguishing input while merge_sessions holds.",
+   "probe": "20000 random file-sets (n uniform 2-12, start uniform 0-86400 s, mtime = start + one of {0,5,60,900,4000,20000} s) through merge_sessions, checking every consecutive session pair: sessions NOT gap-separated = 0, start-order != end-order = 0, s[1] == cur[0] = 0. Run 2026-08-15, seed 20260815. If merge_sessions ever stops separating sessions by gap_sec, this class is void and these mutants become killable \u2014 that is the condition to re-check."
+  },
+  {
+   "key": "- nxt = min(after, key=lambda s: s[0]) | + nxt = min(after, key=None)",
+   "class": "no-distinguishing-input",
+   "why": "A PROOF FROM merge_sessions, not a sample. Sessions are built in START order and a file opens a NEW session only when `st > sessions[-1][1] + gap_sec` \u2014 so consecutive sessions satisfy b.start > a.end + 3600 STRICTLY. Three consequences settle this whole family. (1) No before-session can end exactly at cur[0] and no after-session can begin exactly at cur[1]; the boundary the </<= and >/>= mutants move is UNREACHABLE, so they select the same set. (2) Because sessions are disjoint, a before-session has end < cur[0] < cur[1] and an after-session has end > cur[1], so testing s[1] against cur[1] instead of cur[0] partitions identically. (3) Disjointness makes ordering by start and ordering by end the SAME order, so min/max keyed on s[0], on s[1], or on the list itself (key=None compares element 0 first, and starts are unique) all pick the same session. NOT an effort estimate \u2014 these have no distinguishing input while merge_sessions holds.",
+   "probe": "20000 random file-sets (n uniform 2-12, start uniform 0-86400 s, mtime = start + one of {0,5,60,900,4000,20000} s) through merge_sessions, checking every consecutive session pair: sessions NOT gap-separated = 0, start-order != end-order = 0, s[1] == cur[0] = 0. Run 2026-08-15, seed 20260815. If merge_sessions ever stops separating sessions by gap_sec, this class is void and these mutants become killable \u2014 that is the condition to re-check."
+  },
+  {
+   "key": "- nxt = min(after, key=lambda s: s[0]) | + nxt = min(after, )",
+   "class": "no-distinguishing-input",
+   "why": "A PROOF FROM merge_sessions, not a sample. Sessions are built in START order and a file opens a NEW session only when `st > sessions[-1][1] + gap_sec` \u2014 so consecutive sessions satisfy b.start > a.end + 3600 STRICTLY. Three consequences settle this whole family. (1) No before-session can end exactly at cur[0] and no after-session can begin exactly at cur[1]; the boundary the </<= and >/>= mutants move is UNREACHABLE, so they select the same set. (2) Because sessions are disjoint, a before-session has end < cur[0] < cur[1] and an after-session has end > cur[1], so testing s[1] against cur[1] instead of cur[0] partitions identically. (3) Disjointness makes ordering by start and ordering by end the SAME order, so min/max keyed on s[0], on s[1], or on the list itself (key=None compares element 0 first, and starts are unique) all pick the same session. NOT an effort estimate \u2014 these have no distinguishing input while merge_sessions holds.",
+   "probe": "20000 random file-sets (n uniform 2-12, start uniform 0-86400 s, mtime = start + one of {0,5,60,900,4000,20000} s) through merge_sessions, checking every consecutive session pair: sessions NOT gap-separated = 0, start-order != end-order = 0, s[1] == cur[0] = 0. Run 2026-08-15, seed 20260815. If merge_sessions ever stops separating sessions by gap_sec, this class is void and these mutants become killable \u2014 that is the condition to re-check."
+  },
+  {
+   "key": "- nxt = min(after, key=lambda s: s[0]) | + nxt = min(after, key=lambda s: s[1])",
+   "class": "no-distinguishing-input",
+   "why": "A PROOF FROM merge_sessions, not a sample. Sessions are built in START order and a file opens a NEW session only when `st > sessions[-1][1] + gap_sec` \u2014 so consecutive sessions satisfy b.start > a.end + 3600 STRICTLY. Three consequences settle this whole family. (1) No before-session can end exactly at cur[0] and no after-session can begin exactly at cur[1]; the boundary the </<= and >/>= mutants move is UNREACHABLE, so they select the same set. (2) Because sessions are disjoint, a before-session has end < cur[0] < cur[1] and an after-session has end > cur[1], so testing s[1] against cur[1] instead of cur[0] partitions identically. (3) Disjointness makes ordering by start and ordering by end the SAME order, so min/max keyed on s[0], on s[1], or on the list itself (key=None compares element 0 first, and starts are unique) all pick the same session. NOT an effort estimate \u2014 these have no distinguishing input while merge_sessions holds.",
+   "probe": "20000 random file-sets (n uniform 2-12, start uniform 0-86400 s, mtime = start + one of {0,5,60,900,4000,20000} s) through merge_sessions, checking every consecutive session pair: sessions NOT gap-separated = 0, start-order != end-order = 0, s[1] == cur[0] = 0. Run 2026-08-15, seed 20260815. If merge_sessions ever stops separating sessions by gap_sec, this class is void and these mutants become killable \u2014 that is the condition to re-check."
+  }
+ ],
+ "as11_link.py": [
+  {
+   "key": "- \"1.0\", | - ) | + )",
+   "class": "no-distinguishing-input",
+   "why": "A PROOF, not a sample. Deleting the explicit \"1.0\" version argument leaves rpc()'s own default (version=\"1.0\", the sole JSON-RPC version this device speaks), so json.dumps produces byte-identical output. No input can distinguish them \u2014 same failure class as the polar_pmd/allan explicit-default-arg deletions already recorded here.",
+   "probe": "python3 -c \"import as11_link as L; assert L.start_stream(['PatientFlow'],40,rpc_id=16) == L.rpc('StartStream',{'dataIds':['PatientFlow'],'sampleIntervalMs':40,'reportIntervalMs':200},16)\" -> byte-identical (verified 2026-08-23)."
+  }
+ ],
+ "jitterfloor.py": [
+  {
+   "key": "- q = statistics.quantiles(xs, n=4) | + q = statistics.quantiles(xs, )",
+   "class": "no-distinguishing-input",
+   "why": "A PROOF: statistics.quantiles is declared quantiles(data, *, n=4, method='exclusive') \u2014 n=4 IS the stdlib default, so removing the keyword produces the byte-identical call. No input can distinguish a call from itself; the explicit n=4 in source is documentation of the quartile choice, not behavior.",
+   "probe": "inspect.signature(statistics.quantiles).parameters['n'].default == 4 on the venv's Python 3.13. CANARY: the sibling mutant n=5 IS distinguishable and is killed by test_jitter_scale_is_quartile_based, which pins the exact n=4 grid (quantiles([0..19]) == [4.25, 9.5, 14.75]) \u2014 so the pinning test has power and this zero is a measurement.",
+   "recorded": "2026-08-22",
+   "found_by": "diff-scoped mutation gate on PR #1641"
+  }
+ ]
 }
