@@ -113,6 +113,40 @@ seconds wrong"; PAT needs milliseconds, and that is a different measurement on a
 - [x] The unmoved desat KPI reported with its residual rather than omitted.
 - [x] PAT feasibility answered with a measured number instead of a hope.
 - [ ] *(next)* Re-fit the offset on the specific channel pair a coupling scores, not the pooled set.
+      **SCOPED 2026-08-23 — do NOT implement this before running the measurement below; the naive
+      version is worse than what ships, and the item as worded does not say so.**
+
+      **Why the naive version is worse.** Pooling is not a convenience here, it is the noise
+      reduction: `_pooledPeak` sums per-channel z and divides by `sqrt(nChannels)` precisely so the
+      shared-signal jitter §6 describes averages down. Re-fitting on ONE pair discards that averaging
+      and estimates the SAME quantity from fewer events — a noisier answer, not a finer one. Anyone
+      reading "re-fit per pair" as "more specific ⇒ more accurate" will ship a regression that looks
+      like a refinement.
+
+      **What would justify it is a different claim entirely**: that the pairs have genuinely
+      DIFFERENT true offsets, so the pooled value is a compromise that is wrong for each. The physics
+      says they might — §6's own asymmetry is that "a desaturation trails its apnea by circulation
+      time, an arousal surge trails both", so an OxyDex coupling and a PpgDex coupling to the same
+      CPAP event have different physiological latencies by construction. That is a systematic
+      difference, not jitter, and pooling cannot represent it.
+
+      **So the question is whether that systematic difference is RESOLVABLE against the 20–85 s
+      plateau**, and the data to answer it already exists in the output: `ownOffsetSec` is published
+      per channel beside the pooled offset (`integrator-dsp.js:5923`), so no new estimator is needed —
+      only a corpus pass that collects both.
+
+      **Do:** over the corpus, tabulate `ownOffsetSec` per channel per night against the pooled
+      offset. **Pre-state the band before running it** (this brief's own §4 habit): the per-pair
+      re-fit is justified only if the BETWEEN-CHANNEL difference is consistent in SIGN across nights
+      and its median magnitude exceeds the WITHIN-channel night-to-night spread — i.e. the channels
+      disagree systematically rather than independently. If the difference is smaller than that
+      spread, it is jitter being chased below the coupling's own floor and the item should be
+      DECLINED with the number, not implemented.
+
+      ⚠️ **The `~3.3 s` figure quoted for this item in `FINISHED-WORK-IMPROVEMENTS` §D is a
+      H10↔Verity WEARABLE offset and does not bear on this box.** This fit is CPAP↔wearable, whose
+      floor §6 establishes as tens of seconds by construction; 3.3 s sits well inside it. Two
+      different measurements on two different signal pairs, and the number travelled between them.
 
 ## 6 · Why sub-second is not available to the CPAP, and where it IS available
 
