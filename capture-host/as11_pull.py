@@ -110,6 +110,46 @@ async def pull_spool_round(write, recv_frame, seal, unseal, spool_type, from_dt,
             return body, more, nxt
 
 
+async def stream(write, recv_frame, seal, unseal, data_ids, *,
+                 sample_interval_ms=40, report_interval_ms=None, start_id=16, max_batches=None):
+    """Async generator over a LIVE AS11 waveform stream (StartStream → StreamData). READ-ONLY.
+
+    Sends StartStream, verifies the device marked EVERY requested dataId valid (a partial accept raises
+    rather than silently streaming a subset), then yields one decoded batch per StreamData notification:
+
+        {"stream_id": int, "start_time": "…Z", "interval_ms": int, "channels": {dataId: [float, …]}}
+
+    `start_time` is the DEVICE clock, verbatim as sent (ISO-8601). This layer never fabricates or
+    corrects a timestamp — the box applies its own stratum-1 / host-axis stamp downstream, which is the
+    whole point of capturing the device-vs-box offset. `channels` merges the device's list-of-one-key
+    dicts (`[{"PatientFlow":[…]},{"MaskPressure":[…]}]`) into one map.
+
+    Stops after `max_batches` batches, or — when that is None — runs until the caller stops iterating.
+    There is no StopStream RPC: ending iteration and dropping the BLE link is what stops the device."""
+    await _send_enc(write, seal, L.start_stream(data_ids, sample_interval_ms, report_interval_ms, rpc_id=start_id))
+    ack = await _await_result(recv_frame, start_id, unseal)
+    stream_id = ack.get("streamId")
+    if stream_id is None:
+        raise As11Error("StartStream returned no streamId")
+    rejected = [d.get("dataId") for d in ack.get("dataIds", []) if not d.get("valid")]
+    if rejected:
+        raise As11Error(f"StartStream: device rejected dataId(s): {rejected}")
+    count = 0
+    while max_batches is None or count < max_batches:
+        msg = await _read_json(recv_frame, unseal)
+        if msg.get("method") != "StreamData":
+            continue  # a HeartBeat or other out-of-band notification — keep reading
+        p = msg["params"]
+        if p.get("streamId") != stream_id:
+            continue  # data from a different stream (defensive) — not ours
+        channels: dict[str, list] = {}
+        for entry in p.get("data", []):
+            channels.update(entry)
+        yield {"stream_id": stream_id, "start_time": p.get("startTime"),
+               "interval_ms": p.get("intervalMs"), "channels": channels}
+        count += 1
+
+
 async def pull_spool(write, recv_frame, seal, unseal, spool_type, from_dt, *, max_rounds=64):
     """Pull a spool to completion across rounds; concatenate every round's reassembled bytes.
 

@@ -103,6 +103,8 @@ ALLOW_FUNCS = {
     "confirm_key_exchange": "CPAP-BLE pull core — SRP pairing builder, used by the pairing probe (see note)",
     "get_items": "CPAP-BLE pull core — the Get RPC builder; the probe's live encrypted-Get validator (see note)",
     "pull_spool": "CPAP-BLE pull core — the multi-round spool driver the operator probe calls (see note)",
+    "start_stream": "CPAP-BLE pull core — the StartStream (live waveform) RPC builder, used by the stream probe (see note)",
+    "stream": "CPAP-BLE pull core — the live StreamData waveform consumer the operator stream probe drives (see note)",
 }
 
 

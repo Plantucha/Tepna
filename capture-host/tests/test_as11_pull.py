@@ -293,3 +293,114 @@ def test_pull_spool_default_cap_stops_at_exactly_64_rounds():
         _run(P.pull_spool(dev.write, dev.recv_frame, _seal, _unseal, "Summary", FROM_DT))
 
 
+# ── stream (live waveform) ─────────────────────────────────────────────────────
+# StartStream ACK + StreamData shapes are HARDWARE-CONFIRMED against a real AirSense 11 (2026-08-23):
+#   ACK:        {"dataIds":[{"dataId":"PatientFlow","valid":true},…], "streamId":1}
+#   StreamData: {"method":"StreamData","params":{"data":[{"PatientFlow":[…]},{"MaskPressure":[…]}],
+#                                                "intervalMs":40,"startTime":"…Z","streamId":1}}
+_START_ID = 16
+
+
+def _ack(ids_valid, stream_id=1):
+    return _enc({"id": _START_ID, "result": {
+        "dataIds": [{"dataId": d, "valid": v} for d, v in ids_valid], "streamId": stream_id}})
+
+
+def _stream_data(channels, start_time="2026-08-23T01:30:28.730Z", interval_ms=40, stream_id=1):
+    return _enc({"jsonrpc": "2.0", "method": "StreamData", "params": {
+        "data": [{k: v} for k, v in channels.items()],
+        "intervalMs": interval_ms, "startTime": start_time, "streamId": stream_id}})
+
+
+async def _collect(agen):
+    out = []
+    async for batch in agen:
+        out.append(batch)
+    return out
+
+
+def test_stream_yields_decoded_batches_and_merges_channels():
+    dev = FakeAS11([
+        _ack([("PatientFlow", True), ("MaskPressure", True)]),
+        _stream_data({"PatientFlow": [0.01, 0.02], "MaskPressure": [0.1, 0.2]}),
+        _stream_data({"PatientFlow": [0.03, 0.04], "MaskPressure": [0.3, 0.4]}),
+    ])
+    batches = _run(_collect(P.stream(dev.write, dev.recv_frame, _seal, _unseal,
+                                     ["PatientFlow", "MaskPressure"], start_id=_START_ID, max_batches=2)))
+    assert len(batches) == 2
+    assert batches[0]["channels"] == {"PatientFlow": [0.01, 0.02], "MaskPressure": [0.1, 0.2]}
+    assert batches[0]["interval_ms"] == 40 and batches[0]["stream_id"] == 1
+    assert batches[0]["start_time"] == "2026-08-23T01:30:28.730Z"
+    assert batches[1]["channels"]["MaskPressure"] == [0.3, 0.4]
+
+
+def test_stream_sends_startstream_with_the_requested_params():
+    dev = FakeAS11([_ack([("SpO2", True)]), _stream_data({"SpO2": [98.0]}, interval_ms=1000)])
+    _run(_collect(P.stream(dev.write, dev.recv_frame, _seal, _unseal, ["SpO2"],
+                           sample_interval_ms=1000, start_id=_START_ID, max_batches=1)))
+    sent = json.loads(L.fig_unframe(dev.written[0])[1])
+    assert sent["method"] == "StartStream" and sent["params"]["dataIds"] == ["SpO2"]
+    assert sent["params"]["sampleIntervalMs"] == 1000
+
+
+def test_stream_carries_the_device_start_time_verbatim_never_fabricated():
+    """The device clock runs minutes off the box; this layer must pass startTime through untouched so the
+    box's own stamp — not a guess here — is the correction."""
+    dev = FakeAS11([_ack([("PatientFlow", True)]),
+                    _stream_data({"PatientFlow": [0.0]}, start_time="2026-08-23T01:30:28.730Z")])
+    b = _run(_collect(P.stream(dev.write, dev.recv_frame, _seal, _unseal, ["PatientFlow"],
+                               start_id=_START_ID, max_batches=1)))[0]
+    assert b["start_time"] == "2026-08-23T01:30:28.730Z"
+
+
+def test_stream_raises_when_the_device_reports_no_stream_id():
+    dev = FakeAS11([_enc({"id": _START_ID, "result": {"dataIds": [{"dataId": "PatientFlow", "valid": True}]}})])
+    with pytest.raises(P.As11Error, match="streamId"):
+        _run(_collect(P.stream(dev.write, dev.recv_frame, _seal, _unseal, ["PatientFlow"], start_id=_START_ID)))
+
+
+def test_stream_raises_on_a_partially_rejected_id_rather_than_streaming_a_subset():
+    """A device that accepts PatientFlow but not BadId must not silently stream just the good one — the
+    caller asked for both, and a half-answer read as complete is the failure to avoid."""
+    dev = FakeAS11([_ack([("PatientFlow", True), ("BadId", False)])])
+    with pytest.raises(P.As11Error, match="rejected"):
+        _run(_collect(P.stream(dev.write, dev.recv_frame, _seal, _unseal,
+                               ["PatientFlow", "BadId"], start_id=_START_ID)))
+
+
+def test_stream_skips_a_non_streamdata_notification():
+    dev = FakeAS11([
+        _ack([("PatientFlow", True)]),
+        _enc({"jsonrpc": "2.0", "method": "HeartBeat"}),   # not StreamData — skipped
+        _stream_data({"PatientFlow": [0.5]}),
+    ])
+    b = _run(_collect(P.stream(dev.write, dev.recv_frame, _seal, _unseal, ["PatientFlow"],
+                               start_id=_START_ID, max_batches=1)))
+    assert b[0]["channels"] == {"PatientFlow": [0.5]}
+
+
+def test_stream_ignores_a_different_streams_data():
+    dev = FakeAS11([
+        _ack([("PatientFlow", True)], stream_id=1),
+        _stream_data({"PatientFlow": [9.9]}, stream_id=2),   # some other stream — not ours
+        _stream_data({"PatientFlow": [0.5]}, stream_id=1),
+    ])
+    b = _run(_collect(P.stream(dev.write, dev.recv_frame, _seal, _unseal, ["PatientFlow"],
+                               start_id=_START_ID, max_batches=1)))
+    assert b[0]["channels"] == {"PatientFlow": [0.5]}, "only the matching streamId is yielded"
+
+
+def test_stream_runs_until_the_caller_stops_when_max_batches_is_none():
+    """max_batches=None means 'until the caller stops iterating' — pin it by breaking after one batch
+    from a transport that would otherwise keep feeding StreamData."""
+    dev = FakeAS11([_ack([("PatientFlow", True)])]
+                   + [_stream_data({"PatientFlow": [i]}) for i in range(5)])
+
+    async def take_one():
+        got = []
+        async for batch in P.stream(dev.write, dev.recv_frame, _seal, _unseal, ["PatientFlow"], start_id=_START_ID):
+            got.append(batch)
+            break
+        return got
+    got = _run(take_one())
+    assert len(got) == 1 and got[0]["channels"] == {"PatientFlow": [0]}

@@ -132,3 +132,46 @@ def test_start_spool_rejects_a_missing_from_dt():
 def test_pull_spool_fragments_builder():
     obj = json.loads(L.pull_spool_fragments(12))
     assert obj["params"]["spoolId"] == 12 and obj["method"] == "PullSpoolFragments"
+
+
+# ── StartStream (live waveform) ────────────────────────────────────────────────
+def test_start_stream_builds_the_request_with_a_defaulted_report_interval():
+    obj = json.loads(L.start_stream(["PatientFlow", "MaskPressure"], 40))
+    assert obj["method"] == "StartStream" and obj["jsonrpc"] == "1.0"
+    p = obj["params"]
+    assert p["dataIds"] == ["PatientFlow", "MaskPressure"]
+    assert p["sampleIntervalMs"] == 40
+    assert p["reportIntervalMs"] == 200, "reportIntervalMs defaults to exactly 5× the sample interval"
+
+
+def test_start_stream_honours_an_explicit_report_interval():
+    p = json.loads(L.start_stream(["SpO2"], 1000, 1000))["params"]
+    assert p["reportIntervalMs"] == 1000
+
+
+def test_start_stream_rejects_an_empty_or_malformed_id_list():
+    for bad in ([], [""], [1], ["ok", ""]):
+        with pytest.raises(ValueError):
+            L.start_stream(bad, 40)
+
+
+def test_start_stream_rejects_more_than_thirty_ids():
+    with pytest.raises(ValueError):
+        L.start_stream([f"d{i}" for i in range(31)], 40)
+
+
+def test_start_stream_bounds_the_sample_interval():
+    for bad in (9, 65001):
+        with pytest.raises(ValueError):
+            L.start_stream(["PatientFlow"], bad)
+    # the inclusive edges are accepted
+    assert json.loads(L.start_stream(["PatientFlow"], 10))["params"]["sampleIntervalMs"] == 10
+    assert json.loads(L.start_stream(["PatientFlow"], 65000))["params"]["sampleIntervalMs"] == 65000
+
+
+def test_start_stream_report_interval_may_not_exceed_five_times_the_sample():
+    with pytest.raises(ValueError):
+        L.start_stream(["PatientFlow"], 40, 201)   # 5× is 200
+    assert json.loads(L.start_stream(["PatientFlow"], 40, 200))["params"]["reportIntervalMs"] == 200
+    with pytest.raises(ValueError):
+        L.start_stream(["PatientFlow"], 40, 0)     # must be ≥ 1

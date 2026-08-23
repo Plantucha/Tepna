@@ -203,3 +203,37 @@ def pull_spool_fragments(spool_id: int, max_fragment_size: int = 3000, max_notif
         rpc_id,
         "1.0",
     )
+
+
+# StreamData batches carry at most 5 samples per report window on this firmware — reportIntervalMs is
+# bounded at 5× the sample interval. HARDWARE-CONFIRMED against a real AirSense 11 (2026-08-23): a
+# StartStream of PatientFlow+MaskPressure at 40 ms / 200 ms answered with per-dataId `valid` flags and a
+# `streamId`, then delivered `StreamData` notifications of exactly 5 samples each. See as11_pull.stream.
+_STREAM_REPORT_FACTOR = 5
+
+
+def start_stream(data_ids, sample_interval_ms: int = 40, report_interval_ms: int | None = None, rpc_id: int = 16) -> bytes:
+    """StartStream (cmd 0x13) — open a LIVE waveform read over the encrypted channel. READ-ONLY.
+
+    `data_ids`: 1–30 non-empty stream names (BRP `PatientFlow`/`MaskPressure` @ 40 ms; SA2
+    `SpO2`/`HeartRate` @ 1000 ms). `sample_interval_ms`: 10–65000. `report_interval_ms` (the batch
+    cadence) must be ≤ 5× the sample interval; it defaults to exactly 5× — one `StreamData` per five
+    samples, the shape the device was observed to deliver. The device answers with a per-dataId
+    `{valid}` list and a `streamId` (consumed by `as11_pull.stream`); there is NO StopStream RPC —
+    dropping the BLE link stops the stream."""
+    ids = list(data_ids)
+    if not ids or not all(isinstance(d, str) and d for d in ids):
+        raise ValueError("StartStream takes 1–30 non-empty dataId strings")
+    if len(ids) > 30:
+        raise ValueError("StartStream takes at most 30 dataIds")
+    if not 10 <= sample_interval_ms <= 65000:
+        raise ValueError("sampleIntervalMs must be 10–65000")
+    report = report_interval_ms if report_interval_ms is not None else sample_interval_ms * _STREAM_REPORT_FACTOR
+    if not 1 <= report <= sample_interval_ms * _STREAM_REPORT_FACTOR:
+        raise ValueError("reportIntervalMs must be between 1 and 5× sampleIntervalMs")
+    return rpc(
+        "StartStream",
+        {"dataIds": ids, "sampleIntervalMs": sample_interval_ms, "reportIntervalMs": report},
+        rpc_id,
+        "1.0",
+    )
