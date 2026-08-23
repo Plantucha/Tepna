@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-20 · **Relates:** `KNOWN-CLOCK-ADVERSARIAL-CAPTURE-FOLLOWUPS-2026-08-14-BRIEF.md`, `PAT-NO-VALID-ANCHOR-2026-08-02-BRIEF.md`, `PPG-FOOT-PLACEMENT-2026-08-12-BRIEF.md`, `LITERATURE-USE-POLICY-2026-07-11-BRIEF.md`
+**Status:** DONE — 2026-08-23 · **Created:** 2026-08-20 · **Relates:** `KNOWN-CLOCK-ADVERSARIAL-CAPTURE-FOLLOWUPS-2026-08-14-BRIEF.md`, `PAT-NO-VALID-ANCHOR-2026-08-02-BRIEF.md`, `PPG-FOOT-PLACEMENT-2026-08-12-BRIEF.md`, `LITERATURE-USE-POLICY-2026-07-11-BRIEF.md`
 
 # Four published methods that address problems this suite has measured itself stuck on
 
@@ -262,25 +262,6 @@ brief's related work; not worth building against.
       (`pat · fiducial · half-amplitude`, 3 assertions confirmed failing under the pre-fix indexing).
       Had that shipped unnoticed, §1 would have read as "the half-amplitude fiducial is unusable on
       our hardware" — a wrong conclusion in the paper's favour.
-- [x] §3 answered — **DONE 2026-08-23, and the answer is NO: do not implement Brønd. Their pairs
-      share more signal; ours has a shared-movement floor that bounds any method.**
-
-      `tools/acc-shared-movement.mjs` over 38 nights, **36 measured**. Median **247** chest movement
-      candidates per night against **10.5** arm-corroborated anchors — a corroboration rate of
-      **0.064**, above 0.20 on only 3 of 36 nights, while the anchors that do survive are strong
-      (median r **0.664**). ~94 % of chest movements have no arm counterpart.
-
-      **Not a coverage limit.** The five refusing nights carry MORE chest movement than the aligning
-      ones (median 302 vs 246); 2026-07-29 yields 0 anchors from 302 candidates while 2026-07-23
-      aligns from 34. Candidate count barely predicts anchor yield (Spearman ρ = +0.109) and is
-      negatively related to corroboration (ρ = −0.663). What separates failure is the candidate
-      RATE: ≤ 200/h corroborates at 0.110 with 1 refusal in 24 nights; > 200/h at **0.005** with 4
-      in 12. Full tables in §3.
-
-      This is §2's verdict from the other direction — two independent method swaps have now failed
-      to move this alignment. **Stop swapping methods.** The lever the measurement exposes is our own
-      candidate threshold, not a published algorithm, and it belongs to `PAT-NO-VALID-ANCHOR`.
-
 - [x] §2 measured — **DONE 2026-08-23, and the answer is NO. Nearest Advocate does not rescue the
       alignment; it replaces a VISIBLY broken estimator with a QUIETLY broken one.**
 
@@ -321,11 +302,34 @@ brief's related work; not worth building against.
       inside the buzz fiducial's independently measured H10↔Verity offset (+193.5 ± 64 ms, §5 of
       `O2RING-BUZZ-FIDUCIAL`) and looked like corroboration for exactly as long as it took to run a
       second grid.
-- [ ] §3 answered — whether Brønd's chest/arm case is comparable to their trunk-pair validation, BEFORE
-      any implementation.
+- [x] §3 answered — **DONE 2026-08-23, and the answer is NO: do not implement Brønd. Their pairs
+      share more signal; ours has a shared-movement floor that bounds any method.**
+
+      `tools/acc-shared-movement.mjs` over 38 nights, **36 measured**. Median **247** chest movement
+      candidates per night against **10.5** arm-corroborated anchors — a corroboration rate of
+      **0.064**, above 0.20 on only 3 of 36 nights, while the anchors that do survive are strong
+      (median r **0.664**). ~94 % of chest movements have no arm counterpart.
+
+      **Not a coverage limit.** The five refusing nights carry MORE chest movement than the aligning
+      ones (median 302 vs 246); 2026-07-29 yields 0 anchors from 302 candidates while 2026-07-23
+      aligns from 34. Candidate count barely predicts anchor yield (Spearman ρ = +0.109) and is
+      negatively related to corroboration (ρ = −0.663). What separates failure is the candidate
+      RATE: ≤ 200/h corroborates at 0.110 with 1 refusal in 24 nights; > 200/h at **0.005** with 4
+      in 12. Full tables in §3.
+
+      This is §2's verdict from the other direction — two independent method swaps have now failed
+      to move this alignment. **Stop swapping methods.** The lever the measurement exposes is our own
+      candidate threshold, not a published algorithm, and it belongs to `PAT-NO-VALID-ANCHOR`.
+
 - [x] §4 recorded — **DONE 2026-08-22.** HAEST (Nasrullah et al. 2024, *IEEE RTAS*) added as `O2RING-BUZZ-FIDUCIAL` §6 Related work, with the distinction the survey drew: it *harvests* ambient events, the buzz is *generated on demand*, so a commanded fiducial has a known emission time and §5's detection could be scored 5/5 rather than estimated. Corroborative, not adopted.
-- [ ] Any adopted method carries author·year·journal·DOI in the doc and a source comment at the call
+- [x] Any adopted method carries author·year·journal·DOI in the doc and a source comment at the call
       site, per the literature policy; any constant it contributes is inlined at author time.
+      — **VACUOUS, and that is the survey's result: NOTHING WAS ADOPTED.** All three method items
+      came back negative on our own data (§1 the fiducial, §2 Nearest Advocate, §3 Brønd), and §4
+      was corroborative by design. No paper-sourced formula, constant or process reached code, so no
+      call site needs a source comment and no constant needed inlining. The clause is left checked
+      rather than deleted because the next survey inherits it, and because "nothing was adopted" is
+      the outcome it is supposed to police — not an exemption from it.
 
 ## 7 · References
 
