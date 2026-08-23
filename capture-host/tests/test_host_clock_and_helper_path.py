@@ -394,6 +394,17 @@ def test_chrony_ref_time_rejects_an_unknown_month_token():
     assert "last_sync_utc" not in ch
 
 
+def test_chrony_tracking_skips_a_colonless_line_rather_than_stopping():
+    """A line with no ':' must be SKIPPED (`continue`), never end the parse (`break`). A `break` would
+    drop every field AFTER the offending line — and `Ref time` is last in real chronyc output, so the
+    last-sync stamp this reader now extracts would be the first casualty. The colonless line sits in the
+    MIDDLE here so the assertion can only pass if parsing resumed past it."""
+    blob = "Stratum         : 2\n(a blank or wrapped line with no colon)\nRMS offset      : 0.000002345 seconds\n"
+    ch = hc.parse_chrony_tracking(blob)
+    assert ch["stratum"] == 1, "the field before the colonless line parses"
+    assert ch["jitter_us"] == 2.3, "the field AFTER it must still parse — proves continue, not break"
+
+
 def test_read_state_carries_chrony_skew_and_leaves_timesyncd_skew_none(monkeypatch):
     """The clock-precision fact rides read_state on the chrony path; the timesyncd path has no analogue,
     so it is None there rather than borrowed from another field (O2RING-ADAPTIVE-TIMEBASE Stage 1)."""
