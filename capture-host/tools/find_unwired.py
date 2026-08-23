@@ -53,9 +53,15 @@ CONSUMERS = ("webmon.py", "alerts.py", "nightqc.py", "timeline.py", "telemetry.p
 ALLOW_KEYS = {
     "tool": "read by webmon.py and monitor.html under a quoting form scan 1 does not model",
 }
-# Fields the API publishes deliberately for a consumer OTHER than the monitor. `/api/state` is not the
-# monitor's private channel — but "something else reads it" must be stated, not assumed.
-ALLOW_RENDERED: dict = {}
+# Fields the API publishes that the monitor does not draw — either for a consumer OTHER than the monitor,
+# or a monitor draw that is PENDING and tracked. `/api/state` is not the monitor's private channel — but
+# "something else reads it" / "a draw is coming" must be STATED, not assumed. An entry here without a
+# real follow-up is exactly the stale suppression this file warns against, so the tracker is load-bearing.
+ALLOW_RENDERED: dict = {
+    "ring_rtc_reset_suspect": "forwarded in STATUS; monitor draw PENDING — the ring RTC battery-reset "
+                              "alarm needs a ring-card indicator, tracked as a follow-up micro-PR that "
+                              "draws it and removes this line",
+}
 
 # Handlers defined in monitor.html that nothing calls. Same rule, same reason.
 ALLOW_JS: dict = {}
@@ -128,6 +134,12 @@ ALLOW_FUNCS = {
     "build_brp": "CPAP EDF writer — constructs a bit-accurate BRP.edf (flow+pressure) from captured data",
     "build_pld": "CPAP EDF writer — constructs a bit-accurate PLD.edf (derived 2 s channels) from captured data",
     "build_eve": "CPAP EDF writer — constructs a bit-accurate EVE.edf (EDF+ event annotations) from captured data",
+    # cpap_ingest.py is the CPAP acquisition gap-accounting layer (audit G4/G7): classify_frame makes a
+    # foreign-streamId or malformed frame COUNTABLE instead of silently dropped. It is the public
+    # classifier consumed by the tests today and by the P1+P3 ingestion wiring next — the single
+    # capture.py/cpap_stream.py touch that lands after the feature-arm controller-race fix (audit §7/§8).
+    # Same shape as the AS11 protocol builders and CPAP EDF constructors above: real, tested, wired next.
+    "classify_frame": "CPAP gap-accounting — counts foreign/malformed frames; consumed by tests today, wired by the P1+P3 ingestion touch next (after the controller-race fix)",
 }
 
 
