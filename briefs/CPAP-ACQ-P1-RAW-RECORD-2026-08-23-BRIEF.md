@@ -113,6 +113,8 @@ P1 reuses `capture-host/writers.py`'s proven `StreamWriter` discipline, not a ne
 
 - [ ] A `RawBatch` record type carrying the §3 field list exactly; a decoy asserts no field is derived
       at write time.
+- [ ] Each batch is one **JSONL line** (samples as an array) in a per-`session_id` file beside the
+      night's other capture files — the ratified format/location above.
 - [ ] An append-only, torn-tail-safe, `fsync`-on writer (StreamWriter idiom) — one file per `session_id`.
 - [ ] "Append DURABLE before bus publish" is the enforced order; a test proves a crash after append /
       before publish still has the batch on disk.
@@ -122,12 +124,14 @@ P1 reuses `capture-host/writers.py`'s proven `StreamWriter` discipline, not a ne
 - [ ] Standalone module, 100% branch (the P2/P3 bar); touches neither `capture.py` nor `cpap_stream.py`.
 - [ ] Wiring plan (§6) reviewed so the P1+P3 touch ships when the controller-race fix merges.
 
-## Open questions (to the lead)
+## Rulings (owner/lead-ratified, 2026-08-23)
 
-1. **Record on-disk format** — one JSONL line per batch (human-diffable, matches the append idiom), or
-   a compact binary sidecar? Proposing **JSONL per batch** for v1 (samples as an array); revisit only
-   if the sample volume proves it too fat.
-2. **File location** — beside the night's other capture files under the existing capture tree, keyed by
-   `session_id`? Proposing yes, mirroring `writers.StreamWriter` output placement.
-3. **Does the wiring PR carry P1+P3 together, or P1 first?** The audit says one touch; confirming P1+P3
-   land as a single wiring PR (my assumption), not two.
+1. **On-disk format — JSONL, one line per batch.** Matches the sidecar/append idiom (the PMD-arrival
+   family), auditable with a pager, and CPAP's rates make the size argument moot (~tens of MB/night;
+   rotation/compression is a later optimization if ever needed). Binary buys nothing worth losing
+   greppability for.
+2. **File location — beside the night's capture files, keyed by `session_id`.** INV1 gets
+   one-file-per-session for free, the night walker discovers it, and provenance is colocated with what
+   it describes.
+3. **The wiring PR carries P1+P3 TOGETHER** as the one announced touch (standing ruling, reconfirmed) —
+   not P1 then P3.
