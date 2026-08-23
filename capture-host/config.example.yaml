@@ -228,3 +228,11 @@ cpap:                    # ResMed card auto-harvest over an ez Share Wi-Fi SD ad
   max_run_sec: 5400      # hard cap. First backfill ~492 MB @ ~130 KB/s ≈ 65 min; a night ≈ 20 s.
   timeout_sec: 20        # per request — the card drops requests under sustained load
   retries: 5
+  # Live waveform over BLE (separate from the Wi-Fi harvest above). The monitor's "Start live stream"
+  # button pushes the CPAP's flow + pressure onto the Live-streams grid. Always wired; it does nothing
+  # until the button is pressed, and then only if credentials exist AND no wearable is capturing (a BLE
+  # stream must not transmit beside the sensors). READ-ONLY.
+  ble_stream:
+    adapter: hci1              # the FREE radio — never the one the wearables capture on (hci0 default)
+    # creds_path: as11_creds.json   # AS11 pairing creds (masterPairKey/clientId/ble_addr); default is
+                                     # beside this config file. Written by the pairing flow / operator probe.
