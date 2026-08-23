@@ -127,6 +127,27 @@ def test_append_into_an_existing_directory_needs_no_mkdir(tmp_path):
     assert os.path.exists(led)
 
 
+def test_append_survives_a_second_call_into_an_existing_tree(tmp_path):
+    """`exist_ok=True` is the whole directory story now that the `isdir` pre-check is gone, so it has
+    to be observable: a second append into a tree that already exists must not raise. With
+    `exist_ok=False` this is a FileExistsError."""
+    led = str(tmp_path / "deep" / "inventory.jsonl")
+    inv.append_row(led, inv.make_row("R", "20260101000000", inv.DISCOVERED, at=1.0))
+    inv.append_row(led, inv.make_row("R", "20260101000000", inv.PARTIAL, at=2.0))
+    assert len(open(led, encoding="utf-8").read().strip().split("\n")) == 2
+
+
+def test_the_ledger_round_trips_NON_ASCII(tmp_path):
+    """🔴 The encoding is explicit on both ends, and this is what proves it. A `reason` can carry a
+    device name or a path, and on a host whose default encoding is not UTF-8 an implicit `open()`
+    writes or reads mojibake — or raises. Every other test here is pure ASCII, under which
+    `encoding="utf-8"` and the platform default are indistinguishable."""
+    led = str(tmp_path / "inventory.jsonl")
+    reason = "réveil du capteur — 温度 drift, 0.5 °C"
+    inv.append_row(led, inv.make_row("R", "20260101000000", inv.PARTIAL, reason=reason, at=1.0))
+    assert inv.load_rows(led)[0]["reason"] == reason
+
+
 def test_append_to_a_bare_relative_filename(tmp_path, monkeypatch):
     """`os.path.dirname` of a bare name is empty — the mkdir branch must not fire on it."""
     monkeypatch.chdir(tmp_path)
@@ -210,6 +231,21 @@ def test_reconcile_reports_a_known_recording_that_is_no_longer_on_disk_as_MISSIN
     rows = _rows(("R", "20260101000000", inv.VERIFIED, 500))
     out = inv.reconcile(rows, {})
     assert out["missing"] == ["R/20260101000000"] and out["verified"] == []
+
+
+def test_reconcile_keeps_going_after_a_missing_entry():
+    """The `missing` branch must CONTINUE, not stop the scan. With `break` the first missing record
+    would hide every later one — and a restart-recovery pass that silently stops at the first gap is
+    worse than none, because the report looks complete."""
+    rows = _rows(
+        ("R", "20260101000000", inv.VERIFIED, 500),   # absent from disk -> missing
+        ("R", "20260101000001", inv.PARTIAL, 40),     # present -> must still be classified
+        ("R", "20260101000002", inv.VERIFIED, 700),   # present -> must still be classified
+    )
+    out = inv.reconcile(rows, {"R/20260101000001": 40, "R/20260101000002": 700})
+    assert out["missing"] == ["R/20260101000000"]
+    assert out["repull"] == ["R/20260101000001"], "a later PARTIAL must not be lost to the gap"
+    assert out["verified"] == ["R/20260101000002"], "nor a later VERIFIED"
 
 
 def test_AN_UNKNOWN_FILE_ON_DISK_IS_REPULL_NOT_VERIFIED():

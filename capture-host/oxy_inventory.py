@@ -116,9 +116,13 @@ def append_row(ledger_path: str, row: dict) -> None:
     Opened in append mode per call rather than held open: the daemon can be killed at any moment, and a
     row that reached the OS is a row that survives. Creates the parent directory if absent so a first
     pull into a fresh night dir does not fail on bookkeeping."""
-    parent = os.path.dirname(os.path.abspath(ledger_path))
-    if parent and not os.path.isdir(parent):
-        os.makedirs(parent, exist_ok=True)
+    # `makedirs(exist_ok=True)` ALONE, with no `isdir` pre-check. The pre-check that was here made
+    # three things worse at once: it opened a TOCTOU window (the dir can appear between the check and
+    # the call — which is the very race `exist_ok` exists to close), it made `exist_ok` unreachable so
+    # nothing could observe whether it was right, and `os.path.dirname(os.path.abspath(...))` is never
+    # empty, so its `parent and` arm was dead too. The mutation gate found all four as survivors; the
+    # fix is deleting the branch, not asserting around it.
+    os.makedirs(os.path.dirname(os.path.abspath(ledger_path)), exist_ok=True)
     with open(ledger_path, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(row, sort_keys=True) + "\n")
 

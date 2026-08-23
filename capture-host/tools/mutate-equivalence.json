@@ -3857,5 +3857,25 @@
       "why": "A PROOF, not a sample. TelemetryBus.register's signature is (key,label,unit,fs,chans=1,labels=()), so dropping the explicit chans=1 leaves the default chans=1 — the registered stream is identical. Same explicit-default-arg-deletion class as the polar_pmd/allan/as11_link entries here.",
       "probe": "TelemetryBus.register default chans=1 == the passed chans=1; verified by signature inspection (telemetry.py:651)."
     }
+  ],
+  "oxy_inventory.py": [
+    {
+      "line": 139,
+      "op": "arg utf-8 → None",
+      "before": "        with open(ledger_path, encoding=\"utf-8\") as fh:",
+      "class": "no-distinguishing-input",
+      "why": "`open()` with encoding=None uses the interpreter's locale-derived default, which on every host this runs on — the capture box, developer machines and CI, all UTF-8 — IS utf-8. So the mutant and the original select the SAME codec and no input distinguishes them. The explicit encoding is still correct: it is insurance against a non-UTF-8 host, and the ledger's `reason` field can carry a device name or path. But that host does not exist in this fleet, so no test here can observe it. ⚠ This is environment-scoped equivalence, not a proof over the input domain — on a latin-1 or C-locale host the mutant IS killable, and the entry should be revisited if the fleet ever gains one.",
+      "probe": "non-ASCII round-trip (\"réveil du capteur — 温度 drift, 0.5 °C\") through append_row → load_rows: byte-identical under encoding=\"utf-8\", encoding=None and the argument omitted. Also attempted and REJECTED as a distinguishing input: monkeypatching locale.getpreferredencoding to 'ascii' — CPython's open() does not consult the patched Python-level function, verified empirically.",
+      "brief": "OXYII-ACQUISITION-CHARTER G2"
+    },
+    {
+      "line": 139,
+      "op": "arg removed",
+      "before": "        with open(ledger_path, encoding=\"utf-8\") as fh:",
+      "class": "no-distinguishing-input",
+      "why": "`open()` with encoding=None uses the interpreter's locale-derived default, which on every host this runs on — the capture box, developer machines and CI, all UTF-8 — IS utf-8. So the mutant and the original select the SAME codec and no input distinguishes them. The explicit encoding is still correct: it is insurance against a non-UTF-8 host, and the ledger's `reason` field can carry a device name or path. But that host does not exist in this fleet, so no test here can observe it. ⚠ This is environment-scoped equivalence, not a proof over the input domain — on a latin-1 or C-locale host the mutant IS killable, and the entry should be revisited if the fleet ever gains one.",
+      "probe": "non-ASCII round-trip (\"réveil du capteur — 温度 drift, 0.5 °C\") through append_row → load_rows: byte-identical under encoding=\"utf-8\", encoding=None and the argument omitted. Also attempted and REJECTED as a distinguishing input: monkeypatching locale.getpreferredencoding to 'ascii' — CPython's open() does not consult the patched Python-level function, verified empirically.",
+      "brief": "OXYII-ACQUISITION-CHARTER G2"
+    }
   ]
 }
