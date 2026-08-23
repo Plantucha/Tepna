@@ -103,6 +103,15 @@ all-green incl. the CPAPDex equiv leg, `verify-provenance.html` clean).
 - No contract change: `ganglior.node-export` untouched; this is an additive CPAPDex surface + metrics
   (MINOR at most under §📦, likely folded into the CPAP hardening line).
 
+## Non-goals (v1) — explicit, so v2 scope does not creep
+
+- **SA2 (oximetry) agreement is OUT of v1.** It belongs to `CPAP-SA2-OXIMETRY-SOURCE`'s own agenda,
+  and is **n=0 until the oximetry accessory returns** — there is nothing to compare. Not a deferred
+  TODO of this surface; a separate brief owns it.
+- **PLD (derived 2 s channels) is OUT of v1.** It folds in with the **feature arm's EDF-set
+  completion** (the live path emitting the full `{ BRP, PLD, EVE, … }` set), not with this comparator.
+  When the live PLD exists, extend the same align+diff core to it — no new surface.
+
 ## Done when
 
 - [ ] `cpapdex-cross.js` exposes `cpapCompare(setA, setB)` → per-channel `{ scale:{a,b,residSD},
@@ -117,12 +126,15 @@ all-green incl. the CPAPDex equiv leg, `verify-provenance.html` clean).
 - [ ] Committed fixture pair (from the Vigil box pin) + equiv leg via `regen-cpap-goldens.mjs`;
       `verify-provenance` clean; `npm run check` green.
 - [ ] Reference-guide row added; `docs-ledger` green.
+- [ ] v1 is BRP-only; SA2 and PLD appear ONLY as the documented non-goals above — no SA2/PLD comparison code ships in v1.
 
-## Open questions (to the lead)
+## Rulings (owner-ratified via the lead, 2026-08-23)
 
-1. **Where does the surface live** — a new tab in CPAPDex, or a panel under the existing cross view?
-   (Defaulting to a panel in the cross surface, mirroring `ecgdex-cross`.)
-2. **PLD/SA2 channels too, or BRP-only for v1?** BRP (flow+pressure) is the load-bearing pair; SA2
-   (oximetry) would tie into the SA2 brief's own agenda. Proposing **BRP-only v1**, SA2 as a follow-up.
-3. **Divergence granularity** — per-minute divergence series, or a single session-level gap summary?
-   Proposing both: a session KPI + a per-minute series, each badged.
+1. **Placement — a PANEL under the existing cross surface (`ecgdex-cross` style), NOT a new tab.** A
+   comparator is a cross-view concern; extending `cpapdex-cross.js` keeps the one-home-per-pattern
+   discipline.
+2. **Scope — BRP-only v1 (flow + pressure).** See Non-goals below; SA2 and PLD are explicit non-goals,
+   not deferred TODOs, so v2 scope cannot creep silently.
+3. **Divergence granularity — BOTH, each badged.** The per-minute series catches a mid-session
+   divergence a session mean would launder; the session-level summary is what the owner reads first.
+   Both are `measured`-tier diff statistics and earn their badges honestly.
