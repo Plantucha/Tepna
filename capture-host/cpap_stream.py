@@ -219,8 +219,10 @@ class LiveStreamController:
             # current batch, DRAIN, close the sinks (persist the EDF) and end on its own. Cancellation is
             # the EMERGENCY fallback for a pump that will not stop — and WHEN it fires we RECORD it, so a
             # truncated recording is never an ambiguous termination.
-            if stop is not None:
-                stop.set()
+            # stop is guaranteed non-None for a live task: _start sets self._stop (an Event) BEFORE
+            # self._task, both under self._lock, and _stop_op reads/nulls the pair together — so reaching
+            # here with a task but no stop is unreachable, and an unconditional set is provably safe.
+            stop.set()
             try:
                 await asyncio.wait_for(asyncio.shield(task), STOP_GRACE_S)
             except asyncio.TimeoutError:

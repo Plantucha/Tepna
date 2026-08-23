@@ -195,6 +195,56 @@ def test_a_custom_channel_map_is_honoured():
     assert start["params"]["sampleIntervalMs"] == 1000
 
 
+# ── §2 OBSERVED INTERVAL IS AUTHORITATIVE ───────────────────────────────────────────────────────────────
+def _data_iv(flow, pressure, iv, stream_id=1):
+    """A StreamData frame carrying an explicit intervalMs (the device's OWN reported rate). iv=None omits
+    the field, the shape as11_pull surfaces as interval_ms=None."""
+    p = {"data": [{"PatientFlow": flow}, {"MaskPressure": pressure}],
+         "startTime": "2026-08-23T01:30:28.730Z", "streamId": stream_id}
+    if iv is not None:
+        p["intervalMs"] = iv
+    return _enc({"jsonrpc": "2.0", "method": "StreamData", "params": p})
+
+
+def test_the_observed_interval_overrides_the_requested_rate_and_warns(caplog):
+    """§2 — the device's reported intervalMs is AUTHORITATIVE over the requested nominal. Requesting 40 ms
+    but observing 20 ms warns once and makes the pushed rate follow the OBSERVED interval (50 Hz), so a
+    downstream consumer times the samples by what the device actually sent, not what we asked for."""
+    dev = FakeDev(_handshake() + [_ack(), _data_iv([1.0], [2.0], 20)])
+    bus = FakeBus()
+    with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+        _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                              sample_interval_ms=40, cipher_factory=_identity_factory, max_batches=1))
+    assert any("!= requested" in r.getMessage() for r in caplog.records), "a first-batch mismatch must warn"
+    assert all(fs == 50.0 for _k, _v, fs in bus.pushed), "pushes follow the OBSERVED 20 ms → 50 Hz"
+
+
+def test_a_mid_stream_interval_change_is_warned_and_the_rate_follows(caplog):
+    """§2 — a change in the device's interval PART-WAY through the stream is a distinct event from the
+    initial observation: it is warned as a mid-stream change (not as observed-vs-requested), and the pushed
+    rate switches to the new interval from that batch on. Batch 1 observes 40 ms (== requested, silent)."""
+    dev = FakeDev(_handshake() + [_ack(), _data_iv([1.0], [2.0], 40), _data_iv([3.0], [4.0], 20)])
+    bus = FakeBus()
+    with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+        _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                              sample_interval_ms=40, cipher_factory=_identity_factory, max_batches=2))
+    assert any("changed mid-stream" in r.getMessage() for r in caplog.records)
+    flow_fs = [fs for k, _v, fs in bus.pushed if k == "cpap_flow"]
+    assert flow_fs == [25.0, 50.0], "batch 1 at the observed 40 ms=25 Hz, batch 2 follows the new 20 ms=50 Hz"
+
+
+def test_a_batch_without_intervalMs_keeps_the_requested_rate(caplog):
+    """§2 — a batch that omits intervalMs carries no rate to trust; the pump keeps the requested rate and
+    does NOT warn. Absence of the field is not a mismatch (the isinstance/>0 guard skips it)."""
+    dev = FakeDev(_handshake() + [_ack(), _data_iv([1.0], [2.0], None)])
+    bus = FakeBus()
+    with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+        _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                              sample_interval_ms=40, cipher_factory=_identity_factory, max_batches=1))
+    assert all(fs == 25.0 for _k, _v, fs in bus.pushed), "no intervalMs → the requested 40 ms=25 Hz stands"
+    assert not [r for r in caplog.records if "interval" in r.getMessage()]
+
+
 # ── extra sinks: PEERS on the one seam + drain-on-disconnect ─────────────────────
 def test_an_extra_sink_is_opened_fed_every_batch_and_closed():
     """The EDF writer (here a recording stand-in) is a PEER of the bus on ONE loop: opened once with the
@@ -374,6 +424,25 @@ async def _deaf_pump(bus, write, recv_frame, pk, cid, *, channels=None, should_s
     resolve, forcing the cancel-and-record path."""
     await asyncio.sleep(3600)
     return 0
+
+
+async def _pump_that_errors_on_stop(bus, write, recv_frame, pk, cid, *, channels=None, should_stop=None):
+    """A pump that RESPECTS should_stop but then RAISES while finalizing — the §8 case where cooperative
+    shutdown fails by ERROR (a crash on drain), not by hanging. The error surfaces out of the grace wait
+    as a NON-timeout exception, which stop must swallow rather than time-out-and-cancel."""
+    while should_stop is None or not should_stop.is_set():
+        await asyncio.sleep(0.005)
+    raise RuntimeError("pump crashed during drain")
+
+
+async def _pump_that_defies_cancel(bus, write, recv_frame, pk, cid, *, channels=None, should_stop=None):
+    """A DEAF pump (ignores should_stop) that, when the emergency cancel finally fires, converts the
+    CancelledError into a DIFFERENT exception — the deepest §8 edge, where even the cancel await surfaces a
+    non-Cancelled error that stop must still absorb."""
+    try:
+        await asyncio.sleep(3600)
+    except asyncio.CancelledError:
+        raise RuntimeError("pump raised on cancel") from None
 
 
 def test_controller_start_spawns_a_stream_and_stop_tears_it_down():
@@ -662,6 +731,46 @@ def test_controller_stop_CANCELS_and_RECORDS_when_the_pump_will_not_stop(monkeyp
         assert t.cancelled(), "the deaf pump was cancelled (emergency)"
         assert any("emergency" in r.message.lower() and "cancel" in r.message.lower()
                    for r in caplog.records), "the cancellation is RECORDED"
+    _run(go())
+
+
+def test_controller_stop_survives_a_pump_that_ERRORS_during_cooperative_drain(caplog):
+    """§8: a well-behaved pump that RAISES while finalizing (a crash on drain, not a hang) surfaces its
+    error out of the grace wait as a non-timeout exception; stop swallows it, still tears the link down,
+    and reports stopped. A crash on drain must not wedge the controller or masquerade as an emergency."""
+    async def go():
+        connect, events = _connector()
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices,
+                                    pump=_pump_that_errors_on_stop)
+        await c.op("start")
+        with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+            res = await c.op("stop")
+        assert res == {"ok": True, "streaming": False}
+        assert events["disconnected"] == 1, "the link is still torn down despite the pump error"
+        assert not c._running()
+        assert not any("emergency" in r.message.lower() for r in caplog.records), \
+            "an error WITHIN grace is not a timeout — no emergency cancel is logged"
+    _run(go())
+
+
+def test_controller_emergency_cancel_survives_a_pump_that_raises_on_cancel(monkeypatch, caplog):
+    """§8: the deepest edge — a deaf pump that, when the emergency cancel finally fires, converts the
+    CancelledError into a DIFFERENT exception. Stop must still complete, record the emergency, and tear
+    the link down rather than propagate the pump's dying error."""
+    monkeypatch.setattr(CS, "STOP_GRACE_S", 0.05)   # keep the test fast
+
+    async def go():
+        connect, events = _connector()
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices,
+                                    pump=_pump_that_defies_cancel)
+        await c.op("start")
+        with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+            res = await c.op("stop")
+        assert res == {"ok": True, "streaming": False}
+        assert events["disconnected"] == 1, "the link is torn down even though the cancel raised"
+        assert not c._running()
+        assert any("emergency" in r.message.lower() for r in caplog.records), \
+            "the timeout still records the emergency before the cancel that raised"
     _run(go())
 
 
