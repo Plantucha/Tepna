@@ -131,6 +131,11 @@
       "description": "Why Tepna exists: read one raw biosignal from a wearable you own, keep it 100% on your device, and get evidence-graded answers — no account, no upload, no product."
     },
     {
+      "href": "Glossary.html",
+      "label": "Glossary & FAQ",
+      "description": "The suite's vocabulary decoded — nodes, the Ganglior bus, the Integrator, floating wall-clock time, evidence badges, provenance fixtures — plus plain answers to the questions every new visitor asks: privacy, devices, correctness, citing."
+    },
+    {
       "label": "Papers",
       "href": "papers/papers.html",
       "description": "Working preprints behind Tepna's methods: reference-free uncertainty, the three-cornered-hat sensor validation, and the honest-HR derivations. Local, open, Apache-2.0."
