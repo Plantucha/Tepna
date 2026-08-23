@@ -10,6 +10,16 @@ abstract: >-
   evidence-graded, reproducible metrics with a unified floating wall-clock
   time model.
 type: software
+# Concept DOI — resolves to the LATEST Zenodo archive of this software (all versions).
+# Each release also carries its own version DOI (v2.7.0: 10.5281/zenodo.22068940).
+doi: 10.5281/zenodo.22068939
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.22068939
+    description: "Concept DOI (all versions)"
+  - type: doi
+    value: 10.5281/zenodo.22068940
+    description: "Version DOI (v2.7.0)"
 authors:
   - family-names: Planicka
     given-names: Michal
