@@ -168,16 +168,27 @@ def test_summarize_scopes_coverage_to_the_current_session(tmp_path):
     assert h10["coverage"]["hr"] == 1.0                 # live stream reads full — not diluted to ~0 by daytime
     assert s["degraded"] == []
     assert h10["streams"]["hr"] == 2000                 # the CURRENT session's rows (the 500 daytime excluded)
-    # ...AND THE EXCLUSION IS REPORTED (CAPTURE-HOST-DEEP-AUDIT §A2). `ok is True` here was the
-    # assertion pinning the defect green: this test's scenario is a benign daytime sitting, but the
-    # file-activity signature is IDENTICAL to a night interrupted by a >1 h box-wide outage — in which
-    # case the same code path discarded the whole pre-outage half and graded the remainder green.
-    # Nothing here can tell the two apart, so the exclusion is surfaced instead of guessed about, and
-    # the benign case is visible in `gaps` as exactly what it is.
-    assert s["ok"] is False, "a session was excluded from the judgement — `ok` cannot claim the night"
+    # ...AND THE EXCLUSION IS REPORTED (CAPTURE-HOST-DEEP-AUDIT §A2), BUT NO LONGER REDS THE NIGHT
+    # (FINISHED-WORK §D). The history matters. `ok is True` here was once the assertion pinning a real
+    # defect green — the file-activity signature of this benign sitting is IDENTICAL to a night
+    # interrupted by a >1 h box-wide outage, and that path discarded the pre-outage half and graded
+    # the remainder green. So the exclusion was surfaced and `ok` went false rather than guessing.
+    #
+    # What changed is that a SECOND discriminator exists, and it is not the file-activity signature:
+    # WHERE the excluded session sits against the judged night's band. This sitting ran 00:00->00:15,
+    # wholly before the judged evening session's band opens at 20:00 — it belongs to the previous
+    # night, so it cannot be a hole in this one. The 2026-07-24 outage below sits INSIDE the band and
+    # still reds, which is the pair this rule has to get right.
+    #
+    # `ok` false on every day carrying any daytime capture is what made it uninformative: the module's
+    # own comment records it false on 20 of the last 20 nights.
+    assert s["ok"] is True, "an exclusion outside the judged night's band is not a hole in this night"
     assert len(s["sessions"]) == 2
     assert s["prior_gap_sec"] == round(eve_start - (day_start + 900))
+    # STILL REPORTED, and now labelled — the exclusion is never hidden, it is only re-scoped.
     assert "excluded from coverage" in s["gaps"][0] and "500 rows" in s["gaps"][0]
+    assert "[outside-band]" in s["gaps"][0], "the class must be visible, never a silent green"
+    assert s["gaps_in_night"] == [], "nothing was excluded from the night itself"
 
 
 def test_summarize_flags_a_degraded_trickle(tmp_path):
@@ -291,6 +302,11 @@ def test_a_box_wide_outage_does_not_get_the_night_graded_green(tmp_path):
     # The discarded half is now AFTER the judged one, which one-sided detection could not see.
     assert s["gaps"], "the outage must be named"
     assert "7200 rows" in s["gaps"][0] and "later session" in s["gaps"][0]
+    # THE GUARD ON §D's RE-SCOPING. This half sits at 02:30-04:30, inside the judged night's band, so
+    # it must classify in-night and keep reding. If the placement rule ever admitted it, the regression
+    # this whole test exists for would be back with a green on top.
+    assert "[in-night]" in s["gaps"][0]
+    assert s["gaps_in_night"] == s["gaps"], "an in-night hole is exactly what `ok` must read"
     assert s["prior_gap_sec"] is None, "nothing precedes the judged half; the hole is on the other side"
 
 
@@ -1437,3 +1453,128 @@ def test_qc_digest_omits_dat_fit_when_absent():
             "datfit": None}
     line = nightqc.qc_digest({"night": "n", "devices": [ring]})
     assert ".dat" not in line and "RTC" in line
+
+def test_gap_class_fails_closed_on_every_branch():
+    """`_gap_class` is the only thing in this module that can turn a red into a green, so each of its
+    branches is pinned directly rather than left to whichever ones `summarize` happens to reach.
+
+    The degenerate-band case is UNREACHABLE through `summarize` — `night_band` always returns a real
+    interval — which is exactly why it needs a unit test: an unreachable branch is untested code that
+    reads as covered, and this one decides whether an unjudgeable night keeps its gaps."""
+    b0, b1 = 1000.0, 2000.0
+    assert nightqc._gap_class([[1500, 2500]], b0, b1) == "in-night", "overlapping the band is a hole"
+    assert nightqc._gap_class([[2100, 2500]], b0, b1) == "outside-band", "wholly after it is out of scope"
+    assert nightqc._gap_class([[0, 500]], b0, b1) == "outside-band", "wholly before it is out of scope"
+    # STRADDLING COUNTS AS IN-NIGHT. Part of the excluded capture IS inside the night, so the night
+    # has a hole; that the rest of it is not does not make the hole smaller.
+    assert nightqc._gap_class([[1900, 2100]], b0, b1) == "in-night", "straddling the edge is still a hole"
+    # ⚠️ ANY overlap at all, not "enough" overlap. `> 0` is the whole test and a mutant weakening it to
+    # `> 1` survived every assertion above, because they all overlap by 100 s. A sub-second intrusion
+    # into the night is still an intrusion — there is no threshold below which a hole stops counting,
+    # and inventing one would be exactly the silent green this rule exists to prevent.
+    assert nightqc._gap_class([[1999.5, 2500]], b0, b1) == "in-night", "half a second of overlap is overlap"
+    assert nightqc._gap_class([[2000.0, 2500]], b0, b1) == "outside-band", "touching the edge is not overlap"
+    # ANY overlapping member condemns the whole entry — one out-of-scope session does not launder it.
+    assert nightqc._gap_class([[0, 500], [1500, 1600]], b0, b1) == "in-night"
+    # A BAND THAT IS NOT A BAND CANNOT GRANT A GREEN. This rule's only power is to relax a verdict, so
+    # it must act on positive evidence that the excluded time was outside the night — never on absence.
+    assert nightqc._gap_class([[2100, 2500]], 2000.0, 1000.0) == "in-night", "no usable band ⇒ keep the gap"
+    assert nightqc._gap_class([[2100, 2500]], 1000.0, 1000.0) == "in-night", "a zero-width band is not a band"
+
+
+def test_an_in_night_hole_BEFORE_the_judged_half_also_reds(tmp_path):
+    """The mirror of the 2026-07-24 case, and it is not redundant with it.
+
+    There the judged (bigger) half came FIRST and the hole sat after it. Here the bigger half comes
+    SECOND, so the excluded in-night session sits BEFORE it — a different branch, and one a mutation
+    run caught as untested: `gaps_in_night.append(line)` on the earlier-side path could be changed
+    freely with the suite still green, because every existing in-night assertion ran on the later side.
+
+    Both halves are inside the night band, so the entry must classify in-night and `ok` must red."""
+    from datetime import datetime as _dt
+    night = str(tmp_path / "2026-07-24"); os.makedirs(night)
+    first = _dt.strptime("20260723213000", "%Y%m%d%H%M%S").timestamp()   # 21:30, the SMALLER half
+    after = _dt.strptime("20260724010000", "%Y%m%d%H%M%S").timestamp()   # 01:00, the BIGGER half
+    _utime(_cap(night, "Polar_H10_02849638_20260723213000_HR.txt", 3600), first + 3600)
+    _utime(_cap(night, "Polar_H10_02849638_20260724010000_HR.txt", 10800), after + 10800)
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+    s = nightqc.summarize(night, devs)
+    assert s["judged_session"]["rows"] == 10800, "the substantive half is judged — the LATER one here"
+    assert s["gaps"], "the hole must be named"
+    assert "earlier session" in s["gaps"][0], "the exclusion is on the earlier side"
+    assert "[in-night]" in s["gaps"][0], "21:30 is inside the band; this is a hole, not a sitting"
+    assert s["gaps_in_night"] == s["gaps"], "an earlier in-night hole must reach `ok`, same as a later one"
+    assert s["ok"] is False, "half the night was discarded and it still graded green"
+
+
+def test_pooling_boundary_exactly_at_midnight_pools(tmp_path):
+    """`0 <= earliest - midnight < _SESSION_GAP_SEC` — the LOWER bound, pinned at exactly 0.
+
+    A session opening on the stroke of midnight is the canonical cross-midnight case: its other half is
+    in yesterday's folder by construction. Mutation found this untested — `0 <=` could become `1 <=` or
+    `0 <`, both of which stop pooling a session starting exactly at 00:00:00, and every existing pooling
+    test starts strictly after midnight so none of them could see it."""
+    from datetime import datetime as _dt
+    d21 = str(tmp_path / "2026-07-21"); os.makedirs(d21)
+    d22 = str(tmp_path / "2026-07-22"); os.makedirs(d22)
+    # ⚠️ YESTERDAY IS DELIBERATELY NON-CONTIGUOUS — it ends at 22:00, two hours before this session
+    # opens, well past `_SESSION_GAP_SEC`. That is what makes `_pool` the ONLY thing that can pool it:
+    # with `_pool` false the code falls through to `prev_probe_window`, which asks the neighbour and is
+    # told no. A contiguous yesterday would be pooled either way, and the first version of this test
+    # used one — so it passed under every mutant and killed nothing.
+    y = _dt.strptime("20260721200000", "%Y%m%d%H%M%S").timestamp()      # runs 20:00 -> 22:00
+    t = _dt.strptime("20260722000000", "%Y%m%d%H%M%S").timestamp()      # EXACTLY midnight
+    _utime(_cap(d21, "Polar_H10_02849638_20260721200000_HR.txt", 7200), y + 7200)
+    _utime(_cap(d22, "Polar_H10_02849638_20260722000000_HR.txt", 3600), t + 3600)
+    s = nightqc.summarize(d22, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
+    assert s["searched_dirs"] == ["2026-07-22", "2026-07-21"], "a midnight start pools yesterday unconditionally"
+    assert [x["rows"] for x in s["sessions"]] == [7200, 3600], "both sittings are seen once yesterday is in scope"
+
+
+def test_pooling_boundary_exactly_at_the_gap_does_not_pool(tmp_path):
+    """The UPPER bound, pinned at exactly `_SESSION_GAP_SEC`.
+
+    `< _SESSION_GAP_SEC` is a strict inequality: a session opening exactly one gap-width after midnight
+    is NOT near-midnight, and pooling it would fuse two unrelated sittings. Mutation found this
+    untested too — `<` could become `<=` with every existing test still green.
+
+    ⚠️ The near-midnight test is only a PROXY, and this file records it failing in production on
+    2026-07-28 (a reconnect 501 s past the gap put half a night in tomorrow's folder). That is why the
+    `prev_probe_window` fallback exists and why the boundary itself has to be exact: the proxy is
+    allowed to be wrong, but it must be wrong in a known place."""
+    from datetime import datetime as _dt
+    d21 = str(tmp_path / "2026-07-21"); os.makedirs(d21)
+    d22 = str(tmp_path / "2026-07-22"); os.makedirs(d22)
+    y = _dt.strptime("20260721120000", "%Y%m%d%H%M%S").timestamp()      # midday yesterday — unrelated
+    t = _dt.strptime("20260722000000", "%Y%m%d%H%M%S").timestamp() + nightqc._SESSION_GAP_SEC
+    _utime(_cap(d21, "Polar_H10_02849638_20260721120000_HR.txt", 9999), y + 9999)
+    _utime(_cap(d22, "Polar_H10_02849638_20260722010000_HR.txt", 2000), t + 2000)
+    s = nightqc.summarize(d22, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
+    assert s["searched_dirs"] == ["2026-07-22"], "exactly one gap-width out is NOT near-midnight"
+    assert s["devices"][0]["streams"]["hr"] == 2000, "yesterday's unrelated sitting stays excluded"
+
+
+def test_the_night_band_is_chosen_by_the_sessions_MIDPOINT(tmp_path):
+    """Which band a gap is judged against comes from the judged session's MIDPOINT, not either end.
+
+    It only matters for a session straddling 20:00 — the hour `night_band` anchors on — and then it
+    matters completely, because the two choices name different nights. A 16:00->22:00 session has its
+    midpoint at 19:00 (band: yesterday 20:00 -> today 10:00) and its end at 22:00 (band: today 20:00 ->
+    tomorrow 10:00). An excluded 02:00 sitting is INSIDE the first and OUTSIDE the second, so the two
+    disagree about whether this night has a hole.
+
+    Mutation found this untested: `(cur[0] + cur[1]) / 2.0` could become `(cur[1] + cur[1]) / 2.0` —
+    silently judging against tomorrow's band — with the whole suite green."""
+    from datetime import datetime as _dt
+    night = str(tmp_path / "2026-07-22"); os.makedirs(night)
+    early = _dt.strptime("20260722020000", "%Y%m%d%H%M%S").timestamp()   # 02:00, the SMALL half
+    main = _dt.strptime("20260722160000", "%Y%m%d%H%M%S").timestamp()    # 16:00 -> 22:00, straddles 20:00
+    _utime(_cap(night, "Polar_H10_02849638_20260722020000_HR.txt", 1800), early + 1800)
+    _utime(_cap(night, "Polar_H10_02849638_20260722160000_HR.txt", 21600), main + 21600)
+    s = nightqc.summarize(night, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
+    assert s["judged_session"]["rows"] == 21600, "the straddling session is the substantive one"
+    assert s["gaps"], "the 02:00 sitting is excluded and must be reported"
+    # 02:00 lies inside the MIDPOINT's band and outside the END's. The midpoint is correct: the session
+    # began at 16:00, so the night it belongs to is the one that opened at 20:00 YESTERDAY.
+    assert "[in-night]" in s["gaps"][0], "judged against the midpoint's band, 02:00 is a hole"
+    assert s["ok"] is False, "a hole in the judged night cannot grade green"
