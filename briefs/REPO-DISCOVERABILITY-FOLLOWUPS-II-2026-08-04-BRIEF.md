@@ -40,7 +40,15 @@ If built, they inherit the machinery that already exists rather than adding any:
 
 ## 3 · Done when
 
-- [ ] A DOI is minted and surfaced, **or** the item is consciously dropped and this brief says so.
+- [x] A DOI is minted and surfaced, **or** the item is consciously dropped and this brief says so.
+      **MINTED 2026-08-23** — the owner enabled the Zenodo↔GitHub integration and the v2.7.0 release
+      publication triggered the first archive: concept DOI **10.5281/zenodo.22068939** (all versions),
+      version DOI **10.5281/zenodo.22068940** (v2.7.0). Deposit metadata is deliberate via the
+      `.zenodo.json` added in the release fold (title · author · Apache-2.0 · keywords), not scraped.
+      Surfaced in `CITATION.cff` (`doi:` + `identifiers:`). No token, no secret, no network in any
+      bundle — the integration is webhook-side on Zenodo. After three briefs of carrying, closed by
+      the third path nobody listed: the item was never droppable OR mintable from the repo; it was a
+      2-minute owner toggle plus a release.
 - [ ] The glossary/FAQ pages exist and are gated by `build-docs --check`, **or** they are consciously
       dropped and this brief says so.
 - [ ] Neither introduces a network fetch into any bundle or page.
