@@ -193,6 +193,47 @@ not on effort: until a zero attribution provably means zero, selection is either
 6 lost kills) or pointless (slower than the tag filter). Fixing per-group capture is the real
 prerequisite, and it was never on anyone's list because the map appeared to work.
 
+### 3e · A SECOND SOURCE OF FALSE SURVIVORS — the reused scratch, measured 2026-08-23 (cause UNISOLATED)
+
+§3 is about the coverage MAP manufacturing false survivors. This is the same symptom from a different
+place, found while killing the mutants `mutate_diff.py` reported on #1664, and it is recorded here
+because the two are easy to confuse and the remedies differ.
+
+**Measured, and each step is reproducible:**
+
+1. `mutate_diff.py --base origin/main` on a **reused** scratch (`/tmp/mut-<module>-<hash>/`) reported
+   **7 survivors** on `nightqc.x_summarize`.
+2. `mutmut run nightqc.x_summarize__mutmut_18` in **that same scratch** → 🎉 **killed**, with no
+   source and no test change in between.
+3. `mutmut results` immediately after → **1** survivor, not 7.
+4. The killing tests were present in `work/tests/` **and** in `work/mutants/mutmut-stats.json`'s
+   `tests_by_mangled_function_name` for that function.
+
+So the mutants were already dead and the tool's reported state was stale until something re-ran them.
+
+🔴 **THE CAUSE IS UNISOLATED, AND THIS SECTION DELIBERATELY DOES NOT NAME ONE.** The first write-up of
+this — including #1664's commit message, which is merged and carries the wrong phrasing — asserted
+that the scratch "carries mutmut's results database forward". Fact 4 above refutes that framing: the
+test copy and the coverage mapping were both current. Three candidates remain and none is established:
+mutmut's own per-mutant result persistence; `mutate.py:290`'s selection (`only or f"{stem}.*"`); or
+something else entirely. **Naming a mechanism that the tree does not support is how a record sends the
+next reader chasing the wrong thing** — the same failure §3a records for the coverage map's "obvious
+rescue", one tool over.
+
+**Actionable regardless of cause:** the symptom is a **false RED, and that direction is the expensive
+one.** A false green is caught by the next honest run; a false red tells you the tests you just wrote
+do not work, which is a conclusion people act on. It cost two rounds of re-writing already-passing
+assertions before a hand-applied mutant settled it.
+
+- **CI is unaffected and is the authority** — a fresh checkout has no reusable scratch. Trust the
+  `mutation (diff-scoped)` job over any local run.
+- **Locally, before believing a survivor, re-run that one mutant by name** (`mutmut run <mutant>` in
+  the scratch). It costs seconds and flips a stale verdict.
+- ⚠️ **A `.pyc` same-size collision was proposed as the mechanism and does NOT fit** — the survivor set
+  contained both same-size and size-changing mutants (`_pool = None`, `is not None`→`is None`,
+  `0 <=`→`0 <`), while a size-CHANGING one (`<`→`<=`) was reported killed. Size does not partition the
+  set. The documented `.pyc` mechanism stands for its own original incident; it does not explain this.
+
 ### 3a · The obvious rescue does NOT work — tested, not assumed
 
 A peer session proposed the natural fix, and it is the one anyone will propose again: *the "384 =

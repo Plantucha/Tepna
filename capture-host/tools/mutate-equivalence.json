@@ -3850,12 +3850,18 @@
       "brief": "MUTATION-COVERAGE-SELECTION-2026-08-14-BRIEF.md §4.4 — declared in code comments, harvested 2026-08-19"
     }
   ],
-  "cpap_stream.py": [
+  "cpap_edf.py": [
     {
-      "key": "- bus.register(key, label, unit, fs, chans=1) | + bus.register(key, label, unit, fs, )",
+      "key": "- [0] * n_records) # values are recomputed on write; placeholders here | + [1] * n_records) # values are recomputed on write; placeholders here",
       "class": "no-distinguishing-input",
-      "why": "A PROOF, not a sample. TelemetryBus.register's signature is (key,label,unit,fs,chans=1,labels=()), so dropping the explicit chans=1 leaves the default chans=1 — the registered stream is identical. Same explicit-default-arg-deletion class as the polar_pmd/allan/as11_link entries here.",
-      "probe": "TelemetryBus.register default chans=1 == the passed chans=1; verified by signature inspection (telemetry.py:651)."
+      "why": "A PROOF: the Crc16 lane's samples are placeholders that write_edf NEVER reads — it recomputes the checksum from the other signals' bytes per record (crc16_ccitt), and read-back overwrites them with those computed values. So [0], [1], or None all produce byte-identical output. No input distinguishes.",
+      "probe": "same lane, same reasoning: the placeholder value is never emitted."
+    },
+    {
+      "key": "- out += _pad(edf.version, 8) | + out = _pad(edf.version, 8)",
+      "class": "no-distinguishing-input",
+      "why": "A PROOF: at this first header write `out` is a freshly-created empty bytearray, so `out = _pad(...)` (replace) yields the exact same bytes as `out += _pad(...)` (extend an empty); every subsequent `out += ...` and the final `bytes(out)` produce identical output.",
+      "probe": "out is empty here (line after `out = bytearray()`); replace vs extend-empty are equal."
     }
   ],
   "oxy_inventory.py": [
