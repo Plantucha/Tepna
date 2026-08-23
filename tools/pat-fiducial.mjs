@@ -24,22 +24,46 @@
  * quantisation floor on the very quantity the experiment measures.
  * ════════════════════════════════════════════════════════════════════════════ */
 
+/* 🔴 THE FOOT INDEX IS FRACTIONAL. `refineFeet` — the producer in `ppgdex-dsp.js` — already
+   returns sub-sample foot positions (93.3275…, not 93), so `bp[footI]` on a typed array is
+   `undefined`, `undefined > lo` is false, and EVERY beat is refused. The first version of this
+   file indexed directly and its selftest passed, because the selftest planted integer feet: a
+   check that ran, examined nothing, and reported cleanly. On the real corpus it rejected
+   15295 of 15295 beats and the tool reported `no beat had a usable rising edge` — which reads
+   as a fact about the data and was a fact about this function. Amplitudes are therefore
+   INTERPOLATED at the foot, and the crossing scan starts at the first whole sample after it. */
+function sampleAt(bp, i) {
+  if (!(i >= 0) || i > bp.length - 1) return Number.NaN;
+  const lo = Math.floor(i);
+  const hi = Math.ceil(i);
+  if (lo === hi) return bp[lo];
+  return bp[lo] + (i - lo) * (bp[hi] - bp[lo]);
+}
+
 /** Half-amplitude crossing on the rising edge foot→peak, in SAMPLES (fractional).
+ *  `footI` may itself be fractional — that is what the shipped detector emits.
  *  Returns null for a beat whose edge is unusable, so callers can count coverage
  *  rather than silently receive a fabricated point. */
 export function halfAmplitudeIndex(bp, footI, peakI) {
-  if (!(peakI > footI) || footI < 0 || peakI >= bp.length) return null;
-  const lo = bp[footI];
-  const hi = bp[peakI];
+  if (!(peakI > footI) || !(footI >= 0) || peakI >= bp.length) return null;
+  const lo = sampleAt(bp, footI);
+  const hi = sampleAt(bp, peakI);
   if (!(hi > lo)) return null; // not a rising edge — reject, never guess
   const half = lo + 0.5 * (hi - lo);
-  for (let i = footI + 1; i <= peakI; i++) {
-    if (bp[i] >= half) {
-      const a = bp[i - 1];
-      const b = bp[i];
-      if (b === a) return i;
-      return i - 1 + (half - a) / (b - a); // linear interpolation, sub-sample
+  /* Left anchor of the first interval is the FOOT itself, not the whole sample before it — that
+     sample lies before the foot, on the previous beat's decay, and using it would place the
+     crossing outside the rising edge whenever the crossing falls in the first partial interval. */
+  let prevI = footI;
+  let prevV = lo;
+  for (let i = Math.ceil(footI); i <= peakI; i++) {
+    if (i <= footI) continue;
+    const v = bp[i];
+    if (v >= half) {
+      if (v === prevV) return i;
+      return prevI + ((half - prevV) / (v - prevV)) * (i - prevI); // linear, sub-sample
     }
+    prevI = i;
+    prevV = v;
   }
   return null;
 }
@@ -81,6 +105,22 @@ function selftest() {
   const step = Float64Array.from([0, 40, 90]);
   const got = halfAmplitudeIndex(step, 0, 2);
   ok('a between-sample crossing is fractional, not rounded', Math.abs(got - 1.1) < 1e-9, `${got} (a rounded impl would say 1 or 2)`);
+
+  console.log('\n### A FRACTIONAL FOOT — what `refineFeet` actually emits (the 15295/15295 bug)');
+  ok('a fractional foot does NOT refuse', halfAmplitudeIndex(ramp, 0.5, 10) !== null, `${halfAmplitudeIndex(ramp, 0.5, 10)}`);
+  /* Foot at 0.5 ⇒ value 5; peak 10 ⇒ 100; half = 52.5; the ramp is 10/sample ⇒ index 5.25. Checked
+     against arithmetic, not against the integer-foot answer, so an implementation that quietly
+     rounded the foot back to 0 (answer 5) fails here. */
+  ok(
+    '…and lands where arithmetic says, not at the integer-foot answer',
+    Math.abs(halfAmplitudeIndex(ramp, 0.5, 10) - 5.25) < 1e-9,
+    `${halfAmplitudeIndex(ramp, 0.5, 10)} (a foot-rounding impl says 5)`
+  );
+  ok(
+    'a crossing inside the FIRST partial interval anchors on the foot',
+    Math.abs(halfAmplitudeIndex(Float64Array.from([0, 100, 100]), 0.5, 2) - 0.75) < 1e-9,
+    `${halfAmplitudeIndex(Float64Array.from([0, 100, 100]), 0.5, 2)}`
+  );
 
   console.log('\n### refusals — an unusable edge must yield null, never a guess');
   ok('flat edge (hi == lo) ⇒ null', halfAmplitudeIndex(Float64Array.from([5, 5, 5]), 0, 2) === null);
