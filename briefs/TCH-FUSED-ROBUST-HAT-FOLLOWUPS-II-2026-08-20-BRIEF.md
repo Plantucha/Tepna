@@ -2,7 +2,7 @@
 Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **Created:** 2026-08-20 · **Follows:** `TCH-FUSED-ROBUST-HAT-FOLLOWUPS-2026-07-14-BRIEF.md` (all five Do items closed 2026-08-20) · **Affects:** `ecgdex-dsp.js` composite per-beat SQI
+**Status:** DONE — 2026-08-22 (§1 CLOSED by measurement 2026-08-20 — `kSQI` discriminates, re-scale declined with a reason. §2 Do 1(b) DECLINED 2026-08-22 with the leverage bounded at ~0.18 epochs/night and a named falsifier, not merely cited as 0.19 %. §3 is a method note.) · **Created:** 2026-08-20 · **Follows:** `TCH-FUSED-ROBUST-HAT-FOLLOWUPS-2026-07-14-BRIEF.md` (all five Do items closed 2026-08-20) · **Affects:** `ecgdex-dsp.js` composite per-beat SQI
 
 # What closing the fused-hat transfer map surfaced
 
@@ -98,7 +98,39 @@ knowing when reading a `meanSQI`, and is not a defect.
 fixture regen, to move **9 of 4845 epochs (0.19 %)**. The parent measured that number and declined to
 spend it without a reason those 9 epochs reach a decision. That reason has still not been shown.
 
-- [ ] a case that low-`c` epochs change a published verdict, or Do 1(b) recorded as declined
+- [x] a case that low-`c` epochs change a published verdict, or Do 1(b) recorded as declined —
+      **DECLINED 2026-08-22, with the leverage bounded rather than merely cited**
+
+### DECLINED 2026-08-22 — bounded at ~0.18 epochs per night, and the falsifier is named
+
+The parent declined on "0.19 %". That number is right but it is a *ratio*, and a ratio does not say
+whether a verdict can move. Reading the code to the line puts a **magnitude** on it.
+
+**What Do 1(b) can and cannot touch.** A beat with `c < 0.5` is **already gone** — `ecgdex-dsp.js:2411`
+keeps a beat only `if (c >= 0.5)` and counts the rest in `artifactSec`; the file says so explicitly:
+*"a beat below that is not down-weighted, it is gone."* So Do 1(b) is not about admitting bad beats.
+It is about **weighting the survivors**, which span **[0.5, 1] by construction** — a weight range of at
+most **2×**, applied to 9 of 4845 epochs.
+
+**The epochs are 5 minutes, not 30 seconds** (`epochEngine(nn, tt, 300, nnSqi)`, `:2441`), and that
+closes the arithmetic: 4845 × 5 min = **404 h**, which reconciles with the ~50-night corpus and
+confirms the reading. So the 9 epochs are **45 minutes spread over 404 hours ≈ 0.18 epochs per
+night**. On a typical ~8 h night (96 epochs) Do 1(b) changes **less than one epoch**.
+
+**Why that matters more than the ratio.** The consumer that could plausibly flip is `stageSleep`
+(`:2058-2072`), which is a per-epoch *classification* over `rmssd`/`hr`/`lfhf` and feeds the surfaced
+`stageMinutes` (`:5132`). A mean absorbs 0.19 %; a classifier does not — 9 epochs could in principle
+flip 9 labels. But at 0.18 epochs/night the per-night exposure is **one 5-minute label at most**, and
+the cost is a fixture regen across all four ECGDex fixtures plus every downstream HRV number.
+
+🔴 **The falsifier, stated so this decline is testable rather than permanent:** a night where a
+*published* verdict sits within **one 5-minute epoch** of its threshold — a stage-minutes boundary, an
+index band edge — AND one of the 9 low-`c` epochs falls on that night. Show that pairing and Do 1(b)
+becomes worth its regen. Absent it, this is spending a fleet-wide fixture cycle to move a number that
+cannot reach a decision.
+
+**Not measured here:** which nights the 9 epochs fall on. That is the one query that would convert
+this bound into a certainty, and it needs the parent's epoch-level run rather than a source read.
 
 ## 3 · The method note worth keeping
 
