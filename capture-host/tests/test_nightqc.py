@@ -1272,6 +1272,188 @@ def test_summarize_attaches_ring_rtc_drift(tmp_path):
     assert all(d["rtc"] is None for d in s["devices"] if d["name"] != "Ring")
 
 
+def test_dat_timefit_summary_absent_when_paths_missing(tmp_path):
+    """FINISHED-WORK-IMPROVEMENTS §B4 — the tool cannot be run without both inputs, so the caller
+    must SILENTLY return None (the ordinary case on a phone-captured night or a box without Node)."""
+    assert nightqc.dat_timefit_summary("", "") is None
+    assert nightqc.dat_timefit_summary(str(tmp_path / "no.dat"), str(tmp_path / "no.csv")) is None
+
+
+def test_dat_timefit_summary_absent_when_tool_missing(tmp_path):
+    """A pointer to a non-existent tool path returns None rather than raising — a box without the
+    tool checked in is a fine ordinary case; the digest just omits the .dat fit line."""
+    dat = tmp_path / "d.dat"; dat.write_bytes(b"\x00" * 100)
+    csv = tmp_path / "s.csv"; csv.write_text("Time,Oxygen Level\n", encoding="utf-8")
+    assert nightqc.dat_timefit_summary(str(dat), str(csv), tool_path=str(tmp_path / "no-tool.mjs")) is None
+
+
+def test_dat_timefit_summary_absent_when_node_missing(tmp_path):
+    """A box without a `node` binary on PATH must not crash — subprocess.FileNotFoundError is caught
+    by the try/except and the function returns None. Verified by pointing at a definitely-not-a-binary
+    path."""
+    dat = tmp_path / "d.dat"; dat.write_bytes(b"\x00" * 100)
+    csv = tmp_path / "s.csv"; csv.write_text("Time,Oxygen Level\n", encoding="utf-8")
+    tool = tmp_path / "fake-tool.mjs"; tool.write_text("//", encoding="utf-8")
+    assert nightqc.dat_timefit_summary(str(dat), str(csv),
+                                       node_bin=str(tmp_path / "no-such-node"),
+                                       tool_path=str(tool)) is None
+
+
+def test_dat_timefit_summary_parses_a_json_run(tmp_path, monkeypatch):
+    """When the subprocess returns exit 0 with parseable JSON, `dat_timefit_summary` returns a trimmed
+    verdict — `lag_s` comes off `chosenLagS`, `ok`/`reason`/`agree` are carried through, and the tool's
+    own input sizes travel too."""
+    import subprocess as _sp
+    dat = tmp_path / "d.dat"; dat.write_bytes(b"\x00" * 100)
+    csv = tmp_path / "s.csv"; csv.write_text("Time,Oxygen Level\n", encoding="utf-8")
+    tool = tmp_path / "fake-tool.mjs"; tool.write_text("//", encoding="utf-8")
+    fake = _sp.CompletedProcess(args=[], returncode=0, stdout='{"ok":true,"converged":true,"reason":null,"chosenLagS":37,"agree":true,"datSec":900,"csvSec":900}\n', stderr="")
+    monkeypatch.setattr(nightqc.subprocess, "run", lambda *a, **k: fake)
+    out = nightqc.dat_timefit_summary(str(dat), str(csv), tool_path=str(tool))
+    assert out == {"ok": True, "converged": True, "reason": None, "lag_s": 37, "agree": True, "dat_sec": 900, "csv_sec": 900}
+
+
+def test_dat_timefit_summary_carries_refusal_reason(tmp_path, monkeypatch):
+    """Exit 1 with an `ok:false` JSON is a REFUSAL by the tool — the reason is carried through so a
+    caller (qc_digest) can decide whether to surface it."""
+    import subprocess as _sp
+    dat = tmp_path / "d.dat"; dat.write_bytes(b"\x00" * 100)
+    csv = tmp_path / "s.csv"; csv.write_text("Time,Oxygen Level\n", encoding="utf-8")
+    tool = tmp_path / "fake-tool.mjs"; tool.write_text("//", encoding="utf-8")
+    fake = _sp.CompletedProcess(args=[], returncode=1, stdout='{"ok":false,"reason":"no lag with enough overlap"}\n', stderr="")
+    monkeypatch.setattr(nightqc.subprocess, "run", lambda *a, **k: fake)
+    out = nightqc.dat_timefit_summary(str(dat), str(csv), tool_path=str(tool))
+    assert out is not None and out["ok"] is False and out["reason"].startswith("no lag")
+
+
+def test_dat_timefit_summary_returns_none_on_a_crash(tmp_path, monkeypatch):
+    """A non-{0,1} exit code from the tool is a SHAPE failure (Node crashed, missing runtime dep) —
+    the function must swallow that and return None so a broken tool cannot red the digest."""
+    import subprocess as _sp
+    dat = tmp_path / "d.dat"; dat.write_bytes(b"\x00" * 100)
+    csv = tmp_path / "s.csv"; csv.write_text("Time,Oxygen Level\n", encoding="utf-8")
+    tool = tmp_path / "fake-tool.mjs"; tool.write_text("//", encoding="utf-8")
+    fake = _sp.CompletedProcess(args=[], returncode=139, stdout="", stderr="segfault")
+    monkeypatch.setattr(nightqc.subprocess, "run", lambda *a, **k: fake)
+    assert nightqc.dat_timefit_summary(str(dat), str(csv), tool_path=str(tool)) is None
+
+
+def test_dat_timefit_summary_returns_none_on_timeout(tmp_path, monkeypatch):
+    """A subprocess timeout is caught — the ordinary case on a huge .dat with a short deadline; the
+    digest simply omits the .dat fit line rather than throwing."""
+    import subprocess as _sp
+    dat = tmp_path / "d.dat"; dat.write_bytes(b"\x00" * 100)
+    csv = tmp_path / "s.csv"; csv.write_text("Time,Oxygen Level\n", encoding="utf-8")
+    tool = tmp_path / "fake-tool.mjs"; tool.write_text("//", encoding="utf-8")
+    def _boom(*a, **k):
+        raise _sp.TimeoutExpired(cmd="node", timeout=k.get("timeout", 30))
+    monkeypatch.setattr(nightqc.subprocess, "run", _boom)
+    assert nightqc.dat_timefit_summary(str(dat), str(csv), tool_path=str(tool)) is None
+
+
+def test_summarize_attaches_the_dat_fit_when_both_sidecars_land(tmp_path, monkeypatch):
+    """The discovery path inside summarize: a `_STORED.dat` (onboard pull) AND a `_SPO2.csv` (live)
+    for the same ring → `datfit` attached to that device's entry. Subprocess stubbed — the discovery
+    is under test, not Node."""
+    import subprocess as _sp
+    night = str(tmp_path / "2026-07-19"); os.makedirs(night)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260719_SPO2.csv", 900)
+    (tmp_path / "2026-07-19" / "Wellue_O2Ring-S_S8AW_20260719_STORED.dat").write_bytes(b"\x00" * 100)
+    fake = _sp.CompletedProcess(args=[], returncode=0, stdout='{"ok":true,"chosenLagS":3,"agree":true}', stderr="")
+    monkeypatch.setattr(nightqc.subprocess, "run", lambda *a, **k: fake)
+    s = nightqc.summarize(night, _devices())
+    ring = next(d for d in s["devices"] if d["name"] == "Ring")
+    assert ring["datfit"] is not None and ring["datfit"]["ok"] is True and ring["datfit"]["lag_s"] == 3
+    # devices without the pair carry None — the ordinary case is unchanged
+    assert all(d["datfit"] is None for d in s["devices"] if d["name"] != "Ring")
+
+
+def test_dat_timefit_summary_derives_the_default_tool_path(tmp_path, monkeypatch):
+    """With `tool_path=None` the function derives `../tools/o2ring-dat-timefit.mjs` relative to
+    nightqc.py itself — the checked-in location — and proceeds. Subprocess is stubbed so the test
+    exercises the derivation, not Node."""
+    import subprocess as _sp
+    dat = tmp_path / "d.dat"; dat.write_bytes(b"\x00" * 100)
+    csv = tmp_path / "s.csv"; csv.write_text("Time,Oxygen Level\n", encoding="utf-8")
+    seen = {}
+    def _spy(args, **k):
+        seen["tool"] = args[1]
+        return _sp.CompletedProcess(args=args, returncode=0, stdout='{"ok":true,"chosenLagS":1}', stderr="")
+    monkeypatch.setattr(nightqc.subprocess, "run", _spy)
+    out = nightqc.dat_timefit_summary(str(dat), str(csv))
+    assert out is not None and out["ok"] is True
+    assert seen["tool"].endswith(os.path.join("tools", "o2ring-dat-timefit.mjs"))
+
+
+def test_dat_timefit_summary_returns_none_on_unparseable_stdout(tmp_path, monkeypatch):
+    """Exit 0 with garbage stdout is a SHAPE failure — trust stdout only when it parses; a truncated
+    or interleaved write must not become a half-read verdict."""
+    import subprocess as _sp
+    dat = tmp_path / "d.dat"; dat.write_bytes(b"\x00" * 100)
+    csv = tmp_path / "s.csv"; csv.write_text("Time,Oxygen Level\n", encoding="utf-8")
+    tool = tmp_path / "fake-tool.mjs"; tool.write_text("//", encoding="utf-8")
+    fake = _sp.CompletedProcess(args=[], returncode=0, stdout="{not json", stderr="")
+    monkeypatch.setattr(nightqc.subprocess, "run", lambda *a, **k: fake)
+    assert nightqc.dat_timefit_summary(str(dat), str(csv), tool_path=str(tool)) is None
+
+
+def test_qc_digest_appends_the_dat_fit_line():
+    """When a device carries a `datfit` alongside `rtc`, the digest gains a `.dat +Ns` note. On a
+    well-behaved night the two agree within the .dat's 1 s quantum — no warning; when they disagree by
+    more than that, a `⚠±Ns` flag surfaces on the same line so a reader cannot miss it."""
+    # AGREE within 1 s — no warning
+    ring_ok = {"name": "Ring", "coverage": {"spo2": 0.99},
+               "rtc": {"reads": 3, "drift_s": 2.4, "span_h": 7.3, "resets": 0, "pushes": 1},
+               "datfit": {"ok": True, "lag_s": 2, "agree": True}}
+    line = nightqc.qc_digest({"night": "n", "devices": [ring_ok]})
+    assert ".dat +2s" in line and "⚠" not in line
+    # DISAGREE by >1 s — the flag surfaces beside the fit
+    ring_bad = {"name": "Ring", "coverage": {"spo2": 0.99},
+                "rtc": {"reads": 3, "drift_s": 0.0, "span_h": 7.3, "resets": 0, "pushes": 1},
+                "datfit": {"ok": True, "lag_s": 5, "agree": True}}
+    line = nightqc.qc_digest({"night": "n", "devices": [ring_bad]})
+    assert ".dat +5s" in line and "⚠" in line
+
+
+def test_qc_digest_dat_fit_without_a_readback_prints_plain():
+    """A night can carry the .dat fit WITHOUT an RTC readback (old firmware, or the sidecar predates
+    the readback). The fit still prints — it is a measurement on its own — but no disagreement flag
+    can be computed, so none appears."""
+    ring = {"name": "Ring", "coverage": {"spo2": 0.99}, "rtc": None,
+            "datfit": {"ok": True, "lag_s": 4, "agree": True}}
+    line = nightqc.qc_digest({"night": "n", "devices": [ring]})
+    assert ".dat +4s" in line and "⚠" not in line and "RTC" not in line
+
+
+def test_qc_digest_suppresses_an_unconverged_fit():
+    """The tool's own #1657 rule, applied one level up: `ok` without `converged` is a single-legged
+    lag — the two columns did not confirm each other — and printing it as `.dat +Ns` would hand the
+    reader a number the tool itself refuses to call a measurement."""
+    ring = {"name": "Ring", "coverage": {"spo2": 0.99}, "rtc": None,
+            "datfit": {"ok": True, "converged": False, "lag_s": 37, "agree": False}}
+    line = nightqc.qc_digest({"night": "n", "devices": [ring]})
+    assert ".dat" not in line
+
+
+def test_qc_digest_trusts_ok_when_converged_is_absent():
+    """An OLDER tool (before the converged flag) emits no such key; the parser carries None and the
+    digest falls back to trusting `ok` — the pre-#1657 behaviour, rather than silently dropping every
+    fit from a box with an older checkout."""
+    ring = {"name": "Ring", "coverage": {"spo2": 0.99}, "rtc": None,
+            "datfit": {"ok": True, "converged": None, "lag_s": 4, "agree": True}}
+    line = nightqc.qc_digest({"night": "n", "devices": [ring]})
+    assert ".dat +4s" in line
+
+
+def test_qc_digest_omits_dat_fit_when_absent():
+    """A phone-captured night or a box without Node yields `datfit: None`; the digest must not print
+    a hollow `.dat` note."""
+    ring = {"name": "Ring", "coverage": {"spo2": 0.99},
+            "rtc": {"reads": 3, "drift_s": 2.4, "span_h": 7.3, "resets": 0, "pushes": 1},
+            "datfit": None}
+    line = nightqc.qc_digest({"night": "n", "devices": [ring]})
+    assert ".dat" not in line and "RTC" in line
+
 def test_gap_class_fails_closed_on_every_branch():
     """`_gap_class` is the only thing in this module that can turn a red into a green, so each of its
     branches is pinned directly rather than left to whichever ones `summarize` happens to reach.

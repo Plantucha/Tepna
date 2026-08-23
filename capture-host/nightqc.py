@@ -1434,6 +1434,64 @@ def rtc_drift_summary(path: str) -> dict | None:
             "resets": resets, "pushes": pushes}
 
 
+def dat_timefit_summary(dat_path: str, spo2_path: str,
+                        *, node_bin: str = "node",
+                        tool_path: str | None = None,
+                        timeout_s: float = 30.0) -> dict | None:
+    """Fit the O2Ring's onboard `.dat` clock against a same-night live `_SPO2.csv` and return the
+    lag verdict, or None when the tool cannot be run.
+
+    FINISHED-WORK-IMPROVEMENTS §B4. `tools/o2ring-dat-timefit.mjs` cross-correlates the two 1 Hz series
+    (both record the SAME session — one stored on the ring, one delivered live and host-stamped) and
+    returns the integer-second offset that puts the .dat's own axis on host time. That is an
+    INDEPENDENT measurement of the same clock error `rtc_drift_summary` reports: they measure the ring
+    RTC from opposite ends (readback vs waveform correlation), so if they disagree by more than the .dat
+    quantum (1 s) the 0xC0 push isn't landing where the readback says it is.
+
+    Absent from the box's live status because the tool ships as a Node CLI; folded in here via
+    subprocess-out so the digest carries both numbers on the same line.
+
+    Returns `{lagS, ok, reason, agree, spo2, pulse}` on success (the tool's own `--json` shape,
+    trimmed), or None when Node/tooling is unavailable or refuses. `None` is the ORDINARY case: a box
+    without Node, or a fixture without a paired .dat/CSV."""
+    if not (dat_path and spo2_path and os.path.exists(dat_path) and os.path.exists(spo2_path)):
+        return None
+    if tool_path is None:
+        # nightqc.py lives at capture-host/nightqc.py; the tool sits at ../tools/o2ring-dat-timefit.mjs
+        here = os.path.dirname(os.path.abspath(__file__))
+        tool_path = os.path.normpath(os.path.join(here, "..", "tools", "o2ring-dat-timefit.mjs"))
+    if not os.path.exists(tool_path):
+        return None
+    try:
+        proc = subprocess.run(
+            [node_bin, tool_path, "--dat", dat_path, "--spo2", spo2_path, "--json"],
+            capture_output=True, text=True, timeout=timeout_s, check=False,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+        return None
+    # exit code 0 = fit ok, 1 = tool refused with `ok:false` and a reason on stdout; anything else is a
+    # SHAPE failure (tool crashed, Node missing runtime dep). Trust stdout only when it parses.
+    if proc.returncode not in (0, 1):
+        return None
+    try:
+        raw = json.loads(proc.stdout or "{}")
+    except (ValueError, TypeError):
+        return None
+    return {
+        "ok": bool(raw.get("ok")),
+        # `converged` (tool #1657/#1658): ok means A lag was chosen; converged means the two columns
+        # CONFIRM each other within the measured 8 s tolerance. An ok-but-unconverged fit is a
+        # single-legged estimate — carried through so the digest can refuse to print it as a
+        # measurement, which is the tool's own rule applied one level up. None on an older tool.
+        "converged": raw.get("converged"),
+        "reason": raw.get("reason"),
+        "lag_s": raw.get("chosenLagS"),
+        "agree": raw.get("agree"),
+        "dat_sec": raw.get("datSec"),
+        "csv_sec": raw.get("csvSec"),
+    }
+
+
 def summarize(night_dir: str, devices: list[dict]) -> dict:
     """Roll the CURRENT capture session up against the configured devices. The session is scoped by
     file-activity (see _SESSION_GAP_SEC) and unified across midnight (see below), NOT the whole date
@@ -1664,12 +1722,27 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         # and rings on firmware before the readback). Discovered by listing rather than the stream scan,
         # so it does not depend on the scan tagging a sidecar it was written before.
         rtc = None
+        # FINISHED-WORK-IMPROVEMENTS §B4 — the independent measurement of the same ring-RTC error, from
+        # the OTHER end. If a `_STORED.dat` (onboard pull, ring's own clock) and a `_SPO2.csv` (live BLE,
+        # host-stamped) both landed for this device, the JS tool cross-correlates their SpO2 series and
+        # returns the integer-second offset that puts the .dat on host time. `qc_digest` flags a
+        # disagreement with `rtc.drift_s` (see below); on a well-behaved night the two agree within the
+        # .dat's 1 s quantum. None means either sidecar is absent or Node/tool are.
+        datfit = None
+        dat_path = spo2_path = None
         for fn in sorted(os.listdir(night_dir)) if os.path.isdir(night_dir) else []:
-            if fn.endswith("_rtclog.csv") and writers.file_device_id(fn) in dids:
+            if writers.file_device_id(fn) not in dids:
+                continue
+            if fn.endswith("_rtclog.csv") and rtc is None:
                 rtc = rtc_drift_summary(os.path.join(night_dir, fn))
-                break
+            elif fn.endswith("_STORED.dat") and dat_path is None:
+                dat_path = os.path.join(night_dir, fn)
+            elif fn.endswith("_SPO2.csv") and spo2_path is None:
+                spo2_path = os.path.join(night_dir, fn)
+        if dat_path and spo2_path:
+            datfit = dat_timefit_summary(dat_path, spo2_path)
         per_device.append({"name": name, "streams": streams, "coverage": coverage,
-                           "silent_sec": silent, "rtc": rtc})
+                           "silent_sec": silent, "rtc": rtc, "datfit": datfit})
     return {
         "night": os.path.basename(night_dir.rstrip("/")),
         # Reported beside the capture verdict, never folded into it — see the note on system_file_drift.
@@ -1773,6 +1846,22 @@ def qc_digest(summ) -> str | None:
             if rtc.get("resets"):
                 extra += f"/{rtc['resets']}⚠reset"
             seg_dev += f" ({extra})"
+        # FINISHED-WORK-IMPROVEMENTS §B4 — the .dat<->live cross-correlation, appended after the RTC
+        # readback. Two independent measurements of the SAME clock error (RTC's `drift_s` is
+        # last-minus-first read; `datfit`'s `lag_s` is the offset needed to put the .dat on host time).
+        # If they disagree by more than the .dat's 1 s quantum, the 0xC0 push isn't landing where the
+        # readback says it is — a signal worth flagging even when either one alone reads clean.
+        fit = d.get("datfit")
+        # `converged is False` = the two columns did not confirm each other — a single-legged lag is
+        # not a measurement (the tool's own #1657 rule), so the digest omits it rather than printing a
+        # number a reader will trust. None (older tool without the flag) falls back to trusting `ok`.
+        if isinstance(fit, dict) and fit.get("ok") and fit.get("lag_s") is not None and fit.get("converged") is not False:
+            seg_dev += f" (.dat {fit['lag_s']:+g}s"
+            if isinstance(rtc, dict) and rtc.get("reads") and rtc.get("drift_s") is not None:
+                gap = abs(fit["lag_s"] - rtc["drift_s"])
+                if gap > 1:
+                    seg_dev += f" ⚠±{gap:.0f}s"
+            seg_dev += ")"
         parts.append(seg_dev)
     if not parts and not absent:
         return None
