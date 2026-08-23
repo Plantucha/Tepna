@@ -24,10 +24,13 @@
 from __future__ import annotations
 
 import datetime
+import logging
 import os
 import re
 
 import cpap_edf
+
+_log = logging.getLogger("tepna.cpap")
 
 # The device start_time, per the Clock Contract: an explicit regex, NEVER a locale parse. The device
 # labels its stream clock with a trailing Z, but these machines carry no real zone — the stamp is local
@@ -36,7 +39,7 @@ import cpap_edf
 # tolerated in the match and likewise ignored for the civil start; the box applies its host-axis
 # correction downstream, never here at the capture edge (§7/§12).
 _ISO_RE = re.compile(
-    r"^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$"
+    r"^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})?$"
 )
 
 # The BRP data ids this writer consumes, and which EDF channel each feeds. PatientFlow → flow (L/s in the
@@ -57,9 +60,11 @@ class EdfSink:
     Peers with the bus sink on cpap_stream's ingestion seam. `serial` is the device serial (from the
     pairing identification), used verbatim in the EDF recording-id. `out_root` is this writer's OWN root
     (never the harvest ingest root); while `flow_scale_verified` is False the file is quarantined under a
-    PENDING subtree of it. `flow_to_lps` converts a device PatientFlow sample to L/s (identity until
-    pinned). `now_ms` is injectable only for tests that need a deterministic mtime; nothing here reads a
-    wall clock for data — the EDF start comes from the DEVICE's start_time, never the host."""
+    PENDING subtree of it. `flow_to_lps` converts a device PatientFlow sample to L/s (identity — the pin
+    confirmed L/s, 2026-08-23). The EDF start is the DEVICE's own start_time — nothing here reads a wall
+    clock for the recording INSTANT — but a zoned (UTC) stamp is rendered in the box's LOCAL civil time so
+    the file matches the SD-card/OSCAR convention (see `_start_components`); only the timezone comes from
+    the host, never the instant."""
 
     PENDING = "PENDING"
 
@@ -116,6 +121,13 @@ class EdfSink:
             raise ValueError(f"StreamData start_time {start_iso!r} is unparseable — refusing to date the EDF")
         self._start_iso = start_iso
         y, mo, d, hh, mm, ss = self._start
+        # Provenance: record the resolution (the raw device stamp → the local-civil components written), so
+        # a UTC-vs-local question later has the conversion on the record rather than needing re-derivation.
+        _log.info(
+            "CPAP EDF start: device stamp %s resolved to local civil %04d-%02d-%02d %02d:%02d:%02d "
+            "(SD-card/OSCAR convention)",
+            start_iso, y, mo, d, hh, mm, ss,
+        )
         stamp = f"{y:04d}{mo:02d}{d:02d}_{hh:02d}{mm:02d}{ss:02d}"
         night = f"{y:04d}{mo:02d}{d:02d}"
         base = self._out_root if self._verified else os.path.join(self._out_root, self.PENDING)
@@ -162,18 +174,31 @@ class EdfSink:
         return self._final
 
 
-def _start_components(iso):
-    """An ISO-8601 device stamp → (y, mo, d, hh, mm, ss) VERBATIM, or None when unparseable/out-of-range.
+def _fixed_zone(zone):
+    """A `±HH:MM` suffix → a datetime.timezone."""
+    sign = 1 if zone[0] == "+" else -1
+    return datetime.timezone(sign * datetime.timedelta(hours=int(zone[1:3]), minutes=int(zone[4:6])))
 
-    Explicit regex, not a locale parse (Clock Contract §2.4). Components are validated by round-tripping
-    through datetime, so a digit-valid but calendar-invalid stamp (2026-02-30, 25:99) is None rather than
-    a silently rolled wrong instant (§2.7). The lone legal overflow is 24:00:00 → next-day 00:00:00 (§2.7)."""
+
+def _start_components(iso):
+    """An ISO-8601 device stamp → the (y, mo, d, hh, mm, ss) to write as the EDF start, or None when
+    unparseable/out-of-range.
+
+    ⚠️ RESOLVED TO LOCAL CIVIL TIME, matching the SD-card BRP.edf, OSCAR, and the house Clock Contract (a
+    floating LOCAL-civil wall clock — §1). The device's live StreamData stamp is UTC ('…Z'), but its own
+    SD recording and OSCAR use local civil, so writing the UTC components verbatim mis-dates the EDF by the
+    UTC offset — measured 2026-08-23, a clean 4 h (EDT), which the pin comparator's 698 s alignment surfaced.
+    So a ZONED stamp (Z or ±HH:MM) is converted to the box's local civil time; an UNZONED stamp is already
+    floating local civil and is taken verbatim. Explicit regex, not a locale parse (§2.4); components are
+    validated by round-trip so a calendar-invalid stamp is None, not a silently rolled instant (§2.7); the
+    one legal overflow is 24:00:00 → next-day 00:00:00."""
     if not iso:
         return None
     m = _ISO_RE.match(iso.strip())
     if not m:
         return None
-    y, mo, d, hh, mm, ss = (int(x) for x in m.groups())
+    y, mo, d, hh, mm, ss, zone = m.groups()
+    y, mo, d, hh, mm, ss = int(y), int(mo), int(d), int(hh), int(mm), int(ss)
     roll = False
     if (hh, mm, ss) == (24, 0, 0):        # ISO end-of-day → 00:00:00 the next calendar day
         hh, roll = 0, True
@@ -183,4 +208,7 @@ def _start_components(iso):
         return None
     if roll:
         dt += datetime.timedelta(days=1)
+    if zone:                              # a real instant → resolve to the box's LOCAL civil wall time
+        tz = datetime.timezone.utc if zone == "Z" else _fixed_zone(zone)
+        dt = dt.replace(tzinfo=tz).astimezone().replace(tzinfo=None)
     return (dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second)
