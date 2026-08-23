@@ -2055,6 +2055,62 @@
       T.ok('ok and ppm are unchanged by the declaration — the field is purely additive', inert.ok === true && typeof inert.ppm === 'number' && typeof inert.n === 'number');
     });
 
+    /* ════ stackJitterMs — the jitter COMPONENT, isolated (ZEPHYR-INSTRUMENT §Task 2 layer 3) ════
+       `spreadMs` is the raw min-max of the divergence, so it carries the whole night's drift; the
+       running median removes the delivery jitter to build the correction, and `stackJitterMs` is the
+       half-IQR of exactly what it removed (r_i − sm[i]) — the same estimator as the two sibling
+       instruments (tools/ble-jitter-probe.py at the HCI layer, capture-host/jitterfloor.py on the
+       PMDARRIVAL sidecars), so the three layers are directly comparable. Half-IQR, not MAD: an
+       alternating ±J residual set is bimodal, the median lands ON a cluster, and MAD read 1.2 ms
+       against a 5.5 ms plant (measured 2026-08-23 on the jitterfloor sibling). */
+    group('hostAxis stackJitterMs — the delivery-jitter component the median removed, published', 'clock · known-answer', function (T) {
+      var C = env.DexClock;
+      if (!(C && typeof C.hostAxis === 'function')) return T.skip('DexClock.hostAxis', 'not loaded');
+      var mk = function (n, fn) {
+        var a = [];
+        for (var i = 0; i < n; i++) a.push({ devMs: i * 1000, hostMs: i * 1000 + fn(i) });
+        return a;
+      };
+      /* APERIODIC plant — hash-scrambled uniform [−4.5, +4.5] ms over a 10 ppm drift. Aperiodic is
+         the honest case: a running median TRACKS structured jitter instead of removing it (a strict
+         ±J alternation reads ~0 because the window's parity-majority follows the plant — that is a
+         property of median smoothing, not a defect), and real BLE delivery is aperiodic. Uniform on
+         [−J, +J] has half-IQR J/2 = 2.25; the median's own wobble adds a little. */
+      var jit = C.hostAxis(
+        mk(400, function (i) {
+          return i * 1e-2 + ((((i * 2654435761) >>> 16) % 9000) / 1000 - 4.5);
+        })
+      );
+      T.ok(
+        'planted aperiodic ±4.5 ms recovered as half-IQR ≈ 2.25',
+        jit.ok === true && jit.stackJitterMs > 1.8 && jit.stackJitterMs < 3.2,
+        'stackJitterMs=' + (jit.stackJitterMs && jit.stackJitterMs.toFixed(3))
+      );
+      T.ok('…and it is far below spreadMs, which still carries the drift', jit.stackJitterMs < jit.spreadMs / 2, 'spread=' + jit.spreadMs.toFixed(1));
+      /* NULL on an inert axis — same reasoning as `stability`: a host column that is the device
+         stamp rounded would report its own quantisation as jitter. */
+      var inert = C.hostAxis(
+        mk(40, function (i) {
+          return i % 2;
+        })
+      );
+      T.eq('NULL when the host column is not an independent clock', inert.stackJitterMs, null);
+      /* A CLEAN pair of clocks — steady drift, no jitter — reads ~0, not the drift. This is the
+         separation the field exists for: drift belongs to ppm/totalMs, jitter to this. */
+      var clean = C.hostAxis(
+        mk(200, function (i) {
+          return i * 0.5;
+        })
+      );
+      T.ok(
+        'a steady 500 ppm drift with NO jitter reads ~0 — drift is not jitter',
+        clean.ok === true && clean.stackJitterMs !== null && clean.stackJitterMs < 0.5,
+        'stackJitterMs=' + (clean.stackJitterMs && clean.stackJitterMs.toFixed(3))
+      );
+      // additive contract: nothing existing moved
+      T.ok('ok/ppm/spreadMs/independent all still published beside it', typeof jit.ppm === 'number' && typeof jit.spreadMs === 'number' && jit.independent === true);
+    });
+
     /* A DEVICE COLUMN THAT IS NOT A CLOCK — `spreadMs` detects the OPPOSITE of what it needs to.
        KNOWN-CLOCK-ADVERSARIAL-CAPTURE, measured 2026-08-14 on the real box tree. `independent` was
        `spreadMs > 2 ms`, so a counter SYNTHESISED as `index × an assumed rate` at 1 s granularity —
