@@ -181,6 +181,33 @@ def test_append_to_a_bare_relative_filename(tmp_path, monkeypatch):
     assert os.path.exists(tmp_path / "inventory.jsonl")
 
 
+def test_a_ledger_line_is_BYTE_STABLE_for_the_same_row(tmp_path):
+    """🔴 `sort_keys=True` is the determinism property, and nothing observed it. A row serialised with
+    insertion order still round-trips — `json.loads` does not care — so every functional test passes
+    either way. What breaks is BYTE stability: two runs that build the same row in a different order
+    produce different lines, and an append-only ledger whose bytes depend on construction order cannot
+    be diffed, hashed or compared across runs.
+
+    That is exactly the property the acquisition spec's determinism section asks for, and it was one
+    unobserved keyword away from being lost."""
+    a = dict(inv.make_row("R", "20260101000000", inv.VERIFIED, size=5, sha256="ab", at=1.0))
+    b = {k: a[k] for k in reversed(list(a))}          # same content, opposite insertion order
+    led_a, led_b = str(tmp_path / "a.jsonl"), str(tmp_path / "b.jsonl")
+    inv.append_row(led_a, a)
+    inv.append_row(led_b, b)
+    assert open(led_a, encoding="utf-8").read() == open(led_b, encoding="utf-8").read(), (
+        "the same row must serialise to the same BYTES whatever order it was built in"
+    )
+
+
+def test_the_default_reason_is_EMPTY_not_a_placeholder(tmp_path):
+    """`reason` defaults to `""`. A mutant making it any non-empty string is a DATA change, not prose:
+    every row created without an explicit reason would carry it, and `test_every_classified_recording
+    _carries_a_reason`'s truthiness check in the sibling module would then pass on rows that were
+    never given one."""
+    assert inv.make_row("R", "20260101000000", inv.DISCOVERED, at=1.0)["reason"] == ""
+
+
 def test_load_skips_a_torn_final_line_instead_of_refusing_the_file(tmp_path):
     """⚠️ TOLERANT ON PURPOSE. A kill mid-write leaves a torn line; refusing to read the ledger over it
     would turn a recoverable partial write into total loss of history — the opposite of append-only's
