@@ -149,8 +149,47 @@ function selftest() {
   ok('lags within tol agree', lagsAgree({ lagS: 37 }, { lagS: 38 }) === true);
   ok('disagreeing lags → false', lagsAgree({ lagS: 37 }, { lagS: 50 }) === false);
   ok('a missing fit → null (not a false agreement)', lagsAgree(null, { lagS: 37 }) === null);
+  /* FINISHED-WORK-IMPROVEMENTS §B4 (2026-08-23) — machine-readable summary. */
+  const fakeDat = new Array(37).fill({ spo2: 97, pr: 62, motion: 0 }).concat(Array.from({ length: 600 }, (_, i) => ({ spo2: 95 + ((i * 7) % 5), pr: 60 + ((i * 3) % 8), motion: 0 })));
+  const fakeCsv = Array.from({ length: 600 }, (_, i) => ({ tMs: 1000000 + i * 1000, spo2: 95 + ((i * 7) % 5), pr: 60 + ((i * 3) % 8) }));
+  const jf = fitDatToSpo2Csv({ dat: fakeDat, csv: fakeCsv, maxLag: 120 });
+  ok('fitDatToSpo2Csv returns ok=true on a fittable pair', jf.ok === true, JSON.stringify(jf));
+  ok('…and recovers the planted lag on the chosen column', jf.chosen && jf.chosen.lagS === 37, 'chosen.lagS=' + (jf.chosen && jf.chosen.lagS));
+  ok('…and datStartHostMs = anchor − chosenLag·1000', jf.datStartHostMs === 1000000 - 37 * 1000, 'got ' + jf.datStartHostMs);
+  ok('…and the two-column agree flag is honoured on a real match', jf.agree === true);
+  const empty = fitDatToSpo2Csv({ dat: [], csv: [], maxLag: 120 });
+  ok('an empty pair returns ok=false with a reason', empty.ok === false && typeof empty.reason === 'string', JSON.stringify(empty));
+  ok('…and no fabricated chosen/anchor', empty.chosen == null && empty.anchorMs == null && empty.datStartHostMs == null);
   console.log(fail ? `\n${fail} FAILURE(S)` : `\n${pass} assertions — all green`);
   return fail ? 1 : 0;
+}
+
+/* FINISHED-WORK-IMPROVEMENTS §B4 (2026-08-23) — the tool's HEADER claimed it *"runs on every night on
+   disk"* while nothing invoked it; downstream hooks (`nightqc` beside the RTC digest, trio-batch beside
+   the arrival sidecar) need a machine-readable summary, not the human-readable console dump.
+   `fitDatToSpo2Csv({dat, csv, maxLag}) → { spo2, pulse, agree, chosen, anchorMs, datStartHostMs, ok, reason }`
+   is a PURE-ish function over parsed inputs (paths are handled by callers via readDat/readSpo2Csv, so this
+   sits atop the same primitives without new I/O). `ok` is true only when a fit was recovered; on refusal
+   `reason` names why. `--json` on the CLI serialises this shape and skips the human render. */
+export function fitDatToSpo2Csv({ dat, csv, maxLag = 600 }) {
+  const spo2 = bestLag(
+    dat.map((x) => x.spo2),
+    csv.map((x) => x.spo2),
+    maxLag
+  );
+  const pulse = bestLag(
+    dat.map((x) => x.pr),
+    csv.map((x) => x.pr),
+    maxLag
+  );
+  if (!spo2 && !pulse) {
+    return { ok: false, reason: 'no lag with enough overlap — same session?', spo2: null, pulse: null, agree: null, chosen: null, anchorMs: null, datStartHostMs: null };
+  }
+  const agree = lagsAgree(spo2, pulse);
+  const chosen = pulse && (agree === true || !spo2) ? pulse : spo2;
+  const anchorMs = csv.length ? csv[0].tMs : null;
+  const datStartHostMs = anchorMs != null && chosen ? anchorMs - chosen.lagS * 1000 : null;
+  return { ok: !!chosen, reason: chosen ? null : 'neither column yielded a fit', spo2, pulse, agree, chosen, anchorMs, datStartHostMs };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -164,37 +203,42 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const maxLag = Number(arg('--maxlag') || 600);
   const dat = readDat(datP),
     csv = readSpo2Csv(csvP);
+  const fit = fitDatToSpo2Csv({ dat, csv, maxLag });
+  if (process.argv.includes('--json')) {
+    // Callers (nightqc's RTC digest hook, a trio-batch enrichment pass) parse this shape directly.
+    // The two input sizes travel too so a caller can flag "session too short" without re-decoding.
+    process.stdout.write(
+      JSON.stringify({
+        ok: fit.ok,
+        reason: fit.reason,
+        datSec: dat.length,
+        csvSec: csv.length,
+        spo2: fit.spo2,
+        pulse: fit.pulse,
+        agree: fit.agree,
+        chosenLagS: fit.chosen ? fit.chosen.lagS : null,
+        anchorMs: fit.anchorMs,
+        datStartHostMs: fit.datStartHostMs
+      }) + '\n'
+    );
+    process.exit(fit.ok ? 0 : 1);
+  }
   const med = (a) => [...a].sort((x, y) => x - y)[a.length >> 1];
   console.log(`  dat : ${dat.length} s   spo2 median ${med(dat.map((r) => r.spo2))}  pulse median ${med(dat.map((r) => r.pr))}`);
   console.log(`  csv : ${csv.length} s   host-stamped ${new Date(csv[0]?.tMs).toISOString().slice(11, 19)}–${new Date(csv[csv.length - 1]?.tMs).toISOString().slice(11, 19)} (floating)`);
-  // fit on BOTH columns: SpO2 (coarse 1%-integer) and pulse (finer). Two independent observables.
-  const spo2 = bestLag(
-    dat.map((x) => x.spo2),
-    csv.map((x) => x.spo2),
-    maxLag
-  );
-  const pulse = bestLag(
-    dat.map((x) => x.pr),
-    csv.map((x) => x.pr),
-    maxLag
-  );
-  if (!spo2 && !pulse) {
+  if (!fit.ok && !fit.spo2 && !fit.pulse) {
     console.log('  no lag with enough overlap — is this the same session?');
     process.exit(1);
   }
   const report = (nm, r, unit) => console.log(r ? `  ${nm} lag: dat leads csv by ${r.lagS} s   (mean |Δ${unit}| ${r.meanAbsErr.toFixed(3)} over ${r.n} s)` : `  ${nm} lag: no fit`);
   console.log('');
-  report('SpO₂ ', spo2, 'SpO₂');
-  report('pulse', pulse, 'bpm');
-  const agree = lagsAgree(spo2, pulse);
-  if (agree === true) console.log(`  ✓ the two columns AGREE — the lag is confirmed by an independent, finer observable`);
-  else if (agree === false) console.log(`  ⚠ SpO₂ ${spo2.lagS}s vs pulse ${pulse.lagS}s DISAGREE by ${Math.abs(spo2.lagS - pulse.lagS)}s — one fit is spurious; treat as unconfirmed`);
-  if (spo2 && spo2.meanAbsErr > 1.5) console.log('  ⚠ SpO₂ mean error > 1.5 % — that fit is weak on its own');
-  // prefer pulse (finer) when it exists and either agrees with SpO2 or SpO2 is absent
-  const chosen = pulse && (agree === true || !spo2) ? pulse : spo2;
-  const anchorMs = csv[0]?.tMs;
-  if (anchorMs != null && chosen) {
-    const datStartHostMs = anchorMs - chosen.lagS * 1000;
-    console.log(`  ⇒ .dat sample 0 sits at host ${new Date(datStartHostMs).toISOString().slice(11, 19)} (floating) — its RTC stamp can now be checked against this`);
+  report('SpO₂ ', fit.spo2, 'SpO₂');
+  report('pulse', fit.pulse, 'bpm');
+  if (fit.agree === true) console.log(`  ✓ the two columns AGREE — the lag is confirmed by an independent, finer observable`);
+  else if (fit.agree === false)
+    console.log(`  ⚠ SpO₂ ${fit.spo2.lagS}s vs pulse ${fit.pulse.lagS}s DISAGREE by ${Math.abs(fit.spo2.lagS - fit.pulse.lagS)}s — one fit is spurious; treat as unconfirmed`);
+  if (fit.spo2 && fit.spo2.meanAbsErr > 1.5) console.log('  ⚠ SpO₂ mean error > 1.5 % — that fit is weak on its own');
+  if (fit.datStartHostMs != null) {
+    console.log(`  ⇒ .dat sample 0 sits at host ${new Date(fit.datStartHostMs).toISOString().slice(11, 19)} (floating) — its RTC stamp can now be checked against this`);
   }
 }
