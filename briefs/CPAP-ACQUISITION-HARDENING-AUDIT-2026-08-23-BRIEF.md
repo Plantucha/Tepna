@@ -245,6 +245,32 @@ further capture requested (drop *between* rounds — the exact transaction bound
    conflicts are the norm — restore and re-insert (CLAUDE.md §👥.2c).
 5. **Clean-room scoped to NEW code; grandfather the protocol core** with its recorded attribution (§3).
 
+## 8 · Acceptance criteria — the owner's 12 invariants (§22, verbatim 2026-08-23)
+
+The owner's findings spec (2026-08-23) ratified this chain and named **twelve invariants as the
+program's acceptance criteria** — the master checklist every phase is measured against. Verbatim, with
+the phase that establishes each and its status:
+
+| # | invariant | phase | status |
+|---|---|---|---|
+| INV1 | Every stored sample belongs to exactly one acquisition session. | P1 record + P2 session id | pending P1 |
+| INV2 | Every acquisition session has an explicit lifecycle. | P2 (`cpap_acq` state machine) | **SHIPPED #1679** |
+| INV3 | Raw samples are never silently replaced by derived values. | P1 (raw preserved; no interpretation in acquisition) | pending P1 |
+| INV4 | Device timestamps are never silently replaced by host timestamps. | P1 record + Clock Contract | core already honors (`as11_pull.stream` yields device time verbatim) |
+| INV5 | Observed sample interval is preferred over requested interval. | P1/P3 (record device-reported interval; prefer observed) | pending P1 |
+| INV6 | Partial spool rounds cannot advance the committed cursor. | P4 (brief §3 cursor-commit rule) | **DESIGNED** (P4 §3) |
+| INV7 | A transport gap is represented explicitly. | P3 (gap accounting) | **MODULE BUILT** (P3, held) |
+| INV8 | Recovery does not imply continuity until continuity is verified. | P3/P5 (continuity-status field) | pending P3 brief |
+| INV9 | The live bus is not the sole authoritative copy. | P1 (raw sidecar beside the bus — the centerpiece) | pending P1 |
+| INV10 | Unknown state remains unknown. | P2 + Clock Contract (null never fabricated) | **SHIPPED #1679** (no fabricated state; illegal transition raises) |
+| INV11 | One CPAP acquisition owner exists at a time. | P2 wiring (feature-arm controller §7 race fix, then serialized wiring) | pending wiring |
+| INV12 | A successful shutdown is distinguishable from an abrupt failure. | P2 (SHUTTING_DOWN→DISCONNECTED vs ERROR) | **SHIPPED #1679** |
+
+**Guiding principle (owner, §1/§11):** *the bus must be a VIEW of the acquisition, not the
+acquisition* — live and spool CONVERGE on ONE canonical CPAP observation, so the P1 raw record and the
+P4 committed store are **projections of one representation**, not two timing/provenance models. INV9 is
+the load-bearing one: the durable record, never the bus, is authoritative.
+
 ## Done when (this AUDIT brief)
 
 - [x] Existing CPAP architecture documented — two paths, maturity split, strengths named (§1).
@@ -257,3 +283,7 @@ further capture requested (drop *between* rounds — the exact transaction bound
 - [x] P4 recovery model hardware-pinned by a real AirSense-11 run (§7) — and the run *validated* the
       existing `pull_spool` core rather than finding a defect.
 - [ ] Each build phase spawns its own executable brief + PR; this brief only orders them (P2 first).
+- [x] The owner's §22 twelve invariants recorded as the program's acceptance criteria (§8), each mapped
+      to its phase. INV2/INV10/INV12 shipped (#1679), INV6 designed (P4 §3), INV7 module built (P3).
+- [ ] **MASTER CHECKLIST — all 12 invariants (§8) satisfied and test-backed** before the program is
+      DONE. This brief stays the living charter until then.
