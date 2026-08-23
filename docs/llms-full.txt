@@ -412,7 +412,7 @@ Max information, minimum hardware, priced honestly. Every signal in the suite co
 
 | Hardware | Role | Approx. price |
 |---|---|---:|
-| **Lenovo ThinkCentre M900 Tiny** (refurbished — any 6th-gen-i5 tiny works) | the Health Box — 24/7 bedside capture daemon · LAN server · clock synced ±1 ms to the stratum-1 below | ~$80–130 |
+| **Lenovo ThinkCentre M900 Tiny** (refurbished — any 6th-gen-i5 tiny works) | the Health Box — 24/7 bedside capture daemon · LAN server · clock disciplined µs-level against the GPS+PPS stratum-1 below | ~$80–130 |
 | **Wellue O2Ring** (O2Ring-S) | overnight SpO₂ · pulse · raw PPG → OxyDex / PpgDex | ~$170 |
 | **Polar H10** chest strap | raw ECG (~130 Hz) · RR · ACC → ECGDex / PulseDex / MotionDex | ~$90 |
 | **Polar Verity Sense** armband | raw 4-channel PPG · IMU → PpgDex / MotionDex | ~$105 |
@@ -422,7 +422,7 @@ Max information, minimum hardware, priced honestly. Every signal in the suite co
 | **ez Share WiFi SD card** | pulls the CPAP's SD card over WiFi, no cable | ~$25 |
 | **COOSPO H808S** chest strap | second RR source → PulseDex cross-checks | ~$35 |
 | | **Core capture kit** | **≈ $550** |
-| **CenterClick NTP250** GPS time server | LAN stratum-1 — the timing-integrity backbone every capture clock is disciplined against *(optional; NTP pool works at ms-accuracy)* | ~$200–240 *(current models: NTP220/NTP270)* |
+| **CenterClick NTP250** GPS time server | GPS+PPS-disciplined LAN stratum-1 — holds the box at microsecond offsets (measured ~2.5 µs); the timing-integrity backbone *(optional; NTP pool works at ms-accuracy)* | ~$200–240 *(current models: NTP220/NTP270)* |
 | **ResMed AirSense 11** | CPAP therapy (its data feeds CPAPDex) — therapy equipment, typically insurance-covered | ~$1,050 retail |
 | **Abbott Lingo** | CGM → GlucoDex — consumable biosensor | $49 / 14-day sensor |
 | **Muse S** headband | EEG → EEGDex (planned node) | ~$400 |
