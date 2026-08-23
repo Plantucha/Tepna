@@ -301,8 +301,8 @@ def test_pull_spool_default_cap_stops_at_exactly_64_rounds():
 _START_ID = 16
 
 
-def _ack(ids_valid, stream_id=1):
-    return _enc({"id": _START_ID, "result": {
+def _ack(ids_valid, stream_id=1, rpc_id=_START_ID):
+    return _enc({"id": rpc_id, "result": {
         "dataIds": [{"dataId": d, "valid": v} for d, v in ids_valid], "streamId": stream_id}})
 
 
@@ -335,12 +335,30 @@ def test_stream_yields_decoded_batches_and_merges_channels():
 
 
 def test_stream_sends_startstream_with_the_requested_params():
-    dev = FakeAS11([_ack([("SpO2", True)]), _stream_data({"SpO2": [98.0]}, interval_ms=1000)])
+    # a DISTINCTIVE start_id (42, not the default 16) so that dropping the `rpc_id=start_id` forward —
+    # which would silently fall back to start_stream's default of 16 — changes this frame and is caught.
+    dev = FakeAS11([_ack([("SpO2", True)], rpc_id=42), _stream_data({"SpO2": [98.0]}, interval_ms=1000)])
     _run(_collect(P.stream(dev.write, dev.recv_frame, _seal, _unseal, ["SpO2"],
-                           sample_interval_ms=1000, start_id=_START_ID, max_batches=1)))
+                           sample_interval_ms=1000, report_interval_ms=2000,
+                           start_id=42, max_batches=1)))
     sent = json.loads(L.fig_unframe(dev.written[0])[1])
-    assert sent["method"] == "StartStream" and sent["params"]["dataIds"] == ["SpO2"]
+    # assert the WHOLE request — every argument stream() forwards to L.start_stream, and the id it
+    # opens the stream under. A weakened forward (wrong dataIds/interval/report/id) changes this frame.
+    assert sent["method"] == "StartStream" and sent["id"] == 42
+    assert sent["params"]["dataIds"] == ["SpO2"]
     assert sent["params"]["sampleIntervalMs"] == 1000
+    assert sent["params"]["reportIntervalMs"] == 2000
+
+
+def test_stream_defaults_the_sample_interval_and_the_start_id():
+    """Called with only the dataIds, stream() opens with the documented defaults — 40 ms sampling and
+    rpc id 16. The ACK here carries id 16, so a mutated default start_id would send a different id and
+    this frame assertion catches it (and the ACK would no longer match)."""
+    dev = FakeAS11([_ack([("PatientFlow", True)]), _stream_data({"PatientFlow": [0.0]})])
+    _run(_collect(P.stream(dev.write, dev.recv_frame, _seal, _unseal, ["PatientFlow"], max_batches=1)))
+    sent = json.loads(L.fig_unframe(dev.written[0])[1])
+    assert sent["id"] == 16, "default start_id is 16"
+    assert sent["params"]["sampleIntervalMs"] == 40, "default sample interval is 40 ms"
 
 
 def test_stream_carries_the_device_start_time_verbatim_never_fabricated():

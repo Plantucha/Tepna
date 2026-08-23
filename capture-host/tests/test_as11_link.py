@@ -144,6 +144,19 @@ def test_start_stream_builds_the_request_with_a_defaulted_report_interval():
     assert p["reportIntervalMs"] == 200, "reportIntervalMs defaults to exactly 5× the sample interval"
 
 
+def test_start_stream_all_defaults_are_the_documented_values():
+    """Calling with ONLY the dataIds must produce the hardware-confirmed defaults: 40 ms sample, 200 ms
+    report (5×), and rpc id 16. Pins each default value, not just the shape."""
+    obj = json.loads(L.start_stream(["PatientFlow"]))
+    assert obj["id"] == 16, "the default rpc_id is 16"
+    p = obj["params"]
+    assert p["sampleIntervalMs"] == 40 and p["reportIntervalMs"] == 200
+
+
+def test_start_stream_uses_the_rpc_id_it_is_given():
+    assert json.loads(L.start_stream(["PatientFlow"], 40, rpc_id=99))["id"] == 99
+
+
 def test_start_stream_honours_an_explicit_report_interval():
     p = json.loads(L.start_stream(["SpO2"], 1000, 1000))["params"]
     assert p["reportIntervalMs"] == 1000
@@ -151,27 +164,35 @@ def test_start_stream_honours_an_explicit_report_interval():
 
 def test_start_stream_rejects_an_empty_or_malformed_id_list():
     for bad in ([], [""], [1], ["ok", ""]):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="dataId"):
             L.start_stream(bad, 40)
 
 
-def test_start_stream_rejects_more_than_thirty_ids():
-    with pytest.raises(ValueError):
+def test_start_stream_accepts_exactly_thirty_ids_but_rejects_thirty_one():
+    """The cap is INCLUSIVE at 30 (`> 30`, not `>= 30`): 30 is the documented maximum and must build."""
+    assert len(json.loads(L.start_stream([f"d{i}" for i in range(30)], 40))["params"]["dataIds"]) == 30
+    with pytest.raises(ValueError, match="at most 30"):
         L.start_stream([f"d{i}" for i in range(31)], 40)
 
 
 def test_start_stream_bounds_the_sample_interval():
     for bad in (9, 65001):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="10.*65000"):
             L.start_stream(["PatientFlow"], bad)
     # the inclusive edges are accepted
     assert json.loads(L.start_stream(["PatientFlow"], 10))["params"]["sampleIntervalMs"] == 10
     assert json.loads(L.start_stream(["PatientFlow"], 65000))["params"]["sampleIntervalMs"] == 65000
 
 
+def test_start_stream_report_interval_lower_bound_is_inclusive_at_one():
+    """The report window may be as small as 1 ms (`1 <= report`, not `2 <=` or `1 <`): report=1 must
+    build. Pins the lower boundary against both an off-by-one and a strict-inequality mutant."""
+    assert json.loads(L.start_stream(["PatientFlow"], 40, 1))["params"]["reportIntervalMs"] == 1
+
+
 def test_start_stream_report_interval_may_not_exceed_five_times_the_sample():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="reportIntervalMs"):
         L.start_stream(["PatientFlow"], 40, 201)   # 5× is 200
     assert json.loads(L.start_stream(["PatientFlow"], 40, 200))["params"]["reportIntervalMs"] == 200
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="reportIntervalMs"):
         L.start_stream(["PatientFlow"], 40, 0)     # must be ≥ 1

@@ -3,7 +3,7 @@
 bump: minor
 type: added
 nodes: [capture-host]
-brief: CPAP-BLE-CAPTURE-2026-08-21-BRIEF
+brief: CPAP-BLE-CAPTURE-2026-08-21-BRIEF.md
 ---
 
 **AS11 live-waveform capture core — `StartStream` builder + `StreamData` consumer, over the encrypted
