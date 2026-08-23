@@ -106,6 +106,13 @@ ALLOW_FUNCS = {
     "start_stream": "CPAP-BLE pull core — the StartStream (live waveform) RPC builder, used by the stream probe (see note)",
     "stream": "CPAP-BLE pull core — the live StreamData waveform consumer the operator stream probe drives (see note)",
     "make_cipher": "CPAP-BLE pull core — the AES-256-CBC seal/unseal the daemon/probe inject into the stdlib-only protocol layer (see note)",
+    # cpap_edf.py is the bit-accurate ResMed EDF/EDF+ WRITER (STR/BRP/PLD/EVE from captured data). Its
+    # read/write core is exercised module-internally and by the byte-identity gate; these per-type
+    # CONSTRUCTORS are the public creation API, consumed by the tests today and the BLE→EDF capture
+    # wiring next (the same shape as the AS11 protocol builders above).
+    "build_brp": "CPAP EDF writer — constructs a bit-accurate BRP.edf (flow+pressure) from captured data",
+    "build_pld": "CPAP EDF writer — constructs a bit-accurate PLD.edf (derived 2 s channels) from captured data",
+    "build_eve": "CPAP EDF writer — constructs a bit-accurate EVE.edf (EDF+ event annotations) from captured data",
 }
 
 
