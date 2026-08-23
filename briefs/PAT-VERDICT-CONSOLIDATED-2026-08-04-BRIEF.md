@@ -87,6 +87,11 @@ differencing. Each is measured above.
 - **Read the sibling briefs first.** §3c–§3g were written without reading `PAT-NO-VALID-ANCHOR`, which
   sits in the same family, names the brief being edited, and already contained parts of them at larger n.
 
+### 5b · External literature anchors (added 2026-08-23, citation-integration pass)
+
+- **Liang Y et al. 2019**, *How effective is pulse arrival time for evaluating blood pressure?* J Clin Med 8(3):337, `10.3390/jcm8030337` — MIMIC waveform channels are widely assumed synchronized and are not; PAT computed over unproven synchronization is unreliable at scale. Independent confirmation of this family's central finding (the timebase, not the physiology, is the wall). Also the literature cap on ABSOLUTE PAT→BP that `pat-align.js` cites via Payne 2006.
+- **Cohen JB et al. / AHA scientific statement 2026**, *Cuffless devices for the measurement of blood pressure*, Hypertension 83(3):e00254, `10.1161/HYP.0000000000000254` — cuffless BP devices are not adequately vetted for accuracy/efficacy and "may be inappropriate for clinical use." External authority for the suite's WP-A removals (`bpEst`, `htnScore`, `bpProj` — all hard-nulled 2026-06); the refusal is now literature-backed, not just internal-review-backed.
+
 ## 6 · Status of the five published verdicts
 
 | verdict | stands? |

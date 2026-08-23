@@ -47,6 +47,36 @@ A fleet of local-only, single-signal physiological analyzers. No upload. No acco
 
 ---
 
+## 🧭 Why this exists
+
+The story goes that August Strindberg once blew pipe smoke into a bucket of water to see if he could
+make gold. Maybe he wasn't the man who thought smoke could make gold — maybe he was the man who
+**proved that it couldn't**. Someone has to walk the wrong path all the way to the end and come back
+to tell everyone else: *"Not this way, friends."*
+
+Tepna is that, for consumer-wearable physiology. It asks what a chest strap, a ring oximeter, an
+armband, a CGM and a CPAP machine — the sensors people actually own — can **honestly** measure, and
+publishes the answer in both directions:
+
+- **What holds** ships as a metric with an [evidence grade](#the-evidence-ladder-every-metric-is-graded)
+  on every number — nothing reaches your eye unlabelled.
+- **What fails** is not deleted; it is published. [*Dead Ends*](papers/dead-ends.html) is a citable
+  map of the walls — optical PRV that isn't ECG HRV, a cuffless-BP path withdrawn, a "coupling" that
+  collapsed under one confounder — each with the evidence that felled it. Negative results are the
+  product, not the waste.
+
+Two constraints shape everything. **Privacy is a gate, not a promise** — your raw physiology never
+leaves the browser, and CI fails the build if anything reaches for the network. And **maximum
+information, minimum hardware** — the whole suite runs on a handful of consumer devices and one small
+bedside box, because a measurement setup you can't live with is a measurement setup you'll stop
+wearing.
+
+The long-form colophon — Strindberg, the maze, the Wife Acceptance Factor as a load-bearing
+engineering constraint — is [`docs/WHY-THIS-EXISTS.md`](docs/WHY-THIS-EXISTS.md) *(styled:
+[Why This Exists.html](https://tepna.net/Why%20This%20Exists.html))*.
+
+---
+
 ## 📊 Suite at a glance
 
 **Suite version:** 2.7.0 &nbsp;—&nbsp; **33** ledger-backed releases, each computed from a green tree.
