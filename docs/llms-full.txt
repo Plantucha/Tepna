@@ -248,7 +248,7 @@ right node on each file, and hands every result to the Integrator automatically.
 ## 📻 The Health Box — where the raw signals come from
 
 The suite reads files. Something has to *write* them, and for the nightly multi-device recordings
-that is **`capture-host/`** — an out-of-suite Python service for a bedside Raspberry Pi that holds
+that is **`capture-host/`** — an out-of-suite Python service for a bedside mini-PC (a used Lenovo ThinkCentre M900 Tiny) that holds
 the live BLE links (Polar H10 ECG, Verity PPG/ACC) and writes **existing vendor layouts** into
 per-night directories the Dex apps already know how to read. It is a *producer*, deliberately
 outside the browser suite: no Dex app ever talks to a device.
@@ -402,6 +402,41 @@ confidence** — which is exactly why the suite publishes the breakdown rather t
 So **roughly half** the surface is `measured` or `validated`, and **just under a third** sits at
 `experimental` or `heuristic`. A count of 404 would be a boast; the distribution is the honest
 version of the same fact, and it is why the ladder leads and the count follows.
+
+---
+
+## 💰 The hardware — what this actually runs on
+
+Max information, minimum hardware, priced honestly. Every signal in the suite comes off this kit
+(approximate US street prices, August 2026; the box was bought **used**):
+
+| Hardware | Role | Approx. price |
+|---|---|---:|
+| **Lenovo ThinkCentre M900 Tiny** (used) | the Health Box — 24/7 bedside capture daemon, LAN server, stratum-1 clock | **$150** |
+| **Wellue O2Ring** (O2Ring-S) | overnight SpO₂ · pulse · raw PPG → OxyDex / PpgDex | ~$170 |
+| **Polar H10** chest strap | raw ECG (~130 Hz) · RR · ACC → ECGDex / PulseDex / MotionDex | ~$90 |
+| **Polar Verity Sense** armband | raw 4-channel PPG · IMU → PpgDex / MotionDex | ~$105 |
+| **TP-Link UB500 Plus** | the box's BLE radio | ~$20 |
+| **ez Share WiFi SD card** | pulls the CPAP's SD card over WiFi, no cable | ~$25 |
+| **COOSPO H808S** chest strap | second RR source → PulseDex cross-checks | ~$35 |
+| | **Core capture kit** | **≈ $595** |
+| **ResMed AirSense 11** | CPAP therapy (its data feeds CPAPDex) — therapy equipment, typically insurance-covered | ~$1,050 retail |
+| **Abbott Lingo** | CGM → GlucoDex — consumable biosensor | $49 / 14-day sensor |
+| **Muse S** headband | EEG → EEGDex (planned node) | ~$400 |
+
+**You don't need all of it — and you don't need the box.** Every Dex is a single-signal analyzer:
+**one device is a complete starting point** (an O2Ring alone feeds OxyDex; an H10 alone feeds
+ECGDex and PulseDex). And instead of the capture box, **an Android phone you already own works**:
+the free Polar Sensor Logger app records H10/Verity streams, the Wellue app exports the ring's
+nights, and you drop the files into the Dexes in the browser — that was this project's original
+setup, and most of its corpus was captured exactly that way. The box adds the always-on, hands-off,
+one-clock version; it is the upgrade, not the entry fee.
+
+So the entry cost is **one sensor plus a phone you already have** (~$90–170); the full multi-signal
+lab — raw ECG, dual raw PPG, continuous SpO₂, HRV, IMU, plus the always-on capture box — is
+**under $600 of hardware**, most of it consumer gear bought retail. The CPAP is therapy equipment
+that was already there; Tepna just reads what it records. That is the
+[max-info-min-hardware constraint](#-why-this-exists) with a receipt attached.
 
 ---
 
