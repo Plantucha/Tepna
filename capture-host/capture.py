@@ -5343,10 +5343,27 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
         creds = _load_as11_creds(creds_path)
         return await _cpap_ble_connect(creds["ble_addr"], hci)
 
+    # Optional on-disk EDF sink, enabled by setting cpap.ble_stream.edf_dir. Each live session then writes
+    # a bit-accurate BRP.edf there — QUARANTINED under a PENDING subtree until the flow scale is pinned
+    # (EdfSink default flow_scale_verified False), so a provisional-unit file never reaches the harvest
+    # ingest root. `edf_dir` MUST be its OWN root, never the harvest dest_subdir. The serial is provisional
+    # (config, else "UNKNOWN"); the canonical serial AND the flow factor are both pinned from the same SD
+    # card in the CPAP-EDF-WRITER follow-up. No edf_dir → bus-only, the prior behaviour unchanged.
+    edf_sink_factory = None
+    edf_dir = cbs.get("edf_dir")
+    if edf_dir:
+        import cpap_edf_writer
+
+        serial = cbs.get("serial") or "UNKNOWN"
+
+        def edf_sink_factory():
+            return cpap_edf_writer.EdfSink(edf_dir, serial)
+
     # devices provider for the on-body gate: the daemon's live device-status map. A stream refuses only
     # while a sensor is actually ON A BODY (telemetry.on_body) — a charging/docked device does not block.
     return cpap_stream.LiveStreamController(
-        bus, connect, lambda: _load_as11_creds(creds_path), lambda: STATUS.get("devices", {}))
+        bus, connect, lambda: _load_as11_creds(creds_path), lambda: STATUS.get("devices", {}),
+        edf_sink_factory=edf_sink_factory)
 
 
 async def _cpap_ble_connect(ble_addr: str, hci: str | None):
