@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-08-04 · **Follows:** `REPO-DISCOVERABILITY-FOLLOWUPS-2026-07-04-BRIEF.md` (DONE — 2026-08-04) · **Parent chain:** `REPO-DISCOVERABILITY-2026-07-03-BRIEF.md` (DONE — 2026-08-04) · **Affects:** `CITATION.cff`, `docs/`, `DOCS-INDEX.md`
+**Status:** DONE — 2026-08-23 · **Created:** 2026-08-04 · **Follows:** `REPO-DISCOVERABILITY-FOLLOWUPS-2026-07-04-BRIEF.md` (DONE — 2026-08-04) · **Parent chain:** `REPO-DISCOVERABILITY-2026-07-03-BRIEF.md` (DONE — 2026-08-04) · **Affects:** `CITATION.cff`, `docs/`, `DOCS-INDEX.md`
 
 # What is left of discoverability is off-repo or new content — nothing in-repo is blocked
 
@@ -49,9 +49,17 @@ If built, they inherit the machinery that already exists rather than adding any:
       bundle — the integration is webhook-side on Zenodo. After three briefs of carrying, closed by
       the third path nobody listed: the item was never droppable OR mintable from the repo; it was a
       2-minute owner toggle plus a release.
-- [ ] The glossary/FAQ pages exist and are gated by `build-docs --check`, **or** they are consciously
+- [x] The glossary/FAQ pages exist and are gated by `build-docs --check`, **or** they are consciously
       dropped and this brief says so.
-- [ ] Neither introduces a network fetch into any bundle or page.
+      **BUILT 2026-08-23 (owner said KEEP)** — `Glossary.html`: a 15-term glossary (mirroring
+      `docs/LEXICON.md`'s reflex-arc naming + the Clock Contract vocabulary, inventing nothing the
+      code does not carry) and a 10-question FAQ (privacy, devices, correctness mechanisms, clock
+      disagreement, citing via the new DOI). Registered in `suite.manifest.json` `content[]` so
+      Phase 0 injects roster-derived meta; first manual `docs/` copy made; linked from the front-door
+      footer; in `sitemap.xml` + `llms.txt`. `build-docs --check` covers it from now on.
+- [x] Neither introduces a network fetch into any bundle or page. **Verified 2026-08-23** — the DOI
+      is a static string in `CITATION.cff`; `Glossary.html` is system-fonts-only with zero fetches
+      (its one external `href` is a plain GitHub link, not a load), and the `no-network` gate stands.
 
 > **Standing note.** Both items have now been carried across three briefs without landing. That is not a
 > failure — they are genuinely off-repo/editorial and cannot be closed by a code change. But if they are

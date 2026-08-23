@@ -18,6 +18,7 @@ Repository: https://github.com/Plantucha/Tepna · License: Apache-2.0 · Author:
 - [Architecture](https://tepna.net/Architecture.html)
 - [How to Collect Data](https://tepna.net/How%20to%20Collect%20Data.html)
 - [About](https://tepna.net/Why%20This%20Exists.html)
+- [Glossary & FAQ](https://tepna.net/Glossary.html)
 - [Papers](https://tepna.net/papers/papers.html)
 
 ## Authoritative context (source repository)
