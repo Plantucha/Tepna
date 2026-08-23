@@ -407,7 +407,9 @@ Max information, minimum hardware, priced honestly. Every signal in the suite co
 | **Wellue O2Ring** (O2Ring-S) | overnight SpO₂ · pulse · raw PPG → OxyDex / PpgDex | ~$170 |
 | **Polar H10** chest strap | raw ECG (~130 Hz) · RR · ACC → ECGDex / PulseDex / MotionDex | ~$90 |
 | **Polar Verity Sense** armband | raw 4-channel PPG · IMU → PpgDex / MotionDex | ~$105 |
-| **TP-Link UB500 Plus** | the box's BLE radio | **$13** |
+| **TP-Link UB500 Plus** | the box's current BLE radio — works, but drops links under load | **$13** |
+| **Sena Parani UD100-G03** *(recommended radio)* | class-1 long-range BLE, exchangeable antenna — the adapter to buy | ~$40–52 |
+| **nRF52840 dongle** + Zephyr firmware *(recommended alternative)* | observable, timing-honest BLE controller | ~$12 |
 | **ez Share WiFi SD card** | pulls the CPAP's SD card over WiFi, no cable | ~$25 |
 | **COOSPO H808S** chest strap | second RR source → PulseDex cross-checks | ~$35 |
 | | **Core capture kit** | **≈ $590** |
