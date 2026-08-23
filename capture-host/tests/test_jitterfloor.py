@@ -67,10 +67,13 @@ def test_drawn_axis_refused_and_folded_fallback(tmp_path):
 
 
 def test_missed_frames_do_not_inflate_folded_jitter(tmp_path):
-    # every 5th frame missing: gaps of 2×base must fold out, not read as 500 ms of "jitter"
+    # every 3rd frame missing: gaps of 2×base must fold out, not read as 500 ms of "jitter".
+    # The miss rate is deliberately high enough that Q3 lands INSIDE the doubled-gap cluster if
+    # the fold formula is broken — half-IQR is translation-invariant, so a fold that merely
+    # SHIFTS residuals is invisible unless the k=2 gaps land in the quartile span.
     lines = []
-    for i in range(150):
-        if i % 5 == 4:
+    for i in range(220):
+        if i % 3 == 2:
             continue
         host_s = i * 0.5 + (0.002 if i % 2 else -0.002)
         lines.append(_row(_stamp(host_s), "O2Ring R", "spo2", int(i * 0.5e9)))
@@ -93,12 +96,14 @@ def test_best_sampled_session_wins_per_stream(tmp_path):
 
 
 def test_malformed_rows_are_dropped_not_guessed(tmp_path):
-    lines = _real_clock_stream(n=110)
-    lines += [
+    # malformed rows FIRST: a parser that stops at the first bad row (break, not continue)
+    # would drop every good row after it, which appended-at-the-end bad rows cannot detect
+    lines = [
         "not;enough;fields",
         "2026-08-21 21:00:00.000;Polar H10 X;ecg;1;2;3",  # space, not T — wrong format
         "2026-08-21T21:00:00.000;Polar H10 X;ecg;NOTANUMBER;2;3",
     ]
+    lines += _real_clock_stream(n=110)
     streams = jf.parse_pmdarrival(_write_night(tmp_path, "h10", lines))
     assert len(streams["Polar H10 X|ecg"]) == 110
 
@@ -161,3 +166,133 @@ def test_floor_is_min_across_streams(tmp_path):
     out = jf.night_floor(tmp_path)
     assert len(out["streams"]) == 2
     assert out["floor"]["stream"] == "Polar H10 X|ecg"
+
+
+def test_jitter_scale_is_quartile_based():
+    # pins the exact quantile grid (n=4): quantiles([0..19], n=4) = [4.25, 9.5, 14.75]
+    assert jf._jitter_scale([float(x) for x in range(20)]) == 5.25
+
+
+def test_drawn_concentration_boundary_is_inclusive():
+    # exactly 99 of 100 deltas modal → concentration == DRAWN_CONCENTRATION → drawn (>=, not >)
+    deltas = [500.0] * 99 + [499.0]
+    assert jf._device_axis_is_drawn(deltas) is True
+    # and 98/100 is below the bound
+    assert jf._device_axis_is_drawn([500.0] * 98 + [499.0, 501.0]) is False
+
+
+def test_drawn_detector_quantum_is_one_decimal():
+    # deltas alternating ±0.4 ms: distinct at 1 decimal (real clock), identical at 0 decimals —
+    # an int-rounding detector would misclassify this real crystal as drawn
+    wobbly = [500.4 if i % 2 else 499.6 for i in range(100)]
+    assert jf._device_axis_is_drawn(wobbly) is False
+    # deltas alternating ±0.02 ms: identical at 1 decimal (sub-quantum) → drawn; a 2-decimal
+    # detector would see them as distinct and let a drawn axis through
+    subq = [500.02 if i % 2 else 499.98 for i in range(100)]
+    assert jf._device_axis_is_drawn(subq) is True
+
+
+def test_folded_base_finds_half_median_grid():
+    # deltas alternating 300/900 (grid 300; median lands at 600): only m=2 recovers the true
+    # base — dropping the m=2 candidate, or inverting med/m to med*m, returns 600
+    deltas = [300.0 + 0.5 * (1 if i % 2 else -1) if i % 4 < 2 else 900.0 for i in range(40)]
+    assert abs(jf._folded_base(deltas) - 300.0) < 5.0
+
+
+def test_folded_base_floor_boundary():
+    # a genuine 8.0 ms grid with doubled gaps: c=8.0 must still be SCORED (< 8, not <= 8) and
+    # returned; the floor constant is exactly 8.0
+    deltas = [8.0 if i % 2 else 24.0 for i in range(40)]
+    assert jf._folded_base(deltas) == 8.0
+    # grid 8.5: scored (a < 9 guard would break out before scoring it) and returned
+    deltas = [8.5 if i % 2 else 25.5 for i in range(40)]
+    assert abs(jf._folded_base(deltas) - 8.5) < 0.1
+
+
+def test_min_frames_boundary(tmp_path):
+    # exactly MIN_FRAMES rows is ENOUGH (the guard is <, not <=)
+    _write_night(tmp_path, "h10", _real_clock_stream(n=jf.MIN_FRAMES))
+    assert jf.night_floor(tmp_path)["floor"] is not None
+
+
+def test_ns_to_ms_conversion_is_exact(tmp_path):
+    # 1000-second frames make a 1-ppm error in the ns→ms constant visible in base_ms
+    lines = []
+    for i in range(110):
+        host_s = i * 1000.0 + (0.003 if i % 2 else -0.003)
+        wobble = (0.31, -0.17, 0.23, -0.29)[i % 4]
+        lines.append(_row(_stamp_abs(i * 1000.0), "Polar H10 X", "ecg", int(i * 1e12 + wobble * 1e6)))
+        del host_s
+    _write_night(tmp_path, "h10", lines)
+    f = jf.night_floor(tmp_path)["floor"]
+    assert f is not None and abs(f["base_ms"] - 1000000.0) < 0.5  # a 1-ppm constant error shifts this by ~1.0
+
+
+def _stamp_abs(sec):
+    h = int(sec // 3600) % 24
+    m = int((sec % 3600) // 60)
+    s = sec % 60
+    return "2026-08-21T%02d:%02d:%06.3f" % (h, m, s)
+
+
+def test_cli_json_shape_is_pinned(tmp_path, capsys):
+    _write_night(tmp_path, "h10", _real_clock_stream())
+    assert jf.main([str(tmp_path), "--json"]) == 0
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    # indent=1 exactly: nested keys start with a single space
+    assert any(ln.startswith(' "') and not ln.startswith('  "') for ln in lines)
+    # sort_keys: "floor" precedes "streams"
+    assert out.index('"floor"') < out.index('"streams"')
+
+
+def test_cli_help_prints_module_doc(capsys):
+    jf.main(["--help"])
+    assert "PMDARRIVAL" in capsys.readouterr().out
+
+
+def test_cli_table_lists_every_stream(tmp_path, capsys):
+    _write_night(tmp_path, "h10", _real_clock_stream())
+    jf.main([str(tmp_path)])
+    out = capsys.readouterr().out
+    # the stream appears in its own table row AND in the floor line — a dropped table row
+    # (or a broken row format) leaves only one occurrence
+    assert out.count("Polar H10 X|ecg") == 2
+
+
+def test_drawn_axis_missed_frames_fold_out():
+    # the O2Ring reality: a drawn device axis stays CONTINUOUS (pure counter) while BLE drops
+    # host frames — so host deltas mix 1× and 2× the base while device deltas stay constant.
+    # The fold must remove the 2× gaps; a broken fold (sign flip, or dividing instead of
+    # multiplying back) leaves a bimodal residual whose half-IQR is ~base/2, not the jitter.
+    rows = []
+    j = 0
+    for i in range(240):
+        if i % 3 == 2:
+            continue  # host never saw this frame
+        host_ms = i * 500.0 + (2.0 if i % 2 else -2.0)
+        rows.append((host_ms, int(j * 0.5e9)))  # device counter advances per DELIVERED frame
+        j += 1
+    r = jf.stream_jitter(rows)
+    assert r is not None and r["method"] == "folded" and r["device_axis_drawn"]
+    assert r["jitter_ms"] < 10.0, r
+
+
+def test_folded_base_m3_and_m4_grids():
+    # 400/800 mix (median 600): only the m=3 candidate (200) folds both clusters to zero
+    d38 = [400.0 + (0.5 if i % 2 else -0.5) if i % 4 < 2 else 800.0 for i in range(40)]
+    assert abs(jf._folded_base(d38) - 200.0) < 1.0
+    # 100/700 mix (median 400): only the m=4 candidate (100) folds both clusters to zero
+    d47 = [100.0 if i % 2 else 700.0 for i in range(40)]
+    assert jf._folded_base(d47) == 100.0
+
+
+def test_folded_base_hysteresis_keeps_incumbent():
+    # 30×100 + 10×150 (median 100): c=50 also scores exactly 0, TYING the incumbent — a tie
+    # must keep the FIRST (largest) base (strict <, not <=), else the cascade walks to 25
+    tie = [100.0] * 30 + [150.0] * 10
+    assert jf._folded_base(tie) == 100.0
+    # 20×100 + 20×150 (median 125): the smaller candidates score worse but within ~2× — a
+    # loosened switch threshold (anything above 0.95) walks down to 31.25
+    near = [100.0] * 20 + [150.0] * 20
+    assert jf._folded_base(near) == 125.0

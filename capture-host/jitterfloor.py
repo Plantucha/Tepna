@@ -90,7 +90,8 @@ def _folded_base(host_deltas: list[float]) -> float:
         c = med / m
         if c < 8.0:
             break
-        score = statistics.median(min(abs(d - round(d / c) * c), c / 2) for d in host_deltas) / c
+        # no cap needed: |d - round(d/c)*c| <= c/2 by construction of round()
+        score = statistics.median(abs(d - round(d / c) * c) for d in host_deltas) / c
         if best_score is None or score < best_score * 0.95:
             best_base, best_score = c, score
     return max(best_base, 8.0)
