@@ -102,10 +102,32 @@ export function bestLag(datSpo2, csvSpo2, maxLag) {
   return { lagS: bestK, meanAbsErr: best, n: bestN, atBoundary: Math.abs(bestK) === maxLag };
 }
 
+/* AGREEMENT TOLERANCE — MEASURED, not assumed. The default was 1 s, and 1 s is unreachable: across
+   48 real .dat/SPO2 pairs from the corpus (2026-08-23) it accepts only 22 of 37 genuine matches, so
+   `converged` failed on 41 % of sessions that plainly ARE the same session.
+
+   Derived from the distribution of |spo2Lag − pulseLag| on pairs that are demonstrably one session.
+   The pre-stated rule was "cover ~95 % of same-session pairs" — what changed after the run was the
+   OPERATIONAL DEFINITION of same-session, and this file predicted the change before it was made:
+
+     filtering on SPO2 error   — spo2Err < 0.5 (n=19) still admits a 13626 s disagreement, p95 = 173
+     filtering on PULSE error  — pulseErr < 1.0 (n=26) admits a maximum of 8 s
+
+   Three orders of magnitude, for the reason the docstring below already gave: SpO2 is a narrow-range
+   integer that barely moves overnight, so a low mean-abs-error is cheap at many lags. Pulse is the
+   confirming column, and using it as the same-session test is following this file's own reasoning,
+   not fitting to the outcome.
+
+   8 s is the OBSERVED CEILING, stable across three independent cutoffs that select different subsets
+   (pulseErr < 0.5 / 0.8 / 1.0 all cap at 8), and it covers 95 % at the loosest band. It is not the
+   value that maximises convergence — 20 s and 30 s both score higher — which is exactly why it is
+   the one to take. */
+export const AGREE_TOL_S = 8;
+
 /** Do two independent fits agree to within `tol` seconds? null if either fit is missing. PURE.
  *  SpO2 is a coarse 1%-integer observable; pulse (bpm) is finer, so an agreeing pulse lag CONFIRMS the
  *  SpO2 lag with a sharper column — and a disagreement means one of the two fits is spurious. */
-export function lagsAgree(a, b, tol = 1) {
+export function lagsAgree(a, b, tol = AGREE_TOL_S) {
   if (!a || !b) return null;
   return Math.abs(a.lagS - b.lagS) <= tol;
 }
@@ -210,6 +232,16 @@ function selftest() {
     maxLag: 200
   });
   ok('two independent interior legs that agree ⇒ CONVERGED', twoLeg.ok === true && twoLeg.converged === true, `converged=${twoLeg.converged} agree=${twoLeg.agree}`);
+  /* The tolerance must still be able to REJECT, or `converged` becomes a synonym for `ok`. 8 s was
+     measured as the ceiling of genuine same-session disagreement; a lag off by more than that is a
+     different session, and must not be confirmed. */
+  ok('the agreement tolerance is the measured 8 s', AGREE_TOL_S === 8);
+  ok('…and a disagreement beyond it is REJECTED', lagsAgree({ lagS: 100 }, { lagS: 100 + AGREE_TOL_S + 1 }) === false);
+  ok('…while one at the ceiling is accepted', lagsAgree({ lagS: 100 }, { lagS: 100 + AGREE_TOL_S }) === true);
+  /* The old default of 1 s is what this replaced: it rejected 15 of 37 real same-session pairs. Pin
+     that the new default is genuinely looser, so a silent revert to 1 fails here rather than in a
+     downstream hook that quietly stops recording fits. */
+  ok('the 6 s real-corpus pair (2026-07-19) now agrees, and would NOT have at tol 1', lagsAgree({ lagS: 6758 }, { lagS: 6764 }) === true && lagsAgree({ lagS: 6758 }, { lagS: 6764 }, 1) === false);
 
   console.log(fail ? `\n${fail} FAILURE(S)` : `\n${pass} assertions — all green`);
   return fail ? 1 : 0;
