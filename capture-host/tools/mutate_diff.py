@@ -432,8 +432,32 @@ def main(argv=None) -> int:
         shown = repr(k[:90]) if k else (
             f"<entry has no `key` — it carries {sorted(x for x in e if x != 'module')}. "
             f"This file matches on the whitespace-normalised diff; see _README>")
-        print(f"  ORPHANED equivalence entry ({e['module']}): no generated mutant matches "
-              f"{shown} — the line moved, or the entry is malformed. It excuses nothing until re-verified.")
+        # ⚠️ THERE IS A THIRD CAUSE, and it is the COMMON one in a diff-scoped run. Entries are
+        # filtered to the modules this diff touched, but mutants are generated only for the FUNCTIONS
+        # it changed — so every entry filed against another function in the same module matches
+        # nothing, forever, through no fault of its own. Measured: two `load_rows` entries fired on a
+        # PR that changed only `make_row`, and they would fire on every future PR touching that file.
+        # A warning that cannot be acted on is the "trains people to ignore it" failure this file's
+        # own header names, so the three causes are now distinguished instead of merged.
+        #
+        # The discriminator is cheap and needs no scope plumbing: if the entry's `before` text is
+        # STILL PRESENT VERBATIM in the module, the line did not move and the entry is not stale —
+        # it is simply out of scope for this diff.
+        before = k.split(" | + ")[0][2:].strip() if k and k.startswith("- ") else None
+        in_source = False
+        if before:
+            try:
+                in_source = before in (HERE / e["module"]).read_text(encoding="utf-8")
+            except OSError:
+                in_source = False
+        if in_source:
+            print(f"  out-of-scope equivalence entry ({e['module']}): {shown} — its line is unchanged "
+                  "in the module but its function is not in this diff, so no mutant was generated for "
+                  "it. Not stale, and nothing to do.")
+        else:
+            print(f"  ORPHANED equivalence entry ({e['module']}): no generated mutant matches "
+                  f"{shown} — the line moved, or the entry is malformed. It excuses nothing until "
+                  "re-verified.")
     for e in cls["excused"]:
         print(f"  excused ({e['class']}): {e['key'][:80]} — {e.get('why', '')[:120]}")
 
