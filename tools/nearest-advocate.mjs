@@ -184,8 +184,13 @@ function selftest() {
   return fail > 0 ? 1 : 0;
 }
 
+/* ⚠ ENTRY-POINT GUARD. Without it this module runs its CLI on IMPORT, so any importer invoked
+   with `--selftest` gets THIS tool's selftest instead of its own — and sees a PASS for tests it
+   never ran. Caught 2026-08-23 the first time it was imported (`aperiodic-method-compare.mjs`).
+   `aperiodic-offset.mjs:245` already guards the same way; this one shipped without it in #1644. */
+const IS_MAIN = !!process.argv[1] && process.argv[1].endsWith('nearest-advocate.mjs');
 const argv = process.argv.slice(2);
-if (argv.includes('--selftest')) process.exit(selftest());
+if (IS_MAIN && argv.includes('--selftest')) process.exit(selftest());
 const readEvents = (p) =>
   fs
     .readFileSync(p, 'utf8')
@@ -195,12 +200,14 @@ const readEvents = (p) =>
     .filter((v) => Number.isFinite(v));
 const av = (k, d) => {
   const i = argv.indexOf(k);
-  return i > 0 ? argv[i + 1] : d;
+  return i >= 0 ? argv[i + 1] : d; // >= 0: the flag can be argv[0], where `i > 0` silently fell through to the default
 };
-if (!av('--a') || !av('--b')) {
+if (IS_MAIN && (!av('--a') || !av('--b'))) {
   console.error('usage: node tools/nearest-advocate.mjs --a <a.txt> --b <b.txt> [--width 4] [--step 0.02]');
   console.error('       node tools/nearest-advocate.mjs --selftest');
   process.exit(2);
 }
-const res = nearestAdvocate(readEvents(av('--a')), readEvents(av('--b')), { width: Number(av('--width', 4)), step: Number(av('--step', 0.02)) });
-console.log(JSON.stringify(res, null, 2));
+if (IS_MAIN) {
+  const res = nearestAdvocate(readEvents(av('--a')), readEvents(av('--b')), { width: Number(av('--width', 4)), step: Number(av('--step', 0.02)) });
+  console.log(JSON.stringify(res, null, 2));
+}

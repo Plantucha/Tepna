@@ -124,8 +124,46 @@ brief's related work; not worth building against.
 
 - [ ] §1 measured — PAT recovery rate at base vs half-amplitude fiducial on the same 38 nights, each
       with its n, and the fiducial chosen on that number.
-- [ ] §2 measured — Nearest Advocate against the buzz-fiducial night at ≥2 search widths, compared to
-      the existing correlation estimator on the same data.
+- [x] §2 measured — **DONE 2026-08-23, and the answer is NO. Nearest Advocate does not rescue the
+      alignment; it replaces a VISIBLY broken estimator with a QUIETLY broken one.**
+
+      `tools/aperiodic-method-compare.mjs` runs both on identical envelope-derived events from the
+      paired night (H10 chest × Verity arm, 2026-08-13 23:18 → 04:03, **4.75 h** — the overlap this
+      brief records, which is how a first run on the wrong file pair at 3.58 h was caught).
+
+      **The harness is faithful, and that is established before anything else is claimed:**
+      correlation reproduces the recorded failure **to the millisecond** — 3850 / 5750 / 9000 ms at
+      ±4 / ±6 / ±9 s against the documented 3850 / 5750 / 9000 — from an independent implementation.
+
+      **Nearest Advocate passes the width test perfectly and fails a second one:**
+
+      | grid | NA shift | z | correlation |
+      |---|---|---|---|
+      | 50 ms | **−450 ms** | 7.13 | 5750 |
+      | 100 ms | **0 ms** | 10.78 | 6000 |
+      | 250 ms | **+250 ms** | 17.26 | 6000 |
+      | 500 ms | **−1000 ms** | 9.48 | 6000 |
+
+      Width-spread is **0 ms at every grid**. Grid-spread is **1250 ms with no convergence**, and every
+      row reports `ok: true`. It is stable in the axis the recorded failure moved along and wanders in
+      the one nobody had tested.
+
+      🔴 **The methodological finding is bigger than the result.** The width-stability control was built
+      from the *previous* failure, and a control built from the last failure is not a control against
+      the next. Worse, the **shuffled-interval null passed NA every time at z 7–17**: shuffling
+      intervals destroys interval STRUCTURE but preserves event COUNT and RATE, so an estimator that is
+      really matching event *density* beats that null comfortably while recovering no alignment. A null
+      is only as strong as the property it actually randomises.
+
+      **Consequence for §3:** this is evidence *for* the "the pair, not the method" reading. Two
+      unrelated estimators both fail on chest-vs-arm — one legibly, one not — which is what an absent
+      signal looks like, not a weak algorithm. Brønd's trunk-pair validation likely does not transfer,
+      and the negative result stands rather than being an artefact of the estimator choice.
+
+      ⚠️ **The 250 ms row is a coincidence, recorded so it is not re-found and over-read.** It sits
+      inside the buzz fiducial's independently measured H10↔Verity offset (+193.5 ± 64 ms, §5 of
+      `O2RING-BUZZ-FIDUCIAL`) and looked like corroboration for exactly as long as it took to run a
+      second grid.
 - [ ] §3 answered — whether Brønd's chest/arm case is comparable to their trunk-pair validation, BEFORE
       any implementation.
 - [x] §4 recorded — **DONE 2026-08-22.** HAEST (Nasrullah et al. 2024, *IEEE RTAS*) added as `O2RING-BUZZ-FIDUCIAL` §6 Related work, with the distinction the survey drew: it *harvests* ambient events, the buzz is *generated on demand*, so a commanded fiducial has a known emission time and §5's detection could be scored 5/5 rather than estimated. Corroborative, not adopted.
