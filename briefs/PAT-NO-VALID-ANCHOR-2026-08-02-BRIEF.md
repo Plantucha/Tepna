@@ -249,6 +249,32 @@ is unexplained. **PAT is not established.**
    Selecting on dispersion cannot separate aliases; selecting on plausibility is circular. **The quantum
    search is recorded as FAILED**, and the comb degeneracy is now demonstrated rather than argued.
 
+### 🔴 What "6 of 38" counts — stated because a SECOND "of 38" now exists and they are not the same 38
+
+`EXTERNAL-METHODS-SURVEY-FOLLOWUPS` §4 asked this brief to say which denominator its headline uses.
+It matters more than it looked, because a different measurement has since produced a superficially
+matching figure:
+
+| figure | denominator | acceptance rule | corpus |
+|---|---|---|---|
+| **6 of 38** (this brief, §10) | nights that "had everything needed" — 25 phone + 13 box, out of 25 + 16 attempted | **majority of the night's hours at ≤ 60 ms**, at a locked and plausible level | **both trees** |
+| **15 of 30** (`pat-fiducial-compare.mjs`, 2026-08-23) | nights reaching the estimator — 30 of 38, after 5 alignment failures, 2 unparseable pairs and 1 zero-overlap | strict matchRate exceeds that night's **own circular-shift null at the 95th percentile** | the **box-mirror tree only**, 2026-07-16 → 08-22 |
+
+⚠️ **THE TWO "38"s ARE A COINCIDENCE AND THE NIGHT SETS BARELY INTERSECT.** This brief's 38 is 25
+phone nights plus 13 box; the fiducial run's 38 is one capture-host tree beginning **2026-07-16**.
+Every night passing here — 06-15, 06-30, 07-04, 07-06, 07-07, 07-09 — predates that start, and all
+six are **phone** nights. The two headlines are computed on essentially disjoint data.
+
+⚠️ **AND 15/30 MUST NOT BE READ AS "PAT RECOVERS ON HALF THE BOX NIGHTS."** It says the R→foot
+coupling is **above chance**, which is a far weaker claim than this brief's: beating a circular-shift
+null establishes that a relationship exists, not that the level is locked, plausible, or stable
+across the night. Under *this* brief's criterion the box tree still scores **0 of 13**, and nothing
+in the fiducial work disturbs that — it tested which fiducial, not whether PAT is established.
+
+So the two figures answer different questions on different nights, and neither supersedes the other.
+When quoting either, carry its denominator and its acceptance rule; a bare "of 38" is now ambiguous
+in this repo.
+
 ### On publishing this
 
 A standalone paper was drafted and **discarded**. Stripped of a working PAT, the timing result is one
@@ -275,6 +301,10 @@ corrected. What would make it publishable is a **second logging app or phone** s
       anchor works, but corpus-wide it recovers PAT on only **6 of 38** nights (0 of 13 box), at 64–209 ms
       with median 91 ms — below the arm band and inconsistent with the reference night's 209 ms. The single
       night reported at §7 was the best case, not the typical one.
+      **Denominator and acceptance rule now stated at §10** — 38 = nights with everything needed across
+      **both** trees, acceptance = majority of hours at ≤ 60 ms. Do not conflate it with the fiducial
+      work's "15 of 30", which is a different corpus, a different denominator and a much weaker
+      acceptance rule (above its own chance null).
 - [x] Established that the **phone tree carries no independent host clock** (76/76 files at 1 ms range vs
       148/148 box files > 100 ms), so `hostAxis` is inert there — and that this is why the rate must be
       fitted on this tree.

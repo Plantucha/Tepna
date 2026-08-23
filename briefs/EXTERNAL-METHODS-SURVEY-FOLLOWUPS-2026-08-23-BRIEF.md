@@ -4,9 +4,16 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-23 · **Follows:** `EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md` · **Relates:** `PAT-NO-VALID-ANCHOR-2026-08-02-BRIEF.md`, `KNOWN-CLOCK-ADVERSARIAL-CAPTURE-FOLLOWUPS-2026-08-14-BRIEF.md`
+**Status:** DONE — 2026-08-23 · **Created:** 2026-08-23 · **Follows:** `EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md` · **Relates:** `PAT-NO-VALID-ANCHOR-2026-08-02-BRIEF.md`, `KNOWN-CLOCK-ADVERSARIAL-CAPTURE-FOLLOWUPS-2026-08-14-BRIEF.md`
 
 # What executing the external-methods survey turned up
+
+> **No follow-up brief is spawned, and this line is that decision rather than an omission.** All four
+> items were answered inside this brief and the two things execution turned up were absorbed in
+> place: the "of 38" ambiguity is now a table in `PAT-NO-VALID-ANCHOR` §10, and §5's shortlist-key
+> lesson corrected §2 where it was written. The one thread still open belongs to
+> `PAT-NO-VALID-ANCHOR`'s own unchecked item — a PAT verdict that survives a non-beat-derived anchor
+> — and moving it here would only give it a second home.
 
 The survey is DONE and **adopted nothing** — three method items measured, three negatives. That is a
 result, not a failure, but the measuring produced findings the survey had no place to put. They are
@@ -244,4 +251,12 @@ recovery figure there carries its denominator and its acceptance rule.
       right. Enumerating everything remains preferable because at 0.77 s it removes the question
       rather than answering it, but the defect was **the key, not the shortlist**.
 - [x] §3 — recorded 2026-08-23. Nothing to execute.
-- [ ] §4 — `PAT-NO-VALID-ANCHOR`'s recovery figure carries its denominator and acceptance rule.
+- [x] §4 — **DONE 2026-08-23, and the ambiguity was worse than flagged.** `PAT-NO-VALID-ANCHOR` §10
+      now carries a table giving each figure its denominator, its acceptance rule and its corpus.
+      **The two "of 38" figures are a coincidence and the night sets barely intersect**: that brief's
+      38 is 25 phone + 13 box nights, while the fiducial run's 38 is one capture-host tree starting
+      2026-07-16 — and all six of its passing nights (06-15 … 07-09) predate that start and are
+      phone nights. Recorded there too that **15/30 must not be read as "PAT recovers on half the box
+      nights"**: beating a circular-shift null says a relationship exists, not that the level is
+      locked, plausible or stable, and under that brief's own criterion the box tree still scores
+      0 of 13.
