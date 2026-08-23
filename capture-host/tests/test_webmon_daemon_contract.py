@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from tests.test_webmon_api import _mk, _serve  # noqa: E402
 
 import daemon_control  # noqa: E402
+import pytest  # noqa: E402
 
 
 def _post(tmp_path, body, monkeypatch, fired=None):
@@ -185,55 +186,111 @@ def test_RELOAD_is_answered_INLINE_with_the_real_output_not_deferred(tmp_path, m
     assert "scheduled_in_s" not in body, "an inline verb has nothing scheduled — saying so would lie"
 
 
-def test_REBOOT_is_REFUSED_while_a_sensor_is_streaming_and_names_which(tmp_path, monkeypatch):
-    """⚠️ A REBOOT AT 02:00 COSTS THE NIGHT. The guard is server-side, not a browser confirm: it reads
-    real device state, so a direct API call is refused too. It NAMES what is live, because "refused" on
-    its own tells the operator nothing about whether to force it."""
+@pytest.mark.parametrize("verb", sorted(daemon_control.KILLS_SELF))
+def test_a_self_killing_verb_is_REFUSED_while_a_sensor_is_ON_BODY_and_names_which(verb, tmp_path, monkeypatch):
+    """⚠️ ENDING THE DAEMON AT 02:00 COSTS THE NIGHT. restart/stop/reboot each drop every BLE link, so
+    each is refused while a sensor is recording on-body — measured 2026-08-23, a `restart` mid-capture
+    dropped 13 active streams, which is the incident this guard exists for. The guard is server-side, not
+    a browser confirm: a direct API call is refused too. It NAMES what is on-body under `worn`, because
+    "refused" on its own tells the operator nothing about whether to force it."""
     fired = []
     app, *_ = _mk(tmp_path, devices=[{"name": "H10", "address": "AA"}],
-                  status={"H10": {"connected": True}})
+                  status={"H10": {"connected": True, "worn": True}})
     monkeypatch.setattr(daemon_control, "run",
-                        lambda verb, minutes=None, **kw: fired.append(verb))
+                        lambda v, minutes=None, **kw: fired.append(v))
 
     async def go(c):
-        r = await c.post("/api/daemon", json={"verb": "reboot"})
+        r = await c.post("/api/daemon", json={"verb": verb})
         return r.status, await r.json()
     status_code, body = _serve(app, go)
     assert status_code == 409, "a state conflict, not a malformed request"
-    assert body["ok"] is False and body["live"] == ["H10"]
-    assert "H10" in body["error"] and "force" in body["error"]
+    assert body["ok"] is False and body["worn"] == ["H10"]
+    assert "H10" in body["error"] and "force" in body["error"] and verb in body["error"]
     assert fired == [], "nothing may have been scheduled"
 
 
-def test_REBOOT_with_force_is_allowed_and_still_answers_before_it_fires(tmp_path, monkeypatch):
-    """`force` is an explicit act, not a bypass — the caller was told what was live and said it anyway.
-    Anyone who could route around this already has sudo and could reboot the box directly."""
+@pytest.mark.parametrize("verb", sorted(daemon_control.KILLS_SELF))
+def test_a_self_killing_verb_with_force_is_allowed_and_still_answers_before_it_fires(verb, tmp_path, monkeypatch):
+    """`force` is an explicit act, not a bypass — the caller was told what was on-body and said it anyway.
+    Anyone who could route around this already has sudo and could restart the box directly. The self-
+    killing verbs answer BEFORE they fire, so `run` has not been called synchronously by the time the
+    response is built."""
     fired = []
     app, *_ = _mk(tmp_path, devices=[{"name": "H10", "address": "AA"}],
-                  status={"H10": {"connected": True}})
+                  status={"H10": {"connected": True, "worn": True}})
     monkeypatch.setattr(daemon_control, "run",
-                        lambda verb, minutes=None, **kw: fired.append(verb))
+                        lambda v, minutes=None, **kw: fired.append(v))
 
     async def go(c):
-        r = await c.post("/api/daemon", json={"verb": "reboot", "force": True})
+        req = {"verb": verb, "force": True}
+        if verb == "stop":
+            req["minutes"] = 30
+        r = await c.post("/api/daemon", json=req)
         return r.status, await r.json()
     status_code, body = _serve(app, go)
     assert status_code == 200 and body["ok"] is True
-    assert "capture resumes on boot" in body["detail"]
-    assert fired == [], "a reboot kills this server — it must be answered first"
+    assert fired == [], "a self-killing verb kills this server — it must be answered first"
 
 
-def test_REBOOT_is_allowed_with_nothing_connected_without_forcing(tmp_path, monkeypatch):
-    """The mirror image, so the guard cannot fire on everything and train the operator to always force."""
+@pytest.mark.parametrize("verb", sorted(daemon_control.KILLS_SELF))
+def test_a_CHARGING_sensor_does_NOT_block_a_self_killing_verb(verb, tmp_path, monkeypatch):
+    """THE FIX, NOT AN EDGE CASE — and the reason the predicate is on_body, not `connected`. A docked
+    sensor reports connected=True while producing nothing, and the old guard gated on `connected`: it
+    refused a reboot on the evening every sensor sat idle on its charger (2026-07-26), which is precisely
+    when ending the daemon is safest, and is how an operator learns to always force. `charging` wins over
+    `worn` here on purpose — a charging device cannot be on a body — so even with worn=True it proceeds
+    without force."""
     app, *_ = _mk(tmp_path, devices=[{"name": "H10", "address": "AA"}],
-                  status={"H10": {"connected": False}})
-    monkeypatch.setattr(daemon_control, "run", lambda verb, minutes=None, **kw: None)
+                  status={"H10": {"connected": True, "charging": True, "worn": True}})
+    monkeypatch.setattr(daemon_control, "run", lambda v, minutes=None, **kw: None)
 
     async def go(c):
-        r = await c.post("/api/daemon", json={"verb": "reboot"})
+        req = {"verb": verb}
+        if verb == "stop":
+            req["minutes"] = 30
+        r = await c.post("/api/daemon", json=req)
         return r.status, await r.json()
     status_code, body = _serve(app, go)
     assert status_code == 200 and body["ok"] is True
+
+
+@pytest.mark.parametrize("verb", sorted(daemon_control.KILLS_SELF))
+def test_a_NOT_WORN_or_absent_sensor_does_NOT_block_a_self_killing_verb(verb, tmp_path, monkeypatch):
+    """The mirror image, so the guard cannot fire on everything and train the operator to always force. A
+    linked-but-not-worn sensor (worn=False) and a disconnected one (connected=False) each read on_body
+    False, so nothing is refused and no force is needed."""
+    app, *_ = _mk(tmp_path, devices=[{"name": "H10", "address": "AA"}, {"name": "Ring", "address": "BB"}],
+                  status={"H10": {"connected": True, "worn": False}, "Ring": {"connected": False}})
+    monkeypatch.setattr(daemon_control, "run", lambda v, minutes=None, **kw: None)
+
+    async def go(c):
+        req = {"verb": verb}
+        if verb == "stop":
+            req["minutes"] = 30
+        r = await c.post("/api/daemon", json=req)
+        return r.status, await r.json()
+    status_code, body = _serve(app, go)
+    assert status_code == 200 and body["ok"] is True
+
+
+def test_a_RECOVERY_verb_is_NOT_worn_guarded_because_the_link_is_already_stuck(tmp_path, monkeypatch):
+    """DROPS_LINKS (radio/rebind) is deliberately EXEMPT from the on-body guard: those are the BLE-
+    recovery rungs, run precisely when a link is already stuck, so a worn-gate would block the one fix
+    that clears it. A sensor reading on-body must NOT refuse a `radio`."""
+    app, *_ = _mk(tmp_path, devices=[{"name": "H10", "address": "AA"}],
+                  status={"H10": {"connected": True, "worn": True}})
+    ran = []
+    monkeypatch.setattr(daemon_control, "run",
+                        lambda v, minutes=None, **kw: (ran.append(v), {"ok": True, "verb": v})[1])
+
+    async def go(c):
+        r = await c.post("/api/daemon", json={"verb": "radio"})
+        return r.status, await r.json()
+    status_code, body = _serve(app, go)
+    assert status_code == 200 and body.get("ok") is True
+    assert ran == ["radio"], "a recovery verb runs even with a sensor on-body"
+
+
 
 
 def test_the_USB_PORT_COMES_FROM_CONFIG_and_a_port_in_the_BODY_IS_IGNORED(tmp_path, monkeypatch):

@@ -789,22 +789,41 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             daemon_control.build_cmd(verb, minutes)      # raises on a bad verb or bad argument
         except daemon_control.VerbError as e:
             return web.json_response({"ok": False, "verb": verb, "error": str(e)}, status=400)
-        # ⚠️ THE LIVE-CAPTURE GUARD FOR `reboot`, AND WHY IT IS HERE RATHER THAN IN THE HELPER. "Is a
-        # sensor streaming right now?" is a question only this process can answer; the helper would have
-        # to infer it from file mtimes, and `status.json` plus the LINK log are written continuously
-        # whether or not any sensor is connected — so it would refuse forever. A guard that is usually
-        # wrong is worse than one that is honestly placed.
+        # ⚠️ THE ON-BODY GUARD FOR THE SELF-KILLING VERBS, AND WHY IT IS HERE RATHER THAN IN THE HELPER.
+        # restart/stop/reboot (daemon_control.KILLS_SELF) each END this daemon and drop every BLE link, so
+        # firing one while a sensor is worn loses that night's live recording — measured 2026-08-23, a
+        # `restart` mid-capture dropped 13 active streams. "Is a sensor recording right now?" is a question
+        # only this process can answer; the helper would have to infer it from file mtimes, and status.json
+        # plus the LINK log are written continuously whether or not any sensor is connected — so a helper-
+        # side guard would refuse forever. A guard that is usually wrong is worse than one honestly placed.
         #
-        # `force` is an explicit act, not a bypass: the caller is told exactly what is live and has to
+        # THE PREDICATE IS on_body, NOT `connected` — and that is the fix, not an incidental. Until now
+        # only `reboot` was guarded and it gated on `connected`: a docked/charging sensor reports
+        # connected=True while producing nothing, so that guard refused a reboot on an evening every sensor
+        # was idle on its charger (2026-07-26) — the false positive that trains an operator to always pass
+        # force. `blocking_devices` is single-sourced on telemetry.on_body (a charging device cannot be on
+        # a body); it ignores charging/not-worn and blocks only on a radio actually carrying traffic near a
+        # body, or an unknown — which is cheap to force past. DROPS_LINKS (radio/rebind) is deliberately
+        # NOT guarded: those are the BLE-recovery rungs, run precisely when links are already stuck, so a
+        # worn-gate there would block the fix.
+        #
+        # `force` is an explicit act, not a bypass: the caller is told exactly what is on-body and has to
         # say it anyway. Anyone who could route around this already has `sudo` and could reboot directly.
-        if verb == "reboot" and not body.get("force"):
-            live = sorted(n for n, st in (status.get("devices") or {}).items() if st.get("connected"))
-            if live:
+        if verb in daemon_control.KILLS_SELF and not body.get("force"):
+            import cpap_harvest
+
+            worn = cpap_harvest.blocking_devices(status.get("devices"))
+            if worn:
                 return web.json_response(
-                    {"ok": False, "verb": verb, "live": live,
-                     "error": "refusing to reboot — streaming now: " + ", ".join(live) +
-                              ". Re-send with force:true if you mean it."},
-                    status=409)
+                    {
+                        "ok": False,
+                        "verb": verb,
+                        "worn": worn,
+                        "error": f"refusing to {verb} — a sensor is recording on-body: "
+                        f"{', '.join(worn)}. Re-send with force:true if you mean it.",
+                    },
+                    status=409,
+                )
         if verb not in daemon_control.KILLS_SELF:
             # ⚠️ OFF THE EVENT LOOP. `daemon_control.run` is a blocking subprocess call, and the inline
             # verbs are not all fast: the helper sleeps 5 s inside `radio` and up to 11 s inside
