@@ -32,3 +32,18 @@ everything cannot report success to its caller.
 was wrong twice: the flag was refused, and `--draft` takes one argument, so `--crawl-dir` would have
 been swallowed AS the filename even once accepted. It now prints the exact command with real values,
 so following the tool's own instructions works and any future drift surfaces on first use.
+
+`capture-host/tools/mutate_diff.py` — the ORPHANED-entry warning had two named causes ("the line
+moved, or the entry is malformed") and a third, unnamed one that is the COMMON case: entries are
+filtered to the modules a diff touched, but mutants are generated only for the FUNCTIONS it changed,
+so every equivalence entry filed against another function in the same module matches nothing —
+forever, through no fault of its own. Measured: two `load_rows` entries fired on a PR that changed
+only `make_row`, and would fire on every future PR touching that file.
+
+⚠️ Re-keying those entries would have been wrong: their `before` text matches the current source
+**verbatim**, so nothing had moved. The discriminator needs no scope plumbing — if the entry's
+`before` is still present in the module, the line did not move and the entry is out of scope rather
+than stale. Controlled over five cases: both real entries classify out-of-scope, while a moved line, a
+stale entry, and a malformed key with no `key` field all stay ORPHANED.
+
+A warning nobody can act on is the "trains people to ignore it" failure this file's own header names.
