@@ -162,6 +162,35 @@ def _overlap(a0: float, a1: float, b0: float, b1: float) -> float:
     return max(0.0, min(a1, b1) - max(b0, a0))
 
 
+def _gap_class(excluded: list, b0: float, b1: float) -> str:
+    """Is excluded capture a HOLE IN THIS NIGHT, or capture lying outside the judged night's band?
+
+    `excluded` is the list of sessions left out of the judgement; `b0`/`b1` are the night band of the
+    session that WAS judged. Returns `"in-night"` or `"outside-band"`.
+
+    ⚠️ THE CLASS IS "outside-band", NOT "daytime", AND THE DIFFERENCE IS REAL. `FINISHED-WORK` §D
+    words this as "in-night hole vs post-night daytime", but the test that actually discriminates is
+    placement against THE JUDGED NIGHT'S band, and something can be outside it while being the middle
+    of the night — a 00:15 sitting belongs to the PREVIOUS night's band, not to the day. Labelling it
+    "daytime" would state a fact not in evidence. What is in evidence is that it does not bear on the
+    night being judged, which is the only thing `ok` needs.
+
+    ⚠️ FAILS CLOSED, and every branch here is that rule. Any excluded session overlapping the band —
+    including one merely straddling its edge — makes the whole entry `in-night`. Only when EVERY
+    excluded session lies wholly outside the band is it out of scope. A band that is not a band
+    (`b1 <= b0`) classifies as in-night, because a rule that cannot see must not grant a green.
+
+    The asymmetry is deliberate: this function's only power is to turn a red into a labelled green, so
+    it may act on positive evidence that the excluded time was outside the night, never on absence.
+    That is the same posture as `unarchived_nights` — a second copy you can currently SEE."""
+    if not (b1 > b0):
+        return "in-night"
+    for sess in excluded:
+        if _overlap(sess[0], sess[1], b0, b1) > 0:
+            return "in-night"
+    return "outside-band"
+
+
 def night_view(session, files) -> "dict | None":
     """What of a session actually fell in the night band — span, and rows APPORTIONED to it.
 
@@ -1405,6 +1434,64 @@ def rtc_drift_summary(path: str) -> dict | None:
             "resets": resets, "pushes": pushes}
 
 
+def dat_timefit_summary(dat_path: str, spo2_path: str,
+                        *, node_bin: str = "node",
+                        tool_path: str | None = None,
+                        timeout_s: float = 30.0) -> dict | None:
+    """Fit the O2Ring's onboard `.dat` clock against a same-night live `_SPO2.csv` and return the
+    lag verdict, or None when the tool cannot be run.
+
+    FINISHED-WORK-IMPROVEMENTS §B4. `tools/o2ring-dat-timefit.mjs` cross-correlates the two 1 Hz series
+    (both record the SAME session — one stored on the ring, one delivered live and host-stamped) and
+    returns the integer-second offset that puts the .dat's own axis on host time. That is an
+    INDEPENDENT measurement of the same clock error `rtc_drift_summary` reports: they measure the ring
+    RTC from opposite ends (readback vs waveform correlation), so if they disagree by more than the .dat
+    quantum (1 s) the 0xC0 push isn't landing where the readback says it is.
+
+    Absent from the box's live status because the tool ships as a Node CLI; folded in here via
+    subprocess-out so the digest carries both numbers on the same line.
+
+    Returns `{lagS, ok, reason, agree, spo2, pulse}` on success (the tool's own `--json` shape,
+    trimmed), or None when Node/tooling is unavailable or refuses. `None` is the ORDINARY case: a box
+    without Node, or a fixture without a paired .dat/CSV."""
+    if not (dat_path and spo2_path and os.path.exists(dat_path) and os.path.exists(spo2_path)):
+        return None
+    if tool_path is None:
+        # nightqc.py lives at capture-host/nightqc.py; the tool sits at ../tools/o2ring-dat-timefit.mjs
+        here = os.path.dirname(os.path.abspath(__file__))
+        tool_path = os.path.normpath(os.path.join(here, "..", "tools", "o2ring-dat-timefit.mjs"))
+    if not os.path.exists(tool_path):
+        return None
+    try:
+        proc = subprocess.run(
+            [node_bin, tool_path, "--dat", dat_path, "--spo2", spo2_path, "--json"],
+            capture_output=True, text=True, timeout=timeout_s, check=False,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+        return None
+    # exit code 0 = fit ok, 1 = tool refused with `ok:false` and a reason on stdout; anything else is a
+    # SHAPE failure (tool crashed, Node missing runtime dep). Trust stdout only when it parses.
+    if proc.returncode not in (0, 1):
+        return None
+    try:
+        raw = json.loads(proc.stdout or "{}")
+    except (ValueError, TypeError):
+        return None
+    return {
+        "ok": bool(raw.get("ok")),
+        # `converged` (tool #1657/#1658): ok means A lag was chosen; converged means the two columns
+        # CONFIRM each other within the measured 8 s tolerance. An ok-but-unconverged fit is a
+        # single-legged estimate — carried through so the digest can refuse to print it as a
+        # measurement, which is the tool's own rule applied one level up. None on an older tool.
+        "converged": raw.get("converged"),
+        "reason": raw.get("reason"),
+        "lag_s": raw.get("chosenLagS"),
+        "agree": raw.get("agree"),
+        "dat_sec": raw.get("datSec"),
+        "csv_sec": raw.get("csvSec"),
+    }
+
+
 def summarize(night_dir: str, devices: list[dict]) -> dict:
     """Roll the CURRENT capture session up against the configured devices. The session is scoped by
     file-activity (see _SESSION_GAP_SEC) and unified across midnight (see below), NOT the whole date
@@ -1488,10 +1575,26 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
     # (Measured: the 2026-07-24 03:33->04:32 box-wide silence ran 58.6 min, 85 s under the threshold.
     # This has already come within a minute and a half of firing on the real box.)
     #
-    # Since the two cases cannot be distinguished, they are not guessed between: everything is reported
-    # and `ok` goes false, so a human looks. A benign daytime sitting shows up in `gaps` as exactly what
-    # it is. Silently keeping the green was the defect.
+    # Since the two cases cannot be distinguished BY FILE-ACTIVITY SIGNATURE, they are not guessed
+    # between: everything is reported. A benign daytime sitting shows up in `gaps` as exactly what it
+    # is. Silently keeping the green was the defect.
+    #
+    # ⚠️ THEY ARE, HOWEVER, DISTINGUISHABLE BY WALL-CLOCK PLACEMENT — and that is a different question
+    # from the one the paragraph above answers. Nothing about WHEN a session sits helps decide whether
+    # it is "this night, interrupted" or "an unrelated earlier run"; but it does decide whether the
+    # excluded time is part of the night being judged at all. An excluded session that overlaps the
+    # night band is a HOLE IN THIS NIGHT and must red. One lying wholly outside it is a daytime
+    # sitting: real, reportable, and not a defect of the night.
+    #
+    # This is what made `ok` uninformative. Its own comment above records it false on 20 of the last
+    # 20 nights; the session-judging fix removed the spurious `missing`, and this removes the other
+    # half — every day carrying any daytime capture still produced a gap, so the alarm stayed on.
+    #
+    # FAILS CLOSED, deliberately: a session that STRADDLES the band edge counts as in-night, and a
+    # night with no judgeable band keeps every gap. The rule may only ever turn a red into a labelled
+    # green when it can positively show the excluded time was outside the night — never by absence.
     gaps: list[str] = []
+    gaps_in_night: list[str] = []
     if data:
         sessions = merge_sessions(data)
         # ⚠️ JUDGE THE SUBSTANTIVE SESSION, NOT THE MOST RECENT ONE.
@@ -1535,17 +1638,28 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
             after = [s for s in others if s[0] >= cur[1]]
             # `prior_gap_sec` keeps naming the gap to the nearest EARLIER session, which is what its
             # consumers read; the nearest later one is reported in the message rather than renamed.
+            b0, b1 = night_band((cur[0] + cur[1]) / 2.0)
             if before:
                 prev = max(before, key=lambda s: s[1])
                 prior_gap = cur[0] - prev[1]
-                gaps.append(f"{_hhmm(prev[1])}->{_hhmm(cur[0])} {round(prior_gap / 60)}min gap; "
-                            f"{len(before)} earlier session(s), "
-                            f"{sum(f['rows'] for s in before for f in s[2])} rows, excluded from coverage")
+                cls = _gap_class(before, b0, b1)
+                line = (f"{_hhmm(prev[1])}->{_hhmm(cur[0])} {round(prior_gap / 60)}min gap; "
+                        f"{len(before)} earlier session(s), "
+                        f"{sum(f['rows'] for s in before for f in s[2])} rows, excluded from coverage"
+                        f" [{cls}]")
+                gaps.append(line)
+                if cls == "in-night":
+                    gaps_in_night.append(line)
             if after:
                 nxt = min(after, key=lambda s: s[0])
-                gaps.append(f"{_hhmm(cur[1])}->{_hhmm(nxt[0])} {round((nxt[0] - cur[1]) / 60)}min gap; "
-                            f"{len(after)} later session(s), "
-                            f"{sum(f['rows'] for s in after for f in s[2])} rows, excluded from coverage")
+                cls = _gap_class(after, b0, b1)
+                line = (f"{_hhmm(cur[1])}->{_hhmm(nxt[0])} {round((nxt[0] - cur[1]) / 60)}min gap; "
+                        f"{len(after)} later session(s), "
+                        f"{sum(f['rows'] for s in after for f in s[2])} rows, excluded from coverage"
+                        f" [{cls}]")
+                gaps.append(line)
+                if cls == "in-night":
+                    gaps_in_night.append(line)
     per_device = []
     newest = max((f["mtime"] for f in current), default=None)
     missing = []
@@ -1608,12 +1722,27 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         # and rings on firmware before the readback). Discovered by listing rather than the stream scan,
         # so it does not depend on the scan tagging a sidecar it was written before.
         rtc = None
+        # FINISHED-WORK-IMPROVEMENTS §B4 — the independent measurement of the same ring-RTC error, from
+        # the OTHER end. If a `_STORED.dat` (onboard pull, ring's own clock) and a `_SPO2.csv` (live BLE,
+        # host-stamped) both landed for this device, the JS tool cross-correlates their SpO2 series and
+        # returns the integer-second offset that puts the .dat on host time. `qc_digest` flags a
+        # disagreement with `rtc.drift_s` (see below); on a well-behaved night the two agree within the
+        # .dat's 1 s quantum. None means either sidecar is absent or Node/tool are.
+        datfit = None
+        dat_path = spo2_path = None
         for fn in sorted(os.listdir(night_dir)) if os.path.isdir(night_dir) else []:
-            if fn.endswith("_rtclog.csv") and writers.file_device_id(fn) in dids:
+            if writers.file_device_id(fn) not in dids:
+                continue
+            if fn.endswith("_rtclog.csv") and rtc is None:
                 rtc = rtc_drift_summary(os.path.join(night_dir, fn))
-                break
+            elif fn.endswith("_STORED.dat") and dat_path is None:
+                dat_path = os.path.join(night_dir, fn)
+            elif fn.endswith("_SPO2.csv") and spo2_path is None:
+                spo2_path = os.path.join(night_dir, fn)
+        if dat_path and spo2_path:
+            datfit = dat_timefit_summary(dat_path, spo2_path)
         per_device.append({"name": name, "streams": streams, "coverage": coverage,
-                           "silent_sec": silent, "rtc": rtc})
+                           "silent_sec": silent, "rtc": rtc, "datfit": datfit})
     return {
         "night": os.path.basename(night_dir.rstrip("/")),
         # Reported beside the capture verdict, never folded into it — see the note on system_file_drift.
@@ -1622,6 +1751,10 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         "missing": missing,
         "degraded": degraded,
         "gaps": gaps,
+        # THE SUBSET THAT ACTUALLY BEARS ON THE NIGHT, and the only one `ok` reads. `gaps` stays
+        # complete so nothing is hidden — a daytime sitting is still reported, still labelled, and a
+        # consumer that wants every exclusion reads `gaps` exactly as before.
+        "gaps_in_night": gaps_in_night,
         "optional_absent": optional_absent,
         # Every session on this night, oldest first — so `span_sec`/`coverage`/`missing`/`silent_sec`
         # being CURRENT-session-scoped is visible rather than implied.
@@ -1656,7 +1789,7 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         "scope_suspect": bool(devices) and not data,
         # A hole in the night is a reason to look, exactly like a missing or degraded stream. `ok` is a
         # claim about THE NIGHT; if half of it was excluded from the judgement, the claim is unsupported.
-        "ok": not missing and not degraded and not gaps,
+        "ok": not missing and not degraded and not gaps_in_night,
         # THE ARRIVAL SIDECAR IS ONLY WORTH WRITING IF ITS EDGE IS AN EDGE (PAT-PACKET-ARRIVAL §3).
         # It exists so `min(arrival - device)` recovers the per-connection BLE offset, which works only
         # because buffering is one-sided. If a night's distribution comes back SMEARED anyway — a wedged
@@ -1713,6 +1846,22 @@ def qc_digest(summ) -> str | None:
             if rtc.get("resets"):
                 extra += f"/{rtc['resets']}⚠reset"
             seg_dev += f" ({extra})"
+        # FINISHED-WORK-IMPROVEMENTS §B4 — the .dat<->live cross-correlation, appended after the RTC
+        # readback. Two independent measurements of the SAME clock error (RTC's `drift_s` is
+        # last-minus-first read; `datfit`'s `lag_s` is the offset needed to put the .dat on host time).
+        # If they disagree by more than the .dat's 1 s quantum, the 0xC0 push isn't landing where the
+        # readback says it is — a signal worth flagging even when either one alone reads clean.
+        fit = d.get("datfit")
+        # `converged is False` = the two columns did not confirm each other — a single-legged lag is
+        # not a measurement (the tool's own #1657 rule), so the digest omits it rather than printing a
+        # number a reader will trust. None (older tool without the flag) falls back to trusting `ok`.
+        if isinstance(fit, dict) and fit.get("ok") and fit.get("lag_s") is not None and fit.get("converged") is not False:
+            seg_dev += f" (.dat {fit['lag_s']:+g}s"
+            if isinstance(rtc, dict) and rtc.get("reads") and rtc.get("drift_s") is not None:
+                gap = abs(fit["lag_s"] - rtc["drift_s"])
+                if gap > 1:
+                    seg_dev += f" ⚠±{gap:.0f}s"
+            seg_dev += ")"
         parts.append(seg_dev)
     if not parts and not absent:
         return None
