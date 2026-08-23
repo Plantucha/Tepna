@@ -32,6 +32,10 @@ import cpap_edf
 
 _log = logging.getLogger("tepna.cpap")
 
+# §2 — a BRP.edf is a 25 Hz (40 ms) format. The EdfSink builds at that rate, so if the device's OBSERVED
+# interval differs, the EDF timing would be silently wrong — the sink records the mismatch instead.
+_EXPECTED_INTERVAL_MS = 40
+
 # The device start_time, per the Clock Contract: an explicit regex, NEVER a locale parse. The device
 # labels its stream clock with a trailing Z, but these machines carry no real zone — the stamp is local
 # civil time wearing a Z, so the components are taken VERBATIM as floating wall-clock (§1), which is also
@@ -82,6 +86,7 @@ class EdfSink:
         self._part = None           # the .part path once the start is known
         self._final = None          # the final path
         self._flushed_records = 0   # whole records already written to .part
+        self._interval_checked = False   # §2 — observed-interval validated once, on the first batch
         self._closed = False
 
     # ── the ingestion-seam interface (open/on_batch/close), shared with the bus sink ──────────────────
@@ -96,6 +101,16 @@ class EdfSink:
         they are padded to equal length only at build time."""
         if self._start is None:
             self._set_start(batch.get("start_time"))
+        if not self._interval_checked:
+            iv = batch.get("interval_ms")           # §2 — consume the device's OWN interval, don't assume
+            if isinstance(iv, (int, float)) and iv > 0:
+                self._interval_checked = True
+                if iv != _EXPECTED_INTERVAL_MS:
+                    _log.warning(
+                        "CPAP EDF sink: observed interval %s ms != the BRP 25 Hz rate (%s ms) — the EDF is "
+                        "built at 25 Hz, so its timing will not match the stream",
+                        iv, _EXPECTED_INTERVAL_MS,
+                    )
         chans = batch.get("channels") or {}
         self._flow.extend(self._flow_to_lps(v) for v in (chans.get(FLOW_ID) or []))
         self._press.extend(chans.get(PRESS_ID) or [])

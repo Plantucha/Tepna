@@ -29,6 +29,11 @@ BRP_CHANNELS = {
     "MaskPressure": ("cpap_pressure", "CPAP Pressure", "cmH₂O"),
 }
 
+# §8 — how long a cooperative stop is given to finish the current batch, drain and persist before the
+# emergency cancel fires. A healthy 25 Hz stream checks should_stop every batch (~40 ms), so this is only
+# ever hit by a pump stuck waiting on a frame that never comes.
+STOP_GRACE_S = 5.0
+
 
 def on_body_wearables(status_devices) -> list[str]:
     """The wearables currently ON A BODY — `telemetry.on_body(st) is not False` (True OR unknown), sorted.
@@ -86,7 +91,8 @@ async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
     EDF sink writes is only whole once closed, so this is what makes an interrupted night's EDF readable.
     """
     channels = channels or BRP_CHANNELS
-    fs = 1000.0 / sample_interval_ms
+    requested_ms = sample_interval_ms          # §2 — retained for the observed-vs-requested comparison
+    fs = 1000.0 / requested_ms                 # the requested rate; the card shows it until the device speaks
     session_key = await as11_pull.establish(pair_key, client_id, write, recv_frame)
     seal, unseal = cipher_factory(session_key)
     for _did, (key, label, unit) in channels.items():
@@ -95,9 +101,25 @@ async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
     for s in sinks:
         s.open(channels, fs)
     delivered = 0
+    observed_ms = None                         # §2 — the device's OWN interval, authoritative once seen
     try:
         async for batch in as11_pull.stream(write, recv_frame, seal, unseal, list(channels),
                                             sample_interval_ms=sample_interval_ms, max_batches=max_batches):
+            # §2 OBSERVED INTERVAL IS AUTHORITATIVE. The device reports its actual sample interval on every
+            # batch; trust IT over the requested nominal, WARN on a mismatch, and DETECT a mid-stream change
+            # — never silently resample or ride the nominal. The bus push (and the EDF sink, which reads the
+            # same batch) consume the observed rate.
+            iv = batch.get("interval_ms")
+            if isinstance(iv, (int, float)) and iv > 0:
+                if observed_ms is None:
+                    observed_ms = iv
+                    if iv != requested_ms:
+                        _log.warning("CPAP stream observed interval %s ms != requested %s ms — using the "
+                                     "observed rate as authoritative", iv, requested_ms)
+                elif iv != observed_ms:
+                    _log.warning("CPAP stream interval changed mid-stream: %s -> %s ms", observed_ms, iv)
+                    observed_ms = iv
+                fs = 1000.0 / observed_ms
             for did, (key, _label, _unit) in channels.items():
                 samples = batch["channels"].get(did)
                 if samples:
@@ -139,6 +161,13 @@ class LiveStreamController:
         self._task = None
         self._stop = None
         self._disconnect = None
+        # §7 START/STOP CONCURRENCY. `_start` has an `await self._connect()` BETWEEN the `_running()` check
+        # and assigning `_task`, so two concurrent op("start") calls both pass the check and both spawn a
+        # pump → two acquisition sessions on ONE link. This lock RESERVES the whole start/stop transition
+        # before the first await, so at most ONE session owns the live stream and stop/restart cannot race
+        # connect/auth. (asyncio.Lock is loop-agnostic at construction on 3.10+, so building the controller
+        # outside a running loop — as the daemon does — is fine.)
+        self._lock = asyncio.Lock()
 
     def _keys(self):
         return [key for _did, (key, _l, _u) in self._channels.items()]
@@ -147,7 +176,8 @@ class LiveStreamController:
         return self._task is not None and not self._task.done()
 
     async def op(self, action):
-        return await (self._start() if action == "start" else self._stop_op())
+        async with self._lock:
+            return await (self._start() if action == "start" else self._stop_op())
 
     async def _start(self):
         if self._running():
@@ -182,15 +212,33 @@ class LiveStreamController:
         return {"ok": True, "streaming": True, "channels": self._keys()}
 
     async def _stop_op(self):
-        task, disconnect = self._task, self._disconnect
+        task, stop, disconnect = self._task, self._stop, self._disconnect
         self._task = self._stop = self._disconnect = None
         if task is not None and not task.done():
-            task.cancel()
+            # §8 COOPERATIVE STOP IS THE NORMAL PATH: signal should_stop and let the pump finish its
+            # current batch, DRAIN, close the sinks (persist the EDF) and end on its own. Cancellation is
+            # the EMERGENCY fallback for a pump that will not stop — and WHEN it fires we RECORD it, so a
+            # truncated recording is never an ambiguous termination.
+            # stop is guaranteed non-None for a live task: _start sets self._stop (an Event) BEFORE
+            # self._task, both under self._lock, and _stop_op reads/nulls the pair together — so reaching
+            # here with a task but no stop is unreachable, and an unconditional set is provably safe.
+            stop.set()
             try:
-                await task
-            except asyncio.CancelledError:
-                pass
-            except Exception:  # noqa: BLE001 — a dying stream must not stop us tearing the link down
+                await asyncio.wait_for(asyncio.shield(task), STOP_GRACE_S)
+            except asyncio.TimeoutError:
+                _log.warning(
+                    "CPAP stream did not stop cooperatively within %.0fs — CANCELLING (emergency); the "
+                    "final record may be truncated",
+                    STOP_GRACE_S,
+                )
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+                except Exception:  # noqa: BLE001 — a cancelled stream must not stop us tearing the link down
+                    pass
+            except Exception:  # noqa: BLE001 — a pump that ended by ERROR still lets us close the link
                 pass
         if disconnect is not None:
             try:

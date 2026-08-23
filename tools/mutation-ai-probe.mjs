@@ -1018,7 +1018,12 @@ async function main() {
   );
   log('  ' + poolKills + ' of those came FROM THE SEED POOL with no model call at all');
   log('  journal: ' + jOut + '  — kill this at ANY time and re-run to resume from here');
-  log('  → ' + outPath + '   (feed to `mutation-suite.mjs --draft --crawl-dir <dir>`)');
+  // The exact command, not a template. As `--draft --crawl-dir <dir>` this was wrong twice over:
+  // `--crawl-dir` was absent from mutation-suite's CLI_FLAGS so the whole line was refused, and
+  // `--draft` takes one argument, so the flag would have been swallowed AS the filename even once
+  // accepted. Printing the real values makes it copy-pasteable and makes any future drift show up
+  // the first time somebody follows the advice.
+  log('  → ' + outPath + '   (feed to: node tools/mutation-suite.mjs --draft ' + file + ' --crawl-dir ' + crawlDir + ')');
 }
 
 /**
