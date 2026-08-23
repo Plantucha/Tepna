@@ -85,7 +85,17 @@ def plan(ledger_rows: list[dict], disk_listing: dict[str, int], part_files: "dic
     # `oxy_inventory.classify` exists to refuse. Every one is re-pulled, and the stale file is the
     # caller's to discard — recorded here so the plan says so rather than leaving it implied.
     for ident in part_files:
-        if ident in reasons and reasons[ident].startswith("committed"):
+        # 🔴 BRANCH ON THE ACTION, NOT ON THE REASON TEXT. This read
+        # `reasons[ident].startswith("committed")` — a human-readable string used as control flow, so
+        # re-wording a message silently changed behaviour and any consumer of `reasons` became a
+        # consumer of an undeclared contract. `out[INTACT]` is exactly equivalent (the committed
+        # branch is the only writer of INTACT) and cannot be broken by editing prose.
+        #
+        # It also settles what the reason strings ARE: with nothing matching on them they are prose,
+        # which is what lets the mutation gate's log-prose exclusion apply honestly. While this line
+        # existed, an upper/lower-cased reason was a REAL defect wearing a string-literal costume —
+        # excluding it as prose would have been excluding a live break.
+        if ident in out[INTACT]:
             # A committed recording with a leftover `.part` beside it: the file is fine, the debris
             # is not. Keep INTACT and let the caller sweep — re-pulling a good recording to tidy up
             # would be the more destructive of the two options.
