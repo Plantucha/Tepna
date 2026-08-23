@@ -1204,12 +1204,9 @@ function renderStoragePill(st){
   const b = $('#navStoreN');
   if(b){ b.style.display = held ? '' : 'none'; b.textContent = held; }
 }
-// CPAP harvest card. Hidden entirely unless the poller is enabled — an always-visible "—" invites the
-// reading that the harvest ran and found nothing, which is the exact failure this card exists to expose.
-function renderCpap(c){
-  const card = $('#cpapCard'); if(!card) return;
-  if(!c || !c.enabled){ card.style.display='none'; return; }
-  card.style.display='';
+// CPAP status → [pill class, label]. ONE map, shared by the Devices card and the Overview box-health
+// tile — the wording is the contract, and two copies would drift into telling different stories.
+function cpapStatusLabel(c){
   const mb = c.bytes!=null ? (c.bytes/1048576).toFixed(1)+' MB' : '';
   // A short read or a fetch error is RED, not amber: a truncated EDF parses far enough to look real,
   // so a night that silently half-arrived is worse than one that obviously did not.
@@ -1225,7 +1222,15 @@ function renderCpap(c){
     error:   ['bad',  `✗ ${c.detail||'harvest failed'}`],
     idle:    ['idle', `idle · next run ${String(c.at_hour??13).padStart(2,'0')}:00`],
   };
-  const [cls, label] = map[c.state] || map.idle;
+  return map[c.state] || map.idle;
+}
+// CPAP harvest card. Hidden entirely unless the poller is enabled — an always-visible "—" invites the
+// reading that the harvest ran and found nothing, which is the exact failure this card exists to expose.
+function renderCpap(c){
+  const card = $('#cpapCard'); if(!card) return;
+  if(!c || !c.enabled){ card.style.display='none'; return; }
+  card.style.display='';
+  const [cls, label] = cpapStatusLabel(c);
   // `label` REACHES innerHTML, and two of the states above build it from `c.detail`, which the daemon
   // fills with CONFIG-DERIVED text: `waiting` carries "streaming: " + device names, `error` carries the
   // Wi-Fi profile name. Device names are settable through this monitor's own settings API, so an
@@ -1323,7 +1328,7 @@ async function loadState(){
   const na=$('#navActiveN'); na.style.display = active?'inline-block':'none'; na.textContent = active;
   const nd=$('#navDevN'); nd.style.display = conn?'inline-block':'none'; nd.textContent = conn;
   renderSideStats();          // sidebar counters: every view, not just Overview
-  renderBoxHealth(s.storage, s.qc, s.host, s.alerts);
+  renderBoxHealth(s.storage, s.qc, s.host, s.alerts, s.host_clock, s.cpap);
   renderStoragePill(s.storage);   // sidebar: visible in every view
   renderCpap(s.cpap);
   renderDownload(DEVICES);
@@ -1907,10 +1912,19 @@ function renderSideStats(){
     `<div class="sub ${sc}">${esc(sub)}</div></div>`).join('');
 }
 
+// "How long ago" for an ISO-UTC stamp ("YYYY-MM-DDTHH:MM:SSZ"). Explicit regex + Date.UTC per the
+// Clock Contract — never Date.parse on a vendor string. Unparseable → '' (nothing, never a fabricated
+// age). The stamp is a real UTC instant, so comparing against Date.now() is correct here.
+function agoUtc(iso){
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z$/.exec(iso||'');
+  if(!m) return '';
+  const s = Math.max(0, Math.round((Date.now() - Date.UTC(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6]))/1000));
+  return s<90 ? s+'s ago' : s<5400 ? Math.round(s/60)+'m ago' : (s/3600).toFixed(1)+'h ago';
+}
 // Box health strip (Overview): disk + tonight's capture QC, published by the guardrail pollers into
 // /api/state. Each block appears only once its poller has run (null before then); border-left signals ok
 // (teal) vs a warning (amber) — a low disk, or a night with a missing stream.
-function renderBoxHealth(storage, qc, host, alerts){
+function renderBoxHealth(storage, qc, host, alerts, clk, cpap){
   const el = $('#boxHealth'), title = $('#boxHealthTitle');
   if(!el) return;
   const cards = [];
@@ -1948,6 +1962,24 @@ function renderBoxHealth(storage, qc, host, alerts){
       <div class="val" style="font-size:15px">${bad?'adapter mis-pin':'up'}</div>
       <div class="sub">${bad?('pinned '+esc(host.adapter_mac||'?')+' not found')
                             :('since '+esc(when)+(host.adapter_resolved?(' · '+esc(host.adapter_resolved)):''))}</div></div>`);
+  }
+  // ── HOST CLOCK ───────────────────────────────────────────────────────────────────────────────────
+  // The Clock Contract stamps every capture with this box's wall clock; the sidebar chip already says
+  // WHETHER it is sourced, but the basics — stratum, when the last sync actually landed, how tight the
+  // discipline is — lived only in the Devices view. Absent until the host_clock poller has run.
+  // `last_sync_utc` is chrony's Ref time; on the timesyncd path it is None and the bit is simply absent.
+  if(clk){
+    const ok = !!clk.absolute_ok;
+    const bits = [];
+    const ago = agoUtc(clk.last_sync_utc);
+    if(ago) bits.push('synced '+ago);
+    if(clk.jitter_us!=null) bits.push('jitter '+(clk.jitter_us>=1000?(clk.jitter_us/1000).toFixed(1)+' ms':clk.jitter_us+' us'));
+    if(clk.chrony_skew_ppm!=null) bits.push('skew '+clk.chrony_skew_ppm+' ppm');
+    if(clk.server||clk.reference) bits.push('via '+(clk.server||clk.reference));
+    cards.push(`<div class="ov-stat" style="border-left-color:${ok?'var(--status-ok)':'var(--status-caution)'}">
+      <div class="lab">Clock</div>
+      <div class="val" style="font-size:15px">${ok ? esc('S'+(clk.stratum!=null?clk.stratum:'?')+(clk.time_source?' · '+clk.time_source:'')) : 'unsourced'}</div>
+      <div class="sub">${ok ? (esc(bits.join(' · '))||'disciplined') : esc(clk.reason||'absolute time unverified')}</div></div>`);
   }
   // SYSTEM-FILE DRIFT — VIGIL-AUTO-UPDATE-FOLLOWUPS §2a Option C (owner-signed 2026-08-17).
   // `check-system-files.sh` has DETECTED this since PR #435; the measured failure was never detection,
@@ -2007,6 +2039,22 @@ function renderBoxHealth(storage, qc, host, alerts){
       <div class="lab">Tonight (QC)</div>
       <div class="val" style="font-size:${ok?'22':'15'}px">${esc(val)}</div>
       <div class="sub">${sub}</div></div>`);
+  }
+  // ── CPAP ─────────────────────────────────────────────────────────────────────────────────────────
+  // Same visibility rule as the Devices card: hidden entirely unless the poller is enabled — an
+  // always-visible "—" invites the reading that the harvest ran and found nothing. The wording comes
+  // from cpapStatusLabel, the ONE map, so this tile and the Devices card can never tell different
+  // stories; `label` carries server-derived text (device names, Wi-Fi profile), so it goes through esc.
+  if(cpap && cpap.enabled){
+    const [ccls, clabel] = cpapStatusLabel(cpap);
+    const word = {ok:'OK', partial:'Partial', running:'Harvesting…', waiting:'Waiting',
+                  barren:'Nothing found', error:'FAILED'}[cpap.state] || 'Idle';
+    const colour = {ok:'var(--status-ok)', warn:'var(--status-caution)', bad:'var(--status-bad)'}[ccls];
+    const csub = clabel + (cpap.last_ok ? ' · last good '+cpap.last_ok.replace('T',' ') : '');
+    cards.push(`<div class="ov-stat"${colour?` style="border-left-color:${colour}"`:''}>
+      <div class="lab">CPAP</div>
+      <div class="val" style="font-size:15px">${esc(word)}</div>
+      <div class="sub">${esc(csub)}</div></div>`);
   }
   el.innerHTML = cards.join('');
   el.style.display = cards.length ? '' : 'none';

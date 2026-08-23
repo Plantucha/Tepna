@@ -368,6 +368,32 @@ def test_chrony_skew_is_absent_not_zero_when_the_line_is_missing():
     assert "skew_ppm" not in ch
 
 
+def test_chrony_ref_time_becomes_the_last_sync_instant():
+    """`Ref time (UTC)` is when chrony last updated the clock from a source — carried as an ISO UTC
+    stamp so the monitor can say 'synced N min ago' without locale-parsing chrony's prose."""
+    ch = hc.parse_chrony_tracking(CHRONY_TRACKING)
+    assert ch["last_sync_utc"] == "2026-07-26T01:07:19Z"
+
+
+def test_chrony_ref_time_is_absent_when_the_line_is_missing():
+    ch = hc.parse_chrony_tracking("Reference ID    : C0A8007B (192.168.0.123)\nStratum : 2\n")
+    assert "last_sync_utc" not in ch
+
+
+def test_chrony_ref_time_rejects_an_impossible_date_rather_than_rolling_it():
+    """datetime() does the calendar validation: Feb 30 must become absence, never a rolled-onto-March
+    instant — the same honesty rule as clock.js `_ckMk` (a fabricated stamp is worse than none)."""
+    ch = hc.parse_chrony_tracking("Ref time (UTC)  : Mon Feb 30 01:07:19 2026\n")
+    assert "last_sync_utc" not in ch
+
+
+def test_chrony_ref_time_rejects_an_unknown_month_token():
+    """A three-letter token that is not an English month abbreviation (map -> month 0) is unparseable,
+    and unparseable is absent — not a guess."""
+    ch = hc.parse_chrony_tracking("Ref time (UTC)  : Mon Foo 26 01:07:19 2026\n")
+    assert "last_sync_utc" not in ch
+
+
 def test_read_state_carries_chrony_skew_and_leaves_timesyncd_skew_none(monkeypatch):
     """The clock-precision fact rides read_state on the chrony path; the timesyncd path has no analogue,
     so it is None there rather than borrowed from another field (O2RING-ADAPTIVE-TIMEBASE Stage 1)."""
@@ -378,14 +404,18 @@ def test_read_state_carries_chrony_skew_and_leaves_timesyncd_skew_none(monkeypat
             return 0, CHRONY_TRACKING
         return 0, "NTP=yes\nNTPSynchronized=yes\n"
     monkeypatch.setattr(hc, "_run", via_chrony)
-    assert _run(hc.read_state())["chrony_skew_ppm"] == 0.123
+    st = _run(hc.read_state())
+    assert st["chrony_skew_ppm"] == 0.123
+    assert st["last_sync_utc"] == "2026-07-26T01:07:19Z", "the last-sync instant rides the chrony path"
 
     async def via_timesyncd(*args, timeout=4.0):
         if "show-timesync" in args:
             return 0, "NTPMessage={ Leap=0, Stratum=2, Jitter=170us }\n"
         return 0, "NTP=yes\nNTPSynchronized=yes\n"
     monkeypatch.setattr(hc, "_run", via_timesyncd)
-    assert _run(hc.read_state())["chrony_skew_ppm"] is None
+    st = _run(hc.read_state())
+    assert st["chrony_skew_ppm"] is None
+    assert st["last_sync_utc"] is None, "timesyncd reports no sync instant — None, never borrowed"
 
 
 # ── timebase_decision (O2RING-ADAPTIVE-TIMEBASE Stage 3) ──────────────────────────────────────────────
