@@ -128,6 +128,7 @@ brief's related work; not worth building against.
       the existing correlation estimator on the same data.
 - [ ] §3 answered — whether Brønd's chest/arm case is comparable to their trunk-pair validation, BEFORE
       any implementation.
+- [x] §4 recorded — **DONE 2026-08-22.** HAEST (Nasrullah et al. 2024, *IEEE RTAS*) added as `O2RING-BUZZ-FIDUCIAL` §6 Related work, with the distinction the survey drew: it *harvests* ambient events, the buzz is *generated on demand*, so a commanded fiducial has a known emission time and §5's detection could be scored 5/5 rather than estimated. Corroborative, not adopted.
 - [ ] Any adopted method carries author·year·journal·DOI in the doc and a source comment at the call
       site, per the literature policy; any constant it contributes is inlined at author time.
 
