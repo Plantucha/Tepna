@@ -11,6 +11,9 @@ import oxy_restart as rs
 
 ID = inv.identity("S8AW2100", "20260813202245")
 OTHER = inv.identity("S8AW2100", "20260814210101")
+THIRD = inv.identity("S8AW2100", "20260815210101")
+FOURTH = inv.identity("S8AW2100", "20260816210101")
+FIFTH = inv.identity("S8AW2100", "20260817210101")
 
 
 def _row(state, ident=ID, size=500):
@@ -101,6 +104,31 @@ def test_a_part_for_a_recording_already_being_repulled_is_noted_not_duplicated()
     planned = rs.plan([_row(inv.PARTIAL, size=40)], {ID: 40}, part_files={ID: 40})
     assert planned[rs.REPULL] == [ID], "listed once"
     assert ".part present" in planned["reasons"][ID]
+    # ⚠️ APPENDED, NOT REPLACED. `reasons[x] += …` mutated to `=` still leaves ".part present" in the
+    # string, so a substring check alone cannot see it — and the original classification, which is
+    # WHY the recording is being re-pulled at all, would be silently discarded.
+    assert "incomplete" in planned["reasons"][ID], "the original reason must survive the append"
+
+
+def test_a_committed_part_does_not_stop_the_scan_of_LATER_parts():
+    """`continue` in the `.part` loop, not `break`. With `break`, the first committed-with-debris
+    entry ends the loop and every later `.part` is never seen — the recording it belongs to would be
+    silently trusted.
+
+    Same shape as `reconcile`'s missing-branch: a classification loop that stops early produces a
+    plan that LOOKS complete. Iteration order is not guaranteed, so both orderings are asserted."""
+    rows = [_row(inv.COMMITTED), _row(inv.COMMITTED, OTHER, 700)]
+    planned = rs.plan(rows, {ID: 500, OTHER: 700}, part_files={ID: 12, OTHER: 12})
+    # Both are committed-with-debris, so both stay INTACT and both are reported for sweeping —
+    # which only holds if the loop visited both.
+    assert planned[rs.INTACT] == sorted([ID, OTHER])
+    assert planned["stale_parts"] == sorted([ID, OTHER])
+
+    # And the mixed case: one committed (skipped), one not (must still be re-pulled).
+    rows2 = [_row(inv.COMMITTED), _row(inv.VERIFIED, OTHER, 700)]
+    p2 = rs.plan(rows2, {ID: 500, OTHER: 700}, part_files={ID: 12, OTHER: 12})
+    assert p2[rs.INTACT] == [ID], "the committed one keeps its file"
+    assert p2[rs.REPULL] == [OTHER], "the later .part must still force a re-pull"
 
 
 # ── the shape of the whole plan ─────────────────────────────────────────────────────────────────
@@ -114,10 +142,26 @@ def test_every_recording_lands_in_exactly_one_action():
 
 
 def test_every_classified_recording_carries_a_reason():
-    """A plan whose reasoning is invisible gets overridden by whoever reads it."""
-    rows = [_row(inv.COMMITTED), _row(inv.PARTIAL, OTHER, 40)]
-    planned = rs.plan(rows, {ID: 500, OTHER: 40})
+    """A plan whose reasoning is invisible gets overridden by whoever reads it.
+
+    ⚠️ THE WORLD HERE MUST REACH EVERY ACTION, and the first version did not — it built only INTACT
+    and REPULL, so mutation found `put(QUARANTINE, …, None)` and `put(REPULL, …, None)` on the
+    `.part` path both surviving: the loop ran, found nothing in those buckets, and asserted over an
+    empty set. A completeness test that does not construct the states it claims to cover is the
+    "check that examined nothing" shape, wearing a for-loop."""
+    rows = [
+        _row(inv.COMMITTED),                                # -> intact
+        _row(inv.PARTIAL, OTHER, 40),                       # -> repull
+        _row(inv.VERIFIED, THIRD, 700),                     # -> commit
+        _row(inv.COMMITTED, FOURTH, 900),                   # -> quarantine (size drifts below)
+    ]
+    planned = rs.plan(
+        rows,
+        {ID: 500, OTHER: 40, THIRD: 700, FOURTH: 950},
+        part_files={FIFTH: 12},                             # -> repull via the .part path
+    )
     for a in (rs.INTACT, rs.COMMIT, rs.REPULL, rs.QUARANTINE):
+        assert planned[a], f"{a} is empty — this test cannot claim to cover it"
         for ident in planned[a]:
             assert planned["reasons"].get(ident), f"{ident} in {a} with no reason"
 
