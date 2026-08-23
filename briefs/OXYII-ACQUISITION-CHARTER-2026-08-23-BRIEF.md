@@ -111,12 +111,21 @@ contradicts the repo's own recorded practice.
 - **G1 · Transactional stored-recording sync** (spec §8–§11, the core). Extend `pull_session` +
   `autopull_poller`: download to `.part` → validate (device-reported size + `parse_oxy_trailer`
   finalisation sub-magic + parseability) → atomic `os.replace` → ledger record. Recording identity =
-  device id + session stamp + size + content hash (the trailer's own stats as a cross-check). States:
+  **device id + session stamp only** — size and content hash are VERIFICATION fields, never key
+  material (they change mid-transfer, so keying on them would make a partial download key differently
+  from its own completion; runner-ruled at G2 review, #1681). ⚠️ `reconcile()`'s `repull` verdict is a
+  **classification, not an overwrite instruction** — the unknown bytes on disk may be the only copy of
+  something, so acting on `repull` goes through `.part` → validate → `os.replace`, never a blind
+  overwrite (G2-review rider). States:
   DISCOVERED / PARTIAL / VERIFIED / COMMITTED; a verified file is never overwritten. Reuse the
   `cpap_harvest.EzShare.fetch` shape — it is the in-house reference, already proven.
-- **G2 · Inventory ledger** (append-only JSONL beside the night files): what is known, what is
-  verified, which pull attempt succeeded. `_pull_once`'s skip logic reads the ledger first, size-check
-  second — idempotency survives a renamed/moved file.
+- **G2 · Inventory ledger** (append-only JSONL beside the night files) — a **STANDALONE module**
+  (`oxy_inventory.py` + tests, pure logic, no `capture.py`/`pull_session.py` touch, no hardware
+  dependency): what is known, what is verified, which pull attempt succeeded; record states
+  DISCOVERED / PARTIAL / VERIFIED / COMMITTED; a pure `reconcile(ledger_rows, disk_listing)` that G3
+  consumes. In-flight precedent: the CPAP arm's `cpap_acq.py` (#1679). The **wiring** — `_pull_once`
+  reading the ledger first, size-check second, so idempotency survives a renamed/moved file — is
+  **G1's**, not G2's.
 - **G3 · Restart-safe acquisition state**: on start, reconcile ledger vs disk; an interrupted transfer
   is re-queued or explicitly restarted, never silently trusted. RAM state is derivable, never
   authoritative.
@@ -126,7 +135,15 @@ contradicts the repo's own recorded practice.
   *existing* watchdog signals; the §16 PI/motion cannot-swap test if absent.
 - **G5 · Hardware design-input measurements** (R2) — first, and recorded in this brief's follow-up.
 
-Sequencing: **G5 → G1+G2 (one work-unit) → G3 → G4.** Each PR announced against §6 before touching
+Sequencing: **G2 (standalone, starts immediately — no G5 dependency) ∥ G5-evidence → G1 (wiring;
+needs G2 merged + G5's numbers) → G3 → G4.** *(Amended 2026-08-23 — this line originally read
+"G5 → G1+G2 (one work-unit) → G3 → G4"; the runner caught the charter contradicting the lead's actual
+kickoff order, which had split G2 out to start immediately. The split is the better plan — G2 needs
+nothing from hardware — and the charter must describe what is actually being executed.)* **G3 may be
+pulled ahead of G1 if G5 stays hardware-blocked** (the ring needs a physical wake): G3's restart
+reconciliation consumes only the pure `reconcile()` from G2 and tests against synthetic ledger/disk
+pairs — it is the one remaining unit with no device dependency, so the lane never stalls on hardware.
+Each PR announced against §6 before touching
 `capture.py`/`writers.py`; `check.sh` green + mutation-gate drained before review; the lead reviews
 every PR before merge.
 
@@ -150,9 +167,12 @@ existing whitelist (`OXYII-PROTOCOL-HARVEST` deliberately excluded them; unchang
 
 ## Done when
 
-- [ ] G5 measurements recorded (handoff latency, drain occupancy, mid-transfer drop behaviour).
-- [ ] G1+G2 merged: planted controls green (kill mid-download / corrupt byte / re-run downloads
-      nothing already verified), `check.sh` 100 %, mutation gate drained.
+- [ ] G2 merged (standalone module + tests, `check.sh` 100 %, mutation gate drained).
+- [ ] G5 measurements recorded (handoff latency, drain occupancy, mid-transfer drop behaviour) —
+      assigned to the Vigil box session (hardware at its elbow), evidence lands in the follow-up.
+- [ ] G1 merged (the wiring + `.part`→validate→atomic-commit): planted controls green (kill
+      mid-download / corrupt byte / re-run downloads nothing already verified), `check.sh` 100 %,
+      mutation gate drained.
 - [ ] G3 merged: restart reconciliation with its own planted control (kill between download and
       commit → restart re-queues, trusts nothing).
 - [ ] G4 merged: transitions journaled on a real night; liveness states visible in STATUS.
