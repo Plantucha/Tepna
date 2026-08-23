@@ -11,6 +11,7 @@ live but permits an otherwise-idle box.
 import asyncio
 import collections
 import json
+import logging
 
 import as11_link as L
 import cpap_stream as CS
@@ -263,6 +264,23 @@ def test_gate_reports_blocking_sensors_sorted():
     assert reason.index("H10") < reason.index("Verity"), "named in sorted order"
 
 
+def test_gate_DISABLED_permits_even_with_a_sensor_on_the_body():
+    """⚠️ OWNER ORDER 2026-08-23 (supersedes findings-spec §13 conservative-semantics). With the coexistence
+    gate DISABLED (enabled=False — the daemon's default), a sensor on the body no longer blocks: gate
+    returns None even for worn=True AND the conservative worn=None. The blocking mechanism stays in code;
+    enabled=True restores it. Only the default changed, and the condition is LOGGED, not silently dropped."""
+    assert CS.gate({"Polar H10": _dev(worn=True)}, enabled=False) is None
+    assert CS.gate({"Polar H10": _dev(worn=None)}, enabled=False) is None
+
+
+def test_on_body_wearables_lists_the_condition_sorted():
+    """The on-body set the gate is about, exposed so it can be LOGGED when the gate is disabled. Sorted;
+    charging/off-body/disconnected excluded (same predicate the gate uses)."""
+    assert CS.on_body_wearables({"Verity": _dev(worn=True), "H10": _dev(worn=True),
+                                 "Ring": _dev(worn=False, charging=True)}) == ["H10", "Verity"]
+    assert CS.on_body_wearables({}) == [] and CS.on_body_wearables(None) == []
+
+
 # ── LiveStreamController ─────────────────────────────────────────────────────────
 class _ControllerBus(FakeBus):
     def __init__(self, meta=None):
@@ -401,14 +419,51 @@ def test_controller_start_is_idempotent_while_running():
     _run(go())
 
 
-def test_controller_refuses_to_start_while_a_sensor_is_on_the_body():
+def test_controller_with_coexistence_gate_ENABLED_refuses_while_a_sensor_is_on_the_body():
+    """The mechanism is intact for anyone who opts back in: with coexistence_gate=True, an on-body sensor
+    still refuses BEFORE the radio opens. The both-ways §14 pin, half one — enabled blocks."""
     async def go():
         connect, events = _connector()
-        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _worn_devices, pump=_idle_pump)
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _worn_devices, pump=_idle_pump,
+                                    coexistence_gate=True)
         res = await c.op("start")
         assert res["ok"] is False and "Polar H10" in res["error"]
         assert events["connected"] == 0, "the gate must refuse BEFORE opening the radio"
     _run(go())
+
+
+def test_controller_with_coexistence_gate_DISABLED_starts_beside_an_on_body_sensor_and_logs(caplog):
+    """⚠️ THE OWNER ORDER (2026-08-23, supersedes findings-spec §13). The DEFAULT is DISABLED, so a stream
+    STARTS even with a sensor on the body — but logs the condition ONCE so a 2.4 GHz congestion post-mortem
+    keeps it. The both-ways §14 pin, half two — disabled allows + logs."""
+    async def go():
+        connect, events = _connector()
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _worn_devices, pump=_idle_pump)
+        res = await c.op("start")            # default: coexistence_gate=False
+        assert res["ok"] is True and res["streaming"] is True, "no refusal — the gate is disabled"
+        assert events["connected"] == 1, "the radio opened despite the on-body sensor"
+        await c.op("stop")
+        return res
+    with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+        _run(go())
+    assert any("coexistence gate DISABLED" in r.message and "Polar H10" in r.message
+               for r in caplog.records), "the on-body condition is logged for the post-mortem"
+
+
+def test_controller_with_coexistence_gate_ENABLED_starts_normally_when_nothing_on_body(caplog):
+    """Enabled gate + nothing on-body: starts normally, and does NOT emit the disabled-log line (that log
+    belongs only to the disabled path). Covers the enabled-and-permitted branch."""
+    async def go():
+        connect, events = _connector()
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_idle_pump,
+                                    coexistence_gate=True)
+        res = await c.op("start")
+        assert res["ok"] is True and events["connected"] == 1
+        await c.op("stop")
+    with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+        _run(go())
+    assert not any("coexistence gate DISABLED" in r.message for r in caplog.records), \
+        "no disabled-log when the gate is enabled"
 
 
 def test_controller_refuses_to_start_without_credentials():
@@ -549,6 +604,17 @@ def test_build_controller_leaves_the_edf_sink_off_without_edf_dir(tmp_path):
     import capture
     ctl = capture._build_cpap_controller(object(), {"cpap": {}}, str(tmp_path / "config.yaml"))
     assert ctl._edf_sink_factory is None
+
+
+def test_build_controller_coexistence_gate_defaults_DISABLED_and_config_can_enable(tmp_path):
+    """Owner order 2026-08-23: the daemon's coexistence gate DEFAULTS to disabled (no config → False);
+    setting cpap.ble_stream.coexistence_gate: true restores the block."""
+    import capture
+    off = capture._build_cpap_controller(object(), {"cpap": {}}, str(tmp_path / "config.yaml"))
+    assert off._coexistence_gate is False, "disabled by default per the owner order"
+    on = capture._build_cpap_controller(object(), {"cpap": {"ble_stream": {"coexistence_gate": True}}},
+                                        str(tmp_path / "config.yaml"))
+    assert on._coexistence_gate is True, "config opt-in restores the interlock"
 
 
 # ── capture._cpap_ble_connect (the bleak I/O edge, mocked) ───────────────────────

@@ -13,10 +13,13 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
 import as11_cipher
 import as11_pull
 import telemetry
+
+_log = logging.getLogger("tepna.cpap")
 
 # The BRP waveforms and their bus presentation. dataId → (bus key, label, unit). The device streams flow
 # and mask pressure at the 40 ms BRP cadence; fs is derived from the sample interval, not hard-coded, so
@@ -27,21 +30,35 @@ BRP_CHANNELS = {
 }
 
 
-def gate(status_devices) -> str | None:
+def on_body_wearables(status_devices) -> list[str]:
+    """The wearables currently ON A BODY — `telemetry.on_body(st) is not False` (True OR unknown), sorted.
+    A CHARGING or off-body device is excluded (a docked ring cannot be interfered with; blocking on it made
+    the gate unreachable when a capture is safest — the 2026-07-26 docked-sensors bug). Exposed separately
+    so the condition can be LOGGED even when the coexistence gate is disabled and no longer blocks."""
+    return sorted(name for name, st in (status_devices or {}).items()
+                  if telemetry.on_body(st) is not False)
+
+
+def _coexistence_refusal(on_body: list[str]) -> str:
+    return "a sensor is on the body (" + ", ".join(on_body) + ") — refusing to transmit beside it"
+
+
+def gate(status_devices, *, enabled=True) -> str | None:
     """Refusal reason if a CPAP BLE stream must NOT start right now, else None.
 
-    The bar is the same one the CPAP PULL enforces, single-sourced on `telemetry.on_body`: a 2.4 GHz BLE
-    stream must never run while a sensor is ON A BODY, because the transmitter sits beside it. A device
-    that is CHARGING or otherwise not on a body is NOT a blocker — a ring on its dock cannot be interfered
-    with, and blocking on it made the gate unreachable exactly when a capture is safest (the 2026-07-26
-    docked-sensors bug that `cpap_harvest.blocking_devices` records). `status_devices` is the daemon's
-    device-status map. Blocks on `on_body is not False` (True OR unknown) — the harvest's conservative
-    policy: refusing costs only a retry.
+    The bar the CPAP PULL enforces, single-sourced on `telemetry.on_body`: a 2.4 GHz BLE stream sits beside
+    a sensor ON A BODY, so historically it must never run then. `status_devices` is the daemon's device map.
+
+    ⚠️ `enabled` GATES THE BLOCK, and its default at the daemon is FALSE — the coexistence interlock is
+    DISABLED BY OWNER ORDER (2026-08-23), which SUPERSEDES the findings-spec §13 conservative-semantics
+    clause (documented, not silent). When disabled this NEVER blocks (returns None even with a sensor
+    on-body); the caller logs which wearables were on-body so the congestion condition stays observable for
+    post-mortems without any refusal. When enabled (the config opt-in), it refuses on `on_body is not False`
+    exactly as before. This function stays pure; the logging lives at the one call site that has the logger.
     """
-    blocking = sorted(name for name, st in (status_devices or {}).items()
-                      if telemetry.on_body(st) is not False)
-    if blocking:
-        return "a sensor is on the body (" + ", ".join(blocking) + ") — refusing to transmit beside it"
+    on_body = on_body_wearables(status_devices)
+    if on_body and enabled:
+        return _coexistence_refusal(on_body)
     return None
 
 
@@ -105,13 +122,17 @@ class LiveStreamController:
     daemon shim. One controller per daemon; `op("start"|"stop")` is what the endpoint calls."""
 
     def __init__(self, bus, connect, load_creds, devices, *, channels=None, pump=stream_to_bus,
-                 edf_sink_factory=None):
+                 edf_sink_factory=None, coexistence_gate=False):
         self._bus = bus
         self._connect = connect
         self._load_creds = load_creds
         self._devices = devices        # () -> the daemon's device-status map, for the on-body gate
         self._channels = channels or BRP_CHANNELS
         self._pump = pump
+        # The 2.4 GHz coexistence interlock. DEFAULT FALSE — disabled by owner order 2026-08-23 (supersedes
+        # findings-spec §13). When False the stream starts even beside an on-body wearable and only LOGS the
+        # condition; set True (config cpap.ble_stream.coexistence_gate) to restore the blocking behaviour.
+        self._coexistence_gate = coexistence_gate
         # () -> a fresh on-disk EDF sink for this session, or None to stream to the bus alone. The daemon
         # supplies one; a bus-only controller (and every existing test) leaves it None and is unaffected.
         self._edf_sink_factory = edf_sink_factory
@@ -131,9 +152,20 @@ class LiveStreamController:
     async def _start(self):
         if self._running():
             return {"ok": True, "streaming": True, "already": True, "channels": self._keys()}
-        reason = gate(self._devices())
+        devs = self._devices()
+        reason = gate(devs, enabled=self._coexistence_gate)
         if reason:
             return {"ok": False, "error": reason}
+        if not self._coexistence_gate:
+            # Gate DISABLED by owner order 2026-08-23 — `gate` permitted the start; if a wearable IS on a
+            # body, record it (no refusal) so a 2.4 GHz congestion post-mortem still has the condition.
+            on_body = on_body_wearables(devs)
+            if on_body:
+                _log.warning(
+                    "coexistence gate DISABLED (owner order 2026-08-23) — CPAP stream starting beside "
+                    "ON-BODY wearable(s): %s",
+                    ", ".join(on_body),
+                )
         creds = self._load_creds()
         if not creds:
             return {"ok": False, "error": "no AS11 credentials on this box — pair the CPAP first"}

@@ -5359,11 +5359,12 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
         def edf_sink_factory():
             return cpap_edf_writer.EdfSink(edf_dir, serial)
 
-    # devices provider for the on-body gate: the daemon's live device-status map. A stream refuses only
-    # while a sensor is actually ON A BODY (telemetry.on_body) — a charging/docked device does not block.
+    # devices provider for the on-body gate: the daemon's live device-status map. The 2.4 GHz coexistence
+    # interlock is DISABLED BY OWNER ORDER (2026-08-23) — default False — so a stream no longer refuses
+    # beside an on-body wearable, only logs it; set cpap.ble_stream.coexistence_gate: true to restore it.
     return cpap_stream.LiveStreamController(
         bus, connect, lambda: _load_as11_creds(creds_path), lambda: STATUS.get("devices", {}),
-        edf_sink_factory=edf_sink_factory)
+        edf_sink_factory=edf_sink_factory, coexistence_gate=bool(cbs.get("coexistence_gate", False)))
 
 
 async def _cpap_ble_connect(ble_addr: str, hci: str | None):
