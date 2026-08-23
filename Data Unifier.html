@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0wrnC0lVV+CrxqFX7kyOj6IsM0aoYU6jEFEXzId9FCU=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-9pcgddjwATDE1P/+Ue5Tz21VCRq1r7R7G8zoRQbGCks=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G8T1c38HwLBl265H8MWt+Jqx7dj3Cj7O3Kl0EA7ny0s=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-W7m5EJur7zz9xJVj4s2diLK2Ex8nuYlUeh9vJ0nqr8U=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-nKK7xOfxhM7P75DL06pRugSuqGPyW1xEGOI6874nb64=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psCNI6L+RVB3F77zf3oNwebbh8Z+Ml5lnVD4nzvTKxM=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0wrnC0lVV+CrxqFX7kyOj6IsM0aoYU6jEFEXzId9FCU=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-9pcgddjwATDE1P/+Ue5Tz21VCRq1r7R7G8zoRQbGCks=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G8T1c38HwLBl265H8MWt+Jqx7dj3Cj7O3Kl0EA7ny0s=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-W7m5EJur7zz9xJVj4s2diLK2Ex8nuYlUeh9vJ0nqr8U=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-YorI74yr8c/0Hcd1VZkyFFL6jCh3WK0LtlbgsYgy5po=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psCNI6L+RVB3F77zf3oNwebbh8Z+Ml5lnVD4nzvTKxM=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -3613,6 +3613,66 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     }
     return null; // date unknown — do not fabricate (Clock Contract §4)
   }
+  /* FINISHED-WORK-IMPROVEMENTS §A 2a — VERIFY the ring's binary .dat timebase against the host.
+     `decodeO2RingBinToCSV` anchors on the 14-digit filename stamp — i.e. the RING RTC, unverified.
+     `capture-host/writers.RingClockLogWriter` writes `*_rtclog.csv` per session with rows shaped
+     `Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3`.
+     If a sidecar is dropped in the batch, DECLARE the verification against it. Never SHIFT time —
+     the house rule at `oxydex-dsp.js:3235` (a silent correction becomes an invisible bug). */
+  function parseRingClockLog(text) {
+    if (typeof text !== 'string' || !text) return [];
+    var lines = text.split(/\r?\n/);
+    var out = [];
+    for (var i = 1; i < lines.length; i++) {
+      var c = lines[i].split(';');
+      if (c.length < 3) continue;
+      var p = parseTimestamp(c[0], {});
+      if (!p || !isFinite(p.tMs)) continue;
+      var offRaw = c[2];
+      var offS = offRaw !== '' && offRaw != null && isFinite(+offRaw) ? +offRaw : null;
+      out.push({ tMs: p.tMs, event: c[1], offsetS: offS });
+    }
+    return out;
+  }
+  /* MATCH a decoded night against the sidecar rows and DECLARE — never CORRECT — its RTC verdict.
+     Contract:
+       reset-suspect inside the night's span ⇒ `rtcResetSuspect=true` + verification BLOCKED (a reset's
+         offset is unmeasured by definition, so no `timingSource`/`rtcOffsetS` is attached even if
+         reads exist alongside it).
+       otherwise, the NEAREST `read` event within ±12 h of `t0Ms` becomes the verification anchor —
+         `timingSource='device+host-verified'`, `rtcOffsetS=offsetS`, `rtcVerifiedAtMs=event.tMs`.
+       no read within ±12 h ⇒ verification silently absent (the export block stays byte-identical
+         to the same night decoded without a sidecar). */
+  function _o2AttachRtcVerification(night, log) {
+    if (!night || !night.stats || !isFinite(night.stats.startTs) || !log || !log.length) return;
+    var t0 = night.stats.startTs;
+    var durMs = isFinite(night.stats.durationMin) ? night.stats.durationMin * 60000 : 0;
+    var TOL_MS = 12 * 3600000;
+    for (var i = 0; i < log.length; i++) {
+      var e = log[i];
+      if (e.event === 'reset-suspect' && e.tMs >= t0 && e.tMs <= t0 + durMs) {
+        night.rtcResetSuspect = true;
+        return;
+      }
+    }
+    var bestR = null,
+      bestD = Infinity;
+    for (var j = 0; j < log.length; j++) {
+      var r = log[j];
+      if (r.event !== 'read' || r.offsetS == null) continue;
+      var d = Math.abs(r.tMs - t0);
+      if (d > TOL_MS) continue;
+      if (d < bestD) {
+        bestR = r;
+        bestD = d;
+      }
+    }
+    if (bestR) {
+      night.timingSource = 'device+host-verified';
+      night.rtcOffsetS = bestR.offsetS;
+      night.rtcVerifiedAtMs = bestR.tMs;
+    }
+  }
   function decodeO2RingBinToCSV(bytes, fname, file) {
     var tMs = _o2BinStartMs(fname, file); // floating wall-clock ms, or null when the date is unknown
     var dated = tMs != null;
@@ -3704,6 +3764,21 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
             allNights[key] = night;
           });
         });
+        // FINISHED-WORK-IMPROVEMENTS §A 2a — after every file resolves, match each .bin/.dat night
+        // against the sidecar bag and declare its RTC verification (or a reset-suspect VETO). Runs
+        // BEFORE the empty-batch guard because a batch with only a sidecar and no .bin still exits
+        // cleanly (`_o2BinSource` filter → zero matches, nothing attached).
+        try {
+          var _rtcLog = (typeof window !== 'undefined' && window._oxyRtcLog) || [];
+          if (_rtcLog.length) {
+            Object.keys(allNights).forEach(function (_k) {
+              var _n = allNights[_k];
+              if (_n && _n._o2BinSource === true) _o2AttachRtcVerification(_n, _rtcLog);
+            });
+          }
+        } catch (_eRt) {
+          /* the matcher is pure — a throw here means a shape we did not expect, not a compute path */
+        }
         var nights = Object.keys(allNights);
         console.log('[O2Ring] Parsed nights:', Object.keys(allNights).length); // N2: dropped the date-list dump
         if (!nights.length) {
@@ -3810,7 +3885,25 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
               if (!window._csvParseErrors) window._csvParseErrors = [];
               window._csvParseErrors.push(file.name + ': binary decoded to ' + (_binRows ? _binRows.length : 0) + ' rows (need \u226560).');
             }
-            resolve(_binRows && _binRows.length >= 60 ? processNight(_binRows, file.name) : null);
+            var _binNight = _binRows && _binRows.length >= 60 ? processNight(_binRows, file.name) : null;
+            // FINISHED-WORK-IMPROVEMENTS §A 2a — a .bin/.dat night's timebase is the RING RTC (via the
+            // 14-digit filename stamp); mark it so the drop-batch matcher below knows this is the
+            // RTC-auditable population (a CSV night is host-stamped by the phone — attaching a
+            // sidecar read's offset there would misattribute).
+            if (_binNight) _binNight._o2BinSource = true;
+            resolve(_binNight);
+            return;
+          }
+          // Ring-clock sidecar (\`*_rtclog.csv\`, capture-host/writers.py:RingClockLogWriter). Stash
+          // rows onto a batch bag; the pairing with each .bin/.dat night runs after every file
+          // resolves, so drop order does not matter (same posture as \`_PPG2W.txt\`/\`_SPO2.csv\`).
+          if (/_rtclog\.csv$/i.test(file.name)) {
+            var _rtcText = new TextDecoder('utf-8').decode(_buf);
+            var _rtcRows = parseRingClockLog(_rtcText);
+            if (_rtcRows.length) {
+              window._oxyRtcLog = (window._oxyRtcLog || []).concat(_rtcRows);
+            }
+            resolve(null);
             return;
           }
           // ── Text formats (CSV / JSON / JSONL) — decode UTF-8 (== old readAsText) ──
@@ -10587,6 +10680,17 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
        for a `recording: {` block and reads the duration keys inside it, so the literal must survive
        intact — hoisting it into a variable makes that gate blind. */
     if (night.coverage) _out.recording.coverage = night.coverage;
+    /* FINISHED-WORK-IMPROVEMENTS §A 2a — RTC verification against a `*_rtclog.csv` sidecar. Attached
+       CONDITIONALLY (same coveragePct posture), so every committed fixture whose input carried no
+       sidecar keeps its export bytes intact. `timingSource:'device+host-verified'` and its offset
+       land only when the drop-batch matcher found a `read` event within ±12 h of `t0Ms`;
+       `rtcResetSuspect:true` marks a battery-event window inside the night and BLOCKS verification
+       (a reset's offset is unmeasured by definition). Never a time SHIFT — declare, never correct
+       (`oxydex-dsp.js:3235`). */
+    if (night.timingSource) _out.recording.timingSource = night.timingSource;
+    if (night.rtcOffsetS != null && isFinite(night.rtcOffsetS)) _out.recording.rtcOffsetS = night.rtcOffsetS;
+    if (night.rtcVerifiedAtMs != null && isFinite(night.rtcVerifiedAtMs)) _out.recording.rtcVerifiedAtMs = night.rtcVerifiedAtMs;
+    if (night.rtcResetSuspect) _out.recording.rtcResetSuspect = true;
     return _out;
   };
   OxyDex.computeNight = oxyComputeNight;
@@ -10614,6 +10718,10 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   // SAME decoder rather than a second copy of the 3-byte layout / 0xFFFF trailer / motion×2 rules.
   OxyDex.isO2RingBin = isO2RingBin;
   OxyDex.decodeO2RingBinToCSV = decodeO2RingBinToCSV;
+  // FINISHED-WORK-IMPROVEMENTS §A 2a — RTC sidecar helpers, exposed pure so the test suite can hit
+  // them without a browser drop batch or the DSP realm's file-input plumbing.
+  OxyDex.parseRingClockLog = parseRingClockLog;
+  OxyDex._attachRtcVerification = _o2AttachRtcVerification;
   // Waveform SpO₂ (0x05 pair) — pure, exposed for the test suite + headless callers.
   OxyDex.parsePPG2W = parsePPG2W;
   OxyDex.spo2WaveformTrend = spo2WaveformTrend;
@@ -11164,7 +11272,10 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     oxyComputeNight,
     // Exposed so the SpO2 series can be gated directly. Nothing else consumes it — the export path
     // reaches it through processNight — but a field that ships ungated is a field nobody is defending.
-    oxyBuildSpo2Series
+    oxyBuildSpo2Series,
+    // FINISHED-WORK-IMPROVEMENTS §A 2a — pure surface for the ring-clock sidecar contract tests.
+    parseRingClockLog,
+    _attachRtcVerification: _o2AttachRtcVerification
   };
   OxyDex._bare = BARE;
   // DSP→UI hook injection (FOLLOWUPS-II item 3): the co-loaded UI modules register their
