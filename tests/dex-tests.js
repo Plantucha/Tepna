@@ -39874,6 +39874,41 @@
       );
     });
 
+    /* ── THE HALF-AMPLITUDE FIDUCIAL (EXTERNAL-METHODS-SURVEY §1) ──────────────────────────────
+       Gated here rather than left to the tool's own `--selftest` because that selftest was GREEN
+       while the function refused 15295 of 15295 real beats: it planted INTEGER foot indices, and
+       the shipped producer (`refineFeet`) emits FRACTIONAL ones, so `bp[footI]` was `undefined`
+       and every rising edge read as non-rising. The failure surfaced as `no beat had a usable
+       rising edge` — a sentence that reads as a fact about the corpus and was a fact about the
+       code. The fractional case is therefore an assertion in the merge gate, not a note.
+       NODE-ONLY: an .mjs library, so the browser lane has no PatFiducial and skips. */
+    group('PAT half-amplitude fiducial — the foot index is FRACTIONAL (EXTERNAL-METHODS-SURVEY §1)', 'pat · fiducial · half-amplitude', function (T) {
+      var PF = env.PatFiducial;
+      if (!PF || !PF.halfAmplitudeIndex) {
+        T.skip('PatFiducial not in env (browser lane — .mjs tool)');
+        return;
+      }
+      var h = PF.halfAmplitudeIndex;
+      /* ramp 0,10,…,100 — half of a linear rise is its midpoint, by arithmetic and not by the
+         detector, so a wrong answer here is not a matter of tuning. */
+      var ramp = new Float64Array(11);
+      for (var i = 0; i <= 10; i++) ramp[i] = i * 10;
+      T.ok('an integer foot still lands at the midpoint', Math.abs(h(ramp, 0, 10) - 5) < 1e-9, String(h(ramp, 0, 10)));
+      T.ok('A FRACTIONAL FOOT DOES NOT REFUSE (the 15295/15295 regression)', h(ramp, 0.5, 10) !== null, String(h(ramp, 0.5, 10)));
+      /* foot 0.5 ⇒ 5, peak ⇒ 100, half = 52.5, ramp 10/sample ⇒ 5.25. Checked against arithmetic,
+         so an implementation that silently rounds the foot back to 0 (answer 5) FAILS. */
+      T.ok('…and answers 5.25, not the integer-foot 5', Math.abs(h(ramp, 0.5, 10) - 5.25) < 1e-9, String(h(ramp, 0.5, 10)));
+      var edge = Float64Array.from([0, 100, 100]);
+      T.ok('a crossing in the first PARTIAL interval anchors on the foot, not the sample before it', Math.abs(h(edge, 0.5, 2) - 0.75) < 1e-9, String(h(edge, 0.5, 2)));
+      T.ok('sub-sample: a between-sample crossing is interpolated, not rounded', Math.abs(h(Float64Array.from([0, 40, 90]), 0, 2) - 1.1) < 1e-9, String(h(Float64Array.from([0, 40, 90]), 0, 2)));
+      /* Refusals — an unusable edge must yield null. A fiducial guessed on a flat or falling edge
+         is a fabricated instant, which §2.6 of the Clock Contract forbids one layer up. */
+      T.ok('flat edge ⇒ null', h(Float64Array.from([5, 5, 5]), 0, 2) === null);
+      T.ok('falling edge ⇒ null', h(Float64Array.from([90, 40, 0]), 0, 2) === null);
+      T.ok('peak before foot ⇒ null', h(ramp, 8, 3) === null);
+      T.ok('a fractional foot on a FALLING edge still refuses', h(Float64Array.from([90, 40, 0]), 0.5, 2) === null);
+    });
+
     group('PAT matchRate — the shipped definition cannot fail; the strict one can (PAT-UNDER-PERBLOCK-ALIGNMENT §4)', 'pat · matchrate · chance-floor', function (T) {
       var PS = env.PatStrict;
       if (!PS || !PS.strictMatchRate) {

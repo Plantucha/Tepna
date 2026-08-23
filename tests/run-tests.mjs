@@ -1729,6 +1729,12 @@ async function main() {
 
   let PatHostOffset = null;
   let PatStrict = null;
+  let PatFiducial = null;
+  try {
+    PatFiducial = await import(new URL('../tools/pat-fiducial.mjs', import.meta.url).href);
+  } catch (e) {
+    console.error(paint('  ! pat-fiducial failed to load: ' + e.message, C.yellow));
+  }
   try {
     PatStrict = await import(new URL('../tools/pat-matchrate-strict.mjs', import.meta.url).href);
   } catch (e) {
@@ -1742,6 +1748,7 @@ async function main() {
 
   const env = {
     PatStrict: PatStrict,
+    PatFiducial: PatFiducial,
     NsrrStage: NsrrStage,
     MutTriage: MutTriage,
     PatHostOffset: PatHostOffset,
