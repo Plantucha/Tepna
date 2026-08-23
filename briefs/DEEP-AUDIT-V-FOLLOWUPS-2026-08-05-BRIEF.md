@@ -168,6 +168,7 @@ the E2E fold (`trio-batch` → `tch-multinight`) · `cohort-worker.js` (644 line
 mentions, the engine behind four shipped analysis pages).
 
 > ### ▶ TIER 4 RE-MEASURED 2026-08-20 — **3 of 4 are STALE**; only `cohort-worker.js` survives
+> ### ▶ **AND THAT LAST ROW CLOSED 2026-08-23 — Tier 4 is fully resolved.**
 >
 > This list is the sibling of §4's own warning two paragraphs up — *"a stale 'still open' list costs
 > more than a stale DONE … a false 'there is work here' is caught by nobody."* It has been costing that
@@ -178,7 +179,7 @@ mentions, the engine behind four shipped analysis pages).
 > | browser lane "run by NOTHING" | **STALE** | run 2026-08-20 against a served checkout: `✓ browser gates passed`, **7584 passed · 52 skipped · 533 groups**, 9 bundles + 31 fixtures audited. And it is not even manual — `browser-gates.yml` installs playwright + chromium and runs exactly it, as **one of the eight REQUIRED status checks**, so it has gated every PR for months |
 > | `mutate.mjs` / `mutmut` "never invoked in either language" | **STALE, both** | JS: `.git/tepna-mutation/` holds **16 ledgers and 9 draft banks** (cpapdex, ecgdex, …) plus `*.operators.done.json`; three PRs this week fix `mutate.mjs` internals (#1575 · #1579 · #1580). Python: `capture-host/mutation_triage.py` ships, and the runbook commits — *"`--list` before `--only`"*, *"the survivor-set diff UNDERCOUNTS kills"* — are lessons only obtainable by **running** mutmut |
 > | E2E fold `trio-batch` → `tch-multinight` | **STALE** | `tch-multinight --dir` run over **55 nights** on 2026-08-20; the run also found its real-data path had been dead since #1418 (`ReferenceError: prov is not defined`), fixed in **#1595** |
-> | `cohort-worker.js` zero test-group mentions | **UPHELD** | still uncovered |
+> | `cohort-worker.js` zero test-group mentions | **UPHELD 2026-08-20 → CLOSED 2026-08-23** | gated by `cohort · worker · realm`: the `pulse` KIND boots in a `node:vm` reconstruction, runs a job and returns 9 scored nights. The two load-bearing assertions are that `ready` carries NO `err` — a boot failure is a FIELD on an otherwise identical message, which is how a KIND broke silently before (`cohort-worker.js:124`) — and an unknown-KIND control proving that contract can report failure at all. **Tier 4 is now 4 of 4 resolved.** |
 >
 > ⚠️ **The upheld row was nearly mis-scored, and the near-miss is the transferable part.**
 > `git grep -c cohort-worker -- tests/` now returns **1**, which reads as "covered". The hit is **prose
@@ -190,6 +191,20 @@ mentions, the engine behind four shipped analysis pages).
 > **F8 above is UNAFFECTED and remains correctly blocked** — it needs untreated OSA nights, the
 > committed CPAP night carries 20 events (13 apnea / 7 hypopnea), and that is a clinical decision, not
 > an engineering one. Nothing here touches it.
+>
+> ⚠️ **CLOSING IT REPRODUCED THE NEAR-MISS ONE LAYER DOWN, WHICH IS WORTH MORE THAN THE ROW.** While
+> building the gate I found `cohort-regression.js` reading `m.error` where every WORKER posts `m.err`,
+> concluded its boot guard was structurally dead, changed it, and wrote a scan for the class. All of
+> that was wrong: `cohort-regression.js` boots `cohort-harness.html` **IFRAMES**, and that harness
+> posts `error` (`cohort-harness.html:172-174`). The "fix" would have turned a WORKING guard into a
+> dead one — the exact defect being hunted, inverted.
+>
+> Two channels share one message type: **workers** post `err` (`cohort-worker:627`,
+> `qrs-equiv-worker:172`, `qrs-yield-worker:379`, `pat-feasibility-worker:407`), the **iframe harness**
+> posts `error`. Consumers correctly match their own producer, and `qrs-equiv-analysis.js` reads BOTH.
+> It reads as an inconsistency and is not. The row above says a grep proves a string occurs, never that
+> a symbol runs; this adds the sibling — **a message SHAPE does not identify its producer. Trace the
+> channel.** Recorded beside the new group in `tests/dex-tests.js` as well, where it will be read.
 
 ---
 
