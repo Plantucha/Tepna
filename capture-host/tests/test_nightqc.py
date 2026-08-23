@@ -1370,3 +1370,29 @@ def test_pooling_boundary_exactly_at_the_gap_does_not_pool(tmp_path):
     s = nightqc.summarize(d22, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
     assert s["searched_dirs"] == ["2026-07-22"], "exactly one gap-width out is NOT near-midnight"
     assert s["devices"][0]["streams"]["hr"] == 2000, "yesterday's unrelated sitting stays excluded"
+
+
+def test_the_night_band_is_chosen_by_the_sessions_MIDPOINT(tmp_path):
+    """Which band a gap is judged against comes from the judged session's MIDPOINT, not either end.
+
+    It only matters for a session straddling 20:00 — the hour `night_band` anchors on — and then it
+    matters completely, because the two choices name different nights. A 16:00->22:00 session has its
+    midpoint at 19:00 (band: yesterday 20:00 -> today 10:00) and its end at 22:00 (band: today 20:00 ->
+    tomorrow 10:00). An excluded 02:00 sitting is INSIDE the first and OUTSIDE the second, so the two
+    disagree about whether this night has a hole.
+
+    Mutation found this untested: `(cur[0] + cur[1]) / 2.0` could become `(cur[1] + cur[1]) / 2.0` —
+    silently judging against tomorrow's band — with the whole suite green."""
+    from datetime import datetime as _dt
+    night = str(tmp_path / "2026-07-22"); os.makedirs(night)
+    early = _dt.strptime("20260722020000", "%Y%m%d%H%M%S").timestamp()   # 02:00, the SMALL half
+    main = _dt.strptime("20260722160000", "%Y%m%d%H%M%S").timestamp()    # 16:00 -> 22:00, straddles 20:00
+    _utime(_cap(night, "Polar_H10_02849638_20260722020000_HR.txt", 1800), early + 1800)
+    _utime(_cap(night, "Polar_H10_02849638_20260722160000_HR.txt", 21600), main + 21600)
+    s = nightqc.summarize(night, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
+    assert s["judged_session"]["rows"] == 21600, "the straddling session is the substantive one"
+    assert s["gaps"], "the 02:00 sitting is excluded and must be reported"
+    # 02:00 lies inside the MIDPOINT's band and outside the END's. The midpoint is correct: the session
+    # began at 16:00, so the night it belongs to is the one that opened at 20:00 YESTERDAY.
+    assert "[in-night]" in s["gaps"][0], "judged against the midpoint's band, 02:00 is a hole"
+    assert s["ok"] is False, "a hole in the judged night cannot grade green"
