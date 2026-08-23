@@ -117,7 +117,30 @@ Schedule together; total ≈ one supervised evening plus one worn night.
 - **Allan multi-night τ-curve families** (ALLAN-DEVIATION §4's own precondition): the arrival corpus
   on vigil (398 files, ~27 usable) → per-stream σ_y(τ) families → adopt or decline a bar WITH numbers.
   Compare only at a common τ, through uncertainties.
-- **`nightqc.ok` made informative** (its own comments: "false on 20 of the last 20 nights… an alarm
+- ✅ **DONE 2026-08-23 (#1664) — `nightqc.ok` made informative.** Excluded sessions are now classified
+  by placement against THE JUDGED NIGHT'S band; only in-night holes reach `ok`, via a new
+  `gaps_in_night` subset, while `gaps` stays complete so nothing is hidden. Both cases this item names
+  are planted: the benign sitting is green with `[outside-band]` visible, the 2026-07-24 box-wide
+  outage still reds with `[in-night]`.
+  ⚠️ **The class is `outside-band`, not `daytime`, and this item's own wording is why.** The
+  discriminator is the judged night's band, and something can be outside it while being the middle of
+  the night — the planted case is a 00:15 sitting belonging to the PREVIOUS night. Calling that
+  "daytime" would state a fact not in evidence.
+  Fails closed throughout: a straddling session counts as in-night, any overlapping member condemns
+  the entry, and an uncomputable band keeps every gap — the rule may only turn a red into a LABELLED
+  green on positive evidence, never on absence.
+  🔴 **The mutation lane found eight real gaps, seven of them pre-existing in `summarize`** (the gate
+  scopes by function, so touching it makes them yours). Killed with assertions rather than excused:
+  the `_pool` window's bounds at exactly midnight and exactly `_SESSION_GAP_SEC`, the earlier-side
+  `gaps_in_night` path, the `> 0` overlap boundary, and `night_band` taking the session MIDPOINT
+  rather than its end — those two name different nights for any session straddling 20:00.
+  ⚠️ **`mutate_diff.py` run locally reports STALE survivors.** Its reusable scratch refreshes `tests/`
+  but carries mutmut's RESULTS DATABASE forward, so a mutant recorded as surviving before the killing
+  test existed keeps reading as a survivor. Measured here: `mutmut run <mutant>` flips it to killed
+  with no source change. The failure direction is the expensive one — a false RED immune to the fix,
+  which cost two rounds of chasing already-dead mutants. CI uses a fresh checkout and is unaffected;
+  trust it over a local run.
+- **~~`nightqc.ok` made informative~~** (superseded by the row above; original text kept for the record) (its own comments: "false on 20 of the last 20 nights… an alarm
   that is always on carries no information"): classify gap entries (in-night hole vs post-night
   daytime) by wall-clock placement vs the judged session; land as a LABELLED class, never a silent
   green; the 2026-07-24 box-wide outage must still red. Plant both as tests.
@@ -217,4 +240,11 @@ self-measures).
         be discharged by one session** — its whole point is that one operator ran both legs — so a
         single session ticking it would reproduce the defect it exists to fix.
 - [ ] C: all four field results recorded in their home briefs after one box session.
-- [ ] D items: opened as their own executable units when picked up; this brief only orders them.
+- [~] D items: opened as their own executable units when picked up; this brief only orders them.
+      **`nightqc.ok` DONE 2026-08-23 (#1664)** — see its row in §D for the result, the `outside-band`
+      naming correction, and the eight mutation kills. **`o2ring-dat-timefit` routine invocation is
+      also done, in two independent halves that landed the same day**: the box side folded into the
+      nightqc digest (#1663, another session) and the analysis side as a `datTimefit` block in
+      `trio-batch`'s arrival sidecar (#1659, this one). Neither coordinated the split in advance and
+      they compose; recorded because a future reader will otherwise wonder which one §B4 meant.
+      The remaining D items are untouched.
