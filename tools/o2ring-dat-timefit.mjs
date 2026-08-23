@@ -124,6 +124,23 @@ export function bestLag(datSpo2, csvSpo2, maxLag) {
    the one to take. */
 export const AGREE_TOL_S = 8;
 
+/** Does the FITTED lag disagree with the offset the ring REPORTS? PURE.
+ *  FINISHED-WORK §B4's cross-check: `rtclog`'s readback is what the ring SAYS its clock is off by;
+ *  the fit is what its stored data SHOWS. Two independent measurements of one quantity, so they can
+ *  check each other — and a disagreement is the finding, never something to average away.
+ *
+ *  The allowance is ±1 s (the .dat is second-quantised, so the fit cannot resolve finer) plus the
+ *  drift the readback itself observed across the night — the readback is a point measurement and the
+ *  session is not, so the clock legitimately moved between them by about that much.
+ *
+ *  Returns null when there is nothing to compare, which is NOT agreement: a night with no `_rtclog.csv`
+ *  has one measurement, not two, and must never read as corroborated. */
+export function timefitDisagrees(lagS, reportedOffsetS, driftS) {
+  if (!Number.isFinite(lagS) || !Number.isFinite(reportedOffsetS)) return null;
+  const allowance = 1 + (Number.isFinite(driftS) ? Math.abs(driftS) : 0);
+  return Math.abs(lagS - reportedOffsetS) > allowance;
+}
+
 /** Do two independent fits agree to within `tol` seconds? null if either fit is missing. PURE.
  *  SpO2 is a coarse 1%-integer observable; pulse (bpm) is finer, so an agreeing pulse lag CONFIRMS the
  *  SpO2 lag with a sharper column — and a disagreement means one of the two fits is spurious. */
@@ -242,6 +259,22 @@ function selftest() {
      that the new default is genuinely looser, so a silent revert to 1 fails here rather than in a
      downstream hook that quietly stops recording fits. */
   ok('the 6 s real-corpus pair (2026-07-19) now agrees, and would NOT have at tol 1', lagsAgree({ lagS: 6758 }, { lagS: 6764 }) === true && lagsAgree({ lagS: 6758 }, { lagS: 6764 }, 1) === false);
+
+  /* ── THE §B4 CROSS-CHECK ─────────────────────────────────────────────────────────────────────
+     Gated HERE because it cannot be exercised where it is consumed: no night in the local corpus
+     carries a `_rtclog.csv`, so `trio-batch`'s `reportedOffsetS` is null on every night on this
+     machine and the comparison branch never runs. Those sidecars live on the capture box. Untested
+     arithmetic behind an unreachable branch is exactly what this repo keeps finding, so the logic is
+     pure, exported, and asserted against planted values instead. */
+  ok('a fitted lag matching the readback does NOT disagree', timefitDisagrees(-9, -9, 0) === false);
+  ok('…and one 2 s off with no drift DOES', timefitDisagrees(-9, -11, 0) === true);
+  ok('the observed drift widens the allowance', timefitDisagrees(-9, -11, 5) === false, 'allowance 1+5 = 6 s');
+  ok('…but not without limit', timefitDisagrees(-9, -30, 5) === true);
+  /* NULL IS NOT AGREEMENT. A night with no readback has ONE measurement, not two corroborating
+     ones, and a consumer that renders `disagrees === false` as "confirmed" would be inventing a
+     second opinion out of an absence — the fabricated-green shape §B1 was raised for. */
+  ok('no readback ⇒ null, never false', timefitDisagrees(-9, null, 0) === null);
+  ok('no fit ⇒ null, never false', timefitDisagrees(null, -9, 0) === null);
 
   console.log(fail ? `\n${fail} FAILURE(S)` : `\n${pass} assertions — all green`);
   return fail ? 1 : 0;
