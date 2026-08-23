@@ -136,6 +136,14 @@ function exportJSON() {
   // a coverage claim spanning nights is not a claim about a recording. Undefined (not null) when
   // contiguous, so a clean export's bytes do not move.
   var _aCov = nights.length === 1 && nights[0] && nights[0].coverage ? nights[0].coverage : undefined;
+  // FINISHED-WORK-IMPROVEMENTS §A 2a — single-night RTC verification (device+host-verified from a
+  // `*_rtclog.csv` sidecar). Same single-night gate as `_aCov`: the verification is per-night, so a
+  // multi-night export cannot fold it into ONE envelope-level `recording` block, and `undefined`
+  // (never `null`) keeps a clean export's bytes intact.
+  var _aTS = nights.length === 1 && nights[0] && nights[0].timingSource ? nights[0].timingSource : undefined;
+  var _aRTC = nights.length === 1 && nights[0] && nights[0].rtcOffsetS != null && isFinite(nights[0].rtcOffsetS) ? nights[0].rtcOffsetS : undefined;
+  var _aRTCAt = nights.length === 1 && nights[0] && nights[0].rtcVerifiedAtMs != null && isFinite(nights[0].rtcVerifiedAtMs) ? nights[0].rtcVerifiedAtMs : undefined;
+  var _aRTCReset = nights.length === 1 && nights[0] && nights[0].rtcResetSuspect ? true : undefined;
   // SELF-INGEST §3 — a review-mode RE-EXPORT is a DERIVED VIEW of a past computation, NOT a fresh one:
   // use the reloaded export's ORIGINAL provenance and NEVER call GangliorProvenance.stamp() (that would
   // stamp the current build over the original). A normal (non-review) export stamps as before.
@@ -202,7 +210,15 @@ function exportJSON() {
       provenance: _prov,
       doc: 'OxyDex SpO₂/oximetry node-export. nights[] = per-night summaries (unchanged). ganglior_events[] = desat_event (per scored desaturation) + periodic_breathing (per oscillation episode); OxyDex infers respiration from an SpO₂ proxy, not airflow. crossNight = ganglior.crossnight v1.0 aggregate (≥3 nights only, else null). tMs = floating wall-clock ms (UTC getters); null = unknown, never fabricated.'
     },
-    recording: { startEpochMs: _aT0 != null ? _aT0 : null, offsetMin: _aF && _aF.offsetMin != null ? _aF.offsetMin : null, coverage: _aCov },
+    recording: {
+      startEpochMs: _aT0 != null ? _aT0 : null,
+      offsetMin: _aF && _aF.offsetMin != null ? _aF.offsetMin : null,
+      coverage: _aCov,
+      timingSource: _aTS,
+      rtcOffsetS: _aRTC,
+      rtcVerifiedAtMs: _aRTCAt,
+      rtcResetSuspect: _aRTCReset
+    },
     ganglior_events: _events,
     // INTEGRATOR-THREE-CORNERED-HAT §2 — top-level per-epoch HR+motion feed (single-night only,
     // matching OxyDex.compute). Sibling to nights[] so the per-night elements stay byte-identical.
