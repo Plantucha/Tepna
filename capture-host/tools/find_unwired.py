@@ -78,6 +78,17 @@ ALLOW_FUNCS = {
     # ── investigated 2026-08-14 (brief §5). Each is CAPABILITY THAT EXISTS ELSEWHERE, not a gap. The
     # reason is recorded here so the next reader spends a line rather than an investigation — which is
     # the allowlist's whole job, and why every entry prints with its justification.
+    # ── OxyII acquisition charter G2 (2026-08-23). The inventory ledger ships as a STANDALONE module
+    # by design: charter §4 sequences G2 (the vocabulary) before G1 (the `_pull_once` wiring that
+    # consumes it), the same shape the CPAP arm used. So these are not unwired-by-oversight, they are
+    # unwired-by-schedule, and the entries come OUT when G1 lands rather than staying forever.
+    # ⚠️ Deliberately NOT a module-wide exemption. `classify`, `reconcile`, `identity` and `current`
+    # are the logic G1 must call, so if THOSE ever appear here it means the wiring regressed and the
+    # gate should say so. Only the plumbing is listed.
+    "append_row": "oxy_inventory G2 — standalone until G1 wires the ledger into _pull_once (charter §4)",
+    "load_rows": "oxy_inventory G2 — standalone until G1 wires the ledger into _pull_once (charter §4)",
+    "make_row": "oxy_inventory G2 — standalone until G1 wires the ledger into _pull_once (charter §4)",
+    "sha256_bytes": "oxy_inventory G2 — standalone until G1 wires the ledger into _pull_once (charter §4)",
     "oxy_is_finalized": "redundant — pull_session.py already gates re-pulls on finalisation via "
                         "parse_trailer, which that caller needs anyway for the device summary",
     "busy_with": "redundant — offline_lock.slot() raises OfflineBusy(_busy), so the label already "

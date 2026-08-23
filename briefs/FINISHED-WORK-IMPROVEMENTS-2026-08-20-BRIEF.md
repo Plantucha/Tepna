@@ -144,8 +144,22 @@ Schedule together; total ≈ one supervised evening plus one worn night.
   that is always on carries no information"): classify gap entries (in-night hole vs post-night
   daytime) by wall-clock placement vs the judged session; land as a LABELLED class, never a silent
   green; the 2026-07-24 box-wide outage must still red. Plant both as tests.
-- **E2E fold known-answer gate** (DEEP-AUDIT-V-FOLLOWUPS Tier-4): one committed-input fold reproducing
-  a pinned summary in CI; a `cohort-worker.js` KIND executed in a reconstructed realm.
+- ✅ **HALF DONE, HALF STALE 2026-08-23 — E2E fold known-answer gate** (DEEP-AUDIT-V-FOLLOWUPS Tier-4).
+  This item bundles two things and they have different fates, so it is split rather than ticked:
+  - **`cohort-worker.js` KIND in a reconstructed realm — DONE (#1671).** `cohort · worker · realm`
+    boots the lean `pulse` KIND under `node:vm` and returns 9 scored nights. It was Tier-4's ONLY
+    surviving row, and the one a grep count wrongly cleared — the single hit in `tests/` was prose in
+    a comment calling it a documented gap. **Tier 4 is now 4 of 4 resolved.**
+  - **"one committed-input fold reproducing a pinned summary in CI" — STALE as written.** Tier-4's own
+    re-measurement (2026-08-20) already marks the E2E fold row STALE: `tch-multinight --dir` ran over
+    **55 nights**, and that run found its real-data path had been dead since #1418
+    (`ReferenceError: prov is not defined`), fixed in #1595. The fold is exercised; what does not exist
+    is a *pinned-summary CI gate* over committed inputs, which is a different and still-open ask.
+    Anyone picking it up should write it as that, not as "the fold is untested".
+  ⚠️ Closing the first half reproduced Tier-4's own near-miss one layer down — a `m.err` vs `m.error`
+  difference between WORKER and IFRAME producers that reads as an inconsistency and is not. The trap is
+  recorded at `tests/dex-tests.js`'s new group and in the Tier-4 section: **a message shape does not
+  identify its producer; trace the channel.**
 
 ## 5 · Deliberately NOT recommended (each has a record; do not re-open without new evidence)
 
