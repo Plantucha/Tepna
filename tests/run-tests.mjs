@@ -20,7 +20,7 @@ import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, 
 import { createRequire } from 'node:module';
 import { classify as rebaseClassify, parsePorcelain as rebaseParsePorcelain, classifyStamps as rebaseClassifyStamps } from '../tools/rebase-safe.mjs';
 import { decide as landDecide } from '../tools/land-pr.mjs';
-import { classify as qdClassify, pick as qdPick, IDLE_MIN as QD_IDLE_MIN } from '../tools/queue-doctor.mjs';
+import { classify as qdClassify, pick as qdPick, IDLE_MIN as QD_IDLE_MIN, STARVED_MIN as QD_STARVED_MIN } from '../tools/queue-doctor.mjs';
 import { classify as commitShape } from '../tools/commit-shape.mjs';
 import * as captureRecapture from '../tools/capture-recapture.mjs';
 import { estimate as beatCrEstimate, estSummary as beatCrSummary } from '../tools/beat-capture-recapture.mjs';
@@ -1992,6 +1992,7 @@ async function main() {
     qdClassify: qdClassify,
     qdPick: qdPick,
     qdIdleMin: QD_IDLE_MIN,
+    qdStarvedMin: QD_STARVED_MIN,
     commitShape: commitShape,
     captureRecapture: captureRecapture,
     beatCrEstimate: beatCrEstimate,
