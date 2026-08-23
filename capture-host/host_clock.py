@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 import asyncio, re
+from datetime import datetime
 import proc_util
 
 # Stratum 1 is a reference clock (GPS/PPS/atomic); each hop adds a stratum. Beyond this the chain is
@@ -65,6 +66,15 @@ def parse_ntp_message(blob: str) -> dict:
 
 
 _CHRONY_REFID_RE = re.compile(r"^\s*([0-9A-Fa-f]+)\s*(?:\(([^)]*)\))?\s*$")
+
+# chrony's `Ref time (UTC)` line: "Sun Jul 26 01:07:19 2026". Parsed by explicit regex + month map, NOT
+# strptime: %a/%b are locale-dependent and chronyc always prints English abbreviations, so on a non-C
+# locale strptime would turn a healthy line into a parse failure. The weekday is skipped — it carries no
+# information the date does not.
+_CHRONY_REFTIME_RE = re.compile(
+    r"^\s*[A-Za-z]{3}\s+([A-Za-z]{3})\s+(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})\s+(\d{4})\s*$")
+_MONTHS = {"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
+           "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12}
 
 
 def parse_chrony_tracking(blob: str) -> dict:
@@ -132,6 +142,19 @@ def parse_chrony_tracking(blob: str) -> dict:
     if leap:
         # "Not synchronised" is chrony's own verdict and outranks timedatectl's cached NTPSynchronized.
         res["leap_ok"] = leap != "not synchronised"
+    # `Ref time (UTC)` is the instant chrony last ACCEPTED a measurement and updated the clock — the
+    # "when did this box last actually sync" fact the monitor's box-health tile shows. datetime() does
+    # the calendar validation (Feb 30, hour 25 raise), so an out-of-range component becomes absence,
+    # never a rolled-onto-plausible instant — the same honesty rule as clock.js `_ckMk`.
+    mt = _CHRONY_REFTIME_RE.match(out.get("Ref time (UTC)", ""))
+    if mt:
+        try:
+            res["last_sync_utc"] = datetime(
+                int(mt.group(6)), _MONTHS.get(mt.group(1), 0), int(mt.group(2)),
+                int(mt.group(3)), int(mt.group(4)), int(mt.group(5)),
+            ).strftime("%Y-%m-%dT%H:%M:%SZ")
+        except ValueError:
+            pass  # an unknown month (map -> 0) or an impossible date: absent, not fabricated
     return res
 
 
@@ -291,6 +314,9 @@ async def read_state() -> dict:
         "chrony_skew_ppm": (ch.get("skew_ppm") if time_source == "chrony" else None),
         "jitter_us": (ch.get("jitter_us") if time_source == "chrony"
                       else _num(msg.get("Jitter"))),
+        # When the clock was last actually stepped/slewed from a source (chrony's Ref time). timesyncd
+        # reports no equivalent instant, so it is None on that path rather than a borrowed timestamp.
+        "last_sync_utc": (ch.get("last_sync_utc") if time_source == "chrony" else None),
         # chrony has no "we received it and refused it" counter; absent means absent, not false-clean.
         "ignored": msg.get("Ignored") == "yes",
         "packet_count": int(_packets_num) if _packets_num is not None else None,
