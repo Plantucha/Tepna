@@ -148,11 +148,20 @@ covers the beats being aligned, the other is selecting the best shared-movement 
 are different questions with different right answers. What is *not* intentional, and is now gone from
 `acc-shared-movement`, is the arbitrary top-3 in front of both.
 
-**Resolution — one bounding mechanism, two target criteria, neither shortlisted.**
-`acc-shared-movement.mjs` now enumerates every fragment and parses only the winning pair.
-`pat-matchrate-strict.mjs` keeps its time-targeting (correct for its question) but **still carries a
-top-3**, and removing it would move §1's just-published numbers — a separate work-unit, carried to
-§5 below with this evidence attached.
+**Resolution — one bounding mechanism, two target criteria.** `acc-shared-movement.mjs` now
+enumerates every fragment and parses only the winning pair. `pat-matchrate-strict.mjs` keeps both its
+time-targeting and its shortlist, because §5 measured that shortlist and **it loses nothing**.
+
+⚠️ **AMENDED by §5, and the amendment matters more than the fix did.** The sentence this paragraph
+originally carried — that the arbitrary top-3 in front of *both* tools was the defect — is **wrong**.
+Measured against each shortlist's own criterion, `pat-matchrate-strict`'s ECG/PPG top-4-by-size keeps
+the true pair 37/37 and its ACC top-3-by-time-proximity keeps the best beat-span overlap 37/37. The
+discriminator is not whether a shortlist exists but **what it is keyed on**: time overlap against a
+target span is the quantity being optimised, so shortlisting on it is sound; file size is a *proxy*
+for it, and proxies decouple — ACC fragments are short and numerous, so the largest is routinely not
+the best-overlapping, which is exactly how 2026-07-30 was lost. Enumerating everything is still
+preferable at 0.77 s because it removes the question, but "shortlists are the bug" was a
+generalisation from one instance.
 
 **Re-running §3 under the corrected selection changed the answer in no material way**, which is worth
 recording as plainly as the bug: 37 nights measured, refusals 5 → **4** (the 07-30 conversion),
@@ -222,10 +231,17 @@ recovery figure there carries its denominator and its acceptance rule.
       Re-running §3 under the corrected selection left every headline unchanged and strengthened the
       key relationship (ρ −0.663 → −0.768).
 
-- [ ] §5 — remove `pat-matchrate-strict.mjs`'s top-3 shortlist too, keeping its time-targeting, and
-      re-run §1's fiducial comparison under it. Deliberately NOT bundled with §2: it would move
-      numbers that have just been published, so it owes its own re-run and its own record. The
-      evidence that it is worth doing is §2's — the same shortlist shape, on a corpus with nights of
-      162 fragments.
+- [x] §5 — **DONE 2026-08-23, and it is a NO-OP. `pat-matchrate-strict.mjs`'s shortlists lose
+      nothing, so §1's published numbers stand and no re-run is owed.** Measured with the same cheap
+      bounds, against each shortlist's OWN criterion: the ECG/PPG top-4-by-size keeps the true best
+      pair on **37 of 37** nights (including nights of 323 and 344 PPG fragments), and the ACC
+      top-3-by-time-proximity keeps the best beat-span overlap on **37 of 37**, per device.
+
+      **The correction this forces is worth more than the change would have been.** §2 recorded "the
+      arbitrary top-3 in front of both" as the defect. It is not. A shortlist keyed on the quantity
+      being optimised — time overlap against a target span — is sound; one keyed on a PROXY for it —
+      file size — is not, and that is the only one that lost a night. `nearInTime` was already
+      right. Enumerating everything remains preferable because at 0.77 s it removes the question
+      rather than answering it, but the defect was **the key, not the shortlist**.
 - [x] §3 — recorded 2026-08-23. Nothing to execute.
 - [ ] §4 — `PAT-NO-VALID-ANCHOR`'s recovery figure carries its denominator and acceptance rule.
