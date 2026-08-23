@@ -3,6 +3,7 @@
 bleak>=0.22         # cross-platform BLE central; clean on Linux/BlueZ
 PyYAML>=6.0         # config.yaml
 aiohttp>=3.9        # webmon.py — monitor + control surface (scan/bond/forget + SSE live waveform)
+cryptography>=42   # as11_cipher.py — AES-256-CBC for the ResMed AS11 encrypted BLE channel (CPAP live stream)
 
 # Muse EEG is captured by a SEPARATE tool driven as a child process (see README):
 #   - Muse 2 / Muse S (gen 1-2):  pipx install muselsl

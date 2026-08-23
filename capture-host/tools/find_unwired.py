@@ -105,6 +105,7 @@ ALLOW_FUNCS = {
     "pull_spool": "CPAP-BLE pull core — the multi-round spool driver the operator probe calls (see note)",
     "start_stream": "CPAP-BLE pull core — the StartStream (live waveform) RPC builder, used by the stream probe (see note)",
     "stream": "CPAP-BLE pull core — the live StreamData waveform consumer the operator stream probe drives (see note)",
+    "make_cipher": "CPAP-BLE pull core — the AES-256-CBC seal/unseal the daemon/probe inject into the stdlib-only protocol layer (see note)",
 }
 
 
