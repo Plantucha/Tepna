@@ -432,6 +432,13 @@ lab — raw ECG, dual raw PPG, continuous SpO₂, HRV, IMU, plus the always-on c
 that was already there; Tepna just reads what it records. That is the
 [max-info-min-hardware constraint](#-why-this-exists) with a receipt attached.
 
+> **For calibration:** one attended night in a professional sleep lab bills **$1,000–$10,000**, and a
+> mail-out home sleep test ($150–$500) records one night of far fewer channels. The kit above costs
+> less than one lab night's facility fee and records **every** night, raw, in your own bed. The two
+> are not substitutes: the lab answers *"do you have sleep apnea?"* with clinical authority — Tepna
+> answers *"what does your physiology actually do, night after night?"* with data you own. If you
+> suspect a sleep disorder, see a physician; bring your Tepna exports with you.
+
 ---
 
 ## Project voice (narrative, not spec)
