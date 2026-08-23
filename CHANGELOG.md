@@ -30,6 +30,186 @@ changesets.)
 
 ---
 
+## [2.7.0] — 2026-08-23
+
+### Added
+- §4 closed by option (a): the unreachable-by-construction OxyDex fallback in `adaptEnvelopeNode` (`INTEGRATOR-OXYDEX-ADAPTER-GAP-FOLLOWUPS-2026-07-22-BRIEF.md`)
+- `tools/mutation-ai-probe.mjs` — the local model proposes an INPUT for a survivor the generic battery (`MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md`)
+- `mutation-suite.mjs --draft` — the local model drafts a killing assertion for every killable mutant, (`MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md`)
+- The first survivors killed from the fleet crawl — 14 assertions pinning `classifyRecording`'s five (`MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md`)
+- `guard-ruff.sh` — the Python half of `guard-format.sh`, closing §5. (`CAPTURE-HOST-SUBPROCESS-SURFACE-FOLLOWUPS-2026-08-04-BRIEF.md`)
+- **`POLAR-ONBOARD-BACKUP-FOLLOWUPS` §4's retrieval half — and most of it was already built.** The brief asks
+- The suite version now rides every bundle — owner-ordered, un-deferring CLAUDE.md §📦's (`DELIVERY-PROCESS-OVERHAUL-2026-08-18-BRIEF.md`)
+- The eighth bank file: all 9 cpapdex drafts batch-verified green (zero discards) and adopted — (`MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md`)
+- 22 of the 23 banked ecgdex draft targets adopted (nothing here was stale — the drafts' whole (`MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md`)
+- **`CAPTURE-FILESET-RESUME-2026-08-19-BRIEF` — P2.2 gets its own executable brief, remeasured before
+- **`CAPTURE-FILESET-RESUME` §2 — the Polar runner now resumes a file-set across a short reconnect instead of
+- The ninth and last bank file: all 6 glucodex drafts batch-verified green (zero discards) and (`MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md`)
+- The kill lead the equivalence harvest surfaced, executed: 7 assertions pinning excursion meal (`MUTATION-COVERAGE-SELECTION-2026-08-14-BRIEF.md`)
+- **`tools/guide-directive-audit.mjs` — #1529's four numbers now have a re-derivation instead of a (`REFERENCE-GUIDE-AUDIT-BRIEF.md`)
+- The sixth bank file: all 13 hrvdex drafts batch-verified green (zero discards) and adopted — (`MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md`)
+- The fourth bank file, and the cleanest: 22 of 22 integrator drafts batch-verified green with zero (`MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md`)
+- §3 executed end-to-end: interval coverage (§3c's validated design) is BUILT — and the better (`MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md`)
+- §4 executed: the mutation inventory now reports all three lanes, each in its own unit — operators in (`MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md`)
+- The seventh bank file: 8 of 10 motiondex drafts adopted (2 were vacuous undefined-comparisons) — (`MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md`)
+- **The buzz-fiducial brief lands in the repo with its step 1 DONE on hardware, plus the probe that did it.** (`O2RING-BUZZ-FIDUCIAL-2026-08-19-BRIEF.md`)
+- **Two O2Ring time-analysis tools, and one negative result that says a third is unnecessary.**
+- **Pin the O2Ring's stored-session clock to host time — the sync we were missing, from collected data.**
+- **The O2Ring `ppg2w` sample rate is measured for the first time: ~100 Hz.** `tools/ppg2w-rate.mjs` derives
+- **The O2Ring's RTC is READABLE — GET_INFO (0xE1) bytes [24:31] — falsifying the "push-only" model.** (`O2RING-OPCODE-SURFACE-2026-08-03-BRIEF.md`)
+- **`0x01 SET_CONFIG` moves from the do-not-implement list to a GATED writer — the vendor app's (`O2RING-OPCODE-SURFACE-2026-08-03-BRIEF.md`)
+- The third and largest file of the draft-adoption programme: 72 of the oxydex bank's 85 drafts (`MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md`)
+- The fifth bank file: 19 of 22 ppgdex drafts adopted (beat-detection guards, the small stats, (`MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md`)
+- 24 of the 33 banked pulsedex draft assertions adopted — after a per-mutant re-triage against the (`MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md`)
+- **`VIGIL-OVERNIGHT-FINDINGS` §P2.4's missing half: the morning QC digest.** Coverage was *"computed but not
+- **Tonight's O2Ring capabilities reach the Vigil monitor: the ring's clock is WATCHED, its settings are (`O2RING-OPCODE-SURFACE-2026-08-03-BRIEF.md`)
+- **`KNOWN-CLOCK-ADVERSARIAL-CAPTURE` target 6 is RUN — precision/recall against injected labels, on 89 real
+- **The buzz fiducial's numbers land with their apparatus: `tools/buzz-onset-extract.mjs` + the brief's (`O2RING-BUZZ-FIDUCIAL-2026-08-19-BRIEF.md`)
+- **The matched-filter estimator lands and the fiducial's pre-stated ≤30 ms band is MET: per-pattern (`O2RING-BUZZ-FIDUCIAL-2026-08-19-BRIEF.md`)
+- `tools/deep-flow-join.mjs` — joins ECGDex 5-min `sleepStages` against ResMed `*_EVE.edf` flow events (`DEEP-STAGE-DESAT-CONFOUND-2026-07-29-BRIEF.md`)
+- **Dual-radio failover (VIGIL-OVERNIGHT-FINDINGS P1.5) — the section's last large item.** (`VIGIL-OVERNIGHT-FINDINGS-2026-07-24-BRIEF.md`)
+- Surface the per-beat SQI term breakdown (`sqiTerms`) and export `detectPeaksB`, so the two-detector bSQI cue is measurable from outside the module for the first time. (`TCH-FUSED-ROBUST-HAT-FOLLOWUPS-2026-07-14-BRIEF.md`)
+- **Two open O2Ring findings implemented: the aperiodic buzz correlation tool (buzz brief step 2/3's (`O2RING-BUZZ-FIDUCIAL-2026-08-19-BRIEF.md`)
+- **The instrument that measures the ΔPAT dip index's one open clock gate directly — within-connection (`PAT-RELATIVE-REFRAME-2026-08-17-BRIEF.md`)
+- Publish `ownSpreadSec`, the per-channel support width the pooled clock fit already computed and discarded — a resolution, deliberately not named σ, since mapping it to a variance would assume the peak shape. (`CROSS-DEVICE-DRIFT-FOLLOWUPS-2026-08-17-BRIEF.md`)
+- **The 0x05 channel-identity refutation is reopened — its evidence base was invalidated by the (`O2RING-RAW-DUAL-WAVELENGTH-2026-08-05-BRIEF.md`)
+- OxyDex: self-calibrated waveform SpO₂ trend from the O2Ring 0x05 two-channel stream (`O2RING-RAW-DUAL-WAVELENGTH-2026-08-05-BRIEF.md`)
+- **The ring's clock gets a history, a reset alarm, and a battery channel: the `_RTCLOG.csv` sidecar.** (`O2RING-OPCODE-SURFACE-2026-08-03-BRIEF.md`)
+- The fix the 2026-08-20 sweep-stall post-mortem (§7) asked for, as a test: _wrappedSlopeFit's guard (`MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md`)
+- Integrator gains `fitClockOffsetSegments` — a step-aware longitudinal model over (`CPAP-CLOCK-LONGITUDINAL-SEGMENT-2026-08-21-BRIEF.md`)
+- CPAPDex ingests the ResMed STR.edf daily summary (`parseStrSummary` + (`CPAPDEX-STR-SUMMARY-INGEST-2026-08-21-BRIEF.md`)
+- **Vigil monitor: a ResMed pairing button + PIN field, alongside the wearable bonding controls.**
+- **CPAP-over-BLE pull core — the ResMed AS11 link + spool state machine, clean-room from the published spec.** (`CPAP-BLE-CAPTURE-2026-08-21-BRIEF.md`)
+- The production-layer delivery-jitter floor, sudo-free by design (brief §Task 2, layer 2): (`ZEPHYR-INSTRUMENT-2026-08-23-BRIEF.md`)
+- `tools/nearest-advocate.mjs` — event-based time-delay estimation (Schranz et al. 2024, *EURASIP JASP*, (`EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md`)
+- **Vigil monitor Overview: CPAP + host-clock tiles in the box-health strip.**
+- `trio-batch.mjs writeArrival` now attaches a `ringClock` block to each night's `arrival_${key}.json` — reads/pushes/resets/battery counts, first/last read offsets, drift, and the raw window-scoped rows — rolled from every `*_rtclog.csv` sidecar found in the night's arrival dirs. (`FINISHED-WORK-IMPROVEMENTS-2026-08-20-BRIEF.md`)
+- `tools/aperiodic-method-compare.mjs` — §2's measurement: Nearest Advocate vs the correlation estimator (`EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md`)
+- **AS11 AES-256-CBC payload cipher committed as `as11_cipher.py` (+ `cryptography` dependency).** (`CPAP-BLE-CAPTURE-2026-08-21-BRIEF.md`)
+- **AS11 live-waveform capture core — `StartStream` builder + `StreamData` consumer, over the encrypted (`CPAP-BLE-CAPTURE-2026-08-21-BRIEF.md`)
+- nightqc gains `dat_timefit_summary` — the box-side §B4 invocation of `o2ring-dat-timefit --json` when a night carries both a `_STORED.dat` and a live `_SPO2.csv` — and `qc_digest` prints the fit beside the RTC readback with a `⚠±Ns` flag when the two independent measurements of the same clock error disagree past the .dat's 1 s quantum. (`FINISHED-WORK-IMPROVEMENTS-2026-08-20-BRIEF.md`)
+- `tools/o2ring-dat-timefit.mjs` gains a pure `fitDatToSpo2Csv({dat, csv, maxLag})` helper and a `--json` CLI mode — the machine-readable summary a downstream hook (nightqc RTC-digest sibling, trio-batch enrichment) needs to actually invoke the tool the header claims runs on every night. (`FINISHED-WORK-IMPROVEMENTS-2026-08-20-BRIEF.md`)
+- The BLE delivery-jitter instrument (brief §Task 2): tools/ble-jitter-probe.py parses btmon text (`ZEPHYR-INSTRUMENT-2026-08-23-BRIEF.md`)
+- **CPAP live waveform in the monitor — flow + pressure over BLE, onto the Live-streams grid.** (`CPAP-BLE-CAPTURE-2026-08-21-BRIEF.md`)
+- hostAxis publishes stackJitterMs (§Task 2 layer 3, additive): the half-IQR of the residual the (`ZEPHYR-INSTRUMENT-2026-08-23-BRIEF.md`)
+- `tools/pat-fiducial.mjs` — the half-amplitude pulse fiducial §1 needs, derived from what the shipped (`EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md`)
+- OxyDex now DECLARES the ring's RTC offset against a dropped `*_rtclog.csv` sidecar and Integrator declares a `source:'rtc-readback'` finding or a reset-suspect VETO — the second and third legs of the FINISHED-WORK §A wiring cluster (§2c shipped separately in #1635). (`FINISHED-WORK-IMPROVEMENTS-2026-08-20-BRIEF.md`)
+- `tools/acc-shared-movement.mjs` — EXTERNAL-METHODS-SURVEY §3's measurement. Reports, per night, the (`EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md`)
+- `tools/acc-shared-movement.mjs` gains `--sigmas`, sweeping `findAnchors`' `anchorSigma` over one (`EXTERNAL-METHODS-SURVEY-FOLLOWUPS-2026-08-23-BRIEF.md`)
+- **`oxyBuildNightElement` — the single source of the per-night export shape — was entirely unasserted.** (`PAT-RELATIVE-REFRAME-2026-08-17-BRIEF.md`)
+- **A committed input that reaches the PB detector's 90–130 s upper band — it had only ever been (`OXYDEX-PB-DETECTOR-FOLLOWUPS-2026-08-17-BRIEF.md`)
+- FINISHED-WORK §B4: `tools/o2ring-dat-timefit.mjs` has claimed since it shipped that it "runs on (`FINISHED-WORK-IMPROVEMENTS-2026-08-20-BRIEF.md`)
+
+### Changed
+- **`KNOWN-CLOCK-ADVERSARIAL-CAPTURE-FOLLOWUPS`'s adapter-assignment box was already satisfied, and target 7's
+- **`VIGIL-AUTO-UPDATE-FOLLOWUPS` §3's open question is answered and §5's counter is justified by data.**
+- `ENGINE-VERIFICATION-FINDINGS` flipped IN-PROGRESS → DONE. No code changes — a verification pass that (`ENGINE-VERIFICATION-FINDINGS-2026-07-18-BRIEF.md`)
+- Brings the brief's §7 Done-when in line with what is verified, and rescopes its one deferred item (`FABRICATED-DEFAULTS-FLEET-2026-08-16-BRIEF.md`)
+- `GENERATOR-FOLLOWUPS-III` flipped IN-PROGRESS → DONE. Every Done-when box was already `[x]` — §1's (`GENERATOR-FOLLOWUPS-III-2026-08-08-BRIEF.md`)
+- **`VIGIL-AUTO-UPDATE-FOLLOWUPS` §4 says the interlock ratio "is real data, and nobody is looking at it".
+- **`KNOWN-CLOCK-ADVERSARIAL-CAPTURE` target 1 stays open — but the marker requirement is now measured
+- `INTEGRATOR-PAT-VASCULAR` flipped PROPOSED → DONE (executed-and-refuted). No code changes. (`INTEGRATOR-PAT-VASCULAR-2026-07-18-BRIEF.md`)
+- Discharges §4's per-node requirement for a second node. The brief says *"measure reachability per node (`FABRICATED-DEFAULTS-FLEET-2026-08-16-BRIEF.md`)
+- Pays the one outstanding runbook debt from that brief's §6. The runbook said **"Diff the survivor (`CAPTURE-HOST-SUBPROCESS-SURFACE-FOLLOWUPS-2026-08-04-BRIEF.md`)
+- Closes §6's fourth Done-when item, which had been outstanding since 2026-08-08 while its successor (`RUN-POLAR-MUTATION-PASS-2026-08-08-BRIEF.md`)
+- **`KNOWN-CLOCK-ADVERSARIAL-CAPTURE` target 8 requires "the 19.5 µs floor". Re-measured on the live box, the
+- **`TCH-FUSED-ROBUST-HAT` step 7 / Do 1 (ECGDex-own-HRV) is RE-SCOPED — its named target is not special and
+- **`TCH-FUSED-ROBUST-HAT-FOLLOWUPS` Do 2 (PulseDex/HRVDex robust HRV) is MEASURED and REFUTED**, on the same
+- **`TCH-FUSED-ROBUST-HAT-FOLLOWUPS` Do 3 is CLOSED — the suppression it asks for already ships, and the
+- **`TCH-FUSED-ROBUST-HAT-FOLLOWUPS` finding 6 / Do 5 (`bSQI` is "silently ≈ 0 corpus-wide") CANNOT BE
+- **`CPAP-AUTOHARVEST-FOLLOWUPS-II` is DONE — the last unproven link, an actual alert delivery, is now
+- `FINDINGS-AND-FIXES` (the June-era audit compilation) flipped IN-PROGRESS → DONE by verification. (`FINDINGS-AND-FIXES-BRIEF.md`)
+- **Two reference-guide bands told the reader to seek care on the strength of a heuristic.** Closes the (`REFERENCE-GUIDE-AUDIT-BRIEF.md`)
+- **`VIGIL-OVERNIGHT-FINDINGS`' P2 list verified in code: five of six are SHIPPED, and the brief read as
+- **Closes `DEAD-FIELD-HINTS-FLEET-FOLLOWUPS`: (b) executed, (c) refuted with a number.** (`DEAD-FIELD-HINTS-FLEET-FOLLOWUPS-2026-08-19-BRIEF.md`)
+- Measure the lockable/un-lockable split on all 12 trio nights — it is 11/1, so the covariate test the brief specifies cannot carry an error bar, and de-drifting does not beat raw. (`JOINT-UNWRAP-ATTEMPT-FOLLOWUPS-2026-08-08-BRIEF.md`)
+- Gate the 15-night σ re-fit behind the unexplained Verity σ discrepancy — regenerating the published tables now would bake an unreproduced number in, and move the gate's expected triple with it. (`TRIO-POWER-N15-FINDINGS-2026-07-12-BRIEF.md`)
+- **`pat-buzz-stability.mjs` repurposed — from an acquisition instrument waiting for a capture into the (`O2RING-BUZZ-FIDUCIAL-2026-08-19-BRIEF.md`)
+- Name the five things called "Verity σ" — a planted simulation input, a fused real hat, a 15-night re-fit, a re-derivation and a median over nights — and show the discrepancy was computed across them. (`SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`)
+- Record what the 2026-08-20 reboot exposed in the mutation suite — the pid file was a claim, and the integrator stall wedged the whole 22-worker pool rather than one mutant, which is not the failure `--resume` was built to recover. (`MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md`)
+- Refute the censoring attribution for the Verity σ discrepancy — the cited section measured censoring at −4.6 % on the median, against a 2.5 × gap, and in the wrong direction; corpus composition is the better candidate. (`SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`)
+- Re-run the Verity σ discriminator with one estimator over one corpus — the corpus re-fold is refuted as the cause (0.09 bpm), and neither corpus state reproduces the 3.51 the gap was defined against. (`SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`)
+- Audit the cross-domain methods Done-when boxes against the brief's own text and the code — three were already satisfied and merely unticked, one is hardware-blocked, one awaits an occasion. (`CROSS-DOMAIN-METHODS-FOLLOWUPS-2026-08-14-BRIEF.md`)
+- Record the §7.5 prediction as falsified — integrator ranks top-three at 9h04m with the precondition met — and correct the exposure arithmetic, which under-predicts by 29%. (`MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md`)
+- Flip `SIGNAL-PATH-AUDIT-2026-08-20-BRIEF.md` to DONE — F1 + F3 landed #1594, F2 landed #1593. (`SIGNAL-PATH-AUDIT-2026-08-20-BRIEF.md`)
+- Rewrite `DELIVERY-PROCESS-OVERHAUL` §7 (acting on another session's PR) to correct the "+1 s = owner's chain" heuristic — the delta is a property of the owner's tooling, not of whether someone else acted — and to introduce the idempotent-flag-set vs state-dependent-actor split so the read-back-the-number rule is priced correctly for each family. (`DELIVERY-PROCESS-OVERHAUL-2026-08-18-BRIEF.md`)
+- Records group D's `nightqc.ok` item as DONE (#1664) with its result, the `outside-band` naming (`FINISHED-WORK-IMPROVEMENTS-2026-08-20-BRIEF.md`)
+- Record two owner decisions (2026-08-23): DELIVERY-PROCESS §5 merge queue CLOSED as declined-by-availability (org-only feature, user-owned repo — never an economic question), and MUTATION-COVERAGE-SELECTION §1b ratified (pulsedex-dsp.js in SWEEP_FILES — already shipped as the ninth entry, box was stale). (`DELIVERY-PROCESS-OVERHAUL-2026-08-18-BRIEF.md`)
+- `O2RING-TIME-CAPABILITY-WIRING` §4a records FINISHED-WORK §B3's decision: the fiducial network is (`FINISHED-WORK-IMPROVEMENTS-2026-08-20-BRIEF.md`)
+- `EXTERNAL-METHODS-SURVEY` flipped to DONE — all four items measured against our own data, and (`EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md`)
+- `FINISHED-WORK-IMPROVEMENTS` §B's status swept and corrected against the files. Two of the five quick (`FINISHED-WORK-IMPROVEMENTS-2026-08-20-BRIEF.md`)
+- **§2's "the corpus cannot yet decide" rested on a corpus the tool could not fully see.** (`PPGDEX-MULTICHANNEL-FUSION-2026-07-18-BRIEF.md`)
+- **§2's question is now answerable — and the answer is a null.** (`PPGDEX-MULTICHANNEL-FUSION-2026-07-18-BRIEF.md`)
+- **`0x05` characterised on full nights instead of a short probe — the description generalises, the rate (`O2RING-RAW-DUAL-WAVELENGTH-FOLLOWUPS-2026-08-05-BRIEF.md`)
+- **§3.2's open question answered: `0x05` runs at ~101.6 Hz, not the SDK's 200 Hz — and the (`O2RING-RAW-DUAL-WAVELENGTH-2026-08-05-BRIEF.md`)
+- **"Per-fragment Δ" was already implemented, and the diagnosis behind it was wrong.** (`PAT-NO-VALID-ANCHOR-2026-08-02-BRIEF.md`)
+- `PAT-NO-VALID-ANCHOR` §10 now states what "6 of 38" counts — denominator, acceptance rule and (`EXTERNAL-METHODS-SURVEY-FOLLOWUPS-2026-08-23-BRIEF.md`)
+- **Three §5 done-when items verified against shipped code — one was already complete, one is a guard (`PAT-RELATIVE-REFRAME-2026-08-17-BRIEF.md`)
+- **Route 1 derived on the single-segment box night — the first box night to beat its own null, and it (`PAT-NO-VALID-ANCHOR-2026-08-02-BRIEF.md`)
+
+### Removed
+- **The last 22 dead field-hint writes are gone, and the class now has a gate that was seen to RED first.** (`DEAD-FIELD-HINTS-FLEET-2026-08-19-BRIEF.md`)
+- **25 of 42 dead field-hint writes removed — and the brief that proposed it was wrong three times.** (`DEAD-FIELD-HINTS-FLEET-2026-08-19-BRIEF.md`)
+- **The three dead-code residues of removed metrics, cleared in ONE re-bundle instead of three.** (`DEX-METRIC-REMOVAL-FOLLOWUPS-II-2026-08-09-BRIEF.md`)
+
+### Fixed
+- `tools/guide-anchor-audit.mjs`'s script-strip missed `</script >` — a valid HTML closing tag with (`REFERENCE-GUIDE-AUDIT-BRIEF.md`)
+- **A brief-status sweep, and the guard defect it surfaced.** (`STALE-BRIEF-GUARD-MEASURES-THE-WRONG-TREE-2026-08-18-BRIEF.md`)
+- **`POLAR-ONBOARD-BACKUP-FOLLOWUPS`'s preamble said a safety setting was "holding disabled on the live
+- `tools/formula-constant-audit.mjs` decoded HTML entities in SEQUENTIAL passes, which double-unescapes. (`REFERENCE-GUIDE-AUDIT-BRIEF.md`)
+- REFERENCE-GUIDE-AUDIT dimension 5, mechanised and swept fleet-wide: `tools/guide-anchor-audit.mjs`. (`REFERENCE-GUIDE-AUDIT-BRIEF.md`)
+- Correction-history meta-commentary removed from reader-facing text in `OxyDex Reference.html`, moved into (`REFERENCE-GUIDE-AUDIT-BRIEF.md`)
+- An HRV row whose timestamp never parsed came back from persistence **dated to the Unix epoch**, and (`FABRICATED-DEFAULTS-FLEET-2026-08-16-BRIEF.md`)
+- Closes §2. The equivalence ledger was keyed by **line number**, and lines move — so **379 of 383 (`MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md`)
+- **The OxyDex `SpO₂ FFT` card documented the method its own code argues against.** (`REFERENCE-GUIDE-AUDIT-BRIEF.md`)
+- Closes the last open instance in the brief's §3 fleet map. `cvhrFromNN` returned `index: 0` when it (`FABRICATED-DEFAULTS-FLEET-2026-08-16-BRIEF.md`)
+- **Three tools' selftests were never run, and five more had never run at all — 8 of 52, invisible.** (`REFERENCE-GUIDE-AUDIT-BRIEF.md`)
+- REFERENCE-GUIDE-AUDIT dimensions 2 and 3, for OxyDex — two sweeps, four ladder defects and two formula (`REFERENCE-GUIDE-AUDIT-BRIEF.md`)
+- **`std` returned `0` for fewer than two observations — the last unchecked box in FABRICATED-DEFAULTS-FLEET §7.** (`FABRICATED-DEFAULTS-FLEET-2026-08-16-BRIEF.md`)
+- **Three corpus-backed fixtures were `UNVERIFIED` — their producing code had changed and nothing had re-run
+- **Four tools could not see the Polar Sensor Logger half of the Verity corpus — and the spelling was only
+- §8's first item: `functionRange` could not resolve arrow consts — `const rmssd = (a) => {…}` was (`MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md`)
+- **The crystal rule was two copies. It is now one — and the consolidation exposed a latent bug that (`CROSS-DEVICE-DRIFT-FOLLOWUPS-2026-08-17-BRIEF.md`)
+- **Two boxes updated from evidence — one half-closed, one sharpened, and a premise corrected.** (`CROSS-DEVICE-DRIFT-FOLLOWUPS-2026-08-17-BRIEF.md`)
+- **One open box closed on evidence: `WEARABLE-DRIFT-DIRECT` was already flipped.** (`CROSS-DEVICE-DRIFT-FOLLOWUPS-2026-08-17-BRIEF.md`)
+- §4.4 executed: the five comment-declared equivalent mutants are harvested into (`MUTATION-COVERAGE-SELECTION-2026-08-14-BRIEF.md`)
+- **`grep` is blind to `manifest-gate.js`, and it made a false claim ship in #1513.** (`DEX-METRIC-REMOVAL-FOLLOWUPS-II-2026-08-09-BRIEF.md`)
+- §1 executed: the mutation-lane tools now resolve their state shared-first through the git COMMON (`MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md`)
+- **A user-visible per-channel offset was biased by ~−`matchSec`, because the correction that fixes it (`CROSS-DEVICE-DRIFT-FOLLOWUPS-2026-08-17-BRIEF.md`)
+- `REFERENCE-GUIDE-AUDIT`'s header contradicted its own body for ten days: it listed nav-highlight (`REFERENCE-GUIDE-AUDIT-BRIEF.md`)
+- **§1's proof is now visible at both call sites, so the withdrawn recommendation cannot be re-made from (`CROSS-DOMAIN-METHODS-FOLLOWUPS-2026-08-14-BRIEF.md`)
+- Publish the Allan σ fields in ppm and stop rendering a rate as milliseconds — PpgDex showed σ_y(τ) to the user as "ms disagreement" when it is ms/s, understating the long-τ card by a factor of τ. (`CROSS-DEVICE-DRIFT-FOLLOWUPS-2026-08-17-BRIEF.md`)
+- **Audit F1 + F3: the two Dex-lane date/clock divergences fixed and gated.** (`SIGNAL-PATH-AUDIT-2026-08-20-BRIEF.md`)
+- Cap detector B's amplitude reference at 3x the typical R peak, so one artifact can no longer silence the bSQI agreement cue for a whole recording. (`TCH-FUSED-ROBUST-HAT-FOLLOWUPS-2026-07-14-BRIEF.md`)
+- Require a measured Recovery index before recommending higher-intensity training — an absent `d_ari` no longer reads as strong parasympathetic recovery. (`DEEP-AUDIT-IV-2026-08-04-BRIEF.md`)
+- **The 0x05 raw stream was silently losing ~15–20 % of its samples — every buffer pinned at the reply (`O2RING-RAW-DUAL-WAVELENGTH-FOLLOWUPS-2026-08-05-BRIEF.md`)
+- **Audit F2: `oxyii.parse_get_info` accepted calendar-impossible RTC dates (Feb 31), and the consumer's (`SIGNAL-PATH-AUDIT-2026-08-20-BRIEF.md`)
+- pulsedex-dsp.js joins SWEEP_FILES — it was the missing ninth for the whole first programme, so (`MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md`)
+- Emit one journal START record per mutant instead of two on the serial fallback path, which had doubled the in-flight count a degraded run reports; and close §7.2 with the probe that settled it — the guard mutants were never the expensive thing. (`MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md`)
+- Verify `suite.pid` before reporting a sweep as running — a crashed or pre-reboot record read as `in flight` forever, and an unknown flag (including `--help`) launched a multi-hour fleet sweep.
+- `tools/tch-multinight.mjs --dir` threw `ReferenceError: prov is not defined` on its first real night: (`INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md`)
+- **`filtfilt` ran unpadded from zero state, so both ends of every PPG record carried a transient the (`PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md`)
+- **The PpgDex frequency domain was computed over `correctRR`'s substituted intervals.** A rejected (`PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md`)
+- Publish the three papers that were written, indexed and never served — build-docs refreshes pages already in docs/ and cannot introduce a new one, so they were invisible with every gate green.
+- **AS11 `StartSpool`: `fromDateTime` is required — the "optional" path built a request the device rejects.** (`CPAP-BLE-CAPTURE-2026-08-21-BRIEF.md`)
+- Sync the `INTERDISCIPLINARY-LITERATURE-2026-08-16` DOCS-INDEX row status suffix (PROPOSED → REFERENCE living 2026-08-18) to match the brief's own header, which was corrected 2026-08-18 with the same reasoning printed in the row's own description. (`INTERDISCIPLINARY-LITERATURE-2026-08-16-BRIEF.md`)
+- The Smart Summary flagged-metrics reassurance no longer satisfies by absence — same #1571-class trap: an empty `_flagged` set now requires a positive count of severity=good metrics before rendering the green note, and a zero count falls through to an honest "no metrics scored" instead. (`FINISHED-WORK-IMPROVEMENTS-2026-08-20-BRIEF.md`)
+- `nightqc`'s `ok` was false on 20 of the last 20 nights — its own comment calls that "an alarm that is (`FINISHED-WORK-IMPROVEMENTS-2026-08-20-BRIEF.md`)
+- The overnight AI-probe driver's convergence test was unreachable: the per-file "N newly (`ZEPHYR-INSTRUMENT-2026-08-23-BRIEF.md`)
+- `tools/acc-shared-movement.mjs` no longer shortlists ACC fragments to the 3 largest per device (`EXTERNAL-METHODS-SURVEY-FOLLOWUPS-2026-08-23-BRIEF.md`)
+- **The ±400 ms censoring is confirmed across the corpus with perfect separation — and it corrects #1500's (`PAT-PROXIMAL-DISTAL-PAIR-2026-08-04-BRIEF.md`)
+- **Three corpus-backed fixtures were UNVERIFIED against the current compute closure — a release (`PPGDEX-JITTER-AND-REFERENCE-FOLLOWUPS-2026-08-03-BRIEF.md`)
+- **A brief left contradicting itself, in the direction that causes a regression.** (`PPGDEX-JITTER-AND-REFERENCE-FOLLOWUPS-2026-08-03-BRIEF.md`)
+- **Self-correction to #1489: "reproduces" was too strong for the jitter row.** (`PPGDEX-JITTER-AND-REFERENCE-FOLLOWUPS-2026-08-03-BRIEF.md`)
+- **`ppi-jitter-vs-ecg.mjs` could not see the Verity on the PSL corpus — and that silence is what made (`PPGDEX-JITTER-AND-REFERENCE-FOLLOWUPS-2026-08-03-BRIEF.md`)
+- `tools/pat-fiducial.mjs` refused every real beat: `halfAmplitudeIndex` indexed `bp[footI]` (`EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md`)
+- **The ±400 ms search window was censoring a real lag, not failing to find one — confirmed by widening (`PAT-PROXIMAL-DISTAL-PAIR-2026-08-04-BRIEF.md`)
+- `lagsAgree`'s 1-second default made `converged` all but unreachable on real data: measured across 48 (`FINISHED-WORK-IMPROVEMENTS-2026-08-20-BRIEF.md`)
+- `tools/o2ring-dat-timefit.mjs` reported an unconverged search as a measured lag. `bestLag` returns (`FINISHED-WORK-IMPROVEMENTS-2026-08-20-BRIEF.md`)
+- **Fourteen tools could not see one of the two names the Verity is written under. Six in this lane are (`PPGDEX-MULTICHANNEL-FUSION-2026-07-18-BRIEF.md`)
+
+---
+
 ## [2.6.0] — 2026-08-18
 
 ### Added
@@ -1646,7 +1826,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.6.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.7.0...HEAD
+[2.7.0]: https://github.com/Plantucha/Tepna/compare/v2.6.0...v2.7.0
 [2.6.0]: https://github.com/Plantucha/Tepna/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/Plantucha/Tepna/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/Plantucha/Tepna/compare/v2.3.0...v2.4.0
