@@ -968,6 +968,20 @@ async function loadStorage(){
   renderStorageStatus();
 }
 
+// The ring's RTC-reset alarm. STATUS.ring_rtc_reset_suspect is set by capture.py the moment a clock
+// read-back sees a battery-event jump; until the next verified push the ring's free-running clock — and
+// every .dat it stamps — is suspect, so this is a standing alarm, not a transient hint. Extracted BY NAME
+// by the node-extract render test (test_monitor_*.py); it depends only on esc(). Returns the indicator
+// (id #ring-rtc-alarm) when the alarm is active and NOTHING — no placeholder element — when it is not.
+// The device-derived timestamp is entity-encoded via esc() before it reaches innerHTML (the cpapStatus
+// stored-XSS discipline).
+function renderRingRtc(status) {
+  if (!status || !status.ring_rtc_reset_suspect) return '';
+  const when = esc(String(status.ring_rtc_reset_suspect).slice(0, 19).replace('T', ' '));
+  return `<span id="ring-rtc-alarm" class="mb" style="color:#c55">⚠ ring RTC reset suspected ${when}`
+    + ' — the stored .dat timebase is suspect from here until the next verified clock push</span>';
+}
+
 function renderStorageStatus(){
   const st = (STATE&&STATE.storage)||{}, r = (STORAGE&&STORAGE.ready)||null;
   const held = (st.retention_held||[]).length;
@@ -1549,11 +1563,12 @@ async function loadSettings(){
         : `ring clock <b>${off>=0?'+':''}${off} s</b> vs host <span class="hint">(±1 s read quantum · read ${esc(String(d.ring_rtc_read||'').slice(11,19))})</span>`;
       const verdict = d.ring_config_verdict
         ? `<div class="rate-why"><b>${esc(d.ring_config_verdict)}</b></div>` : '';
+      const rtcAlarm = renderRingRtc(d);   // the RTC-reset alarm; extractable top-level fn (see below)
       const bsel = [0,1,2].map(v =>
         `<option value="${v}" ${rc.brightness===v?'selected':''}>${['Low','Medium','High'][v]}</option>`).join('');
       return `<div class="setrow" style="display:block;margin-top:.4rem">
         <span class="k">ring device</span>
-        <span class="mb">${clock}</span>
+        <span class="mb">${clock}</span>${rtcAlarm}
         <div style="margin-top:.3rem">
           display brightness
           <select class="ringcfg" data-addr="${esc(d.address)}" data-field="brightness">${bsel}</select>

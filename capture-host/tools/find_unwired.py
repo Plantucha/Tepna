@@ -57,11 +57,7 @@ ALLOW_KEYS = {
 # or a monitor draw that is PENDING and tracked. `/api/state` is not the monitor's private channel — but
 # "something else reads it" / "a draw is coming" must be STATED, not assumed. An entry here without a
 # real follow-up is exactly the stale suppression this file warns against, so the tracker is load-bearing.
-ALLOW_RENDERED: dict = {
-    "ring_rtc_reset_suspect": "forwarded in STATUS; monitor draw PENDING — the ring RTC battery-reset "
-                              "alarm needs a ring-card indicator, tracked as a follow-up micro-PR that "
-                              "draws it and removes this line",
-}
+ALLOW_RENDERED: dict = {}
 
 # Handlers defined in monitor.html that nothing calls. Same rule, same reason.
 ALLOW_JS: dict = {}
