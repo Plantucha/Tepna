@@ -39938,6 +39938,45 @@
        rising edge` — a sentence that reads as a fact about the corpus and was a fact about the
        code. The fractional case is therefore an assertion in the merge gate, not a note.
        NODE-ONLY: an .mjs library, so the browser lane has no PatFiducial and skips. */
+    /* ── cohort-worker.js EXECUTED, not mentioned (DEEP-AUDIT-V-FOLLOWUPS Tier-4) ────────────────
+       644 lines, zero test-group mentions, and Tier-4's re-measurement found it the one row a grep
+       count would have wrongly cleared — the single hit in tests/ is prose in a comment calling it a
+       documented gap. `git grep -c` proves a string occurs; it never proves a symbol runs.
+       NODE-ONLY: the realm is built with `node:vm` in run-tests.mjs, so the browser lane skips. */
+    group('Cohort worker — a KIND boots and returns a real envelope (DEEP-AUDIT-V-FOLLOWUPS Tier-4)', 'cohort · worker · realm', function (T) {
+      var CW = env.CohortWorker;
+      if (!CW) {
+        T.skip('CohortWorker not in env (browser lane — node:vm realm)');
+        return;
+      }
+      T.ok('the pulse KIND boots', !!(CW.ready && CW.ready.type === 'ready'), JSON.stringify(CW.ready));
+      /* THE LOAD-BEARING ONE. `ready` is posted WHETHER OR NOT the boot succeeded — the failure is an
+         `err` FIELD on an otherwise identical message — so asserting `type === 'ready'` alone would
+         pass on a completely broken realm. cohort-worker.js:124 records a KIND silently breaking
+         exactly this way when glucodex-dsp.js became dual-mode ESM. */
+      T.ok('…with NO err — a boot failure is a field, not a different message', !(CW.ready && CW.ready.err), (CW.ready && CW.ready.err) || 'none');
+      T.ok('a job returns a result, not an error', !!(CW.done && CW.done.result && !CW.done.error), (CW.done && CW.done.error) || 'ok');
+      T.ok('…carrying the pulse envelope the Integrator reads', !!(CW.done && CW.done.result && CW.done.result.meta && Array.isArray(CW.done.result.pulse)));
+      T.ok(
+        '…with nights actually scored, not an empty array',
+        !!(CW.done && CW.done.result && CW.done.result.pulse.length > 0),
+        'nights=' + ((CW.done && CW.done.result && CW.done.result.pulse.length) || 0)
+      );
+      /* NON-VACUITY: the contract must be able to REPORT a failure, or the assertions above are just
+         describing a happy path that nothing could have failed. */
+      T.ok('an unknown KIND reports err on the SAME ready message', !!(CW.badReady && CW.badReady.type === 'ready' && CW.badReady.err), JSON.stringify(CW.badReady));
+      /* ⚠️ `err` HERE, `error` FROM THE IFRAME HARNESS — two channels, one message type, and the
+         difference is NOT a bug. Every WORKER posts the boot failure as `err` (cohort-worker.js:627,
+         qrs-equiv-worker.js:172, qrs-yield-worker.js:379, pat-feasibility-worker.js:407) while
+         `cohort-harness.html:172-174` — an IFRAME, not a worker — posts `error`. Consumers correctly
+         match their own producer, and `qrs-equiv-analysis.js` reads BOTH: `m.err` for its Worker
+         (line 56) and `m.error` for its iframe (line 82).
+         Recorded because it reads as an inconsistency and is not. A scan for "consumers must use
+         `err`" was written while building this group, flagged `cohort-regression.js` — which boots
+         IFRAMES — and a "fix" to `m.err` there would have turned a WORKING boot guard into a dead
+         one. Trace the channel, not the message shape. */
+    });
+
     group('PAT half-amplitude fiducial — the foot index is FRACTIONAL (EXTERNAL-METHODS-SURVEY §1)', 'pat · fiducial · half-amplitude', function (T) {
       var PF = env.PatFiducial;
       if (!PF || !PF.halfAmplitudeIndex) {
@@ -40993,9 +41032,13 @@
     /* ════ 21i · qrs-yield WORKER EXECUTES — known-answer (TEST-COVERAGE-FOLLOWUPS-II §4) ════
      The direct transfer of §4's reconstruction rig to the second worker (same SCRIPTS deps + init/job
      protocol as qrs-equiv-worker). Proves qrs-yield-worker executes its QRS-detection-yield doJob in a
-     reconstructed realm and reproduces a deterministic known-answer. (cohort-worker is KIND-parameterized
-     and pat-feasibility-worker uses a ping/result protocol needing real PPG input — both materially
-     heavier + lower value; left as documented gaps in the II brief.) */
+     reconstructed realm and reproduces a deterministic known-answer. (pat-feasibility-worker uses a
+     ping/result protocol needing real PPG input — materially heavier + lower value; left as a
+     documented gap in the II brief.)
+     ⚠️ cohort-worker WAS the other documented gap and is NO LONGER one — it is executed by the
+     `cohort · worker · realm` group (DEEP-AUDIT-V-FOLLOWUPS Tier-4, 2026-08-23). This sentence is the
+     prose that Tier-4's re-measurement found making `git grep -c cohort-worker -- tests/` return 1
+     and read as "covered"; it is corrected here so the count and the truth agree. */
     group('qrs-yield worker EXECUTES + reproduces a known-answer (TEST-COVERAGE-FOLLOWUPS-II §4)', 'qrs-yield-worker · worker · regression · cohort-gen', function (T) {
       var wsrc = (env.sources && env.sources['qrs-yield-worker.js']) || '';
       var have = !!(wsrc && env.SYNTH && env.CohortGen && env.CohortFull && env.ECGDSP && env.PPGDSP);
