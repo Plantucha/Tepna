@@ -193,6 +193,14 @@ jobs:
       - name: Lint (shellcheck — every .sh, strictest level)
         if: needs.changes.outputs.run == 'true'
         run: shellcheck --severity=style $(find . -name '*.sh' -not -path './.venv*')
+      # ⚠️ find_unwired was a LOCAL-ONLY gate until now: check.sh ran it, this workflow did not, so a
+      # published status key or public function that reached nobody could sit on main indefinitely —
+      # the "gate that protects nobody" class. It exits 1 on anything unexplained; wire it or allowlist
+      # it WITH A REASON in ALLOW_KEYS/ALLOW_FUNCS (the file's own header documents the pattern). Placed
+      # before the ~9 min pytest so a structural break fails fast.
+      - name: Structural gate (find_unwired — every published key/function wired or explained)
+        if: needs.changes.outputs.run == 'true'
+        run: python tools/find_unwired.py --check
       - name: Unit tests + coverage (pytest)
         if: needs.changes.outputs.run == 'true'
         # Bare `--cov` (no path) on purpose — it defers to pyproject's `source = [".", "deploy"]`. An
