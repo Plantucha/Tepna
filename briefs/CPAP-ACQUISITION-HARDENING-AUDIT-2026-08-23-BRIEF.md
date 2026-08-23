@@ -64,11 +64,21 @@ hard-coded. They are never combined. StartStream **verifies the device marked ev
 valid** — a partial accept raises rather than silently streaming a subset.
 
 ### 1e · Coexistence gate already exists and is already isolated (spec §20)
-`cpap_stream.gate(meta)` refuses to start a 2.4 GHz BLE stream while any wearable is delivering —
-because the CPAP transmitter sits beside the sensors it would interfere with. **Confirmed: CPAP AS11
-DOES share the BLE radio** (`capture._cpap_ble_connect` opens `bleak` on an `hci` adapter). Per lead
-(Mutator §5.2), the correct move is to **isolate behind this existing gate, not build a global
-scheduler** — the seam is already the right shape.
+`cpap_stream.gate(status_devices)` refuses to start a 2.4 GHz BLE stream while any sensor is **on a
+body** — because the CPAP transmitter sits beside the sensors it would interfere with. **Confirmed:
+CPAP AS11 DOES share the BLE radio** (`capture._cpap_ble_connect` opens `bleak` on an `hci` adapter).
+Per the acquisition-hardening lead (session codename Mutator, 2026-08-23, §5.2), the correct move is to
+**isolate behind this existing gate, not build a global scheduler** — the seam is already the right
+shape.
+
+> ⚠️ **Corrected 2026-08-23 (post-#1674):** the original audit described `gate(meta)` reading
+> `bus.meta()` and blocking on any *active stream*. A concurrent feature-arm change (Vigil box)
+> refactored it to `gate(status_devices)`, single-sourced on `telemetry.on_body`, blocking on
+> `on_body is not False` (on-body OR unknown) rather than active-delivery — a docked/charging sensor is
+> no longer a false blocker (the 2026-07-26 docked-sensors bug `cpap_harvest.blocking_devices`
+> records). The **substance of the finding is unchanged and if anything strengthened**: the gate exists,
+> is isolated to one function, and is the right coexistence seam; the mechanism is now cleaner. Recorded
+> because the audit must describe the current code, not the code at audit time.
 
 ### 1f · The WiFi-SD path is the reference implementation for the spec's stored-data clauses
 `cpap_harvest.EzShare.fetch` already does what spec §22–§24 ask, for its own transport: `.part` temp →
@@ -126,32 +136,98 @@ in `oxyii.py`'s header): scope the clean-room attestation to **NEW code written 
 work**, and grandfather the protocol core with its existing documented attribution intact. A false
 attestation is worse than none.
 
-## 4 · Proposed sequencing (defers to lead for the shared seams)
+## 4 · Sequencing (lead-approved 2026-08-23, with amendments)
 
-Following the spec's phase order, filtered by §2's gaps, under Mutator's constraints (§5):
+Following the spec's phase order, filtered by §2's gaps, under the lead's constraints (§5). **P2 was
+reordered AHEAD of P1** (§5a) because the feature arm holds the live-stream ingestion point P1 taps.
 
-- **P1 · Independent raw preservation for the live stream (G2).** A raw sidecar writer beside the BUS
-  push — reusing the daemon's append-only writer idiom (`writers.py` family), **not** a new format,
-  **not** SQLite. The BUS stays a pure distribution layer; the sidecar becomes the authoritative copy.
-- **P2 · Explicit BLE lifecycle + provenance events (G3, G7, G10).** Smallest state model that fits;
-  transitions logged to the existing journal/STATUS surfaces (Mutator §5.1 — additive, no new BUS
-  semantics). Failure taxonomy introduced here because recovery policy (P4) needs it.
+- **P2 (FIRST) · Explicit BLE lifecycle + provenance events + failure taxonomy (G3, G7, G10).** A
+  **standalone new module** (state machine + provenance event types + failure classes) with its own
+  tests — touches neither the ingestion function nor `capture.py`, so it is collision-free with the
+  feature arm's in-flight EDF wiring. Transitions logged to the existing journal/STATUS surfaces (§5.1
+  — additive, no new BUS semantics). Failure taxonomy lives here because recovery (P5) needs it.
+- **P1 (HELD) · Independent raw preservation for the live stream (G2).** A raw sidecar writer that
+  **taps the feature arm's single ingestion point** once it lands (not co-editing `stream_to_bus`),
+  reusing the daemon's append-only writer idiom (`writers.py` family) — **not** a new format, **not**
+  SQLite. The BUS stays pure distribution; the sidecar is the authoritative acquisition record. EDF is
+  the *product*, the sidecar is the *record* (§6). Held until the ingestion point exists.
 - **P3 · Gap accounting + bounded queue (G4, G5).** Count foreign/dropped/stalled frames; a bounded
-  queue with depth telemetry between callback and sink; overflow recorded, never silent.
-- **P4 · Wire + harden the BLE spool path (G1) with the WiFi-path patterns (§1f).** DISCOVER→…→COMMIT,
-  `.part`→atomic-promote, idempotent identity (device + recording id + start + size/hash, never
-  timestamp alone), reassembly validation. Reuse `cpap_harvest`'s proven shape.
+  queue with depth telemetry between callback and sink; overflow recorded, never silent. Note the
+  hardware finding that a **buffered fragment can arrive ~230 ms after a link drop** (§7.3) — the drop
+  boundary is fuzzy; last-seen ≠ last-sent.
+- **P4 · Wire + harden the BLE spool path (G1) with the WiFi-path patterns (§1f) — recovery model now
+  HARDWARE-PINNED (§7).** DISCOVER→…→COMMIT, `.part`→atomic-promote. The recovery model is settled by
+  real-device evidence: **`fromDateTime` is the only cursor; a round is the transaction unit; on any
+  drop, discard the partial round and re-pull from the last committed `fromDateTime`** — the device
+  re-serves from start byte-identically, so no offset/resume machinery. Idempotent identity uses device
+  + recording cursor + size/hash, never timestamp alone. Reuse `cpap_harvest`'s proven `.part` shape.
 - **P5 · Reconnect/recovery + restart state (G6, G9).** Bounded retry/backoff, LIVE_INTERRUPTED path,
-  restart-safe record of what was verified — as an **append-only ledger/JSONL sidecar** (Mutator §5.3:
-  no shared SQLite, no forked DEVICE/CLOCK_MEASUREMENT tables; clock offset has existing homes).
+  restart-safe record of what was verified — as an **append-only ledger/JSONL sidecar** (§5.3: no
+  shared SQLite, no forked DEVICE/CLOCK_MEASUREMENT tables).
 - **P6 · Clock-offset capture (G8).** Call `get_date_time` at session establish + periodically; record
-  device/host/offset over time in the **existing** clock-provenance surfaces (ring-clock sidecar #1564
-  / `clock_offset.py` / PMDARRIVAL), never a second source of truth.
-- **P7 · Replay + chaos tests (spec §39) against the real committed CPAP captures.**
+  device/host/offset over time in a **CPAP-OWN sidecar in the journal idiom** (§5b amendment — NOT the
+  ring-clock sidecar or PMDARRIVAL, which are device-specific; `clock_offset.py` only if it genuinely
+  fits). Never a second source of truth.
+- **P7 · Replay + chaos tests (spec §39) against the real committed CPAP captures** + the recorded
+  hardware evidence (§7).
 - **P8 · Hardware validation — an overnight real-device capture (spec §42).**
 
 Each phase is one work-unit, one PR, gated by `capture-host/check.sh` (100% branch coverage — any new
-module must clear it) — and announced before touching `capture.py`/`writers.py` (Mutator §5.4).
+module must clear it) — and announced before touching `capture.py`/`writers.py` (§5.4). **Every phase
+brief expands "Mutator" on first use** as *"the acquisition-hardening lead (session codename Mutator,
+2026-08-23)"* (§5c amendment).
+
+### §5a–c · The lead's three amendments (accepted 2026-08-23)
+
+- **§5a — P2 reordered ahead of P1.** The feature arm (Vigil box) is wiring the live-stream ingestion
+  point + EDF; the lead's ruling is that ingestion must be a **single tappable point** (bus.push + raw
+  sidecar + EDF builder all fan out from one place). P1's sidecar taps it rather than co-editing the
+  same function, so P1 holds until that scaffolding lands; P2 (collision-free) proceeds first.
+- **§5b — P6 gets a CPAP-OWN clock sidecar,** not the device-specific ring/PMDARRIVAL surfaces
+  (corrects §4-P6's original over-loose wording).
+- **§5c — expand "Mutator" on first use** in every phase brief.
+
+## 6 · The two arms — feature vs hardening (recorded so the split is not re-litigated)
+
+The owner is running **two arms on CPAP under one lead** (the acquisition-hardening lead, session
+codename Mutator, 2026-08-23):
+
+| | **Feature arm** (Vigil box) | **Hardening arm** (this brief) |
+|---|---|---|
+| owns | EDF-on-disk product, monitor UI, pairing, the single tappable ingestion point | raw preservation, lifecycle, gap accounting, transactional spool, restart safety |
+| product vs record | **EDF is the PRODUCT** | the raw sidecar is the **authoritative acquisition record** |
+| files | `cpap_stream.py` ingestion, `capture.py` wiring, a new EDF writer | new lifecycle/sidecar/spool modules that *tap* the ingestion point |
+
+Both arms are bound by the same §5 constraints; the feature arm is pointed at §5 and announce-before-
+touch counts for `capture.py` for both. The daemon nightly BLE pull (P4's transactional chain) is
+**this arm's**, confirmed — the feature arm was told not to build it.
+
+## 7 · P4 hardware evidence — AS11 spool recovery (Vigil box, live AirSense 11, 2026-08-23)
+
+Real-device runs on the box (`/srv/tepna/probe/pulls/spool-evidence.jsonl` clean;
+`spool-drop-evidence.jsonl` drop+re-serve), READ-ONLY on the free radio, wearables untouched. **Two
+findings verified against the protocol core before recording** (cross-session claims pass no gate):
+
+- **§7.1 · `spoolId` is per-round/ephemeral; the continuation cursor is `nextSpoolAddress.<type>.
+  fromDateTime`.** Clean pull: round1 spoolId=6 → seq0 SPOOL_INCOMPLETE → seq1
+  SPOOL_COMPLETE_MORE_DATA_PENDING with `fromDateTime=2026-08-14T16:00:00Z`; round2 spoolId=7 from that
+  cursor → SPOOL_COMPLETE_NO_MORE_DATA. ✅ **The code already implements this** —
+  `as11_pull.pull_spool_round` re-reads `spoolId` per round and reads
+  `nextSpoolAddress[spool_type]["fromDateTime"]` as the cursor. Hardware *validates* the core.
+- **§7.2 · Terminal statuses** — seq all SPOOL_INCOMPLETE until MORE_DATA_PENDING or NO_MORE_DATA;
+  ERROR_DATA_UNAVAILABLE is the error terminal. ✅ Matches `_ROUND_DONE` + the raise.
+- **§7.3 · A mid-transfer drop delivers a buffered tail** — one queued fragment arrived ~230 ms after
+  the disconnect before the link died. Last-SEEN ≠ last-SENT; the drop boundary is fuzzy (feeds P3).
+- **§7.4 · RE-SERVE (the key P4 fact):** after a drop, reconnect + re-establish + StartSpool from the
+  SAME `fromDateTime` → seq0 **byte-identical** to the pre-drop seq0. The device re-serves from start;
+  no offset resume, no skip.
+
+⟹ **P4 recovery model, empirically fixed:** `fromDateTime` is the only cursor; the round is the
+transaction unit; on any drop, discard the partial round and re-pull from the last *committed* cursor.
+This maps onto `.part`→atomic-promote: promote a round on NO_MORE_DATA or a fully-consumed
+MORE_DATA_PENDING (advancing the committed cursor); a crash mid-round leaves the `.part`, the next run
+re-pulls that cursor from scratch → same bytes → clean promote. **Idempotent by construction.** One
+further capture requested (drop *between* rounds — the exact transaction boundary P4 commits on).
 
 ## 5 · Lead's shared-seam constraints (adopted verbatim; source: Mutator, 2026-08-23)
 
@@ -175,5 +251,9 @@ module must clear it) — and announced before touching `capture.py`/`writers.py
 - [x] Concrete gaps demonstrated against the tree, not assumed from the spec (§2, G1–G10).
 - [x] Clean-room attestation scoped; protocol-core lineage grandfathered (§3).
 - [x] Phased sequencing proposed under the lead's constraints (§4–§5).
-- [ ] Lead (Mutator) reviews the sequencing and confirms the shared-seam boundary before P1 opens.
-- [ ] Each build phase spawns its own executable brief + PR; this brief only orders them.
+- [x] Lead reviewed and APPROVED the sequencing (2026-08-23, #1674 comment) with three amendments,
+      all folded in: §5a P2-ahead-of-P1, §5b CPAP-own clock sidecar, §5c expand "Mutator" first-use.
+- [x] Feature/hardening arm split recorded (§6); `gate()` §1e corrected to the current code (post-#1674).
+- [x] P4 recovery model hardware-pinned by a real AirSense-11 run (§7) — and the run *validated* the
+      existing `pull_spool` core rather than finding a defect.
+- [ ] Each build phase spawns its own executable brief + PR; this brief only orders them (P2 first).
