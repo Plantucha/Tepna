@@ -1306,13 +1306,89 @@ function writeArrival(dir, key, p) {
   }
   devices.sort((a, b) => b.anchors - a.anchors);
   const indep = devices.filter((d) => d.independent === true && d.plausibleCrystal !== false && d.deviceDrawn !== true).length;
+  /* RING-CLOCK sidecar — the O2Ring's RTC watched against the host (FINISHED-WORK-IMPROVEMENTS §A 2c,
+     from `O2RING-TIME-CAPABILITY-WIRING`). The daemon writes `*_rtclog.csv` per session via
+     `capture-host/writers.py:RingClockLogWriter`; nightqc rolls the same rows into a summary via
+     `nightqc.rtc_drift_summary`. This surfaces the same verdict beside `arrival_${key}.json` so
+     downstream fold consumers can read the ring's RTC history off disk instead of the box's live
+     status. A push is a CLAIM until the next read confirms it; a reset-suspect ruins the stored
+     .dat's timebase, and finding one after the fold is the point of persisting the rows. */
+  const ringClock = readRingClockLog(dirs, inWindow, DexClock);
   console.log(
     `    ⇄ arrival sidecar: ${devices.length} device(s), ${rows} packet(s)` +
       `  usable-clock: ${indep}/${devices.length}` +
-      devices.map((d) => `  ${d.device.split(' ')[1] || d.device}:${d.ppm == null ? '—' : d.ppm + 'ppm'}/${d.spreadMs == null ? '—' : d.spreadMs + 'ms'}`).join('')
+      devices.map((d) => `  ${d.device.split(' ')[1] || d.device}:${d.ppm == null ? '—' : d.ppm + 'ppm'}/${d.spreadMs == null ? '—' : d.spreadMs + 'ms'}`).join('') +
+      (ringClock ? `  ring-rtc: ${ringClock.reads}r/${ringClock.pushes}p/${ringClock.resets}x  drift ${ringClock.driftS == null ? '—' : ringClock.driftS + 's'}` : '')
   );
-  writeFileSync(join(dir, `arrival_${key}.json`), JSON.stringify({ night: key, packets: rows, files: files.length, devices }, null, 2) + '\n');
+  const artefact = { night: key, packets: rows, files: files.length, devices };
+  if (ringClock) artefact.ringClock = ringClock;
+  writeFileSync(join(dir, `arrival_${key}.json`), JSON.stringify(artefact, null, 2) + '\n');
   return devices;
+}
+
+/* Roll every `*_rtclog.csv` in the arrival scope into ONE ring-clock verdict, or null when no sidecar
+   is present or holds a readable row. Mirrors `nightqc.rtc_drift_summary` (Python) exactly:
+     • reads / pushes / resets / batteries — per-event counts across every file, WINDOW-scoped.
+     • firstOffsetS / lastOffsetS — the first and last periodic READ offset (push has no offset).
+     • driftS — the free run between them.
+     • firstReadMs / lastReadMs / spanH — clock-time bounds of the read events.
+     • rows — the raw window-scoped rows so the fold consumer can re-derive anything else without
+       reaching back to the sidecar (the point of persisting them beside the arrival JSON). */
+function readRingClockLog(dirs, inWindow, DexClock) {
+  const files = [];
+  for (const d of dirs) {
+    try {
+      for (const n of readdirSync(d)) if (n.endsWith('_rtclog.csv')) files.push(join(d, n));
+    } catch {
+      /* unreadable dir → simply no sidecar from it */
+    }
+  }
+  if (!files.length) return null; // NO SIDECAR — the ordinary phone-captured case, silently unchanged
+  const rows = [];
+  let reads = 0,
+    pushes = 0,
+    resets = 0,
+    batteries = 0;
+  let firstOffsetS = null,
+    lastOffsetS = null,
+    firstReadMs = null,
+    lastReadMs = null;
+  for (const f of files) {
+    let txt = '';
+    try {
+      txt = readFileSync(f, 'utf8');
+    } catch {
+      continue;
+    }
+    const lines = txt.split('\n');
+    for (let i = 1; i < lines.length; i++) {
+      const c = lines[i].split(';');
+      if (c.length < 3) continue;
+      const t = DexClock.parseTimestamp(c[0], {});
+      if (!t || !isFinite(t.tMs)) continue;
+      if (!inWindow(t.tMs)) continue; // a row from the next day is not this night's clock
+      const event = c[1];
+      const offRaw = c[2] === '' || c[2] == null ? null : Number(c[2]);
+      const offS = offRaw != null && isFinite(offRaw) ? offRaw : null;
+      if (event === 'push') pushes++;
+      else if (event === 'reset-suspect') resets++;
+      else if (event === 'battery') batteries++;
+      else if (event === 'read') reads++;
+      if (event === 'read' && offS != null) {
+        if (firstOffsetS == null) {
+          firstOffsetS = offS;
+          firstReadMs = t.tMs;
+        }
+        lastOffsetS = offS;
+        lastReadMs = t.tMs;
+      }
+      rows.push({ tMs: t.tMs, event, offsetS: offS });
+    }
+  }
+  if (!rows.length) return null; // header-only sidecars ⇒ treated as absent, same as `writeArrival`
+  const driftS = firstOffsetS != null && lastOffsetS != null ? Math.round((lastOffsetS - firstOffsetS) * 10) / 10 : null;
+  const spanH = firstReadMs != null && lastReadMs != null && lastReadMs > firstReadMs ? Math.round(((lastReadMs - firstReadMs) / 3.6e6) * 10) / 10 : null;
+  return { files: files.length, reads, pushes, resets, batteries, firstOffsetS, lastOffsetS, driftS, firstReadMs, lastReadMs, spanH, rows };
 }
 
 /* ── THE CROSS-NODE AGREEMENT GATE, AND THE FIRST ARTEFACT THIS FOLD PERSISTS (2026-08-13) ───────

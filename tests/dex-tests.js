@@ -6168,6 +6168,58 @@
       }
     });
 
+    /* FINISHED-WORK-IMPROVEMENTS §A 2c (2026-08-22) — the ring's RTC history rolled into the
+       arrival sidecar so a fold consumer can see reads/pushes/resets/first-last offset without
+       reaching back to the per-session `*_rtclog.csv`. Source-scan, because trio-batch's night loop
+       runs at import and can't be called from here (see the WEARABLE-HOST-AXIS-FOLLOWUPS §F5 note). */
+    group('trio-batch attaches a ringClock block to the arrival sidecar from *_rtclog.csv', 'trio-batch · ring-rtc · source-scan', function (T) {
+      var _src = env.sources || {};
+      var tb = _src['tools/trio-batch.mjs'] || _src['trio-batch.mjs'] || '';
+      if (!tb) {
+        T.skip('trio-batch source wired', 'not in env.sources');
+        return;
+      }
+      T.ok('the reader function exists', /function\s+readRingClockLog\s*\(\s*dirs\s*,\s*inWindow\s*,\s*DexClock\s*\)/.test(tb), 'expected `function readRingClockLog(dirs, inWindow, DexClock)`');
+      T.ok('…scans the arrival dirs for `*_rtclog.csv` (same dirs as arrival packets)', /endsWith\('_rtclog\.csv'\)/.test(tb), "expected `endsWith('_rtclog.csv')` inside the reader");
+      T.ok(
+        '…parses the sidecar timestamp via `DexClock.parseTimestamp` (Clock Contract §2)',
+        /readRingClockLog[\s\S]{0,4000}DexClock\.parseTimestamp/.test(tb),
+        'the sidecar timestamp bypasses DexClock — a locale parse silently mis-dates the row'
+      );
+      T.ok(
+        '…scopes to the same window as arrival packets (`inWindow(t.tMs)`)',
+        /readRingClockLog[\s\S]{0,4000}inWindow\(t\.tMs\)/.test(tb),
+        "the row from the next day would be counted as this night's clock"
+      );
+      /* The four event types the writer emits (`RingClockLogWriter.write`). If a sidecar carries
+         `battery` rows and the reader ignores them, the count is silently short. */
+      T.ok(
+        '…counts every event type the writer emits (read/push/reset-suspect/battery)',
+        /'push'[\s\S]{0,300}'reset-suspect'[\s\S]{0,300}'battery'[\s\S]{0,300}'read'/.test(tb),
+        'one of the four event types is not counted in the reader'
+      );
+      /* A push has no offset column (per RingClockLogWriter), so `firstOffsetS` and `lastOffsetS`
+         must come from READ events only. Reading them off any event silently accepts a blank as 0. */
+      T.ok(
+        '…first/last offset track READ events only (a push carries no offset)',
+        /event\s*===\s*'read'\s*&&\s*offS\s*!=\s*null/.test(tb),
+        'the offset is being read off any event, including push (blank column) — an empty read reads as offset 0'
+      );
+      /* Attachment must be CONDITIONAL — a phone-captured night that has no sidecar must not add
+         `ringClock: null` to the artefact (would move byte contents of every existing arrival JSON). */
+      T.ok(
+        '…attached to arrival JSON only when non-null (phone-captured nights stay byte-identical)',
+        /if\s*\(ringClock\)\s*artefact\.ringClock\s*=\s*ringClock/.test(tb),
+        'the block is added unconditionally — every existing arrival JSON gets a null field'
+      );
+      /* Header-only sidecars are treated as absent, matching `writeArrival`'s own \`if (!rows.length)\` posture. */
+      T.ok(
+        "…a header-only sidecar returns null (matches writeArrival's empty-arrival posture)",
+        /if\s*\(!rows\.length\)\s*return\s*null/.test(tb),
+        'header-only sidecars would attach an empty ringClock block instead of being treated as absent'
+      );
+    });
+
     group('trio-batch feeds the O2Ring finger site without breaking the trio count', 'trio-batch · o2ring-finger', function (T) {
       var src = env.sources || {};
       var tb = src['tools/trio-batch.mjs'] || src['trio-batch.mjs'] || '';
