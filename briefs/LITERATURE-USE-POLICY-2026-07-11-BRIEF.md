@@ -69,8 +69,10 @@ networked data in a shipped bundle.
   2024 & Zhang 2020 — wrist-PPG sleep MAE; Tisyakorn 2024 (`10.1007/s11325-024-03232-9`) — Wellue O2Ring OSA.
 - **Reference-free method:** Schatzman 2020/2021 (N-cornered + ML-TCH); Calosso/Vernotte/Rubiola 2018 (GCOV);
   Sjoberg 2021 (3CH on atmospheric datasets — cross-domain precedent).
-- **PRV≠HRV / motion premise:** Kass 2025 (N=931); Dewig 2024 (PAT mechanism); Prucnal 2025 (ACC-filtered PRV);
+- **PRV≠HRV / motion premise:** Kantrowitz 2025 (N=931, `10.3389/fphys.2025.1630032` — earlier notes here and in the TCH validation doc said "Kass"; the author list has no Kass, mis-attribution corrected 2026-08-23); Charlton 2023 wearable-PPG roadmap (`10.1088/1361-6579/acead2` — field background, not claim-level support); Dewig 2024 (PAT mechanism); Prucnal 2025 (ACC-filtered PRV);
   Coste 2025 (Polar OH1 vs H10); Bent 2020 (activity error).
+- **Cuffless-BP refusal / PAT limits:** AHA scientific statement (Cohen 2026, `10.1161/HYP.0000000000000254` — cuffless devices "may be inappropriate for clinical use"; external authority for the WP-A `bpEst`/`htnScore`/`bpProj` removals); Liang 2019 (`10.3390/jcm8030337` — MIMIC channels not synchronized; PAT-for-BP requires proven sync, the wall `pat-align.js` and dead-ends §2.7 measure).
+- **CPAP device-scored AHI:** Ni & Thomas 2022 (`10.5664/jcsm.9814`); Reiter 2016 (`10.5664/jcsm.6056`); Richter 2024 review (`10.1097/MCP.0000000000001113`); Richter 2023 single-device (`10.1007/s11325-022-02740-w`) — now cited in the CPAPDex reference guide (integration 2026-08-23).
 - **ECGDex CVHR/apnea:** Hayano 2010 (`10.1161/CIRCEP.110.958009`); Hsu 2020 (`10.5664/jcsm.8462`).
 
 ## 5 · Done when

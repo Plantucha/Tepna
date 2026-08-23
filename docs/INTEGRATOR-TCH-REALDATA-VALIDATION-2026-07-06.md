@@ -259,7 +259,7 @@ method to consumer physiological HR sensors, and the honest novelty framing ("fi
 wearable HR trio"). Good anchor for the `sensor-trio-nights` paper's related-work.
 
 **(3) The RMSSD-divergence premise + the motion-ρ design are literature-supported.** PPG-derived PRV is *not*
-ECG HRV — it under-/over-states RMSSD/SDNN/pNN50 (Kass/Kantrowitz 2025, N=931; Dewig 2024 traces it to
+ECG HRV — it under-/over-states RMSSD/SDNN/pNN50 (Kantrowitz 2025, N=931, doi:10.3389/fphys.2025.1630032; Dewig 2024 traces it to
 pulse-arrival-time dispersion, RMSSD worse than SDNN) — which is exactly the excess-variance the TCH targets.
 And **motion drives the divergence**: absolute PPG HR error is ~30 % higher in activity than rest (Bent 2020),
 and **ACC-signal filtering of PPG motion artifacts measurably improves PRV** (Prucnal 2025) — direct support for
