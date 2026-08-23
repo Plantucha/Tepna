@@ -38,6 +38,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { bestPairOver, fragmentBounds } from './acc-select-compare.mjs';
 import { getDsps, loadDsps, median, quantile } from './pat-matchrate-strict.mjs';
 
 const argv = process.argv.slice(2);
@@ -55,12 +56,18 @@ function nameStartMs(f) {
   return Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(8, 10), +s.slice(10, 12), +s.slice(12, 14));
 }
 
-function biggestAcc(dir, re, n) {
+/* 🔴 NO SHORTLIST. Every fragment is bounded from its first and last LINE — a few KB per file, no
+   parsing — and the pair is chosen over the complete set. Measured 2026-08-23 by
+   `acc-select-compare.mjs`: bounding all 39 nights' fragments takes **0.77 s** total, against ~20
+   minutes to parse them, so the shortlist that both PAT tools carried was buying nothing and
+   costing correctness. It cost it on 2026-07-30, where a size-ranked top-3 picked a 0.08 h overlap
+   against a true 0.39 h.
+   Nights here run to 162 Verity fragments; a top-3 over 162 is a lottery that happens to win. */
+function boundedAcc(dir, re, parseTimestamp) {
   return readdirSync(dir)
     .filter((f) => re.test(f))
-    .map((f) => ({ f: join(dir, f), size: statSync(join(dir, f)).size, start: nameStartMs(f) }))
-    .sort((a, b) => b.size - a.size)
-    .slice(0, n);
+    .map((f) => fragmentBounds(join(dir, f), parseTimestamp))
+    .filter(Boolean);
 }
 
 function loadAll(cand, PPGDSP) {
@@ -78,31 +85,19 @@ function loadAll(cand, PPGDSP) {
 }
 
 export function nightSharedMovement(dir, sigmas) {
-  const { PPGDSP, PATAlign } = getDsps();
-  const As = loadAll(biggestAcc(dir, /H10.*_ACC\.txt$/i, 3), PPGDSP); // chest
-  const Bs = loadAll(biggestAcc(dir, /verity.*_ACC\.txt$/i, 3), PPGDSP); // arm
-  if (!As.length || !Bs.length) return { skipped: `no parseable ACC on ${!As.length ? 'H10' : 'Verity'}` };
-  /* 🔴 CHOOSE THE PAIR BY OVERLAP, NEVER EACH DEVICE'S LARGEST INDEPENDENTLY. A night is dozens of
-     fragments per device, and the biggest fragment of each is routinely a DIFFERENT part of the
-     night — so taking each device's largest and intersecting them reports "the two ACC recordings
-     do not overlap" on a night with hours of overlap available one fragment down the list.
-     `pat-matchrate-strict.mjs` carries this warning verbatim ("Prefilter ACC candidates by TIME,
-     not size") and the first version of this tool walked into it anyway: 13 of 38 nights excluded,
-     which would have been recorded as a fact about the corpus. Reading a warning is not the same as
-     being protected by it — so the selection is now over PAIRS, which cannot express the bug. */
-  let A = null;
-  let B = null;
-  let bestOv = 0;
-  for (const a of As)
-    for (const b of Bs) {
-      const ov = Math.min(a[a.length - 1].tMs, b[b.length - 1].tMs) - Math.max(a[0].tMs, b[0].tMs);
-      if (ov > bestOv) {
-        bestOv = ov;
-        A = a;
-        B = b;
-      }
-    }
-  if (!A) return { skipped: 'no ACC fragment pair overlaps at all' };
+  const { PPGDSP, PATAlign, DexClock } = getDsps();
+  const pt = (x) => DexClock.parseTimestamp(x);
+  const frA = boundedAcc(dir, /H10.*_ACC\.txt$/i, pt); // chest
+  const frB = boundedAcc(dir, /verity.*_ACC\.txt$/i, pt); // arm
+  if (!frA.length || !frB.length) return { skipped: `no bounded ACC on ${!frA.length ? 'H10' : 'Verity'}` };
+  const pick = bestPairOver(frA, frB);
+  if (!pick || pick.ov <= 0) return { skipped: 'no ACC fragment pair overlaps at all' };
+  /* Only the CHOSEN pair is parsed — the economy that makes enumerating everything affordable. */
+  const As = loadAll([{ f: pick.a.file }], PPGDSP);
+  const Bs = loadAll([{ f: pick.b.file }], PPGDSP);
+  if (!As.length || !Bs.length) return { skipped: `chosen fragment unparseable on ${!As.length ? 'H10' : 'Verity'}` };
+  const A = As[0];
+  const B = Bs[0];
   const t0 = Math.max(A[0].tMs, B[0].tMs);
   const t1 = Math.min(A[A.length - 1].tMs, B[B.length - 1].tMs);
   if (!(t1 > t0)) return { skipped: 'the two ACC recordings do not overlap' };

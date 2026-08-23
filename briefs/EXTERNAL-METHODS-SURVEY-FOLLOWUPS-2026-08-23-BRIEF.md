@@ -116,6 +116,44 @@ it. A third selection rule is a third chance to get it wrong.
 one rule is adopted by both tools with the difference table as the evidence, or the divergence is
 recorded as intentional with the condition that selects each.
 
+### MEASURED 2026-08-23 — the shortlist is the defect, and it was never needed
+
+`tools/acc-select-compare.mjs`, 37 of 39 nights. It bounds **every** ACC fragment from its first and
+last LINE — no parsing — computes the true best-overlapping pair over the complete set, and asks what
+each rule's top-3 would have kept.
+
+**The economy that justified the shortlist does not exist.** Bounding every fragment on all 39 nights
+takes **0.77 s**; parsing them takes ~20 minutes. The two numbers a shortlist needs are the two ends
+of the file. Both PAT tools were guessing which fragments to parse when they could simply have looked.
+
+**The rules agree on 36 of 37 nights.** The exception is **2026-07-30**, where the size-ranked top-3
+picks a **0.08 h** overlap against a true **0.39 h**. Feeding the true pair to
+`acc-shared-movement.mjs` flips that night **REFUSES (60 candidates, 0 anchors) → ALIGNS (18, 2)**:
+the shortlist was manufacturing a refusal. Nights here run to **162** Verity fragments — a top-3 over
+162 is a lottery that mostly wins.
+
+⚠️ **§2 as drafted mis-attributed the divergence, and the measurement says so.** The two tools do NOT
+mainly disagree because of the shortlist — they agree on 36/37. They disagree because
+`pat-matchrate-strict` intersects with the **beat pipeline's span** while `acc-shared-movement` takes
+the best ACC↔ACC overlap. **That difference is INTENTIONAL and stays**: one is selecting ACC that
+covers the beats being aligned, the other is selecting the best shared-movement evidence, and those
+are different questions with different right answers. What is *not* intentional, and is now gone from
+`acc-shared-movement`, is the arbitrary top-3 in front of both.
+
+**Resolution — one bounding mechanism, two target criteria, neither shortlisted.**
+`acc-shared-movement.mjs` now enumerates every fragment and parses only the winning pair.
+`pat-matchrate-strict.mjs` keeps its time-targeting (correct for its question) but **still carries a
+top-3**, and removing it would move §1's just-published numbers — a separate work-unit, carried to
+§5 below with this evidence attached.
+
+**Re-running §3 under the corrected selection changed the answer in no material way**, which is worth
+recording as plainly as the bug: 37 nights measured, refusals 5 → **4** (the 07-30 conversion),
+corroboration median **0.064 → 0.064**, candidates 247 → 248, anchors 10.5 → 10.0. The relationship
+that carries §3's conclusion got *stronger* — Spearman(candidates, corroboration) **−0.663 → −0.768**
+— and the rate split sharpened: ≤ 200/h corroborates at **0.111** with 1 refusal in 25 nights,
+> 200/h at **0.005** with 3 in 12. Refusing nights still carry more chest movement than aligning ones
+(median 322 vs 246). **§3's verdict is unchanged.**
+
 ## 3 · 🟢 Three method swaps, three negatives, one shape — record it before the next survey
 
 Not a task. A pattern that cost three measurements to establish and should cost the next survey none:
@@ -165,7 +203,20 @@ recovery figure there carries its denominator and its acceptance rule.
       lost above it. The hypothesis' mechanism held (pooled candidates fall 20× against anchors 3.2×)
       but its operational claim was impossible by construction, since anchors ⊆ candidates makes the
       anchor count non-increasing in σ — measured with zero exceptions across 37 nights.
-- [ ] §2 — the two ACC-selection rules tabulated against each other; one adopted, or the divergence
-      recorded with its condition.
+- [x] §2 — **DONE 2026-08-23. Both, as it turns out.** The rules agree on 36 of 37 nights, so the
+      real divergence is not the shortlist but the target: `pat-matchrate-strict` selects ACC
+      covering the BEAT SPAN, `acc-shared-movement` the best ACC↔ACC overlap. That difference is
+      intentional and is recorded with its condition. The shortlist in front of both is not, and is
+      removed from `acc-shared-movement`: bounding every fragment across 39 nights costs **0.77 s**
+      against ~20 min to parse them, and the size-ranked top-3 was manufacturing a refusal on
+      2026-07-30 (0.08 h chosen against a true 0.39 h; the night flips to ALIGNS once corrected).
+      Re-running §3 under the corrected selection left every headline unchanged and strengthened the
+      key relationship (ρ −0.663 → −0.768).
+
+- [ ] §5 — remove `pat-matchrate-strict.mjs`'s top-3 shortlist too, keeping its time-targeting, and
+      re-run §1's fiducial comparison under it. Deliberately NOT bundled with §2: it would move
+      numbers that have just been published, so it owes its own re-run and its own record. The
+      evidence that it is worth doing is §2's — the same shortlist shape, on a corpus with nights of
+      162 fragments.
 - [x] §3 — recorded 2026-08-23. Nothing to execute.
 - [ ] §4 — `PAT-NO-VALID-ANCHOR`'s recovery figure carries its denominator and acceptance rule.

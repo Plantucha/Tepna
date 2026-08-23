@@ -98,7 +98,7 @@ function quantile(a, q) {
 }
 
 /* ── the headless DSP realm (same co-load contract as tools/trio-batch.mjs) ───────────────────── */
-let ECGDSP, PPGDSP, PATAlign;
+let ECGDSP, PPGDSP, PATAlign, DexClock;
 function loadDsps() {
   if (ECGDSP) return;
   const sandbox = {};
@@ -119,6 +119,8 @@ function loadDsps() {
   ECGDSP = ctx.ECGDSP || (ctx.ECGDex && ctx.ECGDex._bare);
   PPGDSP = ctx.PPGDSP || (ctx.PpgDex && ctx.PpgDex._bare);
   PATAlign = ctx.PATAlign;
+  DexClock = ctx.DexClock; // the Clock Contract's parser, so a sibling never hand-rolls a stamp regex
+
   for (const [n, v] of Object.entries({ ECGDSP, PPGDSP, PATAlign })) if (!v) throw new Error('pat-matchrate-strict: ' + n + ' did not load into the headless realm');
 }
 
@@ -517,7 +519,7 @@ export { legacyMatchRate, strictMatchRate, circShift, rawLags, STRICT_W_MS, PHYS
    exactly as it absorbs delta. A null under one fiducial is not a null under the other. */
 function getDsps() {
   loadDsps();
-  return { ECGDSP, PPGDSP, PATAlign };
+  return { ECGDSP, PPGDSP, PATAlign, DexClock };
 }
 export { loadDsps, getDsps, ecgRpeakTimes, ppgFootTimes, median, quantile, BIN_MIN };
 /* Night selection and clock alignment, so the fiducial comparison runs on exactly the pair and the
