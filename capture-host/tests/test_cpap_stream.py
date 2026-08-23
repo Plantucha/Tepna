@@ -174,30 +174,42 @@ def test_a_custom_channel_map_is_honoured():
     assert start["params"]["sampleIntervalMs"] == 1000
 
 
-# ── gate ───────────────────────────────────────────────────────────────────────
-def test_gate_refuses_while_a_wearable_is_live():
-    meta = [{"key": "ecg_h10", "active": True}, {"key": "spo2_o2ring", "active": False}]
-    reason = CS.gate(meta)
-    assert reason and "ecg_h10" in reason
+# ── gate — on-body, NOT stream-active (single-sourced on telemetry.on_body) ─────────────────────────────
+def _dev(connected=True, worn=None, charging=False):
+    return {"connected": connected, "worn": worn, "charging": charging}
 
 
-def test_gate_permits_an_idle_box():
-    meta = [{"key": "ecg_h10", "active": False}, {"key": "spo2_o2ring", "active": False}]
-    assert CS.gate(meta) is None
+def test_gate_refuses_while_a_sensor_is_on_the_body():
+    reason = CS.gate({"Polar H10": _dev(worn=True), "O2Ring": _dev(connected=False)})
+    assert reason and "Polar H10" in reason and "on the body" in reason
 
 
-def test_gate_ignores_our_own_cpap_streams():
-    """Once WE are streaming, cpap_flow/cpap_pressure are active — that must not count as a wearable
-    blocking a restart of our own stream."""
-    meta = [{"key": "cpap_flow", "active": True}, {"key": "cpap_pressure", "active": True}]
-    assert CS.gate(meta) is None
+def test_gate_permits_when_every_sensor_is_charging():
+    """THE fix: docked sensors report connected=True while producing nothing, and blocking on that made
+    the gate unreachable exactly when a capture is safest (the 2026-07-26 bug). A charging device is not
+    on a body, so it must NOT block — matching cpap_harvest.blocking_devices."""
+    assert CS.gate({"O2Ring": _dev(worn=False, charging=True),
+                    "Verity": _dev(worn=False, charging=True)}) is None
 
 
-def test_gate_reports_every_live_wearable_sorted():
-    meta = [{"key": "ppg_verity", "active": True}, {"key": "ecg_h10", "active": True}]
-    reason = CS.gate(meta)
-    assert "ecg_h10" in reason and "ppg_verity" in reason
-    assert reason.index("ecg_h10") < reason.index("ppg_verity"), "named in sorted order"
+def test_gate_permits_a_disconnected_sensor():
+    assert CS.gate({"Polar H10": _dev(connected=False)}) is None
+
+
+def test_gate_blocks_on_unknown_worn_conservatively():
+    """`worn is None` (unknown) blocks, like the harvest — refusing costs only a retry, and transmitting
+    beside a possibly-worn sensor is the risk this exists to avoid."""
+    assert CS.gate({"Polar H10": _dev(worn=None)}) is not None
+
+
+def test_gate_permits_an_empty_or_none_device_map():
+    assert CS.gate({}) is None and CS.gate(None) is None
+
+
+def test_gate_reports_blocking_sensors_sorted():
+    reason = CS.gate({"Verity": _dev(worn=True), "H10": _dev(worn=True)})
+    assert "H10" in reason and "Verity" in reason
+    assert reason.index("H10") < reason.index("Verity"), "named in sorted order"
 
 
 # ── LiveStreamController ─────────────────────────────────────────────────────────
@@ -216,6 +228,14 @@ class _ControllerBus(FakeBus):
 
 def _creds():
     return {"masterPairKey": "aa" * 32, "clientId": "cid-1"}
+
+
+def _idle_devices():
+    return {}   # no device on a body → the gate permits
+
+
+def _worn_devices():
+    return {"Polar H10": _dev(worn=True)}   # a sensor on the body → the gate refuses
 
 
 async def _idle_pump(bus, write, recv_frame, pk, cid, *, channels=None, should_stop=None):
@@ -263,7 +283,7 @@ def test_controller_start_spawns_a_stream_and_stop_tears_it_down():
         connect, events = _connector()
         bus = _ControllerBus()
         pump, seen = _recording_pump()
-        c = CS.LiveStreamController(bus, connect, _creds, pump=pump)
+        c = CS.LiveStreamController(bus, connect, _creds, _idle_devices, pump=pump)
         started = await c.op("start")
         assert started["ok"] is True and started["streaming"] is True
         assert set(started["channels"]) == {"cpap_flow", "cpap_pressure"}
@@ -290,7 +310,7 @@ def test_controller_start_spawns_a_stream_and_stop_tears_it_down():
 def test_controller_start_is_idempotent_while_running():
     async def go():
         connect, events = _connector()
-        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, pump=_idle_pump)
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_idle_pump)
         await c.op("start")
         again = await c.op("start")
         assert again["already"] is True and events["connected"] == 1, "no second connect while running"
@@ -298,13 +318,12 @@ def test_controller_start_is_idempotent_while_running():
     _run(go())
 
 
-def test_controller_refuses_to_start_while_a_wearable_is_live():
+def test_controller_refuses_to_start_while_a_sensor_is_on_the_body():
     async def go():
         connect, events = _connector()
-        bus = _ControllerBus(meta=[{"key": "ecg_h10", "active": True}])
-        c = CS.LiveStreamController(bus, connect, _creds, pump=_idle_pump)
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _worn_devices, pump=_idle_pump)
         res = await c.op("start")
-        assert res["ok"] is False and "ecg_h10" in res["error"]
+        assert res["ok"] is False and "Polar H10" in res["error"]
         assert events["connected"] == 0, "the gate must refuse BEFORE opening the radio"
     _run(go())
 
@@ -312,7 +331,7 @@ def test_controller_refuses_to_start_while_a_wearable_is_live():
 def test_controller_refuses_to_start_without_credentials():
     async def go():
         connect, events = _connector()
-        c = CS.LiveStreamController(_ControllerBus(), connect, lambda: None, pump=_idle_pump)
+        c = CS.LiveStreamController(_ControllerBus(), connect, lambda: None, _idle_devices, pump=_idle_pump)
         res = await c.op("start")
         assert res["ok"] is False and "pair the CPAP" in res["error"]
         assert events["connected"] == 0
@@ -322,7 +341,7 @@ def test_controller_refuses_to_start_without_credentials():
 def test_controller_stop_is_idempotent_when_not_running():
     async def go():
         connect, _ = _connector()
-        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, pump=_idle_pump)
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_idle_pump)
         assert await c.op("stop") == {"ok": True, "streaming": False}
     _run(go())
 
@@ -347,7 +366,7 @@ def test_controller_stop_survives_a_pump_that_errored_and_a_disconnect_that_rais
 
     async def go():
         bus = _ControllerBus()
-        c = CS.LiveStreamController(bus, connect, _creds, pump=boom_pump)
+        c = CS.LiveStreamController(bus, connect, _creds, _idle_devices, pump=boom_pump)
         await c.op("start")
         await asyncio.sleep(0.01)   # let the pump raise
         stopped = await c.op("stop")
@@ -369,7 +388,7 @@ def test_controller_stop_handles_a_task_that_raises_on_cancel():
 
     async def go():
         connect, events = _connector()
-        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, pump=stubborn_pump)
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=stubborn_pump)
         await c.op("start")
         await asyncio.sleep(0.01)   # ensure the task is genuinely running (not done) before we stop it
         stopped = await c.op("stop")
