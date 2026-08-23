@@ -193,9 +193,28 @@ self-measures).
         session is plausibly mid-work-unit on the consumer, and §👥.2d's collision is on the remote
         between two private trees where no hook can see it.
 
-      - **B3 · TCH fiducial-network decision** and **B5 · a genuinely blind KNOWN-CLOCK scoring run**
-        remain genuinely open. B5 is **procedural and cannot be discharged by one session** — its
-        whole point is that one operator ran both legs — so it needs two, and a single session ticking
-        it would reproduce the defect it exists to fix.
+      - **B3 · TCH fiducial-network decision — DECIDED 2026-08-23**, recorded as
+        `O2RING-TIME-CAPABILITY-WIRING` §4a and its Done-when box ticked. **Adopted** as the TCH
+        direction; the RTC stays declined as a corner. But the "first closure residual" half of the
+        item **cannot be computed from the existing captures, and the block is structural rather than
+        a data gap**: a closure needs three independently observed pairwise offsets and only
+        H10↔Verity exists (+140 ± 35 ms pooled), because the ring fails its own detection band at
+        2/5 · 2/5 · 2–3/5 — the sole device to do so. Worse, §4's recorded workaround (derive the ring
+        onset from the command stamp plus the measured H10-leg latency) makes the three-way sum
+        **identically zero by construction** — a closure that cannot fail, which is worse than none.
+        Raising the buzz is not available either: the 2026-08-20 sweep found motor 60 already IS the
+        through-stack floor. The untested route is the ring's OPTICAL channels as an independent
+        onset; anything else is group C field work.
+
+      - **B4 · run `o2ring-dat-timefit` routinely — DONE 2026-08-23.** `trio-batch.mjs writeArrival`
+        now invokes it, recording a `datTimefit` block beside `ringClock`. Verified on a real box
+        night (2026-08-13): converged, lag −9 s, spo2 −10 / pulse −9, pulseErr 0.784. Branches on
+        `converged` rather than `ok`, and the cross-check against the RTC readback is gated as a pure
+        function because no local night carries a `_rtclog.csv` — that branch cannot execute on this
+        machine at all.
+
+      - **B5 · a genuinely blind KNOWN-CLOCK scoring run** remains open and is **procedural: it cannot
+        be discharged by one session** — its whole point is that one operator ran both legs — so a
+        single session ticking it would reproduce the defect it exists to fix.
 - [ ] C: all four field results recorded in their home briefs after one box session.
 - [ ] D items: opened as their own executable units when picked up; this brief only orders them.

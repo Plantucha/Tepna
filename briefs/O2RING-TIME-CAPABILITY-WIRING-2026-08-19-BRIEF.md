@@ -50,6 +50,43 @@ phone-captured nights carrying no second clock at all. **What COULD change TCH i
 three-way leg** (ring↔H10↔Verity, one mechanical event in three records, ~±8–20 ms): three genuinely
 shared fiducials would over-determine the pairwise offsets — that is a fiducial network, not a hat,
 and it is the better instrument for this corpus. Route TCH effort there.
+### §4a · ADOPTED as the direction — but the first CLOSURE RESIDUAL cannot be computed, and the reason is structural (2026-08-23)
+
+`FINISHED-WORK-IMPROVEMENTS` §B3 asks for the decision plus "a first closure residual from the
+existing run-C / morning-calibration captures". The decision above stands and is recorded here as
+**adopted**: the RTC is declined as a corner, the fiducial network is the TCH direction.
+
+**The closure residual is a different matter, and asking for it exposes why.** A closure needs three
+*independently observed* pairwise offsets — `ring↔H10`, `H10↔Verity`, `Verity↔ring` — whose sum must
+be zero. Only the middle one exists as an observation. The ring's own leg does not, and this brief
+already says so twice:
+
+| leg | observed? | evidence |
+|---|---|---|
+| H10↔Verity | **yes** | +193.5 ± 64 (night) → +118.5 ± 41 (morning) → pooled **+140 ± 35 ms** |
+| ring↔H10 · Verity↔ring | **no** | ring self-detection **2/5, 2/5, 2–3/5** — the only device failing the pre-stated ≥4/5 band |
+
+🔴 **And the recorded workaround would make the closure VACUOUS.** §4 offers, for the ring-side onset,
+*"simply from the command stamp + the measured H10-leg latency"*. Substitute that and the ring↔H10
+offset is **defined** as the H10-leg latency, so the three-way sum is **identically zero by
+construction** — a closure that cannot fail, measuring nothing. That is the same shape this repo keeps
+finding, and it is worse here than no number at all, because a zero residual reads as the network
+being consistent.
+
+**So the residual is instrument-gated, not data-gated**, and no re-analysis of run C or the morning
+calibration can produce it. Raising the buzz does not help: the 2026-08-20 sweep found **motor 60 IS
+the through-stack detection floor** (40 → 1/3, 20 → ~0/3), and 60 is what those 2/5 runs already used.
+
+**What would supply a real third corner**, in increasing cost:
+1. **The ring's OPTICAL channels as an independent onset** — §4 names this beside the command-stamp
+   shortcut, and it is the only untested option here. It needs no new hardware, but it does need a
+   capture where the ring's PPG/motion streams are recorded across a buzz, plus a detector. Until
+   measured its detection rate is unknown, not assumed.
+2. **A different shared physical event** all three devices genuinely observe — that belongs to the box
+   evening (`FINISHED-WORK` group C), not to re-analysis.
+
+**Do not report a closure residual until one of those exists.** Until then this is a two-device pair
+with a well-measured offset, which is a useful instrument and is not a network.
 
 ## 5 · PAT — first scored run under the shipped hostAxis offset (2026-08-19)
 
@@ -83,4 +120,10 @@ the waveform side.
 - [ ] 2a ships behind the OxyDex gates (suite + provenance; export field is additive).
 - [ ] 2b ships in the Integrator with a fixture where a planted RTC reset is vetoed.
 - [ ] 2c lands in trio-batch with the offset visible in a real night's arrival JSON.
-- [ ] §4's fiducial-network alternative is either adopted into the TCH roadmap or explicitly declined.
+- [x] §4's fiducial-network alternative is either adopted into the TCH roadmap or explicitly declined.
+      **ADOPTED as the direction 2026-08-23 (§4a); the RTC stays declined as a corner.** The first
+      closure residual `FINISHED-WORK` §B3 asks for is NOT computable from the existing captures, and
+      the block is structural rather than a data gap: only H10↔Verity is an observed offset
+      (+140 ± 35 ms), the ring fails its own detection band at 2/5 on every run, and §4's recorded
+      workaround — deriving the ring onset from the command stamp plus the H10-leg latency — makes the
+      three-way sum identically zero by construction. A closure that cannot fail is worse than none.
