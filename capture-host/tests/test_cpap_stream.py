@@ -347,6 +347,35 @@ def _connector():
     return connect, events
 
 
+def _slow_connector():
+    """Like `_connector` but connect() YIELDS before it registers — so two concurrent starts CAN interleave
+    at the await. Without the §7 lock both would pass the _running() check during the yield and both connect;
+    with it, the loser waits and sees already-running. This is what makes the race testable."""
+    events = {"connected": 0, "disconnected": 0}
+
+    async def connect():
+        await asyncio.sleep(0.01)          # the interleave window the lock must close
+        events["connected"] += 1
+
+        async def write(_f):
+            pass
+
+        async def recv_frame():
+            await asyncio.sleep(3600)
+
+        async def disconnect():
+            events["disconnected"] += 1
+        return write, recv_frame, disconnect
+    return connect, events
+
+
+async def _deaf_pump(bus, write, recv_frame, pk, cid, *, channels=None, should_stop=None, extra_sinks=None):
+    """A pump that IGNORES should_stop and never ends — the §8 emergency case a cooperative stop can't
+    resolve, forcing the cancel-and-record path."""
+    await asyncio.sleep(3600)
+    return 0
+
+
 def test_controller_start_spawns_a_stream_and_stop_tears_it_down():
     async def go():
         connect, events = _connector()
@@ -370,9 +399,9 @@ def test_controller_start_spawns_a_stream_and_stop_tears_it_down():
         assert events["disconnected"] == 1
         assert set(bus.unregistered) == {"cpap_flow", "cpap_pressure"}
         assert not c._running()
-        # the running task must actually have been cancelled — not merely detached. A stop that only
-        # cancels a task it thinks is DONE (an inverted guard) would leave this one running.
-        assert running_task.cancelled(), "stop must cancel the live task, not leak it"
+        # §8: the COOPERATIVE stop ends the task on its own (should_stop → the pump returns), so it is
+        # DONE but NOT cancelled — no leak, no emergency cancel. Cancellation is now the exception path.
+        assert running_task.done() and not running_task.cancelled(), "stop ends the task cooperatively"
     _run(go())
 
 
@@ -556,6 +585,84 @@ def test_load_as11_creds_returns_none_for_missing_malformed_or_incomplete(tmp_pa
     empty_val = tmp_path / "empty.json"
     empty_val.write_text(json.dumps({"masterPairKey": "", "clientId": "c", "ble_addr": "x"}))
     assert capture._load_as11_creds(str(empty_val)) is None, "an empty required value is not complete"
+
+
+# ── §7 START/STOP CONCURRENCY (the lock) ─────────────────────────────────────────
+def test_controller_concurrent_starts_yield_ONE_stream_not_two():
+    """§7: two op('start') fired together produce exactly ONE connect + one stream; the loser sees
+    already-running. Without the lock both pass _running() during the connect yield and both spawn — two
+    owners on one link. The invariant is at-most-one-owner."""
+    async def go():
+        connect, events = _slow_connector()      # connect yields → the starts CAN interleave
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_idle_pump)
+        r1, r2 = await asyncio.gather(c.op("start"), c.op("start"))
+        assert events["connected"] == 1, "exactly one radio open — the lock serialised the transition"
+        assert r1["ok"] and r2["ok"] and (r1.get("already") or r2.get("already")), "one saw already-running"
+        assert c._running()
+        await c.op("stop")
+    _run(go())
+
+
+def test_controller_concurrent_stops_tear_down_once():
+    """§7: two op('stop') fired together don't double-tear-down — both return stopped, the link closes once."""
+    async def go():
+        connect, events = _connector()
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_idle_pump)
+        await c.op("start")
+        r1, r2 = await asyncio.gather(c.op("stop"), c.op("stop"))
+        assert r1 == {"ok": True, "streaming": False} and r2 == {"ok": True, "streaming": False}
+        assert events["disconnected"] == 1, "the link is torn down once, not twice"
+        assert not c._running()
+    _run(go())
+
+
+def test_controller_start_while_stopping_is_serialised_not_interleaved():
+    """§7: op('stop') and op('start') fired together are serialised — never a half-state where a new stream
+    spawns mid-teardown. Whichever wins the lock, teardown never exceeds setup and the end state is clean."""
+    async def go():
+        connect, events = _slow_connector()
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_idle_pump)
+        await c.op("start")
+        await asyncio.gather(c.op("stop"), c.op("start"))
+        assert events["disconnected"] <= events["connected"], "never torn down more than opened"
+        assert (c._running() and not c._task.done()) or (not c._running()), "coherent final state"
+        if c._running():
+            await c.op("stop")
+    _run(go())
+
+
+# ── §8 STOP SEMANTICS (cooperative normal, cancellation recorded) ─────────────────
+def test_controller_stop_is_COOPERATIVE_and_does_not_cancel_a_well_behaved_pump(caplog):
+    """§8: a pump that respects should_stop ends on its own — stop neither cancels it nor logs the
+    emergency line. Cooperative is the normal path."""
+    async def go():
+        connect, _ = _connector()
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_idle_pump)
+        await c.op("start")
+        t = c._task
+        with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+            await c.op("stop")
+        assert t.done() and not t.cancelled(), "ended cooperatively, not cancelled"
+        assert not any("emergency" in r.message.lower() for r in caplog.records), "no emergency cancel"
+    _run(go())
+
+
+def test_controller_stop_CANCELS_and_RECORDS_when_the_pump_will_not_stop(monkeypatch, caplog):
+    """§8: a deaf pump (ignores should_stop) can't stop cooperatively, so after the grace window stop
+    CANCELS it — and RECORDS that the emergency fired, so a truncated recording is never ambiguous."""
+    monkeypatch.setattr(CS, "STOP_GRACE_S", 0.05)   # keep the test fast
+    async def go():
+        connect, _ = _connector()
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_deaf_pump)
+        await c.op("start")
+        t = c._task
+        with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+            res = await c.op("stop")
+        assert res == {"ok": True, "streaming": False}
+        assert t.cancelled(), "the deaf pump was cancelled (emergency)"
+        assert any("emergency" in r.message.lower() and "cancel" in r.message.lower()
+                   for r in caplog.records), "the cancellation is RECORDED"
+    _run(go())
 
 
 # ── capture._build_cpap_controller (pure wiring) ─────────────────────────────────
