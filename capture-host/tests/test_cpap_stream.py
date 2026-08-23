@@ -579,10 +579,10 @@ def test_build_controller_honours_an_explicit_creds_path_and_adapter(tmp_path):
     assert ctl._load_creds()["clientId"] == "z"
 
 
-def test_build_controller_wires_a_QUARANTINED_edf_sink_when_edf_dir_is_set(tmp_path):
-    """Setting cpap.ble_stream.edf_dir enables the on-disk EDF sink: the controller gets a factory that
-    builds a fresh EdfSink rooted there and — critically — DEFAULT-QUARANTINED (flow scale unverified), so
-    a provisional-unit file cannot reach the trusted set. The serial comes from config (provisional)."""
+def test_build_controller_wires_a_VERIFIED_edf_sink_now_that_the_pin_landed(tmp_path):
+    """Setting cpap.ble_stream.edf_dir enables the on-disk EDF sink. Post-pin (2026-08-23): flow_scale_verified
+    now DEFAULTS TRUE — the flow unit is confirmed L/s and the clock is local-civil, so files land in the
+    committed root, not PENDING. Setting flow_scale_verified: false re-quarantines. Serial from config."""
     import capture
     import cpap_edf_writer
     out = tmp_path / "cpap-ble"
@@ -592,7 +592,10 @@ def test_build_controller_wires_a_QUARANTINED_edf_sink_when_edf_dir_is_set(tmp_p
     sink = ctl._edf_sink_factory()
     assert isinstance(sink, cpap_edf_writer.EdfSink)
     assert sink._out_root == str(out) and sink._serial == "23211234567"
-    assert sink._verified is False, "quarantined by default — the flow scale is not yet pinned"
+    assert sink._verified is True, "verified by default now that the pin confirmed the flow unit"
+    # explicit opt-out re-quarantines
+    req = {"cpap": {"ble_stream": {"edf_dir": str(out), "flow_scale_verified": False}}}
+    assert capture._build_cpap_controller(object(), req, str(tmp_path / "c.yaml"))._edf_sink_factory()._verified is False
     # serial is provisional — an absent config value falls back to a clear placeholder, never a wrong guess
     ctl2 = capture._build_cpap_controller(object(), {"cpap": {"ble_stream": {"edf_dir": str(out)}}},
                                           str(tmp_path / "config.yaml"))
