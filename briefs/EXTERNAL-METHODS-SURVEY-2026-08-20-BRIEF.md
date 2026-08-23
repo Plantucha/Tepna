@@ -49,6 +49,59 @@ would embarrass us:
 and a paired comparison, no new data. **Done when:** the recovery rate at each fiducial is recorded with
 its n, and the choice is made on that number rather than on this paper.
 
+### MEASURED 2026-08-23 — the answer is NO. The fiducial is not the mechanism.
+
+`tools/pat-fiducial-compare.mjs`, 38 nights, **30 analysed** (8 skipped — see below), 20
+circular-shift surrogates per arm. Same night selection, same ACC-anchor clock alignment, same
+leave-one-block-out strict acceptance as `pat-matchrate-strict.mjs`; only the fiducial moves.
+
+**THREE ARMS, because two cannot answer the question.** Acceptance keeps a beat only if its
+R→fiducial lag lies in a 200–650 ms physiological window. The half-amplitude point sits **later** on
+the pulse by construction — measured here at a median **89.5 ms** later (range 73.8–96.2 over 30
+nights) — so a foot-tuned window pushes lags out and manufactures a fiducial *failure* that is
+really a window artefact. `pat-sd-is-the-window` already records that this window dominates the
+statistics here. So the half fiducial is scored twice: at the fixed window, and at a window
+re-centred on that night's own median offset.
+
+| arm | window | fiducial | median matchRate | nights beating their own null |
+|---|---|---|---|---|
+| `base` | default | foot | **0.0575** | **15 / 30** |
+| `halfFixed` | default | half-amplitude | 0.0620 | 15 / 30 |
+| `halfCentred` | re-centred | half-amplitude | **0.0579** | **15 / 30** |
+
+**Read the paired per-night differences, not the medians** — an aggregate can hide a systematic
+regression, and here it would have hidden the opposite:
+
+| comparison | median Δ | IQR | max abs Δ | better / worse / tie |
+|---|---|---|---|---|
+| `halfCentred − base` — **the fiducial** | **−0.0000** | 0.0014 | 0.0054 | 13 / 15 / 2 |
+| `halfFixed − base` — fiducial **and** window | +0.0022 | 0.0202 | 0.0644 | 17 / 12 / 1 |
+
+Control the window and the effect is a coin flip with an IQR of 0.0014. **The same 15 nights beat
+their null under both fiducials — the set difference is empty in both directions.** Leave the window
+uncontrolled and you get a nominal +0.0022 with a **14× wider** spread and per-night swings to 0.064:
+`halfFixed` calls 2026-07-17 a win (0.101 vs 0.036) and 2026-07-18 a loss (0.054 vs 0.090) on
+consecutive nights, and swaps two nights in each direction on the beats-null verdict. **That entire
+signal is the acceptance window moving, not the fiducial** — which is exactly the two-arm comparison
+this section as written would have produced, and it would have been read as support for the paper.
+
+**Ajtay's own estimand — imprecision, not recovery — also shows nothing.** Residual IQR: base median
+**38.0 ms**, half-amplitude **38.1 ms**; paired median **−0.11 ms**, 16 nights better / 14 worse.
+
+**And there is a mechanism, not just a null.** The (half − foot) offset is nearly constant — 89.5 ms
+median across 30 nights, spread 22 ms — and the strict statistic's leave-one-block-out centre absorbs
+a constant offset exactly. A fiducial change that is almost a pure translation therefore *cannot*
+move this statistic, whatever the paper found on 300 s of supine data. Caveat 3 above turned out to
+be the operative one in an unexpected way: it is not that the half-amplitude point is less stable on
+our hardware, it is that on our hardware the two points differ by a constant this estimator is
+designed to ignore.
+
+**The real constraint is upstream of the fiducial.** Of 38 nights, 8 never reach the comparison:
+**5 fail clock alignment** (one usable shared ACC movement), 2 have no parseable ECG + Verity-PPG
+pair, 1 has zero overlap. Of the 30 that do, **half** beat chance under every fiducial. PAT recovery
+on this corpus is gated by clock alignment and coupling quality — `PAT-NO-VALID-ANCHOR`'s own
+subject — and this section's confident "probably our bug" was wrong. **Do not switch fiducials.**
+
 ## 2 · 🔴 Our failed aperiodic alignment used the method the literature calls the weak one
 
 **Unblocks:** `KNOWN-CLOCK-ADVERSARIAL-CAPTURE-FOLLOWUPS`' remaining open box.
@@ -122,8 +175,36 @@ brief's related work; not worth building against.
 
 ## 6 · Done when
 
-- [ ] §1 measured — PAT recovery rate at base vs half-amplitude fiducial on the same 38 nights, each
-      with its n, and the fiducial chosen on that number.
+- [x] §1 measured — **DONE 2026-08-23, and the answer is NO. The fiducial is not the mechanism, and
+      the fiducial is NOT being switched.**
+
+      `tools/pat-fiducial-compare.mjs` over 38 nights, **30 analysed**, 20 surrogates per arm, three
+      arms so the acceptance window can be separated from the fiducial. With the window controlled,
+      `halfCentred − base` has a median paired Δ of **−0.0000** (IQR 0.0014, max abs 0.0054, 13
+      better / 15 worse / 2 tie) and **the identical 15 of 30 nights beat their own circular-shift
+      null under both fiducials, with an empty set difference in both directions.** Ajtay's own
+      estimand agrees: residual IQR 38.0 ms vs 38.1 ms, paired median −0.11 ms.
+
+      The two-arm comparison this section asked for would have reported **+0.0022** and a 14× wider
+      spread — all of it the window moving, since the half-amplitude point lands a near-constant
+      **89.5 ms** later (range 73.8–96.2 over 30 nights) and a foot-tuned 200–650 ms window shifts
+      relative to it. Full tables in §1.
+
+      Two things this bought that the survey did not anticipate. First a **mechanism**: a near-pure
+      translation of ~89.5 ms is exactly what the strict statistic's leave-one-block-out centre
+      absorbs, so this estimator *cannot* respond to this fiducial change whatever the paper found on
+      300 s of supine data. Second the **real constraint**: 8 of 38 nights never reach the comparison
+      and **5 of those fail clock alignment** on a single usable shared ACC movement, while half of
+      the 30 that do reach it never beat chance under any fiducial. Recovery here is gated by
+      alignment and coupling, not by where on the pulse the fiducial sits.
+
+      🔴 It also surfaced a real defect in the tool the survey commissioned: `halfAmplitudeIndex`
+      indexed `bp[footI]` directly while the shipped producer emits **fractional** foot positions, so
+      it refused **15295 of 15295** beats on the first real night while its own `--selftest` stayed
+      green on planted integer indices. Fixed and gated in the merge suite
+      (`pat · fiducial · half-amplitude`, 3 assertions confirmed failing under the pre-fix indexing).
+      Had that shipped unnoticed, §1 would have read as "the half-amplitude fiducial is unusable on
+      our hardware" — a wrong conclusion in the paper's favour.
 - [x] §2 measured — **DONE 2026-08-23, and the answer is NO. Nearest Advocate does not rescue the
       alignment; it replaces a VISIBLY broken estimator with a QUIETLY broken one.**
 
