@@ -72,6 +72,17 @@ ALLOW_FUNCS = {
     # ── investigated 2026-08-14 (brief §5). Each is CAPABILITY THAT EXISTS ELSEWHERE, not a gap. The
     # reason is recorded here so the next reader spends a line rather than an investigation — which is
     # the allowlist's whole job, and why every entry prints with its justification.
+    # ── OxyII acquisition charter G2 (2026-08-23). The inventory ledger ships as a STANDALONE module
+    # by design: charter §4 sequences G2 (the vocabulary) before G1 (the `_pull_once` wiring that
+    # consumes it), the same shape the CPAP arm used. So these are not unwired-by-oversight, they are
+    # unwired-by-schedule, and the entries come OUT when G1 lands rather than staying forever.
+    # ⚠️ Deliberately NOT a module-wide exemption. `classify`, `reconcile`, `identity` and `current`
+    # are the logic G1 must call, so if THOSE ever appear here it means the wiring regressed and the
+    # gate should say so. Only the plumbing is listed.
+    "append_row": "oxy_inventory G2 — standalone until G1 wires the ledger into _pull_once (charter §4)",
+    "load_rows": "oxy_inventory G2 — standalone until G1 wires the ledger into _pull_once (charter §4)",
+    "make_row": "oxy_inventory G2 — standalone until G1 wires the ledger into _pull_once (charter §4)",
+    "sha256_bytes": "oxy_inventory G2 — standalone until G1 wires the ledger into _pull_once (charter §4)",
     "oxy_is_finalized": "redundant — pull_session.py already gates re-pulls on finalisation via "
                         "parse_trailer, which that caller needs anyway for the device summary",
     "busy_with": "redundant — offline_lock.slot() raises OfflineBusy(_busy), so the label already "
@@ -106,6 +117,13 @@ ALLOW_FUNCS = {
     "start_stream": "CPAP-BLE pull core — the StartStream (live waveform) RPC builder, used by the stream probe (see note)",
     "stream": "CPAP-BLE pull core — the live StreamData waveform consumer the operator stream probe drives (see note)",
     "make_cipher": "CPAP-BLE pull core — the AES-256-CBC seal/unseal the daemon/probe inject into the stdlib-only protocol layer (see note)",
+    # cpap_edf.py is the bit-accurate ResMed EDF/EDF+ WRITER (STR/BRP/PLD/EVE from captured data). Its
+    # read/write core is exercised module-internally and by the byte-identity gate; these per-type
+    # CONSTRUCTORS are the public creation API, consumed by the tests today and the BLE→EDF capture
+    # wiring next (the same shape as the AS11 protocol builders above).
+    "build_brp": "CPAP EDF writer — constructs a bit-accurate BRP.edf (flow+pressure) from captured data",
+    "build_pld": "CPAP EDF writer — constructs a bit-accurate PLD.edf (derived 2 s channels) from captured data",
+    "build_eve": "CPAP EDF writer — constructs a bit-accurate EVE.edf (EDF+ event annotations) from captured data",
 }
 
 
