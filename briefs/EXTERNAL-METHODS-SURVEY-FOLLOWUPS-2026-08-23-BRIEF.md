@@ -52,26 +52,34 @@ step, so each night's seven rows differ **only** in `anchorSigma`.
 
 | σ | median cand/h | median anchors | median corroboration | refusals | pooled cand | pooled anchors |
 |---|---|---|---|---|---|---|
-| 3 | 420.8 | 14 | 0.028 | **5** | 58409 | 664 |
-| **4 (default)** | 103.2 | **10** | 0.063 | **5** | 20905 | 531 |
-| 5 | 44.7 | 8 | 0.076 | 6 | 7524 | 412 |
-| 6 | 25.3 | 7 | 0.101 | 6 | 3414 | 343 |
-| 8 | 11.5 | 4 | 0.119 | 9 | 1813 | 249 |
-| 10 | 8.8 | 3 | 0.137 | 11 | 1336 | 203 |
-| 12 | 6.75 | 3 | 0.152 | 13 | 1037 | 167 |
+| 3 | 135.9 | 14 | 0.035 | **4** | 58308 | 666 |
+| **4 (default)** | 67.1 | **10** | 0.064 | **4** | 20863 | 533 |
+| 5 | 44.5 | 8 | 0.084 | 5 | 7512 | 414 |
+| 6 | 25.3 | 7 | 0.101 | 5 | 3414 | 345 |
+| 8 | 11.5 | 4 | 0.124 | 8 | 1818 | 251 |
+| 10 | 8.9 | 3 | 0.138 | 10 | 1341 | 205 |
+| 12 | 6.8 | 3 | 0.154 | 12 | 1041 | 169 |
 
-**Against the band as written:** TARGET (≤ 60 cand/h) is met from σ5. **CONFIRMS (corroboration ≥ 0.20)
-is never met** — the maximum is 0.152 at σ12. GUARD (refusals ≤ 5) holds only at σ3 and σ4. **The
-TARGET and the GUARD are mutually unsatisfiable on this corpus**, and that is the result: there is no
-threshold that buys the corroboration rate without buying refusals with it.
+*(Re-measured under §2's corrected fragment selection. The first run of this table used the
+size-ranked shortlist and is superseded: every refusal count was one higher, and the σ3/σ4 candidate
+rates were inflated — 420.8 and 103.2 per hour against 135.9 and 67.1 — because a wrong-span fragment
+contributes candidates over a span the other device never covered. **Nothing else moved and no
+conclusion changed**: corroboration is identical to three decimals at σ4, still never reaches 0.20,
+refusals still rise monotonically, still zero conversions and zero non-monotone anchor counts.)*
 
-**σ4 is already the answer.** It is the largest σ at the refusal minimum, and σ3 buys nothing for 3×
-the candidates. Going up: **zero** nights convert refusal → alignment at any σ above 4, while **8
+**Against the band as written:** TARGET (≤ 60 cand/h) is essentially met at σ4 itself (67.1) and
+fully from σ5. **CONFIRMS (corroboration ≥ 0.20) is never met** — the maximum is 0.154 at σ12. GUARD
+(refusals ≤ 5, and the floor is now 4) holds only at σ3–σ5. **The TARGET and the CONFIRMS clause are
+unreachable together on this corpus**, and that is the result: there is no threshold that buys the
+corroboration rate without buying refusals with it.
+
+**σ4 is already the answer.** It is the largest σ at the refusal minimum of 4, and σ3 buys nothing for
+twice the candidates. Going up: **zero** nights convert refusal → alignment at any σ above 4, while **8
 nights that align at σ4 are LOST** (2026-07-16 goes 16 anchors → 1 at σ8; 07-19 goes 18 → 1 at σ10).
 
 ⚠️ **THE HYPOTHESIS ABOVE WAS HALF WRONG, AND THE WRONG HALF WAS THE OPERATIONAL ONE.** Its mechanism
-holds: pooled candidates fall **20×** (20905 → 1037) while pooled anchors fall only **3.2×**
-(531 → 167), so the efficiency ratio climbs 0.025 → 0.161 and the threshold genuinely does discard
+holds: pooled candidates fall **20×** (20863 → 1041) while pooled anchors fall only **3.2×**
+(533 → 169), so the efficiency ratio climbs 0.026 → 0.162 and the threshold genuinely does discard
 uncorroborated candidates preferentially. But the conclusion drawn from it — that this could reduce
 refusals — is impossible **by construction**, and the draft should have said so before any sweep ran:
 anchors are a SUBSET of candidates, a refusal is `anchors < minAnchors`, so raising a threshold can
@@ -197,12 +205,13 @@ recovery figure there carries its denominator and its acceptance rule.
 
 - [x] §1 — **DONE 2026-08-23. The band was pre-stated in source before the run, and NOT met. σ4
       stays; the candidate threshold is not a lever.** Seven σ values over 37 nights. TARGET
-      (≤ 60 cand/h) is met from σ5, CONFIRMS (corroboration ≥ 0.20) is never met at all (max 0.152),
+      (≤ 60 cand/h) is essentially met at σ4 itself, CONFIRMS (corroboration ≥ 0.20) is never met at all (max 0.154),
       and GUARD (refusals ≤ 5) holds only at σ3–σ4 — the target and the guard are mutually
       unsatisfiable here. Zero refusal→alignment conversions above σ4; 8 nights that align at σ4 are
       lost above it. The hypothesis' mechanism held (pooled candidates fall 20× against anchors 3.2×)
       but its operational claim was impossible by construction, since anchors ⊆ candidates makes the
-      anchor count non-increasing in σ — measured with zero exceptions across 37 nights.
+      anchor count non-increasing in σ — measured with zero exceptions across 37 nights. Table
+      re-measured 2026-08-23 under §2's corrected fragment selection; no conclusion changed.
 - [x] §2 — **DONE 2026-08-23. Both, as it turns out.** The rules agree on 36 of 37 nights, so the
       real divergence is not the shortlist but the target: `pat-matchrate-strict` selects ACC
       covering the BEAT SPAN, `acc-shared-movement` the best ACC↔ACC overlap. That difference is
