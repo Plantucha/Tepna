@@ -456,7 +456,7 @@ as an instruction to implement. Authoritative rules live in `CLAUDE.md`, this RE
 
 ## Licensing
 
-Apache-2.0. Author: **Michal Planicka**. Product brand: **Tepna**. See `LICENSE`, `NOTICE`,
+Apache-2.0. Author: **Michal Planicka** ([ORCID 0009-0008-3501-3596](https://orcid.org/0009-0008-3501-3596)). Product brand: **Tepna**. See `LICENSE`, `NOTICE`,
 `CITATION.cff`, and `THIRD-PARTY.md`. User-facing surfaces carry the health intended-use
 disclaimer — Tepna is **not a medical device** and does not diagnose, treat, or monitor any
 condition.
