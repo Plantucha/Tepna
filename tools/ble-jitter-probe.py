@@ -59,8 +59,14 @@ def parse(lines):
 
 
 def _mad(xs, center):
-    """Median absolute deviation — robust jitter, unlike stdev which a single outlier blows up."""
-    return statistics.median(abs(x - center) for x in xs) if xs else 0.0
+    """Half-IQR, not MAD (name kept for call-site stability): alternating +/-J residuals are
+    BIMODAL and the median lands ON a cluster, collapsing MAD (1.2 ms against a 5.5 ms plant,
+    measured on the capture-host sibling 2026-08-23). Half-IQR is J for alternating +/-J and
+    ~equals MAD on Gaussians. `center` is unused but kept so call sites stay stable."""
+    if len(xs) < 4:
+        return statistics.median(abs(x - center) for x in xs) if xs else 0.0
+    q = statistics.quantiles(xs, n=4)
+    return (q[2] - q[0]) / 2.0
 
 
 def analyse(dev):
