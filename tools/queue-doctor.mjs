@@ -48,6 +48,16 @@ import { execFileSync } from 'node:child_process';
    human; acting later just lengthens the deadlock. */
 export const IDLE_MIN = 20;
 
+/* Minutes after which a stuck PR OUTRANKS the serialisation wait below. Strictly greater than
+   IDLE_MIN, because it answers a different question: IDLE_MIN asks "might the owner still be
+   mid-rebase?", this asks "has serialising demonstrably stopped working?".
+
+   PRE-STATED FROM THE CI CYCLE, not from the outcome: the worst-case required-check cycle here is
+   ~15 min (CLAUDE.md §5), so a PR still stuck after 30 min has waited TWO full cycles. Whatever the
+   doctor was serialising behind either merged (and this PR should have been picked up next) or did
+   not (so the wait was never going to pay). Either way the premise has failed. */
+export const STARVED_MIN = 30;
+
 /* ── PURE CORE ───────────────────────────────────────────────────────────────────────────────────
    Separated so the decisions are gate-backed without `gh`, a network or a clock — the same shape as
    land-pr's `decide()`, for the same reason: this tool acts on other sessions' work unattended. */
@@ -71,8 +81,28 @@ export function classify(pr, required, nowMs) {
      four unreported contexts; stated here rather than inherited, because this tool counts too. */
   const seen = new Set(names.map((c) => c.name));
   const absent = required.filter((c) => !seen.has(c));
-  if (pending.length || absent.length) {
-    return { k: 'running', why: pending.length ? `${pending.length} required check(s) running` : `awaiting: ${absent.join(', ')}` };
+  if (pending.length) return { k: 'running', why: `${pending.length} required check(s) running` };
+  /* 🔴 ABSENT IS NOT PENDING, AND COLLAPSING THEM DEADLOCKED THE QUEUE. Both used to return
+     `running`, so both blocked the picker below — but they need OPPOSITE responses. A pending check
+     will resolve; an absent one may never report at all, and CLAUDE.md §5 says so about this tool's
+     sibling: "a required context that was never reported at all (stop — a skipped matrix job reports
+     an unexpanded literal name, so waiting cannot fix it)".
+     Measured from this timer's own journal, last 6 h: 22 runs blocked on genuinely-pending checks and
+     **10 blocked on `awaiting: test`** — a context that had not reported. Those ten were waiting for
+     something that could not arrive, while the PR needing the update was the very one being waited
+     on: classified `running`, so it blocked everything AND was excluded from `cands`, which only
+     takes `stuck-behind`. Simultaneously the blocker and unfixable.
+     An update is the actual remedy — it pushes a new head, which is what makes checks report. So an
+     awaiting PR no longer blocks, and if it is BEHIND and armed it becomes a candidate. */
+  if (absent.length) {
+    const idleMinA = pr.updatedAtMs ? (nowMs - pr.updatedAtMs) / 60000 : 0;
+    return {
+      k: 'awaiting',
+      why: `awaiting: ${absent.join(', ')} — never reported, so waiting cannot fix it`,
+      idleMin: idleMinA,
+      behind: pr.mergeState === 'BEHIND',
+      armed: !!pr.autoMerge
+    };
   }
   if (pr.mergeState === 'DIRTY') return { k: 'dirty', why: 'merge conflict — needs a human rebase' };
 
@@ -98,11 +128,44 @@ export function pick(classified) {
   /* SERIALISE. If any PR has required checks in flight it is about to merge and re-BEHIND everything
      else, so a second update now is guaranteed waste. Note this gates on REQUIRED checks only: an
      advisory CodeQL run must not block the queue forever — the advisory/required distinction that
-     broke land-pr twice in one day. */
-  const busy = classified.find((c) => c.k === 'running');
-  if (busy) return { action: 'wait', why: `#${busy.pr.number} is mid-CI (${busy.why}) — serialising` };
+     broke land-pr twice in one day.
 
-  const cands = classified.filter((c) => c.k === 'stuck-behind' && c.idleMin >= IDLE_MIN);
+     🔴 BUT SERIALISING UNCONDITIONALLY IS A LIVELOCK, AND IT RAN ALL DAY ON 2026-08-23. The premise
+     above — "it is about to merge" — holds for ONE PR finishing CI. It does not hold for a queue
+     several sessions are pushing to, because a fresh push is itself mid-CI, so there is ALWAYS one
+     running and the doctor never reaches the picker below. Measured from its own journal, every ten
+     minutes for hours:
+
+         15:41  ⚠ GREEN AND STUCK: #1680 green + BEHIND + armed, idle 34m
+         15:41  wait: #1681 is mid-CI — serialising
+         15:50  ⚠ GREEN AND STUCK: #1681 idle 25m, #1680 idle 43m
+         15:50  wait: #1682 is mid-CI — serialising
+         16:01  ⚠ GREEN AND STUCK: #1680 idle 54m
+         16:01  wait: #1682 is mid-CI — serialising
+
+     It DETECTED the stuck PRs correctly on every run and acted on none of them; the whole day's
+     queue was hand-drained instead. The detector was never the defect — the gate in front of it was.
+
+     ⚠️ The obvious narrower fix does NOT work, and it was tried first: "only serialise behind a PR
+     that is not itself BEHIND", on the reasoning that a BEHIND PR cannot merge so cannot re-BEHIND
+     anyone. True, and useless here — a PR is mid-CI precisely because it was just pushed, so it is
+     usually CURRENT at that moment. The blocker is a STREAM of legitimately-current pushes, not a
+     stalled one.
+
+     So the escape is time, and it is the one thing that distinguishes "waiting is working" from
+     "waiting has failed": a PR starved past STARVED_MIN has outlasted two full CI cycles. Against
+     the log above it fires at 15:41 on #1680 (idle 34m) — the first run where the queue had
+     demonstrably stopped draining on its own. */
+  const busy = classified.find((c) => c.k === 'running');
+  if (busy) {
+    const starved = classified.filter((c) => c.k === 'stuck-behind' && c.idleMin >= STARVED_MIN);
+    if (!starved.length) return { action: 'wait', why: `#${busy.pr.number} is mid-CI (${busy.why}) — serialising` };
+  }
+
+  /* An AWAITING PR that is BEHIND and armed is updatable, and updating is the remedy: a new head is
+     what makes an unreported context report. It ranks below `stuck-behind` only because that state is
+     unambiguous; both are drained oldest-first by the sort below. */
+  const cands = classified.filter((c) => (c.k === 'stuck-behind' && c.idleMin >= IDLE_MIN) || (c.k === 'awaiting' && c.behind && c.armed && c.idleMin >= IDLE_MIN));
   if (!cands.length) {
     const young = classified.filter((c) => c.k === 'stuck-behind');
     if (young.length) return { action: 'none', why: `${young.length} stuck but all idle < ${IDLE_MIN}m — leaving room for their owners` };

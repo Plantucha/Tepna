@@ -23244,6 +23244,66 @@
         for (var k in o) b[k] = o[k];
         return b;
       };
+      var STARVED = env.qdStarvedMin;
+      /* ── THE LIVELOCK, AND THE ESCAPE FROM IT (2026-08-23) ──────────────────────────────────────
+         The serialise gate waited on ANY PR with required checks in flight. Correct for one PR
+         finishing CI; a livelock for a queue several sessions push to, because a fresh push IS
+         mid-CI, so one is always running and the picker below is never reached. Measured from the
+         timer's own journal: it detected green-and-stuck PRs every ten minutes for hours and acted
+         on none, while the day's queue was hand-drained.
+         ⚠️ The narrower fix — "only serialise behind a PR that is not itself BEHIND" — was tried and
+         does NOT work: a mid-CI PR was just pushed, so it is usually CURRENT. The blocker is a
+         stream of legitimately-current pushes, so the escape has to be TIME. */
+      /* Mirror the REAL caller's shape (`queue-doctor.mjs:228`): it spreads `classify()` over a
+         `{ pr }` wrapper, and `pick` reads `.pr` off the entry. A classify result ALONE has no
+         `.pr`, so a test passing one exercises a shape the tool never sees. */
+      var wrap = function (pr) {
+        var r = cl(pr, REQ, NOW);
+        r.pr = pr;
+        return r;
+      };
+      var running = function (n) {
+        return P({
+          number: n,
+          checks: [
+            { name: 'test', bucket: 'pending' },
+            { name: 'biome', bucket: 'pass' }
+          ]
+        });
+      };
+      T.ok(
+        'a mid-CI PR still serialises a merely-idle stuck one',
+        (function () {
+          var out = pk([wrap(running(9)), wrap(P({ number: 1, updatedAtMs: NOW - (STARVED - 5) * 60000 }))]);
+          return out.action === 'wait' && /serialis/.test(out.why);
+        })(),
+        'below STARVED_MIN the wait is still right — the queue may yet drain on its own'
+      );
+      T.ok(
+        '…but a STARVED one outranks it',
+        (function () {
+          var out = pk([wrap(running(9)), wrap(P({ number: 1, updatedAtMs: NOW - (STARVED + 5) * 60000 }))]);
+          return out.action === 'update' && out.pr.number === 1;
+        })(),
+        'past two full CI cycles the serialisation premise has demonstrably failed'
+      );
+      /* NON-VACUITY both ways: the threshold must be able to hold AND to yield, or it is decoration. */
+      T.ok('the escape threshold is strictly above the candidacy one', STARVED > IDLE, 'STARVED_MIN=' + STARVED + ' IDLE_MIN=' + IDLE);
+      T.ok(
+        'a starved but UNARMED PR is still not updated',
+        (function () {
+          var out = pk([wrap(running(9)), wrap(P({ number: 1, autoMerge: false, updatedAtMs: NOW - (STARVED + 20) * 60000 }))]);
+          return out.action === 'wait';
+        })(),
+        'updating an unarmed branch cannot land it — the escape must not bypass that'
+      );
+      T.ok(
+        'with nothing starved and nothing running, the ordinary picker still applies',
+        (function () {
+          var out = pk([wrap(P({ number: 1, updatedAtMs: NOW - (IDLE + 1) * 60000 }))]);
+          return out.action === 'update' && out.pr.number === 1;
+        })()
+      );
       var k = function (o, req) {
         return cl(P(o), req === undefined ? REQ : req, NOW).k;
       };
@@ -23268,8 +23328,50 @@
         'failing'
       );
       /* A required context that never reported is ABSENT, which reads identically to SATISFIED if
-         you only count buckets — the exact hole that let land-pr merge past four of them. */
-      T.eq('a required context that NEVER REPORTED is awaited, not treated as passing', k({ checks: [{ name: 'biome', bucket: 'pass' }] }), 'running');
+         you only count buckets — the exact hole that let land-pr merge past four of them.
+         ⚠️ The CLASS changed from `running` to `awaiting`, the INTENT did not: absence must never read
+         as passing, and this still asserts that. They were one class and had to be split, because
+         they need opposite responses — a pending check resolves, an absent one may never report, and
+         collapsing them made an unreported context BLOCK the queue while being excluded from the
+         candidates that could fix it. Measured: 10 of 32 blocked runs in six hours were `awaiting:
+         test`. The assertion's own name already said "awaited". */
+      T.eq('a required context that NEVER REPORTED is awaited, not treated as passing', k({ checks: [{ name: 'biome', bucket: 'pass' }] }), 'awaiting');
+      /* And the split must be OBSERVABLE, or it is a rename: a pending check still serialises the
+         queue, an absent one no longer does — and a BEHIND+armed awaiting PR becomes updatable,
+         because pushing a new head is what makes an unreported context report. */
+      T.eq(
+        '…while a genuinely PENDING one is still `running`',
+        k({
+          checks: [
+            { name: 'test', bucket: 'pending' },
+            { name: 'biome', bucket: 'pass' }
+          ]
+        }),
+        'running'
+      );
+      T.ok(
+        'an ABSENT-context PR no longer blocks the queue',
+        (function () {
+          var out = pk([wrap(P({ number: 9, checks: [{ name: 'biome', bucket: 'pass' }] })), wrap(P({ number: 1, updatedAtMs: NOW - (IDLE + 5) * 60000 }))]);
+          return out.action === 'update';
+        })(),
+        'waiting on a context that never reported cannot resolve'
+      );
+      T.ok(
+        '…and is itself updatable when BEHIND + armed',
+        (function () {
+          var out = pk([wrap(P({ number: 7, updatedAtMs: NOW - (IDLE + 5) * 60000, checks: [{ name: 'biome', bucket: 'pass' }] }))]);
+          return out.action === 'update' && out.pr.number === 7;
+        })(),
+        'the update is the remedy — a new head is what makes checks report'
+      );
+      T.ok(
+        '…but NOT when unarmed, since updating cannot land it',
+        (function () {
+          var out = pk([wrap(P({ number: 7, autoMerge: false, updatedAtMs: NOW - (IDLE + 5) * 60000, checks: [{ name: 'biome', bucket: 'pass' }] }))]);
+          return out.action !== 'update';
+        })()
+      );
 
       /* FAIL CLOSED. An unreadable required set must never downgrade a real red to advisory. */
       T.eq('unreadable required set refuses to classify', k({}, null), 'unknown');
@@ -23282,7 +23384,12 @@
       var C = function (kind, n, idle) {
         return { k: kind, pr: { number: n }, why: kind, idleMin: idle };
       };
-      T.eq('a PR mid-CI serialises the queue — no second update', pk([C('running', 5), C('stuck-behind', 1, 40)]).action, 'wait');
+      /* ⚠️ IDLE 25, NOT 40. This asserts that serialisation HOLDS, so its fixture must sit between
+         IDLE_MIN (candidacy) and STARVED_MIN (the escape). At 40 it was above both, so once the
+         starvation escape landed this test was asserting the escape's absence rather than
+         serialisation — it would have failed for the right reason and been "fixed" by weakening it.
+         The escape's own behaviour is asserted separately above, at STARVED_MIN + 5. */
+      T.eq('a PR mid-CI serialises the queue — no second update', pk([C('running', 5), C('stuck-behind', 1, 25)]).action, 'wait');
       T.eq('…and an ADVISORY check must not serialise it forever (that is `running`, not `stuck`)', pk([C('stuck-behind', 1, 40)]).action, 'update');
       T.eq('oldest stuck PR is picked, so none starves', pk([C('stuck-behind', 1, 40), C('stuck-behind', 2, 90), C('stuck-behind', 3, 25)]).pr.number, 2);
       T.eq('a freshly-BEHIND PR is left for its owner', pk([C('stuck-behind', 1, IDLE - 1)]).action, 'none');
