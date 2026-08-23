@@ -403,7 +403,7 @@ Max information, minimum hardware, priced honestly. Every signal in the suite co
 
 | Hardware | Role | Approx. price |
 |---|---|---:|
-| **Lenovo ThinkCentre M900 Tiny** (used) | the Health Box — 24/7 bedside capture daemon, LAN server, stratum-1 clock | **$150** |
+| **Lenovo ThinkCentre M900 Tiny** (refurbished — any 6th-gen-i5 tiny works) | the Health Box — 24/7 bedside capture daemon, LAN server, stratum-1 clock | ~$80–130 |
 | **Wellue O2Ring** (O2Ring-S) | overnight SpO₂ · pulse · raw PPG → OxyDex / PpgDex | ~$170 |
 | **Polar H10** chest strap | raw ECG (~130 Hz) · RR · ACC → ECGDex / PulseDex / MotionDex | ~$90 |
 | **Polar Verity Sense** armband | raw 4-channel PPG · IMU → PpgDex / MotionDex | ~$105 |
@@ -412,7 +412,7 @@ Max information, minimum hardware, priced honestly. Every signal in the suite co
 | **nRF52840 dongle** + Zephyr firmware *(recommended alternative)* | observable, timing-honest BLE controller | ~$12 |
 | **ez Share WiFi SD card** | pulls the CPAP's SD card over WiFi, no cable | ~$25 |
 | **COOSPO H808S** chest strap | second RR source → PulseDex cross-checks | ~$35 |
-| | **Core capture kit** | **≈ $590** |
+| | **Core capture kit** | **≈ $550** |
 | **ResMed AirSense 11** | CPAP therapy (its data feeds CPAPDex) — therapy equipment, typically insurance-covered | ~$1,050 retail |
 | **Abbott Lingo** | CGM → GlucoDex — consumable biosensor | $49 / 14-day sensor |
 | **Muse S** headband | EEG → EEGDex (planned node) | ~$400 |
