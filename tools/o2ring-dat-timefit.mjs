@@ -89,7 +89,17 @@ export function bestLag(datSpo2, csvSpo2, maxLag) {
       bestN = n;
     }
   }
-  return Number.isFinite(best) ? { lagS: bestK, meanAbsErr: best, n: bestN } : null;
+  /* 🔴 A WINNER AT ±maxLag IS AN UNCONVERGED SEARCH, NOT A LAG. The scan reports the argmin over a
+     BOUNDED window, so a minimum sitting exactly on an edge means the real one is outside it and the
+     number is the window's, not the clock's. This repo has already paid for that shape once:
+     EXTERNAL-METHODS-SURVEY §2 diagnosed the aperiodic aligner by exactly this tell — "the peak
+     riding the search boundary (3850 ms at ±4 s → 5750 at ±6 s → 9000 at ±9 s), what an argmax of
+     noise does". Measured here 2026-08-23 on a real pair: the pulse column returned lagS = 600 with
+     maxLag = 600 — reported as a fit, and consumed as one.
+     `atBoundary` is returned rather than the fit suppressed, because widening `maxLag` is a
+     legitimate response and the caller needs to know that is the remedy. */
+  if (!Number.isFinite(best)) return null;
+  return { lagS: bestK, meanAbsErr: best, n: bestN, atBoundary: Math.abs(bestK) === maxLag };
 }
 
 /** Do two independent fits agree to within `tol` seconds? null if either fit is missing. PURE.
@@ -160,6 +170,47 @@ function selftest() {
   const empty = fitDatToSpo2Csv({ dat: [], csv: [], maxLag: 120 });
   ok('an empty pair returns ok=false with a reason', empty.ok === false && typeof empty.reason === 'string', JSON.stringify(empty));
   ok('…and no fabricated chosen/anchor', empty.chosen == null && empty.anchorMs == null && empty.datStartHostMs == null);
+
+  /* ── THE BOUNDARY GUARD ─────────────────────────────────────────────────────────────────────
+     Two ramps that share no common lag inside the window: the minimum is forced to an edge, which
+     is the shape a bounded argmin produces when the answer is not in range. Without the guard this
+     returned lagS = ±maxLag and was consumed as a measured lag. */
+  /* ⚠️ APERIODIC ON PURPOSE. A repeating series has MANY equal minima, so the scan returns whichever
+     it meets first and the interior control fails for a reason that has nothing to do with the guard
+     — measured while writing this: a period-7 ramp put the "interior" answer at lagS = −196. That is
+     the comb degeneracy `PAT-NO-VALID-ANCHOR` §10 recorded, reproduced in miniature. */
+  const wobble = (n, phase) => Array.from({ length: n }, (_, i) => 90 + Math.round(4 * Math.sin((i + phase) / 13) + 3 * Math.sin((i + phase) / 41)));
+  const farA = wobble(400, 0);
+  const farB = wobble(400, 137);
+  const pinned = bestLag(farA, farB, 2);
+  ok('a lag pinned to the window edge is FLAGGED, not reported as a fit', pinned == null || pinned.atBoundary === true, `lagS=${pinned && pinned.lagS} maxLag=2`);
+  const interior = bestLag(farA, farA, 200);
+  ok('…while a genuine interior minimum is not flagged', interior && interior.atBoundary === false && interior.lagS === 0, `lagS=${interior && interior.lagS}`);
+  /* Both columns pinned ⇒ the fit REFUSES rather than handing back an edge value, and says that
+     widening the window is the remedy. A caller that received lagS=±maxLag could not tell the
+     difference between "the clocks are that far apart" and "the search ran out of room". */
+  const bothPinned = fitDatToSpo2Csv({
+    dat: farA.map((v, i) => ({ spo2: v, pr: v - 30, motion: 0 })),
+    csv: farB.map((v, i) => ({ spo2: v, pr: v - 30, tMs: 1e12 + i * 1000 })),
+    maxLag: 2
+  });
+  ok('both columns pinned ⇒ ok=false, with widening named as the remedy', bothPinned.ok === false && /maxlag/i.test(bothPinned.reason || ''), bothPinned.reason);
+  ok('…and nothing is fabricated on that refusal', bothPinned.chosen == null && bothPinned.datStartHostMs == null);
+  /* `ok` and `converged` must be able to DISAGREE, or the new flag carries no information. One leg
+     pinned, the other interior: a fit is still chosen (ok) but it is single-legged (not converged). */
+  const oneLeg = fitDatToSpo2Csv({
+    dat: farA.map((v) => ({ spo2: v, pr: 60, motion: 0 })),
+    csv: farA.map((v, i) => ({ spo2: v, pr: 60, tMs: 1e12 + i * 1000 })),
+    maxLag: 200
+  });
+  ok('a flat pulse column cannot confirm ⇒ ok without converged', oneLeg.ok === true && oneLeg.converged === false, `ok=${oneLeg.ok} converged=${oneLeg.converged}`);
+  const twoLeg = fitDatToSpo2Csv({
+    dat: farA.map((v) => ({ spo2: v, pr: v - 30, motion: 0 })),
+    csv: farA.map((v, i) => ({ spo2: v, pr: v - 30, tMs: 1e12 + i * 1000 })),
+    maxLag: 200
+  });
+  ok('two independent interior legs that agree ⇒ CONVERGED', twoLeg.ok === true && twoLeg.converged === true, `converged=${twoLeg.converged} agree=${twoLeg.agree}`);
+
   console.log(fail ? `\n${fail} FAILURE(S)` : `\n${pass} assertions — all green`);
   return fail ? 1 : 0;
 }
@@ -183,13 +234,52 @@ export function fitDatToSpo2Csv({ dat, csv, maxLag = 600 }) {
     maxLag
   );
   if (!spo2 && !pulse) {
-    return { ok: false, reason: 'no lag with enough overlap — same session?', spo2: null, pulse: null, agree: null, chosen: null, anchorMs: null, datStartHostMs: null };
+    return { ok: false, converged: false, reason: 'no lag with enough overlap — same session?', spo2: null, pulse: null, agree: null, chosen: null, anchorMs: null, datStartHostMs: null };
   }
-  const agree = lagsAgree(spo2, pulse);
-  const chosen = pulse && (agree === true || !spo2) ? pulse : spo2;
+  /* An unconverged leg must not be SELECTED, and must not be allowed to cast an agreement vote —
+     two legs both pinned to the same boundary would "agree" to 0 s and read as a confirmed fit.
+     A boundary leg is therefore dropped from selection entirely; if both are pinned there is no fit
+     to report and the caller is told to widen the window rather than handed the edge value. */
+  const okSpo2 = spo2 && !spo2.atBoundary ? spo2 : null;
+  const okPulse = pulse && !pulse.atBoundary ? pulse : null;
+  if (!okSpo2 && !okPulse) {
+    return {
+      ok: false,
+      converged: false,
+      reason: `both columns' best lag sits at ±maxLag (${maxLag} s) — the search did not converge; widen --maxlag or the sessions do not overlap`,
+      spo2,
+      pulse,
+      agree: null,
+      chosen: null,
+      anchorMs: null,
+      datStartHostMs: null
+    };
+  }
+  const agree = lagsAgree(okSpo2, okPulse);
+  const chosen = okPulse && (agree === true || !okSpo2) ? okPulse : okSpo2;
   const anchorMs = csv.length ? csv[0].tMs : null;
   const datStartHostMs = anchorMs != null && chosen ? anchorMs - chosen.lagS * 1000 : null;
-  return { ok: !!chosen, reason: chosen ? null : 'neither column yielded a fit', spo2, pulse, agree, chosen, anchorMs, datStartHostMs };
+  /* 🔴 `ok` IS NOT `converged`, AND A CONSUMER MUST BRANCH ON THE SECOND ONE. Dropping a boundary
+     leg stops a fabricated value being selected; it does NOT establish that the surviving leg found
+     the right minimum. Measured 2026-08-23 on a real pair: at maxLag 600 the pulse leg is pinned and
+     SpO2 survives at 400 s; widen to 3600 and SpO2 is pinned while pulse survives at 3581 s. Both
+     pass `ok`, and they disagree by 3181 s — the answer tracking the search width, which is the tell
+     EXTERNAL-METHODS-SURVEY §2 used to void an entire alignment result.
+     CONVERGED therefore demands what a single leg cannot supply: two independent columns, both
+     strictly inside the window, agreeing. That is the condition a downstream hook should require
+     before recording a fit as a clock measurement. */
+  const converged = !!(okSpo2 && okPulse && agree === true);
+  return {
+    ok: !!chosen,
+    converged,
+    reason: chosen ? null : 'neither column yielded a fit',
+    spo2,
+    pulse,
+    agree,
+    chosen,
+    anchorMs,
+    datStartHostMs
+  };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -210,6 +300,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     process.stdout.write(
       JSON.stringify({
         ok: fit.ok,
+        converged: fit.converged,
         reason: fit.reason,
         datSec: dat.length,
         csvSec: csv.length,
