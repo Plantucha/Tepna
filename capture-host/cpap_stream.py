@@ -16,6 +16,7 @@ import asyncio
 
 import as11_cipher
 import as11_pull
+import telemetry
 
 # The BRP waveforms and their bus presentation. dataId → (bus key, label, unit). The device streams flow
 # and mask pressure at the 40 ms BRP cadence; fs is derived from the sample interval, not hard-coded, so
@@ -26,17 +27,21 @@ BRP_CHANNELS = {
 }
 
 
-def gate(meta) -> str | None:
+def gate(status_devices) -> str | None:
     """Refusal reason if a CPAP BLE stream must NOT start right now, else None.
 
-    The bar is the same one the CPAP pull enforces: a 2.4 GHz BLE stream must never run while a wearable
-    is delivering, because the transmitter sits beside the sensors it would interfere with. `meta` is
-    `bus.meta()`; any ACTIVE stream that is not one of our own CPAP keys is a live wearable and blocks us.
+    The bar is the same one the CPAP PULL enforces, single-sourced on `telemetry.on_body`: a 2.4 GHz BLE
+    stream must never run while a sensor is ON A BODY, because the transmitter sits beside it. A device
+    that is CHARGING or otherwise not on a body is NOT a blocker — a ring on its dock cannot be interfered
+    with, and blocking on it made the gate unreachable exactly when a capture is safest (the 2026-07-26
+    docked-sensors bug that `cpap_harvest.blocking_devices` records). `status_devices` is the daemon's
+    device-status map. Blocks on `on_body is not False` (True OR unknown) — the harvest's conservative
+    policy: refusing costs only a retry.
     """
-    ours = {k for _did, (k, _l, _u) in BRP_CHANNELS.items()}
-    live = [m["key"] for m in meta if m.get("active") and m["key"] not in ours]
-    if live:
-        return "wearable capture is live (" + ", ".join(sorted(live)) + ") — refusing to transmit beside the sensors"
+    blocking = sorted(name for name, st in (status_devices or {}).items()
+                      if telemetry.on_body(st) is not False)
+    if blocking:
+        return "a sensor is on the body (" + ", ".join(blocking) + ") — refusing to transmit beside it"
     return None
 
 
@@ -79,10 +84,11 @@ class LiveStreamController:
     is here and unit-tested; the only un-covered edge is the bleak connect itself, which lives in the
     daemon shim. One controller per daemon; `op("start"|"stop")` is what the endpoint calls."""
 
-    def __init__(self, bus, connect, load_creds, *, channels=None, pump=stream_to_bus):
+    def __init__(self, bus, connect, load_creds, devices, *, channels=None, pump=stream_to_bus):
         self._bus = bus
         self._connect = connect
         self._load_creds = load_creds
+        self._devices = devices        # () -> the daemon's device-status map, for the on-body gate
         self._channels = channels or BRP_CHANNELS
         self._pump = pump
         self._task = None
@@ -101,7 +107,7 @@ class LiveStreamController:
     async def _start(self):
         if self._running():
             return {"ok": True, "streaming": True, "already": True, "channels": self._keys()}
-        reason = gate(self._bus.meta())
+        reason = gate(self._devices())
         if reason:
             return {"ok": False, "error": reason}
         creds = self._load_creds()
