@@ -414,8 +414,26 @@ def main(argv=None) -> int:
         Path(a.json).write_text(json.dumps(verdict, indent=2), encoding="utf-8")
 
     for e in cls["orphaned"]:
+        # ⚠️ `.get`, NOT `e['key']`. `classify` above reads the key with `.get("key", "")`, so an entry
+        # WITHOUT one is tolerated there — classified orphaned, since "" matches no generated mutant —
+        # and then crashed HERE on the direct subscript. The two halves disagreed about whether a
+        # malformed entry is survivable.
+        #
+        # It is reachable and it fired: this file's entries are matched on the whitespace-normalised
+        # DIFF (`diff_key`), but the JS sibling's entries are shaped `{line, op, before}`, and 422 of
+        # the 424 entries carry that shape. They never crash only because entries are filtered to the
+        # modules THIS diff touched — so the landmine waits for the first PR that both adds a
+        # Python-side entry and changes that module. That was #1681, and it took the gate down with a
+        # KeyError instead of reporting the malformed entry.
+        #
+        # A gate that CRASHES reports nothing at all: no survivor list, no verdict, and a red check
+        # whose log is a traceback. That is strictly worse than the orphan it was trying to describe.
+        k = e.get("key")
+        shown = repr(k[:90]) if k else (
+            f"<entry has no `key` — it carries {sorted(x for x in e if x != 'module')}. "
+            f"This file matches on the whitespace-normalised diff; see _README>")
         print(f"  ORPHANED equivalence entry ({e['module']}): no generated mutant matches "
-              f"{e['key'][:90]!r} — the line moved. It excuses nothing until re-verified.")
+              f"{shown} — the line moved, or the entry is malformed. It excuses nothing until re-verified.")
     for e in cls["excused"]:
         print(f"  excused ({e['class']}): {e['key'][:80]} — {e.get('why', '')[:120]}")
 
