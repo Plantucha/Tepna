@@ -162,6 +162,23 @@ quiet settings remain usable ring-only. Two vendor behaviours found: writing `mo
 ring at the new intensity (a second commanded-vibration path, journal-stamped), and the ring
 self-buzzes on contact loss (a confound for felt-buzz reports).
 
+## 6 · Related work — the approach has a published analogue (added 2026-08-22)
+
+**Nasrullah et al. (2024), *IEEE RTAS* — "HAEST"**: synchronise heterogeneous IoT devices by
+timestamping **ambient events** shared across accelerometer, microphone and optical sensors, reporting
+sub-millisecond clock accuracy on a body-area network.
+
+Same principle as the buzz: one physical event, heard by several devices, used as a common fiducial.
+Its value here is **corroborative, not methodological** — it says the approach is sound and gives a
+resolution target to measure against. It is **not** a method to build from, and the difference is the
+point: HAEST *harvests* events that happen anyway, while the buzz is **generated on demand**. A
+harvested fiducial has to be detected and disambiguated after the fact; a commanded one has a known
+emission time, which is why §5's pairwise detection could be scored 5/5 rather than estimated.
+
+Recorded per `EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md` §4, which surveyed it and concluded
+*"worth one sentence in the buzz brief's related work; not worth building against"*. This is that
+sentence, and the survey's §4 box is satisfied by it.
+
 ## Done when
 
 - [x] The `0x83` artifact shape is characterised on hardware (width, channel, amplitude) — DONE 2026-08-19, §3.1.
