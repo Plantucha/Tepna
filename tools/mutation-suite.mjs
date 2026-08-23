@@ -1434,6 +1434,26 @@ function selftest() {
     []
   );
 
+  /* And the direction that actually broke: the CODE reads a flag the TABLE never declared. The two
+     existing checks cover declared->parses and usage->declared; neither can see a flag that is
+     implemented and undocumented, which is exactly what `--crawl-dir` was — refused in production
+     while `mutation-ai-probe` printed it as the recommended invocation.
+     ⚠️ COMMENTS ARE STRIPPED FIRST, and that is load-bearing: the prose above this table contains
+     the literal `has('--x')` as an EXAMPLE, and a scan that reads it as a real call reports a
+     phantom missing flag. A checker that cries wolf gets bypassed — the same reasoning that made
+     values skipped by arity rather than pattern-matched. */
+  ck(
+    'every flag the CODE reads is one the parser accepts',
+    (() => {
+      const src = readFileSync(new URL(import.meta.url), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+      const read = new Set([...src.matchAll(/(?:opt|has)\(\s*'(--[a-z0-9-]+)'/g)].map((m) => m[1]));
+      return [...read].filter((f) => !Object.hasOwn(CLI_FLAGS, f)).sort();
+    })(),
+    []
+  );
+
   console.log('\nmdCell — escape order is the whole of the fix');
   const BS = String.fromCharCode(92);
   ck('a pipe is escaped', mdCell('a|b'), 'a' + BS + '|b');
@@ -2024,7 +2044,16 @@ export const CLI_FLAGS = {
   '--jobs': 1,
   '--stall-min': 1,
   '--max-restarts': 1,
-  '--lane': 1
+  '--lane': 1,
+  // Added 2026-08-23 after all five were REFUSED in production. The table had been written from the
+  // tool's DOCUMENTED flags rather than the ones it actually reads, so `--crawl-dir` — implemented at
+  // CRAWL_DIR and printed as advice by mutation-ai-probe — could not be passed. The check below now
+  // derives the read-set from this file so the table cannot drift from the implementation again.
+  '--attempts': 1,
+  '--crawl-dir': 1,
+  '--ctx': 1,
+  '--limit': 1,
+  '--model': 1
 };
 
 export function parseArgv(args, flags = CLI_FLAGS) {

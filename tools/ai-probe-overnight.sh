@@ -94,10 +94,27 @@ echo "########## DRAFTING  $(date '+%F %T') ##########"
 # Every killable — crawl-found and probe-found — becomes a proposed assertion in a review file.
 # Drafts are PROPOSALS: a projection can discriminate and still pin the wrong behaviour, so nothing
 # here lands in tests/dex-tests.js without a human read.
+draft_fail=0
 for f in "${FILES[@]}"; do
   echo "═══ draft $f ═══"
-  timeout 3600 node tools/mutation-suite.mjs --draft "$f" --crawl-dir "$C" 2>&1 | tail -4
+  # NOT `... | tail -4`. A pipeline reports TAIL's status, so this step could fail completely and
+  # still exit 0 — measured 2026-08-23: mutation-suite refused all 8 files (--crawl-dir was missing
+  # from its CLI_FLAGS) and the calling triage script logged "probe converged" and reported green
+  # for three consecutive runs. Capture the command's OWN code first, truncate for reading after.
+  out="$(timeout 3600 node tools/mutation-suite.mjs --draft "$f" --crawl-dir "$C" 2>&1)"; rc=$?
+  printf '%s\n' "$out" | tail -4
+  if [ "$rc" -ne 0 ]; then
+    echo "!! draft FAILED for $f (exit $rc)"
+    draft_fail=$((draft_fail + 1))
+  fi
 done
 echo "########## DONE  $(date '+%F %T') ##########"
 node tools/mutation-ai-probe.mjs --status 2>&1
 echo "drafts: $(ls "$W"/.git/tepna-mutation/*.drafts.js 2>/dev/null | wc -l) file(s) in .git/tepna-mutation/ — each needs a human read before adoption"
+
+# A step that refused every file must not exit 0. This is the only thing standing between a broken
+# drafting phase and a caller that reports the whole night green.
+if [ "$draft_fail" -gt 0 ]; then
+  echo "!! DRAFTING FAILED for $draft_fail of ${#FILES[@]} file(s) — this run is RED"
+  exit 1
+fi
