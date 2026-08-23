@@ -129,6 +129,16 @@ class EdfSink:
                                  record_seconds=self._record_seconds)
         blob = cpap_edf.write_edf(edf)
         tmp = path + ".tmp"
+        # CLEAR-TEXT EDF ON DISK IS BY DESIGN — and why CodeQL's py/clear-text-storage-sensitive-data on
+        # the write below is a false positive. (1) An EDF is a plain-file format by necessity: OSCAR and
+        # SleepHQ read it directly, so encrypting it at rest would defeat the entire purpose of writing it.
+        # (2) The device's OWN SD card already stores byte-identical EDFs in clear text — this box merely
+        # captures the same data over BLE. (3) There is NO credential in this data path: the pairing key
+        # and session key live in the pump (as11_pull/cpap_stream); an EdfSink only ever sees batch dicts
+        # (channels + start_time). The two sources CodeQL classifies "private" are the EDF's patient_id —
+        # the DE-IDENTIFIED constant "X X X X" that build_brp writes, never a real identity — and the
+        # device serial (SRN), a device not a person, on a private single-user box. Flagged by field name,
+        # not by carrying any personal data.
         with open(tmp, "wb") as f:
             f.write(blob)
             f.flush()
