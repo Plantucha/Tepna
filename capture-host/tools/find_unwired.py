@@ -124,6 +124,12 @@ ALLOW_FUNCS = {
     "build_brp": "CPAP EDF writer — constructs a bit-accurate BRP.edf (flow+pressure) from captured data",
     "build_pld": "CPAP EDF writer — constructs a bit-accurate PLD.edf (derived 2 s channels) from captured data",
     "build_eve": "CPAP EDF writer — constructs a bit-accurate EVE.edf (EDF+ event annotations) from captured data",
+    # cpap_ingest.py is the CPAP acquisition gap-accounting layer (audit G4/G7): classify_frame makes a
+    # foreign-streamId or malformed frame COUNTABLE instead of silently dropped. It is the public
+    # classifier consumed by the tests today and by the P1+P3 ingestion wiring next — the single
+    # capture.py/cpap_stream.py touch that lands after the feature-arm controller-race fix (audit §7/§8).
+    # Same shape as the AS11 protocol builders and CPAP EDF constructors above: real, tested, wired next.
+    "classify_frame": "CPAP gap-accounting — counts foreign/malformed frames; consumed by tests today, wired by the P1+P3 ingestion touch next (after the controller-race fix)",
 }
 
 
