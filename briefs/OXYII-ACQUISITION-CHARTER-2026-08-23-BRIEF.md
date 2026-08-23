@@ -167,7 +167,35 @@ existing whitelist (`OXYII-PROTOCOL-HARVEST` deliberately excluded them; unchang
 
 ## Done when
 
-- [ ] G2 merged (standalone module + tests, `check.sh` 100 %, mutation gate drained).
+- [~] G2 merged (standalone module + tests, `check.sh` 100 %, mutation gate drained).
+      **MERGED #1681; `check.sh` 100 % (module and lane, statement + branch). The mutation gate is
+      NOT drained, and this box says so rather than rounding merged up to verified.**
+
+      ⚠️ **It merged UNVERIFIED, not clean.** Its `mutation (diff-scoped)` check was red because the
+      gate CRASHED before reporting — `KeyError: 'key'` on a keyless equivalence entry, tolerated by
+      `classify`'s `.get` and fatal in the reporter (fixed #1687). A gate that crashes reports
+      nothing at all, so "red" carried no information about survivors either way.
+
+      **Re-run under the fixed gate, 2026-08-23, `mutate.py oxy_inventory --no-reuse`** — `--no-reuse`
+      deliberately, because scratch reuse is the unisolated mechanism that reports already-killed
+      mutants as surviving (`MUTATION-SUITE-FOLLOWUPS` §3e), and this is the one run that must not be
+      subject to it:
+
+      | | |
+      |---|---|
+      | killed | **245** |
+      | survived | **28** |
+      | kill rate | **89.7 %** |
+
+      Survivors by function: `make_row` 14 · `append_row` 6 · `classify` 5 · `load_rows` 3.
+      Concentrated in `make_row`, which builds a dict — most are field-level edits no assertion reads,
+      which is a coverage-shaped gap rather than a logic one, but that is a hypothesis until triaged.
+
+      **Owed, and deliberately not done in the same breath as measuring it:** triage the 28 into
+      real-gap / no-distinguishing-input / untestable-by-design, kill the first class, and record the
+      rest in `mutate-equivalence.json` WITH PROBES. That is its own work-unit; asserting a
+      classification here without running the inputs would be exactly the unevidenced equivalence
+      claim that file exists to abolish.
 - [ ] G5 measurements recorded (handoff latency, drain occupancy, mid-transfer drop behaviour) —
       assigned to the Vigil box session (hardware at its elbow), evidence lands in the follow-up.
 - [ ] G1 merged (the wiring + `.part`→validate→atomic-commit): planted controls green (kill
