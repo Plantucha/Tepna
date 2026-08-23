@@ -5315,6 +5315,77 @@ def unregister_runner(device_tasks: dict, tasks: list, status_devices: dict, add
         status_devices.pop(n, None)
 
 
+def _load_as11_creds(path: str):
+    """The ResMed AS11 pairing credentials (masterPairKey/clientId/ble_addr), or None when absent or
+    unreadable. None — never a partial dict — so the stream controller refuses cleanly rather than
+    KeyError'ing mid-connect. A malformed or missing file is 'not paired', not a crash."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            creds = json.load(f)
+    except (OSError, ValueError):
+        return None
+    if not all(creds.get(k) for k in ("masterPairKey", "clientId", "ble_addr")):
+        return None
+    return creds
+
+
+def _build_cpap_controller(bus, cfg: dict, config_path: str):
+    """Assemble the CPAP live-stream controller from config. PURE wiring (no I/O), so the creds-path
+    resolution and the free-radio default are testable; the controller itself does nothing until its
+    op('start') is called from the monitor. `creds_path` defaults to beside the config file; the BLE
+    adapter defaults to hci1 (the free radio — never hci0, which the wearables capture on)."""
+    import cpap_stream
+    cbs = (cfg.get("cpap", {}) or {}).get("ble_stream", {}) or {}
+    creds_path = cbs.get("creds_path") or os.path.join(os.path.dirname(config_path), "as11_creds.json")
+    hci = cbs.get("adapter", "hci1")
+
+    async def connect():  # pragma: no cover — thin closure over the bleak I/O edge in _cpap_ble_connect
+        creds = _load_as11_creds(creds_path)
+        return await _cpap_ble_connect(creds["ble_addr"], hci)
+
+    return cpap_stream.LiveStreamController(bus, connect, lambda: _load_as11_creds(creds_path))
+
+
+async def _cpap_ble_connect(ble_addr: str, hci: str | None):
+    """Open the AS11 link on the FREE radio and return (write, recv_frame, disconnect) for as11_pull.
+
+    The only un-unit-tested code in the CPAP stream path: real bleak connect + notify plumbing, which
+    CI has no radio to exercise. Everything it feeds (session, stream, bus push, lifecycle) is tested.
+    Mirrors the operator probe's transport verbatim so the two cannot drift."""
+    import as11_link as _L
+    from bleak import BleakClient as _BC
+    client = _BC(ble_addr, timeout=20, **({"bluez": {"adapter": hci}} if hci else {}))
+    await client.connect()
+    rx = bytearray()
+    q: asyncio.Queue = asyncio.Queue()
+
+    def _on_notify(_h, data):
+        rx.extend(bytes(data))
+        while True:
+            r = _L.fig_unframe(bytes(rx))
+            if not r:
+                break
+            vcid, payload, rest = r
+            rx[:] = rest
+            q.put_nowait((vcid, payload))
+
+    await client.start_notify(_L.GATT_RX, _on_notify)
+    mtu = getattr(client, "mtu_size", 23) or 23
+    step = max(20, mtu - 3)
+
+    async def write(frame):
+        for i in range(0, len(frame), step):
+            await client.write_gatt_char(_L.GATT_TX, frame[i:i + step], response=True)
+
+    async def recv_frame():
+        return await asyncio.wait_for(q.get(), 20)
+
+    async def disconnect():
+        await client.disconnect()
+
+    return write, recv_frame, disconnect
+
+
 async def main():
     global ADAPTER
     ap = argparse.ArgumentParser()
@@ -5460,12 +5531,18 @@ async def main():
     if wcfg.get("enabled", True):
         import webmon
         host, port = wcfg.get("host", "0.0.0.0"), int(wcfg.get("port", 8760))
+        # CPAP live waveform over BLE: opt-in from the monitor's button. The controller does nothing
+        # until op("start"), which gates against wearable capture and needs stored credentials, then
+        # pushes flow+pressure onto the SAME bus the wearables use so the existing Live-streams grid
+        # renders it. Built by the testable factory above; the bleak connect is the only I/O edge.
+        _cpap_ctl = _build_cpap_controller(BUS, cfg, args.config)
         web_runner = await webmon.start(
             webmon.make_app(BUS, cfg, args.config, ADAPTER, STATUS, _spawn,
                             pull_stored=_pull, polar_pause=polar_offline_op,
                             sync_time=sync_device_time, forget_device=_forget,
                             on_tz_change=reset_clock_anchor, notifier=notifier,
-                            ring_config=queue_ring_config, ring_buzz=queue_ring_buzz), host, port)
+                            ring_config=queue_ring_config, ring_buzz=queue_ring_buzz,
+                            cpap_stream=_cpap_ctl.op), host, port)
         log.info("monitor: http://%s:%d/", host, port)
 
     # Surface the resolved adapter at boot: a silent mis-pin (hci re-enumeration) is exactly the failure

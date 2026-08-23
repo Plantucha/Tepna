@@ -147,7 +147,7 @@ def _warn_comment_loss(path: str) -> None:
 def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_device,
              pull_stored=None, polar_pause=None, sync_time=None, forget_device=None,
              on_tz_change=None, notifier=None, ring_config=None, ring_buzz=None,
-             cpap_pair=None) -> web.Application:
+             cpap_pair=None, cpap_stream=None) -> web.Application:
     # Optional shared-secret gate on the CONTROL surface. When web.token is set, every POST (bond / forget
     # / remember / pull / settings / clock — all the state-changing verbs) needs the token; GET reads stay
     # open so the monitor can still display without it. Default OFF (no token → current wide-open behaviour;
@@ -380,6 +380,31 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         try:
             res = await cpap_pair(passkey)
         except Exception as e:            # noqa: BLE001 — a pairing attempt must never 500 the monitor
+            return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+        return web.json_response(res)
+
+    async def cpap_stream_h(req):
+        """POST /api/cpap/stream {action:"start"|"stop"} — start or stop the live CPAP waveform.
+
+        On start the daemon opens the ResMed AS11 encrypted stream on the FREE radio and pushes flow +
+        pressure onto the telemetry bus, so the samples appear in the monitor's Live-streams grid over
+        the existing SSE — no separate feed. The daemon owns the radios and enforces the same interlock
+        the CPAP pull does (it refuses while a wearable is delivering), so a build without AS11 support
+        answers 501 and a contended box answers whatever the daemon reports (ok:false), never a 200 that
+        streamed nothing. Read-only: StartStream is an `application` read, no therapy RPC is ever sent."""
+        if cpap_stream is None:
+            return web.json_response(
+                {"ok": False, "error": "CPAP BLE streaming is not wired on this daemon"}, status=501)
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
+        action = str(body.get("action", "")).strip()
+        if action not in ("start", "stop"):
+            return web.json_response(
+                {"ok": False, "error": "action must be 'start' or 'stop'"}, status=400)
+        try:
+            res = await cpap_stream(action)
+        except Exception as e:            # noqa: BLE001 — a stream toggle must never 500 the monitor
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
         return web.json_response(res)
 
@@ -1312,6 +1337,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         web.post("/api/scan", scan),
         web.post("/api/cpap/pull", cpap_pull),
         web.post("/api/cpap/pair", cpap_pair_h),
+        web.post("/api/cpap/stream", cpap_stream_h),
         web.post("/api/bond", bond),
         web.post("/api/forget", forget),
         web.post("/api/ring/config", ring_config_h),
