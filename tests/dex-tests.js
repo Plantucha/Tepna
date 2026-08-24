@@ -17435,15 +17435,38 @@
       // PHASE RECOVERY — flow is quasi-periodic, so alignment must be at the FULL sample rate: a
       // small sub-second lag collapses the scale if mis-aligned. B is A shifted +7 samples; the fine
       // xcorr must recover it (a 1 Hz-downsampled xcorr would smooth it away and mis-lock).
-      var pf = 25, pn = 1300 * pf, PA = [], PB = [];
+      var pf = 25,
+        pn = 1300 * pf,
+        PA = [],
+        PB = [];
       for (var pi = 0; pi < pn; pi++) PA.push(Math.sin(pi / 13) + 0.3 * Math.sin(pi / 3));
       for (var pj = 0; pj < pn; pj++) PB.push(pj - 7 >= 0 ? PA[pj - 7] : 0); // B[j] = A[j-7]
       var pr = CX.compareChannel(ser(PA), ser(PB));
-      T.ok('fine xcorr recovers a +7-sample (0.28 s) phase lag → scale ~1', pr.ok && Math.abs(pr.scale.a - 1) < 0.02, 'a=' + (pr.ok && pr.scale.a && pr.scale.a.toFixed(3)) + ' lag=' + (pr.ok && pr.appliedLagSec));
+      T.ok(
+        'fine xcorr recovers a +7-sample (0.28 s) phase lag → scale ~1',
+        pr.ok && Math.abs(pr.scale.a - 1) < 0.02,
+        'a=' + (pr.ok && pr.scale.a && pr.scale.a.toFixed(3)) + ' lag=' + (pr.ok && pr.appliedLagSec)
+      );
       T.ok('scaleOverTime present + scaleStable for a constant-scale pair', pr.ok && Array.isArray(pr.scaleOverTime) && pr.scaleStable === true);
       // set-level: a channel map compares each channel
       var setR = CX.cpapCompare({ Flow: ser(A) }, { Flow: ser(B) });
       T.ok('set-level compare returns per-channel results', setR.ok && setR.channels.Flow.ok && Math.abs(setR.channels.Flow.scale.a - 0.9) < 1e-3);
+
+      // ── RENDER: the comparator PANEL surfaces the result as badged cards (node-lane only; the browser
+      //    lane runs render in iframe rigs). Every surfaced number carries a MEASURED badge; a channel
+      //    refusal becomes a CLOCK FINDING, not aligned through; NO Pearson r as a metric. ──
+      var CR = env.CpapRender;
+      if (CR && typeof CR.comparatorPanel === 'function') {
+        var okPanel = CR.comparatorPanel({ ok: true, channels: { 'Flow.40ms': setR.channels.Flow } }, { liveLabel: 'BLE live', sdLabel: 'device SD' });
+        T.ok('panel renders the scale as a MEASURED-badged card', /ev-measured/.test(okPanel) && /Live vs SD/.test(okPanel) && /0\.9/.test(okPanel));
+        T.ok('panel carries the overlap n beside the numbers (every quoted figure has its n)', /min overlap/.test(okPanel) && /n /.test(okPanel));
+        var refuse = CR.comparatorPanel({ ok: false, reason: 'the headers disagree by 14400 s (4.00 h) — a clock defect, not a different night.' });
+        T.ok('a set-level refusal renders its quantified reason', /14400 s/.test(refuse) && /4\.00 h/.test(refuse));
+        var clk = CR.comparatorPanel({ ok: true, channels: { 'Flow.40ms': { ok: false, reason: 'device clocks disagree by 2532 s beyond alignment tolerance' } } });
+        T.ok('a channel-level clock disagreement surfaces as a CLOCK FINDING (red), not aligned through', /Clock finding/.test(clk) && /--red/.test(clk));
+      } else {
+        T.skip('CpapRender.comparatorPanel wired', 'Node-lane only (run-tests.mjs executes *-render.js headless); the browser lane runs render in iframe rigs so it SKIPs');
+      }
     });
 
     /* ════ CPAPDex pressureChangePoints — STEP-IMMUNE penalty scale (DEEP-AUDIT-II §6.1, PEN_K half) ════
