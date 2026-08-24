@@ -46,6 +46,7 @@ echo "OVERNIGHT AI PROBE — ${#FILES[@]} file(s): ${FILES[*]}"
 echo "  crawl dir $C · per-file limit ${LIMIT:-none} · max passes $MAX_PASSES"
 
 pass=0
+declare -A CANARY_REFUSED=()
 prev_jlines=-1
 while [ "$pass" -lt "$MAX_PASSES" ]; do
   pass=$((pass + 1))
@@ -60,6 +61,8 @@ while [ "$pass" -lt "$MAX_PASSES" ]; do
     break
   fi
   prev_jlines=$jlines
+  # rc 2 is the probe's CANARY refusal — the source moved since the crawl, so the recorded lines
+  # no longer address this code. Keyed by file so the LAST pass's verdict is the one that stands.
   echo "########## PASS $pass  $(date '+%F %T') ##########"
   pass_kills=0
   pass_inputs=0
@@ -72,6 +75,7 @@ while [ "$pass" -lt "$MAX_PASSES" ]; do
     printf '%s\n' "$out" | grep -vE "$LOG_FILTER"
     # A canary refusal (exit 2) or lock refusal (exit 3) is a per-file verdict, not a driver error.
     [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ] && [ "$rc" -ne 3 ] && echo "!! $f exited $rc — journal retains everything answered so far"
+    if [ "$rc" -eq 2 ]; then CANARY_REFUSED["$f"]=1; else unset 'CANARY_REFUSED[$f]'; fi
     # Progress accounting from the summary line the tool always prints:
     #   "N newly KILLABLE of M (K already answered, T inputs run, ...)"
     line="$(printf '%s\n' "$out" | grep -oE '[0-9]+ newly KILLABLE of [0-9]+ \([0-9]+ already answered, [0-9]+ inputs run' | tail -1)"
@@ -95,14 +99,31 @@ echo "########## DRAFTING  $(date '+%F %T') ##########"
 # Drafts are PROPOSALS: a projection can discriminate and still pin the wrong behaviour, so nothing
 # here lands in tests/dex-tests.js without a human read.
 draft_fail=0
+draft_skipped=0
 for f in "${FILES[@]}"; do
   echo "═══ draft $f ═══"
   # NOT `... | tail -4`. A pipeline reports TAIL's status, so this step could fail completely and
   # still exit 0 — measured 2026-08-23: mutation-suite refused all 8 files (--crawl-dir was missing
   # from its CLI_FLAGS) and the calling triage script logged "probe converged" and reported green
   # for three consecutive runs. Capture the command's OWN code first, truncate for reading after.
+  # ⛔ GATE THE DRAFT ON THE PROBE'S OWN VERDICT. Measured 2026-08-24: the probe refused four files
+  # with "CANARY DID NOT FIRE — the source moved since the crawl, so recorded lines no longer address
+  # this code", and the drafter then consumed that same stale data ANYWAY. cpapdex produced 0 of 49
+  # and motiondex 0 of 13 — drafts against recordings that no longer describe the source. Worse,
+  # oxydex refused too yet drafted 24 assertions, because it still had a DAY-OLD ai-probe.json to
+  # draft from: its output looked like the run's best result and was the least trustworthy in it.
+  # One half of the tool refusing loudly while the other half proceeds silently is the whole failure.
+  if [ -n "${CANARY_REFUSED[$f]:-}" ]; then
+    echo "⛔ SKIPPED — the probe's canary refused this file (source moved since the crawl)."
+    echo "   Drafting would pin recorded outputs of code that no longer exists. Re-crawl it first."
+    draft_skipped=$((draft_skipped + 1))
+    continue
+  fi
   out="$(timeout 3600 node tools/mutation-suite.mjs --draft "$f" --crawl-dir "$C" 2>&1)"; rc=$?
-  printf '%s\n' "$out" | tail -4
+  # NOT `| tail -4`. The per-candidate rejection reasons are the only field that distinguishes a weak
+  # model from a broken harness, and the tail discarded every one of them — the same truncation whose
+  # exit-code half was fixed on 2026-08-23, in this very line. Print it all; the log is a diagnostic.
+  printf '%s\n' "$out"
   if [ "$rc" -ne 0 ]; then
     echo "!! draft FAILED for $f (exit $rc)"
     draft_fail=$((draft_fail + 1))
@@ -114,6 +135,10 @@ echo "drafts: $(ls "$W"/.git/tepna-mutation/*.drafts.js 2>/dev/null | wc -l) fil
 
 # A step that refused every file must not exit 0. This is the only thing standing between a broken
 # drafting phase and a caller that reports the whole night green.
+if [ "$draft_skipped" -gt 0 ]; then
+  echo "!! $draft_skipped file(s) SKIPPED for a canary refusal — their crawls are stale against the"
+  echo "   current source. Re-crawl them; until then this run drafted for only part of the fleet."
+fi
 if [ "$draft_fail" -gt 0 ]; then
   echo "!! DRAFTING FAILED for $draft_fail of ${#FILES[@]} file(s) — this run is RED"
   exit 1
