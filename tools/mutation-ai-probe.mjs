@@ -259,7 +259,30 @@ export function verdictFor(origStr, mutStr) {
   /* Same rule for a hang: "the real code does not terminate on this input" is not assertable, so an
      input that wedges the ORIGINAL is not a distinguishing input — it is a finding about the probe. */
   if (/^TIMEOUT/.test(origStr)) return { kill: false, why: 'the REAL code does not terminate on this input — a hang is not an assertable contract' };
-  if (/^THREW/.test(mutStr) && /^THREW/.test(origStr)) return { kill: false, why: 'both threw' };
+  /* Both-threw needs no branch: the orig-THREW guard above already returned, so reaching this line
+     means the REAL code was clean. (There was a `both threw` test here; it was dead code — orig
+     throwing returns two lines earlier, so its second conjunct could never be true.) */
+
+  /* 🔴 A CRASH OR A HANG IN THE MUTANT IS DECISIVE, AND MUST BE DECIDED BEFORE THE SIZE GUARD.
+     These two lines used to sit AFTER it, so a mutant that died loudly against a large-output
+     function was refused with "output too large to record honestly" — an honesty rule about whether
+     a VALUE can be recorded, consumed as evidence that NO DIFFERENCE EXISTS. The two are unrelated
+     claims and the guard answered the wrong one.
+     Measured 2026-08-24: every canary case for cpapdex/motiondex/ppgdex/oxydex hit it, because those
+     are exactly the fixture functions returning whole synthetic datasets (`_synthEdfSet`,
+     `genSyntheticACC`, `detectBeats`) — >100 KB of JSON. The canary then reported "the source moved
+     since the crawl", a diagnosis that was fabricated: three of those four files had ZERO commits
+     since their crawl. Four files were refused all night for a reason that was not true.
+     The real code returned cleanly here (both guards above passed), so there is nothing unassertable
+     about the finding: the assertion is "this input must not throw", and its expected value is the
+     crash, not the 100 KB. */
+  if (/^THREW/.test(mutStr)) return { kill: true, why: 'the mutant throws where the real code returns — decisive, and needs no recorded value' };
+  if (/^TIMEOUT/.test(mutStr)) return { kill: true, why: 'the mutant does not terminate where the real code returns' };
+
+  /* Two large outputs that genuinely DIFFER still stop here, deliberately and unchanged: a draft
+     assertion has to record an expected value, and a 100 KB expectation is not reviewable. That is a
+     real limit on what can be DRAFTED, and separating it from the crash case above is the whole
+     point — this branch now refuses only what it can actually justify refusing. */
   if (origStr.length > 100000) return { kill: false, why: 'output too large to record honestly' };
   return { kill: true, why: 'measured difference' };
 }
@@ -577,6 +600,21 @@ function selftest() {
   ck('only the MUTANT throwing is a legitimate kill', verdictFor('null', 'THREW:boom').kill, true);
   ck('both throwing is not', verdictFor('THREW:a', 'THREW:b').kill, false);
 
+  /* 🔴 The regression these pin: a crash in the MUTANT is decisive, and the size guard used to eat
+     it. `origStr.length > 100000` is a rule about whether a VALUE can be RECORDED; it was answering
+     "is there a difference at all", which is a different question. Four files were refused for a
+     whole night on a fabricated "the source moved" diagnosis because of it — three of them had zero
+     commits since their crawl. */
+  const BIG = 'x'.repeat(150000);
+  ck('a mutant that THROWS beats the size guard', verdictFor(BIG, 'THREW:t0 is not defined').kill, true);
+  ck('…and says so in terms of the crash, not the size', /throws where the real code returns/.test(verdictFor(BIG, 'THREW:x').why), true);
+  ck('a mutant that HANGS beats it too', verdictFor(BIG, 'TIMEOUT').kill, true);
+  /* Negative twins — the fix must not switch the size guard off. */
+  ck('two large DIFFERENT outputs still refuse (no reviewable expectation)', verdictFor(BIG, BIG + 'y').kill, false);
+  ck('…for the size reason, explicitly', /too large/.test(verdictFor(BIG, BIG + 'y').why), true);
+  ck('a large output identical to itself is still just identical', verdictFor(BIG, BIG).why, 'identical output');
+  ck('the REAL code crashing still outranks a mutant crash', verdictFor('THREW:real', 'THREW:mut').kill, false);
+
   console.log('\nsingle-instance guard — two probes shared one journal for an hour');
   const alive = (pid) => pid === 1234;
   ck('no lock ⇒ take it', staleLock('', alive).take, true);
@@ -665,6 +703,23 @@ function selftest() {
   const getf = (ctx) => ctx.f;
   const proven = [{ call: 'f', line: 2, before: 'if (a < 3) return 1;', after: 'if (a <= 3) return 1;', input: '[3]' }];
   ck('a proven-killable input IS detected', canaryFor(proven, cSrc, mkRealm(cSrc), mkRealm, getf).ok, true);
+
+  /* 🔴 FIDELITY: the canary must replay THE RECORDED MUTATION, not merely *a* mutation.
+     Measured 2026-08-24 — 165 KILLABLE records fleet-wide, **0** carrying `after`, so
+     `mutateAtLine(src, line, before, after)` received `undefined` and `String(undefined).trim()`
+     substituted the literal identifier: `if (a > 0)` was replayed as `if (undefined)`, an
+     expression-nulling mutation nobody recorded, standing in for the `cmp > → >=` that was. It
+     passed as a liveness check by accident, because nulling an expression usually also kills.
+     `mutation-crawl.mjs` now persists `after`; these pin that a recorded op round-trips exactly,
+     and that the identifier-substitution signature is recognisable when it does not. */
+  const FID = 'function f(a) {\n  if (a > 0) return 1;\n  return 0;\n}';
+  ck('a recorded op is replayed EXACTLY', mutateAtLine(FID, 2, 'a > 0', 'a >= 0').includes('if (a >= 0)'), true);
+  ck('…and the original text is gone', /if \(a > 0\)/.test(mutateAtLine(FID, 2, 'a > 0', 'a >= 0')), false);
+  /* The signature of the defect, kept as a named observation rather than a silent behaviour: an
+     absent `after` yields the literal `undefined`. When the corpus carries `after` everywhere this
+     becomes unreachable in practice, and the follow-up can turn it into a refusal. */
+  ck('an ABSENT after substitutes the literal identifier — the defect signature', mutateAtLine(FID, 2, 'a > 0', undefined).includes('if (undefined)'), true);
+  ck('…which is NOT the recorded operator, and that is the whole point', mutateAtLine(FID, 2, 'a > 0', undefined).includes('a >= 0'), false);
   /* ⚠️ THIS ASSERTION WAS REWRITTEN, NOT DELETED, WHEN WINDOW RECOVERY LANDED. It used to pass a
      line number off by one and require NO detection — a valid test of the old exact-line matcher,
      and meaningless once drift recovery was added, because an off-by-one is now correctly RECOVERED.

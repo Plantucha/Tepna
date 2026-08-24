@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED — 2026-08-17 · **Created:** 2026-08-17
+**Status:** IN-PROGRESS — 2026-08-24 · **Created:** 2026-08-17
 
 # MUTATION SUITE — FOLLOW-UPS
 
@@ -193,7 +193,7 @@ not on effort: until a zero attribution provably means zero, selection is either
 6 lost kills) or pointless (slower than the tag filter). Fixing per-group capture is the real
 prerequisite, and it was never on anyone's list because the map appeared to work.
 
-### 3e · A SECOND SOURCE OF FALSE SURVIVORS — the reused scratch, measured 2026-08-23 (cause UNISOLATED)
+### 3e · A SECOND SOURCE OF FALSE SURVIVORS — the reused scratch, **CAUSE ISOLATED 2026-08-24**
 
 §3 is about the coverage MAP manufacturing false survivors. This is the same symptom from a different
 place, found while killing the mutants `mutate_diff.py` reported on #1664, and it is recorded here
@@ -211,7 +211,53 @@ because the two are easy to confuse and the remedies differ.
 
 So the mutants were already dead and the tool's reported state was stale until something re-ran them.
 
-🔴 **THE CAUSE IS UNISOLATED, AND THIS SECTION DELIBERATELY DOES NOT NAME ONE.** The first write-up of
+## 🟢 THE CAUSE, ISOLATED 2026-08-24 — and candidate 1 was right
+
+**The verdict is not a function of (source, tests). It depends on cache state, and a run refreshes
+that state as a side effect of reporting it.** Seven runs, one rule:
+
+> **The first run after a test is ADDED does not credit it. That run refreshes the cache, so the
+> NEXT run is correct.** A test that is MODIFIED is credited immediately.
+
+| run | change since previous | verdict |
+|---|---|---|
+| 2 | 7 tests **ADDED** | **STALE** — 26 survivors, 20 of them provably dead |
+| 5 | 1 test **MODIFIED** | correct |
+| 6 | 1 test **ADDED** (a killer, hand-verified alone) | **STALE** — reported surviving |
+| 7 | **NOTHING AT ALL** | **correct** — same mutant reported killed |
+
+🔴 **Run 7 is the whole proof: byte-identical tree, opposite verdict.** It is also the only experiment
+that could have settled it — every earlier attempt changed something, and so could not separate "the
+change fixed it" from "a second run fixed it".
+
+**Where it lives:** `mutants/<module>.meta` holds `exit_code_by_key` — the per-mutant verdicts — and
+carries `hash_by_function_name` for invalidation. Those are **SOURCE** hashes; the tests appear
+nowhere in that key. So candidate 1 of the three listed below, *"mutmut's own per-mutant result
+persistence"*, is the one, and §3e's refusal to guess was the right call: two of the three candidates
+were wrong and the wrong one was the more intuitive.
+
+⚠️ **ONE THING REMAINS UNEXPLAINED, and it is stated rather than smoothed over.** If tests are absent
+from the invalidation key, a MODIFIED test should have been missed too — and run 5 shows it was
+credited immediately. So the invalidation is sensitive to test *content* by some path not yet found.
+The ADD case is proven; the MODIFY asymmetry is measured and unexplained. **Do not write a mechanism
+for it without running the experiment.**
+
+⚠️ **Three corrections to my own earlier reasoning on this, each of which sounded right:**
+1. *"The scratch reuses the results database"* — refuted by fact 4 above, exactly as this section said.
+2. *"The test-to-mutant association is stale"* — undercut by reading `mutmut-stats.json`: the added
+   test **is** in `tests_by_mangled_function_name`. (That file is written **by the run**, so it can
+   show the post-run state while the run used the pre-run one; it cannot settle the question either way.)
+3. 🔴 *"Clearing the scratch fixes it"* — **a CONFOUND, and it was this defect's founding evidence for
+   two weeks.** Every run that "proved" clearing worked was *also* a second-run-after-the-change. Run 7
+   isolated the variable by clearing nothing.
+
+**The remedy in §3e's advice list is unchanged and still correct** — re-run the one mutant by name
+before believing a local survivor — but it now has a reason: you are not working around a mystery, you
+are forcing the refresh that the *next* run would have done anyway.
+
+**Original text retained below, because the reasoning it refused to do is why the answer is trustworthy.**
+
+🔴 **THE CAUSE WAS UNISOLATED UNTIL 2026-08-24, AND THIS SECTION DELIBERATELY DID NOT NAME ONE.** The first write-up of
 this — including #1664's commit message, which is merged and carries the wrong phrasing — asserted
 that the scratch "carries mutmut's results database forward". Fact 4 above refutes that framing: the
 test copy and the coverage mapping were both current. Three candidates remain and none is established:
