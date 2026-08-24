@@ -614,3 +614,20 @@ def test_readonly_frame_builders_emit_valid_empty_payload_reads():
         got_op, payload = oxyii.decode(frame)
         assert got_op == op and payload == b""
     assert oxyii.info_frame(2) == bytes.fromhex("a5e11e00020000bf")   # the byte-verified fixture
+
+
+def test_pi_and_motion_cannot_be_swapped_section16():
+    """§16 cannot-swap guard (OxyII G4 / charter §16). PI (payload[7]) and MOTION (payload[11]) must
+    never be swapped again: the swap wrote PI into the SpO2 CSV's Motion column, and OxyDex excludes
+    artifact samples with motion==0 — so a continuously-non-zero PI sitting there silently changed which
+    samples were kept. Values chosen so a swap is UNAMBIGUOUS (PI high, motion zero — the real sleeping-
+    subject shape). test_parse_live_offsets pins the offsets in general; this states the invariant."""
+    p = bytearray(24)
+    p[5], p[6] = 0x03, 97                          # worn, valid SpO2
+    p[7], p[11] = 130, 0                           # PI raw 130 -> 13.0 % ; MOTION 0 (still subject)
+    p[8:10] = (60).to_bytes(2, "little")
+    v = oxyii.parse_live(bytes(p))
+    assert v["pi"] == 13.0, "PI must come from payload[7]"
+    assert v["motion"] == 0, "MOTION must come from payload[11]"
+    # The exact bug shape if swapped: pi 0.0 in the reading, motion 130 written into the Motion column.
+    assert not (v["pi"] == 0.0 and v["motion"] == 130), "PI/motion are swapped — the §16 data bug"
