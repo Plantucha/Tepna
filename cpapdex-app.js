@@ -236,7 +236,14 @@ import { CpapRender } from './cpapdex-render.js';
         }
       });
       var sess = CpapDsp.buildSessionFromEdf(set, { fname: (c.files.PLD || c.files.BRP || {}).name || null });
-      if (sess) sessions.push(sess);
+      if (sess) {
+        // Retain the raw 25 Hz BRP flow for the live-vs-SD comparator — APP-LAYER ONLY (not exported,
+        // no fixture/gate impact). One flow array per session on the loaded nights; used only when the
+        // user opts in to a live comparison. `recording` is the EDF recording_id (device identity).
+        var _bf = set.BRP && set.BRP.signals && set.BRP.signals['Flow.40ms'];
+        if (_bf && _bf.data && _bf.data.length && set.BRP.clock) sess._brpRaw = { values: _bf.data, fs: _bf.fs, t0Ms: set.BRP.clock.t0Ms, recording: set.BRP.recording };
+        sessions.push(sess);
+      }
     });
     if (!sessions.length) throw new Error('no therapy session could be built (missing PLD/BRP pressure channel?)');
     sessions.sort(function (a, b) {
@@ -291,6 +298,70 @@ import { CpapRender } from './cpapdex-render.js';
   }
 
   /* read a FileList → route .edf (AirSense set) and .json (peer node-exports) */
+  /* LIVE-vs-SD COMPARATOR trigger (CPAPDEX-LIVE-SD-COMPARATOR brief). The primary loaded night is the
+     device SD recording; the user opts in by adding a single live BLE-captured BRP.edf here. Roles are
+     assigned by POSITION (the live BRP is byte-compatible with the SD format, so they cannot be sniffed);
+     the panel prints that assumption. A recording_id (device) mismatch is refused; a date mismatch falls
+     out of the overlap test in compareChannel. */
+  function compareLiveCapture(fileList) {
+    var files = Array.prototype.slice.call(fileList || []).filter(function (f) {
+      return /\.edf$/i.test(f.name);
+    });
+    var chost = $('comparatorHost');
+    if (!chost) return;
+    if (!files.length) {
+      chost.innerHTML =
+        '<div class="card"><div class="card-h">Live vs SD comparator</div><div class="qc-note">Add one BLE-captured BRP <code>.edf</code> to compare against the loaded SD night.</div></div>';
+      return;
+    }
+    var sd =
+      CURRENT &&
+      CURRENT.sessions &&
+      CURRENT.sessions.filter(function (x) {
+        return x && x._brpRaw;
+      })[0];
+    if (!sd) {
+      chost.innerHTML =
+        '<div class="card"><div class="card-h">Live vs SD comparator</div><div class="qc-note">Load a device SD night (with a BRP flow channel) first — that is the reference the live capture is compared against.</div></div>';
+      return;
+    }
+    var rd = new FileReader();
+    rd.onload = function () {
+      var live;
+      try {
+        live = global.CpapEdf.readEDF(rd.result);
+      } catch (err) {
+        chost.innerHTML =
+          '<div class="card"><div class="card-h">Live vs SD comparator</div><div class="qc-note" style="color:var(--red)">could not read the live file as EDF: ' +
+          (err && err.message ? err.message : err) +
+          '</div></div>';
+        return;
+      }
+      var lf = live && live.signals && live.signals['Flow.40ms'];
+      if (!lf || !lf.data || !lf.data.length) {
+        chost.innerHTML =
+          '<div class="card"><div class="card-h">Live vs SD comparator</div><div class="qc-note" style="color:var(--red)">the live file has no Flow.40ms channel — is it a BRP.edf?</div></div>';
+        return;
+      }
+      var cmp = global.CPAPCross.cpapCompare(
+        { 'Flow.40ms': { t0Ms: live.clock.t0Ms, fs: lf.fs, values: lf.data } },
+        { 'Flow.40ms': { t0Ms: sd._brpRaw.t0Ms, fs: sd._brpRaw.fs, values: sd._brpRaw.values } },
+        { liveRecId: live.recording, sdRecId: sd._brpRaw.recording }
+      );
+      chost.innerHTML = CpapRender.comparatorPanel(cmp, { liveLabel: 'BLE live', sdLabel: 'device SD' });
+      // draw the scaleOverTime sparkline(s) on the injected canvases
+      if (cmp && cmp.ok && cmp.channels && CpapRender.drawScaleSpark) {
+        var cvs = chost.querySelectorAll('.cmp-scale-spark');
+        Array.prototype.forEach.call(cvs, function (cv) {
+          var ch = cmp.channels[cv.getAttribute('data-cmp-chan')];
+          if (ch && ch.ok) CpapRender.drawScaleSpark(cv, ch.scaleOverTime);
+        });
+      }
+      chost.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+    rd.readAsArrayBuffer(files[0]);
+  }
+
   function handleFileList(fileList) {
     var all = Array.prototype.slice.call(fileList);
     var edfs = all.filter(function (f) {
@@ -810,6 +881,18 @@ import { CpapRender } from './cpapdex-render.js';
         e.stopPropagation();
         loadDemo();
       });
+    var cmpBtn = $('compareBtn'),
+      cmpInput = $('compareInput');
+    if (cmpBtn && cmpInput) {
+      cmpBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        cmpInput.click();
+      });
+      cmpInput.addEventListener('change', function () {
+        if (cmpInput.files) compareLiveCapture(cmpInput.files);
+        cmpInput.value = ''; // allow re-selecting the same file
+      });
+    }
     var ex = $('exportBtn');
     if (ex) ex.addEventListener('click', exportNight);
     var bj = $('btnJSON');

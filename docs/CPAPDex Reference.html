@@ -284,6 +284,8 @@ body.light .mob-drawer-panel{background:#FFFFFF}
   <div class="nav"><a href="#leak"><span class="nav-dot"></span>Leak Dynamics</a><a href="#ventilation"><span class="nav-dot"></span>Ventilation</a><a href="#breath"><span class="nav-dot"></span>Flow-Derived Breathing</a></div>
   <div class="nav-lbl">Oximetry</div>
   <div class="nav"><a href="#oximetry"><span class="nav-dot"></span>SA2 Oximetry Lane</a></div>
+  <div class="nav-lbl">Validation</div>
+  <div class="nav"><a href="#live-sd"><span class="nav-dot"></span>Live-vs-SD</a></div>
   <div class="nav-lbl">Provenance</div>
   <div class="nav"><a href="#pipeline"><span class="nav-dot"></span>Pipeline &amp; Data</a><a href="#validation-matrix"><span class="nav-dot"></span>Validation Matrix</a><a href="#refs-map"><span class="nav-dot"></span>Citation Map</a><a href="#formula-provenance"><span class="nav-dot"></span>Formula Provenance</a><a href="#limitations"><span class="nav-dot"></span>Known Limitations</a></div>
   <div class="nav-lbl">Reference</div>
@@ -572,6 +574,37 @@ body.light .mob-drawer-panel{background:#FFFFFF}
   <p class="md">Spread of the in-band pulse rate &#x2014; a coarse variability indicator; wide swings can accompany arousals or residual events.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Pulse Range = P95 &#x2212; P5 ( in-band pulse )</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own therapy nights; no single universal cut-point.</div>
 <span class="ev-corner ev-measured" title="Measured &#x2014; P95&#x2212;P5 of in-band pulse, direct SA2 reading"></span></div>
 </div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="live-sd">
+<div class="sh"><div class="si sig">&#x2696;&#xFE0F;</div><div><div class="st">Live-vs-SD Validation</div><div class="sd">Comparing a BLE-captured live BRP against the device&#x2019;s own SD-card flow &#x2014; scale, Bland&#x2013;Altman, and clock alignment</div></div></div>
+<div class="co co-i"><span class="co-ic">&#x2139;&#xFE0F;</span><div><strong>Two single-night data points, each labelled with its window.</strong> The live BLE capture (capture-host) is validated against the machine&#x2019;s own SD-card BRP.edf, the ground truth. <b>Night n=1</b> (full 5&#x202F;h recording): SD/live scale <b>0.9977</b>, flat-in-time &#x2014; the comparator reproduces it at 0.9979 on a clean 30-min slice. <b>Daytime n=1</b>: scale <b>0.924</b>, RMSE 0.096&#x202F;L/s &#x2014; flow-condition-specific and <b>superseded</b> by the night result, kept here only for provenance. Each is a single data point, not a validated agreement, until replicated. Agreement is quantified by scale regression + Bland&#x2013;Altman only &#x2014; <b>no Pearson r anywhere</b>.</div></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Live/SD Scale</span><span class="mf">SD/live regression slope</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Ordinary-least-squares slope of the device SD-card flow on the BLE-captured live flow, over the device-clock-aligned overlap. 1.00 = amplitude identity; a systematic gain difference reads directly. Stated as <b>SD/live</b> (never a bare number) &#x2014; A=live, B=SD, slope=B/A.</p><div class="fb"><div class="fl">Formula</div><div class="ft">scale = slope( OLS: SD<sub>flow</sub> &#x223C; live<sub>flow</sub> ) &#x00B7; <b>no Pearson r</b></div></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Regression slope of SD-card flow on BLE-live flow over the aligned overlap (OLS, no Pearson r); 1.00 = amplitude identity"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Scale Residual SD</span><span class="mf">Sample-by-sample disagreement</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Standard deviation of the live-vs-SD regression residual &#x2014; the part the scale does not explain. Lower = tighter reproduction of the waveform.</p><div class="fb"><div class="fl">Formula</div><div class="ft">residSD = SD( SD<sub>flow</sub> &#x2212; (scale&#x00B7;live<sub>flow</sub> + b) )</div></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; SD of the live-vs-SD regression residual &#x2014; sample-by-sample disagreement the scale does not explain"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Live&#x2212;SD Bias</span><span class="mf">Bland&#x2013;Altman mean difference</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Mean signed difference (live &#x2212; SD) across the overlap. 0 = no systematic offset; the sign says which path reads higher. Bland&#x2013;Altman, never Pearson correlation.</p><div class="fb"><div class="fl">Formula</div><div class="ft">bias = mean( live<sub>flow</sub> &#x2212; SD<sub>flow</sub> )</div></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Bland&#x2013;Altman mean difference (live &#x2212; SD) over the overlap; 0 = no systematic offset"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Limits of Agreement</span><span class="mf">&#x00B1;1.96&#x00B7;SD band</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">The Bland&#x2013;Altman &#x00B1;1.96&#x00B7;SD half-width around the bias &#x2014; where 95% of sample differences fall. Narrower = the two paths agree more tightly.</p><div class="fb"><div class="fl">Formula</div><div class="ft">LoA = &#x00B1;1.96 &#x00B7; SD( live<sub>flow</sub> &#x2212; SD<sub>flow</sub> )</div></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Bland&#x2013;Altman &#x00B1;1.96&#x00B7;SD span (half-width) around the bias; where 95% of sample differences fall"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Alignment Offset</span><span class="mf">Applied device-clock offset</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">The device-clock offset the comparator applied to align the two flows, found by full-rate cross-correlation. Reported direction-explicitly (&#x201C;live starts N&#x202F;s after/before SD&#x201D;). A large value beyond tolerance is surfaced as a <b>clock finding</b>, not aligned through (the 42-min EdfSink UTC-vs-local case is why).</p><div class="fb"><div class="fl">Formula</div><div class="ft">offset = (live<sub>t0</sub> &#x2212; SD<sub>t0</sub>) + fine-xcorr lag</div></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Device-clock offset the comparator applied (fine full-rate cross-correlation); a large value beyond tolerance is a clock finding"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Overlap</span><span class="mf">Device-clock overlap minutes (the n)</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Minutes of device-clock overlap between the live and SD recordings &#x2014; the <b>n</b> behind every agreement number above. Every quoted figure carries this n; a single night is n=1 until replicated.</p><div class="fb"><div class="fl">Formula</div><div class="ft">overlap = |[live<sub>start</sub>,live<sub>end</sub>] &#x2229; [SD<sub>start</sub>,SD<sub>end</sub>]|</div></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Minutes of device-clock overlap between the live and SD recordings &#x2014; the n behind every agreement number"></span></div>
+<div class="co co-w"><span class="co-ic">&#x26A0;&#xFE0F;</span><div><strong>Roles are assigned by position, not sniffed.</strong> The capture-host deliberately writes a byte-compatible ResMed BRP.edf (same recording_id, de-identified patient id), so the two files are indistinguishable by content. The primary loaded night is treated as the <b>SD</b> recording and an explicitly-added second file as the <b>live</b> capture; the panel prints this assumption. A recording_id mismatch (different device) is refused outright &#x2014; a harder refusal than a different night. If the SD/live scale departs from identity, both the value and its reciprocal are shown with two named explanations (a genuine amplitude difference, or swapped roles).</div></div>
 <a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
 </div>
 

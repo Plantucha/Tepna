@@ -9,6 +9,7 @@
     "b": -2.863065883672057e-7,
     "residSD": 0.0008674638896919611
   },
+  "scaleFarFromUnity": false,
   "blandAltman": {
     "bias": 9.74895531342278e-8,
     "loLoA": -0.002276592264319335,
