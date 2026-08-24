@@ -395,8 +395,9 @@ def test_verify_reds_on_a_shifted_grid_that_size_and_trailer_cannot_see(tmp_path
     p = tmp_path / "x.part"
     p.write_bytes(forged)
     res = tr.verify(str(p), GOOD_SIZE, oxyii.parse_oxy_trailer)
-    assert res.ok is False and "record boundary" in res.reason
-    assert "20 records" in res.reason and "21" in res.reason and res.sha256 is None
+    # exact reason — a substring check survives a mutmut string-wrap ("XX…XX"); equality kills it
+    assert res.ok is False and res.reason == "record boundary: 20 records != trailer total_seconds 21"
+    assert res.sha256 is None
 
 
 def test_verify_reds_when_the_record_region_is_not_a_whole_number_of_records(tmp_path):
@@ -406,7 +407,8 @@ def test_verify_reds_when_the_record_region_is_not_a_whole_number_of_records(tmp
     p = tmp_path / "x.part"
     p.write_bytes(shifted)
     res = tr.verify(str(p), len(shifted), oxyii.parse_oxy_trailer)
-    assert res.ok is False and "not a whole number" in res.reason and res.sha256 is None
+    assert res.ok is False and res.sha256 is None
+    assert res.reason == "record boundary: 61 B between header and trailer is not a whole number of 3-B records"
 
 
 def test_verify_reds_on_a_non_format_a_header(tmp_path):
@@ -416,7 +418,8 @@ def test_verify_reds_on_a_non_format_a_header(tmp_path):
     p = tmp_path / "x.part"
     p.write_bytes(bad)
     res = tr.verify(str(p), len(bad), oxyii.parse_oxy_trailer)
-    assert res.ok is False and "Format-A header" in res.reason and res.sha256 is None
+    assert res.ok is False and res.sha256 is None
+    assert res.reason == "record boundary: not a Format-A header"
 
 
 def test_verify_stops_at_the_size_layer_without_calling_the_parser(tmp_path):
