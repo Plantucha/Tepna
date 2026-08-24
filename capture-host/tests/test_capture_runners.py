@@ -5247,3 +5247,58 @@ def test_run_oxyii_drains_the_raw_buffer_twice_per_cycle(tmp_path, monkeypatch):
     _stop_after(monkeypatch, 6)
     _run(capture.run_oxyii(_o2dev(name="Ring2", streams=["spo2"]), str(tmp_path)))
     assert counts2["live"] >= 2 and counts2["raw"] == 0, f"no raw stream -> no raw asks: {counts2}"
+
+
+# ── G4 lifecycle wiring: the _oxy_emit helper + the run_oxyii emit paths ─────────────────────────────
+def test_oxy_emit_is_guarded_and_writes_the_row_and_status(tmp_path):
+    import oxy_lifecycle
+    import writers
+    lc = oxy_lifecycle.OxyLifecycle(device_id="d", session_id="s", mono=lambda: 1.0, wall=lambda: "W")
+    w = writers.OxyLifeLogWriter(str(tmp_path / "OXYLIFE.csv"))
+    capture._oxy_emit(lc, w, "RingX", oxy_lifecycle.OxyState.CONNECTING, "scan")
+    w.close()
+    assert lc.state is oxy_lifecycle.OxyState.CONNECTING
+    assert capture.STATUS["devices"]["RingX"]["oxy_lifecycle"] == "connecting"
+    assert "connecting" in (tmp_path / "OXYLIFE.csv").read_text()
+    # an ILLEGAL edge is SKIPPED, not raised, and mutates nothing (the daemon must not die on it)
+    capture._oxy_emit(lc, w, "RingX", oxy_lifecycle.OxyState.PULLING, "cannot pull from connecting")
+    assert lc.state is oxy_lifecycle.OxyState.CONNECTING
+
+
+def test_oxy_emit_tolerates_no_writer():
+    import oxy_lifecycle
+    lc = oxy_lifecycle.OxyLifecycle(mono=lambda: 1.0, wall=lambda: "W")
+    capture._oxy_emit(lc, None, "RingY", oxy_lifecycle.OxyState.CONNECTING, "scan")   # writer=None
+    assert capture.STATUS["devices"]["RingY"]["oxy_lifecycle"] == "connecting"
+
+
+def test_run_oxyii_journals_a_paused_state(tmp_path, monkeypatch):
+    capture._OXYII_PAUSE.set(); capture._RECOVER.clear()
+    _stop_after(monkeypatch, 1)
+    try:
+        _run(capture.run_oxyii(_o2dev(name="RingP"), str(tmp_path)))
+    finally:
+        capture._OXYII_PAUSE.clear()
+    assert capture.STATUS["devices"]["RingP"]["oxy_lifecycle"] == "shutting_down"
+
+
+def test_run_oxyii_journals_an_adapter_recovery_state(tmp_path, monkeypatch):
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.set()
+    _stop_after(monkeypatch, 1)
+    try:
+        _run(capture.run_oxyii(_o2dev(name="RingR"), str(tmp_path)))
+    finally:
+        capture._RECOVER.clear()
+    assert capture.STATUS["devices"]["RingR"]["oxy_lifecycle"] == "shutting_down"
+
+
+def test_run_oxyii_journals_an_interruption_on_a_stall(tmp_path, monkeypatch):
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()                          # NO live reply -> frames never advance -> the stall elif
+    _inject_connect_scan(monkeypatch, c)
+    monkeypatch.setattr(capture, "stream_is_stalled", lambda *a, **k: True)   # force the stall branch
+    _stop_after(monkeypatch, 6)
+    _run(capture.run_oxyii(_o2dev(name="RingS"), str(tmp_path)))
+    life = (tmp_path / "captures").rglob("OXYLIFE.csv")
+    txt = "".join(p.read_text() for p in life)
+    assert "interrupted" in txt, "a stall must journal an INTERRUPTED transition"
