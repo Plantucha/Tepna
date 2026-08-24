@@ -100,6 +100,46 @@ episode.
   `READY_FOR_DOWNLOAD` computed from contact alone would be wrong, and the finalisation predicate
   (`48 12 5a da`) is the only correct gate.
 
+## 5b · PRODUCTION EVIDENCE — 2026-08-24, verified first-hand on the box
+
+Reported by the capture-host arm and **independently confirmed against `vigil`'s journal**, because a
+cross-session claim passes no gate. Timestamps are the box's **local (EDT)**; the verification note at
+the end of this section explains why that matters.
+
+| local time | event |
+|---|---|
+| 04:38:10 | Wellue O2Ring-S PPG stream ends — 7922 frames over 7877 device-seconds, 0 anomalous. The doff. |
+| 04:45:42 | `tepna-restart.sh restart` (consolidation) — drops every BLE link, including the ring's |
+| 04:45:44 | `auto-pull: enabled — checking … every 3600s (only while it is off the finger)` — **the timer restarts here** |
+| 05:07:29 | `BleakDeviceNotFoundError('O2Ring not advertising')` — the ring is gone, ~22 min after the restart |
+| 05:18–05:20 | 21 × `org.bluez.Error.InProgress` on the reconnect loop |
+
+🔴 **The night's recording is stranded on flash, and the poller cannot retrieve it.** The ONLY
+`auto-pull:` line in the entire day is the 04:45:44 enable — no tick, no transfer, no `.dat`. The next
+tick falls at ~05:45, and by 05:07 the ring had already stopped advertising. **Latency is now
+wake-dependent, not schedule-dependent**, which is precisely the argument §3 makes for evidence-driven
+scheduling — here as a measured production event rather than a hypothesis. (Safe, not lossy: the ring
+is FIFO with headroom.)
+
+**A held link IS presence maintenance — and a restart in the doff window costs the window.** The
+04:45:42 restart dropped the still-awake ring's link, and **an unworn ring never re-advertises**, so
+the restart converted *awake-and-linked* into *unreachable*. G6's model must treat link-holding as an
+action that maintains presence rather than merely observes it. Operationally: **pull first, restart
+after.**
+
+⚠️ **A detail the first report did not carry:** the failure changes character at 05:18:45, from
+`not advertising` to `org.bluez.Error.InProgress` repeating every 60 s. That is an adapter/stack
+state, not a sleeping device, and the two must not be collapsed into one "ring unreachable" cause —
+they have different remedies, and only one of them is about the ring.
+
+⚠️ **VERIFICATION NOTE — I almost filed a false alarm from this data.** The journal prints **local
+time**; `date -u` prints UTC. Reading "newest line 05:21" against "now 09:21Z" looks exactly like a
+daemon that has been silent for four hours, and I was one step from reporting a wedged capture host.
+`ps -o etimes=` said **2204 s** for a process whose `lstart` I had read as four hours old, and that
+contradiction is what caught it: 05:21 EDT *is* 09:21 UTC. **Two clocks, one instant.** Every
+timestamp above is therefore stated with its zone — the same discipline §7 of the Clock Contract
+applies to device stamps, applied to our own logs.
+
 ## 6 · Done when
 
 - [ ] §1's contact-vs-presence split is settled with a measurement, not a decision.
@@ -107,5 +147,7 @@ episode.
 - [ ] The state model is written with each transition naming the evidence that triggers it, and no
       transition triggered by elapsed time alone.
 - [ ] The probe's opcode set is confined to `O2RING-OPCODE-SURFACE`'s read-only list, cited per opcode.
+- [x] A production event where the hourly poller demonstrably missed (§5b, 2026-08-24) — the
+      motivating measurement now exists.
 - [ ] Recorded whether presence-aware scheduling actually beats the hourly poller, measured against
       the 2026-08-23 cadence baseline rather than assumed to.
