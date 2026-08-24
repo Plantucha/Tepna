@@ -1057,6 +1057,43 @@
         "PAT-NO-VALID-ANCHOR-2026-08-02-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.8.0",
+      "date": "2026-08-24",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "d6dab082c909",
+        "OxyDex": "711a24f3ac0e",
+        "PulseDex": "19e3b15c6eb3",
+        "GlucoDex": "18af2c63f244",
+        "PpgDex": "9996f626bf58",
+        "HRVDex": "dedc771166a6",
+        "CPAPDex": "20eee525ede0",
+        "Integrator": "8c1072b85159",
+        "MotionDex": "5ca5a047188c"
+      },
+      "briefs": [
+        "CITATION-INTEGRATION-2026-08-23-BRIEF.md",
+        "DEEP-AUDIT-V-FOLLOWUPS-2026-08-05-BRIEF.md",
+        "CPAP-ACQUISITION-HARDENING-AUDIT-2026-08-23-BRIEF.md",
+        "CPAP-ACQ-P1-RAW-RECORD-2026-08-23-BRIEF.md",
+        "CPAP-ACQ-P2-LIFECYCLE-2026-08-23-BRIEF.md",
+        "CPAP-BLE-CAPTURE-2026-08-21-BRIEF.md",
+        "CPAP-ACQ-P4-SPOOL-TRANSACTION-2026-08-23-BRIEF.md",
+        "CPAPDEX-LIVE-SD-COMPARATOR-2026-08-23-BRIEF.md",
+        "REPO-DISCOVERABILITY-FOLLOWUPS-II-2026-08-04-BRIEF.md",
+        "OXYII-ACQUISITION-CHARTER-2026-08-23-BRIEF.md",
+        "MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md",
+        "MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md",
+        "OXYII-G1-TRANSACTIONAL-SYNC-2026-08-23-BRIEF.md",
+        "OXYII-G1-TRANSACTIONAL-SYNC-FOLLOWUPS-2026-08-23-BRIEF.md",
+        "OXYII-PRESENCE-MODEL-2026-08-23-BRIEF.md",
+        "INTEGRATOR-POOLED-CLOCK-APPLY-2026-08-01-BRIEF.md",
+        "FINISHED-WORK-IMPROVEMENTS-2026-08-20-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
