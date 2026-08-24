@@ -463,7 +463,7 @@ Tepna stands on documented reverse-engineering and capture work by others, credi
 - **Polar Sensor Logger** by j-ware — the Android app whose faithful raw exports (ECG, PPG, IMU) made the original phone-captured corpus possible and defined the file formats the suite still speaks.
 - **Open-source foundations** the capture lane leans on daily: [bleak](https://github.com/hbldh/bleak), [mutmut](https://github.com/boxed/mutmut), chrony, and the Python and Node ecosystems.
 
-**AI-assisted development:** Tepna is built in close collaboration with Anthropic's Claude — the commit history carries the co-authorship trailers openly. Every behavioral claim is still held to the same standard regardless of who wrote it: gates, planted controls, and provenance, not trust.
+**AI-assisted development** [![Built with Claude Code](https://img.shields.io/badge/built_with-Claude_Code-D97757?logo=anthropic&logoColor=white)](https://claude.com/claude-code): Tepna is built in close collaboration with Anthropic's Claude — the commit history carries the co-authorship trailers openly. Every behavioral claim is still held to the same standard regardless of who wrote it: gates, planted controls, and provenance, not trust.
 
 ## Licensing
 
