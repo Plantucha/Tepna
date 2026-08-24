@@ -596,44 +596,44 @@
   // the alignment OFFSET the comparator applies is a first-class finding (a large one means the two
   // device clocks disagree — the EdfSink 4 h bug class), never a silently-absorbed nuisance. Agreement
   // is scale/offset regression + Bland-Altman (bias + limits of agreement), NEVER Pearson r.
-  function _down1Hz(values, fs) {
-    var step = Math.max(1, Math.round(fs || 1)),
-      out = [];
-    for (var i = 0; i + step <= values.length; i += step) {
-      var sum = 0;
-      for (var j = 0; j < step; j++) sum += values[i + j];
-      out.push(sum / step);
-    }
-    return out;
-  }
-  // Best integer lag (seconds) of b relative to a, on 1 Hz series, maximizing normalized correlation
-  // within +/- maxLag. A fine correction on top of the header-clock alignment; refuses (null) if either
-  // series is too short to correlate.
-  function _xcorrLag(a1, b1, maxLag) {
-    var n = Math.min(a1.length, b1.length);
-    if (n < 4) return null;
+  // FULL-RATE fine lag (samples): the best integer sample shift L of b relative to a maximizing the
+  // NORMALIZED cross-correlation, over +/- maxLagSamp. Flow is quasi-periodic, so a 1 Hz-downsampled
+  // xcorr smooths away the sub-second phase and mis-locks (a 7.5-sample error collapses the scale from
+  // 0.98 to 0.78); this correlates at the device rate to nail the phase. Subsamples for speed.
+  function _fineLag(av, ai0, bv, bi0, n, maxLagSamp) {
     var best = 0,
-      bestScore = -Infinity,
-      lim = Math.min(maxLag, n - 2);
-    for (var lag = -lim; lag <= lim; lag++) {
-      var s = 0,
+      bestScore = -Infinity;
+    var step = Math.max(1, Math.floor(n / 20000)); // cap ~20k points per lag
+    for (var L = -maxLagSamp; L <= maxLagSamp; L++) {
+      var sxy = 0,
+        sx = 0,
+        sy = 0,
+        sxx = 0,
+        syy = 0,
         c = 0;
-      for (var i = 0; i < n; i++) {
-        var bi = i + lag;
-        if (bi < 0 || bi >= n) continue;
-        s += a1[i] * b1[bi];
+      for (var i = 0; i < n; i += step) {
+        var bi = bi0 + i + L;
+        if (bi < 0 || bi >= bv.length) continue;
+        var x = av[ai0 + i],
+          y = bv[bi];
+        sxy += x * y;
+        sx += x;
+        sy += y;
+        sxx += x * x;
+        syy += y * y;
         c++;
       }
-      if (c > 0) {
-        var score = s / c;
-        if (score > bestScore) {
-          bestScore = score;
-          best = lag;
-        }
+      if (c < 10) continue;
+      var den = Math.sqrt((c * sxx - sx * sx) * (c * syy - sy * sy));
+      var score = den > 1e-9 ? (c * sxy - sx * sy) / den : -Infinity;
+      if (score > bestScore) {
+        bestScore = score;
+        best = L;
       }
     }
     return best;
   }
+
   // a, b = { t0Ms, fs, values }. `a` is the LIVE side, `b` the SD side.
   function compareChannel(a, b, opts) {
     opts = opts || {};
@@ -671,8 +671,9 @@
     var bi0 = Math.round(((startMs - (b.t0Ms || 0)) / 1000) * fs);
     var overlapN = Math.floor(((endMs - startMs) / 1000) * fs);
     // Fine lag: correlate the clock-aligned overlap at 1 Hz; apply it on top of the clock alignment.
-    var lag = _xcorrLag(_down1Hz(a.values.slice(ai0, ai0 + overlapN), fs), _down1Hz(b.values.slice(bi0, bi0 + overlapN), fs), maxLagSec) || 0;
-    var bi = bi0 + Math.round(lag * fs);
+    var lagSamp = _fineLag(a.values, ai0, b.values, bi0, overlapN, Math.round(maxLagSec * fs));
+    var lag = lagSamp / fs; // seconds, for the offset report
+    var bi = bi0 + lagSamp;
     var A = [],
       B = [];
     for (var i = 0; i < overlapN; i++) {
@@ -696,6 +697,22 @@
     var t = tol > 0 ? tol : 1.96 * residSD;
     var excursions = 0;
     for (var m = 0; m < diffs.length; m++) if (Math.abs(diffs[m]) > t) excursions++;
+    // Windowed scale-over-time — the stable-vs-time-varying finding. A single scale over a 5 h night can
+    // launder a drift; per-window regression surfaces it. Flat windows ⇒ stable (the identity verdict).
+    var winN = Math.max(1, Math.round(fs * 600)); // ~10-min windows
+    var scaleOverTime = [];
+    for (var w = 0; w + winN <= A.length; w += winN) {
+      var wr = ols(A.slice(w, w + winN), B.slice(w, w + winN));
+      scaleOverTime.push({ startMin: w / fs / 60, scale: wr.slope, n: winN });
+    }
+    var _ws = scaleOverTime
+      .map(function (x) {
+        return x.scale;
+      })
+      .filter(function (v) {
+        return v != null;
+      });
+    var scaleStable = _ws.length < 2 ? null : Math.max.apply(null, _ws) - Math.min.apply(null, _ws) < (opts.scaleStableTol == null ? 0.05 : opts.scaleStableTol);
     return {
       ok: true,
       overlapMin: A.length / fs / 60,
@@ -704,7 +721,9 @@
       appliedLagSec: lag,
       scale: { a: reg.slope, b: reg.intercept, residSD: residSD },
       blandAltman: { bias: bias, loLoA: bias - 1.96 * dsd, hiLoA: bias + 1.96 * dsd },
-      divergence: { excursionFrac: A.length ? excursions / A.length : 0, pairedSamples: A.length }
+      divergence: { excursionFrac: A.length ? excursions / A.length : 0, pairedSamples: A.length },
+      scaleOverTime: scaleOverTime,
+      scaleStable: scaleStable
     };
   }
   // liveSet / sdSet: readEDF-style channel maps { <label>: { t0Ms, fs, values } }. Refusal-first at the

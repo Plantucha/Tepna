@@ -17432,6 +17432,15 @@
       // refusal-first: one file, and a channel absent in one file
       T.ok('one file alone is not a comparison', CX.cpapCompare(ser(A), null).ok === false);
       T.ok('a channel absent in one file refuses per-channel', CX.compareChannel(ser(A), { t0Ms: 1000000, fs: fs, values: [] }).ok === false);
+      // PHASE RECOVERY — flow is quasi-periodic, so alignment must be at the FULL sample rate: a
+      // small sub-second lag collapses the scale if mis-aligned. B is A shifted +7 samples; the fine
+      // xcorr must recover it (a 1 Hz-downsampled xcorr would smooth it away and mis-lock).
+      var pf = 25, pn = 1300 * pf, PA = [], PB = [];
+      for (var pi = 0; pi < pn; pi++) PA.push(Math.sin(pi / 13) + 0.3 * Math.sin(pi / 3));
+      for (var pj = 0; pj < pn; pj++) PB.push(pj - 7 >= 0 ? PA[pj - 7] : 0); // B[j] = A[j-7]
+      var pr = CX.compareChannel(ser(PA), ser(PB));
+      T.ok('fine xcorr recovers a +7-sample (0.28 s) phase lag → scale ~1', pr.ok && Math.abs(pr.scale.a - 1) < 0.02, 'a=' + (pr.ok && pr.scale.a && pr.scale.a.toFixed(3)) + ' lag=' + (pr.ok && pr.appliedLagSec));
+      T.ok('scaleOverTime present + scaleStable for a constant-scale pair', pr.ok && Array.isArray(pr.scaleOverTime) && pr.scaleStable === true);
       // set-level: a channel map compares each channel
       var setR = CX.cpapCompare({ Flow: ser(A) }, { Flow: ser(B) });
       T.ok('set-level compare returns per-channel results', setR.ok && setR.channels.Flow.ok && Math.abs(setR.channels.Flow.scale.a - 0.9) < 1e-3);
