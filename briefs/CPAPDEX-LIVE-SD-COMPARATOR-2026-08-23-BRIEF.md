@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-08-23
+**Status:** IN-PROGRESS — 2026-08-24 · **Created:** 2026-08-23
 
 # CPAPDex live-vs-SD comparator — a permanent agreement surface
 
