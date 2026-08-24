@@ -27,6 +27,9 @@ class As11Error(RuntimeError):
     """An AS11 RPC returned an error, or a spool round failed."""
 
 
+# P3 gap-accounting taxonomy — used ONLY to COUNT frames at the stream boundary (see stream()).
+from cpap_ingest import FrameKind as _FrameKind
+
 async def _read_json(recv_frame, unseal=None):
     """Read one FIG frame; decrypt if it is an encrypted-channel frame; decode JSON."""
     vcid, payload = await recv_frame()
@@ -111,7 +114,8 @@ async def pull_spool_round(write, recv_frame, seal, unseal, spool_type, from_dt,
 
 
 async def stream(write, recv_frame, seal, unseal, data_ids, *,
-                 sample_interval_ms=40, report_interval_ms=None, start_id=16, max_batches=None):
+                 sample_interval_ms=40, report_interval_ms=None, start_id=16, max_batches=None,
+                 counters=None):
     """Async generator over a LIVE AS11 waveform stream (StartStream → StreamData). READ-ONLY.
 
     Sends StartStream, verifies the device marked EVERY requested dataId valid (a partial accept raises
@@ -138,13 +142,22 @@ async def stream(write, recv_frame, seal, unseal, data_ids, *,
     while max_batches is None or count < max_batches:
         msg = await _read_json(recv_frame, unseal)
         if msg.get("method") != "StreamData":
+            # P3 gap accounting at the frame boundary — count where the frame is SEEN, before the filter
+            # eats it (INV7). COUNTING ONLY: what is dropped is unchanged, it is just no longer silent.
+            if counters is not None:
+                counters.note_frame(_FrameKind.MALFORMED)
             continue  # a HeartBeat or other out-of-band notification — keep reading
         p = msg["params"]
         if p.get("streamId") != stream_id:
+            if counters is not None:
+                counters.note_frame(_FrameKind.FOREIGN)
             continue  # data from a different stream (defensive) — not ours
         channels: dict[str, list] = {}
         for entry in p.get("data", []):
             channels.update(entry)
+        if counters is not None:
+            counters.note_frame(_FrameKind.OK,
+                                n_samples=sum(len(v) for v in channels.values() if isinstance(v, list)))
         yield {"stream_id": stream_id, "start_time": p.get("startTime"),
                "interval_ms": p.get("intervalMs"), "channels": channels}
         count += 1

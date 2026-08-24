@@ -57,11 +57,7 @@ ALLOW_KEYS = {
 # or a monitor draw that is PENDING and tracked. `/api/state` is not the monitor's private channel — but
 # "something else reads it" / "a draw is coming" must be STATED, not assumed. An entry here without a
 # real follow-up is exactly the stale suppression this file warns against, so the tracker is load-bearing.
-ALLOW_RENDERED: dict = {
-    "ring_rtc_reset_suspect": "forwarded in STATUS; monitor draw PENDING — the ring RTC battery-reset "
-                              "alarm needs a ring-card indicator, tracked as a follow-up micro-PR that "
-                              "draws it and removes this line",
-}
+ALLOW_RENDERED: dict = {}
 
 # Handlers defined in monitor.html that nothing calls. Same rule, same reason.
 ALLOW_JS: dict = {}
@@ -85,6 +81,10 @@ ALLOW_FUNCS = {
     # ⚠️ Deliberately NOT a module-wide exemption. `classify`, `reconcile`, `identity` and `current`
     # are the logic G1 must call, so if THOSE ever appear here it means the wiring regressed and the
     # gate should say so. Only the plumbing is listed.
+    # G3's restart planner, same posture: standalone until G1 consumes the plan. `plan()` itself is
+    # NOT listed — it is the entry point G1 must call, so if IT ever appears here the wiring regressed
+    # and the gate should say so. Only the one-line trust accessor is fenced.
+    "is_trusted": "oxy_restart G3 — the plan's single affirmative accessor; standalone until G1 acts on the plan (charter §4)",
     "append_row": "oxy_inventory G2 — standalone until G1 wires the ledger into _pull_once (charter §4)",
     "load_rows": "oxy_inventory G2 — standalone until G1 wires the ledger into _pull_once (charter §4)",
     "make_row": "oxy_inventory G2 — standalone until G1 wires the ledger into _pull_once (charter §4)",
