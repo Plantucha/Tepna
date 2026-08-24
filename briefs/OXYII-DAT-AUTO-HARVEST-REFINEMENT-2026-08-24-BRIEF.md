@@ -129,11 +129,47 @@ the flag was False, it was that nothing said so.
 - [ ] **§11 multi-recording ordering** — the ring's FILE_LIST semantics are *measured* in
       `O2RING-PROTOCOL`; read them, do not assume.
 
-## 6 · Open question for the owner
+## 6 · ANSWERED by the owner — and the doff trigger was collateral damage
 
-**Why is `on_charger: False`?** Deliberate, or a stale reaction to something since fixed? The config
-is gitignored, so the repo cannot answer it and neither can I. Until it is answered, unit 1 makes the
-state *visible* without changing it — which is the honest move either way.
+**Why is `on_charger: False`?** Asked 2026-08-24. The owner's recollection, **verbatim, with its
+uncertainty left intact** because it is a recollection and not a record:
+
+> *"maybe to do something with not fake streaming and blocking WiFi to download cpap data; probably
+> more related to Verity but possibly somewhere in that direction."*
+
+⚠️ **Recorded as "probably/possibly", deliberately.** Hardening a hedged memory into a definite
+history is how a guess becomes a citation. Two candidate concerns are legible in it, and both are
+**dock-time** concerns:
+
+1. **Docked devices fake-streaming junk.** Real and measured — today's docked ring produced ~6 h of
+   `contact=0` frames.
+2. **BLE pull activity colliding with the ez Share WiFi harvest window** (2.4 GHz coexistence).
+
+🔴 **But the flag governs pull TRIGGERS, not streaming — so for concern (1) it never did anything.**
+Whatever fake-streaming was happening kept happening; the flag only stopped the pull. That is worth
+saying plainly rather than treating the original intent as achieved.
+
+**And the doff trigger was never the target.** It fires at mask-off, temporally unrelated to docking
+and far from the 13:00 harvest window. It was collateral damage of the conflation in §2a — disabled
+by a flag aimed at something else entirely.
+
+### 6a · Enablement plan (owner-sanctioned)
+
+`on_charger` **stays False** on the box: the original intent is respected, fuzzy as it is. Only the
+doff trigger is enabled, in this order, so each step proves the next:
+
+1. Unit 1 lands → deploy.
+2. **Verify the arming line prints both states** — the diagnostic proving itself before it is trusted.
+3. Flip `pull.on_doff: true` — one owner-sanctioned config line.
+4. The first doff window proves the path live, and **finally measures the settle-vs-awake-tail
+   question on a real firing** rather than by argument.
+
+### 6b · Follow-up the flag never addressed
+
+**Docked fake-streaming is a separate open item.** If a docked device streaming `contact=0` frames for
+hours is unwanted, that needs its own fix — the pull-trigger flag never touched it, and closing this
+brief without saying so would leave a concern that has been "handled" for an unknown period by a
+mechanism that could not handle it.
 
 ## 7 · Done when
 
