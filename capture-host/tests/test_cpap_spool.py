@@ -341,3 +341,79 @@ def test_a_foreign_valid_json_ledger_row_is_tolerated_not_fatal(tmp_path):
     s2 = sync(root, scripted([(b"b", False, None)]))
     assert s2["rounds_committed"] == 1
     assert sp.last_committed_cursor(root) == T1
+
+
+# ── survivor killers: payloads, defaults, and the windows coverage missed ────
+
+def test_garbage_mid_ledger_does_not_stop_reading_later_rows(tmp_path):
+    root = str(tmp_path)
+    sync(root, scripted([(b"a", True, T1)]), max_rounds=1)
+    with open(sp.ledger_path(root), "a", encoding="utf-8") as fh:
+        fh.write("not-json-at-all\n")
+    sync(root, scripted([(b"b", False, None)]))
+    rows = sp.read_ledger(root)
+    assert len(rows) == 2                       # the row AFTER the garbage was read (continue, not break)
+    assert sp.last_committed_cursor(root) == T1
+
+
+def test_conflict_and_validation_errors_name_the_file_and_lengths(tmp_path):
+    root = str(tmp_path)
+    body = b"committed"
+    sha = sp.sha256_bytes(body)
+    name = sp.round_filename(T0, sha)
+    part = sp.write_part(root, name, body)
+    sp.promote(root, part, name, expected_sha=sha, expected_len=len(body))
+    part2 = sp.write_part(root, name, b"different")
+    with pytest.raises(sp.SpoolConflictError, match=name):
+        sp.promote(root, part2, name, expected_sha=sp.sha256_bytes(b"different"),
+                   expected_len=9)
+    part3 = sp.write_part(root, "other.bin", b"12345")
+    with pytest.raises(sp.SpoolValidationError, match=r"other\.bin.*len 5 vs 6"):
+        sp.promote(root, part3, "other.bin", expected_sha=sp.sha256_bytes(b"12345"),
+                   expected_len=6)
+
+
+def test_ledger_rows_carry_the_full_payload_from_a_sync_pass(tmp_path):
+    root = str(tmp_path)
+    sync(root, scripted([(b"one", True, T1), (b"two", False, None)]))
+    rows = sp.read_ledger(root)
+    for row in rows:
+        assert row["device"] == "AS11-1" and row["session"] == "acq-1"
+        assert row["ts"] == "2026-08-23T22:00:00+00:00"     # the injected wall clock, not a real one
+        assert row["mono"] == 123.0
+    assert rows[0]["round"]["status"] == sp.STATUS_MORE
+    assert rows[1]["round"]["status"] == sp.STATUS_DONE
+
+
+def test_default_wall_clock_is_utc_iso(tmp_path):
+    row = sp.make_row(device="d", session="s", spool_type="Summary", cursor_in=T0,
+                      committed_cursor=T1, round_seq=0, data=b"x",
+                      status=sp.STATUS_DONE, filename="f.bin")
+    assert row["ts"].endswith("+00:00")          # timezone-aware UTC, not a naive or local stamp
+
+
+def test_in_pass_dedupe_stops_a_device_looping_on_one_cursor(tmp_path):
+    root = str(tmp_path)
+    body = b"same-round"
+    pull = scripted([(body, True, T0), (body, True, T0)])   # device re-serves the SAME cursor
+    s = sync(root, pull)
+    assert s["stopped"] == "no-new-data"
+    assert len(sp.read_ledger(root)) == 1        # one line, not a duplicate per lap
+    assert len(pull.calls) == 2
+
+
+def test_three_rounds_sequence_exactly(tmp_path):
+    root = str(tmp_path)
+    s = sync(root, scripted([(b"a", True, T1), (b"b", True, T2), (b"c", False, None)]))
+    assert s["rounds_committed"] == 3
+    assert [r["round_seq"] for r in sp.read_ledger(root)] == [0, 1, 2]
+
+
+def test_default_max_rounds_is_exactly_64(tmp_path):
+    root = str(tmp_path)
+    cursors = [f"2026-01-01T00:{i:02d}:{j:02d}Z" for i in range(60) for j in range(60)]
+    rounds = [(f"r{i}".encode(), True, cursors[i]) for i in range(70)]
+    pull = scripted(rounds)
+    s = sync(root, pull)                          # no max_rounds argument — the default governs
+    assert s["stopped"] == "max-rounds"
+    assert s["rounds_committed"] == 64 and len(pull.calls) == 64
