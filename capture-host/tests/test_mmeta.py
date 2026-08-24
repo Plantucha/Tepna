@@ -154,6 +154,15 @@ def test_test_tree_hash_is_stable_for_identical_content(tmp_path):
     assert mmeta.test_tree_hash(a) == mmeta.test_tree_hash(b)
 
 
+def test_the_hash_width_is_pinned_at_16(tmp_path):
+    """The hash is a stable content KEY; its WIDTH is part of that stability. Pins the [:16] truncation so
+    a silent width change (which the diff-scoped gate flags as an unkilled mutant) cannot slip through —
+    it would not break correctness today, but a widened key stamped into a scratch reads as a test change
+    forever after, silently defeating §2's reuse. One line to prevent."""
+    d = _tests(tmp_path, {"test_x.py": "def test_x(): pass\n"})
+    assert len(mmeta.test_tree_hash(d)) == 16
+
+
 def test_editing_a_test_changes_the_hash(tmp_path):
     d = _tests(tmp_path, {"test_x.py": "def test_x(): assert True\n"})
     before = mmeta.test_tree_hash(d)

@@ -3951,5 +3951,31 @@
    "op": "cmp > \u2192 >=",
    "why": "EQUIVALENT, declared at the assertion site (tests/dex-tests.js, HRV-geometry group): only the VALUE of maxC is kept, and on a tie `>` and `>=` assign the identical value. No input can distinguish them. Do not add an assertion chasing it."
   }
+ ],
+ "mmeta.py": [
+  {
+   "key": "- data = json.loads(Path(meta_path).read_text(encoding=\"utf-8\")) | + data = json.loads(Path(meta_path).read_text(encoding=None))",
+   "class": "no-distinguishing-input",
+   "why": "The content read here is ASCII BY CONSTRUCTION — a mutmut `<module>.py.meta` is JSON whose keys are mutant names (`oxy_transfer.x_select__mutmut_1`) and whose values are integers or null. ASCII round-trips identically under any codec, so encoding=\"utf-8\", encoding=None (locale default), and omitting the argument select the same bytes. This is a proof over the reachable input domain, not the fleet-is-UTF-8 assumption the oxy_inventory sibling rests on — no non-ASCII byte can reach this read. Surfaced on mmeta.py by the diff-scoped gate (OXYII-G1-FOLLOWUPS §3b).",
+   "probe": "The only writer of this file is mutmut, which emits ASCII mutant names + JSON scalars; verified by inspection of a real meta (as11_link.py.meta: keys `x__h__mutmut_1` etc., values null/int). ASCII is codec-invariant."
+  },
+  {
+   "key": "- previous = stamp.read_text(encoding=\"utf-8\").strip() if stamp.exists() else None | + previous = stamp.read_text(encoding=None).strip() if stamp.exists() else None",
+   "class": "no-distinguishing-input",
+   "why": "The stamp holds only a 16-character hex digest (test_tree_hash's output) — pure ASCII, so the codec cannot change the bytes read. Same proof-over-domain as the meta read above.",
+   "probe": "The only writer of the stamp is refresh_results_if_tests_changed, which writes test_tree_hash(...) = hexdigest()[:16], i.e. [0-9a-f]{16}. ASCII, codec-invariant."
+  },
+  {
+   "key": "- stamp.write_text(current, encoding=\"utf-8\") | + stamp.write_text(current, encoding=None)",
+   "class": "no-distinguishing-input",
+   "why": "`current` is a 16-char hex digest (ASCII), so writing it under utf-8 vs the locale default produces identical bytes. Proof over the reachable domain: the value is always test_tree_hash's hexdigest.",
+   "probe": "current = test_tree_hash(tests_dir) = hexdigest()[:16] = [0-9a-f]{16}. ASCII, codec-invariant on write as on read."
+  },
+  {
+   "key": "- stamp.write_text(current, encoding=\"utf-8\") | + stamp.write_text(current, )",
+   "class": "no-distinguishing-input",
+   "why": "Dropping the encoding argument entirely falls back to the locale default, which for the ASCII hex digest written here is byte-identical to utf-8 — the same equivalence as the encoding=None mutant on this line, one operator over.",
+   "probe": "Same site, same ASCII value (a 16-hex digest); omitting encoding and passing encoding=None both select the locale codec, and ASCII is codec-invariant."
+  }
  ]
 }
