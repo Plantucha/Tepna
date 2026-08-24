@@ -1,0 +1,34 @@
+{
+  "ok": true,
+  "overlapMin": 27.35,
+  "alignmentOffsetSec": 159,
+  "clockOffsetSec": 159,
+  "appliedLagSec": 0,
+  "scale": {
+    "a": 0.9979073316098777,
+    "b": -2.863065883672057e-7,
+    "residSD": 0.0008674638896919611
+  },
+  "blandAltman": {
+    "bias": 9.74895531342278e-8,
+    "loLoA": -0.002276592264319335,
+    "hiLoA": 0.0022767872434256036
+  },
+  "divergence": {
+    "excursionFrac": 0.33730652041438147,
+    "pairedSamples": 41025
+  },
+  "scaleOverTime": [
+    {
+      "startMin": 0,
+      "scale": 0.9979094023020512,
+      "n": 15000
+    },
+    {
+      "startMin": 10,
+      "scale": 0.9979076097025837,
+      "n": 15000
+    }
+  ],
+  "scaleStable": true
+}

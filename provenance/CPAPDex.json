@@ -108,6 +108,21 @@
       },
       "outputHash": "73a7ac3a5f33784b",
       "note": "ADDED 2026-07-12 (CPAP-REAL-CORPUS-2026-07-11-BRIEF P2) — the BINARY multi-file EDF equivalence leg, and the FIRST fixture whose INPUT bytes are themselves committed and content-addressed. Every other equiv input is a real recording (gitignored, absent in CI), so every other compute()-equivalence diff SKIPS in CI; this one RUNS. Inputs are SYNTHETIC (tools/make-synthetic-edf.mjs): closed-form waveforms calibrated to a real corpus DISTRIBUTIONS, containing no recording of any person and no device identifier (EDF+ header identity fields blank) — which is exactly why they can ship in a public repo when the real EDFs cannot (their header carries a device serial; brief F3). Deterministic: re-running the generator reproduces the five .edf files byte-for-byte, so inputHashes are stable. Drives the FULL chain the _synthEdfSet golden skips: readEDF (binary parser + EDF+ TAL annotations) -> buildSessionFromEdf -> buildNight -> cpapBuildExport. Also the first gated input to exercise the SA2 oximetry lane (selfGateDesat/detectDesats/oximetryLane) — the real corpus reports oximeter-not-connected on 217/222 sessions, so that lane had never run on any gated input (brief F6). REGENERATE both the inputs (node tools/make-synthetic-edf.mjs) and this golden whenever the export shape changes."
+    },
+    "cpapdex_comparator_golden.json": {
+      "bundle": "CPAPDex.html",
+      "manifestHash": "d65627514bcc",
+      "added": "2026-08-24 (CPAPDEX-LIVE-SD-COMPARATOR-2026-08-23-BRIEF) — synthetic BRP pin-twin, one wall-clock flow into two files (sd −159 s, ×0.998).",
+      "note": "Committed SYNTHETIC live-vs-SD pin-twin; CPAPCross.compareChannel(Flow.40ms) known-answer. Reproduces the night pin identity verdict + 27.35-min overlap; guards the readEDF→compareChannel chain.",
+      "inputs": [
+        "cpapdex_comparator_live_twin_BRP.edf",
+        "cpapdex_comparator_sd_twin_BRP.edf"
+      ],
+      "outputHash": "2c5bbfe7f12824e6",
+      "inputHashes": {
+        "cpapdex_comparator_live_twin_BRP.edf": "f2a0f5e28efbc4fe",
+        "cpapdex_comparator_sd_twin_BRP.edf": "1dc0050ae1a25cf7"
+      }
     }
   }
 }

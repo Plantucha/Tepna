@@ -190,6 +190,32 @@ const FIXTURES = [
       if (!s) return null;
       return CpapFusion.cpapBuildExport(nightOf([s]));
     }
+  },
+  {
+    // LIVE-vs-SD COMPARATOR pin-twin — a committed SYNTHETIC BRP pair (Flow.40ms, ns=1). One wall-clock
+    // flow function sampled into two files (sd started 159 s earlier, amplitude ×0.998); int16
+    // quantization is the only residual (deterministic, no RNG). Reproduces the night pin's identity
+    // verdict (scale ~0.998) + the 27.35-min overlap geometry the real slice showed. Real patient
+    // slices stay gitignored; this twin is what CI re-runs. Golden = compareChannel over the pair.
+    name: 'cpapdex_comparator_golden.json',
+    newRecord: {
+      added: '2026-08-24 (CPAPDEX-LIVE-SD-COMPARATOR-2026-08-23-BRIEF) — synthetic BRP pin-twin, one wall-clock flow into two files (sd −159 s, ×0.998).',
+      note: 'Committed SYNTHETIC live-vs-SD pin-twin; CPAPCross.compareChannel(Flow.40ms) known-answer. Reproduces the night pin identity verdict + 27.35-min overlap; guards the readEDF→compareChannel chain.',
+      inputs: ['cpapdex_comparator_live_twin_BRP.edf', 'cpapdex_comparator_sd_twin_BRP.edf']
+    },
+    build: () => {
+      const readOne = (f) => {
+        const fp = path.join(CORPUS, f);
+        if (!fs.existsSync(fp)) return null;
+        return CpapEdf.readEDF(ab(fp));
+      };
+      const L = readOne('cpapdex_comparator_live_twin_BRP.edf');
+      const S = readOne('cpapdex_comparator_sd_twin_BRP.edf');
+      if (!L || !S) return null;
+      const chL = L.signals['Flow.40ms'];
+      const chS = S.signals['Flow.40ms'];
+      return ctx.CPAPCross.compareChannel({ t0Ms: L.clock.t0Ms, fs: chL.fs, values: chL.data }, { t0Ms: S.clock.t0Ms, fs: chS.fs, values: chS.data });
+    }
   }
 ];
 
