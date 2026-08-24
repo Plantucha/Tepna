@@ -20172,11 +20172,11 @@
          `ppg_offset` to `ppgoffset`, neither of which may match the `pi`-prefix perfusion-index rule,
          and neither `ppg_dur_step` nor `flag_raw` may match `pr`/`hr`. */
       var OXF13 =
-        'Phone timestamp;duration_s;pi_pct;motion;spo2;pr;contact;battery_pct;batt_state;flag;ppg_n;ppg_dur_step;ppg_offset;flag_raw\n' +
-        '2026-07-20T19:07:53.936;165;3.6;0;96;60;1;100;0;1;126;;0;199\n' +
-        '2026-07-20T19:07:54.936;166;4.4;0;95;60;1;100;0;1;126;1;126;199\n' +
-        '2026-07-20T19:07:55.936;167;0;0;96;60;1;100;0;1;253;2;252;199\n' +
-        '2026-07-20T19:07:56.936;168;4.0;0;96;60;1;100;0;1;126;1;505;199\n';
+        'Phone timestamp;duration_s;pi_pct;motion;spo2;pr;contact;battery_pct;batt_state;flag;ppg_n;ppg_dur_step;ppg_offset;flag_raw;run_status\n' +
+        '2026-07-20T19:07:53.936;165;3.6;0;96;60;1;100;0;1;126;;0;199;2\n' +
+        '2026-07-20T19:07:54.936;166;4.4;0;95;60;1;100;0;1;126;1;126;199;2\n' +
+        '2026-07-20T19:07:55.936;167;0;0;96;60;1;100;0;1;253;2;252;199;2\n' +
+        '2026-07-20T19:07:56.936;168;4.0;0;96;60;1;100;0;1;126;1;505;199;2\n';
       var ox13 = OB.parseCSV(OXF13, { fname: 'Wellue_O2Ring-S_x_OXYFRAME.txt' });
       T.eq('the 14-column OXYFRAME parses all 4 frames', ox13.length, 4);
       var st13 = OB.computeStats(ox13);
