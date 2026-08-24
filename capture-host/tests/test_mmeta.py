@@ -90,6 +90,64 @@ def _tests(tmp_path, files):
     return d
 
 
+# ── §3b · generated vs decided: the benign zero must not read as a crash ──────────────────────────
+# A function with no mutable operator generates NOTHING, and mutmut signals that by crashing. Refusing
+# on it reds the safest diffs there are. Measured 2026-08-24 on oxy_inventory.identity: 138 mutants in
+# the file, 0 under that glob, whole run refused at exit 2.
+_MUTSRC = (
+    "def x_a__mutmut_1():\n    pass\n"
+    "def x_a__mutmut_2():\n    pass\n"
+    "def x_b__mutmut_1():\n    pass\n"
+)
+
+
+def test_generated_counts_a_functions_own_mutants():
+    assert mmeta.generated_under_glob(_MUTSRC, "m.x_a__mutmut_*") == 2
+
+
+def test_generated_does_not_bleed_across_functions():
+    assert mmeta.generated_under_glob(_MUTSRC, "m.x_b__mutmut_*") == 1
+
+
+def test_a_function_with_no_mutable_operator_generates_zero():
+    """THE false-red case — benign, and must be distinguishable from a crash."""
+    assert mmeta.generated_under_glob(_MUTSRC, "m.x_identity__mutmut_*") == 0
+
+
+def test_a_missing_or_empty_mutants_file_generates_zero():
+    assert mmeta.generated_under_glob("", "m.x_a__mutmut_*") == 0
+    assert mmeta.generated_under_glob(None, "m.x_a__mutmut_*") == 0
+
+
+def test_generated_count_reads_the_scratch(tmp_path):
+    (tmp_path / "mutants").mkdir()
+    (tmp_path / "mutants" / "m.py").write_text(_MUTSRC, encoding="utf-8")
+    assert mmeta.generated_count(tmp_path, "m.py", "m.x_a__mutmut_*") == 2
+    assert mmeta.generated_count(tmp_path, "m.py", "m.x_identity__mutmut_*") == 0
+
+
+def test_generated_count_is_zero_when_the_mutants_file_is_absent(tmp_path):
+    assert mmeta.generated_count(tmp_path, "absent.py", "m.x_a__mutmut_*") == 0
+
+
+def test_the_three_way_split_is_exhaustive(tmp_path):
+    """generated/decided together name exactly three states, and the pair is the whole decision."""
+    (tmp_path / "mutants").mkdir()
+    (tmp_path / "mutants" / "m.py").write_text(_MUTSRC, encoding="utf-8")
+    (tmp_path / "mutants" / "m.py.meta").write_text(
+        json.dumps({"exit_code_by_key": {"m.x_a__mutmut_1": 1, "m.x_a__mutmut_2": None,
+                                         "m.x_b__mutmut_1": None}}), encoding="utf-8")
+    # covered — generated and at least one decided
+    assert mmeta.generated_count(tmp_path, "m.py", "m.x_a__mutmut_*") > 0
+    assert mmeta.tested_count(tmp_path, "m.py", "m.x_a__mutmut_*") > 0
+    # the §3 crash — generated, none decided
+    assert mmeta.generated_count(tmp_path, "m.py", "m.x_b__mutmut_*") > 0
+    assert mmeta.tested_count(tmp_path, "m.py", "m.x_b__mutmut_*") == 0
+    # benign — nothing generated, nothing decided
+    assert mmeta.generated_count(tmp_path, "m.py", "m.x_identity__mutmut_*") == 0
+    assert mmeta.tested_count(tmp_path, "m.py", "m.x_identity__mutmut_*") == 0
+
+
 def test_test_tree_hash_is_stable_for_identical_content(tmp_path):
     a = _tests(tmp_path / "a", {"test_x.py": "def test_x(): assert True\n"})
     b = _tests(tmp_path / "b", {"test_x.py": "def test_x(): assert True\n"})

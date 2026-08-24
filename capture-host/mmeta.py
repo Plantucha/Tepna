@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 
@@ -63,6 +64,38 @@ def tested_count(work: Path, module: str, glob: str) -> int:
     Zero on a glob the driver believes ran cleanly means the invocation dropped out — refuse, don't green.
     """
     return decided_under_glob(read_exit_codes(Path(work) / "mutants" / f"{module}.meta"), glob)
+
+
+def generated_under_glob(mutants_src: str, glob: str) -> int:
+    """How many mutants mutmut GENERATED for `glob`, counted in the mutants file it wrote.
+
+    ⚠️ THIS SEPARATES TWO CAUSES THAT `tested_count` ALONE CANNOT TELL APART, and one of them is
+    benign. A function with no mutable operator — `identity()` is `return f"{a}/{b}"`: no comparison,
+    no boolean, no numeric literal — yields ZERO mutants, and mutmut does not say so politely: it
+    exits with `AssertionError: Filtered for specific mutants, but nothing matches`. That glob then
+    reads 0-tested exactly like a crash, and refusing on it reds the safest diffs there are — a
+    rename, a docstring, a format-only edit.
+
+    Measured 2026-08-24 on a one-line change inside `oxy_inventory.identity`: 138 mutants in the file,
+    **0** under that glob, whole run refused at exit 2.
+
+    So the pair is a three-way split, not a two-way one:
+        generated 0, decided 0  → nothing to mutate. Report it and pass; there is nothing to conclude.
+        generated >0, decided 0 → the §3 crash. Refuse — an empty survivor list is "not checked".
+        generated >0, decided >0 → covered.
+    """
+    stem = glob.rstrip("*")
+    fn = stem.split(".", 1)[1] if "." in stem else stem
+    return len(re.findall(r"^def " + re.escape(fn) + r"\d+\(", mutants_src or "", re.M))
+
+
+def generated_count(work: Path, module: str, glob: str) -> int:
+    """`generated_under_glob` against the scratch's mutants file, `{}`-safe if it is absent."""
+    try:
+        src = (Path(work) / "mutants" / module).read_text(encoding="utf-8")
+    except OSError:
+        return 0
+    return generated_under_glob(src, glob)
 
 
 def test_tree_hash(tests_dir: Path) -> str:

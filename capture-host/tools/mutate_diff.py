@@ -344,6 +344,7 @@ def main(argv=None) -> int:
     # would still fail open. If every invocation errored, no mutant was ever tested.
     _attempted = _ran = 0
     _crashed: list = []          # §3 — globs that returned no error yet tested zero mutants (silent drop-out)
+    _nothing_to_mutate: list = []  # §3b — globs with NO generated mutants: benign, not a failure
     verdict: dict = {"base": a.base, "modules": {}, "survivors": []}
     for module, lines in sorted(changed.items()):
         stems = functions_covering(HERE / module, lines)
@@ -369,8 +370,17 @@ def main(argv=None) -> int:
             # glob; zero means it dropped out while listed as covered — record it and refuse below, exactly
             # as the preflight does, rather than banking an empty survivor list as a pass.
             if mmeta.tested_count(work, module, g) == 0:
-                print(f"    ! {g}: mutmut recorded 0 tested mutants — a crash after generation, not a "
-                      f"clean run (the meta's exit codes are all null under this glob)")
+                # ⚠️ 0-tested has TWO causes and only one is a failure. A function with no mutable
+                # operator generates nothing, and mutmut signals that by crashing rather than saying
+                # so — refusing on it reds a rename or a docstring edit. Ask the mutants file which
+                # case this is before deciding. (Measured: oxy_inventory.identity, 138 mutants in the
+                # file, 0 under its glob, whole run refused.)
+                if mmeta.generated_count(work, module, g) == 0:
+                    print(f"    · {g}: no mutable operator in this function — nothing to test")
+                    _nothing_to_mutate.append(g)
+                    continue
+                print(f"    ! {g}: mutants were generated but 0 tested — a crash after generation, not "
+                      f"a clean run (the meta's exit codes are all null under this glob)")
                 _ran -= 1
                 _crashed.append(g)
                 continue
@@ -427,6 +437,14 @@ def main(argv=None) -> int:
     # broken function must not hide the others), catastrophic in aggregate, because `blocking` is
     # then empty and the run prints success. Refuse for the same reason as the preflight: nothing
     # was tested, so nothing was shown. This is the layer the import check cannot cover.
+    # A glob with nothing to mutate is counted in `_attempted` but is not a failure, so it must not
+    # feed the all-or-nothing refusal either: otherwise a diff touching only unmutable functions reds.
+    if _nothing_to_mutate and not _ran and not _crashed and len(_nothing_to_mutate) == _attempted:
+        print(f"\nmutate-diff: {len(_nothing_to_mutate)} changed function(s) had no mutable operator — "
+              "nothing to test, and nothing to conclude. Not a failure.")
+        if a.json:
+            Path(a.json).write_text(json.dumps(verdict, indent=2), encoding="utf-8")
+        return 0
     if _attempted and not _ran:
         print(f"\nmutate-diff: REFUSING — all {_attempted} mutmut invocation(s) failed, so no mutant "
               "was generated or tested. The per-glob errors are above.")
