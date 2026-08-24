@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-23 · **Executes:** `CPAP-ACQUISITION-HARDENING-AUDIT-2026-08-23-BRIEF.md` P4 · **Depends:** `CPAP-ACQ-P2-LIFECYCLE-2026-08-23-BRIEF.md` (the state machine this maps onto) · **Lead:** the acquisition-hardening lead (session codename Mutator, 2026-08-23) · **Affects (design brief — no code yet):** a NEW `capture-host/cpap_spool.py`, `capture-host/as11_pull.py` (unchanged — validated by hardware), the `.part`→commit pattern from `cpap_harvest.py`
+**Status:** IN-PROGRESS — 2026-08-23 · **Created:** 2026-08-23 · **Executes:** `CPAP-ACQUISITION-HARDENING-AUDIT-2026-08-23-BRIEF.md` P4 · **Depends:** `CPAP-ACQ-P2-LIFECYCLE-2026-08-23-BRIEF.md` (the state machine this maps onto) · **Lead:** the acquisition-hardening lead (session codename Mutator, 2026-08-23) · **Affects (design brief — no code yet):** a NEW `capture-host/cpap_spool.py`, `capture-host/as11_pull.py` (unchanged — validated by hardware), the `.part`→commit pattern from `cpap_harvest.py`
 
 # CPAP acquisition — P4: the transactional stored-spool synchronization chain
 
@@ -69,6 +69,23 @@ is where the next pull resumes.
   input. So the ledger's last line always names exactly where an interrupted sync resumes.
 - A round that did NOT reach a terminal status leaves its `.part` and writes NO ledger line; the next
   run re-pulls its (still-uncommitted) input cursor and, by §1's re-serve, gets the same bytes.
+
+### 3a · Consumer contract — LOCKED 2026-08-23 (co-signed with the feature arm)
+
+Agreed verbatim in the lead↔feature-arm exchange (P4 execution moved to the lead by owner order):
+**store layout** `committed/<compact cursor>-<sha12>.bin` (raw round bytes, content-addressed,
+immutable) + `cpap_spool_ledger.jsonl` as the consumer's READ INDEX (iterate rows, read named
+files, never list directories); `.part` staging lives under `incomplete/`, invisible to consumers
+by construction. **Reliance semantics:** row ⇒ file exists + sha256-matches + cleanly-terminated;
+`committed_cursor` of row N == `round.from` of row N+1 (device-skip gaps surface as breaks);
+`round_seq` is the producer's restart authority, `round.from` the consumer's time anchor — both in
+every row, plus `spool_type` for stream routing. **Clock Contract:** cursors are the DEVICE stamp
+AS-SERVED, verbatim (`Z` included) — localisation to box civil time is the CONSUMER's step, the
+same resolution the live EdfSink applies, so live and spool EDFs stamp identically. **Layering:**
+the ledger carries transaction metadata only; decoded facts (channels, intervals) live in the raw
+bytes and surface at the consumer's decode — whether the fragment self-describes its interval is
+resolved empirically at the first committed real round, selecting between the consumer's two
+already-built paths (observed-authoritative vs documented-40ms-default+warn).
 
 ## 4 · Atomic commit — the WiFi path's proven shape, reused (spec §24, §1f of the audit)
 
