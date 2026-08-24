@@ -73,6 +73,17 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent.parent
 VENV_PY = HERE / ".venv" / "bin" / "python"
 
+# §2 (OXYII-G1-FOLLOWUPS) — mutmut's exit-code cache is a function of the TESTS, but this file keys its
+# scratch REUSE on the module source hash alone, so a scratch reused after a test was added/modified
+# serves stale verdicts and the new killer goes uncredited on the first run. mmeta invalidates just the
+# results cache (keeping the expensive mutant source + warm .pyc) when the test tree moves. Loaded by
+# path: these tools run as scripts, so sys.path[0] is tools/, not the root where mmeta lives.
+import importlib.util as _ilu  # noqa: E402
+
+_mmspec = _ilu.spec_from_file_location("mmeta", HERE / "mmeta.py")
+mmeta = _ilu.module_from_spec(_mmspec)
+_mmspec.loader.exec_module(mmeta)
+
 # ⚠️ TESTS THAT SCAN SOURCE TEXT CANNOT RUN AGAINST A MUTANT FILE, and excluding them is correctness,
 # not convenience. mutmut 3 generates ONE file holding every mutant inline (`x_f__mutmut_1`, `_2`, …)
 # and dispatches at runtime — so a test that greps the source sees all of them at once. Measured:
@@ -264,6 +275,12 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
             ".venv", "mutants", "__pycache__", "*.pyc", ".coverage*", "htmlcov"))
     (work / "pyproject.toml").write_text(CONFIG.format(
         source=module, also_copy=also, tests=", ".join(repr(t) for t in tests)), encoding="utf-8")
+    # §2 — clear mutmut's cached verdicts for this module iff the test tree changed since the scratch was
+    # last run, so an added or modified killer is credited on the FIRST run rather than the second. The
+    # stamp lives in the reusable scratch (keyed on src_hash), which survives the prune; on a fresh
+    # scratch there is no meta yet, so this only records the current test hash for the next reuse.
+    if mmeta.refresh_results_if_tests_changed(work, module, HERE / "tests", scratch / ".tests-hash"):
+        plan["invalidated_results"] = "tests changed since last run"
     # ⚠️ BYTECODE CACHING IS LOAD-BEARING HERE, and disabling it is what made capture.py unmeasurable.
     # mutmut writes ONE module holding every mutant, so capture.py's is 100 MB / 1.9 M lines. Compiling
     # that costs 429 s; with a .pyc beside it, 0.4 s (measured 2026-08-03). mutmut starts a FRESH
