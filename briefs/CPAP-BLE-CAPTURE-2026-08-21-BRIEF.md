@@ -78,6 +78,34 @@ PullSpoolFragments, SubscribeEvent). No state/therapy-changing method (`Set`, `S
 - Daemon integration (`capture.py`): a post-doffing CPAP-over-BLE pull, on the free adapter, gated so it
   never contends with the wearable capture.
 
+### Event-driven harvest — the trigger keys on the machine's SESSION verdict, never the mask (owner ruling 2026-08-24, relayed via Mutator)
+
+The obvious `SubscribeEvent` design — fire the SD/spool harvest on the first mask-off event — is **WRONG**,
+and the owner ruled out why: **the owner takes the mask off mid-session to talk or sneeze**, so a mask-off
+is mid-session noise, not a therapy boundary. This is the fleet's now-recurring **sensor-vote ≠
+device-verdict** pattern, third instance:
+
+| device | the VOTE (a sensor bit — noisy, mid-session) | the VERDICT (the device's own boundary) |
+|---|---|---|
+| O2Ring (G6, #1729) | contact bit | `duration_s` — the recording predicate |
+| Verity Sense (`verity-contact-bit`) | contact bit ("worn" in its charger, on a desk) | — |
+| **ResMed AS11 (this)** | **mask on/off** | **blower running/stopped** |
+
+The blower running/stopped is the machine's OWN session boundary — it is what the SD data already treats
+as one session, brief mask-offs included. So the probe and the harvest are reframed:
+
+1. **The probe (tonight's `SubscribeEvent`) catalogs ALL event types the AS11 pushes, but the question
+   that decides the design is: does a THERAPY / BLOWER state event exist, distinct from mask events?**
+   If yes, that event is the harvest trigger and the mask events are ignored for boundary purposes.
+2. **If only mask events exist**, the design falls back to a **debounced compound signal**: a *sustained*
+   mask-off (minutes, not seconds) corroborated by the live flow signature (leak / zero-flow). The
+   debounce constant is **MEASURED, not guessed** — from tonight's natural mid-session mask-offs (the
+   owner will produce them), exactly as the ring's ~10 s file-close debounce was measured rather than
+   assumed. *(Measured value: TBD — fold in after tonight's probe.)*
+3. **Whatever fires the SD harvest keys on the machine's session-END verdict, NEVER the first mask-off.**
+   Harvesting on a talk/sneeze mask-off would pull a half-session and re-pull the rest later as a
+   duplicate — the same class of bug D-w3's dedupe-by-(cursor, sha) guards against on the ring side.
+
 ## Deliberately NOT in scope
 
 - **Setting the CPAP clock** — impossible over BLE (permission table); the box-clock stamp is the fix.
