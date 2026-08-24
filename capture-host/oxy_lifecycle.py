@@ -48,6 +48,8 @@ _S = OxyState
 # cannot happen must not be silently recorded (charter R5 / P2 §3).
 LEGAL_TRANSITIONS = frozenset({
     (_S.NOT_SEEN, _S.CONNECTING), (_S.NOT_SEEN, _S.SHUTTING_DOWN),
+    # a stored-session pull or an adapter recovery can be in progress before we ever connect
+    (_S.NOT_SEEN, _S.PAUSED_FOR_PULL), (_S.NOT_SEEN, _S.RECOVERING),
 
     (_S.CONNECTING, _S.CONNECTED), (_S.CONNECTING, _S.DISCONNECTED), (_S.CONNECTING, _S.ERROR),
     (_S.CONNECTING, _S.RECOVERING), (_S.CONNECTING, _S.PAUSED_FOR_PULL), (_S.CONNECTING, _S.SHUTTING_DOWN),
