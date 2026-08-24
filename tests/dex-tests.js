@@ -17452,6 +17452,36 @@
       var setR = CX.cpapCompare({ Flow: ser(A) }, { Flow: ser(B) });
       T.ok('set-level compare returns per-channel results', setR.ok && setR.channels.Flow.ok && Math.abs(setR.channels.Flow.scale.a - 0.9) < 1e-3);
 
+      // PARTIAL OVERLAP (Vigil box real case, 2026-08-24 — 20260824_174542 BLE vs _174018 SD). The live
+      // capture starts 324 s INTO the SD recording AND extends 204 s PAST its end (SD boundary-clips at
+      // therapy stop; the BLE stream keeps going). This is the NORMAL field geometry, not contained-in.
+      // The comparator must anchor on the device clock and regress ONLY the [max(t0),min(end)]
+      // intersection — never the live tail with no SD counterpart. A contained-assumption search
+      // ([0, len_long−len_short]) mis-locks and garbages the scale (the box's stale probe returned 0.229
+      // here; the surface returns identity because the overlap is the intersection by construction).
+      var poFs = 25;
+      var wall = function (t) {
+        return Math.sin(t / 4) + 0.3 * Math.sin(t / 1.7);
+      };
+      var sdV = [],
+        liveV = [];
+      for (var si = 0; si < 420 * poFs; si++) sdV.push(wall(si / poFs)); // SD spans [0,420] s
+      for (var li = 0; li < 300 * poFs; li++) liveV.push(wall(324 + li / poFs)); // live [324,624] s — starts 324 s in, ends 204 s past SD
+      var po = CX.compareChannel({ t0Ms: 1000000 + 324000, fs: poFs, values: liveV }, { t0Ms: 1000000, fs: poFs, values: sdV });
+      T.ok('partial overlap: aligns on the 324 s clock offset (live starts partway into SD)', po.ok && Math.abs(po.clockOffsetSec - 324) < 0.01, 'clk=' + (po.ok && po.clockOffsetSec));
+      T.ok(
+        'partial overlap: regresses ONLY the [max(t0),min(end)] intersection → overlapMin ≈ 1.6 min, scale ≈ 1',
+        po.ok && Math.abs(po.overlapMin - 1.6) < 0.05 && Math.abs(po.scale.a - 1) < 0.01,
+        'overlapMin=' + (po.ok && po.overlapMin) + ' scale=' + (po.ok && po.scale.a && po.scale.a.toFixed(4))
+      );
+      // THE guard: the 204 s of live with no SD counterpart must be EXCLUDED — paired ≈ 96 s (2400
+      // samples), never the full 300 s (7500). A reintroduced contained-assumption would pair all of live.
+      T.ok(
+        'partial overlap: the live tail with no SD counterpart is EXCLUDED (paired ≈ 96 s, not 300 s)',
+        po.ok && po.divergence.pairedSamples <= 96 * poFs + 10 && po.divergence.pairedSamples >= 96 * poFs - 60,
+        'paired=' + (po.ok && po.divergence.pairedSamples)
+      );
+
       // ── RENDER: the comparator PANEL surfaces the result as badged cards (node-lane only; the browser
       //    lane runs render in iframe rigs). Every surfaced number carries a MEASURED badge; a channel
       //    refusal becomes a CLOCK FINDING, not aligned through; NO Pearson r as a metric. ──

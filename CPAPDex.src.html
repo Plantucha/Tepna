@@ -97,6 +97,10 @@
 @media(max-width:680px){.trend-row{grid-template-columns:1fr auto auto;gap:8px}.trend-spark{display:none}}
 
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:9px;margin-bottom:16px}
+/* The live-vs-SD comparator panel is injected into #comparatorHost AFTER load; .kpi's cardEntrance
+   from{opacity:0}+both fill leaves the injected tiles stuck transparent (worst under prefers-reduced-motion,
+   which shortens the animation to .01ms). Skip the entrance animation there — the tile's base styling stays. */
+#comparatorHost .kpi{animation:none}
 .kpi-u{font-size:13px;color:var(--text3);font-weight:600;margin-left:3px}
 .kpi-val.ok{color:var(--green)}.kpi-val.warn{color:var(--amber)}.kpi-val.bad{color:var(--red)}.kpi-val.neutral{color:var(--blue)}
 

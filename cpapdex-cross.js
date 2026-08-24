@@ -694,9 +694,14 @@
     var residSD = sd(resid),
       bias = mean(diffs),
       dsd = sd(diffs);
-    var t = tol > 0 ? tol : 1.96 * residSD;
+    // Excursions are counted against the Bland-Altman agreement band (bias ± 1.96·SD-of-diffs) — the
+    // SAME band the panel prints as loLoA/hiLoA. Earlier this used 1.96·residSD (the POST-regression
+    // residual SD) against the RAW diffs, so a pair with scale ≠ 1 (the systematic gain the residual
+    // removes but the raw diff keeps) counted ~a third of samples "outside" a band far too tight — 33.7%
+    // on a near-identity twin. Against the LoA, a consistent pair sits ~5% outside by construction.
+    var t = tol > 0 ? tol : 1.96 * dsd;
     var excursions = 0;
-    for (var m = 0; m < diffs.length; m++) if (Math.abs(diffs[m]) > t) excursions++;
+    for (var m = 0; m < diffs.length; m++) if (Math.abs(diffs[m] - bias) > t) excursions++;
     // Windowed scale-over-time — the stable-vs-time-varying finding. A single scale over a 5 h night can
     // launder a drift; per-window regression surfaces it. Flat windows ⇒ stable (the identity verdict).
     var winN = Math.max(1, Math.round(fs * 600)); // ~10-min windows
