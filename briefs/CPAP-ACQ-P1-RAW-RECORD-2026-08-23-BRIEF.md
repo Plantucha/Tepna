@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-08-23
+**Status:** DONE — 2026-08-24 · **Created:** 2026-08-23
 
 # CPAP acquisition P1 — the durable raw record (the bus is not the only copy)
 
@@ -111,17 +111,23 @@ P1 reuses `capture-host/writers.py`'s proven `StreamWriter` discipline, not a ne
 
 ## Done when
 
-- [ ] A `RawBatch` record type carrying the §3 field list exactly; a decoy asserts no field is derived
+> **Executed in #1708** (the P1+P3 wiring capstone) — `capture-host/cpap_record.py`
+> `RawRecordSink` is the durable JSONL raw record; the §3 field list ships as its per-batch
+> `on_batch` record (no field derived at write time — `test_device_start_and_samples_are_verbatim`);
+> DURABLE-before-bus is the enforced sink order (`test_the_durable_sink_writes_before_the_bus_push`);
+> FOREIGN/MALFORMED counting + overflow via P3's `GapCounters`. 100% branch, gated.
+
+- [x] A `RawBatch` record type carrying the §3 field list exactly; a decoy asserts no field is derived
       at write time.
-- [ ] Each batch is one **JSONL line** (samples as an array) in a per-`session_id` file beside the
+- [x] Each batch is one **JSONL line** (samples as an array) in a per-`session_id` file beside the
       night's other capture files — the ratified format/location above.
-- [ ] An append-only, torn-tail-safe, `fsync`-on writer (StreamWriter idiom) — one file per `session_id`.
-- [ ] "Append DURABLE before bus publish" is the enforced order; a test proves a crash after append /
+- [x] An append-only, torn-tail-safe, `fsync`-on writer (StreamWriter idiom) — one file per `session_id`.
+- [x] "Append DURABLE before bus publish" is the enforced order; a test proves a crash after append /
       before publish still has the batch on disk.
-- [ ] `device_interval` is the observed interval; `device_start` is device-clock floating `tMs`;
+- [x] `device_interval` is the observed interval; `device_start` is device-clock floating `tMs`;
       `host_mono` + `host_wall` both recorded; none substituted for the device clock.
-- [ ] FOREIGN/MALFORMED frames (P3 `classify_frame`) are never written as samples; overflow is recorded.
-- [ ] Standalone module, 100% branch (the P2/P3 bar); touches neither `capture.py` nor `cpap_stream.py`.
+- [x] FOREIGN/MALFORMED frames (P3 `classify_frame`) are never written as samples; overflow is recorded.
+- [x] Standalone module, 100% branch (the P2/P3 bar); touches neither `capture.py` nor `cpap_stream.py`.
 - [ ] Wiring plan (§6) reviewed so the P1+P3 touch ships when the controller-race fix merges.
 
 ## Rulings (owner/lead-ratified, 2026-08-23)
