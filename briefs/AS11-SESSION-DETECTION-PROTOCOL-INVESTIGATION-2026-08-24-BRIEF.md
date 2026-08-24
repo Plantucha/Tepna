@@ -33,6 +33,56 @@ detection needs sustained evidence, not a level (MEASURED, n=1). The connection 
 **The charter's job is to test whether MaskPressure polling is actually OPTIMAL, or whether a more direct
 AS11 state/event mechanism exists** — SubscribeEvent is the highest-priority unanswered question.
 
+## PHASE A FINDINGS (2026-08-24) — the explicit therapy-state surface #1736 missed
+Two parallel passes (current-code read + clean-room public-protocol study) plus a live read-only idle
+read on the machine. **Headline: the AS11 exposes an EXPLICIT therapy-state read; #1736's "no explicit
+state" was WRONG DataItem NAMES (TherapyOn/Ventilation/SessionState/Mode — all InvalidObject), not a real
+absence. The real data model uses `FGState`.**
+
+**Live confirmation (read-only, idle):** `Get(["FGState"]) → "Standby"` — the flow-generator
+operating-state enum EXISTS (expect "Therapy" active). `GetVersion` RPC map advertises 20 methods incl.
+**`SubscribeEvent 1.0`**, `Get`, `StartStream`, `StartSpool`/`PullSpoolFragments` (fw SW04600.17.8.6.0,
+DataModel v2.17.1, serial 23221590541, AirSense 11 AutoSet). Also idle-confirmed: `DeviceControl`
+(test-drive subtree), **`MachineMetrics.LastTherapyUseDateTime`** (a session-END marker) +
+TherapyRunMeter/MotorRunMeter, `ActiveTherapyProfile` "AutoSet", `ActiveProfiles`
+(SmartStartStop/MaskSense enabled), `ConfigurationProfiles.DataDeliveryControlV2`
+(UsageEvents/TherapyEvents/Summary/TherapyOneMinutePeriodic all On). `MaskPressure` 0.1, `Leak`
+InvalidObject idle (both #1736-consistent). Write methods (`EnterTherapy`/`EnterStandby`/`Set`) are
+advertised but **NEVER called** (read-only rule).
+
+**§1 current code:** #1736 is DOCS-ONLY; all AS11 transport/session/StartStream/spool/GetDateTime + the
+manual `LiveStreamController.op()` lifecycle pre-exist. SubscribeEvent, any Get-based therapy polling,
+device-vs-box clock reconciliation, and the supervisor are GREENFIELD. `get_items` (Get, 0x43) exists
+but has no `as11_pull` wrapper/caller — an FGState poller needs only a thin wrapper. The stream loop
+discards non-`StreamData` notifications — no event dispatch exists yet.
+
+**§2/§4 SubscribeEvent + explicit state (clean-room, verify-don't-infer):** docs (airbreak-plus lineage;
+SomnoTrace GPL = credit only, NEVER code) document `SubscribeEvent` (0x3a) → `EventNotification` with 15
+selector families; therapy-relevant: **`UsageEvents-TherapyStatusEvents`** (mask on/off, therapy
+start/stop, power transitions — the direct signal) and **`SystemActivityEvents-FrequentActivityEvents`**
+(PowerUp/TherapyStarted/StandbyStarted/Warmup/Cooldown/RampDown/blower — independent lifecycle). Subs
+belong to the connection; unknown selectors → valid:false; firmware self-throttles (FloodingMitigated).
+The historical **event SPOOL** holds the same events — a missed live transition across a reconnect is
+likely recoverable.
+
+**§3b/§5/§6/§7 (condensed):** `FGState` (CONFIRMED) is the primary explicit-state read;
+`DeviceControl`/`MachineMetrics`/`ActiveProfiles` corroborate. Spools include RespiratoryFlow6p25Hz /
+MaskPressure6p25Hz (6.25 Hz — 4× coarser than 25 Hz live), TherapyOneMinutePeriodic, Summary (period
+start/end + session count), event spools — so a BLE-interrupted night is BACKFILLABLE to 6.25 Hz + 1-min
++ events (retention depth, during-therapy pull, RC03/Rice decoders, replay-ID = open `[HW]`). EDF: BRP
+25 Hz flow/pressure, PLD 0.5 Hz (MaskPressure-TwoSecond authoritative + Leak-as-flow), SA2 1 Hz SpO₂/HR,
+STR daily-summary (session MaskOn/Off markers + AHI). Time: GetDateTime readable/**UNSETTABLE** over BLE
+(confirmed — SetDateTime is service-access, no BLE VCID); the ~21-min offset is a SEPARATE finding (#18)
+— classify by GROWS (RTC drift, likely) vs FIXED (convention). Clock Contract untouched.
+
+**Architecture shift + Phase B:** RECOMMENDED (pending Phase B) = primary `Get(["FGState"])`
+explicit-state polling ± `SubscribeEvent(UsageEvents-TherapyStatusEvents)` push; MaskPressure/PatientFlow
+= corroborators/fallback. This likely **ELIMINATES the mask-off debounce** (the machine's own state
+should hold "Therapy" through a mask-off). PHASE B (next session, read-only): confirm FGState=="Therapy"
+during real therapy AND that it HOLDS through a ~30 s mask-off (THE key test); SubscribeEvent latency +
+labels; FGState/event stream-independence (§12); the min-safe debounce only if a pressure fallback is
+kept; a spool-backfill probe.
+
 ## Investigation agenda (charter §1–§15, condensed — full text in appendix)
 1. **Current Tepna** — read as11_pull, cpap_stream, LiveStreamController, the capture supervisor, BLE
    discovery, the AS11 RPC layer, telemetry bus, raw recorder, EDF writer, Clock Contract, CPAPDex, and
