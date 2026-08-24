@@ -377,6 +377,12 @@ def main(argv=None) -> int:
                 # file, 0 under its glob, whole run refused.)
                 if mmeta.generated_count(work, module, g) == 0:
                     print(f"    · {g}: no mutable operator in this function — nothing to test")
+                    # `_ran` was incremented on the way in; nothing actually ran, so give it back.
+                    # Without this the run reports "every mutant on the changed functions was killed"
+                    # over ZERO mutants — a claim of coverage that does not exist, which is the exact
+                    # failure class this guard was added to remove. (Caught by the end-to-end, not by
+                    # the unit tests: the counters are only visible in a real run.)
+                    _ran -= 1
                     _nothing_to_mutate.append(g)
                     continue
                 print(f"    ! {g}: mutants were generated but 0 tested — a crash after generation, not "
