@@ -245,6 +245,47 @@ def test_a_batch_without_intervalMs_keeps_the_requested_rate(caplog):
     assert not [r for r in caplog.records if "interval" in r.getMessage()]
 
 
+def test_a_zero_interval_is_not_a_valid_rate_and_is_ignored(caplog):
+    """§2 boundary — intervalMs=0 is not a positive rate (and 1000/0 would divide by zero), so `iv > 0`
+    rejects it and the pump keeps the requested rate with no warn. Pins the `> 0` lower bound: a `>= 0`
+    would accept 0, warn, and then crash deriving the rate."""
+    dev = FakeDev(_handshake() + [_ack(), _data_iv([1.0], [2.0], 0)])
+    bus = FakeBus()
+    with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+        _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                              sample_interval_ms=40, cipher_factory=_identity_factory, max_batches=1))
+    assert all(fs == 25.0 for _k, _v, fs in bus.pushed), "0 ms is ignored — the requested rate stands"
+    assert not [r for r in caplog.records if "interval" in r.getMessage()]
+
+
+def test_a_one_ms_interval_is_a_valid_off_rate_and_the_rate_follows(caplog):
+    """§2 boundary — intervalMs=1 is a positive (if extreme) rate, so `iv > 0` accepts it: it warns as a
+    mismatch and the pushed rate follows the observed 1 ms (1000 Hz). Pins the bound as `> 0`, not `> 1`
+    (a `> 1` would silently ignore a 1 ms observation)."""
+    dev = FakeDev(_handshake() + [_ack(), _data_iv([1.0], [2.0], 1)])
+    bus = FakeBus()
+    with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+        _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                              sample_interval_ms=40, cipher_factory=_identity_factory, max_batches=1))
+    assert any("!= requested" in r.getMessage() for r in caplog.records), "1 ms != requested 40 must warn"
+    assert all(fs == 1000.0 for _k, _v, fs in bus.pushed), "pushes follow the observed 1 ms → 1000 Hz"
+
+
+def test_the_extra_sink_receives_the_REAL_batch_not_a_placeholder():
+    """The fan-out must hand the extra sink the ACTUAL StreamData batch, not a stand-in — the EDF writer
+    accumulates from batch content, so a None (or any placeholder) would silently write an empty file.
+    Pins the argument: `s.on_batch(batch)`, never `s.on_batch(None)`."""
+    sink = _RecordingSink()
+    dev = FakeDev(_handshake() + [_ack(), _data_iv([0.7], [3.3], 40)])
+    bus = FakeBus()
+    _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                          cipher_factory=_identity_factory, extra_sinks=[sink], max_batches=1))
+    assert len(sink.batches) == 1
+    b = sink.batches[0]
+    assert b is not None, "the sink must get the real batch, not a placeholder"
+    assert (b.get("channels") or {}).get("PatientFlow") == [0.7], "the real batch content must reach the sink"
+
+
 # ── extra sinks: PEERS on the one seam + drain-on-disconnect ─────────────────────
 def test_an_extra_sink_is_opened_fed_every_batch_and_closed():
     """The EDF writer (here a recording stand-in) is a PEER of the bus on ONE loop: opened once with the
@@ -731,6 +772,25 @@ def test_controller_stop_CANCELS_and_RECORDS_when_the_pump_will_not_stop(monkeyp
         assert t.cancelled(), "the deaf pump was cancelled (emergency)"
         assert any("emergency" in r.message.lower() and "cancel" in r.message.lower()
                    for r in caplog.records), "the cancellation is RECORDED"
+    _run(go())
+
+
+def test_the_emergency_warning_reports_the_grace_seconds(monkeypatch, caplog):
+    """§8 — the emergency-cancel warning must NAME the grace it waited (an operator needs to know how long
+    the cooperative stop was given). Pins the STOP_GRACE_S format arg on the warning: a mutant dropping it
+    leaves a literal '%.0fs' with no value formatted in. Asserted on the FORMATTED message (getMessage),
+    not the raw template, which is why the existing 'emergency in message' test does not catch it."""
+    monkeypatch.setattr(CS, "STOP_GRACE_S", 0.6)   # %.0f rounds to '1s'; the deaf pump forces the timeout
+
+    async def go():
+        connect, _ = _connector()
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_deaf_pump)
+        await c.op("start")
+        with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+            await c.op("stop")
+        msg = next(r.getMessage() for r in caplog.records if "emergency" in r.getMessage().lower())
+        assert "1s" in msg, "the warning must name the grace seconds it waited"
+        assert "%" not in msg, "the grace must be formatted in, not left as a literal %.0fs"
     _run(go())
 
 
