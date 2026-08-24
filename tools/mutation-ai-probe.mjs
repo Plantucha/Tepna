@@ -147,6 +147,32 @@ export function rankPool(pool, targetVec, poolVecs) {
   return pool.map((p, i) => ({ ...p, i, sim: poolVecs[i] ? dot(targetVec, poolVecs[i]) / (norm(targetVec) * norm(poolVecs[i])) : -1 })).sort((a, b) => b.sim - a.sim || a.i - b.i);
 }
 
+/**
+ * Which verdict a PROBED mutant earns for the journal. PURE, so `--selftest` pins it with no model
+ * and no sandbox. (Distinct from `verdictFor` above, which decides whether two outputs differ; this
+ * decides what we RECORD about a mutant we have finished probing.)
+ *
+ * 🔴 THE ORDER OF THESE THREE IS THE WHOLE FUNCTION, and it was wrong. `!lastN` was tested FIRST, so
+ * a mutant killed by the SEED POOL — which sets `hit` but spends no sampling tier, leaving
+ * `lastN === 0` — fell into NOPROPOSAL and was journalled as unanswered. Measured 2026-08-24: the
+ * pool killed 1271 mutants in one nightly run and NOT ONE was recorded as a kill; the
+ * `FROM POOL — no model call` line fired 0 times. Every run rediscovered the same kills and discarded
+ * them, which is why the distill output came out byte-identical to the previous day's apart from the
+ * date digit, and why "probe converged" was a claim about nothing. Amnesiac, not converged.
+ *
+ * The tell was already in the code: the KILL record writes `tier: poolHit ? 'pool' : tier`, a branch
+ * existing ONLY to describe a pool hit — which the old guard made unreachable. A dead branch naming
+ * the exact case it can never see is a bug carrying its own signature.
+ *
+ * A KILL is a KILL however it was found. Whether a tier was spent is a question about COST, not about
+ * whether the mutant died.
+ */
+export function journalVerdict({ lastN, hit, poolHit, tier }) {
+  if (hit) return { v: 'KILL', tier: poolHit ? 'pool' : tier };
+  if (!lastN) return { v: 'NOPROPOSAL', tier };
+  return { v: 'NONE', tier };
+}
+
 export function startTierFor(prev) {
   if (!prev) return 0;
   /* A STALE entry was never PROBED — the mutant could not even be built, so no sampling tier was
@@ -608,6 +634,18 @@ function selftest() {
   ck('…and a NONE that exhausted the ladder cannot loop forever', startTierFor({ v: 'NONE', tier: 99 }), SAMPLING_TIERS - 1);
   ck('there are as many sampling tiers as the ladder claims', SAMPLING_TIERS >= 3, true);
 
+  console.log('\njournalVerdict — a KILL is a KILL however it was found');
+  /* The regression this pins: a SEED-POOL kill sets `hit` but spends no tier, so `lastN` stays 0. The
+     old guard tested `!lastN` first and journalled it NOPROPOSAL — 1271 kills discarded in one run
+     (2026-08-24), with the `tier:'pool'` branch left unreachable. */
+  ck('a POOL hit is a KILL, not a no-proposal', journalVerdict({ lastN: 0, hit: { input: 'x' }, poolHit: true, tier: 0 }).v, 'KILL');
+  ck("…and it is journalled as tier 'pool', the branch the old order made dead", journalVerdict({ lastN: 0, hit: { input: 'x' }, poolHit: true, tier: 0 }).tier, 'pool');
+  ck('a TIER hit is a KILL and keeps its numeric tier', journalVerdict({ lastN: 8, hit: { input: 'x' }, poolHit: false, tier: 2 }).tier, 2);
+  /* The negative twin — the fix must not overcorrect and journal phantom kills. */
+  ck('no hit and no draws is still NOPROPOSAL', journalVerdict({ lastN: 0, hit: null, poolHit: false, tier: 2 }).v, 'NOPROPOSAL');
+  ck('draws that separated nothing is still NONE', journalVerdict({ lastN: 8, hit: null, poolHit: false, tier: 4 }).v, 'NONE');
+  ck('NONE is never reported as a kill', journalVerdict({ lastN: 8, hit: null, poolHit: false, tier: 4 }).v === 'KILL', false);
+
   console.log('\njournal — killable must mean "stop without losing what you did"');
   ck('a key identifies WHAT changed, not a list position', probeKey({ line: 7, op: 'o', before: ' x ' }), probeKey({ line: 7, op: 'o', before: 'x' }));
   ck('…a different line is a different mutant', probeKey({ line: 7, op: 'o', before: 'x' }) === probeKey({ line: 8, op: 'o', before: 'x' }), false);
@@ -944,13 +982,14 @@ async function main() {
       if (!hit && VERBOSE) for (const a2 of inputs.slice(0, 2)) log('          tier ' + tier + ' tried ' + JSON.stringify(a2).slice(0, 86));
     }
 
-    if (!lastN) {
+    const jv = journalVerdict({ lastN, hit, poolHit, tier });
+    if (jv.v === 'NOPROPOSAL') {
       noProposal++;
       record(key, 'NOPROPOSAL', { tier: tier });
       log(prog + ' — ' + t.call + ' [' + t.op + ']  no parseable proposal in ' + tier + ' tier(s)');
       continue;
     }
-    if (!hit) {
+    if (jv.v === 'NONE') {
       record(key, 'NONE', { n: lastN, tier: tier });
       log(
         prog +
@@ -966,7 +1005,7 @@ async function main() {
       continue;
     }
     const rec = { fn: t.fn, callPath: t.call, line: t.line, op: t.op, before: t.before, after: t.after, status: 'KILLABLE', ...hit };
-    record(key, 'KILL', { hit: rec, tier: poolHit ? 'pool' : tier });
+    record(key, 'KILL', { hit: rec, tier: jv.tier });
     found.push(rec);
     if (!pool.some((p) => p.input === rec.input)) {
       pool.push({ input: rec.input, context: String(rec.before || '').trim(), call: rec.callPath });
