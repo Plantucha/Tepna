@@ -17495,6 +17495,32 @@
       );
       var devMatch = CX.cpapCompare({ Flow: ser(A) }, { Flow: ser(B) }, { liveRecId: 'SRL123', sdRecId: 'SRL123' });
       T.ok('cpapCompare proceeds when recording_ids match', devMatch.ok === true);
+
+      // ── EQUIV RE-RUN (GATE-C): the committed comparator golden must be REPRODUCED by re-running the
+      //    real readEDF → compareChannel chain on the committed twin EDFs — not merely declared. This is
+      //    the dynamic leg the fixture-reproducibility gate requires; the twins are synthetic + committed
+      //    so it runs in BOTH lanes (node reads the files, browser fetches them). ──
+      var eq = env.equiv && env.equiv.cpapdex_comparator;
+      var CE = env.CpapEdf;
+      if (eq && eq.input && eq.fixture && CE && typeof CE.readEDF === 'function') {
+        var recL = CE.readEDF(eq.input.live),
+          recS = CE.readEDF(eq.input.sd);
+        var chL = recL.signals['Flow.40ms'],
+          chS = recS.signals['Flow.40ms'];
+        var got = CX.compareChannel({ t0Ms: recL.clock.t0Ms, fs: chL.fs, values: chL.data }, { t0Ms: recS.clock.t0Ms, fs: chS.fs, values: chS.data });
+        var want = eq.fixture;
+        T.ok(
+          'golden REPRODUCED — readEDF(twins) → compareChannel ≡ committed golden (scale/offset/overlap)',
+          got.ok && Math.abs(got.scale.a - want.scale.a) < 1e-9 && Math.abs(got.alignmentOffsetSec - want.alignmentOffsetSec) < 1e-9 && Math.abs(got.overlapMin - want.overlapMin) < 1e-9,
+          'got a=' + (got.scale && got.scale.a)
+        );
+        T.ok(
+          'golden REPRODUCED — Bland-Altman + flags match',
+          got.scaleStable === want.scaleStable && got.scaleFarFromUnity === want.scaleFarFromUnity && Math.abs(got.blandAltman.bias - want.blandAltman.bias) < 1e-9
+        );
+      } else {
+        T.skip('comparator golden re-run (env.equiv.cpapdex_comparator + CpapEdf)', 'twins/golden not wired in this lane — the committed pair should make this run everywhere');
+      }
     });
 
     /* ════ CPAPDex pressureChangePoints — STEP-IMMUNE penalty scale (DEEP-AUDIT-II §6.1, PEN_K half) ════
