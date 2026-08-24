@@ -69,6 +69,9 @@ class GapCounters:
     overflow: int = 0           # frames dropped because the bounded queue was full (G5)
     stalls: int = 0             # detected no-frame-for-timeout stalls (spec §30 STREAM_STALL)
     post_drop_tail: int = 0     # frames arriving AFTER a logical link drop (audit §7.3 — the ~230ms tail)
+    sink_errors: int = 0        # durable-record write failures (INV9): the batch reached the bus but a
+    #                             sink write raised. A DISTINCT class — its consumer is restart
+    #                             reconciliation, not stream-loss accounting — so it is NOT in total_lost.
 
     def note_frame(self, kind: FrameKind, n_samples: int = 0) -> None:
         """Fold one classified frame into the counters. `n_samples` counts only for an OK frame."""
@@ -97,6 +100,7 @@ class GapCounters:
             "overflow": self.overflow,
             "stalls": self.stalls,
             "post_drop_tail": self.post_drop_tail,
+            "sink_errors": self.sink_errors,
             "total_lost": self.total_lost,
         }
 
