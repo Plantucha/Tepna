@@ -254,6 +254,60 @@
       depth: 'basic',
       evidence: 'measured',
       cite: 'Count of recordings folded into the multi-night view — directly observed, same class as ECG_REGISTRY.couplets (measured).'
+    },
+
+    /* ── LIVE-vs-SD COMPARATOR (cpapCompare — a BLE-captured night vs the device's own SD-card BRP) ──
+       Every number here is a direct regression/agreement statistic over the two recordings' overlapping
+       flow, on the device clock (Clock Contract §5). goodDirection is 'neutral' for the identity targets
+       (scale→1, bias→0, offset→0): a value is not "better" high or low, it is closer to or further from
+       agreement — the badge reports the tier, the card's own copy says which way agreement lies. */
+    cmpScale: {
+      label: 'Live/SD Scale',
+      unit: '',
+      goodDirection: 'neutral',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Regression slope of SD-card flow on BLE-live flow over the aligned overlap (OLS, no Pearson r). 1.00 = amplitude identity; a systematic gain difference reads directly.'
+    },
+    cmpResidSD: {
+      label: 'Scale Residual SD',
+      unit: 'L/s',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'SD of the live-vs-SD regression residual — the sample-by-sample disagreement the scale does not explain. Lower = tighter reproduction.'
+    },
+    cmpBias: {
+      label: 'Live−SD Bias',
+      unit: 'L/s',
+      goodDirection: 'neutral',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Bland–Altman mean difference (live − SD) over the overlap. 0 = no systematic offset; the sign says which path reads higher.'
+    },
+    cmpLoA: {
+      label: 'Limits of Agreement',
+      unit: 'L/s',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Bland–Altman ±1.96·SD span (half-width) around the bias — where 95% of sample differences fall. Narrower = the two paths agree more tightly.'
+    },
+    cmpAlignOffset: {
+      label: 'Alignment Offset',
+      unit: 's',
+      goodDirection: 'neutral',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'The device-clock offset the comparator applied to align the two flows (fine full-rate cross-correlation). A large value beyond tolerance is surfaced as a CLOCK finding, not aligned through (the 42-min EdfSink case is why).'
+    },
+    cmpOverlap: {
+      label: 'Overlap',
+      unit: 'min',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Minutes of device-clock overlap between the live and SD recordings — the n behind every agreement number above. Every quoted figure carries this n.'
     }
   };
 
