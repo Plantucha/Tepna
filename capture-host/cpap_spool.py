@@ -118,9 +118,16 @@ def read_ledger(root: str) -> list[dict]:
     return rows
 
 
+def committed_rows(rows: list[dict]) -> list[dict]:
+    """Only rows that carry the commit contract's keys. A VALID-JSON foreign line (a hand-written
+    marker, another tool's note) parses but carries no authority — it must never crash the restart
+    path or masquerade as a committed round."""
+    return [r for r in rows if "committed_cursor" in r and "round_seq" in r]
+
+
 def last_committed_cursor(root: str) -> str | None:
     """The fromDateTime the NEXT pull starts from — the restart authority (brief §3)."""
-    rows = read_ledger(root)
+    rows = committed_rows(read_ledger(root))
     return rows[-1]["committed_cursor"] if rows else None
 
 
@@ -223,7 +230,7 @@ async def sync_spool(pull_round, root: str, *, device: str, session: str,
     refutes that, the guard lands here without touching the loop.
     """
     ensure_layout(root)
-    rows = read_ledger(root)
+    rows = committed_rows(read_ledger(root))
     seen = {_row_key(r) for r in rows}
     round_seq = rows[-1]["round_seq"] + 1 if rows else 0
     cursor = rows[-1]["committed_cursor"] if rows else epoch_start

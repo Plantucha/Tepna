@@ -74,6 +74,7 @@ def test_two_rounds_commit_and_the_cursor_walks_the_chain(tmp_path):
     # a NO_MORE round re-arms its OWN cursor for the next sync
     assert rows[1]["committed_cursor"] == T1
     assert pull.calls == [("Summary", T0), ("Summary", T1)]
+    assert [r["round_seq"] for r in rows] == [0, 1]   # increments by exactly one within a pass
     assert len(committed_files(root)) == 2
 
 
@@ -329,3 +330,14 @@ def test_happy_path_with_lifecycle_reports_syncing_then_verified(tmp_path):
              on_transition=lambda st, why: states.append(st))
     assert s["stopped"] == "no-more-data"
     assert states == ["SYNCING", "VERIFIED"]
+
+
+def test_a_foreign_valid_json_ledger_row_is_tolerated_not_fatal(tmp_path):
+    root = str(tmp_path)
+    sync(root, scripted([(b"a", True, T1)]), max_rounds=1)
+    with open(sp.ledger_path(root), "a", encoding="utf-8") as fh:
+        fh.write('{"note": "hand-written maintenance marker"}\n')
+    # the foreign row has no "round" — dedupe must treat it as no-identity, never crash
+    s2 = sync(root, scripted([(b"b", False, None)]))
+    assert s2["rounds_committed"] == 1
+    assert sp.last_committed_cursor(root) == T1
