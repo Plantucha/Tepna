@@ -530,6 +530,9 @@ OXYFRAME_COLUMNS = (
     "batt_state", "flag",          # ── the original 10
     "ppg_n", "ppg_dur_step",       # O2RING-FRAME-SAMPLE-LOCK §7
     "ppg_offset", "flag_raw",      # DEVICE-RATE-TRUTH §6.1
+    "run_status",                  # OXYII-PRESENCE-MODEL §5: parsed since day one, never persisted —
+                                   # so no night could answer whether payload[4] discriminates states.
+                                   # Recorded raw; interpretation happens in the brief, not here.
 )
 OXYFRAME_HEADER = ";".join(OXYFRAME_COLUMNS)
 
@@ -602,7 +605,8 @@ class OxyFrameLogWriter:
                                  _f(live.get("contact")), _f(live.get("batt")),
                                  _f(live.get("batt_state")), _f(live.get("flag")),
                                  _f(p.get("n")), _f(p.get("step")),
-                                 _f(p.get("offset")), _f(live.get("flag_raw")))) + "\n")
+                                 _f(p.get("offset")), _f(live.get("flag_raw")),
+                                 _f(live.get("run_status")))) + "\n")
         self.rows += 1
         now = _time.monotonic()
         if now - self._last_flush >= self._flush_interval:
