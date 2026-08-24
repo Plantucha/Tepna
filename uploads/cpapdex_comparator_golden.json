@@ -16,7 +16,7 @@
     "hiLoA": 0.0022767872434256036
   },
   "divergence": {
-    "excursionFrac": 0.33730652041438147,
+    "excursionFrac": 0,
     "pairedSamples": 41025
   },
   "scaleOverTime": [
