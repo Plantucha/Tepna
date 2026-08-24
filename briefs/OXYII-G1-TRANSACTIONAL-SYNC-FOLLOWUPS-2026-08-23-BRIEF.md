@@ -116,9 +116,21 @@ same file. Worth confirming before either starts rather than discovering it in a
 ## 6 · Done when
 
 - [ ] Layer-3 validation lands, or is re-costed with a decision recorded — never implied to exist.
-- [ ] The drop test runs and `resume_strategy`'s flag is set from measurement.
-- [ ] `pull_session` wiring lands, with §4's boundary settled first.
+- [ ] The drop test runs and `resume_strategy`'s flag is set from measurement. *(gated: next physical
+      doff window — pull-before-restart order, watcher on the SYSTEM journal)*
+- [ ] `pull_session` wiring lands, with §4's boundary settled first. *(§4 boundary RULED 2026-08-24,
+      lead: per `oxy_lifecycle.py`'s own ratified docstring, G4's journal sees the pull only at daemon
+      granularity — `PAUSED_FOR_PULL` / `PULLING` — so per-transfer pull lifecycle is the pull layer's
+      OWN instrumentation in `pull_session`/`oxy_transfer`, not new G4 journal rows.)*
 - [ ] fsync durability has a chaos-lane control that fails when either fsync is removed.
-- [ ] The mutation-cache re-key passes its FIRST-run control.
-- [ ] The zero-mutant-module guard refuses on the induced failure, and `blind_modules` is either
-      re-keyed onto a real signal or deleted rather than left shelved indefinitely.
+- [x] The mutation-cache re-key passes its FIRST-run control. *(DONE — #1726, `mmeta.py`: test-tree
+      hash keys the reuse scratch; first-run-credits-an-added-killer control passes, mutation-verified.)*
+- [x] The zero-mutant-module guard refuses on the induced failure, and `blind_modules` is either
+      re-keyed onto a real signal or deleted rather than left shelved indefinitely. *(DONE — #1726,
+      `mmeta.tested_count`: counts DECIDED exit codes per glob from `mutants/<module>.py.meta`; zero on
+      a no-error run → refuse exit 2. Confirmed on real scratches: clean 389/389, crashed 0/320.)*
+
+*(2026-08-24, coordinator note — method finding from execution, recorded so it isn't rediscovered:
+`mutate_diff.py` itself sits OUTSIDE the unit-coverage floor — no test imports it and `tools/` has no
+`__init__.py` — so a gate DRIVER is invisible to the coverage gate; that is why #1726's logic lives in
+an imported root module (`mmeta.py`, 100% covered) with only thin wiring in the driver.)*

@@ -17393,6 +17393,50 @@
       T.eq('cp1 delta is +3', cps[1].delta, 3);
     });
 
+    // The live-vs-SD comparator (CPAPDEX-LIVE-SD-COMPARATOR). Agreement is scale/offset + Bland-Altman,
+    // never Pearson r; refusal-first; the alignment offset is a first-class finding. A large clock delta
+    // between a live capture and its SD twin is a DEFECT (the EdfSink bug class) — the comparator refuses
+    // and QUANTIFIES it, it does not align through it (align-through would launder the scream into a
+    // rosy scale; the cpap-clock-42min veto is precedent).
+    group('CPAPDex live-vs-SD comparator — scale/Bland-Altman, refusal-first, offset-as-finding', 'cpapdex-cross · comparator · known-answer', function (T) {
+      var CX = env.CPAPCross;
+      if (!CX || typeof CX.compareChannel !== 'function') {
+        T.skip('env.CPAPCross.compareChannel available', 'cpapdex-cross not wired in this lane');
+        return;
+      }
+      var fs = 25,
+        n = 300 * fs,
+        A = [],
+        B = [];
+      for (var i = 0; i < n; i++) {
+        var v = Math.sin(i / 50) + 0.2 * Math.sin(i / 7);
+        A.push(v);
+        B.push(0.9 * v + 0.1);
+      }
+      var ser = function (vals, t0) {
+        return { t0Ms: t0 || 1000000, fs: fs, values: vals };
+      };
+      var r = CX.compareChannel(ser(A), ser(B));
+      T.ok('recovers the scale a≈0.9', r.ok && Math.abs(r.scale.a - 0.9) < 1e-3, 'a=' + (r.ok && r.scale.a));
+      T.ok('recovers the offset b≈0.1', r.ok && Math.abs(r.scale.b - 0.1) < 1e-3, 'b=' + (r.ok && r.scale.b));
+      T.ok('Bland-Altman bias≈0.1 (mean SD−live)', r.ok && Math.abs(r.blandAltman.bias - 0.1) < 1e-3);
+      T.ok('LoA straddle the bias (lo<bias<hi)', r.ok && r.blandAltman.loLoA <= r.blandAltman.bias && r.blandAltman.bias <= r.blandAltman.hiLoA);
+      T.ok('overlapMin ≈ 5.0 for a 300 s pair', r.ok && Math.abs(r.overlapMin - 5) < 0.05, 'overlapMin=' + (r.ok && r.overlapMin));
+      // a small clock offset is REPORTED, still aligns
+      var r2 = CX.compareChannel(ser(A), ser(B, 1000000 - 2000));
+      T.ok('a 2 s clock offset is reported as the finding, still compares', r2.ok && Math.abs(r2.clockOffsetSec - 2) < 0.01);
+      // a HUGE clock delta REFUSES and QUANTIFIES it (EdfSink-bug class), never aligns through
+      var r3 = CX.compareChannel(ser(A), ser(B, 1000000 - 4 * 3600 * 1000));
+      T.ok('a 4 h clock delta REFUSES (defect detection, not alignment)', r3.ok === false);
+      T.ok('the refusal QUANTIFIES the delta (clockOffsetSec + the h in the reason)', r3.clockOffsetSec === 14400 && /4\.00 h/.test(r3.reason));
+      // refusal-first: one file, and a channel absent in one file
+      T.ok('one file alone is not a comparison', CX.cpapCompare(ser(A), null).ok === false);
+      T.ok('a channel absent in one file refuses per-channel', CX.compareChannel(ser(A), { t0Ms: 1000000, fs: fs, values: [] }).ok === false);
+      // set-level: a channel map compares each channel
+      var setR = CX.cpapCompare({ Flow: ser(A) }, { Flow: ser(B) });
+      T.ok('set-level compare returns per-channel results', setR.ok && setR.channels.Flow.ok && Math.abs(setR.channels.Flow.scale.a - 0.9) < 1e-3);
+    });
+
     /* ════ CPAPDex pressureChangePoints — STEP-IMMUNE penalty scale (DEEP-AUDIT-II §6.1, PEN_K half) ════
      The penalty term PEN_K·scale·log(span) used the GLOBAL MAD for `scale` — but the global MAD is inflated
      by the very setting-steps we detect, so (a) a clean 12→6→9 with only 12 nights/regime cleared no penalty
