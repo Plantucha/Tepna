@@ -17,6 +17,15 @@ import argparse, asyncio, json, os
 from bleak import BleakClient, BleakScanner
 from bleak.exc import BleakDeviceNotFoundError
 import oxyii
+# The OxyII transactional pull layer (acquisition charter G1). `_pull_once` no longer decides "do we
+# already have this?" from a lone size-equality check — it drives the append-only inventory ledger and
+# the restart-safe plan, so an interrupted transfer is re-queued or explicitly restarted, never silently
+# trusted (charter §1). oxy_inventory = the ledger + classify; oxy_restart = the ledger↔disk plan;
+# oxy_transfer = the atomic commit primitive; oxy_lifecycle = the daemon-level PULLING state.
+import oxy_inventory
+import oxy_restart
+import oxy_transfer
+import oxy_lifecycle
 
 _NAME_HINTS = ("o2ring", "s8-aw", "s8aw", "wellue", "checkme")
 
@@ -57,7 +66,7 @@ async def pull(address, out_dir, which="latest", ftype=0, adapter=None, serial="
             await asyncio.sleep(2)
 
 
-async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progress=None):
+async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progress=None, lifecycle=None):
     # bluez={"adapter": ...}, not the deprecated bare `adapter=` kwarg (see capture.adapter_kw): when
     # bleak drops the shim the bare form is swallowed as an unknown kwarg rather than raised, so the
     # adapter pin would vanish silently and the pull would run on the wrong radio.
@@ -132,6 +141,11 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
         if identity:
             print(f"device: firmware={identity.get('firmware')!r} serial={identity.get('serial')!r}",
                   flush=True)
+        # The recording's stable identity is (device id, session stamp) — never a stamp alone (a stamp is
+        # the ring's drifting RTC, and two rings could share one). The device id is the identity read's
+        # serial when we got one; when 0xE1 did not answer it falls back to the `serial` arg (else the
+        # address) so a ledger row can still be keyed rather than dropped.
+        device_id = (identity or {}).get("serial") or serial or address
 
         # 1) list recorded sessions
         await send(oxyii.file_list_frame())
@@ -146,6 +160,23 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
         # Session stamps are YYYYMMDDhhmmss → lexical max == chronological latest.
         targets = sessions if which == "all" else ([max(sessions)] if which == "latest" else [which])
         safe_root = os.path.abspath(out_dir) + os.sep
+
+        # ── THE TRANSACTIONAL PULL (OxyII acquisition charter G1) ─────────────────────────────────────
+        # Every state transition is recorded in an append-only ledger beside the night files, and
+        # oxy_restart.plan() reads that ledger against what is actually on disk to decide, per session,
+        # whether the bytes we already hold can be trusted. This REPLACES the old lone "same-size .dat on
+        # disk → skip" heuristic (which trusted size equality — the exact failure the charter names): the
+        # skip is now a property of the ledger (a COMMITTED row whose bytes still match), and the plan can
+        # also recover a verified-but-never-committed file without re-pulling it over the slow BLE link.
+        ledger_path = os.path.join(out_dir, "inventory.jsonl")
+        rows = oxy_inventory.load_rows(ledger_path)
+
+        # PRE-PASS: apply the containment + stamp guards ONCE (unchanged behaviour — an escaping or
+        # non-stamp `which` is dropped here and never becomes a path), and build the two maps plan() needs:
+        # identity → finished-.dat size, and identity → leftover-.part size.
+        disk_listing: dict[str, int] = {}
+        part_files: dict[str, int] = {}
+        planned_targets = []
         for ts in targets:
             # `ts` (from `which=<specific>` — e.g. the LAN webmon /api/pull body — or the ring's file-list)
             # is an untrusted value that becomes a filesystem path below. CONTAINMENT GUARD: the resolved
@@ -159,6 +190,53 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
             if not (ts.isdigit() and 8 <= len(ts) <= 14):
                 print(f"  ⚠ implausible session id {ts!r} — skipping.", flush=True)
                 continue
+            ident = oxy_inventory.identity(device_id, ts)
+            part = path + ".part"
+            if os.path.exists(path):
+                disk_listing[ident] = os.path.getsize(path)
+            if os.path.exists(part):
+                part_files[ident] = os.path.getsize(part)
+            planned_targets.append((ts, ident, path, part))
+
+        planned = oxy_restart.plan(rows, disk_listing, part_files)
+
+        # G4 lifecycle: the daemon's acquisition is PAUSED_FOR_PULL while this owns the ring's one BLE
+        # link, and PULLING while it moves bytes. The pull path is this state's only emitter; the edges
+        # are threaded through LEGAL_TRANSITIONS (NOT_SEEN → PAUSED_FOR_PULL → PULLING), never forced.
+        lifecycle = lifecycle or oxy_lifecycle.OxyLifecycle()
+        lifecycle.device_id = device_id
+        lifecycle.to(oxy_lifecycle.OxyState.PAUSED_FOR_PULL, "stored-session pull owns the link")
+        lifecycle.to(oxy_lifecycle.OxyState.PULLING, "autopull: reading stored recordings off flash")
+
+        for ts, ident, path, part in planned_targets:
+            # INTACT — the ledger says COMMITTED and the bytes on disk still match: the ONLY do-nothing.
+            # This is the old size-equality skip, now grounded in a validated ledger row rather than in the
+            # file's size alone. Not added to saved_paths: the return value is what this call actually WROTE.
+            if oxy_restart.is_trusted(planned, ident):
+                print(f"  {ts}: committed and unchanged on disk — skipping download.", flush=True)
+                continue
+            # QUARANTINE — the bytes changed under a verified/committed row. Re-pulling would destroy the
+            # evidence and trusting would launder it, so neither happens: a human decides.
+            if ident in planned[oxy_restart.QUARANTINE]:
+                print(f"  ⚠ {ts}: size changed under a verified record — quarantined; a human decides. "
+                      f"Skipping.", flush=True)
+                continue
+            # COMMIT — verified but never committed: the kill-window between the atomic rename and the
+            # ledger write. commit() renames BEFORE recording, so the finished bytes are already at the
+            # final path; recovery is to RECORD the COMMITTED row, not to re-pull a recording we have.
+            if ident in planned[oxy_restart.COMMIT]:
+                oxy_inventory.append_row(ledger_path, oxy_inventory.make_row(
+                    device_id, ts, oxy_inventory.COMMITTED,
+                    reason="verified but never committed — commit recorded on restart",
+                    size=disk_listing.get(ident), reported_size=disk_listing.get(ident), path=path))
+                saved_paths.append(path)
+                print(f"  {ts}: verified but never committed — commit recorded (no re-pull).", flush=True)
+                continue
+
+            # REPULL / new → download it. DISCOVERED the moment we act on the listing; every later
+            # transition is recorded too, so a crash between any two is diagnosable from the ledger alone.
+            oxy_inventory.append_row(ledger_path, oxy_inventory.make_row(
+                device_id, ts, oxy_inventory.DISCOVERED, reason="listed on flash", path=path))
             print(f"\n── session {ts} ──", flush=True)
             await send(oxyii.file_start_frame(ts, ftype))
             meta = await _wait(q, oxyii.OP_FILE_START)
@@ -166,18 +244,15 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
             print(f"  size = {size} bytes  (meta {meta[:16].hex()})", flush=True)
             if not (0 < size < 50_000_000):
                 print(f"  ⚠ implausible size — try a different --ftype (got {size}); skipping.", flush=True)
+                oxy_inventory.append_row(ledger_path, oxy_inventory.make_row(
+                    device_id, ts, oxy_inventory.FAILED, reason=f"implausible reported size {size}",
+                    reported_size=size, failure="implausible_size"))
                 await send(oxyii.file_end_frame()); await asyncio.sleep(0.3)
                 continue
 
-            # ALREADY ON DISK → skip the download. `which="all"` re-lists every onboard session, so without
-            # this an auto-pull (or any repeat pull) re-downloads the whole flash over a slow BLE link every
-            # cycle. The device-reported `size` is authoritative, so a same-size .dat is the same recording.
-            # Not added to saved_paths: the return value is what this call actually WROTE, which is how the
-            # auto-pull poller knows a session is genuinely new. (`path` was validated + built above.)
-            if os.path.exists(path) and os.path.getsize(path) == size:
-                print(f"  already on disk ({size} bytes) — skipping download.", flush=True)
-                await send(oxyii.file_end_frame()); await asyncio.sleep(0.3)
-                continue
+            oxy_inventory.append_row(ledger_path, oxy_inventory.make_row(
+                device_id, ts, oxy_inventory.DOWNLOADING, reason="transfer in flight",
+                reported_size=size, path=part))
 
             data = bytearray()
             off = 0
@@ -206,17 +281,29 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
             # complete session. The sidecar did record `bytes` vs `declared_size`, so the truth was
             # written down; it just was not where a consumer looks. Same shape as §C5 one module over.
             #
-            # So: land it under `.part` and RENAME only when the byte count matches what the device
-            # declared. os.replace is atomic within a filesystem, so a reader sees either no file or a
+            # So: land it under `.part` and RENAME (oxy_transfer.commit — atomic rename + dir fsync) only
+            # when the byte count matches what the device declared, so a reader sees either no file or a
             # complete one — never a growing prefix. A short pull keeps its `.part` (the bytes are not
-            # thrown away, and the next run re-downloads because the skip-existing check compares sizes)
-            # and is NOT reported as saved.
+            # thrown away), lands a PARTIAL ledger row rather than COMMITTED, and the next run re-downloads
+            # it because oxy_restart.plan() classifies a PARTIAL-with-.part as REPULL.
             complete = len(data) >= size
-            part = path + ".part"
             with open(part, "wb") as f:
                 f.write(data)
+            # CLASSIFY the received bytes against the ring's reported size AND the Format-A finalisation
+            # trailer, and record the verdict. A file reaches VERIFIED only when the trailer parses; a
+            # right-sized-but-unfinalised one is PARTIAL — known, recorded, re-pullable — never silently
+            # trusted (the ring can report full size before the trailer flushes, so size is not enough).
+            state, reason = oxy_inventory.classify(bytes(data), size, oxyii.parse_oxy_trailer)
+            sha = oxy_inventory.sha256_bytes(bytes(data))
+            oxy_inventory.append_row(ledger_path, oxy_inventory.make_row(
+                device_id, ts, state, reason=reason, size=len(data), reported_size=size,
+                sha256=sha, path=part))
             if complete:
-                os.replace(part, path)                     # atomic: no reader ever sees a prefix
+                oxy_transfer.commit(part, path)            # atomic rename + dir fsync (was os.replace)
+                oxy_inventory.append_row(ledger_path, oxy_inventory.make_row(
+                    device_id, ts, oxy_inventory.COMMITTED,
+                    reason="atomically committed into the night tree", size=len(data),
+                    reported_size=size, sha256=sha, path=path))
             else:
                 print(f"  ⚠ INCOMPLETE: {len(data)}/{size} bytes — kept as {os.path.basename(part)}, "
                       f"NOT written as a session. The next pull re-downloads it.", flush=True)
@@ -250,6 +337,9 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
             saved_paths.append(final)
             print(f"  {'saved' if complete else 'partial'} {len(data)} bytes → {final}\n"
                   f"  header={hdr} format_a={fmt_a} ~{n_samples} samples", flush=True)
+        # Back to PAUSED_FOR_PULL: the bytes are handled, but this call still holds the link until the
+        # BleakClient context exits below (PULLING → PAUSED_FOR_PULL is a legal edge).
+        lifecycle.to(oxy_lifecycle.OxyState.PAUSED_FOR_PULL, "pull complete — releasing the link")
         return saved_paths
 
 

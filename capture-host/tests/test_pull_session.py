@@ -15,12 +15,34 @@ import os
 
 import pytest
 
+import oxy_inventory as inv
+import oxy_lifecycle
 import oxyii
 import pull_session
 
 
 def _run(coro):
     return asyncio.run(coro)
+
+
+# The FakeRing answers the 0xE1 identity read with serial "O2R-TEST-1" (see write_gatt_char), so a
+# ledger row for a pulled session keys on this device id. The transactional tests seed rows under it.
+DEV = "O2R-TEST-1"
+
+
+def _ledger_state(tmp_path, ts, device_id=DEV):
+    """The current ledger state for one recording, or None — reads the same inventory.jsonl _pull_once
+    writes beside the night files."""
+    rows = inv.load_rows(str(tmp_path / "inventory.jsonl"))
+    cur = inv.current(rows).get(inv.identity(device_id, ts))
+    return cur["state"] if cur else None
+
+
+def _seed(tmp_path, *rows):
+    """Append pre-existing ledger rows, as a prior (possibly crashed) run would have left them."""
+    led = str(tmp_path / "inventory.jsonl")
+    for r in rows:
+        inv.append_row(led, r)
 
 
 # ── _wait: opcode filtering + deadline ──────────────────────────────────────────────────────────────
@@ -769,3 +791,155 @@ def test_a_ring_that_does_not_answer_0xE1_still_completes_the_pull(tmp_path, mon
     meta = _pull_one(tmp_path, monkeypatch, answer_info=False)
     assert meta["device_firmware"] is None and meta["device_serial"] is None, meta
     assert meta["bytes"] > 0, "the session itself must still land"
+
+
+# ── the transactional pull layer (OxyII charter G1) ─────────────────────────────────────────────────
+# _pull_once is now ledger-driven: it records every state transition beside the night files, and
+# oxy_restart.plan() — reading that ledger against the disk — decides per session whether the bytes we
+# already hold can be trusted. These tests drive the four plan actions through the real _pull_once.
+def test_a_completed_download_records_the_full_ledger_lifecycle(tmp_path, monkeypatch):
+    """The happy path writes the ledger too: DISCOVERED → DOWNLOADING → (classified) → COMMITTED. A file
+    with no finalisation trailer classifies PARTIAL, but a size-complete transfer is still committed to
+    the final path — the COMMITTED row is what makes the NEXT run skip it."""
+    ts = "20260719010000"
+    blob = b"\x01\x03" + b"z" * 90
+    _install(monkeypatch, FakeRing([ts], blob))
+    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    assert len(got) == 1 and got[0].endswith(f"{ts}_STORED.dat")
+    rows = inv.load_rows(str(tmp_path / "inventory.jsonl"))
+    states = [r["state"] for r in rows if r["session"] == ts]
+    assert states == [inv.DISCOVERED, inv.DOWNLOADING, inv.PARTIAL, inv.COMMITTED], states
+    committed = inv.current(rows)[inv.identity(DEV, ts)]
+    assert committed["sha256"] == inv.sha256_bytes(blob), "the committed row carries the content hash"
+    assert committed["size"] == len(blob)
+
+
+def test_a_finalized_download_classifies_VERIFIED_before_committing(tmp_path, monkeypatch):
+    """A file that carries the Format-A finalisation sub-magic reaches VERIFIED (not merely PARTIAL) in
+    the ledger before its COMMITTED row — the distinction the transactional layer exists to keep."""
+    hdr = bytes([0x01, 0x03, 0, 0, 0, 0, 0, 0, 0x04, 0x00])
+    t = bytearray(48)
+    t[4:8] = bytes([0x48, 0x12, 0x5A, 0xDA])
+    blob = hdr + bytes([96, 50, 0]) * 60 + bytes(t)
+    ts = "20260720020000"
+    _install(monkeypatch, FakeRing([ts], blob))
+    _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    states = [r["state"] for r in inv.load_rows(str(tmp_path / "inventory.jsonl")) if r["session"] == ts]
+    assert states == [inv.DISCOVERED, inv.DOWNLOADING, inv.VERIFIED, inv.COMMITTED], states
+
+
+def test_a_committed_recording_is_skipped_by_the_ledger_not_by_size(tmp_path, monkeypatch):
+    """INTACT: a prior COMMITTED row whose bytes still match the disk is the only do-nothing. The session
+    is not re-listed to the device at all — no FILE_START goes out."""
+    ts = "20260719010000"
+    blob = b"\x01\x03" + b"z" * 90
+    (tmp_path / f"Wellue_O2Ring-S_{ts}_STORED.dat").write_bytes(blob)
+    _seed(tmp_path, inv.make_row(DEV, ts, inv.COMMITTED, size=len(blob), at=1.0))
+    ring = FakeRing([ts], blob)
+    _install(monkeypatch, ring)
+    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    assert got == [], "a committed, size-matching recording must be skipped"
+    assert [w for w in ring.writes if w[1] == oxyii.OP_FILE_START] == [], "INTACT must not re-pull"
+    assert _ledger_state(tmp_path, ts) == inv.COMMITTED, "and its state must not regress"
+
+
+def test_a_verified_but_never_committed_recording_is_committed_without_a_repull(tmp_path, monkeypatch):
+    """COMMIT: the kill-window between the atomic rename and the ledger write. The bytes are already at
+    the final path; recovery records the COMMITTED row rather than re-pulling over the slow link."""
+    ts = "20260721030000"
+    blob = b"\x01\x03" + b"z" * 90
+    final = tmp_path / f"Wellue_O2Ring-S_{ts}_STORED.dat"
+    final.write_bytes(blob)                          # the rename ran; the ledger write did not
+    _seed(tmp_path,
+          inv.make_row(DEV, ts, inv.DISCOVERED, at=1.0),
+          inv.make_row(DEV, ts, inv.VERIFIED, size=len(blob), at=2.0))
+    ring = FakeRing([ts], blob)
+    _install(monkeypatch, ring)
+    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    assert len(got) == 1 and got[0].endswith(f"{ts}_STORED.dat"), "the recovered recording is surfaced"
+    assert [w for w in ring.writes if w[1] == oxyii.OP_FILE_START] == [], "COMMIT must not re-download"
+    assert final.read_bytes() == blob, "the already-committed bytes are untouched"
+    assert _ledger_state(tmp_path, ts) == inv.COMMITTED, "the COMMITTED row is now recorded"
+
+
+def test_a_recording_whose_bytes_drifted_under_a_verified_row_is_quarantined(tmp_path, monkeypatch):
+    """QUARANTINE: the file on disk changed size under a COMMITTED row. Re-pulling would destroy the
+    evidence and trusting would launder it, so neither — it is skipped for a human, never overwritten."""
+    ts = "20260722040000"
+    blob = b"\x01\x03" + b"z" * 90                    # 92 bytes, what the ring would serve
+    final = tmp_path / f"Wellue_O2Ring-S_{ts}_STORED.dat"
+    final.write_bytes(b"x" * 50)                      # on disk at a DIFFERENT size than recorded
+    _seed(tmp_path, inv.make_row(DEV, ts, inv.COMMITTED, size=92, at=1.0))
+    ring = FakeRing([ts], blob)
+    _install(monkeypatch, ring)
+    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    assert got == [], "a drifted recording is neither trusted nor re-pulled"
+    assert [w for w in ring.writes if w[1] == oxyii.OP_FILE_START] == [], "QUARANTINE must not re-pull"
+    assert final.read_bytes() == b"x" * 50, "the drifted bytes are preserved as evidence"
+
+
+def test_a_leftover_part_forces_a_repull_and_is_never_adopted(tmp_path, monkeypatch):
+    """REPULL over debris: an unfinalised `.part` from an interrupted transfer plus a PARTIAL ledger row.
+    plan() re-pulls — a `.part`'s size proves nothing — and the fresh, complete transfer commits."""
+    ts = "20260723050000"
+    blob = b"\x01\x03" + b"z" * 90
+    (tmp_path / f"Wellue_O2Ring-S_{ts}_STORED.dat.part").write_bytes(b"z" * 40)   # a short leftover
+    _seed(tmp_path, inv.make_row(DEV, ts, inv.PARTIAL, size=40, at=1.0))
+    ring = FakeRing([ts], blob)
+    _install(monkeypatch, ring)
+    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    assert len(got) == 1 and got[0].endswith(f"{ts}_STORED.dat"), "the leftover .part is re-pulled"
+    assert (tmp_path / f"Wellue_O2Ring-S_{ts}_STORED.dat").read_bytes() == blob
+    assert [w for w in ring.writes if w[1] == oxyii.OP_FILE_START], "a re-pull DID send FILE_START"
+    assert _ledger_state(tmp_path, ts) == inv.COMMITTED
+
+
+def test_a_truncated_transfer_is_recorded_PARTIAL_and_re_pulled_next_run(tmp_path, monkeypatch):
+    """The .part discipline expressed through the ledger: a short pull keeps its `.part`, lands a PARTIAL
+    row (not COMMITTED), and the NEXT run re-downloads it to completion."""
+    ts = "20260724060000"
+    blob = b"\x01\x03" + b"p" * 4000
+    ring = FakeRing([ts], blob, declared=len(blob), chunk=512)
+    _install(monkeypatch, ring)
+    real_wait = pull_session._wait
+    seen = {"n": 0}
+
+    async def cut_off(q, op, timeout=20.0):
+        if op == oxyii.OP_FILE_DATA:
+            seen["n"] += 1
+            if seen["n"] > 2:
+                raise asyncio.TimeoutError("link died mid-transfer")
+        return await real_wait(q, op, timeout=timeout)
+    monkeypatch.setattr(pull_session, "_wait", cut_off)
+    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    assert got[0].endswith(".part"), "an incomplete pull is surfaced under its .part name"
+    assert _ledger_state(tmp_path, ts) == inv.PARTIAL, "and recorded PARTIAL, never COMMITTED"
+
+    # next run, full transfer available → the .part is re-pulled and committed
+    monkeypatch.setattr(pull_session, "_wait", real_wait)
+    _install(monkeypatch, FakeRing([ts], blob, chunk=512))
+    got2 = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    assert got2[0].endswith(f"{ts}_STORED.dat") and not got2[0].endswith(".part")
+    assert _ledger_state(tmp_path, ts) == inv.COMMITTED
+
+
+def test_the_pull_emits_the_PULLING_lifecycle_state(tmp_path, monkeypatch):
+    """G4: the pull path is the only emitter of OxyState.PULLING. An injected lifecycle is driven
+    NOT_SEEN → PAUSED_FOR_PULL → PULLING around the transfer and back to PAUSED_FOR_PULL afterward —
+    every edge legal, never forced."""
+    lc = oxy_lifecycle.OxyLifecycle()
+    _install(monkeypatch, FakeRing(["20260719010000"], b"\x01\x03" + b"z" * 90))
+    _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000", lifecycle=lc))
+    seq = [t.new for t in lc.history]
+    assert oxy_lifecycle.OxyState.PULLING in seq, "the pull must emit PULLING"
+    assert seq[:2] == [oxy_lifecycle.OxyState.PAUSED_FOR_PULL, oxy_lifecycle.OxyState.PULLING]
+    assert lc.state is oxy_lifecycle.OxyState.PAUSED_FOR_PULL, "back to PAUSED_FOR_PULL after the pull"
+
+
+def test_no_sessions_leaves_the_lifecycle_untouched(tmp_path, monkeypatch):
+    """No stored sessions means no per-session pull, so PULLING is never entered — the early return
+    fires before the lifecycle is driven at all."""
+    lc = oxy_lifecycle.OxyLifecycle()
+    _install(monkeypatch, FakeRing([], b""))
+    assert _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000", lifecycle=lc)) == []
+    assert lc.history == [] and lc.state is oxy_lifecycle.OxyState.NOT_SEEN
