@@ -422,3 +422,31 @@ def test_stream_runs_until_the_caller_stops_when_max_batches_is_none():
         return got
     got = _run(take_one())
     assert len(got) == 1 and got[0]["channels"] == {"PatientFlow": [0]}
+
+
+# ── P3 gap-accounting at the frame boundary (counters=) ─────────────────────────────────────────────
+def test_stream_counts_ok_foreign_and_malformed_where_frames_are_seen():
+    """INV7 at the frame boundary: a non-StreamData and a foreign-streamId frame are COUNTED, not
+    silently eaten. Filtering is unchanged — only the OK frame yields."""
+    from cpap_ingest import GapCounters
+    c = GapCounters()
+    dev = FakeAS11([
+        _ack([("PatientFlow", True), ("MaskPressure", True)]),
+        _enc({"jsonrpc": "2.0", "method": "HeartBeat", "params": {}}),          # MALFORMED (not StreamData)
+        _stream_data({"PatientFlow": [0.01, 0.02]}, stream_id=99),               # FOREIGN (wrong streamId)
+        _stream_data({"PatientFlow": [0.03, 0.04], "MaskPressure": [0.3, 0.4]}),  # OK — 4 samples
+    ])
+    batches = _run(_collect(P.stream(dev.write, dev.recv_frame, _seal, _unseal,
+                                     ["PatientFlow", "MaskPressure"], start_id=_START_ID,
+                                     max_batches=1, counters=c)))
+    assert len(batches) == 1                                     # filtering unchanged — only OK yielded
+    assert c.frames_ok == 1 and c.samples_ok == 4
+    assert c.malformed == 1 and c.foreign_stream == 1
+
+
+def test_stream_without_counters_is_unchanged():
+    """counters defaults to None — the counting branches are skipped and behaviour is exactly as before."""
+    dev = FakeAS11([_ack([("SpO2", True)]), _stream_data({"SpO2": [98.0]})])
+    batches = _run(_collect(P.stream(dev.write, dev.recv_frame, _seal, _unseal, ["SpO2"],
+                                     start_id=_START_ID, max_batches=1)))
+    assert len(batches) == 1 and batches[0]["channels"] == {"SpO2": [98.0]}

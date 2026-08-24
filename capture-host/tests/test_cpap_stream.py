@@ -956,3 +956,113 @@ def test_cpap_ble_connect_without_an_adapter_passes_no_bluez_kwarg(monkeypatch):
         await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", None)
         assert _FakeBleak.instances[-1].bluez is None, "no hci → no bluez adapter kwarg"
     _run(go())
+
+
+# ── P1+P3 wiring: durable sink ordering (INV9) + non-fatal-but-loud sink failure ────────────────────
+class _SnapSink:
+    """Records how many bus pushes had happened at the moment its on_batch ran — proves ordering."""
+    def __init__(self, bus): self._bus = bus; self.snaps = []; self.closed = False
+    def open(self, channels, fs): pass
+    def on_batch(self, batch): self.snaps.append(len(self._bus.pushed))
+    def close(self): self.closed = True
+
+
+def test_the_durable_sink_writes_before_the_bus_push():
+    """INV9: the authoritative record lands before the bus push. Each batch pushes 2 (flow+pressure), so
+    the sink sees 0 pushes on batch 1 (it ran first) and only batch 1's 2 pushes on batch 2."""
+    bus = FakeBus()
+    sink = _SnapSink(bus)
+    dev = FakeDev(_handshake() + [_ack(), _data([0.1], [5.0]), _data([0.2], [5.1])])
+    _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                          cipher_factory=_identity_factory, max_batches=2, extra_sinks=[sink]))
+    assert sink.snaps == [0, 2]                     # durable-before-bus, every batch
+    assert len(bus.pushed) == 4 and sink.closed
+
+
+class _RaisingSink:
+    def __init__(self): self.batches = 0; self.closed = False
+    def open(self, channels, fs): pass
+    def on_batch(self, batch): self.batches += 1; raise OSError("disk full")
+    def close(self): self.closed = True
+
+
+def test_a_sink_write_failure_is_counted_and_the_stream_survives(caplog):
+    """Non-fatal but LOUD: the stream keeps delivering, the bus keeps getting pushed, and every sink
+    failure is counted (sink_errors) and logged — never a silent drop, never a stream kill."""
+    sink = _RaisingSink()
+    dev = FakeDev(_handshake() + [_ack(), _data([0.1], [5.0]), _data([0.2], [5.1])])
+    bus = FakeBus()
+    with caplog.at_level(logging.WARNING):
+        delivered = _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                                          cipher_factory=_identity_factory, max_batches=2,
+                                          extra_sinks=[sink]))
+    assert delivered == 2                           # stream survived both batches despite the raises
+    assert sink.batches == 2 and sink.closed        # sink kept being called, and was closed
+    assert len(bus.pushed) == 4                     # the bus STILL got every push (failure didn't block it)
+    assert "'sink_errors': 2" in caplog.text         # the gap-accounting summary carries the count
+    assert "sink_errors=1" in caplog.text            # each failure logged loudly as it happened
+
+
+def test_controller_hands_both_sinks_to_the_pump_raw_record_first():
+    """The durable raw record and the EDF sink are both fresh per session and both handed to the pump —
+    with the raw record FIRST (the authoritative copy leads). Coverage alone can't see this; a wrong
+    order or a dropped sink would pass at 100% branch, so it is asserted as a contract."""
+    def go_body():
+        async def go():
+            async def connect():
+                async def write(_f):
+                    pass
+
+                async def recv_frame():
+                    await asyncio.sleep(3600)
+                return write, recv_frame, (lambda: None)
+
+            raw_made, edf_made, seen = [], [], {}
+
+            def raw_factory():
+                s = _RecordingSink(); raw_made.append(s); return s
+
+            def edf_factory():
+                s = _RecordingSink(); edf_made.append(s); return s
+
+            async def pump(bus, write, recv_frame, pk, cid, *, channels=None, extra_sinks=None,
+                           should_stop=None):
+                seen["extra_sinks"] = extra_sinks
+                while should_stop is None or not should_stop.is_set():
+                    await asyncio.sleep(0.005)
+                return 0
+
+            c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=pump,
+                                        raw_record_factory=raw_factory, edf_sink_factory=edf_factory)
+            await c.op("start")
+            await asyncio.sleep(0.01)
+            assert len(raw_made) == 1 and len(edf_made) == 1
+            assert seen["extra_sinks"] == [raw_made[0], edf_made[0]], "raw record leads, then the EDF"
+            await c.op("stop")
+        _run(go())
+    go_body()
+
+
+def test_build_controller_wires_the_raw_record_sink_when_configured(tmp_path):
+    """cpap.ble_stream.raw_record_dir enables the durable JSONL raw record (INV9). session_id is a
+    host-authored acquisition-run id; device_id is the provisional serial (UNKNOWN when absent)."""
+    import capture
+    import cpap_record
+    out = tmp_path / "cpap-raw"
+    cfg = {"cpap": {"ble_stream": {"raw_record_dir": str(out), "serial": "23211234567"}}}
+    ctl = capture._build_cpap_controller(object(), cfg, str(tmp_path / "config.yaml"))
+    assert ctl._raw_record_factory is not None, "raw_record_dir enables the sink"
+    sink = ctl._raw_record_factory()
+    assert isinstance(sink, cpap_record.RawRecordSink)
+    assert sink._device_id == "23211234567"
+    assert sink._session_id and sink._path.endswith(".jsonl") and "cpap-raw-" in sink._path
+    # serial absent → provisional placeholder, never a wrong guess
+    ctl2 = capture._build_cpap_controller(object(), {"cpap": {"ble_stream": {"raw_record_dir": str(out)}}},
+                                          str(tmp_path / "c.yaml"))
+    assert ctl2._raw_record_factory()._device_id == "UNKNOWN"
+
+
+def test_build_controller_leaves_the_raw_record_off_without_a_dir(tmp_path):
+    import capture
+    ctl = capture._build_cpap_controller(object(), {"cpap": {}}, str(tmp_path / "config.yaml"))
+    assert ctl._raw_record_factory is None

@@ -17,6 +17,7 @@ import logging
 
 import as11_cipher
 import as11_pull
+from cpap_ingest import GapCounters
 import telemetry
 
 _log = logging.getLogger("tepna.cpap")
@@ -97,6 +98,7 @@ async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
     seal, unseal = cipher_factory(session_key)
     for _did, (key, label, unit) in channels.items():
         bus.register(key, label, unit, fs, chans=1)
+    counters = GapCounters()                   # P3 gap accounting: frame classification + sink-write failures
     sinks = list(extra_sinks or ())
     for s in sinks:
         s.open(channels, fs)
@@ -104,7 +106,8 @@ async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
     observed_ms = None                         # §2 — the device's OWN interval, authoritative once seen
     try:
         async for batch in as11_pull.stream(write, recv_frame, seal, unseal, list(channels),
-                                            sample_interval_ms=sample_interval_ms, max_batches=max_batches):
+                                            sample_interval_ms=sample_interval_ms, max_batches=max_batches,
+                                            counters=counters):
             # §2 OBSERVED INTERVAL IS AUTHORITATIVE. The device reports its actual sample interval on every
             # batch; trust IT over the requested nominal, WARN on a mismatch, and DETECT a mid-stream change
             # — never silently resample or ride the nominal. The bus push (and the EDF sink, which reads the
@@ -120,18 +123,33 @@ async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
                     _log.warning("CPAP stream interval changed mid-stream: %s -> %s ms", observed_ms, iv)
                     observed_ms = iv
                 fs = 1000.0 / observed_ms
+            # INV9 ORDERING FIX: the DURABLE record is written BEFORE the bus push — the bus is a VIEW
+            # of the acquisition, not the acquisition, so the authoritative copy must land first (the
+            # merged #1701 loop pushed to the bus first; this reorders it). A sink write failure is
+            # NON-FATAL but LOUD: count it (sink_errors) and keep streaming — the stream survives a
+            # subscriber failure, and the failure is first-class gap-accounting data, never a silent drop.
+            for s in sinks:
+                try:
+                    s.on_batch(batch)
+                except Exception:  # noqa: BLE001 — ANY sink failure must not kill the stream (INV9)
+                    counters.sink_errors += 1
+                    _log.exception("CPAP durable sink failed — counted (sink_errors=%d), stream continues",
+                                   counters.sink_errors)
             for did, (key, _label, _unit) in channels.items():
                 samples = batch["channels"].get(did)
                 if samples:
                     bus.push(key, samples, fs)
-            for s in sinks:
-                s.on_batch(batch)
             delivered += 1
             if should_stop is not None and should_stop.is_set():
                 break
     finally:
         for s in sinks:
             s.close()
+        _summary = counters.summary()
+        if counters.total_lost or counters.sink_errors or counters.foreign_stream:
+            _log.warning("CPAP stream gap accounting: %s", _summary)
+        else:
+            _log.info("CPAP stream gap accounting: %s", _summary)
     return delivered
 
 
@@ -144,7 +162,7 @@ class LiveStreamController:
     daemon shim. One controller per daemon; `op("start"|"stop")` is what the endpoint calls."""
 
     def __init__(self, bus, connect, load_creds, devices, *, channels=None, pump=stream_to_bus,
-                 edf_sink_factory=None, coexistence_gate=False):
+                 edf_sink_factory=None, raw_record_factory=None, coexistence_gate=False):
         self._bus = bus
         self._connect = connect
         self._load_creds = load_creds
@@ -158,6 +176,9 @@ class LiveStreamController:
         # () -> a fresh on-disk EDF sink for this session, or None to stream to the bus alone. The daemon
         # supplies one; a bus-only controller (and every existing test) leaves it None and is unaffected.
         self._edf_sink_factory = edf_sink_factory
+        # () -> a fresh RawRecordSink for this session (the durable JSONL raw record, INV9), or
+        # None for no on-disk record. Peers with the EDF sink on the one ingestion seam.
+        self._raw_record_factory = raw_record_factory
         self._task = None
         self._stop = None
         self._disconnect = None
@@ -203,10 +224,13 @@ class LiveStreamController:
         self._disconnect = disconnect
         self._stop = asyncio.Event()
         kw = {"channels": self._channels, "should_stop": self._stop}
-        if self._edf_sink_factory is not None:
-            # A fresh sink per session — the file is named from this session's device start_time. Only
-            # passed when configured, so a bus-only pump (and the injected test pumps) never see the kwarg.
-            kw["extra_sinks"] = [self._edf_sink_factory()]
+        # Fresh sinks per session — the durable raw record leads (authoritative copy), then the EDF.
+        # Only passed when a factory is configured, so a bus-only pump (and the injected test pumps) never
+        # see the kwarg. The pump writes every sink BEFORE the bus push (INV9), so order here is only the
+        # order among sinks, not durable-vs-bus.
+        _factories = [f for f in (self._raw_record_factory, self._edf_sink_factory) if f is not None]
+        if _factories:
+            kw["extra_sinks"] = [f() for f in _factories]
         self._task = asyncio.create_task(self._pump(
             self._bus, write, recv_frame, bytes.fromhex(creds["masterPairKey"]), creds["clientId"], **kw))
         return {"ok": True, "streaming": True, "channels": self._keys()}
