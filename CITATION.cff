@@ -23,6 +23,7 @@ identifiers:
 authors:
   - family-names: Planicka
     given-names: Michal
+    orcid: https://orcid.org/0009-0008-3501-3596
     # roles: Concept, Architecture, Algorithms, Implementation, Validation, UI/UX
 version: 2.7.0
 date-released: "2026-06-18"
