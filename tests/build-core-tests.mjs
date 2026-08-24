@@ -113,8 +113,7 @@ async function main() {
         continue;
       }
       const title = (readFileSync(f, 'utf8').match(/<title>[^<]*<\/title>/) || [''])[0];
-      ok(title.includes('v' + SUITE_VERSION),
-         b + ' <title> carries the CURRENT suite version (v' + SUITE_VERSION + ')');
+      ok(title.includes('v' + SUITE_VERSION), b + ' <title> carries the CURRENT suite version (v' + SUITE_VERSION + ')');
     }
 
     const noAnchors = '<title>Orchestrator</title><p>no version UI</p>';
