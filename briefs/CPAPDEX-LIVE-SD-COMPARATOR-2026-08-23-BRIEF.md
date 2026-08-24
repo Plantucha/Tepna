@@ -1,7 +1,22 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-08-24 · **Created:** 2026-08-23
+**Status:** DONE — 2026-08-24 · **Created:** 2026-08-23
 
 # CPAPDex live-vs-SD comparator — a permanent agreement surface
+
+> **EXECUTED 2026-08-24** (all Done-when met; `npm run check` green — 8301 assertions). Shipped:
+> `cpapCompare`/`compareChannel` with full-rate fine-xcorr alignment (the shipped #1728 core's 1 Hz
+> alignment gave scale 0.78 on real phase-sensitive flow — the real fixture caught it); six
+> `CPAP_REGISTRY` metrics at `measured`; `comparatorPanel` render (refusal-as-clock-finding); a committed
+> **synthetic pin-twin** fixture + golden (real slices stay gitignored — byte-compatibility makes the
+> capture-host live BRP indistinguishable from SD, so roles are assigned by position, not sniffed) with a
+> GATE-C re-run leg; a "⚖ Compare live capture" app trigger; and a reference-guide section. Owner riders
+> (via the lead): the panel prints its role assumption, direction is explicit everywhere (scale is SD/live
+> = the 0.9977 pin), a `recording_id` (device) mismatch is refused, and a far-from-identity scale names
+> both explanations (the literal "reciprocal near 1" swap guard is mathematically empty — a swap of a
+> near-1 pair stays near-1). Pins, windowed: night n=1 SD/live 0.9977 flat; daytime n=1 0.924
+> flow-condition-specific, superseded. ⚠ The in-browser DOM flow (button → panel injection → sparkline)
+> is not headlessly gate-testable and wants a visual smoke test; the engine/panel/refusals are gate-backed.
+> Follow-ups → `CPAPDEX-LIVE-SD-COMPARATOR-FOLLOWUPS-2026-08-24-BRIEF.md`.
 
 > Owner-ordered (2026-08-23, via the acquisition-hardening lead). **Design now; implement AFTER the
 > CPAP P1/P3 ingestion wiring lands** so the two arms do not collide in `capture.py`/`cpap_stream.py`
