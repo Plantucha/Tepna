@@ -187,6 +187,10 @@ def test_pycache_is_ignored_by_the_hash(tmp_path):
 
 
 # ── §2: refresh_results_if_tests_changed — invalidate only what tests can invalidate ──────────────────
+def _meta_codes(work, module="oxy_transfer.py"):
+    return mmeta.read_exit_codes(work / "mutants" / f"{module}.meta")
+
+
 def test_first_run_with_no_stamp_invalidates_and_stamps(tmp_path):
     """⚠️ THE §2 CONTROL, first half. A reused scratch with no prior test-stamp cannot know its cached
     exit codes match the current tests — so it invalidates and records the hash for next time."""
@@ -194,31 +198,37 @@ def test_first_run_with_no_stamp_invalidates_and_stamps(tmp_path):
     stamp = tmp_path / ".tests-hash"
     tests = _tests(tmp_path, {"test_a.py": "def test_a(): pass\n"})
     assert mmeta.refresh_results_if_tests_changed(work, "oxy_transfer.py", tests, stamp) is True
-    assert not (work / "mutants" / "oxy_transfer.py.meta").exists()   # results cleared → mutmut re-tests
+    assert _meta_codes(work) == {"oxy_transfer.x_select__mutmut_1": None}   # verdict nulled, key kept
     assert stamp.read_text().strip() == mmeta.test_tree_hash(tests)
 
 
 def test_unchanged_tests_preserve_the_results_cache(tmp_path):
-    """The reuse the cache exists for: same tests → the meta survives, so mutmut skips re-testing."""
+    """The reuse the cache exists for: same tests → the verdicts survive, so mutmut skips re-testing."""
     work = _meta(tmp_path, "oxy_transfer.py", {"oxy_transfer.x_select__mutmut_1": 33})
     stamp = tmp_path / ".tests-hash"
     tests = _tests(tmp_path, {"test_a.py": "def test_a(): pass\n"})
     stamp.write_text(mmeta.test_tree_hash(tests), encoding="utf-8")
     assert mmeta.refresh_results_if_tests_changed(work, "oxy_transfer.py", tests, stamp) is False
-    assert (work / "mutants" / "oxy_transfer.py.meta").exists()       # kept — full reuse
+    assert _meta_codes(work) == {"oxy_transfer.x_select__mutmut_1": 33}   # kept decided — full reuse
 
 
 def test_adding_a_KILLER_invalidates_so_the_FIRST_next_run_is_correct(tmp_path):
     """⚠️ THE §2 CONTROL, the proven defect itself. Source unchanged, a killer test ADDED → the cached
     verdict is stale, so it MUST be invalidated. Without this the added killer is uncredited on the first
     run — the exact self-destructing bug the brief measured."""
-    work = _meta(tmp_path, "oxy_transfer.py", {"oxy_transfer.x_select__mutmut_1": 33})
+    work = _meta(tmp_path, "oxy_transfer.py",
+                 {"oxy_transfer.x_select__mutmut_1": 33, "oxy_transfer.x_select__mutmut_2": 37})
     stamp = tmp_path / ".tests-hash"
     tests = _tests(tmp_path, {"test_a.py": "def test_a(): pass\n"})
     stamp.write_text(mmeta.test_tree_hash(tests), encoding="utf-8")   # state B: last run's tests
     (tests / "test_killer.py").write_text("def test_kills_it(): assert True\n", encoding="utf-8")
     assert mmeta.refresh_results_if_tests_changed(work, "oxy_transfer.py", tests, stamp) is True
-    assert not (work / "mutants" / "oxy_transfer.py.meta").exists()
+    # ⚠️ THE RECOVERY PROPERTY the delete-the-file bug violated: the mutant KEYS survive (so mutmut's
+    # --only filter still matches and it re-decides them) and only the VERDICTS are cleared to null. A
+    # deleted meta strips the keys, and with the source unchanged mutmut skips regeneration and crashes.
+    assert _meta_codes(work) == {"oxy_transfer.x_select__mutmut_1": None,
+                                 "oxy_transfer.x_select__mutmut_2": None}
+    assert mmeta.decided_under_glob(_meta_codes(work), "oxy_transfer.x_select__mutmut_*") == 0
 
 
 def test_invalidation_is_safe_when_the_meta_is_already_absent(tmp_path):
@@ -226,5 +236,30 @@ def test_invalidation_is_safe_when_the_meta_is_already_absent(tmp_path):
     (work / "mutants").mkdir()
     stamp = tmp_path / ".tests-hash"
     tests = _tests(tmp_path, {"test_a.py": "def test_a(): pass\n"})
-    # no meta written — unlink(missing_ok=True) must not raise
+    # no meta to null — must not raise, and the stamp still advances
     assert mmeta.refresh_results_if_tests_changed(work, "oxy_transfer.py", tests, stamp) is True
+    assert stamp.read_text().strip() == mmeta.test_tree_hash(tests)
+
+
+def test_invalidation_of_an_unreadable_meta_does_not_raise(tmp_path):
+    """A malformed meta cannot be nulled sensibly; invalidation must swallow it and still advance the
+    stamp rather than crash the reuse path."""
+    work = tmp_path
+    (work / "mutants").mkdir()
+    (work / "mutants" / "oxy_transfer.py.meta").write_text("{not json", encoding="utf-8")
+    stamp = tmp_path / ".tests-hash"
+    tests = _tests(tmp_path, {"test_a.py": "def test_a(): pass\n"})
+    assert mmeta.refresh_results_if_tests_changed(work, "oxy_transfer.py", tests, stamp) is True
+
+
+def test_invalidation_of_a_meta_without_a_dict_of_codes_is_a_noop_but_stamps(tmp_path):
+    """Valid JSON whose exit_code_by_key is absent or the wrong shape: nothing to null, but the stamp
+    must still advance so the next run compares correctly."""
+    work = tmp_path
+    (work / "mutants").mkdir()
+    (work / "mutants" / "oxy_transfer.py.meta").write_text(
+        json.dumps({"exit_code_by_key": [1, 2]}), encoding="utf-8")   # a list, not a dict
+    stamp = tmp_path / ".tests-hash"
+    tests = _tests(tmp_path, {"test_a.py": "def test_a(): pass\n"})
+    assert mmeta.refresh_results_if_tests_changed(work, "oxy_transfer.py", tests, stamp) is True
+    assert stamp.read_text().strip() == mmeta.test_tree_hash(tests)

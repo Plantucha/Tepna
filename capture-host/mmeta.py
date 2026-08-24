@@ -119,17 +119,33 @@ def test_tree_hash(tests_dir: Path) -> str:
 def refresh_results_if_tests_changed(work: Path, module: str, tests_dir: Path, stamp: Path) -> bool:
     """§2 — invalidate mutmut's RESULTS cache for `module` when the test tree has changed since last run.
 
-    Deletes only `<work>/mutants/<module>.meta` (the exit codes), so mutmut re-tests every mutant against
-    the current tests on the NEXT run — while the expensive mutant source and its warm `.pyc` survive, so
-    an UNCHANGED test suite still gets the full reuse (the 22 min → 18 s this cache exists for). The test
-    hash is stamped into `stamp` so the comparison is against what was actually last measured, not an
-    mtime. Returns True iff the results were invalidated (tests changed or no prior stamp).
+    NULLS every value in `<work>/mutants/<module>.meta`'s `exit_code_by_key` — it does NOT delete the file.
+    A null is precisely "generated but not decided" (see this module's header), which is exactly what an
+    invalidated result is: the mutant KEYS survive (so mutmut's `--only` filter still matches and it
+    re-decides them), while `decided_under_glob` already excludes nulls so §3 reads the re-run honestly.
+
+    Deleting the file instead would strip the keys, and with the source unchanged mutmut skips regeneration
+    (`1 unmodified`) and then has nothing to filter against — crashing with `Filtered for specific mutants,
+    but nothing matches`, i.e. the §2 invalidation would trigger the very crash §3 refuses on. (Measured
+    2026-08-24: delete → EXIT 2 on the gate's own module; the fix keeps the mutant source + warm `.pyc`.)
+
+    The test hash is stamped into `stamp` so the comparison is against what was actually last measured, not
+    an mtime. Returns True iff the results were invalidated (tests changed or no prior stamp).
     """
     current = test_tree_hash(tests_dir)
     stamp = Path(stamp)
     previous = stamp.read_text(encoding="utf-8").strip() if stamp.exists() else None
     if previous == current:
         return False
-    (Path(work) / "mutants" / f"{module}.meta").unlink(missing_ok=True)
+    meta = Path(work) / "mutants" / f"{module}.meta"
+    if meta.exists():
+        try:
+            data = json.loads(meta.read_text(encoding="utf-8"))
+            codes = data.get("exit_code_by_key")
+            if isinstance(codes, dict):
+                data["exit_code_by_key"] = dict.fromkeys(codes, None)
+                meta.write_text(json.dumps(data), encoding="utf-8")
+        except (OSError, ValueError):
+            pass                        # unreadable meta ⇒ nothing to invalidate; the stamp still advances
     stamp.write_text(current, encoding="utf-8")
     return True
