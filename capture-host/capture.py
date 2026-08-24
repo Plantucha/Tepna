@@ -5363,12 +5363,32 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
         def edf_sink_factory():
             return cpap_edf_writer.EdfSink(edf_dir, serial, flow_scale_verified=verified)
 
+    # Optional durable RAW RECORD sink (INV9 — the authoritative copy the bus is not), enabled by
+    # cpap.ble_stream.raw_record_dir. Each live session writes an append-only JSONL journal of the
+    # canonical observations there. session_id is a HOST-AUTHORED acquisition-run id — it names OUR
+    # capture attempt; the DEVICE timeline is already preserved per-batch in device_start, so this does
+    # not conflate the two identities. P2 follow-up: AcqLifecycle becomes the id ISSUER — a generator
+    # swap only, the record shape and P4's committed-store consumption are unchanged. No dir → no record.
+    raw_record_factory = None
+    raw_dir = cbs.get("raw_record_dir")
+    if raw_dir:
+        import cpap_record
+
+        raw_serial = cbs.get("serial") or "UNKNOWN"
+
+        def raw_record_factory():
+            sid = cpap_record.new_session_id()
+            path = os.path.join(raw_dir, "cpap-raw-" + sid + ".jsonl")
+            return cpap_record.RawRecordSink(path, device_id=raw_serial, session_id=sid,
+                                             provenance={"unit": "cpap_stream", "wiring": "P1+P3"})
+
     # devices provider for the on-body gate: the daemon's live device-status map. The 2.4 GHz coexistence
     # interlock is DISABLED BY OWNER ORDER (2026-08-23) — default False — so a stream no longer refuses
     # beside an on-body wearable, only logs it; set cpap.ble_stream.coexistence_gate: true to restore it.
     return cpap_stream.LiveStreamController(
         bus, connect, lambda: _load_as11_creds(creds_path), lambda: STATUS.get("devices", {}),
-        edf_sink_factory=edf_sink_factory, coexistence_gate=bool(cbs.get("coexistence_gate", False)))
+        edf_sink_factory=edf_sink_factory, raw_record_factory=raw_record_factory,
+        coexistence_gate=bool(cbs.get("coexistence_gate", False)))
 
 
 async def _cpap_ble_connect(ble_addr: str, hci: str | None):

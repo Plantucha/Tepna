@@ -17,6 +17,7 @@ import logging
 
 import as11_cipher
 import as11_pull
+from cpap_ingest import GapCounters
 import telemetry
 
 _log = logging.getLogger("tepna.cpap")
@@ -28,6 +29,11 @@ BRP_CHANNELS = {
     "PatientFlow": ("cpap_flow", "CPAP Flow", "L/min"),
     "MaskPressure": ("cpap_pressure", "CPAP Pressure", "cmH₂O"),
 }
+
+# §8 — how long a cooperative stop is given to finish the current batch, drain and persist before the
+# emergency cancel fires. A healthy 25 Hz stream checks should_stop every batch (~40 ms), so this is only
+# ever hit by a pump stuck waiting on a frame that never comes.
+STOP_GRACE_S = 5.0
 
 
 def on_body_wearables(status_devices) -> list[str]:
@@ -86,30 +92,64 @@ async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
     EDF sink writes is only whole once closed, so this is what makes an interrupted night's EDF readable.
     """
     channels = channels or BRP_CHANNELS
-    fs = 1000.0 / sample_interval_ms
+    requested_ms = sample_interval_ms          # §2 — retained for the observed-vs-requested comparison
+    fs = 1000.0 / requested_ms                 # the requested rate; the card shows it until the device speaks
     session_key = await as11_pull.establish(pair_key, client_id, write, recv_frame)
     seal, unseal = cipher_factory(session_key)
     for _did, (key, label, unit) in channels.items():
         bus.register(key, label, unit, fs, chans=1)
+    counters = GapCounters()                   # P3 gap accounting: frame classification + sink-write failures
     sinks = list(extra_sinks or ())
     for s in sinks:
         s.open(channels, fs)
     delivered = 0
+    observed_ms = None                         # §2 — the device's OWN interval, authoritative once seen
     try:
         async for batch in as11_pull.stream(write, recv_frame, seal, unseal, list(channels),
-                                            sample_interval_ms=sample_interval_ms, max_batches=max_batches):
+                                            sample_interval_ms=sample_interval_ms, max_batches=max_batches,
+                                            counters=counters):
+            # §2 OBSERVED INTERVAL IS AUTHORITATIVE. The device reports its actual sample interval on every
+            # batch; trust IT over the requested nominal, WARN on a mismatch, and DETECT a mid-stream change
+            # — never silently resample or ride the nominal. The bus push (and the EDF sink, which reads the
+            # same batch) consume the observed rate.
+            iv = batch.get("interval_ms")
+            if isinstance(iv, (int, float)) and iv > 0:
+                if observed_ms is None:
+                    observed_ms = iv
+                    if iv != requested_ms:
+                        _log.warning("CPAP stream observed interval %s ms != requested %s ms — using the "
+                                     "observed rate as authoritative", iv, requested_ms)
+                elif iv != observed_ms:
+                    _log.warning("CPAP stream interval changed mid-stream: %s -> %s ms", observed_ms, iv)
+                    observed_ms = iv
+                fs = 1000.0 / observed_ms
+            # INV9 ORDERING FIX: the DURABLE record is written BEFORE the bus push — the bus is a VIEW
+            # of the acquisition, not the acquisition, so the authoritative copy must land first (the
+            # merged #1701 loop pushed to the bus first; this reorders it). A sink write failure is
+            # NON-FATAL but LOUD: count it (sink_errors) and keep streaming — the stream survives a
+            # subscriber failure, and the failure is first-class gap-accounting data, never a silent drop.
+            for s in sinks:
+                try:
+                    s.on_batch(batch)
+                except Exception:  # noqa: BLE001 — ANY sink failure must not kill the stream (INV9)
+                    counters.sink_errors += 1
+                    _log.exception("CPAP durable sink failed — counted (sink_errors=%d), stream continues",
+                                   counters.sink_errors)
             for did, (key, _label, _unit) in channels.items():
                 samples = batch["channels"].get(did)
                 if samples:
                     bus.push(key, samples, fs)
-            for s in sinks:
-                s.on_batch(batch)
             delivered += 1
             if should_stop is not None and should_stop.is_set():
                 break
     finally:
         for s in sinks:
             s.close()
+        _summary = counters.summary()
+        if counters.total_lost or counters.sink_errors or counters.foreign_stream:
+            _log.warning("CPAP stream gap accounting: %s", _summary)
+        else:
+            _log.info("CPAP stream gap accounting: %s", _summary)
     return delivered
 
 
@@ -122,7 +162,7 @@ class LiveStreamController:
     daemon shim. One controller per daemon; `op("start"|"stop")` is what the endpoint calls."""
 
     def __init__(self, bus, connect, load_creds, devices, *, channels=None, pump=stream_to_bus,
-                 edf_sink_factory=None, coexistence_gate=False):
+                 edf_sink_factory=None, raw_record_factory=None, coexistence_gate=False):
         self._bus = bus
         self._connect = connect
         self._load_creds = load_creds
@@ -136,9 +176,19 @@ class LiveStreamController:
         # () -> a fresh on-disk EDF sink for this session, or None to stream to the bus alone. The daemon
         # supplies one; a bus-only controller (and every existing test) leaves it None and is unaffected.
         self._edf_sink_factory = edf_sink_factory
+        # () -> a fresh RawRecordSink for this session (the durable JSONL raw record, INV9), or
+        # None for no on-disk record. Peers with the EDF sink on the one ingestion seam.
+        self._raw_record_factory = raw_record_factory
         self._task = None
         self._stop = None
         self._disconnect = None
+        # §7 START/STOP CONCURRENCY. `_start` has an `await self._connect()` BETWEEN the `_running()` check
+        # and assigning `_task`, so two concurrent op("start") calls both pass the check and both spawn a
+        # pump → two acquisition sessions on ONE link. This lock RESERVES the whole start/stop transition
+        # before the first await, so at most ONE session owns the live stream and stop/restart cannot race
+        # connect/auth. (asyncio.Lock is loop-agnostic at construction on 3.10+, so building the controller
+        # outside a running loop — as the daemon does — is fine.)
+        self._lock = asyncio.Lock()
 
     def _keys(self):
         return [key for _did, (key, _l, _u) in self._channels.items()]
@@ -147,7 +197,8 @@ class LiveStreamController:
         return self._task is not None and not self._task.done()
 
     async def op(self, action):
-        return await (self._start() if action == "start" else self._stop_op())
+        async with self._lock:
+            return await (self._start() if action == "start" else self._stop_op())
 
     async def _start(self):
         if self._running():
@@ -173,24 +224,45 @@ class LiveStreamController:
         self._disconnect = disconnect
         self._stop = asyncio.Event()
         kw = {"channels": self._channels, "should_stop": self._stop}
-        if self._edf_sink_factory is not None:
-            # A fresh sink per session — the file is named from this session's device start_time. Only
-            # passed when configured, so a bus-only pump (and the injected test pumps) never see the kwarg.
-            kw["extra_sinks"] = [self._edf_sink_factory()]
+        # Fresh sinks per session — the durable raw record leads (authoritative copy), then the EDF.
+        # Only passed when a factory is configured, so a bus-only pump (and the injected test pumps) never
+        # see the kwarg. The pump writes every sink BEFORE the bus push (INV9), so order here is only the
+        # order among sinks, not durable-vs-bus.
+        _factories = [f for f in (self._raw_record_factory, self._edf_sink_factory) if f is not None]
+        if _factories:
+            kw["extra_sinks"] = [f() for f in _factories]
         self._task = asyncio.create_task(self._pump(
             self._bus, write, recv_frame, bytes.fromhex(creds["masterPairKey"]), creds["clientId"], **kw))
         return {"ok": True, "streaming": True, "channels": self._keys()}
 
     async def _stop_op(self):
-        task, disconnect = self._task, self._disconnect
+        task, stop, disconnect = self._task, self._stop, self._disconnect
         self._task = self._stop = self._disconnect = None
         if task is not None and not task.done():
-            task.cancel()
+            # §8 COOPERATIVE STOP IS THE NORMAL PATH: signal should_stop and let the pump finish its
+            # current batch, DRAIN, close the sinks (persist the EDF) and end on its own. Cancellation is
+            # the EMERGENCY fallback for a pump that will not stop — and WHEN it fires we RECORD it, so a
+            # truncated recording is never an ambiguous termination.
+            # stop is guaranteed non-None for a live task: _start sets self._stop (an Event) BEFORE
+            # self._task, both under self._lock, and _stop_op reads/nulls the pair together — so reaching
+            # here with a task but no stop is unreachable, and an unconditional set is provably safe.
+            stop.set()
             try:
-                await task
-            except asyncio.CancelledError:
-                pass
-            except Exception:  # noqa: BLE001 — a dying stream must not stop us tearing the link down
+                await asyncio.wait_for(asyncio.shield(task), STOP_GRACE_S)
+            except asyncio.TimeoutError:
+                _log.warning(
+                    "CPAP stream did not stop cooperatively within %.0fs — CANCELLING (emergency); the "
+                    "final record may be truncated",
+                    STOP_GRACE_S,
+                )
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+                except Exception:  # noqa: BLE001 — a cancelled stream must not stop us tearing the link down
+                    pass
+            except Exception:  # noqa: BLE001 — a pump that ended by ERROR still lets us close the link
                 pass
         if disconnect is not None:
             try:

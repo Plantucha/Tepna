@@ -8,6 +8,7 @@ host-corrected or fabricated). The rest pins the accumulate→build→atomic-wri
 byte-accurate cpap_edf builder proven in #1669.
 """
 
+import logging
 import os
 import sys
 import time
@@ -151,6 +152,108 @@ def test_24_00_00_end_of_day_rolls_to_next_day(monkeypatch):
     monkeypatch.setenv("TZ", "UTC0")
     time.tzset()
     assert W._start_components("2026-08-23T24:00:00Z") == (2026, 8, 24, 0, 0, 0)
+
+
+# ── §2 OBSERVED INTERVAL (the device's OWN interval_ms, validated once) ─────────────────────────────────
+def _batch_iv(start, iv, flow=0.1, press=5.0):
+    """A one-second batch carrying an explicit interval_ms (the device's OWN reported rate). iv=None omits
+    the field entirely — the shape as11_pull yields when a StreamData notification has no intervalMs."""
+    b = _batch(start, [flow] * 25, [press] * 25)
+    if iv is None:
+        b.pop("interval_ms")
+    else:
+        b["interval_ms"] = iv
+    return b
+
+
+def test_an_off_rate_interval_warns_ONCE_not_per_batch(tmp_path, caplog):
+    """§2 — the device reports its own interval_ms per batch; the EDF is built at a FIXED 25 Hz (40 ms), so
+    an observed interval other than 40 ms means the file's timing will not match the stream. That is warned
+    exactly ONCE, on the first batch that carries a valid interval — never once per batch across a whole
+    night — and the check latches so it costs nothing thereafter."""
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL, flow_scale_verified=True)
+    sink.open({}, 25.0)
+    with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+        for _ in range(3):
+            sink.on_batch(_batch_iv("2026-08-23T22:15:03", 20))   # 20 ms = 50 Hz, off the BRP 25 Hz rate
+        sink.close()
+    warns = [r for r in caplog.records if "observed interval" in r.getMessage()]
+    assert len(warns) == 1, "the off-rate interval is warned once, not per batch"
+    assert sink._interval_checked is True
+
+
+def test_a_batch_without_interval_ms_skips_the_check_and_still_writes(tmp_path, caplog):
+    """§2 — a batch that omits interval_ms carries no rate to validate; the check is simply skipped (it stays
+    unchecked, no warning) and the capture proceeds. Absence of the field is not an error."""
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL, flow_scale_verified=True)
+    sink.open({}, 25.0)
+    with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+        for _ in range(61):
+            sink.on_batch(_batch_iv("2026-08-23T22:15:03", None))
+        sink.close()
+    assert sink._interval_checked is False, "no interval_ms ever seen → nothing validated"
+    assert not [r for r in caplog.records if "observed interval" in r.getMessage()]
+    assert os.path.exists(sink.path)
+
+
+def test_the_expected_40ms_interval_is_silent(tmp_path, caplog):
+    """§2 — the happy path: the device reports the expected 40 ms, so nothing is warned. (The default
+    _batch already carries interval_ms=40; this pins the silence explicitly.)"""
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL, flow_scale_verified=True)
+    with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+        _run(sink, 2, start="2026-08-23T22:15:03")
+    assert sink._interval_checked is True
+    assert not [r for r in caplog.records if "observed interval" in r.getMessage()]
+
+
+def test_a_zero_interval_is_treated_as_no_valid_interval(tmp_path, caplog):
+    """§2 boundary — interval_ms=0 is not a valid rate (0 Hz), so `iv > 0` rejects it: the check stays
+    unrun (no fabricated 0 vs 40 warn) exactly as an absent interval would. Pins the `> 0` lower bound —
+    a `>= 0` would accept 0 and warn spuriously."""
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL, flow_scale_verified=True)
+    sink.open({}, 25.0)
+    with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+        for _ in range(3):
+            sink.on_batch(_batch_iv("2026-08-23T22:15:03", 0))
+        sink.close()
+    assert sink._interval_checked is False, "0 ms is not a valid interval — nothing validated"
+    assert not [r for r in caplog.records if "observed interval" in r.getMessage()]
+
+
+def test_a_one_ms_interval_still_warns_as_off_rate(tmp_path, caplog):
+    """§2 boundary — interval_ms=1 IS a positive, valid interval (just wildly off the 40 ms BRP rate), so
+    `iv > 0` accepts it and it warns. Pins that the bound is `> 0`, not `> 1`: a `> 1` would silently skip
+    a 1 ms observation."""
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL, flow_scale_verified=True)
+    sink.open({}, 25.0)
+    with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+        sink.on_batch(_batch_iv("2026-08-23T22:15:03", 1))
+        sink.close()
+    warns = [r for r in caplog.records if "observed interval" in r.getMessage()]
+    assert len(warns) == 1 and sink._interval_checked is True
+
+
+def test_the_warn_names_both_the_observed_and_expected_interval(tmp_path, caplog):
+    """§2 — the warning must carry BOTH the observed interval AND the expected 40 ms, so an operator reading
+    it knows the actual vs the assumed. Pins both format args: a mutant dropping either (logging `None`)
+    is caught."""
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL, flow_scale_verified=True)
+    sink.open({}, 25.0)
+    with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+        sink.on_batch(_batch_iv("2026-08-23T22:15:03", 20))
+        sink.close()
+    msg = next(r.getMessage() for r in caplog.records if "observed interval" in r.getMessage())
+    assert "20" in msg, "the observed interval must appear in the warning"
+    assert "40" in msg, "the expected BRP interval must appear in the warning"
+
+
+def test_the_default_record_length_is_60_seconds(tmp_path):
+    """The EdfSink default packs 60 s (1500 samples at 25 Hz) per data record — pinned via the Flow
+    signal's samples-per-record so the `record_seconds=60` default cannot drift unseen."""
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL, flow_scale_verified=True)
+    _run(sink, 120)
+    edf = cpap_edf.read_edf(open(sink.path, "rb").read())
+    assert edf.signals[0].spr == 60 * 25, "default record must hold 60 s of 25 Hz flow (1500 samples)"
 
 
 # ── ACCUMULATE → BUILD → ATOMIC WRITE ───────────────────────────────────────────────────────────────────
