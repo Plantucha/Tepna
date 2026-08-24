@@ -426,3 +426,20 @@ def test_blank_line_mid_ledger_does_not_stop_reading(tmp_path):
         fh.write("\n")                            # a blank line BETWEEN rows, not at the tail
     sync(root, scripted([(b"b", False, None)]))
     assert len(sp.read_ledger(root)) == 2         # the row after the blank was read (continue, not break)
+
+
+def test_promote_never_touches_the_process_cwd(tmp_path, monkeypatch):
+    """The dir-fsync must target ROOT's committed/, never a path relative to whatever cwd the
+    process happens to have. Run from a guaranteed-clean cwd so a stray ./committed (e.g. left in
+    a shared harness workdir by an earlier fault) cannot shield a wrong-path regression."""
+    root = str(tmp_path / "store")
+    clean_cwd = tmp_path / "elsewhere"
+    clean_cwd.mkdir()
+    monkeypatch.chdir(clean_cwd)
+    body = b"cwd-proof"
+    sha = sp.sha256_bytes(body)
+    name = sp.round_filename(T0, sha)
+    part = sp.write_part(root, name, body)
+    sp.promote(root, part, name, expected_sha=sha, expected_len=len(body))
+    assert not (clean_cwd / sp.COMMITTED_DIR).exists()      # nothing leaked into the cwd
+    assert os.path.exists(os.path.join(root, sp.COMMITTED_DIR, name))
