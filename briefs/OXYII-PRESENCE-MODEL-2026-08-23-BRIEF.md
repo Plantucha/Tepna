@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-23 · **Follows:** `OXYII-ACQUISITION-CHARTER-2026-08-23-BRIEF.md` (G6, spec §2–§6) · **Evidence:** `O2RING-PROTOCOL-2026-07-17-BRIEF.md`, `OXYII-PROTOCOL-HARVEST-2026-08-08-BRIEF.md`, `O2RING-OPCODE-SURFACE-2026-08-03-BRIEF.md`, `VIGIL-O2RING-AUTOPULL-2026-07-21-BRIEF.md`, `O2RING-TIME-CAPABILITY-WIRING-2026-08-19-BRIEF.md` · **Affects (brief only — no code):** `capture-host/oxyii.py`, `capture-host/capture.py` (run_oxyii), a new presence module
+**Status:** IN-PROGRESS · **Created:** 2026-08-23 · **Follows:** `OXYII-ACQUISITION-CHARTER-2026-08-23-BRIEF.md` (G6, spec §2–§6) · **Evidence:** `O2RING-PROTOCOL-2026-07-17-BRIEF.md`, `OXYII-PROTOCOL-HARVEST-2026-08-08-BRIEF.md`, `O2RING-OPCODE-SURFACE-2026-08-03-BRIEF.md`, `VIGIL-O2RING-AUTOPULL-2026-07-21-BRIEF.md`, `O2RING-TIME-CAPABILITY-WIRING-2026-08-19-BRIEF.md` · **Affects (brief only — no code):** `capture-host/oxyii.py`, `capture-host/capture.py` (run_oxyii), a new presence module
 
 # The ring's presence is a state we can MEASURE, not one we infer from advertising
 
@@ -43,6 +43,31 @@ or it will report a healthy ring as absent every time it is taken off.
 
 *(Fleet-wide caution, different device, same shape: `verity-contact-bit-lies` — the Verity reports
 "worn" in its charger and on a desk. A contact bit is a vote, never a verdict.)*
+
+### §1-MEASURED, 2026-08-24 — the table above is FALSIFIED on this device, and the replacement is better
+
+🔴 **`contact` is BINARY on device S8AW2100 / fw 2D010002: swept 1,334,919 frames across all 268
+OXYFRAME files in the corpus — values are `{0, 1}` only. `0x03` has never been observed once**,
+including across a full night of active onboard recording (7,922 frames on 2026-08-23/24 that
+produced stored session `20260823233104`, 18,311 s — `contact` read `1` for all 7,803 worn frames).
+So "contact == 0x03 IS the still-recording predicate" is falsified by measurement: on this firmware
+`contact` is a worn-vote and nothing more (the fleet doctrine held: a contact bit is a vote, never a
+verdict). The protocol brief's §62–63 value table describes something this device does not emit —
+possibly another model/firmware, possibly a misread of the vendor `sensorState` map.
+
+**The recording discriminator that IS real, measured and already persisted — `duration_s`:**
+
+- **Session OPEN = `duration_s` > 0 and advancing** (monotonic +1/s through the whole recording night;
+  7,776 monotonic steps in the night file).
+- **Session CLOSE = the counter's reset to 0**, and it is the §3 episode boundary: measured across
+  **40 doff→close events** in the corpus, the ring closes its internal file **7–12 frames (~10 s)
+  after the last worn frame** — a tight firmware debounce, not the daemon's 180 s `drop_not_worn_sec`.
+- **Cross-validated against the stored artifact:** the night's `duration_s` at close read **18,311**,
+  and the pulled session's trailer records `total_seconds` = **18,311** — the live counter at close IS
+  the value the trailer later commits. The live frame and the stored file agree exactly.
+
+Design §3 accordingly: episode boundary = the duration reset (live) or a FILE_LIST stamp not
+previously seen (offline) — `contact` transitions play no role in the recording predicate.
 
 ## 2 · Absence of advertising is not absence of device
 
@@ -92,13 +117,40 @@ episode.
 - **Is `contact` readable without an established connection?** If it needs a connection, presence
   detection still starts at the advertising layer and `contact` only refines an already-PRESENT
   device. This determines whether §3's probe is escalation or first move, and it is not yet verified.
+  → *ANSWERED STRUCTURALLY, 2026-08-24: NO for the frame itself — `contact` is byte [5] of the
+  cmd `0x04` RESPONSE (`oxyii.py:229`), a solicited reply that only exists over an established
+  connection. Presence detection therefore starts at the advertising layer, and the remaining open
+  half is narrower: does the ADVERTISEMENT payload carry any state byte? Needs an adv capture during
+  an advertising window (ring worn/awake and unconnected) — still owed.*
 - **Does `run_status` (`payload[4]`) carry anything §2 needs?** It is parsed and surfaced and nothing
   reads it. It may already answer RECORDING more directly than `contact` does.
+  → *INSTRUMENTATION GAP FOUND, 2026-08-24: it cannot be answered from history because `run_status`
+  is parsed and then dropped — it is not in `OXYFRAME_COLUMNS`, so no night has ever recorded it.
+  Fix is a one-column APPEND to the schema (append-only rule makes it safe), after which every future
+  night answers this question for free. With `duration_s` proven as the recording predicate (§1-MEASURED),
+  `run_status` is now a corroborating candidate rather than the primary hope.*
 - **What does `contact` read during the post-recording flush?** `parse_oxy_trailer`'s docstring
   records that the ring reports a file's full size BEFORE the trailer flushes — so there is a window
   where the file is closed but not finalised. If `contact` returns `0x01` in that window, then
   `READY_FOR_DOWNLOAD` computed from contact alone would be wrong, and the finalisation predicate
   (`48 12 5a da`) is the only correct gate.
+  → *PARTIALLY ANSWERED, 2026-08-24: `contact` reads `0` through the close window (doff → duration
+  reset, 40 events), so contact indeed cannot gate READY_FOR_DOWNLOAD — but the sharper §1-MEASURED
+  result supersedes the question's premise: nothing about readiness should be computed from `contact`
+  at all. The finalisation predicate (`48 12 5a da` in the trailer) remains the only correct
+  READY gate; the duration reset marks CLOSED, finalisation marks READY, and the window between them
+  is real (the trailer flush). Its width is not yet measured — needs a pull attempted inside it, which
+  is exactly what G1's re-serve-from-start recovery makes safe to try.*
+
+### §5-MEASURED addendum — a presence state observed by accident, 2026-08-24
+
+**DOCKED-CHARGING is a connectable, streaming state; charge-complete ends it.** Measured today: the
+docked ring held a link and streamed `contact=0, duration=0` frames from 05:24 to ~11:06 (six
+OXYFRAME files, 16k+ frames), then disconnected and stopped advertising (`connected:false`,
+`charging:false` in daemon state at 14:0x — asleep after charge completion). So the §2 state model
+gains a measured transition: `DOCKED_CHARGING` (present, connectable, not worn, no file) →
+`ASLEEP` (absent-from-air) on charge completion — one more way "no advertisement" is not
+"no device".
 
 ## 5b · PRODUCTION EVIDENCE — 2026-08-24 (CORRECTED)
 
@@ -154,8 +206,15 @@ rather than to a log line's absence. **An absence in a log is bounded by where a
 
 ## 6 · Done when
 
-- [ ] §1's contact-vs-presence split is settled with a measurement, not a decision.
+- [x] §1's contact-vs-presence split is settled with a measurement, not a decision. *(DONE 2026-08-24,
+      §1-MEASURED: contact is binary {0,1} over 1.33 M frames / 268 files — a worn-vote only; the
+      recording predicate is `duration_s` advancing, its reset-to-0 the episode boundary (40 events,
+      7–12 s firmware debounce), cross-validated exactly against the stored trailer's 18,311 s.)*
 - [ ] The three §5 open questions are answered in the files/devices that can answer them.
+      *(2026-08-24: one answered structurally (contact needs a connection; adv-payload half still
+      open), one blocked on an instrumentation gap with the fix named (`run_status` append to
+      OXYFRAME_COLUMNS), one partially answered and superseded by §1-MEASURED (finalisation predicate
+      is the READY gate; flush-window width still owed).)*
 - [ ] The state model is written with each transition naming the evidence that triggers it, and no
       transition triggered by elapsed time alone.
 - [ ] The probe's opcode set is confined to `O2RING-OPCODE-SURFACE`'s read-only list, cited per opcode.
