@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 import argparse, asyncio, contextlib, json, logging, math, os, signal, time as _time, datetime as _dt
-from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, RingClockLogWriter, resumable_stamp,
+from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_stamp,
                      HostClockLogWriter, PmdArrivalLogWriter, capture_filename, missing_identity,
                      night_dir, open_sample_writers)
 import proc_util
@@ -2878,21 +2878,47 @@ async def run_viatom(dev: dict, root: str):
                 backoff = min(backoff * 2, 60)
 
 
+
+def _oxy_emit(lc, writer, name, new, reason, *, failure=None):
+    """Emit ONE OxyII lifecycle transition (charter G4): record it, append the OXYLIFE.csv row, surface
+    the state in STATUS. GUARDED — an illegal edge is SKIPPED, never raised, so a lifecycle-modelling gap
+    can never crash run_oxyii (the module's strict raise is for its tests; the daemon must not die on it).
+    A repeated same-state emit (LIVE on every poll) is a self-edge that can() rejects, so only the first
+    of a run fires — the guard doubles as idempotence."""
+    if not lc.can(new):
+        return
+    t = lc.to(new, reason, failure=failure)
+    if writer is not None:
+        writer.write(t)
+    _set(name, oxy_lifecycle=new.value)
+
+
 async def run_oxyii(dev: dict, root: str):
     """Wellue O2Ring-S / T8520 ("S8-AW…") — live SpO2 + pulse over the OxyII protocol (NOT legacy Viatom).
     No bonding. Flow: connect → auth(0xFF) → setup(0x10) → poll cmd=0x04 ~1/s. Emits the ViHealth CSV
     OxyDex parses + pushes spo2/pr to the monitor."""
     name, addr = dev["name"], dev["address"]
     backoff = 5
+    import cpap_record
+    import oxy_lifecycle
+    _oxylc = oxy_lifecycle.OxyLifecycle(device_id=dev.get("device_id"),
+                                        session_id=cpap_record.new_session_id())
+    _oxywr = {"w": None}                        # G4 OXYLIFE.csv, opened once per run (first night dir)
     while not _STOP.is_set():
         if _OXYII_PAUSE.is_set() or _RECOVER.is_set():   # a stored-session pull owns the link, or the adapter is recovering
             _set(name, connected=False,
                  last_error="paused — pulling stored session" if _OXYII_PAUSE.is_set() else "adapter recovering")
+            _oxy_emit(_oxylc, _oxywr["w"], name,
+                      oxy_lifecycle.OxyState.PAUSED_FOR_PULL if _OXYII_PAUSE.is_set()
+                      else oxy_lifecycle.OxyState.RECOVERING,
+                      "stored-session pull owns the link" if _OXYII_PAUSE.is_set() else "adapter recovering")
             while (_OXYII_PAUSE.is_set() or _RECOVER.is_set()) and not _STOP.is_set():
                 await asyncio.sleep(0.3)
             continue
         started = _now()
         ndir = night_dir(root, started)
+        if _oxywr["w"] is None:                  # G4: open the lifecycle sidecar once, in the first night dir
+            _oxywr["w"] = OxyLifeLogWriter(os.path.join(ndir, "OXYLIFE.csv"), device=name)
         path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "spo2", "csv"))
         ppg_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "ppg", "txt"))
         ppg2w_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "ppg2w", "txt"))
@@ -2909,6 +2935,7 @@ async def run_oxyii(dev: dict, root: str):
         stalled = False                               # link held but no frames decoded — reconnect
         try:
             _set(name, connected=False, address=addr, last_error=None)
+            _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.CONNECTING, "scan + connect")
             async with _connect_scan(addr) as client:
                 # NB: backoff is NOT reset here. A bare connect is not a viable session — the O2Ring's
                 # signature failure (E3) is a connect that SUCCEEDS then drops during service discovery
@@ -2918,6 +2945,7 @@ async def run_oxyii(dev: dict, root: str):
                 # files — instead of ever backing off. Reset only once DATA flows (the poll loop below):
                 # then a genuinely viable ring recovers fast, while a flapping one is left to back off.
                 _set(name, connected=True); log.info("%s connected", name)
+                _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.CONNECTED, "auth + setup")
                 # Resolve write/notify chars by UUID (robust to a stale BlueZ service cache).
                 wch = nch = None
                 for s in client.services:
@@ -3363,12 +3391,14 @@ async def run_oxyii(dev: dict, root: str):
                     # bleak's dispatch) is indistinguishable from a healthy one from out here.
                     if frames[0] != last_frames:
                         last_frames, last_change = frames[0], _time.monotonic()
+                        _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.LIVE, "frames flowing")
                         backoff = 5           # E3: data is flowing — THIS is a viable session, so reset the
                                               # reconnect backoff. A later drop then recovers fast; a ring
                                               # that only ever connects-and-drops never reaches here and so
                                               # keeps backing off (5→10→…→60) instead of hammering.
                     elif stream_is_stalled(last_change, _time.monotonic(), _STREAM_STALL_S):
                         stalled = True
+                        _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.INTERRUPTED, "no frames — stalled")
                         _set(name, last_error=f"no frames for {_STREAM_STALL_S:.0f}s — reconnecting")
                         log.warning("%s: no decoded frames for %.0fs behind a live link — dropping it",
                                     name, _STREAM_STALL_S)
@@ -3377,6 +3407,7 @@ async def run_oxyii(dev: dict, root: str):
             _set(name, connected=False, last_error=repr(e))
             log.warning("%s %s", name, link_error_text(e))
         finally:
+            _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.DISCONNECTED, "session ended")
             try:
                 oxy_arr_wr.close()
             except Exception:
@@ -3435,6 +3466,9 @@ async def run_oxyii(dev: dict, root: str):
             else:
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 60)
+    _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.SHUTTING_DOWN, "daemon stop")
+    if _oxywr["w"] is not None:
+        _oxywr["w"].close()
 
 
 def session_meta(f: str, name: str = "") -> dict:

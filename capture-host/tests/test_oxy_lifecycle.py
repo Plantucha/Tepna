@@ -135,3 +135,11 @@ def test_transition_is_immutable():
     t = Transition(OxyState.NOT_SEEN, OxyState.CONNECTING, "r", 1.0, "W", None, None)
     with pytest.raises(Exception):
         t.reason = "mutated"
+
+
+def test_a_pull_or_recovery_before_any_connect_is_legal():
+    """A stored-session pull or an adapter recovery can be in progress before the daemon ever connects."""
+    lc = _lc()
+    assert lc.can(OxyState.PAUSED_FOR_PULL) and lc.can(OxyState.RECOVERING)
+    lc.to(OxyState.PAUSED_FOR_PULL, "pull owns the link at startup")
+    assert lc.state is OxyState.PAUSED_FOR_PULL

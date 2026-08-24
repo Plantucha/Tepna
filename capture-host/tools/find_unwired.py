@@ -52,6 +52,10 @@ CONSUMERS = ("webmon.py", "alerts.py", "nightqc.py", "timeline.py", "telemetry.p
 # a suppression you cannot see is how the next real finding gets hidden behind a stale entry.
 ALLOW_KEYS = {
     "tool": "read by webmon.py and monitor.html under a quoting form scan 1 does not model",
+    "oxy_lifecycle": "published to STATUS by the G4 lifecycle wiring (run_oxyii emits the acquisition "
+                     "state) for /api/state inspection — the charter's STATUS half; the webmon-forward "
+                     "+ monitor lifecycle indicator is a tracked follow-up, same pattern the "
+                     "ring_rtc_reset_suspect draw followed, alongside the IDLE_UNWORN/PULLING hooks",
 }
 # Fields the API publishes that the monitor does not draw — either for a consumer OTHER than the monitor,
 # or a monitor draw that is PENDING and tracked. `/api/state` is not the monitor's private channel — but

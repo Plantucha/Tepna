@@ -841,6 +841,56 @@ class LinkLogWriter:
             pass
 
 
+class OxyLifeLogWriter:
+    """Per-night OxyII LIFECYCLE sidecar — `OXYLIFE.csv`, beside `LINK.csv` (charter G4). One row per
+    acquisition-lifecycle transition (connect / live / interrupted / paused-for-pull / pulling /
+    idle-unworn / error / shutting-down), so a gap or an odd night is explainable after the fact from the
+    daemon's own state history rather than guessed at.
+
+    Same disciplines as LinkLogWriter: a SIDECAR, never a column in a vendor layout; TELEMETRY, never a
+    metric in a ganglior.node-export or an evidence-badged health number. The row format is the
+    transition's own `as_row()` (the module owns the schema); this class owns the file + cadence only.
+    """
+
+    def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True,
+                 device: str | None = None):
+        self.path = path
+        self._fh = open(path, "w", buffering=1 << 16, newline="\n")
+        if device is not None:
+            self._fh.write(f"# device={device}\n")
+        self._fh.write("host_wall;host_monotonic;prev;new;reason;device;session;failure\n")
+        self.rows = 0
+        self._flush_interval = flush_interval
+        self._fsync = fsync
+        self._last_flush = _time.monotonic()
+
+    def write(self, transition) -> None:
+        """Append one transition (anything with `.as_row()` — an oxy_lifecycle.Transition). Duck-typed so
+        writers.py stays decoupled from the lifecycle module."""
+        self._fh.write(transition.as_row() + "\n")
+        self.rows += 1
+        now = _time.monotonic()
+        if now - self._last_flush >= self._flush_interval:
+            self.flush()
+            self._last_flush = now
+
+    def flush(self) -> None:
+        try:
+            self._fh.flush()
+            if self._fsync:
+                import os as _os
+                _os.fsync(self._fh.fileno())
+        except (OSError, ValueError):
+            pass
+
+    def close(self) -> None:
+        try:
+            self.flush()
+            self._fh.close()
+        except (OSError, ValueError):
+            pass
+
+
 class PmdArrivalLogWriter:
     """Per-session PACKET-ARRIVAL sidecar — the one measurement that makes the inter-device offset knowable.
 
