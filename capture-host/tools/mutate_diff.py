@@ -68,6 +68,16 @@ HERE = Path(__file__).resolve().parent.parent
 VENV_PY = HERE / ".venv" / "bin" / "python"
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 
+# §3 (OXYII-G1-FOLLOWUPS) — run_one's `error` key covers ONE failure (no test names the module); a mutmut
+# that crashed AFTER generation returns a real rc and no error, and the loop below counted it as a clean,
+# empty run — the module dropped out of the gate while listed as covered. mmeta reads the scratch's meta
+# to count mutants actually TESTED, the direct signal that heuristic misses. Loaded by path (script cwd).
+import importlib.util as _ilu
+
+_mmspec = _ilu.spec_from_file_location("mmeta", HERE / "mmeta.py")
+mmeta = _ilu.module_from_spec(_mmspec)
+_mmspec.loader.exec_module(mmeta)
+
 
 def changed_lines(base: str) -> dict[str, set[int]]:
     """{module.py: {changed line numbers}} for capture-host's own top-level modules.
@@ -463,6 +473,8 @@ def main(argv=None) -> int:
     # venv, importable-but-unusable is a real state, not a hypothetical — so an import check alone
     # would still fail open. If every invocation errored, no mutant was ever tested.
     _attempted = _ran = 0
+    _crashed: list = []          # §3 — globs that returned no error yet tested zero mutants (silent drop-out)
+    _nothing_to_mutate: list = []  # §3b — globs with NO generated mutants: benign, not a failure
     verdict: dict = {"base": a.base, "modules": {}, "survivors": []}
     for module, lines in sorted(changed.items()):
         stems = functions_covering(HERE / module, lines)
@@ -482,6 +494,32 @@ def main(argv=None) -> int:
                 continue
             _ran += 1
             work = Path(r["work"])
+            # §3 — run_one returned no error, but did mutmut actually TEST anything? A crash after
+            # generation (a collection failure, a bad conftest) leaves the mutants recorded as null in the
+            # meta and hands back a clean-looking run with no survivors. Count the DECIDED mutants for this
+            # glob; zero means it dropped out while listed as covered — record it and refuse below, exactly
+            # as the preflight does, rather than banking an empty survivor list as a pass.
+            if mmeta.tested_count(work, module, g) == 0:
+                # ⚠️ 0-tested has TWO causes and only one is a failure. A function with no mutable
+                # operator generates nothing, and mutmut signals that by crashing rather than saying
+                # so — refusing on it reds a rename or a docstring edit. Ask the mutants file which
+                # case this is before deciding. (Measured: oxy_inventory.identity, 138 mutants in the
+                # file, 0 under its glob, whole run refused.)
+                if mmeta.generated_count(work, module, g) == 0:
+                    print(f"    · {g}: no mutable operator in this function — nothing to test")
+                    # `_ran` was incremented on the way in; nothing actually ran, so give it back.
+                    # Without this the run reports "every mutant on the changed functions was killed"
+                    # over ZERO mutants — a claim of coverage that does not exist, which is the exact
+                    # failure class this guard was added to remove. (Caught by the end-to-end, not by
+                    # the unit tests: the counters are only visible in a real run.)
+                    _ran -= 1
+                    _nothing_to_mutate.append(g)
+                    continue
+                print(f"    ! {g}: mutants were generated but 0 tested — a crash after generation, not "
+                      f"a clean run (the meta's exit codes are all null under this glob)")
+                _ran -= 1
+                _crashed.append(g)
+                continue
             # ── the GENERATED set, for REFUTED detection ────────────────────────────────────────
             # `mutmut results` lists survivors and not-checked ONLY — a KILLED mutant is absent from
             # it entirely, so an earlier draft's `": killed" in line` matched nothing and REFUTED could
@@ -520,10 +558,29 @@ def main(argv=None) -> int:
                                              "diff": show.stdout[:400], "work": str(work)})
         verdict["modules"][module] = sorted(stems)
 
+    # §3 — a glob that returned no error but tested zero mutants dropped out silently: the module was
+    # listed as covered and its survivors read empty, which is the exact false green this measures
+    # against. Refuse if ANY glob did this, even when others ran cleanly — the mixed case the all-failed
+    # check below cannot see (it fires only when NOTHING ran).
+    if _crashed:
+        print(f"\nmutate-diff: REFUSING — {len(_crashed)} glob(s) recorded 0 tested mutants "
+              f"({', '.join(_crashed)}). Each was listed as covered but its mutmut invocation crashed "
+              "after generation, so an empty survivor list there means 'not checked', not 'all killed'.")
+        print("  Deliberately not a pass: a gate that cannot see must not report green.")
+        return 2
+
     # Every invocation failed. The loop above prints each error and continues — right per glob (one
     # broken function must not hide the others), catastrophic in aggregate, because `blocking` is
     # then empty and the run prints success. Refuse for the same reason as the preflight: nothing
     # was tested, so nothing was shown. This is the layer the import check cannot cover.
+    # A glob with nothing to mutate is counted in `_attempted` but is not a failure, so it must not
+    # feed the all-or-nothing refusal either: otherwise a diff touching only unmutable functions reds.
+    if _nothing_to_mutate and not _ran and not _crashed and len(_nothing_to_mutate) == _attempted:
+        print(f"\nmutate-diff: {len(_nothing_to_mutate)} changed function(s) had no mutable operator — "
+              "nothing to test, and nothing to conclude. Not a failure.")
+        if a.json:
+            Path(a.json).write_text(json.dumps(verdict, indent=2), encoding="utf-8")
+        return 0
     if _attempted and not _ran:
         print(f"\nmutate-diff: REFUSING — all {_attempted} mutmut invocation(s) failed, so no mutant "
               "was generated or tested. The per-glob errors are above.")

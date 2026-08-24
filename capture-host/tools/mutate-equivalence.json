@@ -3951,5 +3951,55 @@
    "op": "cmp > \u2192 >=",
    "why": "EQUIVALENT, declared at the assertion site (tests/dex-tests.js, HRV-geometry group): only the VALUE of maxC is kept, and on a tie `>` and `>=` assign the identical value. No input can distinguish them. Do not add an assertion chasing it."
   }
+ ],
+ "mmeta.py": [
+  {
+   "key": "- data = json.loads(Path(meta_path).read_text(encoding=\"utf-8\")) | + data = json.loads(Path(meta_path).read_text(encoding=None))",
+   "class": "no-distinguishing-input",
+   "why": "The content read here is ASCII BY CONSTRUCTION — a mutmut `<module>.py.meta` is JSON whose keys are mutant names (`oxy_transfer.x_select__mutmut_1`) and whose values are integers or null. ASCII round-trips identically under any codec, so encoding=\"utf-8\", encoding=None (locale default), and omitting the argument select the same bytes. This is a proof over the reachable input domain, not the fleet-is-UTF-8 assumption the oxy_inventory sibling rests on — no non-ASCII byte can reach this read. Surfaced on mmeta.py by the diff-scoped gate (OXYII-G1-FOLLOWUPS §3b).",
+   "probe": "The only writer of this file is mutmut, which emits ASCII mutant names + JSON scalars; verified by inspection of a real meta (as11_link.py.meta: keys `x__h__mutmut_1` etc., values null/int). ASCII is codec-invariant."
+  },
+  {
+   "key": "- previous = stamp.read_text(encoding=\"utf-8\").strip() if stamp.exists() else None | + previous = stamp.read_text(encoding=None).strip() if stamp.exists() else None",
+   "class": "no-distinguishing-input",
+   "why": "The stamp holds only a 16-character hex digest (test_tree_hash's output) — pure ASCII, so the codec cannot change the bytes read. Same proof-over-domain as the meta read above.",
+   "probe": "The only writer of the stamp is refresh_results_if_tests_changed, which writes test_tree_hash(...) = hexdigest()[:16], i.e. [0-9a-f]{16}. ASCII, codec-invariant."
+  },
+  {
+   "key": "- stamp.write_text(current, encoding=\"utf-8\") | + stamp.write_text(current, encoding=None)",
+   "class": "no-distinguishing-input",
+   "why": "`current` is a 16-char hex digest (ASCII), so writing it under utf-8 vs the locale default produces identical bytes. Proof over the reachable domain: the value is always test_tree_hash's hexdigest.",
+   "probe": "current = test_tree_hash(tests_dir) = hexdigest()[:16] = [0-9a-f]{16}. ASCII, codec-invariant on write as on read."
+  },
+  {
+   "key": "- stamp.write_text(current, encoding=\"utf-8\") | + stamp.write_text(current, )",
+   "class": "no-distinguishing-input",
+   "why": "Dropping the encoding argument entirely falls back to the locale default, which for the ASCII hex digest written here is byte-identical to utf-8 — the same equivalence as the encoding=None mutant on this line, one operator over.",
+   "probe": "Same site, same ASCII value (a 16-hex digest); omitting encoding and passing encoding=None both select the locale codec, and ASCII is codec-invariant."
+  },
+  {
+   "key": "- data = json.loads(meta.read_text(encoding=\"utf-8\")) | + data = json.loads(meta.read_text(encoding=None))",
+   "class": "no-distinguishing-input",
+   "why": "The read is of the SAME mutmut meta this function just nulled — JSON whose keys are mutant names (`oxy_transfer.x_select__mutmut_1`) and whose values are integers or null. ASCII BY CONSTRUCTION, so encoding=\"utf-8\" and encoding=None (locale default) select identical bytes. Same proof-over-domain as the read on line 53, one function down. Introduced by the §2 fix's own nulling code (OXYII-G1-FOLLOWUPS §2, refresh_results_if_tests_changed).",
+   "probe": "The only writer of this meta is mutmut, which emits ASCII mutant names + JSON scalars; the very next line re-serialises it with json.dumps, which produces ASCII for this ASCII data. Codec-invariant."
+  },
+  {
+   "key": "- meta.write_text(json.dumps(data), encoding=\"utf-8\") | + meta.write_text(json.dumps(data), encoding=None)",
+   "class": "no-distinguishing-input",
+   "why": "`json.dumps(data)` here serialises a dict of ASCII mutant-name keys to null values (dict.fromkeys(codes, None)) — json.dumps emits ASCII for ASCII keys and the literal `null`, so encoding=\"utf-8\" vs encoding=None write byte-identical output. Proof over the reachable domain, not a fleet-is-UTF-8 assumption. Introduced by the §2 fix.",
+   "probe": "data['exit_code_by_key'] = dict.fromkeys(codes, None); its keys came from mutmut (ASCII mutant names), its values are all None. json.dumps of that is pure ASCII, codec-invariant on write."
+  },
+  {
+   "key": "- meta.write_text(json.dumps(data), encoding=\"utf-8\") | + meta.write_text(json.dumps(data), )",
+   "class": "no-distinguishing-input",
+   "why": "Dropping the encoding argument falls back to the locale default, which for the ASCII json.dumps output written here is byte-identical to utf-8 — the same equivalence as the encoding=None mutant on this line, one operator over.",
+   "probe": "Same site, same ASCII value (json.dumps of an ASCII-keyed dict with all-null values); omitting encoding and passing encoding=None both select the locale codec, and ASCII is codec-invariant."
+  },
+  {
+   "key": "- src = (Path(work) / \"mutants\" / module).read_text(encoding=\"utf-8\") | + src = (Path(work) / \"mutants\" / module).read_text(encoding=None)",
+   "class": "no-distinguishing-input",
+   "why": "This read targets the mutmut-generated mutants SOURCE, which — unlike the meta reads above — is NOT ASCII by construction (this very module's header carries ⚠️, em-dashes, and →). So the equivalence rests on the runtime-locale-is-UTF-8 invariant, the SAME argument the oxy_inventory sibling makes, NOT on codec-invariance of the content. Under any UTF-8 locale (the deployment invariant on the box and in CI) encoding=\"utf-8\" and encoding=None decode identically, and generated_under_glob only regex-counts `^def …\\d+\\(` lines, which are ASCII regardless. Flagged distinctly from lines 143/147 precisely because its input CAN contain non-ASCII. ⚠️ DO NOT DELETE THIS ENTRY on a REFUTED verdict: the diff-scoped gate's `is_string_only` (mutate_diff.py) tests whether the added line CONTAINS a quote (`'\"' in ln`), not whether the CHANGE was to a string literal — this line carries the `\"mutants\"` path segment, so the mutant is dropped from the survivor list and `classify` reads absent-as-killed, reporting a FALSE REFUTED. The classification here is correct (the mutant genuinely survives, exit 0 in the meta); the defect is in is_string_only and its fix (test the changed token, not line content) is tracked separately. Removing this entry per the REFUTED remedy would destroy a correct classification.",
+   "probe": "mutmut copies the module verbatim into mutants/<module>; mmeta.py contains non-ASCII in comments, so this read is only codec-stable under a UTF-8 locale. `locale.getpreferredencoding()` is UTF-8 on the capture box and every CI lane; the counted `def` lines are ASCII in all cases."
+  }
  ]
 }
