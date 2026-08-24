@@ -1273,12 +1273,147 @@ import { CpapDsp } from './cpapdex-dsp.js';
     return cpapReviewBanner(review) + cpapClinicalSummary(review) + '<div style="margin:0 0 22px">' + cpapGreyedPanel('Per-session flow \u00b7 pressure \u00b7 leak waveforms') + '</div>';
   }
 
+  /* ════════════════════════════════════════════════════════════════════════
+   LIVE-vs-SD COMPARATOR (cpapCompare) — a BLE-captured night vs the device's own
+   SD-card BRP. Renders the scale/Bland-Altman/offset agreement as badged cards; a
+   channel-level refusal (a large device-clock disagreement) is surfaced as a CLOCK
+   FINDING, not aligned through. Every quoted number carries its n (overlap minutes).
+   No Pearson r anywhere — scale regression + Bland-Altman only (brief).
+   ════════════════════════════════════════════════════════════════════════ */
+  function comparatorPanel(cmp, meta) {
+    meta = meta || {};
+    var liveL = esc(meta.liveLabel || 'BLE live');
+    var sdL = esc(meta.sdLabel || 'device SD');
+    if (!cmp || !cmp.ok) {
+      var why = (cmp && cmp.reason) || 'need both a BLE-live and a device-SD recording of the same night';
+      return '<div class="card">' + cardHead('Live vs SD comparator') + '<div class="qc-note" style="color:var(--text3)">' + esc(why) + '</div></div>';
+    }
+    var chans = cmp.channels || {};
+    var order = Object.keys(chans).sort(function (a, b) {
+      return a === 'Flow.40ms' ? -1 : b === 'Flow.40ms' ? 1 : 0;
+    });
+    var h = '';
+    order.forEach(function (lab) {
+      var c = chans[lab];
+      if (!c) return;
+      if (!c.ok) {
+        var isClock = /clock|disagree|offset/i.test(c.reason || '');
+        h +=
+          '<div class="card">' +
+          cardHead((isClock ? '⏱ Clock finding' : 'Cannot compare') + ' — ' + esc(lab)) +
+          '<div class="qc-note" style="color:var(--' +
+          (isClock ? 'red' : 'text3') +
+          ')">' +
+          esc(c.reason || 'refused') +
+          '</div>' +
+          (isClock ? '<div class="card-sub">A large device-clock disagreement is surfaced as a defect, not aligned through (EdfSink UTC-vs-local-civil class).</div>' : '') +
+          '</div>';
+        return;
+      }
+      var nMin = fnum(c.overlapMin, 1);
+      var loaHalf = c.blandAltman ? (c.blandAltman.hiLoA - c.blandAltman.loLoA) / 2 : null;
+      // RIDER 2 direction: alignmentOffsetSec = live_t0 − sd_t0 (positive ⇒ live starts LATER).
+      var offAbs = Math.abs(c.alignmentOffsetSec);
+      var offDir = c.alignmentOffsetSec >= 0 ? 'after' : 'before';
+      h += '<div class="card">';
+      h += cardHead('Live vs SD — ' + esc(lab), liveL + ' vs ' + sdL + ' · device-clock aligned · n = ' + nMin + ' min overlap');
+      // RIDER 1: roles are assigned by POSITION, never sniffed — say so, so a user who dropped the two
+      // files swapped can see it rather than silently reading inverted findings.
+      h +=
+        '<div class="card-sub" style="opacity:.8">Second file treated as the <b>live capture</b>, primary night as <b>device SD</b> — roles are yours, not sniffed (the live BRP is byte-compatible with the SD format).</div>';
+      // RIDER 4: roles cannot be sniffed, so a far-from-identity scale is directionally ambiguous —
+      // a genuine amplitude difference OR swapped live/SD roles. Name both; show scale AND reciprocal.
+      // (The lead's literal "reciprocal near 1" guard is mathematically empty — see cpapdex-cross.js.)
+      if (c.scaleFarFromUnity) {
+        h +=
+          '<div class="qc-note" style="color:var(--red)">⚠ Scale ' +
+          fnum(c.scale.a, 3) +
+          ' (SD/live) is far from identity; reciprocal (live/SD) = ' +
+          fnum(1 / c.scale.a, 3) +
+          '. Two explanations: a genuine amplitude difference, OR the live/SD roles are <b>swapped</b> (undetectable by content). Confirm the roles above — primary night = SD, second file = live — before trusting the direction of these findings.</div>';
+      }
+      h += '<div class="kpi-grid">';
+      h += kpiTile('cmpScale', fnum(c.scale.a, 3), Math.abs(c.scale.a - 1) < 0.05 ? 'good' : 'neutral', 'SD/live · ±' + fnum(c.scale.residSD, 3) + ' L/s resid · n ' + nMin + ' min');
+      h += kpiTile('cmpBias', fnum(c.blandAltman.bias, 3) + '<span class="kpi-u">L/s</span>', Math.abs(c.blandAltman.bias) < 0.05 ? 'good' : 'neutral', 'Bland–Altman · ' + liveL + '−' + sdL);
+      h += kpiTile('cmpLoA', '±' + fnum(loaHalf, 3) + '<span class="kpi-u">L/s</span>', 'neutral', '95% limits of agreement · n ' + nMin + ' min');
+      h += kpiTile('cmpAlignOffset', fnum(offAbs, 1) + '<span class="kpi-u">s</span>', offAbs < 600 ? 'good' : 'bad', 'live starts ' + fnum(offAbs, 1) + ' s ' + offDir + ' SD');
+      h += kpiTile('cmpOverlap', nMin + '<span class="kpi-u">min</span>', 'neutral', c.divergence ? fnum(c.divergence.pairedSamples, 0) + ' paired samples' : '');
+      h += '</div>';
+      if (c.scaleOverTime && c.scaleOverTime.length) {
+        var stable = c.scaleStable === true,
+          unk = c.scaleStable == null;
+        h +=
+          '<div class="card-sub" style="margin-top:6px">' +
+          evBadge('cmpScale') +
+          'Scale over time: <b style="color:var(--' +
+          (stable ? 'green' : unk ? 'text3' : 'red') +
+          ')">' +
+          (unk ? 'single window' : stable ? 'stable' : 'drifting') +
+          '</b>' +
+          ' <canvas class="cmp-scale-spark" width="120" height="26" data-cmp-chan="' +
+          esc(lab) +
+          '"></canvas></div>';
+      }
+      if (c.divergence && c.divergence.excursionFrac != null) {
+        h += '<div class="qc-note">Streamed-vs-logged divergence: ' + fnum(c.divergence.excursionFrac * 100, 1) + '% of paired samples fall outside the agreement band.</div>';
+      }
+      h += '</div>';
+    });
+    return h;
+  }
+
+  /* Sparkline for a channel's scaleOverTime (called post-render on the injected canvases). */
+  function drawScaleSpark(cv, scaleOverTime) {
+    if (!cv || !scaleOverTime || scaleOverTime.length < 2) return;
+    var vals = scaleOverTime
+      .map(function (w) {
+        return w.scale;
+      })
+      .filter(function (v) {
+        return v != null && isFinite(v);
+      });
+    if (vals.length < 2) return;
+    var W = 120,
+      H = 26,
+      ctx = _prep(cv, W, H);
+    ctx.clearRect(0, 0, W, H);
+    var mn = Math.min.apply(null, vals),
+      mx = Math.max.apply(null, vals),
+      rng = mx - mn || 0.02;
+    var pad = 3,
+      gw = W - pad * 2,
+      gh = H - pad * 2;
+    ctx.beginPath();
+    vals.forEach(function (v, i) {
+      var x = pad + (gw * i) / (vals.length - 1),
+        y = pad + gh - (gh * (v - mn)) / rng;
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    });
+    ctx.strokeStyle = _css('--accent') || '#58a6ff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // 1.0 identity reference line, when in range
+    if (mn <= 1 && mx >= 1) {
+      var y1 = pad + gh - (gh * (1 - mn)) / rng;
+      ctx.beginPath();
+      ctx.moveTo(pad, y1);
+      ctx.lineTo(W - pad, y1);
+      ctx.strokeStyle = _css('--text4') || '#8b949e';
+      ctx.setLineDash([2, 2]);
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
   global.CpapRender = {
     renderNight: renderNight,
     renderHistory: renderHistory,
     hydrate: hydrate,
     hydrateHistory: hydrateHistory,
     renderKPIs: renderKPIs,
+    comparatorPanel: comparatorPanel,
+    drawScaleSpark: drawScaleSpark,
     residualCard: residualCard,
     pressureCard: pressureCard,
     leakCard: leakCard,

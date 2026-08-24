@@ -412,6 +412,18 @@ async function main(){
   } catch (e) {
     /* absent → the CASES loop self-skips */
   }
+  // CPAPDex LIVE-vs-SD COMPARATOR — a SYNTHETIC pin-twin pair, committed, so this leg has teeth in CI.
+  // OWN try (one-try-per-leg): a missing twin must not silently strip the leg from the gate.
+  try {
+    const rl = await fetch('uploads/cpapdex_comparator_live_twin_BRP.edf');
+    const rs = await fetch('uploads/cpapdex_comparator_sd_twin_BRP.edf');
+    if (!rl.ok || !rs.ok) throw new Error('missing comparator twin');
+    const cmpIn = { live: await rl.arrayBuffer(), sd: await rs.arrayBuffer() };
+    const cmpFix = await fetchJSON('uploads/cpapdex_comparator_golden.json');
+    setEquiv('cpapdex_comparator', cmpIn, cmpFix, 'cpapdex_comparator_golden.json');
+  } catch (e) {
+    /* absent → the comparator re-run assertion self-skips */
+  }
   /* ── real-recording equiv legs — ONE TRY PER LEG (FIXTURE-REPRODUCIBILITY §2) ─────────────────
      These all lived inside a SINGLE try{}. One missing recording threw, and every setEquiv() below
      it never ran — so ONE absent file silently removed NINE legs from the gate and the suite went

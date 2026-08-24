@@ -59,6 +59,12 @@ uploads/*
 !uploads/20260613_231433_EVE.edf
 !uploads/20260613_231433_CSL.edf
 !uploads/cpapdex_synthetic_edf_golden.node-export.json
+# CPAPDex live-vs-SD comparator pin-twin — SYNTHETIC BRP pair (one wall-clock flow sampled into two
+# files, sd −159 s ×0.998) reproducing the night pin's identity verdict + 27.35-min overlap geometry.
+# Real patient slices stay gitignored (health data, public repo); only the synthetic twin is committed.
+!uploads/cpapdex_comparator_live_twin_BRP.edf
+!uploads/cpapdex_comparator_sd_twin_BRP.edf
+!uploads/cpapdex_comparator_golden.json
 
 # P9 — SYNTHETIC vendor-format inputs + their goldens (tools/make-synthetic-inputs.mjs).
 # The equivalence gate (compute() ≡ committed export) did not run in CI AT ALL: every node's

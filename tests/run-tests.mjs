@@ -961,6 +961,36 @@ function readEquiv() {
     if (rec.input !== undefined || rec.fixture !== undefined) out.cpapdex_edf = rec;
   }
 
+  // ── CPAPDex LIVE-vs-SD COMPARATOR leg (CPAPDEX-LIVE-SD-COMPARATOR brief) ──────────────────────
+  // The comparator golden is code-gated (a manifestHash claim), so it needs a dynamic leg or it is the
+  // decoration the fixture-reproducibility gate abolishes. Its inputs are a SYNTHETIC pin-twin pair
+  // (tools/gen-comparator-twin.mjs — one wall-clock flow sampled into two files, no recording of any
+  // person), so both ship in git and this leg RUNS IN CI. The consuming assertion (comparator group)
+  // readEDFs both and re-runs CPAPCross.compareChannel, diffing against the committed golden.
+  {
+    const liveP = join(UPLOADS, 'cpapdex_comparator_live_twin_BRP.edf');
+    const sdP = join(UPLOADS, 'cpapdex_comparator_sd_twin_BRP.edf');
+    const fxP = join(ROOT, 'uploads', 'cpapdex_comparator_golden.json');
+    const rec = {};
+    if (existsSync(liveP) && existsSync(sdP)) {
+      const bl = readFileSync(liveP);
+      const bs = readFileSync(sdP);
+      rec.input = {
+        live: bl.buffer.slice(bl.byteOffset, bl.byteOffset + bl.byteLength),
+        sd: bs.buffer.slice(bs.byteOffset, bs.byteOffset + bs.byteLength)
+      };
+    }
+    if (existsSync(fxP)) {
+      try {
+        rec.fixture = JSON.parse(readFileSync(fxP, 'utf8'));
+      } catch {
+        /* unreadable → treat as absent */
+      }
+    }
+    rec.fixtureFile = 'cpapdex_comparator_golden.json';
+    if (rec.input !== undefined || rec.fixture !== undefined) out.cpapdex_comparator = rec;
+  }
+
   // ── CPAPDex REAL-EDF legs (FIXTURE-REPRODUCIBILITY §1) ──────────────────────────────────────
   // These two fixtures were CODE-GATED — each carries a `manifestHash` claiming "reproducible under
   // this code" — while NOTHING re-ran them. FIXTURE-PROVENANCE even said so out loud ("this real-EDF
