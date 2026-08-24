@@ -68,6 +68,16 @@ HERE = Path(__file__).resolve().parent.parent
 VENV_PY = HERE / ".venv" / "bin" / "python"
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 
+# §3 (OXYII-G1-FOLLOWUPS) — run_one's `error` key covers ONE failure (no test names the module); a mutmut
+# that crashed AFTER generation returns a real rc and no error, and the loop below counted it as a clean,
+# empty run — the module dropped out of the gate while listed as covered. mmeta reads the scratch's meta
+# to count mutants actually TESTED, the direct signal that heuristic misses. Loaded by path (script cwd).
+import importlib.util as _ilu
+
+_mmspec = _ilu.spec_from_file_location("mmeta", HERE / "mmeta.py")
+mmeta = _ilu.module_from_spec(_mmspec)
+_mmspec.loader.exec_module(mmeta)
+
 
 def changed_lines(base: str) -> dict[str, set[int]]:
     """{module.py: {changed line numbers}} for capture-host's own top-level modules.
@@ -333,6 +343,7 @@ def main(argv=None) -> int:
     # venv, importable-but-unusable is a real state, not a hypothetical — so an import check alone
     # would still fail open. If every invocation errored, no mutant was ever tested.
     _attempted = _ran = 0
+    _crashed: list = []          # §3 — globs that returned no error yet tested zero mutants (silent drop-out)
     verdict: dict = {"base": a.base, "modules": {}, "survivors": []}
     for module, lines in sorted(changed.items()):
         stems = functions_covering(HERE / module, lines)
@@ -352,6 +363,17 @@ def main(argv=None) -> int:
                 continue
             _ran += 1
             work = Path(r["work"])
+            # §3 — run_one returned no error, but did mutmut actually TEST anything? A crash after
+            # generation (a collection failure, a bad conftest) leaves the mutants recorded as null in the
+            # meta and hands back a clean-looking run with no survivors. Count the DECIDED mutants for this
+            # glob; zero means it dropped out while listed as covered — record it and refuse below, exactly
+            # as the preflight does, rather than banking an empty survivor list as a pass.
+            if mmeta.tested_count(work, module, g) == 0:
+                print(f"    ! {g}: mutmut recorded 0 tested mutants — a crash after generation, not a "
+                      f"clean run (the meta's exit codes are all null under this glob)")
+                _ran -= 1
+                _crashed.append(g)
+                continue
             # ── the GENERATED set, for REFUTED detection ────────────────────────────────────────
             # `mutmut results` lists survivors and not-checked ONLY — a KILLED mutant is absent from
             # it entirely, so an earlier draft's `": killed" in line` matched nothing and REFUTED could
@@ -389,6 +411,17 @@ def main(argv=None) -> int:
                                              "changed": diff_key(show.stdout),
                                              "diff": show.stdout[:400], "work": str(work)})
         verdict["modules"][module] = sorted(stems)
+
+    # §3 — a glob that returned no error but tested zero mutants dropped out silently: the module was
+    # listed as covered and its survivors read empty, which is the exact false green this measures
+    # against. Refuse if ANY glob did this, even when others ran cleanly — the mixed case the all-failed
+    # check below cannot see (it fires only when NOTHING ran).
+    if _crashed:
+        print(f"\nmutate-diff: REFUSING — {len(_crashed)} glob(s) recorded 0 tested mutants "
+              f"({', '.join(_crashed)}). Each was listed as covered but its mutmut invocation crashed "
+              "after generation, so an empty survivor list there means 'not checked', not 'all killed'.")
+        print("  Deliberately not a pass: a gate that cannot see must not report green.")
+        return 2
 
     # Every invocation failed. The loop above prints each error and continues — right per glob (one
     # broken function must not hide the others), catastrophic in aggregate, because `blocking` is
