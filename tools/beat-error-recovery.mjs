@@ -65,7 +65,10 @@ function realm() {
 
 function lcg(seed) {
   let s = seed >>> 0;
-  return () => (s = (1664525 * s + 1013904223) >>> 0) / 4294967296;
+  return () => {
+    s = (1664525 * s + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
 }
 
 // ── HRV metrics, defined here so the readout is unambiguous ───────────────────────────────────────
@@ -173,7 +176,6 @@ export function measure(rrTrue, ctx, opts = {}) {
      a W=5 local median). Both are reported so the attribution is explicit rather than assumed. */
   const hasEcgMalik = ECGDSP && typeof ECGDSP.validateRR === 'function';
   const truth = hrv(rrTrue);
-  const tt = rrTrue.map((_, i) => i); // correctRR takes (rr, t); index time is sufficient for gating
   const out = { truth, malikAvailable: hasMalik, targets: {} };
 
   const run = (label, rr, labels = null) => {

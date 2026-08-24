@@ -703,6 +703,23 @@ function selftest() {
   const getf = (ctx) => ctx.f;
   const proven = [{ call: 'f', line: 2, before: 'if (a < 3) return 1;', after: 'if (a <= 3) return 1;', input: '[3]' }];
   ck('a proven-killable input IS detected', canaryFor(proven, cSrc, mkRealm(cSrc), mkRealm, getf).ok, true);
+
+  /* 🔴 FIDELITY: the canary must replay THE RECORDED MUTATION, not merely *a* mutation.
+     Measured 2026-08-24 — 165 KILLABLE records fleet-wide, **0** carrying `after`, so
+     `mutateAtLine(src, line, before, after)` received `undefined` and `String(undefined).trim()`
+     substituted the literal identifier: `if (a > 0)` was replayed as `if (undefined)`, an
+     expression-nulling mutation nobody recorded, standing in for the `cmp > → >=` that was. It
+     passed as a liveness check by accident, because nulling an expression usually also kills.
+     `mutation-crawl.mjs` now persists `after`; these pin that a recorded op round-trips exactly,
+     and that the identifier-substitution signature is recognisable when it does not. */
+  const FID = 'function f(a) {\n  if (a > 0) return 1;\n  return 0;\n}';
+  ck('a recorded op is replayed EXACTLY', mutateAtLine(FID, 2, 'a > 0', 'a >= 0').includes('if (a >= 0)'), true);
+  ck('…and the original text is gone', /if \(a > 0\)/.test(mutateAtLine(FID, 2, 'a > 0', 'a >= 0')), false);
+  /* The signature of the defect, kept as a named observation rather than a silent behaviour: an
+     absent `after` yields the literal `undefined`. When the corpus carries `after` everywhere this
+     becomes unreachable in practice, and the follow-up can turn it into a refusal. */
+  ck('an ABSENT after substitutes the literal identifier — the defect signature', mutateAtLine(FID, 2, 'a > 0', undefined).includes('if (undefined)'), true);
+  ck('…which is NOT the recorded operator, and that is the whole point', mutateAtLine(FID, 2, 'a > 0', undefined).includes('a >= 0'), false);
   /* ⚠️ THIS ASSERTION WAS REWRITTEN, NOT DELETED, WHEN WINDOW RECOVERY LANDED. It used to pass a
      line number off by one and require NO detection — a valid test of the old exact-line matcher,
      and meaningless once drift recovery was added, because an off-by-one is now correctly RECOVERED.
