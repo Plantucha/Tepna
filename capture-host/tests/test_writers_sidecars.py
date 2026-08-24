@@ -652,3 +652,53 @@ def test_ring_clock_log_flush_interval(tmp_path, monkeypatch):
     w.write(dt.datetime(2026, 8, 20, 5, 0, 30), "read", rtc_offset_s=0.2)
     assert "0.2" in (tmp_path / "z_RTCLOG.csv").read_text()
     w.close()
+
+
+# ── OxyLifeLogWriter (OxyII G4 lifecycle sidecar) ───────────────────────────────────────────────────
+
+class _FakeTransition:
+    def __init__(self, row): self._row = row
+    def as_row(self): return self._row
+
+
+def test_oxylife_writer_header_and_rows(tmp_path):
+    import writers
+    p = tmp_path / "OXYLIFE.csv"
+    w = writers.OxyLifeLogWriter(str(p), device="O2R-01")
+    w.write(_FakeTransition("W;1.0;not_seen;connecting;scan;O2R-01;s1;"))
+    w.write(_FakeTransition("W;2.0;connecting;connected;up;O2R-01;s1;"))
+    w.close()
+    lines = p.read_text().splitlines()
+    assert lines[0] == "# device=O2R-01"
+    assert lines[1] == "host_wall;host_monotonic;prev;new;reason;device;session;failure"
+    assert lines[2].endswith("scan;O2R-01;s1;") and lines[3].startswith("W;2.0;connecting;connected")
+    assert w.rows == 2
+
+
+def test_oxylife_writer_omits_the_device_comment_when_absent(tmp_path):
+    import writers
+    p = tmp_path / "OXYLIFE.csv"
+    w = writers.OxyLifeLogWriter(str(p))          # no device
+    w.write(_FakeTransition("W;1.0;a;b;r;;;"))
+    w.close()
+    lines = p.read_text().splitlines()
+    assert lines[0].startswith("host_wall;")      # header first, no device comment line
+    assert not any(ln.startswith("# device=") for ln in lines)
+
+
+def test_oxylife_writer_flushes_on_cadence(tmp_path):
+    import writers
+    p = tmp_path / "OXYLIFE.csv"
+    w = writers.OxyLifeLogWriter(str(p), flush_interval=0.0)   # 0 → flush every write (cadence elapsed)
+    w.write(_FakeTransition("W;1.0;a;b;r;;;"))
+    assert p.read_text().count("\n") >= 2          # header + row already on disk (flushed)
+    w.close()
+
+
+def test_oxylife_writer_close_is_guarded_and_idempotent(tmp_path):
+    import writers
+    p = tmp_path / "OXYLIFE.csv"
+    w = writers.OxyLifeLogWriter(str(p))
+    w.close()
+    w.close()                                       # double close → guarded, no raise
+    w.flush()                                       # flush after close → guarded, no raise
