@@ -84,7 +84,8 @@ export function escapeRe(s) {
 
 /* The enclosing range of `fn`, by brace counting — same method as probe-equivalence and
    mutation-worklist, so all three agree about what a function is. */
-export function functionRange(src, name) {
+export function functionRangeAll(src, name) {
+  const _hits = [];
   const lines = String(src || '').split('\n');
   /* ESCAPE EVERY REGEX METACHARACTER, not just `$`. The original escaped `$` alone — the one that
      actually occurs in this repo's identifiers — so it read as deliberate and was merely incomplete:
@@ -97,22 +98,56 @@ export function functionRange(src, name) {
   const re = new RegExp('(?:^|[^\\w$.])(?:function\\s+' + escapeRe(name) + '\\s*\\(|(?:const|let|var)\\s+' + escapeRe(name) + '\\s*=\\s*(?:async\\s*)?(?:function\\b|\\(|[\\w$]+\\s*=>))');
   for (let i = 0; i < lines.length; i++) {
     if (!re.test(lines[i])) continue;
-    if (/=>\s*[^\s{]/.test(lines[i])) return { start: i + 1, end: i + 1 }; // concise arrow: its own line
+    if (/=>\s*[^\s{]/.test(lines[i])) {
+      _hits.push({ start: i + 1, end: i + 1 }); // concise arrow: its own line
+      continue;
+    }
     let d = 0,
       seen = false;
-    for (let j = i; j < lines.length; j++) {
+    let done = false;
+    for (let j = i; j < lines.length && !done; j++) {
       for (const ch of lines[j]) {
         if (ch === '{') {
           d++;
           seen = true;
         } else if (ch === '}') {
           d--;
-          if (seen && d === 0) return { start: i + 1, end: j + 1 };
+          if (seen && d === 0) {
+            _hits.push({ start: i + 1, end: j + 1 });
+            done = true;
+            break;
+          }
         }
       }
     }
   }
-  return null;
+  return _hits;
+}
+
+/* 🔴 AMBIGUITY IS A REFUSAL, NOT A COIN FLIP (MUTATION-PROGRAM-FOLLOWUPS §10.5).
+   The previous body returned the FIRST match and said nothing. §10.5 records what that costs: a
+   harness "mutated `computeRMSSDarc` and reported the result under the name of a function it had
+   never touched", and calls that the THIRD instance of the class — the brief's own remedy is that a
+   locating tool must "fail loudly when the pattern is absent or ambiguous", printing a `hits > 1`
+   count.
+
+   ⚠️ THIS IS NOT HYPOTHETICAL IN THIS TREE. `oxydex-dsp.js` defines `_median` TWICE — line 1900 and
+   line 7168, in different scopes, WITH DIFFERENT BODIES (the second returns null on an empty array,
+   the first does not). Every tool that scoped to `_median` silently measured the first and reported
+   under the bare name. Whoever meant the other one got a verdict about code they never touched.
+
+   Absent still returns null: "no such function" is an answer a caller can act on. Ambiguous cannot
+   be — there is no correct single range to return, so returning one is the bug. */
+export function functionRange(src, name) {
+  const hits = functionRangeAll(src, name);
+  if (hits.length > 1) {
+    throw new Error(
+      `functionRange: ${JSON.stringify(name)} is AMBIGUOUS — ${hits.length} definitions at lines ` +
+        `${hits.map((h) => h.start).join(', ')}. Scoping to one of them requires saying which; ` +
+        `returning the first silently reports a verdict about a function the caller may not mean.`
+    );
+  }
+  return hits[0] || null;
 }
 
 // ── selftest ────────────────────────────────────────────────────────────────────────────────
@@ -185,6 +220,21 @@ if (IS_MAIN && has('--selftest')) {
   );
   ok('§8: a concise arrow is its own line', JSON.stringify(functionRange('const c = () => 5;', 'c')) === JSON.stringify({ start: 1, end: 1 }));
 
+  // §10.5 AMBIGUITY IS A REFUSAL — and it shipped with no control. Disabling the `_decls.length > 1`
+  // throw left every other selftest passing, which is precisely how a loud-failure guard rots back into
+  // a silent first-match. The whole point of §10.5 is that a locating tool must not GUESS which
+  // definition you meant; a guard nothing exercises is a comment.
+  const DUPSRC = ['function dup(a) {', '  return a;', '}', 'function other() {}', 'function dup(a, b) {', '  return a + b;', '}'].join('\n');
+  let threw = null;
+  try {
+    functionRange(DUPSRC, 'dup');
+  } catch (e) {
+    threw = e.message;
+  }
+  ok('a DUPLICATED function name REFUSES rather than silently taking the first', threw !== null && /AMBIGUOUS/.test(threw), String(threw));
+  ok('…and the refusal names how many it found, so the caller can see the collision', threw !== null && /2 declarations|2 definitions/.test(threw), String(threw));
+  ok('an UNambiguous name is unaffected by the duplicate guard', functionRange(DUPSRC, 'other') !== null, JSON.stringify(functionRange(DUPSRC, 'other')));
+
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
   process.exit(fail ? 1 : 0);
 }
@@ -208,7 +258,17 @@ if (IS_MAIN && !has('--selftest')) {
   }
   const src = readFileSync(join(ROOT, file), 'utf8');
   const lines = src.split('\n');
-  const r = functionRange(src, fn);
+  /* An ambiguous name is a REFUSAL with a message, not a stack trace. The distinction matters at a
+     CLI boundary: a traceback reads as "the tool is broken" and gets retried, while a named refusal
+     reads as "say which one" and gets acted on. Same exit code as not-found — both mean this run
+     produced no verdict, which is the thing a caller must not mistake for a passing one. */
+  let r;
+  try {
+    r = functionRange(src, fn);
+  } catch (e) {
+    console.error(String(e.message || e));
+    process.exit(2);
+  }
   if (!r) {
     console.error(`function ${fn} not found in ${file}`);
     process.exit(2);
