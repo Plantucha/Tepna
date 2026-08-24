@@ -96,6 +96,11 @@
    "class": "no-distinguishing-input",
    "key": "- with open(path, encoding=\"utf-8\") as fh: | + with open(path, ) as fh:",
    "probe": "Same probe as the encoding=None sibling: ASCII-only ledger content makes the default-encoding open byte-identical on any ASCII-superset locale; no input distinguishes."
+  },
+  {
+   "class": "untestable-by-design",
+   "key": "- dir_fd = os.open(os.path.join(root, COMMITTED_DIR), os.O_RDONLY) | + dir_fd = os.open(os.path.join(root, ), os.O_RDONLY)",
+   "probe": "os.path.join(root,) == root: the mutant fsyncs the store ROOT instead of committed/. Both opens succeed and rename durability is unobservable without power-loss/fault injection \u2014 the same unit-untestable fsync class recorded for oxy_transfer (G1) and routed to the chaos lane (P7-analog). The sibling relative-path mutant IS killed (cwd-independence test); this one differs only in which real directory's metadata gets the fsync."
   }
  ],
  "cpap_stream.py": [
