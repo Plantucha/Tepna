@@ -96,6 +96,38 @@ def test_sha256_is_over_the_whole_file():
 
 
 # ── rows ────────────────────────────────────────────────────────────────────────────────────────
+def test_the_row_KEY_SET_is_the_ledger_contract():
+    """🔴 ONE ASSERTION, TWELVE MUTANTS. Every consumer reads a row by subscript — `row["device_id"]`,
+    `row["state"]` — so the KEY NAMES are the contract, not decoration. Mutation found 12 survivors on
+    `make_row` renaming keys (`"device_id"` → `"DEVICE_ID"`, `"session"` → `"XXsessionXX"`): the
+    module's own logic passes either way, and every reader breaks.
+
+    ⚠️ DELIBERATELY THE WHOLE SET, NOT TWELVE FIELD ASSERTIONS. Pinning a dict literal field by field
+    is the shape that makes a suite brittle without making it truthful — it re-states the
+    implementation instead of the contract, and it grows a line every time the row does. One equality
+    on the key set says the same thing once, fails loudly on a rename, and fails on an accidental
+    ADDITION too, which twelve individual checks would not catch at all."""
+    row = inv.make_row("R", "20260101000000", inv.DISCOVERED, at=1.0)
+    assert set(row) == {
+        "id", "device_id", "session", "state", "reason",
+        "size", "reported_size", "sha256", "path", "attempt", "at",
+        # `failure` — added DELIBERATELY by G1 (#1702), which is the whole point of asserting the
+        # SET: this test went red the moment the key appeared, and extending it is a decision someone
+        # had to make rather than a diff that slipped through. It carries the failure CLASS label,
+        # not prose — `reason` explains to a human, this is what `oxy_transfer.select()` branches on,
+        # so a permanent failure can never be retried by a string mismatch.
+        "failure",
+    }, "a renamed or added ledger key breaks every reader that subscripts it"
+
+
+def test_the_row_key_set_survives_a_round_trip_through_the_ledger(tmp_path):
+    """The keys must survive JSONL, not just exist in memory — that is where consumers actually read
+    them from."""
+    led = str(tmp_path / "inventory.jsonl")
+    inv.append_row(led, inv.make_row("R", "20260101000000", inv.VERIFIED, size=5, at=1.0))
+    assert set(inv.load_rows(led)[0]) == set(inv.make_row("R", "20260101000000", inv.VERIFIED, at=1.0))
+
+
 def test_make_row_rejects_an_unknown_state():
     """A typo'd state would otherwise sit in the ledger forever and read as a state nobody handles."""
     try:
@@ -153,6 +185,33 @@ def test_append_to_a_bare_relative_filename(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     inv.append_row("inventory.jsonl", inv.make_row("R", "20260101000000", inv.DISCOVERED, at=1.0))
     assert os.path.exists(tmp_path / "inventory.jsonl")
+
+
+def test_a_ledger_line_is_BYTE_STABLE_for_the_same_row(tmp_path):
+    """🔴 `sort_keys=True` is the determinism property, and nothing observed it. A row serialised with
+    insertion order still round-trips — `json.loads` does not care — so every functional test passes
+    either way. What breaks is BYTE stability: two runs that build the same row in a different order
+    produce different lines, and an append-only ledger whose bytes depend on construction order cannot
+    be diffed, hashed or compared across runs.
+
+    That is exactly the property the acquisition spec's determinism section asks for, and it was one
+    unobserved keyword away from being lost."""
+    a = dict(inv.make_row("R", "20260101000000", inv.VERIFIED, size=5, sha256="ab", at=1.0))
+    b = {k: a[k] for k in reversed(list(a))}          # same content, opposite insertion order
+    led_a, led_b = str(tmp_path / "a.jsonl"), str(tmp_path / "b.jsonl")
+    inv.append_row(led_a, a)
+    inv.append_row(led_b, b)
+    assert open(led_a, encoding="utf-8").read() == open(led_b, encoding="utf-8").read(), (
+        "the same row must serialise to the same BYTES whatever order it was built in"
+    )
+
+
+def test_the_default_reason_is_EMPTY_not_a_placeholder(tmp_path):
+    """`reason` defaults to `""`. A mutant making it any non-empty string is a DATA change, not prose:
+    every row created without an explicit reason would carry it, and `test_every_classified_recording
+    _carries_a_reason`'s truthiness check in the sibling module would then pass on rows that were
+    never given one."""
+    assert inv.make_row("R", "20260101000000", inv.DISCOVERED, at=1.0)["reason"] == ""
 
 
 def test_load_skips_a_torn_final_line_instead_of_refusing_the_file(tmp_path):
