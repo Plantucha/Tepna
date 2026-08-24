@@ -61,7 +61,7 @@ def test_an_illegal_transition_raises_and_does_not_mutate():
     lc.to(OxyState.CONNECTING, "scan")
     lc.to(OxyState.CONNECTED, "up")
     before = lc.state
-    with pytest.raises(InvalidTransition) as ei:
+    with pytest.raises(InvalidTransition, match=r"illegal.*transition.*->") as ei:
         lc.to(OxyState.PULLING, "cannot pull straight from connected")  # not a legal edge
     assert lc.state is before                       # NOT mutated
     assert len(lc.history) == 2                      # NO partial record appended
@@ -126,6 +126,9 @@ def test_default_clocks_are_real_and_injectable():
     lc = OxyLifecycle()
     t = lc.to(OxyState.CONNECTING, "scan")
     assert isinstance(t.host_monotonic, float) and "T" in t.host_wall
+    # UTC-aware, not local-naive (Clock-Contract: the journal wall clock is unambiguous UTC). A naive
+    # isoformat() carries no offset suffix, so this kills a `datetime.now()` (tz-dropped) regression.
+    assert t.host_wall.endswith("+00:00"), "the default journal wall stamp must be UTC-aware"
 
 
 def test_transition_is_immutable():
