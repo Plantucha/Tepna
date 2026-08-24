@@ -720,6 +720,15 @@
       clockOffsetSec: clockOffsetSec, // the header disagreement alone (the finding)
       appliedLagSec: lag,
       scale: { a: reg.slope, b: reg.intercept, residSD: residSD },
+      // RIDER 4 (direction ambiguity). Roles are assigned by POSITION and cannot be sniffed (the
+      // capture-host writes a byte-compatible ResMed BRP). The lead's literal guard — scale far from 1
+      // AND its reciprocal near 1 — is mathematically EMPTY for positive scale (|x−1|>0.15 excludes
+      // 0.952<x<1.053), because swapping a near-identity pair STAYS near identity (just the reciprocal),
+      // so a swap of the pins we see is harmless. A scale that IS far from identity is therefore either a
+      // genuine amplitude difference OR swapped roles of a genuinely-different pair — indistinguishable
+      // from scale alone. So the honest surface is: flag departure from identity and show BOTH scale and
+      // reciprocal, naming the two explanations. scale.a is SD/live (hence the 0.9977 pin).
+      scaleFarFromUnity: reg.slope > 0 && Math.abs(reg.slope - 1) > 0.15,
       blandAltman: { bias: bias, loLoA: bias - 1.96 * dsd, hiLoA: bias + 1.96 * dsd },
       divergence: { excursionFrac: A.length ? excursions / A.length : 0, pairedSamples: A.length },
       scaleOverTime: scaleOverTime,
@@ -729,7 +738,22 @@
   // liveSet / sdSet: readEDF-style channel maps { <label>: { t0Ms, fs, values } }. Refusal-first at the
   // set level; per-channel refusals do not abort the others.
   function cpapCompare(liveSet, sdSet, opts) {
+    opts = opts || {};
     if (!liveSet || !sdSet) return { ok: false, reason: 'need BOTH a live and an SD file — one alone is not a comparison' };
+    // RIDER 3: a different DEVICE is a harder refusal than a different night. recording_id encodes the
+    // device (serial/mid/vid); if the caller passes both and they differ, refuse — these are not two
+    // records of one therapy session. (Date-mismatch is refused per-channel by the overlap test below.)
+    if (opts.liveRecId != null && opts.sdRecId != null && String(opts.liveRecId).trim() !== String(opts.sdRecId).trim()) {
+      return {
+        ok: false,
+        reason:
+          'the two files are from DIFFERENT DEVICES — recording_id "' +
+          String(opts.liveRecId).trim() +
+          '" (live) ≠ "' +
+          String(opts.sdRecId).trim() +
+          '" (SD). A live-vs-SD comparison must be one device; this is a harder mismatch than a different night.'
+      };
+    }
     var labels = {};
     for (var la in liveSet) labels[la] = 1;
     for (var lb in sdSet) labels[lb] = 1;

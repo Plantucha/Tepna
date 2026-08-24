@@ -1312,13 +1312,31 @@ import { CpapDsp } from './cpapdex-dsp.js';
       }
       var nMin = fnum(c.overlapMin, 1);
       var loaHalf = c.blandAltman ? (c.blandAltman.hiLoA - c.blandAltman.loLoA) / 2 : null;
+      // RIDER 2 direction: alignmentOffsetSec = live_t0 − sd_t0 (positive ⇒ live starts LATER).
+      var offAbs = Math.abs(c.alignmentOffsetSec);
+      var offDir = c.alignmentOffsetSec >= 0 ? 'after' : 'before';
       h += '<div class="card">';
       h += cardHead('Live vs SD — ' + esc(lab), liveL + ' vs ' + sdL + ' · device-clock aligned · n = ' + nMin + ' min overlap');
+      // RIDER 1: roles are assigned by POSITION, never sniffed — say so, so a user who dropped the two
+      // files swapped can see it rather than silently reading inverted findings.
+      h +=
+        '<div class="card-sub" style="opacity:.8">Second file treated as the <b>live capture</b>, primary night as <b>device SD</b> — roles are yours, not sniffed (the live BRP is byte-compatible with the SD format).</div>';
+      // RIDER 4: roles cannot be sniffed, so a far-from-identity scale is directionally ambiguous —
+      // a genuine amplitude difference OR swapped live/SD roles. Name both; show scale AND reciprocal.
+      // (The lead's literal "reciprocal near 1" guard is mathematically empty — see cpapdex-cross.js.)
+      if (c.scaleFarFromUnity) {
+        h +=
+          '<div class="qc-note" style="color:var(--red)">⚠ Scale ' +
+          fnum(c.scale.a, 3) +
+          ' (SD/live) is far from identity; reciprocal (live/SD) = ' +
+          fnum(1 / c.scale.a, 3) +
+          '. Two explanations: a genuine amplitude difference, OR the live/SD roles are <b>swapped</b> (undetectable by content). Confirm the roles above — primary night = SD, second file = live — before trusting the direction of these findings.</div>';
+      }
       h += '<div class="kpi-grid">';
-      h += kpiTile('cmpScale', fnum(c.scale.a, 3), Math.abs(c.scale.a - 1) < 0.05 ? 'good' : 'neutral', '±' + fnum(c.scale.residSD, 3) + ' L/s resid · n ' + nMin + ' min');
+      h += kpiTile('cmpScale', fnum(c.scale.a, 3), Math.abs(c.scale.a - 1) < 0.05 ? 'good' : 'neutral', 'SD/live · ±' + fnum(c.scale.residSD, 3) + ' L/s resid · n ' + nMin + ' min');
       h += kpiTile('cmpBias', fnum(c.blandAltman.bias, 3) + '<span class="kpi-u">L/s</span>', Math.abs(c.blandAltman.bias) < 0.05 ? 'good' : 'neutral', 'Bland–Altman · ' + liveL + '−' + sdL);
       h += kpiTile('cmpLoA', '±' + fnum(loaHalf, 3) + '<span class="kpi-u">L/s</span>', 'neutral', '95% limits of agreement · n ' + nMin + ' min');
-      h += kpiTile('cmpAlignOffset', fnum(c.alignmentOffsetSec, 1) + '<span class="kpi-u">s</span>', Math.abs(c.alignmentOffsetSec) < 600 ? 'good' : 'bad', 'applied device-clock offset');
+      h += kpiTile('cmpAlignOffset', fnum(offAbs, 1) + '<span class="kpi-u">s</span>', offAbs < 600 ? 'good' : 'bad', 'live starts ' + fnum(offAbs, 1) + ' s ' + offDir + ' SD');
       h += kpiTile('cmpOverlap', nMin + '<span class="kpi-u">min</span>', 'neutral', c.divergence ? fnum(c.divergence.pairedSamples, 0) + ' paired samples' : '');
       h += '</div>';
       if (c.scaleOverTime && c.scaleOverTime.length) {

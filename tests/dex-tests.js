@@ -17464,9 +17464,37 @@
         T.ok('a set-level refusal renders its quantified reason', /14400 s/.test(refuse) && /4\.00 h/.test(refuse));
         var clk = CR.comparatorPanel({ ok: true, channels: { 'Flow.40ms': { ok: false, reason: 'device clocks disagree by 2532 s beyond alignment tolerance' } } });
         T.ok('a channel-level clock disagreement surfaces as a CLOCK FINDING (red), not aligned through', /Clock finding/.test(clk) && /--red/.test(clk));
+
+        // ── RIDERS (lead 2026-08-24): role-print, direction-explicit, far-from-identity honesty. ──
+        T.ok('panel PRINTS the assumed role assignment (rider 1 — roles are yours, not sniffed)', /roles are yours, not sniffed/.test(okPanel) && /live capture/.test(okPanel));
+        T.ok('alignment offset is direction-explicit — "live starts N s after/before SD" (rider 2)', /live starts .* s (after|before) SD/.test(okPanel));
+        T.ok('scale is labelled SD/live, never a bare number (rider 2)', /SD\/live/.test(okPanel));
+        // rider 4: a far-from-identity scale surfaces the reciprocal + the swapped-roles hypothesis
+        var farOk = CX.compareChannel(
+          { t0Ms: 0, fs: 25, values: A },
+          {
+            t0Ms: 0,
+            fs: 25,
+            values: A.map(function (v) {
+              return v * 1.3;
+            })
+          }
+        );
+        T.ok('DSP flags scaleFarFromUnity for a genuine 1.3× gain (near-1 pairs stay unflagged)', farOk.ok && farOk.scaleFarFromUnity === true && setR.channels.Flow.scaleFarFromUnity === false);
+        var farPanel = CR.comparatorPanel({ ok: true, channels: { 'Flow.40ms': farOk } });
+        T.ok('panel names BOTH explanations + shows the reciprocal for a far-from-identity scale (rider 4)', /reciprocal \(live\/SD\)/.test(farPanel) && /swapped/.test(farPanel));
       } else {
         T.skip('CpapRender.comparatorPanel wired', 'Node-lane only (run-tests.mjs executes *-render.js headless); the browser lane runs render in iframe rigs so it SKIPs');
       }
+      // ── RIDER 3 (DSP, lane-independent): a recording_id mismatch is a HARDER refusal than a date
+      //    mismatch — a different device is not two records of one therapy session. ──
+      var devMismatch = CX.cpapCompare({ Flow: ser(A) }, { Flow: ser(B) }, { liveRecId: 'SRL123 MID46 VID3', sdRecId: 'SRL999 MID46 VID3' });
+      T.ok(
+        'cpapCompare refuses on recording_id (device) mismatch, quoting both ids',
+        !devMismatch.ok && /DIFFERENT DEVICES/.test(devMismatch.reason) && /SRL123/.test(devMismatch.reason) && /SRL999/.test(devMismatch.reason)
+      );
+      var devMatch = CX.cpapCompare({ Flow: ser(A) }, { Flow: ser(B) }, { liveRecId: 'SRL123', sdRecId: 'SRL123' });
+      T.ok('cpapCompare proceeds when recording_ids match', devMatch.ok === true);
     });
 
     /* ════ CPAPDex pressureChangePoints — STEP-IMMUNE penalty scale (DEEP-AUDIT-II §6.1, PEN_K half) ════
