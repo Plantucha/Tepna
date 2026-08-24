@@ -3916,5 +3916,23 @@
       "probe": "resume_strategy(0, X, allow_resume=Y) evaluated over X in {None,0,1,8,500,1e9} x Y in {True,False} — 12 combinations, 1 distinct result: ('restart', 0, 'no partial bytes on disk')",
       "brief": "OXYII-G1-TRANSACTIONAL-SYNC-2026-08-23-BRIEF.md §5"
     }
+  ],
+  "cpap_edf_writer.py": [
+    {
+      "key": "- self._closed = False | + self._closed = None",
+      "class": "no-distinguishing-input",
+      "why": "A PROOF over the init value: `self._closed` seeds the idempotent-close guard and is read ONLY by `if self._closed:` in close() — both False and None are falsy, so the first close proceeds identically, after which close() sets it True. No other path reads the init value. So False, None (or any falsy seed) produce identical behaviour and identical output. The mutant surfaced here only because the §2 controller-fix added _interval_checked to __init__, pulling the whole function into diff-scope (#1701).",
+      "probe": "Built a full 61-batch BRP.edf twice — once with _closed seeded False, once None — then double-closed each: the written bytes are byte-identical between the two seeds, and the second close is a verified no-op (same bytes, same mtime) under both. Run empirically 2026-08-23.",
+      "brief": "CPAP controller-fix mutation-harden (#1701 follow-up)"
+    }
+  ],
+  "cpap_stream.py": [
+    {
+      "key": "- bus.register(key, label, unit, fs, chans=1) | + bus.register(key, label, unit, fs, )",
+      "class": "no-distinguishing-input",
+      "why": "`TelemetryBus.register(self, key, label, unit, fs, chans=1, labels=())` DEFAULTS chans to 1, so passing chans=1 explicitly and omitting it are the SAME call — the StreamMeta stored is identical. The explicit chans=1 is documentation of intent, not behaviour. Surfaced because the §2 observed-interval block pulled stream_to_bus into diff-scope (#1701).",
+      "probe": "Registered the same stream on two TelemetryBus instances — one with chans=1 explicit, one omitting it — and compared the stored StreamMeta: equal, chans=1 under both. Run empirically 2026-08-23.",
+      "brief": "CPAP controller-fix mutation-harden (#1701 follow-up)"
+    }
   ]
 }

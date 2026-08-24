@@ -206,6 +206,56 @@ def test_the_expected_40ms_interval_is_silent(tmp_path, caplog):
     assert not [r for r in caplog.records if "observed interval" in r.getMessage()]
 
 
+def test_a_zero_interval_is_treated_as_no_valid_interval(tmp_path, caplog):
+    """§2 boundary — interval_ms=0 is not a valid rate (0 Hz), so `iv > 0` rejects it: the check stays
+    unrun (no fabricated 0 vs 40 warn) exactly as an absent interval would. Pins the `> 0` lower bound —
+    a `>= 0` would accept 0 and warn spuriously."""
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL, flow_scale_verified=True)
+    sink.open({}, 25.0)
+    with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+        for _ in range(3):
+            sink.on_batch(_batch_iv("2026-08-23T22:15:03", 0))
+        sink.close()
+    assert sink._interval_checked is False, "0 ms is not a valid interval — nothing validated"
+    assert not [r for r in caplog.records if "observed interval" in r.getMessage()]
+
+
+def test_a_one_ms_interval_still_warns_as_off_rate(tmp_path, caplog):
+    """§2 boundary — interval_ms=1 IS a positive, valid interval (just wildly off the 40 ms BRP rate), so
+    `iv > 0` accepts it and it warns. Pins that the bound is `> 0`, not `> 1`: a `> 1` would silently skip
+    a 1 ms observation."""
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL, flow_scale_verified=True)
+    sink.open({}, 25.0)
+    with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+        sink.on_batch(_batch_iv("2026-08-23T22:15:03", 1))
+        sink.close()
+    warns = [r for r in caplog.records if "observed interval" in r.getMessage()]
+    assert len(warns) == 1 and sink._interval_checked is True
+
+
+def test_the_warn_names_both_the_observed_and_expected_interval(tmp_path, caplog):
+    """§2 — the warning must carry BOTH the observed interval AND the expected 40 ms, so an operator reading
+    it knows the actual vs the assumed. Pins both format args: a mutant dropping either (logging `None`)
+    is caught."""
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL, flow_scale_verified=True)
+    sink.open({}, 25.0)
+    with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+        sink.on_batch(_batch_iv("2026-08-23T22:15:03", 20))
+        sink.close()
+    msg = next(r.getMessage() for r in caplog.records if "observed interval" in r.getMessage())
+    assert "20" in msg, "the observed interval must appear in the warning"
+    assert "40" in msg, "the expected BRP interval must appear in the warning"
+
+
+def test_the_default_record_length_is_60_seconds(tmp_path):
+    """The EdfSink default packs 60 s (1500 samples at 25 Hz) per data record — pinned via the Flow
+    signal's samples-per-record so the `record_seconds=60` default cannot drift unseen."""
+    sink = W.EdfSink(str(tmp_path / "x"), SERIAL, flow_scale_verified=True)
+    _run(sink, 120)
+    edf = cpap_edf.read_edf(open(sink.path, "rb").read())
+    assert edf.signals[0].spr == 60 * 25, "default record must hold 60 s of 25 Hz flow (1500 samples)"
+
+
 # ── ACCUMULATE → BUILD → ATOMIC WRITE ───────────────────────────────────────────────────────────────────
 def test_two_batches_produce_a_readable_bit_accurate_BRP(tmp_path):
     sink = W.EdfSink(str(tmp_path / "x"), SERIAL)
