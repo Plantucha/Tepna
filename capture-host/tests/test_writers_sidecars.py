@@ -702,3 +702,26 @@ def test_oxylife_writer_close_is_guarded_and_idempotent(tmp_path):
     w.close()
     w.close()                                       # double close → guarded, no raise
     w.flush()                                       # flush after close → guarded, no raise
+
+
+def test_oxylife_writer_without_fsync_still_flushes(tmp_path):
+    """fsync=False takes the branch that skips os.fsync — the row is still flushed to the OS buffer."""
+    import writers
+    p = tmp_path / "OXYLIFE.csv"
+    w = writers.OxyLifeLogWriter(str(p), flush_interval=0.0, fsync=False)
+    w.write(_FakeTransition("W;1.0;a;b;r;;;"))
+    assert "a;b;r" in p.read_text()
+    w.close()
+
+
+def test_oxylife_writer_close_swallows_a_raising_handle(tmp_path):
+    """close() is guarded: a handle that raises on close is swallowed, never propagated into a teardown."""
+    import writers
+    w = writers.OxyLifeLogWriter(str(tmp_path / "OXYLIFE.csv"), fsync=False)
+
+    class _Boom:
+        def flush(self): pass
+        def close(self): raise ValueError("boom")
+
+    w._fh = _Boom()
+    w.close()          # the except swallows it — no raise
