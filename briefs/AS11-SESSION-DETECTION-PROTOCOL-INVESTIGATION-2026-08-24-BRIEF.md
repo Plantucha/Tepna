@@ -1,0 +1,118 @@
+<!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
+**Status:** IN-PROGRESS — 2026-08-24 · **Created:** 2026-08-24 · **Follows:** `AS11-AUTO-SESSION-DETECTION-2026-08-24-BRIEF.md`
+
+# AS11 automatic session detection — FINAL protocol investigation before implementation (owner charter)
+
+The owner's charter for the last deep AS11 BLE-protocol investigation to run **before** the
+`CPAPSessionSupervisor` is built. It deepens the #1736 matrix: not "what is the easiest way to automate
+the button", but **"what is the strongest state information the AirSense 11 itself exposes, and what is
+the minimum BLE interaction required to observe it reliably?"** The full charter is captured verbatim in
+the appendix; this brief holds the objective, the standing evidence, the investigation agenda, the
+execution plan, and — as it is executed — the findings and the single recommended architecture.
+
+## Hard principles (non-negotiable, from the charter)
+- **Clean-room.** External AS11 projects (e.g. AirCANnect) are used ONLY to discover what the *device*
+  exposes — as a source of questions to verify against the real protocol. **Never copy source code.**
+  Re-implement all behavior independently inside Tepna.
+- **Do not infer behavior from names.** A DataItem named "state" is not evidence it represents therapy
+  state — test it.
+- **Do not modify the Clock Contract** as part of this work; the ~21-min time discrepancy is a SEPARATE
+  finding (see `AS11-AUTO-SESSION-DETECTION` §clock + task #18).
+- **Do not change unrelated CPAPDex science.** The live stream stays the authoritative high-res path.
+- **Read the CURRENT code first** — determine exactly what #1736 implemented vs. what is research-only;
+  do not assume prior state or duplicate work.
+- Every signal classified **MEASURED / ESTABLISHED / HEURISTIC**. Report precedes implementation.
+
+## Standing evidence (established, #1736 — the starting point, not the conclusion)
+Advertisements do NOT distinguish idle from active (state-invariant beacon, MEASURED). A short read-only
+connect + `Get(MaskPressure)` separates idle (0.6) from active (7.4) strongly (MEASURED); `PatientFlow`
+corroborates; `Leak` is readable while treating and `InvalidObject` idle. **No explicit therapy-state
+boolean is known** — `TherapyOn`/`Ventilation`/`SessionState`/`Mode` all return `InvalidObject`. A
+mask-off self-ramps pressure to ~1 for ~40 s — instantaneously indistinguishable from a stop — so stop
+detection needs sustained evidence, not a level (MEASURED, n=1). The connection outlives therapy-stop.
+**The charter's job is to test whether MaskPressure polling is actually OPTIMAL, or whether a more direct
+AS11 state/event mechanism exists** — SubscribeEvent is the highest-priority unanswered question.
+
+## Investigation agenda (charter §1–§15, condensed — full text in appendix)
+1. **Current Tepna** — read as11_pull, cpap_stream, LiveStreamController, the capture supervisor, BLE
+   discovery, the AS11 RPC layer, telemetry bus, raw recorder, EDF writer, Clock Contract, CPAPDex, and
+   #1736's code/tests. Separate implemented from research-only.
+2. **Public AS11 protocol** — RPC/Get/DataItems/SubscribeEvent/streams/spools/status/therapy+session
+   values/pressure/flow/leak/device-time/session-identity/EDF signal defs.
+3. **SubscribeEvent FIRST (top priority)** — can it subscribe to a DataItem that changes predictably with
+   therapy start/stop/standby/blower/session/mask/pressure? For each candidate: identifier, value, type,
+   update mechanism + latency, behavior idle/therapy/mask-off/after-stop, persistence across reconnects,
+   stream-dependency, resource cost. Test on hardware; do not infer from names.
+3b. **Get() systematically** — a candidate table (field · idle · active · mask-off · after-stop · latency
+   · reliability · evidence class · recommended use) over MaskPressure, PatientFlow, Leak, and any
+   therapy/device/blower/motor/session/mode DataItems discovered from descriptors/schema. Don't stop at
+   MaskPressure.
+4. **AirCANnect (clean-room, questions only)** — how it gets live status, distinguishes active therapy,
+   determines sessions, captures EDF, handles night boundaries / time / reconnects, uses stored data,
+   explicit-vs-inferred state. Independently verify each capability against the real protocol.
+5. **AS11 EDF signal defs** — compare live-BLE signals vs the machine's EDF; authoritative pressure/flow,
+   leak, timestamps, event flags, session boundaries, rates, validity markers. Cross-validation only.
+6. **Stored-data / spool** — what's retrievable, whether therapy flow/pressure is included, resolution,
+   timestamps, session ids, historical depth, retrieval latency, during-vs-after therapy, fragment
+   ordering, duplicate/replay identification. **Backfill of BLE-interrupted periods may be worth more
+   than further heuristic refinement** — produce a concrete recommendation (implement only on strong
+   evidence). (Ties to task #20 harvest + the existing spool pull.)
+7. **Time model** — device clock / BLE / stream / EDF / session / host timestamps; whether AS11 exposes a
+   reliable current-time DataItem readable without state change; classify the ~21-min discrepancy (device
+   clock vs EDF convention vs timezone vs mapping). Separate finding; Clock Contract untouched.
+8. **Connection management (measure)** — frequent short connects, repeated Gets, subscribe-then-disconnect,
+   reconnect after start/after stop; connection success rate, avg connect time, query latency, disconnect
+   behavior, BLE failures, effect of repeated polling. **The detector must not make BLE less reliable.**
+9. **Start architecture** — score A adv-only / B short-connect+Get(MaskPressure) / C +multi-Get / D
+   +SubscribeEvent / E persistent low-bw subscription / F full-stream+detection / G combination on
+   correctness · FP · FN · latency · BLE cost · CPU · complexity · robustness · evidence · recoverability.
+   A is ruled out; B is NOT automatically the winner.
+10. **Stop architecture** — explicit event/state vs MaskPressure/Flow/Leak/combinations/sustained-inactivity
+   /connection-loss. MUST distinguish THERAPY STOPPED from DEVICE TEMPORARILY UNAVAILABLE; hysteresis;
+   derive the minimum safe debounce from real data (the ~40 s is an input, not the final value).
+11. **Detector as evidence fusion** — THERAPY_ACTIVE = MaskPressure active + PatientFlow corroboration +
+   valid BLE data; THERAPY_STOP_CANDIDATE = sustained low MaskPressure + near-zero flow + valid stream +
+   duration. Not a bare pressure threshold unless proven sufficient.
+12–15. Connection lifecycle (don't hold the high-rate stream open just to detect start); recovery
+   (UNKNOWN device state ≠ therapy stopped, across BLE/host/adapter/Tepna restarts); session model (keep
+   DEVICE PRESENCE · BLE CONNECTION · THERAPY STATE · ACQUISITION SESSION · THERAPY SEGMENT · RECORDING
+   FILE distinct — a mask-off ≠ new session, a reconnect ≠ new session).
+
+## Required output (charter §16/§19) — ONE recommended architecture + a 17-part report
+Report: current architecture · #1736 findings · AS11 capabilities · SubscribeEvent findings · Get/DataItem
+findings · AirCANnect behavioral findings · AS11 EDF findings · stored-data findings · time findings ·
+connection-cost measurements · candidate-architecture comparison · MEASURED/ESTABLISHED/HEURISTIC
+classification · selected architecture · exact state machine · implementation plan · 20-case test plan ·
+remaining unknowns. The final decision names ONE architecture with exact mechanism, DataItems/events,
+connection lifecycle, start/stop criteria, debounce, mask-off + BLE-loss + shutdown handling, evidence
+class, latency, cost, and limitations. Then §17 implementation: `CPAPSessionSupervisor` ABOVE
+`LiveStreamController` (supervisor owns discovery/connect/observe/start/stop/reconnect/disconnect; the
+controller keeps live-stream/drain/raw/EDF/finalize) — no competing lifecycle owners.
+
+## Execution plan (phasing — this is a multi-phase effort, not one pass)
+- **Phase A — desk (no hardware), start now:** §1 read current code (what #1736 shipped vs research-only);
+  §2/§5/§6 public AS11 protocol + EDF-signal + spool study; §4 AirCANnect behavioral study (clean-room,
+  verify each capability against the protocol). Produces the capability map + the candidate-DataItem list
+  + the questions the hardware phase must answer.
+- **Phase B — hardware (needs a machine session):** §3 SubscribeEvent test (subscribe to candidate
+  DataItems, log every event verbatim + latency across idle/therapy/mask-off/stop — the staged rider,
+  task #17); §3b the Get candidate table over a real session; §8 connection-management measurements; §7
+  spool retrieval test; §10 the minimum-safe debounce from several natural mask-offs. Runs on the owner's
+  natural sessions or an attended window.
+- **Phase C — synthesis:** the §19 report + the single §16 architecture decision → owner/Mutator ratify →
+  §17/§18 implementation (supervisor + the 20-case test plan), shadow-mode-first per the ratified rollout.
+
+Standing hardware fact: the box is dual-homed (eno1 LAN always up, wlp1s0 Wi-Fi on-demand for the SD
+harvest) with three BLE adapters (hci0 daemon, hci1 free for probes, hci2 dead UB500); the AS11 answers
+read-only Get on a ~1 s connect via as11_pull's establish→encrypted-Get path.
+
+---
+
+## APPENDIX — owner charter (verbatim intent, §1–§20 + the §19 report structure)
+
+*(Captured from the owner's 2026-08-24 message; the numbered agenda above is the faithful condensation,
+and the hard principles + §16 single-decision + §17 supervisor boundary + §18 20-case test list +
+§19 17-part report + §20 final principle are reproduced in the agenda and Required-output sections above.
+The load-bearing directives — clean-room / verify-don't-infer / SubscribeEvent-first / stop≠disconnect /
+UNKNOWN≠stopped / one architecture / report-before-implementation / Clock-Contract-untouched — are
+carried into the agenda verbatim in meaning.)*
