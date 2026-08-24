@@ -417,3 +417,12 @@ def test_default_max_rounds_is_exactly_64(tmp_path):
     s = sync(root, pull)                          # no max_rounds argument — the default governs
     assert s["stopped"] == "max-rounds"
     assert s["rounds_committed"] == 64 and len(pull.calls) == 64
+
+
+def test_blank_line_mid_ledger_does_not_stop_reading(tmp_path):
+    root = str(tmp_path)
+    sync(root, scripted([(b"a", True, T1)]), max_rounds=1)
+    with open(sp.ledger_path(root), "a", encoding="utf-8") as fh:
+        fh.write("\n")                            # a blank line BETWEEN rows, not at the tail
+    sync(root, scripted([(b"b", False, None)]))
+    assert len(sp.read_ledger(root)) == 2         # the row after the blank was read (continue, not break)
