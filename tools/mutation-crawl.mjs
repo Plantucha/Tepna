@@ -735,6 +735,17 @@ function probeFile(file, rec) {
           op: m.op,
           status: 'KILLABLE',
           before: String(m.before).trim().slice(0, 120),
+          /* ⚠️ RECORD WHAT THE MUTATION ACTUALLY WAS. Without this, a KILLABLE record carries the
+             ORIGINAL text and the operator NAME but not the replacement — and `mutation-ai-probe`'s
+             canary replays it with `mutateAtLine(src, line, before, after)`, where `String(undefined)`
+             becomes the literal identifier `undefined`. Measured 2026-08-24: `if (a > 0)` was replayed
+             as `if (undefined)` — an expression-nulling mutation nobody recorded, in place of the
+             `cmp > → >=` that was. Across the fleet: 165 KILLABLE records, 0 carrying `after`.
+             So the canary has been proving the harness can detect *a* difference, never that it can
+             detect THE recorded one. It worked as a liveness check by accident: nulling an expression
+             usually also kills. The line above already uses `m.after` to build the mutant — it was
+             simply never persisted. */
+          after: String(m.after).trim().slice(0, 120),
           input: String(argStr).slice(0, 400),
           orig: String(baseRows[idx]).slice(0, 300),
           mutant: String(rows[idx]).slice(0, 300)
