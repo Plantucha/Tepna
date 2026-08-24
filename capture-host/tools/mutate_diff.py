@@ -125,15 +125,99 @@ def functions_covering(path: Path, lines: set[int]) -> set[str]:
     return found
 
 
+def _string_spans(line: str) -> list[tuple[int, int]]:
+    """Half-open [start, end) ranges of the string literals in `line`, quotes included.
+
+    A single left-to-right scan, tracking the opening delimiter and honouring backslash escapes. Good
+    enough for one source line: it does not need to understand triple quotes or f-string nesting,
+    because a mutant's diff is line-scoped and mutmut does not split a literal across the boundary."""
+    spans: list[tuple[int, int]] = []
+    i, n = 0, len(line)
+    while i < n:
+        ch = line[i]
+        if ch in "\"'":
+            start, quote, i = i, ch, i + 1
+            while i < n:
+                if line[i] == "\\":
+                    i += 2
+                    continue
+                if line[i] == quote:
+                    i += 1
+                    break
+                i += 1
+            spans.append((start, i))
+            continue
+        i += 1
+    return spans
+
+
+def changed_span(before: str, after: str) -> tuple[int, int, int] | None:
+    """Where two versions of a line differ: `(start, before_end, after_end)`, or None if identical.
+
+    Trims the common prefix and suffix, so the span is the mutation itself rather than the whole line.
+    That is the entire point — see `is_string_only`."""
+    if before == after:
+        return None
+    i, lo = 0, min(len(before), len(after))
+    while i < lo and before[i] == after[i]:
+        i += 1
+    j = 0
+    while j < (lo - i) and before[len(before) - 1 - j] == after[len(after) - 1 - j]:
+        j += 1
+    return (i, len(before) - j, len(after) - j)
+
+
 def is_string_only(diff_text: str) -> bool:
     """True when a mutant changes nothing but a string literal — log wording and error prose.
 
     Requiring these killed means asserting on message text, which makes a suite brittle without making
-    it more truthful. 29 of 33 survivors on capture.py's `_now` were exactly this."""
-    added = [ln for ln in diff_text.splitlines() if ln.startswith("+") and not ln.startswith("+++")]
+    it more truthful. 29 of 33 survivors on capture.py's `_now` were exactly this.
+
+    🔴 THIS USED TO ASK WHETHER THE LINE *CONTAINED* A QUOTE, WHICH IS A DIFFERENT QUESTION AND GAVE
+    THE WRONG ANSWER. The old body was
+        `all(("XX" in ln) or ('"' in ln) or ("'" in ln) for ln in added)`
+    so ANY mutation on a line holding ANY string literal — a path segment, a dict key, an f-string —
+    was silently dropped from the survivor list. Measured 2026-08-24 on two identical mutations:
+
+        read_text(encoding="utf-8") → encoding=None
+          line 53:  `data = json.loads(Path(meta_path).read_text(…))`      no quote → REPORTED
+          line 95:  `src  = (Path(work) / "mutants" / module).read_text(…)`  quote → SKIPPED
+
+    Same mutation, opposite handling, decided by the unrelated literal `"mutants"` elsewhere on the
+    line. ⚠️ And the consequence was worse than hiding a survivor: `classify` reads *generated but
+    absent from survivors* as KILLED, so a ledgered equivalence on such a line came back **REFUTED**
+    — whose documented remedy is to delete the entry. The gate was manufacturing false refutations
+    and instructing the reader to destroy a correct classification.
+
+    ⚠️ Keying on mutmut's `XX` sentinel alone is the tempting fix and is ALSO wrong — it is too
+    narrow. `"utf-8" → "UTF-8"` is a genuine string-literal mutation carrying no sentinel, and would
+    start being required.
+
+    So the test is the only one that actually answers the question: **did the CHANGE land inside a
+    string literal?** Compare the removed and added lines, take the span that differs, and ask whether
+    it sits within a literal on both sides."""
+    lines = diff_text.splitlines()
+    added = [ln for ln in lines if ln.startswith("+") and not ln.startswith("+++")]
+    removed = [ln for ln in lines if ln.startswith("-") and not ln.startswith("---")]
     if not added:
         return False
-    return all(("XX" in ln) or ('"' in ln) or ("'" in ln) for ln in added)
+    # mutmut's own sentinel is conclusive when present: it marks a mutated string literal.
+    if all("XX" in ln for ln in added):
+        return True
+    if len(added) != len(removed):
+        return False
+    for old_ln, new_ln in zip(removed, added):
+        span = changed_span(old_ln[1:], new_ln[1:])
+        if span is None:
+            continue
+        start, old_end, new_end = span
+        old_spans = _string_spans(old_ln[1:])
+        new_spans = _string_spans(new_ln[1:])
+        inside_old = any(a < old_end and start < b for a, b in old_spans if a <= start and old_end <= b)
+        inside_new = any(a <= start and new_end <= b for a, b in new_spans)
+        if not (inside_old and inside_new):
+            return False
+    return True
 
 
 EQUIV_FILE = HERE / "tools" / "mutate-equivalence.json"
@@ -253,6 +337,52 @@ def _selftest() -> int:
     if any(x.get("key") == "d" for x in got["unclassified"]):
         print("  selftest FAIL: a killed mutant leaked into unclassified")
         ok = False
+    # ── is_string_only: the CHANGED TOKEN, not the line's contents ───────────────────────────────
+    # The old rule asked whether the added line CONTAINED a quote. Measured 2026-08-24: two identical
+    # `encoding="utf-8" → encoding=None` mutations were handled oppositely because one line happened
+    # to carry an unrelated `"mutants"` path segment. The skipped one then came back REFUTED — and
+    # REFUTED's documented remedy is to delete the entry, so the gate was instructing a reader to
+    # destroy a correct classification.
+    def _d(before, after):
+        return "--- x\n+++ y\n-" + before + "\n+" + after + "\n"
+
+    _bug_old = '        src = (Path(work) / "mutants" / module).read_text(encoding="utf-8")'
+    _bug_new = '        src = (Path(work) / "mutants" / module).read_text(encoding=None)'
+    if is_string_only(_d(_bug_old, _bug_new)):
+        print("  selftest FAIL: a keyword change is treated as string-only because the LINE holds a quote")
+        ok = False
+    # Its twin, which the old rule already handled correctly — the fix must not regress it.
+    if is_string_only(_d('    data = json.loads(p.read_text(encoding="utf-8"))',
+                         '    data = json.loads(p.read_text(encoding=None))')):
+        print("  selftest FAIL: the quote-free twin regressed")
+        ok = False
+    # ⚠️ And the opposite over-correction: keying on mutmut's XX sentinel ALONE is too narrow —
+    # a case change is a real string mutation carrying no sentinel, and must still be skipped.
+    if not is_string_only(_d('    x = f(encoding="utf-8")', '    x = f(encoding="UTF-8")')):
+        print("  selftest FAIL: a genuine string-literal change is now required")
+        ok = False
+    if not is_string_only(_d('    s = "hello"', '    s = "XXhelloXX"')):
+        print("  selftest FAIL: mutmut's XX sentinel is no longer conclusive")
+        ok = False
+    # Log wording on a line that also holds other literals — the case the rule exists for.
+    if not is_string_only(_d('    log("a", "the quick brown fox")', '    log("a", "XXthe quick brown foxXX")')):
+        print("  selftest FAIL: log wording is no longer skipped")
+        ok = False
+    # A comparison flip on a line containing a string is a REAL survivor and must be reported.
+    if is_string_only(_d('    if d["k"] > 3: pass', '    if d["k"] >= 3: pass')):
+        print("  selftest FAIL: a comparison flip is hidden by an unrelated dict key")
+        ok = False
+    # the span helpers, pinned directly
+    if changed_span("a=1", "a=1") is not None:
+        print("  selftest FAIL: changed_span invents a difference")
+        ok = False
+    if changed_span('f("x")', 'f("y")') != (3, 4, 4):
+        print("  selftest FAIL: changed_span mislocates the differing region")
+        ok = False
+    if _string_spans('a = "b" + \'c\'') != [(4, 7), (10, 13)]:
+        print("  selftest FAIL: _string_spans miscounts literals")
+        ok = False
+
     # diff_key ignores whitespace but not content, and drops the +++/--- headers
     if diff_key("--- a\n+++ b\n-  x = 1\n+  x  =  2\n") != "- x = 1 | + x = 2":
         print("  selftest FAIL: diff_key")
