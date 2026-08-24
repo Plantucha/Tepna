@@ -87,14 +87,13 @@ ALLOW_FUNCS = {
     # gate should say so. Only the plumbing is listed.
     # G3's restart planner, same posture: standalone until G1 consumes the plan. `plan()` itself is
     # NOT listed — it is the entry point G1 must call, so if IT ever appears here the wiring regressed
-    # and the gate should say so. Only the one-line trust accessor is fenced.
-    "is_trusted": "oxy_restart G3 — the plan's single affirmative accessor; standalone until G1 acts on the plan (charter §4)",
-    "append_row": "oxy_inventory G2 — standalone until G1 wires the ledger into _pull_once (charter §4)",
+    # and the gate should say so. Only the one-line trust accessor was fenced.
+    # ── G1 HAS LANDED (2026-08-24). pull_session._pull_once now drives the ledger + restart plan, so the
+    # G2/G3 plumbing that was "standalone until G1" — is_trusted · append_row · load_rows · make_row ·
+    # sha256_bytes — is genuinely wired and its entries came OUT, exactly as the schedule above promised.
+    # The cpap_spool P4 pair stays: it is a different arm whose daemon wiring has not landed yet.
     "sync_spool": "cpap_spool P4 — the transaction driver; standalone until the announced daemon wiring (P4 brief §7: the nightly-pull touch rides with P1/P3)",
     "last_committed_cursor": "cpap_spool P4 — the restart authority G4/P5 and the wiring consume; standalone until the announced daemon wiring (P4 brief §7)",
-    "load_rows": "oxy_inventory G2 — standalone until G1 wires the ledger into _pull_once (charter §4)",
-    "make_row": "oxy_inventory G2 — standalone until G1 wires the ledger into _pull_once (charter §4)",
-    "sha256_bytes": "oxy_inventory G2 — standalone until G1 wires the ledger into _pull_once (charter §4)",
     "oxy_is_finalized": "redundant — pull_session.py already gates re-pulls on finalisation via "
                         "parse_trailer, which that caller needs anyway for the device summary",
     "busy_with": "redundant — offline_lock.slot() raises OfflineBusy(_busy), so the label already "
