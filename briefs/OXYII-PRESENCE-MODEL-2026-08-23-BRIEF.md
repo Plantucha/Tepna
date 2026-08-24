@@ -100,45 +100,57 @@ episode.
   `READY_FOR_DOWNLOAD` computed from contact alone would be wrong, and the finalisation predicate
   (`48 12 5a da`) is the only correct gate.
 
-## 5b · PRODUCTION EVIDENCE — 2026-08-24, verified first-hand on the box
+## 5b · PRODUCTION EVIDENCE — 2026-08-24 (CORRECTED)
 
-Reported by the capture-host arm and **independently confirmed against `vigil`'s journal**, because a
-cross-session claim passes no gate. Timestamps are the box's **local (EDT)**; the verification note at
-the end of this section explains why that matters.
+⚠️ **This section's first version claimed the night's recording was stranded. That was WRONG, and the
+error is instructive enough to keep rather than quietly overwrite.** The poller is healthy and
+phase-exact; it pulled the night clean. What survives is a narrower and still-useful point.
 
-| local time | event |
+**What actually happened** (box local time, EDT):
+
+| time | event |
 |---|---|
-| 04:38:10 | Wellue O2Ring-S PPG stream ends — 7922 frames over 7877 device-seconds, 0 anomalous. The doff. |
-| 04:45:42 | `tepna-restart.sh restart` (consolidation) — drops every BLE link, including the ring's |
-| 04:45:44 | `auto-pull: enabled — checking … every 3600s (only while it is off the finger)` — **the timer restarts here** |
-| 05:07:29 | `BleakDeviceNotFoundError('O2Ring not advertising')` — the ring is gone, ~22 min after the restart |
-| 05:18–05:20 | 21 × `org.bluez.Error.InProgress` on the reconnect loop |
+| 04:38:10 | PPG stream ends — 7922 frames / 7877 device-seconds, 0 anomalous. The doff. |
+| 04:45:42 | `tepna-restart.sh restart` — drops every BLE link, including the still-awake ring's |
+| 04:45:44 | `auto-pull: enabled — … every 3600s (only while it is off the finger)` |
+| 05:07–05:20 | ring unreachable: `not advertising`, then 21 × `org.bluez.Error.InProgress` |
+| **05:45:52** | **auto-pull fires — 1 h 0 m 08 s after the enable. PHASE-EXACT.** |
+| **05:46:01** | **`saved 54991 bytes → …_20260823233104_STORED.dat`** — the whole night, in 13 s |
 
-🔴 **The night's recording is stranded on flash, and the poller cannot retrieve it.** The ONLY
-`auto-pull:` line in the entire day is the 04:45:44 enable — no tick, no transfer, no `.dat`. The next
-tick falls at ~05:45, and by 05:07 the ring had already stopped advertising. **Latency is now
-wake-dependent, not schedule-dependent**, which is precisely the argument §3 makes for evidence-driven
-scheduling — here as a measured production event rather than a hypothesis. (Safe, not lossy: the ring
-is FIFO with headroom.)
+🔴 **HOW I GOT IT WRONG, because the shape recurs.** I ran the check at **05:21**, observed no pull,
+and wrote *"the night's recording is stranded and the poller cannot retrieve it."* **My own evidence
+table in the same section said the next tick fell at ~05:45.** I had not measured a miss; I had
+measured *"the scheduled event has not happened yet"* and stated it as an outcome. An observation is
+bounded by when it was taken, and a claim about a future tick is a prediction wearing a measurement's
+clothes. The refutation was inside my own table.
 
-**A held link IS presence maintenance — and a restart in the doff window costs the window.** The
-04:45:42 restart dropped the still-awake ring's link, and **an unworn ring never re-advertises**, so
-the restart converted *awake-and-linked* into *unreachable*. G6's model must treat link-holding as an
-action that maintains presence rather than merely observes it. Operationally: **pull first, restart
-after.**
+**What SURVIVES, and it is still G6's case:**
 
-⚠️ **A detail the first report did not carry:** the failure changes character at 05:18:45, from
-`not advertising` to `org.bluez.Error.InProgress` repeating every 60 s. That is an adapter/stack
-state, not a sleeping device, and the two must not be collapsed into one "ring unreachable" cause —
-they have different remedies, and only one of them is about the ring.
+- **The restart severed an awake link.** An unworn ring never re-advertises, so 04:45:42 converted
+  *awake-and-linked* into *unreachable* — a 22-minute hole ending only when the owner's wake made the
+  ring discoverable again. **A held link is presence MAINTENANCE, not merely observation.**
+  Operationally: pull first, restart after.
+- **Wake-dependence is a real RISK, demonstrated but not realised.** Between ~04:45 and the owner's
+  wake the ring was unreachable, so a tick landing in that window would have found nothing and waited
+  another hour. Here the 05:45 tick happened to land after the wake. **That is luck of phase, not a
+  property of the schedule** — which is precisely why presence-aware scheduling is worth measuring
+  against the poller rather than assumed to beat it.
+- **The failure changes character at 05:18:45** — `not advertising` → `org.bluez.Error.InProgress`
+  every 60 s. An adapter/stack state, not a sleeping device; different causes, different remedies.
 
-⚠️ **VERIFICATION NOTE — I almost filed a false alarm from this data.** The journal prints **local
-time**; `date -u` prints UTC. Reading "newest line 05:21" against "now 09:21Z" looks exactly like a
-daemon that has been silent for four hours, and I was one step from reporting a wedged capture host.
-`ps -o etimes=` said **2204 s** for a process whose `lstart` I had read as four hours old, and that
-contradiction is what caught it: 05:21 EDT *is* 09:21 UTC. **Two clocks, one instant.** Every
-timestamp above is therefore stated with its zone — the same discipline §7 of the Clock Contract
-applies to device stamps, applied to our own logs.
+**WITHDRAWN:** any implication that the poller was dead, mis-anchored, or that data was lost. It fired
+on schedule to the second and pulled 54991 bytes clean.
+
+⚠️ **Two verification traps met in one morning, both about reading the wrong frame:**
+1. **Wrong journal.** The daemon is a **system** service; `journalctl --user` shows a partial view.
+   Conclusions about "what the daemon did" must come from the system journal — or better, from the
+   **artifact on disk**, which is what finally settled this: the `.dat` either exists or it does not.
+2. **Wrong clock.** The journal prints **local** time, `date -u` prints UTC. Reading "05:21" against
+   "09:21Z" makes a healthy daemon look four hours silent; `ps -o etimes=` exposed the contradiction.
+   05:21 EDT *is* 09:21 UTC.
+
+Every timestamp above therefore carries its zone, and the load-bearing claim is anchored to a **file**
+rather than to a log line's absence. **An absence in a log is bounded by where and when you looked.**
 
 ## 6 · Done when
 
@@ -147,7 +159,5 @@ applies to device stamps, applied to our own logs.
 - [ ] The state model is written with each transition naming the evidence that triggers it, and no
       transition triggered by elapsed time alone.
 - [ ] The probe's opcode set is confined to `O2RING-OPCODE-SURFACE`'s read-only list, cited per opcode.
-- [x] A production event where the hourly poller demonstrably missed (§5b, 2026-08-24) — the
-      motivating measurement now exists.
 - [ ] Recorded whether presence-aware scheduling actually beats the hourly poller, measured against
       the 2026-08-23 cadence baseline rather than assumed to.
