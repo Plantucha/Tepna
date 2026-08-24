@@ -16,6 +16,31 @@ browser and no headless lane exercises it. **Load `CPAPDex.html`, load an SD nig
 confirm the panel renders + the sparkline draws + the role-assumption line prints.** Until then the DOM
 wiring is asserted only by inspection.
 
+**RAN 2026-08-24 (coordinator, served bundle, committed twins through the real UI).** The engine and
+flow work: night loads, ⚖ trigger present, second-file upload → panel injects with the correct headline
+(`device-clock aligned · n = 27.4 min overlap`), the role-assignment line prints verbatim, the
+scale-over-time verdict reads `stable`. Three findings, all resolved in the visual-smoke follow-up PR:
+
+- **(1) FIXED — the four KPI cards rendered invisible.** `.kpi` (ans-design.css) carries
+  `animation:cardEntrance` whose `from{opacity:0}` + `both` fill leaves dynamically-injected tiles stuck
+  transparent — worst under `prefers-reduced-motion`, where the global `*{animation-duration:.01ms}` reset
+  makes the active phase vanish. The values were correct in the DOM (a11y saw them); only the paint was
+  missing — exactly the class this headless-immune smoke test exists to catch. Fix: scoped
+  `#comparatorHost .kpi{animation:none}` (base bg/border/padding stays). The sparkline overlapping its
+  label was fixed the same PR (own line + margin).
+- **(2) FIXED — "33.7% of paired samples outside the agreement band" on a near-identity twin.** The
+  excursion band was `1.96·residSD` (the POST-regression residual SD) counted against the RAW diffs
+  (B−A), so a pair with scale ≠ 1 counted the systematic gain the residual removed. Corrected to the
+  Bland–Altman LoA (`bias ± 1.96·SD-of-diffs`) — the same band the panel prints as loLoA/hiLoA. Golden
+  `excursionFrac` 0.337 → 0 (a bounded consistent pair sits ~0% outside the LoA; real divergence still
+  shows non-zero).
+- **(3) DOCUMENTED — the committed twins can't enter through the app's normal file flow.** The loader's
+  filename gate wants the ResMed `YYYYMMDD_HHMMSS_BRP` pattern and rejects
+  `cpapdex_comparator_*_twin_BRP.edf`. Engine-API tests bypass this (the golden is unaffected), so it is
+  not a defect — but any future visual/E2E use needs date-shaped copies (`20260824_000000_BRP.edf`
+  works). **Open option:** teach the loader the twin names, or keep the copy step. Documented here rather
+  than changing the loader for a test-only convenience.
+
 ## 2 · v2 wide-xcorr for a genuinely broken clock (v1 refuses by design)
 v1's `maxLagSec` default is 5 s — a FINE correction only. A large device-clock disagreement REFUSES
 and quantifies it (the 42-min EdfSink class), which is correct: aligning through a broken clock would
@@ -40,5 +65,5 @@ Both agreement numbers are single nights: night n=1 SD/live 0.9977 flat-in-time;
 box owes the captures) to turn either into a validated agreement rather than a single data point.
 
 ## Done when
-- [ ] §1 visual smoke test performed and recorded (or a headless DOM harness added for the trigger).
+- [x] §1 visual smoke test performed and recorded (coordinator, 2026-08-24) — three findings, all resolved in the visual-smoke follow-up PR (invisible cards, divergence band, filename-gate note).
 - [ ] §2–§5 triaged: each either scheduled as its own executable brief or explicitly declined here.

@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-DuXRBrOhGfbU1LiuimxcGZY4TzYak1VvpGFIWl5H24g=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-OSwZvOd7bbOWHI1P1dIrnGb73988FZy+BjRpZ1w9RR0=' 'sha256-Pfy0+9wRdMAuRFZznzevwtcuHZA2PxS/CJG7426rFtg=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-bp7Fi2OoOx/XooWuTGpmF1SiV+A8ZCvEpRBCsq2nxes=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-nS/f3CTruTheYIsD5MvokLqjS1nScw4Z9HSqV/qAKfo=' 'sha256-sMwruQ+X96xostAQLqPqn1ZkT08oKeS/Gl8kiTIczwk='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-DuXRBrOhGfbU1LiuimxcGZY4TzYak1VvpGFIWl5H24g=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JhcIMyyaav12LTpUrDZweluWMqdkgx/mekCyRHvHA7Q=' 'sha256-OSwZvOd7bbOWHI1P1dIrnGb73988FZy+BjRpZ1w9RR0=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-bp7Fi2OoOx/XooWuTGpmF1SiV+A8ZCvEpRBCsq2nxes=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fE9TI05TpZOmn74ISomYxvq5tVhwKNXqB7JVM95NlKw=' 'sha256-sMwruQ+X96xostAQLqPqn1ZkT08oKeS/Gl8kiTIczwk='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>CPAPDex — PAP Therapy Analyzer · v2.8.0</title>
@@ -2618,6 +2618,10 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
 @media(max-width:680px){.trend-row{grid-template-columns:1fr auto auto;gap:8px}.trend-spark{display:none}}
 
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:9px;margin-bottom:16px}
+/* The live-vs-SD comparator panel is injected into #comparatorHost AFTER load; .kpi's cardEntrance
+   from{opacity:0}+both fill leaves the injected tiles stuck transparent (worst under prefers-reduced-motion,
+   which shortens the animation to .01ms). Skip the entrance animation there — the tile's base styling stays. */
+#comparatorHost .kpi{animation:none}
 .kpi-u{font-size:13px;color:var(--text3);font-weight:600;margin-left:3px}
 .kpi-val.ok{color:var(--green)}.kpi-val.warn{color:var(--amber)}.kpi-val.bad{color:var(--red)}.kpi-val.neutral{color:var(--blue)}
 
@@ -8463,9 +8467,14 @@ __exports.CPAPDex = window.CPAPDex;
     var residSD = sd(resid),
       bias = mean(diffs),
       dsd = sd(diffs);
-    var t = tol > 0 ? tol : 1.96 * residSD;
+    // Excursions are counted against the Bland-Altman agreement band (bias ± 1.96·SD-of-diffs) — the
+    // SAME band the panel prints as loLoA/hiLoA. Earlier this used 1.96·residSD (the POST-regression
+    // residual SD) against the RAW diffs, so a pair with scale ≠ 1 (the systematic gain the residual
+    // removes but the raw diff keeps) counted ~a third of samples "outside" a band far too tight — 33.7%
+    // on a near-identity twin. Against the LoA, a consistent pair sits ~5% outside by construction.
+    var t = tol > 0 ? tol : 1.96 * dsd;
     var excursions = 0;
-    for (var m = 0; m < diffs.length; m++) if (Math.abs(diffs[m]) > t) excursions++;
+    for (var m = 0; m < diffs.length; m++) if (Math.abs(diffs[m] - bias) > t) excursions++;
     // Windowed scale-over-time — the stable-vs-time-varying finding. A single scale over a 5 h night can
     // launder a drift; per-window regression surfaces it. Flat windows ⇒ stable (the identity verdict).
     var winN = Math.max(1, Math.round(fs * 600)); // ~10-min windows
@@ -9918,7 +9927,7 @@ const { CpapDsp } = __require('cpapdex-dsp.js');
           ')">' +
           (unk ? 'single window' : stable ? 'stable' : 'drifting') +
           '</b>' +
-          ' <canvas class="cmp-scale-spark" width="120" height="26" data-cmp-chan="' +
+          '<br><canvas class="cmp-scale-spark" width="120" height="26" style="margin-top:4px" data-cmp-chan="' +
           esc(lab) +
           '"></canvas></div>';
       }

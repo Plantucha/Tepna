@@ -1350,7 +1350,7 @@ import { CpapDsp } from './cpapdex-dsp.js';
           ')">' +
           (unk ? 'single window' : stable ? 'stable' : 'drifting') +
           '</b>' +
-          ' <canvas class="cmp-scale-spark" width="120" height="26" data-cmp-chan="' +
+          '<br><canvas class="cmp-scale-spark" width="120" height="26" style="margin-top:4px" data-cmp-chan="' +
           esc(lab) +
           '"></canvas></div>';
       }
