@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-MoPUcOGj2pC89r8MGWmxY4VxGL/HJi5CYWmY9Y6Bppk=' 'sha256-OtR+qUoQ1IV9ftXIYzAYZfP3MpFSY/iJlwSSuLQx0jw=' 'sha256-UEKo8q6oDlx+nVLthNAe7RbwjyJyrvNlro9P8mjjnKQ=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-aVdOjh3Yx/cNjyo7xSwISa/EidaQGS3vfvOpcjR85co=' 'sha256-bp7Fi2OoOx/XooWuTGpmF1SiV+A8ZCvEpRBCsq2nxes=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-sMwruQ+X96xostAQLqPqn1ZkT08oKeS/Gl8kiTIczwk='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-MoPUcOGj2pC89r8MGWmxY4VxGL/HJi5CYWmY9Y6Bppk=' 'sha256-OtR+qUoQ1IV9ftXIYzAYZfP3MpFSY/iJlwSSuLQx0jw=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-aVdOjh3Yx/cNjyo7xSwISa/EidaQGS3vfvOpcjR85co=' 'sha256-bp7Fi2OoOx/XooWuTGpmF1SiV+A8ZCvEpRBCsq2nxes=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-mMWOmrdOM5i2lMHOr/dFs3p9m7yZGq6zbKGWAR4Fn2o=' 'sha256-sMwruQ+X96xostAQLqPqn1ZkT08oKeS/Gl8kiTIczwk='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>CPAPDex — PAP Therapy Analyzer · v2.8.0</title>
@@ -8303,7 +8303,154 @@ __exports.CPAPDex = window.CPAPDex;
     return out;
   }
 
-  var api = { crossNight, crossNightBlock, pressureChangePoints, compliancePct, ols, mannKendall, bootstrapDeltaCI, fmtDateUTC, CPAP_DEFS, nightTms, nightWeight, nightOdi };
+  // ── LIVE-vs-SD COMPARATOR (CPAPDEX-LIVE-SD-COMPARATOR brief) ──────────────────────────────────────
+  // Compare a BLE-live-captured channel to the device SD-card channel of the same night. Refusal-first;
+  // the alignment OFFSET the comparator applies is a first-class finding (a large one means the two
+  // device clocks disagree — the EdfSink 4 h bug class), never a silently-absorbed nuisance. Agreement
+  // is scale/offset regression + Bland-Altman (bias + limits of agreement), NEVER Pearson r.
+  function _down1Hz(values, fs) {
+    var step = Math.max(1, Math.round(fs || 1)),
+      out = [];
+    for (var i = 0; i + step <= values.length; i += step) {
+      var sum = 0;
+      for (var j = 0; j < step; j++) sum += values[i + j];
+      out.push(sum / step);
+    }
+    return out;
+  }
+  // Best integer lag (seconds) of b relative to a, on 1 Hz series, maximizing normalized correlation
+  // within +/- maxLag. A fine correction on top of the header-clock alignment; refuses (null) if either
+  // series is too short to correlate.
+  function _xcorrLag(a1, b1, maxLag) {
+    var n = Math.min(a1.length, b1.length);
+    if (n < 4) return null;
+    var best = 0,
+      bestScore = -Infinity,
+      lim = Math.min(maxLag, n - 2);
+    for (var lag = -lim; lag <= lim; lag++) {
+      var s = 0,
+        c = 0;
+      for (var i = 0; i < n; i++) {
+        var bi = i + lag;
+        if (bi < 0 || bi >= n) continue;
+        s += a1[i] * b1[bi];
+        c++;
+      }
+      if (c > 0) {
+        var score = s / c;
+        if (score > bestScore) {
+          bestScore = score;
+          best = lag;
+        }
+      }
+    }
+    return best;
+  }
+  // a, b = { t0Ms, fs, values }. `a` is the LIVE side, `b` the SD side.
+  function compareChannel(a, b, opts) {
+    opts = opts || {};
+    var maxLagSec = opts.maxLagSec == null ? 5 : opts.maxLagSec; // FINE correction only. A WIDE xcorr to align through a BROKEN clock is a v2 opt-in
+    // diagnostic ONLY: respiratory flow is quasi-periodic, so a wide search can lock onto the
+    // WRONG breath (the beat-trains-align-only-mod-RR failure, respiratory form). Refusal-first
+    // is the permanent default — a large clock disagreement is a finding, not a thing to align out.
+    var tol = opts.tolerance == null ? 0 : opts.tolerance; // 0 => derive from residual SD
+    if (!a || !b || !a.values || !b.values || !a.values.length || !b.values.length) {
+      return { ok: false, reason: 'a channel is absent in one file — nothing to compare' };
+    }
+    var fs = a.fs || b.fs || 1;
+    // The header-clock disagreement — the FINDING. Positive => the live header starts LATER than the SD.
+    var clockOffsetSec = ((a.t0Ms || 0) - (b.t0Ms || 0)) / 1000;
+    // Align on the device clock: the overlapping device-time window.
+    var startMs = Math.max(a.t0Ms || 0, b.t0Ms || 0);
+    var endMs = Math.min((a.t0Ms || 0) + (a.values.length / fs) * 1000, (b.t0Ms || 0) + (b.values.length / fs) * 1000);
+    if (endMs - startMs < 1000) {
+      // A large delta between a live capture and its SD twin is defect DETECTION, not an alignment
+      // problem — the comparator is the instrument that screams when the EdfSink clock-bug class
+      // reappears; aligning through it would launder the scream into a rosy scale. Quantify it.
+      return {
+        ok: false,
+        clockOffsetSec: clockOffsetSec,
+        reason:
+          'no overlapping device-clock span — the headers disagree by ' +
+          Math.round(clockOffsetSec) +
+          ' s (' +
+          (clockOffsetSec / 3600).toFixed(2) +
+          ' h). Same-night live+SD files MUST overlap, so a\n' +
+          'large delta is a clock defect (EdfSink UTC-vs-local-civil class), not a different night.'
+      };
+    }
+    var ai0 = Math.round(((startMs - (a.t0Ms || 0)) / 1000) * fs);
+    var bi0 = Math.round(((startMs - (b.t0Ms || 0)) / 1000) * fs);
+    var overlapN = Math.floor(((endMs - startMs) / 1000) * fs);
+    // Fine lag: correlate the clock-aligned overlap at 1 Hz; apply it on top of the clock alignment.
+    var lag = _xcorrLag(_down1Hz(a.values.slice(ai0, ai0 + overlapN), fs), _down1Hz(b.values.slice(bi0, bi0 + overlapN), fs), maxLagSec) || 0;
+    var bi = bi0 + Math.round(lag * fs);
+    var A = [],
+      B = [];
+    for (var i = 0; i < overlapN; i++) {
+      var ia = ai0 + i,
+        ib = bi + i;
+      if (ia < 0 || ia >= a.values.length || ib < 0 || ib >= b.values.length) continue;
+      A.push(a.values[ia]);
+      B.push(b.values[ib]);
+    }
+    if (A.length < 2) return { ok: false, reason: 'too few paired samples after alignment' };
+    var reg = ols(A, B); // B ≈ slope·A + intercept
+    var resid = [],
+      diffs = [];
+    for (var k = 0; k < A.length; k++) {
+      resid.push(B[k] - ((reg.slope || 0) * A[k] + (reg.intercept || 0)));
+      diffs.push(B[k] - A[k]);
+    }
+    var residSD = sd(resid),
+      bias = mean(diffs),
+      dsd = sd(diffs);
+    var t = tol > 0 ? tol : 1.96 * residSD;
+    var excursions = 0;
+    for (var m = 0; m < diffs.length; m++) if (Math.abs(diffs[m]) > t) excursions++;
+    return {
+      ok: true,
+      overlapMin: A.length / fs / 60,
+      alignmentOffsetSec: clockOffsetSec + lag, // total device-clock offset the comparator applied
+      clockOffsetSec: clockOffsetSec, // the header disagreement alone (the finding)
+      appliedLagSec: lag,
+      scale: { a: reg.slope, b: reg.intercept, residSD: residSD },
+      blandAltman: { bias: bias, loLoA: bias - 1.96 * dsd, hiLoA: bias + 1.96 * dsd },
+      divergence: { excursionFrac: A.length ? excursions / A.length : 0, pairedSamples: A.length }
+    };
+  }
+  // liveSet / sdSet: readEDF-style channel maps { <label>: { t0Ms, fs, values } }. Refusal-first at the
+  // set level; per-channel refusals do not abort the others.
+  function cpapCompare(liveSet, sdSet, opts) {
+    if (!liveSet || !sdSet) return { ok: false, reason: 'need BOTH a live and an SD file — one alone is not a comparison' };
+    var labels = {};
+    for (var la in liveSet) labels[la] = 1;
+    for (var lb in sdSet) labels[lb] = 1;
+    var channels = {},
+      anyOk = false;
+    for (var lab in labels) {
+      channels[lab] = compareChannel(liveSet[lab], sdSet[lab], opts);
+      if (channels[lab].ok) anyOk = true;
+    }
+    return anyOk ? { ok: true, channels: channels } : { ok: false, reason: 'no channel could be compared', channels: channels };
+  }
+
+  var api = {
+    crossNight,
+    crossNightBlock,
+    pressureChangePoints,
+    compliancePct,
+    ols,
+    mannKendall,
+    bootstrapDeltaCI,
+    fmtDateUTC,
+    CPAP_DEFS,
+    nightTms,
+    nightWeight,
+    nightOdi,
+    cpapCompare,
+    compareChannel
+  };
 
   // Dual-realm, matching the house pattern already used by cpapdex-dsp.js / -edf.js /
   // -fusion.js. This file used to close over a bare `window` and expose NOTHING to
