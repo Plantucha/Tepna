@@ -91,6 +91,31 @@ async function main() {
     ok(DexBuild.projectVersion(synth) === synth, 'no version \u2192 byte-identical no-op');
     ok(DexBuild.projectVersion(synth, 'v; alert(1)') === synth, 'non-semver version \u2192 no-op (never interpolated)');
     ok(DexBuild.projectVersion(stamped, '3.1.4') === stamped, 'idempotent');
+    /* ── THE SHIPPED FLEET, not just the pure function ────────────────────────────────────────
+       Every leg above tests `projectVersion` against a synthetic string, and all of them passed
+       while `Integrator.html` — a full GATE-A bundle — shipped v2.8.0 with NO version anywhere.
+       Its `.logo-sub` existed but carried no semver, and the projection replaces an EXISTING one,
+       so the regex matched nothing, the bundle was left byte-identical, `build.mjs --check`'s
+       byte-compare stayed green, and no gate could see it. A stamp that matched nothing is
+       indistinguishable from a stamp that was not needed — which is the examined-nothing shape.
+
+       So this asserts PRESENCE on the artifacts themselves: a check that the version IS there is
+       the only kind that can see it missing.
+
+       ⚠️ THE ANCHOR IS `<title>`, DELIBERATELY. It is the only one all nine carry — CPAPDex and
+       MotionDex have no `.logo-sub` and no `.version-badge` at all, so asserting either would red
+       two healthy bundles and teach the next reader to ignore this test. Measured, not assumed:
+       title 9/9, logo-sub 7/9, version-badge 6/9. */
+    for (const b of ManifestGate.MANIFEST_BUNDLES) {
+      const f = join(ROOT, b);
+      if (!existsSync(f)) {
+        ok(false, 'GATE-A bundle ' + b + ' is present to check its version');
+        continue;
+      }
+      const title = (readFileSync(f, 'utf8').match(/<title>[^<]*<\/title>/) || [''])[0];
+      ok(title.includes('v' + SUITE_VERSION), b + ' <title> carries the CURRENT suite version (v' + SUITE_VERSION + ')');
+    }
+
     const noAnchors = '<title>Orchestrator</title><p>no version UI</p>';
     ok(DexBuild.projectVersion(noAnchors, '3.1.4') === noAnchors, 'bundle without anchors \u2192 byte-identical (orchestrators)');
     // THE invariance leg: same source built with and without the stamp \u2192 SAME manifestHash, different html
