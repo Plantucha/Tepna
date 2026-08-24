@@ -61,21 +61,21 @@ def test_note_frame_folds_each_kind_into_the_right_counter():
 def test_total_lost_counts_overflow_malformed_and_tail_but_not_foreign():
     """Foreign frames were never ours, so they are NOT loss. Overflow, malformed, and the post-drop tail
     ARE the honest 'how much did we miss' — audit §16."""
-    c = GapCounters(overflow=3, malformed=2, post_drop_tail=1, foreign_stream=10)
-    assert c.total_lost == 6                # 3 + 2 + 1, foreign excluded
+    c = GapCounters(overflow=3, malformed=2, post_drop_tail=1, foreign_stream=10, sink_errors=5)
+    assert c.total_lost == 6                # 3 + 2 + 1; foreign AND sink_errors excluded (different axes)
 
 
 def test_summary_is_a_flat_stable_dict():
     c = GapCounters(frames_ok=5, samples_ok=200, foreign_stream=1, malformed=2,
-                    overflow=1, stalls=1, post_drop_tail=1)
+                    overflow=1, stalls=1, post_drop_tail=1, sink_errors=3)
     s = c.summary()
     assert s == {
         "frames_ok": 5, "samples_ok": 200, "foreign_stream": 1, "malformed": 2,
-        "overflow": 1, "stalls": 1, "post_drop_tail": 1, "total_lost": 4,
+        "overflow": 1, "stalls": 1, "post_drop_tail": 1, "sink_errors": 3, "total_lost": 4,
     }
     # key order is stable so two nights diff cleanly
     assert list(s.keys()) == ["frames_ok", "samples_ok", "foreign_stream", "malformed",
-                              "overflow", "stalls", "post_drop_tail", "total_lost"]
+                              "overflow", "stalls", "post_drop_tail", "sink_errors", "total_lost"]
 
 
 # ── the bounded queue (spec §17 — backpressure, overflow recorded not silent) ──────────────────────
