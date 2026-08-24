@@ -475,6 +475,21 @@ if (IS_MAIN && has('--selftest')) {
   ok('a const function-expression resolves', functionRange(ARROWSRC, 'h') !== null && functionRange(ARROWSRC, 'h').start === 11);
   ok('…and a name that is only a SUFFIX of another does not match it', functionRange(ARROWSRC, 'i2') === null, JSON.stringify(functionRange(ARROWSRC, 'i2')));
 
+  // §10.5 AMBIGUITY IS A REFUSAL — and it shipped with no control. Disabling the `_decls.length > 1`
+  // throw left every other selftest passing, which is precisely how a loud-failure guard rots back into
+  // a silent first-match. The whole point of §10.5 is that a locating tool must not GUESS which
+  // definition you meant; a guard nothing exercises is a comment.
+  const DUPSRC = ['function dup(a) {', '  return a;', '}', 'function other() {}', 'function dup(a, b) {', '  return a + b;', '}'].join('\n');
+  let threw = null;
+  try {
+    functionRange(DUPSRC, 'dup');
+  } catch (e) {
+    threw = e.message;
+  }
+  ok('a DUPLICATED function name REFUSES rather than silently taking the first', threw !== null && /AMBIGUOUS/.test(threw), String(threw));
+  ok('…and the refusal names how many it found, so the caller can see the collision', threw !== null && /2 declarations|2 definitions/.test(threw), String(threw));
+  ok('an UNambiguous name is unaffected by the duplicate guard', functionRange(DUPSRC, 'other') !== null, JSON.stringify(functionRange(DUPSRC, 'other')));
+
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
   process.exit(fail ? 1 : 0);
 }
