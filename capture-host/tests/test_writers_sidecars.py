@@ -38,13 +38,13 @@ def test_oxyframe_header_and_row_layout(tmp_path):
     head, row = _lines(str(p))[0], _rows(str(p))[0]
     assert head.split(";") == ["Phone timestamp", "duration_s", "pi_pct", "motion", "spo2", "pr",
                               "contact", "battery_pct", "batt_state", "flag",
-                              "ppg_n", "ppg_dur_step", "ppg_offset", "flag_raw"]
+                              "ppg_n", "ppg_dur_step", "ppg_offset", "flag_raw", "run_status"]
     cells = row.split(";")
     assert cells[0] == "2026-07-19T03:04:05.678"
-    # The appended columns are blank: this caller passed no `ppg` and no `flag_raw`, and the ORIGINAL ten
-    # columns are unmoved — the append-never-insert rule, asserted rather than assumed
-    # (O2RING-FRAME-SAMPLE-LOCK, extended by DEVICE-RATE-TRUTH §6.1).
-    assert cells[1:] == ["900", "1.4", "0", "96", "54", "1", "73", "0", "0", "", "", "", ""]
+    # The appended columns are blank: this caller passed no `ppg`, no `flag_raw` and no `run_status`, and
+    # the ORIGINAL ten columns are unmoved — the append-never-insert rule, asserted rather than assumed
+    # (O2RING-FRAME-SAMPLE-LOCK, extended by DEVICE-RATE-TRUTH §6.1 and OXYII-PRESENCE-MODEL §5).
+    assert cells[1:] == ["900", "1.4", "0", "96", "54", "1", "73", "0", "0", "", "", "", "", ""]
     assert len(cells) == len(head.split(";")), "row must have exactly as many cells as the header"
 
 
@@ -59,9 +59,10 @@ def test_oxyframe_records_the_ring_stream_offset_and_the_whole_flag_byte(tmp_pat
     w.close()
     rows = [r.split(";") for r in _rows(str(p))]
     # offset 0 on the first frame is a READING, not an absence — it must not render blank
-    assert rows[0][-2] == "0"
-    assert rows[1][-2] == "126"
-    assert [r[-1] for r in rows] == ["199", "199"]     # 0xC7, reported as the whole byte
+    assert rows[0][-3] == "0"
+    assert rows[1][-3] == "126"
+    assert [r[-2] for r in rows] == ["199", "199"]     # 0xC7, reported as the whole byte
+    assert [r[-1] for r in rows] == ["", ""]           # run_status: absent from `live` ⇒ blank, never 0
 
 
 def test_oxyframe_offset_is_blank_when_the_ppg_stream_is_off(tmp_path):
@@ -73,8 +74,21 @@ def test_oxyframe_offset_is_blank_when_the_ppg_stream_is_off(tmp_path):
     w.write(WHEN, {"duration": 900, "flag": 1, "flag_raw": 0xC7})   # no `ppg` dict at all
     w.close()
     cells = _rows(str(p))[0].split(";")
-    assert cells[-2] == "", "ppg_offset must be blank, never 0, when the stream is off"
-    assert cells[-1] == "199", "flag_raw comes off `live`, so it survives a PPG-less frame"
+    assert cells[-3] == "", "ppg_offset must be blank, never 0, when the stream is off"
+    assert cells[-2] == "199", "flag_raw comes off `live`, so it survives a PPG-less frame"
+
+
+def test_oxyframe_records_run_status_when_the_frame_carries_it(tmp_path):
+    """`run_status` (payload[4]) was parsed since day one and never persisted — which is why no night
+    could ever answer whether it discriminates device states (OXYII-PRESENCE-MODEL §5). Recorded raw,
+    blank when absent — the same never-fabricate rule as ppg_offset."""
+    p = tmp_path / "o.txt"
+    w = OxyFrameLogWriter(str(p), fsync=False)
+    w.write(WHEN, {"duration": 900, "flag": 1, "run_status": 2})
+    w.write(WHEN, {"duration": 901, "flag": 1, "run_status": 0})
+    w.close()
+    rows = [r.split(";") for r in _rows(str(p))]
+    assert [r[-1] for r in rows] == ["2", "0"], "run_status 0 is a READING, not an absence"
 
 
 def test_oxyframe_carries_the_per_frame_ppg_arithmetic(tmp_path):
