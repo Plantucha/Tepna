@@ -237,10 +237,13 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       <div id="nightHeader"></div>
       <div class="results-actions">
         <button id="addNightsBtn" type="button" style="display:none">+ Add nights</button>
+        <button id="compareBtn" type="button" title="Validate a BLE-captured live BRP against this SD night">⚖ Compare live capture</button>
         <button id="newSetBtn" type="button">← New</button>
       </div>
     </div>
+    <input type="file" id="compareInput" accept=".edf" style="display:none">
     <div id="results"></div>
+    <div id="comparatorHost"></div>
   </div>
 
 </div><!-- .page -->

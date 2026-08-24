@@ -17432,9 +17432,95 @@
       // refusal-first: one file, and a channel absent in one file
       T.ok('one file alone is not a comparison', CX.cpapCompare(ser(A), null).ok === false);
       T.ok('a channel absent in one file refuses per-channel', CX.compareChannel(ser(A), { t0Ms: 1000000, fs: fs, values: [] }).ok === false);
+      // PHASE RECOVERY — flow is quasi-periodic, so alignment must be at the FULL sample rate: a
+      // small sub-second lag collapses the scale if mis-aligned. B is A shifted +7 samples; the fine
+      // xcorr must recover it (a 1 Hz-downsampled xcorr would smooth it away and mis-lock).
+      var pf = 25,
+        pn = 1300 * pf,
+        PA = [],
+        PB = [];
+      for (var pi = 0; pi < pn; pi++) PA.push(Math.sin(pi / 13) + 0.3 * Math.sin(pi / 3));
+      for (var pj = 0; pj < pn; pj++) PB.push(pj - 7 >= 0 ? PA[pj - 7] : 0); // B[j] = A[j-7]
+      var pr = CX.compareChannel(ser(PA), ser(PB));
+      T.ok(
+        'fine xcorr recovers a +7-sample (0.28 s) phase lag → scale ~1',
+        pr.ok && Math.abs(pr.scale.a - 1) < 0.02,
+        'a=' + (pr.ok && pr.scale.a && pr.scale.a.toFixed(3)) + ' lag=' + (pr.ok && pr.appliedLagSec)
+      );
+      T.ok('scaleOverTime present + scaleStable for a constant-scale pair', pr.ok && Array.isArray(pr.scaleOverTime) && pr.scaleStable === true);
       // set-level: a channel map compares each channel
       var setR = CX.cpapCompare({ Flow: ser(A) }, { Flow: ser(B) });
       T.ok('set-level compare returns per-channel results', setR.ok && setR.channels.Flow.ok && Math.abs(setR.channels.Flow.scale.a - 0.9) < 1e-3);
+
+      // ── RENDER: the comparator PANEL surfaces the result as badged cards (node-lane only; the browser
+      //    lane runs render in iframe rigs). Every surfaced number carries a MEASURED badge; a channel
+      //    refusal becomes a CLOCK FINDING, not aligned through; NO Pearson r as a metric. ──
+      var CR = env.CpapRender;
+      if (CR && typeof CR.comparatorPanel === 'function') {
+        var okPanel = CR.comparatorPanel({ ok: true, channels: { 'Flow.40ms': setR.channels.Flow } }, { liveLabel: 'BLE live', sdLabel: 'device SD' });
+        T.ok('panel renders the scale as a MEASURED-badged card', /ev-measured/.test(okPanel) && /Live vs SD/.test(okPanel) && /0\.9/.test(okPanel));
+        T.ok('panel carries the overlap n beside the numbers (every quoted figure has its n)', /min overlap/.test(okPanel) && /n /.test(okPanel));
+        var refuse = CR.comparatorPanel({ ok: false, reason: 'the headers disagree by 14400 s (4.00 h) — a clock defect, not a different night.' });
+        T.ok('a set-level refusal renders its quantified reason', /14400 s/.test(refuse) && /4\.00 h/.test(refuse));
+        var clk = CR.comparatorPanel({ ok: true, channels: { 'Flow.40ms': { ok: false, reason: 'device clocks disagree by 2532 s beyond alignment tolerance' } } });
+        T.ok('a channel-level clock disagreement surfaces as a CLOCK FINDING (red), not aligned through', /Clock finding/.test(clk) && /--red/.test(clk));
+
+        // ── RIDERS (lead 2026-08-24): role-print, direction-explicit, far-from-identity honesty. ──
+        T.ok('panel PRINTS the assumed role assignment (rider 1 — roles are yours, not sniffed)', /roles are yours, not sniffed/.test(okPanel) && /live capture/.test(okPanel));
+        T.ok('alignment offset is direction-explicit — "live starts N s after/before SD" (rider 2)', /live starts .* s (after|before) SD/.test(okPanel));
+        T.ok('scale is labelled SD/live, never a bare number (rider 2)', /SD\/live/.test(okPanel));
+        // rider 4: a far-from-identity scale surfaces the reciprocal + the swapped-roles hypothesis
+        var farOk = CX.compareChannel(
+          { t0Ms: 0, fs: 25, values: A },
+          {
+            t0Ms: 0,
+            fs: 25,
+            values: A.map(function (v) {
+              return v * 1.3;
+            })
+          }
+        );
+        T.ok('DSP flags scaleFarFromUnity for a genuine 1.3× gain (near-1 pairs stay unflagged)', farOk.ok && farOk.scaleFarFromUnity === true && setR.channels.Flow.scaleFarFromUnity === false);
+        var farPanel = CR.comparatorPanel({ ok: true, channels: { 'Flow.40ms': farOk } });
+        T.ok('panel names BOTH explanations + shows the reciprocal for a far-from-identity scale (rider 4)', /reciprocal \(live\/SD\)/.test(farPanel) && /swapped/.test(farPanel));
+      } else {
+        T.skip('CpapRender.comparatorPanel wired', 'Node-lane only (run-tests.mjs executes *-render.js headless); the browser lane runs render in iframe rigs so it SKIPs');
+      }
+      // ── RIDER 3 (DSP, lane-independent): a recording_id mismatch is a HARDER refusal than a date
+      //    mismatch — a different device is not two records of one therapy session. ──
+      var devMismatch = CX.cpapCompare({ Flow: ser(A) }, { Flow: ser(B) }, { liveRecId: 'SRL123 MID46 VID3', sdRecId: 'SRL999 MID46 VID3' });
+      T.ok(
+        'cpapCompare refuses on recording_id (device) mismatch, quoting both ids',
+        !devMismatch.ok && /DIFFERENT DEVICES/.test(devMismatch.reason) && /SRL123/.test(devMismatch.reason) && /SRL999/.test(devMismatch.reason)
+      );
+      var devMatch = CX.cpapCompare({ Flow: ser(A) }, { Flow: ser(B) }, { liveRecId: 'SRL123', sdRecId: 'SRL123' });
+      T.ok('cpapCompare proceeds when recording_ids match', devMatch.ok === true);
+
+      // ── EQUIV RE-RUN (GATE-C): the committed comparator golden must be REPRODUCED by re-running the
+      //    real readEDF → compareChannel chain on the committed twin EDFs — not merely declared. This is
+      //    the dynamic leg the fixture-reproducibility gate requires; the twins are synthetic + committed
+      //    so it runs in BOTH lanes (node reads the files, browser fetches them). ──
+      var eq = env.equiv && env.equiv.cpapdex_comparator;
+      var CE = env.CpapEdf;
+      if (eq && eq.input && eq.fixture && CE && typeof CE.readEDF === 'function') {
+        var recL = CE.readEDF(eq.input.live),
+          recS = CE.readEDF(eq.input.sd);
+        var chL = recL.signals['Flow.40ms'],
+          chS = recS.signals['Flow.40ms'];
+        var got = CX.compareChannel({ t0Ms: recL.clock.t0Ms, fs: chL.fs, values: chL.data }, { t0Ms: recS.clock.t0Ms, fs: chS.fs, values: chS.data });
+        var want = eq.fixture;
+        T.ok(
+          'golden REPRODUCED — readEDF(twins) → compareChannel ≡ committed golden (scale/offset/overlap)',
+          got.ok && Math.abs(got.scale.a - want.scale.a) < 1e-9 && Math.abs(got.alignmentOffsetSec - want.alignmentOffsetSec) < 1e-9 && Math.abs(got.overlapMin - want.overlapMin) < 1e-9,
+          'got a=' + (got.scale && got.scale.a)
+        );
+        T.ok(
+          'golden REPRODUCED — Bland-Altman + flags match',
+          got.scaleStable === want.scaleStable && got.scaleFarFromUnity === want.scaleFarFromUnity && Math.abs(got.blandAltman.bias - want.blandAltman.bias) < 1e-9
+        );
+      } else {
+        T.skip('comparator golden re-run (env.equiv.cpapdex_comparator + CpapEdf)', 'twins/golden not wired in this lane — the committed pair should make this run everywhere');
+      }
     });
 
     /* ════ CPAPDex pressureChangePoints — STEP-IMMUNE penalty scale (DEEP-AUDIT-II §6.1, PEN_K half) ════
