@@ -1041,3 +1041,28 @@ def test_controller_hands_both_sinks_to_the_pump_raw_record_first():
             await c.op("stop")
         _run(go())
     go_body()
+
+
+def test_build_controller_wires_the_raw_record_sink_when_configured(tmp_path):
+    """cpap.ble_stream.raw_record_dir enables the durable JSONL raw record (INV9). session_id is a
+    host-authored acquisition-run id; device_id is the provisional serial (UNKNOWN when absent)."""
+    import capture
+    import cpap_record
+    out = tmp_path / "cpap-raw"
+    cfg = {"cpap": {"ble_stream": {"raw_record_dir": str(out), "serial": "23211234567"}}}
+    ctl = capture._build_cpap_controller(object(), cfg, str(tmp_path / "config.yaml"))
+    assert ctl._raw_record_factory is not None, "raw_record_dir enables the sink"
+    sink = ctl._raw_record_factory()
+    assert isinstance(sink, cpap_record.RawRecordSink)
+    assert sink._device_id == "23211234567"
+    assert sink._session_id and sink._path.endswith(".jsonl") and "cpap-raw-" in sink._path
+    # serial absent → provisional placeholder, never a wrong guess
+    ctl2 = capture._build_cpap_controller(object(), {"cpap": {"ble_stream": {"raw_record_dir": str(out)}}},
+                                          str(tmp_path / "c.yaml"))
+    assert ctl2._raw_record_factory()._device_id == "UNKNOWN"
+
+
+def test_build_controller_leaves_the_raw_record_off_without_a_dir(tmp_path):
+    import capture
+    ctl = capture._build_cpap_controller(object(), {"cpap": {}}, str(tmp_path / "config.yaml"))
+    assert ctl._raw_record_factory is None

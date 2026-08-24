@@ -53,6 +53,18 @@ def _iso_utc(epoch_s):
         t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec, ms)
 
 
+def new_session_id(now=None, entropy=None):
+    """A HOST-AUTHORED acquisition-run id — it names OUR capture attempt, not the device session (the
+    device timeline is preserved per-batch in `device_start`). Sortable UTC stamp + short entropy
+    (`YYYYMMDDTHHMMSSZ-<6hex>`) so records sort chronologically and survive a same-second restart. The
+    P2 follow-up makes `AcqLifecycle` the ISSUER of this id — the generator moves, the shape does not."""
+    t = time.gmtime(now if now is not None else time.time())
+    stamp = "%04d%02d%02dT%02d%02d%02dZ" % (
+        t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec)
+    raw = entropy if entropy is not None else os.urandom(3)
+    return stamp + "-" + raw.hex()[:6]
+
+
 class RawRecordSink:
     """Durable append-only JSONL raw record for one CPAP acquisition session."""
 

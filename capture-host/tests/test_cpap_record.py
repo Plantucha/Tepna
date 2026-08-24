@@ -3,7 +3,6 @@
 #
 # CPAP hardening P1 — the durable raw record sink. Pure I/O logic, 100% branch.
 import json
-import os
 
 import pytest
 from cpap_record import RawRecordSink, _channel_meta, _iso_utc, _truncate_torn_tail
@@ -160,3 +159,18 @@ def test_default_wall_is_the_real_host_clock(tmp_path):
     s.on_batch(_batch("2026-08-23T22:00:01.000Z", 40))
     s.close()
     assert _lines(p)[1]["host_wall"].endswith("Z")
+
+
+# ── the host-authored acquisition-run id ────────────────────────────────────────────────────────────
+
+def test_new_session_id_is_a_sortable_stamp_plus_entropy():
+    from cpap_record import new_session_id
+    sid = new_session_id(now=0, entropy=b"\xab\xcd\xef")
+    assert sid == "19700101T000000Z-abcdef"
+
+
+def test_new_session_id_defaults_use_the_host_clock_and_random_entropy():
+    import re
+    from cpap_record import new_session_id
+    sid = new_session_id()                                    # no injection → real clock + os.urandom
+    assert re.fullmatch(r"\d{8}T\d{6}Z-[0-9a-f]{6}", sid), sid
