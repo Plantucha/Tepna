@@ -111,6 +111,12 @@ def test_the_row_KEY_SET_is_the_ledger_contract():
     assert set(row) == {
         "id", "device_id", "session", "state", "reason",
         "size", "reported_size", "sha256", "path", "attempt", "at",
+        # `failure` — added DELIBERATELY by G1 (#1702), which is the whole point of asserting the
+        # SET: this test went red the moment the key appeared, and extending it is a decision someone
+        # had to make rather than a diff that slipped through. It carries the failure CLASS label,
+        # not prose — `reason` explains to a human, this is what `oxy_transfer.select()` branches on,
+        # so a permanent failure can never be retried by a string mismatch.
+        "failure",
     }, "a renamed or added ledger key breaks every reader that subscripts it"
 
 
