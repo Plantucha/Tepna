@@ -86,6 +86,8 @@ ALLOW_FUNCS = {
     # and the gate should say so. Only the one-line trust accessor is fenced.
     "is_trusted": "oxy_restart G3 — the plan's single affirmative accessor; standalone until G1 acts on the plan (charter §4)",
     "append_row": "oxy_inventory G2 — standalone until G1 wires the ledger into _pull_once (charter §4)",
+    "sync_spool": "cpap_spool P4 — the transaction driver; standalone until the announced daemon wiring (P4 brief §7: the nightly-pull touch rides with P1/P3)",
+    "last_committed_cursor": "cpap_spool P4 — the restart authority G4/P5 and the wiring consume; standalone until the announced daemon wiring (P4 brief §7)",
     "load_rows": "oxy_inventory G2 — standalone until G1 wires the ledger into _pull_once (charter §4)",
     "make_row": "oxy_inventory G2 — standalone until G1 wires the ledger into _pull_once (charter §4)",
     "sha256_bytes": "oxy_inventory G2 — standalone until G1 wires the ledger into _pull_once (charter §4)",
