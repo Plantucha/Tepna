@@ -124,7 +124,9 @@ the flag was False, it was that nothing said so.
       `duration_s` axis. ⚠️ **The recording axis is `OXYII-PRESENCE-MODEL`'s model** — coordinate the
       seam before locking the enum, and do not collide with that brief's in-flight `IDLE_UNWORN` emit.
 - [ ] **T0–T7 latency instrumentation**, key metric recording-end → durable-raw.
-- [ ] **§22's 8-case restart matrix**, verbatim.
+- [ ] **§22's 8-case restart matrix — MAPPED in §10: 5 of 8 already built** by #1702's
+      `crash_1…crash_10`. The residue (cases 2, 3, 7) is exactly the recording-axis cases and belongs
+      with unit 2. Do not write eight new tests.
 - [ ] **§24 real-ring tests** — build to be testable, hand the checklist to the box session; one ring
       window can serve this and their pending E2E item.
 - [x] **§11 multi-recording ordering — ANSWERED in §9**, from the measured `O2RING-PROTOCOL` §4
@@ -421,6 +423,47 @@ its contents anywhere. Recording the full list (count + keys) at each pull makes
 Until that log exists, "most at risk" has **no evidence behind it**, and the honest scheduler behaviour is
 the one already shipped: pull `which=all`, oldest-key-first, and let completeness stand in for a priority
 we cannot yet justify.
+
+
+## 10 · §22 RESTART RECOVERY — 5 of 8 cases are ALREADY BUILT; the residue is exactly the axis cases
+
+§22 lists eight restart cases and requires that after a restart the system reconcile *"device state +
+local durable state + unfinished `.part` state + session journal"*. **Do not write eight new tests.**
+Five are already covered by the `crash_1…crash_10` series `oxy_transfer.py` shipped with (#1702), and
+the three that are not are precisely the ones gated on the recording axis. Mapped case by case:
+
+| § | case | status | where |
+|---|---|---|---|
+| 1 | host restarts while **not connected** | ✅ covered | `crash_1_before_any_request_leaves_nothing`, `crash_9_after_the_ledger_write_everything_agrees` |
+| 2 | host restarts **during recording** | 🔴 **blocked** | needs the recording axis — nothing durable records "a recording is in progress on the device" |
+| 3 | host restarts **immediately after recording ends** | 🔴 **blocked** | `END_CANDIDATE` must survive a restart before this is testable |
+| 4 | host restarts **during `.dat` download** | ✅ covered | `crash_3_mid_download_leaves_a_part_that_is_never_adopted`, `crash_4_complete_looking_bytes_are_still_not_adopted`, `resume_truncates_a_longer_stale_part_rather_than_splicing` |
+| 5 | host restarts **after download, before atomic commit** | ✅ covered | `crash_6_verified_but_not_committed_is_recoverable`, `crash_7_a_failed_rename_leaves_the_source_never_neither` |
+| 6 | host restarts **after commit, before analysis** | ✅ covered | `crash_8_committed_bytes_with_a_stale_ledger_are_repulled_never_lost` |
+| 7 | **BLE disconnects during recording** | 🔴 **blocked** | recording axis again |
+| 8 | **BLE disconnects during `.dat` pull** | ✅ covered | `download_reports_a_transport_exception_as_transport`, `select_retries_a_recoverable_failure_within_the_bound`, `select_stops_at_the_attempt_bound` |
+
+**The four reconciliation legs §22 names are all implemented**, and it is worth naming which function
+owns each so a later reader does not go looking for one module that does all four:
+
+- **device state** → `oxy_transfer.select(listing, ledger_rows)` — what the ring still holds against
+  what the ledger has seen.
+- **local durable state** and **unfinished `.part`** → `oxy_inventory.reconcile(ledger_rows,
+  disk_listing)`, whose four outcomes (`verified` · `repull` · `missing` · `size_drift`) are
+  deliberately asymmetric — `size_drift` in particular is never silently re-trusted *or* re-pulled.
+- **session journal** → the ledger rows both of the above consume.
+
+⚠️ **What these tests do NOT establish, stated so it is not over-claimed.** They are unit tests over
+pure functions that *construct the state at each crash point*; they do not actually restart a process.
+That is the right design rather than a shortcut — **a process kill does not lose page-cache data**, so
+a kill-based harness cannot test durability no matter how it is written; durability against **machine**
+failure is `fsync`'s job and is covered separately in `test_chaos_ordering.py`. So this table is a claim
+about **reconciliation**, and the honest reading of "§22 is 5/8 done" is *"five of the eight
+reconciliation behaviours are pinned"*, not *"five of the eight crashes have been survived in
+production"*.
+
+**What to build when the axis lands:** cases 2, 3 and 7 — one restart-reconciliation test each, keyed
+on `OxyRecState` surviving a restart. They belong with unit 2, not before it.
 
 
 ## APPENDIX — owner's full program spec (§1–27, verbatim)
