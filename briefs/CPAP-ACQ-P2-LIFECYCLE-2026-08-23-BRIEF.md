@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-23 · **Created:** 2026-08-23 · **Executes:** `CPAP-ACQUISITION-HARDENING-AUDIT-2026-08-23-BRIEF.md` P2 (reordered ahead of P1 per §5a) · **Lead:** the acquisition-hardening lead (session codename Mutator, 2026-08-23) · **Affects:** `capture-host/cpap_acq.py` (NEW), `capture-host/tests/test_cpap_acq.py` (NEW)
+**Status:** DONE — 2026-08-25 — 2026-08-23 · **Created:** 2026-08-23 · **Executes:** `CPAP-ACQUISITION-HARDENING-AUDIT-2026-08-23-BRIEF.md` P2 (reordered ahead of P1 per §5a) · **Lead:** the acquisition-hardening lead (session codename Mutator, 2026-08-23) · **Affects:** `capture-host/cpap_acq.py` (NEW), `capture-host/tests/test_cpap_acq.py` (NEW)
 
 # CPAP acquisition — P2: the lifecycle state machine, provenance record, and failure taxonomy
 
@@ -62,8 +62,10 @@ so it is collision-free with the feature arm).
 - [x] Failure taxonomy splits recoverable from permanent, every member classified (spec §30).
 - [x] `Transition` carries all spec-§3 fields + a `;`-delimited sidecar row with blank-not-zero absents.
 - [x] `tests/test_cpap_acq.py` — 20 tests, `cpap_acq.py` at **100% statement + branch**.
-- [ ] `capture-host/check.sh` green (ruff · shellcheck · pytest `--cov-fail-under=100`) — running.
-- [ ] Follow-up: P1 (raw sidecar tapping the feature arm's ingestion point) opens once that point lands.
+- [x] `capture-host/check.sh` green (ruff · shellcheck · pytest `--cov-fail-under=100`) — *(long
+      since: the gate has run green fleet-wide on every capture-host PR after this brief's units.)*
+- [x] Follow-up: P1 (raw sidecar tapping the feature arm's ingestion point) opens once that point lands.
+      *(P1 opened AND completed — cpap_record.py, #1708; its brief flipped DONE 2026-08-24.)*
 
 ## Clean-room attestation
 

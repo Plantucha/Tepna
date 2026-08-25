@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-08-21 · **Created:** 2026-08-21 · **Follows:** `INTEGRATOR-POOLED-CLOCK-APPLY-2026-08-01-BRIEF.md`, `CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF.md` · **Affects:** `integrator-dsp.js`
+**Status:** DONE — 2026-08-25 — 2026-08-21 · **Created:** 2026-08-21 · **Follows:** `INTEGRATOR-POOLED-CLOCK-APPLY-2026-08-01-BRIEF.md`, `CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF.md` · **Affects:** `integrator-dsp.js`
 
 # CPAP clock — a step-aware, per-night longitudinal offset model
 
@@ -62,3 +62,11 @@ carry `offsetSec: null`). Output: one record per night — `{ dateMs, offsetSec,
   *longitudinal* layer that fills unanchored nights and makes cross-night views step-safe.
 - **Sub-second** — the CPAP offset is coarse (minutes); this models minutes-scale drift + steps, not the
   sub-second axis the wearables get from `hostAxis`.
+
+## Verification at DONE — 2026-08-25 (coordinator sweep)
+
+`fitClockOffsetSegments` ships in `integrator-dsp.js` (exported, pure) and is driven by its
+`tests/dex-tests.js` group (planted-step vs drift separation per the box text); the chain landed
+with its changeset in the release history. Checked as a block rather than per-box. Longitudinal
+device-clock evidence continues to accrue via the AS11-CLOCK-DISCIPLINE sidecar (#1749), which
+supersedes this brief as the living collection mechanism.
