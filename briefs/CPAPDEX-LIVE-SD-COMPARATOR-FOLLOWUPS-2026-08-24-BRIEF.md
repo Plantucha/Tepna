@@ -78,6 +78,22 @@ box owes the captures) to turn either into a validated agreement rather than a s
   is already channel-agnostic, so this is a small extension rider on whichever CPAPDex unit next
   touches the comparator (tepna-99's lane). Delivered-pressure live-vs-SD is the first channel where
   a divergence would be therapy-relevant rather than telemetry-relevant.
+  - **EXECUTED 2026-08-25 — but as BRP `Press.40ms`, NOT PLD, and the distinction is load-bearing.**
+    Measured before building: the live path emits `_BRP.edf` only — `cpap_edf.build_pld` exists but is
+    wired to nothing (it sits in the `find_unwired` allowlist), and `EdfSink` writes a single
+    `{stamp}_BRP.edf`. So a **PLD** comparison has **no live side at all** and could not have been
+    built; shipping one would have been capability without a customer, the same ground §2 was declined
+    on. What *was* available is better: a real `BRP.edf` carries `Flow.40ms` **and** `Press.40ms`
+    (`_BRP_SPECS`, verbatim AirSense 11) on BOTH sides, at 25 Hz rather than PLD's 2 s — so the
+    therapy-relevant delivered-pressure comparison shipped today at a higher rate than the triage
+    imagined, with zero capture-host work. PLD joins when the live EDF set completes.
+  - The comparator core needed **no change**: `cpapCompare` already unions both sets' labels,
+    `compareChannel` has no per-channel logic, and `comparatorPanel` already renders one card per
+    channel. Checked rather than assumed that it is **unit-safe**: every threshold is dimensionless
+    (`slope`, the 0.15 identity band, the 0.05 stability band) or data-derived (`1.96·SD-of-diffs`).
+    The only missing piece was that the app built a flow-only set — now the pure, gate-backed
+    `CPAPCross.buildCompareSets`, so the wiring itself is asserted rather than living in a closure no
+    gate can see.
 - **§5 replicate the pins — ONGOING BY CONSTRUCTION, not a schedulable unit.** Every paired
   capture-host night adds n for free now that both paths run in production; the box's nightly capture
   + 13:00 harvest is the collection mechanism, and the guide's n counts update as pairs accrue. No
@@ -87,3 +103,5 @@ box owes the captures) to turn either into a validated agreement rather than a s
 - [x] §1 visual smoke test performed and recorded (coordinator, 2026-08-24) — three findings, all resolved in the visual-smoke follow-up PR (invisible cards, divergence band, filename-gate note).
 - [x] §2–§5 triaged (2026-08-25, above): §2 declined-until-need with a reopen criterion, §3 declined,
       §4 scheduled as a comparator-touching rider, §5 ongoing by construction.
+- [x] §4 EXECUTED 2026-08-25 as BRP `Press.40ms` (not PLD — no live PLD exists; see the note above).
+      `buildCompareSets` + 8 assertions, three of them verified to fail when the invariant is relaxed.

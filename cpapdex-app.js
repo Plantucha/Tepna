@@ -241,7 +241,15 @@ import { CpapRender } from './cpapdex-render.js';
         // no fixture/gate impact). One flow array per session on the loaded nights; used only when the
         // user opts in to a live comparison. `recording` is the EDF recording_id (device identity).
         var _bf = set.BRP && set.BRP.signals && set.BRP.signals['Flow.40ms'];
-        if (_bf && _bf.data && _bf.data.length && set.BRP.clock) sess._brpRaw = { values: _bf.data, fs: _bf.fs, t0Ms: set.BRP.clock.t0Ms, recording: set.BRP.recording };
+        if (_bf && _bf.data && _bf.data.length && set.BRP.clock) {
+          sess._brpRaw = { values: _bf.data, fs: _bf.fs, t0Ms: set.BRP.clock.t0Ms, recording: set.BRP.recording };
+          // v1.1 — the DELIVERED-PRESSURE channel, retained beside flow. A real BRP.edf carries both
+          // (`_BRP_SPECS` = Flow.40ms + Press.40ms, verbatim from the AirSense 11 format), on the SD
+          // side AND on the EdfSink live side, so this needs no capture-host work: the channel was
+          // always there and the comparator was simply only ever handed flow.
+          var _bp = set.BRP.signals['Press.40ms'];
+          if (_bp && _bp.data && _bp.data.length) sess._brpRawPress = { values: _bp.data, fs: _bp.fs, t0Ms: set.BRP.clock.t0Ms, recording: set.BRP.recording };
+        }
         sessions.push(sess);
       }
     });
@@ -343,11 +351,18 @@ import { CpapRender } from './cpapdex-render.js';
           '<div class="card"><div class="card-h">Live vs SD comparator</div><div class="qc-note" style="color:var(--red)">the live file has no Flow.40ms channel — is it a BRP.edf?</div></div>';
         return;
       }
-      var cmp = global.CPAPCross.cpapCompare(
-        { 'Flow.40ms': { t0Ms: live.clock.t0Ms, fs: lf.fs, values: lf.data } },
-        { 'Flow.40ms': { t0Ms: sd._brpRaw.t0Ms, fs: sd._brpRaw.fs, values: sd._brpRaw.values } },
-        { liveRecId: live.recording, sdRecId: sd._brpRaw.recording }
-      );
+      // v1.1 MULTI-CHANNEL. The set-building lives in CPAPCross.buildCompareSets (pure + gate-backed)
+      // rather than here, so the WIRING is testable: an app closure that silently stopped handing over
+      // the pressure channel would otherwise be invisible — every comparator test would stay green
+      // while the panel quietly lost a card.
+      var sets = global.CPAPCross.buildCompareSets(live, {
+        'Flow.40ms': sd._brpRaw,
+        'Press.40ms': sd._brpRawPress
+      });
+      var cmp = global.CPAPCross.cpapCompare(sets.liveSet, sets.sdSet, {
+        liveRecId: live.recording,
+        sdRecId: sd._brpRaw.recording
+      });
       chost.innerHTML = CpapRender.comparatorPanel(cmp, { liveLabel: 'BLE live', sdLabel: 'device SD' });
       // draw the scaleOverTime sparkline(s) on the injected canvases
       if (cmp && cmp.ok && cmp.channels && CpapRender.drawScaleSpark) {
