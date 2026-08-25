@@ -116,6 +116,7 @@ the flag was False, it was that nothing said so.
 ## 5 · Sequenced after unit 1
 
 - [x] **Measure the post-drop awake tail — the history route was RUN, and it does NOT resolve.** See
+      §5a. ⚠️ **§8 demotes this**: the tail no longer gates the primary path, only the recovery path. See
       §5a. It yields the pull-duration half of the answer and a single uncontaminated data point, and
       it establishes that the tail needs a deliberate experiment. The three-way decision (sufficient /
       shorten the settle / hold-through-pull) is **still open**.
@@ -143,6 +144,17 @@ separated by ≥3 h; `N` is a clean mode (**5 min in 53 of 53**), so drop = t_al
 **median 20.7 s · p90 68.6 s · max 104.7 s**. So a fire-after-drop pull must fit inside
 **210 s settle + ≤105 s ≈ 5.25 min** of awake tail.
 
+Split by scope, because the two are not the same cost and §8's design uses the cheaper one:
+
+| scope | n | min | median | p90 | **max** |
+|---|---|---|---|---|---|
+| `which=all` | 417 | 0.0 s | 22.1 s | 69.4 s | **104.7 s** |
+| `which=latest` | 16 | 4.1 s | 18.1 s | 31.1 s | **41.1 s** |
+
+**Zero of the 433 exceeded 170 s**, at either scope. `which=latest` is the scope a close-triggered
+pull uses, and `which=all` bounds it above for the same content, so 104.7 s is the conservative
+ceiling and 41.1 s the observed one for the path actually proposed.
+
 **Why it cannot give the tail itself.** Both bounds are confounded, in opposite ways:
 
 - **From below — the successes are re-wear, not tail.** Ten successful reaches land 1.2–15.0 min after
@@ -164,6 +176,15 @@ separated by ≥3 h; `N` is a clean mode (**5 min in 53 of 53**), so drop = t_al
 with the link gone **2.4 min later**. That is a real post-drop pull: tail ≥ 1.2 min, and plausibly under
 3.6 min — i.e. **below the 5.25 min the current settle needs**. n=1. It is a reason to run the
 experiment, not a result, and it is the only reason §5's checkbox is not simply closed as "sufficient".
+
+**⚠️ What the tail does NOT gate — the mistake is easy and I made it.** The tail bounds the *pull*,
+not the *observation of the close*. `_DROP_NOT_WORN_SEC = 180 s` (`capture-host/capture.py:1421`) and
+the settle is `max(notworn_settle_sec, _DROP_NOT_WORN_SEC + 30)`, so the link is deliberately **held
+for 180 s** after not-worn — and the ring's close lands at ~10 s, well inside it. `observed_s` is
+therefore available whenever the daemon was connected at the doff moment, and it does not depend on
+the tail at all. The genuinely rare `source: "stored"` case is doff *during* a BLE outage, a smaller
+and different population — and one this corpus is equally poor at sizing, since a mid-recording
+interference drop and a doff drop share the same `not advertising` signature.
 
 **The experiment this leaves.** After a *known* doff, attempt a connect every 30 s and record the first
 failure — while holding the H10 connected throughout as an **adapter-health control that must stay
@@ -222,6 +243,99 @@ mechanism that could not handle it.
 - [ ] Every item in §5 is built, or recorded as declined with a measured reason.
 
 ---
+
+## 8 · OWNER'S DESIGN RULING — pull over the HELD LINK, not after the drop
+
+**Relayed 2026-08-24 via the `Mutator` session as owner-prompted; recorded with that provenance
+rather than as an independently confirmed owner statement.** The owner asked why the link survives
+180 s post-doff when the close is observed at ~10 s. Following it through dissolves the
+settle-vs-tail conflict instead of resolving it:
+
+> Since the ring closes its own session file ~10 s post-doff (device verdict), the 180 s grace
+> protects nothing session-wise. **Do not fire after the drop at all — pull over the still-held link
+> on observing the `duration_s` reset, then let the drop happen on its existing schedule.**
+
+**The arithmetic closes the original objection, and the margin is wider than first stated.** The old
+objection (§4's, quoted in `notworn_pull_due`'s docstring) is that a pull inside the grace *holds the
+link open and blocks the drop*. It does not, on timing: close at **+10 s**, and the window to the drop
+at **+180 s** is **170 s**. Against `which=latest`'s observed max of **41.1 s** that is a **4.1×**
+margin; against the conservative all-scope ceiling of 104.7 s it is still **1.6×**, and **0 of 433
+observed pulls exceeded 170 s**. So the clamp's battery concern is satisfied **by timing rather than
+by ordering**.
+
+**Consequences:**
+
+1. `_DROP_NOT_WORN_SEC` and the ≥210 s clamp stay **UNTOUCHED**. The trigger moves from *"after drop
+   + settle"* to *"on close, over the held link"*, which sidesteps the owner-gated power policy
+   entirely rather than asking for an exception to it.
+2. The awake-tail experiment (§5a) becomes **unnecessary for the primary path** and stays queued for
+   the **recovery** path — a pull that fails and retries *after* the drop still depends on the tail.
+3. §7's live-capture invariant is trivially satisfied post-doff: the paused frames are `contact=0`
+   junk. Record the pause in the journal as always.
+4. Unit 2 likely **simplifies**: the doff trigger keys on the recording-state engine's
+   `END_CANDIDATE` — which §5 builds anyway — instead of the drop/settle machinery.
+5. **Brief off-finger needs no special-casing.** The ring closes the session regardless, so an
+   immediate pull of a short session is correct behaviour, not a false trigger.
+
+### 8a · The two risks, and the one that must be built rather than measured
+
+- **Trailer flush (measure it).** A pull at +10 s may catch an unfinalized file. Check the
+  finalization predicate (`48 12 5a da`) before serving, re-serve on the existing recovery path, and
+  **instrument the close→finalized delay — nobody has measured it.** Worst case the pull waits and
+  retries inside the grace.
+- 🔴 **An observed maximum is not a bound — the pull needs a HARD DEADLINE.** Every number above is
+  an observed max over 433 samples, and the invariant being defended ("never delay the power drop")
+  is one a single hung pull violates. The margin analysis says the design is *sound*; it does not say
+  the implementation is *safe*. **The pull must abort itself at a deadline strictly inside the grace**
+  (drop_at − a guard band), so blocking the drop is impossible by construction rather than improbable
+  by measurement. Without that, this is the repo's standing defect class in mirror image: treating a
+  distribution's tail as a guarantee. With it, the arithmetic above is a statement about how *often*
+  the deadline is hit — which is the honest thing for it to be.
+
+  **The requirement, as agreed with the lead and to be built verbatim:** the close-triggered pull runs
+  under an **abort deadline of `drop_at − guard_band`**. Hitting the deadline **aborts to `.part`**,
+  and the existing recovery inherits it — the hourly poller, or a post-drop retry (which is where §5a's
+  awake tail still applies). The arithmetic's role is to predict the **frequency** of a deadline hit —
+  rare, at 4.1× headroom on `which=latest` — and never to substitute for the deadline itself.
+
+
+### 8b · The link-axis seam — settled with the lead, 2026-08-24
+
+Scoping unit 2 turned up a blocker that is worth recording because it is a point **in §8's favour**:
+**§8's held-link pull was not representable in `capture-host/oxy_lifecycle.py`'s landed transition
+table.** Entry existed — `(IDLE_UNWORN, PAUSED_FOR_PULL)` and `(LIVE, PAUSED_FOR_PULL)` — but neither
+`PAUSED_FOR_PULL` nor `PULLING` had any edge back to `LIVE` or `IDLE_UNWORN`; the only route home was
+`→ CONNECTING → CONNECTED → LIVE`. The table therefore **encoded the old design as an invariant — a
+pull costs the link** — which is exactly what §8 overturns, and a held-link pull handing the link back
+would have raised `InvalidTransition`.
+
+**That is the transition table doing its job.** The invariant was load-bearing for fire-after-drop, and
+it fails *loudly at runtime* rather than silently — which is the visible failure mode these tables are
+built for. It was found by reading the table before writing against it, not by a gate.
+
+**Settled (the lead owns both, and is building the recording axis):**
+
+1. **The recording axis is a SECOND enum in `oxy_lifecycle.py`** — `OxyRecState`:
+   `UNKNOWN / NOT_RECORDING / RECORDING / END_CANDIDATE / END_CONFIRMED`, the owner spec's five and no
+   more, with its own transition table. **The lead builds it**, folding in the in-flight `IDLE_UNWORN`
+   emit. Unit 2 keys on `END_CANDIDATE` as a real symbol and **must not mint its own vocabulary** —
+   as of this writing `END_CANDIDATE` does not yet exist anywhere in `capture-host/`.
+2. **The two tables stay independent — no cross-axis transitions, ever** (owner spec §3). Correlation
+   happens in the **reader**.
+3. **Journaling: the same `OXYLIFE` writer with an appended `axis` column** (append-only; blank = link,
+   for historical rows). Both axes in one journal, no second sidecar.
+4. **All four resume edges become legal:** `(PULLING → LIVE)`, `(PULLING → IDLE_UNWORN)`,
+   `(PAUSED_FOR_PULL → LIVE)`, `(PAUSED_FOR_PULL → IDLE_UNWORN)`. **The resume target is chosen by
+   current contact at exit** — worn → `LIVE`, unworn → `IDLE_UNWORN`. §8's doff case lands in the
+   latter, but a pull **may** resume directly into `LIVE`: manual and reconciliation pulls can run
+   worn, so the autopull's off-finger condition makes `IDLE_UNWORN` the *common* exit, not the only
+   legal one.
+5. 🔑 **Success and deadline-abort share the same edge; the journal `reason` distinguishes them**
+   (`"pull complete"` vs `"aborted at deadline — .part retained"`). The `PAUSED_FOR_PULL` pair covers
+   abort-before-start, the `PULLING` pair covers success *and* mid-pull abort. **Do not mint a state
+   per outcome** — the LINK state after either outcome is genuinely identical, and a state per outcome
+   would put ledger facts into the link axis.
+
 
 ## APPENDIX — owner's full program spec (§1–27, verbatim)
 
