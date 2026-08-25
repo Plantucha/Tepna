@@ -4,7 +4,21 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** REFERENCE (living — the forward papers agenda; candidates flip to DONE in the tables as they ship) · **last-verified:** 2026-08-08 · **Created:** 2026-06-24
+**Status:** REFERENCE (living — the forward papers agenda; candidates flip to DONE in the tables as they ship) · **last-verified:** 2026-08-25 · **Created:** 2026-06-24
+
+> **Agenda refreshed 2026-08-25** (owner-directed sweep; the papers.html index/page agreement fixes ship
+> in the same change). What moved: **§2.3's and §3.1's adapter dependency is SATISFIED** — the adapter
+> spine closed 2026-07-04 (`SIGNAL-ADAPTER-*` all DONE), so both now state their real remaining
+> constraint (a champion; vendor-diverse co-recordings). **§2.6 gains a concrete unpark path** —
+> comparator v1.1 (#1787) ships live `Press.40ms` at 25 Hz, 12× the rate of the `MaskPress.2s` test
+> that parked it. **§2.7's CPAP arm hardened** — STR `deviceCsr` is cross-validated against CPAPDex
+> periodic-breathing % (#1781). **New candidate §2.9** (vibration fiducial, measured 2026-08-24).
+> **§2.8's σ-reproduction gate is UPDATED, not lifted:** sigma v2/v2.1 (2026-08-15) measured the
+> window-length sensitivity, withdrew the corner-reorder reading as a small-sample effect, and showed
+> the O2Ring corner reproducing window-matched — the **H10/Verity per-corner pipeline reconciliation is
+> still owed**, and §2.8 stays gated on it (plus the §2.2 hardware block). The two standing update
+> debts on shipped papers are unchanged and live in `PAPERS-AUDIT.md`: the R2 26-night re-run
+> (un-DRAFTs §2.4/§2.5) and folding the three 2026-08 walls into `dead-ends` (§2.2).
 
 > **2026-08-08 — a fourth wall for §2.2, and a caution on §2.8.** The `ms;hr;c` export contract made the
 > papers' own fused-weight three-cornered hat runnable from a committed artifact for the first time
@@ -166,6 +180,12 @@ Ordered by value × readiness. Each: **claim · data class · needs · bounding 
     so this is real beat-to-beat spread, not mis-detection. **⚠ This bears directly on §2.8**, whose
     ρ_crit ≈ 0.422 boundary is computed from these same corner σ: a boundary is only as identifiable as
     the variances feeding it, so §2.8 must not be written until the discrepancy is explained.
+    **Update 2026-08-25 — sharpened by sigma v2/v2.1 (2026-08-15), not resolved:** window-matched, the
+    O2Ring corner reproduces across both pipelines (2.44 vs 2.41, published inside the CI) and the
+    corner-reorder reading is withdrawn as a 24-night small-sample effect — but the H10 and Verity
+    corners still fall outside their intervals (published 1.28 / 1.42 vs window-matched 0.93 / 0.72),
+    and the paper itself records that *"a per-corner reconciliation of the two pipelines is owed and is
+    not yet done."* The gate on §2.8 stands until that reconciliation lands.
 
 - **⚠️ Honesty constraint this candidate must carry.** The PAT wall's harness does **not** reproduce the
   parent brief's `matchRate` (24–42 % vs 90–96 % on the same six nights) and that is unreconciled. The
@@ -187,6 +207,9 @@ Ordered by value × readiness. Each: **claim · data class · needs · bounding 
   adapter brief. **Bounding limitation:** the coupling model is necessarily coarse — frame as screening,
   not diagnosis. **Effort:** MED. This is also the intelligence layer OverDex wants, so the paper and
   the feature reinforce each other.
+- **Dependency status (2026-08-25): SATISFIED SINCE JULY.** The adapter spine and its
+  property/metamorphic test group shipped and closed 2026-07-04, so "alongside adapter metamorphic
+  tests" is no longer a wait. What this candidate lacks is a champion, not a prerequisite.
 
 ### 2.4 ✦✦ CPAP flow as a home reference standard — the one that closes §0 <span title="drafted">[DRAFTED]</span>
 - **Claim:** the reference-standard problem the whole series has been working around is *already solved
@@ -231,6 +254,10 @@ Ordered by value × readiness. Each: **claim · data class · needs · bounding 
   manufacturer's algorithm, not PSG; and an adversarial literature review surfaced a prior report whose
   direction may run *opposite*. **Status: PARKED** until the `MaskPress.2s` test resolves the mechanism —
   do not ship as-is. Draft: `papers/effort-typing-null.html`.
+- **Unpark path (2026-08-25):** the mechanism test that parked this ran against `MaskPress.2s` (2 s
+  sampling). Comparator v1.1 (#1787) now carries live `Press.40ms` — delivered pressure at 25 Hz, on
+  both live and SD sides of paired nights — so the CPAP-pressure hypothesis can be re-tested at 12× the
+  rate that failed it. Recorded so the parked reason stays honest; not a commitment to unpark.
 
 ### 2.7 AHI and oximetric burden disagree on the same nights — a real-validation candidate <span title="candidate">[CANDIDATE]</span>
 - **Claim:** the CPAP's own scored **AHI does not predict oximetric burden** on paired nights.
@@ -245,6 +272,9 @@ Ordered by value × readiness. Each: **claim · data class · needs · bounding 
   **fusion** question, and one subject cannot support a claim graded above its tier. **No node may
   surface it until n > 1 subject** — the same discipline that retired ECGDex's `estimatedAHI`.
 - Natural companion to §2.4 (CPAP flow as a home reference standard), which supplies the AHI leg.
+- **Readiness upgraded (2026-08-25):** the AHI leg's provenance hardened for free — CPAPDex matches the
+  device's own STR scoring to 0.05/h, and STR `deviceCsr` is now cross-validated against CPAPDex
+  periodic-breathing % (#1781). The n > 1-subject gate is unchanged and still the binding constraint.
 
 ---
 
@@ -282,6 +312,21 @@ Ordered by value × readiness. Each: **claim · data class · needs · bounding 
 - **⚠️ Do not overclaim the recovery.** σ(CPAP) moving 2.07 → 0.19 is *not* "the CPAP is a near-perfect
   sensor" — it is the model running out of room. The finding is the **boundary**, not the number.
 
+### 2.9 ✦ A vibration fiducial for cross-device time alignment <span title="candidate">[CANDIDATE — NEW 2026-08-25]</span>
+- **Claim:** a deliberate vibration event (the O2Ring's own buzzer, opcode-triggered from the capture
+  host) is a shared mechanical fiducial every co-worn IMU hears — cross-device time alignment **without
+  a shared host clock**, the exact gap `known-clock-recovery` leaves open. Measured 2026-08-24: the buzz
+  lands **5/5 in H10 ACC and 5/5 in Verity ACC** on the pairwise night; trigger→imprint latency
+  ~0.1–0.4 s, poll-quantized. An aperiodic fiducial also sidesteps the beat-train degeneracy (beat
+  matching pins a clock offset only mod one RR interval — align on aperiodic features).
+- **Data class:** REAL (own corpus). **Needs:** current stack — the capture-host buzz trigger shipped.
+  **Bounding limitation:** latency is quantized by the ring's poll loop, so the fiducial bounds
+  alignment at ~0.1–0.4 s — sufficient for stream-level alignment, **not** for beat-level PAT (which
+  `wearable-clock-drift` v3 shows fails for independent reasons anyway). Single subject, one trio; the
+  ring hears its own buzz worst.
+- **Effort:** LOW — the measurement exists; one night's analysis is most of the paper. Pairs with
+  `known-clock-recovery` (its missing no-shared-host arm) and §2.2's PAT wall.
+
 ---
 
 ## 3 · New paper candidates — unlocked by the PLANNED stack
@@ -295,10 +340,11 @@ These are the real-validation front. Each names the **stack dependency** so sequ
   rMSSD/SDNN — reference-free, via the three-cornered hat from `sigma-no-reference`. Most published HRV
   agreement studies compare *two* devices against one "truth"; a **reference-free hat across N consumer
   vendors** is genuinely rare.
-- **Data class:** REAL. **Needs:** adapter layer **Phase 1** (the multi-vendor ingest) + physical
-  co-recordings. **Bounding limitation:** how many devices you can co-wear, and motion-regime coverage
-  (the σ paper already shows resting sessions strip shared HRV — needs a dynamic session). **Effort:**
-  MED once Phase 1 lands; this is the single most publishable thing the adapter layer produces.
+- **Data class:** REAL. **Needs (updated 2026-08-25):** the adapter spine is **DONE (2026-07-04)** — no
+  code dependency remains; the binding constraint is **physical co-recordings across ≥3 vendors** (the
+  current corpus is Polar-heavy). **Bounding limitation:** how many devices you can co-wear, and
+  motion-regime coverage (the σ paper already shows resting sessions strip shared HRV — needs a dynamic
+  session). **Effort:** MED; this is the single most publishable thing the adapter layer produces.
 
 ### 3.2 ✦✦ EEG-anchored validation of cardiorespiratory sleep proxies — the closest thing to ground truth
 - **Claim:** once EEGDex (Muse) lands, EEG provides a **near-PSG sleep-stage reference**. Ask: how well
@@ -381,8 +427,14 @@ These are the real-validation front. Each names the **stack dependency** so sequ
 |---|---|---|---|---|
 | 2.1 Timestamp-pathology benchmark | real+synth | **none (now)** | LOW | ✅ **DONE 2026-07-08** — `timestamp-pathology.html` (+ live tool) |
 | 2.2 Dead-ends / negative results | mixed | **none (now)** | LOW–MED | ✅ **DONE 2026-07-08** — `dead-ends.html` |
-| 2.3 Cross-signal plausibility QC | synth+real | current stack | MED | now / alongside adapter metamorphic tests |
-| 3.1 Multi-vendor HRV agreement (real) | REAL | adapter **Phase 1** | MED | after adapter spine — flagship |
+| 2.3 Cross-signal plausibility QC | synth+real | **none (now)** — adapter deps closed 2026-07-04 | MED | unscheduled — needs a champion |
+| 2.4 CPAP flow home reference | REAL | **none (now)** | LOW–MED | ✅ **DRAFTED** — un-DRAFTs when the R2 26-night re-run lands |
+| 2.5 H10 ACC respiratory rate | REAL | **none (now)** | LOW | ✅ **DRAFTED** — un-DRAFTs when the R2 26-night re-run lands |
+| 2.6 Effort-typing null | REAL | `Press.40ms` mechanism re-test | LOW | ⏸ **PARKED** — unpark path exists (comparator v1.1) |
+| 2.7 AHI vs oximetric burden | REAL | **n > 1 subject** | MED | gated on the subject count, not the stack |
+| 2.8 σ identifiability boundary | REAL+synth | H10/Verity pipeline reconciliation | MED | ⛔ gated — see §2.2 walls |
+| 2.9 Vibration fiducial | REAL | **none (now)** | LOW | ready — data in hand (2026-08-24) |
+| 3.1 Multi-vendor HRV agreement (real) | REAL | vendor-diverse co-recordings (code deps done) | MED | when the corpus has ≥3 vendors — flagship |
 | 3.3 Longitudinal σ drift | REAL | **OverDex** (Phase 10) | MED | after OverDex |
 | 3.2 EEG-anchored sleep validation | REAL | **EEGDex** | HIGH | after EEGDex — highest payoff |
 | 3.4 Real metabolic-autonomic coupling | REAL | **UltrahumanDex** | MED | after UltrahumanDex |
