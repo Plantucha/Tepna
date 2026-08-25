@@ -115,6 +115,36 @@ def test_sidecar_writes_header_rows_and_blanks(tmp_path):
     assert sc.rows == 2
 
 
+def test_sidecar_survives_a_restart_and_writes_one_header(tmp_path):
+    # THE REGRESSION THIS FILE EXISTS FOR. The sidecar used to open "w", which TRUNCATES: every
+    # daemon restart wiped the night. Measured 2026-08-25 on the box — 57,445 bytes -> 0 at the exact
+    # second of `Started tepna-capture`, 11 restarts that day. Reopening must COST NOTHING.
+    p = tmp_path / "AS11CLOCK.csv"
+    first = C.ClockSidecar(str(p))
+    first.write("2026-08-24T23:00:00", 1000.0, "2026-08-24T23:21:00Z", 2260.0, -1260.0)
+    first.close()
+
+    second = C.ClockSidecar(str(p))  # ← the restart
+    second.write("2026-08-25T01:00:00", 8200.0, "2026-08-25T01:21:00Z", 9460.0, -1260.0)
+    second.close()
+
+    lines = p.read_text().splitlines()
+    assert lines.count(C.ClockSidecar.HEADER.strip()) == 1  # header exactly once, not per restart
+    assert len(lines) == 3  # header + BOTH rows — the pre-restart row survived
+    assert lines[1].startswith("2026-08-24T23:00:00")
+    assert lines[2].startswith("2026-08-25T01:00:00")
+
+
+def test_sidecar_row_reaches_disk_without_close(tmp_path):
+    # Line-buffered, not 64 KB: an unclean stop (SIGKILL, power loss) must not discard the rows
+    # already written. At 64 KB with ~90-byte rows a working sidecar read as a 0-byte file.
+    p = tmp_path / "AS11CLOCK.csv"
+    sc = C.ClockSidecar(str(p))
+    sc.write("2026-08-24T23:00:00", 1000.0, "2026-08-24T23:21:00Z", 2260.0, -1260.0)
+    assert "2026-08-24T23:21:00Z" in p.read_text()  # readable while the handle is still OPEN
+    sc.close()
+
+
 def test_sidecar_double_close_is_safe(tmp_path):
     sc = C.ClockSidecar(str(tmp_path / "x.csv"))
     sc.close()

@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import logging
+import os
 
 from cpap_detect import extract_fields
 from cpap_supervisor import Observation
@@ -155,8 +156,13 @@ class SessionSidecar:
         from cpap_supervisor import Decision
 
         self.path = path
-        self._fh = open(path, "w", buffering=1 << 16, newline="\n")
-        self._fh.write(";".join(Decision.ROW_FIELDS) + "\n")
+        # APPEND + line-buffered, never truncating "w" at 64 KB — see the identical note on
+        # as11_clock.ClockSidecar. A daemon restart must not cost the night's decisions, and a
+        # decision row must reach disk when it is made, not when 64 KB has accumulated.
+        fresh = not os.path.exists(path) or os.path.getsize(path) == 0
+        self._fh = open(path, "a", buffering=1, newline="\n")
+        if fresh:
+            self._fh.write(";".join(Decision.ROW_FIELDS) + "\n")
         self.rows = 0
 
     def write(self, decision) -> None:
