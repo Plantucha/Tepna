@@ -75,9 +75,19 @@ LEGAL_TRANSITIONS = frozenset({
     (_S.PAUSED_FOR_PULL, _S.PULLING), (_S.PAUSED_FOR_PULL, _S.CONNECTING),
     (_S.PAUSED_FOR_PULL, _S.DISCONNECTED), (_S.PAUSED_FOR_PULL, _S.RECOVERING),
     (_S.PAUSED_FOR_PULL, _S.SHUTTING_DOWN),
+    # HELD-LINK RESUME (DAT-AUTO-HARVEST §8, lead seam ruling 2026-08-24): a close-triggered pull runs
+    # over the link it already holds and hands it back WITHOUT a reconnect. The old table encoded "a
+    # pull costs the link" as an invariant — correct for fire-after-drop, overturned by §8 — and raised
+    # InvalidTransition on the way home (loudly, which is the table doing its job). Resume target is
+    # chosen by CONTACT AT EXIT: worn → LIVE, unworn → IDLE_UNWORN (the doff-triggered common case).
+    # Success and deadline-abort-to-.part share these edges ON PURPOSE — the link state after either
+    # outcome is identical, and the journal `reason` carries the difference; a state per outcome would
+    # put ledger facts into the link axis. The PAUSED pair covers abort-before-start.
+    (_S.PAUSED_FOR_PULL, _S.LIVE), (_S.PAUSED_FOR_PULL, _S.IDLE_UNWORN),
 
     (_S.PULLING, _S.PAUSED_FOR_PULL), (_S.PULLING, _S.CONNECTING), (_S.PULLING, _S.DISCONNECTED),
     (_S.PULLING, _S.ERROR), (_S.PULLING, _S.RECOVERING), (_S.PULLING, _S.SHUTTING_DOWN),
+    (_S.PULLING, _S.LIVE), (_S.PULLING, _S.IDLE_UNWORN),
 
     (_S.RECOVERING, _S.CONNECTING), (_S.RECOVERING, _S.DISCONNECTED), (_S.RECOVERING, _S.ERROR),
     (_S.RECOVERING, _S.PAUSED_FOR_PULL), (_S.RECOVERING, _S.SHUTTING_DOWN),
