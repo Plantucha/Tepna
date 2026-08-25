@@ -2903,7 +2903,25 @@ async def run_oxyii(dev: dict, root: str):
     import oxy_lifecycle
     _oxylc = oxy_lifecycle.OxyLifecycle(device_id=dev.get("device_id"),
                                         session_id=cpap_record.new_session_id())
+    # The RECORDING axis (OxyRecEngine) — same journal, axis="rec", INDEPENDENT of the link axis above.
+    # duration_s drives it (the measured signal); link loss moves it to UNKNOWN, never to NOT_RECORDING.
+    _oxyrec = oxy_lifecycle.OxyRecEngine(device_id=dev.get("device_id"), session_id=_oxylc.session_id)
     _oxywr = {"w": None}                        # G4 OXYLIFE.csv, opened once per run (first night dir)
+
+    def _rec_emit(transitions):
+        """Journal + surface RECORDING-axis transitions. Same discipline as the arrival telemetry in the
+        data callback: journaling must never disturb capture, so a writer error is logged and swallowed."""
+        for t in transitions:
+            try:
+                # The None guard is DEFENSIVE-ONLY (pragma'd): the OXYLIFE writer opens in the first
+                # loop iteration BEFORE any connect, and rec transitions need frames, which need a
+                # connect — so a rec transition with no writer requires a teardown race this function
+                # must survive but no test can deterministically produce.
+                if _oxywr["w"] is not None:   # pragma: no branch
+                    _oxywr["w"].write(t)
+                _set(name, oxy_recording=t.new.value)
+            except Exception:   # pragma: no cover - defensive: telemetry must not kill the data path
+                log.exception("%s: recording-axis journal write failed", name)
     while not _STOP.is_set():
         if _OXYII_PAUSE.is_set() or _RECOVER.is_set():   # a stored-session pull owns the link, or the adapter is recovering
             _set(name, connected=False,
@@ -3204,6 +3222,19 @@ async def run_oxyii(dev: dict, root: str):
                             _rtc_due[0] = True
                         _seq[0] = live["duration"]
                         _OXYII_LAST_DURATION[addr] = live["duration"]   # survives the next dropout
+                        # RECORDING axis: every live frame's duration_s feeds the engine; the backward
+                        # step lands here as END_CANDIDATE ~7–12 s after a doff, while the link is still
+                        # held — the moment the close-triggered pull (DAT-AUTO-HARVEST §8) keys on.
+                        _rec_emit(_oxyrec.observe_duration(live.get("duration")))
+                        # LINK axis worn-flips: contact is a worn-VOTE (never a recording signal), but it
+                        # IS the link axis's LIVE↔IDLE_UNWORN discriminator — the state measured running
+                        # unjournaled for 6 h on 2026-08-24 (docked-charging: connected, contact=0).
+                        if live.get("worn"):
+                            _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.LIVE,
+                                      "worn — frames flowing")
+                        else:
+                            _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.IDLE_UNWORN,
+                                      "ring reports not-worn")
                         now = _now()
                         # Arrival↔device pairing, one row per live frame. `duration` is SECONDS, carried
                         # in the ns column so the file has one shape for every device; the `meas` value
@@ -3408,6 +3439,9 @@ async def run_oxyii(dev: dict, root: str):
             log.warning("%s %s", name, link_error_text(e))
         finally:
             _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.DISCONNECTED, "session ended")
+            # RECORDING axis on link loss: the ring is UNOBSERVABLE, which is not the same fact as
+            # not-recording (§5: BLE loss must never read as "recording ended").
+            _rec_emit(_oxyrec.observe_link_lost())
             try:
                 oxy_arr_wr.close()
             except Exception:

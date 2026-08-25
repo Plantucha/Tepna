@@ -862,7 +862,10 @@ class OxyLifeLogWriter:
         self._fh = open(path, "w", buffering=1 << 16, newline="\n")
         if device is not None:
             self._fh.write(f"# device={device}\n")
-        self._fh.write("host_wall;host_monotonic;prev;new;reason;device;session;failure\n")
+        # `axis` appended 2026-08-24 (append-never-insert): blank = the LINK axis (every historical row),
+        # "rec" = the RECORDING axis (oxy_lifecycle.OxyRecEngine). No committed reader keys on column
+        # count (checked at append time: timeline/webmon/tools carry no OXYLIFE reader); read by header.
+        self._fh.write("host_wall;host_monotonic;prev;new;reason;device;session;failure;axis\n")
         self.rows = 0
         self._flush_interval = flush_interval
         self._fsync = fsync
