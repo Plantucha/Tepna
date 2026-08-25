@@ -217,16 +217,36 @@ saying plainly rather than treating the original intent as achieved.
 and far from the 13:00 harvest window. It was collateral damage of the conflation in §2a — disabled
 by a flag aimed at something else entirely.
 
-### 6a · Enablement plan (owner-sanctioned)
+### 6a · Enablement plan (owner-sanctioned) — ⚠️ **STEPS 3–4 SUPERSEDED BY §8**
 
 `on_charger` **stays False** on the box: the original intent is respected, fuzzy as it is. Only the
 doff trigger is enabled, in this order, so each step proves the next:
 
-1. Unit 1 lands → deploy.
+1. Unit 1 lands → deploy. **DONE 2026-08-24** (#1743; the box's hourly `tepna-update.timer` picked it
+   up into `/opt/tepna` the same evening).
 2. **Verify the arming line prints both states** — the diagnostic proving itself before it is trusted.
-3. Flip `pull.on_doff: true` — one owner-sanctioned config line.
-4. The first doff window proves the path live, and **finally measures the settle-vs-awake-tail
-   question on a real firing** rather than by argument.
+   **PENDING, and the reason is worth recording:** the code was deployed at 22:39 while the running
+   daemon had started at 21:33, so it is still executing pre-merge code and the line cannot appear
+   yet. All `auto-pull` lines in the surrounding 6 h are the old `enabled — checking … every 3600s`
+   form. It prints on the next daemon restart. **Do not force one during a capture window.**
+3. ~~Flip `pull.on_doff: true`~~ — 🔴 **DO NOT, as written.** §8 replaces fire-after-drop with a pull
+   **over the still-held link on the recording close**, so flipping this today enables the
+   **superseded** settle-then-reconnect path. The flip is also a live-capture behaviour change to a
+   **gitignored, box-local `config.yaml`**, so it is not revertible by a git revert and not visible in
+   the repo — which is exactly why it should not be done ahead of the design it serves.
+4. ~~The first doff window measures the settle-vs-awake-tail question on a real firing~~ — **no longer
+   the question.** §8 removes the tail from the primary path entirely; §5a demotes it to gating the
+   **recovery** path only.
+
+**What replaces steps 3–4.** The doff trigger becomes a **unit 2** question, not a config flip, and
+unit 2 waits on `OxyRecState.END_CANDIDATE` (§8b — the lead is landing the recording axis separately).
+Sequence, once that symbol exists: unit 2 implements the close-triggered held-link pull **with the
+§8a abort deadline**, its first real firing measures **close→finalized** (the one genuinely unmeasured
+number), and only then is there a flag worth turning on. Step 2 stands unchanged and is still the
+gate on everything after it.
+
+*(This section was written before §8 and is left in place rather than deleted, per the brief
+lifecycle: the superseded plan is the record of why the current one looks the way it does.)*
 
 ### 6b · Follow-up the flag never addressed
 
