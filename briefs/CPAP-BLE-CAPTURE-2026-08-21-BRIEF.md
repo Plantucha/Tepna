@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-08-21 · **Created:** 2026-08-21 · **Follows:** `RESMED-AS11-PROTOCOL-REFERENCE-2026-08-21-BRIEF.md`
+**Status:** DONE — 2026-08-25 — 2026-08-21 · **Created:** 2026-08-21 · **Follows:** `RESMED-AS11-PROTOCOL-REFERENCE-2026-08-21-BRIEF.md`
 
 # CPAP capture over BLE — pull therapy data onto the box's stratum-1 clock
 
@@ -111,3 +111,16 @@ as one session, brief mask-offs included. So the probe and the harvest are refra
 - **Setting the CPAP clock** — impossible over BLE (permission table); the box-clock stamp is the fix.
 - **Any write/therapy RPC** — read-only by construction.
 - **The encrypted *binary* NCP lane** (`0x0394/0x0395`) — the JSON lane carries everything needed.
+
+## Verification at DONE — 2026-08-25 (coordinator sweep)
+
+The Done-when boxes above are satisfied by shipped, production-proven code; checked here as a block
+rather than edited in place (multi-line boxes):
+- `as11_link.py` + `as11_pull.py`: shipped, 100% stmt+branch under `check.sh`, exercised by 7 test
+  files including canned-frame replay fakes (the scripted() transports).
+- SRP round-trip: proven beyond simulation — the LIVE pairing succeeded and every production stream
+  and pull session since (including two full overnight EDF captures) rides that session-key path.
+- Operator probe: delivered as the `probe_as11_*` family; the live runs happened in production
+  (the 2026-08-22 button-started stream onward).
+The remaining AS11 acquisition work continued under the CPAP-ACQ P-briefs and the auto-session
+detector programme — this brief's own scope is complete.

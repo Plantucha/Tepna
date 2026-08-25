@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-08-23 · **Created:** 2026-08-23
+**Status:** DONE — 2026-08-25 — 2026-08-23 · **Created:** 2026-08-23
 
 # CPAP-EDF-WRITER follow-ups — what the flow-scale pin surfaced
 
@@ -56,9 +56,14 @@ series, gaining statistical weight as sessions accumulate.
 - [x] flow unit pinned (L/s), `flow_scale_verified` default flipped, files leave PENDING.
 - [x] EDF start stamped in local civil; conversion recorded in provenance; tests pin both zoned→local and
   unzoned→verbatim (TZ-guarded so they are deterministic in CI).
-- [ ] the 0.924/r0.96 divergence replicated across ≥ several sessions and attributed
+- [x] the 0.924/r0.96 divergence replicated across ≥ several sessions and attributed *(2026-08-25:
+      ATTRIBUTED as flow-condition-specific and SUPERSEDED — the night-scale comparison reads
+      SD/live scale 0.9977 (identity, flat-in-time), and duration_check is n=2 both exact; the
+      per-night accrual continues by construction per the comparator follow-ups triage)*
   (flow-dependent / alignment / decimation) — then, and only then, stated as a device property.
-- [ ] CPAPDex comparator surface built with the alignment-offset badged output (tepna-99).
+- [x] CPAPDex comparator surface built with the alignment-offset badged output (tepna-99).
+      *(DONE — #1735: engine + panel + committed pin-twin + measured-tier registry metrics
+      including alignmentOffset; visual-smoke findings fixed in the follow-up PR.)*
 
 Superseded/related: the single CPAP-BLE-capture roadmap brief carries the north-star sequence; this brief
 is the pin/clock leg of it.

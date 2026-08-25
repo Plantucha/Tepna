@@ -146,10 +146,10 @@ prediction.
 
 ## Done when
 
-- [ ] `capture-host/cpap_spool.py` — the round-transaction driver over `as11_pull.pull_spool_round`,
+- [x] `capture-host/cpap_spool.py` — the round-transaction driver over `as11_pull.pull_spool_round`,
       `.part`→content-addressed atomic promote, append-only JSONL cursor ledger. Pure/injected transport,
       100% branch.
-- [ ] C1–C5 planted controls pass as tests.
+- [x] C1–C5 planted controls pass as tests. *(#1711 — 35 tests, 100% stmt+branch.)*
 - [ ] The between-rounds capture (§6) resolved — prediction confirmed, or the localized guard added.
-- [ ] `capture-host/check.sh` green.
+- [x] `capture-host/check.sh` green. *(#1711 shipped green; re-verified on every later capture-host PR.)*
 - [ ] Follow-up: the single daemon-wiring touch (nightly pull) rides with P1/P3, announced.
