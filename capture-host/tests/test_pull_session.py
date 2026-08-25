@@ -806,7 +806,8 @@ def test_a_ring_that_does_not_answer_0xE1_still_completes_the_pull(tmp_path, mon
 # oxy_restart.plan() — reading that ledger against the disk — decides per session whether the bytes we
 # already hold can be trusted. These tests drive the four plan actions through the real _pull_once.
 def test_a_completed_download_records_the_full_ledger_lifecycle(tmp_path, monkeypatch):
-    """The happy path writes the ledger too: DISCOVERED → DOWNLOADING → (classified) → COMMITTED. A file
+    """The happy path writes the ledger too: DISCOVERED → DOWNLOADING → VERIFYING → (classified) →
+    COMMITTED. VERIFYING is T3 (last byte received); the classified row is T4. A file
     with no finalisation trailer classifies PARTIAL, but a size-complete transfer is still committed to
     the final path — the COMMITTED row is what makes the NEXT run skip it."""
     ts = "20260719010000"
@@ -816,7 +817,7 @@ def test_a_completed_download_records_the_full_ledger_lifecycle(tmp_path, monkey
     assert len(got) == 1 and got[0].endswith(f"{ts}_STORED.dat")
     rows = inv.load_rows(str(tmp_path / "inventory.jsonl"))
     states = [r["state"] for r in rows if r["session"] == ts]
-    assert states == [inv.DISCOVERED, inv.DOWNLOADING, inv.PARTIAL, inv.COMMITTED], states
+    assert states == [inv.DISCOVERED, inv.DOWNLOADING, inv.VERIFYING, inv.PARTIAL, inv.COMMITTED], states
     committed = inv.current(rows)[inv.identity(DEV, ts)]
     assert committed["sha256"] == inv.sha256_bytes(blob), "the committed row carries the content hash"
     assert committed["size"] == len(blob)
@@ -833,7 +834,7 @@ def test_a_finalized_download_classifies_VERIFIED_before_committing(tmp_path, mo
     _install(monkeypatch, FakeRing([ts], blob))
     _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
     states = [r["state"] for r in inv.load_rows(str(tmp_path / "inventory.jsonl")) if r["session"] == ts]
-    assert states == [inv.DISCOVERED, inv.DOWNLOADING, inv.VERIFIED, inv.COMMITTED], states
+    assert states == [inv.DISCOVERED, inv.DOWNLOADING, inv.VERIFYING, inv.VERIFIED, inv.COMMITTED], states
 
 
 def test_a_committed_recording_is_skipped_by_the_ledger_not_by_size(tmp_path, monkeypatch):
@@ -900,6 +901,32 @@ def test_a_leftover_part_forces_a_repull_and_is_never_adopted(tmp_path, monkeypa
     assert (tmp_path / f"Wellue_O2Ring-S_{ts}_STORED.dat").read_bytes() == blob
     assert [w for w in ring.writes if w[1] == oxyii.OP_FILE_START], "a re-pull DID send FILE_START"
     assert _ledger_state(tmp_path, ts) == inv.COMMITTED
+
+
+def test_a_truncated_transfer_emits_NO_VERIFYING_row(tmp_path, monkeypatch):
+    """T3 is "bytes complete on disk", so a SHORT pull must not emit it. The control that makes this
+    test mean something is the pair: the completed-download test above asserts VERIFYING IS present in
+    the same position, so a change that dropped the emit entirely would fail there rather than pass here.
+    A VERIFYING row on a short transfer would assert the completeness the PARTIAL row then denies."""
+    ts = "20260726070000"
+    blob = b"\x01\x03" + b"q" * 4000
+    ring = FakeRing([ts], blob, declared=len(blob), chunk=512)
+    _install(monkeypatch, ring)
+    real_wait = pull_session._wait
+    seen = {"n": 0}
+
+    async def cut_off(q, op, timeout=20.0):
+        if op == oxyii.OP_FILE_DATA:
+            seen["n"] += 1
+            if seen["n"] > 2:
+                raise asyncio.TimeoutError("link died mid-transfer")
+        return await real_wait(q, op, timeout=timeout)
+
+    monkeypatch.setattr(pull_session, "_wait", cut_off)
+    _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    states = [r["state"] for r in inv.load_rows(str(tmp_path / "inventory.jsonl")) if r["session"] == ts]
+    assert inv.VERIFYING not in states, f"a short pull claimed bytes-complete: {states}"
+    assert states == [inv.DISCOVERED, inv.DOWNLOADING, inv.PARTIAL], states
 
 
 def test_a_truncated_transfer_is_recorded_PARTIAL_and_re_pulled_next_run(tmp_path, monkeypatch):
