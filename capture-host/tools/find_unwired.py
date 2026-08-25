@@ -98,6 +98,11 @@ ALLOW_FUNCS = {
     # The cpap_spool P4 pair stays: it is a different arm whose daemon wiring has not landed yet.
     "sync_spool": "cpap_spool P4 — the transaction driver; standalone until the announced daemon wiring (P4 brief §7: the nightly-pull touch rides with P1/P3)",
     "last_committed_cursor": "cpap_spool P4 — the restart authority G4/P5 and the wiring consume; standalone until the announced daemon wiring (P4 brief §7)",
+    "close_harvest_decision": "oxy_transfer §14 — composes pull_deadline + flush_gate into the "
+                              "close-triggered sequence; standalone until the async shell drives it. "
+                              "Deliberately landed ahead of that shell: the ORDERING is the design, and "
+                              "an ordering bug inside an await loop is nearly untestable — all four "
+                              "orderings are pinned here by mutation instead",
     "resume_target": "oxy_transfer §8b — which link state a finished held-link pull hands back to "
                      "(contact at exit: worn → LIVE, unworn → IDLE_UNWORN); standalone until unit 2's "
                      "orchestration calls it. Third of the trio with pull_deadline and flush_gate — the "
