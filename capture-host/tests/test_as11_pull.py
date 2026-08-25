@@ -136,6 +136,14 @@ def test_get_date_time_returns_iso_string():
     assert got == "2026-08-12T14:25:31.000Z"
 
 
+# ── get_items ────────────────────────────────────────────────────────────────
+def test_get_items_returns_result_dict():
+    dev = FakeAS11([_enc({"id": 17, "result": {"FGState": "Therapy", "MaskPressure": 7.4}})])
+    got = _run(P.get_items(dev.write, dev.recv_frame, _seal, _unseal, ["FGState", "MaskPressure"]))
+    assert got["FGState"] == "Therapy"
+    assert got["MaskPressure"] == 7.4
+
+
 # ── pull_spool_round ─────────────────────────────────────────────────────────
 def test_round_single_fragment_no_more():
     dev = FakeAS11([
