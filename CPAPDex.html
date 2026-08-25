@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/dBlAzrE8FtOUGVDrcb+Q3mg/v0eliYFiMg7oaRvhcA=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JhcIMyyaav12LTpUrDZweluWMqdkgx/mekCyRHvHA7Q=' 'sha256-OSwZvOd7bbOWHI1P1dIrnGb73988FZy+BjRpZ1w9RR0=' 'sha256-QxQj7UIKBrwJJCLrAvm9pQTXuOTmHbjeAWH1Vz8Qg8s=' 'sha256-VpWuZ12v6gKyhjlOT8TLlSMYiBs1ZGSWaJlXOiFIlAo=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-bp7Fi2OoOx/XooWuTGpmF1SiV+A8ZCvEpRBCsq2nxes=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/dBlAzrE8FtOUGVDrcb+Q3mg/v0eliYFiMg7oaRvhcA=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-QxQj7UIKBrwJJCLrAvm9pQTXuOTmHbjeAWH1Vz8Qg8s=' 'sha256-VpWuZ12v6gKyhjlOT8TLlSMYiBs1ZGSWaJlXOiFIlAo=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-bp7Fi2OoOx/XooWuTGpmF1SiV+A8ZCvEpRBCsq2nxes=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-e70cOf652vs6gJ1pYSjK9ScM/+kafQkGONwT1jL22oI=' 'sha256-mj10h/YL+APHDH63Cf0GOj2V1PkBzWSTOsXSR+ASVTM='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>CPAPDex — PAP Therapy Analyzer · v2.8.0</title>
@@ -8557,6 +8557,40 @@ __exports.CPAPDex = window.CPAPDex;
       scaleStable: scaleStable
     };
   }
+  /* v1.1 — the channels a live-vs-SD BRP comparison may cover, in panel order. A real BRP.edf carries
+     BOTH (`_BRP_SPECS` in cpap_edf.py = Flow.40ms + Press.40ms, verbatim from the AirSense 11 format)
+     on the SD side AND on the capture-host EdfSink side, so pressure needed no new capture work — the
+     channel was always in both files and only flow was ever handed to the comparator.
+     ⚠ PLD (the derived 2 s channels) is NOT here and must not be added on the strength of this list:
+     the live path emits `_BRP.edf` only (`cpap_edf.build_pld` exists but is wired to nothing), so a
+     PLD comparison would have no live side at all. It joins when the live EDF set completes. */
+  var COMPARE_CHANNELS = ['Flow.40ms', 'Press.40ms'];
+
+  /* Build the two channel maps for `cpapCompare` from a readEDF-style LIVE record plus the SD raws the
+     app retained at load. PURE — no DOM, no file I/O — so the wiring itself is gate-backed rather than
+     living only in an app closure where nothing can see it.
+
+     A channel is included ONLY when BOTH sides carry non-empty data. One-sided inclusion would render a
+     refusal card that tells the user nothing actionable, and — the case that matters — a flow-only live
+     file must still produce EXACTLY the v1 result rather than a panel half full of "absent" cards. */
+  function buildCompareSets(live, sdRaws) {
+    var liveSet = {},
+      sdSet = {},
+      n = 0;
+    if (!live || !live.signals || !sdRaws) return null;
+    for (var i = 0; i < COMPARE_CHANNELS.length; i++) {
+      var lab = COMPARE_CHANNELS[i];
+      var l = live.signals[lab],
+        r = sdRaws[lab];
+      if (!l || !l.data || !l.data.length) continue;
+      if (!r || !r.values || !r.values.length) continue;
+      liveSet[lab] = { t0Ms: live.clock && live.clock.t0Ms, fs: l.fs, values: l.data };
+      sdSet[lab] = { t0Ms: r.t0Ms, fs: r.fs, values: r.values };
+      n++;
+    }
+    return n ? { liveSet: liveSet, sdSet: sdSet, channels: n } : null;
+  }
+
   // liveSet / sdSet: readEDF-style channel maps { <label>: { t0Ms, fs, values } }. Refusal-first at the
   // set level; per-channel refusals do not abort the others.
   function cpapCompare(liveSet, sdSet, opts) {
@@ -8602,7 +8636,9 @@ __exports.CPAPDex = window.CPAPDex;
     nightWeight,
     nightOdi,
     cpapCompare,
-    compareChannel
+    compareChannel,
+    buildCompareSets,
+    COMPARE_CHANNELS
   };
 
   // Dual-realm, matching the house pattern already used by cpapdex-dsp.js / -edf.js /
@@ -11325,7 +11361,15 @@ const { CpapRender } = __require('cpapdex-render.js');
         // no fixture/gate impact). One flow array per session on the loaded nights; used only when the
         // user opts in to a live comparison. `recording` is the EDF recording_id (device identity).
         var _bf = set.BRP && set.BRP.signals && set.BRP.signals['Flow.40ms'];
-        if (_bf && _bf.data && _bf.data.length && set.BRP.clock) sess._brpRaw = { values: _bf.data, fs: _bf.fs, t0Ms: set.BRP.clock.t0Ms, recording: set.BRP.recording };
+        if (_bf && _bf.data && _bf.data.length && set.BRP.clock) {
+          sess._brpRaw = { values: _bf.data, fs: _bf.fs, t0Ms: set.BRP.clock.t0Ms, recording: set.BRP.recording };
+          // v1.1 — the DELIVERED-PRESSURE channel, retained beside flow. A real BRP.edf carries both
+          // (`_BRP_SPECS` = Flow.40ms + Press.40ms, verbatim from the AirSense 11 format), on the SD
+          // side AND on the EdfSink live side, so this needs no capture-host work: the channel was
+          // always there and the comparator was simply only ever handed flow.
+          var _bp = set.BRP.signals['Press.40ms'];
+          if (_bp && _bp.data && _bp.data.length) sess._brpRawPress = { values: _bp.data, fs: _bp.fs, t0Ms: set.BRP.clock.t0Ms, recording: set.BRP.recording };
+        }
         sessions.push(sess);
       }
     });
@@ -11427,11 +11471,18 @@ const { CpapRender } = __require('cpapdex-render.js');
           '<div class="card"><div class="card-h">Live vs SD comparator</div><div class="qc-note" style="color:var(--red)">the live file has no Flow.40ms channel — is it a BRP.edf?</div></div>';
         return;
       }
-      var cmp = global.CPAPCross.cpapCompare(
-        { 'Flow.40ms': { t0Ms: live.clock.t0Ms, fs: lf.fs, values: lf.data } },
-        { 'Flow.40ms': { t0Ms: sd._brpRaw.t0Ms, fs: sd._brpRaw.fs, values: sd._brpRaw.values } },
-        { liveRecId: live.recording, sdRecId: sd._brpRaw.recording }
-      );
+      // v1.1 MULTI-CHANNEL. The set-building lives in CPAPCross.buildCompareSets (pure + gate-backed)
+      // rather than here, so the WIRING is testable: an app closure that silently stopped handing over
+      // the pressure channel would otherwise be invisible — every comparator test would stay green
+      // while the panel quietly lost a card.
+      var sets = global.CPAPCross.buildCompareSets(live, {
+        'Flow.40ms': sd._brpRaw,
+        'Press.40ms': sd._brpRawPress
+      });
+      var cmp = global.CPAPCross.cpapCompare(sets.liveSet, sets.sdSet, {
+        liveRecId: live.recording,
+        sdRecId: sd._brpRaw.recording
+      });
       chost.innerHTML = CpapRender.comparatorPanel(cmp, { liveLabel: 'BLE live', sdLabel: 'device SD' });
       // draw the scaleOverTime sparkline(s) on the injected canvases
       if (cmp && cmp.ok && cmp.channels && CpapRender.drawScaleSpark) {

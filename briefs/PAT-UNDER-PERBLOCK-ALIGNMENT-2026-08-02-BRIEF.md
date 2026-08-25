@@ -583,6 +583,49 @@ link** can therefore produce an excursion this test would not predict — and `h
 `maxStepMs` precisely to surface a step smeared across one anchor gap. **That is the next candidate, and
 it is instrumented.** What is eliminated is the steady-crystal explanation.
 
+### 3f.6 · The stalled-link candidate, tested — and why BOTH clock diagnostics are the wrong GRANULARITY
+
+§3f.5 eliminated steady drift and left one clock-side candidate standing: a **stalled link**, which
+`CLAUDE.md` §7 records the O2Ring producing (sub-ppm for hours, then ~12.5 s/h from the first BLE
+dropout). `hostAxis` already computes `maxStepMs` for exactly this — *"a genuine clock STEP smeared
+across one anchor gap rather than hidden in a slope"* — and `pat-host-offset.mjs` simply never emitted
+it. It does now (same 22 windows / 9 nights of box captures).
+
+**Magnitude: the candidate SURVIVES where drift did not.**
+
+| | drift (§3f.5) | step (this) |
+|---|---|---|
+| median | 76.1 ms predicted | **117.8 ms** |
+| max | 132.7 ms | **53 090.9 ms** (53 s) |
+| windows exceeding the ~450 ms band | **0 / 22** | **5 / 22** |
+
+So a stalled link *can* cross the identifiability band — two orders of magnitude past it, in the worst
+case. Unlike differential drift, it is not too small.
+
+🔴 **But it cannot be the driver, and the reason is STRUCTURAL rather than statistical.** Both
+diagnostics are **per-PAIR constants** — one `ppm` and one `maxStepMs` per device-pair, repeated across
+every window of that night — while **the intermittency is WITHIN-night**. A constant cannot explain a
+variable. The corpus shows it directly:
+
+| night | `maxStepMs` (worst) | win 0 | win 120 |
+|---|---|---|---|
+| **2026-08-17** | **53 090.9 ms** | strict **p = 0.0196** | strict **p = 1.0000** |
+| **2026-08-14** | 1 257.2 ms | p = 0.5294 | strict **p = 0.0196** |
+
+**A 53-second step coexists with significant coupling in one window and none in the next, on the same
+night, with the same step value.** And of the five windows carrying a step > 450 ms, **2 are
+significant and 3 are not** — against a 12/22 base rate, that is nothing.
+
+**What this closes.** The clock-side attribution attempted with the instrumentation that exists is
+**exhausted**: drift is too small, steps are big enough but cannot discriminate, and neither field has
+the *time resolution* the question needs. §3f.4's invitation is answered — not by finding the culprit,
+but by showing this pair of diagnostics structurally cannot name one.
+
+**What it leaves.** A within-window clock diagnostic (per-anchor residual rather than a per-pair
+summary) would be a genuine test; `hostAxis` computes the anchors but publishes only the summary. Short
+of that, the remaining candidates are physiological PAT variation — which would be **signal, not
+noise** — and alignment/anchor error, which §3e already measured at 1171–3094 ms of ACC self-disagreement.
+
 ## 3g · VERDICT — the coupling is real and the intermittency is the OFFSET; absolute PAT stays blocked
 
 §3f left one thing between this brief and a quotable statement: whether the 20/57 intermittency was

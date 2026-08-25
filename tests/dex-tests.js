@@ -17531,6 +17531,49 @@
       var setR = CX.cpapCompare({ Flow: ser(A) }, { Flow: ser(B) });
       T.ok('set-level compare returns per-channel results', setR.ok && setR.channels.Flow.ok && Math.abs(setR.channels.Flow.scale.a - 0.9) < 1e-3);
 
+      /* ── v1.1 · buildCompareSets — the DELIVERED-PRESSURE channel, and the WIRING that hands it over.
+         The comparator core was channel-agnostic from v1; what was missing was that the app only ever
+         built a flow set. That wiring lived in an app closure where no gate could see it, so it is a
+         pure function here and asserted directly — an app that silently stopped passing pressure would
+         otherwise leave every comparator assertion green while the panel quietly lost a card. ── */
+      if (typeof CX.buildCompareSets === 'function') {
+        var _mkLive = function (sig) {
+          return { clock: { t0Ms: 1000000 }, signals: sig };
+        };
+        var _lFlow = { fs: fs, data: A },
+          _lPress = { fs: fs, data: A };
+        var bothSets = CX.buildCompareSets(_mkLive({ 'Flow.40ms': _lFlow, 'Press.40ms': _lPress }), {
+          'Flow.40ms': ser(B),
+          'Press.40ms': ser(B)
+        });
+        T.ok('both BRP channels are handed over when both files carry them', !!bothSets && bothSets.channels === 2);
+        var _pressCmp = bothSets ? CX.cpapCompare(bothSets.liveSet, bothSets.sdSet).channels['Press.40ms'] : null;
+        T.ok(
+          'the pressure channel actually compares (unit-agnostic core: every threshold is dimensionless or data-derived)',
+          !!_pressCmp && _pressCmp.ok === true,
+          _pressCmp ? 'ok=' + _pressCmp.ok : 'no Press.40ms channel in the result'
+        );
+        // BACK-COMPAT, and the case the committed twins exercise: both twin BRP.edf are flow-ONLY
+        // (ns=1). A flow-only live file must yield EXACTLY the v1 single-channel result — never a
+        // panel padded with "absent" refusal cards that tell the user nothing actionable.
+        var flowOnly = CX.buildCompareSets(_mkLive({ 'Flow.40ms': _lFlow }), { 'Flow.40ms': ser(B) });
+        T.ok('a flow-only pair stays single-channel (v1 result unchanged)', !!flowOnly && flowOnly.channels === 1 && !flowOnly.liveSet['Press.40ms']);
+        // ONE-SIDED pressure is DROPPED, not compared: live has it, the SD side does not.
+        var oneSided = CX.buildCompareSets(_mkLive({ 'Flow.40ms': _lFlow, 'Press.40ms': _lPress }), { 'Flow.40ms': ser(B), 'Press.40ms': null });
+        T.ok('a channel present on only ONE side is dropped, not turned into a refusal card', !!oneSided && oneSided.channels === 1);
+        // An EMPTY channel is absence, not a comparable channel of length 0.
+        var emptyCh = CX.buildCompareSets(_mkLive({ 'Flow.40ms': _lFlow, 'Press.40ms': { fs: fs, data: [] } }), { 'Flow.40ms': ser(B), 'Press.40ms': ser(B) });
+        T.ok('an EMPTY channel counts as absent, never as a zero-length comparison', !!emptyCh && emptyCh.channels === 1);
+        // No comparable channel at all ⇒ null, so the caller refuses rather than rendering an empty panel.
+        T.ok('no comparable channel ⇒ null (the caller refuses, never an empty panel)', CX.buildCompareSets(_mkLive({}), { 'Flow.40ms': ser(B) }) === null);
+        T.ok('a missing live record ⇒ null', CX.buildCompareSets(null, { 'Flow.40ms': ser(B) }) === null);
+        // PLD MUST NOT be in the list: the live path emits _BRP.edf only, so a PLD comparison would
+        // have no live side. This pins the scope note so a later widening is a deliberate edit.
+        T.ok('COMPARE_CHANNELS is the two BRP channels — PLD is NOT included (no live PLD exists yet)', Array.isArray(CX.COMPARE_CHANNELS) && CX.COMPARE_CHANNELS.join(',') === 'Flow.40ms,Press.40ms');
+      } else {
+        T.skip('CX.buildCompareSets available', 'v1.1 multi-channel wiring not in this lane');
+      }
+
       // PARTIAL OVERLAP (Vigil box real case, 2026-08-24 — 20260824_174542 BLE vs _174018 SD). The live
       // capture starts 324 s INTO the SD recording AND extends 204 s PAST its end (SD boundary-clips at
       // therapy stop; the BLE stream keeps going). This is the NORMAL field geometry, not contained-in.
