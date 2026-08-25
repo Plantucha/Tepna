@@ -521,6 +521,88 @@ def test_the_default_guard_band_is_ten_seconds():
     assert tr.pull_deadline(0.0, 180.0).abort_at == 170.0
 
 
+# ══ §14 THE CLOSE-TRIGGERED HARVEST DECISION ═══════════════════════════════════════════════════════
+
+
+def _dec(**kw):
+    base = dict(armed=True, at_close=True, now=0.0, drop_at=180.0, run_status=tr.IDLE)
+    base.update(kw)
+    return tr.close_harvest_decision(**base)
+
+
+def test_an_unarmed_harvest_is_IDLE_and_says_so():
+    """Unit 1's lesson, one layer up: a disabled path must be distinguishable from an armed one that
+    never fired. That defect hid for months precisely because it was not."""
+    d = _dec(armed=False)
+    assert d.action == tr.IDLE_HARVEST and "not armed" in d.reason
+
+
+def test_no_close_means_IDLE_even_when_everything_else_is_ready():
+    """The harvest is triggered by END_CANDIDATE, not by the passage of time. A path that fires on a
+    schedule with a ready window is the poller §8 replaced."""
+    assert _dec(at_close=False).action == tr.IDLE_HARVEST
+
+
+def test_a_close_with_a_clear_window_PULLS_at_latest_scope():
+    d = _dec()
+    assert d.action == tr.PULL and d.scope == tr.CLOSE_PULL_SCOPE == "latest"
+
+
+def test_the_pull_decision_CARRIES_its_deadline():
+    """A caller must not be able to take the pull without the bound. §8a's invariant is only real if
+    the deadline travels with the decision that authorises the pull."""
+    d = _dec()
+    assert d.abort_at == 170.0, d
+
+
+def test_a_gone_window_ABANDONS_WITHOUT_touching_the_link():
+    """pull_deadline refuses, so this never reaches the flush gate — spending a link acquisition to
+    produce nothing is the case §8a exists to prevent."""
+    d = _dec(now=175.0)
+    assert d.action == tr.ABANDON and d.scope is None and "cannot engage" in d.reason
+
+
+def test_a_flushing_ring_WAITS_and_keeps_its_deadline():
+    """§14a: the trailer is not on flash yet. The deadline still travels, because the wait is bounded."""
+    d = _dec(run_status=tr.FLUSH)
+    assert d.action == tr.WAIT and d.abort_at == 170.0 and d.scope is None
+
+
+def test_a_re_don_during_the_flush_ABANDONS():
+    """run_status 2 — a new session opened, so `which=latest` would fetch the WRONG one."""
+    assert _dec(run_status=tr.RECORDING).action == tr.ABANDON
+
+
+def test_scope_is_NOT_a_caller_choice():
+    """§14b is a measured constraint, not a preference: which=all's p90 (69.4 s) does not fit the 50 s
+    wait-for-flush window while which=latest's observed max (41.1 s) does. A signature that accepted a
+    scope is how that measurement would quietly become an option."""
+    import inspect
+
+    assert "scope" not in inspect.signature(tr.close_harvest_decision).parameters
+
+
+def test_EVERY_decision_carries_a_reason():
+    """Same rule as the two predicates it composes — enumerated, not per-branch, because this is the
+    third time in this file that a per-branch assertion left a null reason alive."""
+    for d in (
+        _dec(armed=False),
+        _dec(at_close=False),
+        _dec(),
+        _dec(now=175.0),
+        _dec(run_status=tr.FLUSH),
+        _dec(run_status=tr.RECORDING),
+        _dec(run_status=None),
+    ):
+        assert isinstance(d.reason, str) and d.reason.strip(), f"decision with no reason: {d}"
+
+
+def test_no_scheduled_drop_still_pulls_bounded_only_by_the_ring():
+    """§8a: drop_at None means nothing to outlive, so the harvest may run with no deadline."""
+    d = _dec(drop_at=None)
+    assert d.action == tr.PULL and d.abort_at is None
+
+
 # ══ §8b THE RESUME TARGET ══════════════════════════════════════════════════════════════════════════
 
 

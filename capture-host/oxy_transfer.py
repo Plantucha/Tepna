@@ -86,6 +86,71 @@ RESUME = "resume"
 GUARD_BAND_S = 10.0
 
 
+# ── §14 THE CLOSE-TRIGGERED HARVEST DECISION ─────────────────────────────────────────────────────────
+# The composition of the three predicates above into the sequence §8/§14 specify. Kept PURE and separate
+# from the async shell that will drive it, because the ordering IS the design and an ordering bug inside
+# an await loop is nearly untestable.
+#
+# `scope` is not a parameter. §14b measured that `which=all` does not fit the wait-for-flush window even
+# at p90 (69.4 s against 50 s) while `which=latest` fits at its observed max (41.1 s) — so a
+# close-triggered pull is `which=latest` BY CONSTRUCTION. The hourly poller keeps `which=all` and
+# remains the reconciliation net. Making this a caller's choice is how the measured constraint would
+# quietly become a preference.
+CLOSE_PULL_SCOPE = "latest"
+
+IDLE_HARVEST = "idle"
+
+
+@dataclass(frozen=True)
+class HarvestDecision:
+    """What the close-triggered harvest should do at this instant."""
+
+    action: str  # IDLE_HARVEST | WAIT | PULL | ABANDON
+    scope: str | None  # CLOSE_PULL_SCOPE when pulling, else None
+    abort_at: float | None
+    reason: str
+
+
+def close_harvest_decision(
+    *,
+    armed: bool,
+    at_close: bool,
+    now: float,
+    drop_at: float | None,
+    run_status: int | None,
+) -> HarvestDecision:
+    """§8 + §14a + §8a composed. PURE.
+
+    ORDER, and each step's reason for being where it is:
+
+      1. **NOT ARMED → IDLE.** First, so a disabled path costs nothing and — the unit-1 lesson — cannot
+         be mistaken for an armed one that never fired. §7's Done-when: no deployed behaviour changes
+         silently.
+      2. **NOT AT A CLOSE → IDLE.** The harvest is triggered by `END_CANDIDATE`, not by the passage of
+         time. A poller that fires on a schedule is the path §8 replaced.
+      3. **The §8a DEADLINE, computed before anything is decided.** If the window is already gone,
+         `pull_deadline` REFUSES and this abandons without touching the link — spending an acquisition
+         to produce nothing is the case it exists to prevent.
+      4. **The §14a FLUSH GATE**, which re-checks the deadline internally and outranks every
+         `run_status` branch. The duplication is deliberate: step 3 decides whether to ENGAGE, the gate
+         decides whether to CONTINUE, and they are asked at different times.
+
+    A PULL decision carries its scope and its deadline together, so a caller cannot take one without
+    the other.
+    """
+    if not armed:
+        return HarvestDecision(IDLE_HARVEST, None, None, "close-triggered harvest not armed")
+    if not at_close:
+        return HarvestDecision(IDLE_HARVEST, None, None, "no recording close observed")
+    dl = pull_deadline(now, drop_at)
+    if not dl.ok:
+        return HarvestDecision(ABANDON, None, None, f"cannot engage: {dl.reason}")
+    gate = flush_gate(run_status, now, dl.abort_at)
+    if gate.action == PULL:
+        return HarvestDecision(PULL, CLOSE_PULL_SCOPE, dl.abort_at, gate.reason)
+    return HarvestDecision(gate.action, None, dl.abort_at if gate.action == WAIT else None, gate.reason)
+
+
 # ── §8b THE RESUME TARGET ────────────────────────────────────────────────────────────────────────────
 # A held-link pull hands the link back WITHOUT a reconnect (the four resume edges added in #1760). The
 # link table PERMITS both targets; it does not choose between them, and choosing is the caller's job —
