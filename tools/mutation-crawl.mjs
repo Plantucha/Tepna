@@ -69,7 +69,37 @@ const JOBS = +opt('--jobs', Math.max(2, Math.round((cpus().length * 2) / 3)));
 const MAX_MS = +opt('--max-hours', 48) * 3600 * 1000;
 const T0 = Date.now();
 
-const DEFAULT_FLEET = ['hrvdex-dsp.js', 'motiondex-dsp.js', 'pulsedex-dsp.js', 'cpapdex-dsp.js', 'glucodex-dsp.js', 'ppgdex-dsp.js', 'oxydex-dsp.js', 'ecgdex-dsp.js', 'integrator-dsp.js'];
+/* PHASE 1 of MUTATION-FLEET-EXPANSION-2026-08-25: the fleet is no longer the nine DSPs. Both additions
+   were VERIFIED to mutate effectively in this realm before being added, because each carries a reason
+   it might silently not:
+
+   · `clock.js` is ALSO IN `SPINE` above, so it is loaded PRISTINE before every target. That ordering
+     could have made a clock.js mutant a no-op — the pristine copy installing `DexClock` and the
+     mutated one being ignored — which would read as "every mutant survives", a finding-shaped nothing.
+     It does not: the target runs AFTER the spine (line ~227 vs ~225) and overwrites it. Measured with
+     a `tzOffset` mutant through `parseTimestamp(1700000000000)`:
+         pristine  tMs=1699982000000  offsetMin=-300
+         mutated   tMs=1699999999001  offsetMin=-0.01665
+   · `manifest-gate.js` carries ONE deliberate NUL byte, which makes `file(1)` call it `data` and plain
+     `grep` skip it silently (fleet memory: grep-cannot-see-manifest-gate — use `git grep`). The realm
+     is unaffected: the NUL survives into the string and the module evaluates, exposing 11 functions
+     (`isPlainInline`, `plainInlineAssets`, `sha256hex`, `sha16`, `manifestHashFromText`, …).
+
+   Both checks are the examined-nothing rule applied to the expansion itself: a file that generates
+   mutants is not thereby a file whose mutants DO anything. */
+const DEFAULT_FLEET = [
+  'hrvdex-dsp.js',
+  'motiondex-dsp.js',
+  'pulsedex-dsp.js',
+  'cpapdex-dsp.js',
+  'glucodex-dsp.js',
+  'ppgdex-dsp.js',
+  'oxydex-dsp.js',
+  'ecgdex-dsp.js',
+  'integrator-dsp.js',
+  'clock.js',
+  'manifest-gate.js'
+];
 
 const log = (s) => process.stderr.write('  ' + s + '\n');
 
