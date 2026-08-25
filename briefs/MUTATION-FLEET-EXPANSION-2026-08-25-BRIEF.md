@@ -49,7 +49,7 @@ than assumed to — the examined-nothing check applied to the expansion itself. 
 
 - **cross (5):** `cpapdex-cross.js` · `ecgdex-cross.js` · `oxydex-cross.js` · `ppgdex-cross.js` · `pulsedex-cross.js`
 - **registry (9):** `cpapdex-` · `ecgdex-` · `glucodex-` · `hrvdex-` · `motiondex-` · `oxydex-` · `ppgdex-` · `pulsedex-registry.js`, plus the shared **`metric-registry.js`**
-- **fusion (2):** `cpapdex-fusion.js` · `oxydex-fusion.js`
+- **fusion (2):** `cpapdex-fusion.js` · ~~`oxydex-fusion.js`~~ → **reclassified to Phase 3, see §2a**
 - **edf (1):** `cpapdex-edf.js` — **priority**, a binary parser
 - **coimport / co-load (3):** `cpapdex-coimport.js` · `crossnight-envelope.js` · `dex-coload.js`
 
@@ -60,6 +60,36 @@ EDF parser is binary-input code where a surviving mutant is least likely to be c
 loaded alongside; `registry-defs-parity` tells you which registries pair with which `*-cross.js`.
 ⚠️ Note that `dex-coload.js` and `metric-registry.js` are themselves **in the list** — they are shared
 spine, so a mutant there moves many nodes at once, and their recipes are not node-local.
+
+### 2a · RECIPE SURVEY — measured 2026-08-25, and the answer is that there is barely any recipe work
+
+The brief above says *"the real work is the per-file co-load recipes."* Measured, **it is not.** All 20
+files were loaded into the crawl realm on the existing `SPINE`
+(`clock.js · kernel-constants.js · metric-registry.js · dex-export.js · signal-frame.js`):
+
+**All 20 load without throwing, and 17 expose their own handle** — `CpapEdf`, `CPAPCross`, `ECGCross`,
+`OXYCross`, `PPGCross`, `PulseCross`, `CpapFusion`, `CpapCoimport`, `CrossNightEnvelope`, and each
+`*Registry`. **No extra co-load is required for any of them.** The recipe work the directive
+anticipated is largely absent, which is worth knowing before budgeting a week for it.
+
+Four files need a note rather than a recipe:
+
+| file | finding | disposition |
+|---|---|---|
+| **`oxydex-fusion.js`** | **NOT a fusion module — a DOM-coupled page-scope render file.** Its own header: *"Loaded after `oxydex-render.js`, before `oxydex-app.js`. Shares page scope."* 5 DOM references, writes `window._ecgByDate`, injects cards at `#heroTop`, exposes no handle. | 🔴 **MOVE TO PHASE 3.** It was placed in Phase 2 by FILENAME; by nature it needs the DOM shim. |
+| `cpapdex-fusion.js` | the **only** file of the 20 carrying a `typeof X !== 'undefined'` guard (1 of them) | Phase 2, but it is the one file where an incomplete realm can produce a **FALSE KILL** — the hazard the crawl's own header records. Complete its realm before trusting a kill there. |
+| `metric-registry.js` | already in `SPINE`, so it is dual-loaded exactly as `clock.js` is | Phase 2, safe — the target loads after the spine and overwrites it (verified for `clock.js` in Phase 1; same mechanism). |
+| `dex-coload.js` | reachable as `DexCoload`, but it is a **DATA structure** (module lists), not a function surface | Phase 2, **low yield** — mutants there edit list contents; expect few probeable functions rather than none. |
+
+⚠️ **A correction on that last row, recorded because it is the session's recurring error in miniature.**
+My probe first reported `dex-coload.js` as exposing *no handle at all*, and I nearly wrote that down as
+a property of the file. It is a property of **my probe**: the filter required a global owning
+`typeof === 'function'` members, and `DEX_COLOAD` owns only data. The file assigns
+`root.DexCoload = DEX_COLOAD` on its last line. **An instrument's blind spot reads exactly like a
+finding about the thing measured** — the same shape as every other trap in §5.
+
+**So Phase 2's real cost is 19 files (not 20) with essentially no recipe work, one realm-completeness
+caveat, and one reclassification.**
 
 ## 3 · PHASE 3 — render/app files: DEFERRED, deliberately
 
