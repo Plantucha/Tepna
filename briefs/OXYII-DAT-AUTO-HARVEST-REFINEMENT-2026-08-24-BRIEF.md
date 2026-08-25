@@ -575,11 +575,10 @@ interrupted pull · host restart · BLE disappearance. All seven are downstream 
 **The checklist that window should carry**, consolidating obligations this brief has accumulated in
 five different sections so they are not each rediscovered:
 
-1. **§6a step 2** — the `auto-pull: armed …` line prints and names both flag states. *No code needed;
-   it appears at the next daemon restart, which the box defers until idle.*
-2. **§11(c)** — `inventory.jsonl` appears in the stored directory with `DISCOVERED` / `DOWNLOADING` /
-   `COMMITTED` rows and plausible `at` values. *No code needed; the next auto-pull is the test, and
-   the layer has never once executed.*
+1. ✅ **§6a step 2 — DONE 2026-08-25, see §13a.** The diagnostic printed at the 04:52 restart and named
+   both flag states plus the inheritance.
+2. ✅ **§11(c) — DONE 2026-08-25, see §13b.** `inventory.jsonl` was written by the 05:12 pull:
+   `DISCOVERED → DOWNLOADING → VERIFIED → COMMITTED`, sha256 identical across the last two.
 3. **§5a** — the awake-tail probe: connect every 30 s after a known doff, **holding the H10 connected
    as an adapter-health control that must stay green.**
 4. **§8a** — instrument **close → finalized**, the one genuinely unmeasured number.
@@ -587,6 +586,72 @@ five different sections so they are not each rediscovered:
 
 Items 1 and 2 cost nothing and are pure observation; they should be checked at the next natural event
 rather than scheduled.
+
+
+## 13 · FIRST PRODUCTION EXECUTION — §12a items 1 and 2 are VERIFIED, and §23 has real numbers
+
+The night of 2026-08-24 ended, the box took its deferred restart at **04:52:11**, and the poller pulled
+at **05:12**. Both no-code observations §12a queued have now been made, on real hardware, and the pull
+produced the ledger's **first four rows in its entire existence**.
+
+### 13a · §6a step 2 — the arming diagnostic works, and names the flag
+
+Unit 1 (#1743) existed because the event path had never armed and **nothing said so**. Verbatim from the
+box, first restart carrying it:
+
+```
+04:52:11 INFO auto-pull: poller enabled — checking Wellue O2Ring-S every 3600s (only while it is off
+         the finger), up to 3 tries. This is the RECONCILIATION NET; event triggers: charger=OFF
+         not-worn=OFF (pull.on_charger=False; pull.on_doff absent -> inherits on_charger=False)
+04:52:11 INFO auto-pull: NOT armed — no event trigger enabled (pull.on_charger=False; pull.on_doff
+         absent -> inherits on_charger=False). The hourly poller still runs; it is a reconciliation
+         net, not the primary path.
+```
+
+Both states named, the inheritance spelled out, and the poller explicitly distinguished from the event
+path. **✅ §12a item 1 closed** — the silent-absence class that motivated unit 1 is now loud.
+
+### 13b · §11(c) — the transactional ledger has now been written, and it is correct
+
+`inventory.jsonl` exists (4 rows, session `20260824222502`, 65 872 B):
+
+| state | reason | `at` | notes |
+|---|---|---|---|
+| `DISCOVERED` | listed on flash | …162.2100 | `size`/`sha256` null — nothing pulled yet |
+| `DOWNLOADING` | transfer in flight | …162.2384 | path is the `.part`, `reported_size` 65 872 |
+| `VERIFIED` | **trailer finalised** | …171.0630 | `size == reported_size`, sha256 recorded |
+| `COMMITTED` | atomically committed into the night tree | …171.0721 | path is the final `.dat`, same sha256 |
+
+Every property the design claims holds on the first real run: the `.part` carries the in-flight states,
+`VERIFIED` is reached **by the trailer parsing** rather than by size equality, the sha256 is identical
+across `VERIFIED` and `COMMITTED` (the committed bytes are the verified bytes), and the final row is the
+only one naming the `.dat`. **✅ §12a item 2 closed.**
+
+⚠️ **No `VERIFYING` row, correctly.** T3 landed in #1761 at ~05:00 and this daemon started 04:52, so the
+pull ran on code that predates it. The next pull carries T3.
+
+### 13c · §23's first real deltas — and the reason T3 was worth building
+
+| interval | measured |
+|---|---|
+| **T2 − T1** list → download start | **0.028 s** |
+| **T4 − T2** download **+ verify** | **8.825 s** |
+| **T5 − T4** atomic commit | **0.009 s** |
+| **T5 − T1** whole harvest, list → durable | **8.862 s** |
+
+Two readings.
+
+**The §8 margin is far wider than the conservative estimate.** A complete harvest took **8.86 s** against
+the 170 s close→drop window — **19×** headroom, against the 4.1× §8 derived from `which=latest`'s
+observed max. §8a's abort deadline remains mandatory regardless: this is one sample, and the deadline
+exists so that blocking the power drop is impossible by construction rather than improbable by
+measurement (§8a). But the design's timing premise is now supported by a real execution rather than by
+a distribution over historical pulls.
+
+**And the 8.825 s is exactly the opaque blob T3 exists to split.** It is download *and* verify together,
+because until #1761 both ended at a single `at`. Whether verification costs 9 ms like the commit does, or
+seconds, is not derivable from this table — which is the whole argument for the emit, now stated with a
+real number attached rather than in the abstract.
 
 
 ## APPENDIX — owner's full program spec (§1–27, verbatim)
