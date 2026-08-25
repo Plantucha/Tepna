@@ -292,6 +292,12 @@ by ordering**.
   distribution's tail as a guarantee. With it, the arithmetic above is a statement about how *often*
   the deadline is hit — which is the honest thing for it to be.
 
+  **The requirement, as agreed with the lead and to be built verbatim:** the close-triggered pull runs
+  under an **abort deadline of `drop_at − guard_band`**. Hitting the deadline **aborts to `.part`**,
+  and the existing recovery inherits it — the hourly poller, or a post-drop retry (which is where §5a's
+  awake tail still applies). The arithmetic's role is to predict the **frequency** of a deadline hit —
+  rare, at 4.1× headroom on `which=latest` — and never to substitute for the deadline itself.
+
 
 ## APPENDIX — owner's full program spec (§1–27, verbatim)
 
