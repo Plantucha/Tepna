@@ -98,6 +98,11 @@ ALLOW_FUNCS = {
     # The cpap_spool P4 pair stays: it is a different arm whose daemon wiring has not landed yet.
     "sync_spool": "cpap_spool P4 — the transaction driver; standalone until the announced daemon wiring (P4 brief §7: the nightly-pull touch rides with P1/P3)",
     "last_committed_cursor": "cpap_spool P4 — the restart authority G4/P5 and the wiring consume; standalone until the announced daemon wiring (P4 brief §7)",
+    "pull_deadline": "oxy_transfer §8a — the abort deadline for the close-triggered held-link pull; "
+                     "standalone until unit 2 wires it (DAT-AUTO-HARVEST §14: wait for run_status "
+                     "3→1, which=latest). Deliberately landed AHEAD of its caller: it is the safety "
+                     "predicate that makes 'a pull must never delay the power drop' impossible by "
+                     "construction, and the 50 s window it guards leaves no room to add it later",
     "oxy_is_finalized": "redundant — pull_session.py already gates re-pulls on finalisation via "
                         "parse_trailer, which that caller needs anyway for the device summary",
     "busy_with": "redundant — offline_lock.slot() raises OfflineBusy(_busy), so the label already "
