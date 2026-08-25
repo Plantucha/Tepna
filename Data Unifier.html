@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0wrnC0lVV+CrxqFX7kyOj6IsM0aoYU6jEFEXzId9FCU=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-9pcgddjwATDE1P/+Ue5Tz21VCRq1r7R7G8zoRQbGCks=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G8T1c38HwLBl265H8MWt+Jqx7dj3Cj7O3Kl0EA7ny0s=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-W7m5EJur7zz9xJVj4s2diLK2Ex8nuYlUeh9vJ0nqr8U=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-YorI74yr8c/0Hcd1VZkyFFL6jCh3WK0LtlbgsYgy5po=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0wrnC0lVV+CrxqFX7kyOj6IsM0aoYU6jEFEXzId9FCU=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-9pcgddjwATDE1P/+Ue5Tz21VCRq1r7R7G8zoRQbGCks=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G8T1c38HwLBl265H8MWt+Jqx7dj3Cj7O3Kl0EA7ny0s=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-W7m5EJur7zz9xJVj4s2diLK2Ex8nuYlUeh9vJ0nqr8U=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -3703,6 +3703,22 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       night.rtcVerifiedAtMs = bestR.tMs;
     }
   }
+
+  /* ACQ-EVIDENCE-CONTRACT Phase C — attach the Acquisition Evidence envelope to a night by matching the
+     envelope's session_id against the .dat night's source filename stamp. DECLARE, never modify: the
+     envelope is surfaced read-only and touches NO science field (contract §4). A night with no matching
+     envelope is unchanged (§19 back-compat). */
+  function _o2AttachAcqEvidence(night, bag) {
+    if (!night || !bag) return;
+    var fname = night.fname || '';
+    for (var sid in bag) {
+      if (!Object.prototype.hasOwnProperty.call(bag, sid)) continue;
+      if (sid && fname.indexOf(sid) >= 0) {
+        night.acquisitionEvidence = bag[sid];
+        return;
+      }
+    }
+  }
   function decodeO2RingBinToCSV(bytes, fname, file) {
     var tMs = _o2BinStartMs(fname, file); // floating wall-clock ms, or null when the date is unknown
     var dated = tMs != null;
@@ -3804,6 +3820,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
             Object.keys(allNights).forEach(function (_k) {
               var _n = allNights[_k];
               if (_n && _n._o2BinSource === true) _o2AttachRtcVerification(_n, _rtcLog);
+              if (_n) _o2AttachAcqEvidence(_n, (typeof window !== 'undefined' && window._oxyAcqEvidence) || null);
             });
           }
         } catch (_eRt) {
@@ -3932,6 +3949,26 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
             var _rtcRows = parseRingClockLog(_rtcText);
             if (_rtcRows.length) {
               window._oxyRtcLog = (window._oxyRtcLog || []).concat(_rtcRows);
+            }
+            resolve(null);
+            return;
+          }
+          // Acquisition Evidence sidecar (`*.meta.json`, capture-host/pull_session.py — the generalized
+          // sidecar carrying `acquisition_evidence`, ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF Phase C).
+          // Same batch-bag posture as the rtclog above: stash the envelope keyed by session_id; the
+          // pairing with each .dat night runs after every file resolves, so drop order does not matter.
+          // READ-ONLY surfacing — this NEVER gates or modifies any science (contract §4); a batch with
+          // no envelope behaves exactly as today (contract §19 back-compat).
+          if (/\.meta\.json$/i.test(file.name)) {
+            try {
+              var _metaObj = JSON.parse(new TextDecoder('utf-8').decode(_buf));
+              var _acqEv = _metaObj && _metaObj.acquisition_evidence;
+              if (_acqEv && _acqEv.session_id) {
+                window._oxyAcqEvidence = window._oxyAcqEvidence || {};
+                window._oxyAcqEvidence[_acqEv.session_id] = _acqEv;
+              }
+            } catch (_me) {
+              /* a malformed sidecar is ignored — never blocks the night's own science */
             }
             resolve(null);
             return;
@@ -10752,6 +10789,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   // them without a browser drop batch or the DSP realm's file-input plumbing.
   OxyDex.parseRingClockLog = parseRingClockLog;
   OxyDex._attachRtcVerification = _o2AttachRtcVerification;
+  OxyDex._attachAcqEvidence = _o2AttachAcqEvidence;
   // Waveform SpO₂ (0x05 pair) — pure, exposed for the test suite + headless callers.
   OxyDex.parsePPG2W = parsePPG2W;
   OxyDex.spo2WaveformTrend = spo2WaveformTrend;
@@ -11305,7 +11343,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     oxyBuildSpo2Series,
     // FINISHED-WORK-IMPROVEMENTS §A 2a — pure surface for the ring-clock sidecar contract tests.
     parseRingClockLog,
-    _attachRtcVerification: _o2AttachRtcVerification
+    _attachRtcVerification: _o2AttachRtcVerification,
+    _attachAcqEvidence: _o2AttachAcqEvidence
   };
   OxyDex._bare = BARE;
   // DSP→UI hook injection (FOLLOWUPS-II item 3): the co-loaded UI modules register their
