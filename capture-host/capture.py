@@ -5504,6 +5504,48 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
         coexistence_gate=bool(cbs.get("coexistence_gate", False)))
 
 
+def _maybe_start_as11_shadow(cfg, config_path, root, cpap_ctl, tasks, *,
+                             load_creds=None, connect_factory=None, create_task=None):
+    """Start the AS11 session-detector SHADOW runner if `as11_detector.enabled` is set — otherwise a
+    no-op returning None. Shadow: it OBSERVES (writes SESSIONDETECT.csv + AS11CLOCK.csv) and drives
+    NOTHING. It short-connects the AS11 on the CPAP free radio (hci1) only while the live-stream
+    controller is idle (`is_capturing=cpap_ctl._running`), so it never fights the controller for the
+    one device — the coexistence lesson of 2026-08-25. Default OFF: zero runtime effect until enabled.
+    The seams (`load_creds`/`connect_factory`/`create_task`) are injected so the enable path is tested
+    without a radio or a live loop."""
+    # Config-only opt-in (like pull.on_doff), read without a literal .get fallback so it stays out of
+    # settings_schema's shared-leaf default check. Absent/false → no-op.
+    if not (cfg.get("as11_detector", {}) or {}).get("enabled"):
+        return None
+    import as11_clock
+    import cpap_shadow_runner
+    import cpap_supervisor
+
+    cbs = (cfg.get("cpap", {}) or {}).get("ble_stream", {}) or {}
+    adcfg = cfg.get("as11_detector", {}) or {}
+    creds_path = cbs.get("creds_path") or os.path.join(os.path.dirname(config_path), "as11_creds.json")
+    hci = cbs.get("adapter", "hci1")
+    creds = (load_creds or _load_as11_creds)(creds_path)
+    if not creds:
+        log.info("AS11 session detector enabled but no as11_creds — skipping (pair the AS11 first)")
+        return None
+    if connect_factory is None:  # pragma: no cover — the bleak I/O edge, mirrors _build_cpap_controller
+        async def connect_factory():
+            return await _cpap_ble_connect(creds["ble_addr"], hci)
+    interval = float(adcfg.get("poll_interval_sec", 30.0))
+    task = (create_task or asyncio.create_task)(cpap_shadow_runner.run_shadow_loop(
+        connect=connect_factory, creds=creds, supervisor=cpap_supervisor.CPAPSessionSupervisor(),
+        is_capturing=cpap_ctl._running,
+        session_writer=cpap_shadow_runner.SessionSidecar(os.path.join(root, "SESSIONDETECT.csv")),
+        clock_writer=as11_clock.ClockSidecar(os.path.join(root, "AS11CLOCK.csv")),
+        host_epoch=_time.time, sleep=asyncio.sleep, poll_interval_s=interval, should_stop=_STOP.is_set))
+    TASK_LABELS[id(task)] = "AS11 shadow detector"
+    tasks.append(task)
+    log.info("AS11 session detector: SHADOW enabled on %s (poll %ss) → SESSIONDETECT.csv + AS11CLOCK.csv",
+             hci, interval)
+    return task
+
+
 async def _cpap_ble_connect(ble_addr: str, hci: str | None):
     """Open the AS11 link on the FREE radio and return (write, recv_frame, disconnect) for as11_pull.
 
@@ -5694,6 +5736,9 @@ async def main():
         # pushes flow+pressure onto the SAME bus the wearables use so the existing Live-streams grid
         # renders it. Built by the testable factory above; the bleak connect is the only I/O edge.
         _cpap_ctl = _build_cpap_controller(BUS, cfg, args.config)
+        # AS11 session detector (SHADOW): observes therapy via a short-connect poll while the CPAP
+        # stream is idle, writing SESSIONDETECT.csv + AS11CLOCK.csv. Default OFF (as11_detector.enabled).
+        _maybe_start_as11_shadow(cfg, args.config, root, _cpap_ctl, tasks)
         web_runner = await webmon.start(
             webmon.make_app(BUS, cfg, args.config, ADAPTER, STATUS, _spawn,
                             pull_stored=_pull, polar_pause=polar_offline_op,
