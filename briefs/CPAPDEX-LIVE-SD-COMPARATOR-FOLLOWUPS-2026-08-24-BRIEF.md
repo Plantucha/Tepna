@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-08-24
+**Status:** DONE — 2026-08-25 · **Created:** 2026-08-24
 
 # CPAPDex live-vs-SD comparator — follow-ups
 
@@ -64,6 +64,26 @@ Both agreement numbers are single nights: night n=1 SD/live 0.9977 flat-in-time;
 (superseded). The reference guide labels them n=1 by design. Fold more paired capture-host nights (the
 box owes the captures) to turn either into a validated agreement rather than a single data point.
 
+## Triage — 2026-08-25, coordinator (owner-directed "execute executable or ask")
+
+- **§2 wide-xcorr v2 — DECLINED until a real broken-clock recording needs it.** The refusal IS the
+  product (the comparator exists to scream on the EdfSink class); building the salvage mode now would
+  be capability without a customer. Reopen criterion, concrete: a real night refused for clock
+  disagreement whose flow data someone actually needs salvaged. The quasi-periodic false-lock hazard
+  note travels with it whenever it is built.
+- **§3 auto-coimport — DECLINED.** Role-from-position is the ratified safety design precisely because
+  content-sniffing is impossible; an auto-offered comparison would reintroduce the role-ambiguity the
+  explicit second-file flow was chosen to avoid, to save one click. The manual affordance stays.
+- **§4 PLD-pressure channel — SCHEDULED as the natural v1.1**, no new brief needed: `compareChannel`
+  is already channel-agnostic, so this is a small extension rider on whichever CPAPDex unit next
+  touches the comparator (tepna-99's lane). Delivered-pressure live-vs-SD is the first channel where
+  a divergence would be therapy-relevant rather than telemetry-relevant.
+- **§5 replicate the pins — ONGOING BY CONSTRUCTION, not a schedulable unit.** Every paired
+  capture-host night adds n for free now that both paths run in production; the box's nightly capture
+  + 13:00 harvest is the collection mechanism, and the guide's n counts update as pairs accrue. No
+  brief; the numbers stop being n=1 by themselves.
+
 ## Done when
 - [x] §1 visual smoke test performed and recorded (coordinator, 2026-08-24) — three findings, all resolved in the visual-smoke follow-up PR (invisible cards, divergence band, filename-gate note).
-- [ ] §2–§5 triaged: each either scheduled as its own executable brief or explicitly declined here.
+- [x] §2–§5 triaged (2026-08-25, above): §2 declined-until-need with a reopen criterion, §3 declined,
+      §4 scheduled as a comparator-touching rider, §5 ongoing by construction.
