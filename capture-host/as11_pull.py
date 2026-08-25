@@ -79,6 +79,15 @@ async def get_date_time(write, recv_frame, seal, unseal, *, rpc_id=13):
     return res["dateTime"]
 
 
+async def get_items(write, recv_frame, seal, unseal, names, *, rpc_id=17):
+    """Get (0x43) over the encrypted channel → the result dict keyed by the requested DataItem
+    names. READ-ONLY: reads named items (e.g. FGState, MachineMetrics, MaskPressure) and never
+    changes device state. `L.get_items` validates that `names` is a non-empty array of non-empty
+    strings and raises ValueError otherwise."""
+    await _send_enc(write, seal, L.get_items(names, rpc_id))
+    return await _await_result(recv_frame, rpc_id, unseal)
+
+
 # Terminal spool statuses (rpc_protocol.md §SpoolFragment).
 _ROUND_DONE = ("SPOOL_COMPLETE_MORE_DATA_PENDING", "SPOOL_COMPLETE_NO_MORE_DATA")
 
