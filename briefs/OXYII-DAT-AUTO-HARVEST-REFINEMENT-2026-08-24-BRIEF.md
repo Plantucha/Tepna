@@ -115,10 +115,10 @@ the flag was False, it was that nothing said so.
 
 ## 5 · Sequenced after unit 1
 
-- [ ] **Measure the post-drop awake tail.** Possibly recoverable from history: every past unworn
-      link-drop followed by connect attempts brackets it. That number decides whether the current
-      210 s settle is already sufficient, needs shortening (**owner decision** — the clamp is
-      deliberate), or needs hold-through-pull.
+- [x] **Measure the post-drop awake tail — the history route was RUN, and it does NOT resolve.** See
+      §5a. It yields the pull-duration half of the answer and a single uncontaminated data point, and
+      it establishes that the tail needs a deliberate experiment. The three-way decision (sufficient /
+      shorten the settle / hold-through-pull) is **still open**.
 - [ ] **§5's recording state machine** (`UNKNOWN → RECORDING → END_CANDIDATE → END_CONFIRMED`) on the
       `duration_s` axis. ⚠️ **The recording axis is `OXYII-PRESENCE-MODEL`'s model** — coordinate the
       seam before locking the enum, and do not collide with that brief's in-flight `IDLE_UNWORN` emit.
@@ -128,6 +128,49 @@ the flag was False, it was that nothing said so.
       window can serve this and their pending E2E item.
 - [ ] **§11 multi-recording ordering** — the ring's FILE_LIST semantics are *measured* in
       `O2RING-PROTOCOL`; read them, do not assume.
+
+### 5a · The history route was run, and both directions are confounded
+
+**Pre-stated bands, written before the measurement:** tail ≥ (settle + worst pull) ⇒ fire-after-drop
+as built · tail between one pull and that ⇒ shorten the settle (owner decision) · tail below one pull
+⇒ hold-through-pull.
+
+**Corpus.** 30 days of the box's `tepna-capture` journal (2026-07-25 → 2026-08-24), 21 596 lines
+mentioning the ring. Drop anchors are the first `alert: … has been offline for ~N min` of each cluster
+separated by ≥3 h; `N` is a clean mode (**5 min in 53 of 53**), so drop = t_alert − 300 s. **53 drops.**
+
+**What history does give — the other half of the inequality.** Pull duration, n=433 completed pulls:
+**median 20.7 s · p90 68.6 s · max 104.7 s**. So a fire-after-drop pull must fit inside
+**210 s settle + ≤105 s ≈ 5.25 min** of awake tail.
+
+**Why it cannot give the tail itself.** Both bounds are confounded, in opposite ways:
+
+- **From below — the successes are re-wear, not tail.** Ten successful reaches land 1.2–15.0 min after
+  a drop, which reads exactly like the answer. It is not: **nine of the ten are followed by an unbroken
+  48–560 min session** (next `not advertising` at 48.4, 560.5, 84.0, 79.3, 244.4, 129.4, 129.2, 127.8
+  and 125.9 min). A tail reach is brief by construction; a 2–9 h session is the ring being **put back
+  on**. Three of those anchors sit at 20:19, 21:58 and 22:40 local — *bedtime* — so the "drop" is a
+  pre-donning gap and the "success" is the start of the night.
+- **From above — the failures are not attributable to the ring.**
+  `BleakDeviceNotFoundError('O2Ring not advertising')` fires within 6 min of the drop in **49 of 53**
+  episodes (the other four at 10.3, 13.2, 14.2, 19.8 min), which reads like a ~2 min tail. It cannot be
+  spent that way: the message is a compound of *ring asleep* ∨ *adapter deaf* ∨ *out of range*, and this
+  box's UB500 is known to go deaf. The qc `missing stream(s)` lines were tried as the discriminator and
+  are too weak — only **4 of 53** windows show ring-only absence, **22** show other devices missing too
+  (itself ambiguous, since a morning doff removes the H10 and the Verity as well), and **27** contain no
+  qc line at all.
+
+**The one uncontaminated point.** `2026-08-19 21:59:20` — a `_STORED.dat` save **1.2 min after a drop**,
+with the link gone **2.4 min later**. That is a real post-drop pull: tail ≥ 1.2 min, and plausibly under
+3.6 min — i.e. **below the 5.25 min the current settle needs**. n=1. It is a reason to run the
+experiment, not a result, and it is the only reason §5's checkbox is not simply closed as "sufficient".
+
+**The experiment this leaves.** After a *known* doff, attempt a connect every 30 s and record the first
+failure — while holding the H10 connected throughout as an **adapter-health control that must stay
+green**. Without that control the first failure is unattributable, which is precisely the reason 30 days
+of history cannot answer a question one instrumented ring-window can. Fold it into the §24 real-ring
+checklist rather than spending a separate window on it.
+
 
 ## 6 · ANSWERED by the owner — and the doff trigger was collateral damage
 
