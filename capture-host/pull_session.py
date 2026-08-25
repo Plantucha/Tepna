@@ -326,6 +326,30 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
             complete = len(data) >= size
             with open(part, "wb") as f:
                 f.write(data)
+            # T3 — LAST BYTE RECEIVED (brief §11/§23). `VERIFYING` means exactly "bytes complete on disk,
+            # validation in flight", so it is emitted ONLY for a complete transfer: a short pull's bytes are
+            # NOT complete, and a VERIFYING row for one would assert the very completeness the classify call
+            # below is about to deny. Without this row T3 and T4 share the classify row's single `at`, so
+            # `T4 - T3` — whether verification costs anything at all — is not merely unknown but uncomputable.
+            #
+            # Safe by construction against the crash it introduces: `current()` is LAST-ROW-WINS by position,
+            # so a following VERIFIED supersedes this; and a crash in between leaves VERIFYING as the latest
+            # row, which `reconcile` sends to `repull` (it is not in `(VERIFIED, COMMITTED)`). That is the
+            # same outcome a crash one line earlier already produced under DOWNLOADING — this only says
+            # WHERE it happened, which is what these states are for.
+            if complete:
+                oxy_inventory.append_row(
+                    ledger_path,
+                    oxy_inventory.make_row(
+                        device_id,
+                        ts,
+                        oxy_inventory.VERIFYING,
+                        reason="bytes complete, validating",
+                        size=len(data),
+                        reported_size=size,
+                        path=part,
+                    ),
+                )
             # CLASSIFY the received bytes against the ring's reported size AND the Format-A finalisation
             # trailer, and record the verdict. A file reaches VERIFIED only when the trailer parses; a
             # right-sized-but-unfinalised one is PARTIAL — known, recorded, re-pullable — never silently
