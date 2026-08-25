@@ -101,6 +101,27 @@ import { CpapDsp } from './cpapdex-dsp.js';
   /* ════════════════════════════════════════════════════════════════════════
    KPI GRID
    ════════════════════════════════════════════════════════════════════════ */
+  /* STR deviceCsr × CSL PB cross-check — a compact DECLARE-never-correct corroboration read. The
+     asymmetry is surfaced in the words: a device CSR that exceeds our PB is the FINDING (we
+     under-detected the device's Cheyne-Stokes); our PB exceeding device CSR is benign (PB is broader). */
+  function _csrCheckLabel(c) {
+    if (!c) return '';
+    if (c.verdict === 'discrepancy')
+      return (
+        '<b style="color:var(--amber)">CSR↔PB discrepancy</b>: device CSR ' +
+        fnum(c.device_csr, 1) +
+        '% &gt; our PB ' +
+        fnum(c.our_pb, 1) +
+        '% (Δ+' +
+        fnum(c.delta, 1) +
+        'pp — device flagged more Cheyne-Stokes than we detected)'
+      );
+    if (c.verdict === 'pb-broader')
+      return 'CSR↔PB: our PB ' + fnum(c.our_pb, 1) + '% &gt; device CSR ' + fnum(c.device_csr, 1) + '% (Δ' + fnum(c.delta, 1) + 'pp — broader periodic breathing, benign)';
+    if (c.verdict === 'both-negligible') return 'CSR↔PB both &lt;0.5% (agree)';
+    return 'CSR↔PB corroborate (Δ' + fnum(c.delta, 1) + 'pp)';
+  }
+
   function renderKPIs(night) {
     var nm = night.metrics || {};
     var s0 = (night.sessions && night.sessions[0]) || {};
@@ -141,6 +162,7 @@ import { CpapDsp } from './cpapdex-dsp.js';
         (rxBits.length ? ' · ' + esc(rxBits.join(' · ')) : '') +
         (night.deviceRera != null ? ' · ' + evBadge('deviceRera') + 'RERA ' + fnum(night.deviceRera, 1) + '/hr' : '') +
         (night.deviceCsr != null ? ' · ' + evBadge('deviceCsr') + 'CSR ' + fnum(night.deviceCsr, 1) + '% (device)' : '') +
+        (night.deviceCsrCheck ? ' · ' + evBadge('csrPbDelta') + _csrCheckLabel(night.deviceCsrCheck) : '') +
         '</div>';
     }
     return out;

@@ -92,7 +92,13 @@ settles "can the CPAP clock be set locally?" with a citation rather than an infe
 
 ## Still owed
 
-- [ ] Use `deviceCsr` to actually cross-validate CPAPDex's own periodic-breathing %.
+- [x] Use `deviceCsr` to actually cross-validate CPAPDex's own periodic-breathing %. **DONE (2026-08-25):**
+      `csrPbCrossCheck(deviceCsr, pbPct)` in `cpapdex-dsp.js`, wired into `attachStrSummary` as
+      `night.deviceCsrCheck` — a DECLARE-never-correct corroboration read (touches no metric). The band is
+      **asymmetric by physiology, pre-stated before any real night** (Cheyne-Stokes ⊂ periodic breathing):
+      PB ≥ CSR is benign (`pb-broader`), CSR substantially exceeding PB is the finding (`discrepancy`);
+      band = max(2 pp, 50% of the larger). Registry `csrPbDelta` (measured), a reference-guide card, a
+      device-summary render line, and 27 tests including the asymmetry control (same |Δ|, opposite verdict).
 - [ ] Apply the independently-measured clock offset to STR's device-time session boundaries
       (see `CPAP-CLOCK-LONGITUDINAL-SEGMENT-2026-08-21-BRIEF.md`).
 

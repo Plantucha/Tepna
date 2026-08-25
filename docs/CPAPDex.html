@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-DuXRBrOhGfbU1LiuimxcGZY4TzYak1VvpGFIWl5H24g=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JhcIMyyaav12LTpUrDZweluWMqdkgx/mekCyRHvHA7Q=' 'sha256-OSwZvOd7bbOWHI1P1dIrnGb73988FZy+BjRpZ1w9RR0=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-bp7Fi2OoOx/XooWuTGpmF1SiV+A8ZCvEpRBCsq2nxes=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fE9TI05TpZOmn74ISomYxvq5tVhwKNXqB7JVM95NlKw=' 'sha256-sMwruQ+X96xostAQLqPqn1ZkT08oKeS/Gl8kiTIczwk='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/dBlAzrE8FtOUGVDrcb+Q3mg/v0eliYFiMg7oaRvhcA=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JhcIMyyaav12LTpUrDZweluWMqdkgx/mekCyRHvHA7Q=' 'sha256-OSwZvOd7bbOWHI1P1dIrnGb73988FZy+BjRpZ1w9RR0=' 'sha256-QxQj7UIKBrwJJCLrAvm9pQTXuOTmHbjeAWH1Vz8Qg8s=' 'sha256-VpWuZ12v6gKyhjlOT8TLlSMYiBs1ZGSWaJlXOiFIlAo=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-bp7Fi2OoOx/XooWuTGpmF1SiV+A8ZCvEpRBCsq2nxes=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>CPAPDex — PAP Therapy Analyzer · v2.8.0</title>
@@ -4549,6 +4549,14 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       evidence: 'measured',
       cite: 'Cheyne-Stokes respiration fraction scored by the device (STR.edf CSR) — a cross-check on CPAPDex’s own CSR'
     },
+    csrPbDelta: {
+      label: 'CSR↔PB Cross-Check',
+      unit: 'pp',
+      goodDirection: 'neutral',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Device STR CSR% minus CPAPDex CSL periodic-breathing% (deviceCsr − periodicBreathingPct). A DECLARE-never-correct corroboration read across two device channels. Cheyne-Stokes ⊂ periodic breathing, so PB ≥ CSR is expected/benign; CSR substantially exceeding PB (positive delta beyond the band) is the discrepancy — we under-detected the device’s CS finding. Band = max(2 pp, 50% of the larger). Never modifies a metric.'
+    },
     /* ── USAGE & ADHERENCE ──────────────────────────────────────────────── */
     usageHours: { label: 'Usage Hours', unit: 'hr', goodDirection: 'up', depth: 'basic', evidence: 'measured', cite: 'Total mask-on hours (pressure > 0) — direct recording stat' },
     compliancePct: {
@@ -7686,6 +7694,39 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
   /* Attach a STR summary to already-built nights by matching the UTC day. Mutates + returns `nights`.
    The inferred `mode` is left untouched; device fields land as NEW keys so a consumer can prefer the
    declaration and fall back to the inference. A night with no STR match keeps its fields absent. */
+  /* STR deviceCsr × CSL periodic-breathing CROSS-VALIDATION (CPAPDEX-STR-SUMMARY-INGEST item 1).
+     The device's STR session-summary Cheyne-Stokes % (`deviceCsr`) and OUR CSL-annotation-derived
+     periodic-breathing % (`periodicBreathingPct`) are both device-origin but arrive on DIFFERENT
+     channels (the STR summary vs the CSL span annotations) and are never otherwise compared. This is a
+     DECLARE-never-correct corroboration read — it changes NO metric, it only surfaces agreement.
+
+     THE BAND IS ASYMMETRIC BY PHYSIOLOGY, PRE-STATED BEFORE ANY REAL NIGHT (lead-ratified 2026-08-25):
+     Cheyne-Stokes is a SUBSET of periodic breathing, so our PB% (broader) is EXPECTED to be ≥ the
+     device CSR% (CS-specific). Therefore the two DIRECTIONS mean different things and must not be
+     collapsed into one |delta| verdict:
+       delta = deviceCsr − pbPct  (POSITIVE = the device saw MORE Cheyne-Stokes than our PB found)
+       • both < FLOOR            → 'both-negligible'  (the common night; trivial agreement)
+       • delta >  BAND           → 'discrepancy'      (device CSR substantially EXCEEDS our PB — we
+                                                       under-detected the device's CS finding: THE finding)
+       • delta < −BAND           → 'pb-broader'       (our PB substantially EXCEEDS device CSR — BENIGN,
+                                                       non-CS periodic breathing; reported, not flagged)
+       • otherwise               → 'agree'            (corroborate within the band)
+     BAND = max(2 pp absolute, 50% of the larger value) — corroboration, never identity; the absolute
+     floor absorbs summary-vs-span rounding, the relative arm scales with the magnitude. The magnitude
+     of BAND may be refined against real nights; the ASYMMETRY (which side is the finding) is fixed. */
+  var CSR_PB_FLOOR = 0.5;
+  function csrPbCrossCheck(deviceCsr, pbPct) {
+    if (deviceCsr == null || !isFinite(deviceCsr) || pbPct == null || !isFinite(pbPct)) return null;
+    var delta = +(deviceCsr - pbPct).toFixed(2);
+    var band = Math.max(2, 0.5 * Math.max(deviceCsr, pbPct));
+    var verdict;
+    if (deviceCsr < CSR_PB_FLOOR && pbPct < CSR_PB_FLOOR) verdict = 'both-negligible';
+    else if (delta > band) verdict = 'discrepancy';
+    else if (delta < -band) verdict = 'pb-broader';
+    else verdict = 'agree';
+    return { device_csr: deviceCsr, our_pb: pbPct, delta: delta, band: +band.toFixed(2), verdict: verdict };
+  }
+
   function attachStrSummary(nights, summary) {
     if (!nights || !nights.length || !summary || !summary.length) return nights;
     var byDay = {};
@@ -7702,6 +7743,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       night.deviceModeCode = rec.deviceModeCode;
       night.deviceRera = rec.deviceRera;
       night.deviceCsr = rec.deviceCsr;
+      // item 1 — cross-validate the device's CSR summary against our CSL periodic-breathing %.
+      night.deviceCsrCheck = csrPbCrossCheck(night.deviceCsr, night.metrics ? night.metrics.periodicBreathingPct : null);
       night.prescription = rec.prescription;
     }
     return nights;
@@ -7736,6 +7779,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     buildSessionFromEdf: buildSessionFromEdf,
     parseStrSummary: parseStrSummary,
     attachStrSummary: attachStrSummary,
+    csrPbCrossCheck: csrPbCrossCheck,
     nightMetrics: nightMetrics,
     compute: compute,
     _nightFromInput: _nightFromInput,
@@ -8678,6 +8722,27 @@ const { CpapDsp } = __require('cpapdex-dsp.js');
   /* ════════════════════════════════════════════════════════════════════════
    KPI GRID
    ════════════════════════════════════════════════════════════════════════ */
+  /* STR deviceCsr × CSL PB cross-check — a compact DECLARE-never-correct corroboration read. The
+     asymmetry is surfaced in the words: a device CSR that exceeds our PB is the FINDING (we
+     under-detected the device's Cheyne-Stokes); our PB exceeding device CSR is benign (PB is broader). */
+  function _csrCheckLabel(c) {
+    if (!c) return '';
+    if (c.verdict === 'discrepancy')
+      return (
+        '<b style="color:var(--amber)">CSR↔PB discrepancy</b>: device CSR ' +
+        fnum(c.device_csr, 1) +
+        '% &gt; our PB ' +
+        fnum(c.our_pb, 1) +
+        '% (Δ+' +
+        fnum(c.delta, 1) +
+        'pp — device flagged more Cheyne-Stokes than we detected)'
+      );
+    if (c.verdict === 'pb-broader')
+      return 'CSR↔PB: our PB ' + fnum(c.our_pb, 1) + '% &gt; device CSR ' + fnum(c.device_csr, 1) + '% (Δ' + fnum(c.delta, 1) + 'pp — broader periodic breathing, benign)';
+    if (c.verdict === 'both-negligible') return 'CSR↔PB both &lt;0.5% (agree)';
+    return 'CSR↔PB corroborate (Δ' + fnum(c.delta, 1) + 'pp)';
+  }
+
   function renderKPIs(night) {
     var nm = night.metrics || {};
     var s0 = (night.sessions && night.sessions[0]) || {};
@@ -8718,6 +8783,7 @@ const { CpapDsp } = __require('cpapdex-dsp.js');
         (rxBits.length ? ' · ' + esc(rxBits.join(' · ')) : '') +
         (night.deviceRera != null ? ' · ' + evBadge('deviceRera') + 'RERA ' + fnum(night.deviceRera, 1) + '/hr' : '') +
         (night.deviceCsr != null ? ' · ' + evBadge('deviceCsr') + 'CSR ' + fnum(night.deviceCsr, 1) + '% (device)' : '') +
+        (night.deviceCsrCheck ? ' · ' + evBadge('csrPbDelta') + _csrCheckLabel(night.deviceCsrCheck) : '') +
         '</div>';
     }
     return out;
