@@ -314,9 +314,40 @@ def test_EVERY_link_error_site_routes_through_the_one_formatter():
 # only reachable trigger for a coin-cell device such as the H10.
 
 
-def test_defaults_arm_both_triggers():
+def test_defaults_arm_the_two_settle_triggers_but_NOT_the_close_path():
+    """Defaults arm charger and not-worn, and leave the §8/§14 close-triggered harvest OFF. `why` names
+    it, because a flag that is off and unmentioned is the exact shape of the defect this function was
+    written for — one layer along."""
     a = capture.autopull_arming({"auto": True})
-    assert a["charger"] is True and a["doff"] is True and a["why"] == ""
+    assert a["charger"] is True and a["doff"] is True
+    assert a["close"] is False
+    assert "on_close" in a["why"]
+
+
+def test_on_close_NEVER_INHERITS_unlike_on_doff():
+    """🔴 THE ASYMMETRY IS THE POINT, and it is not an inconsistency.
+
+    `on_doff` inherits `on_charger` because it was SPLIT OUT of it and had to reproduce existing
+    behaviour exactly on every host. `on_close` names a path that has never run anywhere, so there is
+    no behaviour to preserve — and `pull.on_doff` is currently ENABLED on the box for the awake-tail
+    measurement, so an inheriting `on_close` would switch the close-triggered harvest on at the next
+    daemon restart. That is the silent deployed-behaviour change §7's Done-when forbids."""
+    for cfg in ({"auto": True},
+                {"auto": True, "on_charger": True},
+                {"auto": True, "on_doff": True},
+                {"auto": True, "on_charger": True, "on_doff": True}):
+        assert capture.autopull_arming(cfg)["close"] is False, cfg
+
+
+def test_on_close_arms_only_when_asked_explicitly():
+    a = capture.autopull_arming({"auto": True, "on_close": True})
+    assert a["close"] is True and "on_close" not in a["why"]
+
+
+def test_auto_off_reports_every_trigger_off_including_close():
+    """`pull.auto` is the master switch; a new trigger must not leak past it."""
+    a = capture.autopull_arming({"auto": False, "on_close": True})
+    assert a["charger"] is False and a["doff"] is False and a["close"] is False
 
 
 def test_on_charger_false_no_longer_silently_kills_the_doff_trigger():
@@ -335,14 +366,22 @@ def test_on_doff_INHERITS_on_charger_so_deploying_changes_nothing():
     assert capture.autopull_arming({"auto": True})["doff"] is True
 
 
+def _why_clause(arming: dict, flag: str) -> str:
+    """The ONE `why` clause naming `flag`. `why` is a "; "-joined list of per-flag clauses, and asserting
+    a word is absent from the WHOLE string silently couples every flag's wording to every other's —
+    adding `on_close`, whose clause legitimately contains "never inherits", broke an assertion about
+    `on_doff` that had nothing to do with it. Scope the assertion to the clause it is about."""
+    return next((c for c in arming["why"].split("; ") if flag in c), "")
+
+
 def test_the_reason_NAMES_the_governing_flag_and_its_value():
     """The defect was never that the flag was False — it was that nothing said so."""
     box = capture.autopull_arming({"auto": True, "on_charger": False})
     assert "pull.on_charger=False" in box["why"]
-    assert "inherits" in box["why"], "an inherited default must say it was inherited, not just False"
+    assert "inherits" in _why_clause(box, "on_doff"), "an inherited default must say it was inherited"
     explicit = capture.autopull_arming({"auto": True, "on_charger": True, "on_doff": False})
     assert "pull.on_doff=False" in explicit["why"]
-    assert "inherits" not in explicit["why"], "an explicit False must not be reported as inherited"
+    assert "inherits" not in _why_clause(explicit, "on_doff"), "an explicit False is not inherited"
 
 
 def test_auto_off_disarms_both_and_says_which_flag():
