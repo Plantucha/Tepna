@@ -98,6 +98,11 @@ ALLOW_FUNCS = {
     # The cpap_spool P4 pair stays: it is a different arm whose daemon wiring has not landed yet.
     "sync_spool": "cpap_spool P4 — the transaction driver; standalone until the announced daemon wiring (P4 brief §7: the nightly-pull touch rides with P1/P3)",
     "last_committed_cursor": "cpap_spool P4 — the restart authority G4/P5 and the wiring consume; standalone until the announced daemon wiring (P4 brief §7)",
+    "resume_target": "oxy_transfer §8b — which link state a finished held-link pull hands back to "
+                     "(contact at exit: worn → LIVE, unworn → IDLE_UNWORN); standalone until unit 2's "
+                     "orchestration calls it. Third of the trio with pull_deadline and flush_gate — the "
+                     "link table PERMITS both targets and deliberately does not choose, so the choosing "
+                     "lives here and is testable before a caller exists",
     "flush_gate": "oxy_transfer §14a — the wait-for-run_status-3→1 decision for the close-triggered "
                   "pull; standalone until unit 2's orchestration calls it. Sibling of pull_deadline and "
                   "landed for the same reason: it is the rule that keeps the harvest from firing "

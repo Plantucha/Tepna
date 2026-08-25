@@ -24,6 +24,7 @@ import os
 from dataclasses import dataclass
 
 import oxy_inventory as inv
+import oxy_lifecycle
 from cpap_acq import FailureClass
 
 # ── validation depth ──────────────────────────────────────────────────────────────────────────────
@@ -83,6 +84,30 @@ RESUME = "resume"
 # and the atomic commit measured 0.009 s (§13c) — so 10 s is over 10x the observed unwind, while
 # costing under 6 % of a 170 s window.
 GUARD_BAND_S = 10.0
+
+
+# ── §8b THE RESUME TARGET ────────────────────────────────────────────────────────────────────────────
+# A held-link pull hands the link back WITHOUT a reconnect (the four resume edges added in #1760). The
+# link table PERMITS both targets; it does not choose between them, and choosing is the caller's job —
+# which is this. Seam ruling, 2026-08-24: the target is chosen by CONTACT AT EXIT.
+def resume_target(worn: bool | None) -> "oxy_lifecycle.OxyState":
+    """Which link state a finished pull hands back to. PURE.
+
+    ⚠️ `worn is False`, NOT falsy — and this is the third place in the daemon to say so. `worn` is
+    TRI-STATE: `None` means NO VERDICT (a device with no contact bit and no optical inference), not
+    "not worn". `should_drop_not_worn` and `notworn_pull_due` already use exactly this `worn is not
+    False` convention, and a fourth spelling of it would be a bug waiting for a device that reports
+    `None` mid-pull.
+
+    So: only an EXPLICIT not-worn resumes idle. §8's doff case is the common exit, but a manual or
+    reconciliation pull can run while worn and resumes straight to LIVE.
+
+    Both targets are self-correcting — the live loop transitions `LIVE → IDLE_UNWORN` or
+    `IDLE_UNWORN → LIVE` on its next observation, and both edges are legal — so this rule is about
+    being CONSISTENT with the rest of the daemon rather than about being recoverable. That is why it
+    follows the existing convention instead of picking the locally safer-looking answer.
+    """
+    return oxy_lifecycle.OxyState.IDLE_UNWORN if worn is False else oxy_lifecycle.OxyState.LIVE
 
 
 # ── §14a THE FLUSH GATE ──────────────────────────────────────────────────────────────────────────────

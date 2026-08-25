@@ -13,6 +13,7 @@ import os
 import pytest
 
 import oxy_inventory as inv
+import oxy_lifecycle
 import oxy_transfer as tr
 import oxyii
 from cpap_acq import FailureClass
@@ -518,6 +519,36 @@ def test_the_default_guard_band_is_ten_seconds():
     commit), not a taste — a silent change to it should have to edit this line."""
     assert tr.GUARD_BAND_S == 10.0
     assert tr.pull_deadline(0.0, 180.0).abort_at == 170.0
+
+
+# ══ §8b THE RESUME TARGET ══════════════════════════════════════════════════════════════════════════
+
+
+def test_an_unworn_ring_resumes_IDLE_not_LIVE():
+    """§8's doff case — the common exit for a close-triggered pull."""
+    assert tr.resume_target(False) is oxy_lifecycle.OxyState.IDLE_UNWORN
+
+
+def test_a_worn_ring_resumes_STRAIGHT_to_live():
+    """The seam ruling is explicit that IDLE_UNWORN is the common exit, not the only legal one: a
+    manual or reconciliation pull can run while worn."""
+    assert tr.resume_target(True) is oxy_lifecycle.OxyState.LIVE
+
+
+def test_NO_VERDICT_is_not_not_worn():
+    """`worn` is TRI-STATE and None means no verdict — a device with no contact bit and no optical
+    inference. Treating None as not-worn is the bug this assertion exists to prevent, and it is the
+    same `worn is not False` convention should_drop_not_worn and notworn_pull_due already use. A
+    `not worn` or `worn == False` spelling passes the other two tests and fails this one."""
+    assert tr.resume_target(None) is oxy_lifecycle.OxyState.LIVE
+
+
+def test_both_targets_are_legal_link_transitions_from_PULLING():
+    """The rule is only meaningful if the table permits what it returns. Both edges were added in
+    #1760; without them a finished pull raises InvalidTransition on the way home, which is the failure
+    §8b exists to have fixed."""
+    for worn in (True, False, None):
+        assert (oxy_lifecycle.OxyState.PULLING, tr.resume_target(worn)) in oxy_lifecycle.LEGAL_TRANSITIONS
 
 
 # ══ §14a THE FLUSH GATE ════════════════════════════════════════════════════════════════════════════
