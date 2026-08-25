@@ -80,6 +80,10 @@ class RawRecordSink:
         self._fh = None
         self._seq = 0
         self._state = _CLOSED
+        # _CLOSED is ALSO the never-opened state, so the state alone cannot answer "did this record
+        # ever exist?". acq_facts needs that distinction: a never-opened sink must not report a clean
+        # close (which the envelope reads as VALID) for a record that was never written.
+        self._ever_opened = False
 
     def open(self, channels, fs):
         """Open the record file (torn-tail-safe) and write the session header once."""
@@ -88,6 +92,7 @@ class RawRecordSink:
         _truncate_torn_tail(self._path)
         self._fh = open(self._path, "a", encoding="utf-8")
         self._state = _OPEN
+        self._ever_opened = True
         self._write({
             "record": "cpap-raw",
             "v": 1,
@@ -113,6 +118,29 @@ class RawRecordSink:
             "host_wall": self._wall(),
             "samples": batch.get("channels") or {},        # raw decoded samples per device_id, VERBATIM (INV3)
         })
+
+    def acq_facts(self):
+        """The facts the Acquisition Evidence Contract assembles from this record (Phase B).
+
+        A read-only projection of what this sink already holds — it opens nothing, hashes nothing and
+        changes no state, so the envelope stays a pure consumer of the durable record (INV9's
+        authoritative copy). `closed` is the validation input the adapter needs; `records` is the batch
+        count actually written. `size` is the file's size on disk, or None when it is not there to
+        stat — None, never 0, because an unstattable file is UNKNOWN, not empty."""
+        try:
+            size = os.path.getsize(self._path)
+        except OSError:
+            size = None
+        return {
+            "session_id": self._session_id,
+            "device_id": self._device_id,
+            "path": self._path,
+            "records": self._seq,
+            # cleanly closed ⇒ opened, then closed. A never-opened sink is NOT "closed" — it has no
+            # record to validate, and reporting a clean close would manufacture VALID out of nothing.
+            "closed": self._ever_opened and self._state == _CLOSED and self._fh is None,
+            "size": size,
+        }
 
     def close(self):
         """Idempotent close — flush + fsync so a clean shutdown is durable and re-close is a no-op."""
