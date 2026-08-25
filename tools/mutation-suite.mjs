@@ -1506,8 +1506,14 @@ function selftest() {
   ck('the pseudo ledger is found in the SHARED dir', cands.pseudo.length === 1 && /tepna-mutation/.test(cands.pseudo[0]), true);
   ck('delete-lane ledgers collect across BOTH dirs and ALL groups', cands.del.length, 2);
   ck(
+    // basename, NOT the whole path. The candidates are built from `process.cwd()`, so a bare
+    // /oxydex/ over the full path also matches the CWD PREFIX — and `wt-<dex>-<task>` is the
+    // natural worktree name for node work here. Measured 2026-08-24: this selftest FALSE-FAILS
+    // in `wt-oxydex-acq` while the primary checkout and CI pass, because every candidate path
+    // contains the directory name. The leak this pins is a LEDGER leaking in, which is a fact
+    // about the filename segment; the loose pattern named more than the thing it tested (§4b).
     "…and another file's ledger never leaks in",
-    cands.del.some((p) => /oxydex/.test(p)),
+    cands.del.some((p) => /oxydex/.test(basename(p))),
     false
   );
   const laneMd = renderLaneSections({ pseudo: { files: [{ file: 'x.js', total: 3, byVerdict: { tested: 2, 'not-covered': 1 } }] }, del: { files: [] } }).join('\n');
