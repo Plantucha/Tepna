@@ -1,562 +1,582 @@
 {
-  "_note": "Author-time verification of every DOI cited anywhere in this repo, resolved against api.crossref.org. NOT a runtime input and NEVER fetched by a bundle — the no-network rule governs shipped code; this file is the OFFLINE record of a network check, so a later reader can re-check a citation without repeating it. `year` is Crossref's issued year, which for online-first papers is up to one year before the print/issue year a citation normally quotes; treat a one-year gap as agreement.",
-  "_verifiedOn": "2026-08-05",
-  "_resolver": "https://api.crossref.org/works/{doi}",
-  "_count": 103,
-  "dois": {
+ "_note": "Author-time verification of every DOI cited anywhere in this repo, resolved against api.crossref.org. NOT a runtime input and NEVER fetched by a bundle — the no-network rule governs shipped code; this file is the OFFLINE record of a network check, so a later reader can re-check a citation without repeating it. `year` is Crossref's issued year, which for online-first papers is up to one year before the print/issue year a citation normally quotes; treat a one-year gap as agreement.",
+ "_verifiedOn": "2026-08-05",
+ "_resolver": "https://api.crossref.org/works/{doi}",
+ "_count": 107,
+ "dois": {
   "10.5664/jcsm.9814": {
-    "firstAuthor": "Ni",
-    "year": "2022",
-    "container": "Journal of Clinical Sleep Medicine",
-    "authorAliases": [
-      "Yue-Nan"
-    ],
-    "aliasNote": "Crossref's family name is \"Ni\" — two letters, below the citation gate's \u22653-char name-part floor, so firstAuthor alone can never whole-word match. The given name Yue-Nan is the matchable alias; the guide cites the full form \"Ni Yue-Nan\".",
-    "aliasSource": "crossref-variant"
+   "firstAuthor": "Ni",
+   "year": "2022",
+   "container": "Journal of Clinical Sleep Medicine",
+   "authorAliases": [
+    "Yue-Nan"
+   ],
+   "aliasNote": "Crossref's family name is \"Ni\" — two letters, below the citation gate's ≥3-char name-part floor, so firstAuthor alone can never whole-word match. The given name Yue-Nan is the matchable alias; the guide cites the full form \"Ni Yue-Nan\".",
+   "aliasSource": "crossref-variant"
   },
   "10.5664/jcsm.6056": {
-    "firstAuthor": "Reiter",
-    "year": "2016",
-    "container": "Journal of Clinical Sleep Medicine"
+   "firstAuthor": "Reiter",
+   "year": "2016",
+   "container": "Journal of Clinical Sleep Medicine"
   },
   "10.1097/MCP.0000000000001113": {
-    "firstAuthor": "Richter",
-    "year": "2024",
-    "container": "Current Opinion in Pulmonary Medicine"
+   "firstAuthor": "Richter",
+   "year": "2024",
+   "container": "Current Opinion in Pulmonary Medicine"
   },
   "10.1007/s11325-022-02740-w": {
-    "firstAuthor": "Richter",
-    "year": "2022",
-    "container": "Sleep and Breathing"
+   "firstAuthor": "Richter",
+   "year": "2022",
+   "container": "Sleep and Breathing"
   },
   "10.3389/fphys.2025.1630032": {
-    "firstAuthor": "Kantrowitz",
-    "year": "2025",
-    "container": "Frontiers in Physiology"
+   "firstAuthor": "Kantrowitz",
+   "year": "2025",
+   "container": "Frontiers in Physiology"
   },
   "10.1111/psyp.14604": {
-    "firstAuthor": "Quigley",
-    "year": "2024",
-    "container": "Psychophysiology"
+   "firstAuthor": "Quigley",
+   "year": "2024",
+   "container": "Psychophysiology"
   },
   "10.3390/jcm8030337": {
-    "firstAuthor": "Liang",
-    "year": "2019",
-    "container": "Journal of Clinical Medicine"
+   "firstAuthor": "Liang",
+   "year": "2019",
+   "container": "Journal of Clinical Medicine"
   },
-    "10.1001/archinte.1916.00080130010002": {
-      "firstAuthor": "Du BOIS",
-      "year": "1916",
-      "container": "Archives of Internal Medicine",
-      "authorAliases": [
-        "DuBois"
-      ],
-      "aliasNote": "Crossref spells the surname \"Du BOIS\"; the paper and the guides spell it \"DuBois\". Same author, no space.",
-      "aliasSource": "crossref-variant"
-    },
-    "10.1001/jama.283.14.1829": {
-      "firstAuthor": "Nieto",
-      "year": "2000",
-      "container": "JAMA"
-    },
-    "10.1007/BF00142586": {
-      "firstAuthor": "Mann",
-      "year": "1996",
-      "container": "Climatic Change"
-    },
-    "10.1007/BF00648343": {
-      "firstAuthor": "Lomb",
-      "year": "1976",
-      "container": "Astrophysics and Space Science"
-    },
-    "10.1007/s00421-003-0988-y": {
-      "firstAuthor": "Uth",
-      "year": "2003",
-      "container": "European Journal of Applied Physiology"
-    },
-    "10.1007/s11325-019-01904-5": {
-      "firstAuthor": "Pillar",
-      "year": "2019",
-      "container": "Sleep and Breathing"
-    },
-    "10.1007/s11325-024-03232-9": {
-      "firstAuthor": "Tisyakorn",
-      "year": "2024",
-      "container": "Sleep and Breathing"
-    },
-    "10.1007/s11517-013-1039-4": {
-      "firstAuthor": "Kulkas",
-      "year": "2013",
-      "container": "Medical &amp; Biological Engineering &amp; Computing"
-    },
-    "10.1007/s11906-009-0035-4": {
-      "firstAuthor": "Palatini",
-      "year": "2009",
-      "container": "Current Hypertension Reports"
-    },
-    "10.1016/0021-9681(72)90027-6": {
-      "firstAuthor": "Keys",
-      "year": "1972",
-      "container": "Journal of Chronic Diseases"
-    },
-    "10.1016/S0140-6736(06)68735-7": {
-      "firstAuthor": "Bauer",
-      "year": "2006",
-      "container": "The Lancet"
-    },
-    "10.1016/S0140-6736(84)90062-X": {
-      "firstAuthor": "Guilleminault",
-      "year": "1984",
-      "container": "The Lancet"
-    },
-    "10.1016/S0140-6736(86)90837-8": {
-      "firstAuthor": "Martin Bland",
-      "year": "1986",
-      "container": "The Lancet",
-      "authorAliases": [
-        "Bland"
-      ],
-      "aliasNote": "Crossref records the surname as \"Martin Bland\"; the paper and every citation of it spell it \"Bland\" (J. M. Bland). Same author.",
-      "aliasSource": "crossref-variant"
-    },
-    "10.1016/S0165-1838(96)00112-9": {
-      "firstAuthor": "Toichi",
-      "year": "1997",
-      "container": "Journal of the Autonomic Nervous System"
-    },
-    "10.1016/S0735-1097(00)01054-8": {
-      "firstAuthor": "Tanaka",
-      "year": "2001",
-      "container": "Journal of the American College of Cardiology"
-    },
-    "10.1016/S1388-2457(03)00123-8": {
-      "firstAuthor": "Kemp",
-      "year": "2003",
-      "container": "Clinical Neurophysiology"
-    },
-    "10.1016/S2213-8587(22)00319-9": {
-      "firstAuthor": "Battelino",
-      "year": "2023",
-      "container": "The Lancet Diabetes &amp; Endocrinology"
-    },
-    "10.1016/j.amepre.2005.06.004": {
-      "firstAuthor": "Jurca",
-      "year": "2005",
-      "container": "American Journal of Preventive Medicine"
-    },
-    "10.1016/j.bspc.2022.104014": {
-      "firstAuthor": "Ryser",
-      "year": "2022",
-      "container": "Biomedical Signal Processing and Control"
-    },
-    "10.1016/j.bspc.2023.104726": {
-      "firstAuthor": "Schipper",
-      "year": "2023",
-      "container": "Biomedical Signal Processing and Control"
-    },
-    "10.1016/j.chest.2020.03.053": {
-      "firstAuthor": "Azarbarzin",
-      "year": "2020",
-      "container": "Chest"
-    },
-    "10.1016/j.ijcard.2012.03.119": {
-      "firstAuthor": "Schäfer",
-      "year": "2013",
-      "container": "International Journal of Cardiology"
-    },
-    "10.1016/s0165-1838(96)00112-9": {
-      "firstAuthor": "Toichi",
-      "year": "1997",
-      "container": "Journal of the Autonomic Nervous System"
-    },
-    "10.1038/nrdp.2015.15": {
-      "firstAuthor": "Lévy",
-      "year": "2015",
-      "container": "Nature Reviews Disease Primers"
-    },
-    "10.1049/cp:20040932": {
-      "firstAuthor": "Riley",
-      "year": "2004",
-      "container": "18th European Frequency and Time Forum (EFTF 2004)"
-    },
-    "10.1055/s-2007-979906": {
-      "firstAuthor": "Wójcicki",
-      "year": "1995",
-      "container": "Hormone and Metabolic Research"
-    },
-    "10.1056/NEJM198710223171717": {
-      "firstAuthor": "",
-      "year": "1987",
-      "container": "New England Journal of Medicine",
-      "authorAliases": [
-        "Mosteller"
-      ],
-      "aliasNote": "Crossref carries NO author for this record. Supplied from the paper itself (Mosteller RD).",
-      "aliasSource": "from-paper"
-    },
-    "10.1063/1.166141": {
-      "firstAuthor": "Peng",
-      "year": "1995",
-      "container": "Chaos: An Interdisciplinary Journal of Nonlinear Science"
-    },
-    "10.1073/pnas.4.12.370": {
-      "firstAuthor": "Harris",
-      "year": "1918",
-      "container": "Proceedings of the National Academy of Sciences"
-    },
-    "10.1080/01621459.1968.10480934": {
-      "firstAuthor": "Sen",
-      "year": "1968",
-      "container": "Journal of the American Statistical Association"
-    },
-    "10.1088/0026-1394/30/5/003": {
-      "firstAuthor": "Tavella",
-      "year": "1994",
-      "container": "Metrologia"
-    },
-    "10.1088/0967-3334/28/3/R01": {
-      "firstAuthor": "Allen",
-      "year": "2007",
-      "container": "Physiological Measurement"
-    },
-    "10.1088/0967-3334/37/4/610": {
-      "firstAuthor": "Charlton",
-      "year": "2016",
-      "container": "Physiological Measurement"
-    },
-    "10.1088/1361-6501/ae6a09": {
-      "firstAuthor": "Abdessalem",
-      "year": "2026",
-      "container": "Measurement Science and Technology"
-    },
-    "10.1088/1361-6579/ab009b": {
-      "firstAuthor": "Peralta",
-      "year": "2019",
-      "container": "Physiological Measurement"
-    },
-    "10.1088/1361-6579/abf01f": {
-      "firstAuthor": "Schipper",
-      "year": "2021",
-      "container": "Physiological Measurement"
-    },
-    "10.1088/1361-6579/ac826d": {
-      "firstAuthor": "Charlton",
-      "year": "2022",
-      "container": "Physiological Measurement"
-    },
-    "10.1088/1361-6579/adb89e": {
-      "firstAuthor": "Charlton",
-      "year": "2025",
-      "container": "Physiological Measurement"
-    },
-    "10.1088/1361-6579/adbe23": {
-      "firstAuthor": "Hostrup",
-      "year": "2025",
-      "container": "Physiological Measurement"
-    },
-    "10.1089/dia.2005.7.253": {
-      "firstAuthor": "McDonnell",
-      "year": "2005",
-      "container": "Diabetes Technology &amp; Therapeutics"
-    },
-    "10.1093/ajcn/51.2.241": {
-      "firstAuthor": "Mifflin",
-      "year": "1990",
-      "container": "The American Journal of Clinical Nutrition"
-    },
-    "10.1093/eurheartj/ehy624": {
-      "firstAuthor": "Azarbarzin",
-      "year": "2018",
-      "container": "European Heart Journal"
-    },
-    "10.1093/oxfordjournals.eurheartj.a059428": {
-      "firstAuthor": "MALIK",
-      "year": "1989",
-      "container": "European Heart Journal"
-    },
-    "10.1093/sleep/29.9.1203": {
-      "firstAuthor": "Morgenthaler",
-      "year": "2006",
-      "container": "Sleep"
-    },
-    "10.1097/00003246-200206000-00006": {
-      "firstAuthor": "Pinto Lima",
-      "year": "2002",
-      "container": "Critical Care Medicine"
-    },
-    "10.1109/10.959330": {
-      "firstAuthor": "Brennan",
-      "year": "2001",
-      "container": "IEEE Transactions on Biomedical Engineering"
-    },
-    "10.1109/19.206671": {
-      "firstAuthor": "Premoli",
-      "year": "1993",
-      "container": "IEEE Transactions on Instrumentation and Measurement"
-    },
-    "10.1109/BSN.2010.50": {
-      "firstAuthor": "Bates",
-      "year": "2010",
-      "container": "2010 International Conference on Body Sensor Networks"
-    },
-    "10.1109/EMBC44109.2020.9176573": {
-      "firstAuthor": "Doheny",
-      "year": "2020",
-      "container": "2020 42nd Annual International Conference of the IEEE Engineering in Medicine &amp; Biology Society (EMBC)"
-    },
-    "10.1109/FREQ.1974.200027": {
-      "firstAuthor": "Gray",
-      "year": "1974",
-      "container": "28th Annual Symposium on Frequency Control"
-    },
-    "10.1109/JBHI.2021.3099208": {
-      "firstAuthor": "Pelaez-Coca",
-      "year": "2022",
-      "container": "IEEE Journal of Biomedical and Health Informatics"
-    },
-    "10.1109/PROC.1966.4634": {
-      "firstAuthor": "Allan",
-      "year": "1966",
-      "container": "Proceedings of the IEEE"
-    },
-    "10.1109/TASSP.1976.1162830": {
-      "firstAuthor": "Knapp",
-      "year": "1976",
-      "container": "IEEE Transactions on Acoustics, Speech, and Signal Processing"
-    },
-    "10.1109/TBME.1985.325532": {
-      "firstAuthor": "Pan",
-      "year": "1985",
-      "container": "IEEE Transactions on Biomedical Engineering"
-    },
-    "10.1109/TBME.2013.2246160": {
-      "firstAuthor": "Karlen",
-      "year": "2013",
-      "container": "IEEE Transactions on Biomedical Engineering"
-    },
-    "10.1109/TBME.2021.3136753": {
-      "firstAuthor": "Nassi",
-      "year": "2022",
-      "container": "IEEE Transactions on Biomedical Engineering"
-    },
-    "10.1109/icemi.2011.6037776": {
-      "firstAuthor": "Zhou Chunlei",
-      "year": "2011",
-      "container": "IEEE 2011 10th International Conference on Electronic Measurement & Instruments",
-      "authorAliases": [
-        "Zhou"
-      ],
-      "aliasNote": "Crossref puts the WHOLE name in `family` with `given` empty (family='Zhou Chunlei'); the surname is Zhou. Same author, same record.",
-      "aliasSource": "crossref-variant"
-    },
-    "10.1111/j.1464-5491.2007.02119.x": {
-      "firstAuthor": "Hill",
-      "year": "2007",
-      "container": "Diabetic Medicine"
-    },
-    "10.1111/resp.13669": {
-      "firstAuthor": "Pépin",
-      "year": "2019",
-      "container": "Respirology"
-    },
-    "10.1111/resp.14754": {
-      "firstAuthor": "Hui",
-      "year": "2024",
-      "container": "Respirology"
-    },
-    "10.1136/heart.84.1.64": {
-      "firstAuthor": "MEANEY",
-      "year": "2000",
-      "container": "Heart"
-    },
-    "10.1152/ajpheart.2000.278.6.H2039": {
-      "firstAuthor": "Richman",
-      "year": "2000",
-      "container": "American Journal of Physiology-Heart and Circulatory Physiology"
-    },
-    "10.1161/01.CIR.93.5.1043": {
-      "firstAuthor": "Electrophysiology",
-      "year": "1996",
-      "container": "Circulation",
-      "authorAliases": [
-        "Task Force of the European Society of Cardiology and the North American Society of Pacing and Electrophysiology",
-        "Task Force of the ESC and NASPE"
-      ],
-      "aliasNote": "CORPORATE AUTHOR. Crossref stores the full society name; the parse kept only its last word (Electrophysiology), and the guides use the conventional short form. Both are correct — the aliases exist so a correct citation cannot red.",
-      "aliasSource": "crossref-variant"
-    },
-    "10.1161/01.HYP.32.2.365": {
-      "firstAuthor": "Takazawa",
-      "year": "1998",
-      "container": "Hypertension"
-    },
-    "10.1161/CIRCEP.110.958009": {
-      "firstAuthor": "Hayano",
-      "year": "2011",
-      "container": "Circulation: Arrhythmia and Electrophysiology"
-    },
-    "10.11613/BM.2015.015": {
-      "firstAuthor": "Giavarina",
-      "year": "2015",
-      "container": "Biochemia Medica"
-    },
-    "10.1164/rccm.202009-3608ST": {
-      "firstAuthor": "Jacobs",
-      "year": "2020",
-      "container": "American Journal of Respiratory and Critical Care Medicine"
-    },
-    "10.1164/rccm.202111-2608OC": {
-      "firstAuthor": "Azarbarzin",
-      "year": "2022",
-      "container": "American Journal of Respiratory and Critical Care Medicine"
-    },
-    "10.1177/096228029900800204": {
-      "firstAuthor": "Bland",
-      "year": "1999",
-      "container": "Statistical Methods in Medical Research"
-    },
-    "10.1183/09031936.00099710": {
-      "firstAuthor": "Randerath",
-      "year": "2011",
-      "container": "European Respiratory Journal"
-    },
-    "10.1186/cc341": {
-      "firstAuthor": "Jubran",
-      "year": "1999",
-      "container": "Critical Care"
-    },
-    "10.12710/cardiometry.2017.10.6676": {
-      "firstAuthor": "",
-      "year": "2017",
-      "container": "Cardiometry",
-      "authorAliases": [
-        "Baevsky"
-      ],
-      "aliasNote": "Crossref carries NO author for this record. Supplied from the paper itself (Baevsky RM, Chernikova AG) so the check is enforceable rather than skipped.",
-      "aliasSource": "from-paper"
-    },
-    "10.1378/chest.124.5.1694": {
-      "firstAuthor": "Magalang",
-      "year": "2003",
-      "container": "Chest"
-    },
-    "10.1542/peds.105.2.405": {
-      "firstAuthor": "Brouillette",
-      "year": "2000",
-      "container": "Pediatrics"
-    },
-    "10.2174/157340312801215782": {
-      "firstAuthor": "Elgendi",
-      "year": "2012",
-      "container": "Current Cardiology Reviews"
-    },
-    "10.2196/17252": {
-      "firstAuthor": "Akbarian",
-      "year": "2020",
-      "container": "Journal of Medical Internet Research"
-    },
-    "10.2196/67110": {
-      "firstAuthor": "Schweizer",
-      "year": "2025",
-      "container": "JMIR Cardio"
-    },
-    "10.2337/dc06-1085": {
-      "firstAuthor": "Kovatchev",
-      "year": "2006",
-      "container": "Diabetes Care"
-    },
-    "10.2337/dc08-0545": {
-      "firstAuthor": "Nathan",
-      "year": "2008",
-      "container": "Diabetes Care"
-    },
-    "10.2337/dc18-1581": {
-      "firstAuthor": "Bergenstal",
-      "year": "2018",
-      "container": "Diabetes Care"
-    },
-    "10.2337/dci19-0028": {
-      "firstAuthor": "Battelino",
-      "year": "2019",
-      "container": "Diabetes Care"
-    },
-    "10.2337/diab.19.9.644": {
-      "firstAuthor": "Service",
-      "year": "1970",
-      "container": "Diabetes"
-    },
-    "10.3389/fncom.2010.00127": {
-      "firstAuthor": "Louis",
-      "year": "2010",
-      "container": "Frontiers in Computational Neuroscience"
-    },
-    "10.3389/fphys.2013.00026": {
-      "firstAuthor": "Billman",
-      "year": "2013",
-      "container": "Frontiers in Physiology"
-    },
-    "10.3389/fphys.2017.00255": {
-      "firstAuthor": "Costa",
-      "year": "2017",
-      "container": "Frontiers in Physiology"
-    },
-    "10.3389/frsle.2026.1858267": {
-      "firstAuthor": "Schipper",
-      "year": "2026",
-      "container": "Frontiers in Sleep"
-    },
-    "10.3390/jimaging8050120": {
-      "firstAuthor": "Xiao",
-      "year": "2022",
-      "container": "Journal of Imaging"
-    },
-    "10.3390/s19010088": {
-      "firstAuthor": "Cesareo",
-      "year": "2018",
-      "container": "Sensors"
-    },
-    "10.3390/s20216067": {
-      "firstAuthor": "Chang",
-      "year": "2020",
-      "container": "Sensors"
-    },
-    "10.3390/s21144777": {
-      "firstAuthor": "Brønd",
-      "year": "2021",
-      "container": "Sensors"
-    },
-    "10.3390/s22010180": {
-      "firstAuthor": "Budig",
-      "year": "2021",
-      "container": "Sensors"
-    },
-    "10.3390/s23229077": {
-      "firstAuthor": "Topalidis",
-      "year": "2023",
-      "container": "Sensors"
-    },
-    "10.3390/s24175717": {
-      "firstAuthor": "Schipper",
-      "year": "2024",
-      "container": "Sensors"
-    },
-    "10.5664/jcsm.2172": {
-      "firstAuthor": "Berry",
-      "year": "2012",
-      "container": "Journal of Clinical Sleep Medicine"
-    },
-    "10.5664/jcsm.3960": {
-      "firstAuthor": "Garg",
-      "year": "2014",
-      "container": "Journal of Clinical Sleep Medicine"
-    },
-    "10.5664/jcsm.8462": {
-      "firstAuthor": "Hsu",
-      "year": "2020",
-      "container": "Journal of Clinical Sleep Medicine"
-    }
+  "10.1001/archinte.1916.00080130010002": {
+   "firstAuthor": "Du BOIS",
+   "year": "1916",
+   "container": "Archives of Internal Medicine",
+   "authorAliases": [
+    "DuBois"
+   ],
+   "aliasNote": "Crossref spells the surname \"Du BOIS\"; the paper and the guides spell it \"DuBois\". Same author, no space.",
+   "aliasSource": "crossref-variant"
   },
-  "_aliasPolicy": "authorAliases: additional spellings that are CORRECT for this DOI. Needed because a Crossref surname can be a corporate name, a differently-spaced surname, or absent entirely; without them a correct citation reds and the noise buries a real finding (CITATION-ATTRIBUTION-FOLLOWUPS §3, constraint 1). EVERY entry carrying authorAliases MUST also carry aliasSource, because the two kinds are not the same evidential class: \"crossref-variant\" = the alias is a spelling or short form of the author Crossref actually recorded, so the check still rests on Crossref; \"from-paper\" = Crossref carries NO author for this record and the name was read off the paper itself, which is mildly circular (the citation being checked supplied the answer) and is therefore marked rather than hidden. Gate-enforced by tests/dex-tests.js group citation-ledger.",
-  "_backfillNote": "2026-08-16 — six DOIs added for works already cited in papers/ PROSE without one. Resolved against api.crossref.org at author time (the resolver named in _resolver). Before this, 20 of 23 papers carried NO DOI at all, so citation-ledger was structurally blind to them.",
-  "_backfillNote2": "2026-08-17 — three time-frequency DOIs added while closing INTERDISCIPLINARY-LITERATURE §2. Resolved at author time against the resolver named in _resolver. THE SECTION'S 'five unledgered' WAS AN OVER-COUNT and the column is now corrected: Allan 1966 (10.1109/PROC.1966.4634) and Premoli 1993 (10.1109/19.206671) were ALREADY here and match Crossref exactly; Torcaso et al. 1998 (Proc. 30th PTTI) and Riley 2008 (NIST SP 1065) have NO DOI, and this ledger is DOI-keyed, so they stay 'verified, no DOI' in the brief rather than being given a fabricated key. The one row marked AUTHORS AND YEAR UNVERIFIED — 'IEEE Xplore document 6037776', no DOI given — resolves to 10.1109/icemi.2011.6037776 (the DOI contains the document number), Zhou Chunlei / Zhang Qi / Yan Shuhua, 2011, ICEMI. Also corrected _count, which read 92 against 95 actual records before this change."
+  "10.1001/jama.283.14.1829": {
+   "firstAuthor": "Nieto",
+   "year": "2000",
+   "container": "JAMA"
+  },
+  "10.1007/BF00142586": {
+   "firstAuthor": "Mann",
+   "year": "1996",
+   "container": "Climatic Change"
+  },
+  "10.1007/BF00648343": {
+   "firstAuthor": "Lomb",
+   "year": "1976",
+   "container": "Astrophysics and Space Science"
+  },
+  "10.1007/s00421-003-0988-y": {
+   "firstAuthor": "Uth",
+   "year": "2003",
+   "container": "European Journal of Applied Physiology"
+  },
+  "10.1007/s11325-019-01904-5": {
+   "firstAuthor": "Pillar",
+   "year": "2019",
+   "container": "Sleep and Breathing"
+  },
+  "10.1007/s11325-024-03232-9": {
+   "firstAuthor": "Tisyakorn",
+   "year": "2024",
+   "container": "Sleep and Breathing"
+  },
+  "10.1007/s11517-013-1039-4": {
+   "firstAuthor": "Kulkas",
+   "year": "2013",
+   "container": "Medical &amp; Biological Engineering &amp; Computing"
+  },
+  "10.1007/s11906-009-0035-4": {
+   "firstAuthor": "Palatini",
+   "year": "2009",
+   "container": "Current Hypertension Reports"
+  },
+  "10.1016/0021-9681(72)90027-6": {
+   "firstAuthor": "Keys",
+   "year": "1972",
+   "container": "Journal of Chronic Diseases"
+  },
+  "10.1016/S0140-6736(06)68735-7": {
+   "firstAuthor": "Bauer",
+   "year": "2006",
+   "container": "The Lancet"
+  },
+  "10.1016/S0140-6736(84)90062-X": {
+   "firstAuthor": "Guilleminault",
+   "year": "1984",
+   "container": "The Lancet"
+  },
+  "10.1016/S0140-6736(86)90837-8": {
+   "firstAuthor": "Martin Bland",
+   "year": "1986",
+   "container": "The Lancet",
+   "authorAliases": [
+    "Bland"
+   ],
+   "aliasNote": "Crossref records the surname as \"Martin Bland\"; the paper and every citation of it spell it \"Bland\" (J. M. Bland). Same author.",
+   "aliasSource": "crossref-variant"
+  },
+  "10.1016/S0165-1838(96)00112-9": {
+   "firstAuthor": "Toichi",
+   "year": "1997",
+   "container": "Journal of the Autonomic Nervous System"
+  },
+  "10.1016/S0735-1097(00)01054-8": {
+   "firstAuthor": "Tanaka",
+   "year": "2001",
+   "container": "Journal of the American College of Cardiology"
+  },
+  "10.1016/S1388-2457(03)00123-8": {
+   "firstAuthor": "Kemp",
+   "year": "2003",
+   "container": "Clinical Neurophysiology"
+  },
+  "10.1016/S2213-8587(22)00319-9": {
+   "firstAuthor": "Battelino",
+   "year": "2023",
+   "container": "The Lancet Diabetes &amp; Endocrinology"
+  },
+  "10.1016/j.amepre.2005.06.004": {
+   "firstAuthor": "Jurca",
+   "year": "2005",
+   "container": "American Journal of Preventive Medicine"
+  },
+  "10.1016/j.bspc.2022.104014": {
+   "firstAuthor": "Ryser",
+   "year": "2022",
+   "container": "Biomedical Signal Processing and Control"
+  },
+  "10.1016/j.bspc.2023.104726": {
+   "firstAuthor": "Schipper",
+   "year": "2023",
+   "container": "Biomedical Signal Processing and Control"
+  },
+  "10.1016/j.chest.2020.03.053": {
+   "firstAuthor": "Azarbarzin",
+   "year": "2020",
+   "container": "Chest"
+  },
+  "10.1016/j.ijcard.2012.03.119": {
+   "firstAuthor": "Schäfer",
+   "year": "2013",
+   "container": "International Journal of Cardiology"
+  },
+  "10.1016/s0165-1838(96)00112-9": {
+   "firstAuthor": "Toichi",
+   "year": "1997",
+   "container": "Journal of the Autonomic Nervous System"
+  },
+  "10.1038/nrdp.2015.15": {
+   "firstAuthor": "Lévy",
+   "year": "2015",
+   "container": "Nature Reviews Disease Primers"
+  },
+  "10.1049/cp:20040932": {
+   "firstAuthor": "Riley",
+   "year": "2004",
+   "container": "18th European Frequency and Time Forum (EFTF 2004)"
+  },
+  "10.1055/s-2007-979906": {
+   "firstAuthor": "Wójcicki",
+   "year": "1995",
+   "container": "Hormone and Metabolic Research"
+  },
+  "10.1056/NEJM198710223171717": {
+   "firstAuthor": "",
+   "year": "1987",
+   "container": "New England Journal of Medicine",
+   "authorAliases": [
+    "Mosteller"
+   ],
+   "aliasNote": "Crossref carries NO author for this record. Supplied from the paper itself (Mosteller RD).",
+   "aliasSource": "from-paper"
+  },
+  "10.1063/1.166141": {
+   "firstAuthor": "Peng",
+   "year": "1995",
+   "container": "Chaos: An Interdisciplinary Journal of Nonlinear Science"
+  },
+  "10.1073/pnas.4.12.370": {
+   "firstAuthor": "Harris",
+   "year": "1918",
+   "container": "Proceedings of the National Academy of Sciences"
+  },
+  "10.1080/01621459.1968.10480934": {
+   "firstAuthor": "Sen",
+   "year": "1968",
+   "container": "Journal of the American Statistical Association"
+  },
+  "10.1088/0026-1394/30/5/003": {
+   "firstAuthor": "Tavella",
+   "year": "1994",
+   "container": "Metrologia"
+  },
+  "10.1088/0967-3334/28/3/R01": {
+   "firstAuthor": "Allen",
+   "year": "2007",
+   "container": "Physiological Measurement"
+  },
+  "10.1088/0967-3334/37/4/610": {
+   "firstAuthor": "Charlton",
+   "year": "2016",
+   "container": "Physiological Measurement"
+  },
+  "10.1088/1361-6501/ae6a09": {
+   "firstAuthor": "Abdessalem",
+   "year": "2026",
+   "container": "Measurement Science and Technology"
+  },
+  "10.1088/1361-6579/ab009b": {
+   "firstAuthor": "Peralta",
+   "year": "2019",
+   "container": "Physiological Measurement"
+  },
+  "10.1088/1361-6579/abf01f": {
+   "firstAuthor": "Schipper",
+   "year": "2021",
+   "container": "Physiological Measurement"
+  },
+  "10.1088/1361-6579/ac826d": {
+   "firstAuthor": "Charlton",
+   "year": "2022",
+   "container": "Physiological Measurement"
+  },
+  "10.1088/1361-6579/adb89e": {
+   "firstAuthor": "Charlton",
+   "year": "2025",
+   "container": "Physiological Measurement"
+  },
+  "10.1088/1361-6579/adbe23": {
+   "firstAuthor": "Hostrup",
+   "year": "2025",
+   "container": "Physiological Measurement"
+  },
+  "10.1089/dia.2005.7.253": {
+   "firstAuthor": "McDonnell",
+   "year": "2005",
+   "container": "Diabetes Technology &amp; Therapeutics"
+  },
+  "10.1093/ajcn/51.2.241": {
+   "firstAuthor": "Mifflin",
+   "year": "1990",
+   "container": "The American Journal of Clinical Nutrition"
+  },
+  "10.1093/eurheartj/ehy624": {
+   "firstAuthor": "Azarbarzin",
+   "year": "2018",
+   "container": "European Heart Journal"
+  },
+  "10.1093/oxfordjournals.eurheartj.a059428": {
+   "firstAuthor": "MALIK",
+   "year": "1989",
+   "container": "European Heart Journal"
+  },
+  "10.1093/sleep/29.9.1203": {
+   "firstAuthor": "Morgenthaler",
+   "year": "2006",
+   "container": "Sleep"
+  },
+  "10.1097/00003246-200206000-00006": {
+   "firstAuthor": "Pinto Lima",
+   "year": "2002",
+   "container": "Critical Care Medicine"
+  },
+  "10.1109/10.959330": {
+   "firstAuthor": "Brennan",
+   "year": "2001",
+   "container": "IEEE Transactions on Biomedical Engineering"
+  },
+  "10.1109/19.206671": {
+   "firstAuthor": "Premoli",
+   "year": "1993",
+   "container": "IEEE Transactions on Instrumentation and Measurement"
+  },
+  "10.1109/BSN.2010.50": {
+   "firstAuthor": "Bates",
+   "year": "2010",
+   "container": "2010 International Conference on Body Sensor Networks"
+  },
+  "10.1109/EMBC44109.2020.9176573": {
+   "firstAuthor": "Doheny",
+   "year": "2020",
+   "container": "2020 42nd Annual International Conference of the IEEE Engineering in Medicine &amp; Biology Society (EMBC)"
+  },
+  "10.1109/FREQ.1974.200027": {
+   "firstAuthor": "Gray",
+   "year": "1974",
+   "container": "28th Annual Symposium on Frequency Control"
+  },
+  "10.1109/JBHI.2021.3099208": {
+   "firstAuthor": "Pelaez-Coca",
+   "year": "2022",
+   "container": "IEEE Journal of Biomedical and Health Informatics"
+  },
+  "10.1109/PROC.1966.4634": {
+   "firstAuthor": "Allan",
+   "year": "1966",
+   "container": "Proceedings of the IEEE"
+  },
+  "10.1109/TASSP.1976.1162830": {
+   "firstAuthor": "Knapp",
+   "year": "1976",
+   "container": "IEEE Transactions on Acoustics, Speech, and Signal Processing"
+  },
+  "10.1109/TBME.1985.325532": {
+   "firstAuthor": "Pan",
+   "year": "1985",
+   "container": "IEEE Transactions on Biomedical Engineering"
+  },
+  "10.1109/TBME.2013.2246160": {
+   "firstAuthor": "Karlen",
+   "year": "2013",
+   "container": "IEEE Transactions on Biomedical Engineering"
+  },
+  "10.1109/TBME.2021.3136753": {
+   "firstAuthor": "Nassi",
+   "year": "2022",
+   "container": "IEEE Transactions on Biomedical Engineering"
+  },
+  "10.1109/icemi.2011.6037776": {
+   "firstAuthor": "Zhou Chunlei",
+   "year": "2011",
+   "container": "IEEE 2011 10th International Conference on Electronic Measurement & Instruments",
+   "authorAliases": [
+    "Zhou"
+   ],
+   "aliasNote": "Crossref puts the WHOLE name in `family` with `given` empty (family='Zhou Chunlei'); the surname is Zhou. Same author, same record.",
+   "aliasSource": "crossref-variant"
+  },
+  "10.1111/j.1464-5491.2007.02119.x": {
+   "firstAuthor": "Hill",
+   "year": "2007",
+   "container": "Diabetic Medicine"
+  },
+  "10.1111/resp.13669": {
+   "firstAuthor": "Pépin",
+   "year": "2019",
+   "container": "Respirology"
+  },
+  "10.1111/resp.14754": {
+   "firstAuthor": "Hui",
+   "year": "2024",
+   "container": "Respirology"
+  },
+  "10.1136/heart.84.1.64": {
+   "firstAuthor": "MEANEY",
+   "year": "2000",
+   "container": "Heart"
+  },
+  "10.1152/ajpheart.2000.278.6.H2039": {
+   "firstAuthor": "Richman",
+   "year": "2000",
+   "container": "American Journal of Physiology-Heart and Circulatory Physiology"
+  },
+  "10.1161/01.CIR.93.5.1043": {
+   "firstAuthor": "Electrophysiology",
+   "year": "1996",
+   "container": "Circulation",
+   "authorAliases": [
+    "Task Force of the European Society of Cardiology and the North American Society of Pacing and Electrophysiology",
+    "Task Force of the ESC and NASPE"
+   ],
+   "aliasNote": "CORPORATE AUTHOR. Crossref stores the full society name; the parse kept only its last word (Electrophysiology), and the guides use the conventional short form. Both are correct — the aliases exist so a correct citation cannot red.",
+   "aliasSource": "crossref-variant"
+  },
+  "10.1161/01.HYP.32.2.365": {
+   "firstAuthor": "Takazawa",
+   "year": "1998",
+   "container": "Hypertension"
+  },
+  "10.1161/CIRCEP.110.958009": {
+   "firstAuthor": "Hayano",
+   "year": "2011",
+   "container": "Circulation: Arrhythmia and Electrophysiology"
+  },
+  "10.11613/BM.2015.015": {
+   "firstAuthor": "Giavarina",
+   "year": "2015",
+   "container": "Biochemia Medica"
+  },
+  "10.1164/rccm.202009-3608ST": {
+   "firstAuthor": "Jacobs",
+   "year": "2020",
+   "container": "American Journal of Respiratory and Critical Care Medicine"
+  },
+  "10.1164/rccm.202111-2608OC": {
+   "firstAuthor": "Azarbarzin",
+   "year": "2022",
+   "container": "American Journal of Respiratory and Critical Care Medicine"
+  },
+  "10.1177/096228029900800204": {
+   "firstAuthor": "Bland",
+   "year": "1999",
+   "container": "Statistical Methods in Medical Research"
+  },
+  "10.1183/09031936.00099710": {
+   "firstAuthor": "Randerath",
+   "year": "2011",
+   "container": "European Respiratory Journal"
+  },
+  "10.1186/cc341": {
+   "firstAuthor": "Jubran",
+   "year": "1999",
+   "container": "Critical Care"
+  },
+  "10.12710/cardiometry.2017.10.6676": {
+   "firstAuthor": "",
+   "year": "2017",
+   "container": "Cardiometry",
+   "authorAliases": [
+    "Baevsky"
+   ],
+   "aliasNote": "Crossref carries NO author for this record. Supplied from the paper itself (Baevsky RM, Chernikova AG) so the check is enforceable rather than skipped.",
+   "aliasSource": "from-paper"
+  },
+  "10.1378/chest.124.5.1694": {
+   "firstAuthor": "Magalang",
+   "year": "2003",
+   "container": "Chest"
+  },
+  "10.1542/peds.105.2.405": {
+   "firstAuthor": "Brouillette",
+   "year": "2000",
+   "container": "Pediatrics"
+  },
+  "10.2174/157340312801215782": {
+   "firstAuthor": "Elgendi",
+   "year": "2012",
+   "container": "Current Cardiology Reviews"
+  },
+  "10.2196/17252": {
+   "firstAuthor": "Akbarian",
+   "year": "2020",
+   "container": "Journal of Medical Internet Research"
+  },
+  "10.2196/67110": {
+   "firstAuthor": "Schweizer",
+   "year": "2025",
+   "container": "JMIR Cardio"
+  },
+  "10.2337/dc06-1085": {
+   "firstAuthor": "Kovatchev",
+   "year": "2006",
+   "container": "Diabetes Care"
+  },
+  "10.2337/dc08-0545": {
+   "firstAuthor": "Nathan",
+   "year": "2008",
+   "container": "Diabetes Care"
+  },
+  "10.2337/dc18-1581": {
+   "firstAuthor": "Bergenstal",
+   "year": "2018",
+   "container": "Diabetes Care"
+  },
+  "10.2337/dci19-0028": {
+   "firstAuthor": "Battelino",
+   "year": "2019",
+   "container": "Diabetes Care"
+  },
+  "10.2337/diab.19.9.644": {
+   "firstAuthor": "Service",
+   "year": "1970",
+   "container": "Diabetes"
+  },
+  "10.3389/fncom.2010.00127": {
+   "firstAuthor": "Louis",
+   "year": "2010",
+   "container": "Frontiers in Computational Neuroscience"
+  },
+  "10.3389/fphys.2013.00026": {
+   "firstAuthor": "Billman",
+   "year": "2013",
+   "container": "Frontiers in Physiology"
+  },
+  "10.3389/fphys.2017.00255": {
+   "firstAuthor": "Costa",
+   "year": "2017",
+   "container": "Frontiers in Physiology"
+  },
+  "10.3389/frsle.2026.1858267": {
+   "firstAuthor": "Schipper",
+   "year": "2026",
+   "container": "Frontiers in Sleep"
+  },
+  "10.3390/jimaging8050120": {
+   "firstAuthor": "Xiao",
+   "year": "2022",
+   "container": "Journal of Imaging"
+  },
+  "10.3390/s19010088": {
+   "firstAuthor": "Cesareo",
+   "year": "2018",
+   "container": "Sensors"
+  },
+  "10.3390/s20216067": {
+   "firstAuthor": "Chang",
+   "year": "2020",
+   "container": "Sensors"
+  },
+  "10.3390/s21144777": {
+   "firstAuthor": "Brønd",
+   "year": "2021",
+   "container": "Sensors"
+  },
+  "10.3390/s22010180": {
+   "firstAuthor": "Budig",
+   "year": "2021",
+   "container": "Sensors"
+  },
+  "10.3390/s23229077": {
+   "firstAuthor": "Topalidis",
+   "year": "2023",
+   "container": "Sensors"
+  },
+  "10.3390/s24175717": {
+   "firstAuthor": "Schipper",
+   "year": "2024",
+   "container": "Sensors"
+  },
+  "10.5664/jcsm.2172": {
+   "firstAuthor": "Berry",
+   "year": "2012",
+   "container": "Journal of Clinical Sleep Medicine"
+  },
+  "10.5664/jcsm.3960": {
+   "firstAuthor": "Garg",
+   "year": "2014",
+   "container": "Journal of Clinical Sleep Medicine"
+  },
+  "10.5664/jcsm.8462": {
+   "firstAuthor": "Hsu",
+   "year": "2020",
+   "container": "Journal of Clinical Sleep Medicine"
+  },
+  "10.1007/s11325-023-02780-w": {
+   "firstAuthor": "Iftikhar",
+   "year": "2023",
+   "container": "Sleep and Breathing"
+  },
+  "10.3390/s25185745": {
+   "firstAuthor": "Coste",
+   "year": "2025",
+   "container": "Sensors"
+  },
+  "10.2147/nss.s367400": {
+   "firstAuthor": "Zhao",
+   "year": "2022",
+   "container": "Nature and Science of Sleep"
+  },
+  "10.1088/1361-6579/ab840a": {
+   "firstAuthor": "Kinnunen",
+   "year": "2020",
+   "container": "Physiological Measurement"
+  }
+ },
+ "_aliasPolicy": "authorAliases: additional spellings that are CORRECT for this DOI. Needed because a Crossref surname can be a corporate name, a differently-spaced surname, or absent entirely; without them a correct citation reds and the noise buries a real finding (CITATION-ATTRIBUTION-FOLLOWUPS §3, constraint 1). EVERY entry carrying authorAliases MUST also carry aliasSource, because the two kinds are not the same evidential class: \"crossref-variant\" = the alias is a spelling or short form of the author Crossref actually recorded, so the check still rests on Crossref; \"from-paper\" = Crossref carries NO author for this record and the name was read off the paper itself, which is mildly circular (the citation being checked supplied the answer) and is therefore marked rather than hidden. Gate-enforced by tests/dex-tests.js group citation-ledger.",
+ "_backfillNote": "2026-08-16 — six DOIs added for works already cited in papers/ PROSE without one. Resolved against api.crossref.org at author time (the resolver named in _resolver). Before this, 20 of 23 papers carried NO DOI at all, so citation-ledger was structurally blind to them.",
+ "_backfillNote2": "2026-08-17 — three time-frequency DOIs added while closing INTERDISCIPLINARY-LITERATURE §2. Resolved at author time against the resolver named in _resolver. THE SECTION'S 'five unledgered' WAS AN OVER-COUNT and the column is now corrected: Allan 1966 (10.1109/PROC.1966.4634) and Premoli 1993 (10.1109/19.206671) were ALREADY here and match Crossref exactly; Torcaso et al. 1998 (Proc. 30th PTTI) and Riley 2008 (NIST SP 1065) have NO DOI, and this ledger is DOI-keyed, so they stay 'verified, no DOI' in the brief rather than being given a fabricated key. The one row marked AUTHORS AND YEAR UNVERIFIED — 'IEEE Xplore document 6037776', no DOI given — resolves to 10.1109/icemi.2011.6037776 (the DOI contains the document number), Zhou Chunlei / Zhang Qi / Yan Shuhua, 2011, ICEMI. Also corrected _count, which read 92 against 95 actual records before this change."
 }
