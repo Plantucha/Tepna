@@ -4964,19 +4964,31 @@ def autopull_arming(pcfg: dict) -> dict:
     defaulting it False would silently disarm the doff trigger on every host that leaves `on_charger`
     at its default. Inheriting reproduces today's behaviour EXACTLY on every host, so the split is
     semantically neutral until somebody edits config on purpose — enabling a path that has never run
-    is an event, not a side effect of deploying."""
+    is an event, not a side effect of deploying.
+
+    ⚠️ `on_close` DOES NOT INHERIT, and the asymmetry with `on_doff` is the point. `on_doff` inherits
+    because it was SPLIT OUT of an existing flag and had to reproduce existing behaviour exactly.
+    `on_close` names a path that has never run anywhere, so there is no behaviour to preserve — and
+    `pull.on_doff` is currently ENABLED on the box for the awake-tail measurement (brief §6a), which
+    means an inheriting `on_close` would switch the close-triggered harvest on at the next daemon
+    restart. That is precisely the silent deployed-behaviour change §7's Done-when forbids. It defaults
+    OFF and is turned on by an edit somebody makes on purpose."""
     auto = bool(pcfg.get("auto"))
     on_charger = bool(pcfg.get("on_charger", True))
     on_doff = bool(pcfg.get("on_doff", on_charger))
+    on_close = bool(pcfg.get("on_close", False))
     if not auto:
-        return {"charger": False, "doff": False, "why": "pull.auto is off"}
+        return {"charger": False, "doff": False, "close": False, "why": "pull.auto is off"}
     why = []
     if not on_charger:
         why.append("pull.on_charger=False")
     if not on_doff:
         why.append("pull.on_doff=False" if "on_doff" in pcfg
                    else "pull.on_doff absent -> inherits on_charger=False")
-    return {"charger": on_charger, "doff": on_doff, "why": "; ".join(why)}
+    if not on_close:
+        why.append("pull.on_close=False" if "on_close" in pcfg
+                   else "pull.on_close absent -> defaults OFF (never inherits)")
+    return {"charger": on_charger, "doff": on_doff, "close": on_close, "why": "; ".join(why)}
 
 
 def charger_pull_due(charging: bool, since, now: float, settle: float, already: bool) -> bool:
@@ -5018,7 +5030,7 @@ async def charger_pull_poller(cfg: dict, root: str):
     hourly autopull_poller rather than retry-spamming."""
     pcfg = cfg.get("pull") or {}
     _arm = autopull_arming(pcfg)
-    if not (_arm["charger"] or _arm["doff"]):
+    if not (_arm["charger"] or _arm["doff"] or _arm["close"]):
         # The absence-shaped failure becomes present-shaped: say NOT armed, and name the flag.
         log.info("auto-pull: NOT armed — no event trigger enabled (%s). The hourly poller still runs; "
                  "it is a reconciliation net, not the primary path.", _arm["why"] or "pull.auto is off")
@@ -5037,10 +5049,15 @@ async def charger_pull_poller(cfg: dict, root: str):
                if not missing_identity(d) and d.get("vendor") in ("Wellue", "Viatom", "Polar")]
     if not devices:
         return
-    log.info("auto-pull: armed — %d device(s); charger=%s (%.0fs) not-worn=%s (%.0fs)%s. The not-worn "
-             "trigger is the only reachable one for a coin-cell device such as the H10.",
+    # ⚠ ALL THREE STATES ON ONE LINE, including the ones that are OFF. Unit 1 exists because an absent
+    # arming line hid a dead path for months; printing only what is enabled would rebuild that blind
+    # spot one flag along. `close` is the §8/§14 close-triggered harvest — it keys on END_CANDIDATE
+    # rather than on a settle, so it has no settle to report.
+    log.info("auto-pull: armed — %d device(s); charger=%s (%.0fs) not-worn=%s (%.0fs) on-close=%s%s. "
+             "The not-worn trigger is the only reachable one for a coin-cell device such as the H10.",
              len(devices), "on" if _arm["charger"] else "OFF", settle,
              "on" if _arm["doff"] else "OFF", doff_settle,
+             "on" if _arm["close"] else "OFF",
              f" — {_arm['why']}" if _arm["why"] else "")
     while not _STOP.is_set():
         await asyncio.sleep(2)
@@ -5498,10 +5515,36 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
     # devices provider for the on-body gate: the daemon's live device-status map. The 2.4 GHz coexistence
     # interlock is DISABLED BY OWNER ORDER (2026-08-23) — default False — so a stream no longer refuses
     # beside an on-body wearable, only logs it; set cpap.ble_stream.coexistence_gate: true to restore it.
+    # ACQUISITION EVIDENCE CONTRACT, Phase B: the envelope rides beside the durable raw record as a
+    # `.meta.json` sidecar — the SAME shape and the same placement the O2Ring `.dat` path already uses
+    # (pull_session), so one reader handles both devices. Only wired when there IS a raw record to
+    # describe: with no raw_record_dir there is no authoritative artifact, and an envelope about
+    # nothing would be a fabricated acquisition fact.
+    acq_evidence_out = _cpap_acq_evidence_writer() if raw_record_factory is not None else None
+
     return cpap_stream.LiveStreamController(
         bus, connect, lambda: _load_as11_creds(creds_path), lambda: STATUS.get("devices", {}),
         edf_sink_factory=edf_sink_factory, raw_record_factory=raw_record_factory,
+        acq_evidence_out=acq_evidence_out,
         coexistence_gate=bool(cbs.get("coexistence_gate", False)))
+
+
+def _cpap_acq_evidence_writer():
+    """Return the Phase B sidecar writer: one `<raw-record>.meta.json` per finished CPAP session.
+
+    Separated from the factory above so it is directly testable — the daemon closure around it is not.
+    A write failure is logged and swallowed: the acquisition already happened and its raw record is
+    already durable, so losing the REPORT must never look like losing the capture."""
+    def _write(evidence):
+        path = evidence.artifact_path
+        if not path:
+            return
+        try:
+            with open(path + ".meta.json", "w") as fh:
+                json.dump({"acquisition_evidence": evidence.to_dict()}, fh, indent=2)
+        except OSError:
+            log.exception("CPAP acquisition-evidence sidecar write failed for %s", path)
+    return _write
 
 
 def _maybe_start_as11_shadow(cfg, config_path, root, cpap_ctl, tasks, *,

@@ -87,6 +87,42 @@ duplicate": the work is a normalizing READ + a versioned emit, not a new subsyst
   + FGState + cpap_spool), consuming the supervisor's landed fields.
 - **Phase C — Dex adapters** (smallest reads): one Dex reads the envelope rather than reconstructing.
 
+### Phase B — EXECUTED 2026-08-25 (`acq_evidence_cpap`)
+
+Greened by the lead once the supervisor's persisted shapes landed and stabilised (#1746/#1765/#1770).
+Built as a pure ASSEMBLER over stores that already existed, touching none of them:
+
+| envelope fact | consumed from | note |
+|---|---|---|
+| session / device identity | `cpap_record.RawRecordSink` (host-authored acquisition-run id) | §14 — no second session identity invented |
+| artifact | the durable JSONL raw record | **INV9**: the authoritative copy IS the artifact; the `EdfSink` file is DERIVED and rides in `provenance` |
+| sample + gap accounting | `cpap_ingest.GapCounters` | kept as forensic CATEGORIES (§8); the untruncated summary rides in `provenance` because `transport_gaps`/`decode_gaps` are a lossy view |
+| device state | supervisor `Decision` / FGState | read if present, **UNKNOWN if absent** — an unread supervisor is never "Standby" |
+| `duration_check` | `LastTherapyUseDateTime` vs the streamed duration | the CPAP analog of the `.dat` trailer, same vocabulary and sign convention |
+| stored path | `cpap_spool` committed ledger | `SOURCE_STORED_SPOOL`, never merged with live (§10) |
+
+**Two sources, never merged** — `assemble_live` and `assemble_spool`, mirroring §10's live-vs-stored rule.
+
+**Wired on the production path**: `cpap_stream.stream_to_bus` emits the envelope AFTER the sinks close
+(the raw record's clean close is the validation input) and does so in the `finally`, so an interrupted
+night gets one too — that is when acquisition evidence matters most. `capture.py` lands it as a
+`<raw-record>.meta.json` sidecar, the same shape and placement the O2Ring `.dat` path uses, so ONE
+reader handles both devices.
+
+**Three defects caught during the build, all of the examined-nothing family:**
+1. `stopped_cleanly` was initially passed as a literal `True`. The `finally` also runs on a dropped
+   link, so it would have FABRICATED a clean stop on exactly the interrupted nights the envelope
+   exists to describe. Now observed via a `clean` flag the batch loop only reaches by ending normally.
+2. The EDF path was read via `final_path`, which `EdfSink` does not have — so the provenance field
+   would have been silently `None` forever. The public accessor is `path`.
+3. `RawRecordSink._CLOSED` is ALSO the never-opened state, so `acq_facts` reported a clean close for a
+   record that was never written — which the envelope reads as VALID. Fixed with an explicit
+   `_ever_opened` flag.
+
+**`assemble_spool` has no production caller yet** — the spool DRIVER (`cpap_spool.sync_spool`) is itself
+still standalone pending its daemon wiring (P4 brief §7). It is a tested assembler over a real committed
+store, not an execution-witnessed path, and is recorded as such rather than counted as wired.
+
 ## §4 · Execution-witness specimens (§18) + UNKNOWN/VALID controls (§0.5)
 - **#1742 never-armed trigger** and the **unwired G1 cluster** are the two live proofs that "a helper ran"
   ≠ "the production path executed." Phase A's harvest witness must assert ARMED→TRIGGERED→SIDE EFFECT→
@@ -103,7 +139,9 @@ duplicate": the work is a normalizing READ + a versioned emit, not a new subsyst
 ## Done when
 - [ ] The §1 map is ratified by the lead as the authoritative acquisition-fact inventory.
 - [ ] One canonical envelope struct exists (assembler over §1), versioned in the `ganglior` family, MINOR bump.
-- [ ] O2Ring `.dat` (Phase A) produces it; CPAP (Phase B) and a Dex adapter (Phase C) follow.
+- [x] O2Ring `.dat` (Phase A) produces it; **CPAP (Phase B) produces it (2026-08-25)**; a Dex adapter
+      (Phase C, OxyDex read-only panel) landed #1752. Phase B's live path is execution-witnessed through
+      the real pump; its spool assembler is tested but not yet wired (see the Phase B note above).
 - [ ] All spec §21 acceptance boxes met; execution-witness + UNKNOWN/VALID planted controls green; existing tests stay green.
 
 ---
