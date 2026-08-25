@@ -398,7 +398,7 @@ def test_verify_reds_on_a_shifted_grid_that_size_and_trailer_cannot_see(tmp_path
     res = tr.verify(str(p), GOOD_SIZE, oxyii.parse_oxy_trailer)
     # exact reason — a substring check survives a mutmut string-wrap ("XX…XX"); equality kills it
     assert res.ok is False and res.reason == "record boundary: 20 records != trailer total_seconds 21"
-    assert res.sha256 is None
+    assert res.sha256 is None and res.depth == tr.VALIDATION_DEPTH and res.size == GOOD_SIZE
 
 
 def test_verify_reds_when_the_record_region_is_not_a_whole_number_of_records(tmp_path):
@@ -408,7 +408,7 @@ def test_verify_reds_when_the_record_region_is_not_a_whole_number_of_records(tmp
     p = tmp_path / "x.part"
     p.write_bytes(shifted)
     res = tr.verify(str(p), len(shifted), oxyii.parse_oxy_trailer)
-    assert res.ok is False and res.sha256 is None
+    assert res.ok is False and res.sha256 is None and res.depth == tr.VALIDATION_DEPTH and res.size == len(shifted)
     assert res.reason == "record boundary: 61 B between header and trailer is not a whole number of 3-B records"
 
 
@@ -419,7 +419,7 @@ def test_verify_reds_on_a_non_format_a_header(tmp_path):
     p = tmp_path / "x.part"
     p.write_bytes(bad)
     res = tr.verify(str(p), len(bad), oxyii.parse_oxy_trailer)
-    assert res.ok is False and res.sha256 is None
+    assert res.ok is False and res.sha256 is None and res.depth == tr.VALIDATION_DEPTH and res.size == len(bad)
     assert res.reason == "record boundary: not a Format-A header"
 
 
@@ -435,6 +435,7 @@ def test_verify_stops_at_the_size_layer_without_calling_the_parser(tmp_path):
     p.write_bytes(b"ab")
     res = tr.verify(str(p), 99, spy)
     assert res.ok is False and "size" in res.reason and called == []
+    assert res.depth == tr.VALIDATION_DEPTH and res.size == 2  # the 2 bytes on disk, not the mutated None/1
 
 
 def test_size_equality_is_not_completeness(tmp_path):
@@ -443,12 +444,15 @@ def test_size_equality_is_not_completeness(tmp_path):
     p = tmp_path / "x.part"
     p.write_bytes(b"12345678")
     res = tr.verify(str(p), 8, _finalised)
-    assert res.ok is False and "not finalised" in res.reason and res.sha256 is None
+    assert res.ok is False and res.sha256 is None and res.depth == tr.VALIDATION_DEPTH and res.size == 8
+    # exact reason — a substring survives mutmut's XX-wrap and a case-flip; equality kills both
+    assert res.reason == "not finalised — no valid Format-A trailer"
 
 
 def test_verify_reports_an_unreadable_part_rather_than_raising(tmp_path):
     res = tr.verify(str(tmp_path / "absent.part"), None, _finalised)
     assert res.ok is False and "unreadable" in res.reason
+    assert res.depth == tr.VALIDATION_DEPTH and res.size == 0  # an unreadable part saw 0 bytes, not None/1
 
 
 # ══ §8a THE ABORT DEADLINE ═════════════════════════════════════════════════════════════════════════
