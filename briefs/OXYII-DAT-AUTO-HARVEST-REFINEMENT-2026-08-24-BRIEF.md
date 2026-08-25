@@ -127,8 +127,9 @@ the flag was False, it was that nothing said so.
 - [ ] **§22's 8-case restart matrix**, verbatim.
 - [ ] **§24 real-ring tests** — build to be testable, hand the checklist to the box session; one ring
       window can serve this and their pending E2E item.
-- [ ] **§11 multi-recording ordering** — the ring's FILE_LIST semantics are *measured* in
-      `O2RING-PROTOCOL`; read them, do not assume.
+- [x] **§11 multi-recording ordering — ANSWERED in §9**, from the measured `O2RING-PROTOCOL` §4
+      semantics. Ordering is protocol-guaranteed; the *eviction* half is unmeasured and §9a specifies
+      the log that would close it.
 
 ### 5a · The history route was run, and both directions are confounded
 
@@ -371,6 +372,55 @@ built for. It was found by reading the table before writing against it, not by a
    abort-before-start, the `PULLING` pair covers success *and* mid-pull abort. **Do not mint a state
    per outcome** — the LINK state after either outcome is genuinely identical, and a state per outcome
    would put ledger facts into the link axis.
+
+
+## 9 · §11 MULTI-RECORDING ORDERING — answered from measurement, with one gap left open
+
+§11 asks for the ring's *"actual device ordering semantics"*, warns *"do not assume filename ordering
+is chronological unless the protocol guarantees it"*, and asks the scheduler to prioritise the session
+most at risk of being overwritten. Taking those three in turn:
+
+**Ordering needs no assumption — the protocol supplies it.** `0xF1 LIST` returns a **count byte + N×16-byte
+slots**, each a `YYYYMMDDhhmmss` **14-ASCII** stamp plus 2 zero pad (measured on hardware,
+`O2RING-PROTOCOL-2026-07-17-BRIEF.md` §4). That key is fixed-width, zero-padded and most-significant-first,
+so **lexicographic order on the raw slot bytes IS chronological order**. §11's caution is satisfied by the
+protocol rather than by assumption. **Sort the raw 14 bytes; do not parse to a date in order to sort** — a
+parse introduces the Clock-Contract failure modes (§🔒) into an operation that does not need them.
+
+**One discontinuity, and it is already observable.** The key is the **ring's own RTC**, which the daemon
+syncs to the host at first contact, on a new recording session, and on a drift backstop. Across an RTC
+reset (battery) the keys are **not monotonic** — a stale-dated session can sort before genuinely older
+ones. Do **not** read non-monotonic keys as corruption: they are an RTC event, and one the box already
+surfaces — `nightqc.rtc_drift_summary` rolls the `_rtclog.csv` written by `RingClockLogWriter`, which
+watches the ring's RTC against the host every ~10 min and records battery-reset events precisely because
+`STATUS` keeps only the latest.
+
+🔴 **"Prioritise the session most at risk of being overwritten" CANNOT be implemented today — the eviction
+policy is UNMEASURED.** Neither `O2RING-PROTOCOL` nor `OXYII-PROTOCOL-HARVEST` records how many sessions
+the store holds or what the ring does when it is full. The measured capacity fact is **per session**, not
+per store: the 10 h / 36 000-sample / 108 058 B cap at which a session stops and does not roll over. Ranking
+by "oldest is most at risk" would be exactly the assumption §11 forbids, one level down from the filename
+question it warns about.
+
+**What is measured, and it bounds the urgency.** Over 30 days of box journal, sessions newly retrieved per
+pull are **1 (×11) · 2 (×4) · 4 (×1)** — at most four accumulating between pulls, against 42 distinct
+sessions retrieved in total. So the loss §11 describes ("new session arrives + processing takes too long +
+oldest session is lost") is a real shape but not a pressing one at the current hourly cadence.
+
+### 9a · The instrumentation that closes it — and it costs no extra round trip
+
+**`LIST` is already issued on every pull, and its reply already carries the count byte and every slot key.
+Nothing logs them** — confirmed by grep over 30 days of journal: there is no line reporting a list size or
+its contents anywhere. Recording the full list (count + keys) at each pull makes two questions answerable
+**from ordinary operation instead of a dedicated experiment**:
+
+- **Capacity** — the count stops growing at the store's limit.
+- **Eviction** — a key present in one list and absent from a later one, never pulled, is a lost session,
+  and it is the only direct evidence of the policy §11 wants the scheduler to respect.
+
+Until that log exists, "most at risk" has **no evidence behind it**, and the honest scheduler behaviour is
+the one already shipped: pull `which=all`, oldest-key-first, and let completeness stand in for a priority
+we cannot yet justify.
 
 
 ## APPENDIX — owner's full program spec (§1–27, verbatim)
