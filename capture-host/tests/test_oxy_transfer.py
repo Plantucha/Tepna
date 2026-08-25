@@ -567,6 +567,37 @@ def test_no_scheduled_drop_means_the_wait_is_bounded_only_by_the_RING():
     assert tr.flush_gate(tr.IDLE, now=1e9, abort_at=None).action == tr.PULL
 
 
+def test_EVERY_flush_gate_outcome_CARRIES_ITS_REASON():
+    """Same rule as the deadline's reason, and stated once here so it covers every branch rather than
+    the two that happened to get asserted.
+
+    ⚠️ This test exists because I fixed exactly this gap in `pull_deadline` and then reproduced it in
+    `flush_gate` — same file, one function apart, written minutes later. Three mutants nulled the
+    reason on the deadline, WAIT and PULL branches and the suite stayed green, because only the
+    ABANDON-on-new-session and ABANDON-on-None reasons were ever read. A per-branch assertion invites
+    that; enumerating the branches does not.
+
+    The reason is the only account an operator gets of why a harvest waited, fired, or gave up — and
+    this whole brief exists because a defect hid for months behind an absent log line."""
+    outcomes = [
+        tr.flush_gate(tr.FLUSH, now=100.0, abort_at=100.0),  # deadline
+        tr.flush_gate(tr.FLUSH, now=0.0, abort_at=100.0),  # wait
+        tr.flush_gate(tr.RECORDING, now=0.0, abort_at=100.0),  # abandon — new session
+        tr.flush_gate(None, now=0.0, abort_at=100.0),  # abandon — unobservable
+        tr.flush_gate(tr.IDLE, now=0.0, abort_at=100.0),  # pull
+        tr.flush_gate(7, now=0.0, abort_at=100.0),  # pull — unknown value
+    ]
+    assert len({o.action for o in outcomes}) == 3, "the six cases should span all three actions"
+    for o in outcomes:
+        assert isinstance(o.reason, str) and o.reason.strip(), f"outcome with no reason: {o}"
+
+
+def test_the_pull_reason_NAMES_the_status_it_saw():
+    """A harvest that fired should record WHAT it fired on. Without the value, a firmware change that
+    starts reporting an unrecognised status is indistinguishable in the log from a normal 3→1."""
+    assert "7" in tr.flush_gate(7, now=0.0, abort_at=100.0).reason
+
+
 def test_an_unknown_run_status_value_pulls_rather_than_hanging():
     """A value outside 1/2/3 is not the flush, and the flush is the only reason to wait. Treating an
     unrecognised state as WAIT would hang the harvest on a firmware change; treating it as PULL is
