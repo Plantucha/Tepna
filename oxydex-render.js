@@ -2490,6 +2490,46 @@ function renderProjectionCards(n) {
   return html;
 }
 
+/* ACQ-EVIDENCE-CONTRACT Phase C — a compact, READ-ONLY acquisition panel. It surfaces what CAPTURE
+   knows about the recording's integrity/completeness/timing (validation, completeness, the duration
+   cross-check, clock status) when a `*.meta.json` envelope was dropped alongside the .dat. It is
+   DELIBERATELY not an evidence badge: acquisition integrity is a separate dimension from physiological
+   evidence (contract §4), so it never touches the science grades and never gates a metric. Absent
+   envelope → this renders nothing (§19 back-compat). */
+function _o2AcqPanel(ev) {
+  if (!ev || typeof ev !== 'object') return '';
+  var UNK = 'UNKNOWN';
+  var _v = ev.validation || UNK;
+  var _c = ev.completeness || UNK;
+  var _cls = function (x, ok, bad) {
+    return x === ok ? 'good' : x === bad ? 'bad' : 'neutral';
+  };
+  var _chip = function (label, val, cls) {
+    return '<span class="acq-chip acq-' + cls + '"><b>' + label + '</b> ' + escHTML(String(val)) + '</span>';
+  };
+  var h = '<div class="sec-label">Acquisition <span class="cite-note">· what capture knows about this recording, not a physiological judgement</span></div>';
+  h += '<div class="acq-panel">';
+  h += _chip('Validation', _v, _cls(_v, 'VALID', 'INVALID'));
+  h += _chip('Completeness', _c, _cls(_c, 'COMPLETE', 'PARTIAL'));
+  h += _chip('Clock', ev.clock_status || UNK, ev.clock_status && ev.clock_status !== UNK ? 'good' : 'neutral');
+  if (ev.sample_count != null) {
+    var _exp = ev.expected_sample_count;
+    h += _chip('Samples', ev.sample_count + (_exp != null && _exp !== UNK ? ' / ' + _exp + ' expected' : ' (expected ' + UNK + ')'), 'neutral');
+  }
+  var dc = ev.duration_check;
+  if (dc && (dc.stored_s != null || dc.observed_s != null)) {
+    // direction-explicit, never a bare number: delta_s = stored − observed, agrees within ±1 s (ring quantization)
+    var _dtxt = dc.stored_s != null ? 'stored ' + dc.stored_s + ' s' : 'stored ' + UNK;
+    if (dc.observed_s != null) _dtxt += ' vs observed ' + dc.observed_s + ' s';
+    if (dc.agrees === true) _dtxt += ' — agree';
+    else if (dc.agrees === false) _dtxt += ' — DIFFER by ' + dc.delta_s + ' s';
+    h += _chip('Duration', _dtxt, dc.agrees === false ? 'bad' : 'neutral');
+  }
+  if (ev.source) h += '<span class="acq-src">source: ' + escHTML(String(ev.source)) + '</span>';
+  h += '</div>';
+  return h;
+}
+
 function nightDetail(n, idx) {
   var s = n.stats || {},
     html = '';
@@ -2502,6 +2542,13 @@ function nightDetail(n, idx) {
   if (_dur) html += '<div class="ndh-dur">' + _dur + '</div>';
   html += '<div class="ndh-file">📄 ' + sanitizeFname(n.fname) + '</div>';
   html += '</div>';
+
+  // ACQ-EVIDENCE-CONTRACT Phase C — read-only acquisition panel when a `.meta.json` envelope was paired.
+  try {
+    html += _o2AcqPanel(n.acquisitionEvidence);
+  } catch (_ae) {
+    /* a surfacing error must never break the night's science render */
+  }
 
   // Smart Summary — only when computed (raw CSV + summary CSV imports; null for JSONL)
   if (n.summary) {
