@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0wrnC0lVV+CrxqFX7kyOj6IsM0aoYU6jEFEXzId9FCU=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-9pcgddjwATDE1P/+Ue5Tz21VCRq1r7R7G8zoRQbGCks=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G8T1c38HwLBl265H8MWt+Jqx7dj3Cj7O3Kl0EA7ny0s=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-W7m5EJur7zz9xJVj4s2diLK2Ex8nuYlUeh9vJ0nqr8U=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0wrnC0lVV+CrxqFX7kyOj6IsM0aoYU6jEFEXzId9FCU=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G8T1c38HwLBl265H8MWt+Jqx7dj3Cj7O3Kl0EA7ny0s=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-RB53RF56nKH55dksjRdkWt1FEGOW2UZPi3O+6A8qNNE=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-W7m5EJur7zz9xJVj4s2diLK2Ex8nuYlUeh9vJ0nqr8U=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -29850,6 +29850,39 @@ __exports.ECGDex = window.ECGDex;
   /* Attach a STR summary to already-built nights by matching the UTC day. Mutates + returns `nights`.
    The inferred `mode` is left untouched; device fields land as NEW keys so a consumer can prefer the
    declaration and fall back to the inference. A night with no STR match keeps its fields absent. */
+  /* STR deviceCsr × CSL periodic-breathing CROSS-VALIDATION (CPAPDEX-STR-SUMMARY-INGEST item 1).
+     The device's STR session-summary Cheyne-Stokes % (`deviceCsr`) and OUR CSL-annotation-derived
+     periodic-breathing % (`periodicBreathingPct`) are both device-origin but arrive on DIFFERENT
+     channels (the STR summary vs the CSL span annotations) and are never otherwise compared. This is a
+     DECLARE-never-correct corroboration read — it changes NO metric, it only surfaces agreement.
+
+     THE BAND IS ASYMMETRIC BY PHYSIOLOGY, PRE-STATED BEFORE ANY REAL NIGHT (lead-ratified 2026-08-25):
+     Cheyne-Stokes is a SUBSET of periodic breathing, so our PB% (broader) is EXPECTED to be ≥ the
+     device CSR% (CS-specific). Therefore the two DIRECTIONS mean different things and must not be
+     collapsed into one |delta| verdict:
+       delta = deviceCsr − pbPct  (POSITIVE = the device saw MORE Cheyne-Stokes than our PB found)
+       • both < FLOOR            → 'both-negligible'  (the common night; trivial agreement)
+       • delta >  BAND           → 'discrepancy'      (device CSR substantially EXCEEDS our PB — we
+                                                       under-detected the device's CS finding: THE finding)
+       • delta < −BAND           → 'pb-broader'       (our PB substantially EXCEEDS device CSR — BENIGN,
+                                                       non-CS periodic breathing; reported, not flagged)
+       • otherwise               → 'agree'            (corroborate within the band)
+     BAND = max(2 pp absolute, 50% of the larger value) — corroboration, never identity; the absolute
+     floor absorbs summary-vs-span rounding, the relative arm scales with the magnitude. The magnitude
+     of BAND may be refined against real nights; the ASYMMETRY (which side is the finding) is fixed. */
+  var CSR_PB_FLOOR = 0.5;
+  function csrPbCrossCheck(deviceCsr, pbPct) {
+    if (deviceCsr == null || !isFinite(deviceCsr) || pbPct == null || !isFinite(pbPct)) return null;
+    var delta = +(deviceCsr - pbPct).toFixed(2);
+    var band = Math.max(2, 0.5 * Math.max(deviceCsr, pbPct));
+    var verdict;
+    if (deviceCsr < CSR_PB_FLOOR && pbPct < CSR_PB_FLOOR) verdict = 'both-negligible';
+    else if (delta > band) verdict = 'discrepancy';
+    else if (delta < -band) verdict = 'pb-broader';
+    else verdict = 'agree';
+    return { device_csr: deviceCsr, our_pb: pbPct, delta: delta, band: +band.toFixed(2), verdict: verdict };
+  }
+
   function attachStrSummary(nights, summary) {
     if (!nights || !nights.length || !summary || !summary.length) return nights;
     var byDay = {};
@@ -29866,6 +29899,8 @@ __exports.ECGDex = window.ECGDex;
       night.deviceModeCode = rec.deviceModeCode;
       night.deviceRera = rec.deviceRera;
       night.deviceCsr = rec.deviceCsr;
+      // item 1 — cross-validate the device's CSR summary against our CSL periodic-breathing %.
+      night.deviceCsrCheck = csrPbCrossCheck(night.deviceCsr, night.metrics ? night.metrics.periodicBreathingPct : null);
       night.prescription = rec.prescription;
     }
     return nights;
@@ -29900,6 +29935,7 @@ __exports.ECGDex = window.ECGDex;
     buildSessionFromEdf: buildSessionFromEdf,
     parseStrSummary: parseStrSummary,
     attachStrSummary: attachStrSummary,
+    csrPbCrossCheck: csrPbCrossCheck,
     nightMetrics: nightMetrics,
     compute: compute,
     _nightFromInput: _nightFromInput,
