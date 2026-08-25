@@ -252,11 +252,40 @@ doff trigger is enabled, in this order, so each step proves the next:
    *"running"*, and `git log -1` in `/opt/tepna` will agree with `main` while the daemon executes
    something older. Check `systemctl show tepna-capture -p ActiveEnterTimestamp` against the deploy
    time before concluding a change is live.
-3. ~~Flip `pull.on_doff: true`~~ — 🔴 **DO NOT, as written.** §8 replaces fire-after-drop with a pull
-   **over the still-held link on the recording close**, so flipping this today enables the
-   **superseded** settle-then-reconnect path. The flip is also a live-capture behaviour change to a
-   **gitignored, box-local `config.yaml`**, so it is not revertible by a git revert and not visible in
-   the repo — which is exactly why it should not be done ahead of the design it serves.
+3. **`pull.on_doff` IS ENABLED — deliberately, since 2026-08-25.** This step previously read *"do not
+   flip"*, on the grounds that under current code it fires the **superseded** settle-then-reconnect
+   path. It is now on, and staying on until unit 2 lands. **Provenance, recorded unsmoothed:** the flip
+   was the **owner's call, executed by the owner's own hand** — but made on the coordinator session's
+   recommendation, and *that recommendation predated anyone reading this section*, which had landed
+   overnight in #1753. A "do not" written by the fleet and a "do" recommended hours later in ignorance
+   of it is the `doc-search-before-deciding` class, and it is recorded here rather than tidied away.
+
+   **Why it is now retained on purpose, rather than merely tolerated.** The settle is
+   `max(notworn_settle_sec, _DROP_NOT_WORN_SEC + 30)` = **`max(300, 210)` = 300 s** — confirmed live in
+   the box's own arming line, `not-worn=on (300s)` — and the power drop is at **180 s**, so every firing
+   attempts a reconnect **exactly 120 s after the link dropped**. That is §5a's unanswerable question,
+   run on every natural doff in production. Worst case per firing is a failed reconnect that the hourly
+   reconciliation net covers.
+
+   ⚠️ **BUT ONLY SOME FIRINGS CARRY INFORMATION, and this paragraph first said otherwise.** A firing
+   brackets the tail only when the attempt **reaches the air**. The failure classes are not
+   interchangeable, and §5a already drew this line for the historical corpus:
+
+   - `BleakDeviceNotFoundError` / *"not advertising"* → the ring did not answer ⇒ **tail ≤ 120 s** at
+     that firing. **A data point.**
+   - **success** (a pull completes) ⇒ **tail ≥ 120 s**. **A data point.**
+   - **`BleakDBusError`** (`org.bluez.Error.InProgress`) → the ADAPTER was busy; the attempt never
+     reached the ring. **No information whatever about the tail** — and this box's radio contends
+     routinely.
+
+   **First day's yield, measured:** three firings since arming at 05:49 — `06:03:37` O2Ring **failed
+   (BleakDBusError)**, `06:06:27` and `07:07:31` Polar Verity `→ 0 new file(s)`. So **one** O2Ring
+   firing, and it was the uninformative class: **zero usable tail points on day one.** Counting firings
+   as measurements is exactly the *ran-and-examined-nothing* error this suite keeps finding, so the
+   collection rule is: **filter on the failure class, never on the firing count.**
+
+   ⚠️ **Superseded when unit 2 lands.** The wait-for-flush held-link path (§14) does not need the tail
+   at all, and the settle-based path retires with it. Until then this is a measurement, not a design.
 4. ~~The first doff window measures the settle-vs-awake-tail question on a real firing~~ — **no longer
    the question.** §8 removes the tail from the primary path entirely; §5a demotes it to gating the
    **recovery** path only.
@@ -652,6 +681,61 @@ a distribution over historical pulls.
 because until #1761 both ended at a single `at`. Whether verification costs 9 ms like the commit does, or
 seconds, is not derivable from this table — which is the whole argument for the emit, now stated with a
 real number attached rather than in the abstract.
+
+
+## 14 · `run_status` DECODES, AND IT SETTLES UNIT 2's OPEN QUESTION
+
+The first instrumented night (coordinator session, 2026-08-25) decoded the ring's `run_status` byte as a
+**three-state machine**, and the third state is the one that matters here:
+
+| value | meaning |
+|---|---|
+| **1** | idle / pre-commit — *includes the first 120 s of wear*, because the ring discards sub-2-minute sessions, so `1 → 2` flips at exactly `duration_s = 120` |
+| **2** | committed recording — held for the whole 6 h 05 m night |
+| **3** | **post-close flush** — begins at the `duration_s` reset, runs **~110 s** with `dur = 0, contact = 0`, then quiet |
+
+### 14a · Ruling: WAIT for `3 → 1`. Firing at the reset is systematically wrong, not occasionally
+
+§8a listed the trailer-flush window as a risk to *mitigate* — check the finalisation predicate, re-serve
+on the recovery path. With the flush **measured at ~110 s**, that framing is too generous to the
+fire-at-reset option:
+
+- The trailer is not on flash until **~doff + 120 s**.
+- A pull fired at the reset (~doff + 10 s) completes around **doff + 20–50 s** (§13c: 8.9 s measured,
+  §5a: 31 s p90 at `which=latest`) — i.e. **always before the trailer exists**.
+- `classify()` therefore returns `PARTIAL` **every time**. Correctly and safely — the transactional
+  layer cannot mis-commit it — but every close-triggered pull would spend the held link to produce a
+  `.part` that must be re-pulled *after* the drop, on the awake-tail-dependent path §5a could not bound.
+
+So fire-at-reset converts the primary path into a **guaranteed** detour. **Wait for `run_status 3 → 1`.**
+
+### 14b · Consequence: the close-triggered pull MUST be `which=latest`
+
+Waiting costs window. With §8a's 10 s guard band:
+
+```
+wait-for-flush window = 180 s grace − 120 s flush-end − 10 s guard = 50 s
+```
+
+against the measured pull-cost envelope (§5a, n=433):
+
+| scope | p90 | max | fits the 50 s window? |
+|---|---|---|---|
+| **`which=latest`** | 31.1 s | 41.1 s | ✅ **yes, with headroom at its observed max** |
+| `which=all` | 69.4 s | 104.7 s | ❌ **no — not even at p90** |
+
+**`which=all` does not fit its own window on a typical night.** So the close-triggered pull is
+`which=latest`; the hourly poller keeps `which=all` and remains the reconciliation net. The spec already
+wanted that division of labour — this makes it **load-bearing rather than stylistic**.
+
+### 14c · This is what promotes §8a's deadline from insurance to mechanism
+
+§8a's abort deadline was derived against a **170 s** window, where a 8.9 s–41 s pull left it looking like
+a formality. The real window is **50 s**, and `which=all`'s p90 exceeds it — so the deadline is not a
+guard against a hypothetical hang, it is the thing that keeps a mis-scoped or slow pull from running into
+the power drop. The §8a reasoning is unchanged and its conclusion is now load-bearing: **an observed
+maximum is not a bound**, and at 50 s the distance between "usually fits" and "cannot overrun" is where
+the whole invariant lives.
 
 
 ## APPENDIX — owner's full program spec (§1–27, verbatim)

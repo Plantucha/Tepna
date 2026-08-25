@@ -225,6 +225,35 @@ def test_loop_connect_failure_skips_cycle():
     assert sw.rows == [] and cw.rows == []  # nothing written on a failed connect
 
 
+def test_loop_unexpected_error_survives_and_logs(caplog):
+    # A bleak connect raises BleakError/BleakDBusError subclasses that are NOT OSError; one such error
+    # (org.bluez.Error.InProgress under adapter contention) silently killed the shadow task on
+    # 2026-08-25. The loop must SURVIVE it, write nothing, log a warning, and keep polling.
+    sw, cw = _Writer(), _Writer()
+
+    class _FakeBleakError(Exception):  # stands in for bleak's BleakDBusError (not an OSError)
+        pass
+
+    calls = {"n": 0}
+
+    async def fake_poll(**_kw):
+        calls["n"] += 1
+        raise _FakeBleakError("org.bluez.Error.InProgress")
+
+    with caplog.at_level("WARNING"):
+        _run(
+            R.run_shadow_loop(
+                connect=None, creds=CREDS, supervisor=None, is_capturing=lambda: False,
+                session_writer=sw, clock_writer=cw, host_epoch=_epochs(), sleep=_no_sleep,
+                poll_interval_s=5.0, should_stop=_stopper(2), poll_cycle=fake_poll,
+            )
+        )
+    assert calls["n"] == 2  # survived the first failure and polled again — did not die
+    assert sw.rows == [] and cw.rows == []  # nothing written on a failed poll
+    assert any("AS11 shadow poll failed" in r.message and "InProgress" in r.message
+               for r in caplog.records)  # the fault is VISIBLE, not silent
+
+
 def test_utc_iso():
     s = R._utc_iso(1787621756.0)
     assert s.startswith("2026-") and s.endswith("+00:00")
