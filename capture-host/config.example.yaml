@@ -236,3 +236,12 @@ cpap:                    # ResMed card auto-harvest over an ez Share Wi-Fi SD ad
     adapter: hci1              # the FREE radio — never the one the wearables capture on (hci0 default)
     # creds_path: as11_creds.json   # AS11 pairing creds (masterPairKey/clientId/ble_addr); default is
                                      # beside this config file. Written by the pairing flow / operator probe.
+
+# AS11 CPAP session detector (SHADOW — observes only, drives nothing). When enabled, a background task
+# short-connects the AS11 on the CPAP free radio (cpap.ble_stream.adapter, hci1) ONLY while the live
+# stream is idle, classifies therapy start/stop, and writes SESSIONDETECT.csv + AS11CLOCK.csv (device
+# clock offset + rate anchors) beside the night's captures. READ-ONLY; it drives no capture. Default OFF —
+# flip `enabled` on to gather a shadow night before acting mode (a separate increment) is built.
+as11_detector:
+  enabled: false
+  poll_interval_sec: 30
