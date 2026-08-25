@@ -225,10 +225,26 @@ doff trigger is enabled, in this order, so each step proves the next:
 1. Unit 1 lands → deploy. **DONE 2026-08-24** (#1743; the box's hourly `tepna-update.timer` picked it
    up into `/opt/tepna` the same evening).
 2. **Verify the arming line prints both states** — the diagnostic proving itself before it is trusted.
-   **PENDING, and the reason is worth recording:** the code was deployed at 22:39 while the running
-   daemon had started at 21:33, so it is still executing pre-merge code and the line cannot appear
-   yet. All `auto-pull` lines in the surrounding 6 h are the old `enabled — checking … every 3600s`
-   form. It prints on the next daemon restart. **Do not force one during a capture window.**
+   **PENDING, and the mechanism is the interesting part.** The code reached `/opt/tepna` at 22:39
+   while the running daemon had started at 21:33, so it is still executing pre-merge code and the
+   line cannot appear yet — every `auto-pull` line in the surrounding 6 h is the old
+   `enabled — checking … every 3600s` form. **This is not a stuck timer: `tepna-update.sh` defers the
+   restart on purpose**, and says so —
+
+   ```
+   22:39:48  updated a7dfe94c9114 → 2458ade2c07d
+   22:39:48  deferred — a device is recording; the daemon keeps the old code until the box is idle
+   23:41:10  updated 575e22e89157 → 7880c4936647
+   23:41:10  deferred — a device is recording; the daemon keeps the old code until the box is idle
+   ```
+
+   So **a deploy during a recording night is code-on-disk only**, and the restart lands when the box
+   goes idle — after the night ends. **Do not force one**: the box's own policy already encodes the
+   right answer, and overriding it would interrupt a capture to verify a log line. ⚠️ The corollary
+   is worth carrying beyond this brief: on this box, *"merged and deployed"* does **not** imply
+   *"running"*, and `git log -1` in `/opt/tepna` will agree with `main` while the daemon executes
+   something older. Check `systemctl show tepna-capture -p ActiveEnterTimestamp` against the deploy
+   time before concluding a change is live.
 3. ~~Flip `pull.on_doff: true`~~ — 🔴 **DO NOT, as written.** §8 replaces fire-after-drop with a pull
    **over the still-held link on the recording close**, so flipping this today enables the
    **superseded** settle-then-reconnect path. The flip is also a live-capture behaviour change to a
