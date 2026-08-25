@@ -261,11 +261,28 @@ doff trigger is enabled, in this order, so each step proves the next:
    of it is the `doc-search-before-deciding` class, and it is recorded here rather than tidied away.
 
    **Why it is now retained on purpose, rather than merely tolerated.** The settle is
-   `max(notworn_settle_sec, _DROP_NOT_WORN_SEC + 30)` = **`max(300, 210)` = 300 s**, and the power drop
-   is at **180 s** — so every firing attempts a reconnect **exactly 120 s after the link dropped**, and
-   its outcome brackets the post-drop awake tail at that point. That is §5a's unanswerable question,
-   run for free on every natural doff, in production. Worst case per firing is a failed reconnect that
-   the hourly reconciliation net covers.
+   `max(notworn_settle_sec, _DROP_NOT_WORN_SEC + 30)` = **`max(300, 210)` = 300 s** — confirmed live in
+   the box's own arming line, `not-worn=on (300s)` — and the power drop is at **180 s**, so every firing
+   attempts a reconnect **exactly 120 s after the link dropped**. That is §5a's unanswerable question,
+   run on every natural doff in production. Worst case per firing is a failed reconnect that the hourly
+   reconciliation net covers.
+
+   ⚠️ **BUT ONLY SOME FIRINGS CARRY INFORMATION, and this paragraph first said otherwise.** A firing
+   brackets the tail only when the attempt **reaches the air**. The failure classes are not
+   interchangeable, and §5a already drew this line for the historical corpus:
+
+   - `BleakDeviceNotFoundError` / *"not advertising"* → the ring did not answer ⇒ **tail ≤ 120 s** at
+     that firing. **A data point.**
+   - **success** (a pull completes) ⇒ **tail ≥ 120 s**. **A data point.**
+   - **`BleakDBusError`** (`org.bluez.Error.InProgress`) → the ADAPTER was busy; the attempt never
+     reached the ring. **No information whatever about the tail** — and this box's radio contends
+     routinely.
+
+   **First day's yield, measured:** three firings since arming at 05:49 — `06:03:37` O2Ring **failed
+   (BleakDBusError)**, `06:06:27` and `07:07:31` Polar Verity `→ 0 new file(s)`. So **one** O2Ring
+   firing, and it was the uninformative class: **zero usable tail points on day one.** Counting firings
+   as measurements is exactly the *ran-and-examined-nothing* error this suite keeps finding, so the
+   collection rule is: **filter on the failure class, never on the firing count.**
 
    ⚠️ **Superseded when unit 2 lands.** The wait-for-flush held-link path (§14) does not need the tail
    at all, and the settle-based path retires with it. Until then this is a measurement, not a design.
