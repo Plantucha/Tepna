@@ -531,13 +531,57 @@ clocks" would produce.
 - **The 20/57 count is a magnitude, not a p-value.** Windows from one night and from overlapping pairs
   are **not independent**, so the binomial tail this invites (2.8 × 10⁻¹⁸) is not quotable and is
   deliberately not quoted.
-- **The intermittency is not yet attributed.** Physiology coming and going, and the offset wandering in
-  and out of the `[200, 650]` ms window, both predict this shape. The tool already carries per-window
-  `ppm` for that test; it has not been run.
+- ~~**The intermittency is not yet attributed.**~~ **RUN 2026-08-25 — see §3f.5. It is NOT differential
+  clock drift.** Physiology coming and going, and the offset wandering in and out of the `[200, 650]` ms
+  window, both predict this shape; the per-window `ppm` test discriminates a third candidate and
+  eliminates it.
 - **A defect this run found in the tool itself**, now gated: `strictMatchRate` returns `NaN` on an empty
   lag list, and a permutation p of `count(surrogate ≥ NaN)+1` over `n+1` is `(0+1)/41` = **0.024** — so
   **two of sixty windows reported NO DATA as SIGNIFICANT** in the first pass. Windows with < 50 lags or
   a non-finite rate are now refused loudly. The corrected figure is 20/57, not the 22/60 that pass gave.
+
+### 3f.5 · The per-window `ppm` test, RUN — differential drift is an order of magnitude too small
+
+§3f.4 parked this: *"the tool already carries per-window `ppm` for that test; it has not been run."* Run
+2026-08-25 with `tools/pat-host-offset.mjs --dir <box captures> --json`.
+
+⚠️ **On a DIFFERENT corpus from §3g's, and that matters both ways.** §3g scored 57 windows over 11
+nights; this is **22 windows over 10 device-pairs across 9 nights** of **box** captures (2026-08-09 →
+08-19). Smaller — but box captures are the ones with a genuine second clock (§7's `independent`), so a
+drift question is answerable there and only weakly answerable on phone nights. The two results are
+adjacent, not nested.
+
+**`ppmE`/`ppmP` are per-PAIR, not per-window** — constant across a night's windows — so the quantity
+that can move the offset is the **differential**, `|ppmE − ppmP|`, integrated over the window.
+
+| | |
+|---|---|
+| `\|Δppm\|` | median **10.56**, range 0.47 – 18.43 |
+| predicted offset drift over a 120-min window | median **76.1 ms**, max **132.7 ms** |
+| the identifiability band §3g.2 cites | **~450 ms** (mod one RR) |
+| windows whose predicted drift exceeds that band | **0 / 22** |
+
+**Differential crystal drift moves the offset by ~76 ms in two hours. The band it would have to cross is
+~450 ms.** It is roughly six times too small, on every window measured.
+
+**And it does not discriminate the coupling, either.** Split by strict significance:
+
+| | n | `\|Δppm\|` median | range |
+|---|---|---|---|
+| strict-significant (p ≤ 0.05) | 12 | 10.47 | 0.47 – 14.63 |
+| non-significant | 10 | 10.65 | 0.47 – 18.43 |
+
+The medians differ by **0.18 ppm — 1.3 ms over a window** — and the ranges overlap across the entire
+span. If drift drove the intermittency, the quiet windows should carry the larger differential. They do
+not.
+
+**⚠️ What this does NOT eliminate, stated because a linear model is doing the work.** The prediction
+assumes drift accumulates *linearly* at the pair's measured rate. `CLAUDE.md` §7 records that this is
+false for at least one device in the fleet: the O2Ring holds **sub-ppm for hours and then degrades at
+~12.5 s/h from the first BLE dropout**, so a single ppm renders a stall as a smooth slope. A **stalled
+link** can therefore produce an excursion this test would not predict — and `hostAxis` already publishes
+`maxStepMs` precisely to surface a step smeared across one anchor gap. **That is the next candidate, and
+it is instrumented.** What is eliminated is the steady-crystal explanation.
 
 ## 3g · VERDICT — the coupling is real and the intermittency is the OFFSET; absolute PAT stays blocked
 
