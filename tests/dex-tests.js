@@ -14932,6 +14932,35 @@
         ['deviceMode', 'deviceRera', 'deviceCsr'].forEach(function (id) {
           T.ok('registry ' + id + ' at measured tier', REG[id] && REG[id].evidence === 'measured', JSON.stringify(REG[id] || null));
         });
+        T.ok('registry csrPbDelta (the cross-check) at measured tier', REG.csrPbDelta && REG.csrPbDelta.evidence === 'measured' && REG.csrPbDelta.goodDirection === 'neutral');
+      }
+
+      // ── STR deviceCsr × CSL PB CROSS-VALIDATION (item 1). The band is pre-stated + ASYMMETRIC. ──
+      if (typeof C.csrPbCrossCheck === 'function') {
+        T.eq('both < 0.5% → both-negligible (the common night)', C.csrPbCrossCheck(0.2, 0.3).verdict, 'both-negligible');
+        T.eq('close within band → agree', C.csrPbCrossCheck(8, 9).verdict, 'agree');
+        // discrepancy: device CSR substantially EXCEEDS our PB → we under-detected the device CS (the finding)
+        var disc = C.csrPbCrossCheck(20, 5);
+        T.ok('device CSR ≫ our PB → discrepancy (the finding), delta positive', disc.verdict === 'discrepancy' && disc.delta === 15, JSON.stringify(disc));
+        // pb-broader: our PB substantially EXCEEDS device CSR → benign (PB is broader than CS)
+        var broad = C.csrPbCrossCheck(5, 20);
+        T.ok('our PB ≫ device CSR → pb-broader (benign), delta negative', broad.verdict === 'pb-broader' && broad.delta === -15, JSON.stringify(broad));
+        // THE ASYMMETRY CONTROL: identical |delta| (15 pp), OPPOSITE verdict by direction. A symmetric
+        // |delta| rule would give the same verdict both ways — this reds if the physiology-derived
+        // asymmetry (CS ⊂ PB) is ever collapsed. This is the invariant the lead fixed before data.
+        T.ok('CONTROL · same |Δ|, OPPOSITE verdict — CSR>PB=finding, PB>CSR=benign (asymmetry not collapsed)', Math.abs(disc.delta) === Math.abs(broad.delta) && disc.verdict !== broad.verdict);
+        T.eq('a missing input (no CSL PB) → null, never a fabricated verdict', C.csrPbCrossCheck(12, null), null);
+        T.eq('a missing deviceCsr → null', C.csrPbCrossCheck(null, 5), null);
+        // WIRING: attachStrSummary computes the check onto the night from deviceCsr + metrics.periodicBreathingPct
+        if (typeof C.attachStrSummary === 'function') {
+          var nightW = { t0Ms: s[2].dateMs + 22 * 3600 * 1000, metrics: { periodicBreathingPct: 3 } };
+          C.attachStrSummary([nightW], s); // s[2].deviceCsr === 12.4
+          T.ok(
+            'attachStrSummary DECLARES the cross-check onto the night (12.4 vs 3 → discrepancy)',
+            nightW.deviceCsrCheck && nightW.deviceCsrCheck.verdict === 'discrepancy' && nightW.deviceCsrCheck.device_csr === 12.4
+          );
+          T.eq('…and the night metrics are untouched (declare-never-correct)', nightW.metrics.periodicBreathingPct, 3);
+        }
       }
     });
 
