@@ -2491,6 +2491,22 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       night.rtcVerifiedAtMs = bestR.tMs;
     }
   }
+
+  /* ACQ-EVIDENCE-CONTRACT Phase C — attach the Acquisition Evidence envelope to a night by matching the
+     envelope's session_id against the .dat night's source filename stamp. DECLARE, never modify: the
+     envelope is surfaced read-only and touches NO science field (contract §4). A night with no matching
+     envelope is unchanged (§19 back-compat). */
+  function _o2AttachAcqEvidence(night, bag) {
+    if (!night || !bag) return;
+    var fname = night.fname || '';
+    for (var sid in bag) {
+      if (!Object.prototype.hasOwnProperty.call(bag, sid)) continue;
+      if (sid && fname.indexOf(sid) >= 0) {
+        night.acquisitionEvidence = bag[sid];
+        return;
+      }
+    }
+  }
   function decodeO2RingBinToCSV(bytes, fname, file) {
     var tMs = _o2BinStartMs(fname, file); // floating wall-clock ms, or null when the date is unknown
     var dated = tMs != null;
@@ -2592,6 +2608,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
             Object.keys(allNights).forEach(function (_k) {
               var _n = allNights[_k];
               if (_n && _n._o2BinSource === true) _o2AttachRtcVerification(_n, _rtcLog);
+              if (_n) _o2AttachAcqEvidence(_n, (typeof window !== 'undefined' && window._oxyAcqEvidence) || null);
             });
           }
         } catch (_eRt) {
@@ -2720,6 +2737,26 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
             var _rtcRows = parseRingClockLog(_rtcText);
             if (_rtcRows.length) {
               window._oxyRtcLog = (window._oxyRtcLog || []).concat(_rtcRows);
+            }
+            resolve(null);
+            return;
+          }
+          // Acquisition Evidence sidecar (`*.meta.json`, capture-host/pull_session.py — the generalized
+          // sidecar carrying `acquisition_evidence`, ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF Phase C).
+          // Same batch-bag posture as the rtclog above: stash the envelope keyed by session_id; the
+          // pairing with each .dat night runs after every file resolves, so drop order does not matter.
+          // READ-ONLY surfacing — this NEVER gates or modifies any science (contract §4); a batch with
+          // no envelope behaves exactly as today (contract §19 back-compat).
+          if (/\.meta\.json$/i.test(file.name)) {
+            try {
+              var _metaObj = JSON.parse(new TextDecoder('utf-8').decode(_buf));
+              var _acqEv = _metaObj && _metaObj.acquisition_evidence;
+              if (_acqEv && _acqEv.session_id) {
+                window._oxyAcqEvidence = window._oxyAcqEvidence || {};
+                window._oxyAcqEvidence[_acqEv.session_id] = _acqEv;
+              }
+            } catch (_me) {
+              /* a malformed sidecar is ignored — never blocks the night's own science */
             }
             resolve(null);
             return;
@@ -9540,6 +9577,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   // them without a browser drop batch or the DSP realm's file-input plumbing.
   OxyDex.parseRingClockLog = parseRingClockLog;
   OxyDex._attachRtcVerification = _o2AttachRtcVerification;
+  OxyDex._attachAcqEvidence = _o2AttachAcqEvidence;
   // Waveform SpO₂ (0x05 pair) — pure, exposed for the test suite + headless callers.
   OxyDex.parsePPG2W = parsePPG2W;
   OxyDex.spo2WaveformTrend = spo2WaveformTrend;
@@ -10093,7 +10131,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     oxyBuildSpo2Series,
     // FINISHED-WORK-IMPROVEMENTS §A 2a — pure surface for the ring-clock sidecar contract tests.
     parseRingClockLog,
-    _attachRtcVerification: _o2AttachRtcVerification
+    _attachRtcVerification: _o2AttachRtcVerification,
+    _attachAcqEvidence: _o2AttachAcqEvidence
   };
   OxyDex._bare = BARE;
   // DSP→UI hook injection (FOLLOWUPS-II item 3): the co-loaded UI modules register their
