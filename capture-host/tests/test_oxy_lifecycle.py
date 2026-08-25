@@ -145,3 +145,35 @@ def test_a_pull_or_recovery_before_any_connect_is_legal():
     assert lc.can(OxyState.PAUSED_FOR_PULL) and lc.can(OxyState.RECOVERING)
     lc.to(OxyState.PAUSED_FOR_PULL, "pull owns the link at startup")
     assert lc.state is OxyState.PAUSED_FOR_PULL
+
+
+# ── held-link pull resume (DAT-AUTO-HARVEST §8 seam ruling) ───────────────────────────────────────────
+
+def test_a_held_link_pull_resumes_without_a_reconnect():
+    """§8's close-triggered pull hands the link back directly: PULLING → IDLE_UNWORN (the doff case)
+    and PULLING → LIVE (a manual/reconciliation pull while worn) are both legal, with NO CONNECTING
+    round-trip. The old table encoded 'a pull costs the link' and raised here."""
+    lc = _lc(); lc.to(OxyState.CONNECTING, "s"); lc.to(OxyState.CONNECTED, "u"); lc.to(OxyState.LIVE, "f")
+    lc.to(OxyState.PAUSED_FOR_PULL, "close-triggered pull owns the held link")
+    lc.to(OxyState.PULLING, "pulling over the held link")
+    t = lc.to(OxyState.IDLE_UNWORN, "pull complete — link handed back, ring unworn")
+    assert t.new is OxyState.IDLE_UNWORN
+
+    lc2 = _lc(); lc2.to(OxyState.CONNECTING, "s"); lc2.to(OxyState.CONNECTED, "u"); lc2.to(OxyState.LIVE, "f")
+    lc2.to(OxyState.PAUSED_FOR_PULL, "manual pull while worn")
+    lc2.to(OxyState.PULLING, "pulling")
+    assert lc2.to(OxyState.LIVE, "pull complete — worn, resume live").new is OxyState.LIVE
+
+
+def test_abort_before_start_resumes_from_paused_without_pulling():
+    """Deadline preempts before the transfer starts: PAUSED_FOR_PULL exits straight to the contact-
+    chosen state. The deadline-abort shares the edge with success — the journal reason distinguishes."""
+    lc = _lc(); lc.to(OxyState.CONNECTING, "s"); lc.to(OxyState.CONNECTED, "u"); lc.to(OxyState.LIVE, "f")
+    lc.to(OxyState.PAUSED_FOR_PULL, "pull queued")
+    t = lc.to(OxyState.LIVE, "aborted at deadline before start — .part not created, resume live")
+    assert t.new is OxyState.LIVE
+
+    lc2 = _lc(); lc2.to(OxyState.CONNECTING, "s"); lc2.to(OxyState.CONNECTED, "u")
+    lc2.to(OxyState.IDLE_UNWORN, "unworn")
+    lc2.to(OxyState.PAUSED_FOR_PULL, "pull queued")
+    assert lc2.to(OxyState.IDLE_UNWORN, "aborted at deadline — resume idle").new is OxyState.IDLE_UNWORN
