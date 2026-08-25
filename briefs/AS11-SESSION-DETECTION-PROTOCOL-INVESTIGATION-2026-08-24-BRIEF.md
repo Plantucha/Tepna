@@ -75,13 +75,74 @@ STR daily-summary (session MaskOn/Off markers + AHI). Time: GetDateTime readable
 (confirmed — SetDateTime is service-access, no BLE VCID); the ~21-min offset is a SEPARATE finding (#18)
 — classify by GROWS (RTC drift, likely) vs FIXED (convention). Clock Contract untouched.
 
-**Architecture shift + Phase B:** RECOMMENDED (pending Phase B) = primary `Get(["FGState"])`
-explicit-state polling ± `SubscribeEvent(UsageEvents-TherapyStatusEvents)` push; MaskPressure/PatientFlow
-= corroborators/fallback. This likely **ELIMINATES the mask-off debounce** (the machine's own state
-should hold "Therapy" through a mask-off). PHASE B (next session, read-only): confirm FGState=="Therapy"
-during real therapy AND that it HOLDS through a ~30 s mask-off (THE key test); SubscribeEvent latency +
-labels; FGState/event stream-independence (§12); the min-safe debounce only if a pressure fallback is
-kept; a spool-backfill probe.
+**Architecture shift + Phase B:** RATIFIED (Phase B #1 DONE) = primary `Get(["FGState"])` explicit-state
+polling ± `SubscribeEvent(UsageEvents-TherapyStatusEvents)` push; MaskPressure/PatientFlow =
+corroborators/fallback. The supervisor **FOLLOWS device session semantics** rather than re-deriving them.
+- **Phase B #1 (attended 3-min run, 2026-08-24) — CONFIRMED:** `FGState` reads "Therapy" during real
+  therapy and the poller tracks start (clean SmartStart) and the mask-off/on/stop transitions live.
+  **`MachineMetrics.LastTherapyUseDateTime` is the device's own session-END verdict** — it advanced
+  `21:48:55Z → 23:34:36Z` = the attended wall-clock stop **− 21 min** (the device-clock offset), so the
+  supervisor closes a session on the device's marker, not on a debounce heuristic. This **eliminates the
+  mask-off debounce** for the STOP edge; a short sustained-Standby hysteresis stays only as the fallback
+  when the device-verdict read is unavailable, and `MaskPressure` remains the physical corroborator.
+- **Phase B #2 (SubscribeEvent latency/labels) — STILL OPEN:** the attended poller used the proven
+  `establish → P._send_enc → L.rpc` path; the SubscribeEvent probe crashed on a frame-framing bug (sealed
+  raw JSON instead of an FIG-framed RPC — §20). Retest next session: subscribe
+  `UsageEvents-TherapyStatusEvents`, measure push latency vs the ~2 s poll, confirm labels, and check
+  event/`FGState` stream-independence (§12). Shadow-mode ships on the poll alone; the event rider is an
+  additive latency upgrade, not a dependency.
+
+## Feature roadmap beyond session detection (owner-requested 2026-08-24 — "upgrade, not just harden")
+The protocol study surfaced capability the detector does not use. Everything below is **read-only,
+clean-room, and evidence-tiered** — `[LIVE]` = confirmed on this machine this session; `[DOC]` = read
+from public-protocol study, needs a read-only hardware confirm before it ships. **Sequencing: the
+detector ships FIRST** (it is the gate that makes the rest event-driven); then Group 1 (reliability),
+then Group 2 (novel signals). None of this touches the Clock Contract or CPAPDex science; each capability
+is its own gated work-unit.
+
+### Group 1 — Reliability (close the capture gaps the current live-stream leaves)
+- **Spool backfill for a BLE-interrupted night `[DOC]`.** The historical spools —
+  `RespiratoryFlow6p25Hz` / `MaskPressure6p25Hz` (6.25 Hz), `TherapyOneMinutePeriodic`, `Summary`, and the
+  event spools — mean a dropped-link night is **recoverable to 6.25 Hz waveforms + 1-min periodic + events
+  + summary** instead of lost. Work-unit: the `RC03`/Rice fragment decoders + `StartSpool`/
+  `PullSpoolFragments` replay, plus a retention-depth probe (how far back the device keeps them). This is
+  the single biggest reliability win — it converts every capture dropout from data-loss into a gap-fill.
+- **Device-clock discipline at ingest `[LIVE]` (answers the RTC question directly).** We do **NOT** set the
+  AS11 RTC — `SetDateTime` is service-access with no BLE VCID (unsettable over BLE, confirmed) AND the
+  owner confirmed the machine UI won't set it either. "Discipline" = **measure and reconcile**, the same
+  philosophy as `DexClock.hostAxis`: read `GetDateTime` at pull, `offset = host − device`, and stamp that
+  offset into provenance so CPAPDex re-anchors the EDF `startdate/starttime` (and BLE spool stamps) onto
+  the capture-host's disciplined timebase (the box is stratum-1, 0.008 ppm). The offset is **real and
+  ~constant at −21 min**: `LastTherapyUseDateTime` = wall-stop − 21 min matched the `GetDateTime` skew
+  this session (one clock, one offset) — so a **single** read suffices for the OFFSET, which is all a
+  never-set RTC needs (a wrong zero, not a bad crystal). Whether it also **drifts** across a night is the
+  open RATE question (#18): needs ≥2 `GetDateTime` reads spanning the session and the ≥3-anchor `hostAxis`
+  logic to classify GROWS vs FIXED. The Clock Contract stays untouched — this reconciles at the adapter
+  boundary, never by editing `tMs`.
+
+### Group 2 — New live signals (data CPAPDex/the Integrator cannot get from the SD EDF today)
+- **Live respiratory events → Ganglior/Integrator fusion `[DOC]`.** `SubscribeEvent
+  (UsageEvents-TherapyEvents)` streams apnea/hypopnea/flow-limitation/snore events **as they occur**,
+  which — fused on the host timebase with O2Ring desat and Polar HR — is a genuinely novel cross-node
+  signal (apnea→desat→arousal chains in real time, not a morning STR summary). Depends on the Phase B #2
+  SubscribeEvent rider landing first.
+- **Full PLD ventilation metrics `[DOC]`.** The `PLD.edf` / `TherapyOneMinutePeriodic` surface carries
+  respiratory rate, tidal volume, minute ventilation, snore index, flow limitation, I:E ratio, and
+  inspiratory duration — most not surfaced by CPAPDex today. A CPAPDex parser + registry work-unit (each
+  metric evidence-tiered against the device's own values).
+- **Per-breath trigger/cycle `[DOC]`.** The `TCV` channel gives breath-by-breath trigger/cycle timing —
+  ventilator-synchrony detail below the 1-min periodic. Lower priority; needs a hardware confirm the
+  channel is populated on the AutoSet (not just bilevel).
+
+### Group 3 — Authoritative summary & provenance (the device's own verdicts, read cheaply)
+- **Machine-scored AHI/indices `[DOC]`.** `STR.edf` / the `Summary` spool carry the device's own AHI and
+  per-session indices — an authoritative cross-check for CPAPDex's derived numbers (badge as the device's
+  claim, never as ground truth).
+- **Device provenance `[LIVE]`.** `GetVersion` + `ActiveTherapyProfile`/`ActiveProfiles` already give
+  firmware `SW04600.17.8.6.0`, DataModel v2.17.1, serial, mode (AutoSet), and enabled features
+  (SmartStartStop/MaskSense) — stamp into every capture's provenance for free.
+- **Usage/compliance `[LIVE]`.** `TherapyRunMeter`/`MotorRunMeter` are monotonic, drift-immune counters —
+  a compliance/usage signal that needs no clock at all.
 
 ## Investigation agenda (charter §1–§15, condensed — full text in appendix)
 1. **Current Tepna** — read as11_pull, cpap_stream, LiveStreamController, the capture supervisor, BLE
