@@ -43,6 +43,10 @@ PARTIAL = "PARTIAL"
 SOURCE_LIVE = "live"  # a real-time device stream (O2Ring OXYFRAME, CPAP BLE)
 SOURCE_STORED_DAT = "stored_dat"  # the device's onboard recording artifact (.dat)
 SOURCE_SD_EDF = "sd_edf"  # a device SD-card EDF export
+SOURCE_STORED_SPOOL = "stored_spool"  # the device's own spooled data, pulled over its link (AS11 CPAP)
+# NOTE: a new SOURCE VALUE is not a new FIELD — the envelope shape is unchanged, so SCHEMA_VERSION does
+# not move. `source` was an open vocabulary from the start (§10 requires that live and stored never
+# collapse into one word); adding the CPAP spool to it is what that vocabulary is for.
 
 
 @dataclass(frozen=True)
