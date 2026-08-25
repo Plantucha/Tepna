@@ -309,6 +309,43 @@ export function applyMutant(lines, m) {
   return L.join('\n');
 }
 
+/** Which of `emit` are not already in `existing`. PURE, and exported so the asymmetry below is
+    testable rather than buried in the emit branch.
+
+    ⚠️ `line|op|before` IS NOT UNIQUE. Two mutations of the same operator on one line collapse to one
+    key — measured on pulsedex-dsp.js:197, which carries two `num → 0` mutants (the `<= 1500`
+    threshold and the `Math.max(0.55, …)` floor) with identical `before` text. In `mutate.mjs` that
+    collision mis-paired a draft (#1793). HERE it would be worse: marking one mutant equivalent would
+    silently excuse the OTHER, suppressing a real killable mutant from the queue — the direction this
+    ledger's rules call unrecoverable.
+
+    THE FALLBACK IS DELIBERATELY ASYMMETRIC, because the two errors are not symmetric. A false
+    "already recorded" SUPPRESSES a needed entry; a false "new" writes a duplicate. So a legacy entry
+    (no `after`) still dedups by its 3-field key ONLY where that key is unambiguous across both sides;
+    where it collides, the candidate is treated as NEW. Noise is recoverable, a silently excused
+    mutant is not. */
+export function newEntries(existing, emit) {
+  const ekey = (e) => e.line + '|' + e.op + '|' + e.before + '|' + (e.after ?? '');
+  const k3 = (e) => e.line + '|' + e.op + '|' + e.before;
+  /* A key COLLIDES when two DISTINCT mutants share it — which shows up as two entries with that key
+     on ONE side. Counting `existing.concat(emit)` instead would call every legacy dedup a collision,
+     because a recorded entry and its own re-emitted candidate share the key by construction; that is
+     one mutant seen twice, not two mutants. (Caught by the legacy-dedup selftest below on the first
+     run, which is the whole reason this is an exported function rather than an inline filter.) */
+  const collides = new Set();
+  for (const side of [existing || [], emit || []]) {
+    const counts = new Map();
+    for (const e of side) {
+      const k = k3(e);
+      counts.set(k, (counts.get(k) || 0) + 1);
+      if (counts.get(k) > 1) collides.add(k);
+    }
+  }
+  const seen = new Set((existing || []).map(ekey));
+  const seen3 = new Set((existing || []).filter((e) => e.after == null).map(k3));
+  return (emit || []).filter((e) => !seen.has(ekey(e)) && !(seen3.has(k3(e)) && !collides.has(k3(e))));
+}
+
 // ── selftest ────────────────────────────────────────────────────────────────────────────────
 if (IS_MAIN && has('--selftest')) {
   let pass = 0,
@@ -489,6 +526,24 @@ if (IS_MAIN && has('--selftest')) {
   ok('a DUPLICATED function name REFUSES rather than silently taking the first', threw !== null && /AMBIGUOUS/.test(threw), String(threw));
   ok('…and the refusal names how many it found, so the caller can see the collision', threw !== null && /2 declarations|2 definitions/.test(threw), String(threw));
   ok('an UNambiguous name is unaffected by the duplicate guard', functionRange(DUPSRC, 'other') !== null, JSON.stringify(functionRange(DUPSRC, 'other')));
+
+  /* LEDGER DEDUP KEY — the collision that would silently excuse a mutant. Both entries are the same
+     operator on one line with identical `before`: pulsedex-dsp.js:197's `<= 1500` threshold and its
+     `Math.max(0.55, …)` floor. */
+  const _A = { line: 197, op: 'num → 0', before: 'elevM <= 1500 ? 1 : Math.max(0.55', after: 'elevM <= 0 ? 1 : Math.max(0.55' };
+  const _B = { line: 197, op: 'num → 0', before: 'elevM <= 1500 ? 1 : Math.max(0.55', after: 'elevM <= 1500 ? 1 : Math.max(0' };
+  ok('ledger · recording ONE mutant equivalent does not silently excuse its twin on the same line', newEntries([_A], [_B]).length === 1, 'B must still be emittable after A is recorded');
+  ok('ledger · a genuine duplicate is still deduped', newEntries([_A], [_A]).length === 0, 'A twice');
+  ok(
+    'ledger · a LEGACY entry (no `after`) still dedups where its key does NOT collide',
+    newEntries([{ line: 10, op: 'cmp < → <=', before: 'x < y' }], [{ line: 10, op: 'cmp < → <=', before: 'x < y', after: 'x <= y' }]).length === 0,
+    'unambiguous legacy key'
+  );
+  ok(
+    'ledger · …but a legacy entry on a COLLIDED key emits rather than suppressing',
+    newEntries([{ line: 197, op: 'num → 0', before: _A.before }], [_A, _B]).length === 2,
+    'suppression is the unrecoverable direction; duplication is not'
+  );
 
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
   process.exit(fail ? 1 : 0);
@@ -810,10 +865,21 @@ async function main() {
     const existing = doc[FILE] || [];
     /* Both sides of the dedup must build the key the SAME way, and the way `classifySurvivors` does:
        no trim. The two halves disagreed (`(e.before||'').trim()` here against a raw `e.before`
-       there), so an entry whose `before` ended in a space could be re-emitted as a duplicate. */
-    const ekey = (e) => e.line + '|' + e.op + '|' + e.before;
-    const seen = new Set(existing.map(ekey));
-    const added = emit.filter((e) => !seen.has(ekey(e)));
+       there), so an entry whose `before` ended in a space could be re-emitted as a duplicate.
+
+       ⚠️ `line|op|before` IS NOT UNIQUE, and here that is the DANGEROUS direction. Two mutations of
+       the same operator on one line collapse to one key (measured: pulsedex-dsp.js:197 carries two
+       `num → 0` mutants, the `<= 1500` threshold and the `Math.max(0.55, …)` floor). In `mutate.mjs`
+       the collision mis-paired a draft (#1793); HERE it would mark one mutant equivalent and thereby
+       silently excuse the OTHER — suppressing a real killable mutant from the queue, which this
+       ledger's own rules call the unrecoverable direction.
+
+       `after` disambiguates. The fallback is deliberately asymmetric, because the two errors are not:
+       a false "already recorded" SUPPRESSES a needed entry, while a false "new" merely writes a
+       duplicate. So a legacy entry (no `after`) still dedups by its 3-field key ONLY where that key
+       is unambiguous across both sides; where it collides, the candidate is treated as NEW. Noise is
+       recoverable; a silently excused mutant is not. */
+    const added = newEntries(existing, emit);
     doc[FILE] = existing.concat(added);
     writeFileSync(path, JSON.stringify(doc, null, 2) + '\n');
     console.log(`emitted ${added.length} new entr${added.length === 1 ? 'y' : 'ies'} for ${FILE} (${emit.length - added.length} already recorded)`);
