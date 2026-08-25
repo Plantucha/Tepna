@@ -18,6 +18,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from cpap_detect import extract_fields
 from cpap_supervisor import Observation
 
@@ -26,6 +28,8 @@ import as11_cipher
 import as11_pull
 
 __all__ = ["poll_cycle", "run_shadow_loop", "SessionSidecar", "POLL_ITEMS"]
+
+log = logging.getLogger(__name__)
 
 # The read-only DataItems each poll needs: explicit therapy state, the mask corroborator, and the
 # MachineMetrics subtree carrying the LastTherapyUseDateTime device-verdict marker.
@@ -115,6 +119,17 @@ async def run_shadow_loop(
             )
         except (OSError, as11_pull.As11Error):
             # connect/establish failed outright — a link we could not open, not a device verdict.
+            # Expected and frequent (the AS11 is off, or the controller holds it), so kept quiet.
+            await sleep(poll_interval_s)
+            continue
+        except Exception as e:
+            # A shadow OBSERVER must survive ANY poll failure — never let one crash the loop. The
+            # bleak connect (an injected seam) raises BleakError/BleakDBusError subclasses that are
+            # NOT OSError — e.g. `org.bluez.Error.InProgress` when the adapter is contended by the
+            # wearable captures — and one such error silently killed this task on 2026-08-25 (enabled,
+            # armed, zero rows). Log it so a persistent fault is VISIBLE rather than invisible, then
+            # keep polling. (CancelledError is a BaseException, so a clean shutdown still propagates.)
+            log.warning("AS11 shadow poll failed (%s: %s) — skipping cycle", type(e).__name__, e)
             await sleep(poll_interval_s)
             continue
         session_writer.write(decision)
