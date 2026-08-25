@@ -12405,7 +12405,7 @@
       T.eq('twenty-one hours is continuous, not a long overnight', C(rr(1000), at(6), 21 * 3600).mode, 'continuous');
     });
 
-    group('PulseDex helper floor — 24 drafts adopted, with physiological inputs (mutation-derived)', 'pulsedex-dsp · known-answer · mutation-pinned', function (T) {
+    group('PulseDex helper floor — 24 + 11 drafts adopted, with physiological inputs (mutation-derived)', 'pulsedex-dsp · known-answer · mutation-pinned', function (T) {
       var B = (env.PulseDex && env.PulseDex._bare) || null;
       if (!B || typeof B.artifactClean !== 'function') {
         T.skip('PulseDex._bare helpers available', 'PulseDex not co-loaded in this runner');
@@ -12477,7 +12477,13 @@
       T.eq('lnRMSSD 2.0 floors at −8 %', +B.vo2Adj(48, 2.0).toFixed(2), 44.16);
       T.eq('1500 m is still sea-level capacity', B.altVO2Factor(1500), 1);
       T.eq('3000 m costs 5 %', B.altVO2Factor(3000), 0.95);
-      T.eq('the altitude penalty floors at 0.55', B.altVO2Factor(15000), 0.55);
+      T.eq('15000 m: formula and floor COINCIDE at 0.55 (the crossover — see the next line for why this one cannot pin the floor)', B.altVO2Factor(15000), 0.55);
+      /* SECOND ROUND-1 ESCAPE, found 2026-08-25 by the same drain. The line above is named "the
+         altitude penalty floors at 0.55" and does NOT detect the floor being removed: at 15000 m the
+         raw formula evaluates to exactly 0.55, so `Math.max(0.55, x)` and `Math.max(0, x)` return the
+         SAME value. Verified — with the floor literal mutated to 0 that assertion still passes. The
+         floor only BINDS above the crossover, so it has to be probed there. */
+      T.eq('20000 m: the floor BINDS (raw formula would give 0.383) — this is what pins Math.max(0.55, …)', B.altVO2Factor(20000), 0.55);
 
       // ── 8 · GEOMETRIC / COUNTING HRV — the 10 ms bin, the strict >50 ms rule, the ±25 ms mode band.
       T.eq('the modal 10 ms bin of a 6-beat series', B.modeV([800, 800, 800, 810, 810, 790]), 800);
@@ -12505,6 +12511,36 @@
       T.eq('…under the part-stripped name', merged[0].name, 'rec_RR.txt');
       T.eq('…with the repeated header dropped', merged[0].text, 'rr_ms\n800\n810\n790\n805');
       T.eq('a file with no part suffix passes through', JSON.stringify(B.mergeMultipart([{ name: 'solo.txt', text: '800' }])), '[{"name":"solo.txt","text":"800"}]');
+
+      /* ── ROUND 2 (2026-08-25 bank) — 10 of 13 candidates adopted. The three rejected, each on a
+         human read rather than a failed run:
+           · altVO2Factor(null) — `null` is not an elevation, and the drafted expected value (0.55)
+             contradicts a plain read of the guard (`null <= 1500` is TRUE, so the real code returns 1).
+             Something there needs investigating, not pinning.
+           · classifyRecording([1..10],2,1).rising → -33684.2 — a magic number produced from an input
+             that is not a recording. Pinning it would freeze an artifact of invalid input.
+           · lineChartSVG — the mutant edits `<path` into `<=path` INSIDE A TEMPLATE STRING, so the
+             draft asserts only that a string literal was not corrupted. That is a string-literal
+             mutant, not a behavioural one, and the assertion has no contract behind it. ── */
+      var out = B.altVO2Factor(1);
+      T.eq('B.altVO2Factor(1 m) → "1" (at or below 1500 m there is NO altitude penalty — exactly 1, not merely near it)', JSON.stringify(out), '1');
+      out = B.sampEn([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 2, 1);
+      T.eq('B.sampEn(ramp,2,1) → "0" (pins the MAXN decimation bound: MAXN=0 would truncate the series)', JSON.stringify(out), '0');
+      T.eq('B.sampEn(ramp,2,1) is NOT null (pins the A===0/B===0 refusal: === → !== makes a valid series refuse)', JSON.stringify(out !== null), 'true');
+      var _frag = B.fragmentation([1, 1, 2, 3]);
+      T.eq('B.fragmentation([1,1,2,3]).pip → "0" (sign-change counting: v<0 vs v<=0 miscounts a flat step)', JSON.stringify(_frag.pip), '0');
+      T.eq('B.fragmentation([1,1,2,3]).ials → "0.25" (pins the i<s.length loop bound)', JSON.stringify(_frag.ials), '0.25');
+      T.eq('B.fragmentation([1,1,2,3]).pss → "0" (pins the L<3 short-segment rule; <= would report 100 % short)', JSON.stringify(_frag.pss), '0');
+      out = B.prsaCapacity([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 1);
+      T.eq('B.prsaCapacity(flat series) → null (no anchor exists in a flat series — dropping the !isAnchor guard fabricates one)', JSON.stringify(out === null), 'true');
+      out = B.beatTimes([1, 2, 3], [1000, 2000, 3000]);
+      T.eq('B.beatTimes(3 beats).length → "3" (pins the i<a.length bound; <= writes a 4th, undefined-derived entry)', JSON.stringify(out.length), '3');
+      out = B.windowAnalysis([1, 2, 3], [1000, 2000, 3000]);
+      T.eq('B.windowAnalysis(3 beats).wins.length → "0" (a 3-beat series is below the 20-sample window floor — no window is fabricated)', JSON.stringify(out.wins.length), '0');
+      out = B._pdPearson([1, 2, 3], [1000, 2000, 3000]);
+      T.eq('B._pdPearson(3 collinear points) → "1" (n===3 is ABOVE the n<3 guard, so it computes)', JSON.stringify(out), '1');
+      out = B.pdBuildNodeExport([1, 1, 2, 3]);
+      T.eq('B.pdBuildNodeExport().schema.provenance → "null" (absent provenance is an explicit null, never a dropped key)', JSON.stringify(out.schema.provenance), 'null');
     });
 
     group('PulseDex compareIntervalSeries — two signals, one heart (mutation bootstrap)', 'pulsedex-dsp · known-answer · mutation-pinned', function (T) {
@@ -14722,31 +14758,49 @@
       T.ok('two rows is refused with a message naming the two columns it needs', /timestamp \+ glucose/.test(tiny.error || ''), JSON.stringify(tiny.error || '').slice(0, 90));
     });
 
-    group('GlucoDex helper floor — 6 drafts adopted: coreMetrics floors, clamp detection, pearson (mutation-derived)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
-      var G = env.GLUDSP || (env.GlucoDex && env.GlucoDex._bare) || env.GlucoDex;
-      if (!G || typeof G.coreMetrics !== 'function') {
-        T.skip('GLUDSP available', 'GlucoDex not co-loaded in this runner');
-        return;
+    group(
+      'GlucoDex helper floor — 6 + 10 drafts adopted: coreMetrics floors, clamp detection, pearson, the nutrient null contract (mutation-derived)',
+      'glucodex-dsp · known-answer · mutation-pinned',
+      function (T) {
+        var G = env.GLUDSP || (env.GlucoDex && env.GlucoDex._bare) || env.GlucoDex;
+        if (!G || typeof G.coreMetrics !== 'function') {
+          T.skip('GLUDSP available', 'GlucoDex not co-loaded in this runner');
+          return;
+        }
+        /* Adopted from the AI-probe draft bank: 6/6 batch-verified green, zero discards. */
+        var out;
+        out = G.detectClampSaturation([1, 2, 3]);
+        T.eq('G.detectClampSaturation([1,2,3]) → "null"', JSON.stringify(out.floor), 'null');
+        out = G.coreMetrics('');
+        T.eq('G.coreMetrics("") → "0"', JSON.stringify(out.cv), '0');
+        out = G.coreMetrics([0, 0, 0], [0]);
+        T.eq('G.coreMetrics([0,0,0],[0]) → "0"', JSON.stringify(out.cv), '0');
+        out = G.coreMetrics([100, 150, 200, 250, 300], [100, 150, 200, 250, 300]);
+        T.eq('G.coreMetrics([100,150,200,250,300],[100,150,200,250,300]) → "250"', JSON.stringify(out.p75), '250');
+        out = G.detectClampSaturation([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], null);
+        T.eq(
+          'G.detectClampSaturation([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],null) → "{"value":1,"co',
+          JSON.stringify(out.floor),
+          '{"value":1,"count":1,"pct":5,"saturated":false,"innerMean":1,"ratio":1}'
+        );
+        out = G.pearson([1, 2, 3], [4, 5, 6]);
+        T.eq('G.pearson([1,2,3],[4,5,6]) → "1"', JSON.stringify(out), '1');
+
+        /* ── ROUND 2 (2026-08-25 bank) — 10 of 11 candidates adopted (the 11th was MANUAL-truncated).
+         The seven `|| null` field pins below are the highest-value drafts in the whole bank: each
+         mutant turns `Math.round(d.x) || null` into `&&`, which converts a MISSING nutrient from
+         `null` into `0`. That is precisely the suite's UNKNOWN ≠ ABSENT invariant — "missing is
+         visible, never fabricated" — so these pin a house contract, not an implementation detail. ── */
+        out = G._ckParse('2023-10-15T12:30:45.123Z', {});
+        T.eq('G._ckParse(zoned Z).offsetMin → "0" (Clock Contract §2.2: a Z stamp is UTC, offset 0 — not null)', JSON.stringify(out.offsetMin), '0');
+        var _nut = G.parseNutrition('date,time\n2023-01-01,12:00\n2023-01-02,13:00');
+        T.eq('G.parseNutrition(2 dated rows).daily.length → "2" (a row with >=2 cells is kept)', JSON.stringify(_nut.daily.length), '2');
+        T.eq('G.parseNutrition(no markers).mealMarkers → "null" (no markers is null, never an empty array)', JSON.stringify(_nut.mealMarkers), 'null');
+        ['energy', 'carbs', 'fiber', 'netCarbs', 'protein', 'sugars', 'added'].forEach(function (f) {
+          T.eq('G.parseNutrition(no nutrients).daily[0].' + f + ' → "null" (UNKNOWN is null, NEVER 0 — the || → && mutant reports 0 g consumed)', JSON.stringify(_nut.daily[0][f]), 'null');
+        });
       }
-      /* Adopted from the AI-probe draft bank: 6/6 batch-verified green, zero discards. */
-      var out;
-      out = G.detectClampSaturation([1, 2, 3]);
-      T.eq('G.detectClampSaturation([1,2,3]) → "null"', JSON.stringify(out.floor), 'null');
-      out = G.coreMetrics('');
-      T.eq('G.coreMetrics("") → "0"', JSON.stringify(out.cv), '0');
-      out = G.coreMetrics([0, 0, 0], [0]);
-      T.eq('G.coreMetrics([0,0,0],[0]) → "0"', JSON.stringify(out.cv), '0');
-      out = G.coreMetrics([100, 150, 200, 250, 300], [100, 150, 200, 250, 300]);
-      T.eq('G.coreMetrics([100,150,200,250,300],[100,150,200,250,300]) → "250"', JSON.stringify(out.p75), '250');
-      out = G.detectClampSaturation([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], null);
-      T.eq(
-        'G.detectClampSaturation([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],null) → "{"value":1,"co',
-        JSON.stringify(out.floor),
-        '{"value":1,"count":1,"pct":5,"saturated":false,"innerMean":1,"ratio":1}'
-      );
-      out = G.pearson([1, 2, 3], [4, 5, 6]);
-      T.eq('G.pearson([1,2,3],[4,5,6]) → "1"', JSON.stringify(out), '1');
-    });
+    );
 
     group('MotionDex inferAccUnit — three gravity bands, all bounds exclusive (mutation bootstrap)', 'motiondex-dsp · known-answer · mutation-pinned', function (T) {
       var M = env.MOTIONDSP;
@@ -14799,43 +14853,74 @@
       T.eq('…and eight is enough', unitOf(8, 1000), 'mg');
     });
 
-    group('MotionDex helper floor — 8 drafts adopted: every entry guard refuses junk with hasData false (mutation-derived)', 'motiondex-dsp · known-answer · mutation-pinned', function (T) {
-      var M = env.MOTIONDSP || (env.MotionDex && env.MotionDex._bare);
-      if (!M || typeof M.actigraphy !== 'function') {
-        T.skip('MOTIONDSP available', 'MotionDex not co-loaded in this runner');
-        return;
+    group(
+      'MotionDex helper floor — 8 + 2 drafts adopted: every entry guard refuses junk, and admits a legal minimum (mutation-derived)',
+      'motiondex-dsp · known-answer · mutation-pinned',
+      function (T) {
+        var M = env.MOTIONDSP || (env.MotionDex && env.MotionDex._bare);
+        if (!M || typeof M.actigraphy !== 'function') {
+          T.skip('MOTIONDSP available', 'MotionDex not co-loaded in this runner');
+          return;
+        }
+        var out;
+        out = M.actigraphy(null);
+        T.eq('M.actigraphy(null) → "false"', JSON.stringify(out.hasData), 'false');
+        out = M.actigraphy('x');
+        T.eq('M.actigraphy("x") → "false"', JSON.stringify(out.hasData), 'false');
+        out = M.respiratoryRate(null);
+        T.eq('M.respiratoryRate(null) → "false"', JSON.stringify(out.hasData), 'false');
+        out = M.motionSQI('x');
+        T.eq('M.motionSQI("x") → "0"', JSON.stringify(out.conf), '0');
+        out = M.motionSQI(null);
+        T.eq('M.motionSQI(null) → "0"', JSON.stringify(out.conf), '0');
+        out = M.bodyPosition(null);
+        T.eq('M.bodyPosition(null) → "false"', JSON.stringify(out.hasData), 'false');
+        out = M.bodyPosition('x');
+        T.eq('M.bodyPosition("x") → "false"', JSON.stringify(out.hasData), 'false');
+        out = M.streamKindFromName(null);
+        T.eq('M.streamKindFromName(null) → "null"', JSON.stringify(out), 'null');
+        // Sharpened after first kill-verify — the two mutants a junk-input pin cannot reach:
+        var shortRows = [];
+        var posRows = [];
+        for (var ri = 0; ri < 10; ri++) shortRows.push({ tMs: ri * 40, x: 0, y: 0, z: 1 });
+        for (var pi = 0; pi < 200; pi++) posRows.push({ tMs: pi * 250, x: 0, y: 0, z: 1 });
+        out = M.respiratoryEffort(shortRows);
+        T.eq('a 10-row refusal is BARE hasData:false — no fabricated zero-rate payload rides along', JSON.stringify(out), '{"hasData":false}');
+        out = M.bodyPosition(posRows);
+        T.eq(
+          'the dwell table has EXACTLY the six positions — one extra loop pass mints an "undefined" position',
+          JSON.stringify(Object.keys(out.dwellFrac)),
+          '["supine","prone","left","right","upright","unknown"]'
+        );
+
+        /* ── ROUND 2 (2026-08-25 bank) — 4 of 4 candidates. NOTE, because it is not a verbatim adoption:
+         the drafts called these as `bodyPosition(rows, 'g')`, but the real signature is
+         `(accRows, t0Ms, durSec, unit)` — so the unit string landed in `t0Ms` and the drafts pinned
+         behaviour under a mis-typed argument. The mutants are real and unkilled, so the calls are
+         RE-ARGED here rather than adopted as written; the discrimination is on the row-count guards,
+         which are independent of t0Ms/durSec. ── */
+        // Rows are {t,x,y,z} accelerometer samples — the drafts passed bare NUMBERS, so `row.x` was
+        // undefined and every downstream value was NaN. Valid rows are built here so the assertion
+        // exercises the guard on a legal minimum rather than pinning a NaN cascade.
+        var _rows = function (n) {
+          var a = [];
+          for (var i = 0; i < n; i++) a.push({ t: i * 1000, x: 0, y: 0, z: 1 + Math.sin(i / 4) * 0.02 });
+          return a;
+        };
+        out = M.bodyPosition(_rows(10), 0, 10, 'g');
+        T.eq('M.bodyPosition(10 valid rows).hasData → "true" (10 is ABOVE the length<10 refusal; <= would refuse a legal minimum)', JSON.stringify(out.hasData), 'true');
+        // NOT hasData: 30 samples cannot hold the >=3 breaths the final hasData requires, so `false` is
+        // the CORRECT answer here and would not discriminate. What the length<30 guard decides is whether
+        // the function RUNS AT ALL — the guard returns a bare {hasData:false}, a completed call returns
+        // the full shape. `rateSeries` present is therefore the honest witness that 30 cleared the guard.
+        out = M.respiratoryEffort(_rows(30), 0, 30, 'g');
+        T.eq(
+          'M.respiratoryEffort(30 valid rows) RAN (rateSeries present) → "true" (30 is above the length<30 refusal; <= would refuse a legal minimum)',
+          JSON.stringify(out.rateSeries !== undefined),
+          'true'
+        );
       }
-      var out;
-      out = M.actigraphy(null);
-      T.eq('M.actigraphy(null) → "false"', JSON.stringify(out.hasData), 'false');
-      out = M.actigraphy('x');
-      T.eq('M.actigraphy("x") → "false"', JSON.stringify(out.hasData), 'false');
-      out = M.respiratoryRate(null);
-      T.eq('M.respiratoryRate(null) → "false"', JSON.stringify(out.hasData), 'false');
-      out = M.motionSQI('x');
-      T.eq('M.motionSQI("x") → "0"', JSON.stringify(out.conf), '0');
-      out = M.motionSQI(null);
-      T.eq('M.motionSQI(null) → "0"', JSON.stringify(out.conf), '0');
-      out = M.bodyPosition(null);
-      T.eq('M.bodyPosition(null) → "false"', JSON.stringify(out.hasData), 'false');
-      out = M.bodyPosition('x');
-      T.eq('M.bodyPosition("x") → "false"', JSON.stringify(out.hasData), 'false');
-      out = M.streamKindFromName(null);
-      T.eq('M.streamKindFromName(null) → "null"', JSON.stringify(out), 'null');
-      // Sharpened after first kill-verify — the two mutants a junk-input pin cannot reach:
-      var shortRows = [];
-      var posRows = [];
-      for (var ri = 0; ri < 10; ri++) shortRows.push({ tMs: ri * 40, x: 0, y: 0, z: 1 });
-      for (var pi = 0; pi < 200; pi++) posRows.push({ tMs: pi * 250, x: 0, y: 0, z: 1 });
-      out = M.respiratoryEffort(shortRows);
-      T.eq('a 10-row refusal is BARE hasData:false — no fabricated zero-rate payload rides along', JSON.stringify(out), '{"hasData":false}');
-      out = M.bodyPosition(posRows);
-      T.eq(
-        'the dwell table has EXACTLY the six positions — one extra loop pass mints an "undefined" position',
-        JSON.stringify(Object.keys(out.dwellFrac)),
-        '["supine","prone","left","right","upright","unknown"]'
-      );
-    });
+    );
 
     /* ════ _leakCV — PSEUDO-TESTED, and it is a NEAR-ZERO-DIVISION GUARD ══════════════════════
        Leak CV is the coefficient of variation of mask leak: sd ÷ |mean| × 100. On a well-sealed
@@ -15051,7 +15136,7 @@
       T.eq('a bare array is refused', N([]), null);
     });
 
-    group('CPAPDex helper floor — 9 drafts adopted: prepare defaults, envelope guards, EDF refusals (mutation-derived)', 'cpapdex-dsp · known-answer · mutation-pinned', function (T) {
+    group('CPAPDex helper floor — 9 + 2 drafts adopted: prepare defaults, envelope guards, EDF refusals (mutation-derived)', 'cpapdex-dsp · known-answer · mutation-pinned', function (T) {
       var C = env.CpapDsp || env.CPAPDSP;
       if (!C || typeof C.prepare !== 'function') {
         T.skip('CpapDsp available', 'CPAPDex not co-loaded in this runner');
@@ -15077,6 +15162,17 @@
       T.eq('C.pressureEnvelope([1,2,3],null) → "0"', JSON.stringify(out.length), '0');
       out = C.buildLongitudinal(null);
       T.eq('C.buildLongitudinal(null) → "0"', JSON.stringify(out.nights), '0');
+
+      /* ── ROUND 2 (2026-08-25 bank) — 2 of 6 candidates adopted. The four rejected ones all mutate
+         LITERALS INSIDE `_synthRaw`, the synthetic-night FIXTURE BUILDER (`{ type:'H', timeSec:5000 }`).
+         Their drafts assert that `_synthRaw().events[i].timeSec` equals the number written on that very
+         line — a tautology over a fixture constant, not a test of any DSP behaviour. (They also call it
+         with hours:0.000001 while asserting an event at 14000 s, which is a real oddity in _synthRaw —
+         it does not clip its events to the night it generated — but these drafts do not test that.) ── */
+      out = C._kernel._sd([1, 2]);
+      T.eq('C._kernel._sd([1,2]) → sample SD (n===2 is above the f.length<2 guard)', JSON.stringify(out), '0.7071067811865476');
+      out = C._kernel._pearson([1, 2, 3], [4, 5, 6]);
+      T.eq('C._kernel._pearson([1,2,3],[4,5,6]) → "1" (perfectly collinear; pins the loop bound i<n, which reads past the array at i<=n)', JSON.stringify(out), '1');
     });
 
     group('CPAPDex co-import — a surge corroborates ONE apnea, and lands on the right night (§6.3/§6.4)', 'cpapdex-coimport · fusion', function (T) {
@@ -16672,7 +16768,7 @@
       T.eq('computeDerived still produces 62 derived columns', produced.length, 62);
     });
 
-    group('HRVDex helper floor — 13 drafts adopted: numeric honesty, persistence guards, the clock pad (mutation-derived)', 'hrvdex-dsp · known-answer · mutation-pinned', function (T) {
+    group('HRVDex helper floor — 13 + 2 drafts adopted: numeric honesty, persistence guards, the clock pad (mutation-derived)', 'hrvdex-dsp · known-answer · mutation-pinned', function (T) {
       var H = env.HRVDex && env.HRVDex._bare;
       if (!H || typeof H._hrvNum !== 'function') {
         T.skip('HRVDex._bare available', 'HRVDex not co-loaded in this runner');
@@ -16690,8 +16786,28 @@
       T.eq('H._hrvNum(null) → "true"', JSON.stringify(out === ''), 'true');
       out = H._hrvNum(0);
       T.eq('H._hrvNum(0) → "false"', JSON.stringify(out === null), 'false');
-      out = H.persistHRVRows(null);
-      T.eq('H.persistHRVRows(null) → "true"', JSON.stringify(out.ok), 'true');
+      /* ROUND-1 ESCAPE, REPLACED 2026-08-25. This line used to read `H.persistHRVRows(null)` — but
+         persistHRVRows takes NO parameters, so the argument was inert and the assertion passed under
+         BOTH the real code and its `|| → &&` mutant. It was a shipped no-op: green, and killing
+         nothing. Re-triage caught it because the mutant it was supposed to cover still survived.
+         The discriminating state is module-level `allRows`, so set it EXPLICITLY (via the accessor
+         the file already exposes) rather than depending on whatever a previous group left behind —
+         that order-dependence is the other half of why the original never worked. With allRows null,
+         the real `||` short-circuits and returns ok; the `&&` mutant evaluates `!allRows.length` on
+         null and THROWS. */
+      var _savedRows = env.HRVDex.allRows;
+      try {
+        env.HRVDex.allRows = null;
+        var _threw = false;
+        try {
+          out = H.persistHRVRows();
+        } catch (e) {
+          _threw = true;
+        }
+        T.eq('H.persistHRVRows() with allRows null → {ok:true}, no throw (the || short-circuit; && evaluates .length on null)', JSON.stringify(!_threw && out && out.ok === true), 'true');
+      } finally {
+        env.HRVDex.allRows = _savedRows;
+      }
       out = H.restoreHRVRows(null);
       T.eq('H.restoreHRVRows(null) → "true"', JSON.stringify(out === false), 'true');
       out = H.restoreHRVRows(null);
@@ -16706,6 +16822,17 @@
       T.eq('H._hrvRowsFromInput([1,2,3]) → "0"', JSON.stringify(out.length), '0');
       out = H._hrvNum('0', '-0');
       T.eq('H._hrvNum("0","-0") → "true"', JSON.stringify(out === ''), 'true');
+
+      /* ── ROUND 2 (2026-08-25 bank) — 2 of 5 candidates adopted. The other three were REJECTED on a
+         human read, not on a failed run: getFilteredRows() and persistHRVRows() take NO parameters, so
+         the drafted `(null)` argument is inert and the recorded value depended on module-level
+         `allRows` the assertion never establishes (order-dependent); and smooth()'s `k` must be a
+         NUMBER — the draft passed an array, so the type confusion IS what discriminated, pinning
+         accidental behaviour rather than the k===0 fast path. ── */
+      out = H.pearsonCorr([1, 2], [3, 4]);
+      T.eq('H.pearsonCorr([1,2],[3,4]) → "1" (n===2 is ABOVE the n<2 guard, so it computes; two points are always ±1)', JSON.stringify(out), '1');
+      out = H.std([1, 2]);
+      T.eq('H.std([1,2]) → sample SD (n===2 is above the arr.length<2 guard — a DEFENSIVE guard no caller reaches, pinned so it cannot degrade silently)', JSON.stringify(out), '0.7071067811865476');
     });
 
     /* ── THE GUARDS, not the outputs ────────────────────────────────────────────────────────────
