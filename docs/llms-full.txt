@@ -352,9 +352,10 @@ Every non-trivial number traces to a published method, and each of the **21 work
 **[`papers/`](papers/papers.html)** is **regenerated from the live tool behind it** — no hand-drawn
 figures, no cherry-picked runs. Highlights:
 
-- **[One phone is not one clock](papers/wearable-clock-drift.html)** — a single-subject methods study
-  measuring ~48 ppm inter-device timing drift across 11 nights (145k beats), showing why beat-level
-  fusion of two consumer wearables needs a single acquisition clock.
+- **[One phone is not one clock](papers/wearable-clock-drift.html)** — a single-subject methods study,
+  twice self-corrected: the negative result stands (beat-level cross-device PAT is not recoverable,
+  0 of 54 pairings) but v1's "47.7 ppm drift" was one mis-attributed RR interval — the real
+  inter-device rate is ~1.5 ppm, and the failure is beat-slip, not clock drift.
 - **[Dead ends](papers/dead-ends.html)** — a synthesis of the walls the suite hit and why: fixed,
   flagged, or fundamental. Negative results, reported honestly.
 - **Sensor-trio power &amp; σ analyses, rMSSD equivalence, ODI-4 calibration, timestamp pathology** —
