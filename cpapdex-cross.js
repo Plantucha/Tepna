@@ -740,6 +740,40 @@
       scaleStable: scaleStable
     };
   }
+  /* v1.1 — the channels a live-vs-SD BRP comparison may cover, in panel order. A real BRP.edf carries
+     BOTH (`_BRP_SPECS` in cpap_edf.py = Flow.40ms + Press.40ms, verbatim from the AirSense 11 format)
+     on the SD side AND on the capture-host EdfSink side, so pressure needed no new capture work — the
+     channel was always in both files and only flow was ever handed to the comparator.
+     ⚠ PLD (the derived 2 s channels) is NOT here and must not be added on the strength of this list:
+     the live path emits `_BRP.edf` only (`cpap_edf.build_pld` exists but is wired to nothing), so a
+     PLD comparison would have no live side at all. It joins when the live EDF set completes. */
+  var COMPARE_CHANNELS = ['Flow.40ms', 'Press.40ms'];
+
+  /* Build the two channel maps for `cpapCompare` from a readEDF-style LIVE record plus the SD raws the
+     app retained at load. PURE — no DOM, no file I/O — so the wiring itself is gate-backed rather than
+     living only in an app closure where nothing can see it.
+
+     A channel is included ONLY when BOTH sides carry non-empty data. One-sided inclusion would render a
+     refusal card that tells the user nothing actionable, and — the case that matters — a flow-only live
+     file must still produce EXACTLY the v1 result rather than a panel half full of "absent" cards. */
+  function buildCompareSets(live, sdRaws) {
+    var liveSet = {},
+      sdSet = {},
+      n = 0;
+    if (!live || !live.signals || !sdRaws) return null;
+    for (var i = 0; i < COMPARE_CHANNELS.length; i++) {
+      var lab = COMPARE_CHANNELS[i];
+      var l = live.signals[lab],
+        r = sdRaws[lab];
+      if (!l || !l.data || !l.data.length) continue;
+      if (!r || !r.values || !r.values.length) continue;
+      liveSet[lab] = { t0Ms: live.clock && live.clock.t0Ms, fs: l.fs, values: l.data };
+      sdSet[lab] = { t0Ms: r.t0Ms, fs: r.fs, values: r.values };
+      n++;
+    }
+    return n ? { liveSet: liveSet, sdSet: sdSet, channels: n } : null;
+  }
+
   // liveSet / sdSet: readEDF-style channel maps { <label>: { t0Ms, fs, values } }. Refusal-first at the
   // set level; per-channel refusals do not abort the others.
   function cpapCompare(liveSet, sdSet, opts) {
@@ -785,7 +819,9 @@
     nightWeight,
     nightOdi,
     cpapCompare,
-    compareChannel
+    compareChannel,
+    buildCompareSets,
+    COMPARE_CHANNELS
   };
 
   // Dual-realm, matching the house pattern already used by cpapdex-dsp.js / -edf.js /
