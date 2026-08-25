@@ -29,7 +29,7 @@ A fleet of local-only, single-signal physiological analyzers. No upload. No acco
 
 [![No network · CI-enforced](https://img.shields.io/badge/no_network-CI--enforced-1f8a5b)](no-network.html)
 [![Local-first](https://img.shields.io/badge/local--first-100%25-1f8a5b)](docs/WHY-THIS-EXISTS.md)
-[![Tests green](https://img.shields.io/badge/tests-7.3k_assertions_green-1f8a5b)](#-the-privacy-claim-is-a-test-not-a-promise)
+[![Tests green](https://img.shields.io/badge/tests-8.3k_assertions_green-1f8a5b)](#-the-privacy-claim-is-a-test-not-a-promise)
 [![Every metric graded](https://img.shields.io/badge/every_metric-evidence_graded-8a5cf6)](#the-evidence-ladder-every-metric-is-graded)
 [![Reproducible](https://img.shields.io/badge/every_paper-regenerates_from_its_tool-8a5cf6)](papers/papers.html)
 ![Nodes](https://img.shields.io/badge/nodes-8_live_%C2%B7_1_planned-555)
@@ -86,8 +86,8 @@ engineering constraint — is [`docs/WHY-THIS-EXISTS.md`](docs/WHY-THIS-EXISTS.m
 |---|---|
 | 🧠 **Analyzers** | **8 live** single-signal nodes · **1 planned** (EEGDex) |
 | 🔀 **Fusion** | **Integrator** (cross-signal) + 2 ingest front doors — **Data Unifier** · **OverDex** — all live |
-| 🧪 **Tests** | **7,333 assertions** across **470 groups**, run as **6 partitioned CI shards** — green on every push |
-| 🐍 **Capture lane** | the **Health Box** (`capture-host/`) — **3,200+ Python tests** at a **100 % statement *and* branch** coverage floor |
+| 🧪 **Tests** | **8,330 assertions** across **531 groups**, run as **6 partitioned CI shards** — green on every push |
+| 🐍 **Capture lane** | the **Health Box** (`capture-host/`) — **4,700+ Python tests** at a **100 % statement *and* branch** coverage floor |
 | 🛡️ **CI gates** | `no-network` · `tests` · `types` · `biome` · `CodeQL` · `capture-host` — the privacy claim is **enforced, not asserted** |
 | 🎫 **Honesty** | every surfaced number carries an **evidence grade** — nothing ships unlabelled |
 | 🔬 **Reproducible** | every preprint **regenerates from its live tool**; every bundle is **content-addressed** |
@@ -154,7 +154,7 @@ the gate, so a vacuous "all clear" can never pass. It runs headless in CI on **e
 | CI gate | What it guarantees |
 |---|---|
 | **no-network** | No shipped surface reaches the network — privacy is enforced, not asserted |
-| **tests** | 7,333 assertions over the real DSP modules, run as 6 parallel shards that provably *partition* the suite — so the union of the shards is the whole gate, and no group can quietly go unrun |
+| **tests** | 8,330 assertions over the real DSP modules, run as 6 parallel shards that provably *partition* the suite — so the union of the shards is the whole gate, and no group can quietly go unrun |
 | **types** | JSDoc type-checking (`tsc --checkJs`) across the signal contracts |
 | **biome** | Format + house-invariant lint (frozen names, Clock Contract, SPDX, evidence vocabulary) |
 | **CodeQL** | Static security analysis on every push |
@@ -257,7 +257,7 @@ outside the browser suite: no Dex app ever talks to a device.
 It is also a **separate lane with a separate gate.** `npm run check` does not cover it —
 `capture-host/check.sh` does, and CI runs the same three jobs: `ruff`, `shellcheck` at its strictest
 level over every shell script, and `pytest` with a **100 % statement *and* branch** coverage floor
-across **3,200+ tests**. That floor is the point: this code runs unattended overnight against
+across **4,700+ tests**. That floor is the point: this code runs unattended overnight against
 hardware that misbehaves, so the failure modes it must survive are the ones nobody is awake to see.
 
 Per-device capture instructions for everyone else — no Pi required — live in
@@ -297,7 +297,7 @@ Measured on this corpus:
 | H10 ↔ Verity offset, **phone**-captured nights | **~3.3 s** |
 | the same pair, **box**-captured nights | **~0.2 s** |
 | the capture host's own clock | 0.008 ppm |
-| an O2Ring crystal, worst case | **−3035 ppm, decaying to −1622** — non-linear, so a single ppm figure is the wrong model, not merely an imprecise one |
+| an O2Ring vs the host, worst case | **−3035 ppm apparent** — and the mechanism is BLE link stalls, not the crystal (which holds sub-ppm between dropouts), so a single ppm figure is the wrong model, not merely an imprecise one |
 
 Hence `DexClock.hostAxis`: a running median over host/device anchor pairs, which **refuses** rather than
 guessing when it has fewer than three anchors or the divergence exceeds 5 %. A node may not hand-roll a
