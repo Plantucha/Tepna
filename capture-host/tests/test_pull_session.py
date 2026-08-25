@@ -244,6 +244,14 @@ def test_a_finalized_recording_carries_the_devices_own_session_summary(tmp_path,
     ds = meta["device_summary"]
     assert ds["total_seconds"] == 300 and ds["min_spo2"] == 81 and ds["avg_hr"] == 49
     assert ds["o2_score_x10"] == 94
+    # EXECUTION-WITNESS (ACQ-EVIDENCE-CONTRACT §18): the REAL pull path — not a helper — produced the
+    # Acquisition Evidence envelope beside the artifact, with the facts assembled from the landed pull.
+    acq = meta["acquisition_evidence"]
+    assert acq["schema"] == "ganglior.acquisition-evidence" and acq["source"] == "stored_dat"
+    assert acq["sample_count"] == 300 and acq["expected_sample_count"] == 300  # (958-58)/3 == total_seconds
+    assert acq["validation"] == "VALID" and acq["completeness"] == "COMPLETE"   # VERIFIED classify + finalised
+    assert acq["duration_check"]["stored_s"] == 300 and acq["duration_check"]["observed_s"] is None
+    assert acq["session_id"] == "20260720020000"
 
 
 def test_the_transfer_survives_frames_split_across_notifications(tmp_path, monkeypatch):
