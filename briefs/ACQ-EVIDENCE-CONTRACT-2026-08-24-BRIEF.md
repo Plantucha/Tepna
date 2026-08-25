@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-08-24
+**Status:** IN-PROGRESS · **Created:** 2026-08-24
 
 # The Acquisition Evidence Contract
 
