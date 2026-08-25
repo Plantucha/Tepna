@@ -85,6 +85,64 @@ RESUME = "resume"
 GUARD_BAND_S = 10.0
 
 
+# ── §14a THE FLUSH GATE ──────────────────────────────────────────────────────────────────────────────
+# The ring's `run_status` is a three-state machine (brief §14, measured on the first instrumented night):
+#   1 = idle / pre-commit   2 = committed recording   3 = POST-CLOSE FLUSH (~110 s from the reset)
+#
+# §8 fires the harvest on the recording close. §14a rules that it must WAIT for 3 → 1 rather than pull at
+# the reset, and the reason is not caution but arithmetic: the trailer is not on flash until ~doff+120 s,
+# while a pull fired at the reset finishes around doff+20-50 s. `classify()` would return PARTIAL EVERY
+# TIME — safely, since the transactional layer cannot mis-commit it, but the held link would be spent to
+# produce a `.part` needing a post-drop re-pull, on the awake-tail-dependent path §5a could not bound.
+# Firing early is not occasionally wrong, it is systematically wrong.
+FLUSH = 3
+RECORDING = 2
+IDLE = 1
+
+WAIT = "wait"
+PULL = "pull"
+ABANDON = "abandon"
+
+
+@dataclass(frozen=True)
+class FlushGate:
+    """What to do right now about a close we are waiting to harvest."""
+
+    action: str
+    reason: str
+
+
+def flush_gate(run_status: int | None, now: float, abort_at: float | None) -> FlushGate:
+    """§14a: wait for `run_status` 3 → 1, bounded by §8a's deadline. PURE.
+
+    ORDER IS THE CONTRACT — the deadline is checked FIRST, because every other branch can otherwise
+    return WAIT past the point where waiting is legal, and the one invariant that must not bend is that
+    the pull never outlives the grace (§8a).
+
+      · past `abort_at`      → ABANDON. The poller re-pulls; this is the designed fallback, not a loss.
+      · `run_status is None` → ABANDON. An unobservable flush cannot be waited out, and pulling blind is
+        the systematically-PARTIAL case §14a rejects. Handing it to the reconciliation net is CORRECT
+        rather than defeatist: the poller pulls hours later, when the flush is long finished.
+      · FLUSH (3)            → WAIT. The trailer is still being written.
+      · RECORDING (2)        → ABANDON. The ring opened a NEW session, so the close we were harvesting
+        is no longer the latest and `which=latest` would fetch the wrong one. A re-don during the flush
+        is an ordinary event, not an error.
+      · IDLE (1), or anything else → PULL. The flush has finished and the trailer is on flash.
+
+    `abort_at is None` means no scheduled drop (§8a), so there is nothing to outlive and no deadline to
+    check — the wait is bounded only by the ring's own state.
+    """
+    if abort_at is not None and now >= abort_at:
+        return FlushGate(ABANDON, "deadline reached while waiting for the flush — poller will re-pull")
+    if run_status is None:
+        return FlushGate(ABANDON, "run_status unobservable — cannot wait out the flush, deferring to the poller")
+    if run_status == FLUSH:
+        return FlushGate(WAIT, "run_status 3 — the trailer is still flushing")
+    if run_status == RECORDING:
+        return FlushGate(ABANDON, "run_status 2 — a new session opened; this close is no longer the latest")
+    return FlushGate(PULL, f"run_status {run_status} — flush complete, trailer on flash")
+
+
 @dataclass(frozen=True)
 class Deadline:
     """May a close-triggered pull run, and by when must it have let go?

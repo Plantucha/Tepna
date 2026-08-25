@@ -520,6 +520,60 @@ def test_the_default_guard_band_is_ten_seconds():
     assert tr.pull_deadline(0.0, 180.0).abort_at == 170.0
 
 
+# ══ §14a THE FLUSH GATE ════════════════════════════════════════════════════════════════════════════
+
+
+def test_the_flush_is_waited_out_not_pulled_through():
+    """§14a's ruling. run_status 3 means the trailer is still being written, and a pull now would be
+    SYSTEMATICALLY pre-trailer — PARTIAL every time, not occasionally."""
+    g = tr.flush_gate(tr.FLUSH, now=0.0, abort_at=100.0)
+    assert g.action == tr.WAIT
+
+
+def test_idle_after_the_flush_is_the_go_signal():
+    """3 → 1 is the transition the whole design waits for."""
+    assert tr.flush_gate(tr.IDLE, now=0.0, abort_at=100.0).action == tr.PULL
+
+
+def test_a_new_session_during_the_flush_ABANDONS_rather_than_pulling_the_wrong_one():
+    """A re-don mid-flush is ordinary. It matters because the harvest is `which=latest` (§14b): the
+    close we were waiting on is no longer the latest, so pulling would fetch the WRONG session — a
+    silent wrong-answer rather than a visible failure."""
+    g = tr.flush_gate(tr.RECORDING, now=0.0, abort_at=100.0)
+    assert g.action == tr.ABANDON and "no longer the latest" in g.reason
+
+
+def test_the_deadline_OUTRANKS_every_other_state():
+    """Order is the contract. Past the deadline even an active flush must abandon — otherwise waiting
+    outlives the grace, which is the one §8a invariant that must not bend. This is the assertion that
+    fails if the deadline check is moved below the run_status branches."""
+    for st in (tr.FLUSH, tr.IDLE, tr.RECORDING, None):
+        g = tr.flush_gate(st, now=100.0, abort_at=100.0)
+        assert g.action == tr.ABANDON, f"run_status {st} survived the deadline: {g}"
+
+
+def test_an_unobservable_run_status_defers_to_the_poller():
+    """Pulling blind is the systematically-PARTIAL case §14a rejects, and an unobservable flush cannot
+    be waited out. The poller pulls hours later with the flush long finished, so deferring is correct
+    rather than defeatist."""
+    g = tr.flush_gate(None, now=0.0, abort_at=100.0)
+    assert g.action == tr.ABANDON and "poller" in g.reason
+
+
+def test_no_scheduled_drop_means_the_wait_is_bounded_only_by_the_RING():
+    """§8a: `abort_at is None` is no scheduled drop, so there is nothing to outlive. The flush is still
+    waited out — the ring's state, not the clock, ends the wait."""
+    assert tr.flush_gate(tr.FLUSH, now=1e9, abort_at=None).action == tr.WAIT
+    assert tr.flush_gate(tr.IDLE, now=1e9, abort_at=None).action == tr.PULL
+
+
+def test_an_unknown_run_status_value_pulls_rather_than_hanging():
+    """A value outside 1/2/3 is not the flush, and the flush is the only reason to wait. Treating an
+    unrecognised state as WAIT would hang the harvest on a firmware change; treating it as PULL is
+    recoverable, because a pre-trailer file classifies PARTIAL and gets re-pulled."""
+    assert tr.flush_gate(7, now=0.0, abort_at=100.0).action == tr.PULL
+
+
 # ══ THE TEN CRASH POINTS (brief §3) ════════════════════════════════════════════════════════════════
 
 
