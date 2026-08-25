@@ -4914,6 +4914,37 @@ _NOTWORN_SINCE: dict[str, float] = {}   # addr -> monotonic when worn went False
 _NOTWORN_PULLED: set[str] = set()       # addrs already pulled THIS doff session (cleared when worn again)
 
 
+def autopull_arming(pcfg: dict) -> dict:
+    """Which event triggers arm, and — when one does not — WHICH FLAG SAID SO. PURE.
+
+    🔴 THIS EXISTS BECAUSE THE EVENT PATH HAD NEVER ARMED, AND NOTHING SAID SO. Measured on the box
+    2026-08-24: `auto-pull: armed` appears **0** times in the whole journal against **312** poller
+    lines, and no trigger has ever fired. The loop returned on `not pcfg.get("on_charger", True)` —
+    and `on_charger` reads as a CHARGER flag while also gating the NOT-WORN trigger, which
+    `notworn_pull_due` calls "the only reachable trigger for a coin-cell device such as the H10". So
+    one charger-shaped flag silently disabled the H10's only retrieval path, and the symptom was an
+    ABSENT LOG LINE: nothing failed, nothing errored, and no gate can observe a line never printed.
+
+    ⚠️ `on_doff` DEFAULTS TO `on_charger`'s EFFECTIVE VALUE, deliberately, and that is the whole
+    back-compat design. Defaulting it True would arm a never-executed path on the next auto-deploy;
+    defaulting it False would silently disarm the doff trigger on every host that leaves `on_charger`
+    at its default. Inheriting reproduces today's behaviour EXACTLY on every host, so the split is
+    semantically neutral until somebody edits config on purpose — enabling a path that has never run
+    is an event, not a side effect of deploying."""
+    auto = bool(pcfg.get("auto"))
+    on_charger = bool(pcfg.get("on_charger", True))
+    on_doff = bool(pcfg.get("on_doff", on_charger))
+    if not auto:
+        return {"charger": False, "doff": False, "why": "pull.auto is off"}
+    why = []
+    if not on_charger:
+        why.append("pull.on_charger=False")
+    if not on_doff:
+        why.append("pull.on_doff=False" if "on_doff" in pcfg
+                   else "pull.on_doff absent -> inherits on_charger=False")
+    return {"charger": on_charger, "doff": on_doff, "why": "; ".join(why)}
+
+
 def charger_pull_due(charging: bool, since, now: float, settle: float, already: bool) -> bool:
     """PURE: pull this device's onboard sessions now? True once it has been ON THE CHARGER for at least
     `settle` seconds and has not already been pulled this charge session."""
@@ -4952,7 +4983,11 @@ async def charger_pull_poller(cfg: dict, root: str):
     (pull_oxyii_session / pull_polar_offline_all → polar_offline_op). A failed pull falls back to the
     hourly autopull_poller rather than retry-spamming."""
     pcfg = cfg.get("pull") or {}
-    if not pcfg.get("auto") or not pcfg.get("on_charger", True):
+    _arm = autopull_arming(pcfg)
+    if not (_arm["charger"] or _arm["doff"]):
+        # The absence-shaped failure becomes present-shaped: say NOT armed, and name the flag.
+        log.info("auto-pull: NOT armed — no event trigger enabled (%s). The hourly poller still runs; "
+                 "it is a reconciliation net, not the primary path.", _arm["why"] or "pull.auto is off")
         return
     settle = float(pcfg.get("charger_settle_sec", 15))
     # ⚠ THE DOFF SETTLE IS CLAMPED ABOVE THE POWER-DROP GRACE, not merely defaulted above it. A pull holds
@@ -4968,9 +5003,11 @@ async def charger_pull_poller(cfg: dict, root: str):
                if not missing_identity(d) and d.get("vendor") in ("Wellue", "Viatom", "Polar")]
     if not devices:
         return
-    log.info("auto-pull: armed — %d device(s); %.0fs after going on the charger, or %.0fs after coming "
-             "off the body (the only reachable trigger for a coin-cell device such as the H10)",
-             len(devices), settle, doff_settle)
+    log.info("auto-pull: armed — %d device(s); charger=%s (%.0fs) not-worn=%s (%.0fs)%s. The not-worn "
+             "trigger is the only reachable one for a coin-cell device such as the H10.",
+             len(devices), "on" if _arm["charger"] else "OFF", settle,
+             "on" if _arm["doff"] else "OFF", doff_settle,
+             f" — {_arm['why']}" if _arm["why"] else "")
     while not _STOP.is_set():
         await asyncio.sleep(2)
         if _RECOVER.is_set() or _OXYII_PAUSE.is_set():
@@ -4993,9 +5030,9 @@ async def charger_pull_poller(cfg: dict, root: str):
                 _NOTWORN_PULLED.discard(addr)          # back on the body (or no verdict) — re-arm
             else:
                 _NOTWORN_SINCE.setdefault(addr, now)
-            by_charger = charging and charger_pull_due(
+            by_charger = _arm["charger"] and charging and charger_pull_due(
                 True, _CHARGER_SINCE.get(addr), now, settle, addr in _CHARGER_PULLED)
-            by_doff = notworn_pull_due(worn, _NOTWORN_SINCE.get(addr), now, doff_settle,
+            by_doff = _arm["doff"] and notworn_pull_due(worn, _NOTWORN_SINCE.get(addr), now, doff_settle,
                                        addr in _NOTWORN_PULLED)
             if not (by_charger or by_doff):
                 continue
@@ -5233,8 +5270,16 @@ async def autopull_poller(cfg: dict, root: str):
     interval = float(pcfg.get("auto_interval_sec", 3600))
     ftype = int(pcfg.get("ftype", 0))
     retries = max(1, int(pcfg.get("auto_retries", 3)))
-    log.info("auto-pull: enabled — checking %s every %.0fs (only while it is off the finger), up to %d tries",
-             name, interval, retries)
+    # ⚠️ REPORT THE EVENT PATH HERE TOO. "auto-pull: enabled" was read fleet-wide as "auto-pull works",
+    # while the event triggers had never armed once — 312 of these lines against 0 armed lines. The two
+    # mechanisms now state their armed-ness TOGETHER, so the poller's presence can never again be
+    # mistaken for the primary path being alive.
+    _parm = autopull_arming(pcfg)
+    log.info("auto-pull: poller enabled — checking %s every %.0fs (only while it is off the finger), up "
+             "to %d tries. This is the RECONCILIATION NET; event triggers: charger=%s not-worn=%s%s",
+             name, interval, retries,
+             "on" if _parm["charger"] else "OFF", "on" if _parm["doff"] else "OFF",
+             f" ({_parm['why']})" if _parm["why"] else "")
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         if _RECOVER.is_set() or _OXYII_PAUSE.is_set():

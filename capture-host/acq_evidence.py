@@ -1,0 +1,116 @@
+# Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+"""acq_evidence — the Acquisition Evidence Contract (ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF).
+
+A small, canonical envelope for what CAPTURE knows about the INTEGRITY, COMPLETENESS, TIMING, and
+PROVENANCE of acquired data BEFORE a Dex interprets it. It is an ACQUISITION layer, not a science
+layer (spec §3/§4): it answers "what do we know about the acquisition itself?", never "is this
+physiological event real?".
+
+THE THESIS (brief §1 map): this is a pure ASSEMBLER over facts Tepna already stores. This module is
+GENERIC — it holds the envelope shape and its invariants and contains NO O2Ring / AS11 / EDF protocol
+logic (spec §9). Device-specific capture code produces the observations (see the per-device assemblers,
+e.g. `acq_evidence_o2ring`); this module only normalizes and carries them.
+
+THREE INVARIANTS, each planted-control tested (spec §5/§6/§8):
+  1. UNKNOWN ≠ ABSENT. Missing information is `UNKNOWN`, never a negative conclusion and never 0. An
+     unavailable expected-sample-count is `UNKNOWN`, not `0`; an unobserved device state is `UNKNOWN`,
+     not "not recording".
+  2. VALIDATION ⟂ COMPLETENESS. Independent axes. A `.dat` can be VALID + PARTIAL (a whole,
+     trailer-finalised recording that is only part of a night) or INVALID + COMPLETE. Never collapsed
+     into one score.
+  3. ACQUISITION ⟂ SCIENCE. Acquisition integrity never modifies event confidence here (spec §4/§15).
+"""
+
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass, field
+
+SCHEMA = "ganglior.acquisition-evidence"
+SCHEMA_VERSION = "1.0.0"  # ganglior-family, MINOR-bumped as fields are added back-compatibly
+
+# ── the one sentinel that keeps missing information from becoming a negative conclusion (§5) ──
+UNKNOWN = "UNKNOWN"
+
+# validation axis (§6) — independent of completeness
+VALID = "VALID"
+INVALID = "INVALID"
+# completeness axis (§6) — independent of validation
+COMPLETE = "COMPLETE"
+PARTIAL = "PARTIAL"
+
+# acquisition source provenance (§10) — live and stored are never merged into one indistinguishable word
+SOURCE_LIVE = "live"  # a real-time device stream (O2Ring OXYFRAME, CPAP BLE)
+SOURCE_STORED_DAT = "stored_dat"  # the device's onboard recording artifact (.dat)
+SOURCE_SD_EDF = "sd_edf"  # a device SD-card EDF export
+
+
+@dataclass(frozen=True)
+class DurationCheck:
+    """The expected-vs-independent duration comparison (brief §1 refinement 2, lead-ratified; the
+    auto-harvest owner spec §16's vocabulary — `stored`/`observed` — shared with the #1742 runner).
+
+    `stored_s` is the in-artifact DECLARATION (the .dat trailer's `total_seconds`), co-derived with the
+    actual sample count from the same bytes. `observed_s` is the INDEPENDENT expectation — the
+    live-observed `duration_s` at close, seen by the live path, or `None` when the live path did not see
+    the close. Their disagreement is a first-class field, never silently reconciled."""
+
+    stored_s: int | None
+    observed_s: int | None
+    source: str  # "observed" when the live path saw the close, "stored" as the fallback, else UNKNOWN
+    delta_s: int | None  # SIGN CONVENTION (pinned): delta_s = stored_s - observed_s
+    agrees: bool | None  # |delta_s| <= 1 — the ±1 s tolerance is the ring counter's quantization, not
+    #                      bare equality (o2ring-duration-is-quantized: the counter is ±1 s quantized,
+    #                      NOT a frame index). None when either side is unknown.
+
+    @staticmethod
+    def build(stored_s: int | None, observed_s: int | None) -> "DurationCheck":
+        if stored_s is None and observed_s is None:
+            return DurationCheck(None, None, UNKNOWN, None, None)
+        if stored_s is None or observed_s is None:
+            # one side present: prefer the independently-observed value for the expected slot when we
+            # have it, else the stored declaration — but there is no comparison to make.
+            src = "observed" if observed_s is not None else "stored"
+            return DurationCheck(stored_s, observed_s, src, None, None)
+        delta = stored_s - observed_s
+        return DurationCheck(stored_s, observed_s, "observed", delta, abs(delta) <= 1)
+
+
+@dataclass(frozen=True)
+class AcquisitionEvidence:
+    """The canonical envelope. Assembled from existing stores; emitted beside the artifact."""
+
+    session_id: str | None
+    device_id: str | None
+    source: str
+    signal: str | None
+
+    start_time_ms: float | None  # Clock Contract floating tMs; None (not 0) when unknown
+    end_time_ms: float | None
+    clock_status: str  # a timingSource-derived word (device+host / host / none) or UNKNOWN
+
+    sample_count: int | None
+    expected_sample_count: int | None | str  # int, or UNKNOWN — NEVER 0 for "we don't know" (§8)
+    duration_check: DurationCheck
+
+    # gap accounting kept forensic, not a percentage (§8). Each category is a count or UNKNOWN.
+    transport_gaps: int | str
+    decode_gaps: int | str
+
+    device_state: str  # a normalized OXYLIFE/FGState observation, or UNKNOWN (§9)
+
+    artifact_path: str | None
+    artifact_size: int | None
+    artifact_sha256: str | None  # reuse the canonical hash; None (not "") when not computed (§12)
+
+    validation: str  # VALID | INVALID | UNKNOWN (§6)
+    validation_depth: str | None  # e.g. "size+finalised+records" — what the validation actually checked
+    completeness: str  # COMPLETE | PARTIAL | UNKNOWN (§6) — INDEPENDENT of validation
+
+    provenance: dict = field(default_factory=dict)  # ledger refs / observed transitions (§13)
+
+    schema: str = SCHEMA
+    version: str = SCHEMA_VERSION
+
+    def to_dict(self) -> dict:
+        return asdict(self)
