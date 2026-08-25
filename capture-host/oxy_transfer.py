@@ -132,8 +132,16 @@ def close_harvest_decision(
          `pull_deadline` REFUSES and this abandons without touching the link — spending an acquisition
          to produce nothing is the case it exists to prevent.
       4. **The §14a FLUSH GATE**, which re-checks the deadline internally and outranks every
-         `run_status` branch. The duplication is deliberate: step 3 decides whether to ENGAGE, the gate
-         decides whether to CONTINUE, and they are asked at different times.
+         `run_status` branch. Step 3 decides whether to ENGAGE and the gate decides whether to
+         CONTINUE — different questions, asked at different times.
+
+         ⚠️ **But be precise about the redundancy, because a mutant found the imprecision.** Within a
+         SINGLE call the gate's deadline branch is **unreachable**: step 3 has already refused when
+         `now >= abort_at`, so the gate is only ever reached with time left. Passing `None` there is
+         therefore behaviour-identical *here* — which is exactly what survived. The deadline is passed
+         anyway because `None` means **"no scheduled drop"** to `flush_gate`, and saying that while a
+         drop IS scheduled is a lie the next refactor would inherit: the moment anything calls the gate
+         on its own, or step 3 moves, the lie becomes a hang. Propagation is pinned by test.
 
     A PULL decision carries its scope and its deadline together, so a caller cannot take one without
     the other.

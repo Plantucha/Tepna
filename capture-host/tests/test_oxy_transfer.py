@@ -582,6 +582,39 @@ def test_scope_is_NOT_a_caller_choice():
     assert "scope" not in inspect.signature(tr.close_harvest_decision).parameters
 
 
+def test_the_deadline_is_PROPAGATED_to_the_flush_gate_not_dropped(monkeypatch):
+    """Passing `None` for `abort_at` is behaviour-identical TODAY — step 3 has already refused when the
+    window is gone, so the gate's deadline branch is unreachable from here, and a mutant that drops the
+    argument survives every behavioural test. It is still wrong: `None` means "NO SCHEDULED DROP" to
+    `flush_gate`, and asserting that while a drop is scheduled is a lie the next refactor inherits — the
+    moment the gate is called on its own, or step 3 moves, the lie becomes an unbounded wait.
+
+    So this pins the WIRING rather than an outcome, which is the only thing that can catch it."""
+    seen = {}
+
+    def spy(run_status, now, abort_at):
+        seen["abort_at"] = abort_at
+        return tr.FlushGate(tr.PULL, "spied")
+
+    monkeypatch.setattr(tr, "flush_gate", spy)
+    d = tr.close_harvest_decision(armed=True, at_close=True, now=0.0, drop_at=180.0, run_status=tr.IDLE)
+    assert seen["abort_at"] == 170.0, f"the gate was handed {seen['abort_at']!r}, not the deadline"
+    assert d.action == tr.PULL
+
+
+def test_the_gate_is_handed_None_ONLY_when_there_is_genuinely_no_drop(monkeypatch):
+    """The other half: when no drop is scheduled, `None` is the truth and must be what the gate sees."""
+    seen = {}
+
+    def spy(run_status, now, abort_at):
+        seen["abort_at"] = abort_at
+        return tr.FlushGate(tr.PULL, "spied")
+
+    monkeypatch.setattr(tr, "flush_gate", spy)
+    tr.close_harvest_decision(armed=True, at_close=True, now=0.0, drop_at=None, run_status=tr.IDLE)
+    assert seen["abort_at"] is None
+
+
 def test_EVERY_decision_carries_a_reason():
     """Same rule as the two predicates it composes — enumerated, not per-branch, because this is the
     third time in this file that a per-branch assertion left a null reason alive."""
