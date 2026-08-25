@@ -38,7 +38,7 @@ On a ~1 s read-only connect (`establish` → `Get`, cmd 0x43), the AS11 answers 
 | `PatientFlow` | live (0.41 / −0.49) | ~0 (−0.02) | MEASURED |
 | `Leak` | readable (0.0) | **`InvalidObject` (-11201)** | MEASURED |
 | `GetVersion` | full FlowGenerator SW/config/datamodel IDs (provenance) | same | MEASURED |
-| `TherapyOn`/`Ventilation`/`SessionState`/`Mode` | `InvalidObject` | `InvalidObject` | ESTABLISHED |
+| `TherapyOn`/`Ventilation`/`SessionState`/`Mode` | `InvalidObject` | `InvalidObject` | ⚠️ **FALSIFIED 2026-08-24** — these were GUESSED names; the real explicit-state object is **`FGState`** (`Standby` idle / expect `Therapy` active, confirmed live). See `AS11-SESSION-DETECTION-PROTOCOL-INVESTIGATION-2026-08-24-BRIEF.md`. |
 
 **There is NO explicit "therapy on" boolean** — every guessed state name is rejected. `MaskPressure` is
 the primary proxy (huge clean margin, 7.4 vs 0.6); `Leak` **object-validity** is a candidate discrete
@@ -106,9 +106,20 @@ ACTIVE  ──(engage the live stream; stop-detection from the STREAM'S OWN flow
 
 ## Evidence classification (spec §20)
 MEASURED: adv invariance (275), `MaskPressure`/`PatientFlow`/`Leak` treating-vs-idle, the mask-off
-self-ramp + stop trajectory, connection-outlives-therapy. ESTABLISHED: no explicit therapy-state object
-(`InvalidObject` on all guesses). HEURISTIC: the 60 s poll cadence. UNKNOWN: `Leak`-validity across
-in-therapy states; the clock stamp-source per path.
+self-ramp + stop trajectory, connection-outlives-therapy. ~~ESTABLISHED: no explicit therapy-state
+object (`InvalidObject` on all guesses).~~ ⚠️ **FALSIFIED 2026-08-24** — an explicit `FGState` enum
+(`Standby`/`Therapy`) DOES exist and is read confirmed; this "ESTABLISHED" was a FALSE NEGATIVE from
+guessing object names. **METHOD LESSON (empty-result-is-not-a-negative, at the protocol layer):** the
+four guessed names returned `InvalidObject`, which is "these names don't exist", NOT "no such object
+exists" — reading the device's own advertised RPC/DataItem map (`GetVersion` + enumerating `FGState`)
+corrected it. **The next probe ENUMERATES what the device exposes before it guesses names.** So
+`FGState` polling ± `SubscribeEvent(TherapyStatusEvents)` is now the PRIMARY candidate, with MaskPressure
+kept as the independent physical corroborator (device state-word = verdict, pressure = physics
+cross-check; on disagreement, log loudly and prefer NOT-stopping), and `MachineMetrics.LastTherapyUseDateTime`
+as the restart-recovery anchor (one read after a process restart says whether therapy ended while away).
+HEURISTIC: the poll cadence (evidence-based, not fixed 60 s). UNKNOWN: whether `FGState` holds `Therapy`
+through a mask-off (Phase B), `SubscribeEvent` latency, `Leak`-validity across in-therapy states, the
+clock stamp-source per path.
 
 ## Capture provenance
 Box `/srv/tepna/probe/as11_matrix/`: `idle_*.jsonl` (idle baseline), `continuous_*.jsonl` + `cont.log`
