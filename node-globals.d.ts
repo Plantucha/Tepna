@@ -35,6 +35,7 @@ declare var _oxyReview: any; // window state — self-ingest review-mode payload
 declare var _oxyW2: any; // window state — pending _PPG2W.txt texts awaiting their _SPO2.csv pair (waveform SpO₂)
 declare var _oxyW2S: any; // window state — parsed _SPO2.csv rows awaiting their _PPG2W.txt pair
 declare var _oxyRtcLog: any; // window state — parsed *_rtclog.csv rows awaiting matching to their .bin/.dat nights (FINISHED-WORK §A 2a)
+declare var _oxyAcqEvidence: any; // window state — parsed *.meta.json acquisition-evidence envelopes keyed by session_id, awaiting matching to their .dat nights (ACQ-EVIDENCE-CONTRACT Phase C)
 declare var oxyRenderSpo2w: any; // oxydex-app.js — waveform-SpO₂ section renderer, called by the DSP pairing intake
 
 // ── GlucoDex ──────────────────────────────────────────────────────────────────────────────────────

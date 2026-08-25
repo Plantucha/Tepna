@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-CNOVvL0rgtW4HsMGf9KUI693quAn6scT+2m6vEtOyG8=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RjMMOHYFWUY/PR4ye4KSAj/Tc4DVHJOvR3fJVzMX0x4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YorI74yr8c/0Hcd1VZkyFFL6jCh3WK0LtlbgsYgy5po=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-d/fY1ggGH+dOgrHCOKz19Csyb6MrnZ6RivEEwg+WDEo=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-ibthVwnHAm8V3L4QxpSuywLhy9DElV6PFhEVR7s1FRM=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-x3iN3njNfbGdV8rN5N1rMwHHTX3I2KRB4XZ36LEqZoQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8PhVnuPp2/l9tBOv4vDof3+ya+kH1bxHAC+PBeVTcIU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-CNOVvL0rgtW4HsMGf9KUI693quAn6scT+2m6vEtOyG8=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RjMMOHYFWUY/PR4ye4KSAj/Tc4DVHJOvR3fJVzMX0x4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-d/fY1ggGH+dOgrHCOKz19Csyb6MrnZ6RivEEwg+WDEo=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-ibthVwnHAm8V3L4QxpSuywLhy9DElV6PFhEVR7s1FRM=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.8.0</title>
@@ -3528,6 +3528,15 @@ body[data-mode="research"]  .research-accordion[data-tier="research"]  { display
 .metric-primary .m-val { font-size:24px; }
 
 .metric-secondary { border-radius:12px; padding:10px 12px; opacity:.9; }
+/* ACQ-EVIDENCE-CONTRACT Phase C — the read-only acquisition panel. Deliberately distinct from the
+   evidence-badge visuals: acquisition integrity is a separate dimension from physiological evidence. */
+.acq-panel{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 0 10px}
+.acq-chip{font-size:11px;padding:3px 8px;border-radius:8px;border:1px solid var(--border,#2a2f3a);background:rgba(127,127,127,.08)}
+.acq-chip b{font-weight:700;opacity:.7;margin-right:3px}
+.acq-good{border-color:rgba(57,217,138,.4)}
+.acq-bad{border-color:rgba(255,107,122,.5)}
+.acq-neutral{opacity:.85}
+.acq-src{font-size:10px;color:var(--text3,#8b949e);margin-left:2px}
 .metric-secondary .m-val { font-size:18px; }
 
 .metric-research { border-radius:12px; padding:10px 12px; }
@@ -12735,6 +12744,22 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       night.rtcVerifiedAtMs = bestR.tMs;
     }
   }
+
+  /* ACQ-EVIDENCE-CONTRACT Phase C — attach the Acquisition Evidence envelope to a night by matching the
+     envelope's session_id against the .dat night's source filename stamp. DECLARE, never modify: the
+     envelope is surfaced read-only and touches NO science field (contract §4). A night with no matching
+     envelope is unchanged (§19 back-compat). */
+  function _o2AttachAcqEvidence(night, bag) {
+    if (!night || !bag) return;
+    var fname = night.fname || '';
+    for (var sid in bag) {
+      if (!Object.prototype.hasOwnProperty.call(bag, sid)) continue;
+      if (sid && fname.indexOf(sid) >= 0) {
+        night.acquisitionEvidence = bag[sid];
+        return;
+      }
+    }
+  }
   function decodeO2RingBinToCSV(bytes, fname, file) {
     var tMs = _o2BinStartMs(fname, file); // floating wall-clock ms, or null when the date is unknown
     var dated = tMs != null;
@@ -12836,6 +12861,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
             Object.keys(allNights).forEach(function (_k) {
               var _n = allNights[_k];
               if (_n && _n._o2BinSource === true) _o2AttachRtcVerification(_n, _rtcLog);
+              if (_n) _o2AttachAcqEvidence(_n, (typeof window !== 'undefined' && window._oxyAcqEvidence) || null);
             });
           }
         } catch (_eRt) {
@@ -12964,6 +12990,26 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
             var _rtcRows = parseRingClockLog(_rtcText);
             if (_rtcRows.length) {
               window._oxyRtcLog = (window._oxyRtcLog || []).concat(_rtcRows);
+            }
+            resolve(null);
+            return;
+          }
+          // Acquisition Evidence sidecar (`*.meta.json`, capture-host/pull_session.py — the generalized
+          // sidecar carrying `acquisition_evidence`, ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF Phase C).
+          // Same batch-bag posture as the rtclog above: stash the envelope keyed by session_id; the
+          // pairing with each .dat night runs after every file resolves, so drop order does not matter.
+          // READ-ONLY surfacing — this NEVER gates or modifies any science (contract §4); a batch with
+          // no envelope behaves exactly as today (contract §19 back-compat).
+          if (/\.meta\.json$/i.test(file.name)) {
+            try {
+              var _metaObj = JSON.parse(new TextDecoder('utf-8').decode(_buf));
+              var _acqEv = _metaObj && _metaObj.acquisition_evidence;
+              if (_acqEv && _acqEv.session_id) {
+                window._oxyAcqEvidence = window._oxyAcqEvidence || {};
+                window._oxyAcqEvidence[_acqEv.session_id] = _acqEv;
+              }
+            } catch (_me) {
+              /* a malformed sidecar is ignored — never blocks the night's own science */
             }
             resolve(null);
             return;
@@ -19784,6 +19830,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   // them without a browser drop batch or the DSP realm's file-input plumbing.
   OxyDex.parseRingClockLog = parseRingClockLog;
   OxyDex._attachRtcVerification = _o2AttachRtcVerification;
+  OxyDex._attachAcqEvidence = _o2AttachAcqEvidence;
   // Waveform SpO₂ (0x05 pair) — pure, exposed for the test suite + headless callers.
   OxyDex.parsePPG2W = parsePPG2W;
   OxyDex.spo2WaveformTrend = spo2WaveformTrend;
@@ -20337,7 +20384,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     oxyBuildSpo2Series,
     // FINISHED-WORK-IMPROVEMENTS §A 2a — pure surface for the ring-clock sidecar contract tests.
     parseRingClockLog,
-    _attachRtcVerification: _o2AttachRtcVerification
+    _attachRtcVerification: _o2AttachRtcVerification,
+    _attachAcqEvidence: _o2AttachAcqEvidence
   };
   OxyDex._bare = BARE;
   // DSP→UI hook injection (FOLLOWUPS-II item 3): the co-loaded UI modules register their
@@ -22865,6 +22913,46 @@ function renderProjectionCards(n) {
   return html;
 }
 
+/* ACQ-EVIDENCE-CONTRACT Phase C — a compact, READ-ONLY acquisition panel. It surfaces what CAPTURE
+   knows about the recording's integrity/completeness/timing (validation, completeness, the duration
+   cross-check, clock status) when a `*.meta.json` envelope was dropped alongside the .dat. It is
+   DELIBERATELY not an evidence badge: acquisition integrity is a separate dimension from physiological
+   evidence (contract §4), so it never touches the science grades and never gates a metric. Absent
+   envelope → this renders nothing (§19 back-compat). */
+function _o2AcqPanel(ev) {
+  if (!ev || typeof ev !== 'object') return '';
+  var UNK = 'UNKNOWN';
+  var _v = ev.validation || UNK;
+  var _c = ev.completeness || UNK;
+  var _cls = function (x, ok, bad) {
+    return x === ok ? 'good' : x === bad ? 'bad' : 'neutral';
+  };
+  var _chip = function (label, val, cls) {
+    return '<span class="acq-chip acq-' + cls + '"><b>' + label + '</b> ' + escHTML(String(val)) + '</span>';
+  };
+  var h = '<div class="sec-label">Acquisition <span class="cite-note">· what capture knows about this recording, not a physiological judgement</span></div>';
+  h += '<div class="acq-panel">';
+  h += _chip('Validation', _v, _cls(_v, 'VALID', 'INVALID'));
+  h += _chip('Completeness', _c, _cls(_c, 'COMPLETE', 'PARTIAL'));
+  h += _chip('Clock', ev.clock_status || UNK, ev.clock_status && ev.clock_status !== UNK ? 'good' : 'neutral');
+  if (ev.sample_count != null) {
+    var _exp = ev.expected_sample_count;
+    h += _chip('Samples', ev.sample_count + (_exp != null && _exp !== UNK ? ' / ' + _exp + ' expected' : ' (expected ' + UNK + ')'), 'neutral');
+  }
+  var dc = ev.duration_check;
+  if (dc && (dc.stored_s != null || dc.observed_s != null)) {
+    // direction-explicit, never a bare number: delta_s = stored − observed, agrees within ±1 s (ring quantization)
+    var _dtxt = dc.stored_s != null ? 'stored ' + dc.stored_s + ' s' : 'stored ' + UNK;
+    if (dc.observed_s != null) _dtxt += ' vs observed ' + dc.observed_s + ' s';
+    if (dc.agrees === true) _dtxt += ' — agree';
+    else if (dc.agrees === false) _dtxt += ' — DIFFER by ' + dc.delta_s + ' s';
+    h += _chip('Duration', _dtxt, dc.agrees === false ? 'bad' : 'neutral');
+  }
+  if (ev.source) h += '<span class="acq-src">source: ' + escHTML(String(ev.source)) + '</span>';
+  h += '</div>';
+  return h;
+}
+
 function nightDetail(n, idx) {
   var s = n.stats || {},
     html = '';
@@ -22877,6 +22965,13 @@ function nightDetail(n, idx) {
   if (_dur) html += '<div class="ndh-dur">' + _dur + '</div>';
   html += '<div class="ndh-file">📄 ' + sanitizeFname(n.fname) + '</div>';
   html += '</div>';
+
+  // ACQ-EVIDENCE-CONTRACT Phase C — read-only acquisition panel when a `.meta.json` envelope was paired.
+  try {
+    html += _o2AcqPanel(n.acquisitionEvidence);
+  } catch (_ae) {
+    /* a surfacing error must never break the night's science render */
+  }
 
   // Smart Summary — only when computed (raw CSV + summary CSV imports; null for JSONL)
   if (n.summary) {
