@@ -299,6 +299,44 @@ by ordering**.
   rare, at 4.1× headroom on `which=latest` — and never to substitute for the deadline itself.
 
 
+### 8b · The link-axis seam — settled with the lead, 2026-08-24
+
+Scoping unit 2 turned up a blocker that is worth recording because it is a point **in §8's favour**:
+**§8's held-link pull was not representable in `capture-host/oxy_lifecycle.py`'s landed transition
+table.** Entry existed — `(IDLE_UNWORN, PAUSED_FOR_PULL)` and `(LIVE, PAUSED_FOR_PULL)` — but neither
+`PAUSED_FOR_PULL` nor `PULLING` had any edge back to `LIVE` or `IDLE_UNWORN`; the only route home was
+`→ CONNECTING → CONNECTED → LIVE`. The table therefore **encoded the old design as an invariant — a
+pull costs the link** — which is exactly what §8 overturns, and a held-link pull handing the link back
+would have raised `InvalidTransition`.
+
+**That is the transition table doing its job.** The invariant was load-bearing for fire-after-drop, and
+it fails *loudly at runtime* rather than silently — which is the visible failure mode these tables are
+built for. It was found by reading the table before writing against it, not by a gate.
+
+**Settled (the lead owns both, and is building the recording axis):**
+
+1. **The recording axis is a SECOND enum in `oxy_lifecycle.py`** — `OxyRecState`:
+   `UNKNOWN / NOT_RECORDING / RECORDING / END_CANDIDATE / END_CONFIRMED`, the owner spec's five and no
+   more, with its own transition table. **The lead builds it**, folding in the in-flight `IDLE_UNWORN`
+   emit. Unit 2 keys on `END_CANDIDATE` as a real symbol and **must not mint its own vocabulary** —
+   as of this writing `END_CANDIDATE` does not yet exist anywhere in `capture-host/`.
+2. **The two tables stay independent — no cross-axis transitions, ever** (owner spec §3). Correlation
+   happens in the **reader**.
+3. **Journaling: the same `OXYLIFE` writer with an appended `axis` column** (append-only; blank = link,
+   for historical rows). Both axes in one journal, no second sidecar.
+4. **All four resume edges become legal:** `(PULLING → LIVE)`, `(PULLING → IDLE_UNWORN)`,
+   `(PAUSED_FOR_PULL → LIVE)`, `(PAUSED_FOR_PULL → IDLE_UNWORN)`. **The resume target is chosen by
+   current contact at exit** — worn → `LIVE`, unworn → `IDLE_UNWORN`. §8's doff case lands in the
+   latter, but a pull **may** resume directly into `LIVE`: manual and reconciliation pulls can run
+   worn, so the autopull's off-finger condition makes `IDLE_UNWORN` the *common* exit, not the only
+   legal one.
+5. 🔑 **Success and deadline-abort share the same edge; the journal `reason` distinguishes them**
+   (`"pull complete"` vs `"aborted at deadline — .part retained"`). The `PAUSED_FOR_PULL` pair covers
+   abort-before-start, the `PULLING` pair covers success *and* mid-pull abort. **Do not mint a state
+   per outcome** — the LINK state after either outcome is genuinely identical, and a state per outcome
+   would put ledger facts into the link axis.
+
+
 ## APPENDIX — owner's full program spec (§1–27, verbatim)
 
     TEPNA — O2RING .DAT AUTO-HARVEST REFINEMENT
