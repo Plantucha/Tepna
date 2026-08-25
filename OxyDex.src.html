@@ -1007,6 +1007,15 @@ body[data-mode="research"]  .research-accordion[data-tier="research"]  { display
 .metric-primary .m-val { font-size:24px; }
 
 .metric-secondary { border-radius:12px; padding:10px 12px; opacity:.9; }
+/* ACQ-EVIDENCE-CONTRACT Phase C — the read-only acquisition panel. Deliberately distinct from the
+   evidence-badge visuals: acquisition integrity is a separate dimension from physiological evidence. */
+.acq-panel{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 0 10px}
+.acq-chip{font-size:11px;padding:3px 8px;border-radius:8px;border:1px solid var(--border,#2a2f3a);background:rgba(127,127,127,.08)}
+.acq-chip b{font-weight:700;opacity:.7;margin-right:3px}
+.acq-good{border-color:rgba(57,217,138,.4)}
+.acq-bad{border-color:rgba(255,107,122,.5)}
+.acq-neutral{opacity:.85}
+.acq-src{font-size:10px;color:var(--text3,#8b949e);margin-left:2px}
 .metric-secondary .m-val { font-size:18px; }
 
 .metric-research { border-radius:12px; padding:10px 12px; }

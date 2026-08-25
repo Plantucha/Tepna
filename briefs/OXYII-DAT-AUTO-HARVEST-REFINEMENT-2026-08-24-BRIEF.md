@@ -217,16 +217,52 @@ saying plainly rather than treating the original intent as achieved.
 and far from the 13:00 harvest window. It was collateral damage of the conflation in §2a — disabled
 by a flag aimed at something else entirely.
 
-### 6a · Enablement plan (owner-sanctioned)
+### 6a · Enablement plan (owner-sanctioned) — ⚠️ **STEPS 3–4 SUPERSEDED BY §8**
 
 `on_charger` **stays False** on the box: the original intent is respected, fuzzy as it is. Only the
 doff trigger is enabled, in this order, so each step proves the next:
 
-1. Unit 1 lands → deploy.
+1. Unit 1 lands → deploy. **DONE 2026-08-24** (#1743; the box's hourly `tepna-update.timer` picked it
+   up into `/opt/tepna` the same evening).
 2. **Verify the arming line prints both states** — the diagnostic proving itself before it is trusted.
-3. Flip `pull.on_doff: true` — one owner-sanctioned config line.
-4. The first doff window proves the path live, and **finally measures the settle-vs-awake-tail
-   question on a real firing** rather than by argument.
+   **PENDING, and the mechanism is the interesting part.** The code reached `/opt/tepna` at 22:39
+   while the running daemon had started at 21:33, so it is still executing pre-merge code and the
+   line cannot appear yet — every `auto-pull` line in the surrounding 6 h is the old
+   `enabled — checking … every 3600s` form. **This is not a stuck timer: `tepna-update.sh` defers the
+   restart on purpose**, and says so —
+
+   ```
+   22:39:48  updated a7dfe94c9114 → 2458ade2c07d
+   22:39:48  deferred — a device is recording; the daemon keeps the old code until the box is idle
+   23:41:10  updated 575e22e89157 → 7880c4936647
+   23:41:10  deferred — a device is recording; the daemon keeps the old code until the box is idle
+   ```
+
+   So **a deploy during a recording night is code-on-disk only**, and the restart lands when the box
+   goes idle — after the night ends. **Do not force one**: the box's own policy already encodes the
+   right answer, and overriding it would interrupt a capture to verify a log line. ⚠️ The corollary
+   is worth carrying beyond this brief: on this box, *"merged and deployed"* does **not** imply
+   *"running"*, and `git log -1` in `/opt/tepna` will agree with `main` while the daemon executes
+   something older. Check `systemctl show tepna-capture -p ActiveEnterTimestamp` against the deploy
+   time before concluding a change is live.
+3. ~~Flip `pull.on_doff: true`~~ — 🔴 **DO NOT, as written.** §8 replaces fire-after-drop with a pull
+   **over the still-held link on the recording close**, so flipping this today enables the
+   **superseded** settle-then-reconnect path. The flip is also a live-capture behaviour change to a
+   **gitignored, box-local `config.yaml`**, so it is not revertible by a git revert and not visible in
+   the repo — which is exactly why it should not be done ahead of the design it serves.
+4. ~~The first doff window measures the settle-vs-awake-tail question on a real firing~~ — **no longer
+   the question.** §8 removes the tail from the primary path entirely; §5a demotes it to gating the
+   **recovery** path only.
+
+**What replaces steps 3–4.** The doff trigger becomes a **unit 2** question, not a config flip, and
+unit 2 waits on `OxyRecState.END_CANDIDATE` (§8b — the lead is landing the recording axis separately).
+Sequence, once that symbol exists: unit 2 implements the close-triggered held-link pull **with the
+§8a abort deadline**, its first real firing measures **close→finalized** (the one genuinely unmeasured
+number), and only then is there a flag worth turning on. Step 2 stands unchanged and is still the
+gate on everything after it.
+
+*(This section was written before §8 and is left in place rather than deleted, per the brief
+lifecycle: the superseded plan is the record of why the current one looks the way it does.)*
 
 ### 6b · Follow-up the flag never addressed
 

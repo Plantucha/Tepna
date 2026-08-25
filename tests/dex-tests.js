@@ -6485,6 +6485,56 @@
       T.ok('a read >12 h away is silently absent (no fabrication)', night3.timingSource == null && night3.rtcOffsetS == null, 'a distant read attached when it should not');
     });
 
+    /* ACQ-EVIDENCE-CONTRACT Phase C — OxyDex surfaces the acquisition-evidence sidecar READ-ONLY. Same
+       DECLARE-never-modify posture as the ring-clock sidecar: parse `.meta.json` → stash → match a
+       .dat night by session_id → attach, touching NO science. Absent envelope ⇒ unchanged (§19). */
+    group('OxyDex acquisition-evidence sidecar — DECLARED read-only, back-compat when absent', 'oxydex-dsp · acq-evidence · source-scan', function (T) {
+      var _src = env.sources || {};
+      var dsp = _src['oxydex-dsp.js'] || '';
+      if (!dsp) {
+        T.skip('oxydex-dsp.js source wired', 'not in env.sources');
+        return;
+      }
+      T.ok(
+        'ANTI-VACUITY · the .meta.json branch stashes on window._oxyAcqEvidence keyed by session_id',
+        /\\\.meta\\\.json\$\/i\.test\(file\.name\)[\s\S]{0,400}window\._oxyAcqEvidence\[_acqEv\.session_id\]/.test(dsp),
+        'the `.meta.json` branch is not stashing the envelope by session_id'
+      );
+      T.ok(
+        '…the matcher exists and is called post-load for every night',
+        /function\s+_o2AttachAcqEvidence\s*\(\s*night\s*,\s*bag\s*\)/.test(dsp) && /_o2AttachAcqEvidence\(_n,/.test(dsp),
+        'the acq matcher is missing or not called in the drop-batch loop'
+      );
+      T.ok(
+        '…the attach touches ONLY night.acquisitionEvidence (no science field mutated)',
+        /night\.acquisitionEvidence\s*=\s*bag\[sid\]/.test(dsp) && !/_o2AttachAcqEvidence[\s\S]{0,400}night\.stats|_o2AttachAcqEvidence[\s\S]{0,400}night\.summary/.test(dsp),
+        'the acq matcher mutates a science field — acquisition is a separate dimension (§4)'
+      );
+
+      var OB = env.OxyDex && (env.OxyDex._bare || env.OxyDex);
+      if (!(OB && typeof OB._attachAcqEvidence === 'function')) {
+        T.skip('OxyDex._attachAcqEvidence exposed', 'not on the OxyDex namespace in this lane');
+        return;
+      }
+      var ENV = { schema: 'ganglior.acquisition-evidence', session_id: '20260618214109', validation: 'VALID', completeness: 'PARTIAL' };
+      var bag = { 20260618214109: ENV };
+      // MATCH: the .dat night's filename carries the session stamp → the envelope is DECLARED onto it.
+      var n1 = { fname: '20260618214109.dat', stats: { startTs: 1, minSpo2: 88 } };
+      OB._attachAcqEvidence(n1, bag);
+      T.ok('a matching envelope is DECLARED onto the night', n1.acquisitionEvidence === ENV);
+      T.ok('…and NO science field is touched (minSpo2 unchanged, read-only §4)', n1.stats.minSpo2 === 88);
+      // NON-MATCH: a different night gets nothing.
+      var n2 = { fname: '20260101000000.dat', stats: { startTs: 2 } };
+      OB._attachAcqEvidence(n2, bag);
+      T.ok('a non-matching night is left unattached', n2.acquisitionEvidence === undefined);
+      // BACK-COMPAT CONTROL: no bag ⇒ the night is byte-unchanged (the app behaves exactly as today §19).
+      var n3 = { fname: '20260618214109.dat', stats: { startTs: 3 } };
+      OB._attachAcqEvidence(n3, null);
+      T.ok('CONTROL · absent envelope leaves the night UNCHANGED (no acquisitionEvidence key added)', n3.acquisitionEvidence === undefined && Object.keys(n3).length === 2);
+      OB._attachAcqEvidence(n3, {});
+      T.ok('CONTROL · an empty bag also changes nothing', n3.acquisitionEvidence === undefined);
+    });
+
     group('trio-batch feeds the O2Ring finger site without breaking the trio count', 'trio-batch · o2ring-finger', function (T) {
       var src = env.sources || {};
       var tb = src['tools/trio-batch.mjs'] || src['trio-batch.mjs'] || '';
