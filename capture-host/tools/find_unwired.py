@@ -56,6 +56,10 @@ ALLOW_KEYS = {
                      "state) for /api/state inspection — the charter's STATUS half; the webmon-forward "
                      "+ monitor lifecycle indicator is a tracked follow-up, same pattern the "
                      "ring_rtc_reset_suspect draw followed, alongside the IDLE_UNWORN/PULLING hooks",
+    "oxy_recording": "the RECORDING axis's STATUS half (OxyRecEngine via _rec_emit) for /api/state "
+                     "inspection — the same charter pattern as oxy_lifecycle directly above, with the "
+                     "same tracked monitor-draw follow-up; the close-triggered pull (DAT-AUTO-HARVEST "
+                     "unit 2) is its first in-daemon consumer and lands next",
 }
 # Fields the API publishes that the monitor does not draw — either for a consumer OTHER than the monitor,
 # or a monitor draw that is PENDING and tracked. `/api/state` is not the monitor's private channel — but
