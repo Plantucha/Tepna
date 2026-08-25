@@ -441,7 +441,24 @@ if (IS_CLI) {
           }
           const extra = SCAN ? scanOffsets(rW, fW, SCAN_SURR, SCAN_LO, SCAN_HI, SCAN_STEP) : {};
           if (extra.refused) refusals.push(`${night} win${win}: scan — ${extra.refused}`);
-          rows.push({ night, win, ppmE: ax.ppm, ppmP: px.ppm, ...sc, ...(extra.refused ? {} : extra) });
+          /* `maxStepMs` rides alongside `ppm` because they answer DIFFERENT questions and §3f.5
+             eliminated only the one `ppm` asks. A ppm is a RATE, and integrating it over a window
+             predicts a smooth accumulation — which is why §3f.5 could show differential drift is ~6x
+             too small to cross the ~450 ms identifiability band. `maxStepMs` is the other shape: a
+             genuine clock STEP smeared across one anchor gap, which a single ppm renders as a gentle
+             slope and therefore hides. CLAUDE.md §7 records the O2Ring doing exactly that — sub-ppm
+             for hours, then ~12.5 s/h from the first BLE dropout. Emitting it costs nothing (hostAxis
+             already computes it) and it is the only field that can test the stalled-link candidate. */
+          rows.push({
+            night,
+            win,
+            ppmE: ax.ppm,
+            ppmP: px.ppm,
+            maxStepE: ax.maxStepMs,
+            maxStepP: px.maxStepMs,
+            ...sc,
+            ...(extra.refused ? {} : extra)
+          });
         }
       }
   }
