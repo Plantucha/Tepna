@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import calendar
 import math
+import os
 import re
 import statistics
 
@@ -138,8 +139,16 @@ class ClockSidecar:
 
     def __init__(self, path: str):
         self.path = path
-        self._fh = open(path, "w", buffering=1 << 16, newline="\n")
-        self._fh.write(self.HEADER)
+        # APPEND, never "w". Mode "w" TRUNCATES on open, and the daemon restarts often (11 times on
+        # 2026-08-25) — which destroyed 7.5 h of collected rows that day: the file went 57,445 bytes
+        # -> 0 at the exact second of `Started tepna-capture`. A restart must COST NOTHING.
+        # Line-buffered (buffering=1) for the same reason: at 64 KB with ~90-byte rows, an unclean
+        # stop discarded everything since the last flush, and a working sidecar then reads as a
+        # 0-byte file — indistinguishable from a dead detector, which is how this went unnoticed.
+        fresh = not os.path.exists(path) or os.path.getsize(path) == 0
+        self._fh = open(path, "a", buffering=1, newline="\n")
+        if fresh:
+            self._fh.write(self.HEADER)
         self.rows = 0
 
     def write(self, host_wall, host_epoch_s, device_iso, device_epoch_s, offset_s) -> None:
