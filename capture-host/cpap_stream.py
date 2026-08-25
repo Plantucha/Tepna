@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
+import acq_evidence_cpap
 import as11_cipher
 import as11_pull
 from cpap_ingest import GapCounters
@@ -70,7 +71,8 @@ def gate(status_devices, *, enabled=True) -> str | None:
 
 async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
                         channels=None, extra_sinks=None, sample_interval_ms=40,
-                        cipher_factory=as11_cipher.make_cipher, max_batches=None, should_stop=None):
+                        cipher_factory=as11_cipher.make_cipher, max_batches=None, should_stop=None,
+                        acq_evidence_out=None):
     """Establish the encrypted session, then fan each AS11 StreamData batch out to `bus` AND to any
     `extra_sinks`. Returns the number of batches delivered.
 
@@ -103,6 +105,7 @@ async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
     for s in sinks:
         s.open(channels, fs)
     delivered = 0
+    clean = False                              # set True only if the batch loop ends without raising
     observed_ms = None                         # §2 — the device's OWN interval, authoritative once seen
     try:
         async for batch in as11_pull.stream(write, recv_frame, seal, unseal, list(channels),
@@ -142,6 +145,10 @@ async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
             delivered += 1
             if should_stop is not None and should_stop.is_set():
                 break
+        # Reached ONLY by the loop ending on its own terms (cooperative stop, or max_batches). A dropped
+        # link raises straight past this into the finally, leaving `clean` False — so the envelope's
+        # completeness reflects what actually happened instead of assuming every session ended well.
+        clean = True
     finally:
         for s in sinks:
             s.close()
@@ -150,7 +157,34 @@ async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
             _log.warning("CPAP stream gap accounting: %s", _summary)
         else:
             _log.info("CPAP stream gap accounting: %s", _summary)
+        # ACQUISITION EVIDENCE CONTRACT, Phase B (ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF §11/§18).
+        # AFTER the sinks are closed — the raw record's clean close is the validation input, so
+        # assembling before this would read a still-open record and report UNKNOWN for every session.
+        # Emitted in the finally so an INTERRUPTED night gets its envelope too: a drop is exactly when
+        # acquisition evidence matters, and the drain above means those batches are already durable.
+        if acq_evidence_out is not None:
+            _emit_acq_evidence(acq_evidence_out, sinks, counters, observed_ms, clean)
     return delivered
+
+
+def _emit_acq_evidence(out, sinks, counters, observed_ms, stopped_cleanly):
+    """Assemble the live envelope from the closed sinks and hand it to `out`. Never raises into the
+    pump: evidence is a REPORT ABOUT the acquisition, so failing to write it must not also destroy the
+    acquisition's return value. A sink with no `acq_facts` (the EDF writer) is not the raw record."""
+    try:
+        raw = next((s.acq_facts() for s in sinks if hasattr(s, "acq_facts")), None)
+        if raw is None:
+            return
+        edf = next((s.path for s in sinks if hasattr(s, "path") and not hasattr(s, "acq_facts")), None)
+        out(acq_evidence_cpap.assemble_live(
+            raw,
+            counters=counters.summary(),
+            edf_path=edf,
+            observed_interval_ms=observed_ms,
+            stopped_cleanly=stopped_cleanly,
+        ))
+    except Exception:  # noqa: BLE001 — see the docstring: the report must not sink the acquisition
+        _log.exception("CPAP acquisition-evidence emit failed — the capture itself is unaffected")
 
 
 class LiveStreamController:
@@ -162,7 +196,8 @@ class LiveStreamController:
     daemon shim. One controller per daemon; `op("start"|"stop")` is what the endpoint calls."""
 
     def __init__(self, bus, connect, load_creds, devices, *, channels=None, pump=stream_to_bus,
-                 edf_sink_factory=None, raw_record_factory=None, coexistence_gate=False):
+                 edf_sink_factory=None, raw_record_factory=None, coexistence_gate=False,
+                 acq_evidence_out=None):
         self._bus = bus
         self._connect = connect
         self._load_creds = load_creds
@@ -179,6 +214,10 @@ class LiveStreamController:
         # () -> a fresh RawRecordSink for this session (the durable JSONL raw record, INV9), or
         # None for no on-disk record. Peers with the EDF sink on the one ingestion seam.
         self._raw_record_factory = raw_record_factory
+        # (AcquisitionEvidence) -> None, called once per session after the sinks close — the Phase B
+        # execution witness. None (the default) keeps the prior behaviour exactly, so every existing
+        # controller and injected test pump is unaffected.
+        self._acq_evidence_out = acq_evidence_out
         self._task = None
         self._stop = None
         self._disconnect = None
@@ -231,6 +270,8 @@ class LiveStreamController:
         _factories = [f for f in (self._raw_record_factory, self._edf_sink_factory) if f is not None]
         if _factories:
             kw["extra_sinks"] = [f() for f in _factories]
+        if self._acq_evidence_out is not None:
+            kw["acq_evidence_out"] = self._acq_evidence_out
         self._task = asyncio.create_task(self._pump(
             self._bus, write, recv_frame, bytes.fromhex(creds["masterPairKey"]), creds["clientId"], **kw))
         return {"ok": True, "streaming": True, "channels": self._keys()}

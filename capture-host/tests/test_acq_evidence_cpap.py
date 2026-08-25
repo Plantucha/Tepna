@@ -1,0 +1,518 @@
+# tepna-capture — tests/test_acq_evidence_cpap.py
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+"""acq_evidence_cpap — the CPAP adapter for the Acquisition Evidence Contract (Phase B).
+
+The three contract invariants are tested as PLANTED CONTROLS, not as incidental assertions: each one
+names a value the adapter must NOT produce, so the test fails if the invariant is ever quietly relaxed.
+
+  §5  UNKNOWN ≠ ABSENT      — absent accounting is UNKNOWN, never 0. `0` means "counted, none happened".
+  §6  VALID ≠ COMPLETE      — the two axes are asserted in all four combinations, never collapsed.
+  §4  ACQUISITION ≠ SCIENCE — nothing here reads or writes an evidence tier.
+
+Plus the §18 EXECUTION WITNESS: the envelope is assembled by the real pump on the real production
+seam (ARMED → TRIGGERED → SIDE EFFECT → ARTIFACT → ACQUISITION EVIDENCE), not merely by calling the
+assembler directly — including on the interrupted path, which is when it matters most.
+"""
+import asyncio
+import collections
+import json
+
+import acq_evidence as ae
+import acq_evidence_cpap as cpap
+import as11_link as L
+import cpap_record
+import cpap_stream as CS
+
+PAIR_KEY = b"K" * 32
+NONCE = bytes.fromhex("00112233445566778899aabbccddeeff")
+
+
+def _facts(**over):
+    f = {"session_id": "20260825T013000Z-abc123", "device_id": "AS11-01",
+         "path": "/tmp/cpap-raw-x.jsonl", "records": 42, "closed": True, "size": 8192}
+    f.update(over)
+    return f
+
+
+def _counters(**over):
+    c = {"frames_ok": 100, "samples_ok": 5000, "foreign_stream": 0, "malformed": 0, "overflow": 0,
+         "stalls": 0, "post_drop_tail": 0, "sink_errors": 0, "total_lost": 0}
+    c.update(over)
+    return c
+
+
+# ── §5 UNKNOWN ≠ ABSENT — the planted controls ─────────────────────────────────
+def test_absent_gap_accounting_is_unknown_not_zero():
+    """THE control for §5. With no counters at all the gap fields must be UNKNOWN — a 0 here would
+    assert "we counted, and nothing was lost" about a stream nobody counted."""
+    ev = cpap.assemble_live(_facts(), counters=None)
+    assert ev.transport_gaps == ae.UNKNOWN and ev.decode_gaps == ae.UNKNOWN
+    assert ev.transport_gaps != 0 and ev.decode_gaps != 0, "absent accounting must not read as zero loss"
+    assert ev.sample_count is None, "no counters ⇒ no sample count; None, never 0"
+
+
+def test_present_gap_accounting_of_zero_is_zero_not_unknown():
+    """The mirror control: a real all-zero count is a MEASUREMENT and must stay 0. Without this, an
+    adapter that returned UNKNOWN for everything would pass the test above."""
+    ev = cpap.assemble_live(_facts(), counters=_counters())
+    assert ev.transport_gaps == 0 and ev.decode_gaps == 0
+    assert ev.sample_count == 5000
+
+
+def test_expected_sample_count_is_unknown_without_an_observed_interval():
+    ev = cpap.assemble_live(_facts(), counters=_counters(), observed_duration_s=600)
+    assert ev.expected_sample_count == ae.UNKNOWN and ev.expected_sample_count != 0
+
+
+def test_expected_sample_count_derives_from_the_observed_interval():
+    """Derived from the DEVICE's observed interval, never the requested nominal (cpap_stream §2)."""
+    ev = cpap.assemble_live(_facts(), counters=_counters(), observed_duration_s=600,
+                            observed_interval_ms=40)
+    assert ev.expected_sample_count == 15000
+
+
+def test_unobserved_device_state_is_unknown_not_standby():
+    """An unread supervisor is UNKNOWN — never "the device was not in therapy" (§5)."""
+    ev = cpap.assemble_live(_facts(), counters=_counters())
+    assert ev.device_state == ae.UNKNOWN
+
+
+def test_observed_device_state_is_carried_through():
+    ev = cpap.assemble_live(_facts(), counters=_counters(), device_state="Therapy")
+    assert ev.device_state == "Therapy"
+
+
+def test_a_never_opened_record_is_unknown_not_valid_and_not_invalid():
+    """`closed` False must not become INVALID: a torn or unwritten record is un-VERIFIED, and calling
+    that "invalid" is precisely the §5 negative conclusion drawn from missing information."""
+    ev = cpap.assemble_live(_facts(closed=False), counters=_counters())
+    assert ev.validation == ae.UNKNOWN and ev.validation_depth is None
+    assert ev.validation != ae.INVALID
+
+
+# ── §6 VALIDATION ⟂ COMPLETENESS — all four combinations ───────────────────────
+def test_valid_and_complete():
+    ev = cpap.assemble_live(_facts(), counters=_counters(), stopped_cleanly=True)
+    assert (ev.validation, ev.completeness) == (ae.VALID, ae.COMPLETE)
+    assert ev.validation_depth == cpap.DEPTH_JSONL_CLOSED
+
+
+def test_valid_but_partial_when_frames_were_lost():
+    """The §6 case that matters: intact, cleanly-closed bytes describing an INCOMPLETE acquisition."""
+    ev = cpap.assemble_live(_facts(), counters=_counters(overflow=7, total_lost=7), stopped_cleanly=True)
+    assert (ev.validation, ev.completeness) == (ae.VALID, ae.PARTIAL)
+    assert ev.transport_gaps == 7
+
+
+def test_valid_but_partial_when_the_durable_sink_failed():
+    """`sink_errors` is INV9 loss — the batch reached the bus but not the authoritative record. It is
+    deliberately outside GapCounters.total_lost, so completeness must count it separately or a night
+    that lost its durable copy would read COMPLETE."""
+    ev = cpap.assemble_live(_facts(), counters=_counters(sink_errors=3), stopped_cleanly=True)
+    assert ev.completeness == ae.PARTIAL
+
+
+def test_invalid_but_complete():
+    """A whole session whose artifact failed verification — INVALID + COMPLETE, never collapsed."""
+    ev = cpap.assemble_live(_facts(), counters=_counters(), stopped_cleanly=True, artifact_valid=False)
+    assert (ev.validation, ev.completeness) == (ae.INVALID, ae.COMPLETE)
+
+
+def test_unknown_and_unknown():
+    ev = cpap.assemble_live(_facts(closed=False), counters=None)
+    assert (ev.validation, ev.completeness) == (ae.UNKNOWN, ae.UNKNOWN)
+
+
+def test_an_uncleanly_stopped_session_is_partial():
+    ev = cpap.assemble_live(_facts(), counters=_counters(), stopped_cleanly=False)
+    assert ev.completeness == ae.PARTIAL and ev.validation == ae.VALID
+
+
+# ── the duration_check analog: the DEVICE's own verdict vs what streamed ───────
+def test_device_declared_duration_disagreeing_makes_it_partial():
+    """LastTherapyUseDateTime says the device ran 3600 s; only 1800 s streamed. The artifact is whole
+    and valid, but it is half the therapy session — PARTIAL, with the disagreement first-class."""
+    ev = cpap.assemble_live(_facts(), counters=_counters(), stopped_cleanly=True,
+                            device_declared_duration_s=3600, observed_duration_s=1800)
+    assert ev.duration_check.delta_s == 1800, "sign convention: stored - observed"
+    assert ev.duration_check.agrees is False
+    assert (ev.validation, ev.completeness) == (ae.VALID, ae.PARTIAL)
+
+
+def test_one_sided_duration_makes_no_comparison():
+    ev = cpap.assemble_live(_facts(), counters=_counters(), observed_duration_s=1800)
+    assert ev.duration_check.agrees is None and ev.duration_check.delta_s is None
+
+
+def test_end_time_derives_only_from_an_observed_duration():
+    ev = cpap.assemble_live(_facts(), counters=_counters(), start_time_ms=1000.0,
+                            observed_duration_s=60)
+    assert ev.end_time_ms == 61000.0
+    assert cpap.assemble_live(_facts(), start_time_ms=1000.0).end_time_ms is None
+
+
+# ── artifact identity: the durable record, never the derived EDF (INV9) ────────
+def test_the_artifact_is_the_raw_record_and_the_edf_is_provenance():
+    ev = cpap.assemble_live(_facts(), counters=_counters(), edf_path="/tmp/night/x_BRP.edf")
+    assert ev.artifact_path == "/tmp/cpap-raw-x.jsonl", "the authoritative copy is the artifact"
+    assert ev.provenance["edf_artifact"] == "/tmp/night/x_BRP.edf"
+    assert ev.source == ae.SOURCE_LIVE and ev.signal == cpap.SIGNAL_BRP
+
+
+def test_full_counters_ride_in_provenance_unprojected():
+    """transport/decode are a LOSSY view; the forensic record must survive intact (§8)."""
+    c = _counters(foreign_stream=4, stalls=2)
+    ev = cpap.assemble_live(_facts(), counters=c)
+    assert ev.provenance["gap_counters"] == c
+
+
+def test_a_foreign_frame_is_not_counted_as_loss():
+    """A frame for another streamId was never ours — it is neither transport nor decode loss."""
+    ev = cpap.assemble_live(_facts(), counters=_counters(foreign_stream=9), stopped_cleanly=True)
+    assert ev.transport_gaps == 0 and ev.decode_gaps == 0 and ev.completeness == ae.COMPLETE
+
+
+def test_no_hash_is_invented():
+    assert cpap.assemble_live(_facts(), counters=_counters()).artifact_sha256 is None
+
+
+# ── the STORED spool source — never merged with live (§10) ─────────────────────
+def _row(status="NO_MORE_DATA", seq=1, sha="a" * 64, nbytes=100):
+    return {"device": "AS11-01", "session": "s1", "spool_type": "brp",
+            "committed_cursor": "2026-08-25T01:00:00", "round_seq": seq,
+            "round": {"from": "2026-08-25T00:00:00", "bytes": nbytes, "sha256": sha, "status": status}}
+
+
+def test_spool_is_a_distinct_source_from_live():
+    ev = cpap.assemble_spool([_row()])
+    assert ev.source == ae.SOURCE_STORED_SPOOL and ev.source != ae.SOURCE_LIVE
+
+
+def test_spool_no_more_data_is_complete_and_promote_verified():
+    ev = cpap.assemble_spool([_row(seq=1, nbytes=100), _row(seq=2, nbytes=50)])
+    assert (ev.validation, ev.completeness) == (ae.VALID, ae.COMPLETE)
+    assert ev.validation_depth == cpap.DEPTH_SPOOL_PROMOTE
+    assert ev.artifact_size == 150 and ev.provenance["rounds"] == 2
+
+
+def test_spool_more_data_pending_is_valid_but_partial():
+    ev = cpap.assemble_spool([_row(status="MORE_DATA_PENDING")])
+    assert (ev.validation, ev.completeness) == (ae.VALID, ae.PARTIAL)
+
+
+def test_spool_unknown_status_is_unknown_completeness():
+    ev = cpap.assemble_spool([_row(status="SOMETHING_ELSE")])
+    assert ev.completeness == ae.UNKNOWN
+
+
+def test_an_empty_spool_ledger_is_unknown_not_a_complete_valid_acquisition():
+    """THE §5 control for the stored path: no rows is UNKNOWN, not an empty successful pull."""
+    ev = cpap.assemble_spool([], committed_dir="/spool/committed")
+    assert ev.validation == ae.UNKNOWN and ev.completeness == ae.UNKNOWN
+    assert ev.validation != ae.VALID and ev.completeness != ae.COMPLETE
+    assert ev.artifact_size is None, "no rows ⇒ unknown size, never 0 bytes"
+    assert ev.provenance["rounds"] == 0
+
+
+def test_spool_invents_no_combined_hash():
+    """Each round has its own sha; a hash over the set would be the second hashing system §12 forbids."""
+    ev = cpap.assemble_spool([_row(sha="a" * 64), _row(sha="b" * 64)])
+    assert ev.artifact_sha256 is None
+    assert ev.provenance["round_sha256"] == ["a" * 64, "b" * 64]
+
+
+def test_spool_does_not_fabricate_sample_or_gap_accounting():
+    """A byte transfer has no frames — every stream-shaped field must be None/UNKNOWN, never 0."""
+    ev = cpap.assemble_spool([_row()])
+    assert ev.sample_count is None and ev.expected_sample_count == ae.UNKNOWN
+    assert ev.transport_gaps == ae.UNKNOWN and ev.decode_gaps == ae.UNKNOWN
+    assert ev.start_time_ms is None and ev.end_time_ms is None, "cursors are the consumer's to localise"
+
+
+def test_spool_identity_falls_back_to_the_ledger_then_honours_an_override():
+    assert cpap.assemble_spool([_row()]).device_id == "AS11-01"
+    assert cpap.assemble_spool([_row()], device_id="OVERRIDE").device_id == "OVERRIDE"
+
+
+# ── cpap_record.acq_facts — the seam the envelope reads ────────────────────────
+def test_acq_facts_reports_a_clean_close(tmp_path):
+    p = tmp_path / "rec.jsonl"
+    sink = cpap_record.RawRecordSink(str(p), device_id="AS11-01", session_id="s1",
+                                     provenance={}, wall=lambda: "2026-08-25T00:00:00Z")
+    sink.open({}, 25.0)
+    sink.on_batch({"streamId": 1, "channels": {"PatientFlow": [1.0]}})
+    sink.close()
+    f = sink.acq_facts()
+    assert f["closed"] is True and f["records"] == 1 and f["size"] > 0
+    assert f["session_id"] == "s1" and f["device_id"] == "AS11-01" and f["path"] == str(p)
+
+
+def test_acq_facts_on_a_never_opened_sink_is_not_closed(tmp_path):
+    """_CLOSED is also the never-opened state. Without the explicit flag this reports a clean close for
+    a record that was never written — which the envelope would read as VALID."""
+    sink = cpap_record.RawRecordSink(str(tmp_path / "never.jsonl"), device_id="d", session_id="s",
+                                     provenance={})
+    f = sink.acq_facts()
+    assert f["closed"] is False and f["records"] == 0
+    assert f["size"] is None, "an absent file is unknown size, never 0"
+    assert cpap.assemble_live(f).validation == ae.UNKNOWN
+
+
+def test_acq_facts_mid_session_is_not_closed(tmp_path):
+    p = tmp_path / "open.jsonl"
+    sink = cpap_record.RawRecordSink(str(p), device_id="d", session_id="s", provenance={},
+                                     wall=lambda: "2026-08-25T00:00:00Z")
+    sink.open({}, 25.0)
+    try:
+        assert sink.acq_facts()["closed"] is False
+    finally:
+        sink.close()
+
+
+# ── §18 EXECUTION WITNESS — the real pump, the real seam ───────────────────────
+def _identity_factory(session_key):
+    return (lambda p: p), (lambda w: w)
+
+
+def _enc(obj):
+    return (L.VCID_ENC_RX, json.dumps(obj).encode())
+
+
+def _plain(obj):
+    return (L.VCID_PLAIN_RX, json.dumps(obj).encode())
+
+
+def _handshake():
+    return [
+        _plain({"id": 10, "result": {"challenge": (b"chal-16-bytes!!!").hex(), "nonce": NONCE.hex()}}),
+        _plain({"id": 11, "result": {"confirmation": True}}),
+    ]
+
+
+def _ack():
+    return _enc({"id": 16, "result": {
+        "dataIds": [{"dataId": "PatientFlow", "valid": True}, {"dataId": "MaskPressure", "valid": True}],
+        "streamId": 1}})
+
+
+def _data():
+    return _enc({"jsonrpc": "2.0", "method": "StreamData", "params": {
+        "data": [{"PatientFlow": [0.1, 0.2]}, {"MaskPressure": [5.0, 5.1]}],
+        "intervalMs": 40, "startTime": "2026-08-23T01:30:28.730Z", "streamId": 1}})
+
+
+class _FakeDev:
+    def __init__(self, frames):
+        self._f = collections.deque(frames)
+
+    async def write(self, frame):
+        pass
+
+    async def recv_frame(self):
+        return self._f.popleft()
+
+
+class _FakeBus:
+    def register(self, *a, **k):
+        pass
+
+    def push(self, *a, **k):
+        pass
+
+
+class _FakeEdf:
+    """Stands in for EdfSink: exposes `path`, has no `acq_facts` — the discriminator the pump uses."""
+
+    path = "/tmp/night/x_BRP.edf"
+
+    def open(self, channels, fs):
+        pass
+
+    def on_batch(self, batch):
+        pass
+
+    def close(self):
+        pass
+
+
+class _FakeRaw:
+    def __init__(self):
+        self.closed = False
+
+    def open(self, channels, fs):
+        pass
+
+    def on_batch(self, batch):
+        pass
+
+    def close(self):
+        self.closed = True
+
+    def acq_facts(self):
+        return _facts(closed=self.closed)
+
+
+def test_the_production_pump_emits_the_envelope_after_the_sinks_close():
+    """ARMED → TRIGGERED → SIDE EFFECT → ARTIFACT → ACQUISITION EVIDENCE, through the real pump."""
+    got = []
+    raw = _FakeRaw()
+    dev = _FakeDev(_handshake() + [_ack(), _data(), _data()])
+    n = asyncio.run(CS.stream_to_bus(_FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                                    cipher_factory=_identity_factory, max_batches=2,
+                                    extra_sinks=[raw, _FakeEdf()], acq_evidence_out=got.append))
+    assert n == 2
+    assert len(got) == 1, "exactly one envelope per session"
+    ev = got[0]
+    # it describes the REAL artifact, and was assembled AFTER the close (else validation is UNKNOWN)
+    assert ev.validation == ae.VALID, "assembled after the sink closed"
+    assert ev.completeness == ae.COMPLETE
+    assert ev.artifact_path == "/tmp/cpap-raw-x.jsonl"
+    assert ev.provenance["edf_artifact"] == "/tmp/night/x_BRP.edf"
+    assert ev.provenance["observed_interval_ms"] == 40, "the DEVICE's observed interval reached it"
+    # 2 batches x (2 flow + 2 pressure): samples_ok counts SAMPLES across channels, not frames — the
+    # number the pump actually accepted, not one this test assumed.
+    assert ev.sample_count == 8
+    assert ev.schema == ae.SCHEMA
+
+
+def test_an_interrupted_session_still_emits_and_is_partial():
+    """The control that makes the witness meaningful: a dropped link is exactly when the envelope
+    matters, and it must NOT claim a clean stop."""
+    got = []
+    dev = _FakeDev(_handshake() + [_ack(), _data()])   # frames run out mid-stream → the link "drops"
+    try:
+        asyncio.run(CS.stream_to_bus(_FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                                     cipher_factory=_identity_factory,
+                                     extra_sinks=[_FakeRaw()], acq_evidence_out=got.append))
+    except Exception:  # noqa: BLE001 — the drop is the point; the envelope is what we assert on
+        pass
+    assert len(got) == 1, "an interrupted night still gets its evidence"
+    assert got[0].provenance["stopped_cleanly"] is False
+    assert got[0].completeness == ae.PARTIAL
+
+
+def test_no_evidence_callback_leaves_the_pump_unchanged():
+    dev = _FakeDev(_handshake() + [_ack(), _data()])
+    n = asyncio.run(CS.stream_to_bus(_FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                                    cipher_factory=_identity_factory, max_batches=1,
+                                    extra_sinks=[_FakeRaw()]))
+    assert n == 1
+
+
+def test_a_failing_evidence_writer_never_sinks_the_acquisition():
+    """The report must not destroy the thing it reports on."""
+    def _boom(_ev):
+        raise RuntimeError("sidecar disk full")
+
+    dev = _FakeDev(_handshake() + [_ack(), _data()])
+    n = asyncio.run(CS.stream_to_bus(_FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                                    cipher_factory=_identity_factory, max_batches=1,
+                                    extra_sinks=[_FakeRaw()], acq_evidence_out=_boom))
+    assert n == 1, "the pump still reports its delivered count"
+
+
+def test_no_raw_record_means_no_envelope():
+    """With only a derived EDF there is no authoritative artifact to describe — emitting one would be
+    a fabricated acquisition fact."""
+    got = []
+    dev = _FakeDev(_handshake() + [_ack(), _data()])
+    asyncio.run(CS.stream_to_bus(_FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                                cipher_factory=_identity_factory, max_batches=1,
+                                extra_sinks=[_FakeEdf()], acq_evidence_out=got.append))
+    assert got == []
+
+
+# ── §4 ACQUISITION ⟂ SCIENCE ───────────────────────────────────────────────────
+def test_the_envelope_carries_no_scientific_evidence_tier():
+    """Acquisition integrity must never leak into the science ladder (measured/validated/...)."""
+    ev = cpap.assemble_live(_facts(), counters=_counters(), stopped_cleanly=True)
+    blob = json.dumps(ev.to_dict()).lower()
+    for tier in ("measured", "validated", "emerging", "experimental", "heuristic"):
+        assert tier not in blob, f"acquisition evidence must not carry the {tier} science tier"
+
+
+# ── the capture.py production wiring: the sidecar writer ───────────────────────
+def test_the_sidecar_writer_lands_the_envelope_beside_the_raw_record(tmp_path):
+    """The Phase B side effect: one `<raw-record>.meta.json` in the SAME shape and placement the
+    O2Ring `.dat` path already uses, so one reader handles both devices."""
+    import capture
+
+    rec = tmp_path / "cpap-raw-s1.jsonl"
+    rec.write_text("{}\n")
+    ev = cpap.assemble_live(_facts(path=str(rec)), counters=_counters(), stopped_cleanly=True)
+    capture._cpap_acq_evidence_writer()(ev)
+
+    blob = json.loads((tmp_path / "cpap-raw-s1.jsonl.meta.json").read_text())
+    assert blob["acquisition_evidence"]["schema"] == ae.SCHEMA
+    assert blob["acquisition_evidence"]["source"] == ae.SOURCE_LIVE
+    assert blob["acquisition_evidence"]["validation"] == ae.VALID
+
+
+def test_the_sidecar_writer_writes_nothing_without_an_artifact_path(tmp_path):
+    import capture
+
+    capture._cpap_acq_evidence_writer()(cpap.assemble_live(_facts(path=None)))
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_a_failing_sidecar_write_is_logged_not_raised(tmp_path):
+    """The raw record is already durable; losing the REPORT must not look like losing the capture."""
+    import capture
+
+    # a path whose parent does not exist — the open() raises OSError inside the writer
+    ev = cpap.assemble_live(_facts(path=str(tmp_path / "absent-dir" / "rec.jsonl")))
+    capture._cpap_acq_evidence_writer()(ev)   # must not raise
+
+
+def test_the_controller_is_armed_with_a_writer_only_when_a_raw_record_exists(tmp_path):
+    """The ARMED half of the §18 witness. With no raw_record_dir there is no authoritative artifact,
+    so there must be no writer — an envelope about nothing is a fabricated acquisition fact."""
+    import capture
+
+    armed = capture._build_cpap_controller(
+        object(), {"cpap": {"ble_stream": {"raw_record_dir": str(tmp_path)}}},
+        str(tmp_path / "config.yaml"))
+    assert armed._acq_evidence_out is not None
+
+    unarmed = capture._build_cpap_controller(object(), {"cpap": {}}, str(tmp_path / "config.yaml"))
+    assert unarmed._acq_evidence_out is None
+
+
+def test_the_controller_forwards_the_writer_to_the_pump():
+    """The link between ARMED and TRIGGERED: the controller must actually hand the writer to the pump.
+    Without this, a controller that accepts `acq_evidence_out` and quietly drops it is invisible — the
+    envelope would simply never be emitted in production while every assembler test stayed green."""
+    seen = {}
+
+    async def pump(bus, write, recv_frame, pk, cid, *, channels=None, should_stop=None,
+                   extra_sinks=None, acq_evidence_out=None):
+        seen["out"] = acq_evidence_out
+        seen["called"] = True
+
+    async def connect():
+        async def write(_f):
+            pass
+
+        async def recv_frame():
+            await asyncio.sleep(3600)
+
+        async def disconnect():
+            pass
+        return write, recv_frame, disconnect
+
+    def _writer(_ev):
+        pass
+
+    async def _drive(out):
+        c = CS.LiveStreamController(
+            object(), connect, lambda: {"masterPairKey": "aa" * 32, "clientId": "cid"},
+            dict, pump=pump, acq_evidence_out=out)
+        await c.op("start")
+        await asyncio.sleep(0.01)
+
+    asyncio.run(_drive(_writer))
+    assert seen["out"] is _writer, "the controller must forward the writer it was given"
+
+    seen.clear()
+    asyncio.run(_drive(None))
+    assert seen.get("out") is None, "and must not invent one when none was configured"
