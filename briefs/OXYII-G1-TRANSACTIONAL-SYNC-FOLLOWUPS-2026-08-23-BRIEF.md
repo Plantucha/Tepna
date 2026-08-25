@@ -17,7 +17,7 @@ feature was.
 
 | # | item | why it is open, not forgotten |
 |---|---|---|
-| 1.1 | **Layer-3 semantic validation** — record-boundary walk (10-byte header, 3-byte records, `0xFF 0xFF` trailer) | needs a subset port of the JS record parser. Real cost, deliberately unbuilt. `VALIDATION_DEPTH = "size+finalised"` is written into every row so a `VERIFIED` never over-claims; when layer 3 lands the constant moves and old rows stay honest about what they were checked against. |
+| 1.1 | **Layer-3 semantic validation** — record-boundary walk (10-byte header, 3-byte records, 48-byte trailer) | **BUILT — D-w1.** `oxy_transfer.verify()` now walks the Format-A grid: header signature + a whole number of 3-byte records between header and the 48-byte trailer + record count == trailer `total_seconds`. `VALIDATION_DEPTH` moved to `"size+finalised+records"`; old rows keep their recorded depth (honesty test-locked). Geometry MEASURED against real 95 KB / 81 KB `.dat` — the invariant is `(size-58)/3 == total_seconds`; the JS `ff ff` end-marker sits ~10 records before the trailer and would mis-count, so the size/trailer arithmetic is the reliable one, not the marker walk. Control: a right-sized, finalised file with a shifted grid (20 records, trailer claims 21) REDs where size+finalised passed. `check.sh` green (100% cov). |
 | 1.2 | **The physical drop test** | decides `resume_strategy`'s one flag. Needs a ring wake. Until it runs, re-serve-from-start is the default because a wrong resume offset yields a right-sized, silently corrupt file. |
 | 1.3 | **`pull_session` wiring** | held for review of the standalone module, per house pattern. ⚠️ Touches `pull_session.py` — see §4 for the G4 boundary question. |
 | 1.4 | **fsync durability — a chaos-lane item, NOT a permanent unknown** | removing either fsync (file-before-verify, directory-after-rename) leaves all 51 tests green: *measured*, not assumed. Durability is not observable from a unit test but IS observable to fault injection, so this belongs to the OxyII chaos lane (the P7 analog). Filing it as untestable would be its own quiet false completion. |
@@ -115,7 +115,7 @@ same file. Worth confirming before either starts rather than discovering it in a
 
 ## 6 · Done when
 
-- [ ] Layer-3 validation lands, or is re-costed with a decision recorded — never implied to exist.
+- [x] Layer-3 validation lands, or is re-costed with a decision recorded — never implied to exist. **LANDED (D-w1):** record-boundary walk in `oxy_transfer.verify()`, `VALIDATION_DEPTH → "size+finalised+records"`, held to the shifted-grid control; geometry measured against real `.dat`.
 - [ ] The drop test runs and `resume_strategy`'s flag is set from measurement. *(gated: next physical
       doff window — pull-before-restart order, watcher on the SYSTEM journal)*
 - [ ] `pull_session` wiring lands, with §4's boundary settled first. *(§4 boundary RULED 2026-08-24,

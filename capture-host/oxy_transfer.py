@@ -37,7 +37,16 @@ from cpap_acq import FailureClass
 # completion the charter forbids, so the depth is written INTO the ledger row rather than left to be
 # assumed by a reader. When layer 3 lands, this constant changes and old rows remain honest about
 # what they were checked against.
-VALIDATION_DEPTH = "size+finalised"
+VALIDATION_DEPTH = "size+finalised+records"
+
+# Format-A geometry, for the layer-3 record-boundary walk. Measured against real 95 KB / 81 KB `.dat`
+# files: a 10-byte header signature, then N × 3-byte 1 Hz records, then a 48-byte session-stats trailer,
+# with `(size - 10 - 48) / 3 == trailer.total_seconds` holding EXACTLY. (The `ff ff` end-marker the JS
+# parser breaks on sits ~10 records before the trailer and is COUNTED in that arithmetic — so the marker
+# walk yields total_seconds−10, not the count; the size/trailer arithmetic is the reliable invariant.)
+_FMT_A_HEADER = bytes([0x01, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00])
+_RECORD_LEN = 3
+_TRAILER_LEN = 48
 
 # ⚠️ THE TWO FSYNCS BELOW ARE NOT COVERED BY THE UNIT SUITE, and that is a fact about the instrument
 # rather than about the invariant. Removing either — the file's before verify, the directory's after
@@ -128,8 +137,7 @@ def list_sessions(lister) -> list[dict]:
         session = item.get("session")
         if not device_id or not session:
             continue
-        out.append({"device_id": device_id, "session": session,
-                    "reported_size": item.get("reported_size")})
+        out.append({"device_id": device_id, "session": session, "reported_size": item.get("reported_size")})
     return out
 
 
@@ -177,8 +185,17 @@ def select(listing, ledger_rows, *, max_attempts: int = MAX_ATTEMPTS, allow_resu
             # brief's criterion is that the re-serve/resume choice exists in exactly ONE place and
             # is provable by grep. A second construction site here would be true today and wrong the
             # first time the policy changes.
-            out.append(Selection(ident, device_id, session, "download", "new — no ledger row",
-                                 resume_strategy(0, reported, allow_resume=allow_resume), 1))
+            out.append(
+                Selection(
+                    ident,
+                    device_id,
+                    session,
+                    "download",
+                    "new — no ledger row",
+                    resume_strategy(0, reported, allow_resume=allow_resume),
+                    1,
+                )
+            )
             continue
 
         state = row.get("state")
@@ -189,12 +206,16 @@ def select(listing, ledger_rows, *, max_attempts: int = MAX_ATTEMPTS, allow_resu
         attempt = (row.get("attempt") or 0) + 1
         if state == inv.FAILED:
             if not _is_recoverable(row.get("failure")):
-                out.append(Selection(ident, device_id, session, "skip",
-                                     f"permanent failure ({row.get('failure')}) — not retried"))
+                out.append(
+                    Selection(
+                        ident, device_id, session, "skip", f"permanent failure ({row.get('failure')}) — not retried"
+                    )
+                )
                 continue
             if attempt > max_attempts:
-                out.append(Selection(ident, device_id, session, "skip",
-                                     f"attempts exhausted ({attempt - 1}/{max_attempts})"))
+                out.append(
+                    Selection(ident, device_id, session, "skip", f"attempts exhausted ({attempt - 1}/{max_attempts})")
+                )
                 continue
 
         have = row.get("size") or 0
@@ -249,8 +270,9 @@ def download(fetch, part_path: str, selection: Selection, *, reported_size: int 
         return DownloadResult(written, False, FailureClass.TRANSPORT_FAILURE, f"transport failed: {exc}")
 
     if reported_size is not None and written < reported_size:
-        return DownloadResult(written, False, FailureClass.TRUNCATED_TRANSFER,
-                              f"short: {written} B of {reported_size} B")
+        return DownloadResult(
+            written, False, FailureClass.TRUNCATED_TRANSFER, f"short: {written} B of {reported_size} B"
+        )
     return DownloadResult(written, True, None, f"{written} B received")
 
 
@@ -265,7 +287,9 @@ def verify(part_path: str, reported_size: int | None, parse_trailer) -> VerifyRe
       2. finalisation — the Format-A trailer. **Size equality is not completeness**: the ring reports
          full size BEFORE the trailer flushes, so a file can be exactly the right length and still
          be missing the only thing that proves it finished.
-    Layer 3 (record-boundary walk) is unimplemented; see VALIDATION_DEPTH."""
+      3. record-boundary walk — a Format-A header, a whole number of 3-byte records between header and
+         trailer, and that record count matching the trailer's declared `total_seconds`. This is the
+         layer that catches a shifted record grid a right-sized, finalised file can still hide."""
     try:
         with open(part_path, "rb") as fh:
             data = fh.read()
@@ -275,9 +299,40 @@ def verify(part_path: str, reported_size: int | None, parse_trailer) -> VerifyRe
     size = len(data)
     if reported_size is not None and size != reported_size:
         return VerifyResult(False, VALIDATION_DEPTH, f"size {size} B != reported {reported_size} B", size, None)
-    if parse_trailer(data) is None:
+    trailer = parse_trailer(data)
+    if trailer is None:
         return VerifyResult(False, VALIDATION_DEPTH, "not finalised — no valid Format-A trailer", size, None)
-    return VerifyResult(True, VALIDATION_DEPTH, f"size+finalised at {size} B", size, inv.sha256_bytes(data))
+    # Layer 3 — the record-boundary walk. Size and a valid trailer do NOT prove the bytes BETWEEN them
+    # are a whole recording: the ring reports size before the trailer flushes, and a dropped or
+    # duplicated chunk shifts the 3-byte record grid while leaving both the length and the trailer
+    # intact. Three invariants, each measured against real .dat files (§geometry above):
+    if data[: len(_FMT_A_HEADER)] != _FMT_A_HEADER:
+        return VerifyResult(False, VALIDATION_DEPTH, "record boundary: not a Format-A header", size, None)
+    body = size - len(_FMT_A_HEADER) - _TRAILER_LEN
+    # A negative body needs no separate guard: parse_trailer already required >= 48 B, and every
+    # size < 58 leaves `body` non-divisible-by-3 or yields a negative record count that fails the
+    # total_seconds match below — so an adversarial header/trailer overlap still reds, without an
+    # uncoverable branch. (Python floors: -50 % 3 == 1; -3 // 3 == -1.)
+    if body % _RECORD_LEN != 0:
+        return VerifyResult(
+            False,
+            VALIDATION_DEPTH,
+            f"record boundary: {body} B between header and trailer is not a whole number of {_RECORD_LEN}-B records",
+            size,
+            None,
+        )
+    n_records = body // _RECORD_LEN
+    if n_records != trailer.get("total_seconds"):
+        return VerifyResult(
+            False,
+            VALIDATION_DEPTH,
+            f"record boundary: {n_records} records != trailer total_seconds {trailer.get('total_seconds')}",
+            size,
+            None,
+        )
+    return VerifyResult(
+        True, VALIDATION_DEPTH, f"size+finalised+records: {n_records} records at {size} B", size, inv.sha256_bytes(data)
+    )
 
 
 def commit(part_path: str, final_path: str) -> str:
