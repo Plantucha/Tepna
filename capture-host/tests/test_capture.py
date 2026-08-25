@@ -308,6 +308,53 @@ def test_EVERY_link_error_site_routes_through_the_one_formatter():
 # is unreachable for it. These pin the doff trigger that reaches it. Each DENY is paired with an
 # ALLOW, so a predicate that simply never fires cannot pass.
 
+# ── autopull_arming — one flag used to gate two triggers, and nothing said so ─────────────────────
+# Measured on the box 2026-08-24: `auto-pull: armed` 0 occurrences vs 312 poller lines, no trigger
+# ever fired. `on_charger: False` returned before arming, disabling the NOT-WORN trigger too — the
+# only reachable trigger for a coin-cell device such as the H10.
+
+
+def test_defaults_arm_both_triggers():
+    a = capture.autopull_arming({"auto": True})
+    assert a["charger"] is True and a["doff"] is True and a["why"] == ""
+
+
+def test_on_charger_false_no_longer_silently_kills_the_doff_trigger():
+    """The split: after it, on_charger governs ONLY the charger trigger."""
+    a = capture.autopull_arming({"auto": True, "on_charger": False, "on_doff": True})
+    assert a["charger"] is False
+    assert a["doff"] is True, "on_charger must not gate the not-worn trigger once split"
+
+
+def test_on_doff_INHERITS_on_charger_so_deploying_changes_nothing():
+    """🔴 THE BACK-COMPAT CONTRACT. Defaulting on_doff True would arm a never-executed path on the
+    next auto-deploy; defaulting it False would disarm the doff trigger on every host that leaves
+    on_charger at its default. Inheriting reproduces today's behaviour exactly on every host."""
+    assert capture.autopull_arming({"auto": True, "on_charger": False})["doff"] is False
+    assert capture.autopull_arming({"auto": True, "on_charger": True})["doff"] is True
+    assert capture.autopull_arming({"auto": True})["doff"] is True
+
+
+def test_the_reason_NAMES_the_governing_flag_and_its_value():
+    """The defect was never that the flag was False — it was that nothing said so."""
+    box = capture.autopull_arming({"auto": True, "on_charger": False})
+    assert "pull.on_charger=False" in box["why"]
+    assert "inherits" in box["why"], "an inherited default must say it was inherited, not just False"
+    explicit = capture.autopull_arming({"auto": True, "on_charger": True, "on_doff": False})
+    assert "pull.on_doff=False" in explicit["why"]
+    assert "inherits" not in explicit["why"], "an explicit False must not be reported as inherited"
+
+
+def test_auto_off_disarms_both_and_says_which_flag():
+    a = capture.autopull_arming({"auto": False, "on_charger": True})
+    assert a["charger"] is False and a["doff"] is False and a["why"] == "pull.auto is off"
+
+
+def test_an_empty_config_does_not_arm():
+    a = capture.autopull_arming({})
+    assert a["charger"] is False and a["doff"] is False
+
+
 def test_notworn_pull_due_fires_after_the_settle_window():
     # off the body 400 s, settle 300 s, not yet pulled → due
     assert capture.notworn_pull_due(False, 1000.0, 1400.0, 300.0, False) is True
