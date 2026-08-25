@@ -2072,6 +2072,39 @@
   /* Attach a STR summary to already-built nights by matching the UTC day. Mutates + returns `nights`.
    The inferred `mode` is left untouched; device fields land as NEW keys so a consumer can prefer the
    declaration and fall back to the inference. A night with no STR match keeps its fields absent. */
+  /* STR deviceCsr × CSL periodic-breathing CROSS-VALIDATION (CPAPDEX-STR-SUMMARY-INGEST item 1).
+     The device's STR session-summary Cheyne-Stokes % (`deviceCsr`) and OUR CSL-annotation-derived
+     periodic-breathing % (`periodicBreathingPct`) are both device-origin but arrive on DIFFERENT
+     channels (the STR summary vs the CSL span annotations) and are never otherwise compared. This is a
+     DECLARE-never-correct corroboration read — it changes NO metric, it only surfaces agreement.
+
+     THE BAND IS ASYMMETRIC BY PHYSIOLOGY, PRE-STATED BEFORE ANY REAL NIGHT (lead-ratified 2026-08-25):
+     Cheyne-Stokes is a SUBSET of periodic breathing, so our PB% (broader) is EXPECTED to be ≥ the
+     device CSR% (CS-specific). Therefore the two DIRECTIONS mean different things and must not be
+     collapsed into one |delta| verdict:
+       delta = deviceCsr − pbPct  (POSITIVE = the device saw MORE Cheyne-Stokes than our PB found)
+       • both < FLOOR            → 'both-negligible'  (the common night; trivial agreement)
+       • delta >  BAND           → 'discrepancy'      (device CSR substantially EXCEEDS our PB — we
+                                                       under-detected the device's CS finding: THE finding)
+       • delta < −BAND           → 'pb-broader'       (our PB substantially EXCEEDS device CSR — BENIGN,
+                                                       non-CS periodic breathing; reported, not flagged)
+       • otherwise               → 'agree'            (corroborate within the band)
+     BAND = max(2 pp absolute, 50% of the larger value) — corroboration, never identity; the absolute
+     floor absorbs summary-vs-span rounding, the relative arm scales with the magnitude. The magnitude
+     of BAND may be refined against real nights; the ASYMMETRY (which side is the finding) is fixed. */
+  var CSR_PB_FLOOR = 0.5;
+  function csrPbCrossCheck(deviceCsr, pbPct) {
+    if (deviceCsr == null || !isFinite(deviceCsr) || pbPct == null || !isFinite(pbPct)) return null;
+    var delta = +(deviceCsr - pbPct).toFixed(2);
+    var band = Math.max(2, 0.5 * Math.max(deviceCsr, pbPct));
+    var verdict;
+    if (deviceCsr < CSR_PB_FLOOR && pbPct < CSR_PB_FLOOR) verdict = 'both-negligible';
+    else if (delta > band) verdict = 'discrepancy';
+    else if (delta < -band) verdict = 'pb-broader';
+    else verdict = 'agree';
+    return { device_csr: deviceCsr, our_pb: pbPct, delta: delta, band: +band.toFixed(2), verdict: verdict };
+  }
+
   function attachStrSummary(nights, summary) {
     if (!nights || !nights.length || !summary || !summary.length) return nights;
     var byDay = {};
@@ -2088,6 +2121,8 @@
       night.deviceModeCode = rec.deviceModeCode;
       night.deviceRera = rec.deviceRera;
       night.deviceCsr = rec.deviceCsr;
+      // item 1 — cross-validate the device's CSR summary against our CSL periodic-breathing %.
+      night.deviceCsrCheck = csrPbCrossCheck(night.deviceCsr, night.metrics ? night.metrics.periodicBreathingPct : null);
       night.prescription = rec.prescription;
     }
     return nights;
@@ -2122,6 +2157,7 @@
     buildSessionFromEdf: buildSessionFromEdf,
     parseStrSummary: parseStrSummary,
     attachStrSummary: attachStrSummary,
+    csrPbCrossCheck: csrPbCrossCheck,
     nightMetrics: nightMetrics,
     compute: compute,
     _nightFromInput: _nightFromInput,
