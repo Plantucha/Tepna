@@ -98,7 +98,21 @@ const DEFAULT_FLEET = [
   'ecgdex-dsp.js',
   'integrator-dsp.js',
   'clock.js',
-  'manifest-gate.js'
+  'manifest-gate.js',
+  /* PHASE 2a — the priority pair named in MUTATION-FLEET-EXPANSION §2: the binary EDF parser and the
+     crossnight stats. User-facing math, and a binary parser is where a surviving mutant is least
+     likely to be caught by eye. §2a's survey measured all six as loading on SPINE alone with their
+     own handle (CpapEdf, CPAPCross, ECGCross, OXYCross, PPGCross, PulseCross) and NO
+     `typeof X !== 'undefined'` guards, so no co-load recipe and no incomplete-realm false-kill risk.
+     Measured mutant load: 227 + 211 + 99 + 101 + 95 + 93 = 826, against Phase 1's 259. The fleet goes
+     11 → 17 files; if the overnight budget needs throttling, cpapdex-edf and cpapdex-cross are half
+     of that total between them. */
+  'cpapdex-edf.js',
+  'cpapdex-cross.js',
+  'ecgdex-cross.js',
+  'oxydex-cross.js',
+  'ppgdex-cross.js',
+  'pulsedex-cross.js'
 ];
 
 const log = (s) => process.stderr.write('  ' + s + '\n');
