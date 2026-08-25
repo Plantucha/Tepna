@@ -259,6 +259,38 @@ def test_utc_iso():
     assert s.startswith("2026-") and s.endswith("+00:00")
 
 
+def test_session_sidecar_survives_a_restart_and_writes_one_header(tmp_path):
+    # Sibling of the ClockSidecar restart test — mode "w" truncated the night's decisions on every
+    # daemon restart (11 on 2026-08-25). Reopen must preserve, and must not re-emit the header.
+    p = tmp_path / "SESSIONDETECT.csv"
+    sup = CPAPSessionSupervisor()
+    first = R.SessionSidecar(str(p))
+    first.write(sup.observe(Observation(host_ms=1000, reachable=True, fg_state=TherapyState.THERAPY,
+                last_therapy_use=5)))
+    first.close()
+
+    second = R.SessionSidecar(str(p))  # ← the restart
+    second.write(sup.observe(Observation(host_ms=61000, reachable=True, fg_state=TherapyState.THERAPY,
+                 last_therapy_use=5)))
+    second.close()
+
+    lines = p.read_text().splitlines()
+    hdr = ";".join(__import__("cpap_supervisor").Decision.ROW_FIELDS)
+    assert lines.count(hdr) == 1  # one header across both runs
+    assert len(lines) == 3  # header + both decisions — nothing truncated
+    assert second.rows == 1  # per-instance counter, not a file total
+
+
+def test_session_sidecar_row_reaches_disk_without_close(tmp_path):
+    p = tmp_path / "SESSIONDETECT.csv"
+    sup = CPAPSessionSupervisor()
+    sc = R.SessionSidecar(str(p))
+    sc.write(sup.observe(Observation(host_ms=1000, reachable=True, fg_state=TherapyState.THERAPY,
+             last_therapy_use=5)))
+    assert "start" in p.read_text()  # durable before close — line-buffered, not 64 KB
+    sc.close()
+
+
 def test_session_sidecar_writes_header_rows_and_closes(tmp_path):
     p = tmp_path / "SESSIONDETECT.csv"
     sc = R.SessionSidecar(str(p))
