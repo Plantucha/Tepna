@@ -129,8 +129,9 @@ the flag was False, it was that nothing said so.
 - [ ] **§22's 8-case restart matrix — MAPPED in §10: 5 of 8 already built** by #1702's
       `crash_1…crash_10`. The residue (cases 2, 3, 7) is exactly the recording-axis cases and belongs
       with unit 2. Do not write eight new tests.
-- [ ] **§24 real-ring tests** — build to be testable, hand the checklist to the box session; one ring
-      window can serve this and their pending E2E item.
+- [ ] **§24 real-ring tests — the OFFLINE half is RUN and green over n=42 (§12).** The remaining seven
+      items need a live ring and are all axis-gated; §12a is the consolidated checklist for that window,
+      and its first two items cost nothing but observation.
 - [x] **§11 multi-recording ordering — ANSWERED in §9**, from the measured `O2RING-PROTOCOL` §4
       semantics. Ordering is protocol-guaranteed; the *eviction* half is unmeasured and §9a specifies
       the log that would close it.
@@ -513,6 +514,61 @@ claim about code, not about behaviour — and §🔏's rule applies unchanged: *
 ⚠️ Note also that this qualifies §10. Its "5 of 8 restart cases are already built" is a statement about
 the **library**, which `pull()` genuinely does call — but the ledger those tests reconcile against does
 not exist on the box yet, so no restart has ever been *recovered from* in production either.
+
+
+## 12 · §24 REAL-CORPUS VERIFICATION — the offline half is RUN and green (n=42)
+
+§24 requires the **existing real O2Ring corpus** and says *"do not consider synthetic tests
+sufficient."* Its thirteen items split cleanly, and the split is the useful part: **six are verifiable
+against the committed corpus with no ring window at all**, and they have now been run against all
+**42 stored sessions** on the box (`/srv/tepna/captures/stored/`, 2026-07-23 → 2026-08-23).
+
+| § 24 item | result over n=42 |
+|---|---|
+| **session identity** | **42/42 unique**, zero collisions |
+| **duplicate prevention** | 0 duplicate stamps — the `device/YYYYMMDDhhmmss` key holds on real data |
+| **`.dat` discovery** | 42/42 carry `format_a: true` |
+| **trailer duration** | `approx_samples == (bytes − 10 − 48) / 3` for **42/42** — the Format A arithmetic holds on every real file, not just the golden |
+| **multiple stored sessions** | up to 4 accumulate between pulls (§9), all retrieved |
+| **periodic reconciliation** | `declared_size == bytes` for **42/42** — no committed file is short of what the ring declared |
+
+**Two findings beyond a pass/fail.**
+
+🔑 **The finalisation predicate is present in 42/42 AND its POSITION is fixed.** `48 12 5a da` appears
+in every real trailer at **byte offset 4** (hex offset 8), without exception. That is materially
+stronger than "the magic is present somewhere": an implementer can check a fixed offset rather than
+scan, and a predicate that scans would accept a file whose magic appeared by coincidence in the
+averages/desat payload. §8a's trailer-flush check should read **`trailer[4:8]`**, not search.
+
+⚠️ **Three of the 42 sessions sit exactly at 108 058 B — the 10 h hard cap.** `O2RING-PROTOCOL` records
+that the ring stops a session at 36 000 samples and does not roll over; this corpus shows it **actually
+happening on 7 % of sessions**, so the cap is an operational fact, not a documented edge case. Those
+three nights lost everything past the tenth hour, and no amount of harvest correctness recovers it —
+which is an argument for the §8 close-triggered pull on its own terms, since a *prompt* pull at least
+bounds the exposure to one session rather than one cap.
+
+### 12a · What still needs a real ring window
+
+The remaining seven items cannot be settled offline, because each needs a **live** device transitioning
+state: recording start detection · recording continuation · recording end detection · immediate pull ·
+interrupted pull · host restart · BLE disappearance. All seven are downstream of the recording axis
+(§8b), so they belong to the same window as unit 2 rather than to a separate errand.
+
+**The checklist that window should carry**, consolidating obligations this brief has accumulated in
+five different sections so they are not each rediscovered:
+
+1. **§6a step 2** — the `auto-pull: armed …` line prints and names both flag states. *No code needed;
+   it appears at the next daemon restart, which the box defers until idle.*
+2. **§11(c)** — `inventory.jsonl` appears in the stored directory with `DISCOVERED` / `DOWNLOADING` /
+   `COMMITTED` rows and plausible `at` values. *No code needed; the next auto-pull is the test, and
+   the layer has never once executed.*
+3. **§5a** — the awake-tail probe: connect every 30 s after a known doff, **holding the H10 connected
+   as an adapter-health control that must stay green.**
+4. **§8a** — instrument **close → finalized**, the one genuinely unmeasured number.
+5. **§9a** — log the `LIST` reply (count + keys) so capacity and eviction become observable.
+
+Items 1 and 2 cost nothing and are pure observation; they should be checked at the next natural event
+rather than scheduled.
 
 
 ## APPENDIX — owner's full program spec (§1–27, verbatim)
