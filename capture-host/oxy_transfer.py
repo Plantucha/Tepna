@@ -67,6 +67,60 @@ RESTART = "restart"
 RESUME = "resume"
 
 
+# ── §8a THE ABORT DEADLINE ───────────────────────────────────────────────────────────────────────────
+# A close-triggered pull (DAT-AUTO-HARVEST §8) runs OVER THE HELD LINK, inside the not-worn power-drop
+# grace. The invariant it must never violate is `notworn_pull_due`'s: a pull must not delay the drop.
+#
+# ⚠️ MEASUREMENT CANNOT ESTABLISH THAT INVARIANT, WHICH IS WHY THIS EXISTS. The timing is comfortable —
+# a real production harvest measured 8.86 s end to end (brief §13c) against a ~170 s window, and 0 of
+# 433 historical pulls exceeded 170 s (§5a) — but every one of those is an OBSERVED MAXIMUM over a
+# sample, and the invariant is one that a SINGLE hung pull breaks. A margin over a distribution says
+# how OFTEN you are safe; it cannot say you are safe. So the deadline makes blocking the drop
+# impossible by construction, and the arithmetic above is demoted to predicting how often it fires.
+#
+# GUARD BAND: the pull must be finished and off the link before the drop is due, not merely told to
+# stop. The observed costs to unwind are small — capture.py allows 0.8 s for BlueZ to tear a link down,
+# and the atomic commit measured 0.009 s (§13c) — so 10 s is over 10x the observed unwind, while
+# costing under 6 % of a 170 s window.
+GUARD_BAND_S = 10.0
+
+
+@dataclass(frozen=True)
+class Deadline:
+    """May a close-triggered pull run, and by when must it have let go?
+
+    `abort_at` is on the SAME clock as `now` (a monotonic reading), never a wall-clock time — this is a
+    duration budget, and the Clock Contract's `tMs` is for recording timestamps, not for scheduling.
+    """
+
+    ok: bool
+    abort_at: float | None
+    reason: str
+
+
+def pull_deadline(now: float, drop_at: float | None, *, guard_band: float = GUARD_BAND_S) -> Deadline:
+    """The §8a abort deadline: `drop_at - guard_band`, and a refusal when that has already passed. PURE.
+
+    THREE CASES, and the middle one is the whole point:
+
+      · `drop_at is None` — no scheduled drop, so there is no grace to protect and nothing to violate.
+        The pull may run UNBOUNDED by this mechanism. That is not a hole: `power.drop_not_worn_sec = 0`
+        disables the drop deliberately, and inventing a deadline to defend a drop that will never
+        happen would abort healthy pulls for nothing.
+      · a deadline in the FUTURE — the pull may start and MUST abort by `abort_at`. Hitting it aborts
+        to `.part`, which the existing recovery inherits (the hourly poller, or a post-drop retry).
+      · the deadline is already reached or passed — REFUSE TO START. Starting a pull that must abort
+        immediately spends a link acquisition to produce nothing, and the honest answer is that this
+        window is not available. `>=` not `>`: a zero-length budget is not a budget.
+    """
+    if drop_at is None:
+        return Deadline(True, None, "no scheduled drop — nothing to protect")
+    abort_at = drop_at - guard_band
+    if now >= abort_at:
+        return Deadline(False, None, f"deadline passed: {abort_at - now:.1f}s of budget")
+    return Deadline(True, abort_at, f"must release the link by {abort_at - now:.1f}s from now")
+
+
 @dataclass(frozen=True)
 class Resume:
     """The recovery decision, behind ONE function so the drop test flips one body (brief §5)."""
