@@ -129,6 +129,23 @@ episode.
   Fix is a one-column APPEND to the schema (append-only rule makes it safe), after which every future
   night answers this question for free. With `duration_s` proven as the recording predicate (§1-MEASURED),
   `run_status` is now a corroborating candidate rather than the primary hope.*
+  → **ANSWERED, 2026-08-25 — the first instrumented night (n=1 overnight + 6 docked-morning files)
+  decodes a THREE-STATE machine, and it carries MORE than §2 hoped:**
+
+  | `run_status` | measured meaning | evidence |
+  |---|---|---|
+  | `1` | idle / PRE-COMMIT — no committed session; includes the first 120 s of wear | all 3,191 docked-charging frames read 1; the overnight file reads 1 for rows 0–126 while `duration_s` advanced 0→119 |
+  | `2` | COMMITTED session recording | flips 1→2 at exactly `duration_s` = 120 — the ring's known discard-under-2-minutes behaviour, now visible live — then holds for the whole 6 h 05 m night (dur 120→21,938) |
+  | `3` | **POST-CLOSE FLUSH/FINALISATION** — duration already reset to 0, contact 0 | rows 21,725–21,834: **~110 s** between the duration reset and the state returning quiet; the link then dropped at doff+180 s per policy |
+
+  **State 3 is the §5c answer nobody had**: the close→finalised window is DIRECTLY OBSERVABLE live
+  (~110 s on this night, n=1 — refine with each night), so a close-triggered pull can WATCH the flush
+  finish (`run_status` 3→1) instead of guessing, and the finalisation predicate (`48 12 5a da`) becomes
+  the confirming check rather than the only signal. The 120 s commit threshold also sharpens §3's
+  episode semantics: a sub-2-minute wear never becomes a session (state stays 1), so the engine's
+  END_CANDIDATE cannot fire for it — the ring already declined it.
+  **duration_check is now n=2, both EXACT:** the night closed at live-observed 21,938 s and the pulled
+  trailer stored total_seconds = 21,938 (after 2026-08-23's 18,311 ≡ 18,311).*
 - **What does `contact` read during the post-recording flush?** `parse_oxy_trailer`'s docstring
   records that the ring reports a file's full size BEFORE the trailer flushes — so there is a window
   where the file is closed but not finalised. If `contact` returns `0x01` in that window, then
@@ -210,13 +227,25 @@ rather than to a log line's absence. **An absence in a log is bounded by where a
       §1-MEASURED: contact is binary {0,1} over 1.33 M frames / 268 files — a worn-vote only; the
       recording predicate is `duration_s` advancing, its reset-to-0 the episode boundary (40 events,
       7–12 s firmware debounce), cross-validated exactly against the stored trailer's 18,311 s.)*
-- [ ] The three §5 open questions are answered in the files/devices that can answer them.
-      *(2026-08-24: one answered structurally (contact needs a connection; adv-payload half still
-      open), one blocked on an instrumentation gap with the fix named (`run_status` append to
-      OXYFRAME_COLUMNS), one partially answered and superseded by §1-MEASURED (finalisation predicate
-      is the READY gate; flush-window width still owed).)*
-- [ ] The state model is written with each transition naming the evidence that triggers it, and no
-      transition triggered by elapsed time alone.
-- [ ] The probe's opcode set is confined to `O2RING-OPCODE-SURFACE`'s read-only list, cited per opcode.
+- [x] The three §5 open questions are answered in the files/devices that can answer them.
+      *(2026-08-25: `run_status` DECODED from the first instrumented night (three states; the 120 s
+      commit threshold; state 3 = the ~110 s flush window — see §5's answer table); the flush-window
+      question thereby answered BETTER than asked (observable live, finalisation predicate as the
+      confirming check); contact-needs-a-connection answered structurally 08-24. The one remaining
+      sliver — does the ADVERTISEMENT payload carry state — needs an advertising window and is
+      recorded as the §2 residual, not blocking: presence detection starts at the advertising layer
+      either way, and every reachable state now has a measured in-connection discriminator.)*
+- [x] The state model is written with each transition naming the evidence that triggers it, and no
+      transition triggered by elapsed time alone. *(2026-08-25: shipped as CODE — `OxyRecState` +
+      `REC_LEGAL_TRANSITIONS` + `OxyRecEngine` in `oxy_lifecycle.py` (#1751, #1760), every transition
+      evidence-named in the journal reason, link-loss → UNKNOWN never NOT_RECORDING, no time-only
+      transitions; in production journalling since 2026-08-25's first OXYLIFE with the axis column.)*
+- [x] The probe's opcode set is confined to `O2RING-OPCODE-SURFACE`'s read-only list, cited per opcode.
+      *(2026-08-25: no probe was needed — every presence/recording signal (contact, duration_s,
+      run_status) rides the existing cmd 0x04 live poll the daemon already sends; zero new opcodes.)*
 - [ ] Recorded whether presence-aware scheduling actually beats the hourly poller, measured against
-      the 2026-08-23 cadence baseline rather than assumed to.
+      the 2026-08-23 cadence baseline rather than assumed to. *(2026-08-25: the event path is LIVE —
+      `pull.on_doff` enabled (owner-flipped), armed line printing, first firings this morning (one
+      link-contention failure gracefully deferred to the backstop; one clean Verity no-op). The
+      comparison against the 2026-08-23 poller baseline accrues from tonight's first full
+      event-driven doff cycle — measure after ≥3 nights rather than on the first.)*
