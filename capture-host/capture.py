@@ -5515,10 +5515,36 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
     # devices provider for the on-body gate: the daemon's live device-status map. The 2.4 GHz coexistence
     # interlock is DISABLED BY OWNER ORDER (2026-08-23) — default False — so a stream no longer refuses
     # beside an on-body wearable, only logs it; set cpap.ble_stream.coexistence_gate: true to restore it.
+    # ACQUISITION EVIDENCE CONTRACT, Phase B: the envelope rides beside the durable raw record as a
+    # `.meta.json` sidecar — the SAME shape and the same placement the O2Ring `.dat` path already uses
+    # (pull_session), so one reader handles both devices. Only wired when there IS a raw record to
+    # describe: with no raw_record_dir there is no authoritative artifact, and an envelope about
+    # nothing would be a fabricated acquisition fact.
+    acq_evidence_out = _cpap_acq_evidence_writer() if raw_record_factory is not None else None
+
     return cpap_stream.LiveStreamController(
         bus, connect, lambda: _load_as11_creds(creds_path), lambda: STATUS.get("devices", {}),
         edf_sink_factory=edf_sink_factory, raw_record_factory=raw_record_factory,
+        acq_evidence_out=acq_evidence_out,
         coexistence_gate=bool(cbs.get("coexistence_gate", False)))
+
+
+def _cpap_acq_evidence_writer():
+    """Return the Phase B sidecar writer: one `<raw-record>.meta.json` per finished CPAP session.
+
+    Separated from the factory above so it is directly testable — the daemon closure around it is not.
+    A write failure is logged and swallowed: the acquisition already happened and its raw record is
+    already durable, so losing the REPORT must never look like losing the capture."""
+    def _write(evidence):
+        path = evidence.artifact_path
+        if not path:
+            return
+        try:
+            with open(path + ".meta.json", "w") as fh:
+                json.dump({"acquisition_evidence": evidence.to_dict()}, fh, indent=2)
+        except OSError:
+            log.exception("CPAP acquisition-evidence sidecar write failed for %s", path)
+    return _write
 
 
 def _maybe_start_as11_shadow(cfg, config_path, root, cpap_ctl, tasks, *,
