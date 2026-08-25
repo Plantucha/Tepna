@@ -32,6 +32,24 @@ def _finalised(data):
     return {"ok": True} if data.endswith(TRAILER_MAGIC) else None
 
 
+def _fmt_a(n_records, total_seconds=None):
+    """A byte-real Format-A `.dat`: 10-byte header + n × 3-byte records + a 48-byte trailer carrying the
+    finalisation sub-magic and a `total_seconds` field. `total_seconds` defaults to n_records (a
+    consistent file); pass a different value to forge the shifted-grid a size+finalised check cannot
+    see. Geometry measured against real 95 KB / 81 KB rings (`(size-10-48)/3 == total_seconds`)."""
+    ts = n_records if total_seconds is None else total_seconds
+    trailer = bytearray(48)
+    trailer[4:8] = TRAILER_MAGIC  # sub-magic at [4:8] → oxyii.parse_oxy_trailer finalised
+    trailer[12] = ts & 0xFF
+    trailer[13] = (ts >> 8) & 0xFF  # total_seconds = t[12] | t[13]<<8
+    trailer[42] = 0xFF  # o2_score_x10 = None (short-session convention)
+    return bytes(tr._FMT_A_HEADER) + b"\x60\x40\x00" * n_records + bytes(trailer)
+
+
+GOOD = _fmt_a(20)  # 10 + 60 + 48 = 118 B, total_seconds == 20 records
+GOOD_SIZE = len(GOOD)
+
+
 def _sel(*, mode=tr.RESTART, offset=0, attempt=1):
     return tr.Selection(IDENT, "R", "S", "download", "test", tr.Resume(mode, offset, "test"), attempt)
 
@@ -39,15 +57,18 @@ def _sel(*, mode=tr.RESTART, offset=0, attempt=1):
 def _fetch(*chunks, seen=None):
     """`seen` records the offset the transport was actually asked for — the argument is part of the
     contract, and a test that ignores it cannot tell `fetch(0)` from `fetch(1)`."""
+
     def f(offset):
         assert isinstance(offset, int)
         if seen is not None:
             seen.append(offset)
         return list(chunks)
+
     return f
 
 
 # ── the injected-parser contract ──────────────────────────────────────────────────────────────────
+
 
 def test_real_trailer_parser_returns_none_rather_than_raising():
     """`verify` treats a None return as "not finalised". If the real parser RAISED on garbage
@@ -58,6 +79,7 @@ def test_real_trailer_parser_returns_none_rather_than_raising():
 
 
 # ── resume_strategy — brief §5 ─────────────────────────────────────────────────────────────────────
+
 
 def test_resume_restarts_when_no_partial_bytes():
     r = tr.resume_strategy(0, 500)
@@ -98,6 +120,7 @@ def test_resume_resumes_only_when_explicitly_allowed():
 
 # ── list_sessions — brief §2 ───────────────────────────────────────────────────────────────────────
 
+
 def test_list_sessions_tolerates_an_empty_device():
     assert tr.list_sessions(lambda: None) == []
 
@@ -105,20 +128,25 @@ def test_list_sessions_tolerates_an_empty_device():
 def test_list_sessions_drops_entries_with_no_formable_identity():
     """An identity we cannot form is one we could never reconcile against the ledger. Inventing one
     would put a fabricated key in an append-only file."""
-    got = tr.list_sessions(lambda: [
+    got = tr.list_sessions(
+        lambda: [
+            {"device_id": "R", "session": "S", "reported_size": 10},
+            {"device_id": "", "session": "S"},
+            {"device_id": "R"},
+            # ⚠️ A GOOD ENTRY AFTER THE BAD ONES, deliberately: with the bad entries last, `continue`
+            # and `break` produce identical output and the skip logic is untested. Ordering is the
+            # whole test.
+            {"device_id": "R2", "session": "S2", "reported_size": 20},
+        ]
+    )
+    assert got == [
         {"device_id": "R", "session": "S", "reported_size": 10},
-        {"device_id": "", "session": "S"},
-        {"device_id": "R"},
-        # ⚠️ A GOOD ENTRY AFTER THE BAD ONES, deliberately: with the bad entries last, `continue`
-        # and `break` produce identical output and the skip logic is untested. Ordering is the
-        # whole test.
         {"device_id": "R2", "session": "S2", "reported_size": 20},
-    ])
-    assert got == [{"device_id": "R", "session": "S", "reported_size": 10},
-                   {"device_id": "R2", "session": "S2", "reported_size": 20}]
+    ]
 
 
 # ── select — PURE, brief §2/§15 ────────────────────────────────────────────────────────────────────
+
 
 def _listing(size=500):
     return [{"device_id": "R", "session": "S", "reported_size": size}]
@@ -147,10 +175,8 @@ def test_select_keeps_going_after_a_skip():
     ]
     rows = [
         inv.make_row("R", "DONE", inv.COMMITTED, at=1.0),
-        inv.make_row("R", "PERM", inv.FAILED, attempt=1,
-                     failure=FailureClass.VALIDATION_FAILURE.label, at=1.0),
-        inv.make_row("R", "SPENT", inv.FAILED, attempt=9,
-                     failure=FailureClass.TIMEOUT.label, at=1.0),
+        inv.make_row("R", "PERM", inv.FAILED, attempt=1, failure=FailureClass.VALIDATION_FAILURE.label, at=1.0),
+        inv.make_row("R", "SPENT", inv.FAILED, attempt=9, failure=FailureClass.TIMEOUT.label, at=1.0),
     ]
     got = {g.session: g.action for g in tr.select(listing, rows)}
     assert got == {"DONE": "skip", "PERM": "skip", "SPENT": "skip", "FRESH": "download"}
@@ -173,8 +199,7 @@ def test_select_keeps_going_after_a_new_recording():
 def test_select_attempt_bound_is_exclusive_at_the_boundary():
     """`attempt > max_attempts` vs `>=` differ ONLY at equality, and a test at attempt=3/max=3 skips
     under both. The third attempt is one we are still owed."""
-    rows = [inv.make_row("R", "S", inv.FAILED, attempt=2,
-                         failure=FailureClass.TIMEOUT.label, at=1.0)]
+    rows = [inv.make_row("R", "S", inv.FAILED, attempt=2, failure=FailureClass.TIMEOUT.label, at=1.0)]
     got = tr.select(_listing(), rows)[0]
     assert got.action == "download" and got.attempt == 3
 
@@ -222,23 +247,20 @@ def test_select_retries_every_unfinished_state(state):
 def test_select_stops_retrying_a_permanent_failure_immediately():
     """`recoverable` is a FIELD of the class, not an inference from the message (brief §6). A
     validation failure is not made recoverable by having attempts left."""
-    rows = [inv.make_row("R", "S", inv.FAILED, attempt=1,
-                         failure=FailureClass.VALIDATION_FAILURE.label, at=1.0)]
+    rows = [inv.make_row("R", "S", inv.FAILED, attempt=1, failure=FailureClass.VALIDATION_FAILURE.label, at=1.0)]
     got = tr.select(_listing(), rows)[0]
     assert got.action == "skip" and "permanent" in got.reason
 
 
 def test_select_retries_a_recoverable_failure_within_the_bound():
-    rows = [inv.make_row("R", "S", inv.FAILED, attempt=1,
-                         failure=FailureClass.TRUNCATED_TRANSFER.label, at=1.0)]
+    rows = [inv.make_row("R", "S", inv.FAILED, attempt=1, failure=FailureClass.TRUNCATED_TRANSFER.label, at=1.0)]
     got = tr.select(_listing(), rows)[0]
     assert got.action == "download" and got.attempt == 2
 
 
 def test_select_stops_at_the_attempt_bound():
     """Every retry is a fresh ~69 s acquisition (brief §1), so the bound is the performance policy."""
-    rows = [inv.make_row("R", "S", inv.FAILED, attempt=3,
-                         failure=FailureClass.TIMEOUT.label, at=1.0)]
+    rows = [inv.make_row("R", "S", inv.FAILED, attempt=3, failure=FailureClass.TIMEOUT.label, at=1.0)]
     got = tr.select(_listing(), rows)[0]
     assert got.action == "skip" and "exhausted" in got.reason
 
@@ -254,12 +276,12 @@ def test_unknown_failure_label_is_retried_because_the_errors_cost_differently():
 def test_select_uses_the_last_row_not_the_best_one():
     """A deliberate regression (VERIFIED → PARTIAL after a file is found corrupt) must be honoured,
     which is why the ledger's `current` is last-row-wins by position."""
-    rows = [inv.make_row("R", "S", inv.VERIFIED, at=1.0),
-            inv.make_row("R", "S", inv.PARTIAL, size=10, at=2.0)]
+    rows = [inv.make_row("R", "S", inv.VERIFIED, at=1.0), inv.make_row("R", "S", inv.PARTIAL, size=10, at=2.0)]
     assert tr.select(_listing(), rows)[0].action == "download"
 
 
 # ── download ───────────────────────────────────────────────────────────────────────────────────────
+
 
 def test_download_writes_all_the_bytes(tmp_path):
     part = str(tmp_path / "x.part")
@@ -335,6 +357,7 @@ def test_download_reports_a_write_failure_as_storage(tmp_path):
 def test_download_reports_a_transport_exception_as_transport(tmp_path):
     def boom(_offset):
         raise ValueError("link dropped")
+
     res = tr.download(boom, str(tmp_path / "x.part"), _sel())
     assert res.failure is FailureClass.TRANSPORT_FAILURE and res.failure.recoverable is True
     assert "link dropped" in res.reason
@@ -342,12 +365,13 @@ def test_download_reports_a_transport_exception_as_transport(tmp_path):
 
 # ── verify — brief §4 ──────────────────────────────────────────────────────────────────────────────
 
-def test_verify_accepts_a_finalised_file_of_the_right_size(tmp_path):
+
+def test_verify_accepts_a_finalised_file_whose_record_grid_is_whole(tmp_path):
     p = tmp_path / "x.part"
-    p.write_bytes(b"data" + TRAILER_MAGIC)
-    res = tr.verify(str(p), 8, _finalised)
-    assert res.ok and res.sha256 == inv.sha256_bytes(b"data" + TRAILER_MAGIC)
-    assert res.size == 8 and res.reason == "size+finalised at 8 B"
+    p.write_bytes(GOOD)
+    res = tr.verify(str(p), GOOD_SIZE, oxyii.parse_oxy_trailer)
+    assert res.ok and res.sha256 == inv.sha256_bytes(GOOD)
+    assert res.size == GOOD_SIZE and res.reason == f"size+finalised+records: 20 records at {GOOD_SIZE} B"
 
 
 def test_verify_records_the_depth_it_actually_checked(tmp_path):
@@ -355,9 +379,47 @@ def test_verify_records_the_depth_it_actually_checked(tmp_path):
     The depth is written into the result so no reader can silently widen it, and so rows stay honest
     about what they were checked against once layer 3 lands."""
     p = tmp_path / "x.part"
-    p.write_bytes(b"data" + TRAILER_MAGIC)
-    assert tr.verify(str(p), 8, _finalised).depth == "size+finalised"
-    assert tr.VALIDATION_DEPTH == "size+finalised"
+    p.write_bytes(GOOD)
+    assert tr.verify(str(p), GOOD_SIZE, oxyii.parse_oxy_trailer).depth == "size+finalised+records"
+    assert tr.VALIDATION_DEPTH == "size+finalised+records"
+
+
+def test_verify_reds_on_a_shifted_grid_that_size_and_trailer_cannot_see(tmp_path):
+    """THE layer-3 control (brief §4 / lead 2026-08-24). A file can be EXACTLY the reported size and
+    carry a valid finalisation trailer while its record grid is shifted — a dropped or duplicated chunk
+    layers 1-2 are blind to. Here the trailer claims 21 seconds but only 20 records fit between header
+    and trailer. Layers 1-2 would accept it; the record-boundary walk reds. This is the assertion that
+    proves the layer sees what size+finalised could not."""
+    forged = _fmt_a(20, total_seconds=21)
+    assert len(forged) == GOOD_SIZE and oxyii.parse_oxy_trailer(forged) is not None  # layers 1-2 pass
+    p = tmp_path / "x.part"
+    p.write_bytes(forged)
+    res = tr.verify(str(p), GOOD_SIZE, oxyii.parse_oxy_trailer)
+    # exact reason — a substring check survives a mutmut string-wrap ("XX…XX"); equality kills it
+    assert res.ok is False and res.reason == "record boundary: 20 records != trailer total_seconds 21"
+    assert res.sha256 is None
+
+
+def test_verify_reds_when_the_record_region_is_not_a_whole_number_of_records(tmp_path):
+    """A stray byte in the record region leaves length and trailer intact but makes the 3-byte grid
+    non-integral — caught before the count check."""
+    shifted = bytes(tr._FMT_A_HEADER) + b"\x60\x40\x00" * 20 + b"\x00" + GOOD[-48:]
+    p = tmp_path / "x.part"
+    p.write_bytes(shifted)
+    res = tr.verify(str(p), len(shifted), oxyii.parse_oxy_trailer)
+    assert res.ok is False and res.sha256 is None
+    assert res.reason == "record boundary: 61 B between header and trailer is not a whole number of 3-B records"
+
+
+def test_verify_reds_on_a_non_format_a_header(tmp_path):
+    """The walk anchors on the Format-A header; a finalised, rightly-sized file with a foreign header
+    is not this format and must not pass as one."""
+    bad = b"\x02\x03" + bytes(tr._FMT_A_HEADER[2:]) + b"\x60\x40\x00" * 20 + GOOD[-48:]
+    p = tmp_path / "x.part"
+    p.write_bytes(bad)
+    res = tr.verify(str(p), len(bad), oxyii.parse_oxy_trailer)
+    assert res.ok is False and res.sha256 is None
+    assert res.reason == "record boundary: not a Format-A header"
 
 
 def test_verify_stops_at_the_size_layer_without_calling_the_parser(tmp_path):
@@ -390,9 +452,10 @@ def test_verify_reports_an_unreadable_part_rather_than_raising(tmp_path):
 
 # ══ THE TEN CRASH POINTS (brief §3) ════════════════════════════════════════════════════════════════
 
+
 def test_crash_1_before_any_request_leaves_nothing(tmp_path):
     """Nothing on disk, nothing in the ledger."""
-    assert tr.select(_listing(), []) [0].action == "download"   # decided, not acted on
+    assert tr.select(_listing(), [])[0].action == "download"  # decided, not acted on
     assert list(tmp_path.iterdir()) == []
 
 
@@ -410,8 +473,7 @@ def test_crash_3_mid_download_leaves_a_part_that_is_never_adopted(tmp_path):
     final = tmp_path / "x.dat"
     tr.download(_fetch(b"ab"), str(part), _sel(), reported_size=99)
     assert part.exists() and not final.exists()
-    assert inv.reconcile([inv.make_row("R", "S", inv.DOWNLOADING, size=2, at=1.0)],
-                         {})["missing"] == [IDENT]
+    assert inv.reconcile([inv.make_row("R", "S", inv.DOWNLOADING, size=2, at=1.0)], {})["missing"] == [IDENT]
 
 
 def test_crash_4_complete_looking_bytes_are_still_not_adopted(tmp_path):
@@ -494,18 +556,21 @@ def test_crash_10_a_torn_final_line_costs_one_row_not_the_history(tmp_path):
 
 # ── the transaction end to end ─────────────────────────────────────────────────────────────────────
 
+
 def test_the_happy_path_commits_exactly_once(tmp_path):
     led = str(tmp_path / "l.jsonl")
     part, final = str(tmp_path / "x.part"), str(tmp_path / "x.dat")
-    sel = tr.select(_listing(size=8), [])[0]
+    sel = tr.select(_listing(size=GOOD_SIZE), [])[0]
     inv.append_row(led, inv.make_row("R", "S", inv.DOWNLOADING, attempt=sel.attempt, at=1.0))
-    dl = tr.download(_fetch(b"data" + TRAILER_MAGIC), part, sel, reported_size=8)
+    dl = tr.download(_fetch(GOOD), part, sel, reported_size=GOOD_SIZE)
     assert dl.complete
-    ver = tr.verify(part, 8, _finalised)
+    ver = tr.verify(part, GOOD_SIZE, oxyii.parse_oxy_trailer)
     assert ver.ok
     tr.commit(part, final)
-    inv.append_row(led, inv.make_row("R", "S", inv.COMMITTED, size=ver.size, sha256=ver.sha256,
-                                     reason=ver.depth, path=final, at=2.0))
-    rec = inv.reconcile(inv.load_rows(led), {IDENT: 8})
+    inv.append_row(
+        led,
+        inv.make_row("R", "S", inv.COMMITTED, size=ver.size, sha256=ver.sha256, reason=ver.depth, path=final, at=2.0),
+    )
+    rec = inv.reconcile(inv.load_rows(led), {IDENT: GOOD_SIZE})
     assert rec["verified"] == [IDENT]
-    assert tr.select(_listing(size=8), inv.load_rows(led))[0].action == "skip"
+    assert tr.select(_listing(size=GOOD_SIZE), inv.load_rows(led))[0].action == "skip"
