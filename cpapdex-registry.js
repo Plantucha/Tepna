@@ -69,6 +69,14 @@
       evidence: 'measured',
       cite: 'Cheyne-Stokes respiration fraction scored by the device (STR.edf CSR) — a cross-check on CPAPDex’s own CSR'
     },
+    csrPbDelta: {
+      label: 'CSR↔PB Cross-Check',
+      unit: 'pp',
+      goodDirection: 'neutral',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Device STR CSR% minus CPAPDex CSL periodic-breathing% (deviceCsr − periodicBreathingPct). A DECLARE-never-correct corroboration read across two device channels. Cheyne-Stokes ⊂ periodic breathing, so PB ≥ CSR is expected/benign; CSR substantially exceeding PB (positive delta beyond the band) is the discrepancy — we under-detected the device’s CS finding. Band = max(2 pp, 50% of the larger). Never modifies a metric.'
+    },
     /* ── USAGE & ADHERENCE ──────────────────────────────────────────────── */
     usageHours: { label: 'Usage Hours', unit: 'hr', goodDirection: 'up', depth: 'basic', evidence: 'measured', cite: 'Total mask-on hours (pressure > 0) — direct recording stat' },
     compliancePct: {
