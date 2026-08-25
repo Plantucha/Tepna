@@ -123,9 +123,10 @@ the flag was False, it was that nothing said so.
 - [ ] **§5's recording state machine** (`UNKNOWN → RECORDING → END_CANDIDATE → END_CONFIRMED`) on the
       `duration_s` axis. ⚠️ **The recording axis is `OXYII-PRESENCE-MODEL`'s model** — coordinate the
       seam before locking the enum, and do not collide with that brief's in-flight `IDLE_UNWORN` emit.
-- [ ] **T0–T7 latency instrumentation — MAPPED in §11.** T1/T2/T5 are already emitted, T3/T4 need an
-      emit (the states exist, nothing writes them), T6/T7 are downstream, and T0 is the axis. ⚠️ §11(c):
-      the ledger has never actually been written in production — verify at the next auto-pull.
+- [ ] **T0–T7 latency instrumentation — MAPPED in §11.** T1/T2/T4/T5 are already emitted (T4 via
+      `classify()` — corrected 2026-08-25); only **T3** needs an emit, and T3/T4 currently share one
+      timestamp. T6/T7 are downstream, T0 is the axis. ⚠️ §11(c): the ledger has never actually been
+      written in production — verify at the next auto-pull.
 - [ ] **§22's 8-case restart matrix — MAPPED in §10: 5 of 8 already built** by #1702's
       `crash_1…crash_10`. The residue (cases 2, 3, 7) is exactly the recording-axis cases and belongs
       with unit 2. Do not write eight new tests.
@@ -484,13 +485,30 @@ are actually emitted by `pull_session.pull()`, so the mapping has holes:
 | **T1** | harvest requested | `DISCOVERED` | ✅ yes |
 | **T2** | `.dat` download starts | `DOWNLOADING` | ✅ yes |
 | **T3** | last byte received | `VERIFYING` exists in `STATES` | ❌ **never emitted** |
-| **T4** | verification complete | `VERIFIED` exists in `STATES` | ❌ **never emitted** |
+| **T4** | verification complete | `VERIFIED` | ✅ yes — see the correction below |
 | **T5** | atomic commit complete | `COMMITTED` | ✅ yes |
 | **T6** | decode complete | — | ❌ downstream, no row |
 | **T7** | event ledger durable | — | ❌ downstream, no row |
 
-So T3 and T4 need **an emit, not a design** — the states are already defined and ranked; nothing writes
-them. T6/T7 are downstream of this module entirely. T0 is the axis.
+**⚠️ CORRECTED 2026-08-25 — this table first listed T4 as never emitted, and that was wrong.**
+`pull_session.pull()` writes the post-download row with a state returned by
+**`oxy_inventory.classify()`**, which yields `VERIFIED` whenever the Format-A trailer parses. The
+original claim came from grepping for the literal `oxy_inventory.VERIFIED` in `pull_session.py`, which
+finds nothing — the constant never appears there. **Occurrence is not reachability**, and a
+literal-name grep cannot see a state chosen at runtime. Only `VERIFYING` is genuinely never written:
+`classify()` returns exactly `DISCOVERED` · `PARTIAL` · `VERIFIED`, never `VERIFYING`.
+
+So the real gap is **one stamp, not two** — and smaller still than that:
+
+- **T3 and T4 currently share a single timestamp.** One row is appended after the download carrying
+  the classify verdict, and its `at` is simultaneously "bytes complete" and "verdict reached". For a
+  verify step that is a trailer parse over bytes already in memory, that conflation is nearly free —
+  but §23 asks for both, and `T4 − T3` is precisely the number that would say whether verification
+  ever costs anything.
+- **Separating them is one emit**: append a `VERIFYING` row *before* `classify()`, leaving the existing
+  row as T4 unchanged.
+
+T6/T7 are downstream of this module entirely. T0 is the axis.
 
 **(b) The key metric is not yet computable, and the reason is T0.** *Recording end → durable raw* is
 `T5 − T0`, and T0 is exactly the stamp the recording axis has to supply. Every other input to it exists.
