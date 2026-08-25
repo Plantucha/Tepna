@@ -123,7 +123,9 @@ the flag was False, it was that nothing said so.
 - [ ] **§5's recording state machine** (`UNKNOWN → RECORDING → END_CANDIDATE → END_CONFIRMED`) on the
       `duration_s` axis. ⚠️ **The recording axis is `OXYII-PRESENCE-MODEL`'s model** — coordinate the
       seam before locking the enum, and do not collide with that brief's in-flight `IDLE_UNWORN` emit.
-- [ ] **T0–T7 latency instrumentation**, key metric recording-end → durable-raw.
+- [ ] **T0–T7 latency instrumentation — MAPPED in §11.** T1/T2/T5 are already emitted, T3/T4 need an
+      emit (the states exist, nothing writes them), T6/T7 are downstream, and T0 is the axis. ⚠️ §11(c):
+      the ledger has never actually been written in production — verify at the next auto-pull.
 - [ ] **§22's 8-case restart matrix — MAPPED in §10: 5 of 8 already built** by #1702's
       `crash_1…crash_10`. The residue (cases 2, 3, 7) is exactly the recording-axis cases and belongs
       with unit 2. Do not write eight new tests.
@@ -464,6 +466,53 @@ production"*.
 
 **What to build when the axis lands:** cases 2, 3 and 7 — one restart-reconciliation test each, keyed
 on `OxyRecState` surviving a restart. They belong with unit 2, not before it.
+
+
+## 11 · §23 T0–T7 — three stamps have a home, and NOT ONE has yet been written in production
+
+§23 asks for eight timestamps and the deltas between them, with the key metric **recording end →
+durable raw `.dat`**. Three separate facts, and they are easy to conflate:
+
+**(a) Where each stamp would live.** `oxy_inventory` rows already carry an `at` field — injectable so a
+row can never carry a fabricated time — and its states line up with §23's stages. But only four states
+are actually emitted by `pull_session.pull()`, so the mapping has holes:
+
+| stamp | §23 | ledger state | emitted today? |
+|---|---|---|---|
+| **T0** | recording end observable | — | 🔴 **recording axis** (§8b) |
+| **T1** | harvest requested | `DISCOVERED` | ✅ yes |
+| **T2** | `.dat` download starts | `DOWNLOADING` | ✅ yes |
+| **T3** | last byte received | `VERIFYING` exists in `STATES` | ❌ **never emitted** |
+| **T4** | verification complete | `VERIFIED` exists in `STATES` | ❌ **never emitted** |
+| **T5** | atomic commit complete | `COMMITTED` | ✅ yes |
+| **T6** | decode complete | — | ❌ downstream, no row |
+| **T7** | event ledger durable | — | ❌ downstream, no row |
+
+So T3 and T4 need **an emit, not a design** — the states are already defined and ranked; nothing writes
+them. T6/T7 are downstream of this module entirely. T0 is the axis.
+
+**(b) The key metric is not yet computable, and the reason is T0.** *Recording end → durable raw* is
+`T5 − T0`, and T0 is exactly the stamp the recording axis has to supply. Every other input to it exists.
+So §23's headline number arrives with unit 2 — it is not separately blocked.
+
+🔴 **(c) The ledger has NEVER BEEN WRITTEN in production, and this is the part worth acting on.** The
+transactional pull layer was wired into `pull_session` by **#1733, committed 2026-08-24 15:41**. The most
+recent auto-pull on the box saved at **05:45 that same morning** — *before* the wiring. There is
+consequently **no `inventory.jsonl` anywhere on the box**, verified directly, despite 42 stored sessions
+having been retrieved into that same directory over the preceding month.
+
+That is not a defect; it is the *unexercised* state, and it is the one this repo keeps mistaking for a
+working one. Everything reads correct — the code is present, deployed, imported and reachable from
+`capture.py` via `pull_session.pull()` — and **not one row has ever been written.**
+
+**So the next auto-pull is a verification opportunity, and it should be treated as one:** confirm
+`inventory.jsonl` appears in the stored directory and carries `DISCOVERED` / `DOWNLOADING` / `COMMITTED`
+rows with plausible `at` values. Until that has been *seen*, "the transactional pull layer is live" is a
+claim about code, not about behaviour — and §🔏's rule applies unchanged: **prose is not evidence.**
+
+⚠️ Note also that this qualifies §10. Its "5 of 8 restart cases are already built" is a statement about
+the **library**, which `pull()` genuinely does call — but the ledger those tests reconcile against does
+not exist on the box yet, so no restart has ever been *recovered from* in production either.
 
 
 ## APPENDIX — owner's full program spec (§1–27, verbatim)
