@@ -450,6 +450,49 @@ def test_verify_reports_an_unreadable_part_rather_than_raising(tmp_path):
     assert res.ok is False and "unreadable" in res.reason
 
 
+# ══ §8a THE ABORT DEADLINE ═════════════════════════════════════════════════════════════════════════
+
+
+def test_no_scheduled_drop_means_no_deadline_not_a_refusal():
+    """`power.drop_not_worn_sec = 0` disables the drop deliberately. Inventing a deadline to defend a
+    drop that will never happen would abort healthy pulls for nothing."""
+    d = tr.pull_deadline(100.0, None)
+    assert d.ok is True and d.abort_at is None
+
+
+def test_a_future_drop_yields_a_deadline_one_guard_band_early():
+    """The pull must be OFF the link before the drop is due, not merely told to stop."""
+    d = tr.pull_deadline(0.0, 180.0, guard_band=10.0)
+    assert d.ok is True and d.abort_at == 170.0
+
+
+def test_a_deadline_already_passed_REFUSES_to_start():
+    """Starting a pull that must abort immediately spends a link acquisition to produce nothing."""
+    d = tr.pull_deadline(175.0, 180.0, guard_band=10.0)
+    assert d.ok is False and d.abort_at is None
+
+
+def test_a_zero_length_budget_is_not_a_budget():
+    """`>=`, not `>`. Exactly at the deadline there is no time to do anything, so it is a refusal —
+    the boundary a `>` would quietly admit."""
+    assert tr.pull_deadline(170.0, 180.0, guard_band=10.0).ok is False
+    assert tr.pull_deadline(169.99, 180.0, guard_band=10.0).ok is True
+
+
+def test_the_guard_band_is_subtracted_not_added():
+    """A sign error here would place the deadline AFTER the drop, which is the failure this function
+    exists to prevent and would look entirely healthy in every other test."""
+    d = tr.pull_deadline(0.0, 100.0, guard_band=25.0)
+    assert d.abort_at == 75.0 and d.abort_at < 100.0
+
+
+def test_the_default_guard_band_is_ten_seconds():
+    """Pinned because it is a safety margin justified by measurement (0.8 s BlueZ teardown, 0.009 s
+    commit), not a taste — a silent change to it should have to edit this line."""
+    assert tr.GUARD_BAND_S == 10.0
+    assert tr.pull_deadline(0.0, 180.0).abort_at == 170.0
+
+
 # ══ THE TEN CRASH POINTS (brief §3) ════════════════════════════════════════════════════════════════
 
 
