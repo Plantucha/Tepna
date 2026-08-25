@@ -105,6 +105,8 @@ def test_as_row_is_semicolon_delimited_with_the_failure_label():
     assert parts[2] == "live" and parts[3] == "interrupted" and parts[4] == "no frames 30s"
     assert parts[5] == "O2R-01" and parts[6] == "20260823T220000Z-abcdef"
     assert parts[7] == FailureClass.STREAM_STALL.label
+    assert parts[8] == "", "a LINK-axis row carries a BLANK axis (back-compat: blank = link)"
+    assert len(parts) == 9, "axis is appended LAST — append-never-insert"
 
 
 def test_as_row_blanks_absent_fields_never_a_fabricated_zero():

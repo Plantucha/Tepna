@@ -684,7 +684,10 @@ def test_oxylife_writer_header_and_rows(tmp_path):
     w.close()
     lines = p.read_text().splitlines()
     assert lines[0] == "# device=O2R-01"
-    assert lines[1] == "host_wall;host_monotonic;prev;new;reason;device;session;failure"
+    # `axis` appended 2026-08-24 (blank = link, "rec" = recording axis) — append-never-insert asserted:
+    # the original eight names are unmoved and the new name is LAST.
+    assert lines[1] == "host_wall;host_monotonic;prev;new;reason;device;session;failure;axis"
+    assert lines[1].startswith("host_wall;host_monotonic;prev;new;reason;device;session;failure")
     assert lines[2].endswith("scan;O2R-01;s1;") and lines[3].startswith("W;2.0;connecting;connected")
     assert w.rows == 2
 

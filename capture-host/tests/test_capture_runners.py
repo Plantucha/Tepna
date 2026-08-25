@@ -252,8 +252,11 @@ class FakeGattClient:
             self.on_live(data)
 
 
-def _o2ring_live_reply(spo2=96, pr=55, worn=True, batt=90, batt_state=0):
+def _o2ring_live_reply(spo2=96, pr=55, worn=True, batt=90, batt_state=0, duration=900):
     hdr = bytearray(24)
+    # contact is byte [5] — what parse_live's `worn` actually reads. [10] is the flag byte; setting only
+    # [10] left every runner test driving the UNWORN contact path (found by the rec-axis coverage run).
+    hdr[5] = 0x01 if worn else 0x00
     hdr[6] = spo2
     hdr[7] = 14                 # PI (non-zero)
     hdr[8] = pr & 0xFF
@@ -261,7 +264,7 @@ def _o2ring_live_reply(spo2=96, pr=55, worn=True, batt=90, batt_state=0):
     hdr[11] = 0                 # motion
     hdr[12] = batt_state
     hdr[13] = batt
-    hdr[0:4] = (900).to_bytes(4, "little")   # duration
+    hdr[0:4] = int(duration).to_bytes(4, "little")
     return oxyii.encode(oxyii.OP_LIVE, bytes(hdr))
 
 
@@ -297,6 +300,35 @@ def test_run_oxyii_captures_a_live_reply(tmp_path, monkeypatch):
     st = capture.STATUS["devices"]["Ring"]
     assert st["spo2"] == 96 and st["worn"] is True
     assert list((tmp_path / "captures").rglob("*_SPO2.csv")), "a SpO2 sidecar must be written"
+
+
+def test_run_oxyii_journals_both_axes_worn_flip_and_recording_close(tmp_path, monkeypatch):
+    """One faked poll sequence drives BOTH axes end-to-end through the PRODUCTION callback (execution
+    witness, not a helper test): worn advancing frames → link LIVE + rec RECORDING; an unworn frame with
+    duration reset → link IDLE_UNWORN + rec END_CANDIDATE, all journalled to OXYLIFE.csv with the axis
+    column distinguishing the rows."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    replies = [
+        _o2ring_live_reply(worn=True, duration=900),    # UNKNOWN holds (first positive reading)
+        _o2ring_live_reply(worn=True, duration=901),    # advancing → RECORDING; worn → LIVE
+        _o2ring_live_reply(worn=False, duration=0),     # reset → END_CANDIDATE; unworn → IDLE_UNWORN
+    ]
+    c = FakeGattClient()
+    c.on_live = lambda data: (c.notify(0, replies.pop(0)) if data[1] == oxyii.OP_LIVE and replies else None)
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 6)     # auth + setup + RTC sleeps, then three polls
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    st = capture.STATUS["devices"]["Ring"]
+    # After the runner exits, the finally path fired observe_link_lost: the axis HONESTLY reads UNKNOWN
+    # (link gone ≠ not-recording — the planted control, exercised through the production teardown).
+    assert st["oxy_recording"] == "rec_unknown", "post-teardown the axis must read UNKNOWN, not a stale state"
+    (life,) = list((tmp_path / "captures").rglob("OXYLIFE.csv"))
+    rows = [ln.split(";") for ln in life.read_text().splitlines() if ln and not ln.startswith(("#", "host_wall"))]
+    rec = [r for r in rows if r[-1] == "rec"]
+    link = [r for r in rows if r[-1] == ""]
+    assert [r[3] for r in rec] == ["recording", "end_candidate", "rec_unknown"], "rec axis journals in order"
+    assert "901→0" in rec[1][4] and "closed at 901" in rec[1][4], "the close records the counter value"
+    assert any(r[3] == "live" for r in link) and any(r[3] == "idle_unworn" for r in link)
 
 
 def test_run_oxyii_reports_a_ring_in_recording_mode(tmp_path, monkeypatch):
