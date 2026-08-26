@@ -225,6 +225,36 @@ def test_loop_connect_failure_skips_cycle():
     assert sw.rows == [] and cw.rows == []  # nothing written on a failed connect
 
 
+def test_poll_cycle_does_not_leak_the_link_on_a_bad_connect_contract():
+    # THE 27-MINUTE WEDGE, 2026-08-25. Everything after the BLE link opens but before the caller holds
+    # the `disconnect` callable is uncovered ground: a raise there leaks the link, the peripheral stops
+    # advertising because it is CONNECTED, and every later poll dies BleakDeviceNotFoundError — forever.
+    # Only a manual `bluetoothctl disconnect` revived the real box. Here the transport hands back a
+    # MALFORMED tuple (the injectable stand-in for that class of failure): the cycle must still fail,
+    # must NOT raise NameError out of the finally, and must not hang.
+    calls = []
+
+    async def bad_connect():
+        async def disconnect():
+            calls.append("disconnect")
+
+        return ("only-one-of-three",)  # unpack will raise inside the try
+
+    sup = CPAPSessionSupervisor()
+    try:
+        _run(
+            R.poll_cycle(
+                connect=bad_connect, creds=CREDS, supervisor=sup, host_epoch=_epochs(),
+                establish=None, cipher_factory=None, get_items=None, get_date_time=None,
+            )
+        )
+        raise AssertionError("expected the malformed contract to raise")
+    except NameError:  # the pre-fix failure: `disconnect` unbound in the finally, real error buried
+        raise AssertionError("finally raised NameError — the real error was masked") from None
+    except (ValueError, TypeError):
+        pass  # correct: the unpack error propagates, and the finally did not explode on top of it
+
+
 def test_loop_unexpected_error_survives_and_logs(caplog):
     # A bleak connect raises BleakError/BleakDBusError subclasses that are NOT OSError; one such error
     # (org.bluez.Error.InProgress under adapter contention) silently killed the shadow task on
