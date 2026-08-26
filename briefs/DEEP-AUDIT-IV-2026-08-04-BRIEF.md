@@ -363,11 +363,19 @@ is itself an assumption.** See [`docs/CORPUS-LOCATIONS.md`](../docs/CORPUS-LOCAT
 
 **Superseded framing of item 2 below is kept verbatim; its two measurements remain valid.**
 
-**Status of item 2: advanced, not closed.** 2/5 measured negative, 3/5 blocked on raw data that is not
-in any of the four locations `docs/CORPUS-LOCATIONS.md` lists. Closing it needs those three recordings
-to surface, or an explicit decision that two clean negatives on the two highest-ratio *available*
-nights — including 2026-08-07, the strongest alternation in the corpus at 1.27 — is enough to retire
-the concern.
+⚠️ **SUPERSEDED — do not read this paragraph as the item's state.** It is the 2026-08-16 position and
+it is answered above: see *"Status of item 2: ✅ RETIRED — owner decision 2026-08-21"*. This text asks
+for "an explicit decision that two clean negatives … is enough to retire the concern"; that decision
+was put to the owner and answered **retire**, on **4 of 5** measured rather than 2 of 5. Kept rather
+than deleted because it records what was true before the decision — but it appears LAST in the file,
+so a reader scrolling to the end met the stale verdict as if it were the final word. Corrected
+2026-08-26.
+
+> *(2026-08-16, superseded)* **Status of item 2: advanced, not closed.** 2/5 measured negative, 3/5
+> blocked on raw data that is not in any of the four locations `docs/CORPUS-LOCATIONS.md` lists.
+> Closing it needs those three recordings to surface, or an explicit decision that two clean negatives
+> on the two highest-ratio *available* nights — including 2026-08-07, the strongest alternation in the
+> corpus at 1.27 — is enough to retire the concern.
 
 ## 3 · Lower-severity observations — leads, not findings
 

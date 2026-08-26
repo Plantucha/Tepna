@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED (⚠️ **audited 2026-08-20 — 3 of 5 Done-when boxes were ALREADY SATISFIED in this brief's own text and merely unticked**; what remains is one HARDWARE-BLOCKED item and one awaiting an occasion, so nothing here is unstarted work) · **Created:** 2026-08-14
+**Status:** IN-PROGRESS — 2026-08-26 (⚠️ **the 2026-08-20 audit fixed the BOXES and left the STATUS contradicting them.** That audit found 3 of 5 Done-when boxes already satisfied and merely unticked, ticked them, and wrote *"nothing here is unstarted work"* — while the label stayed `PROPOSED`, which means exactly *unstarted*. Corrected to IN-PROGRESS 2026-08-26 after re-verifying all three ticks in source rather than trusting the audit: `integrator-tch.js:41` carries the §1 withdrawal note, `tools/tch-per-epoch-rho.mjs:116` the companion, and both `tools/hostaxis-estimator-bakeoff.mjs` and `tools/eqc-run.mjs` exist on `main`. **NOT DONE, and neither remaining item is work anyone can pick up:** one is `[~]` awaiting a real detector change to exercise the §7 protocol, the other `[⛔]` hardware-blocked on a ResMed oximeter module the owner confirmed does not exist — a purchase, not a cable.) · **Created:** 2026-08-14
 
 # The second sweep — five more fields, and a proof that one of our questions has no answer
 
