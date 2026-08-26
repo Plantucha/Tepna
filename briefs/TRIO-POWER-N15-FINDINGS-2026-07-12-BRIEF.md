@@ -269,13 +269,25 @@ That is not a coincidence and it settles the provenance of that table.
    the **same corner** whose real-arm σ has never reproduced (published **1.42**, re-derived **3.51**,
    re-run **0.94–1.03** — the gated box below). Three independent estimates, one corner, no agreement.
 
-### And Table 1 is itself already a composite
+### ⚠️ CORRECTION to this section, 2026-08-26 — Table 1 was NOT a three-run composite
 
-Its **planted-σ** column is current-generation; its **±0.15** column and **N=3 half-widths** are the
-2026-08-15 5,000,000-trial WebGPU re-run (0.1421 / 0.1549 / 0.1441, which is why they read 3/5/3); its
-**±0.50 / ±0.25** columns are the original 720 run. The convergence table records the original as
-minN = 5/5/5. One table, three runs, no marking — which is why *"reproduce the published tables"* had no
-single answer until it was actually attempted.
+This section previously read: *"its **±0.15** column and **N=3 half-widths** are the 2026-08-15
+5,000,000-trial WebGPU re-run (0.1421 / 0.1549 / 0.1441 …); its **±0.50 / ±0.25** columns are the
+original 720 run … One table, three runs, no marking."* **That was wrong, and it was wrong in the way
+this brief keeps warning about — it reasoned from the caption's front-matter and never checked the
+table's own caption, which said so explicitly.**
+
+- The half-widths **0.142 / 0.155 / 0.144** are the **20,000**-trial run (0.1421 / 0.1549 / 0.1441), not
+  the 5,000,000 one (0.1434 / 0.1537 / 0.1452 → 0.143 / 0.154 / 0.145). I quoted the 20,000 figures
+  while attributing them to the 5M re-run.
+- Table 1's caption already stated *"Converged 2026-08-15 at 20,000 Monte-Carlo trials/cell"*, so it was
+  **labelled, not unmarked**. Only the ±0.15 *column* was ever re-run to 5,000,000, exactly as the
+  front-matter says.
+
+The accurate statement is narrower and still damning: the paper's tables spanned **two labelled
+generations** (Table 1 at 20,000; Tables 2, 3, 5 at 720) — and of the three labelled 720, **two did not
+reproduce at 720, or at any trial count, because they belonged to a superseded planted σ.** The defect
+was never the marking on Table 1; it was that Tables 2 and 3 were stale and said nothing.
 
 ### The harness change that made this findable (shipped here)
 
@@ -295,6 +307,52 @@ below rather than lifting it: re-fitting Tables 1–3 to 15 nights would now ove
 belong to three different generations, silently making them consistent for the first time and erasing
 the evidence of the desync. **Regenerate the tables from ONE run, as their own work-unit, before any
 re-fit** — and mark each table with the run that produced it.
+
+## ✅ REGENERATED 2026-08-26 — all four simulation tables now come from ONE run
+
+The remedy this brief prescribed has been executed. `papers/sensor-trio-nights.html` Tables 1, 2, 3 and 5
+are now produced by a single command, and the paper carries a **Provenance of the simulation tables**
+section recording it:
+
+```sh
+node tools/trio-power-headless.mjs --trials 50000
+```
+
+**Run stamp:** 2026-08-26 · lane `webgpu`, adapter `amd/rdna-3` · 50,000 trials/cell · 4.1 s ·
+deterministic (a repeat is byte-identical) · planted σ **2.72 / 1.86 / 1.94** — the committed 10-night
+hat, **unchanged; no σ was re-derived or swapped**, so the standing instruction is honoured.
+
+| table | outcome |
+|---|---|
+| **1** — minN + half-widths | **reproduced exactly** at the prior 20,000 values; now carries this run's 50,000 values (same 3/5/3, ≤0.0004 bpm apart) |
+| **5** — window minutes | **reproduced exactly** (20 / 60 / >60, all three devices) — unchanged |
+| **2** — bias at N=8 | **replaced**; the old figures belonged to the superseded σ 1.7/2.2/3.0. Flatness in N verified, not asserted: ≤0.002 across N = 1…20 |
+| **3** — ρ negative-variance | **replaced**, and a published *claim* reverses (below) |
+
+### 🔴 A published claim REVERSED, and this is the part a reader must not miss
+
+The paper argued that a moderate error correlation is detectable — *"ρ=0.3 is caught ~55% at N=1 …
+ρ≥0.5 is caught every time … a σ quoted from one or two windows cannot certify its own central
+assumption."* At the shipped σ, **ρ = 0.15, 0.30 and 0.50 produce no negatives at any N**; only ρ=0.70
+registers (0.01 → 0.16).
+
+This is analytic, not a Monte-Carlo artifact — which is why no trial count could ever have reproduced the
+old table. With shared covariance `c = ρ·σ₀_H10·σ₀_Ver`, the H10 corner recovers `σ²_H10 − c`, so a
+negative needs
+
+> **ρ > σ₀_H10 / σ₀_Verity**
+
+— a pure function of the two paired devices' floor σ, independent of N and of trial count. Shipped hat:
+1.279 / 1.393 = **0.918**. Superseded interim σ: **0.648**. Both predict the measured onsets. **No
+planted σ ever committed to this repository yields the ≈0.3 onset the old table implied.**
+
+The corrected reading is stronger: because the paired devices have near-equal error floors, the
+threshold sits just under ρ=1, so **the negative-variance tell cannot certify independence for any
+realistic correlation, at any N.** Table 6's tier rows claiming the assumption "becomes checkable" at
+5–10 windows were corrected to match.
+
+**Not regenerated: the rendered figures**, which remain 720-trial output and whose captions say so.
+Restamping a figure with a trial count it was not rendered at is the same defect as the stale tables.
 
 ## Done when (§181 closure)
 
