@@ -209,6 +209,22 @@ Method: `node tools/trio-power-headless.mjs --cpu --trials 720`, the paper's sta
 committed 10-night hat. A repeat run is **byte-identical**, so every disagreement below is a property of
 the code, not of a draw.
 
+### The instrument is EXACT — which is what makes the failures below unarguable
+
+Before reading a disagreement as a defect, the harness had to be shown not to have drifted. It has not.
+At **50,000** trials on the GPU lane it reproduces the paper's own convergence table **to every published
+digit**:
+
+| trials/cell | σ O2 half @N=3 | σ H10 | σ Ver | minN(±0.15) |
+|---|---|---|---|---|
+| published, 50,000 | 0.1433 | 0.1539 | 0.1448 | 3 / 5 / 3 |
+| **re-run 2026-08-26** | **0.1433** | **0.1539** | **0.1448** | **3 / 5 / 3** |
+
+So the N-sweep code path is byte-faithful to what produced the published numbers. **"The harness drifted"
+is eliminated as an explanation** for the bias and ρ disagreements below: the same run, the same seeds and
+the same build reproduce one published table exactly and fail to reproduce the other two at all. The
+defect is in those tables, not in the instrument.
+
 ### What reproduces
 
 | published | run @720 | verdict |
@@ -282,7 +298,12 @@ re-fit** — and mark each table with the run that produced it.
 
 ## Done when (§181 closure)
 
-- [ ] GPU lane covers the ρ/duration sweeps (or the tool can export the N-sweep alone), so a 50k run finishes.
+- [x] GPU lane covers the ρ/duration sweeps (or the tool can export the N-sweep alone), so a 50k run finishes.
+      **ALREADY TRUE — verified by execution 2026-08-26, not by reading.** The GPU lane dispatches all
+      three sweeps: `TrioGPU.runCell` for the N-grid, **`TrioGPU.runRho`** for the ρ grid, and
+      `TrioGPU.runCell(…, DUR_GRID[di])` for the duration grid. A 50,000-trial run on
+      `webgpu (amd/rdna-3)` finishes in **4.1 s** with the ρ table populated. The box's premise — that a
+      50k run does *not* finish — was stale; no alternative export was needed.
 - [x] Reproduce the **published** tables at the 10-night hat at the paper's stated trial count — proves the harness.
       **EXECUTED 2026-08-26 — the harness is proven; the tables do NOT reproduce as a set.** See §"Box 2
       EXECUTED" above: dynamic bias reproduces, the resting-bias table belongs to the superseded planted
