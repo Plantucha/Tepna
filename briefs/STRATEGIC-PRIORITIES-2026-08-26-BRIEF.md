@@ -49,10 +49,18 @@ with pre-stated nulls (the treatment-response step-R²-under-null lesson applies
 ## P5 · PUBLIC-BENCHMARK VALIDATION — GATED *(owner: "not until we have some 2 weeks without errors, possibly after PAT works — that will probably proof there is not processing errors")*
 MIT-BIH (QRS) · CinC sets · NSRR/MESA — the credibility currency. **Gate, owner-set: ~2 weeks of
 error-free operation; possibly PAT producing credible output as the internal no-processing-errors
-proof.** Honest note carried with the gate: the published PAT wall is *physiological* (PTT
-variability, `PAT-UNDER-PERBLOCK-ALIGNMENT`), so "PAT works" is read as the pipeline demonstrating
-integrity, not as beating the wall — the two-clean-weeks condition is the operative trigger. When it
-opens, the §5 oracle harness points at public data; nothing new to build first.
+proof.** **Owner position on the PAT wall, ratified 2026-08-26: the "physiological" attribution is
+NOT accepted** — *"if it's possible with other humans it must be possible on me; error is either
+data collection or processing."* The fleet's own record supports the challenge: the measured spread
+sits exactly where the 450 ms acceptance window puts it (450/√12 ≈ 130 ms — `pat-sd-is-the-window`),
+the corpus it was measured on was phone-captured with NO second clock (beat-level cross-device
+claims unidentifiable there), and #1786 eliminated crystal drift but left link stalls standing. The
+wall's attribution is therefore UNDER RE-EXAMINATION, and the decisive experiment is now
+instrumentable (box-captured common timebase + buzz-fiducial alignment + the ring's 125 Hz pleth +
+honest spread accounting): per-beat H10-R-peak → ring-pulse-foot PAT on clean nights, against
+pre-stated literature-derived beat-to-beat bands. IQR collapses → the wall was instrumental and
+falls; IQR holds on a clean timebase → physiological survives, this time measured. Either outcome
+operationalises this gate.
 
 ## P6 · SDK — DOCUMENTATION ONLY *(owner: "documentation only no expansion... possibly use guide to make eegdex")*
 Write the "add a Dex from a manifest" guide over the existing codegen pipeline
