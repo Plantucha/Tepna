@@ -47,7 +47,8 @@
 #     Linger=no silent-failure trap the main-auto-sync timers already hit once.
 set -euo pipefail
 
-SRC="vigil:/srv/tepna/captures/"
+# SRC overridable for the test harness only — production always pulls from vigil.
+SRC="${TEPNA_ARCHIVE_SRC:-vigil:/srv/tepna/captures/}"
 DEST="${TEPNA_ARCHIVE_DEST:-/home/michal/Tepna/uploads/vigil-archive/captures}"
 LOG="${TEPNA_ARCHIVE_LOG:-$HOME/.local/state/tepna-archive-pull.log}"
 
