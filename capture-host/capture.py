@@ -1244,10 +1244,19 @@ async def _connect_scan(addr: str, name_hints=_O2_NAME_HINTS, timeout: float = 1
                 or any(h in ((adv.local_name or d.name or "").lower()) for h in name_hints))
 
     device = None
+    # ⚠️ THE SCAN NOW RUNS UNDER `_CONNECT_LOCK`, the same lock the connect below takes. Before
+    # 2026-08-26 the scan ran OUTSIDE it while the connect ran inside — two operations needing the
+    # same adapter, one serialised and one not. That is what let a scan overlap the clock-sync path's
+    # adapter ops (the Verity and H10 both threw `InProgress` from clock auto-sync at 06:40 and 06:42),
+    # and it is the second half of the same defect the discovery guard fixes.
+    #
+    # BOUNDED, as `_connect`'s note demands: the lock is held only for the scan's own `timeout`, so a
+    # wedged scan cannot freeze every other device task the way an unbounded hold would.
     if _O2_PASSIVE_SCAN:
         try:
-            device = await _BS.find_device_by_filter(
-                _match, timeout=timeout, scanning_mode="passive", **akw)
+            async with _CONNECT_LOCK:
+                device = await _BS.find_device_by_filter(
+                    _match, timeout=timeout, scanning_mode="passive", **akw)
         except _BErr as exc:
             # Only a "this stack can't do passive" refusal downgrades. A real scan failure (adapter wedged,
             # D-Bus gone) must stay an error the caller retries + the watchdogs can see, not be masked by a
@@ -1257,7 +1266,8 @@ async def _connect_scan(addr: str, name_hints=_O2_NAME_HINTS, timeout: float = 1
             _O2_PASSIVE_SCAN = False
             log.info("passive BLE scan unsupported here (%s) — using active scan for the O2Ring", exc)
     if device is None and not _O2_PASSIVE_SCAN:
-        device = await _BS.find_device_by_filter(_match, timeout=timeout, **akw)
+        async with _CONNECT_LOCK:
+            device = await _BS.find_device_by_filter(_match, timeout=timeout, **akw)
     if device is None:
         raise _NotFound(addr, "O2Ring not advertising (wear it finger-in + close the phone app)")
     client = _BC(device, **akw)

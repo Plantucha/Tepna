@@ -480,3 +480,74 @@ def test_notworn_settle_default_clears_the_power_drop_grace():
     assert 300.0 > capture._DROP_NOT_WORN_SEC
     # and the clamp the poller applies is strictly above the grace, not merely equal to it
     assert max(10.0, capture._DROP_NOT_WORN_SEC + 30.0) > capture._DROP_NOT_WORN_SEC
+
+# ── the adapter lock: the scan must not overlap the connect (2026-08-26) ──────────────────────────
+
+
+def _run_async(coro):
+    """Drive one coroutine on a fresh loop (this file has no async fixtures)."""
+    import asyncio as _aio
+    return _aio.new_event_loop().run_until_complete(coro)
+
+
+def test_the_SCAN_runs_under_the_adapter_lock(monkeypatch):
+    """🔴 THE PLANTED CONTROL, and my first version of it was VACUOUS — it took `_CONNECT_LOCK` in the
+    test body and asserted two scans serialised, which is true of any lock and says nothing about
+    whether `_connect_scan` takes one.
+
+    This drives `_connect_scan` itself and asserts INTERLEAVING: `[scan, scan]` back-to-back would
+    mean they overlapped; `[scan, done, scan, done]` is only producible if the second waits.
+
+    WHY IT MATTERS: before this, the scan ran OUTSIDE `_CONNECT_LOCK` while the connect ran inside —
+    two operations needing the same adapter, one serialised and one not. That is what let a scan
+    collide with the clock-sync path's adapter ops (Verity and H10 both threw InProgress from clock
+    auto-sync at 06:40 and 06:42 on 2026-08-26)."""
+    import asyncio as _aio
+    import sys
+    import types
+
+    order = []
+
+    async def _find(*a, **k):
+        order.append("scan")
+        await _aio.sleep(0.02)          # a real scan holds the adapter for a while
+        order.append("done")
+        return None                      # not found — the connect never runs, which is fine
+
+    class _S:
+        find_device_by_filter = staticmethod(_find)
+
+    class _C:
+        def __init__(self, *a, **k):
+            pass
+
+    fake = types.ModuleType("bleak")
+    fake.BleakClient, fake.BleakScanner = _C, _S
+    exc = types.ModuleType("bleak.exc")
+
+    class _NF(Exception):
+        def __init__(self, *a):
+            pass
+
+    exc.BleakDeviceNotFoundError, exc.BleakError = _NF, Exception
+    monkeypatch.setitem(sys.modules, "bleak", fake)
+    monkeypatch.setitem(sys.modules, "bleak.exc", exc)
+
+    async def _no_kw():
+        return {}
+    monkeypatch.setattr(capture, "adapter_kw", _no_kw)
+    monkeypatch.setattr(capture, "_O2_PASSIVE_SCAN", False)
+
+    async def _attempt():
+        try:
+            async with capture._connect_scan("AA:BB:CC:DD:EE:FF", timeout=0.05):
+                pass
+        except Exception:
+            pass
+
+    async def _both():
+        await _aio.gather(_attempt(), _attempt())
+
+    _run_async(_both())
+    assert order == ["scan", "done", "scan", "done"], f"scans overlapped on the adapter: {order}"
+
