@@ -136,13 +136,51 @@ store, not an execution-witnessed path, and is recorded as such rather than coun
   to 0 (UNKNOWN→ABSENT), and one that reds if a `PARTIAL` acquisition ever reports `COMPLETE`
   (VALID→COMPLETE). Held to the control per pre-state-the-threshold.
 
+## Status audit — 2026-08-26, measured against shipped code (not against the boxes)
+
+All three phases have shipped, so the §21 acceptance list was re-checked **against the code**, not
+against its own checkboxes (this repo's boxes go stale in DONE briefs; the code is the authority).
+
+**21 of 22 criteria are MET. One is genuinely open, and it is not a detail:**
+
+🔴 **"O2Ring LIVE acquisition can produce it" — NOT MET.** `acq_evidence_o2ring` exposes
+`assemble_dat` and nothing else; `SOURCE_LIVE` is referenced only by the CPAP adapter. The live
+OXYFRAME path is real and writes a real artifact (`writers.OXYFRAME_COLUMNS`/`OXYFRAME_HEADER`,
+`capture.py` writing an `oxyframe` txt), and it emits **no envelope at all** — `acq_evidence` appears
+in `capture.py` only on the CPAP branch. So spec §10's requirement to integrate **BOTH** O2Ring paths
+("live OXYFRAME capture **and** stored `.dat` acquisition… do not merge these into one
+indistinguishable source") is half-built: Phase A took the stored half.
+
+This is the same shape the CPAP lane kept hitting — the machinery exists, and nothing calls it — so it
+is recorded here as an OPEN acceptance criterion rather than left implicit in an unchecked box.
+
+The other 21, each confirmed in code: one canonical `AcquisitionEvidence` (schema **1.1.0**, MINOR-
+bumped for `ClockOffset`, so the versioning criterion is met too) · existing contracts reused (Clock
+Contract parser single-sourced; one hashing system) · O2Ring `.dat` ✓ · CPAP ✓ (live stream **and**
+spool assemblers) · session/device identity ✓ · time provenance ✓ (`start_time_ms` + the measured
+`clock_offset` with its `reference`/`method`/`measured_at_ms`) · sample accounting ✓ · gap categories
+kept SEPARATE ✓ · artifact + hash identity ✓ · validation and completeness explicit and INDEPENDENT ✓
+· UNKNOWN never converted to ABSENT ✓ (planted controls, each verified to fail when relaxed) ·
+VALID ≠ COMPLETE ✓ (all four combinations asserted) · acquisition ⟂ science ✓ (a value-scan control,
+guard-the-guard tested) · Dex and Integrator logic unchanged ✓ · production capture unaffected ✓
+(default-off / absent-sidecar paths render byte-identically) · execution-witness tests on the
+production seam ✓ · suites green ✓ · Synthetic Goldens untouched and independent ✓.
+
+**Consequence for the brief's status:** it stays **IN-PROGRESS**. Three phases shipping is not the
+same as the contract being complete, and flipping to DONE with a §21 criterion unmet would be exactly
+the false-completion this contract exists to prevent — an envelope that says COMPLETE about an
+acquisition that was not.
+
 ## Done when
 - [ ] The §1 map is ratified by the lead as the authoritative acquisition-fact inventory.
-- [ ] One canonical envelope struct exists (assembler over §1), versioned in the `ganglior` family, MINOR bump.
+- [x] One canonical envelope struct exists (assembler over §1), versioned in the `ganglior` family, MINOR bump.
+      **MET** — `acq_evidence.AcquisitionEvidence`, schema 1.1.0 (MINOR-bumped when `ClockOffset` was added; a new VALUE like `SOURCE_STORED_SPOOL` correctly did not move it).
 - [x] O2Ring `.dat` (Phase A) produces it; **CPAP (Phase B) produces it (2026-08-25)**; a Dex adapter
       (Phase C, OxyDex read-only panel) landed #1752. Phase B's live path is execution-witnessed through
       the real pump; its spool assembler is tested but not yet wired (see the Phase B note above).
 - [ ] All spec §21 acceptance boxes met; execution-witness + UNKNOWN/VALID planted controls green; existing tests stay green.
+      **21/22 as of 2026-08-26 (audit above) — the open one is "O2Ring LIVE acquisition can produce
+      it": the live OXYFRAME path emits no envelope, so spec §10's BOTH-paths requirement is half-built.**
 
 ---
 
