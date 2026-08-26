@@ -233,9 +233,23 @@ cpap:                    # ResMed card auto-harvest over an ez Share Wi-Fi SD ad
   # until the button is pressed, and then only if credentials exist AND no wearable is capturing (a BLE
   # stream must not transmit beside the sensors). READ-ONLY.
   ble_stream:
-    adapter: hci1              # the FREE radio — never the one the wearables capture on (hci0 default)
+    # The FREE radio — never the one the wearables capture on. PREFER A MAC: hciN indices RE-ENUMERATE
+    # (a 2026-08-25 reboot moved one dongle hci3 -> hci1 and another hci1 -> hci2), and a MAC names the
+    # RADIO rather than an index that drifts. A MAC is resolved to the current hciN on every connect, so
+    # a renumber self-heals with no restart. A bare `hciN` still works and is passed through unchanged.
+    adapter: "AC:A7:F1:29:9D:1D"   # or: hci1
     # creds_path: as11_creds.json   # AS11 pairing creds (masterPairKey/clientId/ble_addr); default is
                                      # beside this config file. Written by the pairing flow / operator probe.
+    # ACTING — end the live stream when the machine stops delivering therapy. OFF by default: this is
+    # the first thing in the CPAP path that ACTS rather than observes.
+    # It reads the stream's OWN flow channel, NOT the session detector — the AS11 takes one connection,
+    # so the detector defers while streaming and is blind exactly when a stop must be seen.
+    # ⚠️ hold_sec is deliberately long. A genuine apnea is silent too; a short hold truncates a night
+    # mid-sleep and the loss looks like a clean shutdown. Raise it, do not lower it, without a real trace.
+    # auto_stop:
+    #   enabled: false
+    #   flow_eps_lpm: 0.5           # |flow| at or below this counts as "not breathing" (idle measured -0.01)
+    #   hold_sec: 120.0             # continuous quiet REQUIRED, timed in samples (a dead link cannot age it)
 
 # AS11 CPAP session detector (SHADOW — observes only, drives nothing). When enabled, a background task
 # short-connects the AS11 on the CPAP free radio (cpap.ble_stream.adapter, hci1) ONLY while the live

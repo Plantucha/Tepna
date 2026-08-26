@@ -12,6 +12,7 @@ import asyncio
 import collections
 import json
 import logging
+import time
 
 import as11_link as L
 import cpap_stream as CS
@@ -1066,3 +1067,150 @@ def test_build_controller_leaves_the_raw_record_off_without_a_dir(tmp_path):
     import capture
     ctl = capture._build_cpap_controller(object(), {"cpap": {}}, str(tmp_path / "config.yaml"))
     assert ctl._raw_record_factory is None
+
+
+# ── ACTING: therapy-end auto-stop (TherapyEndSink) ───────────────────────────────────────────────
+# The stream kept running and writing EDF after the owner stopped the machine (2026-08-25). These pin
+# the sink that ends it — and, just as hard, that it does NOT end it on a silence short enough to be
+# an apnea. The second assertion is the one that matters: a too-eager stop loses a night.
+
+
+def _batch(flow_vals):
+    return {"channels": {"PatientFlow": list(flow_vals)}, "interval_ms": 40}
+
+
+def test_therapy_end_sink_stops_after_sustained_zero_flow():
+    ev = asyncio.Event()
+    ended = []
+    s = CS.TherapyEndSink(ev, flow_eps=0.5, hold_s=2.0, on_end=lambda: ended.append(1))
+    s.open(CS.BRP_CHANNELS, 25.0)
+    # 2 s at 25 Hz = 50 quiet samples; feed 60 of the REAL measured idle value (-0.01 L/min).
+    s.on_batch(_batch([-0.01] * 60))
+    assert ev.is_set(), "sustained zero flow must end the stream"
+    assert s.fired is True and ended == [1]
+
+
+def test_therapy_end_sink_does_NOT_stop_on_an_apnea_length_silence():
+    # THE EXPENSIVE DIRECTION. A genuine apnea is silent too. A sink that stops here would truncate a
+    # night mid-sleep and the loss would look like a clean shutdown.
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev, flow_eps=0.5, hold_s=120.0)
+    s.open(CS.BRP_CHANNELS, 25.0)
+    s.on_batch(_batch([0.0] * (30 * 25)))          # 30 s of silence — a long apnea
+    assert not ev.is_set(), "a 30 s silence is an apnea, NOT the end of therapy"
+    assert s.fired is False
+
+
+def test_therapy_end_sink_resets_the_hold_on_any_real_breath():
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev, flow_eps=0.5, hold_s=2.0)
+    s.open(CS.BRP_CHANNELS, 25.0)
+    s.on_batch(_batch([0.0] * 40))                 # 40 quiet (needs 50)
+    s.on_batch(_batch([18.0]))                     # one real breath → hold RESETS
+    s.on_batch(_batch([0.0] * 40))                 # 40 more; without the reset this would total 80
+    assert not ev.is_set(), "a breath between quiet runs must reset the hold, not accumulate"
+
+
+def test_therapy_end_sink_times_from_SAMPLES_not_wall_clock():
+    # A stalled link delivers nothing; the timer must not age while no data arrives, or a dropout
+    # reads as "therapy ended" and the stream stops itself off a dead link.
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev, flow_eps=0.5, hold_s=2.0)
+    s.open(CS.BRP_CHANNELS, 25.0)
+    s.on_batch(_batch([0.0] * 10))
+    time.sleep(0.05)                               # wall time passes, NO samples arrive
+    assert not ev.is_set(), "no samples => no progress toward the stop"
+
+
+def test_therapy_end_sink_keeps_its_default_rate_on_a_bad_fs():
+    # `open` is handed whatever the pump computed; a non-positive or non-numeric fs must not become the
+    # divisor for the hold, or the stop threshold silently changes with a malformed rate.
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev, hold_s=2.0)
+    s.open(CS.BRP_CHANNELS, 0)
+    assert s._fs == 25.0
+    s.open(CS.BRP_CHANNELS, None)
+    assert s._fs == 25.0
+
+
+def test_therapy_end_sink_is_idempotent_after_firing():
+    # The pump drains late batches AFTER should_stop is set (DRAIN-ON-DISCONNECT), so on_batch WILL be
+    # called again post-fire. It must be a no-op, not a second stop or a re-log.
+    ev = asyncio.Event()
+    fired = []
+    s = CS.TherapyEndSink(ev, flow_eps=0.5, hold_s=1.0, on_end=lambda: fired.append(1))
+    s.open(CS.BRP_CHANNELS, 25.0)
+    s.on_batch(_batch([0.0] * 30))
+    assert s.fired and fired == [1]
+    s.on_batch(_batch([0.0] * 30))          # late batch after the stop
+    assert fired == [1], "must not fire twice"
+
+
+def test_therapy_end_sink_close_is_a_noop():
+    # Sink contract: open/on_batch/close. close() has nothing to finalize — it holds no file — but it
+    # MUST exist and be safe, because the pump closes every sink in its finally.
+    s = CS.TherapyEndSink(asyncio.Event())
+    assert s.close() is None
+
+
+def test_therapy_end_sink_fires_without_an_on_end_callback():
+    # on_end is optional (the daemon may not want a hook). The stop must still be set.
+    ev = asyncio.Event()
+    s = CS.TherapyEndSink(ev, flow_eps=0.5, hold_s=1.0)   # no on_end
+    s.open(CS.BRP_CHANNELS, 25.0)
+    s.on_batch(_batch([0.0] * 30))
+    assert ev.is_set() and s.fired
+
+
+def test_controller_appends_the_therapy_end_sink_LAST():
+    """ACTING wiring. Order is load-bearing: the durable sinks must persist the triggering batch BEFORE
+    the therapy-end sink sets should_stop, or the batch that ends the session is the one batch lost."""
+    async def go():
+        connect, _events = _connector()
+        made, seen = [], {}
+
+        def edf_factory():
+            s = _RecordingSink()
+            made.append(s)
+            return s
+
+        def therapy_factory(stop_ev):
+            s = CS.TherapyEndSink(stop_ev, hold_s=1.0)
+            made.append(s)
+            return s
+
+        async def pump(bus, write, recv_frame, pk, cid, *, channels=None, extra_sinks=None, should_stop=None):
+            seen["extra_sinks"] = list(extra_sinks or ())
+            while should_stop is None or not should_stop.is_set():
+                await asyncio.sleep(0.005)
+            return 0
+
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=pump,
+                                    edf_sink_factory=edf_factory, therapy_end_factory=therapy_factory)
+        await c.op("start")
+        await asyncio.sleep(0.01)
+        sinks = seen["extra_sinks"]
+        assert len(sinks) == 2, "both the durable sink and the therapy-end sink reach the pump"
+        assert isinstance(sinks[-1], CS.TherapyEndSink), "the therapy-end sink must be LAST"
+        assert isinstance(sinks[0], _RecordingSink), "the durable sink runs first"
+        await c.op("stop")
+    _run(go())
+
+
+def test_controller_without_a_therapy_factory_gets_no_acting_sink():
+    async def go():
+        connect, _events = _connector()
+        seen = {}
+
+        async def pump(bus, write, recv_frame, pk, cid, *, channels=None, extra_sinks=None, should_stop=None):
+            seen["extra_sinks"] = extra_sinks
+            while should_stop is None or not should_stop.is_set():
+                await asyncio.sleep(0.005)
+            return 0
+
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=pump)
+        await c.op("start")
+        await asyncio.sleep(0.01)
+        assert not seen["extra_sinks"], "acting OFF by default — no sink, prior behaviour exactly"
+        await c.op("stop")
+    _run(go())
