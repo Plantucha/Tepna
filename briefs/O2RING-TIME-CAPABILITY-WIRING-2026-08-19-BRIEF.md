@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-19 · **Follows:** `O2RING-OPCODE-SURFACE-2026-08-03-BRIEF.md` §9 (RTC readable), `O2RING-BUZZ-FIDUCIAL-2026-08-19-BRIEF.md` (step 1 DONE)
+**Status:** IN-PROGRESS — 2026-08-26 (**2a and 2b SHIPPED in #1643, 2026-08-23; this brief said PROPOSED with all three boxes open for three days.** Verified in source on `origin/main`, not inferred: 2a at `oxydex-dsp.js:340` + the export projection at `:7396-7397` (`_out.recording.timingSource` / `.rtcOffsetS`), 5 references in `tests/dex-tests.js`; 2b at `integrator-dsp.js:739-745` and `:6120` consuming `rtcOffsetS`/`rtcVerifiedAtMs`, with 14 RTC-reset references in the suite. **Only 2c remains** — `tools/trio-batch.mjs` carries ZERO `rtcOffsetS`/`rtcVerified` occurrences, and no `tools/*.mjs` does. A brief understating shipped work invites someone to rebuild it; that has already cost this fleet once this week.) · **Created:** 2026-08-19 · **Follows:** `O2RING-OPCODE-SURFACE-2026-08-03-BRIEF.md` §9 (RTC readable), `O2RING-BUZZ-FIDUCIAL-2026-08-19-BRIEF.md` (step 1 DONE)
 
 # Wiring the ring's readable clock into the Dexes, the Integrator, and the trio fold
 
@@ -117,9 +117,16 @@ the waveform side.
 
 ## Done when
 
-- [ ] 2a ships behind the OxyDex gates (suite + provenance; export field is additive).
-- [ ] 2b ships in the Integrator with a fixture where a planted RTC reset is vetoed.
-- [ ] 2c lands in trio-batch with the offset visible in a real night's arrival JSON.
+- [x] **2a SHIPPED — #1643 (2026-08-23).** `oxydex-dsp.js:340` stamps the night; `:7396-7397` project
+      `timingSource` + `rtcOffsetS` onto `_out.recording` (additive, as specified). Gated: 5 references
+      in `tests/dex-tests.js`. Verified on `origin/main` 2026-08-26.
+- [x] **2b SHIPPED — #1643 (2026-08-23).** `integrator-dsp.js:739-745` reads `rtcOffsetS` /
+      `rtcVerifiedAtMs` off `json.recording` and `:6120` carries them through; the suite holds 14
+      RTC-reset references. Verified on `origin/main` 2026-08-26.
+- [ ] **2c — the ONLY remaining task.** `tools/trio-batch.mjs` contains zero `rtcOffsetS` /
+      `rtcVerified` occurrences, and neither does any other `tools/*.mjs` (checked 2026-08-26).
+      ⚠️ Verify that count directly rather than through a pipeline: `git grep ... | head` returns
+      head's exit status, so an absence and a masked non-match read identically.
 - [x] §4's fiducial-network alternative is either adopted into the TCH roadmap or explicitly declined.
       **ADOPTED as the direction 2026-08-23 (§4a); the RTC stays declined as a corner.** The first
       closure residual `FINISHED-WORK` §B3 asks for is NOT computable from the existing captures, and
