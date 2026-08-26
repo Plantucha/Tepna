@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/dBlAzrE8FtOUGVDrcb+Q3mg/v0eliYFiMg7oaRvhcA=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-QxQj7UIKBrwJJCLrAvm9pQTXuOTmHbjeAWH1Vz8Qg8s=' 'sha256-VpWuZ12v6gKyhjlOT8TLlSMYiBs1ZGSWaJlXOiFIlAo=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-bp7Fi2OoOx/XooWuTGpmF1SiV+A8ZCvEpRBCsq2nxes=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-e70cOf652vs6gJ1pYSjK9ScM/+kafQkGONwT1jL22oI=' 'sha256-mj10h/YL+APHDH63Cf0GOj2V1PkBzWSTOsXSR+ASVTM='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6f/zv9qUhNd6k9525oIssk/GLR+n/dcC3ltJirU4QZM=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-VpWuZ12v6gKyhjlOT8TLlSMYiBs1ZGSWaJlXOiFIlAo=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-bp7Fi2OoOx/XooWuTGpmF1SiV+A8ZCvEpRBCsq2nxes=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-h6h5P//RbelDud05c/HcsYeUxGoEXGat4RJkGjquIWE=' 'sha256-mj10h/YL+APHDH63Cf0GOj2V1PkBzWSTOsXSR+ASVTM=' 'sha256-orDgYOKMvLG8lrKyfy1hZs6UU/8V5DZFKb7BPPBVbnA='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>CPAPDex — PAP Therapy Analyzer · v2.8.0</title>
@@ -2692,6 +2692,16 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
 #exportBar.show{display:flex}
 body.light #exportBar{background:rgba(255,255,255,.92)}
 #resultsView{padding-bottom:96px}
+/* Acquisition-evidence panel (ACQ-EVIDENCE-CONTRACT Phase C) — byte-identical to OxyDex's, so both
+   devices' envelopes read the same way. Deliberately NOT evidence-badge styling: these are acquisition
+   facts, not graded physiological measurements (contract §4). */
+.acq-panel{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 0 10px}
+.acq-chip{font-size:11px;padding:3px 8px;border-radius:8px;border:1px solid var(--border,#2a2f3a);background:rgba(127,127,127,.08)}
+.acq-chip b{font-weight:700;opacity:.7;margin-right:3px}
+.acq-good{border-color:rgba(57,217,138,.4)}
+.acq-bad{border-color:rgba(255,107,122,.5)}
+.acq-neutral{opacity:.85}
+.acq-src{font-size:10px;color:var(--text3,#8b949e);margin-left:2px}
 </style>
 <link rel="canonical" href="https://tepna.net/CPAPDex.html">
 <meta property="og:url" content="https://tepna.net/CPAPDex.html">
@@ -7694,6 +7704,43 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
   /* Attach a STR summary to already-built nights by matching the UTC day. Mutates + returns `nights`.
    The inferred `mode` is left untouched; device fields land as NEW keys so a consumer can prefer the
    declaration and fall back to the inference. A night with no STR match keeps its fields absent. */
+  /* ACQUISITION EVIDENCE — the CPAP-side READ (ACQ-EVIDENCE-CONTRACT Phase C, the CPAP half).
+     READ-ONLY SURFACING: this changes NO metric, gates nothing, and a night with no envelope behaves
+     exactly as before (contract §4 acquisition ⟂ science, §19 back-compat). It only lets a night SAY
+     what the capture layer already knew about how it was acquired, instead of a Dex re-deriving it.
+
+     THE JOIN IS BY DAY, NOT BY FILENAME, and that is forced by the topology rather than chosen:
+     OxyDex matches an envelope to a night by finding the session_id INSIDE the .dat filename (#1752),
+     but a CPAP night is built from SD EDFs whose names carry no host session id at all. The only
+     shared coordinate is TIME — so this reuses `attachStrSummary`'s rule verbatim: match the day the
+     night STARTED, then the day before, because a session beginning before midnight is logged under
+     the previous civil day.
+
+     An envelope with NO start (`start_time_ms` null) is UNJOINABLE and is skipped rather than matched
+     to the nearest night — attaching the wrong acquisition's evidence to a night is worse than
+     attaching none, and a null start is exactly the case that would fall into "nearest". */
+  function attachAcqEvidence(nights, bag) {
+    if (!nights || !nights.length || !bag) return nights;
+    var byDay = {};
+    for (var sid in bag) {
+      if (!Object.prototype.hasOwnProperty.call(bag, sid)) continue;
+      var ev = bag[sid];
+      var t = ev && ev.start_time_ms;
+      if (t == null || !isFinite(t)) continue; // unjoinable — never guessed into a night
+      var d = Math.floor(t / 86400000);
+      // first envelope wins for a day, so a re-drop cannot silently replace an already-paired one
+      if (!Object.prototype.hasOwnProperty.call(byDay, d)) byDay[d] = ev;
+    }
+    for (var n = 0; n < nights.length; n++) {
+      var night = nights[n];
+      var t0 = night && (night.t0Ms != null ? night.t0Ms : night.stats && night.stats.t0Ms);
+      if (t0 == null) continue;
+      var day = Math.floor(t0 / 86400000);
+      var hit = Object.prototype.hasOwnProperty.call(byDay, day) ? byDay[day] : Object.prototype.hasOwnProperty.call(byDay, day - 1) ? byDay[day - 1] : null;
+      if (hit) night.acquisitionEvidence = hit;
+    }
+    return nights;
+  }
   /* STR deviceCsr × CSL periodic-breathing CROSS-VALIDATION (CPAPDEX-STR-SUMMARY-INGEST item 1).
      The device's STR session-summary Cheyne-Stokes % (`deviceCsr`) and OUR CSL-annotation-derived
      periodic-breathing % (`periodicBreathingPct`) are both device-origin but arrive on DIFFERENT
@@ -7779,6 +7826,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     buildSessionFromEdf: buildSessionFromEdf,
     parseStrSummary: parseStrSummary,
     attachStrSummary: attachStrSummary,
+    attachAcqEvidence: attachAcqEvidence,
     csrPbCrossCheck: csrPbCrossCheck,
     nightMetrics: nightMetrics,
     compute: compute,
@@ -9959,6 +10007,48 @@ const { CpapDsp } = __require('cpapdex-dsp.js');
    FINDING, not aligned through. Every quoted number carries its n (overlap minutes).
    No Pearson r anywhere — scale regression + Bland-Altman only (brief).
    ════════════════════════════════════════════════════════════════════════ */
+  /* ACQUISITION EVIDENCE panel (ACQ-EVIDENCE-CONTRACT Phase C, CPAP half) — mirrors OxyDex's.
+     READ-ONLY and deliberately NOT badged: an evidence badge grades a physiological measurement, and
+     nothing here is one. These are acquisition facts (contract §4 — acquisition ⟂ science), so
+     badging them would assert a scientific tier over a transport statistic. */
+  function acqEvidencePanel(ev) {
+    if (!ev || typeof ev !== 'object') return '';
+    var UNK = 'UNKNOWN';
+    var v = ev.validation || UNK,
+      c = ev.completeness || UNK;
+    var cls = function (x, ok, bad) {
+      return x === ok ? 'good' : x === bad ? 'bad' : 'neutral';
+    };
+    var chip = function (label, val, k) {
+      return '<span class="acq-chip acq-' + k + '"><b>' + esc(label) + '</b> ' + esc(String(val)) + '</span>';
+    };
+    var h = '<div class="card">' + cardHead('Acquisition', 'what capture knows about this recording — not a physiological judgement');
+    h += '<div class="acq-panel">';
+    h += chip('Validation', v, cls(v, 'VALID', 'INVALID'));
+    h += chip('Completeness', c, cls(c, 'COMPLETE', 'PARTIAL'));
+    h += chip('Clock', ev.clock_status || UNK, ev.clock_status && ev.clock_status !== UNK ? 'good' : 'neutral');
+    /* The measured device-vs-reference offset (schema 1.1.0). Shown ONLY when actually measured — a
+       missing offset is not zero, and a "0 s" chip would claim an agreement nobody checked. The
+       provenance travels with it because an offset without when/against-what cannot be acted on. */
+    var off = ev.clock_offset;
+    if (off && off.offset_sec != null && isFinite(off.offset_sec)) {
+      var sign = off.offset_sec > 0 ? 'device AHEAD by ' : off.offset_sec < 0 ? 'device BEHIND by ' : 'agreed, ';
+      var txt = sign + Math.abs(off.offset_sec) + ' s vs ' + (off.reference || UNK) + ' (' + (off.method || UNK) + ')';
+      h += chip('Clock offset', txt, Math.abs(off.offset_sec) > 60 ? 'bad' : 'neutral');
+    }
+    if (ev.sample_count != null) {
+      var exp = ev.expected_sample_count;
+      h += chip('Samples', ev.sample_count + (exp != null && exp !== UNK ? ' / ' + exp + ' expected' : ' (expected ' + UNK + ')'), 'neutral');
+    }
+    /* Gap categories stay SEPARATE and are shown even at zero — a measured zero is a result ("we
+       counted, none happened"), and collapsing it away would make it indistinguishable from UNKNOWN. */
+    if (ev.transport_gaps !== undefined) h += chip('Transport gaps', ev.transport_gaps, ev.transport_gaps === 0 ? 'good' : ev.transport_gaps === UNK ? 'neutral' : 'bad');
+    if (ev.decode_gaps !== undefined) h += chip('Decode gaps', ev.decode_gaps, ev.decode_gaps === 0 ? 'good' : ev.decode_gaps === UNK ? 'neutral' : 'bad');
+    if (ev.source) h += '<span class="acq-src">source: ' + esc(String(ev.source)) + '</span>';
+    h += '</div></div>';
+    return h;
+  }
+
   function comparatorPanel(cmp, meta) {
     meta = meta || {};
     var liveL = esc(meta.liveLabel || 'BLE live');
@@ -10092,6 +10182,7 @@ const { CpapDsp } = __require('cpapdex-dsp.js');
     hydrateHistory: hydrateHistory,
     renderKPIs: renderKPIs,
     comparatorPanel: comparatorPanel,
+    acqEvidencePanel: acqEvidencePanel,
     drawScaleSpark: drawScaleSpark,
     residualCard: residualCard,
     pressureCard: pressureCard,
@@ -11235,7 +11326,10 @@ const { CpapRender } = __require('cpapdex-render.js');
     CURRENT = LOADED_NIGHTS[LOADED_NIGHTS.length - 1] || null; // latest night = detail focus
     if (!CURRENT) return;
     var history = LOADED_NIGHTS.length >= 2 && R.renderHistory ? R.renderHistory(LOADED_NIGHTS) : '';
-    host.innerHTML = history + R.renderNight(CURRENT);
+    // Phase C: the acquisition envelope for THIS night, when one was paired. Empty string when absent,
+    // so a drop with no sidecar renders byte-identically to before (contract §19).
+    var acq = R.acqEvidencePanel ? R.acqEvidencePanel(CURRENT.acquisitionEvidence) : '';
+    host.innerHTML = history + acq + R.renderNight(CURRENT);
     R.hydrate(host, CURRENT);
     if (history && R.hydrateHistory) R.hydrateHistory(host, LOADED_NIGHTS);
     if (global.MetricRegistry)
@@ -11402,6 +11496,8 @@ const { CpapRender } = __require('cpapdex-render.js');
         try {
           var strSummary = CpapDsp.parseStrSummary(global.CpapEdf.readEDF(strEntry.buf));
           if (strSummary.length) CpapDsp.attachStrSummary(nights, strSummary);
+          // Phase C: pair any acquisition-evidence sidecars to the nights they describe (by day).
+          if (global._cpapAcqEvidence) CpapDsp.attachAcqEvidence(nights, global._cpapAcqEvidence);
         } catch (errStr) {
           console.warn('STR.edf summary parse failed', errStr);
         }
@@ -11589,6 +11685,19 @@ const { CpapRender } = __require('cpapdex-render.js');
           } else {
             peerMsgs.push(f.name + ' (' + ((r && r.message) || 'not loadable') + ')');
           }
+          done();
+          return;
+        }
+        // ACQUISITION EVIDENCE sidecar (ACQ-EVIDENCE-CONTRACT Phase C, CPAP half). Stash by
+        // session_id; the pairing with each night runs after every file resolves, so drop order does
+        // not matter. READ-ONLY — it never gates or modifies any science (contract §4), and a drop
+        // with no sidecar behaves exactly as before (§19). Checked BEFORE the co-import fallthrough,
+        // which would otherwise report a perfectly good sidecar as "unrecognized".
+        if (parsed && parsed.acquisition_evidence && parsed.acquisition_evidence.session_id) {
+          var _ev = parsed.acquisition_evidence;
+          global._cpapAcqEvidence = global._cpapAcqEvidence || {};
+          global._cpapAcqEvidence[_ev.session_id] = _ev;
+          peerMsgs.push('acquisition evidence');
           done();
           return;
         }

@@ -17833,6 +17833,79 @@
       } else {
         T.skip('comparator golden re-run (env.equiv.cpapdex_comparator + CpapEdf)', 'twins/golden not wired in this lane — the committed pair should make this run everywhere');
       }
+
+      /* ── ACQ EVIDENCE, CPAP-side READ (Phase C). The join is BY DAY, not by filename: a CPAP night
+         is built from SD EDFs whose names carry no host session id, so OxyDex's filename match
+         (#1752) does not transfer. This reuses attachStrSummary's rule — the night's start day, then
+         the day before, because a session beginning before midnight is logged under the previous
+         civil day. READ-ONLY: no metric is touched, and a night with no envelope is unchanged. ── */
+      if (typeof CX === 'object' && env.CpapDsp && typeof env.CpapDsp.attachAcqEvidence === 'function') {
+        var CD = env.CpapDsp;
+        var DAY = 86400000;
+        var _ev = function (sid, tMs, over) {
+          var e = { session_id: sid, start_time_ms: tMs, validation: 'VALID', completeness: 'COMPLETE', source: 'live' };
+          for (var k in over || {}) e[k] = over[k];
+          return e;
+        };
+        // a night starting 2026-08-23T22:00Z, and an envelope from the same civil day
+        var _t0 = Date.UTC(2026, 7, 23, 22, 0, 0);
+        var _nights = [{ t0Ms: _t0 }];
+        CD.attachAcqEvidence(_nights, { s1: _ev('s1', Date.UTC(2026, 7, 23, 21, 55, 0)) });
+        T.ok('an envelope from the same civil day attaches', _nights[0].acquisitionEvidence && _nights[0].acquisitionEvidence.session_id === 's1');
+
+        // a session that began BEFORE midnight is logged under the previous civil day — the
+        // attachStrSummary rule, reused rather than re-invented
+        var _n2 = [{ t0Ms: Date.UTC(2026, 7, 24, 1, 30, 0) }];
+        CD.attachAcqEvidence(_n2, { s2: _ev('s2', Date.UTC(2026, 7, 23, 23, 40, 0)) });
+        T.ok('an envelope from the PREVIOUS civil day still attaches (pre-midnight start)', _n2[0].acquisitionEvidence && _n2[0].acquisitionEvidence.session_id === 's2');
+
+        // THE CONTROL THAT MATTERS: an envelope with no start is UNJOINABLE and must NOT be
+        // attached to the nearest night. Attaching the wrong acquisition's evidence is worse than
+        // attaching none, and a null start is exactly what would fall into a "nearest" rule.
+        var _n3 = [{ t0Ms: _t0 }];
+        CD.attachAcqEvidence(_n3, { s3: _ev('s3', null) });
+        T.ok('an envelope with NO start is skipped, never matched to the nearest night', _n3[0].acquisitionEvidence === undefined);
+        /* ⚠️ The line above passes for the WRONG REASON on its own, and saying so is the point: with
+           `start_time_ms` null, `Math.floor(null / 86400000)` is 0, so the envelope lands on day 0 and
+           no realistic night collides with it regardless of the guard. Removing the guard does not
+           flip that assertion — measured. The case that ACTUALLY exercises the guard is a night at the
+           epoch, where day 0 IS the night's day; without the guard the null-start envelope attaches. */
+        var _n3b = [{ t0Ms: 0 }];
+        CD.attachAcqEvidence(_n3b, { s3b: _ev('s3b', null) });
+        T.ok('and the guard is REAL: a null start does not attach even to a night whose day IS 0', _n3b[0].acquisitionEvidence === undefined);
+
+        // and a genuinely distant envelope does not attach either
+        var _n4 = [{ t0Ms: _t0 }];
+        CD.attachAcqEvidence(_n4, { s4: _ev('s4', _t0 - 5 * DAY) });
+        T.ok('an envelope from another week does not attach', _n4[0].acquisitionEvidence === undefined);
+
+        // READ-ONLY: no metric is touched by the attach
+        var _n5 = [{ t0Ms: _t0, metrics: { ahi: 4.2 }, deviceCsr: 1.5 }];
+        CD.attachAcqEvidence(_n5, { s5: _ev('s5', _t0) });
+        T.ok('attaching changes NO metric (acquisition ⟂ science)', _n5[0].metrics.ahi === 4.2 && _n5[0].deviceCsr === 1.5);
+        T.ok(
+          'a night with no envelope at all is left untouched',
+          (function () {
+            var n = [{ t0Ms: _t0 }];
+            CD.attachAcqEvidence(n, {});
+            return n[0].acquisitionEvidence === undefined;
+          })()
+        );
+
+        // the panel renders the measured offset, and SUPPRESSES an unmeasured one — a "0 s" chip
+        // would claim an agreement nobody checked
+        if (env.CpapRender && typeof env.CpapRender.acqEvidencePanel === 'function') {
+          var _p1 = env.CpapRender.acqEvidencePanel(_ev('s6', _t0, { clock_offset: { offset_sec: -2520, measured_at_ms: 1, reference: 'host-stratum1', method: 'GetDateTime' } }));
+          T.ok('the panel names the offset DIRECTION and its reference', /device BEHIND by 2520 s vs host-stratum1/.test(_p1));
+          var _p2 = env.CpapRender.acqEvidencePanel(_ev('s7', _t0, { clock_offset: { offset_sec: null, measured_at_ms: null, reference: 'UNKNOWN', method: 'UNKNOWN' } }));
+          T.ok('an UNMEASURED offset draws no chip (absent is not "0 s")', !/Clock offset/.test(_p2));
+          T.ok('an absent envelope renders nothing at all', env.CpapRender.acqEvidencePanel(null) === '');
+        } else {
+          T.skip('CpapRender.acqEvidencePanel', 'render not wired in this lane');
+        }
+      } else {
+        T.skip('CpapDsp.attachAcqEvidence', 'Phase C reader not wired in this lane');
+      }
     });
 
     /* ════ CPAPDex pressureChangePoints — STEP-IMMUNE penalty scale (DEEP-AUDIT-II §6.1, PEN_K half) ════

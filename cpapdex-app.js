@@ -115,7 +115,10 @@ import { CpapRender } from './cpapdex-render.js';
     CURRENT = LOADED_NIGHTS[LOADED_NIGHTS.length - 1] || null; // latest night = detail focus
     if (!CURRENT) return;
     var history = LOADED_NIGHTS.length >= 2 && R.renderHistory ? R.renderHistory(LOADED_NIGHTS) : '';
-    host.innerHTML = history + R.renderNight(CURRENT);
+    // Phase C: the acquisition envelope for THIS night, when one was paired. Empty string when absent,
+    // so a drop with no sidecar renders byte-identically to before (contract §19).
+    var acq = R.acqEvidencePanel ? R.acqEvidencePanel(CURRENT.acquisitionEvidence) : '';
+    host.innerHTML = history + acq + R.renderNight(CURRENT);
     R.hydrate(host, CURRENT);
     if (history && R.hydrateHistory) R.hydrateHistory(host, LOADED_NIGHTS);
     if (global.MetricRegistry)
@@ -282,6 +285,8 @@ import { CpapRender } from './cpapdex-render.js';
         try {
           var strSummary = CpapDsp.parseStrSummary(global.CpapEdf.readEDF(strEntry.buf));
           if (strSummary.length) CpapDsp.attachStrSummary(nights, strSummary);
+          // Phase C: pair any acquisition-evidence sidecars to the nights they describe (by day).
+          if (global._cpapAcqEvidence) CpapDsp.attachAcqEvidence(nights, global._cpapAcqEvidence);
         } catch (errStr) {
           console.warn('STR.edf summary parse failed', errStr);
         }
@@ -469,6 +474,19 @@ import { CpapRender } from './cpapdex-render.js';
           } else {
             peerMsgs.push(f.name + ' (' + ((r && r.message) || 'not loadable') + ')');
           }
+          done();
+          return;
+        }
+        // ACQUISITION EVIDENCE sidecar (ACQ-EVIDENCE-CONTRACT Phase C, CPAP half). Stash by
+        // session_id; the pairing with each night runs after every file resolves, so drop order does
+        // not matter. READ-ONLY — it never gates or modifies any science (contract §4), and a drop
+        // with no sidecar behaves exactly as before (§19). Checked BEFORE the co-import fallthrough,
+        // which would otherwise report a perfectly good sidecar as "unrecognized".
+        if (parsed && parsed.acquisition_evidence && parsed.acquisition_evidence.session_id) {
+          var _ev = parsed.acquisition_evidence;
+          global._cpapAcqEvidence = global._cpapAcqEvidence || {};
+          global._cpapAcqEvidence[_ev.session_id] = _ev;
+          peerMsgs.push('acquisition evidence');
           done();
           return;
         }

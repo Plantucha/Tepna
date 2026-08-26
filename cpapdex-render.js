@@ -1302,6 +1302,48 @@ import { CpapDsp } from './cpapdex-dsp.js';
    FINDING, not aligned through. Every quoted number carries its n (overlap minutes).
    No Pearson r anywhere — scale regression + Bland-Altman only (brief).
    ════════════════════════════════════════════════════════════════════════ */
+  /* ACQUISITION EVIDENCE panel (ACQ-EVIDENCE-CONTRACT Phase C, CPAP half) — mirrors OxyDex's.
+     READ-ONLY and deliberately NOT badged: an evidence badge grades a physiological measurement, and
+     nothing here is one. These are acquisition facts (contract §4 — acquisition ⟂ science), so
+     badging them would assert a scientific tier over a transport statistic. */
+  function acqEvidencePanel(ev) {
+    if (!ev || typeof ev !== 'object') return '';
+    var UNK = 'UNKNOWN';
+    var v = ev.validation || UNK,
+      c = ev.completeness || UNK;
+    var cls = function (x, ok, bad) {
+      return x === ok ? 'good' : x === bad ? 'bad' : 'neutral';
+    };
+    var chip = function (label, val, k) {
+      return '<span class="acq-chip acq-' + k + '"><b>' + esc(label) + '</b> ' + esc(String(val)) + '</span>';
+    };
+    var h = '<div class="card">' + cardHead('Acquisition', 'what capture knows about this recording — not a physiological judgement');
+    h += '<div class="acq-panel">';
+    h += chip('Validation', v, cls(v, 'VALID', 'INVALID'));
+    h += chip('Completeness', c, cls(c, 'COMPLETE', 'PARTIAL'));
+    h += chip('Clock', ev.clock_status || UNK, ev.clock_status && ev.clock_status !== UNK ? 'good' : 'neutral');
+    /* The measured device-vs-reference offset (schema 1.1.0). Shown ONLY when actually measured — a
+       missing offset is not zero, and a "0 s" chip would claim an agreement nobody checked. The
+       provenance travels with it because an offset without when/against-what cannot be acted on. */
+    var off = ev.clock_offset;
+    if (off && off.offset_sec != null && isFinite(off.offset_sec)) {
+      var sign = off.offset_sec > 0 ? 'device AHEAD by ' : off.offset_sec < 0 ? 'device BEHIND by ' : 'agreed, ';
+      var txt = sign + Math.abs(off.offset_sec) + ' s vs ' + (off.reference || UNK) + ' (' + (off.method || UNK) + ')';
+      h += chip('Clock offset', txt, Math.abs(off.offset_sec) > 60 ? 'bad' : 'neutral');
+    }
+    if (ev.sample_count != null) {
+      var exp = ev.expected_sample_count;
+      h += chip('Samples', ev.sample_count + (exp != null && exp !== UNK ? ' / ' + exp + ' expected' : ' (expected ' + UNK + ')'), 'neutral');
+    }
+    /* Gap categories stay SEPARATE and are shown even at zero — a measured zero is a result ("we
+       counted, none happened"), and collapsing it away would make it indistinguishable from UNKNOWN. */
+    if (ev.transport_gaps !== undefined) h += chip('Transport gaps', ev.transport_gaps, ev.transport_gaps === 0 ? 'good' : ev.transport_gaps === UNK ? 'neutral' : 'bad');
+    if (ev.decode_gaps !== undefined) h += chip('Decode gaps', ev.decode_gaps, ev.decode_gaps === 0 ? 'good' : ev.decode_gaps === UNK ? 'neutral' : 'bad');
+    if (ev.source) h += '<span class="acq-src">source: ' + esc(String(ev.source)) + '</span>';
+    h += '</div></div>';
+    return h;
+  }
+
   function comparatorPanel(cmp, meta) {
     meta = meta || {};
     var liveL = esc(meta.liveLabel || 'BLE live');
@@ -1435,6 +1477,7 @@ import { CpapDsp } from './cpapdex-dsp.js';
     hydrateHistory: hydrateHistory,
     renderKPIs: renderKPIs,
     comparatorPanel: comparatorPanel,
+    acqEvidencePanel: acqEvidencePanel,
     drawScaleSpark: drawScaleSpark,
     residualCard: residualCard,
     pressureCard: pressureCard,
