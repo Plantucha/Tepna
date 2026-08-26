@@ -42,3 +42,15 @@ still listed automate-the-button as a live follow-up.
 ⚠️ Nothing here was refuted by a new experiment. Every number was already measured, in briefs written
 *after* the one that needed them — the answers existed where the next reader of this brief had no
 reason to look. That is the argument for reconciling briefs on a schedule rather than on suspicion.
+
+**`CAPTURE-HOST-FOLLOWUPS-II` (2026-07-16) — PROPOSED → IN-PROGRESS.** The header had stayed PROPOSED
+while the body recorded the opposite: §1 is titled *"ALL THREE EXECUTED 2026-07-18"*, §3 R1 is **DONE
+(verified 2026-07-18)**, §4.2 closed on its own "executed or re-homed" clause, and §5's clock/NTP work
+*"has since landed on `main`"*. Its Done-when — *"what remains before this brief can flip DONE:
+everything left is hardware-gated"* — has named the remaining work since 2026-07-18. Nothing is newly
+measured; the flip only makes the one-word status agree with the sentence below it. `DOCS-INDEX` row
+synced with the same correction.
+
+Note the shape shared with `POLAR-ONBOARD-BACKUP` above, in opposite directions: one brief read as
+flippable and was not, the other read as unflippable and was. Both are only decidable by reading the
+brief's own criteria against the code — the one-word status is the least reliable field on the page.
