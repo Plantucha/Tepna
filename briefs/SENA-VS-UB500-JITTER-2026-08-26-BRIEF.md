@@ -7,9 +7,9 @@
 the difference lives in the BODY of the delivery distribution (+~30 % IQR) and NOT in the tail
 (p99 +11 %, nowhere near the 1.5× band). The burst-delivery hypothesis fails its own test.**
 
-This is a **flag for a controlled comparison, not a radio measurement.** n=1 Sena night, three
-confounds, one of them landing directly on the flagged streams. Nothing here justifies a hardware
-decision on its own.
+This is a **flag for a controlled comparison, not a radio measurement.** n=1 Sena night, four
+confounds — one landing directly on the flagged streams, one checked and cleared (§6.4) that would
+otherwise have voided the result outright. Nothing here justifies a hardware decision on its own.
 
 ---
 
@@ -115,7 +115,7 @@ fitting one step removed. So:
 It still binds future data, which is most of the value. Calling it blind would have been a worse
 error than the weakness it names.
 
-## 6 · Confounds — three, and one lands on the flagged streams
+## 6 · Confounds — four; one lands on the flagged streams, one was fatal-if-present and was checked
 
 1. **n = 1 Sena night.** The single largest weakness.
 2. **Fresh H10 bond** — the H10 was re-bonded to the Sena on 2026-08-25, and the H10 is exactly what
@@ -124,6 +124,24 @@ error than the weakness it names.
    re-bonded device — but the O2Ring's estimator rests on the suspect axis in §7, so it corroborates
    **directionally only** and carries no weight.
 3. **Zephyr absent from the bus** — unplugged before this night, changing USB contention.
+4. **Leaked BLE discovery — CHECKED AND VERIFIED ABSENT from the window.** Listed because it would
+   have been **fatal, not merely confounding**. A leaked `Discovering` session consumes radio time
+   and inflates delivery jitter directly, so had one been running during 23:11→04:42 the Sena's
+   +30 % would be an artefact of **our own capture software**, not a property of the adapter, and
+   §3's entire finding would be void.
+   One **is** currently leaked on the Sena — `busctl … hci1 Adapter1 Discovering` read `true` on
+   10/10 samples over 91 s spanning a full 60 s retry cycle, including the gaps between attempts,
+   while `hci0` and `hci2` read `false`. But it began **after** the window:
+
+   | check | result |
+   |---|---|
+   | scan / link-error / reconnect lines during 23:11→04:42 | **0** |
+   | first line of the current scan era | **06:40:44** |
+
+   All three wearables were connected and streaming across the whole window; nothing scanned.
+   **The finding survives — but it survives because this was checked**, and the check is recorded
+   here rather than assumed. Any future night scored against §5 must re-run it: a night captured
+   under leaked discovery is not a measurement of an adapter.
 
 ## 7 · Defect found while doing this: `_device_axis_is_drawn` misses a quantized counter
 
@@ -179,3 +197,6 @@ PY
       `DRAWN_CONCENTRATION`; that re-admits a false positive on H10 ecg).
 - [ ] Verity baseline widened — 08-23 has no Verity rows in-window, so those baselines rest on
       2 nights, not 3.
+- [ ] **Every future night re-checks §6.4 before scoring** — `busctl get-property org.bluez
+      /org/bluez/hciN org.bluez.Adapter1 Discovering` must be `false`, sampled across a full retry
+      cycle rather than once. A single sample cannot separate a leaked session from a live scan.
