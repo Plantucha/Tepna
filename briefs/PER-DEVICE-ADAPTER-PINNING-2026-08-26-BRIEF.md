@@ -8,11 +8,15 @@
 cannot: **one process-wide `ADAPTER` global serves all three wearables at once**, so "put the ring on
 the UB500 and leave the Polars on the Sena" is not expressible in config — it is a code change.
 
-**Owner decision, taken 2026-08-26 before any code: the pin is a PREFERENCE (option A), not an
-absolute.** A wedged radio still migrates its devices; the pin says where they live in normal
-operation, and the log says when failover overrode it. The alternative — an absolute pin — was
-rejected on the grounds that *you can lose a night to a pin being obeyed too literally*, which is a
-worse failure than a night captured on the "wrong" radio.
+**Owner decision 1, taken 2026-08-26 before any code: the pin is a PREFERENCE, not an absolute** —
+a pin obeyed too literally can lose a night, which is worse than a night captured on the "wrong" radio.
+
+**Owner decision 2, same day, after the §4b experiment: ONE SYSTEMD INSTANCE PER ADAPTER
+(`tepna-capture@sena` / `@ub500` / `@intel`), and the runtime override machinery §3.3 originally
+specified is WITHDRAWN.** Those two decisions fit together rather than conflicting: the pin stays a
+preference, but the way a wedge is survived changes from *relocate the devices* to *restart that one
+adapter's instance*. §3.3b is the design; §3.3 records what was withdrawn and why, because the reason
+is the reusable part — **compensating machinery is what you build when recovery is expensive.**
 
 ---
 
@@ -69,18 +73,78 @@ Generalise `_resolve_cpap_adapter` into `resolve_adapter(spec)` and have the CPA
 there is **one** MAC→`hciN` resolver rather than two that can drift. Same contract: re-resolve on
 every connect, `None` on absence, and **log the fallback** — an absent pinned radio must be visible.
 
-### 3.3 Failover — option A, and the part that needs care
+### 3.3 ⚠️ SUPERSEDED — the override machinery is DELETED; systemd does this better
 
-`_set_active_adapter` currently moves *everything*. Under per-device pins it must become:
+**This section originally specified runtime failover machinery**: a per-device `failover_override`, a
+partial-failover walk that moved only the devices on a wedged radio, and clear-on-recovery. That is
+**withdrawn**, owner-agreed 2026-08-26 after §4b's experiment landed. Recorded rather than deleted
+because the reasoning is the useful part.
 
-- **`effective_adapter(dev)`** = `dev.failover_override or dev.adapter or ADAPTER`.
-- On a wedged radio, failover sets `failover_override` **only on the devices whose effective adapter
-  is the wedged one** — devices on a healthy radio are untouched. Today they would all be moved.
-- The override is **cleared when the pinned radio returns healthy**, so the preference reasserts
-  itself rather than silently persisting for the rest of the night.
-- 🔴 **Every override logs at WARNING with both radios named** — *"O2Ring: pinned AC:…:1D is wedged,
-  failing over to 00:…:02"*. A preference that is silently overridden is indistinguishable from a
-  preference that was never honoured, which is precisely the class of defect this suite keeps finding.
+**Why it was wrong: that machinery existed only because RECOVERY WAS EXPENSIVE.** With one daemon,
+clearing a wedge means restarting everything, so the design routed *around* a wedge instead of fixing
+it — compensating state, three new code paths, and a bug found in its first twenty lines (the global
+was moved alongside the overrides, so an unpinned device relocated twice and clearing its override
+restored it to the SPARE, not its pin — a failover that silently became permanent).
+
+**Make recovery cheap and isolated and the whole apparatus is unnecessary.**
+
+### 3.3b THE ARCHITECTURE — one systemd instance per adapter
+
+```
+tepna-capture@sena.service     ← the devices pinned to the Sena
+tepna-capture@ub500.service    ← the devices pinned to the UB500
+tepna-capture@intel.service    ← the devices pinned to the Intel
+```
+
+**The supervision already exists and was built for exactly this failure.** The live unit carries:
+
+```
+Restart=always     RestartSec=5     WatchdogSec=120     StartLimitIntervalSec=0
+```
+
+and its own comment says why: *"WatchdogSec turns the box's signature HUNG-BUT-ALIVE failure (a wedged
+BLE stack that captures nothing while the process keeps running) into an automatic kill+restart."*
+
+So the recovery path becomes: **a wedged adapter trips ITS instance's watchdog → systemd kills and
+restarts only that instance → the leak clears → the other radios never notice.** And that recovery is
+the one §4b PROVED works — process exit is the only thing that releases a leaked BlueZ discovery,
+because BlueZ refcounts discovery per D-Bus client connection and a process is what owns one.
+
+Nothing hand-rolled: no override map, no partial-failover walk, no clear-on-recovery, no cross-process
+migration. The mechanism that already recovers a wedge simply stops being all-or-nothing.
+
+**What per-device pinning becomes: a PARTITION KEY, not runtime state.** Each instance filters the
+device list to its own adapter and serves only those. Static config, ~30 lines, no override precedence
+to get wrong — against ~250 lines and a new state machine for the withdrawn design.
+
+```yaml
+adapters:                              # NEW — instance name -> radio MAC
+  sena:  00:01:95:CC:53:02
+  ub500: AC:A7:F1:29:9D:1D
+  intel: F0:D5:BF:1E:79:21
+devices:
+  - name: Wellue O2Ring-S
+    adapter: ub500                     # an instance name, or a bare MAC
+```
+
+The MAC indirection is load-bearing for the same reason as everywhere else in this file: `hciN`
+re-enumerates, a MAC does not.
+
+**What is deliberately GIVEN UP: cross-adapter failover.** Today a wedged radio migrates its devices
+to a healthy one. Under the split, a wedged instance restarts on its own radio instead. That is an
+acceptable trade **because the reason failover was built has gone** — it exists (VIGIL-OVERNIGHT-FINDINGS
+P1.5) because a wedge meant ~110 minutes of blind total loss, and a five-second targeted restart is a
+far better answer to that than relocating devices onto a radio their bonds are not on. If a radio is
+dead rather than wedged, that is an operator event, not something to paper over at 03:00.
+
+⚠️ **THE REAL COST, and it is the actual work: SHARED STATE.** `status.json`, the monitor, `nightqc`
+and the nightly summary are single-process today. Three instances need a merge — a per-instance status
+file plus a reader that unions them, or a small store with locking. This is the part to design
+carefully; it is *clearer* than override semantics but it is not smaller.
+
+⚠️ **What the split still does NOT isolate:** `bluetoothd` is a single shared daemon and the leak was
+BlueZ state. Separate processes bound the blast radius of the REMEDY; they do not make one adapter's
+fault stop being a BlueZ-level fault. Do not oversell them.
 
 ### 3.4 Bonding — the cost that must be surfaced, not discovered
 
@@ -124,8 +188,14 @@ This is not a footnote: a fresh H10 bond is an active confound on the 2026-08-25
 - [ ] Optional per-device `adapter:` parsed; absent ⇒ inherits the global; **an existing config's
       behaviour is byte-identical** (gate-asserted, not asserted in prose).
 - [ ] All five bonding call sites take the device's effective adapter.
-- [ ] Failover moves **only** the devices on the wedged radio, logs every override naming both
-      radios, and **clears the override when the pinned radio recovers**.
+- [ ] `tepna-capture@.service` template; one enabled instance per adapter in use.
+- [ ] `adapters:` name→MAC map parsed; each instance serves ONLY the devices whose `adapter:` resolves
+      to its own radio, and **logs the device list it owns at startup** (an instance silently serving
+      nothing must not look like an instance working).
+- [ ] A wedged instance exits/trips its watchdog and is restarted by systemd **without** the other
+      instances losing a link — verified by wedging one radio and watching the others keep streaming.
+- [ ] Shared-state merge: per-instance status, unioned for the monitor/QC, with a stale-instance marker
+      so a DEAD instance is visibly dead rather than silently absent from the union.
 - [ ] `STATUS` exposes `adapter_pinned` + `adapter_effective` per device; monitor renders the
       effective one.
 - [ ] Startup logs any pinned device **not yet bonded on its pinned adapter**.
