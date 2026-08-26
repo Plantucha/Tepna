@@ -5526,7 +5526,26 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
         bus, connect, lambda: _load_as11_creds(creds_path), lambda: STATUS.get("devices", {}),
         edf_sink_factory=edf_sink_factory, raw_record_factory=raw_record_factory,
         acq_evidence_out=acq_evidence_out,
+        therapy_end_factory=_therapy_end_factory(cbs),
         coexistence_gate=bool(cbs.get("coexistence_gate", False)))
+
+
+def _therapy_end_factory(cbs):
+    """ACTING: `(should_stop) -> TherapyEndSink`, or None when `cpap.ble_stream.auto_stop` is off.
+
+    Config-gated because this is the first thing in the CPAP path that ACTS rather than observes. The
+    hold defaults to 120 s: a genuine apnea is silent too, so a shorter hold truncates a night mid-sleep
+    and the loss looks like a clean shutdown. Raise it, never lower it, without a real flow trace."""
+    import cpap_stream  # function-local, like every other CPAP import in this module (a module-level
+    # reference here NameErrors only when acting is enabled — i.e. exactly in production, never in a
+    # default-off test run). Caught by test_therapy_end_factory_builds_a_sink_with_the_configured_hold.
+    ac = cbs.get("auto_stop") or {}
+    if not ac.get("enabled"):
+        return None
+    eps = float(ac.get("flow_eps_lpm", 0.5))
+    hold = float(ac.get("hold_sec", 120.0))
+    log.info("CPAP auto-stop ARMED — stream ends after |flow| <= %.2f L/min for %.0f s", eps, hold)
+    return lambda stop_ev: cpap_stream.TherapyEndSink(stop_ev, flow_eps=eps, hold_s=hold)
 
 
 def _cpap_acq_evidence_writer():
@@ -5545,6 +5564,32 @@ def _cpap_acq_evidence_writer():
         except OSError:
             log.exception("CPAP acquisition-evidence sidecar write failed for %s", path)
     return _write
+
+
+def _publish_therapy_state(decision, _anchor):
+    """Surface the detector's view of the MACHINE into STATUS['cpap'] so the monitor can say whether
+    THERAPY is running — a question the card could not previously answer.
+
+    Why it was needed: the CPAP card showed `active=true, effFs=25.0, health=good` whether or not the
+    owner was breathing on the machine, because those measure PACKET ARRIVAL, not therapy — the AS11
+    keeps emitting 25 Hz frames of zeros in standby (measured 2026-08-25: flow -0.01 L/min, pressure
+    0.4 cmH₂O). And `cpap.state` reads "idle" throughout because that field belongs to the SD-HARVEST
+    job, not the live stream. Two honest fields, both misread as one dishonest answer.
+
+    ⚠️ `therapy` is None, never False, while the detector cannot see the machine — the shadow poll
+    defers entirely during streaming, so "no reading" is the common case and must not render as
+    "not in therapy" (§2.6: a missing observation is visible, never a fabricated negative)."""
+    import cpap_supervisor  # function-local: the module import lives inside _maybe_start_as11_shadow,
+    # so a module-level reference here would NameError on the first poll — invisible until it fires.
+    ev = getattr(decision, "evidence", None) or {}
+    st = STATUS.setdefault("cpap", {})
+    # `evidence["fg_state"]` is the enum's VALUE ("Therapy"/"Standby"), not its NAME — comparing against
+    # "THERAPY" here would never match and would report every therapy session as standby.
+    fg = ev.get("fg_state")
+    st["fg_state"] = fg if fg is None else str(fg)
+    st["therapy"] = None if not ev.get("reachable") else (st["fg_state"] == cpap_supervisor.TherapyState.THERAPY.value)
+    st["session"] = getattr(getattr(decision, "state", None), "name", None)
+    st["detector_host_ms"] = getattr(decision, "host_ms", None)
 
 
 def _maybe_start_as11_shadow(cfg, config_path, root, cpap_ctl, tasks, *,
@@ -5581,12 +5626,38 @@ def _maybe_start_as11_shadow(cfg, config_path, root, cpap_ctl, tasks, *,
         is_capturing=cpap_ctl._running,
         session_writer=cpap_shadow_runner.SessionSidecar(os.path.join(root, "SESSIONDETECT.csv")),
         clock_writer=as11_clock.ClockSidecar(os.path.join(root, "AS11CLOCK.csv")),
-        host_epoch=_time.time, sleep=asyncio.sleep, poll_interval_s=interval, should_stop=_STOP.is_set))
+        host_epoch=_time.time, sleep=asyncio.sleep, poll_interval_s=interval, should_stop=_STOP.is_set,
+        on_cycle=_publish_therapy_state))
     TASK_LABELS[id(task)] = "AS11 shadow detector"
     tasks.append(task)
     log.info("AS11 session detector: SHADOW enabled on %s (poll %ss) → SESSIONDETECT.csv + AS11CLOCK.csv",
              hci, interval)
     return task
+
+
+def _looks_like_mac(s) -> bool:
+    return isinstance(s, str) and len(s) == 17 and s.count(":") == 5
+
+
+async def _resolve_cpap_adapter(spec):
+    """`cpap.ble_stream.adapter` may be an hciN NAME **or a MAC** → always returns an hciN for bleak.
+
+    WHY THIS EXISTS: bleak pins by BlueZ adapter NAME (`bluez={"adapter": "hciN"}`), but hciN
+    RE-ENUMERATES. Measured 2026-08-25: one reboot moved the Sena from hci3 to hci1 and the Intel from
+    hci1 to hci2, so a config that said `hci1` silently changed which physical radio served the CPAP.
+    Capture never had this problem because it pins by MAC and resolves itself; this gives the CPAP path
+    the same property. A MAC is stable, so the config states the RADIO and the index is looked up.
+
+    Resolved on EVERY connect with `refresh=True` — never cached — so a renumber (or a controller
+    power-cycle) self-heals at the next reconnect with no restart and no terminal. If the MAC is not
+    present the caller gets None, i.e. BlueZ's default adapter, and the reason is logged: an ABSENT
+    radio must not silently masquerade as a working pin."""
+    if not _looks_like_mac(spec):
+        return spec                                   # already an hciN name (or None) — unchanged
+    hci = await link_rssi.resolve_hci(spec, refresh=True)
+    if hci is None:
+        log.warning("CPAP adapter %s is not present on this box — falling back to the BlueZ default", spec)
+    return hci
 
 
 async def _cpap_ble_connect(ble_addr: str, hci: str | None):
@@ -5597,6 +5668,7 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None):
     Mirrors the operator probe's transport verbatim so the two cannot drift."""
     import as11_link as _L
     from bleak import BleakClient as _BC
+    hci = await _resolve_cpap_adapter(hci)   # MAC → current hciN, re-read every connect (see above)
     client = _BC(ble_addr, timeout=20, **({"bluez": {"adapter": hci}} if hci else {}))
     await client.connect()
     rx = bytearray()
@@ -5612,7 +5684,21 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None):
             rx[:] = rest
             q.put_nowait((vcid, payload))
 
-    await client.start_notify(_L.GATT_RX, _on_notify)
+    # LEAK GUARD. Everything between `client.connect()` and the RETURN below runs with the BLE link
+    # ALREADY OPEN, and the caller's try/finally cannot cover it — the caller has not received the
+    # `disconnect` callable yet. A raise here therefore leaks the link, and the consequence is not a
+    # lost cycle but a PERMANENT wedge: a connected peripheral stops advertising, so every later poll
+    # fails `BleakDeviceNotFoundError` forever. Measured on the box 2026-08-25 — the AS11 detector
+    # went dead for 27 minutes and only a manual `bluetoothctl disconnect` revived it.
+    # ⚠️ #1770's broad `except` in run_shadow_loop makes this WORSE, not better: it faithfully retries
+    # a link that can never succeed while the leak persists. A retry loop around a leaked resource
+    # converts a transient failure into a permanent one.
+    try:
+        await client.start_notify(_L.GATT_RX, _on_notify)
+    except BaseException:
+        with contextlib.suppress(Exception):
+            await client.disconnect()
+        raise
     mtu = getattr(client, "mtu_size", 23) or 23
     step = max(20, mtu - 3)
 

@@ -69,6 +69,59 @@ def gate(status_devices, *, enabled=True) -> str | None:
     return None
 
 
+class TherapyEndSink:
+    """ACTING: end the live stream once the machine stops delivering therapy. A sink, so it rides the
+    ONE ingestion seam beside the EDF and raw-record sinks — no second stream, no second link.
+
+    ⚠️ WHY NOT THE SESSION DETECTOR, which is the obvious answer and is WRONG: the AS11 accepts ONE
+    connection, so `run_shadow_loop` defers entirely while the controller streams (`is_capturing`).
+    The detector is therefore structurally BLIND exactly when a stop would need detecting — it can
+    open a session but can never close one. The flow channel is already arriving, costs nothing, and
+    is the only observer present during therapy. (Measured 2026-08-25: with the machine stopped, flow
+    sat flat at -0.01 L/min and pressure at 0.4 cmH₂O, while real breathing swings tens of L/min.)
+
+    A stop is |flow| <= `flow_eps` for `hold_s` CONTINUOUS seconds, timed from SAMPLE COUNT at the
+    stream's own rate rather than wall clock, so a stalled link cannot age the timer while no data
+    arrives — a dropped link must not read as "therapy ended".
+    ⚠️ `hold_s` is deliberately LONG (default 120 s). A genuine apnea is also silent, and a breath
+    hold or a mask-off pause is silent; ending a night's recording on a 10-second quiet spell is a
+    far worse failure than stopping late. Never tune this below the longest apnea worth recording.
+    """
+
+    def __init__(self, should_stop, *, flow_eps=0.5, hold_s=120.0, on_end=None):
+        self._should_stop = should_stop
+        self._flow_eps = float(flow_eps)
+        self._hold_s = float(hold_s)
+        self._on_end = on_end
+        self._fs = 25.0
+        self._quiet = 0                                  # consecutive near-zero flow SAMPLES
+        self.fired = False
+
+    def open(self, _channels, fs):
+        if isinstance(fs, (int, float)) and fs > 0:
+            self._fs = float(fs)
+
+    def on_batch(self, batch):
+        if self.fired:
+            return
+        flow = (batch.get("channels") or {}).get("PatientFlow") or []
+        for v in flow:
+            if isinstance(v, (int, float)) and abs(v) <= self._flow_eps:
+                self._quiet += 1
+            else:
+                self._quiet = 0                          # ANY real breath resets the hold
+        if self._quiet >= self._hold_s * self._fs:
+            self.fired = True
+            _log.info("CPAP therapy end detected — flow |x| <= %.2f for %.0f s; stopping the stream",
+                      self._flow_eps, self._hold_s)
+            if self._on_end is not None:
+                self._on_end()
+            self._should_stop.set()                      # the same cooperative stop the button uses
+
+    def close(self):
+        return None
+
+
 async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
                         channels=None, extra_sinks=None, sample_interval_ms=40,
                         cipher_factory=as11_cipher.make_cipher, max_batches=None, should_stop=None,
@@ -197,7 +250,7 @@ class LiveStreamController:
 
     def __init__(self, bus, connect, load_creds, devices, *, channels=None, pump=stream_to_bus,
                  edf_sink_factory=None, raw_record_factory=None, coexistence_gate=False,
-                 acq_evidence_out=None):
+                 acq_evidence_out=None, therapy_end_factory=None):
         self._bus = bus
         self._connect = connect
         self._load_creds = load_creds
@@ -218,6 +271,9 @@ class LiveStreamController:
         # execution witness. None (the default) keeps the prior behaviour exactly, so every existing
         # controller and injected test pump is unaffected.
         self._acq_evidence_out = acq_evidence_out
+        # (should_stop_event) -> a fresh TherapyEndSink for this session, or None for NO acting. Default
+        # None keeps every existing controller and test bus-only and non-acting.
+        self._therapy_end_factory = therapy_end_factory
         self._task = None
         self._stop = None
         self._disconnect = None
@@ -268,8 +324,15 @@ class LiveStreamController:
         # see the kwarg. The pump writes every sink BEFORE the bus push (INV9), so order here is only the
         # order among sinks, not durable-vs-bus.
         _factories = [f for f in (self._raw_record_factory, self._edf_sink_factory) if f is not None]
-        if _factories:
-            kw["extra_sinks"] = [f() for f in _factories]
+        _sinks = [f() for f in _factories]
+        # ACTING (therapy-end auto-stop). LAST in the list on purpose: the sinks ahead of it persist this
+        # batch BEFORE it can set `should_stop`, so the batch that triggers the stop is still written. It
+        # sets the SAME cooperative event the monitor's stop button uses, so the pump drains and every
+        # sink closes normally — the EDF is finalized, never truncated. None ⇒ acting OFF, prior behaviour.
+        if self._therapy_end_factory is not None:
+            _sinks.append(self._therapy_end_factory(self._stop))
+        if _sinks:
+            kw["extra_sinks"] = _sinks
         if self._acq_evidence_out is not None:
             kw["acq_evidence_out"] = self._acq_evidence_out
         self._task = asyncio.create_task(self._pump(

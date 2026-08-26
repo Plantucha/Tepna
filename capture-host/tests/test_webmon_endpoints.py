@@ -38,6 +38,22 @@ def test_index_serves_the_monitor_page(tmp_path):
     assert status == 200 and "Tepna Vigil" in body
 
 
+def test_index_is_served_no_cache(tmp_path):
+    """The monitor is the operator's window onto a LIVE capture, so a stale copy is a WRONG ANSWER about
+    whether tonight is recording — not a cosmetic issue. Measured 2026-08-25: after a box reboot the
+    owner's tab showed an EMPTY stream grid while 15 streams were live; the page's boot had died on a
+    rejected first fetch, and a soft refresh did not reliably pick up the repaired script because
+    Etag/Last-Modified alone let the browser reuse the cached HTML heuristically. Re-fetching ~190 KB
+    over the LAN costs nothing that matters; being unable to trust the page costs the night."""
+    app, *_ = _mk(tmp_path)
+    async def go(c):
+        r = await c.get("/")
+        return r.status, r.headers.get("Cache-Control", "")
+    status, cc = _serve(app, go)
+    assert status == 200
+    assert "no-cache" in cc, f"monitor.html must not be heuristically cached; got {cc!r}"
+
+
 def test_scan_bond_forget(tmp_path, monkeypatch):
     async def fake_scan(*a, **k):
         return [bonding.Found("11:22:33:44:55:66", "Polar H10", rssi=-50, health=True)]
