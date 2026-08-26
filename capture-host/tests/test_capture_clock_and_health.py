@@ -564,6 +564,44 @@ def test_parse_hciconfig_empty_input_is_empty():
     assert capture.parse_hciconfig("") == []
 
 
+# REAL output, copied from the Zephyr/nRF52840 dongle (USB 2fe3:000b) on 2026-08-26. Not synthesised:
+# that firmware has no PUBLIC address (Zephyr identifies by static-random; a host-side public pin is
+# refused with 0x0c Not Supported), so `hciconfig` — the layer parse_hciconfig reads — prints zeros.
+_HCICONFIG_NULL_ADDR = """hci1:\tType: Primary  Bus: USB
+\tBD Address: 00:00:00:00:00:00  ACL MTU: 251:6  SCO MTU: 0:0
+\tUP RUNNING\x20
+\tName: 'zephyr'
+"""
+
+
+def test_parse_hciconfig_drops_the_null_bd_address():
+    """17 chars and 5 colons — it passes the SHAPE test, which is exactly why it needed its own guard."""
+    assert capture.parse_hciconfig(_HCICONFIG_NULL_ADDR) == []
+
+
+def test_parse_hciconfig_drops_the_broadcast_bd_address():
+    text = "hci4:\tType: Primary\n\tBD Address: FF:FF:FF:FF:FF:FF\n\tUP RUNNING\n"
+    assert capture.parse_hciconfig(text) == []
+
+
+def test_failover_target_never_picks_the_null_address_adapter():
+    """THE POINT OF THE FIX. Before it, a wedged radio failed over onto an address no device can be
+    reached on — silence dressed as recovery, and worse than staying on the wedged adapter."""
+    text = _HCICONFIG_NULL_ADDR + """
+hci0:\tType: Primary  Bus: USB
+\tBD Address: AC:A7:F1:29:9D:1D  ACL MTU: 1021:6  SCO MTU: 255:12
+\tUP RUNNING\x20
+"""
+    adapters = capture.parse_hciconfig(text)
+    # the null-address dongle is FIRST in hciconfig order, so an unguarded scan returns it
+    assert [a["mac"] for a in adapters] == ["AC:A7:F1:29:9D:1D"]
+    assert capture.failover_target("00:01:95:CC:53:02", adapters) == "AC:A7:F1:29:9D:1D"
+
+
+def test_addressable_accepts_an_ordinary_address():
+    assert capture._addressable("f0:d5:bf:1e:79:21") is True
+
+
 def test_failover_target_picks_a_healthy_spare():
     adapters = capture.parse_hciconfig(_HCICONFIG_A)
     # pinned = the wedged dongle hci0 → fail over to hci1
