@@ -112,7 +112,26 @@ const DEFAULT_FLEET = [
   'ecgdex-cross.js',
   'oxydex-cross.js',
   'ppgdex-cross.js',
-  'pulsedex-cross.js'
+  'pulsedex-cross.js',
+  /* PHASE 2b — the remainder of MUTATION-FLEET-EXPANSION §2's measured twenty (2026-08-26): the
+     nine registries, the shared metric-registry, the co-load trio and cpapdex-fusion. Per §2a's
+     recipe survey all expose handles and load standalone; cpapdex-fusion is the ONE file where an
+     incomplete realm can FALSE-KILL (it guards with `typeof X !== 'undefined'`) — its kills are not
+     trusted until the realm-completeness check in that survey row is honoured. oxydex-fusion is
+     DELIBERATELY absent: §2a reclassified it to Phase 3 (DOM-coupled page-scope render file). */
+  'cpapdex-registry.js',
+  'ecgdex-registry.js',
+  'glucodex-registry.js',
+  'hrvdex-registry.js',
+  'motiondex-registry.js',
+  'oxydex-registry.js',
+  'ppgdex-registry.js',
+  'pulsedex-registry.js',
+  'metric-registry.js',
+  'cpapdex-coimport.js',
+  'crossnight-envelope.js',
+  'dex-coload.js',
+  'cpapdex-fusion.js'
 ];
 
 const log = (s) => process.stderr.write('  ' + s + '\n');
