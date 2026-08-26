@@ -14,6 +14,7 @@ seam (ARMED → TRIGGERED → SIDE EFFECT → ARTIFACT → ACQUISITION EVIDENCE)
 assembler directly — including on the interrupted path, which is when it matters most.
 """
 import asyncio
+import logging
 import collections
 import json
 
@@ -828,3 +829,67 @@ def test_the_pump_actually_passes_the_start_through(monkeypatch):
 
     assert got[0].start_time_ms == w.device_stamp_to_tms("2026-08-23T01:30:28.730Z")
     assert got[0].start_time_ms is not None, "the envelope must leave the pump JOINABLE"
+
+
+def test_the_start_conversion_yields_an_ABSOLUTE_ms_value():
+    """Every other test here compares two outputs of the SAME function, so a uniform scaling error
+    (`* 1000` → `/ 1000`, or `* 1001`) passes them all — the relationship survives while the value is
+    wrong. Only an absolute known-answer catches that, so this pins one stamp to its exact epoch ms."""
+    import calendar
+
+    import cpap_edf_writer as w
+
+    # a stamp with no zone is already floating local civil, so its tMs is timegm of the components
+    expect = calendar.timegm((2026, 8, 23, 1, 30, 28, 0, 0, 0)) * 1000.0
+    got = w.device_stamp_to_tms("2026-08-23 01:30:28")
+    assert got == expect
+    assert got == 1787448628000.0, "an exact epoch-ms known answer — not a relationship between outputs"
+    assert got > 1e12, "milliseconds, not seconds — a /1000 slip lands near 1.79e9 and still 'looks like' a time"
+
+
+def test_the_record_header_carries_the_provenance_it_was_given(tmp_path):
+    """`self._provenance = provenance` mutated to None survived — nothing read the header back."""
+    p = tmp_path / "rec.jsonl"
+    sink = cpap_record.RawRecordSink(str(p), device_id="AS11-01", session_id="s1",
+                                     provenance={"unit": "cpap_stream", "wiring": "P1+P3"},
+                                     wall=lambda: "2026-08-25T00:00:00Z")
+    sink.open({}, 25.0)
+    sink.close()
+    header = json.loads(p.read_text().splitlines()[0])
+    assert header["provenance"] == {"unit": "cpap_stream", "wiring": "P1+P3"}
+    assert header["session_id"] == "s1" and header["device_id"] == "AS11-01"
+
+
+class _RawAndPath(_FakeRaw):
+    """A sink with BOTH `path` and `acq_facts` — the discriminating shape for the EDF picker, which
+    must select the sink that is NOT the raw record. With `and` → `or` this one would be mistaken for
+    the EDF and its path reported as the derived artifact."""
+
+    path = "/tmp/not-the-edf"
+
+
+def test_the_edf_picker_excludes_the_raw_record_even_when_it_exposes_a_path():
+    got = []
+    dev = _FakeDev(_handshake() + [_ack(), _data()])
+    asyncio.run(CS.stream_to_bus(_FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                                cipher_factory=_identity_factory, max_batches=1,
+                                extra_sinks=[_RawAndPath(), _FakeEdf()], acq_evidence_out=got.append))
+    assert len(got) == 1
+    assert got[0].provenance["edf_artifact"] == "/tmp/night/x_BRP.edf", "the RAW record is never the EDF"
+
+
+def test_no_raw_sink_returns_CLEANLY_rather_than_raising_into_the_handler(caplog):
+    """`next(…, None)` mutated to drop the default survived: with no raw sink it raises StopIteration,
+    the blanket handler swallows it, and the observable result — no envelope — is identical. The
+    difference is that one path is a clean early return and the other is a caught crash that logs an
+    exception every session. Asserting the LOG distinguishes them; asserting the envelope cannot."""
+    got = []
+    dev = _FakeDev(_handshake() + [_ack(), _data()])
+    with caplog.at_level(logging.ERROR, logger="tepna.cpap"):
+        asyncio.run(CS.stream_to_bus(_FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                                    cipher_factory=_identity_factory, max_batches=1,
+                                    extra_sinks=[_FakeEdf()], acq_evidence_out=got.append))
+    assert got == [], "no raw record ⇒ no envelope"
+    assert not [r for r in caplog.records if "acquisition-evidence emit failed" in r.message], (
+        "a missing raw sink is an expected shape, not a failure to log — it must return, not raise"
+    )
