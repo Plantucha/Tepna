@@ -238,6 +238,29 @@ export function resultString(fn, args, ctx = null) {
       v = fn.apply(null, args);
     }
     if (v === undefined) return 'undefined';
+    /* ⚠️ A THENABLE IS NOT A VALUE, AND ITS REJECTION WILL KILL THE DRIVER IF IGNORED. The try/catch
+       around this call only covers the SYNCHRONOUS throw; an async function returns a promise, so the
+       call succeeds, `JSON.stringify` renders it as `{}`, and the rejection surfaces later as an
+       UNHANDLED REJECTION that takes the whole process down. Measured 2026-08-26: the ppgdex probe
+       died at `detectChannelsAsync` (ppgdex-dsp.js:4455) and, being deterministic, resumed to the same
+       survivor and died again — 350 of 406 answered, run stuck.
+
+       Attaching a no-op catch neutralises it. The marker is DISTINCT rather than folded into an
+       existing string, per the 2026-08-24 `verdictFor` lesson: a state that means "we could not look"
+       must not be spelled the same as one that means "we looked and they matched".
+
+       ⚠️ KNOWN LIMITATION, stated rather than hidden: two async results compare EQUAL under this
+       marker, so a mutant distinguishable only by its resolved value reads as not-distinguishing.
+       That is a FALSE NEGATIVE — a missed kill, never a fabricated one — and it is the honest answer
+       for a synchronous wrapper that cannot await. Awaiting would need `resultString` and every
+       caller to become async, which is a larger change than this defect justifies. */
+    if (v && (typeof v === 'object' || typeof v === 'function') && typeof v.then === 'function') {
+      Promise.resolve(v).then(
+        () => {},
+        () => {}
+      );
+      return 'ASYNC:result is a promise — not comparable without awaiting';
+    }
     try {
       return JSON.stringify(v);
     } catch {
@@ -259,6 +282,9 @@ export function verdictFor(origStr, mutStr) {
   /* Same rule for a hang: "the real code does not terminate on this input" is not assertable, so an
      input that wedges the ORIGINAL is not a distinguishing input — it is a finding about the probe. */
   if (/^TIMEOUT/.test(origStr)) return { kill: false, why: 'the REAL code does not terminate on this input — a hang is not an assertable contract' };
+  /* Same shape once more: an input whose REAL result we could not observe is not a distinguishing
+     input. It is a statement about the wrapper, not about the code — so it must never read as a kill. */
+  if (/^ASYNC/.test(origStr)) return { kill: false, why: 'the REAL code returns a promise — this wrapper cannot await, so nothing was observed' };
   /* Both-threw needs no branch: the orig-THREW guard above already returned, so reaching this line
      means the REAL code was clean. (There was a `both threw` test here; it was dead code — orig
      throwing returns two lines earlier, so its second conjunct could never be true.) */
@@ -756,6 +782,27 @@ function selftest() {
   ck('extracts a declaration with balanced braces', /return a;/.test(functionSource(src, 'foo')), true);
   ck('…and stops at its own end', /function bar/.test(functionSource(src, 'foo')), false);
   ck('an absent function is null, not an empty string', functionSource(src, 'nope'), null);
+
+  /* THE REALM WRAPPER MUST SURVIVE ANY BEHAVIOUR OF THE CODE UNDER TEST (2026-08-26). Three defects
+     in one morning were one class: a throw, an unhandled rejection, and a browser-API reach each took
+     a driver down instead of being classified. */
+  ck('async · a promise result is its OWN state, not a rendered {}', /^ASYNC/.test(resultString(() => Promise.resolve(1))), true);
+  ck('async · a REJECTING real does not escape as an unhandled rejection', /^ASYNC/.test(resultString(() => Promise.reject(new Error('boom')))), true);
+  ck('async · an unobservable real is NOT a distinguishing input', verdictFor('ASYNC:result is a promise — not comparable without awaiting', '42').kill, false);
+  ck(
+    'async · a plain object with no .then is still serialised normally',
+    resultString(() => ({ a: 1 })),
+    '{"a":1}'
+  );
+  ck(
+    'async · a sync throw is still classified THREW, not ASYNC',
+    /^THREW/.test(
+      resultString(() => {
+        throw new Error('x');
+      })
+    ),
+    true
+  );
 
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all ' + ran + ' selftests passed');
   return fail ? 1 : 0;
