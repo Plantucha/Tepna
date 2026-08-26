@@ -2869,7 +2869,25 @@ function analyze(){
 }
 
 // ── boot ──
-loadState().then(()=>{ showView('overview'); setInterval(loadState, 5000); setInterval(analyze, 900); });
+// RETRY THE FIRST LOAD, OR THE PAGE DIES SILENTLY FOR GOOD.
+// This used to be a bare `loadState().then(...)`. If that FIRST fetch rejected — the box rebooting, wifi
+// dropping, the daemon restarting — the `.then()` never ran, so `showView()` never fired AND the 5 s
+// refresh interval was never created. The page then sat there forever showing an empty "Live streams"
+// section, with no retry and no error: indistinguishable from "nothing is capturing".
+// Measured 2026-08-25: after a 22:21 reboot the owner's open tab showed an empty page while the box was
+// recording 15 active streams. The header clock kept ticking (its own unconditional setInterval), which
+// makes a DEAD page look ALIVE — the worst version of this failure.
+// So: retry until the first load succeeds, and surface the waiting state instead of a blank grid.
+(function boot(){
+  loadState()
+    .then(()=>{ showView('overview'); setInterval(loadState, 5000); setInterval(analyze, 900); })
+    .catch((e)=>{                       // box down / restarting / network blip — keep trying, and SAY SO
+      const t = document.getElementById('streamgrid') || document.body;
+      if (t) t.setAttribute('data-conn', 'reconnecting');
+      console.warn('monitor: initial load failed, retrying —', e);
+      setTimeout(boot, 2000);
+    });
+})();
 </script>
 </body>
 </html>

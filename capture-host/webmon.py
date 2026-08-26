@@ -258,7 +258,15 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         return out
 
     async def index(_req):
-        return web.FileResponse(os.path.join(_HERE, "monitor.html"))
+        # NO-CACHE, deliberately. The page is the OPERATOR'S WINDOW ONTO A LIVE CAPTURE, and a stale copy
+        # of it is not a cosmetic problem — it is a wrong answer about whether tonight is recording.
+        # Measured 2026-08-25: after a box reboot the owner's tab showed an empty stream grid while 15
+        # streams were live, and a soft refresh did not necessarily fetch the repaired script (Etag +
+        # Last-Modified alone let mobile Chrome reuse the cached HTML heuristically). The page is ~190 KB
+        # on a LAN, served by the same box that is capturing — re-fetching it costs nothing that matters,
+        # and being able to trust what it shows costs everything.
+        return web.FileResponse(os.path.join(_HERE, "monitor.html"),
+                                headers={"Cache-Control": "no-cache, must-revalidate"})
 
     async def state(_req):
         return web.json_response({
