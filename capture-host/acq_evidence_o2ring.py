@@ -126,3 +126,86 @@ def assemble_dat(
             "attempt": inventory_row.get("attempt"),
         },
     )
+
+def assemble_live(
+    *,
+    device_id: str | None,
+    session_id: str | None,
+    artifact_path: str | None,
+    artifact_rows: int | None,
+    start_time_ms: float | None = None,
+    clock_status: str = ae.UNKNOWN,
+    clock_offset=None,
+    device_state: str | None = None,
+    stopped_cleanly: bool | None = None,
+    ppg_grid: dict | None = None,
+    ppg_ledger: dict | None = None,
+) -> ae.AcquisitionEvidence:
+    """Normalize a LIVE O2Ring session (the OXYFRAME/BLE path) into an `AcquisitionEvidence`.
+
+    Spec §10 requires BOTH O2Ring paths and forbids merging them into one indistinguishable source —
+    this is the live half, `assemble_dat` is the stored half, and they differ in `source` so a reader
+    can always tell which one produced a night.
+
+    ⚠️ THE GAP FIELDS ARE DELIBERATELY UNKNOWN, and that is a correctness decision rather than a gap in
+    this function. The live path DOES carry rich gap accounting — but it belongs to the **PPG stream**
+    (`O2PpgGrid`/`O2PpgFrameLedger`), while the artifact this envelope describes is the **1 Hz SpO2
+    CSV**, a DIFFERENT stream from the same device. Reporting PPG grid gaps as this artifact's
+    `transport_gaps` would attribute one stream's losses to another's file — a fabricated measurement
+    wearing the shape of a real one, which is precisely what §8 forbids. The PPG figures are carried in
+    `provenance` under their own name so nothing is lost and nothing is misattributed.
+
+    `artifact_rows` is the row count the writer actually wrote — the honest sample count for THIS file.
+    A live session that streamed nothing leaves a header-only file (the caller discards those), so a
+    zero row count here is a real measurement, not an absence."""
+    # ── validation (§6): the live path verifies no bytes — it writes them. There is no hash, no
+    # re-read, no trailer. Claiming VALID would assert a check nobody ran, so validation is UNKNOWN
+    # unless a caller supplies a verdict from an actual check. This is the honest asymmetry with the
+    # stored path, where `verify()` really does re-read the file. ──
+    validation, validation_depth = ae.UNKNOWN, None
+
+    # ── completeness (§6), INDEPENDENT of validation. A live capture is COMPLETE when the session
+    # ended on its own terms and rows were written; an interrupted one is PARTIAL. Without a
+    # clean-stop signal we say UNKNOWN rather than guessing from row count alone — a long session and
+    # a truncated one both have many rows. ──
+    if stopped_cleanly is False:
+        completeness = ae.PARTIAL
+    elif stopped_cleanly is True and artifact_rows:
+        completeness = ae.COMPLETE
+    else:
+        completeness = ae.UNKNOWN
+
+    end_time_ms = None
+    if start_time_ms is not None and artifact_rows:
+        end_time_ms = start_time_ms + artifact_rows * 1000  # the CSV is 1 Hz, one row per second
+
+    return ae.AcquisitionEvidence(
+        session_id=session_id,
+        device_id=device_id,
+        source=ae.SOURCE_LIVE,
+        signal=_SIGNAL,
+        start_time_ms=start_time_ms,
+        end_time_ms=end_time_ms,
+        clock_status=clock_status,
+        clock_offset=clock_offset if clock_offset is not None else ae.ClockOffset.unknown(),
+        sample_count=artifact_rows,
+        # no independent expectation exists for a live stream of unknown duration (§8: UNKNOWN, not 0)
+        expected_sample_count=ae.UNKNOWN,
+        # nothing declares a duration for a live session the way a .dat trailer does
+        duration_check=ae.DurationCheck.build(stored_s=None, observed_s=None),
+        transport_gaps=ae.UNKNOWN,  # see the docstring — the PPG grid's gaps are NOT this file's
+        decode_gaps=ae.UNKNOWN,
+        device_state=device_state if device_state is not None else ae.UNKNOWN,
+        artifact_path=artifact_path,
+        artifact_size=None,  # the caller has not stat'ed it; None, never 0 (§5)
+        artifact_sha256=None,  # the live path computes no hash (§12 — never invent a second one)
+        validation=validation,
+        validation_depth=validation_depth,
+        completeness=completeness,
+        provenance={
+            # PPG-stream accounting, named as such so it can never be read as this artifact's gaps
+            "ppg_grid": ppg_grid,
+            "ppg_ledger": ppg_ledger,
+            "stopped_cleanly": stopped_cleanly,
+        },
+    )

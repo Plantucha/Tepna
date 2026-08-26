@@ -9,6 +9,8 @@ Both are stated from the physics/semantics (pre-state-the-threshold), not as aft
 
 from types import SimpleNamespace
 
+import json
+
 import acq_evidence as ae
 import acq_evidence_o2ring as o2
 
@@ -141,3 +143,145 @@ def test_failed_inventory_state_maps_to_invalid_via_the_fallback():
     coarser depth — the §19 boundary fallback the landed pull path uses."""
     ev = o2.assemble_dat(_row(state="FAILED"), trailer=None, verify_result=None)
     assert ev.validation == ae.INVALID and ev.validation_depth == "size+finalised"
+
+
+# ── the LIVE half (spec §10: BOTH O2Ring paths, never merged) ─────────────────
+def _live(**over):
+    kw = dict(device_id="O2-1", session_id="20260826031500", artifact_path="/n/x_SPO2.csv",
+              artifact_rows=3600)
+    kw.update(over)
+    return o2.assemble_live(**kw)
+
+
+def test_live_and_stored_are_DISTINGUISHABLE_sources():
+    """Spec §10 forbids merging the two O2Ring paths into one indistinguishable source. A reader must
+    always be able to tell which path produced a night."""
+    assert _live().source == ae.SOURCE_LIVE
+    assert o2.assemble_dat(_row()).source == ae.SOURCE_STORED_DAT
+    assert _live().source != o2.assemble_dat(_row()).source
+
+
+def test_the_live_path_claims_NO_validation_because_it_verifies_nothing():
+    """The honest asymmetry with the stored path. `verify()` re-reads the .dat and can say VALID; the
+    live path WRITES bytes — no hash, no re-read, no trailer. Claiming VALID would assert a check
+    nobody ran."""
+    ev = _live()
+    assert ev.validation == ae.UNKNOWN and ev.validation_depth is None
+    assert ev.artifact_sha256 is None, "the live path computes no hash — never invent a second one"
+
+
+def test_live_gap_fields_are_UNKNOWN_and_the_PPG_facts_are_NAMED_separately():
+    """THE control for this adapter, and the reason it exists: the live path carries rich gap
+    accounting, but it belongs to the PPG STREAM while this envelope describes the 1 Hz SpO2 CSV — a
+    DIFFERENT stream from the same device. Reporting PPG gaps as this artifact's transport_gaps would
+    attribute one stream's losses to another's file: a fabricated measurement wearing the shape of a
+    real one. So the gap fields stay UNKNOWN and the PPG figures ride in provenance UNDER THEIR OWN
+    NAME — present, and impossible to mistake for this file's."""
+    grid = {"samples_written": 3588, "gaps_inserted": 3, "grid_positions_lost": 12}
+    ev = _live(ppg_grid=grid, ppg_ledger={"frames": 900, "truncated": 0})
+    assert ev.transport_gaps == ae.UNKNOWN and ev.decode_gaps == ae.UNKNOWN
+    assert ev.transport_gaps != 3, "the PPG stream's gaps are NOT this artifact's"
+    assert ev.provenance["ppg_grid"] == grid, "but they are PRESERVED, under their own key"
+    assert ev.provenance["ppg_ledger"]["frames"] == 900
+
+
+def test_live_sample_count_is_the_rows_actually_written():
+    ev = _live(artifact_rows=3600, start_time_ms=1000.0)
+    assert ev.sample_count == 3600
+    assert ev.expected_sample_count == ae.UNKNOWN, "a live stream has no independent expectation"
+    assert ev.end_time_ms == 1000.0 + 3600 * 1000, "the CSV is 1 Hz — one row per second"
+
+
+def test_live_completeness_needs_a_clean_stop_signal():
+    assert _live(stopped_cleanly=True).completeness == ae.COMPLETE
+    assert _live(stopped_cleanly=False).completeness == ae.PARTIAL
+    assert _live(stopped_cleanly=None).completeness == ae.UNKNOWN, "no signal ⇒ UNKNOWN, never guessed"
+    assert _live(stopped_cleanly=True, artifact_rows=0).completeness == ae.UNKNOWN, (
+        "a clean stop with zero rows is not a COMPLETE acquisition"
+    )
+
+
+def test_the_grid_and_ledger_projections_READ_REAL_FIELDS():
+    """⚠️ This is the control for a near-miss, not a formality. The first version of the projection
+    called `grid.summary()` behind a `hasattr` guard — and NEITHER class has that method, so it would
+    have silently written null for both provenance blocks while reading as correct code. Same shape as
+    the EdfSink `final_path` defect: a guarded call to a method that does not exist degrades into a
+    SILENT ABSENCE. Asserting real values is what distinguishes them."""
+    import capture
+
+    g = capture.O2PpgGrid()
+    g.idx, g.lost, g.gaps = 3600, 12, 3
+    facts = capture._oxy_grid_facts(g)
+    assert facts is not None, "a None here is the silent-absence bug this test exists for"
+    assert facts["samples_written"] == 3588 and facts["gaps_inserted"] == 3
+    assert facts["grid_positions_lost"] == 12 and facts["nominal_fs"] > 0
+    led = capture._oxy_ledger_facts(capture.O2PpgFrameLedger())
+    assert led is not None and set(led) >= {"frames", "declared", "delivered", "truncated"}
+    assert capture._oxy_grid_facts(None) is None and capture._oxy_ledger_facts(None) is None
+
+
+def test_the_live_sidecar_is_actually_WRITTEN_beside_the_artifact(tmp_path):
+    """EXECUTION WITNESS for the emit seam. An exported assembler nobody calls is the defect this whole
+    lane keeps finding, so this drives `_emit_oxy_live_evidence` — the function `run_oxyii`'s close
+    path invokes — and asserts the file lands where a Dex will look for it."""
+    import datetime as dt
+
+    import capture
+
+    csv = tmp_path / "Viatom_O2Ring_O2-1_20260826031500_SPO2.csv"
+    csv.write_text("header\n")
+    started = dt.datetime(2026, 8, 26, 3, 15, 0)
+    g = capture.O2PpgGrid()
+    g.idx, g.lost, g.gaps = 3600, 12, 3
+    capture._emit_oxy_live_evidence("O2-1", {"device_id": "O2-1"}, started,
+                                    (str(csv), 3600), g, capture.O2PpgFrameLedger())
+
+    blob = json.loads((tmp_path / (csv.name + ".meta.json")).read_text())
+    ev = blob["acquisition_evidence"]
+    assert ev["source"] == ae.SOURCE_LIVE
+    assert ev["sample_count"] == 3600
+    assert ev["artifact_path"] == str(csv)
+    # the session id is the token the FILENAME already carries, so OxyDex's existing filename join
+    # (#1752) works with no new matching rule
+    assert ev["session_id"] == "20260826031500"
+    assert ev["session_id"] in csv.name, "the join OxyDex already implements is by filename substring"
+    # and the PPG accounting survived the round-trip rather than serialising as null
+    assert ev["provenance"]["ppg_grid"]["gaps_inserted"] == 3
+
+
+def test_a_failing_sidecar_write_never_damages_the_capture(tmp_path):
+    """The report must not harm the thing it reports on — the session already happened."""
+    import datetime as dt
+
+    import capture
+
+    # a path whose parent does not exist ⇒ the open() raises inside the helper
+    capture._emit_oxy_live_evidence("O2-1", {"device_id": "O2-1"}, dt.datetime(2026, 8, 26, 3, 15, 0),
+                                    (str(tmp_path / "absent-dir" / "x.csv"), 10),
+                                    capture.O2PpgGrid(), capture.O2PpgFrameLedger())  # must not raise
+
+
+def test_run_oxyii_CALLS_the_emit_helper_on_its_close_path():
+    """⚠️ A SOURCE SCAN, and weaker than the witness above — say so rather than let it read as one.
+
+    The test above drives `_emit_oxy_live_evidence` DIRECTLY, so it proves the helper works and proves
+    nothing about whether the capture path invokes it. Deleting the call from `run_oxyii`'s close seam
+    leaves every other test green — the unpinned-wiring shape (#1784's controller hand-off). And
+    `find_unwired` cannot cover it either: the helper is private, and that gate only scans public
+    functions.
+
+    `run_oxyii` drives a live BLE session, so an execution witness would need a fake ring; that is a
+    larger rig than this unit justifies. A source scan pins PRESENCE, not EXECUTION — the weaker rung,
+    chosen deliberately and named — and it is enough to catch a deletion, which is the regression that
+    actually threatens this wiring."""
+    import inspect
+
+    import capture
+
+    src = inspect.getsource(capture.run_oxyii)
+    assert "_emit_oxy_live_evidence(" in src, (
+        "run_oxyii must CALL the emit helper — an assembler nobody calls is the defect this lane keeps finding"
+    )
+    # and it must be reached only for a KEPT file: an envelope describing a discarded header-only
+    # capture would be evidence about a file that no longer exists
+    assert "_spo2_kept" in src
