@@ -169,6 +169,65 @@ This is not a footnote: a fresh H10 bond is an active confound on the 2026-08-25
 - The `adapter_watchdog` currently takes the single global; it needs the **set** of effective
   adapters in use.
 
+## 3.6 THE MERGE LAYER — the actual work of the split
+
+Three instances, one operator view. `status.json`, the monitor, `nightqc` and the nightly summary are
+single-process today.
+
+### 3.6.1 Split the READERS out of the capture daemon
+
+A capture instance owns **one radio**. Serving HTTP and summarising nights are not per-radio jobs, and
+putting them inside one arbitrary instance would make that instance special — and its restart would
+take the monitor down with it.
+
+| unit | owns |
+|---|---|
+| `tepna-capture@<adapter>` | the BLE links for its radio, and only those |
+| `tepna-monitor` | the HTTP monitor — **reads** the union, writes nothing |
+| `tepna-nightqc` (timer) | night summarisation — **reads** the union |
+
+⚠️ **Not everything in today's daemon is per-adapter.** The **SD/ez-share harvest is WIFI**, not BLE, and
+must not be triplicated — one instance must own it or it moves to a utility unit. The **auto-pull
+triggers are per-device**, so they follow their device to its instance. Decide each explicitly; a job
+that silently runs three times is worse than one that runs zero times, because it looks like it works.
+
+### 3.6.2 Per-instance files, unioned by a pure reader
+
+Each instance writes **`status.<instance>.json`** atomically (write temp + rename, as today), carrying
+its device set, its adapter, and a **`heartbeat_ms`**. Nothing shares a file, so there is **no locking
+and no writer contention** — the property that makes this the cheap option.
+
+The reader unions them into the shape consumers already expect.
+
+### 3.6.3 🔴 THE LOAD-BEARING RULE: union over the EXPECTED set, never the FOUND set
+
+**A dead instance must be VISIBLY DEAD, not silently absent.**
+
+Union over the files that happen to exist and a dead `@intel` simply contributes nothing — the monitor
+shows the other two radios, every device it lists is healthy, and **nothing anywhere says a third of
+the capture is gone.** That is this suite's most-repeated defect wearing new clothes: an absent
+contributor reading as a clean result. It is the same failure as the `--group=` filter that matched
+nothing, the `-k absent` that collected no test, and my own "15 active streams" that measured
+subscription rather than delivery.
+
+So:
+
+- The **expected instance set comes from config** (`adapters:` + which are enabled), not from a
+  directory listing.
+- An expected instance whose file is **missing, or whose `heartbeat_ms` is older than a threshold**,
+  is rendered **DEAD/STALE with its last-seen age** — never omitted.
+- The monitor shows a dead instance as a **failed radio**, not as an absence of devices.
+- `nightqc` records **which instances contributed**, so a night captured with one radio down is
+  labelled as such rather than looking like a night where those devices were simply not worn.
+
+**Gate it with a decoy**: delete one instance's status file and assert the union still reports that
+instance as DEAD. A merge layer that cannot fail visibly is not worth building.
+
+### 3.6.4 What stays untouched
+
+Per-device capture files, sidecars and the clock-discipline rows are **already per-device**, so three
+writers never contend — they were never the shared part. Only the *aggregated views* need the union.
+
 ## 4 · Risks
 
 1. **Connection-slot ceiling.** `capture.py` already distinguishes *"ADAPTER CONNECTION CEILING — the
@@ -194,8 +253,16 @@ This is not a footnote: a fresh H10 bond is an active confound on the 2026-08-25
       nothing must not look like an instance working).
 - [ ] A wedged instance exits/trips its watchdog and is restarted by systemd **without** the other
       instances losing a link — verified by wedging one radio and watching the others keep streaming.
-- [ ] Shared-state merge: per-instance status, unioned for the monitor/QC, with a stale-instance marker
-      so a DEAD instance is visibly dead rather than silently absent from the union.
+- [ ] **Merge layer (§3.6):** per-instance `status.<instance>.json` written atomically with a
+      `heartbeat_ms`; a pure union reader; `tepna-monitor` and `tepna-nightqc` split out as READERS so
+      no capture instance is special and its restart cannot take the monitor down.
+- [ ] 🔴 **The union is over the EXPECTED instance set from config, never the found files** — a missing
+      or stale instance renders DEAD with its last-seen age, and `nightqc` records which instances
+      contributed. **Gate-backed with a decoy: delete one instance's status file and assert the union
+      still reports that instance DEAD.** A merge layer that cannot fail visibly is not worth building.
+- [ ] Every non-per-adapter job assigned explicitly — the **wifi SD/ez-share harvest must not be
+      triplicated**; auto-pull follows its device. A job that silently runs three times looks like it
+      works, which is worse than one that runs zero times.
 - [ ] `STATUS` exposes `adapter_pinned` + `adapter_effective` per device; monitor renders the
       effective one.
 - [ ] Startup logs any pinned device **not yet bonded on its pinned adapter**.
