@@ -3976,10 +3976,27 @@ def publish_recording(now_mono: float, grace_sec: float) -> bool:
 _NOTIFIER = None        # set in main(); read by status_loop to publish alert-transport health
 
 
+def status_path(root: str, instance: str | None = None) -> str:
+    """Where THIS process publishes its status.
+
+    Un-split (`instance is None`) keeps writing `status.json` byte-for-byte where it always has, so a
+    single-daemon box and every existing reader are untouched. A split instance writes
+    `status.<instance>.json` instead — nothing shares a file, which is what makes the merge layer need
+    NO LOCKING and have no writer contention (PER-DEVICE-ADAPTER-PINNING §3.6.2)."""
+    name = "status.json" if instance is None else f"status.{instance}.json"
+    return os.path.join(root, "captures", name)
+
+
 async def status_loop(root: str, data_stale_sec: float = 120.0):
-    path = os.path.join(root, "captures", "status.json")
+    path = status_path(root, INSTANCE)
     while not _STOP.is_set():
         STATUS["updated"] = _now().isoformat()
+        # HEARTBEAT + identity. `updated` is an ISO string a reader must parse and trust; this is a
+        # monotonic-independent wall-clock ms the union reader ages directly. Without it a dead
+        # instance is indistinguishable from a live one whose file simply has not changed.
+        STATUS["heartbeat_ms"] = int(_now().timestamp() * 1000)
+        STATUS["instance"] = INSTANCE
+        STATUS["adapter"] = ADAPTER
         STATUS["recording"] = publish_recording(_time.monotonic(), data_stale_sec)
         if _NOTIFIER is not None:
             STATUS["alerts"] = _NOTIFIER.stats()
