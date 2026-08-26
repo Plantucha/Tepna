@@ -754,6 +754,44 @@ def test_main_wires_up_and_stops(tmp_path, monkeypatch):
     assert capture.ADAPTER == "AC:A7:F1:29:9D:1D"
 
 
+def test_main_with_an_instance_serves_only_that_radios_devices(tmp_path, monkeypatch):
+    """`--instance` is how systemd hands `tepna-capture@sena` its identity. This drives the ONE call
+    site in main(); apply_instance() itself is unit-tested separately.
+
+    Asserts the pin actually took: ADAPTER must become the INSTANCE's radio, not the config's global.
+    If it silently kept the global, every instance would capture on the same adapter — three daemons
+    fighting over one radio, which looks healthy from each one's own log."""
+    import yaml as _yaml
+    cfg = {"adapter": "AC:A7:F1:29:9D:1D", "root": str(tmp_path),
+           "adapters": {"sena": "00:01:95:CC:53:02", "ub500": "AC:A7:F1:29:9D:1D"},
+           "web": {"enabled": True, "host": "127.0.0.1", "port": 0},
+           "devices": [_pdev()]}
+    cfgp = tmp_path / "config.yaml"
+    cfgp.write_text(_yaml.safe_dump(cfg))
+
+    for r in ("run_polar", "run_oxyii", "run_viatom", "run_muse", "status_loop",
+              "adapter_watchdog", "rssi_poller", "clock_watchdog", "host_clock_poller"):
+        async def _n(*a, **k): return None
+        monkeypatch.setattr(capture, r, _n)
+    async def fake_hci(mac, refresh=False): return "hci2"
+    monkeypatch.setattr(capture.link_rssi, "resolve_hci", fake_hci)
+
+    import webmon
+    class _Runner:
+        async def cleanup(self): pass
+    async def fake_start(app, host, port):
+        capture._STOP.set()
+        return _Runner()
+    monkeypatch.setattr(webmon, "start", fake_start)
+
+    import sys as _sys
+    monkeypatch.setattr(_sys, "argv", ["capture.py", "--config", str(cfgp), "--instance", "sena"])
+    capture._STOP.clear()
+    _run(capture.main())
+    assert capture.ADAPTER == "00:01:95:CC:53:02", "the instance's radio must win over the global"
+    assert capture.INSTANCE == "sena"
+
+
 # ── run_polar: rejected START + not-worn drop ───────────────────────────────────────────────────────
 def test_run_polar_drops_a_stream_the_device_rejects(tmp_path, monkeypatch):
     """A START ack that is neither started nor transient (e.g. 0x05) → the stream is dropped and its

@@ -474,6 +474,14 @@ block in the live `config.yaml`). Every failure above presents as a green box wi
 ## 9 · Done-when
 
 Flips to **IN-PROGRESS** when the probe has run and §6's three questions are answered in this file.
+
+> **Re-checked 2026-08-26 — still correctly PROPOSED, and the trap is that HALF the condition is met.**
+> The probe HAS run (§6 *MEASURED 2026-08-10/11*) and Q2 and Q3 are answered in this file, so a reader
+> checking "has the probe run?" flips this to IN-PROGRESS and is wrong. **§6 Q1 — does the H10 accept
+> `SampleType.RR` — is still open**, stated as such in §6: no start command was ever sent, because that
+> needs the `_ALLOWED_QUERIES` widening this brief gates. The blocker is named here so the rule and the
+> thing blocking it are read together.
+
 **DONE** when a real night produces: a live-stamped HR+GYRO stream, an onboard PPG recording covering
 the same window, a verified morning pull, a decoded PSL-shaped file that PpgDex reads, and a measured
 device-clock drift applied to its stamps — with the stream demonstrably uninterrupted throughout.
