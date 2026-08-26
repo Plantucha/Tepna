@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0wrnC0lVV+CrxqFX7kyOj6IsM0aoYU6jEFEXzId9FCU=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-6MkYjFL8AUMsZnVhLy1QgbmzwD3A13rRXBA+9vJaxsk=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8qgtgSm4tqYInWRbs0eAjnVUlL9kvcdUCj1++2l6M5w=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-W7m5EJur7zz9xJVj4s2diLK2Ex8nuYlUeh9vJ0nqr8U=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0wrnC0lVV+CrxqFX7kyOj6IsM0aoYU6jEFEXzId9FCU=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-6MkYjFL8AUMsZnVhLy1QgbmzwD3A13rRXBA+9vJaxsk=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-W7m5EJur7zz9xJVj4s2diLK2Ex8nuYlUeh9vJ0nqr8U=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rWqh0krcQ5j4KEgHto+YSbUvoGUVzFyv7ucsRx/6K5s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -29867,6 +29867,52 @@ __exports.ECGDex = window.ECGDex;
   /* Attach a STR summary to already-built nights by matching the UTC day. Mutates + returns `nights`.
    The inferred `mode` is left untouched; device fields land as NEW keys so a consumer can prefer the
    declaration and fall back to the inference. A night with no STR match keeps its fields absent. */
+  /* APPLY the independently-measured clock offset to STR's device-time session boundaries
+     (CPAPDEX-STR-SUMMARY-INGEST, the last "still owed" box; chain link 4).
+
+     🔒 ADDITIVE, NEVER IN PLACE (ratified 2026-08-25). `sessions[].onMs/offMs` stay VERBATIM as the
+     device wrote them (INV3); the corrected values land BESIDE them as `sessionsCorrected`, with the
+     offset's provenance on `strClockCorrection` (INV4's shape — the reference axis beside the device
+     clock, never substituting). This is declare-never-correct, the same posture `deviceCsrCheck` takes
+     in this brief. Correcting in place would silently move the ~17 existing `.sessions` consumers that
+     read device time today, which is the class of change the invariants exist to prevent.
+
+     SIGN, spelled out because a 50/50 guess here doubles the error instead of removing it:
+     `offset_sec` is POSITIVE when the DEVICE clock reads LATER than the reference. A device stamp T
+     therefore denotes reference time `T − offset`. The AS11 in this corpus runs BEHIND (offset
+     negative, ~−2520 s), so its stamps UNDER-read and correction moves them LATER — which is the
+     direction the 42-minute skew finding predicts.
+
+     Applied ONLY from a MEASURED offset (`offset_sec != null`). An UNKNOWN offset produces no
+     corrected sessions at all rather than a copy of the raw ones: a `sessionsCorrected` that silently
+     equals `sessions` would assert that a correction was applied when none was. */
+  function applyStrClockOffset(nights) {
+    if (!nights || !nights.length) return nights;
+    for (var n = 0; n < nights.length; n++) {
+      var night = nights[n];
+      if (!night || !night.sessions || !night.sessions.length) continue;
+      var ev = night.acquisitionEvidence;
+      var off = ev && ev.clock_offset;
+      var sec = off && off.offset_sec;
+      if (sec == null || !isFinite(sec)) continue; // UNKNOWN ⇒ no corrected view, never a raw copy
+      var ms = sec * 1000;
+      var out = [];
+      for (var i = 0; i < night.sessions.length; i++) {
+        var ses = night.sessions[i];
+        out.push({ onMs: ses.onMs - ms, offMs: ses.offMs - ms });
+      }
+      night.sessionsCorrected = out;
+      night.strClockCorrection = {
+        offsetSec: sec,
+        appliedMs: -ms, // what was ADDED to each device stamp, so a reader need not re-derive the sign
+        reference: off.reference || null,
+        method: off.method || null,
+        measuredAtMs: off.measured_at_ms != null ? off.measured_at_ms : null,
+        source: 'acquisition-evidence'
+      };
+    }
+    return nights;
+  }
   /* ACQUISITION EVIDENCE — the CPAP-side READ (ACQ-EVIDENCE-CONTRACT Phase C, the CPAP half).
      READ-ONLY SURFACING: this changes NO metric, gates nothing, and a night with no envelope behaves
      exactly as before (contract §4 acquisition ⟂ science, §19 back-compat). It only lets a night SAY
@@ -29990,6 +30036,7 @@ __exports.ECGDex = window.ECGDex;
     parseStrSummary: parseStrSummary,
     attachStrSummary: attachStrSummary,
     attachAcqEvidence: attachAcqEvidence,
+    applyStrClockOffset: applyStrClockOffset,
     csrPbCrossCheck: csrPbCrossCheck,
     nightMetrics: nightMetrics,
     compute: compute,

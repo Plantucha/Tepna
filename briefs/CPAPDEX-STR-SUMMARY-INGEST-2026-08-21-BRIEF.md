@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-08-21 · **Created:** 2026-08-21
+**Status:** DONE — 2026-08-26 · **Created:** 2026-08-21
 
 # CPAPDex — ingest the ResMed STR.edf daily summary (device mode, RERA, prescription)
 
@@ -99,7 +99,7 @@ settles "can the CPAP clock be set locally?" with a citation rather than an infe
       PB ≥ CSR is benign (`pb-broader`), CSR substantially exceeding PB is the finding (`discrepancy`);
       band = max(2 pp, 50% of the larger). Registry `csrPbDelta` (measured), a reference-guide card, a
       device-summary render line, and 27 tests including the asymmetry control (same |Δ|, opposite verdict).
-- [ ] Apply the independently-measured clock offset to STR's device-time session boundaries
+- [x] Apply the independently-measured clock offset to STR's device-time session boundaries
       (see `CPAP-CLOCK-LONGITUDINAL-SEGMENT-2026-08-21-BRIEF.md`).
       **BLOCKED, and the chain is named (traced 2026-08-26) — this is not unstarted work.** The applier
       itself is ~10 lines; it would have NOTHING TO APPLY. Measured, not assumed:
@@ -112,14 +112,35 @@ settles "can the CPAP clock be set locally?" with a citation rather than an infe
       |---|---|---|
       | 1 | box reads `GetDateTime` over BLE vs its stratum-1 clock | exists (`cpap_ble_pull.py`; cmd 0x04 is `all`-access, per the addendum above) |
       | 2 | that offset rides the CPAP acquisition-evidence envelope as a NUMBER | **DONE 2026-08-26** — `acq_evidence.ClockOffset` (`offset_sec` + `measured_at_ms` + `reference` + `method`), schema 1.1.0, carried by both CPAP assemblers |
-      | 3 | a CPAP-side envelope reader (CPAP Phase C, mirroring #1752) | **owed** — CPAPDex has the EMIT side (Phase B) and no READ side |
-      | 4 | `attachStrSummary(…, {offsetSec})` emits corrected fields BESIDE the raw device-time ones | owed; unblocks the moment 3 lands |
+      | 3 | a CPAP-side envelope reader (CPAP Phase C) | **DONE 2026-08-26** (#1805) — joins by DAY, not filename: a CPAP night comes from SD EDFs carrying no host session id, so #1752's filename match does not transfer. Reuses `attachStrSummary`'s day rule verbatim |
+      | 4 | corrected fields emitted BESIDE the raw device-time ones | **DONE 2026-08-26** — `applyStrClockOffset` emits `sessionsCorrected` + `strClockCorrection`, raw `sessions` untouched |
 
       🔒 **Design ratified 2026-08-25: ADDITIVE.** Raw `sessions[].onMs/offMs` stay VERBATIM (INV3);
       corrected values land beside them with the offset's provenance (INV4's shape — the reference axis
       beside the device clock, never substituting). Declare-never-correct, the pattern item 1 above
       already set in this brief. In-place correction would silently move the ~17 existing `.sessions`
       consumers (dsp 5 · render 7 · cross 2 · app 3) that currently assume device time.
+
+### The clock box is CLOSED (2026-08-26) — what it took, and why it was not ten lines
+
+The applier itself IS ~15 lines. It was blocked for five days not by difficulty but because **it had
+nothing to apply**, and that was only visible by tracing the chain to its last link rather than its
+first: `fitClockOffsetSegments` existed and was exported, which made the box look ready. It was not —
+`attachStrSummary` took two arguments, no offset input existed anywhere in the CPAP path, and CPAPDex
+had no envelope reader at all. Three units had to land first (#1803 the numeric offset field, #1804 the
+acquisition start without which an envelope joins to nothing, #1805 the reader).
+
+**Sign, stated once so nobody re-derives it:** `offset_sec` is POSITIVE when the DEVICE reads LATER
+than the reference, so a device stamp `T` denotes reference time `T − offset`. The AS11 here runs
+BEHIND (negative offset), so correction moves its stamps LATER — the direction the ~42-minute skew
+finding predicts. `strClockCorrection.appliedMs` states what was ADDED, so a consumer never re-derives
+it. Pinned from BOTH directions in the suite, because one example cannot distinguish a sign convention
+from its inverse.
+
+**An UNMEASURED offset yields NO corrected view** — not a copy of the raw sessions. A
+`sessionsCorrected` that silently equalled `sessions` would assert that a correction had been applied
+when none was, which is the fabrication this brief's whole posture exists to prevent. A MEASURED zero
+is different and does yield one: 0 s is a result (the clocks agreed), not an absence.
 
 ## Deliberately NOT in scope
 
