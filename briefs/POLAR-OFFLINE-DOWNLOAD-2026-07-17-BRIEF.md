@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-07-17 · **Created:** 2026-07-17
+**Status:** IN-PROGRESS — 2026-08-26 · **Created:** 2026-07-17
 
 # Polar onboard offline-recording download (PS-FTP), wired into the Vigil monitor
 
@@ -196,6 +196,59 @@ live capture and make sure it's idle before pulling.**
 3. **Automate the button** — `POLAR-SDK-CAPTURE` Track A's larger aim: trigger/stop an SDK offline
    recording (`REQUEST_START_RECORDING`/`STOP`) so the raw-PPG `.REC` structure actually gets written,
    then this puller retrieves it (the raw waveform PpgDex wants, without holding the link all night).
+
+## 🔁 RECONCILED 2026-08-26 — follow-up 3's mechanism LANDED, and the same measurements retire its aim
+
+Re-checked every Done-when clause against the code rather than against this brief's prose. The status
+does not change — but follow-up 3 does, and it changes in the direction nobody was watching.
+
+**Done-when, re-measured:**
+
+| clause | verdict 2026-08-26 |
+|---|---|
+| `how-to-collect/verity-ppg.md` note | ✅ still done (2026-07-22) |
+| **`.BPB` decoder (follow-up 1)** | ❌ **absent.** `BPB` occurs in `polar_mirror.py`, `polar_psftp.py`, `probe_polar_usb.py` only as *filenames* — PII handling (`PII = {"/U/0/USERID.BPB"}`), the `BTDEV.BPB` bonding table, directory listings. No decoder, no CSV emitter, anywhere in `capture-host/` or `tools/`. |
+| **web pull green on hardware** | ❌ still unexercised. `/api/polar/pull` + `/api/polar/recordings` route and are contract-tested (`test_webmon_api.py`, `test_webmon_endpoints.py`), but every one of those tests is **mocked**. A passing endpoint test is not a demonstrated pull. |
+
+So the brief is correctly IN-PROGRESS. The reconciliation is elsewhere.
+
+### Follow-up 3 is no longer blocked on an unknown — it is blocked on arithmetic
+
+Follow-up 3 asks to "trigger/stop an SDK offline recording (`REQUEST_START_RECORDING`/`STOP`) so the
+raw-PPG `.REC` structure actually gets written, then this puller retrieves it (the raw waveform PpgDex
+wants, without holding the link all night)". Written 2026-07-17, when the command surface was unknown.
+
+**The mechanism landed** — `polar_pmd.py`: `OFFLINE_BIT = 0x80`, `as_offline()`, `is_offline_cmd()`.
+START carries the offline bit; **STOP takes the BARE type** (there is exactly one STOP per measurement
+type), measured on real hardware 2026-08-02 by sending `03 82`. Reference: `POLAR-PMD-COMMAND-SURFACE`.
+
+**But two facts measured since make the stated aim unavailable, and neither is in this brief:**
+
+1. **The raw-PPG `.REC` does not fit in the flash.** The ceiling is ~2 MB; raw 4-channel 22-bit PPG is
+   ~297 B/s, giving **~1.96 h** — not a night. Polar's own "up to 600 h" is the *same* ceiling read
+   from the other end (`600 h × 3600 s × 1 Hz × 1 B = 2.16 MB`), i.e. a **1 Hz heart-rate** figure, and
+   the device says so itself: `0x0E OFFLINE_HR` is its own measurement type with an empty settings menu
+   because there is only one rate. Two independently-derived ratios agree to 3 % (297× vs 306×).
+   See `VERITY-OFFLINE-VS-STREAMING` §1 / §1.0 — which also warns, precisely against this reading, not
+   to carry "600 h" off a spec sheet into a PPG plan.
+2. **Offline PPG is EXCLUSIVE with live PPG.** One data type cannot be both: starting an offline PPG
+   recording means there is no live PPG stream — `ERROR_ALREADY_IN_STATE` (`polar_pmd.py`, brief §2).
+   So automating the button does **not** add a backstop beneath the live capture; for PPG it *replaces*
+   it. HR is the documented exception and rides the Heart Rate Service rather than PMD, so it is not
+   expressible through this path at all.
+
+**Consequence — the two follow-ups swap places.** Follow-up 3's premise was "get the raw waveform
+without holding the link all night"; the device can hold neither the waveform nor both modes at once,
+so for PPG that premise is dead rather than merely unimplemented. What the flash *does* support is
+exactly the HR-rate offline recording (`0x0E OFFLINE_HR`) that the `.BPB` files on the device already
+are — which makes **follow-up 1 (the `.BPB` decoder) the one that carries the value**, and follow-up 3
+collapses into it rather than standing beside it. Re-scope follow-up 3 to HR-offline, or drop it; do
+not implement it for PPG on the strength of the 2026-07-17 framing.
+
+⚠️ Nothing here was refuted by a new experiment — every number was already measured, in briefs written
+after this one. The defect was distributional: the answer existed somewhere the next reader of *this*
+brief had no reason to look. That is the argument for reconciling briefs on a schedule rather than on
+suspicion.
 
 ## Done when
 
