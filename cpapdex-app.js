@@ -287,6 +287,9 @@ import { CpapRender } from './cpapdex-render.js';
           if (strSummary.length) CpapDsp.attachStrSummary(nights, strSummary);
           // Phase C: pair any acquisition-evidence sidecars to the nights they describe (by day).
           if (global._cpapAcqEvidence) CpapDsp.attachAcqEvidence(nights, global._cpapAcqEvidence);
+          // Link 4: apply the envelope's MEASURED clock offset to STR's device-time session
+          // boundaries — ADDITIVELY. Runs AFTER attachAcqEvidence, which is what supplies the offset.
+          CpapDsp.applyStrClockOffset(nights);
         } catch (errStr) {
           console.warn('STR.edf summary parse failed', errStr);
         }

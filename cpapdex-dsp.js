@@ -2072,6 +2072,52 @@
   /* Attach a STR summary to already-built nights by matching the UTC day. Mutates + returns `nights`.
    The inferred `mode` is left untouched; device fields land as NEW keys so a consumer can prefer the
    declaration and fall back to the inference. A night with no STR match keeps its fields absent. */
+  /* APPLY the independently-measured clock offset to STR's device-time session boundaries
+     (CPAPDEX-STR-SUMMARY-INGEST, the last "still owed" box; chain link 4).
+
+     🔒 ADDITIVE, NEVER IN PLACE (ratified 2026-08-25). `sessions[].onMs/offMs` stay VERBATIM as the
+     device wrote them (INV3); the corrected values land BESIDE them as `sessionsCorrected`, with the
+     offset's provenance on `strClockCorrection` (INV4's shape — the reference axis beside the device
+     clock, never substituting). This is declare-never-correct, the same posture `deviceCsrCheck` takes
+     in this brief. Correcting in place would silently move the ~17 existing `.sessions` consumers that
+     read device time today, which is the class of change the invariants exist to prevent.
+
+     SIGN, spelled out because a 50/50 guess here doubles the error instead of removing it:
+     `offset_sec` is POSITIVE when the DEVICE clock reads LATER than the reference. A device stamp T
+     therefore denotes reference time `T − offset`. The AS11 in this corpus runs BEHIND (offset
+     negative, ~−2520 s), so its stamps UNDER-read and correction moves them LATER — which is the
+     direction the 42-minute skew finding predicts.
+
+     Applied ONLY from a MEASURED offset (`offset_sec != null`). An UNKNOWN offset produces no
+     corrected sessions at all rather than a copy of the raw ones: a `sessionsCorrected` that silently
+     equals `sessions` would assert that a correction was applied when none was. */
+  function applyStrClockOffset(nights) {
+    if (!nights || !nights.length) return nights;
+    for (var n = 0; n < nights.length; n++) {
+      var night = nights[n];
+      if (!night || !night.sessions || !night.sessions.length) continue;
+      var ev = night.acquisitionEvidence;
+      var off = ev && ev.clock_offset;
+      var sec = off && off.offset_sec;
+      if (sec == null || !isFinite(sec)) continue; // UNKNOWN ⇒ no corrected view, never a raw copy
+      var ms = sec * 1000;
+      var out = [];
+      for (var i = 0; i < night.sessions.length; i++) {
+        var ses = night.sessions[i];
+        out.push({ onMs: ses.onMs - ms, offMs: ses.offMs - ms });
+      }
+      night.sessionsCorrected = out;
+      night.strClockCorrection = {
+        offsetSec: sec,
+        appliedMs: -ms, // what was ADDED to each device stamp, so a reader need not re-derive the sign
+        reference: off.reference || null,
+        method: off.method || null,
+        measuredAtMs: off.measured_at_ms != null ? off.measured_at_ms : null,
+        source: 'acquisition-evidence'
+      };
+    }
+    return nights;
+  }
   /* ACQUISITION EVIDENCE — the CPAP-side READ (ACQ-EVIDENCE-CONTRACT Phase C, the CPAP half).
      READ-ONLY SURFACING: this changes NO metric, gates nothing, and a night with no envelope behaves
      exactly as before (contract §4 acquisition ⟂ science, §19 back-compat). It only lets a night SAY
@@ -2195,6 +2241,7 @@
     parseStrSummary: parseStrSummary,
     attachStrSummary: attachStrSummary,
     attachAcqEvidence: attachAcqEvidence,
+    applyStrClockOffset: applyStrClockOffset,
     csrPbCrossCheck: csrPbCrossCheck,
     nightMetrics: nightMetrics,
     compute: compute,

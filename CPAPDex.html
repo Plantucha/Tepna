@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6f/zv9qUhNd6k9525oIssk/GLR+n/dcC3ltJirU4QZM=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-VpWuZ12v6gKyhjlOT8TLlSMYiBs1ZGSWaJlXOiFIlAo=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-bp7Fi2OoOx/XooWuTGpmF1SiV+A8ZCvEpRBCsq2nxes=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-h6h5P//RbelDud05c/HcsYeUxGoEXGat4RJkGjquIWE=' 'sha256-mj10h/YL+APHDH63Cf0GOj2V1PkBzWSTOsXSR+ASVTM=' 'sha256-orDgYOKMvLG8lrKyfy1hZs6UU/8V5DZFKb7BPPBVbnA='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1L7/G1EvG76HKsQWQSX8ZbDbDHAP6ISMTWQglc609cM=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-VpWuZ12v6gKyhjlOT8TLlSMYiBs1ZGSWaJlXOiFIlAo=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-bp7Fi2OoOx/XooWuTGpmF1SiV+A8ZCvEpRBCsq2nxes=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-h6h5P//RbelDud05c/HcsYeUxGoEXGat4RJkGjquIWE=' 'sha256-mZUYObioUvS00ftLy1itP+4kiWf4Mwu3woStEoryyCg=' 'sha256-mj10h/YL+APHDH63Cf0GOj2V1PkBzWSTOsXSR+ASVTM='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>CPAPDex — PAP Therapy Analyzer · v2.8.0</title>
@@ -7704,6 +7704,52 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
   /* Attach a STR summary to already-built nights by matching the UTC day. Mutates + returns `nights`.
    The inferred `mode` is left untouched; device fields land as NEW keys so a consumer can prefer the
    declaration and fall back to the inference. A night with no STR match keeps its fields absent. */
+  /* APPLY the independently-measured clock offset to STR's device-time session boundaries
+     (CPAPDEX-STR-SUMMARY-INGEST, the last "still owed" box; chain link 4).
+
+     🔒 ADDITIVE, NEVER IN PLACE (ratified 2026-08-25). `sessions[].onMs/offMs` stay VERBATIM as the
+     device wrote them (INV3); the corrected values land BESIDE them as `sessionsCorrected`, with the
+     offset's provenance on `strClockCorrection` (INV4's shape — the reference axis beside the device
+     clock, never substituting). This is declare-never-correct, the same posture `deviceCsrCheck` takes
+     in this brief. Correcting in place would silently move the ~17 existing `.sessions` consumers that
+     read device time today, which is the class of change the invariants exist to prevent.
+
+     SIGN, spelled out because a 50/50 guess here doubles the error instead of removing it:
+     `offset_sec` is POSITIVE when the DEVICE clock reads LATER than the reference. A device stamp T
+     therefore denotes reference time `T − offset`. The AS11 in this corpus runs BEHIND (offset
+     negative, ~−2520 s), so its stamps UNDER-read and correction moves them LATER — which is the
+     direction the 42-minute skew finding predicts.
+
+     Applied ONLY from a MEASURED offset (`offset_sec != null`). An UNKNOWN offset produces no
+     corrected sessions at all rather than a copy of the raw ones: a `sessionsCorrected` that silently
+     equals `sessions` would assert that a correction was applied when none was. */
+  function applyStrClockOffset(nights) {
+    if (!nights || !nights.length) return nights;
+    for (var n = 0; n < nights.length; n++) {
+      var night = nights[n];
+      if (!night || !night.sessions || !night.sessions.length) continue;
+      var ev = night.acquisitionEvidence;
+      var off = ev && ev.clock_offset;
+      var sec = off && off.offset_sec;
+      if (sec == null || !isFinite(sec)) continue; // UNKNOWN ⇒ no corrected view, never a raw copy
+      var ms = sec * 1000;
+      var out = [];
+      for (var i = 0; i < night.sessions.length; i++) {
+        var ses = night.sessions[i];
+        out.push({ onMs: ses.onMs - ms, offMs: ses.offMs - ms });
+      }
+      night.sessionsCorrected = out;
+      night.strClockCorrection = {
+        offsetSec: sec,
+        appliedMs: -ms, // what was ADDED to each device stamp, so a reader need not re-derive the sign
+        reference: off.reference || null,
+        method: off.method || null,
+        measuredAtMs: off.measured_at_ms != null ? off.measured_at_ms : null,
+        source: 'acquisition-evidence'
+      };
+    }
+    return nights;
+  }
   /* ACQUISITION EVIDENCE — the CPAP-side READ (ACQ-EVIDENCE-CONTRACT Phase C, the CPAP half).
      READ-ONLY SURFACING: this changes NO metric, gates nothing, and a night with no envelope behaves
      exactly as before (contract §4 acquisition ⟂ science, §19 back-compat). It only lets a night SAY
@@ -7827,6 +7873,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     parseStrSummary: parseStrSummary,
     attachStrSummary: attachStrSummary,
     attachAcqEvidence: attachAcqEvidence,
+    applyStrClockOffset: applyStrClockOffset,
     csrPbCrossCheck: csrPbCrossCheck,
     nightMetrics: nightMetrics,
     compute: compute,
@@ -11498,6 +11545,9 @@ const { CpapRender } = __require('cpapdex-render.js');
           if (strSummary.length) CpapDsp.attachStrSummary(nights, strSummary);
           // Phase C: pair any acquisition-evidence sidecars to the nights they describe (by day).
           if (global._cpapAcqEvidence) CpapDsp.attachAcqEvidence(nights, global._cpapAcqEvidence);
+          // Link 4: apply the envelope's MEASURED clock offset to STR's device-time session
+          // boundaries — ADDITIVELY. Runs AFTER attachAcqEvidence, which is what supplies the offset.
+          CpapDsp.applyStrClockOffset(nights);
         } catch (errStr) {
           console.warn('STR.edf summary parse failed', errStr);
         }

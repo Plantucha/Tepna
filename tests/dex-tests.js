@@ -17906,6 +17906,62 @@
       } else {
         T.skip('CpapDsp.attachAcqEvidence', 'Phase C reader not wired in this lane');
       }
+
+      /* ── LINK 4: apply the measured clock offset to STR's device-time session boundaries.
+         ADDITIVE by ratified design — raw sessions stay verbatim (INV3), corrected values land beside
+         them with provenance (INV4). Declare-never-correct, the posture deviceCsrCheck already takes
+         in this brief. ── */
+      if (env.CpapDsp && typeof env.CpapDsp.applyStrClockOffset === 'function') {
+        var CD2 = env.CpapDsp;
+        var _mkNight = function (offsetSec) {
+          var n = {
+            t0Ms: Date.UTC(2026, 7, 23, 22, 0, 0),
+            sessions: [
+              { onMs: 1000000, offMs: 2000000 },
+              { onMs: 3000000, offMs: 4000000 }
+            ]
+          };
+          if (offsetSec !== undefined)
+            n.acquisitionEvidence = { session_id: 's', start_time_ms: n.t0Ms, clock_offset: { offset_sec: offsetSec, measured_at_ms: 42, reference: 'host-stratum1', method: 'GetDateTime' } };
+          return n;
+        };
+        // the AS11 runs BEHIND, so offset is NEGATIVE and correction moves stamps LATER
+        var _a = [_mkNight(-2520)];
+        CD2.applyStrClockOffset(_a);
+        T.ok('RAW sessions are untouched (INV3 — the device stamp is never substituted)', _a[0].sessions[0].onMs === 1000000 && _a[0].sessions[1].offMs === 4000000);
+        T.ok('corrected sessions land BESIDE the raw ones', Array.isArray(_a[0].sessionsCorrected) && _a[0].sessionsCorrected.length === 2);
+        T.ok('a device clock running BEHIND corrects LATER (+2520 s), not earlier', _a[0].sessionsCorrected[0].onMs === 1000000 + 2520000, 'got ' + (_a[0].sessionsCorrected[0] || {}).onMs);
+        T.ok('every session is corrected, not just the first', _a[0].sessionsCorrected[1].offMs === 4000000 + 2520000);
+        T.ok(
+          'the provenance rides with it (reference + method + when)',
+          _a[0].strClockCorrection.reference === 'host-stratum1' && _a[0].strClockCorrection.method === 'GetDateTime' && _a[0].strClockCorrection.measuredAtMs === 42
+        );
+        T.ok('appliedMs states what was ADDED, so a reader need not re-derive the sign', _a[0].strClockCorrection.appliedMs === 2520000);
+
+        // the OPPOSITE sign, so the direction is pinned from both sides rather than by one example
+        var _b = [_mkNight(+600)];
+        CD2.applyStrClockOffset(_b);
+        T.ok('a device clock running AHEAD corrects EARLIER', _b[0].sessionsCorrected[0].onMs === 1000000 - 600000);
+
+        // THE CONTROL: an UNKNOWN offset must produce NO corrected view — a sessionsCorrected that
+        // silently equalled sessions would assert a correction that never happened.
+        var _c = [_mkNight(null)];
+        CD2.applyStrClockOffset(_c);
+        T.ok('an UNMEASURED offset produces NO corrected sessions (never a copy of the raw ones)', _c[0].sessionsCorrected === undefined && _c[0].strClockCorrection === undefined);
+        var _d = [_mkNight(undefined)]; // no envelope at all
+        CD2.applyStrClockOffset(_d);
+        T.ok('a night with no envelope is left entirely alone', _d[0].sessionsCorrected === undefined && _d[0].sessions.length === 2);
+
+        // a MEASURED ZERO is a real result and must still produce a corrected view, identical by value
+        var _e = [_mkNight(0)];
+        CD2.applyStrClockOffset(_e);
+        T.ok(
+          'a measured ZERO offset still yields a corrected view (0 s is a result, not an absence)',
+          Array.isArray(_e[0].sessionsCorrected) && _e[0].sessionsCorrected[0].onMs === 1000000 && _e[0].strClockCorrection.offsetSec === 0
+        );
+      } else {
+        T.skip('CpapDsp.applyStrClockOffset', 'link 4 not wired in this lane');
+      }
     });
 
     /* ════ CPAPDex pressureChangePoints — STEP-IMMUNE penalty scale (DEEP-AUDIT-II §6.1, PEN_K half) ════
