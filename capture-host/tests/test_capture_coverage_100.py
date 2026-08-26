@@ -776,6 +776,33 @@ def test_a_device_going_on_the_charger_is_pulled_once_per_charge_session(tmp_pat
     assert capture.STATUS["autopull"]["trigger"] == "charger"
 
 
+def test_a_DOFF_triggered_pull_reaches_pull_oxyii_session_as_LATEST(tmp_path, monkeypatch):
+    """🔴 THE WIRING, not just the decision. `pull_scope_for` being correct proves nothing if the
+    dispatch site ignores it — reverting the call site to a hardcoded `which="all"` passes every
+    unit test of the function itself. This is the only assertion that fails when it does.
+
+    The scope matters because a doff pull races a closing window: §14b measured which=all at p90
+    69.4 s against a window it cannot make, and the first production firing (2026-08-26 06:44:23)
+    went out at `all`."""
+    import time as _t
+    ring = _dev(name="Ring", vendor="Wellue", model="O2Ring-S", address="D1:98:62:7C:92:B3")
+    cfg = {"pull": {"auto": True, "ftype": 0}, "devices": [ring]}
+    capture.STATUS["devices"]["Ring"] = {"worn": False, "charging": False}
+    capture._NOTWORN_SINCE[ring["address"]] = _t.monotonic() - 10_000   # settle long since elapsed
+    capture._NOTWORN_PULLED.discard(ring["address"])
+    pulls = []
+
+    async def fake_pull(dev, root, which="latest", ftype=0):
+        pulls.append((dev["name"], which, ftype))
+        return {"new_files": ["a.dat"]}
+
+    monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
+    _stop_after(monkeypatch, 3)
+    _run(capture.charger_pull_poller(cfg, str(tmp_path)))
+    assert pulls == [("Ring", "latest", 0)], f"doff pull must ask for latest, got {pulls}"
+    assert capture.STATUS["autopull"]["trigger"] == "not-worn"
+
+
 def test_coming_off_the_charger_re_arms_the_next_pull(tmp_path, monkeypatch):
     """Otherwise a device is pulled once and never again for the life of the daemon."""
     ring = _dev(name="Ring", vendor="Wellue", model="O2Ring-S", address="D1:98:62:7C:92:B3")
@@ -1567,10 +1594,22 @@ def test_worn_again_re_arms_the_doff_pull(tmp_path, monkeypatch):
     assert strap["address"] not in capture._NOTWORN_PULLED, "and the once-per-doff latch re-armed"
 
 
-def test_a_doff_settle_inside_the_drop_grace_is_RAISED_not_obeyed(tmp_path, monkeypatch, caplog):
-    """THE INVARIANT. A pull holds a connection; `should_drop_not_worn` closes one. A settle inside
-    the 180 s grace would keep the link open and BLOCK the drop — the one thing §4 forbids. A config
-    that asks for it is raised, loudly, rather than silently winning."""
+def test_a_doff_settle_inside_the_drop_grace_is_OBEYED_owner_amended_2026_08_26(tmp_path, monkeypatch, caplog):
+    """⚠️ THIS TEST ASSERTED THE OPPOSITE UNTIL 2026-08-26, and the inversion is deliberate.
+
+    It used to guard §4's invariant — a settle inside the 180 s grace would keep the link open and
+    BLOCK the drop, so a config asking for it was RAISED, loudly. The 06:44 failure measured why that
+    could not work: the ring's post-drop advertising tail is ~98 s (n=1), less than half the 210 s
+    clamp floor, so the trigger fired 202 s after the ring had already slept. Fire-after-drop-at-doff
+    cannot reach a device that is gone.
+
+    **The owner amended §4 for this path** (relayed via the coordinator session, 2026-08-26, answer
+    "a" of three options, battery tradeoff explicitly accepted). The pull now fires INSIDE the grace,
+    and the collision is resolved in `should_drop_not_worn` by DEFERRAL rather than prevented by a
+    clamp. So the configured value must now be OBEYED, and the raise must be gone.
+
+    Kept as an inverted test rather than deleted, because a policy this specific deserves a test that
+    says it changed and when — a deleted test leaves no trace that the invariant ever existed."""
     strap = _dev(name="Strap3", vendor="Polar", model="H10", address="C2:11:44:AB:9E:03")
     cfg = {"pull": {"auto": True, "notworn_settle_sec": 5}, "devices": [strap]}
     capture.STATUS["devices"]["Strap3"] = {"charging": False, "worn": None}
@@ -1578,8 +1617,8 @@ def test_a_doff_settle_inside_the_drop_grace_is_RAISED_not_obeyed(tmp_path, monk
     with caplog.at_level("INFO"):
         _run(capture.charger_pull_poller(cfg, str(tmp_path)))
     msgs = " ".join(r.getMessage() for r in caplog.records)
-    assert "settle raised" in msgs, "a clamped settle must say so — a silent clamp is a silent policy"
-    assert "power-drop grace" in msgs
+    assert "settle raised" not in msgs, "the clamp is gone; a raise would mean it came back"
+    assert "not-worn=on (5s)" in msgs, "the arming line must report the CONFIGURED 5 s, not a floored 210 s"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════════════════
