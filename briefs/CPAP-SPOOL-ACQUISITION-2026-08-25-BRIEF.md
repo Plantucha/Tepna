@@ -46,6 +46,23 @@ requirement (live and spool CONVERGE on one canonical record) has never been exe
    Pre-state BOTH band sets before the session; the hardware answer selects which applies. The
    original "extend v1.1 with a spool leg" wording assumed branch (a) unverified — kept here struck
    as a record of the assumption: ~~add the spool leg to the same comparison~~.
+   **Box's answer (2026-08-25 late): UNKNOWN, and the distinction is load-bearing** — `"Summary"` is
+   the only spool type our client has EVER ASKED FOR (free-form string, no enumeration anywhere),
+   which is evidence about our client, not the device; and the protocol reference's "summary/detail
+   spools" line is prose in a Use column, not an enumeration — no `spoolAddress` key may be inferred
+   from it. Therefore:
+   - **The branch selector is a POSITIVE hit only** — a returned spool id for a detail-type request.
+     A `-32602` on a guessed name refutes only that string (the same error answers malformed
+     addresses), and **must not collapse the brief to branch (b)** — that would be absence of
+     evidence read as evidence of absence, silently, behind a plausible-looking error.
+   - **Probe protocol (morning idle window only — the AS11 holds ONE connection; never during
+     streaming, never colliding with the 13:00 harvest):** PAIRED requests, identical `fromDateTime`
+     + `maxSpoolSize` — `"Summary"` as the known-good positive control, then the candidate. Only
+     Summary-succeeds + candidate-fails isolates the type name as the variable. An enumeration
+     source beats name-guessing: `Get` (0x43, reads named data items) is the likelier candidate;
+     `GetVersion` lists methods, not spool keys.
+   - Until a positive detail hit exists, the SESSION pulls Summary (items 1/2 proceed regardless)
+     and item 4 runs branch (b); branch (a) stays open, never refuted by a failed guess.
 5. **Evidence contract:** the pull's provenance lands as an acquisition-evidence envelope
    (duration_check fields per the locked contract shape), and the raw fragment log is kept as the
    primary artifact (INV9: raw first, derived carries provenance).
