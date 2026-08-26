@@ -171,6 +171,16 @@
 #exportBar.show{display:flex}
 body.light #exportBar{background:rgba(255,255,255,.92)}
 #resultsView{padding-bottom:96px}
+/* Acquisition-evidence panel (ACQ-EVIDENCE-CONTRACT Phase C) — byte-identical to OxyDex's, so both
+   devices' envelopes read the same way. Deliberately NOT evidence-badge styling: these are acquisition
+   facts, not graded physiological measurements (contract §4). */
+.acq-panel{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 0 10px}
+.acq-chip{font-size:11px;padding:3px 8px;border-radius:8px;border:1px solid var(--border,#2a2f3a);background:rgba(127,127,127,.08)}
+.acq-chip b{font-weight:700;opacity:.7;margin-right:3px}
+.acq-good{border-color:rgba(57,217,138,.4)}
+.acq-bad{border-color:rgba(255,107,122,.5)}
+.acq-neutral{opacity:.85}
+.acq-src{font-size:10px;color:var(--text3,#8b949e);margin-left:2px}
 </style>
 <link rel="canonical" href="https://tepna.net/CPAPDex.html">
 <meta property="og:url" content="https://tepna.net/CPAPDex.html">

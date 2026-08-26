@@ -2072,6 +2072,43 @@
   /* Attach a STR summary to already-built nights by matching the UTC day. Mutates + returns `nights`.
    The inferred `mode` is left untouched; device fields land as NEW keys so a consumer can prefer the
    declaration and fall back to the inference. A night with no STR match keeps its fields absent. */
+  /* ACQUISITION EVIDENCE — the CPAP-side READ (ACQ-EVIDENCE-CONTRACT Phase C, the CPAP half).
+     READ-ONLY SURFACING: this changes NO metric, gates nothing, and a night with no envelope behaves
+     exactly as before (contract §4 acquisition ⟂ science, §19 back-compat). It only lets a night SAY
+     what the capture layer already knew about how it was acquired, instead of a Dex re-deriving it.
+
+     THE JOIN IS BY DAY, NOT BY FILENAME, and that is forced by the topology rather than chosen:
+     OxyDex matches an envelope to a night by finding the session_id INSIDE the .dat filename (#1752),
+     but a CPAP night is built from SD EDFs whose names carry no host session id at all. The only
+     shared coordinate is TIME — so this reuses `attachStrSummary`'s rule verbatim: match the day the
+     night STARTED, then the day before, because a session beginning before midnight is logged under
+     the previous civil day.
+
+     An envelope with NO start (`start_time_ms` null) is UNJOINABLE and is skipped rather than matched
+     to the nearest night — attaching the wrong acquisition's evidence to a night is worse than
+     attaching none, and a null start is exactly the case that would fall into "nearest". */
+  function attachAcqEvidence(nights, bag) {
+    if (!nights || !nights.length || !bag) return nights;
+    var byDay = {};
+    for (var sid in bag) {
+      if (!Object.prototype.hasOwnProperty.call(bag, sid)) continue;
+      var ev = bag[sid];
+      var t = ev && ev.start_time_ms;
+      if (t == null || !isFinite(t)) continue; // unjoinable — never guessed into a night
+      var d = Math.floor(t / 86400000);
+      // first envelope wins for a day, so a re-drop cannot silently replace an already-paired one
+      if (!Object.prototype.hasOwnProperty.call(byDay, d)) byDay[d] = ev;
+    }
+    for (var n = 0; n < nights.length; n++) {
+      var night = nights[n];
+      var t0 = night && (night.t0Ms != null ? night.t0Ms : night.stats && night.stats.t0Ms);
+      if (t0 == null) continue;
+      var day = Math.floor(t0 / 86400000);
+      var hit = Object.prototype.hasOwnProperty.call(byDay, day) ? byDay[day] : Object.prototype.hasOwnProperty.call(byDay, day - 1) ? byDay[day - 1] : null;
+      if (hit) night.acquisitionEvidence = hit;
+    }
+    return nights;
+  }
   /* STR deviceCsr × CSL periodic-breathing CROSS-VALIDATION (CPAPDEX-STR-SUMMARY-INGEST item 1).
      The device's STR session-summary Cheyne-Stokes % (`deviceCsr`) and OUR CSL-annotation-derived
      periodic-breathing % (`periodicBreathingPct`) are both device-origin but arrive on DIFFERENT
@@ -2157,6 +2194,7 @@
     buildSessionFromEdf: buildSessionFromEdf,
     parseStrSummary: parseStrSummary,
     attachStrSummary: attachStrSummary,
+    attachAcqEvidence: attachAcqEvidence,
     csrPbCrossCheck: csrPbCrossCheck,
     nightMetrics: nightMetrics,
     compute: compute,
