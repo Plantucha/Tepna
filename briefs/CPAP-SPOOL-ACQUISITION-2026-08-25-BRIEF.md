@@ -32,9 +32,20 @@ requirement (live and spool CONVERGE on one canonical record) has never been exe
    (the `pull.on_close` pattern verbatim). The arming line prints its state.
 4. **§11 CONVERGENCE (the point of the whole lane):** for one night held three ways — live BLE
    capture, SD card (the 13:00 harvest works; verified against its destination 2026-08-25), and the
-   spool pull — show the three agree or characterise exactly where they don't. The live-vs-SD
-   comparator (v1.1, Flow+Pressure) already covers two legs; add the spool leg to the same
-   comparison rather than building a new one.
+   spool pull — show the three agree or characterise exactly where they don't.
+   **AMENDED 2026-08-25 (pre-session, tepna-99's catch): which comparison this is depends on what
+   the spool CARRIES, and that is checkable before spending owner time.** The documented Summary
+   spool holds session STATISTICS (the device's own AHI/indices — protocol reference §3, session
+   investigation brief), which structurally cannot feed the v1.1 sample-pair comparator. Two
+   branches, decided by the box's answer on whether a detail/WAVEFORM spool type exists:
+   - **(a) waveform spool exists** → pull it for this item (Summary still pulled for item 2); the
+     v1.1 comparator applies as originally written, waveform bands (identity 0.15, 1.96·SD LoA).
+   - **(b) Summary is all there is** → item 4 is a **summary-vs-summary** convergence: spool
+     summary vs SD summary vs live-derived metrics, on the existing #1781 `attachStrSummary`/
+     `csrPbCrossCheck` path, with EVENT-RATE bands (events/hour, asymmetric, per #1781's pattern).
+   Pre-state BOTH band sets before the session; the hardware answer selects which applies. The
+   original "extend v1.1 with a spool leg" wording assumed branch (a) unverified — kept here struck
+   as a record of the assumption: ~~add the spool leg to the same comparison~~.
 5. **Evidence contract:** the pull's provenance lands as an acquisition-evidence envelope
    (duration_check fields per the locked contract shape), and the raw fragment log is kept as the
    primary artifact (INV9: raw first, derived carries provenance).
