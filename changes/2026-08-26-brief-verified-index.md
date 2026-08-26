@@ -12,7 +12,15 @@ briefs picked that way: two carried real contradictions and one was already corr
 one was the one **re-measured most recently** (08-23, against 08-20 and 08-16 for the two that were
 wrong). Staleness tracks time-since-verification.
 
-First run over 72 open briefs: **11 never claim a verification at all.**
+First run over 72 open briefs: **3 never claim a verification at all** — all created within the
+last three days, which is unremarkable rather than alarming.
+
+⚠️ **That number was 11 on the first cut, and 8 of those were wrong.** The initial verb list carried
+only verification proper (`verified`/`measured`/`audited`/…) and was blind to a dated `corrected`,
+`executed`, `shipped`, `landed`, `retired` or `withdrawn` — plain evidence someone engaged with the
+claim on that date. The tool built to catch narrow filters shipped with one, and its headline count
+was the casualty. Fixed before merge; the header now carries the incident and tells the next editor
+to re-measure the NEVER count against a hand-read sample after touching `VERBS`.
 
 ⚠️ **Git mtime is not a verification date, which is why the tool reads prose.** `git log -1` says
 someone EDITED the file; editing is not checking. Both columns are printed side by side so the gap is

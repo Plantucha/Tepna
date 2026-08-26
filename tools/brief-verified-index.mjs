@@ -24,6 +24,11 @@
  * "unknown" — it is the never-verified tail, and it sorts FIRST. Rendering it as an empty cell would
  * be the well-formed-zero failure this repo keeps paying for, so it prints NEVER and is counted.
  *
+ * ⚠️ AND A NEVER IS ONLY AS TRUSTWORTHY AS THE VERB LIST. This tool's first run reported 11 NEVERs
+ * and 8 were wrong — it was blind to dated `corrected`/`executed`/`shipped`. If you widen or narrow
+ * VERBS, re-measure the NEVER count against a hand-read sample before quoting it; a confident zero
+ * from a narrow filter is the failure this repo pays for most often, and this tool has committed it.
+ *
  * WHAT IT DOES NOT CLAIM. That a claimed date is true — a brief asserting "verified 2026-08-20" is
  * taken at its word; this ranks candidates, it does not audit them. And a `Created:` date is
  * deliberately NOT a verification: authoring a claim is not checking it.
@@ -44,7 +49,18 @@ const OPEN = new Set(['PROPOSED', 'IN-PROGRESS']);
 /* A date is a VERIFICATION date only when a verification verb sits within ~70 chars of it, on
    either side. The window is deliberately generous (prose interleaves markup) and the verb list
    deliberately narrow — "created", "spawned", "proposed", "follows" are NOT verification. */
-const VERBS = 'verified|re-?verified|re-?measured|measured|audited|re-?audited|checked|confirmed|re-?run|reproduced|re-?checked';
+/* ⚠️ THIS LIST WAS TOO NARROW ON ITS FIRST RUN AND THE TOOL LIED BY 8 OF 11.
+   The first cut carried only the verification verbs proper (verified/measured/audited/...) and
+   reported "11 open briefs never claim a verification". Eight of those eleven carried a DATED
+   `corrected` / `executed` / `shipped` / `landed` / `retired` / `withdrawn` — someone had plainly
+   gone and engaged with the claim on that date. Only three were genuinely undated.
+   The tool built to catch narrow filters shipped with one. What is being proxied is *when did a
+   human last engage with this brief's CONTENT*, and executing or correcting an item is engagement
+   at least as strong as checking it.
+   Still deliberately EXCLUDED: created / spawned / proposed / follows / superseded-by — authoring
+   or linking a claim is not engaging with whether it holds. */
+const VERBS =
+  'verified|re-?verified|re-?measured|measured|audited|re-?audited|checked|re-?checked|confirmed|re-?run|reproduced|corrected|executed|shipped|landed|retired|withdrawn|closed|resolved|refuted|ratified';
 const NEAR = new RegExp(`(?:${VERBS})[^\\n]{0,70}?(\\d{4}-\\d{2}-\\d{2})|(\\d{4}-\\d{2}-\\d{2})[^\\n]{0,70}?(?:${VERBS})`, 'gi');
 
 export function verificationDates(text) {
