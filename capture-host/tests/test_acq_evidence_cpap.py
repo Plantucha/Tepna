@@ -423,12 +423,39 @@ def test_no_raw_record_means_no_envelope():
 
 
 # ── §4 ACQUISITION ⟂ SCIENCE ───────────────────────────────────────────────────
+def _values(obj):
+    """Every scalar VALUE in a nested dict/list, as lowercase strings."""
+    if isinstance(obj, dict):
+        for v in obj.values():
+            yield from _values(v)
+    elif isinstance(obj, list):
+        for v in obj:
+            yield from _values(v)
+    elif obj is not None:
+        yield str(obj).lower()
+
+
 def test_the_envelope_carries_no_scientific_evidence_tier():
-    """Acquisition integrity must never leak into the science ladder (measured/validated/...)."""
+    """Acquisition integrity must never leak into the science ladder (measured/validated/...).
+
+    Scans VALUES, not the raw blob. A tier leaks in as a GRADE — i.e. as a value — whereas a KEY may
+    legitimately contain a tier word: `clock_offset.measured_at_ms` is a timestamp saying when a clock
+    comparison was taken, not a claim that anything is `measured`-tier. The blob-wide scan this
+    replaced flagged exactly that, which is a false positive on the field name rather than a finding.
+    The value scan is also the STRONGER check for the real hazard: `{"evidence": "measured"}` is caught
+    either way, but only the value scan stays true as honest field names accumulate."""
     ev = cpap.assemble_live(_facts(), counters=_counters(), stopped_cleanly=True)
-    blob = json.dumps(ev.to_dict()).lower()
+    vals = list(_values(ev.to_dict()))
     for tier in ("measured", "validated", "emerging", "experimental", "heuristic"):
-        assert tier not in blob, f"acquisition evidence must not carry the {tier} science tier"
+        assert tier not in vals, f"acquisition evidence must not carry the {tier} science tier"
+
+
+def test_the_tier_control_still_catches_a_real_leak():
+    """Guard the guard — the value scan must still fire on a tier appearing as a GRADE. Without this,
+    narrowing the scan above could have quietly disabled the control it was meant to preserve."""
+    leaked = {"validation": "VALID", "provenance": {"evidence": "measured"}}
+    vals = list(_values(leaked))
+    assert "measured" in vals, "the control must catch a tier that leaks in as a value"
 
 
 # ── the capture.py production wiring: the sidecar writer ───────────────────────
@@ -516,3 +543,57 @@ def test_the_controller_forwards_the_writer_to_the_pump():
     seen.clear()
     asyncio.run(_drive(None))
     assert seen.get("out") is None, "and must not invent one when none was configured"
+
+
+# ── v1.1.0 · the measured clock offset (CPAPDEX-STR-SUMMARY-INGEST's clock box) ──
+def test_absent_clock_offset_is_the_honest_absence_record_not_a_zero():
+    """THE control for this field. An unmeasured offset must not read as "the clocks agreed" — that is
+    a measurement nobody made, and a consumer would apply 0 s of correction believing it was checked."""
+    ev = cpap.assemble_live(_facts())
+    assert ev.clock_offset.offset_sec is None
+    assert ev.clock_offset.offset_sec != 0 and ev.clock_offset.offset_sec != 0.0
+    assert ev.clock_offset.measured is False
+    assert ev.clock_offset.reference == ae.UNKNOWN and ev.clock_offset.method == ae.UNKNOWN
+
+
+def test_a_measured_ZERO_offset_is_measured():
+    """The mirror control, and the reason `measured` exists instead of truthiness: 0.0 s is a REAL
+    result (the device agreed with the reference) and is falsy. `if offset_sec:` would discard it."""
+    z = ae.ClockOffset(0.0, 1.0, "host-stratum1", "GetDateTime")
+    assert z.measured is True
+    assert bool(z.offset_sec) is False, "0.0 is falsy — which is exactly why callers must gate on .measured"
+
+
+def test_a_supplied_offset_rides_the_envelope_with_its_provenance():
+    """An offset without WHEN and AGAINST-WHAT is a bare number nobody can responsibly apply — a device
+    crystal drifts, so last week's offset is not tonight's. The provenance is a field, not a comment."""
+    off = ae.ClockOffset(-2520.0, 1755000000000.0, "host-stratum1", "GetDateTime")
+    ev = cpap.assemble_live(_facts(), clock_offset=off)
+    assert ev.clock_offset.offset_sec == -2520.0
+    assert ev.clock_offset.measured_at_ms == 1755000000000.0
+    assert ev.clock_offset.reference == "host-stratum1"
+    assert ev.clock_offset.method == "GetDateTime"
+    # and it survives serialisation, since the sidecar is what a Dex will read
+    assert json.loads(json.dumps(ev.to_dict()))["clock_offset"]["offset_sec"] == -2520.0
+
+
+def test_the_sign_convention_is_pinned():
+    """POSITIVE = the DEVICE reads LATER than the reference. Unpinned, a consumer has a 50 % chance of
+    correcting in the wrong direction — and a doubled error looks like a plausible offset."""
+    ev = cpap.assemble_live(_facts(), clock_offset=ae.ClockOffset(-2520.0, 1.0, "host-stratum1", "GetDateTime"))
+    assert ev.clock_offset.offset_sec < 0, "the AS11 runs BEHIND the host, so its offset is negative"
+
+
+def test_the_spool_path_carries_the_offset_too():
+    ev = cpap.assemble_spool([_row()], clock_offset=ae.ClockOffset(-2520.0, 1.0, "host-stratum1", "GetDateTime"))
+    assert ev.clock_offset.offset_sec == -2520.0
+    assert cpap.assemble_spool([]).clock_offset.measured is False, "an empty ledger measures no clock"
+
+
+def test_the_field_is_additive_and_the_schema_version_moved():
+    """A new FIELD moves the version (unlike SOURCE_STORED_SPOOL, which added a VALUE to an open
+    vocabulary). And every pre-existing caller keeps working without passing it."""
+    assert ae.SCHEMA_VERSION == "1.1.0"
+    ev = cpap.assemble_live(_facts(), counters=_counters(), stopped_cleanly=True)
+    assert ev.validation == ae.VALID and ev.completeness == ae.COMPLETE, "unchanged by the addition"
+    assert "clock_offset" in ev.to_dict()
