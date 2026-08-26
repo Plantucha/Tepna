@@ -1214,6 +1214,36 @@ def apply_instance(cfg: dict | None, instance: str) -> str:
 # over to a healthy spare instead of giving up. The pin is a process global (ADAPTER) resolved MAC->hciN
 # FRESH on every reconnect (adapter_kw/adapter_hci), so repointing it alone moves every device task —
 # the whole failover is: pick a spare, repoint, re-bond the sensors there.
+_UNADDRESSABLE_BD = {"00:00:00:00:00:00", "FF:FF:FF:FF:FF:FF"}
+
+
+def _addressable(bd: str) -> bool:
+    """Is this BD address one a reconnect can actually be PINNED to?
+
+    The shape test upstream (17 chars, 5 colons) checks the FORMAT and nothing else, and the null
+    address passes it — it is 17 characters with 5 colons like any other. That gap is not
+    hypothetical: the Zephyr/nRF52840 dongle (`2fe3:000b`) reports
+
+        hci1:  BD Address: 00:00:00:00:00:00  ACL MTU: 251:6  SCO MTU: 0:0
+
+    because that firmware has no PUBLIC address — Zephyr identifies by static-random, and a
+    host-side public pin is refused (`0x0c Not Supported`). BlueZ shows the static-random address
+    (`C6:CF:3C:4E:75:F0`); `hciconfig` — the layer THIS parser reads — shows zeros. Both are true,
+    and only one of them reaches `failover_target`.
+
+    Why it matters: `parse_hciconfig`'s own contract says *"a block with no MAC is dropped — an
+    adapter we cannot address is not a failover target"*, and a shape-valid null address defeats
+    exactly that promise. It survives the parse, `failover_target` returns the FIRST such adapter
+    (`hciconfig` order is not sorted, and the dongle has come first), and the failover then pins a
+    reconnect to an address no device can be reached on — so a wedged radio "fails over" into
+    silence, which is worse than staying put on the wedged one.
+
+    Broadcast (all-FF) is rejected on the same principle rather than from observation: no controller
+    legitimately reports it, and letting it through would be the same defect wearing a different
+    constant."""
+    return bd.upper() not in _UNADDRESSABLE_BD
+
+
 def parse_hciconfig(text: str) -> list[dict]:
     """`hciconfig -a` → [{'hci','mac','up'}], one per controller. PURE. A controller block starts at a
     left-margin `hciN:`; `BD Address: XX:..` gives the MAC; `UP RUNNING` anywhere in the block means up.
@@ -1230,7 +1260,7 @@ def parse_hciconfig(text: str) -> list[dict]:
             continue
         if "BD Address:" in line:
             frag = line.split("BD Address:", 1)[1].split()
-            if frag and len(frag[0]) == 17 and frag[0].count(":") == 5:
+            if frag and len(frag[0]) == 17 and frag[0].count(":") == 5 and _addressable(frag[0]):
                 cur["mac"] = frag[0].upper()
         if "UP RUNNING" in line:
             cur["up"] = True
