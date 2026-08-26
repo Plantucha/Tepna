@@ -84,6 +84,27 @@
    "key": "- self._closed = False | + self._closed = None",
    "probe": "Built a full 61-batch BRP.edf twice — once with _closed seeded False, once None — then double-closed each: the written bytes are byte-identical between the two seeds, and the second close is a verified no-op (same bytes, same mtime) under both. Run empirically 2026-08-23.",
    "why": "A PROOF over the init value: `self._closed` seeds the idempotent-close guard and is read ONLY by `if self._closed:` in close() — both False and None are falsy, so the first close proceeds identically, after which close() sets it True. No other path reads the init value. So False, None (or any falsy seed) produce identical behaviour and identical output. The mutant surfaced here only because the §2 controller-fix added _interval_checked to __init__, pulling the whole function into diff-scope (#1701)."
+  },
+  {
+   "brief": "ACQ envelope acquisition start (CPAPDEX-STR-SUMMARY-INGEST clock chain, gap-2 prerequisite)",
+   "class": "no-distinguishing-input",
+   "key": "- return calendar.timegm((y, mo, d, hh, mm, ss, 0, 0, 0)) * 1000.0 | + return calendar.timegm((y, mo, d, hh, mm, ss, 1, 0, 0)) * 1000.0",
+   "probe": "Swept tm_wday/tm_yday/tm_isdst over {0,1,6,-1,99} x {0,1,366,-1} x {0,1,-1} across five dates (2026-08-23, 2000-02-29 leap, 1970-01-01 epoch, 2038-01-19, 2026-12-31) — 300 tuples, 0 differed from the (…,0,0,0) reference. Run empirically 2026-08-26.",
+   "why": "`calendar.timegm` reads ONLY tm_year..tm_sec (the first six struct_time fields); tm_wday, tm_yday and tm_isdst are ignored by construction — unlike `time.mktime`, which consults tm_isdst. So mutating any of the three trailing zeros cannot change the result for any input. This entry covers the tm_wday variant; sibling entries cover tm_yday and tm_isdst."
+  },
+  {
+   "brief": "ACQ envelope acquisition start (CPAPDEX-STR-SUMMARY-INGEST clock chain, gap-2 prerequisite)",
+   "class": "no-distinguishing-input",
+   "key": "- return calendar.timegm((y, mo, d, hh, mm, ss, 0, 0, 0)) * 1000.0 | + return calendar.timegm((y, mo, d, hh, mm, ss, 0, 1, 0)) * 1000.0",
+   "probe": "Swept tm_wday/tm_yday/tm_isdst over {0,1,6,-1,99} x {0,1,366,-1} x {0,1,-1} across five dates (2026-08-23, 2000-02-29 leap, 1970-01-01 epoch, 2038-01-19, 2026-12-31) — 300 tuples, 0 differed from the (…,0,0,0) reference. Run empirically 2026-08-26.",
+   "why": "`calendar.timegm` reads ONLY tm_year..tm_sec (the first six struct_time fields); tm_wday, tm_yday and tm_isdst are ignored by construction — unlike `time.mktime`, which consults tm_isdst. So mutating any of the three trailing zeros cannot change the result for any input. This entry covers the tm_yday variant; the same 300-tuple probe covers all three."
+  },
+  {
+   "brief": "ACQ envelope acquisition start (CPAPDEX-STR-SUMMARY-INGEST clock chain, gap-2 prerequisite)",
+   "class": "no-distinguishing-input",
+   "key": "- return calendar.timegm((y, mo, d, hh, mm, ss, 0, 0, 0)) * 1000.0 | + return calendar.timegm((y, mo, d, hh, mm, ss, 0, 0, 1)) * 1000.0",
+   "probe": "Swept tm_wday/tm_yday/tm_isdst over {0,1,6,-1,99} x {0,1,366,-1} x {0,1,-1} across five dates (2026-08-23, 2000-02-29 leap, 1970-01-01 epoch, 2038-01-19, 2026-12-31) — 300 tuples, 0 differed from the (…,0,0,0) reference. Run empirically 2026-08-26.",
+   "why": "`calendar.timegm` reads ONLY tm_year..tm_sec (the first six struct_time fields); tm_wday, tm_yday and tm_isdst are ignored by construction — unlike `time.mktime`, which consults tm_isdst. So mutating any of the three trailing zeros cannot change the result for any input. This entry covers the tm_isdst variant; the same 300-tuple probe covers all three."
   }
  ],
  "cpap_spool.py": [
@@ -110,6 +131,13 @@
    "key": "- bus.register(key, label, unit, fs, chans=1) | + bus.register(key, label, unit, fs, )",
    "probe": "Registered the same stream on two TelemetryBus instances — one with chans=1 explicit, one omitting it — and compared the stored StreamMeta: equal, chans=1 under both. Run empirically 2026-08-23.",
    "why": "`TelemetryBus.register(self, key, label, unit, fs, chans=1, labels=())` DEFAULTS chans to 1, so passing chans=1 explicitly and omitting it are the SAME call — the StreamMeta stored is identical. The explicit chans=1 is documentation of intent, not behaviour. Surfaced because the §2 observed-interval block pulled stream_to_bus into diff-scope (#1701)."
+  },
+  {
+   "brief": "ACQ envelope acquisition start (gap-2 prerequisite)",
+   "class": "untestable-by-design",
+   "key": "- _log.exception(\"CPAP acquisition-evidence emit failed — the capture itself is unaffected\") | + _log.exception(None)",
+   "probe": "n/a — the argument is about the CODE, not a battery of inputs.",
+   "why": "A LOG STRING on the failure path. The message text reaches no return value, no envelope field and no caller — the function's contract on this path is precisely that it swallows the failure and returns, which the existing `test_a_failing_evidence_writer_never_sinks_the_acquisition` already pins. Asserting the wording would pin prose, not behaviour."
   }
  ],
  "cpapdex-dsp.js": [
@@ -4009,6 +4037,22 @@
    "key": "- lost = 0 | + lost = None",
    "probe": "Ran BOTH the original and the mutant over 54 input combinations — counters in {None, {}, all-zero, total_lost only, sink_errors only, both} x stopped_cleanly in {None, True, False} x duration pairs in {(None,None), agreeing, disagreeing} — comparing the FULL serialised envelope each time. 0 of 54 differed. Run empirically 2026-08-26.",
    "why": "`lost` is initialised then IMMEDIATELY reassigned inside `if counters:`, so the initial value only survives when `counters` is falsy. Its single consumer is `if lost or stopped_cleanly is False or duration_check.agrees is False:` — and 0 and None are BOTH falsy, so the branch is taken identically. `lost` is read nowhere else. Surfaced because adding `clock_offset` pulled assemble_live into diff-scope."
+  }
+ ],
+ "cpap_record.py": [
+  {
+   "brief": "ACQ envelope acquisition start (gap-2 prerequisite)",
+   "class": "no-distinguishing-input",
+   "key": "- self._fh = None | + self._fh = \"\"",
+   "probe": "Exercised both variants through the full sink lifecycle — acq_facts before open, on_batch before open, close before open, open, on_batch, acq_facts while open, double-open, double-close, acq_facts after close — comparing every returned value and raised exception type. Identical throughout (300-char normalised dumps). Run empirically 2026-08-26.",
+   "why": "`_fh` is a WRITE-ONLY slot until `open()` assigns the real handle; the only read of its initial value is `acq_facts`'s `self._fh is None` clause, which is already gated behind `self._ever_opened` — False before any open, so the clause is never reached with the initial value in play. Surfaced because adding `_first_device_start` pulled __init__ into diff-scope."
+  },
+  {
+   "brief": "ACQ envelope acquisition start (gap-2 prerequisite)",
+   "class": "no-distinguishing-input",
+   "key": "- self._state = _CLOSED | + self._state = None",
+   "probe": "Same full-lifecycle sweep as the `_fh` entry above, both variants, comparing every return value and exception type. Identical throughout. Run empirically 2026-08-26.",
+   "why": "Every consumer tests the state against `_OPEN` (`open` refuses if == _OPEN; `on_batch` and `close` return/raise if != _OPEN), and both `_CLOSED` and None are != _OPEN. The one `== _CLOSED` read is in `acq_facts`, gated behind `_ever_opened`, which is False before any open — so the initial value is never observable. Surfaced by the same __init__ re-scoping."
   }
  ]
 }

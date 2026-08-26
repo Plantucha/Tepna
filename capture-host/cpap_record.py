@@ -84,6 +84,10 @@ class RawRecordSink:
         # ever exist?". acq_facts needs that distinction: a never-opened sink must not report a clean
         # close (which the envelope reads as VALID) for a record that was never written.
         self._ever_opened = False
+        # The acquisition's START, kept VERBATIM as the device wrote it (INV3/INV4 — the raw stamp is
+        # never converted or substituted here). The envelope needs a time to be joinable to a night;
+        # this is where it comes from, and the conversion happens at the envelope boundary, not here.
+        self._first_device_start = None
 
     def open(self, channels, fs):
         """Open the record file (torn-tail-safe) and write the session header once."""
@@ -109,6 +113,8 @@ class RawRecordSink:
         if self._state != _OPEN:
             raise RuntimeError("RawRecordSink.on_batch called before open")
         self._seq += 1
+        if self._first_device_start is None:
+            self._first_device_start = batch.get("startTime")
         self._write({
             "seq": self._seq,
             "stream_id": batch.get("streamId"),
@@ -136,6 +142,9 @@ class RawRecordSink:
             "device_id": self._device_id,
             "path": self._path,
             "records": self._seq,
+            # verbatim device stamp of the FIRST batch, or None when nothing streamed — the caller
+            # converts it; an absent one stays absent rather than becoming a fabricated date.
+            "first_device_start": self._first_device_start,
             # cleanly closed ⇒ opened, then closed. A never-opened sink is NOT "closed" — it has no
             # record to validate, and reporting a clean close would manufacture VALID out of nothing.
             "closed": self._ever_opened and self._state == _CLOSED and self._fh is None,
