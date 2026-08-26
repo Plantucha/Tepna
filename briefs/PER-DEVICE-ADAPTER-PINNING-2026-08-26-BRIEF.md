@@ -118,6 +118,61 @@ This is not a footnote: a fresh H10 bond is an active confound on the 2026-08-25
    use the default as though the pin had worked — the same honesty rule `_resolve_cpap_adapter`
    already applies.
 
+## 4b · PER-ADAPTER DAEMONS — owner-raised, and the experiment says YES (measured 2026-08-26)
+
+Owner asked whether each adapter should have its own daemon, so a wedge can be cleared without
+disturbing the other radios. My first answer was that per-adapter **supervised task groups** inside
+one process would be a lighter way to get the same isolation. **That answer was wrong, and the
+experiment that falsifies it is one script.**
+
+Reproduced the leak deliberately on the idle `hci2`, then tried every cheaper recovery in turn:
+
+```
+S0 baseline                                        false
+S1 BleakScanner.start()                            true
+S2 reference dropped WITHOUT stop()  (the leak)    true
+S3 busctl … Adapter1 StopDiscovery   ->  (rc=1, "Call failed: No discovery started")
+S4 after that StopDiscovery                        true      <- NOT cleared
+S5 after the owning PROCESS exits                  false     <- cleared
+```
+
+Two independent recoveries fail, for the same underlying reason:
+
+- **A new client in the same process fails** — this run reproduced the exact production error,
+  `BleakDBusError: [org.bluez.Error.InProgress] Operation already in progress`, which is what the
+  O2Ring threw every 60 s on the morning of 2026-08-26.
+- **A cross-client `StopDiscovery` is REFUSED** with *"No discovery started"* — BlueZ refcounts
+  discovery **per D-Bus client connection**, so from any other connection the leaked scan does not
+  exist and cannot be stopped.
+
+**Therefore only closing the OWNING connection releases it, and a process is the unit that owns a
+connection.** Task groups cannot recover a leaked scan; they would hit `InProgress` exactly as a new
+client does. **Per-adapter daemons are required for isolated recovery** — the owner's instinct was
+right and mine was not.
+
+**But note what this does and does not argue for**, because the two halves have different owners:
+
+| | mechanism | who fixes it |
+|---|---|---|
+| **Prevention** | guarded scan — stop discovery on *every* exit path incl. cancellation | the runner's in-flight fix |
+| **Recovery when prevention fails** | process exit — hence per-adapter daemons | this brief's §4b |
+| **Isolated recovery** | per-adapter daemons, so one radio's restart costs only its own devices | this brief's §4b |
+
+Prevention remains the primary fix; a leak that never happens needs no recovery. §4b is the blast-radius
+bound for when it does — and it is not hypothetical: clearing the 2026-08-26 wedge required a full
+daemon restart that dropped **every** device, including a CPAP on a different, healthy radio.
+
+⚠️ **What per-adapter daemons still do NOT isolate**: `bluetoothd` is a single shared daemon, and this
+leak was BlueZ state. Separate processes bound the *blast radius* of the remedy; they do not prevent
+one adapter's fault from being a BlueZ-level fault. Do not oversell them as isolation.
+
+**Costs, unchanged and real:** failover becomes cross-process (today one assignment migrates devices);
+`status.json`, the monitor, QC and the sidecars are single-process and would need a merge layer or a
+locked store; and the device→adapter map — i.e. §3.1 of this brief — is the partition key, so this
+work **depends on per-device pinning landing first**.
+
+**Sequencing: per-device pinning → then daemon split.** Not the reverse.
+
 ## 5 · Done when
 
 - [ ] `resolve_adapter(spec)` is shared by the wearable and CPAP paths — one resolver, not two.
