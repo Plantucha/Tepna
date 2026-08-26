@@ -166,7 +166,14 @@ const out = await page.evaluate(() => {
     }
     return o;
   };
-  const biasN = R.nGrid[R.nGrid.length - 1]; // bias is flat in N; quote the deepest cell
+  // The paper's Table 2 quotes bias at N=8, so quote the same cell rather than the deepest one —
+  // a table regenerated at a different N is not a regeneration of that table. The full curve is
+  // exported alongside it so "flat in N" is a checkable claim instead of an asserted one.
+  const biasN = R.nGrid.includes(8) ? 8 : R.nGrid[R.nGrid.length - 1];
+  const biasByN = { dynamic: {}, resting: {} };
+  for (const regime of ['dynamic', 'resting']) {
+    for (const N of R.nGrid) biasByN[regime][N] = biasAt(regime, N);
+  }
   const negRate = {};
   for (const g of R.rhoGrid) {
     negRate[g] = {};
@@ -189,7 +196,12 @@ const out = await page.evaluate(() => {
     half,
     biasN,
     bias: { dynamic: biasAt('dynamic', biasN), resting: biasAt('resting', biasN) },
-    negRate
+    biasByN,
+    negRate,
+    // Fourth published table: minutes of window needed to reach each precision target at N=1.
+    // The paper prints the DYNAMIC regime; resting is carried too so one run covers both.
+    durGridSec: R.duration ? R.duration.gridSec : null,
+    minMinutes: R.minMinutes || null
   };
 });
 await browser.close();
@@ -226,5 +238,17 @@ console.log('\n  NEGATIVE-VARIANCE RATE vs injected rho (resting)');
 console.log('  rho     ' + res.nGrid.map((n) => ('N=' + n).padStart(7)).join(''));
 for (const g of res.rhoGrid) {
   console.log('  ' + String(g).padEnd(8) + res.nGrid.map((n) => (res.negRate[g][n] == null ? '-' : res.negRate[g][n].toFixed(2)).padStart(7)).join(''));
+}
+console.log('');
+
+console.log('  WINDOW MINUTES needed at N=1 (dynamic regime - the table the paper prints)');
+console.log('  dev         ' + res.targets.map((t) => ('+/-' + t).padStart(10)).join(''));
+for (const k of ['o2', 'h10', 'verity']) {
+  const row = (res.minMinutes && res.minMinutes.dynamic && res.minMinutes.dynamic[k]) || {};
+  console.log(
+    '  ' +
+      k.padEnd(10) +
+      res.targets.map((t) => (row[t] == null ? '>' + Math.round((res.durGridSec ? res.durGridSec[res.durGridSec.length - 1] : 3600) / 60) + ' min' : row[t] + ' min').padStart(10)).join('')
+  );
 }
 console.log('');
