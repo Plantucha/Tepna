@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-08-20 · **Created:** 2026-08-20
+**Status:** DONE — 2026-08-26 (**its own gate was met five days ago and nobody flipped it**: the single blocking item was *"#1609 lands"*, and #1609 merged 2026-08-21T04:39:49Z. The four remaining items sit under *Still owed (the follow-up surface)* — future work, not Done-when blockers, which is the form CLAUDE.md §📌 permits inside a DONE brief. ⚠️ **One of those four is no longer deferred, it is LOST** — see the sweep-apparatus item.) · **Created:** 2026-08-20
 
 # O2Ring waveform SpO₂ — the ship brief (one night's arc, owner-driven)
 
@@ -60,7 +60,8 @@ one to know what shipped and what is still owed.
 
 ## Still owed (the follow-up surface)
 
-- [ ] **#1609 lands** → flip this brief DONE. (Chain green locally; queue is monitor-driven.)
+- [x] **#1609 LANDED 2026-08-21T04:39:49Z** → this brief is DONE. Flipped 2026-08-26; it sat
+      IN-PROGRESS for five days after its own gate was satisfied.
 - [ ] **Post-#1596 re-fit**: contiguous double-drain nights should steepen the converted slope
       toward the literature's −25 %/R family and lift r toward 0.7–0.9. If they do not, re-examine
       the functional claim, not the calibration constants.
@@ -69,5 +70,21 @@ one to know what shipped and what is still owed.
 - [ ] **LUT recovery**: per-beat R (not buffer-wise), then fit the firmware's fixed R→SpO₂ curve
       globally; a residual surviving that is the fingerprint of hidden AGC state → protocol
       archaeology for gain telemetry.
-- [ ] **Sweep apparatus promotion**: `ppg2w-sweep.mjs` lives in session scratch; promote to
-      `tools/` if a second device or a post-#1596 re-sweep needs it.
+- [ ] 🔴 **Sweep apparatus — LOST, not deferred. It must be REBUILT, not promoted.**
+      This item read *"`ppg2w-sweep.mjs` lives in session scratch; promote to `tools/` if
+      needed"* — that premise is false as of the 2026-08-19 ext4 migration. Session scratch
+      was on the retired ntfs3 volume and did not survive. Verified 2026-08-26: not tracked
+      (`git ls-files` → only `tools/ppg2w-rate.mjs`, `tools/ppg2w-spo2-fit.mjs`, neither of
+      which is the sweep and neither of which mentions one), and absent from every surviving
+      archive path.
+
+      ⚠️ **This is `PPGDEX-ALGORITHM-DEEP-DIVE` §5 happening again, and it has now cost
+      something.** That precedent records a jitter bound that became unverifiable because
+      *"the method was named and no tool committed"*. Here the sweep CHOSE the estimator that
+      shipped in #1609 — so the winning result is live in production and the apparatus that
+      selected it is gone. A post-#1596 re-sweep can no longer be compared against the sweep
+      that made the original call.
+
+      **Rule this brief now carries: an apparatus whose output reaches a shipped decision is
+      committed at the moment of that decision, not when someone next needs it.** "Promote if
+      needed" is a bet that scratch outlives the need; it lost that bet in six days.
