@@ -1592,7 +1592,18 @@ async function runFile(file) {
         ' [' +
         canaryWant.op +
         ']) no longer matches any generated mutant; the file changed under it.\n' +
-        '    The run is UNGUARDED. Delete its entry in tools/mutate-canaries.json to re-learn one.\n'
+        '    The run is UNGUARDED. Delete its entry in tools/mutate-canaries.json to re-learn one.\n' +
+        /* HOW TO READ "UNGUARDED" — shipped WITH the warning on purpose, because a machine-emitted
+           warning whose interpretation lives in a brief is a warning most readers will act on wrongly.
+           Ruled 2026-08-26 after integrator ran unguarded at 49.9%. */
+        '    A HIGH KILL RATE IS ITS OWN POSITIVE CONTROL; A LOW ONE IS NOT. A blind harness reports\n' +
+        '    ZERO kills, so a run at (say) 952/1917 has proved detectability 952 times over and STANDS\n' +
+        '    unguarded. The canary is load-bearing in the opposite case: at a low or zero kill rate,\n' +
+        '    "nothing was killable" and "the harness was blind" produce identical output, and only a\n' +
+        '    planted known-answer separates them — an unguarded run at 3% is UNTRUSTED by default.\n' +
+        '    Neither instrument speaks to individual survivor verdicts: a canary proves ONE planted\n' +
+        '    kill was seen, not that survivor #700 was judged right. So re-verifying a sample "because\n' +
+        '    the canary was stale" answers a question neither instrument asks.\n'
     );
   }
   return {
