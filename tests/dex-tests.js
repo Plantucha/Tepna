@@ -10869,6 +10869,39 @@
         var c = D.detectCVHR(shortNN, shortT);
         T.eq('detectCVHR below N=60 refuses its index — "not measurable", not "no cyclic variation"', c && c.index, null);
         T.ok('…and events stays an empty LIST, which is honest for a list', !!c && Array.isArray(c.events) && c.events.length === 0);
+
+        /* ── CVHR: an IMPLAUSIBLE SPAN — the upper bound N<60 does not cover ──
+           REAL geometry, measured on 2026-08-23 (the night whose ECGDex export died):
+           N=17320, tt[0]=0.023, tt[1]=0.346 — normal beat spacing — then tt[N-1]=241259871 s
+           (7.6 YEARS). `M = Math.floor(tEnd)` sized five Float64Arrays AND two Array.from copies
+           with NOTHING bounding it. The typed allocations all SUCCEEDED (external memory); only
+           `Array.from(sm)` — which must materialise a PLAIN array — blew V8's cap:
+           `RangeError: Invalid array length`, taking the whole night's export with it.
+           Note the shape this pins: SANE early, jumping late = a DISCONTINUITY (one fragment
+           stamped far from its neighbours), NOT a wrong sample rate — a bad fs would have scaled
+           tt[1] too. So the guard refuses; it must never try to repair a timebase it cannot know. */
+        var farNN = [],
+          farT = [];
+        for (var _i = 0; _i < 120; _i++) {
+          farNN.push(1000);
+          farT.push(_i * 1.0 + 0.023);
+        }
+        farT[farT.length - 1] = 241259871.27944696; // the measured last stamp
+        var far = D.detectCVHR(farNN, farT);
+        T.eq('detectCVHR refuses a 7.6-YEAR span rather than allocating a 241M-element array', far && far.index, null);
+        T.eq('…naming the reason, so the refusal is readable', far && far.reason, 'implausible-span');
+        T.ok('…hrSeries stays empty rather than a fabricated resample', !!far && Array.isArray(far.hrSeries) && far.hrSeries.length === 0);
+        /* The bound must not be so tight it refuses a real night: a GAPPY 20 h recording is
+           legitimate and must still measure. Without this the guard could be tightened to
+           uselessness and every test above would still pass. */
+        var gappy = [],
+          gappyT = [];
+        for (var _g = 0; _g < 200; _g++) {
+          gappy.push(1000);
+          gappyT.push(_g * 360); // 200 beats spread over 20 h — sparse, but real
+        }
+        var gp = D.detectCVHR(gappy, gappyT);
+        T.ok('…while a sparse 20 h night is NOT refused (the bound is not over-tight)', !!gp && gp.reason !== 'implausible-span');
       } else T.skip('detectCVHR exported', 'not on this build');
     });
 
