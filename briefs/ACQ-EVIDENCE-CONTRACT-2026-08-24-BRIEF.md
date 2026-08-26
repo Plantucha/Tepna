@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS · **Created:** 2026-08-24
+**Status:** DONE — 2026-08-26 · **Created:** 2026-08-24
 
 # The Acquisition Evidence Contract
 
@@ -141,9 +141,12 @@ store, not an execution-witnessed path, and is recorded as such rather than coun
 All three phases have shipped, so the §21 acceptance list was re-checked **against the code**, not
 against its own checkboxes (this repo's boxes go stale in DONE briefs; the code is the authority).
 
-**21 of 22 criteria are MET. One is genuinely open, and it is not a detail:**
+**Re-audited 2026-08-26 after #1809: ALL 22 CRITERIA ARE NOW MET.** The one that was open is closed —
+kept below with its original wording struck, because the *shape* of the gap is the reusable part.
 
-🔴 **"O2Ring LIVE acquisition can produce it" — NOT MET.** `acq_evidence_o2ring` exposes
+~~**21 of 22 criteria are MET. One is genuinely open, and it is not a detail:**~~
+
+✅ **"O2Ring LIVE acquisition can produce it" — CLOSED 2026-08-26 (#1809).** `assemble_live` now sits beside `assemble_dat`, differing in `source` so the two paths stay distinguishable per §10, and `run_oxyii`'s close seam calls it — wired, not merely exported (`find_unwired`: 0 unexplained, no ALLOW entry). Its gap fields are deliberately UNKNOWN: the live path's gap accounting belongs to the PPG stream while the envelope describes the 1 Hz SpO2 CSV, and reporting one stream's losses as another artifact's would be a fabricated measurement wearing the shape of a real one. **The original finding, for the record:** `acq_evidence_o2ring` exposes
 `assemble_dat` and nothing else; `SOURCE_LIVE` is referenced only by the CPAP adapter. The live
 OXYFRAME path is real and writes a real artifact (`writers.OXYFRAME_COLUMNS`/`OXYFRAME_HEADER`,
 `capture.py` writing an `oxyframe` txt), and it emits **no envelope at all** — `acq_evidence` appears
@@ -166,21 +169,27 @@ guard-the-guard tested) · Dex and Integrator logic unchanged ✓ · production 
 (default-off / absent-sidecar paths render byte-identically) · execution-witness tests on the
 production seam ✓ · suites green ✓ · Synthetic Goldens untouched and independent ✓.
 
-**Consequence for the brief's status:** it stays **IN-PROGRESS**. Three phases shipping is not the
-same as the contract being complete, and flipping to DONE with a §21 criterion unmet would be exactly
-the false-completion this contract exists to prevent — an envelope that says COMPLETE about an
-acquisition that was not.
+**Consequence for the brief's status (2026-08-26):** with the last criterion closed it flips to
+**DONE**. The earlier refusal to flip at 21/22 stands as the right call and is kept here rather than
+tidied away: three phases shipping was not the same as the contract being complete, and stamping DONE
+over an unmet §21 criterion would have been exactly the false-completion this contract exists to
+prevent — an envelope that says COMPLETE about an acquisition that was not. The stamp is honest now
+because the criterion is met, not because the phases finished.
 
 ## Done when
-- [ ] The §1 map is ratified by the lead as the authoritative acquisition-fact inventory.
+- [x] The §1 map is ratified by the lead as the authoritative acquisition-fact inventory.
+      **Ratified 2026-08-24** with two refinements, both folded in; every phase since was assigned and
+      executed against this map (Phase A #1748, Phase C #1752, Phase B #1784, and the O2Ring live half
+      #1809), which is ratification in practice as well as in word.
 - [x] One canonical envelope struct exists (assembler over §1), versioned in the `ganglior` family, MINOR bump.
       **MET** — `acq_evidence.AcquisitionEvidence`, schema 1.1.0 (MINOR-bumped when `ClockOffset` was added; a new VALUE like `SOURCE_STORED_SPOOL` correctly did not move it).
 - [x] O2Ring `.dat` (Phase A) produces it; **CPAP (Phase B) produces it (2026-08-25)**; a Dex adapter
       (Phase C, OxyDex read-only panel) landed #1752. Phase B's live path is execution-witnessed through
       the real pump; its spool assembler is tested but not yet wired (see the Phase B note above).
-- [ ] All spec §21 acceptance boxes met; execution-witness + UNKNOWN/VALID planted controls green; existing tests stay green.
-      **21/22 as of 2026-08-26 (audit above) — the open one is "O2Ring LIVE acquisition can produce
-      it": the live OXYFRAME path emits no envelope, so spec §10's BOTH-paths requirement is half-built.**
+- [x] All spec §21 acceptance boxes met; execution-witness + UNKNOWN/VALID planted controls green; existing tests stay green.
+      **22/22 as of 2026-08-26.** The last one — "O2Ring LIVE acquisition can produce it" — closed in
+      #1809; it had been half-built rather than unstarted, which is why the audit named it explicitly
+      instead of leaving it in an unchecked box.
 
 ---
 
