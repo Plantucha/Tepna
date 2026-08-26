@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-08-23
+**Status:** IN-PROGRESS — 2026-08-25 (Task 1 flash executed on the SDC path; timestamping + Task 2 probe still open) · **Created:** 2026-08-23
 
 # Zephyr dongle as the open BLE timing instrument — flash + jitter probe (paired daytime task)
 
@@ -26,6 +26,29 @@ and what it is FOR — recorded here so the work isn't re-derived.
 
 ## The role: clock-metrology instrument (what the closed radios cannot do)
 This lands on the Clock-Contract / `hostAxis` / ppm-drift / Allan-deviation frontier.
+
+> **EXECUTED 2026-08-25 (rig-x870, owner-directed) — the flash half of Task 1, on the SoftDevice
+> Controller path.** The Raytac MDBT50Q-CX (moved to the rig after the vigil USB-port exoneration) now
+> runs **NCS v3.4.0 `hci_usb` with Nordic's SDC** instead of the open-source Zephyr LL — verified by
+> `Manufacturer: Nordic Semiconductor ASA (89)` and `CONFIG_BT_LL_SOFTDEVICE=y` in the build.
+> Tuning (all grep-verified in the generated `.config`, sysbuild path `build-hci/hci_usb/zephyr/`):
+> `BT_MAX_CONN=6` · DLE 251 (`ACL MTU 251:6` live at runtime vs stock's 27:3) · 2M PHY · CONN_RSSI ·
+> LE_ENC · `SDC_TX/RX_PACKET_COUNT=6` (defaults are 3/2 — thin for 4 streaming centrals) ·
+> `BT_HCI_VS=y`. `SDC_PERIPHERAL_COUNT=0` was tried and REFUSED by SDC's own BUILD_ASSERT
+> (hci_driver.c: `CONFIG_BT_PERIPHERAL` requires ≥1), so 5 central + 1 peripheral links stand.
+> Verified live: 90 s untouched survival, binds as hciN, BlueZ default, **54 devices in a 10 s scan**.
+> Workspace + build recipe: `/srv/data/ncs` (toolchain `/srv/data/ncs-toolchains`, conf
+> `vigil-sdc.conf`, DFU zip `vigil_sdc_dfu.zip`). DFU entry with Zephyr flashed is **hold the button
+> while plugging in** — a plain press only resets (the stock firmware's press-for-DFU was app code).
+> ⚠️ Flash by Nordic VENDOR ID port selection, never "first ttyACM" — ttyACM0 here is the u-blox GNSS.
+> Address: BlueZ static-random `FA:88:98:C3:7F:E5` (host-side pin still impossible — `0x0c Not
+> Supported` unchanged); persistence across re-plugs/hosts NOT yet observed, and SDC's
+> `vs_read_static_addresses` path (BT_HCI_VS) is the candidate fixed-address mechanism to verify.
+> **Still open from Task 1:** controller-side ACL/adv timestamping (not in this build) · the fixed
+> static address verification · a multi-connection STREAMING soak (the scan proves RX only). Task 2
+> (jitter probe) untouched. One false trail recorded so the next session doesn't re-walk it: an
+> apparent post-flash crash (device vanishing from the bus) was the OWNER'S UNPLUG during DFU
+> attempts — the tuned image never crashed; bisect images `build-stock`/`build-p1` exist unused.
 
 ### Task 1 — FLASH (physical, rig-side, owner)
 Build Zephyr `hci_usb` (or `hci_uart`) with **controller-side ACL packet timestamping** enabled and a
