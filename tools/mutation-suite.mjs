@@ -1867,6 +1867,7 @@ function draftPrompt(c) {
 /** Pull every killable mutant that carries a usable distinguishing input out of a crawl result. */
 export function usableKillables(crawl) {
   const out = [];
+  let skippedTruncated = 0;
   for (const fi of (crawl && crawl.findings) || []) {
     for (const m of fi.mutants || []) {
       if (m.status !== 'KILLABLE') continue;
@@ -1876,9 +1877,16 @@ export function usableKillables(crawl) {
          an assertion that production code hangs. Dropped, and counted, rather than drafted. */
       if (/TIMEOUT/.test(o) || /TIMEOUT/.test(mu)) continue;
       if (/^"?(THREW|ERROR)/.test(o) && /^"?(THREW|ERROR)/.test(mu)) continue;
+      /* A record the CRAWL flagged as bound-truncated cannot be projected honestly — refuse with
+         the real reason rather than let JSON.parse manufacture a "not both JSON" mystery. */
+      if (m.recordTruncated) {
+        skippedTruncated++;
+        continue;
+      }
       out.push({ fn: fi.fn, call: fi.callPath, ...m });
     }
   }
+  if (skippedTruncated) out.skippedTruncated = skippedTruncated;
   return out;
 }
 

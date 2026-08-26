@@ -112,7 +112,26 @@ const DEFAULT_FLEET = [
   'ecgdex-cross.js',
   'oxydex-cross.js',
   'ppgdex-cross.js',
-  'pulsedex-cross.js'
+  'pulsedex-cross.js',
+  /* PHASE 2b — the remainder of MUTATION-FLEET-EXPANSION §2's measured twenty (2026-08-26): the
+     nine registries, the shared metric-registry, the co-load trio and cpapdex-fusion. Per §2a's
+     recipe survey all expose handles and load standalone; cpapdex-fusion is the ONE file where an
+     incomplete realm can FALSE-KILL (it guards with `typeof X !== 'undefined'`) — its kills are not
+     trusted until the realm-completeness check in that survey row is honoured. oxydex-fusion is
+     DELIBERATELY absent: §2a reclassified it to Phase 3 (DOM-coupled page-scope render file). */
+  'cpapdex-registry.js',
+  'ecgdex-registry.js',
+  'glucodex-registry.js',
+  'hrvdex-registry.js',
+  'motiondex-registry.js',
+  'oxydex-registry.js',
+  'ppgdex-registry.js',
+  'pulsedex-registry.js',
+  'metric-registry.js',
+  'cpapdex-coimport.js',
+  'crossnight-envelope.js',
+  'dex-coload.js',
+  'cpapdex-fusion.js'
 ];
 
 const log = (s) => process.stderr.write('  ' + s + '\n');
@@ -450,25 +469,6 @@ function runBattery(fn, bat, ctx) {
         ctx.__probeFn = undefined;
         ctx.__probeArgs = undefined;
       }
-    }
-    /* ⚠️ SAME GAP AS `resultString`: the try/catch above covers only the SYNCHRONOUS throw. An async
-       function returns a promise, so the call SUCCEEDS, and the rejection lands later as an unhandled
-       rejection that kills the driver. Measured 2026-08-26: a `FileReader is not defined` reach inside
-       a co-loaded readFile helper crashed the crawl at `runBattery → probeFile` AFTER the checkpoint
-       wrote — harmless that run, but a multi-file crawl ordering that file earlier would lose every
-       file after it.
-
-       Note this is ONE defect, not two. A browser-API reach thrown SYNCHRONOUSLY is already caught
-       above and classified `THREW` — the realm simply lacks browser globals, which is by design. It
-       can only take the driver down by being thrown inside an ASYNC path, where it becomes a
-       rejection. So the async guard is the fix for both symptoms; if a crash of this shape survives
-       it, the cause is elsewhere and should not be assumed. */
-    if (r && (typeof r === 'object' || typeof r === 'function') && typeof r.then === 'function') {
-      Promise.resolve(r).then(
-        () => {},
-        () => {}
-      );
-      r = 'ASYNC:result is a promise — not comparable without awaiting';
     }
     let s;
     try {
@@ -809,9 +809,17 @@ function probeFile(file, rec) {
              usually also kills. The line above already uses `m.after` to build the mutant — it was
              simply never persisted. */
           after: String(m.after).trim().slice(0, 120),
-          input: String(argStr).slice(0, 400),
-          orig: String(baseRows[idx]).slice(0, 300),
-          mutant: String(rows[idx]).slice(0, 300)
+          /* ⚠️ BOUNDED, NOT DISPLAY-TRUNCATED (2026-08-26). These fields are DATA, not labels:
+             `--draft` JSON-parses `orig`/`mutant` to project a field, and the probe replays `input`.
+             At the old 300/400-char display caps a genSynthetic day-series arrived as a valid-JSON
+             PREFIX cut mid-token — every projection failed "not both JSON" and 109 of 116 killable
+             mutants produced zero drafts. The bound is now 50k with an explicit flag; a consumer
+             finding the flag refuses with the real reason instead of a parse error. */
+          input: String(argStr).slice(0, 50000),
+          inputTruncated: String(argStr).length > 50000 || undefined,
+          orig: String(baseRows[idx]).slice(0, 50000),
+          mutant: String(rows[idx]).slice(0, 50000),
+          recordTruncated: String(baseRows[idx]).length > 50000 || String(rows[idx]).length > 50000 || undefined
         });
       }
     }
