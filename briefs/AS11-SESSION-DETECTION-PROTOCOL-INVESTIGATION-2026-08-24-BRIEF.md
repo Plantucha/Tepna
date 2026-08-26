@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-08-24 · **Created:** 2026-08-24 · **Superseded-by:** `AS11-SESSION-DETECTION-REPORT-2026-08-26-BRIEF.md` · **Follows:** `AS11-AUTO-SESSION-DETECTION-2026-08-24-BRIEF.md`
+**Status:** IN-PROGRESS — 2026-08-24 · **Created:** 2026-08-24 · **Follows:** `AS11-AUTO-SESSION-DETECTION-2026-08-24-BRIEF.md`
 
 # AS11 automatic session detection — FINAL protocol investigation before implementation (owner charter)
 

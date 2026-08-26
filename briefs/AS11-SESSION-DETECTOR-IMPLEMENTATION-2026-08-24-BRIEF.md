@@ -134,17 +134,6 @@ everything else pure + injected.
 - `cpap_supervisor.py` + `cpap_detect.py` + `as11_pull.get_items` land with `check.sh` green (ruff,
   shellcheck, pytest 100 % stmt+branch, find_unwired) — the supervisor constructed by the daemon behind
   `as11_detector.enabled` (default False).
-- 🔴 **REWRITTEN 2026-08-26 — the original criterion was UNACHIEVABLE, not merely pending.** It read
-  *"one shadow night captured and reviewed"*, but the AS11 accepts ONE connection, so the supervisor
-  defers for the whole session and is structurally blind while streaming. Measured 2026-08-26:
-  `SESSIONDETECT.csv` = 125 rows, last written 22:49:35 (a daemon restart), and it did **not grow once**
-  across an 8.7 h capture. A shadow night therefore yields nothing on any night the CPAP streams — which
-  is every night that matters. Waiting could never have closed this.
-  **Now:** one night's **BOUNDARY events** captured and reviewed — the supervisor's own defer/undefer
-  transitions plus spool events — then debounce tuned and the acting-mode follow-up spawned. The
-  streaming deferral is accepted as ARCHITECTURE (owner-deputy ruling, option b): polling between
-  sessions would add radio contention to the one resource whose capture is sacred, for information we
-  mostly do not need mid-session, and boundaries are where detection earns its keep anyway. Polling
-  mid-session is re-filed as an acting-mode question for the follow-up, not a fix to this brief.
+- One shadow night captured and reviewed → debounce tuned → acting-mode follow-up brief spawned.
 - READ-ONLY confirmed by source scan (no `Set`/`Enter*`/`SetDateTime` anywhere in the new code); Clock
   Contract untouched.
