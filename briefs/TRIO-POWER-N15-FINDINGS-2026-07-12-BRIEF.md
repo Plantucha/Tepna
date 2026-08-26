@@ -1,6 +1,21 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 **Status:** PROPOSED (**NOT data-blocked, and never was — `uploads/trio/` already commits 25 post-host-axis nights against this brief's target of 15.** The 2026-08-04 fold turned out to REPRODUCE that committed set, not extend it. The 15 further nights on disk are CONFOUNDED — code version and date are the same variable — so they must be regenerated, not subset. What remains is a judgement: which estimator seeds the sim) · **Created:** 2026-07-12
 
+> ## 🔴 READ FIRST, 2026-08-26 — you have arrived wanting the tables to AGREE. That is the wrong instinct.
+>
+> Box 2 was executed (PR #1821). The harness is fine; **the paper's four simulation tables were produced
+> by three different runs and no single run reproduces them together.** The resting-bias table still
+> belongs to the superseded planted σ **1.7 / 2.2 / 3.0** — reverting both copies lands H10 on the
+> published value to **0.002**. The ρ table reproduces under **neither** σ set.
+>
+> **This STRENGTHENS the gate on the 15-night re-fit; it does not lift it.** Regenerating Tables 1–3 now
+> would make three generations agree for the first time and destroy the only evidence the desync ever
+> happened — a green bought by deleting the finding. Regenerate from **ONE** run, as its own work-unit,
+> **stamping each table with the run that produced it**, before any re-fit. (Same defect in table form as
+> `PPGDEX-ALGORITHM-DEEP-DIVE` §5: an apparatus never committed, so nobody could re-derive the bound.)
+>
+> Full measurement: §"Box 2 EXECUTED 2026-08-26" below.
+
 > ## ⚠️⚠️ CORRECTION, 2026-08-08 — BOTH claims below are wrong, in opposite directions
 >
 > The header says **"NOT data-blocked, and never was."** True of `tools/tch-multinight.mjs`; **false of
