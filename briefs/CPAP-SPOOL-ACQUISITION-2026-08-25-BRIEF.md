@@ -67,6 +67,66 @@ requirement (live and spool CONVERGE on one canonical record) has never been exe
    (duration_check fields per the locked contract shape), and the raw fragment log is kept as the
    primary artifact (INV9: raw first, derived carries provenance).
 
+## §11 agreement bands — PRE-STATED 2026-08-25, before any spool has been pulled
+
+Both sets are written down **before** the hardware session, so the spool-type answer **selects** a set
+rather than shaping one. Neither may be edited once data exists. If a field turns up that is not covered
+here, its band is stated before it is compared, not after.
+
+### Which set applies — and why a failed guess cannot decide it
+
+🔴 **The selector is a POSITIVE HIT ONLY: a returned spool id for a detail request.** A `-32602` on a
+guessed type name refutes **one string**, never the branch — the same error answers a malformed address,
+so failed guesses are not evidence of absence. Branch (a) stays open until positively hit, and no number
+of refused names closes it. (This is the suite's standing "an empty result is not a negative" rule in a
+new costume: without it written down, three plausible names get refused and someone records "no detail
+spool exists" as a finding.)
+
+### Set B — SUMMARY legs · **PRIMARY** (branch (b), the session's working assumption)
+
+Not the waveform comparator: summary statistics have no paired samples, so `compareChannel` refuses at
+*"a channel is absent in one file"*. Runs on the `attachStrSummary` / `csrPbCrossCheck` path (#1781) —
+the device's own scored summary against CPAPDex's computed metrics.
+
+| quantity | AGREE | DISCREPANCY | symmetry |
+|---|---|---|---|
+| AHI (events/h) | \|Δ\| ≤ **max(0.5 /h, 10 % of the larger)** | above it | **SYMMETRIC** |
+| CSR / periodic breathing (pp) | the shipped #1781 band: **max(2 pp, 0.5 × larger)** | above it | **ASYMMETRIC** |
+| usage / session duration | \|Δ\| ≤ **1 min** | above it | symmetric |
+
+**Why the AHI row is SYMMETRIC while #1781's CSR row stays ASYMMETRIC** — item 4 above says "asymmetric,
+per #1781's pattern", and that is right for the CSR row and wrong for the AHI row, so the distinction is
+resolved here rather than silently: #1781's band is asymmetric **because CSR ⊂ PB** — they are different
+quantities, so one exceeding the other is not the same finding as the reverse. **AHI-vs-AHI is the SAME
+quantity from two scorers**, where over-detection and under-detection are both findings and neither
+direction is privileged; an asymmetric band there would encode a preference that does not exist.
+Inheriting the asymmetry by analogy would be exactly the reasoning-by-class this lane keeps punishing.
+
+Magnitudes, derived not picked: CPAPDex already matches the device's own STR.edf scoring to **0.05 /h**,
+so a 0.5 /h floor is ~10× the observed agreement — loose enough to absorb rounding and session-boundary
+edges, tight enough that a real scoring divergence cannot hide inside it. The 10 % relative arm exists
+because an absolute floor alone is too strict on a high-AHI night.
+
+### Set A — WAVEFORM legs · **CONDITIONAL** (branch (a), only on a positive detail-spool hit)
+
+Extends the v1.1 comparator (`compareChannel`) with the spool as a third leg. **Three bands, not two** —
+a binary is either trivially passed or trivially failed, and the middle case is the one worth recording.
+
+| quantity | AGREE | CHARACTERISE | DISCREPANCY |
+|---|---|---|---|
+| `scale.a` (slope, dimensionless) | \|slope−1\| ≤ **0.02** | 0.02 – 0.15 | > **0.15** (the shipped `scaleFarFromUnity` alarm) |
+| `divergence.excursionFrac` | ≤ **0.10** | 0.10 – 0.25 | > 0.25 |
+| `scaleStable` | **true** (windows within 0.05) | — | false ⇒ drift; report the span |
+| `clockOffsetSec` | \|Δ\| ≤ **60 s** | — | larger ⇒ a CLOCK finding, not a disagreement |
+
+Magnitudes, derived not picked: the two shipped n=1 pins are **0.9977** and **0.99798** — within 0.3 % of
+unity — so 0.02 is ~7× the observed deviation and still ~7× tighter than the alarm band.
+`excursionFrac` sits ~5 % outside the LoA **by construction** for a consistent pair (the LoA *is*
+bias ± 1.96·SD-of-diffs), so 0.10 is twice that structural floor rather than a round number.
+
+⚠️ **A zero-fragment or empty-summary result is a QUESTION before it is a finding** (§Constraints): it
+asks whether the requested range holds data at all. It is scored against neither set.
+
 ## Constraints (inherited, non-negotiable)
 - Read-only RPCs only; no writes to the device, ever.
 - No connection held during live streaming; defer and retry.
@@ -81,4 +141,6 @@ requirement (live and spool CONVERGE on one canonical record) has never been exe
 - [ ] Caller shipped behind default-OFF flag; arming line shows it; gates green.
 - [ ] §11 three-way convergence measured on ≥1 night and written down — agreement bands pre-stated
       before the comparison runs.
+      **Bands PRE-STATED 2026-08-25 (§11 agreement bands, above) — that half is discharged; the
+      measurement itself still waits on the attended pull.** The box stays open until a night is measured.
 - [ ] Follow-up brief spawned (or "nothing surfaced" noted here) per house pattern.
