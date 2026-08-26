@@ -1454,9 +1454,26 @@ _NOT_WORN_RECHECK_S = 90.0          # how often to reconnect-and-check once drop
 _WORN_SINCE: dict[str, float] = {}  # addr -> monotonic ts contact went False (absent = worn/unknown)
 
 
-def should_drop_not_worn(worn_since, now, grace) -> bool:
+def should_drop_not_worn(worn_since, now, grace, pull_in_flight: bool = False) -> bool:
     """PURE: has a strap been continuously not-worn long enough to drop for power? False when the feature
-    is off (grace<=0), the strap is worn/unknown (worn_since None), or the grace has not yet elapsed."""
+    is off (grace<=0), the strap is worn/unknown (worn_since None), or the grace has not yet elapsed.
+
+    ⚠️ `pull_in_flight` DEFERS THE DROP, and it exists because an owner decision inverted this
+    function's original contract. `notworn_pull_due` used to be clamped ABOVE this grace precisely so a
+    pull could never be in flight here — *"firing inside the grace window would block the drop, the one
+    thing §4 forbids"*. The 2026-08-26 06:44 failure measured why that clamp could not work: the ring's
+    post-drop advertising tail was ~98 s (n=1), less than half the 210 s clamp floor, so the trigger
+    fired 202 s after the ring had already slept. **The owner amended §4 for the doff-pull path
+    specifically** (relayed via the coordinator session, 2026-08-26) — the pull now fires INSIDE the
+    grace, and the collision it was designed to avoid is resolved here instead of prevented there.
+
+    The resolution is deferral, not cancellation: the drop happens after the pull ends, never mid-pull.
+    **It cannot block forever** — the caller passes `_OXYII_PAUSE.is_set()`, and every pull that sets it
+    clears it in a `finally`, bounded by `_OFFLINE_OP_TIMEOUT_S`. (The §8a `pull_deadline` predicate is
+    NOT what bounds this today: it is pure and has no caller yet, awaiting the held-link path. Citing it
+    as the bound would be citing something unwired.)"""
+    if pull_in_flight:
+        return False
     return bool(grace and grace > 0 and worn_since is not None and (now - worn_since) >= grace)
 
 
@@ -2637,7 +2654,8 @@ async def run_polar(dev: dict, root: str):
                                     "dropping it so the device frees the stream and we re-negotiate",
                                     name, _STREAM_STALL_S)
                         break
-                    if should_drop_not_worn(_WORN_SINCE.get(addr), _time.monotonic(), _DROP_NOT_WORN_SEC):
+                    if should_drop_not_worn(_WORN_SINCE.get(addr), _time.monotonic(), _DROP_NOT_WORN_SEC,
+                                        pull_in_flight=_OXYII_PAUSE.is_set()):
                         drop_for_power = True
                         _set(name, last_error="not worn — link dropped to save battery (re-checking)")
                         log.info("%s: not worn for %.0fs — dropping the link to save battery; "
@@ -5096,6 +5114,31 @@ def autopull_arming(pcfg: dict) -> dict:
     return {"charger": on_charger, "doff": on_doff, "close": on_close, "why": "; ".join(why)}
 
 
+def pull_scope_for(trigger: str) -> str:
+    """Which onboard sessions an EVENT-TRIGGERED pull asks for. PURE.
+
+    SCOPE IS DERIVED FROM THE TRIGGER, never configured — the same principle `close_harvest_decision`
+    enforces by having no scope parameter at all (DAT-AUTO-HARVEST §14b). The two triggers face
+    different constraints, and that is the whole reason they differ:
+
+      · **not-worn → `latest`.** A doff-triggered pull races a CLOSING WINDOW — the ring's post-drop
+        advertising tail, and the power-drop grace behind it. §14b measured the cost of each scope
+        over 433 real pulls: `which=latest` p90 **31.1 s** / max 41.1 s, `which=all` p90 **69.4 s** /
+        max 104.7 s. The wide scope does not fit that window even at p90.
+      · **charger → `all`.** A ring on a charger is reachable indefinitely and awake; there is no
+        window to race, so the complete sweep is free and is what makes the charger trigger a genuine
+        catch-up rather than a second `latest`.
+
+    🔴 MOTIVATING FAILURE, measured: `2026-08-26 06:44:23–06:45:18` on the box — the FIRST doff-trigger
+    firing in production dispatched `which=all` and failed after 55 s. Scope was not the proximate
+    cause (the ring had stopped advertising at 06:41:01, 3 m 22 s earlier, and the reconnect loop was
+    throwing `InProgress`), but had it connected it would have been racing a window `which=all` cannot
+    make. Fixing the scope removes one of the three contributing factors and is correct independently
+    of the other two.
+    """
+    return "latest" if trigger == "not-worn" else "all"
+
+
 def charger_pull_due(charging: bool, since, now: float, settle: float, already: bool) -> bool:
     """PURE: pull this device's onboard sessions now? True once it has been ON THE CHARGER for at least
     `settle` seconds and has not already been pulled this charge session."""
@@ -5144,11 +5187,18 @@ async def charger_pull_poller(cfg: dict, root: str):
     # ⚠ THE DOFF SETTLE IS CLAMPED ABOVE THE POWER-DROP GRACE, not merely defaulted above it. A pull holds
     # a connection; `should_drop_not_worn` wants to close one. Firing inside the grace window would block
     # the drop — the one thing §4 forbids — so a config that sets it lower is raised rather than obeyed.
-    _doff_cfg = float(pcfg.get("notworn_settle_sec", 300))
-    doff_settle = max(_doff_cfg, _DROP_NOT_WORN_SEC + 30.0)
-    if doff_settle > _doff_cfg:
-        log.info("auto-pull (not-worn): settle raised %.0fs → %.0fs to clear the %.0fs power-drop grace",
-                 _doff_cfg, doff_settle, _DROP_NOT_WORN_SEC)
+    # ⚠️ NO CLAMP. The configured value IS the effective value — a config reading 45 that ran 210 was
+    # the silent no-op this repo names as its signature defect, and it is deleted rather than
+    # documented. The old floor (`max(cfg, _DROP_NOT_WORN_SEC + 30)`) enforced §4's "never fire inside
+    # the power-drop grace"; the owner amended that for this path on 2026-08-26 and the collision is
+    # now resolved in `should_drop_not_worn` by deferral instead.
+    #
+    # DEFAULT 45 s, and the arithmetic is: dispatch at 45 s + a `which=latest` pull at p90 31.1 s
+    # (§14b, n=433) ≈ 76 s, inside the ~98 s advertising tail measured 2026-08-26 with ~22 s margin.
+    # 🔴 THAT TAIL IS n=1. One doff, one night. The next few doffs are its test — if one shows a
+    # shorter tail that is DATA, not failure, and this default moves. Do not treat 98 s as settled.
+    _doff_cfg = float(pcfg.get("notworn_settle_sec", 45))
+    doff_settle = _doff_cfg
     ftype = int(pcfg.get("ftype", 0))
     devices = [d for d in cfg.get("devices", [])
                if not missing_identity(d) and d.get("vendor") in ("Wellue", "Viatom", "Polar")]
@@ -5199,7 +5249,7 @@ async def charger_pull_poller(cfg: dict, root: str):
                 _NOTWORN_PULLED.add(addr)               # once per doff session (before the await)
             try:
                 if dev.get("vendor") in ("Wellue", "Viatom"):
-                    res = await pull_oxyii_session(dev, root, which="all", ftype=ftype)
+                    res = await pull_oxyii_session(dev, root, which=pull_scope_for(trigger), ftype=ftype)
                 else:
                     res = await pull_polar_offline_all(dev, root)
                 new = (res or {}).get("new_files", []) if isinstance(res, dict) else []
