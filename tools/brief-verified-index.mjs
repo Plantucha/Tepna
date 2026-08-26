@@ -100,6 +100,10 @@ for (const f of readdirSync(BRIEFS)
   if (!status || !OPEN.has(status)) continue;
   const dates = verificationDates(text);
   const last = dates.length ? dates[dates.length - 1] : null;
+  /* Every date the brief mentions, newest first. A SUPERSET of the verb matches and it cannot be
+     older, so the gap between the two columns is the tool's own uncertainty made visible. */
+  const anyDates = [...text.matchAll(/\b(20\d{2}-\d{2}-\d{2})\b/g)].map((m) => m[1]).sort();
+  const lastDated = anyDates.length ? anyDates[anyDates.length - 1] : null;
   // `Created:` is NOT a verification, but inside the never-verified tier it is what separates
   // "written yesterday, no time to check it" from "written in July and never once re-read".
   const cm = text.match(/\*\*Created:\*\*\s*\(?(\d{4}-\d{2}-\d{2})/) || f.match(/(\d{4}-\d{2}-\d{2})/);
@@ -107,6 +111,7 @@ for (const f of readdirSync(BRIEFS)
     brief: f.replace('-BRIEF.md', ''),
     status,
     lastVerified: last,
+    lastDated,
     created: cm ? cm[1] : null,
     edited: gitLastTouched(join('briefs', f)),
     nDates: dates.length
@@ -133,14 +138,25 @@ if (asJson) {
   const never = rows.filter((r) => !r.lastVerified).length;
   console.log(`open briefs: ${rows.length}   never claiming a verification: ${never}`);
   console.log('');
-  console.log('  last-verified  created     edited      status        brief');
+  console.log('  last-verified  any-date    created     edited      status        brief');
   for (const r of picked) {
     const lv = r.lastVerified || 'NEVER     ';
-    console.log(`  ${lv.padEnd(14)} ${(r.created || '?').padEnd(11)} ${(r.edited || '?').padEnd(11)} ${r.status.padEnd(13)} ${r.brief}`);
+    const gap = r.lastDated && r.lastVerified && r.lastDated > r.lastVerified ? '*' : ' ';
+    console.log(`  ${lv.padEnd(14)} ${((r.lastDated || '?') + gap).padEnd(11)} ${(r.created || '?').padEnd(11)} ${(r.edited || '?').padEnd(11)} ${r.status.padEnd(13)} ${r.brief}`);
   }
   if (!top) {
     console.log('');
     console.log('⚠️  `edited` is git mtime — someone touched the file. It is NOT evidence anyone re-checked a');
     console.log('    claim. A recent edit beside an old (or absent) verification is the interesting row.');
+    console.log('');
+    console.log('⚠️  `any-date` is the newest date the brief mentions ANYWHERE; `*` marks it newer than the');
+    console.log('    verb-matched one. Measured 2026-08-26: 19 of 72 open briefs carry such a gap, i.e. the');
+    console.log('    verb list calls a quarter of the queue staler than it is (TCH-FUSED-ROBUST-HAT by three');
+    console.log('    weeks). The two columns fail in OPPOSITE directions and neither is the truth:');
+    console.log('      last-verified  under-reports freshness — sends you to briefs that are fine (wasteful)');
+    console.log('      any-date       over-reports it — a cited date from another brief is not engagement,');
+    console.log('                     and trusting it would HIDE a stale brief (silent, and worse)');
+    console.log('    Ranking stays on last-verified because over-flagging is the survivable error. Read the');
+    console.log('    `*` rows as "probably fresher than this rank" and spend the read budget elsewhere first.');
   }
 }
