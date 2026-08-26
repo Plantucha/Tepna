@@ -936,7 +936,10 @@ export function readJournal(text) {
 }
 
 export function classifySurvivors(entries, survivors, generated) {
-  const key = (m) => m.line + ' ' + m.op + ' ' + m.before;
+  /* `after` is part of the key for the reason findCanary documents: line+op+before collapses two
+     same-operator mutants on one line into one entry, so a classification computed for one silently
+     covers the other. Kept NUL-separated like `jkey` so a field boundary cannot be forged by text. */
+  const key = (m) => m.line + '\u0000' + m.op + '\u0000' + m.before + '\u0000' + (m.after ?? '');
   const surv = new Set((survivors || []).map(key));
   const gen = new Set((generated || []).map(key));
   const out = { excused: [], realGap: [], refuted: [], orphaned: [], unclassified: [] };
@@ -997,10 +1000,28 @@ function saveCanary(file, mu, killerList) {
 /* Match a stored canary back onto a freshly enumerated mutant. Matched on (line, op, before) rather
    than on an index: `file:line:index` shifts the moment anything above it is edited, and a canary
    that silently points at a DIFFERENT mutant after a refactor is worse than no canary. A miss is
-   reported as 'STALE', never guessed at. */
+   reported as 'STALE', never guessed at.
+
+   ⚠️ THAT KEY IS NOT UNIQUE, AND THE COMMENT ABOVE NAMES THE HARM IT WAS CAUSING. Two mutations of
+   the same operator on one line collapse to one key — `pulsedex-dsp.js:197` carries two `num → 0`
+   mutants, the `<= 1500` threshold and the `Math.max(0.55, …)` floor, with identical `before` text.
+   Measured 2026-08-25: a drafted assertion fused one mutant's probe input with the OTHER's recorded
+   output (`altVO2Factor(null)` asserted to return 0.55, which is the floor mutant's value at
+   ≥16500 m and never null's), and it reached main. That is exactly "silently points at a DIFFERENT
+   mutant" — arriving by collision rather than by index drift, which is the case this comment did not
+   consider.
+
+   `after` disambiguates them and, unlike an index, does not shift when code above is edited — so it
+   keeps the property this function was written for. `jkey` one screen down already keys this way.
+   When a stored record predates `after` AND the 3-field match is ambiguous, REFUSE: a legacy record
+   plus a real collision is the one case where matching would be a guess, and this function's stated
+   contract is that a miss is STALE, never guessed. */
 function findCanary(all, want) {
   if (!want) return null;
-  return all.find((m) => m.line === want.line && m.op === want.op && m.before === want.before) || null;
+  const same = (all || []).filter((m) => m.line === want.line && m.op === want.op && m.before === want.before);
+  if (same.length <= 1) return same[0] || null;
+  if (want.after == null) return null; // legacy record + genuine collision → STALE, never guessed
+  return same.find((m) => m.after === want.after) || null;
 }
 
 async function runFile(file) {
@@ -1871,6 +1892,19 @@ function selftest() {
   ck('journal · an empty journal yields nothing to skip', readJournal('').done.size + ':' + readJournal('').jammed.length, '0:0');
   ck('journal · junk lines are skipped', readJournal('not json\n{"k":"z","v":"KILLED"}').done.get('z').v, 'KILLED');
   ck('journal · a record with no key is ignored', readJournal('{"v":"KILLED"}').done.size, 0);
+
+  /* KEY UNIQUENESS — the collision that reached main (see findCanary's header). Both mutants are the
+     same operator on the same line with identical `before` text: pulsedex-dsp.js:197's `<= 1500`
+     threshold and its `Math.max(0.55, …)` floor. */
+  const _collide = [
+    { line: 197, op: 'num → 0', before: 'return elevM <= 1500 ? 1 : Math.max(0.55', after: 'return elevM <= 0 ? 1 : Math.max(0.55' },
+    { line: 197, op: 'num → 0', before: 'return elevM <= 1500 ? 1 : Math.max(0.55', after: 'return elevM <= 1500 ? 1 : Math.max(0' }
+  ];
+  ck('key · a canary picks the mutant whose AFTER matches, not the first on the line', findCanary(_collide, _collide[1]).after, _collide[1].after);
+  ck('key · …and the other one is still reachable', findCanary(_collide, _collide[0]).after, _collide[0].after);
+  ck('key · a LEGACY canary with no `after` REFUSES a collided line rather than guessing', findCanary(_collide, { line: 197, op: 'num → 0', before: _collide[0].before }), null);
+  ck('key · a legacy canary still matches where there is NO collision', findCanary([_collide[0]], { line: 197, op: 'num → 0', before: _collide[0].before }).after, _collide[0].after);
+  ck('key · classifySurvivors keeps two same-op mutants on one line APART', classifySurvivors(_collide, [_collide[0]], _collide).realGap.length, 1);
 
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
   return fail;

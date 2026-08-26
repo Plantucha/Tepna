@@ -13,6 +13,12 @@
         "survivors": 100,
         "why": "The DSP's own self-check, exported and run by the gated suite (`CpapDsp.selfTest()`). Its mutants change assertion TEXT and TOLERANCES inside that check — e.g. `ok('near() REJECTS a value just outside the tolerance', !near(10, 10.75, …))`. Killing them means writing tests that assert a self-test's tolerances are correct, i.e. testing the test.",
         "verified": "2026-08-15 — read the function; it is a pass/fail counter over `ok(...)` calls, reachable only as an exported diagnostic."
+      },
+      {
+        "fn": "_synthRaw",
+        "survivors": 19,
+        "why": "The synthetic-night FIXTURE BUILDER that cpapdex's already-excluded `selfTest` consumes. It sits directly under the file's `SELF-TEST — synthetic session with known truth` header, and all three of its call sites (L1572, L1588, L1589) are inside `selfTest` itself. Its surviving mutants change literals in the generated night — a draft against one asserts `5000 === 5000` — so killing them asserts something about test data, not about analysis a recording takes. Same population as this file's `selfTest` entry and as ecgdex/glucodex `genSynthetic`; it was simply missed. Being exported (L2130) does not make it production: `selfTest` is exported and run by the gated suite and is excluded on the same reasoning.",
+        "verified": "2026-08-25 — read the function and every call site. Reported by tepna-99's draft-bank round 2, whose drafts against it were rejected as fixture tautologies. ⚠️ Their report said 'four cpapdex survivors'; that is their count of REJECTED DRAFTS, not of survivors. `mutation-worklist.mjs` measures 19, and 19 is what is recorded here — the number came from the tool, not from the message."
       }
     ],
     "ecgdex-dsp.js": [
