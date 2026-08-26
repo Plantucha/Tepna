@@ -9,7 +9,7 @@
 #    scaffold honoring the §7 integration contract; validate against real frames + PSL output first.
 
 from __future__ import annotations
-import argparse, asyncio, contextlib, json, logging, math, os, signal, time as _time, datetime as _dt
+import argparse, asyncio, calendar, contextlib, json, logging, math, os, signal, time as _time, datetime as _dt
 from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_stamp,
                      HostClockLogWriter, PmdArrivalLogWriter, capture_filename, missing_identity,
                      night_dir, open_sample_writers)
@@ -17,6 +17,7 @@ import proc_util
 import polar_pmd as pmd
 import viatom
 import oxyii
+import acq_evidence_o2ring
 import bonding
 import helper_path
 import link_rssi
@@ -2893,6 +2894,70 @@ def _oxy_emit(lc, writer, name, new, reason, *, failure=None):
     _set(name, oxy_lifecycle=new.value)
 
 
+def _oxy_grid_facts(g):
+    """The PPG grid's accounting as a flat dict, projected EXPLICITLY by field name.
+
+    ⚠️ Written this way after a near-miss: the first version called `g.summary()` behind a
+    `hasattr` guard, and NEITHER O2PpgGrid NOR O2PpgFrameLedger has a `summary()` method — so it would
+    have silently written `null` for both provenance blocks while reading as correct code. That is the
+    same shape as the EdfSink `final_path` defect (#1784): a guarded call to a method that does not
+    exist degrades into a silent absence, which is worse than the crash it was guarding against."""
+    if g is None:
+        return None
+    return {
+        "samples_written": g.idx - g.lost,
+        "gaps_inserted": g.gaps,
+        "grid_positions_lost": g.lost,
+        "measured_fs": getattr(g, "fs", None),
+        "nominal_fs": g.nominal_fs,
+    }
+
+
+def _oxy_ledger_facts(l):
+    """The PPG frame ledger's counted half, projected explicitly (see `_oxy_grid_facts`)."""
+    if l is None:
+        return None
+    return {
+        "frames": l.frames,
+        "device_seconds": l.device_seconds,
+        "declared": l.declared,
+        "delivered": l.delivered,
+        "truncated": l.truncated,
+        "restarts": l.restarts,
+    }
+
+
+def _emit_oxy_live_evidence(name, dev, started, spo2_kept, grid, ledger):
+    """Write the LIVE O2Ring acquisition envelope beside the SpO2 CSV it describes.
+
+    Separated from `run_oxyii` so the assembly is testable without driving a BLE session — the pump
+    closure is not. Never raises into the capture path: the envelope is a REPORT ABOUT the session, so
+    failing to write it must not also damage the session it reports on.
+
+    `session_id` is the 14-digit start stamp, which is the token the FILENAME already carries. That is
+    deliberate: OxyDex's existing reader joins an envelope to a night by finding the session_id inside
+    the artifact's filename (#1752), so reusing that token means the live envelope joins with no new
+    matching rule — the same discipline that made the CPAP reader reuse attachStrSummary's day rule
+    rather than invent a second one."""
+    try:
+        path, rows = spo2_kept
+        start_ms = calendar.timegm(started.timetuple()) * 1000.0
+        ev = acq_evidence_o2ring.assemble_live(
+            device_id=dev.get("device_id"),
+            session_id=started.strftime("%Y%m%d%H%M%S"),
+            artifact_path=path,
+            artifact_rows=rows,
+            start_time_ms=start_ms,
+            stopped_cleanly=not _STOP.is_set(),
+            ppg_grid=_oxy_grid_facts(grid),
+            ppg_ledger=_oxy_ledger_facts(ledger),
+        )
+        with open(path + ".meta.json", "w") as fh:
+            json.dump({"acquisition_evidence": ev.to_dict()}, fh, indent=2)
+    except Exception:  # noqa: BLE001 — see the docstring: the report must not damage the capture
+        log.exception("%s: acquisition-evidence sidecar failed — the capture itself is unaffected", name)
+
+
 async def run_oxyii(dev: dict, root: str):
     """Wellue O2Ring-S / T8520 ("S8-AW…") — live SpO2 + pulse over the OxyII protocol (NOT legacy Viatom).
     No bonding. Flow: connect → auth(0xFF) → setup(0x10) → poll cmd=0x04 ~1/s. Emits the ViHealth CSV
@@ -3483,10 +3548,12 @@ async def run_oxyii(dev: dict, root: str):
             # nothing but its header — indistinguishable from a real capture until something opens it,
             # and the Dex ingest walks this directory. On the documented 359-reconnect night that was
             # ~1000 junk files in one night dir. The Polar path already solved this; the ring never got it.
+            _spo2_kept = None
             for _w in (wr, ppgwr, oxyflagwr, ppg2wr, rtcwr):
                 if not _w:
                     continue
                 _empty, _p = not _w.rows, _w.path
+                _rows = _w.rows
                 _w.close()
                 if _empty:
                     try:
@@ -3494,6 +3561,14 @@ async def run_oxyii(dev: dict, root: str):
                         log.debug("%s: discarded header-only %s", name, os.path.basename(_p))
                     except OSError:
                         pass
+                elif _w is wr:
+                    _spo2_kept = (_p, _rows)
+            # ACQUISITION EVIDENCE, the LIVE half (ACQ-EVIDENCE-CONTRACT spec §10 — BOTH O2Ring paths,
+            # never merged into one indistinguishable source; `assemble_dat` is the stored half).
+            # Emitted only for a KEPT file: a header-only session was just discarded, and an envelope
+            # describing a file that no longer exists would be evidence about nothing.
+            if _spo2_kept:
+                _emit_oxy_live_evidence(name, dev, started, _spo2_kept, ppg_grid[0], ppg_led[0])
         if not _STOP.is_set():
             if stalled:
                 await asyncio.sleep(_STALL_RECONNECT_S)   # not an error backoff — come straight back
