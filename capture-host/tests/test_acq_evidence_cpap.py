@@ -783,13 +783,28 @@ def test_a_calendar_invalid_stamp_is_refused_not_rolled():
 
 def test_a_zoned_stamp_resolves_to_local_civil_not_utc_verbatim():
     """The device's live stamp is UTC ('…Z') but its own SD recording and OSCAR use local civil, so
-    writing the UTC components verbatim mis-dates by the UTC offset. The two forms must NOT agree."""
+    writing the UTC components verbatim mis-dates by the UTC offset.
+
+    ⚠️ THIS ASSERTS THE CONVERSION, NOT A DIFFERENCE. An earlier version asserted `zoned != floating`
+    and was ENVIRONMENT-DEPENDENT: it passed on the author's machine (EDT, offset −4 h) and FAILED on
+    the UTC runner, where local civil and UTC legitimately COINCIDE and the two forms are equal. The
+    honest invariant is that the zoned stamp resolves to the box's local-civil rendering of that
+    instant — which is a difference of exactly the local offset, and correctly ZERO under TZ=UTC."""
+    import calendar
+    import time
+
     import cpap_edf_writer as w
 
     zoned = w.device_stamp_to_tms("2026-08-23T01:30:28.730Z")
     floating = w.device_stamp_to_tms("2026-08-23 01:30:28")
     assert zoned is not None and floating is not None
-    assert zoned != floating, "a zoned stamp is CONVERTED; taking its components verbatim would mis-date"
+    # the instant '…Z' denotes, then that instant rendered in the box's local civil time
+    utc_epoch = calendar.timegm((2026, 8, 23, 1, 30, 28, 0, 0, 0))
+    lt = time.localtime(utc_epoch)
+    expect = calendar.timegm((lt.tm_year, lt.tm_mon, lt.tm_mday, lt.tm_hour, lt.tm_min, lt.tm_sec, 0, 0, 0)) * 1000.0
+    assert zoned == expect, "a zoned stamp resolves to the LOCAL CIVIL rendering of its instant"
+    # and the gap between the two forms IS the local UTC offset — zero under UTC, non-zero elsewhere
+    assert zoned - floating == -(time.altzone if lt.tm_isdst else time.timezone) * 1000.0
 
 
 def test_the_raw_sink_captures_the_FIRST_batch_stamp_and_keeps_it(tmp_path):
