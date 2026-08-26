@@ -47,6 +47,7 @@ COVERED = {
     "deploy/expose-monitor.sh": "test_deploy_caddyfile.py",
     "deploy/sse-frames.sh": "test_deploy_sse_frames.py",
     "deploy/enable-cpap-wifi.sh": "test_enable_cpap_wifi.py",
+    "deploy/archive-pull.sh": "test_deploy_archive_pull.py",
     "systemd/tepna-usb-autosuspend.sh": "test_usb_autosuspend_unit.py",
     # asserted below, in this module, against their source — see the docstrings for why each cannot run
     "deploy/enable-clock-control.sh": "test_shell_surface.py",
