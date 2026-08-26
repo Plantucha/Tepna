@@ -27,7 +27,9 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 
 SCHEMA = "ganglior.acquisition-evidence"
-SCHEMA_VERSION = "1.0.0"  # ganglior-family, MINOR-bumped as fields are added back-compatibly
+SCHEMA_VERSION = "1.1.0"  # ganglior-family, MINOR-bumped as fields are added back-compatibly
+#   1.1.0 — added `clock_offset` (ClockOffset). A new FIELD, so the version DOES move — unlike the
+#           `SOURCE_STORED_SPOOL` addition below, which added a VALUE to an open vocabulary.
 
 # ── the one sentinel that keeps missing information from becoming a negative conclusion (§5) ──
 UNKNOWN = "UNKNOWN"
@@ -81,6 +83,40 @@ class DurationCheck:
 
 
 @dataclass(frozen=True)
+class ClockOffset:
+    """An INDEPENDENTLY MEASURED device-vs-reference clock offset, with the provenance that makes it
+    usable (CPAPDEX-STR-SUMMARY-INGEST, the "still owed" clock box).
+
+    WHY THIS IS A FIELD AND NOT A COMMENT: a consumer that corrects a device timestamp needs to know
+    WHEN the offset was measured and AGAINST WHAT — an offset without those is a bare number nobody can
+    responsibly apply, because a device crystal drifts and an offset measured a week ago is not the
+    offset tonight. So the provenance rides the envelope, never a code comment.
+
+    THIS DOES NOT CORRECT ANYTHING. It is the DECLARE half of declare-never-correct: the envelope
+    carries the measurement, and a consumer decides whether and how to apply it, emitting corrected
+    values BESIDE the raw device-time ones (INV3/INV4 — the raw stamp is never substituted).
+
+    `offset_sec` is signed: POSITIVE means the DEVICE clock reads LATER than the reference. Absent
+    measurement is None — never 0.0, which would assert a measured agreement that never happened."""
+
+    offset_sec: float | None
+    measured_at_ms: float | None  # Clock Contract floating tMs — WHEN, so staleness is the consumer's to judge
+    reference: str  # what it was measured AGAINST (e.g. "host-stratum1"); UNKNOWN when unstated
+    method: str  # how (e.g. "GetDateTime"); UNKNOWN when unstated
+
+    @staticmethod
+    def unknown() -> "ClockOffset":
+        """The honest absence. Every member unknown — not a zero offset, which is a different claim."""
+        return ClockOffset(None, None, UNKNOWN, UNKNOWN)
+
+    @property
+    def measured(self) -> bool:
+        """True only when there is a number to apply. A consumer gates on this, never on truthiness —
+        `offset_sec == 0.0` is a legitimate MEASURED result (the clocks agreed) and is falsy."""
+        return self.offset_sec is not None
+
+
+@dataclass(frozen=True)
 class AcquisitionEvidence:
     """The canonical envelope. Assembled from existing stores; emitted beside the artifact."""
 
@@ -92,6 +128,8 @@ class AcquisitionEvidence:
     start_time_ms: float | None  # Clock Contract floating tMs; None (not 0) when unknown
     end_time_ms: float | None
     clock_status: str  # a timingSource-derived word (device+host / host / none) or UNKNOWN
+    # (its NUMERIC companion is `clock_offset`, in the defaulted tail below — a dataclass cannot carry
+    #  a defaulted field ahead of non-defaulted ones, so it sits there rather than here)
 
     sample_count: int | None
     expected_sample_count: int | None | str  # int, or UNKNOWN — NEVER 0 for "we don't know" (§8)
@@ -110,6 +148,11 @@ class AcquisitionEvidence:
     validation: str  # VALID | INVALID | UNKNOWN (§6)
     validation_depth: str | None  # e.g. "size+finalised+records" — what the validation actually checked
     completeness: str  # COMPLETE | PARTIAL | UNKNOWN (§6) — INDEPENDENT of validation
+
+    # v1.1.0 — the NUMERIC companion to `clock_status`. The word says WHICH CLOCKS were involved; this
+    # says BY HOW MUCH they differed, WHEN, and AGAINST WHAT. Defaulted to the honest-absence record, so
+    # every existing caller keeps working and gets UNKNOWN rather than a fabricated zero.
+    clock_offset: ClockOffset = field(default_factory=ClockOffset.unknown)
 
     provenance: dict = field(default_factory=dict)  # ledger refs / observed transitions (§13)
 

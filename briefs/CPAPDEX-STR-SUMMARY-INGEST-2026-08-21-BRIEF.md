@@ -101,6 +101,25 @@ settles "can the CPAP clock be set locally?" with a citation rather than an infe
       device-summary render line, and 27 tests including the asymmetry control (same |Δ|, opposite verdict).
 - [ ] Apply the independently-measured clock offset to STR's device-time session boundaries
       (see `CPAP-CLOCK-LONGITUDINAL-SEGMENT-2026-08-21-BRIEF.md`).
+      **BLOCKED, and the chain is named (traced 2026-08-26) — this is not unstarted work.** The applier
+      itself is ~10 lines; it would have NOTHING TO APPLY. Measured, not assumed:
+      `attachStrSummary(nights, strSummary)` is called with exactly two arguments
+      (`cpapdex-app.js:284`), there is no offset input anywhere in `cpapdex-app.js`/`cpapdex-dsp.js`,
+      and CPAPDex has **no acquisition-evidence reader** (Phase C shipped for OxyDex only, #1752). So
+      building the applier now would be capability without a customer.
+
+      | # | link | status |
+      |---|---|---|
+      | 1 | box reads `GetDateTime` over BLE vs its stratum-1 clock | exists (`cpap_ble_pull.py`; cmd 0x04 is `all`-access, per the addendum above) |
+      | 2 | that offset rides the CPAP acquisition-evidence envelope as a NUMBER | **DONE 2026-08-26** — `acq_evidence.ClockOffset` (`offset_sec` + `measured_at_ms` + `reference` + `method`), schema 1.1.0, carried by both CPAP assemblers |
+      | 3 | a CPAP-side envelope reader (CPAP Phase C, mirroring #1752) | **owed** — CPAPDex has the EMIT side (Phase B) and no READ side |
+      | 4 | `attachStrSummary(…, {offsetSec})` emits corrected fields BESIDE the raw device-time ones | owed; unblocks the moment 3 lands |
+
+      🔒 **Design ratified 2026-08-25: ADDITIVE.** Raw `sessions[].onMs/offMs` stay VERBATIM (INV3);
+      corrected values land beside them with the offset's provenance (INV4's shape — the reference axis
+      beside the device clock, never substituting). Declare-never-correct, the pattern item 1 above
+      already set in this brief. In-place correction would silently move the ~17 existing `.sessions`
+      consumers (dsp 5 · render 7 · cross 2 · app 3) that currently assume device time.
 
 ## Deliberately NOT in scope
 

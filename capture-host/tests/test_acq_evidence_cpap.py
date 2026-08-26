@@ -423,12 +423,39 @@ def test_no_raw_record_means_no_envelope():
 
 
 # ── §4 ACQUISITION ⟂ SCIENCE ───────────────────────────────────────────────────
+def _values(obj):
+    """Every scalar VALUE in a nested dict/list, as lowercase strings."""
+    if isinstance(obj, dict):
+        for v in obj.values():
+            yield from _values(v)
+    elif isinstance(obj, list):
+        for v in obj:
+            yield from _values(v)
+    elif obj is not None:
+        yield str(obj).lower()
+
+
 def test_the_envelope_carries_no_scientific_evidence_tier():
-    """Acquisition integrity must never leak into the science ladder (measured/validated/...)."""
+    """Acquisition integrity must never leak into the science ladder (measured/validated/...).
+
+    Scans VALUES, not the raw blob. A tier leaks in as a GRADE — i.e. as a value — whereas a KEY may
+    legitimately contain a tier word: `clock_offset.measured_at_ms` is a timestamp saying when a clock
+    comparison was taken, not a claim that anything is `measured`-tier. The blob-wide scan this
+    replaced flagged exactly that, which is a false positive on the field name rather than a finding.
+    The value scan is also the STRONGER check for the real hazard: `{"evidence": "measured"}` is caught
+    either way, but only the value scan stays true as honest field names accumulate."""
     ev = cpap.assemble_live(_facts(), counters=_counters(), stopped_cleanly=True)
-    blob = json.dumps(ev.to_dict()).lower()
+    vals = list(_values(ev.to_dict()))
     for tier in ("measured", "validated", "emerging", "experimental", "heuristic"):
-        assert tier not in blob, f"acquisition evidence must not carry the {tier} science tier"
+        assert tier not in vals, f"acquisition evidence must not carry the {tier} science tier"
+
+
+def test_the_tier_control_still_catches_a_real_leak():
+    """Guard the guard — the value scan must still fire on a tier appearing as a GRADE. Without this,
+    narrowing the scan above could have quietly disabled the control it was meant to preserve."""
+    leaked = {"validation": "VALID", "provenance": {"evidence": "measured"}}
+    vals = list(_values(leaked))
+    assert "measured" in vals, "the control must catch a tier that leaks in as a value"
 
 
 # ── the capture.py production wiring: the sidecar writer ───────────────────────
@@ -516,3 +543,205 @@ def test_the_controller_forwards_the_writer_to_the_pump():
     seen.clear()
     asyncio.run(_drive(None))
     assert seen.get("out") is None, "and must not invent one when none was configured"
+
+
+# ── v1.1.0 · the measured clock offset (CPAPDEX-STR-SUMMARY-INGEST's clock box) ──
+def test_absent_clock_offset_is_the_honest_absence_record_not_a_zero():
+    """THE control for this field. An unmeasured offset must not read as "the clocks agreed" — that is
+    a measurement nobody made, and a consumer would apply 0 s of correction believing it was checked."""
+    ev = cpap.assemble_live(_facts())
+    assert ev.clock_offset.offset_sec is None
+    assert ev.clock_offset.offset_sec != 0 and ev.clock_offset.offset_sec != 0.0
+    assert ev.clock_offset.measured is False
+    assert ev.clock_offset.reference == ae.UNKNOWN and ev.clock_offset.method == ae.UNKNOWN
+
+
+def test_a_measured_ZERO_offset_is_measured():
+    """The mirror control, and the reason `measured` exists instead of truthiness: 0.0 s is a REAL
+    result (the device agreed with the reference) and is falsy. `if offset_sec:` would discard it."""
+    z = ae.ClockOffset(0.0, 1.0, "host-stratum1", "GetDateTime")
+    assert z.measured is True
+    assert bool(z.offset_sec) is False, "0.0 is falsy — which is exactly why callers must gate on .measured"
+
+
+def test_a_supplied_offset_rides_the_envelope_with_its_provenance():
+    """An offset without WHEN and AGAINST-WHAT is a bare number nobody can responsibly apply — a device
+    crystal drifts, so last week's offset is not tonight's. The provenance is a field, not a comment."""
+    off = ae.ClockOffset(-2520.0, 1755000000000.0, "host-stratum1", "GetDateTime")
+    ev = cpap.assemble_live(_facts(), clock_offset=off)
+    assert ev.clock_offset.offset_sec == -2520.0
+    assert ev.clock_offset.measured_at_ms == 1755000000000.0
+    assert ev.clock_offset.reference == "host-stratum1"
+    assert ev.clock_offset.method == "GetDateTime"
+    # and it survives serialisation, since the sidecar is what a Dex will read
+    assert json.loads(json.dumps(ev.to_dict()))["clock_offset"]["offset_sec"] == -2520.0
+
+
+def test_the_sign_convention_is_pinned():
+    """POSITIVE = the DEVICE reads LATER than the reference. Unpinned, a consumer has a 50 % chance of
+    correcting in the wrong direction — and a doubled error looks like a plausible offset."""
+    ev = cpap.assemble_live(_facts(), clock_offset=ae.ClockOffset(-2520.0, 1.0, "host-stratum1", "GetDateTime"))
+    assert ev.clock_offset.offset_sec < 0, "the AS11 runs BEHIND the host, so its offset is negative"
+
+
+def test_the_spool_path_carries_the_offset_too():
+    ev = cpap.assemble_spool([_row()], clock_offset=ae.ClockOffset(-2520.0, 1.0, "host-stratum1", "GetDateTime"))
+    assert ev.clock_offset.offset_sec == -2520.0
+    assert cpap.assemble_spool([]).clock_offset.measured is False, "an empty ledger measures no clock"
+
+
+def test_the_field_is_additive_and_the_schema_version_moved():
+    """A new FIELD moves the version (unlike SOURCE_STORED_SPOOL, which added a VALUE to an open
+    vocabulary). And every pre-existing caller keeps working without passing it."""
+    assert ae.SCHEMA_VERSION == "1.1.0"
+    ev = cpap.assemble_live(_facts(), counters=_counters(), stopped_cleanly=True)
+    assert ev.validation == ae.VALID and ev.completeness == ae.COMPLETE, "unchanged by the addition"
+    assert "clock_offset" in ev.to_dict()
+
+
+# ── PASS-THROUGH IDENTITY — every field the assembler forwards, pinned ─────────
+def test_assemble_live_forwards_every_field_it_is_given():
+    """Diff-scoped mutation showed the assembler could return `None` for session_id, device_id,
+    artifact_size, artifact_sha256, clock_status, start_time_ms and provenance.records with the suite
+    still green: the Phase B tests asserted the DERIVED axes (validation/completeness/gaps) thoroughly
+    and never checked that the CARRIED values arrive. A field silently blanked here is an envelope that
+    describes the wrong acquisition, which is worse than one that refuses."""
+    off = ae.ClockOffset(-2520.0, 1.0, "host-stratum1", "GetDateTime")
+    ev = cpap.assemble_live(
+        _facts(), counters=_counters(), clock_status="device+host", start_time_ms=1000.0,
+        observed_duration_s=60, artifact_sha256="deadbeef", clock_offset=off, edf_path="/e.edf",
+        observed_interval_ms=40, device_state="Therapy", stopped_cleanly=True,
+    )
+    assert ev.session_id == "20260825T013000Z-abc123"
+    assert ev.device_id == "AS11-01"
+    assert ev.artifact_path == "/tmp/cpap-raw-x.jsonl"
+    assert ev.artifact_size == 8192
+    assert ev.artifact_sha256 == "deadbeef"
+    assert ev.clock_status == "device+host"
+    assert ev.start_time_ms == 1000.0
+    assert ev.device_state == "Therapy"
+    assert ev.provenance["records"] == 42
+    assert ev.provenance["edf_artifact"] == "/e.edf"
+    assert ev.provenance["observed_interval_ms"] == 40
+    assert ev.provenance["stopped_cleanly"] is True
+    assert ev.clock_offset.offset_sec == -2520.0
+
+
+def test_the_gap_categories_read_the_RIGHT_counters():
+    """`_counter(counters, "overflow", "post_drop_tail")` mutated to drop or None-ify a key survived —
+    nothing pinned WHICH counters feed which category. Distinct values per key make a swap visible."""
+    c = _counters(overflow=3, post_drop_tail=5, malformed=7, foreign_stream=11)
+    ev = cpap.assemble_live(_facts(), counters=c)
+    assert ev.transport_gaps == 8, "transport = overflow(3) + post_drop_tail(5), and NOTHING else"
+    assert ev.decode_gaps == 7, "decode = malformed(7) alone"
+    # the foreign frames (11) appear in NEITHER — they were never ours
+    assert ev.transport_gaps != 19 and ev.decode_gaps != 18
+
+
+def test_sink_errors_ADD_to_total_lost_they_do_not_subtract():
+    """`lost = total_lost + sink_errors` mutated to `-` survived. With equal values the subtraction
+    yields 0 and the night reads COMPLETE — a durable-record loss erased by an arithmetic flip."""
+    ev = cpap.assemble_live(_facts(), counters=_counters(total_lost=3, sink_errors=3), stopped_cleanly=True)
+    assert ev.completeness == ae.PARTIAL, "3 lost + 3 sink errors is loss; 3 - 3 = 0 would read COMPLETE"
+
+
+def test_complete_requires_BOTH_a_clean_stop_AND_accounting():
+    """`stopped_cleanly is True and counters` mutated to `or` survived: with `or`, a clean stop and NO
+    accounting reports COMPLETE — asserting completeness from a stream nobody counted."""
+    ev = cpap.assemble_live(_facts(), counters=None, stopped_cleanly=True)
+    assert ev.completeness == ae.UNKNOWN, "a clean stop without counters is UNKNOWN, never COMPLETE"
+
+
+def test_validation_depth_is_named_on_the_explicit_verdict_path():
+    """`validation_depth = DEPTH_JSONL_CLOSED` mutated to None survived on the artifact_valid branch —
+    a verdict with no stated depth is a bare boolean, which is what `validation_depth` exists to prevent."""
+    ev = cpap.assemble_live(_facts(), counters=_counters(), artifact_valid=True)
+    assert ev.validation == ae.VALID and ev.validation_depth == cpap.DEPTH_JSONL_CLOSED
+
+
+def test_assemble_spool_forwards_its_ledger_fields():
+    """The spool mirror of the pass-through gap: signal, artifact_path, committed_cursor and
+    round_seq_last could all blank out with the suite green."""
+    ev = cpap.assemble_spool([_row(seq=7)], committed_dir="/spool/committed")
+    assert ev.signal == "brp", "the spool_type IS the signal name"
+    assert ev.artifact_path == "/spool/committed"
+    assert ev.provenance["committed_cursor"] == "2026-08-25T01:00:00"
+    assert ev.provenance["round_seq_last"] == 7
+    assert ev.provenance["status"] == "NO_MORE_DATA"
+    assert ev.session_id == "s1" and ev.device_id == "AS11-01"
+
+
+def test_the_empty_ledger_record_is_pinned_FIELD_BY_FIELD():
+    """The empty-ledger branch returns a whole literal record, and mutation showed most of its fields
+    could change with the suite green — the earlier test asserted only validation/completeness/rounds.
+    An honest-absence record is exactly the thing that must be pinned field by field: every one of these
+    is a claim of "we do not know", and any of them flipping to a value would fabricate knowledge."""
+    ev = cpap.assemble_spool([], device_id="AS11-01", session_id="s9", committed_dir="/spool/committed")
+    assert ev.source == ae.SOURCE_STORED_SPOOL
+    assert ev.session_id == "s9" and ev.device_id == "AS11-01", "the caller's identity is still carried"
+    assert ev.signal is None
+    assert ev.start_time_ms is None and ev.end_time_ms is None
+    assert ev.sample_count is None and ev.expected_sample_count == ae.UNKNOWN
+    assert ev.transport_gaps == ae.UNKNOWN and ev.decode_gaps == ae.UNKNOWN
+    assert ev.artifact_path == "/spool/committed"
+    assert ev.artifact_size is None and ev.artifact_sha256 is None
+    assert ev.validation == ae.UNKNOWN and ev.validation_depth is None
+    assert ev.completeness == ae.UNKNOWN
+    assert ev.device_state == ae.UNKNOWN
+    assert ev.clock_offset.measured is False
+    assert ev.duration_check.agrees is None and ev.duration_check.source == ae.UNKNOWN
+    assert ev.provenance == {"rounds": 0, "committed_cursor": None}
+
+
+def test_device_state_is_carried_on_BOTH_paths_and_defaults_to_unknown():
+    """`device_state if device_state is not None else UNKNOWN` survived four mutations — nothing pinned
+    that a SUPPLIED state is carried on the spool path, nor that an empty string is carried rather than
+    swallowed by a truthiness test."""
+    assert cpap.assemble_spool([_row()], device_state="Therapy").device_state == "Therapy"
+    assert cpap.assemble_spool([], device_state="Standby").device_state == "Standby"
+    assert cpap.assemble_live(_facts(), device_state="Standby").device_state == "Standby"
+    # None ⇒ UNKNOWN, but "" is a supplied value and must NOT become UNKNOWN (an `or` would swallow it)
+    assert cpap.assemble_live(_facts(), device_state="").device_state == ""
+    assert cpap.assemble_spool([_row()], device_state="").device_state == ""
+
+
+def test_the_spool_duration_check_is_the_unknown_record():
+    """A spool pull compares no durations; the record must be the honest-absence one, not a fabricated
+    agreement."""
+    dc = cpap.assemble_spool([_row()]).duration_check
+    assert dc.stored_s is None and dc.observed_s is None
+    assert dc.delta_s is None and dc.agrees is None and dc.source == ae.UNKNOWN
+
+
+def test_spool_artifact_size_sums_every_round_not_just_the_last():
+    """`total_bytes = sum(...)` — a mutation that returns only one round's bytes would still look
+    plausible on a single-round ledger, so this uses THREE distinct sizes."""
+    ev = cpap.assemble_spool([_row(nbytes=100), _row(nbytes=20), _row(nbytes=3)])
+    assert ev.artifact_size == 123, "100 + 20 + 3 — distinct so any single-round answer is visible"
+
+
+def test_lost_starts_at_zero_so_no_counters_means_no_fabricated_loss():
+    """`lost = 0` mutated to None survived. With None the completeness branch would raise or misread;
+    with counters absent the honest answer is UNKNOWN, reached without inventing a loss count."""
+    ev = cpap.assemble_live(_facts(), counters=None, stopped_cleanly=False)
+    assert ev.completeness == ae.PARTIAL, "an unclean stop is PARTIAL even with no accounting at all"
+
+
+def test_clock_facts_are_carried_on_BOTH_spool_paths():
+    """`clock_status` and `clock_offset` are carried on the populated AND the empty-ledger branch —
+    mutation showed each could blank out independently, and the empty branch is the one a reader is
+    most likely to forget, because "no rounds" feels like "nothing to say"."""
+    off = ae.ClockOffset(-2520.0, 1.0, "host-stratum1", "GetDateTime")
+    populated = cpap.assemble_spool([_row()], clock_status="device+host", clock_offset=off)
+    assert populated.clock_status == "device+host" and populated.clock_offset.offset_sec == -2520.0
+    empty = cpap.assemble_spool([], clock_status="host", clock_offset=off)
+    assert empty.clock_status == "host", "an empty ledger still knows which clocks were involved"
+    assert empty.clock_offset.offset_sec == -2520.0, "and still carries a measured offset"
+
+
+def test_a_round_with_no_byte_count_contributes_ZERO_not_one():
+    """`(… or 0)` mutated to `(… or 1)` survived: with every round well-formed the fallback never
+    fires, so the suite never saw it. A malformed round must add nothing to the artifact size —
+    inventing a byte per unreadable round is a small fabrication that scales with the ledger."""
+    rows = [_row(nbytes=100), {"device": "d", "session": "s", "spool_type": "brp", "round": {}}]
+    assert cpap.assemble_spool(rows).artifact_size == 100, "the byte-less round adds 0, not 1"

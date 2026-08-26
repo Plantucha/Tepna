@@ -65,6 +65,7 @@ def assemble_live(
     artifact_sha256: str | None = None,
     artifact_valid: bool | None = None,
     stopped_cleanly: bool | None = None,
+    clock_offset: ae.ClockOffset | None = None,
 ) -> ae.AcquisitionEvidence:
     """Normalize one LIVE CPAP BLE streaming session into an `AcquisitionEvidence`.
 
@@ -135,6 +136,9 @@ def assemble_live(
         start_time_ms=start_time_ms,
         end_time_ms=end_time_ms,
         clock_status=clock_status,
+        # v1.1.0 — carried, never derived here: this adapter measures no clocks. An absent measurement
+        # is the honest-absence record, not a zero (§5).
+        clock_offset=clock_offset if clock_offset is not None else ae.ClockOffset.unknown(),
         sample_count=sample_count,
         expected_sample_count=expected_sample_count,
         duration_check=duration_check,
@@ -167,6 +171,7 @@ def assemble_spool(
     device_state: str | None = None,
     clock_status: str = ae.UNKNOWN,
     committed_dir: str | None = None,
+    clock_offset: ae.ClockOffset | None = None,
 ) -> ae.AcquisitionEvidence:
     """Normalize a STORED spool acquisition — the device's own spooled data, pulled over BLE — from its
     committed ledger rows (`cpap_spool.committed_rows`). Never merged with the live source (§10).
@@ -181,6 +186,7 @@ def assemble_spool(
         return ae.AcquisitionEvidence(
             session_id=session_id, device_id=device_id, source=ae.SOURCE_STORED_SPOOL,
             signal=None, start_time_ms=None, end_time_ms=None, clock_status=clock_status,
+            clock_offset=clock_offset if clock_offset is not None else ae.ClockOffset.unknown(),
             sample_count=None, expected_sample_count=ae.UNKNOWN,
             duration_check=ae.DurationCheck.build(stored_s=None, observed_s=None),
             transport_gaps=ae.UNKNOWN, decode_gaps=ae.UNKNOWN,
@@ -212,6 +218,7 @@ def assemble_spool(
         start_time_ms=None,   # cursors are VERBATIM device stamps; localising them is the consumer's
         end_time_ms=None,     # step, not this assembler's (Clock Contract — no second clock model, §7)
         clock_status=clock_status,
+        clock_offset=clock_offset if clock_offset is not None else ae.ClockOffset.unknown(),
         # a spool round is a BYTE transfer, not a frame stream: there is no sample count to report and
         # no gap accounting to project. UNKNOWN, never 0 (§8).
         sample_count=None,
