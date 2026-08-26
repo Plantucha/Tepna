@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-19 · **Follows:** `VIGIL-OVERNIGHT-FINDINGS-2026-07-24-BRIEF.md` (§P2.2 — the one P2 item its 2026-08-19 verification left open)
+**Status:** DONE — 2026-08-26 · **Created:** 2026-08-19 · **Follows:** `VIGIL-OVERNIGHT-FINDINGS-2026-07-24-BRIEF.md` (§P2.2 — the one P2 item its 2026-08-19 verification left open)
 
 # Resume the file-set on reconnect — the last open P2 item, remeasured before proposing
 
