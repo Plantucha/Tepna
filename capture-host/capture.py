@@ -89,6 +89,7 @@ _CFG: dict = {}          # set in main(); lets sync_device_time resolve a device
 _STOP = asyncio.Event()
 _EXIT_CODE = [0]          # non-zero → systemd re-execs (watchdog give-up, §2C)
 BUS = TelemetryBus()          # live-sample bus feeding the monitor page (webmon.py)
+INSTANCE: str | None = None   # which adapter instance this process serves (systemd %i); None = all
 ADAPTER: str | None = None    # BLE adapter MAC for bonding (config `adapter:`); None = default controller
 # Live-stream metadata per PMD stream name: (base label, unit, channels, per-channel labels). fs comes
 # from pmd.SAMPLE_HZ. Everything is pushed RAW to the monitor — no signal processing on the box.
@@ -1070,7 +1071,7 @@ async def startup_defense_check(hci: "str | None", cfg: "dict | None" = None) ->
         log.warning("STARTUP: %s", w)
 
 
-async def adapter_kw() -> dict:
+async def adapter_kw(spec: str | None = None) -> dict:
     """bleak kwargs pinning a connection to the CONFIGURED adapter (config `adapter:`), or {} when
     unconfigured/unresolvable so we fall back to the BlueZ default instead of failing hard.
 
@@ -1079,7 +1080,7 @@ async def adapter_kw() -> dict:
     the onboard radio that cannot hear our sensors; every connect hung and PMD never started, with no
     error naming the cause. Resolving MAC→hciN fresh on each connect keeps the pin correct across
     re-enumeration (one cheap subprocess, and connects are infrequent)."""
-    hci = await adapter_hci()
+    hci = await adapter_hci(spec)
     # The `bluez=` form, NOT the bare `adapter=` kwarg. bleak deprecated `adapter` (3.0.2 shims it with a
     # warning and copies it into bluez["adapter"]); when the shim goes, passing it would not raise — it
     # would be swallowed as an unknown kwarg and the pin would SILENTLY vanish. This box cannot afford
@@ -1089,17 +1090,122 @@ async def adapter_kw() -> dict:
     return {"bluez": {"adapter": hci}} if hci else {}
 
 
-async def adapter_hci() -> str | None:
+async def adapter_hci(spec: str | None = None) -> str | None:
     """The configured adapter resolved to its CURRENT `hciN` name, or None when unconfigured/unresolvable
     (callers then fall back to the BlueZ default rather than failing hard). Kept separate from
     adapter_kw() because the PS-FTP path takes a bare name, not bleak kwargs."""
-    if not ADAPTER:
+    mac = spec or ADAPTER
+    if not mac:
         return None
-    hci = await link_rssi.resolve_hci(ADAPTER, refresh=True)
+    hci = await link_rssi.resolve_hci(mac, refresh=True)
     if not hci:
-        log.warning("configured adapter %s not found — falling back to the BlueZ default", ADAPTER)
+        # THE PIN IS A PREFERENCE, NOT AN ABSOLUTE (owner decision 2026-08-26). A pinned radio that is
+        # absent degrades to the BlueZ default rather than refusing to capture — losing a night to a pin
+        # obeyed too literally is worse than a night captured on the wrong radio. But it is LOUD: an
+        # absent radio silently masquerading as a working pin is how a device ends up on the onboard
+        # controller that cannot hear it, with no error naming the cause.
+        log.warning("configured adapter %s not found — falling back to the BlueZ default", mac)
         return None
     return hci
+
+
+def resolve_adapter_name(cfg: dict | None, spec: str | None) -> str | None:
+    """An adapter SPEC -> the MAC it names. `spec` may already be a MAC, or an instance name declared in
+    the config's `adapters:` map (PER-DEVICE-ADAPTER-PINNING §3.3b):
+
+        adapters: {sena: 00:01:95:CC:53:02, ub500: AC:A7:F1:29:9D:1D}
+
+    Names exist so the config and the systemd unit read the same way (`tepna-capture@sena`), and so an
+    operator can say WHICH RADIO without memorising a MAC. The MAC is what gets resolved, because hciN
+    re-enumerates across reboots and a MAC does not.
+
+    An UNKNOWN NAME returns None rather than being passed through as though it were an address. A typo'd
+    instance name must not silently become "the BlueZ default adapter" — that is precisely how a device
+    ends up on the onboard radio that cannot hear it, with nothing naming the cause."""
+    if not spec:
+        return None
+    amap = (cfg or {}).get("adapters") or {}
+    if spec in amap:
+        return amap[spec]
+    return spec if _looks_like_mac(spec) else None
+
+
+def instance_devices(cfg: dict | None, instance: str | None) -> list:
+    """The devices THIS instance is responsible for — the partition key of the per-adapter daemon split.
+
+    `instance is None` => EVERY device, i.e. the single-daemon behaviour. That default is deliberate and
+    load-bearing: the split must be opt-in per box, or merely upgrading the code would silently strip
+    devices from a running capture.
+
+    Otherwise: the devices whose adapter resolves to this instance's radio, INCLUDING those that inherit
+    the global `adapter:` when the global IS this instance's radio. Inheritance matters — a config that
+    pins nothing must still leave exactly one instance owning each device, never zero.
+
+    PURE. Invariant: the union over all declared instances equals the device list, with no device owned
+    twice. `unowned_devices()` checks the half that can fail silently."""
+    devs = list((cfg or {}).get("devices") or [])
+    if instance is None:
+        return devs
+    mine = resolve_adapter_name(cfg, instance)
+    if not mine:
+        return []
+    mine = mine.upper()
+    out = []
+    for d in devs:
+        spec = (d or {}).get("adapter")
+        mac = resolve_adapter_name(cfg, spec) if spec else (cfg or {}).get("adapter")
+        if (mac or "").upper() == mine:
+            out.append(d)
+    return out
+
+
+def unowned_devices(cfg: dict | None, instances: list | None = None) -> list:
+    """Device names that NO declared instance would serve. Empty when the partition is total.
+
+    🔴 This exists because the failure it catches is INVISIBLE FROM INSIDE ANY SINGLE INSTANCE. A device
+    pinned to a radio with no running instance is simply absent from every instance's device list, and
+    each instance logs a perfectly healthy startup for the devices it does own. Nothing reports the hole.
+
+    Same shape as a union over found-files hiding a dead instance, as a `--group=` filter that matched
+    nothing, and as this session's own "15 active streams" that counted subscription rather than
+    delivery: an absent contributor reading as a clean result. The caller logs a non-empty result loudly
+    at startup rather than starting quietly."""
+    devs = list((cfg or {}).get("devices") or [])
+    names = list(instances if instances is not None else ((cfg or {}).get("adapters") or {}).keys())
+    owned = set()
+    for inst in names:
+        for d in instance_devices(cfg, inst):
+            owned.add(id(d))
+    return [(d or {}).get("name") or (d or {}).get("address") for d in devs if id(d) not in owned]
+
+
+def apply_instance(cfg: dict | None, instance: str) -> str:
+    """Narrow this process to ONE radio: validate the instance, announce what it owns, and return the
+    adapter MAC to pin. Extracted from `main()` precisely so it can be TESTED — startup logic that only
+    runs inside an entry point is startup logic nobody checks, and this block decides whether a daemon
+    captures four devices or zero.
+
+    REFUSES an unrecognised instance rather than starting: a name that resolves to nothing would serve
+    NO devices while looking like a perfectly healthy daemon — a silent total capture failure.
+
+    The device count is logged UNCONDITIONALLY, including when it is zero. Printing only the non-empty
+    case would rebuild exactly the blind spot this function exists to close."""
+    mac = resolve_adapter_name(cfg, instance)
+    if not mac:
+        raise SystemExit(f"--instance {instance!r} is not in the config's `adapters:` map and is not a "
+                         f"MAC — refusing to start. An unrecognised instance name would serve NO devices "
+                         f"while looking like a healthy daemon.")
+    mine = instance_devices(cfg, instance)
+    log.info("instance %s -> adapter %s; serving %d of %d device(s): %s",
+             instance, mac, len(mine), len((cfg or {}).get("devices") or []),
+             ", ".join((d.get("name") or d.get("address") or "?") for d in mine) or "(NONE)")
+    # 🔴 A device pinned to a radio no instance serves is captured by NOBODY, and the hole is invisible
+    # from inside every instance — each logs a healthy startup for the devices it does own.
+    orphans = unowned_devices(cfg)
+    if orphans:
+        log.error("UNOWNED DEVICES — no configured instance serves these, so nothing will capture them: "
+                  "%s. Fix `adapters:` or the devices' `adapter:` keys.", ", ".join(orphans))
+    return mac
 
 
 # ── DUAL-RADIO FAILOVER (VIGIL-OVERNIGHT-FINDINGS P1.5) ──────────────────────────────────────────────
@@ -5854,6 +5960,12 @@ async def main():
     global ADAPTER
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="config.yaml")
+    # WHICH RADIO THIS PROCESS SERVES (PER-DEVICE-ADAPTER-PINNING §3.3b). systemd passes the instance
+    # name from `tepna-capture@sena.service` as `%i`. ABSENT => serve every device, i.e. exactly the
+    # single-daemon behaviour — the split is opt-in per box, so upgrading the code alone can never
+    # silently strip devices from a running capture.
+    ap.add_argument("--instance", default=None,
+                    help="adapter instance name from `adapters:` (systemd %%i); omit to serve all devices")
     args = ap.parse_args()
     import yaml   # runtime-only dep; imported here so `import capture` (for unit tests) needs no external deps
     # Read explicitly (no leaked handle) and REFUSE an empty/non-mapping config with a message that
@@ -5882,6 +5994,14 @@ async def main():
                 log.info("%s: recording the 125 Hz pleth — added 'ppg' to its stream list (was implicit)",
                          _d.get("name"))
     ADAPTER = cfg.get("adapter")   # BLE adapter MAC — pins bonding AND every bleak connect (adapter_kw)
+    # ── PER-ADAPTER INSTANCE (PER-DEVICE-ADAPTER-PINNING §3.3b) ───────────────────────────────────────
+    # Narrow this process to one radio's devices, and SAY SO. An instance that owns nothing is a
+    # perfectly healthy-looking daemon capturing zero devices, so the count is logged unconditionally
+    # rather than only when it is non-zero — printing only the good case rebuilds the blind spot.
+    global INSTANCE
+    INSTANCE = args.instance
+    if INSTANCE is not None:
+        ADAPTER = apply_instance(cfg, INSTANCE)
     global O2PPG_FS, O2PPG_NS_STEP, _OXYII_RTC_RESYNC_SEC
     _fs = float(((cfg.get("o2ring") or {}).get("ppg_fs")) or O2PPG_FS_DEFAULT)
     if _fs > 0:                    # per-unit override; the default is the 2026-07-18 5.8 h calibration
