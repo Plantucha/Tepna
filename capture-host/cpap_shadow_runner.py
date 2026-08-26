@@ -56,8 +56,15 @@ async def poll_cycle(
     `(host_epoch_s, device_iso, device_epoch_s)` for the AS11CLOCK.csv sidecar. A failed device
     read yields an UNREACHABLE observation (never a fabricated state) and a None anchor. The link
     is always disconnected in the `finally`."""
-    write, recv_frame, disconnect = await connect()
+    # The unpack is INSIDE the try, deliberately. If `connect()` returns a malformed tuple the link is
+    # already open, and unpacking outside the try would leak it exactly the way a raise inside
+    # `_cpap_ble_connect` used to (see the LEAK GUARD there). Defence in depth: the transport closes
+    # its own failures, and this closes a bad contract from any injected transport.
+    conn = await connect()
+    disconnect = None  # bound BEFORE the try, or a failed unpack raises NameError in the finally and
+    # buries the real error under it.
     try:
+        write, recv_frame, disconnect = conn
         key = await establish(bytes.fromhex(creds["masterPairKey"]), creds["clientId"], write, recv_frame)
         seal, unseal = cipher_factory(key)
         host_s = float(host_epoch())
@@ -84,7 +91,8 @@ async def poll_cycle(
         anchor = (host_s, device_epoch) if device_epoch is not None else None
         return decision, anchor, (host_s, device_iso, device_epoch)
     finally:
-        await disconnect()
+        if disconnect is not None:
+            await disconnect()
 
 
 async def run_shadow_loop(
