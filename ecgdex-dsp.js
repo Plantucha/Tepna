@@ -1873,6 +1873,9 @@
   //  Detect dips/cycles in the per-second HR envelope with 20–60 s period and
   //  the characteristic bradycardia→tachycardia rebound. Returns events + index.
   // ════════════════════════════════════════════════════════════════════════
+  // Upper bound on a beat series' span before `detectCVHR` refuses to resample it (see the refusal
+  // below). 48 h — over twice any real recording, so a gappy night still fits.
+  const CVHR_MAX_SPAN_S = 48 * 3600;
   function detectCVHR(nn, tt) {
     const N = nn.length;
     /* REFUSE (§2.6). `index: 0` IS the exported `cvhrIndex`, and 0 reads as "we looked for cyclic
@@ -1883,6 +1886,20 @@
     // resample instantaneous HR to 1 Hz
     const tEnd = tt[N - 1];
     const M = Math.floor(tEnd);
+    /* REFUSE an implausible SPAN (§2.6 again, the upper bound the N<60 guard above does not cover).
+       `M` sizes five Float64Arrays AND two `Array.from` copies, and NOTHING bounded it. Measured
+       2026-08-23 on a real night: tt[0]=0.023, tt[1]=0.346 — normal beat spacing — but tt[N-1] =
+       241,259,871 s (7.6 YEARS), so M = 241,259,871. The typed allocations all SUCCEEDED (external
+       memory), and the failure surfaced only at `Array.from(sm)`, which must materialise a PLAIN
+       array and blew V8's cap: `RangeError: Invalid array length`, killing the whole ECGDex export
+       for that night. Note the diagnostic shape — the series is SANE early and jumps late, i.e. a
+       DISCONTINUITY (a fragment stamped far from its neighbours), not a wrong sample rate, which
+       would have scaled tt[1] too. So this refuses rather than repairs: we cannot know which
+       fragment is right, and a 1 Hz series spanning years is not a thing to resample.
+       The bound is 48 h — over twice any real recording, and a heavily-gapped night still fits,
+       so it cannot refuse legitimate sparse data. `index: null` because 0 would read as "we looked
+       for cyclic variation and found none", the exact fabricated negative §2.6 forbids. */
+    if (!isFinite(tEnd) || tEnd > CVHR_MAX_SPAN_S) return { events: [], index: null, hrSeries: [], reason: 'implausible-span' };
     const hr = new Float64Array(M);
     let j = 0;
     for (let s = 0; s < M; s++) {
