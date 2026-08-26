@@ -324,6 +324,52 @@ def test_defaults_arm_the_two_settle_triggers_but_NOT_the_close_path():
     assert "on_close" in a["why"]
 
 
+def test_a_pull_in_flight_DEFERS_the_power_drop():
+    """The owner's 2026-08-26 amendment: the doff pull now fires INSIDE the power-drop grace, so the
+    collision §4 prevented by clamping is resolved here by deferral. Dropping mid-pull would kill the
+    transfer the drop was waiting for."""
+    long_ago = 0.0
+    assert capture.should_drop_not_worn(long_ago, 10_000.0, 180.0) is True, "control: it would drop"
+    assert capture.should_drop_not_worn(long_ago, 10_000.0, 180.0, pull_in_flight=True) is False
+
+
+def test_deferral_does_NOT_survive_the_pull():
+    """Bounded, not indefinite. Once the pull clears its flag the drop proceeds on the next check —
+    otherwise a coin-cell device never sleeps again and the amendment costs a battery instead of a
+    grace window."""
+    assert capture.should_drop_not_worn(0.0, 10_000.0, 180.0, pull_in_flight=False) is True
+
+
+def test_the_configured_settle_IS_the_effective_settle():
+    """🔴 The silent no-op, deleted. `max(cfg, _DROP_NOT_WORN_SEC + 30)` turned a configured 45 into an
+    effective 210 while the config still read 45 — the signature defect in config form. A floor
+    reintroduced here would pass every other test in this file."""
+    import inspect
+    src = inspect.getsource(capture.charger_pull_poller)
+    assert "doff_settle = _doff_cfg" in src, "the configured value must apply unmodified"
+    assert "max(_doff_cfg" not in src, "a silent floor is back — a config reading 45 would run 210"
+
+
+def test_a_doff_pull_asks_for_LATEST_because_it_races_a_closing_window():
+    """§14b measured which=all at p90 69.4 s against a window a doff pull cannot extend. latest is
+    p90 31.1 s. The first production firing (2026-08-26 06:44:23) went out at `all`."""
+    assert capture.pull_scope_for("not-worn") == "latest"
+
+
+def test_a_charger_pull_still_sweeps_EVERYTHING():
+    """A ring on a charger is awake and reachable indefinitely — no window to race, so the complete
+    sweep is free. Narrowing this too would silently turn the charger trigger into a second `latest`
+    and lose the catch-up it exists to provide."""
+    assert capture.pull_scope_for("charger") == "all"
+
+
+def test_an_UNKNOWN_trigger_sweeps_rather_than_narrowing():
+    """The safe default is the COMPLETE scope: a narrow pull that misses a session loses data until
+    the next poller lap, while a wide one merely costs link time. A new trigger added later without
+    touching this function gets the conservative answer."""
+    assert capture.pull_scope_for("something-new") == "all"
+
+
 def test_on_close_NEVER_INHERITS_unlike_on_doff():
     """🔴 THE ASYMMETRY IS THE POINT, and it is not an inconsistency.
 
