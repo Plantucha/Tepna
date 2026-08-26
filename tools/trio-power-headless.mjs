@@ -144,19 +144,64 @@ const wall = (Date.now() - t0) / 1000;
 
 const out = await page.evaluate(() => {
   const R = window.__trioResult();
+  const DK = ['o2', 'h10', 'verity'];
   const half = {};
-  for (const k of ['o2', 'h10', 'verity']) {
+  for (const k of DK) {
     half[k] = {};
     for (const N of R.nGrid) {
       const r = R.dynamic.dev[k][N];
       half[k][N] = r && r.half != null ? +r.half.toFixed(4) : null;
     }
   }
-  return { lane: window.__trioLane(), trials: R.cfg.trials, nGrid: R.nGrid, targets: R.targets, planted: R.planted, minN: R.minN, half };
+  // The paper publishes four simulation tables and this harness surfaced ONE — the +/-0.15
+  // column, a threshold crossing on a coarse grid and so the least reproducible of the four.
+  // `bias` and the rho negative-variance grid are continuous, are already computed by the
+  // page, and were simply being dropped here. They are what a reproduction can actually be
+  // checked against (TRIO-POWER-N15-FINDINGS box 189).
+  const biasAt = (regime, N) => {
+    const o = {};
+    for (const k of DK) {
+      const r = R[regime] && R[regime].dev[k][N];
+      o[k] = r && r.bias != null ? +r.bias.toFixed(3) : null;
+    }
+    return o;
+  };
+  const biasN = R.nGrid[R.nGrid.length - 1]; // bias is flat in N; quote the deepest cell
+  const negRate = {};
+  for (const g of R.rhoGrid) {
+    negRate[g] = {};
+    for (const N of R.nGrid) {
+      // sweepRho returns the grid ITSELF, not a {grid} wrapper — read both shapes rather
+      // than silently yielding an all-null table, which prints as a well-formed row of dashes.
+      const RS = R.rhoSweep && R.rhoSweep.grid ? R.rhoSweep.grid : R.rhoSweep;
+      const v = RS && RS[g] ? RS[g][N] : null;
+      negRate[g][N] = v == null ? null : +v.toFixed(2);
+    }
+  }
+  return {
+    lane: window.__trioLane(),
+    trials: R.cfg.trials,
+    nGrid: R.nGrid,
+    rhoGrid: R.rhoGrid,
+    targets: R.targets,
+    planted: R.planted,
+    minN: R.minN,
+    half,
+    biasN,
+    bias: { dynamic: biasAt('dynamic', biasN), resting: biasAt('resting', biasN) },
+    negRate
+  };
 });
 await browser.close();
 
 const res = { ...out, adapter: lane.adapter, why: lane.why, wallSec: +wall.toFixed(1) };
+
+// An all-null negRate table is indistinguishable from a genuine all-zero one once printed,
+// so refuse rather than report a table this harness never actually read.
+if (!Object.values(res.negRate).some((row) => Object.values(row).some((v) => v != null))) {
+  console.error('negative-variance grid came back empty — rhoSweep shape changed; refusing to report it');
+  process.exit(2);
+}
 if (AS_JSON) {
   console.log(JSON.stringify(res, null, 2));
   process.exit(0);
@@ -169,3 +214,17 @@ for (const k of ['o2', 'h10', 'verity']) {
   console.log('  ' + k.padEnd(8) + res.nGrid.map((n) => String(res.half[k][n]).padStart(8)).join('') + String(res.minN.dynamic[k]['0.15']).padStart(11));
 }
 console.log('\n  ⚠ minN is a threshold crossing on a COARSE grid and the curve is nearly flat where it\n' + '    crosses ±0.15 — read the half-widths, not just minN (#1092).\n');
+
+console.log(`  sigma-hat BIAS vs planted, at N=${res.biasN} (flat in N - a regime bias, not a precision effect)`);
+console.log('  dev         dynamic   resting');
+for (const k of ['o2', 'h10', 'verity']) {
+  const f = (x) => (x == null ? '-' : (x >= 0 ? '+' : '') + x.toFixed(3));
+  console.log('  ' + k.padEnd(10) + f(res.bias.dynamic[k]).padStart(8) + f(res.bias.resting[k]).padStart(10));
+}
+
+console.log('\n  NEGATIVE-VARIANCE RATE vs injected rho (resting)');
+console.log('  rho     ' + res.nGrid.map((n) => ('N=' + n).padStart(7)).join(''));
+for (const g of res.rhoGrid) {
+  console.log('  ' + String(g).padEnd(8) + res.nGrid.map((n) => (res.negRate[g][n] == null ? '-' : res.negRate[g][n].toFixed(2)).padStart(7)).join(''));
+}
+console.log('');

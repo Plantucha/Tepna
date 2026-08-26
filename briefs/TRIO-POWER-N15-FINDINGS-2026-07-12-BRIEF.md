@@ -1,6 +1,21 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 **Status:** PROPOSED (**NOT data-blocked, and never was — `uploads/trio/` already commits 25 post-host-axis nights against this brief's target of 15.** The 2026-08-04 fold turned out to REPRODUCE that committed set, not extend it. The 15 further nights on disk are CONFOUNDED — code version and date are the same variable — so they must be regenerated, not subset. What remains is a judgement: which estimator seeds the sim) · **Created:** 2026-07-12
 
+> ## 🔴 READ FIRST, 2026-08-26 — you have arrived wanting the tables to AGREE. That is the wrong instinct.
+>
+> Box 2 was executed (PR #1821). The harness is fine; **the paper's four simulation tables were produced
+> by three different runs and no single run reproduces them together.** The resting-bias table still
+> belongs to the superseded planted σ **1.7 / 2.2 / 3.0** — reverting both copies lands H10 on the
+> published value to **0.002**. The ρ table reproduces under **neither** σ set.
+>
+> **This STRENGTHENS the gate on the 15-night re-fit; it does not lift it.** Regenerating Tables 1–3 now
+> would make three generations agree for the first time and destroy the only evidence the desync ever
+> happened — a green bought by deleting the finding. Regenerate from **ONE** run, as its own work-unit,
+> **stamping each table with the run that produced it**, before any re-fit. (Same defect in table form as
+> `PPGDEX-ALGORITHM-DEEP-DIVE` §5: an apparatus never committed, so nobody could re-derive the bound.)
+>
+> Full measurement: §"Box 2 EXECUTED 2026-08-26" below.
+
 > ## ⚠️⚠️ CORRECTION, 2026-08-08 — BOTH claims below are wrong, in opposite directions
 >
 > The header says **"NOT data-blocked, and never was."** True of `tools/tch-multinight.mjs`; **false of
@@ -183,10 +198,116 @@ assertion only tested `LOCAL_KEYS`, which was correct **only while `env.sources`
 exclusively**. It now tests the **union** — which is what `eraseAll()` actually removes, and therefore what
 "no un-erasable data" actually means.
 
+## 🔬 Box 2 EXECUTED 2026-08-26 — the harness RUNS and is deterministic; the published tables do **NOT** reproduce as a set
+
+The box above says this is *"the right thing to do FIRST … if the harness cannot reproduce what is
+already published, re-fitting to 15 nights is measuring with an uncalibrated instrument."* It was run.
+**The harness is fine. The paper's four simulation tables are not one measurement — they span at least
+three generations of the simulation, and no single run of the tool produces them together.**
+
+Method: `node tools/trio-power-headless.mjs --cpu --trials 720`, the paper's stated trial count, at the
+committed 10-night hat. A repeat run is **byte-identical**, so every disagreement below is a property of
+the code, not of a draw.
+
+### The instrument is EXACT — which is what makes the failures below unarguable
+
+Before reading a disagreement as a defect, the harness had to be shown not to have drifted. It has not.
+At **50,000** trials on the GPU lane it reproduces the paper's own convergence table **to every published
+digit**:
+
+| trials/cell | σ O2 half @N=3 | σ H10 | σ Ver | minN(±0.15) |
+|---|---|---|---|---|
+| published, 50,000 | 0.1433 | 0.1539 | 0.1448 | 3 / 5 / 3 |
+| **re-run 2026-08-26** | **0.1433** | **0.1539** | **0.1448** | **3 / 5 / 3** |
+
+So the N-sweep code path is byte-faithful to what produced the published numbers. **"The harness drifted"
+is eliminated as an explanation** for the bias and ρ disagreements below: the same run, the same seeds and
+the same build reproduce one published table exactly and fail to reproduce the other two at all. The
+defect is in those tables, not in the instrument.
+
+### What reproduces
+
+| published | run @720 | verdict |
+|---|---|---|
+| σ̂ bias, **dynamic** (−0.009 / −0.031 / −0.035) | −0.012 / −0.037 / −0.039 | ✅ within 0.006 |
+| minN(±0.15) for O2 and H10 (5, 5) | 5, 5 | ✅ |
+
+### What does not
+
+| published | run @720 (current σ) | Δ |
+|---|---|---|
+| minN(±0.15) **Verity** = 5 | **3** (half@N=3 = 0.1364) | one grid step |
+| σ̂ bias, **resting** (+0.071 / −0.473 / −0.169) | +0.035 / **−0.589** / **−0.552** | H10 0.116 · Verity **3.3×** |
+| neg-variance rate, ρ=0.30 (0.55 → 1.00) | **0.00 at every N** | total |
+| neg-variance rate, ρ=0.50 (1.00 everywhere) | **0.00 at every N** | total |
+
+Current code needs **ρ ≈ 0.7** to produce the rates the paper prints against **ρ = 0.3**.
+
+### The cause, measured — the bias table belongs to the SUPERSEDED planted σ
+
+Blocker 2 above warns the planted σ is triplicated and a desync is silent. This is that failure, one
+level up: the σ were re-planted from the interim device-HR triple (**1.7 / 2.2 / 3.0**) to the raw-ECG
+10-night hat (**2.72 / 1.86 / 1.94**) — and the derived tables were never re-run. Reverting both copies
+to the interim triple and rebuilding recovers the published bias column almost exactly:
+
+| resting bias | published | interim σ (1.7/2.2/3.0) | current σ (2.72/1.86/1.94) |
+|---|---|---|---|
+| O2Ring | +0.071 | **+0.061** | +0.035 |
+| H10 | −0.473 | **−0.475** ← 0.002 | −0.589 |
+| Verity | −0.169 | −0.337 | −0.552 |
+
+H10 lands on the published value to **0.002** under the old σ and is off by 0.116 under the shipped one.
+That is not a coincidence and it settles the provenance of that table.
+
+**Two things the σ swap does NOT explain, and they are the load-bearing residue:**
+
+1. **The ρ table reproduces under NEITHER σ set.** At the interim σ, ρ=0.5 gives 0.02 → 0.26 and ρ=0.7
+   gives 0.82 → 1.00; the published ρ=0.3 row (0.55 → 1.00) sits between them. So a *second* change —
+   how the ρ-correlated pair error is scaled — is also in the history. Do not attribute the ρ table to
+   the σ swap.
+2. **Verity's resting bias is wrong under both** (−0.337 and −0.552 against a published −0.169). This is
+   the **same corner** whose real-arm σ has never reproduced (published **1.42**, re-derived **3.51**,
+   re-run **0.94–1.03** — the gated box below). Three independent estimates, one corner, no agreement.
+
+### And Table 1 is itself already a composite
+
+Its **planted-σ** column is current-generation; its **±0.15** column and **N=3 half-widths** are the
+2026-08-15 5,000,000-trial WebGPU re-run (0.1421 / 0.1549 / 0.1441, which is why they read 3/5/3); its
+**±0.50 / ±0.25** columns are the original 720 run. The convergence table records the original as
+minN = 5/5/5. One table, three runs, no marking — which is why *"reproduce the published tables"* had no
+single answer until it was actually attempted.
+
+### The harness change that made this findable (shipped here)
+
+`tools/trio-power-headless.mjs` exported **one** of the paper's four simulation tables — the ±0.15
+column, i.e. a **threshold crossing on a coarse grid**, which the tool's own printed warning already
+calls the least trustworthy statistic it produces. `bias` (both regimes) and the ρ negative-variance grid
+were computed by the page on every run and **discarded at the extraction boundary**. They are continuous,
+so they are what a reproduction can actually be checked against — and they are what caught this. Both are
+now exported and printed, and an all-null ρ grid **refuses (exit 2)** rather than printing a well-formed
+row of dashes indistinguishable from a genuine all-zero result.
+
+### What this closes and what it opens
+
+Box 2 is **executed**: the instrument is calibrated — it runs, it is deterministic, and it now reports
+enough to be checked. The answer it returns is negative, and it **strengthens** the gate on the box
+below rather than lifting it: re-fitting Tables 1–3 to 15 nights would now overwrite three tables that
+belong to three different generations, silently making them consistent for the first time and erasing
+the evidence of the desync. **Regenerate the tables from ONE run, as their own work-unit, before any
+re-fit** — and mark each table with the run that produced it.
+
 ## Done when (§181 closure)
 
-- [ ] GPU lane covers the ρ/duration sweeps (or the tool can export the N-sweep alone), so a 50k run finishes.
-- [ ] Reproduce the **published** tables at the 10-night hat at the paper's stated trial count — proves the harness.
+- [x] GPU lane covers the ρ/duration sweeps (or the tool can export the N-sweep alone), so a 50k run finishes.
+      **ALREADY TRUE — verified by execution 2026-08-26, not by reading.** The GPU lane dispatches all
+      three sweeps: `TrioGPU.runCell` for the N-grid, **`TrioGPU.runRho`** for the ρ grid, and
+      `TrioGPU.runCell(…, DUR_GRID[di])` for the duration grid. A 50,000-trial run on
+      `webgpu (amd/rdna-3)` finishes in **4.1 s** with the ρ table populated. The box's premise — that a
+      50k run does *not* finish — was stale; no alternative export was needed.
+- [x] Reproduce the **published** tables at the 10-night hat at the paper's stated trial count — proves the harness.
+      **EXECUTED 2026-08-26 — the harness is proven; the tables do NOT reproduce as a set.** See §"Box 2
+      EXECUTED" above: dynamic bias reproduces, the resting-bias table belongs to the superseded planted
+      σ, and the ρ negative-variance table reproduces under neither σ set.
 - [⛔] **GATED 2026-08-20 — do not do this yet, and the reason is new.** Re-fit all three σ copies to
       the 15-night hat **and** regenerate Tables 1–3 **in the same change** (the gate's expected triple
       moves with them).
