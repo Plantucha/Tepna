@@ -90,6 +90,10 @@ _STOP = asyncio.Event()
 _EXIT_CODE = [0]          # non-zero → systemd re-execs (watchdog give-up, §2C)
 BUS = TelemetryBus()          # live-sample bus feeding the monitor page (webmon.py)
 ADAPTER: str | None = None    # BLE adapter MAC for bonding (config `adapter:`); None = default controller
+# Per-device FAILOVER overrides, keyed by device address (PER-DEVICE-ADAPTER-PINNING §3.3). Populated
+# only when a radio wedges and cleared when it recovers — so this dict being non-empty IS the statement
+# "some device is not on the radio its config asked for", which `adapter_effective` surfaces.
+_ADAPTER_OVERRIDE: dict[str, str] = {}
 # Live-stream metadata per PMD stream name: (base label, unit, channels, per-channel labels). fs comes
 # from pmd.SAMPLE_HZ. Everything is pushed RAW to the monitor — no signal processing on the box.
 _LIVE_META = {
@@ -1070,7 +1074,7 @@ async def startup_defense_check(hci: "str | None", cfg: "dict | None" = None) ->
         log.warning("STARTUP: %s", w)
 
 
-async def adapter_kw() -> dict:
+async def adapter_kw(spec: str | None = None) -> dict:
     """bleak kwargs pinning a connection to the CONFIGURED adapter (config `adapter:`), or {} when
     unconfigured/unresolvable so we fall back to the BlueZ default instead of failing hard.
 
@@ -1079,7 +1083,7 @@ async def adapter_kw() -> dict:
     the onboard radio that cannot hear our sensors; every connect hung and PMD never started, with no
     error naming the cause. Resolving MAC→hciN fresh on each connect keeps the pin correct across
     re-enumeration (one cheap subprocess, and connects are infrequent)."""
-    hci = await adapter_hci()
+    hci = await adapter_hci(spec)
     # The `bluez=` form, NOT the bare `adapter=` kwarg. bleak deprecated `adapter` (3.0.2 shims it with a
     # warning and copies it into bluez["adapter"]); when the shim goes, passing it would not raise — it
     # would be swallowed as an unknown kwarg and the pin would SILENTLY vanish. This box cannot afford
@@ -1089,17 +1093,46 @@ async def adapter_kw() -> dict:
     return {"bluez": {"adapter": hci}} if hci else {}
 
 
-async def adapter_hci() -> str | None:
-    """The configured adapter resolved to its CURRENT `hciN` name, or None when unconfigured/unresolvable
+async def adapter_hci(spec: str | None = None) -> str | None:
+    """The adapter resolved to its CURRENT `hciN` name, or None when unconfigured/unresolvable
     (callers then fall back to the BlueZ default rather than failing hard). Kept separate from
-    adapter_kw() because the PS-FTP path takes a bare name, not bleak kwargs."""
-    if not ADAPTER:
+    adapter_kw() because the PS-FTP path takes a bare name, not bleak kwargs.
+
+    `spec` is a PER-DEVICE pin (PER-DEVICE-ADAPTER-PINNING §3.2). Omitted ⇒ the process-wide `ADAPTER`,
+    so every existing caller keeps its exact behaviour and a config that pins nothing is unchanged.
+    Accepts a MAC or an `hciN` name; `resolve_hci` passes a name through and looks a MAC up.
+
+    ⚠ Resolved on EVERY call with `refresh=True`, never cached, because hciN RE-ENUMERATES — measured
+    2026-08-25, one reboot moved the Sena from hci3 to hci1 and the Intel from hci1 to hci2. A cached
+    index silently changes which physical radio serves a device."""
+    mac = spec or ADAPTER
+    if not mac:
         return None
-    hci = await link_rssi.resolve_hci(ADAPTER, refresh=True)
+    hci = await link_rssi.resolve_hci(mac, refresh=True)
     if not hci:
-        log.warning("configured adapter %s not found — falling back to the BlueZ default", ADAPTER)
+        # An ABSENT pinned radio must never silently masquerade as a working pin — say which one, and
+        # say that the fallback happened, so "it is on the wrong radio" is readable rather than inferred.
+        log.warning("configured adapter %s not found — falling back to the BlueZ default", mac)
         return None
     return hci
+
+
+def device_adapter(dev: dict | None) -> str | None:
+    """Which adapter this device should use, highest precedence first:
+
+        failover override  >  the device's own `adapter:`  >  the process-wide `ADAPTER`
+
+    THE PIN IS A PREFERENCE, NOT AN ABSOLUTE — owner decision 2026-08-26, recorded in
+    PER-DEVICE-ADAPTER-PINNING §"Owner decision". A wedged radio still migrates its devices; the pin
+    says where they live in NORMAL operation. The alternative (an absolute pin, device fails rather
+    than migrates) was rejected because you can lose a night to a pin being obeyed too literally,
+    which is worse than a night captured on the "wrong" radio.
+
+    The override therefore sits ABOVE the pin deliberately: failover has to be able to win, or the
+    preference becomes an absolute by accident."""
+    d = dev or {}
+    ovr = _ADAPTER_OVERRIDE.get(d.get("address"))
+    return ovr or d.get("adapter") or ADAPTER
 
 
 # ── DUAL-RADIO FAILOVER (VIGIL-OVERNIGHT-FINDINGS P1.5) ──────────────────────────────────────────────
@@ -1159,11 +1192,69 @@ async def list_adapters() -> list[dict]:
         return []
 
 
-def _set_active_adapter(mac: str) -> None:
-    """Repoint the process-wide adapter pin. Every device task resolves ADAPTER->hciN FRESH on each
-    reconnect, so this one assignment moves capture onto `mac` — the failover mechanism itself."""
+def _set_active_adapter(mac: str, devices: list | None = None, wedged: str | None = None) -> None:
+    """Fail capture over to `mac`. Every device task resolves its adapter FRESH on each reconnect, so
+    moving the pin is the whole failover mechanism.
+
+    WITHOUT per-device pins this repoints the process-wide global and every device follows — the
+    original behaviour, kept for callers that pass no device list.
+
+    WITH per-device pins (PER-DEVICE-ADAPTER-PINNING §3.3) that would be WRONG: it would drag devices
+    off HEALTHY radios because a different one wedged. So when `devices` is given, only the devices
+    whose EFFECTIVE adapter is the wedged one get an override; everything else is untouched.
+
+    🔴 Every override is logged at WARNING naming BOTH radios. A preference that is silently overridden
+    is indistinguishable from a preference that was never honoured — and "the config says X, the device
+    is on Y, nothing says why" is exactly the class of defect this suite keeps finding."""
     global ADAPTER
-    ADAPTER = mac
+    if devices is None:
+        ADAPTER = mac
+        return
+    wedged = (wedged or ADAPTER or "").upper()
+    moved = 0
+    for d in devices:
+        addr = (d or {}).get("address")
+        if not addr:
+            continue
+        if (device_adapter(d) or "").upper() != wedged:
+            continue                                   # on a healthy radio — leave it alone
+        _ADAPTER_OVERRIDE[addr] = mac
+        moved += 1
+        log.warning("%s: pinned adapter %s is wedged — failing over to %s",
+                    (d or {}).get("name") or addr, device_adapter_pin(d) or "(default)", mac)
+    if not moved:
+        # Nothing was on the wedged radio. Repointing the global anyway would move devices that are
+        # fine, which is the bug this branch exists to avoid.
+        log.info("failover: no device was using the wedged adapter %s — nothing moved", wedged)
+    # ⚠ The GLOBAL IS DELIBERATELY NOT MOVED here. In per-device mode the overrides ARE the failover,
+    # and moving the global as well relocates every unpinned device a SECOND time — after which
+    # clearing its override cannot restore it, because the thing it falls back to has itself moved.
+    # Caught by test rather than by reading: clearing an override returned the SPARE, not the pin.
+    # The global stays as configured so it remains the honest fallback for a recovered device.
+
+
+def device_adapter_pin(dev: dict | None) -> str | None:
+    """The device's CONFIGURED pin — its own `adapter:` or the global — ignoring any failover override.
+
+    Deliberately separate from `device_adapter()`: the pinned radio and the radio a device is ACTUALLY
+    on are different facts whenever failover is active, and reporting one as the other is how an
+    override becomes invisible. The monitor shows both (§3.5)."""
+    d = dev or {}
+    return d.get("adapter") or ADAPTER
+
+
+def clear_adapter_override(dev: dict | None) -> bool:
+    """Drop a device's failover override so its configured pin reasserts itself. True if one was held.
+
+    Called when the pinned radio is healthy again — otherwise a single wedge silently relocates a
+    device for the rest of the night, and the config stops describing reality until the next restart."""
+    addr = (dev or {}).get("address")
+    if addr in _ADAPTER_OVERRIDE:
+        prev = _ADAPTER_OVERRIDE.pop(addr)
+        log.info("%s: pinned adapter %s is healthy again — releasing failover override (was %s)",
+                 (dev or {}).get("name") or addr, device_adapter_pin(dev) or "(default)", prev)
+        return True
+    return False
 
 
 def _connect_timeout(addr: str) -> TimeoutError:
