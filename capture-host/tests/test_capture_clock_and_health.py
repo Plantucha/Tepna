@@ -638,3 +638,104 @@ def test_parse_hciconfig_tolerates_leading_junk_and_a_malformed_address():
             "\tBD Address: AA:BB:CC:DD:EE:FF\n"          # the real address, later in the block
             "\tUP RUNNING\n")
     assert capture.parse_hciconfig(text) == [{"hci": "hci0", "mac": "AA:BB:CC:DD:EE:FF", "up": True}]
+
+
+# ── PER-ADAPTER INSTANCE PARTITION (PER-DEVICE-ADAPTER-PINNING §3.3b) ────────────────────────────────
+_ICFG = {
+    "adapter": "00:01:95:CC:53:02",
+    "adapters": {"sena": "00:01:95:CC:53:02", "ub500": "AC:A7:F1:29:9D:1D",
+                 "intel": "F0:D5:BF:1E:79:21"},
+    "devices": [{"name": "H10"}, {"name": "Verity"},
+                {"name": "Ring", "adapter": "ub500"},
+                {"name": "Cpapish", "adapter": "AC:A7:F1:29:9D:1D"}],
+}
+
+
+def _names(ds):
+    return [d["name"] for d in ds]
+
+
+def test_instance_none_serves_every_device():
+    """The single-daemon behaviour, and it is the DEFAULT on purpose: the split is opt-in per box, so
+    upgrading the code alone can never silently strip devices from a running capture."""
+    assert _names(capture.instance_devices(_ICFG, None)) == ["H10", "Verity", "Ring", "Cpapish"]
+
+
+def test_instance_inherits_the_global_adapter():
+    """Devices that pin nothing must still be owned — by the instance whose radio IS the global.
+    Otherwise a config that pins nothing leaves every device owned by ZERO instances."""
+    assert _names(capture.instance_devices(_ICFG, "sena")) == ["H10", "Verity"]
+
+
+def test_instance_takes_pins_by_name_and_by_mac():
+    assert _names(capture.instance_devices(_ICFG, "ub500")) == ["Ring", "Cpapish"]
+
+
+def test_declared_instance_with_no_devices_is_empty_not_everything():
+    """An instance nothing is pinned to serves NOTHING. The dangerous failure would be falling back to
+    'all devices', which would have three daemons each capturing the same sensors."""
+    assert capture.instance_devices(_ICFG, "intel") == []
+
+
+def test_unknown_instance_name_serves_nothing_rather_than_the_default():
+    """A typo'd instance must not resolve to 'the BlueZ default adapter' — that is how a device ends up
+    on the onboard radio that cannot hear it, with nothing naming the cause."""
+    assert capture.resolve_adapter_name(_ICFG, "tpyo") is None
+    assert capture.instance_devices(_ICFG, "tpyo") == []
+
+
+def test_the_partition_is_total_and_disjoint():
+    """THE INVARIANT: every device owned by exactly one instance. A device owned by NONE is captured by
+    nobody while every instance logs a healthy startup — invisible from inside any single process."""
+    seen = []
+    for inst in _ICFG["adapters"]:
+        seen += _names(capture.instance_devices(_ICFG, inst))
+    assert sorted(seen) == ["Cpapish", "H10", "Ring", "Verity"]
+    assert len(seen) == len(set(seen))
+    assert capture.unowned_devices(_ICFG) == []
+
+
+def test_unowned_devices_names_a_device_no_instance_serves():
+    """The whole point of unowned_devices(): make the invisible hole visible."""
+    cfg = {"adapter": "00:01:95:CC:53:02",
+           "adapters": {"sena": "00:01:95:CC:53:02"},
+           "devices": [{"name": "H10"}, {"name": "Orphan", "adapter": "AC:A7:F1:29:9D:1D"}]}
+    assert capture.unowned_devices(cfg) == ["Orphan"]
+
+
+def test_resolve_adapter_name_passes_a_bare_mac_through():
+    assert capture.resolve_adapter_name(_ICFG, "AC:A7:F1:29:9D:1D") == "AC:A7:F1:29:9D:1D"
+    assert capture.resolve_adapter_name(_ICFG, None) is None
+
+
+def test_apply_instance_returns_the_mac_and_pins_it(caplog):
+    with caplog.at_level("INFO"):
+        assert capture.apply_instance(_ICFG, "ub500") == "AC:A7:F1:29:9D:1D"
+    assert "serving 2 of 4 device(s)" in caplog.text
+
+
+def test_apply_instance_refuses_an_unrecognised_name(caplog):
+    """A name resolving to nothing would serve NO devices while looking like a healthy daemon — a
+    silent total capture failure. It must refuse to start, not start quietly."""
+    import pytest as _p
+    with _p.raises(SystemExit) as e:
+        capture.apply_instance(_ICFG, "tpyo")
+    assert "refusing to start" in str(e.value)
+
+
+def test_apply_instance_announces_an_instance_that_owns_NOTHING(caplog):
+    """Logged unconditionally, including zero. Printing only the non-empty case rebuilds exactly the
+    blind spot this function exists to close."""
+    with caplog.at_level("INFO"):
+        capture.apply_instance(_ICFG, "intel")
+    assert "serving 0 of 4 device(s): (NONE)" in caplog.text
+
+
+def test_apply_instance_shouts_about_unowned_devices(caplog):
+    """The hole no single instance can see: a device pinned to a radio nothing serves."""
+    cfg = {"adapter": "00:01:95:CC:53:02",
+           "adapters": {"sena": "00:01:95:CC:53:02"},
+           "devices": [{"name": "H10"}, {"name": "Orphan", "adapter": "AC:A7:F1:29:9D:1D"}]}
+    with caplog.at_level("ERROR"):
+        capture.apply_instance(cfg, "sena")
+    assert "UNOWNED DEVICES" in caplog.text and "Orphan" in caplog.text
