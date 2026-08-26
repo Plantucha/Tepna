@@ -1,0 +1,6 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+---
+bump: patch
+type: fixed
+---
+`parse_hciconfig` now drops a controller whose BD address is the null (`00:00:00:00:00:00`) or broadcast (`FF:FF:FF:FF:FF:FF`) address, so `failover_target` can never hand a reconnect an address no device is reachable on. The upstream shape test — 17 characters, 5 colons — checks the FORMAT only, and the null address satisfies it, which defeated `parse_hciconfig`'s own stated contract that *"a block with no MAC is dropped — an adapter we cannot address is not a failover target."* Not hypothetical: the Zephyr/nRF52840 dongle (USB `2fe3:000b`) reports exactly that, because its firmware has no PUBLIC address (Zephyr identifies by static-random and refuses a host-side public pin with `0x0c Not Supported`) — BlueZ shows the static-random address while `hciconfig`, the layer this parser reads, shows zeros. It survived the parse, and `failover_target` returns the FIRST match in an order that is not sorted, so a wedged radio would "fail over" onto an unreachable address — silence dressed as recovery, and strictly worse than staying on the wedged adapter. Tests are built from the dongle's real `hciconfig` output and verified to fail without the guard.
