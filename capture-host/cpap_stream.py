@@ -16,6 +16,7 @@ import asyncio
 import logging
 
 import acq_evidence_cpap
+import cpap_edf_writer
 import as11_cipher
 import as11_pull
 from cpap_ingest import GapCounters
@@ -229,12 +230,19 @@ def _emit_acq_evidence(out, sinks, counters, observed_ms, stopped_cleanly):
         if raw is None:
             return
         edf = next((s.path for s in sinks if hasattr(s, "path") and not hasattr(s, "acq_facts")), None)
+        # The envelope needs a TIME to be joinable to a night (a CPAP night is built from SD EDFs, whose
+        # names carry no host session id — so the join is by day, not by filename, and a null start makes
+        # the envelope unjoinable). The raw record holds the acquisition's start verbatim; convert it at
+        # this boundary via the ONE device parser, and leave it None when the stamp cannot be dated —
+        # never now() (§2.6).
+        start_ms = cpap_edf_writer.device_stamp_to_tms(raw.get("first_device_start"))
         out(acq_evidence_cpap.assemble_live(
             raw,
             counters=counters.summary(),
             edf_path=edf,
             observed_interval_ms=observed_ms,
             stopped_cleanly=stopped_cleanly,
+            start_time_ms=start_ms,
         ))
     except Exception:  # noqa: BLE001 — see the docstring: the report must not sink the acquisition
         _log.exception("CPAP acquisition-evidence emit failed — the capture itself is unaffected")

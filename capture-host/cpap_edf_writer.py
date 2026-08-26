@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+import calendar
 import os
 import re
 
@@ -193,6 +194,24 @@ def _fixed_zone(zone):
     """A `±HH:MM` suffix → a datetime.timezone."""
     sign = 1 if zone[0] == "+" else -1
     return datetime.timezone(sign * datetime.timedelta(hours=int(zone[1:3]), minutes=int(zone[4:6])))
+
+
+def device_stamp_to_tms(iso):
+    """A raw device ISO stamp → Clock-Contract FLOATING tMs (ms), or None when it cannot be dated.
+
+    PUBLIC because the acquisition envelope needs the same answer the EDF writer needs, and the
+    Clock Contract allows exactly ONE parser per node (§2): duplicating the regex here would be the
+    second implementation it forbids, so this delegates to `_start_components` rather than re-deriving.
+
+    The components come back already resolved to LOCAL CIVIL time (see below), which IS the floating
+    basis §1 defines — so `calendar.timegm` over them yields floating tMs directly, with no second
+    timezone step. An unparseable or calendar-invalid stamp returns None; it is never dated to now
+    (§2.6), matching the EDF writer's own refusal to date a file it cannot place."""
+    parts = _start_components(iso)
+    if parts is None:
+        return None
+    y, mo, d, hh, mm, ss = parts
+    return calendar.timegm((y, mo, d, hh, mm, ss, 0, 0, 0)) * 1000.0
 
 
 def _start_components(iso):

@@ -29,7 +29,8 @@ NONCE = bytes.fromhex("00112233445566778899aabbccddeeff")
 
 def _facts(**over):
     f = {"session_id": "20260825T013000Z-abc123", "device_id": "AS11-01",
-         "path": "/tmp/cpap-raw-x.jsonl", "records": 42, "closed": True, "size": 8192}
+         "path": "/tmp/cpap-raw-x.jsonl", "records": 42, "closed": True, "size": 8192,
+         "first_device_start": None}
     f.update(over)
     return f
 
@@ -745,3 +746,85 @@ def test_a_round_with_no_byte_count_contributes_ZERO_not_one():
     inventing a byte per unreadable round is a small fabrication that scales with the ledger."""
     rows = [_row(nbytes=100), {"device": "d", "session": "s", "spool_type": "brp", "round": {}}]
     assert cpap.assemble_spool(rows).artifact_size == 100, "the byte-less round adds 0, not 1"
+
+
+# ── the acquisition START — what makes an envelope JOINABLE to a night ────────
+def test_the_envelope_carries_the_acquisition_start_so_it_can_be_joined():
+    """WHY THIS FIELD MATTERS: a CPAP night is built from SD EDFs, whose filenames carry no host
+    session id — so a Dex cannot join an envelope to a night the way OxyDex does (by filename). The
+    join has to be by DAY, which needs a time. Before this, every production CPAP envelope had
+    `start_time_ms: null` and was joinable to nothing at all."""
+    raw = _facts(first_device_start="2026-08-23T01:30:28.730Z")
+    ms = __import__("cpap_edf_writer").device_stamp_to_tms(raw["first_device_start"])
+    ev = cpap.assemble_live(raw, counters=_counters(), start_time_ms=ms)
+    assert ev.start_time_ms == ms and ev.start_time_ms is not None
+
+
+def test_an_undatable_stamp_leaves_the_start_ABSENT_never_now():
+    """§2.6 — a stamp that cannot be parsed is null, never today's date. A fabricated start would join
+    the envelope to the WRONG night, which is worse than joining to none."""
+    import cpap_edf_writer as w
+
+    assert w.device_stamp_to_tms("nonsense") is None
+    assert w.device_stamp_to_tms(None) is None
+    assert w.device_stamp_to_tms("") is None
+    assert cpap.assemble_live(_facts(), start_time_ms=None).start_time_ms is None
+
+
+def test_a_calendar_invalid_stamp_is_refused_not_rolled():
+    """Clock Contract §2.7 — Date arithmetic silently ROLLS Feb 30 onto March. The parser must refuse."""
+    import cpap_edf_writer as w
+
+    assert w.device_stamp_to_tms("2026-02-30T00:00:00Z") is None
+    assert w.device_stamp_to_tms("2026-13-01T00:00:00Z") is None
+    assert w.device_stamp_to_tms("2026-08-23T25:00:00Z") is None
+
+
+def test_a_zoned_stamp_resolves_to_local_civil_not_utc_verbatim():
+    """The device's live stamp is UTC ('…Z') but its own SD recording and OSCAR use local civil, so
+    writing the UTC components verbatim mis-dates by the UTC offset. The two forms must NOT agree."""
+    import cpap_edf_writer as w
+
+    zoned = w.device_stamp_to_tms("2026-08-23T01:30:28.730Z")
+    floating = w.device_stamp_to_tms("2026-08-23 01:30:28")
+    assert zoned is not None and floating is not None
+    assert zoned != floating, "a zoned stamp is CONVERTED; taking its components verbatim would mis-date"
+
+
+def test_the_raw_sink_captures_the_FIRST_batch_stamp_and_keeps_it(tmp_path):
+    """The FIRST batch is the acquisition's start; later batches must not overwrite it, or the envelope
+    would report the last stamp seen and drift later as the night ran."""
+    p = tmp_path / "rec.jsonl"
+    sink = cpap_record.RawRecordSink(str(p), device_id="d", session_id="s", provenance={},
+                                     wall=lambda: "2026-08-25T00:00:00Z")
+    sink.open({}, 25.0)
+    try:
+        assert sink.acq_facts()["first_device_start"] is None, "nothing streamed yet ⇒ absent, not a date"
+        sink.on_batch({"streamId": 1, "startTime": "2026-08-23T01:30:28.730Z", "channels": {}})
+        sink.on_batch({"streamId": 1, "startTime": "2026-08-23T05:59:59.000Z", "channels": {}})
+    finally:
+        sink.close()
+    assert sink.acq_facts()["first_device_start"] == "2026-08-23T01:30:28.730Z", "FIRST, not last"
+
+
+def test_the_pump_actually_passes_the_start_through(monkeypatch):
+    """The wiring witness. `_emit_acq_evidence` converting the stamp but not FORWARDING it would leave
+    every envelope unjoinable while every assembler test stayed green — the same unpinned-wiring shape
+    as the controller hand-off (#1784)."""
+    got = []
+
+    class _RawWithStamp(_FakeRaw):
+        def acq_facts(self):
+            f = _facts(closed=self.closed)
+            f["first_device_start"] = "2026-08-23T01:30:28.730Z"
+            return f
+
+    dev = _FakeDev(_handshake() + [_ack(), _data()])
+    asyncio.run(CS.stream_to_bus(_FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                                cipher_factory=_identity_factory, max_batches=1,
+                                extra_sinks=[_RawWithStamp()], acq_evidence_out=got.append))
+    assert len(got) == 1
+    import cpap_edf_writer as w
+
+    assert got[0].start_time_ms == w.device_stamp_to_tms("2026-08-23T01:30:28.730Z")
+    assert got[0].start_time_ms is not None, "the envelope must leave the pump JOINABLE"
