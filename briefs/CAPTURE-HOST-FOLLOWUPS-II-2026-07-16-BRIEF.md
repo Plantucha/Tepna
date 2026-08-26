@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED (**V1/V2 MATERIALLY ADVANCED and V3 CONFIRMED-DEAD against the 19 GB PSL corpus, 2026-08-04** — H10 ACC agrees with the vendor decode to 0.4 % on the 1 g invariant (V2 answered); GYRO/MAG units confirmed but the UNCOMPRESSED branch stays untested because the Verity streams delta; PPI is 107 files / 102 rows header-only IN THE PSL CORPUS — but that was mis-attributed to the device: the BOX gets 30 151 PPI rows a night from the same unit, so V3 is OVERTURNED (2026-08-08), not confirmed. Plus: **§2 re-measured on the live box 2026-08-04** — V4 partially observed, V5's sudoers rule found installed, and a 🔴 **live finding**: two of the four root-owned NOPASSWD helpers have drifted from the checkout and a third was never installed, with `helper_path` preferring the stale copies. Now gate-backed in `deploy/check-system-files.sh`. **Re-measured again 2026-08-05: that drift is REPAIRED — all helpers byte-match and every grant works passwordless — but one inference drawn from it was wrong**, namely that installing `tepna-usbreset.sh` unblocked the wedged-adapter rung; it is a Polar-dock helper that must never touch a radio, and the real blocker was code (see V5). V1·V2 remain hardware-gated; V3 is resolved except for a byte-diff no vendor export exists to supply) · **Created:** 2026-07-16 (**Field-verified 2026-07-22 on `rig-x870`:** the whole
+**Status:** IN-PROGRESS — 2026-08-26 (**V1/V2 MATERIALLY ADVANCED and V3 CONFIRMED-DEAD against the 19 GB PSL corpus, 2026-08-04** — H10 ACC agrees with the vendor decode to 0.4 % on the 1 g invariant (V2 answered); GYRO/MAG units confirmed but the UNCOMPRESSED branch stays untested because the Verity streams delta; PPI is 107 files / 102 rows header-only IN THE PSL CORPUS — but that was mis-attributed to the device: the BOX gets 30 151 PPI rows a night from the same unit, so V3 is OVERTURNED (2026-08-08), not confirmed. Plus: **§2 re-measured on the live box 2026-08-04** — V4 partially observed, V5's sudoers rule found installed, and a 🔴 **live finding**: two of the four root-owned NOPASSWD helpers have drifted from the checkout and a third was never installed, with `helper_path` preferring the stale copies. Now gate-backed in `deploy/check-system-files.sh`. **Re-measured again 2026-08-05: that drift is REPAIRED — all helpers byte-match and every grant works passwordless — but one inference drawn from it was wrong**, namely that installing `tepna-usbreset.sh` unblocked the wedged-adapter rung; it is a Polar-dock helper that must never touch a radio, and the real blocker was code (see V5). V1·V2 remain hardware-gated; V3 is resolved except for a byte-diff no vendor export exists to supply) · **Created:** 2026-07-16 (**Field-verified 2026-07-22 on `rig-x870`:** the whole
 `capture-host/` test suite is green (~40 files incl. `test_capture_clock` F2, `test_pmd_delta`,
 `test_oxyii`, writers/fsync R1) and real captured files round-trip to node-exports (H10 ECG → ECGDex 21
 events, O2Ring SpO₂ → OxyDex meanSpo₂ 96.1 %). **§2 V1–V5 stay OPEN — all hardware-gated** exactly as
@@ -241,6 +241,14 @@ what the second bring-up session surfaced and is **not yet done**. Parent `CAPTU
 - Still open from FOLLOWUPS-I: **no real overnight round-trip**, **no real-Pi bring-up**. The
   `how-to-collect/` notes are **DONE** — `verity-ppg.md` and `health-box.md` exist; the O2Ring is covered
   by `oxydex-spo2.md` rather than a separate `o2ring-s.md`, which is why that filename never appeared.
+
+> **Status corrected PROPOSED → IN-PROGRESS 2026-08-26.** The header had stayed PROPOSED while the
+> body recorded the opposite: §1 *"ALL THREE EXECUTED 2026-07-18"*, §3 R1 **DONE (verified 2026-07-18)**,
+> §4.2 closed on its own "executed or re-homed" clause, and §5's clock/NTP work *"has since landed on
+> `main`"*. A brief whose first section is titled EXECUTED is not proposed. Nothing here is newly
+> measured — the flip only makes the one-word status agree with the sentence below it, which has named
+> the remaining work since 2026-07-18. Everything still open is hardware-gated, so the next honest move
+> is a device session, not more reading.
 
 **What remains before this brief can flip DONE (2026-07-18):** everything left is **hardware-gated** —
 §2's V1–V5 all need a real device or a real box (a PSL `_GYRO`/`_MAG`/`_ACC` export to byte-diff against,
