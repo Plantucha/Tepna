@@ -451,6 +451,25 @@ function runBattery(fn, bat, ctx) {
         ctx.__probeArgs = undefined;
       }
     }
+    /* ⚠️ SAME GAP AS `resultString`: the try/catch above covers only the SYNCHRONOUS throw. An async
+       function returns a promise, so the call SUCCEEDS, and the rejection lands later as an unhandled
+       rejection that kills the driver. Measured 2026-08-26: a `FileReader is not defined` reach inside
+       a co-loaded readFile helper crashed the crawl at `runBattery → probeFile` AFTER the checkpoint
+       wrote — harmless that run, but a multi-file crawl ordering that file earlier would lose every
+       file after it.
+
+       Note this is ONE defect, not two. A browser-API reach thrown SYNCHRONOUSLY is already caught
+       above and classified `THREW` — the realm simply lacks browser globals, which is by design. It
+       can only take the driver down by being thrown inside an ASYNC path, where it becomes a
+       rejection. So the async guard is the fix for both symptoms; if a crash of this shape survives
+       it, the cause is elsewhere and should not be assumed. */
+    if (r && (typeof r === 'object' || typeof r === 'function') && typeof r.then === 'function') {
+      Promise.resolve(r).then(
+        () => {},
+        () => {}
+      );
+      r = 'ASYNC:result is a promise — not comparable without awaiting';
+    }
     let s;
     try {
       s = JSON.stringify(r, (k, v) => (typeof v === 'bigint' ? String(v) : ArrayBuffer.isView(v) ? Array.from(v).slice(0, 8) : v));
