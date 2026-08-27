@@ -274,7 +274,9 @@ function selftest() {
   ck('busy: matches crawl', pipelineBusy('node tools/mutation-crawl.mjs --max-hours 40'));
   ck('busy: matches sweep', pipelineBusy('node tools/mutate.mjs --file x.js --limit 5'));
   ck('busy: ignores itself', !pipelineBusy('node tools/dsp-review-qwen.mjs'));
-  ck('key stable', fnKey('a.js', fns[0]) === fnKey('a.js', fns[0]));
+  const k1 = fnKey('a.js', fns[0]);
+  const k2 = fnKey('a.js', fns[0]);
+  ck('key stable', k1 === k2);
   ck('key differs by mode', fnKey('a.js', fns[0], 'adversary') !== fnKey('a.js', fns[0], 'review'));
   ck('adversary prompt selected', buildPrompt(fns[0], 'a.js', 'adversary').includes('ADVERSARIAL auditor'));
   ck('review prompt default', buildPrompt(fns[0], 'a.js').includes('house rules') || buildPrompt(fns[0], 'a.js').includes('reviewing DSP code'));
