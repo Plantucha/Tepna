@@ -158,7 +158,24 @@ function main() {
     process.stdout.write(`  releases (changesets only + version bumped) : ${releases.length}\n`);
     process.stdout.write(`  exempt   (declared Revert / rescue:)        : ${exempt.length}\n`);
     process.stdout.write(`  FLAGGED                                     : ${flagged.length}\n`);
-    for (const f of flagged) process.stdout.write(`    ${f.sha}  ${f.reason}\n`);
+    for (const f of flagged) {
+      /* NAME THE CONTAINING REF. The scan is `--all`, so a flagged commit on ONE session's branch
+         reds EVERY session's CI — and it presents as "your PR failed static", with the culprit in
+         nobody's diff (measured 2026-08-26: f754e509 on a doc branch redded two unrelated PRs, and
+         each owner's first instinct was to hunt their own changes). One printed ref name converts
+         that whole misdiagnosis into routing: delete the named branch, not your diff. */
+      let where = '';
+      try {
+        const refs = git(['for-each-ref', '--contains', f.sha, '--format=%(refname:short)'])
+          .split('\n')
+          .filter(Boolean)
+          .filter((r) => r !== 'origin/HEAD');
+        where = refs.length ? `  [in: ${refs.slice(0, 3).join(', ')}${refs.length > 3 ? ` +${refs.length - 3}` : ''}]` : '  [in: no live ref — reflog only]';
+      } catch {
+        where = '';
+      }
+      process.stdout.write(`    ${f.sha}  ${f.reason}${where}\n`);
+    }
     if (!flagged.length) process.stdout.write('  ✓ no commit carries the blanket-add / ref-move shape\n');
   }
   process.exit(flagged.length ? 1 : 0);

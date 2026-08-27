@@ -433,6 +433,72 @@ Mirror nights-icc's deliverable: a minimum / recommended / diminishing-returns t
 **The brief stays PROPOSED**: what remains genuinely blocked is the N = 10 → 15 **re-fit** of the shipped
 paper (see the header and `TRIO-POWER-N15-FINDINGS`), not any of the authorship above.
 
+## 10. The pooled-seconds hat — DERIVED 2026-08-26, before writing any code
+
+Assigned as the named unblock for two things at once (the 15-night re-fit lane, and Table 3's
+defensibility — the onset ρ\* = σ₀_H10/σ₀_Verity divides by the unreproducible Verity corner). The first
+question was whether this is a new estimator or a composition of parts that already exist. **It is a
+composition.** Derivation first, per the standing rule that a number must be understood before it is
+computed.
+
+### The algebra
+
+With `x_i(t) = s(t) + e_i(t)`, a pairwise difference cancels the true signal, so
+`V_XY = σ_X² + σ_Y²` under independence and the three-cornered hat is **linear** in the pairwise
+variances:
+
+> `σ_A² = ½(V_AB + V_AC − V_BC)`
+
+Decompose a variance pooled over nights, with `w_n` the **seconds** fraction of night *n* and `μ_n` that
+night's pairwise bias:
+
+> `V_pool = Σ w_n·Var_n  +  [ Σ w_n·μ_n² − (Σ w_n·μ_n)² ]`
+> `       =  within-night (seconds-weighted)  +  BETWEEN-night bias variance`
+
+Two consequences, and they are the whole answer:
+
+1. **The solve commutes with any LINEAR pooling.** So *pool the pairwise variances, then solve* is
+   identical to *solve per night, then take the same seconds-weighted mean*. Composition is legitimate;
+   no new estimator is required.
+2. **A MEDIAN is not linear, so median-over-nights does not commute** — and it also discards the between
+   term entirely. It differs from the pooled hat for **two independent reasons**, not one. This is the
+   formal content of `tch-fused-corpus.mjs`'s own printed caveat (*"a median over nights is NOT the
+   pooled-seconds hat the papers quote; it is the across-night distribution"*).
+
+### The parts already exist — verified in source, not assumed
+
+- **`sigma-no-reference-analysis.js:412`** builds `pHV/pHO/pVO` by concatenating **per-second**
+  differences across all windows, then `pooledPair = { HV: ba(pHV), … }`.
+- **`ba = AnalysisStats.blandAltman`** returns `sd` over that whole concatenated array against **one
+  global mean** — so it is a genuine pooled variance (within **+** between), seconds-weighted by
+  construction because each second contributes exactly one element. It is **not** an average of
+  per-window SDs, which is the thing that would have made this invalid.
+- **`analysis-stats.js` ends in `module.exports = AnalysisStats`** — the math is directly Node-importable.
+  ⚠️ The analysis-tools-inline trap therefore does **not** apply to the kernel; only the browser tool's
+  *ingest* is bundled, and a Node corpus fold already exists in `tools/tch-fused-corpus.mjs`
+  (per-second aligned series, `tchSigmasFused`).
+
+**So Friday's unit is plumbing + validation + attribution, not estimator design.**
+
+### 🔑 The attribution test — the unit may close WITHOUT a new number
+
+The derivation hands over a falsifiable account of the σ_Verity spread (published **1.42** ·
+re-derived **3.51** · re-run **0.94–1.03**), which is the actual deliverable — *explain* the three, do not
+mint a fourth. The gap between any two estimators over the same nights is predicted **exactly**:
+
+> `σ²_pooled − σ²_per-night(seconds-weighted) = ½(B_AB + B_AC − B_BC)`,  `B_XY` = across-night variance of the pairwise BIAS
+
+So the estimators differ by a term that is **computable from the corpus**, and there are three distinct
+choices in play — equal-night weighting (a median), seconds weighting (pooled), and per-second confidence
+weighting (the fused hat, `tchSigmasFused`). **Test:** compute `B_XY` on the corpus and check whether the
+predicted gaps reproduce the observed spread. If they do, the unit closes **by attribution** — the three
+figures were never estimating the same quantity — and no fourth number is needed or wanted.
+
+⚠️ **Pre-stated so the result cannot be fitted after the fact:** the attribution succeeds only if the
+predicted gap matches the observed one **in sign and within its uncertainty**. A between-night term that
+is real but too small to explain a 2.5× spread is a *partial* answer and must be reported as one, with
+the residual named. Anything else is the fabricated-authority failure this brief already guards against.
+
 ## 9. Pointers
 - Method paper: `papers/sigma-no-reference.html`; "how many nights" template: `papers/nights-icc.html`.
 - TCH kernel / tooling to reuse: `sigma-no-reference-analysis.js` (TRIO/TRIOS, TCH math, exporters) +
