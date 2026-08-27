@@ -155,6 +155,30 @@ o2ring:                   # Wellue O2Ring-S / T8520 specifics.
                           #   A hole larger than this is recorded as a real gap. 40 ms sits between the
                           #   measured arrival jitter (sd 16 ms, p95 29 ms) and real losses (median 49 ms).
 
+  # ── AUTONOMOUS PRESENCE HARVEST (O2RING-AUTONOMOUS-HARVEST charter §5/§11/§20/§21) ─────────────────
+  # A THIRD trigger for the SAME transactional .dat harvest under `pull:` below — never a second
+  # downloader (§14). A passive advertisement scan observes whether the ring is in range; when it is
+  # present, not recording, and the rate limit has elapsed, the existing dispatch pulls `which=latest`.
+  #
+  # 🔴 TWO SWITCHES, AND THEY ARE NOT THE SAME SWITCH.
+  #   `enabled`                    — what the OPERATOR wants. Default OFF, never inherited.
+  #   `scan_coexistence_verified`  — what the HARDWARE has been shown to allow. Default OFF.
+  # Both must be true before the scanner transmits. They are separate because enabling a feature must
+  # not amount to asserting a measurement you did not run: §2 requires that passive scanning be TESTED
+  # against live CPAP / H10 / Verity acquisition before it is trusted — "do NOT assume that a second
+  # BLE operation is harmless" — and that matrix has NOT been run. Until it has, `enabled: true` gives
+  # you `presence=enabled-NOT-ARMED` on the auto-pull line, which is the honest state.
+  # ⚠️ Do not set `scan_coexistence_verified` to silence that line. It records a physical result. The
+  # cost of getting it wrong is not a failed harvest — it is degrading an acquisition channel that is
+  # already recording a night, which §2 forbids outright.
+  # presence_harvest:
+  #   enabled: false
+  #   scan_coexistence_verified: false
+  #   window_sec: 10            # one passive scan window; the fold runs once per window
+  #   min_probe_interval_sec: 300   # §11 rate limit. Trades end-detection latency against radio
+  #                             # contention — PROVISIONAL, and the first number to revisit once the
+  #                             # coexistence matrix gives real contention data.
+
 # ── Push alerts (optional, disabled by default) ───────────────────────────────────────────────────────
 # A generic webhook (ntfy.sh, Discord/Slack/Telegram bridge, Home Assistant …). Fires on: a sensor offline
 # past offline_sec, its recovery, the daemon (re)starting, and low disk. A lost bedside night is
