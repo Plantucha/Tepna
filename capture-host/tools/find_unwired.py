@@ -37,9 +37,11 @@ from __future__ import annotations
 
 import ast
 import json
+import io
 import os
 import re
 import sys
+import tokenize
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -107,6 +109,26 @@ ALLOW_FUNCS = {
     # ledger (`rows[-1]["committed_cursor"] if rows else epoch_start`), so a caller never asks. It is
     # the restart authority G4/P5 reads, and remains standalone until P5.
     "last_committed_cursor": "cpap_spool P4 — the restart authority P5 reads; NOT consumed by the Do-3 daemon wiring, which lets sync_spool derive the cursor from the ledger itself",
+    # ── SURFACED BY THE TOKENIZE FIX (2026-08-27), not newly written ───────────────────────────────
+    # Each was ALREADY uncalled; the usage scan simply could not see it, because a mention of the name
+    # in a comment or docstring counted as a call. They are suppressed here rather than wired or
+    # deleted, and each reason states what would REMOVE the suppression — an entry that cannot say what
+    # would retire it is debt wearing a justification.
+    "assemble_spool": "acq_evidence_cpap Phase B — the spool evidence assembler, honestly recorded as "
+                      "tested-not-witnessed; its consumer is the FIRST WITNESSED PULL (CPAP-SPOOL-"
+                      "ACQUISITION Do-1/Do-2), which needs the device. Retire this when that pull lands",
+    "hdev": "allan.py — overlapping HADAMARD deviation (Baugh 1971 / Riley SP 1065). Its sibling `adev` "
+            "IS wired (nightqc); hdev is the drift-tolerant variant, available for an analysis that has "
+            "not yet needed it. Retire this when a caller quotes H-sigma, or delete if none ever does",
+    "read_edf": "cpap_edf — the round-trip partner of `write_edf` (which IS wired, cpap_edf_writer). It "
+                "exists so `write_edf(read_edf(x)) == x` is provable byte-for-byte; the tests are its "
+                "legitimate consumer. Retire only if that property stops being asserted",
+    "message_call_lines": "mutation_triage — published in `__all__` and consumed through the module's "
+                          "documented contract (a mutant on a log/print CONTINUATION line is exempt). "
+                          "Retire when the triage entry point calls it directly",
+    "list_sessions": "oxy_transfer §2 — read-only 'what the ring says it has', committing to nothing. "
+                     "Fourth of the unit-2 family with pull_deadline/flush_gate/resume_target, all "
+                     "landed ahead of the async shell that drives them. Retires with that shell",
     "close_harvest_decision": "oxy_transfer §14 — composes pull_deadline + flush_gate into the "
                               "close-triggered sequence; standalone until the async shell drives it. "
                               "Deliberately landed ahead of that shell: the ORDERING is the design, and "
@@ -189,6 +211,40 @@ def _pyfiles(root: str) -> list[str]:
         if name.endswith(".py") and not name.startswith("probe_"):
             out.append(name)
     return out
+
+
+def _code_only(path: str) -> str:
+    """A file's EXECUTABLE text — comments and string literals removed. PURE-ish (reads one file).
+
+    🔴 WHY THIS EXISTS. The usage scan matches `\\bname\\b` over file text, so a function name written
+    in a COMMENT counted as a call. That is not a corner case in this repo, which documents itself
+    constantly and by name: measured 2026-08-27, **12 public functions were masked from the orphan
+    scan by prose alone**, and the masking is SILENT — the function simply stops being reported.
+
+    The demonstration that settled it: a tombstone comment added to `oxy_presence.py` earlier that day,
+    written to explain why a duplicate had been deleted, named four `oxy_transfer` functions in passing.
+    `resume_target`'s only mention outside its own module WAS that comment — so a comment written to be
+    helpful switched the detector off for it. **A gate whose precision degrades as the repo documents
+    itself better is mis-specified for this repo.**
+
+    The worst case is not a missed orphan, it is a missed orphan whose ALLOWLIST ENTRY then reads as
+    spent — because the stale-suppression scan asks "did this entry excuse anything?" and prose makes
+    the answer no. Delete on that basis and the suppression for a genuinely unwired function is gone.
+
+    ⚠️ Falls back to the RAW text on a tokenize failure, deliberately. A syntactically-broken file must
+    not silently contribute NOTHING to the usage corpus — that would invent orphans across the whole
+    repo from one bad parse. Over-counting uses (the old behaviour) is the safe direction here."""
+    try:
+        src = open(path, encoding="utf-8", errors="replace").read()
+    except OSError:      # pragma: no cover - unreadable file; contributes nothing either way
+        return ""
+    if not path.endswith(".py"):
+        return re.sub(r"#.*", "", src)          # shell: strip comments; it has no string-literal AST
+    try:
+        return " ".join(t.string for t in tokenize.generate_tokens(io.StringIO(src).readline)
+                        if t.type not in (tokenize.COMMENT, tokenize.STRING))
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return src                               # see the docstring: fail toward OVER-counting uses
 
 
 def status_keys(src: str) -> set[str]:
@@ -276,7 +332,7 @@ def scan(root: "str | None" = None) -> dict:
             if os.path.abspath(os.path.join(dirpath, n)) == os.path.abspath(__file__):
                 continue
             if n.endswith((".py", ".sh")):
-                everything += open(os.path.join(dirpath, n), encoding="utf-8", errors="replace").read()
+                everything += _code_only(os.path.join(dirpath, n))
 
     # ── SCAN 3 · FORWARDED BUT NEVER DRAWN ──────────────────────────────────────────────────────────
     # The next link in the same chain. Scan 1 asks whether a published key reaches a consumer, and

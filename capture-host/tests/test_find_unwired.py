@@ -239,3 +239,62 @@ def test_scan_4_allowlist_reports_rather_than_hides(tmp_path, monkeypatch, capsy
     assert find_unwired.main(["--check"]) == 0
     out = capsys.readouterr().out
     assert "(allowed)" in out and "a documented reason" in out
+
+
+# ── tokenize-before-match (2026-08-27) ───────────────────────────────────────
+def test_a_name_in_a_COMMENT_is_not_a_use(tmp_path):
+    """🔴 THE REGRESSION THIS PINS, measured on the real tree: 12 public functions were masked from the
+    orphan scan by prose alone. The demonstration that settled it — a tombstone comment written to
+    explain a deletion named four `oxy_transfer` functions in passing, and `resume_target`'s only
+    mention outside its own module WAS that comment. A comment written to be helpful switched the
+    detector off for it.
+
+    A gate whose precision degrades as the repo documents itself better is mis-specified for a repo
+    that documents itself constantly."""
+    f = tmp_path / "m.py"
+    f.write_text("# see widget_helper for the enforcement\ndef widget_helper():\n    return 1\n")
+    assert "widget_helper" not in find_unwired._code_only(str(f)).replace("def widget_helper", "")
+
+
+def test_a_name_in_a_DOCSTRING_is_not_a_use(tmp_path):
+    f = tmp_path / "m.py"
+    f.write_text('"""Calls widget_helper eventually."""\ndef other():\n    return 2\n')
+    assert "widget_helper" not in find_unwired._code_only(str(f))
+
+
+def test_a_REAL_call_still_counts(tmp_path):
+    """The control. Stripping comments must not strip code — a scan that sees nothing reports every
+    function as an orphan, which is louder but just as wrong."""
+    f = tmp_path / "m.py"
+    f.write_text("def a():\n    return widget_helper()\n")
+    assert "widget_helper" in find_unwired._code_only(str(f))
+
+
+def test_an_UNPARSEABLE_file_falls_back_to_RAW_text(tmp_path):
+    """Fails toward OVER-counting uses. A syntactically broken file contributing NOTHING would invent
+    orphans across the whole repo from one bad parse — the loud-and-wrong direction."""
+    f = tmp_path / "broken.py"
+    f.write_text("def a(:\n  widget_helper()\n")
+    assert "widget_helper" in find_unwired._code_only(str(f))
+
+
+def test_shell_comments_are_stripped_too(tmp_path):
+    f = tmp_path / "s.sh"
+    f.write_text("# widget_helper is documented here\necho other\n")
+    assert "widget_helper" not in find_unwired._code_only(str(f))
+
+
+def test_the_SCAN_ITSELF_uses_code_only_not_raw_text(tmp_path):
+    """🔴 THIS TEST EXISTS BECAUSE A PLANTED CONTROL SURVIVED. The three tests above call
+    `_code_only` directly, so reverting the SCAN to raw-text matching left all of them green — the
+    helper was pinned and its USE was not. That is the assertion-encodes-shape trap: a test that
+    exercises the unit under test but not the wiring that makes it matter.
+
+    Here the only mention of `lonely_fn` outside its own definition is a COMMENT, so a raw-text scan
+    counts it as a call and reports nothing; a `_code_only` scan reports it as an orphan."""
+    (tmp_path / "mod_a.py").write_text("def lonely_fn():\n    return 1\n")
+    (tmp_path / "mod_b.py").write_text("# lonely_fn is the enforcement point\ndef other():\n    return 2\n")
+    res = find_unwired.scan(root=str(tmp_path))
+    orphans = {r["func"] for r in res["orphan_functions"]}
+    assert "lonely_fn" in orphans, (
+        "the scan counted a name in a comment as a call — it is matching raw text, not code")
