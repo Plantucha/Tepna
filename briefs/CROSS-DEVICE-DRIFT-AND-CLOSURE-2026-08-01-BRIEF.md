@@ -412,8 +412,65 @@ The defence is redundancy in the measurement, not more surrogates.
       At ~10 minutes nobody would bother; at hours it is a real option for PAT. A zero or non-finite
       rate **refuses** rather than returning `Infinity` — "no limit" is a claim, and this function has
       not measured one.
-- [ ] PAT re-tested under drift-aware alignment, against `pat-gate.js`'s full bar (IQR **and** coupling
-      **and** a physiological median), on the nights where closure holds.
+- [⛔] **BLOCKED 2026-08-27 — evidence-backed, not deferred. The gating set does not exist, and where it
+      is best measured the closure FAILS.** PAT re-tested under drift-aware alignment, against
+      `pat-gate.js`'s full bar (IQR **and** coupling **and** a physiological median — plus the
+      **fourth**, unstated-in-prose `physical` condition: median lag in **[60, 700] ms**), on the nights
+      where closure holds.
+
+      > **Which closure.** Not §2.3's — that is ⛔ VOID above (two of its three legs run through the
+      > O2Ring's **drawn** axis). The VOID exempts **ECG↔Verity** by name, and that pair *is* PAT, so the
+      > voided closure was doubly wrong as this box's gate. The only non-void closure over this geometry
+      > is the **host-leg** one — H10 ↔ Verity ↔ capture host, `tools/beat-leg-closure.mjs`, third corner
+      > a real 0.008 ppm clock. Its §7.3 "impossible" blocker was **stale**: it bound the *exports*, and
+      > that tool reads raw waveforms (see `WEARABLE-DRIFT-DIRECT` §7.3's 2026-08-27 amendment).
+      >
+      > **Method, fixed BEFORE any data was seen** (three constants, in this order): band
+      > `|legC − (A−B)| ≤ 2·σ_pred`, `σ_pred = √(σ_H10² + σ_Verity²)`; coverage factor **2**; range→σ by
+      > Hartley **d₂** (1.128 at n=2, 1.693 at n=3); fragment rule = largest ECG × largest Verity by file
+      > size. A night with <2 fragments on either device **REFUSES** rather than borrowing an uncertainty.
+      > Licence for attributing residuals to the host legs: `--selftest` recovers planted rates to
+      > **±0.0 ppm** over −40…+40 ppm under realistic corruption, 7/7.
+      >
+      > **Result — 49 nights → 33 with both devices → 7 bandable → PASS 3 · FAIL 2 · REFUSE 2:**
+      >
+      > | night | pred | leg C | resid | band 2σ | blocks | |
+      > |---|---|---|---|---|---|---|
+      > | 2026-07-19 | +9.3 | — | — | 4.88 | 0 | REFUSE |
+      > | 2026-07-20 | +9.4 | +7.6 | −1.8 | 12.49 | 36 | PASS |
+      > | 2026-07-22 | +8.5 | +2.4 | −6.1 | 9.64 | 26 | PASS |
+      > | 2026-07-25 | +3.9 | — | — | 6.06 | 0 | REFUSE |
+      > | 2026-08-09 | +6.5 | +13.2 | +6.7 | 4.16 | 40 | **FAIL** |
+      > | 2026-08-13 | +6.5 | **−14.6** | **−21.1** | **0.71** | 28 | **FAIL** |
+      > | 2026-08-24 | +7.5 | +20.1 | +12.6 | 20.56 | 34 | PASS |
+      >
+      > 🔴 **The three passes are not evidence of closure, and the reason generalises.** The verdicts
+      > separate **perfectly by band width**: the three PASSes hold the three **widest** bands (9.64,
+      > 12.49, 20.56), the two FAILs the two **tightest** (4.16, 0.71). No overlap.
+      >
+      > > **A dispersion-derived band used as an INCLUSION gate anti-selects for measurement quality.**
+      > > Noisy legs earn a wide band nothing can fail; consistent legs earn a sharp band that a real
+      > > discrepancy does fail. So "passing" enriches for exactly the nights **least** fit for the
+      > > downstream use — here, PAT, which wants trustworthy timing and would have been handed the
+      > > three nights whose clocks are worst measured. **Never use a per-night uncertainty band as a
+      > > selection filter without checking the band↔verdict correlation.**
+      >
+      > 2026-08-24 "passes" on a **±20.56 ppm** band — wider than the whole physical spread of the
+      > measured device rates (−14.6 … −30.2 vs host) — so it excludes essentially nothing. A verdict
+      > that is computable and carries no information.
+      >
+      > ⚠️ **2026-08-13 is a SIGN flip, not a magnitude miss**: host legs predict Verity **+6.5 ppm
+      > faster**, leg C measures **−14.6 ppm slower**, on 28 blocks with the corpus's cleanest legs
+      > (ranges 0.3 / 0.4 ppm). The two methods disagree about **direction** where both are best
+      > measured. Spun out as **`CLOCK-LEG-SIGN-CONTRADICTION-2026-08-27-BRIEF.md`** — finding which
+      > method is wrong is the real prize, and no PAT gate built on leg C is trustworthy until it is
+      > answered.
+      >
+      > **Unblocks when** the corpus carries nights with **≥2 fragments per device AND consistent legs**,
+      > and the closure holds on them. The present corpus is mostly single-fragment (H10 on 20 of 33
+      > nights, Verity on 18), which is why only 7 were bandable at all. **The re-test will not be run
+      > ungated on the passing set** — that would select for poorly-measured timing.
+
 - [x] **DECIDED 2026-08-09 by the owner — BOTH: capture-time PRIMARY, exported envelope as a marked
       FALLBACK.** The item asked for a choice between them; the answer is that they answer different
       questions and only one of them can ever be a measurement.
