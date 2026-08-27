@@ -723,6 +723,28 @@ function clockStatus(dev){
   // screen the wearer reads, and its samples are host-arrival stamped so its clock never fed timing.)
   // GIVE-UP OUTRANKS 'we set it once', so it is checked before the no-device_time shortcut —
   // otherwise a device with no per-sample stamps (the ring) shows 'clock set' from a sync that has
+// §19/§20 — the presence axis and its execution witness, drawn rather than merely forwarded.
+// A field published to /api/state and rendered by nobody is NOT exposed to an operator, whatever the
+// API says; that is the failure this repo already hit with `therapy` and with STATUS.autopull.
+// The WITNESS chip is the load-bearing one: it names where the §19 chain stops, so a path that armed
+// and never executed cannot look healthy. It is styled `warn`, not `bad` — an incomplete chain on a
+// cold scanner is the EXPECTED state until the coexistence matrix runs, and colouring it red would
+// train the operator to ignore it.
+function presenceChip(d){
+  if(!d.presence) return '';
+  const st = String(d.presence);
+  const cls = st==='pres_present' ? 'on' : (st==='pres_absent' ? 'warn' : '');
+  const txt = st.replace(/^pres_/,'');
+  const tip = [d.presence_reason, d.presence_witness && ('witness: '+d.presence_witness)]
+    .filter(Boolean).join(' — ');
+  return '<span class="dbadge '+cls+'" title="'+esc(tip)+'">'+esc(txt)+'</span>';
+}
+function witnessChip(d){
+  if(!d.presence_witness) return '';
+  const done = /^complete/.test(d.presence_witness);
+  return '<span class="dbadge '+(done?'on':'warn')+'" title="§19 execution witness">'
+       + esc(d.presence_witness)+'</span>';
+}
   // since been written off, or shows no pill at all.
   if(dev.clock_uncorrectable && !dev.device_time) return {cls:'bad', txt:'clock uncorrectable'};
   if(!dev.device_time) return dev.clock_synced ? {cls:'ok', txt:'clock set'} : null;
@@ -1416,7 +1438,7 @@ function renderRemembered(devs){
   el.innerHTML = devs.map(d=>`
     <div class="dev">
       <div class="meta">
-        <div class="name">${esc(d.name)} ${d.connected?'<span class="dbadge on">live</span>':'<span class="dbadge warn">idle</span>'} ${chargeChip(d)} ${wornChip(d)} ${rateChip(d)} ${battChip(d.battery)} ${d.connected?(dh=>rssiChip(d.rssi,dh.health,dh.title))(deviceHealth(d)):''} ${clkChip(d)}</div>
+        <div class="name">${esc(d.name)} ${d.connected?'<span class="dbadge on">live</span>':'<span class="dbadge warn">idle</span>'} ${chargeChip(d)} ${wornChip(d)} ${rateChip(d)} ${battChip(d.battery)} ${d.connected?(dh=>rssiChip(d.rssi,dh.health,dh.title))(deviceHealth(d)):''} ${clkChip(d)} ${presenceChip(d)} ${witnessChip(d)}</div>
         <div class="sub">${esc(d.address||'')}${(d.rssi!=null&&isFinite(d.rssi))?(' · '+d.rssi+' dBm'):''} · ${(d.streams||[]).join(', ')}${lastSampleText(d)}${d.clock_synced?(' · clock '+esc(String(d.clock_synced).slice(11,19))):''}${(d.link_epoch>1)?(' · '+d.link_epoch+' reconnects'):''}${(d.last_error && !d.charging)?(' · '+esc(d.last_error)):''}</div>
       </div>
       <button class="btn" onclick='syncTime(${JSON.stringify(d.address)}, this)' title="Set this device's INTERNAL clock from the host (it stamps every sample with device time). Pauses that device's capture for a few seconds.">🕐 Sync time</button>

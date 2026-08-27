@@ -5212,6 +5212,11 @@ _NOTWORN_PULLED: set[str] = set()       # addrs already pulled THIS doff session
 _PRESENCE: dict = {}                    # addr -> oxy_presence.Presence, latest observation
 _PRESENCE_PULLED: set[str] = set()      # addrs already pulled THIS presence session
 _PRESENCE_PROBED: dict = {}             # addr -> monotonic of the last probe (the §11 rate limit)
+_PRESENCE_NAMES: dict = {}              # addr -> device name, so `_set` can key the per-device row
+# addr -> {link: monotonic}. The §19 chain's raw stamps; `witness_chain` turns them into a verdict.
+# Written by whichever step actually happened — never pre-seeded, because a pre-seeded link is a
+# claim that something ran.
+_WITNESS: dict = {}
 
 
 def autopull_arming(pcfg: dict) -> dict:
@@ -5439,12 +5444,18 @@ async def charger_pull_poller(cfg: dict, root: str):
             if by_presence:
                 _PRESENCE_PULLED.add(addr)              # once per presence session (before the await)
                 _PRESENCE_PROBED[addr] = now            # spend the §11 rate limit even if the pull fails
+                _WITNESS.setdefault(addr, {}).update(probe_attempted=now, pull_started=now)
             try:
                 if dev.get("vendor") in ("Wellue", "Viatom"):
                     res = await pull_oxyii_session(dev, root, which=pull_scope_for(trigger), ftype=ftype)
                 else:
                     res = await pull_polar_offline_all(dev, root)
                 new = (res or {}).get("new_files", []) if isinstance(res, dict) else []
+                if trigger == "presence" and new:
+                    # §19 link 10 — stamped ONLY when the harvest produced a file. `artifact_committed`
+                    # is the one link that means DATA SURVIVED, so a zero-file pull must not claim it;
+                    # the chain would then read "complete" for a night that retrieved nothing.
+                    _WITNESS.setdefault(addr, {})["artifact_committed"] = now
                 log.info("auto-pull (%s): %s → %d new file(s)", trigger, dev.get("name"), len(new))
                 STATUS.setdefault("autopull", {}).update({"last": _now().isoformat(timespec="seconds"),
                                                           "new": len(new), "trigger": trigger})
@@ -6121,6 +6132,10 @@ async def _presence_scan_loop(*, addresses, window_s, scan, sleep=None, mono=Non
 
     `scan` is injected and returns `{addr: monotonic_seen_at}` for one window. The bleak edge lives in
     the factory, so this loop is testable with no radio."""
+    # ⚠️ HOISTED. This import used to sit further down the loop body, and a function-local `import`
+    # makes the name LOCAL for the whole function — so a use above it raises UnboundLocalError on the
+    # first iteration, not NameError. It read as correct because the only use WAS below it.
+    import oxy_presence
     sleep = sleep or asyncio.sleep
     mono = mono or _time.monotonic
     while not _STOP.is_set():
@@ -6130,11 +6145,24 @@ async def _presence_scan_loop(*, addresses, window_s, scan, sleep=None, mono=Non
             log.info("presence scan failed (%s) — observation unchanged", type(e).__name__)
             seen = {}
         _PRESENCE.update(presence_fold(_PRESENCE, seen, addresses, mono()))
+        # §19/§20 — publish the observation and the CHAIN'S FIRST GAP per device. Deliberately via
+        # `_set`, not a bare STATUS write: `_set` keys are what `find_unwired`'s scan 1 enumerates, so
+        # a field published here and consumed by nobody REDS the gate. That is the point — §20 says
+        # "do not expose only enabled = true", and a witness written into a dict nothing reads is the
+        # hollow artifact this whole section exists to forbid.
+        for _addr, _pres in _PRESENCE.items():
+            _nm = _PRESENCE_NAMES.get(_addr)
+            if _nm is None:
+                continue
+            _ch = oxy_presence.witness_chain(_WITNESS.get(_addr, {}))
+            _set(_nm, presence=_pres.state.value, presence_reason=_pres.reason,
+                 presence_witness=oxy_presence.witness_summary(_ch))
         # Re-arm the once-per-presence-session latch when the ring genuinely leaves. Keyed on ABSENT,
         # never on "not PRESENT": UNKNOWN must not re-arm anything, or a scanner that goes blind would
         # silently re-enable a pull it already performed.
-        import oxy_presence
         for addr, pres in _PRESENCE.items():
+            if pres.state is oxy_presence.OxyPresState.PRESENT:
+                _WITNESS.setdefault(addr, {}).setdefault("presence_detected", mono())
             if pres.state is oxy_presence.OxyPresState.ABSENT:
                 _PRESENCE_PULLED.discard(addr)
         await sleep(window_s)
@@ -6175,6 +6203,15 @@ def _maybe_start_presence_scan(cfg, tasks, *, create_task=None, scan_factory=Non
                 if d.address.upper() in wanted:
                     found[d.address.upper()] = _time.monotonic()
             return found
+    # §19 links 1-2. Stamped HERE and nowhere earlier, because this is the line after which the
+    # observer genuinely exists: `enabled` was true at `arming`, and `observer_armed` is only honest
+    # once the task is about to be created. Stamping either at config-read time would make the chain
+    # report progress the system had not made — the exact claim §19 forbids.
+    _now_mono = _time.monotonic()
+    for _a in addresses:
+        _PRESENCE_NAMES[_a.upper()] = next(
+            (d.get("name") for d in cfg.get("devices", []) if d.get("address") == _a), None)
+        _WITNESS.setdefault(_a.upper(), {}).update(enabled=_now_mono, observer_armed=_now_mono)
     task = (create_task or asyncio.create_task)(_presence_scan_loop(
         addresses=[a.upper() for a in addresses], window_s=window_s, scan=scan_factory))
     TASK_LABELS[id(task)] = "O2Ring presence scan"

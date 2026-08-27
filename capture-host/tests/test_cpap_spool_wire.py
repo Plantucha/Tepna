@@ -48,10 +48,14 @@ def test_armed_starts_the_task_labels_it_and_logs_the_window(tmp_path, caplog):
     made = []
     tasks = []
 
+    # A UNIQUE OBJECT, never "TASK": `TASK_LABELS` is id()-keyed and CPython interns short string
+    # literals, so a sibling test returning "TASK" collides on the same key.
+    sentinel = object()
+
     def _create_task(coro):
         coro.close()                     # never run it here; this test is about the WIRING
         made.append(coro)
-        return "TASK"
+        return sentinel
 
     async def _connect():  # pragma: no cover — injected so the bleak edge is never built
         raise AssertionError
@@ -61,8 +65,8 @@ def test_armed_starts_the_task_labels_it_and_logs_the_window(tmp_path, caplog):
             ARMED, "cfg.yaml", str(tmp_path), _Ctl(), tasks,
             load_creds=lambda _p: CREDS, connect_factory=_connect, create_task=_create_task)
 
-    assert r == "TASK" and tasks == ["TASK"]
-    assert capture.TASK_LABELS[id("TASK")] == "CPAP stored-spool pull"
+    assert r is sentinel and tasks == [sentinel]
+    assert capture.TASK_LABELS[id(sentinel)] == "CPAP stored-spool pull"
     assert "ARMED" in caplog.text and "10:00-12:00" in caplog.text
 
 
