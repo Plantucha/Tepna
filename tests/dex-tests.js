@@ -49301,6 +49301,682 @@
       }
     });
 
+    /* ── ADOPTED MUTATION-KILLING DRAFTS, BATCH 2 (QWEN-ENGINEERING-PROGRAM §1/§6) ─────────────
+       86 drafts adopted 2026-08-27, from a pile of 116. Same discipline as batch 1, PLUS the step
+       batch 1 forced into existence: every one was RE-VERIFIED IN THIS REALM by
+       `tools/verify-drafts.mjs` before adoption — 106 verified, 6 divergent, 4 unexecutable, and
+       only the verified are here.
+
+       🔴 THAT RE-VERIFICATION IS THE POINT. A draft is machine-verified against the DRAFTING
+       harness, not this suite. Batch 1 found 2 in 48 recording a value the real code never
+       produces: `computeMOS(null).mos` recorded 3 where the code returns 1 and CANNOT return 3,
+       and `getFilteredRows(null)` recorded a length where this realm THROWS. Both would have been
+       adopted as passing assertions pinning behaviour that has never existed.
+
+       ⚠️ 20 further drafts were SKIPPED AS DUPLICATES of batch 1. The de-dupe first matched ZERO,
+       because the adopted group rewrites a call as `NS.foo()` while a draft says `CpapDsp.foo()` —
+       comparing them raw would have silently re-adopted all 44 of batch 1 a second time.
+
+       Names are FACTUAL. The model prose is kept as marked provenance and never as the assertion
+       name: an assertion name reads as a claim THE SUITE makes, and batch 1 found three labels
+       that contradicted their own recorded value.
+
+       🔴 TWO FURTHER DRAFTS WERE DROPPED AFTER THE VERIFIER PASSED THEM, and that is a finding about
+       the VERIFIER, not about this batch. Both `crossNightBlock([1,2,3])` projections verified in
+       `verify-drafts`' realm and then FAILED here. The cause is that the verifier evaluates a draft
+       against the realm's GLOBAL (`CPAPCross`), while the suite evaluates it against `env.CPAPCross`
+       — and for the cross modules those are not interchangeable. So "verified in the suite realm" is
+       currently "verified against the suite's globals", which is a near-miss, not the thing. Filed;
+       the verifier needs to resolve namespaces through `env` exactly as a group does. */
+
+    group(
+      'mutation drafts b2 — CPAPCross: recorded outputs that discriminate real code from a surviving mutant',
+      'mutation-drafts · mutation-drafts-b2 · cpapcross · mutation · adopted-draft · realm-verified',
+      function (T) {
+        var NS = env.CPAPCross;
+        if (!NS) {
+          T.skip('CPAPCross not in env');
+          return;
+        }
+        /* mutant: bool || → &&  @ if (!a || !b || !a.values || !b.values || !a.values.length || !b.values.length) 
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): Whether the comparison operation successfully identified a missing channel error instead of throwing an except */
+        {
+          var out = NS.compareChannel([]);
+          T.eq('NS.compareChannel([]) → out.ok', JSON.stringify(out.ok), 'false');
+        }
+        /* mutant: bool || → &&  @ if (!a || !b || !a.values || !b.values || !a.values.length || !b.values.length) 
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): Whether the function correctly identifies missing channels and returns a failure reason instead of throwing an */
+        {
+          var out = NS.compareChannel(1, []);
+          T.eq('NS.compareChannel(1,[]) → out.ok', JSON.stringify(out.ok), 'false');
+        }
+        /* mutant: cmp < → <=  @ if (n < 2) return { n, mean: n ? r2(pts[0].v) : null, sd: null, cv: null, slopePer
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The slope per recording calculation correctly returns null when there are fewer than 2 data points, rather tha */
+        {
+          var out = NS.crossNight([]);
+          T.eq('NS.crossNight([]) → out.slopePerRecording', JSON.stringify(out.slopePerRecording), 'null');
+        }
+        /* mutant: cmp < → <=  @ if (n < 3) return { tau: null, p: null, S: 0 };
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly computes the Kendall tau correlation coefficient instead of returning null for valid in */
+        {
+          var out = NS.mannKendall([1, 2, 3]);
+          T.eq('NS.mannKendall([1,2,3]) → out.tau', JSON.stringify(out.tau), '1');
+        }
+        /* mutant: bool || → &&  @ if (!live || !live.signals || !sdRaws) return null;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): Whether the function returns null or throws an error when input parameters are invalid */
+        {
+          var out = NS.buildCompareSets(1, 1);
+          T.eq('NS.buildCompareSets(1,1) → out', JSON.stringify(out), 'null');
+        }
+        /* mutant: bool || → &&  @ if (!nights || !nights.length) return null;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): Whether the function returns null or throws an error when input is null */
+        {
+          var out = NS.compliancePct(null);
+          T.eq('NS.compliancePct(null) → out', JSON.stringify(out), 'null');
+        }
+        /* mutant: cmp >= → >  @ if (h >= thresholdH) ok++;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly calculates compliance percentage when all elements meet the threshold condition */
+        {
+          var out = NS.compliancePct([1, 2, 3], 0);
+          T.eq('NS.compliancePct([1,2,3],0) → out', JSON.stringify(out), '100');
+        }
+        /* mutant: bool && → ||  @ return n && n.t0Ms != null ? n.t0Ms : null;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly returns null when input is null, instead of throwing an error. */
+        {
+          var out = NS.nightTms(null);
+          T.eq('NS.nightTms(null) → out === null', JSON.stringify(out === null), 'true');
+        }
+      }
+    );
+
+    group(
+      'mutation drafts b2 — CpapDsp: recorded outputs that discriminate real code from a surviving mutant',
+      'mutation-drafts · mutation-drafts-b2 · cpapdsp · mutation · adopted-draft · realm-verified',
+      function (T) {
+        var NS = env.CpapDsp;
+        if (!NS) {
+          T.skip('CpapDsp not in env');
+          return;
+        }
+        /* mutant: num → 0  @ t0 = Date.UTC(2026, 5, 12, 22, 28, 30);
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This property ensures that the first annotation's timestamp is correctly calculated, preventing incorrect temp */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.EVE.annotations[0].tMs', JSON.stringify(out.EVE.annotations[0].tMs), '1781303410000');
+        }
+        /* mutant: num → 0  @ return 10 + Math.sin(i / 50) * 0.1;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The bug prevents the sine wave signal from being properly generated, causing all values to be incorrectly set  */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["Press.2s"].da', JSON.stringify(out.PLD.signals['Press.2s'].data[1]), '10.001999855041504');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The sampling frequency of the pressure signal is incorrectly set to zero instead of 0.5, which would cause inc */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["Press.2s"].fs', JSON.stringify(out.PLD.signals['Press.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The leak flow rate sampling frequency is correctly set to 0.5 Hz, not 0 Hz, ensuring accurate respiratory moni */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["Leak.2s"].fs', JSON.stringify(out.PLD.signals['Leak.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection detects whether the sampling frequency for expired pressure signals is correctly set to 0.5 Hz */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["EprPress.2s"]', JSON.stringify(out.PLD.signals['EprPress.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ return 14;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The system correctly computes respiratory rate values instead of returning zero due to a faulty operator mutat */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["RespRate.2s"]', JSON.stringify(out.PLD.signals['RespRate.2s'].data[0]), '14');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The sampling frequency of the respiratory rate signal is correctly set to 0.5 Hz, not 0 Hz, ensuring proper si */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["RespRate.2s"]', JSON.stringify(out.PLD.signals['RespRate.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection detects whether the sampling rate for the MinVent signal is correctly set to 0.5 Hz, which is  */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["MinVent.2s"].', JSON.stringify(out.PLD.signals['MinVent.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ return 0.5;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection detects whether the tidal volume signal is correctly initialized with a non-zero value, preven */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["TidVol.2s"].d', JSON.stringify(out.PLD.signals['TidVol.2s'].data[0]), '0.5');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The sampling frequency of tidal volume signals should remain consistent and not be incorrectly set to zero, wh */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["TidVol.2s"].f', JSON.stringify(out.PLD.signals['TidVol.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ return 0.05;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection detects whether the Snore.2s signal is properly initialized with non-zero values instead of be */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["Snore.2s"].da', JSON.stringify(out.PLD.signals['Snore.2s'].data[0]), '0.05000000074505806');
+        }
+        /* mutant: num → 0  @ return 0.1;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This property tracks the flow limit signal value that should be 0.1 but is incorrectly set to 0 due to a mutat */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["FlowLim.2s"].', JSON.stringify(out.PLD.signals['FlowLim.2s'].data[0]), '0.10000000149011612');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The sampling frequency of the snoring signal should remain consistent and not be incorrectly set to zero. */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["Snore.2s"].fs', JSON.stringify(out.PLD.signals['Snore.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The sampling frequency of the FlowLim signal should remain consistent and not be incorrectly set to zero, whic */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["FlowLim.2s"].', JSON.stringify(out.PLD.signals['FlowLim.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ 1 / 60,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This property protects against incorrect sampling rate calculation in CRC16 signal processing, ensuring proper */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals.Crc16.fs', JSON.stringify(out.PLD.signals.Crc16.fs), '0.016666666666666666');
+        }
+        /* mutant: num → 0  @ return 10;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This protects against incorrect pressure signal initialization where the expected value of 10 is replaced by 0 */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.BRP.signals["Press.40ms"].', JSON.stringify(out.BRP.signals['Press.40ms'].data[0]), '10');
+        }
+        /* mutant: num → 0  @ 25,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection ensures the sampling rate for pressure signals remains correctly set to 25, preventing incorre */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.BRP.signals["Press.40ms"].', JSON.stringify(out.BRP.signals['Press.40ms'].fs), '25');
+        }
+        /* mutant: num → 0  @ 25,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This property ensures the sampling frequency for flow signals is correctly initialized, preventing incorrect d */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.BRP.signals["Flow.40ms"].f', JSON.stringify(out.BRP.signals['Flow.40ms'].fs), '25');
+        }
+        /* mutant: num → 0  @ 'SpO2.1s': { data: spo2, fs: 1, dim: '%', _spr: 60 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behaviour protected is the correct sampling rate configuration for oxygen saturation data, ensuring accura */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.SA2.signals["SpO2.1s"]._sp', JSON.stringify(out.SA2.signals['SpO2.1s']._spr), '60');
+        }
+        /* mutant: num → 0  @ 'Pulse.1s': { data: pulse, fs: 1, dim: 'bpm', _spr: 60 }
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behavior protected is the correct sampling rate configuration for pulse signal processing, ensuring accura */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.SA2.signals["Pulse.1s"]._s', JSON.stringify(out.SA2.signals['Pulse.1s']._spr), '60');
+        }
+        /* mutant: num → 0  @ { class: 'Obstructive Apnea', durSec: 15, onsetSec: 100, tMs: t0 + 100000 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This property ensures that the duration of obstructive apnea events is correctly preserved and not incorrectly */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.EVE.annotations[0].durSec', JSON.stringify(out.EVE.annotations[0].durSec), '15');
+        }
+        /* mutant: num → 0  @ { class: 'Obstructive Apnea', durSec: 15, onsetSec: 100, tMs: t0 + 100000 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection detects whether the onset time of an annotation is correctly preserved after a numeric mutatio */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.EVE.annotations[0].onsetSe', JSON.stringify(out.EVE.annotations[0].onsetSec), '100');
+        }
+        /* mutant: num → 0  @ { class: 'Obstructive Apnea', durSec: 18, onsetSec: 200, tMs: t0 + 200000 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This property ensures that the duration of obstructive apnea events is correctly preserved and not incorrectly */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.EVE.annotations[1].durSec', JSON.stringify(out.EVE.annotations[1].durSec), '18');
+        }
+        /* mutant: num → 0  @ { class: 'Obstructive Apnea', durSec: 18, onsetSec: 200, tMs: t0 + 200000 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The onset time of the second annotation should preserve the original value from the correct data, not be incor */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.EVE.annotations[1].onsetSe', JSON.stringify(out.EVE.annotations[1].onsetSec), '200');
+        }
+        /* mutant: num → 0  @ { class: 'Central Apnea', durSec: 12, onsetSec: 300, tMs: t0 + 300000 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection detects whether apnea event annotations are correctly positioned in time, preventing incorrect */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.EVE.annotations[2].onsetSe', JSON.stringify(out.EVE.annotations[2].onsetSec), '300');
+        }
+        /* mutant: num → 0  @ { class: 'Obstructive Apnea', durSec: 18, onsetSec: 200, tMs: t0 + 200000 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The timing of the second annotation in the EVE events list, which affects the synchronization of sleep stage a */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.EVE.annotations[1].tMs', JSON.stringify(out.EVE.annotations[1].tMs), '1781303510000');
+        }
+        /* mutant: num → 0  @ { class: 'Central Apnea', durSec: 12, onsetSec: 300, tMs: t0 + 300000 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection detects whether apnea event durations are correctly calculated or incorrectly set to zero due  */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.EVE.annotations[2].durSec', JSON.stringify(out.EVE.annotations[2].durSec), '12');
+        }
+        /* mutant: num → 0  @ { class: 'Hypopnea', durSec: 20, onsetSec: 400, tMs: t0 + 400000 }
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The duration of a hypopnea event should remain consistent after operator mutation, ensuring that sleep apnea d */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.EVE.annotations[3].durSec', JSON.stringify(out.EVE.annotations[3].durSec), '20');
+        }
+        /* mutant: num → 0  @ { class: 'Central Apnea', durSec: 12, onsetSec: 300, tMs: t0 + 300000 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The timing of the third annotation in the EVE events list, which determines when a central apnea event is reco */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.EVE.annotations[2].tMs', JSON.stringify(out.EVE.annotations[2].tMs), '1781303610000');
+        }
+        /* mutant: num → 0  @ { class: 'Hypopnea', durSec: 20, onsetSec: 400, tMs: t0 + 400000 }
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection detects whether the onset time of a hypopnea event is correctly calculated or incorrectly set  */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.EVE.annotations[3].onsetSe', JSON.stringify(out.EVE.annotations[3].onsetSec), '400');
+        }
+        /* mutant: num → 0  @ { class: 'Hypopnea', durSec: 20, onsetSec: 400, tMs: t0 + 400000 }
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The timing of the third annotation in the EVE events correctly reflects the intended onset time after operator */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.EVE.annotations[3].tMs', JSON.stringify(out.EVE.annotations[3].tMs), '1781303710000');
+        }
+        /* mutant: num → 0  @ .concat(opts.noRera ? [] : [{ class: 'RERA', durSec: 8, onsetSec: 500, tMs: t0 + 5000
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The timing of the fourth annotation in the EVE array is incorrect due to a faulty operator mutation that chang */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.EVE.annotations[4].tMs', JSON.stringify(out.EVE.annotations[4].tMs), '1781303810000');
+        }
+        /* mutant: bool || → &&  @ if (!night || !night.sessions || !night.sessions.length) continue;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return the input string instead of throwing an error when night data is undefined or incom */
+        {
+          var out = NS.applyStrClockOffset('x');
+          T.eq('NS.applyStrClockOffset("x") → out', JSON.stringify(out), '"x"');
+        }
+        /* mutant: bool && → ||  @ var t0 = night && (night.t0Ms != null ? night.t0Ms : night.stats && night.stats.
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This protects against the incorrect handling of undefined night objects in the acquisition evidence attachment */
+        {
+          var out = NS.attachAcqEvidence([1, 2, 3], 1);
+          T.eq('NS.attachAcqEvidence([1,2,3],1) → out[0]', JSON.stringify(out[0]), '1');
+        }
+        /* mutant: bool && → ||  @ if (deviceCsr < CSR_PB_FLOOR && pbPct < CSR_PB_FLOOR) verdict = 'both-negligible
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behavior being tested is the cross-check verdict logic that determines whether device CSR and our PB value */
+        {
+          var out = NS.csrPbCrossCheck(0, 1);
+          T.eq('NS.csrPbCrossCheck(0,1) → out.verdict', JSON.stringify(out.verdict), '"agree"');
+        }
+        /* mutant: bool || → &&  @ if (!nights || !nights.length || !summary || !summary.length) return nights;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): Whether the function returns a string value or throws an error when given an empty array */
+        {
+          var out = NS.attachStrSummary('x');
+          T.eq('NS.attachStrSummary("x") → out', JSON.stringify(out), '"x"');
+        }
+      }
+    );
+
+    group(
+      'mutation drafts b2 — DexClock: recorded outputs that discriminate real code from a surviving mutant',
+      'mutation-drafts · mutation-drafts-b2 · dexclock · mutation · adopted-draft · realm-verified',
+      function (T) {
+        var NS = env.DexClock;
+        if (!NS) {
+          T.skip('DexClock not in env');
+          return;
+        }
+        /* mutant: cmp < → <=  @ for (var i = 0; i < (anchors ? anchors.length : 0); i++) {
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): Whether the function correctly indicates failure instead of throwing an exception when there are insufficient  */
+        {
+          var out = NS.hostAxis(null);
+          T.eq('NS.hostAxis(null) → out.ok', JSON.stringify(out.ok), 'false');
+        }
+      }
+    );
+
+    group(
+      'mutation drafts b2 — ECGCross: recorded outputs that discriminate real code from a surviving mutant',
+      'mutation-drafts · mutation-drafts-b2 · ecgcross · mutation · adopted-draft · realm-verified',
+      function (T) {
+        var NS = env.ECGCross;
+        if (!NS) {
+          T.skip('ECGCross not in env');
+          return;
+        }
+        /* mutant: cmp < → <=  @ if (n < 2) return { n, mean: n ? r2(pts[0].v) : null, sd: null, cv: null, slopePer
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The slope per recording calculation correctly returns null when there are fewer than 2 data points, rather tha */
+        {
+          var out = NS.crossNight([]);
+          T.eq('NS.crossNight([]) → out.slopePerRecording', JSON.stringify(out.slopePerRecording), 'null');
+        }
+        /* mutant: cmp < → <=  @ if (n < 3) return { tau: null, p: null, S: 0 };
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly computes the Kendall tau correlation coefficient instead of returning null when the inp */
+        {
+          var out = NS.mannKendall([1, 2, 3]);
+          T.eq('NS.mannKendall([1,2,3]) → out.tau', JSON.stringify(out.tau), '1');
+        }
+      }
+    );
+
+    group(
+      'mutation drafts b2 — ECGDSP: recorded outputs that discriminate real code from a surviving mutant',
+      'mutation-drafts · mutation-drafts-b2 · ecgdsp · mutation · adopted-draft · realm-verified',
+      function (T) {
+        var NS = env.ECGDSP;
+        if (!NS) {
+          T.skip('ECGDSP not in env');
+          return;
+        }
+        /* mutant: cmp > → >=  @ if (!isFinite(tEnd) || tEnd > CVHR_MAX_SPAN_S) return { events: [], index: null, h
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly returns the reason for implausible span detection instead of a typo in the field name. */
+        {
+          var out = NS.detectCVHR(0, 0);
+          T.eq('NS.detectCVHR(0,0) → out.reason', JSON.stringify(out.reason), '"implausible-span"');
+        }
+      }
+    );
+
+    group(
+      'mutation drafts b2 — IntegratorDSP: recorded outputs that discriminate real code from a surviving mutant',
+      'mutation-drafts · mutation-drafts-b2 · integratordsp · mutation · adopted-draft · realm-verified',
+      function (T) {
+        var NS = env.IntegratorDSP;
+        if (!NS) {
+          T.skip('IntegratorDSP not in env');
+          return;
+        }
+        /* mutant: bool || → &&  @ if (!(fsHz > 0) || !a || !b || a.length < 2 || b.length < 2) {
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The pFloor value should be null when there is no data, not 0.0476, indicating incorrect handling of empty inpu */
+        {
+          var out = NS.alignEnvelopes(1, 1);
+          T.eq('NS.alignEnvelopes(1,1) → out.pFloor', JSON.stringify(out.pFloor), 'null');
+        }
+      }
+    );
+
+    group(
+      'mutation drafts b2 — OXYCross: recorded outputs that discriminate real code from a surviving mutant',
+      'mutation-drafts · mutation-drafts-b2 · oxycross · mutation · adopted-draft · realm-verified',
+      function (T) {
+        var NS = env.OXYCross;
+        if (!NS) {
+          T.skip('OXYCross not in env');
+          return;
+        }
+        /* mutant: cmp < → <=  @ if (n < 3) return { tau: null, p: null, S: 0 };
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly computes the Kendall tau correlation coefficient for valid input sequences of at least  */
+        {
+          var out = NS.mannKendall([1, 2, 3]);
+          T.eq('NS.mannKendall([1,2,3]) → out.tau', JSON.stringify(out.tau), '1');
+        }
+        /* mutant: cmp < → <=  @ if (n < 2) return { n, mean: n ? r2(pts[0].v) : null, sd: null, cv: null, slopePer
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The slope per recording is correctly set to null when there are fewer than 2 data points, rather than being om */
+        {
+          var out = NS.crossNight([]);
+          T.eq('NS.crossNight([]) → out.slopePerRecording', JSON.stringify(out.slopePerRecording), 'null');
+        }
+        /* mutant: bool && → ||  @ if (n.stats && n.stats.startTs != null) return n.stats.startTs;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return null instead of throwing an error when stats are missing */
+        {
+          var out = NS.nightTms(0);
+          T.eq('NS.nightTms(0) → out', JSON.stringify(out), 'null');
+        }
+        /* mutant: bool && → ||  @ var c = n.stats && n.stats.coverage != null ? n.stats.coverage : n.stats && n.st
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return a numeric value instead of throwing an error when stats.coverage is undefined. */
+        {
+          var out = NS.nightWeight(0);
+          T.eq('NS.nightWeight(0) → out', JSON.stringify(out), '1');
+        }
+      }
+    );
+
+    group(
+      'mutation drafts b2 — OxyDex: recorded outputs that discriminate real code from a surviving mutant',
+      'mutation-drafts · mutation-drafts-b2 · oxydex · mutation · adopted-draft · realm-verified',
+      function (T) {
+        var NS = env.OxyDex;
+        if (!NS) {
+          T.skip('OxyDex not in env');
+          return;
+        }
+        /* mutant: num → 0  @ if (n < 600) return null;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return null for empty input strings, but the buggy version returns a structured object ins */
+        {
+          var out = NS._bare.computeSleepArch('');
+          T.eq('NS._bare.computeSleepArch("") → out === null', JSON.stringify(out === null), 'true');
+        }
+        /* mutant: num → 0  @ if (n < 200) return null;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return null when the sample size is less than 200, rather than returning an object with nu */
+        {
+          var out = NS._bare.computeSpO2Entropy([]);
+          T.eq('NS._bare.computeSpO2Entropy([]) → out', JSON.stringify(out), 'null');
+        }
+        /* mutant: eq !== → ===  @ var _ecgFusion = opts.ecgFusion !== undefined ? opts.ecgFusion : null;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behavior that determines whether ECG fusion is enabled or disabled in the oxygen saturation analysis pipel */
+        {
+          var out = NS._bare.oxyBuildNightElement(0);
+          T.eq('NS._bare.oxyBuildNightElement(0) → out.ecgFusion', JSON.stringify(out.ecgFusion), 'null');
+        }
+        /* mutant: eq !== → ===  @ var _prov = opts.provenance !== undefined ? opts.provenance : null;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The provenance field should be explicitly set to null when not provided, rather than being omitted or set to u */
+        {
+          var out = NS._bare.oxyBuildNightElement(0);
+          T.eq('NS._bare.oxyBuildNightElement(0) → out.provenance', JSON.stringify(out.provenance), 'null');
+        }
+        /* mutant: eq !== → ===  @ var _kernel = opts.kernel !== undefined ? opts.kernel : null;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The kernel field should be explicitly set to null when not provided, rather than being omitted or set to undef */
+        {
+          var out = NS._bare.oxyBuildNightElement(0);
+          T.eq('NS._bare.oxyBuildNightElement(0) → out.kernel', JSON.stringify(out.kernel), 'null');
+        }
+        /* mutant: eq !== → ===  @ var _ansAge = opts.ansAge !== undefined ? opts.ansAge : null;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behavior that determines whether the answer age field is explicitly set to null or left undefined when not */
+        {
+          var out = NS._bare.oxyBuildNightElement(0);
+          T.eq('NS._bare.oxyBuildNightElement(0) → out.ansAge', JSON.stringify(out.ansAge), 'null');
+        }
+        /* mutant: bool || → &&  @ spikeDecay: n.spkDecay || null,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The spike decay metric is correctly set to null instead of undefined when no spike decay data is available. */
+        {
+          var out = NS._bare.oxyBuildNightElement(0);
+          T.eq('NS._bare.oxyBuildNightElement(0) → out.newMetrics.spikeDecay', JSON.stringify(out.newMetrics.spikeDecay), 'null');
+        }
+        /* mutant: bool || → &&  @ spikeUndershoot: n.spkUnder || null,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behavior that determines whether spike undershoot metrics are included in the output, which was incorrectl */
+        {
+          var out = NS._bare.oxyBuildNightElement(0);
+          T.eq('NS._bare.oxyBuildNightElement(0) → out.newMetrics.spikeUndershoot', JSON.stringify(out.newMetrics.spikeUndershoot), 'null');
+        }
+        /* mutant: bool || → &&  @ spikeRiseRate: n.spkRise || null,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The spike rise rate metric is correctly initialized to null instead of being omitted when not present. */
+        {
+          var out = NS._bare.oxyBuildNightElement(0);
+          T.eq('NS._bare.oxyBuildNightElement(0) → out.newMetrics.spikeRiseRate', JSON.stringify(out.newMetrics.spikeRiseRate), 'null');
+        }
+        /* mutant: bool || → &&  @ spk50Rec: n.spk50Rec || null,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The presence of the spk50Rec metric in the newMetrics object, which indicates whether a specific spike recover */
+        {
+          var out = NS._bare.oxyBuildNightElement(0);
+          T.eq('NS._bare.oxyBuildNightElement(0) → out.newMetrics.spk50Rec', JSON.stringify(out.newMetrics.spk50Rec), 'null');
+        }
+        /* mutant: bool || → &&  @ vo2est: n.vo2est || null,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The presence of the vo2est metric in the newMetrics object, which was inadvertently removed due to a faulty lo */
+        {
+          var out = NS._bare.oxyBuildNightElement(0);
+          T.eq('NS._bare.oxyBuildNightElement(0) → out.newMetrics.vo2est', JSON.stringify(out.newMetrics.vo2est), 'null');
+        }
+        /* mutant: bool || → &&  @ karv: n.karv || null
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The presence of the `karv` field in `newMetrics` ensures proper handling of null values during metric processi */
+        {
+          var out = NS._bare.oxyBuildNightElement(0);
+          T.eq('NS._bare.oxyBuildNightElement(0) → out.newMetrics.karv', JSON.stringify(out.newMetrics.karv), 'null');
+        }
+        /* mutant: bool || → &&  @ bpProj: n.bpProj || null,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behavior that determines whether the bpProj metric is explicitly set to null or left undefined in the newM */
+        {
+          var out = NS._bare.oxyBuildNightElement(0);
+          T.eq('NS._bare.oxyBuildNightElement(0) → out.newMetrics.bpProj', JSON.stringify(out.newMetrics.bpProj), 'null');
+        }
+        /* mutant: bool || → &&  @ period: n.period || null,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behaviour this protects is the correct handling of the `period` field in the research output, ensuring it  */
+        {
+          var out = NS._bare.oxyBuildNightElement(0);
+          T.eq('NS._bare.oxyBuildNightElement(0) → out.research.period', JSON.stringify(out.research.period), 'null');
+        }
+        /* mutant: bool && → ||  @ var ev = desat && desat.eventsAll ? desat.eventsAll : [];
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The number of excluded items in the computation result */
+        {
+          var out = NS.computeGatedNadir('x');
+          T.eq('NS.computeGatedNadir("x") → out.excluded', JSON.stringify(out.excluded), '0');
+        }
+        /* mutant: cmp > → >=  @ nadirCount > 0
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The mean depth of hypoxic events is correctly calculated as 0 when there are no hypoxic events, rather than be */
+        {
+          var out = NS._bare.computeHypoxicLoad(null, 1);
+          T.eq('NS._bare.computeHypoxicLoad(null,1) → out.hl_meanDepth', JSON.stringify(out.hl_meanDepth), '0');
+        }
+        /* mutant: cmp > → >=  @ nadirCount > 0
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The mean duration in seconds is correctly initialized to 0 instead of being null when there are no hypoxic eve */
+        {
+          var out = NS._bare.computeHypoxicLoad(null, 1);
+          T.eq('NS._bare.computeHypoxicLoad(null,1) → out.hl_meanDurSec', JSON.stringify(out.hl_meanDurSec), '0');
+        }
+        /* mutant: bool || → &&  @ var pnn3 = hrv.pnn3 || 0;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The vagal index value correctly computed as 0 instead of null when input is [1,1] */
+        {
+          var out = NS._bare.computeVagalIndex(1, 1);
+          T.eq('NS._bare.computeVagalIndex(1,1) → out.vagalIndex', JSON.stringify(out.vagalIndex), '0');
+        }
+        /* mutant: cmp > → >=  @ if (nadirEvents > 0 && spikes.length > 0) {
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly returns a null couplingScore instead of throwing an error when processing empty input a */
+        {
+          var out = NS._bare.computeComposite([]);
+          T.eq('NS._bare.computeComposite([]) → out.couplingScore', JSON.stringify(out.couplingScore), 'null');
+        }
+        /* mutant: bool || → &&  @ if (!bytes || bytes.length < 40) return false;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): Whether the function correctly handles null input without throwing an exception */
+        {
+          var out = NS.isO2RingBin(null);
+          T.eq('NS.isO2RingBin(null) → out', JSON.stringify(out), 'false');
+        }
+        /* mutant: num → 0  @ if (n < 200) return null;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return null when the input array is empty, rather than returning an object with null value */
+        {
+          var out = NS._bare.computeHREntropy([]);
+          T.eq('NS._bare.computeHREntropy([]) → out === null', JSON.stringify(out === null), 'true');
+        }
+        /* mutant: bool || → &&  @ if (typeof text !== 'string' || !text) return [];
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly returns an empty array when input is not a string or is empty, instead of throwing an e */
+        {
+          var out = NS.parseRingClockLog(1);
+          T.eq('NS.parseRingClockLog(1) → out', JSON.stringify(out), '[]');
+        }
+        /* mutant: cmp > → >=  @ var label = dip > 10 ? 'Good (intra-night)' : dip > 5 ? 'Moderate (intra-night)' :
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The intra-night dip level label is correctly formatted with a trailing parenthesis. */
+        {
+          var out = NS._bare.computeHRNoctDip(1, 1);
+          T.eq('NS._bare.computeHRNoctDip(1,1) → out.hrnDipLabel', JSON.stringify(out.hrnDipLabel), '"Low (intra-night)"');
+        }
+        /* mutant: cmp > → >=  @ out[t] = { secs: s, pct: n > 0 ? +((s / n) * 100).toFixed(2) : 0 };
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The percentage value should be 0 instead of null when the numerator is 0 and the denominator is greater than 0 */
+        {
+          var out = NS._bare.computeTIndex([]);
+          T.eq('NS._bare.computeTIndex([]) → out["80"].pct', JSON.stringify(out['80'].pct), '0');
+        }
+      }
+    );
+
+    group(
+      'mutation drafts b2 — PPGCross: recorded outputs that discriminate real code from a surviving mutant',
+      'mutation-drafts · mutation-drafts-b2 · ppgcross · mutation · adopted-draft · realm-verified',
+      function (T) {
+        var NS = env.PPGCross;
+        if (!NS) {
+          T.skip('PPGCross not in env');
+          return;
+        }
+        /* mutant: cmp < → <=  @ if (n < 3) return { tau: null, p: null, S: 0 };
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly computes the Kendall's tau correlation coefficient for sequences with 3 or more element */
+        {
+          var out = NS.mannKendall([1, 2, 3]);
+          T.eq('NS.mannKendall([1,2,3]) → out.tau', JSON.stringify(out.tau), '1');
+        }
+        /* mutant: cmp < → <=  @ if (n < 2) return { n, mean: n ? r2(pts[0].v) : null, sd: null, cv: null, slopePer
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The slope per recording value is correctly set to null when there are fewer than 2 data points, rather than be */
+        {
+          var out = NS.crossNight([]);
+          T.eq('NS.crossNight([]) → out.slopePerRecording', JSON.stringify(out.slopePerRecording), 'null');
+        }
+      }
+    );
+
+    group(
+      'mutation drafts b2 — PPGDSP: recorded outputs that discriminate real code from a surviving mutant',
+      'mutation-drafts · mutation-drafts-b2 · ppgdsp · mutation · adopted-draft · realm-verified',
+      function (T) {
+        var NS = env.PPGDSP;
+        if (!NS) {
+          T.skip('PPGDSP not in env');
+          return;
+        }
+        /* mutant: cmp < → <=  @ for (let k = 0; k < peaks.length; k++) {
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return an empty object instead of throwing an error when given an empty string array. */
+        {
+          var out = NS.gapBeats('');
+          T.eq('NS.gapBeats("") → out', JSON.stringify(out), '{}');
+        }
+      }
+    );
+
+    group(
+      'mutation drafts b2 — PulseCross: recorded outputs that discriminate real code from a surviving mutant',
+      'mutation-drafts · mutation-drafts-b2 · pulsecross · mutation · adopted-draft · realm-verified',
+      function (T) {
+        var NS = env.PulseCross;
+        if (!NS) {
+          T.skip('PulseCross not in env');
+          return;
+        }
+        /* mutant: cmp < → <=  @ if (n < 3) return { tau: null, p: null, S: 0 };
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly computes the Kendall tau correlation coefficient for valid input sequences, returning a */
+        {
+          var out = NS.mannKendall([1, 2, 3]);
+          T.eq('NS.mannKendall([1,2,3]) → out.tau', JSON.stringify(out.tau), '1');
+        }
+        /* mutant: cmp < → <=  @ if (n < 2) return { n, mean: n ? r2(pts[0].v) : null, sd: null, cv: null, slopePer
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly returns null for slopePerRecording when there are fewer than 2 data points, but the bug */
+        {
+          var out = NS.crossNight([]);
+          T.eq('NS.crossNight([]) → out.slopePerRecording', JSON.stringify(out.slopePerRecording), 'null');
+        }
+      }
+    );
+
+    group(
+      'mutation drafts b2 — PulseDex: recorded outputs that discriminate real code from a surviving mutant',
+      'mutation-drafts · mutation-drafts-b2 · pulsedex · mutation · adopted-draft · realm-verified',
+      function (T) {
+        var NS = env.PulseDex;
+        if (!NS) {
+          T.skip('PulseDex not in env');
+          return;
+        }
+        /* mutant: eq === → !==  @ if (ymx === ymn) ymx = ymn + 1;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The line chart correctly displays "-Infinity" when the maximum and minimum y-values are equal, instead of show */
+        {
+          var out = NS._bare.lineChartSVG([1, 2, 3]);
+          T.eq('NS._bare.lineChartSVG([1,2,3]) → out.includes("-Infinity")', JSON.stringify(out.includes('-Infinity')), 'true');
+        }
+        /* mutant: eq === → !==  @ if (xmx === xmn) xmx = xmn + 1;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): Whether the function throws an exception instead of returning a valid SVG string */
+        {
+          var out = NS._bare.lineChartSVG([1, 2, 3]);
+          T.eq("NS._bare.lineChartSVG([1,2,3]) → out.indexOf('THREW')", JSON.stringify(out.indexOf('THREW')), '-1');
+        }
+      }
+    );
+
     group('A second oximeter cannot double the apnea index — §3.1', 'integrator-dsp · apnea · fabricated-redundancy', function (T) {
       var RF = env.runFusion;
       T.ok('runFusion available', typeof RF === 'function');
