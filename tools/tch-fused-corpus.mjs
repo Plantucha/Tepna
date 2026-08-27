@@ -134,7 +134,27 @@ function gridToPerSec(block, t0Ms) {
 }
 
 /* ── per-night solve ─────────────────────────────────────────────────────── */
-function solveNight(dir, night) {
+/* Mean and variance of each pairwise difference over the night's aligned seconds. */
+function pairMoments(hh, vv, oo) {
+  const mom = (a, b) => {
+    let s1 = 0,
+      s2 = 0;
+    const n = a.length;
+    for (let i = 0; i < n; i++) {
+      const d = a[i] - b[i];
+      s1 += d;
+      s2 += d * d;
+    }
+    const mu = s1 / n;
+    return { n, mu, var: Math.max(0, s2 / n - mu * mu) };
+  };
+  return { hv: mom(hh, vv), ho: mom(hh, oo), vo: mom(vv, oo) };
+}
+
+/* Exported so the pooled-seconds hat can reuse this alignment rather than duplicating it —
+   the per-second key-matching here is the load-bearing part (R5-HR-TRIPLET §5) and a second
+   copy would drift. `pairs` is ADDITIVE; existing consumers read the same fields as before. */
+export function solveNight(dir, night) {
   const rd = (node) => {
     const p = join(dir, night, `${node}_${night}.node-export.json`);
     try {
@@ -189,6 +209,10 @@ function solveNight(dir, night) {
     fused: { h10: fused.h10, verity: fused.verity, o2: fused.o2, neg: fused.neg },
     plain: { h10: plain.h10, verity: plain.verity, o2: plain.o2, neg: plain.neg },
     r: { hv: r(hh, vv), ho: r(hh, oo), vo: r(vv, oo) },
+    /* Per-night PAIRWISE moments — the inputs a pooled-seconds hat needs. A pooled variance is
+       Σ w·Var + [Σ w·μ² − (Σ w·μ)²]: within-night plus a BETWEEN-night bias term, and the second
+       term is exactly what a median over nights discards. */
+    pairs: pairMoments(hh, vv, oo),
     meanC: { h10: cH.reduce((a, b) => a + b, 0) / cH.length, verity: cV.reduce((a, b) => a + b, 0) / cV.length }
   };
 }
