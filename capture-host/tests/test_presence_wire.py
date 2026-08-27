@@ -328,3 +328,73 @@ def test_the_ONCE_PER_SESSION_latch_is_load_bearing_with_the_rate_limit_disabled
     pulls = _drive_dispatch(monkeypatch, cfg, ticks=3)
     assert pulls == [("Ring", "latest", 0)], (
         "the ring stayed present across three ticks — without the latch this pulls every tick")
+
+
+# ── §19/§20 the witness, published through all three layers ─────────────────
+def test_the_scan_loop_PUBLISHES_presence_and_the_witness_per_device():
+    """§20 — via `_set`, so `find_unwired` scan 1 enumerates the keys and REDS if nothing consumes
+    them. A witness written into a dict nobody reads is the hollow artifact §19 exists to forbid."""
+    capture._PRESENCE_NAMES[A] = "Ring"
+    capture.STATUS["devices"].pop("Ring", None)
+    try:
+        _run_loop([{A: 1.0}, {A: 2.0}])
+        st = capture.STATUS["devices"]["Ring"]
+        assert st["presence"] == "pres_present"
+        assert st["presence_reason"]
+        assert "stops at" in st["presence_witness"], "a cold chain must SAY where it stops"
+    finally:
+        capture._PRESENCE_NAMES.pop(A, None)
+        capture.STATUS["devices"].pop("Ring", None)
+
+
+def test_a_device_with_no_name_is_skipped_rather_than_keyed_by_None():
+    capture._PRESENCE_NAMES.pop(A, None)
+    _run_loop([{A: 1.0}, {A: 2.0}])
+    assert None not in capture.STATUS["devices"], "a nameless row would collide across devices"
+
+
+def test_enabled_and_observer_armed_are_stamped_only_when_the_TASK_starts(tmp_path):
+    """Not at config-read time. `enabled` was true at `arming`; `observer_armed` is honest only once
+    the observer is about to exist. Stamping earlier makes the chain report progress not yet made."""
+    capture._WITNESS.pop(A, None)
+    cfg = {"o2ring": {"presence_harvest": {"enabled": True}},
+           "devices": [{"vendor": "Wellue", "address": A}]}
+    _start(cfg)                       # enabled but NOT armed → no task
+    assert A not in capture._WITNESS, "an unarmed observer has not armed"
+    _start(ARMED_CFG)
+    assert set(capture._WITNESS[A]) == {"enabled", "observer_armed"}
+    capture._WITNESS.pop(A, None)
+    capture._PRESENCE_NAMES.pop(A, None)
+
+
+def test_artifact_committed_is_stamped_ONLY_when_a_FILE_was_produced(monkeypatch):
+    """🔴 The one link that means DATA SURVIVED. A zero-file pull must not claim it, or the chain
+    reads "complete" for a night that retrieved nothing — §19's exact anti-claim."""
+    capture._WITNESS.pop(A, None)
+    _arm_presence()
+
+    async def empty_pull(dev, root, which="latest", ftype=0):
+        return {"new_files": []}
+
+    monkeypatch.setattr(capture, "pull_oxyii_session", empty_pull)
+    n = {"i": 0}
+    real = capture.asyncio.sleep
+
+    async def _sleep(_s):
+        n["i"] += 1
+        if n["i"] >= 2:
+            capture._STOP.set()
+        await real(0)
+
+    monkeypatch.setattr(capture.asyncio, "sleep", _sleep)
+    try:
+        asyncio.run(capture.charger_pull_poller(_ring_cfg(), "/tmp"))
+    finally:
+        capture._STOP.clear()
+    w = capture._WITNESS.get(A, {})
+    assert "pull_started" in w, "the pull was dispatched"
+    assert "artifact_committed" not in w, "no file — the chain must NOT read complete"
+    capture._WITNESS.pop(A, None)
+    capture._PRESENCE.clear()
+    capture._PRESENCE_PULLED.discard(A)
+    capture.STATUS["devices"].pop("Ring", None)

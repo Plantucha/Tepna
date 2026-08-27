@@ -277,3 +277,60 @@ def arming(cfg: dict) -> Arming:
                       "coexistence matrix has not been run on this box, so scanning is unproven "
                       "against live CPAP/H10/Verity acquisition")
     return Arming(True, True, "armed: enabled and coexistence verified")
+
+
+# ── §19 · THE EXECUTION WITNESS ──────────────────────────────────────────────────────────────────────
+# §19 is the one section the charter marks MANDATORY, and it is not a logging requirement — it is an
+# ANTI-CLAIM requirement: "Do not claim that automatic harvesting works because code exists, tests
+# pass, or configuration says enabled."
+#
+# 🔴 THE SHAPE FOLLOWS FROM THE FAILURE IT CITES, which is this repo's own: a code path existed for
+# months while its arming condition prevented it from ever executing, and the symptom was an ABSENT
+# LOG LINE — `auto-pull: armed` appeared 0 times against 312 poller lines. Nothing failed, nothing
+# errored, and no gate can observe a line that was never printed.
+#
+# So a list of ten timestamps is NOT sufficient, and avoiding that is the whole design. Ten fields
+# where the seventh is empty reads as healthy to anyone not counting — the reader must know which
+# links should have fired, in order, and notice a hole. That is the same act of attention that missed
+# the original defect. Instead the chain computes ITS OWN FIRST GAP and names it: one field that says
+# where the chain stops. "Complete" becomes a value the code can only produce when it is true.
+WITNESS_LINKS = (
+    "enabled",              # config asked for it
+    "observer_armed",       # §2's coexistence verdict cleared it AND the task started
+    "presence_detected",    # an advertisement cleared the debounce
+    "probe_attempted",      # a link was justified and opened
+    "rec_state_observed",   # the recording axis got a reading
+    "end_detected",         # END_CANDIDATE — duration_s stepped backward
+    "flush_entered",        # the flush gate began waiting for run_status 3 → 1
+    "flush_completed",      # it reached a terminal rather than the deadline
+    "pull_started",         # the EXISTING transactional harvest was dispatched
+    "artifact_committed",   # oxy_inventory COMMITTED — the only link meaning data survived
+)
+
+
+def witness_chain(stamps: dict) -> dict:
+    """The §19 chain plus the first link that has NEVER fired. PURE.
+
+    `{links: {name: stamp|None}, stops_at: str|None, reached: int}`. `stops_at` is None ONLY when
+    every link has fired — so the only way to read "complete" is for it to be true.
+
+    ⚠️ `reached` counts the UNBROKEN PREFIX, not the number of non-None links. A later link stamped
+    while an earlier one is empty is not progress — it is evidence the chain is being written out of
+    order, and counting it would let a hole be filled by something downstream of it."""
+    links = {name: (stamps or {}).get(name) for name in WITNESS_LINKS}
+    reached = 0
+    for name in WITNESS_LINKS:
+        if links[name] is None:
+            return {"links": links, "stops_at": name, "reached": reached}
+        reached += 1
+    return {"links": links, "stops_at": None, "reached": reached}
+
+
+def witness_summary(chain: dict) -> str:
+    """One operator-readable sentence — what `monitor.html` renders and the journal prints.
+
+    A dict of ten nullable stamps is not an operator surface; it is data an operator must audit. This
+    is the sentence that makes the §19 failure impossible to miss without counting anything."""
+    if chain["stops_at"] is None:
+        return "complete (10/10)"
+    return f"stops at {chain['stops_at']} ({chain['reached']}/{len(WITNESS_LINKS)})"

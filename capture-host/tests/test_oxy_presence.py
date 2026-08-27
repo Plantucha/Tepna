@@ -144,3 +144,40 @@ def test_armed_only_once_the_coexistence_verdict_is_recorded():
     a = P.arming({"o2ring": {"presence_harvest": {"enabled": True,
                                                   P.COEXISTENCE_KEY: True}}})
     assert a.armed is True
+
+
+# ── §19 the execution witness ────────────────────────────────────────────────
+def test_an_empty_chain_stops_at_the_FIRST_link_not_the_last():
+    c = P.witness_chain({})
+    assert c["stops_at"] == "enabled" and c["reached"] == 0
+
+
+def test_a_complete_chain_is_the_ONLY_way_to_read_complete():
+    c = P.witness_chain({k: 1.0 for k in P.WITNESS_LINKS})
+    assert c["stops_at"] is None and c["reached"] == len(P.WITNESS_LINKS)
+    assert P.witness_summary(c) == "complete (10/10)"
+
+
+def test_the_chain_NAMES_where_it_stops():
+    """§19's whole design. Ten nullable fields where the seventh is empty reads as healthy to anyone
+    not counting — and that is the same act of attention that missed the original defect (a path that
+    armed 0 times against 312 poller lines). One field, in words, instead."""
+    stamps = {k: 1.0 for k in P.WITNESS_LINKS[:3]}
+    c = P.witness_chain(stamps)
+    assert c["stops_at"] == "probe_attempted"
+    assert P.witness_summary(c) == "stops at probe_attempted (3/10)"
+
+
+def test_reached_counts_the_UNBROKEN_PREFIX_not_the_non_empty_links():
+    """A later link stamped while an earlier one is empty is not progress — it is evidence the chain
+    is being written out of order. Counting it would let a hole be filled from downstream."""
+    c = P.witness_chain({"enabled": 1.0, "artifact_committed": 9.0})
+    assert c["reached"] == 1, "8 empty links sit between them"
+    assert c["stops_at"] == "observer_armed"
+
+
+def test_a_link_stamped_zero_still_counts_as_fired():
+    """A monotonic clock can legitimately read 0.0. Testing `if not stamp` instead of `is None` would
+    make the very first observation of a freshly-booted host read as never-happened."""
+    stamps = {k: 0.0 for k in P.WITNESS_LINKS}
+    assert P.witness_chain(stamps)["stops_at"] is None
