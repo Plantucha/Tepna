@@ -123,9 +123,14 @@ ALLOW_FUNCS = {
     "read_edf": "cpap_edf — the round-trip partner of `write_edf` (which IS wired, cpap_edf_writer). It "
                 "exists so `write_edf(read_edf(x)) == x` is provable byte-for-byte; the tests are its "
                 "legitimate consumer. Retire only if that property stops being asserted",
-    "message_call_lines": "mutation_triage — published in `__all__` and consumed through the module's "
-                          "documented contract (a mutant on a log/print CONTINUATION line is exempt). "
-                          "Retire when the triage entry point calls it directly",
+    "message_call_lines": "mutation_triage — ⚠️ MY OWN EARLIER REASON HERE OVERSTATED IT as 'consumed "
+                          "through the documented contract'. It is NOT consumed: `classify`'s docstring says "
+                          "callers that have the source pass `lineno in message_call_lines(src)`, and "
+                          "tools/mutate_triage.py calls `classify(a, b)` at both sites without it — so every "
+                          "mutant on a CONTINUATION line of a multi-line log call is still judged REACHABLE. "
+                          "The blocker is concrete: that caller has the module PATH but not the mutant's LINE "
+                          "NUMBER (mutmut_diff yields only the +/- lines), so wiring needs the lineno "
+                          "extracted first. Retire by doing that.",
     "list_sessions": "oxy_transfer §2 — read-only 'what the ring says it has', committing to nothing. "
                      "Fourth of the unit-2 family with pull_deadline/flush_gate/resume_target, all "
                      "landed ahead of the async shell that drives them. Retires with that shell",
@@ -179,7 +184,14 @@ ALLOW_FUNCS = {
     "start_key_exchange": "CPAP-BLE pull core — SRP pairing builder, used by the pairing probe (see note)",
     "confirm_key_exchange": "CPAP-BLE pull core — SRP pairing builder, used by the pairing probe (see note)",
     "get_items": "CPAP-BLE pull core — the Get RPC builder; the probe's live encrypted-Get validator (see note)",
-    "pull_spool": "CPAP-BLE pull core — the multi-round spool driver the operator probe calls (see note)",
+    "pull_spool": "as11_pull — SUPERSEDED, and retained as the protocol-level reference its tests pin. "
+                  "⚠️ THE PREVIOUS REASON WAS FALSE: it claimed the operator probe calls this, and "
+                  "code-uses measured ZERO. Production drives the spool through cpap_spool.sync_spool "
+                  "-> as11_pull.pull_spool_round, which adds the ledger/promote/cursor transaction this "
+                  "bare multi-round loop has no notion of; cpap_spool.py's own header records that it "
+                  "was built because this function was wired into nothing. Retire by deleting it (with "
+                  "its tests) once nobody wants a transaction-free reference driver — a decision, not a "
+                  "cleanup.",
     "start_stream": "CPAP-BLE pull core — the StartStream (live waveform) RPC builder, used by the stream probe (see note)",
     "stream": "CPAP-BLE pull core — the live StreamData waveform consumer the operator stream probe drives (see note)",
     "make_cipher": "CPAP-BLE pull core — the AES-256-CBC seal/unseal the daemon/probe inject into the stdlib-only protocol layer (see note)",
