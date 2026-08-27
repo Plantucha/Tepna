@@ -3,7 +3,25 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-17 · **Follows:** `CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01-BRIEF.md` §5 (per-device σ + inverse-variance items, both executed 2026-08-17) · **Affects:** `clock.js` field naming, `tools/dual-clock-rate.mjs`, two stale brief headers
+**Status:** DONE — 2026-08-27 · **Created:** 2026-08-17 · **Follows:** `CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01-BRIEF.md` §5 (per-device σ + inverse-variance items, both executed 2026-08-17) · **Affects:** `clock.js` field naming, `tools/dual-clock-rate.mjs`, two stale brief headers
+
+
+> ### ✅ FLIPPED TO DONE 2026-08-27 — every box is closed, and the one `[~]` is not closable from here
+>
+> 4 `[x]`, 1 `[~]`, **zero open**. The partial item says so itself: *"Closing this half needs σ_y computed
+> in `dual-clock-rate`, which is a separate work-unit."* `dual-clock-rate` computes no per-fragment
+> uncertainty at all, so the shared verdict correctly takes its no-uncertainties branch — the brief argues
+> that is right behaviour, not a shortfall, and I agree. Recorded here as a **deferred sub-item inside a
+> DONE brief** (§📌 permits exactly that) rather than holding the whole brief open on work that belongs to
+> another one.
+>
+> **What the sibling thread concluded, for the reader arriving from §5:** the per-device σ work this brief
+> follows now has a measured downstream limit. The host-leg closure **cannot gate the PAT re-test on this
+> corpus** — and the reason is not sample size. In the 7 bandable nights the verdicts separated
+> **perfectly by band width**: every night with a tight (informative) band FAILED, every night that passed
+> held a loose one. **A dispersion-derived band used as an inclusion gate anti-selects for measurement
+> quality**, so "passing" enriches for the nights least fit for the downstream use. See
+> `CROSS-DEVICE-DRIFT-AND-CLOSURE` §PAT box.
 
 # What executing the per-device σ item surfaced
 

@@ -3,7 +3,28 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-01 · **Follows:** `IBI-ALIGNMENT-LIMIT-2026-08-01-BRIEF.md` §Retraction · `ENVELOPE-ANCHOR-EXPORT-2026-08-01-BRIEF.md` §3.7 · **Affects:** every cross-node measurement in the suite that assumes one timeline · ⛔ **§2.3 and §2.6 VOIDED 2026-08-03** — their third corner is the O2Ring's drawn axis (see the banners)
+**Status:** PROPOSED (deferred 2026-08-27 — every executable item is closed; the single remaining box is ⛔ BLOCKED on **corpus**, not on effort: it needs nights with ≥2 fragments per device AND consistent legs, and where such nights exist the closure FAILS) · **Created:** 2026-08-01 · **Follows:** `IBI-ALIGNMENT-LIMIT-2026-08-01-BRIEF.md` §Retraction · `ENVELOPE-ANCHOR-EXPORT-2026-08-01-BRIEF.md` §3.7 · **Affects:** every cross-node measurement in the suite that assumes one timeline · ⛔ **§2.3 and §2.6 VOIDED 2026-08-03** — their third corner is the O2Ring's drawn axis (see the banners)
+
+
+> ### 🔴 PARKED, NOT ABANDONED — 2026-08-27, and the status vocabulary is the reason it still reads PROPOSED
+>
+> 8 `[x]`, 1 `[⛔]`, **zero open**. §📌's status set is exactly five values and **BLOCKED is not one of
+> them**, so a brief whose only remainder is blocked is parked as `PROPOSED (deferred …)` with the reason
+> inline — not flipped to DONE, which would claim work that has not happened.
+>
+> **What the measurement concluded** (§PAT box): 49 nights → 33 with both devices → **7 bandable** →
+> PASS 3 · FAIL 2 · REFUSE 2. But the three passes are **not** evidence of closure. The verdicts separate
+> **perfectly by band width** — the three PASSes hold the three widest bands (9.64 / 12.49 / 20.56), the two
+> FAILs the two tightest (4.16 / 0.71), with no overlap. **A dispersion-derived band used as an inclusion
+> gate anti-selects for measurement quality:** noisy legs earn a band nothing can fail, consistent legs earn
+> a sharp band a real discrepancy does fail. Every night where the test had power, the closure **failed**.
+> 2026-08-24 "passes" on a ±20.56 ppm band — wider than the entire measured spread of device rates — which
+> is a verdict that is computable and carries no information.
+>
+> ⚠️ **So this box does not unblock by widening bands or by finding more nights of the same kind.** It
+> unblocks when the corpus carries nights with **≥2 fragments per device AND consistent legs**. The present
+> corpus is mostly single-fragment (H10 on 20 of 33 nights, Verity on 18), which is why only 7 were bandable
+> at all.
 
 # Two devices are never on one clock, and the suite has been assuming they are
 
