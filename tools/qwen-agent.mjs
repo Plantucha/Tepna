@@ -30,7 +30,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(join(HERE, '..'));
 const OLLAMA = 'http://127.0.0.1:11434';
 const MODEL = 'qwen3-coder:30b';
-const RESULT_CAP = 4000; // chars per tool result handed back to the model
+const RESULT_CAP = 9000; // chars per tool result handed back to the model
 const HISTORY_CAP = 24000; // chars of tool-result history kept before oldest are elided
 
 /* Path jail: every file access resolves inside ROOT or is refused. */
@@ -79,7 +79,7 @@ export function runTool(name, args) {
       if (!existsSync(p)) return 'NOT FOUND: ' + args.path;
       const lines = readFileSync(p, 'utf8').split('\n');
       const start = Math.max(0, (args.start_line || 1) - 1);
-      const slice = lines.slice(start, start + 120);
+      const slice = lines.slice(start, start + 250);
       return `[${args.path} lines ${start + 1}-${start + slice.length} of ${lines.length}]\n` + slice.map((l, i) => `${start + i + 1}\t${l}`).join('\n');
     }
     if (name === 'doc_search') {
@@ -125,7 +125,7 @@ function distilledClaudeMd() {
 }
 
 function systemPrompt() {
-  return `You are a careful engineer working on Tepna, a local-first physiological signal suite. You have READ-ONLY tools: read_file, doc_search (semantic), grep_repo, list_dir. Investigate before concluding — read the actual code, check documented intent with doc_search, verify identifier usage with grep_repo. Cite file:line for every claim.
+  return `You are a careful engineer working on Tepna, a local-first physiological signal suite. You have READ-ONLY tools: read_file, doc_search (semantic), grep_repo, list_dir. Investigate before concluding — read the actual code (a read_file result header says how many lines the file has: if your target is past the returned page, CALL read_file AGAIN with start_line — never conclude from a truncated page), check documented intent with doc_search, verify identifier usage with grep_repo. Cite file:line for every claim.
 
 HOUSE RULES (distilled live from the repo's CLAUDE.md):
 ${distilledClaudeMd()}
@@ -188,7 +188,17 @@ async function main() {
       }
       continue;
     }
-    final = msg.content || '';
+    const text = msg.content || '';
+    const looksFinal = /##\s|Finding/i.test(text) && text.length > 200;
+    if (looksFinal) { final = text; break; }
+    // Narration-as-final is this model's dominant failure (measured twice on the
+    // 2026-08-27 calibration smoke): it emits "Let me look at..." with no tool call
+    // and the loop would accept it. A text nudge did NOT fix it — the model resumed
+    // narrating. The structural fix: ONE last request with NO tools field, so
+    // continuing the investigation is impossible and answering is the only move.
+    messages.push({ role: 'assistant', content: text });
+    messages.push({ role: 'user', content: 'STOP. Investigation is over. From what you have already read, write the final markdown brief NOW: ## Finding, the direct answer, file:line citations. If you could not establish it, say exactly that.' });
+    final = (await chat(trimHistory(messages), false)).content || "(no final answer)";
     break;
   }
   if (final === null) {
