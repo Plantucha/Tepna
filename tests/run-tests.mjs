@@ -2206,6 +2206,16 @@ async function main() {
      into balanced bins, and pass 2 executes only THIS shard's indices. Every shard process runs
      the same pure planner over the same inventory, so they agree on the partition with no
      coordination — and no group can fall between two shards. */
+  /* VERIFY-DRAFTS SUITE MODE (2026-08-27, ledger d9dc764b324f). The standalone verifier built
+     its own co-load realm and certified two drafts the suite then failed — "verified against a
+     realm SHAPED LIKE the suite's" is not "verified in the suite's realm", and no imitation
+     loader can promise otherwise. This hook removes the imitation: the suite loads everything
+     exactly as it will for the gate, then hands ITS OWN ctx to the verifier and exits. The
+     realm is authoritative by construction, not by replication. */
+  if (process.argv.includes('--verify-drafts')) {
+    const vd = await import('../tools/verify-drafts.mjs');
+    process.exit(vd.verifyPile(ctx, undefined, { realmLabel: 'suite (run-tests.mjs --verify-drafts)' }));
+  }
   if (SHARD) {
     const inv = runDexTests({ ...env, listOnly: true }).groups.map((g) => ({ index: g.index, title: g.title }));
     const { bins, weights, unknown } = planShards(inv, readTimings(), SHARD.total);
