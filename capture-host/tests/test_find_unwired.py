@@ -298,3 +298,53 @@ def test_the_SCAN_ITSELF_uses_code_only_not_raw_text(tmp_path):
     orphans = {r["func"] for r in res["orphan_functions"]}
     assert "lonely_fn" in orphans, (
         "the scan counted a name in a comment as a call — it is matching raw text, not code")
+
+
+# ── SCAN 5 · a suppression that excuses nothing (2026-08-27) ────────────────
+def test_a_SPENT_suppression_is_reported_and_REDS(tmp_path, monkeypatch, capsys):
+    """The gate's whole purpose. A wired function's allowlist entry excuses nothing, and this tool did
+    not report that: the function simply dropped off the orphan list and its entry sat inert. Worse,
+    the entry NAMES a symbol, so it pre-silences any future finding that reuses the name."""
+    root = _tree(tmp_path, {"m.py": "def helper():\n    return 1\n\n\ndef caller():\n    return helper()\n"})
+    monkeypatch.setattr(find_unwired, "HERE", root)
+    # BOTH entries, deliberately: `caller` is a genuine orphan and must be EXPLAINED, so the only
+    # thing left that can red is the spent `helper`. ⚠️ The first version of this test allowlisted
+    # `helper` alone — `caller` was then an unexplained orphan, the run exited 1 for THAT reason, and
+    # the staleness branch was never executed. Coverage caught it: the red's own lines were unhit
+    # while the test asserting the red passed.
+    monkeypatch.setattr(find_unwired, "ALLOW_FUNCS",
+                        {"helper": "spent — helper IS called by caller",
+                         "caller": "genuine — nothing calls caller"})
+    assert find_unwired.main(["--check"]) == 1
+    out = capsys.readouterr().out
+    # Assert the VERDICT, not the section header. "excuse nothing" appears in the heading on every
+    # run, so matching it proved only that the section printed.
+    assert "DELETE them" in out and "0 unexplained" in out, out[-400:]
+
+
+def test_an_entry_for_a_GENUINE_orphan_stays_green(tmp_path, monkeypatch, capsys):
+    """The other direction, so the gate cannot red by flagging everything."""
+    root = _tree(tmp_path, {"m.py": "def helper():\n    return 1\n\n\ndef caller():\n    return helper()\n"})
+    monkeypatch.setattr(find_unwired, "HERE", root)
+    monkeypatch.setattr(find_unwired, "ALLOW_FUNCS", {"caller": "genuine — nothing calls caller"})
+    assert find_unwired.main(["--check"]) == 0
+
+
+def test_staleness_is_judged_ONLY_against_the_population_the_scan_ENUMERATED(tmp_path, monkeypatch):
+    """🔴 THE DESIGN CONSTRAINT, and two wrong fixes preceded it.
+
+    `ALLOW_FUNCS` is a module constant describing the WHOLE repo. Point `scan()` at a subtree and every
+    entry matches nothing, so a naive `set(allow) - reported` makes the stale count a property of the
+    ROOT rather than of the allowlist — and every fixture-based test of this tool would red for a
+    reason unrelated to the tool.
+
+    A first fix gated on 'is this the full tree', which is the WRONG AXIS: a fixture that sets HERE to
+    itself IS the full tree by that test and still knows nothing about `close_harvest_decision`. A
+    second scoped only ALLOW_FUNCS, leaving ALLOW_KEYS to red against a tree with no capture.py. The
+    rule that holds: an entry is judged only if its subject was in the population its own scan
+    enumerated."""
+    root = _tree(tmp_path, {"monitor.html": "<script>function orphaned(){}</script>"})
+    res = find_unwired.scan(root)
+    # No capture.py, no webmon.py, no .py at all — so no scan enumerated a population, and the real
+    # allowlist's many entries must produce ZERO staleness rather than all of it.
+    assert res["stale_allowlist"] == [], res["stale_allowlist"][:3]

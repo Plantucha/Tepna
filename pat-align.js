@@ -332,8 +332,38 @@
      requires CITATION-VERIFICATION entries — the brief carries them.
 
      WHY THIS ESTIMAND SURVIVES THE BLOCKERS THAT STOP ABSOLUTE PAT HERE:
-       · the ~2.2 s per-connection BLE offset is CONSTANT within a connection — a within-connection
-         difference cancels it exactly, which is why `segments` (connection spans) gate runs;
+       · the ~2.2 s per-connection BLE offset is NOT constant within a connection, and the sentence
+         that stood here — "a within-connection difference cancels it exactly" — was measured FALSE on
+         2026-08-27 (`tools/pat-connection-stability.mjs`, 14 nights, 31 connections, capture-host
+         corpus): first-half vs second-half offset differs by a median of 43.8 ms, p90 142.9 ms, max
+         815.6 ms, and 8 of 31 connections (26 %) exceed the ±90 ms PAT tolerance. `segments` still
+         gate runs — a reconnect IS a genuine discontinuity — but they are not what makes the dip safe.
+         WHAT ACTUALLY PROTECTS THE DIP is the centered rolling-median baseline below: the dip is read
+         against a LOCAL baseline over `baselineWinMs`, not against the connection start, and over one
+         60 s window that same drift is a median of 1.18 ms (p90 9.37, max 47.16) against Θ = 10 ms.
+         ⚠ QUOTED WITH ITS WINDOW, because a drift without one is as underdetermined as a ppm without
+         its span (§🔒.7): 43.8 ms is per CONNECTION, 1.18 ms is per BASELINE WINDOW, and only the
+         second is the quantity the detector is exposed to.
+         ⚠ THE TAIL IS NOT CLEARED, and this is deliberately left as a bound rather than a rate: the
+         p90 (9.37 ms) is 94 % of Θ and the max (47.16 ms) is 4.7×Θ, both under `maxExcursionMs` so
+         neither is rejected as an artifact. The measurement is a first/second-half FIT DIFFERENCE, so
+         it cannot distinguish a slow RAMP — which a centered median largely tracks out — from a STEP,
+         which it does not. So these figures bound the drift; they do NOT establish a fabrication rate.
+         ⚠ SETTLED 2026-08-27, AND THE ANSWER IS THAT IT CANNOT BE SETTLED — "bound, not rate" is now
+         the PERMANENT honest answer, not a placeholder. The residual shape was measured
+         (`pat-connection-stability --json`, `baselineExposure`) under a pre-registered criterion:
+         persistence threshold P ∈ {2.5,5,10,20,40} ms × horizon H ∈ {60,300} s, with a COUNT-MATCHED
+         NULL CONTROL at random non-run positions. Both pre-stated bars failed:
+           · the step fraction swings 33.5 pp across P ∈ [5,20] (bar: ≤10 pp), so it is a property of
+             the threshold, not of the data;
+           · real runs persist at 0.96-1.08× the null in EVERY one of the ten cells (bar: ≥2×), so the
+             classification carries NO information about runs — random positions persist identically.
+         THE REASON IS IDENTIFIABILITY, not sample size: the observable is lag = BLE offset + true PAT,
+         and within one connection there is no independent handle on either term. A step and a dip
+         differ in shape, but ambient drift makes every position look like a step at the same rate, so
+         shape cannot recover the split. More nights will not fix this; a second, offset-only observable
+         would. Until one exists, the p90/max figures above are a BOUND and any "fabrication rate"
+         derived from this data is an artifact of its own threshold;
        · the anatomical sign of the LEVEL is irrelevant — only the excursion is read;
        · PEP is an amplifier, not a confound, at arousal (sympathetic activation shortens both PEP
          and vascular transit) — which is also why the output is an AUTONOMIC index and must never

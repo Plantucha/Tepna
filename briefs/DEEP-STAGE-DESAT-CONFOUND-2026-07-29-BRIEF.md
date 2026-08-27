@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-01 (**corrected from PROPOSED, which had been wrong since §3b executed on 2026-07-29.** Five of six Done-when boxes are checked — §3b's settling test, `tools/deep-desat-falsifier.mjs`, the real-AHI re-run (§8), the CVHR/vagal separability re-examination (§9), and its re-measurement on properly merged nights (§11). The sixth, *a better LABEL*, is explicitly **not a code change** and needs a reference this corpus does not contain, so the brief cannot be DONE — but a brief with five executed sections is not PROPOSED either. Status verified against the boxes, not inherited.) · **Created:** 2026-07-29 · **Found-by:** running `REM-STAGING-REDESIGN` §5's cross-signal falsifier for the first time · **Relates:** `REM-STAGING-REDESIGN-2026-07-28-BRIEF.md` §7
+**Status:** DONE — 2026-08-27 (all Done-when items closed; the last, the better LABEL, closed by §11a's desat-independent ResMed join — the hatch narrows to ≤26.1 % against the ~50 % §9.6 requires, so label noise is *unlikely, not excluded*, and excluding it needs PSG) · *(was IN-PROGRESS — 2026-08-01, itself* **corrected from PROPOSED, which had been wrong since §3b executed on 2026-07-29.** Five of six Done-when boxes are checked — §3b's settling test, `tools/deep-desat-falsifier.mjs`, the real-AHI re-run (§8), the CVHR/vagal separability re-examination (§9), and its re-measurement on properly merged nights (§11). The sixth, *a better LABEL*, is explicitly **not a code change** and needs a reference this corpus does not contain, so the brief cannot be DONE — but a brief with five executed sections is not PROPOSED either. Status verified against the boxes, not inherited.) · **Created:** 2026-07-29 · **Found-by:** running `REM-STAGING-REDESIGN` §5's cross-signal falsifier for the first time · **Relates:** `REM-STAGING-REDESIGN-2026-07-28-BRIEF.md` §7
 
 # Called-Deep carries 3.4× the desaturations of Light — N3 should carry the fewest
 
@@ -143,9 +143,32 @@ precisely when it mattered most.
       corpora re-folded so all 39 nights carry band fields. AUC barely moves (0.610 → 0.599) so the
       verdict is unchanged, but prevalence (14.3 → 11.8 %) and the break-even (a coarse-grid "~0.70",
       really 0.664 → 0.684) were both wrong and are corrected there.
-- [~] **A better LABEL** — PSG, or flow-based apnea scoring not gated on a 3 % desaturation. §9.6 bounds
+- [x] **A better LABEL** — PSG, or flow-based apnea scoring not gated on a 3 % desaturation. §9.6 bounds
       why: ~50 % of "clean" Deep epochs would have to hide unscored apnea before VLF's true power
       clears the actionable threshold. This is the only remaining lever, and it is not a code change.
+
+      **CLOSED 2026-08-27 — the lever was pulled, and it answered.** The item offers a choice ("PSG,
+      **or** flow-based apnea scoring"), and the flow-based half was obtained and applied: the ResMed's
+      own `_EVE.edf` scoring, which is **desat-independent by construction**, joined to `sleepStages`
+      across **29 nights** and swept over ±45 min of clock offset so the ResMed skew is *bounded rather
+      than assumed away* (§11a).
+
+      | | required by §9.6 | measured (§11a) |
+      |---|---|---|
+      | share of clean Deep epochs hiding unscored apnea | **~50 %** | **16.8 %** nominal · **26.1 %** worst-case over any tested misalignment |
+
+      **The verdict is a result, not an incompleteness of this box:** the label-noise explanation is
+      **unlikely, not excluded** — a factor of ~2 short, where §11's original claim of an order of
+      magnitude was itself corrected (it had bounded on 30 s epochs while this brief works in 5-minute
+      ones). Deep is **not** enriched for flow events (16.8 % vs 13.8 % non-Deep, with non-Deep flat at
+      12.9–15.1 % across every shift), which retires the concentration scenario §11 raised as the reason
+      the hatch might still close.
+
+      ⚠️ **What would EXCLUDE it is PSG, and that is a data-acquisition question, not this brief's
+      work.** Two limits carry forward unchanged and are why "excluded" is not claimed: the subject is
+      **treated**, so residual events measure the therapy working rather than apnea prevalence; and the
+      bound is conditional on **the ResMed's own sensitivity**. Both are stated in §11/§11a and neither
+      is repairable by more analysis of this corpus.
       > **PARTLY ANSWERED 2026-08-20 — the label EXISTS, on 29 of these nights, and it already narrows
       > the hatch by an order of magnitude. See §11.**
 
