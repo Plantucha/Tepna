@@ -366,6 +366,42 @@ Restamping a figure with a trial count it was not rendered at is the same defect
       **EXECUTED 2026-08-26 — the harness is proven; the tables do NOT reproduce as a set.** See §"Box 2
       EXECUTED" above: dynamic bias reproduces, the resting-bias table belongs to the superseded planted
       σ, and the ρ negative-variance table reproduces under neither σ set.
+- [⛔] **RE-READ 2026-08-26 — the gate STAYS SHUT, one original reason is discharged, and the ρ
+      reversal supplies a second, independent one that did not exist when it was written.**
+
+      **Discharged:** the gate's own text says *"Box 2 … is the right thing to do FIRST: if the harness
+      cannot reproduce what is already published, re-fitting to 15 nights is measuring with an
+      uncalibrated instrument."* Box 2 is executed. The harness reproduces Table 1's half-widths and
+      Table 5 **exactly**, so the instrument is calibrated and that precondition no longer blocks.
+
+      **Also discharged — my own argument for the gate, deliberately retired.** Until #1824 the tables
+      spanned generations, so a re-fit would have made them consistent for the first time and erased the
+      evidence of the desync. That evidence is now *recorded* — in this brief and in the paper's
+      **Provenance of the simulation tables** section — so it can no longer be destroyed by a
+      regeneration. Do not keep citing it; it is spent.
+
+      🔴 **The new reason, and it is stronger than either: a σ re-fit is NOT cosmetic for Table 3 — it
+      can flip a scientific claim.** The negative-variance onset is
+
+      > **ρ\* = σ₀_H10 / σ₀_Verity**
+
+      a pure function of the planted σ (derived and measured in the regeneration section above; 0.918 at
+      the shipped hat, 0.648 under the interim σ, both matching). So re-fitting σ **moves Table 3's
+      qualitative conclusion**, not merely its cells: whether the independence assumption is detectable
+      at all is decided by the *ratio* of two corners' floor σ.
+
+      ⚠️ **And the corner that ratio divides by is the unreproducible one.** ρ\* depends directly on
+      σ_Verity — the exact figure with three irreconcilable values (published **1.42**, re-derived
+      **3.51**, re-run **0.94–1.03**). A 15-night hat carrying an unexplained Verity σ therefore yields
+      an **onset nobody can defend**, and the paper would be asserting detectability-or-not on it. That
+      makes the existing unblock condition — *explain the SENSOR-TRIO discrepancy via the pooled-seconds
+      hat* — load-bearing for **Table 3** as well as for the σ column, which is a wider dependency than
+      the gate was written to cover.
+
+      **When it unblocks, the re-fit owes one extra step:** recompute ρ\* under the new triple and state
+      it beside the regenerated Table 3. Re-rendering that table without its onset would hide exactly the
+      thing the re-fit changed.
+
 - [⛔] **GATED 2026-08-20 — do not do this yet, and the reason is new.** Re-fit all three σ copies to
       the 15-night hat **and** regenerate Tables 1–3 **in the same change** (the gate's expected triple
       moves with them).
