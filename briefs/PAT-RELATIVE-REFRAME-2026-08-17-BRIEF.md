@@ -3,7 +3,29 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-17 · **Follows:** `PAT-COMPENDIUM-2026-08-10-BRIEF.md` (the standing record), `PAT-OFFSET-ESTIMATOR-FOLLOWUPS-2026-08-12-BRIEF.md` (the open §3) · **Affects:** `pat-align.js`, `pat-gate.js`, `ppgdex-dsp.js`, `integrator-dsp.js`'s PAT surface, the CPAP validation corpus
+**Status:** DONE — 2026-08-27 · **Created:** 2026-08-17 · **Follows:** `PAT-COMPENDIUM-2026-08-10-BRIEF.md` (the standing record), `PAT-OFFSET-ESTIMATOR-FOLLOWUPS-2026-08-12-BRIEF.md` (the open §3) · **Affects:** `pat-align.js`, `pat-gate.js`, `ppgdex-dsp.js`, `integrator-dsp.js`'s PAT surface, the CPAP validation corpus
+
+
+> ### ✅ DONE 2026-08-27 — both open boxes resolved, one by measurement and one by machinery
+>
+> **Box 1 (within-connection stability): answered.** 14 nights, 31 connections — median |Δ| 43.8 ms,
+> p90 142.9, max 815.6, with 26 % beyond ±90 ms. `pat-align.js:335`'s *"cancels it exactly"* is measured
+> false; what protects the dip is the centered rolling-median baseline (1.18 ms median drift per 60 s
+> window against Θ = 10 ms), not the `segments` gate.
+>
+> **And the tail is now permanently a BOUND, not a rate** — settled by a pre-registered sweep with a
+> count-matched null control. The step fraction swings 33.5 pp across the threshold range (bar ≤10 pp)
+> and real runs persist at **0.96–1.08× the null** in every cell (bar ≥2×). The cause is
+> **identifiability**: `lag = BLE offset + true PAT`, and within one connection neither term has an
+> independent handle, so ambient drift makes every position look like a step at the same rate. More
+> nights will not fix it; a second offset-only observable would.
+>
+> **Box 2 (`patArousalIdx` registry row): a guard, not work — and machinery-backed for node badge
+> surfaces.** Demonstrated 2026-08-27 with a planted decoy: an `evBadge` token with no registry row reds
+> `badges · registry · no-fabricated-tier` (*"these render a FABRICATED experimental disc"*), and the
+> gate returns to 10/10 when removed. The box records intent; the gate enforces it. ⚠️ Scope: that gate
+> covers `evBadge` call sites in the **8 node UI files**. A PAT metric surfaced elsewhere — an analysis
+> tool, a paper — is **not** covered, so the guard is real but not total.
 
 # PAT feasibility, end to end — the suite has been building the hard estimand while the validated one sits unbuilt
 
@@ -139,7 +161,7 @@ precondition to check per night, not a refutation.
 
 ## 5 · Done when
 
-- [ ] Within-connection offset stability is measured on ≥ 5 sidecar nights (first/second half fit
+- [x] **ANSWERED 2026-08-27 — 14 nights, 31 connections; see the closing measurement below.** Within-connection offset stability is measured on ≥ 5 sidecar nights (first/second half fit
       comparison per connection) — the dip path's one clock gate.
       **FEASIBILITY CHECKED 2026-08-18 — blocked on the SIDECAR, not on effort or tooling.** The
       assumption under test is stated in code at `pat-align.js:335`: *"the ~2.2 s per-connection BLE
@@ -213,6 +235,64 @@ precondition to check per night, not a refutation.
       **What would actually close this:** nights with fewer Verity reconnects (a stable link), or a
       lower `--min-span-sec` paired with a beats-based rather than duration-based span filter. The
       machinery is built either way — this is now a data question with a known shape, not an unknown.
+
+      ### ✅ CLOSED 2026-08-27 — the nights existed, in a corpus this brief never looked at
+
+      *"A data question with a known shape"* — and the data was already on disk. Every measurement above
+      ran against **`uploads/captures` (6 nights)**. The capture-host corpus at
+      `/home/michal/tepna-smoketest/captures` carries **440 `*_LINK.csv` sidecars across 40 nights**.
+      Same tool, same flags, no new machinery:
+
+      ```sh
+      node tools/pat-connection-stability.mjs /home/michal/tepna-smoketest/captures \
+           --min-span-sec 300 --min-beats 60
+      ```
+
+      **14 scored nights · 31 scored connections** — against a done-when asking for ≥ 5 nights, and past
+      the tool's own n ≥ 10 threshold, so its p90 is published rather than withheld.
+
+      | night | spans | scored | med \|Δ\| | max \|Δ\| |
+      |---|---|---|---|---|
+      | 2026-07-21 | 2 | 2 | 31.3 | 36.9 |
+      | 2026-07-22 | 6 | 3 | 53.1 | 126.0 |
+      | 2026-07-23 | 3 | 3 | 49.3 | 142.9 |
+      | 2026-07-24 | 5 | 1 | 26.4 | 26.4 |
+      | 2026-07-26 | 5 | 1 | 1.7 | 1.7 |
+      | 2026-07-28 | 1 | 1 | 14.6 | 14.6 |
+      | 2026-07-31 | 5 | 2 | 27.3 | 51.1 |
+      | 2026-08-06 | 3 | 3 | **155.0** | **815.6** |
+      | 2026-08-12 | 3 | 1 | 121.5 | 121.5 |
+      | 2026-08-18 | 1 | 1 | 21.1 | 21.1 |
+      | 2026-08-19 | 8 | 2 | 23.6 | 46.6 |
+      | 2026-08-21 | 6 | 5 | **133.2** | **433.9** |
+      | 2026-08-24 | 4 | 4 | 32.0 | 63.7 |
+      | 2026-08-25 | 2 | 2 | 18.9 | 23.9 |
+
+      **POOLED n=31 · median |Δ| 43.8 ms · p90 142.9 ms · max 815.6 ms.**
+
+      ### 🔴 The answer: the constancy assumption holds at the median and FAILS for ~1 connection in 4
+
+      `pat-align.js:335` states it: *"the ~2.2 s per-connection BLE offset is CONSTANT within a
+      connection — a within-connection difference cancels it exactly."* Against the ±90 ms PAT
+      tolerance the tool prints as its own yardstick:
+
+      - the **median** connection drifts **43.8 ms** — comfortably inside, so the assumption is sound
+        for a typical connection;
+      - but **8 of 31 connections (26 %) exceed ±90 ms**, the p90 is **142.9 ms**, and the worst is
+        **815.6 ms** — most of an entire RR.
+
+      **So the difference does not cancel exactly, and "exactly" is the word doing the work.** For about
+      a quarter of connections the residual is comparable to or larger than the tolerance the dip path
+      is trying to respect. The gate cannot treat within-connection constancy as free; it needs either a
+      per-connection drift check or a bound quoted with its failure rate.
+
+      ⚠️ **How this stayed closed for nine days, and it is not the vocabulary trap recorded above.** That
+      one was *"a grep for the word you expect returns empty against data present under another name"*.
+      This was the sibling: **the right name, searched in the wrong corpus.** `*_LINK.csv` was found
+      correctly in `uploads/captures`; nobody asked whether a larger corpus carried the same sidecars.
+      Six nights gave n = 2 and an honest "cannot answer yet"; forty nights give n = 31 and an answer.
+      **A negative that is really a sampling limit should name the corpus it sampled** — this one did,
+      which is why re-reading it was enough to spot the gap.
 - [x] **BUILT same day** — `PATAlign.patDipEvents` (+ `tools/pat-dip-index.mjs`), gated by TEN twins
       in `pat-align · dip-detector`: planted Pitson-scale dips found 20/20; white-noise and ±40 ms
       red-wander nulls quiet; the 1-RR slip twin caught a real fabrication mode (a slipped foot pairs
