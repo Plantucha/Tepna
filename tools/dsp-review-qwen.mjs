@@ -128,12 +128,28 @@ const HOUSE_RULES = `You are reviewing DSP code from Tepna, a local-first physio
 5. LOGIC: dead branches, conditions that cannot fire, guards reading the wrong source, boundary conditions contradicting comments.
 Do NOT flag style, naming, formatting, or missing comments. Do NOT propose rewrites for taste.`;
 
+/* Per-function repo context via bge doc-search: the documented INTENT beside the code, so the
+   reviewer judges against what the repo SAYS the function is for, not just what it does. Fails
+   soft — no context beats no review. */
+function docContext(fn, file) {
+  try {
+    const out = execFileSync('node', [join(HERE, 'doc-search.mjs'), `${file.replace(/\.js$/, '')} ${fn.name}`], { encoding: 'utf8', timeout: 30000 });
+    const lines = out
+      .split('\n')
+      .filter((l) => /^ {2}0\./.test(l) || /::/.test(l))
+      .slice(0, 4);
+    return lines.length ? '\nREPO CONTEXT (top doc-search hits — documented intent, may be stale):\n' + lines.join('\n').slice(0, 600) + '\n' : '';
+  } catch {
+    return '';
+  }
+}
+
 export function buildPrompt(fn, file, mode = 'review') {
   return (
     (mode === 'adversary' ? ADVERSARY_RULES : HOUSE_RULES) +
     `
 
-FILE: ${file}  FUNCTION: ${fn.name}  (starts at line ${fn.startLine}${fn.truncated ? ', shown truncated' : ''})
+${docContext(fn, file)}\nFILE: ${file}  FUNCTION: ${fn.name}  (starts at line ${fn.startLine}${fn.truncated ? ', shown truncated' : ''})
 
 \`\`\`js
 ${fn.text}
