@@ -48964,6 +48964,343 @@
       T.ok('§2 too few points ⇒ no verdict, not a false one', G.probeAll([1, 2, 3], OPTS).fired.length === 0);
     });
 
+    /* ── ADOPTED MUTATION-KILLING DRAFTS (QWEN-ENGINEERING-PROGRAM §1/§6) ─────────────────────────
+       46 of 48 drafts from `mutation-suite.mjs --draft`, adopted 2026-08-27. Every EXPECTED VALUE
+       below is the REAL code's recorded output, machine-verified to discriminate the real function
+       from a specific surviving mutant — that half is verified by construction.
+
+       🔴 THE ASSERTION NAMES ARE FACTUAL, NOT THE MODEL'S PROSE, and that is a deliberate change from
+       the draft format. A draft's `T.eq` label was a model-written PROPERTY claim, and a suite
+       assertion's name reads as a claim THE SUITE is making — so a sloppy label would have shipped 46
+       unreviewed behavioural claims into the gate under this repo's own name. Measured on read: at
+       least three labels contradicted their own recorded value (one asserted `getFilteredRows(null)`
+       'returns an empty array' beside a recorded length of 58). The names here state the call, the
+       projection and the value; qwen's property prose is kept above each block as PROVENANCE, marked
+       as model-written so nobody mistakes it for a reviewed claim.
+
+       ⚠️ WHAT THESE DO AND DO NOT PROVE. They pin CURRENT behaviour at inputs that distinguish real
+       code from a mutant. They do NOT assert the behaviour is INTENDED — a projection can
+       discriminate and still pin a bug. Two drafts were EXCLUDED for exactly that (see the PR/brief):
+       one pinned a TypeError as expected output, one pinned an SVG whose every Y coordinate is NaN.
+       If one of these ever fails, the question is not 'restore the old value' — it is 'which of the
+       two behaviours is correct', and the answer may be that the assertion was wrong to begin with. */
+
+    group('mutation drafts — cpapdex: recorded outputs that discriminate real code from a surviving mutant', 'mutation-drafts · cpapdex-dsp · mutation · adopted-draft', function (T) {
+      var NS = env.CpapDsp;
+      if (!NS) {
+        T.skip('CpapDsp not in env');
+        return;
+      }
+      /* mutant: num → 0  @ leak[i] = 5 + Math.sin(i / 300) * 0.5; // ~5 L/min
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The test verifies that the leak data contains sinusoidal variations rather than constant values, ensuring the */
+      {
+        var out = NS._synthRaw(null);
+        T.eq('CpapDsp._synthRaw(null) → out.leak[1]', JSON.stringify(out.leak[1]), '5.00166654586792');
+      }
+      /* mutant: num → 0  @ { type: 'H', timeSec: 1000, durSec: 12 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The test verifies that the first event's start time is correctly set to 1000 seconds, not incorrectly mutated */
+      {
+        var out = NS._synthRaw(null);
+        T.eq('CpapDsp._synthRaw(null) → out.events[0].timeSec', JSON.stringify(out.events[0].timeSec), '1000');
+      }
+      /* mutant: num → 0  @ { type: 'H', timeSec: 5000, durSec: 11 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The second event's start time should be 5000 seconds, not 0 seconds, indicating a failure to properly initiali */
+      {
+        var out = NS._synthRaw(null);
+        T.eq('CpapDsp._synthRaw(null) → out.events[1].timeSec', JSON.stringify(out.events[1].timeSec), '5000');
+      }
+      /* mutant: num → 0  @ { type: 'H', timeSec: 1000, durSec: 12 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The duration of the first event is correctly set to 12 seconds, not 0 seconds, ensuring accurate event timing */
+      {
+        var out = NS._synthRaw(null);
+        T.eq('CpapDsp._synthRaw(null) → out.events[0].durSec', JSON.stringify(out.events[0].durSec), '12');
+      }
+      /* mutant: num → 0  @ { type: 'H', timeSec: 5000, durSec: 11 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The duration of the second event in the events array should be 11 seconds, not 0 seconds, to correctly represe */
+      {
+        var out = NS._synthRaw(null);
+        T.eq('CpapDsp._synthRaw(null) → out.events[1].durSec', JSON.stringify(out.events[1].durSec), '11');
+      }
+      /* mutant: num → 0  @ { type: 'H', timeSec: 9000, durSec: 14 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The third event's start time should be 9000 seconds, not 0 seconds, ensuring accurate event timing in CPAP dat */
+      {
+        var out = NS._synthRaw(null);
+        T.eq('CpapDsp._synthRaw(null) → out.events[2].timeSec', JSON.stringify(out.events[2].timeSec), '9000');
+      }
+      /* mutant: num → 0  @ { type: 'H', timeSec: 9000, durSec: 14 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The duration of the third event in the events array should be 14 seconds, not 0 seconds, to correctly represen */
+      {
+        var out = NS._synthRaw(null);
+        T.eq('CpapDsp._synthRaw(null) → out.events[2].durSec', JSON.stringify(out.events[2].durSec), '14');
+      }
+      /* mutant: num → 0  @ { type: 'OA', timeSec: 14000, durSec: 18 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The time of the 'OA' event is correctly set to 14000 seconds, not 0 seconds. */
+      {
+        var out = NS._synthRaw(null);
+        T.eq('CpapDsp._synthRaw(null) → out.events[3].timeSec', JSON.stringify(out.events[3].timeSec), '14000');
+      }
+      /* mutant: num → 0  @ { type: 'OA', timeSec: 14000, durSec: 18 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The duration of the OA event is correctly preserved and not incorrectly set to zero. */
+      {
+        var out = NS._synthRaw(null);
+        T.eq('CpapDsp._synthRaw(null) → out.events[3].durSec', JSON.stringify(out.events[3].durSec), '18');
+      }
+      /* mutant: num → 0  @ { type: 'CA', timeSec: 20000, durSec: 16 }
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The test ensures that the time of the last event in the events array is correctly set to 20000 seconds, rather */
+      {
+        var out = NS._synthRaw(null);
+        T.eq('CpapDsp._synthRaw(null) → out.events[4].timeSec', JSON.stringify(out.events[4].timeSec), '20000');
+      }
+      /* mutant: num → 0  @ { type: 'CA', timeSec: 20000, durSec: 16 }
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The duration of the final event in the events array is correctly set to 16 seconds, not 0 seconds. */
+      {
+        var out = NS._synthRaw(null);
+        T.eq('CpapDsp._synthRaw(null) → out.events[4].durSec', JSON.stringify(out.events[4].durSec), '16');
+      }
+      /* mutant: bool || → &&  @ if (!night || !night.sessions || !night.sessions.length) continue;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly returns the length of the input string when it is valid, but throws an error when the i */
+      {
+        var out = NS.applyStrClockOffset('x');
+        T.eq('CpapDsp.applyStrClockOffset("x") → out.length', JSON.stringify(out.length), '1');
+      }
+      /* mutant: bool || → &&  @ if (!night || !night.sessions || !night.sessions.length) continue;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly handles undefined input by returning it directly, rather than attempting to access prop */
+      {
+        var out = NS.applyStrClockOffset('x');
+        T.eq('CpapDsp.applyStrClockOffset("x") → out', JSON.stringify(out), '"x"');
+      }
+      /* mutant: bool && → ||  @ var t0 = night && (night.t0Ms != null ? night.t0Ms : night.stats && night.stats.t0Ms
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return the first element of the input array when the input is a valid array structure, but */
+      {
+        var out = NS.attachAcqEvidence([1, 2, 3], 1);
+        T.eq('CpapDsp.attachAcqEvidence([1,2,3],1) → out[0]', JSON.stringify(out[0]), '1');
+      }
+      /* mutant: bool && → ||  @ if (deviceCsr < CSR_PB_FLOOR && pbPct < CSR_PB_FLOOR) verdict = 'both-negligible';
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The test verifies that the cross-check verdict correctly identifies when both CSR and PB values are below the */
+      {
+        var out = NS.csrPbCrossCheck(0, 1);
+        T.eq('CpapDsp.csrPbCrossCheck(0,1) → out.verdict', JSON.stringify(out.verdict), '"agree"');
+      }
+      /* mutant: bool || → &&  @ if (!nights || !nights.length || !summary || !summary.length) return nights;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return the input string instead of throwing an error when called with a single-element arr */
+      {
+        var out = NS.attachStrSummary('x');
+        T.eq('CpapDsp.attachStrSummary("x") → out', JSON.stringify(out), '"x"');
+      }
+      /* mutant: bool || → &&  @ if (!nights || !nights.length || !summary || !summary.length) return nights;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return a string with a specific length rather than throwing an error when given a valid in */
+      {
+        var out = NS.attachStrSummary('x');
+        T.eq('CpapDsp.attachStrSummary("x") → out.length', JSON.stringify(out.length), '1');
+      }
+    });
+
+    group('mutation drafts — ecgdex: recorded outputs that discriminate real code from a surviving mutant', 'mutation-drafts · ecgdex-dsp · mutation · adopted-draft', function (T) {
+      var NS = env.ECGDSP;
+      if (!NS) {
+        T.skip('ECGDSP not in env');
+        return;
+      }
+      /* mutant: bool && → ||  @ if (bp[i] > bp[i - 1] && bp[i] >= bp[i + 1] && bp[i] > t && i - last > refractory) {
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return an empty array when there are no peaks detected in the input data. */
+      {
+        var out = NS.detectPeaksB([1, 2, 3]);
+        T.eq('ECGDSP.detectPeaksB([1,2,3]) → out.length', JSON.stringify(out.length), '0');
+      }
+      /* mutant: bool && → ||  @ if (bp[i] > bp[i - 1] && bp[i] >= bp[i + 1] && bp[i] > t && i - last > refractory) {
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return an empty array when input contains null values, but incorrectly returns an array wi */
+      {
+        var out = NS.detectPeaksB([1, 2, 3], null);
+        T.eq('ECGDSP.detectPeaksB([1,2,3],null) → out.length', JSON.stringify(out.length), '0');
+      }
+      /* mutant: cmp > → >=  @ if (!isFinite(tEnd) || tEnd > CVHR_MAX_SPAN_S) return { events: [], index: null, hrSer
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The error message field differs between correct and buggy implementations due to a comparison operator change, */
+      {
+        var out = NS.detectCVHR(0, 0);
+        T.eq('ECGDSP.detectCVHR(0,0) → out.reason', JSON.stringify(out.reason), '"implausible-span"');
+      }
+      /* mutant: bool || → &&  @ deviceHR: graft.deviceHR ? null : p.deviceHR || null,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The deviceHR field in the remaining object should be null, not missing, when the graft's deviceHR is falsy. */
+      {
+        var out = NS.planCompanionGraft(null);
+        T.eq('ECGDSP.planCompanionGraft(null) → out.remaining.deviceHR', JSON.stringify(out.remaining.deviceHR), 'null');
+      }
+      /* mutant: bool || → &&  @ deviceACC: tookACC ? null : p.deviceACC || null,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The deviceACC field in the remaining object should be null when the companion graft plan is generated, but the */
+      {
+        var out = NS.planCompanionGraft(null);
+        T.eq('ECGDSP.planCompanionGraft(null) → out.remaining.deviceACC', JSON.stringify(out.remaining.deviceACC), 'null');
+      }
+    });
+
+    group('mutation drafts — hrvdex: recorded outputs that discriminate real code from a surviving mutant', 'mutation-drafts · hrvdex-dsp · mutation · adopted-draft', function (T) {
+      var NS = env.HRVDex;
+      if (!NS) {
+        T.skip('HRVDex not in env');
+        return;
+      }
+      /* mutant: negate: drop !  @ if (!allRows || !allRows.length) {
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return an "ok" field set to true when successfully processing HRV rows, indicating success */
+      {
+        var out = NS._bare.persistHRVRows(null);
+        T.eq('HRVDex._bare.persistHRVRows(null) → out.ok', JSON.stringify(out.ok), 'true');
+      }
+      /* mutant: bool || → &&  @ opts = opts || {};
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function properly initializes and returns the kernel information in the output structure. */
+      {
+        var out = NS._bare.hrvBuildNodeExport(null);
+        T.eq('HRVDex._bare.hrvBuildNodeExport(null) → out.kernel', JSON.stringify(out.kernel), '{"version":"1.0.0","hash":"118ebed5"}');
+      }
+    });
+
+    group('mutation drafts — integrator: recorded outputs that discriminate real code from a surviving mutant', 'mutation-drafts · integrator-dsp · mutation · adopted-draft', function (T) {
+      var NS = env.IntegratorDSP;
+      if (!NS) {
+        T.skip('IntegratorDSP not in env');
+        return;
+      }
+      /* mutant: bool || → &&  @ var busVal = json.bus || (json.schema && json.schema.bus) || null;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behavior that checks for and reports unknown bus values when they are explicitly set to "true" in the inpu */
+      {
+        var out = NS.normalizeFile({ bus: false, schema: { bus: true } }, null);
+        T.eq(
+          'IntegratorDSP.normalizeFile({"bus":false,"schema":{"bus":true}},null) → out.warnings[0]',
+          JSON.stringify(out.warnings[0]),
+          '"Unknown bus \\"true\\" — accepting anyway (case-insensitive)"'
+        );
+      }
+      /* mutant: num → 0  @ var smooth = opts.smoothSec != null ? opts.smoothSec : 15;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return null when the input array contains a null value, rather than returning a numeric de */
+      {
+        var out = NS.deltaModeSec([[10, 20, 30], null]);
+        T.eq('IntegratorDSP.deltaModeSec([[10,20,30],null]) → out', JSON.stringify(out), 'null');
+      }
+      /* mutant: cmp > → >=  @ if (n < 2 || !(dtSec > 0)) return new Float64Array(0);
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behavior that determines whether the first element of the output array is zero or a positive logarithmic v */
+      {
+        var out = NS.activityEnvelope([-1, 0, 1], [2, 3, 4], [5, 6, 7], 0);
+        T.eq('IntegratorDSP.activityEnvelope([-1,0,1],[2,3,4],[5,6,7],0) → out[0]', JSON.stringify(out[0]), '@undef');
+      }
+      /* mutant: cmp > → >=  @ var hz = spo2.hz != null && isFinite(spo2.hz) && spo2.hz > 0 ? spo2.hz : 1;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly returns the start time of the first onset when desaturation events are detected, but in */
+      {
+        var out = NS.desatOnsetsFromSeries({ values: [99, 98, 97], t0Ms: 500, hz: 0 }, { windowSec: 0.5, dropPct: 1 });
+        T.eq('IntegratorDSP.desatOnsetsFromSeries({"values":[99,98,97],"t0Ms":500,"h → out[0]', JSON.stringify(out[0]), '500');
+      }
+    });
+
+    group('mutation drafts — oxydex: recorded outputs that discriminate real code from a surviving mutant', 'mutation-drafts · oxydex-dsp · mutation · adopted-draft', function (T) {
+      var NS = env.OxyDex;
+      if (!NS) {
+        T.skip('OxyDex not in env');
+        return;
+      }
+      /* mutant: bool && → ||  @ if (pbMet && pbMet.pbCycleLen !== null) {
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behavior protected is ensuring that the csScore field is properly initialized to 0 instead of causing a ru */
+      {
+        var out = NS._bare.computePatternScores(null);
+        T.eq('OxyDex._bare.computePatternScores(null) → out.csScore', JSON.stringify(out.csScore), '0');
+      }
+      /* mutant: bool && → ||  @ var periodic = best >= cfg.PB_MIN_CYCLES && cv !== null && cv < cfg.PB_MAX_CYCLE_CV;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly identifies whether SpO2 data shows periodic patterns or not, distinguishing between tru */
+      {
+        var out = NS._bare.detectSpO2Periodicity(0);
+        T.eq('OxyDex._bare.detectSpO2Periodicity(0) → out.periodic', JSON.stringify(out.periodic), 'false');
+      }
+      /* mutant: bool && → ||  @ var ev = desat && desat.eventsAll ? desat.eventsAll : [];
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly returns the count of excluded items when processing a single element array, rather than */
+      {
+        var out = NS.computeGatedNadir('x');
+        T.eq('OxyDex.computeGatedNadir("x") → out.excluded', JSON.stringify(out.excluded), '0');
+      }
+      /* mutant: cmp > → >=  @ nadirCount > 0
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The test ensures that the mean depth value is properly initialized to 0 instead of null when there are no nadi */
+      {
+        var out = NS._bare.computeHypoxicLoad(null, 1);
+        T.eq('OxyDex._bare.computeHypoxicLoad(null,1) → out.hl_meanDepth', JSON.stringify(out.hl_meanDepth), '0');
+      }
+      /* mutant: cmp > → >=  @ nadirCount > 0
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The test ensures that the mean duration in seconds is properly initialized to 0 rather than null when there ar */
+      {
+        var out = NS._bare.computeHypoxicLoad(null, 1);
+        T.eq('OxyDex._bare.computeHypoxicLoad(null,1) → out.hl_meanDurSec', JSON.stringify(out.hl_meanDurSec), '0');
+      }
+      /* mutant: bool || → &&  @ var pnn3 = hrv.pnn3 || 0;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The vagal index value correctly computed instead of being null due to incorrect logical operator usage. */
+      {
+        var out = NS._bare.computeVagalIndex(1, 1);
+        T.eq('OxyDex._bare.computeVagalIndex(1,1) → out.vagalIndex', JSON.stringify(out.vagalIndex), '0');
+      }
+      /* mutant: cmp > → >=  @ if (nadirEvents > 0 && spikes.length > 0) {
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behavior that ensures the sfi field is properly initialized to 0 instead of causing a runtime error when n */
+      {
+        var out = NS._bare.computeComposite([]);
+        T.eq('OxyDex._bare.computeComposite([]) → out.sfi', JSON.stringify(out.sfi), '0');
+      }
+      /* mutant: cmp > → >=  @ var t95pct = n > 0 ? (below95 / n) * 100 : 0;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behavior that distinguishes whether the nsi field is null or 0 when the input array is empty, which occurs */
+      {
+        var out = NS._bare.computeComposite([]);
+        T.eq('OxyDex._bare.computeComposite([]) → out.nsi', JSON.stringify(out.nsi), '0');
+      }
+      /* mutant: bool || → &&  @ if (!bytes || bytes.length < 40) return false;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behaviour this protects is ensuring that the function handles null inputs gracefully without throwing a Ty */
+      {
+        var out = NS.isO2RingBin(null);
+        T.eq('OxyDex.isO2RingBin(null) → out.length', JSON.stringify(out.length), '@undef');
+      }
+      /* mutant: num → 0  @ if (n < 60) return { oxyCrashCount: 0 };
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should not include an oxyCrashRate field in its output when the condition n < 60 is met. */
+      {
+        var out = NS._bare.computeOxyCrash([]);
+        T.eq('OxyDex._bare.computeOxyCrash([]) → out.oxyCrashRate', JSON.stringify(out.oxyCrashRate), '@undef');
+      }
+      /* mutant: bool || → &&  @ if (!rec || !rec.rows || rec.rows.length < 5000) {
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly reports whether the SpO2 waveform data is usable based on sample count thresholds, prev */
+      {
+        var out = NS.spo2WaveformTrend(null);
+        T.eq('OxyDex.spo2WaveformTrend(null) → out.usable', JSON.stringify(out.usable), 'false');
+      }
+      /* mutant: bool || → &&  @ if (!rec || !rec.rows || rec.rows.length < 5000) {
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behaviour this protects is that the function should return a boolean indicating whether the oxygen saturat */
+      {
+        var out = NS.spo2WaveformTrend(1);
+        T.eq('OxyDex.spo2WaveformTrend(1) → out.usable', JSON.stringify(out.usable), 'false');
+      }
+      /* mutant: bool || → &&  @ if (typeof text !== 'string' || !text) return [];
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return an empty array when input is not a string or is empty, rather than throwing an erro */
+      {
+        var out = NS.parseRingClockLog(1);
+        T.eq('OxyDex.parseRingClockLog(1) → out.length', JSON.stringify(out.length), '0');
+      }
+      /* mutant: cmp > → >=  @ var label = dip > 10 ? 'Good (intra-night)' : dip > 5 ? 'Moderate (intra-night)' : 'Lo
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly formats the intra-night dip label to include the full phrase "intra-night" rather than */
+      {
+        var out = NS._bare.computeHRNoctDip(1, 1);
+        T.eq('OxyDex._bare.computeHRNoctDip(1,1) → out.hrnDipLabel', JSON.stringify(out.hrnDipLabel), '"Low (intra-night)"');
+      }
+      /* mutant: cmp > → >=  @ out[t] = { secs: s, pct: n > 0 ? +((s / n) * 100).toFixed(2) : 0 };
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The percentage value for the 80th percentile is correctly calculated as 0 instead of null when the numerator i */
+      {
+        var out = NS._bare.computeTIndex([]);
+        T.eq('OxyDex._bare.computeTIndex([]) → out["80"].pct', JSON.stringify(out['80'].pct), '0');
+      }
+    });
+
+    group('mutation drafts — ppgdex: recorded outputs that discriminate real code from a surviving mutant', 'mutation-drafts · ppgdex-dsp · mutation · adopted-draft', function (T) {
+      var NS = env.PPGDSP;
+      if (!NS) {
+        T.skip('PPGDSP not in env');
+        return;
+      }
+      /* mutant: cmp < → <=  @ for (let k = 0; k < peaks.length; k++) {
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return an empty object when given an empty array, but the buggy version throws an error du */
+      {
+        var out = NS.gapBeats('');
+        T.eq('PPGDSP.gapBeats("") → out.length', JSON.stringify(out.length), '@undef');
+      }
+    });
+
     group('A second oximeter cannot double the apnea index — §3.1', 'integrator-dsp · apnea · fabricated-redundancy', function (T) {
       var RF = env.runFusion;
       T.ok('runFusion available', typeof RF === 'function');
@@ -49134,5 +49471,19 @@
   root.dexGroupMatcher = dexGroupMatcher;
   root.dexShardSelector = dexShardSelector;
   root.auditSkips = auditSkips;
-  if (typeof module !== 'undefined' && module.exports) module.exports = { runDexTests: runDexTests, dexGroupMatcher: dexGroupMatcher, dexShardSelector: dexShardSelector, auditSkips: auditSkips };
+  if (typeof module !== 'undefined' && module.exports)
+    module.exports = {
+      runDexTests: runDexTests,
+      dexGroupMatcher: dexGroupMatcher,
+      dexShardSelector: dexShardSelector,
+      auditSkips: auditSkips,
+      /* EXPORTED so `tools/verify-drafts.mjs` compares through THE REAL comparator rather than a
+       copy. This file already learned that lesson once: the `T.eq distinguishes null from NaN`
+       group used to re-declare its own private `ser`, "which meant it could not fail for any
+       change to the one T.eq actually uses". A draft verifier that re-implemented the @undef /
+       @NaN / @-0 / @fn# tagging would answer a DIFFERENT question than the suite will ask when
+       the draft is adopted — which is precisely the realm-divergence class the verifier exists
+       to catch. Read-only export; nothing here changes behaviour. */
+      dexSerializeForEq: dexSerializeForEq
+    };
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
