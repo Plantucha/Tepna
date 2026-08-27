@@ -50067,6 +50067,252 @@
       }
     );
 
+    group(
+      'mutation drafts b3 — CpapDsp: recorded outputs that discriminate real code from a surviving mutant',
+      'mutation-drafts · mutation-drafts-b3 · cpapdsp · mutation · adopted-draft · realm-verified',
+      function (T) {
+        var NS = env.CpapDsp;
+        if (!NS) {
+          T.skip('CpapDsp not in env');
+          return;
+        }
+        /* mutant: num → 0  @ return 10 + Math.sin(i / 50) * 0.1;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The bug prevents the sine wave signal from being properly generated, causing all values to be incorrectly set  */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["Press.2s"].data[1]', JSON.stringify(out.PLD.signals['Press.2s'].data[1]), '10.001999855041504');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The sampling frequency of the pressure signal is incorrectly set to zero instead of 0.5, which would cause inc */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["Press.2s"].fs', JSON.stringify(out.PLD.signals['Press.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The leak flow rate sampling frequency is correctly set to 0.5 Hz, not 0 Hz, ensuring accurate respiratory moni */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["Leak.2s"].fs', JSON.stringify(out.PLD.signals['Leak.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection detects whether the sampling frequency for expired pressure signals is correctly set to 0.5 Hz */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["EprPress.2s"].fs', JSON.stringify(out.PLD.signals['EprPress.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ return 14;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The system correctly computes respiratory rate values instead of returning zero due to a faulty operator mutat */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["RespRate.2s"].data[0]', JSON.stringify(out.PLD.signals['RespRate.2s'].data[0]), '14');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The sampling frequency of the respiratory rate signal is correctly set to 0.5 Hz, not 0 Hz, ensuring proper si */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["RespRate.2s"].fs', JSON.stringify(out.PLD.signals['RespRate.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection detects whether the sampling rate for the MinVent signal is correctly set to 0.5 Hz, which is  */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["MinVent.2s"].fs', JSON.stringify(out.PLD.signals['MinVent.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ return 0.5;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection detects whether the tidal volume signal is correctly initialized with a non-zero value, preven */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["TidVol.2s"].data[0]', JSON.stringify(out.PLD.signals['TidVol.2s'].data[0]), '0.5');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The sampling frequency of tidal volume signals should remain consistent and not be incorrectly set to zero, wh */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["TidVol.2s"].fs', JSON.stringify(out.PLD.signals['TidVol.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ return 0.05;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection detects whether the Snore.2s signal is properly initialized with non-zero values instead of be */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["Snore.2s"].data[0]', JSON.stringify(out.PLD.signals['Snore.2s'].data[0]), '0.05000000074505806');
+        }
+        /* mutant: num → 0  @ return 0.1;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This property tracks the flow limit signal value that should be 0.1 but is incorrectly set to 0 due to a mutat */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["FlowLim.2s"].data[0]', JSON.stringify(out.PLD.signals['FlowLim.2s'].data[0]), '0.10000000149011612');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The sampling frequency of the snoring signal should remain consistent and not be incorrectly set to zero. */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["Snore.2s"].fs', JSON.stringify(out.PLD.signals['Snore.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The sampling frequency of the FlowLim signal should remain consistent and not be incorrectly set to zero, whic */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["FlowLim.2s"].fs', JSON.stringify(out.PLD.signals['FlowLim.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ return 10;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This protects against incorrect pressure signal initialization where the expected value of 10 is replaced by 0 */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.BRP.signals["Press.40ms"].data[0]', JSON.stringify(out.BRP.signals['Press.40ms'].data[0]), '10');
+        }
+        /* mutant: num → 0  @ 25,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection ensures the sampling rate for pressure signals remains correctly set to 25, preventing incorre */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.BRP.signals["Press.40ms"].fs', JSON.stringify(out.BRP.signals['Press.40ms'].fs), '25');
+        }
+        /* mutant: num → 0  @ 25,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This property ensures the sampling frequency for flow signals is correctly initialized, preventing incorrect d */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.BRP.signals["Flow.40ms"].fs', JSON.stringify(out.BRP.signals['Flow.40ms'].fs), '25');
+        }
+        /* mutant: num → 0  @ 'SpO2.1s': { data: spo2, fs: 1, dim: '%', _spr: 60 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behaviour protected is the correct sampling rate configuration for oxygen saturation data, ensuring accura */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.SA2.signals["SpO2.1s"]._spr', JSON.stringify(out.SA2.signals['SpO2.1s']._spr), '60');
+        }
+        /* mutant: num → 0  @ 'Pulse.1s': { data: pulse, fs: 1, dim: 'bpm', _spr: 60 }
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behavior protected is the correct sampling rate configuration for pulse signal processing, ensuring accura */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.SA2.signals["Pulse.1s"]._spr', JSON.stringify(out.SA2.signals['Pulse.1s']._spr), '60');
+        }
+        /* mutant: num → 0  @ { class: 'Obstructive Apnea', durSec: 15, onsetSec: 100, tMs: t0 + 100000 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection detects whether the onset time of an annotation is correctly preserved after a numeric mutatio */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.EVE.annotations[0].onsetSec', JSON.stringify(out.EVE.annotations[0].onsetSec), '100');
+        }
+        /* mutant: num → 0  @ { class: 'Obstructive Apnea', durSec: 18, onsetSec: 200, tMs: t0 + 200000 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The onset time of the second annotation should preserve the original value from the correct data, not be incor */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.EVE.annotations[1].onsetSec', JSON.stringify(out.EVE.annotations[1].onsetSec), '200');
+        }
+        /* mutant: num → 0  @ { class: 'Central Apnea', durSec: 12, onsetSec: 300, tMs: t0 + 300000 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection detects whether apnea event annotations are correctly positioned in time, preventing incorrect */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.EVE.annotations[2].onsetSec', JSON.stringify(out.EVE.annotations[2].onsetSec), '300');
+        }
+        /* mutant: num → 0  @ { class: 'Hypopnea', durSec: 20, onsetSec: 400, tMs: t0 + 400000 }
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection detects whether the onset time of a hypopnea event is correctly calculated or incorrectly set  */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.EVE.annotations[3].onsetSec', JSON.stringify(out.EVE.annotations[3].onsetSec), '400');
+        }
+        /* mutant: bool || → &&  @ if (!night || !night.sessions || !night.sessions.length) continue;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return the input string instead of throwing an error when night data is undefined or incom */
+        {
+          var out = NS.applyStrClockOffset('x');
+          T.eq('NS.applyStrClockOffset("x") → out', JSON.stringify(out), '"x"');
+        }
+        /* mutant: bool || → &&  @ if (!nights || !nights.length || !summary || !summary.length) return nights;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): Whether the function returns a string value or throws an error when given an empty array */
+        {
+          var out = NS.attachStrSummary('x');
+          T.eq('NS.attachStrSummary("x") → out', JSON.stringify(out), '"x"');
+        }
+      }
+    );
+
+    group(
+      'mutation drafts b3 — CpapEdf: recorded outputs that discriminate real code from a surviving mutant',
+      'mutation-drafts · mutation-drafts-b3 · cpapedf · mutation · adopted-draft · realm-verified',
+      function (T) {
+        var NS = env.CpapEdf;
+        if (!NS) {
+          T.skip('CpapEdf not in env');
+          return;
+        }
+        /* mutant: negate: drop !  @ if (!m) return null;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): Whether the function returns null or throws an error when given a null input */
+        {
+          var out = NS.sessionStampOf(null);
+          T.eq('NS.sessionStampOf(null) → out', JSON.stringify(out), 'null');
+        }
+      }
+    );
+
+    group(
+      'mutation drafts b3 — OxyDex: recorded outputs that discriminate real code from a surviving mutant',
+      'mutation-drafts · mutation-drafts-b3 · oxydex · mutation · adopted-draft · realm-verified',
+      function (T) {
+        var NS = env.OxyDex;
+        if (!NS) {
+          T.skip('OxyDex not in env');
+          return;
+        }
+        /* mutant: num → 0  @ if (n < 600) return null;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return null for empty input strings, but the buggy version returns a structured object ins */
+        {
+          var out = NS._bare.computeSleepArch('');
+          T.eq('NS._bare.computeSleepArch("") → out === null', JSON.stringify(out === null), 'true');
+        }
+        /* mutant: bool && → ||  @ var ev = desat && desat.eventsAll ? desat.eventsAll : [];
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The number of excluded items in the computation result */
+        {
+          var out = NS.computeGatedNadir('x');
+          T.eq('NS.computeGatedNadir("x") → out.excluded', JSON.stringify(out.excluded), '0');
+        }
+        /* mutant: cmp > → >=  @ out[t] = { secs: s, pct: n > 0 ? +((s / n) * 100).toFixed(2) : 0 };
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The percentage value should be 0 instead of null when the numerator is 0 and the denominator is greater than 0 */
+        {
+          var out = NS._bare.computeTIndex([]);
+          T.eq('NS._bare.computeTIndex([]) → out["80"].pct', JSON.stringify(out['80'].pct), '0');
+        }
+      }
+    );
+
+    group(
+      'mutation drafts b3 — PPGDSP: recorded outputs that discriminate real code from a surviving mutant',
+      'mutation-drafts · mutation-drafts-b3 · ppgdsp · mutation · adopted-draft · realm-verified',
+      function (T) {
+        var NS = env.PPGDSP;
+        if (!NS) {
+          T.skip('PPGDSP not in env');
+          return;
+        }
+        /* mutant: cmp < → <=  @ for (let k = 0; k < peaks.length; k++) {
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return an empty object instead of throwing an error when given an empty string array. */
+        {
+          var out = NS.gapBeats('');
+          T.eq('NS.gapBeats("") → out', JSON.stringify(out), '{}');
+        }
+      }
+    );
+
+    group(
+      'mutation drafts b3 — PulseDex: recorded outputs that discriminate real code from a surviving mutant',
+      'mutation-drafts · mutation-drafts-b3 · pulsedex · mutation · adopted-draft · realm-verified',
+      function (T) {
+        var NS = env.PulseDex;
+        if (!NS) {
+          T.skip('PulseDex not in env');
+          return;
+        }
+        /* mutant: eq === → !==  @ if (ymx === ymn) ymx = ymn + 1;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The line chart correctly displays \"-Infinity\" when the maximum and minimum y-values are equal, instead of show */
+        {
+          var out = NS._bare.lineChartSVG([1, 2, 3]);
+          T.eq('NS._bare.lineChartSVG([1,2,3]) → out.includes("-Infinity")', JSON.stringify(out.includes('-Infinity')), 'true');
+        }
+        /* mutant: eq === → !==  @ if (xmx === xmn) xmx = xmn + 1;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): Whether the function throws an exception instead of returning a valid SVG string */
+        {
+          var out = NS._bare.lineChartSVG([1, 2, 3]);
+          T.eq("NS._bare.lineChartSVG([1,2,3]) → out.indexOf('THREW')", JSON.stringify(out.indexOf('THREW')), '-1');
+        }
+      }
+    );
+
     group('A second oximeter cannot double the apnea index — §3.1', 'integrator-dsp · apnea · fabricated-redundancy', function (T) {
       var RF = env.runFusion;
       T.ok('runFusion available', typeof RF === 'function');

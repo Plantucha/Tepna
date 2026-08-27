@@ -117,14 +117,6 @@ ALLOW_FUNCS = {
     "read_edf": "cpap_edf — the round-trip partner of `write_edf` (which IS wired, cpap_edf_writer). It "
                 "exists so `write_edf(read_edf(x)) == x` is provable byte-for-byte; the tests are its "
                 "legitimate consumer. Retire only if that property stops being asserted",
-    "message_call_lines": "mutation_triage — ⚠️ MY OWN EARLIER REASON HERE OVERSTATED IT as 'consumed "
-                          "through the documented contract'. It is NOT consumed: `classify`'s docstring says "
-                          "callers that have the source pass `lineno in message_call_lines(src)`, and "
-                          "tools/mutate_triage.py calls `classify(a, b)` at both sites without it — so every "
-                          "mutant on a CONTINUATION line of a multi-line log call is still judged REACHABLE. "
-                          "The blocker is concrete: that caller has the module PATH but not the mutant's LINE "
-                          "NUMBER (mutmut_diff yields only the +/- lines), so wiring needs the lineno "
-                          "extracted first. Retire by doing that.",
     "list_sessions": "oxy_transfer §2 — read-only 'what the ring says it has', committing to nothing. "
                      "Fourth of the unit-2 family with pull_deadline/flush_gate/resume_target, all "
                      "landed ahead of the async shell that drives them. Retires with that shell",
