@@ -152,4 +152,12 @@ prediction.
 - [x] C1–C5 planted controls pass as tests. *(#1711 — 35 tests, 100% stmt+branch.)*
 - [ ] The between-rounds capture (§6) resolved — prediction confirmed, or the localized guard added.
 - [x] `capture-host/check.sh` green. *(#1711 shipped green; re-verified on every later capture-host PR.)*
-- [ ] Follow-up: the single daemon-wiring touch (nightly pull) rides with P1/P3, announced.
+- [x] Follow-up: the single daemon-wiring touch (nightly pull). **DONE 2026-08-26** — landed as
+      `capture._maybe_start_cpap_spool_pull` + `_cpap_spool_loop`, with the decision half split into
+      `cpap_spool_caller.py` (arming · window-conflict · defer reasons · the short-connect cycle) so it
+      is testable without a radio. Default OFF and never inherited — the first pull is still the
+      ATTENDED one (CPAP-SPOOL-ACQUISITION Do-1). `sync_spool`'s `find_unwired` suppression came out in
+      the same commit; `last_committed_cursor`'s stays, with its reason CORRECTED — the old note
+      predicted the wiring would consume it and the wiring does not, because `sync_spool` derives its
+      own cursor from the ledger. ⚠️ The scan does NOT flag an entry that has stopped matching, so
+      removing it is a manual step at wiring time.

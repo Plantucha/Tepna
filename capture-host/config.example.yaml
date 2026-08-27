@@ -251,6 +251,33 @@ cpap:                    # ResMed card auto-harvest over an ez Share Wi-Fi SD ad
     #   flow_eps_lpm: 0.5           # |flow| at or below this counts as "not breathing" (idle measured -0.01)
     #   hold_sec: 120.0             # continuous quiet REQUIRED, timed in samples (a dead link cannot age it)
 
+  # STORED-SPOOL PULL — the device's own on-board session record, pulled over BLE (CPAP-SPOOL-
+  # ACQUISITION Do-3). Distinct from BOTH neighbours above: the Wi-Fi harvest copies the SD card, the
+  # live stream reads the machine in real time, and this retrieves what the AS11 stored itself.
+  #
+  # 🔴 DEFAULT OFF AND IT NEVER INHERITS — no other flag can arm it. The first pull is specified as an
+  # ATTENDED event (Do-1: witnessed, one bounded day, the owner present by arrangement), so this ships
+  # disabled on purpose and is turned on by an edit somebody makes deliberately. The daemon logs its
+  # arming state either way, armed or not: a disabled path that announces itself is debuggable, and a
+  # silent one is indistinguishable from a broken one.
+  #
+  # ⚠️ THE WINDOW MUST NOT OVERLAP `cpap.at_hour`'s harvest window — the daemon REFUSES to arm if it
+  # does, naming the hour. Both are 2.4 GHz on one box, and neither job's interlock can see the other's
+  # traffic, so an overlap silently re-creates the contention the 13:00 schedule exists to avoid
+  # (measured: 5-7 dB and 17 reconnects across three sensors). Default 10:00 clears 13:00 by an hour.
+  # spool_pull:
+  #   enabled: false
+  #   at_hour: 10                  # local hour; window is [at_hour, at_hour+window_h), wraps midnight
+  #   window_h: 2
+  #   spool_type: Summary          # the ONLY type the device is known to serve. A guessed detail-type
+  #                                # name returns -32602, which refutes THAT STRING and nothing more —
+  #                                # it is not evidence that no waveform spool exists (brief Do-4).
+  #   epoch_start: "2026-08-01T00:00:00.000Z"   # floor for the FIRST sync only; afterwards the ledger's
+  #                                # last committed cursor is the authority and this is never read again.
+  #                                # Deliberately recent: an epochal floor would make run one an
+  #                                # unbounded backfill, on the single run a human is watching.
+  #   root: captures/cpap-spool    # committed/ + incomplete/ + cpap_spool_ledger.jsonl
+
 # AS11 CPAP session detector (SHADOW — observes only, drives nothing). When enabled, a background task
 # short-connects the AS11 on the CPAP free radio (cpap.ble_stream.adapter, hci1) ONLY while the live
 # stream is idle, classifies therapy start/stop, and writes SESSIONDETECT.csv + AS11CLOCK.csv (device
