@@ -167,10 +167,16 @@ ARMED_CFG = {
 def _start(cfg):
     made = []
 
+    # ⚠️ A UNIQUE OBJECT, never the string "TASK". `TASK_LABELS` is keyed by `id()`, and CPython
+    # INTERNS a short string literal — so two tests in different files that both return "TASK" write
+    # the SAME key, and whichever runs second wins. Invisible while the two features lived on separate
+    # branches; it surfaced the moment spool and presence shared a tree.
+    sentinel = object()
+
     def _ct(coro):
         coro.close()
         made.append(coro)
-        return "TASK"
+        return sentinel
 
     async def _scan(_w):  # pragma: no cover — injected so the bleak edge is never built
         return {}
@@ -202,8 +208,8 @@ def test_ENABLED_BUT_NOT_ARMED_is_reported_as_its_OWN_state(caplog):
 def test_armed_with_a_ring_starts_the_observer_and_says_it_pulls_nothing(caplog):
     with caplog.at_level("INFO"):
         r, tasks = _start(ARMED_CFG)
-    assert r == "TASK" and tasks == ["TASK"]
-    assert capture.TASK_LABELS[id("TASK")] == "O2Ring presence scan"
+    assert r is not None and tasks == [r]
+    assert capture.TASK_LABELS[id(r)] == "O2Ring presence scan"
     assert "opens no connection and pulls no bytes" in caplog.text
 
 
@@ -217,7 +223,7 @@ def test_the_device_key_is_address_NOT_addr(caplog):
         r, _ = _start(cfg)
     assert r is None and "nothing to observe" in caplog.text
     # and the right key does start it
-    assert _start(ARMED_CFG)[0] == "TASK"
+    assert _start(ARMED_CFG)[0] is not None
 
 
 def test_a_non_ring_device_is_not_observed():
