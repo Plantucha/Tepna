@@ -38,7 +38,17 @@ from __future__ import annotations
 import ast
 
 __all__ = ["EXCUSING", "functions_covering", "changed_span", "is_string_only", "diff_key",
-           "classify", "refusal_reason", "selftest"]
+           "classify", "refusal_reason", "selftest", "string_only_verdict", "scan_is_reliable",
+           "STRING_ONLY", "REQUIRED", "EMPTY_DIFF", "UNDECIDABLE"]
+
+# The four outcomes of the string-literal question. `is_string_only` collapses them to a bool for
+# back-compat; the GATE reads the verdict, because two of these must never be reported as the same
+# thing — "the mutant only touched log prose" and "the mutant changes nothing at all" are different
+# facts, and only one of them is evidence about the code.
+STRING_ONLY = "string-only"     # the change landed inside a literal — excluded, correctly
+REQUIRED = "required"           # a real code change — the gate demands it be killed
+EMPTY_DIFF = "empty-diff"       # the diff changes NOTHING — excluded, but it is NOT "string-only"
+UNDECIDABLE = "undecidable"     # the literal scan is outside its competence — REFUSE, never guess
 
 
 # The classes that genuinely cannot be killed, and so stop failing the gate. `real-gap` is deliberately
@@ -120,57 +130,98 @@ def changed_span(before: str, after: str) -> tuple[int, int, int] | None:
     return (i, len(before) - j, len(after) - j)
 
 
-def is_string_only(diff_text: str) -> bool:
-    """True when a mutant changes nothing but a string literal — log wording and error prose.
+def scan_is_reliable(line: str) -> bool:
+    """Is `_string_spans` COMPETENT on this line? Pure.
 
-    Requiring these killed means asserting on message text, which makes a suite brittle without making
-    it more truthful. 29 of 33 survivors on capture.py's `_now` were exactly this.
+    🔴 `_string_spans` DISCLAIMS TWO CASES IN ITS OWN DOCSTRING — triple quotes and f-string nesting —
+    and outside them it does not fail, it returns a CONFIDENT WRONG ANSWER. That is the 2026-08-24
+    defect one level down: a span computed from a mis-parse still looks like a span, so `inside_old` /
+    `inside_new` are decided against fiction and the verdict is silently wrong.
 
-    🔴 THIS USED TO ASK WHETHER THE LINE *CONTAINED* A QUOTE, WHICH IS A DIFFERENT QUESTION AND GAVE
-    THE WRONG ANSWER. The old body was
-        `all(("XX" in ln) or ('"' in ln) or ("'" in ln) for ln in added)`
-    so ANY mutation on a line holding ANY string literal — a path segment, a dict key, an f-string —
-    was silently dropped from the survivor list. Measured 2026-08-24 on two identical mutations:
+    Two detectable conditions, both deliberately conservative — a false "unreliable" only costs a
+    REQUIRED mutant (fail-CLOSED), while a false "reliable" is the wrong answer this exists to prevent:
+      · a triple quote anywhere on the line — explicitly out of scope for a single left-to-right scan;
+      · a scan that ends INSIDE a literal (an unterminated quote), which on a real source line means
+        the literal crosses the line boundary, so a line-scoped span cannot be trusted.
+    """
+    if chr(34) * 3 in line or chr(39) * 3 in line:
+        return False
+    i, n = 0, len(line)
+    while i < n:
+        if line[i] in "\"'":
+            quote, i, closed = line[i], i + 1, False
+            while i < n:
+                if line[i] == "\\":
+                    i += 2
+                    continue
+                if line[i] == quote:
+                    i, closed = i + 1, True
+                    break
+                i += 1
+            if not closed:
+                return False
+            continue
+        i += 1
+    return True
 
-        read_text(encoding="utf-8") → encoding=None
-          line 53:  `data = json.loads(Path(meta_path).read_text(…))`      no quote → REPORTED
-          line 95:  `src  = (Path(work) / "mutants" / module).read_text(…)`  quote → SKIPPED
 
-    Same mutation, opposite handling, decided by the unrelated literal `"mutants"` elsewhere on the
-    line. ⚠️ And the consequence was worse than hiding a survivor: `classify` reads *generated but
-    absent from survivors* as KILLED, so a ledgered equivalence on such a line came back **REFUTED**
-    — whose documented remedy is to delete the entry. The gate was manufacturing false refutations
-    and instructing the reader to destroy a correct classification.
+def string_only_verdict(diff_text: str) -> tuple[str, str]:
+    """The string-literal question with its outcomes KEPT APART. Returns `(verdict, detail)`.
 
-    ⚠️ Keying on mutmut's `XX` sentinel alone is the tempting fix and is ALSO wrong — it is too
-    narrow. `"utf-8" → "UTF-8"` is a genuine string-literal mutation carrying no sentinel, and would
-    start being required.
+    ⚠️ WHY THIS EXISTS RATHER THAN JUST THE BOOL. `is_string_only` returned True for a diff that
+    changes NOTHING — every removed/added pair identical, so every `changed_span` is None, the loop
+    `continue`s, and the function falls through to True. A no-op mutant was therefore reported as
+    "string-only" and EXCLUDED from the gate: an exclusion indistinguishable from a genuine
+    log-wording one, in the fail-OPEN direction, inside the very file whose sibling `refusal_reason`
+    exists because this gate once failed open.
 
-    So the test is the only one that actually answers the question: **did the CHANGE land inside a
-    string literal?** Compare the removed and added lines, take the span that differs, and ask whether
-    it sits within a literal on both sides."""
+    An empty diff MAY stay excluded — a mutant that changes nothing is equivalent by construction —
+    but it must be LABELED as that, not laundered through the string-only bucket. A diff the scan
+    cannot honestly read is neither, and REFUSES.
+    """
     lines = diff_text.splitlines()
     added = [ln for ln in lines if ln.startswith("+") and not ln.startswith("+++")]
     removed = [ln for ln in lines if ln.startswith("-") and not ln.startswith("---")]
     if not added:
-        return False
-    # mutmut's own sentinel is conclusive when present: it marks a mutated string literal.
+        return REQUIRED, "no added line to compare"
     if all("XX" in ln for ln in added):
-        return True
+        return STRING_ONLY, "mutmut XX sentinel"
     if len(added) != len(removed):
-        return False
+        return REQUIRED, "unbalanced diff: %d removed vs %d added" % (len(removed), len(added))
+    saw_change = False
     for old_ln, new_ln in zip(removed, added):
-        span = changed_span(old_ln[1:], new_ln[1:])
+        old, new = old_ln[1:], new_ln[1:]
+        span = changed_span(old, new)
         if span is None:
             continue
+        saw_change = True
+        if not (scan_is_reliable(old) and scan_is_reliable(new)):
+            return UNDECIDABLE, "literal scan is outside its competence (triple quote or unterminated)"
         start, old_end, new_end = span
-        old_spans = _string_spans(old_ln[1:])
-        new_spans = _string_spans(new_ln[1:])
+        old_spans = _string_spans(old)
+        new_spans = _string_spans(new)
         inside_old = any(a < old_end and start < b for a, b in old_spans if a <= start and old_end <= b)
         inside_new = any(a <= start and new_end <= b for a, b in new_spans)
         if not (inside_old and inside_new):
-            return False
-    return True
+            return REQUIRED, "the changed token is outside any string literal"
+    if not saw_change:
+        return EMPTY_DIFF, "every removed/added pair is identical - the mutant changes nothing"
+    return STRING_ONLY, "every changed token lies inside a string literal"
+
+
+def is_string_only(diff_text: str) -> bool:
+    """Back-compat bool over `string_only_verdict`: True when the gate may SKIP this mutant.
+
+    DERIVED from the verdict rather than reimplementing it, so the two can never disagree — a bool and
+    a verdict answering differently is exactly the class of bug this file keeps producing.
+
+    ⚠️ UNDECIDABLE collapses to **False (required)**, i.e. FAIL-CLOSED. A caller still on the bool
+    API therefore gets the safe direction for free: a diff the scan cannot honestly read is DEMANDED,
+    never excluded. The loud refusal is available to callers that read the verdict, and
+    `tools/mutate_diff.py` does. EMPTY_DIFF stays True (excluded) — a mutant changing nothing is
+    equivalent by construction — but only `string_only_verdict` can tell the two exclusions apart,
+    and the gate now reports them separately."""
+    return string_only_verdict(diff_text)[0] in (STRING_ONLY, EMPTY_DIFF)
 
 
 def diff_key(diff_text: str) -> str:
@@ -350,5 +401,18 @@ def selftest() -> int:
     if len({refusal_reason(True, 1), refusal_reason(True, None), refusal_reason(False, None)}) != 3:
         print("  selftest FAIL: refusal reasons are not distinguishable")
         ok = False
-    print("  selftest: classify + diff_key + refusal_reason OK" if ok else "  selftest: FAILED")
+    # ── the two exclusions must stay APART (2026-08-27) ─────────────────────────────────────────
+    # A no-op mutant used to fall through to "string-only" and be excluded as though it were log
+    # prose. It may still be excluded, but not under that name.
+    if string_only_verdict(_d("    x = 1", "    x = 1"))[0] != EMPTY_DIFF:
+        print("  selftest FAIL: a no-op diff is not labelled EMPTY_DIFF")
+        ok = False
+    if string_only_verdict(_d('    log.info("a")', '    log.info("b")'))[0] != STRING_ONLY:
+        print("  selftest FAIL: a log-prose mutation is no longer STRING_ONLY")
+        ok = False
+    _tq = chr(34) * 3
+    if string_only_verdict(_d("    x = f(1)  # " + _tq, "    x = f(2)  # " + _tq))[0] != UNDECIDABLE:
+        print("  selftest FAIL: a line outside the scan's competence was decided anyway")
+        ok = False
+    print("  selftest: classify + diff_key + refusal_reason + verdict OK" if ok else "  selftest: FAILED")
     return 0 if ok else 1

@@ -179,3 +179,71 @@ def test_selftest_FAILS_when_any_span_or_key_helper_regresses(monkeypatch):
         with monkeypatch.context() as mp:
             mp.setattr(M, name, broken)
             assert M.selftest() != 0, f"selftest passed with a broken {name}"
+
+
+# ── 1b: the two exclusions must not be one bucket ───────────────────────────────────────────────
+
+def test_a_no_op_diff_is_EMPTY_DIFF_and_never_reported_as_string_only():
+    """🔴 THE FAIL-OPEN THIS UNIT CLOSES. Every removed/added pair identical means every
+    `changed_span` is None, the loop `continue`s, and the old code fell through to True — so a mutant
+    that changes NOTHING was reported as "string-only" and excluded. It may still be excluded (it is
+    equivalent by construction) but it is a different FACT, and only one of the two is evidence about
+    the code. A gate that cannot tell them apart cannot be audited."""
+    v, why = M.string_only_verdict(_d('    x = 1', '    x = 1'))
+    assert v == M.EMPTY_DIFF, f"a no-op diff came back as {v}"
+    assert v != M.STRING_ONLY
+    assert 'identical' in why
+    assert M.is_string_only(_d('    x = 1', '    x = 1')) is True   # still excluded, deliberately
+
+
+def test_a_real_log_mutation_is_STRING_ONLY_not_EMPTY_DIFF():
+    """The other direction of the same control: the two buckets must not collapse into each other."""
+    v, _ = M.string_only_verdict(_d('    log.info("hello")', '    log.info("goodbye")'))
+    assert v == M.STRING_ONLY
+
+
+def test_a_scan_outside_its_competence_REFUSES_instead_of_guessing(monkeypatch):
+    """⚠️ `_string_spans` disclaims triple quotes and f-string nesting IN ITS OWN DOCSTRING, and
+    outside them it returns a confident WRONG answer rather than failing — the 2026-08-24 defect one
+    level down. Refusing is the only honest verdict, and it must not be silently excludable."""
+    tq = chr(34) * 3
+    v, why = M.string_only_verdict(_d('    x = f(1)  # ' + tq, '    x = f(2)  # ' + tq))
+    assert v == M.UNDECIDABLE, f"a triple-quoted line was decided anyway: {v}"
+    assert 'competence' in why
+    # An unterminated literal is the second detectable case.
+    assert M.scan_is_reliable('a = "open') is False
+    assert M.scan_is_reliable('a = "closed"') is True
+    # An ESCAPED quote must not be mistaken for the terminator — otherwise the scan would call a
+    # perfectly readable line unreliable and the gate would start demanding literal mutations.
+    assert M.scan_is_reliable('a = "he\\"llo"') is True
+    assert M.scan_is_reliable('a = ' + tq + 'x' + tq) is False
+
+
+def test_UNDECIDABLE_fails_CLOSED_through_the_back_compat_bool():
+    """A caller still on the bool API must get the SAFE direction: required, never excluded. This is
+    the property that makes the refusal harmless to add — the old API cannot start skipping mutants."""
+    tq = chr(34) * 3
+    undecidable = _d('    x = f(1)  # ' + tq, '    x = f(2)  # ' + tq)
+    assert M.string_only_verdict(undecidable)[0] == M.UNDECIDABLE
+    assert M.is_string_only(undecidable) is False
+
+
+def test_the_bool_and_the_verdict_can_never_disagree():
+    """`is_string_only` is DERIVED from the verdict rather than reimplementing it. Pinned because a
+    bool and a verdict drifting apart is precisely the defect class this file keeps producing."""
+    tq = chr(34) * 3
+    for diff in (_d('    x = 1', '    x = 2'), _d('    s = "a"', '    s = "b"'),
+                 _d('    x = 1', '    x = 1'), _d('  y = f(1) # ' + tq, '  y = f(2) # ' + tq),
+                 '--- a\n+++ b\n+    s = "XXhiXX"\n', '--- a\n+++ b\n-    x = 1\n'):
+        expected = M.string_only_verdict(diff)[0] in (M.STRING_ONLY, M.EMPTY_DIFF)
+        assert M.is_string_only(diff) is expected
+
+
+def test_selftest_FAILS_if_the_two_exclusions_collapse_again(monkeypatch):
+    """The 1b guard, forced in every direction it can regress. Without this the new selftest checks
+    would be trusted having never once been shown to bite."""
+    for broken in (lambda d: (M.STRING_ONLY, 'x'), lambda d: (M.EMPTY_DIFF, 'x'),
+                   lambda d: (M.REQUIRED, 'x')):
+        with monkeypatch.context() as mp:
+            mp.setattr(M, 'string_only_verdict', broken)
+            assert M.selftest() != 0

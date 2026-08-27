@@ -73,8 +73,8 @@ HERE = Path(__file__).resolve().parent.parent
 VENV_PY = HERE / ".venv" / "bin" / "python"
 sys.path.insert(0, str(HERE))
 from mutation_diff import (  # noqa: E402
-    classify, diff_key, functions_covering, is_string_only,
-    refusal_reason, selftest,
+    EMPTY_DIFF, STRING_ONLY, UNDECIDABLE, classify, diff_key, functions_covering,
+    refusal_reason, selftest, string_only_verdict,
 )
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 
@@ -281,8 +281,23 @@ def main(argv=None) -> int:
                 name = line.split(":")[0].strip()
                 show = subprocess.run([str(VENV_PY), "-m", "mutmut", "show", name],
                                       cwd=work, capture_output=True, text=True)
-                if is_string_only(show.stdout):
+                sverdict, sdetail = string_only_verdict(show.stdout)
+                if sverdict == STRING_ONLY:
                     continue                       # log/prose mutation — deliberately not required
+                if sverdict == EMPTY_DIFF:
+                    # EXCLUDED, BUT NOT AS "string-only". A mutant that changes nothing is equivalent
+                    # by construction, and until 2026-08-27 it was silently laundered through the
+                    # string-only bucket — an exclusion the reader could not distinguish from a
+                    # log-wording one. Recorded so the count is auditable rather than invisible.
+                    verdict.setdefault("empty_diff", []).append({"mutant": name, "module": module})
+                    continue
+                if sverdict == UNDECIDABLE:
+                    # REFUSE LOUDLY. The literal scan is outside its documented competence, so any
+                    # verdict here would be a guess — and guessing is how this gate shipped a wrong
+                    # answer before. It is reported AND still required, never silently skipped.
+                    print(f"  ⚠ {name}: {sdetail} — REQUIRED rather than guessed")
+                    verdict.setdefault("undecidable", []).append({"mutant": name, "module": module,
+                                                                  "reason": sdetail})
                 # The 400-byte cap truncated the -/+ pair mid-line in the CI artifact, so the only
                 # machine-readable record of WHAT changed had to be regenerated locally to be read.
                 # The changed lines alone are small and complete — carry those in full.
