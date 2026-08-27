@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-26 · **Owner-issued directive** (verbatim charter, relayed via the coordinator session) · **Interlocks:** `O2RING-WAVEFORM-SPO2-SHIP-2026-08-20-BRIEF.md`, `O2RING-TIME-CAPABILITY-WIRING-2026-08-19-BRIEF.md`, `CAPTURE-FILESET-RESUME-2026-08-19-BRIEF.md` (DONE), the AS11 session-detection line (shared BLE budget) · **Affects:** `capture-host/` O2Ring path, BLE adapter policy, acquisition evidence
+**Status:** PROPOSED · **Created:** 2026-08-26 · **Owner-issued directive** (verbatim charter, relayed via the coordinator session) · **Extends:** `OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md` (deputy ruling 2026-08-27, owner may overrule — see preamble) · **Interlocks:** `O2RING-WAVEFORM-SPO2-SHIP-2026-08-20-BRIEF.md`, `O2RING-TIME-CAPABILITY-WIRING-2026-08-19-BRIEF.md`, `CAPTURE-FILESET-RESUME-2026-08-19-BRIEF.md` (DONE), the AS11 session-detection line (shared BLE budget) · **Affects:** `capture-host/` O2Ring path, BLE adapter policy, acquisition evidence
 
 # O2Ring autonomous harvesting — match and exceed the best possible operational behavior
 
@@ -21,6 +21,18 @@
 - **Lane:** Vigil box session (primary — O2Ring BLE + capture-host is their lane), sequenced AFTER
   their in-flight spool-caller PR and the SCAN-5 follow-up. The coordinator holds the charter's
   §-numbering as the acceptance skeleton.
+- **RELATIONSHIP TO THE 2026-08-24 TWIN (deputy ruling, 2026-08-27, reversible):** doc-search
+  surfaced `OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md` — a 1437-line owner-issued spec
+  on this same subject, IN-PROGRESS, carrying its own architecture map and RULINGS (§14a: end
+  detection WAITS for the `3 → 1` transition; §14b: the close-triggered pull is `which=latest`).
+  This charter is read as EXTENDING that brief, not superseding it, because the charter's own text
+  says so: §8/§10 defer to "the existing Tepna mechanism where it is already correct", §36 demands
+  the smallest change set, and §1 lists the existing machinery as material to understand. Standing
+  consequences until the owner says otherwise: (a) the 08-24 brief's rulings STAND; (b) §36's
+  implementation map is built as a DELTA against that brief's §1 architecture map, not a fresh
+  re-derivation; (c) if the owner intended supersession, flipping this header line and the map's
+  baseline is the entire cost of having guessed wrong. Owner: one line settles it —
+  "extends" (default, in force) or "supersedes".
 - The charter's §0 clean-room rule is absolute and matches house policy (§📚 no fabricated
   authority, no external code imports into capture paths).
 
