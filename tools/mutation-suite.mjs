@@ -1558,7 +1558,11 @@ function selftest() {
   const edf2 = JSON.stringify({ 'EprPress.2s': { data: [9, 8] }, plain: 1 });
   ck('dotted-key rescue: resegments against the recorded object', resegmentPath('out.EprPress["2s"].data[0]', JSON.parse(edf)), 'out["EprPress.2s"].data[0]');
   ck('dotted-key rescue: bracketed pair form too', resegmentPath('out["EprPress"]["2s"].data[0]', JSON.parse(edf)), 'out["EprPress.2s"].data[0]');
-  ck('parse→resegment composition: the model dotted form ends applicable', resegmentPath(parseDraftReply('PROJECTION: out.EprPress.2s.data[0]\nPROPERTY: p').projection, JSON.parse(edf)), 'out["EprPress.2s"].data[0]');
+  ck(
+    'parse→resegment composition: the model dotted form ends applicable',
+    resegmentPath(parseDraftReply('PROJECTION: out.EprPress.2s.data[0]\nPROPERTY: p').projection, JSON.parse(edf)),
+    'out["EprPress.2s"].data[0]'
+  );
   ck('rescue leaves resolvable paths alone', resegmentPath('out.plain', JSON.parse(edf)), 'out.plain');
   ck('rescue refuses non-path expressions', resegmentPath('out.a === 1', JSON.parse(edf)), null);
   ck('discriminates end-to-end through a dotted key', projectionDiscriminates('out.EprPress["2s"].data[0]', edf, edf2).ok, true);
