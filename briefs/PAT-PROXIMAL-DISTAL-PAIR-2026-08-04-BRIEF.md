@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS (§2 withdrawal REVERSED at §2a, 2026-08-04) · **Created:** 2026-08-04 · **Answers:** `PAT-VERDICT-CONSOLIDATED-2026-08-04-BRIEF.md` §4.2 / Done-when 2 · **Follows:** `PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02-BRIEF.md` §3c–§3j, `O2RING-RAW-STREAMS-ABSENT-2026-08-04-BRIEF.md`
+**Status:** DONE — 2026-08-27 (§2 withdrawal REVERSED at §2a, 2026-08-04. **All four Done-when items executed, each dated and carrying its measurement**: the grid/host scoring (§2a, artifact refuted), the full per-pair distribution (§2b, selection worth ~20 ms), offset-free scatter (67 ms over 29 pairs), and the truncation confirmation on 2026-07-29 by widening the window. Verified 2026-08-27 in the file it names, not from its prose: `tools/pat-ppg-ppg-control.mjs` does carry the `--window` flag the fourth item calls a one-parameter change. Nothing is left open and no item is parked.) · **Created:** 2026-08-04 · **Answers:** `PAT-VERDICT-CONSOLIDATED-2026-08-04-BRIEF.md` §4.2 / Done-when 2 · **Follows:** `PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02-BRIEF.md` §3c–§3j, `O2RING-RAW-STREAMS-ABSENT-2026-08-04-BRIEF.md`
 
 # The proximal→distal pair exists — finger↔ankle — and its coupling tracks the ring's TIMEBASE PROVENANCE, not anatomy
 

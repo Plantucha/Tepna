@@ -349,7 +349,21 @@
          neither is rejected as an artifact. The measurement is a first/second-half FIT DIFFERENCE, so
          it cannot distinguish a slow RAMP — which a centered median largely tracks out — from a STEP,
          which it does not. So these figures bound the drift; they do NOT establish a fabrication rate.
-         Settling it needs the within-connection residual SHAPE, which that tool does not yet report;
+         ⚠ SETTLED 2026-08-27, AND THE ANSWER IS THAT IT CANNOT BE SETTLED — "bound, not rate" is now
+         the PERMANENT honest answer, not a placeholder. The residual shape was measured
+         (`pat-connection-stability --json`, `baselineExposure`) under a pre-registered criterion:
+         persistence threshold P ∈ {2.5,5,10,20,40} ms × horizon H ∈ {60,300} s, with a COUNT-MATCHED
+         NULL CONTROL at random non-run positions. Both pre-stated bars failed:
+           · the step fraction swings 33.5 pp across P ∈ [5,20] (bar: ≤10 pp), so it is a property of
+             the threshold, not of the data;
+           · real runs persist at 0.96-1.08× the null in EVERY one of the ten cells (bar: ≥2×), so the
+             classification carries NO information about runs — random positions persist identically.
+         THE REASON IS IDENTIFIABILITY, not sample size: the observable is lag = BLE offset + true PAT,
+         and within one connection there is no independent handle on either term. A step and a dip
+         differ in shape, but ambient drift makes every position look like a step at the same rate, so
+         shape cannot recover the split. More nights will not fix this; a second, offset-only observable
+         would. Until one exists, the p90/max figures above are a BOUND and any "fabrication rate"
+         derived from this data is an artifact of its own threshold;
        · the anatomical sign of the LEVEL is irrelevant — only the excursion is read;
        · PEP is an amplifier, not a confound, at arousal (sympathetic activation shortens both PEP
          and vascular transit) — which is also why the output is an AUTONOMIC index and must never

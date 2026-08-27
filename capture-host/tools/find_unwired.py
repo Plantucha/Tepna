@@ -53,7 +53,6 @@ CONSUMERS = ("webmon.py", "alerts.py", "nightqc.py", "timeline.py", "telemetry.p
 # Known-intentional, with the reason. Anything here is reported as ALLOWED rather than silently dropped:
 # a suppression you cannot see is how the next real finding gets hidden behind a stale entry.
 ALLOW_KEYS = {
-    "tool": "read by webmon.py and monitor.html under a quoting form scan 1 does not model",
     "oxy_lifecycle": "published to STATUS by the G4 lifecycle wiring (run_oxyii emits the acquisition "
                      "state) for /api/state inspection — the charter's STATUS half; the webmon-forward "
                      "+ monitor lifecycle indicator is a tracked follow-up, same pattern the "
@@ -73,14 +72,9 @@ ALLOW_RENDERED: dict = {}
 ALLOW_JS: dict = {}
 
 ALLOW_FUNCS = {
-    "main": "CLI entry point",
     "night_profile": "adapter_ab is an offline analysis tool, not daemon code",
     "compare": "adapter_ab analysis tool",
     "unattributable": "adapter_ab analysis tool",
-    "render": "adapter_ab analysis tool",
-    "analyze": "blind_spots, driven by tools/find_blindspots.py",
-    "rank": "blind_spots, driven by tools/find_blindspots.py",
-    "concentration": "mutation_triage, driven by the mutation programme",
     # ── investigated 2026-08-14 (brief §5). Each is CAPABILITY THAT EXISTS ELSEWHERE, not a gap. The
     # reason is recorded here so the next reader spends a line rather than an investigation — which is
     # the allowlist's whole job, and why every entry prints with its justification.
@@ -144,46 +138,17 @@ ALLOW_FUNCS = {
                      "orchestration calls it. Third of the trio with pull_deadline and flush_gate — the "
                      "link table PERMITS both targets and deliberately does not choose, so the choosing "
                      "lives here and is testable before a caller exists",
-    "flush_gate": "oxy_transfer §14a — the wait-for-run_status-3→1 decision for the close-triggered "
-                  "pull; standalone until unit 2's orchestration calls it. Sibling of pull_deadline and "
-                  "landed for the same reason: it is the rule that keeps the harvest from firing "
-                  "systematically pre-trailer, and it is a pure decision that is far easier to pin "
-                  "before a caller exists than after",
-    "pull_deadline": "oxy_transfer §8a — the abort deadline for the close-triggered held-link pull; "
-                     "standalone until unit 2 wires it (DAT-AUTO-HARVEST §14: wait for run_status "
-                     "3→1, which=latest). Deliberately landed AHEAD of its caller: it is the safety "
-                     "predicate that makes 'a pull must never delay the power drop' impossible by "
-                     "construction, and the 50 s window it guards leaves no room to add it later",
     "oxy_is_finalized": "redundant — pull_session.py already gates re-pulls on finalisation via "
                         "parse_trailer, which that caller needs anyway for the device summary",
     "busy_with": "redundant — offline_lock.slot() raises OfflineBusy(_busy), so the label already "
                  "reaches callers as e.holder",
     "predict_step_split": "research helper from O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS §2, driven by its "
                           "brief rather than by the daemon — same shape as blind_spots.analyze",
-    # ── investigated 2026-08-15 (FOLLOWUPS §1). The three O2Ring request/response pairs split three
-    # ways, and the docstrings answered it: `info` was WIRED (firmware provenance the code said mattered
-    # and nothing recorded), these two were not.
-    "battery_frame": "superseded — parse_battery's own docstring says byte[1] matches the live header's "
-                     "battery percent, which the live path already reads every frame",
-    "parse_battery": "superseded by the live header — see battery_frame",
-    "config_frame": "a diagnostic, not provenance: 'verifying the ring's config on the box without the "
-                    "vendor app'. Read-only; no SET_CONFIG writer ships. Wire it if a config audit is "
-                    "ever wanted, not before",
-    "parse_config": "diagnostic — see config_frame",
     "is_offline_cmd": "the READ half of a write/read pair whose write half IS used — `as_offline` sets "
                       "the bit in probe_verity_offline and probe_verity_survey; nothing needs to ask "
                       "the question back. Same shape as busy_with",
-    # ── CPAP-over-BLE pull core (CPAP-BLE-CAPTURE-2026-08-21-BRIEF). as11_link.py + as11_pull.py are the
-    # pure, clean-room AS11 protocol layer; their only consumer is the UN-COMMITTED operator probe
-    # `cpap_ble_pull.py` (which wires bleak + the real AES cipher against the device). Same shape as the
-    # config_frame / is_offline_cmd probe-only entries: a protocol builder used solely by a probe reads
-    # as "unwired" by this scan's daemon-centric definition, which the header calls legitimate. Only the
-    # 5 whose bare name has no internal cross-reference surface; the rest (fig_frame, session_key,
-    # establish, …) is wired module-internally.
-    "fig_unframe": "CPAP-BLE pull core — reassembles device notifications in the operator probe (see note)",
     "start_key_exchange": "CPAP-BLE pull core — SRP pairing builder, used by the pairing probe (see note)",
     "confirm_key_exchange": "CPAP-BLE pull core — SRP pairing builder, used by the pairing probe (see note)",
-    "get_items": "CPAP-BLE pull core — the Get RPC builder; the probe's live encrypted-Get validator (see note)",
     "pull_spool": "as11_pull — SUPERSEDED, and retained as the protocol-level reference its tests pin. "
                   "⚠️ THE PREVIOUS REASON WAS FALSE: it claimed the operator probe calls this, and "
                   "code-uses measured ZERO. Production drives the spool through cpap_spool.sync_spool "
@@ -192,14 +157,6 @@ ALLOW_FUNCS = {
                   "was built because this function was wired into nothing. Retire by deleting it (with "
                   "its tests) once nobody wants a transaction-free reference driver — a decision, not a "
                   "cleanup.",
-    "start_stream": "CPAP-BLE pull core — the StartStream (live waveform) RPC builder, used by the stream probe (see note)",
-    "stream": "CPAP-BLE pull core — the live StreamData waveform consumer the operator stream probe drives (see note)",
-    "make_cipher": "CPAP-BLE pull core — the AES-256-CBC seal/unseal the daemon/probe inject into the stdlib-only protocol layer (see note)",
-    # cpap_edf.py is the bit-accurate ResMed EDF/EDF+ WRITER (STR/BRP/PLD/EVE from captured data). Its
-    # read/write core is exercised module-internally and by the byte-identity gate; these per-type
-    # CONSTRUCTORS are the public creation API, consumed by the tests today and the BLE→EDF capture
-    # wiring next (the same shape as the AS11 protocol builders above).
-    "build_brp": "CPAP EDF writer — constructs a bit-accurate BRP.edf (flow+pressure) from captured data",
     "build_pld": "CPAP EDF writer — constructs a bit-accurate PLD.edf (derived 2 s channels) from captured data",
     "build_eve": "CPAP EDF writer — constructs a bit-accurate EVE.edf (EDF+ event annotations) from captured data",
     # cpap_ingest.py is the CPAP acquisition gap-accounting layer (audit G4/G7): classify_frame makes a
@@ -321,9 +278,13 @@ def scan(root: "str | None" = None) -> dict:
         if os.path.exists(p):
             consumers += open(p, encoding="utf-8").read()
 
+    pop_keys = set()
+    pop_rendered = set()
+    pop_js = set()
     orphan_keys = []
     if "capture.py" in src:
-        for key in sorted(status_keys(src["capture.py"])):
+        pop_keys = status_keys(src["capture.py"])
+        for key in sorted(pop_keys):
             if re.search(r"\b%s\b" % re.escape(key), consumers):
                 continue
             orphan_keys.append({"key": key, "allowed": ALLOW_KEYS.get(key)})
@@ -359,6 +320,7 @@ def scan(root: "str | None" = None) -> dict:
     if os.path.exists(wm) and os.path.exists(mon):
         html = open(mon, encoding="utf-8", errors="replace").read()
         keys = projected_keys(open(wm, encoding="utf-8").read())
+        pop_rendered = set(keys)
         if not keys:
             # FAIL LOUD, NOT OPEN. An anchor that stops matching returns an empty set, and an empty set
             # reports "0 unexplained" forever — a scan that examines nothing and calls it clean, which is
@@ -379,7 +341,8 @@ def scan(root: "str | None" = None) -> dict:
     orphan_js = []
     if os.path.exists(mon):
         html_js = open(mon, encoding="utf-8", errors="replace").read()
-        for fn in sorted(set(re.findall(r"function\s+([A-Za-z_$][\w$]*)\s*\(", html_js))):
+        pop_js = set(re.findall(r"function\s+([A-Za-z_$][\w$]*)\s*\(", html_js))
+        for fn in sorted(pop_js):
             uses = len(re.findall(r"\b%s\b" % re.escape(fn), html_js))
             defs = len(re.findall(r"function\s+%s\b" % re.escape(fn), html_js))
             if uses - defs <= 0:
@@ -394,8 +357,59 @@ def scan(root: "str | None" = None) -> dict:
             defs = len(re.findall(r"def\s+%s\b" % re.escape(fn), everything))
             if uses - defs <= 0:
                 orphan_funcs.append({"module": f, "func": fn, "allowed": ALLOW_FUNCS.get(fn)})
+    # ── SCAN 5 · A SUPPRESSION THAT EXCUSES NOTHING ─────────────────────────────────────────────────
+    # THE BLIND SPOT IN THIS TOOL'S OWN DESIGN, found 2026-08-26 while wiring `cpap_spool.sync_spool`.
+    # Every scan above answers "is this wired?"; none answers "is this EXCUSE still needed?" When a
+    # function finally gets wired it simply DROPS OFF the report — and its allowlist entry, with its
+    # carefully-argued reason, sits here inert and invisible. That is the exact failure this file's
+    # header names ("a suppression you cannot see is how the next real finding gets hidden behind a
+    # stale entry"), reached from the one direction the header did not look: not a suppression that is
+    # too broad, but one whose subject no longer exists.
+    #
+    # It is not hypothetical bookkeeping. `sync_spool`'s entry had to be deleted BY HAND at wiring
+    # time, and nothing anywhere would have said so — the report was green with the dead entry in it.
+    # Worse, the entry NAMES a function, so if a future refactor reintroduces that name in a genuinely
+    # unwired state, the stale excuse silences the finding on sight.
+    #
+    # An entry is stale when it matched nothing THIS RUN. That is the whole test, and it cannot false-
+    # positive: the scans above report every unwired name, so a name absent from them is wired,
+    # deleted, or renamed — and all three mean the excuse is spent.
+    # Every public function DEFINED in the scanned tree, so an allowlist entry can be judged only
+    # against a population that actually contains its subject.
+    defined = set()
+    for f in files:
+        defined |= public_functions(src[f])
+    stale = []
+    for label, allow, reported in (
+        ("ALLOW_KEYS", ALLOW_KEYS, {r["key"] for r in orphan_keys}),
+        ("ALLOW_FUNCS", ALLOW_FUNCS, {r["func"] for r in orphan_funcs}),
+        ("ALLOW_RENDERED", ALLOW_RENDERED, {r["key"] for r in orphan_rendered}),
+        ("ALLOW_JS", ALLOW_JS, {r["func"] for r in orphan_js}),
+    ):
+        # ⚠️ AN ENTRY IS STALE ONLY IF ITS SUBJECT WAS IN THE POPULATION THIS SCAN ENUMERATED and is
+        # no longer reported. If the
+        # named function is not defined in the scanned tree at all, this scan cannot say anything
+        # about it — the allowlist is a constant describing the WHOLE repo, so pointing `scan()` at a
+        # subtree (or a test fixture) would otherwise mark every entry spent and make the count a
+        # property of the ROOT rather than of the allowlist. `applies` is what keeps the verdict about
+        # the entry. (A first attempt gated on "is this the full tree", which was the wrong axis: a
+        # fixture that sets HERE to itself IS the full tree by that test, and still knows nothing
+        # about `close_harvest_decision`.)
+        applies = {"ALLOW_FUNCS": defined, "ALLOW_KEYS": pop_keys,
+                   "ALLOW_RENDERED": pop_rendered, "ALLOW_JS": pop_js}[label]
+        for name in sorted((set(allow) & applies) - reported):
+            stale.append({"list": label, "name": name, "allowed": None,
+                          "reason": allow[name]})
+
     return {"orphan_status_keys": orphan_keys, "orphan_functions": orphan_funcs,
-            "orphan_rendered": orphan_rendered, "orphan_js": orphan_js}
+            "orphan_rendered": orphan_rendered, "orphan_js": orphan_js,
+            "stale_allowlist": stale,
+            # ⚠️ STALENESS IS ONLY MEANINGFUL AGAINST THE TREE THE ALLOWLIST DESCRIBES. `ALLOW_FUNCS`
+            # is a module constant about THIS repo; point `scan()` at a fixture tree or a subtree and
+            # every entry matches nothing and reads as spent. The count would be a property of the
+            # ROOT, not of the allowlist. So the scan reports staleness always (visibility costs
+            # nothing) and `--check` only ENFORCES it on a full-repo scan.
+            "full_tree": os.path.abspath(root) == os.path.abspath(HERE)}
 
 
 def main(argv: list[str]) -> int:
@@ -420,6 +434,10 @@ def main(argv: list[str]) -> int:
             if r["allowed"]:
                 print("   (allowed) %-34s %s" % (fmt(r), r["allowed"]))
         print("   %d unexplained, %d allowed" % (len(live), len(rows) - len(live)))
+    print("\n== allowlist entries that excuse nothing (the suppression is spent) ==")
+    for r in res["stale_allowlist"]:
+        print("   %s[%r] — %s" % (r["list"], r["name"], r["reason"][:90]))
+    print("   %d stale" % len(res["stale_allowlist"]))
     # ── ADVISORY BY DEFAULT, ENFORCEABLE ON REQUEST ────────────────────────────────────────────────
     #
     # A bare run always exits 0. `--check` exits 1 on anything unexplained, and that mode only became
@@ -437,7 +455,21 @@ def main(argv: list[str]) -> int:
         if n:
             print("\n✖ %d unexplained — wire it, or allowlist it WITH A REASON in ALLOW_KEYS/ALLOW_FUNCS" % n)
             return 1
-        print("\n✓ 0 unexplained — every published key and public function is wired or explained")
+        # A spent suppression REDS, at the same severity as an unwired function, and deliberately so:
+        # its cost is not cosmetic. The entry names a symbol, so it pre-silences any FUTURE finding
+        # that reuses that name — a landmine armed by tidiness. Deleting it is a one-line change the
+        # wiring commit should have carried, which makes this the cheapest possible red to clear.
+        # ⚠️ NO SECOND GATE HERE. An abandoned first fix also required `res["full_tree"]`, and it
+        # survived the rewrite as dead belt-and-braces — a condition that can only ever SUPPRESS the
+        # red, on a tool whose entire subject is suppressions nobody re-checks. The scoping lives in
+        # scan(), where `applies` judges an entry only against the population its own scan enumerated.
+        if res["stale_allowlist"]:
+            print("\n✖ %d allowlist entr%s excuse nothing — DELETE them; a spent suppression silences the "
+                  "next real finding that reuses the name"
+                  % (len(res["stale_allowlist"]), "y" if len(res["stale_allowlist"]) == 1 else "ies"))
+            return 1
+        print("\n✓ 0 unexplained — every published key and public function is wired or explained,"
+              " and every allowlist entry still excuses something")
     return 0
 
 
