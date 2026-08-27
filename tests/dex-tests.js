@@ -24964,9 +24964,11 @@
          This finds ZERO real defects on current main and that is stated rather than hidden — its value
          is prospective, the same argument that justified commit-shape and stale-file. */
       function statusLineRefs(text) {
-        var line = String(text).split('\n').filter(function (l) {
-          return /^\*\*Status:\*\*/.test(l);
-        })[0];
+        var line = String(text)
+          .split('\n')
+          .filter(function (l) {
+            return /^\*\*Status:\*\*/.test(l);
+          })[0];
         if (!line) return [];
         // `match(/…/g)` rather than an exec loop: no assignment-in-expression, and the whole line is scanned.
         return (line.match(/`[A-Za-z0-9._-]+-BRIEF\.md`/g) || []).map(function (t) {
