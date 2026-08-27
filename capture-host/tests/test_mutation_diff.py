@@ -247,3 +247,126 @@ def test_selftest_FAILS_if_the_two_exclusions_collapse_again(monkeypatch):
         with monkeypatch.context() as mp:
             mp.setattr(M, 'string_only_verdict', broken)
             assert M.selftest() != 0
+
+
+# ── boundary inputs for the scanning loops (PR #1891 follow-up) ─────────────────────────────────
+# #1891 merged with 59 surviving mutants, because `mutation (diff-scoped)` is advisory rather than
+# required. 30 of them are in real decision logic; the `selftest` bucket is held pending a ruling on
+# the gate's jurisdiction over self-checking code.
+#
+# EVERY ONE is an off-by-one or a comparison flip in a scanning loop, and every existing fixture was
+# too SHORT or too SIMPLE to observe it: a one-character difference, a literal at the end of the
+# line, a single changed pair. Same family as the single-dot names and the pre-sorted candidate list
+# — a fixture that reaches the right answer without the code having to do its job.
+
+def test_changed_span_when_the_difference_is_at_index_ZERO():
+    """Kills `i, lo = 0, ...` -> `1`. Every prior case differed later in the string, so starting the
+    scan at 1 skipped only characters that matched anyway."""
+    assert M.changed_span("xbc", "ybc") == (0, 1, 1)
+
+
+def test_changed_span_when_one_line_is_a_PREFIX_of_the_other():
+    """Kills `while i < lo` -> `i <= lo`. The scan walks all the way to `lo` here, so `<=` indexes
+    one past the end of the shorter string. Prior cases were equal length AND differed early, so the
+    bound was never reached in either direction."""
+    assert M.changed_span("ab", "abc") == (2, 2, 3)
+    assert M.changed_span("abc", "ab") == (2, 3, 2)
+
+
+def test_changed_span_with_a_MULTI_CHARACTER_common_suffix():
+    """Kills `j += 1` -> `j += 2` and the `(lo - i)` bound flips. A one-character common suffix
+    cannot tell a step of 1 from a step of 2."""
+    assert M.changed_span("aXbcd", "aYbcd") == (1, 2, 2)
+    assert M.changed_span("p_TAIL", "qq_TAIL") == (0, 1, 2)
+
+
+def test_string_spans_with_an_EMPTY_literal_followed_by_more_line():
+    """Kills `start, quote, i = i, ch, i + 1` -> `i + 2`. In `""` the character after the opening
+    quote IS the terminator, so stepping two skips it and the scan runs to end of line. Every prior
+    fixture had a NON-empty literal, where that skip lands harmlessly inside the string."""
+    assert M._string_spans('a="" + b') == [(2, 4)]
+
+
+def test_scan_is_reliable_resumes_correctly_AFTER_a_closed_literal():
+    """Kills the index-advance mutations in `scan_is_reliable` (`i += 1` -> `2`, `i += 2` -> `3`,
+    `i = 2`, `i + 1` -> `i + 2`). A single literal at the END of the line cannot observe how the
+    scanner resumes; these put a second literal after a closed one."""
+    assert M.scan_is_reliable('f("a") + "open') is False
+    assert M.scan_is_reliable('f("a") + "shut"') is True
+    assert M.scan_is_reliable("x = 'a' + 'b' + 'c'") is True
+    assert M.scan_is_reliable('a="" + "later"') is True
+
+
+def test_classify_tolerates_an_entry_with_NO_key_field():
+    """Kills `e.get("key", "")` -> `e.get("key", None)` and the dropped default. An entry with no
+    key is claimed by nobody and must not match a real mutant or crash."""
+    got = M.classify([{"class": "real-gap"}], [{"key": "a"}], {"a"})
+    assert [x["key"] for x in got["unclassified"]] == ["a"]
+
+
+def test_string_only_verdict_examines_EVERY_pair_not_only_up_to_the_first_identical_one():
+    """Kills `continue` -> `break`. The FIRST removed/added pair here is identical and the SECOND
+    carries a real code change. Under `break` the loop stops at the first pair, never sees the
+    change, and reports EMPTY_DIFF — excluding a live mutant from the gate."""
+    two_pairs = "--- x\n+++ y\n-    a = 1\n-    b = 2\n+    a = 1\n+    b = 3\n"
+    assert M.string_only_verdict(two_pairs)[0] == M.REQUIRED
+
+
+def test_string_only_verdict_requires_BOTH_sides_readable_not_either():
+    """Kills `scan_is_reliable(old) and ...` -> `or`. The span is compared against BOTH sides, so
+    either one being fiction makes the verdict a guess. One-bad-one-good must still REFUSE."""
+    tq = chr(34) * 3
+    assert M.string_only_verdict("--- x\n+++ y\n-    x = f(1)\n+    x = f(2)  # " + tq + "\n")[0] == M.UNDECIDABLE
+    assert M.string_only_verdict("--- x\n+++ y\n-    x = f(1)  # " + tq + "\n+    x = f(2)\n")[0] == M.UNDECIDABLE
+
+# ── inputs found by DIFFERENTIAL SEARCH, not by guessing (PR #1891 follow-up) ───────────────────
+# My first pass at these was eight hand-picked "adversarial" fixtures. It killed 7 of 30 — I reasoned
+# about what SHOULD discriminate rather than measuring what does, which is the same error as the
+# fixtures it was meant to fix. So the inputs below were found mechanically: apply each mutant's exact
+# line replacement to the real source, exec it, and brute-force a corpus for an input where the
+# original and the mutant disagree. Every one is smaller and stranger than anything I would have
+# written, which is the point.
+
+def test_scan_is_reliable_on_a_LONE_quote_and_other_minimal_lines():
+    """Found by search. Kills four index-arithmetic mutants at once — each needs a line so short that
+    a single skipped position changes the verdict:
+      `i, n = 0` -> `1`      : '"' — skipping index 0 misses the only quote there is.
+      `i += 1`   -> `i += 2` : 'a"' — the scanner steps over the quote entirely.
+      `i += 2`   -> `i += 3` : '"\\""' — the escape skip overshoots the terminator."""
+    assert M.scan_is_reliable('"') is False
+    assert M.scan_is_reliable('a"') is False
+    assert M.scan_is_reliable('"' + chr(92) + '""') is True
+
+
+def test_scan_is_reliable_TERMINATES_on_a_trailing_backslash_escape():
+    """🔴 Kills `i += 2` -> `i = 2`, which does not merely give a wrong answer — it NEVER RETURNS.
+    Assigning instead of incrementing pins the cursor at 2, so the scan loops forever on any line
+    whose escape lands there. Found by search only because the harness treated a hang as a
+    distinguishable outcome; a corpus that simply waits would have looked like agreement."""
+    assert M.scan_is_reliable('"' + chr(39) + chr(92)) is False
+
+
+def test_changed_span_with_an_EMPTY_side_and_a_single_character():
+    """Found by search. Kills the two suffix-loop bound flips, which need the shortest possible
+    inputs: `j < (lo - i)` -> `<=` indexes past the end on ("", "a"), and -> `(lo + i)` walks too far
+    on ("a", "aa"). Every prior fixture was at least three characters, where neither bound is tight."""
+    assert M.changed_span("", "a") == (0, 0, 1)
+    assert M.changed_span("a", "aa") == (1, 1, 2)
+
+
+def test_scan_is_reliable_distinguishes_its_TRIPLE_QUOTE_sentinels():
+    """Found by search. Kills `chr(39) * 3` -> `chr(40) * 3` (which would test for `(((`) and
+    -> `chr(39) * 4`. Neither is observable unless a line carries exactly the sentinel being asked
+    about, and no prior fixture contained parentheses or a bare triple-apostrophe inside a literal."""
+    assert M.scan_is_reliable("(((") is True                       # parens are not a quote sentinel
+    assert M.scan_is_reliable(chr(39) * 3) is False                # a real triple-apostrophe
+    assert M.scan_is_reliable(chr(34) + chr(39) * 3 + chr(34)) is False
+
+
+def test_string_only_verdict_when_the_change_STRADDLES_a_literal_boundary():
+    """Found by search. Kills the `if a <= start and old_end <= b` guard flipping `and` -> `or`:
+    the removed line's change starts inside a literal but ends outside it, so accepting either half
+    of the guard alone reports STRING_ONLY for a change that is not confined to the literal."""
+    straddle = "--- x\n+++ y\n-a" + chr(34) * 2 + "\n+" + chr(34) + "a" + chr(34) + "\n"
+    assert M.string_only_verdict(straddle)[0] == M.REQUIRED
+
