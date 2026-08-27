@@ -38,6 +38,29 @@ a checksum.
 | `/run/media/…/Ecg nightly` | 1,980 | Polar Sensor Logger corpus (~19 GB) | the vendor-decode reference — validating our PMD decoders against PSL's own output |
 | `vigil:/srv/tepna/captures` | 6,827 across 28 nights | the capture box, **freshest data** | anything needing recent nights; reachable over `ssh vigil` |
 
+⚠️ **Row 2 is a SYMLINK, and `find` silently reports nothing through it.**
+`/home/michal/tepna-smoketest/captures` → `/srv/data/tepna-smoketest-captures`. `find` does not follow
+symlinked *start points* by default (`-P`), so it treats the path as a plain file, matches nothing, and
+**exits 0 with no error**. Measured 2026-08-27:
+
+```sh
+find  /home/michal/tepna-smoketest/captures  -name '*_ECG.txt' | wc -l   # → 0     ← false "no data"
+find -L /home/michal/tepna-smoketest/captures -name '*_ECG.txt' | wc -l  # → 505
+find  /home/michal/tepna-smoketest/captures/ -name '*_ECG.txt' | wc -l   # → 505   (trailing slash)
+ls    /home/michal/tepna-smoketest/captures/*/*_ECG.txt      | wc -l     # → 505   (glob follows)
+```
+
+**Use `find -L`, or a trailing slash, or a glob.** The tell that it is the instrument and not the
+corpus: a child directory searches fine while its parent returns zero — and `ls` disagrees with `find`
+on the same tree. This is the same class as the space above (a silent empty result standing in for an
+error, `CLAUDE.md` §👥.4b), and it cost real time before it was spotted: it presents as *"the box
+captures aren't on this machine"*, which is a statement about the corpus while being a statement about
+`find`.
+
+⚠️ **Do not diagnose it with stderr suppressed.** `2>/dev/null` also hides a missing binary, so a
+`… | wc -l` of 0 can mean "no matches", "not a directory", or "command not found" — three different
+facts wearing one number. Drop the redirect first.
+
 ⚠️ **`Ecg nightly` contains a space.** Quote it. An unquoted path silently becomes two arguments and
 the tool reports an empty corpus rather than an error — a false "no data" of the kind
 `CLAUDE.md` §👥.4b is about.
