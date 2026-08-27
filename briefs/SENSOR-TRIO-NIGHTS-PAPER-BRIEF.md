@@ -1,4 +1,4 @@
-**Status:** PROPOSED (**the re-fit is now RUNNABLE and has been RUN — and it does not reproduce the paper's Verity/H10 σ**; the blocker below was misdiagnosed, see the 2026-08-08 banner) · **Created:** (undated — pre-2026-07-03, grandfathered)
+**Status:** DONE — 2026-08-27 (**all six §8 boxes verified in the tree; the paper ships; and the non-reproduction that held this PROPOSED is now EXPLAINED and corrected in the paper itself** — see §10–§13 and the closing note below. The 15-night re-fit is NOT this brief's work: it is `TRIO-POWER-N15-FINDINGS`' ⛔ box and stays gated) · *(was PROPOSED — the re-fit is runnable and was run, and does not reproduce the paper's Verity/H10 σ; the original blocker below was misdiagnosed, see the 2026-08-08 banner)* · **Created:** (undated — pre-2026-07-03, grandfathered)
 
 > ## ⚠️ 2026-08-08 — the blocker was STRUCTURAL, not a sample-size problem, and it is now fixed
 >
@@ -393,6 +393,30 @@ Mirror nights-icc's deliverable: a minimum / recommended / diminishing-returns t
 - Until the real arm has several windows, report it as "validation accumulating" with the honest
   N_windows — never imply more real robustness than captured (same rule as the sigma paper).
 - Do not tune the estimator to make sim and real agree; agreement (or its absence) is the result.
+
+## 9bis · CLOSED 2026-08-27 — the non-reproduction is explained, and the explanation is in the paper
+
+This brief sat `PROPOSED` on one caveat: the re-fit **runs** but does not reproduce the paper's Verity/H10
+σ. That is no longer an open question — §10–§13 answered it, and the answer is now published rather than
+merely recorded here.
+
+| the σ that would not reproduce | what it turned out to be |
+|---|---|
+| **1.42 / 0.94–1.03** family | **estimator choice** — σ_Verity spans **0.72 → 1.35 (×1.9)** on identical nights across fused-median / unweighted-median / plain-median / pooled-seconds (§11). Two of the three disputed figures reconcile. |
+| **3.51** | a **retired PpgDex generation** (§12), demonstrated on one night with the other two corners held byte-identical: **2.14 → 4.25** under `95986ceb` (§13). No configuration of the current corpus reaches it. |
+| **H10 1.28 vs 1.78** | **not attributable to ECGDex.** The hat is coupled — `σ²_H10 = ½(V_HV + V_HO − V_VO)` — so a PpgDex-only generation swap moved σ_H10 **1.643 → 1.846** with the ECG code byte-identical (§13). |
+
+**And the correction is landed where readers meet the numbers**, not only in this brief: `sigma-no-reference`
+gained **limitation (xi)** (a σ is also a σ at one DSP *generation*), its invalid per-corner attribution was
+replaced with the coupling algebra, and `sensor-trio-nights` Table 4's caption carries the same caveat
+(#1866). Where the producing generation is unrecorded the papers now **say so** — the headline
+2.41 / 1.28 / 1.42 is marked *not presently re-derivable* rather than retro-stamped with a plausible commit.
+
+**Why this closes rather than stays open:** every §8 box is verified, the paper ships, and the caveat that
+held the status is now a documented finding instead of an unknown. ⚠️ **The 15-night re-fit is deliberately
+NOT claimed here** — it belongs to `TRIO-POWER-N15-FINDINGS`' `[⛔]` box and remains gated on the σ_Verity
+discrepancy, which §12/§13 **narrowed to a generation** without clearing. Flipping this brief does not
+unblock that one.
 
 ## 8. Definition of done
 > **All six boxes below were VERIFIED IN THE TREE and ticked 2026-08-04.** The header has said since
