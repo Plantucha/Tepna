@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-23 · **Follows:** `OXYII-G1-TRANSACTIONAL-SYNC-2026-08-23-BRIEF.md` (DONE, #1702) · **Affects:** `capture-host/oxy_transfer.py`, `capture-host/pull_session.py`, `capture-host/tools/mutate.py`, `capture-host/tools/mutate_diff.py`
+**Status:** IN-PROGRESS — 2026-08-27 (**three of six boxes are executed and the label said `PROPOSED`, which means unstarted.** Corrected 2026-08-27 after reading the boxes rather than the header: Layer-3 validation **LANDED** (D-w1), the mutation-cache re-key passed its first-run control (**#1726**, `mmeta.py`), and the zero-mutant-module guard refuses on the induced failure. **NOT DONE** — the three open items are real and one is physically gated: the drop test awaits the next physical session, `pull_session` wiring is unblocked now §4's boundary was ruled 2026-08-24, and the fsync chaos-lane control is unbuilt. Found by `tools/brief-verified-index.mjs`, which ranked this brief as never claiming a verification — it does not, and three of its items shipped anyway.) · **Created:** 2026-08-23 · **Follows:** `OXYII-G1-TRANSACTIONAL-SYNC-2026-08-23-BRIEF.md` (DONE, #1702) · **Affects:** `capture-host/oxy_transfer.py`, `capture-host/pull_session.py`, `capture-host/tools/mutate.py`, `capture-host/tools/mutate_diff.py`
 
 # G1 follow-ups — what execution left open, and what the gates taught while it shipped
 
