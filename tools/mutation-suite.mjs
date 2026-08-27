@@ -1548,6 +1548,12 @@ function selftest() {
      can catch them. A guard with no assertion that fails when it is removed is not a guard. */
   ck('a statement separator is rejected — only the allowlist can see this', safeProjection('out.a; sideEffect(9)'), null);
   ck('…as is a template literal', safeProjection('out[`a`]'), null);
+  ck('markdown-wrapped projection is unwrapped, then validated', parseDraftReply('PROJECTION: `out.n`\nPROPERTY: p').projection, 'out.n');
+  ck('digit-leading key is normalized to bracket form', parseDraftReply('PROJECTION: out.EprPress.2s.data[0]\nPROPERTY: p').projection, 'out.EprPress["2s"].data[0]');
+  ck('wrapping + digit key compose', parseDraftReply('PROJECTION: `out.a.2s`\nPROPERTY: p').projection, 'out.a["2s"]');
+  ck('backtick INSIDE an expression still rejected after unwrap', parseDraftReply('PROJECTION: `out[`a`]`\nPROPERTY: p').ok, false);
+  ck('unwrap does not enable calls', parseDraftReply('PROJECTION: `require("fs")`\nPROPERTY: p').ok, false);
+  ck('plain identifier paths unchanged', parseDraftReply('PROJECTION: out.a.b[0]\nPROPERTY: p').projection, 'out.a.b[0]');
   ck('…assignment, not comparison', safeProjection('out.a = 1'), null);
   ck('…but a comparison is fine', safeProjection('out.a === 1'), 'out.a === 1');
   ck('a projection that never reads `out` is rejected', safeProjection('1 + 1'), null);
@@ -1748,7 +1754,20 @@ export function parseDraftReply(text) {
   const prop = /PROPERTY:\s*([\s\S]+?)(?:\n\s*\n|$)/i.exec(t);
   if (prop && /^REFUSE\b/i.test(prop[1].trim())) return { ok: false, why: 'model declined — it could not name a behaviour behind the difference', refused: true };
   if (!proj || !prop) return { ok: false, why: 'reply did not carry both PROJECTION and PROPERTY lines' };
-  const safe = safeProjection(proj[1]);
+  /* NORMALIZE BEFORE VALIDATING (2026-08-27, measured on cpapdex _synthEdfSet: kept 0 of 61
+     because every projection was refused). Two model habits, both fixable without widening
+     the rail: (1) markdown wrapping — qwen emits PROJECTION: `out.x` and the backtick is
+     (correctly) outside the charset, so the projection dies for its QUOTING, not its content;
+     strip one layer of wrapping backticks/quotes only when they enclose the whole expression.
+     (2) EDF-style keys that start with a digit — `out.EprPress.2s.data[0]` passes the charset
+     but is a JS SyntaxError at evaluation; rewrite `.2s` → `["2s"]` for segments that begin
+     with a digit. Both rewrites are syntactic sugar over the SAME allowlist — backticks inside
+     an expression, calls, and assignment are rejected exactly as before (selftests pin this). */
+  let raw = proj[1].trim();
+  const wrap = raw.match(/^([`'"])(.+)\1$/s);
+  if (wrap) raw = wrap[2].trim();
+  raw = raw.replace(/\.(\d[\w-]*)(?=[.[]|\s|$)/g, '["$1"]');
+  const safe = safeProjection(raw);
   if (!safe) return { ok: false, why: 'projection rejected by the charset allowlist: ' + proj[1].trim().slice(0, 80) };
   return { ok: true, projection: safe, property: prop[1].trim().replace(/\s+/g, ' ') };
 }
