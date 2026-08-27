@@ -29,6 +29,7 @@
     .git/tepna-mutation/dsp-review/REVIEW-REPORT.md      (aggregated, per-run regenerated)
 */
 import { readFileSync, writeFileSync, appendFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
+import { addFinding } from './findings-ledger.mjs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { join, dirname, basename } from 'node:path';
@@ -118,6 +119,65 @@ export function chunkFunctions(src, maxLines = 160) {
   return out;
 }
 
+/* Python chunker for capture-host lenses: top-level def/class blocks by indentation. */
+export function chunkPyFunctions(src, maxLines = 160) {
+  const out = [];
+  const lines = src.split('\n');
+  let cur = null;
+  const flush = (endIdx) => {
+    if (!cur) return;
+    const body = lines.slice(cur.start, endIdx);
+    if (body.length >= 4)
+      out.push({
+        name: cur.name,
+        startLine: cur.start + 1,
+        lines: body.length,
+        text: body.length > maxLines ? body.slice(0, maxLines).join('\n') + '\n# …TRUNCATED FOR REVIEW at ' + maxLines + ' of ' + body.length + ' lines…' : body.join('\n'),
+        truncated: body.length > maxLines
+      });
+    cur = null;
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^(?:def|class)\s+([A-Za-z_]\w*)/);
+    if (m) {
+      flush(i);
+      cur = { name: m[1], start: i };
+    }
+  }
+  flush(lines.length);
+  return out;
+}
+
+/* NARROW LENSES (program §3, charter §3/§4/§7): one worker, one question. Findings from lens
+   runs go to the findings ledger, where per-lens precision is tracked — a lens below the
+   pre-stated band gets narrowed or retired (program brief §2.5). */
+export const LENSES = {
+  'resource-leak': {
+    scope: /^capture-host\/.*\.py$|^tools\/.*\.mjs$/,
+    q: 'ONE question only: find resources acquired and not released on EVERY path — files, sockets, BLE connections, locks, subprocesses, tasks. A leak on the error path counts. Report ONLY leaks you can trace: name the acquisition line and the path that skips the release.'
+  },
+  'silent-stop': {
+    scope: /^capture-host\/.*\.py$/,
+    q: 'ONE question only: find paths where acquisition can STOP while the process stays apparently healthy — a poller loop that exits on an unhandled condition, a task that dies without setting an error flag, a retry ladder that gives up permanently without surfacing it. Name the exit path and what stops being done.'
+  },
+  'no-recovery': {
+    scope: /^capture-host\/.*\.py$/,
+    q: 'ONE question only: find state transitions with no recovery route — a state reachable on failure from which no code path leads back to normal operation without a restart. Name the entering transition and show the absence of the leaving one.'
+  },
+  'swallowed-exc': {
+    scope: /^capture-host\/.*\.py$|^tools\/.*\.mjs$/,
+    q: 'ONE question only: find exceptions that can terminate or corrupt an operation SILENTLY — bare except/catch that discards, error paths that log nothing and set no flag, finally blocks that mask the original error. A deliberate documented suppression is NOT a finding.'
+  },
+  'dup-state': {
+    scope: /^capture-host\/.*\.py$/,
+    q: 'ONE question only: find DUPLICATE or CONTRADICTORY state — the same fact stored in two places that can disagree (two flags for one condition, a cached value beside its source, parallel dicts keyed differently). Name both storage sites and the sequence that desynchronizes them.'
+  },
+  'clock-misuse': {
+    scope: /^capture-host\/.*\.py$|\.js$/,
+    q: 'ONE question only: find Clock Contract violations — locale/implicit date parsing of vendor strings, a missing timestamp becoming now() or a default instead of null/None, display via local-time getters, naive-vs-aware datetime mixing, epoch seconds/ms/ns unit confusion. Cite the exact call.'
+  }
+};
+
 const ADVERSARY_RULES = `You are an ADVERSARIAL auditor attacking DSP code from Tepna, a physiological signal suite. Your job is to BREAK it — construct concrete inputs or states under which a function LIES: returns a plausible-looking but wrong value, fabricates a measurement from absent input, silently violates a timing contract, or lets a malformed record corrupt downstream state. Attack lenses, in priority order:
 1. FABRICATION: inputs (empty, null-holed, all-zero, single-element) for which the function returns a confident number instead of null/refusal.
 2. POISON PROPAGATION: NaN, Infinity, negative time, year-1970 timestamps, reversed order, duplicate timestamps — does garbage become a clean-looking output?
@@ -151,8 +211,14 @@ function docContext(fn, file) {
 }
 
 export function buildPrompt(fn, file, mode = 'review') {
+  const lens = LENSES[mode];
+  const rules = lens
+    ? `You are a NARROW-LENS auditor for Tepna (local-first physiological acquisition + analysis). ${lens.q}\nDo NOT report anything outside this one question. Do NOT report style. An empty result is a good result.`
+    : mode === 'adversary'
+      ? ADVERSARY_RULES
+      : HOUSE_RULES;
   return (
-    (mode === 'adversary' ? ADVERSARY_RULES : HOUSE_RULES) +
+    rules +
     `
 
 ${docContext(fn, file)}\nFILE: ${file}  FUNCTION: ${fn.name}  (starts at line ${fn.startLine}${fn.truncated ? ', shown truncated' : ''})
@@ -161,7 +227,7 @@ ${docContext(fn, file)}\nFILE: ${file}  FUNCTION: ${fn.name}  (starts at line ${
 ${fn.text}
 \`\`\`
 
-Reply with ONLY a JSON array (no prose). Each finding: {"line": <absolute line number, computed as ${fn.startLine} + offset-in-shown-text - 1>, "kind": "inefficiency"|"logic"|"signal-flow"|"improvement", "claim": "<one sentence, specific>", "scenario": "<concrete input/state that shows it, one sentence>", "confidence": "low"|"medium"|"high", "fix": "<the SPECIFIC proposed replacement code for the affected lines, verbatim JS, or empty string if you cannot write one you would stand behind>"}
+Reply with ONLY a JSON array (no prose). Each finding: {"line": <absolute line number, computed as ${fn.startLine} + offset-in-shown-text - 1>, "kind": "inefficiency"|"logic"|"signal-flow"|"improvement"|"defect", "claim": "<one sentence, specific>", "scenario": "<concrete input/state that shows it, one sentence>", "confidence": "low"|"medium"|"high", "fix": "<the SPECIFIC proposed replacement code for the affected lines, verbatim JS, or empty string if you cannot write one you would stand behind>"}
 In adversary mode, "scenario" MUST be the concrete attacking input (literal JS value) and "fix" the minimal guard that defeats it. The fix is a PROPOSAL for a human coordinator to review — write it as you would a patch: minimal, in the file's own style, no commentary inside the code. A wrong fix is worse than an empty one.
 If nothing meets the bar, reply exactly: []`
   );
@@ -174,7 +240,7 @@ export function parseFindings(reply) {
     const arr = JSON.parse(m[0]);
     if (!Array.isArray(arr)) return null;
     return arr
-      .filter((f) => f && typeof f.claim === 'string' && typeof f.line === 'number' && ['inefficiency', 'logic', 'signal-flow', 'improvement'].includes(f.kind))
+      .filter((f) => f && typeof f.claim === 'string' && typeof f.line === 'number' && ['inefficiency', 'logic', 'signal-flow', 'improvement', 'defect'].includes(f.kind))
       .map((f) => ({ ...f, fix: typeof f.fix === 'string' ? f.fix.slice(0, 4000) : '' }));
   } catch {
     return null;
@@ -211,8 +277,9 @@ function doneKeys(journalPath) {
 
 async function reviewFile(file, dir, mode) {
   const src = readFileSync(join(ROOT, file), 'utf8');
-  const fns = chunkFunctions(src);
-  const journal = join(dir, file + (mode === 'adversary' ? '.adversary.jsonl' : '.review.jsonl'));
+  const fns = file.endsWith('.py') ? chunkPyFunctions(src) : chunkFunctions(src);
+  const suffix = LENSES[mode] ? `.lens-${mode}.jsonl` : mode === 'adversary' ? '.adversary.jsonl' : '.review.jsonl';
+  const journal = join(dir, file.replace(/\//g, '__') + suffix);
   const done = doneKeys(journal);
   let asked = 0,
     found = 0,
@@ -240,6 +307,23 @@ async function reviewFile(file, dir, mode) {
       JSON.stringify({ key, mode, fn: fn.name, startLine: fn.startLine, lines: fn.lines, truncated: fn.truncated, at: 'run', findings: findings || [], parseFailed: findings === null && !err, err }) +
         '\n'
     );
+    for (const fi of findings || []) {
+      try {
+        addFinding({
+          lens: LENSES[mode] ? mode : `dsp-${mode}`,
+          file,
+          line: fi.line,
+          component: fn.name,
+          category: fi.kind,
+          claim: fi.claim,
+          scenario: fi.scenario,
+          confidence: fi.confidence,
+          fix: fi.fix || undefined
+        });
+      } catch {
+        /* ledger failure must not kill the run; the journal line above already holds the finding */
+      }
+    }
     asked++;
     found += (findings || []).length;
     process.stderr.write(`  [${asked}] ${fn.name} → ${findings === null ? (err ? 'ERR' : 'unparseable') : findings.length + ' finding(s)'}\n`);
@@ -249,7 +333,7 @@ async function reviewFile(file, dir, mode) {
 
 function report(dir) {
   const rows = [];
-  for (const f of readdirSync(dir).filter((x) => x.endsWith('.review.jsonl') || x.endsWith('.adversary.jsonl'))) {
+  for (const f of readdirSync(dir).filter((x) => x.endsWith('.review.jsonl') || x.endsWith('.adversary.jsonl') || /\.lens-[\w-]+\.jsonl$/.test(x))) {
     for (const l of readFileSync(join(dir, f), 'utf8').split('\n')) {
       if (!l) continue;
       let o;
@@ -258,7 +342,7 @@ function report(dir) {
       } catch {
         continue;
       }
-      for (const fi of o.findings || []) rows.push({ file: f.replace(/\.(review|adversary)\.jsonl$/, ''), mode: o.mode || 'review', fn: o.fn, ...fi });
+      for (const fi of o.findings || []) rows.push({ file: f.replace(/\.(review|adversary|lens-[\w-]+)\.jsonl$/, '').replace(/__/g, '/'), mode: o.mode || 'review', fn: o.fn, ...fi });
     }
   }
   const order = { high: 0, medium: 1, low: 2 };
@@ -302,6 +386,13 @@ function selftest() {
   ck('key differs by mode', fnKey('a.js', fns[0], 'adversary') !== fnKey('a.js', fns[0], 'review'));
   ck('adversary prompt selected', buildPrompt(fns[0], 'a.js', 'adversary').includes('ADVERSARIAL auditor'));
   ck('review prompt default', buildPrompt(fns[0], 'a.js').includes('house rules') || buildPrompt(fns[0], 'a.js').includes('reviewing DSP code'));
+  const py = 'def tiny():\n    pass\ndef real(a):\n    s = 0\n    for x in a:\n        s += x\n    return s\nclass Thing:\n    x = 1\n    y = 2\n    z = 3\n';
+  const pfns = chunkPyFunctions(py);
+  ck('py chunker keeps real + class, skips tiny', pfns.length === 2 && pfns[0].name === 'real' && pfns[1].name === 'Thing');
+  ck('py startLine 1-based', pfns[0].startLine === 3);
+  ck('six lenses defined', Object.keys(LENSES).length === 6);
+  ck('lens scope discriminates', LENSES['silent-stop'].scope.test('capture-host/oxy_pull.py') && !LENSES['silent-stop'].scope.test('oxydex-dsp.js'));
+  ck('lens prompt is narrow', buildPrompt(fns[0], 'a.js', 'resource-leak').includes('ONE question only') && !buildPrompt(fns[0], 'a.js', 'resource-leak').includes('ADVERSARIAL'));
   console.log(`selftest: ${ok} ok, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }
@@ -316,9 +407,31 @@ async function main() {
   }
   const files = [];
   for (let i = 0; i < argv.length; i++) if (argv[i] === '--file' && argv[i + 1]) files.push(argv[++i]);
-  const targets = files.length ? files : FLEET;
   const mi = argv.indexOf('--mode');
-  const mode = mi >= 0 && argv[mi + 1] === 'adversary' ? 'adversary' : 'review';
+  const li = argv.indexOf('--lens');
+  const lensId = li >= 0 ? argv[li + 1] : null;
+  if (lensId && !LENSES[lensId]) {
+    console.error(`unknown lens ${lensId} — have: ${Object.keys(LENSES).join(' ')}`);
+    process.exit(2);
+  }
+  const mode = lensId || (mi >= 0 && argv[mi + 1] === 'adversary' ? 'adversary' : 'review');
+  if (argv.includes('--diff')) {
+    // diff-scoped: files changed on origin/main in the last 24 h, filtered by the lens scope
+    // (or by "is a repo js/py file" for review/adversary). Program §3 job 2.
+    const changed = execFileSync('git', ['log', '--since=24 hours ago', '--name-only', '--pretty=format:', 'origin/main'], { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean);
+    const scope = LENSES[mode] ? LENSES[mode].scope : /\.(js|mjs|py)$/;
+    const uniq = [...new Set(changed)].filter((f) => scope.test(f) && existsSync(join(ROOT, f)));
+    files.length = 0;
+    files.push(...uniq);
+    if (!files.length) {
+      console.log(`--diff: no changed files in scope for ${mode} in the last 24 h — nothing to do`);
+      return;
+    }
+  } else if (lensId && !files.length) {
+    console.error('--lens requires --diff or explicit --file targets (a whole-tree lens run is a deliberate act)');
+    process.exit(2);
+  }
+  const targets = files.length ? files : FLEET;
   if (busyNow() && !argv.includes('--force')) {
     console.error('pipeline busy — review is the idle filler, not a competitor. It will be retried by its runner.');
     process.exit(3);
