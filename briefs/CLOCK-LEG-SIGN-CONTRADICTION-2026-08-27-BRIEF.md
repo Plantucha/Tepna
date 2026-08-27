@@ -86,6 +86,28 @@ against the median-based **+6.5**. The interval is the same one leg C measured.
 | 2026-08-09 | 40 | +13.3 | 47 ms | 1.08 | 0.704 | 6.9 | **2.60** |
 | 2026-08-13 | 28 | −13.5 | 93 ms | 3.61 | 0.318 | 14.5 | **5.02** |
 
+⚠️ **If you re-derive this table, CLAMP ρ₁ AT 0 — a negative sample ρ₁ points the correction backwards.**
+`n_eff = n(1−ρ₁)/(1+ρ₁)` exceeds `n` whenever ρ₁ < 0, so the inflation factor `√(n/n_eff)` falls **below
+1** and the "corrected" SE comes out **narrower** than the OLS one it was meant to widen:
+
+| ρ₁ | n_eff (n=28) | inflation |
+|---|---|---|
+| +0.706 | 4.8 | 2.409 |
+| +0.318 | 14.5 | 1.390 |
+| 0 | 28.0 | 1.000 |
+| **−0.100** | 34.2 | **0.905** ← shrinks |
+| **−0.300** | 52.0 | **0.734** ← shrinks |
+
+The formula is not wrong — negative autocorrelation genuinely carries *more* information per sample — but
+it is used here as a **one-sided conservative correction**, and a conservative correction that can narrow
+an interval is not one. **Clamp `ρ₁ ← max(0, ρ₁)`** so the term can only widen. ⚠️ A *lower* clamp on
+`n_eff` (e.g. `max(2, n_eff)`) looks like the guard and is not: it protects the ρ₁→+1 end, which was never
+the hazard, and it leaves the backwards direction wide open. **The table below is unaffected** — its
+measured ρ₁ are 0.318, 0.704 and 0.706, all positive — so this is a caveat for re-derivation, not a
+correction to the published numbers. Found by the Vigil box session while reproducing the table exactly
+(1.390 against the published 1.391); no shipped tool computes `n_eff`, so the brief is the only surface
+that needed it.
+
 The residuals **wander rather than scatter** — ρ₁ ≈ 0.7 on two of three nights — so the effective sample
 size collapses (36 → 6.2) and a naive OLS SE understates the truth by up to **2.4×**. ⚠️ **Anyone quoting
 leg C's ppm should quote an autocorrelation-corrected CI with it**; the block count is not the sample size.
