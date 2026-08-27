@@ -1554,6 +1554,18 @@ function selftest() {
   ck('backtick INSIDE an expression still rejected after unwrap', parseDraftReply('PROJECTION: `out[`a`]`\nPROPERTY: p').ok, false);
   ck('unwrap does not enable calls', parseDraftReply('PROJECTION: `require("fs")`\nPROPERTY: p').ok, false);
   ck('plain identifier paths unchanged', parseDraftReply('PROJECTION: out.a.b[0]\nPROPERTY: p').projection, 'out.a.b[0]');
+  const edf = JSON.stringify({ 'EprPress.2s': { data: [7, 8] }, plain: 1 });
+  const edf2 = JSON.stringify({ 'EprPress.2s': { data: [9, 8] }, plain: 1 });
+  ck('dotted-key rescue: resegments against the recorded object', resegmentPath('out.EprPress["2s"].data[0]', JSON.parse(edf)), 'out["EprPress.2s"].data[0]');
+  ck('dotted-key rescue: bracketed pair form too', resegmentPath('out["EprPress"]["2s"].data[0]', JSON.parse(edf)), 'out["EprPress.2s"].data[0]');
+  ck(
+    'parse→resegment composition: the model dotted form ends applicable',
+    resegmentPath(parseDraftReply('PROJECTION: out.EprPress.2s.data[0]\nPROPERTY: p').projection, JSON.parse(edf)),
+    'out["EprPress.2s"].data[0]'
+  );
+  ck('rescue leaves resolvable paths alone', resegmentPath('out.plain', JSON.parse(edf)), 'out.plain');
+  ck('rescue refuses non-path expressions', resegmentPath('out.a === 1', JSON.parse(edf)), null);
+  ck('discriminates end-to-end through a dotted key', projectionDiscriminates('out.EprPress["2s"].data[0]', edf, edf2).ok, true);
   ck('…assignment, not comparison', safeProjection('out.a = 1'), null);
   ck('…but a comparison is fine', safeProjection('out.a === 1'), 'out.a === 1');
   ck('a projection that never reads `out` is rejected', safeProjection('1 + 1'), null);
@@ -1777,8 +1789,51 @@ export function parseDraftReply(text) {
  * the probe, so asking "does this field actually differ" is a pure function over committed JSON —
  * exact, instant, and independent of everything the model said.
  */
+/* DOTTED-KEY RESCUE (2026-08-27, second half of the _synthEdfSet lesson). EDF signal names are
+   keys that CONTAIN dots ("EprPress.2s"), which dot notation cannot express — the model writes
+   `out.EprPress.2s.data[0]` and any static rewrite must GUESS the segmentation. Nothing needs
+   guessing: the recorded orig output is ground truth for which keys exist. For a PURE PATH
+   projection only, re-segment greedily against the actual object — when a segment resolves to
+   undefined but joining it with following segment(s) by '.' names a real key, merge them. Pure
+   function of (path, recorded object); no model input decides anything. Non-path expressions
+   (comparisons etc.) are left untouched. */
+export function resegmentPath(expr, obj) {
+  const m = String(expr).match(/^out((?:\.[A-Za-z_$][\w$-]*|\["[^"\\]+"\]|\['[^'\\]+'\]|\[\d+\])+)$/);
+  if (!m) return null;
+  const segs = [];
+  const re = /\.([A-Za-z_$][\w$-]*)|\["([^"\\]+)"\]|\['([^'\\]+)'\]|\[(\d+)\]/g;
+  let mm;
+  while ((mm = re.exec(m[1]))) segs.push(mm[4] !== undefined ? { idx: Number(mm[4]) } : { key: mm[1] ?? mm[2] ?? mm[3] });
+  let cur = obj;
+  const outSegs = [];
+  for (let i = 0; i < segs.length; i++) {
+    const sg = segs[i];
+    if (sg.idx !== undefined) {
+      if (!Array.isArray(cur)) return null;
+      cur = cur[sg.idx];
+      outSegs.push('[' + sg.idx + ']');
+      continue;
+    }
+    if (cur === null || typeof cur !== 'object') return null;
+    let key = sg.key;
+    let consumed = 0;
+    if (!(key in cur)) {
+      for (let j = i + 1; j < segs.length && segs[j].key !== undefined; j++) {
+        key = key + '.' + segs[j].key;
+        consumed = j - i;
+        if (key in cur) break;
+      }
+      if (!(key in cur)) return null;
+    }
+    i += consumed;
+    cur = cur[key];
+    outSegs.push(/^[A-Za-z_$][\w$]*$/.test(key) ? '.' + key : '["' + key + '"]');
+  }
+  return 'out' + outSegs.join('');
+}
+
 export function projectionDiscriminates(expr, origText, mutantText) {
-  const safe = safeProjection(expr);
+  let safe = safeProjection(expr);
   if (!safe) return { ok: false, why: 'unsafe projection' };
   let a, b;
   try {
@@ -1787,6 +1842,8 @@ export function projectionDiscriminates(expr, origText, mutantText) {
   } catch {
     return { ok: false, why: 'recorded outputs are not both JSON — cannot compare a projection over them' };
   }
+  const reseg = resegmentPath(safe, a);
+  if (reseg && reseg !== safe && safeProjection(reseg)) safe = reseg;
   let fn;
   try {
     fn = new Function('out', '"use strict"; return (' + safe + ');');
