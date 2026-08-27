@@ -58,17 +58,26 @@ def test_no_int_convenience_wrapper_survives_without_a_caller():
 
 # ── selection: an exclusion must be REPORTED, never dropped silently ────────────────────────────
 
+# ⚠️ THE OWN-NAME FILE IS DELIBERATELY NOT FIRST HERE. It used to be, and that made
+# `test_..._own_file_first` pass WITHOUT the reordering ever running: `kept[0]` was already correct
+# by accident of fixture order, so `own = f"tests/test_{stem}.py" -> own = None` survived mutation.
+# Ordering it after `test_other.py` makes the reorder load-bearing — the assertion now fails unless
+# the code actually moves it. Same root cause as the single-dot names in mutation_triage: a fixture
+# that reaches the right answer for the wrong reason observes nothing.
 _CANDS = [
     ("tests/test_alpha.py", "import alpha\n"),
-    ("tests/test_clockcfg.py", "from clockcfg import x\n"),
     ("tests/test_other.py", "clockcfg is mentioned here\n"),
-    ("tests/test_unrelated.py", "nothing to see\n"),
     ("tests/test_no_deprecated_apis.py", "clockcfg appears but this test greps SOURCE\n"),
+    ("tests/test_clockcfg.py", "from clockcfg import x\n"),
+    ("tests/test_unrelated.py", "nothing to see\n"),
 ]
 
 
 def test_selection_takes_every_file_that_NAMES_the_module_own_file_first():
+    """The own-name file must be MOVED to the front, not merely happen to be there — `_CANDS` lists
+    it third precisely so this assertion observes the reordering rather than the fixture's order."""
     kept, dropped = S.select_tests(_CANDS, "clockcfg")
+    assert [p for p, _ in _CANDS].index("tests/test_clockcfg.py") > 0, "fixture must not pre-sort it"
     assert kept[0] == "tests/test_clockcfg.py", "the own-name file must lead"
     assert set(kept) == {"tests/test_clockcfg.py", "tests/test_other.py"}
     assert "tests/test_unrelated.py" not in kept
