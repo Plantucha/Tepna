@@ -266,11 +266,11 @@ const MARK_BEGIN = '/* ── SUITE-REALM VERIFICATION ────────�
 const MARK_END = ' ── end suite-realm verification ── */';
 
 /** Render the in-place summary block. PURE — takes results, returns text. */
-export function renderSummary(results, stamp) {
+export function renderSummary(results, stamp, realmLabel = 'unspecified') {
   const n = (b) => results.filter((r) => r.bucket === b).length;
   const lines = [
     MARK_BEGIN,
-    `   Verified in the SUITE's co-load realm ${stamp} by tools/verify-drafts.mjs.`,
+    `   Verified ${stamp} by tools/verify-drafts.mjs — realm: ${realmLabel}.`,
     '   A draft is machine-verified against the DRAFTING realm; this says whether it also holds in',
     "   the realm that will run it. Comparison uses the suite's own `dexSerializeForEq`, so @undef /",
     '   @NaN / @-0 tagging round-trips exactly as T.eq will apply it after adoption.',
@@ -306,7 +306,11 @@ export function withSummary(text, summary) {
   return hdr >= 0 ? `${text.slice(0, hdr + 2)}\n\n${summary}\n${text.slice(hdr + 2)}` : `${summary}\n${text}`;
 }
 
-export function main(argv = [], { root = ROOT, write = writeFileSync, now = () => new Date().toISOString().slice(0, 10) } = {}) {
+/* The verification loop, realm-agnostic: callers supply the ctx. The AUTHORITATIVE caller is
+   `node tests/run-tests.mjs --verify-drafts`, which passes the suite's own ctx (see the hook
+   there and ledger d9dc764b324f: the tool-local realm certified two drafts the suite failed).
+   The summary records which realm produced it, so a stale approximate stamp is visible. */
+export function verifyPile(ctx, ser, { root = ROOT, write = writeFileSync, now = () => new Date().toISOString().slice(0, 10), realmLabel = 'unspecified', dryRun = false } = {}) {
   const dir = draftsDir(root);
   if (!existsSync(dir)) {
     process.stderr.write(`no drafts dir: ${dir}\n`);
@@ -315,23 +319,30 @@ export function main(argv = [], { root = ROOT, write = writeFileSync, now = () =
   const files = readdirSync(dir)
     .filter((f) => f.endsWith('.drafts.js'))
     .sort();
-  const ser = suiteSerializer(root);
-  const { ctx, loaded, failed } = buildRealm(root);
-  process.stderr.write(`realm: ${loaded.length} modules loaded${failed.length ? `, ${failed.length} failed (${failed.map((f) => f[0]).join(', ')})` : ''}\n`);
-
+  const serializer = ser || suiteSerializer(root);
   const totals = { VERIFIED: 0, DIVERGENT: 0, UNEXECUTABLE: 0 };
   for (const f of files) {
     const p = join(dir, f);
     const text = readFileSync(p, 'utf8');
-    const results = parseDrafts(text).map((d) => verifyDraft(ctx, ser, d));
+    const results = parseDrafts(text).map((d) => verifyDraft(ctx, serializer, d));
     for (const r of results) totals[r.bucket]++;
-    if (!argv.includes('--dry-run')) write(p, withSummary(text, renderSummary(results, now())), 'utf8');
+    if (!dryRun) write(p, withSummary(text, renderSummary(results, now(), realmLabel)), 'utf8');
     const n = (b) => results.filter((r) => r.bucket === b).length;
     process.stderr.write(`  ${f.padEnd(30)} verified ${n('VERIFIED')}  divergent ${n('DIVERGENT')}  unexecutable ${n('UNEXECUTABLE')}\n`);
   }
-  process.stderr.write(`TOTAL verified ${totals.VERIFIED} · divergent ${totals.DIVERGENT} · unexecutable ${totals.UNEXECUTABLE}\n`);
+  process.stderr.write(`TOTAL verified ${totals.VERIFIED} · divergent ${totals.DIVERGENT} · unexecutable ${totals.UNEXECUTABLE}  [realm: ${realmLabel}]\n`);
   // Exit 0 always: this REPORTS, it does not gate. Adoption reads the buckets and decides.
   return 0;
+}
+
+export function main(argv = [], { root = ROOT, write = writeFileSync, now = () => new Date().toISOString().slice(0, 10) } = {}) {
+  /* Standalone mode builds a TOOL-LOCAL realm — an imitation of the suite's, and ledger
+     d9dc764b324f records the imitation certifying drafts the suite failed. It stays for quick
+     iteration, loudly labelled; adoption must use the suite mode. */
+  process.stderr.write('⚠ APPROXIMATE tool-local realm. Authoritative: node tests/run-tests.mjs --verify-drafts\n');
+  const { ctx, loaded, failed } = buildRealm(root);
+  process.stderr.write(`realm: ${loaded.length} modules loaded${failed.length ? `, ${failed.length} failed (${failed.map((f) => f[0]).join(', ')})` : ''}\n`);
+  return verifyPile(ctx, suiteSerializer(root), { root, write, now, realmLabel: 'tool-local (APPROXIMATE — not adoption-grade)', dryRun: argv.includes('--dry-run') });
 }
 
 export function selftest() {
