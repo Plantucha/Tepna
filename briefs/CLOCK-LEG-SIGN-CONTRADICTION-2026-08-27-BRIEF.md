@@ -161,6 +161,55 @@ this corpus, and the host-leg closure cannot be gated on it at all.** That would
 and it would explain the band↔verdict anti-correlation recorded there without needing the anti-selection
 argument, since leg C's true uncertainty would exceed every host-leg band.
 
+### 8 · The §7 mechanism is REFUTED in source — but the conclusion survives in a stronger, simpler form
+
+§7 proposed that leg C inherits the `fs`-rounding sawtooth (#1121: ECGDex derived `fs` from the lossy
+`timestamp [ms]` column and rounded to 130 Hz, running the axis 46–126 ppm fast). **Checked in source,
+and it does not:**
+
+- `h10Beats` derives `f = (n−1) / ((ns[last] − ns[0]) / 1e9)` — from the **`sensor timestamp [ns]`
+  column, unrounded** — and returns `ns[peakIndex]/1e9`, i.e. real device stamps, never `t0 + i/fs`.
+- `verityBeats` reads the device column directly and carries an explicit comment that it must **not**
+  use `rec.relSec`, which is host-disciplined.
+
+So both legs are genuinely host-independent and the #1121 artifact is absent. My §7 mechanism was wrong.
+
+**What is right is simpler and needs no named mechanism: the signal is smaller than the noise.**
+
+| 2026-08-13 | |
+|---|---|
+| clock difference to be measured (6.3 ppm × 270 min) | **≈ 102 ms** |
+| observed offset **wander** across the night | **≈ 450 ms** (1.98 → 2.43 s) |
+| block-to-block scatter | **93 ms** |
+| net change the slope is fitted to | −204 ms |
+
+**Leg C fits a slope through an observable whose wander is ~4× the quantity being measured.** The slope
+therefore reports the wander. That is why 2026-07-20 — 7 ms scatter — agrees with its prediction to
+**0.27σ** using the identical code, and why two fragments of 08-13 disagree by 40 ppm.
+
+It also dissolves the apparent paradox in §3–§4: a "3.94σ contradiction" and a 40 ppm within-night swing
+can coexist because the reported uncertainty is optimistic even after the AR(1) inflation — **wander is
+not AR(1) noise**, so no fixed-order correction recovers the true error bar.
+
+⚠️ **What causes the wander is NOT established.** PAT — the R-peak→pulse-foot delay leg C's observable
+literally contains — moves with blood pressure, vascular tone and posture, and an evening fragment
+(20:30, awake) versus a sleeping one (23:17) fits a 40 ppm difference. **But a −320 ms PAT excursion
+would exceed typical whole-PAT magnitude**, so PAT probably does not account for all of it; beat-pairing
+and foot-detection jitter remain live. Do not write PAT down as the cause. See
+`PAT-SAWTOOTH-ANSWERS-THE-130MS` for how badly PAT statistics have misled here before.
+
+### 9 · The actionable consequence
+
+**`beat-leg-closure` reports a bare ppm with no uncertainty, and on this corpus that number is not a
+clock measurement.** Two things follow:
+
+1. **Never quote a leg-C ppm without the night's offset scatter beside it** — the block count is not the
+   sample size, and a clean-looking figure from a noisy night is the failure mode.
+2. **The `CROSS-DEVICE-DRIFT-AND-CLOSURE` §PAT gate cannot be repaired by widening bands.** It compares a
+   stable quantity (host legs, reproducing to 0.3 ppm across fragments) against one whose per-night error
+   is tens of ppm and unreported. The honest fix is for leg C to publish an uncertainty and refuse where
+   the offset wander exceeds the clock signal — i.e. the `hostAxis` refusal discipline applied to itself.
+
 ### What remains
 
 **Hypothesis 5 (§7) now leads and would subsume the rest.** Hypotheses **3** (a mid-night device event)
