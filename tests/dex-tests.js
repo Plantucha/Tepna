@@ -24025,6 +24025,81 @@
       T.eq('an UNARMED stuck PR is never updated (it needs a human to arm it)', pk([C('stuck-unarmed', 1, 99)]).action, 'none');
     });
 
+    /* ── beat-leg-closure: leg C must refuse when it would report its own noise ─────────────
+       CLOCK-LEG-SIGN-CONTRADICTION §9. The tool printed a bare ppm and on 2026-08-13 that number was
+       not a clock measurement: ~450 ms of offset wander against ~102 ms of clock signal, so the fitted
+       slope reported the wander and two fragments of one night disagreed by 40 ppm.
+
+       WHY THIS GROUP EXISTS AT ALL. The tool has an 8-case `--selftest` and NOTHING RAN IT — not a
+       workflow, not package.json, and the file is absent from readSources. A refusal control nobody
+       invokes can rot green for months, which is the same class of defect as the gate it guards.
+
+       Node-lane only (an ESM import of a tool), so the browser lane SKIPs. `legC` is pure given two
+       beat arrays — no files, no clock, no network. */
+    group('beat-leg-closure — a rate is published with its bound, or refused', 'tools · beat-leg-closure · clock', function (T) {
+      var legC = env.beatLegC;
+      if (typeof legC !== 'function') {
+        T.skip('beat-leg-closure wired into this lane', 'Node-lane only — wire env.beatLegC (run-tests.mjs)');
+        return;
+      }
+      /* Deterministic planted pairs: H10 beats on a realistic RR walk, Verity the same beats on a
+         clock scaled by `ppm`, plus optional slow offset wander. Seeded LCG so a failure is a real
+         regression rather than a draw. */
+      function plant(ppm, wanderS, minutes) {
+        var st = 12345;
+        var rnd = function () { st = (st * 1103515245 + 12345) & 0x7fffffff; return st / 0x7fffffff; };
+        var norm = function () {
+          var u = 0, v = 0;
+          while (u === 0) u = rnd();
+          while (v === 0) v = rnd();
+          return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+        };
+        var H = [], V = [], t = 0, T2 = minutes * 60;
+        while (t < T2) {
+          t += Math.max(0.4, 1.0 * (1 + 0.0522 * norm()));
+          if (rnd() > 0.02) H.push(t);
+          var w = wanderS ? wanderS * Math.sin((Math.PI * t) / T2) : 0;
+          if (rnd() > 0.02) V.push((t + 0.25 + w + 0.02 * norm()) * (1 + ppm * 1e-6));
+        }
+        return { H: H, V: V };
+      }
+
+      // 1 · a clean night recovers its planted rate and carries a bound with it
+      var clean = plant(-20, 0, 563);
+      var rc = legC(clean.H, clean.V, { hrGuess: 60 });
+      T.ok('clean night resolves', rc.ok === true, rc.ok ? 'ppm ' + rc.ppm.toFixed(1) : rc.reason);
+      if (rc.ok) {
+        T.ok('planted -20 ppm recovered', Math.abs(rc.ppm - -20) < 1.0, 'got ' + rc.ppm.toFixed(2));
+        T.ok('a bound ships with every rate', typeof rc.boundPpm === 'number' && isFinite(rc.boundPpm), 'boundPpm ' + rc.boundPpm);
+        T.ok('the bound is within the contract ceiling', rc.boundPpm <= rc.maxBoundPpm, rc.boundPpm.toFixed(2) + ' <= ' + rc.maxBoundPpm);
+      }
+
+      /* 2 · A TRUE ZERO IS AN ANSWER, NOT A REFUSAL. The first implementation gated on
+         signal/noise, and that ratio degenerates here: signal is |rate| x span, so at 0 ppm ANY noise
+         exceeds it and the tool refused a night on which the clocks agree. Pinned because the
+         degenerate form looks correct and passes every non-zero case. */
+      var zero = plant(0, 0, 563);
+      var rz = legC(zero.H, zero.V, { hrGuess: 60 });
+      T.ok('a genuinely zero rate is reported, not refused', rz.ok === true, rz.ok ? 'ppm ' + rz.ppm.toFixed(2) : rz.reason);
+      if (rz.ok) T.ok('and its bound is tight', rz.boundPpm < 1.0, 'boundPpm ' + rz.boundPpm.toFixed(2));
+
+      /* 3 · THE REFUSAL CONTROL — the assertion this whole group exists for. A gate never shown to
+         trigger is indistinguishable from no gate. 6 ppm buried under the 2026-08-13 wander shape. */
+      var noisy = plant(6.3, 0.225, 285);
+      var rn = legC(noisy.H, noisy.V, { hrGuess: 60 });
+      T.ok('wander that swamps the signal is REFUSED', rn.ok === false, rn.ok ? 'reported ' + rn.ppm.toFixed(1) + ' ppm — the gate did not fire' : rn.reason);
+      T.ok('a refusal carries NO ppm field (no bare-ppm fallback path)', !('ppm' in rn), 'ppm' in rn ? 'ppm present: ' + rn.ppm : 'absent');
+      T.ok('a refusal still reports its bound', typeof rn.boundPpm === 'number' && rn.boundPpm > env.blMaxBoundPpm, 'boundPpm ' + (rn.boundPpm || 0).toFixed(1) + ' > ' + env.blMaxBoundPpm);
+
+      /* 4 · The raw-vs-residual trap, pinned. Raw peak-to-peak wander CONTAINS the signal, so a gate
+         written against it refuses every genuinely-drifting clean night. Caught only by planted truth
+         — a corpus run looked plausible. This asserts the clean -20 ppm night has raw wander EXCEEDING
+         its signal while still resolving, which the raw form could not do. */
+      if (rc.ok) {
+        T.ok('raw wander exceeds signal on a night that correctly resolves', rc.wanderMs >= rc.signalMs, 'wander ' + rc.wanderMs.toFixed(0) + ' ms vs signal ' + rc.signalMs.toFixed(0) + ' ms');
+      }
+    });
+
     /* ── land-pr: the PR-landing state machine (LAND-PR, 2026-08-09) ───────────────────────────
        `main` moves a median 7.2 min while CI takes ~10-12 over 7 required checks, and the ruleset
        sets strict=true, so every session hand-writes a polling loop and they keep being wrong in

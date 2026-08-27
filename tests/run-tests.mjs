@@ -26,6 +26,7 @@ import * as captureRecapture from '../tools/capture-recapture.mjs';
 import { estimate as beatCrEstimate, estSummary as beatCrSummary } from '../tools/beat-capture-recapture.mjs';
 import { attenuateAndRecover, buildTemplate as beatBuildTemplate } from '../tools/beat-injection-recovery.mjs';
 import * as deviceStability from '../tools/device-stability.mjs';
+import { legC as beatLegC, BL_MAX_BOUND_PPM } from '../tools/beat-leg-closure.mjs';
 import * as beatCorrespondence from '../tools/beat-correspondence.mjs';
 import * as circularStats from '../tools/circular-stats.mjs';
 import { fileURLToPath } from 'node:url';
@@ -2018,6 +2019,12 @@ async function main() {
        value is a state machine that must not be re-derived by hand in every session, and a state
        machine is only trustworthy if something drives it. Node-lane only (an ESM import of a tool),
        so the browser lane SKIPs. No `gh`, no network, no clock — decide() is a pure function. */
+    /* beat-leg-closure's 8-case selftest was reachable ONLY by a human typing `--selftest`: not in
+       any workflow, not in package.json, absent from readSources. Its refusal control in
+       particular — the one that proves the SNR gate fires — could rot green unseen. legC is pure
+       given beat arrays, so the group drives it directly (the land-pr pattern). */
+    beatLegC: beatLegC,
+    blMaxBoundPpm: BL_MAX_BOUND_PPM,
     landDecide: landDecide,
     qdClassify: qdClassify,
     qdPick: qdPick,
