@@ -531,6 +531,20 @@ Status lives in a one-line header block on the first content line (just after an
   dashboard — reorganize *that view*, not the files. Now that all briefs already sit in `briefs/`, do
   NOT further sub-folder them into `Done/`/`Executed/` — that breaks every cross-reference + splits git
   history (same failure as renaming); status lives in the header, not the path.
+- 🔍 **SEARCH BEFORE YOU SIZE OR BUILD — `node tools/doc-search.mjs "<the thing>"` (PRIMARY DEV
+  MACHINE ONLY — see the warning).** A brief pickup starts with a semantic search, not a grep: grep
+  finds only your own vocabulary, and twice in one week a session nearly reported build-from-scratch
+  for machinery that already existed under other names (a `pooledSeconds` grep returned nothing while
+  the pooled pairwise BA + generic three-cornered hat sat in `sigma-no-reference-analysis.js` /
+  `analysis-stats.js`, 2026-08-26 — found by doc-search on the first query). Read the top three hits
+  before sizing a unit or writing a line; the memory `semantic-search-before-building` records the
+  failure class. Owner-mandated as a standing pickup step 2026-08-26.
+  ⚠️ **THIS TOOL EXISTS ONLY ON THE PRIMARY DEVELOPMENT COMPUTER.** It runs against a loopback
+  bge-m3 embedding model plus a locally prebuilt ~14k-chunk index — 100 % local, never networked,
+  and neither ships with the repo. **Other GitHub users, fresh clones, and CI do not have it and
+  must not be pointed at it**: on any other machine fall back to `git grep`, no gate or CI job may
+  read doc-search output, and the tool being absent is never an error. (This is the same locality
+  class as the gitignored corpus — the repo documents it; it does not distribute it.)
 - 🔴 **BEFORE YOU EDIT A BRIEF, CHECK IT HAS NOT ALREADY BEEN ANSWERED — mandatory, hook-enforced.**
   Someone else is probably working the same brief queue (§👥). A brief is the ONE artifact several
   sessions reach for at once, and overwriting one produces **no conflict**: answers land in different
