@@ -1566,6 +1566,12 @@ function selftest() {
   ck('rescue leaves resolvable paths alone', resegmentPath('out.plain', JSON.parse(edf)), 'out.plain');
   ck('rescue refuses non-path expressions', resegmentPath('out.a === 1', JSON.parse(edf)), null);
   ck('discriminates end-to-end through a dotted key', projectionDiscriminates('out.EprPress["2s"].data[0]', edf, edf2).ok, true);
+  const nested = JSON.stringify({ PLD: { signals: { 'EprPress.2s': { data: [7] } } }, SA2: { signals: {} } });
+  const nested2 = JSON.stringify({ PLD: { signals: { 'EprPress.2s': { data: [9] } } }, SA2: { signals: {} } });
+  ck('descent rescue: omitted levels + dotted key, unique match', descendRescue('out.EprPress["2s"].data[0]', JSON.parse(nested)), 'out.PLD.signals["EprPress.2s"].data[0]');
+  ck('descent rescue: ambiguity REFUSES', descendRescue('out.x', { a: { x: 1 }, b: { x: 2 } }), null);
+  ck('descent rescue: truly absent refuses', descendRescue('out.nope.q', JSON.parse(nested)), null);
+  ck('descent end-to-end: shortened model path discriminates', projectionDiscriminates('out.EprPress["2s"].data[0]', nested, nested2).ok, true);
   ck('…assignment, not comparison', safeProjection('out.a = 1'), null);
   ck('…but a comparison is fine', safeProjection('out.a === 1'), 'out.a === 1');
   ck('a projection that never reads `out` is rejected', safeProjection('1 + 1'), null);
@@ -1832,6 +1838,41 @@ export function resegmentPath(expr, obj) {
   return 'out' + outSegs.join('');
 }
 
+/* UNIQUE-DESCENT RESCUE (third failure mode, same night): the model also OMITS intermediate
+   levels — it writes `out.EprPress.2s.data[0]` where the object holds
+   `out.PLD.signals["EprPress.2s"].data[0]`. Resegmentation cannot rescue a path whose first
+   segment is missing from the root. So: when root resolution fails for a pure path, search the
+   recorded object for anchor points where the WHOLE path resolves (with dotted-key merging), and
+   rescue ONLY when exactly one location matches — two matches is ambiguity, and ambiguity
+   refuses. Still a pure function of (path, recorded JSON): the model proposes a suffix; the
+   ground-truth object decides where — or whether — it lives. Bounded BFS (depth 6, 20k nodes). */
+export function descendRescue(expr, obj) {
+  const direct = resegmentPath(expr, obj);
+  if (direct) return direct;
+  const m = String(expr).match(/^out((?:\.[A-Za-z_$][\w$-]*|\["[^"\\]+"\]|\['[^'\\]+'\]|\[\d+\])+)$/);
+  if (!m) return null;
+  const matches = [];
+  const queue = [{ node: obj, prefix: '' }];
+  let seen = 0;
+  while (queue.length && seen < 20000 && matches.length < 2) {
+    const { node, prefix } = queue.shift();
+    seen++;
+    if (node === null || typeof node !== 'object') continue;
+    if (prefix) {
+      const sub = resegmentPath('out' + m[1], node);
+      if (sub) matches.push(prefix + sub.slice(3));
+    }
+    if (prefix.split('.').length > 6) continue;
+    if (Array.isArray(node)) {
+      for (let i = 0; i < Math.min(node.length, 50); i++) queue.push({ node: node[i], prefix: prefix + '[' + i + ']' });
+    } else {
+      for (const k of Object.keys(node)) queue.push({ node: node[k], prefix: prefix + (/^[A-Za-z_$][\w$]*$/.test(k) ? '.' + k : '["' + k + '"]') });
+    }
+  }
+  if (matches.length !== 1) return null; // 0 = truly absent; 2+ = ambiguous — both refuse
+  return 'out' + matches[0];
+}
+
 export function projectionDiscriminates(expr, origText, mutantText) {
   let safe = safeProjection(expr);
   if (!safe) return { ok: false, why: 'unsafe projection' };
@@ -1842,7 +1883,7 @@ export function projectionDiscriminates(expr, origText, mutantText) {
   } catch {
     return { ok: false, why: 'recorded outputs are not both JSON — cannot compare a projection over them' };
   }
-  const reseg = resegmentPath(safe, a);
+  const reseg = descendRescue(safe, a);
   if (reseg && reseg !== safe && safeProjection(reseg)) safe = reseg;
   let fn;
   try {
