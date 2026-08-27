@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-08-27 · **Follows:** `CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01-BRIEF.md` §PAT-box · `WEARABLE-DRIFT-DIRECT-2026-08-02-BRIEF.md` §7.3
+**Status:** DONE — 2026-08-27 · **Created:** 2026-08-27 · **Follows:** `CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01-BRIEF.md` §PAT-box · `WEARABLE-DRIFT-DIRECT-2026-08-02-BRIEF.md` §7.3
 
 # The two clock methods disagree about DIRECTION on the night both are best measured
 
@@ -218,13 +218,49 @@ explain why the same code path agrees to 0.27σ on 07-20 and disagrees by 3.94σ
 disagreement is night-specific, not systematic** — which is the sharpest constraint any explanation now
 has to satisfy.
 
+## 10 · The answer: leg C is the method that fails, and it fails by SNR, not by defect
+
+**Which method is wrong on 2026-08-13: leg C.** Not because it contains a bug — the unwrap is sound (§1),
+the fragments are matched (§2), the axes are genuinely device-side and the `fs` derivation is correct
+(§8). It fails because **it cannot measure the quantity asked of it on that night**:
+
+| | host legs | leg C |
+|---|---|---|
+| reproducibility across the night's two fragments | **−20.1 / −20.4** and **−26.4 / −26.8** ppm | **+26.6 / −13.5** ppm |
+| spread | **0.3 / 0.4 ppm** | **40.1 ppm** |
+| signal vs its own noise | residual 392 / 402 ms over 285 min | signal ≈102 ms vs wander ≈450 ms |
+
+One method reproduces to a few tenths of a ppm across the same two windows; the other swings 40 ppm. The
+disagreement was never symmetric, and framing it as "the two methods contradict" gave leg C a standing
+its own reproducibility does not support.
+
+**This is a publishable negative in the stronger sense:** the failure is characterised, not merely
+observed. Leg C's observable is the ECG↔PPG-foot offset, whose night-dependent wander exceeds the clock
+difference it is meant to resolve — so its slope is a measurement of the wander. On a quiet night
+(2026-07-20, 7 ms scatter) the same code agrees with the host legs to **0.27σ**, which is the control
+that makes the diagnosis stick rather than a story about one bad night.
+
+### Deferred, deliberately — two threads this brief does not close
+
+1. **What the wander IS remains open.** PAT is the leading candidate and is *not* established; a −320 ms
+   excursion would exceed typical whole-PAT magnitude, so beat-pairing and foot-detection jitter are
+   live. Recorded as open rather than asserted, because PAT statistics have misled here before.
+2. **Leg C should publish an uncertainty and refuse when wander exceeds signal** — the `hostAxis`
+   ≥3-anchor refusal discipline applied to itself. Today it prints a bare ppm, which is what let a
+   40 ppm-unstable quantity be used as a gate input in the first place. That is a code change and
+   belongs to whoever next touches `tools/beat-leg-closure.mjs`.
+
+**Consequence already recorded upstream:** `CROSS-DEVICE-DRIFT-AND-CLOSURE` §PAT stays BLOCKED, and its
+band↔verdict anti-correlation now has a direct explanation — leg C's true per-night error is tens of ppm,
+so it exceeds every host-leg band and the passes were the nights whose bands happened to be widest.
+
 ## Done when
 
 - [x] Leg C recomputed on 2026-08-13 with the unwrap explicitly verified, and the result stated either way. **Unwrap SOUND — hypothesis 1 refuted (§1).**
 - [x] Legs A/B recomputed over the **same time interval** leg C used, not the night median — testing (2). **Fragment-matched prediction +6.3 vs median +6.5 — hypothesis 2 refuted (§2).**
 - [x] Per-block leg C plotted/tabulated across the night to see whether the rate is stable or steps — testing (3). **No step; residuals wander with ρ₁=0.32 (§1, §3).**
-- [ ] A statement of **which method is wrong on this night**, or an explicit "both are self-consistent and
-      the disagreement is unexplained", which is itself a publishable negative.
+- [x] A statement of **which method is wrong on this night**, or an explicit "both are self-consistent and
+      the disagreement is unexplained", which is itself a publishable negative. **ANSWERED — see §10.**
 
 ## Why it matters beyond one night
 
