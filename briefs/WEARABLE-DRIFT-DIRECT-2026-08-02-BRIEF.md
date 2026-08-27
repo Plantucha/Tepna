@@ -123,6 +123,45 @@ device ms, prints ppm per fragment. Reads the Clock Contract way (explicit regex
       | legs A/B — device↔host | a **box** capture with a genuinely independent host clock | **2026-07-16 →** |
       | leg C — H10↔Verity, independent of A/B | beat intervals in **device-axis** exports | **≤ 2026-07-13** |
 
+      > ### ✅ SUPERSEDED 2026-08-27 — the impossibility held for the EXPORTS, and dissolved when the
+      > ### tool stopped needing them
+      >
+      > *"No night satisfies both"* was true of the stated inputs: legs A/B need a **box** capture, and
+      > leg C was assumed to need beat intervals from **device-axis exports** — which the box nights do
+      > not carry (`rr: 0` / `ppi: 0`). **`tools/beat-leg-closure.mjs` never reads an export.** It detects
+      > beats from the **raw waveform** on each device's own `sensor timestamp [ns]` axis, so a single box
+      > night satisfies A, B **and** C. The disjoint-night-sets problem was a property of the input
+      > format, not of the corpus.
+      >
+      > **Demonstrated 2026-08-27 on `2026-07-18`** — a box night by its own evidence (host residual
+      > **1887 ms**, not the 1.00 ms one-stamp-quantum signature of a phone capture, so the host column is
+      > a second clock): 15,682 H10 beats · 8,538 Verity beats · **16 blocks** · leg C **+9.6 ppm**,
+      > against **+6.4 ppm** predicted from that night's own host legs (H10 −19.1 over 3 fragments,
+      > spread 1.1; Verity −25.5).
+      >
+      > **So the remedy below — *"regenerate the box nights' trio exports WITH the interval series"* — is
+      > no longer required for this purpose.** It remains the right fix for consumers that genuinely need
+      > interval series in exports; it is not a precondition for closing this leg. ⚠️ Its warning still
+      > stands and matters more than ever: leg C must be built on the **device axis**. Reading raw files
+      > satisfies that by construction, which is precisely why the check retains its power to fail.
+      >
+      > **Estimator error is not the limiting term, so a residual may be attributed to the host legs.**
+      > `node tools/beat-leg-closure.mjs --selftest` recovers planted rates to **±0.0 ppm** across
+      > −40…+40 ppm under realistic HRV (CV 0.052), 2 % dropouts per side and ±20 ms PAT jitter, 7/7.
+      >
+      > **Acceptance band, PRE-STATED 2026-08-27 before any σ was measured** (approved as an a-priori
+      > coverage choice; the factor 2 is fixed and does not move once the data is seen):
+      >
+      > > closure holds iff **|legC − (A−B)| ≤ 2·σ_pred**, with **σ_pred = √(σ_H10² + σ_Verity²)** taken
+      > > from each device's **within-night fragment spread** — a per-night band, since leg precision
+      > > varies with fragment count.
+      >
+      > ⚠️ **A night where either device yields <2 fragments has no measurable σ and therefore REFUSES**
+      > rather than borrowing one — the `hostAxis` ≥3-anchor discipline applied to this check. The
+      > five-night table below has exactly that hole: its Verity legs are single figures with no spread.
+      > If the bandable set collapses, *"this corpus cannot band the host-leg closure yet — multi-fragment
+      > nights are the missing input"* is the result, not a reason to widen the band.
+
       **No night satisfies both.** The box nights' trio exports carry `rr: 0` / `ppi: 0` — no interval
       series at all; they predate `INTERVAL-SERIES-EXPORT`. And the interval-bearing nights are phone
       captures: `dual-clock-rate` on 2026-07-13 reports **`no-second-clock`**, residual spread **1.00 ms
