@@ -38,7 +38,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 import { pathToFileURL } from 'node:url';
-import { MAX_CRYSTAL_SPREAD_PPM, crystalVerdict } from './device-stability.mjs';
+import { createRequire } from 'node:module';
+import { MAX_CRYSTAL_SPREAD_PPM, MS_PER_S_TO_PPM, crystalVerdict } from './device-stability.mjs';
+
+/* σ_y comes from the SPINE's Allan core, not a local reimplementation — `clock.js` owns
+   `allanFromPhase`/`allanSlope` and `device-stability.mjs` owns the one-reference-τ picker. This tool
+   contributes only the phase series; every line of the statistics is borrowed. */
+const _require = createRequire(import.meta.url);
+const DexClock = _require(path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'clock.js'));
 
 const DIR = process.argv[2] || '/home/michal/tepna-smoketest/captures/2026-07-26';
 
@@ -69,15 +76,20 @@ export const INDEPENDENT_MIN_SPREAD_MS = 2 * HOST_QUANTUM_MS;
    sources its own from σ_y at the recording's own span, i.e. from the Allan machinery this tool does
    not run. So `crystalVerdict` here takes its no-uncertainties branch and falls back to the raw
    bound — deliberately, since that branch exists precisely to refuse inventing a σ, and a fabricated
-   error bar would make every spread explicable. Sharing the implementation is real and lands now;
-   READING uncertainties needs σ_y computed here first, and is a separate change. */
+   error bar would make every spread explicable. Sharing the implementation landed in #1530; READING
+   uncertainties landed 2026-08-27 — each fragment now carries `ppmUncertainty` from σ_y at REF_TAU_SEC
+   (spine Allan core, `device-stability.sigmaAtRefTau`), so the χ² branch is reachable. A fragment whose
+   curve does not reach that τ still yields null, and the fallback still refuses to invent one. */
 export { MAX_CRYSTAL_SPREAD_PPM };
 
 /* PURE decision predicate for the per-device roll-up, separated from the I/O for the same reason
    `classifyRate` is — so it is gateable on values rather than by scanning the streaming loop. */
 export function crystalCoherence(vals) {
   const v = crystalVerdict(vals || []);
-  return { incoherent: v.verdict === 'not-a-crystal', verdict: v.verdict, spreadPpm: v.spreadPpm, n: v.n };
+  /* `chi2` and `note` are ADDITIVE and load-bearing for the reader: they say WHICH branch decided.
+     A `not-a-crystal` with note 'no uncertainties' is the raw-bound fallback; one with a finite chi2
+     is the actual test. Collapsing both to a boolean is how the fallback hid. */
+  return { incoherent: v.verdict === 'not-a-crystal', verdict: v.verdict, spreadPpm: v.spreadPpm, n: v.n, chi2: v.chi2 ?? null, note: v.note ?? null };
 }
 
 /* PURE decision predicate — what this tool is entitled to CONCLUDE from one fragment's fit. Separated
@@ -199,10 +211,48 @@ async function rateOf(file) {
     if (e > rMax) rMax = e;
   }
   const residualSpreadMs = rMax - rMin;
+  /* PER-FRAGMENT UNCERTAINTY (CROSS-DEVICE-DRIFT-FOLLOWUPS §"reads uncertainties").
+     The residuals about the fitted line ARE a phase series in ms, sampled uniformly in the device
+     axis, which is exactly what ADEV wants. σ_y at one reference τ is then the fragment's own rate
+     uncertainty, in the same unit as `ppm` so the two are comparable at all.
+     ⚠ It REFUSES rather than substitutes: `sigmaAtRefTau` returns null when the curve does not reach
+     REF_TAU_SEC within tolerance, and a short fragment simply has no error bar. That is the whole
+     point — `crystalVerdict`'s no-uncertainties branch exists to avoid inventing one, and a
+     fabricated bar would make every spread explicable. */
+  const resid = [];
+  for (let i = 0; i < px.length; i++) resid.push(py[i] - (slope * px[i] + intercept));
+  let uncPpm = null,
+    uncTauSec = null;
+  if (resid.length >= 8 && spanMin > 0) {
+    const spanSec = spanMin * 60;
+    const tau0Sec = spanSec / (resid.length - 1);
+    const curve = DexClock.allanFromPhase(resid, tau0Sec);
+    /* ⚠ σ_y AT THE WRONG τ IS NOT THIS FRAGMENT'S RATE UNCERTAINTY, and the naive reading is off by
+       two orders of magnitude. σ_y(256 s) on this corpus is ~300 ppm — it measures BLE delivery jitter
+       at short averaging times — while the same device's rate reproduces to 1.1 ppm across a night's
+       fragments. Quoting the short-τ figure as the error bar would make EVERY spread explicable, which
+       is the fabricated-bar failure `crystalVerdict`'s fallback exists to avoid.
+       The rate is fitted over the WHOLE span, so its uncertainty is σ_y at τ = span. That τ is past the
+       last measured point (the curve reaches ~span/4), so it is reached by extrapolating ALONG THE
+       FITTED SLOPE from the longest MEASURED point — a factor of ~4, anchored on data, using the
+       spine's own `allanSlope`. The slope is used NUMERICALLY; no noise TYPE is named, deliberately —
+       `clock.js` refuses to name one near a boundary and nothing here needs the name. */
+    const fit = curve && curve.length ? DexClock.allanSlope(curve) : null;
+    let anchor = null;
+    for (const pt of curve || []) if (pt.tau > 0 && pt.adev > 0 && (anchor === null || pt.tau > anchor.tau)) anchor = pt;
+    if (fit && anchor && spanSec > anchor.tau) {
+      uncPpm = anchor.adev * MS_PER_S_TO_PPM * Math.pow(spanSec / anchor.tau, fit.slope);
+      uncTauSec = spanSec;
+    }
+  }
   return {
     file: path.basename(file),
     spanMin,
     ppm: (slope - 1) * 1e6,
+    /* §🔒.7 — a rate is never quoted without its span, and an error bar is a rate. `ppmUncertainty`
+       is meaningless without the τ it was read at, so the two travel together or not at all. */
+    ppmUncertainty: uncPpm,
+    uncertaintyTauSec: uncTauSec,
     samples: kept,
     quantizedShare,
     drawn: quantizedShare != null && quantizedShare >= 0.99,
@@ -229,9 +279,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     .slice(0, 6);
   console.log('DEVICE RATE vs HOST CLOCK — measured directly from the two columns in each raw file\n');
   const byDev = {};
+  const entriesBy = {}; // device -> [{ppm, ppmUncertainty}] for the χ² crystal verdict
   const drawnBy = {}; // device -> count of long fragments whose axis is drawn
   const refusedBy = {}; // device -> { kind: count } — why a fragment yielded no rate
-  console.log('device   spanMin   ppm vs host   resid ms   samples   file');
+  console.log('device   spanMin   ppm vs host   sigma_y ppm @tau   resid ms   samples   file');
   for (const { f } of big) {
     const r = await rateOf(path.join(DIR, f));
     if (!r) {
@@ -247,6 +298,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     if (v.usable) {
       if (!byDev[k]) byDev[k] = [];
       byDev[k].push(r.ppm);
+      /* Parallel entry array carrying the error bar. `vals` stays numeric because the median/spread
+         display is a different question from the verdict; the verdict now gets what it always wanted. */
+      if (!entriesBy[k]) entriesBy[k] = [];
+      entriesBy[k].push({ ppm: r.ppm, ppmUncertainty: r.ppmUncertainty });
     } else {
       if (!refusedBy[k]) refusedBy[k] = {};
       refusedBy[k][v.kind] = (refusedBy[k][v.kind] || 0) + 1;
@@ -255,8 +310,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     /* A REFUSED fragment shows a dash where its ppm was. Printing the number next to the reason it
        is not a rate invites exactly the quote the reason forbids. */
     const shown = v.usable ? r.ppm.toFixed(1) : '—';
+    /* §🔒.7 — the error bar travels WITH its τ or not at all. A fragment whose Allan curve does not
+       reach REF_TAU_SEC prints a dash: it has no uncertainty, which is a fact about the fragment, not
+       a zero. */
+    const unc = v.usable && r.ppmUncertainty != null ? `${r.ppmUncertainty.toFixed(2)} @${Math.round(r.uncertaintyTauSec)}s` : '—';
     console.log(
-      `${dev}  ${r.spanMin.toFixed(1).padStart(7)}   ${shown.padStart(11)}   ${r.residualSpreadMs.toFixed(2).padStart(9)}   ${String(r.samples).padStart(7)}   ${r.file}${v.usable ? '' : '   ← ' + v.reason}`
+      `${dev}  ${r.spanMin.toFixed(1).padStart(7)}   ${shown.padStart(11)}   ${unc.padStart(15)}   ${r.residualSpreadMs.toFixed(2).padStart(9)}   ${String(r.samples).padStart(7)}   ${r.file}${v.usable ? '' : '   ← ' + v.reason}`
     );
   }
 
@@ -281,7 +340,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const md = s2[s2.length >> 1];
     const spread = s2[s2.length - 1] - s2[0];
     const nDrawn = drawnBy[dev] || 0;
-    const incoherent = crystalCoherence(vals).incoherent;
+    const coh = crystalCoherence(entriesBy[dev] || []);
+    const incoherent = coh.incoherent;
     const why = nDrawn
       ? `   ← ${nDrawn} fragment(s) have a DRAWN axis: no device clock in the file, so those ppm are drawing error`
       : incoherent
