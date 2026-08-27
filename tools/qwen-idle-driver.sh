@@ -20,9 +20,18 @@ LOG=/home/michal/Tepna/.git/tepna-mutation/qwen-idle-driver.log
 exec 9>/tmp/qwen-idle-driver.lock
 flock -n 9 || exit 0                  # a previous run is still going — correct, not an error
 echo "── $(date '+%F %T') driver start" >> "$LOG"
-# 0 · pipeline check (bracketed patterns — §4 self-match rule)
+# 0 · pipeline check (bracketed patterns — §4 self-match rule).
+# REFINED 2026-08-27: yield only when the pipeline is actually USING the model. The crawl's
+# sweep phase is CPU-bound and runs for hours with the GPU empty — the old process-level check
+# left qwen idle that whole time. Discriminator: `ollama ps` lists a loaded model only when
+# something recently inferred (keep-alive window). If the pipeline runs but the GPU is empty,
+# proceed — ollama's request queue serializes any overlap, so the worst case is shared latency,
+# never corruption. (Owner directive: maximize qwen.)
 if ps ax -o args | grep -qE "[m]utate\.mjs --file|[m]utation-crawl\.mjs|[m]utation-ai-probe\.mjs|[m]utation-suite\.mjs --draft"; then
-  echo "   pipeline busy — yielding" >> "$LOG"; exit 0
+  if curl -sf --max-time 5 http://127.0.0.1:11434/api/ps 2>/dev/null | grep -q '"model"'; then
+    echo "   pipeline busy AND model loaded — yielding" >> "$LOG"; exit 0
+  fi
+  echo "   pipeline running but GPU empty (CPU phase) — proceeding" >> "$LOG"
 fi
 # ollama up?
 curl -sf --max-time 5 http://127.0.0.1:11434/api/version >/dev/null || { echo "   ollama down — skip" >> "$LOG"; exit 0; }
