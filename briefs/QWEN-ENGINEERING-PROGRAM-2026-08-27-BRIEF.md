@@ -23,7 +23,7 @@ Everything below was built and calibrated 2026-08-25 → 27; measurements are fr
 
 | existing use | what it does | measured value | verdict |
 |---|---|---|---|
-| **mutation probe + draft** (`mutation-crawl.mjs` → `mutation-suite.mjs --draft`) | qwen proposes distinguishing inputs and drafts assertions; every expected value is the REAL code's recorded output, machine-verified to discriminate real from mutant | 57 drafts across all 9 DSPs; triage found ~90 % adoptable; 1/57 pinned a crash (and its prose mislabeled it) — caught by mandatory human read | **KEEP** — the flagship. The only lane where correctness is verified *by construction*. EXPAND: widen the projection charset to quoted-bracket keys (`out.EprPress["2s"]` is currently rejected wholesale — measured: `_synthEdfSet` yields kept 0 on 61 killables); build the recompute-fallback for the 24 truncation-refused killables |
+| **mutation probe + draft** (`mutation-crawl.mjs` → `mutation-suite.mjs --draft`) | qwen proposes distinguishing inputs and drafts assertions; every expected value is the REAL code's recorded output, machine-verified to discriminate real from mutant | **48 drafts** (across 7 of 9 DSPs — glucodex and motiondex produced header-only files; this cell said "57 across all 9" until the adoption pass counted actual draft blocks: 57 was a grep token count, the examined-nothing family). Adoption #1860: **44 adopted, 4 excluded** — 2 crash/NaN-pins caught by human read, and **2 whose recorded expected values the code cannot produce in the suite realm** (see the amendment below §2.1) | **KEEP** — the flagship. The only lane where correctness is verified *by construction*. EXPAND: widen the projection charset to quoted-bracket keys (`out.EprPress["2s"]` is currently rejected wholesale — measured: `_synthEdfSet` yields kept 0 on 61 killables); build the recompute-fallback for the 24 truncation-refused killables |
 | **house-rules DSP review** (`dsp-review-qwen.mjs`) | per-function review against Clock Contract / honesty / signal-flow rules; journaled findings with model-written draft fixes | not yet run at scale (correctly queued behind the crawl) | **RESTRICT then EXPAND** — its single generic prompt is exactly the charter §3 anti-pattern ("review everything"). Convert to the narrow-lens runner (§4 below) before its first big run, so its precision is measurable per lens from day one |
 | **adversary mode** (same tool, 5 attack lenses) | concrete-attack review: "only report attacks you can state concretely — the input and the wrong output" | not yet run at scale | **KEEP** — already lens-shaped; absorb into the lens runner |
 | **read-only agent** (`qwen-agent.mjs`) | jailed tools (read/grep/list/doc-search), live-distilled CLAUDE.md, forced tools-off final round | 3-run calibration: 0/2 correct before the structural rails, 1/1 after (exact line citations, honest no-change verdict) | **RESTRICT** — bounded, known-shape questions only. Its best fit is charter §8's contract audit format (RULE → CODE PATH → verdict), one contract × one path per run. Never open-ended investigation |
@@ -41,6 +41,15 @@ machinery.
 1. **Verify-by-construction beats verify-by-review.** The draft pipeline is the quality ceiling:
    qwen picks *where to look*; recorded real outputs supply *what is true*. Every new worker
    should be pushed as far toward this shape as its domain allows.
+   **AMENDED 2026-08-27 (adoption pass #1860, measured):** the claim is narrower than first
+   written — expected values are verified by construction **in the drafting realm**, and 2 of 48
+   drafts (4 %) recorded values the real code cannot produce under the suite's co-load
+   (`computeMOS(null)` recorded 3, real result 1, unreachable without `K.MOS_LONG`;
+   `getFilteredRows(null)` recorded length 58 where the suite realm throws). A further 4 recorded
+   the literal `"undefined"` where the suite's own comparator tags `"@undef"` — the values do not
+   round-trip. Both filed (ledger `6da536d03472`, `cf6482e19e8d`). **Consequence, now P0: drafts
+   are re-executed in the suite realm before any adoption batch, converting the claim to
+   "verified by construction, in the realm that will run it".**
 2. **Rails, not prompts.** The agent calibration showed prose instructions do not change qwen's
    failure modes; structure does (tools-off final round). Workers get structural constraints —
    schemas, jailed tools, forced formats — not longer prompts.
@@ -127,6 +136,7 @@ Jobs 6–10 are additional lenses/modes on C1+C2 once precision data exists — 
 | P0 | C1 findings ledger + precision metrics | per-finding | coordinator triage writes status | L1 |
 | P0 | C2 lens runner conversion | nightly + per-push | per-lens, per §2.5 bands | L1 |
 | P0 | draft-pipeline fixes (projection charset, recompute-fallback) | with each crawl | by construction | L1→L2 |
+| P0 | suite-realm re-verification of drafts before adoption (amendment §2.1 — 2/48 realm-divergent, 4/48 non-round-tripping) | per adoption batch | re-execution in the consuming realm | L1 |
 | P0 | adopt the 57 existing drafts (realizes the pipeline's value; the first metric datum) | once | `npm run check` + mutation re-run | normal PR |
 | P1 | state-machine adversary (job 3) | nightly rotation | read-one-function check → pytest case | L1 |
 | P1 | test-gap detector (job 4) | per-push | gap is binary-checkable | L1→L2 |
@@ -158,8 +168,8 @@ promotion bands (house rule: bands before data):
 ## 6 · Metrics (charter §17)
 
 Tracked in C1, reported in the nightly report: findings generated / confirmed / rejected /
-duplicate per lens; drafts adopted into the suite (the flagship metric — currently **0 of 57**,
-which is the honest baseline); mutants killed by adopted drafts; pytest cases born from
+duplicate per lens; drafts adopted into the suite (the flagship metric — **44 of 48** landed 2026-08-27 via #1860,
+with the 4 exclusions and one surviving planted mutant recorded there); mutants killed by adopted drafts; pytest cases born from
 state-machine findings; regressions caught. Explicitly NOT success metrics, per charter: token
 counts, agent counts, finding counts. Kill criteria per §2.5.
 
