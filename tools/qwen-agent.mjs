@@ -190,15 +190,22 @@ async function main() {
     }
     const text = msg.content || '';
     const looksFinal = /##\s|Finding/i.test(text) && text.length > 200;
-    if (looksFinal) { final = text; break; }
+    if (looksFinal) {
+      final = text;
+      break;
+    }
     // Narration-as-final is this model's dominant failure (measured twice on the
     // 2026-08-27 calibration smoke): it emits "Let me look at..." with no tool call
     // and the loop would accept it. A text nudge did NOT fix it — the model resumed
     // narrating. The structural fix: ONE last request with NO tools field, so
     // continuing the investigation is impossible and answering is the only move.
     messages.push({ role: 'assistant', content: text });
-    messages.push({ role: 'user', content: 'STOP. Investigation is over. From what you have already read, write the final markdown brief NOW: ## Finding, the direct answer, file:line citations. If you could not establish it, say exactly that.' });
-    final = (await chat(trimHistory(messages), false)).content || "(no final answer)";
+    messages.push({
+      role: 'user',
+      content:
+        'STOP. Investigation is over. From what you have already read, write the final markdown brief NOW: ## Finding, the direct answer, file:line citations. If you could not establish it, say exactly that.'
+    });
+    final = (await chat(trimHistory(messages), false)).content || '(no final answer)';
     break;
   }
   if (final === null) {
