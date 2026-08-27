@@ -27,9 +27,39 @@ requirement (live and spool CONVERGE on one canonical record) has never been exe
 2. **Feed the assembler the real fragments** and emit its evidence envelope. UNKNOWN stays UNKNOWN;
    no field is defaulted to pass. If the assembler needs changes, they ship with planted-control
    tests per the round-2 discipline (every fix verified by re-applying the defect).
-3. **The caller** — a scheduled post-therapy pull (morning window, never during live streams; reuse
-   the shadow supervisor's defer rule). **Behind its own config flag, default OFF, never inherited**
-   (the `pull.on_close` pattern verbatim). The arming line prints its state.
+3. **The caller** — ✅ **DONE 2026-08-26.** `cpap_spool_caller.py` (the pure decision half) +
+   `capture._maybe_start_cpap_spool_pull` / `_cpap_spool_loop` (the daemon touch this brief and
+   CPAP-ACQ-P4 §7 both announced). `cpap.spool_pull.enabled`, default OFF, never inherited — the
+   `pull.on_close` reasoning verbatim, and it applies harder here because Do-1 is still owed: the
+   caller ships DISABLED so the first radio-touching run stays the attended event this brief specifies.
+   The arming line prints either way, armed or not. Window defaults to 10:00-12:00.
+   Deferral reuses `cpap_harvest.blocking_devices` and adds the AS11's one-socket rule
+   (`cpap_ctl._running`) and `_RECOVER`; a deferral does NOT consume the day.
+   **One rule was ADDED that the brief did not ask for, because building it made the gap visible:**
+   the spool window must not overlap `cpap.at_hour`'s Wi-Fi harvest window, and the daemon REFUSES to
+   arm if it does, naming the hour. Both are 2.4 GHz on one box and neither job's interlock can see
+   the other's traffic — so an overlap is invisible at runtime by construction, which is exactly why
+   it is checked at arming, from config alone, where it is knowable. This is the one place a runtime
+   interlock structurally cannot help.
+   ⚠️ **FOLLOW-UP FOUND WHILE WIRING (not introduced by it):** the caller is reached only from
+   inside `if web.enabled`, because `_cpap_ctl` — whose `_running` is the one-socket interlock —
+   is constructed there. So on a box with the monitor disabled, an operator who arms
+   `cpap.spool_pull` gets no pull **and no line saying why** — which is exactly what the arming
+   line exists to prevent. `_maybe_start_as11_shadow` sits in the same block and has always
+   inherited this identically, so it is pre-existing, not new. Unpicking it means moving the
+   controller's construction out of the web block: a separate work-unit, recorded here rather
+   than silently inherited.
+   ⚠️ **SECOND FOLLOW-UP — a FALSE CLAIM in a comment, caught while copying it.**
+   `_maybe_start_as11_shadow` justifies reading its flag without a literal `.get` fallback by
+   saying it *"stays out of `settings_schema`'s shared-leaf default check"*. **There is no such
+   check.** `settings_schema.SETTINGS` is an explicit dotted-key allowlist and `describe()` takes
+   defaults from that table, so how a key is read in `capture.py` has no bearing on it. Grepping
+   the phrase finds it in exactly two places: that comment, and the copy I had just pasted into
+   `cpap_spool_caller.py`. Mine now states the real reason (it preserves ABSENT vs explicit
+   `False`, which the arming line reports) and records the correction; the shadow's original is
+   still wrong and is left for whoever owns that unit.
+   This is the repo's own failure class reproduced in miniature — a mechanism asserted in prose,
+   never checked, and spreading by copy. It cost one grep to falsify.
 4. **§11 CONVERGENCE (the point of the whole lane):** for one night held three ways — live BLE
    capture, SD card (the 13:00 harvest works; verified against its destination 2026-08-25), and the
    spool pull — show the three agree or characterise exactly where they don't.
