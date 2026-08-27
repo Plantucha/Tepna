@@ -6197,11 +6197,17 @@ def _maybe_start_presence_scan(cfg, tasks, *, create_task=None, scan_factory=Non
     if scan_factory is None:  # pragma: no cover — the bleak I/O edge, mirrors the other scanners
         async def scan_factory(window):
             from bleak import BleakScanner
-            wanted = {a.upper() for a in addresses}
             found = {}
             for d in await BleakScanner.discover(timeout=window, **(await adapter_kw())):
-                if d.address.upper() in wanted:
-                    found[d.address.upper()] = _time.monotonic()
+                # §5 identity via `oxy_presence.is_expected_ring`, NOT an inline comparison. The
+                # first version of this inlined `d.address.upper() in wanted` — equivalent today,
+                # and it left the address-only rule with no single enforcement point while that
+                # module's docstring said "see is_expected_ring for the enforcement". A security
+                # rule with two implementations has one that will drift.
+                for a in addresses:
+                    if oxy_presence.is_expected_ring(d.address, a):
+                        found[a.upper()] = _time.monotonic()
+                        break
             return found
     # §19 links 1-2. Stamped HERE and nowhere earlier, because this is the line after which the
     # observer genuinely exists: `enabled` was true at `arming`, and `observer_armed` is only honest
