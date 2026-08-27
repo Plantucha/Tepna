@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED (**two of three §8 items DONE 2026-08-04** — the runbook transfers landed and §5's hook is declined in favour of a tested aggregate gate, `capture-host/check.sh`. The third, §6's 21-mutant `harvest` cluster, is deliberately LEFT with the reason recorded: it is a fresh campaign, not this one's residue) · **Created:** 2026-08-04
+**Status:** DONE — 2026-08-26 (**two of three §8 items DONE 2026-08-04** — the runbook transfers landed and §5's hook is declined in favour of a tested aggregate gate, `capture-host/check.sh`. The third, §6's 21-mutant `harvest` cluster, is deliberately LEFT with the reason recorded: it is a fresh campaign, not this one's residue) ⚠️ **Flipped to DONE 2026-08-26.** `PROPOSED` means *unstarted*, and two of three items were executed on the day this was written — the label contradicted its own parenthesis for three weeks. It is DONE rather than IN-PROGRESS because the third item is not owed HERE: §8 records it as *"a fresh campaign, not residue of this one"* that *"deserves its own brief"*, which is the explicit park reason this repo's Done-when standard accepts (cf. `MULTI-SENSOR-DERIVATIONS-FOLLOWUPS`: *"each item is executed or carries an explicit park reason"*). Whoever picks up the 21 `harvest` mutants: §7 records the equivalents so they are not re-derived, and §6 names `pull_session` at 68.9 % as the larger target. · **Created:** 2026-08-04
 
 # What executing the subprocess-surface brief turned up
 
