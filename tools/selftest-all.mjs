@@ -54,6 +54,14 @@ export function declaresSelftest(src) {
   return /has\(['"]--selftest['"]\)|includes\(['"]--selftest['"]\)|argv\.indexOf\(['"]--selftest['"]\)/.test(s);
 }
 
+/* ✅ CLOSED 2026-08-18, RE-VERIFIED 2026-08-27 — the incident below is HISTORY, not an open hazard.
+   The detector it describes is implemented, wired and exit-enforcing (`nearMiss` -> process.exit 1), and
+   was demonstrated to fire on 2026-08-27 by planting a tool spelling the flag `--self-test`: it was
+   named, reported unreachable, and the run exited 1.
+   Stamped because the paragraph below reads in the present tense of an open problem, and twice caused
+   remediation work to be assigned for something already fixed. A header that DOCUMENTS a failure is not
+   evidence the failure is open — run the mechanism's own check before acting on the narrative. */
+
 /* A tool that HAS a selftest under a name discovery does not recognise is invisible, and invisibility
    here is indistinguishable from passing. Measured 2026-08-18: three tools spelled the flag
    `--self-test` (hyphenated) and compared it with `===`; the CI loop greps for the literal

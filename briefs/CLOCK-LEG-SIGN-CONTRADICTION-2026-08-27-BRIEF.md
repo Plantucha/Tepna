@@ -23,6 +23,24 @@ finding **which** is the prize.
 
 ## Why it cannot be dismissed
 
+> ✅ **§9 EXECUTED — #1870 (2026-08-27).** `beat-leg-closure` now publishes `boundPpm` with every rate
+> and REFUSES when that bound exceeds `BL_MAX_BOUND_PPM = 4`, carrying `wanderMs`/`signalMs`/`residualMs`/
+> `snr` and **no `ppm` field** on the refusal path. The constant is a contract value — the geometric mean
+> of the two measured anchors (host-leg reproducibility ~0.35 ppm, leg-C failure scale ~40 ppm) — not
+> fitted to any night, and PROVISIONAL until a second corpus anchors it.
+>
+> Two design errors were caught by the planted-truth selftest and are recorded in the tool: comparing the
+> **raw** excursion instead of the residual (raw wander CONTAINS the signal, so that form refuses every
+> genuinely-drifting clean night), and gating on the signal/noise **ratio** (which degenerates at a true
+> rate of zero, refusing a night on which the clocks agree — 4 ms over 330 min IS 0 ± 0.2 ppm).
+>
+> ⚠️ **Correction to #1870's PR body.** It reported that `beat-leg-closure --selftest` "is invoked
+> nowhere". **That claim is false.** `tools/selftest-all.mjs` discovers tools by scanning `tools/*.mjs`
+> for a `--selftest` handler, finds this one among 70, and `npm run check` runs it via `test:tools`; CI
+> does the same independently. The claim came from grepping workflows and `package.json` for the
+> filename — a name-based search cannot verify a name-free mechanism. The selftest, including the new
+> refusal control, has been gated since it merged.
+
 - **It is not the estimator.** `beat-leg-closure --selftest` recovers planted rates to **±0.0 ppm**
   across −40…+40 ppm under realistic HRV (CV 0.052), 2 % dropouts/side and ±20 ms PAT jitter, 7/7.
 - **It is not a thin sample.** 28 blocks, 15,687 H10 beats, 15,295 Verity beats.
