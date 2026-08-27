@@ -559,6 +559,84 @@ the nights an estimator cannot solve, then quoting the median of the rest, is th
 quantity being estimated.** The fused figure is the lowest of the four and is computed on the most
 favourable subset. It should not be quoted without its n and its 10 exclusions.
 
+## 12. Where 3.51 came from, 2026-08-27 — a RETIRED GENERATION, and no surviving configuration reproduces it
+
+§11 retired the weighting class: no estimator choice over the current corpus reaches 3.51 (family spans
+0.72–1.35). This hunt asked what does. **Pre-registered before looking:** 3.51 belongs to a different
+generation/corpus; the discriminating evidence is which corpus+filter reproduces it, not more estimator
+variants; **"reproduces" means landing within ±0.10 bpm (3.41–3.61)**, a band fixed in advance and not
+widened afterwards.
+
+### The producing configuration is named in the repo, and it is a THIRD axis
+
+`PAPERS-ROADMAP` §Qualifiers records it in terms:
+
+> *"A reference-free σ is not a number — it is a number **PER WINDOW LENGTH**. Measured on 17 nights,
+> same estimator, same code, varying only how many simultaneous seconds reach the hat: σ rises
+> monotonically for every corner — **Verity 2.36 → 3.51 (+49 %)**, O2Ring 2.34 → 2.99 (+28 %), H10
+> 1.41 → 1.78 (+26 %) from a one-hour window to a whole night (`tools/tch-window-sensitivity.mjs`).
+> **Neither σ-paper states window length as a parameter.**"*
+
+So **3.51 = the Verity corner at whole-night window on the 17 box-captured nights available 2026-08-08.**
+
+⚠️ **Window length was in neither my hypothesis nor my enumerated search space** (corpus × estimator ×
+night-subset). The answer came from outside the enumeration, which is worth recording: enumerating a
+search space is only as good as the axes you know exist, and this one was documented in a brief I had not
+read. The doc-search-first mandate found it in one query.
+
+### But that axis does NOT reproduce 3.51 today — and neither does any other
+
+Re-run on the current corpus, every configuration in the enumerated space:
+
+| configuration | σ_Verity | in 3.41–3.61? |
+|---|---|---|
+| window sweep 3600 s → whole-night, all 54 nights | **0.58 → 0.72** | no |
+| box-era subset (≥2026-07-16), plain / fused | **1.15 / 0.94** | no |
+| the roadmap's own window 07-16…08-08 (n=23), plain | **median 1.19**, **max 2.365** | no |
+| pooled-seconds hat, 939,566 s (§11) | **1.35** | no |
+| full estimator family (§11) | 0.72 – 1.35 | no |
+
+**Not one night in the roadmap's own date window reaches the floor** — the noisiest is 2.365 against a
+3.41 threshold. The window-length effect is real (+49 % is reproduced in kind: 0.58 → 0.72 is +24 % here)
+but it operates on a corner that is now ~3× quieter, so it cannot carry σ_Verity to 3.51 from any
+starting point available today.
+
+### The discriminator is GENERATION, and it is measurable
+
+**`ppgdex-dsp.js` has changed 20 times since 2026-08-08**, including fixes that act directly on beat and
+interval quality:
+
+- `e633682f` — filtfilt ran **unpadded from zero state**, so *both record ends carried a DC-sized transient*
+- `344f1fbe` — the frequency domain was computed over **`correctRR`'s substituted intervals**
+- `0b784c66` — the crystal axis **ran backward**, *"and was hiding real dropouts"*
+- `1938a436` · `fdbcb027` · `084db04e` — the noise rule refusing at a boundary; `cvhrFromNN` returning 0
+  when it could not measure; `std` returning 0 for n<2
+
+The exports in `uploads/trio` were regenerated under the current generation. **3.51 was produced by a
+PpgDex that no longer exists**, on a corner these fixes quieten. That is consistent with the standing
+finding that this paper's material spans multiple generations — the σ figures do too, not only the
+simulation tables.
+
+### 🔴 The verdict, against the pre-stated band
+
+**No surviving configuration reproduces 3.51.** Located as a *generation*, not reproducible as a
+*measurement*. Both halves are the deliverable: the figure is explained (whole-night window × retired
+PpgDex × the 17 box nights of 2026-08-08) and it is **not** recoverable from anything that exists now.
+
+**Correction owed to the published methods, and it is now two-part:**
+
+1. **State window length as a parameter.** `PAPERS-ROADMAP` already calls this *"a correction owed to
+   published methods"*; §11 and this section confirm it is load-bearing — a σ without its window is
+   underdetermined by up to +49 %.
+2. **State the generation.** A σ quoted from a reference-free hat is a function of the DSP that produced
+   the intervals, and that DSP moved 20 times in three weeks. A caption naming the corpus and the window
+   is still not enough to make the number re-derivable.
+
+⚠️ **What would settle it beyond inference:** check out `ppgdex-dsp.js` at its 2026-08-08 state, regenerate
+the 17 nights' exports, and re-run the whole-night hat. That is a real unit and is **not** done here —
+the generation attribution above rests on the code having demonstrably changed on the relevant paths, not
+on a re-run. Recorded as inference, labelled as inference.
+
 ## 9. Pointers
 - Method paper: `papers/sigma-no-reference.html`; "how many nights" template: `papers/nights-icc.html`.
 - TCH kernel / tooling to reuse: `sigma-no-reference-analysis.js` (TRIO/TRIOS, TCH math, exporters) +
