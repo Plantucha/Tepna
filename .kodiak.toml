@@ -1,0 +1,35 @@
+# .kodiak.toml — Tepna merge automation (Kodiak GitHub App; trial adopted 2026-08-27)
+#
+# WHY. `protect-main` sets strict required status checks, and GitHub's own auto-merge never
+# updates a BEHIND branch — so an armed, fully green, behind PR is a DEADLOCK, not a wait
+# (measured 2026-08-16: 14 green PRs sat a full day; CLAUDE.md §👥.5). GitHub's native merge
+# queue would fix this but is organization-only and this repo is user-owned (verified three
+# ways, 2026-08-09/16). Kodiak is the pre-GitHub generation of the same idea — a GitHub App
+# that works on user-owned repos, free for public ones: it keeps its own serial queue,
+# updates the front PR when it goes BEHIND, waits for CI, merges, repeats. That is exactly
+# the "update ONE green PR → let it merge → update the next" protocol the coordinator has
+# been running by hand.
+#
+# ACTIVATION requires the owner to install the App once: https://github.com/marketplace/kodiakhq
+# Until installed, this file is inert. `tools/land-pr.mjs` / `tools/queue-doctor.mjs` remain
+# the fallback and the dry-run diagnostic either way.
+#
+# DELIBERATE choices:
+#  - no automerge label: every non-draft PR here is opened intending to land, so label
+#    ceremony adds a step for nothing. To hold a PR, mark it Draft or label `do-not-merge`.
+#  - no `update.always`: eagerly updating EVERY open PR is the N-simultaneous-updates waste
+#    §👥.5 measures (all N re-run CI, one merges, N−1 go BEHIND again — and the 2026-08-18
+#    runner-pool saturation was 187 jobs). Kodiak updates the front of its queue as part of
+#    merging; that is the serial behavior we want and nothing more.
+version = 1
+
+[merge]
+method = "squash"
+delete_branch_on_merge = true
+require_automerge_label = false
+blocking_labels = ["do-not-merge"]
+
+[merge.message]
+title = "pull_request_title"
+body = "pull_request_body"
+include_pr_number = true
