@@ -320,8 +320,15 @@ async function reviewFile(file, dir, mode) {
           confidence: fi.confidence,
           fix: fi.fix || undefined
         });
-      } catch {
-        /* ledger failure must not kill the run; the journal line above already holds the finding */
+      } catch (e) {
+        /* Ledger failure must not kill the run — the journal line above already holds the
+           finding — but it must not be SILENT either: this exact catch ate ENOTDIR for a whole
+           review pass (worktree .git-is-a-file, 2026-08-27) and the ledger quietly recorded
+           nothing. Once per run, say so. */
+        if (!globalThis.__ledgerWarned) {
+          globalThis.__ledgerWarned = true;
+          process.stderr.write('  ⚠ findings-ledger write failed (journal still has the findings): ' + String(e).slice(0, 100) + '\n');
+        }
       }
     }
     asked++;
