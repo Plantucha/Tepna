@@ -26,6 +26,9 @@ from tests.test_webmon_api import _mk, _serve, telemetry, webmon  # noqa: E402
 # Every value distinct, and distinct from the CONFIG values below — a transposition has to change
 # something for a test to be able to see it.
 FULL_STATUS = {
+    "presence": "pres_present",
+    "presence_reason": "2 sightings >= 2",
+    "presence_witness": "stops at probe_attempted (3/10)",
     "connected": True,
     "battery": 88,
     "rssi": -55,
@@ -65,6 +68,12 @@ DEVICE_KEYS = {
     # when it was read, the ring's own 0x00-read-back settings struct, and the last write's verdict.
     "ring_rtc_offset_s", "ring_rtc_read", "ring_config", "ring_config_verdict", "ring_buzz_at",
     "ring_rtc_reset_suspect",
+    # The O2Ring PRESENCE axis and its §19 EXECUTION WITNESS (O2RING-AUTONOMOUS-HARVEST §19/§20).
+    # Added to this contract DELIBERATELY rather than by relaxing the assertion: the key set IS the
+    # monitor's contract, and §20 exists because a field that reaches `/api/state` and no further is
+    # not exposed to anybody. `presence_witness` is the load-bearing one — it names where the §19
+    # chain STOPS, so an armed-but-never-executed path cannot render as healthy.
+    "presence", "presence_reason", "presence_witness",
 }
 
 
@@ -100,6 +109,10 @@ def test_a_device_projects_every_field_it_promises(tmp_path):
     # armband read True from its HR contact bit for ten hours with nothing saying where that came
     # from, or that the optical detector disagreed. These three must ARRIVE — a field published into
     # STATUS but not forwarded here is not published at all, and that failure is silent both ways.
+    assert d["presence"] == "pres_present"
+    assert d["presence_reason"] == "2 sightings >= 2"
+    assert d["presence_witness"] == "stops at probe_attempted (3/10)", (
+        "the witness must arrive as the SENTENCE, not as a chain the reader has to audit")
     assert d["worn_why"] == "worn per hr-contact-bit"
     assert d["worn_optical"] is False, "the disagreeing opinion must reach the monitor, not just the log"
     assert d["worn_optical_why"] == "not worn per ambient-stability"

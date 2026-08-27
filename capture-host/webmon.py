@@ -223,6 +223,15 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         # one time-scale down.
                         "last_sample": st.get("last_sample"),
                         "pull_progress": st.get("pull_progress"),
+                        # §19/§20 — the O2Ring presence axis and its EXECUTION WITNESS. `presence` is
+                        # an observation (advertising ≠ connected ≠ recording); `presence_witness` is
+                        # the one field that says where the §19 chain STOPS, so a path that never
+                        # armed cannot read as healthy. §20 is explicit that exposing only
+                        # "enabled = true" is insufficient — and a field forwarded here but drawn by
+                        # nobody is still not exposed, which is why monitor.html draws all three.
+                        "presence": st.get("presence"),
+                        "presence_reason": st.get("presence_reason"),
+                        "presence_witness": st.get("presence_witness"),
                         # link_epoch (E5) is the reconnect count — the honest churn signal a green
                         # "connected" dot hides. A device that flaps all night reads "connected" at every
                         # sample yet has a climbing epoch; surfacing it is what makes that visible.

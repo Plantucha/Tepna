@@ -5202,6 +5202,21 @@ _CHARGER_SINCE: dict[str, float] = {}   # addr -> monotonic when charging went T
 _CHARGER_PULLED: set[str] = set()       # addrs already pulled THIS charge session (cleared when off charger)
 _NOTWORN_SINCE: dict[str, float] = {}   # addr -> monotonic when worn went False (absent = worn/unknown)
 _NOTWORN_PULLED: set[str] = set()       # addrs already pulled THIS doff session (cleared when worn again)
+# ── The PRESENCE axis's daemon-side state (O2RING-AUTONOMOUS-HARVEST §5) ─────────────────────────────
+# Written by the advertisement scanner, read by `charger_pull_poller`'s dispatch. Same shape as the two
+# above, deliberately: presence is a NEW TRIGGER feeding the existing transactional harvest (§14), not
+# a second downloader, so it publishes an observation and lets the one dispatch decide.
+# ⚠️ EMPTY IS NOT ABSENT. With the scanner disarmed this dict stays empty, and `oxy_presence.observe`
+# renders that as UNKNOWN rather than ABSENT — which `probe_justified` refuses to act on. So a cold
+# scanner cannot manufacture a trigger, and it cannot manufacture a "the ring is gone" reason either.
+_PRESENCE: dict = {}                    # addr -> oxy_presence.Presence, latest observation
+_PRESENCE_PULLED: set[str] = set()      # addrs already pulled THIS presence session
+_PRESENCE_PROBED: dict = {}             # addr -> monotonic of the last probe (the §11 rate limit)
+_PRESENCE_NAMES: dict = {}              # addr -> device name, so `_set` can key the per-device row
+# addr -> {link: monotonic}. The §19 chain's raw stamps; `witness_chain` turns them into a verdict.
+# Written by whichever step actually happened — never pre-seeded, because a pre-seeded link is a
+# claim that something ran.
+_WITNESS: dict = {}
 
 
 def autopull_arming(pcfg: dict) -> dict:
@@ -5268,8 +5283,20 @@ def pull_scope_for(trigger: str) -> str:
     throwing `InProgress`), but had it connected it would have been racing a window `which=all` cannot
     make. Fixing the scope removes one of the three contributing factors and is correct independently
     of the other two.
+
+      · **presence → `latest`**, stated explicitly because the fall-through would give it `all`.
+        ⚠️ THE FALL-THROUGH IS NOT A BUG, and this entry is not a fix for one: `test_an_UNKNOWN_
+        trigger_sweeps_rather_than_narrowing` rules that the safe default is the COMPLETE scope,
+        reasoning that a narrow pull which misses a session loses data until the next poller lap
+        while a wide one merely costs link time. That ruling stands and is correct.
+        It is answering a DIFFERENT question, though — it is conservative about DATA LOSS, and says
+        nothing about whether the pull FITS. A presence-triggered pull races the same closing window
+        the doff trigger does (the ring advertised, so it is awake and on its post-session tail), and
+        §14b measured `all` at p90 69.4 s against a window it cannot make. So the default is safe for
+        a trigger with time and wrong for a trigger without it, and any trigger that races a window
+        must name itself here. That is the rule this entry adds, not an amendment to the default.
     """
-    return "latest" if trigger == "not-worn" else "all"
+    return "latest" if trigger in ("not-worn", "presence") else "all"
 
 
 def charger_pull_due(charging: bool, since, now: float, settle: float, already: bool) -> bool:
@@ -5330,6 +5357,13 @@ async def charger_pull_poller(cfg: dict, root: str):
     # (§14b, n=433) ≈ 76 s, inside the ~98 s advertising tail measured 2026-08-26 with ~22 s margin.
     # 🔴 THAT TAIL IS n=1. One doff, one night. The next few doffs are its test — if one shows a
     # shorter tail that is DATA, not failure, and this default moves. Do not treat 98 s as settled.
+    import oxy_presence
+    _pres_arm = oxy_presence.arming(cfg)
+    # Read HERE, beside the other trigger settings, so a documented key cannot become an inert one —
+    # the failure this repo keeps re-finding (`cpap.wifi_profile` is the standing example, and I
+    # shipped it again in the CPAP spool caller earlier tonight before a test caught it).
+    _pres_cfg = (cfg.get("o2ring", {}) or {}).get("presence_harvest", {}) or {}
+    _pres_interval = float(_pres_cfg.get("min_probe_interval_sec", 300.0))
     _doff_cfg = float(pcfg.get("notworn_settle_sec", 45))
     doff_settle = _doff_cfg
     ftype = int(pcfg.get("ftype", 0))
@@ -5341,11 +5375,17 @@ async def charger_pull_poller(cfg: dict, root: str):
     # arming line hid a dead path for months; printing only what is enabled would rebuild that blind
     # spot one flag along. `close` is the §8/§14 close-triggered harvest — it keys on END_CANDIDATE
     # rather than on a settle, so it has no settle to report.
-    log.info("auto-pull: armed — %d device(s); charger=%s (%.0fs) not-worn=%s (%.0fs) on-close=%s%s. "
+    # §20 — presence joins the SAME line, and it reports enabled-vs-armed as two facts rather than
+    # one, because they genuinely differ here: the scanner ships COLD until §2's coexistence matrix
+    # runs on the box. "OFF" and "enabled-but-unarmed" send an operator to different places.
+    _pres_txt = ("on" if _pres_arm.armed
+                 else ("enabled-NOT-ARMED" if _pres_arm.enabled else "OFF"))
+    log.info("auto-pull: armed — %d device(s); charger=%s (%.0fs) not-worn=%s (%.0fs) on-close=%s "
+             "presence=%s (%s)%s. "
              "The not-worn trigger is the only reachable one for a coin-cell device such as the H10.",
              len(devices), "on" if _arm["charger"] else "OFF", settle,
              "on" if _arm["doff"] else "OFF", doff_settle,
-             "on" if _arm["close"] else "OFF",
+             "on" if _arm["close"] else "OFF", _pres_txt, _pres_arm.reason,
              f" — {_arm['why']}" if _arm["why"] else "")
     while not _STOP.is_set():
         await asyncio.sleep(2)
@@ -5373,25 +5413,56 @@ async def charger_pull_poller(cfg: dict, root: str):
                 True, _CHARGER_SINCE.get(addr), now, settle, addr in _CHARGER_PULLED)
             by_doff = _arm["doff"] and notworn_pull_due(worn, _NOTWORN_SINCE.get(addr), now, doff_settle,
                                        addr in _NOTWORN_PULLED)
-            if not (by_charger or by_doff):
+            # §14 — the presence trigger is a THIRD `by_*` term on the SAME dispatch, never its own
+            # downloader. It reads an observation the scanner published and asks the pure policy
+            # whether a link is justified; everything after this line is the machinery that already
+            # exists. With the scanner disarmed `_PRESENCE` is empty ⇒ UNKNOWN ⇒ `probe_justified`
+            # refuses, so this term is False by construction until §2's matrix arms the scanner.
+            by_presence = bool(
+                _pres_arm.armed and addr not in _PRESENCE_PULLED
+                and oxy_presence.probe_justified(
+                    armed=True, presence=_PRESENCE.get(addr),
+                    # ⚠️ `st`, NOT `dev` — the runtime state, not the config entry. An earlier draft
+                    # read `dev.get("rec_state")`, which is ALWAYS None: `dev` is the `devices:` config
+                    # dict and carries no runtime fields, so §6's "still recording → do not probe"
+                    # guard could never fire. `oxy_recording` is the RECORDING axis's published value
+                    # (`OxyRecState.value`), which is the vocabulary `probe_justified` compares against.
+                    rec_state=st.get("oxy_recording"),
+                    last_probe_at=_PRESENCE_PROBED.get(addr), now=now,
+                    min_probe_interval_s=_pres_interval,
+                ).action == oxy_presence.CONNECT)
+            if not (by_charger or by_doff or by_presence):
                 continue
-            trigger = "charger" if by_charger else "not-worn"
+            # ORDER IS A PRIORITY, not a coincidence: charger is the widest sweep and the least
+            # time-pressured, doff races the measured tail, and presence is the newest and least
+            # proven. A tie goes to the better-evidenced trigger.
+            trigger = "charger" if by_charger else ("not-worn" if by_doff else "presence")
             if by_charger:
                 _CHARGER_PULLED.add(addr)               # once per charge session (before the await)
             if by_doff:
                 _NOTWORN_PULLED.add(addr)               # once per doff session (before the await)
+            if by_presence:
+                _PRESENCE_PULLED.add(addr)              # once per presence session (before the await)
+                _PRESENCE_PROBED[addr] = now            # spend the §11 rate limit even if the pull fails
+                _WITNESS.setdefault(addr, {}).update(probe_attempted=now, pull_started=now)
             try:
                 if dev.get("vendor") in ("Wellue", "Viatom"):
                     res = await pull_oxyii_session(dev, root, which=pull_scope_for(trigger), ftype=ftype)
                 else:
                     res = await pull_polar_offline_all(dev, root)
                 new = (res or {}).get("new_files", []) if isinstance(res, dict) else []
+                if trigger == "presence" and new:
+                    # §19 link 10 — stamped ONLY when the harvest produced a file. `artifact_committed`
+                    # is the one link that means DATA SURVIVED, so a zero-file pull must not claim it;
+                    # the chain would then read "complete" for a night that retrieved nothing.
+                    _WITNESS.setdefault(addr, {})["artifact_committed"] = now
                 log.info("auto-pull (%s): %s → %d new file(s)", trigger, dev.get("name"), len(new))
                 STATUS.setdefault("autopull", {}).update({"last": _now().isoformat(timespec="seconds"),
                                                           "new": len(new), "trigger": trigger})
             except offline_lock.OfflineBusy:
                 _CHARGER_PULLED.discard(addr)           # slot held by another pull — retry next tick
                 _NOTWORN_PULLED.discard(addr)
+                _PRESENCE_PULLED.discard(addr)
             except Exception as e:                      # unreachable/transient — leave pulled; the hourly
                 log.info("auto-pull (%s): %s failed (%s) — hourly poller is the backstop", trigger,
                          dev.get("name"), type(e).__name__)   # autopull_poller is the backstop, no spam
@@ -5923,6 +5994,234 @@ def _maybe_start_as11_shadow(cfg, config_path, root, cpap_ctl, tasks, *,
     return task
 
 
+async def _cpap_spool_loop(*, at_hour, window_h, root, creds, connect_factory, epoch_start,
+                           is_capturing, spool_type="Summary", sleep=None, now=None,
+                           cycle=None, st=None):
+    """The scheduled stored-spool pull: once per day, inside its window, only when nothing contends.
+
+    Mirrors `_cpap_loop`'s shape on purpose — same `due_now`/`window_start_date` pair, same
+    "a deferral does NOT consume the day" rule. That rule is the load-bearing one: `last_run_date`
+    advances only after the pull is actually ATTEMPTED, so a morning where the owner is still wearing
+    the sensors retries next minute instead of silently skipping the day (`cpap_harvest.due_now`
+    carries the same scar, from the 19:25 restart that re-armed a 13:00 job).
+
+    Every collaborator is injected so the schedule is testable with no clock, no radio and no sleep."""
+    import cpap_harvest
+    import cpap_spool_caller
+    sleep = sleep or asyncio.sleep
+    now = now or (lambda: _dt.datetime.now())
+    cycle = cycle or cpap_spool_caller.spool_pull_cycle
+    st = st or (lambda **kw: None)
+    last_run_date = None
+    while not _STOP.is_set():
+        await sleep(60)
+        if _STOP.is_set():
+            break
+        t = now()
+        if not cpap_harvest.due_now(t, at_hour, last_run_date, window_h):
+            continue
+        why = cpap_spool_caller.pull_blocked(
+            recovering=_RECOVER.is_set(),
+            streaming=cpap_harvest.blocking_devices(STATUS["devices"]),
+            cpap_capturing=bool(is_capturing()))
+        if why is not None:
+            # Deliberately does NOT consume the day — see the docstring.
+            st(state="waiting", detail=why)
+            continue
+        last_run_date = cpap_harvest.window_start_date(t, at_hour, window_h) or t.date()
+        st(state="running", detail=None)
+        try:
+            summary = await cycle(connect=connect_factory, creds=creds, root=root,
+                                  epoch_start=epoch_start, spool_type=spool_type)
+        except Exception as e:  # noqa: BLE001 — a scheduled job must survive any pull failure
+            # Same reasoning as run_shadow_loop's broad except: the bleak connect raises
+            # BleakError subclasses that are NOT OSError, and one such error silently killed a
+            # task on 2026-08-25. A daily job that dies on day one looks identical to one that
+            # was never armed — the ABSENT-LOG-LINE failure this lane keeps rediscovering.
+            log.warning("CPAP spool pull failed: %s: %s", type(e).__name__, e)
+            st(state="error", detail=f"{type(e).__name__}: {e}")
+            continue
+        log.info("CPAP spool pull: %d round(s), cursor now %s%s",
+                 summary.get("rounds_committed", 0), summary.get("cursor"),
+                 f", stopped={summary['stopped']}" if summary.get("stopped") else "")
+        st(state="idle", detail=None, last_run=t.isoformat(timespec="seconds"))
+
+
+def _maybe_start_cpap_spool_pull(cfg, config_path, root, cpap_ctl, tasks, *,
+                                 load_creds=None, connect_factory=None, create_task=None):
+    """Start the scheduled stored-spool pull if `cpap.spool_pull.enabled` — otherwise a no-op.
+
+    🔴 IT ALWAYS LOGS ITS STATE, ARMED OR NOT, and that is the whole reason this function is not
+    three lines. `autopull_arming` was written because the event path had NEVER ARMED and nothing
+    said so: `auto-pull: armed` appeared 0 times against 312 poller lines, and no gate can observe a
+    line that was never printed. A disabled path that announces itself disabled is debuggable; a
+    silent one is indistinguishable from a broken one.
+
+    Default OFF and never inherited (`cpap_spool_caller.spool_arming`). The first witnessed pull is
+    still owed (CPAP-SPOOL-ACQUISITION Do-1, attended) — landing the caller disabled is deliberate.
+
+    ⚠️ THE ALWAYS-LOGS GUARANTEE HAS ONE HOLE, AND IT IS STATED HERE RATHER THAN LEFT TO BE
+    DISCOVERED: this is reached only from inside `if web.enabled`, because `_cpap_ctl` — whose
+    `_running` is the one-socket interlock — is built there. On a box with `web.enabled: false`
+    NOTHING here runs, so an operator who armed `cpap.spool_pull` would get no pull and NO LINE
+    saying why, which is precisely the failure mode the line exists to prevent. The coupling is
+    pre-existing (`_maybe_start_as11_shadow` sits in the same block and inherits it identically) and
+    unpicking it means moving the controller's construction, which is a separate work-unit; it is
+    recorded as a follow-up on the brief rather than silently inherited. Until then: arming the spool
+    pull on a headless box requires `web.enabled` too."""
+    import cpap_spool_caller
+    arming = cpap_spool_caller.spool_arming(cfg)
+    if not arming["armed"]:
+        log.info("CPAP stored-spool pull: NOT armed — %s", arming["why"])
+        return None
+    ccfg = cfg.get("cpap", {}) or {}
+    scfg = ccfg.get("spool_pull", {}) or {}
+    cbs = ccfg.get("ble_stream", {}) or {}
+    creds_path = cbs.get("creds_path") or os.path.join(os.path.dirname(config_path), "as11_creds.json")
+    creds = (load_creds or _load_as11_creds)(creds_path)
+    if not creds:
+        log.info("CPAP stored-spool pull armed but no as11_creds — skipping (pair the AS11 first)")
+        return None
+    hci = cbs.get("adapter", "hci1")
+    if connect_factory is None:  # pragma: no cover — the bleak I/O edge, mirrors the shadow runner
+        async def connect_factory():
+            return await _cpap_ble_connect(creds["ble_addr"], hci)
+    spool_root = scfg.get("root") or os.path.join(root, "cpap-spool")
+    epoch_start = scfg.get("epoch_start", cpap_spool_caller.SPOOL_EPOCH_START_DEFAULT)
+    task = (create_task or asyncio.create_task)(_cpap_spool_loop(
+        at_hour=arming["at_hour"], window_h=arming["window_h"], root=spool_root, creds=creds,
+        connect_factory=connect_factory, epoch_start=epoch_start,
+        spool_type=scfg.get("spool_type", "Summary"),
+        is_capturing=cpap_ctl._running))
+    TASK_LABELS[id(task)] = "CPAP stored-spool pull"
+    tasks.append(task)
+    log.info("CPAP stored-spool pull: ARMED — %s spool, window %02d:00-%02d:00 on %s, from %s → %s",
+             scfg.get("spool_type", "Summary"),
+             arming["at_hour"], (arming["at_hour"] + arming["window_h"]) % 24, hci,
+             epoch_start, spool_root)
+    return task
+
+
+def presence_fold(prev: dict, seen: dict, addresses: list, now: float, *, observe=None) -> dict:
+    """Fold ONE scan window's sightings into the presence observation for every configured ring. PURE.
+
+    `prev` is the previous `addr -> Presence` mapping and `seen` maps addr -> monotonic time of a
+    qualifying advertisement in this window (identity already checked); an address absent from `seen`
+    saw nothing. Returns the new mapping. Both are PARAMETERS, not globals — an earlier draft of this
+    read `_PRESENCE` directly while advertising itself as pure, which is the kind of quiet lie that
+    makes a function untestable in exactly the case you need it.
+
+    ⚠️ IT ITERATES THE CONFIGURED ADDRESSES, NOT THE SIGHTINGS, and that asymmetry is the whole
+    function. Folding only what was seen would mean a ring that stopped advertising is never updated
+    — its last Presence would sit at PRESENT forever, because nothing would ever call `observe` with
+    a silent tick for it. Absence is only observable by asking about a device that did NOT appear."""
+    import oxy_presence
+    observe = observe or oxy_presence.observe
+    return {addr: observe((prev or {}).get(addr), seen_at=seen.get(addr), now=now)
+            for addr in addresses}
+
+
+async def _presence_scan_loop(*, addresses, window_s, scan, sleep=None, mono=None):
+    """Passive advertisement observation → `_PRESENCE`. Starts NO connection and pulls NO bytes.
+
+    🔴 THIS TASK IS NOT STARTED UNLESS `oxy_presence.arming(cfg).armed`, which additionally requires
+    `scan_coexistence_verified`. §2 is explicit that a second BLE operation must not be assumed
+    harmless — the box may be simultaneously acquiring O2Ring, CPAP, H10 and Verity — and the
+    coexistence matrix has NOT been run. So the code ships and the radio stays cold. Do not arm this
+    from a code change; it is armed by a measurement.
+
+    `scan` is injected and returns `{addr: monotonic_seen_at}` for one window. The bleak edge lives in
+    the factory, so this loop is testable with no radio."""
+    # ⚠️ HOISTED. This import used to sit further down the loop body, and a function-local `import`
+    # makes the name LOCAL for the whole function — so a use above it raises UnboundLocalError on the
+    # first iteration, not NameError. It read as correct because the only use WAS below it.
+    import oxy_presence
+    sleep = sleep or asyncio.sleep
+    mono = mono or _time.monotonic
+    while not _STOP.is_set():
+        try:
+            seen = await scan(window_s)
+        except Exception as e:  # noqa: BLE001 — an observer must never take the daemon down
+            log.info("presence scan failed (%s) — observation unchanged", type(e).__name__)
+            seen = {}
+        _PRESENCE.update(presence_fold(_PRESENCE, seen, addresses, mono()))
+        # §19/§20 — publish the observation and the CHAIN'S FIRST GAP per device. Deliberately via
+        # `_set`, not a bare STATUS write: `_set` keys are what `find_unwired`'s scan 1 enumerates, so
+        # a field published here and consumed by nobody REDS the gate. That is the point — §20 says
+        # "do not expose only enabled = true", and a witness written into a dict nothing reads is the
+        # hollow artifact this whole section exists to forbid.
+        for _addr, _pres in _PRESENCE.items():
+            _nm = _PRESENCE_NAMES.get(_addr)
+            if _nm is None:
+                continue
+            _ch = oxy_presence.witness_chain(_WITNESS.get(_addr, {}))
+            _set(_nm, presence=_pres.state.value, presence_reason=_pres.reason,
+                 presence_witness=oxy_presence.witness_summary(_ch))
+        # Re-arm the once-per-presence-session latch when the ring genuinely leaves. Keyed on ABSENT,
+        # never on "not PRESENT": UNKNOWN must not re-arm anything, or a scanner that goes blind would
+        # silently re-enable a pull it already performed.
+        for addr, pres in _PRESENCE.items():
+            if pres.state is oxy_presence.OxyPresState.PRESENT:
+                _WITNESS.setdefault(addr, {}).setdefault("presence_detected", mono())
+            if pres.state is oxy_presence.OxyPresState.ABSENT:
+                _PRESENCE_PULLED.discard(addr)
+        await sleep(window_s)
+
+
+def _maybe_start_presence_scan(cfg, tasks, *, create_task=None, scan_factory=None):
+    """Start the passive advertisement observer if — and only if — BOTH switches are on.
+
+    🔴 IT ALWAYS LOGS ITS STATE, and it distinguishes the THREE outcomes rather than two:
+    OFF (the operator did not ask) · ENABLED-BUT-NOT-ARMED (the operator asked, the hardware has not
+    been cleared) · ARMED. The middle one is the state that actually exists tonight, and collapsing
+    it into "off" would hide a configured feature that is deliberately not running — the absent-log-
+    line failure `autopull_arming` was written for.
+
+    §22 — the adapter is resolved through `adapter_kw()`, which keys on the configured MAC and maps
+    it to the CURRENT `hciN` at use time. Never a stored hci number: those RE-ENUMERATE across
+    reboots (measured 2026-08-25, one reboot moved two dongles), so a pinned index silently changes
+    which physical radio serves the scan."""
+    import oxy_presence
+    arm = oxy_presence.arming(cfg)
+    if not arm.armed:
+        log.info("O2Ring presence scan: %s — %s",
+                 "ENABLED but NOT ARMED" if arm.enabled else "off", arm.reason)
+        return None
+    pcfg = (cfg.get("o2ring", {}) or {}).get("presence_harvest", {}) or {}
+    window_s = float(pcfg.get("window_sec", 10.0))
+    addresses = [d.get("address") for d in cfg.get("devices", [])
+                 if d.get("vendor") in ("Wellue", "Viatom") and d.get("address")]
+    if not addresses:
+        log.info("O2Ring presence scan: armed but no Wellue/Viatom device has an address — nothing to observe")
+        return None
+    if scan_factory is None:  # pragma: no cover — the bleak I/O edge, mirrors the other scanners
+        async def scan_factory(window):
+            from bleak import BleakScanner
+            wanted = {a.upper() for a in addresses}
+            found = {}
+            for d in await BleakScanner.discover(timeout=window, **(await adapter_kw())):
+                if d.address.upper() in wanted:
+                    found[d.address.upper()] = _time.monotonic()
+            return found
+    # §19 links 1-2. Stamped HERE and nowhere earlier, because this is the line after which the
+    # observer genuinely exists: `enabled` was true at `arming`, and `observer_armed` is only honest
+    # once the task is about to be created. Stamping either at config-read time would make the chain
+    # report progress the system had not made — the exact claim §19 forbids.
+    _now_mono = _time.monotonic()
+    for _a in addresses:
+        _PRESENCE_NAMES[_a.upper()] = next(
+            (d.get("name") for d in cfg.get("devices", []) if d.get("address") == _a), None)
+        _WITNESS.setdefault(_a.upper(), {}).update(enabled=_now_mono, observer_armed=_now_mono)
+    task = (create_task or asyncio.create_task)(_presence_scan_loop(
+        addresses=[a.upper() for a in addresses], window_s=window_s, scan=scan_factory))
+    TASK_LABELS[id(task)] = "O2Ring presence scan"
+    tasks.append(task)
+    log.info("O2Ring presence scan: ARMED — %d ring(s), %.0fs window. Observation only: this task "
+             "opens no connection and pulls no bytes; it feeds the existing auto-pull dispatch.",
+             len(addresses), window_s)
+    return task
+
+
 def _looks_like_mac(s) -> bool:
     return isinstance(s, str) and len(s) == 17 and s.count(":") == 5
 
@@ -6111,6 +6410,7 @@ async def main():
     for label, mk in _BACKGROUND:
         _t = asyncio.create_task(keep_running(mk, label, notifier))
         TASK_LABELS[id(_t)] = label
+
         tasks.append(_t)
 
     device_tasks: dict[str, asyncio.Task] = {}   # address -> its live runner task. A device has ONE BLE
@@ -6170,6 +6470,13 @@ async def main():
         # AS11 session detector (SHADOW): observes therapy via a short-connect poll while the CPAP
         # stream is idle, writing SESSIONDETECT.csv + AS11CLOCK.csv. Default OFF (as11_detector.enabled).
         _maybe_start_as11_shadow(cfg, args.config, root, _cpap_ctl, tasks)
+        _maybe_start_cpap_spool_pull(cfg, args.config, root, _cpap_ctl, tasks)
+
+
+        # O2Ring passive presence observer. Logs its state whether or not it starts, and both
+        # switches must be on (§21 + §2's coexistence verdict) — so on any current box this prints
+        # "off" or "ENABLED but NOT ARMED" and starts nothing.
+        _maybe_start_presence_scan(cfg, tasks)
         web_runner = await webmon.start(
             webmon.make_app(BUS, cfg, args.config, ADAPTER, STATUS, _spawn,
                             pull_stored=_pull, polar_pause=polar_offline_op,

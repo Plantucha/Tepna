@@ -363,6 +363,14 @@ def test_a_charger_pull_still_sweeps_EVERYTHING():
     assert capture.pull_scope_for("charger") == "all"
 
 
+def test_a_PRESENCE_pull_asks_for_LATEST_because_it_races_the_SAME_window_as_a_doff():
+    """A ring that advertised is awake and on its post-session tail — the closing window §14b measured
+    `all` at p90 69.4 s against and found it could not make. The safe DEFAULT below is conservative
+    about data loss, which is a different question from whether the pull FITS; a trigger that races a
+    window must name itself in the scope table rather than inherit."""
+    assert capture.pull_scope_for("presence") == "latest"
+
+
 def test_an_UNKNOWN_trigger_sweeps_rather_than_narrowing():
     """The safe default is the COMPLETE scope: a narrow pull that misses a session loses data until
     the next poller lap, while a wide one merely costs link time. A new trigger added later without

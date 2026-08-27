@@ -155,6 +155,30 @@ o2ring:                   # Wellue O2Ring-S / T8520 specifics.
                           #   A hole larger than this is recorded as a real gap. 40 ms sits between the
                           #   measured arrival jitter (sd 16 ms, p95 29 ms) and real losses (median 49 ms).
 
+  # ── AUTONOMOUS PRESENCE HARVEST (O2RING-AUTONOMOUS-HARVEST charter §5/§11/§20/§21) ─────────────────
+  # A THIRD trigger for the SAME transactional .dat harvest under `pull:` below — never a second
+  # downloader (§14). A passive advertisement scan observes whether the ring is in range; when it is
+  # present, not recording, and the rate limit has elapsed, the existing dispatch pulls `which=latest`.
+  #
+  # 🔴 TWO SWITCHES, AND THEY ARE NOT THE SAME SWITCH.
+  #   `enabled`                    — what the OPERATOR wants. Default OFF, never inherited.
+  #   `scan_coexistence_verified`  — what the HARDWARE has been shown to allow. Default OFF.
+  # Both must be true before the scanner transmits. They are separate because enabling a feature must
+  # not amount to asserting a measurement you did not run: §2 requires that passive scanning be TESTED
+  # against live CPAP / H10 / Verity acquisition before it is trusted — "do NOT assume that a second
+  # BLE operation is harmless" — and that matrix has NOT been run. Until it has, `enabled: true` gives
+  # you `presence=enabled-NOT-ARMED` on the auto-pull line, which is the honest state.
+  # ⚠️ Do not set `scan_coexistence_verified` to silence that line. It records a physical result. The
+  # cost of getting it wrong is not a failed harvest — it is degrading an acquisition channel that is
+  # already recording a night, which §2 forbids outright.
+  # presence_harvest:
+  #   enabled: false
+  #   scan_coexistence_verified: false
+  #   window_sec: 10            # one passive scan window; the fold runs once per window
+  #   min_probe_interval_sec: 300   # §11 rate limit. Trades end-detection latency against radio
+  #                             # contention — PROVISIONAL, and the first number to revisit once the
+  #                             # coexistence matrix gives real contention data.
+
 # ── Push alerts (optional, disabled by default) ───────────────────────────────────────────────────────
 # A generic webhook (ntfy.sh, Discord/Slack/Telegram bridge, Home Assistant …). Fires on: a sensor offline
 # past offline_sec, its recovery, the daemon (re)starting, and low disk. A lost bedside night is
@@ -250,6 +274,33 @@ cpap:                    # ResMed card auto-harvest over an ez Share Wi-Fi SD ad
     #   enabled: false
     #   flow_eps_lpm: 0.5           # |flow| at or below this counts as "not breathing" (idle measured -0.01)
     #   hold_sec: 120.0             # continuous quiet REQUIRED, timed in samples (a dead link cannot age it)
+
+  # STORED-SPOOL PULL — the device's own on-board session record, pulled over BLE (CPAP-SPOOL-
+  # ACQUISITION Do-3). Distinct from BOTH neighbours above: the Wi-Fi harvest copies the SD card, the
+  # live stream reads the machine in real time, and this retrieves what the AS11 stored itself.
+  #
+  # 🔴 DEFAULT OFF AND IT NEVER INHERITS — no other flag can arm it. The first pull is specified as an
+  # ATTENDED event (Do-1: witnessed, one bounded day, the owner present by arrangement), so this ships
+  # disabled on purpose and is turned on by an edit somebody makes deliberately. The daemon logs its
+  # arming state either way, armed or not: a disabled path that announces itself is debuggable, and a
+  # silent one is indistinguishable from a broken one.
+  #
+  # ⚠️ THE WINDOW MUST NOT OVERLAP `cpap.at_hour`'s harvest window — the daemon REFUSES to arm if it
+  # does, naming the hour. Both are 2.4 GHz on one box, and neither job's interlock can see the other's
+  # traffic, so an overlap silently re-creates the contention the 13:00 schedule exists to avoid
+  # (measured: 5-7 dB and 17 reconnects across three sensors). Default 10:00 clears 13:00 by an hour.
+  # spool_pull:
+  #   enabled: false
+  #   at_hour: 10                  # local hour; window is [at_hour, at_hour+window_h), wraps midnight
+  #   window_h: 2
+  #   spool_type: Summary          # the ONLY type the device is known to serve. A guessed detail-type
+  #                                # name returns -32602, which refutes THAT STRING and nothing more —
+  #                                # it is not evidence that no waveform spool exists (brief Do-4).
+  #   epoch_start: "2026-08-01T00:00:00.000Z"   # floor for the FIRST sync only; afterwards the ledger's
+  #                                # last committed cursor is the authority and this is never read again.
+  #                                # Deliberately recent: an epochal floor would make run one an
+  #                                # unbounded backfill, on the single run a human is watching.
+  #   root: captures/cpap-spool    # committed/ + incomplete/ + cpap_spool_ledger.jsonl
 
 # AS11 CPAP session detector (SHADOW — observes only, drives nothing). When enabled, a background task
 # short-connects the AS11 on the CPAP free radio (cpap.ble_stream.adapter, hci1) ONLY while the live
