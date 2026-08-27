@@ -3,7 +3,29 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-17 · **Follows:** `PAT-COMPENDIUM-2026-08-10-BRIEF.md` (the standing record), `PAT-OFFSET-ESTIMATOR-FOLLOWUPS-2026-08-12-BRIEF.md` (the open §3) · **Affects:** `pat-align.js`, `pat-gate.js`, `ppgdex-dsp.js`, `integrator-dsp.js`'s PAT surface, the CPAP validation corpus
+**Status:** DONE — 2026-08-27 · **Created:** 2026-08-17 · **Follows:** `PAT-COMPENDIUM-2026-08-10-BRIEF.md` (the standing record), `PAT-OFFSET-ESTIMATOR-FOLLOWUPS-2026-08-12-BRIEF.md` (the open §3) · **Affects:** `pat-align.js`, `pat-gate.js`, `ppgdex-dsp.js`, `integrator-dsp.js`'s PAT surface, the CPAP validation corpus
+
+
+> ### ✅ DONE 2026-08-27 — both open boxes resolved, one by measurement and one by machinery
+>
+> **Box 1 (within-connection stability): answered.** 14 nights, 31 connections — median |Δ| 43.8 ms,
+> p90 142.9, max 815.6, with 26 % beyond ±90 ms. `pat-align.js:335`'s *"cancels it exactly"* is measured
+> false; what protects the dip is the centered rolling-median baseline (1.18 ms median drift per 60 s
+> window against Θ = 10 ms), not the `segments` gate.
+>
+> **And the tail is now permanently a BOUND, not a rate** — settled by a pre-registered sweep with a
+> count-matched null control. The step fraction swings 33.5 pp across the threshold range (bar ≤10 pp)
+> and real runs persist at **0.96–1.08× the null** in every cell (bar ≥2×). The cause is
+> **identifiability**: `lag = BLE offset + true PAT`, and within one connection neither term has an
+> independent handle, so ambient drift makes every position look like a step at the same rate. More
+> nights will not fix it; a second offset-only observable would.
+>
+> **Box 2 (`patArousalIdx` registry row): a guard, not work — and machinery-backed for node badge
+> surfaces.** Demonstrated 2026-08-27 with a planted decoy: an `evBadge` token with no registry row reds
+> `badges · registry · no-fabricated-tier` (*"these render a FABRICATED experimental disc"*), and the
+> gate returns to 10/10 when removed. The box records intent; the gate enforces it. ⚠️ Scope: that gate
+> covers `evBadge` call sites in the **8 node UI files**. A PAT metric surfaced elsewhere — an analysis
+> tool, a paper — is **not** covered, so the guard is real but not total.
 
 # PAT feasibility, end to end — the suite has been building the hard estimand while the validated one sits unbuilt
 
