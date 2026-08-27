@@ -240,7 +240,179 @@ harvest · last failure · reason for waiting · reason for abandoning. Do not e
 
 ### 21. SAFE DEFAULT
 
-Preserve the current safe default: automatic close-tr
+Preserve the current safe default: automatic close-triggered harvesting remains OFF unless
+existing project configuration explicitly enables it. Do not silently change deployed behavior.
+If enabled, log/record exactly why the system believes it is armed.
 
-**⚠️ CHARTER TRUNCATED HERE (second delivery) — §21 ends mid-word at "automatic close-tr". The
-owner owes §21's remainder and any sections beyond it. Do not invent them.**
+### 22. MULTI-DEVICE SAFETY
+
+Automatic O2Ring harvesting must not interfere with: CPAP acquisition · H10 acquisition · Verity
+acquisition · PPS timing · other BLE devices. Test adapter selection explicitly. Never assume
+`hci1` means the same physical adapter after reboot. Use the existing robust adapter identity
+mechanism. Do not silently steal an adapter from another acquisition.
+
+### 23. DO NOT USE WALL CLOCK FOR DEADLINES
+
+Harvest deadlines are durations. Use monotonic time for: connection deadlines · flush waiting ·
+abort deadlines · retry timing. Use the existing Clock Contract for: physiological/sample
+timestamps · synchronization · recording time. Do not mix those concepts.
+
+### 24. TESTING STRATEGY
+
+Add deterministic unit tests for the pure decision functions. At minimum test: not armed · no
+close · close but deadline expired · flush active · flush complete · run_status unknown · new
+recording begins during flush · explicit not-worn · worn state · ambiguous contact state · correct
+scope · duplicate close · retry. Then add integration tests proving trigger → transaction, rather
+than testing only the trigger helper. Then add hardware execution-witness testing.
+
+### 25. PHYSICAL-BOX ACCEPTANCE TEST
+
+A successful implementation MUST eventually be demonstrated on real hardware. Perform at least:
+A. Start O2Ring recording. B. Confirm automatic system is actually ARMED. C. Confirm
+recording-state observations occur. D. End/remove ring. E. Confirm END_CANDIDATE. F. Confirm end
+condition. G. Confirm flush/finalization wait. H. Confirm automatic `.dat` pull starts. I. Confirm
+correct recording selected. J. Confirm verification. K. Confirm atomic commit. L. Confirm
+Acquisition Evidence. M. Confirm BLE disconnect. N. Confirm ring is allowed to power down.
+O. Confirm hourly reconciliation does not duplicate the result. The test report must contain
+observed timestamps/state transitions, not just "PASS."
+
+### 26. IMPORTANT NEGATIVE TESTS
+
+Test cases where automatic harvesting MUST NOT occur: ring merely advertises · ring is present but
+recording · unknown recording state · no confirmed end · flush still active · new recording
+opened · deadline expired · wrong device · artifact not finalized · transfer incomplete ·
+validation failed. These are as important as successful harvests.
+
+### 27. AUTOMATIC HARVEST MUST BE IDEMPOTENT
+
+These sequences must converge to the same final state: event → harvest · poller → harvest ·
+event → partial transfer → retry · event → host restart → recovery · event → poller races event ·
+repeated event → same recording. There must be one committed recording, not multiple copies.
+
+### 28. PERFORMANCE OBJECTIVE
+
+Optimize for: minimum connection count · minimum connection duration · minimum interference with
+other acquisition · maximum probability of complete `.dat` acquisition · safe power-down. Do NOT
+optimize prematurely for raw transfer throughput. The file is small compared with the cost of
+establishing and maintaining the BLE connection.
+
+### 29. DO NOT REPLACE STRONG DEVICE EVIDENCE WITH TIMERS
+
+If the O2Ring exposes a reliable state transition: use it. If it exposes a reliable finalization
+indication: use it. If only timing is available: use a bounded timing fallback and label the
+evidence appropriately. Never turn a heuristic timeout into an "established" fact.
+
+### 30. ACQUISITION EVIDENCE
+
+Every automatic harvest must produce the same Acquisition Evidence as a manual/reconciliation
+harvest. At minimum preserve: session identity · device identity · acquisition source · recording
+start/end evidence · clock status · sample counts · gap information · artifact identity · artifact
+hash · validation status · completeness · provenance · trigger source. The trigger source should
+distinguish, where useful: MANUAL · POLLER · AUTO_CLOSE · RECOVERY — without creating a separate
+provenance system.
+
+### 31. SYNTHETIC GOLDENS
+
+Do NOT redesign or center the architecture around Synthetic Goldens. After the production
+implementation is complete, determine whether the existing golden infrastructure can test
+important decision logic. Useful future golden cases may include: recording ends · flush delayed ·
+transport gap · interrupted transfer · duplicate trigger · restart. But production behavior must
+NOT depend on what the golden system can represent. Goldens are a validation tool.
+
+### 32. DOCUMENTATION
+
+Update the relevant Tepna brief/documentation to explain: presence detection · connection
+lifecycle · recording-state detection · end detection · finalization/flush · harvest ·
+verification · commit · power-off safety · reconciliation · recovery. Document which facts are:
+measured · established · heuristic · unknown — using the EXISTING Tepna evidence rules. Do not
+invent new scientific classifications.
+
+### 33. NO SCIENTIFIC CHANGES
+
+This task must NOT change: PPG algorithms · SpO2 algorithms · ODI definitions · event thresholds ·
+HR calculations · HRV calculations · CPAP event definitions · Integrator scientific rules ·
+existing evidence semantics. This is an acquisition/automation improvement.
+
+### 34. ACCEPTANCE CRITERIA (verbatim checkbox skeleton)
+
+The implementation is complete only when:
+
+- [ ] O2Ring presence can be observed cheaply if hardware permits.
+- [ ] Presence is distinct from connection.
+- [ ] Connection is distinct from recording state.
+- [ ] Recording state is based on authoritative/validated device evidence.
+- [ ] End-of-recording detection is automatic.
+- [ ] `.dat` finalization is explicitly awaited.
+- [ ] Arbitrary sleeps are not the primary correctness mechanism.
+- [ ] The correct recording cannot silently be replaced by a newer one.
+- [ ] Automatic harvesting reuses the existing transactional downloader.
+- [ ] Existing `.part`/verify/commit machinery remains authoritative.
+- [ ] Hash/provenance remains authoritative.
+- [ ] Validation remains separate from completeness.
+- [ ] UNKNOWN remains UNKNOWN.
+- [ ] Automatic harvesting has a hard abort deadline.
+- [ ] The ring cannot be kept awake indefinitely by a stuck pull.
+- [ ] BLE connections are minimized.
+- [ ] CPAP/H10/Verity/PPS acquisition is not disrupted.
+- [ ] Adapter identity survives reboot/renumbering.
+- [ ] Event-driven harvesting and periodic reconciliation coexist.
+- [ ] Duplicate harvests are idempotent.
+- [ ] Host/process restart is recoverable.
+- [ ] Automatic harvesting can be disabled safely.
+- [ ] "enabled" and "armed" are separately observable.
+- [ ] Execution-witness telemetry proves the automatic path actually ran.
+- [ ] Physical hardware demonstrates at least one complete autonomous harvest.
+- [ ] Negative hardware cases demonstrate that false harvests do not occur.
+- [ ] Existing tests remain green.
+- [ ] Existing scientific algorithms remain unchanged.
+
+### 35. TARGET ARCHITECTURE
+
+```
+                     O2RING
+                       │
+              ┌────────┴────────┐
+              │                 │
+         ADVERTISEMENT       GATT
+              │                 │
+              ▼                 ▼
+           PRESENCE          PROBE
+              │                 │
+              └────────┬────────┘
+                       ▼
+                RECORDING STATE
+                       │
+            ┌──────────┴──────────┐
+            │                     │
+         RECORDING              END
+            │                     │
+         disconnect          FINALIZATION
+            │                     │
+         observe                  ▼
+                              HARVEST → VERIFY → COMMIT → EVIDENCE → DEX
+
+And independently:   PERIODIC RECONCILIATION ──► same transaction
+```
+
+The key architectural principle: EVENT DETECTION IS NOT FILE TRANSFER. FILE TRANSFER IS NOT FILE
+VALIDATION. FILE VALIDATION IS NOT SCIENTIFIC INTERPRETATION. Keep those boundaries explicit.
+
+### 36. FINAL ENGINEERING REQUIREMENT
+
+Before coding, produce a short implementation map showing: EXISTING TEPNA COMPONENT → reused
+unchanged · EXISTING COMPONENT → adapted · NEW COMPONENT → why it is necessary · EXISTING TEST →
+reused · NEW TEST → what failure it catches. Then implement the smallest change set capable of
+satisfying the requirements. Do NOT rewrite working Tepna code for stylistic reasons.
+
+The final result should make O2Ring acquisition feel autonomous: put ring on → record → remove
+ring → Tepna notices → Tepna waits until the recording is actually finalized → Tepna retrieves the
+correct `.dat` → Tepna verifies it → Tepna commits it → Tepna records exactly what happened → ring
+is allowed to sleep — with no manual switch and no permanent BLE connection required unless the
+physical hardware proves that such a connection is necessary.
+
+The standard for success is NOT "the code path exists." The standard is: "a real recording
+completed, the autonomous path actually armed, detected the end, harvested the correct finalized
+artifact, verified and committed it, released the device, and left an auditable execution trail."
+
+**CHARTER COMPLETE — received in three deliveries 2026-08-26/27; nothing invented, nothing
+omitted.**
