@@ -317,3 +317,113 @@ def test_a_non_sys_write_is_still_not_a_message_call():
            "    fh.write(buf)\n"
            "    return 1\n")
     assert mutation_triage.message_call_lines(src) == frozenset()
+
+
+# ── the message-call wiring (2026-08-27) ─────────────────────────────────────
+# `classify(…, in_message_call=…)` has existed and been tested since 2026-08-08, and NOTHING EVER
+# PASSED IT. `tools/mutate_triage.py` called `classify(a, b)` at both sites, so every mutant on a
+# CONTINUATION line of a multi-line `log.info(...)` was judged REACHABLE — the exact distortion
+# `mutation_triage`'s own header quantifies. These pin the mapping that makes the flag suppliable.
+# They live in `mutation_triage`, NOT in `tools/mutate_triage.py`, and that placement is the point:
+# that module's header states the tool "remains UNCOVERED by design", so anything that can silently
+# mislead has to sit up here inside the floor. Both of these did mislead — see their docstrings.
+import mutation_triage as _MT
+
+_SHOW = """# x_foo__mutmut_1: survived
+--- p
++++ p
+@@ -1,5 +1,5 @@
+ def foo(x):
+     log.info(
+         'a', x)
+-    return 1
++    return 2"""
+_SRC = "import os\n\n\ndef foo(x):\n    log.info(\n        'a=%s', x + 1)\n    return 1\n"
+
+
+def test_hunk_lineno_is_FUNCTION_relative_not_file_relative():
+    """⚠️ A property of mutmut, not a choice: `mutmut show` diffs `cst.Module([function]).code`, so the
+    `@@` header numbers from 1 at the FUNCTION's first line (mutmut 3.7 `__main__.py:1710`). Feeding
+    this straight to `message_call_lines(file_source)` would compare a function offset against file
+    line numbers — a plausible-looking number about the wrong thing."""
+    assert _MT.hunk_lineno(_SHOW) == 4          # the `-` line, counting from the function's `def`
+
+
+def test_hunk_lineno_skips_ADDED_lines_when_counting():
+    """A `+` line does not exist in the ORIGINAL, and the original is the text whose message-calls are
+    being asked about. Counting it would shift every subsequent line by one."""
+    show = "@@ -1,3 +1,4 @@\n def f():\n+    added = 1\n-    return 1\n+    return 2"
+    assert _MT.hunk_lineno(show) == 2
+
+
+def test_hunk_lineno_returns_None_when_there_is_no_removed_line():
+    assert _MT.hunk_lineno("@@ -1,2 +1,3 @@\n def f():\n+    x = 1") is None
+    assert _MT.hunk_lineno("no hunk header at all") is None
+    # A MALFORMED `@@` line must not arm the counter: `seen` stays None, so every following line is
+    # skipped and the answer is None rather than a position measured from a header we could not read.
+    assert _MT.hunk_lineno("@@ not a hunk header @@\n-    return 1") is None
+
+
+def test_function_start_line_uses_the_AST_not_a_text_search():
+    """`def x_foo__mutmut_1` exists in mutmut's generated module; a text search for `def foo` would
+    also match it, and a decorated or nested definition shifts a naive match."""
+    assert _MT.function_start_line(_SRC, "foo") == 4
+    assert _MT.function_start_line(_SRC, "absent") is None
+    assert _MT.function_start_line("def broken(:\n", "broken") is None      # unparseable → None
+
+
+def test_file_lineno_of_composes_the_two_into_a_FILE_line():
+    assert _MT.file_lineno_of(_SHOW, _SRC, "foo") == 7                      # 4 + 4 - 1
+    assert _MT.file_lineno_of(_SHOW, _SRC, "absent") is None
+    assert _MT.file_lineno_of("no hunk", _SRC, "foo") is None
+
+
+def test_a_CONTINUATION_line_mutant_is_recognised_as_prose():
+    """🔴 THE WHOLE POINT. `x + 1` -> `x - 1` inside a multi-line `log.info(...)` is a change to a
+    MESSAGE ARGUMENT, and the owner's 2026-08-08 decision is that those are prose. Without the flag it
+    reads REACHABLE and takes a slot in a work-list that is supposed to say what deserves a human."""
+    show = ("@@ -1,4 +1,4 @@\n def foo(x):\n     log.info(\n-        'a=%s', x + 1)\n"
+            "+        'a=%s', x - 1)\n     return 1")
+    assert _MT.file_lineno_of(show, _SRC, "foo") == 6
+    assert _MT.in_message_call(show, _SRC, "m.x_foo__mutmut_1") is True
+    a, b = "        'a=%s', x + 1)", "        'a=%s', x - 1)"
+    assert classify(a, b)[0] == "REACHABLE"                    # the old behaviour
+    assert classify(a, b, in_message_call=True)[0] == "PROSE"  # the wired behaviour
+
+
+def test_in_message_call_FAILS_CLOSED_on_every_unavailable_input():
+    """False is `classify`'s existing default, so a failure keeps the OLD behaviour. The direction is
+    deliberate: a False leaves a mutant in the work-list where it already was, while a wrong True
+    silently REMOVES work from a list whose job is to say what deserves attention."""
+    assert _MT.in_message_call(_SHOW, "", "m.x_foo__mutmut_1") is False          # unreadable source
+    assert _MT.in_message_call("no hunk", _SRC, "m.x_foo__mutmut_1") is False    # no removed line
+    assert _MT.in_message_call(_SHOW, _SRC, "m.x_absent__mutmut_1") is False     # unknown function
+    assert _MT.in_message_call(_SHOW, "def broken(:\n", "m.x_foo__mutmut_1") is False  # unparseable
+
+
+def test_func_of_mutant_handles_the_THREE_real_name_shapes():
+    """🔴 MEASURED MANGLING, and it is why only 27 of 66 survivors mapped to a line number.
+
+    The inherited regex `.*x_?(.+?)__mutmut_\\d+.*` is wrong for two real shapes:
+      · `x__coexistence_refusal__mutmut_3` -> `istence_refusal` — `x_?` ate one character too many
+        against a lazy `(.+?)`.
+      · `xǁLiveStreamControllerǁ_start__mutmut_73` -> `ǁLiveStreamControllerǁ_start` — mutmut qualifies
+        METHODS with `ǁ`, and an AST lookup for that finds nothing.
+    A leading underscore is part of the NAME (`_start`), not the `x_` prefix, so it must survive."""
+    assert _MT.func_of_mutant("m.x_foo__mutmut_1") == "foo"
+    assert _MT.func_of_mutant("cpap_stream.x__coexistence_refusal__mutmut_3") == "_coexistence_refusal"
+    assert _MT.func_of_mutant("cpap_stream.xǁLiveStreamControllerǁ_start__mutmut_73") == "_start"
+    assert _MT.func_of_mutant("cpap_stream.xǁCǁ_stop_op__mutmut_15") == "_stop_op"
+
+
+def test_module_source_path_resolves_the_MODULE_not_the_interpreter():
+    """🔴 THE BUG THAT MADE THE WHOLE WIRING INERT WHILE LOOKING CORRECT. The first version passed
+    `py` — which at both call sites is `os.path.abspath(a.python)`, THE INTERPRETER — so it read the
+    python binary, `message_call_lines` parsed nothing, and the flag was always False.
+
+    ⚠️ It measured as a clean ZERO delta, and that is the part that nearly shipped: the aggregate
+    agreed with the null hypothesis FOR THE WRONG REASON. With both bugs fixed the same module moves
+    REACHABLE 20 -> 14."""
+    p = _MT.module_source_path("/srv/ch", "cpap_stream")
+    assert p.endswith("cpap_stream.py")
+    assert "bin/python" not in p and "/.venv/" not in p

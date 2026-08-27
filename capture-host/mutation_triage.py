@@ -4,22 +4,32 @@
 
 WHY IT LIVES HERE AND NOT IN tools/. `tools/` is outside the coverage denominator
 (`pyproject.toml [tool.coverage.run] source`), so nothing under it is gated — which is fine for
-`glob`/`subprocess`/`argparse` plumbing and NOT fine for this. These ~40 lines decide whether a
+`glob`/`subprocess`/`argparse` plumbing and NOT fine for this. The logic here decides whether a
 surviving mutant is worth a human's time or is impossible to kill, and a wrong bucket does real harm
 in both directions: it sends someone chasing a target that cannot be reached, or it dismisses a real
 defect as noise. That is exactly the kind of logic a 100 % floor exists to hold, so it is here where
 the floor applies, and the plumbing stays in `tools/` where it does not.
 
 The split is deliberate and partial. `tools/mutate_triage.py` remains UNCOVERED by design; this is not
-an oversight to be "finished" later.
+an oversight to be "finished" later. What lives there is now exactly `glob`/`subprocess`/`argparse`/IO
+— it imports neither `ast` nor `re`, which is a checkable statement of the boundary rather than a
+claimed one.
+
+⚠️ THE CRITERION IS "CAN IT SILENTLY MISLEAD", NOT "IS IT SHORT". On 2026-08-27 the mutant-name and
+diff-position helpers were written into `tools/` because they felt like plumbing. They are not: one
+read the python BINARY instead of the module, the other mangled two of the three real mutant-name
+shapes, and together they produced a MEASURED DELTA OF ZERO that looked like a clean negative result.
+Nothing was covering them, so nothing said so. They were moved up here and are now 100 % gated.
 """
 from __future__ import annotations
 
 import ast
+import os.path
 import re
 
 __all__ = ["classify", "ceiling", "concentration", "message_call_lines", "REACHABLE", "PROSE",
-           "UNOBSERVABLE", "EQUIVALENT"]
+           "UNOBSERVABLE", "EQUIVALENT", "in_message_call", "hunk_lineno", "function_start_line",
+           "file_lineno_of", "func_of_mutant", "module_source_path"]
 
 REACHABLE = "REACHABLE"
 PROSE = "PROSE"
@@ -211,3 +221,118 @@ def concentration(fns: list[str]) -> dict:
     top, top_n = ordered[0]
     return {"total": len(fns), "clusters": ordered, "top": top, "top_n": top_n,
             "top_share": top_n / len(fns)}
+
+
+# ── mutant-name / diff-position mapping (moved up from tools/ 2026-08-27) ────────────
+# These are DECISION logic by this module's own criterion — each one silently misled in measurement
+# before it was tested: `module_source_path` read the python BINARY, and `func_of_mutant` mangled two
+# of the three real name shapes. Per the header, that is exactly what belongs inside the floor.
+def module_source_path(base_dir: str, module: str) -> str:
+    """`("/srv/ch", "cpap_stream")` -> `/srv/ch/cpap_stream.py`. PURE — the caller supplies the root.
+
+    🔴 EXISTS BECAUSE OF A MISTAKE WORTH NAMING. The first wiring passed `py` — which at both call
+    sites is `os.path.abspath(a.python)`, THE INTERPRETER — into `_read_source`. It read the python
+    binary, `message_call_lines` parsed nothing, the flag was therefore always False, and the whole
+    wiring was inert while looking correct. It also measured as a clean ZERO delta, which is the part
+    that nearly shipped: the aggregate agreed with the null hypothesis for the wrong reason."""
+    return os.path.join(base_dir, module + ".py")
+
+
+def in_message_call(show_output: str, source: str, mid: str) -> bool:
+    """Is this mutant's line inside a log/print CALL? FAILS CLOSED.
+
+    MEASURED on `cpap_stream`'s 66 survivors: 26 sit inside a message call and the work-list moves
+    REACHABLE **20 -> 14** (-6, -30 %); nothing moves out of UNOBSERVABLE, which is the expected
+    shape since this only ever reclassifies a mutant that already looked live.
+
+    ⚠️ The FIRST run of that same measurement returned a delta of ZERO, and it was wrong for two
+    independent bugs of this tool's own (`module_source_path`, `func_of_mutant` — both now
+    control-tested). A zero delta is exactly what an inert wiring produces, so it is the one result
+    that must be disbelieved until the path is shown to carry a signal at all. Verify by asserting
+    the flag is True for SOME mutant before believing any aggregate computed from it.
+
+    Every unavailable input — unreadable module, unparseable source, a diff with no `-` line, a
+    function AST cannot find — returns False, which is `classify`'s existing default and therefore the
+    OLD behaviour. That direction is deliberate: a False can only leave a mutant in the work-list
+    where it already was, while a wrong True would silently REMOVE work from a list whose whole job is
+    to say what deserves a human's attention."""
+    if not source:
+        return False
+    line = file_lineno_of(show_output, source, func_of_mutant(mid))
+    return line is not None and line in message_call_lines(source)
+
+
+def hunk_lineno(show_output: str) -> "int | None":
+    """The 1-indexed line of the FIRST changed line, RELATIVE TO THE FUNCTION. PURE.
+
+    ⚠️ FUNCTION-RELATIVE, NOT FILE-RELATIVE, and that is a property of mutmut rather than a choice
+    here: `mutmut show` builds its diff from `cst.Module([function]).code`, so the `@@ -a,b +c,d @@`
+    header numbers from 1 at the FUNCTION's first line (verified against mutmut 3.7's
+    `__main__.py:1710`). Feeding this straight to `message_call_lines(file_source)` would compare a
+    function offset against file line numbers — a plausible-looking number about the wrong thing.
+    `file_lineno_of` does the mapping.
+
+    Counts context and removed lines, skipping additions: a `+` line does not exist in the ORIGINAL,
+    which is the text whose message-calls we are asking about."""
+    rel, seen = None, None
+    for line in show_output.splitlines():
+        if line.startswith("@@"):
+            m = re.match(r"@@ -(\d+)", line)
+            if m:
+                seen = int(m.group(1))
+            continue
+        if seen is None or line.startswith(("---", "+++")):
+            continue
+        if line.startswith("-"):
+            rel = seen
+            break
+        if not line.startswith("+"):
+            seen += 1
+    return rel
+
+
+def function_start_line(source: str, func: str) -> "int | None":
+    """1-indexed line where `func` is defined in `source`, via AST. PURE.
+
+    AST, not a regex: `def x_foo__mutmut_1` appears in mutmut's own generated module and a text search
+    would find the wrong one, and a nested or decorated definition shifts a naive match. `lineno` on
+    the FunctionDef is the `def` line itself, which is what the diff's line 1 corresponds to."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return None
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == func:
+            return node.lineno
+    return None
+
+
+def file_lineno_of(show_output: str, source: str, func: str) -> "int | None":
+    """Map a mutant's function-relative diff position onto a FILE line number. PURE.
+
+    Returns None when either half is unavailable — an unparseable file, an absent function, a diff
+    with no `-` line. A None must NOT be treated as line 0 or as "not in a message call": the caller
+    keeps the old behaviour, which is the honest degradation."""
+    rel = hunk_lineno(show_output)
+    start = function_start_line(source, func)
+    if rel is None or start is None:
+        return None
+    return start + rel - 1
+
+
+def func_of_mutant(mid: str) -> str:
+    """`…x_foo__mutmut_3` -> `foo`; `…xǁClsǁmeth__mutmut_3` -> `meth`.
+
+    ⚠️ THE INHERITED REGEX IS WRONG FOR TWO REAL SHAPES and was measured mangling them:
+      · `x__coexistence_refusal__mutmut_3` -> `istence_refusal` — the leading `x_?` ate `_co`, because
+        `(.+?)` is lazy and the pattern let `x_` swallow one more character than it should.
+      · `xǁLiveStreamControllerǁ_start__mutmut_73` -> `ǁLiveStreamControllerǁ_start` — mutmut qualifies
+        METHODS with `ǁ` separators, and an AST lookup for that name finds nothing.
+    Together these are why only 27 of 66 survivors mapped to a line number. Anchoring on the `x`
+    segment and taking the LAST `ǁ` part fixes both; `rank_all`'s copy keeps the old shape only because
+    it feeds a display cluster, not a lookup."""
+    core = re.sub(r"__mutmut_\d+.*$", "", mid)          # drop the mutant suffix
+    core = core.rsplit(".", 1)[-1]                      # drop the module prefix
+    if "\u01c1" in core:                                # METHOD: `xǁClassǁmethod`
+        return core.split("\u01c1")[-1]                  # keep any leading underscore — it is the name
+    return core[2:] if core.startswith("x_") else core  # FUNCTION: mutmut prefixes exactly `x_`
