@@ -108,6 +108,97 @@ const nearestLags = (R, F) => {
   return out;
 };
 
+/* ── EXPOSURE AFTER THE DETECTOR'S OWN BASELINE ────────────────────────────────────────────────
+   The half-vs-half delta this tool already reports is a per-CONNECTION drift, and pat-align's dip
+   detector never sees it: a dip is read against a CENTERED ROLLING MEDIAN over `baselineWinMs`, so
+   the quantity the detector is exposed to is `lag − localBaseline`, not `lag − connectionStart`.
+   Classifying the drift as "ramp" or "step" would be a PROXY for that exposure. This measures the
+   exposure itself, with the detector's own constants, which is strictly more direct: a ramp is
+   tracked out by construction and shows up here as a small residual; a step is not and shows up as a
+   sustained run. No model selection, no threshold on a shape statistic.
+   Mirrors pat-align's DIP_DEFAULTS: centered median over W, |lag−baseline| > MAXEX excluded from the
+   baseline input as an artifact (as the detector does), a fabricated event = >= MINBEATS consecutive
+   beats at or below −THETA. */
+export function baselineExposure(times, lags, opts) {
+  const W = (opts && opts.winMs) || 60000,
+    THETA = (opts && opts.thetaMs) || 10,
+    MINBEATS = (opts && opts.minBeats) || 4,
+    MAXEX = (opts && opts.maxExcursionMs) || 120;
+  const n = times.length;
+  if (n < MINBEATS + 1) return null;
+  const res = [];
+  let lo = 0,
+    hi = 0;
+  for (let i = 0; i < n; i++) {
+    const t = times[i];
+    while (lo < n && times[lo] < t - W / 2) lo++;
+    while (hi < n && times[hi] <= t + W / 2) hi++;
+    const win = [];
+    for (let k = lo; k < hi; k++) win.push(lags[k]);
+    if (win.length < 3) {
+      res.push(null);
+      continue;
+    }
+    win.sort((a, b) => a - b);
+    const base = win.length % 2 ? win[win.length >> 1] : (win[(win.length >> 1) - 1] + win[win.length >> 1]) / 2;
+    const r = lags[i] - base;
+    /* An excursion beyond MAXEX is a slip/artifact by the detector's own rule, not drift exposure. */
+    res.push(Math.abs(r) > MAXEX ? null : r);
+  }
+  const finite = res.filter((x) => x != null);
+  if (finite.length < MINBEATS + 1) return null;
+  const abs = finite.map(Math.abs).sort((a, b) => a - b);
+  const q = (p) => abs[Math.max(0, Math.min(abs.length - 1, Math.floor(p * (abs.length - 1))))];
+  /* Fabricated events: runs of >= MINBEATS consecutive beats at or below −THETA, from the OFFSET
+     alone. This is the dip detector's own trigger shape applied to a series with no physiology in
+     it, so any run it finds is a dip the baseline did NOT track out. */
+  /* ⚠ A RUN BELOW −Θ IS NOT EVIDENCE OF DRIFT. The observable is lag = BLE offset + true PAT, so a
+     run against a rolling baseline is exactly what the dip detector is BUILT to find — counting them
+     counts real arousals, not fabrications. The two sources separate by SHAPE, not by magnitude:
+       · a physiological dip RECOVERS — the level returns to its pre-run baseline within seconds;
+       · an offset step PERSISTS — the level stays shifted, because the clock moved and stayed moved.
+     So each run is classified by what the level does AFTER it, and only the persisting ones are
+     attributable to the offset. This is the discrimination the half-vs-half delta cannot make. */
+  let runs = 0,
+    cur = 0,
+    persists = 0,
+    recovers = 0;
+  const starts = [];
+  for (let i = 0; i < res.length; i++) {
+    const r = res[i];
+    if (r != null && r <= -THETA) {
+      cur++;
+      if (cur === MINBEATS) {
+        runs++;
+        starts.push(i - MINBEATS + 1);
+      }
+    } else cur = 0;
+  }
+  for (const st of starts) {
+    let e = st;
+    while (e < res.length && res[e] != null && res[e] <= -THETA) e++;
+    /* Level AFTER the run, over one baseline window, compared with the level BEFORE it. */
+    const after = [],
+      before = [];
+    for (let k = e; k < res.length && times[k] <= times[Math.min(e, res.length - 1)] + W; k++) if (res[k] != null) after.push(lags[k]);
+    for (let k = st - 1; k >= 0 && times[k] >= times[st] - W; k--) if (res[k] != null) before.push(lags[k]);
+    if (after.length < 3 || before.length < 3) continue;
+    const med = (a) => {
+      const z = a.slice().sort((x, y) => x - y);
+      return z.length % 2 ? z[z.length >> 1] : (z[(z.length >> 1) - 1] + z[z.length >> 1]) / 2;
+    };
+    /* ⚠ PERSISTENCE THRESHOLD — currently reuses Θ, and that reuse is a CHOICE, not a derivation.
+       It has not been pre-registered or sensitivity-tested, so `persists`/`recovers` are reported as
+       instrumentation, NOT as a fabrication rate. Do not quote a step fraction from them until the
+       threshold is fixed in advance and the fraction is shown stable across it. Two confounds are
+       also unaddressed: a slow ramp can shift the before/after medians on its own, and a real arousal
+       may be followed by a genuine sustained PAT change — both would read as `persists`. */
+    if (Math.abs(med(after) - med(before)) >= THETA) persists++;
+    else recovers++;
+  }
+  return { beats: finite.length, p50: +q(0.5).toFixed(2), p95: +q(0.95).toFixed(2), p99: +q(0.99).toFixed(2), maxAbs: +abs[abs.length - 1].toFixed(2), runs, persists, recovers };
+}
+
 function main() {
   loadDsps();
   if (!ROOT) {
@@ -170,7 +261,17 @@ function main() {
       if (a.length < MIN_BEATS / 2 || b.length < MIN_BEATS / 2) continue;
       const ma = median(a),
         mb = median(b);
-      per.push({ epoch: s.epoch, spanSec: +((s.t1 - s.t0) / 1000).toFixed(0), firstMs: +ma.toFixed(1), secondMs: +mb.toFixed(1), deltaMs: +(mb - ma).toFixed(1), nBeats: Rs.length });
+      /* Exposure the DETECTOR actually sees: whole-connection lags against a centered rolling median,
+         not the half-vs-half delta — a ramp is tracked out by construction, a step is not. */
+      per.push({
+        epoch: s.epoch,
+        spanSec: +((s.t1 - s.t0) / 1000).toFixed(0),
+        firstMs: +ma.toFixed(1),
+        secondMs: +mb.toFixed(1),
+        deltaMs: +(mb - ma).toFixed(1),
+        nBeats: Rs.length,
+        exposure: baselineExposure(Rs, nearestLags(Rs, Fs), {})
+      });
     }
     if (!per.length) {
       rows.push({ night, skip: `${spans.length} span(s) >= ${MIN_SPAN / 1000}s but none with >= ${MIN_BEATS} beats of BOTH signals` });

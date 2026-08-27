@@ -24927,6 +24927,96 @@
       });
       T.ok('check6 · briefs Created \u2265 ' + CUTOFF + ' use -YYYY-MM-DD-BRIEF.md matching Created', c6.length === 0, c6.length ? c6.slice(0, 8).join('; ') : 'ok');
 
+      /* ── CHECK 7 · a backticked brief name on the **Status:** line must RESOLVE ────────────────
+         DOCS-LEDGER-HEADER-REFS. check4b already resolves relative LINKS in DOCS-INDEX; a brief's own
+         header names its neighbours in BACKTICKS — `**Executes:** `X-BRIEF.md`` — and until now nothing
+         resolved those. A header could cite a brief that was never merged, was renamed, or never
+         existed, and every gate stayed green: the reference was prose to every checker in the repo.
+
+         Not hypothetical. 2026-08-27 ~04:10, PR #1837 (an owner-issued charter) went DIRTY, was closed
+         and its branch deleted; for the window before #1840 reissued it, the cited brief did not exist
+         on main while a brief citing it did. That near-miss was caught by somebody reading the state of
+         a PR nobody was driving — not a repeatable control, which is the argument for this one.
+
+         🔴 SCOPE: THE STATUS LINE, AND EVERY BACKTICKED BRIEF NAME ON IT — NOT AN ALLOWLIST OF KEYS.
+         ⚠️ The brief's §3 premise is WRONG FOR THIS REPO and is corrected here. It argues the Status
+         LINE is safe because prose lives BELOW the header; measured 2026-08-27, prose lives ON it —
+         long DONE headers carry multi-sentence parentheticals, and APNEA-TYPING-FUSION's status line
+         alone names four briefs in narrative. Re-measured with the same extractor at the brief's own
+         revision c0505b99: 526 refs / 1 dangling, not the 267 / 1 its table states. The one dangling
+         ref IS the one it predicted (#1840's, in flight), so the SEMANTICS match and only the count
+         does not — which is why the check is built and the number restated rather than either taken
+         on trust.
+
+         Restricting to keyed forms (**Executes:** `X`) would give 338 — and it FAILS OPEN. The relation
+         vocabulary is open: 51 distinct keys are already in use (Follows 128, Relates 22, Followed-by
+         19, Parent 15 … down to one-offs like Supersedes-section-of), and the next brief invents the
+         52nd. An allowlist that misses a verb goes blind exactly where computeHash's denylist reasoning
+         says it must not. Matching every backticked *-BRIEF.md on the line FAILS CLOSED: a new verb is
+         covered the day it is coined.
+
+         The cost of that width is prose-in-header false positives, and it is MEASURED, not assumed:
+         538 refs across 476 briefs at HEAD, **0 dangling** — no header currently narrates an unfilled
+         template name. The scope stays one line: the brief's `ESM-MIGRATION-YYYY-MM-DD-BRIEF.md`
+         false positive lives in body prose, and the self-tests below pin that boundary so a later
+         "improvement" cannot widen to the header BLOCK and re-admit it.
+
+         This finds ZERO real defects on current main and that is stated rather than hidden — its value
+         is prospective, the same argument that justified commit-shape and stale-file. */
+      function statusLineRefs(text) {
+        var line = String(text)
+          .split('\n')
+          .filter(function (l) {
+            return /^\*\*Status:\*\*/.test(l);
+          })[0];
+        if (!line) return [];
+        // `match(/…/g)` rather than an exec loop: no assignment-in-expression, and the whole line is scanned.
+        return (line.match(/`[A-Za-z0-9._-]+-BRIEF\.md`/g) || []).map(function (t) {
+          return t.slice(1, -1);
+        });
+      }
+      var hdrRefs = [],
+        hdrDangling = [];
+      names.forEach(function (n) {
+        statusLineRefs(DL.briefs[n]).forEach(function (t) {
+          hdrRefs.push(t);
+          if (!briefSet[t]) hdrDangling.push(n + ' → ' + t);
+        });
+      });
+      /* Reports the REF COUNT, not just "ok" — check5's lesson one check up: a gate has to say how much
+         it looked at, or a genuine zero cannot be told from a working one. */
+      T.ok(
+        'check7 · every backticked *-BRIEF.md on a **Status:** line resolves to a real brief',
+        hdrDangling.length === 0,
+        hdrDangling.length ? hdrDangling.slice(0, 8).join('; ') : hdrRefs.length + ' header ref(s) scanned across ' + names.length + ' briefs'
+      );
+      /* THE PLANTED CONTROL. A check verified only by passing on clean input has never been shown to
+         fail, and this one passes on clean input BY DESIGN (zero defects on main) — so without a plant
+         it would be indistinguishable from a check that examines nothing. */
+      T.ok(
+        'self-test · check7 FIRES on a dangling header ref',
+        statusLineRefs('**Status:** PROPOSED · **Executes:** `TOTALLY-NONEXISTENT-2026-01-01-BRIEF.md`').filter(function (t) {
+          return !briefSet[t];
+        }).length === 1
+      );
+      T.ok(
+        'self-test · check7 RESOLVES a real header ref (the plant above is not firing on everything)',
+        statusLineRefs('**Status:** DONE — 2026-08-27 · **Executes:** `' + names[0] + '`').filter(function (t) {
+          return !briefSet[t];
+        }).length === 0
+      );
+      /* THE FALSE-POSITIVE BOUNDARY, pinned. §5's scope decision is only enforceable if widening it
+         breaks a test — otherwise the next reader "improves" the extractor to scan the header BLOCK and
+         silently re-admits the template-name class. */
+      T.ok(
+        'self-test · check7 IGNORES a template name in PROSE below the header (scope pin)',
+        statusLineRefs('**Status:** PROPOSED · **Created:** 2026-08-27\n\nit becomes its own brief (`ESM-MIGRATION-YYYY-MM-DD-BRIEF.md`)').length === 0
+      );
+      T.ok(
+        'self-test · check7 ignores an UNBACKTICKED brief name on the status line (links are check4b’s)',
+        statusLineRefs('**Status:** PROPOSED · **Executes:** GONE-2026-01-01-BRIEF.md').length === 0
+      );
+
       // ── FLOOR · the brief set was actually loaded from fs (a non-vacuous gate). CPAP-REAL-CORPUS-
       //    FOLLOWUPS-II §4 retired the committed-list staleness legs: there is no docs-ledger-list.txt to
       //    keep in sync any more — the runner reads briefs/ + the tree straight from disk, so every check
@@ -49964,6 +50054,252 @@
         }
         /* mutant: eq === → !==  @ if (ymx === ymn) ymx = ymn + 1;
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The line chart correctly displays "-Infinity" when the maximum and minimum y-values are equal, instead of show */
+        {
+          var out = NS._bare.lineChartSVG([1, 2, 3]);
+          T.eq('NS._bare.lineChartSVG([1,2,3]) → out.includes("-Infinity")', JSON.stringify(out.includes('-Infinity')), 'true');
+        }
+        /* mutant: eq === → !==  @ if (xmx === xmn) xmx = xmn + 1;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): Whether the function throws an exception instead of returning a valid SVG string */
+        {
+          var out = NS._bare.lineChartSVG([1, 2, 3]);
+          T.eq("NS._bare.lineChartSVG([1,2,3]) → out.indexOf('THREW')", JSON.stringify(out.indexOf('THREW')), '-1');
+        }
+      }
+    );
+
+    group(
+      'mutation drafts b3 — CpapDsp: recorded outputs that discriminate real code from a surviving mutant',
+      'mutation-drafts · mutation-drafts-b3 · cpapdsp · mutation · adopted-draft · realm-verified',
+      function (T) {
+        var NS = env.CpapDsp;
+        if (!NS) {
+          T.skip('CpapDsp not in env');
+          return;
+        }
+        /* mutant: num → 0  @ return 10 + Math.sin(i / 50) * 0.1;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The bug prevents the sine wave signal from being properly generated, causing all values to be incorrectly set  */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["Press.2s"].data[1]', JSON.stringify(out.PLD.signals['Press.2s'].data[1]), '10.001999855041504');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The sampling frequency of the pressure signal is incorrectly set to zero instead of 0.5, which would cause inc */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["Press.2s"].fs', JSON.stringify(out.PLD.signals['Press.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The leak flow rate sampling frequency is correctly set to 0.5 Hz, not 0 Hz, ensuring accurate respiratory moni */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["Leak.2s"].fs', JSON.stringify(out.PLD.signals['Leak.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection detects whether the sampling frequency for expired pressure signals is correctly set to 0.5 Hz */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["EprPress.2s"].fs', JSON.stringify(out.PLD.signals['EprPress.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ return 14;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The system correctly computes respiratory rate values instead of returning zero due to a faulty operator mutat */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["RespRate.2s"].data[0]', JSON.stringify(out.PLD.signals['RespRate.2s'].data[0]), '14');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The sampling frequency of the respiratory rate signal is correctly set to 0.5 Hz, not 0 Hz, ensuring proper si */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["RespRate.2s"].fs', JSON.stringify(out.PLD.signals['RespRate.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection detects whether the sampling rate for the MinVent signal is correctly set to 0.5 Hz, which is  */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["MinVent.2s"].fs', JSON.stringify(out.PLD.signals['MinVent.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ return 0.5;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection detects whether the tidal volume signal is correctly initialized with a non-zero value, preven */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["TidVol.2s"].data[0]', JSON.stringify(out.PLD.signals['TidVol.2s'].data[0]), '0.5');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The sampling frequency of tidal volume signals should remain consistent and not be incorrectly set to zero, wh */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["TidVol.2s"].fs', JSON.stringify(out.PLD.signals['TidVol.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ return 0.05;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection detects whether the Snore.2s signal is properly initialized with non-zero values instead of be */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["Snore.2s"].data[0]', JSON.stringify(out.PLD.signals['Snore.2s'].data[0]), '0.05000000074505806');
+        }
+        /* mutant: num → 0  @ return 0.1;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This property tracks the flow limit signal value that should be 0.1 but is incorrectly set to 0 due to a mutat */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["FlowLim.2s"].data[0]', JSON.stringify(out.PLD.signals['FlowLim.2s'].data[0]), '0.10000000149011612');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The sampling frequency of the snoring signal should remain consistent and not be incorrectly set to zero. */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["Snore.2s"].fs', JSON.stringify(out.PLD.signals['Snore.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ 0.5,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The sampling frequency of the FlowLim signal should remain consistent and not be incorrectly set to zero, whic */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.PLD.signals["FlowLim.2s"].fs', JSON.stringify(out.PLD.signals['FlowLim.2s'].fs), '0.5');
+        }
+        /* mutant: num → 0  @ return 10;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This protects against incorrect pressure signal initialization where the expected value of 10 is replaced by 0 */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.BRP.signals["Press.40ms"].data[0]', JSON.stringify(out.BRP.signals['Press.40ms'].data[0]), '10');
+        }
+        /* mutant: num → 0  @ 25,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection ensures the sampling rate for pressure signals remains correctly set to 25, preventing incorre */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.BRP.signals["Press.40ms"].fs', JSON.stringify(out.BRP.signals['Press.40ms'].fs), '25');
+        }
+        /* mutant: num → 0  @ 25,
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This property ensures the sampling frequency for flow signals is correctly initialized, preventing incorrect d */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.BRP.signals["Flow.40ms"].fs', JSON.stringify(out.BRP.signals['Flow.40ms'].fs), '25');
+        }
+        /* mutant: num → 0  @ 'SpO2.1s': { data: spo2, fs: 1, dim: '%', _spr: 60 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behaviour protected is the correct sampling rate configuration for oxygen saturation data, ensuring accura */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.SA2.signals["SpO2.1s"]._spr', JSON.stringify(out.SA2.signals['SpO2.1s']._spr), '60');
+        }
+        /* mutant: num → 0  @ 'Pulse.1s': { data: pulse, fs: 1, dim: 'bpm', _spr: 60 }
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behavior protected is the correct sampling rate configuration for pulse signal processing, ensuring accura */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.SA2.signals["Pulse.1s"]._spr', JSON.stringify(out.SA2.signals['Pulse.1s']._spr), '60');
+        }
+        /* mutant: num → 0  @ { class: 'Obstructive Apnea', durSec: 15, onsetSec: 100, tMs: t0 + 100000 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection detects whether the onset time of an annotation is correctly preserved after a numeric mutatio */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.EVE.annotations[0].onsetSec', JSON.stringify(out.EVE.annotations[0].onsetSec), '100');
+        }
+        /* mutant: num → 0  @ { class: 'Obstructive Apnea', durSec: 18, onsetSec: 200, tMs: t0 + 200000 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The onset time of the second annotation should preserve the original value from the correct data, not be incor */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.EVE.annotations[1].onsetSec', JSON.stringify(out.EVE.annotations[1].onsetSec), '200');
+        }
+        /* mutant: num → 0  @ { class: 'Central Apnea', durSec: 12, onsetSec: 300, tMs: t0 + 300000 },
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection detects whether apnea event annotations are correctly positioned in time, preventing incorrect */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.EVE.annotations[2].onsetSec', JSON.stringify(out.EVE.annotations[2].onsetSec), '300');
+        }
+        /* mutant: num → 0  @ { class: 'Hypopnea', durSec: 20, onsetSec: 400, tMs: t0 + 400000 }
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): This projection detects whether the onset time of a hypopnea event is correctly calculated or incorrectly set  */
+        {
+          var out = NS._synthEdfSet(null);
+          T.eq('NS._synthEdfSet(null) → out.EVE.annotations[3].onsetSec', JSON.stringify(out.EVE.annotations[3].onsetSec), '400');
+        }
+        /* mutant: bool || → &&  @ if (!night || !night.sessions || !night.sessions.length) continue;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return the input string instead of throwing an error when night data is undefined or incom */
+        {
+          var out = NS.applyStrClockOffset('x');
+          T.eq('NS.applyStrClockOffset("x") → out', JSON.stringify(out), '"x"');
+        }
+        /* mutant: bool || → &&  @ if (!nights || !nights.length || !summary || !summary.length) return nights;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): Whether the function returns a string value or throws an error when given an empty array */
+        {
+          var out = NS.attachStrSummary('x');
+          T.eq('NS.attachStrSummary("x") → out', JSON.stringify(out), '"x"');
+        }
+      }
+    );
+
+    group(
+      'mutation drafts b3 — CpapEdf: recorded outputs that discriminate real code from a surviving mutant',
+      'mutation-drafts · mutation-drafts-b3 · cpapedf · mutation · adopted-draft · realm-verified',
+      function (T) {
+        var NS = env.CpapEdf;
+        if (!NS) {
+          T.skip('CpapEdf not in env');
+          return;
+        }
+        /* mutant: negate: drop !  @ if (!m) return null;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): Whether the function returns null or throws an error when given a null input */
+        {
+          var out = NS.sessionStampOf(null);
+          T.eq('NS.sessionStampOf(null) → out', JSON.stringify(out), 'null');
+        }
+      }
+    );
+
+    group(
+      'mutation drafts b3 — OxyDex: recorded outputs that discriminate real code from a surviving mutant',
+      'mutation-drafts · mutation-drafts-b3 · oxydex · mutation · adopted-draft · realm-verified',
+      function (T) {
+        var NS = env.OxyDex;
+        if (!NS) {
+          T.skip('OxyDex not in env');
+          return;
+        }
+        /* mutant: num → 0  @ if (n < 600) return null;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return null for empty input strings, but the buggy version returns a structured object ins */
+        {
+          var out = NS._bare.computeSleepArch('');
+          T.eq('NS._bare.computeSleepArch("") → out === null', JSON.stringify(out === null), 'true');
+        }
+        /* mutant: bool && → ||  @ var ev = desat && desat.eventsAll ? desat.eventsAll : [];
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The number of excluded items in the computation result */
+        {
+          var out = NS.computeGatedNadir('x');
+          T.eq('NS.computeGatedNadir("x") → out.excluded', JSON.stringify(out.excluded), '0');
+        }
+        /* mutant: cmp > → >=  @ out[t] = { secs: s, pct: n > 0 ? +((s / n) * 100).toFixed(2) : 0 };
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The percentage value should be 0 instead of null when the numerator is 0 and the denominator is greater than 0 */
+        {
+          var out = NS._bare.computeTIndex([]);
+          T.eq('NS._bare.computeTIndex([]) → out["80"].pct', JSON.stringify(out['80'].pct), '0');
+        }
+      }
+    );
+
+    group(
+      'mutation drafts b3 — PPGDSP: recorded outputs that discriminate real code from a surviving mutant',
+      'mutation-drafts · mutation-drafts-b3 · ppgdsp · mutation · adopted-draft · realm-verified',
+      function (T) {
+        var NS = env.PPGDSP;
+        if (!NS) {
+          T.skip('PPGDSP not in env');
+          return;
+        }
+        /* mutant: cmp < → <=  @ for (let k = 0; k < peaks.length; k++) {
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return an empty object instead of throwing an error when given an empty string array. */
+        {
+          var out = NS.gapBeats('');
+          T.eq('NS.gapBeats("") → out', JSON.stringify(out), '{}');
+        }
+      }
+    );
+
+    group(
+      'mutation drafts b3 — PulseDex: recorded outputs that discriminate real code from a surviving mutant',
+      'mutation-drafts · mutation-drafts-b3 · pulsedex · mutation · adopted-draft · realm-verified',
+      function (T) {
+        var NS = env.PulseDex;
+        if (!NS) {
+          T.skip('PulseDex not in env');
+          return;
+        }
+        /* mutant: eq === → !==  @ if (ymx === ymn) ymx = ymn + 1;
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The line chart correctly displays \"-Infinity\" when the maximum and minimum y-values are equal, instead of show */
         {
           var out = NS._bare.lineChartSVG([1, 2, 3]);
           T.eq('NS._bare.lineChartSVG([1,2,3]) → out.includes("-Infinity")', JSON.stringify(out.includes('-Infinity')), 'true');

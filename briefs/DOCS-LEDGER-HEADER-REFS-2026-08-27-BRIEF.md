@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-27 · **Affects:** the `docs-ledger` group in `tests/dex-tests.js`
+**Status:** DONE — 2026-08-27 (built as `docs-ledger` **check7** + 4 self-tests; the scope argument in §3/§5 is **corrected below** — prose lives ON the Status line, not only below it, and the §3 count is unreproducible) · **Created:** 2026-08-27 · **Affects:** the `docs-ledger` group in `tests/dex-tests.js`
 
 # A brief name in BACKTICKS on a header line is checked by nothing
 
@@ -66,6 +66,52 @@ brief-set inventory this needs.
 - **`docs/`, `audits/` or root docs in a header.** Not measured; do not extend the rule to populations
   whose false-positive behaviour is unknown.
 - **Any check that a cited brief is *appropriate*** — only that it EXISTS. Relevance is not decidable.
+
+## 4a · EXECUTED 2026-08-27 — built, and §3's premise corrected
+
+**The hole is real, demonstrated before building.** Per the day's method the gate was checked first:
+a dangling `**Executes:**` ref planted in a real brief header ran `docs-ledger` **38/38 GREEN**. With
+check7 the same plant REDS (exit 1), naming file and ref. Before/after on one plant, not an argument.
+
+### ⚠️ §3's scope reasoning is wrong for this repo, and §3's number does not reproduce
+
+§3 argues the `**Status:**` line is safe *because prose lives below the header*. Measured today: **prose
+lives ON it.** Long DONE headers carry multi-sentence parentheticals — `APNEA-TYPING-FUSION-2026-07-18`'s
+status line alone names **four** briefs in narrative.
+
+Re-measured with a Status-line extractor at §3's own revision `c0505b99`:
+
+| | §3 states | re-measured at `c0505b99` | at HEAD |
+|---|---|---|---|
+| Status-line refs | 267 | **526** | 538 |
+| dangling | 1 | **1** | **0** |
+
+The dangling ref is exactly the one §3 predicted (#1840's, in flight; resolved by HEAD). **The semantics
+match and only the count does not** — which is why the check was built and the number restated, rather
+than either taken on trust.
+
+### The scope decision, and why it is not the keyed form
+
+Restricting to keyed refs (`**Executes:** \`X\``) yields **338** — and it **fails OPEN**. The relation
+vocabulary is open-ended: **51 distinct keys** are already in use (`Follows` 128, `Relates` 22,
+`Followed-by` 19, `Parent` 15 … down to one-offs like `Supersedes-section-of`), and the next brief coins
+the 52nd. An allowlist that misses a verb goes blind exactly where `computeHash`'s denylist reasoning
+says it must not.
+
+**Every backticked `*-BRIEF.md` on the Status line fails CLOSED** — a new verb is covered the day it is
+coined. Its cost is prose-in-header false positives, and that is **measured, not assumed**: 538 refs
+across 476 briefs, **0 dangling**. §5's `ESM-MIGRATION-YYYY-MM-DD-BRIEF.md` false positive lives in body
+prose and stays out; the one-line scope is pinned by a self-test so a later widening to the header BLOCK
+cannot re-admit it.
+
+### Done-when, met
+
+- [x] check7 resolves backticked `*-BRIEF.md` on the `**Status:**` line against the brief set.
+- [x] A planted dangling ref REDS the group — proven twice, and in a real brief header, not only in a
+      string literal. §4's honest note stands: this finds **zero** real defects today, so without a
+      plant it would be indistinguishable from a check that examines nothing.
+- [x] The false-positive boundary is pinned (prose below the header ignored; unbackticked names ignored,
+      those being check4b's).
 
 ## Done when
 
