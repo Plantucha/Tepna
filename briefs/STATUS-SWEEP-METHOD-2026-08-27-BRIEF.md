@@ -86,6 +86,13 @@ substitution restamps an unrelated brief — silently, in a green PR. `docs-ledg
 *stale* row but not a *restamped wrong* row. Assert exactly one match, anchored on the filename, before
 writing. (Measured by Papers, 2026-08-27.)
 
+**And check the DESCRIPTION, not only the status token.** The same discipline caught a second, different
+defect the same day: a row whose description belonged to *another brief entirely* — *"only §5 open, the
+historical-fixture gap"* on a brief that has no such gap. Every status-focused check passes over it,
+because the status was right; only line-identity saw it. So the assertion is **the row describes THIS
+brief's actual state**, not merely that its status token matches. (Papers, 2026-08-27 — the second time
+in one day the non-unique-key discipline caught something it was not aimed at.)
+
 ## 4 · Why the sweep stopped at 16 rather than 47
 
 **The marginal batch is where over-flipping becomes tempting.** A sweep commissioned for ~20 flips that
