@@ -95,9 +95,18 @@ ALLOW_FUNCS = {
     # ── G1 HAS LANDED (2026-08-24). pull_session._pull_once now drives the ledger + restart plan, so the
     # G2/G3 plumbing that was "standalone until G1" — is_trusted · append_row · load_rows · make_row ·
     # sha256_bytes — is genuinely wired and its entries came OUT, exactly as the schedule above promised.
-    # The cpap_spool P4 pair stays: it is a different arm whose daemon wiring has not landed yet.
-    "sync_spool": "cpap_spool P4 — the transaction driver; standalone until the announced daemon wiring (P4 brief §7: the nightly-pull touch rides with P1/P3)",
-    "last_committed_cursor": "cpap_spool P4 — the restart authority G4/P5 and the wiring consume; standalone until the announced daemon wiring (P4 brief §7)",
+    # The cpap_spool P4 pair: `sync_spool`'s entry CAME OUT when the announced daemon wiring landed
+    # (`capture._cpap_spool_loop`, CPAP-SPOOL-ACQUISITION Do-3). ⚠️ This tool does NOT report an
+    # allowlist entry that has stopped matching — a wired function simply drops off the list, and its
+    # suppression sits here inert. That is precisely the "suppression you cannot see" this file's
+    # header warns about, so removing it is a MANUAL step at wiring time, not something the scan
+    # reminds you to do. If you wire something, delete its line in the same commit.
+    #
+    # `last_committed_cursor` STAYS, and the reason it stays has changed — the old note predicted "the
+    # wiring consume[s]" it, and the wiring does not: `sync_spool` derives its own cursor from the
+    # ledger (`rows[-1]["committed_cursor"] if rows else epoch_start`), so a caller never asks. It is
+    # the restart authority G4/P5 reads, and remains standalone until P5.
+    "last_committed_cursor": "cpap_spool P4 — the restart authority P5 reads; NOT consumed by the Do-3 daemon wiring, which lets sync_spool derive the cursor from the ledger itself",
     "close_harvest_decision": "oxy_transfer §14 — composes pull_deadline + flush_gate into the "
                               "close-triggered sequence; standalone until the async shell drives it. "
                               "Deliberately landed ahead of that shell: the ORDERING is the design, and "

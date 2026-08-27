@@ -5923,6 +5923,114 @@ def _maybe_start_as11_shadow(cfg, config_path, root, cpap_ctl, tasks, *,
     return task
 
 
+async def _cpap_spool_loop(*, at_hour, window_h, root, creds, connect_factory, epoch_start,
+                           is_capturing, spool_type="Summary", sleep=None, now=None,
+                           cycle=None, st=None):
+    """The scheduled stored-spool pull: once per day, inside its window, only when nothing contends.
+
+    Mirrors `_cpap_loop`'s shape on purpose — same `due_now`/`window_start_date` pair, same
+    "a deferral does NOT consume the day" rule. That rule is the load-bearing one: `last_run_date`
+    advances only after the pull is actually ATTEMPTED, so a morning where the owner is still wearing
+    the sensors retries next minute instead of silently skipping the day (`cpap_harvest.due_now`
+    carries the same scar, from the 19:25 restart that re-armed a 13:00 job).
+
+    Every collaborator is injected so the schedule is testable with no clock, no radio and no sleep."""
+    import cpap_harvest
+    import cpap_spool_caller
+    sleep = sleep or asyncio.sleep
+    now = now or (lambda: _dt.datetime.now())
+    cycle = cycle or cpap_spool_caller.spool_pull_cycle
+    st = st or (lambda **kw: None)
+    last_run_date = None
+    while not _STOP.is_set():
+        await sleep(60)
+        if _STOP.is_set():
+            break
+        t = now()
+        if not cpap_harvest.due_now(t, at_hour, last_run_date, window_h):
+            continue
+        why = cpap_spool_caller.pull_blocked(
+            recovering=_RECOVER.is_set(),
+            streaming=cpap_harvest.blocking_devices(STATUS["devices"]),
+            cpap_capturing=bool(is_capturing()))
+        if why is not None:
+            # Deliberately does NOT consume the day — see the docstring.
+            st(state="waiting", detail=why)
+            continue
+        last_run_date = cpap_harvest.window_start_date(t, at_hour, window_h) or t.date()
+        st(state="running", detail=None)
+        try:
+            summary = await cycle(connect=connect_factory, creds=creds, root=root,
+                                  epoch_start=epoch_start, spool_type=spool_type)
+        except Exception as e:  # noqa: BLE001 — a scheduled job must survive any pull failure
+            # Same reasoning as run_shadow_loop's broad except: the bleak connect raises
+            # BleakError subclasses that are NOT OSError, and one such error silently killed a
+            # task on 2026-08-25. A daily job that dies on day one looks identical to one that
+            # was never armed — the ABSENT-LOG-LINE failure this lane keeps rediscovering.
+            log.warning("CPAP spool pull failed: %s: %s", type(e).__name__, e)
+            st(state="error", detail=f"{type(e).__name__}: {e}")
+            continue
+        log.info("CPAP spool pull: %d round(s), cursor now %s%s",
+                 summary.get("rounds_committed", 0), summary.get("cursor"),
+                 f", stopped={summary['stopped']}" if summary.get("stopped") else "")
+        st(state="idle", detail=None, last_run=t.isoformat(timespec="seconds"))
+
+
+def _maybe_start_cpap_spool_pull(cfg, config_path, root, cpap_ctl, tasks, *,
+                                 load_creds=None, connect_factory=None, create_task=None):
+    """Start the scheduled stored-spool pull if `cpap.spool_pull.enabled` — otherwise a no-op.
+
+    🔴 IT ALWAYS LOGS ITS STATE, ARMED OR NOT, and that is the whole reason this function is not
+    three lines. `autopull_arming` was written because the event path had NEVER ARMED and nothing
+    said so: `auto-pull: armed` appeared 0 times against 312 poller lines, and no gate can observe a
+    line that was never printed. A disabled path that announces itself disabled is debuggable; a
+    silent one is indistinguishable from a broken one.
+
+    Default OFF and never inherited (`cpap_spool_caller.spool_arming`). The first witnessed pull is
+    still owed (CPAP-SPOOL-ACQUISITION Do-1, attended) — landing the caller disabled is deliberate.
+
+    ⚠️ THE ALWAYS-LOGS GUARANTEE HAS ONE HOLE, AND IT IS STATED HERE RATHER THAN LEFT TO BE
+    DISCOVERED: this is reached only from inside `if web.enabled`, because `_cpap_ctl` — whose
+    `_running` is the one-socket interlock — is built there. On a box with `web.enabled: false`
+    NOTHING here runs, so an operator who armed `cpap.spool_pull` would get no pull and NO LINE
+    saying why, which is precisely the failure mode the line exists to prevent. The coupling is
+    pre-existing (`_maybe_start_as11_shadow` sits in the same block and inherits it identically) and
+    unpicking it means moving the controller's construction, which is a separate work-unit; it is
+    recorded as a follow-up on the brief rather than silently inherited. Until then: arming the spool
+    pull on a headless box requires `web.enabled` too."""
+    import cpap_spool_caller
+    arming = cpap_spool_caller.spool_arming(cfg)
+    if not arming["armed"]:
+        log.info("CPAP stored-spool pull: NOT armed — %s", arming["why"])
+        return None
+    ccfg = cfg.get("cpap", {}) or {}
+    scfg = ccfg.get("spool_pull", {}) or {}
+    cbs = ccfg.get("ble_stream", {}) or {}
+    creds_path = cbs.get("creds_path") or os.path.join(os.path.dirname(config_path), "as11_creds.json")
+    creds = (load_creds or _load_as11_creds)(creds_path)
+    if not creds:
+        log.info("CPAP stored-spool pull armed but no as11_creds — skipping (pair the AS11 first)")
+        return None
+    hci = cbs.get("adapter", "hci1")
+    if connect_factory is None:  # pragma: no cover — the bleak I/O edge, mirrors the shadow runner
+        async def connect_factory():
+            return await _cpap_ble_connect(creds["ble_addr"], hci)
+    spool_root = scfg.get("root") or os.path.join(root, "cpap-spool")
+    epoch_start = scfg.get("epoch_start", cpap_spool_caller.SPOOL_EPOCH_START_DEFAULT)
+    task = (create_task or asyncio.create_task)(_cpap_spool_loop(
+        at_hour=arming["at_hour"], window_h=arming["window_h"], root=spool_root, creds=creds,
+        connect_factory=connect_factory, epoch_start=epoch_start,
+        spool_type=scfg.get("spool_type", "Summary"),
+        is_capturing=cpap_ctl._running))
+    TASK_LABELS[id(task)] = "CPAP stored-spool pull"
+    tasks.append(task)
+    log.info("CPAP stored-spool pull: ARMED — %s spool, window %02d:00-%02d:00 on %s, from %s → %s",
+             scfg.get("spool_type", "Summary"),
+             arming["at_hour"], (arming["at_hour"] + arming["window_h"]) % 24, hci,
+             epoch_start, spool_root)
+    return task
+
+
 def _looks_like_mac(s) -> bool:
     return isinstance(s, str) and len(s) == 17 and s.count(":") == 5
 
@@ -6170,6 +6278,7 @@ async def main():
         # AS11 session detector (SHADOW): observes therapy via a short-connect poll while the CPAP
         # stream is idle, writing SESSIONDETECT.csv + AS11CLOCK.csv. Default OFF (as11_detector.enabled).
         _maybe_start_as11_shadow(cfg, args.config, root, _cpap_ctl, tasks)
+        _maybe_start_cpap_spool_pull(cfg, args.config, root, _cpap_ctl, tasks)
         web_runner = await webmon.start(
             webmon.make_app(BUS, cfg, args.config, ADAPTER, STATUS, _spawn,
                             pull_stored=_pull, polar_pause=polar_offline_op,
