@@ -181,7 +181,66 @@ us how often the operation succeeds. The deadline is what makes it safe by const
 If the deadline is reached: STOP HARVESTING. Do not continue because the download is "almost
 finished." Do not block shutdown. Do not wait indefinitely for GATT. Do not leave a dangling BLE
 connection. The reconciliation poller must be able to retry later. A missed automatic harvest is
-preferable to
+preferable to preventing the device from powering down or damaging acquisition of another device.
 
-**⚠️ CHARTER TRUNCATED HERE — received text ends mid-sentence. The owner owes §13's remainder and
-any later sections (§14+, acceptance criteria, evidence requirements). Do not invent them.**
+### 14. REUSE TEPNA'S TRANSACTIONAL `.DAT` HARVEST
+
+Do NOT create a second `.dat` downloader. The autonomous trigger should feed the existing
+transaction: DISCOVER → SELECT → DOWNLOAD → VERIFY → COMMIT. Preserve: `.part` handling ·
+expected-size verification · finalization/trailer validation · semantic validation where
+available · hash · atomic commit · retry bounds · restart/resume policy · acquisition evidence ·
+lifecycle journal. Automatic harvesting is a NEW TRIGGER. It is not a new transfer implementation.
+
+### 15. VERIFY BEFORE COMMIT
+
+Never treat "bytes downloaded" as equivalent to "recording successfully harvested." Preserve
+existing validation depth. At minimum distinguish: transfer completed · size valid · recording
+finalized · artifact valid · artifact committed. Do not widen `VERIFIED` semantics without
+changing the actual validator.
+
+### 16. DUPLICATE PROTECTION
+
+Automatic observation will naturally generate duplicate signals: many advertisements · repeated
+probes · repeated END observations · reconnects · hourly poller · restart recovery. The system
+must therefore be idempotent. The same recording must not produce multiple committed copies,
+duplicate session records, or duplicate analysis jobs. Use the existing Tepna identity/ledger
+mechanisms. Do not create another duplicate-detection system.
+
+### 17. AUTOMATIC + HOURLY POLLER
+
+Do NOT remove the reconciliation poller. The architecture: EVENT-DRIVEN HARVEST + PERIODIC
+RECONCILIATION. The event-driven path gives fast harvesting; the periodic poller provides recovery
+if the event-driven path missed something. These are complementary. The system should converge on
+the same final state regardless of which path discovers the recording first.
+
+### 18. FAILURE RECOVERY
+
+Explicitly handle: BLE connection failure · BLE disconnect during probe · BLE disconnect during
+transfer · advertisement disappears · device disappears after end · run_status becomes
+unavailable · new recording starts during flush · deadline expires · partial `.dat` · corrupt
+`.dat` · wrong-size `.dat` · hash mismatch · host restart · process restart · duplicate
+discovery · stale `.part` · automatic harvest disabled. Every failure must leave the system in a
+recoverable state.
+
+### 19. EXECUTION WITNESS
+
+This is mandatory. Do not claim that automatic harvesting works because code exists, tests pass,
+or configuration says enabled. Record enough operational telemetry to prove: automatic mode
+enabled → observer armed → presence detected → probe attempted → recording state observed → end
+detected → flush gate entered → flush completed → pull started → artifact committed. The existing
+Tepna investigation already demonstrated why this matters: a code path can exist while its arming
+condition prevents it from ever executing. The implementation MUST make that impossible to miss.
+
+### 20. CONFIGURATION MUST BE OBSERVABLE
+
+When automatic harvesting is enabled, expose: enabled · armed · current state · last presence ·
+last probe · last recording-state observation · last end candidate · last confirmed end · last
+harvest · last failure · reason for waiting · reason for abandoning. Do not expose only
+"enabled = true". "Enabled" and "actually armed" are different facts.
+
+### 21. SAFE DEFAULT
+
+Preserve the current safe default: automatic close-tr
+
+**⚠️ CHARTER TRUNCATED HERE (second delivery) — §21 ends mid-word at "automatic close-tr". The
+owner owes §21's remainder and any sections beyond it. Do not invent them.**
