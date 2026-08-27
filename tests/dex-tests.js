@@ -49471,5 +49471,19 @@
   root.dexGroupMatcher = dexGroupMatcher;
   root.dexShardSelector = dexShardSelector;
   root.auditSkips = auditSkips;
-  if (typeof module !== 'undefined' && module.exports) module.exports = { runDexTests: runDexTests, dexGroupMatcher: dexGroupMatcher, dexShardSelector: dexShardSelector, auditSkips: auditSkips };
+  if (typeof module !== 'undefined' && module.exports)
+    module.exports = {
+      runDexTests: runDexTests,
+      dexGroupMatcher: dexGroupMatcher,
+      dexShardSelector: dexShardSelector,
+      auditSkips: auditSkips,
+      /* EXPORTED so `tools/verify-drafts.mjs` compares through THE REAL comparator rather than a
+       copy. This file already learned that lesson once: the `T.eq distinguishes null from NaN`
+       group used to re-declare its own private `ser`, "which meant it could not fail for any
+       change to the one T.eq actually uses". A draft verifier that re-implemented the @undef /
+       @NaN / @-0 / @fn# tagging would answer a DIFFERENT question than the suite will ask when
+       the draft is adopted — which is precisely the realm-divergence class the verifier exists
+       to catch. Read-only export; nothing here changes behaviour. */
+      dexSerializeForEq: dexSerializeForEq
+    };
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
