@@ -198,7 +198,7 @@ merge conflict when it goes wrong.
 ## 7 · Done when
 
 - [x] **DONE 2026-08-20** — added additively to `hostAxis.stability` **and** to `ppgdex-dsp.js`'s own copy; the user-facing `ms disagreement` render fixed with it. Full `npm run check` green (8110 assertions, 518 groups, 0 failing).
-- [~] **HALF DONE — #1530, 2026-08-19.** *Sharing one implementation* is done: `dual-clock-rate.mjs`
+- [x] **DONE — the second half landed 2026-08-27; see the closing note below.** *(was HALF DONE, #1530, 2026-08-19)* *Sharing one implementation* is done: `dual-clock-rate.mjs`
       imports `crystalVerdict` and delegates through a pure `crystalCoherence()`, its duplicate
       `MAX_CRYSTAL_SPREAD_PPM` is now a re-export, and a 14-assertion group
       (`tools · clock · crystal-single-source`) asserts the two entry points agree across the boundary
@@ -214,6 +214,45 @@ merge conflict when it goes wrong.
       every spread explicable. **§2's "protected today only by its length filter" therefore still
       stands** — the filter excludes imprecise fragments rather than reasoning about them. Closing
       this half needs σ_y computed in `dual-clock-rate`, which is a separate work-unit.
+
+      ### ✅ CLOSED 2026-08-27 — σ_y lands, and the naive version was wrong by 300×
+
+      `dual-clock-rate.mjs` now emits **`ppmUncertainty`** per fragment, delegated end to end: the
+      residuals about its own fitted line are already a phase series in ms, `clock.js`'s
+      `allanFromPhase`/`allanSlope` do the statistics, and nothing is reimplemented here.
+
+      ⚠️ **The obvious implementation is wrong, and its own data says so.** Reading σ_y at the house
+      reference τ (256 s) gives **317 ppm** for an H10 fragment whose rate is −19.1 ppm and whose three
+      fragments agree to **1.1 ppm** across the night. That figure is real — it is BLE delivery jitter at
+      short averaging times — but it is not the uncertainty of a rate fitted over 295 minutes, and a
+      317 ppm bar **makes every spread explicable**, which is exactly the fabricated-bar failure the
+      no-uncertainties fallback exists to prevent. Shipping it would have satisfied this box's letter
+      while defeating its purpose.
+
+      **What is quoted instead is σ_y at τ = the fragment's own span**, reached by extrapolating along
+      the fitted Allan slope from the longest *measured* point — a factor of ~4, anchored on data. The
+      slope is used numerically; **no noise type is named** (the spine deliberately refuses to name one
+      near a boundary, and nothing here needs the name).
+
+      | fragment | span | rate | σ_y at span |
+      |---|---|---|---|
+      | H10 | 295.4 min | −19.1 ppm | **3.43 ppm** |
+      | H10 | 199.4 min | −19.3 | **4.79** |
+      | H10 | 87.6 min | −18.2 | **10.60** |
+      | Verity | 162.0 min | −25.5 | **18.33** |
+
+      Three checks it passes that the 256 s version failed: the bars **bracket** the observed 1.1 ppm
+      inter-fragment spread, they **shrink with span** (a longer fragment determines a rate better), and
+      a drawn-axis fragment still yields **no bar at all**.
+
+      **The χ² branch is now reachable** — verified directly: entries with bars return a finite `chi2`
+      (80.66 on a planted wide spread) where the same entries without bars return
+      `note: 'no uncertainties; raw-spread bound only'`. `crystalCoherence` now surfaces `chi2` and
+      `note` so a reader can see **which branch decided**; collapsing both to a boolean is how the
+      fallback stayed invisible. The `spread ≤ MAX_CRYSTAL_SPREAD_PPM` fast path is untouched, so known
+      crystals are still crystals without needing a bar.
+
+      Gates: `tools · clock · crystal-single-source` 14/14, `independence` 34/34, typecheck clean.
 - [x] **DONE — verified 2026-08-19.** `WEARABLE-DRIFT-DIRECT-2026-08-02` already reads
       **`Status: DONE — 2026-08-17`** (*"every §6 item re-verified against the tree, and the recorded ppm
       caveat DISCHARGED BY RE-MEASUREMENT"*). Its Done-when list is fully `[x]`; the single `[~]` is a
