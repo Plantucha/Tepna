@@ -499,6 +499,66 @@ predicted gap matches the observed one **in sign and within its uncertainty**. A
 is real but too small to explain a 2.5× spread is a *partial* answer and must be reported as one, with
 the residual named. Anything else is the fabricated-authority failure this brief already guards against.
 
+## 11. The pooled-seconds hat, EXECUTED 2026-08-27 — the identity is exact, my hypothesis is refuted, and 3.51 is the outlier
+
+§10 derived the hat and pre-registered a test: the gap between estimators should equal
+`½(B_AB + B_AC − B_BC)`, `B` = between-night bias variance, and if that term explains the σ_Verity
+spread the unit closes **by attribution**. It was run over 54 nights / 939,566 pooled seconds via the
+new `tools/tch-pooled-hat.mjs` (6/6 planted-truth selftest, including the identity and a demonstration
+that a median ≠ a seconds-weighted mean when night lengths differ).
+
+### The algebra is confirmed exactly
+
+| corner | σ²_pooled − σ²_weighted | ½(B_AB + B_AC − B_BC) | \|Δ\| |
+|---|---|---|---|
+| h10 | 0.001169268 | 0.001169268 | 6.7e-16 |
+| verity | 0.001762890 | 0.001762890 | 1.6e-16 |
+| o2 | 0.016817029 | 0.016817029 | 3.4e-15 |
+
+The derivation holds to floating point. **The prediction it makes, however, is falsified.**
+
+### ❌ B is 0.1 % — the mechanism I pre-registered does NOT explain the spread
+
+| pair | within (seconds-weighted) | **B** (between) | pooled | B share |
+|---|---|---|---|---|
+| H10↔Verity | 3.657 | **0.003** | 3.659 | **0.1 %** |
+| H10↔O2 | 14.155 | 0.018 | 14.173 | 0.1 % |
+| Verity↔O2 | 14.135 | 0.019 | 14.154 | 0.1 % |
+
+The per-night pairwise **biases barely vary across nights**, so the between-night term is negligible and
+pooled ≈ seconds-weighted to 0.0007 bpm in σ_Verity. Per the pre-stated rule this is **not** a partial
+success to be talked up: the predicted mechanism contributes essentially nothing, and the honest verdict
+is **refuted**.
+
+### ✅ But estimator CHOICE does move σ_Verity by ~1.9×, and that is the real finding
+
+Same 54 nights, four estimators:
+
+| estimator | σ_Verity | note |
+|---|---|---|
+| fused-weight median over nights | **0.72** [0.44–1.10] | **n = 44** — 10 nights excluded |
+| unweighted median over nights | **0.95** [0.77–1.23] | n = 54 |
+| plain median over nights | **1.14** | n = 54 |
+| **pooled-seconds** | **1.35** | 939,566 s |
+
+**0.72 → 1.35 is a factor of 1.9 from estimator choice alone, on identical data.** That comfortably
+covers the published **0.94–1.03** and reaches close to **1.42**. So two of the three disputed figures
+are reconciled — not by between-night bias, but by *median-vs-pooled non-linearity and confidence
+weighting*.
+
+🔴 **3.51 is not reachable by any estimator choice over this corpus.** The whole family spans 0.72–1.35.
+Whatever produced 3.51 differs in **corpus, filtering, or quantity** — not in weighting. That is a
+narrowing worth having: it retires an entire class of explanation for the headline discrepancy.
+
+### ⚠️ A selection effect found on the way, and it matters more than the number
+
+The **fused** estimator yields **10/54 negative-variance nights against 0/54 unweighted**, so its σ_Verity
+median of 0.72 is taken over **n = 44** — the 10 nights where its own solve failed are dropped. Excluding
+the nights an estimator cannot solve, then quoting the median of the rest, is the
+[[uncertainty-band-as-gate-anti-selects]] pattern in a new place: **the exclusion is correlated with the
+quantity being estimated.** The fused figure is the lowest of the four and is computed on the most
+favourable subset. It should not be quoted without its n and its 10 exclusions.
+
 ## 9. Pointers
 - Method paper: `papers/sigma-no-reference.html`; "how many nights" template: `papers/nights-icc.html`.
 - TCH kernel / tooling to reuse: `sigma-no-reference-analysis.js` (TRIO/TRIOS, TCH math, exporters) +
