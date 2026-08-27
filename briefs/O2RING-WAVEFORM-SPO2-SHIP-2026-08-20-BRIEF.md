@@ -65,12 +65,15 @@ one to know what shipped and what is still owed.
 - [ ] **Post-#1596 re-fit**: contiguous double-drain nights should steepen the converted slope
       toward the literature's −25 %/R family and lift r toward 0.7–0.9. If they do not, re-examine
       the functional claim, not the calibration constants.
+      ⚠️ **This unit now also carries the sweep** (ruling 2026-08-27, below): build it as your OWN
+      apparatus and select AFRESH — that is a **supersession, not a re-check**, so it is not owed a
+      comparison against the lost original. **Commit it when its output reaches the decision.**
 - [ ] **Sunlight spectral test** (field-gated): the channel-identity confirmation the functional
       sign cannot give.
 - [ ] **LUT recovery**: per-beat R (not buffer-wise), then fit the firmware's fixed R→SpO₂ curve
       globally; a residual surviving that is the fingerprint of hidden AGC state → protocol
       archaeology for gain telemetry.
-- [ ] 🔴 **Sweep apparatus — LOST, not deferred. It must be REBUILT, not promoted.**
+- [~] 🔴 **Sweep apparatus — LOST. RULED 2026-08-27: the re-CHECK is RETRACTED; the rebuild folds into the re-fit above.**
       This item read *"`ppg2w-sweep.mjs` lives in session scratch; promote to `tools/` if
       needed"* — that premise is false as of the 2026-08-19 ext4 migration. Session scratch
       was on the retired ntfs3 volume and did not survive. Verified 2026-08-26: not tracked
@@ -88,3 +91,16 @@ one to know what shipped and what is still owed.
       **Rule this brief now carries: an apparatus whose output reaches a shipped decision is
       committed at the moment of that decision, not when someone next needs it.** "Promote if
       needed" is a bet that scratch outlives the need; it lost that bet in six days.
+
+      **RULING, 2026-08-27 — neither rebuild-as-baseline nor a bare retraction.** A rebuilt sweep
+      that picks a different winner **cannot distinguish "the original was wrong" from "my rebuild
+      differs"**, which is the exact ambiguity the comparison exists to resolve — so the re-check is
+      **unbuyable at any effort price**, and no amount of care purchases it. It is therefore
+      **retracted**, not deferred. The rebuild instead folds into the post-#1596 re-fit, which
+      selects afresh on more data: a supersession sidesteps the ambiguity rather than contesting it.
+
+      🔴 **#1609's estimator selection is permanently UN-RE-CHECKABLE, and that is stamped here
+      at its own evidence trail** — the closure-stamp convention in its uncomfortable direction:
+      stamping a **limitation**, not a fix. The estimator keeps shipping on its original evidence,
+      unchanged and unweakened; what is gone is the ability to re-open the choice on the terms that
+      made it. (Routed and decided via `LOST-APPARATUS-INVENTORY-2026-08-26`.)

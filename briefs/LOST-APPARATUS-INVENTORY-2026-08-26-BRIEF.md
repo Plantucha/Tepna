@@ -129,8 +129,19 @@ nothing will surface it.
 **What I would not do:** rebuild and present it *as* the baseline. That is the fabrication this repo
 guards against — a reconstructed selector reported as the one that made the call.
 
-**Decision routed to the coordinator with this evidence.** Not taken here: it trades a validation
-against an unbounded rebuild, which is a scope call rather than a technical one.
+**RULED, 2026-08-27 — and it is neither option as posed.** The rebuild risk is decisive: a re-check is
+**unbuyable at any effort price**, because no rebuilt sweep can tell "the original was wrong" from "my
+rebuild differs". So option A is off. But option B is not taken bare either —
+`O2RING-WAVEFORM-SPO2-SHIP` already owes a **post-#1596 re-fit on more data**, and that unit builds a
+sweep as its own apparatus and selects **afresh**. That is a **supersession, not a re-check**: it
+sidesteps the ambiguity instead of contesting it, and it is owed anyway.
+
+So: the re-sweep **comparison** is retracted; the rebuild folds into the re-fit; the re-fit inherits one
+line — *your sweep is new apparatus making a new selection; commit it when its output reaches the
+decision*; and **#1609's selection is stamped permanently un-re-checkable at its own evidence trail**
+rather than here. That last is the closure-stamp convention pointed the uncomfortable way: **a
+limitation gets stamped exactly like a fix**, or the written record keeps over-representing what is
+still open while quietly under-representing what can no longer be reopened.
 
 ### The convention this brief proposed, now stated for adoption
 
