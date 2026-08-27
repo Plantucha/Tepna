@@ -1566,6 +1566,16 @@ function selftest() {
   ck('rescue leaves resolvable paths alone', resegmentPath('out.plain', JSON.parse(edf)), 'out.plain');
   ck('rescue refuses non-path expressions', resegmentPath('out.a === 1', JSON.parse(edf)), null);
   ck('discriminates end-to-end through a dotted key', projectionDiscriminates('out.EprPress["2s"].data[0]', edf, edf2).ok, true);
+  const nested = JSON.stringify({ PLD: { signals: { 'EprPress.2s': { data: [7] } } }, SA2: { signals: {} } });
+  const nested2 = JSON.stringify({ PLD: { signals: { 'EprPress.2s': { data: [9] } } }, SA2: { signals: {} } });
+  ck('descent rescue: omitted levels + dotted key, unique match', descendRescue('out.EprPress["2s"].data[0]', JSON.parse(nested)), 'out.PLD.signals["EprPress.2s"].data[0]');
+  ck('descent rescue: ambiguity REFUSES', descendRescue('out.x', { a: { x: 1 }, b: { x: 2 } }), null);
+  ck('descent rescue: truly absent refuses', descendRescue('out.nope.q', JSON.parse(nested)), null);
+  ck('descent end-to-end: shortened model path discriminates', projectionDiscriminates('out.EprPress["2s"].data[0]', nested, nested2).ok, true);
+  const dp = diffPaths(JSON.parse(nested), JSON.parse(nested2));
+  ck('diff menu: finds the one differing path through a dotted key', dp.length === 1 && dp[0].path === '.PLD.signals["EprPress.2s"].data[0]', true);
+  ck('diff menu: identical outputs yield empty', diffPaths({ a: 1 }, { a: 1 }).length, 0);
+  ck('diff menu: type mismatch is a diff, not a descent', diffPaths({ a: { x: 1 } }, { a: null })[0].path, '.a');
   ck('…assignment, not comparison', safeProjection('out.a = 1'), null);
   ck('…but a comparison is fine', safeProjection('out.a === 1'), 'out.a === 1');
   ck('a projection that never reads `out` is rejected', safeProjection('1 + 1'), null);
@@ -1832,6 +1842,41 @@ export function resegmentPath(expr, obj) {
   return 'out' + outSegs.join('');
 }
 
+/* UNIQUE-DESCENT RESCUE (third failure mode, same night): the model also OMITS intermediate
+   levels — it writes `out.EprPress.2s.data[0]` where the object holds
+   `out.PLD.signals["EprPress.2s"].data[0]`. Resegmentation cannot rescue a path whose first
+   segment is missing from the root. So: when root resolution fails for a pure path, search the
+   recorded object for anchor points where the WHOLE path resolves (with dotted-key merging), and
+   rescue ONLY when exactly one location matches — two matches is ambiguity, and ambiguity
+   refuses. Still a pure function of (path, recorded JSON): the model proposes a suffix; the
+   ground-truth object decides where — or whether — it lives. Bounded BFS (depth 6, 20k nodes). */
+export function descendRescue(expr, obj) {
+  const direct = resegmentPath(expr, obj);
+  if (direct) return direct;
+  const m = String(expr).match(/^out((?:\.[A-Za-z_$][\w$-]*|\["[^"\\]+"\]|\['[^'\\]+'\]|\[\d+\])+)$/);
+  if (!m) return null;
+  const matches = [];
+  const queue = [{ node: obj, prefix: '' }];
+  let seen = 0;
+  while (queue.length && seen < 20000 && matches.length < 2) {
+    const { node, prefix } = queue.shift();
+    seen++;
+    if (node === null || typeof node !== 'object') continue;
+    if (prefix) {
+      const sub = resegmentPath('out' + m[1], node);
+      if (sub) matches.push(prefix + sub.slice(3));
+    }
+    if (prefix.split('.').length > 6) continue;
+    if (Array.isArray(node)) {
+      for (let i = 0; i < Math.min(node.length, 50); i++) queue.push({ node: node[i], prefix: prefix + '[' + i + ']' });
+    } else {
+      for (const k of Object.keys(node)) queue.push({ node: node[k], prefix: prefix + (/^[A-Za-z_$][\w$]*$/.test(k) ? '.' + k : '["' + k + '"]') });
+    }
+  }
+  if (matches.length !== 1) return null; // 0 = truly absent; 2+ = ambiguous — both refuse
+  return 'out' + matches[0];
+}
+
 export function projectionDiscriminates(expr, origText, mutantText) {
   let safe = safeProjection(expr);
   if (!safe) return { ok: false, why: 'unsafe projection' };
@@ -1842,7 +1887,7 @@ export function projectionDiscriminates(expr, origText, mutantText) {
   } catch {
     return { ok: false, why: 'recorded outputs are not both JSON — cannot compare a projection over them' };
   }
-  const reseg = resegmentPath(safe, a);
+  const reseg = descendRescue(safe, a);
   if (reseg && reseg !== safe && safeProjection(reseg)) safe = reseg;
   let fn;
   try {
@@ -1915,6 +1960,59 @@ async function askLocal(prompt, model, attempt = 0) {
   return j.response || '';
 }
 
+/* THE DIFF MENU (2026-08-27, from the post-rescue failure profile: 17 of 33 attempts on one
+   function proposed projections that do NOT discriminate — and the prompt shows each output
+   sliced to 700 chars, so on a large output the model cannot even SEE where the difference is.
+   The harness holds both recorded outputs, so the set of differing paths is computable ground
+   truth. Hand the model that MENU: it stops guessing WHERE the difference lives and only chooses
+   which difference is meaningful, then names the property. §0 intact — the menu is a pure
+   function of the two recorded outputs; the model still supplies no value. */
+export function diffPaths(a, b, opts = {}) {
+  const max = opts.max ?? 12;
+  const maxDepth = opts.maxDepth ?? 8;
+  const out = [];
+  const seg = (k) => (/^[A-Za-z_$][\w$]*$/.test(k) ? '.' + k : '["' + String(k).replace(/"/g, '') + '"]');
+  const queue = [{ a, b, path: '', depth: 0 }];
+  let seen = 0;
+  while (queue.length && out.length < max && seen < 20000) {
+    const { a: x, b: y, path, depth } = queue.shift();
+    seen++;
+    const tx = x === null ? 'null' : Array.isArray(x) ? 'array' : typeof x;
+    const ty = y === null ? 'null' : Array.isArray(y) ? 'array' : typeof y;
+    if (tx !== ty) {
+      out.push({ path, a: x, b: y });
+      continue;
+    }
+    if (tx === 'object' || tx === 'array') {
+      if (depth >= maxDepth) continue;
+      const keys = tx === 'array' ? [...new Set([...x.keys(), ...y.keys()])].slice(0, 200) : [...new Set([...Object.keys(x), ...Object.keys(y)])];
+      for (const k of keys) queue.push({ a: x[k], b: y[k], path: path + (tx === 'array' ? '[' + k + ']' : seg(k)), depth: depth + 1 });
+      continue;
+    }
+    if (!Object.is(x, y)) out.push({ path, a: x, b: y });
+  }
+  return out;
+}
+
+function diffMenu(origText, mutantText) {
+  let a;
+  let b;
+  try {
+    a = JSON.parse(origText);
+    b = JSON.parse(mutantText);
+  } catch {
+    return '';
+  }
+  const d = diffPaths(a, b);
+  if (!d.length) return '';
+  const row = (v) => String(JSON.stringify(v)).slice(0, 60);
+  return (
+    '\nDIFFERING FIELDS (machine-computed from the two outputs — your PROJECTION should be `out` followed by ONE of these paths, copied EXACTLY):\n' +
+    d.map((x) => '  out' + x.path + '   CORRECT ' + row(x.a) + '  BUGGY ' + row(x.b)).join('\n') +
+    '\n'
+  );
+}
+
 function draftPrompt(c) {
   return (
     'You are helping write a regression test. Below is a real function call, what the CORRECT code returns, and what a BUGGY variant returns. Both outputs are given verbatim; do NOT invent or recompute values.\n\n' +
@@ -1933,7 +2031,9 @@ function draftPrompt(c) {
     c.before +
     '   (operator mutation: ' +
     c.op +
-    ')\n\n' +
+    ')\n' +
+    diffMenu(c.orig, c.mutant) +
+    '\n' +
     'Answer with exactly two lines and nothing else:\n' +
     'PROJECTION: a JavaScript expression over a variable named `out` (the return value) that has a DIFFERENT value for CORRECT vs BUGGY. Prefer the smallest, most meaningful field. Example: out.nUsable\n' +
     'PROPERTY: one short English sentence naming the behaviour this protects, written for a reader who has not seen the bug. If you cannot name a real behaviour (the difference is an opaque constant with no meaning), write exactly: REFUSE'
