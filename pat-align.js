@@ -332,8 +332,24 @@
      requires CITATION-VERIFICATION entries — the brief carries them.
 
      WHY THIS ESTIMAND SURVIVES THE BLOCKERS THAT STOP ABSOLUTE PAT HERE:
-       · the ~2.2 s per-connection BLE offset is CONSTANT within a connection — a within-connection
-         difference cancels it exactly, which is why `segments` (connection spans) gate runs;
+       · the ~2.2 s per-connection BLE offset is NOT constant within a connection, and the sentence
+         that stood here — "a within-connection difference cancels it exactly" — was measured FALSE on
+         2026-08-27 (`tools/pat-connection-stability.mjs`, 14 nights, 31 connections, capture-host
+         corpus): first-half vs second-half offset differs by a median of 43.8 ms, p90 142.9 ms, max
+         815.6 ms, and 8 of 31 connections (26 %) exceed the ±90 ms PAT tolerance. `segments` still
+         gate runs — a reconnect IS a genuine discontinuity — but they are not what makes the dip safe.
+         WHAT ACTUALLY PROTECTS THE DIP is the centered rolling-median baseline below: the dip is read
+         against a LOCAL baseline over `baselineWinMs`, not against the connection start, and over one
+         60 s window that same drift is a median of 1.18 ms (p90 9.37, max 47.16) against Θ = 10 ms.
+         ⚠ QUOTED WITH ITS WINDOW, because a drift without one is as underdetermined as a ppm without
+         its span (§🔒.7): 43.8 ms is per CONNECTION, 1.18 ms is per BASELINE WINDOW, and only the
+         second is the quantity the detector is exposed to.
+         ⚠ THE TAIL IS NOT CLEARED, and this is deliberately left as a bound rather than a rate: the
+         p90 (9.37 ms) is 94 % of Θ and the max (47.16 ms) is 4.7×Θ, both under `maxExcursionMs` so
+         neither is rejected as an artifact. The measurement is a first/second-half FIT DIFFERENCE, so
+         it cannot distinguish a slow RAMP — which a centered median largely tracks out — from a STEP,
+         which it does not. So these figures bound the drift; they do NOT establish a fabrication rate.
+         Settling it needs the within-connection residual SHAPE, which that tool does not yet report;
        · the anatomical sign of the LEVEL is irrelevant — only the excursion is read;
        · PEP is an amplifier, not a confound, at arousal (sympathetic activation shortens both PEP
          and vascular transit) — which is also why the output is an AUTONOMIC index and must never

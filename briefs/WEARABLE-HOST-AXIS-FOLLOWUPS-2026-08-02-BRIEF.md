@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **Created:** 2026-08-02 · **F1 · F2 · F3-ter · F7 DONE 2026-08-02** · **F4 · F5 · F6 · F8 DONE 2026-08-02** (the printer no longer quotes an unclosed ppm, and both clock printers are gated for the first time — see F5.1–F5.4; the two TCH/PAT boxes remain open) · **Follows:** `WEARABLE-HOST-AXIS-2026-08-02-BRIEF.md` · **Affects:** `ppgdex-dsp.js`, `integrator-dsp.js`, `tools/trio-batch.mjs`, `tools/drift-report.js`, `papers/`, several briefs
+**Status:** DONE — 2026-08-27 (**ten of eleven items executed; the eleventh was HANDED OFF, not left.** Verified 2026-08-27 in the file it names rather than from its own prose: the PAT item states *"nothing further is owed here"* and `PAT-NO-VALID-ANCHOR-2026-08-02-BRIEF.md` exists, is IN-PROGRESS, and its header records `Follows: WEARABLE-HOST-AXIS-FOLLOWUPS §F3-ter` — so the transfer is acknowledged on both sides, which is what makes this DONE rather than a brief quietly dropping an item. Not a supersession: one item moved, the rest shipped here.)
 
 # The O2Ring's axis was drawn on every night before 2026-07-28. Everything that used it as a clock has to be re-asked.
 
