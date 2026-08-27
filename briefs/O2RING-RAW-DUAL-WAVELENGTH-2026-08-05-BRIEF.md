@@ -71,7 +71,7 @@ correction to send upstream.
 Run on device `S8AW2100`, finger worn, ring-reported SpO₂ **97 %** (median of 30 polls). The capture
 daemon was taken off the link with `tepna-restart.sh stop 10` — the sanctioned passwordless verb, which
 arms a deadman timer *before* stopping, so the box restarts itself even if the operator never returns.
-30 polls, 3060 samples. Raw data: `/tmp/rprobe.json` on the capture host.
+30 polls, 3060 samples. Raw data: `/tmp/rprobe.js` ⚠️ **GONE — not recoverable.** Session scratch died with the 2026-08-19 ext4 migration; verified absent 2026-08-26 (`LOST-APPARATUS-INVENTORY-2026-08-26`). Re-running this measurement means rebuilding the probe, not locating it. Kept as a citation so the claim's origin stays legible — but it is DEBT, not a path.`on` on the capture host.
 
 **① The argument is IRRELEVANT — now measured, not inferred.** The probe alternated `{0x07, 0x01}`
 against an **empty** payload: 15 replies each, **every one 922 bytes with 102 records**. §1.1 predicted
@@ -230,7 +230,7 @@ pooled. The residual against the quantized device output is now ~0.5 % RMSE — 
 integer quantum itself. The shipped PpgDex estimator adopts the winning knobs (RMS · 60 s mean ·
 +10 s lag); the per-session self-calibration model is retained over the global line because it is
 the honest n=1-device choice, not because it scores higher. Sweep apparatus + full table:
-session scratch (`ppg2w-sweep.mjs` → `/tmp/ppg2w-sweep-results.json`), to be promoted to `tools/`
+session scratch (`ppg2w-sweep.mjs` → `/tmp/ppg2w-sweep-results.js` ⚠️ **GONE — not recoverable** (same migration; see `LOST-APPARATUS-INVENTORY-2026-08-26`). Note this is the *results* writer, not the sweep itself — `ppg2w-sweep.mjs`, which CHOSE the estimator shipped in #1609, is also gone, so neither the selection nor its output can be reproduced.`on`), to be promoted to `tools/`
 if a second device ever needs it.
 
 **Reframing (owner, 2026-08-20): the 1 Hz SpO₂ is COMPUTED FROM this same stream, so the mapping

@@ -64,7 +64,7 @@ every whole-night "~100 Hz" measurement (`ppg2w-rate.mjs` 100.19/100.99, frame-c
 refuted: sustained delivery of 102 records per 1.005 s bounds the fill **> 102 Hz**, consistent with
 the parent brief's 125.000 (ADC) prediction though not yet pinning it. (Short-dt capped pairs suggest
 more, but arrival spacing ≠ fill interval under BLE jitter — not quoted.) The decisive instrument
-remains the fast-spacing starvation run (`/tmp/probe_rt_ppg_rate.py`, deployed on the box, pre-stated
+remains the fast-spacing starvation run (`/tmp/probe_rt_ppg_rate.py` ⚠️ **GONE — not recoverable.** Session scratch did not survive the 2026-08-19 ext4 migration; verified absent 2026-08-26 (`LOST-APPARATUS-INVENTORY-2026-08-26`). Re-measuring the rate means rebuilding this probe., deployed on the box, pre-stated
 bands [95,105]→100 · [118,132]→125); FIELD-GATED on the ring being worn (it was not, 2026-08-20 19:40).
 
 **Wired (capture-host):** the runner now drains the raw buffer TWICE per live cycle (~0.5 s spacing) —
