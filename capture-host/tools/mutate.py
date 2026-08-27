@@ -71,6 +71,10 @@ import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(HERE))
+from mutation_sweep import (  # noqa: E402
+    BUDGET_OK, budget_verdict, select_tests,
+)
 VENV_PY = HERE / ".venv" / "bin" / "python"
 
 # §2 (OXYII-G1-FOLLOWUPS) — mutmut's exit-code cache is a function of the TESTS, but this file keys its
@@ -91,7 +95,6 @@ _mmspec.loader.exec_module(mmeta)
 # mutation of `"bluez"` → `"BLUEZ"` inside pull_session.py trips it on EVERY run including the
 # baseline, which mutmut then reports as "not checked" for the whole module. The test is right about
 # real source; it simply cannot be asked about generated source.
-SOURCE_SCANNING_TESTS = {"tests/test_no_deprecated_apis.py"}
 
 # Modules whose value is the JSON they print rather than a contract anyone depends on.
 SKIP = {"probe_oxyii_ppg.py", "probe_polar_onboard.py", "ppg_grid_check.py", "adapter_ab.py"}
@@ -113,57 +116,44 @@ def modules() -> list[str]:
 
 
 def tests_for(module: str) -> list[str]:
-    """Test files that MENTION this module, own-name file first.
+    """Test files for `module`, own-name first. THE READ IS PLUMBING; the selection is in
+    `mutation_sweep.select_tests`, inside the coverage floor.
 
-    Scoping to `test_<module>.py` alone is what makes a run fast, but it also inflates the survivor
-    count: a mutant killed only by, say, test_capture_coverage_100.py would be reported as surviving.
-    So the selection is every test file that imports or names the module — still a small subset of 78,
-    and honest about what it checked."""
+    Exclusions are now REPORTED rather than dropped silently: a mutant killed only by an excluded
+    test is reported as SURVIVING, which manufactures work, and that cost was previously invisible."""
     stem = module[:-3]
-    own = HERE / "tests" / f"test_{stem}.py"
-    found = []
+    candidates = []
     for t in sorted((HERE / "tests").glob("test_*.py")):
         try:
-            if stem in t.read_text(encoding="utf-8"):
-                found.append(f"tests/{t.name}")
+            candidates.append((f"tests/{t.name}", t.read_text(encoding="utf-8")))
         except OSError:
             continue
-    found = [f for f in found if f not in SOURCE_SCANNING_TESTS]
-    if own.exists() and f"tests/{own.name}" in found:
-        found.remove(f"tests/{own.name}")
-        found.insert(0, f"tests/{own.name}")
-    return found
+    kept, dropped = select_tests(candidates, stem)
+    for d in dropped:
+        print(f"  note: {d} excluded from {module}'s selection — a mutant killed ONLY by it "
+              f"will read as SURVIVING")
+    return kept
 
 
-def clean_run_seconds(tests: list[str]) -> float:
-    """Time ONE clean run of this module's test selection, in the live tree.
+def clean_run_seconds(tests: list[str]) -> tuple[float, bool]:
+    """Time ONE clean run of this module's test selection. Returns `(seconds, passed)`.
 
-    This is the number that decides what a module costs, and it spans two orders of magnitude across
-    this repo — measured 2026-08-02: pull_session 0.23 s (5 files, 45 tests) · storage_targets 0.4 s ·
-    webmon 21.5 s (11 files, 518 tests). mutmut then pays it once for stats collection (a coverage
-    pass over the whole selection) before a single mutant is tested, which is why a module can blow a
-    fixed cap during SETUP and report nothing at all.
+    🔴 THE SECOND ELEMENT IS THE FIX. This used to return the elapsed time ALONE, discarding the
+    subprocess return code entirely — so a clean run that failed instantly (a collection error, a bad
+    path, a missing plugin) returned ~0.2 s, and the budget derived from it collapsed to the 1800 s
+    floor. For a module whose real clean run is 21.5 s that is 6450 s of budget silently becoming
+    1800, i.e. the documented "webmon exceeded the per-module timeout twice" outcome arriving through
+    a different door. **The elapsed time of a crashed run is still a well-formed float**, so nothing
+    downstream could tell the two apart.
 
-    Borrowed from tools/mutate.mjs (#702), which reached the same conclusion on the JS side: measure
-    the clean run, then derive the bound from it rather than guessing a flat number."""
+    This is CLAUDE.md §4b's family: capture the status of the command itself, not a plausible-looking
+    number it produced on the way to failing."""
     t0 = time.monotonic()
-    subprocess.run([str(VENV_PY), "-m", "pytest", "-q", "-p", "no:cacheprovider", *tests],
-                   cwd=HERE, capture_output=True, text=True, timeout=3600)
-    return time.monotonic() - t0
+    r = subprocess.run([str(VENV_PY), "-m", "pytest", "-q", "-p", "no:cacheprovider", *tests],
+                       cwd=HERE, capture_output=True, text=True, timeout=3600)
+    return time.monotonic() - t0, r.returncode == 0
 
 
-def budget_for(clean_sec: float) -> int:
-    """Seconds to allow one module, derived from its own clean run rather than picked.
-
-    A FLAT 3600 was not a cap so much as a promise never to notice — it is 15000x pull_session's clean
-    run and barely 2x what webmon needs once stats collection is paid, which is exactly how webmon
-    "exceeded the per-module timeout twice" and stayed the one unmeasured module in the audit.
-
-    300x the clean run, floor 1800 s: mutmut tests each mutant against only the tests covering the
-    mutated function, so the per-mutant cost is a fraction of the full selection — the multiplier is
-    dominated by mutant COUNT (~2-3 per statement here), and 300 leaves room for both. Slower than
-    that is not slow, it is stuck."""
-    return max(1800, int(clean_sec * 300))
 
 
 def run_one(module: str, only: str | None = None, tests_override: list[str] | None = None,
@@ -202,8 +192,16 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     if not tests:
         return {"module": module, "error": "no test file names this module"}
     _beat("timing the clean baseline suite  (mutmut not started)")
-    clean = clean_run_seconds(tests)
-    cap = timeout if timeout is not None else budget_for(clean)
+    clean, clean_ok = clean_run_seconds(tests)
+    if timeout is not None:
+        cap = timeout
+    else:
+        bverdict, cap, bdetail = budget_verdict(clean, clean_ok)
+        if bverdict != BUDGET_OK:
+            # REFUSE rather than fall back to the floor. Taking the floor here is precisely how a
+            # module gets an under-sized budget from a measurement that never happened, and then
+            # reports timeouts that read as an honest result.
+            return {"module": module, "error": f"no budget: {bdetail}"}
     plan = {"module": module, "tests": tests, "clean_run_sec": round(clean, 2),
             "timeout_sec": cap, "derived": timeout is None}
     if budget and clean > budget:
