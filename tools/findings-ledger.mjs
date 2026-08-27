@@ -33,7 +33,7 @@
     node tools/findings-ledger.mjs --selftest
   Programmatic: import { addFinding, setStatus, loadState, stats } — workers use addFinding.
 */
-import { readFileSync, appendFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, appendFileSync, writeFileSync, mkdirSync, existsSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -48,7 +48,11 @@ function ledgerDir() {
     return process.env.FINDINGS_DIR;
   }
   for (const c of [join(ROOT, '.git'), '/home/michal/Tepna/.git']) {
-    if (existsSync(c)) {
+    // In a WORKTREE `.git` is a FILE (gitdir pointer): existsSync says true, mkdir under it says
+    // ENOTDIR, and the caller's fail-soft catch turned that into review findings silently never
+    // reaching the ledger (measured 2026-08-27: 3 review journals full, ledger rows 0). Require a
+    // real directory so worktrees fall through to the primary checkout's shared state.
+    if (existsSync(c) && statSync(c).isDirectory()) {
       const d = join(c, 'tepna-mutation', 'findings');
       mkdirSync(d, { recursive: true });
       return d;
