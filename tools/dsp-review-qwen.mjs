@@ -73,8 +73,14 @@ export function pipelineBusy(psOutput) {
   return /[m]utate\.mjs --file|[m]utation-crawl\.mjs|[m]utation-ai-probe\.mjs|[m]utation-suite\.mjs --draft/.test(psOutput);
 }
 function busyNow() {
+  // GPU-aware (2026-08-27, matches qwen-idle-driver.sh): a pipeline process alone is not
+  // "busy" — the crawl's sweep phase is CPU-bound and leaves the GPU empty for hours. Yield
+  // only when pipeline procs exist AND a model is actually loaded; any overlap race just
+  // queues on ollama's serializer, which is latency, not corruption.
   try {
-    return pipelineBusy(execFileSync('ps', ['ax', '-o', 'args'], { encoding: 'utf8' }));
+    if (!pipelineBusy(execFileSync('ps', ['ax', '-o', 'args'], { encoding: 'utf8' }))) return false;
+    const ps = execFileSync('curl', ['-sf', '--max-time', '5', OLLAMA + '/api/ps'], { encoding: 'utf8' });
+    return ps.includes('"model"');
   } catch {
     return false;
   }
