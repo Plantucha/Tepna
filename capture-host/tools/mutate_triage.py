@@ -33,17 +33,21 @@ import argparse
 import glob
 import json
 import os
-import re
 import subprocess
 import sys
 import time
 
-# The CLASSIFIER lives in `mutation_triage.py`, one directory up, because that directory is inside the
-# coverage floor and this one is not. These ~40 lines of decision logic are the only part of this tool
-# that can silently mislead — the plumbing below is deliberately left uncovered. See that module's
-# header for why the split is partial on purpose.
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from mutation_triage import ceiling, classify, concentration  # noqa: E402
+# ALL DECISION LOGIC lives in `mutation_triage.py`, one directory up, because that directory is inside
+# the coverage floor and this one is not. What remains here is glob/subprocess/argparse/IO only, and
+# that is deliberately left uncovered. See that module's header for why the split is partial on
+# purpose — and for the 2026-08-27 case where two helpers were put here by mistake, went unmeasured,
+# and returned a false ZERO. If a function you are adding can give a WRONG ANSWER (as opposed to
+# failing loudly), it belongs up there, not here.
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, _ROOT)
+from mutation_triage import (  # noqa: E402
+    ceiling, classify, concentration, func_of_mutant, in_message_call, module_source_path,
+)
 
 
 def newest_scratch(module: str) -> str | None:
@@ -59,12 +63,27 @@ def mutmut_results(work: str, python: str) -> tuple[list[str], int]:
     return surv, tmo
 
 
-def mutmut_diff(work: str, python: str, mid: str) -> tuple[str, str]:
+def _read_source(path: str) -> str:
+    """The module's own text, or '' when unreadable — see `_in_message_call` for why '' is safe."""
+    try:
+        return open(path, encoding="utf-8", errors="replace").read()
+    except OSError:
+        return ""
+
+
+def mutmut_diff(work: str, python: str, mid: str) -> tuple[str, str, str]:
+    """(minus, plus, raw) — `raw` is the full `mutmut show` output.
+
+    The raw text is returned rather than discarded because the `@@` header is the only place the
+    mutant's POSITION appears, and position is what tells a CONTINUATION line of a multi-line
+    `log.info(...)` from a statement that merely sits near one. The previous signature kept the two
+    changed lines and threw the position away, so `classify`'s `in_message_call` had no way to be
+    supplied and every such mutant was judged REACHABLE."""
     out = subprocess.run([python, "-m", "mutmut", "show", mid], cwd=work,
                          capture_output=True, text=True, timeout=60).stdout
     minus = [l[1:] for l in out.splitlines() if l.startswith("-") and not l.startswith("---")]
     plus = [l[1:] for l in out.splitlines() if l.startswith("+") and not l.startswith("+++")]
-    return (minus[0] if minus else ""), (plus[0] if plus else "")
+    return (minus[0] if minus else ""), (plus[0] if plus else ""), out
 
 
 def rank_all(py: str) -> int:
@@ -87,10 +106,13 @@ def rank_all(py: str) -> int:
         if not surv:
             continue
         fns = []
+        # Read the module ONCE per module, not per mutant: `message_call_lines` parses, and a module
+        # with hundreds of survivors would otherwise re-parse the same file hundreds of times.
+        src_text = _read_source(module_source_path(_ROOT, m))
         for mid in surv:
-            a, b = mutmut_diff(work, py, mid)
-            if classify(a, b)[0] == "REACHABLE":
-                fns.append(re.sub(r".*x_?(.+?)__mutmut_\d+.*", r"\1", mid))
+            a, b, raw = mutmut_diff(work, py, mid)
+            if classify(a, b, in_message_call=in_message_call(raw, src_text, mid))[0] == "REACHABLE":
+                fns.append(func_of_mutant(mid))
         c = concentration(fns)
         rows.append((m, len(surv), tmo, c))
     rows.sort(key=lambda r: -r[3]["top_n"])
@@ -136,15 +158,18 @@ def main() -> int:
     rows = []
     n = len(surv)
     t0 = time.monotonic()
+    # Hoisted for the same reason `rank_all` hoists it: `_in_message_call` parses the module, so
+    # reading it per mutant re-parses one file once per survivor (280 times on a real pass).
+    src_text = _read_source(module_source_path(_ROOT, a.module))
     for i, mid in enumerate(surv, 1):
         if i == 1 or i % 10 == 0 or i == n:
             el = time.monotonic() - t0
             eta = (el / i) * (n - i) if i else 0.0
             print(f"\r  triaging {i}/{n}  ({100*i//n}%)  eta {eta:4.0f}s ",
                   end="", file=sys.stderr, flush=True)
-        m, p = mutmut_diff(work, py, mid)
-        bucket, why = classify(m, p)
-        fn = re.sub(r".*x_?(.+?)__mutmut_\d+.*", r"\1", mid)
+        m, p, raw = mutmut_diff(work, py, mid)
+        bucket, why = classify(m, p, in_message_call=in_message_call(raw, src_text, mid))
+        fn = func_of_mutant(mid)          # NOT a second inline regex — that copy mangled ǁ-methods
         rows.append({"id": mid, "fn": fn, "bucket": bucket, "why": why, "minus": m.strip(), "plus": p.strip()})
     print("\r" + " " * 48 + "\r", end="", file=sys.stderr, flush=True)
 
