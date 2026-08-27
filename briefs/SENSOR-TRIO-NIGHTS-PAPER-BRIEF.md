@@ -632,10 +632,43 @@ PpgDex × the 17 box nights of 2026-08-08) and it is **not** recoverable from an
    the intervals, and that DSP moved 20 times in three weeks. A caption naming the corpus and the window
    is still not enough to make the number re-derivable.
 
-⚠️ **What would settle it beyond inference:** check out `ppgdex-dsp.js` at its 2026-08-08 state, regenerate
-the 17 nights' exports, and re-run the whole-night hat. That is a real unit and is **not** done here —
-the generation attribution above rests on the code having demonstrably changed on the relevant paths, not
-on a re-run. Recorded as inference, labelled as inference.
+### ✅ SETTLED on one night, 2026-08-27 — the generation attribution is now DEMONSTRATED, not inferred
+
+The inferential link was worth one night of compute. **Pre-registered before the run**, with the band set
+from the measured night-to-night dispersion (n=23, median 1.189, MAD 0.234, robust σ 0.347):
+
+> **CONFIRMS** if `σ_old − σ_current ≥ +0.70` (2× robust σ) · **REFUTES** if `|Δ| ≤ 0.234` (1 MAD) or Δ is
+> negative · **INCONCLUSIVE** between them.
+
+**Night: 2026-08-04**, chosen and stated before running. Not the 2.365 maximum — that night
+(2026-07-29) carries only **4,756 s (1.3 h)**, and testing a *whole-night-window* claim on a 1.3-hour
+night confounds the axis under test. 2026-08-04 gives σ = 2.139 over **22,472 s (6.2 h)**: second-highest
+leverage, genuine whole night.
+
+**Design — only the generation varies.** `ppgdex-dsp.js` at `95986ceb` (2026-08-08, 1,012 lines different
+from today's) swapped into a scratch worktree; that night regenerated with `trio-batch` into the
+**scratchpad only** (`uploads/` read as source, never written). The **H10 and O2 corners are byte-identical
+in both arms**, so any movement is attributable to the PpgDex generation alone.
+
+| arm | σ_Verity | σ_H10 | σ_O2 | overlap |
+|---|---|---|---|---|
+| current DSP (`344f1fbe`) | **2.139** | 1.643 | 3.214 | 22,472 s |
+| 2026-08-08 DSP (`95986ceb`) | **4.248** | 1.846 | 3.133 | 22,713 s |
+
+**Δσ_Verity = +2.109 bpm — three times the CONFIRM threshold.** The old generation puts this night's
+Verity corner at **4.25**, in and above the 3.51 regime; the current generation cannot reach it from any
+configuration (§12). **The generation attribution is demonstrated.**
+
+⚠️ **n = 1. The full 17 nights were NOT run** — this is a spot-check that converts one inferential link
+into a measurement, not a corpus result. The direction and magnitude are established on one night; the
+corpus-median claim is not.
+
+🔑 **And an unbudgeted finding that changes how the other corners must be read: a single corner's DSP
+change moves ALL THREE recovered σ.** H10 went **1.643 → 1.846** while `ecgdex-dsp.js` was byte-identical
+in both arms — because the hat is coupled, and `σ²_H10 = ½(V_HV + V_HO − V_VO)` contains two pairwise
+variances the Verity corner participates in. **So the published H10 discrepancy (1.28 vs 1.78) cannot be
+attributed to ECGDex**; a PpgDex generation change alone shifts it. Any per-corner σ from a reference-free
+hat is a function of *every* corner's DSP generation, not just its own.
 
 ## 9. Pointers
 - Method paper: `papers/sigma-no-reference.html`; "how many nights" template: `papers/nights-icc.html`.
