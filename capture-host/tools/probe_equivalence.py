@@ -153,7 +153,17 @@ def _differences(a: list, b: list) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--module", default="polar_pmd.py")
+    # ⚠️ THE FLAG IS NARROWER THAN IT LOOKS, AND SAYING SO IS THE POINT. `battery()` is written
+    # against polar_pmd's API by name (`pmd.ECG`, PMD frame types, payload shapes), so pointing this
+    # at another module raises AttributeError on the first shape rather than probing it. That is a
+    # LOUD failure, not a false verdict — but the flag's generality is a promise this tool does not
+    # keep, and a reader discovers that only at the traceback. Measured 2026-08-28 while probing
+    # `mutation_diff.py` for the #1900 equivalences, which had to be done with a bespoke harness.
+    # Narrowed rather than given a battery registry: a registry would imply every module gets one,
+    # which is more promise than the program needs. To probe another module, write its battery here.
+    ap.add_argument("--module", default="polar_pmd.py",
+                    help="polar_pmd.py, or a module whose API `battery()` actually drives — this is "
+                         "NOT a generic prober; see the note above")
     ap.add_argument("--selftest", action="store_true", help="run the canaries only")
     ap.add_argument("--probe", nargs=2, metavar=("BEFORE", "AFTER"),
                     help="one candidate mutation to classify")
