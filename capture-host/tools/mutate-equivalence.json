@@ -4068,5 +4068,61 @@
       "probe": "EXHAUSTIVE, run 2026-08-27: every string of length 1-8 over the alphabet {a, b, .} — 9840 strings — compared rsplit('.',1)[-1] vs rsplit('.')[-1] vs rsplit('.',2)[-1]. ZERO counterexamples. Plus the real mutant-name shapes: 'cpap_stream.x_foo__x', 'a.b.c.xǁCǁm', 'x_foo', '.leading', 'trailing.', '..' — all three agree.",
       "why": "A PROOF, not a judgement: `rsplit` splits from the RIGHT, so `[-1]` is always the text after the FINAL separator occurrence. Raising maxsplit only adds splits further LEFT, which changes earlier elements and can never change `[-1]`; with no separator present every maxsplit returns `[s]`. So `s.rsplit('.', 1)[-1]`, `s.rsplit('.')[-1]` and `s.rsplit('.', 2)[-1]` are the same value for EVERY string. No input distinguishes them, so no assertion can kill this without asserting on the call's shape rather than its behaviour."
     }
+  ],
+  "mutation_diff.py": [
+    {
+      "class": "no-distinguishing-input",
+      "key": "- inside_old body: a < old_end and | + a < old_end or",
+      "probe": "CANARY-VALIDATED CORPUS, run 2026-08-28. 2004 diffs over 8 base lines carrying string literals in every structural position, across four families: single-character substitution/deletion/insertion, TWO-PAIR diffs (first pair identical), two-character window replacement, and TRANSPOSITIONS. ⚠️ THE FIRST TWO CORPORA FAILED THEIR OWN CANARIES (1/3 then 2/3) and their nulls were discarded as blind; families were added until all THREE known-killable canaries were distinguished — `continue`->`break`, `scan_is_reliable(old) and`->`or`, and the guard `a <= start and old_end`->`or`. Only then was a no-difference result treated as evidence. Canaries were widened by FAMILY, never by adding the known killer itself, which would make the canary pass trivially.",
+      "why": "The predicate's BODY is masked by its guard for every observed input. Given the filter `a <= start and old_end <= b`, and `start <= old_end` by construction of `changed_span`, we have a <= start <= old_end <= b — so `a < old_end` and `start < b` can only differ from True when a == start == old_end (a pure insertion at a span start). ⚠️ That case IS reachable in isolation (`x=\"ab\"` -> `x=z\"ab\"` yields a == start == old_end == 2), so this is NOT dead code — but the VERDICT does not change, because `inside_old` is ANDed with `inside_new` and the difference is masked. Recorded as no-distinguishing-input at the function's OUTPUT, which is what the gate observes. NOT simplified in code: 'no corpus diff changed the verdict' does not license removing a predicate, and that inference is the error this whole program exists to catch."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- inside_old body: a < old_end | + a <= old_end",
+      "probe": "CANARY-VALIDATED CORPUS, run 2026-08-28. 2004 diffs over 8 base lines carrying string literals in every structural position, across four families: single-character substitution/deletion/insertion, TWO-PAIR diffs (first pair identical), two-character window replacement, and TRANSPOSITIONS. ⚠️ THE FIRST TWO CORPORA FAILED THEIR OWN CANARIES (1/3 then 2/3) and their nulls were discarded as blind; families were added until all THREE known-killable canaries were distinguished — `continue`->`break`, `scan_is_reliable(old) and`->`or`, and the guard `a <= start and old_end`->`or`. Only then was a no-difference result treated as evidence. Canaries were widened by FAMILY, never by adding the known killer itself, which would make the canary pass trivially.",
+      "why": "The predicate's BODY is masked by its guard for every observed input. Given the filter `a <= start and old_end <= b`, and `start <= old_end` by construction of `changed_span`, we have a <= start <= old_end <= b — so `a < old_end` and `start < b` can only differ from True when a == start == old_end (a pure insertion at a span start). ⚠️ That case IS reachable in isolation (`x=\"ab\"` -> `x=z\"ab\"` yields a == start == old_end == 2), so this is NOT dead code — but the VERDICT does not change, because `inside_old` is ANDed with `inside_new` and the difference is masked. Recorded as no-distinguishing-input at the function's OUTPUT, which is what the gate observes. NOT simplified in code: 'no corpus diff changed the verdict' does not license removing a predicate, and that inference is the error this whole program exists to catch."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- inside_old body: start < b for | + start <= b for",
+      "probe": "CANARY-VALIDATED CORPUS, run 2026-08-28. 2004 diffs over 8 base lines carrying string literals in every structural position, across four families: single-character substitution/deletion/insertion, TWO-PAIR diffs (first pair identical), two-character window replacement, and TRANSPOSITIONS. ⚠️ THE FIRST TWO CORPORA FAILED THEIR OWN CANARIES (1/3 then 2/3) and their nulls were discarded as blind; families were added until all THREE known-killable canaries were distinguished — `continue`->`break`, `scan_is_reliable(old) and`->`or`, and the guard `a <= start and old_end`->`or`. Only then was a no-difference result treated as evidence. Canaries were widened by FAMILY, never by adding the known killer itself, which would make the canary pass trivially.",
+      "why": "The predicate's BODY is masked by its guard for every observed input. Given the filter `a <= start and old_end <= b`, and `start <= old_end` by construction of `changed_span`, we have a <= start <= old_end <= b — so `a < old_end` and `start < b` can only differ from True when a == start == old_end (a pure insertion at a span start). ⚠️ That case IS reachable in isolation (`x=\"ab\"` -> `x=z\"ab\"` yields a == start == old_end == 2), so this is NOT dead code — but the VERDICT does not change, because `inside_old` is ANDed with `inside_new` and the difference is masked. Recorded as no-distinguishing-input at the function's OUTPUT, which is what the gate observes. NOT simplified in code: 'no corpus diff changed the verdict' does not license removing a predicate, and that inference is the error this whole program exists to catch."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- if a <= start | + if a < start",
+      "probe": "CANARY-VALIDATED CORPUS, run 2026-08-28. 2004 diffs over 8 base lines carrying string literals in every structural position, across four families: single-character substitution/deletion/insertion, TWO-PAIR diffs (first pair identical), two-character window replacement, and TRANSPOSITIONS. ⚠️ THE FIRST TWO CORPORA FAILED THEIR OWN CANARIES (1/3 then 2/3) and their nulls were discarded as blind; families were added until all THREE known-killable canaries were distinguished — `continue`->`break`, `scan_is_reliable(old) and`->`or`, and the guard `a <= start and old_end`->`or`. Only then was a no-difference result treated as evidence. Canaries were widened by FAMILY, never by adding the known killer itself, which would make the canary pass trivially.",
+      "why": "A boundary of the containment guard that no reachable span geometry exercises: `_string_spans` returns non-overlapping half-open spans whose bounds cannot coincide with a change offset in the way these flips require. Evidenced, not argued — see the probe."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- old_end <= b) | + old_end < b)",
+      "probe": "CANARY-VALIDATED CORPUS, run 2026-08-28. 2004 diffs over 8 base lines carrying string literals in every structural position, across four families: single-character substitution/deletion/insertion, TWO-PAIR diffs (first pair identical), two-character window replacement, and TRANSPOSITIONS. ⚠️ THE FIRST TWO CORPORA FAILED THEIR OWN CANARIES (1/3 then 2/3) and their nulls were discarded as blind; families were added until all THREE known-killable canaries were distinguished — `continue`->`break`, `scan_is_reliable(old) and`->`or`, and the guard `a <= start and old_end`->`or`. Only then was a no-difference result treated as evidence. Canaries were widened by FAMILY, never by adding the known killer itself, which would make the canary pass trivially.",
+      "why": "A boundary of the containment guard that no reachable span geometry exercises: `_string_spans` returns non-overlapping half-open spans whose bounds cannot coincide with a change offset in the way these flips require. Evidenced, not argued — see the probe."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- a <= start (inside_new) | + a < start",
+      "probe": "CANARY-VALIDATED CORPUS, run 2026-08-28. 2004 diffs over 8 base lines carrying string literals in every structural position, across four families: single-character substitution/deletion/insertion, TWO-PAIR diffs (first pair identical), two-character window replacement, and TRANSPOSITIONS. ⚠️ THE FIRST TWO CORPORA FAILED THEIR OWN CANARIES (1/3 then 2/3) and their nulls were discarded as blind; families were added until all THREE known-killable canaries were distinguished — `continue`->`break`, `scan_is_reliable(old) and`->`or`, and the guard `a <= start and old_end`->`or`. Only then was a no-difference result treated as evidence. Canaries were widened by FAMILY, never by adding the known killer itself, which would make the canary pass trivially.",
+      "why": "A boundary of the containment guard that no reachable span geometry exercises: `_string_spans` returns non-overlapping half-open spans whose bounds cannot coincide with a change offset in the way these flips require. Evidenced, not argued — see the probe."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- new_end <= b | + new_end < b",
+      "probe": "CANARY-VALIDATED CORPUS, run 2026-08-28. 2004 diffs over 8 base lines carrying string literals in every structural position, across four families: single-character substitution/deletion/insertion, TWO-PAIR diffs (first pair identical), two-character window replacement, and TRANSPOSITIONS. ⚠️ THE FIRST TWO CORPORA FAILED THEIR OWN CANARIES (1/3 then 2/3) and their nulls were discarded as blind; families were added until all THREE known-killable canaries were distinguished — `continue`->`break`, `scan_is_reliable(old) and`->`or`, and the guard `a <= start and old_end`->`or`. Only then was a no-difference result treated as evidence. Canaries were widened by FAMILY, never by adding the known killer itself, which would make the canary pass trivially.",
+      "why": "A boundary of the containment guard that no reachable span geometry exercises: `_string_spans` returns non-overlapping half-open spans whose bounds cannot coincide with a change offset in the way these flips require. Evidenced, not argued — see the probe."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- saw_change = False | + saw_change = None",
+      "probe": "AST ENUMERATION, exhaustive rather than sampled: exactly THREE occurrences of `saw_change` in `string_only_verdict` — two Stores (lines 191, 197) and a single Load, `if not saw_change` (line 207). Confirmed against the same 2004-diff canary-validated corpus: no difference.",
+      "why": "A PROOF, not a judgement. The initial value's ONLY read is a truthiness test, and `not False` and `not None` are both True. There is no identity comparison, no arithmetic, no serialisation, and the variable is unconditionally reassigned to True when a span is found. No input can distinguish them."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- hi = max((getattr(n, \"end_lineno\", lo) or lo) ...) | + getattr(n, \"end_lineno\", None)",
+      "probe": "Direct: functions_covering() over a module-level function, a method, and a function nested inside a method, targeting the def line and body lines in each. Identical in every case. Also covered by the 2004-diff canary-validated corpus used for this module's other entries.",
+      "why": "A PROOF: the getattr default is consumed immediately by `or lo`. If `end_lineno` is absent the original yields `lo or lo` and the mutant `None or lo` — both `lo`. The two can only differ if `lo` itself were falsy, and `lo` is `child.lineno`, a 1-based line number that is always >= 1. So no AST, and no input, distinguishes them."
+    }
   ]
 }

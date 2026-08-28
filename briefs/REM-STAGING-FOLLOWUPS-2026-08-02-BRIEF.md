@@ -57,7 +57,12 @@ re-bundle rather than causing one; this is that deferral, named rather than skip
   why the existing known-answer test could not see it.
 
   **Where the gate now runs.** `parseNsrrXml` needs `DOMParser`, so its whole known-answer block is
-  **browser-lane only** — skipped by the Node CI that gates every PR. The two pure pieces (`stageOf`, the
+  **browser-lane only** — so the *Node* lane skips it. ⚠️ **That is not the same as "it does not run
+  on a PR", and this sentence used to read that way.** `browser-gates.yml` runs `Dex-Test-Suite.html`
+  under Playwright, and its relevance filter is a **denylist**: only `briefs/`, `audits/` and
+  `changes/` are ignored, *everything else* triggers, and an empty diff runs rather than skips. So any
+  PR touching `nsrr-adapter.js` or `tests/dex-tests.js` **does** run these assertions in CI. (Checked
+  2026-08-27 against the workflow, not inferred from this line.) The two pure pieces (`stageOf`, the
   concept vocabulary; `stagesToEpochs`, the grid arithmetic) were therefore split out and are asserted in
   **both** lanes. 44 new assertions; three mutants confirm they bite (`5:'REM'`→`'N3'` kills 2, hole-fill
   kills 1, first-block-wins-on-overlap kills 1). The browser-only legs were run headless rather than
