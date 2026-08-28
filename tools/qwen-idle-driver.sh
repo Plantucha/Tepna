@@ -40,10 +40,21 @@ cd "$WT" || exit 1
 for c in .mutation-crawl/*.crawl.json; do
   [ -e "$c" ] || break
   f=$(basename "$c" .crawl.json)
-  timeout 3600 node tools/mutation-suite.mjs --draft "$f" >> "$LOG" 2>&1
+  # --model qwen3.8:27b: owner-directed A/B 2026-08-27 (n=41 paired, temp 0, identical prompts):
+  # 3.8 kept 17 vs coder:30b 9, discordant pairs 8-0 in 3.8's favour (McNemar p=0.008), and 3.8
+  # REFUSES honestly (5) where coder emits wrong projections. Bench: tools/model-bench.mjs.
+  timeout 3600 node tools/mutation-suite.mjs --draft "$f" --model qwen3.8:27b >> "$LOG" 2>&1
 done
-# 2 · review fleet (resumable; internal pipeline-yield keeps it polite mid-file)
-timeout 7200 node tools/dsp-review-qwen.mjs >> "$LOG" 2>&1
-# 3 · adversary fleet
-timeout 7200 node tools/dsp-review-qwen.mjs --mode adversary >> "$LOG" 2>&1
+# 2 · review fleet — RETIRED 2026-08-27 at 0/30 measured precision (QWEN-ENGINEERING-PROGRAM
+# §2.5 band applied; 30-sample across 3 files: 8 guard-blind, 3 mis-located, 3 house-rule
+# INVERSIONS — the last class actively harmful). A successor needs structural fixes (adjacent
+# context window + rule-citation resolution), not tuning. Adversary mode below stays, pending
+# its own 30-sample — its concrete-attack bar is a different instrument.
+# timeout 7200 node tools/dsp-review-qwen.mjs >> "$LOG" 2>&1
+# 3 · adversary fleet — RETIRED 2026-08-27, same band, stronger method: 0/30 with 8 verdicts
+# settled by EXECUTING qwen's claimed inputs (every executable claim failed; one finding demanded
+# a fix the accused line already implements). 0/60 across both broad lenses is not a tuning
+# problem. The six NARROW lenses in stage 4 remain live pending their own 30-sample — they ask
+# traced-path questions, a different instrument class.
+# timeout 7200 node tools/dsp-review-qwen.mjs --mode adversary >> "$LOG" 2>&1
 echo "── $(date '+%F %T') driver end" >> "$LOG"
