@@ -87,6 +87,70 @@ being believed, and no more investment than that.
   (sweep-state's `startedAt` overwritten at completion) and draft attribution (G2). Per-operator
   kill rates, per-function survivor density, tier effectiveness all sit in journals no tool reads.
 
+## 3a · §E4-EXECUTED 2026-08-27 — the lane ships, and its specced mechanism was refuted
+
+### 🔴 A moved `testsHash` needs a re-TEST. This brief said re-PROBE, and that was wrong.
+
+`probeFile` **never loads `tests/dex-tests.js`**, never runs the suite, and contains zero references
+to it — checked in the function body (`dex-tests` 0 · `testsHash` 0 · `runTests` 0). It builds a realm
+from the **source** and runs batteries, so a probe finding is a property of the CODE. A better suite
+cannot move it.
+
+This was established by **building the specced lane and running it**, not by reading:
+
+| stranded file | generation 1 | after re-probe |
+|---|---|---|
+| `clock.js` | probed 13 · killable 1 · unreachable 28 · 12 findings | **byte-identical** |
+| `hrvdex-dsp.js` | probed 86 · killable 11 · unreachable 85 · 31 findings | **byte-identical** |
+
+`hrvdex-dsp.js` is the decisive case: **§E3 independently measured that its adoption KILLED 3 of its
+recorded survivors.** The re-probe saw none of it. What a moved suite changes is *which mutants still
+survive* — only re-running them against the suite answers that.
+
+**Shipped as a re-SWEEP: correct and expensive.** G3 closes either way — a file with a moved
+`testsHash` is no longer skipped forever — and the previous generation is archived before the new one
+is written, so the re-examination cannot destroy its own baseline. Routing to a probe would have
+shipped a lane that runs, reports, and *structurally cannot detect the thing it exists to detect.*
+
+### The gap, measured
+
+**29 of 29** complete crawls in `.mutation-crawl/` carry a `testsHash` that no longer matches the
+suite. Every one was being skipped permanently, including through this week's 159 draft adoptions —
+whose entire purpose is converting survivors into kills.
+
+### Two more spec-vs-reality gaps, found by wiring it
+
+- **The `.crawl.json` records no identity at all.** file/complete/killed/survivors/… and no hashes;
+  those live in the `<file>.sweep-state.json` sibling. So *"compare the crawl's recorded identity"* had
+  nothing to compare. The lane reads the sibling, and now also **stamps identity onto the result** — a
+  crawl result separated from its sibling was previously unauditable.
+- **`survivors` is a COUNT, not a list.** The list (line/op/before/after) is in the cached
+  `<file>.sweep.json`. The first wiring passed the crawl record to `probeFile`, which iterates
+  `rec.survivors`; iterating a number throws.
+
+### The convergence bug, caught by running it twice
+
+The first version re-examined the same file **forever**. A re-examination stamps the new `testsHash`
+onto the RESULT and must **not** restamp the sweep sibling — no sweep happened, and claiming one would
+be a false record. But the plan read the sibling for *both* hashes, so the fresh value was unreachable.
+
+> **Source validity belongs to the sweep; suite validity to whatever last judged.**
+
+Null control on real data: the second run prints `skip clock.js (complete and current)`. Both
+directions are planted in the selftest (unchanged identity must still SKIP; moved `testsHash` must
+not).
+
+`VOID` files stay excluded and the skip line says **why** — a VOID file measured nothing, so
+re-examining it would produce findings from a harness never shown to detect kills. That is a human's
+canary question first.
+
+### §E4b — the cheap form, and why it is a separate unit
+
+The expensive half is re-testing every mutant when only the recorded survivors need re-testing.
+`mutate.mjs` cannot currently be targeted at a recorded mutant list; giving it that turns a moved
+`testsHash` from a full sweep into a survivors-only re-test, and composes with `§E3`'s delta tool as
+the fast path of the same loop. Scoped here rather than assumed away.
+
 ## 4 · RANKED IMPROVEMENTS
 
 1. **Draft-lane journal + attribution + append semantics** (G2, half of G8) — info gain high,
@@ -134,7 +198,9 @@ has the argument; diff-scoped is the CI form) · a second verification realm.
   attributed via the journal's `ks`; write the delta beside the drafts file and a row into the
   program metrics. Acceptance: the batch-3 files show a positive measured delta, and a planted
   no-op adoption shows zero (the delta's own null control).
-- **§E4 — identity-aware re-probe lane: QUEUED** behind §E3 (shares its re-sweep machinery).
+- **§E4 — identity-aware re-examination lane: ⚠️ DONE 2026-08-27, but NOT as specced — the word
+  "re-probe" in this line was WRONG and the correction is the unit's main finding.** See §E4-EXECUTED
+  below. Spawns **§E4b**, the cheap form, which is genuinely queued.
   `complete:true` + moved `testsHash` ⇒ survivors-only re-probe, never a silent skip; VOID files
   excluded (their canary question must be answered first, by a human).
 - **§E5 — fresh-realm-per-function: QUEUED, measure-first** (realm-load cost × ~50 functions/file
@@ -160,6 +226,10 @@ has the argument; diff-scoped is the CI form) · a second verification realm.
 
 - [x] §E1 + §E2 implemented, selftested, live-runner synced (2026-08-27).
 - [ ] §E3 built; batch-3 delta measured positive; planted no-op delta measures zero.
-- [ ] §E4 lane exists; one previously-stranded file re-probed under a moved testsHash.
+- [x] **§E4 lane exists** (2026-08-27) — one previously-stranded file re-examined under a moved
+      `testsHash`, generation-archived. ⚠️ Re-**swept**, not re-probed: see §E4-EXECUTED for why the
+      probe cannot answer this question.
+- [ ] **§E4b** — `mutate.mjs` accepts a recorded mutant list, so a moved `testsHash` costs a
+      survivors-only re-TEST instead of a full sweep.
 - [ ] §7's two owner decisions recorded (either answer closes them).
 - [ ] Follow-up brief captures what §E3's first month of deltas says about §4.5–4.7's priorities.
