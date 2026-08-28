@@ -227,6 +227,61 @@ PAT number. Survivors are edge-biased, because only beats under the ceiling can 
 (§8) and a gate self-selection audit (§16) are therefore reading the same mechanism from two sides,
 and neither should be reported without the other.
 
+## 5e · 🔴 THE CENTRAL RESULT — the accepted-PAT population is indistinguishable from UNIFORM over the acceptance window
+
+The §12-class instrument is `tools/pat-per-led.mjs`, which already existed: the Verity's three
+optical channels are three independent detectors of the same beat, so differencing two cancels the
+beat and **every physiological term**, leaving detector noise, and a three-cornered hat returns σ per
+LED. Run over the capture-host corpus it answers the open cell — and then says something larger.
+
+**The open cell, closed:** TCH fiducial jitter is **1.88 – 6.33 ms per LED** (mostly 2–3 ms), against
+the literature's 5.69 ms intersecting-tangent RMSE. Two independent routes now agree: varying the
+*definition* on one signal gave ≤ 6.22 ms (§2 above), varying the *detector* on one definition gives
+2–6 ms. **The fiducial is not the limiting term, by either route.**
+
+**And then the number that matters.** PAT SD, over the 6 channel-nights that yield PAT at all:
+
+| | value |
+|---|---|
+| measured PAT SD | 128.5 · 128.5 · 128.6 · 129.9 · 130.4 · 130.6 ms (mean **129.42**) |
+| **SD of a UNIFORM distribution on the window** `[200, 650]` = 450/√12 | **129.904** |
+| ratio measured ÷ predicted | **0.9892 – 1.0054** |
+| measured PAT median | 422 · 423 · 424 · 426 · 426 · 427 (mean **424.7**) |
+| **window midpoint** (200+650)/2 | **425.0** |
+
+**Three independent signatures of uniformity, all met:**
+
+1. **SD matches 450/√12 to within ±1 %** on every channel-night.
+2. **Median sits on the window midpoint** to within 0.3 ms.
+3. 🔴 **The statistic is INSENSITIVE TO SIGNAL QUALITY.** On 2026-08-24, LED1 and LED2 have
+   foot-to-foot SD of **15427 ms and 15437 ms** — catastrophically broken detection — and produce
+   PAT SD **130.6 and 129.9**, statistically identical to LED0's **130.4**, whose foot-to-foot SD is a
+   healthy **102.0 ms**. Same on 2026-08-25: LED2 at **4676 ms** foot-to-foot yields PAT SD **128.5**,
+   identical to healthy LED0's **128.5**. **A broken channel and a working channel report the same
+   PAT SD.** No statistic that measured the signal could do that.
+
+**What this means.** On these nights the pairer is not finding a physiological lag — it is accepting
+whichever foot happens to fall inside `[PHYS_LO, PHYS_HI]`, and the resulting distribution is the
+window itself. **The reported PAT SD is therefore a CONSTANT OF THE ESTIMATOR (129.9 ms), not a
+measurement of the subject**, and it can never clear a 60 ms bar, on any hardware, at any sample rate,
+because 129.9 > 60 by construction.
+
+This is `pat-sd-is-the-window` — previously a caution about *reported SDs* — shown to be the operative
+mechanism in the live pairing path, with the channel-quality invariance as the proof no earlier
+statement had.
+
+**Label: STATISTICAL / GATING DESIGN (charter mechanism 11) — and FUNDAMENTAL for the current
+estimator, not for the devices.** §19 forbids fixing a fundamental limit with aggressive gating; here
+the gating *is* the limit. The devices are not implicated: every sensor-side term measured in this
+campaign is ≤ 11 ms.
+
+⚠️ **Scope, stated plainly.** 6 channel-nights over 2 nights, ankle site, on the nights that yielded
+PAT at all (two further nights yielded **0 %**). The three signatures are independent of one another
+and each is individually decisive, but the night count is small and a wider run belongs in §17.
+**This does not show PAT is impossible** — it shows *this estimator*, on *these nights*, reports its
+own window. Whether a narrower, physiologically-anchored window recovers signal is a separate
+question the oracle can now ask.
+
 ## 6 · Done when
 
 - [x] Per-family beat-to-beat variability measured, clock excluded by construction, gate-asserted.
@@ -235,5 +290,6 @@ and neither should be reported without the other.
 - [x] TCH independence violation surfaced as refusals rather than clamped.
 - [x] §6 ECG axis: the 160/187 @ 48 ms claim VERIFIED on an independent 448-fragment population (82.8 % @ 42.5 ms).
 - [x] The within-5-min-bin ECG residual computed per fragment: **11.15 ms median centred (MINOR)**, and the tail shown to be rate-estimation noise (σ_y ≥ |ppm| on 80.3 %), which vindicates the span gate empirically.
-- [ ] Common-mode fiducial error via the §12/§13 oracle — the only remaining cell that can explain a 60 ms failure.
+- [x] Common-mode fiducial error: TCH per-LED gives **1.88–6.33 ms**, agreeing with the definition route (≤6.22 ms). The fiducial is not the limiting term by either route.
+- [x] 🔴 **THE CENTRAL RESULT**: accepted PAT is indistinguishable from uniform over `[200,650]` — SD matches 450/√12 within ±1 %, median sits on the window midpoint, and a broken channel reports the same SD as a healthy one. The reported SD is a constant of the estimator.
 - [x] §8/§9 partial: slip structurally impossible for HR < 133 bpm (condition derived, not inherited); §8 and §16 shown to be one mechanism.
