@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-24 · **Follows:** `MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md` (§3e) · **Affects:** `tools/mutation-ai-probe.mjs`, `tools/mutation-crawl.mjs`, `tools/mutate_diff.py`, `tools/ai-probe-overnight.sh`
+**Status:** IN-PROGRESS — 2026-08-28 (**two of §6's five items shipped and were never stamped here** — their closure is recorded in a *sibling* brief. Audited item-by-item against the code and the on-disk corpus 2026-08-28; the three that remain now carry numbers instead of adjectives. See §6a.) · **Created:** 2026-08-24 · **Follows:** `MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md` (§3e) · **Affects:** `tools/mutation-ai-probe.mjs`, `tools/mutation-crawl.mjs`, `tools/mutate_diff.py`, `tools/ai-probe-overnight.sh`
 
 # The mutation pipeline reported converged for three days while discarding its own results
 
@@ -103,8 +103,71 @@ is the one that discriminates.**
 - [ ] **`before` is stored `.slice(0, 120)`** — would corrupt a replay on a longer line. **0 of 165
       records reach the cap**, so it is theoretical; recorded so it is not rediscovered as a surprise.
 
+## 6a · AUDIT 2026-08-28 — item by item, against the code and the corpus
+
+Run before proposing any work on this brief, per the house rule that a documented failure is not an
+open failure. **Two of the five were already done.**
+
+| § | item | verdict |
+|---|---|---|
+| 6.1 | `mutateAtLine` refuses an absent `after` | **OPEN — and correctly still deferred**, now with a number |
+| 6.2 | the MODIFY asymmetry | **OPEN**, still unmeasured |
+| 6.3 | scratch verdict cache, first-run control | ✅ **DONE — #1726** (`mmeta.py`) |
+| 6.4 | zero-mutant-module guard | ✅ **DONE** — refuses on the induced failure |
+| 6.5 | `before` stored `.slice(0, 120)` | **OPEN, still theoretical** — verified present |
+
+### 🔴 6.3 and 6.4 shipped, and their closure is written in a DIFFERENT brief
+
+`OXYII-G1-TRANSACTIONAL-SYNC-FOLLOWUPS-2026-08-23` records both — *"the mutation-cache re-key passed
+its first-run control (#1726, `mmeta.py`), and the zero-mutant-module guard refuses on the induced
+failure"* — while this brief has carried them as open for four days. Nobody was wrong locally: the
+work was done, and it was stamped where it was executed rather than where it was proposed.
+
+That is the third instance of this shape in one week, and the correction is the standing one:
+**stamp the closure at the narrative, not only at the changelog** — and when a sibling brief executes
+your item, the stamp is owed in BOTH places.
+
+⚠️ **6.4 shipped by a DIFFERENT mechanism than proposed, and that is worth recording rather than
+smoothing over.** This brief specified *"keyed on `exit_code_by_key` entries under the glob prefix"*;
+`mutate_diff.py` instead keys on `mmeta.generated_count(work, module, g) == 0` and a separate
+`_crashed` list, and hands `_ran` back in both cases (`_ran -= 1`). The brief's stated objection to
+the alternative — *"the `_ran` counter cannot express it: a crashed invocation increments it"* — is
+answered by decrementing it rather than by re-keying. The concern is satisfied; the proposed
+implementation is not the one that landed. A reader comparing the two would otherwise conclude the
+item was still open.
+
+### 6.1 — deferred is still right, and the deferral now has a completion percentage
+
+The brief defers this because *"every existing record lacks it, so refusing today stops the nightly
+pipeline"*, reachable *"once crawls carry `after` (#1723)"*. Measured across every
+`.mutation-crawl/*.crawl.json` on this box, 2026-08-28:
+
+> **181 of 2703 mutant records carry `after` — 6.7 %.**
+
+#1723 landed and the writer is correct (`mutation-crawl.mjs:899` records `after` beside `before`), but
+**the corpus has not turned over**. Refusing today would still stop the pipeline on 93 % of records.
+So the deferral stands — and *"deferred until crawls carry `after`"* is now *"deferred, 6.7 % of the
+way there"*, which is a condition the next reader can re-measure in one command instead of re-deriving.
+
+`mutateAtLine` currently guards `before` only (`if (!b) return null`) and takes `after` unguarded —
+verified at `tools/mutation-ai-probe.mjs:424`.
+
+### 6.5 — verified present, still theoretical
+
+`mutation-crawl.mjs:899` still stores `before: String(m.before).trim().slice(0, 120)`. Unchanged, and
+unchanged in consequence: recorded so it is not rediscovered as a surprise.
+
+### What this audit did NOT do
+
+It did not touch 6.2. The MODIFY asymmetry is *"measured, unexplained, and deliberately not guessed
+at"*, and an audit that has not run the measurement has nothing to add to that — saying so is the
+honest outcome, not a gap in the audit.
+
 ## 7 · Done when
 
-- [ ] The four deferred items above are each either built with a control that fails first, or recorded
-      as declined with a measured reason.
+- [x] **Audited 2026-08-28 (§6a)** — 6.3 and 6.4 were already built (#1726 / induced-failure refusal);
+      6.1 and 6.5 are recorded as deferred **with measurements** (6.7 % corpus turnover; the slice
+      verified present); 6.2 remains open and unmeasured, stated rather than guessed.
+- [ ] 6.1 built with a control that fails first, once corpus turnover makes refusal safe (re-measure
+      the 6.7 % before starting).
 - [ ] No diagnostic in this pipeline names a cause the code did not check.
