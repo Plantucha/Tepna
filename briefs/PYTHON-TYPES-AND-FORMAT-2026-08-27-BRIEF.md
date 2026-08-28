@@ -40,6 +40,14 @@
   `origin/main` (honest "0 changed files in scope" line when none). Advisory here is not the
   ignorable kind: both print their counts in the summary block, and the flip conditions are
   pre-stated below, not negotiable per-PR. `mypy` is pinned in `requirements-dev.txt` (new).
+- **CI carries the ratchet (advisory), added 2026-08-28.** `.github/workflows/capture-host-ci.yml`
+  runs the same command and **fails only if the count EXCEEDS the baseline** — the number may only go
+  down. It reads the baseline **from `check.sh`** rather than keeping a second copy (one number, one
+  home), **refuses** rather than assuming a value if it cannot parse one, and aggregates from mypy's
+  own `Found N errors` line rather than a tail. **CI's fresh checkout is the CANONICAL population**
+  for §P3's flip count — no untracked strays — and the job says so in its own output; a developer's
+  root checkout is the convenience measurement. Not a required context until §P3 flips it.
+
 - **§P2 — the burn-down, split by qwen's measured profile (owner-asked, owner-approved):**
   - **qwen lane (~the mechanical share):** per-error patch proposals for annotation gaps,
     Optional handling, container types. Verifier = mypy delta + full `check.sh` (the 100 % floor

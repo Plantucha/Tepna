@@ -157,6 +157,79 @@ bias ± 1.96·SD-of-diffs), so 0.10 is twice that structural floor rather than a
 ⚠️ **A zero-fragment or empty-summary result is a QUESTION before it is a finding** (§Constraints): it
 asks whether the requested range holds data at all. It is scored against neither set.
 
+## The spool as an INVENTORY ORACLE — built 2026-08-28 (owner-ratified, pure half)
+
+Every other CPAP surface answers *"what did we get"*. None can answer *"what was there"*, because a
+night we never captured leaves nothing behind to count. **The Summary spool can**: the device keeps its
+own session list, so it knows a session existed even when we captured nothing.
+
+`capture-host/cpap_inventory.py` reconciles three inventories — **spool** (what the device lists),
+**envelopes** (what we captured live), **card** (DATALOG nights) — and returns one record per
+discrepancy. Pure: no transport, no async, no BLE, no polling, modelled on `cpap_acq.py`.
+
+### 🔴 PRESENCE IS EVIDENCE; ABSENCE IS EVIDENCE ONLY FROM A SOURCE THAT WAS ACTUALLY CONSULTED
+
+This is the module's spine and it was nearly missed. **Measured by Vigil box, 2026-08-28: the spool is
+a once-daily Summary-only transaction**, so fired at therapy end an empty spool result is the
+*expected* case on the second and later sessions of a day. A reconciliation reading that emptiness as
+*"the device lists no sessions"* would mark every such night `SPOOL-SILENT` — **a manufactured
+discrepancy per night, forever, from a source nobody read.**
+
+So each inventory carries a `consulted` flag. An unconsulted source contributes its **presences** and
+none of its **absences**; a night whose classification would rest on an unconsulted absence returns
+`NOT-DIAGNOSABLE`, naming the unread source.
+
+⚠️ **On the card side I had this BACKWARDS at first, and the correction is instructive.** I wrote
+`barren` as `card_consulted=False`. It is **True** — `barren` means the walk RAN and the card
+**answered** holding nothing, which is a real absence and therefore evidence. The unread case is the
+harvest's two **early exits**: Wi-Fi never came up, or the listing threw, the latter being the exit an
+**absent** card takes. I was deriving *"was the instrument pointed at the subject"* from what the
+instrument RETURNED — the exact inference this flag exists to forbid, made while building the flag.
+The transport now reports `consulted` explicitly, and this module reads it rather than inferring.
+
+### The seven states, enumerated because they have OPPOSITE remedies
+
+| (spool, envelope, card) | state | what to do |
+|---|---|---|
+| `T F F` | `MISSED-BOTH` | it happened and nothing of ours recorded it |
+| `T F T` | `MISSED-LIVE` | data recoverable by harvest; the realtime waveform is not |
+| `T T F` | `NOT-ON-CARD` | harvest is behind, or the card rotated it away |
+| `F T T` | `SPOOL-SILENT` | our data is fine and our **inventory** is not |
+| `F F T` | `UNSPOOLED-CARD-NIGHT` | outside the spool's window — absence proves nothing |
+| `F T F` | `ENVELOPE-ONLY` | impugns **our** record: a clock mismatch, or an empty session |
+| `T T T` | `COMPLETE` | not a discrepancy, but counted so that zero records is legible |
+
+Folding these into a count would produce a number nobody can act on. *"Missing from somewhere"* is not
+an actionable sentence.
+
+### Refusals
+
+**All three empty is `ok: false`, never "no discrepancies"** — the two produce the same empty list and
+mean opposite things. The refusal is carried through to the QC field (`discrepancies: null`, not `0`)
+and produces **one** journal line, because zero lines is what a healthy night produces.
+
+Unparseable entries are **returned**, never dropped: silently discarding one shrinks an inventory
+without saying so, which is how a reconciliation reports an agreement it never had.
+
+### ⚠️ The join key is the NIGHT, and that is a deliberate loss
+
+Only the night is common to all three sources, so a night with two sessions reconciles as one unit and
+a session crossing midnight is attributed to its start night. A per-session join needs a device-side
+session id that Summary does not expose. This oracle answers *"was this night accounted for"*.
+
+### Not yet wired — deliberately
+
+The call site is **Vigil box's**: a no-op-by-default `on_harvest_complete(result)` hook at
+`_cpap_loop`'s terminal `_st(...)`, so either half can land first. ⚠️ **Mutator's original framing —
+that the therapy-end trigger fires harvest *and* spool — is wrong**: it fires harvest only, and the
+spool has its own site with a config-time refusal when its window overlaps harvest's, because both are
+2.4 GHz on one box. Whether the spool should follow therapy-end is **deferred into the §2 BLE
+coexistence matrix**; a deliberate coexistence rule moves on that matrix's numbers or not at all. The
+consulted-flag design makes the oracle timing-agnostic, so nothing here blocks on that decision.
+
+**23 tests, 100 % statement + branch on the module**, both directions of the consulted asymmetry
+planted on identical inputs.
+
 ## Constraints (inherited, non-negotiable)
 - Read-only RPCs only; no writes to the device, ever.
 - No connection held during live streaming; defer and retry.

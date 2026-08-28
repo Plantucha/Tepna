@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** REFERENCE (living) · **last-verified:** 2026-08-17 · **Serves:**
+**Status:** REFERENCE (living) · **last-verified:** 2026-08-28 · **Serves:**
 `FIXTURE-CORPUS-REACHABILITY-2026-08-09-BRIEF.md` §3
 
 # Where the raw recordings actually are
@@ -25,6 +25,39 @@ is discoverable from a checkout, which is why this file exists.
 > (`corpusSearch` in `tools/regen-goldens-core.mjs`: `$DEX_UPLOADS` → the **primary checkout**'s
 > `uploads/` → this checkout's), and print the search when they refuse. You should not need
 > `DEX_UPLOADS` by hand for the primary-checkout case.
+
+## 🟢 CONSOLIDATED 2026-08-28 — `/srv/data/tepna-corpus/` is THE canonical corpus (owner-ordered)
+
+Every local tree was merged into **one corpus root on the second disk**, each source verified
+contained before deletion, and every old path replaced by a **symlink** so existing tools and
+habits keep working unchanged:
+
+| canonical subtree | contents |
+|---|---|
+| `/srv/data/tepna-corpus/uploads/` | the merged uploads superset — `captures/` (27 phone/box nights), `vigil-captures/`, `Ecg nightly/` (incl. `CPAP/`, 192+ nights), `trio/`, `synthetic/`, loose EDFs |
+| `/srv/data/tepna-corpus/smoketest-captures/` | the 42-night capture-host tree (was `/srv/data/tepna-smoketest-captures`) |
+| `/srv/data/tepna-corpus/workshop-imports/` | data rescued from the `~/tepna-smoketest` workshop (`cpap-card/`, `ecg-corpus-nights/`, dex exports) |
+
+**Symlinks left at the old places** (all resolve into the corpus): the primary checkout's
+`uploads/<untracked paths>` (391 paths — the ~136 git-**tracked** files remain real files, so git
+sees no change), `/srv/data/Tepna/uploads`, `/srv/data/tepna-smoketest-captures`,
+`~/tepna-fold/captures/2026-07-27`, `~/tepna/captures/2026-07-19`, `~/Downloads/tepna-night-20260726`,
+and the workshop's `night-2026-07-26/*`. `corpusSearch` and `DEX_UPLOADS` need no change — the
+primary checkout's `uploads/` still satisfies them, through the links.
+
+**vigil feeds it daily:** `tepna-archive-pull.timer` (13:30, after the box's 13:00 SD harvest)
+pulls `vigil:/srv/tepna/captures/` → `uploads/vigil-archive/captures/`, which now lands on
+`/srv/data` through the symlink — the old fill-the-root-disk hazard is gone by construction.
+
+**Backups:** the sdb NTFS disk (`/run/media/michal/data/tepna-archive/` — checksum-verified
+contained, plus a full `corpus/` mirror refreshed from the canonical root) and the Windows volume
+`<647A>` (`Ecg nightly` + `Tepna/uploads`, presence+size-verified contained 2026-08-28, left
+untouched as a cold copy — it is a Windows system disk and gets no symlink surgery).
+
+Verification levels, stated per source: home `uploads/` and all small trees — **checksum** (zero
+diffs before deletion); sdb archive — **checksum** clean (2 unique `.trio-stamp` files imported);
+`<647A>` — **presence+size** only. The historical sections below are kept: every lesson in them
+still applies, and several paths they name are now symlinks into the corpus.
 
 ## The four locations
 
