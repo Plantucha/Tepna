@@ -144,12 +144,68 @@ not).
 re-examining it would produce findings from a harness never shown to detect kills. That is a human's
 canary question first.
 
-### §E4b — the cheap form, and why it is a separate unit
+### §E4b — EXECUTED 2026-08-27: the cheap form, and what "cheap" actually costs
 
-The expensive half is re-testing every mutant when only the recorded survivors need re-testing.
-`mutate.mjs` cannot currently be targeted at a recorded mutant list; giving it that turns a moved
-`testsHash` from a full sweep into a survivors-only re-test, and composes with `§E3`'s delta tool as
-the fast path of the same loop. Scoped here rather than assumed away.
+`mutate.mjs --only <list.json>` re-tests a **recorded mutant list** — exactly what a sweep already
+writes, `<file>.sweep.json`'s `survivors`, each `{ line, op, before, after }`.
+
+#### Verified against a real oracle, not a planted one
+
+§E4 left a full generation-1 → generation-2 sweep of `hrvdex-dsp.js` on disk, so the answer was known
+before the shortcut ran:
+
+| | mutants | KILLED |
+|---|---|---|
+| full sweep (§E4) | 490 tested | **8** movers |
+| survivors-only re-test (§E4b) | **171** judged | **8** |
+| set difference | | **0 either way** |
+
+Mutant for mutant, not merely count for count.
+
+#### 🔴 The saving is ~3× smaller than the counts suggest — SURVIVORS ARE THE EXPENSIVE POPULATION
+
+Like-for-like, both with `--bail` as the crawl runs it: **35 % of the mutants took 70 % of the
+time** — 3 m 12 s against the full sweep's 4 m 35 s. (Without `--bail` the re-test took 2 m 41 s, i.e.
+59 %, but that is not the crawl's configuration and is the flattering number.)
+
+The mechanism is structural and generalises to *any* survivor-scoped work: **a killed mutant exits at
+its first failing group; a survivor runs all 27.** The full sweep was 326 cheap kills plus ~164
+expensive survivors, and the shortcut deletes precisely the cheap half. ⚠️ Note the direction: `--bail`
+makes the full sweep's kills *cheaper*, so enabling it makes the shortcut save **less**, not more —
+59 % → 70 %. The configuration that speeds up the baseline shrinks the shortcut's advantage.
+
+**So quote the measured ratio and the mechanism, never the count ratio.** Reading 490 → 171 as a cost
+ratio overstates the saving threefold.
+
+#### Bail-independence — why the match holds regardless
+
+The crawl passes `--bail` and the first re-test did not, which makes the two wall-clocks
+non-comparable but leaves the **verdicts** untouched: bail changes how many groups run *after* the
+first failure, never whether one failed. A mutant killed with bail is killed without it.
+
+#### It REFUSES rather than guessing — three modes, each naming its cause
+
+The key `line \0 op \0 before` **is not unique** (`pulsedex-dsp.js:197` carries two `num → 0` mutants
+with identical `before`; in 2026-08-25 a draft fused one mutant's input with the other's output and
+reached `main`). `after` disambiguates and, unlike an index, does not shift when code above is edited.
+
+- an entry that cannot name ONE mutant → **MISS**, nothing selected;
+- a 4-field key still matching two → **AMBIGUOUS**;
+- an entry matching nothing → the **source moved**, so sweep cold — which is what §E4's `crawlPlan`
+  already decides on a moved `srcHash`. The two interfaces agree by construction.
+
+Any of the three refuses the **whole run**. The shortcut's product *is* the denominator, so every way
+of silently getting a smaller one has to be loud: a partial re-test and a complete one look identical
+in the output, differing only in a number nobody can check.
+
+⚠️ **`--limit` is forced to `Infinity` under `--only`** — the default 60 would have quietly thinned a
+171-survivor list to 60, a smaller denominator reported as a complete answer, inside the very flag
+built to prevent that.
+
+#### Recorded expectation
+
+**0 new survivors** in generation 2: *a killed mutant did not become a survivor* under a better suite,
+on this file. Written down so the day it fails, it is a finding rather than noise.
 
 ## 4 · RANKED IMPROVEMENTS
 
@@ -229,7 +285,9 @@ has the argument; diff-scoped is the CI form) · a second verification realm.
 - [x] **§E4 lane exists** (2026-08-27) — one previously-stranded file re-examined under a moved
       `testsHash`, generation-archived. ⚠️ Re-**swept**, not re-probed: see §E4-EXECUTED for why the
       probe cannot answer this question.
-- [ ] **§E4b** — `mutate.mjs` accepts a recorded mutant list, so a moved `testsHash` costs a
-      survivors-only re-TEST instead of a full sweep.
+- [x] **§E4b DONE 2026-08-27** — `mutate.mjs --only <list.json>` re-tests a recorded mutant list.
+      Verified against a real oracle: it reproduces the full sweep's 8 movers EXACTLY (see §3b).
+      ⚠️ The saving is real but ~3× smaller than the mutant counts imply — survivors are the
+      expensive population by construction.
 - [ ] §7's two owner decisions recorded (either answer closes them).
 - [ ] Follow-up brief captures what §E3's first month of deltas says about §4.5–4.7's priorities.
