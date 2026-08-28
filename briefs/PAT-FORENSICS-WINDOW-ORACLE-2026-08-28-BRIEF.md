@@ -143,11 +143,70 @@ crystal drifts at a fixed ppm, a vasomotor trend does not.
 **Status of the 20–40 ms: still unexplained, but its SHAPE is now known** — a slow trend, not noise
 and not respiration. That is two of three candidate shapes eliminated on 8 of 8 nights.
 
+## 6b · The trend is NOT the inter-device clock — 8/8
+
+§6 left the trend's origin open between instrumental drift and slow physiology. The discriminator
+needs a **third reference**, because the obvious comparison is circular: `lag_n − lag_0 ≡ Σff − Σrr`
+is an **algebraic identity**, true whatever the cause, so cross-device lag versus internal intervals
+discriminates nothing. (Asserted in the tool's selftest so it is not re-derived.)
+
+On box captures the third reference exists — each device's own `hostAxis`, verified independent here
+(`spreadMs` 715 ms ECG / 1225 ms PPG, `timingSource: "device+host"`). If the trend is instrumental it
+is the *difference* of the two devices' rates, and therefore **predictable**:
+
+> predicted lag drift = (ppm_PPG − ppm_ECG) × 1e-6
+
+with a device whose correction was **applied** contributing 0 rather than its ppm. ECG is applied on
+these nights (span ≫ 2400 s) so contributes 0; **the PPG's correction is computed and then discarded**
+by the fractional-subscript bug, so it contributes its raw rate.
+
+| night | predicted | censored slope | **RAW slope** | ratio | raw R² | verdict |
+|---|---|---|---|---|---|---|
+| 2026-07-18 | −45.8 | −2.0 | **+1.4** | 33.74 | 0.00 | CLOCK DOES NOT EXPLAIN |
+| 2026-07-20 | −30.0 | +6.1 | **+11.9** | 3.51 | 0.12 | CLOCK DOES NOT EXPLAIN |
+| 2026-07-24 | −15.4 | +2.7 | **+17.7** | 1.87 | 0.12 | CLOCK DOES NOT EXPLAIN |
+| 2026-07-28 | −23.7 | +10.2 | **+16.9** | 2.40 | 0.20 | CLOCK DOES NOT EXPLAIN |
+| 2026-08-02 | −29.8 | +45.2 | **+51.6** | 1.58 | 0.60 | CLOCK DOES NOT EXPLAIN |
+| 2026-08-13 | −33.1 | −14.7 | **−6.4** | 4.20 | 0.01 | CLOCK DOES NOT EXPLAIN |
+| 2026-08-17 | −25.5 | +2.1 | **−3.1** | 7.35 | 0.01 | CLOCK DOES NOT EXPLAIN |
+| 2026-08-24 | −31.0 | +13.1 | **+24.2** | 2.28 | 0.38 | CLOCK DOES NOT EXPLAIN |
+
+(ppm = ms of lag per 10⁶ ms elapsed.)
+
+**Three independent reasons the clock is eliminated:**
+
+1. **Sign.** The clock predicts a *negative* drift on all 8 nights; the observed drift is **positive on
+   6 of 8**. A magnitude mismatch could be a modelling error; a sign reversal is not.
+2. **Magnitude.** Ratios 1.58 – 33.74, every one far outside the 0.7 band.
+3. **Linearity.** A fixed-ppm crystal offset is straight. Raw R² is **0.00 – 0.60, median ~0.12** — the
+   trend is not linear, so it is not a constant-rate instrumental offset.
+
+🔴 **The verdict is robust to its one modelling assumption.** If the PPG's effective rate were **0**
+instead of its raw ppm (i.e. if `fs` estimation happens to track the device rate), the ratio becomes
+`|obs − 0|/|obs| = 1.0` — **still above the 0.7 band on every night**. The conclusion does not depend
+on that choice.
+
+⚠️ **Measured UNCENSORED, deliberately.** The oracle's accepted set keeps only beats inside
+mode±100 ms, so a drifting lag is truncated: the slope is biased toward zero and, where the window is
+mis-centred, the survivors are selected *against* the drift direction, which can flip the apparent
+sign. Comparing an uncensored prediction against a censored observation is not a fair test, and the
+first version of this tool did exactly that and reported a confident 8/8 off it. Both arms are shown;
+the RAW arm decides.
+
+⚠️ **Remaining caveats:** raw lags use the nearest-forward foot, so they include mispairings — noise,
+and a systematic bias only if the mispairing rate itself trends across the night. 8 nights, and they
+are the oracle's STRONG set rather than a random sample.
+
+**So the slow trend is not the clock.** What remains for it: slow physiological variation (BP,
+vasomotor tone, posture, sleep stage) or an instrumental effect the host axis cannot see (sensor
+warming, contact drift, wear shift). This brief does not choose between those.
+
 ## 7 · Done when
 
 - [x] Out-of-sample design, circular-shift null, gate-asserted with a noise control.
 - [x] Full-corpus run; strong/marginal/none separated by null margin.
 - [x] Mode-outside-window nights identified and counted.
 - [x] The 20–40 ms residual's SHAPE: a slow trend on 8/8 nights — not white, not respiratory, no coherent HR dependence.
-- [ ] Its SOURCE: instrumental drift vs slow physiological trend — the bands could not separate these and the discriminator is named in §6.
+- [x] Its SOURCE, partially: the **inter-device clock is ELIMINATED** on 8/8 by sign, magnitude and non-linearity, robust to the effective-ppm assumption.
+- [ ] What remains: slow physiology (BP/vasomotor/posture/stage) vs an instrumental effect invisible to the host axis (warming, contact drift).
 - [ ] Whether the 22 unscored nights differ systematically from the 20 scored.
