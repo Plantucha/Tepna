@@ -78,6 +78,49 @@
   verifier — and it catches a class the other rails structurally cannot see, a reply answering in
   **prose**, which contains neither `Any` nor a bare ignore.
 
+- **§P2b — THE FROZEN TRIAGE TABLE (queue exhausted 2026-08-28 02:32; n = 12, the whole population).**
+  Every mechanical-class error the lane can see has now been asked once. This is the artifact the
+  owner's band decision is made against.
+
+  | # | site | proposal | verdict |
+  |---|---|---|---|
+  | 1 | `status_union.py:95` (devices) | — | **RAIL**: identical to the original |
+  | 2 | `status_union.py:95` (streams) | — | **RAIL**: identical to the original |
+  | 3 | `cpap_edf.py:129` | `per_sig: list[list[int]]` | ✅ accept — `unpack_from("<{cnt}h")` yields ints |
+  | 4 | `nightqc.py:472` | `out: list[bool]` | ❌ **EYES**: the function does `out.append({…})` |
+  | 5 | `nightqc.py:1111` | `out: list[str]` | ❌ **EYES**: same — appends dicts |
+  | 6 | `nightqc.py:1665` | `missing: list[str]` | ✅ accept — appends an f-string (:1695) |
+  | 7 | `nightqc.py:1667` | `optional_absent: list[str]` | ✅ accept — same site |
+  | 8 | `adapter_ab.py:58` | `out: dict[str, object]` | ✅ accept **with the `object` note** |
+  | 9 | `probe_verity_offline.py:79` | `asyncio.Queue[bytes]()` | ✅ accept — restates one line more than needed |
+  | 10 | `probe_verity_survey.py:430` | `best: list[tuple[int, int]]` | ❌ **EYES**: :444 assigns a list of **dicts** |
+  | 11 | `capture.py:4055` | `dev: dict[str, object]` | ✅ accept **with the `object` note** |
+  | 12 | `tests/test_cpap_stream.py:903` | `instances: list[_FakeBleak]` | ✅ accept — appends `self` |
+
+  **Three-way split over n = 12:** accepted **7** · rejected by RAIL **2** · rejected by EYES **3** ·
+  unverified **0**.
+
+  **Acceptance rate 7/12 = 58 %.** Counting only the five accepts that carry no `object` caveat gives
+  **5/12 = 42 %**. ⚠️ **Both readings clear the 30 % bar — but on a sample of 12, not the 30 the band
+  names.** The rate is not near the bar; the SAMPLE SIZE is the whole question, which is why it goes to
+  the owner rather than being resolved here.
+
+  **The wrong-annotation mechanism, three of three times: HINT PATTERN-COMPLETION.** Rows 4, 5 and 10
+  each fill mypy's `list[<type>]` placeholder with a plausible element type **never checked against
+  what the code puts in the list**. Row 10 is the starkest — the model proposed `tuple[int, int]` for a
+  variable the very next lines assign a list of dicts to. All three are annotations a hurried human
+  would wave through.
+
+  **The rail's own contribution is visible and small:** 2 of 12 caught before a human looked, both the
+  same failure — the model echoing the original line unchanged when it could not infer a type. That is
+  the vacuity guard, and without it those two score as accepts and the rate reads 9/12.
+
+  ⚠️ **A correction to this brief's own earlier note:** rows 6 and 7 were reported UNVERIFIED because
+  `grep 'missing\.append'` found nothing. The append is real and at `:1695` —
+  `(optional_absent if opt else missing).append(...)`. **A `grep X.append` misses
+  `(A if cond else X).append`**, and reading that absence as "no appends" would have left two correct
+  proposals permanently unscored.
+
 - **§P3 — the flips, pre-stated.** ⚠️ **Measure the flip count in a tree matching CI's population** —
   a fresh checkout with no untracked files — per §0's tree caveat. A count taken in a working tree
   fires the flip early or late off files CI will never see. mypy flips BLOCKING when the count reaches 0 (typed-ignores
