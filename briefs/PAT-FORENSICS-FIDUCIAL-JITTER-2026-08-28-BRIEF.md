@@ -91,9 +91,55 @@ wrong *together* — the whole upstroke displaced by noise, a slow rise, an arte
 beat labels / manually-reviewed feet). Reporting this bound as if it were the absolute answer would
 be the same over-claim the axis brief had to correct one day earlier.
 
-## 5 · §6 — ECG R-peak jitter
+## 5 · §6 — the ECG axis: the comment's claim is VERIFIED on an independent population
 
-⬜ Pending in this brief; the ECG population work is recorded below and in §6 of the parent.
+`ecgRpeakTimes`' source comment claims *"on 160 of 187 real ECG fragments the ppm path is REFUSED by
+its 40-min span gate … median divergence 48 ms on refused fragments (max 1479 ms)"*. The charter
+forbids accepting that on faith. Re-measured on a **different** corpus — 505 `*_ECG.txt` under
+`tepna-smoketest/captures` (`find -L`), 448 parsed:
+
+| | comment (187 fragments) | this measurement (448 fragments) |
+|---|---|---|
+| ppm **refused** | 160/187 = **85.6 %** | 371/448 = **82.8 %** |
+| median divergence on refused | **48 ms** | **42.5 ms** |
+| max | 1479 ms | 3128 ms |
+
+**VERIFIED.** Two populations, ~2.4× apart in size, agreeing to 3 points of percentage and 5.5 ms of
+median. The mechanism is confirmed too: of the gate's four conditions, **`spanMs >= 2400 s` passes
+only 77/448** while **`independent === false` is 0/448** — the span gate is the *sole* binding
+constraint here, exactly as claimed. (`spanMs` median 427 s against a 2400 s bar; `ppm` median
+−34.9, p10 −815, p90 +257.)
+
+⚠️ **Two false starts got there, and both are the same error.** First `tMsCorrected` → "93.7 %
+applied", which reads as a clean *refutation* — but it is a different gate, and the source says so
+outright: *"the ppm is span-gated, the interpolation is not."* Then `hostAxis.totalMs` as the span →
+"0/448 pass", with anchor spans of −0 s against 349 s fragments: not credible, wrong field again. The
+rec exposes **`applied`** and **`spanMs`** *by name*. **Three times in this campaign, reading the
+named field instead of a plausible proxy changed the answer** — and here the proxy manufactured a
+false refutation, the more dangerous direction.
+
+🔴 **42.5 ms is the fragment-END divergence, NOT what PAT eats** — the same discipline the axis brief
+had to apply to its own 34.5 ms. `coupledPAT` centres within a 5-minute bin, so the decision-relevant
+quantity is `|ppm| × 300 s`, not `|ppm| × span`. At the median ppm that is ~10 ms per bin; in the p10
+tail (−815 ppm) it is ~245 ms. **That within-bin figure is not yet computed per fragment** and is
+carried forward — quoting 42.5 ms as the PAT error term would repeat the mistake this campaign has
+now caught twice.
+
+**Label: ENGINEERING LIMITATION, not a bug.** The span gate is deliberate and correct — a *rate*
+needs a baseline, and the source records the measurement behind the 2400 s knee. Refusing to quote a
+rate from a 427 s fragment is the honest behaviour; the cost is that 83 % of fragments carry an
+uncorrected axis.
+
+## 5b · §17 — the two corpora differ in clock provenance
+
+| corpus | `independent` | reading |
+|---|---|---|
+| `uploads/` Polar PPG (phone) | **false 8/8** (spreadMs 0.98–1.00 ms) | no second clock |
+| `tepna-smoketest/captures` ECG (box) | **false 0/448** | two real clocks |
+
+The comment's *"every H10 ECG capture in this corpus is a phone capture"* is true of **its**
+population and false of this one. **Every claim here must carry its population** — the box/phone
+split is not a detail, it decides whether a second clock exists at all.
 
 ## 6 · Done when
 
@@ -101,5 +147,6 @@ be the same over-claim the axis brief had to correct one day earlier.
 - [x] Pre-stated closed bands; all 28 pairs classified.
 - [x] Pooling hazard found, corrected, and documented.
 - [x] TCH independence violation surfaced as refusals rather than clamped.
-- [ ] §6 ECG R-fiducial jitter in ms.
+- [x] §6 ECG axis: the 160/187 @ 48 ms claim VERIFIED on an independent 448-fragment population (82.8 % @ 42.5 ms).
+- [ ] The within-5-min-bin ECG residual (|ppm| × 300 s) per fragment — the decision-relevant figure.
 - [ ] Common-mode fiducial error via the §12/§13 oracle.
