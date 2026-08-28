@@ -1,0 +1,7 @@
+# tepna-capture — development/gate dependencies (runtime deps live in requirements.txt)
+# Install on top of the runtime venv:  .venv/bin/pip install -r requirements-dev.txt
+mypy>=1.14          # advisory type gate (PYTHON-TYPES-AND-FORMAT-2026-08-27) — flips blocking at 0 errors
+ruff>=0.8           # lint (blocking) + `ruff format` (black-compatible style; changed-files advisory)
+pytest>=8
+pytest-cov>=6
+pytest-asyncio>=0.24
