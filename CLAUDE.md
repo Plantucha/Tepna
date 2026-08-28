@@ -435,6 +435,20 @@ view reports. ⚠️ A merge queue would fix this properly and **is not availabl
 *organisation*-repository feature and Tepna is user-owned (verified 2026-08-16 — this is availability,
 not a cost tradeoff, and an earlier note here got that wrong).
 
+🟢 **KODIAK NOW RUNS THIS LOOP (App trial adopted 2026-08-27; measured 2026-08-28; owner-granted
+note).** Everything above describes GitHub-**native** auto-merge and stays true of that mechanism —
+but since the `kodiakhq` App was installed (`.kodiak.toml`, `require_automerge_label = false`),
+every non-draft PR without a `do-not-merge` label sits in Kodiak's own serial queue: it updates the
+front PR when it goes BEHIND, waits for CI, merges, repeats — the "update ONE green PR → let it
+merge → update the next" protocol, automated. Measured on **#1914**: pushed with auto-merge NOT
+armed and zero labels; `kodiakhq[bot]` updated its branch unprompted once the front merged, then
+merged it (`merged_by: kodiakhq[bot]`); reconfirmed the same night on #1917 and #1918. Arming
+`--auto` is harmless but adds nothing; the two adoption-day stalls (#1888/#1907) that read as
+"Kodiak ignores unarmed PRs" were install-window artifacts. A PR sitting BEHIND while the queue's
+front is mid-CI is Kodiak **serialising, not stalling** — leave it. To HOLD a PR, mark it Draft or
+label `do-not-merge`. `queue-doctor`/`land-pr` below remain the fallback and the diagnostic if the
+App is ever removed or its queue wedges.
+
 ```sh
 node tools/queue-doctor.mjs --dry-run   # what is green-and-stuck right now, and what it would update
 node tools/land-pr.mjs <PR#>            # keeps the branch current, merges the moment it can
