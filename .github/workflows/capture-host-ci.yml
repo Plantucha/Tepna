@@ -353,7 +353,7 @@ jobs:
       - name: Dependency review (advisory)
         if: github.event_name == 'pull_request' && needs.changes.outputs.run == 'true'
         continue-on-error: true   # advisory until the flip; the report is the product
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@v5
         with:
           fail-on-severity: high
           comment-summary-in-pr: never   # the job log is the surface; PR comments are noise at our cadence
