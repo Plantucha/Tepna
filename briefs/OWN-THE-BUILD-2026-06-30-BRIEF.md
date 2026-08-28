@@ -326,8 +326,8 @@ file at a time.
 Today the static-analysis layer is thin: only `.github/workflows/types.yml` runs `tsc --noEmit --checkJs`
 over the CORE layer. That is the mypy analog, scoped narrowly. Three cheap complements, ordered by
 value-per-risk. **All three are hygiene, subordinate to `Dex-Test-Suite.html` + the provenance gates** —
-a wall of green static checks must NEVER read as "the science is tested." (Reinforced by the sibling
-VariDex audit: a repo can run black + flake8 + mypy all-green while its core classifier is effectively
+a wall of green static checks must NEVER read as "the science is tested." (Reinforced by an audit of a
+sibling project: a repo can run black + flake8 + mypy all-green while its core classifier is effectively
 untested — static analysis cannot see an inverted `try/except` or a wrong result. Correctness confidence
 comes only from the behavior + equiv gates.)
 
