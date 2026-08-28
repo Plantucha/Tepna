@@ -372,7 +372,8 @@ These are the real-validation front. Each names the **stack dependency** so sequ
     under-calling REM ~4× on real nights);
   - it is blocked on **records only** — NSRR requires a signed DUA and the suite is 100 % local, so this
     needs a human to drop EDF + annotation-XML pairs in. That is a materially cheaper unblock than
-    building a node.
+    building a node. **CANCELLED — owner, 2026-08-28: no DUA will be pursued; revisit only if
+    records ever arrive** (see REM-STAGING-FOLLOWUPS-2026-08-02 §2b for the standing stamp).
   - **Carry the domain-shift caveat:** NSRR is clinical PSG on a clinical population, not a consumer
     chest strap on a healthy sleeper at home. A detector tuned on NSRR and deployed on H10 data inherits
     a domain shift, and the real-night falsifiers remain the only check that survives the move — a good
