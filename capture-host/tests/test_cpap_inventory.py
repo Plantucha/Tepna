@@ -16,10 +16,28 @@ import cpap_inventory as ci
 
 
 # ── night_key ────────────────────────────────────────────────────────────────────────────────────
-def test_night_key_accepts_the_three_shapes_that_actually_occur():
+def test_night_key_accepts_the_shapes_that_actually_occur():
     assert ci.night_key("20260827") == "20260827"                 # DATALOG folder
     assert ci.night_key("2026-08-27T22:14:05") == "20260827"      # ISO envelope stamp
     assert ci.night_key("2026-08-27 22:14") == "20260827"
+
+
+def test_a_DIGIT_BEARING_PREFIX_does_not_corrupt_the_night():
+    """⚠️ REGRESSION PAIR — each half alone is satisfied by a version that breaks the other, which is
+    exactly what happened.
+
+    The first implementation concatenated every digit in the string, so the live-envelope filename
+    `AS11_20260827_BRP.edf.meta.json` became "1120260827" and its leading eight "11202608" — year
+    1120, rejected, night silently LOST. The protocol name is part of the filename; this is the
+    ordinary input.
+
+    The first FIX scanned digit runs instead — and an ISO stamp has no eight-digit run at all, so it
+    returned None for every envelope timestamp. The test above caught that within one run.
+
+    Both are asserted here together so neither single-pass version can pass again."""
+    assert ci.night_key("AS11_20260827_BRP.edf.meta.json") == "20260827"   # digit-bearing prefix
+    assert ci.night_key("AS11_2026-08-27_BRP.meta.json") == "20260827"     # …and separators too
+    assert ci.night_key("2026-08-27T22:14:05") == "20260827"               # the case the fix broke
 
 
 def test_night_key_refuses_rather_than_guessing():
