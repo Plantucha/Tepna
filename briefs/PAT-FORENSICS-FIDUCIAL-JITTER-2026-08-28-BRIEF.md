@@ -189,6 +189,44 @@ The comment's *"every H10 ECG capture in this corpus is a phone capture"* is tru
 population and false of this one. **Every claim here must carry its population** — the box/phone
 split is not a detail, it decides whether a second clock exists at all.
 
+## 5d · §8/§9 partial — forward beat-slip is structurally impossible, with a stated HR condition
+
+Read from `coupledPAT` (`pat-feasibility-worker.js`), recorded here so the charter's §8/§9 cells are
+not left looking unvisited while the oracles run.
+
+**The pairer takes the FIRST foot whose lag lies in `[PHYS_LO=200, PHYS_HI=650]` ms after R, then
+breaks** — not the nearest, not the best. A slip (taking beat *i+1*'s foot for beat *i*) therefore
+requires **both**:
+
+1. beat *i*'s own foot to be missing — otherwise it is found first and the loop breaks; **and**
+2. beat *i+1*'s foot to land inside the window: `RR + PAT_true ≤ PHYS_HI`.
+
+Condition 2 is the structural one. Taking the most permissive true PAT the window admits
+(`PAT = PHYS_LO = 200 ms`):
+
+```
+RR ≤ 650 − 200 = 450 ms   ⇒   HR ≥ 133 bpm
+```
+
+At a more typical `PAT ≈ 250 ms` the requirement is `RR ≤ 400 ms`, i.e. **HR ≥ 150 bpm**. So **§9's
+±RR secondary modes cannot appear in the current code at any sleeping heart rate** — the window is
+narrower than one cardiac cycle by construction, which is precisely what the source comment says it
+was widened-then-narrowed to achieve (the prior `LAG_SEARCH_MS = 2000` bound *was* wider than one RR
+and produced exactly the whole-cycle jumps that read as 900–1250 ms of "drift").
+
+⚠️ **The guarantee is conditional, and this brief states the condition rather than inheriting the
+claim.** It is not "slip is impossible"; it is "slip requires HR ≥ 133 bpm *and* a missing foot".
+The mode test in §9 must therefore run against a **no-window** pairing bounded by `0.9 × local RR` —
+otherwise it measures the window, not the modes. That harness already exists in-source as
+`coupledPAT`'s `censOut/censIn` censoring diagnostic, and the oracle replay needs it anyway.
+
+**§8 and §16 are one finding seen twice.** The same `[200, 650]` window that prevents slip is a
+**censoring cut**: the source records it discarding most of the data on **16 of 19 site-nights**, with
+one night running a median lag of 831 ms — **95.9 % above `PHYS_HI`** — and still emitting a confident
+PAT number. Survivors are edge-biased, because only beats under the ceiling can pair. A pairing audit
+(§8) and a gate self-selection audit (§16) are therefore reading the same mechanism from two sides,
+and neither should be reported without the other.
+
 ## 6 · Done when
 
 - [x] Per-family beat-to-beat variability measured, clock excluded by construction, gate-asserted.
@@ -197,4 +235,5 @@ split is not a detail, it decides whether a second clock exists at all.
 - [x] TCH independence violation surfaced as refusals rather than clamped.
 - [x] §6 ECG axis: the 160/187 @ 48 ms claim VERIFIED on an independent 448-fragment population (82.8 % @ 42.5 ms).
 - [x] The within-5-min-bin ECG residual computed per fragment: **11.15 ms median centred (MINOR)**, and the tail shown to be rate-estimation noise (σ_y ≥ |ppm| on 80.3 %), which vindicates the span gate empirically.
-- [ ] Common-mode fiducial error via the §12/§13 oracle.
+- [ ] Common-mode fiducial error via the §12/§13 oracle — the only remaining cell that can explain a 60 ms failure.
+- [x] §8/§9 partial: slip structurally impossible for HR < 133 bpm (condition derived, not inherited); §8 and §16 shown to be one mechanism.
