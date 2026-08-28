@@ -256,3 +256,72 @@ jobs:
           name: mutation-diff
           path: capture-host/mutation-diff.json
           if-no-files-found: ignore
+
+  # ── mypy RATCHET (advisory) ─────────────────────────────────────────────────────────────────────
+  # PYTHON-TYPES-AND-FORMAT §P1/§P3. Advisory today: it FAILS only if the count EXCEEDS the recorded
+  # baseline, so the number can only go DOWN. §P3 flips this job to REQUIRED and the threshold to 0,
+  # in the same PR as check.sh's flip.
+  #
+  # ⚠️ THIS JOB IS THE CANONICAL MEASUREMENT, AND THE DEVELOPER'S ROOT CHECKOUT IS THE CONVENIENCE ONE.
+  # A whole-tree error count is a property of the tree it ran in: measured 2026-08-28, root reported
+  # 189 and a clean worktree 188, the single difference being ONE UNTRACKED file that exists only in
+  # root. CI's fresh checkout carries no untracked strays, so it — not a working tree — is the
+  # population §P3's flip count must be measured against. (§P2b records the same lesson from the other
+  # direction.)
+  #
+  # THE BASELINE IS READ FROM check.sh, NOT COPIED HERE. One number, one home; a second hardcoded copy
+  # is a second thing to forget. If it cannot be parsed the job REFUSES rather than assuming a value —
+  # an unreadable baseline is not a permissive one.
+  mypy:
+    needs: changes
+    runs-on: ubuntu-latest
+    name: mypy (advisory ratchet)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'   # the box (Vigil, 3.13.11) — the version whose type errors matter
+      - name: Not relevant to this PR — reporting green without running mypy
+        if: needs.changes.outputs.run != 'true'
+        run: echo "No capture-host/ or workflow change in this PR; the mypy ratchet is not run."
+      - name: Install mypy + runtime deps
+        if: needs.changes.outputs.run == 'true'
+        # The runtime deps matter here for the same reason they do in `test`: without them the modules
+        # do not import, and mypy reports a wall of missing-import noise instead of real type errors.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install -r requirements.txt
+      - name: mypy ratchet — the count may only go DOWN
+        if: needs.changes.outputs.run == 'true'
+        run: |
+          set -uo pipefail
+          BASE=$(grep -oE 'baseline [0-9]+' check.sh | head -1 | grep -oE '[0-9]+')
+          if [ -z "${BASE:-}" ]; then
+            echo "REFUSING: no baseline found in check.sh. An unreadable baseline is not a permissive one."
+            exit 2
+          fi
+          # Capture the exit code of MYPY, never of a pipe — a `| tail` here would report tail's status
+          # and a failing type-check would read as green (CLAUDE.md §4b).
+          python -m mypy --ignore-missing-imports --explicit-package-bases . > mypy-out.txt 2>&1 || true
+          cat mypy-out.txt
+          # AGGREGATE from mypy's own summary line, never from a tail of the output. "Success: no issues
+          # found" is a genuinely clean run and means zero; an ABSENT summary means mypy did not finish,
+          # which is not zero and must not read as one.
+          if grep -q '^Success: no issues found' mypy-out.txt; then
+            N=0
+          else
+            N=$(grep -oE '^Found [0-9]+ error' mypy-out.txt | grep -oE '[0-9]+' | head -1)
+          fi
+          if [ -z "${N:-}" ]; then
+            echo "REFUSING: mypy printed neither a 'Found N errors' line nor a success line — it did not finish."
+            echo "That is not a clean tree; it is an unfinished measurement."
+            exit 2
+          fi
+          echo "mypy errors: $N   baseline: $BASE   delta: $((N - BASE))"
+          echo "measured in CI's FRESH CHECKOUT — the canonical population for §P3's flip count."
+          if [ "$N" -gt "$BASE" ]; then
+            echo "RATCHET BROKEN: $N > $BASE. The recorded baseline may only go DOWN."
+            exit 1
+          fi
+          echo "ratchet ok ($N <= $BASE). Advisory until §P3 flips this job to required with a threshold of 0."
