@@ -45,8 +45,10 @@ def test_fewer_than_two_anchors_REFUSES_and_returns_no_estimate(anchors):
 
 
 @_SETTINGS
-@given(st.lists(st.tuples(_HOST, _HOST), min_size=2, max_size=40),
-       st.lists(st.sampled_from([float("nan"), float("inf"), float("-inf")]), max_size=6))
+@given(
+    st.lists(st.tuples(_HOST, _HOST), min_size=2, max_size=40),
+    st.lists(st.sampled_from([float("nan"), float("inf"), float("-inf")]), max_size=6),
+)
 def test_non_finite_anchors_are_DROPPED_before_the_count_not_after(good, junk):
     """CONTRACT: the refusal counts FINITE anchors — `math.isfinite` filters before `n < 2`.
 
@@ -55,9 +57,9 @@ def test_non_finite_anchors_are_DROPPED_before_the_count_not_after(good, junk):
     polluted = list(good) + [(j, j) for j in junk]
     r = as11_clock.analyze(polluted)
     assert r["ok"] is True
-    assert r["n"] == len(good)          # the junk is invisible to the count
+    assert r["n"] == len(good)  # the junk is invisible to the count
     r_junk_only = as11_clock.analyze([(j, j) for j in junk])
-    assert r_junk_only["ok"] is False   # …and junk alone still refuses
+    assert r_junk_only["ok"] is False  # …and junk alone still refuses
 
 
 @_SETTINGS
@@ -66,14 +68,17 @@ def test_offset_is_the_MEDIAN_of_host_minus_device(anchors):
     """CONTRACT: "`offset_s = median(host − device)`". Stated as an identity, so it is asserted as one
     rather than as a tolerance — a median has no float drift to forgive."""
     import statistics
+
     r = as11_clock.analyze(anchors)
     expect = statistics.median([h - d for h, d in anchors])
     assert r["offset_s"] == round(expect, 3)
 
 
 @_SETTINGS
-@given(st.lists(st.tuples(_HOST, _HOST), min_size=2, max_size=40),
-       st.floats(min_value=-5000, max_value=5000, allow_nan=False, allow_infinity=False))
+@given(
+    st.lists(st.tuples(_HOST, _HOST), min_size=2, max_size=40),
+    st.floats(min_value=-5000, max_value=5000, allow_nan=False, allow_infinity=False),
+)
 def test_shifting_every_DEVICE_stamp_shifts_the_offset_by_exactly_that(anchors, c):
     """CONTRACT: offset is `host − device`, so it is TRANSLATION-EQUIVARIANT in the device clock.
 
@@ -98,7 +103,7 @@ def test_span_is_never_negative_and_a_zero_span_refuses_the_RATE_not_the_offset(
     if r["span_s"] == 0:
         assert r["reason"] == "no-span"
         assert r["slope_ppm"] is None and r["minute_is_real"] is None
-        assert r["offset_s"] is not None       # …but the offset survives
+        assert r["offset_s"] is not None  # …but the offset survives
 
 
 @_SETTINGS
@@ -149,8 +154,15 @@ def test_minute_is_real_is_exactly_the_stated_comparison(anchors):
 
 # ── clock_offset.estimate ────────────────────────────────────────────────────────────────────────
 @_SETTINGS
-@given(st.lists(st.tuples(st.floats(0, 4e4, allow_nan=False, allow_infinity=False),
-                          st.floats(0, 500, allow_nan=False, allow_infinity=False)), max_size=60))
+@given(
+    st.lists(
+        st.tuples(
+            st.floats(0, 4e4, allow_nan=False, allow_infinity=False),
+            st.floats(0, 500, allow_nan=False, allow_infinity=False),
+        ),
+        max_size=60,
+    )
+)
 def test_a_refusal_carries_no_estimate_and_a_success_carries_its_reference(points):
     """CONTRACT (clock_offset.estimate): "A refusal returns `{ok: False, reason, n}` and NO estimate —
     the `hostAxis` contract, and for its reason: a caller must not be able to read a silent zero out of
@@ -168,8 +180,16 @@ def test_a_refusal_carries_no_estimate_and_a_success_carries_its_reference(point
 
 
 @_SETTINGS
-@given(st.lists(st.tuples(st.floats(0, 4e4, allow_nan=False, allow_infinity=False),
-                          st.floats(0, 500, allow_nan=False, allow_infinity=False)), min_size=30, max_size=80))
+@given(
+    st.lists(
+        st.tuples(
+            st.floats(0, 4e4, allow_nan=False, allow_infinity=False),
+            st.floats(0, 500, allow_nan=False, allow_infinity=False),
+        ),
+        min_size=30,
+        max_size=80,
+    )
+)
 def test_the_certified_offset_is_None_wherever_the_two_estimators_DISAGREE(points):
     """CONTRACT: "`offset_ms` is the certified number and is **None** wherever the two estimators
     disagree. That is the point of computing two."
@@ -215,6 +235,7 @@ def test_an_impossible_calendar_DAY_is_refused_at_our_call_site(month, day):
     returns None for a stamp naming a day that does not exist, whatever the mechanism. Feb 30 is the
     contract's own example."""
     import calendar
+
     assume(day > calendar.monthrange(2026, month)[1])
     name = f"Polar_H10_AABBCCDD_2026{month:02d}{day:02d}235959_ECG.txt"
     assert timeline._stamp_ms(name) is None
