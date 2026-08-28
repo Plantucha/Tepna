@@ -36,6 +36,8 @@
 
 from __future__ import annotations
 
+import re
+
 # 🔴 PRESENCE IS EVIDENCE; ABSENCE IS EVIDENCE ONLY FROM A SOURCE THAT WAS ACTUALLY CONSULTED.
 # This asymmetry is the module's spine, and it was nearly missed. Vigil box, 2026-08-28: the spool is a
 # ONCE-DAILY Summary-only transaction, so on a therapy-end trigger an empty spool result is the EXPECTED
@@ -109,14 +111,30 @@ def night_key(value: str) -> str | None:
     """`YYYYMMDD` from a night folder, an ISO stamp, or a compact stamp. Returns None when the input
     carries no resolvable date — a key we cannot form is NOT a night we can reconcile, and guessing one
     would attribute a real session to the wrong day. (Clock Contract §2.6: a missing value is null.)"""
-    s = "".join(ch for ch in str(value) if ch.isdigit())
-    if len(s) < 8:
-        return None
-    ymd = s[:8]
-    y, m, d = int(ymd[:4]), int(ymd[4:6]), int(ymd[6:8])
-    if not (2000 <= y <= 2100 and 1 <= m <= 12 and 1 <= d <= 31):
-        return None
-    return ymd
+    # ⚠️ SCAN THE DIGIT RUNS; DO NOT CONCATENATE THEM — and then, only if that finds nothing, strip
+    # DATE SEPARATORS and scan again. Two passes because the two real input shapes fail each other's
+    # single-pass version, and my first fix traded one for the other:
+    #
+    #   `AS11_20260827_BRP.edf.meta.json`  — concatenating every digit yields "1120260827", whose
+    #                                        leading eight are "11202608": year 1120, rejected, night
+    #                                        LOST. The protocol name is part of the filename, so this
+    #                                        is the ordinary input, not an exotic one.
+    #   `2026-08-27T22:14:05`              — has NO eight-digit run at all; scanning runs alone
+    #                                        returns None and loses every ISO stamp. My first fix did
+    #                                        exactly this, and the existing test caught it.
+    #
+    # Pass 2 removes only `- : T` and space — never `_` — so an `AS11_`-style prefix stays a separate
+    # run and cannot merge into the date. Both cases are planted in the tests, as a pair, because each
+    # one alone is satisfied by a version that breaks the other.
+    for candidate in (str(value), re.sub(r"[-:T ]", "", str(value))):
+        for run in re.finditer(r"\d+", candidate):
+            digits = run.group(0)
+            for i in range(len(digits) - 7):
+                ymd = digits[i:i + 8]
+                y, m, d = int(ymd[:4]), int(ymd[4:6]), int(ymd[6:8])
+                if 2000 <= y <= 2100 and 1 <= m <= 12 and 1 <= d <= 31:
+                    return ymd
+    return None
 
 
 def _keys(values) -> tuple[set[str], list[str]]:
