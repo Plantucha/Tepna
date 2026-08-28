@@ -130,6 +130,54 @@ needs a baseline, and the source records the measurement behind the 2400 s knee.
 rate from a 427 s fragment is the honest behaviour; the cost is that 83 % of fragments carry an
 uncorrected axis.
 
+## 5c · The within-bin residual — and it retires the "48 ms uncorrected divergence" as a budget term
+
+Bands pre-stated before looking, reusing §2's MATERIAL threshold rather than inventing one:
+**DOMINANT ≥ 60 ms** (exceeds `DRIFT_MAX_MS` alone) · **MATERIAL 20–60** · **MINOR < 20**. Closed.
+
+Over the **343** refused fragments (290 carrying a stability curve):
+
+| quantity, per 300 s bin | median | p75 | p90 | max |
+|---|---|---|---|---|
+| uncorrected-rate **ramp extent** | 38.6 ms *(MATERIAL)* | 139.1 | 645.2 *(DOMINANT)* | 7210.9 |
+| **after bin-centring** (`extent/√12`) | **11.15 ms** *(MINOR)* | 40.2 *(MATERIAL)* | 186.3 *(DOMINANT)* | 2081.6 |
+
+Bin-centring is not a modelling choice: `coupledPAT` subtracts a per-bin centre, so a linear ramp of
+extent Δ survives only as Δ/√12. (The same √12 as the PHYS-window artefact, used correctly this
+time — there it *was* the statistic; here it converts a known ramp to the SD that survives centring.)
+
+### 🔴 But the tail is not clock divergence — it is noise, and the gate is empirically vindicated
+
+CLAUDE.md §🔒.7 requires a ppm be quoted with its uncertainty **or not at all**. Doing so:
+
+| | median | p90 |
+|---|---|---|
+| σ_y(300 s) as ms over the bin | 89.7 | 326.1 |
+| **σ_y(300) / \|ppm\|** | **2.93** | **24.1** |
+| fragments with σ_y ≥ \|ppm\| | **233/290 = 80.3 %** | |
+
+**On four fifths of refused fragments the measured rate is smaller than its own Allan uncertainty at
+τ = 300 s** — it is indistinguishable from noise. You cannot lose a correction you never had, so the
+"cost of refusing" is largely illusory: the ramp-extent table above is measuring *rate-estimation
+error*, not clock behaviour.
+
+**And the ratio is WORST exactly where the apparent ppm is largest** (p90 ratio 24.1). That is this
+repo's anti-selection law for the third time (`uncertainty-band-as-gate-anti-selects`,
+`compare-rates-through-uncertainties`): a spread taken over estimates of differing precision
+manufactures a tail out of the worst-measured items. **The p90 of 186 ms is not a night whose clock
+ran away; it is a short fragment whose rate was never determined.**
+
+**Conclusion — and it reverses the direction the §6 headline pointed.** The ECG span gate is not
+merely conservative-by-design, it is **empirically correct**: it refuses precisely the fragments whose
+rate is noise. The honest §21D entry is the **median centred residual, 11.15 ms — MINOR** — and the
+42.5 ms fragment-end figure must **not** enter the budget at all.
+
+⚠️ **Two limits on this.** σ_y(300) is extrapolated along the measured Allan slope from each
+fragment's longest measured τ, so for short fragments it is an extension rather than a measurement;
+and where a fragment's span is under 300 s a "5-minute bin" is truncated, making its ramp extent an
+upper bound. Both push the same way — toward *over*-stating the residual — so the MINOR verdict is
+conservative.
+
 ## 5b · §17 — the two corpora differ in clock provenance
 
 | corpus | `independent` | reading |
@@ -148,5 +196,5 @@ split is not a detail, it decides whether a second clock exists at all.
 - [x] Pooling hazard found, corrected, and documented.
 - [x] TCH independence violation surfaced as refusals rather than clamped.
 - [x] §6 ECG axis: the 160/187 @ 48 ms claim VERIFIED on an independent 448-fragment population (82.8 % @ 42.5 ms).
-- [ ] The within-5-min-bin ECG residual (|ppm| × 300 s) per fragment — the decision-relevant figure.
+- [x] The within-5-min-bin ECG residual computed per fragment: **11.15 ms median centred (MINOR)**, and the tail shown to be rate-estimation noise (σ_y ≥ |ppm| on 80.3 %), which vindicates the span gate empirically.
 - [ ] Common-mode fiducial error via the §12/§13 oracle.
