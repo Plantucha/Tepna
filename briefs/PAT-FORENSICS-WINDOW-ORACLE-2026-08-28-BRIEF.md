@@ -201,6 +201,69 @@ are the oracle's STRONG set rather than a random sample.
 vasomotor tone, posture, sleep stage) or an instrumental effect the host axis cannot see (sensor
 warming, contact drift, wear shift). This brief does not choose between those.
 
+## 6c · 🔴 THE CAMPAIGN'S PRODUCT — what was eliminated, and what survives
+
+Every row is a measurement with its refutation, not an opinion. This is the table the charter's §18
+matrix and §21B ranked causes are built from.
+
+### The error budget — every measured sensor-side term
+
+| term | magnitude | label | how established |
+|---|---|---|---|
+| ECG axis, ppm refused on 83 % of fragments | **11.15 ms** within-bin | ENGINEERING (gate empirically correct) | σ_y(300) ≥ \|ppm\| on 80.3 % ⇒ the refused rates are noise |
+| PPG fractional-subscript bypass | **~10 ms** within-bin (40 worst) | **SOFTWARE BUG** | 0 / 8948 feet took the `relSec` branch |
+| fiducial family choice | **≤ 6.22 ms** | NOT DOMINANT | 28 pairs, clock-free by construction |
+| fiducial detector noise (per-LED TCH) | **1.88 – 6.33 ms** | NOT DOMINANT | independent second route, agrees |
+| **the acceptance window** | **129.9 ms** where it dominates | **STATISTICAL / GATING DESIGN** | SD ≡ 450/√12; a channel broken 150× reports the same SD |
+| **residual after an out-of-sample window** | **20 – 40 ms** | **UNATTRIBUTED** | see below |
+
+**No sensor-side term exceeds ~11 ms.** The gating is the limit, not the hardware.
+
+### Candidates ELIMINATED for the 20–40 ms residual
+
+| candidate | verdict | evidence |
+|---|---|---|
+| white noise | **eliminated** | ρ₁ 0.754 – 0.987 on 8/8 |
+| respiratory oscillation | **eliminated** | no zero-crossing within 40 beats on any night; ρ₂₀ still 0.50 – 0.91; a 12-beat cycle would give ρ₁ = 0.866 and cross at ~3 |
+| HR / RR coupling | **eliminated** | ρ(RR,lag) scatters in **sign** (+0.462 … −0.343); real coupling holds one sign |
+| **inter-device clock** | **eliminated** | sign reversal (predicted −ve on 8/8, observed +ve on 6/8) · ratios 1.58–33.74 · raw R² median ~0.12 · robust to the effective-ppm assumption |
+
+### Candidates ELIMINATED for regime membership
+
+| candidate | verdict | evidence |
+|---|---|---|
+| channel / signal quality | **eliminated** | foot-to-foot SD median 95–109 ms, flat across all four regimes |
+| a per-channel property | **eliminated** | all 3 LEDs agree on the regime on **every** night |
+| median-lag position | **eliminated** | 08-01 sits 7 ms off centre → EDGE-LOADED; 08-03 exactly on centre → 125.1 |
+| yield | **eliminated** | 12–54 % spans every regime |
+| BLE offset drift | **NOT eliminated — test was uninformative** | ρ = +0.109, n = 11, 95 % CI [−0.53, +0.67] |
+
+### What survives
+
+- **Slow physiological variation** — BP, vasomotor tone, posture, sleep stage.
+- **An instrumental effect the host axis cannot see** — sensor warming, contact drift, wear shift.
+
+## 6d · The fork, stated explicitly
+
+**(a) One more discriminator.** A non-circular, non-confounded one exists: **two PPG sites against one
+ECG reference.** A systemic physiological trend moves both sites together; a contact or wear artifact
+is site-local. Unlike per-LED this is *not* common-mode — two sites share neither housing nor skin
+contact. **But it is not available at usable n on this corpus:**
+
+- the clean pair (two Verity units, both real axes) exists on **2 nights** — 2026-07-25 and 07-26;
+- the plentiful pair (Verity + O2Ring) is **confounded**, because the O2Ring's axis is **drawn**
+  (`index × assumed rate`), which manufactures its own linear drift — the exact quantity under test.
+
+Running it at n = 2 would repeat the mistake this campaign already refused at n = 11.
+
+**(b) Declare the boundary.** The charter's question is answered: the estimator discards real signal,
+the window is mis-specified rather than merely wide, and the residual is a slow trend with the clock
+eliminated and physiology-vs-contact left open. **That is a complete and truthful terminal state.**
+
+**Recommendation: (b)**, with (a) specified as the first experiment for a corpus that supports it —
+the vigil nights are the natural n. Residual attribution becomes its own brief rather than being
+chased past the charter on two nights.
+
 ## 7 · Done when
 
 - [x] Out-of-sample design, circular-shift null, gate-asserted with a noise control.
