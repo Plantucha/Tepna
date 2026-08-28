@@ -53,8 +53,56 @@ run_gate "pytest"     "$PY" -m pytest -q --cov --cov-branch --cov-fail-under=100
 # no network. The floor is 0 and the allowlist is the escape hatch, with a reason required per entry.
 run_gate "unwired"    "$PY" tools/find_unwired.py --check
 
+# ── ADVISORY GATES (PYTHON-TYPES-AND-FORMAT-2026-08-27) ─────────────────────────────────────────
+# These RUN and REPORT but cannot fail the run yet. Advisory here is not the ignorable kind: the
+# counts print in the summary, and the flip conditions are pre-stated in the brief, not per-PR —
+# mypy flips BLOCKING at 0 errors (baseline 189, 2026-08-27; the number may only go DOWN); the
+# changed-files format check flips after one fleet-notice cycle. A big-bang reformat is FORBIDDEN
+# by the brief: mutation canaries/journals/equivalence are keyed on line text+numbers, and a
+# 263-file wave orphans that known-answer record at once — format lands file-by-file as files
+# change anyway.
+adv_names=(); adv_codes=(); adv_notes=()
+run_advisory() {                    # run_advisory <label> <note-on-fail> <cmd...>
+  local label="$1"; local note="$2"; shift 2
+  printf '
+[1m▸ %s (advisory)[0m
+' "$label"
+  "$@"
+  local rc=$?
+  adv_names+=("$label"); adv_codes+=("$rc"); adv_notes+=("$note")
+  return 0
+}
+if "$PY" -c 'import mypy' 2>/dev/null; then
+  run_advisory "mypy" "baseline 189 (2026-08-27) — count may only go DOWN; flips blocking at 0"     "$PY" -m mypy --ignore-missing-imports --explicit-package-bases .
+else
+  printf '
+[1m▸ mypy (advisory)[0m
+  mypy not installed (pip install -r requirements-dev.txt) — ADVISORY GATE DID NOT RUN
+'
+  adv_names+=("mypy"); adv_codes+=(127); adv_notes+=("not installed — nothing was examined")
+fi
+# Changed .py files vs origin/main — honest empty-scope line when none (a formatter that checked
+# nothing must say so, never read as clean).
+mapfile -t changed_py < <(git diff --name-only origin/main...HEAD -- '*.py' 2>/dev/null | while read -r f; do [ -f "../$f" ] && echo "../$f"; done)
+if [ "${#changed_py[@]}" -gt 0 ]; then
+  run_advisory "format" "ruff format --check on ${#changed_py[@]} changed file(s); flips blocking after fleet notice"     "$PY" -m ruff format --check "${changed_py[@]}"
+else
+  printf '
+[1m▸ format (advisory)[0m
+  0 changed .py files vs origin/main — nothing in scope (not a pass, an empty scope)
+'
+  adv_names+=("format"); adv_codes+=(0); adv_notes+=("empty scope")
+fi
+
 echo
 echo "──────── capture-host gates ────────"
+for i in "${!adv_names[@]}"; do
+  if [ "${adv_codes[$i]}" -eq 0 ]; then
+    printf '  \033[36m◦\033[0m %-11s advisory ok\n' "${adv_names[$i]}"
+  else
+    printf '  \033[33m◦\033[0m %-11s ADVISORY exit %s — %s\n' "${adv_names[$i]}" "${adv_codes[$i]}" "${adv_notes[$i]}"
+  fi
+done
 failed=0
 for i in "${!names[@]}"; do
   if [ "${codes[$i]}" -eq 0 ]; then
