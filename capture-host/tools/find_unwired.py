@@ -108,6 +108,17 @@ ALLOW_FUNCS = {
     # in a comment or docstring counted as a call. They are suppressed here rather than wired or
     # deleted, and each reason states what would REMOVE the suppression — an entry that cannot say what
     # would retire it is debt wearing a justification.
+    # ── cpap_inventory (the spool-as-inventory oracle, 2026-08-28) ────────────────────────────────
+    # The PURE half landed first on purpose: its call site is Vigil box's `on_harvest_complete(result)`
+    # hook, which is unmerged, and a no-op-by-default hook means either half can land in either order.
+    # Both entries retire together, the moment the adapter attaches.
+    "qc_field": "cpap_inventory — the QC-SUMMARY payload for the three-way spool/envelope/harvest "
+                "reconciliation. Its consumer is the adapter behind Vigil box's on_harvest_complete "
+                "hook (capture.py _cpap_loop), which is unmerged. Retire when that hook lands and the "
+                "adapter writes the field",
+    "journal_lines": "cpap_inventory — one journal line per discrepancy, same reconciliation. Same "
+                     "consumer and same retirement condition as `qc_field` directly above; they were "
+                     "written together and are wired together",
     "assemble_spool": "acq_evidence_cpap Phase B — the spool evidence assembler, honestly recorded as "
                       "tested-not-witnessed; its consumer is the FIRST WITNESSED PULL (CPAP-SPOOL-"
                       "ACQUISITION Do-1/Do-2), which needs the device. Retire this when that pull lands",
