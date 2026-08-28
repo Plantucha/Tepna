@@ -45,7 +45,8 @@
  *     --quiet            no per-mutant lines, keep the heartbeat
  */
 import { execFileSync, spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync, unlinkSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync, unlinkSync } from 'node:fs';
 import { cpus, uptime as osUptime } from 'node:os';
 import { dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -1642,6 +1643,20 @@ function selftest() {
   ck('the same call+input+field+expectation is ONE assertion', assertionIdentity(c1, 'out.a', '0') === assertionIdentity({ ...c1 }, 'out.a', '0'), true);
   ck('…a different field is a different assertion', assertionIdentity(c1, 'out.a', '0') === assertionIdentity(c1, 'out.b', '0'), false);
   ck('…and so is a different input', assertionIdentity(c1, 'out.a', '0') === assertionIdentity({ call: 'X.f', input: '[2]' }, 'out.a', '0'), false);
+  ck(
+    'draftKey: stable and after-sensitive',
+    (() => {
+      const k1 = draftKey({ line: 1, op: 'x', before: 'b', after: 'a' });
+      const k2 = draftKey({ line: 1, op: 'x', before: 'b', after: 'a' });
+      return k1 === k2 && k1 !== draftKey({ line: 1, op: 'x', before: 'b', after: 'z' });
+    })(),
+    true
+  );
+  ck('draftKey: absent after is the empty slot, not the string undefined', draftKey({ line: 1, op: 'x', before: 'b' }), '1\u0000x\u0000b\u0000');
+  const _dtext = '{\n    const out = F(1);\n    T.eq("p", JSON.stringify(out.q), "7");\n  }';
+  ck('existingDraftAids: extracts the rendered triple', existingDraftAids(_dtext).has(textAid('F(1)', 'out.q', '"7"')), true);
+  ck('existingDraftAids: different expected is a different draft', existingDraftAids(_dtext).has(textAid('F(1)', 'out.q', '"8"')), false);
+  ck('existingDraftAids: non-draft text contributes nothing', existingDraftAids('/* just a header */').size, 0);
 
   /* `all N selftests passed` is the form tools/selftest-all.mjs parses for a COUNT; a bare
      'all green' is recognised but countless, and a count is what makes a silent drop from 30
@@ -1732,7 +1747,13 @@ const LOCAL_HOST = 'http://127.0.0.1:11434';
  * Re-measure both numbers if the hardware changes; neither is a property of the task.
  */
 const DRAFT_MODEL = opt('--model', 'qwen3-coder:30b');
-const DRAFT_CTX = Number(opt('--ctx', '1024'));
+/* 8192, matching the A/B bench conditions that chose the model (2026-08-27) AND the service's
+   OLLAMA_CONTEXT_LENGTH cap. The old 1024 default silently FRONT-truncated large diff-menu
+   prompts (ollama drops the beginning — the instructions — first), so production never ran the
+   regime the bench measured. Discovered when ollama ps showed the ctx column disagreeing with
+   the bench; the model-quality verdict stands (both arms benched at 8192), the production
+   yield was the thing degraded. */
+const DRAFT_CTX = Number(opt('--ctx', '8192'));
 
 /**
  * RETRY MUST CHANGE THE SAMPLING OR IT CHANGES NOTHING. At temperature 0 the model is deterministic,
@@ -1938,7 +1959,13 @@ export function renderDraft(c, projection, property, origValue) {
     ', JSON.stringify(' +
     projection +
     '), ' +
-    JSON.stringify(origValue) +
+    /* ⚠️ THE SUITE'S OWN SERIALIZER RENDERS undefined AS '@undef' (dex-tests.js T.eq), while
+       JSON.stringify(undefined) has no string form at all — the recorder's sentinel 'undefined'
+       (see `?? 'undefined'` above) is NOT what the suite will compare against. Three batch-3
+       drafts failed suite-realm verification on exactly this one-token mismatch (got "@undef",
+       want "undefined") — a convention neither model was told about, recurring every batch
+       until translated HERE, at the emitter, where the convention lives. */
+    JSON.stringify(origValue === 'undefined' ? '@undef' : origValue) +
     ');\n' +
     '  }\n'
   );
@@ -2013,7 +2040,7 @@ function diffMenu(origText, mutantText) {
   );
 }
 
-function draftPrompt(c) {
+export function draftPrompt(c) {
   return (
     'You are helping write a regression test. Below is a real function call, what the CORRECT code returns, and what a BUGGY variant returns. Both outputs are given verbatim; do NOT invent or recompute values.\n\n' +
     'CALL:    ' +
@@ -2051,8 +2078,20 @@ export function usableKillables(crawl) {
         mu = String(m.mutant ?? '');
       /* A "distinguishing input" where the REAL code TIMES OUT is not a test case — you cannot ship
          an assertion that production code hangs. Dropped, and counted, rather than drafted. */
-      if (/TIMEOUT/.test(o) || /TIMEOUT/.test(mu)) continue;
-      if (/^"?(THREW|ERROR)/.test(o) && /^"?(THREW|ERROR)/.test(mu)) continue;
+      if (/TIMEOUT/.test(o) || /TIMEOUT/.test(mu)) {
+        out.skippedTimeout = (out.skippedTimeout || 0) + 1;
+        continue;
+      }
+      /* ONE-SIDED orig-THREW refusal (design review G6, 2026-08-27): the probe's own rule —
+         "the REAL code throws on this input — a crash is not a contract, and the assertion would
+         not even run" — applied here too. The old filter refused only BOTH-threw, so one-sided
+         crashes were drafted (the detectPeriodicity TypeError draft; a live _tMs THREW assertion
+         reached hrvdex's drafts file). Mutant-side-only THREW remains draftable: the expected
+         value is the REAL code's healthy output. Subsumes the old both-threw check. */
+      if (/^"?(THREW|ERROR)/.test(o)) {
+        out.skippedCrash = (out.skippedCrash || 0) + 1;
+        continue;
+      }
       /* A record the CRAWL flagged as bound-truncated cannot be projected honestly — refuse with
          the real reason rather than let JSON.parse manufacture a "not both JSON" mystery. */
       if (m.recordTruncated) {
@@ -2069,6 +2108,36 @@ export function usableKillables(crawl) {
 /** The identity of a DRAFTED ASSERTION: same call, same input, same field, same expectation. */
 export function assertionIdentity(c, projection, expected) {
   return [c.call, String(c.input), String(projection).trim(), String(expected)].join(String.fromCharCode(1));
+}
+
+/* ── THE DRAFT JOURNAL (design review item 1, 2026-08-27) ───────────────────────────────────────
+   The draft lane was the ONLY model lane with no per-mutant journal: every run re-attempted every
+   killable from scratch (rejections lived in memory), the drafts file was a FULL OVERWRITE (a
+   weaker later run destroyed prior drafts AND verify-drafts' verification block — measured: 16 of
+   17 drafts files had lost their blocks), and no model/ctx/attempt was recorded anywhere, so the
+   3.8-era and coder-era drafts on disk became indistinguishable the day the model switched.
+   The journal mirrors the ai-probe's discipline one seam over: per-mutant terminal outcomes,
+   keyed by mutant identity AND model — a NEW model legitimately re-attempts what an old model
+   failed, but nobody re-burns an answered (mutant, model) pair, and a KEPT under ANY model
+   retires the mutant (its draft exists; a second projection would be noise, not coverage). */
+const sha16 = (t) => createHash('sha256').update(t).digest('hex').slice(0, 16);
+
+export const draftKey = (c) => [c.line, c.op, c.before, c.after ?? ''].join('\u0000');
+
+/* Textual assertion identity, derivable from BOTH a kept draft's parts and a drafts-file block —
+   the append path needs one identity that works on re-read text, where c.input is no longer
+   separable from the rendered call. */
+export const textAid = (callExpr, projection, expected) => sha16(callExpr + '\u0000' + projection + '\u0000' + expected);
+
+/* Extract existing drafts' identities from a drafts file, so appends never duplicate. Same
+   extraction shape as verify-drafts' parseDrafts; blocks that do not match are kept as text but
+   contribute no identity (they cannot collide, only survive). */
+export function existingDraftAids(text) {
+  const out = new Set();
+  const re = /const out = ([^;\n]+);\s*\n\s*T\.eq\("(?:[^"\\]|\\.)*", JSON\.stringify\(([^)]+)\), ((?:[^;\n])+)\);/g;
+  let m;
+  while ((m = re.exec(text))) out.add(textAid(m[1].trim(), m[2].trim(), m[3].trim()));
+  return out;
 }
 
 async function cmdDraft(file) {
@@ -2113,11 +2182,35 @@ async function cmdDraft(file) {
   log('  ' + cases.length + ' killable mutant(s) carry a distinguishing input (' + aiKillable + ' from the AI probe); drafting ' + pick.length);
   log("  the model picks WHICH FIELD to assert on; the expected VALUE is the real code's recorded output.\n");
 
+  const journalPath = join(stateDir(), basename(file) + '.draft-journal.jsonl');
+  const answeredByModel = new Set(); // draftKey \0 model — this model already gave a terminal answer
+  const keptByAny = new Set(); // draftKey — SOME model produced a kept draft; the mutant is retired
+  if (existsSync(journalPath)) {
+    for (const l of readFileSync(journalPath, 'utf8').split('\n')) {
+      if (!l) continue;
+      try {
+        const r = JSON.parse(l);
+        if (!r.k || !r.model) continue;
+        answeredByModel.add(r.k + '\u0000' + r.model);
+        if (r.v === 'KEPT') keptByAny.add(r.k);
+      } catch {
+        /* torn last line from a crash — expected, skipped, never repaired (probe's rule) */
+      }
+    }
+  }
+  const jrec = (c, v, extra) => appendFileSync(journalPath, JSON.stringify({ k: draftKey(c), v, model: DRAFT_MODEL, ctx: DRAFT_CTX, at: new Date().toISOString(), ...extra }) + '\n');
+
   const t0 = Date.now();
   const kept = [];
   const rejected = [];
+  let journalSkips = 0;
   for (let i = 0; i < pick.length; i++) {
     const c = pick[i];
+    const dk = draftKey(c);
+    if (!argv.includes('--redraft') && (keptByAny.has(dk) || answeredByModel.has(dk + '\u0000' + DRAFT_MODEL))) {
+      journalSkips++;
+      continue;
+    }
     const name = c.call + ' [' + c.op + '] @ ' + String(c.before).slice(0, 54);
     /* RETRY ON ANY REJECTION, NOT JUST ON AN EMPTY REPLY. The earlier version retried only the empty
        case, which left the two commonest failures — an unparseable reply and a field that does not
@@ -2138,7 +2231,10 @@ async function cmdDraft(file) {
       const p2 = parseDraftReply(reply);
       if (!p2.ok) {
         lastWhy = p2.why;
-        if (p2.refused) break; // an explicit REFUSE is an answer; asking again is badgering it
+        if (p2.refused) {
+          jrec(c, 'REFUSED', { attempt: a });
+          break; // an explicit REFUSE is an answer; asking again is badgering it
+        }
         continue;
       }
       const d2 = projectionDiscriminates(p2.projection, c.orig, c.mutant);
@@ -2156,6 +2252,7 @@ async function cmdDraft(file) {
     const prog = '[' + String(i + 1).padStart(3) + '/' + pick.length + '  ' + rate.toFixed(1) + '/min  ETA ' + eta + 'm  kept ' + kept.length + ']';
 
     if (!parsed.ok) {
+      if (!/model declined/.test(parsed.why)) jrec(c, 'NO-DRAFT', { why: String(parsed.why).slice(0, 90) });
       rejected.push({ name, why: parsed.why });
       log(prog + ' ✗ ' + name);
       log('      ' + parsed.why);
@@ -2169,10 +2266,12 @@ async function cmdDraft(file) {
     const aid = assertionIdentity(c, parsed.projection, disc.orig);
     const prev = kept.find((k) => k.aid === aid);
     if (prev) {
+      jrec(c, 'KEPT', { dup: true });
       prev.covers++;
       log(prog + ' ✓ ' + name + '  (same assertion as an earlier draft — covers ' + prev.covers + ' mutants, not counted twice)');
       continue;
     }
+    jrec(c, 'KEPT', { projection: parsed.projection });
     kept.push({ aid, covers: 1, c, ...parsed, disc, text: renderDraft(c, parsed.projection, parsed.property, disc.orig) });
     log(prog + ' ✓ ' + name);
     log('      killed by ' + parsed.projection + ':  real=' + disc.orig.slice(0, 40) + '   mutant=' + disc.mutant.slice(0, 40));
@@ -2189,13 +2288,47 @@ async function cmdDraft(file) {
     ' * recorded output. NOTHING HERE IS VERIFIED TO ASSERT THE *INTENDED* BEHAVIOUR — a projection\n' +
     ' * can discriminate and still pin a bug in place. Read each PROPERTY line before adopting it.\n' +
     ' */\n\n';
-  writeFileSync(outPath, header + kept.map((k) => k.text).join('\n'));
+  /* APPEND, NEVER OVERWRITE (design review item 1). The old full overwrite meant a weaker later
+     run destroyed prior drafts and the suite-realm verification block. Now: existing content is
+     preserved byte-for-byte (verification block included), only genuinely NEW assertions are
+     appended, each append section carries its model/ctx/date attribution, and a run producing
+     nothing new leaves the file untouched. */
+  const stamp = '/* ── appended ' + new Date().toISOString().slice(0, 16) + ' · model ' + DRAFT_MODEL + ' · ctx ' + DRAFT_CTX + ' ── */\n';
+  let existing = '';
+  let existingAids = new Set();
+  if (existsSync(outPath)) {
+    existing = readFileSync(outPath, 'utf8');
+    existingAids = existingDraftAids(existing);
+  }
+  const newTexts = [];
+  for (const k of kept) {
+    const callExpr = k.c.call + '(' + String(k.c.input).replace(/^\[|\]$/g, '') + ')';
+    const expectedLit = JSON.stringify(k.disc.orig === 'undefined' ? '@undef' : k.disc.orig);
+    if (existingAids.has(textAid(callExpr, k.projection, expectedLit))) continue;
+    newTexts.push(k.text);
+  }
+  if (newTexts.length) {
+    if (existing) writeFileSync(outPath, existing.replace(/\n*$/, '\n') + '\n' + stamp + newTexts.join('\n'));
+    else writeFileSync(outPath, header + stamp + newTexts.join('\n'));
+  }
   const mins = (Date.now() - t0) / 60000;
   const covered = kept.reduce((a, k) => a + k.covers, 0);
   log(
-    '\n  ' + kept.length + ' DISTINCT assertion(s) covering ' + covered + ' mutant(s); ' + rejected.length + ' rejected, in ' + mins.toFixed(1) + ' min (' + (pick.length / mins).toFixed(1) + '/min)'
+    '\n  ' +
+      kept.length +
+      ' DISTINCT assertion(s) covering ' +
+      covered +
+      ' mutant(s); ' +
+      rejected.length +
+      ' rejected; ' +
+      journalSkips +
+      ' journal-skipped (answered by ' +
+      DRAFT_MODEL +
+      ' or kept by any model), in ' +
+      mins.toFixed(1) +
+      ' min'
   );
-  log('  → ' + outPath);
+  log('  → ' + outPath + (newTexts.length ? '  (+' + newTexts.length + ' appended)' : '  (nothing new — file untouched)'));
   log('  These are PROPOSALS. Each still needs a human read for whether it pins the intended behaviour.');
 }
 

@@ -427,3 +427,41 @@ def test_module_source_path_resolves_the_MODULE_not_the_interpreter():
     p = _MT.module_source_path("/srv/ch", "cpap_stream")
     assert p.endswith("cpap_stream.py")
     assert "bin/python" not in p and "/.venv/" not in p
+
+
+# ── mutants the diff-scoped gate found alive on these very functions (2026-08-27) ───────────────
+# `mutation (diff-scoped)` reported SIX survivors on the lines this change added. Each means: alter
+# that line and the suite stays green. They are killed here rather than excused — the gate is the one
+# I moved inside the coverage floor two units earlier, and widening an exclusion to quiet it would be
+# the exact move its own docstring warns about.
+
+def test_in_message_call_is_FALSE_for_a_line_that_resolves_but_is_NOT_a_message_line():
+    """🔴 KILLS `and` -> `or` in `return line is not None and line in message_call_lines(source)`.
+
+    Every prior assertion had `line is None`, so the left operand alone decided them and the operator
+    was never observed. `_SHOW` targets `return 1` — file line 7, which resolves perfectly well and is
+    NOT inside the `log.info(...)` at 5-6. Under `or` this returns True and a plain `return` statement
+    would be triaged as PROSE, i.e. quietly dropped from the work-list."""
+    assert _MT.file_lineno_of(_SHOW, _SRC, "foo") == 7      # it resolves...
+    assert 7 not in _MT.message_call_lines(_SRC)            # ...and is not a message line
+    assert _MT.in_message_call(_SHOW, _SRC, "m.x_foo__mutmut_1") is False
+
+
+def test_func_of_mutant_takes_the_LAST_dotted_segment_with_maxsplit_one():
+    """🔴 KILLS four survivors on `core = core.rsplit('.', 1)[-1]`.
+
+    Every existing case had at most ONE dot, where `rsplit`/`split`, `[-1]`/`[0]` and the separator
+    are indistinguishable — the assertions pinned the shape and observed none of the choices. A
+    two-dot name separates all of them: the module prefix here is `a.b`, so taking the first segment,
+    splitting from the left, or failing to split at all each yields a different, wrong answer."""
+    assert _MT.func_of_mutant("a.b.x_foo__mutmut_1") == "foo"
+    assert _MT.func_of_mutant("pkg.mod.xǁCǁ_start__mutmut_2") == "_start"
+    # And with no module prefix at all, so the split cannot be load-bearing in the other direction.
+    assert _MT.func_of_mutant("x_foo__mutmut_1") == "foo"
+
+
+def test_module_source_path_builds_the_EXACT_path_not_merely_a_plausible_one():
+    """🔴 KILLS the surviving `module_source_path` mutant. The prior assertions were `endswith(...)`
+    and a negative — both satisfied by several wrong constructions. Pin the whole string."""
+    assert _MT.module_source_path("/srv/ch", "cpap_stream") == "/srv/ch/cpap_stream.py"
+    assert _MT.module_source_path("/a/b", "x") == "/a/b/x.py"
