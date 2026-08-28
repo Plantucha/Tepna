@@ -123,9 +123,24 @@ export const TIERS_PER_RUN = Number(opt('--tiers-per-run', '2'));
  * to `parseCSV`, which wants a string — so cross-function reuse mostly cannot fire. It is retained
  * because trying 24 recorded inputs costs microseconds against ~1 s for a model call, so the
  * expected value stays positive even at a low hit rate; it is NOT retained because it was shown to
- * work. Do not quote it as a win. The version with a real prior is a SAME-FUNCTION pool (an input
- * that killed one mutant in F tried on other mutants in F, where the signature matches by
- * construction), and that has not been measured yet.
+ * work. Do not quote it as a win.
+ *
+ * ✅ THE SAME-FUNCTION POOL IS NOW BUILT (§E6, 2026-08-28) — an input that killed one mutant in F is
+ * ranked ahead of every cross-function entry when probing other mutants in F, where the signature
+ * matches by construction. It REORDERS, never filters; a hit is still kept only on a measured
+ * difference.
+ *
+ * ⚠️ ITS SIZING IS MEASURED; ITS PAYOFF IS NOT, AND THE TWO MUST NOT BE CONFLATED. Measured over the
+ * recorded probe journals: 20 pooled inputs across 8 files, and **46 of 362 unkilled mutants (12.7 %)
+ * sit in a function that has a pooled input** — that is the population this preference can act on at
+ * all, against the 0/54 cross-function baseline above. Whether any of those 46 actually die is a
+ * question only the next probe run answers, and until it does this line says so rather than implying
+ * a win. The §E3 adoption-delta report is the downstream check.
+ *
+ * (The sizing measurement carried its own control: the enclosing-function resolver was verified to
+ * resolve 362 of 362 targets first. An unresolved resolver returns 0 addressable and reads exactly
+ * like a negative result — the first run of this measurement did precisely that, because
+ * `enclosingFn` is not exported from mutation-crawl.mjs and the import was silently undefined.)
  */
 export function poolFrom(journalText) {
   const seen = new Set();
@@ -139,12 +154,28 @@ export function poolFrom(journalText) {
   return pool;
 }
 
-/** Cosine ranking of pool entries against a target line. Ties keep insertion order. */
-export function rankPool(pool, targetVec, poolVecs) {
-  if (!targetVec || !poolVecs || poolVecs.length !== pool.length) return pool.map((p, i) => ({ ...p, i }));
+/** Cosine ranking of pool entries against a target line. Ties keep insertion order.
+ *
+ * SAME-FUNCTION FIRST (§E6). `targetCall` ranks inputs recorded on the SAME function ahead of every
+ * cross-function entry, before similarity is consulted at all. The reason is the one this module's
+ * header already gives for why the pool underperforms: argument SHAPES differ per function, so an
+ * input built for `_o2DateAnchorMs` cannot mean anything to `parseCSV`. A same-function input has a
+ * matching signature BY CONSTRUCTION — it is the "version with a real prior" the header names as
+ * unmeasured.
+ *
+ * ⚠️ IT REORDERS, IT DOES NOT FILTER. Cross-function entries are still tried, still in similarity
+ * order, and a hit is still kept only on a MEASURED difference against real and mutant. The pool
+ * changes what gets TRIED, never what counts as a kill — this preference does not weaken that.
+ *
+ * Omitting `targetCall` is the previous behaviour exactly, which is what lets the selftest pin both. */
+export function rankPool(pool, targetVec, poolVecs, targetCall) {
+  const sameFirst = (p) => (targetCall && p.call === targetCall ? 0 : 1);
+  if (!targetVec || !poolVecs || poolVecs.length !== pool.length) return pool.map((p, i) => ({ ...p, i })).sort((a, b) => sameFirst(a) - sameFirst(b) || a.i - b.i);
   const dot = (a, b) => a.reduce((s2, v, i) => s2 + v * b[i], 0);
   const norm = (a) => Math.sqrt(dot(a, a)) || 1;
-  return pool.map((p, i) => ({ ...p, i, sim: poolVecs[i] ? dot(targetVec, poolVecs[i]) / (norm(targetVec) * norm(poolVecs[i])) : -1 })).sort((a, b) => b.sim - a.sim || a.i - b.i);
+  return pool
+    .map((p, i) => ({ ...p, i, sim: poolVecs[i] ? dot(targetVec, poolVecs[i]) / (norm(targetVec) * norm(poolVecs[i])) : -1 }))
+    .sort((a, b) => sameFirst(a) - sameFirst(b) || b.sim - a.sim || a.i - b.i);
 }
 
 /**
@@ -674,6 +705,55 @@ function selftest() {
     rankPool(pl, [1, 0], [[1, 0]]).map((p) => p.input),
     ['[1]', '[2]']
   );
+
+  /* §E6 — SAME-FUNCTION PREFERENCE. The pool's measured cross-function contribution is 0 kills of 54
+     (this module's header, "do not quote it as a win"): argument SHAPES differ per function, so an
+     input built for one cannot mean anything to another. A SAME-function input matches by
+     construction, which is the "version with a real prior" the header names as unmeasured.
+     ⚠️ The control asserts BOTH directions. Without `targetCall` the order must be UNCHANGED — a test
+     that only shows the new ordering cannot tell a working preference from one that reorders
+     everything, and the no-arg path is what every existing caller still uses. */
+  const pf = [
+    { input: '[1]', context: 'a', call: 'A.other' },
+    { input: '[2]', context: 'b', call: 'A.target' }
+  ];
+  ck(
+    'WITHOUT a target call the order is exactly as before (the previous behaviour is preserved)',
+    rankPool(pf, null, null).map((p) => p.input),
+    ['[1]', '[2]']
+  );
+  ck(
+    '…with one, the SAME-function input is tried first though it was recorded second',
+    rankPool(pf, null, null, 'A.target').map((p) => p.input),
+    ['[2]', '[1]']
+  );
+  ck(
+    '…and it outranks a NEARER cross-function input, because a matching signature beats similarity',
+    rankPool(
+      pf,
+      [1, 0],
+      [
+        [1, 0],
+        [0, 1]
+      ],
+      'A.target'
+    ).map((p) => p.input),
+    ['[2]', '[1]']
+  );
+  ck(
+    '…while a target with no pooled entry of its own is left in similarity order, not shuffled',
+    rankPool(
+      pf,
+      [1, 0],
+      [
+        [1, 0],
+        [0, 1]
+      ],
+      'A.absent'
+    ).map((p) => p.input),
+    ['[1]', '[2]']
+  );
+  ck('the pool still REORDERS rather than filters — nothing is dropped', rankPool(pf, null, null, 'A.target').length, 2);
   ck(
     'with embeddings, the nearer context is tried first',
     rankPool(
@@ -1047,7 +1127,7 @@ async function main() {
     if (pool.length) {
       hb = { at: Date.now(), what: 'trying ' + Math.min(pool.length, POOL_TRY) + ' known-killing input(s) on ' + t.call, i: i + 1 };
       const tv = poolVecs.length ? await embed(String(t.before).trim()) : null;
-      const ordered = rankPool(pool, tv, poolVecs).slice(0, POOL_TRY);
+      const ordered = rankPool(pool, tv, poolVecs, t.call).slice(0, POOL_TRY);
       hit = runInputs(
         ordered
           .map((p) => {
