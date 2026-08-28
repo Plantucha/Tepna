@@ -28,6 +28,13 @@
  * its SLOPE. Quoting the fragment-wide error (median 34.5 ms on part07) would overstate what PAT
  * actually eats by ~3x. The honest quantity is the spread WITHIN one 5-minute bin.
  *
+ * ⚠️ WHAT IS DISCARDED IS THE DEVICE'S MEASURED AXIS, NOT A HOST CORRECTION. Measured 2026-08-28 over
+ * this corpus: `hostAxis.independent` is FALSE on 8/8 fragments (`spreadMs` 0.98-1.00 ms, the phone
+ * signature) and `ppm` is ~0, so `correctionAt` contributes < 1 ms over 24 minutes. `relSec` is
+ * therefore ~= the device's own per-sample timestamps, and `idx / fs` replaces them with a synthesized
+ * constant rate. The tool prints the provenance fields alongside the error so the two can never again
+ * be conflated: `ok` means the axis block RAN, `independent` means a second clock EXISTS.
+ *
  * NOMINAL-vs-REAL threshold: `2 ms`, adopted from `DexClock.hostAxis`'s own `independent` test
  * (`spreadMs > 2 ms`, twice the stamp quantum) rather than invented here — a fresh constant in a
  * forensic tool is an unagreed threshold, and this one already has a ratified meaning.
@@ -181,11 +188,21 @@ async function main() {
     const feet = PPGDSP.consensusBeats(per, refIdx, rec.fs).feet;
     const ax = axisIsNominal(rec.relSec, rec.n, rec.fs);
     const a = auditFeet(rec.relSec, feet, rec.fs);
-    rows.push({ file: f.split('/').pop(), ax, a });
+    const h = rec.hostAxis || { ok: false };
+    const durSec = rec.n / rec.fs;
+    /* §17 provenance, printed beside the error so `ok` is never read as `independent`. */
+    const predictedMs = h.ok && h.ppm != null ? Math.abs(h.ppm) * 1e-6 * durSec * 1000 : Number.NaN;
+    rows.push({ file: f.split('/').pop(), ax, a, h, predictedMs });
     console.log(`${f.split('/').pop()}`);
     console.log(`   axis ${ax.nominal ? 'NOMINAL' : 'REAL'} (max dev ${ax.maxDevMs.toFixed(1)} ms) · feet ${a.n} fractional ${a.fractional} · relSec branch taken ${a.branchTaken}/${a.n}`);
     console.log(`   within-5min-bin residual: median ${a.withinBinMedianMs.toFixed(2)} ms  p90 ${a.withinBinP90Ms.toFixed(2)}  max ${a.withinBinMaxMs.toFixed(2)}  (${a.bins} bins)`);
     console.log(`   beat-to-beat |delta| median ${a.beatToBeatMedianMs.toFixed(3)} ms  -> ramp, not jitter`);
+    console.log(
+      `   §17 provenance: ok=${!!h.ok} independent=${h.independent} spreadMs=${h.spreadMs != null ? h.spreadMs.toFixed(2) : '-'} ppm=${h.ppm != null ? h.ppm.toFixed(1) : '-'} drawn=${h.drawn} qShare=${h.quantizedShare != null ? h.quantizedShare.toFixed(3) : '-'}`
+    );
+    console.log(
+      `   host correction can explain ${Number.isFinite(predictedMs) ? predictedMs.toFixed(1) : '?'} ms of the ${ax.maxDevMs.toFixed(1)} ms observed -> ${Number.isFinite(predictedMs) && predictedMs < ax.maxDevMs / 10 ? 'DEVICE-MEASURED axis is what is discarded' : 'host correction is material'}`
+    );
   }
   if (rows.length > 1) {
     const wb = rows.map((r) => r.a.withinBinMedianMs).filter(Number.isFinite);

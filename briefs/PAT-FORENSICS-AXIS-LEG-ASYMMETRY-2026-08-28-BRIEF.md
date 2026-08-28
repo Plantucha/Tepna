@@ -7,10 +7,18 @@
 
 # The two legs of a PAT measurement ride different time axes — and Tepna introduces the difference
 
-> **In one line:** the ECG leg is host-disciplined and the PPG leg is not, because both fiducials are
-> sub-sample but only one of the two index→time conversions accepts a fractional index. The PPG leg's
-> `relSec` lookup is `undefined` for **every** foot, so it silently falls back to the raw device axis.
-> Measured: **0 of 8948 feet** on 8 real fragments took the host-disciplined branch.
+> **In one line:** both fiducials are sub-sample, but only one of the two index→time conversions
+> accepts a fractional index. The PPG leg's `relSec` lookup is `undefined` for **every** foot, so it
+> silently falls back to `idx / fs` — **discarding the device's own measured per-sample timestamps in
+> favour of a synthesized constant-rate axis.** Measured: **0 of 8948 feet** on 8 real fragments took
+> the `relSec` branch.
+
+⚠️ **ATTRIBUTION CORRECTED 2026-08-28 (§17 measurement, below).** This brief first said the discarded
+quantity was the *host correction*. It is not. On these fragments `hostAxis.independent` is **false**
+and `ppm ≈ 0`, so the host correction contributes **< 1 ms**; the 37–62 ms is the **device timestamp
+axis vs nominal `i/fs`**. The bug and its magnitude are unchanged — what changed is *what is being
+thrown away*, and the corrected answer is the more serious one: not a lost refinement, but a lost
+measurement.
 
 **Label: SOFTWARE BUG** (charter §19). It is not a device limitation and not a physiological limit —
 the correction is computed, is correct, and is discarded by an array subscript.
@@ -40,7 +48,7 @@ PPG LEG
               sec = rel[idx] != null && isFinite(rel[idx]) ? rel[idx] : idx/fs
                                                                  ← ARRAY SUBSCRIPT on a fractional idx
                                                                  🔴 ALWAYS undefined ⇒ ALWAYS idx/fs
-                                                                 ❌ host correction DISCARDED
+                                                                 ❌ DEVICE-MEASURED axis DISCARDED
 
 BOTH ─ overlap() ─ coupledPAT(rTimes, fTimes)          PHYS_LO 200 · PHYS_HI 650 · LAG_SEARCH_MS 2000
                                                         BIN_MIN 5 (minutes)
@@ -78,11 +86,13 @@ Classes per the charter. **Verified** = read from the calculation, not from a co
 | ECG `tMsAt(i)` | `t0Ms + i·msPerSample + corrAt` | **DEVICE-DERIVED, HOST-DISCIPLINED** | ✅ source |
 | ECG `hostAxis.ppm` | span-gated rate estimate | DEVICE-DERIVED, often **REFUSED** | ⬜ comment claims 160/187 refused — **not yet re-measured** |
 | PPG `t0Ms` | file stamp via `parsePPG` | HOST-MEASURED | ✅ source |
-| PPG `relSec` (`deltas.length > 20` ∧ `hostAx.ok`) | `(devMs + correctionAt(devMs))/1000` | **DEVICE-DERIVED, HOST-DISCIPLINED** | ✅ source + executed |
+| PPG `relSec` (`deltas.length > 20` ∧ `hostAx.ok`) | `(devMs + correctionAt(devMs))/1000` — and on this corpus `correctionAt` contributes **< 1 ms** | **DEVICE-MEASURED** (not host-disciplined here: `independent:false`) | ✅ source + executed |
 | PPG `relSec` (else) | `i / fs` | SYNTHETIC | ✅ source |
 | **PPG foot time _as actually used by PAT_** | `idx / fs` | **SYNTHETIC** | ✅ **executed, 0/8948** |
 
-The last row is the finding: `relSec` is computed as a disciplined axis and then not used.
+The last row is the finding: `relSec` carries the device's **measured** per-sample timing and is then
+not used. The substitute, `idx / fs`, is SYNTHETIC by the charter's own vocabulary — so the bug
+downgrades a measured field to a synthesized one, which is the single worst transition in that table.
 
 ## 3 · Magnitude — and why the honest number is 3× smaller than the raw one
 
@@ -108,6 +118,39 @@ At the median it is ~17 % of the 60 ms budget; at its worst bin, ~67 %. It belon
 budget as a correlated (not independent) term, because it is a monotone ramp shared by every beat in
 a bin rather than a per-beat draw.
 
+## 3b · §17 — provenance labelling, and it resolves the tension
+
+Per fragment, from `rec.hostAxis` (all 8 files):
+
+| field | value across 8 fragments |
+|---|---|
+| `ok` | **true** (8/8) |
+| **`independent`** | **false (8/8)** |
+| `spreadMs` | **0.98 – 1.00 ms** |
+| `ppm` | −10.6 (78 s file) · **−0.4 … +0.4** (the seven 1467 s fragments) |
+| `drawn` | **false (8/8)** · `quantizedShare` 0.041 – 0.211 |
+| `ppm × duration` (predicted correction) | **0.0 – 0.8 ms** |
+| observed \|relSec − i/fs\| | **1.9 – 62.3 ms** |
+
+**Three conclusions, and one of them corrects this brief:**
+
+1. ✅ **`raw-corpus-is-all-phone-captured` HOLDS — scope is not narrower.** `spreadMs` 0.98–1.00 ms is
+   the phone signature (0.13–1.00 ms) to three digits, and `independent:false` says so directly.
+   **`hostAx.ok` does not mean a second clock exists**; it means the axis block ran. A reader who
+   treats `ok` as evidence of independence will be wrong on every night in this corpus.
+2. ✅ **`correctionAt` is NOT shaping a drawn column into looking disciplined.** That was the feared
+   second bug with the bigger blast radius, and it is **refuted**: the correction it applies is
+   ~0 ppm, worth < 1 ms over 24 minutes, i.e. it is honestly declining to correct.
+3. 🔴 **This brief's original attribution was wrong.** `ppm × duration` (≤ 0.8 ms) cannot account for
+   an observed 37–62 ms. The discarded quantity is the **device's own timestamp column**, not the host
+   correction. `drawn:false` and `quantizedShare` ≤ 0.21 confirm the Verity axis is genuinely
+   MEASURED — unlike the O2Ring's, which is drawn — so PAT is discarding real timing, not a refinement.
+
+**Why the error is 37–62 ms if the correction is ~0:** `relSec ≈ devMs/1000`, the device's measured
+per-sample stamps, while `idx / fs` assumes a perfectly constant rate at the *estimated* `fs`. The gap
+is the device's true sampling irregularity plus any error in `fs` — which is precisely the quantity
+§5 names as the PPG-axis suspect, and it is now measured rather than assumed.
+
 ## 4 · What this does NOT yet establish
 
 - **Whether fixing it changes any night's verdict.** Not measured. The estimator's per-bin centring
@@ -115,12 +158,8 @@ a bin rather than a per-beat draw.
 - **The ECG leg's refusal rate.** `ecgRpeakTimes`' comment claims 160 of 187 fragments have the ppm
   path refused with 48 ms median divergence. The charter forbids accepting that on faith and it is
   **not yet re-measured** — carried into phase (a)-continued.
-- **Box vs phone nights.** These 8 fragments are Polar Sensor Logger captures. Per
-  `raw-corpus-is-all-phone-captured`, phone nights have no independent second clock — yet `relSec`
-  here is demonstrably non-nominal, which means `hostAx.ok` was true for them. **That tension is
-  unresolved and is the next thing to measure**: either these carry a real host axis and the memory's
-  scope is narrower than remembered, or `correctionAt` is shaping a device-derived column into
-  something that merely looks disciplined. §17's box/phone labelling settles it.
+- ~~**Box vs phone nights.**~~ **RESOLVED — see §3b.** The memory holds, `correctionAt` is innocent,
+  and the tension existed only because this brief conflated `hostAx.ok` with `hostAx.independent`.
 
 ## 5 · Done when
 
@@ -128,5 +167,5 @@ a bin rather than a per-beat draw.
 - [x] §3 classification for the PAT path, verified-vs-claimed marked.
 - [x] Magnitude measured, reproducible tool committed, over-claim avoided.
 - [ ] ECG ppm refusal rate re-measured (the comment's 160/187 · 48 ms).
-- [ ] `hostAx.ok` provenance on phone captures resolved against §17's labelling.
+- [x] `hostAx.ok` provenance on phone captures resolved against §17's labelling — memory holds.
 - [ ] Verdict-level impact via the §11 oracle — does fixing it move any night?
