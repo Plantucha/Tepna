@@ -25429,11 +25429,21 @@
               if (w) words[w] = 1;
             });
           var names = [rec.firstAuthor].concat(rec.authorAliases || []).filter(Boolean);
+          /* Whole-word ≥3 keeps Pan without admitting substrings — but it makes 2-letter CJK
+             surnames (Wu, Xu, Ni, He, Li…) structurally unmatchable when the GIVEN name is also
+             short ("Wu Xu": no part ever reaches 3), and lowering the floor would re-admit
+             "he"/"an" as English words. The escape that stays specific (owner-granted 2026-08-28):
+             a FULL-NAME PHRASE alias — ≥2 parts, ≥5 folded chars, ADJACENT in the window — matches;
+             "wu xu" cannot occur by accident the way a lone "he" can. Single short words still
+             never match on their own. */
+          var foldedWin = ' ' + fold(win).replace(/ +/g, ' ') + ' ';
           var authorOk =
             names.length > 0 &&
             names.some(function (n) {
-              return fold(n)
-                .split(' ')
+              var parts = fold(n).split(' ').filter(Boolean);
+              var phrase = parts.join(' ');
+              if (parts.length >= 2 && phrase.length >= 5 && foldedWin.indexOf(' ' + phrase + ' ') !== -1) return true;
+              return parts
                 .filter(function (w) {
                   return w.length >= 3;
                 })
