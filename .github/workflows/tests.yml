@@ -85,7 +85,7 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4, 5, 6]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -99,7 +99,7 @@ jobs:
     steps:
       # fetch-depth: 0 is LOAD-BEARING for the commit-shape scan below — on the default
       # shallow clone it would see one commit, find nothing, and report green forever.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: actions/setup-node@v4

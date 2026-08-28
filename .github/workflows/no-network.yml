@@ -30,7 +30,7 @@ jobs:
     # afternoon; successes run 1–6 min, worst outlier 16). Terminal-and-visible beats pending-forever.
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v4
         with:

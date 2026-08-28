@@ -96,7 +96,7 @@ jobs:
     outputs:
       run: ${{ steps.filter.outputs.run }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: filter
@@ -155,7 +155,7 @@ jobs:
         python-version: ['3.12', '3.13']   # 3.13 = the box (Vigil, 3.13.11); 3.12 = the older baseline
     name: test (py${{ matrix.python-version }})
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
@@ -230,7 +230,7 @@ jobs:
     runs-on: ubuntu-latest
     name: mutation (diff-scoped)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0            # the gate diffs against the merge base; a shallow clone has none
       - uses: actions/setup-python@v7
@@ -277,7 +277,7 @@ jobs:
     runs-on: ubuntu-latest
     name: mypy (advisory ratchet)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'   # the box (Vigil, 3.13.11) — the version whose type errors matter
@@ -341,7 +341,7 @@ jobs:
     runs-on: ubuntu-latest
     name: supply-chain (advisory)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # dependency-review needs both endpoints of the PR diff
       - uses: actions/setup-python@v7
