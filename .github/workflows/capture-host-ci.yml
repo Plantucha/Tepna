@@ -171,7 +171,12 @@ jobs:
         # a guard that isn't there. Installing them is also what lets those modules report real coverage.
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-cov ruff shellcheck-py
+          # ⚠️ `hypothesis` belongs on THIS line, not only in requirements-dev.txt. This job installs a
+          # named list plus requirements.txt and never reads requirements-dev — so pinning a test
+          # dependency there declares it to humans and to `check.sh`, and NOT to the job that runs the
+          # tests. Measured: the property suite passed locally (my venv had it from a manual install)
+          # and both matrix legs failed collection here with ModuleNotFoundError.
+          pip install pytest pytest-cov ruff shellcheck-py hypothesis
           pip install -r requirements.txt
       - name: Lint (ruff — real errors only)
         if: needs.changes.outputs.run == 'true'
@@ -239,7 +244,9 @@ jobs:
       - name: Install tooling + runtime deps
         run: |
           python -m pip install --upgrade pip
-          pip install pytest mutmut
+          # hypothesis for the same reason as the test job above: this one RUNS the suite (mutmut
+          # executes it per mutant), so a missing test dependency is a collection error here too.
+          pip install pytest mutmut hypothesis
           pip install -r requirements.txt
       - name: Mutate only what this PR changed
         # `tools/mutate.py` shells out to `.venv/bin/python`; on the runner the venv is the ambient
