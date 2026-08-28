@@ -92,10 +92,62 @@ MARGINAL/STRONG boundary — though not the strong nights, which sit well inside
 deliberately: sweeping the width against the outcome would re-introduce the circularity §1 exists to
 prevent.
 
-## 6 · Done when
+## 6 · §14 — the residual is a SLOW TREND, not respiration and not noise (and my own bands were too coarse)
+
+The oracle left 20–40 ms unaccounted for against a ~11 ms sensor floor. §14 asks whether that
+residual is **error** (unstructured) or **physiology** (structured). Measured on the out-of-sample
+accepted lags of 8 nights, with a shuffle control:
+
+| night | n | SD | ρ₁ | ρ₅ | ρ₂₀ | shuffled | zero-crossing | shape | ρ(RR,lag) |
+|---|---|---|---|---|---|---|---|---|---|
+| 2026-07-24 | 1476 | 15.3 | 0.943 | 0.816 | 0.545 | −0.001 | **none** | DRIFT-LIKE | +0.028 |
+| 2026-07-28 | 3855 | 37.2 | 0.987 | 0.941 | 0.741 | 0.016 | **none** | DRIFT-LIKE | −0.086 |
+| 2026-08-02 | 2167 | 38.2 | 0.985 | 0.963 | 0.908 | −0.034 | **none** | DRIFT-LIKE | −0.225 |
+| 2026-08-13 | 6839 | 37.1 | 0.963 | 0.939 | 0.898 | 0.009 | **none** | DRIFT-LIKE | +0.462 |
+| 2026-08-17 | 1622 | 17.9 | 0.754 | 0.587 | 0.504 | 0.005 | **none** | DRIFT-LIKE | +0.121 |
+| 2026-08-24 | 5246 | 44.9 | 0.958 | 0.927 | 0.812 | 0.008 | **none** | DRIFT-LIKE | −0.008 |
+| 2026-07-18 | 2415 | 27.9 | 0.981 | 0.929 | 0.710 | 0.022 | **none** | DRIFT-LIKE | +0.108 |
+| 2026-07-20 | 7714 | 42.3 | 0.966 | 0.941 | 0.844 | 0.005 | **none** | DRIFT-LIKE | −0.343 |
+
+**8 of 8 DRIFT-LIKE.** Shuffles collapse to ≈ 0 on every night, so the statistic is measuring temporal
+order and nothing else.
+
+**Two shapes eliminated:**
+- **Not white noise** — ρ₁ ranges 0.75 – 0.99.
+- **Not respiratory oscillation** — a 12-beat respiratory cycle gives ρ₁ = cos(2π/12) = **0.866** and
+  crosses zero near a quarter period (~3 beats), rebounding negative. **No night crosses zero within
+  40 beats**, and ρ₂₀ is still 0.50 – 0.91.
+- **No coherent HR dependence** — ρ(RR,lag) scatters in sign across nights (+0.462 … −0.343). Real
+  PAT–HR coupling would hold one sign.
+
+### 🔴 But this does NOT settle error-vs-physiology, and my pre-stated bands assumed it would
+
+The bands read *structured ⇒ physiological*. **That mapping is wrong**, and the shape result is what
+exposed it. A slow monotone trend is produced by **both**:
+
+- an **instrumental** drift — an uncorrected inter-device clock, a warming sensor; **error**; and
+- a **slow physiological** trend — blood-pressure drift across the night, posture, sleep-stage
+  transitions, vasomotor tone; **signal**.
+
+Both are "structured", both are drift-shaped, and they mean opposite things for the budget. So the
+honest verdict is narrower than either of the two the bands offered: **the residual is a slow trend
+of unidentified origin.** Recording it as "physiology" would have been the inversion §14 exists to
+prevent; recording it as "clock" would be the same error facing the other way.
+
+**What would discriminate, named for the next pass:** a clock drift moves the *cross-device* lag while
+leaving each device's *internal* intervals (RR, foot-to-foot) untouched; a physiological trend moves
+the true lag and may co-vary with them. The per-LED arm cannot help — LEDs share a clock *and* a
+pulse, so the drift is common-mode either way. Linearity is a weaker second cue: an uncorrected
+crystal drifts at a fixed ppm, a vasomotor trend does not.
+
+**Status of the 20–40 ms: still unexplained, but its SHAPE is now known** — a slow trend, not noise
+and not respiration. That is two of three candidate shapes eliminated on 8 of 8 nights.
+
+## 7 · Done when
 
 - [x] Out-of-sample design, circular-shift null, gate-asserted with a noise control.
 - [x] Full-corpus run; strong/marginal/none separated by null margin.
 - [x] Mode-outside-window nights identified and counted.
-- [ ] What spends the 20–40 ms between the recovered SD and the ~11 ms sensor floor.
+- [x] The 20–40 ms residual's SHAPE: a slow trend on 8/8 nights — not white, not respiratory, no coherent HR dependence.
+- [ ] Its SOURCE: instrumental drift vs slow physiological trend — the bands could not separate these and the discriminator is named in §6.
 - [ ] Whether the 22 unscored nights differ systematically from the 20 scored.
