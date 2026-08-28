@@ -1,0 +1,80 @@
+# tepna-capture — tests/test_mutation_pure.py
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+"""`mutation_pure.harvest_text` — which mutants get tested at all.
+
+Both directions of a mistake here are SILENT and both corrupt the measurement: under-harvest and a
+mutant is never tested and never counted (a higher kill rate over a smaller total, with nothing saying
+one went missing); over-harvest and the ORIGINAL is tested as a mutant, surviving by construction and
+fabricating a test gap. That is why the scan belongs inside the coverage floor."""
+
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import mutation_pure as P  # noqa: E402
+
+
+def _gen(*defs):
+    """A generated-mutants file, in mutmut's actual layout."""
+    return "".join(f"def {n}():\n{body}\n" for n, body in defs)
+
+
+def test_the_ORIGINAL_is_skipped_and_REPORTED_never_silently_dropped():
+    """🔴 Over-harvest is the dangerous direction. `__mutmut_orig` IS the unmutated function, so it
+    passes every test by construction and would be reported as SURVIVED — a fabricated test gap
+    sending someone to write an assertion that already exists. It is excluded AND returned, because an
+    exclusion the caller cannot see is one nobody can audit."""
+    txt = _gen(("x_foo__mutmut_orig", "    return 1"), ("x_foo__mutmut_1", "    return 2"))
+    harvested, skipped = P.harvest_text(txt, ["foo"])
+    assert [n for n, _ in harvested["foo"]] == ["x_foo__mutmut_1"]
+    assert skipped == ["x_foo__mutmut_orig"]
+
+
+def test_a_mutant_body_ends_at_the_DEDENT_not_at_a_blank_line():
+    """Under-harvest, the quiet direction. A blank line has no indentation; treating it as the end of
+    the body would truncate every function with a paragraph break, and the exec'd mutant would then
+    be a different function than mutmut generated — silently."""
+    body = "    a = 1\n\n    return a + 1"
+    txt = _gen(("x_foo__mutmut_1", body), ("x_foo__mutmut_2", "    return 9"))
+    harvested, _ = P.harvest_text(txt, ["foo"])
+    src = dict(harvested["foo"])["x_foo__mutmut_1"]
+    assert "return a + 1" in src, "the body was cut at the blank line"
+    assert "x_foo__mutmut_2" not in src, "the body ran past its own dedent into the next mutant"
+
+
+def test_a_function_NOT_asked_for_is_not_harvested():
+    txt = _gen(("x_foo__mutmut_1", "    return 1"), ("x_bar__mutmut_1", "    return 2"))
+    harvested, _ = P.harvest_text(txt, ["foo"])
+    assert [n for n, _ in harvested["foo"]] == ["x_foo__mutmut_1"]
+    assert "bar" not in harvested
+
+
+def test_several_requested_functions_are_kept_apart():
+    txt = _gen(("x_foo__mutmut_1", "    return 1"), ("x_bar__mutmut_1", "    return 2"),
+               ("x_bar__mutmut_2", "    return 3"))
+    harvested, _ = P.harvest_text(txt, ["foo", "bar"])
+    assert [n for n, _ in harvested["foo"]] == ["x_foo__mutmut_1"]
+    assert [n for n, _ in harvested["bar"]] == ["x_bar__mutmut_1", "x_bar__mutmut_2"]
+
+
+def test_an_ASYNC_mutant_is_harvested_like_any_other():
+    """`DEF` accepts `async def`; mutmut generates those for async functions and dropping them would
+    be a silent under-harvest confined to exactly the async code."""
+    txt = "async def x_foo__mutmut_1():\n    return 1\n"
+    harvested, _ = P.harvest_text(txt, ["foo"])
+    assert [n for n, _ in harvested["foo"]] == ["x_foo__mutmut_1"]
+
+
+def test_an_INDENTED_mutant_definition_is_harvested_and_bounded_by_its_own_indent():
+    """mutmut writes at module level, but the scan is indent-relative rather than column-zero, and
+    that is load-bearing: it is what lets a body end at its own dedent instead of at column 0."""
+    txt = "class C:\n    def x_foo__mutmut_1(self):\n        return 1\n    def other(self):\n        return 2\n"
+    harvested, _ = P.harvest_text(txt, ["foo"])
+    src = dict(harvested["foo"])["x_foo__mutmut_1"]
+    assert "return 1" in src and "other" not in src
+
+
+def test_an_empty_file_and_an_absent_function_yield_empty_not_an_error():
+    assert P.harvest_text("", ["foo"]) == ({"foo": []}, [])
+    assert P.harvest_text(_gen(("x_bar__mutmut_1", "    return 1")), ["foo"]) == ({"foo": []}, [])
