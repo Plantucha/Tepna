@@ -78,3 +78,56 @@ def test_an_INDENTED_mutant_definition_is_harvested_and_bounded_by_its_own_inden
 def test_an_empty_file_and_an_absent_function_yield_empty_not_an_error():
     assert P.harvest_text("", ["foo"]) == ({"foo": []}, [])
     assert P.harvest_text(_gen(("x_bar__mutmut_1", "    return 1")), ["foo"]) == ({"foo": []}, [])
+
+
+# ── mutants the diff-scoped gate found alive on harvest_text ────────────────────────────────────
+# Nine survived, and the root cause was one habit of mine: the assertions above use `in` rather than
+# `==`. A body with its newlines stripped, or one sliced from line 0 instead of the def, still
+# CONTAINS the substring — so the fixture answered for the code again. These pin the exact text, with
+# a target that is neither the first nor the last definition in the file.
+
+_MULTI = (
+    "def x_foo__mutmut_1():\n    return 1\n"
+    "def x_bar__mutmut_1():\n    a = 1\n\n    return a\n"
+    "def x_foo__mutmut_2():\n    return 2\n"
+    "# trailing module content that belongs to no mutant\n"
+)
+
+
+def test_a_harvested_body_is_EXACTLY_its_own_source_newlines_included():
+    """Kills `splitlines(keepends=True)` -> `False`/`None` and `start = n` -> `None`.
+
+    `bar` is deliberately the MIDDLE definition: slicing from line 0 would swallow `foo`'s first
+    mutant, and an `in` assertion could not tell. Dropping the line endings joins the body into one
+    line, which an `in` assertion also cannot tell. Exact equality sees both."""
+    harvested, _ = P.harvest_text(_MULTI, ["bar"])
+    assert dict(harvested["bar"])["x_bar__mutmut_1"] == "def x_bar__mutmut_1():\n    a = 1\n\n    return a\n"
+
+
+def test_the_LAST_definition_stops_at_its_own_dedent_not_at_end_of_file():
+    """Kills `close(len(lines))` -> `close(None)`. `lines[start:None]` runs to EOF, which is identical
+    unless something follows the last mutant — so the fixture carries a trailing module-level line."""
+    harvested, _ = P.harvest_text(_MULTI, ["foo"])
+    last = dict(harvested["foo"])["x_foo__mutmut_2"]
+    assert last == "def x_foo__mutmut_2():\n    return 2\n"
+    assert "trailing module content" not in last
+
+
+def test_every_harvested_mutant_of_a_function_is_exact_and_in_file_order():
+    """Kills the `cur`/`indent` sentinel swaps (`None` -> `""`, `0` -> `1`, `1` -> `2`): each corrupts
+    either which lines are collected or where a body ends, and all of them survive an `in` check."""
+    harvested, _ = P.harvest_text(_MULTI, ["foo"])
+    assert [n for n, _ in harvested["foo"]] == ["x_foo__mutmut_1", "x_foo__mutmut_2"]
+    assert [s for _, s in harvested["foo"]] == [
+        "def x_foo__mutmut_1():\n    return 1\n",
+        "def x_foo__mutmut_2():\n    return 2\n",
+    ]
+
+
+def test_a_body_indented_by_a_SINGLE_space_is_still_a_body():
+    """Kills `" " * (indent + 1)` -> `(indent + 2)`. One-space indentation is legal Python and rare
+    enough that no fixture had it; under the mutant the body ends immediately and the mutant source
+    collapses to its `def` line, which every earlier assertion would have accepted."""
+    src = "def x_foo__mutmut_1():\n return 1\n# tail\n"
+    harvested, _ = P.harvest_text(src, ["foo"])
+    assert dict(harvested["foo"])["x_foo__mutmut_1"] == "def x_foo__mutmut_1():\n return 1\n"
