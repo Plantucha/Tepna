@@ -223,3 +223,8 @@ coverage/
 
 # mutation sweep journals — resumable-run state, regenerated, never committed
 .mutate-journal/
+
+# The §P2 fix lane's work queue: check.sh rewrites it on every run (PYTHON-TYPES-AND-FORMAT §P2).
+# Machine-local and regenerated, never a source of truth — committing it would ship one box's
+# error list as if it were the repo's.
+capture-host/.mypy-latest.txt

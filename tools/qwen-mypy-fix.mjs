@@ -171,6 +171,11 @@ function selftest() {
   ck('mypy: the code is captured', my[0].code, 'no-untyped-def');
   ck('mypy: a col-less line still parses', my[1].line, 40);
   ck('mypy: a non-error line is skipped, not guessed', parseMypy('capture-host/x.py:1: note: something').length, 0);
+  /* THE EMPTY-VS-CLEAN DISCRIMINATOR. Both yield zero errors from `parseMypy`; only one of them means
+     the tree is clean. The CLI refuses the empty case outright — asserted here at the parse layer so
+     the distinction is pinned even if the CLI is rewritten. */
+  ck('mypy: an EMPTY feed parses to zero errors — indistinguishable from clean at this layer', parseMypy('').length, 0);
+  ck('mypy: …while a genuinely clean run carries a SUCCESS line to tell them apart', /Success: no issues/.test('Success: no issues found in 41 source files'), true);
 
   // -- lane split
   ck('lane: an annotation gap is this lane’s', isMechanical(my[0]), true);
@@ -235,7 +240,19 @@ function main(argv) {
     console.error(`refusing: ${logPath} does not exist. An absent log is not a clean run.`);
     return 2;
   }
-  const errs = parseMypy(readFileSync(logPath, 'utf8'));
+  const raw = readFileSync(logPath, 'utf8');
+  /* 🔴 AN EMPTY FEED IS "NEVER WRITTEN", NOT "NO ERRORS". `check.sh` creates this file by redirect,
+     so it exists the instant mypy starts and stays empty if mypy dies, is killed, or the gate crashes
+     before it. An empty file and a clean tree are then indistinguishable to a consumer that only
+     counts error lines — and this lane would report a triumphant zero about a run that never happened.
+     A genuinely clean mypy does NOT produce an empty file: it writes "Success: no issues found in N
+     source files". So emptiness is a refusal, and cleanliness is a line of text. */
+  if (!raw.trim()) {
+    console.error(`refusing: ${logPath} is EMPTY — that is "mypy never wrote", not "no errors".`);
+    console.error('A clean run writes "Success: no issues found…"; an empty file means the gate died before mypy finished.');
+    return 2;
+  }
+  const errs = parseMypy(raw);
   const mine = errs.filter(isMechanical);
   console.log(`mypy errors: ${errs.length} · this lane's classes: ${mine.length} · session lane's: ${errs.length - mine.length}`);
   if (!errs.length) console.error('⚠  zero errors parsed — check the log format before reading this as a clean tree.');

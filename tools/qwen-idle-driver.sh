@@ -17,6 +17,15 @@
 set -u
 WT=/home/michal/wt-resweep            # the checkout holding the live crawl state + synced tools
 LOG=/home/michal/Tepna/.git/tepna-mutation/qwen-idle-driver.log
+# STATE PINS TO ROOT; CODE COMES FROM $WT. `cd "$WT"` below makes every RELATIVE path in this script
+# resolve inside the rotating worktree — right for the code and the crawl state that live there, WRONG
+# for anything produced elsewhere. `capture-host/check.sh` runs in whatever checkout the operator used
+# (normally root), so the mypy feed must be read ABSOLUTELY or the lane watches a path that will never
+# exist. `LOG` above already follows this convention; stage 5 did not.
+# Measured 2026-08-28: the feed existed in root at 00:55 (31884 bytes) and the 01:04 cycle still logged
+# "no capture-host/.mypy-latest.txt" — the THIRD broken link in one chain (no producer → producer
+# writing where the consumer does not look → consumer reading the wrong tree).
+MYPY_FEED="${TEPNA_MYPY_FEED:-/home/michal/Tepna/capture-host/.mypy-latest.txt}"
 exec 9>/tmp/qwen-idle-driver.lock
 flock -n 9 || exit 0                  # a previous run is still going — correct, not an error
 echo "── $(date '+%F %T') driver start" >> "$LOG"
@@ -67,9 +76,11 @@ done
 # zero while adding nothing. A prompt can only discourage that path; the predicate makes it
 # unreachable. Proposals land NOWHERE automatically — the queue is triage material, per §0 of the
 # qwen program.
-if [ -f capture-host/.mypy-latest.txt ]; then
-  timeout 1800 node tools/qwen-mypy-fix.mjs --mypy-log capture-host/.mypy-latest.txt >> "$LOG" 2>&1
+if [ -f "$MYPY_FEED" ]; then
+  timeout 1800 node tools/qwen-mypy-fix.mjs --mypy-log "$MYPY_FEED" >> "$LOG" 2>&1
 else
-  echo "   mypy lane: no capture-host/.mypy-latest.txt — check.sh has not run here; skipping (absent is not clean)" >> "$LOG"
+  # Name the ABSOLUTE path that was missing. "no capture-host/.mypy-latest.txt" was true and useless:
+  # it does not say WHICH tree was searched, so a feed sitting in root reads as an absent feed.
+  echo "   mypy lane: no $MYPY_FEED — capture-host/check.sh has not run in that checkout; skipping (absent is not clean)" >> "$LOG"
 fi
 echo "── $(date '+%F %T') driver end" >> "$LOG"

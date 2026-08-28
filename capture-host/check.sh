@@ -72,9 +72,28 @@ run_advisory() {                    # run_advisory <label> <note-on-fail> <cmd..
   adv_names+=("$label"); adv_codes+=("$rc"); adv_notes+=("$note")
   return 0
 }
+# PERSIST MYPY'S OUTPUT — the §P2 fix lane's work queue. `qwen-idle-driver.sh` stage 5 reads
+# `.mypy-latest.txt` and, until this, NOTHING wrote it: the consumer shipped before the producer, so
+# the lane skipped on every cycle. The skip was LOUD, which is why it surfaced in one tick instead of
+# reading as clean — but a loud skip forever is still a lane that never runs.
+#
+# ⚠️ WRITTEN BY REDIRECT AND THEN ECHOED, NEVER `| tee`. A pipe would hand `run_advisory` tee's exit
+# status instead of mypy's, and mypy's is the number the advisory reports (CLAUDE.md §4b — the check
+# that ran and reported about something it never examined).
+MYPY_OUT=".mypy-latest.txt"
+mypy_advisory() {
+  "$PY" -m mypy --ignore-missing-imports --explicit-package-bases . > "$MYPY_OUT" 2>&1
+  local rc=$?
+  cat "$MYPY_OUT"
+  return "$rc"
+}
 if "$PY" -c 'import mypy' 2>/dev/null; then
-  run_advisory "mypy" "baseline 189 (2026-08-27) — count may only go DOWN; flips blocking at 0"     "$PY" -m mypy --ignore-missing-imports --explicit-package-bases .
+  run_advisory "mypy" "baseline 189 (2026-08-27) — count may only go DOWN; flips blocking at 0"     mypy_advisory
 else
+  # No mypy ⇒ REMOVE the feed rather than leave yesterday's. A stale queue is worse than an absent
+  # one: the lane would propose fixes for errors that may already be gone, and its acceptance rate —
+  # the metric that decides whether the lane survives — would be measured against a dead list.
+  rm -f "$MYPY_OUT"
   printf '
 [1m▸ mypy (advisory)[0m
   mypy not installed (pip install -r requirements-dev.txt) — ADVISORY GATE DID NOT RUN
