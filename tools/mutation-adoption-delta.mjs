@@ -111,7 +111,7 @@ export function adoptionDelta({ before, after, adopted = [] }) {
     newlyUnjudged: [], // terminated before, does not now — a harness finding
     absentAfter: 0,
     beforeTotal: before.size,
-    afterTotal: after.size,
+    afterTotal: after.size
   };
   for (const [k, b] of before) {
     const cb = classify(b);
@@ -159,7 +159,7 @@ export function metricsRow(file, adopted, d, stamp) {
     regressed: d.regressed.length,
     unjudgedBefore: d.unjudgedBefore,
     unjudgedAfter: d.unjudgedAfter,
-    newlyUnjudged: d.newlyUnjudged.length,
+    newlyUnjudged: d.newlyUnjudged.length
   };
 }
 
@@ -241,9 +241,15 @@ function selftest() {
 
   // 1 - POSITIVE: a survivor becomes killed BY an adopted group
   const d1 = adoptionDelta({
-    before: J([{ k: 'm1', v: 'SURVIVED' }, { k: 'm2', v: 'SURVIVED' }]),
-    after: J([{ k: 'm1', v: 'KILLED', ks: ADOPTED }, { k: 'm2', v: 'SURVIVED' }]),
-    adopted: ADOPTED,
+    before: J([
+      { k: 'm1', v: 'SURVIVED' },
+      { k: 'm2', v: 'SURVIVED' }
+    ]),
+    after: J([
+      { k: 'm1', v: 'KILLED', ks: ADOPTED },
+      { k: 'm2', v: 'SURVIVED' }
+    ]),
+    adopted: ADOPTED
   });
   ck('positive: one survivor is killed by the adopted group', d1.delta, 1);
   ck('positive: the other is still surviving', d1.stillSurviving, 1);
@@ -251,7 +257,10 @@ function selftest() {
   /* 2 - THE NULL CONTROL, and it is the assertion this tool must be trusted by. A no-op adoption —
      the after-sweep identical to the before — must measure EXACTLY zero. A delta that cannot produce
      zero on an unchanged pair is not measuring adoption, it is measuring the sweep. */
-  const same = [{ k: 'm1', v: 'SURVIVED' }, { k: 'm2', v: 'KILLED', ks: ['pre-existing group'] }];
+  const same = [
+    { k: 'm1', v: 'SURVIVED' },
+    { k: 'm2', v: 'KILLED', ks: ['pre-existing group'] }
+  ];
   const d2 = adoptionDelta({ before: J(same), after: J(same), adopted: ADOPTED });
   ck('NULL CONTROL: a no-op adoption measures zero', d2.delta, 0);
   ck('NULL CONTROL: ...and does not invent a regression', d2.regressed.length, 0);
@@ -262,7 +271,7 @@ function selftest() {
   const d3 = adoptionDelta({
     before: J([{ k: 'm1', v: 'SURVIVED' }]),
     after: J([{ k: 'm1', v: 'KILLED', ks: ['some other group'] }]),
-    adopted: ADOPTED,
+    adopted: ADOPTED
   });
   ck('a kill by a non-adopted group is not credited to adoption', d3.delta, 0);
   ck('...but it IS reported, not discarded', d3.killedByOther.length, 1);
