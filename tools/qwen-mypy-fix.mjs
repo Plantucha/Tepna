@@ -72,6 +72,41 @@ export function addedLines(before, after) {
     .filter((l) => l.trim() && !had.has(norm(l)));
 }
 
+/* THE PARSE RAIL. A proposal that does not parse is not a fix, and no judgement is involved — which
+   is exactly the kind of rule that belongs in the verifier rather than in a prompt. It also catches a
+   class the other rails cannot see: a reply that answers in PROSE ("I cannot infer the type here")
+   sails past an `Any` check and a bare-ignore check, because it contains neither.
+
+   ⚠️ A PROPOSAL IS A FRAGMENT, so a naive `ast.parse` would reject honest ones for being indented or
+   for starting inside a block. Two attempts, and only a double failure is a rejection: the dedented
+   text, then the same text re-indented under `if True:`. Verified against the real replies this lane
+   has produced — a `def` block with an 8-space body, a bare indented statement, and a plain
+   annotation all pass; a truncated call, an unbalanced bracket and a prose answer all fail.
+
+   Python's own parser is the authority; nothing here re-implements Python syntax. */
+const PARSE_PY = [
+  'import ast,sys,textwrap',
+  't=sys.stdin.read()',
+  'd=textwrap.dedent(t)',
+  'w="if True:\\n"+"\\n".join("    "+l for l in d.split("\\n"))',
+  'ok=False',
+  'for c in (d,w):',
+  '    try:',
+  '        ast.parse(c); ok=True; break',
+  '    except SyntaxError: pass',
+  'sys.exit(0 if ok else 1)'
+].join('\n');
+
+export function parsesAsPython(text, { run = execFileSync, py = 'python3' } = {}) {
+  if (!String(text).trim()) return false; // nothing is not a program
+  try {
+    run(py, ['-c', PARSE_PY], { input: String(text), encoding: 'utf8', stdio: ['pipe', 'ignore', 'ignore'] });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * THE RAILS. Returns `{ ok, reasons }` — `ok:false` means the proposal is auto-rejected before any
  * human reads it, and `reasons` is what the ledger records.
@@ -80,8 +115,13 @@ export function addedLines(before, after) {
  * because it documents a decision. A BARE ignore is refused — it erases the question instead of
  * answering it, and by rail it does not exist in this repo.
  */
-export function rejectProposal({ before = '', after = '' } = {}) {
+export function rejectProposal({ before = '', after = '', parses } = {}) {
   const reasons = [];
+  /* `parses` is supplied by the caller because the check shells out to Python and these rails are
+     pure. The generator ALWAYS supplies it; it is `undefined` only in a direct call that has not run
+     the check, and an unchecked proposal is not treated as a parsing one — it is simply not rejected
+     on that ground, which the selftest pins in both directions. */
+  if (parses === false) reasons.push('does not parse as Python — a reply that is prose, truncated, or unbalanced is not a fix');
   /* FIRST, and alone: every other rail is a "does the added text contain X" test, and all of them
      pass vacuously when nothing was added. */
   const added = addedLines(before, after);
@@ -285,6 +325,29 @@ function selftest() {
   ck('VACUITY: whitespace only is REJECTED', rejectProposal({ before: 'def f(x):', after: '   \n\t' }).ok, false);
   ck('VACUITY: a proposal identical to the original is REJECTED', rejectProposal({ before: 'def f(x):', after: 'def f(x):' }).ok, false);
   ck('VACUITY: a pure reindent adds nothing and is REJECTED', rejectProposal({ before: 'def f(x):', after: '    def f(x):' }).ok, false);
+  /* ── THE PARSE RAIL, both directions, against strings this lane has actually produced ──────────
+     A proposal that does not parse is not a fix. Planted with real replies rather than invented ones:
+     the `def` block below is the VERBATIM proposal for probe_verity_offline.py:79. */
+  const REAL_DEF = 'def __init__(self, client: BleakClient):\n        self.client, self.q = client, asyncio.Queue[bytes]()';
+  ck('parse: a real multi-line proposal with an indented body PARSES', parsesAsPython(REAL_DEF), true);
+  ck('parse: a bare INDENTED fragment parses (it is a fragment, not a module)', parsesAsPython('        self.q: asyncio.Queue[bytes] = asyncio.Queue()'), true);
+  ck('parse: a plain annotation parses', parsesAsPython('out: list[str] = []'), true);
+  ck('parse: an unbalanced bracket does NOT', parsesAsPython('out: list[str = ['), false);
+  ck('parse: a truncated call does NOT', parsesAsPython('self.client, self.q = client, asyncio.Queue[bytes]('), false);
+  /* The class the other rails structurally cannot see: a PROSE answer contains no `Any` and no bare
+     ignore, so every other rail passes it. */
+  ck('parse: a PROSE reply does NOT — the rail the other rails cannot substitute for', parsesAsPython('I cannot infer the type here, sorry.'), false);
+  ck('parse: empty is not a program', parsesAsPython('   '), false);
+  ck('rail: a non-parsing proposal is REJECTED with its own reason', rejectProposal({ before: 'x = []', after: 'x: list[ = []', parses: false }).ok, false);
+  ck('rail: …and the reason names parsing, not Any', /does not parse/.test(rejectProposal({ before: 'x = []', after: 'x: list[ = []', parses: false }).reasons[0]), true);
+  ck('rail: parses:true does not suppress the OTHER rails', rejectProposal({ before: 'def f(x):', after: 'def f(x: Any):', parses: true }).ok, false);
+  /* ⚠️ THE DISPLAY-TRUNCATION LESSON, made mechanical. Triaging the first cycle I nearly reported a
+     proposal as truncated-and-invalid; it was whole, and what I had read was my own 100-char print.
+     A summary is not the record. This asserts the FULL stored string parses while its display slice
+     does not — the two answers differ, and only one of them is about the proposal. */
+  ck('the full record parses…', parsesAsPython(REAL_DEF), true);
+  ck('…while a 100-char DISPLAY SLICE of it does not — never judge the slice', parsesAsPython(REAL_DEF.slice(0, 100)), false);
+
   ck('rail: the rejection says WHICH rail, not just "rejected"', /introduces `Any`/.test(rejectProposal({ before: 'def f(x):', after: 'def f(x: Any):' }).reasons[0]), true);
 
   // -- ledger shape
@@ -347,7 +410,7 @@ async function generate(errs, limit, showRaw) {
       rec = { key: errorKey(e), at: new Date().toISOString(), err: e, outcome: 'REAL-BUG', text: after.slice(0, 800) };
       console.log(`  REAL-BUG routed to the session lane: ${e.file}:${e.line} - not patched here`);
     } else {
-      const verdict = rejectProposal({ before, after });
+      const verdict = rejectProposal({ before, after, parses: parsesAsPython(after) });
       if (verdict.ok) accepted++;
       else rejected++;
       rec = { key: errorKey(e), at: new Date().toISOString(), err: e, outcome: verdict.ok ? 'PROPOSED' : 'AUTO-REJECTED', reasons: verdict.reasons, proposal: after.slice(0, 800) };

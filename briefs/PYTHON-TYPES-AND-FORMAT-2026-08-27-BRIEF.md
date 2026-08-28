@@ -52,6 +52,32 @@
   - **session lane (the judgment share):** the 68 Argument-type + 27 assignment errors triaged
     eyes-first (Vigil box's lane) — each is either an annotation fix or a REAL logic finding,
     and that call is exactly what the model measurably cannot make.
+- **§P2a — the qwen lane's MEASURED behaviour (first 9 triaged, 2026-08-28).** Recorded here because
+  it is the standing argument for eyes-first, and because two of its facts change what the lane is.
+
+  🔴 **The band as written is arithmetically unreachable.** `<30 % accepted after 30 triaged` needs 30;
+  this lane's classes hold **12 errors of the 189** — the rest are the session lane's by design. Nine
+  are answered, three remain. Three readings (the 30 was set before anyone counted · the sample is
+  meant to accumulate across time and wants a horizon rather than a count · the split is too narrow,
+  which trades against its whole purpose) — **routed to the owner**, undecided here on purpose: the
+  current rate sits near the bar, so whoever picks the denominator picks the verdict.
+
+  ⚠️ **The characteristic failure is HINT PATTERN-COMPLETION.** mypy writes
+  `Need type annotation for "out" (hint: "out: list[<type>] = ...")`, and the model fills the
+  placeholder with a plausible scalar **without reading what is appended**. Measured: `nightqc.py:472`
+  proposed `list[bool]` and `nightqc.py:1111` proposed `list[str]`, where both functions do
+  `out.append({…})` — dicts. **Both are annotations a hurried human would wave through**, which is
+  precisely why every proposal is human-read.
+
+  **Known limitation, deliberately not fixed:** `object` **evades the `Any` rail**
+  (`adapter_ab.py:58` → `dict[str, object]`). It is not `Any` and carries nearly as little — but it is
+  sometimes the *honest* type for genuinely heterogeneous data, so widening the rail would
+  auto-reject honest annotations. Eyes-first covers the lazy cases; the rail stays as it is.
+
+  **Rail added:** a proposal must **parse as Python**. No judgement is involved, so it belongs in the
+  verifier — and it catches a class the other rails structurally cannot see, a reply answering in
+  **prose**, which contains neither `Any` nor a bare ignore.
+
 - **§P3 — the flips, pre-stated.** ⚠️ **Measure the flip count in a tree matching CI's population** —
   a fresh checkout with no untracked files — per §0's tree caveat. A count taken in a working tree
   fires the flip early or late off files CI will never see. mypy flips BLOCKING when the count reaches 0 (typed-ignores
