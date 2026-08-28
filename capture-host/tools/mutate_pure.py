@@ -46,46 +46,29 @@ import argparse
 import importlib
 import inspect
 import json
-import re
 import sys
 import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
-DEF = re.compile(r"^(\s*)(?:async\s+)?def\s+(x[\w]*__mutmut_(?:\d+|orig))\s*\(")
+
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from mutation_pure import harvest_text  # noqa: E402
 
 
 def harvest(mutants_file: str, funcs: list[str]) -> dict[str, list[tuple[str, str]]]:
-    """{func: [(mutant_name, source), ...]} by a single line scan.
+    """{func: [(mutant_name, source), ...]}. THE READ IS PLUMBING; the scan is
+    `mutation_pure.harvest_text`, inside the coverage floor.
 
-    A line scan and not `ast.parse` on purpose: mutmut writes one copy of the whole function per
-    mutant, so capture.py's generated file is 1.9 M lines and parsing it does not finish.
-    """
-    want = {f"x_{f}__mutmut_" for f in funcs}
-    out: dict[str, list[tuple[str, str]]] = {f: [] for f in funcs}
-    lines = Path(mutants_file).read_text(encoding="utf-8").splitlines(keepends=True)
-    cur = start = None
-    indent = 0
-
-    def close(end: int) -> None:
-        if cur is None:
-            return
-        for f in funcs:
-            if cur.startswith(f"x_{f}__mutmut_") and not cur.endswith("__mutmut_orig"):
-                out[f].append((cur, "".join(lines[start:end])))
-
-    for n, line in enumerate(lines):
-        m = DEF.match(line)
-        if m:
-            close(n)
-            name, indent = m.group(2), len(m.group(1))
-            cur = name if any(name.startswith(w) for w in want) else None
-            start = n
-        elif cur is not None and line.strip() and not line.startswith(" " * (indent + 1)):
-            close(n)
-            cur = None
-    close(len(lines))
-    return out
+    Skipped `__mutmut_orig` entries are now REPORTED rather than dropped inside a condition: testing
+    the original as a mutant yields one that survives by construction, i.e. a fabricated test gap."""
+    harvested, skipped = harvest_text(Path(mutants_file).read_text(encoding="utf-8"), funcs)
+    if skipped:
+        print(f"  note: skipped {len(skipped)} __mutmut_orig definition(s) — the ORIGINAL function is "
+              f"not a mutant and would survive by construction", file=sys.stderr)
+    return harvested
 
 
 def load_cases(test_files: list[str]) -> list[tuple[str, callable]]:

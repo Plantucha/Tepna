@@ -370,3 +370,33 @@ def test_string_only_verdict_when_the_change_STRADDLES_a_literal_boundary():
     straddle = "--- x\n+++ y\n-a" + chr(34) * 2 + "\n+" + chr(34) + "a" + chr(34) + "\n"
     assert M.string_only_verdict(straddle)[0] == M.REQUIRED
 
+
+
+# ── the last five survivors (#1891 follow-up) ───────────────────────────────────────────────────
+
+def test_functions_covering_includes_the_DEF_LINE_itself():
+    """Kills `if any(lo <= ln <= hi)` -> `lo < ln <= hi`. A changed `def` line is the commonest case
+    of all — you changed the signature — and every prior fixture pointed at a line in the BODY, where
+    the lower bound is never tight."""
+    src = "import os\n\n\ndef alpha():\n    return 1\n"
+    assert M.functions_covering(src, {4}) == {"x_alpha"}     # the `def` line
+    assert M.functions_covering(src, {5}) == {"x_alpha"}     # and the body
+
+
+def test_functions_covering_keeps_the_CLASS_context_through_a_nested_function():
+    """Kills `visit(child, cls)` -> `visit(child, None)` in the FunctionDef branch. A function nested
+    inside a METHOD must stay qualified by its class — mutmut names it `xǁCǁinner`, and losing the
+    context yields `x_inner`, a stem that matches no mutant mutmut ever generates. Prior fixtures had
+    methods but never a function nested inside one, so the recursion's `cls` was never observed."""
+    nested = "class C:\n    def m(self):\n        def inner():\n            return 1\n"
+    assert M.functions_covering(nested, {3}) == {"xǁCǁm", "xǁCǁinner"}
+
+
+def test_classify_treats_a_keyless_entry_as_claiming_the_EMPTY_key():
+    """Kills `e.get("key", "")` -> `e.get("key", None)` and the dropped default. The default is only
+    observable when the generated set actually CONTAINS the empty string, which is the one input that
+    makes `""` and `None` behave differently. Pins current behaviour: a keyless entry claims `""`."""
+    entries = [{"class": "no-distinguishing-input"}]
+    got = M.classify(entries, [{"key": ""}], {""})
+    assert [x["class"] for x in got["excused"]] == ["no-distinguishing-input"]
+    assert got["orphaned"] == [] and got["unclassified"] == []

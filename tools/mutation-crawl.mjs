@@ -610,6 +610,69 @@ export function sweepPlan({ hasSweep, hasState, hasJournal, state, now }) {
   return { action: 'cold', reason: 'no cache, no journal' };
 }
 
+/* ── THE CRAWL-LEVEL SKIP, AS A PURE FUNCTION (MUTATION-ACCOUNTING-LOOP §E4, closing §3-G3) ─────
+   The per-file `sweepPlan` above has always been identity-guarded. The CRAWL-level skip was not: it
+   read `complete: true` and moved on, forever, no matter how far `tests/dex-tests.js` had travelled.
+   `complete` meant "was finished once", and it was being read as "is still true".
+
+   Measured 2026-08-27 over `.mutation-crawl/`: **29 of 29 complete crawls** carry a `testsHash` that
+   no longer matches the suite. Every one of them was being skipped permanently, which is why five
+   survivor classes are never revisited when the suite improves — including the 159 draft adoptions
+   made this week, whose entire purpose is to convert survivors into kills.
+
+   ⚠️ IDENTITY IS IN THE SIBLING, NOT IN THE RESULT — and the brief's spec assumed otherwise. A
+   `.crawl.json` records file/complete/killed/survivors/… and NO identity at all; the hashes live in
+   `<file>.sweep-state.json` beside it. So this reads the sibling, and (below) starts stamping the
+   identity into the result too — a crawl result separated from its sibling is currently unauditable,
+   and that is a second, smaller instance of the same gap.
+
+   THE TWO HASHES MEAN DIFFERENT THINGS AND GET DIFFERENT ANSWERS. A moved `testsHash` means the same
+   mutants were judged by a better suite: the survivor list is still a valid list of mutants, so it is
+   re-PROBED, which is cheap. A moved `srcHash` means the file itself changed: line numbers moved and
+   the recorded survivors may not exist any more, so nothing may be reused and it re-SWEEPS. Treating
+   both as "stale" would either throw away reusable work or reuse a list that no longer describes the
+   file.
+
+   Fails CLOSED on absence: a complete result whose identity cannot be read is not provably current,
+   so it re-sweeps rather than being skipped on trust. */
+export function crawlPlan({ hasResult, result, state, now }) {
+  if (!hasResult || !result) return { action: 'sweep', reason: 'no result on disk' };
+  if (!result.complete) return { action: 'sweep', reason: 'previous result is incomplete' };
+  /* A VOID file measured NOTHING — the canary survived, so the harness was not shown to be detecting
+     kills. Re-probing it would produce findings from a harness known to be blind. Its canary question
+     is a human's to answer first, and the skip line must say so rather than reading as "done". */
+  if (result.voided) return { action: 'skip-void', reason: 'VOID (canary failed) — a human must answer the canary question before this file can be re-examined' };
+  /* ⚠️ THE TWO HASHES HAVE DIFFERENT OWNERS, and conflating them made the first version re-probe the
+     same file forever. `<file>.sweep-state.json` records what the SWEEP ran under; the result's own
+     `identity` (written by a re-probe) records what the FINDINGS were last judged under. A re-probe
+     does not re-run the sweep, so it must NOT restamp the sibling — that would claim a sweep that
+     never happened. Taking the sibling for both hashes instead left the result's fresh testsHash
+     unreachable, so every subsequent run re-probed again: measured on clock.js, the second run
+     re-probed identically rather than skipping.
+     So: SOURCE validity belongs to the sweep, SUITE validity to whatever last judged. */
+  const sweepId = (state && state.identity) || result.identity || null;
+  const judgedId = result.identity || (state && state.identity) || null;
+  if (!sweepId || !judgedId || !now) return { action: 'sweep', reason: 'complete, but no recorded identity to check it against — cannot prove it is current' };
+  const was = { srcHash: sweepId.srcHash, testsHash: judgedId.testsHash };
+  if (was.srcHash !== now.srcHash) return { action: 'sweep', reason: 'source changed — the recorded survivors may not exist any more' };
+  /* 🔴 A MOVED SUITE NEEDS A RE-TEST, NOT A RE-PROBE — and §E4's spec said re-probe. MEASURED, by
+     building the re-probe lane and running it: `probeFile` never loads `tests/dex-tests.js`, never
+     runs the suite, and contains zero references to it. It builds a realm from the SOURCE and runs
+     batteries, so a probe finding is a property of the CODE. A better suite cannot change it.
+     Two stranded files were re-probed end-to-end and BOTH moved nothing: clock.js (probed 13,
+     killable 1, unreachable 28, 12 findings) and hrvdex-dsp.js (probed 86, killable 11, unreachable
+     85, 31 findings) came back byte-identical — including hrvdex, whose adoption is independently
+     known to have killed 3 of its recorded survivors (§E3's measured delta).
+     What a moved suite changes is whether those mutants are still SURVIVORS, which only re-running
+     them against the suite can answer. So the action is a re-SWEEP: correct and expensive. A cheap
+     survivors-only re-test would need targeting `mutate.mjs` at a recorded mutant list, which it
+     cannot currently do — that is the corrected §E4 and it is scoped separately. Routing to a probe
+     would have shipped a lane that runs, reports, and cannot detect the thing it exists to detect. */
+  if (was.testsHash !== now.testsHash)
+    return { action: 're-sweep', reason: 'tests/dex-tests.js changed — the recorded survivors must be RE-TESTED against the new suite (a probe cannot do this: it never loads the suite)' };
+  return { action: 'skip', reason: 'complete and current' };
+}
+
 function sweep(file) {
   const outFile = join(OUT, basename(file) + '.sweep.json');
   const stateFile = join(OUT, basename(file) + '.sweep-state.json');
@@ -1085,6 +1148,47 @@ function selftest() {
      not tell the two apart, and a planted deletion of that guard survived until this line checked the
      message. The distinction is worth keeping: it points at the unreadable SOURCE rather than at the
      journal, and sending a reader to the wrong file is the whole cost of a vague refusal. */
+  /* ── crawlPlan — the CRAWL-level skip (§E4, closing §3-G3) ────────────────────────────────────
+     The expensive mistakes here are opposite and both silent: skipping a file whose suite has moved
+     strands it forever (measured: 29 of 29 complete crawls were in that state), and re-examining one
+     whose identity is unchanged burns the box for nothing. Both directions are planted. */
+  const IDN = { srcHash: 'S1', testsHash: 'T1' };
+  const CP = (o) => crawlPlan({ hasResult: true, now: IDN, ...o });
+  ck('crawl: no result on disk ⇒ sweep', crawlPlan({ hasResult: false, now: IDN }).action, 'sweep');
+  ck('crawl: an incomplete result ⇒ sweep', CP({ result: { complete: false } }).action, 'sweep');
+  /* THE NULL CONTROL, direction 1: an UNCHANGED identity must still skip. A re-examination lane that
+     cannot decline is not identity-aware, it is just a slower crawl. */
+  ck('NULL CONTROL: complete + unchanged identity still SKIPS', CP({ result: { complete: true }, state: { identity: IDN } }).action, 'skip');
+  ck('…and says so in a way a reader can check', CP({ result: { complete: true }, state: { identity: IDN } }).reason, 'complete and current');
+  /* Direction 2: a moved suite must NOT skip — the failure this whole unit exists to end. */
+  ck('a moved testsHash routes to RE-SWEEP, not skip', CP({ result: { complete: true }, state: { identity: { srcHash: 'S1', testsHash: 'T-OLD' } } }).action, 're-sweep');
+  /* The two hashes get DIFFERENT answers: a moved SOURCE invalidates the survivor list itself. */
+  ck('a moved srcHash re-SWEEPS (the recorded survivors may not exist)', CP({ result: { complete: true }, state: { identity: { srcHash: 'S-OLD', testsHash: 'T1' } } }).action, 'sweep');
+  /* VOID stays excluded, and the message must say WHY — a VOID file measured nothing, so re-probing
+     it would produce findings from a harness never shown to detect kills. */
+  ck('a VOID file is never re-probed', CP({ result: { complete: true, voided: true }, state: { identity: { srcHash: 'S1', testsHash: 'T-OLD' } } }).action, 'skip-void');
+  ck('…and the skip line names the canary question, not "done"', /canary/.test(CP({ result: { complete: true, voided: true } }).reason), true);
+  /* Fails CLOSED on absence — unprovable currency is not currency. */
+  ck('complete with NO recorded identity ⇒ sweep, never skip', CP({ result: { complete: true }, state: null }).action, 'sweep');
+  ck('no computable current identity ⇒ sweep, never skip', crawlPlan({ hasResult: true, result: { complete: true }, state: { identity: IDN }, now: null }).action, 'sweep');
+  /* Identity may also be stamped on the result itself (this change starts writing it); the sibling
+     wins when both exist, because it is what the sweep actually recorded. */
+  ck('identity on the RESULT is honoured when there is no sibling', crawlPlan({ hasResult: true, now: IDN, result: { complete: true, identity: IDN }, state: null }).action, 'skip');
+  /* THE LANE MUST CONVERGE. A re-examination stamps the new testsHash onto the RESULT; if the plan
+     read the sibling for both hashes, the same file would re-examine on every run forever — measured
+     on clock.js before this was fixed: the second run repeated the first instead of skipping. Source
+     validity belongs to the sweep, suite validity to whatever last judged. */
+  ck(
+    'after a re-examination the file SKIPS — the lane converges',
+    crawlPlan({ hasResult: true, now: IDN, result: { complete: true, generation: 2, identity: IDN }, state: { identity: { srcHash: 'S1', testsHash: 'T-OLD' } } }).action,
+    'skip'
+  );
+  ck(
+    '…but a re-examined file whose SOURCE then moves still sweeps cold',
+    crawlPlan({ hasResult: true, now: { srcHash: 'S2', testsHash: 'T1' }, result: { complete: true, generation: 2, identity: IDN }, state: { identity: IDN } }).action,
+    'sweep'
+  );
+
   const noId = sweepPlan({ hasSweep: true, hasState: true, hasJournal: true, state: { complete: true, identity: ID }, now: null });
   ck('no computable identity refuses even a complete cache', noId.action, 'cold');
   ck('…blaming the unreadable source, not the journal', noId.reason, 'no identity for the current source/suite');
@@ -1156,6 +1260,8 @@ async function main() {
   }
 
   mkdirSync(OUT, { recursive: true });
+  /** file → the generation the run about to happen will write (1 unless a previous one was archived). */
+  const GENERATION = new Map();
   const files = [];
   for (let i = 0; i < argv.length; i++) if (argv[i] === '--file' && argv[i + 1]) files.push(argv[i + 1]);
   const TARGETS = files.length ? files : DEFAULT_FLEET;
@@ -1166,13 +1272,35 @@ async function main() {
 
   for (const file of TARGETS) {
     const dest = join(OUT, basename(file) + '.crawl.json');
-    if (existsSync(dest)) {
+    const statePath = join(OUT, basename(file) + '.sweep-state.json');
+    const readJson = (p) => {
       try {
-        if (JSON.parse(readFileSync(dest, 'utf8')).complete) {
-          log('skip ' + file + ' (already complete)');
-          continue;
-        }
-      } catch {}
+        return JSON.parse(readFileSync(p, 'utf8'));
+      } catch {
+        return null;
+      }
+    };
+    const prev = existsSync(dest) ? readJson(dest) : null;
+    const plan = crawlPlan({
+      hasResult: !!prev,
+      result: prev,
+      state: existsSync(statePath) ? readJson(statePath) : null,
+      now: existsSync(join(ROOT, file)) ? currentIdentity(file) : null
+    });
+    if (plan.action === 'skip' || plan.action === 'skip-void') {
+      log('skip ' + file + ' (' + plan.reason + ')');
+      continue;
+    }
+    if (plan.action === 're-sweep') {
+      /* ARCHIVE BEFORE RE-EXAMINING, never overwrite. The previous generation is the before-half of
+         any delta, and a re-examination that destroys its own baseline cannot be checked. The sweep
+         below then writes generation N. */
+      const gen = (prev.generation || 1) + 1;
+      const archive = dest + '.gen' + (gen - 1) + '.json';
+      if (!existsSync(archive)) writeFileSync(archive, JSON.stringify(prev, null, 2) + '\n');
+      log('── ' + file + ' — RE-EXAMINING: ' + plan.reason);
+      log('   generation ' + (gen - 1) + ' archived → ' + basename(archive) + '; this run writes generation ' + gen);
+      GENERATION.set(file, gen);
     }
     if (Date.now() - T0 > MAX_MS) {
       log('budget spent — stopping before ' + file);
@@ -1240,6 +1368,11 @@ async function main() {
         {
           file,
           complete: !probeFailed,
+          /* Stamped on the RESULT as well as the sibling: a crawl result separated from its
+             `.sweep-state.json` was previously unauditable — it recorded no identity at all, which is
+             the smaller sibling of the gap §E4 closes. */
+          identity: currentIdentity(file),
+          generation: GENERATION.get(file) || 1,
           probeFailed: probeFailed || undefined,
           probeError: p.error || undefined,
           generatedAt: new Date(T0).toISOString().slice(0, 10),
