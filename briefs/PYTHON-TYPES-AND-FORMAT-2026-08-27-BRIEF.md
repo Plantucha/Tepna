@@ -78,6 +78,32 @@
   verifier — and it catches a class the other rails structurally cannot see, a reply answering in
   **prose**, which contains neither `Any` nor a bare ignore.
 
+- **§P2c — SAMPLE CLAUSE AMENDED, AND THE FIRST VERDICT (band author's decision, 2026-08-28).**
+
+  > **Sample clause:** the lane's **full mechanical queue at evaluation time (minimum 10)**,
+  > re-evaluated **at each queue exhaustion** as `capture-host` evolves.
+  > **The 30 % rate threshold is UNCHANGED.**
+
+  **FIRST EVALUATION: 12/12 triaged · 7 accepted / 2 rail / 3 eyes · 58 % (42 % excluding the two
+  `object`-caveat accepts) · THE LANE SURVIVES** and continues under eyes-first, with **hint
+  pattern-completion** as its named failure mode.
+
+  **Reading (c) — widen the class split — is REJECTED explicitly.** The split's purpose stands: the
+  excluded Argument-type and assignment classes are exactly the fix-or-real-bug judgements the model
+  measurably cannot make, and taking them to reach a sample size would trade the lane's correctness
+  for its statistics.
+
+  ⚠️ **The amendment's provenance, recorded because the sequence is the discipline working and not a
+  detail to smooth over.** The original `30 triaged` was the band author's **arithmetic error** — §0
+  already stated the mechanical classes held ~12, so 30 was never reachable. When that surfaced, the
+  measured rate was mid-queue and *straddling the 30 % bar*, and the author **declined to pick the
+  denominator**: choosing a sample clause while the rate sits on the threshold decides the verdict,
+  which is bar-moving with extra steps. The decision was taken only once the completed table made it
+  **verdict-invariant** — 58 % and 42 % both clear 30 % under every reasonable clause, so the choice
+  stopped deciding anything and became housekeeping.
+
+  **The owner retains a veto** on both the clause and the verdict.
+
 - **§P2b — THE FROZEN TRIAGE TABLE (queue exhausted 2026-08-28 02:32; n = 12, the whole population).**
   Every mechanical-class error the lane can see has now been asked once. This is the artifact the
   owner's band decision is made against.
