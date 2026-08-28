@@ -209,7 +209,10 @@ function selftest() {
   const F = [300, 1200, 5000, 3000, 3900].sort((a, b) => a - b);
   const got = acceptedSeries(R, F, 300, 100);
   ok(got.lags.length === got.rrs.length, 'lags and RRs stay aligned');
-  ok(got.lags.every((l) => Math.abs(l - 300) <= 100), 'only in-window lags are kept');
+  ok(
+    got.lags.every((l) => Math.abs(l - 300) <= 100),
+    'only in-window lags are kept'
+  );
 
   /* THE DISCRIMINATOR: an oscillation must cross zero early; a drift must not cross at all. */
   const osc = Array.from({ length: 2000 }, (_, i) => 25 * Math.sin((2 * Math.PI * i) / 12));
@@ -241,7 +244,9 @@ async function main() {
   console.log('night          n     SD    rho1   rho5  rho20  shuffled  zeroX  shape         rho(RR,lag)  verdict');
   const tally = {};
   const ONLY = argv.includes('--only') ? new Set(argv[argv.indexOf('--only') + 1].split(',')) : null;
-  for (const n of readdirSync(DIR).filter((x) => /^2026-/.test(x) && (!ONLY || ONLY.has(x))).sort()) {
+  for (const n of readdirSync(DIR)
+    .filter((x) => /^2026-/.test(x) && (!ONLY || ONLY.has(x)))
+    .sort()) {
     const dir = join(DIR, n);
     let files;
     try {

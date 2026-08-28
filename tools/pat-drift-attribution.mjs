@@ -168,7 +168,9 @@ async function main() {
   const { ECGDSP, PPGDSP } = getDsps();
   console.log(`bands on |obs-pred|/|obs|: <=${BAND_EXPLAINS} CLOCK EXPLAINS · <=${BAND_PARTIAL} PARTIAL · else CLOCK DOES NOT EXPLAIN\n`);
   console.log('night         ppmECG  ppmPPG   predicted   censored      RAW    ratio  rawR2   verdict');
-  for (const n of readdirSync(DIR).filter((x) => /^2026-/.test(x) && (!ONLY || ONLY.has(x))).sort()) {
+  for (const n of readdirSync(DIR)
+    .filter((x) => /^2026-/.test(x) && (!ONLY || ONLY.has(x)))
+    .sort()) {
     const dir = join(DIR, n);
     let files;
     try {
