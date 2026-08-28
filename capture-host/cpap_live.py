@@ -139,11 +139,21 @@ def observe(watch: EndWatch, therapy, now_ms) -> EndWatch:
 def harvest_due(watch: EndWatch, now_ms, debounce_s: float = 600.0):
     """`(due, reason)` — has therapy ended and STAYED ended for `debounce_s`? Pure.
 
-    The debounce is the whole point. The machine flaps at mask-off — a brief standby, then therapy
-    again as the mask is refitted — so an edge-triggered harvest would fire mid-session and put a
-    2.4 GHz transfer beside a sleeping body, the exact contention `cpap_harvest.due_now`'s window was
-    built to avoid. Default 600 s: ten minutes of continuous non-Therapy is well past any refit, and
-    still an hour earlier than the 13:00 window on a normal night.
+    ⚠️ THE DEBOUNCE IS INSURANCE, AND THE FIELD IT GUARDS HAS NOT BEEN SEEN TO FLAP. This docstring
+    first claimed "the machine flaps at mask-off, so an edge trigger would fire mid-session". Measured
+    against the box's own `SESSIONDETECT.csv` on 2026-08-28, that is TRUE OF THE WRONG FIELD. Over
+    three nights the journal holds 1080 changes of the supervisor's `active`/`idle` state — including
+    six inside 287 s at 06:28-06:33, exactly the mask-off pattern — but only SIX `fg_state`
+    transitions total, one down and one up per night, with a minimum return-to-Therapy gap of
+    54 602 s (15.2 h, i.e. the following night). `therapy` is derived from `fg_state`, so the
+    flapping that motivated this debounce happens in a field this function never reads.
+
+    It is KEPT because three nights of one machine is thin evidence for "never", the failure it
+    prevents is a 2.4 GHz transfer beside a sleeping body (`cpap_harvest.due_now`: 5-7 dB and 17
+    reconnects across three sensors), and the cost of being wrong in the safe direction is ten
+    minutes. But the justification is now "cheap insurance against an unobserved flap", not "the
+    measured flap", and those are different claims. Default 600 s is still an hour earlier than the
+    13:00 window on a normal night.
 
     Fires ONCE per end (`fired_for`), so a caller polling every 30 s does not re-trigger every cycle;
     a NEW therapy period clears it by resetting `ended_at_ms`."""
