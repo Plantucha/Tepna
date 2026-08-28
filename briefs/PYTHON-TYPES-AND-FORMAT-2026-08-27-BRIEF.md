@@ -10,7 +10,13 @@
 ## 0 · The decision and its numbers (sized before opining, 2026-08-27 22:15)
 
 - **mypy**: `--ignore-missing-imports --explicit-package-bases` over 278 source files →
-  **189 errors in 41 files**. Top classes: Argument-type 68 · incompatible assignment 27 ·
+  **189 errors in 41 files**, measured **in the canonical root checkout** (`/home/michal/Tepna`).
+  ⚠️ **THE TREE IS PART OF THE NUMBER.** A whole-tree count is a property of the checkout it ran in,
+  and checkouts here differ by untracked strays. Measured 2026-08-28: a worktree off `origin/main`
+  reports **188** for the same command — the missing line is `probe_rt_ppg_args.py:101`, an
+  **untracked** file that exists only in root. Two trees, two populations. A baseline quoted without
+  its tree is not reproducible, and reading the low number as a burn-down (as this brief's own author
+  briefly did) moves a pre-stated threshold on an artifact. Top classes: Argument-type 68 · incompatible assignment 27 ·
   missing annotation 12 · unsupported operands 11. The codebase is already densely annotated
   (typed dataclasses, `X | None` unions, keyword-only signatures), which is why the wave is this
   small — and why the argument/assignment classes overlap the "can it silently mislead" defect
@@ -46,7 +52,9 @@
   - **session lane (the judgment share):** the 68 Argument-type + 27 assignment errors triaged
     eyes-first (Vigil box's lane) — each is either an annotation fix or a REAL logic finding,
     and that call is exactly what the model measurably cannot make.
-- **§P3 — the flips, pre-stated:** mypy flips BLOCKING when the count reaches 0 (typed-ignores
+- **§P3 — the flips, pre-stated.** ⚠️ **Measure the flip count in a tree matching CI's population** —
+  a fresh checkout with no untracked files — per §0's tree caveat. A count taken in a working tree
+  fires the flip early or late off files CI will never see. mypy flips BLOCKING when the count reaches 0 (typed-ignores
   with reasons count as 0; bare ignores do not exist by rail). Changed-files format flips
   BLOCKING after one fleet-notice cycle (so no in-flight branch reds by surprise). Both flips
   land in `check.sh` AND the CI capture-host workflow in the same PR.
