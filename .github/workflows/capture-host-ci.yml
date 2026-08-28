@@ -156,7 +156,7 @@ jobs:
     name: test (py${{ matrix.python-version }})
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Not relevant to this PR — reporting green without running the suite
@@ -233,7 +233,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0            # the gate diffs against the merge base; a shallow clone has none
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13'    # the box's version; see the matrix note above
       - name: Install tooling + runtime deps
@@ -278,7 +278,7 @@ jobs:
     name: mypy (advisory ratchet)
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13'   # the box (Vigil, 3.13.11) — the version whose type errors matter
       - name: Not relevant to this PR — reporting green without running mypy
@@ -344,7 +344,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0   # dependency-review needs both endpoints of the PR diff
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
       - name: Not relevant to this PR — reporting green without scanning
@@ -353,7 +353,7 @@ jobs:
       - name: Dependency review (advisory)
         if: github.event_name == 'pull_request' && needs.changes.outputs.run == 'true'
         continue-on-error: true   # advisory until the flip; the report is the product
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@v5
         with:
           fail-on-severity: high
           comment-summary-in-pr: never   # the job log is the surface; PR comments are noise at our cadence
