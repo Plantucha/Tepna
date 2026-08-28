@@ -2,7 +2,7 @@
  "_note": "Author-time verification of every DOI cited anywhere in this repo, resolved against api.crossref.org. NOT a runtime input and NEVER fetched by a bundle — the no-network rule governs shipped code; this file is the OFFLINE record of a network check, so a later reader can re-check a citation without repeating it. `year` is Crossref's issued year, which for online-first papers is up to one year before the print/issue year a citation normally quotes; treat a one-year gap as agreement.",
  "_verifiedOn": "2026-08-05",
  "_resolver": "https://api.crossref.org/works/{doi}",
- "_count": 107,
+ "_count": 112,
  "dois": {
   "10.5664/jcsm.9814": {
    "firstAuthor": "Ni",
@@ -574,6 +574,36 @@
    "firstAuthor": "Kinnunen",
    "year": "2020",
    "container": "Physiological Measurement"
+  },
+  "10.1016/j.sleepx.2025.100150": {
+   "firstAuthor": "Thawongit",
+   "year": "2025",
+   "container": "Sleep Medicine: X"
+  },
+  "10.2147/NSS.S602209": {
+   "firstAuthor": "Qiao",
+   "year": "2026",
+   "container": "Nature and Science of Sleep"
+  },
+  "10.1016/j.chest.2025.08.018": {
+   "firstAuthor": "Karege",
+   "year": "2026",
+   "container": "CHEST"
+  },
+  "10.2196/80384": {
+   "firstAuthor": "Qian",
+   "year": "2026",
+   "container": "JMIR Medical Informatics"
+  },
+  "10.3390/s26165192": {
+   "firstAuthor": "Xu",
+   "year": "2026",
+   "container": "Sensors",
+   "authorAliases": [
+    "Shiwen"
+   ],
+   "aliasNote": "Crossref's family name is \"Xu\" — two letters, below the citation gate's ≥3-char name-part floor, so firstAuthor alone can never whole-word match. The given name Shiwen is the matchable alias; the paper cites the full form \"Xu Shiwen\".",
+   "aliasSource": "crossref-variant"
   }
  },
  "_aliasPolicy": "authorAliases: additional spellings that are CORRECT for this DOI. Needed because a Crossref surname can be a corporate name, a differently-spaced surname, or absent entirely; without them a correct citation reds and the noise buries a real finding (CITATION-ATTRIBUTION-FOLLOWUPS §3, constraint 1). EVERY entry carrying authorAliases MUST also carry aliasSource, because the two kinds are not the same evidential class: \"crossref-variant\" = the alias is a spelling or short form of the author Crossref actually recorded, so the check still rests on Crossref; \"from-paper\" = Crossref carries NO author for this record and the name was read off the paper itself, which is mildly circular (the citation being checked supplied the answer) and is therefore marked rather than hidden. Gate-enforced by tests/dex-tests.js group citation-ledger.",
