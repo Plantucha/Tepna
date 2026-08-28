@@ -387,10 +387,29 @@ jobs:
           # fail this job yet. FLIP CONDITION, pre-stated: this becomes blocking once the baseline has
           # been audited end-to-end (every entry marked true/false positive) — currently it records
           # WHAT WAS FOUND, not what was judged.
-          detect-secrets scan --baseline "$BASE" || true
+          # 🔴 ONE EXCLUSION SET, IN ONE FILE, USED BY BOTH — and getting this wrong is what failed.
+          # `--exclude-files` on the command line REPLACES the pattern stored in the baseline; it does
+          # not add to it. So a scan whose flags differ from the baseline's generation reports the
+          # whole difference as new findings: measured, passing a self-exclusion alone took the set
+          # from 19 files to 122 as every previously-excluded bundle, upload and provenance fragment
+          # flooded back. `.secrets-exclude` is therefore the single source, read by this job and used
+          # verbatim when regenerating the baseline.
+          #
+          # ⚠️ THE PATTERN EXCLUDES THE BASELINE ITSELF, deliberately: a baseline is a FILE OF HASHED
+          # SECRETS by construction, so scanning it feeds the gate its own output — its hashes appear
+          # as new high-entropy findings, which grow the file, which adds more. Observed in CI as
+          # `"filename": ".secrets.baseline"` entries inside the diff meant to report secrets elsewhere.
+          EXCL=$(cat "$GITHUB_WORKSPACE/.secrets-exclude")
+          detect-secrets scan --baseline "$BASE" --exclude-files "$EXCL" || true
           if git diff --quiet -- "$BASE"; then
             echo "no new secrets: the tree matches the reviewed baseline"
           else
             echo "⚠ NEW findings not in the baseline — advisory today, blocking after the audit flip:"
-            git --no-pager diff -- "$BASE" | head -60
+            # ⚠️ WRITE, THEN READ THE FILE — never `git diff | head`. Under `set -o pipefail`, `head`
+            # closing early SIGPIPEs git and the pipeline returns 141, which as the step's LAST command
+            # becomes the step's exit status. That is exactly what failed: EXIT CODE 141, an advisory
+            # branch killing the job it was only supposed to narrate. It did not reproduce locally,
+            # because the local diff was small enough for `head -60` to consume whole.
+            git --no-pager diff -- "$BASE" > /tmp/baseline-drift.txt || true
+            head -60 /tmp/baseline-drift.txt
           fi
