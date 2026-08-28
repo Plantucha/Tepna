@@ -4124,5 +4124,37 @@
       "probe": "Direct: functions_covering() over a module-level function, a method, and a function nested inside a method, targeting the def line and body lines in each. Identical in every case. Also covered by the 2004-diff canary-validated corpus used for this module's other entries.",
       "why": "A PROOF: the getattr default is consumed immediately by `or lo`. If `end_lineno` is absent the original yields `lo or lo` and the mutant `None or lo` — both `lo`. The two can only differ if `lo` itself were falsy, and `lo` is `child.lineno`, a 1-based line number that is always >= 1. So no AST, and no input, distinguishes them."
     }
+  ],
+  "mutation_pure.py": [
+    {
+      "class": "no-distinguishing-input",
+      "key": "- cur = start = None | + cur = start = \"\"",
+      "probe": "CANARY-VALIDATED DIFFERENTIAL, run 2026-08-28. Each mutation was applied to the real source (scoped to `harvest_text` via AST) and both versions run over a 10-file corpus covering: the target first / middle / last, a file ENDING INSIDE a body, a trailing dedented line, a preceding module statement, an `__mutmut_orig` sibling, a class-indented definition, one-space indentation, and an empty file — each with funcs=['foo'] and ['foo','bar']. ⚠️ THREE KNOWN-KILLABLE CANARIES WERE REQUIRED TO PASS FIRST (`keepends=False`, `start=None`, and a negated `__mutmut_orig` guard) — all three distinguished, so a no-difference result is evidence rather than a blind battery.",
+      "why": "`cur` is only ever tested by `if cur is None: return` and by `.startswith(...)`. The empty string is not None, so `close()` proceeds — and then matches no `x_<f>__mutmut_` prefix, so it appends nothing. The sentinel's identity is unobservable: every path that reads it reaches the same outcome for '' as for None."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- indent = 0 | + indent = None",
+      "probe": "CANARY-VALIDATED DIFFERENTIAL, run 2026-08-28. Each mutation was applied to the real source (scoped to `harvest_text` via AST) and both versions run over a 10-file corpus covering: the target first / middle / last, a file ENDING INSIDE a body, a trailing dedented line, a preceding module statement, an `__mutmut_orig` sibling, a class-indented definition, one-space indentation, and an empty file — each with funcs=['foo'] and ['foo','bar']. ⚠️ THREE KNOWN-KILLABLE CANARIES WERE REQUIRED TO PASS FIRST (`keepends=False`, `start=None`, and a negated `__mutmut_orig` guard) — all three distinguished, so a no-difference result is evidence rather than a blind battery.",
+      "why": "`indent` is read only inside the `elif`, which is guarded by `cur is not None`. `cur` starts as None and is set only in the `if` branch, which also sets `indent` — so the initial value can never be read. Any initial value is equivalent."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- indent = 0 | + indent = 1",
+      "probe": "CANARY-VALIDATED DIFFERENTIAL, run 2026-08-28. Each mutation was applied to the real source (scoped to `harvest_text` via AST) and both versions run over a 10-file corpus covering: the target first / middle / last, a file ENDING INSIDE a body, a trailing dedented line, a preceding module statement, an `__mutmut_orig` sibling, a class-indented definition, one-space indentation, and an empty file — each with funcs=['foo'] and ['foo','bar']. ⚠️ THREE KNOWN-KILLABLE CANARIES WERE REQUIRED TO PASS FIRST (`keepends=False`, `start=None`, and a negated `__mutmut_orig` guard) — all three distinguished, so a no-difference result is evidence rather than a blind battery.",
+      "why": "Same as the `indent = None` case: the initial value is unreachable, `cur` being None until the first `def` also sets `indent`."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- cur = None | + cur = \"\"",
+      "probe": "CANARY-VALIDATED DIFFERENTIAL, run 2026-08-28. Each mutation was applied to the real source (scoped to `harvest_text` via AST) and both versions run over a 10-file corpus covering: the target first / middle / last, a file ENDING INSIDE a body, a trailing dedented line, a preceding module statement, an `__mutmut_orig` sibling, a class-indented definition, one-space indentation, and an empty file — each with funcs=['foo'] and ['foo','bar']. ⚠️ THREE KNOWN-KILLABLE CANARIES WERE REQUIRED TO PASS FIRST (`keepends=False`, `start=None`, and a negated `__mutmut_orig` guard) — all three distinguished, so a no-difference result is evidence rather than a blind battery.",
+      "why": "Same unobservable sentinel as `cur = start = None` -> '': '' is not None, `close()` runs, matches no prefix, appends nothing."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- close(len(lines)) | + close(None)",
+      "probe": "CANARY-VALIDATED DIFFERENTIAL, run 2026-08-28. Each mutation was applied to the real source (scoped to `harvest_text` via AST) and both versions run over a 10-file corpus covering: the target first / middle / last, a file ENDING INSIDE a body, a trailing dedented line, a preceding module statement, an `__mutmut_orig` sibling, a class-indented definition, one-space indentation, and an empty file — each with funcs=['foo'] and ['foo','bar']. ⚠️ THREE KNOWN-KILLABLE CANARIES WERE REQUIRED TO PASS FIRST (`keepends=False`, `start=None`, and a negated `__mutmut_orig` guard) — all three distinguished, so a no-difference result is evidence rather than a blind battery.",
+      "why": "`close(len(lines))` differs from `close(None)` only when the scan ends with a body still OPEN — and `lines[start:None]` is `lines[start:]`, which is what `len(lines)` also yields. The two slices are equal for every input, so the final close cannot distinguish them."
+    }
   ]
 }

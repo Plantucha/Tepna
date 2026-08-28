@@ -8,6 +8,15 @@
       "clock.js — wave 8: duplicate anchors, and an anchor that is not a number"
     ]
   },
+  "cpapdex-coimport.js": {
+    "line": 36,
+    "op": "negate: drop !",
+    "before": "if (startMs == null || !t) return null;",
+    "after": "if (startMs == null || t) return null;",
+    "killers": [
+      "CPAPDex co-import — a surge corroborates ONE apnea, and lands on the right night (§6.3/§6.4)"
+    ]
+  },
   "cpapdex-dsp.js": {
     "line": 37,
     "op": "eq !== → ===",
@@ -15,6 +24,33 @@
     "after": "var _EDF = typeof require === 'undefined' ? /** @type {any} */ (require)('./cpapdex-edf.js') : root ",
     "killers": [
       "CPAPDex §6.2 — ODI is rated over ANALYZABLE oximeter time, not the therapy span"
+    ]
+  },
+  "cpapdex-fusion.js": {
+    "line": 75,
+    "op": "negate: drop !",
+    "before": "if (!night || !night.sessions) return [];",
+    "after": "if (night || !night.sessions) return [];",
+    "killers": [
+      "Integrator ingests a multi-night CPAP wrapper without dropping the payload (DEEP-AUDIT §2)"
+    ]
+  },
+  "cpapdex-registry.js": {
+    "line": 463,
+    "op": "negate: drop !",
+    "before": "if (!_labelIdx) {",
+    "after": "if (_labelIdx) {",
+    "killers": [
+      "Cohesion single-source — evidence badges"
+    ]
+  },
+  "crossnight-envelope.js": {
+    "line": 63,
+    "op": "bool || → &&",
+    "before": "const weightOf = opts.weightOf || (() => 1);",
+    "after": "const weightOf = opts.weightOf && (() => 1);",
+    "killers": [
+      "Cross-night significance — CI-includes-0 (#1)"
     ]
   },
   "ecgdex-dsp.js": {
@@ -26,6 +62,15 @@
       "ECGDex rich export ≡ its committed golden — Integrator-facing surface"
     ]
   },
+  "ecgdex-registry.js": {
+    "line": 426,
+    "op": "negate: drop !",
+    "before": "if (!_labelIdx) {",
+    "after": "if (_labelIdx) {",
+    "killers": [
+      "CPC registers HFC only — LFC/VLFC are exported unbadged (compositional)"
+    ]
+  },
   "glucodex-dsp.js": {
     "line": 44,
     "op": "negate: drop !",
@@ -33,6 +78,15 @@
     "after": "if (sorted.length) return null;",
     "killers": [
       "GlucoDex §5.1/§5.2 — a truncated grid says so, and the session span cannot overflow"
+    ]
+  },
+  "glucodex-registry.js": {
+    "line": 201,
+    "op": "negate: drop !",
+    "before": "if (!_labelIdx) {",
+    "after": "if (_labelIdx) {",
+    "killers": [
+      "Cohesion single-source — evidence badges"
     ]
   },
   "hrvdex-dsp.js": {
@@ -46,6 +100,15 @@
       "HRVDex computeDerived — the GUARDS, one seed absent at a time"
     ]
   },
+  "hrvdex-registry.js": {
+    "line": 260,
+    "op": "negate: drop !",
+    "before": "if (!global.MetricRegistry) return '';",
+    "after": "if (global.MetricRegistry) return '';",
+    "killers": [
+      "HRVDex full-metrics table — coverage-mandate badges + dead-BP-column removal (Findings I/J)"
+    ]
+  },
   "integrator-dsp.js": {
     "line": 83,
     "op": "negate: drop !",
@@ -54,6 +117,15 @@
     "killers": [
       "Integrator periodic-breathing corroboration (§2)",
       "Fusion algebra — combineConf laws (Phase 8)"
+    ]
+  },
+  "metric-registry.js": {
+    "line": 75,
+    "op": "cmp >= → >",
+    "before": "return shows.indexOf(attr) >= 0;",
+    "after": "return shows.indexOf(attr) > 0;",
+    "killers": [
+      "Metric registry — disclosure + evidence (cohesion)"
     ]
   },
   "motiondex-dsp.js": {
@@ -67,6 +139,15 @@
       "MotionDex sampleHz is the NATIVE rate, not the coverage-depressed average — §4.1 at its own seam"
     ]
   },
+  "motiondex-registry.js": {
+    "line": 183,
+    "op": "negate: drop !",
+    "before": "if (!_labelIdx) {",
+    "after": "if (_labelIdx) {",
+    "killers": [
+      "Tri Index carries its duration precondition; MotionDex badges fail CLOSED"
+    ]
+  },
   "oxydex-dsp.js": {
     "line": 72,
     "op": "eq === → !==",
@@ -78,6 +159,15 @@
       "§17-§21 hygiene — no fabricated date, no 0-for-undefined, no pop-default-as-you, pooled indices, badged heroes"
     ]
   },
+  "oxydex-registry.js": {
+    "line": 772,
+    "op": "bool && → ||",
+    "before": "if (label != null && OXY_REGISTRY[label]) return String(label);",
+    "after": "if (label != null || OXY_REGISTRY[label]) return String(label);",
+    "killers": [
+      "OxyDex node-export v2.0 envelope + ganglior_events"
+    ]
+  },
   "ppgdex-dsp.js": {
     "line": 31,
     "op": "bool || → &&",
@@ -87,6 +177,15 @@
       "O2Ring device-crystal is invariant to a corrupted host clock — bad-host acceptance"
     ]
   },
+  "ppgdex-registry.js": {
+    "line": 595,
+    "op": "negate: drop !",
+    "before": "if (!global.MetricRegistry) return '';",
+    "after": "if (global.MetricRegistry) return '';",
+    "killers": [
+      "PpgDex finger site — single-channel parse, honest agreement, sentinel gaps (O2RING-FINGER-SITE)"
+    ]
+  },
   "pulsedex-dsp.js": {
     "line": 66,
     "op": "cmp < → <=",
@@ -94,6 +193,15 @@
     "after": "for (let i = 0; i <= a.length; i++) {",
     "killers": [
       "PulseDex compareIntervalSeries — two signals, one heart (mutation bootstrap)"
+    ]
+  },
+  "pulsedex-registry.js": {
+    "line": 252,
+    "op": "bool && → ||",
+    "before": "if (label != null && PULSE_REGISTRY[label]) return String(label);",
+    "after": "if (label != null || PULSE_REGISTRY[label]) return String(label);",
+    "killers": [
+      "PulseDex spectral honesty — proxy row + borrowed grade removed"
     ]
   }
 }
