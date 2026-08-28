@@ -668,7 +668,8 @@ export function crawlPlan({ hasResult, result, state, now }) {
      survivors-only re-test would need targeting `mutate.mjs` at a recorded mutant list, which it
      cannot currently do — that is the corrected §E4 and it is scoped separately. Routing to a probe
      would have shipped a lane that runs, reports, and cannot detect the thing it exists to detect. */
-  if (was.testsHash !== now.testsHash) return { action: 're-sweep', reason: 'tests/dex-tests.js changed — the recorded survivors must be RE-TESTED against the new suite (a probe cannot do this: it never loads the suite)' };
+  if (was.testsHash !== now.testsHash)
+    return { action: 're-sweep', reason: 'tests/dex-tests.js changed — the recorded survivors must be RE-TESTED against the new suite (a probe cannot do this: it never loads the suite)' };
   return { action: 'skip', reason: 'complete and current' };
 }
 
@@ -1157,8 +1158,16 @@ function selftest() {
      read the sibling for both hashes, the same file would re-examine on every run forever — measured
      on clock.js before this was fixed: the second run repeated the first instead of skipping. Source
      validity belongs to the sweep, suite validity to whatever last judged. */
-  ck('after a re-examination the file SKIPS — the lane converges', crawlPlan({ hasResult: true, now: IDN, result: { complete: true, generation: 2, identity: IDN }, state: { identity: { srcHash: 'S1', testsHash: 'T-OLD' } } }).action, 'skip');
-  ck('…but a re-examined file whose SOURCE then moves still sweeps cold', crawlPlan({ hasResult: true, now: { srcHash: 'S2', testsHash: 'T1' }, result: { complete: true, generation: 2, identity: IDN }, state: { identity: IDN } }).action, 'sweep');
+  ck(
+    'after a re-examination the file SKIPS — the lane converges',
+    crawlPlan({ hasResult: true, now: IDN, result: { complete: true, generation: 2, identity: IDN }, state: { identity: { srcHash: 'S1', testsHash: 'T-OLD' } } }).action,
+    'skip'
+  );
+  ck(
+    '…but a re-examined file whose SOURCE then moves still sweeps cold',
+    crawlPlan({ hasResult: true, now: { srcHash: 'S2', testsHash: 'T1' }, result: { complete: true, generation: 2, identity: IDN }, state: { identity: IDN } }).action,
+    'sweep'
+  );
 
   const noId = sweepPlan({ hasSweep: true, hasState: true, hasJournal: true, state: { complete: true, identity: ID }, now: null });
   ck('no computable identity refuses even a complete cache', noId.action, 'cold');
@@ -1238,7 +1247,7 @@ async function main() {
       hasResult: !!prev,
       result: prev,
       state: existsSync(statePath) ? readJson(statePath) : null,
-      now: existsSync(join(ROOT, file)) ? currentIdentity(file) : null,
+      now: existsSync(join(ROOT, file)) ? currentIdentity(file) : null
     });
     if (plan.action === 'skip' || plan.action === 'skip-void') {
       log('skip ' + file + ' (' + plan.reason + ')');
