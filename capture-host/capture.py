@@ -5522,7 +5522,12 @@ async def cpap_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" =
     await asyncio.to_thread(cpap_harvest.wifi_down, profile, 30.0, wifi_iface, root)
     try:
         await _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _st, wifi_iface, root,
-                         notifier)
+                         notifier,
+                         # Ten minutes of continuous non-Therapy: well past a mask refit, and still an
+                         # hour earlier than the 13:00 window on a normal night. Config-overridable
+                         # because the right value is a property of the machine's flap behaviour, which
+                         # is measurable per-device rather than universal.
+                         end_debounce_s=float(ccfg.get("therapy_end_debounce_sec", 600.0)))
     finally:
         # Whatever ends this task — shutdown, cancellation, an escaping error — the card is released.
         # shield() because at shutdown this task is already being cancelled and a bare await here would
@@ -5532,17 +5537,46 @@ async def cpap_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" =
 
 
 async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _st, wifi_iface=None,
-                     root=None, notifier=None):
+                     root=None, notifier=None, end_debounce_s=600.0, on_complete=None):
     """The daily loop, split out so `cpap_poller` can wrap it in a teardown-guaranteeing `finally`."""
     import cpap_harvest
+    import cpap_live
     last_run_date = None
+    # THERAPY-END TRIGGER. The owner wants the card pulled shortly after a session ends rather than at
+    # a fixed hour. The decision is entirely in `cpap_live` (pure, tested); this loop only folds each
+    # reading in and asks. The daily window below is UNCHANGED and remains the guarantee: a transition
+    # the detector never saw — box asleep, detector disabled, or the live stream running through the
+    # end of the session, during which the shadow poll defers entirely — must still harvest that day.
+    # So this can only make a harvest EARLIER, never replace it.
+    watch = cpap_live.EndWatch()
+
+    def _fire(result):
+        """Hand one harvest OUTCOME to the completion consumer. Never raises: the hook is a consumer,
+        not a participant, and the files are already on disk by the time it runs."""
+        if on_complete is None:
+            return
+        try:
+            on_complete(result)
+        except Exception:  # noqa: BLE001
+            log.exception("cpap on_complete hook failed; the harvest itself is unaffected")
     while not _STOP.is_set():
         await asyncio.sleep(60)
         if _STOP.is_set():
             break
         now = _dt.datetime.now()
-        if not cpap_harvest.due_now(now, at_hour, last_run_date):
+        # `.get("therapy")` is None whenever the detector cannot see the machine, and `observe` treats
+        # that as "no information" rather than "not in therapy" — the difference between harvesting
+        # after a session and harvesting in the MIDDLE of one.
+        watch = cpap_live.observe(watch, (STATUS.get("cpap") or {}).get("therapy"), _time.time() * 1000.0)
+        end_due, end_why = cpap_live.harvest_due(watch, _time.time() * 1000.0, end_debounce_s)
+        if not (end_due or cpap_harvest.due_now(now, at_hour, last_run_date)):
             continue
+        if end_due:
+            # Record the fire before any interlock can `continue`: this trigger fires ONCE per therapy
+            # end, and a deferral must not re-arm it every minute for the rest of the night. The daily
+            # window is the retry path for a deferred harvest, exactly as it always was.
+            watch.fired_for = watch.ended_at_ms
+            log.info("CPAP harvest armed by therapy end (%s)", end_why)
         if _RECOVER.is_set():
             continue                                    # adapter mid-recovery — do not add radio traffic
         busy = cpap_harvest.blocking_devices(STATUS["devices"])
@@ -5589,6 +5623,8 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
                 log.warning("cpap: profile %r would not come up, or it moved the default route off %r "
                             "— skipping today (set cpap.base_url to the card's LAN address if it is in "
                             "station mode; then no association is attempted at all)", profile, guard)
+                _fire({"state": "error", "detail": f"Wi-Fi profile {profile!r} would not come up safely",
+                       "files": 0, "skipped": 0, "nights": 0, "night_keys": [], "consulted": False})
                 continue
         try:
             res = await asyncio.to_thread(
@@ -5611,6 +5647,11 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
                     "Tepna: CPAP harvest failed",
                     f"The {at_hour:02d}:00 harvest could not read the card: {e!r}. Last night's therapy "
                     f"data is not on the box.")
+            # The card was NOT consulted — `ez.listing()` raised before the walk could complete, so
+            # there is no `res` and `barren` was never evaluated. A completed walk that found nothing
+            # and a walk that never happened are different facts to a reconciliation.
+            _fire({"state": "error", "detail": repr(e)[:200], "files": 0, "skipped": 0,
+                   "nights": 0, "night_keys": [], "consulted": False})
             continue
         finally:
             # Only tear down what we brought up. On the direct path there is no association to undo,
@@ -5636,9 +5677,27 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
             files=res["files"], bytes=res["bytes"], nights=res["nights"], skipped=res["skipped"],
             nights_on_card=res["nights_on_card"], duration_sec=round(dur, 1),
             partial=res["partial"], short=res["short"][:5], errors=res["errors"][:5],
-            detail=("card unreachable or empty — the walk found no files at all" if barren
+            # ⚠️ NOT "unreachable". An ABSENT card cannot produce this state: `ez.listing()` raises
+            # before the walk completes and takes the error exit above — which that branch's own
+            # comment says explicitly. `barren` requires a COMPLETED walk, so the card ANSWERED and
+            # held nothing: an empty card, or a catch-all page (a router's captive portal) served
+            # where a listing was expected. Saying "unreachable" here sends a reader hunting a cause
+            # this state can no longer have.
+            detail=("card answered but held no files — the walk completed and found nothing" if barren
                     else None if not bad
                     else f"{len(res['short'])} short read(s), {len(res['errors'])} error(s)"))
+
+        # ── COMPLETION HOOK — THE COMPLETED-WALK OUTCOMES, ONE EXIT OF THREE ─────────────────────
+        # ⚠️ The first version of this hook sat HERE ALONE and its comment claimed it saw "every
+        # outcome". It did not. The two exits above `continue` before reaching this line, and one of
+        # them is the exit an ABSENT CARD takes — per that branch's own comment, the single most
+        # likely field failure. A consumer wired only here would never hear about the commonest way a
+        # night goes missing, while believing it heard about all of them. Caught by this hook's own
+        # test, which is the only reason the claim did not ship. It is the same shape as the defect
+        # that branch records: a promise kept in prose, honoured on one branch of two.
+        _fire(dict(res, consulted=True,
+                   state=("error" if bad else ("barren" if barren else
+                          ("partial" if res["partial"] else "ok")))))
         log.info("cpap: %d file(s) (%.1f MB) over %d night(s), %d skipped, %.0fs%s",
                  res["files"], res["bytes"] / 1048576, res["nights"], res["skipped"], dur,
                  " [PARTIAL — deadline]" if res["partial"] else "")
@@ -5647,7 +5706,8 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
         if barren:
             # WARNING even with no webhook configured — the journal is the only alerting surface a box
             # without one has, and this is the failure that leaves no other trace.
-            log.warning("cpap: pulled NOTHING and skipped nothing — card unreachable or empty")
+            log.warning("cpap: pulled NOTHING and skipped nothing — the card answered but the walk "
+                        "found no files (empty card, or a catch-all page served instead of a listing)")
             if notifier:
                 await notifier.send(
                     "Tepna: CPAP harvest found nothing",

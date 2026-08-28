@@ -16,7 +16,7 @@
 #   GET  /api/stream/{key}     -> Server-Sent-Events live waveform (one stream)
 
 from __future__ import annotations
-import asyncio, hmac, json, logging, os, re, tempfile
+import asyncio, hmac, json, logging, os, re, tempfile, time as _time
 from aiohttp import web
 import yaml
 import bonding
@@ -277,6 +277,27 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         return web.FileResponse(os.path.join(_HERE, "monitor.html"),
                                 headers={"Cache-Control": "no-cache, must-revalidate"})
 
+    def _cpap_live_block(c):
+        """The serve-time "is therapy running NOW" view, as its OWN top-level block.
+
+        ⚠️ NOT merged into `cpap`, and a contract test enforces that. `test_webmon_state_contract`
+        asserts every top-level block is projected VERBATIM, precisely so a lookup reading the wrong
+        key gives a loud mismatch instead of a permanently-empty panel — enriching `cpap` in place
+        broke it, and the right answer was the sibling key, not a relaxed contract. It is also the
+        more honest shape: harvest state counts FILES on a daily timer, this reads a BLE detector
+        seconds ago, and they are two facts that happen to concern one machine.
+
+        Never raises: a diagnostic overlay must not be able to take the state endpoint down."""
+        if not isinstance(c, dict):
+            return None
+        try:
+            import cpap_live
+            poll_s = float(((cfg.get("as11_detector") or {}).get("poll_interval_sec")) or 30.0)
+            return cpap_live.live_view(c, _time.time() * 1000.0, poll_s)
+        except Exception:  # noqa: BLE001
+            _log.exception("cpap live-view failed; omitting the block")
+            return None
+
     async def state(_req):
         return web.json_response({
             "adapter": adapter_mac,
@@ -300,7 +321,20 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             # pseudo-device under `devices`: the CPAP arrives as FILES on a daily timer with no BLE
             # link, so it has no connected/RSSI/worn state and would render as a permanently-dead
             # sensor if it sat in that list. Null until the poller has run once.
+            #
+            # `live` answers the DIFFERENT question "is therapy running NOW", which the harvest fields
+            # cannot: they count files. It is computed HERE, at serve time, and not at publish time,
+            # because the answer ages between the two — a value stamped 40 minutes ago and served as
+            # `therapy: true` is a fabricated present tense. See `cpap_live.live_view`.
+            #
+            # ⚠️ THE AGEING MUST HAPPEN ON THIS SIDE. `detector_host_ms` is a BOX-local stamp; a
+            # browser subtracting it from its own clock differences two clocks and prints the result
+            # as a duration. Both operands here are this host's clock.
             "cpap": status.get("cpap"),
+            # SEPARATE BLOCK, SEPARATE QUESTION. `cpap` above counts harvested FILES on a daily timer;
+            # this answers "is therapy running right now", from the AS11 shadow detector, aged HERE at
+            # serve time. Null when there is no cpap block at all.
+            "cpap_live": _cpap_live_block(status.get("cpap")),
         })
 
     # ── CPAP manual pull ────────────────────────────────────────────────────────────────────────

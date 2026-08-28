@@ -1271,7 +1271,7 @@ function cpapStatusLabel(c){
     // BARREN IS RED, NOT GREEN. Zero fetched AND zero skipped means the walk found no files at all —
     // the card was unreachable or empty. This used to fall through to `ok` and paint "✓ 0 files" over
     // a harvest that had silently failed, which is precisely the reading this card exists to prevent.
-    barren:  ['bad',  '✗ found nothing — card unreachable or empty'],
+    barren:  ['bad',  '✗ card answered but held nothing'],
     error:   ['bad',  `✗ ${c.detail||'harvest failed'}`],
     idle:    ['idle', `idle · next run ${String(c.at_hour??13).padStart(2,'0')}:00`],
   };
@@ -1402,7 +1402,7 @@ async function loadState(){
   const na=$('#navActiveN'); na.style.display = active?'inline-block':'none'; na.textContent = active;
   const nd=$('#navDevN'); nd.style.display = conn?'inline-block':'none'; nd.textContent = conn;
   renderSideStats();          // sidebar counters: every view, not just Overview
-  renderBoxHealth(s.storage, s.qc, s.host, s.alerts, s.host_clock, s.cpap);
+  renderBoxHealth(s.storage, s.qc, s.host, s.alerts, s.host_clock, s.cpap, s.cpap_live);
   renderStoragePill(s.storage);   // sidebar: visible in every view
   renderCpap(s.cpap);
   renderDownload(DEVICES);
@@ -1996,10 +1996,22 @@ function agoUtc(iso){
   const s = Math.max(0, Math.round((Date.now() - Date.UTC(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6]))/1000));
   return s<90 ? s+'s ago' : s<5400 ? Math.round(s/60)+'m ago' : (s/3600).toFixed(1)+'h ago';
 }
+
+// FORMATS an age the SERVER already computed. Deliberately NOT a sibling of `agoUtc`, which ages a
+// UTC ISO stamp against Date.now() — legitimate, because a UTC instant means the same thing in both
+// clocks. `detector_host_ms` does NOT: it is a BOX-LOCAL stamp, and subtracting it from a browser's
+// clock differences two unrelated clocks and prints the result as a duration. So the ageing happens
+// in webmon (`cpap_live.detector_age_s`, one clock domain) and this only renders the number.
+// Thresholds and wording match `agoUtc` so the two can never disagree about what "2m ago" looks like.
+function agoSecs(s){
+  if(s == null) return '';
+  s = Math.max(0, Math.round(s));
+  return s<90 ? s+'s ago' : s<5400 ? Math.round(s/60)+'m ago' : (s/3600).toFixed(1)+'h ago';
+}
 // Box health strip (Overview): disk + tonight's capture QC, published by the guardrail pollers into
 // /api/state. Each block appears only once its poller has run (null before then); border-left signals ok
 // (teal) vs a warning (amber) — a low disk, or a night with a missing stream.
-function renderBoxHealth(storage, qc, host, alerts, clk, cpap){
+function renderBoxHealth(storage, qc, host, alerts, clk, cpap, cpapLive){
   const el = $('#boxHealth'), title = $('#boxHealthTitle');
   if(!el) return;
   const cards = [];
@@ -2126,10 +2138,23 @@ function renderBoxHealth(storage, qc, host, alerts, clk, cpap){
                   barren:'Nothing found', error:'FAILED'}[cpap.state] || 'Idle';
     const colour = {ok:'var(--status-ok)', warn:'var(--status-caution)', bad:'var(--status-bad)'}[ccls];
     const csub = clabel + (cpap.last_ok ? ' · last good '+cpap.last_ok.replace('T',' ') : '');
+    // ── IS THERAPY RUNNING NOW? A DIFFERENT QUESTION FROM THE HARVEST FIELDS ABOVE ───────────
+    // Those count FILES; this reads the AS11 shadow detector. The owner asked "is CPAP streaming
+    // now" and the card could previously only answer "18 files, 8 nights", which is not that.
+    //
+    // ⚠️ THE AGE IS SHOWN ALWAYS, NOT ONLY WHEN STALE. A UI that prints the age only once it goes
+    // bad teaches the reader that a bare value is current, so freshness becomes an assumption the
+    // layout implies rather than a fact they read. `state` is already "unknown" server-side past
+    // 3x the detector's poll interval; the DEFERRAL matters too — the detector stops polling
+    // entirely while the live stream runs, so "unknown · 12m ago" during a session is correct and
+    // expected, not a fault.
+    const lv = cpapLive;
+    const cLive = lv ? `<div class="sub">therapy: ${esc(lv.state)}${
+      lv.age_s == null ? ' · never read' : ' · as of ' + esc(agoSecs(lv.age_s))}</div>` : '';
     cards.push(`<div class="ov-stat"${colour?` style="border-left-color:${colour}"`:''}>
       <div class="lab">CPAP</div>
       <div class="val" style="font-size:15px">${esc(word)}</div>
-      <div class="sub">${esc(csub)}</div></div>`);
+      <div class="sub">${esc(csub)}</div>${cLive}</div>`);
   }
   el.innerHTML = cards.join('');
   el.style.display = cards.length ? '' : 'none';
