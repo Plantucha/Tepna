@@ -186,7 +186,13 @@ def test_the_top_level_blocks_are_projected_verbatim(tmp_path):
                          # operator by webhook, so a webhook that silently stops turns each of them
                          # into "found out next week" — the transport has to be as visible as what it
                          # guards. Three states, kept apart: delivered / unproven / failing.
-                         "archive", "cpap", "alerts"}
+                         # `cpap_live` is DELIBERATELY a sibling of `cpap` rather than a key inside
+                         # it. Merging them was tried first and this very assertion caught it — the
+                         # verbatim rule above is the guard, and the right response was a new block,
+                         # not a relaxed contract. The two answer different questions: `cpap` counts
+                         # harvested FILES on a daily timer, `cpap_live` reads the AS11 shadow
+                         # detector and is aged at SERVE time.
+                         "archive", "cpap", "cpap_live", "alerts"}
 
 
 def test_the_top_level_blocks_are_null_before_their_pollers_run(tmp_path):
@@ -251,3 +257,71 @@ def test_a_device_that_got_every_rate_it_asked_for_reports_None(tmp_path):
     """Absent is not "negotiated down to something" — the honest empty, not a fabricated one."""
     body = _state(tmp_path, [{"name": "Verity", "address": "AA"}], {"Verity": {"connected": True}})
     assert body["devices"][0]["rate_unmet"] is None
+
+
+def test_cpap_live_is_its_OWN_block_and_leaves_cpap_verbatim(tmp_path):
+    """`cpap_live` answers "is therapy running NOW"; `cpap` counts harvested FILES. Two facts about one
+    machine, two blocks — and merging them was tried first and broke
+    `test_the_top_level_blocks_are_projected_verbatim` above, which is exactly the guard that contract
+    exists to be. The verbatim rule wins; the new fact gets its own key."""
+    st = {"devices": {}, "cpap": {"state": "ok", "files": 5, "therapy": True,
+                                  "fg_state": "Therapy", "detector_host_ms": 1000.0}}
+    cfg = {"root": str(tmp_path), "clock": {"sudo": False}, "devices": [dict(DEV)],
+           "as11_detector": {"poll_interval_sec": 30}}
+    app = webmon.make_app(telemetry.TelemetryBus(), cfg, str(tmp_path / "config.yaml"),
+                          "AA:AA:AA:AA:AA:AA", st, None)
+
+    async def go(c):
+        return await (await c.get("/api/state")).json()
+    body = _serve(app, go)
+    # `cpap` is untouched — no `live` key smuggled in
+    assert body["cpap"] == {"state": "ok", "files": 5, "therapy": True,
+                            "fg_state": "Therapy", "detector_host_ms": 1000.0}
+    live = body["cpap_live"]
+    assert set(live) == {"state", "therapy", "age_s", "stale_after_s", "fresh"}
+    assert live["stale_after_s"] == 90.0, "the threshold must come from the configured poll interval"
+    # The stamp is from 1970 in host-ms terms, so the reading is ancient: unknown, with its age shown.
+    assert live["state"] == "unknown" and live["fresh"] is False
+    assert live["age_s"] is not None, "the age must be reported even when the reading is stale"
+
+
+def test_cpap_live_is_null_rather_than_absent_when_there_is_no_cpap_block(tmp_path):
+    """A missing key and a null are different to a consumer; the other blocks are null-until-polled and
+    this one matches them."""
+    cfg = {"root": str(tmp_path), "clock": {"sudo": False}, "devices": [dict(DEV)]}
+    app = webmon.make_app(telemetry.TelemetryBus(), cfg, str(tmp_path / "config.yaml"),
+                          "AA:AA:AA:AA:AA:AA", {"devices": {}}, None)
+
+    async def go(c):
+        return await (await c.get("/api/state")).json()
+    body = _serve(app, go)
+    assert "cpap_live" in body and body["cpap_live"] is None
+
+
+def test_a_broken_live_view_omits_the_block_rather_than_taking_the_endpoint_down(tmp_path, monkeypatch):
+    """`cpap_live` is a DIAGNOSTIC OVERLAY, not a participant. If it throws, the state endpoint must
+    still serve — every other panel on the monitor depends on this response, and losing the whole page
+    because a freshness helper raised would be a far worse outcome than a missing sub-block.
+
+    Pinned because the failure is silent by construction: the except branch returns None, which is the
+    same value as "no cpap block at all", so nothing downstream can tell the two apart. The log line
+    is the only signal, and an untested except branch is one nobody knows is reachable."""
+    import cpap_live
+
+    def _boom(*a, **k):
+        raise RuntimeError("live view exploded")
+    monkeypatch.setattr(cpap_live, "live_view", _boom)
+    st = {"devices": {}, "cpap": {"state": "ok", "files": 5}}
+    cfg = {"root": str(tmp_path), "clock": {"sudo": False}, "devices": [dict(DEV)]}
+    app = webmon.make_app(telemetry.TelemetryBus(), cfg, str(tmp_path / "config.yaml"),
+                          "AA:AA:AA:AA:AA:AA", st, None)
+
+    async def go(c):
+        return await (await c.get("/api/state")).json()
+    body = _serve(app, go)
+    assert body["cpap_live"] is None, "a throwing overlay must degrade to null"
+    assert body["cpap"] == {"state": "ok", "files": 5}, "the harvest block must survive untouched"
+    # `devices` is built by `_remembered()` from the CONFIG, not echoed from the status dict — my
+    # first version of this assertion compared it against the raw `{}` and failed, which was the test
+    # being wrong rather than the code. What matters here is only that the endpoint still SERVED.
+    assert isinstance(body["devices"], list) and "streams" in body, "the rest of the endpoint must still serve"

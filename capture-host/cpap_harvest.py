@@ -881,7 +881,14 @@ def harvest(dest_root: str, base: str = DEFAULT_BASE, nights: set[str] | None = 
     A truncated run is fine — skip-if-present resumes tomorrow. A run that never returns is not.
     """
     ez = EzShare(base, timeout=timeout, retries=retries, ignore=ignore)
-    st = {"files": 0, "bytes": 0, "skipped": 0, "nights": 0, "short": [], "errors": [],
+    # `nights` is a COUNT and stays one — it is published into STATUS and rendered by the monitor, and
+    # `test_webmon_state_contract` pins the shape of what the state endpoint serves. `night_keys` is the
+    # same fact as a LIST, added as a SIBLING rather than by widening `nights`, for exactly the reason
+    # `cpap_live` is a sibling of `cpap`: a consumer reading the old key must keep getting the old type.
+    # The walk already knows these names (it creates one DATALOG directory per night), so this surfaces
+    # information already in hand rather than adding a second traversal — which is what the CPAP
+    # inventory oracle would otherwise have to do for itself.
+    st = {"files": 0, "bytes": 0, "skipped": 0, "nights": 0, "night_keys": [], "short": [], "errors": [],
           "partial": False, "nights_on_card": 0, "reaped": 0}
 
     def expired() -> bool:
@@ -934,4 +941,5 @@ def harvest(dest_root: str, base: str = DEFAULT_BASE, nights: set[str] | None = 
                 break
             pull_into(ez.listing(n["href"]), os.path.join(dest_root, "DATALOG", n["name"]))
             st["nights"] += 1
+            st["night_keys"].append(n["name"])
     return st
