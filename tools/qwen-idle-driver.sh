@@ -57,4 +57,19 @@ done
 # problem. The six NARROW lenses in stage 4 remain live pending their own 30-sample — they ask
 # traced-path questions, a different instrument class.
 # timeout 7200 node tools/dsp-review-qwen.mjs --mode adversary >> "$LOG" 2>&1
+# 5 · mypy FIX lane (PYTHON-TYPES-AND-FORMAT §P2). The draft pool runs dry — measured 2026-08-27
+# 22:51 — and this refills those cycles with work that has a mechanical verifier rather than a
+# human one: mypy's own error list is the queue, and the delta plus capture-host/check.sh is the
+# judge. The model NEVER verifies its own output.
+#
+# The rails are in tools/qwen-mypy-fix.mjs as a rejecting predicate, not in the prompt: this lane's
+# metric is an error count going DOWN, and `x: Any` / a bare `# type: ignore` drive that count to
+# zero while adding nothing. A prompt can only discourage that path; the predicate makes it
+# unreachable. Proposals land NOWHERE automatically — the queue is triage material, per §0 of the
+# qwen program.
+if [ -f capture-host/.mypy-latest.txt ]; then
+  timeout 1800 node tools/qwen-mypy-fix.mjs --mypy-log capture-host/.mypy-latest.txt >> "$LOG" 2>&1
+else
+  echo "   mypy lane: no capture-host/.mypy-latest.txt — check.sh has not run here; skipping (absent is not clean)" >> "$LOG"
+fi
 echo "── $(date '+%F %T') driver end" >> "$LOG"
