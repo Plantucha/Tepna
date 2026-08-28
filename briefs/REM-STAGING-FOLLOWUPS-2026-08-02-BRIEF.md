@@ -72,6 +72,11 @@ re-bundle rather than causing one; this is that deferral, named rather than skip
   none can be fetched — NSRR/PhysioNet require a signed DUA and the suite is 100 % local by construction.
   2b is unblocked on code and blocked on a human dropping EDF+XML pairs in. That is a materially different
   status from "the annotation files are the gap".
+
+  🔴 **NSRR DUA CANCELLED — owner, 2026-08-28.** No DUA will be pursued (a cancellation, not a
+  deferral; revisit only if records are ever actually obtained). 2b's scoring path stays built and
+  dormant — do not re-surface this as pending work, and do not re-argue the DUA's value; the
+  decision was made with that value on the table.
 - **2b** Derive ECGDex's per-epoch feature vector (LF/HF, RMSSD, motionIndex, resp, respCv) from NSRR ECG
   on records that also carry expert staging, and evaluate the shipped conjunction against *real* labels.
   That single number — real recall/precision for REM — has never existed and is the thing every staging
