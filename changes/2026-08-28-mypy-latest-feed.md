@@ -35,8 +35,14 @@ origin/main — nothing in scope (not a pass, an empty scope)"* · **`shellcheck
 absent on this box, which is a missing tool and not a failing gate** (CI runs it).
 
 The feed landed with **255 lines**, ending `Found 188 errors in 40 files (checked 277 source files)`.
-Note **188, not the recorded 189** — the baseline may only go down, and it has; the change is somebody
-else's and is simply observed here.
+
+⚠️ **188 is NOT a burn-down, and I first reported that it was.** The count came from a worktree off
+`origin/main`; root measures **189**. The difference is exactly one line, and it is
+`probe_rt_ppg_args.py:101` — an **untracked** file that exists only in root. Two trees, two
+populations, one of them carrying a file the other has never seen; comparing the totals as if they
+measured the same thing is the error, not the number. **The baseline stands at 189 and nothing has
+been burned down.** Re-recording it off my 188 would have moved a pre-stated threshold on the strength
+of an artifact.
 
 And the empty-vs-clean discriminator, exit codes captured without a pipe:
 
