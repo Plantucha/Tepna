@@ -752,7 +752,7 @@ implementations to disagree with**, which §7 argues is the only thing that can 
 |---|---|---|---|
 | — | ~~§4 one-sided estimator~~ | done | **TESTED AND REJECTED** — see §4.3. Kept in the table so it is not re-proposed as "the cheap one". |
 | 1 | §7 blind-analysis protocol | very small | Process, not code. Addresses the failure class that shipped #1200. Now the cheapest item on the list. |
-| — | §3 E-QC | **blocked on hardware** | The fourth stream is EMPTY: `Pulse.1s` is −1 fill in all 189 SA2 files (§3.1c). Needs the ResMed oximeter module attached, or a different independent 4th HR source. More nights will not help. |
+| — | §3 E-QC | **CANCELLED — owner, 2026-08-28** | The fourth stream is EMPTY: `Pulse.1s` is −1 fill in all 189 SA2 files (§3.1c). The ResMed oximeter module will NOT be purchased (owner decision 2026-08-28 — a cancellation, not a deferral; revisit only if a module is ever actually acquired). §3's 4-stream E-QC is retired with it unless a different independent 4th HR source appears; more nights never helped and still don't. |
 | 3 | §5 Newey–West for the closure tolerance | medium | Closed form, standard tooling, `blocks_` already exposed. Held below E-QC only because the bandwidth choice needs its own sensitivity study. |
 | 4 | §2 ML reformulation / KLTS intervals for TCH | medium | Do after E-QC — the estimator matters less than closing the identifiability gap. |
 | — | ~~§6 EDF-weighted slope~~ | done | **MEASURED AND REJECTED** (§6.1): Δslope ≤ 0.018, 0 of 10 classifications change, and the boundary case it would help is already covered by `classifyAllan`'s refusal. GMWM is untouched by this and stays last. |
