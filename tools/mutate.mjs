@@ -127,7 +127,11 @@ const DIFF_BASE = (() => {
 /* Default ON in diff mode (a gate only asks "did anything go red?"), off for whole-file surveys
    (whose `killers` breakdown is the point). `--no-bail` forces it off, `--bail` forces it on. */
 const BAIL = has('--bail') || (DIFF && !has('--no-bail'));
-const LIMIT = +opt('--limit', DIFF ? Infinity : 60);
+/* `--only <path>` re-tests a recorded mutant list (see selectRecorded). It sets its own population,
+   so `--limit`'s default 60 must not silently thin a 171-survivor list down to 60 — that would be a
+   smaller denominator reported as a complete answer. An explicit --limit still wins. */
+const ONLY = opt('--only', null);
+const LIMIT = +opt('--limit', DIFF || ONLY ? Infinity : 60);
 const FULL = has('--full');
 /* Per-file wall-clock ceiling in seconds. A sweep across 71 modules is dominated by a handful of
    pathologically expensive tags, and skipping them LOUDLY beats discovering them at minute forty. */
@@ -312,6 +316,65 @@ const KILLER_RE = /✕ \[([^\]]+)\]/g;
    read, else null. Pure and exported so --selftest pins the threshold: an alarm nobody has watched
    fire is not an alarm. One invalid is normal (a mutated regex quantifier cannot compile); a quarter
    of the population is a machine problem, and both print the same confident-looking rate. */
+/* ── SURVIVORS-ONLY RE-TESTING (MUTATION-ACCOUNTING-LOOP §E4b) ──────────────────────────────────
+   §E4 closed the "skipped forever" hole by re-SWEEPING a file whose `testsHash` moved. That is
+   correct and it overpays: measured on `hrvdex-dsp.js`, the re-sweep tested 490 mutants to learn
+   about 171, and all 8 that moved were survivors by construction — a mutant already killed by the
+   old suite cannot become a survivor under a better one.
+
+   So `--only <list.json>` re-tests a RECORDED mutant list. The list is exactly what a sweep already
+   writes: `<file>.sweep.json`'s `survivors`, each `{ line, op, before, after }`.
+
+   🔴 IT REFUSES RATHER THAN GUESSING, and the reason is documented three screens up at `findCanary`.
+   The natural key `line \0 op \0 before` IS NOT UNIQUE — `pulsedex-dsp.js:197` carries two `num → 0`
+   mutants with identical `before` text, and in 2026-08-25 a drafted assertion fused one mutant's
+   input with the OTHER's output and reached `main`. `after` disambiguates that pair and, unlike an
+   index, does not shift when code above it is edited. Where even the 4-field key is ambiguous, or an
+   entry matches nothing at all, this REFUSES THE WHOLE RUN:
+
+     · a partial re-test reports fewer kills than a full one over the same set, and nothing in the
+       output distinguishes "these mutants survived" from "those mutants were never tested" — the
+       examined-nothing shape, arriving as a silently smaller denominator;
+     · an entry matching nothing means the SOURCE moved, so the recorded list no longer describes the
+       file and the caller should sweep cold instead — which is exactly what §E4's `crawlPlan` already
+       decides when `srcHash` moves.
+
+   Refusal over guessing, per `findCanary`'s own contract: a miss is reported, never resolved to the
+   first match. */
+export function selectRecorded(all, wanted) {
+  const key = (m) => m.line + '\u0000' + m.op + '\u0000' + m.before + '\u0000' + m.after;
+  const byKey = new Map();
+  for (const m of all) {
+    const k = key(m);
+    if (!byKey.has(k)) byKey.set(k, []);
+    byKey.get(k).push(m);
+  }
+  const picked = [];
+  const missing = [];
+  const ambiguous = [];
+  const seen = new Set();
+  for (const w of wanted) {
+    if (!w || typeof w.line !== 'number' || typeof w.op !== 'string') {
+      missing.push({ ...w, why: 'malformed entry (needs line, op, before, after)' });
+      continue;
+    }
+    const k = key(w);
+    const hits = byKey.get(k) || [];
+    if (hits.length === 0) {
+      missing.push({ line: w.line, op: w.op, why: 'no mutant with this line/op/before/after exists in the current source' });
+      continue;
+    }
+    if (hits.length > 1) {
+      ambiguous.push({ line: w.line, op: w.op, n: hits.length, why: 'the 4-field key matches ' + hits.length + ' mutants — even `after` cannot separate them' });
+      continue;
+    }
+    if (seen.has(k)) continue; // a duplicate entry in the list is not a second mutant
+    seen.add(k);
+    picked.push(hits[0]);
+  }
+  return { picked, missing, ambiguous, ok: missing.length === 0 && ambiguous.length === 0 };
+}
+
 export function invalidWarning(invalid, tested, killed) {
   const pct = tested ? (invalid / tested) * 100 : 0;
   if (!(invalid > 2 && pct >= 5)) return null;
@@ -1090,6 +1153,30 @@ async function runFile(file) {
   const touched = DIFF ? DIFF_LINES.get(file) || new Set() : null;
   const all = touched ? allGenerated.filter((m) => touched.has(m.line)) : allGenerated;
   let picked = thin(all, LIMIT);
+  if (ONLY) {
+    let wanted;
+    try {
+      const raw = JSON.parse(readFileSync(ONLY, 'utf8'));
+      wanted = Array.isArray(raw) ? raw : raw.survivors;
+    } catch (e) {
+      console.error('--only: cannot read ' + ONLY + ' (' + e.message + ')');
+      process.exit(2);
+    }
+    if (!Array.isArray(wanted)) {
+      console.error('--only: ' + ONLY + ' is neither an array nor an object with a `survivors` array. An unreadable list is not an empty one.');
+      process.exit(2);
+    }
+    const sel = selectRecorded(all, wanted);
+    if (!sel.ok) {
+      console.error('--only REFUSED: ' + sel.missing.length + ' entr(ies) match no current mutant, ' + sel.ambiguous.length + ' ambiguous.');
+      for (const m of sel.missing.slice(0, 5)) console.error('   missing  L' + m.line + ' [' + m.op + '] — ' + m.why);
+      for (const a of sel.ambiguous.slice(0, 5)) console.error('   ambiguous L' + a.line + ' [' + a.op + '] — ' + a.why);
+      console.error('A partial re-test reports a smaller denominator as a complete answer. Sweep cold instead.');
+      process.exit(2);
+    }
+    picked = sel.picked;
+    console.log('   --only: re-testing ' + picked.length + ' recorded mutant(s) of ' + all.length + ' that exist');
+  }
   /* The canary rides along as an extra mutant. It is EXCLUDED from every counter (see classify), so
      it can never flatter or dent the reported rate — it only decides whether that rate is reportable. */
   const canaryWant = loadCanaries()[file];
@@ -1916,6 +2003,40 @@ function selftest() {
   ck('key · a LEGACY canary with no `after` REFUSES a collided line rather than guessing', findCanary(_collide, { line: 197, op: 'num → 0', before: _collide[0].before }), null);
   ck('key · a legacy canary still matches where there is NO collision', findCanary([_collide[0]], { line: 197, op: 'num → 0', before: _collide[0].before }).after, _collide[0].after);
   ck('key · classifySurvivors keeps two same-op mutants on one line APART', classifySurvivors(_collide, [_collide[0]], _collide).realGap.length, 1);
+
+  /* ── §E4b · selectRecorded — survivors-only re-testing, and the refusals that make it safe ──────
+     The point of the shortcut is a smaller denominator ON PURPOSE. That is exactly why every way of
+     silently getting an even smaller one has to be a refusal: a partial re-test and a complete one
+     look identical in the output, differing only in a number nobody can check. */
+  ck('E4b · a recorded list selects exactly its own mutants', selectRecorded(_collide, [_collide[1]]).picked.length, 1);
+  ck('E4b · …and it is the RIGHT one — `after` disambiguates the documented collision', selectRecorded(_collide, [_collide[1]]).picked[0].after, _collide[1].after);
+  ck('E4b · the other collided mutant is separately selectable', selectRecorded(_collide, [_collide[0]]).picked[0].after, _collide[0].after);
+  /* THE COLLISION REFUSAL. `line \0 op \0 before` is not unique — pulsedex-dsp.js:197 — and in
+     2026-08-25 a draft fused one mutant's input with the OTHER's output and reached main. A list
+     entry that cannot name one mutant must not test the first match. */
+  const _legacyEntry = { line: 197, op: 'num → 0', before: _collide[0].before, after: undefined };
+  ck('E4b · an entry that cannot name ONE mutant is REFUSED, not resolved to the first', selectRecorded(_collide, [_legacyEntry]).ok, false);
+  ck('E4b · …and the refusal is reported as a MISS, with nothing selected', selectRecorded(_collide, [_legacyEntry]).picked.length, 0);
+  /* A key that genuinely collides on all four fields (a duplicated generation) is ambiguous, not a
+     miss — different cause, different message, both refusals. */
+  const _dup = [_collide[0], { ..._collide[0] }];
+  ck('E4b · a 4-field key matching TWO mutants is AMBIGUOUS, and refuses', selectRecorded(_dup, [_collide[0]]).ambiguous.length, 1);
+  /* AN ENTRY MATCHING NOTHING MEANS THE SOURCE MOVED. The recorded list no longer describes the
+     file, so the caller must sweep cold — which is what §E4's crawlPlan already decides on a moved
+     srcHash. Testing the rest anyway would report a smaller denominator as a complete answer. */
+  ck('E4b · an entry matching no current mutant refuses the run', selectRecorded(_collide, [{ line: 999, op: 'num → 0', before: 'gone', after: 'gone' }]).ok, false);
+  ck(
+    'E4b · …and says the source moved rather than "0 survivors"',
+    /no mutant with this/.test(selectRecorded(_collide, [{ line: 999, op: 'num → 0', before: 'gone', after: 'gone' }]).missing[0].why),
+    true
+  );
+  ck('E4b · a malformed entry is a refusal, never a skip', selectRecorded(_collide, [{ op: 'num → 0' }]).ok, false);
+  /* NULL CONTROL: the full recorded list selects the full population and refuses nothing. A selector
+     that cannot reproduce "everything" is not selecting, it is filtering by accident. */
+  const _full = selectRecorded(_collide, _collide);
+  ck('NULL CONTROL · the complete list selects every mutant', _full.picked.length, _collide.length);
+  ck('NULL CONTROL · …and refuses nothing', _full.ok, true);
+  ck('E4b · a duplicated entry does not double-count its mutant', selectRecorded(_collide, [_collide[0], _collide[0]]).picked.length, 1);
 
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
   return fail;
