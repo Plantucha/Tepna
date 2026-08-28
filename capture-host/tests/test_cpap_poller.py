@@ -573,3 +573,30 @@ def test_a_completed_walk_reports_consulted_TRUE_even_when_it_found_nothing(tmp_
                             None, str(tmp_path), None, 600.0, seen.append))
     assert seen[-1]["state"] == "barren"
     assert seen[-1]["consulted"] is True, "a completed empty walk was reported as unread"
+
+
+def test_error_carries_consulted_TRUE_when_the_walk_COMPLETED_with_short_reads(tmp_path, monkeypatch):
+    """🔴 THE CASE THAT MAKES `consulted` NECESSARY RATHER THAN MERELY TIDY, and it was missing.
+
+    The two tests above pin thrown -> (error, False) and barren -> (barren, True). Both are satisfied
+    by the naive derivation `consulted = state != "error"` — so a reader could delete the flag,
+    re-derive it from `state`, and neither test would notice.
+
+    This is the input that kills that derivation: a walk that COMPLETED and read the card, but hit
+    short reads, so `bad` is true and the state is `error` — with `consulted` TRUE. The same `state`
+    value therefore carries BOTH answers, and `state` structurally cannot distinguish them: for this
+    one outcome the information is not present in it at all.
+
+    Without this test the flag looks redundant. With it, it is the only way to answer the question."""
+    def _short(*a, **k):
+        return _res(files=2, short=["20260826/BRP.edf truncated"], errors=[])
+    seen = []
+    spy = _Spy(); spy.install(monkeypatch, harvest=_short)
+    monkeypatch.setattr(capture._dt, "datetime", _at())
+    _stop_after(monkeypatch, 2)
+    _run(capture._cpap_loop(13, "prof", "http://card", str(tmp_path), 900, 30, 2,
+                            lambda **kw: capture.STATUS.setdefault("cpap", {}).update(kw),
+                            None, str(tmp_path), None, 600.0, seen.append))
+    assert seen[-1]["state"] == "error", "short reads must still be an error"
+    assert seen[-1]["consulted"] is True, (
+        "a completed walk was reported as unread — `consulted` has collapsed into `state != error`")
