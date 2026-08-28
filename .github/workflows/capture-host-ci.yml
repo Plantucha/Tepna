@@ -325,3 +325,63 @@ jobs:
             exit 1
           fi
           echo "ratchet ok ($N <= $BASE). Advisory until §P3 flips this job to required with a threshold of 0."
+
+  # ── SUPPLY-CHAIN GATES (advisory) ───────────────────────────────────────────────────────────────
+  # Two questions with different failure modes, deliberately not merged into one job:
+  #   · dependency-review — what does this PR ADD to the dependency graph?
+  #   · detect-secrets    — does this PR add a credential that is not in the reviewed baseline?
+  #
+  # 🔴 FINDINGS ARE ADVISORY; BLINDNESS IS FATAL. A new finding prints and does not fail (the same
+  # flip discipline mypy is under — advisory until a stated flip). But an UNPARSEABLE OR MISSING
+  # BASELINE exits 2, because that is not "no secrets found", it is "the scanner could not run". The
+  # two produce the same silence and mean opposite things, and this repo has spent a lot of the last
+  # week on exactly that distinction.
+  supply-chain:
+    needs: changes
+    runs-on: ubuntu-latest
+    name: supply-chain (advisory)
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # dependency-review needs both endpoints of the PR diff
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Not relevant to this PR — reporting green without scanning
+        if: needs.changes.outputs.run != 'true'
+        run: echo "No capture-host/ or workflow change in this PR; the supply-chain gates are not run."
+      - name: Dependency review (advisory)
+        if: github.event_name == 'pull_request' && needs.changes.outputs.run == 'true'
+        continue-on-error: true   # advisory until the flip; the report is the product
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: never   # the job log is the surface; PR comments are noise at our cadence
+      - name: Secrets scan against the reviewed baseline
+        if: needs.changes.outputs.run == 'true'
+        run: |
+          set -uo pipefail
+          BASE=".secrets.baseline"
+          # THE BASELINE MUST EXIST AND PARSE. Absent or corrupt is a gate that cannot see, and a gate
+          # that cannot see must not report green — the one hard failure in this job.
+          if [ ! -f "$BASE" ]; then
+            echo "REFUSING: $BASE is missing. That is a scanner with no reference, not a clean tree."
+            exit 2
+          fi
+          python -c "import json,sys; d=json.load(open('$BASE')); sys.exit(0 if 'results' in d and 'plugins_used' in d else 1)" || {
+            echo "REFUSING: $BASE does not parse as a detect-secrets baseline."
+            echo "An unreadable baseline is not an empty one."
+            exit 2
+          }
+          python -m pip install --quiet detect-secrets
+          # `audit --report` compares the tree against the baseline. New findings print; they do not
+          # fail this job yet. FLIP CONDITION, pre-stated: this becomes blocking once the baseline has
+          # been audited end-to-end (every entry marked true/false positive) — currently it records
+          # WHAT WAS FOUND, not what was judged.
+          detect-secrets scan --baseline "$BASE" || true
+          if git diff --quiet -- "$BASE"; then
+            echo "no new secrets: the tree matches the reviewed baseline"
+          else
+            echo "⚠ NEW findings not in the baseline — advisory today, blocking after the audit flip:"
+            git --no-pager diff -- "$BASE" | head -60
+          fi
