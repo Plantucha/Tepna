@@ -30,7 +30,10 @@
 // The model proposes; `mypy --strict-equality` delta and the full `capture-host/check.sh` verify.
 // The local model is never in the verification path — it cannot judge its own output.
 
-import { existsSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /** Owner-directed pin (2026-08-27 A/B, n=41 paired, temp 0). `think:false` is load-bearing: a
  *  reasoning reply comes back EMPTY from this endpoint, which the idle driver's header documents. */
@@ -133,6 +136,84 @@ export function laneVerdict({ triaged, accepted }) {
   return { decided: true, rate, retire: rate < 0.3, reason: `${(rate * 100).toFixed(0)} % accepted over ${triaged} triaged` };
 }
 
+const HERE = dirname(fileURLToPath(import.meta.url));
+const ROOT = resolve(HERE, '..');
+const OLLAMA = 'http://127.0.0.1:11434';
+
+/** Where the drafts live — machine-local, never committed. Same resolution as verify-drafts.mjs: the
+ *  git COMMON dir, so a worktree resolves to the primary checkout's store instead of reporting a
+ *  silent "no drafts". */
+export function draftsDir(root = ROOT, { run = execFileSync } = {}) {
+  try {
+    const common = String(run('git', ['rev-parse', '--git-common-dir'], { cwd: root, encoding: 'utf8' })).trim();
+    return join(resolve(root, common), 'tepna-mutation');
+  } catch {
+    return join(root, '.git', 'tepna-mutation');
+  }
+}
+
+/** THE JOURNAL KEY IS THE ERROR, NOT THE PROPOSAL — and that choice is the band's integrity.
+ *  The lane retires at <30 % accepted over 30 triaged, so the DENOMINATOR must not be inflatable by
+ *  cycling: if the key included the proposal text, re-asking one stubborn error would mint a fresh
+ *  entry every run and drown a bad acceptance rate in re-asks. Keyed on the error, a second ask is a
+ *  SKIP, and 30 triaged means 30 distinct errors answered. */
+export function errorKey(err) {
+  return [err.file, err.line, err.code || '', String(err.message).slice(0, 200)].join('\u0000');
+}
+
+export function loadJournal(text) {
+  const byKey = new Map();
+  for (const line of String(text).split('\n')) {
+    const t = line.trim();
+    if (!t) continue;
+    try {
+      const r = JSON.parse(t);
+      if (r && typeof r.key === 'string') byKey.set(r.key, r);
+    } catch {
+      /* a torn last line from an interrupted cycle is not a verdict */
+    }
+  }
+  return byKey;
+}
+
+/** The source the model is shown, and the `before` the rails compare against. Same region both ways,
+ *  so "what it was asked to change" and "what it is judged against" cannot drift apart. */
+export function regionOf(srcLines, line, ctx = 6) {
+  const i = Math.max(0, line - 1 - ctx);
+  const j = Math.min(srcLines.length, line + ctx);
+  return srcLines.slice(i, j).join('\n');
+}
+
+/** A model reply that declines, per rule 4 of the prompt. A REAL BUG is NOT this lane's to patch —
+ *  it routes to the session lane's findings, which is the entire reason §P2 splits the two. */
+export function isRealBugReport(text) {
+  return /^\s*REAL-BUG:/m.test(String(text));
+}
+
+/** Strip the fences a model adds despite being told not to. Nothing else is normalised: the rails
+ *  must judge what the model actually wrote. */
+export function cleanReply(text) {
+  return String(text)
+    .replace(/^\s*```[a-z]*\n?/i, '')
+    .replace(/```\s*$/, '')
+    .trim();
+}
+
+async function askModel(prompt) {
+  const res = await fetch(`${OLLAMA}/api/chat`, {
+    method: 'POST',
+    body: JSON.stringify({
+      model: MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      think: false, // load-bearing: a reasoning reply returns EMPTY from this endpoint
+      stream: false,
+      options: { temperature: 0, num_predict: 400 } // temp 0 — the bench that chose this model ran at 0
+    })
+  });
+  if (!res.ok) throw new Error(`ollama HTTP ${res.status}`);
+  return String(((await res.json()).message || {}).content || '');
+}
+
 const PROMPT_RULES = `You are proposing a MINIMAL Python type-annotation patch for one mypy error in Tepna's capture-host.
 
 Rules, enforced mechanically after you answer — a proposal breaking any of them is discarded unread:
@@ -221,9 +302,71 @@ function selftest() {
   return fail === 0 ? 0 : 1;
 }
 
+/* THE GENERATOR. It proposes and it journals; it lands NOTHING. Every proposal is screened by
+   `rejectProposal` BEFORE a human sees it, so the lazy path never reaches a reader's attention, and
+   the verifier is mypy's own delta plus `capture-host/check.sh` — the model is in no verification
+   path and cannot judge its own output. */
+async function generate(errs, limit, showRaw) {
+  const dd = draftsDir();
+  const jpath = join(dd, 'mypy-fix-journal.jsonl');
+  const journal = existsSync(jpath) ? loadJournal(readFileSync(jpath, 'utf8')) : new Map();
+  const todo = errs.filter((e) => !journal.has(errorKey(e))).slice(0, limit);
+  console.log(`journal: ${journal.size} answered - queue: ${errs.length} - asking: ${todo.length} (a re-ask is a SKIP, so 30 triaged means 30 DISTINCT errors)`);
+  if (!todo.length) return 0;
+
+  let accepted = 0;
+  let rejected = 0;
+  let realbug = 0;
+  let shown = 0;
+  for (const e of todo) {
+    const abs = e.file.startsWith('capture-host/') ? join(ROOT, e.file) : join(ROOT, 'capture-host', e.file);
+    if (!existsSync(abs)) {
+      console.error(`  skip ${e.file}:${e.line} - not found at ${abs} (NOT journalled: nothing was asked, so it is not a triaged item)`);
+      continue;
+    }
+    const lines = readFileSync(abs, 'utf8').split('\n');
+    const before = regionOf(lines, e.line);
+    let raw;
+    try {
+      raw = await askModel(buildPrompt(e, before));
+    } catch (err) {
+      console.error(`  ollama failed on ${e.file}:${e.line} - ${err.message}. NOT journalled: an unanswered error is not a rejected proposal.`);
+      break; // the model is down; stop rather than burn the queue into a wall of false rejections
+    }
+    /* THE FIRST FEW REPLIES ARE THEMSELVES A PLANT - print them RAW before trusting the parse. A
+       reader that silently mangles every reply yields a uniform rejection rate, which reads as a bad
+       MODEL rather than a bad PARSER. */
+    if (showRaw && shown < 3) {
+      shown++;
+      console.log(`\n--- RAW reply ${shown}/3 for ${e.file}:${e.line} ---\n${raw}\n--- end raw ---`);
+    }
+    const after = cleanReply(raw);
+    let rec;
+    if (isRealBugReport(after)) {
+      realbug++;
+      rec = { key: errorKey(e), at: new Date().toISOString(), err: e, outcome: 'REAL-BUG', text: after.slice(0, 800) };
+      console.log(`  REAL-BUG routed to the session lane: ${e.file}:${e.line} - not patched here`);
+    } else {
+      const verdict = rejectProposal({ before, after });
+      if (verdict.ok) accepted++;
+      else rejected++;
+      rec = { key: errorKey(e), at: new Date().toISOString(), err: e, outcome: verdict.ok ? 'PROPOSED' : 'AUTO-REJECTED', reasons: verdict.reasons, proposal: after.slice(0, 800) };
+      console.log(`  ${verdict.ok ? '.' : 'x'} ${e.file}:${e.line} [${e.code}] ${verdict.ok ? 'proposal awaiting human triage' : verdict.reasons[0]}`);
+    }
+    appendFileSync(jpath, `${JSON.stringify(rec)}\n`);
+  }
+  const done = journal.size + accepted + rejected + realbug;
+  console.log(`\nthis cycle: ${accepted} proposed - ${rejected} auto-rejected - ${realbug} real-bug routed`);
+  console.log(`band: ${laneVerdict({ triaged: done, accepted }).reason}`);
+  console.log('These are PROPOSALS. None is applied; a human reads each, and nothing lands without a green capture-host/check.sh.');
+  console.log(`journal: ${jpath}`);
+  return 0;
+}
+
 // -- CLI -----------------------------------------------------------------------------------------
-function main(argv) {
-  if (argv.includes('--selftest')) return selftest();
+async function main(argv) {
+  const has = (f) => argv.includes(f);
+  if (has('--selftest')) return selftest();
   const i = argv.indexOf('--mypy-log');
   const logPath = i >= 0 ? argv[i + 1] : null;
   if (!logPath) {
@@ -258,9 +401,10 @@ function main(argv) {
   if (!errs.length) console.error('⚠  zero errors parsed — check the log format before reading this as a clean tree.');
   const lim = argv.indexOf('--limit');
   const n = lim >= 0 ? +argv[lim + 1] : mine.length;
+  if (has('--generate')) return generate(mine, n, has('--raw'));
   for (const e of mine.slice(0, n)) console.log(`  ${e.file}:${e.line}  [${e.code}]  ${e.message.slice(0, 80)}`);
-  console.log('\n(proposal generation runs under the idle driver; this listing is the lane’s work queue.)');
+  console.log('\n(this listing is the work queue; pass --generate to produce proposals.)');
   return 0;
 }
 
-process.exit(main(process.argv.slice(2)));
+process.exit(await main(process.argv.slice(2)));

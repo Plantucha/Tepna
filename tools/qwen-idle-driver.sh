@@ -77,7 +77,14 @@ done
 # unreachable. Proposals land NOWHERE automatically — the queue is triage material, per §0 of the
 # qwen program.
 if [ -f "$MYPY_FEED" ]; then
-  timeout 1800 node tools/qwen-mypy-fix.mjs --mypy-log "$MYPY_FEED" >> "$LOG" 2>&1
+  # ⚠️ ABSOLUTE, like the feed and the LOG. `cd "$WT"` above resolves every relative path inside the
+  # rotating worktree, and the TOOL lives in root: measured 2026-08-28, wt-resweep carried no
+  # qwen-mypy-fix.mjs at all, so a relative invocation dies on "Cannot find module" rather than
+  # running. Same state/code split as the feed — I pinned the INPUT to root last cycle and left the
+  # EXECUTABLE resolving in the worktree, which is the identical defect one file over.
+  # --limit 6 per cycle: the band needs 30 DISTINCT errors, and the journal skips answered ones, so
+  # the queue drains over several cycles instead of spending one long run on a model that may be wrong.
+  timeout 1800 node /home/michal/Tepna/tools/qwen-mypy-fix.mjs --mypy-log "$MYPY_FEED" --generate --limit 6 >> "$LOG" 2>&1
 else
   # Name the ABSOLUTE path that was missing. "no capture-host/.mypy-latest.txt" was true and useless:
   # it does not say WHICH tree was searched, so a feed sitting in root reads as an absent feed.
