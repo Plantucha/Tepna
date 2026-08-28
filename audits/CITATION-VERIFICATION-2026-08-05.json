@@ -2,7 +2,7 @@
  "_note": "Author-time verification of every DOI cited anywhere in this repo, resolved against api.crossref.org. NOT a runtime input and NEVER fetched by a bundle — the no-network rule governs shipped code; this file is the OFFLINE record of a network check, so a later reader can re-check a citation without repeating it. `year` is Crossref's issued year, which for online-first papers is up to one year before the print/issue year a citation normally quotes; treat a one-year gap as agreement.",
  "_verifiedOn": "2026-08-05",
  "_resolver": "https://api.crossref.org/works/{doi}",
- "_count": 112,
+ "_count": 113,
  "dois": {
   "10.5664/jcsm.9814": {
    "firstAuthor": "Ni",
@@ -603,6 +603,16 @@
     "Shiwen"
    ],
    "aliasNote": "Crossref's family name is \"Xu\" — two letters, below the citation gate's ≥3-char name-part floor, so firstAuthor alone can never whole-word match. The given name Shiwen is the matchable alias; the paper cites the full form \"Xu Shiwen\".",
+   "aliasSource": "crossref-variant"
+  },
+  "10.1111/crj.70176": {
+   "firstAuthor": "Wu",
+   "year": "2026",
+   "container": "The Clinical Respiratory Journal",
+   "authorAliases": [
+    "Wu Xu"
+   ],
+   "aliasNote": "Crossref records family \"Wu\", given \"Xu\" — BOTH two letters, below the citation gate's ≥3-char name-part floor, so no single word of the name can ever match and no single-word alias can fix it. The full-name PHRASE \"Wu Xu\" is the matchable form via the gate's phrase-adjacency branch (owner-granted 2026-08-28); the guide cites \"Wu Xu et al.\".",
    "aliasSource": "crossref-variant"
   }
  },
