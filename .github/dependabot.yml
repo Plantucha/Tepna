@@ -1,0 +1,25 @@
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# Dependency updates. MONTHLY on purpose: §👥.5b measured a runner-pool saturation at 11 open PRs
+# (187 required-check jobs before anyone touched anything), and the WIP cap is 4 open PRs repo-wide.
+# A weekly cadence across two ecosystems would spend that cap on bumps and starve the work units.
+#
+# ⚠️ THE RUNTIME TREE HAS NO DEPENDENCIES TO BUMP. The 11 bundles are 100 % local by construction —
+# no CDN, no fetch, no `@font-face` — and `node_modules` is dev-only tooling that CI installs from a
+# lockfile. So the surfaces that can actually carry a supply-chain change are exactly two: the Python
+# capture host, and the Actions themselves.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /capture-host
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2   # against a repo-wide WIP cap of 4
+    groups:
+      capture-host-dev:           # one PR for the gate tooling, not five
+        patterns: ["mypy", "ruff", "pytest*", "hypothesis"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
