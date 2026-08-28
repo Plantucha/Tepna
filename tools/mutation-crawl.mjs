@@ -718,14 +718,16 @@ function probeFile(file, rec) {
   const corpus = readCorpus().filter(([p]) => p !== file);
   const SRC = readFileSync(abs, 'utf8');
   const lines = SRC.split('\n');
-  let base;
+  /* This realm is for STRUCTURAL DISCOVERY ONLY — seeds and call paths, computed before any battery
+     runs, so it cannot be polluted. Each function then gets its own fresh base below. */
+  let discovery;
   try {
-    base = loadRealm(SRC);
+    discovery = loadRealm(SRC);
   } catch (e) {
     return { probed: 0, error: 'realm load failed: ' + e.message, findings: [] };
   }
-  const seeds = globalNames(base);
-  const callees = calleesOf(base, seeds);
+  const seeds = globalNames(discovery);
+  const callees = calleesOf(discovery, seeds);
 
   // group survivors by enclosing function; only those we can actually CALL are probeable
   const byFn = new Map();
@@ -744,6 +746,24 @@ function probeFile(file, rec) {
     }
     const bat = batteryFor(fn);
     const resolve = (root, dotted) => dotted.split('.').reduce((o, seg) => (o == null ? o : o[seg]), root);
+    /* FRESH BASE REALM PER FUNCTION — not per file.
+       The MUTANT side already reloads for every mutant; the base did not, so one `base` was shared by
+       every function in the file. A battery that leaves module state behind (a cache, a counter, a
+       lazily-built table) therefore polluted the ORIG side of every LATER function's comparison, and
+       the recorded "original" output was then a function of probe ORDER. That is the orig-side
+       pollution behind the dominant real-divergence mode in the 2026-08-27 draft batch: three of the
+       five genuine divergences THREW because they expected state a clean realm does not have.
+       MEASURED before building (2026-08-28): loadRealm costs 29 ms across all 30 fleet files and
+       1054 ms if reloaded for each of the 608 callable functions — 1.1 s against a crawl in which
+       oxydex-dsp.js alone takes 116 minutes. Under 0.02 %, so the cheap fix is the affordable one and
+       no realm-state hash is needed to make dirt merely DETECTABLE. */
+    let base;
+    try {
+      base = loadRealm(SRC);
+    } catch (e) {
+      findings.push({ fn, survivors: list.length, status: 'UNRESOLVABLE', callPath: path, note: 'base realm reload failed: ' + e.message });
+      continue;
+    }
     const baseFn = resolve(base, path);
     if (typeof baseFn !== 'function') {
       findings.push({ fn, survivors: list.length, status: 'UNRESOLVABLE', callPath: path, note: 'the recorded path did not resolve to a function — not evidence about the code' });
@@ -1072,6 +1092,24 @@ function selftest() {
   /* The realm must survive a module body that touches `document` at load. This is the assertion that
      was seen to FAIL against the pre-fix realm — it threw `document is not defined`, which is exactly
      how oxydex-dsp.js's 1477 survivors went unmeasured across two crawls. */
+  console.log('\nbase-realm isolation — a probe must not inherit the state a previous probe left behind');
+  {
+    /* THE NULL CONTROL FOR THE FRESH-BASE-PER-FUNCTION FIX (2026-08-28). It demonstrates the
+       POLLUTION FIRST and only then the isolation, because a test that shows only the clean case
+       cannot tell a working fix from a mechanism that never applied. `probeFile` used to load ONE
+       base realm per FILE and reuse it for every function's battery, so a function that leaves module
+       state behind made the recorded ORIGINAL output a function of probe ORDER. Three of the five
+       genuine divergences in the 2026-08-27 draft batch THREW because they expected exactly such
+       inherited state. */
+    const statefulSrc = 'var _n = 0;\nglobalThis.NS = { bump: function () { _n += 1; return _n; }, read: function () { return _n; } };\n';
+    const shared = loadRealm(statefulSrc);
+    shared.NS.bump();
+    ck('POLLUTION IS REAL — a reused realm carries one probe\u2019s state into the next', shared.NS.read(), 1);
+    const fresh = loadRealm(statefulSrc);
+    ck('\u2026and a realm loaded per FUNCTION starts clean', fresh.NS.read(), 0);
+    ck('\u2026while the polluted one is unchanged, so the two are genuinely different realms', shared.NS.read(), 1);
+  }
+
   console.log('\nloadRealm — a DSP that reads `document` at load time must not take the realm down');
   {
     const probeSrc =
