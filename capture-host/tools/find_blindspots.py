@@ -10,6 +10,21 @@
 Plumbing only — every decision lives in `blind_spots.py`, which is inside the coverage floor. Same
 split as mutate_triage.py / mutation_triage.py, and for the same reason: the logic that can be WRONG
 must be the logic that is tested.
+
+✅ AUDITED 2026-08-28 — VERDICT: KEEP AS IS. Nothing here belongs inside the floor, and this stamp
+exists so the question is not re-opened. The 2026-08-27 sweep of the four unimported `tools/*.py`
+moved decision logic out of `mutate_diff`, `mutate` and `mutate_pure`; this file was the one that
+needed nothing, and the claim above was CHECKED rather than taken on trust:
+
+  · `blind_spots.py` measures 62 statements / 24 branches / 100 %, and `tests/test_blind_spots.py`
+    imports it — so "inside the coverage floor" is true, not merely asserted.
+  · this file imports neither `ast` nor `re`; its only functions are `_test_files` (a directory glob)
+    and `main` (argparse). Nothing here can return a WRONG ANSWER — it either lists files or fails
+    loudly.
+
+⚠️ Re-open this only if a function is ADDED here that can give a wrong answer rather than failing. The
+criterion is "can it silently mislead", not "is it short" — see `mutation_diff.py`'s header for the
+case where getting that backwards shipped a defect.
 """
 from __future__ import annotations
 
