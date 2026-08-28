@@ -5523,10 +5523,14 @@ async def cpap_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" =
     try:
         await _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _st, wifi_iface, root,
                          notifier,
-                         # Ten minutes of continuous non-Therapy: well past a mask refit, and still an
-                         # hour earlier than the 13:00 window on a normal night. Config-overridable
-                         # because the right value is a property of the machine's flap behaviour, which
-                         # is measurable per-device rather than universal.
+                         # Ten minutes of continuous non-Therapy, still an hour earlier than the
+                         # 13:00 window on a normal night. ⚠️ Config-overridable because the right
+                         # value is a per-device property — and measured on THIS device (2026-08-28,
+                         # three nights of SESSIONDETECT.csv) `fg_state` does not flap at all: six
+                         # transitions total, minimum return gap 15.2 h. The flapping that motivated
+                         # the debounce is in the supervisor's active/idle state, which this trigger
+                         # does not read. See `cpap_live.harvest_due` — kept as insurance, not as a
+                         # response to an observed flap.
                          end_debounce_s=float(ccfg.get("therapy_end_debounce_sec", 600.0)))
     finally:
         # Whatever ends this task — shutdown, cancellation, an escaping error — the card is released.
