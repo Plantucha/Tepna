@@ -5540,6 +5540,69 @@ async def cpap_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" =
             await asyncio.shield(asyncio.to_thread(cpap_harvest.wifi_down, profile, 30.0, wifi_iface, root))
 
 
+_CPAP_FIRED_MARKER = "cpap-therapy-end-fired.json"
+
+
+def _cpap_fired_marker(root):
+    """Beside `status.json` in `captures/`, which is where this daemon already keeps state that must
+    outlive a restart — rather than a `state/` tree that would exist for this one file. Safe there:
+    `diskguard.list_nights` selects night dirs by a YYYY-MM-DD regex AND `isdir`, so a stray JSON
+    cannot be mistaken for a night (`status.json` has sat there all along on the same reasoning)."""
+    return os.path.join(root, "captures", _CPAP_FIRED_MARKER)
+
+
+def _cpap_read_fired(root):
+    """The `ended_at_ms` of the therapy end already harvested, across a restart. None if unknown.
+
+    None means "we do not know", and `boot_state` treats that as "not yet harvested" — deliberately
+    the direction that can duplicate a harvest rather than skip one. A duplicate costs one extra card
+    read; a skip costs the night's data, which is not recoverable."""
+    try:
+        with open(_cpap_fired_marker(root)) as fh:
+            return float(json.load(fh)["ended_at_ms"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def _cpap_write_fired(root, ended_at_ms):
+    """Persist the fired edge ATOMICALLY — tmp + os.replace.
+
+    ⚠️ A plain in-place write can be interrupted mid-flush and leave a file that still PARSES as valid
+    JSON with a truncated number, which would silently move the marker to a wrong instant. The failure
+    of an atomic write is a missing file, which reads as "unknown" and merely risks a duplicate
+    harvest; the failure of a torn write is a wrong answer that looks right."""
+    p = _cpap_fired_marker(root)
+    try:
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p + ".tmp", "w") as fh:
+            json.dump({"ended_at_ms": ended_at_ms}, fh)
+        os.replace(p + ".tmp", p)
+    except OSError:
+        # A marker we could not write means the NEXT boot may re-harvest this end. That is the safe
+        # direction and must not cost the harvest that just succeeded.
+        log.warning("cpap: could not persist the therapy-end marker; a restart may re-harvest")
+
+
+def _cpap_boot_watch(root):
+    """The EndWatch a just-started `_cpap_loop` should begin with, seeded from the journal + marker.
+
+    An edge trigger with RAM state cannot see an edge that spanned its own restart: on 2026-08-29 the
+    box rebooted at 06:26 and the therapy end landed at 06:28:03, two seconds after the daemon came up
+    — so nothing fired, and the night was lost to a restart rather than to a defect. All the deciding
+    is in `cpap_live.boot_state`; this only reads the two files."""
+    import cpap_live
+    text = ""
+    try:
+        with open(os.path.join(root, "SESSIONDETECT.csv"), encoding="utf-8", errors="replace") as fh:
+            text = fh.read()
+    except OSError:
+        pass                              # no journal: `boot_state` seeds nothing, and says so
+    end_ms, ended = cpap_live.last_therapy_end(cpap_live.journal_rows(text))
+    watch, why = cpap_live.boot_state(end_ms, ended, _cpap_read_fired(root), _time.time() * 1000.0)
+    log.info("cpap boot: %s", why)
+    return watch
+
+
 async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _st, wifi_iface=None,
                      root=None, notifier=None, end_debounce_s=600.0, on_complete=None):
     """The daily loop, split out so `cpap_poller` can wrap it in a teardown-guaranteeing `finally`."""
@@ -5552,7 +5615,7 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
     # the detector never saw — box asleep, detector disabled, or the live stream running through the
     # end of the session, during which the shadow poll defers entirely — must still harvest that day.
     # So this can only make a harvest EARLIER, never replace it.
-    watch = cpap_live.EndWatch()
+    watch = _cpap_boot_watch(root)
 
     def _fire(result):
         """Hand one harvest OUTCOME to the completion consumer. Never raises: the hook is a consumer,
@@ -5580,6 +5643,9 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
             # end, and a deferral must not re-arm it every minute for the rest of the night. The daily
             # window is the retry path for a deferred harvest, exactly as it always was.
             watch.fired_for = watch.ended_at_ms
+            # Durably, so a restart before the next end cannot re-harvest this one. Written HERE, with
+            # the in-RAM field, so the two can never disagree about which end was handled.
+            _cpap_write_fired(root, watch.ended_at_ms)
             log.info("CPAP harvest armed by therapy end (%s)", end_why)
         if _RECOVER.is_set():
             continue                                    # adapter mid-recovery — do not add radio traffic
