@@ -1453,19 +1453,54 @@ function renderRemembered(devs){
     </div>${d.vendor==='Polar'?`<div class="rec-panel" id="${recPanelId(d.address)}" style="margin:0 0 .7rem;padding-left:.2rem;display:flex;flex-direction:column;gap:.35rem"></div>`:''}`).join('');
 }
 
+// ── BLE IDENTITY IS THE ADDRESS, NEVER THE ADVERTISED NAME ──────────────────────────────────────
+// The standing ruling (names are attacker-controlled, and a device in standby advertises none at
+// all) was violated in our own UI, three independent times, each hiding a device the config already
+// knew by address:
+//   1. the visibility filter required a name-shaped string, and a nameless device surfaces with its
+//      MAC AS the name — which the placeholder test then rejects, so the row vanished entirely;
+//   2. NOTHING compared the advertised address against the configured devices, so a device already
+//      in config was offered "Remember" like a stranger;
+//   3. `guessDevice` derived vendor/model purely from the name, so a manufacturer-data-only row
+//      matched no branch and the server correctly rejected it — surfacing as the message the owner
+//      actually saw, "not recognised — needs vendor, model".
+// Measured 2026-08-29: the Verity (24:AC:AC:0C:30:1E, -30 dBm, ManufacturerData-only), the ResMed
+// (04:CD:15:3A:0B:BD — which IS the AS11's configured `ble_addr`, one device, not a second radio)
+// and the O2Ring all read as unknown, while the H10 matched fine because it advertises a local
+// name. That difference IS the bug; nothing else distinguishes them.
+// ⚠️ The capture path was never affected and this was verified, not assumed: the general connect is
+// `BleakClient(addr)` on the configured address, and the O2Ring's scan filter tests the address
+// first and independently. Only the UI keyed on names.
+function knownDevice(address){
+  const a = String(address||'').toUpperCase();
+  if(!a) return null;
+  // Case-insensitive because the two sides come from different places — bluez's scan output and the
+  // config file — and an exact string compare on a MAC is the same defect one layer down.
+  return (DEVICES||[]).find(d=>String(d.address||'').toUpperCase() === a) || null;
+}
+
 function renderDiscovered(list){
   const el = $('#discovered');
-  const shown = list.filter(d=>d.health || d.name.match(/[a-z]/i) && !/^[0-9A-F-]+$/.test(d.name));
+  // A CONFIGURED DEVICE IS ALWAYS SHOWN, whatever it advertises. Hiding one because this scan
+  // happened to catch it mid-standby is how a device we capture every night reads as absent.
+  const shown = (list||[]).filter(d=>knownDevice(d.address) || d.health
+                                     || (d.name||'').match(/[a-z]/i) && !/^[0-9A-F-]+$/.test(d.name||''));
   if(!shown.length){ el.innerHTML=''; return; }
-  el.innerHTML = '<div class="section-title">Discovered</div>' + shown.map(d=>`
+  el.innerHTML = '<div class="section-title">Discovered</div>' + shown.map(d=>{
+    const k = knownDevice(d.address);
+    // The CONFIGURED name wins over the advertised one — that is the name the rest of the UI, the
+    // capture files and the QC rows all use, so showing the advertisement here would invent a second
+    // identity for one device.
+    const label = k ? (k.name || d.name || d.address) : (d.name || d.address);
+    return `
     <div class="dev">
       <div class="meta">
-        <div class="name">${esc(d.name)} ${d.bonded?'<span class="dbadge on">bonded</span>':''} ${d.health?'<span class="dbadge">sensor</span>':''}</div>
-        <div class="sub">${esc(d.address)}${d.rssi!=null?(' · '+d.rssi+' dBm'):''}</div>
+        <div class="name">${esc(label)} ${k?'<span class="dbadge on">configured</span>':''} ${d.bonded?'<span class="dbadge on">bonded</span>':''} ${d.health?'<span class="dbadge">sensor</span>':''}</div>
+        <div class="sub">${esc(d.address)}${d.rssi!=null?(' · '+d.rssi+' dBm'):''}${k?(' · '+esc((k.streams||[]).join(', '))):''}</div>
       </div>
       ${d.bonded?'':`<button class="btn" onclick='bond(${JSON.stringify(d.address)}, this)'>Bond</button>`}
-      <button class="btn" onclick='remember(${JSON.stringify(d)}, this)'>Remember</button>
-    </div>`).join('');
+      ${k?'':`<button class="btn" onclick='remember(${JSON.stringify(d)}, this)'>Remember</button>`}
+    </div>`;}).join('');
 }
 
 // ── Device clock sync ────────────────────────────────────────────────────────────────────────────
@@ -1802,9 +1837,19 @@ $('#scanBtn').addEventListener('click', scan);
 
 async function bond(address, btn){
   btn.disabled = true; btn.textContent = 'bonding…';
-  const r = await api('/api/bond',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({address})});
-  btn.textContent = r.ok?'bonded ✓':('failed: '+r.detail);
-  if(r.ok) setTimeout(scan, 500);
+  // 🔴 NO CATCH HERE MEANT A REJECTED REQUEST LEFT THE BUTTON READING 'bonding…' FOREVER, disabled,
+  // with nothing to retry from — seen twice on 2026-08-29 (the ring in the morning, the ResMed at
+  // night) and read both times as a bond that HUNG rather than a request that failed. `syncTime`
+  // twenty lines below has always been wrapped; this was the one that was not.
+  try{
+    const r = await api('/api/bond',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({address})});
+    btn.textContent = r.ok?'bonded ✓':('failed: '+(r.detail||r.error||'unknown'));
+    if(r.ok) setTimeout(scan, 500);
+  }catch(e){
+    btn.textContent = 'failed: '+e;
+  }finally{
+    btn.disabled = false;              // always retryable; a stuck disabled button has no way back
+  }
 }
 async function remember(dev, btn){
   const g = guessDevice(dev);
@@ -1872,6 +1917,11 @@ async function doPull(address, session, btn){
   }catch(e){ btn.textContent = 'error'; btn.disabled = false; }
 }
 function guessDevice(d){
+  // AN ALREADY-CONFIGURED ADDRESS IS NOT A GUESS. Re-deriving vendor/model from the advertisement
+  // for a device we already describe would let a standby frame overwrite a known-good entry with
+  // blanks — and blanks are what the server rejects.
+  const known = knownDevice(d.address);
+  if(known) return {...known, address: known.address || d.address};
   const n = (d.name||'').toLowerCase();
   let vendor='', model='', streams=['ecg'], device_id=(d.address||'').replace(/:/g,'').slice(-8);
   // DEFAULTS ARE WHAT ACTUALLY GETS RECORDED. A stream omitted here is simply never captured, silently:
