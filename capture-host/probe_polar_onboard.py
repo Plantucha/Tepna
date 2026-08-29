@@ -118,9 +118,8 @@ async def probe(address: str, adapter: str | None = None, *, _fs=None, _client=N
         # bleak wants bluez={"adapter": "hciN"} — the bare `adapter=` kwarg is a shim today and its
         # removal would be SWALLOWED, silently unpinning the radio on a three-adapter box
         # (tests/test_no_deprecated_apis.py pins this form; PolarPsFtp._kw builds the same shape).
-        _kw = {"bluez": {"adapter": adapter}} if adapter else {}
         _fs = _fs or (lambda: polar_psftp.PolarPsFtp(address, adapter))
-        _client = _client or (lambda: BleakClient(address, **_kw))
+        _client = _client or (lambda: BleakClient(address, bluez={"adapter": adapter} if adapter else {}))
 
     out: dict = {"address": address, "hci": adapter}   # NOT "adapter": the bleak-kwarg guard
     #   (tests/test_no_deprecated_apis) is a TEXT rule, and a report key that reads like a kwarg is a

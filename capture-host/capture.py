@@ -6326,7 +6326,14 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None):
     import as11_link as _L
     from bleak import BleakClient as _BC
     hci = await _resolve_cpap_adapter(hci)   # MAC → current hciN, re-read every connect (see above)
-    client = _BC(ble_addr, timeout=20, **({"bluez": {"adapter": hci}} if hci else {}))
+    # Conditional construction rather than `**({"bluez": ...} if hci else {})`: the splat is what
+    # mypy fans out across BleakClient's overloads (5 errors from this one line), but passing
+    # `bluez={}` unconditionally is NOT equivalent here — `_cpap_ble_connect` is pinned by
+    # tests/test_cpap_stream.py::test_cpap_ble_connect_without_an_adapter_passes_no_bluez_kwarg,
+    # which asserts no bluez kwarg reaches bleak at all when there is no hci. Both constraints are
+    # satisfied by choosing the call instead of the kwargs.
+    client = (_BC(ble_addr, timeout=20, bluez={"adapter": hci}) if hci
+              else _BC(ble_addr, timeout=20))
     await client.connect()
     rx = bytearray()
     q: asyncio.Queue = asyncio.Queue()
