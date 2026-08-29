@@ -1353,17 +1353,25 @@ def test_dat_timefit_summary_returns_none_on_timeout(tmp_path, monkeypatch):
 
 def test_summarize_attaches_the_dat_fit_when_both_sidecars_land(tmp_path, monkeypatch):
     """The discovery path inside summarize: a `_STORED.dat` (onboard pull) AND a `_SPO2.csv` (live)
-    for the same ring → `datfit` attached to that device's entry. Subprocess stubbed — the discovery
-    is under test, not Node."""
-    import subprocess as _sp
+    for the same ring → `datfit` attached to that device's entry. `dat_timefit_summary` itself is
+    stubbed — the DISCOVERY is under test, and stubbing one level down (subprocess) left the test
+    coupled to `../tools/o2ring-dat-timefit.mjs` existing on disk, which is false inside mutmut's
+    `mutants/` copy: the default-derivation exists() check returned None before the subprocess stub
+    was ever reached, and the mutation gate's baseline run failed on a test that passes everywhere
+    else (found via #1929, pre-existing)."""
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
     _cap(night, "Wellue_O2Ring-S_S8AW_20260719_SPO2.csv", 900)
     (tmp_path / "2026-07-19" / "Wellue_O2Ring-S_S8AW_20260719_STORED.dat").write_bytes(b"\x00" * 100)
-    fake = _sp.CompletedProcess(args=[], returncode=0, stdout='{"ok":true,"chosenLagS":3,"agree":true}', stderr="")
-    monkeypatch.setattr(nightqc.subprocess, "run", lambda *a, **k: fake)
+    seen = {}
+    def _fit(dat_path, spo2_path, **k):
+        seen["dat"], seen["spo2"] = dat_path, spo2_path
+        return {"ok": True, "lag_s": 3, "agree": True}
+    monkeypatch.setattr(nightqc, "dat_timefit_summary", _fit)
     s = nightqc.summarize(night, _devices())
     ring = next(d for d in s["devices"] if d["name"] == "Ring")
     assert ring["datfit"] is not None and ring["datfit"]["ok"] is True and ring["datfit"]["lag_s"] == 3
+    # the discovery handed the REAL pair to the fit — both paths, not just a truthy call
+    assert seen["dat"].endswith("_STORED.dat") and seen["spo2"].endswith("_SPO2.csv")
     # devices without the pair carry None — the ordinary case is unchanged
     assert all(d["datfit"] is None for d in s["devices"] if d["name"] != "Ring")
 
@@ -1380,6 +1388,10 @@ def test_dat_timefit_summary_derives_the_default_tool_path(tmp_path, monkeypatch
         seen["tool"] = args[1]
         return _sp.CompletedProcess(args=args, returncode=0, stdout='{"ok":true,"chosenLagS":1}', stderr="")
     monkeypatch.setattr(nightqc.subprocess, "run", _spy)
+    # The derivation is under test, not the tool's presence on disk: inside mutmut's `mutants/`
+    # copy `../tools/` does not exist, and the pre-stub exists() check would return None before the
+    # spy ever ran. exists() is stubbed to pass for every path this test itself created or derives.
+    monkeypatch.setattr(nightqc.os.path, "exists", lambda p: True)
     out = nightqc.dat_timefit_summary(str(dat), str(csv))
     assert out is not None and out["ok"] is True
     assert seen["tool"].endswith(os.path.join("tools", "o2ring-dat-timefit.mjs"))
