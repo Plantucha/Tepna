@@ -593,7 +593,7 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
           <button class="btn btn-primary" id="cpapStreamBtn" data-streaming="0">▶ Start live stream</button>
           <span class="spin" id="cpapStreamState"></span>
         </div>
-        <p class="hint">Streams the CPAP's flow + pressure over BLE onto the <b>Overview</b> Live-streams grid, live. Runs on the free radio and refuses while a wearable is capturing (it would transmit beside the sensors). Read-only — nothing on the device is changed.</p>
+        <p class="hint">Streams the CPAP's flow + pressure over BLE onto the <b>Overview</b> Live-streams grid, live. Runs on the free radio. Whether it refuses beside a capturing wearable is <b>conditional</b>: the 2.4&nbsp;GHz coexistence interlock is <b>off by default</b> (owner decision, 2026-08-23) — a start beside on-body sensors is logged, not blocked — and is restored by setting <code>cpap.ble_stream.coexistence_gate: true</code>. Read-only — nothing on the device is changed.</p>
       </div>
 
       <div class="card" id="clockCard">
