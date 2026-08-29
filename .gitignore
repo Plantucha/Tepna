@@ -228,3 +228,10 @@ coverage/
 # Machine-local and regenerated, never a source of truth — committing it would ship one box's
 # error list as if it were the repo's.
 capture-host/.mypy-latest.txt
+
+# Hypothesis example database — per-machine and regenerated. ⚠️ Hypothesis ALREADY writes its own
+# `.gitignore` inside the directory, which is why `git status` never showed it while `git check-ignore`
+# said it was not ignored; the two disagreed because the ignore was one level down, not absent. This
+# entry is therefore belt-and-braces, stated as such: it makes the intent explicit at the repo level
+# rather than leaving it dependent on a tool's internal behaviour.
+capture-host/.hypothesis/
