@@ -132,7 +132,11 @@ _PATH_OK = re.compile(r"^[A-Za-z0-9_./@%+:~-]+$")
 _SHARE_OK = re.compile(r"^[A-Za-z0-9_.$@%+:~-]+$")
 
 
-def _abs_path(v: str, field: str) -> str:
+def _abs_path(v: object, field: str) -> str:
+    # `v: object`, not `str`: this function EXISTS to reject non-str input — see the
+    # `isinstance(v, str)` check on the next line, which raises StorageError. Declaring `str`
+    # made the parameter describe the post-validation type rather than what callers may pass,
+    # so every real (validating) call read as an error.
     if not isinstance(v, str) or not v.strip():
         raise StorageError(f"{field} is required")
     v = v.strip()
