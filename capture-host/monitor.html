@@ -728,28 +728,6 @@ function clockStatus(dev){
   // screen the wearer reads, and its samples are host-arrival stamped so its clock never fed timing.)
   // GIVE-UP OUTRANKS 'we set it once', so it is checked before the no-device_time shortcut —
   // otherwise a device with no per-sample stamps (the ring) shows 'clock set' from a sync that has
-// §19/§20 — the presence axis and its execution witness, drawn rather than merely forwarded.
-// A field published to /api/state and rendered by nobody is NOT exposed to an operator, whatever the
-// API says; that is the failure this repo already hit with `therapy` and with STATUS.autopull.
-// The WITNESS chip is the load-bearing one: it names where the §19 chain stops, so a path that armed
-// and never executed cannot look healthy. It is styled `warn`, not `bad` — an incomplete chain on a
-// cold scanner is the EXPECTED state until the coexistence matrix runs, and colouring it red would
-// train the operator to ignore it.
-function presenceChip(d){
-  if(!d.presence) return '';
-  const st = String(d.presence);
-  const cls = st==='pres_present' ? 'on' : (st==='pres_absent' ? 'warn' : '');
-  const txt = st.replace(/^pres_/,'');
-  const tip = [d.presence_reason, d.presence_witness && ('witness: '+d.presence_witness)]
-    .filter(Boolean).join(' — ');
-  return '<span class="dbadge '+cls+'" title="'+esc(tip)+'">'+esc(txt)+'</span>';
-}
-function witnessChip(d){
-  if(!d.presence_witness) return '';
-  const done = /^complete/.test(d.presence_witness);
-  return '<span class="dbadge '+(done?'on':'warn')+'" title="§19 execution witness">'
-       + esc(d.presence_witness)+'</span>';
-}
   // since been written off, or shows no pill at all.
   if(dev.clock_uncorrectable && !dev.device_time) return {cls:'bad', txt:'clock uncorrectable'};
   if(!dev.device_time) return dev.clock_synced ? {cls:'ok', txt:'clock set'} : null;
@@ -771,6 +749,38 @@ function witnessChip(d){
   if(!dev.clock_synced) return measured ? {cls:'ok', txt:'clock ok'}
                                         : {cls:'warn', txt:'clock unverified'};
   return {cls:'ok', txt:'clock set'};
+}
+
+// 🔴 THESE TWO LIVED INSIDE `clockStatus`'s BODY until 2026-08-29, and that is why the whole
+// remembered-devices list vanished from the Devices view. A `function` declaration inside another
+// function is LOCAL to it: `clockStatus` kept working, nothing logged, and every neighbouring chip
+// resolved fine — but `renderRemembered` calls these at top level, threw ReferenceError on the
+// FIRST device, and `.map()` took the entire list down with it. The section rendered empty, which
+// reads as 'no devices are configured' rather than as an error. Verified in the live page:
+// `typeof presenceChip` was 'undefined' while `typeof clkChip` was 'function'.
+// Keep them at TOP LEVEL. The §19 comment below reads like a file-level heading, which is exactly
+// how they came to be pasted inside the function above it.
+// §19/§20 — the presence axis and its execution witness, drawn rather than merely forwarded.
+// A field published to /api/state and rendered by nobody is NOT exposed to an operator, whatever the
+// API says; that is the failure this repo already hit with `therapy` and with STATUS.autopull.
+// The WITNESS chip is the load-bearing one: it names where the §19 chain stops, so a path that armed
+// and never executed cannot look healthy. It is styled `warn`, not `bad` — an incomplete chain on a
+// cold scanner is the EXPECTED state until the coexistence matrix runs, and colouring it red would
+// train the operator to ignore it.
+function presenceChip(d){
+  if(!d.presence) return '';
+  const st = String(d.presence);
+  const cls = st==='pres_present' ? 'on' : (st==='pres_absent' ? 'warn' : '');
+  const txt = st.replace(/^pres_/,'');
+  const tip = [d.presence_reason, d.presence_witness && ('witness: '+d.presence_witness)]
+    .filter(Boolean).join(' — ');
+  return '<span class="dbadge '+cls+'" title="'+esc(tip)+'">'+esc(txt)+'</span>';
+}
+function witnessChip(d){
+  if(!d.presence_witness) return '';
+  const done = /^complete/.test(d.presence_witness);
+  return '<span class="dbadge '+(done?'on':'warn')+'" title="§19 execution witness">'
+       + esc(d.presence_witness)+'</span>';
 }
 function clkChip(dev){
   const st = clockStatus(dev);
