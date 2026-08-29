@@ -90,6 +90,19 @@ class Edf:
         self.signals = signals
 
 
+
+def read_span(raw: bytes):
+    """`(n_records, record_duration_str)` from the 256-byte MAIN header alone.
+
+    Split out of `read_edf` so a caller that only needs the DURATION of a recording does not decode
+    every sample to learn it — a QC pass re-reading a night every 10 minutes cannot afford that, and
+    the alternative it reaches for otherwise is copying the offsets 236/244 into its own file. There
+    is one place that knows where those fields are, and this is it."""
+    if len(raw) < _MAIN:
+        raise ValueError(f"EDF too short: {len(raw)} bytes (need >={_MAIN} header)")
+    return int(_fld(raw, 236, 8)), _fld(raw, 244, 8)
+
+
 def read_edf(raw: bytes) -> Edf:
     """Parse an EDF/EDF+ file into an Edf. Preserves every header field VERBATIM (trailing spaces
     included) so `write_edf(read_edf(x)) == x`. Samples are read as signed int16 LE, signal-major
@@ -103,8 +116,7 @@ def read_edf(raw: bytes) -> Edf:
     starttime = _fld(raw, 176, 8)
     hdr_bytes = int(_fld(raw, 184, 8))
     reserved = _fld(raw, 192, 44)
-    n_records = int(_fld(raw, 236, 8))
-    record_duration = _fld(raw, 244, 8)
+    n_records, record_duration = read_span(raw)
     ns = int(_fld(raw, 252, 4))
     if hdr_bytes != _MAIN + ns * _SIGHDR:
         raise ValueError(f"header-bytes {hdr_bytes} != 256 + {ns}×256")

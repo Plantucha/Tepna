@@ -9,7 +9,7 @@
 #    scaffold honoring the §7 integration contract; validate against real frames + PSL output first.
 
 from __future__ import annotations
-import argparse, asyncio, calendar, contextlib, json, logging, math, os, signal, time as _time, datetime as _dt
+import argparse, asyncio, calendar, contextlib, glob, json, logging, math, os, signal, time as _time, datetime as _dt
 from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_stamp,
                      HostClockLogWriter, PmdArrivalLogWriter, capture_filename, missing_identity,
                      night_dir, open_sample_writers)
@@ -4900,6 +4900,45 @@ def qc_digest_due(now, digest_hour: int, last_sent_date) -> bool:
     return cpap_harvest.due_now(now, digest_hour, last_sent_date, window_h=3)
 
 
+def _cpap_stream_watch_row(cfg, root, night_name):
+    """Gather the two durations and ask `cpap_stream_watch.assess`. All I/O; no decisions.
+
+    ⚠️ EVERY unreadable input becomes `therapy_min=None`, which `assess` turns into UNKNOWN rather
+    than a finding. A watchdog that reports "all clear" because its own input failed is the defect it
+    exists to catch, one level up."""
+    import cpap_edf
+    import cpap_stream_watch
+    therapy = None
+    try:
+        with open(os.path.join(root, "SESSIONDETECT.csv"), encoding="utf-8", errors="replace") as fh:
+            therapy = cpap_stream_watch.therapy_minutes(fh.read())
+    except OSError:
+        pass                              # detector off, or journal absent — stays None, i.e. UNKNOWN
+    headers = []
+    edf_dir = ((cfg.get("cpap") or {}).get("ble_stream") or {}).get("edf_dir")
+    if edf_dir:
+        # ⚠️ The night folder here is the CPAP DEVICE's date, and this box's AS11 clock runs ~21 min
+        # ahead of the host (measured 2026-08-27: device stamp 23:57:06 logged at host 23:35:49). So a
+        # session starting near midnight can land in the neighbouring folder. Both are read, and the
+        # coverage ratio is what is judged — a wrong-folder session would otherwise read as a missed
+        # capture. The offset itself is surfaced separately into the acquisition envelope.
+        import datetime as _d
+        try:
+            d0 = _d.datetime.strptime(str(night_name), "%Y-%m-%d").date()
+            names = [(d0 + _d.timedelta(days=k)).strftime("%Y%m%d") for k in (-1, 0, 1)]
+        except ValueError:
+            names = []
+        for nm in names:
+            for fn in sorted(glob.glob(os.path.join(edf_dir, "DATALOG", nm, "*_BRP.edf*"))):
+                try:
+                    with open(fn, "rb") as fh:
+                        n_rec, dur = cpap_edf.read_span(fh.read(256))
+                    headers.append((n_rec, float(dur)))
+                except (OSError, ValueError):
+                    continue              # unreadable file: contributes nothing to the measurement
+    return cpap_stream_watch.assess(therapy, cpap_stream_watch.stream_minutes(headers))
+
+
 async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = None):
     """Summarise the CURRENT night's capture completeness — rows per configured stream, which declared
     streams produced nothing (the header-only files a rejected START / never-worn sensor leaves). Turns
@@ -4952,8 +4991,33 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             # capture task, recurring every 10 minutes, and on slow storage it approaches the 60 s
             # watchdog heartbeat. QC is a REPORT: it must never cost the recording it reports on.
             summ = await asyncio.to_thread(nightqc.summarize, night, cfg.get("devices", []))
+            # ── DID THE LIVE CPAP STREAM RECORD THE SESSION? ─────────────────────────────────────
+            # On 2026-08-26 the machine ran a full night, `edf_dir` stayed empty, and NOTHING said so
+            # — the stream is operator-initiated (`POST /api/cpap/stream`; there is no scheduled
+            # starter) and nobody clicked. On 08-27 it was started and stopped one second later,
+            # leaving a 7 KB one-record file for a six-hour session. Neither produced a warning.
+            # The harm was the SILENCE, not the missed click: absence emits no event unless something
+            # is built to notice it, which is the class that also hid a never-successful archive-pull
+            # and a Verity that held a link for 4 h 25 m writing zero bytes.
+            # Reads here, decides in `cpap_stream_watch` (pure, tested). Off the loop like summarize.
+            summ["cpap_stream"] = await asyncio.to_thread(_cpap_stream_watch_row, cfg, root, current)
             STATUS["qc"] = summ
             _qc = os.path.join(night, "QC-SUMMARY.json")
+            # 🔴 THIS FILE HAS MORE THAN ONE WRITER, and this poller rewrites it WHOLESALE every
+            # `poll_sec`. The CPAP inventory reconciler merges its own field in after the 13:00
+            # harvest; without the carry-forward below, that field survived at most ten minutes and
+            # was always absent by the morning anyone would read it — a reconciliation that ran,
+            # wrote, and was erased before it was seen. Verified by construction, not assumed.
+            # Keys WE produce always win; anything else present is another writer's and is preserved.
+            # ⚠️ A key that `summarize` stops emitting would therefore persist here forever. That is
+            # the accepted cost of not silently deleting a peer's field, and the reason this merges
+            # rather than deep-merges: we never edit inside another writer's value.
+            with contextlib.suppress(OSError, ValueError):
+                with open(_qc) as fh:
+                    prior = json.load(fh)
+                if isinstance(prior, dict):
+                    for k, v in prior.items():
+                        summ.setdefault(k, v)
             with open(_qc + ".tmp", "w") as fh:
                 json.dump(summ, fh, indent=2)
             os.replace(_qc + ".tmp", _qc)   # atomic
@@ -5468,6 +5532,29 @@ async def charger_pull_poller(cfg: dict, root: str):
                          dev.get("name"), type(e).__name__)   # autopull_poller is the backstop, no spam
 
 
+def _cpap_inventory_report(result, cfg, root, dest):
+    """Reconcile the harvest against the card's inventory. All I/O and roots; no decisions.
+
+    The four roots are the daemon's, not the reporter's: `dest_root` is where the harvest writes,
+    `envelope_root` is the live BLE stream's tree (None on a box with no stream — the adapter reads
+    that as UNCONSULTED, not as an empty card), `spool_root` is the box root, and the two report paths
+    sit in the night dir beside QC-SUMMARY.json so a night's evidence stays in one place."""
+    import cpap_inventory_adapter
+    night = _current_night(os.path.join(root, "captures"),
+                           float((cfg.get("storage") or {}).get("settle_sec", _NIGHT_SETTLE_S)))
+    if night is None:
+        return None                       # no night dir yet: nowhere to file a report, and nothing to
+                                          # reconcile against — a box that has captured nothing tonight
+    nd = os.path.join(root, "captures", night)
+    return cpap_inventory_adapter.on_harvest_complete(
+        result, dest_root=dest,
+        envelope_root=((cfg.get("cpap") or {}).get("ble_stream") or {}).get("edf_dir"),
+        spool_root=root,
+        qc_path=os.path.join(nd, "QC-SUMMARY.json"),
+        journal_path=os.path.join(nd, "CPAP-INVENTORY.jsonl"),
+        log=log)
+
+
 async def cpap_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = None):
     """Harvest the ResMed card off its ez Share Wi-Fi SD adapter, once a day, while nothing is streaming.
     Executes `CPAP-AUTOHARVEST-2026-07-26-BRIEF.md`. Opt-in (`cpap.enabled`).
@@ -5531,13 +5618,83 @@ async def cpap_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" =
                          # the debounce is in the supervisor's active/idle state, which this trigger
                          # does not read. See `cpap_live.harvest_due` — kept as insurance, not as a
                          # response to an observed flap.
-                         end_debounce_s=float(ccfg.get("therapy_end_debounce_sec", 600.0)))
+                         end_debounce_s=float(ccfg.get("therapy_end_debounce_sec", 600.0)),
+                         # WHAT DID THE CARD HOLD THAT WE NEVER CAPTURED? The harvest reports what it
+                         # MOVED; only a reconciliation against the card's own inventory can report
+                         # what it MISSED, and a missed night is invisible in every other surface —
+                         # the same silence the stream watchdog above exists to break, one layer out.
+                         # The callee never raises (`on_harvest_complete` swallows its own errors) and
+                         # `_fire` guards regardless: a reporter must not change a harvest's outcome.
+                         on_complete=lambda res: _cpap_inventory_report(res, cfg, root, dest))
     finally:
         # Whatever ends this task — shutdown, cancellation, an escaping error — the card is released.
         # shield() because at shutdown this task is already being cancelled and a bare await here would
         # be cancelled with it, leaving exactly the stranded association this block exists to prevent.
         with contextlib.suppress(Exception):
             await asyncio.shield(asyncio.to_thread(cpap_harvest.wifi_down, profile, 30.0, wifi_iface, root))
+
+
+_CPAP_FIRED_MARKER = "cpap-therapy-end-fired.json"
+
+
+def _cpap_fired_marker(root):
+    """Beside `status.json` in `captures/`, which is where this daemon already keeps state that must
+    outlive a restart — rather than a `state/` tree that would exist for this one file. Safe there:
+    `diskguard.list_nights` selects night dirs by a YYYY-MM-DD regex AND `isdir`, so a stray JSON
+    cannot be mistaken for a night (`status.json` has sat there all along on the same reasoning)."""
+    return os.path.join(root, "captures", _CPAP_FIRED_MARKER)
+
+
+def _cpap_read_fired(root):
+    """The `ended_at_ms` of the therapy end already harvested, across a restart. None if unknown.
+
+    None means "we do not know", and `boot_state` treats that as "not yet harvested" — deliberately
+    the direction that can duplicate a harvest rather than skip one. A duplicate costs one extra card
+    read; a skip costs the night's data, which is not recoverable."""
+    try:
+        with open(_cpap_fired_marker(root)) as fh:
+            return float(json.load(fh)["ended_at_ms"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def _cpap_write_fired(root, ended_at_ms):
+    """Persist the fired edge ATOMICALLY — tmp + os.replace.
+
+    ⚠️ A plain in-place write can be interrupted mid-flush and leave a file that still PARSES as valid
+    JSON with a truncated number, which would silently move the marker to a wrong instant. The failure
+    of an atomic write is a missing file, which reads as "unknown" and merely risks a duplicate
+    harvest; the failure of a torn write is a wrong answer that looks right."""
+    p = _cpap_fired_marker(root)
+    try:
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p + ".tmp", "w") as fh:
+            json.dump({"ended_at_ms": ended_at_ms}, fh)
+        os.replace(p + ".tmp", p)
+    except OSError:
+        # A marker we could not write means the NEXT boot may re-harvest this end. That is the safe
+        # direction and must not cost the harvest that just succeeded.
+        log.warning("cpap: could not persist the therapy-end marker; a restart may re-harvest")
+
+
+def _cpap_boot_watch(root):
+    """The EndWatch a just-started `_cpap_loop` should begin with, seeded from the journal + marker.
+
+    An edge trigger with RAM state cannot see an edge that spanned its own restart: on 2026-08-29 the
+    box rebooted at 06:26 and the therapy end landed at 06:28:03, two seconds after the daemon came up
+    — so nothing fired, and the night was lost to a restart rather than to a defect. All the deciding
+    is in `cpap_live.boot_state`; this only reads the two files."""
+    import cpap_live
+    text = ""
+    try:
+        with open(os.path.join(root, "SESSIONDETECT.csv"), encoding="utf-8", errors="replace") as fh:
+            text = fh.read()
+    except OSError:
+        pass                              # no journal: `boot_state` seeds nothing, and says so
+    end_ms, ended = cpap_live.last_therapy_end(cpap_live.journal_rows(text))
+    watch, why = cpap_live.boot_state(end_ms, ended, _cpap_read_fired(root), _time.time() * 1000.0)
+    log.info("cpap boot: %s", why)
+    return watch
 
 
 async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _st, wifi_iface=None,
@@ -5552,7 +5709,7 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
     # the detector never saw — box asleep, detector disabled, or the live stream running through the
     # end of the session, during which the shadow poll defers entirely — must still harvest that day.
     # So this can only make a harvest EARLIER, never replace it.
-    watch = cpap_live.EndWatch()
+    watch = _cpap_boot_watch(root)
 
     def _fire(result):
         """Hand one harvest OUTCOME to the completion consumer. Never raises: the hook is a consumer,
@@ -5580,6 +5737,9 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
             # end, and a deferral must not re-arm it every minute for the rest of the night. The daily
             # window is the retry path for a deferred harvest, exactly as it always was.
             watch.fired_for = watch.ended_at_ms
+            # Durably, so a restart before the next end cannot re-harvest this one. Written HERE, with
+            # the in-RAM field, so the two can never disagree about which end was handled.
+            _cpap_write_fired(root, watch.ended_at_ms)
             log.info("CPAP harvest armed by therapy end (%s)", end_why)
         if _RECOVER.is_set():
             continue                                    # adapter mid-recovery — do not add radio traffic
