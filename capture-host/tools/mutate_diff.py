@@ -85,6 +85,10 @@ _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 import importlib.util as _ilu
 
 _mmspec = _ilu.spec_from_file_location("mmeta", HERE / "mmeta.py")
+# See the same guard in tools/mutate.py: a missing spec or loader otherwise surfaces as an
+# AttributeError on None, pointing at the wrong line.
+if _mmspec is None or _mmspec.loader is None:
+    raise ImportError(f"cannot load mmeta from {HERE / 'mmeta.py'}")
 mmeta = _ilu.module_from_spec(_mmspec)
 _mmspec.loader.exec_module(mmeta)
 
@@ -195,6 +199,8 @@ def main(argv=None) -> int:
 
     import importlib.util
     spec = importlib.util.spec_from_file_location("mut", HERE / "tools" / "mutate.py")
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load mutate from {HERE / 'tools' / 'mutate.py'}")
     mut = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mut)
 

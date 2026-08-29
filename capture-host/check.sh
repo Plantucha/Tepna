@@ -56,7 +56,7 @@ run_gate "unwired"    "$PY" tools/find_unwired.py --check
 # ── ADVISORY GATES (PYTHON-TYPES-AND-FORMAT-2026-08-27) ─────────────────────────────────────────
 # These RUN and REPORT but cannot fail the run yet. Advisory here is not the ignorable kind: the
 # counts print in the summary, and the flip conditions are pre-stated in the brief, not per-PR —
-# mypy flips BLOCKING at 0 errors (baseline 134, 2026-08-29; the number may only go DOWN); the
+# mypy flips BLOCKING at 0 errors (baseline 122, 2026-08-29; the number may only go DOWN); the
 # changed-files format check flips after one fleet-notice cycle. A big-bang reformat is FORBIDDEN
 # by the brief: mutation canaries/journals/equivalence are keyed on line text+numbers, and a
 # 263-file wave orphans that known-answer record at once — format lands file-by-file as files
@@ -88,7 +88,7 @@ mypy_advisory() {
   return "$rc"
 }
 if "$PY" -c 'import mypy' 2>/dev/null; then
-  run_advisory "mypy" "baseline 134 (2026-08-29) — count may only go DOWN; flips blocking at 0"     mypy_advisory
+  run_advisory "mypy" "baseline 122 (2026-08-29) — count may only go DOWN; flips blocking at 0"     mypy_advisory
 else
   # No mypy ⇒ REMOVE the feed rather than leave yesterday's. A stale queue is worse than an absent
   # one: the lane would propose fixes for errors that may already be gone, and its acceptance rate —
