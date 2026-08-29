@@ -124,3 +124,108 @@ def test_WITHOUT_the_offset_the_same_envelope_still_says_unknown(tmp_path):
 
     env = acq_evidence_cpap.assemble_live({"session_id": "s1", "device_id": "AS11", "closed": True})
     assert env.clock_offset.measured is False
+
+
+def test_a_NON_FINITE_column_is_not_an_anchor():
+    """`inf`/`nan` parse as floats but are not measurements. `analyze` drops them for the same reason;
+    letting one through here would put a non-finite into the median and poison the offset silently."""
+    text = _sidecar(n=3) + f"\nw;inf;iso;{H0};0\nw;{H0};iso;nan;0\nw;-inf;iso;-inf;0"
+    got = A.offset_for_envelope(text)
+    assert got["offset_sec"] == AHEAD_S, "a non-finite row reached the estimator"
+
+
+# ── the provider, at the seam where the stream emits its envelope ───────────────────────────────
+
+
+def test_a_THROWING_provider_records_the_offset_as_UNKNOWN_not_as_a_failure():
+    """🔴 The envelope is a REPORT ABOUT the acquisition. A clock measurement we could not read must
+    degrade to "not measured" — it must never sink the envelope, and least of all the capture, which
+    by then is already on disk."""
+    import cpap_stream
+
+    seen = {}
+
+    class _Raw:
+        path = None
+
+        @staticmethod
+        def acq_facts():
+            return {"session_id": "s1", "device_id": "AS11", "closed": True}
+
+        @staticmethod
+        def close():
+            pass
+
+    class _Counters:
+        total_lost = sink_errors = foreign_stream = 0
+
+        @staticmethod
+        def summary():
+            return {"samples_ok": 10}
+
+    def _boom():
+        raise RuntimeError("sidecar unreadable")
+
+    def _out(ev):
+        seen["ev"] = ev
+
+    cpap_stream._emit_acq_evidence(_out, [_Raw()], _Counters(), 25.0, True, _boom)
+    ev = seen.get("ev")
+    assert ev is not None, "a throwing provider suppressed the envelope entirely"
+    assert ev.clock_offset.measured is False, "a failed read was recorded as a measurement"
+
+
+def test_the_controller_FORWARDS_a_provider_when_it_has_one():
+    """The additive kwarg must actually arrive — a controller that accepts a provider and drops it is
+    invisible, and every envelope would silently say UNKNOWN in production."""
+    import asyncio
+
+    import cpap_stream as CS
+
+    seen = {}
+
+    async def pump(
+        bus,
+        write,
+        recv_frame,
+        pk,
+        cid,
+        *,
+        channels=None,
+        should_stop=None,
+        extra_sinks=None,
+        acq_evidence_out=None,
+        clock_offset_provider=None,
+    ):
+        seen["prov"] = clock_offset_provider
+
+    async def connect():
+        async def write(_f):
+            pass
+
+        async def recv_frame():
+            await asyncio.sleep(3600)
+
+        async def disconnect():
+            pass
+
+        return write, recv_frame, disconnect
+
+    def _prov():
+        return None
+
+    async def _drive():
+        c = CS.LiveStreamController(
+            object(),
+            connect,
+            lambda: {"masterPairKey": "aa" * 32, "clientId": "cid"},
+            dict,
+            pump=pump,
+            acq_evidence_out=lambda _e: None,
+            clock_offset_provider=_prov,
+        )
+        await c.op("start")
+        await asyncio.sleep(0.01)
+
+    asyncio.run(_drive())
+    assert seen["prov"] is _prov, "the controller dropped the provider it was given"
