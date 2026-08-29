@@ -6125,8 +6125,31 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
         bus, connect, lambda: _load_as11_creds(creds_path), lambda: STATUS.get("devices", {}),
         edf_sink_factory=edf_sink_factory, raw_record_factory=raw_record_factory,
         acq_evidence_out=acq_evidence_out,
+        # Read from cfg rather than taken as a new parameter, so this stays PURE WIRING as the
+        # docstring promises — the closure defers all I/O to emit time. No root ⇒ no provider,
+        # and the envelope then honestly reports the offset as unknown.
+        clock_offset_provider=((lambda: _as11_clock_offset(cfg["root"]))
+                               if acq_evidence_out and cfg.get("root") else None),
         therapy_end_factory=_therapy_end_factory(cbs),
         coexistence_gate=bool(cbs.get("coexistence_gate", False)))
+
+
+def _as11_clock_offset(root):
+    """The measured AS11 device-vs-host offset as an `acq_evidence.ClockOffset`, for the envelope.
+
+    All I/O; every decision, including the sign flip between the two conventions, is in
+    `as11_clock.offset_for_envelope`. An absent or too-short sidecar yields `ClockOffset.unknown()` —
+    the honest "not measured", never a zero, which would assert an agreement that never happened."""
+    import acq_evidence as ae
+    import as11_clock
+    try:
+        with open(os.path.join(root, "AS11CLOCK.csv"), encoding="utf-8", errors="replace") as fh:
+            got = as11_clock.offset_for_envelope(fh.read())
+    except OSError:
+        got = None                        # the detector never ran, or its sidecar is gone: UNKNOWN
+    if not got:
+        return ae.ClockOffset.unknown()
+    return ae.ClockOffset(got["offset_sec"], got["measured_at_ms"], got["reference"], got["method"])
 
 
 def _therapy_end_factory(cbs):

@@ -26,12 +26,14 @@ from __future__ import annotations
 from typing import TypedDict
 
 import calendar
+import datetime as _dt
 import math
 import os
 import re
 import statistics
 
-__all__ = ["parse_device_epoch_s", "analyze", "ClockSidecar", "DEVICE_QUANTUM_S", "MIN_RATE_ANCHORS"]
+__all__ = ["parse_device_epoch_s", "analyze", "ClockSidecar", "DEVICE_QUANTUM_S", "MIN_RATE_ANCHORS",
+           "offset_for_envelope", "ENVELOPE_REFERENCE", "ENVELOPE_METHOD"]
 
 # The AS11 GetDateTime reads to the whole second (measured — the RTC probe's ±1 s read quantum).
 DEVICE_QUANTUM_S = 1.0
@@ -195,3 +197,68 @@ class ClockSidecar:
             self._fh.close()
         except (OSError, ValueError):
             pass
+
+
+# ── the envelope join ──────────────────────────────────────────────────────────────────────────
+# The measurement above has existed since the RTC probe landed, and the acquisition envelope has
+# carried a `clock_offset` field the whole time — but the live stream never passed one, so every
+# envelope said UNKNOWN while `AS11CLOCK.csv` sat beside the capture holding the answer. A
+# reconciliation joining a device-stamped EDF to a host-stamped night therefore read the AS11's ~21
+# minutes as a real gap rather than as a known, measured clock difference.
+#
+# 🔴 THE TWO SIGN CONVENTIONS ARE OPPOSITE, AND THIS IS THE ONLY PLACE THEY MEET.
+#   · `analyze` returns `offset_s = median(host − device)`  → NEGATIVE when the device runs ahead.
+#   · `acq_evidence.ClockOffset.offset_sec` is documented POSITIVE when the device reads LATER.
+# The AS11 reads ~21 min FAST, so `analyze` gives ~ −1260 s and the envelope must carry ~ +1260 s.
+# Getting this backwards does not merely mislabel: a consumer applying declare-never-correct would
+# shift in the wrong direction and turn a 21-minute discrepancy into a 42-minute one, which still
+# looks like a plausible clock story. Negated HERE, once, with a test that pins the real magnitude
+# AND its sign — a magnitude-only assertion passes under both conventions.
+ENVELOPE_REFERENCE = "host-wall"
+ENVELOPE_METHOD = "GetDateTime"
+
+
+def offset_for_envelope(text, *, analyze_fn=None):
+    """`{offset_sec, measured_at_ms, reference, method}` from AS11CLOCK.csv text, or None. PURE.
+
+    None means "not measured" and the caller must render that as `ClockOffset.unknown()` — never as a
+    zero, which asserts a measured agreement that never happened (`ClockOffset`'s own docstring makes
+    that distinction load-bearing, and `measured` gates on `offset_sec is not None` precisely because
+    0.0 is a legitimate measured result).
+
+    `measured_at_ms` is the LAST anchor's host time as Clock-Contract floating tMs, because staleness
+    is the consumer's to judge and the newest anchor is what it must judge against."""
+    rows = []
+    for line in str(text or "").splitlines():
+        parts = line.split(";")
+        if len(parts) < 4:
+            continue
+        try:
+            host_s, dev_s = float(parts[1]), float(parts[3])
+        except ValueError:
+            continue                      # the header row, a torn line, or a failed device read (blank)
+        if math.isfinite(host_s) and math.isfinite(dev_s):
+            rows.append((host_s, dev_s))
+    if len(rows) < 2:
+        return None                       # `analyze` refuses below two anchors; so do we, for its reason
+    res = (analyze_fn or analyze)(rows)
+    if not res.get("ok") or res.get("offset_s") is None:
+        return None
+    last_host_s = max(h for h, _ in rows)
+    return {
+        # NEGATED — see the sign note above. analyze: host−device; the envelope: device−host.
+        "offset_sec": -float(res["offset_s"]),
+        "measured_at_ms": _host_epoch_to_floating_ms(last_host_s),
+        "reference": ENVELOPE_REFERENCE,
+        "method": ENVELOPE_METHOD,
+    }
+
+
+def _host_epoch_to_floating_ms(epoch_s: float) -> float:
+    """A real host epoch → Clock-Contract FLOATING wall-clock ms (§1: local civil time encoded as UTC).
+
+    The envelope's other time fields are floating, so a real-UTC value here would be an hour out in
+    summer and read as a plausible clock story rather than as a unit error."""
+    t = _dt.datetime.fromtimestamp(epoch_s)
+    return float(_dt.datetime(t.year, t.month, t.day, t.hour, t.minute, t.second,
+                              t.microsecond, tzinfo=_dt.timezone.utc).timestamp() * 1000.0)
