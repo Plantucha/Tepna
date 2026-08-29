@@ -155,6 +155,92 @@
   `(A if cond else X).append`**, and reading that absence as "no appends" would have left two correct
   proposals permanently unscored.
 
+- **§P2c — THE SEVEN ARE LANDED (2026-08-29). 189 → 180, zero new diagnostics.** The lane had run
+  `generate → rail → triage` and stopped there: seven ACCEPTED proposals sat in a journal while the
+  count sat at 189. A mechanism that produces a correct result and never reaches the thing it was
+  built to move is this repo's standing failure class, one layer up from a check that examines
+  nothing — so the missing arrow is now closed and the loop reads `generate → rail → triage → LAND`.
+
+  **Two of the seven needed a correction, which is the finding, not an aside.** A triage table is a
+  verdict on the ANNOTATION; it is not a patch, and the gap between the two is where both corrections
+  live.
+
+  - **Row 12 does not RUN as accepted.** `instances: list[_FakeBleak] = []` sits in `_FakeBleak`'s own
+    class body, where the name does not exist yet, and the file carries no
+    `from __future__ import annotations` — so the accepted text raises `NameError` at import. Landed
+    as a string annotation. The triage asked "is `list[_FakeBleak]` the right type?" (yes) and could
+    not have asked "does this line execute?", because that is a different question about a different
+    property. **A proposal that type-checks is not a proposal that runs.**
+  - **Rows 8/11's `object` note had a PRICE, and it is paid here rather than carried.**
+    `out: dict[str, object]` is the honest type, and it makes `out["devices"][name] = …` a *new*
+    error — the count would have MOVED, not dropped, which is the shape of a green that reports on
+    something it did not examine. The rows are now built in their own `dict[str, dict]` and placed
+    into `out` once: no cast, no `Any`, no suppression. Row 11 needed nothing — `dict.get` on an
+    `object`-valued dict is fine — so the caveat cost one site, not two.
+
+  **The annotation earned its keep immediately: one latent defect, invisible until the type was
+  tight.** With the rows typed, mypy could finally see that `name = d.get("name")` is `str | None`
+  and was being used as a dict key — a nameless device keyed its row under a literal `null` in the
+  emitted JSON. The address is the identity that always exists (`ble-identity-is-address-only`), so
+  it is the fallback. This is what an annotation is FOR: not paperwork, but a question asked of code
+  that had never been asked it.
+
+  **Measured as a PAIRED difference inside one tree**, `--ignore-missing-imports
+  --explicit-package-bases`: **189 → 180** on a 189-era `main`, then **154 → 145** against the actual
+  parent after rebasing onto #1944, both with a line-insensitive diff confirming **zero** newly
+  introduced diagnostics. Nine went away; it is not eight going away and one moving somewhere
+  quieter. `check.sh`'s baseline records **145** — the single home the CI ratchet greps — because
+  that is what the merged tree reports.
+
+  ⚠️ **Arithmetic would have produced 145 too (154 − 9), and that changes nothing.** The two lanes
+  happened to be disjoint. A number right by luck and a number right by measurement are
+  indistinguishable on the page — which is exactly why the rule below is *reproduce it* rather than
+  *get it right*, and why this coincidence is recorded rather than quietly enjoyed. The next pair of
+  lanes will overlap somewhere, and the shortcut will be wrong with no change in how it looks.
+
+  **The ratchet had a hole, and it is closed in the same PR.** The CI job fails only when the
+  measured count EXCEEDS the baseline — so a PR that RAISES the baseline passes it every time, by
+  construction. With two lanes cutting this count in parallel on 2026-08-29 (189 → 154 and
+  189 → 180, both editing the one line that holds it), whichever landed second would have silently
+  restored the ground the first one gained, with **nothing red anywhere**. **The rule the ratchet now
+  enforces is that touching the threshold obligates reproducing it**: when a PR changes the recorded
+  baseline, the written number must EQUAL the count that CI run just measured, not merely bound it.
+  Direction alone catches the raise; equality also catches an **unearned lowering** — a number from
+  arithmetic or a stale tree — which no `<=` test can see, because a too-low baseline passes a `<=`
+  check *by being too low*. Both are kept: equality alone would wave through "I introduced 20 errors
+  and wrote the new total", so a raise still needs **declared provenance**
+  (`baseline-raised:<reason>`), never a shape rule. Unreadable comparison or unfinished mypy ⇒
+  REFUSE. Ten controls assert the step's own exit code, the live 183-onto-154 case among them.
+
+  ⚠️ **And the first version of that control harness was itself the bug it was testing for.** It
+  read `$?` through a `tr` in its printf, so all ten cases reported `exit 0` — the verdict STRINGS
+  were right and the exit codes, the only thing CI acts on, had never been checked. §4b, inside the
+  test for a §4b-shaped defect, written by someone who had just spent a day on that failure class.
+  **Assert the exit code of the thing under test, not of the pipeline you formatted it with.**
+
+  **Measured instance, so it is not filed as a theory.** Three PRs were open simultaneously that
+  day, all editing this one line, each measured independently against a 189-era `main`: #1944 wrote
+  **154**, #1946 wrote **183**, this one wrote **180**. Landing #1944 then #1946 unchanged takes the
+  recorded baseline **154 → 183** — a 29-point loosening with every check green, #1946's own mypy
+  step printing `153 <= 183, ratchet ok`.
+
+  **And nobody erred, which is the whole point.** Each PR measured its own tree and wrote down what
+  it measured. That is the correct behaviour, and no amount of care would have caught this: the
+  hazard needs two *correct* actors acting concurrently. **The general lesson, because it is not
+  about mypy: a one-directional gate whose threshold is itself editable is only as monotonic as the
+  discipline of whoever edits it — and parallel work is exactly the condition under which that
+  discipline fails silently, since no lane can see another lane's number. If a threshold can be
+  moved by the same PR the threshold judges, the threshold needs its own gate.** Asking people to
+  remember is asking them to have information they do not have. Worth a look at the suite's other
+  recorded floors on this reasoning — the coverage floor, the mutation canary counts — not on this
+  incident.
+
+  ⚠️ **And §P3's tree caveat gets a dated correction.** The 189-vs-188 spread it cites was that day's
+  untracked stray, not a property of worktrees: re-measured 2026-08-29, a fresh worktree off
+  `origin/main` reports **189**, exactly what the CI job reports on main. **Do not carry a correction
+  factor between trees.** Measure the tree you are in — and when what you want is a delta, take a
+  paired before/after inside ONE tree, which is immune to the population question entirely.
+
 - **§P3 — the flips, pre-stated.** ⚠️ **Measure the flip count in a tree matching CI's population** —
   a fresh checkout with no untracked files — per §0's tree caveat. A count taken in a working tree
   fires the flip early or late off files CI will never see. mypy flips BLOCKING when the count reaches 0 (typed-ignores
@@ -166,7 +252,8 @@
 
 ## 2 · Done when
 
-- [x] §P1 advisory gates in `check.sh`, mypy pinned, baseline 189 recorded (2026-08-27).
+- [x] §P1 advisory gates in `check.sh`, mypy pinned, baseline 189 recorded (2026-08-27);
+      ratcheted to **180** when §P2c landed the first seven annotations (2026-08-29).
 - [ ] §P2 qwen lane produces its first 30 triaged proposals; acceptance rate recorded; band applied.
 - [ ] §P2 session lane triages the argument/assignment classes; real-bug findings ledgered.
 - [ ] §P3 mypy blocking at 0; changed-files format blocking after fleet notice.

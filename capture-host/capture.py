@@ -4052,7 +4052,7 @@ async def sync_device_time(address: str) -> dict:
 
     Runs through polar_offline_op so it owns the device's single BLE link (capture pauses, then resumes).
     Returns before/after device time so the caller can show that it actually took effect."""
-    dev = next((d for d in _CFG.get("devices", []) if d.get("address") == address), {}) if _CFG else {}
+    dev: dict[str, object] = next((d for d in _CFG.get("devices", []) if d.get("address") == address), {}) if _CFG else {}
     is_h10 = "h10" in str(dev.get("model", "") or dev.get("name", "")).lower()
 
     import polar_psftp        # runtime-only (pulls bleak) — keeps `import capture` stdlib-clean for CI
