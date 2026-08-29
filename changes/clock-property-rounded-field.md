@@ -1,7 +1,7 @@
 ---
 bump: patch
 type: fixed
-brief: briefs/PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md
+brief: PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md
 ---
 
 **A property test read its condition off a ROUNDED field, and it was a latent flake on `main`.**

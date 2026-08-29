@@ -186,9 +186,11 @@
   that had never been asked it.
 
   **Measured as a PAIRED difference inside one tree**, `--ignore-missing-imports
-  --explicit-package-bases`: **189 → 180** on a 189-era `main`, then **154 → 145** against the actual
-  parent after rebasing onto #1944, both with a line-insensitive diff confirming **zero** newly
-  introduced diagnostics. Nine went away; it is not eight going away and one moving somewhere
+  --explicit-package-bases`: **189 → 180**, **154 → 145** (#1944), **140 → 131** (#1948), **134 → 125**
+  (#1946) and **122 → 113** (#1950), each against its actual parent, every one confirming **zero** newly
+  introduced diagnostics on a sort-independent multiset comparison of the two runs. The nine that go
+  away are **seven annotations plus two pre-existing `adapter_ab.py` diagnostics** the restructure
+  retired — the rows had been reached through an untyped value. Nine went away; it is not eight going away and one moving somewhere
   quieter. `check.sh`'s baseline records **145** — the single home the CI ratchet greps — because
   that is what the merged tree reports.
 
@@ -217,6 +219,36 @@
   were right and the exit codes, the only thing CI acts on, had never been checked. §4b, inside the
   test for a §4b-shaped defect, written by someone who had just spent a day on that failure class.
   **Assert the exit code of the thing under test, not of the pipeline you formatted it with.**
+
+  ⚠️ **CONTENTION IS ONLY THE VISIBLE CLASS — there are two, and the second has no editor.**
+  (1) two lanes each move the line and the second overwrites the first; (2) a PR records a baseline
+  that was CORRECT when measured, and then unrelated work lands on `main` and moves the count
+  underneath it. **(2) generalises (1)**, and is the honest statement: a recorded baseline goes stale
+  whenever `main` moves while a PR is open — **which is every PR, always**. Any number written before
+  the final rebase is a claim about a tree that no longer exists; contention is merely the case where
+  the staleness has a culprit.
+
+  This PR is its own demonstration. Its baseline was re-measured **five** times against five parents —
+  189 → 180, 154 → 145 (#1944), 140 → 131 (#1948), 134 → 125 (#1946), 122 → 113 (#1950) — and **not
+  once because anyone edited the line**. Its correctly-measured 145 went 14 stale within a single hour
+  by sitting still, and three more numbers went the same way after it. `main`'s own recorded number
+  drifted identically. Each landing ahead of it forced another rebase-and-re-measure — **that recurring
+  cost IS the argument for the gate**, since the manual protocol has to be re-run correctly every single
+  time and silently produces a wrong number the one time it is not.
+
+  ⚠️ **It also produced a delivery finding the brief should keep: under a fast batch lane, the manual
+  protocol does not converge.** Four batches landed under one branch in an evening, each obsoleting a
+  correct measurement before CI could finish — so the PR carrying the fix was held open by the hazard it
+  fixes. The resolution was to **drop the baseline edit entirely** rather than run the treadmill a fifth
+  time: an untouched line cannot conflict, the plain ratchet applies (113 ≤ 122), and the mechanism
+  lands. The floor stays loose by nine until the next PR touches the line, at which point the new rule
+  forces a reproduction and it self-corrects. **When a contested resource blocks the fix for the
+  contention, stop contending for it** — the fix is worth more than the increment. The check covers both classes
+  because its trigger is the branch's value against **current** `main`, not against the merge-base, so
+  a drifted number differs as loudly as an overwritten one. ⚠️ But the at-merge-time property is **not**
+  free from any one run: CI on a `BEHIND` head measures the pre-merge tree, where a stale number can
+  still look correct — it comes from Kodiak base-merging before merging, which triggers a further run
+  on the merged ref. **A green on an earlier run is not proof the number is current.**
 
   **Measured instance, so it is not filed as a theory.** Three PRs were open simultaneously that
   day, all editing this one line, each measured independently against a 189-era `main`: #1944 wrote

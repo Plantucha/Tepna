@@ -1,7 +1,7 @@
 ---
 bump: patch
 type: fixed
-brief: briefs/PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md
+brief: PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md
 ---
 
 **capture-host types — the first generated annotations LAND; the ratchet drops 189 → 180.**
@@ -39,19 +39,48 @@ identity that always exists, so it is the fallback; the sample lookup is unchang
 still carries both. This is what an annotation is FOR — it is not paperwork, it is a question
 being asked of code that had never been asked it.
 
-**Measured, not asserted — and re-measured after rebasing, which is the rule this PR also
-enforces.** Against its actual parent (`main` carrying #1944), in the canonical population
-(`--ignore-missing-imports --explicit-package-bases`, 284 source files): **154 → 145**, with a
-line-insensitive diff of the two runs confirming **zero** newly introduced diagnostics. The count
-dropped by nine because nine went away, not because eight went away and one was moved somewhere
-quieter. The same nine annotations measured 189 → 180 before the rebase; the recorded baseline is
-145 because that is what the merged tree reports.
+**Measured, not asserted — and re-measured after every rebase, which is the rule this PR also
+enforces.** Against its actual parent each time, in the canonical population
+(`--ignore-missing-imports --explicit-package-bases`): **189 → 180**, then **154 → 145** onto
+#1944, **140 → 131** onto #1948, **134 → 125** onto #1946, and **122 → 113** onto #1950 — five
+independent measurements against five parents, the same seven annotations, **zero** newly
+introduced diagnostics every time.
 
-⚠️ **And arithmetic would have got it right this time — 154 − 9 = 145 — which changes nothing.**
-The two lanes happened to be disjoint. A number that is right by luck and a number that is right by
-measurement are indistinguishable on the page, which is the entire reason the rule below is
-*reproduce it* rather than *get it right*. Recorded here so the coincidence is not later read as
-evidence that the arithmetic shortcut is safe.
+⚠️ **This PR deliberately does NOT move the recorded baseline, and that is a change of plan worth
+stating plainly.** It originally wrote the number it measured, as the rule it introduces requires.
+But the mypy session lane is landing batches faster than a PR can complete one CI lap: four
+batches landed under this branch in one evening, each one making a correctly-measured number stale
+and forcing another rebase, re-measure, gate and push. **The PR carrying the fix for that hazard
+was being held open by the hazard.** So the baseline edit is dropped: `check.sh` here is
+byte-identical to `main`'s, the branch cannot conflict on the contested line again, and the gate
+lands.
+
+The cost is exact and small: the floor stays at 122 while the tree measures 113, so it is loose by
+nine until someone touches the line — at which point the new rule forces them to reproduce it, and
+it self-corrects. The alternative was to keep re-running a manual protocol that the very PR in
+question exists to abolish. **Landing the mechanism is worth more than recording nine points of
+floor**, and the five-measurement series above is the evidence either way.
+
+The nine that go away are **seven annotations at their own sites plus two pre-existing
+`adapter_ab.py` diagnostics** that the `dict[str, dict]` restructure retired as a side effect — an
+`Invalid index type` and an `Unsupported target for indexed assignment`, both of which existed only
+because the rows were reached through an untyped value.
+
+⚠️ **Those five pairs ARE the hazard, demonstrated on this PR.** Nothing was re-measured because
+anyone edited anything: 180 went stale when #1944 landed, 145 when #1948 landed, 131 when #1946
+landed, and 125 when #1950 landed — **this PR's own number went stale four times while sitting
+still**, once by 14 within a single hour. Four correct measurements, all of them obsolete before
+CI finished. So did `main`'s: its
+recorded line reads 154 while `main` itself now measures 140. Contention is the visible class; the
+general one is that **a baseline goes stale whenever `main` moves while a PR is open, which is
+every PR, always** — any number written before the final rebase is a claim about a tree that no
+longer exists.
+
+⚠️ **And arithmetic would have coincided every time (154 − 9, 140 − 9, 134 − 9, 122 − 9), which
+changes nothing.** A
+number right by luck and one right by measurement are indistinguishable on the page — the entire
+reason the rule below is *reproduce it* rather than *get it right*. Recorded as a coincidence so
+the shortcut never inherits it as evidence.
 
 **And the ratchet now ratchets.** The CI job failed only when the measured count EXCEEDED the
 baseline — so a PR that RAISED the baseline passed it every time, by construction. That is not

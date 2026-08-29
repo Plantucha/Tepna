@@ -323,6 +323,30 @@ jobs:
         # and not a discipline's: asking people to remember is asking them to have information they
         # do not have.
         #
+        # AND CONTENTION IS ONLY THE VISIBLE CLASS. THERE ARE TWO, AND THE SECOND HAS NO EDITOR:
+        #   (1) CONTENTION — two lanes each move the line, and the second to land overwrites the
+        #       first's number. Loud enough to notice once you look for it.
+        #   (2) DRIFT WITH NOBODY EDITING ANYTHING — a PR records a baseline that was CORRECT when
+        #       measured, then unrelated work lands on main and moves the count underneath it. No
+        #       one touched the line; it went stale by sitting still. Measured 2026-08-29: a PR
+        #       holding a correctly-measured 148 went 11 stale within the hour because a different
+        #       PR improved main, and main's OWN recorded line went stale the same way without
+        #       anyone editing it.
+        #
+        # (2) generalises (1) and is the honest statement of the hazard: **a recorded baseline goes
+        # stale whenever main moves while a PR is open — which is every PR, always.** Any number
+        # written before the final rebase is a claim about a tree that no longer exists. Contention
+        # is just the case where the staleness has a culprit.
+        #
+        # WHY THE CHECK BELOW COVERS BOTH, WHICH IS NOT OBVIOUS: the trigger is the branch's value
+        # against CURRENT main, not against the merge-base, so a line that has drifted differs just
+        # as loudly as one that was overwritten — either way it takes the equality branch and must
+        # equal what THIS run measured. ⚠️ The at-merge-time property is NOT free from this run: CI
+        # on a BEHIND head measures the pre-merge tree, where a stale number can still look correct.
+        # It comes from Kodiak base-merging before it merges, which triggers a FURTHER run whose
+        # measurement is taken on the merged ref. So this step is honest on the run that matters and
+        # can read green on an earlier one — do not take a green here as proof the number is current.
+        #
         # SO THE RULE IS: **touching the threshold obligates reproducing it.** When a PR changes the
         # recorded baseline, the written number must EQUAL the count this run just measured — not
         # merely bound it. Direction alone catches only the raise; equality also catches an unearned
