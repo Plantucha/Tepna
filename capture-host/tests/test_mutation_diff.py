@@ -400,3 +400,36 @@ def test_classify_treats_a_keyless_entry_as_claiming_the_EMPTY_key():
     got = M.classify(entries, [{"key": ""}], {""})
     assert [x["class"] for x in got["excused"]] == ["no-distinguishing-input"]
     assert got["orphaned"] == [] and got["unclassified"] == []
+
+
+# ── annotation_only: signature re-annotation leaves scope; behaviour never does ─────────────────
+def test_annotation_only_excludes_pure_signature_widenings():
+    """The measured case (#1946): a one-line widening must strip to an identical AST."""
+    ok, why = M.annotation_only("def f(x: float): return x",
+                                "def f(x: float | None): return x")
+    assert ok is True and "identical" in why
+
+
+def test_annotation_only_keeps_scope_for_behaviour_and_fails_closed():
+    """Each row is a distinct behavioural (or undecidable) difference; every one keeps full scope,
+    and the reason names the branch that decided (saw-the-plant on both fields)."""
+    rows = [
+        ("def f(x: int = 1): return x", "def f(x: int = 2): return x", "behavioural"),
+        ("def f(x: int): return x", "def f(y: int): return y", "behavioural"),
+        ("def f(x: int): return x", "def f(x: int): return x + 1", "behavioural"),
+        ("class C:\n    x: int = 1", "class C:\n    x: float = 1", "behavioural"),
+        ("def f(x): return x", "from typing import Any\ndef f(x): return x", "behavioural"),
+        ("def f(x: int): return x", "def f(x: int) return x", "parse failed"),
+    ]
+    for old_src, new_src, want in rows:
+        ok, why = M.annotation_only(old_src, new_src)
+        assert ok is False and want in why, (old_src, new_src, ok, why)
+
+
+def test_selftest_reds_on_a_lying_annotation_classifier(monkeypatch):
+    """The selftest's OWN failure branch must be reachable — a harness whose FAIL print can never
+    execute is a harness nobody has seen fail. A classifier that answers 'excluded' for everything
+    must turn the selftest red (this is the permanent form of the build-time negative control)."""
+    monkeypatch.setattr(M, "annotation_only",
+                        lambda a, b: (True, "stripped ASTs identical"))
+    assert M.selftest() == 1

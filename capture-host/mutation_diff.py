@@ -38,7 +38,7 @@ from __future__ import annotations
 import ast
 
 __all__ = ["EXCUSING", "functions_covering", "changed_span", "is_string_only", "diff_key",
-           "classify", "refusal_reason", "selftest", "string_only_verdict", "scan_is_reliable",
+           "annotation_only", "classify", "refusal_reason", "selftest", "string_only_verdict", "scan_is_reliable",
            "STRING_ONLY", "REQUIRED", "EMPTY_DIFF", "UNDECIDABLE"]
 
 # The four outcomes of the string-literal question. `is_string_only` collapses them to a bool for
@@ -235,6 +235,55 @@ def diff_key(diff_text: str) -> str:
     return " | ".join(" ".join(ln.split()) for ln in keep)
 
 
+def annotation_only(old_src: str, new_src: str) -> tuple[bool, str]:
+    """True iff the two sources are IDENTICAL once FUNCTION-SIGNATURE annotations are stripped.
+
+    The mutation gate exists to catch untested BEHAVIOUR change; a signature annotation does not
+    execute, so a diff that only edits arg/return annotations must not pull whole function bodies
+    into mutation scope (measured on #1946: four one-line widenings surfaced 30 pre-existing
+    survivors and blocked a behaviour-neutral PR).
+
+    DELIBERATELY NARROW — only `arg.annotation` and `FunctionDef/AsyncFunctionDef.returns` are
+    stripped. Every other annotation stays load-bearing: class-body `AnnAssign` drives dataclass
+    fields, ClassVar/InitVar and TypedDict shapes, all of which ARE runtime behaviour, so a change
+    there keeps full scope. Defaults, arg names/order, decorators, bodies and docstrings all differ
+    in the stripped AST and keep full scope too.
+
+    FAIL-CLOSED: any parse failure returns (False, reason) — full scope, never a guess. The reason
+    string always names which branch decided, so a caller's log can show the check actually ran.
+
+    GUIDANCE FOR ANNOTATORS (Papers', measured on the same PR): a NEW IMPORT survives stripping —
+    `from collections.abc import Sequence` is a real AST node — so a type-only change that needs an
+    import is no longer type-only under this rule. Quote a builtin form (`"str | list[str]"`), or
+    accept full scope. The burden is deliberately on the annotator, not the gate: an imports-used-
+    only-in-annotations analysis fails in the wrong direction (a dual-use import would silently
+    exempt behaviour)."""
+    import ast
+    try:
+        old_tree, new_tree = ast.parse(old_src), ast.parse(new_src)
+    except SyntaxError as e:
+        return False, f"parse failed ({e.msg or e.__class__.__name__}) - full scope"
+
+    class _Strip(ast.NodeTransformer):
+        def visit_arg(self, node: ast.arg) -> ast.arg:
+            node.annotation = None
+            return node
+
+        def _fn(self, node):
+            self.generic_visit(node)
+            node.returns = None
+            return node
+
+        visit_FunctionDef = _fn
+        visit_AsyncFunctionDef = _fn
+
+    a = ast.dump(_Strip().visit(old_tree))
+    b = ast.dump(_Strip().visit(new_tree))
+    if a == b:
+        return True, "signature-annotation-only diff - stripped ASTs identical"
+    return False, "behavioural difference survives annotation stripping - full scope"
+
+
 def classify(entries, survivors, generated):
     """Split survivors against the recorded classification.
 
@@ -415,4 +464,35 @@ def selftest() -> int:
         print("  selftest FAIL: a line outside the scan's competence was decided anyway")
         ok = False
     print("  selftest: classify + diff_key + refusal_reason + verdict OK" if ok else "  selftest: FAILED")
+
+    # ── annotation_only: signatures may be re-annotated; behaviour may not ─────────────────────
+    # Expected-PASS plants included deliberately (a rail probed only with expected-rejects ships
+    # over-rejecting forever); each case asserts the REASON branch too, so a vacuous equality can
+    # never wear the right verdict (saw-the-plant, both fields).
+    _AO = [
+        # (old, new, want_excluded, want_reason_substr, label)
+        ("def f(x: float): return x", "def f(x: float | None): return x",
+         True, "stripped ASTs identical", "widen an arg annotation"),
+        ("def f(x): return x", "def f(x) -> int: return x",
+         True, "stripped ASTs identical", "add a return annotation"),
+        ("async def g(a: int, *, b: str = 'q'): pass", "async def g(a: object, *, b: str = 'q'): pass",
+         True, "stripped ASTs identical", "async + kwonly annotations"),
+        ("def f(x: int = 1): return x", "def f(x: int = 2): return x",
+         False, "behavioural difference", "a default is behaviour"),
+        ("def f(x: int): return x", "def f(y: int): return y",
+         False, "behavioural difference", "a rename is behaviour"),
+        ("def f(x: int): return x", "def f(x: int): return x + 1",
+         False, "behavioural difference", "a body edit is behaviour"),
+        ("class C:\n    x: int = 1", "class C:\n    x: float = 1",
+         False, "behavioural difference", "class-body AnnAssign is load-bearing (dataclass/ClassVar)"),
+        ("def f(x: int): return x", "def f(x: int) return x",
+         False, "parse failed", "unparseable fails closed to full scope"),
+    ]
+    for old_src, new_src, want_x, want_r, label in _AO:
+        got_x, got_r = annotation_only(old_src, new_src)
+        if got_x != want_x or want_r not in got_r:
+            print(f"  selftest FAIL annotation_only [{label}]: ({got_x}, {got_r!r})")
+            ok = False
+
     return 0 if ok else 1
+
