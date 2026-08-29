@@ -122,8 +122,7 @@ async def run(address, adapter, lo, hi, include_dangerous, dry_run) -> dict:
     if dev is None:
         return {**out, "error": "device not found — is it advertising, and is the daemon stopped?"}
 
-    kw = {"bluez": {"adapter": adapter}} if adapter else {}
-    async with BleakClient(dev, **kw) as c:
+    async with BleakClient(dev, bluez={"adapter": adapter} if adapter else {}) as c:
         cp = Control(c)
         await cp.start()
         base = await snapshot(cp)

@@ -244,7 +244,6 @@ async def run(address, adapter, lo, hi, dry, limit=None, skip=(), json_path=None
     if dev is None:
         return {**out, "error": ("adapter refused to scan — see scan_errors" if scan_errors else
                                  "not found — advertises while WORN, or briefly around a plug-in")}
-    kw = {"bluez": {"adapter": adapter}} if adapter else {}
     # THE REPORT HOLDS THE LIVE DICT, and every line below is inside a guard. Measured 2026-08-03: a full
     # 248-opcode sweep reached its CLOSING snapshot, the link had gone by then, and the raised
     # `Service Discovery has not been performed yet` propagated out of run() before main() could write the
@@ -254,7 +253,7 @@ async def run(address, adapter, lo, hi, dry, limit=None, skip=(), json_path=None
     res: dict = {}
     out["opcodes"] = res
     try:
-        async with BleakClient(dev, **kw) as c:
+        async with BleakClient(dev, bluez={"adapter": adapter} if adapter else {}) as c:
             r = Ring(c)
             await r.start()
             await r.send(oxyii.OP_AUTH, oxyii.auth_payload())      # the handshake the ring expects

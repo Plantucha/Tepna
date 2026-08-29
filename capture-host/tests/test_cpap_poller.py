@@ -515,6 +515,23 @@ def test_the_completion_hook_sees_every_outcome_including_the_error_path(tmp_pat
         capture._STOP.clear()
 
 
+def test_NO_HOOK_ATTACHED_is_a_supported_state_not_an_incidental_one(tmp_path, monkeypatch):
+    """`_cpap_loop`'s `on_complete` defaults to None, and a completed harvest must simply not call it.
+
+    ⚠️ This line was covered only INCIDENTALLY until 2026-08-29: no test named `on_complete`, and the
+    guard was reached solely because `cpap_poller` happened to pass the default. The moment the poller
+    started passing a real consumer, coverage dropped and a documented default had no test at all — a
+    signature nobody exercises is a signature nobody is holding. Reached directly here instead."""
+    spy = _Spy(); spy.install(monkeypatch)
+    monkeypatch.setattr(capture._dt, "datetime", _at())
+    _stop_after(monkeypatch, 2)
+    _run(capture._cpap_loop(13, "prof", "http://card", str(tmp_path), 900, 30, 2,
+                            lambda **kw: capture.STATUS.setdefault("cpap", {}).update(kw),
+                            None, str(tmp_path), None, 600.0))          # ← no on_complete
+    assert capture.STATUS["cpap"]["state"] == "ok", "the harvest itself must be unaffected"
+    capture._STOP.clear()
+
+
 def test_a_THROWING_hook_cannot_cost_a_harvest_that_succeeded(tmp_path, monkeypatch):
     """The hook is a consumer, not a participant. A reconciliation bug must not turn a good harvest
     into a failed one — the files are already on disk by the time it runs."""

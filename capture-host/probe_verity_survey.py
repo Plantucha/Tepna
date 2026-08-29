@@ -181,7 +181,6 @@ async def _with_link(address: str, adapter: str | None, body, attempts: int = 3)
         if dev is None:
             last = "device not advertising"
             continue
-        kw = {"bluez": {"adapter": adapter}} if adapter else {}
         # THE CONTEXT-MANAGER FORM, deliberately. `probe_verity_offline.py` uses `async with
         # BleakClient(...)` and holds a link reliably on this device; an explicit `connect()` here did
         # not, and its first control-point WRITE raised `Service Discovery has not been performed yet`
@@ -189,7 +188,7 @@ async def _with_link(address: str, adapter: str | None, body, attempts: int = 3)
         # characteristics on 3 of 3 attempts. Rather than keep theorising about why, match the call
         # shape that is known to work.
         try:
-            async with BleakClient(dev, **kw) as c:
+            async with BleakClient(dev, bluez={"adapter": adapter} if adapter else {}) as c:
                 cp = Control(c)
                 await cp.start()
                 return await body(c, cp)
