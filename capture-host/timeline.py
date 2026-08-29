@@ -231,7 +231,13 @@ def merge_link_samples(link: dict, keys) -> list[tuple[float, int, float | None]
     return out
 
 
-def read_link_samples(night_dir: str) -> dict[str, list[tuple[float, int, float | None]]]:
+def read_link_samples(
+    night_dir: "str | list[str]",
+) -> dict[str, list[tuple[float, int, float | None]]]:
+    # `str | list[str]`: the body already fans a sequence out — see
+    # `dirs = [night_dir] if isinstance(night_dir, str) else list(night_dir)` below. Both callers
+    # (timeline.build, adapter_ab.night_profile) pass a LIST and always have; the annotation was
+    # the only thing claiming otherwise.
     """LINK sidecar → {device key: [(ts, connected, rssi)]}, one bucket per PHYSICAL device.
 
     Keyed on ADDRESS wherever the file gives one, because a device can be renamed from the monitor and

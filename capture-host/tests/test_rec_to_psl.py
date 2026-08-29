@@ -358,3 +358,32 @@ def test_convert_on_a_file_whose_stamp_is_unreadable_bytes(tmp_path):
     res = r2p.convert(_write(tmp_path, bytes(bad)))
     assert res["header"]["stamp_utc"] is None
     assert res["n_frames"] == 0
+
+
+# ── _first_setting: the typed replacement for `(tlv.get(k) or [None])[0]` ──────────────────────
+#
+# The idiom it replaces read as "first value, else None" and could not be typed: `[None]` is a
+# `list[None]`, not the `list[int]` a settings map holds. These pin the behaviour that had to be
+# preserved exactly across that swap — including the present-but-EMPTY case, which is the one a
+# careless rewrite gets wrong (`vals[0]` on `[]` raises; the old `or` treated `[]` as absent).
+
+
+def test_first_setting_returns_the_first_value():
+    assert r2p._first_setting([176, 2, 22]) == 176
+
+
+def test_first_setting_returns_none_when_absent():
+    # dict.get miss — the common path for a setting the recording never carried.
+    assert r2p._first_setting(None) is None
+
+
+def test_first_setting_treats_present_but_empty_as_absent():
+    # The old `(tlv.get(k) or [None])[0]` relied on `[]` being falsy. Indexing directly would
+    # raise IndexError here, so this is the case that proves the swap kept the contract.
+    assert r2p._first_setting([]) is None
+
+
+def test_first_setting_keeps_a_falsy_first_value():
+    # `0` is a legitimate setting value and must NOT be confused with absence — the `or` in the
+    # old idiom guarded the LIST, never its contents, and that distinction has to survive.
+    assert r2p._first_setting([0, 9]) == 0

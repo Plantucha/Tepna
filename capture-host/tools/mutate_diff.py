@@ -73,7 +73,7 @@ HERE = Path(__file__).resolve().parent.parent
 VENV_PY = HERE / ".venv" / "bin" / "python"
 sys.path.insert(0, str(HERE))
 from mutation_diff import (  # noqa: E402
-    EMPTY_DIFF, STRING_ONLY, UNDECIDABLE, classify, diff_key, functions_covering,
+    EMPTY_DIFF, STRING_ONLY, UNDECIDABLE, annotation_only, classify, diff_key, functions_covering,
     refusal_reason, selftest, string_only_verdict,
 )
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
@@ -85,6 +85,10 @@ _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 import importlib.util as _ilu
 
 _mmspec = _ilu.spec_from_file_location("mmeta", HERE / "mmeta.py")
+# See the same guard in tools/mutate.py: a missing spec or loader otherwise surfaces as an
+# AttributeError on None, pointing at the wrong line.
+if _mmspec is None or _mmspec.loader is None:
+    raise ImportError(f"cannot load mmeta from {HERE / 'mmeta.py'}")
 mmeta = _ilu.module_from_spec(_mmspec)
 _mmspec.loader.exec_module(mmeta)
 
@@ -173,6 +177,30 @@ def main(argv=None) -> int:
         print(f"mutate-diff: no capture-host/*.py changed against {a.base} — nothing to check.")
         return 0
 
+    # ── ANNOTATION-ONLY EXCLUSION (measured on #1946) ────────────────────────────────────────
+    # Touching a signature line pulls the whole function into mutation scope, so four one-line
+    # widenings surfaced 30 PRE-EXISTING survivors and blocked a behaviour-neutral typing PR.
+    # A signature annotation does not execute; if the WHOLE file's diff strips to nothing, the
+    # file leaves scope — loudly, naming the check. The comparison base is the MERGE-BASE (the
+    # same ref `changed_lines`' three-dot diff measures against), never the base branch tip.
+    # Fail-closed: an unreadable base version or a parse failure keeps full scope.
+    _mb = subprocess.run(["git", "merge-base", a.base, "HEAD"],
+                         cwd=HERE.parent, capture_output=True, text=True)
+    _base_sha = _mb.stdout.strip() if _mb.returncode == 0 and _mb.stdout.strip() else a.base
+    for module in sorted(changed):
+        _old = subprocess.run(["git", "show", f"{_base_sha}:capture-host/{module}"],
+                              cwd=HERE.parent, capture_output=True, text=True)
+        if _old.returncode != 0:
+            print(f"  {module}: base version unreadable — full scope kept (fail-closed)")
+            continue
+        _excl, _why = annotation_only(_old.stdout, _read_source(HERE / module))
+        if _excl:
+            print(f"  {module}: {len(changed[module])} changed line(s) — {_why}; EXCLUDED from mutation scope")
+            del changed[module]
+    if not changed:
+        print("mutate-diff: every changed module is signature-annotation-only — nothing behavioural to mutate.")
+        return 0
+
     # ── PREFLIGHT — refuse rather than green when the gate cannot actually run ──────────────
     # Checked BEFORE any work, because the failure is total: no mutmut means no mutants for any
     # module, and the loop below would report every one of them as clean.
@@ -195,6 +223,8 @@ def main(argv=None) -> int:
 
     import importlib.util
     spec = importlib.util.spec_from_file_location("mut", HERE / "tools" / "mutate.py")
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load mutate from {HERE / 'tools' / 'mutate.py'}")
     mut = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mut)
 

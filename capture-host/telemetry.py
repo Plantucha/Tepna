@@ -257,7 +257,10 @@ def _goertzel_power(vals, f: float, fs: float) -> float:
     return s1 * s1 + s2 * s2 - coeff * s1 * s2
 
 
-def pulse_prominence(ppg, *, fs: float) -> "float | None":
+def pulse_prominence(ppg, *, fs: float | None) -> "float | None":
+    # `fs: float | None`, not `float`: the None case is HANDLED, not accidental — see the
+    # `if fs is None` return on the first line of the body. The narrower annotation described a
+    # contract this function does not have, and callers legitimately pass an unset rate.
     """Peak power in the pulse band over mean power in a reference band above it. `None` if unmeasurable.
 
     Rate-independent by construction — the bands are in Hz and the transform is evaluated at the given
@@ -282,7 +285,9 @@ def pulse_prominence(ppg, *, fs: float) -> "float | None":
     return band / denom
 
 
-def pulse_prominence_worn(ppg, *, fs: float,
+def pulse_prominence_worn(ppg, *, fs: float | None,
+                          # Widened with its callee: this forwards `fs` straight to
+                          # `pulse_prominence`, which returns None for a None rate.
                           threshold: float = _PULSE_PROMINENCE_MIN) -> "bool | None":
     """Is this optical sensor on skin, judged by whether a pulse is present at all?
 
