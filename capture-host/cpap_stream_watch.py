@@ -104,7 +104,6 @@ def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
         # fix, the other is a bug to fix — so the distinction cannot be left to the reader's guess.
         # It is only available because auto-start persists an attempt record; absent that record the
         # honest answer is still NEVER_STARTED, which is what an unarmed box correctly reports.
-        n = 0
         try:
             n = int(attempts or 0)
         except (TypeError, ValueError):
