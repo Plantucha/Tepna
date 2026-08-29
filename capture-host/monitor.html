@@ -27,6 +27,11 @@
   --teal:#3DE0D0; --blue:#58A6FF; --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A; --purple:#a78bfa;
   --accent:var(--teal);
   --status-ok:var(--green); --status-caution:var(--amber); --status-concern:var(--red);
+  /* Used by three cards' WORST branch (backup failing, system files drifted, CPAP bad) and
+     never defined until 2026-08-28. `border-left-color:var(--status-bad)` with no fallback is
+     an invalid value, so those cards fell back to currentColor and the most severe state drew
+     LESS alarming than the caution state directly above it. */
+  --status-bad:var(--red);
   --b:1px solid rgba(255,255,255,.05); --s:0 8px 24px rgba(0,0,0,.24);
   --r-sm:12px; --r-md:18px; --r-lg:24px;
   --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px;
@@ -2125,6 +2130,28 @@ function renderBoxHealth(storage, qc, host, alerts, clk, cpap, cpapLive){
     cards.push(`<div class="ov-stat" style="border-left-color:${ok?'var(--status-ok)':'var(--status-caution)'}">
       <div class="lab">Tonight (QC)</div>
       <div class="val" style="font-size:${ok?'22':'15'}px">${esc(val)}</div>
+      <div class="sub">${sub}</div></div>`);
+  }
+
+  // DID THE LIVE CPAP STREAM RECORD THE SESSION? On 2026-08-26 the machine ran a full night, the
+  // stream was never started (it is operator-initiated — there is no scheduled starter), and nothing
+  // anywhere said so. The next night it was started and stopped a second later, leaving one record
+  // for a six-hour session. Neither is a stream FAILURE, so no existing surface had reason to speak.
+  // Drawn only when there is something to say: a covered night adds no card.
+  const cs = qc && qc.cpap_stream;
+  if(cs && cs.state !== 'ok'){
+    // UNKNOWN IS DRAWN, and drawn differently. It means the watchdog could not measure — the detector
+    // is off or its journal is unreadable — which is NOT evidence that the night was fine. Hiding it
+    // would make a blind watchdog indistinguishable from a quiet one, the failure it exists to break.
+    const unk = cs.state === 'unknown';
+    const val = unk ? 'CPAP stream unverified'
+              : cs.state === 'never-started' ? 'CPAP stream never started'
+              : 'CPAP stream died early';
+    const sub = unk ? esc(cs.detail || 'not measured')
+              : Math.round(cs.stream_min||0)+' min recorded of '+Math.round(cs.therapy_min||0)+' min therapy';
+    cards.push(`<div class="ov-stat" style="border-left-color:${unk?'var(--status-caution)':'var(--status-bad)'}">
+      <div class="lab">CPAP capture</div>
+      <div class="val" style="font-size:15px">${esc(val)}</div>
       <div class="sub">${sub}</div></div>`);
   }
   // ── CPAP ─────────────────────────────────────────────────────────────────────────────────────────

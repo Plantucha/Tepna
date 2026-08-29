@@ -9,7 +9,7 @@
 #    scaffold honoring the §7 integration contract; validate against real frames + PSL output first.
 
 from __future__ import annotations
-import argparse, asyncio, calendar, contextlib, json, logging, math, os, signal, time as _time, datetime as _dt
+import argparse, asyncio, calendar, contextlib, glob, json, logging, math, os, signal, time as _time, datetime as _dt
 from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_stamp,
                      HostClockLogWriter, PmdArrivalLogWriter, capture_filename, missing_identity,
                      night_dir, open_sample_writers)
@@ -4900,6 +4900,45 @@ def qc_digest_due(now, digest_hour: int, last_sent_date) -> bool:
     return cpap_harvest.due_now(now, digest_hour, last_sent_date, window_h=3)
 
 
+def _cpap_stream_watch_row(cfg, root, night_name):
+    """Gather the two durations and ask `cpap_stream_watch.assess`. All I/O; no decisions.
+
+    ⚠️ EVERY unreadable input becomes `therapy_min=None`, which `assess` turns into UNKNOWN rather
+    than a finding. A watchdog that reports "all clear" because its own input failed is the defect it
+    exists to catch, one level up."""
+    import cpap_edf
+    import cpap_stream_watch
+    therapy = None
+    try:
+        with open(os.path.join(root, "SESSIONDETECT.csv"), encoding="utf-8", errors="replace") as fh:
+            therapy = cpap_stream_watch.therapy_minutes(fh.read())
+    except OSError:
+        pass                              # detector off, or journal absent — stays None, i.e. UNKNOWN
+    headers = []
+    edf_dir = ((cfg.get("cpap") or {}).get("ble_stream") or {}).get("edf_dir")
+    if edf_dir:
+        # ⚠️ The night folder here is the CPAP DEVICE's date, and this box's AS11 clock runs ~21 min
+        # ahead of the host (measured 2026-08-27: device stamp 23:57:06 logged at host 23:35:49). So a
+        # session starting near midnight can land in the neighbouring folder. Both are read, and the
+        # coverage ratio is what is judged — a wrong-folder session would otherwise read as a missed
+        # capture. The offset itself is surfaced separately into the acquisition envelope.
+        import datetime as _d
+        try:
+            d0 = _d.datetime.strptime(str(night_name), "%Y-%m-%d").date()
+            names = [(d0 + _d.timedelta(days=k)).strftime("%Y%m%d") for k in (-1, 0, 1)]
+        except ValueError:
+            names = []
+        for nm in names:
+            for fn in sorted(glob.glob(os.path.join(edf_dir, "DATALOG", nm, "*_BRP.edf*"))):
+                try:
+                    with open(fn, "rb") as fh:
+                        n_rec, dur = cpap_edf.read_span(fh.read(256))
+                    headers.append((n_rec, float(dur)))
+                except (OSError, ValueError):
+                    continue              # unreadable file: contributes nothing to the measurement
+    return cpap_stream_watch.assess(therapy, cpap_stream_watch.stream_minutes(headers))
+
+
 async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = None):
     """Summarise the CURRENT night's capture completeness — rows per configured stream, which declared
     streams produced nothing (the header-only files a rejected START / never-worn sensor leaves). Turns
@@ -4952,6 +4991,16 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             # capture task, recurring every 10 minutes, and on slow storage it approaches the 60 s
             # watchdog heartbeat. QC is a REPORT: it must never cost the recording it reports on.
             summ = await asyncio.to_thread(nightqc.summarize, night, cfg.get("devices", []))
+            # ── DID THE LIVE CPAP STREAM RECORD THE SESSION? ─────────────────────────────────────
+            # On 2026-08-26 the machine ran a full night, `edf_dir` stayed empty, and NOTHING said so
+            # — the stream is operator-initiated (`POST /api/cpap/stream`; there is no scheduled
+            # starter) and nobody clicked. On 08-27 it was started and stopped one second later,
+            # leaving a 7 KB one-record file for a six-hour session. Neither produced a warning.
+            # The harm was the SILENCE, not the missed click: absence emits no event unless something
+            # is built to notice it, which is the class that also hid a never-successful archive-pull
+            # and a Verity that held a link for 4 h 25 m writing zero bytes.
+            # Reads here, decides in `cpap_stream_watch` (pure, tested). Off the loop like summarize.
+            summ["cpap_stream"] = await asyncio.to_thread(_cpap_stream_watch_row, cfg, root, current)
             STATUS["qc"] = summ
             _qc = os.path.join(night, "QC-SUMMARY.json")
             with open(_qc + ".tmp", "w") as fh:
