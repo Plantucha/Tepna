@@ -80,6 +80,17 @@ def _stamp_ms(name: str) -> float | None:
     stamp = writers.file_stamp(name)
     if not stamp:
         return None
+    # ⚠️ THE CLOCK CONTRACT'S `24:00:00` CLAUSE HAS NO PRODUCER ON THIS PATH — a documented
+    # NON-divergence, traced 2026-08-28 rather than assumed. §2.7 requires that end-of-day `24:00:00`
+    # be ACCEPTED and normalised to next-day 00:00, and explicitly forbids "a bare `h > 23` guard".
+    # `strptime("%H")` IS that bare guard: `20260228240000` raises here. That would be a divergence if
+    # anything could emit it — and nothing can. The stamp's SOLE producer is
+    # `writers.capture_filename`, which formats `started.strftime("%Y%m%d%H%M%S")` from a `datetime`
+    # whose hour is 0–23 by construction; `writers.file_stamp` is anchored to that filename layout and
+    # requires a plausible year, so a vendor name cannot reach here either. Both consumers
+    # (`timeline._stamp_ms`, `nightqc._session_of`) read only what that writer wrote.
+    # If a NON-strftime producer is ever routed into this path, this clause becomes live and the
+    # rejection becomes a real bug — that is the condition that retires this comment.
     try:
         return _dt.datetime.strptime(stamp, "%Y%m%d%H%M%S").timestamp()
     except ValueError:

@@ -5,3 +5,5 @@ ruff>=0.16.4           # lint (blocking) + `ruff format` (black-compatible style
 pytest>=9.1.1
 pytest-cov>=7.1.0
 pytest-asyncio>=1.4.0
+hypothesis>=6.100      # property tests for the clock surface — invariants over an input space,
+                       # where a known-answer table cannot go (tests/test_clock_properties.py)

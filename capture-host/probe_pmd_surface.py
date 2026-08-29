@@ -272,10 +272,9 @@ async def _client(dev, adapter: str | None, attempts: int = 3):
     went down between connect and first use and the `async with` said nothing. A probe that reports
     "Not connected" from a traceback three frames deep has spent its BLE window on a diagnostic worse
     than useless, so the link is verified here and retried, once per attempt."""
-    kw = {"bluez": {"adapter": adapter}} if adapter else {}     # NOT adapter= — deprecated, and ignored
     last = "no attempt made"
     for _ in range(attempts):
-        c = BleakClient(dev, **kw)
+        c = BleakClient(dev, bluez={"adapter": adapter} if adapter else {})
         try:
             await c.connect()
         except Exception as exc:                              # noqa: BLE001
