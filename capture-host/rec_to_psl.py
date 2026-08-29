@@ -30,6 +30,8 @@
 
 from __future__ import annotations
 
+from typing import TypedDict
+
 import argparse
 import datetime as _dt
 import json
@@ -75,9 +77,41 @@ def _ppi_row(t, values) -> str:
             f"{flags & 1};{(flags >> 1) & 1};{(flags >> 2) & 1};{hr}")
 
 
-def parse_header(b: bytes) -> dict:
+
+class PslHeader(TypedDict, total=False):
+    """What `parse_header` returns: the recording's stamp plus the PMD settings it was made with.
+
+    A TypedDict rather than a plain dict for the same reason as `As11ClockResult`: mypy infers a
+    dict literal's value type from its first entry — here `str`, from `stamp_utc` — so every later
+    key of another type (`settings` is a dict, `fs`/`channels`/`resolution_bits` are ints) reads as
+    an error. Five of them from this one function. The keys are fixed and known, so declaring them
+    is the accurate description as well as the fix.
+
+    `total=False` because the `stamp_utc` assignment is inside a try/except and the TLV loop may
+    break before the settings keys are ever set.
+    """
+
+    stamp_utc: str | None
+    settings: dict[int, list[int]]
+    fs: int | None
+    channels: int | None
+    resolution_bits: int | None
+
+
+
+def _first_setting(vals: "list[int] | None") -> "int | None":
+    """First value of a PMD TLV setting, or None when the setting is absent.
+
+    Replaces `(tlv.get(k) or [None])[0]`, which reads as "first, else None" but does not type:
+    `[None]` is a `list[None]` and cannot inhabit the `list[int]` the settings map holds. Same
+    behaviour, including for a present-but-empty list.
+    """
+    return vals[0] if vals else None
+
+
+def parse_header(b: bytes) -> PslHeader:
     """Header stamp + the settings the recording was made with. Both come from the file itself."""
-    out = {}
+    out: PslHeader = {}
     try:
         out["stamp_utc"] = b[HDR_STAMP_AT:HDR_STAMP_AT + HDR_STAMP_LEN].decode("ascii")
     except Exception:                                  # noqa: BLE001
@@ -97,9 +131,9 @@ def parse_header(b: bytes) -> dict:
             i += width
         tlv[sid] = vals
     out["settings"] = tlv
-    out["fs"] = (tlv.get(0x00) or [None])[0]
-    out["channels"] = (tlv.get(0x04) or [None])[0]
-    out["resolution_bits"] = (tlv.get(0x01) or [None])[0]
+    out["fs"] = _first_setting(tlv.get(0x00))
+    out["channels"] = _first_setting(tlv.get(0x04))
+    out["resolution_bits"] = _first_setting(tlv.get(0x01))
     return out
 
 

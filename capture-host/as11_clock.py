@@ -23,6 +23,8 @@
 
 from __future__ import annotations
 
+from typing import TypedDict
+
 import calendar
 import math
 import os
@@ -59,7 +61,34 @@ def parse_device_epoch_s(raw) -> float | None:
     return float(calendar.timegm((year, month, day, hour, minute, second, 0, 0, 0)))
 
 
-def analyze(anchors, *, device_quantum_s: float = DEVICE_QUANTUM_S, min_rate_anchors: int = MIN_RATE_ANCHORS):
+
+class As11ClockResult(TypedDict, total=False):
+    """What `analyze` returns.
+
+    A TypedDict rather than a plain dict because this is a heterogeneous RECORD, not a mapping:
+    mypy infers a plain dict-literal's value type from its initial entries (here
+    `float | int | None`), after which every later `out["reason"] = "..."` is a type error — six of
+    them from this one function. The keys are known and fixed, so declaring them is both the
+    accurate description and the fix.
+
+    `total=False` is deliberate and load-bearing: the early `too-few` return on line ~81 yields only
+    {ok, reason, n}, so requiring every key would reject a real return path.
+    """
+
+    ok: bool
+    n: int
+    span_s: float
+    offset_s: float
+    offset_min: float
+    slope_ppm: float | None
+    ppm_floor: float | None
+    minute_is_real: bool | None
+    reason: str | None
+    verdict: str | None
+
+
+def analyze(anchors, *, device_quantum_s: float = DEVICE_QUANTUM_S,
+            min_rate_anchors: int = MIN_RATE_ANCHORS) -> As11ClockResult:
     """Reduce a session of `(host_epoch_s, device_epoch_s)` anchors to the offset and the rate.
 
     Returns, on success:
@@ -84,7 +113,7 @@ def analyze(anchors, *, device_quantum_s: float = DEVICE_QUANTUM_S, min_rate_anc
     offset_s = statistics.median(offsets)
     t0 = pts[0][0]
     span_s = pts[-1][0] - t0
-    out = {
+    out: As11ClockResult = {
         "ok": True,
         "n": n,
         "span_s": round(span_s, 3),
