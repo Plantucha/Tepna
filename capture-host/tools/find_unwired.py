@@ -108,17 +108,19 @@ ALLOW_FUNCS = {
     # in a comment or docstring counted as a call. They are suppressed here rather than wired or
     # deleted, and each reason states what would REMOVE the suppression — an entry that cannot say what
     # would retire it is debt wearing a justification.
-    # ── cpap_inventory (the spool-as-inventory oracle, 2026-08-28) ────────────────────────────────
-    # The PURE half landed first on purpose: its call site is Vigil box's `on_harvest_complete(result)`
-    # hook, which is unmerged, and a no-op-by-default hook means either half can land in either order.
-    # Both entries retire together, the moment the adapter attaches.
-    "qc_field": "cpap_inventory — the QC-SUMMARY payload for the three-way spool/envelope/harvest "
-                "reconciliation. Its consumer is the adapter behind Vigil box's on_harvest_complete "
-                "hook (capture.py _cpap_loop), which is unmerged. Retire when that hook lands and the "
-                "adapter writes the field",
-    "journal_lines": "cpap_inventory — one journal line per discrepancy, same reconciliation. Same "
-                     "consumer and same retirement condition as `qc_field` directly above; they were "
-                     "written together and are wired together",
+    # ── cpap_inventory (the spool-as-inventory oracle) ────────────────────────────────────────────
+    # `qc_field` and `journal_lines` were suppressed here while the pure half waited for its adapter.
+    # Both suppressions are now SPENT — cpap_inventory_adapter consumes them — and the tool said so
+    # ("the suppression is spent") before a human did, which is the entry-retirement rule working.
+    #
+    # What remains unwired is the adapter's own entry point, and only because the CALL SITE IS NOT
+    # MINE: capture.py's `_cpap_loop(..., on_complete=None)` hook belongs to the session that owns
+    # that region and is actively editing it. Passing the callee is a one-line change there, handed
+    # over rather than taken, to avoid two sessions editing one dense interlock in the same hour.
+    "on_harvest_complete": "cpap_inventory_adapter — the callee for capture.py's `on_complete` hook "
+                           "(_cpap_loop, merged). Unwired because the call site is another session's "
+                           "to change; the signature and the exact one-liner have been handed to them. "
+                           "Retire this the moment `on_complete=` is passed at capture.py's cpap_poller",
     "assemble_spool": "acq_evidence_cpap Phase B — the spool evidence assembler, honestly recorded as "
                       "tested-not-witnessed; its consumer is the FIRST WITNESSED PULL (CPAP-SPOOL-"
                       "ACQUISITION Do-1/Do-2), which needs the device. Retire this when that pull lands",

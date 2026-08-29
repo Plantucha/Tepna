@@ -54,7 +54,7 @@ jobs:
     outputs:
       run: ${{ steps.filter.outputs.run }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0          # both endpoints of the PR diff must be present
       - id: filter
@@ -94,7 +94,7 @@ jobs:
     # 4–7 min success history. Terminal-and-visible beats pending-forever.
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
