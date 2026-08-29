@@ -19,7 +19,8 @@
 from __future__ import annotations
 
 __all__ = ["DETECTOR_STALE_MULTIPLE", "stale_after_s", "detector_age_s", "live_view",
-           "EndWatch", "observe", "harvest_due"]
+           "EndWatch", "observe", "harvest_due",
+           "CATCH_UP_MAX_AGE_S", "journal_rows", "last_therapy_end", "boot_state"]
 
 # ── how old is too old ─────────────────────────────────────────────────────────────────────────
 # DERIVED, not chosen by feel. The shadow detector's promise is one reading every
@@ -168,3 +169,93 @@ def harvest_due(watch: EndWatch, now_ms, debounce_s: float = 600.0):
     if held < float(debounce_s):
         return False, f"therapy ended {held:.0f}s ago; debounce is {float(debounce_s):.0f}s"
     return True, f"therapy ended and held for {held:.0f}s"
+
+
+# ── boot-time catch-up ─────────────────────────────────────────────────────────────────────────
+# 🔴 AN EDGE TRIGGER WITH RAM STATE CANNOT SEE AN EDGE THAT SPANNED ITS OWN RESTART. Measured
+# 2026-08-29: the owner rebooted at 06:26 and the therapy end landed at 06:28:03, two seconds after
+# the daemon came up at 06:28:01. `observe` correctly refused to call it an end — a box that boots
+# into standby has not ENDED anything, and inventing an end from ignorance is the fabricated negative
+# §2.6 forbids. So the trigger did not fire, and the night's second witnessing attempt was lost to a
+# restart rather than to a defect.
+#
+# The fix does NOT add a second firing path. It SEEDS the same `EndWatch` from the journal, so the
+# already-tested `harvest_due` decides — same debounce, same fire-once, one decision core.
+#
+# ⚠️ THE 24-HOUR BOUND IS THE POINT, and the debounce horizon would have been the wrong number. A
+# 600 s bound would miss an end at 06:20 on a box rebooted at 07:30 — precisely the case catch-up
+# exists for. The true backstop for anything older is the daily 13:00 window, which is unchanged: a
+# box that was off for a week harvests at its first 13:00, not at boot, which is also the right radio
+# behaviour for a box that has just come back. So catch-up owns ends younger than a day; the daily
+# window owns the rest, by design rather than by omission.
+CATCH_UP_MAX_AGE_S = 86400.0
+
+
+def journal_rows(text):
+    """`[(host_ms, fg_state)]` from a SESSIONDETECT journal, ascending. Pure.
+
+    The ONE place that knows this file's column layout: `host_ms` first, `fg_state` at index 8. A row
+    that cannot yield a float first column is the header or a torn line and is skipped."""
+    rows = []
+    for line in str(text or "").splitlines():
+        parts = line.split(";")
+        if len(parts) < 9:
+            continue
+        try:
+            ms = float(parts[0])
+        except ValueError:
+            continue
+        rows.append((ms, parts[8].strip()))
+    rows.sort()
+    return rows
+
+
+def last_therapy_end(rows):
+    """`(end_ms, ended)` — when therapy last STOPPED, and whether the journal ends out of therapy. Pure.
+
+    `end_ms` is the stamp of the first non-Therapy row after the last Therapy row, which is when the
+    end was OBSERVED — not when it occurred. Those differ by up to one poll, and the observed stamp is
+    the honest one: it is the only instant this file actually witnessed.
+
+    `(None, False)` when the journal holds no Therapy at all, and `(None, True)` never happens — the
+    two are returned together precisely so a caller cannot read "no end recorded" as "not in therapy".
+    A journal ending IN Therapy returns `(<the previous end>, False)`, so a caller that ignores the
+    flag would catch up during a running session."""
+    last_therapy = None
+    for i, (_ms, fg) in enumerate(rows):
+        if fg == "Therapy":
+            last_therapy = i
+    if last_therapy is None:
+        return None, False
+    if last_therapy == len(rows) - 1:
+        return None, False                # the journal ends IN therapy: no end has been observed yet
+    return rows[last_therapy + 1][0], True
+
+
+def boot_state(end_ms, ended, fired_for, now_ms, max_age_s: float = CATCH_UP_MAX_AGE_S):
+    """`(EndWatch, reason)` — the state a JUST-STARTED daemon should begin with. Pure.
+
+    Returns a seeded watch only when every one of these holds, and names which one failed otherwise,
+    because a catch-up that silently declines is indistinguishable from one that is broken:
+      · the journal witnessed an end (`ended`), so we are not seeding during a running session;
+      · that end has not already been harvested (`fired_for`), which is why the marker is PERSISTED
+        rather than inferred from the output tree — a harvest that wrote some files and then died
+        looks identical to a complete one from the outside;
+      · the end is younger than `max_age_s`.
+    `fired_for` is carried into every returned watch, seeded or not, so a restart can never re-harvest
+    an end the previous process already handled."""
+    fresh = EndWatch(False, None, fired_for)
+    if not ended or end_ms is None:
+        return fresh, "no observed therapy end in the journal"
+    try:
+        age = (float(now_ms) - float(end_ms)) / 1000.0
+    except (TypeError, ValueError):
+        return fresh, "unusable timestamps"
+    if fired_for == end_ms:
+        return fresh, "the last therapy end was already harvested"
+    if age < 0:
+        return fresh, "the last therapy end is in the future — clock disagreement, not a missed edge"
+    if age > float(max_age_s):
+        return fresh, (f"the last therapy end is {age / 3600.0:.1f}h old, older than the "
+                       f"{float(max_age_s) / 3600.0:.0f}h catch-up bound; the daily window owns it")
+    return EndWatch(True, end_ms, fired_for), f"catching up a therapy end from {age / 60.0:.0f} min ago"
