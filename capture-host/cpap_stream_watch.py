@@ -26,6 +26,7 @@ from __future__ import annotations
 __all__ = [
     "OK",
     "NEVER_STARTED",
+    "AUTOSTART_FAILED",
     "DIED_EARLY",
     "UNKNOWN",
     "MIN_THERAPY_MIN",
@@ -38,6 +39,7 @@ __all__ = [
 
 OK = "ok"
 NEVER_STARTED = "never-started"  # therapy ran, the stream was never opened at all
+AUTOSTART_FAILED = "auto-start-failed"  # automation TRIED and could not — not a missed click
 DIED_EARLY = "died-early"  # the stream opened and covered far less than the session
 UNKNOWN = "unknown"  # no measured therapy duration — REFUSES to judge
 
@@ -53,12 +55,18 @@ MIN_THERAPY_MIN = 30.0
 MIN_COVER = 0.5
 
 
-def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN, min_cover: float = MIN_COVER) -> dict:
+def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
+           min_cover: float = MIN_COVER, attempts=None, last_error=None) -> dict:
     """`{state, detail, therapy_min, stream_min, cover}` — did the live stream record the session? PURE.
 
     `therapy_min` is None when the detector could not measure it. That is UNKNOWN, not zero: treating
     an unmeasured session as "no therapy" would silence the watchdog exactly when the detector is the
-    thing that broke, and treating it as zero therapy would report OK for a night nobody watched."""
+    thing that broke, and treating it as zero therapy would report OK for a night nobody watched.
+
+    `attempts`/`last_error` come from auto-start's SESSION-KEYED record and separate a failed
+    automation from a missed click. They are keyword-only and default to None so every existing caller
+    keeps its exact behaviour — a box without auto-start armed has no record and still reports
+    NEVER_STARTED, which is the truth there."""
     if therapy_min is None:
         return {
             "state": UNKNOWN,
@@ -90,6 +98,28 @@ def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
         }
     cover = 0.0 if t <= 0 else s / t
     if s <= 0:
+        # 🔴 A FAILED AUTOMATION MUST NEVER WEAR THE MANUAL-GAP LABEL. On disk, "nobody clicked" and
+        # "auto-start tried five times and could not connect" are byte-identical: both are an empty
+        # `edf_dir` beside a full therapy session. They demand OPPOSITE responses — one is a habit to
+        # fix, the other is a bug to fix — so the distinction cannot be left to the reader's guess.
+        # It is only available because auto-start persists an attempt record; absent that record the
+        # honest answer is still NEVER_STARTED, which is what an unarmed box correctly reports.
+        n = 0
+        try:
+            n = int(attempts or 0)
+        except (TypeError, ValueError):
+            n = 0
+        if n > 0:
+            return {
+                "state": AUTOSTART_FAILED,
+                "therapy_min": round(t, 1),
+                "stream_min": 0.0,
+                "cover": 0.0,
+                "attempts": n,
+                "detail": f"therapy ran {t:.0f} min and auto-start failed {n} time(s) — the "
+                f"automation tried and could not open the stream"
+                + (f" (last error: {last_error})" if last_error else ""),
+            }
         return {
             "state": NEVER_STARTED,
             "therapy_min": round(t, 1),

@@ -2144,10 +2144,16 @@ function renderBoxHealth(storage, qc, host, alerts, clk, cpap, cpapLive){
     // is off or its journal is unreadable — which is NOT evidence that the night was fine. Hiding it
     // would make a blind watchdog indistinguishable from a quiet one, the failure it exists to break.
     const unk = cs.state === 'unknown';
+    // 'auto-start-failed' is drawn as its own line, NOT folded into 'never started'. On disk the two
+    // are identical — an empty edf_dir beside a full session — but they call for opposite responses:
+    // one is a habit, the other is a bug. Folding them would hand the reader the wrong job.
+    const failed = cs.state === 'auto-start-failed';
     const val = unk ? 'CPAP stream unverified'
+              : failed ? 'CPAP auto-start failed'
               : cs.state === 'never-started' ? 'CPAP stream never started'
               : 'CPAP stream died early';
     const sub = unk ? esc(cs.detail || 'not measured')
+              : failed ? esc(cs.detail || (cs.attempts+' failed attempt(s)'))
               : Math.round(cs.stream_min||0)+' min recorded of '+Math.round(cs.therapy_min||0)+' min therapy';
     cards.push(`<div class="ov-stat" style="border-left-color:${unk?'var(--status-caution)':'var(--status-bad)'}">
       <div class="lab">CPAP capture</div>

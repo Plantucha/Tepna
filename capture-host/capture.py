@@ -4907,13 +4907,27 @@ def _cpap_stream_watch_row(cfg, root, night_name):
     than a finding. A watchdog that reports "all clear" because its own input failed is the defect it
     exists to catch, one level up."""
     import cpap_edf
+    import cpap_live
     import cpap_stream_watch
     therapy = None
+    rows = []
     try:
         with open(os.path.join(root, "SESSIONDETECT.csv"), encoding="utf-8", errors="replace") as fh:
-            therapy = cpap_stream_watch.therapy_minutes(fh.read())
+            text = fh.read()
+        therapy = cpap_stream_watch.therapy_minutes(text)
+        rows = cpap_live.journal_rows(text)
     except OSError:
         pass                              # detector off, or journal absent — stays None, i.e. UNKNOWN
+    # Auto-start's attempt record, but ONLY if it describes the therapy this journal covers. The record
+    # is keyed by therapy-start; a key outside the journal's own span belongs to a session this night's
+    # figures do not include, and carrying it in would let a previous night's failures relabel tonight.
+    # Matching by the journal's OBSERVED span is a check, not an age heuristic — the same reason the
+    # record is keyed rather than timestamped.
+    attempts, last_error = 0, None
+    if rows:
+        rec = _cpap_autostart_record(root)
+        if rec is not None and rows[0][0] <= rec.get("session_ms", -1) <= rows[-1][0]:
+            attempts, last_error = rec.get("attempts") or 0, rec.get("last_error")
     headers = []
     edf_dir = ((cfg.get("cpap") or {}).get("ble_stream") or {}).get("edf_dir")
     if edf_dir:
@@ -4936,7 +4950,8 @@ def _cpap_stream_watch_row(cfg, root, night_name):
                     headers.append((n_rec, float(dur)))
                 except (OSError, ValueError):
                     continue              # unreadable file: contributes nothing to the measurement
-    return cpap_stream_watch.assess(therapy, cpap_stream_watch.stream_minutes(headers))
+    return cpap_stream_watch.assess(therapy, cpap_stream_watch.stream_minutes(headers),
+                                    attempts=attempts, last_error=last_error)
 
 
 async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = None):
@@ -6278,6 +6293,20 @@ _CPAP_AUTOSTART_MARKER = "cpap-autostart-session.json"
 def _cpap_autostart_path(root):
     """Beside `status.json` and the therapy-end marker — the daemon's cross-restart state."""
     return os.path.join(root, "captures", _CPAP_AUTOSTART_MARKER)
+
+
+def _cpap_autostart_record(root):
+    """The raw auto-start record dict, or None. Never raises.
+
+    Distinct from `_cpap_autostart_load`, which answers "is this MY session" for the loop. The
+    watchdog needs the record's own key so it can decide the match itself against the journal it is
+    classifying — asking the loop's question here would need a session the watchdog does not have."""
+    try:
+        with open(_cpap_autostart_path(root)) as fh:
+            rec = json.load(fh)
+        return rec if isinstance(rec, dict) else None
+    except (OSError, ValueError):
+        return None
 
 
 def _cpap_autostart_load(root, session_ms):

@@ -241,3 +241,67 @@ def test_arming_creates_the_task_and_honours_the_configured_numbers(tmp_path):
     cfg = {"cpap": {"ble_stream": {"auto_start": {"enabled": True, "debounce_s": 45, "max_attempts": 2}}}}
     assert capture._maybe_start_cpap_autostart(cfg, str(tmp_path), _Ctl(), tasks, create_task=fake_task) == "TASK"
     assert tasks == ["TASK"] and made["coro"]
+
+
+# ── the watchdog tells a failed automation from a missed click ─────────────────────────────────
+
+import cpap_stream_watch as W  # noqa: E402
+
+
+def _edf(path, n_records, sec):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    h = bytearray(b" " * 256)
+    h[236:244] = f"{n_records:<8d}".encode()
+    h[244:252] = f"{sec:<8g}".encode()
+    path.write_bytes(bytes(h))
+
+
+def test_a_FAILED_AUTOMATION_does_not_wear_the_missed_click_label(tmp_path):
+    """🔴 On disk the two are byte-identical: an empty edf_dir beside a full therapy session. They
+    demand OPPOSITE responses — one is a habit to fix, the other is a bug — so the distinction cannot
+    be left to whoever reads the report."""
+    _in_therapy(tmp_path, n=720)
+    capture._cpap_autostart_save(str(tmp_path), float(T0), attempts=3, last_error="no link")
+    got = capture._cpap_stream_watch_row(
+        {"cpap": {"ble_stream": {"edf_dir": str(tmp_path / "edf")}}}, str(tmp_path), "2026-08-29"
+    )
+    assert got["state"] == W.AUTOSTART_FAILED
+    assert got["attempts"] == 3 and "no link" in got["detail"]
+
+
+def test_WITHOUT_a_record_the_same_night_is_still_NEVER_STARTED(tmp_path):
+    """An unarmed box has no record, and "nobody clicked" is then the truth rather than a fallback."""
+    _in_therapy(tmp_path, n=720)
+    got = capture._cpap_stream_watch_row({}, str(tmp_path), "2026-08-29")
+    assert got["state"] == W.NEVER_STARTED and "attempts" not in got
+
+
+def test_a_record_from_a_DIFFERENT_night_cannot_relabel_this_one(tmp_path):
+    """The record is keyed by therapy-start. A key outside this journal's own observed span belongs to
+    a session these figures do not include — matched by KEY against the journal, not aged out."""
+    _in_therapy(tmp_path, n=720)
+    capture._cpap_autostart_save(str(tmp_path), float(T0 - 86_400_000), attempts=4, last_error="old")
+    got = capture._cpap_stream_watch_row({}, str(tmp_path), "2026-08-29")
+    assert got["state"] == W.NEVER_STARTED, "a previous night's failures relabelled tonight"
+
+
+def test_a_record_does_not_override_a_stream_that_DID_run(tmp_path):
+    """Attempts only explain an ABSENT stream. A stream that opened and died early is died-early
+    whatever the earlier attempts were — otherwise a retry that eventually succeeded would be
+    reported as a failure."""
+    _in_therapy(tmp_path, n=720)
+    capture._cpap_autostart_save(str(tmp_path), float(T0), attempts=2, last_error="transient")
+    _edf(tmp_path / "edf" / "DATALOG" / "20260829" / "a_BRP.edf", 1, 60)
+    got = capture._cpap_stream_watch_row(
+        {"cpap": {"ble_stream": {"edf_dir": str(tmp_path / "edf")}}}, str(tmp_path), "2026-08-29"
+    )
+    assert got["state"] == W.DIED_EARLY
+
+
+def test_a_CORRUPT_record_falls_back_to_never_started_rather_than_raising(tmp_path):
+    _in_therapy(tmp_path, n=720)
+    p = capture._cpap_autostart_path(str(tmp_path))
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    for bad in ("{oops", "[1,2]", '{"attempts": "x"}'):
+        open(p, "w").write(bad)
+        assert capture._cpap_stream_watch_row({}, str(tmp_path), "2026-08-29")["state"] == W.NEVER_STARTED
