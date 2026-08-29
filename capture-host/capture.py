@@ -5003,6 +5003,21 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             summ["cpap_stream"] = await asyncio.to_thread(_cpap_stream_watch_row, cfg, root, current)
             STATUS["qc"] = summ
             _qc = os.path.join(night, "QC-SUMMARY.json")
+            # 🔴 THIS FILE HAS MORE THAN ONE WRITER, and this poller rewrites it WHOLESALE every
+            # `poll_sec`. The CPAP inventory reconciler merges its own field in after the 13:00
+            # harvest; without the carry-forward below, that field survived at most ten minutes and
+            # was always absent by the morning anyone would read it — a reconciliation that ran,
+            # wrote, and was erased before it was seen. Verified by construction, not assumed.
+            # Keys WE produce always win; anything else present is another writer's and is preserved.
+            # ⚠️ A key that `summarize` stops emitting would therefore persist here forever. That is
+            # the accepted cost of not silently deleting a peer's field, and the reason this merges
+            # rather than deep-merges: we never edit inside another writer's value.
+            with contextlib.suppress(OSError, ValueError):
+                with open(_qc) as fh:
+                    prior = json.load(fh)
+                if isinstance(prior, dict):
+                    for k, v in prior.items():
+                        summ.setdefault(k, v)
             with open(_qc + ".tmp", "w") as fh:
                 json.dump(summ, fh, indent=2)
             os.replace(_qc + ".tmp", _qc)   # atomic
@@ -5517,6 +5532,29 @@ async def charger_pull_poller(cfg: dict, root: str):
                          dev.get("name"), type(e).__name__)   # autopull_poller is the backstop, no spam
 
 
+def _cpap_inventory_report(result, cfg, root, dest):
+    """Reconcile the harvest against the card's inventory. All I/O and roots; no decisions.
+
+    The four roots are the daemon's, not the reporter's: `dest_root` is where the harvest writes,
+    `envelope_root` is the live BLE stream's tree (None on a box with no stream — the adapter reads
+    that as UNCONSULTED, not as an empty card), `spool_root` is the box root, and the two report paths
+    sit in the night dir beside QC-SUMMARY.json so a night's evidence stays in one place."""
+    import cpap_inventory_adapter
+    night = _current_night(os.path.join(root, "captures"),
+                           float((cfg.get("storage") or {}).get("settle_sec", _NIGHT_SETTLE_S)))
+    if night is None:
+        return None                       # no night dir yet: nowhere to file a report, and nothing to
+                                          # reconcile against — a box that has captured nothing tonight
+    nd = os.path.join(root, "captures", night)
+    return cpap_inventory_adapter.on_harvest_complete(
+        result, dest_root=dest,
+        envelope_root=((cfg.get("cpap") or {}).get("ble_stream") or {}).get("edf_dir"),
+        spool_root=root,
+        qc_path=os.path.join(nd, "QC-SUMMARY.json"),
+        journal_path=os.path.join(nd, "CPAP-INVENTORY.jsonl"),
+        log=log)
+
+
 async def cpap_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = None):
     """Harvest the ResMed card off its ez Share Wi-Fi SD adapter, once a day, while nothing is streaming.
     Executes `CPAP-AUTOHARVEST-2026-07-26-BRIEF.md`. Opt-in (`cpap.enabled`).
@@ -5580,7 +5618,14 @@ async def cpap_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" =
                          # the debounce is in the supervisor's active/idle state, which this trigger
                          # does not read. See `cpap_live.harvest_due` — kept as insurance, not as a
                          # response to an observed flap.
-                         end_debounce_s=float(ccfg.get("therapy_end_debounce_sec", 600.0)))
+                         end_debounce_s=float(ccfg.get("therapy_end_debounce_sec", 600.0)),
+                         # WHAT DID THE CARD HOLD THAT WE NEVER CAPTURED? The harvest reports what it
+                         # MOVED; only a reconciliation against the card's own inventory can report
+                         # what it MISSED, and a missed night is invisible in every other surface —
+                         # the same silence the stream watchdog above exists to break, one layer out.
+                         # The callee never raises (`on_harvest_complete` swallows its own errors) and
+                         # `_fire` guards regardless: a reporter must not change a harvest's outcome.
+                         on_complete=lambda res: _cpap_inventory_report(res, cfg, root, dest))
     finally:
         # Whatever ends this task — shutdown, cancellation, an escaping error — the card is released.
         # shield() because at shutdown this task is already being cancelled and a bare await here would

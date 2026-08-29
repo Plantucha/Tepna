@@ -23,13 +23,23 @@
 
 from __future__ import annotations
 
-__all__ = ["OK", "NEVER_STARTED", "DIED_EARLY", "UNKNOWN", "MIN_THERAPY_MIN", "MIN_COVER",
-           "MAX_GAP_S", "assess", "therapy_minutes", "stream_minutes"]
+__all__ = [
+    "OK",
+    "NEVER_STARTED",
+    "DIED_EARLY",
+    "UNKNOWN",
+    "MIN_THERAPY_MIN",
+    "MIN_COVER",
+    "MAX_GAP_S",
+    "assess",
+    "therapy_minutes",
+    "stream_minutes",
+]
 
 OK = "ok"
-NEVER_STARTED = "never-started"      # therapy ran, the stream was never opened at all
-DIED_EARLY = "died-early"            # the stream opened and covered far less than the session
-UNKNOWN = "unknown"                  # no measured therapy duration — REFUSES to judge
+NEVER_STARTED = "never-started"  # therapy ran, the stream was never opened at all
+DIED_EARLY = "died-early"  # the stream opened and covered far less than the session
+UNKNOWN = "unknown"  # no measured therapy duration — REFUSES to judge
 
 # A session shorter than this is not evidence of a missed capture: a machine switched on to check a
 # setting, or a mask fitted and removed, legitimately produces minutes of Therapy and no stream. The
@@ -43,41 +53,68 @@ MIN_THERAPY_MIN = 30.0
 MIN_COVER = 0.5
 
 
-def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
-           min_cover: float = MIN_COVER) -> dict:
+def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN, min_cover: float = MIN_COVER) -> dict:
     """`{state, detail, therapy_min, stream_min, cover}` — did the live stream record the session? PURE.
 
     `therapy_min` is None when the detector could not measure it. That is UNKNOWN, not zero: treating
     an unmeasured session as "no therapy" would silence the watchdog exactly when the detector is the
     thing that broke, and treating it as zero therapy would report OK for a night nobody watched."""
     if therapy_min is None:
-        return {"state": UNKNOWN, "therapy_min": None, "stream_min": stream_min, "cover": None,
-                "detail": "no therapy duration measured (detector off, or its journal absent) — "
-                          "this is not evidence that no therapy ran"}
+        return {
+            "state": UNKNOWN,
+            "therapy_min": None,
+            "stream_min": stream_min,
+            "cover": None,
+            "detail": "no therapy duration measured (detector off, or its journal absent) — "
+            "this is not evidence that no therapy ran",
+        }
     try:
         t = float(therapy_min)
         s = float(stream_min or 0.0)
     except (TypeError, ValueError):
-        return {"state": UNKNOWN, "therapy_min": None, "stream_min": None, "cover": None,
-                "detail": f"unusable durations: therapy={therapy_min!r} stream={stream_min!r}"}
+        return {
+            "state": UNKNOWN,
+            "therapy_min": None,
+            "stream_min": None,
+            "cover": None,
+            "detail": f"unusable durations: therapy={therapy_min!r} stream={stream_min!r}",
+        }
     if t < float(min_therapy_min):
-        return {"state": OK, "therapy_min": round(t, 1), "stream_min": round(s, 1), "cover": None,
-                "detail": f"therapy ran {t:.0f} min, below the {float(min_therapy_min):.0f} min floor "
-                          f"— too short to call a missed capture"}
+        return {
+            "state": OK,
+            "therapy_min": round(t, 1),
+            "stream_min": round(s, 1),
+            "cover": None,
+            "detail": f"therapy ran {t:.0f} min, below the {float(min_therapy_min):.0f} min floor "
+            f"— too short to call a missed capture",
+        }
     cover = 0.0 if t <= 0 else s / t
     if s <= 0:
-        return {"state": NEVER_STARTED, "therapy_min": round(t, 1), "stream_min": 0.0, "cover": 0.0,
-                "detail": f"therapy ran {t:.0f} min and the live stream was never opened — nobody "
-                          f"started it (POST /api/cpap/stream is the only way in; there is no "
-                          f"scheduled starter)"}
+        return {
+            "state": NEVER_STARTED,
+            "therapy_min": round(t, 1),
+            "stream_min": 0.0,
+            "cover": 0.0,
+            "detail": f"therapy ran {t:.0f} min and the live stream was never opened — nobody "
+            f"started it (POST /api/cpap/stream is the only way in; there is no "
+            f"scheduled starter)",
+        }
     if cover < float(min_cover):
-        return {"state": DIED_EARLY, "therapy_min": round(t, 1), "stream_min": round(s, 1),
-                "cover": round(cover, 3),
-                "detail": f"the live stream covered {s:.0f} of {t:.0f} therapy min ({100*cover:.1f} %) "
-                          f"— it opened and stopped early"}
-    return {"state": OK, "therapy_min": round(t, 1), "stream_min": round(s, 1),
+        return {
+            "state": DIED_EARLY,
+            "therapy_min": round(t, 1),
+            "stream_min": round(s, 1),
             "cover": round(cover, 3),
-            "detail": f"the live stream covered {s:.0f} of {t:.0f} therapy min ({100*cover:.1f} %)"}
+            "detail": f"the live stream covered {s:.0f} of {t:.0f} therapy min ({100 * cover:.1f} %) "
+            f"— it opened and stopped early",
+        }
+    return {
+        "state": OK,
+        "therapy_min": round(t, 1),
+        "stream_min": round(s, 1),
+        "cover": round(cover, 3),
+        "detail": f"the live stream covered {s:.0f} of {t:.0f} therapy min ({100 * cover:.1f} %)",
+    }
 
 
 # A detector poll is nominally every 30 s, but the link drops: 41 `BleakDeviceNotFoundError` in one
@@ -105,7 +142,7 @@ def therapy_minutes(text: str, *, max_gap_s: float = MAX_GAP_S):
         try:
             ms = float(parts[0])
         except ValueError:
-            continue                      # the header row, or a torn line
+            continue  # the header row, or a torn line
         rows.append((ms, parts[8].strip()))
     if len(rows) < 2:
         return None
@@ -116,9 +153,9 @@ def therapy_minutes(text: str, *, max_gap_s: float = MAX_GAP_S):
             continue
         gap = (t1 - t0) / 1000.0
         if gap <= 0:
-            continue                      # duplicate or out-of-order stamp: covers no time
+            continue  # duplicate or out-of-order stamp: covers no time
         elif gap <= float(max_gap_s):
-            total += gap                  # a normal ~30 s poll interval — the observation covers it
+            total += gap  # a normal ~30 s poll interval — the observation covers it
         else:
             # 🔴 A LONG GAP IS A DETECTOR OUTAGE, NOT A LONG TREATMENT. The link drops often on this
             # box — 41 BleakDeviceNotFoundError in one night — so consecutive rows can be an hour

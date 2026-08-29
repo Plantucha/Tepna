@@ -14,8 +14,7 @@ HDR = "host_ms;prior;state;transition;action;trigger;confidence;reachable;fg_sta
 
 
 def _journal(root, rows):
-    (root / "SESSIONDETECT.csv").write_text(
-        "\n".join([HDR] + [f"{ms};i;i;;;i;f;True;{st};0;0;" for ms, st in rows]))
+    (root / "SESSIONDETECT.csv").write_text("\n".join([HDR] + [f"{ms};i;i;;;i;f;True;{st};0;0;" for ms, st in rows]))
 
 
 def _edf(path, n_records, sec_per_record):
@@ -35,7 +34,7 @@ def test_the_2026_08_26_night_therapy_ran_and_NOTHING_recorded_it(tmp_path):
     """The case that motivated this: a full session, an empty `edf_dir`, and not one warning anywhere.
     The stream is operator-initiated and nobody clicked."""
     t0 = 1_787_000_000_000
-    _journal(tmp_path, [(t0 + i * 30_000, "Therapy") for i in range(720)])   # 6 h
+    _journal(tmp_path, [(t0 + i * 30_000, "Therapy") for i in range(720)])  # 6 h
     got = capture._cpap_stream_watch_row(_cfg(tmp_path / "edf"), str(tmp_path), "2026-08-26")
     assert got["state"] == W.NEVER_STARTED
     assert got["therapy_min"] > 300

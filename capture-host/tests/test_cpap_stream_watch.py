@@ -34,7 +34,7 @@ def test_a_late_manual_start_is_NOT_a_finding():
     """The stream is started BY HAND after the machine, so some therapy always precedes it. A few
     minutes of head-start is normal; half a session is not."""
     assert W.assess(therapy_min=380.0, stream_min=370.0)["state"] == W.OK
-    assert W.assess(therapy_min=380.0, stream_min=200.0)["state"] == W.OK      # 53 %, above the floor
+    assert W.assess(therapy_min=380.0, stream_min=200.0)["state"] == W.OK  # 53 %, above the floor
     assert W.assess(therapy_min=380.0, stream_min=180.0)["state"] == W.DIED_EARLY  # 47 %, below it
 
 
@@ -72,6 +72,7 @@ def test_the_thresholds_are_parameters_because_they_are_per_device():
 
 # ── the parsers: measurement vs absence-of-measurement ──────────────────────────────────────────
 
+
 def _row(ms, fg):
     return f"{ms};idle;idle;;;idle_steady;fgstate_only;True;{fg};0;0.1;"
 
@@ -89,9 +90,14 @@ def test_therapy_minutes_sums_what_each_observation_COVERS():
 def test_a_session_that_ENDS_and_RESTARTS_does_not_count_the_idle_middle():
     """Span-from-first-to-last would credit the gap as treatment. It is not treatment."""
     t0 = 1_787_000_000_000
-    rows = [_row(t0, "Therapy"), _row(t0 + 30_000, "Therapy"),
-            _row(t0 + 60_000, "Standby"), _row(t0 + 3_600_000, "Standby"),
-            _row(t0 + 3_630_000, "Therapy"), _row(t0 + 3_660_000, "Therapy")]
+    rows = [
+        _row(t0, "Therapy"),
+        _row(t0 + 30_000, "Therapy"),
+        _row(t0 + 60_000, "Standby"),
+        _row(t0 + 3_600_000, "Standby"),
+        _row(t0 + 3_630_000, "Therapy"),
+        _row(t0 + 3_660_000, "Therapy"),
+    ]
     got = W.therapy_minutes("\n".join([_HDR] + rows))
     assert abs(got - 1.5) < 1e-6, "the idle hour between two sessions was counted as therapy"
 
@@ -118,7 +124,7 @@ def test_stream_minutes_zero_IS_a_measurement_unlike_therapy_None():
     """`edf_dir` read and holding no EDF is evidence of absence. Not the same as a journal that could
     not be read — absence from a source that WAS read is evidence; absence of a reading is not."""
     assert W.stream_minutes([]) == 0.0
-    assert W.stream_minutes([(1, 60.0)]) == 1.0          # the 08-27 one-record file
+    assert W.stream_minutes([(1, 60.0)]) == 1.0  # the 08-27 one-record file
     assert W.stream_minutes([(315, 60.0), (233, 60.0)]) == 548.0
     assert W.stream_minutes([(0, 60.0), ("x", "y"), None]) == 0.0
 
