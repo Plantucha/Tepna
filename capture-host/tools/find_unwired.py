@@ -113,14 +113,10 @@ ALLOW_FUNCS = {
     # Both suppressions are now SPENT — cpap_inventory_adapter consumes them — and the tool said so
     # ("the suppression is spent") before a human did, which is the entry-retirement rule working.
     #
-    # What remains unwired is the adapter's own entry point, and only because the CALL SITE IS NOT
-    # MINE: capture.py's `_cpap_loop(..., on_complete=None)` hook belongs to the session that owns
-    # that region and is actively editing it. Passing the callee is a one-line change there, handed
-    # over rather than taken, to avoid two sessions editing one dense interlock in the same hour.
-    "on_harvest_complete": "cpap_inventory_adapter — the callee for capture.py's `on_complete` hook "
-                           "(_cpap_loop, merged). Unwired because the call site is another session's "
-                           "to change; the signature and the exact one-liner have been handed to them. "
-                           "Retire this the moment `on_complete=` is passed at capture.py's cpap_poller",
+    # `on_harvest_complete` was suppressed here too, on the narrower ground that the CALL SITE was
+    # another session's to change. That condition named its own retirement — "the moment `on_complete=`
+    # is passed at capture.py's cpap_poller" — and that moment has arrived, so the entry is gone rather
+    # than left behind as a spent suppression describing a handover that has completed.
     "assemble_spool": "acq_evidence_cpap Phase B — the spool evidence assembler, honestly recorded as "
                       "tested-not-witnessed; its consumer is the FIRST WITNESSED PULL (CPAP-SPOOL-"
                       "ACQUISITION Do-1/Do-2), which needs the device. Retire this when that pull lands",
