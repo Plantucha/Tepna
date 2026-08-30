@@ -4653,8 +4653,7 @@ def test_the_check_is_OPT_IN_so_user_pulls_are_unchanged(monkeypatch):
 def test_only_the_clock_sync_call_site_opts_in():
     """Pins the wiring: if a future edit passes presence_check_s from the pull path, a user-clicked pull
     starts silently skipping on a bad scan."""
-    import inspect
-    src = inspect.getsource(capture)
+    src = module_source("capture.py")
     sites = [l for l in src.splitlines() if "presence_check_s=" in l and "def " not in l]
     assert len(sites) == 1, f"exactly one caller may opt in, found: {sites}"
     assert "_CLOCK_SYNC_PRESENCE_S" in sites[0]
