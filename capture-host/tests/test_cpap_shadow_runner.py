@@ -447,3 +447,29 @@ def test_recording_a_failure_can_never_become_a_second_failure():
             raise OSError("disk full")
 
     R._write_unreachable(_Boom(), lambda: 1787000000.0, ValueError("x"))  # must not raise
+
+
+# ── the seam that tells the caller a poll RAN AND FAILED ──────────────────────────────────────────
+def test_A_FAILED_POLL_NOTIFIES_THE_CALLER_WITH_THE_EXCEPTION():
+    """The loop has three outcomes and only two were observable from outside.
+
+    A DEFERRED cycle (a wearable is streaming, so we never looked) writes nothing and calls nothing.
+    A SUCCESSFUL poll calls `on_cycle`. A poll that ran and FAILED wrote a journal row and then
+    `continue`d before `on_cycle` — so STATUS saw successes only and could not tell "the machine did
+    not answer" from "we did not ask". Those need opposite responses."""
+    seen = []
+    R._notify_unreachable(seen.append, OSError("boom"))
+    assert len(seen) == 1 and isinstance(seen[0], OSError)
+
+
+def test_NO_HOOK_IS_NOT_AN_ERROR():
+    R._notify_unreachable(None, OSError("boom"))     # must simply return
+
+
+def test_A_HOOK_THAT_RAISES_DOES_NOT_BECOME_A_SECOND_FAILURE():
+    # A REPORT about a failure must never take the loop down with it — the same rule
+    # `_write_unreachable` follows.
+    def _boom(_exc):
+        raise RuntimeError("hook exploded")
+
+    R._notify_unreachable(_boom, OSError("boom"))    # must not raise

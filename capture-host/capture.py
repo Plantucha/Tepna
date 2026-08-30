@@ -20,6 +20,7 @@ import oxyii
 import acq_evidence_o2ring
 import bonding
 import helper_path
+import bluez_wedge
 import link_distress
 import wifi_uplink
 import link_rssi
@@ -4404,6 +4405,7 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
     # test can detect is a claim nobody is checking.
     recover = int(wcfg.get("recover_checks", 2))
     consecutive = cycles = silent = healthy_run = failovers = 0
+    wedge_restarts, wedge_day = 0, None      # per-device wedge budget, reset each day
     max_failovers = int(wcfg.get("max_failovers", 3))   # P1.5: cap ping-pong between two flaky radios
     sel = f"select {adapter_mac}\n" if adapter_mac else ""
     while not _STOP.is_set():
@@ -4469,6 +4471,48 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                     silent = 0
                     log.error("watchdog: adapter reports UP but hears nothing — restarting bluetooth")
                     await _restart_radio()
+            # ── IS BLUEZ BLIND TO ONE DEVICE? (the PARTIAL wedge) ────────────────────────────
+            # The rung above cannot reach this failure and never could: it short-circuits on
+            # `connected_any`, and a per-device wedge's SIGNATURE is that everything else keeps
+            # working. On 2026-08-29 the CPAP was invisible for twelve hours while the H10 and the
+            # O2Ring streamed throughout; hci0 enumerated 107 devices and never listed the CPAP; a
+            # 32-second `bluetooth.service` restart cured it. Every existing check was green.
+            #
+            # The CPAP is deliberately NOT in `cfg["devices"]` — it arrives as FILES on a timer and
+            # would render as a permanently-dead sensor in the roster — so its unreachability reaches
+            # this loop through the DETECTOR's status, not through `devs`.
+            cpap_st = STATUS.get("cpap") or {}
+            if cpap_st.get("enabled") and cpap_st.get("unreachable_streak"):
+                last_ms = cpap_st.get("last_seen_ms")
+                age_s = None if last_ms is None else max(0.0, _time.time() - last_ms / 1000.0)
+                today = _dt.date.today()
+                if wedge_day != today:
+                    wedge_day, wedge_restarts = today, 0
+                verdict, why = bluez_wedge.wedge_verdict(
+                    int(cpap_st.get("unreachable_streak") or 0),
+                    # `connected_any` IS the honest reading of "demonstrably healthy" here: if nothing
+                    # is connected we are in the deafness rung's territory, and `wedge_verdict` returns
+                    # UNKNOWN for that rather than claiming a per-device fault.
+                    radio_healthy=connected_any,
+                    last_seen_age_s=age_s)
+                STATUS["cpap_wedge"] = {"verdict": verdict, "reason": why,
+                                        "class": cpap_st.get("last_unreachable_class")}
+                if verdict == bluez_wedge.WEDGED:
+                    ok, budget_why = bluez_wedge.restart_allowed(wedge_restarts)
+                    if ok:
+                        wedge_restarts += 1
+                        log.error("watchdog: bluez appears BLIND TO THE CPAP (%s; last error %s) — "
+                                  "restarting bluetooth [%s]", why,
+                                  cpap_st.get("last_unreachable_class"), budget_why)
+                        await _restart_radio()
+                        # Clear the streak so the next poll starts the evidence over. Without this the
+                        # verdict stays WEDGED on stale counts and spends the whole budget at once.
+                        STATUS.setdefault("cpap", {})["unreachable_streak"] = 0
+                    else:
+                        # SAY IT ANYWAY. The budget governs what we DO, never what we report — a
+                        # wedged night must not read as healthy because our bookkeeping ran out.
+                        log.error("watchdog: bluez appears BLIND TO THE CPAP (%s) but %s", why, budget_why)
+
             # IS THE RADIO COPING? A CLEAN POLL IS NOT THE SAME AS A HEALTHY RADIO — the checks
             # above ask whether the adapter is WEDGED, and a radio that is up, answering, and simply
             # cannot hold its links passes every one of them. That is the 2026-08-29 ring storm: 269
@@ -6402,6 +6446,23 @@ def _cpap_acq_evidence_writer():
     return _write
 
 
+def _note_cpap_unreachable(exc):
+    """A CPAP poll RAN AND FAILED — record it where the watchdog can see it.
+
+    ⚠️ ONLY ACTUAL FAILURES REACH HERE. A cycle deferred because a wearable is streaming never calls
+    this, and that is the distinction the whole rung rests on: absence-because-we-never-looked is not
+    evidence about the device, and counting it would fire the wedge detector every time a sensor
+    streamed.
+
+    `last_unreachable_class` answers the question the CSV could not (Brief runner's F2): a
+    `BleakDeviceNotFoundError` (the machine is off) and an `InProgress` (the radio is contended by our
+    own captures) are byte-identical UNKNOWNs in the journal, and they need opposite responses."""
+    st = STATUS.setdefault("cpap", {})
+    st["reachable"] = False
+    st["unreachable_streak"] = int(st.get("unreachable_streak") or 0) + 1
+    st["last_unreachable_class"] = type(exc).__name__
+
+
 def _publish_therapy_state(decision, _anchor):
     """Surface the detector's view of the MACHINE into STATUS['cpap'] so the monitor can say whether
     THERAPY is running — a question the card could not previously answer.
@@ -6426,6 +6487,13 @@ def _publish_therapy_state(decision, _anchor):
     st["therapy"] = None if not ev.get("reachable") else (st["fg_state"] == cpap_supervisor.TherapyState.THERAPY.value)
     st["session"] = getattr(getattr(decision, "state", None), "name", None)
     st["detector_host_ms"] = getattr(decision, "host_ms", None)
+    # A poll that RAN and ANSWERED. This is the only place `last_seen_ms` moves, and it is what
+    # separates "bluez lost the machine" from "the machine is not here" for `bluez_wedge`.
+    if ev.get("reachable"):
+        st["reachable"] = True
+        st["last_seen_ms"] = _time.time() * 1000.0
+        st["unreachable_streak"] = 0
+        st["last_unreachable_class"] = None
 
 
 def _maybe_start_as11_shadow(cfg, config_path, root, cpap_ctl, tasks, *,
@@ -6471,7 +6539,7 @@ def _maybe_start_as11_shadow(cfg, config_path, root, cpap_ctl, tasks, *,
         session_writer=cpap_shadow_runner.SessionSidecar(os.path.join(root, "SESSIONDETECT.csv")),
         clock_writer=as11_clock.ClockSidecar(os.path.join(root, "AS11CLOCK.csv")),
         host_epoch=_time.time, sleep=asyncio.sleep, poll_interval_s=interval, should_stop=_STOP.is_set,
-        on_cycle=_publish_therapy_state))
+        on_cycle=_publish_therapy_state, on_unreachable=_note_cpap_unreachable))
     TASK_LABELS[id(task)] = "AS11 shadow detector"
     tasks.append(task)
     log.info("AS11 session detector: SHADOW enabled on %s (poll %ss) → SESSIONDETECT.csv + AS11CLOCK.csv",
