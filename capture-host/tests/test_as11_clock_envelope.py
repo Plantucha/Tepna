@@ -229,3 +229,89 @@ def test_the_controller_FORWARDS_a_provider_when_it_has_one():
 
     asyncio.run(_drive())
     assert seen["prov"] is _prov, "the controller dropped the provider it was given"
+
+
+# ── boundaries and mid-file damage: gaps the diff-scoped mutation gate found ─────────────────────
+
+
+def test_a_TORN_LINE_MID_FILE_does_not_truncate_the_rest():
+    """🔴 `continue` vs `break`. The earlier torn-row test put its bad lines at the END, where the two
+    are indistinguishable — the mutation gate caught that. A torn line in the MIDDLE is the case that
+    matters: `break` would silently drop every anchor after it and still return a plausible offset
+    from the surviving prefix, which is worse than refusing."""
+    rows = [f"w;{H0 + i * 30.0};iso;{H0 + i * 30.0 + AHEAD_S};{-AHEAD_S}" for i in range(10)]
+    rows.insert(5, "torn")  # too few columns, mid-file
+    rows.insert(6, f"w;notanumber;iso;{H0};0")  # unparseable, mid-file
+    got = A.offset_for_envelope("\n".join([HDR] + rows))
+    # The LAST anchor must still be seen — that is what `break` would have lost.
+    assert got["measured_at_ms"] == A._host_epoch_to_floating_ms(H0 + 9 * 30.0)
+
+
+def test_EXACTLY_TWO_anchors_is_enough_and_one_is_not():
+    """The boundary `analyze` sets, pinned on both sides. Requiring three would silently refuse a
+    short but perfectly good sidecar, and nothing else in the suite would notice."""
+    two = "\n".join(
+        [HDR, f"w;{H0};iso;{H0 + AHEAD_S};{-AHEAD_S}", f"w;{H0 + 30.0};iso;{H0 + 30.0 + AHEAD_S};{-AHEAD_S}"]
+    )
+    assert A.offset_for_envelope(two)["offset_sec"] == AHEAD_S
+    one = "\n".join([HDR, f"w;{H0};iso;{H0 + AHEAD_S};{-AHEAD_S}"])
+    assert A.offset_for_envelope(one) is None
+
+
+def test_a_row_with_EXACTLY_FOUR_columns_is_still_an_anchor():
+    """The sidecar writes five columns, but only the first four are read. Requiring five would reject
+    a row that carries everything this function needs — a guard stricter than the data it guards."""
+    four = "\n".join([HDR, f"w;{H0};iso;{H0 + AHEAD_S}", f"w;{H0 + 30.0};iso;{H0 + 30.0 + AHEAD_S}"])
+    assert A.offset_for_envelope(four)["offset_sec"] == AHEAD_S
+    three = "\n".join([HDR, f"w;{H0};iso", f"w;{H0 + 30.0};iso"])
+    assert A.offset_for_envelope(three) is None
+
+
+def test_SUB_SECOND_host_time_survives_the_floating_conversion():
+    """`measured_at_ms` is milliseconds, so dropping the microseconds would quietly round staleness to
+    the second. Cheap to keep, and the mutation gate showed nothing was holding it."""
+    t = H0 + 0.25
+    got = A._host_epoch_to_floating_ms(t)
+    assert abs(got - A._host_epoch_to_floating_ms(H0) - 250.0) < 1e-6
+
+
+def test_the_offset_ACTUALLY_REACHES_the_emitted_envelope():
+    """🔴 THE POINT OF THE WHOLE UNIT, and nothing pinned it: the failure-path test alone let
+    `clock_offset=clock_offset` be replaced by `clock_offset=None` with every test still green. This
+    asserts the SUCCESS path end to end through the emit function."""
+    import acq_evidence as ae
+    import cpap_stream
+
+    seen = {}
+
+    class _Raw:
+        path = None
+
+        @staticmethod
+        def acq_facts():
+            return {"session_id": "s1", "device_id": "AS11", "closed": True}
+
+        @staticmethod
+        def close():
+            pass
+
+    class _Counters:
+        total_lost = sink_errors = foreign_stream = 0
+
+        @staticmethod
+        def summary():
+            return {"samples_ok": 10}
+
+    offset = ae.ClockOffset(AHEAD_S, 1.0, "host-wall", "GetDateTime")
+    cpap_stream._emit_acq_evidence(
+        lambda ev: seen.setdefault("ev", ev), [_Raw()], _Counters(), 25.0, True, lambda: offset
+    )
+    ev = seen.get("ev")
+    assert ev is not None
+    assert ev.clock_offset.offset_sec == AHEAD_S, "the measured offset never reached the envelope"
+    assert ev.clock_offset.measured is True
+
+    # ...and with NO provider at all it is the honest absence, not a fabricated zero.
+    seen.clear()
+    cpap_stream._emit_acq_evidence(lambda ev: seen.setdefault("ev", ev), [_Raw()], _Counters(), 25.0, True, None)
+    assert seen["ev"].clock_offset.measured is False
