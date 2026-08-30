@@ -195,3 +195,25 @@ def test_no_adapters_at_all_raises_rather_than_reporting_absence():
         assert "no adapter" in str(e)
     else:
         raise AssertionError("an empty adapter list must not read as a successful absence")
+
+
+def test_the_PRODUCTION_path_discovers_its_own_adapters(monkeypatch):
+    """🔴 Every other test here passes `adapters` explicitly — so the branch that actually RUNS on the
+    box, which asks `list_adapters()` for them, was covered by nothing. The coverage floor caught it.
+
+    Only UP adapters are offered: failing over onto a radio we could not confirm is up is worse than
+    staying put, which is the same rule `failover_target` applies on the capture side."""
+
+    async def fake_list():
+        return [
+            {"mac": "hci0", "up": True},
+            {"mac": "hci9", "up": False},
+            {"mac": None, "up": True},
+            {"mac": "hci2", "up": True},
+        ]
+
+    monkeypatch.setattr(capture, "list_adapters", fake_list)
+    conn, seen = _conn(good="hci2")
+    _got, used, _a = _run(capture._cpap_connect_any_adapter("04:CD", "hci1", 8.0, connect=conn))
+    assert used == "hci2"
+    assert seen == ["hci1", "hci0", "hci2"], f"a DOWN adapter was offered as a fallback: {seen}"
