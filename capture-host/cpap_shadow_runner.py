@@ -22,7 +22,7 @@ import logging
 import os
 
 from cpap_detect import extract_fields
-from cpap_supervisor import Observation
+from cpap_supervisor import Decision, Observation
 
 import as11_clock
 import as11_cipher
@@ -115,8 +115,10 @@ async def run_shadow_loop(
     `is_capturing()` gates the poll — while the CPAP controller streams, the runner takes NO
     connection (it must not fight the controller for the one AS11 link) and just sleeps. When idle,
     it runs one `poll_cycle`, writes the decision to `session_writer` (SESSIONDETECT.csv) and the
-    clock row to `clock_writer` (AS11CLOCK.csv), and — on a device read that failed at the
-    connection level — records nothing but the unreachable decision. `on_cycle`, if given, receives
+    clock row to `clock_writer` (AS11CLOCK.csv), and — on a poll that could not reach the machine at
+    all — writes an UNREACHABLE row rather than nothing. ⚠️ That last clause described behaviour this
+    function did not have until 2026-08-30: it said "records nothing but the unreachable decision"
+    while both failure branches `continue`d before any write, so the journal held successes only. `on_cycle`, if given, receives
     each `(decision, anchor)` (the seam a caller uses to accumulate anchors for as11_clock.analyze)."""
     while not should_stop():
         if is_capturing():
@@ -126,9 +128,12 @@ async def run_shadow_loop(
             decision, anchor, clock_row = await poll_cycle(
                 connect=connect, creds=creds, supervisor=supervisor, host_epoch=host_epoch
             )
-        except (OSError, as11_pull.As11Error):
+        except (OSError, as11_pull.As11Error) as e:
             # connect/establish failed outright — a link we could not open, not a device verdict.
-            # Expected and frequent (the AS11 is off, or the controller holds it), so kept quiet.
+            # Expected and frequent (the AS11 is off, or the controller holds it), so kept quiet in
+            # the LOG — but recorded in the journal, because "expected" is not "not worth knowing":
+            # eleven consecutive hours of it is exactly what made 2026-08-29 unknowable.
+            _write_unreachable(session_writer, host_epoch, e)
             await sleep(poll_interval_s)
             continue
         except Exception as e:
@@ -139,6 +144,7 @@ async def run_shadow_loop(
             # armed, zero rows). Log it so a persistent fault is VISIBLE rather than invisible, then
             # keep polling. (CancelledError is a BaseException, so a clean shutdown still propagates.)
             log.warning("AS11 shadow poll failed (%s: %s) — skipping cycle", type(e).__name__, e)
+            _write_unreachable(session_writer, host_epoch, e)
             await sleep(poll_interval_s)
             continue
         session_writer.write(decision)
@@ -154,6 +160,53 @@ def _utc_iso(epoch_s: float) -> str:
     import datetime
 
     return datetime.datetime.fromtimestamp(epoch_s, datetime.timezone.utc).isoformat(timespec="seconds")
+
+
+def _write_unreachable(session_writer, host_epoch, exc):
+    """Record one unreachable poll. Never raises — a REPORT about a failure must not become a second
+    failure, and least of all one that stops the observer that is still trying."""
+    try:
+        session_writer.write(UnreachableRow(int(host_epoch() * 1000), type(exc).__name__))
+    except Exception:  # noqa: BLE001
+        log.debug("could not record the unreachable poll", exc_info=True)
+
+
+class UnreachableRow:
+    """A poll that could not reach the machine, written as DATA rather than as a gap.
+
+    🔴 WITHOUT THIS, SILENCE IS AMBIGUOUS AND THE FILE CANNOT SAY WHICH. A failed poll used to log and
+    `continue`, so `SESSIONDETECT.csv` recorded only successes — and its silence meant, with equal
+    plausibility: the CPAP is absent · the detector task is dead · the daemon is down. Those need
+    OPPOSITE responses. Measured 2026-08-30: the journal stopped at 19:36:53 and eleven hours later
+    nothing could say whether therapy had run, because nothing had been watching. The night became
+    unknowable, and "no therapy" and "no observer" were byte-identical on disk.
+    (This module's own header already records the mirror case — 2026-08-25, "enabled, armed, zero
+    rows", which was a DEAD TASK producing exactly the same emptiness.)
+
+    ⚠️ THE OBSERVATION COLUMNS ARE BLANK, NEVER ZERO. `fg_state`, `last_therapy_use`, `mask_pressure`
+    and `baseline_use` were not observed, and a zero there would be a measurement nobody made — the
+    same fabrication `reachable=False` exists to prevent. `reachable` is the column the schema has
+    always carried for exactly this and which nothing ever wrote."""
+
+    __slots__ = ("host_ms", "error")
+
+    def __init__(self, host_ms, error):
+        self.host_ms = host_ms
+        self.error = error
+
+    def as_row(self) -> str:
+        cells = {
+            "host_ms": self.host_ms,
+            "prior_state": "",
+            "state": "",
+            "transition": "",
+            "action": "unreachable",
+            "trigger": self.error,      # the error CLASS, so a persistent fault is identifiable
+            "confidence": "",
+            "reachable": False,
+        }
+        return ";".join("" if cells.get(f) is None else str(cells.get(f, ""))
+                        for f in Decision.ROW_FIELDS)
 
 
 class SessionSidecar:
