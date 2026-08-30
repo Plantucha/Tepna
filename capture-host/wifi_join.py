@@ -53,15 +53,33 @@ MAX_PSK_LEN = 63
 
 
 
+# A wpa_cli ssid field that is nothing but escape sequences. Anchored to the WHOLE field: a real name
+# may legitimately contain an escape (a non-ASCII character in a café's network name arrives escaped
+# too), and dropping those would hide joinable networks — the opposite failure, and the worse one.
+_ALL_ESCAPES = re.compile(r"^(?:\\x[0-9a-fA-F]{2})+$")
+
+
+def _is_unprintable_ssid(ssid):
+    """True when the ssid is entirely escape sequences — a hidden network, not a name."""
+    return bool(_ALL_ESCAPES.match(ssid))
+
+
 def parse_scan_results(text):
     """`[{ssid, signal, security, bssid}]` from `wpa_cli scan_results`, best signal first. PURE.
 
     The command's output is TSV with a header: `bssid / frequency / signal level / flags / ssid`.
 
-    ⚠️ HIDDEN AND DUPLICATE SSIDs ARE BOTH REAL. A blank ssid is a hidden network and is dropped —
-    it cannot be joined from a list of names. A repeated ssid is one network on several APs (every
-    hotel has dozens), and it is collapsed to its STRONGEST sighting, or the picker becomes a wall of
-    identical rows."""
+    ⚠️ HIDDEN AND DUPLICATE SSIDs ARE BOTH REAL. A hidden network is dropped — it cannot be joined
+    from a list of names. A repeated ssid is one network on several APs (every hotel has dozens), and
+    it is collapsed to its STRONGEST sighting, or the picker becomes a wall of identical rows.
+
+    🔴 A HIDDEN NETWORK IS NOT A BLANK FIELD, WHICH IS WHAT THIS FUNCTION USED TO ASSUME.
+    `wpa_cli` renders a non-printable ssid as an ESCAPE STRING, so a hidden AP arrives as the literal
+    25 characters `\x00\x00\x00…`, not as "". Dropping only blanks therefore let it straight through,
+    and it rendered in the picker as a clickable row of escape sequences that could never join
+    anything. Measured against the real radio on vigil 2026-08-30 — the first scan ever run against
+    live air, which is exactly when this class of assumption surfaces. The prior test used "" because
+    that is what a hidden network was IMAGINED to look like; nothing had asked the hardware."""
     best = {}
     for line in str(text or "").splitlines():
         parts = line.rstrip("\n").split("\t")
@@ -69,7 +87,7 @@ def parse_scan_results(text):
             continue
         bssid, _freq, sig, flags, ssid = parts[0], parts[1], parts[2], parts[3], "\t".join(parts[4:])
         ssid = ssid.strip()
-        if not ssid:
+        if not ssid or _is_unprintable_ssid(ssid):
             continue  # hidden — not selectable by name
         try:
             signal = int(sig)
