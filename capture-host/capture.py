@@ -1400,15 +1400,42 @@ def parse_hciconfig(text: str) -> list[dict]:
     return out
 
 
-def failover_target(pinned_mac: str | None, adapters: list[dict]) -> str | None:
+def failover_target(pinned_mac: str | None, adapters: list[dict], reserved=()) -> str | None:
     """A healthy adapter to fail over to — UP, addressable, and NOT the pinned (wedged) one — or None.
     PURE. A down spare is no spare; without a MAC the reconnect cannot be pinned to it (adapter_kw needs
-    the MAC); and never the pinned adapter itself, which is the one that just wedged."""
+    the MAC); and never the pinned adapter itself, which is the one that just wedged.
+
+    🔴 `reserved` NAMES RADIOS THAT BELONG TO SOMETHING ELSE — in practice the CPAP's dedicated free
+    radio. `config.example.yaml` calls it "the FREE radio — never the one the wearables capture on",
+    and the whole reason for the split is 2.4 GHz coexistence: a 2026-07-26 measurement put a
+    transmitter beside recording sensors at 5-7 dB and 17 reconnects across three devices. Until this
+    parameter existed, a wedged wearable radio would fail over ONTO that free radio and re-create the
+    contention the split exists to prevent — silently, as a side effect of first-match ordering, with
+    nothing in the log saying a dedicated radio had been commandeered.
+
+    ⚠️ RESERVED IS A PREFERENCE, NOT A PROHIBITION, AND THE DIFFERENCE IS DELIBERATE. In extremis —
+    the wearable radio wedged and NO other spare — taking the CPAP's radio is very likely the right
+    trade: the wearables are the primary signal and the CPAP live stream is off by default. So a
+    reserved radio is used only when nothing else is available, and the CALLER is expected to notice
+    (`spare in reserved`) and say so loudly. Refusing outright would trade a recoverable capture for a
+    tidy rule; taking it quietly is what this fixes.
+
+    Matching is on MAC **or** hci name because `cpap.ble_stream.adapter` may legitimately be either —
+    a bare `hciN` or a MAC — and a reservation that only understood one form would silently protect
+    nothing on the other."""
     pin = (pinned_mac or "").upper()
-    for a in adapters:
-        mac = (a.get("mac") or "").upper()
-        if mac and mac != pin and a.get("up"):
-            return mac
+    held = {str(r).upper() for r in (reserved or ()) if r}
+
+    def _held(a):
+        return (a.get("mac") or "").upper() in held or (a.get("hci") or "").upper() in held
+
+    candidates = [a for a in adapters
+                  if (a.get("mac") or "").upper() and (a.get("mac") or "").upper() != pin and a.get("up")]
+    for a in candidates:                      # unreserved first — the whole point
+        if not _held(a):
+            return (a.get("mac") or "").upper()
+    for a in candidates:                      # ...then a reserved one rather than giving up entirely
+        return (a.get("mac") or "").upper()
     return None
 
 
@@ -4551,7 +4578,14 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
             if cycles >= max_cycles:
                 # L3 (P1.5): resetting THIS radio is spent — fail over to a healthy spare before giving up.
                 # hci1 sat idle for 110 min the night this brief was written; use it.
-                spare = failover_target(adapter_mac, await list_adapters()) \
+                # RESERVE THE CPAP'S DEDICATED FREE RADIO. Without this the failover takes it by
+                # first-match ordering and re-creates the 2.4 GHz contention the split exists to
+                # prevent — silently. It is a preference, not a prohibition: if it is the ONLY spare
+                # we still take it, because a wedged primary capture is worse than contention, and
+                # the log below says which happened.
+                _reserved = tuple(
+                    x for x in [((cfg.get("cpap") or {}).get("ble_stream") or {}).get("adapter")] if x)
+                spare = failover_target(adapter_mac, await list_adapters(), reserved=_reserved) \
                     if wcfg.get("failover", True) and failovers < max_failovers else None
                 if spare:
                     failovers += 1
@@ -4559,6 +4593,12 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                                                       # must say where it came FROM, not where it went
                     log.critical("watchdog: %s STILL wedged after %d power-cycles — FAILING OVER to spare "
                                  "%s (failover %d/%d)", adapter_mac, max_cycles, spare, failovers, max_failovers)
+                    # SAY IT WHEN A DEDICATED RADIO IS COMMANDEERED. This is the branch that used to
+                    # happen by accident; taking it deliberately is defensible, taking it quietly is not.
+                    if spare.upper() in {str(r).upper() for r in _reserved}:
+                        log.critical("watchdog: the spare taken is the CPAP's RESERVED radio (%s) — no "
+                                     "other adapter was available. Wearables and CPAP now share one "
+                                     "radio; expect 2.4 GHz contention until a spare returns.", spare)
                     _RECOVER.set()
                     try:
                         await asyncio.sleep(1.5)      # let the device tasks drop the wedged links first
