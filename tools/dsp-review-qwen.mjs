@@ -38,7 +38,14 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
 const OLLAMA = 'http://127.0.0.1:11434';
-const MODEL = 'qwen3-coder:30b';
+const _mi = process.argv.indexOf('--model');
+/* --model: the retired-lane verdicts are MODEL-VERSIONED (0/60 belongs to qwen3-coder:30b, the
+   hardcoded default below). A re-audition under a different model MUST both override this AND use
+   --tag for a fresh journal namespace — otherwise resume-by-function-hash silently skips every
+   already-answered function and an empty run reads as "the new model found nothing". */
+const MODEL = _mi >= 0 && process.argv[_mi + 1] ? process.argv[_mi + 1] : 'qwen3-coder:30b';
+const _ti = process.argv.indexOf('--tag');
+const TAG = _ti >= 0 && process.argv[_ti + 1] ? '-' + process.argv[_ti + 1] : '';
 const FLEET = [
   'clock.js',
   'oxydex-dsp.js',
@@ -278,7 +285,7 @@ function doneKeys(journalPath) {
 async function reviewFile(file, dir, mode) {
   const src = readFileSync(join(ROOT, file), 'utf8');
   const fns = file.endsWith('.py') ? chunkPyFunctions(src) : chunkFunctions(src);
-  const suffix = LENSES[mode] ? `.lens-${mode}.jsonl` : mode === 'adversary' ? '.adversary.jsonl' : '.review.jsonl';
+  const suffix = (LENSES[mode] ? `.lens-${mode}` : mode === 'adversary' ? '.adversary' : '.review') + TAG + '.jsonl';
   const journal = join(dir, file.replace(/\//g, '__') + suffix);
   const done = doneKeys(journal);
   let asked = 0,
@@ -310,6 +317,7 @@ async function reviewFile(file, dir, mode) {
     for (const fi of findings || []) {
       try {
         addFinding({
+          model: MODEL,
           lens: LENSES[mode] ? mode : `dsp-${mode}`,
           file,
           line: fi.line,
