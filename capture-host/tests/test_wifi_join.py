@@ -157,3 +157,47 @@ def test_AN_ALREADY_DERIVED_PSK_IS_NOT_DERIVED_AGAIN():
 def test_A_NON_ASCII_PASSPHRASE_DERIVES_WITHOUT_RAISING():
     psk = W.derive_psk("Café", "heslohesloé")
     assert len(psk) == 64 and int(psk, 16) >= 0
+
+
+# ── a hidden network is an ESCAPE STRING, not a blank field ───────────────────────────────────────
+# Captured from the real radio on vigil 2026-08-30 — the first scan this code ever ran against live
+# air. The prior test used "" for a hidden network because that is what one was IMAGINED to look like;
+# nothing had asked the hardware. wpa_cli renders a non-printable ssid as escape sequences, so the
+# hidden AP sailed through the blank check and rendered in the picker as a clickable row of `\x00`s
+# that could never join anything.
+BS = chr(92)
+_REAL_SCAN = (
+    "bssid / frequency / signal level / flags / ssid\n"
+    "10:5a:95:88:79:ed\t5180\t-57\t[WPA2-PSK+SAE+FT/PSK+FT/SAE-CCMP][SAE-H2E][ESS]\tRidgemoore\n"
+    "10:5a:95:88:79:ec\t2437\t-58\t[WPA2-PSK+SAE+FT/PSK+FT/SAE-CCMP][SAE-H2E][ESS]\tRidgemoore\n"
+    "52:dc:e7:1f:45:0e\t5745\t-62\t[WPA2-PSK-CCMP][ESS]\t" + (BS + "x00") * 25 + "\n"
+    "f4:55:95:11:3f:24\t2462\t-18\t[WPA2-PSK-CCMP][ESS]\tez Share\n"
+)
+
+
+def test_A_HIDDEN_NETWORK_ARRIVES_AS_ESCAPES_AND_IS_DROPPED():
+    names = [n["ssid"] for n in W.parse_scan_results(_REAL_SCAN)]
+    assert names == ["ez Share", "Ridgemoore"], names
+    assert not any(BS + "x00" in n for n in names), "the escape-string hidden network reached the picker"
+
+
+def test_AN_ESCAPE_INSIDE_A_REAL_NAME_IS_NOT_A_HIDDEN_NETWORK():
+    # The opposite failure, and the worse one: a café's non-ASCII name is escaped by wpa_cli too, so a
+    # rule that drops anything CONTAINING an escape would hide joinable networks. The check is anchored
+    # to the whole field for exactly this reason.
+    scan = ("bssid\tfrequency\tsignal level\tflags\tssid\n"
+            "aa:bb:cc:dd:ee:ff\t2412\t-40\t[ESS]\tCaf" + BS + "xc3" + BS + "xa9 WiFi\n")
+    assert [n["ssid"] for n in W.parse_scan_results(scan)] == ["Caf" + BS + "xc3" + BS + "xa9 WiFi"]
+
+
+def test_THE_REAL_SCAN_STILL_COLLAPSES_ONE_NETWORK_ON_TWO_BANDS():
+    # Ridgemoore advertises on 5180 and 2437 from the same router; the picker must show it once, at its
+    # strongest sighting. This is real duplication from the capture, not a synthetic case.
+    rows = [n for n in W.parse_scan_results(_REAL_SCAN) if n["ssid"] == "Ridgemoore"]
+    assert len(rows) == 1 and rows[0]["signal"] == -57
+
+
+def test_AN_SSID_THAT_IS_LITERALLY_THE_WORD_NONE_IS_STILL_A_NAME():
+    scan = ("bssid\tfrequency\tsignal level\tflags\tssid\n"
+            "aa:bb:cc:dd:ee:01\t2412\t-40\t[ESS]\tnone\n")
+    assert [n["ssid"] for n in W.parse_scan_results(scan)] == ["none"]
