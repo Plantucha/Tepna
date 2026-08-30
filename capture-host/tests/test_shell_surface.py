@@ -27,6 +27,14 @@ import pytest
 
 import helper_path
 
+# Every test in this module inspects the TREE — file existence, permissions, shebangs, the set
+# of .sh files — rather than any code behaviour. mutmut copies the tree to mutants/ and runs
+# pytest THERE, where those properties do not survive, so these are deselected under mutation.
+# See tools/mutate.py: unmarked, they fail unconditionally and FAKE-KILL every mutant, which
+# reports "a beautiful, meaningless 100%".
+pytestmark = pytest.mark.tree_scan
+
+
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TESTS = os.path.dirname(os.path.abspath(__file__))
 

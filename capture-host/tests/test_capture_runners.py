@@ -4474,6 +4474,7 @@ def test_the_budget_does_not_cut_a_fast_contention_recovery_short(tmp_path, monk
     assert capture.STATUS["devices"]["H10"].get("clock_synced")
 
 
+@pytest.mark.tree_scan
 def test_the_budget_is_measured_monotonically():
     """`_now()` is civil-time-anchored and re-anchors on an NTP step — which this daemon does, twice in
     one week on the live box. An elapsed-time bound read off it could go negative or jump."""
@@ -4534,6 +4535,7 @@ def test_the_absence_error_flows_through_the_existing_predicates(monkeypatch):
     assert capture.transient_ble_error(e) is True, f"and as transient: {e!r}"
 
 
+@pytest.mark.tree_scan
 def test_the_presence_check_runs_BEFORE_anything_exclusive_is_taken():
     """Structural, because ordering is the entire value. Moving the check below `offline_lock.slot()`
     would keep every test above green while restoring the 45 s-under-lock cost it exists to remove."""
@@ -4596,6 +4598,7 @@ def test_the_check_is_OPT_IN_so_user_pulls_are_unchanged(monkeypatch):
     assert ran["op"] is True, "without presence_check_s the behaviour must be exactly as before"
 
 
+@pytest.mark.tree_scan
 def test_only_the_clock_sync_call_site_opts_in():
     """Pins the wiring: if a future edit passes presence_check_s from the pull path, a user-clicked pull
     starts silently skipping on a bad scan."""
@@ -5334,3 +5337,43 @@ def test_run_oxyii_journals_an_interruption_on_a_stall(tmp_path, monkeypatch):
     life = (tmp_path / "captures").rglob("OXYLIFE.csv")
     txt = "".join(p.read_text() for p in life)
     assert "interrupted" in txt, "a stall must journal an INTERRUPTED transition"
+
+
+def test_every_tree_scan_test_carries_the_marker():
+    """The convention that keeps the mutation gate working, enforced rather than remembered.
+
+    A test that reads its subject's SOURCE is meaningless against mutmut-rewritten source, which holds
+    every mutant variant of every function. Unmarked, one of two things happens and the second is
+    worse:
+      · it FAILS stats collection, aborting the run so no mutant is evaluated (loud — this is how
+        capture.py turned out never to have been diff-mutated at all: a count came back 112);
+      · or it fails against rewritten source during the mutant runs and FAKE-KILLS every mutant,
+        inflating the kill rate with a false green (silent).
+
+    So: any test calling `inspect.getsource` must be marked `tree_scan`. Checked here rather than
+    left to the next author's memory — the original was chosen correctly by luck, not by convention."""
+    import pathlib
+    import re
+
+    # Built at runtime so THIS file does not contain the literal it searches for — the first version
+    # flagged itself, which is the same wrong-artifact mistake in miniature. The trailing "(" also
+    # narrows it to an actual CALL rather than a mention in prose.
+    needle = "inspect." + "getsource("
+    unmarked = []
+    for path in sorted(pathlib.Path(__file__).parent.glob("test_*.py")):
+        lines = path.read_text().splitlines()
+        current, marked = None, False
+        for line in lines:
+            if line.startswith("@pytest.mark.tree_scan"):
+                marked = True
+            elif line.startswith("def test_"):
+                current = re.match(r"def (\w+)", line).group(1)
+                current_marked = marked
+                marked = False
+            elif needle in line and current and not current_marked:
+                unmarked.append(f"{path.name}::{current}")
+                current = None  # report each test once
+    assert not unmarked, (
+        "these read module source and must be marked @pytest.mark.tree_scan, or mutation "
+        f"either aborts or fake-kills: {unmarked}"
+    )

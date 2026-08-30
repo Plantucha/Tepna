@@ -13,6 +13,7 @@
 # over the existing uplink. These tests pin the probe that lets the same build serve both deployments.
 
 import cpap_harvest
+import pytest
 
 
 def test_reachable_is_false_when_nothing_answers():
@@ -51,6 +52,7 @@ def test_reachable_answers_true_against_a_live_listener(tmp_path):
         srv.server_close()
 
 
+@pytest.mark.tree_scan
 def test_the_probe_is_unprivileged_by_construction():
     """The whole point: no privilege escalation, no interface manipulation, no subprocess. If the probe
     ever grows one, the sudo-free deployment silently stops being sudo-free.
@@ -221,6 +223,7 @@ def test_the_fallback_is_uid_scoped_and_not_shared(monkeypatch):
     assert d != "/run/tepna-wpa", "the root-owned path is what broke the harvest"
 
 
+@pytest.mark.tree_scan
 def test_bringing_the_link_up_never_shells_out_to_mkdir():
     """The specific call that failed on the box. Scanned on parsed CODE, docstrings stripped — a text
     scan matches the comment explaining the fix and passes for the wrong reason."""

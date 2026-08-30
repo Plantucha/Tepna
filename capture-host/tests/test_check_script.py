@@ -16,11 +16,20 @@ ones still executed.
 The real gates take ~11 minutes, so they are stubbed on PATH. That is the point of the isolation, not a
 shortcut: what is being tested is check.sh's own control flow, not pytest's.
 """
+import pytest
 import os
 import shutil
 import stat
 import subprocess
 import sys
+
+# Every test in this module inspects the TREE — file existence, permissions, shebangs, the set
+# of .sh files — rather than any code behaviour. mutmut copies the tree to mutants/ and runs
+# pytest THERE, where those properties do not survive, so these are deselected under mutation.
+# See tools/mutate.py: unmarked, they fail unconditionally and FAKE-KILL every mutant, which
+# reports "a beautiful, meaningless 100%".
+pytestmark = pytest.mark.tree_scan
+
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CHECK = os.path.join(HERE, "check.sh")
