@@ -86,7 +86,11 @@ def test_the_whole_checklist_says_NOT_YET_today_and_OK_after():
     before = A.assess(hciconfig=REAL, status_cpap={"wifi_iface": "wlp1s0"}, hci_versions=REAL, devices=[1, 2, 3, 4])
     assert before["ok"] is False
     by = {c["name"]: c["state"] for c in before["checks"]}
-    assert by["bt-version"] == A.FAIL and by["adapter-count"] == A.UNKNOWN
+    # ⚠️ `adapter-count` used to be asserted UNKNOWN here. It is report-only now: the AX210 REPLACED
+    # an adapter rather than joining, so "fewer than four" is a correct install and the old
+    # expectation was wrong. BT version is what actually separates before from after, and it is
+    # enough — the pinned-adapter check is what guards the thing that matters.
+    assert by["bt-version"] == A.FAIL and by["adapter-count"] == A.OK
     assert by["pinned-adapters"] == A.OK and by["devices"] == A.OK
 
     after = A.assess(hciconfig=AFTER, status_cpap={"wifi_iface": "wlp1s0"}, hci_versions=AFTER, devices=[1, 2, 3, 4])
@@ -108,3 +112,23 @@ def test_ZERO_devices_is_a_FAILURE_not_an_empty_pass():
     assert by["devices"] == A.FAIL and r["ok"] is False
     r2 = A.assess(hciconfig=AFTER, status_cpap={"wifi_iface": "wlp1s0"}, hci_versions=AFTER)
     assert {c["name"]: c["state"] for c in r2["checks"]}["devices"] == A.UNKNOWN
+
+
+def test_a_REPLACED_adapter_is_a_correct_install_not_an_incomplete_one():
+    """🔴 Measured 2026-08-30 by running this checker after the real swap: the AX210 took hci2 and the
+    old Intel disappeared, so the box still enumerates THREE. The first version of this file expected
+    four and returned UNKNOWN — the honest answer to a question wrongly posed. Had it been a FAIL, a
+    correct install would have reported broken.
+
+    What decides is that every pinned MAC still resolves, not how many radios there happen to be."""
+    r = A.assess(
+        hciconfig=REAL,
+        status_cpap={"wifi_iface": "wlp1s0"},
+        hci_versions=REAL.replace("5.1 (0xa)", "5.4 (0xd)"),
+        devices=[1, 2, 3, 4],
+    )
+    assert r["ok"] is True, r["checks"]
+    by = {c["name"]: c for c in r["checks"]}
+    assert by["adapter-count"]["state"] == A.OK
+    assert "report-only" in by["adapter-count"]["detail"]
+    assert by["pinned-adapters"]["state"] == A.OK, "the pins are what the verdict rests on"
