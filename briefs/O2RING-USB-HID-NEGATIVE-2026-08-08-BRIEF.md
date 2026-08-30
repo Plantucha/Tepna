@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** DONE — 2026-08-09 · **Created:** 2026-08-08 (mechanism found 2026-08-09: the vendor USB path is HID **Feature** reports, which this ring STALLs — see §"The mechanism")
+**Status:** DONE — 2026-08-09 · **Created:** 2026-08-08 (mechanism found 2026-08-09: the vendor USB path is HID **Feature** reports, which this ring STALLs — see §"The mechanism") — ⚠️ **mechanism PARTLY REFUTED 2026-08-29**: a direct `usbmon` capture of `O2 Insight Pro` ↔ the O2Ring S shows the vendor app drives **this** ring with **Output** reports (`hid_write`), not Feature — see **§UPDATE 2026-08-29**.
 
 # The O2Ring-S's USB-HID pipe is not an OxyII responder — measured, not assumed
 
@@ -21,6 +21,56 @@ need no radio at all — no scan, no wedged dongle, no on-charger advertising mo
 to find out.
 
 They do not.
+
+## 🔴 UPDATE 2026-08-29 — the `usbmon` capture was NOT moot, and it partly refutes the Feature-report mechanism
+
+The one test this brief flagged as still-owed — *"a USB capture of `O2 Insight Pro` … to confirm the
+Feature-report framing positively rather than by elimination"* (§What this does NOT claim) — was run,
+against **the O2Ring S itself** (`O2 Insight Pro V1.8.14` under Wine on the dev box; `usbmon`;
+`/tmp/o2ring-capture.pcapng`, 20 888 pkts, ring = dev 9). It **overturns the mechanism**, not the
+practical headline.
+
+**What the vendor app actually sends to THIS Nordic ring — Output reports, not Feature:**
+- 94 × `SET_REPORT` **Output** (`bmRequestType 0x21`, **reportType=Output, reportID=0, wLength=64**,
+  parsed from the setup bytes) — i.e. `hid_write`, the transfer type this ring **accepts**. Zero Feature
+  reports in the whole exchange.
+- 165 × `GET_REPORT` reads (Wine relays `hid_read_timeout` as control reads; on real Windows these are
+  interrupt-IN `ReadFile`).
+- Frame format is a **length-prefixed HID report**: `[08][ 8-byte 0xA5/0xAA frame ][zero-pad to 64]`,
+  where `08` = payload length. Report ID stays **0** — sending report ID `8` STALLs, confirming `08` is
+  data, not an ID (this also re-explains the old rid-sweep: only rid 0 is valid).
+- The detection poll alternates two commands, retried ~44× each: **`08 · a5 e0 1f 00 00 00 00 22`** — a
+  `0xA5` frame with **op `0xE0`**, a hello/identify opcode NOT in `oxyii.py`'s set — and
+  **`08 · aa 15 ea 00 00 00 00 8d`** (`0xAA` cmd `0x15`).
+
+**So the 2026-08-09 conclusion — "the vendor's USB protocol is HID FEATURE reports … the ring cannot
+speak it even in principle because it refuses that transfer type" — is wrong for the O2Ring S.** The app
+imports BOTH surfaces (`hid_send_feature_report` AND `hid_write`); the Feature / `Holtek_HIDApi.dll` path
+is for the *legacy Holtek* rings, and against the Nordic O2Ring S the app uses `hid_write` (Output),
+which this ring accepts. The Feature-report STALL was a real observation attached to the wrong transport.
+
+**What survives, refined.** The practical headline — *nothing useful comes back over USB* — still holds,
+but for a different reason than a stalled transport:
+- The ring **accepts** the Output commands (no STALL) yet returns only a **constant idle status
+  `05 00 00 00 00 05`** to every command (op `0xE0` hello included), read via `HIDIOCGINPUT`; its
+  interrupt-IN endpoint is **silent**.
+- **The vendor app itself failed to connect** — it showed "No device connected", and its `GET_REPORT`
+  reads came back **0 bytes** (Wine relays `hid_read_timeout` as control `GET_REPORT`, which this ring
+  answers empty; direct Linux `GET_INPUT` gives the 6-byte idle). So the auth/handshake never completes,
+  because the ring's responses are not readable on the channel available here.
+- **Wear state is not it** — worn + plugged is byte-identical idle, which falsifies the "a mode this ring
+  does not enter" bullet for the wearing case.
+
+**Net:** the "writes land in a void / OxyII not bound" reading was too strong — writes are *accepted* and
+the vendor app *does* address this ring with a concrete, now-known framing (`[08]`-prefixed `0xA5/0xAA`,
+hello op `0xE0`). But no data exchange completes because the **read/auth path is unobservable here**
+(interrupt-IN silent; Wine's control `GET_REPORT` empty). The `usbmon` question was therefore the
+decisive test, not moot — and what is now owed to close it **positively** is a capture of a *successful*
+`O2 Insight Pro` download on **real Windows** (native or a USB-passthrough VM), where `hid_read_timeout`
+reads interrupt-IN and the handshake can complete; the Wine capture only shows the detection loop
+failing. Full byte-level notes: memory `o2ring-usb-hid-protocol`. This does **not** change the
+operational call — the **failover-radio** work remains the real fix for the download pain; USB stays a
+bonus, now with its framing half-solved rather than declared impossible.
 
 ## What the device is
 
@@ -151,10 +201,12 @@ power.
 - **Not** that the vendor's USB export is impossible. The vendor tool may drive a different interface, a
   different protocol, or a mode this ring does not enter while a BLE client holds it.
 - ~~The two remaining cheap leads~~ — **both spent 2026-08-09, see the mechanism section above.** The
-  no-BLE-client re-probe was run under `tepna-restart.sh stop 3` and was silent; the `usbmon` question is
+  no-BLE-client re-probe was run under `tepna-restart.sh stop 3` and was silent; ~~the `usbmon` question is
   now moot, because the vendor app's transport turns out to be HID **Feature** reports, which this ring
-  STALLs outright. What would still settle the last 1 %: a USB capture of `O2 Insight Pro` against a
-  *legacy* Holtek ring, to confirm the Feature-report framing positively rather than by elimination.
+  STALLs outright.~~ ⚠️ **This was wrong — see §UPDATE 2026-08-29.** The `usbmon` capture was run and was
+  the decisive test: the vendor app drives this ring with **Output** reports, not Feature, so it was never
+  moot. What would still settle the last 1 %: a capture of a *successful* `O2 Insight Pro` download on real
+  Windows, to see the full auth→file-list→file-data handshake the Wine capture couldn't complete.
 
 ## What was confirmed on the way
 
