@@ -28,6 +28,7 @@ import polar_psftp
 import storage_targets
 import alerts
 import timeline as _timeline
+import build_id
 import settings_schema
 import wifi_join
 import wifi_uplink
@@ -150,6 +151,12 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
              pull_stored=None, polar_pause=None, sync_time=None, forget_device=None,
              on_tz_change=None, notifier=None, ring_config=None, ring_buzz=None,
              cpap_pair=None, cpap_stream=None) -> web.Application:
+    # 🔴 PROBED ONCE, HERE, BECAUSE THIS IS DAEMON STARTUP.
+    # Reading it per-request would report the sha on DISK, which after a deploy is the new code while
+    # this process is still serving the old — the "is X deployed?" question answering itself wrongly.
+    # Measured on vigil 2026-08-30: the checkout sat at 2618f8f9 while the running process had started
+    # 30 minutes earlier on da2c55b6. Held in memory, this reports what is RUNNING.
+    _build = build_id.probe(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     # Optional shared-secret gate on the CONTROL surface. When web.token is set, every POST (bond / forget
     # / remember / pull / settings / clock — all the state-changing verbs) needs the token; GET reads stay
     # open so the monitor can still display without it. Default OFF (no token → current wide-open behaviour;
@@ -1427,6 +1434,15 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             return web.json_response({"ok": False, "busy": e.holder, "error": str(e)}, status=409)
         except Exception as e:
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=502)
+    async def version_get(_req):
+        """GET /api/version — what code is running, and since when.
+
+        `dirty` is a TRISTATE: `null` means git could not tell us (a tarball deploy has no .git), and
+        the page must render that as unknown rather than clean. `started` is what makes the sha mean
+        "running" rather than "on disk" — a sha that moved without `started` moving means something
+        re-read the tree, not that new code is serving."""
+        return web.json_response(_build)
+
     # ── Wi-Fi uplink (hotspot / hotel) ───────────────────────────────────────────────────────────
     # 🔴 NO ENDPOINT HERE EVER RETURNS THE CREDENTIAL. `public_view` is the only shape that crosses
     # this boundary: ssid, security, and whether a key is held — never the key. The monitor is served
@@ -1477,6 +1493,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
     app.add_routes([
         web.get("/", index),
         web.get("/api/state", state),
+        web.get("/api/version", version_get),
         web.get("/api/wifi", wifi_get),
         web.post("/api/wifi/scan", wifi_scan_h),
         web.post("/api/wifi/connect", wifi_connect_h),

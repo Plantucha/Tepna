@@ -362,6 +362,14 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
       <div>
         <div class="logo-title">Vigil</div>
         <div class="logo-sub">Monitor · Tepna</div>
+        <!-- The RUNNING daemon's build, not a stamp baked into this page. The Dex bundles carry a
+             version because a build step writes one in; the capture host has no build step, so this
+             is read from /api/version, which the daemon probes ONCE at startup. That distinction is
+             the whole value: after a deploy the checkout holds new code while this process still
+             serves the old, and a page showing the on-disk sha would answer "did the deploy land?"
+             wrongly. Uptime is computed from `started` on every tick so it stays live between polls
+             rather than going stale the moment it is rendered. -->
+        <div class="logo-sub" id="buildId" title="the build this daemon is RUNNING — read at its startup, not from the checkout">…</div>
       </div>
     </div>
     <hr class="sidebar-logo-rule">
@@ -3223,6 +3231,40 @@ $('#wifiForgetBtn').addEventListener('click', async function(){
 });
 setInterval(loadWifi, 10000);
 loadWifi();
+
+
+// ── what build is running ────────────────────────────────────────────────────────────────────────
+// Fetched ONCE (the daemon probes at startup, so it cannot change without a restart — and if it did
+// change under us, re-fetching would hide exactly the restart worth noticing). Uptime is recomputed
+// locally each tick so it stays live between polls.
+let _build = null;
+
+function fmtUptime(sec){
+  if(!(sec >= 0)) return '';
+  const d = Math.floor(sec/86400), h = Math.floor(sec%86400/3600), m = Math.floor(sec%3600/60);
+  if(d) return `${d}d${h}h`;
+  if(h) return `${h}h${m}m`;
+  return `${m}m`;
+}
+
+function paintBuild(){
+  const el = $('#buildId');
+  if(!el || !_build) return;
+  // 🔴 `dirty` IS A TRISTATE AND null MUST NOT RENDER AS CLEAN. A tarball deploy has no .git, and
+  // showing a bare sha there would imply a tree we had actually checked. `?` says we did not.
+  const sha = _build.git || 'unknown';
+  const flag = _build.dirty === true ? '-dirty' : (_build.dirty === null ? '?' : '');
+  const up = _build.started ? ' · up ' + fmtUptime(Date.now()/1000 - _build.started) : '';
+  el.textContent = `capture-host ${sha}${flag}${up}`;
+  el.style.color = _build.dirty === true ? 'var(--amber, #c90)' : '';
+}
+
+async function loadBuild(){
+  try{ _build = await api('/api/version'); }catch(_){ return; }
+  paintBuild();
+  setInterval(paintBuild, 30000);       // keep the uptime honest without re-asking the daemon
+}
+loadBuild();
 
 // So: retry until the first load succeeds, and surface the waiting state instead of a blank grid.
 (function boot(){
