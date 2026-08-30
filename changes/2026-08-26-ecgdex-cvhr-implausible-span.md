@@ -1,7 +1,0 @@
-<!-- SPDX-License-Identifier: Apache-2.0 -->
----
-bump: patch
-type: fixed
-nodes: [ECGDex]
----
-`detectCVHR` refuses a beat series whose span is implausible instead of sizing its resample grid from it. `M = Math.floor(tEnd)` fed five `Float64Array`s **and** two `Array.from` copies with nothing bounding it; on a real 2026-08-23 night `tt[N-1]` was 241,259,871 s (7.6 years), so `M` was 241 million. The typed allocations all SUCCEEDED — they take external memory — and the failure surfaced only at `Array.from(sm)`, which must materialise a plain array and blew V8's cap with `RangeError: Invalid array length`, killing that night's entire ECGDex export. The diagnostic shape is a DISCONTINUITY, not a wrong sample rate: `tt[0]=0.023` and `tt[1]=0.346` are normal beat spacing and only the tail jumps, whereas a bad `fs` would have scaled `tt[1]` too. So this refuses rather than repairs — we cannot know which fragment carries the right timebase, and a 1 Hz series spanning years is not something to resample. Bound is 48 h, over twice any real recording, so a heavily-gapped night still fits; `index: null` (never 0, which would read as "we looked for cyclic variation and found none" — the fabricated negative the Clock Contract §2.6 forbids) plus `reason: 'implausible-span'`. Gate-backed by an assertion built on the measured geometry, verified against a neutralised-guard decoy that reproduced the original blow-up at 8.4 GB RSS rather than merely failing.

@@ -73,7 +73,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
 from mutation_sweep import (  # noqa: E402
-    BUDGET_OK, budget_verdict, select_tests,
+    BUDGET_OK, budget_verdict, deselect_args, deselect_notes, select_tests,
 )
 VENV_PY = HERE / ".venv" / "bin" / "python"
 
@@ -137,6 +137,12 @@ def tests_for(module: str) -> list[str]:
     kept, dropped = select_tests(candidates, stem)
     for d in dropped:
         print(f"  note: {d} excluded from {module}'s selection — a mutant killed ONLY by it "
+              f"will read as SURVIVING")
+    # Node-id exclusions are reported on the SAME terms as file ones: the cost is identical (a mutant
+    # killed only by that test reads as surviving), so hiding them would reintroduce exactly the
+    # invisible false-survivor this reporting exists to prevent.
+    for nodeid in deselect_notes(module, kept):
+        print(f"  note: {nodeid} deselected from {module}'s run — a mutant killed ONLY by it "
               f"will read as SURVIVING")
     return kept
 
@@ -277,8 +283,12 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
         _beat("copying scratch tree  (mutmut not started)")
         shutil.copytree(HERE, work, ignore=shutil.ignore_patterns(
             ".venv", "mutants", "__pycache__", "*.pyc", ".coverage*", "htmlcov"))
+    # `--deselect <nodeid>` rides in the same pytest arg list as the file selection. It is appended
+    # HERE rather than inside `tests_for` because that function's result is also counted as "test
+    # file(s)" by `--list`, where CLI flags would corrupt the count.
+    selection = list(tests) + deselect_args()
     (work / "pyproject.toml").write_text(CONFIG.format(
-        source=module, also_copy=also, tests=", ".join(repr(t) for t in tests)), encoding="utf-8")
+        source=module, also_copy=also, tests=", ".join(repr(t) for t in selection)), encoding="utf-8")
     # §2 — clear mutmut's cached verdicts for this module iff the test tree changed since the scratch was
     # last run, so an added or modified killer is credited on the FIRST run rather than the second. The
     # stamp lives in the reusable scratch (keyed on src_hash), which survives the prune; on a fresh
