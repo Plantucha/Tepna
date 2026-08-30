@@ -112,6 +112,31 @@
 
   **The owner retains a veto** on both the clause and the verdict.
 
+- **§P1a — THE RATCHET'S FIRST LIVE CATCH (2026-08-29), fixed rather than re-baselined.** The CI job
+  began reporting `RATCHET BROKEN: 123 > 122` on every open PR: one error entered `main` through the
+  lap gap — a PR measuring clean against its own merge-ref while the error materialised on `main` only
+  in combination. **This was the pre-existing `N > BASE` check**, not §P2c's equality/direction rules,
+  which are not on `main` yet; the original ratchet caught a real regression on its own, which is the
+  strongest argument available for tightening it rather than loosening it.
+
+  **Named by measurement, not by reading the job log.** A sort-independent multiset comparison of
+  `main`'s current error set against the 122-era set returned exactly ONE difference —
+  `tools/mutate_diff.py`, `Incompatible types in assignment (str | None into str)`. The errors
+  *visible* in the log pointed at a different file that contributed nothing to the delta. **A list of
+  errors you can see is not a list of errors that changed**, and only the paired set difference answers
+  the question being asked. Same instrument as §P2c's "zero newly introduced diagnostics", pointed at
+  `main` instead of at a branch.
+
+  **The defect was a name collision across two kinds** — `_why` bound in the module-exclusion loop as
+  the reason a module left mutation scope (`str`), then re-assigned as the reason the whole run must
+  refuse (`str | None`). mypy binds a name at its first assignment, so the second is a type error. Two
+  meanings, two names.
+
+  ⚠️ **Fixed, NEVER re-baselined.** Raising the floor to meet a new error is the one response that
+  makes a ratchet decorative — and it is exactly what §P2c's rule refuses without declared provenance.
+  The count only goes down. (`mypy` is not a required context, so the red blocked nobody; it is fixed
+  anyway, because a gate that is permanently red stops being read.)
+
 - **§P2b — THE FROZEN TRIAGE TABLE (queue exhausted 2026-08-28 02:32; n = 12, the whole population).**
   Every mechanical-class error the lane can see has now been asked once. This is the artifact the
   owner's band decision is made against.
