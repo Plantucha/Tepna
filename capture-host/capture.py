@@ -1216,6 +1216,61 @@ _LINK_DISTRESS_WINDOW_S = 3600.0        # one hour of history: long enough that 
                                         # short enough that this morning's storm is not tonight's verdict
 
 
+def _rebuild_link_baselines(root, *, nights=21, keep=14):
+    """Recompute `link-baselines.json` from the most recent LINK.csv files. Returns the record.
+
+    RECOMPUTED, not accumulated. An incremental fold would need to remember which nights it had
+    already counted, and a bookkeeping error there shows up as a silently wrong median — the kind of
+    defect that makes a threshold fire or not fire for reasons nobody can reconstruct. Reading a
+    bounded window of nights each time is a little more work and has no state to drift.
+
+    ⚠️ BOUNDED at `nights` deliberately. A baseline over all history eventually describes a radio that
+    is no longer in the box — the wearables moved UB500 → Sena on 2026-08-25, and pooling across that
+    would average two different populations into one meaningless number. Three weeks tracks the box as
+    it is now.
+
+    Never raises: this feeds a REPORT. A baseline we could not rebuild leaves the previous one in
+    place, and `assess` refuses on a short history anyway."""
+    import link_distress
+    out = {}
+    try:
+        caps = os.path.join(root, "captures")
+        # `list_nights`, not a private regex: it already filters by the YYYY-MM-DD shape AND by
+        # isdir, and it is the tested helper every other night-walker uses.
+        dirs = diskguard.list_nights(caps)[-int(nights):]
+        for night in dirs:
+            for fn in sorted(glob.glob(os.path.join(caps, night, "*LINK.csv"))):
+                try:
+                    with open(fn, encoding="utf-8", errors="replace") as fh:
+                        adapter, rates = link_distress.night_rates(fh.read())
+                except OSError:
+                    continue          # one unreadable night is not a reason to lose the other twenty
+                out = link_distress.merge_baselines(out, adapter, rates, keep=keep)
+    except Exception:  # noqa: BLE001 — a baseline is a report about reports
+        log.exception("link baseline rebuild failed; the previous baselines stand")
+        return None
+    # 🔴 AN EMPTY RESULT MUST NOT OVERWRITE A GOOD BASELINE. `diskguard.list_nights` returns [] on any
+    # OSError, so an unreadable captures tree — a transient mount hiccup, a permissions change —
+    # produces {} with no exception. Writing that would wipe every learned median and silently return
+    # every device to UNKNOWN, which is the distress signal disarming itself for the quietest possible
+    # reason. Nothing found ⇒ nothing written; the previous file stands.
+    if not out:
+        log.warning("link baselines: no usable night produced a rate — keeping the previous file")
+        return None
+    p = _link_baseline_path(root)
+    try:
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p + ".tmp", "w") as fh:
+            json.dump(out, fh, indent=2, sort_keys=True)
+        os.replace(p + ".tmp", p)
+    except OSError:
+        log.warning("could not write %s; the distress signal stays on the previous baselines", p)
+    n = sum(len(v) for devs in out.values() for v in devs.values())
+    log.info("link baselines rebuilt: %d adapter(s), %d device-night(s) over %d night dir(s)",
+             len(out), n, len(dirs))
+    return out
+
+
 def _link_baseline_path(root):
     """Per-adapter reconnect baselines, written by whatever computes them; absent is the normal state."""
     return os.path.join(root, "captures", "link-baselines.json")
@@ -5090,6 +5145,10 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
     # at ≥09:00 UTC. A default whose test outcome depends on the wall clock is a flake generator.
     digest_hour = int(qcfg.get("digest_hour", -1))
     digest_sent_date = None
+    # Its own hour and its own once-a-day key, so enabling the digest does not silently also
+    # decide when baselines rebuild — and disabling the digest does not disable them.
+    baseline_hour = int(qcfg.get("baseline_hour", 11))
+    baseline_built_date = None
     # A CONNECTED SENSOR THAT HAS STOPPED SENDING. Much shorter grace than alert_after: this is not
     # "the night has not started yet", it is "the link is up and the bytes are not coming". Every PMD
     # stream we start delivers many rows a second, so ten minutes of nothing behind a live link is
@@ -5155,6 +5214,14 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             first_seen.setdefault(n, _time.monotonic())
             # ── morning digest — once per LOCAL day, unconditional (§P2.4) ──────────────────────
             _dnow = _now()
+            # THE DISTRESS SIGNAL'S BASELINES, rebuilt once a day. Deliberately NOT gated on
+            # `notifier` the way the digest below is: a baseline is not an alert, and on a box with no
+            # webhook the signal would otherwise stay UNKNOWN forever while looking configured.
+            # Reuses the digest's own wrap-safe once-a-day gate rather than a fresh `now.hour >=`
+            # floor, which `qc_digest_due`'s docstring records as wrong and shipped once.
+            if qc_digest_due(_dnow, baseline_hour, baseline_built_date):
+                baseline_built_date = _dnow.date()
+                await asyncio.to_thread(_rebuild_link_baselines, root)
             if notifier and qc_digest_due(_dnow, digest_hour, digest_sent_date):
                 _line = nightqc.qc_digest(summ)
                 if _line:  # an empty night sends NOTHING — the digest must never train the reader that

@@ -24,7 +24,9 @@
 
 from __future__ import annotations
 
+import datetime as _dt
 import math
+import re
 import statistics
 
 __all__ = [
@@ -182,3 +184,86 @@ def switch_event(*, device, from_mac, to_mac, verdict, cause="reconnect-rate"):
         "sustained_s": v.get("sustained_s"),
         "detail": v.get("detail"),
     }
+
+
+# ── the BASELINE PRODUCER — what makes the signal above more than report-only ────────────────────
+# `assess` refuses without >=3 nights per device per adapter, and nothing wrote those nights, so on
+# every box today every verdict is honestly UNKNOWN. This is the missing half.
+#
+# 🔴 THE RATE IS OVER THE CONNECTED SPAN, NOT THE FILE. Measured 2026-08-29 while deriving the bands:
+# normalising over the whole file gives `down% = 100` for a backup strap that was never worn and
+# dilutes every rate by the hours a device sat in a drawer. The question is "how often did this link
+# drop WHILE IT WAS UP", and only the connected span asks it.
+LINK_ADAPTER_RE = re.compile(r"adapter=([0-9A-Fa-f:]{17})")
+MIN_SESSION_H = 1.0  # below this a "rate" is one reconnect over a few minutes — noise, not a night
+MIN_SAMPLES = 20
+
+
+def night_rates(text):
+    """`(adapter_mac, {device: reconnects_per_hour})` for ONE LINK.csv, or `(None, {})`. PURE.
+
+    The adapter comes from the file's own `# adapter=<MAC> hci=<hciN>` header, so a rate is
+    attributable to the radio that produced it without the caller guessing — which matters because
+    the wearables moved UB500 -> Sena mid-corpus, making the two arms SEQUENTIAL populations that must
+    never be pooled.
+
+    A device with fewer than `MIN_SAMPLES` rows or a connected span under `MIN_SESSION_H` is omitted
+    rather than given a rate: one reconnect across four minutes is 15/h, which would trip any band."""
+    lines = str(text or "").splitlines()
+    if not lines:
+        return None, {}
+    m = LINK_ADAPTER_RE.search(lines[0])
+    adapter = m.group(1).upper() if m else None
+    hdr = None
+    rows = {}
+    for line in lines[1:]:
+        parts = line.rstrip("\n").split(";")
+        if hdr is None:
+            if "Phone timestamp" in parts:
+                hdr = parts
+            continue
+        try:
+            it, idev, ic, ie = (hdr.index(x) for x in ("Phone timestamp", "device", "connected", "link_epoch"))
+        except ValueError:
+            return adapter, {}
+        if len(parts) <= max(it, idev, ic, ie):
+            continue
+        try:
+            t = _dt.datetime.fromisoformat(parts[it]).timestamp()
+            ep = int(parts[ie] or 0)
+        except (ValueError, TypeError):
+            continue
+        rows.setdefault(parts[idev], []).append((t, parts[ic].strip().lower() in ("1", "true"), ep))
+    out = {}
+    for dev, rs in rows.items():
+        rs.sort()
+        on = [r for r in rs if r[1]]
+        if len(on) < MIN_SAMPLES:
+            continue
+        span_h = (on[-1][0] - on[0][0]) / 3600.0
+        if span_h < MIN_SESSION_H:
+            continue
+        out[dev] = (len({r[2] for r in on}) - 1) / span_h
+    return adapter, out
+
+
+def merge_baselines(prior, adapter, rates, *, keep=14):
+    """Fold ONE night's rates into the baseline record. PURE; returns a NEW dict.
+
+    Keeps the most recent `keep` nights per (adapter, device). Bounded because a baseline that grows
+    forever eventually describes a radio that no longer exists — and because the median should track
+    the box as it is now, not as it was two months ago. Newest LAST, so a reader can see the trend."""
+    out = {a: {d: list(v) for d, v in devs.items()} for a, devs in (prior or {}).items()}
+    if not adapter or not rates:
+        return out
+    slot = out.setdefault(adapter, {})
+    for dev, rate in rates.items():
+        try:
+            r = float(rate)
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(r) or r < 0:
+            continue
+        slot.setdefault(dev, []).append(round(r, 4))
+        slot[dev] = slot[dev][-int(keep) :]
+    return out
