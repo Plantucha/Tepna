@@ -25,7 +25,7 @@ authors:
     given-names: Michal
     orcid: https://orcid.org/0009-0008-3501-3596
     # roles: Concept, Architecture, Algorithms, Implementation, Validation, UI/UX
-version: 2.8.0
+version: 2.9.0
 date-released: "2026-06-18"
 license: Apache-2.0
 repository-code: "https://github.com/Plantucha/Tepna"
