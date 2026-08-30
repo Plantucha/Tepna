@@ -217,3 +217,38 @@ def test_the_PRODUCTION_path_discovers_its_own_adapters(monkeypatch):
     _got, used, _a = _run(capture._cpap_connect_any_adapter("04:CD", "hci1", 8.0, connect=conn))
     assert used == "hci2"
     assert seen == ["hci1", "hci0", "hci2"], f"a DOWN adapter was offered as a fallback: {seen}"
+
+
+def test_THE_SAME_TYPE_GOES_BOTH_WAYS_ON_MARKER_STRENGTH_NOT_ON_WORDING():
+    """The distinction the F3 fix turns on, stated as one paired assertion.
+
+    `BleakDeviceNotFoundError` is bleak's not-found class, and it can arrive carrying either its own
+    timeout wording or an explicit bluez refusal. Before the fix, BOTH read as contention because
+    "timed out" was tested first — so absence was unreachable on bleak's most common path. After it,
+    only the explicit refusal outranks the type.
+
+    ⚠️ A type-first classifier that skipped this distinction passed the whole F3 characterization
+    suite and still broke `test_contention_is_checked_BEFORE_absence`. The two files together are
+    the spec; neither alone is."""
+    bleak_wording = _NotFound("Device AA:BB not found after 10.0 seconds, timed out")
+    bluez_refusal = _NotFound("device not found: org.bluez.Error.InProgress")
+    assert B.classify_failure(bleak_wording) == B.ABSENT
+    assert B.classify_failure(bluez_refusal) == B.CONTENDED
+
+
+def test_AN_UNKNOWN_CLASS_STILL_TREATS_TIMEOUT_WORDING_AS_CONTENTION():
+    # The ambiguous markers did not go away — they stopped OUTRANKING a type. For a class we cannot
+    # identify, timeout wording is still the only signal available and still means "could not tell".
+    assert B.classify_failure(TimeoutError("connect timed out")) == B.CONTENDED
+    assert B.classify_failure(Exception("operation timed out")) == B.CONTENDED
+
+
+def test_AN_UNRECOGNISED_CLASS_WITH_ABSENCE_WORDING_IS_STILL_AN_ABSENCE():
+    """The text path is the LAST tier, not a dead one.
+
+    A class we do not recognise — an older bleak, a wrapper, a plain RuntimeError from a transport —
+    carrying plain absence wording and no contention marker is still the best available reading of
+    "the scan ran and it was not there". Removing the text tier because the type tiers cover today's
+    bleak would leave every unrecognised class as OTHER, which never produces a verdict at all."""
+    assert B.classify_failure(RuntimeError("device not found")) == B.ABSENT
+    assert B.classify_failure(Exception("no device with that address")) == B.ABSENT
