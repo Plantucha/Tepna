@@ -125,3 +125,31 @@ def test_a_reporting_FAILURE_does_not_undo_the_switch(monkeypatch):
     """The switch already happened. Failing to describe it must not raise into the watchdog."""
     monkeypatch.setattr(capture, "_RADIO_EVENTS", None)  # append() will raise
     capture._radio_switch_event({"from": "a", "to": "b"})  # must not raise
+
+
+def test_two_samples_at_the_SAME_INSTANT_yield_no_rate():
+    """A rate needs elapsed time. Two polls landing on one monotonic instant would divide by zero, and
+    a guard that instead produced a huge number would fabricate a storm out of a scheduling artifact."""
+    capture.link_distress_scan("AA:BB", {"ring": {"link_epoch": 1}}, BASE, 500.0)
+    assert capture.link_distress_scan("AA:BB", {"ring": {"link_epoch": 99}}, BASE, 500.0) == {}
+
+
+def test_a_FAILING_scan_does_not_cost_the_watchdog_its_poll(monkeypatch):
+    """🔴 The distress scan is a REPORT. The watchdog's job is recovering a wedged radio, and a
+    reporting bug must never be able to stop it — that would turn a diagnostic into an outage."""
+    from test_capture_runners import _dev, _run, _stop_after
+
+    async def fake_btctl(script, timeout=6):
+        return "Connected: yes\n"
+
+    def boom(*a, **k):
+        raise RuntimeError("scan exploded")
+
+    monkeypatch.setattr(capture.bonding, "_btctl", fake_btctl)
+    monkeypatch.setattr(capture, "link_distress_scan", boom)
+    capture._STOP.clear()
+    _stop_after(monkeypatch, 1)
+    cfg = {"watchdog": {"enabled": True, "interval_sec": 60}, "devices": [_dev(name="H10")]}
+    capture.STATUS["devices"]["H10"] = {"connected": True, "address": "24:AC:AC:02:84:96"}
+    _run(capture.adapter_watchdog("hci0", cfg))  # must complete the poll, not raise
+    capture._STOP.clear()
