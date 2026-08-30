@@ -20,6 +20,7 @@ import oxyii
 import acq_evidence_o2ring
 import bonding
 import helper_path
+import link_distress
 import link_rssi
 import host_clock
 import offline_lock
@@ -1208,6 +1209,77 @@ def apply_instance(cfg: dict | None, instance: str) -> str:
         log.error("UNOWNED DEVICES — no configured instance serves these, so nothing will capture them: "
                   "%s. Fix `adapters:` or the devices' `adapter:` keys.", ", ".join(orphans))
     return mac
+
+
+_LINK_DISTRESS_SEEN: dict = {}          # (adapter, device) -> [(monotonic, link_epoch)]
+_LINK_DISTRESS_WINDOW_S = 3600.0        # one hour of history: long enough that a rate means something,
+                                        # short enough that this morning's storm is not tonight's verdict
+
+
+def _link_baseline_path(root):
+    """Per-adapter reconnect baselines, written by whatever computes them; absent is the normal state."""
+    return os.path.join(root, "captures", "link-baselines.json")
+
+
+def _link_baselines(root):
+    """`{adapter: {device: [per-night rate, ...]}}`, or `{}`. Never raises.
+
+    ABSENT IS NOT EMPTY-AND-FINE: `link_distress.assess` turns a short history into UNKNOWN, which is
+    the honest answer for a radio nobody has measured yet — the AX210 arrives with zero nights."""
+    try:
+        with open(_link_baseline_path(root)) as fh:
+            got = json.load(fh)
+        return got if isinstance(got, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def link_distress_scan(adapter_mac, devices, baselines, now_s):
+    """`{device: verdict}` for every device on `adapter_mac`. Folds reconnect history; PURE-ish (it
+    keeps a module-level window, which is the only state a rate needs).
+
+    The observed rate is `link_epoch` growth over the window — the reconnect counter the 25 s sampling
+    cannot miss (E5). A device seen once has no rate yet and is simply absent from the result rather
+    than reported at 0/h, which would read as a measured calm."""
+    out = {}
+    for name, st in (devices or {}).items():
+        ep = (st or {}).get("link_epoch")
+        if ep is None:
+            continue
+        key = (adapter_mac, name)
+        hist = _LINK_DISTRESS_SEEN.setdefault(key, [])
+        hist.append((now_s, int(ep)))
+        cut = now_s - _LINK_DISTRESS_WINDOW_S
+        _LINK_DISTRESS_SEEN[key] = hist = [h for h in hist if h[0] >= cut]
+        if len(hist) < 2:
+            continue
+        span_h = (hist[-1][0] - hist[0][0]) / 3600.0
+        if span_h <= 0:
+            continue
+        rate = max(0, hist[-1][1] - hist[0][1]) / span_h
+        nights = ((baselines or {}).get(adapter_mac or "", {}) or {}).get(name) or []
+        out[name] = link_distress.assess(rate, nights, hist[-1][0] - hist[0][0])
+    return out
+
+
+_RADIO_EVENTS: list = []
+
+
+def _radio_switch_event(ev):
+    """Record one radio switch where something that survives the night can see it.
+
+    A `log.critical` is not a surface: it scrolls, it is not in `/api/state`, and nothing joins it to
+    a night. Kept in memory for STATUS and appended to the night's QC — bounded, because an event log
+    that can grow without limit is its own outage. Never raises: a switch that happened must not be
+    undone by a failure to report it."""
+    try:
+        _RADIO_EVENTS.append(ev)
+        del _RADIO_EVENTS[:-50]
+        STATUS["radio_switches"] = list(_RADIO_EVENTS)
+        log.critical("radio switch: %s -> %s | cause=%s | %s",
+                     ev.get("from"), ev.get("to"), ev.get("cause"), ev.get("detail"))
+    except Exception:  # noqa: BLE001 — reporting must not cost the switch it reports
+        log.exception("radio switch event could not be recorded; the switch itself stands")
 
 
 # ── DUAL-RADIO FAILOVER (VIGIL-OVERNIGHT-FINDINGS P1.5) ──────────────────────────────────────────────
@@ -4341,6 +4413,21 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                     silent = 0
                     log.error("watchdog: adapter reports UP but hears nothing — restarting bluetooth")
                     await _restart_radio()
+            # IS THE RADIO COPING? A CLEAN POLL IS NOT THE SAME AS A HEALTHY RADIO — the checks
+            # above ask whether the adapter is WEDGED, and a radio that is up, answering, and simply
+            # cannot hold its links passes every one of them. That is the 2026-08-29 ring storm: 269
+            # reconnects, nothing wedged, nothing switched, nothing said why. Assessed here, on the
+            # clean path, precisely because that is where the failure hides.
+            # REPORT-ONLY for now: it publishes a verdict and does not yet trigger a switch. The bands
+            # are pre-stated (RADIO-FAILOVER-DISTRESS-SIGNAL brief) but no baseline file exists on any
+            # box yet, so every verdict is honestly UNKNOWN until one does — and a trigger that fires
+            # off an absent baseline is the fabrication this whole lane exists to prevent.
+            try:
+                STATUS["radio_distress"] = link_distress_scan(
+                    adapter_mac, STATUS.get("devices", {}), _link_baselines(cfg.get("root") or ""),
+                    _time.monotonic())
+            except Exception:  # noqa: BLE001 — a report must never cost the watchdog its poll
+                log.exception("radio distress scan failed; the watchdog itself is unaffected")
             # Clean poll — but do not declare recovery until `recover` of them in a row.
             healthy_run += 1
             if consecutive and healthy_run < recover:
@@ -4368,6 +4455,8 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                     if wcfg.get("failover", True) and failovers < max_failovers else None
                 if spare:
                     failovers += 1
+                    prev_mac = adapter_mac            # `adapter_mac` is repointed below; the event
+                                                      # must say where it came FROM, not where it went
                     log.critical("watchdog: %s STILL wedged after %d power-cycles — FAILING OVER to spare "
                                  "%s (failover %d/%d)", adapter_mac, max_cycles, spare, failovers, max_failovers)
                     _RECOVER.set()
@@ -4386,6 +4475,15 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                                             d["name"], adapter_mac, e)
                     finally:
                         _RECOVER.clear()              # device tasks resume + reconnect on the spare
+                    # EVERY SWITCH IS AN EVENT, carrying WHICH signal fired. Until now a failover left
+                    # only a log line, so radio churn was invisible to anything that survives the
+                    # night — the silent-healing shape this suite keeps rediscovering. `cause` is
+                    # `wedged` here because this branch IS the recovery ladder spent; the continuous
+                    # distress signal (`link_distress`) is the other cause, and it names itself.
+                    _radio_switch_event(link_distress.switch_event(
+                        device="(all wearables)", from_mac=prev_mac, to_mac=spare,
+                        cause="wedged", verdict={"detail": f"recovery ladder spent after "
+                                                           f"{max_cycles} power-cycle(s)"}))
                     cycles = consecutive = 0          # a fresh reset budget on the new radio
                     continue
                 if wcfg.get("exit_on_giveup"):
