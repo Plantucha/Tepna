@@ -670,7 +670,9 @@ class O2PpgGrid:
         self.step_s = 1.0 / self.nominal_fs
         self.idx = 0        # grid position of the NEXT sample — counts inserted gaps, not just arrivals
         self.ns = 0         # sensor_ns of the NEXT sample
-        self.t0 = None      # host arrival mapped to grid index 0 (the session anchor)
+        # `datetime | None`, not the None mypy infers from this initialiser: the anchor is set on
+        # the first frame (`if self.t0 is None`) and is a datetime from then on.
+        self.t0: "_dt.datetime | None" = None   # host arrival mapped to grid index 0 (session anchor)
         self.gaps = 0
         self.lost = 0
         # A SEPARATE anchor for the rate estimate, reset by every inserted gap. The two mechanisms must
@@ -681,7 +683,7 @@ class O2PpgGrid:
         # one, `idx` advances solely by arrivals, so the estimate is the ring's true rate and nothing the
         # gap branch does can bias it. A link too lossy to hold a clean stretch simply keeps the
         # configured step — the status quo, which is the right thing to degrade to.
-        self.est_t0 = None
+        self.est_t0: "_dt.datetime | None" = None
         self.est_idx0 = 0
 
     @property
@@ -3136,7 +3138,9 @@ async def run_oxyii(dev: dict, root: str):
     # The RECORDING axis (OxyRecEngine) — same journal, axis="rec", INDEPENDENT of the link axis above.
     # duration_s drives it (the measured signal); link loss moves it to UNKNOWN, never to NOT_RECORDING.
     _oxyrec = oxy_lifecycle.OxyRecEngine(device_id=dev.get("device_id"), session_id=_oxylc.session_id)
-    _oxywr = {"w": None}                        # G4 OXYLIFE.csv, opened once per run (first night dir)
+    # The slot holds a writer once opened; `{"w": None}` alone infers `dict[str, None]`, so the
+    # one assignment that fills it reads as an error. It is opened once per run, lazily (G4).
+    _oxywr: "dict[str, OxyLifeLogWriter | None]" = {"w": None}                        # G4 OXYLIFE.csv, opened once per run (first night dir)
 
     def _rec_emit(transitions):
         """Journal + surface RECORDING-axis transitions. Same discipline as the arrival telemetry in the
@@ -4425,12 +4429,19 @@ _pmd_probe_seen: dict[int, int] = {}
 
 
 def _pmd_probe(meas: int, data: bytes, n_samples: int, arrival) -> None:
+    # The only call site is under `if _PMD_PROBE:`, but mypy does not carry a module-global
+    # narrowing across a function boundary — so re-establish it here. Returning is also the
+    # honest behaviour if the probe is somehow reached unset: writing to a None path is not a
+    # thing to attempt.
+    probe_path = _PMD_PROBE
+    if not probe_path:
+        return
     seen = _pmd_probe_seen.get(meas, 0)
     if seen >= _PMD_PROBE_N:
         return
     _pmd_probe_seen[meas] = seen + 1
     try:
-        with open(_PMD_PROBE, "a") as fh:
+        with open(probe_path, "a") as fh:
             fh.write(json.dumps({
                 "meas": meas, "name": pmd.MEAS_NAME.get(meas, str(meas)),
                 "frame_type": data[9], "delta": bool(data[9] & 0x80),
@@ -4455,7 +4466,12 @@ async def clock_watchdog(cfg: dict):
         return
     interval = float(tcfg.get("drift_check_sec", 300))
     jump = float(tcfg.get("resync_jump_sec", 30))
-    seen: dict[str, float] = {}
+    # `float | None`, because `prev = seen.get(addr)` is None on an address's FIRST sighting and
+    # both retry paths below write it straight back. Widening the value is the honest description
+    # and costs nothing: `.get()` already returns `float | None` either way, so no reader changes.
+    # (An `if prev is None` branch would say the same thing but add two arms nothing exercises,
+    # and this package holds a 100 % branch-coverage floor.)
+    seen: dict[str, float | None] = {}
     failed_adrift: dict[str, int] = {}   # addr -> consecutive adrift re-syncs that did not move the skew
     tried_adrift: dict[str, bool] = {}   # addr -> an adrift re-sync is awaiting its verdict next cycle
     gave_up: set[str] = set()            # addr -> already reported as uncorrectable (log/state once)

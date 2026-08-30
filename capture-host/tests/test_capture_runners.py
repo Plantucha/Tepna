@@ -1514,6 +1514,22 @@ def test_run_polar_pmd_frame_probe_records_frames(tmp_path, monkeypatch):
     assert len(lines) == 1, "only the first frame per measurement is recorded once N is reached"
 
 
+def test_pmd_probe_returns_when_the_probe_is_unset(monkeypatch):
+    """Unset PMD_FRAME_PROBE means the diagnostic is OFF, and `_pmd_probe` must return without
+    touching anything — including its own seen-counter.
+
+    The only call site is already guarded by `if _PMD_PROBE:`, but a module-global narrowing does
+    not cross a function boundary, so the guard is re-established inside. This pins the arm that
+    guard creates: without it, `open(None, "a")` raises inside the try and is swallowed, which
+    looks identical to a working probe that wrote nothing.
+    """
+    monkeypatch.setattr(capture, "_PMD_PROBE", None)
+    capture._pmd_probe_seen.clear()
+    import datetime as _dt
+    capture._pmd_probe(pmd.ECG, _ecg_frame(), 3, _dt.datetime(2026, 7, 19, 1, 2, 3))
+    assert capture._pmd_probe_seen == {}, "an unarmed probe must not even count the frame"
+
+
 def test_pmd_probe_swallows_a_write_error(tmp_path, monkeypatch):
     """A diagnostic must never disturb capture: an unwritable probe path is swallowed (1298-1299)."""
     monkeypatch.setattr(capture, "_PMD_PROBE", str(tmp_path))     # a DIRECTORY → open(...,'a') raises
