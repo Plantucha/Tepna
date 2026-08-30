@@ -407,13 +407,17 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         # suspending here regardless would take the box off Wi-Fi on every manual pull, for nothing.
         # (That is the current vigil deployment — `reachable` is true and the association path is never
         # entered — so an unconditional suspend would be wrong on the only box this runs on.)
-        direct = await asyncio.to_thread(cpap_harvest.reachable, base, 5.0)
         uplink_suspended = False
-        if not direct:
-            uplink_suspended, why = await wifi_uplink.suspend_for_harvest(root)
-            _log.info("cpap/pull: %s", why)
         harvest_ok = False
         try:
+            # INSIDE the try, deliberately. `reachable` does network I/O and can raise, and this
+            # handler's contract is that a manual pull never 500s the monitor — moving the probe out
+            # to inform the suspend decision moved it out of that guarantee too, and a ConnectionReset
+            # from the probe came back as a text/plain 500 instead of the JSON error contract.
+            direct = await asyncio.to_thread(cpap_harvest.reachable, base, 5.0)
+            if not direct:
+                uplink_suspended, why = await wifi_uplink.suspend_for_harvest(root)
+                _log.info("cpap/pull: %s", why)
             res = await asyncio.to_thread(_work, direct)
             harvest_ok = bool(res.get("ok"))
         except Exception as e:            # noqa: BLE001 — a manual pull must never 500 the monitor
