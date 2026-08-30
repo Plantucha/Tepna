@@ -20,6 +20,7 @@
 # The fix re-syncs on every reconnect, skips charging devices entirely, and lets a fresh sync forgive
 # the watchdog's history.
 
+import re
 import asyncio
 
 import pytest
@@ -158,11 +159,24 @@ def test_the_resync_is_wired_into_the_reconnect_loop():
     assert call < connect, "the re-sync must happen before the link is established, not inside the session"
 
 
+def _func_body(src, header):
+    """The WHOLE body of a top-level function, not a fixed byte window.
+
+    These ordering assertions used `src[i:i + 4000]`, and 4000 is a magic number that has nothing
+    to do with the property being tested. `clock_watchdog` is ~6700 characters, and the
+    `clock_resync_reason(` marker sat at ~+4000 — one added comment from falling outside the window
+    and failing an ordering test whose ordering had not changed. Slice to the next top-level `def`
+    instead, so the test measures the function rather than an arbitrary prefix of it.
+    """
+    start = src.index(header)
+    nxt = re.search(r"\n(?:async def |def |@)", src[start + len(header):])
+    return src[start:start + len(header) + nxt.start()] if nxt else src[start:]
+
+
 def test_the_watchdog_leaves_a_charging_device_alone():
     """The give-up budget must not burn down against a device that structurally cannot be written."""
     src = _src()
-    wd = src.index("async def clock_watchdog")
-    body = src[wd:wd + 4000]
+    body = _func_body(src, "async def clock_watchdog")
     assert 'if st.get("charging"):' in body, "clock_watchdog must skip docked devices"
     assert body.index('if st.get("charging"):') < body.index("clock_resync_reason("), \
         "the charging skip must come BEFORE the re-sync decision, or the budget still burns"
@@ -172,8 +186,7 @@ def test_the_watchdog_forgives_a_freshly_synced_device():
     """The sticky give-up was the actual defect: coming off the dock and syncing cleanly did not
     clear `clock_uncorrectable`, so the device stayed written off for the whole session."""
     src = _src()
-    wd = src.index("async def clock_watchdog")
-    body = src[wd:wd + 4000]
+    body = _func_body(src, "async def clock_watchdog")
     assert "_CLOCK_FRESHLY_SYNCED" in body, "the watchdog must drain the fresh-sync set"
     assert "gave_up.discard(addr)" in body
     assert "seen.pop(addr, None)" in body, \
