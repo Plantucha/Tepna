@@ -161,3 +161,67 @@ def test_an_UNWRITEABLE_file_does_not_lose_the_computation(tmp_path, monkeypatch
     monkeypatch.setattr(capture.os, "makedirs", lambda *a, **k: (_ for _ in ()).throw(OSError("ro")))
     got = capture._rebuild_link_baselines(str(tmp_path))
     assert got and "00:01:95:CC:53:02" in got, "the record is still returned to the caller"
+
+
+def test_a_header_MISSING_A_COLUMN_yields_nothing_rather_than_guessing():
+    """A LINK.csv whose header lacks `link_epoch` cannot produce a reconnect rate at all. Positional
+    fallback would be the vendor-layout trap: a column order silently reinterpreted."""
+    bad = "# adapter=AA:BB:CC:DD:EE:FF hci=hci1\nPhone timestamp;device;connected\n2026-08-20T23:00:00;ring;1"
+    assert D.night_rates(bad) == ("AA:BB:CC:DD:EE:FF", {})
+
+
+def test_short_and_unparseable_rows_are_skipped_not_counted():
+    """A torn line mid-file must not stop the walk, and must not be read as a sample."""
+    good = [f"2026-08-20T23:{m:02d}:00;ring;1;-50;90;0;0;1;AA" for m in range(0, 60)]
+    good += [f"2026-08-21T00:{m:02d}:00;ring;1;-50;90;0;0;2;AA" for m in range(0, 30)]
+    text = "\n".join(
+        ["# adapter=AA:BB:CC:DD:EE:FF hci=hci1", HDR]
+        + good[:20]
+        + ["short;row"]
+        + ["not-a-time;ring;1;-50;90;0;0;1;AA"]
+        + good[20:]
+    )
+    _ad, rates = D.night_rates(text)
+    assert "ring" in rates and rates["ring"] > 0, "a torn line stopped the walk"
+
+
+def test_merge_with_no_adapter_or_no_rates_returns_the_record_unchanged():
+    prior = {"AA:BB": {"ring": [1.0]}}
+    assert D.merge_baselines(prior, None, {"ring": 2.0}) == prior
+    assert D.merge_baselines(prior, "AA:BB", {}) == prior
+
+
+def test_an_UNEXPECTED_failure_mid_rebuild_keeps_the_previous_baselines(tmp_path, monkeypatch):
+    """The broad except. A baseline is a report about reports — it must never raise into the poller,
+    and it must not half-write a record it could not finish."""
+    caps = tmp_path / "captures" / "2026-08-20"
+    caps.mkdir(parents=True)
+    (caps / "Tepna_x_LINK.csv").write_text(_night())
+
+    def boom(*a, **k):
+        raise RuntimeError("listing exploded")
+
+    monkeypatch.setattr(capture.diskguard, "list_nights", boom)
+    assert capture._rebuild_link_baselines(str(tmp_path)) is None
+    assert not (tmp_path / "captures" / "link-baselines.json").exists()
+
+
+def test_the_poller_rebuilds_baselines_ONCE_A_DAY_without_a_notifier(tmp_path, monkeypatch):
+    """🔴 Deliberately not gated on `notifier` the way the morning digest beside it is. A baseline is
+    not an alert, and on a box with no webhook the distress signal would otherwise stay UNKNOWN
+    forever while looking configured."""
+    import datetime as dtm
+
+    from test_capture_runners import _run, _stop_after
+
+    night = tmp_path / "captures" / "2026-07-19"
+    night.mkdir(parents=True)
+    (night / "Polar_H10_02849638_20260719_ECG.txt").write_text("h\n1\n2\n")
+    called = []
+    monkeypatch.setattr(capture, "_rebuild_link_baselines", lambda root: called.append(root))
+    monkeypatch.setattr(capture, "_now", lambda: dtm.datetime(2026, 7, 19, 11, 5, 0))
+    capture._STOP.clear()
+    _stop_after(monkeypatch, 1)
+    _run(capture.qc_poller({"qc": {"poll_sec": 600, "baseline_hour": 11}, "devices": []}, str(tmp_path)))
+    capture._STOP.clear()
+    assert called == [str(tmp_path)], "the daily baseline rebuild did not run (or ran twice)"
