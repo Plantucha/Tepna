@@ -29,11 +29,30 @@ set -uo pipefail
 REPO_DIR="${TEPNA_REPO_DIR:-/opt/tepna}"
 STATUS_JSON="${TEPNA_STATUS_JSON:-/srv/tepna/captures/status.json}"
 RESTART_SH="${TEPNA_RESTART_SH:-/usr/local/lib/tepna/tepna-restart.sh}"
-# WHAT THE RUNNING DAEMON IS ACTUALLY ON. Deliberately under /run, for two reasons: the repo's own
-# cleanliness check (`git status --porcelain`, §1) would see a file inside $REPO_DIR and refuse to
-# update, and /run is cleared on boot — which is exactly right, because after a boot the daemon started
-# on whatever is checked out, so "no marker" correctly means "the daemon is on HEAD".
-DEPLOYED_MARK="${TEPNA_DEPLOYED_MARK:-/run/tepna-deployed-sha}"
+# WHAT THE RUNNING DAEMON IS ACTUALLY ON.
+#
+# 🔴 NOT /run — THIS SERVICE RUNS AS `vigil`, AND /run IS root-OWNED 0755.
+# The first version of this line used /run/tepna-deployed-sha and reasoned about ProtectSystem=strict
+# making /run read-only. That reasoning is TRUE OF THE CAPTURE DAEMON and irrelevant here:
+# `tepna-update.service` has ProtectSystem=no and no sandbox at all. The real reason /run failed is far
+# more ordinary — plain Unix permissions — and the effect was that the marker was never written, so the
+# debt was never recorded and the deferred-restart fix was INERT. Measured on vigil 2026-08-30, on the
+# very first deploy after it shipped:
+#
+#     /opt/tepna/capture-host/tepna-update.sh: line 209: /run/tepna-deployed-sha: Permission denied
+#     WARN: could not record the deployed SHA at /run/tepna-deployed-sha
+#
+# It degraded safely — the warning fires and the script behaves as it did before — which is exactly why
+# it could have gone unnoticed: nothing broke, a fix simply did not work.
+#
+# `/srv/tepna` is this service's own data root and is vigil-writable. The tradeoff is that the marker is
+# now PERSISTENT rather than tmpfs, so it survives a reboot that the daemon also survived — costing at
+# most ONE redundant restart into identical code, which `test_A_STALE_MARKER_FROM_AN_OUTSIDE_RESTART…`
+# already bounds. A wrong restart that is bounded beats a fix that never runs.
+#
+# ⚠️ It must NOT live inside $REPO_DIR: §1's cleanliness check (`git status --porcelain`) would see it
+# and refuse to update at all. That part of the original reasoning was right and still applies.
+DEPLOYED_MARK="${TEPNA_DEPLOYED_MARK:-/srv/tepna/.tepna-deployed-sha}"
 # A recording that has not been heard from in this long means the DAEMON is gone, not that the box is
 # idle — see the fail-safe in `recording_state`.
 MAX_STATUS_AGE="${TEPNA_MAX_STATUS_AGE:-60}"

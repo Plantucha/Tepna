@@ -47,6 +47,18 @@ DRIVER_EXCLUDED = {"test_no_deprecated_apis.py"}
 # caught. That is the right direction: the remedy is to route through the helper, which is harmless on
 # real source, whereas a miss leaves a module silently unmeasurable.
 READ_CALL = re.compile(r"\bopen\s*\(|\.read_text\s*\(|inspect\.getsource")
+
+# ⚠️ THE MODULE-OBJECT FORM NAMES NO FILE, so the filename match below cannot see it. `READ_CALL` fires
+# on `inspect.getsource(capture)`, but the line contains no `"capture.py"` literal, so `named` comes
+# back empty and the most natural way to write the offence walks straight through the gate. Measured
+# 2026-08-30: two such scans (`test_capture_runners.py`, `test_webmon_settings_contract.py`) sat in
+# `capture.py`'s selection with this test GREEN, which is exactly the silent unmeasurability the gate
+# exists to prevent — and the reason `capture.py`'s audit could not collect a baseline.
+#
+# The bare identifier is the whole signal: `inspect.getsource(capture)` hands mutmut the generated
+# module and breaks, while `inspect.getsource(capture.foo)` bounds on ONE function and is fine. So the
+# dot is the discriminator, and it is a property of the call rather than a list anyone has to maintain.
+MODULE_OBJ = re.compile(r"inspect\.getsource\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)")
 SELF_REF = re.compile(r"""["']tests/test_[a-z_0-9]+\.py["']""")
 
 
@@ -68,15 +80,32 @@ def test_no_test_reads_a_mutatable_module_source_raw():
         if t.name in DRIVER_EXCLUDED:
             continue
         src = t.read_text(encoding="utf-8")
-        if SANCTIONED in src:
-            continue
         for n, line in enumerate(src.split("\n"), 1):
+            # ⚠️ PER-LINE, NOT PER-FILE. This was `if SANCTIONED in src: continue` — one routed read
+            # anywhere in a file exempted every OTHER read in it. `test_capture_runners.py` imports the
+            # helper on line 17 and raw-read `capture.py` on line 4657, and the gate never saw it: the
+            # largest file in the suite held a blanket exemption earned by its own import line.
+            # A file adopting the helper is precisely the file most likely to have missed a site.
+            if SANCTIONED in line:
+                continue
+            # A commented-out read cannot execute, so prose is not an offence. This matters once the
+            # check is per-line: THIS file explains the failure in comments that name `capture.py`, and
+            # the per-file exemption used to hide them. Pure comment lines only — a trailing `#` after
+            # real code leaves the code on the line, and that code still reads.
+            if line.lstrip().startswith("#"):
+                continue
             if not READ_CALL.search(line):
                 continue
             probe = SELF_REF.sub('""', line)
             named = [m for m in mods if f'"{m}"' in probe or f"'{m}'" in probe]
             if named:
                 offenders.append(f"{t.name}:{n} reads {named[0]} directly")
+                continue
+            obj = MODULE_OBJ.search(probe)
+            if obj and f"{obj.group(1)}.py" in mods:
+                offenders.append(f"{t.name}:{n} reads {obj.group(1)}.py via the module object "
+                                 f"`inspect.getsource({obj.group(1)})` — names no file, so the "
+                                 f"filename match above cannot see it")
     assert not offenders, (
         "read a mutatable module's source via tests/_srcscan.module_source(), which skips on a "
         "mutmut-generated file — a raw read makes the whole module unmeasurable and reports it as "

@@ -492,3 +492,54 @@ def test_A_STALE_MARKER_FROM_AN_OUTSIDE_RESTART_COSTS_ONE_RESTART_NOT_A_LOOP(box
     r2 = _run(box)
     assert "nothing to do" in r2.stdout, r2.stdout
     assert not box["called"].exists(), "a stale marker caused a restart loop"
+
+
+# ── the default marker path must be writable by the service that writes it ────────────────────────
+# 🔴 WHY THIS TEST EXISTS. Every test above passes TEPNA_DEPLOYED_MARK pointing into tmp_path, so not
+# one of them ever exercised the DEFAULT — which is precisely the thing that was broken. The marker
+# shipped pointing at /run/tepna-deployed-sha; `tepna-update.service` runs as `vigil` and /run is
+# root-owned 0755, so the write failed on the first real deploy and the whole deferred-restart fix was
+# inert. It degraded safely, which is what made it invisible: nothing broke, a fix just did not work.
+#
+# An injected path is the right way to test BEHAVIOUR and is structurally incapable of testing the
+# default. So the default is asserted here, statically, against the directory the service demonstrably
+# owns — the same one it already reads status.json out of.
+def _script_default(var):
+    for line in open(UPD, encoding="utf-8").read().splitlines():
+        if line.startswith(var + "="):
+            return line.split(":-", 1)[1].rstrip('}"')
+    return None
+
+
+def test_THE_MARKER_DEFAULTS_SOMEWHERE_THE_SERVICE_USER_CAN_WRITE():
+    mark = _script_default("DEPLOYED_MARK")
+    status = _script_default("STATUS_JSON")
+    assert mark and status, "could not read the script's defaults"
+    # status.json's directory is written by the daemon as `vigil` on every status tick, so its root is
+    # a demonstrated-writable location rather than an assumed one.
+    root = "/" + status.strip("/").split("/")[0] + "/" + status.strip("/").split("/")[1]
+    assert mark.startswith(root + "/"), (
+        f"the marker defaults to {mark}, which is outside {root} — the only directory this service is "
+        f"known to be able to write. /run is root-owned and the service runs as vigil."
+    )
+
+
+def test_THE_MARKER_IS_NOT_INSIDE_THE_REPO_CHECKOUT():
+    # The other half of the constraint, and it still holds: §1 refuses to update a dirty checkout, so a
+    # marker inside $REPO_DIR would make the script decline to deploy anything at all.
+    mark = _script_default("DEPLOYED_MARK")
+    repo = _script_default("REPO_DIR")
+    assert mark and repo
+    assert not mark.startswith(repo.rstrip("/") + "/"), (
+        f"the marker is inside {repo}; the cleanliness check would see it and refuse every update"
+    )
+
+
+def test_A_MARKER_THAT_CANNOT_BE_WRITTEN_WARNS_AND_DOES_NOT_ABORT_THE_DEPLOY(box, tmp_path):
+    # It degraded safely on the box, and that must stay true: an unwritable marker is a lost debt
+    # record, not a reason to leave new code undeployed.
+    unwritable = tmp_path / "nodir" / "mark"
+    _advance(box)
+    r = _run(box, TEPNA_DEPLOYED_MARK=str(unwritable))
+    assert box["called"].read_text().strip() == "restart", "a marker failure blocked the restart"
+    assert "could not record" in (r.stdout + r.stderr), "the marker failure was silent"
