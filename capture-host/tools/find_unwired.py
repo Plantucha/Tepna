@@ -72,6 +72,17 @@ ALLOW_RENDERED: dict = {}
 ALLOW_JS: dict = {}
 
 ALLOW_FUNCS = {
+    # ── Swappability, unit 1 pure core (2026-08-30, owner-directed via Mutator). The POOL is landed
+    # ahead of the hotplug watch that drives it, deliberately and for the same reason `oxy_transfer`'s
+    # family below was: the interesting part is the DECISION — which device moves to which radio when
+    # one is added or pulled — and a decision buried inside a bluez `InterfacesAdded` callback is
+    # nearly untestable, because reproducing the event needs the hardware you are trying to stop
+    # depending on. Here every reassignment is a pure function over an adapter list, so the sticky
+    # rule and the idle-vs-loaded tie-break are pinned by mutation before any callback exists.
+    # Retires when the hotplug watch lands and calls them; the entry goes stale and the gate says so.
+    "apply_added": "adapter_pool unit 1 — the ADD half of the hotplug reassignment; the bluez InterfacesAdded watch that calls it is unit 1's second half",
+    "apply_removed": "adapter_pool unit 1 — the REMOVE half; same watch, and the half that must not strand a device on a radio that is gone",
+    "rebalance_reason": "adapter_pool unit 1 — the human-readable WHY behind a reassignment, for the log line and the monitor; consumed when the watch reports what it did",
     "night_profile": "adapter_ab is an offline analysis tool, not daemon code",
     "compare": "adapter_ab analysis tool",
     "unattributable": "adapter_ab analysis tool",
