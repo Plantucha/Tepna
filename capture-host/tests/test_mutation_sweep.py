@@ -7,9 +7,12 @@ budget derived from a clean run that never actually ran was indistinguishable fr
 
 import os
 import sys
+from pathlib import Path
 
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+HERE = Path(__file__).resolve().parent.parent
 
 import mutation_sweep as S  # noqa: E402
 
@@ -180,3 +183,32 @@ def test_the_live_entries_are_pinned_with_their_reasons():
     assert sum(v is None for v in S.DESELECTED_TESTS.values()) == 2, \
         "the free ones assert a committed FILE MODE; mutating a function cannot break that"
     assert "::" not in "".join(S.SOURCE_SCANNING_TESTS), "file entries stay file-granular"
+
+
+def test_the_driver_bounds_a_SINGLE_mutant_not_just_the_module():
+    """A per-module cap cannot see one spinning mutant, so the per-mutant knob must stay set.
+
+    Measured 2026-08-30 on `capture.x_clock_watchdog__mutmut_*`: one worker at 29:26 CPU out of 29:27
+    wall with 23 siblings idle, while capture.py's derived module cap sat at 243370 s (67.6 hours) —
+    nowhere near hit, and nothing else was going to stop it. Mutating a sleep inside a watchdog loop
+    is an ordinary way to get a mutant that never returns.
+
+    mutmut already enforces this per mutant, as
+    `(estimated_time_of_tests + timeout_constant) * timeout_multiplier` via SIGXCPU, where the estimate
+    is the summed duration of the tests covering that function. The driver simply never set the knob,
+    and the default 15 is generous once many tests cover one function — the mutant above needed a sum
+    of only ~116 s to buy half an hour. This pins the setting: it is one line in a format string, which
+    is exactly the kind of line a refactor drops without any test noticing.
+
+    NOTE this reads `tools/mutate.py`, which is NOT a mutatable module (`_mutatable_modules()` globs the
+    capture-host ROOT), so the raw read is safe and does not need `_srcscan`.
+    """
+    src = (HERE / "tools" / "mutate.py").read_text(encoding="utf-8")
+    # Anchor on the TABLE and read forward. `src.split("timeout_multiplier")[0]` splits at the first
+    # occurrence, which is the header comment ABOVE explaining the setting — the very idiom
+    # `tests/_srcscan.py` warns about, and it fails here the moment the thing is documented.
+    assert "[tool.mutmut]" in src, "the driver no longer writes a [tool.mutmut] table"
+    table = src.split("[tool.mutmut]", 1)[1].split('"""', 1)[0]
+    assert "timeout_multiplier = 3.0" in table, (
+        "the per-mutant timeout is unset inside [tool.mutmut] — a runaway mutant will hang the whole "
+        f"run behind the module cap, which cannot distinguish it from honest work. Table was:\n{table}")
