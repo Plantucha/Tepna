@@ -101,3 +101,69 @@ def test_selection_is_stable_when_the_module_has_no_own_test_file():
 def test_a_caller_may_override_the_exclusion_set():
     kept, dropped = S.select_tests(_CANDS, "clockcfg", excluded=frozenset())
     assert "tests/test_no_deprecated_apis.py" in kept and dropped == []
+
+
+# ── node-id exclusions: the file must still run, one test must not ────────────────────────────────
+#
+# The file-granular exclusion above has no move when the fatal test lives in the module's PRIMARY
+# test file — dropping `test_capture_runners.py` would remove ~280 of capture.py's tests to silence
+# one. These pin the narrower instrument.
+
+
+def test_a_node_id_exclusion_KEEPS_the_file():
+    """The whole point: the file stays selected, so its other tests still kill mutants."""
+    cands = [("tests/test_capture_runners.py", "capture things")]
+    kept, dropped = S.select_tests(cands, "capture",
+                                   excluded=frozenset({"tests/test_capture_runners.py::test_x"}))
+    assert kept == ["tests/test_capture_runners.py"], "a node id must not drop its file"
+    assert dropped == [], "a node id is not a file exclusion"
+
+
+def test_deselect_args_emits_pytest_flags_sorted():
+    args = S.deselect_args({"tests/b.py::test_2": "m.py", "tests/a.py::test_1": "m.py"})
+    assert args == ["--deselect", "tests/a.py::test_1", "--deselect", "tests/b.py::test_2"], \
+        "sorted, so the emitted config is stable across runs"
+    assert S.deselect_args({}) == []
+
+
+def test_the_note_is_scoped_to_the_module_the_test_actually_SCANS():
+    """⚠️ The deselection is global; the cost it carries is not. The live entry greps
+    a module-level source scan of capture, so it cannot kill an `alerts` mutant — reporting "reads as
+    SURVIVING" for alerts.py would manufacture the same false risk as a false REACHABLE, and did:
+    scoping took the note from 23 modules to 1."""
+    d = {"tests/test_capture_runners.py::test_x": "capture.py"}
+    kept = ["tests/test_capture_runners.py"]
+    assert S.deselect_notes("capture.py", kept, d) == ["tests/test_capture_runners.py::test_x"]
+    assert S.deselect_notes("alerts.py", kept, d) == [], "not reported where it cannot cost anything"
+
+
+def test_the_note_is_silent_when_the_file_is_not_even_selected():
+    d = {"tests/test_capture_runners.py::test_x": "capture.py"}
+    assert S.deselect_notes("capture.py", ["tests/test_other.py"], d) == []
+
+
+def test_a_None_scope_reports_nowhere():
+    """A test that kills no mutant costs nothing to exclude, so warning about it would manufacture
+    the same false work as a false REACHABLE. The git-mode assertion is exactly that: mutating a
+    function cannot break a claim about a committed file mode."""
+    d = {"tests/test_check_script.py::test_mode": None}
+    kept = ["tests/test_check_script.py"]
+    assert S.deselect_notes("capture.py", kept, d) == []
+    assert S.deselect_notes("check_script.py", kept, d) == []
+    assert S.deselect_args(d) == ["--deselect", "tests/test_check_script.py::test_mode"],         "still deselected — silent about cost is not the same as not applied"
+
+
+def test_the_live_entries_are_pinned_with_their_reasons():
+    """Pins the real exclusions, so deleting one is a deliberate act rather than an accident. The two
+    are here because they cannot be made mutation-safe by routing through `_srcscan`: two shell out to
+    git against the tree they run in (the scratch tree is a copy, not a repo), and one reads a
+    coroutine's frame locals (under mutation that frame is mutmut's dispatch trampoline). A source scan
+    is NOT in this table — `module_source()` handles those without losing the test."""
+    assert S.DESELECTED_TESTS == {
+        "tests/test_check_script.py::test_check_sh_is_executable_and_shebanged": None,
+        "tests/test_vigil_update.py::test_a_unit_that_directly_execs_a_repo_script_requires_the_exec_bit": None,
+        "tests/test_cpap_spool_wire.py::test_every_documented_spool_pull_key_is_actually_READ": "capture.py",
+    }
+    assert sum(v is None for v in S.DESELECTED_TESTS.values()) == 2, \
+        "the free ones assert a committed FILE MODE; mutating a function cannot break that"
+    assert "::" not in "".join(S.SOURCE_SCANNING_TESTS), "file entries stay file-granular"

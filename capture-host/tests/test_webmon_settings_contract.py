@@ -134,11 +134,10 @@ def test_every_stream_the_RING_CAN_WRITE_is_offerable(tmp_path):
     So this asserts against the source of truth rather than a copy: every stream name `run_oxyii` gates
     a writer on must be offerable. Add a stream to capture.py and forget this list, and this test says
     so — which a second hardcoded list could never do."""
-    import inspect
     import re
 
-    import capture
-    src = inspect.getsource(capture)
+    from tests._srcscan import module_source
+    src = module_source("capture.py")
     # `ppg2wr = (StreamWriter(...) if "ppg2w" in (dev.get("streams") or []) else None)`
     gated = set(re.findall(r'"([a-z0-9_]+)" in \(dev\.get\("streams"\)', src))
     assert gated, "found no stream gates in capture.py — the scan pattern has drifted, not the code"
