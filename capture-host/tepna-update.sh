@@ -29,6 +29,11 @@ set -uo pipefail
 REPO_DIR="${TEPNA_REPO_DIR:-/opt/tepna}"
 STATUS_JSON="${TEPNA_STATUS_JSON:-/srv/tepna/captures/status.json}"
 RESTART_SH="${TEPNA_RESTART_SH:-/usr/local/lib/tepna/tepna-restart.sh}"
+# WHAT THE RUNNING DAEMON IS ACTUALLY ON. Deliberately under /run, for two reasons: the repo's own
+# cleanliness check (`git status --porcelain`, §1) would see a file inside $REPO_DIR and refuse to
+# update, and /run is cleared on boot — which is exactly right, because after a boot the daemon started
+# on whatever is checked out, so "no marker" correctly means "the daemon is on HEAD".
+DEPLOYED_MARK="${TEPNA_DEPLOYED_MARK:-/run/tepna-deployed-sha}"
 # A recording that has not been heard from in this long means the DAEMON is gone, not that the box is
 # idle — see the fail-safe in `recording_state`.
 MAX_STATUS_AGE="${TEPNA_MAX_STATUS_AGE:-60}"
@@ -134,8 +139,43 @@ if [ -x "$REPO_DIR/capture-host/deploy/check-system-files.sh" ]; then
 fi
 
 # --- 5 · restart, but only into an idle box ----------------------------------------------------
-if [ "$before" = "$after" ]; then
-  :                                      # no new code — nothing to restart into
+# 🔴 "RESTART OWED" IS A STATE, NOT AN EVENT, AND THIS LINE USED TO TEST FOR THE EVENT.
+# `before = after` means "I merged nothing THIS TICK". It does not mean the daemon is running the code
+# on disk, and the difference is the whole failure this script was written to end. A tick that merges
+# and then DEFERS (box recording) leaves new code on disk and the old process serving it; every later
+# tick then finds `before = after`, concludes "nothing to do", and never comes back. The deferral
+# branch's own comment promised the opposite — "the next tick will take it once the night ends" — and
+# the next tick could not, because it no longer had any way to know a restart was outstanding.
+#
+# Measured on vigil 2026-08-30: merged-and-deferred at 00:27 and again at 01:31, then TEN consecutive
+# ticks reporting "up to date — nothing to do" while the daemon ran the pre-merge build. It was only
+# rescued at 12:30 by the cron WATCHDOG restarting for an unrelated health reason — luck, not design.
+# That is the same shape as the 2026-08-03 event in this file's own header (four days of stale code,
+# "the pull had happened, nothing restarted the unit"), re-entered through the deferral path.
+#
+# So the question is now the honest one: is the daemon on the checkout? `$DEPLOYED_MARK` records the
+# SHA the daemon is actually running — written on a successful restart, and written on a DEFERRAL too
+# (recording `$before`, the code the daemon keeps), so the outstanding restart survives into the next
+# tick instead of evaporating with the variable that described it.
+# What the DAEMON is on, which is not `$before` once a deferral is outstanding. On a repeat deferral
+# `before` equals `after` (nothing merged this tick), so deferring with `$before` would write the DISK
+# sha and silently mark the debt paid — re-creating the bug one level down. The marker, when it holds
+# anything, is the authority on what the process is running.
+running_sha="$before"
+if [ -s "$DEPLOYED_MARK" ]; then
+  running_sha="$(cat "$DEPLOYED_MARK" 2>/dev/null)"
+fi
+
+restart_owed=0
+if [ "$before" != "$after" ]; then
+  restart_owed=1                         # merged this tick
+elif [ -n "$running_sha" ] && [ "$running_sha" != "$after" ]; then
+  restart_owed=1                         # an earlier tick merged and deferred; still owed
+  say "restart still OWED from an earlier tick — the daemon is on ${running_sha:0:12}, disk is at ${after:0:12}"
+fi
+
+if [ "$restart_owed" = 0 ]; then
+  :                                      # the daemon is on the checkout — nothing to restart into
 elif [ "$MODE" = "--no-restart" ]; then
   # A MACHINE-READABLE MARKER, because the caller must branch on this. Prose alone would make the API
   # parse an English sentence — the coupling that breaks the next time the wording improves.
@@ -166,14 +206,19 @@ else
       # tepna-restart.sh already confirms the unit came back (it sleeps, then checks is-active) and
       # reports a failed restart as a failure, so this does not need to re-check and must not assume.
       "${SUDO[@]}" "$RESTART_SH" restart || die "restart FAILED — the box is now running NEW code on disk with the OLD process, which is the exact state this script exists to prevent"
+      printf '%s\n' "$after" > "$DEPLOYED_MARK" 2>/dev/null || warn "could not record the deployed SHA at $DEPLOYED_MARK"
       say "daemon restarted on ${after:0:12}"
       ;;
     recording)
       # NOT an error, and must never be reported as one: deferring is this script working. The code is
       # on disk and the next tick will take it once the night ends.
+      # Record what the daemon is STILL on, so the next tick can see the debt. Without this write the
+      # deferral is indistinguishable from having nothing to do, which is precisely how it was lost.
+      printf '%s\n' "$running_sha" > "$DEPLOYED_MARK" 2>/dev/null || warn "could not record the deployed SHA at $DEPLOYED_MARK"
       say "deferred — a device is recording; the daemon keeps the old code until the box is idle"
       ;;
     *)
+      printf '%s\n' "$running_sha" > "$DEPLOYED_MARK" 2>/dev/null || true
       warn "deferred — cannot establish whether the box is recording (${state#unknown:}); refusing to restart blind"
       drifted=1
       ;;
