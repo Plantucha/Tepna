@@ -206,7 +206,7 @@ def _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="tepna"):
         (systemd / u).write_text(f"[Unit]\nDescription={u}\n")
     lib = tmp_path / "lib-tepna"; lib.mkdir()
     for h in ("tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh", "tepna-usbreset.sh",
-                                                                            "tepna-btreset.sh"):
+                                             "tepna-btreset.sh", "tepna-wifi.sh"):
         body = f"#!/usr/bin/env bash\n# {h}\n"
         (tmp_path / "capture-host" / h).write_text(body)
         (lib / h).write_text(body)
@@ -298,7 +298,7 @@ def _tree_two_sources(tmp_path, deploy_body, systemd_body, etc_body):
         (systemd / u).write_text(f"[Unit]\nDescription={u}\n")
     lib = tmp_path / "lib-tepna"; lib.mkdir()
     for h in ("tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh", "tepna-usbreset.sh",
-                                                                            "tepna-btreset.sh"):
+                                             "tepna-btreset.sh", "tepna-wifi.sh"):
         body = f"#!/usr/bin/env bash\n# {h}\n"
         (src / h).write_text(body)
         (lib / h).write_text(body)
@@ -361,13 +361,13 @@ def test_the_four_privileged_helpers_are_installed_EXECUTABLE(tmp_path):
     src, sd, ud = _tree(tmp_path)
     lib = tmp_path / "lib-tepna"
     for h in ("tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh", "tepna-usbreset.sh",
-                                                                            "tepna-btreset.sh"):
+                                             "tepna-btreset.sh", "tepna-wifi.sh"):
         (lib / h).unlink()
     # --install still exits 1 after repairing (it reports the drift it found), so the MODE is the
     # assertion here, not the status.
     _chk(src, sd, ud, "--install")
     for h in ("tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh", "tepna-usbreset.sh",
-                                                                            "tepna-btreset.sh"):
+                                             "tepna-btreset.sh", "tepna-wifi.sh"):
         assert os.access(lib / h, os.X_OK), f"{h} installed non-executable — every sudoers grant on it is dead"
 
 
@@ -586,10 +586,23 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
     #     asserted directly (test_a_hub_is_refused, test_mass_storage_is_refused);
     #   • the non-root test asserts the write FAILS, and skips when euid == 0 so it cannot touch a real
     #     sysfs even in a root container.
+    # tepna-wifi.sh added 2026-08-30 — the sixth NOPASSWD helper, and the first that touches the box's
+    # own NETWORK rather than a device. The confirmation covers three seams, and `_run()` sets all three
+    # unconditionally so no test can reach a real one:
+    #   • every WRITE is to $CONF / $CTRL, both derived from $TEPNA_WIFI_RUNDIR, which `_run()` points at
+    #     tmp_path. There is no other write in the file — no install, no systemctl, no mount, no udevadm;
+    #   • every privileged COMMAND (ip, wpa_supplicant, wpa_cli, dhcpcd) is resolved through $PATH, and
+    #     `_run()` prepends a stub bin/ holding all four, so the real binaries are unreachable;
+    #   • $TEPNA_WIFI_IFACE is set to a NON-EXISTENT interface, so even an unstubbed `ip link set … up`
+    #     would name nothing on this host. A third seam precisely because the first two are policy and
+    #     this one is arithmetic — the interface does not exist, so there is nothing to disturb.
+    # And the property that bounds all of it: the script NEVER self-elevates. It is the sudo TARGET, not
+    # a sudo caller — the only `sudo` in the file is in the deploy comment. Run by the test user it has
+    # exactly that user's authority, and `ip link set` / `dhcpcd` / `wpa_supplicant` all refuse it.
     assert executed <= {"check-system-files.sh", "sync-apps.sh", "sse-frames.sh", "enable-cpap-wifi.sh",
                         "tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh",
-                        "tepna-usbreset.sh", "tepna-btreset.sh", "check.sh", "tepna-update.sh",
-                        "vigil.sh"}, (
+                        "tepna-usbreset.sh", "tepna-btreset.sh", "tepna-wifi.sh", "check.sh",
+                        "tepna-update.sh", "vigil.sh"}, (
         f"a test now executes {sorted(executed)} — confirm it cannot mutate real host state "
         f"(systemctl / udevadm / mount / ip / install into /etc) before adding it here")
 

@@ -120,6 +120,7 @@ tepna-restart.sh|$LIB_TEPNA/tepna-restart.sh|MANAGED|0755
 tepna-rssi.sh|$LIB_TEPNA/tepna-rssi.sh|MANAGED|0755
 tepna-usbreset.sh|$LIB_TEPNA/tepna-usbreset.sh|MANAGED|0755
 tepna-btreset.sh|$LIB_TEPNA/tepna-btreset.sh|MANAGED|0755
+tepna-wifi.sh|$LIB_TEPNA/tepna-wifi.sh|MANAGED|0755
 "
 
 # A managed file with a second, DIFFERENT copy somewhere else in the repo means "which one is the

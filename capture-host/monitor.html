@@ -606,6 +606,38 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
         <p class="hint">Streams the CPAP's flow + pressure over BLE onto the <b>Overview</b> Live-streams grid, live. Runs on the free radio. Whether it refuses beside a capturing wearable is <b>conditional</b>: the 2.4&nbsp;GHz coexistence interlock is <b>off by default</b> (owner decision, 2026-08-23) — a start beside on-body sensors is logged, not blocked — and is restored by setting <code>cpap.ble_stream.coexistence_gate: true</code>. Read-only — nothing on the device is changed.</p>
       </div>
 
+      <!-- Wi-Fi uplink. Separate from every device card because it is not a sensor: it is how the BOX
+           reaches the network, and it shares its radio with the CPAP harvest. -->
+      <div class="card" id="wifiCard">
+        <h3>Wi-Fi <span style="font-weight:400;color:var(--text3);font-size:11px">· the box's own uplink — a phone hotspot or hotel network</span></h3>
+        <div class="clk-status" id="wifiStatus"><span class="spin">reading uplink…</span></div>
+        <div style="display:flex;gap:.5rem;align-items:center;margin:12px 0 4px;flex-wrap:wrap">
+          <button class="btn btn-primary" id="wifiScanBtn">Scan for networks</button>
+          <button class="btn" id="wifiDisconnectBtn">Disconnect</button>
+          <button class="btn" id="wifiForgetBtn" title="Erase the stored key for the remembered network. The box will not rejoin it after a CPAP harvest until you enter the password again.">Forget saved</button>
+          <span class="spin" id="wifiState"></span>
+        </div>
+        <div id="wifiList" style="margin-top:.5rem"></div>
+        <div id="wifiJoin" hidden style="margin-top:.75rem;border-top:1px solid var(--line,#2a2a2a);padding-top:12px">
+          <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+            <span style="font-size:12px;color:var(--text3)">Join <b id="wifiJoinSsid"></b>:</span>
+            <input id="wifiPass" type="password" size="24" spellcheck="false" autocomplete="off"
+                   placeholder="network password">
+            <label style="font-size:12px;color:var(--text3);display:flex;align-items:center;gap:.25rem">
+              <input type="checkbox" id="wifiShow"> show
+            </label>
+            <button class="btn btn-primary" id="wifiConnectBtn">Connect</button>
+          </div>
+        </div>
+        <!-- 🔴 SAY WHAT IS ACTUALLY TRUE. The owner asked for the password to be "encrypted after
+             saving". What happens is a one-way PBKDF2 derivation, and calling that "encrypted" would
+             promise a reversibility that does not exist and overstate the protection. The hint below
+             is the honest version, and it is written for the person who has to decide whether to type
+             a password they use elsewhere. -->
+        <p class="hint">Scan, pick a network, type its password once. The password itself is <b>never stored</b> — the box keeps only the one-way key derived from it (PBKDF2), in a file only root can read, so a password you reuse elsewhere cannot be read back off this box. That derived key still joins <i>this</i> network, so treat the box as you would a saved network on your laptop. It is <b>not</b> encryption and there is nothing to decrypt.</p>
+        <p class="hint"><b>During a CPAP harvest the uplink drops automatically</b> and comes back when the harvest finishes — the SD card has its own Wi-Fi and one radio cannot hold both. It is restored even if the harvest fails. If no network is saved, the uplink is left alone and the harvest is skipped instead: being able to reach the box matters more than one night of files.</p>
+      </div>
+
       <div class="card" id="clockCard">
         <h3>Clock &amp; NTP <span style="font-weight:400;color:var(--text3);font-size:11px">· the Clock Contract stamps every capture with this box's wall clock</span></h3>
         <div class="clk-status" id="clkStatus"><span class="spin">reading clock…</span></div>
@@ -3083,6 +3115,115 @@ function analyze(){
 // Measured 2026-08-25: after a 22:21 reboot the owner's open tab showed an empty page while the box was
 // recording 15 active streams. The header clock kept ticking (its own unconditional setInterval), which
 // makes a DEAD page look ALIVE — the worst version of this failure.
+
+// ── Wi-Fi uplink ─────────────────────────────────────────────────────────────────────────────────
+// 🔴 THE PAGE NEVER RECEIVES A PASSWORD AND MUST NEVER ASK FOR ONE IT ALREADY HAS. /api/wifi returns
+// `saved:{ssid,security,has_credential}` — no key. Reconnecting to the remembered network therefore
+// posts NO passphrase at all and lets the box use what it holds. The "show" checkbox reveals only what
+// the operator is typing right now, never anything read back from the box.
+const wifiPost = (path, body) => api(path, {method:'POST', headers:{'content-type':'application/json'},
+                                            body: JSON.stringify(body||{})});
+let wifiPick = null;
+
+function wifiSignalBars(dbm){
+  // Four buckets, and the thresholds are the usual station-mode ones. A raw dBm means nothing to the
+  // person choosing a hotel network; it is shown alongside for anyone who does want it.
+  const n = dbm >= -55 ? 4 : dbm >= -67 ? 3 : dbm >= -75 ? 2 : 1;
+  return '<span title="' + esc(String(dbm)) + ' dBm">' + '▮'.repeat(n) +
+         '<span style="color:var(--text4)">' + '▯'.repeat(4-n) + '</span></span>';
+}
+
+async function loadWifi(){
+  let w; try{ w = await api('/api/wifi'); }catch(_){ return; }
+  const saved = w.saved;
+  const pill = w.state === 'up'   ? '<span class="pill pill-green">connected</span>'
+             : w.state === 'down' || w.state === 'interface_disabled'
+                                   ? '<span class="pill pill-gray">off</span>'
+             : w.state === 'unknown' ? '<span class="pill pill-amber">unknown</span>'
+                                   : '<span class="pill pill-amber">' + esc(w.state) + '</span>';
+  $('#wifiStatus').innerHTML = [
+    ['Uplink', pill + (w.error ? ' <span style="color:var(--text3)">' + esc(w.error) + '</span>' : '')],
+    ['Network', esc(w.ssid || '—')],
+    ['Address', esc(w.ip || '—')],
+    // "Saved" answers a question the operator actually has after a harvest: will it come back on its
+    // own? `has_credential:false` on a secured network means it will not.
+    ['Saved', saved ? (esc(saved.ssid) + (saved.has_credential || saved.security === 'open'
+                        ? ' <span class="pill pill-green">will rejoin</span>'
+                        : ' <span class="pill pill-amber">no key held</span>'))
+                    : '<span style="color:var(--text3)">nothing saved — the uplink will not come back after a harvest</span>'],
+  ].map(([l,v])=>`<div class="clk-row"><span class="clk-lab">${l}</span><span class="clk-val">${v}</span></div>`).join('');
+}
+
+async function wifiScan(btn){
+  const st = $('#wifiState'); st.textContent = 'scanning…'; btn.disabled = true;
+  try{
+    const r = await wifiPost('/api/wifi/scan');
+    if(!r.ok){ st.textContent = r.error || 'scan failed'; return; }
+    if(!r.networks.length){ st.textContent = 'no networks in range'; $('#wifiList').innerHTML = ''; return; }
+    st.textContent = r.networks.length + ' found';
+    $('#wifiList').innerHTML = r.networks.map(n =>
+      '<div class="clk-row" style="cursor:pointer" data-wifi-ssid="' + esc(n.ssid) + '"' +
+      ' data-wifi-sec="' + esc(n.security) + '">' +
+      '<span class="clk-lab">' + wifiSignalBars(n.signal) + ' ' +
+      (n.security === 'open' ? '<span title="open network — no password, and anyone nearby can read the traffic">🔓</span>' : '🔒') +
+      '</span><span class="clk-val">' + esc(n.ssid) + '</span></div>').join('');
+  }catch(e){ st.textContent = 'scan failed'; }
+  finally{ btn.disabled = false; }
+}
+
+function wifiSelect(ssid, security){
+  wifiPick = {ssid, security};
+  $('#wifiJoinSsid').textContent = ssid;
+  $('#wifiJoin').hidden = false;
+  const pw = $('#wifiPass');
+  // An open network takes no password, and offering an enabled field for one invites the operator to
+  // type a password that would then be rejected as an error they did not make.
+  pw.disabled = (security === 'open');
+  pw.value = '';
+  pw.placeholder = security === 'open' ? 'open network — no password needed' : 'network password';
+  if(!pw.disabled) pw.focus();
+}
+
+async function wifiConnect(btn){
+  if(!wifiPick) return;
+  const st = $('#wifiState'); st.textContent = 'connecting…'; btn.disabled = true;
+  try{
+    const body = {ssid: wifiPick.ssid, security: wifiPick.security, remember: true};
+    const typed = $('#wifiPass').value;
+    // Send the typed password, or NOTHING to mean "use the key you already hold". Posting an empty
+    // string instead would read as a real (and invalid) passphrase and fail the reconnect.
+    if(wifiPick.security === 'open') body.passphrase = '';
+    else if(typed) body.passphrase = typed;
+    const r = await wifiPost('/api/wifi/connect', body);
+    $('#wifiPass').value = '';                   // never leave a password sitting in the DOM
+    st.textContent = r.ok ? (r.warning || 'connected') : (r.error || 'could not connect');
+    if(r.ok){ $('#wifiJoin').hidden = true; wifiPick = null; }
+  }catch(e){ st.textContent = 'could not connect'; }
+  finally{ btn.disabled = false; await loadWifi(); }
+}
+
+document.addEventListener('click', (e)=>{
+  const row = e.target.closest('[data-wifi-ssid]');
+  if(row) wifiSelect(row.getAttribute('data-wifi-ssid'), row.getAttribute('data-wifi-sec'));
+});
+$('#wifiScanBtn').addEventListener('click', function(){ wifiScan(this); });
+$('#wifiConnectBtn').addEventListener('click', function(){ wifiConnect(this); });
+$('#wifiShow').addEventListener('change', function(){ $('#wifiPass').type = this.checked ? 'text' : 'password'; });
+$('#wifiDisconnectBtn').addEventListener('click', async function(){
+  const st = $('#wifiState'); st.textContent = 'disconnecting…'; this.disabled = true;
+  try{ const r = await wifiPost('/api/wifi/disconnect'); st.textContent = r.ok ? 'disconnected' : (r.error||'failed'); }
+  finally{ this.disabled = false; await loadWifi(); }
+});
+$('#wifiForgetBtn').addEventListener('click', async function(){
+  if(!confirm('Forget the saved network?\n\nThe stored key is erased. The box will stay on the network ' +
+              'now, but will NOT rejoin it after a CPAP harvest until you enter the password again.')) return;
+  const st = $('#wifiState'); st.textContent = 'forgetting…';
+  try{ const r = await wifiPost('/api/wifi/forget'); st.textContent = r.forgot ? 'forgotten' : 'nothing was saved'; }
+  finally{ await loadWifi(); }
+});
+setInterval(loadWifi, 10000);
+loadWifi();
+
 // So: retry until the first load succeeds, and surface the waiting state instead of a blank grid.
 (function boot(){
   loadState()
