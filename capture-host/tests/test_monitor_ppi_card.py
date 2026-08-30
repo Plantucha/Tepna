@@ -60,7 +60,19 @@ def test_the_declared_labels_match_the_wire_order():
 def _ppi_branch():
     src = _read(MON)
     i = src.index("} else { // ppi: [PP-int ms, HR]")
-    return src[i:i + 1400]
+    # BRACE-MATCHED, not a 1400-char guess. Measured: the branch is 1281 chars, so the old window
+    # covered it with 119 chars to spare — it worked today and would have started slicing the branch
+    # in half on any edit that grew it, with the failure landing on whichever assertion below happened
+    # to sit past the edge rather than on the code that changed.
+    depth, j = 0, src.index("{", i)
+    for j in range(j, len(src)):
+        if src[j] == "{":
+            depth += 1
+        elif src[j] == "}":
+            depth -= 1
+            if depth == 0:
+                break
+    return src[i:j + 1]
 
 
 def test_the_card_reads_the_declared_labels_rather_than_hardcoding_them():
