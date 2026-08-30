@@ -31,7 +31,7 @@ SYSTEM_DIRS = ("/usr/local/lib/tepna", "/opt/tepna/capture-host")
 # Every helper this codebase invokes under sudo. Listed HERE so the boot self-test can check them in one
 # place, rather than each call site remembering to — which is how the check came to exist with no caller.
 SUDO_HELPERS = ("tepna-restart.sh", "tepna-btreset.sh", "tepna-usbreset.sh",
-                "tepna-clock.sh", "tepna-rssi.sh")
+                "tepna-clock.sh", "tepna-rssi.sh", "tepna-wifi.sh")
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
 

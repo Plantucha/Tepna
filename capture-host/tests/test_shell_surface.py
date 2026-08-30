@@ -38,6 +38,7 @@ COVERED = {
     "tepna-rssi.sh": "test_tepna_rssi_sh.py",
     "tepna-usbreset.sh": "test_tepna_usbreset_sh.py",
     "tepna-btreset.sh": "test_tepna_btreset_sh.py",
+    "tepna-wifi.sh": "test_tepna_wifi_sh.py",
     "tepna-update.sh": "test_vigil_update.py",
     "vigil.sh": "test_vigil_sh.py",
     "deploy/sync-apps.sh": "test_deploy_sync_apps.py",
