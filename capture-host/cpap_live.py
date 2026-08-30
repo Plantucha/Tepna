@@ -20,7 +20,10 @@ from __future__ import annotations
 
 __all__ = ["DETECTOR_STALE_MULTIPLE", "stale_after_s", "detector_age_s", "live_view",
            "EndWatch", "observe", "harvest_due",
-           "CATCH_UP_MAX_AGE_S", "journal_rows", "last_therapy_end", "boot_state"]
+           "CATCH_UP_MAX_AGE_S", "journal_rows", "last_therapy_end", "boot_state",
+           "AUTOSTART_DEBOUNCE_S", "AUTOSTART_MAX_ATTEMPTS", "AUTOSTART_BACKOFF_S",
+           "AUTOSTART_BACKOFF_MAX_S", "StartWatch", "observe_start", "autostart_due",
+           "note_start_failed", "note_manual_stop", "note_started", "boot_start_state"]
 
 # ── how old is too old ─────────────────────────────────────────────────────────────────────────
 # DERIVED, not chosen by feel. The shadow detector's promise is one reading every
@@ -259,3 +262,179 @@ def boot_state(end_ms, ended, fired_for, now_ms, max_age_s: float = CATCH_UP_MAX
         return fresh, (f"the last therapy end is {age / 3600.0:.1f}h old, older than the "
                        f"{float(max_age_s) / 3600.0:.0f}h catch-up bound; the daily window owns it")
     return EndWatch(True, end_ms, fired_for), f"catching up a therapy end from {age / 60.0:.0f} min ago"
+
+
+# ── AUTO-START: the live stream starts itself when therapy starts ──────────────────────────────
+# The mirror of the therapy-END trigger, and it exists because the alternative is a click. On
+# 2026-08-26 nobody clicked and a full night went unrecorded; on 08-27 the click was made and undone a
+# second later. Neither was a failure of anything, which is exactly why nothing reported them.
+#
+# 🔴 THE ASYMMETRY WITH THE END TRIGGER IS DELIBERATE AND IS THE WHOLE DESIGN. Firing late on an END
+# costs ten minutes of waiting. Firing wrongly on a START opens a BLE stream beside a sleeping body
+# and, worse, can start recording something that is not a session. So this side carries three guards
+# the end side does not need:
+#
+#   · a DEBOUNCE against mask-fit blips (default 120 s of continuous Therapy, config-overridable);
+#   · MANUAL INTENT WINS — an operator who stops a stream mid-session has said "not this session",
+#     and no automation may overrule that until a NEW session begins;
+#   · BOUNDED RETRY — a start that fails retries with backoff while Therapy persists, and then STOPS.
+#     An unbounded retry against a device that is refusing is a radio hammering a sleeping room.
+#
+# ⚠️ THE COEXISTENCE GATE IS NOT RE-INTRODUCED HERE. `cpap.ble_stream.coexistence_gate` defaults to
+# FALSE by owner order (2026-08-23) — the stream does not refuse beside an on-body wearable, it only
+# logs — and the box's config does not set it. Auto-start inherits that decision rather than quietly
+# reinstating a refusal the owner removed: `LiveStreamController` still applies whatever the gate is
+# set to, and this module never second-guesses it. (The monitor's hint claiming the stream "refuses
+# while a wearable is capturing" is STALE for the same reason, and is corrected in this change.)
+AUTOSTART_DEBOUNCE_S = 120.0
+AUTOSTART_MAX_ATTEMPTS = 5
+AUTOSTART_BACKOFF_S = 60.0
+AUTOSTART_BACKOFF_MAX_S = 900.0
+
+
+class StartWatch:
+    """The auto-start state. Plain fields, like `EndWatch`, so every transition is decided by a pure
+    function a test can reach without a loop.
+
+    `began_at_ms` keys EVERYTHING here — `fired_for`, `manual_stop_for` and the attempt record are all
+    scoped to the session that began at that instant, so a previous night's state can never leak into
+    tonight's decision. Matching by key rather than by timestamp arithmetic means a stale record for a
+    dead session is ignorable rather than needing an age test."""
+
+    __slots__ = ("began_at_ms", "fired_for", "manual_stop_for", "attempts", "next_try_ms")
+
+    def __init__(self, began_at_ms=None, fired_for=None, manual_stop_for=None,
+                 attempts: int = 0, next_try_ms=None):
+        self.began_at_ms = began_at_ms       # when the current uninterrupted Therapy run began
+        self.fired_for = fired_for           # began_at_ms of the session already auto-started
+        self.manual_stop_for = manual_stop_for   # began_at_ms of a session the OPERATOR stopped
+        self.attempts = attempts             # failed start attempts for the CURRENT session
+        self.next_try_ms = next_try_ms       # earliest next attempt (backoff), None = now
+
+    def __repr__(self):  # pragma: no cover — debugging aid only
+        return (f"StartWatch(began_at_ms={self.began_at_ms!r}, fired_for={self.fired_for!r}, "
+                f"manual_stop_for={self.manual_stop_for!r}, attempts={self.attempts!r}, "
+                f"next_try_ms={self.next_try_ms!r})")
+
+
+def observe_start(watch: StartWatch, therapy, now_ms) -> StartWatch:
+    """Fold ONE detector reading into the auto-start state. Pure; returns a new StartWatch.
+
+    Same tri-state discipline as `observe`, and for the same reason — `therapy is None` means the
+    detector cannot see the machine (unreachable, or deferred for the whole of a live stream), which
+    is the COMMON case here, not an edge one. Note what that implies once a stream IS running: the
+    detector defers, every reading is None, and the session's `began_at_ms` therefore SURVIVES rather
+    than being cleared by ignorance. A `False` that arrived from ignorance would end the session in
+    state and let a mask-off blip start a second one."""
+    if therapy is None:
+        return StartWatch(watch.began_at_ms, watch.fired_for, watch.manual_stop_for,
+                          watch.attempts, watch.next_try_ms)
+    if not therapy:
+        # Out of therapy: the session is over. `fired_for` and `manual_stop_for` are KEPT — they are
+        # keyed by the ended session and are simply no longer matched once a new one begins.
+        return StartWatch(None, watch.fired_for, watch.manual_stop_for, 0, None)
+    if watch.began_at_ms is None:
+        return StartWatch(now_ms, watch.fired_for, watch.manual_stop_for, 0, None)
+    return StartWatch(watch.began_at_ms, watch.fired_for, watch.manual_stop_for,
+                      watch.attempts, watch.next_try_ms)
+
+
+def autostart_due(watch: StartWatch, now_ms, *, debounce_s: float = AUTOSTART_DEBOUNCE_S,
+                  max_attempts: int = AUTOSTART_MAX_ATTEMPTS, already_streaming: bool = False):
+    """`(due, reason)` — should the live stream be started right now? Pure.
+
+    Every refusal names itself, because an auto-start that declines silently is indistinguishable from
+    one that is broken — and that is the exact failure this whole feature exists to end."""
+    if already_streaming:
+        return False, "a stream is already running"
+    if watch.began_at_ms is None:
+        return False, "not in therapy"
+    if watch.manual_stop_for == watch.began_at_ms:
+        return False, "the operator stopped this session by hand; no auto-restart until the next one"
+    if watch.fired_for == watch.began_at_ms:
+        return False, "already auto-started for this therapy session"
+    if watch.attempts >= int(max_attempts):
+        return False, f"{watch.attempts} failed start(s) for this session; giving up until the next one"
+    try:
+        held = (float(now_ms) - float(watch.began_at_ms)) / 1000.0
+    except (TypeError, ValueError):
+        return False, "unusable timestamps"
+    if held < float(debounce_s):
+        return False, f"therapy started {held:.0f}s ago; debounce is {float(debounce_s):.0f}s"
+    if watch.next_try_ms is not None:
+        try:
+            if float(now_ms) < float(watch.next_try_ms):
+                wait = (float(watch.next_try_ms) - float(now_ms)) / 1000.0
+                return False, f"backing off after {watch.attempts} failed start(s); {wait:.0f}s to go"
+        except (TypeError, ValueError):
+            return False, "unusable timestamps"
+    return True, f"therapy running for {held:.0f}s"
+
+
+def note_start_failed(watch: StartWatch, now_ms, *, backoff_s: float = AUTOSTART_BACKOFF_S,
+                      backoff_max_s: float = AUTOSTART_BACKOFF_MAX_S) -> StartWatch:
+    """Record a failed start and schedule the next attempt. Pure; EXPONENTIAL, capped.
+
+    Capped because the backoff is bounded by `max_attempts` anyway, and an uncapped doubling would put
+    the last permitted attempt hours away — long enough that the session it is retrying has ended, so
+    the retry would land on nothing while the record still says a retry is pending."""
+    n = int(watch.attempts) + 1
+    try:
+        delay = min(float(backoff_s) * (2 ** (n - 1)), float(backoff_max_s))
+        nxt = float(now_ms) + delay * 1000.0
+    except (TypeError, ValueError):
+        nxt = None
+    return StartWatch(watch.began_at_ms, watch.fired_for, watch.manual_stop_for, n, nxt)
+
+
+def note_manual_stop(watch: StartWatch) -> StartWatch:
+    """The operator stopped the stream by hand. Pure.
+
+    MANUAL INTENT WINS, and it is scoped to THIS session: `manual_stop_for` is keyed by `began_at_ms`,
+    so the next therapy session auto-starts normally. A global "never again" flag would silently
+    disable the feature for every future night on one click."""
+    return StartWatch(watch.began_at_ms, watch.fired_for, watch.began_at_ms, watch.attempts,
+                      watch.next_try_ms)
+
+
+def note_started(watch: StartWatch) -> StartWatch:
+    """A start succeeded. Pure. Fires once per session, and clears the attempt/backoff state."""
+    return StartWatch(watch.began_at_ms, watch.began_at_ms, watch.manual_stop_for, 0, None)
+
+
+def boot_start_state(rows, fired_for, manual_stop_for, now_ms,
+                     max_age_s: float = CATCH_UP_MAX_AGE_S):
+    """`(StartWatch, reason)` — the auto-start state a JUST-STARTED daemon should begin with. Pure.
+
+    The mirror of `boot_state`: that one asks "did an end happen that nobody harvested", this one asks
+    "is a session still running that nobody is recording". A reboot during therapy is precisely when
+    the stream is NOT running (the daemon that held it died), so this is the case with the most to
+    recover — and it reuses the same journal rows and the same 24 h bound.
+
+    `last_therapy_end` returning `ended=False` with a non-empty journal is exactly the in-therapy
+    signal here, which is why that function returns the pair rather than a bare stamp."""
+    rows = list(rows or [])
+    if not rows:
+        return StartWatch(None, fired_for, manual_stop_for), "no journal rows"
+    end_ms, ended = last_therapy_end(rows)
+    if ended or rows[-1][1] != "Therapy":
+        return StartWatch(None, fired_for, manual_stop_for), "the journal does not end in therapy"
+    # Walk back to the first row of this uninterrupted Therapy run — the session's real start, not the
+    # last row's stamp. Debouncing against the last row would restart the 120 s clock at every boot.
+    began = rows[-1][0]
+    for ms, fg in reversed(rows):
+        if fg != "Therapy":
+            break
+        began = ms
+    try:
+        age = (float(now_ms) - float(rows[-1][0])) / 1000.0
+    except (TypeError, ValueError):
+        return StartWatch(None, fired_for, manual_stop_for), "unusable timestamps"
+    if age < 0:
+        return (StartWatch(None, fired_for, manual_stop_for),
+                "the journal's last row is in the future — clock disagreement, not a live session")
+    if age > float(max_age_s):
+        return (StartWatch(None, fired_for, manual_stop_for),
+                f"the journal's last row is {age / 3600.0:.1f}h old; it does not describe now")
+    return (StartWatch(began, fired_for, manual_stop_for),
+            f"therapy appears to be running (began {(float(now_ms) - float(began)) / 60000.0:.0f} min ago)")

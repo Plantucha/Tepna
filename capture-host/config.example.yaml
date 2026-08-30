@@ -275,6 +275,32 @@ cpap:                    # ResMed card auto-harvest over an ez Share Wi-Fi SD ad
     #   flow_eps_lpm: 0.5           # |flow| at or below this counts as "not breathing" (idle measured -0.01)
     #   hold_sec: 120.0             # continuous quiet REQUIRED, timed in samples (a dead link cannot age it)
 
+    # AUTO-START — the mirror of auto_stop: the live stream starts itself when therapy starts, instead
+    # of waiting for someone to press a button. Ordered by the owner 2026-08-29 after two nights that
+    # cost real data and reported nothing: 08-26, a full session with the stream never started (nobody
+    # clicked; there is no scheduled starter); 08-27, started and stopped one second later, leaving a
+    # 7 KB one-record file for a six-hour session. Neither is a stream FAILURE, which is exactly why
+    # no surface spoke.
+    #
+    # 🔴 DEFAULT OFF. This opens a radio beside a sleeping body on a schedule nobody presses, so it is
+    # armed by an explicit edit, never by shipping the code. The daemon logs its arming state either
+    # way — a disabled path that announces itself is debuggable; a silent one is indistinguishable
+    # from a broken one.
+    #
+    # ⚠️ FIRING WRONGLY ON A START COSTS MORE THAN FIRING LATE ON AN END, which is why the start side
+    # carries three guards the end trigger does not need: a debounce against mask-fit blips; MANUAL
+    # INTENT WINS (an operator who presses stop mid-session is not overruled until a NEW session
+    # begins — and that survives a reboot, or the automation would overrule them by way of a restart);
+    # and BOUNDED retry, because an unbounded one is a radio hammering a sleeping room.
+    #
+    # ⚠️ THE COEXISTENCE GATE IS NOT REINSTATED HERE. `coexistence_gate` defaults FALSE by owner order
+    # (2026-08-23) — a start beside an on-body wearable is logged, not refused — and auto-start
+    # inherits that decision rather than quietly restoring a refusal the owner removed.
+    # auto_start:
+    #   enabled: false
+    #   debounce_s: 120.0           # continuous Therapy required before starting (mask-fit blips are shorter)
+    #   max_attempts: 5             # failed starts per SESSION before giving up; backoff 60s doubling, capped 900s
+
   # STORED-SPOOL PULL — the device's own on-board session record, pulled over BLE (CPAP-SPOOL-
   # ACQUISITION Do-3). Distinct from BOTH neighbours above: the Wi-Fi harvest copies the SD card, the
   # live stream reads the machine in real time, and this retrieves what the AS11 stored itself.

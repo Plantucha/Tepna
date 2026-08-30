@@ -20,6 +20,8 @@ _SPEC = importlib.util.spec_from_file_location(
     "probe_equivalence",
     os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools",
                  "probe_equivalence.py"))
+if _SPEC is None or _SPEC.loader is None:
+    raise ImportError("cannot load probe_equivalence.py")
 pe = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(pe)
 

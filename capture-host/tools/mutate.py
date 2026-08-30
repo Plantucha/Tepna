@@ -85,6 +85,12 @@ VENV_PY = HERE / ".venv" / "bin" / "python"
 import importlib.util as _ilu  # noqa: E402
 
 _mmspec = _ilu.spec_from_file_location("mmeta", HERE / "mmeta.py")
+# spec_from_file_location returns None when it cannot determine a loader, and `.loader` is
+# itself optional. Both were being dereferenced unchecked: the failure mode was an
+# AttributeError on None several lines later, blaming the wrong thing. Fail here, saying what
+# could not be loaded.
+if _mmspec is None or _mmspec.loader is None:
+    raise ImportError(f"cannot load mmeta from {HERE / 'mmeta.py'}")
 mmeta = _ilu.module_from_spec(_mmspec)
 _mmspec.loader.exec_module(mmeta)
 
