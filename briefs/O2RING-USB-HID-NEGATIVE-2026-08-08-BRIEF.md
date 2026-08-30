@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** DONE — 2026-08-09 · **Created:** 2026-08-08 (mechanism found 2026-08-09: the vendor USB path is HID **Feature** reports, which this ring STALLs — see §"The mechanism") — ⚠️ **mechanism PARTLY REFUTED 2026-08-29**: a direct `usbmon` capture of `O2 Insight Pro` ↔ the O2Ring S shows the vendor app drives **this** ring with **Output** reports (`hid_write`), not Feature — see **§UPDATE 2026-08-29**.
+**Status:** DONE — 2026-08-09 · **Created:** 2026-08-08 (mechanism found 2026-08-09: the vendor USB path is HID **Feature** reports, which this ring STALLs — see §"The mechanism") — ⚠️ **mechanism PARTLY REFUTED 2026-08-29**: a direct `usbmon` capture of `O2 Insight Pro` ↔ the O2Ring S shows the vendor app drives **this** ring with **Output** reports (`hid_write`), not Feature — see **§UPDATE 2026-08-29**. — 🟢 **RESOLVED POSITIVELY 2026-08-30**: a *successful* Windows USBPcap capture proves the ring DOES respond over USB — it is **AUTH-GATED** (silent until a valid auth), not a dead pipe; full protocol decoded; see **§UPDATE 2026-08-30**.
 
 # The O2Ring-S's USB-HID pipe is not an OxyII responder — measured, not assumed
 
@@ -71,6 +71,58 @@ reads interrupt-IN and the handshake can complete; the Wine capture only shows t
 failing. Full byte-level notes: memory `o2ring-usb-hid-protocol`. This does **not** change the
 operational call — the **failover-radio** work remains the real fix for the download pain; USB stays a
 bonus, now with its framing half-solved rather than declared impossible.
+
+## 🟢 UPDATE 2026-08-30 — the SUCCESSFUL Windows capture: the ring DOES respond over USB (closed, positively)
+
+The exact test §UPDATE 2026-08-29 flagged as owed — *"a capture of a **successful** `O2 Insight Pro`
+download on real Windows"* — was done (owner rebooted to Windows, captured with **USBPcap**:
+`usb_o2_ring_dump.pcapng`, 5161 pkts, ring = dev 3 `1915:f33c`). It closes the whole question
+**positively**: the ring responds over USB, and the reason every prior attempt (Wine + direct Linux)
+got silence is now exact.
+
+**The ring is AUTH-GATED — silent until a valid AUTH lands.** That one fact resolves both failures:
+- **Direct Linux probes** (mine, §UPDATE 2026-08-29) sent hello/commands with **no auth** → the ring
+  correctly ignored them and returned the idle `05 00 00 00 00 05`. That "constant idle" was the
+  **un-authed refusal**, not a dead pipe — I misread a refusal as a void.
+- **Wine** DID send auth but could not READ the interrupt-IN endpoint (its `hid_read_timeout` → control
+  `GET_REPORT` relay gap) → the app never saw the replies → "No device connected."
+- **Real Windows** has neither problem: SET_REPORT auth out, replies read from interrupt-IN.
+
+**The full protocol (all length-prefixed `[len][frame]`):**
+- **AUTH** — `18 · a5 ff 00 00 10 00 00 · <16-byte payload>` (also an `aa ff` variant), sent repeatedly
+  until it "takes."
+- hello `08 a5 e0 1f…` · legacy poll `08 aa 15 ea…` · **GET_INFO `08 a5 e1 1e…`** · **FILE_LIST `08 a5 f1 0e…`**
+- Requests are SET_REPORT (control OUT, ep 0x00). **Responses come on the interrupt-IN endpoint (ep 0x81)**
+  as `[len][response frame, flag byte 0x01][payload]` — the channel Wine could not read and my direct
+  probes never reached (no auth). GET_INFO's reply decodes to device serial (`2D010002`/`2592302100`) and
+  the **RTC** (`ea 07 08 1e 09 15` = 2026-08-30 09:21) — the same GET_INFO field as BLE.
+
+**⚠️ The auth is NOT `oxyii`'s BLE auth with a length prefix — do not assume it is.** A hardware prototype
+(2026-08-30, `/dev/hidraw4`) tried a replay of the captured auth (stale ts → silent) AND a *fresh* auth
+built as `oxyii.auth_frame` + prefix (also silent), and the latter is **provably malformed**: the frame
+checksum is not `oxyii.crc8` (captured `0xb4`; crc8 gives `0xdb`, and no standard CRC-8/sum/xor variant
+matched), and the payload byte-grouping I assumed was off by one. So the USB auth envelope / checksum /
+timestamp encoding is a distinct thing that must be RE'd from the captured frames — the earlier
+"buildable off `oxyii`" optimism was wrong.
+
+**The RE is tractable, and the ring gives a live success signal.** The capture holds **six auth frames**
+with varying timestamps (payloads differ in ~1 byte + the trailing checksum) — clean known-answer pairs
+for the checksum. And the ring's OWN DISPLAY is the feedback loop: a **Bluetooth icon when idle, a
+TWO-ARROWS icon in an authenticated USB session** — so a correct auth flips the icon immediately, no need
+to parse the (auth-gated) interrupt-IN. This is why the RE is best done **on Windows**, where you can
+capture a *fresh* auth and replay it within seconds (before the timestamp goes stale) while watching the
+icon — a real-time loop instead of guessing against a static capture (a handoff prompt for that Windows
+session is prepared).
+
+**Bottom line — feasibility is SETTLED, positively:**
+- The ring works over USB; Windows + O2 Insight Pro downloads it end-to-end **today**. For data over the
+  cable now, use Windows.
+- The remaining work for a scriptable / Linux transport is a **self-contained auth-codec RE** (solve
+  checksum + timestamp from the six frames → generate valid fresh auths), then
+  `FILE_LIST → FILE_START → FILE_DATA → FILE_END`.
+- This **retires the brief's original "negative result" framing for the O2Ring S**: it is not "nothing
+  listens" — it is auth-gated, and now proven to listen. Full byte-level notes + the corrected mechanism:
+  memory `o2ring-usb-hid-protocol`; capture at `/tmp/…/oring_usb.pcapng`.
 
 ## What the device is
 
