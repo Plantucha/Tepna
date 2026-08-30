@@ -225,3 +225,55 @@ def test_the_poller_rebuilds_baselines_ONCE_A_DAY_without_a_notifier(tmp_path, m
     _run(capture.qc_poller({"qc": {"poll_sec": 600, "baseline_hour": 11}, "devices": []}, str(tmp_path)))
     capture._STOP.clear()
     assert called == [str(tmp_path)], "the daily baseline rebuild did not run (or ran twice)"
+
+
+# ── mutants that survived the diff-scoped gate on #1967 ─────────────────────────────────────────
+
+
+def test_a_ZERO_rate_is_a_MEASUREMENT_and_keeps_its_place_in_the_baseline():
+    """🔴 `r < 0` guards junk; `r <= 0` would drop a perfectly quiet night. A device that reconnected
+    ZERO times is the best night it ever had, and discarding it biases every median upward — the
+    baseline would learn only from the nights that went badly, which is the opposite of a baseline."""
+    base = D.merge_baselines({}, "AA:BB", {"ring": 0.0})
+    assert base["AA:BB"]["ring"] == [0.0], "a flawless night was dropped from the baseline"
+    med, n = D.baseline_median([0.0, 0.0, 0.4])
+    assert n == 3 and med == 0.0
+
+
+def test_a_JUNK_rate_does_not_stop_the_rest_of_the_devices():
+    """`continue` vs `break`. The junk sits FIRST here on purpose: with it last, the two are
+    indistinguishable — the same weakness the AS11 anchor parser's torn-line test had."""
+    # BOTH skip paths, because they are separate `continue`s and a `break` in either truncates:
+    # a non-numeric rate takes the float() except; a non-finite one takes the isfinite guard.
+    base = D.merge_baselines({}, "AA:BB", {"aaa_bad": "x", "zzz_good": 1.5})
+    assert base["AA:BB"] == {"zzz_good": [1.5]}, "an unparseable rate discarded every device after it"
+    base2 = D.merge_baselines({}, "AA:BB", {"aaa_nan": float("nan"), "zzz_good": 2.5})
+    assert base2["AA:BB"] == {"zzz_good": [2.5]}, "a non-finite rate discarded every device after it"
+
+
+def test_the_stored_rate_KEEPS_ITS_PRECISION():
+    """🔴 `round(r, 4)` → `round(r, None)` returns an INT. Every rate below 0.5 would become 0, so the
+    ring's real 0.23 median would read as a device that never reconnects — and the band, being
+    `max(floor, 10 x median)`, would quietly collapse to the floor for every quiet device."""
+    base = D.merge_baselines({}, "AA:BB", {"ring": 0.2345678})
+    stored = base["AA:BB"]["ring"][0]
+    assert isinstance(stored, float) and stored == 0.2346, stored
+    assert D.merge_baselines({}, "AA:BB", {"ring": 0.4})["AA:BB"]["ring"] == [0.4]
+
+
+def test_the_DEFAULT_keep_is_fourteen_nights():
+    """Pinned because every call site relies on the default; the tests passed `keep` explicitly, so
+    the shipped value was covered by nothing."""
+    base = {}
+    for i in range(20):
+        base = D.merge_baselines(base, "AA:BB", {"ring": float(i)})
+    assert len(base["AA:BB"]["ring"]) == 14
+
+
+def test_a_row_SHORTER_than_the_widest_column_index_is_skipped():
+    """The `<=` boundary: a row with exactly `max_index` fields has no value AT that index, so `<`
+    would read one column past the end of a torn line."""
+    hdr_only = "# adapter=AA:BB:CC:DD:EE:FF hci=hci1\n" + HDR
+    # link_epoch is index 7, so a row of exactly 7 fields must be rejected, and 8 accepted
+    seven = "2026-08-20T23:00:00;ring;1;-50;90;0;0"
+    assert D.night_rates(hdr_only + "\n" + seven)[1] == {}
