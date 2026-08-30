@@ -2582,7 +2582,8 @@ async def run_polar(dev: dict, root: str):
                             # publish the device's own menu so Settings can offer exactly the legal values
                             _set(name, **{"pmd_options": {**(STATUS["devices"].get(name, {}).get("pmd_options") or {}),
                                                           pmd.MEAS_NAME.get(meas, str(meas)): settings.get(0x00) or []}})
-                            started = False
+                            # `pmd_started`, not `started`: that name already holds a datetime in this scope
+                            pmd_started = False
                             transient = False
                             for cmd, how in ((pmd.build_start(meas, settings, _prefer), "negotiated"),
                                              (pmd.START.get(meas), "fixed")):
@@ -2619,11 +2620,11 @@ async def run_polar(dev: dict, root: str):
                                     "%s START %s (%s) → %s", name, pmd.MEAS_NAME.get(meas, meas), how,
                                     pmd.CTRL_STATUS.get(st, hex(st)))
                                 if pmd.is_started(st):    # ok, or already-streaming
-                                    started = True
+                                    pmd_started = True
                                     break
                                 if transient:
                                     break                 # retrying the fixed cmd cannot help while charging
-                            if started:                  # record + re-register at the ACTUAL negotiated rate
+                            if pmd_started:                  # record + re-register at the ACTUAL negotiated rate
                                 stream_fs[meas] = used_fs
                                 if (meas == pmd.PPG and not calibrated_for(used_fs)
                                         and not sd_calibrated_for(used_fs)):
@@ -2826,9 +2827,9 @@ async def run_polar(dev: dict, root: str):
                 arr_wr.close()
             for wr in list(writers.values()) + ([hr_writer] if hr_writer else []):
                 if not wr.rows:
-                    names = ", ".join(os.path.basename(p) for p in wr.paths)
+                    discarded_names = ", ".join(os.path.basename(p) for p in wr.paths)
                     wr.discard()
-                    log.debug("%s: discarded header-only %s", name, names)
+                    log.debug("%s: discarded header-only %s", name, discarded_names)
                 else:
                     wr.close()
         if not _STOP.is_set():
