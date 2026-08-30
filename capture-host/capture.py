@@ -5612,7 +5612,13 @@ async def cpap_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" =
     timeout = float(ccfg.get("timeout_sec", 20))
     retries = int(ccfg.get("retries", 5))
 
-    STATUS["cpap"] = {"enabled": True, "state": "idle", "at_hour": at_hour, "dest": dest}
+    # `wifi_iface` is PUBLISHED because the harvest's interface is otherwise unobservable from
+    # outside the process, and `capture.py` reads config exactly once at startup — so the file on
+    # disk is not evidence of what this daemon is using. A monitor "Save settings" re-emits the
+    # config it loaded at boot, silently dropping a key hand-added since; a file check would pass
+    # straight over that. This makes the effective value assertable (AX210 install, 2026-08-30).
+    STATUS["cpap"] = {"enabled": True, "state": "idle", "at_hour": at_hour, "dest": dest,
+                      "wifi_iface": wifi_iface}
     log.info("cpap: harvest enabled — daily at %02d:00 into %s (only while nothing is streaming)",
              at_hour, dest)
 

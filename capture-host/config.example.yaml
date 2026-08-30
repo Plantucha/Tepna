@@ -239,6 +239,24 @@ cpap:                    # ResMed card auto-harvest over an ez Share Wi-Fi SD ad
                          # 20260725 CSL/EVE landed 03:50/06:42 but PLD, SA2 and BRP (the 25 Hz flow
                          # waveform CPAPDex reads) all landed 10:10. 13:00 clears the latest by ~1 h.
   wifi_profile: ezshare  # NetworkManager profile for the card's AP; MUST carry ipv4.never-default yes.
+
+  # PIN THE INTERFACE. Absent this key, `cpap_harvest.default_wifi_iface()` returns the
+  # ALPHABETICALLY FIRST `wl*` interface — fine on a one-radio box, a coin flip the moment a second
+  # wireless card appears. Measured before the AX210 install (2026-08-29): the box has `wlp1s0`, and
+  # a new card named `wlo1` or `wlp0s…` would sort BEFORE it and silently take the harvest, while
+  # `wlp2s0` would not. Set it explicitly rather than betting on the name the kernel assigns.
+  #
+  # ⚠️ AND THE FAILURE NAMES THE WRONG KNOB — this is CAPTURE-HOST-DEEP-AUDIT §E5 recurring. On the
+  # wpa backend (no NetworkManager, i.e. the vigil box) `wifi_profile` is DEAD, so a wrong interface
+  # surfaces as `Wi-Fi profile 'ezshare' would not come up safely` — pointing at the one setting that
+  # branch never reads. Loud, but misleading; expect to chase the profile and find the interface.
+  #
+  # ⚠️ A HAND-EDIT TO THE BOX'S config.yaml SURVIVES ONLY UNTIL THE NEXT MONITOR SAVE. capture.py
+  # reads config exactly once at startup and `webmon._save()` re-emits the config it loaded at boot,
+  # so a key added since is dropped with no error and no log line. After adding it, restart the
+  # daemon — and verify from `STATUS['cpap'].wifi_iface` (what the daemon is USING), never from the
+  # file, because a file check passes over exactly that failure. `tools/ax210_postinstall.py` does.
+  wifi_iface: wlp1s0
                          # ⚠️ Consulted ONLY on the nmcli backend. With no NetworkManager installed —
                          # which is the vigil box — the wpa_supplicant path runs instead and never
                          # reads this key. There, `wifi_iface` is the setting that matters.
