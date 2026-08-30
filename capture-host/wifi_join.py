@@ -26,9 +26,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 
 __all__ = [
+    "derive_psk",
     "MIN_PSK_LEN",
     "MAX_PSK_LEN",
     "parse_scan_results",
@@ -78,6 +80,35 @@ def parse_scan_results(text):
     return sorted(best.values(), key=lambda n: (-n["signal"], n["ssid"]))
 
 
+def _is_hex_psk(passphrase):
+    """True when `passphrase` is already a raw 64-hex PSK rather than a human passphrase."""
+    p = passphrase if isinstance(passphrase, str) else ""
+    return len(p) == 64 and re.fullmatch(r"[0-9a-fA-F]{64}", p) is not None
+
+
+# WPA-Personal's PSK is PBKDF2-HMAC-SHA1(passphrase, ssid, 4096 iterations, 32 bytes) — IEEE 802.11i
+# Annex J.4. Deriving it HERE rather than shelling out to `wpa_passphrase` is a security property, not a
+# convenience: that tool takes the passphrase as an ARGV element, and every argument of every process is
+# world-readable through /proc/<pid>/cmdline for the lifetime of the call. In-process it never leaves
+# this address space. Pinned byte-for-byte against `wpa_passphrase` output in the tests.
+#
+# 🔴 THIS IS A ONE-WAY DERIVATION, NOT ENCRYPTION — and the difference matters to anyone reading the
+# stored file. It destroys the plaintext (so a saved network cannot give up the passphrase the owner
+# typed, which may be reused elsewhere), but the 64-hex result it leaves behind IS the credential that
+# joins that network: possession of it is possession of access. Store it 0600 and never call it
+# "encrypted".
+def derive_psk(ssid, passphrase):
+    """The 64-hex WPA-PSK for `passphrase` on network `ssid`.
+
+    A passphrase that is ALREADY a 64-hex PSK is returned lowercased and underived — deriving a
+    derivation would silently produce a key that joins nothing."""
+    if _is_hex_psk(passphrase):
+        return passphrase.lower()
+    return hashlib.pbkdf2_hmac(
+        "sha1", passphrase.encode("utf-8"), ssid.encode("utf-8"), 4096, 32
+    ).hex()
+
+
 def validate_passphrase(ssid, passphrase, security=SECURED):
     """`(ok, error)` before anything is derived or written. PURE.
 
@@ -90,7 +121,7 @@ def validate_passphrase(ssid, passphrase, security=SECURED):
     if security == OPEN:
         return (True, None) if not passphrase else (False, "that network is open — leave the password empty")
     p = passphrase if isinstance(passphrase, str) else ""
-    if len(p) == 64 and re.fullmatch(r"[0-9a-fA-F]{64}", p):
+    if _is_hex_psk(p):
         return True, None  # already a raw PSK; accepted as-is
     if len(p) < MIN_PSK_LEN:
         return False, f"a Wi-Fi password is at least {MIN_PSK_LEN} characters"

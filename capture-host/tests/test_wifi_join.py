@@ -171,3 +171,33 @@ def test_resume_does_nothing_when_nothing_was_suspended():
     assert W.should_resume(W.IDLE, "HotelGuest")[0] is False
     assert W.should_resume(W.JOINED, "HotelGuest")[0] is False
     assert W.should_resume(W.SUSPENDED, None)[0] is False
+
+
+# ── derive_psk ────────────────────────────────────────────────────────────────────────────────────
+# The vector is `wpa_passphrase TestNet "correct horse battery"`, captured 2026-08-30. Pinning against
+# the reference implementation is the point: a PSK we derive differently from every other supplicant on
+# earth would associate with nothing, and would do it while looking perfectly well-formed.
+def test_PSK_MATCHES_WPA_PASSPHRASE_BYTE_FOR_BYTE():
+    assert W.derive_psk("TestNet", "correct horse battery") == (
+        "6a4c6233c07e5ca2a9eb92472aff2b8c200be20561592c9dcc5124d880ab49ec"
+    )
+
+
+def test_THE_SSID_IS_THE_SALT_SO_THE_SAME_PASSWORD_DIFFERS_PER_NETWORK():
+    # Not a property test for its own sake: PBKDF2's salt is the SSID, and an implementation that
+    # dropped it would still return 64 plausible hex characters for every input. This is the assertion
+    # that can tell those two apart.
+    a = W.derive_psk("HotelWifi", "correct horse battery")
+    b = W.derive_psk("MyHotspot", "correct horse battery")
+    assert a != b
+    assert len(a) == len(b) == 64
+
+
+def test_AN_ALREADY_DERIVED_PSK_IS_NOT_DERIVED_AGAIN():
+    raw = "A" * 64
+    assert W.derive_psk("AnyNet", raw) == "a" * 64      # passed through, lowercased
+
+
+def test_A_NON_ASCII_PASSPHRASE_DERIVES_WITHOUT_RAISING():
+    psk = W.derive_psk("Café", "heslohesloé")
+    assert len(psk) == 64 and int(psk, 16) >= 0
