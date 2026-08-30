@@ -2582,7 +2582,8 @@ async def run_polar(dev: dict, root: str):
                             # publish the device's own menu so Settings can offer exactly the legal values
                             _set(name, **{"pmd_options": {**(STATUS["devices"].get(name, {}).get("pmd_options") or {}),
                                                           pmd.MEAS_NAME.get(meas, str(meas)): settings.get(0x00) or []}})
-                            started = False
+                            # `pmd_started`, not `started`: that name already holds a datetime in this scope
+                            pmd_started = False
                             transient = False
                             for cmd, how in ((pmd.build_start(meas, settings, _prefer), "negotiated"),
                                              (pmd.START.get(meas), "fixed")):
@@ -2619,11 +2620,11 @@ async def run_polar(dev: dict, root: str):
                                     "%s START %s (%s) → %s", name, pmd.MEAS_NAME.get(meas, meas), how,
                                     pmd.CTRL_STATUS.get(st, hex(st)))
                                 if pmd.is_started(st):    # ok, or already-streaming
-                                    started = True
+                                    pmd_started = True
                                     break
                                 if transient:
                                     break                 # retrying the fixed cmd cannot help while charging
-                            if started:                  # record + re-register at the ACTUAL negotiated rate
+                            if pmd_started:                  # record + re-register at the ACTUAL negotiated rate
                                 stream_fs[meas] = used_fs
                                 if (meas == pmd.PPG and not calibrated_for(used_fs)
                                         and not sd_calibrated_for(used_fs)):
@@ -2826,9 +2827,9 @@ async def run_polar(dev: dict, root: str):
                 arr_wr.close()
             for wr in list(writers.values()) + ([hr_writer] if hr_writer else []):
                 if not wr.rows:
-                    names = ", ".join(os.path.basename(p) for p in wr.paths)
+                    discarded_names = ", ".join(os.path.basename(p) for p in wr.paths)
                     wr.discard()
-                    log.debug("%s: discarded header-only %s", name, names)
+                    log.debug("%s: discarded header-only %s", name, discarded_names)
                 else:
                     wr.close()
         if not _STOP.is_set():
@@ -4907,13 +4908,27 @@ def _cpap_stream_watch_row(cfg, root, night_name):
     than a finding. A watchdog that reports "all clear" because its own input failed is the defect it
     exists to catch, one level up."""
     import cpap_edf
+    import cpap_live
     import cpap_stream_watch
     therapy = None
+    rows = []
     try:
         with open(os.path.join(root, "SESSIONDETECT.csv"), encoding="utf-8", errors="replace") as fh:
-            therapy = cpap_stream_watch.therapy_minutes(fh.read())
+            text = fh.read()
+        therapy = cpap_stream_watch.therapy_minutes(text)
+        rows = cpap_live.journal_rows(text)
     except OSError:
         pass                              # detector off, or journal absent — stays None, i.e. UNKNOWN
+    # Auto-start's attempt record, but ONLY if it describes the therapy this journal covers. The record
+    # is keyed by therapy-start; a key outside the journal's own span belongs to a session this night's
+    # figures do not include, and carrying it in would let a previous night's failures relabel tonight.
+    # Matching by the journal's OBSERVED span is a check, not an age heuristic — the same reason the
+    # record is keyed rather than timestamped.
+    attempts, last_error = 0, None
+    if rows:
+        rec = _cpap_autostart_record(root)
+        if rec is not None and rows[0][0] <= rec.get("session_ms", -1) <= rows[-1][0]:
+            attempts, last_error = rec.get("attempts") or 0, rec.get("last_error")
     headers = []
     edf_dir = ((cfg.get("cpap") or {}).get("ble_stream") or {}).get("edf_dir")
     if edf_dir:
@@ -4936,7 +4951,8 @@ def _cpap_stream_watch_row(cfg, root, night_name):
                     headers.append((n_rec, float(dur)))
                 except (OSError, ValueError):
                     continue              # unreadable file: contributes nothing to the measurement
-    return cpap_stream_watch.assess(therapy, cpap_stream_watch.stream_minutes(headers))
+    return cpap_stream_watch.assess(therapy, cpap_stream_watch.stream_minutes(headers),
+                                    attempts=attempts, last_error=last_error)
 
 
 async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = None):
@@ -6271,6 +6287,184 @@ async def _cpap_spool_loop(*, at_hour, window_h, root, creds, connect_factory, e
         st(state="idle", detail=None, last_run=t.isoformat(timespec="seconds"))
 
 
+# ── CPAP AUTO-START ──────────────────────────────────────────────────────────────────────────────
+_CPAP_AUTOSTART_MARKER = "cpap-autostart-session.json"
+
+
+def _cpap_autostart_path(root):
+    """Beside `status.json` and the therapy-end marker — the daemon's cross-restart state."""
+    return os.path.join(root, "captures", _CPAP_AUTOSTART_MARKER)
+
+
+def _cpap_autostart_record(root):
+    """The raw auto-start record dict, or None. Never raises.
+
+    Distinct from `_cpap_autostart_load`, which answers "is this MY session" for the loop. The
+    watchdog needs the record's own key so it can decide the match itself against the journal it is
+    classifying — asking the loop's question here would need a session the watchdog does not have."""
+    try:
+        with open(_cpap_autostart_path(root)) as fh:
+            rec = json.load(fh)
+        return rec if isinstance(rec, dict) else None
+    except (OSError, ValueError):
+        return None
+
+
+def _cpap_autostart_load(root, session_ms):
+    """`(manual_stop_for, attempts)` for THIS session, or `(None, 0)`. Never raises.
+
+    ⚠️ KEYED BY THERAPY-START, and that is what makes it safe rather than merely tidy. A record whose
+    `session_ms` is not tonight's session is IGNORED — not aged out, not compared against a window,
+    simply not matched. So last night's four failed attempts can never be counted toward tonight's
+    classification, and a stale record needs no cleanup to be harmless.
+
+    `fired_for` is deliberately NOT persisted. A reboot DURING therapy should auto-start — the daemon
+    that held the stream died, so nothing is recording — and persisting "already started" would
+    suppress exactly the recovery the boot seed exists to perform. `manual_stop_for` IS persisted,
+    because a restart must never overrule an operator who said "not this session"."""
+    try:
+        with open(_cpap_autostart_path(root)) as fh:
+            rec = json.load(fh)
+        if float(rec["session_ms"]) != float(session_ms):
+            return None, 0                # a different session's record: not ours, not an error
+        return (float(session_ms) if rec.get("manual_stop") else None), int(rec.get("attempts", 0))
+    except (OSError, ValueError, KeyError, TypeError):
+        return None, 0
+
+
+def _cpap_autostart_save(root, session_ms, *, manual_stop=False, attempts=0, last_error=None,
+                         now_ms=None):
+    """Persist this session's auto-start record atomically. Never raises into the loop.
+
+    The watchdog reads this to tell `auto-start-failed` from `never-started`: without it, "nobody
+    clicked" and "the automation tried five times and failed" are byte-identical on disk, and a failed
+    automation would wear the manual-gap label forever."""
+    p = _cpap_autostart_path(root)
+    try:
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p + ".tmp", "w") as fh:
+            json.dump({"session_ms": session_ms, "manual_stop": bool(manual_stop),
+                       "attempts": int(attempts), "last_error": last_error,
+                       "last_attempt_ms": now_ms}, fh)
+        os.replace(p + ".tmp", p)
+    except OSError:
+        log.warning("cpap: could not persist the auto-start record for this session")
+
+
+def _cpap_autostart_boot(root, now_ms):
+    """The `StartWatch` a just-started daemon should begin with. Reads two files; decides nothing."""
+    import cpap_live
+    text = ""
+    try:
+        with open(os.path.join(root, "SESSIONDETECT.csv"), encoding="utf-8", errors="replace") as fh:
+            text = fh.read()
+    except OSError:
+        pass
+    rows = cpap_live.journal_rows(text)
+    watch, why = cpap_live.boot_start_state(rows, None, None, now_ms)
+    if watch.began_at_ms is not None:
+        manual, attempts = _cpap_autostart_load(root, watch.began_at_ms)
+        watch = cpap_live.StartWatch(watch.began_at_ms, None, manual, attempts, None)
+    log.info("cpap auto-start boot: %s", why)
+    return watch
+
+
+async def _cpap_autostart_loop(*, root, op, is_running, debounce_s, max_attempts, sleep=None,
+                               now_ms=None, get_therapy=None):
+    """Start the live stream when therapy starts. The deciding is all in `cpap_live`.
+
+    🔴 A MANUAL STOP IS SIGNALLED, NEVER INFERRED, and the reason is measured. Auto-stop fires on
+    `|flow| <= eps` held for `hold_sec`, and on its first live night (2026-08-29 06:23:21) that was
+    FIVE MINUTES ahead of `fg_state` leaving Therapy. So "the stream stopped while the detector still
+    says Therapy" is exactly what a NORMAL auto-stop looks like, and inferring manual intent from it
+    would mark every ordinary night as operator-cancelled. Intent comes from the operator's actual
+    POST instead — see `_cpap_autostart_wrap_op`."""
+    import cpap_live
+    sleep = sleep or asyncio.sleep
+    now_ms = now_ms or (lambda: _time.time() * 1000.0)
+    get_therapy = get_therapy or (lambda: (STATUS.get("cpap") or {}).get("therapy"))
+    watch = _cpap_autostart_boot(root, now_ms())
+    _CPAP_AUTOSTART["watch"] = watch
+    while not _STOP.is_set():
+        await sleep(30)
+        if _STOP.is_set():
+            break
+        t = now_ms()
+        watch = cpap_live.observe_start(_CPAP_AUTOSTART["watch"], get_therapy(), t)
+        due, why = cpap_live.autostart_due(watch, t, debounce_s=debounce_s,
+                                           max_attempts=max_attempts,
+                                           already_streaming=bool(is_running()))
+        if not due:
+            _CPAP_AUTOSTART["watch"] = watch
+            continue
+        log.info("CPAP auto-start: starting the live stream (%s)", why)
+        try:
+            res = await op("start")
+        except Exception as e:            # noqa: BLE001 — a failed start must not kill the loop
+            res = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        if res.get("ok"):
+            watch = cpap_live.note_started(watch)
+            log.info("CPAP auto-start: stream started")
+            _cpap_autostart_save(root, watch.began_at_ms, attempts=0, now_ms=t)
+        else:
+            watch = cpap_live.note_start_failed(watch, t)
+            # EVERY attempt is logged, per spec — a bounded retry that gives up silently is the same
+            # silence the watchdog exists to break.
+            log.warning("CPAP auto-start FAILED (attempt %d/%d): %s",
+                        watch.attempts, max_attempts, res.get("error") or "unknown")
+            _cpap_autostart_save(root, watch.began_at_ms, attempts=watch.attempts,
+                                 last_error=str(res.get("error") or "unknown"), now_ms=t)
+        _CPAP_AUTOSTART["watch"] = watch
+
+
+_CPAP_AUTOSTART = {"watch": None, "root": None}
+
+
+def _cpap_autostart_wrap_op(op, root):
+    """Wrap the monitor's stream op so a HAND stop records manual intent for this session.
+
+    This is the only place manual intent can honestly come from: the operator pressed stop. Deriving
+    it from state would misread every ordinary auto-stop (see `_cpap_autostart_loop`)."""
+    import cpap_live
+
+    async def wrapped(action):
+        res = await op(action)
+        if action == "stop":
+            w = _CPAP_AUTOSTART.get("watch")
+            if w is not None and w.began_at_ms is not None:
+                w = cpap_live.note_manual_stop(w)
+                _CPAP_AUTOSTART["watch"] = w
+                _cpap_autostart_save(root, w.began_at_ms, manual_stop=True, attempts=w.attempts)
+                log.info("CPAP auto-start: manual stop recorded — no auto-restart until the next session")
+        return res
+
+    return wrapped
+
+
+def _maybe_start_cpap_autostart(cfg, root, cpap_ctl, tasks, *, create_task=None):
+    """Arm auto-start if configured. Logs its state either way — armed or not, and WHY.
+
+    ⚠️ DEFAULT IS OFF. Auto-start opens a radio beside a sleeping body on a schedule nobody presses,
+    so it is armed by an explicit config key, not by shipping this code."""
+    cbs = (cfg.get("cpap", {}) or {}).get("ble_stream", {}) or {}
+    acfg = cbs.get("auto_start", {}) or {}
+    if not acfg.get("enabled"):
+        log.info("CPAP auto-start: OFF (set cpap.ble_stream.auto_start.enabled: true to arm)")
+        return None
+    import cpap_live
+    debounce = float(acfg.get("debounce_s", cpap_live.AUTOSTART_DEBOUNCE_S))
+    attempts = int(acfg.get("max_attempts", cpap_live.AUTOSTART_MAX_ATTEMPTS))
+    _CPAP_AUTOSTART["root"] = root
+    task = (create_task or asyncio.create_task)(_cpap_autostart_loop(
+        root=root, op=cpap_ctl.op, is_running=cpap_ctl._running,
+        debounce_s=debounce, max_attempts=attempts))
+    TASK_LABELS[id(task)] = "CPAP auto-start"
+    tasks.append(task)
+    log.info("CPAP auto-start: ARMED — starts the live stream after %.0fs of continuous Therapy "
+             "(max %d attempts per session)", debounce, attempts)
+    return task
+
+
 def _maybe_start_cpap_spool_pull(cfg, config_path, root, cpap_ctl, tasks, *,
                                  load_creds=None, connect_factory=None, create_task=None):
     """Start the scheduled stored-spool pull if `cpap.spool_pull.enabled` — otherwise a no-op.
@@ -6708,6 +6902,7 @@ async def main():
         # stream is idle, writing SESSIONDETECT.csv + AS11CLOCK.csv. Default OFF (as11_detector.enabled).
         _maybe_start_as11_shadow(cfg, args.config, root, _cpap_ctl, tasks)
         _maybe_start_cpap_spool_pull(cfg, args.config, root, _cpap_ctl, tasks)
+        _maybe_start_cpap_autostart(cfg, root, _cpap_ctl, tasks)
 
 
         # O2Ring passive presence observer. Logs its state whether or not it starts, and both
@@ -6720,7 +6915,11 @@ async def main():
                             sync_time=sync_device_time, forget_device=_forget,
                             on_tz_change=reset_clock_anchor, notifier=notifier,
                             ring_config=queue_ring_config, ring_buzz=queue_ring_buzz,
-                            cpap_stream=_cpap_ctl.op), host, port)
+                            # Wrapped so a HAND stop records manual intent for this session.
+                            # Inert when auto-start is off: the wrapper only marks a watch that
+                            # the auto-start loop created, and with the loop unarmed there is none.
+                            cpap_stream=_cpap_autostart_wrap_op(_cpap_ctl.op, root)),
+                           host, port)
         log.info("monitor: http://%s:%d/", host, port)
 
     # Surface the resolved adapter at boot: a silent mis-pin (hci re-enumeration) is exactly the failure

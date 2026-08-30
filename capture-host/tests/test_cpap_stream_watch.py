@@ -135,3 +135,17 @@ def test_a_DUPLICATE_or_out_of_order_stamp_covers_no_time():
     t0 = 1_787_000_000_000
     rows = [_row(t0, "Therapy"), _row(t0, "Therapy"), _row(t0 + 30_000, "Therapy")]
     assert abs(W.therapy_minutes("\n".join([_HDR] + rows)) - 0.5) < 1e-6
+
+
+def test_a_NON_NUMERIC_attempt_count_is_not_a_failed_automation():
+    """`assess` is the contract, so its guards are tested here rather than through a caller — the
+    daemon's own range check happens to filter such a record out first, which would leave this branch
+    covered by nothing while looking covered.
+
+    A record it cannot read is not evidence that the automation tried. Reporting AUTOSTART_FAILED on
+    an unparseable count would invent an attempt, and the whole point of the state is to be believed."""
+    for bad in ("x", object(), [1], {}):
+        got = W.assess(therapy_min=400.0, stream_min=0.0, attempts=bad)
+        assert got["state"] == W.NEVER_STARTED, bad
+    assert W.assess(400.0, 0.0, attempts=3)["state"] == W.AUTOSTART_FAILED
+    assert W.assess(400.0, 0.0, attempts=0)["state"] == W.NEVER_STARTED

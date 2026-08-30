@@ -73,7 +73,7 @@ HERE = Path(__file__).resolve().parent.parent
 VENV_PY = HERE / ".venv" / "bin" / "python"
 sys.path.insert(0, str(HERE))
 from mutation_diff import (  # noqa: E402
-    EMPTY_DIFF, STRING_ONLY, UNDECIDABLE, classify, diff_key, functions_covering,
+    EMPTY_DIFF, STRING_ONLY, UNDECIDABLE, annotation_only, classify, diff_key, functions_covering,
     refusal_reason, selftest, string_only_verdict,
 )
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
@@ -175,6 +175,30 @@ def main(argv=None) -> int:
     changed = changed_lines(a.base)
     if not changed:
         print(f"mutate-diff: no capture-host/*.py changed against {a.base} — nothing to check.")
+        return 0
+
+    # ── ANNOTATION-ONLY EXCLUSION (measured on #1946) ────────────────────────────────────────
+    # Touching a signature line pulls the whole function into mutation scope, so four one-line
+    # widenings surfaced 30 PRE-EXISTING survivors and blocked a behaviour-neutral typing PR.
+    # A signature annotation does not execute; if the WHOLE file's diff strips to nothing, the
+    # file leaves scope — loudly, naming the check. The comparison base is the MERGE-BASE (the
+    # same ref `changed_lines`' three-dot diff measures against), never the base branch tip.
+    # Fail-closed: an unreadable base version or a parse failure keeps full scope.
+    _mb = subprocess.run(["git", "merge-base", a.base, "HEAD"],
+                         cwd=HERE.parent, capture_output=True, text=True)
+    _base_sha = _mb.stdout.strip() if _mb.returncode == 0 and _mb.stdout.strip() else a.base
+    for module in sorted(changed):
+        _old = subprocess.run(["git", "show", f"{_base_sha}:capture-host/{module}"],
+                              cwd=HERE.parent, capture_output=True, text=True)
+        if _old.returncode != 0:
+            print(f"  {module}: base version unreadable — full scope kept (fail-closed)")
+            continue
+        _excl, _why = annotation_only(_old.stdout, _read_source(HERE / module))
+        if _excl:
+            print(f"  {module}: {len(changed[module])} changed line(s) — {_why}; EXCLUDED from mutation scope")
+            del changed[module]
+    if not changed:
+        print("mutate-diff: every changed module is signature-annotation-only — nothing behavioural to mutate.")
         return 0
 
     # ── PREFLIGHT — refuse rather than green when the gate cannot actually run ──────────────

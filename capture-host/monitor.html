@@ -593,7 +593,7 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
           <button class="btn btn-primary" id="cpapStreamBtn" data-streaming="0">▶ Start live stream</button>
           <span class="spin" id="cpapStreamState"></span>
         </div>
-        <p class="hint">Streams the CPAP's flow + pressure over BLE onto the <b>Overview</b> Live-streams grid, live. Runs on the free radio and refuses while a wearable is capturing (it would transmit beside the sensors). Read-only — nothing on the device is changed.</p>
+        <p class="hint">Streams the CPAP's flow + pressure over BLE onto the <b>Overview</b> Live-streams grid, live. Runs on the free radio. Whether it refuses beside a capturing wearable is <b>conditional</b>: the 2.4&nbsp;GHz coexistence interlock is <b>off by default</b> (owner decision, 2026-08-23) — a start beside on-body sensors is logged, not blocked — and is restored by setting <code>cpap.ble_stream.coexistence_gate: true</code>. Read-only — nothing on the device is changed.</p>
       </div>
 
       <div class="card" id="clockCard">
@@ -728,28 +728,6 @@ function clockStatus(dev){
   // screen the wearer reads, and its samples are host-arrival stamped so its clock never fed timing.)
   // GIVE-UP OUTRANKS 'we set it once', so it is checked before the no-device_time shortcut —
   // otherwise a device with no per-sample stamps (the ring) shows 'clock set' from a sync that has
-// §19/§20 — the presence axis and its execution witness, drawn rather than merely forwarded.
-// A field published to /api/state and rendered by nobody is NOT exposed to an operator, whatever the
-// API says; that is the failure this repo already hit with `therapy` and with STATUS.autopull.
-// The WITNESS chip is the load-bearing one: it names where the §19 chain stops, so a path that armed
-// and never executed cannot look healthy. It is styled `warn`, not `bad` — an incomplete chain on a
-// cold scanner is the EXPECTED state until the coexistence matrix runs, and colouring it red would
-// train the operator to ignore it.
-function presenceChip(d){
-  if(!d.presence) return '';
-  const st = String(d.presence);
-  const cls = st==='pres_present' ? 'on' : (st==='pres_absent' ? 'warn' : '');
-  const txt = st.replace(/^pres_/,'');
-  const tip = [d.presence_reason, d.presence_witness && ('witness: '+d.presence_witness)]
-    .filter(Boolean).join(' — ');
-  return '<span class="dbadge '+cls+'" title="'+esc(tip)+'">'+esc(txt)+'</span>';
-}
-function witnessChip(d){
-  if(!d.presence_witness) return '';
-  const done = /^complete/.test(d.presence_witness);
-  return '<span class="dbadge '+(done?'on':'warn')+'" title="§19 execution witness">'
-       + esc(d.presence_witness)+'</span>';
-}
   // since been written off, or shows no pill at all.
   if(dev.clock_uncorrectable && !dev.device_time) return {cls:'bad', txt:'clock uncorrectable'};
   if(!dev.device_time) return dev.clock_synced ? {cls:'ok', txt:'clock set'} : null;
@@ -771,6 +749,38 @@ function witnessChip(d){
   if(!dev.clock_synced) return measured ? {cls:'ok', txt:'clock ok'}
                                         : {cls:'warn', txt:'clock unverified'};
   return {cls:'ok', txt:'clock set'};
+}
+
+// 🔴 THESE TWO LIVED INSIDE `clockStatus`'s BODY until 2026-08-29, and that is why the whole
+// remembered-devices list vanished from the Devices view. A `function` declaration inside another
+// function is LOCAL to it: `clockStatus` kept working, nothing logged, and every neighbouring chip
+// resolved fine — but `renderRemembered` calls these at top level, threw ReferenceError on the
+// FIRST device, and `.map()` took the entire list down with it. The section rendered empty, which
+// reads as 'no devices are configured' rather than as an error. Verified in the live page:
+// `typeof presenceChip` was 'undefined' while `typeof clkChip` was 'function'.
+// Keep them at TOP LEVEL. The §19 comment below reads like a file-level heading, which is exactly
+// how they came to be pasted inside the function above it.
+// §19/§20 — the presence axis and its execution witness, drawn rather than merely forwarded.
+// A field published to /api/state and rendered by nobody is NOT exposed to an operator, whatever the
+// API says; that is the failure this repo already hit with `therapy` and with STATUS.autopull.
+// The WITNESS chip is the load-bearing one: it names where the §19 chain stops, so a path that armed
+// and never executed cannot look healthy. It is styled `warn`, not `bad` — an incomplete chain on a
+// cold scanner is the EXPECTED state until the coexistence matrix runs, and colouring it red would
+// train the operator to ignore it.
+function presenceChip(d){
+  if(!d.presence) return '';
+  const st = String(d.presence);
+  const cls = st==='pres_present' ? 'on' : (st==='pres_absent' ? 'warn' : '');
+  const txt = st.replace(/^pres_/,'');
+  const tip = [d.presence_reason, d.presence_witness && ('witness: '+d.presence_witness)]
+    .filter(Boolean).join(' — ');
+  return '<span class="dbadge '+cls+'" title="'+esc(tip)+'">'+esc(txt)+'</span>';
+}
+function witnessChip(d){
+  if(!d.presence_witness) return '';
+  const done = /^complete/.test(d.presence_witness);
+  return '<span class="dbadge '+(done?'on':'warn')+'" title="§19 execution witness">'
+       + esc(d.presence_witness)+'</span>';
 }
 function clkChip(dev){
   const st = clockStatus(dev);
@@ -1453,19 +1463,54 @@ function renderRemembered(devs){
     </div>${d.vendor==='Polar'?`<div class="rec-panel" id="${recPanelId(d.address)}" style="margin:0 0 .7rem;padding-left:.2rem;display:flex;flex-direction:column;gap:.35rem"></div>`:''}`).join('');
 }
 
+// ── BLE IDENTITY IS THE ADDRESS, NEVER THE ADVERTISED NAME ──────────────────────────────────────
+// The standing ruling (names are attacker-controlled, and a device in standby advertises none at
+// all) was violated in our own UI, three independent times, each hiding a device the config already
+// knew by address:
+//   1. the visibility filter required a name-shaped string, and a nameless device surfaces with its
+//      MAC AS the name — which the placeholder test then rejects, so the row vanished entirely;
+//   2. NOTHING compared the advertised address against the configured devices, so a device already
+//      in config was offered "Remember" like a stranger;
+//   3. `guessDevice` derived vendor/model purely from the name, so a manufacturer-data-only row
+//      matched no branch and the server correctly rejected it — surfacing as the message the owner
+//      actually saw, "not recognised — needs vendor, model".
+// Measured 2026-08-29: the Verity (24:AC:AC:0C:30:1E, -30 dBm, ManufacturerData-only), the ResMed
+// (04:CD:15:3A:0B:BD — which IS the AS11's configured `ble_addr`, one device, not a second radio)
+// and the O2Ring all read as unknown, while the H10 matched fine because it advertises a local
+// name. That difference IS the bug; nothing else distinguishes them.
+// ⚠️ The capture path was never affected and this was verified, not assumed: the general connect is
+// `BleakClient(addr)` on the configured address, and the O2Ring's scan filter tests the address
+// first and independently. Only the UI keyed on names.
+function knownDevice(address){
+  const a = String(address||'').toUpperCase();
+  if(!a) return null;
+  // Case-insensitive because the two sides come from different places — bluez's scan output and the
+  // config file — and an exact string compare on a MAC is the same defect one layer down.
+  return (DEVICES||[]).find(d=>String(d.address||'').toUpperCase() === a) || null;
+}
+
 function renderDiscovered(list){
   const el = $('#discovered');
-  const shown = list.filter(d=>d.health || d.name.match(/[a-z]/i) && !/^[0-9A-F-]+$/.test(d.name));
+  // A CONFIGURED DEVICE IS ALWAYS SHOWN, whatever it advertises. Hiding one because this scan
+  // happened to catch it mid-standby is how a device we capture every night reads as absent.
+  const shown = (list||[]).filter(d=>knownDevice(d.address) || d.health
+                                     || (d.name||'').match(/[a-z]/i) && !/^[0-9A-F-]+$/.test(d.name||''));
   if(!shown.length){ el.innerHTML=''; return; }
-  el.innerHTML = '<div class="section-title">Discovered</div>' + shown.map(d=>`
+  el.innerHTML = '<div class="section-title">Discovered</div>' + shown.map(d=>{
+    const k = knownDevice(d.address);
+    // The CONFIGURED name wins over the advertised one — that is the name the rest of the UI, the
+    // capture files and the QC rows all use, so showing the advertisement here would invent a second
+    // identity for one device.
+    const label = k ? (k.name || d.name || d.address) : (d.name || d.address);
+    return `
     <div class="dev">
       <div class="meta">
-        <div class="name">${esc(d.name)} ${d.bonded?'<span class="dbadge on">bonded</span>':''} ${d.health?'<span class="dbadge">sensor</span>':''}</div>
-        <div class="sub">${esc(d.address)}${d.rssi!=null?(' · '+d.rssi+' dBm'):''}</div>
+        <div class="name">${esc(label)} ${k?'<span class="dbadge on">configured</span>':''} ${d.bonded?'<span class="dbadge on">bonded</span>':''} ${d.health?'<span class="dbadge">sensor</span>':''}</div>
+        <div class="sub">${esc(d.address)}${d.rssi!=null?(' · '+d.rssi+' dBm'):''}${k?(' · '+esc((k.streams||[]).join(', '))):''}</div>
       </div>
       ${d.bonded?'':`<button class="btn" onclick='bond(${JSON.stringify(d.address)}, this)'>Bond</button>`}
-      <button class="btn" onclick='remember(${JSON.stringify(d)}, this)'>Remember</button>
-    </div>`).join('');
+      ${k?'':`<button class="btn" onclick='remember(${JSON.stringify(d)}, this)'>Remember</button>`}
+    </div>`;}).join('');
 }
 
 // ── Device clock sync ────────────────────────────────────────────────────────────────────────────
@@ -1802,9 +1847,19 @@ $('#scanBtn').addEventListener('click', scan);
 
 async function bond(address, btn){
   btn.disabled = true; btn.textContent = 'bonding…';
-  const r = await api('/api/bond',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({address})});
-  btn.textContent = r.ok?'bonded ✓':('failed: '+r.detail);
-  if(r.ok) setTimeout(scan, 500);
+  // 🔴 NO CATCH HERE MEANT A REJECTED REQUEST LEFT THE BUTTON READING 'bonding…' FOREVER, disabled,
+  // with nothing to retry from — seen twice on 2026-08-29 (the ring in the morning, the ResMed at
+  // night) and read both times as a bond that HUNG rather than a request that failed. `syncTime`
+  // twenty lines below has always been wrapped; this was the one that was not.
+  try{
+    const r = await api('/api/bond',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({address})});
+    btn.textContent = r.ok?'bonded ✓':('failed: '+(r.detail||r.error||'unknown'));
+    if(r.ok) setTimeout(scan, 500);
+  }catch(e){
+    btn.textContent = 'failed: '+e;
+  }finally{
+    btn.disabled = false;              // always retryable; a stuck disabled button has no way back
+  }
 }
 async function remember(dev, btn){
   const g = guessDevice(dev);
@@ -1872,6 +1927,11 @@ async function doPull(address, session, btn){
   }catch(e){ btn.textContent = 'error'; btn.disabled = false; }
 }
 function guessDevice(d){
+  // AN ALREADY-CONFIGURED ADDRESS IS NOT A GUESS. Re-deriving vendor/model from the advertisement
+  // for a device we already describe would let a standby frame overwrite a known-good entry with
+  // blanks — and blanks are what the server rejects.
+  const known = knownDevice(d.address);
+  if(known) return {...known, address: known.address || d.address};
   const n = (d.name||'').toLowerCase();
   let vendor='', model='', streams=['ecg'], device_id=(d.address||'').replace(/:/g,'').slice(-8);
   // DEFAULTS ARE WHAT ACTUALLY GETS RECORDED. A stream omitted here is simply never captured, silently:
@@ -2144,10 +2204,16 @@ function renderBoxHealth(storage, qc, host, alerts, clk, cpap, cpapLive){
     // is off or its journal is unreadable — which is NOT evidence that the night was fine. Hiding it
     // would make a blind watchdog indistinguishable from a quiet one, the failure it exists to break.
     const unk = cs.state === 'unknown';
+    // 'auto-start-failed' is drawn as its own line, NOT folded into 'never started'. On disk the two
+    // are identical — an empty edf_dir beside a full session — but they call for opposite responses:
+    // one is a habit, the other is a bug. Folding them would hand the reader the wrong job.
+    const failed = cs.state === 'auto-start-failed';
     const val = unk ? 'CPAP stream unverified'
+              : failed ? 'CPAP auto-start failed'
               : cs.state === 'never-started' ? 'CPAP stream never started'
               : 'CPAP stream died early';
     const sub = unk ? esc(cs.detail || 'not measured')
+              : failed ? esc(cs.detail || (cs.attempts+' failed attempt(s)'))
               : Math.round(cs.stream_min||0)+' min recorded of '+Math.round(cs.therapy_min||0)+' min therapy';
     cards.push(`<div class="ov-stat" style="border-left-color:${unk?'var(--status-caution)':'var(--status-bad)'}">
       <div class="lab">CPAP capture</div>
