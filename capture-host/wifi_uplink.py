@@ -4,6 +4,22 @@
 # The box's Wi-Fi UPLINK: scan, join, leave, status — plus the 0600 store for a remembered network.
 # Every DECISION lives in `wifi_join` (pure, gate-backed); this file is the I/O around it.
 #
+# 🔴 DO NOT RUN `tepna-wifi.sh` FROM AN SSH SHELL. IT WEDGES THE MONITOR'S Wi-Fi CONTROLS.
+# Measured 2026-08-30, and it cost the release verification an hour of false negatives.
+#
+# The daemon runs with `PrivateTmp=yes`, and `wpa_cli` puts its CLIENT REPLY SOCKET under /tmp. So a
+# supplicant started from an ssh shell lives in the HOST /tmp namespace and can never answer a
+# `wpa_cli` running inside the daemon's private one — the call simply hangs until the 25 s timeout,
+# leaving a `wpa_cli` process behind as the only visible tell. Every Scan then fails with
+# "scan timed out" while the radio is perfectly healthy.
+#
+# ⚠️ AND `leave` FROM SSH CANNOT CLEAR IT EITHER: the split is symmetric, so an ssh `wpa_cli` cannot
+# talk to a DAEMON-started supplicant any more than the reverse. The only reliable clear is
+# `POST /api/wifi/disconnect`, which runs inside the daemon's namespace.
+#
+# Debugging on the box therefore goes through the API, not the helper. That is the opposite of the
+# usual instinct — reach for the script to bypass the web layer — and it is exactly backwards here.
+#
 # ⚠️ THIS IS NOT THE EZ-SHARE HARVEST LINK. `cpap_harvest` associates the SAME radio with the CPAP SD
 # card's own access point, using its own supplicant and control directory. One radio cannot hold two
 # associations, so the two are mutually exclusive by physics, not by policy — `suspend_plan` /
