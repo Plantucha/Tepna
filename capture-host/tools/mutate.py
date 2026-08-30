@@ -39,6 +39,21 @@
 #    a cap that IS hit still reports its partial counts, behind an explicit `timed_out` flag; and
 #    `--budget` skips an over-budget module loudly. Ported from the JS sibling tools/mutate.mjs (#702),
 #    which reached the same conclusions on the same day from the same failure.
+# 4b. THE PER-MODULE CAP CANNOT SEE A SINGLE SPINNING MUTANT, and item 4 is about the wrong unit. A
+#    module budget cannot tell "24 mutants each taking their share" from "23 done + 1 looping forever",
+#    so the run wedges with the cap nowhere near hit. Measured 2026-08-30 on
+#    `capture.x_clock_watchdog__mutmut_*`: one worker at 29:26 CPU out of 29:27 wall, 23 siblings at
+#    zero, no scratch writes for 5 min. capture.py's derived cap was 243370 s (67.6 HOURS), so nothing
+#    was going to stop it. Mutating a sleep or a timeout inside a watchdog loop is an ordinary way to
+#    produce a mutant that never returns.
+#    mutmut ALREADY solves this and we simply never set the knob — do not build a second mechanism.
+#    `wall_time_limit_s = (estimated_time_of_tests + timeout_constant) * timeout_multiplier`, where the
+#    estimate is per-MUTANT (the summed duration of the tests covering that function), enforced with
+#    SIGXCPU. The default multiplier is 15, which is generous once a function is covered by many tests:
+#    the spinning mutant above needed a sum of only ~116 s to buy itself half an hour. `3.0` keeps a
+#    healthy mutant well clear (it is 3x its own measured cost, not a flat number) while bounding a
+#    runaway at minutes. A mutant that DOES exceed it is recorded `timeout`, i.e. unmeasured — never
+#    counted as killed, so a tight bound cannot manufacture a pass.
 # 5. MEASURE FIRST, THEN DECIDE. `--estimate` times one clean run of the selection and prints what the
 #    module will cost, without generating a single mutant. Measured 2026-08-02 on 24 cores:
 #      pull_session     5 test files,  45 tests →  0.2-6.3 s clean ·  466 mutants
@@ -114,6 +129,7 @@ source_paths = [{source!r}]
 also_copy = [{also_copy}]
 pytest_add_cli_args_test_selection = [{tests}]
 do_not_mutate = ["tests/*"]
+timeout_multiplier = 3.0
 """
 
 
