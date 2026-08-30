@@ -69,9 +69,14 @@ def test_poll_cycle_full_success():
     sup = CPAPSessionSupervisor()
     decision, anchor, row = _run(
         R.poll_cycle(
-            connect=connect, creds=CREDS, supervisor=sup, host_epoch=_epochs(),
-            establish=establish, cipher_factory=cipher_factory,
-            get_items=get_items, get_date_time=get_date_time,
+            connect=connect,
+            creds=CREDS,
+            supervisor=sup,
+            host_epoch=_epochs(),
+            establish=establish,
+            cipher_factory=cipher_factory,
+            get_items=get_items,
+            get_date_time=get_date_time,
         )
     )
     assert decision.transition == "start"  # FGState Therapy
@@ -93,9 +98,14 @@ def test_poll_cycle_get_items_error_is_unreachable():
     sup = CPAPSessionSupervisor()
     decision, anchor, row = _run(
         R.poll_cycle(
-            connect=connect, creds=CREDS, supervisor=sup, host_epoch=_epochs(),
-            establish=establish, cipher_factory=cipher_factory,
-            get_items=get_items, get_date_time=get_date_time,
+            connect=connect,
+            creds=CREDS,
+            supervisor=sup,
+            host_epoch=_epochs(),
+            establish=establish,
+            cipher_factory=cipher_factory,
+            get_items=get_items,
+            get_date_time=get_date_time,
         )
     )
     assert decision.trigger == "unreachable_hold"  # get_items failed -> reachable False
@@ -116,9 +126,14 @@ def test_poll_cycle_clock_error_gives_no_anchor():
     sup = CPAPSessionSupervisor()
     decision, anchor, row = _run(
         R.poll_cycle(
-            connect=connect, creds=CREDS, supervisor=sup, host_epoch=_epochs(),
-            establish=establish, cipher_factory=cipher_factory,
-            get_items=get_items, get_date_time=get_date_time,
+            connect=connect,
+            creds=CREDS,
+            supervisor=sup,
+            host_epoch=_epochs(),
+            establish=establish,
+            cipher_factory=cipher_factory,
+            get_items=get_items,
+            get_date_time=get_date_time,
         )
     )
     assert anchor is None and row[1] is None and row[2] is None
@@ -146,6 +161,7 @@ def _stopper(n):
     def should_stop():
         c["i"] += 1
         return c["i"] > n
+
     return should_stop
 
 
@@ -161,9 +177,17 @@ def test_loop_defers_while_capturing():
 
     _run(
         R.run_shadow_loop(
-            connect=None, creds=CREDS, supervisor=None, is_capturing=lambda: True,
-            session_writer=sw, clock_writer=cw, host_epoch=_epochs(), sleep=sleep,
-            poll_interval_s=5.0, should_stop=_stopper(2), poll_cycle=fake_poll,
+            connect=None,
+            creds=CREDS,
+            supervisor=None,
+            is_capturing=lambda: True,
+            session_writer=sw,
+            clock_writer=cw,
+            host_epoch=_epochs(),
+            sleep=sleep,
+            poll_interval_s=5.0,
+            should_stop=_stopper(2),
+            poll_cycle=fake_poll,
         )
     )
     assert slept == [5.0, 5.0]  # deferred twice, never polled
@@ -182,9 +206,17 @@ def test_loop_polls_writes_both_sidecars_and_on_cycle():
 
     _run(
         R.run_shadow_loop(
-            connect=None, creds=CREDS, supervisor=None, is_capturing=lambda: False,
-            session_writer=sw, clock_writer=cw, host_epoch=_epochs(), sleep=_no_sleep,
-            poll_interval_s=5.0, should_stop=_stopper(1), on_cycle=lambda d, a: seen.append(a),
+            connect=None,
+            creds=CREDS,
+            supervisor=None,
+            is_capturing=lambda: False,
+            session_writer=sw,
+            clock_writer=cw,
+            host_epoch=_epochs(),
+            sleep=_no_sleep,
+            poll_interval_s=5.0,
+            should_stop=_stopper(1),
+            on_cycle=lambda d, a: seen.append(a),
             poll_cycle=fake_poll,
         )
     )
@@ -201,9 +233,17 @@ def test_loop_clock_offset_none_when_device_unparsed():
 
     _run(
         R.run_shadow_loop(
-            connect=None, creds=CREDS, supervisor=None, is_capturing=lambda: False,
-            session_writer=sw, clock_writer=cw, host_epoch=_epochs(), sleep=_no_sleep,
-            poll_interval_s=5.0, should_stop=_stopper(1), poll_cycle=fake_poll,
+            connect=None,
+            creds=CREDS,
+            supervisor=None,
+            is_capturing=lambda: False,
+            session_writer=sw,
+            clock_writer=cw,
+            host_epoch=_epochs(),
+            sleep=_no_sleep,
+            poll_interval_s=5.0,
+            should_stop=_stopper(1),
+            poll_cycle=fake_poll,
         )
     )
     assert cw.rows[0][4] is None  # offset None (no on_cycle passed -> that branch too)
@@ -217,12 +257,29 @@ def test_loop_connect_failure_skips_cycle():
 
     _run(
         R.run_shadow_loop(
-            connect=None, creds=CREDS, supervisor=None, is_capturing=lambda: False,
-            session_writer=sw, clock_writer=cw, host_epoch=_epochs(), sleep=_no_sleep,
-            poll_interval_s=5.0, should_stop=_stopper(1), poll_cycle=fake_poll,
+            connect=None,
+            creds=CREDS,
+            supervisor=None,
+            is_capturing=lambda: False,
+            session_writer=sw,
+            clock_writer=cw,
+            host_epoch=_epochs(),
+            sleep=_no_sleep,
+            poll_interval_s=5.0,
+            should_stop=_stopper(1),
+            poll_cycle=fake_poll,
         )
     )
-    assert sw.rows == [] and cw.rows == []  # nothing written on a failed connect
+    # ⚠️ THIS ASSERTION WAS INVERTED 2026-08-30, deliberately: it used to read `sw.rows == []`
+    # ("nothing written on a failed connect"), which pinned the defect rather than a contract. A
+    # journal that records only successes cannot distinguish CPAP-absent from detector-dead from
+    # daemon-down, and on 2026-08-29 that ambiguity made eleven hours unknowable. An unreachable poll
+    # is now DATA. The CLOCK writer still gets nothing — there was no device time to read.
+    assert len(sw.rows) == 1 and cw.rows == []
+    cells = sw.rows[0][0].as_row().split(";")  # _Writer stores the ARG TUPLE, not a rendered row
+    assert cells[4] == "unreachable" and cells[7] == "False"
+    assert cells[5] == "OSError"  # the error CLASS, so a persistent fault is identifiable
+    assert cells[8] == "", "fg_state must be BLANK — it was not observed"
 
 
 def test_poll_cycle_does_not_leak_the_link_on_a_bad_connect_contract():
@@ -244,8 +301,14 @@ def test_poll_cycle_does_not_leak_the_link_on_a_bad_connect_contract():
     try:
         _run(
             R.poll_cycle(
-                connect=bad_connect, creds=CREDS, supervisor=sup, host_epoch=_epochs(),
-                establish=None, cipher_factory=None, get_items=None, get_date_time=None,
+                connect=bad_connect,
+                creds=CREDS,
+                supervisor=sup,
+                host_epoch=_epochs(),
+                establish=None,
+                cipher_factory=None,
+                get_items=None,
+                get_date_time=None,
             )
         )
         raise AssertionError("expected the malformed contract to raise")
@@ -273,15 +336,30 @@ def test_loop_unexpected_error_survives_and_logs(caplog):
     with caplog.at_level("WARNING"):
         _run(
             R.run_shadow_loop(
-                connect=None, creds=CREDS, supervisor=None, is_capturing=lambda: False,
-                session_writer=sw, clock_writer=cw, host_epoch=_epochs(), sleep=_no_sleep,
-                poll_interval_s=5.0, should_stop=_stopper(2), poll_cycle=fake_poll,
+                connect=None,
+                creds=CREDS,
+                supervisor=None,
+                is_capturing=lambda: False,
+                session_writer=sw,
+                clock_writer=cw,
+                host_epoch=_epochs(),
+                sleep=_no_sleep,
+                poll_interval_s=5.0,
+                should_stop=_stopper(2),
+                poll_cycle=fake_poll,
             )
         )
     assert calls["n"] == 2  # survived the first failure and polled again — did not die
-    assert sw.rows == [] and cw.rows == []  # nothing written on a failed poll
-    assert any("AS11 shadow poll failed" in r.message and "InProgress" in r.message
-               for r in caplog.records)  # the fault is VISIBLE, not silent
+    # Same inversion as above, and for the same reason: the 2026-08-25 incident this branch exists
+    # for ("enabled, armed, zero rows") produced the SAME emptiness as an absent device. Recording
+    # the failure is what tells the two apart afterwards.
+    assert len(sw.rows) == 2 and cw.rows == []  # one per failed poll
+    rows = [r[0].as_row().split(";") for r in sw.rows]
+    assert all(c[7] == "False" for c in rows)
+    assert all(c[5] == "_FakeBleakError" for c in rows)
+    assert any(
+        "AS11 shadow poll failed" in r.message and "InProgress" in r.message for r in caplog.records
+    )  # the fault is VISIBLE, not silent
 
 
 def test_utc_iso():
@@ -295,13 +373,15 @@ def test_session_sidecar_survives_a_restart_and_writes_one_header(tmp_path):
     p = tmp_path / "SESSIONDETECT.csv"
     sup = CPAPSessionSupervisor()
     first = R.SessionSidecar(str(p))
-    first.write(sup.observe(Observation(host_ms=1000, reachable=True, fg_state=TherapyState.THERAPY,
-                last_therapy_use=5)))
+    first.write(
+        sup.observe(Observation(host_ms=1000, reachable=True, fg_state=TherapyState.THERAPY, last_therapy_use=5))
+    )
     first.close()
 
     second = R.SessionSidecar(str(p))  # ← the restart
-    second.write(sup.observe(Observation(host_ms=61000, reachable=True, fg_state=TherapyState.THERAPY,
-                 last_therapy_use=5)))
+    second.write(
+        sup.observe(Observation(host_ms=61000, reachable=True, fg_state=TherapyState.THERAPY, last_therapy_use=5))
+    )
     second.close()
 
     lines = p.read_text().splitlines()
@@ -315,8 +395,7 @@ def test_session_sidecar_row_reaches_disk_without_close(tmp_path):
     p = tmp_path / "SESSIONDETECT.csv"
     sup = CPAPSessionSupervisor()
     sc = R.SessionSidecar(str(p))
-    sc.write(sup.observe(Observation(host_ms=1000, reachable=True, fg_state=TherapyState.THERAPY,
-             last_therapy_use=5)))
+    sc.write(sup.observe(Observation(host_ms=1000, reachable=True, fg_state=TherapyState.THERAPY, last_therapy_use=5)))
     assert "start" in p.read_text()  # durable before close — line-buffered, not 64 KB
     sc.close()
 
@@ -325,11 +404,46 @@ def test_session_sidecar_writes_header_rows_and_closes(tmp_path):
     p = tmp_path / "SESSIONDETECT.csv"
     sc = R.SessionSidecar(str(p))
     sup = CPAPSessionSupervisor()
-    sc.write(sup.observe(Observation(host_ms=1000, reachable=True, fg_state=TherapyState.THERAPY,
-             last_therapy_use=5)))
+    sc.write(sup.observe(Observation(host_ms=1000, reachable=True, fg_state=TherapyState.THERAPY, last_therapy_use=5)))
     sc.close()
     sc.close()  # idempotent — second close swallows the closed-handle error
     lines = p.read_text().splitlines()
     assert lines[0].startswith("host_ms;prior_state;state;transition")
     assert "start" in lines[1]
     assert sc.rows == 1
+
+
+# ── the unreachable row (2026-08-30) ────────────────────────────────────────────────────────────
+
+
+def test_the_unreachable_row_matches_the_journal_schema_exactly():
+    """It rides the same file as a real Decision, so a column-count mismatch would corrupt every
+    downstream reader — and those read by INDEX."""
+    from cpap_supervisor import Decision
+
+    row = R.UnreachableRow(1787000000000, "BleakDeviceNotFoundError").as_row()
+    assert len(row.split(";")) == len(Decision.ROW_FIELDS)
+
+
+def test_the_observation_columns_are_BLANK_never_zero():
+    """🔴 fg_state, last_therapy_use, mask_pressure and baseline_use were NOT observed. A zero there
+    would be a measurement nobody made — the same fabrication `reachable=False` exists to prevent."""
+    from cpap_supervisor import Decision
+
+    cells = dict(zip(Decision.ROW_FIELDS, R.UnreachableRow(1, "X").as_row().split(";")))
+    for f in ("fg_state", "last_therapy_use", "mask_pressure", "baseline_use"):
+        assert cells[f] == "", f"{f} carried a value nothing observed"
+    assert cells["reachable"] == "False" and cells["action"] == "unreachable"
+    assert cells["host_ms"] == "1", "the row must still say WHEN we failed to look"
+
+
+def test_recording_a_failure_can_never_become_a_second_failure():
+    """The writer is a report about a failure. If it raises, it would take down the observer that is
+    still trying — turning a diagnostic into an outage."""
+
+    class _Boom:
+        @staticmethod
+        def write(_row):
+            raise OSError("disk full")
+
+    R._write_unreachable(_Boom(), lambda: 1787000000.0, ValueError("x"))  # must not raise
