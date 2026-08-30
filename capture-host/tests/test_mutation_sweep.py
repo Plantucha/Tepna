@@ -142,6 +142,19 @@ def test_the_note_is_silent_when_the_file_is_not_even_selected():
     assert S.deselect_notes("capture.py", ["tests/test_other.py"], d) == []
 
 
+def test_the_file_part_of_a_CLASS_BASED_node_id_still_matches():
+    """A node id can carry more than one `::` — pytest writes `file.py::Class::test_m` for a method.
+    Only the FIRST segment is the file, so the split must be left-anchored: `rsplit` would yield
+    `tests/test_c.py::TestC`, which matches no entry in `kept`, and the note would vanish with no
+    error anywhere. Every other case in this file has exactly one `::`, where split and rsplit agree
+    — so this is the only shape that can tell them apart."""
+    d = {"tests/test_c.py::TestC::test_m": "capture.py"}
+    kept = ["tests/test_c.py"]
+    assert S.deselect_notes("capture.py", kept, d) == ["tests/test_c.py::TestC::test_m"]
+    assert S.deselect_notes("capture.py", ["tests/test_c.py::TestC"], d) == [], \
+        "the file part is the whole first segment, not everything up to the last separator"
+
+
 def test_a_None_scope_reports_nowhere():
     """A test that kills no mutant costs nothing to exclude, so warning about it would manufacture
     the same false work as a false REACHABLE. The git-mode assertion is exactly that: mutating a

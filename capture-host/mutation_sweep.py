@@ -125,8 +125,12 @@ def deselect_notes(module: str, kept: list[str],
     warning about it manufactures the same false work as a false REACHABLE.
     """
     d = DESELECTED_TESTS if deselected is None else deselected
+    # `split("::")[0]` — the FILE part of a node id, however many `::` it carries. No maxsplit: taking
+    # [0] makes any maxsplit inert, so passing one adds a parameter that cannot change the result and
+    # cannot be tested. It must be `split`, never `rsplit`: a class-based id (`f.py::C::test_m`) would
+    # rsplit to `f.py::C`, which matches no entry in `kept`, and the note would silently go missing.
     return sorted(n for n, scanned in d.items()
-                  if scanned is not None and scanned == module and n.split("::", 1)[0] in kept)
+                  if scanned is not None and scanned == module and n.split("::")[0] in kept)
 
 
 def select_tests(candidates: list[tuple[str, str]], stem: str,
