@@ -18,11 +18,16 @@
 # key stored on the same unattended box is obfuscation wearing the word "encrypted". What this
 # actually buys is real but bounded, and worth having: your reused plaintext never touches the disk.
 #
-# 🔴 AND THE TRAP THAT MAKES THE STRIPPING LOAD-BEARING: `wpa_passphrase` writes the plaintext BACK
-# into its own output as a `#psk="…"` comment. Piping it to a file verbatim — the obvious
-# implementation, and what most examples show — puts the cleartext password on disk beside the
-# derivation that was supposed to replace it. `sanitize_block` removes it, and a test asserts the
-# plaintext is absent from the bytes actually written.
+# 🔴 AND THE TRAP THIS MODULE AVOIDS BY CONSTRUCTION: `wpa_passphrase(8)` — the obvious way to derive
+# a PSK — takes the passphrase as an ARGV element and writes it BACK into its own output as a
+# `#psk="…"` comment. So the textbook implementation leaks it twice: once through
+# /proc/<pid>/cmdline while it runs, and once onto disk beside the derivation meant to replace it.
+# `derive_psk` does the PBKDF2 in this process instead, so neither leak has a path to exist.
+#
+# (An earlier revision shelled out to `wpa_passphrase` and scrubbed its comment afterwards with a
+# `sanitize_block` helper. Removing the leak beats laundering it, and once the derivation moved
+# in-process that helper was cleaning an output nothing produced — the `unwired` gate caught it
+# sitting there referenced only by its own tests.)
 
 from __future__ import annotations
 
@@ -35,8 +40,6 @@ __all__ = [
     "MAX_PSK_LEN",
     "parse_scan_results",
     "validate_passphrase",
-    "sanitize_block",
-    "config_text",
     "OPEN",
     "SECURED",
 ]
@@ -48,7 +51,6 @@ SECURED = "secured"
 MIN_PSK_LEN = 8
 MAX_PSK_LEN = 63
 
-_PLAINTEXT_COMMENT = re.compile(r"^\s*#psk=.*$", re.M)
 
 
 def parse_scan_results(text):
@@ -128,31 +130,6 @@ def validate_passphrase(ssid, passphrase, security=SECURED):
     if len(p) > MAX_PSK_LEN:
         return False, f"a Wi-Fi password is at most {MAX_PSK_LEN} characters"
     return True, None
-
-
-def sanitize_block(block, passphrase=None):
-    """Strip `wpa_passphrase`'s plaintext `#psk="…"` comment. PURE.
-
-    🔴 THIS IS THE SECURITY PROPERTY, not a tidy-up. `wpa_passphrase` echoes the passphrase back as a
-    comment, so writing its output verbatim stores the cleartext next to the derivation meant to
-    replace it. Every example on the internet pipes it straight to a file.
-
-    `passphrase`, when given, is checked for as a LITERAL anywhere in the result — belt and braces, so
-    an output shape we did not anticipate cannot smuggle it through."""
-    out = _PLAINTEXT_COMMENT.sub("", str(block or "")).strip()
-    if passphrase and str(passphrase) in out:
-        raise ValueError("refusing to store a block that still contains the plaintext passphrase")
-    return out + "\n" if out else ""
-
-
-def config_text(blocks, ctrl_dir):
-    """A whole `wpa_supplicant.conf` from sanitized network blocks. PURE.
-
-    `ctrl_interface` is NOT optional and the harvest's own header records why: without it the daemon
-    starts, associates or not, and creates no control socket — so nothing can ever confirm the
-    association. `update_config=1` lets `wpa_cli save_config` persist a network the operator adds."""
-    body = "\n".join(b.strip() for b in blocks if str(b or "").strip())
-    return (f"ctrl_interface={ctrl_dir}\nupdate_config=1\n\n" + body).rstrip() + "\n"
 
 
 # ── ONE RADIO, TWO USERS — the uplink yields to the harvest ────────────────────────────────────

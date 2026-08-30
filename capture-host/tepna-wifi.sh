@@ -23,8 +23,12 @@
 set -uo pipefail
 
 IFACE="${TEPNA_WIFI_IFACE:-wlp1s0}"
-CTRL="/run/tepna-uplink"
-CONF="/run/tepna-uplink.conf"
+# Overridable for the gate, the same way deploy/enable-cpap-wifi.sh takes TEPNA_ETC_*. The default is
+# the real path; a test cannot write /run, and a helper that can only be exercised as root is a helper
+# whose credential handling nothing ever checks.
+RUNDIR="${TEPNA_WIFI_RUNDIR:-/run}"
+CTRL="$RUNDIR/tepna-uplink"
+CONF="$RUNDIR/tepna-uplink.conf"
 
 die() { echo "$1" >&2; exit "${2:-1}"; }
 
@@ -98,7 +102,12 @@ case "${1:-}" in
   status)
     # No `ensure_supplicant` here: status must never START anything. A question about the uplink that
     # brings the uplink up is not a question, and would fight the harvest for the radio.
-    wcli status 2>/dev/null || echo "wpa_state=INTERFACE_DISABLED"
+    # KEYED ON THE OUTPUT, NOT THE EXIT CODE. `wpa_cli` exits 0 while printing nothing when the
+    # control socket is gone, so `wcli status || echo …` leaves the caller with an empty string and no
+    # state at all — a status call that answered nothing while reporting success.
+    st="$(wcli status 2>/dev/null || true)"
+    [ -n "$st" ] || st="wpa_state=INTERFACE_DISABLED"
+    printf '%s\n' "$st"
     ip -br addr show "$IFACE" 2>/dev/null || true
     ;;
   *)

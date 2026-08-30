@@ -5989,8 +5989,7 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
             # correctly refuses (the route is on wlan) and the night is skipped. Suspend is a no-op when
             # no uplink is up, and refuses when there is no saved network to return to.
             uplink_suspended, why = await wifi_uplink.suspend_for_harvest(root)
-            if why:
-                log.info("cpap: %s", why)
+            log.info("cpap: %s", why)
             guard = await asyncio.to_thread(cpap_harvest.default_route_dev)
             ok = await asyncio.to_thread(cpap_harvest.wifi_up, profile, 45.0, guard,
                                          "ez Share", "88888888", wifi_iface, cpap_harvest.WPA_ADDR, root)
@@ -6008,8 +6007,7 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
                 # that skips the resume.
                 _, rwhy = await wifi_uplink.resume_after_harvest(root, uplink_suspended,
                                                                 harvest_ok=False)
-                if rwhy:
-                    log.info("cpap: %s", rwhy)
+                log.info("cpap: %s", rwhy)
                 continue
         try:
             res = await asyncio.to_thread(
@@ -6047,8 +6045,7 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
             # can take the same radio back. A no-op unless we actually suspended something, and it runs
             # whether the harvest succeeded, failed, or raised — see wifi_join.should_resume.
             _, rwhy = await wifi_uplink.resume_after_harvest(root, uplink_suspended)
-            if rwhy:
-                log.info("cpap: %s", rwhy)
+            log.info("cpap: %s", rwhy)
 
         dur = _time.monotonic() - started
         bad = bool(res["short"] or res["errors"])

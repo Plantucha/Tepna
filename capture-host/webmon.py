@@ -374,7 +374,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         root = cfg.get("root", "/srv/tepna")
         base = ccfg.get("base_url", cpap_harvest.DEFAULT_BASE)
 
-        def _work():
+        def _work(direct_hint):
             # SAME TWO RULES AS THE SCHEDULED LOOP, and they have to be stated here too because this is
             # a second caller of the same machinery — a manual pull that behaves differently from the
             # nightly one is a trap for whoever is debugging at 2am.
@@ -383,7 +383,10 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             #      ReadWritePaths. Omitting it silently falls through to /tmp, which is READ-ONLY under
             #      ProtectSystem=strict — measured: the scheduled path worked and this one still failed
             #      with "Failed to initialize control interface '/tmp/tepna-wpa-1000'".
-            direct = cpap_harvest.reachable(base, 5.0)
+            # Probed by the CALLER and handed in, because the uplink handover below has to know the
+            # answer BEFORE it decides whether to drop the box's Wi-Fi. Re-probing here would cost a
+            # second 5 s round trip on a button press and could disagree with the decision already made.
+            direct = direct_hint
             if not direct:
                 guard = cpap_harvest.default_route_dev()
                 if not cpap_harvest.wifi_up(profile, 45.0, guard, root=root):
@@ -398,15 +401,20 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             return r
 
         _cpap_busy["running"] = True
-        # ONE RADIO, ONE ASSOCIATION — same handover as the nightly loop in capture.py. If the box is
-        # on a hotspot or hotel Wi-Fi, that uplink holds the card `_work` is about to associate with,
-        # and `wifi_up`'s default-route guard would (correctly) refuse. A no-op when no uplink is up.
-        uplink_suspended, why = await wifi_uplink.suspend_for_harvest(root)
-        if why:
+        # ONE RADIO, ONE ASSOCIATION — same handover as the nightly loop in capture.py, INCLUDING the
+        # "already reachable ⇒ associate nothing" rule. A card in station mode is reached over the
+        # existing network, so the harvest never touches the radio and the uplink must not be dropped:
+        # suspending here regardless would take the box off Wi-Fi on every manual pull, for nothing.
+        # (That is the current vigil deployment — `reachable` is true and the association path is never
+        # entered — so an unconditional suspend would be wrong on the only box this runs on.)
+        direct = await asyncio.to_thread(cpap_harvest.reachable, base, 5.0)
+        uplink_suspended = False
+        if not direct:
+            uplink_suspended, why = await wifi_uplink.suspend_for_harvest(root)
             _log.info("cpap/pull: %s", why)
         harvest_ok = False
         try:
-            res = await asyncio.to_thread(_work)
+            res = await asyncio.to_thread(_work, direct)
             harvest_ok = bool(res.get("ok"))
         except Exception as e:            # noqa: BLE001 — a manual pull must never 500 the monitor
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
@@ -414,8 +422,8 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             _cpap_busy["running"] = False
             # In the `finally` so it runs on the exception path too — that early `return` is exactly
             # the door through which a suspended uplink would otherwise never be restored.
-            _, rwhy = await wifi_uplink.resume_after_harvest(root, uplink_suspended, harvest_ok)
-            if rwhy:
+            if uplink_suspended:
+                _, rwhy = await wifi_uplink.resume_after_harvest(root, uplink_suspended, harvest_ok)
                 _log.info("cpap/pull: %s", rwhy)
         st = status.setdefault("cpap", {})
         st.update(state="ok" if res.get("ok") else "error", **{k: v for k, v in res.items()

@@ -7,8 +7,6 @@ a `#psk="…"` comment, so the obvious implementation — pipe its output to a f
 cleartext beside the derivation that was supposed to replace it.
 """
 
-import pytest
-
 import wifi_join as W
 
 # Real `wpa_cli scan_results` shape: bssid / frequency / signal / flags / ssid, tab-separated.
@@ -93,48 +91,6 @@ def test_an_absent_or_oversized_ssid_is_refused():
     assert W.validate_passphrase("", "abcdefgh")[0] is False
     assert W.validate_passphrase("  ", "abcdefgh")[0] is False
     assert W.validate_passphrase("x" * 33, "abcdefgh")[0] is False
-
-
-# ── 🔴 the security property ───────────────────────────────────────────────────────────────────
-
-
-def test_THE_PLAINTEXT_NEVER_SURVIVES_SANITISING():
-    """The whole point. `wpa_passphrase` echoes the passphrase back as a comment; writing its output
-    verbatim stores the cleartext next to the PSK meant to replace it."""
-    secret = "correct horse battery staple"
-    raw = 'network={\n\tssid="Net"\n\t#psk="%s"\n\tpsk=%s\n}' % (secret, "de" * 32)
-    clean = W.sanitize_block(raw, secret)
-    assert secret not in clean, "the plaintext passphrase survived into the stored block"
-    assert "psk=" + "de" * 32 in clean, "the derivation itself was lost"
-    assert 'ssid="Net"' in clean
-
-
-def test_an_UNEXPECTED_output_shape_that_still_holds_the_plaintext_is_REFUSED():
-    """Belt and braces: if a future `wpa_passphrase` emits the passphrase somewhere the comment regex
-    does not match, the write must fail loudly rather than quietly storing it."""
-    secret = "notarealpassword"
-    with pytest.raises(ValueError, match="plaintext"):
-        W.sanitize_block('network={\n\tssid="%s"\n}' % secret, secret)
-
-
-def test_sanitising_handles_an_empty_or_absent_block():
-    assert W.sanitize_block("") == "" and W.sanitize_block(None) == ""
-
-
-# ── the config file ────────────────────────────────────────────────────────────────────────────
-
-
-def test_the_config_carries_a_ctrl_interface_or_nothing_can_confirm_the_association():
-    """The harvest's own header records why this is not optional: without it the daemon starts,
-    associates or not, and creates no control socket — so the association can never be confirmed."""
-    txt = W.config_text(['network={\n\tssid="A"\n}'], "/run/tepna-wpa")
-    assert txt.startswith("ctrl_interface=/run/tepna-wpa\n")
-    assert "update_config=1" in txt and 'ssid="A"' in txt
-
-
-def test_empty_blocks_are_dropped_so_the_file_stays_parseable():
-    txt = W.config_text(["", None, 'network={\n\tssid="A"\n}', "   "], "/run/x")
-    assert txt.count("network={") == 1
 
 
 # ── one radio, two users: the uplink yields to the harvest ─────────────────────────────────────
