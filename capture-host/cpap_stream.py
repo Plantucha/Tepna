@@ -126,7 +126,7 @@ class TherapyEndSink:
 async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
                         channels=None, extra_sinks=None, sample_interval_ms=40,
                         cipher_factory=as11_cipher.make_cipher, max_batches=None, should_stop=None,
-                        acq_evidence_out=None):
+                        acq_evidence_out=None, clock_offset_provider=None):
     """Establish the encrypted session, then fan each AS11 StreamData batch out to `bus` AND to any
     `extra_sinks`. Returns the number of batches delivered.
 
@@ -217,11 +217,12 @@ async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
         # Emitted in the finally so an INTERRUPTED night gets its envelope too: a drop is exactly when
         # acquisition evidence matters, and the drain above means those batches are already durable.
         if acq_evidence_out is not None:
-            _emit_acq_evidence(acq_evidence_out, sinks, counters, observed_ms, clean)
+            _emit_acq_evidence(acq_evidence_out, sinks, counters, observed_ms, clean,
+                               clock_offset_provider)
     return delivered
 
 
-def _emit_acq_evidence(out, sinks, counters, observed_ms, stopped_cleanly):
+def _emit_acq_evidence(out, sinks, counters, observed_ms, stopped_cleanly, clock_offset_provider=None):
     """Assemble the live envelope from the closed sinks and hand it to `out`. Never raises into the
     pump: evidence is a REPORT ABOUT the acquisition, so failing to write it must not also destroy the
     acquisition's return value. A sink with no `acq_facts` (the EDF writer) is not the raw record."""
@@ -236,6 +237,16 @@ def _emit_acq_evidence(out, sinks, counters, observed_ms, stopped_cleanly):
         # this boundary via the ONE device parser, and leave it None when the stamp cannot be dated —
         # never now() (§2.6).
         start_ms = cpap_edf_writer.device_stamp_to_tms(raw.get("first_device_start"))
+        # THE MEASURED DEVICE-vs-HOST OFFSET, so a reconciliation joins honestly instead of reading the
+        # AS11's ~21 fast minutes as a real gap. Read at EMIT time, not at start: the newest anchors are
+        # the ones a consumer must judge staleness against. Provider absent or refusing ⇒ None ⇒
+        # `assemble_live` fills ClockOffset.unknown(), which is the honest "not measured" and NOT a zero.
+        clock_offset = None
+        if clock_offset_provider is not None:
+            try:
+                clock_offset = clock_offset_provider()
+            except Exception:  # noqa: BLE001 — a measurement we could not read is UNKNOWN, not a failure
+                _log.warning("CPAP clock offset unavailable for the envelope; recording it as unknown")
         out(acq_evidence_cpap.assemble_live(
             raw,
             counters=counters.summary(),
@@ -243,6 +254,7 @@ def _emit_acq_evidence(out, sinks, counters, observed_ms, stopped_cleanly):
             observed_interval_ms=observed_ms,
             stopped_cleanly=stopped_cleanly,
             start_time_ms=start_ms,
+            clock_offset=clock_offset,
         ))
     except Exception:  # noqa: BLE001 — see the docstring: the report must not sink the acquisition
         _log.exception("CPAP acquisition-evidence emit failed — the capture itself is unaffected")
@@ -258,7 +270,8 @@ class LiveStreamController:
 
     def __init__(self, bus, connect, load_creds, devices, *, channels=None, pump=stream_to_bus,
                  edf_sink_factory=None, raw_record_factory=None, coexistence_gate=False,
-                 acq_evidence_out=None, therapy_end_factory=None):
+                 acq_evidence_out=None, therapy_end_factory=None,
+                 clock_offset_provider=None):
         self._bus = bus
         self._connect = connect
         self._load_creds = load_creds
@@ -279,6 +292,7 @@ class LiveStreamController:
         # execution witness. None (the default) keeps the prior behaviour exactly, so every existing
         # controller and injected test pump is unaffected.
         self._acq_evidence_out = acq_evidence_out
+        self._clock_offset_provider = clock_offset_provider
         # (should_stop_event) -> a fresh TherapyEndSink for this session, or None for NO acting. Default
         # None keeps every existing controller and test bus-only and non-acting.
         self._therapy_end_factory = therapy_end_factory
@@ -343,6 +357,11 @@ class LiveStreamController:
             kw["extra_sinks"] = _sinks
         if self._acq_evidence_out is not None:
             kw["acq_evidence_out"] = self._acq_evidence_out
+        # ADDITIVE: passed only when there IS one, so a controller built without a provider makes the
+        # byte-identical call it always did. A kwarg that appears unconditionally is a signature change
+        # for every pump, including the fakes in tests that pin this forwarding.
+        if self._clock_offset_provider is not None:
+            kw["clock_offset_provider"] = self._clock_offset_provider
         self._task = asyncio.create_task(self._pump(
             self._bus, write, recv_frame, bytes.fromhex(creds["masterPairKey"]), creds["clientId"], **kw))
         return {"ok": True, "streaming": True, "channels": self._keys()}
