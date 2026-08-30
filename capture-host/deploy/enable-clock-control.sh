@@ -16,7 +16,7 @@ say "1/4  deploy the helpers root-owned"
 # compromised browser tab, a bad pip package, the unauthenticated web API — overwrite the script and get
 # instant passwordless root. Root-owned 0755 under /usr/local/lib/tepna is the only safe target, and
 # helper_path.resolve() prefers it automatically.
-for h in tepna-clock.sh tepna-rssi.sh tepna-btreset.sh; do
+for h in tepna-clock.sh tepna-rssi.sh tepna-btreset.sh tepna-wifi.sh; do
   [ -f "$SRC/$h" ] || { echo "  skip $h (not in repo)"; continue; }
   install -D -o root -g root -m 0755 "$SRC/$h" "$DST/$h"
   echo "  ✓ $DST/$h  $(stat -c'%U:%G %a' "$DST/$h")"
@@ -30,6 +30,11 @@ cat > "$TMP" <<RULES
 $USER_ ALL=(root) NOPASSWD: $DST/tepna-clock.sh
 $USER_ ALL=(root) NOPASSWD: $DST/tepna-rssi.sh
 $USER_ ALL=(root) NOPASSWD: $DST/tepna-btreset.sh
+# The Wi-Fi UPLINK helper (scan/join/leave/status). Listed explicitly rather than relying on a
+# wildcard, because THIS FILE REWRITES THE WHOLE GRANT: anything not named here is removed the
+# next time this script runs, and a helper that works until someone re-runs the installer is
+# worse than one that never worked.
+$USER_ ALL=(root) NOPASSWD: $DST/tepna-wifi.sh
 RULES
 if visudo -cqf "$TMP"; then
   install -o root -g root -m 0440 "$TMP" /etc/sudoers.d/tepna
