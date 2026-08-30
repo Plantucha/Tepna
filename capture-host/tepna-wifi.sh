@@ -23,10 +23,33 @@
 set -uo pipefail
 
 IFACE="${TEPNA_WIFI_IFACE:-wlp1s0}"
-# Overridable for the gate, the same way deploy/enable-cpap-wifi.sh takes TEPNA_ETC_*. The default is
-# the real path; a test cannot write /run, and a helper that can only be exercised as root is a helper
-# whose credential handling nothing ever checks.
-RUNDIR="${TEPNA_WIFI_RUNDIR:-/run}"
+# 🔴 NOT /run, AND THAT IS THE WHOLE POINT OF THIS LINE.
+# The daemon runs under `ProtectSystem=strict` with `ReadWritePaths=/srv/tepna /opt/tepna/capture-host`,
+# which makes the ENTIRE hierarchy read-only apart from those two — /run included. This helper is
+# invoked through `sudo -n` BY that daemon, and sudo does not create a new mount namespace, so the
+# helper runs as root INSIDE the daemon's sandbox and inherits its read-only /run. Measured on vigil
+# 2026-08-30, straight after the sudoers grant was installed:
+#
+#     mkdir: Read-only file system
+#     /usr/local/lib/tepna/tepna-wifi.sh: line 45: /run/tepna-uplink.conf: Read-only file system
+#
+# Being root is not the missing permission; the mount is. ⚠️ `PrivateTmp=yes` is NOT the cause and does
+# not fix it — that governs /tmp, and /tmp is writable here precisely because of it.
+#
+# Why `/srv/tepna/run` rather than a `RuntimeDirectory=tepna` drop-in, which is the tidier systemd
+# idiom: this path is ALREADY in ReadWritePaths, so it needs no unit change, no daemon-reload and no
+# second root command — and unlike a RuntimeDirectory it survives a daemon restart, which matters
+# because the supplicant is long-lived and losing its control socket would leave an uplink we can see
+# but no longer steer. It is not archived (`archive-pull.sh` pulls `captures/` only) and not served
+# (Caddy roots at `/srv/tepna/app`). Verified on the box: ext4, writable as `vigil`, and a unix control
+# socket binds there.
+#
+# On the credential at rest: the derived PSK is ALREADY persisted on this disk by the remember-network
+# feature, so keeping the supplicant's copy beside it adds no exposure that was not already accepted.
+# Both are 0600.
+#
+# `TEPNA_WIFI_RUNDIR` overrides it — that is how the gate exercises this file without writing anywhere real.
+RUNDIR="${TEPNA_WIFI_RUNDIR:-/srv/tepna/run}"
 CTRL="$RUNDIR/tepna-uplink"
 CONF="$RUNDIR/tepna-uplink.conf"
 
