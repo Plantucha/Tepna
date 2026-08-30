@@ -26,7 +26,7 @@ import pytest
 
 import alerts
 import capture
-from tests._srcscan import module_source
+from tests._srcscan import block_source, module_source, suite_tail
 
 
 @pytest.fixture(autouse=True)
@@ -87,8 +87,12 @@ def test_every_stream_path_reports_its_data():
     src = module_source("capture.py")
     assert src.count("note_data(name,") >= 3, \
         "expected the Polar flow hook plus both O2Ring row paths to stamp data arrival"
-    flow = src.index("if flowed:")
-    assert "note_data(name," in src[flow:flow + 400], "the Polar per-second flow check must stamp it"
+    # Bounded on the BLOCK, not a byte window. The claim is a LOCALITY one — the flow check itself
+    # must stamp — and the enclosing function `run_polar` is 73 771 chars, so bounding on the function
+    # would widen this 184x and let it pass on any `note_data(` in a 900-line function. A byte window
+    # is a guess at where the block ends; the block is a property of the code.
+    assert "note_data(name," in block_source("capture.py", "if flowed:"), \
+        "the Polar per-second flow check must stamp it"
 
 
 def test_the_alert_loop_keys_on_recording_not_connected():
@@ -269,6 +273,7 @@ def test_a_raising_bond_check_never_kills_the_capture_task(tmp_path, monkeypatch
 def test_a_successful_rebond_restores_the_full_budget():
     """A later, unrelated bond loss must get the whole retry budget again rather than inheriting a
     half-spent one from hours earlier."""
-    src = module_source("capture.py")
-    i = src.index("re-bonded — PMD should hold again")
-    assert "rebond_attempts = 0" in src[i:i + 300]
+    # `suite_tail`, not `block_source`: the anchor is a log line and the property is on its NEXT
+    # SIBLING at the same indentation, so the block it "opens" is one line. Same reason as the flow
+    # check above — a byte window spans whichever of those two shapes happens to fit in 300 chars.
+    assert "rebond_attempts = 0" in suite_tail("capture.py", "re-bonded — PMD should hold again")

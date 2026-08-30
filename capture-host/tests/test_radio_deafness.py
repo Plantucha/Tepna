@@ -18,7 +18,7 @@ import asyncio
 import pytest
 
 import capture
-from tests._srcscan import module_source
+from tests._srcscan import block_source, module_source
 
 
 @pytest.fixture(autouse=True)
@@ -134,8 +134,11 @@ def test_a_failed_probe_is_not_treated_as_silence():
     flaky bluetoothctl trigger real restarts."""
     src = _src()
     assert "n_seen = -1" in src
-    i = src.index("n_seen = -1")
-    assert "not evidence" in src[i:i + 200]
+    # Bounded on the block rather than a 200-char guess. (The marker lives in the trailing comment
+    # on that line, so this pins prose beside code — left as-is because the assertion is unchanged
+    # here by design, but it is why the block is the right bound: a comment reword must not silently
+    # move the property out of a window.)
+    assert "not evidence" in block_source("capture.py", "n_seen = -1")
 
 
 def test_the_radio_verb_exists_in_the_helper():
