@@ -72,17 +72,28 @@ ALLOW_RENDERED: dict = {}
 ALLOW_JS: dict = {}
 
 ALLOW_FUNCS = {
-    # ── Swappability, unit 1 pure core (2026-08-30, owner-directed via Mutator). The POOL is landed
-    # ahead of the hotplug watch that drives it, deliberately and for the same reason `oxy_transfer`'s
-    # family below was: the interesting part is the DECISION — which device moves to which radio when
-    # one is added or pulled — and a decision buried inside a bluez `InterfacesAdded` callback is
-    # nearly untestable, because reproducing the event needs the hardware you are trying to stop
-    # depending on. Here every reassignment is a pure function over an adapter list, so the sticky
-    # rule and the idle-vs-loaded tie-break are pinned by mutation before any callback exists.
-    # Retires when the hotplug watch lands and calls them; the entry goes stale and the gate says so.
-    "apply_added": "adapter_pool unit 1 — the ADD half of the hotplug reassignment; the bluez InterfacesAdded watch that calls it is unit 1's second half",
-    "apply_removed": "adapter_pool unit 1 — the REMOVE half; same watch, and the half that must not strand a device on a radio that is gone",
-    "rebalance_reason": "adapter_pool unit 1 — the human-readable WHY behind a reassignment, for the log line and the monitor; consumed when the watch reports what it did",
+    # ── Swappability pure core (2026-08-30). ⚠️ THE ORIGINAL REASON HERE WAS WRONG AND IS CORRECTED.
+    # It said the bluez hotplug watch "that calls them is unit 1's second half", implying these would
+    # be discharged by wiring that watch. Tracing to the CONSUMER showed otherwise, twice over:
+    #
+    #   1. The headline requirement is ALREADY MET. `failover_target(pin, await list_adapters())`
+    #      enumerates controllers at failover time, so a newly plugged radio already joins the pool.
+    #      A watch would have been machinery for a capability that exists.
+    #   2. These three return a PER-DEVICE `{device: adapter}` mapping, and the daemon is SINGLE-PIN:
+    #      `ADAPTER` is a process global and `_set_active_adapter` repoints it once for every device.
+    #      There is no per-device adapter anywhere to consume the mapping. Nothing short of converting
+    #      every connect path to per-device pinning can wire these, which is a large change nobody has
+    #      asked for.
+    #
+    # So they are ASPIRATIONAL, not pending: correct, tested, and describing an architecture this
+    # daemon does not have. They are kept rather than deleted because the reasoning they encode (sticky
+    # assignment; the idle-vs-loaded `movable` tie-break; never stranding a device on a departed radio)
+    # is the expensive part and would have to be rediscovered. If per-device pinning is still not on
+    # the roadmap when someone next reads this, DELETE them and these entries together — dead code
+    # behind an allowlist is worse than no code, and an aspiration that never arrives is dead code.
+    "apply_added": "adapter_pool — per-device reassignment on plug-in. ASPIRATIONAL: needs per-device adapter pinning, which the single-pin daemon does not have and nobody has asked for. Delete with its siblings if that never arrives",
+    "apply_removed": "adapter_pool — per-device reassignment on unplug. ASPIRATIONAL, same reason as apply_added: the daemon repoints ONE global pin, so a {device: adapter} map has no consumer",
+    "rebalance_reason": "adapter_pool — the human-readable WHY behind a per-device reassignment. ASPIRATIONAL: it describes moves that only a per-device architecture can make",
     "night_profile": "adapter_ab is an offline analysis tool, not daemon code",
     "compare": "adapter_ab analysis tool",
     "unattributable": "adapter_ab analysis tool",

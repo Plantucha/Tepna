@@ -147,3 +147,98 @@ def test_a_FAILED_re_bond_does_not_abort_the_migration(monkeypatch):
     _run_watchdog(monkeypatch, _cfg())
     assert capture.ADAPTER == SPARE
     assert capture.STATUS.get("radio_switches") or [], "the switch happened but was not recorded"
+
+
+# ── the CPAP's dedicated radio is not collateral ──────────────────────────────────────────────────
+# `config.example.yaml` calls `cpap.ble_stream.adapter` "the FREE radio — never the one the wearables
+# capture on", and the split exists for 2.4 GHz coexistence (measured 2026-07-26: a transmitter beside
+# recording sensors cost 5-7 dB and 17 reconnects across three devices). Until `reserved` was wired,
+# a wedged wearable radio failed over ONTO that free radio by first-match ordering — silently
+# re-creating the contention the split prevents, with nothing in the log naming it.
+_WEARABLE = "00:1A:7D:AA:AA:AA"
+_CPAP = "28:0C:50:BB:BB:BB"
+_SPARE = "AA:BB:CC:DD:EE:FF"
+
+
+def _ad(mac, hci, up=True):
+    return {"mac": mac, "hci": hci, "up": up}
+
+
+def _three():
+    return [_ad(_WEARABLE, "hci0"), _ad(_CPAP, "hci1"), _ad(_SPARE, "hci2")]
+
+
+def test_THE_CPAP_RADIO_IS_NOT_TAKEN_WHILE_ANY_OTHER_SPARE_EXISTS():
+    got = capture.failover_target(_WEARABLE, _three(), reserved=(_CPAP,))
+    assert got == _SPARE, f"failover took a reserved radio with {_SPARE} sitting free"
+
+
+def test_A_RESERVATION_WORKS_WHETHER_CONFIGURED_AS_A_MAC_OR_AN_hciN():
+    # `cpap.ble_stream.adapter` may legitimately be either form — the config's own comment prefers a
+    # MAC because hci indices re-enumerate, but a bare hciN is still valid and must protect the same
+    # radio. A reservation that understood only one form would silently protect nothing.
+    assert capture.failover_target(_WEARABLE, _three(), reserved=("hci1",)) == _SPARE
+    assert capture.failover_target(_WEARABLE, _three(), reserved=(_CPAP.lower(),)) == _SPARE
+
+
+def test_IT_IS_A_PREFERENCE_NOT_A_PROHIBITION_WHEN_NOTHING_ELSE_IS_LEFT():
+    """In extremis, commandeering the CPAP radio is the RIGHT trade — the wearables are the primary
+    signal and the CPAP live stream is off by default. Refusing outright would trade a recoverable
+    capture for a tidy rule. What must not happen is taking it *silently*."""
+    only = [_ad(_WEARABLE, "hci0"), _ad(_CPAP, "hci1")]
+    assert capture.failover_target(_WEARABLE, only, reserved=(_CPAP,)) == _CPAP
+
+
+def test_A_DOWN_RESERVED_RADIO_IS_STILL_NO_SPARE():
+    only = [_ad(_WEARABLE, "hci0"), _ad(_CPAP, "hci1", up=False)]
+    assert capture.failover_target(_WEARABLE, only, reserved=(_CPAP,)) is None
+
+
+def test_WITHOUT_A_RESERVATION_THE_OLD_BEHAVIOUR_IS_UNCHANGED():
+    # The parameter defaults to empty, so every existing caller and every prior expectation holds.
+    assert capture.failover_target(_WEARABLE, _three()) == _CPAP
+
+
+def test_AN_EMPTY_OR_NONE_RESERVATION_IS_NOT_A_RESERVATION():
+    # `cpap.ble_stream.adapter` is absent on a box with no CPAP; a None must not become a reservation
+    # of the empty string and quietly hold back a radio whose mac failed to parse.
+    assert capture.failover_target(_WEARABLE, _three(), reserved=()) == _CPAP
+    assert capture.failover_target(_WEARABLE, _three(), reserved=(None, "")) == _CPAP
+
+
+def test_COMMANDEERING_THE_CPAP_RADIO_IS_ANNOUNCED_NOT_QUIET(monkeypatch, caplog):
+    """The end-to-end of the branch that used to happen by accident.
+
+    Wearable radio wedged, and the CPAP's reserved radio is the ONLY spare. Taking it is the right
+    trade — the wearables are the primary signal — but it must be SAID, because from this moment the
+    two share one radio and the 2.4 GHz contention the split exists to prevent is back."""
+    import logging
+
+    _wedge(monkeypatch, spares=((_CPAP, True),))
+    cfg = _cfg()
+    cfg["cpap"] = {"ble_stream": {"adapter": _CPAP}}
+    with caplog.at_level(logging.CRITICAL, logger="tepna-capture"):
+        _run_watchdog(monkeypatch, cfg)
+
+    assert capture.ADAPTER == _CPAP, "the only available spare was not taken"
+    msgs = " ".join(r.getMessage() for r in caplog.records)
+    assert "RESERVED radio" in msgs, (
+        "a dedicated radio was commandeered with nothing in the log naming it — which is exactly the "
+        "silence this change exists to end"
+    )
+    assert "contention" in msgs
+
+
+def test_A_PLAIN_FAILOVER_DOES_NOT_CLAIM_A_RADIO_WAS_COMMANDEERED(monkeypatch, caplog):
+    # The mirror: taking an ordinary spare must NOT emit the reserved warning, or the message stops
+    # meaning anything the night it matters.
+    import logging
+
+    _wedge(monkeypatch, spares=((SPARE, True),))
+    cfg = _cfg()
+    cfg["cpap"] = {"ble_stream": {"adapter": _CPAP}}
+    with caplog.at_level(logging.CRITICAL, logger="tepna-capture"):
+        _run_watchdog(monkeypatch, cfg)
+
+    assert capture.ADAPTER == SPARE
+    assert "RESERVED radio" not in " ".join(r.getMessage() for r in caplog.records)
