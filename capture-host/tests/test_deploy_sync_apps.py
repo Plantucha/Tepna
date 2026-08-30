@@ -751,3 +751,43 @@ def test_the_adopted_polar_rule_is_byte_identical_to_what_the_box_was_running():
     body = open(HIDRAW, encoding="utf-8").read()
     assert ('SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0da4", ATTRS{idProduct}=="0008", '
             'MODE="0660", GROUP="vigil"') in body
+
+
+# ── the unit file describes a drop-in; the script must actually write it ──────────────────────────
+def test_THE_DROP_IN_CONTAINS_THE_READWRITEPATHS_THE_UNIT_SAYS_IT_DOES():
+    """Found 2026-08-30, on a box where every other clock signal was healthy.
+
+    `tepna-capture.service`'s comment states that `enable-clock-control.sh` installs a drop-in carrying
+    `ReadWritePaths=-/etc/chrony -/etc/systemd/timesyncd.conf.d -/run/chrony`, and explains exactly why
+    each is needed — under ProtectSystem=strict, /run/chrony blocks chronyc from creating the reply
+    socket it needs to reach chronyd AT ALL. The script only ever wrote `NoNewPrivileges=no`.
+
+    The symptom was maximally misleading: `POST /api/clock/sync` answered "chronyc could not be reached
+    — is chronyd running?" on a box where `chronyd` was active and `NTPSynchronized` was already yes. It
+    named the one thing that was fine. Nothing could catch it, because the claim lived in a comment in
+    one file and the behaviour in another — which is what this test is for."""
+    unit = open(os.path.join(HERE, "deploy", "tepna-capture.service"), encoding="utf-8").read()
+    script = open(os.path.join(HERE, "deploy", "enable-clock-control.sh"), encoding="utf-8").read()
+
+    # The paths the UNIT's prose promises the drop-in carries.
+    promised = set()
+    for line in unit.splitlines():
+        t = line.lstrip("# ").strip()
+        if t.startswith("ReadWritePaths=") and "chrony" in t:
+            promised |= {p.lstrip("-") for p in t.split("=", 1)[1].split()}
+    assert promised, "the unit no longer documents the clock drop-in — the scan has stopped working"
+
+    # The paths the SCRIPT actually writes into the drop-in heredoc.
+    body = script.split("clock-control.conf <<'DROPIN'", 1)[1].split("DROPIN", 1)[0]
+    written = set()
+    for line in body.splitlines():
+        t = line.strip()
+        if t.startswith("ReadWritePaths="):          # a commented line is prose, not a directive
+            written |= {p.lstrip("-") for p in t.split("=", 1)[1].split()}
+
+    missing = sorted(promised - written)
+    assert not missing, (
+        f"tepna-capture.service says the drop-in grants {sorted(promised)}, but "
+        f"enable-clock-control.sh writes {sorted(written) or 'none'} — missing {missing}. "
+        f"Clock sync fails as root while chronyd is perfectly healthy."
+    )
