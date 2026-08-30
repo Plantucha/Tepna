@@ -55,19 +55,26 @@ def night_profile(night_dir: str, devices: list[dict]) -> dict:
     for d in tl.get("devices") or []:
         cover[d.get("name")] = {s: v.get("coverage_pct") for s, v in (d.get("streams") or {}).items()}
 
-    out = {"night": os.path.basename(night_dir.rstrip("/")),
+    # `devices` is built in its own dict rather than through `out["devices"]`: `out` is genuinely
+    # heterogeneous (str · list|None · dict), so its value type is `object`, and indexing an `object`
+    # is not a type error the annotation can talk its way out of — it is the annotation being honest.
+    dev_rows: dict[str, dict] = {}
+    out: dict[str, object] = {"night": os.path.basename(night_dir.rstrip("/")),
            "adapter": sorted(set(stamps.values())) or None,
-           "devices": {}}
+           "devices": dev_rows}
     for d in devices:
-        name = d.get("name")
-        keys = [d.get("address"), name, *(d.get("name_aliases") or [])]
+        # A nameless device previously keyed its row under a literal `null` in the emitted JSON. The
+        # address is the identity that always exists (`ble-identity-is-address-only`), so it is the
+        # fallback; `keys` still carries both, so the sample lookup is unchanged either way.
+        name = d.get("name") or d.get("address") or "?"
+        keys = [d.get("address"), d.get("name"), *(d.get("name_aliases") or [])]
         samples = timeline.merge_link_samples(link, keys)
         rssi = [r for _, _, r in samples if r is not None]
         conn = [c for _, c, _ in samples]
         span_h = ((samples[-1][0] - samples[0][0]) / 3600.0) if len(samples) > 1 else 0.0
         # Connect EDGES, not the raw connected count: 0->1 transitions are reconnects.
         edges = sum(1 for i in range(1, len(conn)) if conn[i] == 1 and conn[i - 1] == 0)
-        out["devices"][name] = {
+        dev_rows[name] = {
             "samples": len(samples),
             "rssi_median": round(_st.median(rssi), 1) if rssi else None,
             "rssi_p10": _pct(rssi, 10),

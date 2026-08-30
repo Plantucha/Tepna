@@ -138,7 +138,7 @@ def read_edf(raw: bytes) -> Edf:
     rec_samples = sum(sprs)
     data = raw[hdr_bytes:]
     # each record is rec_samples int16 LE, laid out signal-major (all of sig0, then sig1, …)
-    per_sig = [[] for _ in range(ns)]
+    per_sig: list[list[int]] = [[] for _ in range(ns)]
     for r in range(n_records):
         base = r * rec_samples * 2
         p = base

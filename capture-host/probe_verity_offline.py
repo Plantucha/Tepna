@@ -76,7 +76,7 @@ class _Control:
     probe is strictly one command in flight at a time."""
 
     def __init__(self, client: BleakClient):
-        self.client, self.q = client, asyncio.Queue()
+        self.client, self.q = client, asyncio.Queue[bytes]()
 
     def _on_indication(self, _sender, data: bytearray):
         self.q.put_nowait(bytes(data))

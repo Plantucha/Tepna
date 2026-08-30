@@ -193,9 +193,12 @@ def main(argv=None) -> int:
         if _old.returncode != 0:
             print(f"  {module}: base version unreadable — full scope kept (fail-closed)")
             continue
-        _excl, _why = annotation_only(_old.stdout, _read_source(HERE / module))
+        # `_excl_why`, not `_why`: the refusal reason below is a DIFFERENT kind of "why" (str | None
+        # vs str) and reusing one name for both makes the second assignment a type error — mypy binds
+        # the name at its first assignment. Two meanings, two names.
+        _excl, _excl_why = annotation_only(_old.stdout, _read_source(HERE / module))
         if _excl:
-            print(f"  {module}: {len(changed[module])} changed line(s) — {_why}; EXCLUDED from mutation scope")
+            print(f"  {module}: {len(changed[module])} changed line(s) — {_excl_why}; EXCLUDED from mutation scope")
             del changed[module]
     if not changed:
         print("mutate-diff: every changed module is signature-annotation-only — nothing behavioural to mutate.")
