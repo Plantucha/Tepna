@@ -70,6 +70,23 @@ SETTINGS_DEVS = [
 ]
 
 
+def _script_blocks(src):
+    """The text of every `<script>` block in `src`.
+
+    ⚠️ NOT a regex, deliberately. `<script[^>]*>(.*?)</script>` is what CodeQL's `py/bad-tag-filter`
+    flags — correctly as a pattern, even though nothing here filters untrusted HTML: this reads a file
+    we commit, to run its own JavaScript. Split instead, which is both unflagged and clearer about the
+    one rule that matters — a script block ends at the FIRST `</script>`, exactly as a browser ends it,
+    so the extraction and the runtime agree by construction rather than by coincidence.
+    """
+    out = []
+    for chunk in str(src).split("<script")[1:]:
+        _, _, after_tag = chunk.partition(">")
+        body, _, _rest = after_tag.partition("</script>")
+        out.append(body)
+    return out
+
+
 def _extract(*names):
     """The named top-level functions, as executable source, taken from the shipped file."""
     src = open(MON, encoding="utf-8").read()
@@ -102,7 +119,8 @@ def _render(settings_devs, state_devs=STATE_DEVS):
         "      presenceChip=()=>'', witnessChip=()=>'', lastSampleText=()=>'',\n"
         "      recPanelId=a=>'rec-'+a, defaultRate=(d,k,o)=>o[0], rateAdvice=()=>null,\n"
         "      STREAM_LABEL={}, PREF_RATE={}, renderRingRtc=()=>'', ringConfigRow=()=>'',\n      fmtSecs=s=>String(s), ringKnob=()=>'';\n"
-        + body + "\n"
+        + body
+        + "\n"
         f"try{{ renderRemembered({json.dumps(state_devs)}, {json.dumps(settings_devs)});\n"
         "  console.log(JSON.stringify({html: __html})); }\n"
         "catch(e){ console.log(JSON.stringify({err: e.constructor.name + ': ' + e.message})); }\n"
@@ -157,7 +175,7 @@ def test_the_controls_exist_in_exactly_ONE_place_in_the_document():
     """MOVED, not mirrored. `saveSettings` collects by class across the whole document; a second copy
     would fight this one and the later render would win, silently."""
     src = open(MON, encoding="utf-8").read()
-    js = "\n".join(re.findall(r"<script[^>]*>(.*?)</script>", src, re.S))
+    js = "\n".join(_script_blocks(src))
     # exactly one renderer, and the Settings view no longer builds device rows
     assert js.count("function deviceSettingsBlock(") == 1
     assert "SETTINGS.devices.map(" not in js, (
