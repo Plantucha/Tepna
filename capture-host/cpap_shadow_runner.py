@@ -95,6 +95,29 @@ async def poll_cycle(
             await disconnect()
 
 
+def _notify_unreachable(on_unreachable, exc):
+    """Tell the caller a poll ACTUALLY RAN AND FAILED. Never raises.
+
+    🔴 THE DISTINCTION THIS SEAM CARRIES IS THE WHOLE POINT, AND IT IS NOT VISIBLE ANYWHERE ELSE.
+    This loop has three outcomes and only two of them are observable from outside: a DEFERRED cycle
+    (`is_capturing()` — the radio is busy, so we never looked) writes nothing and calls nothing, and a
+    SUCCESSFUL poll calls `on_cycle`. A poll that ran and FAILED wrote a journal row and then
+    `continue`d before `on_cycle`, so STATUS only ever saw successes and could not tell "the machine
+    did not answer" from "we did not ask".
+    
+    Those need opposite responses. Absence-because-we-never-looked is not evidence about the device;
+    absence-after-asking is. A wedge detector fed the first would fire every time a wearable streamed.
+
+    `exc` is passed so the caller gets the failure CLASS — a `BleakDeviceNotFoundError` (machine off)
+    and an `InProgress` (radio contended) are the same UNKNOWN in the journal today."""
+    if on_unreachable is None:
+        return
+    try:
+        on_unreachable(exc)
+    except Exception:                     # a REPORT about a failure must not become a second failure
+        log.debug("on_unreachable hook failed", exc_info=True)
+
+
 async def run_shadow_loop(
     *,
     connect,
@@ -108,6 +131,7 @@ async def run_shadow_loop(
     poll_interval_s,
     should_stop,
     on_cycle=None,
+    on_unreachable=None,
     poll_cycle=poll_cycle,
 ):
     """Poll the AS11 in shadow mode until `should_stop()`; write both sidecars each cycle.
@@ -134,6 +158,7 @@ async def run_shadow_loop(
             # the LOG — but recorded in the journal, because "expected" is not "not worth knowing":
             # eleven consecutive hours of it is exactly what made 2026-08-29 unknowable.
             _write_unreachable(session_writer, host_epoch, e)
+            _notify_unreachable(on_unreachable, e)
             await sleep(poll_interval_s)
             continue
         except Exception as e:
@@ -145,6 +170,7 @@ async def run_shadow_loop(
             # keep polling. (CancelledError is a BaseException, so a clean shutdown still propagates.)
             log.warning("AS11 shadow poll failed (%s: %s) — skipping cycle", type(e).__name__, e)
             _write_unreachable(session_writer, host_epoch, e)
+            _notify_unreachable(on_unreachable, e)
             await sleep(poll_interval_s)
             continue
         session_writer.write(decision)
