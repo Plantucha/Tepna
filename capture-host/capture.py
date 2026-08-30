@@ -6434,7 +6434,12 @@ def _maybe_start_as11_shadow(cfg, config_path, root, cpap_ctl, tasks, *,
         return None
     if connect_factory is None:  # pragma: no cover — the bleak I/O edge, mirrors _build_cpap_controller
         async def connect_factory():
-            return await _cpap_ble_connect(creds["ble_addr"], hci)
+            # DISCOVERY FAILOVER: a sibling radio is the cheapest second opinion before an absence
+            # is written down. ⚠️ NOT the fix for the 2026-08-29 blackout — that was a bluez
+            # per-DEVICE state wedge shared by every adapter (hci0 saw 107 other devices throughout),
+            # and a sibling would have been blind too. See `ble_discovery`'s header.
+            got, _adapter, _attempts = await _cpap_connect_any_adapter(creds["ble_addr"], hci)
+            return got
     interval = float(adcfg.get("poll_interval_sec", 30.0))
     task = (create_task or asyncio.create_task)(cpap_shadow_runner.run_shadow_loop(
         connect=connect_factory, creds=creds, supervisor=cpap_supervisor.CPAPSessionSupervisor(),
@@ -6888,6 +6893,63 @@ async def _resolve_cpap_adapter(spec):
     if hci is None:
         log.warning("CPAP adapter %s is not present on this box — falling back to the BlueZ default", spec)
     return hci
+
+
+async def _cpap_connect_any_adapter(ble_addr, pinned, timeout=20.0, *, connect=None,
+                                    adapters=None, on_attempt=None):
+    """Open the AS11 link, trying the PINNED radio first and then its siblings.
+
+    Returns `(result, adapter_used, attempts)`; raises the pinned adapter's error when every adapter
+    failed, so a caller that does not care about failover sees the behaviour it always saw.
+
+    🔴 "NOT FOUND" ON ONE RADIO IS NOT ABSENCE — but see `ble_discovery`'s header before crediting
+    this with the 2026-08-29 blackout, which it would NOT have caught. Both adapters were blind to
+    that one device while hci0 still enumerated 107 others, because they share one bluez daemon; a
+    sibling would have inherited the same bad state. This is for a per-ADAPTER wedge, the class
+    VIGIL-OVERNIGHT-FINDINGS P1.5 attests on the capture side and which discovery had no answer to.
+
+    ⚠️ A CONTENDED ADAPTER IS RETRIED; AN ABSENT ONE IS STILL TRIED ELSEWHERE. Both continue to the
+    next adapter — the difference is what may be WRITTEN DOWN afterwards, which `absence_verdict`
+    decides. Only a clean sweep of empty scans is absence.
+
+    `on_attempt(adapter, kind, exc)` is called per failure so a caller can journal the attempt rather
+    than only its conclusion."""
+    import ble_discovery
+    connect = connect or _cpap_ble_connect
+    if adapters is None:
+        adapters = [a.get("mac") for a in await list_adapters() if a.get("mac") and a.get("up")]
+    order = ble_discovery.discovery_order(pinned, adapters)
+    attempts, first_exc = [], None
+    for adapter in order:
+        try:
+            got = await connect(ble_addr, adapter, timeout)
+        except Exception as e:  # noqa: BLE001 — bleak raises non-OSError subclasses; classify, do not filter
+            kind = ble_discovery.classify_failure(e)
+            attempts.append((adapter, kind))
+            if first_exc is None:
+                first_exc = e
+            if on_attempt is not None:
+                on_attempt(adapter, kind, e)
+            continue
+        if adapter != pinned:
+            # The wedge HAPPENED and was worked around. Both halves are worth saying: a silent
+            # recovery is how a degrading radio stays invisible until it fails completely.
+            log.warning("CPAP discovery failed over: %s did not answer, found on %s (%s)",
+                        pinned, adapter, ", ".join(f"{a}={k}" for a, k in attempts))
+        return got, adapter, attempts
+    # EVERY ADAPTER FAILED — but WHY decides what may be written down. A clean sweep of empty scans
+    # is absence; anything contended is "we could not tell", and reporting that as absence is the
+    # twelve-hour false negative this function exists to prevent. Logged at the two levels the
+    # distinction deserves: a genuine absence is ordinary (the machine is off), a contended sweep
+    # means the box could not look and nobody would otherwise know.
+    import ble_discovery
+    absent, why = ble_discovery.absence_verdict(attempts)
+    if absent:
+        log.info("CPAP not found on any adapter — %s", why)
+    else:
+        log.warning("CPAP discovery INCONCLUSIVE on every adapter — %s. This is NOT evidence the "
+                    "machine is off; the radios could not answer.", why)
+    raise first_exc if first_exc is not None else RuntimeError("no adapter to try")
 
 
 async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.0):
