@@ -42,7 +42,10 @@ def box(tmp_path):
     helper.write_text(f'#!/usr/bin/env bash\necho "$@" >> {called}\nexit 0\n')
     helper.chmod(0o755)
 
-    return {"up": up, "repo": repo, "status": status, "helper": helper, "called": called}
+    # The deployed-SHA marker, isolated per test. On the box it lives in /run — cleared on boot, which
+    # is correct, because after a boot the daemon started on whatever was checked out.
+    return {"up": up, "repo": repo, "status": status, "helper": helper, "called": called,
+            "mark": tmp_path / "deployed-sha"}
 
 
 def _write_status(path, devices, top=None, publish=True, age=0.0):
@@ -59,7 +62,8 @@ def _write_status(path, devices, top=None, publish=True, age=0.0):
 def _run(box, **env):
     e = {**os.environ,
          "TEPNA_REPO_DIR": str(box["repo"]), "TEPNA_STATUS_JSON": str(box["status"]),
-         "TEPNA_RESTART_SH": str(box["helper"]), "TEPNA_SUDO": "env", **env}
+         "TEPNA_RESTART_SH": str(box["helper"]), "TEPNA_SUDO": "env",
+         "TEPNA_DEPLOYED_MARK": str(box["mark"]), **env}
     return subprocess.run(["bash", UPD], capture_output=True, text=True, env=e)
 
 
@@ -414,3 +418,77 @@ def test_the_exec_scan_ignores_the_venv_interpreter_even_when_it_exists(tmp_path
     assert ("systemd/b.service", "tepna-update.sh") in got, "a direct-exec repo script must still be found"
     assert not [r for _u, r in got if r.split(os.sep)[0] == ".venv"], \
         "the venv interpreter is not a repo script — it is gitignored and has no committed mode"
+
+
+# ── a deferred restart is a DEBT, and it must survive the tick that could not pay it ──────────────
+# Measured on vigil 2026-08-30: merged-and-deferred at 00:27 and 01:31, then ten consecutive ticks
+# reporting "up to date — nothing to do" while the daemon served the pre-merge build. The deferral
+# branch's comment promised "the next tick will take it once the night ends"; the next tick had no way
+# to know anything was owed, because the only record of it was a shell variable from the previous run.
+def _head(box):
+    return _git(box["repo"], "rev-parse", "HEAD").stdout.strip()
+
+
+def test_THE_DEFERRED_RESTART_IS_TAKEN_ON_THE_NEXT_IDLE_TICK(box):
+    _advance(box)
+    _write_status(box["status"], {"Ring": True})            # recording — the merge lands, restart defers
+    r1 = _run(box)
+    assert "deferred" in r1.stdout, r1.stdout
+    assert not box["called"].exists(), "restarted while a device was recording"
+
+    _write_status(box["status"], {"Ring": False})           # the night ends; nothing new upstream
+    r2 = _run(box)
+    assert "OWED" in r2.stdout, f"the outstanding restart evaporated: {r2.stdout}"
+    assert box["called"].read_text().strip() == "restart", "the deferred restart was never taken"
+
+
+def test_A_SECOND_DEFERRAL_DOES_NOT_MARK_THE_DEBT_PAID(box):
+    # The trap inside the fix: on a repeat deferral nothing merged, so `before` equals `after`, and
+    # recording `before` would write the DISK sha and silently clear the debt — the same bug one level
+    # down. What must be recorded is what the DAEMON is on.
+    _advance(box)
+    old = _head(box)
+    _write_status(box["status"], {"Ring": True})
+    _run(box)                                                # merge + defer
+    r2 = _run(box)                                           # still recording — defer again
+    assert "deferred" in r2.stdout
+    assert box["mark"].read_text().strip() == old, "the marker moved to the disk sha while deferring"
+
+    _write_status(box["status"], {"Ring": False})
+    _run(box)
+    assert box["called"].read_text().strip() == "restart", "the debt was lost on the second deferral"
+
+
+def test_A_SUCCESSFUL_RESTART_RECORDS_WHAT_THE_DAEMON_IS_NOW_ON(box):
+    _advance(box)
+    _run(box)
+    assert box["mark"].read_text().strip() == _head(box)
+    # ...and a later tick with nothing new must NOT restart again.
+    box["called"].unlink()
+    r = _run(box)
+    assert "nothing to do" in r.stdout
+    assert not box["called"].exists(), "restarted a daemon that was already on the checkout"
+
+
+def test_NO_MARKER_AFTER_A_BOOT_MEANS_THE_DAEMON_IS_ON_HEAD(box):
+    # /run is cleared on boot, and after a boot the daemon started on whatever was checked out. An
+    # absent marker must therefore mean "current", not "unknown, restart to be safe" — otherwise every
+    # box reboots into one gratuitous restart.
+    assert not box["mark"].exists()
+    r = _run(box)
+    assert "nothing to do" in r.stdout
+    assert not box["called"].exists()
+
+
+def test_A_STALE_MARKER_FROM_AN_OUTSIDE_RESTART_COSTS_ONE_RESTART_NOT_A_LOOP(box):
+    # The watchdog restarts the daemon for its own reasons and does not write this marker, so the marker
+    # can claim an older sha than the daemon truly runs. The consequence must be bounded: one redundant
+    # restart into identical code, then quiet — never a restart every tick.
+    _advance(box)
+    box["mark"].write_text("0" * 40 + "\n")
+    _run(box)
+    assert box["called"].read_text().strip() == "restart"
+    box["called"].unlink()
+    r2 = _run(box)
+    assert "nothing to do" in r2.stdout, r2.stdout
+    assert not box["called"].exists(), "a stale marker caused a restart loop"
