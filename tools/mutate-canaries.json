@@ -8,6 +8,15 @@
       "clock.js — wave 8: duplicate anchors, and an anchor that is not a number"
     ]
   },
+  "cpapdex-cross.js": {
+    "line": 44,
+    "op": "negate: drop !",
+    "before": "const r2 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 100) / 100);",
+    "after": "const r2 = (v) => (v == null || isFinite(v) ? null : Math.round(v * 100) / 100);",
+    "killers": [
+      "Cross-night slope basis — an index slope is never a per-day slope (DEEP-AUDIT-II §9.4)"
+    ]
+  },
   "cpapdex-dsp.js": {
     "line": 37,
     "op": "eq !== → ===",
@@ -15,6 +24,24 @@
     "after": "var _EDF = typeof require === 'undefined' ? /** @type {any} */ (require)('./cpapdex-edf.js') : root ",
     "killers": [
       "CPAPDex §6.2 — ODI is rated over ANALYZABLE oximeter time, not the therapy span"
+    ]
+  },
+  "cpapdex-edf.js": {
+    "line": 66,
+    "op": "num → 0",
+    "before": "var year = yy >= 85 ? 1900 + yy : 2000 + yy; // EDF clipping rule",
+    "after": "var year = yy >= 85 ? 1900 + yy : 0 + yy; // EDF clipping rule",
+    "killers": [
+      "Leaf-module coverage — CPAPDex DSP/EDF self-tests + morphology"
+    ]
+  },
+  "ecgdex-cross.js": {
+    "line": 57,
+    "op": "cmp < → <=",
+    "before": "for (let i = 0; i < vals.length; i++) {",
+    "after": "for (let i = 0; i <= vals.length; i++) {",
+    "killers": [
+      "Cross-night baseline mean/sd published (#7)"
     ]
   },
   "ecgdex-dsp.js": {
@@ -56,6 +83,15 @@
       "Fusion algebra — combineConf laws (Phase 8)"
     ]
   },
+  "manifest-gate.js": {
+    "line": 201,
+    "op": "eq === → !==",
+    "before": "var hasCommitted = !!(committed && typeof committed === 'object');",
+    "after": "var hasCommitted = !!(committed && typeof committed !== 'object');",
+    "killers": [
+      "ManifestGate — GATE A/B verdicts red on drift (provenance-meta)"
+    ]
+  },
   "motiondex-dsp.js": {
     "line": 48,
     "op": "negate: drop !",
@@ -65,6 +101,15 @@
       "MotionDex inferAccUnit — three gravity bands, all bounds exclusive (mutation bootstrap)",
       "MotionDex: rate, coverage and plausibility — §4",
       "MotionDex sampleHz is the NATIVE rate, not the coverage-depressed average — §4.1 at its own seam"
+    ]
+  },
+  "oxydex-cross.js": {
+    "line": 25,
+    "op": "num → 0",
+    "before": "const r2 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 100) / 100);",
+    "after": "const r2 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 0) / 100);",
+    "killers": [
+      "Cross-night slope basis — an index slope is never a per-day slope (DEEP-AUDIT-II §9.4)"
     ]
   },
   "oxydex-dsp.js": {
@@ -78,6 +123,15 @@
       "§17-§21 hygiene — no fabricated date, no 0-for-undefined, no pop-default-as-you, pooled indices, badged heroes"
     ]
   },
+  "ppgdex-cross.js": {
+    "line": 23,
+    "op": "num → 0",
+    "before": "const r2 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 100) / 100);",
+    "after": "const r2 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 0) / 100);",
+    "killers": [
+      "Cross-night slope basis — an index slope is never a per-day slope (DEEP-AUDIT-II §9.4)"
+    ]
+  },
   "ppgdex-dsp.js": {
     "line": 31,
     "op": "bool || → &&",
@@ -85,6 +139,15 @@
     "after": "se = se && 0;",
     "killers": [
       "O2Ring device-crystal is invariant to a corrupted host clock — bad-host acceptance"
+    ]
+  },
+  "pulsedex-cross.js": {
+    "line": 23,
+    "op": "num → 0",
+    "before": "const r1 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 10) / 10);",
+    "after": "const r1 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 10) / 0);",
+    "killers": [
+      "Cross §1 — per-node crossNightBlock + helpers (VARYING series)"
     ]
   },
   "pulsedex-dsp.js": {

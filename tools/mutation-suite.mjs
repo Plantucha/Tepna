@@ -45,7 +45,8 @@
  *     --quiet            no per-mutant lines, keep the heartbeat
  */
 import { execFileSync, spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync, unlinkSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync, unlinkSync } from 'node:fs';
 import { cpus, uptime as osUptime } from 'node:os';
 import { dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -1548,6 +1549,34 @@ function selftest() {
      can catch them. A guard with no assertion that fails when it is removed is not a guard. */
   ck('a statement separator is rejected — only the allowlist can see this', safeProjection('out.a; sideEffect(9)'), null);
   ck('…as is a template literal', safeProjection('out[`a`]'), null);
+  ck('markdown-wrapped projection is unwrapped, then validated', parseDraftReply('PROJECTION: `out.n`\nPROPERTY: p').projection, 'out.n');
+  ck('digit-leading key is normalized to bracket form', parseDraftReply('PROJECTION: out.EprPress.2s.data[0]\nPROPERTY: p').projection, 'out.EprPress["2s"].data[0]');
+  ck('wrapping + digit key compose', parseDraftReply('PROJECTION: `out.a.2s`\nPROPERTY: p').projection, 'out.a["2s"]');
+  ck('backtick INSIDE an expression still rejected after unwrap', parseDraftReply('PROJECTION: `out[`a`]`\nPROPERTY: p').ok, false);
+  ck('unwrap does not enable calls', parseDraftReply('PROJECTION: `require("fs")`\nPROPERTY: p').ok, false);
+  ck('plain identifier paths unchanged', parseDraftReply('PROJECTION: out.a.b[0]\nPROPERTY: p').projection, 'out.a.b[0]');
+  const edf = JSON.stringify({ 'EprPress.2s': { data: [7, 8] }, plain: 1 });
+  const edf2 = JSON.stringify({ 'EprPress.2s': { data: [9, 8] }, plain: 1 });
+  ck('dotted-key rescue: resegments against the recorded object', resegmentPath('out.EprPress["2s"].data[0]', JSON.parse(edf)), 'out["EprPress.2s"].data[0]');
+  ck('dotted-key rescue: bracketed pair form too', resegmentPath('out["EprPress"]["2s"].data[0]', JSON.parse(edf)), 'out["EprPress.2s"].data[0]');
+  ck(
+    'parse→resegment composition: the model dotted form ends applicable',
+    resegmentPath(parseDraftReply('PROJECTION: out.EprPress.2s.data[0]\nPROPERTY: p').projection, JSON.parse(edf)),
+    'out["EprPress.2s"].data[0]'
+  );
+  ck('rescue leaves resolvable paths alone', resegmentPath('out.plain', JSON.parse(edf)), 'out.plain');
+  ck('rescue refuses non-path expressions', resegmentPath('out.a === 1', JSON.parse(edf)), null);
+  ck('discriminates end-to-end through a dotted key', projectionDiscriminates('out.EprPress["2s"].data[0]', edf, edf2).ok, true);
+  const nested = JSON.stringify({ PLD: { signals: { 'EprPress.2s': { data: [7] } } }, SA2: { signals: {} } });
+  const nested2 = JSON.stringify({ PLD: { signals: { 'EprPress.2s': { data: [9] } } }, SA2: { signals: {} } });
+  ck('descent rescue: omitted levels + dotted key, unique match', descendRescue('out.EprPress["2s"].data[0]', JSON.parse(nested)), 'out.PLD.signals["EprPress.2s"].data[0]');
+  ck('descent rescue: ambiguity REFUSES', descendRescue('out.x', { a: { x: 1 }, b: { x: 2 } }), null);
+  ck('descent rescue: truly absent refuses', descendRescue('out.nope.q', JSON.parse(nested)), null);
+  ck('descent end-to-end: shortened model path discriminates', projectionDiscriminates('out.EprPress["2s"].data[0]', nested, nested2).ok, true);
+  const dp = diffPaths(JSON.parse(nested), JSON.parse(nested2));
+  ck('diff menu: finds the one differing path through a dotted key', dp.length === 1 && dp[0].path === '.PLD.signals["EprPress.2s"].data[0]', true);
+  ck('diff menu: identical outputs yield empty', diffPaths({ a: 1 }, { a: 1 }).length, 0);
+  ck('diff menu: type mismatch is a diff, not a descent', diffPaths({ a: { x: 1 } }, { a: null })[0].path, '.a');
   ck('…assignment, not comparison', safeProjection('out.a = 1'), null);
   ck('…but a comparison is fine', safeProjection('out.a === 1'), 'out.a === 1');
   ck('a projection that never reads `out` is rejected', safeProjection('1 + 1'), null);
@@ -1614,6 +1643,20 @@ function selftest() {
   ck('the same call+input+field+expectation is ONE assertion', assertionIdentity(c1, 'out.a', '0') === assertionIdentity({ ...c1 }, 'out.a', '0'), true);
   ck('…a different field is a different assertion', assertionIdentity(c1, 'out.a', '0') === assertionIdentity(c1, 'out.b', '0'), false);
   ck('…and so is a different input', assertionIdentity(c1, 'out.a', '0') === assertionIdentity({ call: 'X.f', input: '[2]' }, 'out.a', '0'), false);
+  ck(
+    'draftKey: stable and after-sensitive',
+    (() => {
+      const k1 = draftKey({ line: 1, op: 'x', before: 'b', after: 'a' });
+      const k2 = draftKey({ line: 1, op: 'x', before: 'b', after: 'a' });
+      return k1 === k2 && k1 !== draftKey({ line: 1, op: 'x', before: 'b', after: 'z' });
+    })(),
+    true
+  );
+  ck('draftKey: absent after is the empty slot, not the string undefined', draftKey({ line: 1, op: 'x', before: 'b' }), '1\u0000x\u0000b\u0000');
+  const _dtext = '{\n    const out = F(1);\n    T.eq("p", JSON.stringify(out.q), "7");\n  }';
+  ck('existingDraftAids: extracts the rendered triple', existingDraftAids(_dtext).has(textAid('F(1)', 'out.q', '"7"')), true);
+  ck('existingDraftAids: different expected is a different draft', existingDraftAids(_dtext).has(textAid('F(1)', 'out.q', '"8"')), false);
+  ck('existingDraftAids: non-draft text contributes nothing', existingDraftAids('/* just a header */').size, 0);
 
   /* `all N selftests passed` is the form tools/selftest-all.mjs parses for a COUNT; a bare
      'all green' is recognised but countless, and a count is what makes a silent drop from 30
@@ -1704,7 +1747,13 @@ const LOCAL_HOST = 'http://127.0.0.1:11434';
  * Re-measure both numbers if the hardware changes; neither is a property of the task.
  */
 const DRAFT_MODEL = opt('--model', 'qwen3-coder:30b');
-const DRAFT_CTX = Number(opt('--ctx', '1024'));
+/* 8192, matching the A/B bench conditions that chose the model (2026-08-27) AND the service's
+   OLLAMA_CONTEXT_LENGTH cap. The old 1024 default silently FRONT-truncated large diff-menu
+   prompts (ollama drops the beginning — the instructions — first), so production never ran the
+   regime the bench measured. Discovered when ollama ps showed the ctx column disagreeing with
+   the bench; the model-quality verdict stands (both arms benched at 8192), the production
+   yield was the thing degraded. */
+const DRAFT_CTX = Number(opt('--ctx', '8192'));
 
 /**
  * RETRY MUST CHANGE THE SAMPLING OR IT CHANGES NOTHING. At temperature 0 the model is deterministic,
@@ -1748,7 +1797,20 @@ export function parseDraftReply(text) {
   const prop = /PROPERTY:\s*([\s\S]+?)(?:\n\s*\n|$)/i.exec(t);
   if (prop && /^REFUSE\b/i.test(prop[1].trim())) return { ok: false, why: 'model declined — it could not name a behaviour behind the difference', refused: true };
   if (!proj || !prop) return { ok: false, why: 'reply did not carry both PROJECTION and PROPERTY lines' };
-  const safe = safeProjection(proj[1]);
+  /* NORMALIZE BEFORE VALIDATING (2026-08-27, measured on cpapdex _synthEdfSet: kept 0 of 61
+     because every projection was refused). Two model habits, both fixable without widening
+     the rail: (1) markdown wrapping — qwen emits PROJECTION: `out.x` and the backtick is
+     (correctly) outside the charset, so the projection dies for its QUOTING, not its content;
+     strip one layer of wrapping backticks/quotes only when they enclose the whole expression.
+     (2) EDF-style keys that start with a digit — `out.EprPress.2s.data[0]` passes the charset
+     but is a JS SyntaxError at evaluation; rewrite `.2s` → `["2s"]` for segments that begin
+     with a digit. Both rewrites are syntactic sugar over the SAME allowlist — backticks inside
+     an expression, calls, and assignment are rejected exactly as before (selftests pin this). */
+  let raw = proj[1].trim();
+  const wrap = raw.match(/^([`'"])(.+)\1$/s);
+  if (wrap) raw = wrap[2].trim();
+  raw = raw.replace(/\.(\d[\w-]*)(?=[.[]|\s|$)/g, '["$1"]');
+  const safe = safeProjection(raw);
   if (!safe) return { ok: false, why: 'projection rejected by the charset allowlist: ' + proj[1].trim().slice(0, 80) };
   return { ok: true, projection: safe, property: prop[1].trim().replace(/\s+/g, ' ') };
 }
@@ -1758,8 +1820,86 @@ export function parseDraftReply(text) {
  * the probe, so asking "does this field actually differ" is a pure function over committed JSON —
  * exact, instant, and independent of everything the model said.
  */
+/* DOTTED-KEY RESCUE (2026-08-27, second half of the _synthEdfSet lesson). EDF signal names are
+   keys that CONTAIN dots ("EprPress.2s"), which dot notation cannot express — the model writes
+   `out.EprPress.2s.data[0]` and any static rewrite must GUESS the segmentation. Nothing needs
+   guessing: the recorded orig output is ground truth for which keys exist. For a PURE PATH
+   projection only, re-segment greedily against the actual object — when a segment resolves to
+   undefined but joining it with following segment(s) by '.' names a real key, merge them. Pure
+   function of (path, recorded object); no model input decides anything. Non-path expressions
+   (comparisons etc.) are left untouched. */
+export function resegmentPath(expr, obj) {
+  const m = String(expr).match(/^out((?:\.[A-Za-z_$][\w$-]*|\["[^"\\]+"\]|\['[^'\\]+'\]|\[\d+\])+)$/);
+  if (!m) return null;
+  const segs = [];
+  const re = /\.([A-Za-z_$][\w$-]*)|\["([^"\\]+)"\]|\['([^'\\]+)'\]|\[(\d+)\]/g;
+  let mm;
+  while ((mm = re.exec(m[1]))) segs.push(mm[4] !== undefined ? { idx: Number(mm[4]) } : { key: mm[1] ?? mm[2] ?? mm[3] });
+  let cur = obj;
+  const outSegs = [];
+  for (let i = 0; i < segs.length; i++) {
+    const sg = segs[i];
+    if (sg.idx !== undefined) {
+      if (!Array.isArray(cur)) return null;
+      cur = cur[sg.idx];
+      outSegs.push('[' + sg.idx + ']');
+      continue;
+    }
+    if (cur === null || typeof cur !== 'object') return null;
+    let key = sg.key;
+    let consumed = 0;
+    if (!(key in cur)) {
+      for (let j = i + 1; j < segs.length && segs[j].key !== undefined; j++) {
+        key = key + '.' + segs[j].key;
+        consumed = j - i;
+        if (key in cur) break;
+      }
+      if (!(key in cur)) return null;
+    }
+    i += consumed;
+    cur = cur[key];
+    outSegs.push(/^[A-Za-z_$][\w$]*$/.test(key) ? '.' + key : '["' + key + '"]');
+  }
+  return 'out' + outSegs.join('');
+}
+
+/* UNIQUE-DESCENT RESCUE (third failure mode, same night): the model also OMITS intermediate
+   levels — it writes `out.EprPress.2s.data[0]` where the object holds
+   `out.PLD.signals["EprPress.2s"].data[0]`. Resegmentation cannot rescue a path whose first
+   segment is missing from the root. So: when root resolution fails for a pure path, search the
+   recorded object for anchor points where the WHOLE path resolves (with dotted-key merging), and
+   rescue ONLY when exactly one location matches — two matches is ambiguity, and ambiguity
+   refuses. Still a pure function of (path, recorded JSON): the model proposes a suffix; the
+   ground-truth object decides where — or whether — it lives. Bounded BFS (depth 6, 20k nodes). */
+export function descendRescue(expr, obj) {
+  const direct = resegmentPath(expr, obj);
+  if (direct) return direct;
+  const m = String(expr).match(/^out((?:\.[A-Za-z_$][\w$-]*|\["[^"\\]+"\]|\['[^'\\]+'\]|\[\d+\])+)$/);
+  if (!m) return null;
+  const matches = [];
+  const queue = [{ node: obj, prefix: '' }];
+  let seen = 0;
+  while (queue.length && seen < 20000 && matches.length < 2) {
+    const { node, prefix } = queue.shift();
+    seen++;
+    if (node === null || typeof node !== 'object') continue;
+    if (prefix) {
+      const sub = resegmentPath('out' + m[1], node);
+      if (sub) matches.push(prefix + sub.slice(3));
+    }
+    if (prefix.split('.').length > 6) continue;
+    if (Array.isArray(node)) {
+      for (let i = 0; i < Math.min(node.length, 50); i++) queue.push({ node: node[i], prefix: prefix + '[' + i + ']' });
+    } else {
+      for (const k of Object.keys(node)) queue.push({ node: node[k], prefix: prefix + (/^[A-Za-z_$][\w$]*$/.test(k) ? '.' + k : '["' + k + '"]') });
+    }
+  }
+  if (matches.length !== 1) return null; // 0 = truly absent; 2+ = ambiguous — both refuse
+  return 'out' + matches[0];
+}
+
 export function projectionDiscriminates(expr, origText, mutantText) {
-  const safe = safeProjection(expr);
+  let safe = safeProjection(expr);
   if (!safe) return { ok: false, why: 'unsafe projection' };
   let a, b;
   try {
@@ -1768,6 +1908,8 @@ export function projectionDiscriminates(expr, origText, mutantText) {
   } catch {
     return { ok: false, why: 'recorded outputs are not both JSON — cannot compare a projection over them' };
   }
+  const reseg = descendRescue(safe, a);
+  if (reseg && reseg !== safe && safeProjection(reseg)) safe = reseg;
   let fn;
   try {
     fn = new Function('out', '"use strict"; return (' + safe + ');');
@@ -1817,7 +1959,13 @@ export function renderDraft(c, projection, property, origValue) {
     ', JSON.stringify(' +
     projection +
     '), ' +
-    JSON.stringify(origValue) +
+    /* ⚠️ THE SUITE'S OWN SERIALIZER RENDERS undefined AS '@undef' (dex-tests.js T.eq), while
+       JSON.stringify(undefined) has no string form at all — the recorder's sentinel 'undefined'
+       (see `?? 'undefined'` above) is NOT what the suite will compare against. Three batch-3
+       drafts failed suite-realm verification on exactly this one-token mismatch (got "@undef",
+       want "undefined") — a convention neither model was told about, recurring every batch
+       until translated HERE, at the emitter, where the convention lives. */
+    JSON.stringify(origValue === 'undefined' ? '@undef' : origValue) +
     ');\n' +
     '  }\n'
   );
@@ -1839,7 +1987,60 @@ async function askLocal(prompt, model, attempt = 0) {
   return j.response || '';
 }
 
-function draftPrompt(c) {
+/* THE DIFF MENU (2026-08-27, from the post-rescue failure profile: 17 of 33 attempts on one
+   function proposed projections that do NOT discriminate — and the prompt shows each output
+   sliced to 700 chars, so on a large output the model cannot even SEE where the difference is.
+   The harness holds both recorded outputs, so the set of differing paths is computable ground
+   truth. Hand the model that MENU: it stops guessing WHERE the difference lives and only chooses
+   which difference is meaningful, then names the property. §0 intact — the menu is a pure
+   function of the two recorded outputs; the model still supplies no value. */
+export function diffPaths(a, b, opts = {}) {
+  const max = opts.max ?? 12;
+  const maxDepth = opts.maxDepth ?? 8;
+  const out = [];
+  const seg = (k) => (/^[A-Za-z_$][\w$]*$/.test(k) ? '.' + k : '["' + String(k).replace(/"/g, '') + '"]');
+  const queue = [{ a, b, path: '', depth: 0 }];
+  let seen = 0;
+  while (queue.length && out.length < max && seen < 20000) {
+    const { a: x, b: y, path, depth } = queue.shift();
+    seen++;
+    const tx = x === null ? 'null' : Array.isArray(x) ? 'array' : typeof x;
+    const ty = y === null ? 'null' : Array.isArray(y) ? 'array' : typeof y;
+    if (tx !== ty) {
+      out.push({ path, a: x, b: y });
+      continue;
+    }
+    if (tx === 'object' || tx === 'array') {
+      if (depth >= maxDepth) continue;
+      const keys = tx === 'array' ? [...new Set([...x.keys(), ...y.keys()])].slice(0, 200) : [...new Set([...Object.keys(x), ...Object.keys(y)])];
+      for (const k of keys) queue.push({ a: x[k], b: y[k], path: path + (tx === 'array' ? '[' + k + ']' : seg(k)), depth: depth + 1 });
+      continue;
+    }
+    if (!Object.is(x, y)) out.push({ path, a: x, b: y });
+  }
+  return out;
+}
+
+function diffMenu(origText, mutantText) {
+  let a;
+  let b;
+  try {
+    a = JSON.parse(origText);
+    b = JSON.parse(mutantText);
+  } catch {
+    return '';
+  }
+  const d = diffPaths(a, b);
+  if (!d.length) return '';
+  const row = (v) => String(JSON.stringify(v)).slice(0, 60);
+  return (
+    '\nDIFFERING FIELDS (machine-computed from the two outputs — your PROJECTION should be `out` followed by ONE of these paths, copied EXACTLY):\n' +
+    d.map((x) => '  out' + x.path + '   CORRECT ' + row(x.a) + '  BUGGY ' + row(x.b)).join('\n') +
+    '\n'
+  );
+}
+
+export function draftPrompt(c) {
   return (
     'You are helping write a regression test. Below is a real function call, what the CORRECT code returns, and what a BUGGY variant returns. Both outputs are given verbatim; do NOT invent or recompute values.\n\n' +
     'CALL:    ' +
@@ -1857,7 +2058,9 @@ function draftPrompt(c) {
     c.before +
     '   (operator mutation: ' +
     c.op +
-    ')\n\n' +
+    ')\n' +
+    diffMenu(c.orig, c.mutant) +
+    '\n' +
     'Answer with exactly two lines and nothing else:\n' +
     'PROJECTION: a JavaScript expression over a variable named `out` (the return value) that has a DIFFERENT value for CORRECT vs BUGGY. Prefer the smallest, most meaningful field. Example: out.nUsable\n' +
     'PROPERTY: one short English sentence naming the behaviour this protects, written for a reader who has not seen the bug. If you cannot name a real behaviour (the difference is an opaque constant with no meaning), write exactly: REFUSE'
@@ -1875,8 +2078,20 @@ export function usableKillables(crawl) {
         mu = String(m.mutant ?? '');
       /* A "distinguishing input" where the REAL code TIMES OUT is not a test case — you cannot ship
          an assertion that production code hangs. Dropped, and counted, rather than drafted. */
-      if (/TIMEOUT/.test(o) || /TIMEOUT/.test(mu)) continue;
-      if (/^"?(THREW|ERROR)/.test(o) && /^"?(THREW|ERROR)/.test(mu)) continue;
+      if (/TIMEOUT/.test(o) || /TIMEOUT/.test(mu)) {
+        out.skippedTimeout = (out.skippedTimeout || 0) + 1;
+        continue;
+      }
+      /* ONE-SIDED orig-THREW refusal (design review G6, 2026-08-27): the probe's own rule —
+         "the REAL code throws on this input — a crash is not a contract, and the assertion would
+         not even run" — applied here too. The old filter refused only BOTH-threw, so one-sided
+         crashes were drafted (the detectPeriodicity TypeError draft; a live _tMs THREW assertion
+         reached hrvdex's drafts file). Mutant-side-only THREW remains draftable: the expected
+         value is the REAL code's healthy output. Subsumes the old both-threw check. */
+      if (/^"?(THREW|ERROR)/.test(o)) {
+        out.skippedCrash = (out.skippedCrash || 0) + 1;
+        continue;
+      }
       /* A record the CRAWL flagged as bound-truncated cannot be projected honestly — refuse with
          the real reason rather than let JSON.parse manufacture a "not both JSON" mystery. */
       if (m.recordTruncated) {
@@ -1893,6 +2108,36 @@ export function usableKillables(crawl) {
 /** The identity of a DRAFTED ASSERTION: same call, same input, same field, same expectation. */
 export function assertionIdentity(c, projection, expected) {
   return [c.call, String(c.input), String(projection).trim(), String(expected)].join(String.fromCharCode(1));
+}
+
+/* ── THE DRAFT JOURNAL (design review item 1, 2026-08-27) ───────────────────────────────────────
+   The draft lane was the ONLY model lane with no per-mutant journal: every run re-attempted every
+   killable from scratch (rejections lived in memory), the drafts file was a FULL OVERWRITE (a
+   weaker later run destroyed prior drafts AND verify-drafts' verification block — measured: 16 of
+   17 drafts files had lost their blocks), and no model/ctx/attempt was recorded anywhere, so the
+   3.8-era and coder-era drafts on disk became indistinguishable the day the model switched.
+   The journal mirrors the ai-probe's discipline one seam over: per-mutant terminal outcomes,
+   keyed by mutant identity AND model — a NEW model legitimately re-attempts what an old model
+   failed, but nobody re-burns an answered (mutant, model) pair, and a KEPT under ANY model
+   retires the mutant (its draft exists; a second projection would be noise, not coverage). */
+const sha16 = (t) => createHash('sha256').update(t).digest('hex').slice(0, 16);
+
+export const draftKey = (c) => [c.line, c.op, c.before, c.after ?? ''].join('\u0000');
+
+/* Textual assertion identity, derivable from BOTH a kept draft's parts and a drafts-file block —
+   the append path needs one identity that works on re-read text, where c.input is no longer
+   separable from the rendered call. */
+export const textAid = (callExpr, projection, expected) => sha16(callExpr + '\u0000' + projection + '\u0000' + expected);
+
+/* Extract existing drafts' identities from a drafts file, so appends never duplicate. Same
+   extraction shape as verify-drafts' parseDrafts; blocks that do not match are kept as text but
+   contribute no identity (they cannot collide, only survive). */
+export function existingDraftAids(text) {
+  const out = new Set();
+  const re = /const out = ([^;\n]+);\s*\n\s*T\.eq\("(?:[^"\\]|\\.)*", JSON\.stringify\(([^)]+)\), ((?:[^;\n])+)\);/g;
+  let m;
+  while ((m = re.exec(text))) out.add(textAid(m[1].trim(), m[2].trim(), m[3].trim()));
+  return out;
 }
 
 async function cmdDraft(file) {
@@ -1937,11 +2182,35 @@ async function cmdDraft(file) {
   log('  ' + cases.length + ' killable mutant(s) carry a distinguishing input (' + aiKillable + ' from the AI probe); drafting ' + pick.length);
   log("  the model picks WHICH FIELD to assert on; the expected VALUE is the real code's recorded output.\n");
 
+  const journalPath = join(stateDir(), basename(file) + '.draft-journal.jsonl');
+  const answeredByModel = new Set(); // draftKey \0 model — this model already gave a terminal answer
+  const keptByAny = new Set(); // draftKey — SOME model produced a kept draft; the mutant is retired
+  if (existsSync(journalPath)) {
+    for (const l of readFileSync(journalPath, 'utf8').split('\n')) {
+      if (!l) continue;
+      try {
+        const r = JSON.parse(l);
+        if (!r.k || !r.model) continue;
+        answeredByModel.add(r.k + '\u0000' + r.model);
+        if (r.v === 'KEPT') keptByAny.add(r.k);
+      } catch {
+        /* torn last line from a crash — expected, skipped, never repaired (probe's rule) */
+      }
+    }
+  }
+  const jrec = (c, v, extra) => appendFileSync(journalPath, JSON.stringify({ k: draftKey(c), v, model: DRAFT_MODEL, ctx: DRAFT_CTX, at: new Date().toISOString(), ...extra }) + '\n');
+
   const t0 = Date.now();
   const kept = [];
   const rejected = [];
+  let journalSkips = 0;
   for (let i = 0; i < pick.length; i++) {
     const c = pick[i];
+    const dk = draftKey(c);
+    if (!argv.includes('--redraft') && (keptByAny.has(dk) || answeredByModel.has(dk + '\u0000' + DRAFT_MODEL))) {
+      journalSkips++;
+      continue;
+    }
     const name = c.call + ' [' + c.op + '] @ ' + String(c.before).slice(0, 54);
     /* RETRY ON ANY REJECTION, NOT JUST ON AN EMPTY REPLY. The earlier version retried only the empty
        case, which left the two commonest failures — an unparseable reply and a field that does not
@@ -1962,7 +2231,10 @@ async function cmdDraft(file) {
       const p2 = parseDraftReply(reply);
       if (!p2.ok) {
         lastWhy = p2.why;
-        if (p2.refused) break; // an explicit REFUSE is an answer; asking again is badgering it
+        if (p2.refused) {
+          jrec(c, 'REFUSED', { attempt: a });
+          break; // an explicit REFUSE is an answer; asking again is badgering it
+        }
         continue;
       }
       const d2 = projectionDiscriminates(p2.projection, c.orig, c.mutant);
@@ -1980,6 +2252,7 @@ async function cmdDraft(file) {
     const prog = '[' + String(i + 1).padStart(3) + '/' + pick.length + '  ' + rate.toFixed(1) + '/min  ETA ' + eta + 'm  kept ' + kept.length + ']';
 
     if (!parsed.ok) {
+      if (!/model declined/.test(parsed.why)) jrec(c, 'NO-DRAFT', { why: String(parsed.why).slice(0, 90) });
       rejected.push({ name, why: parsed.why });
       log(prog + ' ✗ ' + name);
       log('      ' + parsed.why);
@@ -1993,10 +2266,12 @@ async function cmdDraft(file) {
     const aid = assertionIdentity(c, parsed.projection, disc.orig);
     const prev = kept.find((k) => k.aid === aid);
     if (prev) {
+      jrec(c, 'KEPT', { dup: true });
       prev.covers++;
       log(prog + ' ✓ ' + name + '  (same assertion as an earlier draft — covers ' + prev.covers + ' mutants, not counted twice)');
       continue;
     }
+    jrec(c, 'KEPT', { projection: parsed.projection });
     kept.push({ aid, covers: 1, c, ...parsed, disc, text: renderDraft(c, parsed.projection, parsed.property, disc.orig) });
     log(prog + ' ✓ ' + name);
     log('      killed by ' + parsed.projection + ':  real=' + disc.orig.slice(0, 40) + '   mutant=' + disc.mutant.slice(0, 40));
@@ -2013,13 +2288,47 @@ async function cmdDraft(file) {
     ' * recorded output. NOTHING HERE IS VERIFIED TO ASSERT THE *INTENDED* BEHAVIOUR — a projection\n' +
     ' * can discriminate and still pin a bug in place. Read each PROPERTY line before adopting it.\n' +
     ' */\n\n';
-  writeFileSync(outPath, header + kept.map((k) => k.text).join('\n'));
+  /* APPEND, NEVER OVERWRITE (design review item 1). The old full overwrite meant a weaker later
+     run destroyed prior drafts and the suite-realm verification block. Now: existing content is
+     preserved byte-for-byte (verification block included), only genuinely NEW assertions are
+     appended, each append section carries its model/ctx/date attribution, and a run producing
+     nothing new leaves the file untouched. */
+  const stamp = '/* ── appended ' + new Date().toISOString().slice(0, 16) + ' · model ' + DRAFT_MODEL + ' · ctx ' + DRAFT_CTX + ' ── */\n';
+  let existing = '';
+  let existingAids = new Set();
+  if (existsSync(outPath)) {
+    existing = readFileSync(outPath, 'utf8');
+    existingAids = existingDraftAids(existing);
+  }
+  const newTexts = [];
+  for (const k of kept) {
+    const callExpr = k.c.call + '(' + String(k.c.input).replace(/^\[|\]$/g, '') + ')';
+    const expectedLit = JSON.stringify(k.disc.orig === 'undefined' ? '@undef' : k.disc.orig);
+    if (existingAids.has(textAid(callExpr, k.projection, expectedLit))) continue;
+    newTexts.push(k.text);
+  }
+  if (newTexts.length) {
+    if (existing) writeFileSync(outPath, existing.replace(/\n*$/, '\n') + '\n' + stamp + newTexts.join('\n'));
+    else writeFileSync(outPath, header + stamp + newTexts.join('\n'));
+  }
   const mins = (Date.now() - t0) / 60000;
   const covered = kept.reduce((a, k) => a + k.covers, 0);
   log(
-    '\n  ' + kept.length + ' DISTINCT assertion(s) covering ' + covered + ' mutant(s); ' + rejected.length + ' rejected, in ' + mins.toFixed(1) + ' min (' + (pick.length / mins).toFixed(1) + '/min)'
+    '\n  ' +
+      kept.length +
+      ' DISTINCT assertion(s) covering ' +
+      covered +
+      ' mutant(s); ' +
+      rejected.length +
+      ' rejected; ' +
+      journalSkips +
+      ' journal-skipped (answered by ' +
+      DRAFT_MODEL +
+      ' or kept by any model), in ' +
+      mins.toFixed(1) +
+      ' min'
   );
-  log('  → ' + outPath);
+  log('  → ' + outPath + (newTexts.length ? '  (+' + newTexts.length + ' appended)' : '  (nothing new — file untouched)'));
   log('  These are PROPOSALS. Each still needs a human read for whether it pins the intended behaviour.');
 }
 

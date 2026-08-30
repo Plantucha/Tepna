@@ -449,6 +449,15 @@ export function batteryFor(fnName) {
    from being read as an ordinary killable one-liner — no test can assert "hangs" the way it asserts
    a value. */
 const PROBE_TIMEOUT_MS = +opt('--probe-timeout-ms', 2000);
+/* A PROBED FUNCTION'S ASYNC FAILURE IS DATA, NOT DEATH (2026-08-27). A throw inside a Promise
+   EXECUTOR is converted to a rejection, passes the try/catch below as an ordinary return value,
+   and detonates later as an unhandledRejection — which by Node default kills the process.
+   Measured: cpapdex-fusion `detectChannelsAsync` (rec.ch on undefined) crash-looped the fleet
+   relauncher twice. The precise fix is the Promise-catch in runBattery; this global hook is the
+   backstop for rejections scheduled beyond it (timers inside probed code). It logs and lives. */
+process.on('unhandledRejection', (e) => {
+  process.stderr.write('  ⚠ probed code rejected asynchronously (contained): ' + String((e && e.message) || e).slice(0, 120) + '\n');
+});
 function runBattery(fn, bat, ctx) {
   const out = [];
   for (const args of bat.args()) {
@@ -469,6 +478,13 @@ function runBattery(fn, bat, ctx) {
         ctx.__probeFn = undefined;
         ctx.__probeArgs = undefined;
       }
+    }
+    // An async result cannot be probed synchronously. Attach a no-op catch so a rejected
+    // executor cannot become an unhandledRejection, and label it so it never reads as an
+    // ordinary killable diff — "returns a Promise" is not a value a test can pin this way.
+    if (r && typeof r.then === 'function') {
+      r.catch(() => {});
+      r = 'ASYNC-PROMISE (not awaited by the probe)';
     }
     let s;
     try {
