@@ -30,6 +30,7 @@ __all__ = [
     "DIED_EARLY",
     "UNKNOWN",
     "MIN_THERAPY_MIN",
+    "MIN_OBSERVED_FRAC",
     "MIN_COVER",
     "MAX_GAP_S",
     "assess",
@@ -152,6 +153,13 @@ def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
 # instead — the observation is worth one poll, not the silence around it.
 MAX_GAP_S = 120.0
 
+# The share of polls that must have REACHED the machine before this journal is allowed to answer.
+# Below it the honest verdict is UNKNOWN. 2026-08-30 ran ELEVEN HOURS with every poll failing, and a
+# handful of surviving observations would otherwise have reported a short, calm, entirely fictional
+# night. Deliberately lenient at two thirds: ordinary dropout is normal here (41
+# BleakDeviceNotFoundError in one night), so an outage has to DOMINATE before we refuse to answer.
+MIN_OBSERVED_FRAC = 0.667
+
 
 def therapy_minutes(text: str, *, max_gap_s: float = MAX_GAP_S):
     """Minutes of observed Therapy in a SESSIONDETECT journal, or None if it cannot be measured. PURE.
@@ -164,6 +172,7 @@ def therapy_minutes(text: str, *, max_gap_s: float = MAX_GAP_S):
     None says "this journal cannot tell us", which is a claim about the evidence. Conflating them makes
     a broken detector look like a quiet night."""
     rows = []
+    unreachable = 0
     for line in str(text or "").splitlines():
         parts = line.split(";")
         if len(parts) < 9:
@@ -172,8 +181,20 @@ def therapy_minutes(text: str, *, max_gap_s: float = MAX_GAP_S):
             ms = float(parts[0])
         except ValueError:
             continue  # the header row, or a torn line
+        # 🔴 AN UNREACHABLE POLL IS NOT AN OBSERVATION OF STANDBY. The shadow runner now writes a row
+        # when it could not reach the machine (reachable=False, blank fg_state) — which is what makes
+        # an outage visible at all. Counting those as "not in therapy" would be strictly WORSE than
+        # the silence they replaced: the night would read as measured, and measured as fine.
+        if parts[7].strip().lower() in ("false", "0"):
+            unreachable += 1
+            continue
         rows.append((ms, parts[8].strip()))
     if len(rows) < 2:
+        return None
+    # ⚠️ COVERAGE, NOT MERE PRESENCE. A mostly-unreachable journal can still hold a couple of real
+    # observations, and summing therapy across them reports a confident few minutes for a night nobody
+    # watched — the exact poisoning the unreachable row was added to EXPOSE rather than create.
+    if unreachable > len(rows) * (1.0 - MIN_OBSERVED_FRAC) / MIN_OBSERVED_FRAC:
         return None
     rows.sort()
     total = 0.0

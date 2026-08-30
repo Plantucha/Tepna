@@ -149,3 +149,49 @@ def test_a_NON_NUMERIC_attempt_count_is_not_a_failed_automation():
         assert got["state"] == W.NEVER_STARTED, bad
     assert W.assess(400.0, 0.0, attempts=3)["state"] == W.AUTOSTART_FAILED
     assert W.assess(400.0, 0.0, attempts=0)["state"] == W.NEVER_STARTED
+
+
+# ── an UNOBSERVED window must refuse, not measure zero (2026-08-30) ─────────────────────────────
+
+
+def _unreach(ms, err="BleakDeviceNotFoundError"):
+    """The row the shadow runner now writes when it could not reach the machine."""
+    return f"{ms};;;;unreachable;{err};;False;;;;"
+
+
+def test_an_unreachable_row_is_NOT_counted_as_standby():
+    """🔴 The whole point. Before the runner wrote these, a failed poll left NOTHING and the night was
+    silent. Writing them and then reading them as "not in therapy" would be strictly WORSE than that
+    silence: the night would read as MEASURED, and measured as fine."""
+    t0 = 1_787_000_000_000
+    rows = [_row(t0 + i * 30_000, "Therapy") for i in range(80)]
+    rows += [_unreach(t0 + (80 + i) * 30_000) for i in range(10)]
+    got = W.therapy_minutes("\n".join([_HDR] + rows))
+    assert abs(got - 39.5) < 0.6, got  # the 79 real gaps, and none from the unreachable tail
+
+
+def test_a_MOSTLY_UNOBSERVED_journal_refuses_rather_than_reporting_a_calm_night():
+    """2026-08-30: eleven hours of failing polls. A few surviving observations must not be summed into
+    a confident short night — `assess` needs UNKNOWN, and UNKNOWN only comes from None here."""
+    t0 = 1_787_000_000_000
+    rows = [_row(t0, "Standby"), _row(t0 + 30_000, "Standby"), _row(t0 + 60_000, "Standby")]
+    rows += [_unreach(t0 + (2 + i) * 30_000) for i in range(1300)]  # ~11 h of failures
+    assert W.therapy_minutes("\n".join([_HDR] + rows)) is None
+    assert W.assess(therapy_min=None, stream_min=0.0)["state"] == W.UNKNOWN
+
+
+def test_ORDINARY_dropout_still_yields_a_measurement():
+    """The control, and the reason the bound is lenient. 41 BleakDeviceNotFoundError in one night is
+    NORMAL here — a threshold that refused on that would refuse on every real night."""
+    t0 = 1_787_000_000_000
+    rows = [_row(t0 + i * 30_000, "Therapy") for i in range(720)]
+    rows += [_unreach(t0 + (720 + i) * 30_000) for i in range(41)]
+    got = W.therapy_minutes("\n".join([_HDR] + rows))
+    assert got is not None and got > 300, got
+
+
+def test_a_journal_of_NOTHING_BUT_unreachable_rows_refuses():
+    """The 2026-08-30 shape exactly: the detector ran all night and reached the machine zero times."""
+    t0 = 1_787_000_000_000
+    rows = [_unreach(t0 + i * 30_000) for i in range(1300)]
+    assert W.therapy_minutes("\n".join([_HDR] + rows)) is None
