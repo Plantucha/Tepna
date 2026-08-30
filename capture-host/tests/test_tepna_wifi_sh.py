@@ -141,3 +141,47 @@ def test_A_SUPPLICANT_THAT_NEVER_ASSOCIATES_FAILS_RATHER_THAN_REPORTING_SUCCESS(
     proc, _c = _run(tmp_path, "join", "HotelWifi", stdin=PSK + "\n",
                     status_out="wpa_state=SCANNING\\n")
     assert proc.returncode == 6 and "did not associate" in proc.stderr
+
+
+# ── the sandbox the helper actually runs inside ───────────────────────────────────────────────────
+# The daemon invokes this helper through `sudo -n`, and sudo does NOT create a new mount namespace —
+# so the helper runs as root INSIDE the daemon's sandbox. Under `ProtectSystem=strict` the whole
+# hierarchy is read-only apart from `ReadWritePaths`, which means being root is not the missing
+# permission; the mount is. Measured on vigil 2026-08-30, the first time Scan was pressed after the
+# sudoers grant landed: "mkdir: Read-only file system", "/run/tepna-uplink.conf: Read-only file system".
+def _rw_paths():
+    """Every path the shipped unit and its drop-ins make writable."""
+    paths = []
+    for f in ("deploy/tepna-capture.service", "deploy/enable-clock-control.sh"):
+        for line in open(os.path.join(HERE, f), encoding="utf-8").read().splitlines():
+            t = line.strip()
+            if t.startswith("ReadWritePaths="):          # a commented line is prose, not a directive
+                paths += [p.lstrip("-") for p in t.split("=", 1)[1].split()]
+    return paths
+
+
+def test_THE_DEFAULT_RUNDIR_IS_SOMEWHERE_THE_SANDBOX_CAN_ACTUALLY_WRITE():
+    default = None
+    for line in open(SH, encoding="utf-8").read().splitlines():
+        if line.startswith("RUNDIR="):
+            default = line.split(":-", 1)[1].rstrip('}"')
+    assert default, "could not read the helper's default RUNDIR"
+    writable = _rw_paths()
+    assert writable, "found no ReadWritePaths at all — the scan has stopped working"
+    assert any(default == p or default.startswith(p.rstrip("/") + "/") for p in writable), (
+        f"the helper writes to {default}, which is not under any ReadWritePaths ({writable}). "
+        f"Under ProtectSystem=strict that is a read-only mount and every join fails as root."
+    )
+
+
+def test_THE_HELPER_DOES_NOT_REACH_FOR_RUN_ANY_MORE():
+    # Pinned by name because /run is the obvious place to put a control socket and the one place this
+    # daemon cannot write. A future edit reaching for it should fail here, not on the box.
+    import re
+    body = open(SH, encoding="utf-8").read()
+    # Anchored to a ROOT-level /run — a plain substring test matches "/srv/tepna/run" and would fail
+    # against the fix itself, which is how this assertion first went wrong.
+    at_run = re.compile(r"(?:^|[\s:=\-\"'])/run(?:/|[\s\"'}$]|$)")
+    directives = [ln for ln in body.splitlines()
+                  if ln.startswith(("RUNDIR=", "CTRL=", "CONF=")) and at_run.search(ln)]
+    assert not directives, f"a path directive points at the root /run: {directives}"

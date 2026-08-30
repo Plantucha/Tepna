@@ -56,6 +56,15 @@ cat > /etc/systemd/system/tepna-capture.service.d/clock-control.conf <<'DROPIN'
 # install-services.sh cannot silently revert it. Paired with /etc/sudoers.d/tepna, which scopes the
 # grant to two root-owned, non-user-writable helpers.
 NoNewPrivileges=no
+# ⚠️ AND THE THREE PATHS THE UNIT FILE SAID WERE HERE AND WERE NOT (found 2026-08-30).
+# tepna-capture.service's own comment describes this drop-in as containing exactly this line, and
+# explains why: ProtectSystem=strict mounts the whole hierarchy read-only and sudo'd children inherit
+# it, so /etc/chrony blocks writing the servers and /run/chrony blocks chronyc from creating the reply
+# socket it needs to talk to chronyd AT ALL. Only NoNewPrivileges was ever written, so Sync now failed
+# with "chronyc could not be reached — is chronyd running?" on a box where chronyd was running fine and
+# NTPSynchronized was already yes. The prose was right; the script did not implement it.
+# The `-` prefix makes each path optional, so a box without chrony still starts.
+ReadWritePaths=-/etc/chrony -/etc/systemd/timesyncd.conf.d -/run/chrony
 DROPIN
 systemctl daemon-reload
 systemctl restart tepna-capture
