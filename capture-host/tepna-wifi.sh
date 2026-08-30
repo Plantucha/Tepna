@@ -60,6 +60,21 @@ die() { echo "$1" >&2; exit "${2:-1}"; }
 wcli() { wpa_cli -p "$CTRL" -i "$IFACE" "$@" 2>/dev/null; }
 
 ensure_supplicant() {
+  # 🔴 THE INTERFACE COMES UP FIRST, BEFORE ANY SHORT-CIRCUIT, AND UNCONDITIONALLY.
+  # A live control socket proves a SUPPLICANT EXISTS. It does not prove the radio is enabled, and the
+  # two come apart whenever something downs the link while leaving our supplicant running — the CPAP
+  # harvest's `wifi_down` does exactly that, and so does a `leave` racing a scan. In that state the old
+  # `if wcli status; then return 0` returned early, never ran `ip link set up`, and the scan then ran
+  # against a DOWN radio and honestly reported what it saw: nothing.
+  #
+  # That is the worst shape a failure can take here, because it is indistinguishable from the truth:
+  # `ok:true` with an empty list reads as "no networks in range". Measured on vigil 2026-08-30, on the
+  # first end-to-end run after the sandbox fix landed — three consecutive scans returned ok:true / 0
+  # networks with `wlp1s0` DOWN; terminating the stale supplicant and re-scanning returned 15, the
+  # interface flags going from <BROADCAST,MULTICAST> to <...,UP> across that one boundary.
+  #
+  # Idempotent: on an already-up interface this is a no-op costing one syscall.
+  ip link set "$IFACE" up || die "cannot bring up $IFACE" 2
   if wcli status >/dev/null 2>&1; then return 0; fi
   mkdir -p "$CTRL"
   # A scan needs a running supplicant but not a configured network, so an empty config is enough to
@@ -68,7 +83,6 @@ ensure_supplicant() {
     printf 'ctrl_interface=%s\nupdate_config=1\n' "$CTRL" > "$CONF"
     chmod 0600 "$CONF"
   fi
-  ip link set "$IFACE" up || die "cannot bring up $IFACE" 2
   wpa_supplicant -B -i "$IFACE" -c "$CONF" >/dev/null 2>&1
   # A non-zero exit is NOT a failed start — an already-running instance also exits non-zero, and the
   # status check below is what actually decides. Same trap cpap_harvest records for the ez-share path.

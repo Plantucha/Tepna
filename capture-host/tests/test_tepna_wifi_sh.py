@@ -29,12 +29,18 @@ def _run(tmp_path, *args, stdin="", status_out=STATUS_OK, supplicant_rc=0):
     bin_dir.mkdir(exist_ok=True)
     log = tmp_path / "calls.log"
     log.write_text("")
+    link_state = tmp_path / "link.state"
+    if not link_state.exists():
+        link_state.write_text("down\n")          # the state the box actually sits in after a wifi_down
     for name, body in (
         # Records argv, then answers `status` with a canned association state.
         ("wpa_cli", f'echo "wpa_cli $*" >> "{log}"\n'
                     f'case " $* " in *" status "*) printf "{status_out}" ;; esac\nexit 0\n'),
         ("wpa_supplicant", f'echo "wpa_supplicant $*" >> "{log}"\nexit {supplicant_rc}\n'),
-        ("ip", f'echo "ip $*" >> "{log}"\nexit 0\n'),
+        # Tracks link state in a file, so a test can assert the radio ENDS UP enabled rather than
+        # merely that a command was issued. `$3` is the interface, `$4` the verb in `ip link set X up`.
+        ("ip", f'echo "ip $*" >> "{log}"\n'
+               f'if [ "$1" = link ] && [ "$2" = set ]; then echo "$4" > "{link_state}"; fi\nexit 0\n'),
         ("dhcpcd", f'echo "dhcpcd $*" >> "{log}"\nexit 0\n'),
     ):
         f = bin_dir / name
@@ -47,6 +53,11 @@ def _run(tmp_path, *args, stdin="", status_out=STATUS_OK, supplicant_rc=0):
     proc = subprocess.run(["bash", SH, *args], input=stdin, env=env,
                           capture_output=True, text=True, timeout=90)
     return proc, log.read_text()
+
+
+def _link_state(tmp_path):
+    f = tmp_path / "link.state"
+    return f.read_text().strip() if f.exists() else "unknown"
 
 
 # ── the security surface ──────────────────────────────────────────────────────────────────────────
@@ -185,3 +196,74 @@ def test_THE_HELPER_DOES_NOT_REACH_FOR_RUN_ANY_MORE():
     directives = [ln for ln in body.splitlines()
                   if ln.startswith(("RUNDIR=", "CTRL=", "CONF=")) and at_run.search(ln)]
     assert not directives, f"a path directive points at the root /run: {directives}"
+
+
+# ── a live supplicant is not a live radio ─────────────────────────────────────────────────────────
+def test_A_SCAN_BRINGS_THE_INTERFACE_UP_EVEN_WHEN_A_SUPPLICANT_ALREADY_ANSWERS():
+    """The stub `wpa_cli` always answers `status`, which is exactly the state that broke it.
+
+    A live control socket proves a SUPPLICANT EXISTS, not that the radio is enabled. The two come
+    apart whenever something downs the link while leaving our supplicant running — the CPAP harvest's
+    `wifi_down` does precisely that. `ensure_supplicant` used to short-circuit on the status check and
+    never run `ip link set up`, so the scan ran against a DOWN radio and honestly reported what it saw.
+
+    ⚠️ AND THAT IS THE WORST SHAPE THIS FAILURE COULD TAKE: `ok:true` with an empty list is
+    indistinguishable from "no networks in range". Measured on vigil 2026-08-30 — three consecutive
+    scans returning ok:true / 0 networks with wlp1s0 DOWN, then 15 networks the moment the interface
+    came up, nothing else changed."""
+    with __import__("tempfile").TemporaryDirectory() as td:
+        import pathlib
+        proc, calls = _run(pathlib.Path(td), "scan")
+    assert proc.returncode == 0, proc.stderr
+    ups = [ln for ln in calls.splitlines() if ln.startswith("ip ") and " up" in ln]
+    assert ups, (
+        "a scan short-circuited on a live supplicant and never enabled the radio — it would return "
+        f"an empty network list with a successful exit. calls: {calls.splitlines()}"
+    )
+    assert any("wlantest0" in ln for ln in ups), ups
+
+
+def test_JOINING_ALSO_ENSURES_THE_RADIO_IS_ON():
+    # Same reasoning for the join path: associating on a down interface fails in a way that looks like
+    # a wrong password.
+    with __import__("tempfile").TemporaryDirectory() as td:
+        import pathlib
+        proc, calls = _run(pathlib.Path(td), "join", "HotelWifi", stdin=PSK + "\n")
+    assert proc.returncode == 0, proc.stderr
+    assert any(ln.startswith("ip ") and " up" in ln for ln in calls.splitlines()), calls
+
+
+def test_A_SCAN_LEAVES_THE_RADIO_ENABLED_NOT_MERELY_COMMANDED(tmp_path):
+    """The contract, not the call. The test above asserts `ip link set … up` was ISSUED; this one
+    asserts the interface ENDS UP enabled, starting from `down` — the state the CPAP harvest's
+    `wifi_down` legitimately and repeatedly produces while our supplicant keeps answering.
+
+    That producer is why this cannot be treated as a one-off: `wifi_down` runs after every harvest
+    that had to associate, so the stale-supplicant-on-a-down-interface state is manufactured on a
+    schedule. `ensure_supplicant`'s early return therefore has to mean "the radio is on", not "a
+    control socket answered"."""
+    # Start the interface DOWN explicitly, rather than relying on the stub's default — the whole
+    # assertion is about a transition, and a test that cannot see its own starting point proves nothing.
+    (tmp_path / "link.state").write_text("down\n")
+    assert _link_state(tmp_path) == "down"
+    proc, _calls = _run(tmp_path, "scan")
+    assert proc.returncode == 0, proc.stderr
+    assert _link_state(tmp_path) == "up", (
+        "the scan returned successfully with the radio still down — an empty network list that reads "
+        "as 'no networks in range'"
+    )
+
+
+def test_THE_JOIN_PATH_ALSO_LEAVES_THE_RADIO_ENABLED(tmp_path):
+    proc, _calls = _run(tmp_path, "join", "HotelWifi", stdin=PSK + "\n")
+    assert proc.returncode == 0, proc.stderr
+    assert _link_state(tmp_path) == "up"
+
+
+def test_LEAVE_PUTS_THE_RADIO_BACK_DOWN(tmp_path):
+    # The other side of the contract: teardown must actually disable the interface, or the next
+    # harvest inherits a radio we still hold.
+    _run(tmp_path, "join", "HotelWifi", stdin=PSK + "\n")
+    assert _link_state(tmp_path) == "up"
+    _run(tmp_path, "leave")
+    assert _link_state(tmp_path) == "down"
