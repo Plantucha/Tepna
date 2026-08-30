@@ -97,10 +97,19 @@ def test_span_is_never_negative_and_a_zero_span_refuses_the_RATE_not_the_offset(
     or no time span to measure a rate; the offset is still returned whenever ≥2 anchors exist."
 
     The partial refusal is the interesting half: a rate that cannot be measured must not be reported,
-    while the offset that CAN be measured still ships."""
+    while the offset that CAN be measured still ships.
+
+    ⚠️ THE CONDITION IS READ OFF THE RAW HOST SPAN, NEVER OFF `span_s`, and the first version of this
+    property got that wrong. `span_s` is reported as `round(raw, 3)` while every branch inside
+    `analyze` tests the RAW value — so a span of 2.4e-7 s REPORTS as 0.0, sails past `span_s <= 0`,
+    and refuses the rate one line later as `too-few-for-rate`. Both are correct refusals; asserting
+    WHICH one fires, from a field that has been rounded, pins an implementation ordering the contract
+    never promised. Hypothesis found it on 2026-08-29 (two host stamps 2.4e-7 apart), which is
+    precisely the class of input a hand-written fixture never contains."""
     r = as11_clock.analyze(anchors)
+    raw_span = max(h for h, _ in anchors) - min(h for h, _ in anchors)
     assert r["span_s"] >= 0
-    if r["span_s"] == 0:
+    if raw_span <= 0:
         assert r["reason"] == "no-span"
         assert r["slope_ppm"] is None and r["minute_is_real"] is None
         assert r["offset_s"] is not None  # …but the offset survives

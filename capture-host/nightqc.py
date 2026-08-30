@@ -1662,9 +1662,9 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
                     gaps_in_night.append(line)
     per_device = []
     newest = max((f["mtime"] for f in current), default=None)
-    missing = []
+    missing: list[str] = []
     degraded = []
-    optional_absent = []
+    optional_absent: list[str] = []
     # Read every stream's ACTUAL rate once, up front: the coverage loop below divides by it, and the
     # same rows are reported as `rates` so a mismatch against the config is visible on its own terms.
     _rate_rows = rate_reality(night_dir, devices)

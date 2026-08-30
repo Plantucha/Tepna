@@ -900,7 +900,7 @@ def test_build_controller_coexistence_gate_defaults_DISABLED_and_config_can_enab
 # ── capture._cpap_ble_connect (the bleak I/O edge, mocked) ───────────────────────
 class _FakeBleak:
     """Records the bleak calls _cpap_ble_connect makes and lets a test drive the notify callback."""
-    instances = []
+    instances: "list[_FakeBleak]" = []
 
     def __init__(self, addr, timeout=None, bluez=None):
         self.addr, self.bluez = addr, bluez
