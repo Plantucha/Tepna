@@ -580,6 +580,15 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
           <span class="spin" id="cpapPullState"></span>
         </div>
         <p class="hint" id="cpapHint"></p>
+        <!-- HIDDEN 2026-08-30 — the whole pairing row, not just its button. The daemon answers
+             /api/cpap/pair with 501: `cpap_pair` is never passed to `webmon.make_app`, because
+             the SRP orchestration (connect -> StartKeyExchange -> prove -> ConfirmKeyExchange ->
+             write as11_creds.json) was never written. The primitives exist and the endpoint
+             exists; the middle does not, and `test_webmon_cpap_pair_contract` pins that 501 as
+             INTENDED. Offering a control that cannot work is its own small dishonesty, and the
+             owner does not need it — the AS11 is decoded and its creds are already on the box.
+             Hidden rather than deleted: restore it when the pairing op lands. -->
+        <div hidden data-unimplemented="cpap-pair">
         <div style="display:flex;gap:.5rem;align-items:center;margin:12px 0 2px;flex-wrap:wrap;border-top:1px solid var(--line,#2a2a2a);padding-top:12px">
           <span style="font-size:12px;color:var(--text3)">Pair over BLE:</span>
           <input id="cpapPin" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="10" size="12"
@@ -588,6 +597,7 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
           <span class="spin" id="cpapPairState"></span>
         </div>
         <p class="hint">First put the CPAP in pairing mode (its menu → Bluetooth), then type the passkey it shows and press Pair. One-time; credentials are stored on the box for later BLE pulls.</p>
+        </div>
         <div style="display:flex;gap:.5rem;align-items:center;margin:12px 0 2px;flex-wrap:wrap;border-top:1px solid var(--line,#2a2a2a);padding-top:12px">
           <span style="font-size:12px;color:var(--text3)">Live waveform:</span>
           <button class="btn btn-primary" id="cpapStreamBtn" data-streaming="0">▶ Start live stream</button>
@@ -1384,6 +1394,13 @@ $('#cpapStreamBtn')?.addEventListener('click', async () => {
                                                body: JSON.stringify({action})});
     const j = await r.json();
     if(r.status===501)      st.textContent = '✗ live streaming not supported by this daemon build yet';
+    // A start ALREADY IN FLIGHT is ok:true with no `streaming` yet — it must not fall through to the
+    // 'stopped' branch below, which is what a double-click would otherwise be told while its own start
+    // was still opening the link.
+    else if(j.starting)     st.textContent = '⏳ ' + (j.detail || 'a start is already in progress');
+    // AN ABSENT CPAP IS NOT A FAULT. `unreachable` is an ordinary state — the machine is off, asleep,
+    // or the myAir app holds the AS11's one BLE link — so it reads as information, not as a failure.
+    else if(j.unreachable)  st.textContent = 'ⓘ ' + j.error;
     else if(!j.ok)          st.textContent = '✗ ' + (j.error || 'failed');
     else if(j.streaming){ btn.dataset.streaming='1'; btn.textContent='■ Stop live stream';
                           st.textContent='✓ streaming — see the Overview grid'; }

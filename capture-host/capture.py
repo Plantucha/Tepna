@@ -6188,9 +6188,15 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
     creds_path = cbs.get("creds_path") or os.path.join(os.path.dirname(config_path), "as11_creds.json")
     hci = cbs.get("adapter", "hci1")
 
+    # A PERSON IS WATCHING THIS ONE. Measured on the owner's box 2026-08-30: an absent CPAP made the
+    # Start button sit on "starting…" for ~36 s and then 500 — a normal "the CPAP is not here right
+    # now" reading as a broken button. The device is either advertising or it is not; waiting longer
+    # does not change the answer, it only delays it.
+    interactive_timeout = float(cbs.get("connect_timeout_sec", 8.0))
+
     async def connect():  # pragma: no cover — thin closure over the bleak I/O edge in _cpap_ble_connect
         creds = _load_as11_creds(creds_path)
-        return await _cpap_ble_connect(creds["ble_addr"], hci)
+        return await _cpap_ble_connect(creds["ble_addr"], hci, interactive_timeout)
 
     # Optional on-disk EDF sink, enabled by setting cpap.ble_stream.edf_dir. Each live session then writes
     # a bit-accurate BRP.edf there — QUARANTINED under a PENDING subtree until the flow scale is pinned
@@ -6339,7 +6345,7 @@ def _maybe_start_as11_shadow(cfg, config_path, root, cpap_ctl, tasks, *,
     """Start the AS11 session-detector SHADOW runner if `as11_detector.enabled` is set — otherwise a
     no-op returning None. Shadow: it OBSERVES (writes SESSIONDETECT.csv + AS11CLOCK.csv) and drives
     NOTHING. It short-connects the AS11 on the CPAP free radio (hci1) only while the live-stream
-    controller is idle (`is_capturing=cpap_ctl._running`), so it never fights the controller for the
+    controller is idle (`is_capturing=cpap_ctl._busy`), so it never fights the controller for the
     one device — the coexistence lesson of 2026-08-25. Default OFF: zero runtime effect until enabled.
     The seams (`load_creds`/`connect_factory`/`create_task`) are injected so the enable path is tested
     without a radio or a live loop."""
@@ -6365,7 +6371,10 @@ def _maybe_start_as11_shadow(cfg, config_path, root, cpap_ctl, tasks, *,
     interval = float(adcfg.get("poll_interval_sec", 30.0))
     task = (create_task or asyncio.create_task)(cpap_shadow_runner.run_shadow_loop(
         connect=connect_factory, creds=creds, supervisor=cpap_supervisor.CPAPSessionSupervisor(),
-        is_capturing=cpap_ctl._running,
+        is_capturing=cpap_ctl._busy,   # BUSY, not _running — see LiveStreamController._busy:
+                                      # deferral must begin at start-INTENT, or the shadow
+                                      # polls straight into the connect window (InProgress)
+
         session_writer=cpap_shadow_runner.SessionSidecar(os.path.join(root, "SESSIONDETECT.csv")),
         clock_writer=as11_clock.ClockSidecar(os.path.join(root, "AS11CLOCK.csv")),
         host_epoch=_time.time, sleep=asyncio.sleep, poll_interval_s=interval, should_stop=_STOP.is_set,
@@ -6814,12 +6823,17 @@ async def _resolve_cpap_adapter(spec):
     return hci
 
 
-async def _cpap_ble_connect(ble_addr: str, hci: str | None):
+async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.0):
     """Open the AS11 link on the FREE radio and return (write, recv_frame, disconnect) for as11_pull.
 
     The only un-unit-tested code in the CPAP stream path: real bleak connect + notify plumbing, which
     CI has no radio to exercise. Everything it feeds (session, stream, bus push, lifecycle) is tested.
-    Mirrors the operator probe's transport verbatim so the two cannot drift."""
+    Mirrors the operator probe's transport verbatim so the two cannot drift.
+
+    `timeout` is LAST and optional, so every existing caller keeps the patient 20 s it always had. The
+    INTERACTIVE start passes a short one: a person waiting on a button needs an answer, and the honest
+    answer when the CPAP is off or held by the myAir app arrives just as truthfully in 8 s as in 36.
+    A scheduled pull has nobody waiting and should keep waiting."""
     import as11_link as _L
     from bleak import BleakClient as _BC
     hci = await _resolve_cpap_adapter(hci)   # MAC → current hciN, re-read every connect (see above)
@@ -6829,8 +6843,8 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None):
     # tests/test_cpap_stream.py::test_cpap_ble_connect_without_an_adapter_passes_no_bluez_kwarg,
     # which asserts no bluez kwarg reaches bleak at all when there is no hci. Both constraints are
     # satisfied by choosing the call instead of the kwargs.
-    client = (_BC(ble_addr, timeout=20, bluez={"adapter": hci}) if hci
-              else _BC(ble_addr, timeout=20))
+    client = (_BC(ble_addr, timeout=timeout, bluez={"adapter": hci}) if hci
+              else _BC(ble_addr, timeout=timeout))
     await client.connect()
     rx = bytearray()
     q: asyncio.Queue = asyncio.Queue()
