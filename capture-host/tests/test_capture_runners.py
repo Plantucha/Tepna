@@ -4746,19 +4746,19 @@ def test_the_autopull_gate_now_asks_on_body_not_worn_alone():
     moment it is free to run, which is the exact complaint `blocking_devices`' docstring records from
     2026-07-26: "the gate was unreachable on any evening the sensors were charging, which is precisely
     when a pull is safest"."""
-    import io
-    import tokenize
-    from tests._srcscan import module_source
-    src = module_source("capture.py")
-    # comments stripped — the block carries a long one naming on_body, and a source scan that reads
-    # comments asserts the documentation rather than the code (learned 2026-08-14, twice).
-    code = tokenize.untokenize([t for t in tokenize.generate_tokens(io.StringIO(src).readline)
-                                if t.type != tokenize.COMMENT])
-    # ⚠️ ANCHOR ON THE DEFINITION. `code.index("autopull_poller")` finds an earlier DOCSTRING mention
-    # ("autopull_poller's hourly cadence…") and slices the wrong function — the same first-occurrence
-    # trap that made a `status=409` mutation hit unrelated code earlier today.
-    i = code.index("async def autopull_poller(")
-    seg = code[i:i + 4000]
+    from tests._srcscan import function_source, strip_comments
+    # ⚠️ BOUNDED ON THE FUNCTION, NOT ON A BYTE WINDOW. This used to slice `code[i:i + 4000]`, and the
+    # function is 4907 chars — so the window was ALREADY cutting off its last 907 characters, and the
+    # `not in` assertion below was guarding only 82 % of the code it names. A negative assertion under
+    # a short window fails OPEN: the forbidden text drifts past the edge and the guard silently stops
+    # guarding, which is worse than the false RED a positive assertion would have given.
+    #
+    # `function_source` also subsumes the anchor note this replaced: it resolves the DEFINITION via
+    # `ast`, so it cannot land on the earlier docstring mention of the name.
+    #
+    # Comments still stripped — the block carries a long one naming on_body, and a source scan that
+    # reads comments asserts the documentation rather than the code (learned 2026-08-14, twice).
+    seg = strip_comments(function_source("capture.py", "autopull_poller"))
     assert "on_body(st) is True" in seg, "the auto-pull gate must route through the shared predicate"
     assert 'st.get("worn") is True' not in seg, "…and must not keep the old worn-only test beside it"
 

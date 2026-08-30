@@ -133,8 +133,16 @@ def test_the_stamp_is_cleared_with_the_rate_on_an_untrusted_stream():
     """Otherwise the NEXT rate inherits this one's age: the stream goes off-body, comes back, computes a
     genuinely fresh number — and it renders `(stale)` against a stamp from before the gap."""
     src = open(MON, encoding="utf-8").read()
+    # Bounded on the statement RUN — from the reset to the brace that closes its block — rather than
+    # a 400-char guess. Measured: the run is 226 chars, so the window carried 174 chars of unrelated
+    # code, and the property could have drifted out of it on an edit that changed nothing here.
     i = src.index("st.rate = null;")
-    assert "st.rateAt = null" in src[i:i + 400], "rate is reset but its stamp is not"
+    run = []
+    for line in src[i:].splitlines():
+        if run and line.strip().startswith("}"):
+            break
+        run.append(line)
+    assert "st.rateAt = null" in "\n".join(run), "rate is reset but its stamp is not"
 
 
 def test_a_stale_rate_is_muted_and_labelled_rather_than_hidden():

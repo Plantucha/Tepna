@@ -297,5 +297,9 @@ def test_unwedge_arms_the_restore_trap_before_it_stops_recording():
     trap = body.index("trap restore EXIT")
     stop = body.index("systemctl stop tepna-capture")
     assert trap < stop, "arm the restore trap BEFORE stopping the service, not after"
-    assert "INT TERM" in body[trap:trap + 40], "^C and SIGTERM must restore too, not just a clean exit"
+    # Bounded on the LINE, not a 40-char guess: `trap restore EXIT INT TERM` is a single line, so the
+    # line IS the property's scope and cannot drift out of it. A byte window here was a guess about
+    # how long a trailing comment happens to be.
+    trap_line = body[body.rfind("\n", 0, trap) + 1:body.index("\n", trap)]
+    assert "INT TERM" in trap_line, "^C and SIGTERM must restore too, not just a clean exit"
     assert "systemctl start tepna-capture" in body, "the trap has to actually restart it"
