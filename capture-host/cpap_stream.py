@@ -292,6 +292,7 @@ class LiveStreamController:
         # execution witness. None (the default) keeps the prior behaviour exactly, so every existing
         # controller and injected test pump is unaffected.
         self._acq_evidence_out = acq_evidence_out
+        self._starting = False
         self._clock_offset_provider = clock_offset_provider
         # (should_stop_event) -> a fresh TherapyEndSink for this session, or None for NO acting. Default
         # None keeps every existing controller and test bus-only and non-acting.
@@ -313,9 +314,42 @@ class LiveStreamController:
     def _running(self):
         return self._task is not None and not self._task.done()
 
+    def _busy(self):
+        """Streaming OR trying to. THIS is what the shadow detector must defer on, not `_running`.
+
+        🔴 THE START WINDOW WAS A RACE. `_running` is True only once `self._task` exists, and the task
+        is created AFTER `await self._connect()` — so through the entire connect + key-exchange window
+        the controller reads as idle, the shadow poll fires, both reach for the same AS11 on the same
+        radio, and bluez answers `org.bluez.Error.InProgress`. Witnessed on the owner's box
+        2026-08-30 amid repeated Start clicks. The AS11 accepts ONE connection; deferral has to begin
+        at start-INTENT, not at capturing."""
+        return self._starting or self._running()
+
     async def op(self, action):
+        if action != "start":
+            async with self._lock:
+                return await self._stop_op()
+        # A RE-CLICK MUST ANSWER, NOT QUEUE. `op` holds the lock across `await self._connect()`, so a
+        # second click used to block for the whole connect timeout and then run a start nobody wanted
+        # any more — N clicks serialised into N connects. Try-acquire instead: if a start is already
+        # in flight, say so immediately.
+        if self._lock.locked():
+            # ok:TRUE, and that is deliberate. The requested action IS under way — this is the same
+            # "already" answer a start gets when the stream is up, not a failure, and reporting it as
+            # one would make a double-click read as an error. It also keeps the §7 contract the
+            # concurrency test pins (both starts ok, one sees `already`) rather than editing that
+            # assertion to match a new shape.
+            return {"ok": True, "starting": True, "already": True,
+                    "detail": "a start is already in progress — give it a few seconds"}
         async with self._lock:
-            return await (self._start() if action == "start" else self._stop_op())
+            self._starting = True
+            try:
+                return await self._start()
+            finally:
+                # Cleared whether the start SUCCEEDED or FAILED. A flag left set on the failure path
+                # would mute the shadow detector for the rest of the night, which is worse than the
+                # race it was added to close.
+                self._starting = False
 
     async def _start(self):
         if self._running():
@@ -337,7 +371,19 @@ class LiveStreamController:
         creds = self._load_creds()
         if not creds:
             return {"ok": False, "error": "no AS11 credentials on this box — pair the CPAP first"}
-        write, recv_frame, disconnect = await self._connect()
+        # AN ABSENT CPAP IS NOT AN ERROR, and it must not surface as one. The device is either
+        # advertising or it is not: off, asleep, or held by the myAir phone app, which takes the AS11's
+        # ONE allowed BLE link. That is an ordinary state with an ordinary answer, and returning a bare
+        # 500 with a bleak class name taught the owner to read a working button as broken.
+        try:
+            write, recv_frame, disconnect = await self._connect()
+        except Exception as e:  # noqa: BLE001 — bleak raises subclasses that are not OSError
+            name = type(e).__name__
+            if "NotFound" in name or "not found" in str(e).lower():
+                return {"ok": False, "unreachable": True,
+                        "error": "CPAP not found — is it on, and not connected to the myAir phone "
+                                 "app? The AS11 allows one BLE link at a time."}
+            return {"ok": False, "error": f"{name}: {e}"}
         self._disconnect = disconnect
         self._stop = asyncio.Event()
         kw = {"channels": self._channels, "should_stop": self._stop}

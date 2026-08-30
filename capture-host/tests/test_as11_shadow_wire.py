@@ -80,7 +80,10 @@ def test_enabled_starts_shadow_task_and_opens_sidecars(tmp_path):
     async def fake_connect():  # never called (task isn't run), just satisfies the seam
         return None
 
-    ctl = SimpleNamespace(_running=lambda: False)
+    # `_busy` as well as `_running`: the shadow defers on BUSY now, which begins at start-INTENT
+    # rather than at capturing — a double standing in for the controller has to carry the method
+    # the daemon actually binds, or this test passes against a wiring that cannot work.
+    ctl = SimpleNamespace(_running=lambda: False, _busy=lambda: False)
     r = capture._maybe_start_as11_shadow(
         {"as11_detector": {"enabled": True, "poll_interval_sec": 10}, "cpap": {"ble_stream": {}}},
         str(tmp_path / "cfg.yaml"), str(tmp_path), ctl, tasks,
