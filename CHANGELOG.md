@@ -30,6 +30,153 @@ changesets.)
 
 ---
 
+## [2.9.0] — 2026-08-30
+
+### Added
+- `capture-host/tests/test_chaos_ordering.py` — D-w4, covering `oxy_transfer` (G1) and `cpap_spool` (P4) (`OXYII-G1-TRANSACTIONAL-SYNC-FOLLOWUPS-2026-08-23-BRIEF.md`)
+- CPAPDex live-vs-SD comparator core (owner-ordered). `cpapdex-cross.js` `cpapCompare`/`compareChannel`: align a BLE-live BRP channel to its device SD twin on the device clock (fine-lag xcorr on top), then scale/offset regression + Bland-Altman (bias + limits of agreement, never Pearson r); refusal-first (no-overlap / one-file / missing-channel each refuse with a reason); the alignment offset is a first-class finding, and a large clock disagreement REFUSES and quantifies it (defect detection, not align-through — the EdfSink-bug class). 11-assertion dex-tests group. The rendered surface (panel, CPAP_REGISTRY metrics, reference-guide row, windowed scale-over-time, the real live-vs-SD equiv fixture) follows. (`CPAPDEX-LIVE-SD-COMPARATOR-2026-08-23-BRIEF.md`)
+- Add the CPAPDex live-vs-SD comparator — validate a BLE-captured live BRP against the device's own SD-card flow via full-rate device-clock alignment, scale regression and Bland-Altman (never Pearson r), with the alignment offset a first-class badged finding and a large clock disagreement refused-and-quantified as a defect rather than aligned through. (`CPAPDEX-LIVE-SD-COMPARATOR-2026-08-23-BRIEF.md`)
+- `briefs/MUTATION-PIPELINE-INTEGRITY-2026-08-24-BRIEF.md` — six defects found in one day in a pipeline (`MUTATION-PIPELINE-INTEGRITY-2026-08-24-BRIEF.md`)
+- `briefs/OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md` — registers the owner's O2Ring (`OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`)
+- `capture-host/oxy_transfer.py` — D-w1 layer-3 semantic validation: the record-boundary walk (Format-A header + a whole number of 3-byte records between header and the 48-byte trailer + record count == trailer `total_seconds`), lifting `VALIDATION_DEPTH` from `size+finalised` to `size+finalised+records`. Geometry measured against real 95 KB / 81 KB `.dat` files: the invariant is `(size-58)/3 == total_seconds`; the JS parser's `ff ff` end-marker sits ~10 records before the trailer and would mis-count, so the size/trailer arithmetic is the reliable one. The control: a right-sized, finalised file with a shifted grid (20 records, trailer claims 21) now REDs where size+finalised passed. Old ledger rows keep the depth they were checked against. (`OXYII-G1-TRANSACTIONAL-SYNC-FOLLOWUPS-2026-08-23-BRIEF.md`)
+- Wire the OxyII lifecycle journal into `run_oxyii` (charter G4 wiring). The daemon now emits acquisition-lifecycle transitions at its real state-change points via a crash-safe `_oxy_emit` (an illegal edge is skipped, never raised — a modelling gap can't take down live capture; the guard doubles as idempotence for the LIVE-every-poll emit), writes them to a per-run `OXYLIFE.csv` sidecar (`writers.OxyLifeLogWriter`), and surfaces the current state in the STATUS dict. Emits are all outer-scope (no nested-callback surgery) with DISCONNECTED in the session finally to keep transitions legal across reconnects. `session_id` = the shared `cpap_record.new_session_id`; `FailureClass` = the shared `cpap_acq` one. Boundary: the daemon lifecycle as seen from capture.py; per-transfer depth stays G1's ledger. The webmon-forward + monitor draw and the IDLE_UNWORN/PULLING emit hooks are a tracked follow-up. (`OXYII-ACQUISITION-CHARTER-2026-08-23-BRIEF.md`)
+- Acquisition Evidence Contract **Phase B — the CPAP adapter** (`acq_evidence_cpap`), completing the (`ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md`)
+- Add close_harvest_decision(), composing pull_deadline and flush_gate into §14's close-triggered (`OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`)
+- Live-vs-SD comparator **v1.1 — the delivered-pressure channel** (§4 of the follow-ups triage). (`CPAPDEX-LIVE-SD-COMPARATOR-FOLLOWUPS-2026-08-24-BRIEF.md`)
+- Phase 1 of the fleet expansion: add clock.js and manifest-gate.js to DEFAULT_FLEET. Both were verified (`MUTATION-FLEET-EXPANSION-2026-08-25-BRIEF.md`)
+- Phase 2a: add the priority pair to DEFAULT_FLEET — cpapdex-edf.js (the binary EDF parser) and the five (`MUTATION-FLEET-EXPANSION-2026-08-25-BRIEF.md`)
+- Add flush_gate(), §14a's wait-for-run_status-3->1 decision for the close-triggered pull. The deadline (`OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`)
+- Register the owner's mutation-fleet expansion as its own dated brief: Phase 1 (clock.js + (`MUTATION-FLEET-EXPANSION-2026-08-25-BRIEF.md`)
+- Add pull.on_close, the §8/§14 close-triggered harvest's own flag, defaulting OFF and never inheriting (`OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`)
+- Emit hostAxis's maxStepMs per pair from pat-host-offset.mjs and test the stalled-link candidate (`PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02-BRIEF.md`)
+- Add pull_deadline(), §8a's abort deadline for the close-triggered held-link pull: drop_at - guard_band, (`OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`)
+- Add resume_target(), §8b's contact-at-exit rule for a finished held-link pull: worn resumes LIVE, (`OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`)
+- Cross-validate the device's STR Cheyne-Stokes % (`deviceCsr`) against CPAPDex's own CSL periodic-breathing % — a declare-never-correct corroboration read (`csrPbCrossCheck`, wired into `attachStrSummary`, touches no metric). The band is asymmetric by physiology, pre-stated before any real night: Cheyne-Stokes ⊂ periodic breathing, so PB ≥ CSR is benign (`pb-broader`) and a device CSR substantially exceeding our PB is the finding (`discrepancy`, we under-detected the device's CS). New `csrPbDelta` registry metric (measured), a reference-guide card, and a device-summary render line; the STR brief's item 1 is closed with evidence. (`CPAPDEX-STR-SUMMARY-INGEST-2026-08-21-BRIEF.md`)
+- Emit the VERIFYING ledger row (§23's T3, last byte received) after the .part write, only when the (`OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`)
+- `acq_evidence.ClockOffset` — the numeric companion to `clock_status` on the acquisition envelope (`CPAPDEX-STR-SUMMARY-INGEST-2026-08-21-BRIEF.md`)
+- Per-adapter instance partition — the foundation of the daemon split (§3.3b). Adds an `adapters:` name→MAC map, an optional per-device `adapter:` key, and `--instance` so `tepna-capture@sena` can serve only the devices pinned to that radio. `instance_devices(cfg, None)` returns EVERY device, so the split is opt-in per box and upgrading the code alone cannot silently strip devices from a running capture. The pin is a PREFERENCE, not an absolute (owner decision): an absent pinned radio degrades to the BlueZ default with a loud log rather than refusing to capture, because losing a night to a pin obeyed too literally is worse than a night on the wrong radio. `unowned_devices()` exists for the one failure no single instance can see — a device pinned to a radio nothing serves is captured by nobody while every instance logs a healthy startup — and it is an ERROR at startup, as is an unrecognised `--instance`, which would otherwise serve zero devices while looking like a working daemon. (`PER-DEVICE-ADAPTER-PINNING-2026-08-26-BRIEF.md`)
+- **`tools/brief-verified-index.mjs` — rank the open-brief queue by when each brief was last VERIFIED, (`DELIVERY-PROCESS-OVERHAUL-2026-08-18-BRIEF.md`)
+- commit-shape's FLAGGED line now names the ref(s) containing the flagged commit. The scan is (`AGENT-NEUTRAL-GUARDS-2026-08-15-BRIEF.md`)
+- Wire the CPAP stored-spool pull into the daemon — a scheduled, default-OFF morning pull that refuses to arm in the Wi-Fi harvest's window. (`CPAP-SPOOL-ACQUISITION-2026-08-25-BRIEF.md`)
+- **Phase C, the CPAP half** — CPAPDex reads the acquisition envelope instead of a Dex re-deriving (`ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md`)
+- DEFAULT_FLEET grows to 30: the remainder of the expansion brief's measured twenty Phase-2 files — (`MUTATION-FLEET-EXPANSION-2026-08-25-BRIEF.md`)
+- **The O2Ring LIVE acquisition envelope** — the last open §21 acceptance criterion. Spec §10 requires (`ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md`)
+- Add the O2Ring PRESENCE axis and wire it as a third trigger on the existing .dat harvest — shipped cold until the coexistence matrix runs. (`O2RING-PRESENCE-TRIGGER-IMPL-2026-08-26-BRIEF.md`)
+- `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md` §10 — the pooled-seconds hat is **derived before any code is (`SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`)
+- Pre-state both §11 convergence band sets in the spool brief, **before** the attended pull, so the (`CPAP-SPOOL-ACQUISITION-2026-08-25-BRIEF.md`)
+- The merge layer for the per-adapter daemon split (§3.6): each instance publishes `status.<instance>.json` with a `heartbeat_ms`, and `status_union.py` unions them for the monitor and nightqc. Nothing shares a file, so there is no locking and no writer contention. The union is taken over the EXPECTED instance set from config, never the found files — a dead instance is rendered `dead`/`stale` with its last-seen age rather than silently omitted, and the union carries its own `degraded` verdict so a consumer cannot render a healthy-looking view by accident. A status doc with no heartbeat is treated as dead, not live: an unaged status is one that cannot be shown to be current. An un-split box keeps writing plain `status.json` and reads back through the same union, so no consumer needs a flag-day. (`PER-DEVICE-ADAPTER-PINNING-2026-08-26-BRIEF.md`)
+- **Link 4 — apply the measured clock offset to STR's device-time session boundaries.** Closes the last (`CPAPDEX-STR-SUMMARY-INGEST-2026-08-21-BRIEF.md`)
+- `docs-ledger` **check7** — a backticked `*-BRIEF.md` on a brief's `**Status:**` line must resolve to a (`DOCS-LEDGER-HEADER-REFS-2026-08-27-BRIEF.md`)
+- `tools/dual-clock-rate.mjs` now emits a **per-fragment `ppmUncertainty`** with the τ it was read at, (`CROSS-DEVICE-DRIFT-FOLLOWUPS-2026-08-17-BRIEF.md`)
+- `mutate.mjs --only <list.json>` — re-test a **recorded mutant list** instead of sweeping the file (`MUTATION-ACCOUNTING-LOOP-2026-08-27-BRIEF.md`)
+- `tools/mutation-adoption-delta.mjs` — §E3, closing §3-G4: *"nothing re-runs mutation after adoption to (`MUTATION-ACCOUNTING-LOOP-2026-08-27-BRIEF.md`)
+- `tools/pat-connection-stability.mjs` gains `baselineExposure()`: it applies **pat-align's own** dip (`PAT-RELATIVE-REFRAME-2026-08-17-BRIEF.md`)
+- `tools/tch-pooled-hat.mjs` (new) computes the **pooled-seconds hat** alongside the seconds-weighted and (`SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`)
+- Owner-directed: the local model never idles, and keeps working with NO Claude session alive. (`MUTATION-FLEET-EXPANSION-2026-08-25-BRIEF.md`)
+- An **advisory mypy ratchet** in `.github/workflows/capture-host-ci.yml` (§P1 → §P3). It fails only (`PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md`)
+- **Property tests** for the Python clock surface — 13 properties, each quoting the contract sentence it
+- `cpap_inventory_adapter.py` — the impure half that reads the three inventories and hands them to the (`CPAP-SPOOL-ACQUISITION-2026-08-25-BRIEF.md`)
+- `capture-host/cpap_inventory.py` — **the spool as an inventory oracle**: what did we *miss*? (`CPAP-SPOOL-ACQUISITION-2026-08-25-BRIEF.md`)
+- PAT forensics phase (b), §7: measured the beat-to-beat variability of eight pulse-foot fiducial (`PAT-FORENSICS-FIDUCIAL-JITTER-2026-08-28-BRIEF.md`)
+- Follow-up brief spawned by the PAT root-cause campaign's boundary declaration. Records the one (`PAT-RESIDUAL-ATTRIBUTION-2026-08-28-BRIEF.md`)
+- PAT forensics §11/§13: an OUT-OF-SAMPLE window oracle. The mode is estimated on each night's first (`PAT-FORENSICS-WINDOW-ORACLE-2026-08-28-BRIEF.md`)
+- PAT forensics §12/§16/§17: ran the per-LED oracle over the full 42-night capture-host corpus, (`PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md`)
+- `tools/qwen-mypy-fix.mjs` — the mypy burn-down FIX lane (§P2, qwen half), wired as stage 5 of (`PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md`)
+- The §P2 lane can now **produce** proposals. It could not before — and that is the sixth and last link (`PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md`)
+- A **parse rail** for the §P2 lane, plus what the first 9 triaged proposals measured. (`PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md`)
+- Supply-chain gates for the Python capture host and the Actions themselves: a `dependabot.yml`, a
+- **The `qwen3.8:27b` DSP-adversary re-audition, banked: 6 confirmed of 29 triaged, and the lane is (`QWEN-ENGINEERING-PROGRAM-2026-08-27-BRIEF.md`)
+- **Two gaps in the failover ladder, pinned so a fix has a red-to-green target.** (`RADIO-FAILOVER-DISTRESS-SIGNAL-2026-08-29-BRIEF.md`)
+
+### Changed
+- Record §5a of the O2Ring auto-harvest brief: the post-drop awake tail was measured from 30 days of (`OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`)
+- Flip CPAP-ACQ-P1-RAW-RECORD to DONE — its whole Done-when shipped in #1708 (the P1+P3 wiring capstone): `capture-host/cpap_record.py` `RawRecordSink` is the durable JSONL raw record (one file per host-authored session_id, verbatim device time/samples, observed interval, fsync per batch, torn-tail recovery), the DURABLE-before-bus sink order is enforced and proven by test, FOREIGN/MALFORMED counting + overflow ride P3's GapCounters, 100% branch. Status header + DOCS-INDEX row updated with #1708 as evidence. (`CPAP-ACQ-P1-RAW-RECORD-2026-08-23-BRIEF.md`)
+- Mark §6a steps 3-4 superseded by §8. The enablement sequence was written before the held-link ruling, (`OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`)
+- `briefs/OXYII-PRESENCE-MODEL-2026-08-23-BRIEF.md` §5b — the 2026-08-24 doff window, recorded with the (`OXYII-PRESENCE-MODEL-2026-08-23-BRIEF.md`)
+- Record the owner's design ruling as §8: pull over the still-held link on observing the recording (`OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`)
+- `briefs/MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md` §3e — **cause ISOLATED**, closing an item that (`MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md`)
+- Record the transactional pull layer's first production execution (§13). The 04:52 deferred restart (`OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`)
+- Run §3f.4's parked per-window ppm test (§3f.5): differential clock drift moves the PAT offset by a (`PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02-BRIEF.md`)
+- Record the Phase 2 recipe survey (§2a): all 20 candidate files load on the existing SPINE and 17 (`MUTATION-FLEET-EXPANSION-2026-08-25-BRIEF.md`)
+- Record the run_status three-state decode and the two design rulings it settles (§14): the (`OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`)
+- Answer §11 (multi-recording ordering) as §9. The LIST slot key is a fixed-width 14-ASCII (`OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`)
+- Map §22's 8-case restart matrix against what already exists (§10). Five cases are covered by #1702's (`OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`)
+- Map §23's T0-T7 onto the oxy_inventory ledger (§11). T1/T2/T5 are already emitted as DISCOVERED / (`OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`)
+- Run §24's offline half against the real 42-session O2Ring corpus (§12): session identity 42/42 unique, (`OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`)
+- Exclude cpapdex-dsp.js `_synthRaw` from the mutation worklist's ranked list: it is the synthetic-night
+- The Acquisition Evidence Contract is **DONE — all 22 §21 criteria met**. #1809 closed the last one (`ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md`)
+- Re-check the Acquisition Evidence Contract's §21 acceptance list **against shipped code** now that all (`ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md`)
+- Docs-only reconciliation of the three Polar onboard/offline briefs against the code, oldest first. (`POLAR-OFFLINE-DOWNLOAD-2026-07-17-BRIEF.md`)
+- The 15-night re-fit gate was re-read against what changed this week. It **stays shut**, but for (`TRIO-POWER-N15-FINDINGS-2026-07-12-BRIEF.md`)
+- `papers/sensor-trio-nights.html` — all four simulation tables are now produced by **one run**, and the (`TRIO-POWER-N15-FINDINGS-2026-07-12-BRIEF.md`)
+- **`beat-leg-closure` publishes an uncertainty with every rate and REFUSES when that uncertainty is too (`CLOCK-LEG-SIGN-CONTRADICTION-2026-08-27-BRIEF.md`)
+- `CLAUDE-MD-REDUNDANCY-AUDIT` — pilot executed instead of the full 150–250-item inventory, and the (`CLAUDE-MD-REDUNDANCY-AUDIT-2026-08-27-BRIEF.md`)
+- The last open item — *"a better LABEL — PSG, **or** flow-based apnea scoring not gated on a 3 % (`DEEP-STAGE-DESAT-CONFOUND-2026-07-29-BRIEF.md`)
+- Both drift briefs' headers now say what the measurement concluded, instead of their pre-conclusion states. (`CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01-BRIEF.md`)
+- §12's one inferential link is now **demonstrated**. The generation attribution for σ_Verity = 3.51 rested (`SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`)
+- `WEARABLE-DRIFT-DIRECT` §7.3 declared the three-source clock closure impossible — legs A/B need a **box** (`WEARABLE-DRIFT-DIRECT-2026-08-02-BRIEF.md`)
+- A second fragment pair on 2026-08-13 reframes the whole question: **leg C contradicts itself within a (`CLOCK-LEG-SIGN-CONTRADICTION-2026-08-27-BRIEF.md`)
+- The §7 sawtooth mechanism is **refuted in source**, and the conclusion survives in a stronger form. (`CLOCK-LEG-SIGN-CONTRADICTION-2026-08-27-BRIEF.md`)
+- The PAT re-test box is now **evidence-backed BLOCKED** rather than open: the gating set does not exist, (`CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01-BRIEF.md`)
+- The within-connection offset stability box is **answered**: 14 nights, 31 connections, against a (`PAT-RELATIVE-REFRAME-2026-08-17-BRIEF.md`)
+- The PAT thread closes **on a demonstrated negative**, and `pat-align.js`'s "bound, not rate" becomes the (`PAT-RELATIVE-REFRAME-2026-08-17-BRIEF.md`)
+- `SENSOR-TRIO-NIGHTS-PAPER-BRIEF` flips to **DONE**. All six §8 boxes were verified in the tree and ticked (`SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`)
+- `CLOCK-LEG-SIGN-CONTRADICTION` is **DONE**. The last Done-when item asked which method is wrong on (`CLOCK-LEG-SIGN-CONTRADICTION-2026-08-27-BRIEF.md`)
+- Three of four Done-when items answered on the 2026-08-13 clock-leg sign disagreement. **The (`CLOCK-LEG-SIGN-CONTRADICTION-2026-08-27-BRIEF.md`)
+- The σ_Verity = **3.51** figure is traced. §11 retired the weighting class; this locates the rest. (`SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`)
+- `MUTATION-PIPELINE-INTEGRITY` §6 audited item by item against the code and the on-disk corpus — (`MUTATION-PIPELINE-INTEGRITY-2026-08-24-BRIEF.md`)
+
+### Fixed
+- `capture-host/capture.py` — the event-driven auto-pull path **had never armed**, and nothing said so. (`OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`)
+- Clear the two biome-ci lint errors in `tools/beat-error-recovery.mjs` that made `npm run lint` (biome ci) red on `main` for every JS-lane PR: the `noAssignInExpressions` at the LCG PRNG (split the `s = …` assignment out of the arrow-return, behaviorally identical) and a dead `const tt` (`noUnusedVariables` — the correctRR call recomputes the index array inline). `--self-test` reaches both lines and stays all-green.
+- `tools/mutation-crawl.mjs` — a `KILLABLE` record carried the original text and the operator NAME but (`MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md`)
+- Comparator visual-smoke fixes (from the coordinator's §1 pass): the injected KPI cards no longer render invisible — `.kpi`'s `cardEntrance` `from{opacity:0}`+`both` fill left dynamically-injected tiles stuck transparent under `prefers-reduced-motion`, fixed by scoping `#comparatorHost .kpi{animation:none}`; the streamed-vs-logged divergence now counts against the Bland–Altman LoA (`bias ± 1.96·SD-of-diffs`) instead of a residual-SD band applied to raw diffs, so a near-identity twin reads 0% outside the band instead of 33.7%; and the scale-over-time sparkline no longer overlaps its label. Adds a synthetic partial-overlap regression twin locking the `[max(t0),min(end)]` intersection geometry a real field night (BLE extends past the SD boundary) exercised. (`CPAPDEX-LIVE-SD-COMPARATOR-FOLLOWUPS-2026-08-24-BRIEF.md`)
+- `tools/ai-probe-overnight.sh` — **one half of the tool refused loudly while the other half proceeded
+- `Integrator.src.html` — the fusion layer shipped **v2.8.0 with no version displayed anywhere**, the
+- `capture-host/tools/mutate_diff.py` — `is_string_only` asked whether the added line **contained** a (`MUTATION-PIPELINE-INTEGRITY-2026-08-24-BRIEF.md`)
+- The mutation-suite selftest "another file's ledger never leaks in" matched /oxydex/ against
+- `tools/mutation-ai-probe.mjs` — **the probe found 1271 kills in one nightly run and recorded none of
+- `tools/mutation-ai-probe.mjs` — **an honesty rule about RECORDING was being read as evidence of NO
+- Pin that close_harvest_decision propagates its deadline to flush_gate rather than dropping it. The (`OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`)
+- Close the three flush_gate mutants that nulled `reason` on the deadline, WAIT and PULL branches. The (`OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`)
+- Make the mutant record key unique. `line + op + before` collapses two same-operator mutations on one
+- Mutation draft-bank drain, round 2 — the five FRESH-crawl banks (cpapdex, glucodex, hrvdex, motiondex, (`MUTATION-FLEET-EXPANSION-2026-08-25-BRIEF.md`)
+- Mutation-harden `oxy_transfer.verify()` — kill the 15 diff-scoped survivors I logged when I withdrew the string-artifact claim. Measured, not reasoned: ran the actual mutants (`mutate.py oxy_transfer --only 'x_verify__*'`) and triaged each by ID. All 15 were real and killable (none no-distinguishing-input) — the failure-path tests asserted the reason but not `VerifyResult.depth` or `.size`, so `depth→None`, `size→None/1`, and reason wrap/case mutants across the unreadable/size-mismatch/not-finalised/bad-header/non-whole/count-mismatch branches all survived. Fixed by asserting the full result (depth + size + exact reason) on every failure path; re-ran mutmut → 109/109 killed, 0 survivors. Test-only; 100% coverage held. (`OXYII-G1-TRANSACTIONAL-SYNC-FOLLOWUPS-2026-08-23-BRIEF.md`)
+- Complete the mutant-key fix in probe-equivalence.mjs's equivalence-ledger dedup, which #1793 scoped
+- Correct §11's T0-T7 table: T4 IS emitted. pull_session.pull() writes the post-download row with the (`OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`)
+- Correct §6a: not every on_doff firing brackets the awake tail. Only firings that reach the air carry (`OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`)
+- The CPAP acquisition envelope now carries the acquisition's START, so it can be JOINED to a night. (`CPAPDEX-STR-SUMMARY-INGEST-2026-08-21-BRIEF.md`)
+- Bring the BLE scan under `_CONNECT_LOCK`, the same lock the connect already takes. The scan ran
+- The crawl recorded each killable mutant's orig/mutant outputs sliced to 300 chars and its replay (`MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md`)
+- Fix the doff-triggered pull, which failed on its first production firing. Scope is now derived from (`OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`)
+- `detectCVHR` refuses a beat series whose span is implausible instead of sizing its resample grid from it. `M = Math.floor(tEnd)` fed five `Float64Array`s **and** two `Array.from` copies with nothing bounding it; on a real 2026-08-23 night `tt[N-1]` was 241,259,871 s (7.6 years), so `M` was 241 million. The typed allocations all SUCCEEDED — they take external memory — and the failure surfaced only at `Array.from(sm)`, which must materialise a plain array and blew V8's cap with `RangeError: Invalid array length`, killing that night's entire ECGDex export. The diagnostic shape is a DISCONTINUITY, not a wrong sample rate: `tt[0]=0.023` and `tt[1]=0.346` are normal beat spacing and only the tail jumps, whereas a bad `fs` would have scaled `tt[1]` too. So this refuses rather than repairs — we cannot know which fragment carries the right timebase, and a 1 Hz series spanning years is not something to resample. Bound is 48 h, over twice any real recording, so a heavily-gapped night still fits; `index: null` (never 0, which would read as "we looked for cyclic variation and found none" — the fabricated negative the Clock Contract §2.6 forbids) plus `reason: 'implausible-span'`. Gate-backed by an assertion built on the measured geometry, verified against a neutralised-guard decoy that reproduced the original blow-up at 8.4 GB RSS rather than merely failing.
+- `parse_hciconfig` now drops a controller whose BD address is the null (`00:00:00:00:00:00`) or broadcast (`FF:FF:FF:FF:FF:FF`) address, so `failover_target` can never hand a reconnect an address no device is reachable on. The upstream shape test — 17 characters, 5 colons — checks the FORMAT only, and the null address satisfies it, which defeated `parse_hciconfig`'s own stated contract that *"a block with no MAC is dropped — an adapter we cannot address is not a failover target."* Not hypothetical: the Zephyr/nRF52840 dongle (USB `2fe3:000b`) reports exactly that, because its firmware has no PUBLIC address (Zephyr identifies by static-random and refuses a host-side public pin with `0x0c Not Supported`) — BlueZ shows the static-random address while `hciconfig`, the layer this parser reads, shows zeros. It survived the parse, and `failover_target` returns the FIRST match in an order that is not sorted, so a wedged radio would "fail over" onto an unreachable address — silence dressed as recovery, and strictly worse than staying on the wedged adapter. Tests are built from the dongle's real `hciconfig` output and verified to fail without the guard.
+- Harden both realm execution wrappers against async results. resultString and runBattery caught only
+- `tools/trio-power-headless.mjs` exported **one** of the four simulation tables the (`TRIO-POWER-N15-FINDINGS-2026-07-12-BRIEF.md`)
+- `docs/CORPUS-LOCATIONS.md` — row 2 (`/home/michal/tepna-smoketest/captures`, the box-capture corpus) is (`CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01-BRIEF.md`)
+- `tools/mutation-crawl.mjs` — the crawl-level skip is now identity-aware (§E4, closing §3-G3). (`MUTATION-ACCOUNTING-LOOP-2026-08-27-BRIEF.md`)
+- §3's autocorrelation correction carries a hazard for anyone re-deriving it: `n_eff = n(1−ρ₁)/(1+ρ₁)` (`CLOCK-LEG-SIGN-CONTRADICTION-2026-08-27-BRIEF.md`)
+- `pat-align.js` §ΔPAT stated that *"the ~2.2 s per-connection BLE offset is CONSTANT within a connection — (`PAT-RELATIVE-REFRAME-2026-08-17-BRIEF.md`)
+- The three-part methods correction lands in the paper surfaces that publish σ figures. (`SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`)
+- `capture-host/check.sh` now persists mypy's output to `.mypy-latest.txt` — **the §P2 fix lane's work (`PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md`)
+- Corrected the attribution in the PAT axis-leg finding, and pulled §17's provenance labelling (`PAT-FORENSICS-AXIS-LEG-ASYMMETRY-2026-08-28-BRIEF.md`)
+- PAT forensics phase (a): traced the ECG and PPG timing legs end to end and found they ride (`PAT-FORENSICS-AXIS-LEG-ASYMMETRY-2026-08-28-BRIEF.md`)
+- Executed step 1 of the PAT residual-attribution brief and REFUTED its own premise. The brief claimed (`PAT-RESIDUAL-ATTRIBUTION-2026-08-28-BRIEF.md`)
+- The supply-chain secrets step resolved its baseline **relative to `capture-host/`** and therefore
+- mypy session-lane batch 1: the BleakClient `**kw` splat. Six call sites built a dict and splatted it (`PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md`)
+- mypy session-lane batch 5: six guarded-Optional sites in capture.py, each guard traced individually. (`PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md`)
+- mypy session-lane batch 4b: two cross-kind variable reuses in capture.py renamed rather than (`PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md`)
+- mypy session-lane batch 4a: four unguarded dynamic-import sites. `spec_from_file_location` returns (`PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md`)
+- mypy session-lane batch 3: two heterogeneous result dicts given TypedDicts. mypy infers a dict (`PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md`)
+- mypy session-lane batch 2: four signatures that were NARROWER THAN THEIR SHIPPING CONTRACTS. Each (`PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md`)
+- **A property test read its condition off a ROUNDED field, and it was a latent flake on `main`.** (`PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md`)
+- **A precision figure without its coverage is not a measurement — and the findings ledger was emitting (`QWEN-ENGINEERING-PROGRAM-2026-08-27-BRIEF.md`)
+- **capture-host types — the first generated annotations LAND; the ratchet drops 189 → 180.** (`PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md`)
+- **The mypy ratchet's first live catch on `main`, fixed rather than re-baselined.** (`PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md`)
+- **Six source-scanning tests bounded a property with a magic byte window; one of them was already
+
+---
+
 ## [2.8.0] — 2026-08-24
 
 ### Added
@@ -1873,7 +2020,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.8.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.9.0...HEAD
+[2.9.0]: https://github.com/Plantucha/Tepna/compare/v2.8.0...v2.9.0
 [2.8.0]: https://github.com/Plantucha/Tepna/compare/v2.7.0...v2.8.0
 [2.7.0]: https://github.com/Plantucha/Tepna/compare/v2.6.0...v2.7.0
 [2.6.0]: https://github.com/Plantucha/Tepna/compare/v2.5.0...v2.6.0
