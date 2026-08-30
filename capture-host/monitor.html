@@ -951,7 +951,14 @@ function showView(v){
   else if(v==='scope'){ ovStop(); scopeResume(); clkStop(); }
   else if(v==='settings'){ ovStop(); scopeStop(); clkStop(); loadSettings(); loadAlerts(); }
   else if(v==='storage'){ ovStop(); scopeStop(); clkStop(); loadStorage(); }
-  else { ovStop(); scopeStop(); clkStart(); }   // devices view owns the clock/NTP panel
+  else {
+    ovStop(); scopeStop(); clkStart();   // devices view owns the clock/NTP panel
+    // The per-device controls live on the device cards now, and their capability data (supported
+    // streams, rate menus, sdk_capable) comes from /api/settings — which /api/state does not carry.
+    // Re-render after it lands so a cold view fills in rather than staying bare.
+    loadSettings().then(()=>{ if(VIEW==='devices' && Array.isArray(DEVICES)) renderRemembered(DEVICES); })
+                  .catch(()=>{});
+  }
 }
 
 // ── Storage / offload ────────────────────────────────────────────────────────────────────────────
@@ -1447,7 +1454,30 @@ function renderDownload(devs){
   if(!_dlFast) _dlFast = setInterval(loadState, 1000);
 }
 
-function renderRemembered(devs){
+// The settings for ONE device, folded into its own card — what the owner asked for: everything about
+// a sensor in one place, the way the CPAP card already works, instead of split across two views.
+//
+// ⚠️ MATCHED BY ADDRESS, never by name or by list position. `/api/state` and `/api/settings` are two
+// separate projections built by different code paths; pairing them positionally would silently show
+// one device's rates under another's name the moment either list is filtered or reordered.
+// SETTINGS may not be loaded yet on a cold Devices view — that renders NOTHING rather than an empty
+// control set, because an empty set of checkboxes reads as "this sensor offers no streams".
+// `list` is an EXPLICIT dependency rather than a reach for the module global: it makes the pairing
+// testable without constructing page state, and `SETTINGS` is `let`, so touching it before the page
+// has initialised throws rather than reading as absent. Passing `null` means "none yet"; omitting the
+// argument entirely means "use the page's".
+function settingsPanel(d, list){
+  if(list === undefined) list = (SETTINGS && SETTINGS.devices) || null;
+  if(!list) return '';
+  const a = String(d.address||'').toUpperCase();
+  const sd = list.find(x=>String(x.address||'').toUpperCase() === a);
+  if(!sd) return '';
+  const body = deviceSettingsBlock(sd);
+  if(!body) return '';
+  return `<div class="dev-settings" style="margin:-.35rem 0 .9rem;padding:.55rem .7rem;border-left:2px solid var(--line);opacity:.95">${body}</div>`;
+}
+
+function renderRemembered(devs, settingsList){
   const el = $('#remembered');
   if(!devs.length){ el.innerHTML = '<p class="hint">No remembered devices yet.</p>'; return; }
   el.innerHTML = devs.map(d=>`
@@ -1460,7 +1490,9 @@ function renderRemembered(devs){
       ${(d.vendor==='Wellue'||d.vendor==='Viatom')?`<button class="btn" onclick='pullStored(this)' title="Download the ring&#39;s onboard-recorded night off flash (pauses live SpO₂ for ~1 min)">Pull stored session</button>`:''}
       ${d.vendor==='Polar'?`<button class="btn" onclick='pullRec(${JSON.stringify(d.address)}, this)' title="List &amp; download the Polar device&#39;s onboard offline recordings off flash (pause live capture first — one BLE link)">📥 Recordings</button>`:''}
       <button class="btn btn-destructive" onclick='forget(${JSON.stringify(d.address)})'>Forget</button>
-    </div>${d.vendor==='Polar'?`<div class="rec-panel" id="${recPanelId(d.address)}" style="margin:0 0 .7rem;padding-left:.2rem;display:flex;flex-direction:column;gap:.35rem"></div>`:''}`).join('');
+    </div>${d.vendor==='Polar'?`<div class="rec-panel" id="${recPanelId(d.address)}" style="margin:0 0 .7rem;padding-left:.2rem;display:flex;flex-direction:column;gap:.35rem"></div>`:''}${settingsPanel(d, settingsList)}`).join('')
+    + (devs.length ? `<div style="margin:.2rem 0 .8rem"><button class="btn btn-primary" onclick='saveSettings(this)'>Save device settings</button>
+         <span class="hint">Streams, rates and device modes above are written to config.yaml. Some need a reconnect to take effect.</span></div>` : '');
 }
 
 // ── BLE IDENTITY IS THE ADDRESS, NEVER THE ADVERTISED NAME ──────────────────────────────────────
@@ -1547,10 +1579,16 @@ async function syncAllTime(btn){
 // surface or storage (adapter / web / root) are deliberately NOT settable from the UI.
 let SETTINGS = null;
 function mbNight(bps){ return Math.round(bps*3600*9/1e6); }
-async function loadSettings(){
-  SETTINGS = await api('/api/settings');
-  const sd = $('#setStreams');
-  sd.innerHTML = SETTINGS.devices.map(d=>{
+// ── ONE renderer for a device's settings, used by the DEVICE CARD ───────────────────────────────
+// Extracted from `loadSettings`'s map body unchanged. It is rendered in ONE place — the device's own
+// card in the Devices view — rather than mirrored into the Settings view as well: two surfaces
+// carrying the same controls means duplicate `data-addr` inputs, and `saveSettings` collects by
+// class across the whole document, so the two copies would fight and the later one would win
+// arbitrarily. Same two-writer hazard that silently ate a QC field earlier today, one layer up.
+// `d` is a /api/settings device record (it carries `supported`/`rate_options`/`sdk_capable`, which
+// /api/state does not), looked up by ADDRESS — never by name.
+function deviceSettingsBlock(d){
+  if(!d) return '';
     const offer = d.supported && d.supported.length ? d.supported.slice() : (d.streams||[]).slice();
     if(d.vendor==='Polar' && !offer.includes('hr')) offer.push('hr');   // HR char, not a PMD type
     const boxes = offer.map(k=>{
@@ -1653,8 +1691,19 @@ async function loadSettings(){
           <span class="hint">${d.ring_buzz_at?('last fired '+esc(String(d.ring_buzz_at).slice(11,23))):''}</span>
         </div>${verdict}</div>`;
     })();
-    return `<div style="margin-bottom:.7rem"><div class="name">${esc(d.name)}</div>${sdk}${ring}${boxes||'<span class="hint">no streams reported yet</span>'}</div>`;
-  }).join('');
+  return `${sdk}${ring}${boxes||'<span class="hint">no streams reported yet</span>'}`;
+}
+
+async function loadSettings(){
+  SETTINGS = await api('/api/settings');
+  const sd = $('#setStreams');
+  // MOVED, not mirrored. The per-device controls now live on each device's own card in the Devices
+  // view. Rendering them here as well would put duplicate `data-addr` inputs in the document, and
+  // `saveSettings` collects by class across the WHOLE document — so the two copies would fight and
+  // whichever rendered last would win, silently, including when one of them was stale.
+  sd.innerHTML = '<p class="hint">Per-device settings — streams, sample rates, SDK mode, ring clock — '
+               + 'now live on each sensor\u2019s own card under <b>Devices</b>, so everything about one '
+               + 'sensor is in one place.</p>';
   // Every field is POPULATED — from config.yaml if set, otherwise from the daemon's own default (the
   // schema is the single source of truth for those, so the UI cannot advertise a default that differs
   // from what actually happens). An empty numeric box used to save as NaN and be rejected.
