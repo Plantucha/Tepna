@@ -276,6 +276,12 @@ jobs:
   # population §P3's flip count must be measured against. (§P2b records the same lesson from the other
   # direction.)
   #
+  # ⚠️ AND THE 189-vs-188 SPREAD ABOVE IS A DATED OBSERVATION, NOT A STANDING OFFSET. Re-measured
+  # 2026-08-29: a fresh worktree off `origin/main` reported 189, exactly what this job reports on
+  # main — so the gap was that day's untracked stray, not a property of worktrees. Do not carry a
+  # correction factor between trees; measure the tree you are in, and compare a PAIRED before/after
+  # inside ONE tree when what you want is the delta.
+  #
   # THE BASELINE IS READ FROM check.sh, NOT COPIED HERE. One number, one home; a second hardcoded copy
   # is a second thing to forget. If it cannot be parsed the job REFUSES rather than assuming a value —
   # an unreadable baseline is not a permissive one.
@@ -299,13 +305,78 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
           pip install -r requirements.txt
-      - name: mypy ratchet — the count may only go DOWN
+      - name: mypy ratchet — the count may only go DOWN, and touching the baseline obligates reproducing it
         if: needs.changes.outputs.run == 'true'
+        # ⚠️ THE RATCHET HAD A HOLE, AND IT FAILED SILENTLY. This step used to fail only when the
+        # measured count EXCEEDED the recorded baseline — so a PR that MOVED the baseline passed by
+        # construction, in either direction, because the written number was never compared to
+        # anything the job had measured. Two lanes cutting the count in parallel is the ordinary
+        # case here, and it is not a hypothetical: on 2026-08-29 three PRs were open at once, all
+        # editing the one line that holds this number, each measured independently against a 189-era
+        # main — 154, 183 and 180. Land the 154 and then the 183 unchanged and the recorded baseline
+        # goes UP by 29, with every check green and the second PR's own summary line reading
+        # `153 <= 183, ratchet ok`. A wrong number and a right one produce identical output there.
+        #
+        # NOBODY HAD TO ERR FOR THAT TO HAPPEN. Each PR measured its own tree and wrote down what it
+        # measured, which is the correct behaviour; the hazard needs two CORRECT actors acting
+        # concurrently, because no lane can see another lane's number. That is why it is a gate's job
+        # and not a discipline's: asking people to remember is asking them to have information they
+        # do not have.
+        #
+        # AND CONTENTION IS ONLY THE VISIBLE CLASS. THERE ARE TWO, AND THE SECOND HAS NO EDITOR:
+        #   (1) CONTENTION — two lanes each move the line, and the second to land overwrites the
+        #       first's number. Loud enough to notice once you look for it.
+        #   (2) DRIFT WITH NOBODY EDITING ANYTHING — a PR records a baseline that was CORRECT when
+        #       measured, then unrelated work lands on main and moves the count underneath it. No
+        #       one touched the line; it went stale by sitting still. Measured 2026-08-29: a PR
+        #       holding a correctly-measured 148 went 11 stale within the hour because a different
+        #       PR improved main, and main's OWN recorded line went stale the same way without
+        #       anyone editing it.
+        #
+        # (2) generalises (1) and is the honest statement of the hazard: **a recorded baseline goes
+        # stale whenever main moves while a PR is open — which is every PR, always.** Any number
+        # written before the final rebase is a claim about a tree that no longer exists. Contention
+        # is just the case where the staleness has a culprit.
+        #
+        # WHY THE CHECK BELOW COVERS BOTH, WHICH IS NOT OBVIOUS: the trigger is the branch's value
+        # against CURRENT main, not against the merge-base, so a line that has drifted differs just
+        # as loudly as one that was overwritten — either way it takes the equality branch and must
+        # equal what THIS run measured. ⚠️ The at-merge-time property is NOT free from this run: CI
+        # on a BEHIND head measures the pre-merge tree, where a stale number can still look correct.
+        # It comes from Kodiak base-merging before it merges, which triggers a FURTHER run whose
+        # measurement is taken on the merged ref. So this step is honest on the run that matters and
+        # can read green on an earlier one — do not take a green here as proof the number is current.
+        #
+        # SO THE RULE IS: **touching the threshold obligates reproducing it.** When a PR changes the
+        # recorded baseline, the written number must EQUAL the count this run just measured — not
+        # merely bound it. Direction alone catches only the raise; equality also catches an unearned
+        # LOWERING, a number that came from arithmetic or from a stale tree, which no `<=` test can
+        # see because a too-low baseline passes a `<=` check by being too low. When the PR does NOT
+        # touch it, the plain ratchet applies and lowering it is optional.
+        #
+        # The direction check is KEPT ALONGSIDE equality rather than replaced by it: equality alone
+        # would wave through "I introduced 20 type errors and wrote the new total", since that also
+        # reproduces. A raise therefore still needs DECLARED PROVENANCE — `baseline-raised:<reason>`
+        # on the line — which is the same discriminator `commit-shape.mjs` uses, and never a shape
+        # rule. The legitimate case is an upstream mypy release reporting more on unchanged code.
         run: |
           set -uo pipefail
-          BASE=$(grep -oE 'baseline [0-9]+' check.sh | head -1 | grep -oE '[0-9]+')
-          if [ -z "${BASE:-}" ]; then
-            echo "REFUSING: no baseline found in check.sh. An unreadable baseline is not a permissive one."
+          # `.*` not `[^\n]*`: inside a bracket expression `\n` is the two literal characters, so
+          # `[^\n]*` would stop the match at the first 'n' — truncating the line before a
+          # `baseline-raised:` marker placed after it, and reading a DECLARED raise as undeclared.
+          # `grep -o` already matches within one line, so `.*` cannot run past the newline.
+          LINE=$(grep -oE 'baseline [0-9]+.*' check.sh | head -1)
+          BASE=$(printf '%s' "$LINE" | grep -oE '[0-9]+' | head -1)
+          # main's copy of the same line. checkout is shallow, so fetch the blob explicitly; if it
+          # cannot be read the step REFUSES rather than assuming the baseline is fine — an unreadable
+          # comparison is not a passing one (CLAUDE.md §4b: a check that reports success about
+          # something it never examined).
+          git fetch --depth=1 origin main >/dev/null 2>&1 || true
+          PREV=$(git show FETCH_HEAD:capture-host/check.sh 2>/dev/null \
+                 | grep -oE 'baseline [0-9]+' | head -1 | grep -oE '[0-9]+')
+          if [ -z "${BASE:-}" ] || [ -z "${PREV:-}" ]; then
+            echo "REFUSING: could not read this branch's baseline (${BASE:-unreadable}) or main's (${PREV:-unreadable})."
+            echo "A comparison that could not be made is not a comparison that passed."
             exit 2
           fi
           # Capture the exit code of MYPY, never of a pipe — a `| tail` here would report tail's status
@@ -325,13 +396,47 @@ jobs:
             echo "That is not a clean tree; it is an unfinished measurement."
             exit 2
           fi
-          echo "mypy errors: $N   baseline: $BASE   delta: $((N - BASE))"
+          echo "mypy errors: $N   baseline here: $BASE   on origin/main: $PREV   delta: $((N - BASE))"
           echo "measured in CI's FRESH CHECKOUT — the canonical population for §P3's flip count."
-          if [ "$N" -gt "$BASE" ]; then
-            echo "RATCHET BROKEN: $N > $BASE. The recorded baseline may only go DOWN."
-            exit 1
+
+          if [ "$BASE" != "$PREV" ]; then
+            echo "This PR MOVES the baseline ($PREV -> $BASE), so it must REPRODUCE it."
+            if [ "$N" -ne "$BASE" ]; then
+              echo "BASELINE NOT REPRODUCED: the line says $BASE, this run measured $N."
+              echo "A baseline you did not measure is a number, not a measurement — and it fails in BOTH"
+              echo "directions: too high hands back ground another lane won (its own summary would read"
+              echo "'ok' while doing so), too low sails past every '<=' test by being too low."
+              echo "FIX: write the number THIS JOB just printed ($N). Do not compute it by arithmetic"
+              echo "from another PR's delta; the count is a property of the tree, and the lanes' changes"
+              echo "are not guaranteed disjoint. If you rebased since measuring, re-measure."
+              exit 1
+            fi
+            if [ "$BASE" -gt "$PREV" ]; then
+              case "$LINE" in
+                *baseline-raised:*)
+                  echo "baseline RAISED $PREV -> $BASE, reproduced, and declared:"
+                  echo "  $LINE"
+                  echo "Allowed. A declared raise is a decision; an undeclared one is an accident." ;;
+                *)
+                  echo "RATCHET MAY ONLY TIGHTEN: baseline went UP, $PREV -> $BASE, with no declared reason."
+                  echo "Reproducing a higher count proves the errors are real; it does not make raising the"
+                  echo "floor to meet them a decision anyone made. If an upstream release genuinely reports"
+                  echo "more on unchanged code, say so on the line: baseline-raised:<reason>."
+                  exit 1 ;;
+              esac
+            else
+              echo "baseline tightened $PREV -> $BASE and this run reproduced it exactly."
+            fi
+          else
+            echo "This PR leaves the baseline alone; the plain ratchet applies."
+            if [ "$N" -gt "$BASE" ]; then
+              echo "RATCHET BROKEN: $N > $BASE. The recorded baseline may only go DOWN."
+              exit 1
+            fi
+            echo "ratchet ok ($N <= $BASE). Lowering it is optional; if you do, this job will require"
+            echo "the new number to equal what it measures."
           fi
-          echo "ratchet ok ($N <= $BASE). Advisory until §P3 flips this job to required with a threshold of 0."
+          echo "Advisory until §P3 flips this job to required with a threshold of 0."
 
   # ── SUPPLY-CHAIN GATES (advisory) ───────────────────────────────────────────────────────────────
   # Two questions with different failure modes, deliberately not merged into one job:

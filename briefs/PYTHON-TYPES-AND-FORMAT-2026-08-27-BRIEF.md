@@ -112,6 +112,31 @@
 
   **The owner retains a veto** on both the clause and the verdict.
 
+- **§P1a — THE RATCHET'S FIRST LIVE CATCH (2026-08-29), fixed rather than re-baselined.** The CI job
+  began reporting `RATCHET BROKEN: 123 > 122` on every open PR: one error entered `main` through the
+  lap gap — a PR measuring clean against its own merge-ref while the error materialised on `main` only
+  in combination. **This was the pre-existing `N > BASE` check**, not §P2c's equality/direction rules,
+  which are not on `main` yet; the original ratchet caught a real regression on its own, which is the
+  strongest argument available for tightening it rather than loosening it.
+
+  **Named by measurement, not by reading the job log.** A sort-independent multiset comparison of
+  `main`'s current error set against the 122-era set returned exactly ONE difference —
+  `tools/mutate_diff.py`, `Incompatible types in assignment (str | None into str)`. The errors
+  *visible* in the log pointed at a different file that contributed nothing to the delta. **A list of
+  errors you can see is not a list of errors that changed**, and only the paired set difference answers
+  the question being asked. Same instrument as §P2c's "zero newly introduced diagnostics", pointed at
+  `main` instead of at a branch.
+
+  **The defect was a name collision across two kinds** — `_why` bound in the module-exclusion loop as
+  the reason a module left mutation scope (`str`), then re-assigned as the reason the whole run must
+  refuse (`str | None`). mypy binds a name at its first assignment, so the second is a type error. Two
+  meanings, two names.
+
+  ⚠️ **Fixed, NEVER re-baselined.** Raising the floor to meet a new error is the one response that
+  makes a ratchet decorative — and it is exactly what §P2c's rule refuses without declared provenance.
+  The count only goes down. (`mypy` is not a required context, so the red blocked nobody; it is fixed
+  anyway, because a gate that is permanently red stops being read.)
+
 - **§P2b — THE FROZEN TRIAGE TABLE (queue exhausted 2026-08-28 02:32; n = 12, the whole population).**
   Every mechanical-class error the lane can see has now been asked once. This is the artifact the
   owner's band decision is made against.
@@ -155,6 +180,124 @@
   `(A if cond else X).append`**, and reading that absence as "no appends" would have left two correct
   proposals permanently unscored.
 
+- **§P2c — THE SEVEN ARE LANDED (2026-08-29). 189 → 180, zero new diagnostics.** The lane had run
+  `generate → rail → triage` and stopped there: seven ACCEPTED proposals sat in a journal while the
+  count sat at 189. A mechanism that produces a correct result and never reaches the thing it was
+  built to move is this repo's standing failure class, one layer up from a check that examines
+  nothing — so the missing arrow is now closed and the loop reads `generate → rail → triage → LAND`.
+
+  **Two of the seven needed a correction, which is the finding, not an aside.** A triage table is a
+  verdict on the ANNOTATION; it is not a patch, and the gap between the two is where both corrections
+  live.
+
+  - **Row 12 does not RUN as accepted.** `instances: list[_FakeBleak] = []` sits in `_FakeBleak`'s own
+    class body, where the name does not exist yet, and the file carries no
+    `from __future__ import annotations` — so the accepted text raises `NameError` at import. Landed
+    as a string annotation. The triage asked "is `list[_FakeBleak]` the right type?" (yes) and could
+    not have asked "does this line execute?", because that is a different question about a different
+    property. **A proposal that type-checks is not a proposal that runs.**
+  - **Rows 8/11's `object` note had a PRICE, and it is paid here rather than carried.**
+    `out: dict[str, object]` is the honest type, and it makes `out["devices"][name] = …` a *new*
+    error — the count would have MOVED, not dropped, which is the shape of a green that reports on
+    something it did not examine. The rows are now built in their own `dict[str, dict]` and placed
+    into `out` once: no cast, no `Any`, no suppression. Row 11 needed nothing — `dict.get` on an
+    `object`-valued dict is fine — so the caveat cost one site, not two.
+
+  **The annotation earned its keep immediately: one latent defect, invisible until the type was
+  tight.** With the rows typed, mypy could finally see that `name = d.get("name")` is `str | None`
+  and was being used as a dict key — a nameless device keyed its row under a literal `null` in the
+  emitted JSON. The address is the identity that always exists (`ble-identity-is-address-only`), so
+  it is the fallback. This is what an annotation is FOR: not paperwork, but a question asked of code
+  that had never been asked it.
+
+  **Measured as a PAIRED difference inside one tree**, `--ignore-missing-imports
+  --explicit-package-bases`: **189 → 180**, **154 → 145** (#1944), **140 → 131** (#1948), **134 → 125**
+  (#1946) and **122 → 113** (#1950), each against its actual parent, every one confirming **zero** newly
+  introduced diagnostics on a sort-independent multiset comparison of the two runs. The nine that go
+  away are **seven annotations plus two pre-existing `adapter_ab.py` diagnostics** the restructure
+  retired — the rows had been reached through an untyped value. Nine went away; it is not eight going away and one moving somewhere
+  quieter. `check.sh`'s baseline records **145** — the single home the CI ratchet greps — because
+  that is what the merged tree reports.
+
+  ⚠️ **Arithmetic would have produced 145 too (154 − 9), and that changes nothing.** The two lanes
+  happened to be disjoint. A number right by luck and a number right by measurement are
+  indistinguishable on the page — which is exactly why the rule below is *reproduce it* rather than
+  *get it right*, and why this coincidence is recorded rather than quietly enjoyed. The next pair of
+  lanes will overlap somewhere, and the shortcut will be wrong with no change in how it looks.
+
+  **The ratchet had a hole, and it is closed in the same PR.** The CI job fails only when the
+  measured count EXCEEDS the baseline — so a PR that RAISES the baseline passes it every time, by
+  construction. With two lanes cutting this count in parallel on 2026-08-29 (189 → 154 and
+  189 → 180, both editing the one line that holds it), whichever landed second would have silently
+  restored the ground the first one gained, with **nothing red anywhere**. **The rule the ratchet now
+  enforces is that touching the threshold obligates reproducing it**: when a PR changes the recorded
+  baseline, the written number must EQUAL the count that CI run just measured, not merely bound it.
+  Direction alone catches the raise; equality also catches an **unearned lowering** — a number from
+  arithmetic or a stale tree — which no `<=` test can see, because a too-low baseline passes a `<=`
+  check *by being too low*. Both are kept: equality alone would wave through "I introduced 20 errors
+  and wrote the new total", so a raise still needs **declared provenance**
+  (`baseline-raised:<reason>`), never a shape rule. Unreadable comparison or unfinished mypy ⇒
+  REFUSE. Ten controls assert the step's own exit code, the live 183-onto-154 case among them.
+
+  ⚠️ **And the first version of that control harness was itself the bug it was testing for.** It
+  read `$?` through a `tr` in its printf, so all ten cases reported `exit 0` — the verdict STRINGS
+  were right and the exit codes, the only thing CI acts on, had never been checked. §4b, inside the
+  test for a §4b-shaped defect, written by someone who had just spent a day on that failure class.
+  **Assert the exit code of the thing under test, not of the pipeline you formatted it with.**
+
+  ⚠️ **CONTENTION IS ONLY THE VISIBLE CLASS — there are two, and the second has no editor.**
+  (1) two lanes each move the line and the second overwrites the first; (2) a PR records a baseline
+  that was CORRECT when measured, and then unrelated work lands on `main` and moves the count
+  underneath it. **(2) generalises (1)**, and is the honest statement: a recorded baseline goes stale
+  whenever `main` moves while a PR is open — **which is every PR, always**. Any number written before
+  the final rebase is a claim about a tree that no longer exists; contention is merely the case where
+  the staleness has a culprit.
+
+  This PR is its own demonstration. Its baseline was re-measured **five** times against five parents —
+  189 → 180, 154 → 145 (#1944), 140 → 131 (#1948), 134 → 125 (#1946), 122 → 113 (#1950) — and **not
+  once because anyone edited the line**. Its correctly-measured 145 went 14 stale within a single hour
+  by sitting still, and three more numbers went the same way after it. `main`'s own recorded number
+  drifted identically. Each landing ahead of it forced another rebase-and-re-measure — **that recurring
+  cost IS the argument for the gate**, since the manual protocol has to be re-run correctly every single
+  time and silently produces a wrong number the one time it is not.
+
+  ⚠️ **It also produced a delivery finding the brief should keep: under a fast batch lane, the manual
+  protocol does not converge.** Four batches landed under one branch in an evening, each obsoleting a
+  correct measurement before CI could finish — so the PR carrying the fix was held open by the hazard it
+  fixes. The resolution was to **drop the baseline edit entirely** rather than run the treadmill a fifth
+  time: an untouched line cannot conflict, the plain ratchet applies (113 ≤ 122), and the mechanism
+  lands. The floor stays loose by nine until the next PR touches the line, at which point the new rule
+  forces a reproduction and it self-corrects. **When a contested resource blocks the fix for the
+  contention, stop contending for it** — the fix is worth more than the increment. The check covers both classes
+  because its trigger is the branch's value against **current** `main`, not against the merge-base, so
+  a drifted number differs as loudly as an overwritten one. ⚠️ But the at-merge-time property is **not**
+  free from any one run: CI on a `BEHIND` head measures the pre-merge tree, where a stale number can
+  still look correct — it comes from Kodiak base-merging before merging, which triggers a further run
+  on the merged ref. **A green on an earlier run is not proof the number is current.**
+
+  **Measured instance, so it is not filed as a theory.** Three PRs were open simultaneously that
+  day, all editing this one line, each measured independently against a 189-era `main`: #1944 wrote
+  **154**, #1946 wrote **183**, this one wrote **180**. Landing #1944 then #1946 unchanged takes the
+  recorded baseline **154 → 183** — a 29-point loosening with every check green, #1946's own mypy
+  step printing `153 <= 183, ratchet ok`.
+
+  **And nobody erred, which is the whole point.** Each PR measured its own tree and wrote down what
+  it measured. That is the correct behaviour, and no amount of care would have caught this: the
+  hazard needs two *correct* actors acting concurrently. **The general lesson, because it is not
+  about mypy: a one-directional gate whose threshold is itself editable is only as monotonic as the
+  discipline of whoever edits it — and parallel work is exactly the condition under which that
+  discipline fails silently, since no lane can see another lane's number. If a threshold can be
+  moved by the same PR the threshold judges, the threshold needs its own gate.** Asking people to
+  remember is asking them to have information they do not have. Worth a look at the suite's other
+  recorded floors on this reasoning — the coverage floor, the mutation canary counts — not on this
+  incident.
+
+  ⚠️ **And §P3's tree caveat gets a dated correction.** The 189-vs-188 spread it cites was that day's
+  untracked stray, not a property of worktrees: re-measured 2026-08-29, a fresh worktree off
+  `origin/main` reports **189**, exactly what the CI job reports on main. **Do not carry a correction
+  factor between trees.** Measure the tree you are in — and when what you want is a delta, take a
+  paired before/after inside ONE tree, which is immune to the population question entirely.
+
 - **§P3 — the flips, pre-stated.** ⚠️ **Measure the flip count in a tree matching CI's population** —
   a fresh checkout with no untracked files — per §0's tree caveat. A count taken in a working tree
   fires the flip early or late off files CI will never see. mypy flips BLOCKING when the count reaches 0 (typed-ignores
@@ -166,7 +309,8 @@
 
 ## 2 · Done when
 
-- [x] §P1 advisory gates in `check.sh`, mypy pinned, baseline 189 recorded (2026-08-27).
+- [x] §P1 advisory gates in `check.sh`, mypy pinned, baseline 189 recorded (2026-08-27);
+      ratcheted to **180** when §P2c landed the first seven annotations (2026-08-29).
 - [ ] §P2 qwen lane produces its first 30 triaged proposals; acceptance rate recorded; band applied.
 - [ ] §P2 session lane triages the argument/assignment classes; real-bug findings ledgered.
 - [ ] §P3 mypy blocking at 0; changed-files format blocking after fleet notice.
