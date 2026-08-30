@@ -23,6 +23,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 
 import helper_path
 import wifi_join
@@ -35,6 +36,11 @@ HELPER = "tepna-wifi.sh"
 # stub helper. Without this the only tests possible are ones that inject past `_run` entirely — which
 # would leave the code that actually invokes root as the one piece nothing ever ran.
 SUDO = ("sudo", "-n")
+# An IPv4 CIDR anywhere in `ip -br addr` output. Needed because `wpa_cli status` reports
+# `ip_address=` only when the SUPPLICANT did DHCP — with an external dhcpcd it does not, and the
+# uplink would read as connected with no address, which looks like a half-broken link rather than a
+# working one. The helper prints `ip -br addr show` for exactly this reason.
+_IPV4_CIDR = re.compile(r"\b(\d{1,3}(?:\.\d{1,3}){3})/\d{1,2}\b")
 SCAN_TIMEOUT = 25.0
 JOIN_TIMEOUT = 75.0          # association can take ~30 s, then DHCP on top
 LEAVE_TIMEOUT = 20.0
@@ -114,6 +120,10 @@ async def status(runner=None):
             st["ssid"] = line[5:] or None
         elif line.startswith("ip_address="):
             st["ip"] = line[11:] or None
+    if not st["ip"]:
+        m = _IPV4_CIDR.search(out)
+        if m:
+            st["ip"] = m.group(1)
     return st
 
 
@@ -164,3 +174,42 @@ def public_view(rec):
         return None
     return {"ssid": rec.get("ssid"), "security": rec.get("security", wifi_join.SECURED),
             "has_credential": bool(rec.get("psk"))}
+
+
+# ── the harvest handover ──────────────────────────────────────────────────────────────────────────
+# One radio cannot hold two associations, so the uplink must let go before `cpap_harvest` joins the SD
+# card's AP. Both harvest callers (the nightly loop in capture.py and the manual pull in webmon.py) go
+# through these, so the handover cannot be implemented in one and forgotten in the other.
+async def suspend_for_harvest(root, runner=None):
+    """`(suspended, detail)` — drop the uplink so the harvest can take the radio.
+
+    ⚠️ A joined uplink with NO saved credential is deliberately left alone. Dropping it would be
+    one-way — nothing could rejoin it — and the harvest's own default-route guard then refuses and
+    skips the day. Losing a night of CPAP files beats making the box unreachable with no way back."""
+    saved = load_saved(root)
+    st = await status(runner=runner)
+    state = wifi_join.JOINED if st.get("state") == "up" else wifi_join.IDLE
+    act, detail = wifi_join.suspend_plan(state, (saved or {}).get("ssid"))
+    if not act:
+        return False, detail
+    r = await leave(runner=runner)
+    if not r.get("ok"):
+        return False, f"could not suspend the uplink: {r.get('error')}"
+    return True, detail
+
+
+async def resume_after_harvest(root, suspended, harvest_ok=None, runner=None):
+    """`(resumed, detail)` — put the uplink back. Call from a `finally`.
+
+    ⚠️ `harvest_ok` does not gate the decision — see `wifi_join.should_resume`. A harvest that crashed
+    is precisely when the box most needs to be reachable again."""
+    saved = load_saved(root)
+    state = wifi_join.SUSPENDED if suspended else wifi_join.IDLE
+    act, detail = wifi_join.should_resume(state, (saved or {}).get("ssid"), harvest_ok)
+    if not act:
+        return False, detail
+    r = await join(saved["ssid"], saved.get("psk") or "",
+                   saved.get("security", wifi_join.SECURED), runner=runner)
+    if not r.get("ok"):
+        return False, f"could not restore the uplink: {r.get('error')}"
+    return True, detail

@@ -21,6 +21,7 @@ import acq_evidence_o2ring
 import bonding
 import helper_path
 import link_distress
+import wifi_uplink
 import link_rssi
 import host_clock
 import offline_lock
@@ -5975,6 +5976,7 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
         # deployments and the privileged branch is simply never entered on the sudo-free one.
         direct = await asyncio.to_thread(cpap_harvest.reachable, base, 5.0)
         guard = None
+        uplink_suspended = False      # set in the associating branch only; the `finally` reads it on both
         if direct:
             log.info("cpap: %s already reachable — harvesting directly, no Wi-Fi association needed", base)
         else:
@@ -5982,6 +5984,13 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
             # default route moves to the card — a routeless dead end — wifi_up tears the association
             # down and fails, and we skip the day. A day of CPAP files is never worth making the box
             # unreachable.
+            # ONE RADIO, ONE ASSOCIATION. If the box is on a hotspot or hotel Wi-Fi, that uplink is
+            # holding this same card and must let go first — otherwise `wifi_up`'s default-route guard
+            # correctly refuses (the route is on wlan) and the night is skipped. Suspend is a no-op when
+            # no uplink is up, and refuses when there is no saved network to return to.
+            uplink_suspended, why = await wifi_uplink.suspend_for_harvest(root)
+            if why:
+                log.info("cpap: %s", why)
             guard = await asyncio.to_thread(cpap_harvest.default_route_dev)
             ok = await asyncio.to_thread(cpap_harvest.wifi_up, profile, 45.0, guard,
                                          "ez Share", "88888888", wifi_iface, cpap_harvest.WPA_ADDR, root)
@@ -5992,6 +6001,15 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
                             "station mode; then no association is attempted at all)", profile, guard)
                 _fire({"state": "error", "detail": f"Wi-Fi profile {profile!r} would not come up safely",
                        "files": 0, "skipped": 0, "nights": 0, "night_keys": [], "consulted": False})
+                # ⚠️ THIS `continue` IS OUTSIDE THE try/finally BELOW, so the uplink restore has to
+                # happen here as well. We suspended it moments ago; leaving by this door without
+                # putting it back is how a card that would not associate becomes a box nobody can
+                # reach — the failure the resume exists to prevent, arrived at through the one path
+                # that skips the resume.
+                _, rwhy = await wifi_uplink.resume_after_harvest(root, uplink_suspended,
+                                                                harvest_ok=False)
+                if rwhy:
+                    log.info("cpap: %s", rwhy)
                 continue
         try:
             res = await asyncio.to_thread(
@@ -6025,6 +6043,12 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
             # and calling wifi_down would attack the SYSTEM supplicant on the shared interface.
             if not direct:
                 await asyncio.to_thread(cpap_harvest.wifi_down, profile, 30.0, wifi_iface, root)
+            # AFTER wifi_down, never before: the card association has to be released before the uplink
+            # can take the same radio back. A no-op unless we actually suspended something, and it runs
+            # whether the harvest succeeded, failed, or raised — see wifi_join.should_resume.
+            _, rwhy = await wifi_uplink.resume_after_harvest(root, uplink_suspended)
+            if rwhy:
+                log.info("cpap: %s", rwhy)
 
         dur = _time.monotonic() - started
         bad = bool(res["short"] or res["errors"])

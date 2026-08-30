@@ -225,3 +225,123 @@ def test_A_PROCESS_THAT_DIES_DURING_ITS_OWN_TIMEOUT_KILL_IS_NOT_AN_ERROR(monkeyp
     monkeypatch.setattr(asyncio, "create_subprocess_exec", _fake_exec)
     rc, _out, err = asyncio.run(U._run("scan", timeout=0.2))
     assert rc == 124 and "timed out" in err
+
+
+# ── the harvest handover ──────────────────────────────────────────────────────────────────────────
+class Scripted:
+    """A helper whose reply depends on the action, so a suspend/resume round trip can be driven."""
+
+    def __init__(self, status_out="wpa_state=COMPLETED\nssid=HotelWifi\n"):
+        self.status_out, self.calls = status_out, []
+
+    async def __call__(self, action, args, stdin_text):
+        self.calls.append({"action": action, "args": list(args), "stdin": stdin_text})
+        if action == "status":
+            return 0, self.status_out, ""
+        return 0, "", ""
+
+
+def test_A_JOINED_UPLINK_IS_DROPPED_BEFORE_THE_HARVEST(tmp_path):
+    U.save_network(str(tmp_path), SSID, PW)
+    r = Scripted()
+    suspended, detail = asyncio.run(U.suspend_for_harvest(str(tmp_path), runner=r))
+    assert suspended is True and SSID in detail
+    assert [c["action"] for c in r.calls] == ["status", "leave"]
+
+
+def test_THE_UPLINK_COMES_BACK_WITH_THE_STORED_KEY_NOT_A_REDERIVATION(tmp_path):
+    U.save_network(str(tmp_path), SSID, PW)
+    r = Scripted()
+    resumed, _d = asyncio.run(U.resume_after_harvest(str(tmp_path), True, runner=r))
+    assert resumed is True
+    join_call = [c for c in r.calls if c["action"] == "join"][0]
+    assert join_call["stdin"].strip() == PSK      # the stored PSK, passed through underived
+    assert join_call["args"] == [SSID]
+
+
+def test_RESUME_HAPPENS_EVEN_WHEN_THE_HARVEST_FAILED(tmp_path):
+    # The whole reason `harvest_ok` is accepted and ignored: a crashed harvest is when the box most
+    # needs to be reachable. Resuming only on success turns a 90-minute window into an outage.
+    U.save_network(str(tmp_path), SSID, PW)
+    r = Scripted()
+    resumed, detail = asyncio.run(
+        U.resume_after_harvest(str(tmp_path), True, harvest_ok=False, runner=r))
+    assert resumed is True and "FAILED" in detail
+    assert any(c["action"] == "join" for c in r.calls)
+
+
+def test_NOTHING_IS_DROPPED_WHEN_THERE_IS_NO_WAY_BACK(tmp_path):
+    # Uplink joined, but no saved credential: dropping it would be one-way. The harvest's own guard
+    # then refuses and skips the night, which is the cheaper loss.
+    r = Scripted()
+    suspended, detail = asyncio.run(U.suspend_for_harvest(str(tmp_path), runner=r))
+    assert suspended is False and "no saved network" in detail
+    assert [c["action"] for c in r.calls] == ["status"]      # leave was never called
+
+
+def test_A_DOWN_UPLINK_NEEDS_NO_SUSPENDING(tmp_path):
+    U.save_network(str(tmp_path), SSID, PW)
+    r = Scripted(status_out="wpa_state=INTERFACE_DISABLED\n")
+    suspended, detail = asyncio.run(U.suspend_for_harvest(str(tmp_path), runner=r))
+    assert suspended is False and "already has the radio" in detail
+
+
+def test_RESUME_DOES_NOTHING_WHEN_NOTHING_WAS_SUSPENDED(tmp_path):
+    U.save_network(str(tmp_path), SSID, PW)
+    r = Scripted()
+    resumed, detail = asyncio.run(U.resume_after_harvest(str(tmp_path), False, runner=r))
+    assert resumed is False and "nothing was suspended" in detail
+    assert r.calls == []
+
+
+def test_A_FAILED_SUSPEND_SAYS_SO_RATHER_THAN_CLAIMING_THE_RADIO(tmp_path):
+    U.save_network(str(tmp_path), SSID, PW)
+
+    class LeaveFails(Scripted):
+        async def __call__(self, action, args, stdin_text):
+            if action == "leave":
+                return 1, "", "device busy"
+            return await Scripted.__call__(self, action, args, stdin_text)
+
+    suspended, detail = asyncio.run(U.suspend_for_harvest(str(tmp_path), runner=LeaveFails()))
+    assert suspended is False and "device busy" in detail
+
+
+def test_A_FAILED_RESUME_IS_REPORTED_NOT_SWALLOWED(tmp_path):
+    U.save_network(str(tmp_path), SSID, PW)
+
+    class JoinFails(Scripted):
+        async def __call__(self, action, args, stdin_text):
+            if action == "join":
+                return 1, "", "hotel portal gone"
+            return await Scripted.__call__(self, action, args, stdin_text)
+
+    resumed, detail = asyncio.run(U.resume_after_harvest(str(tmp_path), True, runner=JoinFails()))
+    assert resumed is False and "hotel portal gone" in detail
+
+
+def test_AN_OPEN_SAVED_NETWORK_RESUMES_WITHOUT_A_KEY(tmp_path):
+    U.save_network(str(tmp_path), "FreeWifi", "", security=W.OPEN)
+    r = Scripted()
+    assert asyncio.run(U.resume_after_harvest(str(tmp_path), True, runner=r))[0] is True
+    assert [c for c in r.calls if c["action"] == "join"][0]["stdin"].strip() == "OPEN"
+
+
+def test_THE_ADDRESS_IS_READ_FROM_IP_WHEN_THE_SUPPLICANT_DOES_NOT_REPORT_IT():
+    # `wpa_cli status` carries `ip_address=` only when the supplicant itself ran DHCP. This box uses an
+    # external dhcpcd, so without this fallback a perfectly working uplink renders as "connected, no
+    # address" — which reads as a broken link.
+    st = asyncio.run(U.status(runner=Recorder(
+        out="wpa_state=COMPLETED\nssid=HotelWifi\nwlp1s0  UP  192.168.1.42/24 fe80::1/64\n")))
+    assert st["state"] == "up" and st["ip"] == "192.168.1.42"
+
+
+def test_THE_SUPPLICANTS_OWN_ADDRESS_WINS_WHEN_IT_HAS_ONE():
+    st = asyncio.run(U.status(runner=Recorder(
+        out="wpa_state=COMPLETED\nip_address=10.0.0.9\nwlp1s0  UP  192.168.1.42/24\n")))
+    assert st["ip"] == "10.0.0.9"
+
+
+def test_NO_ADDRESS_ANYWHERE_STAYS_NONE_RATHER_THAN_GUESSING():
+    st = asyncio.run(U.status(runner=Recorder(out="wpa_state=SCANNING\nwlp1s0  DOWN\n")))
+    assert st["ip"] is None

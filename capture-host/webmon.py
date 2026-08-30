@@ -29,6 +29,8 @@ import storage_targets
 import alerts
 import timeline as _timeline
 import settings_schema
+import wifi_join
+import wifi_uplink
 from writers import missing_identity, StreamWriter
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -396,12 +398,25 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             return r
 
         _cpap_busy["running"] = True
+        # ONE RADIO, ONE ASSOCIATION — same handover as the nightly loop in capture.py. If the box is
+        # on a hotspot or hotel Wi-Fi, that uplink holds the card `_work` is about to associate with,
+        # and `wifi_up`'s default-route guard would (correctly) refuse. A no-op when no uplink is up.
+        uplink_suspended, why = await wifi_uplink.suspend_for_harvest(root)
+        if why:
+            _log.info("cpap/pull: %s", why)
+        harvest_ok = False
         try:
             res = await asyncio.to_thread(_work)
+            harvest_ok = bool(res.get("ok"))
         except Exception as e:            # noqa: BLE001 — a manual pull must never 500 the monitor
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
         finally:
             _cpap_busy["running"] = False
+            # In the `finally` so it runs on the exception path too — that early `return` is exactly
+            # the door through which a suspended uplink would otherwise never be restored.
+            _, rwhy = await wifi_uplink.resume_after_harvest(root, uplink_suspended, harvest_ok)
+            if rwhy:
+                _log.info("cpap/pull: %s", rwhy)
         st = status.setdefault("cpap", {})
         st.update(state="ok" if res.get("ok") else "error", **{k: v for k, v in res.items()
                   if k in ("files", "bytes", "nights", "skipped", "short", "errors", "nights_on_card")})
@@ -1400,10 +1415,61 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             return web.json_response({"ok": False, "busy": e.holder, "error": str(e)}, status=409)
         except Exception as e:
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=502)
+    # ── Wi-Fi uplink (hotspot / hotel) ───────────────────────────────────────────────────────────
+    # 🔴 NO ENDPOINT HERE EVER RETURNS THE CREDENTIAL. `public_view` is the only shape that crosses
+    # this boundary: ssid, security, and whether a key is held — never the key. The monitor is served
+    # over the LAN, so a "show saved password" convenience would publish the owner's hotel and phone
+    # passwords to anything that can reach port 8787.
+    async def wifi_get(_req):
+        root = cfg.get("root", "/srv/tepna")
+        st = await wifi_uplink.status()
+        return web.json_response({**st, "saved": wifi_uplink.public_view(wifi_uplink.load_saved(root))})
+
+    async def wifi_scan_h(_req):
+        return web.json_response(await wifi_uplink.scan())
+
+    async def wifi_connect_h(req):
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
+        root = cfg.get("root", "/srv/tepna")
+        ssid = str(body.get("ssid") or "")
+        security = wifi_join.OPEN if body.get("security") == wifi_join.OPEN else wifi_join.SECURED
+        passphrase = body.get("passphrase")
+        if passphrase is None:
+            # No passphrase supplied ⇒ use the remembered one. This is the reconnect path, and it is
+            # why the UI never needs the key back: the box already holds it.
+            saved = wifi_uplink.load_saved(root)
+            if not saved or saved.get("ssid") != ssid:
+                return web.json_response(
+                    {"ok": False, "error": f"no saved password for {ssid!r} — enter it once"}, status=400)
+            passphrase, security = saved.get("psk") or "", saved.get("security", wifi_join.SECURED)
+        r = await wifi_uplink.join(ssid, passphrase, security)
+        if r.get("ok") and body.get("remember", True):
+            try:
+                r["saved"] = wifi_uplink.save_network(root, ssid, passphrase, security)
+            except (ValueError, OSError) as e:
+                # Joined but could not remember: report BOTH. Silently dropping the save is how the
+                # uplink comes up now and cannot be restored after the next harvest.
+                r["warning"] = f"connected, but could not save the network: {e}"
+        return web.json_response(r, status=200 if r.get("ok") else 400)
+
+    async def wifi_disconnect_h(_req):
+        return web.json_response(await wifi_uplink.leave())
+
+    async def wifi_forget_h(_req):
+        root = cfg.get("root", "/srv/tepna")
+        return web.json_response({"ok": True, "forgot": wifi_uplink.forget_network(root)})
+
 
     app.add_routes([
         web.get("/", index),
         web.get("/api/state", state),
+        web.get("/api/wifi", wifi_get),
+        web.post("/api/wifi/scan", wifi_scan_h),
+        web.post("/api/wifi/connect", wifi_connect_h),
+        web.post("/api/wifi/disconnect", wifi_disconnect_h),
+        web.post("/api/wifi/forget", wifi_forget_h),
         web.post("/api/scan", scan),
         web.post("/api/cpap/pull", cpap_pull),
         web.post("/api/cpap/pair", cpap_pair_h),
