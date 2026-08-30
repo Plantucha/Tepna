@@ -631,3 +631,54 @@ def test_pi_and_motion_cannot_be_swapped_section16():
     assert v["motion"] == 0, "MOTION must come from payload[11]"
     # The exact bug shape if swapped: pi 0.0 in the reading, motion 130 written into the Motion column.
     assert not (v["pi"] == 0.0 and v["motion"] == 130), "PI/motion are swapped — the §16 data bug"
+
+
+# ── the auth timestamp is a plain LE uint32, capture-verified ─────────────────────────────────────
+# Settled 2026-08-30 against a USB capture of the real O2 Insight Pro. `auth_payload` had shifted by
+# `>> 0,1,2,3` while its own docstring claimed "a faithful port of the vendor code — both sides
+# match". Nobody had checked it against the vendor; it was neither.
+def _key(payload):
+    """Undo the constant XOR so the raw key bytes can be asserted."""
+    return bytes(a ^ b for a, b in zip(payload, oxyii._LEPU))
+
+
+def test_THE_AUTH_TIMESTAMP_IS_A_LITTLE_ENDIAN_UINT32():
+    import struct
+    ts = 1788096128
+    assert _key(oxyii.auth_payload("1234", ts))[12:16] == struct.pack("<I", ts)
+
+
+def test_THE_CAPTURE_DISCRIMINATOR_key13_IS_CONSTANT_ACROSS_A_SHORT_WINDOW():
+    """🔴 THE EVIDENCE ITSELF, NOT A RESTATEMENT OF THE FIX.
+
+    The two candidate encodings differ observably in exactly one place over a short window:
+
+        >> 0,1,2,3  ->  key[13] = (ts>>1)&0xff, which ticks every 2 s: 14 values in 27 s
+        LE uint32   ->  key[13] = (ts>>8)&0xff, which ticks every 256 s: CONSTANT
+
+    The capture showed key[13:16] constant at `2e 94 6a` with only key[12] moving, which refutes the
+    shift form outright. This test reproduces that measurement, so a regression to the shift form
+    fails on the same evidence that settled it rather than on a hard-coded golden."""
+    base = 1788096000
+    keys = [_key(oxyii.auth_payload("0000", base + t)) for t in range(28)]
+    assert len({k[13] for k in keys}) == 1, "key[13] moved — this is the shift form, not LE"
+    assert len({k[12] for k in keys}) == 28, "key[12] must tick every second"
+
+
+def test_THE_OBSERVED_BYTES_DECODE_TO_THE_CAPTURE_WINDOW():
+    """Stronger than 'consistent with LE': the captured high bytes decode to a real wall-clock time.
+
+    `2e 94 6a` as the top three bytes of an LE uint32 epoch is 2026-08-30 09:20–09:24 — when the
+    capture was running. A wrong encoding does not produce the right time of day by accident."""
+    import datetime as dt, struct
+    ts = struct.unpack("<I", bytes([0x80, 0x2E, 0x94, 0x6A]))[0]
+    when = dt.datetime.fromtimestamp(ts)
+    assert (when.year, when.month, when.day) == (2026, 8, 30)
+    assert _key(oxyii.auth_payload("0000", ts))[12:16] == bytes([0x80, 0x2E, 0x94, 0x6A])
+
+
+def test_AN_OUT_OF_RANGE_TIMESTAMP_DOES_NOT_RAISE():
+    # `struct.pack("<I", ...)` raises outside uint32; the old shift form silently truncated. An auth
+    # frame must not become an exception in 2106, or on a box whose clock is nonsense.
+    for ts in (2 ** 33, 0, 2 ** 32 - 1):
+        assert len(oxyii.auth_payload("0000", ts)) == 16

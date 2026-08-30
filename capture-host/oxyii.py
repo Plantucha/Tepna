@@ -13,7 +13,7 @@
 # Frame: [0xA5][cmd][~cmd][flag][seq][len_lo][len_hi][payload][crc8], CRC-8 poly 0x07 over all-but-crc.
 
 from __future__ import annotations
-import hashlib, time
+import hashlib, struct, time
 
 OXYII_SERVICE = "e8fb0001-a14b-98f9-831b-4e2941d01248"
 OXYII_WRITE   = "e8fb0002-a14b-98f9-831b-4e2941d01248"   # write-without-response
@@ -46,14 +46,35 @@ def encode(op: int, payload: bytes = b"", seq: int = 0, flag: int = 0) -> bytes:
 
 def auth_payload(serial: str = "0000", ts: int | None = None) -> bytes:
     """16-byte XOR'd auth payload. serial: 4 ASCII bytes ("0000" is the portable default). ts: epoch s.
-    Note the deliberate `>> 0,1,2,3` shift (a faithful port of the vendor code — both sides match)."""
+
+    🔴 THE TIMESTAMP IS A PLAIN LITTLE-ENDIAN uint32, and this used to shift by `>> 0,1,2,3` while its
+    own docstring called that "a faithful port of the vendor code — both sides match". It was neither
+    faithful nor matching; nobody had checked it against the vendor.
+
+    Settled 2026-08-30 by a USB capture of the real O2 Insight Pro, and the discriminator is `key[13]`:
+
+        over a 27 s window   >> 0,1,2,3 predicts key[13] takes 14 distinct values
+                             LE uint32  predicts key[13] is CONSTANT
+        the capture observed key[13:16] CONSTANT at 2e 94 6a, only key[12] moving
+
+    So the shift form is refuted outright. And the confirmation is stronger than consistency: those
+    bytes DECODE as an LE epoch to 2026-08-30 09:20–09:24, which is when the capture was running.
+    A wrong encoding does not produce the right wall-clock time by accident.
+
+    ⚠️ WHY THIS NEVER BROKE BLE, WHICH IS THE PUZZLE WORTH SAVING THE NEXT READER: our BLE auth has
+    always worked with the wrong bytes, so the ring does NOT strictly validate this field — it
+    tolerates it as a loose nonce. That is why a real encoding bug sat here behind a passing link and
+    a confident docstring. Fixing it is correspondingly low-risk: the ring accepted arbitrary bytes
+    here, so it will accept the correct ones.
+
+    `& 0xFFFFFFFF` because `struct.pack("<I", ...)` RAISES on a value outside uint32 — the old shift
+    form silently truncated, and an auth frame must not become an exception in 2106 or on a bad clock."""
     ts = int(time.time()) if ts is None else ts
     key = bytearray(16)
     for i in range(8):
         key[i] = _LEPU[i * 2]
     key[8:12] = serial[:4].encode("ascii")
-    for n in range(4):
-        key[12 + n] = (ts >> n) & 0xFF
+    key[12:16] = struct.pack("<I", ts & 0xFFFFFFFF)
     return bytes(a ^ b for a, b in zip(bytes(key), _LEPU))
 
 
