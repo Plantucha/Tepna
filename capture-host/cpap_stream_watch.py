@@ -31,6 +31,7 @@ __all__ = [
     "UNKNOWN",
     "MIN_THERAPY_MIN",
     "MIN_OBSERVED_FRAC",
+    "unreachable_reason",
     "MIN_COVER",
     "MAX_GAP_S",
     "assess",
@@ -57,7 +58,7 @@ MIN_COVER = 0.5
 
 
 def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
-           min_cover: float = MIN_COVER, attempts=None, last_error=None) -> dict:
+           min_cover: float = MIN_COVER, attempts=None, last_error=None, unreachable=None) -> dict:
     """`{state, detail, therapy_min, stream_min, cover}` — did the live stream record the session? PURE.
 
     `therapy_min` is None when the detector could not measure it. That is UNKNOWN, not zero: treating
@@ -69,13 +70,29 @@ def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
     keeps its exact behaviour — a box without auto-start armed has no record and still reports
     NEVER_STARTED, which is the truth there."""
     if therapy_min is None:
+        # F2's journal half: SAY WHY, when the journal knows. The state stays UNKNOWN and the number
+        # stays None — see `unreachable_reason` for why unanimous not-found cannot be promoted to 0
+        # without evidence the radio worked — but "the machine was never found" and "the radio was
+        # contended" stop being the same sentence, because they need opposite responses.
+        why = ""
+        if isinstance(unreachable, dict) and unreachable.get("n"):
+            if unreachable.get("unanimous_absent"):
+                why = (f" — every one of {unreachable['n']} failed poll(s) reported the machine NOT "
+                       f"FOUND ({unreachable['dominant']}). Consistent with the machine being off, "
+                       f"and equally consistent with a radio that could not hear it all night; "
+                       f"nothing in this journal separates those")
+            else:
+                why = (f" — {unreachable['n']} failed poll(s), mostly {unreachable['dominant']}. At "
+                       f"least one blames the RADIO rather than the machine, so this is a capture "
+                       f"fault, not evidence about therapy")
         return {
             "state": UNKNOWN,
             "therapy_min": None,
             "stream_min": stream_min,
             "cover": None,
+            "unreachable": unreachable,
             "detail": "no therapy duration measured (detector off, or its journal absent) — "
-            "this is not evidence that no therapy ran",
+            "this is not evidence that no therapy ran" + why,
         }
     try:
         t = float(therapy_min)
@@ -151,6 +168,74 @@ def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
 # night on this box. So consecutive rows can be minutes apart, and crediting the whole gap as therapy
 # would turn an outage into recorded treatment. Gaps longer than this are counted as the poll interval
 # instead — the observation is worth one poll, not the silence around it.
+# ── WHY the journal could not be read — F2's journal half ─────────────────────────────────────────
+# `UnreachableRow` has recorded the exception class in `trigger` (parts[5]) since 2026-08-30 so a
+# persistent fault is identifiable by a human reading the CSV. Nothing consumed it, so a night the
+# machine was OFF and a night the RADIO could not answer produced byte-identical UNKNOWNs — and they
+# need opposite responses (wait vs reset bluez).
+#
+# 🔴 THIS DELIBERATELY DOES NOT PROMOTE A MACHINE-OFF NIGHT TO 0.0 MINUTES, AND THAT RESTRAINT IS THE
+# DESIGN, NOT A SHORTCUT. The tempting win is real — a machine that was genuinely off HAS an answer,
+# zero, and reporting None there turns a measurement into an unknown. But the classes alone cannot
+# license it:
+#
+#     machine OFF, radio healthy                 -> every poll not-found
+#     machine ON, bluez wedged against THIS device -> every poll not-found
+#
+# ⚠️ THE SECOND ROW IS NOT "A JAMMED RADIO", AND THE DIFFERENCE MATTERS. On 2026-08-29 the radio was
+# demonstrably HEALTHY throughout — one adapter enumerated 107 other devices and the two wearables
+# streamed all night — while bluez stayed blind to the CPAP alone. So a radio-health signal cannot
+# separate these two rows either: a per-device wedge IS a healthy radio. That kills the obvious
+# discriminator ("did the adapter hear anything?") before it is reached for, which is why the
+# restraint below is not merely cautious.
+#
+# Unanimous not-found is IDENTICAL under both, so a night-long wedge would ship a fabricated 0 —
+# strictly worse than the honest None it replaces. Separating them needs positive evidence the radio
+# WORKED that night (did the adapter reach any other device?), and `therapy_minutes` is pure over one
+# journal: it can see no other device, no adapter state, nothing outside the CPAP's own rows. The
+# corroboration is not merely absent, it is structurally unavailable at this layer.
+#
+# Proven, not argued: the 2026-08-29 blackout produced unanimous not-found across BOTH adapters for a
+# night the machine was demonstrably running — ten EDF files were harvested from it the next day.
+# `absence_verdict`'s clean sweep does not catch that either, which is why reusing it wholesale would
+# have inherited the same blind spot one level up.
+#
+# So this LABELS the unknown instead of resolving it: "not found on every poll" and "the radio was
+# contended" become different sentences a human can act on, while the number stays None. To promote
+# one to 0 later, give this layer a radio-health signal — the wedge rung's `radio_healthy` is the
+# shape — and gate the promotion on it.
+_ABSENT_CLASSES = ("bleakdevicenotfounderror",)
+
+
+def unreachable_reason(text: str) -> "dict | None":
+    """`{n, classes, dominant, unanimous_absent}` over the journal's unreachable rows, or None. PURE.
+
+    `unanimous_absent` means every unreachable row blamed a device-not-found class — NECESSARY for a
+    machine-off reading and, on its own, NOT SUFFICIENT (see above). It is published so a caller that
+    *does* hold radio-health evidence can combine the two; it is never treated as a verdict here."""
+    classes: "dict[str, int]" = {}
+    n = 0
+    for line in str(text or "").splitlines():
+        parts = line.split(";")
+        if len(parts) < 9:
+            continue
+        try:
+            float(parts[0])
+        except ValueError:
+            continue                       # header or torn line
+        if parts[7].strip().lower() not in ("false", "0"):
+            continue                       # a reachable poll says nothing about why others failed
+        n += 1
+        cls = parts[5].strip() or "unknown"
+        classes[cls] = classes.get(cls, 0) + 1
+    if not n:
+        return None
+    dominant = max(classes.items(), key=lambda kv: (kv[1], kv[0]))[0]
+    return {"n": n, "classes": classes, "dominant": dominant,
+            "unanimous_absent": bool(classes) and all(
+                c.lower() in _ABSENT_CLASSES for c in classes)}
+
+
 MAX_GAP_S = 120.0
 
 # The share of polls that must have REACHED the machine before this journal is allowed to answer.

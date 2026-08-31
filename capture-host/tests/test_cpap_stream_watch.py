@@ -195,3 +195,82 @@ def test_a_journal_of_NOTHING_BUT_unreachable_rows_refuses():
     t0 = 1_787_000_000_000
     rows = [_unreach(t0 + i * 30_000) for i in range(1300)]
     assert W.therapy_minutes("\n".join([_HDR] + rows)) is None
+
+
+# ── F2's journal half: WHY the journal could not be read ──────────────────────────────────────────
+# `UnreachableRow` has recorded the exception class in `trigger` (parts[5]) since 2026-08-30, and
+# nothing consumed it — so a night the machine was OFF and a night the RADIO could not answer were
+# byte-identical UNKNOWNs, though they need opposite responses (wait vs reset bluez).
+def _unreach(*classes, reachable="False"):
+    head = "host_ms;prior_state;state;transition;action;trigger;confidence;reachable;fg_state;u;p;b"
+    rows = [f"{1000 + i};idle;idle;;unreachable;{c};;{reachable};;;;" for i, c in enumerate(classes)]
+    return "\n".join([head] + rows)
+
+
+def test_A_MACHINE_NOT_FOUND_NIGHT_AND_A_JAMMED_NIGHT_STOP_READING_ALIKE():
+    gone = W.unreachable_reason(_unreach(*["BleakDeviceNotFoundError"] * 5))
+    jammed = W.unreachable_reason(_unreach("BleakError", "BleakError", "BleakDeviceNotFoundError"))
+    assert gone["unanimous_absent"] is True and gone["dominant"] == "BleakDeviceNotFoundError"
+    assert jammed["unanimous_absent"] is False and jammed["dominant"] == "BleakError"
+    assert (W.assess(None, 0.0, unreachable=gone)["detail"]
+            != W.assess(None, 0.0, unreachable=jammed)["detail"])
+
+
+def test_A_UNANIMOUS_NOT_FOUND_NIGHT_IS_STILL_NOT_ZERO_MINUTES():
+    """THE RESTRAINT, PINNED — the tempting win that would have been a fabrication.
+
+    A machine that was genuinely off HAS an answer: zero. Reporting None there turns a measurement
+    into an unknown, so promoting it is tempting. The classes cannot license it:
+
+        machine OFF, radio healthy         -> every poll not-found
+        machine ON, radio jammed all night -> every poll not-found
+
+    Identical. So a night-long wedge would ship a fabricated 0, strictly worse than the honest None.
+    Proven rather than argued: 2026-08-29 produced unanimous not-found across BOTH adapters for a
+    night the machine was demonstrably running — ten EDF files were harvested from it the next day."""
+    gone = W.unreachable_reason(_unreach(*["BleakDeviceNotFoundError"] * 200))
+    assert gone["unanimous_absent"] is True
+    out = W.assess(None, 0.0, unreachable=gone)
+    assert out["state"] == W.UNKNOWN, "a unanimous not-found night was promoted to a verdict"
+    assert out["therapy_min"] is None, "a unanimous not-found night was promoted to 0.0 minutes"
+    assert "equally consistent" in out["detail"], "the detail must not imply the machine was off"
+
+
+def test_A_REACHABLE_POLL_SAYS_NOTHING_ABOUT_WHY_OTHERS_FAILED():
+    # Only rows that actually failed carry a blame class; counting a successful poll's blank trigger
+    # would dilute the dominant class with noise from polls that worked.
+    text = _unreach("BleakDeviceNotFoundError") + "\n" + \
+        "2000;idle;idle;;;idle_steady;fgstate_only;True;Standby;;;"
+    r = W.unreachable_reason(text)
+    assert r["n"] == 1 and r["classes"] == {"BleakDeviceNotFoundError": 1}
+
+
+def test_A_JOURNAL_WITH_NO_FAILURES_HAS_NO_REASON_TO_GIVE():
+    assert W.unreachable_reason("") is None
+    assert W.unreachable_reason(_unreach("X", reachable="True")) is None
+
+
+def test_A_BLANK_TRIGGER_IS_NAMED_UNKNOWN_NOT_DROPPED():
+    # Rows written before the class was recorded have an empty trigger. Dropping them would make an
+    # old journal look like it had fewer failures than it did.
+    r = W.unreachable_reason(_unreach("", ""))
+    assert r["n"] == 2 and r["classes"] == {"unknown": 2} and r["unanimous_absent"] is False
+
+
+def test_EVERY_EXISTING_CALLER_IS_UNAFFECTED():
+    # `unreachable` is keyword-only and defaults to None, the same shape `attempts`/`last_error` use.
+    plain = W.assess(None, 0.0)
+    assert plain["state"] == W.UNKNOWN and plain["unreachable"] is None
+    assert "every one of" not in plain["detail"]
+
+
+def test_A_TORN_LINE_IS_SKIPPED_NOT_COUNTED():
+    """A journal being appended to while it is read ends in a partial row, and a rotation can leave
+    one mid-line. Such a row has no trigger field to blame, so counting it would invent a failure
+    class — or, worse, dilute a unanimous not-found night with a phantom 'unknown' and flip
+    `unanimous_absent` to False on evidence that does not exist."""
+    good = _unreach("BleakDeviceNotFoundError", "BleakDeviceNotFoundError")
+    torn = good + "\n3000;idle;idle;;unrea"          # cut mid-write
+    r = W.unreachable_reason(torn)
+    assert r["n"] == 2, "a truncated row was counted as a failed poll"
+    assert r["unanimous_absent"] is True, "a torn row flipped a unanimous night to mixed"

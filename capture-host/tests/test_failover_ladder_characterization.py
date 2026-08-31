@@ -121,8 +121,26 @@ def test_therapy_minutes_ignores_the_failure_CLASS_entirely():
     in the recorded class produce the same number.
 
     ⚠️ The source never claimed otherwise — this is a spec-versus-implementation gap, not a false
-    claim in code. When a consumer starts reading the class this assertion should FAIL; that is the
-    gap closing, and the test is then what changes."""
+    claim in code.
+
+    ✅ UPDATED 2026-08-31 — THE CLASS IS NOW READ, AND THIS ASSERTION DELIBERATELY STILL HOLDS.
+    `cpap_stream_watch.unreachable_reason` consumes parts[5] and `assess` reports it, so a
+    machine-not-found night and a radio-contended night no longer read alike. But `therapy_minutes`
+    itself still ignores the class ON PURPOSE, because the class cannot license a NUMBER:
+
+        machine OFF, radio healthy         -> every poll not-found
+        machine ON, per-device wedge       -> every poll not-found
+
+    Identical, and the second is not hypothetical — 2026-08-29 produced unanimous not-found while
+    hci0 enumerated 107 other devices, for a night whose therapy demonstrably ran. So a radio-health
+    signal cannot separate them either: a per-device wedge IS a healthy radio. Promoting either to
+    0.0 would ship a fabricated "no therapy ran" for the one night we know was unknowable.
+
+    The two states are separable only by INTERVENTION — after a bluetooth restart the wedged device
+    returns and the absent one does not — so the discriminator is the OUTCOME of #1984's wedge rung,
+    which is not yet durably recorded. Until it is, this assertion is the correct behaviour and
+    should stay green. If it ever goes red, check that the promotion is gated on that outcome and
+    not on unanimity or radio health."""
     gone = therapy_minutes(_journal("BleakDeviceNotFoundError"))
     jammed = therapy_minutes(_journal("BleakError"))
     assert gone == jammed, "therapy_minutes distinguishes the classes — the F2 gap has closed"
