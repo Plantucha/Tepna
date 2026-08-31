@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-08-25 · **Follows:** `CPAP-BLE-CAPTURE-2026-08-21-BRIEF.md` (the pure spool machinery, DONE) · **Relates:** `CPAP-ACQ-P1-RAW-RECORD-2026-08-23-BRIEF.md` §11 (live/spool convergence), `ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md` Phase B (the assembler, tested-not-witnessed)
+**Status:** PROPOSED (core BUILT, remainder HARDWARE-BLOCKED — verified 2026-08-31: `cpap_spool_caller` is wired at `capture.py:6474`+ behind the `cpap.spool_pull.enabled` default-OFF gate; what remains is an attended witnessed Summary-spool pull, the assembler fed real fragments, and §11 3-way convergence on ≥1 night — all needing physical box access with the owner remote. Bands half pre-discharged 2026-08-25) · **Created:** 2026-08-25 · **Follows:** `CPAP-BLE-CAPTURE-2026-08-21-BRIEF.md` (the pure spool machinery, DONE) · **Relates:** `CPAP-ACQ-P1-RAW-RECORD-2026-08-23-BRIEF.md` §11 (live/spool convergence), `ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md` Phase B (the assembler, tested-not-witnessed)
 
 # CPAP spool acquisition — the caller, the first witnessed pull, and the §11 convergence
 
