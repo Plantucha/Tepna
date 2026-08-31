@@ -176,8 +176,19 @@ def clean_run_seconds(tests: list[str]) -> tuple[float, bool]:
 
     This is CLAUDE.md §4b's family: capture the status of the command itself, not a plausible-looking
     number it produced on the way to failing."""
+    # ⚠️ THE DESELECTIONS MUST APPLY HERE TOO, and forgetting that made the whole gate refuse.
+    # `deselect_args()` was wired into the mutmut CONFIG (so MUTANT runs honour it) and not into this
+    # baseline, so the two tests that query git about the tree they run in failed here — mutmut's
+    # scratch is a COPY, not a repo — and `clean_ok` came back False. The caller then reports
+    # "no budget: the clean run did not pass", every glob fails, and `mutate_diff` REFUSES.
+    # Measured 2026-08-31: that is why capture.py never produced a survivor list, on #1954, on #1959,
+    # and on a re-run against current main. Reproduced by `git archive origin/main | tar -x` into a
+    # non-git dir: exactly 2 failed, 5537 passed — both of them entries in DESELECTED_TESTS.
+    # The selection this times must be the selection that will be RUN, or it is timing a different
+    # thing than the one it licenses.
     t0 = time.monotonic()
-    r = subprocess.run([str(VENV_PY), "-m", "pytest", "-q", "-p", "no:cacheprovider", *tests],
+    r = subprocess.run([str(VENV_PY), "-m", "pytest", "-q", "-p", "no:cacheprovider",
+                        *tests, *deselect_args()],
                        cwd=HERE, capture_output=True, text=True, timeout=3600)
     return time.monotonic() - t0, r.returncode == 0
 
