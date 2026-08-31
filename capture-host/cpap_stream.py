@@ -28,7 +28,7 @@ _log = logging.getLogger("tepna.cpap")
 # and mask pressure at the 40 ms BRP cadence; fs is derived from the sample interval, not hard-coded, so
 # a caller that picks a different interval gets a truthful rate on the card.
 BRP_CHANNELS = {
-    "PatientFlow": ("cpap_flow", "CPAP Flow", "L/min"),
+    "PatientFlow": ("cpap_flow", "CPAP Flow", "L/s"),
     "MaskPressure": ("cpap_pressure", "CPAP Pressure", "cmH₂O"),
 }
 

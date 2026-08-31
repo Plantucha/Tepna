@@ -119,7 +119,7 @@ def test_registers_both_channels_and_pushes_each_batch():
     assert set(bus.registered) == {"cpap_flow", "cpap_pressure"}
     reg = bus.registered["cpap_flow"]
     assert reg["fs"] == 25.0, "rate derived from the 40 ms interval → 25 Hz"
-    assert reg["unit"] == "L/min" and reg["label"] == "CPAP Flow" and reg["chans"] == 1
+    assert reg["unit"] == "L/s" and reg["label"] == "CPAP Flow" and reg["chans"] == 1
     # the clientId reached the handshake and the sample interval reached StartStream (both on the wire)
     sent = [json.loads(L.fig_unframe(f)[1]) for f in dev.written]
     req = next(m for m in sent if m.get("method") == "RequestSession")
@@ -1214,3 +1214,15 @@ def test_controller_without_a_therapy_factory_gets_no_acting_sink():
         assert not seen["extra_sinks"], "acting OFF by default — no sink, prior behaviour exactly"
         await c.op("stop")
     _run(go())
+
+
+def test_flow_bus_unit_matches_the_edf_flow_unit():
+    """PatientFlow bus channel and the EDF Flow channel are ONE physical stream (flow_to_lps is
+    identity — flow pinned L/s, CPAP-EDF-WRITER-FOLLOWUPS s1), so their units MUST agree. The bus
+    label read 'L/min' for L/s data — a ~60x mislabel on the monitor. Differential regression so the
+    two representations cannot diverge again (the EDF side was tested, the bus side was not)."""
+    import cpap_edf
+
+    edf_flow_unit = next(dim for name, dim, *_ in cpap_edf._BRP_SPECS if name.startswith("Flow")).strip()
+    assert edf_flow_unit == "L/s"
+    assert CS.BRP_CHANNELS["PatientFlow"][2] == edf_flow_unit
