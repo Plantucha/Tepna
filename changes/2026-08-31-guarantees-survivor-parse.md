@@ -28,5 +28,12 @@ before: **540 guarantee sites, 432 carrying a surviving mutant (80 %)**. The sha
 lines whose own trailing comment states the promise, each with an unkilled mutant on the guard:
 `// never fabricate…`, `// never a raw…`, `// unjoinable — never guessed into a night`.
 
-80 % is a **prioritiser, not a defect count** — it separates "untested line" from "untested line we have
-told the reader is guaranteed". `clock.js` is excluded because its sweep canary is `STALE`.
+78 % is a **prioritiser, not a defect count** — it separates "untested line" from "untested line we have
+told the reader is guaranteed".
+
+`clock.js` was re-swept (190 mutants) after being wrongly excluded for a `STALE` canary: it reproduced
+almost exactly (145 killed vs 144, 33 of 34 survivor lines identical, zero new survivors) and still
+reports `STALE`, because re-running does not re-learn a canary. `mutate.mjs`'s own rule is that **a high
+kill rate is its own positive control**; `STALE`/`NONE` means *unguarded*, not *wrong*. By the correct
+test — unguarded AND a low kill rate — only **6 of 30** sweeps are untrusted, led by `dex-coload.js` at
+**0/4**, where "unkillable" and "blind" are indistinguishable.

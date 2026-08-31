@@ -191,9 +191,41 @@ cannot see that line change; it does not mean the promise is false. The value is
 *untested line* from *untested line we have told the reader is guaranteed* — and that ordering is only
 now available at all.
 
-⚠️ **`clock.js` — the file the item names first — could not be included: its sweep's canary is `STALE`.**
-Re-sweeping it is the prerequisite for extending this census to the rest of the named spine, and
-`integrator-dsp.js` is `canary: NONE` rather than verified.
+**`clock.js`: 31 guarantee sites, 16 carrying a survivor (52 %)** — bringing the census to
+**571 sites, 448 carrying (78 %)** across the 9 files.
+
+⚠️ **CORRECTION — I first excluded `clock.js` for a `STALE` canary, and that reasoning was wrong.**
+I re-swept it (190 mutants, 47 min) expecting different numbers. It reproduced almost exactly:
+**145 killed vs 144, 40 survivors vs 41, 33 of 34 survivor lines identical, zero new survivors** — and
+the fresh run reports `canary: STALE` *as well*, because re-running does not re-learn a canary.
+
+`mutate.mjs` states the rule the exclusion should have been read against:
+
+> **A HIGH KILL RATE IS ITS OWN POSITIVE CONTROL; A LOW ONE IS NOT.** A blind harness reports ZERO
+> kills, so a run at 952/1917 has proved detectability 952 times over and STANDS unguarded. The canary
+> is load-bearing in the opposite case: at a low or zero kill rate, "nothing was killable" and "the
+> harness was blind" produce identical output… Neither instrument speaks to individual survivor
+> verdicts… re-verifying a sample "because the canary was stale" answers a question neither instrument
+> asks.
+
+So `STALE`/`NONE` means **unguarded, not wrong**, and `clock.js` at 145/190 (76 %) was self-validating
+all along.
+
+⚠️ **Which also corrects the corpus warning.** "20 of 30 sweeps at `canary: NONE`" is the wrong
+discriminator — canary state alone does not separate trustworthy from untrustworthy. The right test is
+**unguarded AND a low kill rate**, and by that test only **6 of 30** sweeps are untrusted:
+
+| sweep | killed/tested | |
+|---|---|---|
+| `dex-coload.js` | **0/4** | 0 % — the textbook case: no kills, no canary, nothing distinguishes "unkillable" from "blind" |
+| `oxydex-registry.js` | 1/14 | 7 % |
+| `cpapdex-registry.js` | 2/20 | 10 % |
+| `cpapdex-fusion.js` | 23/197 | 12 % |
+| `glucodex-registry.js` | 2/17 | 12 % |
+| `ecgdex-registry.js` | 3/19 | 16 % |
+
+Those six are where a canary would earn its keep. The other 24 — including every `NONE` at a healthy
+kill rate — are self-validating.
 
 ## 4 · Backfill throughput is still measured once, on one card
 
