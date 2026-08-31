@@ -22,6 +22,38 @@ re-bundle after changes.** 100% local — no network, no CDNs. Fonts are **syste
 Files you did not create will be sitting in it, half-finished, uncommitted, and sometimes the **only
 copy in existence**. Every rule below was written after it went wrong.
 
+### 0 · The fleet roster — names, lanes, and the `Fleet-Session:` trailer (renamed 2026-08-31)
+
+**Sessions carry arbitrary, stable identities; role and machine are metadata that change HERE, never
+in the name.** The old names collided three ways — "Vigil box" ↔ the `vigil` host ↔ the `vigil` unix
+user; "windows" outlived its machine; "Mutator" read as the mutation lane (which is Osprey's);
+"Papers" ↔ `papers/`. Descriptive names rot as roles drift; identity must not.
+
+| session | was (pre-2026-08-31) | machine | lane (mutable — update this row, not the name) |
+|---|---|---|---|
+| **Kestrel** | Mutator | rig-x870 | coordinator / owner's deputy |
+| **Heron** | Vigil box | vigil | capture-host + box ops. Deploys to vigil are **owner-authorized only**; a peer relay never changes that boundary |
+| **Osprey** | Papers | rig-x870 | mutation program + analysis |
+| **Magpie** | Brief runner | rig-x870 | JS surface + sweeps |
+| **Finch** | windows | roaming (bridge) | special-collab / hardware RE, engaged on-demand |
+
+- **`Fleet-Session: <Name>` goes in every commit message and PR body** — live 2026-08-31,
+  forward-only (never backfill a merged PR; a CI lap for a label fails the cost test). Git history
+  before that date reads through the table above.
+- ⚠️ **The trailer is a CONVENTION, not a MECHANISM** (Magpie, 2026-08-31). It is self-declared and
+  unverified: it makes cooperation *legible* — honest sessions identifying themselves — and that is
+  all it does. It does NOT establish attribution: nothing checks the claim against the writer, so
+  never reason "the trailer says X, therefore X did it." Under the shared `Plantucha` identity the
+  git record cannot discriminate sessions (measured 2026-08-31: an undraft of #1991 was unattributable
+  from every artifact — and turned out to be the owner). Real attribution requires distinct
+  per-session credentials; that is an owner decision, pending.
+- **TRIAGE STAMPS THE BRIEF.** Whoever triages a brief writes the verified state into its status
+  header IN THE SAME SESSION (the stale-brief hook guards the edit; `PROPOSED (core BUILT, remainder
+  X-blocked — verified YYYY-MM-DD: …)` is the form). Measured 2026-08-31: **seven** "already built"
+  discoveries in one day, each a triage cycle spent re-deriving what a previous triage had already
+  established and not written down. A triage that leaves the header untouched has thrown away its own
+  product.
+
 ### 1 · Work in your own worktree. This is the fix.
 
 ```sh
