@@ -166,3 +166,46 @@ def test_resolve_cpap_adapter_maps_a_MAC_to_the_CURRENT_hci(monkeypatch):
 
     # An ABSENT radio returns None (BlueZ default) rather than pretending the pin worked.
     assert asyncio.run(capture._resolve_cpap_adapter("AA:BB:CC:DD:EE:FF")) is None
+
+
+def test_therapy_end_factory_accepts_the_new_flow_eps_lps_key():
+    import asyncio
+
+    import capture
+    f = capture._therapy_end_factory({"auto_stop": {"enabled": True, "flow_eps_lps": 0.3}})
+    assert f(asyncio.Event())._flow_eps == 0.3
+
+
+def test_therapy_end_factory_prefers_lps_and_ignores_legacy_lpm_when_both_set(caplog):
+    import asyncio
+    import logging
+
+    import capture
+    with caplog.at_level(logging.WARNING):
+        f = capture._therapy_end_factory(
+            {"auto_stop": {"enabled": True, "flow_eps_lps": 0.3, "flow_eps_lpm": 0.9}}
+        )
+    assert f(asyncio.Event())._flow_eps == 0.3          # _lps wins; _lpm is NOT averaged or converted
+    assert "ignoring flow_eps_lpm" in caplog.text
+
+
+def test_therapy_end_factory_reads_legacy_lpm_as_Ls_unchanged_with_deprecation_warning(caplog):
+    """LOAD-BEARING: the legacy key keeps TODAY's semantics exactly — value read as L/s, never /60.
+    vigil's live config sets flow_eps_lpm tuned as L/s, so converting would move the clinical stop
+    threshold 60x (the exact harm this migration exists to avoid)."""
+    import asyncio
+    import logging
+
+    import capture
+    with caplog.at_level(logging.WARNING):
+        f = capture._therapy_end_factory({"auto_stop": {"enabled": True, "flow_eps_lpm": 0.1}})
+    assert f(asyncio.Event())._flow_eps == 0.1          # 0.1 stays 0.1 — NOT 0.1/60
+    assert "deprecated" in caplog.text
+
+
+def test_therapy_end_factory_defaults_flow_eps_when_neither_key_is_set():
+    import asyncio
+
+    import capture
+    f = capture._therapy_end_factory({"auto_stop": {"enabled": True}})
+    assert f(asyncio.Event())._flow_eps == 0.5

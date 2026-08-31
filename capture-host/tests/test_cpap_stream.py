@@ -1084,7 +1084,7 @@ def test_therapy_end_sink_stops_after_sustained_zero_flow():
     ended = []
     s = CS.TherapyEndSink(ev, flow_eps=0.5, hold_s=2.0, on_end=lambda: ended.append(1))
     s.open(CS.BRP_CHANNELS, 25.0)
-    # 2 s at 25 Hz = 50 quiet samples; feed 60 of the REAL measured idle value (-0.01 L/min).
+    # 2 s at 25 Hz = 50 quiet samples; feed 60 of the REAL measured idle value (-0.01 L/s).
     s.on_batch(_batch([-0.01] * 60))
     assert ev.is_set(), "sustained zero flow must end the stream"
     assert s.fired is True and ended == [1]
@@ -1226,3 +1226,18 @@ def test_flow_bus_unit_matches_the_edf_flow_unit():
     edf_flow_unit = next(dim for name, dim, *_ in cpap_edf._BRP_SPECS if name.startswith("Flow")).strip()
     assert edf_flow_unit == "L/s"
     assert CS.BRP_CHANNELS["PatientFlow"][2] == edf_flow_unit
+
+
+def test_pressure_bus_unit_matches_the_edf_pressure_unit():
+    """MaskPressure is one physical channel with two representations: the bus shows 'cmH₂O' (Unicode
+    subscript, for the monitor) and the EDF header writes ASCII 'cmH2O' (EDF dims are ASCII). They must
+    agree after that deliberate charset normalization — locking the pair the way the flow pair is locked
+    (the EDF side is unit-tested, the bus side was not)."""
+    import cpap_edf
+
+    def _ascii(u):
+        return u.replace("₂", "2")
+
+    edf_press_unit = next(dim for name, dim, *_ in cpap_edf._BRP_SPECS if name.startswith("Press")).strip()
+    assert edf_press_unit == "cmH2O"
+    assert _ascii(CS.BRP_CHANNELS["MaskPressure"][2]) == edf_press_unit
