@@ -207,6 +207,22 @@ def clean_run_seconds(tests: list[str]) -> tuple[float, bool]:
               f"{len(lines) or 'no'} FAILED/ERROR line(s):", flush=True)
         for ln in lines[:20]:
             print(f"      {ln}", flush=True)
+        # 🔴 THE SUMMARY LINE IS NOT THE REASON. pytest's `FAILED …` line carries only the FIRST line
+        # of the assertion message; the body — which is the part that says WHAT failed — lands in the
+        # FAILURES section above it. Printing the summary alone produced
+        # `AssertionError: shellcheck findings:` with nothing after, and I read that emptiness as
+        # evidence the tool had printed nothing, and started theorising from it. It was this filter
+        # truncating, not the tool being silent. A reporter that drops the body manufactures exactly
+        # the wrong conclusion, which is worse than reporting nothing at all.
+        block = (r.stdout or "")
+        if "= FAILURES =" in block:
+            body = block.split("= FAILURES =", 1)[1].splitlines()
+            keep = [ln for ln in body if ln.strip()][:40]
+            if keep:
+                print("    ---- assertion detail (first 40 non-blank lines of FAILURES) ----",
+                      flush=True)
+                for ln in keep:
+                    print(f"      {ln}", flush=True)
         if not lines:
             # No FAILED lines at all is a DIFFERENT failure — a collection error, a missing plugin, an
             # import crash. Show the tail rather than printing nothing and implying there was nothing.
