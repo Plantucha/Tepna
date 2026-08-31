@@ -253,7 +253,14 @@ class _ZonedClock:
 
     @property
     def offset(self) -> dt.timedelta:
-        return dt.datetime.fromtimestamp(self.epoch, tz=self.zone).utcoffset()
+        off = dt.datetime.fromtimestamp(self.epoch, tz=self.zone).utcoffset()
+        # `utcoffset()` is Optional in the stubs because a NAIVE datetime returns None. This one
+        # cannot be naive: `self.zone` is a ZoneInfo built in __init__ and never None, so the
+        # annotation is already correct and mypy simply cannot prove it. The assert states that
+        # invariant — and would fire if someone ever made the zone optional — rather than widening
+        # the return type and pushing an impossible None onto every caller.
+        assert off is not None
+        return off
 
     def advance(self, secs: float) -> None:
         """Real time passing: the instant and the monotonic counter move together."""
