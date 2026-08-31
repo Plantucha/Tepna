@@ -29,7 +29,9 @@
 
 from __future__ import annotations
 
-__all__ = ["WEDGED", "ABSENT", "WATCHING", "UNKNOWN", "wedge_verdict", "restart_allowed"]
+__all__ = ["WEDGED", "ABSENT", "WATCHING", "UNKNOWN", "wedge_verdict", "restart_allowed",
+           "RETURNED", "NOT_RETURNED", "PENDING", "RECOVERY_WINDOW_S", "recovery_outcome",
+           "fire_row", "parse_fires"]
 
 WEDGED = "wedged"        # seen recently, gone since, radio demonstrably fine ⇒ recovery is warranted
 ABSENT = "absent"        # gone long enough that "the device is not here" is the better explanation
@@ -85,3 +87,96 @@ def restart_allowed(restarts_today, max_per_day=MAX_RESTARTS_PER_DAY):
         return False, (f"restart budget spent ({restarts_today}/{max_per_day} today) — a restart that "
                        f"did not help will not help on the next attempt")
     return True, f"{restarts_today}/{max_per_day} restarts used today"
+
+
+# ── DID THE DEVICE COME BACK? — the only thing that separates "off" from "wedged" ─────────────────
+#
+# 🔴 THIS IS THE MISSING HALF OF THE 2026-08-30 RUNG, AND IT WAS MY OWN GAP. The rung fires and
+# restarts bluetooth, but `STATUS["cpap_wedge"]` is IN-MEMORY and captures the verdict AT THE MOMENT
+# OF FIRING — whether the device actually returned afterwards was recorded nowhere, in memory or on
+# disk. Worse, the rung then clears `unreachable_streak`, so even the evidence that prompted it is
+# gone. `status.json` does not help: it is a snapshot that gets overwritten, not a journal, so
+# "fired at T, returned or not" is unrecoverable from it by construction.
+#
+# It matters because a machine that is OFF and a bluez wedged against one device are identical on
+# every PASSIVE channel — same unanimous not-found, and (measured 2026-08-29) the radio is
+# demonstrably HEALTHY in both, since a per-device wedge enumerated 107 other devices. They are
+# separable ONLY BY INTERVENTION: after a bluetooth restart the wedged device returns in ~32 s and
+# the absent one does not. So the discriminator is not a signal, it is an OUTCOME.
+#
+# ⚠️ THE OUTCOME IS DERIVED, NOT RECORDED, AND THAT IS DELIBERATE. The obvious design writes a
+# "returned: yes/no" row N minutes after the fire — but the rung RESTARTS BLUETOOTH and the daemon
+# itself may restart in that window, so the process owing the second write is exactly the process
+# most likely to die before making it. A recorded outcome would be missing precisely when the
+# recovery was most violent. Only the FIRE is written; the outcome is a pure function of that
+# timestamp and the observations that follow, so it survives any number of restarts and can be
+# recomputed from the journal forever.
+RETURNED = "returned"          # it was a WEDGE — the intervention worked, so the night stays UNKNOWN
+NOT_RETURNED = "not-returned"  # the machine really was gone — this is what licenses a therapy 0
+PENDING = "pending"            # the window has not elapsed; asking now would answer early
+
+# How long to allow. The one observed recovery took 32 s; 10 min is ~19x that, so a slow re-advertise
+# is not mistaken for an absence. Erring long is the safe direction here: a too-short window turns a
+# recovering device into a fabricated "machine off", which is the failure this whole path exists to
+# avoid.
+RECOVERY_WINDOW_S = 600.0
+
+
+def recovery_outcome(fired_ms, observations, window_s: float = RECOVERY_WINDOW_S, now_ms=None):
+    """`(outcome, detail)` — did the device return after the rung fired at `fired_ms`? PURE.
+
+    `observations` is `[(host_ms, reachable_bool), ...]`, in any order; only those falling inside
+    `[fired_ms, fired_ms + window_s]` are consulted.
+
+    ⚠️ NO OBSERVATION IS NOT A NEGATIVE. A window that elapsed with nobody looking returns UNKNOWN,
+    never NOT_RETURNED — and that distinction is the whole point, because NOT_RETURNED is the state
+    that would license reporting zero therapy for a night. Concluding "the machine was off" from
+    "we stopped polling" is exactly the fabrication this module refuses everywhere else."""
+    try:
+        t0 = float(fired_ms)
+        win = float(window_s) * 1000.0
+    except (TypeError, ValueError):
+        return UNKNOWN, "unusable fire timestamp"
+    inside = []
+    for row in observations or ():
+        try:
+            ms, ok = float(row[0]), bool(row[1])
+        except (TypeError, ValueError, IndexError):
+            continue                      # a torn row is not evidence either way
+        if t0 <= ms <= t0 + win:
+            inside.append((ms, ok))
+    if any(ok for _ms, ok in inside):
+        back = min(ms for ms, ok in inside if ok)
+        return RETURNED, f"device answered {(back - t0) / 1000.0:.0f}s after the restart — it was a wedge"
+    now = float(now_ms) if now_ms is not None else None
+    if now is not None and now < t0 + win:
+        return PENDING, f"{(t0 + win - now) / 1000.0:.0f}s of the recovery window still to run"
+    if not inside:
+        return UNKNOWN, "the window elapsed with no poll at all — nobody looked, so nothing is known"
+    return NOT_RETURNED, (f"{len(inside)} poll(s) across {window_s:.0f}s after the restart and the "
+                          f"device answered none of them")
+
+
+def fire_row(fired_ms, device: str, reason: str, error_class=None) -> str:
+    """One semicolon row for the fire journal. PURE. Same delimiter as SESSIONDETECT so one reader
+    idiom serves both, and every field is squeezed of `;` rather than quoted — a torn field is
+    recoverable, a broken column count is not."""
+    def _f(v):
+        return str(v if v is not None else "").replace(";", ",").replace("\n", " ").strip()
+    return ";".join([str(int(float(fired_ms))), _f(device), _f(reason), _f(error_class)])
+
+
+def parse_fires(text: str) -> list:
+    """`[{fired_ms, device, reason, error_class}]` from a fire journal, oldest first. PURE."""
+    out = []
+    for line in str(text or "").splitlines():
+        parts = line.split(";")
+        if len(parts) < 4:
+            continue
+        try:
+            ms = int(parts[0])
+        except ValueError:
+            continue                      # header or torn line
+        out.append({"fired_ms": ms, "device": parts[1], "reason": parts[2],
+                    "error_class": parts[3] or None})
+    return sorted(out, key=lambda r: r["fired_ms"])

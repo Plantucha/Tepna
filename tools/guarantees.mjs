@@ -130,15 +130,52 @@ const NEAR = 25;
 function loadSurvivors(path) {
   const raw = readFileSync(path, 'utf8').trim();
   const byFile = new Map();
-  for (const line of raw.split('\n')) {
-    if (!line.trim()) continue;
-    let d;
+  /* 🔴 WHOLE-FILE JSON FIRST, THEN NDJSON — and REFUSE on an empty result.
+     This read NDJSON only: split on newlines, `JSON.parse` each, `catch { continue }`. Handed a
+     pretty-printed `.sweep.json` — which is what `tools/mutation-crawl.mjs` writes to
+     `.mutation-crawl/<file>.sweep.json`, i.e. the survivor data this repo actually has on disk —
+     EVERY line throws, every throw is swallowed, and the map comes back EMPTY. The caller then does
+     `survivors.get(f) || []`, finds no hits, and prints "0 with a SURVIVING mutant".
+     A total parse failure, rendered as a clean all-clear, by the tool whose entire job is finding
+     promises that nothing checks. Measured on cpapdex-dsp.js: reported 0, actual 3 — three guards
+     whose trailing comments say "never fabricate", "never a raw", "never guessed into a night",
+     each carrying an unkilled mutant on the guard line itself. */
+  const whole = (() => {
     try {
-      d = JSON.parse(line);
+      return JSON.parse(raw);
     } catch {
-      continue;
+      return null;
     }
+  })();
+  const records = whole ? (Array.isArray(whole) ? whole : [whole]) : [];
+  for (const d of records) {
     if (d && d.file && Array.isArray(d.survivors)) byFile.set(d.file, d.survivors);
+  }
+  if (!byFile.size) {
+    for (const line of raw.split('\n')) {
+      if (!line.trim()) continue;
+      let d;
+      try {
+        d = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (d && d.file && Array.isArray(d.survivors)) byFile.set(d.file, d.survivors);
+    }
+  }
+  /* An empty map is never a legitimate answer here. The caller cannot tell "this file has no
+     survivors" from "nothing parsed", and only one of those is a result — `empty-result-is-not-a-
+     negative`, applied to the input rather than the output. Refuse rather than report a clean sweep
+     over nothing. */
+  if (!byFile.size) {
+    console.error(
+      '  ⚠ REFUSING: --survivors parsed 0 records from ' +
+        path +
+        '\n' +
+        '    Neither whole-file JSON nor NDJSON yielded an object with { file, survivors[] }.\n' +
+        '    Reporting "0 ungated" from this would be a clean all-clear over data that never loaded.'
+    );
+    process.exit(2);
   }
   return byFile;
 }

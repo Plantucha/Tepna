@@ -137,12 +137,116 @@ different properties — and in the opposite direction it would have condemned f
 gated perfectly well transitively, through `_mirror_matches` / `summarize` / `timeline.build`. Only
 deleting the promise and re-running answers the question.
 
-**Open:** the sweep covered `capture-host/*.py`. The same enumeration has never been run over the
+**ANSWERED 2026-08-31 — see the census below. The tool existed; its cross-reference was silently
+reporting zero.** ~~**Open:**~~ the sweep covered `capture-host/*.py`. The same enumeration has never been run over the
 **JS spine** (`clock.js`, `*-dsp.js`, `integrator-dsp.js`), where the docstring-as-guarantee habit is at
 least as strong and where `tools/mutate.mjs` already exists to do the killing. `clock.js` is at 73 %
 (`CLOCK-AXIS-AND-RENDER-SURFACE-FOLLOWUPS`), so the surviving mutants there are already enumerated —
 the new question is which of them sit under a *documented promise*, which is a sharper prioritiser than
 raw survival count.
+
+### ✅ ANSWERED — the guarantee census over the JS spine (2026-08-31)
+
+`tools/guarantees.mjs` already implements exactly this (`--spine`, and `--survivors` to cross-reference
+against a sweep). The census half had been run — its own commit reports **560 sites across the JS
+spine**. The cross-reference half had never produced a non-zero answer, and the reason was a defect
+rather than a clean bill of health:
+
+> `loadSurvivors` parsed **NDJSON only** — split on newlines, `JSON.parse` each, `catch { continue }`.
+> Handed a pretty-printed `.sweep.json`, which is what `tools/mutation-crawl.mjs` actually writes,
+> **every line throws, every throw is swallowed, and the map comes back empty.** The caller then does
+> `survivors.get(f) || []`, finds nothing, and prints **"0 with a SURVIVING mutant"** — a total parse
+> failure rendered as a clean all-clear, by the tool whose whole job is finding promises nothing checks.
+
+Fixed (whole-file JSON first, NDJSON fallback) **and made to refuse**: an empty survivor map now exits
+2 rather than reporting zero, because a caller cannot distinguish *"no survivors"* from *"nothing
+loaded"* and only one of those is a result.
+
+**The answer, over the 8 DSPs whose sweeps carry a `PASSED` canary** (verified-fresh; `clock.js` and
+one other are `STALE`, and 20 files have `canary: NONE`, which is *unverified*, not *fresh*):
+
+| file | guarantee sites | carrying a survivor | |
+|---|---|---|---|
+| `ppgdex-dsp.js` | 125 | **102** | 82 % |
+| `oxydex-dsp.js` | 127 | **96** | 76 % |
+| `ecgdex-dsp.js` | 116 | **90** | 78 % |
+| `hrvdex-dsp.js` | 40 | **33** | 83 % |
+| `cpapdex-dsp.js` | 38 | **34** | 89 % |
+| `glucodex-dsp.js` | 36 | **31** | 86 % |
+| `pulsedex-dsp.js` | 33 | **25** | 76 % |
+| `motiondex-dsp.js` | 25 | **21** | 84 % |
+| **total** | **540** | **432** | **80 %** |
+
+**Every one of those files reported 0 before the fix.**
+
+The shape of what it finds, from `cpapdex-dsp.js` — guard lines whose own trailing comment states the
+promise, each carrying an unkilled mutant on the guard itself:
+
+    2040  if (!(days >= 0) || days > 24836) continue;  // out-of-range Date ⇒ drop (never fabricate…)
+    2102  if (sec == null || !isFinite(sec)) continue; // UNKNOWN ⇒ no corrected view, never a raw…
+    2143  if (t == null || !isFinite(t)) continue;     // unjoinable — never guessed into a night
+
+⚠️ **80 % is a prioritiser, not a defect count.** A guarantee site "carrying a survivor" means the suite
+cannot see that line change; it does not mean the promise is false. The value is ordering — it separates
+*untested line* from *untested line we have told the reader is guaranteed* — and that ordering is only
+now available at all.
+
+**`clock.js`: 31 guarantee sites, 16 carrying a survivor (52 %)** — bringing the census to
+**571 sites, 448 carrying (78 %)** across the 9 files.
+
+⚠️ **CORRECTION — I first excluded `clock.js` for a `STALE` canary, and that reasoning was wrong.**
+I re-swept it (190 mutants, 47 min) expecting different numbers. It reproduced almost exactly:
+**145 killed vs 144, 40 survivors vs 41, 33 of 34 survivor lines identical, zero new survivors** — and
+the fresh run reports `canary: STALE` *as well*, because re-running does not re-learn a canary.
+
+`mutate.mjs` states the rule the exclusion should have been read against:
+
+> **A HIGH KILL RATE IS ITS OWN POSITIVE CONTROL; A LOW ONE IS NOT.** A blind harness reports ZERO
+> kills, so a run at 952/1917 has proved detectability 952 times over and STANDS unguarded. The canary
+> is load-bearing in the opposite case: at a low or zero kill rate, "nothing was killable" and "the
+> harness was blind" produce identical output… Neither instrument speaks to individual survivor
+> verdicts… re-verifying a sample "because the canary was stale" answers a question neither instrument
+> asks.
+
+So `STALE`/`NONE` means **unguarded, not wrong**, and `clock.js` at 145/190 (76 %) was self-validating
+all along.
+
+⚠️ **Which also corrects the corpus warning.** "20 of 30 sweeps at `canary: NONE`" is the wrong
+discriminator — canary state alone does not separate trustworthy from untrustworthy. The right test is
+**unguarded AND a low kill rate**, and by that test only **6 of 30** sweeps are untrusted:
+
+| sweep | killed/tested | |
+|---|---|---|
+| `dex-coload.js` | **0/4** | 0 % — the textbook case: no kills, no canary, nothing distinguishes "unkillable" from "blind" |
+| `oxydex-registry.js` | 1/14 | 7 % |
+| `cpapdex-registry.js` | 2/20 | 10 % |
+| `cpapdex-fusion.js` | 23/197 | 12 % |
+| `glucodex-registry.js` | 2/17 | 12 % |
+| `ecgdex-registry.js` | 3/19 | 16 % |
+
+Those six are where a canary would earn its keep. The other 24 — including every `NONE` at a healthy
+kill rate — are self-validating.
+
+**And the worst-looking of the six needs no re-run — the data answers it.** `dex-coload.js` is 4 tested,
+0 killed, **2 invalid**, and both real survivors are the same line:
+
+    })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
+
+Two `!== → ===` flips on a **UMD environment-detection guard**. Inverted, the expression still resolves
+*a* global object through the next branch, so no test can distinguish the outcome: these are
+**equivalent mutants, not a blind harness.** That is the same class `MUTATION-FLEET-EXPANSION` §2a-bis
+identifies from the other direction — environment guards (`globalThis`/`module`/`require`/`window`/
+`self`) behave as their own category, there because they cannot false-KILL, here because they cannot be
+killed at all.
+
+The five registries (1–3 killed of 14–20) are the adjacent case and want judgment rather than compute:
+a registry is largely a **data table**, and a mutation inside a table entry changes a value nothing
+asserts on directly. A low kill rate there is a statement about what registries *are*, not evidence the
+harness was blind — and `registry-defs-parity` already gates the property that matters (label · unit ·
+goodDirection · evidence against the node registry).
+
+So of the six unguarded low-kill sweeps, **none currently looks like a blind harness**; one is provably
+equivalent-mutant-bound and five are structurally low-yield.
 
 ## 4 · Backfill throughput is still measured once, on one card
 

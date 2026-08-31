@@ -244,6 +244,63 @@ at a time.
 
 ---
 
+## ⚡ PROVEN 2026-08-31 — six classes, each with a receipt
+
+Added because each was found *and fixed* on one day, so an auditor can pattern-match against a real
+instance rather than an abstraction. **The receipts are the point**: every claim below names the PR that
+proved it.
+
+**A · The hollow-pinned oracle — a test that asserts the bug.** `cpap_stream.py` registered
+`PatientFlow` as `L/min` for `L/s` data, and
+`test_registers_both_channels_and_pushes_each_batch` **asserted the buggy `"L/min"`**. The test was not
+missing; it was *defending* the defect, so every run was green and the pin was the thing to fix (#2009).
+**Hunt:** a constant asserted in a test and nowhere derived. Ask *what would this test say if the code
+were right?* — if the answer is "it would fail", the oracle is hollow.
+
+**B · Two representations, one tested.** The same physical channel existed on the bus and in the EDF
+writer. The EDF side was tested to be `L/s` (`test_cpap_edf.py:62`); the bus side had **no** unit test at
+all, so the two disagreed silently (#2009). **Hunt:** any value with two encodings — bus/file,
+export/render, registry/crossnight. **Fix shape: a DIFFERENTIAL oracle** (`assert bus_unit == edf_unit`),
+which needs no third source of truth and fails loudly the moment they part.
+
+**C · The instrument that cannot see — a parse failure rendered as a clean zero.** `loadSurvivors`
+parsed NDJSON only; handed a pretty-printed `.sweep.json` every line threw, `catch { continue }` swallowed
+all of them, and the empty map printed **"0 with a SURVIVING mutant"** — a total failure reported as an
+all-clear by the tool whose job is finding promises nothing checks (#2008). Siblings the same week:
+`clean_run_seconds` captured pytest's output and discarded it, so a refusal named no test (#1995) and
+then named it without the body (#1997). **Hunt:** every `catch {}` that continues; every `|| []` /
+`|| {}` default on parsed input; every count that could be zero because *nothing was examined*.
+**Fix shape: REFUSE on an empty result** — "no findings" and "nothing loaded" are indistinguishable to a
+caller and only one is an answer.
+
+**D · A status field is not a verdict.** `canary: STALE` on a sweep means **unguarded**, not **wrong**. A
+re-sweep of `clock.js` reproduced the "stale" data almost exactly — 145 killed vs 144, 33 of 34 survivor
+lines identical, zero new survivors — and still reported `STALE`, because re-running does not re-learn a
+canary (#2008). `mutate.mjs` states the rule the field must be read against: *a high kill rate is its own
+positive control; a low one is not.* **Hunt:** any decision taken off a status/flag field without reading
+what the field's owner says it means. Two siblings from the same day: *a tool exists* ≠ *it works*
+(#2008), and *a gate is RED* ≠ *it found something* — `REFUSING` meant **could not measure** on #1954/#1959,
+where no survivor list ever existed (#2005).
+
+**E · The gate that cannot see the thing it guards.** `mutation-source-scan` flagged a line only if it
+carried a quoted module filename, so `inspect.getsource(capture)` — the most natural way to write the
+offence — was invisible; and its `SANCTIONED` exemption was checked **per FILE**, so one routed read
+anywhere cleared every other read in the largest test file (#1982). Root cause of the same outage:
+`_all_scripts()` walked mutmut's generated `mutants/`, seeing 48 shell scripts where the tree has 24
+(#1998). **Hunt:** a guard whose matcher is narrower than the property it names, and any file-walk that
+does not exclude generated trees.
+
+**F · A brief marked DONE with a diagnosed defect still open.** `CPAP-EDF-WRITER-FOLLOWUPS §1` diagnosed
+the `L/min` label and the fix was never a Done-when item; the brief went DONE without it (#2009). The
+inverse also runs: three briefs described work as pending that was already built — one of them
+(`MUTATION-PROGRAM-FOLLOWUPS §6`) told the reader to build an optimisation that exists and is
+**quarantined for fabricating SURVIVED findings** (#2002, #1994, #2005). **Hunt:** cross-check a DONE
+header against its own Done-when list, and any "worth building" item against `tools/` **by concept, not
+by name** — the tool that answered one of these was called `guarantees.mjs`, matching no search for
+"mutation".
+
+---
+
 ## How to verify (use these — don’t eyeball)
 
 - **Contracts-as-tests:** `tests/dex-tests.js` (one assertion lib, two runners — `node tests/run-tests.mjs`
