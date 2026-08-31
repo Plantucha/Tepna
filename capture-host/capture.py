@@ -5165,11 +5165,16 @@ def _cpap_stream_watch_row(cfg, root, night_name):
     import cpap_live
     import cpap_stream_watch
     therapy = None
+    unreachable = None
     rows = []
     try:
         with open(os.path.join(root, "SESSIONDETECT.csv"), encoding="utf-8", errors="replace") as fh:
             text = fh.read()
         therapy = cpap_stream_watch.therapy_minutes(text)
+        # WHY the journal could not be read, when it knows. Read from the SAME text so the reason
+        # always describes the night the number came from — reading it separately would let the two
+        # drift apart on a journal that rotated in between.
+        unreachable = cpap_stream_watch.unreachable_reason(text)
         rows = cpap_live.journal_rows(text)
     except OSError:
         pass                              # detector off, or journal absent — stays None, i.e. UNKNOWN
@@ -5206,7 +5211,8 @@ def _cpap_stream_watch_row(cfg, root, night_name):
                 except (OSError, ValueError):
                     continue              # unreadable file: contributes nothing to the measurement
     return cpap_stream_watch.assess(therapy, cpap_stream_watch.stream_minutes(headers),
-                                    attempts=attempts, last_error=last_error)
+                                    attempts=attempts, last_error=last_error,
+                                    unreachable=unreachable)
 
 
 async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = None):
