@@ -920,7 +920,8 @@ def defense_warnings(autosuspend_value: "str | None", capeff_hex: "str | None", 
                     "reset / USB rebind) cannot run and exits 1. Prevention (autosuspend-off, above) is the "
                     "primary defense; grant the cap for recovery. See VIGIL-OVERNIGHT-FINDINGS §P1.2.")
         except ValueError:
-            pass
+            log.warning("startup self-test: CapEff %r is not hex, so the CAP_NET_ADMIN check did NOT run"
+                        " — its silence is not a pass", capeff_hex)
     # §P1.4 item (b) — usb_path. Added 2026-08-04: the LAST rung of the ladder is off by default, and a box
     # that has already needed it once is a box that should have it set. On 2026-07-24 the bus-port was
     # identified as `11-1.2` and the recovery still could not use it, because the key was never written.
@@ -992,7 +993,10 @@ def _usb_power_control_path(hci: str) -> "str | None":
                 return ctrl if os.path.exists(ctrl) else None
             d = os.path.dirname(d)
     except Exception:
-        pass
+        # None means BOTH "this host exposes no power/control" and "we could not walk to it". The
+        # caller keeps `autosuspend = None`, i.e. UNKNOWN, and refuses to report the defense armed —
+        # so the conflation costs a reason, never a fabricated pass.
+        log.debug("could not resolve the USB power/control path for %s", hci, exc_info=True)
     return None
 
 
@@ -1044,7 +1048,9 @@ async def startup_defense_check(hci: "str | None", cfg: "dict | None" = None) ->
             with open(ctrl) as f:
                 autosuspend = f.read().strip()
     except Exception:
-        pass
+        # `autosuspend` stays None. The block below judges only non-None values, so an unreadable
+        # control file reads as UNKNOWN rather than as "autosuspend is off".
+        log.debug("startup self-test: could not read the USB autosuspend state", exc_info=True)
     capeff = None
     try:
         with open("/proc/self/status") as f:
@@ -1053,7 +1059,8 @@ async def startup_defense_check(hci: "str | None", cfg: "dict | None" = None) ->
                     capeff = line.split()[1]
                     break
     except Exception:
-        pass
+        # `capeff` stays None — the same honest-absence contract as `autosuspend` above.
+        log.debug("startup self-test: could not read CapEff from /proc/self/status", exc_info=True)
     # Config-derived defenses. Only judged when a cfg was passed — a check that cannot see its input must
     # not report "armed", which is the exact failure this whole self-test exists to prevent.
     # Ask about every helper that is invoked under sudo anywhere, not only the ones THIS module resolves —
@@ -1246,6 +1253,9 @@ def _rebuild_link_baselines(root, *, nights=21, keep=14):
                     with open(fn, encoding="utf-8", errors="replace") as fh:
                         adapter, rates = link_distress.night_rates(fh.read())
                 except OSError:
+                    # NARROWS THE BASELINE SILENTLY unless said out loud: a baseline built from 19 of 20 nights
+                    # is not the baseline it claims to be, and nothing downstream can see the gap.
+                    log.warning("link baseline: %s is unreadable, contributing nothing to it", fn, exc_info=True)
                     continue          # one unreadable night is not a reason to lose the other twenty
                 out = link_distress.merge_baselines(out, adapter, rates, keep=keep)
     except Exception:  # noqa: BLE001 — a baseline is a report about reports
@@ -1477,7 +1487,9 @@ async def _safe_disconnect(client) -> None:
     try:
         await asyncio.wait_for(client.disconnect(), _BLE_DISCONNECT_TIMEOUT_S)
     except Exception:
-        pass
+        pass    # best-effort BY CONSTRUCTION (see the docstring): the whole point is that teardown
+                # cannot outlive its timeout, so there is no failure here to report — only a
+                # disconnect we deliberately stopped waiting for.
 
 
 @contextlib.asynccontextmanager
@@ -2573,7 +2585,10 @@ async def run_polar(dev: dict, root: str):
                                                  _time.monotonic()):
                                 _set(name, charging=True)
                     except Exception:
-                        pass
+                        # The charging/flat-battery detector silently STOPS here — `charging` keeps whatever it last
+                        # held, so a docked device goes on looking worn. Say it, or the detector is machinery that
+                        # exists and decides nothing.
+                        log.warning("%s: the flat-battery charging check failed this round", name, exc_info=True)
                 if writers:
                     # Log which PMD measurement types the device actually supports (feature bitmask).
                     try:
@@ -3037,7 +3052,8 @@ async def run_muse(dev: dict, root: str):
                     try:
                         await asyncio.wait_for(proc.wait(), timeout=1)
                     except asyncio.TimeoutError:
-                        pass
+                        pass    # the 1 s timeout IS this loop's tick, not a failure: it is how we re-check `_STOP`
+                                # while waiting on a child that may run for hours.
             finally:
                 # ALWAYS reap the child. CancelledError is a BaseException, so on shutdown neither
                 # `except` below ran and `terminate()` was skipped entirely — leaving muselsl alive,
@@ -3193,7 +3209,8 @@ async def run_viatom(dev: dict, root: str):
                     try:
                         os.remove(_p)
                     except OSError:
-                        pass
+                        log.debug("%s: could not discard the header-only %s", name, os.path.basename(_p),
+                                  exc_info=True)   # it stays on disk carrying 0 rows: harmless, but not silent
         if not _STOP.is_set():
             if stalled:
                 await asyncio.sleep(_STALL_RECONNECT_S)
@@ -3528,7 +3545,7 @@ async def run_oxyii(dev: dict, root: str):
                                     _pf.write(json.dumps({"n": _ppg_probe_n[0], "t": _now().isoformat(),
                                                           "len": len(r[1]), "hex": r[1].hex()}) + "\n")
                             except Exception:
-                                pass
+                                pass                # an opt-in probe must never disturb capture (cf. `_pmd_probe`)
                             if _ppg_probe_n[0] == _PPG_PROBE_N:
                                 log.info("O2RING-PPG-PROBE: dumped %d frames → %s", _PPG_PROBE_N, _PPG_PROBE_FILE)
                         # ~125 Hz PPG waveform body (Phase 2): back-time each sample across the frame from
@@ -3835,7 +3852,8 @@ async def run_oxyii(dev: dict, root: str):
             try:
                 oxy_arr_wr.close()
             except Exception:
-                pass
+                log.warning("%s: the arrival writer did not close cleanly — its tail may be unflushed",
+                            name, exc_info=True)
             # Report the honest gaps this session inserted. Silence here would re-create the very problem
             # the gap insertion fixes — a lossy link that LOOKS clean. Logged even at zero, so "no gaps"
             # is an observation rather than an absence of evidence.
@@ -3885,7 +3903,8 @@ async def run_oxyii(dev: dict, root: str):
                         os.remove(_p)
                         log.debug("%s: discarded header-only %s", name, os.path.basename(_p))
                     except OSError:
-                        pass
+                        log.debug("%s: could not discard the header-only %s", name, os.path.basename(_p),
+                                  exc_info=True)
                 elif _w is wr:
                     _spo2_kept = (_p, _rows)
             # ACQUISITION EVIDENCE, the LIVE half (ACQ-EVIDENCE-CONTRACT spec §10 — BOTH O2Ring paths,
@@ -4225,7 +4244,9 @@ async def sync_device_time(address: str) -> dict:
                 try:                                   # SET_SYSTEM_TIME (error 201 NOT_IMPLEMENTED)
                     before = await fs.get_local_time()
                 except Exception:
-                    pass
+                    # `before` stays None and the caller reports the read as ABSENT rather than as a zero
+                    # offset. Losing the REASON is what this line buys back.
+                    log.debug("%s: GET_LOCAL_TIME (before) failed", address, exc_info=True)
             await fs.set_local_time(with_system_time=not is_h10)
             host_at_read = None
             if not is_h10:
@@ -4233,7 +4254,7 @@ async def sync_device_time(address: str) -> dict:
                     after = await fs.get_local_time()
                     host_at_read = _utcnow()   # UTC: device clocks are set in UTC. Sampled AT the read so
                 except Exception:              # is clock error and not BLE round-trip latency
-                    pass
+                    log.debug("%s: GET_LOCAL_TIME (after) failed", address, exc_info=True)  # `after` stays None
             return before, after, host_at_read
     # `presence_check_s` ONLY here — the automatic sync is the caller that runs unattended on a loop and
     # therefore the one that must not spend the global lock proving a device is absent. The monitor's
@@ -4473,7 +4494,12 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                 info = await bonding._btctl(f"info {d['address']}\nquit\n", timeout=6)
                 bluez = "Connected: yes" in info
             except Exception:
-                pass
+                # UNDER-reports, never over-reports: `bluez_connected` is read ONLY positively (a link BlueZ
+                # sees while we do not = phantom), so a failed probe costs evidence rather than manufacturing
+                # a wedge. But a PERSISTENT failure makes the phantom-clearing rung machinery that can never
+                # fire, and that is invisible without this line.
+                log.warning("watchdog: could not ask BlueZ about %s — no phantom-link evidence from it",
+                            d["address"], exc_info=True)
             devs.append({"name": d["name"], "address": d["address"],
                          "connected": bool(st.get("connected")), "last_error": st.get("last_error"),
                          "bluez_connected": bluez,
@@ -4605,7 +4631,9 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
             try:
                 await bonding._btctl(f"disconnect {addr}\nquit\n", timeout=8)
             except Exception:
-                pass
+                # L1 DID NOT RUN. The ladder still escalates to L2 on the same counter, so without this the
+                # power-cycle reads as "clearing the link was not enough" when clearing was never attempted.
+                log.warning("watchdog: clearing phantom link %s FAILED", addr, exc_info=True)
         if consecutive >= grace:                      # L2: power-cycle the controller
             if cycles >= max_cycles:
                 # L3 (P1.5): resetting THIS radio is spent — fail over to a healthy spare before giving up.
@@ -5277,6 +5305,10 @@ def _cpap_stream_watch_row(cfg, root, night_name):
                         n_rec, dur = cpap_edf.read_span(fh.read(256))
                     headers.append((n_rec, float(dur)))
                 except (OSError, ValueError):
+                    # SHRINKS THE MEASUREMENT, and the measurement is therapy minutes — the number the night-QC
+                    # verdict is computed from. An unreadable file must cost a line in the log, not just a
+                    # silently smaller denominator.
+                    log.warning("cpap: %s is unreadable, contributing no stream minutes", fn, exc_info=True)
                     continue              # unreadable file: contributes nothing to the measurement
     out = cpap_stream_watch.assess(therapy, cpap_stream_watch.stream_minutes(headers),
                                     attempts=attempts, last_error=last_error,
@@ -6788,7 +6820,7 @@ def _cpap_autostart_boot(root, now_ms):
         with open(os.path.join(root, "SESSIONDETECT.csv"), encoding="utf-8", errors="replace") as fh:
             text = fh.read()
     except OSError:
-        pass
+        pass                              # no journal: `boot_state` seeds nothing, and says so
     rows = cpap_live.journal_rows(text)
     watch, why = cpap_live.boot_start_state(rows, None, None, now_ms)
     if watch.began_at_ms is not None:
