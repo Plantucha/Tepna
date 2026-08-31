@@ -6538,9 +6538,23 @@ def _therapy_end_factory(cbs):
     ac = cbs.get("auto_stop") or {}
     if not ac.get("enabled"):
         return None
-    eps = float(ac.get("flow_eps_lpm", 0.5))
+    # flow_eps is compared in L/s (the pinned flow unit). The legacy key `flow_eps_lpm` was ALWAYS
+    # compared as L/s despite its name (audit 2026-08-31); prefer `flow_eps_lps`, accept the legacy key
+    # with the SAME number plus a deprecation warning, and NEVER divide by 60 — vigil tunes the value
+    # as L/s, so a "correcting" conversion would move the clinical stop threshold 60x.
+    if "flow_eps_lps" in ac:
+        eps = float(ac["flow_eps_lps"])
+        if "flow_eps_lpm" in ac:
+            log.warning("CPAP auto-stop: both flow_eps_lps and legacy flow_eps_lpm set — "
+                        "using flow_eps_lps, ignoring flow_eps_lpm")
+    elif "flow_eps_lpm" in ac:
+        eps = float(ac["flow_eps_lpm"])
+        log.warning("CPAP auto-stop: config key flow_eps_lpm is deprecated and has ALWAYS been "
+                    "compared in L/s despite its name — rename it to flow_eps_lps (same number)")
+    else:
+        eps = 0.5
     hold = float(ac.get("hold_sec", 120.0))
-    log.info("CPAP auto-stop ARMED — stream ends after |flow| <= %.2f L/min for %.0f s", eps, hold)
+    log.info("CPAP auto-stop ARMED — stream ends after |flow| <= %.2f L/s for %.0f s", eps, hold)
     return lambda stop_ev: cpap_stream.TherapyEndSink(stop_ev, flow_eps=eps, hold_s=hold)
 
 
@@ -6585,7 +6599,7 @@ def _publish_therapy_state(decision, _anchor):
 
     Why it was needed: the CPAP card showed `active=true, effFs=25.0, health=good` whether or not the
     owner was breathing on the machine, because those measure PACKET ARRIVAL, not therapy — the AS11
-    keeps emitting 25 Hz frames of zeros in standby (measured 2026-08-25: flow -0.01 L/min, pressure
+    keeps emitting 25 Hz frames of zeros in standby (measured 2026-08-25: flow -0.01 L/s, pressure
     0.4 cmH₂O). And `cpap.state` reads "idle" throughout because that field belongs to the SD-HARVEST
     job, not the live stream. Two honest fields, both misread as one dishonest answer.
 
