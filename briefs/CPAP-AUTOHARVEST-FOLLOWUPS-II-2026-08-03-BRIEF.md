@@ -137,12 +137,63 @@ different properties — and in the opposite direction it would have condemned f
 gated perfectly well transitively, through `_mirror_matches` / `summarize` / `timeline.build`. Only
 deleting the promise and re-running answers the question.
 
-**Open:** the sweep covered `capture-host/*.py`. The same enumeration has never been run over the
+**ANSWERED 2026-08-31 — see the census below. The tool existed; its cross-reference was silently
+reporting zero.** ~~**Open:**~~ the sweep covered `capture-host/*.py`. The same enumeration has never been run over the
 **JS spine** (`clock.js`, `*-dsp.js`, `integrator-dsp.js`), where the docstring-as-guarantee habit is at
 least as strong and where `tools/mutate.mjs` already exists to do the killing. `clock.js` is at 73 %
 (`CLOCK-AXIS-AND-RENDER-SURFACE-FOLLOWUPS`), so the surviving mutants there are already enumerated —
 the new question is which of them sit under a *documented promise*, which is a sharper prioritiser than
 raw survival count.
+
+### ✅ ANSWERED — the guarantee census over the JS spine (2026-08-31)
+
+`tools/guarantees.mjs` already implements exactly this (`--spine`, and `--survivors` to cross-reference
+against a sweep). The census half had been run — its own commit reports **560 sites across the JS
+spine**. The cross-reference half had never produced a non-zero answer, and the reason was a defect
+rather than a clean bill of health:
+
+> `loadSurvivors` parsed **NDJSON only** — split on newlines, `JSON.parse` each, `catch { continue }`.
+> Handed a pretty-printed `.sweep.json`, which is what `tools/mutation-crawl.mjs` actually writes,
+> **every line throws, every throw is swallowed, and the map comes back empty.** The caller then does
+> `survivors.get(f) || []`, finds nothing, and prints **"0 with a SURVIVING mutant"** — a total parse
+> failure rendered as a clean all-clear, by the tool whose whole job is finding promises nothing checks.
+
+Fixed (whole-file JSON first, NDJSON fallback) **and made to refuse**: an empty survivor map now exits
+2 rather than reporting zero, because a caller cannot distinguish *"no survivors"* from *"nothing
+loaded"* and only one of those is a result.
+
+**The answer, over the 8 DSPs whose sweeps carry a `PASSED` canary** (verified-fresh; `clock.js` and
+one other are `STALE`, and 20 files have `canary: NONE`, which is *unverified*, not *fresh*):
+
+| file | guarantee sites | carrying a survivor | |
+|---|---|---|---|
+| `ppgdex-dsp.js` | 125 | **102** | 82 % |
+| `oxydex-dsp.js` | 127 | **96** | 76 % |
+| `ecgdex-dsp.js` | 116 | **90** | 78 % |
+| `hrvdex-dsp.js` | 40 | **33** | 83 % |
+| `cpapdex-dsp.js` | 38 | **34** | 89 % |
+| `glucodex-dsp.js` | 36 | **31** | 86 % |
+| `pulsedex-dsp.js` | 33 | **25** | 76 % |
+| `motiondex-dsp.js` | 25 | **21** | 84 % |
+| **total** | **540** | **432** | **80 %** |
+
+**Every one of those files reported 0 before the fix.**
+
+The shape of what it finds, from `cpapdex-dsp.js` — guard lines whose own trailing comment states the
+promise, each carrying an unkilled mutant on the guard itself:
+
+    2040  if (!(days >= 0) || days > 24836) continue;  // out-of-range Date ⇒ drop (never fabricate…)
+    2102  if (sec == null || !isFinite(sec)) continue; // UNKNOWN ⇒ no corrected view, never a raw…
+    2143  if (t == null || !isFinite(t)) continue;     // unjoinable — never guessed into a night
+
+⚠️ **80 % is a prioritiser, not a defect count.** A guarantee site "carrying a survivor" means the suite
+cannot see that line change; it does not mean the promise is false. The value is ordering — it separates
+*untested line* from *untested line we have told the reader is guaranteed* — and that ordering is only
+now available at all.
+
+⚠️ **`clock.js` — the file the item names first — could not be included: its sweep's canary is `STALE`.**
+Re-sweeping it is the prerequisite for extending this census to the rest of the named spine, and
+`integrator-dsp.js` is `canary: NONE` rather than verified.
 
 ## 4 · Backfill throughput is still measured once, on one card
 
