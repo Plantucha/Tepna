@@ -177,6 +177,10 @@ re-sweeping makes possible.
 
 ## 6 · THE ONE OPTIMISATION WORTH BUILDING BEFORE MORE TESTS
 
+> ⚠️ **SUPERSEDED IN PART — see §6-bis (2026-08-31). The naive form described below was BUILT, hit the
+> estimate, and is QUARANTINED as unsound. Do not build it again. What remains unbuilt is a
+> *different* design, named in §6-bis.**
+
 Sweeps re-run the **entire** test group per mutant. `integrator` is 310 s × 1748 = **13.8 h**. But a
 mutant on line N can only be killed by a test that EXECUTES line N — so with per-test coverage data
 you run 5 tests instead of 300. This is the standard mutation-testing optimisation and **c8 is the
@@ -189,6 +193,57 @@ batch of tests practical — and re-sweeping is how any target above ~50 % gets 
 **GPU does not help and is not close.** This is branchy interpreted JS across thousands of short-lived
 processes — task-parallel with heavy control flow, not data-parallel float throughput. The bottleneck
 is V8 startup and branching. More cores scale near-linearly; that is the only hardware lever.
+
+---
+
+## 6-bis · WHAT ACTUALLY HAPPENED TO §6 — built, measured, quarantined (recorded 2026-08-31)
+
+§6 reads as a pending build. It is not, and leaving it that way is a live trap: a reader following it
+today re-implements a thing that exists and was **rejected for fabricating SURVIVED findings** — the
+worst failure this programme has, wearing the shape of a 78× speedup.
+
+**It was built.** `tools/per-group-coverage.mjs` builds the map; `pgmapFor()` in `tools/mutate.mjs`
+applies it; the flag is `--use-coverage-map`.
+
+**§6's estimate was right.** Measured 2026-08-14 on the real map — median groups per mutant:
+
+| module | groups | speedup |
+|---|---|---|
+| `integrator-dsp` | 6 | **78×** |
+| `hrvdex` | 9 | **52×** |
+| `ppgdex` | 30 | **16×** |
+
+§6 estimated 10–100×; the estimate holds. **The speedup was never the problem.**
+
+**It is quarantined because per-line selection is UNSOUND.** Paired sweeps on hrvdex: **7 of 38
+tag-kills became survivors under selection.** Re-confirmed 2026-08-19 against the interval-coverage
+collector — *better collection did not make it sound*, which is the result that matters, because the
+obvious response to a bad map is a better map. Three mechanisms, each proven separately:
+
+1. **State built by earlier groups** — lines 801, 869 are absent from the killing group's SOLO
+   interval and present when the tag set runs together.
+2. **LOAD-executed lines** — 158/174/487/537/1319 are in no group interval *by design* (the baseline
+   discard), yet their mutants change load state and die under tag.
+3. **Integrity/audit interactions** — fixed separately via `tests/expected-skips.json`, and the
+   fabricated 22/22 "kills" they produced are why every number here was re-measured.
+
+**A selection that narrows too far does not run slowly — it reports SURVIVED for mutants that die.**
+`mutate.mjs`'s own guard says it plainly: *"not a slow gate, it is a sweep that fabricates findings,
+and it would look like a spectacular speedup while doing it."* Hence every failure path returns `null`
+and falls back to the tag filter: no map, unreadable map, file absent, line attributable to nothing.
+Selecting too many groups costs time; selecting none costs the measurement.
+
+**So what IS still worth building — and this is the part §6's title gets right, about the wrong thing:**
+
+> **UNION-WITH-TAG** — a superset of the tag set can never lose a tag kill — **plus the vetted zeros.**
+
+That design is specified in `pgmapFor`'s comment and is **not yet built**. Until it is, the map stays a
+**diagnostic, not a filter**, and selection stays opt-in behind `--use-coverage-map`.
+
+⚠️ **A map keyed on LINE NUMBERS goes stale for reasons as small as a comment.** #1422 inserted 16
+comment lines into `oxydex-dsp.js` and shifted everything below line 1023; applied after that, a
+present, well-formed, stale map produces the same fabricated SURVIVED as an empty one, and quietly.
+Identity verification is why `pgmapFor` re-checks per file rather than per run.
 
 ---
 
@@ -228,10 +283,56 @@ they are insufficiently varied.
   tests (verified as assertion failures, not crashes). Known accepted miss, documented in code:
   a MULTI-line concise body under-claims to one line rather than over-claiming.
 - **oxydex and integrator have no battery at all** — 1763 and 934 survivors, 0 % claimable.
-- **`capture.py` is unaudited** — the largest file in the project.
+- **`capture.py` is NOT auditable at current cost — measured 2026-08-31, see §8-bis.** ~~is unaudited~~
+  The bullet used to read "is unaudited", which invites the reader to go audit it. It was attempted;
+  the cost is the finding.
 - **cpapdex `selfTest` holds 122 survivors** (a quarter of that file) in *test scaffolding*. Whether
   mutants in a self-test belong in the denominator at all is a question this brief raises and does not
   answer.
+
+## 8-bis · `capture.py` WAS ATTEMPTED — the cost is the finding (2026-08-31)
+
+§8 listed `capture.py` as "unaudited", which reads as *nobody has got to it yet*. It has been got to.
+A full day went into it, and the outcome is a number rather than a survivor list.
+
+**Two blockers, in two environments, and conflating them cost most of that day.**
+
+**CI's blocker was the gate being unable to SEE the module**, and it is fixed. Seven PRs:
+
+| PR | what it fixed |
+|---|---|
+| #1982 | two holes in `mutation-source-scan` — module-object `getsource`, and a per-FILE `SANCTIONED` exemption that blanket-cleared the largest test file |
+| #1985 | no per-mutant timeout was configured; mutmut's own `timeout_multiplier` left at 15 |
+| #1992 | the baseline ran a DIFFERENT selection than the mutants — `deselect_args()` was wired to the mutmut config and not to `clean_run_seconds` |
+| #1995 | a refusal named no test; the report was captured and discarded |
+| #1997 | the refusal printed an assertion's first line and dropped its body |
+| #1998 | **the root cause** — `_all_scripts()` walked mutmut's generated `mutants/`, seeing 48 scripts where the tree has 24 |
+| #2000 | the mutation job never installed `shellcheck-py`, so the scratch resolved the runner's older `/usr/bin/shellcheck` |
+
+**Local's blocker was never the clean run**, and that is the distinction the brief should carry:
+shellcheck is absent locally, so that test SKIPS and the baseline passes. What remains is pure **stats
+phase cost**:
+
+> **6 h 54 m elapsed, still in `Running stats`, output frozen at 48,409 bytes — byte-identical across
+> FOUR independent runs**, including ones stopped at 3 h. Generation alone measures 1,933,726 ms
+> (32.2 min) for the single file.
+
+CI, with the gate finally able to see, then hit caps and cancellations at 4–11 h without producing a
+survivor list either.
+
+**So: the gate can now SEE `capture.py`, and neither environment can AFFORD to measure it exhaustively.**
+Those are different sentences and only the first was ever in doubt.
+
+⚠️ **The corollary that matters more than the cost.** #1954 and #1959 both merged with
+`mutation (diff-scoped)` RED, and that red was **`REFUSING — could not measure`**, never *survivors
+exist*. No survivor list for `capture.py` has ever existed. Any note recording those PRs as leaving
+unkilled mutants is wrong: they left an **unmeasured gate**, and there may be no work there at all.
+
+**What would change this** is the stats cost, not more fixes — the same problem §6-bis's **UNION-WITH-TAG**
+addresses on the JS side, which has no Python analogue built. Standing decision: measurement runs
+**locally and offline**, never as a public CI PR; the cost above is why.
+
+---
 
 ## 9 · FINDINGS FROM EXECUTING §5 ON hrvdex `computeDerived` (2026-08-12)
 
