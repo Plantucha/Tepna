@@ -177,6 +177,10 @@ re-sweeping makes possible.
 
 ## 6 · THE ONE OPTIMISATION WORTH BUILDING BEFORE MORE TESTS
 
+> ⚠️ **SUPERSEDED IN PART — see §6-bis (2026-08-31). The naive form described below was BUILT, hit the
+> estimate, and is QUARANTINED as unsound. Do not build it again. What remains unbuilt is a
+> *different* design, named in §6-bis.**
+
 Sweeps re-run the **entire** test group per mutant. `integrator` is 310 s × 1748 = **13.8 h**. But a
 mutant on line N can only be killed by a test that EXECUTES line N — so with per-test coverage data
 you run 5 tests instead of 300. This is the standard mutation-testing optimisation and **c8 is the
@@ -189,6 +193,57 @@ batch of tests practical — and re-sweeping is how any target above ~50 % gets 
 **GPU does not help and is not close.** This is branchy interpreted JS across thousands of short-lived
 processes — task-parallel with heavy control flow, not data-parallel float throughput. The bottleneck
 is V8 startup and branching. More cores scale near-linearly; that is the only hardware lever.
+
+---
+
+## 6-bis · WHAT ACTUALLY HAPPENED TO §6 — built, measured, quarantined (recorded 2026-08-31)
+
+§6 reads as a pending build. It is not, and leaving it that way is a live trap: a reader following it
+today re-implements a thing that exists and was **rejected for fabricating SURVIVED findings** — the
+worst failure this programme has, wearing the shape of a 78× speedup.
+
+**It was built.** `tools/per-group-coverage.mjs` builds the map; `pgmapFor()` in `tools/mutate.mjs`
+applies it; the flag is `--use-coverage-map`.
+
+**§6's estimate was right.** Measured 2026-08-14 on the real map — median groups per mutant:
+
+| module | groups | speedup |
+|---|---|---|
+| `integrator-dsp` | 6 | **78×** |
+| `hrvdex` | 9 | **52×** |
+| `ppgdex` | 30 | **16×** |
+
+§6 estimated 10–100×; the estimate holds. **The speedup was never the problem.**
+
+**It is quarantined because per-line selection is UNSOUND.** Paired sweeps on hrvdex: **7 of 38
+tag-kills became survivors under selection.** Re-confirmed 2026-08-19 against the interval-coverage
+collector — *better collection did not make it sound*, which is the result that matters, because the
+obvious response to a bad map is a better map. Three mechanisms, each proven separately:
+
+1. **State built by earlier groups** — lines 801, 869 are absent from the killing group's SOLO
+   interval and present when the tag set runs together.
+2. **LOAD-executed lines** — 158/174/487/537/1319 are in no group interval *by design* (the baseline
+   discard), yet their mutants change load state and die under tag.
+3. **Integrity/audit interactions** — fixed separately via `tests/expected-skips.json`, and the
+   fabricated 22/22 "kills" they produced are why every number here was re-measured.
+
+**A selection that narrows too far does not run slowly — it reports SURVIVED for mutants that die.**
+`mutate.mjs`'s own guard says it plainly: *"not a slow gate, it is a sweep that fabricates findings,
+and it would look like a spectacular speedup while doing it."* Hence every failure path returns `null`
+and falls back to the tag filter: no map, unreadable map, file absent, line attributable to nothing.
+Selecting too many groups costs time; selecting none costs the measurement.
+
+**So what IS still worth building — and this is the part §6's title gets right, about the wrong thing:**
+
+> **UNION-WITH-TAG** — a superset of the tag set can never lose a tag kill — **plus the vetted zeros.**
+
+That design is specified in `pgmapFor`'s comment and is **not yet built**. Until it is, the map stays a
+**diagnostic, not a filter**, and selection stays opt-in behind `--use-coverage-map`.
+
+⚠️ **A map keyed on LINE NUMBERS goes stale for reasons as small as a comment.** #1422 inserted 16
+comment lines into `oxydex-dsp.js` and shifted everything below line 1023; applied after that, a
+present, well-formed, stale map produces the same fabricated SURVIVED as an empty one, and quietly.
+Identity verification is why `pgmapFor` re-checks per file rather than per run.
 
 ---
 
