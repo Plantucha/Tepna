@@ -56,13 +56,39 @@ first. The capture half is complete (#1543 readback · #1544 settings · #1548 m
 
 ## B · Quick wins (each S, software-only, independent PRs)
 
-1. **The vacuous green in OxyDex's Smart Summary — VERIFIED live this survey.**
-   `oxydex-render.js:2524` skips every `score === 0` metric before flagging; `:2556` then renders
-   "✓ All scored metrics within normal range this night." whenever `_flagged` is empty — including a
-   night where NOTHING scored (the corpus's −1-fill nights). Same class as #1571's fabricated green
-   (an absence satisfying a reassurance branch). Fix: distinguish `scored === 0` ("no metrics scored
-   this night") from all-normal; plant the regression the #1571 way. THEN the sibling scan across the
-   other 6 render layers — the scan is the deliverable; a clean negative is a result, recorded here.
+1. **~~The vacuous green in OxyDex's Smart Summary~~ — EXECUTED.** ✅ **Fix landed #1626**
+   (`9b1ddec0`): `_normalCnt` counts positive evidence, the reassurance branch requires
+   `_normalCnt > 0`, and an else-branch renders the honest *"— no metrics scored this night."*
+   Regression planted in `tests/dex-tests.js`.
+
+   ✅ **SIBLING SCAN DONE (2026-08-31) — CLEAN NEGATIVE, and the negative is the result.**
+   Scanned all **8** sibling render layers (not 6 — `motiondex-render.js` postdates this brief) for
+   the same class: *a reassurance rendered from an ABSENCE rather than from counted positive
+   evidence.* **No live instance.**
+
+   ⚠️ **Each scan shape was CONTROLLED against the known pre-fix defect before its result was
+   trusted** — an empty scan whose pattern cannot match the case it models is not a negative, it is
+   a blind spot. Run against `9b1ddec0~1:oxydex-render.js`, both text and structural shapes flag the
+   original at `:2556`/`:2528`. Five shapes: reassurance-text · `if (X.length){}else{}` ·
+   `if (!X.length){}` (all 16 enumerated, all 7 with blocks read) · `.length ?` ternaries ·
+   `count === 0` guards.
+
+   **Two candidates surfaced and BOTH survive as correct** — recorded because "we looked and found
+   nothing" is worth less than "we looked, found two, and here is why each is sound":
+   - `integrator-render.js:1048` renders *"The fusion rules ran across the overlap … a clean
+     night"* from `!cards.length`. The measurement claim is TRUE: `renderFindings` returns early on
+     `!fusion.anyOverlap`, so overlap is established before that branch is reachable. **The
+     positive-evidence guard exists one level up** rather than as a count — a different shape from
+     §B1's fix, equally sound.
+   - `motiondex-render.js:151`/`:183` render the literal `'clean'` from
+     `sqi.flags && sqi.flags.length ? … : 'clean'` — an absence (`flags` undefined) would reach the
+     reassurance, and the same line treats an absent `conf` honestly as `'—'`, so the asymmetry
+     looks like an oversight. It is not reachable: `motionSQI` returns a `flags` array on **every**
+     path including its `< 10 rows` early return (`flags: ['no-data']`), and MotionDex has no
+     `loadOwnExport`, so the projected `sqi: summary.sqi.conf` form (`motiondex-dsp.js:1381`, an
+     Integrator input) never re-enters this render. ⚠️ **Its safety is a property of the producer,
+     not of the render** — a future re-import path, or a producer that returns bare `{conf}`, makes
+     it live. Left as-is; noted so a change there is understood to have this consequence.
 2. **Retention prune gated on `.archived` (VIGIL-OVERNIGHT §P3.2).** `diskguard.plan_prune` is purely
    age-based; the bypass is latent only because retention is OFF (`keep_nights: 0` — memory
    `vigil-retention-deletes-without-a-copy`). Close it before anyone enables retention: skip any night
