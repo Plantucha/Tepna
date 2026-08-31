@@ -227,6 +227,27 @@ discriminator — canary state alone does not separate trustworthy from untrustw
 Those six are where a canary would earn its keep. The other 24 — including every `NONE` at a healthy
 kill rate — are self-validating.
 
+**And the worst-looking of the six needs no re-run — the data answers it.** `dex-coload.js` is 4 tested,
+0 killed, **2 invalid**, and both real survivors are the same line:
+
+    })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
+
+Two `!== → ===` flips on a **UMD environment-detection guard**. Inverted, the expression still resolves
+*a* global object through the next branch, so no test can distinguish the outcome: these are
+**equivalent mutants, not a blind harness.** That is the same class `MUTATION-FLEET-EXPANSION` §2a-bis
+identifies from the other direction — environment guards (`globalThis`/`module`/`require`/`window`/
+`self`) behave as their own category, there because they cannot false-KILL, here because they cannot be
+killed at all.
+
+The five registries (1–3 killed of 14–20) are the adjacent case and want judgment rather than compute:
+a registry is largely a **data table**, and a mutation inside a table entry changes a value nothing
+asserts on directly. A low kill rate there is a statement about what registries *are*, not evidence the
+harness was blind — and `registry-defs-parity` already gates the property that matters (label · unit ·
+goodDirection · evidence against the node registry).
+
+So of the six unguarded low-kill sweeps, **none currently looks like a blind harness**; one is provably
+equivalent-mutant-bound and five are structurally low-yield.
+
 ## 4 · Backfill throughput is still measured once, on one card
 
 Unchanged from the parent §2.3 and still not worth doing on its own: `130 KB/s` and `1.65 MB/s` are the
