@@ -169,9 +169,11 @@ function loadSurvivors(path) {
      over nothing. */
   if (!byFile.size) {
     console.error(
-      '  ⚠ REFUSING: --survivors parsed 0 records from ' + path + '\n' +
+      '  ⚠ REFUSING: --survivors parsed 0 records from ' +
+        path +
+        '\n' +
         '    Neither whole-file JSON nor NDJSON yielded an object with { file, survivors[] }.\n' +
-        '    Reporting "0 ungated" from this would be a clean all-clear over data that never loaded.',
+        '    Reporting "0 ungated" from this would be a clean all-clear over data that never loaded.'
     );
     process.exit(2);
   }
