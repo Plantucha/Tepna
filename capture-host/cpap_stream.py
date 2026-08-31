@@ -79,7 +79,7 @@ class TherapyEndSink:
     The detector is therefore structurally BLIND exactly when a stop would need detecting — it can
     open a session but can never close one. The flow channel is already arriving, costs nothing, and
     is the only observer present during therapy. (Measured 2026-08-25: with the machine stopped, flow
-    sat flat at -0.01 L/min and pressure at 0.4 cmH₂O, while real breathing swings tens of L/min.)
+    sat flat at -0.01 L/s and pressure at 0.4 cmH₂O, while real breathing swings tens of L/min.)
 
     A stop is |flow| <= `flow_eps` for `hold_s` CONTINUOUS seconds, timed from SAMPLE COUNT at the
     stream's own rate rather than wall clock, so a stalled link cannot age the timer while no data
