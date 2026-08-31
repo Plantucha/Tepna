@@ -246,13 +246,36 @@ jobs:
           python -m pip install --upgrade pip
           # hypothesis for the same reason as the test job above: this one RUNS the suite (mutmut
           # executes it per mutant), so a missing test dependency is a collection error here too.
-          pip install pytest mutmut hypothesis
+          # shellcheck-py is NOT optional here even though this job runs no lint step. The mutation
+          # BASELINE runs the module's full test selection, which includes
+          # tests/test_shell_surface.py, and that test resolves its binary as
+          # `which("shellcheck", path=dirname(sys.executable)) or which("shellcheck")`. Without the pin
+          # installed, the first lookup finds nothing and PATH hands it the RUNNER'S
+          # /usr/bin/shellcheck — an older build that flags three SC2015 sites the pinned 0.11.0 does
+          # not. The repo then has two shellchecks that disagree, and the mutation baseline fails on
+          # findings no other lane produces, so every mutant reports "no budget" and the gate REFUSES.
+          pip install pytest mutmut hypothesis shellcheck-py
           pip install -r requirements.txt
       - name: Mutate only what this PR changed
         # `tools/mutate.py` shells out to `.venv/bin/python`; on the runner the venv is the ambient
         # environment, so point it at the interpreter actually installed here.
         run: |
           mkdir -p .venv/bin && ln -sf "$(command -v python)" .venv/bin/python
+          # And put the PINNED shellcheck beside that python, because the scratch tree's
+          # `sys.executable` is this symlink — so "look beside the interpreter first" resolves to
+          # .venv/bin, and only a binary placed HERE beats /usr/bin on the fallback. Installing the
+          # pin above is necessary but not sufficient: without this line the lookup still depends on
+          # PATH ordering, which is not ours to rely on.
+          # ⚠️ This step runs under `bash -e`, so every line here must succeed. `test -n "$SC" && ln`
+          # would ABORT the whole step when the binary is absent — turning a missing tool into a hard
+          # CI failure, which is the opposite of what a best-effort link should do.
+          SC="$(python -c 'import shutil;print(shutil.which("shellcheck") or "")')"
+          if [ -n "$SC" ]; then
+            ln -sf "$(readlink -f "$SC")" .venv/bin/shellcheck
+            echo "pinned shellcheck: $(.venv/bin/shellcheck --version | sed -n 2p)"
+          else
+            echo "no shellcheck on PATH — the baseline will skip that test, not fail on a stale binary"
+          fi
           python tools/mutate_diff.py \
             --base "origin/${{ github.event.pull_request.base.ref }}" \
             --json mutation-diff.json
