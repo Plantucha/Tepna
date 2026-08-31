@@ -95,8 +95,29 @@ def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
             "this is not evidence that no therapy ran" + why,
         }
     try:
-        t = float(therapy_min)
+        observed = float(therapy_min)
         s = float(stream_min or 0.0)
+        # 🔴 STREAMED TIME IS THERAPY TIME, AND OMITTING IT MADE THIS CHECK MEASURE ITS OWN OBSERVER.
+        # The shadow detector holds the one AS11 link only while the stream does NOT — `is_capturing()`
+        # makes it stand down and resume — so `therapy_minutes` sees exactly the therapy that was NOT
+        # streamed. Treating that sliver as the whole session meant STARTING a capture destroyed the
+        # measurement the capture is judged against.
+        #
+        # Measured 2026-08-30: therapy detected 22:49:53-22:51:37, the operator started the stream at
+        # ~104 s, and the night's verdict came out "therapy ran 2 min, below the 30 min floor — too
+        # short to call a missed capture" for an EIGHT-HOUR session that produced a real EDF. The QC
+        # therefore declined to judge precisely the nights where capture worked, and returned OK while
+        # doing it — a self-masking blind spot over the whole feature.
+        #
+        # The two windows are DISJOINT BY CONSTRUCTION, which is what makes the sum honest rather than
+        # a fudge: the detector observes only while the stream is idle. So total = observed + streamed,
+        # and `cover` becomes a real fraction in [0, 1] instead of an unbounded ratio (last night it
+        # would have read 480/1.7 = 282).
+        #
+        # It stays correct at both ends. Stream never started: s = 0, total = observed, NEVER_STARTED
+        # as before. Stream died early: the detector RESUMES and observes the remainder, so total
+        # grows while s does not, and cover falls — which is exactly DIED_EARLY.
+        t = observed + s
     except (TypeError, ValueError):
         return {
             "state": UNKNOWN,
@@ -109,6 +130,7 @@ def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
         return {
             "state": OK,
             "therapy_min": round(t, 1),
+            "therapy_observed_min": round(observed, 1),
             "stream_min": round(s, 1),
             "cover": None,
             "detail": f"therapy ran {t:.0f} min, below the {float(min_therapy_min):.0f} min floor "
@@ -130,6 +152,7 @@ def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
             return {
                 "state": AUTOSTART_FAILED,
                 "therapy_min": round(t, 1),
+            "therapy_observed_min": round(observed, 1),
                 "stream_min": 0.0,
                 "cover": 0.0,
                 "attempts": n,
@@ -140,6 +163,7 @@ def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
         return {
             "state": NEVER_STARTED,
             "therapy_min": round(t, 1),
+            "therapy_observed_min": round(observed, 1),
             "stream_min": 0.0,
             "cover": 0.0,
             "detail": f"therapy ran {t:.0f} min and the live stream was never opened — nobody "
@@ -150,6 +174,7 @@ def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
         return {
             "state": DIED_EARLY,
             "therapy_min": round(t, 1),
+            "therapy_observed_min": round(observed, 1),
             "stream_min": round(s, 1),
             "cover": round(cover, 3),
             "detail": f"the live stream covered {s:.0f} of {t:.0f} therapy min ({100 * cover:.1f} %) "
@@ -158,6 +183,7 @@ def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
     return {
         "state": OK,
         "therapy_min": round(t, 1),
+            "therapy_observed_min": round(observed, 1),
         "stream_min": round(s, 1),
         "cover": round(cover, 3),
         "detail": f"the live stream covered {s:.0f} of {t:.0f} therapy min ({100 * cover:.1f} %)",

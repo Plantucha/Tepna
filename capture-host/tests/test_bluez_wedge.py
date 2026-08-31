@@ -110,3 +110,89 @@ def test_THE_LAST_SEEN_WINDOW_BOUNDARY_FAVOURS_ABSENCE():
 def test_A_ZERO_AGE_SIGHTING_IS_STILL_A_SIGHTING():
     # `last_seen_age_s == 0` is falsy; a `if not last_seen_age_s` check would misread it as never-seen.
     assert W.wedge_verdict(720, True, 0.0)[0] == W.WEDGED
+
+
+# ── did the device come back? the only thing that separates "off" from "wedged" ───────────────────
+T0 = 1_788_000_000_000
+
+
+def test_A_DEVICE_THAT_ANSWERS_AFTER_THE_RESTART_WAS_A_WEDGE():
+    """The 2026-08-29 shape: the CPAP returned 32 s after `bluetooth.service` restarted. That night
+    must stay UNKNOWN for therapy — a wedge tells us nothing about whether the machine ran."""
+    out, why = W.recovery_outcome(T0, [(T0 + 32_000, True)])
+    assert out == W.RETURNED and "32s" in why
+
+
+def test_A_DEVICE_THAT_NEVER_ANSWERS_IS_WHAT_LICENSES_A_ZERO():
+    out, _ = W.recovery_outcome(T0, [(T0 + 60_000, False), (T0 + 300_000, False)])
+    assert out == W.NOT_RETURNED
+
+
+def test_A_WINDOW_NOBODY_POLLED_IS_UNKNOWN_NOT_A_NEGATIVE():
+    """The assertion the whole design turns on.
+
+    NOT_RETURNED is the state that would license reporting ZERO therapy for a night. Concluding it
+    from "we stopped polling" would fabricate a machine-off verdict out of our own silence — the
+    exact failure this module refuses everywhere else. No observation is not a negative."""
+    out, why = W.recovery_outcome(T0, [])
+    assert out == W.UNKNOWN and out != W.NOT_RETURNED
+    assert "nobody looked" in why
+
+
+def test_ASKING_BEFORE_THE_WINDOW_ELAPSES_ANSWERS_PENDING_NOT_ABSENT():
+    out, _ = W.recovery_outcome(T0, [(T0 + 1_000, False)], now_ms=T0 + 60_000)
+    assert out == W.PENDING
+
+
+def test_OBSERVATIONS_OUTSIDE_THE_WINDOW_ARE_NOT_EVIDENCE():
+    # A poll from before the restart, or long after the window, says nothing about whether THIS
+    # intervention worked. Counting either would attribute an unrelated success to the rung.
+    stale = [(T0 - 60_000, True), (T0 + W.RECOVERY_WINDOW_S * 1000 + 60_000, True)]
+    out, _ = W.recovery_outcome(T0, stale)
+    assert out == W.UNKNOWN, "an out-of-window poll was treated as a recovery"
+
+
+def test_A_TORN_OBSERVATION_IS_SKIPPED_NOT_GUESSED():
+    out, _ = W.recovery_outcome(T0, [("bad", True), (None,), (T0 + 5_000, True)])
+    assert out == W.RETURNED
+
+
+def test_THE_WINDOW_IS_GENEROUS_BECAUSE_ERRING_SHORT_FABRICATES_AN_ABSENCE():
+    # The one measured recovery took 32 s. A window that expires before a slow re-advertise turns a
+    # recovering device into a "machine off" — the one direction that produces a false number.
+    assert W.RECOVERY_WINDOW_S >= 300.0
+
+
+# ── the fire journal ──────────────────────────────────────────────────────────────────────────────
+def test_A_FIRE_ROUND_TRIPS_THROUGH_THE_JOURNAL():
+    text = "fired_ms;device;reason;error_class\n" + W.fire_row(T0, "cpap", "missed 20 rounds", "BleakError")
+    rows = W.parse_fires(text)
+    assert rows == [{"fired_ms": T0, "device": "cpap", "reason": "missed 20 rounds",
+                     "error_class": "BleakError"}]
+
+
+def test_A_SEMICOLON_IN_A_REASON_CANNOT_BREAK_THE_COLUMNS():
+    # The reason is free text built from a verdict string. A stray delimiter would shift every later
+    # column, so it is squeezed rather than quoted — a mangled field is recoverable, a mangled row
+    # count is not.
+    row = W.fire_row(T0, "cpap", "seen 5 min ago; radio fine", None)
+    assert row.count(";") == 3
+    assert W.parse_fires(row)[0]["reason"] == "seen 5 min ago, radio fine"
+
+
+def test_A_TORN_JOURNAL_LINE_IS_SKIPPED():
+    text = W.fire_row(T0, "cpap", "a", None) + "\n1788000\n" + W.fire_row(T0 + 5, "cpap", "b", None)
+    assert [r["fired_ms"] for r in W.parse_fires(text)] == [T0, T0 + 5]
+
+
+def test_FIRES_COME_BACK_OLDEST_FIRST_WHATEVER_ORDER_THEY_WERE_WRITTEN():
+    text = W.fire_row(T0 + 100, "cpap", "b", None) + "\n" + W.fire_row(T0, "cpap", "a", None)
+    assert [r["reason"] for r in W.parse_fires(text)] == ["a", "b"]
+
+
+def test_AN_UNUSABLE_FIRE_TIMESTAMP_IS_UNKNOWN_NOT_A_CRASH():
+    # A torn journal line can yield a non-numeric timestamp. The answer is UNKNOWN — never
+    # NOT_RETURNED, which would license a zero off a row we could not even read.
+    for bad in (None, "not-a-time", object()):
+        out, _ = W.recovery_outcome(bad, [(T0, True)])
+        assert out == W.UNKNOWN

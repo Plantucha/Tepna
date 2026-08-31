@@ -4394,6 +4394,30 @@ async def _restart_radio() -> bool:
     return False
 
 
+def _wedge_fire_record(root, device, reason, error_class) -> None:
+    """Append one line to the wedge-fire journal. NEVER raises — a record about a recovery must not
+    become a second failure during one.
+
+    Appended, never rewritten: the file is the only durable trace that an intervention happened, and
+    a rewrite is a window in which a crash loses every prior fire as well as this one."""
+    if not root:
+        # NO ROOT, NO JOURNAL. os.path.join("", name) is a RELATIVE path, so this would append to
+        # whatever directory the daemon happens to be running in — a file that looks durable, is
+        # written somewhere nobody reads, and pollutes a checkout when a test takes this path.
+        log.warning("no capture root: the wedge fire for %s was NOT journalled", device)
+        return
+    try:
+        path = os.path.join(root, "WEDGEFIRE.csv")
+        new = not os.path.exists(path)
+        with open(path, "a", encoding="utf-8") as fh:
+            if new:
+                fh.write("fired_ms;device;reason;error_class\n")
+            fh.write(bluez_wedge.fire_row(_now().timestamp() * 1000.0, device, reason, error_class)
+                     + "\n")
+    except OSError:
+        log.warning("could not record the wedge fire — the recovery still happened", exc_info=True)
+
+
 async def adapter_watchdog(adapter_mac, cfg: dict):
     """Detect a WEDGED BLE adapter (all worn sensors unreachable though the radio is up — the frozen-
     monitor failure) and auto-recover, WITHOUT reacting to the benign 'sensors simply not worn' state.
@@ -4531,6 +4555,14 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                         log.error("watchdog: bluez appears BLIND TO THE CPAP (%s; last error %s) — "
                                   "restarting bluetooth [%s]", why,
                                   cpap_st.get("last_unreachable_class"), budget_why)
+                        # 🔴 WRITE THE FIRE BEFORE THE RESTART, NOT AFTER. `_restart_radio` bounces
+                        # bluetooth and can take the daemon's own links with it; a record written
+                        # afterwards is a record owed by the process most likely to have died. The
+                        # OUTCOME is derived later from this timestamp and the polls that follow
+                        # (bluez_wedge.recovery_outcome), so nothing needs a second write — which is
+                        # what makes it survive the restart it is describing.
+                        _wedge_fire_record(cfg.get("root") or "", "cpap", why,
+                                           cpap_st.get("last_unreachable_class"))
                         await _restart_radio()
                         # Clear the streak so the next poll starts the evidence over. Without this the
                         # verdict stays WEDGED on stale counts and spends the whole budget at once.
@@ -5155,6 +5187,37 @@ def qc_digest_due(now, digest_hour: int, last_sent_date) -> bool:
     return cpap_harvest.due_now(now, digest_hour, last_sent_date, window_h=3)
 
 
+def _wedge_recoveries(root, journal_text):
+    """`[{fired_ms, outcome, detail, error_class}]` — what happened after each wedge-rung firing.
+
+    The outcome is DERIVED here rather than read from a stored verdict: the rung restarts bluetooth
+    and can take the daemon with it, so a process owing a second write is the one least likely to
+    make it. Only the fire is durable; this recomputes the rest from the polls that followed, so it
+    gives the same answer today and in a year.
+
+    Never raises — a report about a recovery must not become a second failure."""
+    try:
+        with open(os.path.join(root, "WEDGEFIRE.csv"), encoding="utf-8", errors="replace") as fh:
+            fires = bluez_wedge.parse_fires(fh.read())
+    except OSError:
+        return []                         # no firing has ever been recorded: nothing to report
+    obs = []
+    for line in str(journal_text or "").splitlines():
+        parts = line.split(";")
+        if len(parts) < 9:
+            continue
+        try:
+            obs.append((float(parts[0]), parts[7].strip().lower() not in ("false", "0")))
+        except ValueError:
+            continue                      # header or torn row
+    out = []
+    for f in fires:
+        outcome, detail = bluez_wedge.recovery_outcome(f["fired_ms"], obs)
+        out.append({"fired_ms": f["fired_ms"], "outcome": outcome, "detail": detail,
+                    "error_class": f["error_class"]})
+    return out
+
+
 def _cpap_stream_watch_row(cfg, root, night_name):
     """Gather the two durations and ask `cpap_stream_watch.assess`. All I/O; no decisions.
 
@@ -5166,6 +5229,7 @@ def _cpap_stream_watch_row(cfg, root, night_name):
     import cpap_stream_watch
     therapy = None
     unreachable = None
+    recoveries = []
     rows = []
     try:
         with open(os.path.join(root, "SESSIONDETECT.csv"), encoding="utf-8", errors="replace") as fh:
@@ -5175,6 +5239,10 @@ def _cpap_stream_watch_row(cfg, root, night_name):
         # always describes the night the number came from — reading it separately would let the two
         # drift apart on a journal that rotated in between.
         unreachable = cpap_stream_watch.unreachable_reason(text)
+        # What the wedge rung did, and whether it worked. This is what will eventually license a
+        # therapy ZERO: only a firing whose device never came back establishes "the machine was off"
+        # rather than "bluez lost it" — see bluez_wedge.recovery_outcome.
+        recoveries = _wedge_recoveries(root, text)
         rows = cpap_live.journal_rows(text)
     except OSError:
         pass                              # detector off, or journal absent — stays None, i.e. UNKNOWN
@@ -5210,9 +5278,11 @@ def _cpap_stream_watch_row(cfg, root, night_name):
                     headers.append((n_rec, float(dur)))
                 except (OSError, ValueError):
                     continue              # unreadable file: contributes nothing to the measurement
-    return cpap_stream_watch.assess(therapy, cpap_stream_watch.stream_minutes(headers),
+    out = cpap_stream_watch.assess(therapy, cpap_stream_watch.stream_minutes(headers),
                                     attempts=attempts, last_error=last_error,
                                     unreachable=unreachable)
+    out["wedge_recoveries"] = recoveries
+    return out
 
 
 async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = None):
