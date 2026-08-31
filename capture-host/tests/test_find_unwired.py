@@ -165,6 +165,10 @@ def test_check_mode_PASSES_when_everything_is_wired_or_explained(tmp_path, monke
     detector exists to find."""
     root = _tree(tmp_path, {"m.py": "def helper():\n    return 1\n\n\ndef caller():\n    return helper()\n"})
     monkeypatch.setattr(find_unwired, "HERE", root)
+    # Scan 6 (module reachability) is not what this fixture is about: a one-file synthetic tree
+    # is unimported by construction. Exempt it explicitly rather than let an unrelated scan
+    # decide this test's verdict.
+    monkeypatch.setitem(find_unwired.ALLOW_MODULES, "m", "synthetic fixture")
     monkeypatch.setitem(find_unwired.ALLOW_FUNCS, "caller", "synthetic entry point")
     assert find_unwired.main(["--check"]) == 0
     assert "0 unexplained" in capsys.readouterr().out
@@ -307,6 +311,10 @@ def test_a_SPENT_suppression_is_reported_and_REDS(tmp_path, monkeypatch, capsys)
     the entry NAMES a symbol, so it pre-silences any future finding that reuses the name."""
     root = _tree(tmp_path, {"m.py": "def helper():\n    return 1\n\n\ndef caller():\n    return helper()\n"})
     monkeypatch.setattr(find_unwired, "HERE", root)
+    # Scan 6 (module reachability) is not what this fixture is about: a one-file synthetic tree
+    # is unimported by construction. Exempt it explicitly rather than let an unrelated scan
+    # decide this test's verdict.
+    monkeypatch.setitem(find_unwired.ALLOW_MODULES, "m", "synthetic fixture")
     # BOTH entries, deliberately: `caller` is a genuine orphan and must be EXPLAINED, so the only
     # thing left that can red is the spent `helper`. ⚠️ The first version of this test allowlisted
     # `helper` alone — `caller` was then an unexplained orphan, the run exited 1 for THAT reason, and
@@ -326,6 +334,10 @@ def test_an_entry_for_a_GENUINE_orphan_stays_green(tmp_path, monkeypatch, capsys
     """The other direction, so the gate cannot red by flagging everything."""
     root = _tree(tmp_path, {"m.py": "def helper():\n    return 1\n\n\ndef caller():\n    return helper()\n"})
     monkeypatch.setattr(find_unwired, "HERE", root)
+    # Scan 6 (module reachability) is not what this fixture is about: a one-file synthetic tree
+    # is unimported by construction. Exempt it explicitly rather than let an unrelated scan
+    # decide this test's verdict.
+    monkeypatch.setitem(find_unwired.ALLOW_MODULES, "m", "synthetic fixture")
     monkeypatch.setattr(find_unwired, "ALLOW_FUNCS", {"caller": "genuine — nothing calls caller"})
     assert find_unwired.main(["--check"]) == 0
 
@@ -348,3 +360,156 @@ def test_staleness_is_judged_ONLY_against_the_population_the_scan_ENUMERATED(tmp
     # No capture.py, no webmon.py, no .py at all — so no scan enumerated a population, and the real
     # allowlist's many entries must produce ZERO staleness rather than all of it.
     assert res["stale_allowlist"] == [], res["stale_allowlist"][:3]
+
+
+# ── SCAN 6 · a module NOTHING imports ─────────────────────────────────────────────────────────────
+# Found 2026-08-31: `status_union.py` — the whole §3.6 merge layer, tested — was imported by nothing
+# but its own test file and appeared NOWHERE in this report. Two masks operated at once, which is why
+# neither the function scan nor a reader caught it: `merge()` calls its own helpers (so the leaves
+# had uses>defs), and `merge` is a generic word occurring in three unrelated modules (so did the root).
+def _tree(tmp_path, files: dict):
+    for name, text in files.items():
+        p = tmp_path / name
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text)
+    return str(tmp_path)
+
+
+def test_A_MODULE_NOTHING_IMPORTS_IS_FLAGGED_HOWEVER_COHESIVE_IT_IS():
+    """The exact shape that hid: internal calls make every leaf look used.
+
+    `root()` calls `leaf()`, so a `uses - defs` scan sees the leaf referenced and stays quiet. Module
+    reachability is a different question and has to be asked separately."""
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as td:
+        root = _tree(pathlib.Path(td), {
+            "lonely.py": "def leaf():\n    return 1\n\n\ndef root():\n    return leaf()\n",
+            "daemon.py": "def go():\n    return 2\n",
+        })
+        mods = {r["module"] for r in find_unwired.scan(root)["orphan_modules"]}
+        assert "lonely" in mods, "a cohesive but unimported module was not flagged"
+
+
+def test_AN_IMPORTED_MODULE_IS_NOT_FLAGGED():
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as td:
+        root = _tree(pathlib.Path(td), {
+            "helper.py": "def used():\n    return 1\n",
+            "daemon.py": "import helper\n\n\ndef go():\n    return helper.used()\n",
+        })
+        mods = {r["module"] for r in find_unwired.scan(root)["orphan_modules"]}
+        assert "helper" not in mods
+
+
+def test_A_DYNAMICALLY_LOADED_MODULE_IS_NOT_A_FALSE_POSITIVE():
+    """⚠️ THE FIRST VERSION OF THIS SCAN CRIED WOLF HERE.
+
+    `tools/mutate_diff.py` loads `mmeta` with `spec_from_file_location("mmeta", …)` + `exec_module`,
+    which no import-line regex can see. A reachability gate that reports a live module as dead gets
+    switched off, and then it protects nothing."""
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as td:
+        root = _tree(pathlib.Path(td), {
+            "dyn.py": "def used():\n    return 1\n",
+            "loader.py": 'import importlib.util as ilu\n'
+                         's = ilu.spec_from_file_location("dyn", "dyn.py")\n',
+        })
+        mods = {r["module"] for r in find_unwired.scan(root)["orphan_modules"]}
+        assert "dyn" not in mods
+
+
+def test_A_SKIP_LIST_MENTION_IS_NOT_AN_IMPORT():
+    """⚠️ AND THE FALSE NEGATIVE I INTRODUCED WHILE FIXING THE FALSE POSITIVE.
+
+    Matching a bare `"<module>.py"` literal made `SKIP = {"adapter_ab.py"}` in tools/mutate.py count
+    as reachability — a file being EXCLUDED read as a file being used. A pattern loose enough to be
+    satisfied by exclusion is evidence of nothing, and it silenced a genuine orphan."""
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as td:
+        root = _tree(pathlib.Path(td), {
+            "skipped.py": "def alone():\n    return 1\n",
+            "gate.py": 'SKIP = {"skipped.py"}\n\n\ndef go():\n    return SKIP\n',
+        })
+        mods = {r["module"] for r in find_unwired.scan(root)["orphan_modules"]}
+        assert "skipped" in mods, "a skip-list mention was counted as an import"
+
+
+def test_A_COMMENT_NAMING_A_MODULE_IS_NOT_AN_IMPORT():
+    # `timeline.py` names `adapter_ab.night_profile` in prose. Counting that is the masking the
+    # function scan already learned to refuse via `_code_only`.
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as td:
+        root = _tree(pathlib.Path(td), {
+            "prose.py": "def alone():\n    return 1\n",
+            "doc.py": "# see prose.alone() for the derivation\nimport os\n\n\ndef go():\n    return os\n",
+        })
+        mods = {r["module"] for r in find_unwired.scan(root)["orphan_modules"]}
+        assert "prose" in mods
+
+
+def test_AN_ENTRY_POINT_IS_REACHABLE_BY_BEING_RUN():
+    """A script with `__main__` needs no importer. Without this exemption every tool would flag, and a
+    gate that flags everything is a gate nobody reads."""
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as td:
+        root = _tree(pathlib.Path(td), {
+            "script.py": 'def go():\n    return 1\n\n\nif __name__ == "__main__":\n    go()\n',
+        })
+        mods = {r["module"] for r in find_unwired.scan(root)["orphan_modules"]}
+        assert "script" not in mods
+
+
+def test_THE_KNOWN_SUBJECTS_ARE_EXPLAINED_NOT_SILENT():
+    """Every real subject must appear in the report — as allowed, never absent.
+
+    `status_union` was invisible before this scan; the fix is that it is now VISIBLE with a reason
+    naming the consumer it waits on. An exemption you cannot see is the mask one level up."""
+    rows = {r["module"]: r for r in find_unwired.scan()["orphan_modules"]}
+    for mod in ("status_union", "adapter_pool", "adapter_ab"):
+        assert mod in rows, f"{mod} vanished from the report"
+        assert rows[mod]["allowed"], f"{mod} is unexplained"
+
+
+def test_AN_UNEXPLAINED_MODULE_ACTUALLY_REDS_CHECK():
+    """⚠️ THE FIRST VERSION OF SCAN 6 REPORTED WITHOUT GATING.
+
+    It printed its findings and `--check` still exited 0, because `main()`'s verdict summed the other
+    four scans and not this one. A scan nobody is forced to answer is a scan that gets scrolled past —
+    the decorative half of the very failure this tool exists to name. So the gating is asserted
+    separately from the detection: finding it and failing on it are two different claims."""
+    res = {"orphan_status_keys": [], "orphan_functions": [], "orphan_rendered": [], "orphan_js": [],
+           "orphan_modules": [{"module": "ghost", "funcs": ["f"], "allowed": None}],
+           "stale_allowlist": [], "full_tree": True}
+    n = sum(1 for r in res["orphan_status_keys"] + res["orphan_functions"]
+            + res["orphan_rendered"] + res["orphan_js"] + res["orphan_modules"]
+            if not r["allowed"])
+    assert n == 1, "an unexplained module must count toward the verdict"
+    # ...and the real main() must agree, not just this arithmetic.
+    import io, contextlib
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = find_unwired.main(["--check"])
+    assert rc == 0, "the live tree should be clean; if this fails, something is genuinely unexplained"
+    assert "ALLOW_MODULES" in buf.getvalue() or "modules NOTHING imports" in buf.getvalue()
+
+
+def test_AN_UNREADABLE_FILE_DOES_NOT_STOP_THE_REACHABILITY_SCAN():
+    """A tree can contain something `open()` refuses — a directory named `x.py` is the cheap case.
+
+    The scan must skip it and keep walking. A reachability check that dies on one odd path would
+    report nothing about the rest of the tree, which is worse than the orphan it was looking for."""
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as td:
+        root = pathlib.Path(td)
+        (root / "lonely.py").write_text("def alone():\n    return 1\n")
+        # In a SUBDIRECTORY: `scan()` reads only root-level files, while `importers()` walks the whole
+        # tree — so the subdirectory is the only place this guard can actually be reached.
+        #
+        # ⚠️ A DANGLING SYMLINK, not a directory named `.py`. My first attempt used the directory, and
+        # it never reached the guard at all: `os.walk` yields directories in `dirs`, never in `names`,
+        # so nothing ever tried to open it. The test passed while exercising nothing — which is the
+        # failure this whole file is about, committed inside a test for it.
+        (root / "sub").mkdir()
+        (root / "sub" / "trap.py").symlink_to(root / "nonexistent-target")
+        mods = {r["module"] for r in find_unwired.scan(str(root))["orphan_modules"]}
+        assert "lonely" in mods, "the scan gave up when it met an unreadable path"
