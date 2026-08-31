@@ -393,8 +393,16 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     # a run launched in the background surfaces nothing until it exits, so a 26-minute cpap_harvest run
     # is silent to the caller either way. This file is rewritten on every verdict so anyone — a person,
     # or an agent polling it — can answer "how far in, and is it moving" at any instant.
-    seen = {"killed": 0, "survived": 0, "timeout": 0, "n": 0, "ids": set()}
+    # The de-dup set lives SEPARATELY from the counters, and that is a typing fix with a readability
+    # dividend: one dict holding both ints and a set is `dict[str, object]` to mypy, so every `+= 1`,
+    # every `/`, and the `.add` became an error on a structure that was perfectly correct at runtime.
+    # Splitting them makes the counters a plain `dict[str, int]` and says which is which.
+    seen_ids: "set[str]" = set()
+    seen = {"killed": 0, "survived": 0, "timeout": 0, "n": 0}
     try:
+        # `proc.stdout` is Optional in the stubs; it is not None here because the Popen above is
+        # created with stdout=PIPE. Asserting states that rather than guarding a case that cannot arise.
+        assert proc.stdout is not None
         for line in proc.stdout:                       # line-buffered; mutmut rewrites one status line
             buf.append(line)
             sys.stderr.write(line)
@@ -415,9 +423,9 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
                               ("\N{ALARM CLOCK}", "timeout"), ("\N{SLIGHTLY FROWNING FACE}", "survived")):
                 if mark in line:
                     mid = re.search(r"[\w.]+__mutmut_\d+", line)
-                    if not mid or mid.group(0) in seen["ids"]:
+                    if not mid or mid.group(0) in seen_ids:
                         break
-                    seen["ids"].add(mid.group(0))
+                    seen_ids.add(mid.group(0))
                     seen[key] += 1
                     seen["n"] += 1
                     el = time.monotonic() - t0
