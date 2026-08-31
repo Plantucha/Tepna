@@ -271,3 +271,29 @@ def test_a_refusing_clean_run_SAYS_WHICH_TEST_FAILED():
         "the failing test sends the next reader through the whole diagnosis again")
     assert any(isinstance(n, ast.If) for n in ast.walk(fn)), \
         "the report must be conditional on failure, not printed over a passing run"
+
+
+def test_the_clean_run_report_includes_the_ASSERTION_BODY_not_just_the_summary():
+    """pytest's `FAILED …` line carries only the FIRST line of an assertion message.
+
+    The body is where the reason lives. Reporting the summary alone produced
+    `AssertionError: shellcheck findings:` with nothing after it — and that emptiness was read as
+    evidence the tool had printed nothing, which sent a diagnosis down a wrong branch. It was the
+    reporter truncating, not the tool being silent.
+
+    A reporter that drops the body is worse than one that reports nothing: it manufactures a confident
+    wrong conclusion out of its own filtering. Verified against a plant whose detail lines exist only
+    in the body.
+
+    Anchored on the function via ast; `FAILURES` is a common enough token that a substring check over
+    the module would pass while this function still printed only the summary."""
+    import ast
+
+    src = (HERE / "tools" / "mutate.py").read_text(encoding="utf-8")
+    fn = next((n for n in ast.walk(ast.parse(src))
+               if isinstance(n, ast.FunctionDef) and n.name == "clean_run_seconds"), None)
+    assert fn is not None, "clean_run_seconds is gone — this pin is stale, not passing"
+    consts = {n.value for n in ast.walk(fn) if isinstance(n, ast.Constant) and isinstance(n.value, str)}
+    assert any("FAILURES" in c for c in consts), (
+        "clean_run_seconds no longer reads pytest's FAILURES section, so a refusal reports only the "
+        "first line of the assertion — the part that says WHAT failed is dropped")
