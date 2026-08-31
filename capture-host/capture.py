@@ -2096,6 +2096,7 @@ async def run_polar(dev: dict, root: str):
     gated rather than assumed. A Coospo HRM808S (probed 2026-07-19) has neither PMD nor PS-FTP: running
     them anyway cost a pointless bond attempt, an 18-SECOND GLOBAL CAPTURE PAUSE while an impossible
     clock sync failed on a missing characteristic, and a phantom link that then tripped the watchdog."""
+    # MEASUREMENT-ONLY: scopes the diff-scoped mutation gate to this function. Not for merge.
     name, addr = dev["name"], dev["address"]
     streams = dev.get("streams", ["ecg"])
     backoff = 5
@@ -4667,6 +4668,7 @@ _pmd_probe_seen: dict[int, int] = {}
 
 
 def _pmd_probe(meas: int, data: bytes, n_samples: int, arrival) -> None:
+    # MEASUREMENT-ONLY: scopes the diff-scoped mutation gate to this function. Not for merge.
     # The only call site is under `if _PMD_PROBE:`, but mypy does not carry a module-global
     # narrowing across a function boundary — so re-establish it here. Returning is also the
     # honest behaviour if the probe is somehow reached unset: writing to a None path is not a
