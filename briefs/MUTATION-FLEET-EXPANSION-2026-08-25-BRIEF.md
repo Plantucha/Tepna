@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-25 · **Owner-issued directive** (relayed via the coordinator session) · **Interlocks:** `MUTATION-PROGRAM-2026-08-09-BRIEF.md`, `MUTATION-PIPELINE-INTEGRITY` · **Affects:** `tools/mutation-crawl.mjs` (`DEFAULT_FLEET`), per-file co-load configs
+**Status:** DONE — 2026-08-31 (Phases 1 and 2 landed in `DEFAULT_FLEET`; §2a's guard row corrected in §2a-bis. **Phase 3 stays DEFERRED and §4 stays PROPOSED — this DONE does not cover them**, per §6 item 4.) · **Created:** 2026-08-25 · **Owner-issued directive** (relayed via the coordinator session) · **Interlocks:** `MUTATION-PROGRAM-2026-08-09-BRIEF.md`, `MUTATION-PIPELINE-INTEGRITY` · **Affects:** `tools/mutation-crawl.mjs` (`DEFAULT_FLEET`), per-file co-load configs
 
 # Mutation fleet expansion — beyond the nine DSPs
 
@@ -77,9 +77,43 @@ Four files need a note rather than a recipe:
 | file | finding | disposition |
 |---|---|---|
 | **`oxydex-fusion.js`** | **NOT a fusion module — a DOM-coupled page-scope render file.** Its own header: *"Loaded after `oxydex-render.js`, before `oxydex-app.js`. Shares page scope."* 5 DOM references, writes `window._ecgByDate`, injects cards at `#heroTop`, exposes no handle. | 🔴 **MOVE TO PHASE 3.** It was placed in Phase 2 by FILENAME; by nature it needs the DOM shim. |
-| `cpapdex-fusion.js` | the **only** file of the 20 carrying a `typeof X !== 'undefined'` guard (1 of them) | Phase 2, but it is the one file where an incomplete realm can produce a **FALSE KILL** — the hazard the crawl's own header records. Complete its realm before trusting a kill there. |
+| `cpapdex-fusion.js` | ~~the **only** file of the 20 carrying a `typeof X !== 'undefined'` guard (1 of them)~~ → **CORRECTED 2026-08-31, see §2a-bis: FOUR files carry guards, and the count was never the discriminator.** | Phase 2. The false-kill hazard is real for this file and **already mitigated by construction** — see §2a-bis. |
 | `metric-registry.js` | already in `SPINE`, so it is dual-loaded exactly as `clock.js` is | Phase 2, safe — the target loads after the spine and overwrites it (verified for `clock.js` in Phase 1; same mechanism). |
 | `dex-coload.js` | reachable as `DexCoload`, but it is a **DATA structure** (module lists), not a function surface | Phase 2, **low yield** — mutants there edit list contents; expect few probeable functions rather than none. |
+
+### 2a-bis · CORRECTION to §2a's guard row — measured 2026-08-31 during brief closure
+
+§2a's `cpapdex-fusion.js` row said it was **the only** file of the 20 carrying a
+`typeof X !== 'undefined'` guard. That is wrong, and it is wrong in the direction that matters: it
+under-counts, so a reader checking realm-completeness would clear three files it never mentions.
+
+**Measured with `grep -cE "typeof [A-Za-z_]+ !== ['\"]undefined['\"]"` over the Phase 2 set:**
+
+| file | guards | what they test |
+|---|---|---|
+| `cpapdex-cross.js` | **3** | `globalThis` · `module` · `require` · `window` |
+| `cpapdex-edf.js` | **3** | `module` · `process` · `window` |
+| `dex-coload.js` | **2** | `globalThis` · `module` · `self` |
+| `cpapdex-fusion.js` | 1 | **`SignalFrame`** |
+
+Four files, not one. **But §2a picked the right file, for a reason it did not state** — and that reason,
+not the count, is the rule worth carrying:
+
+> **What a guard TESTS decides the hazard.** The first three guard **environment globals**. That is
+> UMD/environment-detection boilerplate: the code is deliberately asking "am I in Node or a browser",
+> and an incomplete realm answers that question correctly rather than falsely. It cannot produce a
+> false kill. `cpapdex-fusion.js` alone guards a **module dependency**, which is the shape that can.
+
+So a guard COUNT is not a realm-completeness signal at all, and this row invited exactly the wrong
+follow-up work — auditing four files when one matters, or clearing one file's realm while three
+"unguarded" ones were never in question.
+
+**And the remaining hazard is already closed, by construction rather than by review.** `SignalFrame`
+is defined by `signal-frame.js`; `signal-frame.js` is in `mutation-crawl.mjs`'s `SPINE`; and
+`loadRealm` runs every SPINE entry into the context under an `existsSync` guard, with the file present
+(19 KB, defines `SignalFrame`). §2a's instruction — *"complete its realm before trusting a kill
+there"* — is therefore satisfied today with no action outstanding. Verified by tracing
+`SignalFrame → signal-frame.js → SPINE → loadRealm`, not by re-reading the claim.
 
 ⚠️ **A correction on that last row, recorded because it is the session's recurring error in miniature.**
 My probe first reported `dex-coload.js` as exposing *no handle at all*, and I nearly wrote that down as
@@ -127,7 +161,33 @@ from opposite directions.
 
 ## 6 · Done when
 
-- [ ] `DEFAULT_FLEET` carries Phase 1's two files and a full crawl → probe → draft cycle completes on both.
-- [ ] Phase 2's 20 files each have a committed co-load recipe, `cpapdex-edf.js` and the `*-cross.js` first.
-- [ ] §0's invariant holds in review: no model output reaches a verification path.
-- [ ] Phase 3 and §4 remain explicitly recorded as deferred/proposed rather than silently dropped.
+- [x] `DEFAULT_FLEET` carries Phase 1's two files and a full crawl → probe → draft cycle completes on both.
+      **Verified 2026-08-31, per stage rather than inferred from fleet membership** — the second clause
+      is a separate claim from the first and is the one that could have been stamped on a guess:
+
+      | file | crawl | probe | drafts | journal |
+      |---|---|---|---|---|
+      | `clock.js` | 7736 B | 304 B | 989 B | 1 entry |
+      | `manifest-gate.js` | 12796 B | 4751 B | 5271 B | 7 entries |
+
+      Sizes are quoted because a present-but-EMPTY artifact is the vacuous pass this suite keeps
+      finding; every stage is non-zero for both files. `clock.js`'s probe is thin (304 B, one draft) —
+      thin, not absent, and recorded as such rather than rounded up.
+      ⚠️ **This evidence is LOCAL-ONLY and cannot be cited from a fresh clone**: crawl output lives in
+      `.mutation-crawl/` and drafts in `.git/tepna-mutation/`, both untracked by design (same locality
+      class as the gitignored corpus). Re-verify on the primary dev machine, not in CI.
+- [x] Phase 2's 20 files each have a committed co-load recipe, `cpapdex-edf.js` and the `*-cross.js` first.
+      **Satisfied, but the framing was stale and is worth correcting rather than ticking silently:**
+      there are no per-file recipes. There is ONE shared `SPINE` list in `mutation-crawl.mjs`, and
+      §2a's own survey measured six of the files as loading on it alone with their own handle. All 19
+      Phase 2 files (20 minus `oxydex-fusion.js`, reclassified to Phase 3 by §2a) are in `DEFAULT_FLEET`:
+      9 DSPs + Phase 1's 2 + 19 = the 30 the list carries today, accounted exactly.
+- [x] §0's invariant holds in review: no model output reaches a verification path.
+      The model's output lands in `.git/tepna-mutation/*.drafts.js` as human-read proposals; the gates
+      remain the arbiter. No verification path reads it.
+- [x] Phase 3 and §4 remain explicitly recorded as deferred/proposed rather than silently dropped.
+      **Phase 3 (render/app files, plus `oxydex-fusion.js` reclassified into it) is DEFERRED. §4 (the
+      slow full-module Python rotation) remains PROPOSED and UNRATIFIED** — note its economics changed
+      on 2026-08-31: #1992 fixed the mutation baseline running a different selection than the mutants,
+      which is what made any Python module unmeasurable at all. That makes §4 more attractive than
+      when it was written; it does not ratify it.
