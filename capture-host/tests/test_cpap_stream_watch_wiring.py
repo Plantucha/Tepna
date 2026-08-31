@@ -51,7 +51,11 @@ def test_the_2026_08_27_night_one_record_for_a_six_hour_session(tmp_path):
 
 def test_a_covered_night_is_quiet(tmp_path):
     t0 = 1_787_000_000_000
-    _journal(tmp_path, [(t0 + i * 30_000, "Therapy") for i in range(720)])
+    # ⚠️ A COVERED night's journal shows a SHORT head-start, not the whole session: the detector
+    # defers while the stream holds the one AS11 link, so it observes only un-streamed therapy.
+    # 20 rows x 30 s = 10 min of head-start before the capture began (measured shape 2026-08-30:
+    # 429 min of EDF beside 1.7 min observed).
+    _journal(tmp_path, [(t0 + i * 30_000, "Therapy") for i in range(20)])
     _edf(tmp_path / "edf" / "DATALOG" / "20260827" / "a_BRP.edf", 300, 60)
     _edf(tmp_path / "edf" / "DATALOG" / "20260827" / "b_BRP.edf.part", 50, 60)
     got = capture._cpap_stream_watch_row(_cfg(tmp_path / "edf"), str(tmp_path), "2026-08-27")
@@ -63,7 +67,11 @@ def test_a_session_in_the_NEIGHBOURING_folder_is_still_found(tmp_path):
     filed under the next device date. Reading only the night's own folder would report a missed capture
     for a recording sitting one directory away — a false alarm caused by a known clock offset."""
     t0 = 1_787_000_000_000
-    _journal(tmp_path, [(t0 + i * 30_000, "Therapy") for i in range(720)])
+    # ⚠️ A COVERED night's journal shows a SHORT head-start, not the whole session: the detector
+    # defers while the stream holds the one AS11 link, so it observes only un-streamed therapy.
+    # 20 rows x 30 s = 10 min of head-start before the capture began (measured shape 2026-08-30:
+    # 429 min of EDF beside 1.7 min observed).
+    _journal(tmp_path, [(t0 + i * 30_000, "Therapy") for i in range(20)])
     _edf(tmp_path / "edf" / "DATALOG" / "20260828" / "a_BRP.edf", 350, 60)
     got = capture._cpap_stream_watch_row(_cfg(tmp_path / "edf"), str(tmp_path), "2026-08-27")
     assert got["state"] == W.OK, "a session filed under the device's date read as a missed capture"
@@ -93,7 +101,8 @@ def test_an_UNREADABLE_edf_does_not_stop_the_readable_ones(tmp_path):
     and proved nothing. The writer rewrites its `.part` atomically with a correct count on every flush,
     so a torn header is not a state this box produces at all.)"""
     t0 = 1_787_000_000_000
-    _journal(tmp_path, [(t0 + i * 30_000, "Therapy") for i in range(720)])
+    # short head-start, long stream — the covered shape (see test_a_covered_night_is_quiet)
+    _journal(tmp_path, [(t0 + i * 30_000, "Therapy") for i in range(20)])
     d = tmp_path / "edf" / "DATALOG" / "20260827"
     _edf(d / "good_BRP.edf", 350, 60)
     (d / "short_BRP.edf.part").write_bytes(b"\0" * 12)
