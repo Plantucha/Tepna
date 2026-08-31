@@ -243,3 +243,31 @@ def test_the_CLEAN_RUN_applies_the_deselections_too():
         "clean_run_seconds no longer applies deselect_args(), so the baseline runs a DIFFERENT "
         "selection than the mutants. A test that cannot pass in a scratch tree then fails the clean "
         "run, and every mutant reports 'no budget' — a harness gap wearing the shape of a finding.")
+
+
+def test_a_refusing_clean_run_SAYS_WHICH_TEST_FAILED():
+    """A refusal must carry its reason, or the run that already knows makes you go find out.
+
+    `clean_run_seconds` passes `capture_output=True` and used to throw the report away, returning only
+    `False`. Downstream that became "no budget: the clean run did not pass, so its duration measures
+    nothing" and then `mutate-diff: REFUSING` — honest, and undiagnosable. Three CI runs and a local
+    reproduction went into identifying a test the failing run had already named to itself.
+
+    The failure here is almost always a test that cannot pass in mutmut's scratch tree (a COPY, not a
+    repo), and the remedy is a `DESELECTED_TESTS` entry — which you can only write if you are told the
+    node id.
+
+    Pinned structurally on the function, not on a substring: `r.stdout` and `returncode` appear
+    elsewhere in the module, so `in src` would pass while this function stayed silent."""
+    import ast
+
+    src = (HERE / "tools" / "mutate.py").read_text(encoding="utf-8")
+    fn = next((n for n in ast.walk(ast.parse(src))
+               if isinstance(n, ast.FunctionDef) and n.name == "clean_run_seconds"), None)
+    assert fn is not None, "clean_run_seconds is gone — this pin is stale, not passing"
+    assert any(isinstance(n, ast.Call) and getattr(n.func, "id", "") == "print"
+               for n in ast.walk(fn)), (
+        "clean_run_seconds no longer reports the failure it captured — a refusal that cannot name "
+        "the failing test sends the next reader through the whole diagnosis again")
+    assert any(isinstance(n, ast.If) for n in ast.walk(fn)), \
+        "the report must be conditional on failure, not printed over a passing run"

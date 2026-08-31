@@ -190,7 +190,32 @@ def clean_run_seconds(tests: list[str]) -> tuple[float, bool]:
     r = subprocess.run([str(VENV_PY), "-m", "pytest", "-q", "-p", "no:cacheprovider",
                         *tests, *deselect_args()],
                        cwd=HERE, capture_output=True, text=True, timeout=3600)
-    return time.monotonic() - t0, r.returncode == 0
+    elapsed = time.monotonic() - t0
+    # 🔴 SAY WHICH TEST FAILED. `capture_output=True` collected pytest's report and this function
+    # threw it away, so the only thing reaching a caller was `False` — surfacing downstream as
+    # "no budget: the clean run did not pass, so its duration measures nothing" and, from there, as
+    # `mutate-diff: REFUSING`. Honest, and undiagnosable: three CI runs and a local reproduction were
+    # spent working out WHICH test it was, because the run that already knew did not say.
+    #
+    # A refusal must carry its reason. The failure is nearly always a test that cannot pass in
+    # mutmut's scratch tree (a copy, not a repo) and the remedy is a DESELECTED_TESTS entry — but you
+    # can only write that entry if you are told the node id.
+    if r.returncode != 0:
+        lines = [ln for ln in (r.stdout or "").splitlines()
+                 if ln.startswith(("FAILED", "ERROR")) or " error" in ln.lower()[:40]]
+        print(f"    clean run FAILED (exit {r.returncode}) after {elapsed:.1f}s — "
+              f"{len(lines) or 'no'} FAILED/ERROR line(s):", flush=True)
+        for ln in lines[:20]:
+            print(f"      {ln}", flush=True)
+        if not lines:
+            # No FAILED lines at all is a DIFFERENT failure — a collection error, a missing plugin, an
+            # import crash. Show the tail rather than printing nothing and implying there was nothing.
+            tail = (r.stdout or r.stderr or "").strip().splitlines()[-12:]
+            print("      (no FAILED/ERROR lines — showing the tail, this is likely a collection "
+                  "or import failure rather than a test assertion)", flush=True)
+            for ln in tail:
+                print(f"      {ln}", flush=True)
+    return elapsed, r.returncode == 0
 
 
 
