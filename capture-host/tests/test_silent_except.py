@@ -15,7 +15,7 @@ not approval, and they may only go down.
 import ast
 import os
 
-from _srcscan import HERE, module_source
+from _srcscan import HERE, module_path, module_source
 
 # Debt, measured 2026-08-31, NOT approval. Lower a number when you explain or log a site; a new
 # unexplained swallow in any of these files reds this gate, and a file absent from the map is held
@@ -79,9 +79,16 @@ def test_THE_REST_OF_THE_TREE_ONLY_GETS_BETTER():
     improves must lower its number here so the improvement cannot silently be spent again."""
     worse, stale = [], []
     for rel in _py_files():
-        # module_source, never a raw read: on a mutmut-generated file it SKIPS rather than
-        # scanning hundreds of inlined mutant copies (see tests/_srcscan.py).
-        n = len(unexplained(module_source(rel)))
+        # PER-FILE, never `module_source` here. That helper skips the WHOLE TEST on the first file
+        # carrying the mutmut marker — and `mutation_pure.py` is a tracked module that contains the
+        # marker as ordinary content, so the walk aborted on it and this ratchet silently examined
+        # NOTHING. Caught 2026-08-31, one file into using it. Read through `module_path` (which
+        # exists for exactly this) and skip only the generated file in front of us.
+        with open(module_path(rel), encoding="utf-8") as fh:
+            text = fh.read()
+        if "__mutmut_orig" in text and rel != "mutation_pure.py":
+            continue
+        n = len(unexplained(text))
         allowed = RATCHET.get(rel, 0)
         if n > allowed:
             worse.append(f"  {rel}: {n} unexplained, ratchet allows {allowed}")
