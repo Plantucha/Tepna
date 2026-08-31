@@ -26,16 +26,29 @@ def test_a_one_minute_stream_over_a_six_hour_session_is_the_08_27_case():
 
 
 def test_a_covered_session_is_OK():
-    r = W.assess(therapy_min=380.0, stream_min=375.0)
+    """⚠️ NUMBERS CORRECTED 2026-08-31 — the old pair was physically impossible.
+
+    It read `therapy_min=380, stream_min=375`, which assumes `therapy_minutes` returns the WHOLE
+    session. It cannot: the shadow detector holds the one AS11 link only while the stream does not,
+    so it observes exactly the therapy that was NOT streamed. 380 minutes observed alongside 375
+    streamed would mean the detector polled straight through a running capture.
+
+    The real shape, measured 2026-08-30: a 429-minute EDF alongside 1.7 minutes of observed therapy.
+    So a covered session is a SMALL observed head-start plus a long stream."""
+    r = W.assess(therapy_min=5.0, stream_min=375.0)
     assert r["state"] == W.OK and r["cover"] > 0.98
 
 
 def test_a_late_manual_start_is_NOT_a_finding():
     """The stream is started BY HAND after the machine, so some therapy always precedes it. A few
-    minutes of head-start is normal; half a session is not."""
-    assert W.assess(therapy_min=380.0, stream_min=370.0)["state"] == W.OK
-    assert W.assess(therapy_min=380.0, stream_min=200.0)["state"] == W.OK  # 53 %, above the floor
-    assert W.assess(therapy_min=380.0, stream_min=180.0)["state"] == W.DIED_EARLY  # 47 %, below it
+    minutes of head-start is normal; half a session is not.
+
+    The observed figure is the head-start ITSELF (plus any therapy after the stream ends), not the
+    session — see `test_a_covered_session_is_OK`. So the ratio is streamed / (head-start + streamed),
+    and a late start shows up as a bigger head-start rather than a smaller stream."""
+    assert W.assess(therapy_min=10.0, stream_min=370.0)["state"] == W.OK        # 97 %
+    assert W.assess(therapy_min=180.0, stream_min=200.0)["state"] == W.OK       # 53 %, above the floor
+    assert W.assess(therapy_min=200.0, stream_min=180.0)["state"] == W.DIED_EARLY  # 47 %, below it
 
 
 def test_a_SHORT_session_is_never_a_finding():
@@ -274,3 +287,34 @@ def test_A_TORN_LINE_IS_SKIPPED_NOT_COUNTED():
     r = W.unreachable_reason(torn)
     assert r["n"] == 2, "a truncated row was counted as a failed poll"
     assert r["unanimous_absent"] is True, "a torn row flipped a unanimous night to mixed"
+
+
+def test_STARTING_THE_CAPTURE_MUST_NOT_DESTROY_THE_MEASUREMENT():
+    """🔴 THE 2026-08-30 NIGHT, and the reason `assess` counts streamed time as therapy.
+
+    The shadow detector holds the one AS11 link only while the stream does not, so it observes
+    exactly the therapy that was NOT streamed. Treating that sliver as the whole session meant the
+    act of STARTING a capture destroyed the measurement the capture is judged against.
+
+    Real numbers: the operator started the stream by hand, the EDF ran 429 min (verified from its
+    header — 429 records x 60 s), and the journal held 1.7 min of observed therapy. The old
+    arithmetic called that "therapy ran 2 min, below the 30 min floor — too short to call a missed
+    capture", and returned OK while declining to judge. So night-QC was silently disabled for
+    precisely the nights where capture WORKED, and said nothing was wrong.
+
+    ⚠️ Note it returned OK either way. The bug was not a wrong alarm, it was a REFUSAL TO LOOK
+    wearing the same word as a clean night — which is why nobody noticed for as long as the feature
+    has existed."""
+    r = W.assess(therapy_min=1.7, stream_min=429.0)
+    assert r["state"] == W.OK
+    assert r["therapy_min"] > 430, "the streamed session was not counted as therapy"
+    assert r["therapy_observed_min"] == 1.7, "the observed sliver must stay visible, not be erased"
+    assert r["cover"] is not None and r["cover"] > 0.99
+    assert "below the" not in r["detail"], "a 7-hour night was still dismissed as too short"
+
+
+def test_COVER_IS_A_FRACTION_NOT_AN_UNBOUNDED_RATIO():
+    # Before the fix `cover = stream / observed` could exceed 1 without limit — last night it would
+    # have been 429/1.7 = 252. A "fraction covered" above 1 is a sign the denominator is wrong.
+    assert W.assess(therapy_min=1.7, stream_min=429.0)["cover"] <= 1.0
+    assert W.assess(therapy_min=0.5, stream_min=600.0)["cover"] <= 1.0
