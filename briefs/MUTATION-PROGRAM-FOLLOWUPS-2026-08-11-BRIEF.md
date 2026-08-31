@@ -283,10 +283,56 @@ they are insufficiently varied.
   tests (verified as assertion failures, not crashes). Known accepted miss, documented in code:
   a MULTI-line concise body under-claims to one line rather than over-claiming.
 - **oxydex and integrator have no battery at all** — 1763 and 934 survivors, 0 % claimable.
-- **`capture.py` is unaudited** — the largest file in the project.
+- **`capture.py` is NOT auditable at current cost — measured 2026-08-31, see §8-bis.** ~~is unaudited~~
+  The bullet used to read "is unaudited", which invites the reader to go audit it. It was attempted;
+  the cost is the finding.
 - **cpapdex `selfTest` holds 122 survivors** (a quarter of that file) in *test scaffolding*. Whether
   mutants in a self-test belong in the denominator at all is a question this brief raises and does not
   answer.
+
+## 8-bis · `capture.py` WAS ATTEMPTED — the cost is the finding (2026-08-31)
+
+§8 listed `capture.py` as "unaudited", which reads as *nobody has got to it yet*. It has been got to.
+A full day went into it, and the outcome is a number rather than a survivor list.
+
+**Two blockers, in two environments, and conflating them cost most of that day.**
+
+**CI's blocker was the gate being unable to SEE the module**, and it is fixed. Seven PRs:
+
+| PR | what it fixed |
+|---|---|
+| #1982 | two holes in `mutation-source-scan` — module-object `getsource`, and a per-FILE `SANCTIONED` exemption that blanket-cleared the largest test file |
+| #1985 | no per-mutant timeout was configured; mutmut's own `timeout_multiplier` left at 15 |
+| #1992 | the baseline ran a DIFFERENT selection than the mutants — `deselect_args()` was wired to the mutmut config and not to `clean_run_seconds` |
+| #1995 | a refusal named no test; the report was captured and discarded |
+| #1997 | the refusal printed an assertion's first line and dropped its body |
+| #1998 | **the root cause** — `_all_scripts()` walked mutmut's generated `mutants/`, seeing 48 scripts where the tree has 24 |
+| #2000 | the mutation job never installed `shellcheck-py`, so the scratch resolved the runner's older `/usr/bin/shellcheck` |
+
+**Local's blocker was never the clean run**, and that is the distinction the brief should carry:
+shellcheck is absent locally, so that test SKIPS and the baseline passes. What remains is pure **stats
+phase cost**:
+
+> **6 h 54 m elapsed, still in `Running stats`, output frozen at 48,409 bytes — byte-identical across
+> FOUR independent runs**, including ones stopped at 3 h. Generation alone measures 1,933,726 ms
+> (32.2 min) for the single file.
+
+CI, with the gate finally able to see, then hit caps and cancellations at 4–11 h without producing a
+survivor list either.
+
+**So: the gate can now SEE `capture.py`, and neither environment can AFFORD to measure it exhaustively.**
+Those are different sentences and only the first was ever in doubt.
+
+⚠️ **The corollary that matters more than the cost.** #1954 and #1959 both merged with
+`mutation (diff-scoped)` RED, and that red was **`REFUSING — could not measure`**, never *survivors
+exist*. No survivor list for `capture.py` has ever existed. Any note recording those PRs as leaving
+unkilled mutants is wrong: they left an **unmeasured gate**, and there may be no work there at all.
+
+**What would change this** is the stats cost, not more fixes — the same problem §6-bis's **UNION-WITH-TAG**
+addresses on the JS side, which has no Python analogue built. Standing decision: measurement runs
+**locally and offline**, never as a public CI PR; the cost above is why.
+
+---
 
 ## 9 · FINDINGS FROM EXECUTING §5 ON hrvdex `computeDerived` (2026-08-12)
 
