@@ -170,3 +170,99 @@ def test_AN_UNREACHABLE_POLL_DOES_NOT_MOVE_LAST_SEEN():
     capture.STATUS["cpap"] = {"enabled": True, "last_seen_ms": 1000.0}
     capture._note_cpap_unreachable(OSError("boom"))
     assert capture.STATUS["cpap"]["last_seen_ms"] == 1000.0
+
+
+# ── the fire journal, end to end through the QC row ───────────────────────────────────────────────
+def test_A_FIRING_IS_RECORDED_BEFORE_THE_RESTART_NOT_AFTER(tmp_path, monkeypatch):
+    """🔴 ORDER IS THE POINT. `_restart_radio` bounces bluetooth and can take the daemon's own links
+    with it, so a record written AFTER the restart is owed by the process most likely to have died
+    making it. The fire is written first; the outcome is derived later from the polls that follow,
+    so nothing needs a second write."""
+    order = []
+    restarts = []
+
+    async def fake_btctl(script, timeout=6):
+        capture.STATUS.setdefault("cpap", {})["unreachable_streak"] = 600
+        return "Connected: yes\n"
+
+    async def watch_restart():
+        order.append("restart")
+        restarts.append(1)
+        return True
+
+    monkeypatch.setattr(capture.bonding, "_btctl", fake_btctl)
+    monkeypatch.setattr(capture, "_restart_radio", watch_restart)
+    real_record = capture._wedge_fire_record
+
+    def watched_record(root, device, reason, cls):
+        order.append("record")
+        return real_record(root, device, reason, cls)
+
+    monkeypatch.setattr(capture, "_wedge_fire_record", watched_record)
+
+    from test_capture_runners import _dev, _run, _stop_after
+    capture._STOP.clear()
+    _stop_after(monkeypatch, 1)
+    capture.STATUS["devices"]["H10"] = {"connected": True, "address": "24:AC:AC:02:84:96"}
+    capture.STATUS["cpap"] = _cpap(streak=600, seen_min_ago=120)
+    cfg = {"watchdog": {"enabled": True, "interval_sec": 60}, "devices": [_dev(name="H10")],
+           "root": str(tmp_path)}
+    _run(capture.adapter_watchdog("hci0", cfg))
+    capture._STOP.clear()
+
+    assert restarts, "the rung did not fire"
+    assert order[:2] == ["record", "restart"], f"the fire was recorded after the restart: {order}"
+    text = (tmp_path / "WEDGEFIRE.csv").read_text()
+    assert "cpap" in text and text.startswith("fired_ms;")
+
+
+def test_THE_OUTCOME_IS_DERIVED_FROM_THE_POLLS_THAT_FOLLOWED(tmp_path):
+    import bluez_wedge as BW
+    t0 = 1_788_000_000_000
+    (tmp_path / "WEDGEFIRE.csv").write_text(
+        "fired_ms;device;reason;error_class\n" + BW.fire_row(t0, "cpap", "missed 20", "BleakError"))
+    hdr = "host_ms;a;b;c;d;trigger;e;reachable;fg;u;p;q"
+    # the device answered 32 s after the restart — the 2026-08-29 shape
+    # a blank line and a TORN row (the daemon died mid-write) must be skipped, not counted as a
+    # poll that saw nothing — an unreadable row is not an observation of absence
+    back = "\n".join([hdr, "", f"{t0 + 4_000};i;i", f"{t0 + 32_000};i;i;;;;;True;Standby;;;"])
+    got = capture._wedge_recoveries(str(tmp_path), back)
+    assert got and got[0]["outcome"] == BW.RETURNED
+
+    # ...and with no poll at all in the window it is UNKNOWN, never NOT_RETURNED
+    got2 = capture._wedge_recoveries(str(tmp_path), hdr)
+    assert got2[0]["outcome"] == BW.UNKNOWN
+
+
+def test_NO_FIRE_JOURNAL_IS_AN_EMPTY_LIST_NOT_A_CRASH(tmp_path):
+    assert capture._wedge_recoveries(str(tmp_path), "") == []
+
+
+def test_AN_UNWRITABLE_JOURNAL_DOES_NOT_ABORT_THE_RECOVERY(tmp_path):
+    # The record is a report ABOUT a recovery; failing to write it must not stop the recovery itself.
+    capture._wedge_fire_record(str(tmp_path / "nonexistent-dir"), "cpap", "why", "Cls")  # must not raise
+
+
+def test_WITHOUT_A_ROOT_THE_FIRE_IS_NOT_WRITTEN_TO_THE_CWD(tmp_path, monkeypatch, caplog):
+    """A relative WEDGEFIRE.csv is worse than none: it reads as a durable record while sitting in
+    whatever directory the process was started from. Refuse, and SAY so — silence here would be the
+    same fabricated-absence this journal exists to prevent."""
+    monkeypatch.chdir(tmp_path)
+    with caplog.at_level("WARNING"):
+        capture._wedge_fire_record("", "cpap", "why", "Cls")
+    assert not (tmp_path / "WEDGEFIRE.csv").exists()
+    assert "NOT journalled" in caplog.text
+
+
+def test_A_SECOND_FIRE_APPENDS_IT_DOES_NOT_REWRITE_THE_JOURNAL(tmp_path):
+    """The journal is the only durable trace that an intervention happened, so a rewrite is a window
+    in which a crash loses every PRIOR fire as well as this one. Two fires, one header, two rows —
+    and the second row keeps the first one's bytes."""
+    capture._wedge_fire_record(str(tmp_path), "cpap", "first", "BleakDeviceNotFoundError")
+    first = (tmp_path / "WEDGEFIRE.csv").read_text()
+    capture._wedge_fire_record(str(tmp_path), "cpap", "second", "TimeoutError")
+    both = (tmp_path / "WEDGEFIRE.csv").read_text()
+
+    assert both.startswith(first), "the second fire rewrote the first one away"
+    assert both.count("fired_ms;") == 1, "the header was written twice"
+    assert both.count("\n") == 3 and "first" in both and "second" in both
