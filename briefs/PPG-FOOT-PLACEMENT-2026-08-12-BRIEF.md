@@ -325,7 +325,50 @@ Fixing that outranks any estimator change — it blocks every PAT measurement, n
       briefly looked like the ΔPAT result was affected — it is not). The fix is correct, systemic,
       and inert on the current results. `ppgFootTimes` now returns `polarityFlipped` so a future
       run cannot be silently on either side of it.
-- [ ] explain the RESIDUAL 2.2–13.2 ms spread that survives the polarity fix
+- [ ] explain the RESIDUAL 2.2–13.2 ms spread that survives the polarity fix — pre-registration
+      committed §5 (2026-09-01), measurement follows it
+
+## 5 · Pre-registration — the residual-spread decomposition (committed BEFORE the predictor run)
+
+**This section is committed before any predictor was measured on the corpus; the commit ordering is
+the evidence that the decomposition is not read post-hoc** (same discipline as the window-sweep's
+pre-registered bands). Instrument: `tools/ppg-foot-residual-sweep.mjs` (selftest-calibrated on
+planted signals only at commit time).
+
+**Estimand.** Per-night inter-LED same-beat foot-difference dispersion (SD and IQR both reported;
+the 2.2–13.2 ms figure above is IQR), physiology cancelled by construction. Primary population: the
+phone tree (`Ecg nightly` mirror, ~22–32 nights, 176 Hz — rate is constant there, so the spread
+needs a non-rate term). Secondary: the box tree, polarity consensus-forced.
+
+**Candidates and their expected signatures:**
+
+- **C1 — noise over upstroke slope** (the physical model: σ_foot ≈ RMS(noise)/slope; pairwise
+  σ²ᵢⱼ = σ²ᵢ + σ²ⱼ). Predictor: robust noise RMS (MAD of second differences /0.6745/√6) over median
+  foot→peak slope, per channel, pair-combined in quadrature. Signature: Spearman ρ ≥ +0.7 across
+  nights, and beat-level |Δfoot| rising with instantaneous 1/slope on the 3 worst nights.
+- **C2 — pulse-band SNR** (`channelSNR`, the coarse form of C1). Predictor: worst channel of the
+  pair. Signature: ρ ≤ −0.7. (§1 refuted SNR for the BIMODAL split; that was the polarity artifact —
+  the residual question is fresh.)
+- **C3 — motion burden.** Predictor: same-beat match yield per pair. Signature: ρ ≤ −0.7;
+  within-night, disagreement concentrates in low-yield epochs.
+- **C4 — beat alternation** (known in this corpus: 6 nights inflate rMSSD 3–6×). Predictor: lag-1
+  autocorrelation r1 of the pairwise difference series. Signature: nights at r1 ≤ −0.3 fall in the
+  top half of the dispersion ranking, and a 2-beat average collapses their dispersion ≥ 30 % more
+  than it collapses a plain-noise night (√2).
+- **C5 — sampling rate.** Constant within the phone tree ⇒ structurally cannot explain within-tree
+  spread; recorded to keep it from being re-proposed. Box-vs-phone offset only.
+
+**Decision rules (closed here, before the first predictor number):**
+
+1. A candidate EXPLAINS only if cross-night Spearman |ρ| ≥ 0.7 in the predicted direction
+   (n ≥ 15 phone nights) AND its within-night signature holds on the 3 highest and 3 lowest
+   dispersion nights.
+2. The spread is EXPLAINED if C1's physical model predicts per-night dispersion at rank ρ ≥ 0.8
+   with magnitude inside a factor of 2 on ≥ 80 % of nights.
+3. No candidate at |ρ| ≥ 0.7 ⇒ the box closes "bounded (2.2–13.2 ms), unexplained; C1–C4 refuted
+   with the measurements that refuted them" — a legitimate closure, not a failure to close.
+4. C1 subsumes C2 if both pass (they overlap by construction); C2 passing alone means the slope
+   term added nothing.
 
 Related: [`CROSS-DOMAIN-METHODS-2026-08-12-BRIEF.md`](CROSS-DOMAIN-METHODS-2026-08-12-BRIEF.md) ·
 [`PPG-SAMPLE-RATE-AND-PAT-2026-08-03-BRIEF.md`](PPG-SAMPLE-RATE-AND-PAT-2026-08-03-BRIEF.md)
