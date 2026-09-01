@@ -272,6 +272,11 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         # stored .dat timebase is suspect from this instant until the next verified push.
                         "ring_rtc_reset_suspect": st.get("ring_rtc_reset_suspect"),
                         "charging": bool(st.get("charging")),
+                        # How many of this device's flushes have FAILED. Distinct from `last_error`,
+                        # which is about the LINK: a write failure means the samples arrived and may
+                        # not have reached the disk, so the card can read perfectly live while the
+                        # night is being lost. Zero on every healthy device.
+                        "flush_failures": st.get("flush_failures"),
                         "last_error": st.get("last_error")})
         return out
 

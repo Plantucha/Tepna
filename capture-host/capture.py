@@ -2504,7 +2504,12 @@ async def run_polar(dev: dict, root: str):
                     # MEAS_NAME[meas] lookup one line up would have raised before this.
                     elif meas == pmd.PPI:   # pragma: no branch
                         BUS.push(key, [[s.values[1], s.values[0]] for s in samples], hz)  # [PP-int ms, HR]
-                    _set(name, **{f"rows_{meas}": wr.rows, "last_sample": samples[-1].phone.isoformat()})
+                    # `flush_failures` rides beside `rows` because the two answer different
+                    # questions: `rows` counts what the writer was HANDED, this counts what may
+                    # never have reached the disk. A night whose rows climb while this is non-zero
+                    # is a night that will read as complete and be short.
+                    _set(name, **{f"rows_{meas}": wr.rows, "flush_failures": wr.flush_failures,
+                                  "last_sample": samples[-1].phone.isoformat()})
 
                 def on_hr(_sender, data: bytearray):
                     if not hr_writer:      # pragma: no cover — on_hr is only subscribed when hr_writer is
@@ -3159,7 +3164,8 @@ async def run_viatom(dev: dict, root: str):
                         if pkt["pr"]:
                             BUS.push("pr", [pkt["pr"]])
                         note_data(name, _time.monotonic())
-                        _set(name, rows=wr.rows, spo2=pkt["spo2"], pr=pkt["pr"], battery=pkt["batt"],
+                        _set(name, rows=wr.rows, flush_failures=wr.flush_failures,
+                             spo2=pkt["spo2"], pr=pkt["pr"], battery=pkt["batt"],
                              last_sample=now.isoformat(), last_error=None)
                     else:
                         _set(name, worn=pkt["worn"], last_error=None if pkt["worn"] else "not on finger")

@@ -26,7 +26,7 @@ RATCHET = {
     "cpap_stream.py": 1, "cpap_stream_watch.py": 1, "diskguard.py": 1, "jitterfloor.py": 1,
     "link_distress.py": 3, "link_rssi.py": 1, "nightqc.py": 7, "oxy_inventory.py": 1,
     "polar_psftp.py": 5, "probe_polar_usb.py": 1, "pull_session.py": 1, "telemetry.py": 2,
-    "timeline.py": 5, "webmon.py": 3, "wifi_join.py": 1, "writers.py": 18,
+    "timeline.py": 5, "webmon.py": 3, "wifi_join.py": 1, "writers.py": 0,
     "tests/test_ble_discovery.py": 2, "tests/test_capture.py": 1,
     "tests/test_capture_coverage_100.py": 1, "tests/test_deploy_sse_frames.py": 2,
     "tests/test_vigil_sh.py": 1, "tools/find_unwired.py": 1, "tools/mutate.py": 1,
