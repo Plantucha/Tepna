@@ -1,0 +1,40 @@
+---
+bump: patch
+type: fixed
+brief: none
+---
+
+**Brief sweep, batch 1 — five bare IN-PROGRESS headers stamped with verified state. Triage only, no
+builds.**
+
+🔴 **The finding that matters most is about the backlog itself, recorded so nobody re-runs this sweep
+on the same suspicion: the backlog is mostly honest and simply long.** Measured across the 42
+non-skipped IN-PROGRESS briefs — **26 already carry accurate recorded state in their headers**
+(`"§2 SUPERSEDED … §4 open — the H10 pull path"`, `"the remaining items are ONE OWNER DECISION, not
+nine engineering items"`), and only 16 were bare, two of which were already in flight. Re-stamping
+the 26 would add a date and no information. And `PROPOSED`-and-unstarted is **already an honest
+state**, so the "78 open briefs" figure badly overstates the target set: the sweep's subject is bare
+IN-PROGRESS headers, not open briefs.
+
+**The five stamped here, and what each turned out to be:**
+
+- **`R5-HR-TRIPLET-FOLLOWUPS`** — measurement complete; three of four owed items closed. The fourth is
+  `[~]` *by design*: OxyDex has no intervals, so the fleet `rate-of-mean` switch is **routed, not
+  taken** — an owner call, because taking it moves a published value.
+- **`PPG-FOOT-PLACEMENT`** — root cause **fixed** (a polarity bug in `orient()`; the rate finding was
+  retracted as the same bug). ⚠️ Its three unchecked boxes are **one blocked chain, not three items**:
+  the PAT reference must be fixed *before* CFD can be re-scored against it, and re-scoring against an
+  unfixed reference would produce a number that means nothing.
+- **`O2RING-RAW-DUAL-WAVELENGTH`** — protocol decoded across two hardware runs (`0x05` is not a
+  plethysmogram, `0x03` is). Remainder is hardware-shaped; §5's three failed optical experiments are
+  recorded so they are not repeated.
+- **`…-FOLLOWUPS`** — §2 confirmed 124.91 Hz; §2.1a **refuted** the 100 Hz reading (the delivered rate
+  is the *cap*, not the device); §3 withdrawn. Sole open item is §2.1 — the marker rate is not the
+  heart rate — and it needs device time.
+- **`PYTHON-TYPES-AND-FORMAT`** — §P1 shipped, §P2 discharged (fix lane landed in #1949; adversary
+  lane **retired** at 20.7 % against a 30 % band). §P3 is a countdown, not a task: mypy blocks at 0
+  and the floor is now **103**. ⚠️ §P2's first box stays **unticked** — the band was applied on a
+  sample of **12**, not the **30** it names. The rate cleared; the sample size did not.
+
+Nine further bare headers belong to other lanes and stay with their owners, who can stamp them at
+near-zero cost while holding the context. Docs-only: five headers, five `DOCS-INDEX` pills.

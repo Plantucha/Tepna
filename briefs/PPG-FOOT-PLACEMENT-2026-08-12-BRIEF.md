@@ -5,6 +5,8 @@ SPDX-License-Identifier: Apache-2.0
 
 **Status:** IN-PROGRESS · **Created:** 2026-08-12
 
+> **TRIAGED 2026-09-01 — the root cause is FIXED; what remains is SEQUENCED behind a dependency, not buildable now.** §0 RESOLVED 2026-08-13: it was a polarity bug in `orient()`, and everything below it is downstream. §1b is RETRACTED — the rate finding *was* the polarity bug, and the refuted claim is retained only for the record. ⚠️ The three unchecked boxes are strictly ordered and the first gates the rest: the **PAT reference must be fixed** (medians inside 150–400 ms, pairing ≥95 % on both modes) *before* CFD can be re-scored against it, and only then can the residual 2.2–13.2 ms spread be explained. Re-scoring against an unfixed reference would produce a number that means nothing — so this is not three parallel items but one blocked chain.
+
 # The PPG foot is measurable to ~1 ms on half the nights and ~13 ms on the rest — and we cannot yet tell which estimator is better
 
 A 2026-08-12 sweep of the box corpus (20 Verity nights, 2026-07-16 → 08-04) measuring where the

@@ -5,6 +5,8 @@
 -->
 **Status:** IN-PROGRESS · **Created:** 2026-08-27 · **Owner decision** ("alright, mypy ruff then" — mypy adopted; black's STYLE via `ruff format`, not the black tool) · **Interlocks:** `QWEN-ENGINEERING-PROGRAM-2026-08-27-BRIEF.md` (the qwen fix lane runs under its §0 + precision bands), `MUTATION-ACCOUNTING-LOOP-2026-08-27-BRIEF.md` (format-wave cost to mutation state)
 
+> **TRIAGED 2026-09-01 — §P1 and §P2 are discharged; §P3 is a RATCHET waiting on a number, not a task.** §P1's advisory gates shipped with mypy pinned. §P2's qwen fix-lane ran to queue exhaustion (n = 12, 12/12 triaged, 7 accepted → landed in #1949) and the **adversary lane was RETIRED** at 20.7 % confirmed against a 30 % band (`audits/DSP-ADVERSARY-FINDINGS-2026-08-29.md`). ⚠️ The first §P2 box is NOT satisfied and should not be ticked: the band was applied on a sample of **12**, not the **30** it names — the rate cleared, the sample size did not. §P3 flips mypy to blocking at **0**; the recorded floor is now **103** (189 → 180 in #1949, then further by the session lane), so it is a countdown, not an action. §P4 is explicitly not planned.
+
 # Python types + format — mypy and ruff-format for capture-host, measured first
 
 ## 0 · The decision and its numbers (sized before opining, 2026-08-27 22:15)
