@@ -2832,7 +2832,18 @@
       deviceHR: rec.deviceHR || null,
       deviceACC: rec.deviceACC || null,
       accFs: rec.accFs || null,
-      t0Ms: rec.t0Ms || null
+      t0Ms: rec.t0Ms || null,
+      /* TIMING PROVENANCE, carried through the reshape (H10-2019-ORIGIN, 2026-09-01). Like `endEpochMs`
+         above these are properties of the RECORDING, not of the analysis — and until this line they
+         were DROPPED here, which made `ecgBuildNodeExport`'s `recording.hostAxis` block (HOSTAXIS-
+         STABILITY §4.2) dead on every real path: `compute()` and the app both route parse → analyze →
+         buildNodeExport, so `r.hostAxis` was always undefined and no shipped export ever carried it
+         (verified on the 2026-09-01 refolded corpus — zero `hostAxis`/`timingSource` keys). The same
+         reshape-drop class trio-batch's PPG merge already fixed (WEARABLE-HOST-AXIS-FOLLOWUPS §F3),
+         one node over. A reshape that renames fields must forward the ones it does not rename. */
+      hostAxis: rec.hostAxis || null,
+      tMsCorrected: rec.tMsCorrected === true,
+      deviceEpoch: rec.deviceEpoch || null
     };
   }
 
@@ -4493,6 +4504,29 @@
     // answers "where does this recording end on the clock" — two questions one scalar cannot both answer.
     var endTs = lastTs != null ? parseTimestamp(lastTs) : null;
     var endEpochMs = endTs && endTs.tMs != null ? endTs.tMs : null;
+    /* ── DEVICE-EPOCH PLAUSIBILITY — the 2019-origin annotation (H10-2019-ORIGIN, 2026-09-01) ─────────
+       The H10 boots its sensor clock at a 2019-01-01 firmware default and adopts real time only when a
+       sync lands. Measured over the full corpus: 87 of 455 H10 ECG files START on that fabricated
+       origin and 84 of them never sync — a fifth of the H10 nights, internally perfect (130.00 Hz,
+       monotonic) and absolutely wrong by ~7.6 years. Nothing in the capture persisted the sync outcome
+       per night (live STATUS is a snapshot, journald rotates), so the file itself is the only evidence
+       channel that survives — and the evidence IS in the file: the sensor-ns column counts from the
+       Polar device epoch (2000-01-01, written in LOCAL wall time by the capture host's sync, so it
+       compares against floating tMs with no zone term), and a synced device reads ~26 years where a
+       2019-origin one reads ~19.
+       ANNOTATE, NEVER REFUSE. These files' uV samples are fine and hostAxis anchoring measures
+       divergence relative to the first anchor, so every relative quantity is sound — a first-row
+       absolute-implausibility refusal would throw away 19 % of H10 nights. The annotation says only:
+       the DEVICE's absolute clock is fabricated; absolute time on this recording is host-provenance
+       (t0Ms comes from the Phone column) or nothing.
+       48 h threshold, deliberately coarse: it must keep the Verity's constant ~4 h offset and any
+       zone/DST confusion (≤ ~14 h) on the plausible side — those are wrong-clock problems, not
+       fabricated-epoch problems, and they are the hostAxis machinery's business. The two populations
+       sit at hours vs YEARS; anything between would be a new failure worth seeing (offsetMs is
+       published raw so it would be). */
+    var POLAR_EPOCH_MS = Date.UTC(2000, 0, 1); // sensor-ns epoch (capture-host `_POLAR_EPOCH`)
+    var deviceEpochOffsetMs = firstNsMs !== null && t0Ms !== null ? POLAR_EPOCH_MS + firstNsMs - t0Ms : null;
+    var deviceEpoch = deviceEpochOffsetMs !== null ? { offsetMs: Math.round(deviceEpochOffsetMs), plausible: Math.abs(deviceEpochOffsetMs) <= 48 * 3600e3 } : null;
     return {
       int16: arr.slice(0, n),
       fs: fs,
@@ -4517,6 +4551,8 @@
       endEpochMs: endEpochMs,
       firstRelMs: firstRelMs,
       lastRelMs: lastRelMs,
+      // See the block above — null when the file carries no sensor-ns column or no parseable host stamp.
+      deviceEpoch: deviceEpoch,
       /* See the fs block above. `maxStepMs` is the one to read: a step is reported, never corrected.
          `applied` is the field that says whether `fs` actually moved — `ok` alone does NOT mean the
          correction reached the axis, because the span gate can measure a rate and still decline to
@@ -4531,6 +4567,13 @@
                never had a second clock — different problems with different remedies. */
             independent: ecgHostAx.independent != null ? ecgHostAx.independent : null,
             spreadMs: ecgHostAx.spreadMs != null ? ecgHostAx.spreadMs : null,
+            /* PpgDex's provenance lattice (Clock Contract §7), restricted to the arms this layout can
+               reach: the ECG axis is a REAL per-sample device counter here — never drawn — so the
+               'host'/'none' arms do not arise. `independent === false` (every phone capture: the host
+               column is the device stamp rounded, spread ≈ one quantum) means one clock ⇒ 'device';
+               a genuinely independent host column ⇒ 'device+host'. NOTE this says which clocks set the
+               RATE/RELATIVE axis — `deviceEpoch` above is the orthogonal ABSOLUTE-origin fact. */
+            timingSource: ecgHostAx.independent === false ? 'device' : 'device+host',
             totalMs: ecgHostAx.totalMs,
             ppm: ecgHostAx.ppm,
             maxStepMs: ecgHostAx.maxStepMs,
@@ -4550,7 +4593,13 @@
               ? undefined
               : 'span ' + Math.round(ecgAxisSpanMs / 1000) + ' s < ' + ECG_AXIS_MIN_SPAN_MS / 1000 + ' s — too short to resolve a crystal rate, fs left on the device clock'
           }
-        : { ok: false, applied: false, reason: ecgHostAx.reason || 'no host anchors' }
+        : {
+            ok: false,
+            applied: false,
+            reason: ecgHostAx.reason || 'no host anchors',
+            // No usable host↔device anchor set ⇒ the published axis rides the device crystal alone.
+            timingSource: 'device'
+          }
     };
   }
 
@@ -4919,6 +4968,7 @@
         spanMs: r.hostAxis.spanMs,
         independent: r.hostAxis.independent,
         spreadMs: r.hostAxis.spreadMs,
+        timingSource: r.hostAxis.timingSource || null,
         tMsCorrected: r.tMsCorrected === true,
         stability: r.hostAxis.stability
           ? {
@@ -4933,6 +4983,17 @@
         note: 'quote `ppm` WITH `ppmUncertainty`; `stability:null` means there was no second clock (host column ≡ device stamp), not that the clock was perfect'
       };
     }
+    /* TIMING PROVENANCE on the Integrator-facing surface (H10-2019-ORIGIN, 2026-09-01). ATTACHED ONLY
+       WHEN PRESENT, same discipline as `hostAxis`/`validation` above: a null key is still a changed
+       export shape, so recordings the parser could not judge (no ns column, no host stamp — every
+       synthetic rec) keep today's bytes.
+       `recording.timingSource` is a resolution path `integrator-dsp normalizeFile` already honors —
+       which clocks built the RELATIVE axis. `recording.deviceEpoch` is the orthogonal ABSOLUTE fact:
+       `plausible:false` marks a 2019-origin H10 (a fifth of the corpus's H10 nights) whose device
+       clock never adopted real time — absolute time on such a night is host-provenance or nothing,
+       while every relative/HRV quantity remains sound. Annotate, never refuse. */
+    if (r.hostAxis && r.hostAxis.timingSource) out.recording.timingSource = r.hostAxis.timingSource;
+    if (r.deviceEpoch) out.recording.deviceEpoch = { offsetMs: r.deviceEpoch.offsetMs, plausible: r.deviceEpoch.plausible };
     if (r.deviceRR && r.deviceRR.length) {
       const _v = validateRR(r.nn, r.deviceRR);
       if (_v) {

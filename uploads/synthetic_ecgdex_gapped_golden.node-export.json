@@ -18,6 +18,25 @@
     "endEpochMs": 1781658437815,
     "offsetMin": null,
     "events": 0,
+    "hostAxis": {
+      "applied": false,
+      "anchors": 6,
+      "ppm": -9.09296192874232,
+      "ppmUncertainty": null,
+      "maxStepMs": 0,
+      "spanMs": 59223.076904296875,
+      "independent": false,
+      "spreadMs": 0.9232177734375,
+      "timingSource": "device",
+      "tMsCorrected": false,
+      "stability": null,
+      "note": "quote `ppm` WITH `ppmUncertainty`; `stability:null` means there was no second clock (host column ≡ device stamp), not that the clock was perfect"
+    },
+    "timingSource": "device",
+    "deviceEpoch": {
+      "offsetMs": -235343518661,
+      "plausible": false
+    },
     "coverage": {
       "kind": "sparse",
       "spanSec": 60,
