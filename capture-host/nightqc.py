@@ -1567,7 +1567,16 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
             # midnight, which is the same folder-name parse. No dead guard for an unreachable state.
             prev_data = [f for f in scan_night(_prev_day_dir(night_dir)) if f["stream"] not in _SIDECAR_TAGS]
             if prev_data:
-                _pool = 0 <= earliest - max(f["mtime"] for f in prev_data) < _SESSION_GAP_SEC
+                # No lower bound, deliberately: a NEGATIVE difference means the neighbour was still
+                # writing when this folder's earliest session opened — devices overlapping across the
+                # boundary, which is STRONGER contiguity evidence than a gap, not weaker. Multi-device
+                # wake makes it the normal case (2026-09-01: the O2Ring's 04:20:53 morning fragment
+                # opened while the Verity's night file was written until 04:24; a `0 <=` bound read
+                # that −190 s as "not contiguous" and the whole 17-file night went unjudged). Third
+                # failed assumption in this guard's family — the near-midnight proxy, the long
+                # reconnect (2026-07-28), now the simultaneous wake — and the sentence above already
+                # states the contract: "runs into" includes overlap.
+                _pool = earliest - max(f["mtime"] for f in prev_data) < _SESSION_GAP_SEC
     else:
         # NO CAPTURE FILES HERE AT ALL. The old gate was `if data:`, so this branch could not run — and
         # it is precisely the 2026-07-28 shape: the midnight sidecar rollover creates tomorrow's folder,
