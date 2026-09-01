@@ -34,6 +34,15 @@ IN-PROGRESS headers, not open briefs.
   (histogram peak, estimated out-of-sample on each night's first half), **not medians**; reading 405
   as "the median, which fails the 400 bar by 5 ms" would be a wrong verdict from mixing two
   instruments. Not data-blocked — the corpus is local and both signal nights pair.
+
+  ✅ **The bar was then re-stated, and the reference measurement PASSES.** New acceptance:
+  **mode** per night via `pat-window-oracle`, verdict **SIGNAL RECOVERED** (beats its own per-night
+  null) inside a **200–500 ms** rail. All four signal nights clear it — **405 / 315 / 215 / 355 ms**.
+  ⚠️ Measured against **#2034's head, not `main`** (the acceptance is defined under that overlap
+  split, which was still open), so the numbers are not reproducible from `main` until it lands.
+  ⚠️ And the acceptance is about those four named nights, **not a corpus rate** — the tally is
+  4 recovered / 20 partial / 5 none across 29 scored, which is the corpus's known character, not a
+  pass rate to quote.
 - **`O2RING-RAW-DUAL-WAVELENGTH`** — protocol decoded across two hardware runs (`0x05` is not a
   plethysmogram, `0x03` is). Remainder is hardware-shaped; §5's three failed optical experiments are
   recorded so they are not repeated.

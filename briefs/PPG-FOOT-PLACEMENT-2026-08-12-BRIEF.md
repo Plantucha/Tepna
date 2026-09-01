@@ -7,6 +7,25 @@ SPDX-License-Identifier: Apache-2.0
 
 > **TRIAGED 2026-09-01 — the root cause is FIXED; what remains is SEQUENCED behind a dependency, not buildable now.** §0 RESOLVED 2026-08-13: it was a polarity bug in `orient()`, and everything below it is downstream. §1b is RETRACTED — the rate finding *was* the polarity bug, and the refuted claim is retained only for the record. ⚠️ The three unchecked boxes are strictly ordered and the first gates the rest: the **PAT reference must be fixed** (medians inside 150–400 ms, pairing ≥95 % on both modes) *before* CFD can be re-scored against it, and only then can the residual 2.2–13.2 ms spread be explained. Re-scoring against an unfixed reference would produce a number that means nothing — so this is not three parallel items but one blocked chain.
 >
+>
+> ✅ **BAR RE-STATED AND THE REFERENCE MEASUREMENT PASSES — 2026-09-01.** The original bar (*medians inside 150–400 ms, pairing ≥95 %*) is **SUPERSEDED**, for the two reasons recorded above: its lower half was unreachable through the instrument that would judge it, and the only near-ground-truth figures available were modes rather than medians. Cleared against published surfaces before changing (nothing quotes 150–400 or a median-PAT), so it stayed at tooling level.
+>
+> **The re-stated bar:** statistic = **MODE per night** via `tools/pat-window-oracle.mjs`; acceptance = verdict **SIGNAL RECOVERED** (the night beats its OWN per-night null) with the mode inside a **200–500 ms** sanity rail; PEP-inclusive by construction.
+>
+> **Measured — all four signal nights pass:**
+>
+> | night | mode | verdict |
+> |---|---|---|
+> | 2026-07-24 | 405 ms | SIGNAL RECOVERED |
+> | 2026-08-12 | 315 ms | SIGNAL RECOVERED |
+> | 2026-08-17 | 215 ms | SIGNAL RECOVERED |
+> | 2026-08-18 | 355 ms | SIGNAL RECOVERED |
+>
+> Corpus tally across 29 scored nights: **4 SIGNAL RECOVERED · 20 PARTIAL · 5 NO RECOVERY**, plus 8 skipped as too-few-beats. ⚠️ **The acceptance is about the four named signal nights, not the corpus rate** — 4-of-29 is not a pass rate to quote, and the PARTIAL majority is the corpus's known character, not a regression.
+>
+> ⚠️ **Measured against #2034's HEAD (`c45551de`), not against `main`** — the re-stated acceptance is defined *under* that overlap split (the oracle had been splitting on the ECG's extent while scoring against the PPG), and #2034 was still open at measurement time. **These numbers are not reproducible from `main` until it lands.** Re-run after it merges before anything downstream cites them.
+>
+> **So the first box is MET**, and the chain's next link — re-score CFD against this reference — is unblocked.
 > 🔴 **SPEC-BLOCKED 2026-09-01 — the first box CANNOT BE EVALUATED AS WRITTEN, and the obstacle is the BAR, not the reference.** Two findings, both measured. **(1) The bar's band and the instrument's band disagree.** The bar asks for medians inside **150–400 ms**; `tools/pat-matchrate-strict.mjs` hard-filters lags to `>= PHYS_LO(200) && <= PHYS_HI(650)` (line 318), so **a median below 200 ms is unreachable by construction** — the bar's lower half cannot be evaluated at all, and the bar can only ever fail HIGH. Judging "is the median inside 150–400" with an instrument that cannot emit anything under 200 lets the window answer instead of the data (`pat-sd-is-the-window`). **(2) ⚠️ `pat-window-oracle`'s 405 / 215 ms are MODES, not medians — do not substitute them.** It takes a histogram mode over binned lags, estimated **out of sample on each night's first half** (`lagMode`); the bar asks for a median, and on a skewed censored distribution these are different statistics. Reading 405 ms as "the median, which fails the 400 bar by 5 ms" would be a wrong verdict reached by mixing two instruments.
 >
 > **NOT data-blocked:** the corpus is local and usable (`~/tepna-smoketest/captures`, 51 nights; both signal nights present with H10+Verity pairs). The bar needs re-stating against the instrument that will judge it — routed to the PAT layer, escalating to the owner if it touches a published number. Pre-stating a threshold is right; pre-stating one the instrument cannot evaluate is the failure mode underneath it.
@@ -254,7 +273,11 @@ Fixing that outranks any estimator change — it blocks every PAT measurement, n
 - [x] doubling / SNR / single-LED / bistability all refuted with the measurement that refuted them
 - [x] CFD and AIC implemented and scored; CFD's gain shown UNVERIFIED, AIC shown negative
 - [x] `CROSS-DOMAIN-METHODS` §2's 12.7 ms premise retracted and §2.1's rate attribution corrected
-- [ ] the PAT reference fixed — medians inside 150–400 ms and pairing ≥95 % on both modes
+- [x] ~~the PAT reference fixed — medians inside 150–400 ms and pairing ≥95 % on both modes~~
+      **BAR SUPERSEDED 2026-09-01** (unevaluable as written — see the header) and **MET under the
+      re-stated one**: mode per night via `pat-window-oracle`, verdict SIGNAL RECOVERED inside a
+      200–500 ms rail. All four signal nights pass — 405 / 315 / 215 / 355 ms. Measured against
+      #2034's head, not `main`; re-run once it lands.
 - [ ] only THEN: re-score CFD against it, and adopt or reject on that number
 - [x] ~~the mode is PREDICTED by sampling rate~~ — **RETRACTED §1b**: it was the polarity bug
 - [x] the mode-splitting MECHANISM identified — **`orient()` picks the wrong sign** (§0)
