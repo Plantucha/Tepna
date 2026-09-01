@@ -349,6 +349,16 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             # this answers "is therapy running right now", from the AS11 shadow detector, aged HERE at
             # serve time. Null when there is no cpap block at all.
             "cpap_live": _cpap_live_block(status.get("cpap")),
+            # PER-DEVICE reconnect distress against that device's own per-adapter baseline. Forwarded
+            # so it EXISTS for a human at all: it was published to STATUS and read by nothing — not
+            # this projection, not the monitor, not the failover ladder — so a distressed radio was
+            # computed nightly and seen by nobody (enumerated 2026-09-01).
+            #
+            # ⚠️ IT DOES NOT DRIVE FAILOVER, AND MUST NOT WITHOUT AGGREGATION. The verdict is
+            # per-DEVICE; `ADAPTER` is a single global pin, so firing a switch off one device's
+            # distress would relocate every OTHER device — off a radio their own baselines say is
+            # fine. Rendering is the honest consumer until a per-ADAPTER verdict exists.
+            "radio_distress": status.get("radio_distress"),
         })
 
     # ── CPAP manual pull ────────────────────────────────────────────────────────────────────────
