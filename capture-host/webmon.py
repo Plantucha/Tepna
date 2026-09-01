@@ -656,7 +656,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                     continue
                 await resp.write(f"data: {json.dumps(msg)}\n\n".encode())
         except (asyncio.CancelledError, ConnectionResetError, ConnectionError):
-            pass
+            pass       # THE NORMAL END OF AN SSE STREAM: the operator closed the tab. All three
+                       # are the client going away, not a fault, and the `finally` below does the
+                       # only thing that matters — unsubscribe, so the bus stops filling a dead queue
         finally:
             _live_queues.discard(q)
             bus.unsubscribe(q)
@@ -752,7 +754,8 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 try:
                     os.unlink(tmp)             # never leave a stray .config.*.yaml.tmp behind
                 except OSError:
-                    pass
+                    pass   # already on the failure path, and the caller is being told the SAVE
+                           # failed — a stray temp file must not displace that report
 
     # ── Clock / NTP / timezone (Clock Contract §🔒 — the box's wall clock stamps every capture) ──
     _clock_sudo = (cfg.get("clock") or {}).get("sudo", True)
@@ -1141,7 +1144,12 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 import shutil
                 shutil.copyfile(cfg_path, cfg_path + ".bak")
             except Exception:
-                pass
+                # THE SAFETY NET IS GONE, and the write proceeds anyway — the right call, since
+                # refusing a settings change because a backup failed strands the operator. But it
+                # must not be SILENT: without this line, the one moment the .bak is needed is the
+                # one moment nobody knows it is missing.
+                _log.warning("settings: could not back up %s — writing WITHOUT a rollback copy",
+                            cfg_path, exc_info=True)
             # A FAILED WRITE IS NOT A SUCCESS (CAPTURE-HOST-DEEP-AUDIT §D2, closing the last caller of
             # VIGIL-DEEP-ANALYSIS §2A). `_save()`'s return value was discarded here while its three
             # siblings — /api/remember, /api/forget, /api/storage — all report 500. The in-memory cfg
