@@ -272,8 +272,20 @@ MAX_GAP_S = 120.0
 MIN_OBSERVED_FRAC = 0.667
 
 
-def therapy_minutes(text: str, *, max_gap_s: float = MAX_GAP_S):
+def therapy_minutes(text: str, *, max_gap_s: float = MAX_GAP_S,
+                    since_ms: float | None = None, until_ms: float | None = None):
     """Minutes of observed Therapy in a SESSIONDETECT journal, or None if it cannot be measured. PURE.
+
+    🔴 SCOPE THE WINDOW, OR THIS COUNTS THE WHOLE JOURNAL. `SESSIONDETECT.csv` is ONE append-only
+    file for the box — not per night, never rotated — so an unscoped call sums every night it holds.
+    Measured on vigil 2026-09-01: 7818 rows spanning 6.45 days summed to 951 min of therapy, which
+    was then compared against ONE night's 321 stream min and reported as "died-early, 25.2 %". The
+    ratio could only shrink as the journal grew, so the alarm was guaranteed and permanent.
+
+    `since_ms`/`until_ms` bound the rows considered (epoch ms, half-open `[since, until)`). Both
+    default to None = the whole journal, which keeps every existing caller working — but a caller
+    comparing against a night-scoped measurement MUST pass a window, or it is dividing one night by
+    a week. Added LAST and optional per the back-compat rule.
 
     Sums the interval each Therapy observation COVERS, not the span from first to last: a session that
     ends and restarts must not have the idle middle counted as treatment.
@@ -292,6 +304,12 @@ def therapy_minutes(text: str, *, max_gap_s: float = MAX_GAP_S):
             ms = float(parts[0])
         except ValueError:
             continue  # the header row, or a torn line
+        # Bound BEFORE the unreachable tally as well as the sum: an outage three nights ago is not
+        # evidence about tonight's coverage, and counting it could refuse a night that was observed.
+        if since_ms is not None and ms < float(since_ms):
+            continue
+        if until_ms is not None and ms >= float(until_ms):
+            continue
         # 🔴 AN UNREACHABLE POLL IS NOT AN OBSERVATION OF STANDBY. The shadow runner now writes a row
         # when it could not reach the machine (reachable=False, blank fg_state) — which is what makes
         # an outage visible at all. Counting those as "not in therapy" would be strictly WORSE than

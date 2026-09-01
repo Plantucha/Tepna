@@ -30,10 +30,22 @@ def _cfg(edf_dir):
     return {"cpap": {"ble_stream": {"edf_dir": str(edf_dir)}}}
 
 
+def _t0(night_name, hour=23):
+    """Epoch ms at `hour` on the night this test claims to judge.
+
+    ⚠️ THESE TESTS USED A FIXED 1_787_000_000_000 (2026-08-17) WHILE NAMING NIGHTS OF 08-26/27, and
+    passed only because `therapy_minutes` was unscoped — it summed the whole journal regardless of
+    which night it was asked about. That is the defect being fixed here, so the test data has to
+    state its own night or it pins the bug instead of the behaviour."""
+    import datetime as _d
+    d = _d.datetime.strptime(night_name, "%Y-%m-%d")
+    return _d.datetime.combine(d.date(), _d.time(hour, 0)).timestamp() * 1000.0
+
+
 def test_the_2026_08_26_night_therapy_ran_and_NOTHING_recorded_it(tmp_path):
     """The case that motivated this: a full session, an empty `edf_dir`, and not one warning anywhere.
     The stream is operator-initiated and nobody clicked."""
-    t0 = 1_787_000_000_000
+    t0 = _t0("2026-08-26")
     _journal(tmp_path, [(t0 + i * 30_000, "Therapy") for i in range(720)])  # 6 h
     got = capture._cpap_stream_watch_row(_cfg(tmp_path / "edf"), str(tmp_path), "2026-08-26")
     assert got["state"] == W.NEVER_STARTED
@@ -42,7 +54,7 @@ def test_the_2026_08_26_night_therapy_ran_and_NOTHING_recorded_it(tmp_path):
 
 def test_the_2026_08_27_night_one_record_for_a_six_hour_session(tmp_path):
     """Started and stopped a second later: a 7 KB file for a six-hour night. A bytes>0 check passes it."""
-    t0 = 1_787_000_000_000
+    t0 = _t0("2026-08-27")
     _journal(tmp_path, [(t0 + i * 30_000, "Therapy") for i in range(720)])
     _edf(tmp_path / "edf" / "DATALOG" / "20260827" / "20260827_2340_BRP.edf", 1, 60)
     got = capture._cpap_stream_watch_row(_cfg(tmp_path / "edf"), str(tmp_path), "2026-08-27")
@@ -50,7 +62,7 @@ def test_the_2026_08_27_night_one_record_for_a_six_hour_session(tmp_path):
 
 
 def test_a_covered_night_is_quiet(tmp_path):
-    t0 = 1_787_000_000_000
+    t0 = _t0("2026-08-27")
     # ⚠️ A COVERED night's journal shows a SHORT head-start, not the whole session: the detector
     # defers while the stream holds the one AS11 link, so it observes only un-streamed therapy.
     # 20 rows x 30 s = 10 min of head-start before the capture began (measured shape 2026-08-30:
@@ -66,7 +78,7 @@ def test_a_session_in_the_NEIGHBOURING_folder_is_still_found(tmp_path):
     """⚠️ This box's AS11 clock runs ~21 min AHEAD of the host, so a session starting near midnight is
     filed under the next device date. Reading only the night's own folder would report a missed capture
     for a recording sitting one directory away — a false alarm caused by a known clock offset."""
-    t0 = 1_787_000_000_000
+    t0 = _t0("2026-08-27")
     # ⚠️ A COVERED night's journal shows a SHORT head-start, not the whole session: the detector
     # defers while the stream holds the one AS11 link, so it observes only un-streamed therapy.
     # 20 rows x 30 s = 10 min of head-start before the capture began (measured shape 2026-08-30:
@@ -86,7 +98,7 @@ def test_NO_JOURNAL_refuses_rather_than_reporting_ok(tmp_path):
 
 def test_no_edf_dir_configured_still_reads_the_journal(tmp_path):
     """A box with the live stream unconfigured: therapy is measurable, the stream genuinely is zero."""
-    t0 = 1_787_000_000_000
+    t0 = _t0("2026-08-27")
     _journal(tmp_path, [(t0 + i * 30_000, "Therapy") for i in range(120)])
     got = capture._cpap_stream_watch_row({}, str(tmp_path), "2026-08-27")
     assert got["state"] == W.NEVER_STARTED and got["stream_min"] == 0.0
@@ -100,7 +112,7 @@ def test_an_UNREADABLE_edf_does_not_stop_the_readable_ones(tmp_path):
     zero records. It is not: both sum to the same minutes, so the test passed under either behaviour
     and proved nothing. The writer rewrites its `.part` atomically with a correct count on every flush,
     so a torn header is not a state this box produces at all.)"""
-    t0 = 1_787_000_000_000
+    t0 = _t0("2026-08-27")
     # short head-start, long stream — the covered shape (see test_a_covered_night_is_quiet)
     _journal(tmp_path, [(t0 + i * 30_000, "Therapy") for i in range(20)])
     d = tmp_path / "edf" / "DATALOG" / "20260827"
@@ -112,7 +124,7 @@ def test_an_UNREADABLE_edf_does_not_stop_the_readable_ones(tmp_path):
 
 def test_an_UNPARSEABLE_night_name_does_not_crash_the_poller(tmp_path):
     """`_current_night` yields a directory name. If one is ever not a date, QC must keep running."""
-    t0 = 1_787_000_000_000
+    t0 = _t0("2026-08-27")
     _journal(tmp_path, [(t0 + i * 30_000, "Therapy") for i in range(720)])
     _edf(tmp_path / "edf" / "DATALOG" / "20260827" / "a_BRP.edf", 350, 60)
     got = capture._cpap_stream_watch_row(_cfg(tmp_path / "edf"), str(tmp_path), "not-a-date")

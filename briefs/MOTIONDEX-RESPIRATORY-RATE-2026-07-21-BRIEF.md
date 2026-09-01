@@ -4,7 +4,17 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS · **Created:** 2026-07-21
+**Status:** IN-PROGRESS (**code complete; every remaining item is DATA-blocked** — triaged 2026-09-01) · **Created:** 2026-07-21
+
+> **TRIAGE 2026-09-01 — verified state, so the next reader does not re-derive it.** Part (A), the
+> estimator, LANDED in `7002778`; §10 built the figure layer; §11 ran §1's corpus after finding the
+> apparatus had been blind to *every* box-captured night; §12 fixed the pre-flight that had been
+> lying about corpus size. **Nothing here is open to code.** §12.3's conclusion stands and is the
+> whole of what remains: the paper figures need paired `Polar_H10_*_ACC.txt` + `CPAP/<date>/*_BRP.edf`
+> for the SAME nights, and locally only **6 dates intersect** (the archive's own 104 ACC files are
+> `Polar_Sense_*` Verity, which this tool does not pair). That is an owner data-staging action, not a
+> work-unit — the recipe is at the end of §12. Kept IN-PROGRESS rather than DONE because §1's
+> corpus-run acceptance box is genuinely unmet; kept out of the queue because no code can meet it.
 
 # MotionDex respiratory rate — rebuild the estimator, and the three papers it unlocks
 
