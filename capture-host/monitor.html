@@ -398,6 +398,15 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
         <div class="sidebar-data-info" id="storeFree"></div>
         <div class="sidebar-data-info" id="storeTarget"></div>
       </div>
+      <!-- RADIO DISTRESS. Reconnect rate per device against that device's own baseline on this
+           adapter. It was computed nightly and published to status.json where NOTHING read it, so a
+           radio in distress was invisible to every human and every machine. This is that consumer.
+           It REPORTS, it does not switch: the verdict is per-device and the adapter pin is global. -->
+      <div class="sidebar-data-card" style="margin-bottom:8px" id="rdCard" hidden
+           title="Reconnects per hour against each device's own baseline for this adapter. Reporting only — nothing fails over on it.">
+        <div class="data-pill idle" id="rdPill"><span class="data-dot"></span> <span id="rdText">Radio —</span></div>
+        <div class="sidebar-data-info" id="rdDetail"></div>
+      </div>
       <div class="sidebar-data-card">
         <div class="data-pill idle" id="connPill"><span class="data-dot"></span> <span id="connText">No stream</span></div>
         <div class="sidebar-data-info" id="adapterInfo">adapter —</div>
@@ -1320,6 +1329,32 @@ async function testStorage(btn){
 
 // Sidebar pill — visible in EVERY view, because the two states that lose data (target not ready,
 // retention held) are exactly the ones nobody goes looking for.
+// RADIO DISTRESS — the worst device's verdict, because the question a glance asks is "is any link
+// in trouble", not "what is the mean". A device with no baseline yet reports UNKNOWN and is counted
+// as neither ok nor bad: an unmeasured radio is not a calm one.
+function renderRadioDistress(rd){
+  const card = $('#rdCard'), pill = $('#rdPill'), txt = $('#rdText'), det = $('#rdDetail');
+  if(!card) return;
+  const names = Object.keys(rd || {});
+  if(!names.length){ card.hidden = true; return; }   // absent until the scan has run: never a fake ok
+  card.hidden = false;
+  const rank = {bad: 3, unknown: 2, ok: 1};
+  let worst = null;
+  for(const n of names){
+    const v = rd[n] || {};
+    if(!worst || (rank[v.state] || 0) > (rank[worst.v.state] || 0)) worst = {n, v};
+  }
+  const st = worst.v.state;
+  const cls = st === 'bad' ? 'bad' : st === 'unknown' ? 'idle' : 'ok';
+  pill.className = 'data-pill ' + cls;
+  txt.textContent = st === 'bad' ? `Radio distress · ${worst.n}`
+                  : st === 'unknown' ? 'Radio — no baseline yet'
+                  : `Radio ok · ${names.length} link${names.length === 1 ? '' : 's'}`;
+  // The NUMBERS, not just the verdict: a band without the observation it judged is unreadable.
+  det.textContent = worst.v.detail || '';
+  det.title = names.map(n => `${n}: ${(rd[n] || {}).detail || '—'}`).join('\n');
+}
+
 function renderStoragePill(st){
   st = st || {};
   const held = (st.retention_held||[]).length;
@@ -1492,6 +1527,7 @@ async function loadState(){
   renderSideStats();          // sidebar counters: every view, not just Overview
   renderBoxHealth(s.storage, s.qc, s.host, s.alerts, s.host_clock, s.cpap, s.cpap_live);
   renderStoragePill(s.storage);   // sidebar: visible in every view
+  renderRadioDistress(s.radio_distress);
   renderCpap(s.cpap);
   renderDownload(DEVICES);
   renderRemembered(DEVICES);

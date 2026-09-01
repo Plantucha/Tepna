@@ -197,7 +197,12 @@ def test_the_top_level_blocks_are_projected_verbatim(tmp_path):
                          # not a relaxed contract. The two answer different questions: `cpap` counts
                          # harvested FILES on a daily timer, `cpap_live` reads the AS11 shadow
                          # detector and is aged at SERVE time.
-                         "archive", "cpap", "cpap_live", "alerts"}
+                         "archive", "cpap", "cpap_live", "alerts",
+                         # Per-device reconnect distress. Declared here rather than by relaxing the
+                         # assertion, per the rule above — and it is the second half of a fix whose
+                         # first half was that this block reached STATUS and no projection at all,
+                         # so nothing rendered it and nothing could.
+                         "radio_distress"}
 
 
 def test_the_top_level_blocks_are_null_before_their_pollers_run(tmp_path):

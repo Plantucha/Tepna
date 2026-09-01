@@ -1,5 +1,12 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-08-01 · **Created:** 2026-07-22 · Supersedes: none · Follows: INTEGRATOR-OXYDEX-ADAPTER-GAP-2026-07-21-BRIEF.md · **§1 CLOSED + §2 ANSWERED 2026-08-01**
+**Status:** IN-PROGRESS — 2026-08-01 · **Created:** 2026-07-22 · Supersedes: none · Follows: INTEGRATOR-OXYDEX-ADAPTER-GAP-2026-07-21-BRIEF.md · **§1 CLOSED + §2 ANSWERED 2026-08-01** · **TRIAGED 2026-09-01 — every section is closed; the two residues are NOT code**
+
+> **TRIAGE 2026-09-01 — verified state, so the next reader does not re-derive it.** §1 CLOSED (the rich export has a committed golden) · §2 ANSWERED, and §2.2's wiring ask RESOLVED 2026-08-20 (the guard exists for every summary that has a reader; a global one would red on someone else's file) · §3 AUDITED + GATED 2026-08-04, structurally and mutation-verified · §4 CLOSED 2026-08-18. **Nothing here is open to code.** Two residues remain and neither is a work-unit:
+>
+> 1. **Regenerate or delete `OxyDex_2026-07-02_2205_summary.json`** — a gitignored working file >    belonging to whoever generated it (§👥.2: do not step on another session's artifacts). Nothing >    reads it, so it corrupts no analysis; it is only indistinguishable from a live export to the >    next person who globs the directory.
+> 2. **§5's gap is real and is DATA-shaped.** Re-verified against the ledger 2026-09-01: both >    `integrator_fusion_2026-06-11/13.json` are `historical: true` — byte-pinned, not code-gated — >    and the only code-gated Integrator fixture is `integrator_tch_golden`, which exercises TCH, >    not fusion. So **no fixture re-runs the Integrator's fusion against a real multi-node night**, >    exactly as §5 states. Closing it means committing a real multi-node night as a code-gated >    fixture, which is a corpus/privacy decision, not an edit.
+>
+> ⚠️ One number in §5 has drifted: it records `integrator_tch_golden verifiedUnder → 289ab4da91fe`; > the ledger now reads **`48a16810b759`**. The fixture has been re-verified since, which is the > system working — but do not quote §5's hash.
 
 What surfaced while executing `INTEGRATOR-OXYDEX-ADAPTER-GAP-2026-07-21-BRIEF.md` §4.1 that is still owed.
 The parent's headline finding was disproven on the real corpus and its two *live* defects (the `n.hb` key
