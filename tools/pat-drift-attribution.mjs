@@ -203,7 +203,7 @@ async function main() {
     const R = Array.from(E.times);
     const F = Array.from(P.times);
     const orc = oracleNight(R, F, 100);
-    if (!orc) continue;
+    if (!orc || orc.refusal) continue; // a named refusal is a truthy object — skip it explicitly
     const mid = R[Math.floor(R.length / 2)];
     const rB = R.filter((t) => t >= mid);
     const { lags } = acceptedSeries(rB, F, orc.mode, 100);
