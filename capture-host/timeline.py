@@ -39,6 +39,10 @@ import os
 import nightqc
 import writers
 
+import logging
+
+log = logging.getLogger("tepna-capture")
+
 # One bucket per ~2 minutes over an 8 h night gives ~240 columns — about one per pixel on a phone-width
 # strip, so nothing is averaged away that the eye could have seen anyway.
 DEFAULT_BUCKETS = 240
@@ -259,6 +263,10 @@ def read_link_samples(
         try:
             paths += [os.path.join(d, n) for n in sorted(os.listdir(d)) if n.endswith("_LINK.csv")]
         except OSError:
+            # A whole night's LINK sidecars dropped. The timeline then shows a GAP where the
+            # evidence is merely unreadable — and a gap is how this suite says "not connected".
+            log.warning("timeline: %s cannot be listed, so its link history is absent rather "
+                        "than empty", d, exc_info=True)
             continue
     for path in paths:
         try:
@@ -283,17 +291,23 @@ def read_link_samples(
                     try:
                         ts = _dt.datetime.fromisoformat(p[i_ts]).timestamp()
                     except ValueError:
-                        continue
+                        continue      # NO TIMESTAMP, NO SAMPLE. Every consumer places these on a
+                                      # time axis, so a row that cannot be placed has nowhere to go
+                                      # — and inventing one (row order, file mtime) would fabricate
+                                      # exactly the axis this suite refuses to fabricate elsewhere.
                     r = None
                     if len(p) > i_r and p[i_r].strip():
                         try:
                             r = float(p[i_r])
                         except ValueError:
-                            r = None
+                            r = None      # an unparseable RSSI is UNKNOWN, not 0 dBm — None is
+                                          # what every consumer here already treats as "no reading"
                     if addr and dev:
                         name_to_addr.setdefault(dev, addr)
                     rows.append((dev, addr, ts, 1 if p[i_c] == "1" else 0, r))
         except OSError:
+            log.warning("timeline: %s is unreadable, so its samples are missing from the link "
+                        "history", path, exc_info=True)
             continue
     out: dict[str, list[tuple[float, int, float | None]]] = {}
     for dev, addr, ts, c, r in rows:
@@ -316,12 +330,19 @@ def link_adapter(night_dir) -> dict[str, str]:
         try:
             names = sorted(n for n in os.listdir(d) if n.endswith("_LINK.csv"))
         except OSError:
+            # This function answers WHICH RADIO served a night. Silently skipping a directory
+            # makes it answer from a subset, and the caller cannot tell that from "no sidecar
+            # recorded an adapter" — which is the answer for an old night.
+            log.warning("timeline: %s cannot be listed, so its adapter cannot be attributed",
+                        d, exc_info=True)
             continue
         for n in names:
             try:
                 with open(os.path.join(d, n), errors="replace") as fh:
                     first = fh.readline()
             except OSError:
+                log.warning("timeline: %s is unreadable, so it cannot say which adapter served it",
+                            n, exc_info=True)
                 continue
             if first.startswith("#"):
                 out[n] = first.lstrip("#").strip()
