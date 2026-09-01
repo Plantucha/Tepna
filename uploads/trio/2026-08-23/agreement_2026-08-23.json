@@ -1,0 +1,157 @@
+{
+  "night": "2026-08-23",
+  "tolBpm": 15,
+  "nodes": [
+    "PpgDex",
+    "ECGDex",
+    "OxyDex"
+  ],
+  "compared": 42,
+  "adjudicable": 0,
+  "droppedFragments": 0,
+  "flagged": 8,
+  "flaggedPct": 19,
+  "fault": {
+    "PpgDex": 0,
+    "ECGDex": 0,
+    "OxyDex": 0
+  },
+  "epochs": [
+    {
+      "tMs": 1787536104000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 43
+        },
+        {
+          "node": "OxyDex",
+          "hr": 68
+        }
+      ],
+      "median": 55.5,
+      "spreadBpm": 25,
+      "adjudicated": false,
+      "outlier": null
+    },
+    {
+      "tMs": 1787536404000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 44
+        },
+        {
+          "node": "OxyDex",
+          "hr": 66
+        }
+      ],
+      "median": 55,
+      "spreadBpm": 22,
+      "adjudicated": false,
+      "outlier": null
+    },
+    {
+      "tMs": 1787537004000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 38
+        },
+        {
+          "node": "OxyDex",
+          "hr": 66
+        }
+      ],
+      "median": 52,
+      "spreadBpm": 28,
+      "adjudicated": false,
+      "outlier": null
+    },
+    {
+      "tMs": 1787537604000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 31
+        },
+        {
+          "node": "OxyDex",
+          "hr": 60
+        }
+      ],
+      "median": 45.5,
+      "spreadBpm": 29,
+      "adjudicated": false,
+      "outlier": null
+    },
+    {
+      "tMs": 1787537904000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 31
+        },
+        {
+          "node": "OxyDex",
+          "hr": 60
+        }
+      ],
+      "median": 45.5,
+      "spreadBpm": 29,
+      "adjudicated": false,
+      "outlier": null
+    },
+    {
+      "tMs": 1787538204000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 33
+        },
+        {
+          "node": "OxyDex",
+          "hr": 55
+        }
+      ],
+      "median": 44,
+      "spreadBpm": 22,
+      "adjudicated": false,
+      "outlier": null
+    },
+    {
+      "tMs": 1787538804000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 31
+        },
+        {
+          "node": "OxyDex",
+          "hr": 56
+        }
+      ],
+      "median": 43.5,
+      "spreadBpm": 25,
+      "adjudicated": false,
+      "outlier": null
+    },
+    {
+      "tMs": 1787539404000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 38
+        },
+        {
+          "node": "OxyDex",
+          "hr": 58
+        }
+      ],
+      "median": 48,
+      "spreadBpm": 20,
+      "adjudicated": false,
+      "outlier": null
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "night": "2026-08-19",
+  "packets": 136798,
+  "files": 74,
+  "devices": [
+    {
+      "device": "Polar H10 02849638",
+      "anchors": 71467,
+      "ok": true,
+      "independent": true,
+      "spreadMs": 20597.11,
+      "ppm": -1,
+      "maxStepMs": 17433.3,
+      "plausibleCrystal": true,
+      "deviceDrawn": false,
+      "drawnShare": 0.014,
+      "offsetMs": 946670400030.4,
+      "offsetMadMs": 105.4,
+      "t0DevMs": 840507430937,
+      "t0HostMs": 1787177831047,
+      "spanSec": 22903
+    },
+    {
+      "device": "Polar Verity Sense",
+      "anchors": 42903,
+      "ok": true,
+      "independent": true,
+      "spreadMs": 2682.04,
+      "ppm": -28.6,
+      "maxStepMs": 147.5,
+      "plausibleCrystal": true,
+      "deviceDrawn": false,
+      "drawnShare": 0.003,
+      "offsetMs": 946670401152.3,
+      "offsetMadMs": 163.4,
+      "t0DevMs": 840507403718,
+      "t0HostMs": 1787177805215,
+      "spanSec": 24212
+    },
+    {
+      "device": "Wellue O2Ring-S",
+      "anchors": 22428,
+      "ok": true,
+      "independent": true,
+      "spreadMs": 127525,
+      "ppm": 5667.6,
+      "maxStepMs": 1196,
+      "plausibleCrystal": false,
+      "deviceDrawn": true,
+      "drawnShare": 0.986,
+      "offsetMs": 1787177932180,
+      "offsetMadMs": 36241,
+      "t0DevMs": 32000,
+      "t0HostMs": 1787177918224,
+      "spanSec": 22624
+    }
+  ]
+}

@@ -9,22 +9,34 @@
     "node": "OxyDex",
     "nodeVersion": "1.0",
     "multiNight": false,
-    "generated": "2026-08-14T07:22:01.799Z",
+    "generated": "2026-09-01T09:33:50.676Z",
     "provenance": null,
     "doc": "OxyDex single-night SpO₂/oximetry summary computed headless from a SignalFrame(spo2). Emits ganglior_events[] (desat_event from desatProfile + periodic_breathing from oscillation episodes); OxyDex infers respiration from an SpO₂ proxy, not airflow. tMs = floating wall-clock ms (UTC getters); null = unknown, never fabricated.",
     "scrubbed": true
   },
   "recording": {
     "source": "spo2",
-    "startEpochMs": 1785018815000,
+    "startEpochMs": 1785018498000,
     "offsetMin": null,
-    "durationMin": 511.3,
-    "beats": 27672,
+    "durationMin": 516.6,
+    "beats": 27926,
     "coveragePct": null,
     "coverage": {
       "kind": "sparse",
-      "spanSec": 30680,
+      "spanSec": 30997,
       "segments": [
+        {
+          "startMs": "2026-07-25T22:28:18.000Z",
+          "durSec": 29
+        },
+        {
+          "startMs": "2026-07-25T22:28:57.000Z",
+          "durSec": 205
+        },
+        {
+          "startMs": "2026-07-25T22:32:30.000Z",
+          "durSec": 18
+        },
         {
           "startMs": "2026-07-25T22:33:35.000Z",
           "durSec": 591
@@ -222,35 +234,71 @@
           "durSec": 1932
         }
       ],
-      "recordedSec": 27680,
-      "nWithDuration": 49,
-      "n": 49,
+      "recordedSec": 27932,
+      "nWithDuration": 52,
+      "n": 52,
       "source": "sensor-dropout"
     }
   },
   "ganglior_events": [
     {
-      "t": "22:38:36",
-      "tMs": 1785019116000,
-      "impulse": "periodic_breathing",
+      "t": "22:29:52",
+      "tMs": 1785018592000,
+      "impulse": "desat_event",
       "node": "OxyDex",
-      "conf": 0.55,
+      "conf": 0.67,
       "meta": {
-        "cycleLen": 60,
-        "crossings": 10,
-        "windowSec": 300
+        "depth": 4,
+        "duration": 24,
+        "recovery": 6,
+        "nadir": 93,
+        "onsetTMs": 1785018592000,
+        "endTMs": 1785018617000
       }
     },
     {
-      "t": "23:05:39",
-      "tMs": 1785020739000,
-      "impulse": "periodic_breathing",
+      "t": "22:31:21",
+      "tMs": 1785018681000,
+      "impulse": "desat_event",
       "node": "OxyDex",
-      "conf": 0.45,
+      "conf": 0.72,
       "meta": {
-        "cycleLen": 100,
-        "crossings": 6,
-        "windowSec": 300
+        "depth": 5,
+        "duration": 34,
+        "recovery": 67,
+        "nadir": 92,
+        "onsetTMs": 1785018661000,
+        "endTMs": 1785018695000
+      }
+    },
+    {
+      "t": "22:31:40",
+      "tMs": 1785018700000,
+      "impulse": "desat_event",
+      "node": "OxyDex",
+      "conf": 0.66,
+      "meta": {
+        "depth": 4,
+        "duration": 11,
+        "recovery": 51,
+        "nadir": 93,
+        "onsetTMs": 1785018700000,
+        "endTMs": 1785018711000
+      }
+    },
+    {
+      "t": "22:32:34",
+      "tMs": 1785018754000,
+      "impulse": "desat_event",
+      "node": "OxyDex",
+      "conf": 0.63,
+      "meta": {
+        "depth": 4,
+        "duration": 15,
+        "recovery": 0,
+        "nadir": 93,
+        "onsetTMs": 1785018754000,
+        "endTMs": 1785018815000
       }
     },
     {
@@ -266,42 +314,6 @@
         "nadir": 91,
         "onsetTMs": 1785020911000,
         "endTMs": 1785020962000
-      }
-    },
-    {
-      "t": "23:10:40",
-      "tMs": 1785021040000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.47,
-      "meta": {
-        "cycleLen": 85.7,
-        "crossings": 7,
-        "windowSec": 300
-      }
-    },
-    {
-      "t": "23:15:41",
-      "tMs": 1785021341000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.55,
-      "meta": {
-        "cycleLen": 60,
-        "crossings": 10,
-        "windowSec": 300
-      }
-    },
-    {
-      "t": "23:35:44",
-      "tMs": 1785022544000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.52,
-      "meta": {
-        "cycleLen": 66.7,
-        "crossings": 9,
-        "windowSec": 300
       }
     },
     {
@@ -350,42 +362,6 @@
       }
     },
     {
-      "t": "03:07:07",
-      "tMs": 1785035227000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.52,
-      "meta": {
-        "cycleLen": 66.7,
-        "crossings": 9,
-        "windowSec": 300
-      }
-    },
-    {
-      "t": "04:12:32",
-      "tMs": 1785039152000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.45,
-      "meta": {
-        "cycleLen": 100,
-        "crossings": 6,
-        "windowSec": 300
-      }
-    },
-    {
-      "t": "04:18:02",
-      "tMs": 1785039482000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.5,
-      "meta": {
-        "cycleLen": 75,
-        "crossings": 8,
-        "windowSec": 300
-      }
-    },
-    {
       "t": "04:34:58",
       "tMs": 1785040498000,
       "impulse": "desat_event",
@@ -431,18 +407,6 @@
       }
     },
     {
-      "t": "05:53:06",
-      "tMs": 1785045186000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.55,
-      "meta": {
-        "cycleLen": 60,
-        "crossings": 10,
-        "windowSec": 300
-      }
-    },
-    {
       "t": "06:28:29",
       "tMs": 1785047309000,
       "impulse": "desat_event",
@@ -470,18 +434,6 @@
         "nadir": 94,
         "onsetTMs": 1785047327000,
         "endTMs": 1785047344000
-      }
-    },
-    {
-      "t": "06:43:40",
-      "tMs": 1785048220000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.6,
-      "meta": {
-        "cycleLen": 50,
-        "crossings": 12,
-        "windowSec": 300
       }
     },
     {
@@ -528,18 +480,6 @@
         "onsetTMs": 1785048324000,
         "endTMs": 1785048334000
       }
-    },
-    {
-      "t": "06:53:42",
-      "tMs": 1785048822000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.45,
-      "meta": {
-        "cycleLen": 100,
-        "crossings": 6,
-        "windowSec": 300
-      }
     }
   ],
   "timeseries": {
@@ -547,91 +487,85 @@
     "epochs": [
       {
         "tMin": 0,
-        "hr": 64,
+        "hr": 65,
         "hrStat": "median-rate",
-        "motionIndex": 0.02
+        "motionIndex": 0
       },
       {
         "tMin": 5,
         "hr": 64,
         "hrStat": "median-rate",
-        "motionIndex": 0.072
+        "motionIndex": 0.021
       },
       {
-        "tMin": 15,
-        "hr": 65,
+        "tMin": 10,
+        "hr": 64,
         "hrStat": "median-rate",
-        "motionIndex": 0.081
-      },
-      {
-        "tMin": 20,
-        "hr": 63,
-        "hrStat": "median-rate",
-        "motionIndex": 0.315
+        "motionIndex": 0.003
       },
       {
         "tMin": 25,
-        "hr": 60,
+        "hr": 63,
         "hrStat": "median-rate",
-        "motionIndex": 0.568
+        "motionIndex": 0.307
       },
       {
         "tMin": 30,
-        "hr": 65,
+        "hr": 57,
         "hrStat": "median-rate",
-        "motionIndex": 0.007
+        "motionIndex": 0.594
       },
       {
         "tMin": 35,
+        "hr": 65,
+        "hrStat": "median-rate",
+        "motionIndex": 0.02
+      },
+      {
+        "tMin": 40,
         "hr": 66,
         "hrStat": "median-rate",
         "motionIndex": 0.013
       },
       {
-        "tMin": 40,
+        "tMin": 45,
         "hr": 63,
         "hrStat": "median-rate",
         "motionIndex": 0.03
       },
       {
-        "tMin": 45,
-        "hr": 69,
+        "tMin": 50,
+        "hr": 68,
         "hrStat": "median-rate",
         "motionIndex": 0.007
       },
       {
-        "tMin": 50,
-        "hr": 65,
-        "hrStat": "median-rate",
-        "motionIndex": 0.13
-      },
-      {
         "tMin": 55,
-        "hr": 63,
+        "hr": 66,
         "hrStat": "median-rate",
-        "motionIndex": 0.1
+        "motionIndex": 0.127
       },
       {
         "tMin": 60,
+        "hr": 64,
+        "hrStat": "median-rate",
+        "motionIndex": 0.104
+      },
+      {
+        "tMin": 65,
         "hr": 58,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
       {
-        "tMin": 65,
-        "hr": 56,
-        "hrStat": "median-rate",
-        "motionIndex": 0
-      },
-      {
         "tMin": 70,
-        "hr": 55,
+        "hr": 56,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
       {
         "tMin": 75,
-        "hr": 56,
+        "hr": 55,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
@@ -643,61 +577,61 @@
       },
       {
         "tMin": 85,
-        "hr": 57,
-        "hrStat": "median-rate",
-        "motionIndex": 0
-      },
-      {
-        "tMin": 90,
-        "hr": 55,
-        "hrStat": "median-rate",
-        "motionIndex": 0.01
-      },
-      {
-        "tMin": 95,
-        "hr": 54,
-        "hrStat": "median-rate",
-        "motionIndex": 0
-      },
-      {
-        "tMin": 100,
-        "hr": 55,
-        "hrStat": "median-rate",
-        "motionIndex": 0
-      },
-      {
-        "tMin": 130,
-        "hr": 59,
-        "hrStat": "median-rate",
-        "motionIndex": 0
-      },
-      {
-        "tMin": 135,
-        "hr": 57,
-        "hrStat": "median-rate",
-        "motionIndex": 0.004
-      },
-      {
-        "tMin": 140,
-        "hr": 55,
-        "hrStat": "median-rate",
-        "motionIndex": 0.023
-      },
-      {
-        "tMin": 145,
         "hr": 56,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
       {
+        "tMin": 90,
+        "hr": 56,
+        "hrStat": "median-rate",
+        "motionIndex": 0
+      },
+      {
+        "tMin": 95,
+        "hr": 56,
+        "hrStat": "median-rate",
+        "motionIndex": 0.01
+      },
+      {
+        "tMin": 100,
+        "hr": 54,
+        "hrStat": "median-rate",
+        "motionIndex": 0
+      },
+      {
+        "tMin": 105,
+        "hr": 55,
+        "hrStat": "median-rate",
+        "motionIndex": 0
+      },
+      {
+        "tMin": 135,
+        "hr": 59,
+        "hrStat": "median-rate",
+        "motionIndex": 0
+      },
+      {
+        "tMin": 140,
+        "hr": 58,
+        "hrStat": "median-rate",
+        "motionIndex": 0.004
+      },
+      {
+        "tMin": 145,
+        "hr": 55,
+        "hrStat": "median-rate",
+        "motionIndex": 0.023
+      },
+      {
         "tMin": 150,
-        "hr": 57,
+        "hr": 56,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
       {
         "tMin": 155,
-        "hr": 58,
+        "hr": 57,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
@@ -705,35 +639,35 @@
         "tMin": 160,
         "hr": 58,
         "hrStat": "median-rate",
-        "motionIndex": 0.04
-      },
-      {
-        "tMin": 165,
-        "hr": 57,
-        "hrStat": "median-rate",
         "motionIndex": 0
       },
       {
+        "tMin": 165,
+        "hr": 58,
+        "hrStat": "median-rate",
+        "motionIndex": 0.04
+      },
+      {
         "tMin": 170,
-        "hr": 59,
+        "hr": 57,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
       {
         "tMin": 175,
-        "hr": 57,
+        "hr": 59,
         "hrStat": "median-rate",
-        "motionIndex": 0.02
+        "motionIndex": 0
       },
       {
         "tMin": 180,
         "hr": 57,
         "hrStat": "median-rate",
-        "motionIndex": 0
+        "motionIndex": 0.02
       },
       {
         "tMin": 185,
-        "hr": 58,
+        "hr": 57,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
@@ -745,7 +679,7 @@
       },
       {
         "tMin": 195,
-        "hr": 59,
+        "hr": 58,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
@@ -763,55 +697,55 @@
       },
       {
         "tMin": 210,
-        "hr": 58,
+        "hr": 59,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
       {
         "tMin": 215,
-        "hr": 62,
+        "hr": 58,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
       {
         "tMin": 220,
-        "hr": 63,
-        "hrStat": "median-rate",
-        "motionIndex": 0.003
-      },
-      {
-        "tMin": 225,
-        "hr": 64,
-        "hrStat": "median-rate",
-        "motionIndex": 0.007
-      },
-      {
-        "tMin": 230,
-        "hr": 63,
-        "hrStat": "median-rate",
-        "motionIndex": 0
-      },
-      {
-        "tMin": 235,
-        "hr": 65,
-        "hrStat": "median-rate",
-        "motionIndex": 0
-      },
-      {
-        "tMin": 240,
         "hr": 62,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
       {
+        "tMin": 225,
+        "hr": 63,
+        "hrStat": "median-rate",
+        "motionIndex": 0.003
+      },
+      {
+        "tMin": 230,
+        "hr": 63,
+        "hrStat": "median-rate",
+        "motionIndex": 0.007
+      },
+      {
+        "tMin": 235,
+        "hr": 64,
+        "hrStat": "median-rate",
+        "motionIndex": 0
+      },
+      {
+        "tMin": 240,
+        "hr": 65,
+        "hrStat": "median-rate",
+        "motionIndex": 0
+      },
+      {
         "tMin": 245,
-        "hr": 61,
+        "hr": 62,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
       {
         "tMin": 250,
-        "hr": 60,
+        "hr": 61,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
@@ -835,27 +769,27 @@
       },
       {
         "tMin": 270,
-        "hr": 59,
+        "hr": 61,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
       {
         "tMin": 275,
-        "hr": 56,
+        "hr": 59,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
       {
         "tMin": 280,
-        "hr": 57,
+        "hr": 56,
         "hrStat": "median-rate",
-        "motionIndex": 0.007
+        "motionIndex": 0
       },
       {
         "tMin": 285,
         "hr": 57,
         "hrStat": "median-rate",
-        "motionIndex": 0
+        "motionIndex": 0.007
       },
       {
         "tMin": 290,
@@ -865,7 +799,7 @@
       },
       {
         "tMin": 295,
-        "hr": 58,
+        "hr": 57,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
@@ -877,13 +811,13 @@
       },
       {
         "tMin": 305,
-        "hr": 59,
+        "hr": 58,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
       {
         "tMin": 310,
-        "hr": 59,
+        "hr": 58,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
@@ -895,13 +829,13 @@
       },
       {
         "tMin": 320,
-        "hr": 58,
+        "hr": 59,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
       {
         "tMin": 325,
-        "hr": 61,
+        "hr": 58,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
@@ -913,75 +847,75 @@
       },
       {
         "tMin": 335,
-        "hr": 61,
-        "hrStat": "median-rate",
-        "motionIndex": 0
-      },
-      {
-        "tMin": 340,
-        "hr": 59,
-        "hrStat": "median-rate",
-        "motionIndex": 0.016
-      },
-      {
-        "tMin": 345,
-        "hr": 59,
-        "hrStat": "median-rate",
-        "motionIndex": 0
-      },
-      {
-        "tMin": 350,
-        "hr": 59,
-        "hrStat": "median-rate",
-        "motionIndex": 0.014
-      },
-      {
-        "tMin": 355,
-        "hr": 59,
-        "hrStat": "median-rate",
-        "motionIndex": 0
-      },
-      {
-        "tMin": 360,
-        "hr": 61,
-        "hrStat": "median-rate",
-        "motionIndex": 0
-      },
-      {
-        "tMin": 365,
         "hr": 60,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
       {
+        "tMin": 340,
+        "hr": 61,
+        "hrStat": "median-rate",
+        "motionIndex": 0
+      },
+      {
+        "tMin": 345,
+        "hr": 59,
+        "hrStat": "median-rate",
+        "motionIndex": 0.015
+      },
+      {
+        "tMin": 350,
+        "hr": 59,
+        "hrStat": "median-rate",
+        "motionIndex": 0
+      },
+      {
+        "tMin": 355,
+        "hr": 59,
+        "hrStat": "median-rate",
+        "motionIndex": 0.014
+      },
+      {
+        "tMin": 360,
+        "hr": 59,
+        "hrStat": "median-rate",
+        "motionIndex": 0
+      },
+      {
+        "tMin": 365,
+        "hr": 61,
+        "hrStat": "median-rate",
+        "motionIndex": 0
+      },
+      {
         "tMin": 370,
-        "hr": 62,
+        "hr": 60,
+        "hrStat": "median-rate",
+        "motionIndex": 0
+      },
+      {
+        "tMin": 375,
+        "hr": 61,
         "hrStat": "median-rate",
         "motionIndex": 0.09
       },
       {
-        "tMin": 375,
+        "tMin": 380,
         "hr": 68,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
       {
-        "tMin": 380,
-        "hr": 67,
+        "tMin": 385,
+        "hr": 66,
         "hrStat": "median-rate",
         "motionIndex": 0
-      },
-      {
-        "tMin": 385,
-        "hr": 65,
-        "hrStat": "median-rate",
-        "motionIndex": 0.01
       },
       {
         "tMin": 390,
-        "hr": 65,
+        "hr": 66,
         "hrStat": "median-rate",
-        "motionIndex": 0
+        "motionIndex": 0.01
       },
       {
         "tMin": 395,
@@ -993,35 +927,35 @@
         "tMin": 400,
         "hr": 65,
         "hrStat": "median-rate",
-        "motionIndex": 0.027
+        "motionIndex": 0
       },
       {
         "tMin": 405,
+        "hr": 65,
+        "hrStat": "median-rate",
+        "motionIndex": 0.027
+      },
+      {
+        "tMin": 410,
         "hr": 66,
         "hrStat": "median-rate",
         "motionIndex": 0.023
       },
       {
-        "tMin": 410,
+        "tMin": 415,
         "hr": 64,
         "hrStat": "median-rate",
         "motionIndex": 0.011
       },
       {
-        "tMin": 415,
+        "tMin": 420,
         "hr": 64,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
       {
-        "tMin": 420,
-        "hr": 65,
-        "hrStat": "median-rate",
-        "motionIndex": 0
-      },
-      {
         "tMin": 425,
-        "hr": 62,
+        "hr": 65,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
@@ -1035,104 +969,427 @@
         "tMin": 435,
         "hr": 63,
         "hrStat": "median-rate",
-        "motionIndex": 0.05
+        "motionIndex": 0
       },
       {
         "tMin": 440,
-        "hr": 64,
+        "hr": 63,
         "hrStat": "median-rate",
-        "motionIndex": 0.01
+        "motionIndex": 0.05
       },
       {
         "tMin": 445,
         "hr": 64,
         "hrStat": "median-rate",
-        "motionIndex": 0.033
+        "motionIndex": 0.01
       },
       {
         "tMin": 450,
+        "hr": 64,
+        "hrStat": "median-rate",
+        "motionIndex": 0.033
+      },
+      {
+        "tMin": 455,
         "hr": 67,
         "hrStat": "median-rate",
         "motionIndex": 0.003
       },
       {
-        "tMin": 455,
+        "tMin": 460,
         "hr": 64,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
       {
-        "tMin": 460,
+        "tMin": 465,
         "hr": 61,
         "hrStat": "median-rate",
         "motionIndex": 0.02
       },
       {
-        "tMin": 465,
-        "hr": 65,
+        "tMin": 470,
+        "hr": 64,
         "hrStat": "median-rate",
         "motionIndex": 0.1
       },
       {
-        "tMin": 470,
-        "hr": 66,
+        "tMin": 475,
+        "hr": 68,
         "hrStat": "median-rate",
         "motionIndex": 0.237
       },
       {
-        "tMin": 475,
+        "tMin": 480,
         "hr": 60,
         "hrStat": "median-rate",
         "motionIndex": 0.08
       },
       {
-        "tMin": 480,
-        "hr": 64,
-        "hrStat": "median-rate",
-        "motionIndex": 0.1
-      },
-      {
         "tMin": 485,
-        "hr": 64,
+        "hr": 63,
         "hrStat": "median-rate",
-        "motionIndex": 0.02
+        "motionIndex": 0.097
       },
       {
         "tMin": 490,
+        "hr": 65,
+        "hrStat": "median-rate",
+        "motionIndex": 0.023
+      },
+      {
+        "tMin": 495,
         "hr": 61,
         "hrStat": "median-rate",
         "motionIndex": 0.003
       },
       {
-        "tMin": 495,
+        "tMin": 500,
         "hr": 62,
         "hrStat": "median-rate",
         "motionIndex": 0.067
       },
       {
-        "tMin": 500,
-        "hr": 62,
+        "tMin": 505,
+        "hr": 61.5,
         "hrStat": "median-rate",
         "motionIndex": 0.023
       },
       {
-        "tMin": 505,
+        "tMin": 510,
         "hr": 59,
         "hrStat": "median-rate",
         "motionIndex": 0
       },
       {
-        "tMin": 510,
+        "tMin": 515,
         "hr": 60,
         "hrStat": "median-rate",
-        "motionIndex": 0.013
+        "motionIndex": 0.01
       }
     ],
     "spo2": {
       "doc": "SpO₂ at the recorded 1 Hz, on a uniform grid from startEpochMs. values[i] is the saturation (%) at startEpochMs + i*1000 ms; null = the device reported no sample for that second — NOT zero and NOT the previous value. Emitted at source rate deliberately: binning is a bandwidth claim this node has not measured.",
       "hz": 1,
-      "n": 30681,
+      "n": 30998,
       "values": [
+        98,
+        98,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96,
+        95,
+        95,
+        95,
+        95,
+        95,
+        95,
+        95,
+        95,
+        95,
+        95,
+        95,
+        95,
+        96,
+        96,
+        96,
+        95,
+        95,
+        95,
+        95,
+        95,
+        95,
+        95,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96,
+        95,
+        95,
+        94,
+        94,
+        null,
+        93,
+        null,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        94,
+        94,
+        94,
+        95,
+        95,
+        95,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96,
+        96,
+        95,
+        95,
+        95,
+        95,
+        95,
+        95,
+        95,
+        94,
+        94,
+        94,
+        94,
+        94,
+        94,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        92,
+        92,
+        92,
+        92,
+        92,
+        92,
+        92,
+        92,
+        92,
+        92,
+        92,
+        92,
+        93,
+        93,
+        94,
+        94,
+        94,
+        94,
+        94,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        94,
+        94,
+        94,
+        95,
+        95,
+        95,
+        95,
+        95,
+        95,
+        95,
+        95,
+        95,
+        95,
+        95,
+        95,
+        95,
+        95,
+        95,
+        95,
+        95,
+        94,
+        94,
+        94,
+        94,
+        94,
+        94,
+        94,
+        94,
+        94,
+        94,
+        93,
+        93,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        94,
+        94,
+        94,
+        94,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        93,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
         96,
         96,
         96,
@@ -31819,8 +32076,325 @@
     "hr": {
       "doc": "Pulse rate at the recorded 1 Hz, on the SAME uniform grid as spo2 (from startEpochMs). values[i] is the rate (bpm) at startEpochMs + i*1000 ms; null = the device reported no usable sample for that second — NOT zero and NOT the previous value. Index-aligned with spo2.values by construction (a row is kept only if BOTH columns parse and clear their sanity bands). This is the per-second series the three-cornered hat consumes; the 5-min epochs[].hr median is a summary of it, not a substitute — and `median(1 Hz rate)` is NOT the statistic ECGDex publishes (`60000/mean(RR)`), a confound worth ~0.3 bpm (R5-HR-TRIPLET-FOLLOWUPS §3), so do not difference the two nodes’ epoch HR and call it a device bias.",
       "hz": 1,
-      "n": 30681,
+      "n": 30998,
       "values": [
+        69,
+        68,
+        67,
+        67,
+        66,
+        66,
+        65,
+        65,
+        65,
+        65,
+        65,
+        66,
+        66,
+        67,
+        67,
+        67,
+        66,
+        67,
+        67,
+        67,
+        68,
+        69,
+        70,
+        70,
+        71,
+        71,
+        72,
+        71,
+        71,
+        71,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        62,
+        60,
+        60,
+        61,
+        61,
+        61,
+        61,
+        60,
+        60,
+        59,
+        59,
+        58,
+        58,
+        59,
+        59,
+        60,
+        61,
+        61,
+        62,
+        63,
+        63,
+        64,
+        65,
+        66,
+        66,
+        67,
+        67,
+        67,
+        68,
+        68,
+        68,
+        68,
+        68,
+        68,
+        68,
+        68,
+        68,
+        67,
+        68,
+        68,
+        68,
+        68,
+        68,
+        69,
+        69,
+        69,
+        69,
+        69,
+        69,
+        68,
+        67,
+        66,
+        66,
+        66,
+        null,
+        65,
+        null,
+        65,
+        65,
+        65,
+        65,
+        65,
+        65,
+        65,
+        65,
+        65,
+        65,
+        66,
+        66,
+        66,
+        66,
+        67,
+        67,
+        67,
+        67,
+        67,
+        67,
+        67,
+        67,
+        67,
+        67,
+        66,
+        66,
+        65,
+        65,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        65,
+        65,
+        65,
+        65,
+        65,
+        65,
+        65,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        65,
+        65,
+        65,
+        65,
+        65,
+        65,
+        65,
+        65,
+        65,
+        65,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        65,
+        65,
+        65,
+        65,
+        65,
+        65,
+        66,
+        66,
+        66,
+        66,
+        65,
+        65,
+        65,
+        64,
+        64,
+        64,
+        65,
+        65,
+        65,
+        65,
+        65,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        63,
+        63,
+        62,
+        62,
+        62,
+        62,
+        62,
+        62,
+        62,
+        62,
+        62,
+        62,
+        62,
+        62,
+        62,
+        62,
+        62,
+        63,
+        64,
+        65,
+        65,
+        66,
+        66,
+        66,
+        65,
+        64,
+        64,
+        63,
+        63,
+        63,
+        63,
+        63,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        63,
+        63,
+        63,
+        62,
+        62,
+        63,
+        63,
+        63,
+        63,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        63,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
         66,
         66,
         66,
@@ -62508,7 +63082,7 @@
   "nights": [
     {
       "date": "2026-07-25",
-      "t0Ms": 1785018815000,
+      "t0Ms": 1785018498000,
       "contentId": null,
       "file": null,
       "provenance": null,
@@ -62517,14 +63091,14 @@
         "hash": "118ebed5"
       },
       "stats": {
-        "durationMin": 511.3,
-        "start": "22:33:35",
+        "durationMin": 516.6,
+        "start": "22:28:18",
         "end": "07:04:55",
         "meanSpo2": 95.9,
         "minSpo2": 89,
         "maxSpo2": 99,
-        "spo2Std": 0.92,
-        "t95pct": 5.3,
+        "spo2Std": 0.93,
+        "t95pct": 5.7,
         "t90pct": 0,
         "meanHr": 61.2,
         "minHr": 51,
@@ -62532,8 +63106,8 @@
         "meanPi": null,
         "piFrames": 0,
         "motionPct": 0.9,
-        "n": 27672,
-        "startTs": 1785018815000,
+        "n": 27926,
+        "startTs": 1785018498000,
         "artifactHrCleaned": 9,
         "artifactSpikesRemoved": 0
       },
@@ -62542,8 +63116,8 @@
           {
             "key": "hypLoad",
             "label": "Hypoxic Load",
-            "value": 9.518,
-            "displayVal": 9.518,
+            "value": 10.628,
+            "displayVal": 10.628,
             "score": 9,
             "sev": "r",
             "cat": null
@@ -62551,26 +63125,17 @@
           {
             "key": "recIdx",
             "label": "Recovery Idx",
-            "value": 0.065,
-            "displayVal": 0.065,
+            "value": 0.061,
+            "displayVal": 0.061,
             "score": 8,
-            "sev": "r",
-            "cat": null
-          },
-          {
-            "key": "pbEp",
-            "label": "PB Episodes",
-            "value": 11,
-            "displayVal": "11 eps",
-            "score": 7,
             "sev": "r",
             "cat": null
           },
           {
             "key": "sbii",
             "label": "SBII",
-            "value": 18.639,
-            "displayVal": "18.639 %²·min/hr",
+            "value": 21.642,
+            "displayVal": "21.642 %²·min/hr",
             "score": 7,
             "sev": "w",
             "cat": "spo2"
@@ -62587,8 +63152,8 @@
           {
             "key": "odi1",
             "label": "ODI-1/hr",
-            "value": 38.5,
-            "displayVal": "38.5/hr",
+            "value": 38.2,
+            "displayVal": "38.2/hr",
             "score": 5,
             "sev": "w",
             "cat": "spo2"
@@ -62596,17 +63161,26 @@
           {
             "key": "nsi",
             "label": "NSI",
-            "value": 47,
-            "displayVal": 47,
+            "value": 50,
+            "displayVal": 50,
             "score": 5,
             "sev": "w",
             "cat": "hr"
           },
           {
+            "key": "aai",
+            "label": "AAI",
+            "value": 3,
+            "displayVal": 3,
+            "score": 5,
+            "sev": "w",
+            "cat": null
+          },
+          {
             "key": "t95",
             "label": "T95%",
-            "value": 5.3,
-            "displayVal": "5.3%",
+            "value": 5.7,
+            "displayVal": "5.7%",
             "score": 4,
             "sev": "w",
             "cat": "spo2"
@@ -62630,10 +63204,19 @@
             "cat": null
           },
           {
+            "key": "odi4",
+            "label": "ODI-4/hr",
+            "value": 2.1,
+            "displayVal": "2.1/hr",
+            "score": 2,
+            "sev": "g",
+            "cat": "spo2"
+          },
+          {
             "key": "odi3",
             "label": "ODI-3/hr",
-            "value": 5.3,
-            "displayVal": "5.3/hr",
+            "value": 5.7,
+            "displayVal": "5.7/hr",
             "score": 2,
             "sev": "g",
             "cat": "spo2"
@@ -62641,8 +63224,8 @@
           {
             "key": "worst10",
             "label": "Worst 10min SpO₂",
-            "value": 94.41,
-            "displayVal": "94.41%",
+            "value": 94.4,
+            "displayVal": "94.4%",
             "score": 2,
             "sev": "g",
             "cat": null
@@ -62650,8 +63233,8 @@
           {
             "key": "cdi",
             "label": "CDI/hr",
-            "value": 3.06,
-            "displayVal": "3.06/hr",
+            "value": 3.09,
+            "displayVal": "3.09/hr",
             "score": 2,
             "sev": "g",
             "cat": "spo2"
@@ -62659,8 +63242,8 @@
           {
             "key": "hbRate",
             "label": "Hypoxic Burden",
-            "value": 1.7,
-            "displayVal": "1.7%-min/hr",
+            "value": 1.9,
+            "displayVal": "1.9%-min/hr",
             "score": 2,
             "sev": "g",
             "cat": null
@@ -62668,17 +63251,8 @@
           {
             "key": "ssi",
             "label": "Symp Surge",
-            "value": 0.624,
-            "displayVal": 0.624,
-            "score": 2,
-            "sev": "g",
-            "cat": null
-          },
-          {
-            "key": "aai",
-            "label": "AAI",
-            "value": 2.6,
-            "displayVal": 2.6,
+            "value": 0.636,
+            "displayVal": 0.636,
             "score": 2,
             "sev": "g",
             "cat": null
@@ -62695,8 +63269,8 @@
           {
             "key": "ct94",
             "label": "CT<94%",
-            "value": 1.94,
-            "displayVal": "1.94%",
+            "value": 2.23,
+            "displayVal": "2.23%",
             "score": 1,
             "sev": "g",
             "cat": null
@@ -62704,20 +63278,20 @@
           {
             "key": "pred3p",
             "label": "pRED-3p",
-            "value": 4.58,
-            "displayVal": "4.58%",
+            "value": 4.96,
+            "displayVal": "4.96%",
             "score": 1,
             "sev": "g",
             "cat": "spo2"
           },
           {
-            "key": "odi4",
-            "label": "ODI-4/hr",
-            "value": 1.6,
-            "displayVal": "1.6/hr",
+            "key": "pbEp",
+            "label": "PB Episodes",
+            "value": 0,
+            "displayVal": "0 eps",
             "score": 0,
             "sev": "g",
-            "cat": "spo2"
+            "cat": null
           },
           {
             "key": "oxyCrash",
@@ -62731,8 +63305,8 @@
           {
             "key": "ahiEst",
             "label": "AHI Estimate",
-            "value": 1.8,
-            "displayVal": 1.8,
+            "value": 2.3,
+            "displayVal": 2.3,
             "score": 0,
             "sev": "g",
             "cat": null
@@ -62776,8 +63350,8 @@
           {
             "key": "desSev",
             "label": "DesSev",
-            "value": 3.09,
-            "displayVal": "3.09%-min/hr",
+            "value": 3.81,
+            "displayVal": "3.81%-min/hr",
             "score": 0,
             "sev": "g",
             "cat": "spo2"
@@ -62785,8 +63359,8 @@
           {
             "key": "wtdsi",
             "label": "WtDSI",
-            "value": 0.698,
-            "displayVal": 0.698,
+            "value": 0.767,
+            "displayVal": 0.767,
             "score": 0,
             "sev": "g",
             "cat": "spo2"
@@ -62796,8 +63370,8 @@
           {
             "key": "hypLoad",
             "label": "Hypoxic Load",
-            "value": 9.518,
-            "displayVal": 9.518,
+            "value": 10.628,
+            "displayVal": 10.628,
             "score": 9,
             "sev": "r",
             "cat": null
@@ -62805,26 +63379,17 @@
           {
             "key": "recIdx",
             "label": "Recovery Idx",
-            "value": 0.065,
-            "displayVal": 0.065,
+            "value": 0.061,
+            "displayVal": 0.061,
             "score": 8,
-            "sev": "r",
-            "cat": null
-          },
-          {
-            "key": "pbEp",
-            "label": "PB Episodes",
-            "value": 11,
-            "displayVal": "11 eps",
-            "score": 7,
             "sev": "r",
             "cat": null
           },
           {
             "key": "sbii",
             "label": "SBII",
-            "value": 18.639,
-            "displayVal": "18.639 %²·min/hr",
+            "value": 21.642,
+            "displayVal": "21.642 %²·min/hr",
             "score": 7,
             "sev": "w",
             "cat": "spo2"
@@ -62837,33 +63402,42 @@
             "score": 5,
             "sev": "w",
             "cat": "spo2"
+          },
+          {
+            "key": "odi1",
+            "label": "ODI-1/hr",
+            "value": 38.2,
+            "displayVal": "38.2/hr",
+            "score": 5,
+            "sev": "w",
+            "cat": "spo2"
           }
         ],
-        "impression": "Mild disruption: hypoxic load 9.518, impaired SpO₂ recovery (idx 0.065); high PB burden.",
+        "impression": "Mild disruption: hypoxic load 10.628, impaired SpO₂ recovery (idx 0.061); otherwise stable baseline.",
         "overallScore": 7
       },
       "odi4": {
-        "rate": 1.6,
-        "count": 12
+        "rate": 2.1,
+        "count": 16
       },
       "odi3": {
-        "rate": 5.3,
-        "count": 41
+        "rate": 5.7,
+        "count": 44
       },
       "hrv": {
-        "hrSdnnProxy": 4.83,
-        "hrSdnn": 4.83,
+        "hrSdnnProxy": 4.82,
+        "hrSdnn": 4.82,
         "pnn3": 0.7,
         "hrFloor": 55,
-        "hrSlope": 0.53,
-        "rsaProxy": 0.331,
+        "hrSlope": 0.49,
+        "rsaProxy": 0.327,
         "rmssd": 0.67,
         "maxHr": 95,
-        "n": 27416
+        "n": 27670
       },
       "hypoxicBurden": {
-        "total": 12.9,
-        "rate": 1.7
+        "total": 14.5,
+        "rate": 1.9
       },
       "motionProfile": {
         "motionPct": 0.9,
@@ -62872,84 +63446,84 @@
         "totalWindows": 16,
         "windows": [
           {
-            "start": "22:33",
-            "motionPct": 3.9,
+            "start": "22:28",
+            "motionPct": 3.7,
             "samples": 1800
           },
           {
-            "start": "23:15",
-            "motionPct": 1.2,
+            "start": "23:11",
+            "motionPct": 1.5,
             "samples": 1800
           },
           {
-            "start": "23:45",
+            "start": "23:41",
             "motionPct": 0.1,
             "samples": 1800
           },
           {
-            "start": "00:16",
+            "start": "00:11",
             "motionPct": 0.3,
             "samples": 1800
           },
           {
-            "start": "01:10",
+            "start": "01:06",
             "motionPct": 0.3,
             "samples": 1800
           },
           {
-            "start": "01:40",
-            "motionPct": 0.1,
-            "samples": 1800
-          },
-          {
-            "start": "02:16",
-            "motionPct": 0.1,
-            "samples": 1800
-          },
-          {
-            "start": "02:46",
-            "motionPct": 0.1,
-            "samples": 1800
-          },
-          {
-            "start": "03:17",
+            "start": "01:36",
             "motionPct": 0,
             "samples": 1800
           },
           {
-            "start": "03:47",
+            "start": "02:12",
             "motionPct": 0.2,
             "samples": 1800
           },
           {
-            "start": "04:18",
-            "motionPct": 0.4,
+            "start": "02:42",
+            "motionPct": 0,
             "samples": 1800
           },
           {
-            "start": "04:50",
+            "start": "03:12",
+            "motionPct": 0.1,
+            "samples": 1800
+          },
+          {
+            "start": "03:43",
+            "motionPct": 0,
+            "samples": 1800
+          },
+          {
+            "start": "04:13",
+            "motionPct": 0.6,
+            "samples": 1800
+          },
+          {
+            "start": "04:46",
+            "motionPct": 0.2,
+            "samples": 1800
+          },
+          {
+            "start": "05:16",
             "motionPct": 0.3,
             "samples": 1800
           },
           {
-            "start": "05:22",
-            "motionPct": 0.4,
+            "start": "05:48",
+            "motionPct": 1,
             "samples": 1800
           },
           {
-            "start": "05:53",
-            "motionPct": 1.7,
+            "start": "06:19",
+            "motionPct": 4.6,
             "samples": 1800
           },
           {
-            "start": "06:23",
-            "motionPct": 4.3,
-            "samples": 1800
-          },
-          {
-            "start": "06:53",
-            "motionPct": 0.9,
-            "samples": 672
+            "start": "06:49",
+            "motionPct": 1.9,
+            "samples": 926
           }
         ]
       },
@@ -62960,28 +63534,96 @@
         "posShifts": 0
       },
       "desatProfile": {
-        "deltaIndex": 0.332,
-        "spo2CoV": 0.96,
-        "tAucWeighted": 3317,
+        "deltaIndex": 0.34,
+        "spo2CoV": 0.97,
+        "tAucWeighted": 3645,
         "auc90Total": 0.1,
         "auc90Rate": 0.01,
         "nadir": {
-          "count": 12,
-          "meanDepth": 5.2,
-          "meanDuration": 26,
-          "meanRecovery": 34
+          "count": 16,
+          "meanDepth": 4.9,
+          "meanDuration": 24,
+          "meanRecovery": 33
         },
         "events": [
+          {
+            "depth": 4,
+            "duration": 24,
+            "recovery": 6,
+            "startIdx": 85,
+            "nadirIdx": 85,
+            "endIdx": 109,
+            "nadir": 93,
+            "recoverySlope": 0.667,
+            "onset": 85,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1785018592000,
+            "startTMs": 1785018592000,
+            "endTMs": 1785018617000
+          },
+          {
+            "depth": 5,
+            "duration": 34,
+            "recovery": 67,
+            "startIdx": 153,
+            "nadirIdx": 173,
+            "endIdx": 187,
+            "nadir": 92,
+            "recoverySlope": 0.075,
+            "onset": 153,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1785018681000,
+            "startTMs": 1785018661000,
+            "endTMs": 1785018695000
+          },
+          {
+            "depth": 4,
+            "duration": 11,
+            "recovery": 51,
+            "startIdx": 192,
+            "nadirIdx": 192,
+            "endIdx": 203,
+            "nadir": 93,
+            "recoverySlope": 0.078,
+            "onset": 192,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1785018700000,
+            "startTMs": 1785018700000,
+            "endTMs": 1785018711000
+          },
+          {
+            "depth": 4,
+            "duration": 15,
+            "recovery": 0,
+            "startIdx": 239,
+            "nadirIdx": 239,
+            "endIdx": 254,
+            "nadir": 93,
+            "recoverySlope": 0,
+            "onset": 239,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1785018754000,
+            "startTMs": 1785018754000,
+            "endTMs": 1785018815000
+          },
           {
             "depth": 6,
             "duration": 51,
             "recovery": 0,
-            "startIdx": 1371,
-            "nadirIdx": 1378,
-            "endIdx": 1422,
+            "startIdx": 1625,
+            "nadirIdx": 1632,
+            "endIdx": 1676,
             "nadir": 91,
             "recoverySlope": 0,
-            "onset": 1371,
+            "onset": 1625,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -62993,12 +63635,12 @@
             "depth": 8,
             "duration": 20,
             "recovery": 0,
-            "startIdx": 2998,
-            "nadirIdx": 3012,
-            "endIdx": 3018,
+            "startIdx": 3252,
+            "nadirIdx": 3266,
+            "endIdx": 3272,
             "nadir": 89,
             "recoverySlope": 0,
-            "onset": 2998,
+            "onset": 3252,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -63010,12 +63652,12 @@
             "depth": 6,
             "duration": 80,
             "recovery": 41,
-            "startIdx": 3025,
-            "nadirIdx": 3048,
-            "endIdx": 3105,
+            "startIdx": 3279,
+            "nadirIdx": 3302,
+            "endIdx": 3359,
             "nadir": 91,
             "recoverySlope": 0.146,
-            "onset": 3025,
+            "onset": 3279,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -63027,12 +63669,12 @@
             "depth": 5,
             "duration": 17,
             "recovery": 6,
-            "startIdx": 3123,
-            "nadirIdx": 3127,
-            "endIdx": 3140,
+            "startIdx": 3377,
+            "nadirIdx": 3381,
+            "endIdx": 3394,
             "nadir": 92,
             "recoverySlope": 0.833,
-            "onset": 3123,
+            "onset": 3377,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -63044,12 +63686,12 @@
             "depth": 5,
             "duration": 10,
             "recovery": 5,
-            "startIdx": 18867,
-            "nadirIdx": 18869,
-            "endIdx": 18877,
+            "startIdx": 19121,
+            "nadirIdx": 19123,
+            "endIdx": 19131,
             "nadir": 92,
             "recoverySlope": 1,
-            "onset": 18867,
+            "onset": 19121,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -63061,12 +63703,12 @@
             "depth": 4,
             "duration": 17,
             "recovery": 60,
-            "startIdx": 20477,
-            "nadirIdx": 20477,
-            "endIdx": 20494,
+            "startIdx": 20731,
+            "nadirIdx": 20731,
+            "endIdx": 20748,
             "nadir": 94,
             "recoverySlope": 0.067,
-            "onset": 20477,
+            "onset": 20731,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -63078,12 +63720,12 @@
             "depth": 4,
             "duration": 22,
             "recovery": 24,
-            "startIdx": 20508,
-            "nadirIdx": 20508,
-            "endIdx": 20530,
+            "startIdx": 20762,
+            "nadirIdx": 20762,
+            "endIdx": 20784,
             "nadir": 94,
             "recoverySlope": 0.167,
-            "onset": 20508,
+            "onset": 20762,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -63095,12 +63737,12 @@
             "depth": 7,
             "duration": 17,
             "recovery": 27,
-            "startIdx": 25497,
-            "nadirIdx": 25503,
-            "endIdx": 25514,
+            "startIdx": 25751,
+            "nadirIdx": 25757,
+            "endIdx": 25768,
             "nadir": 91,
             "recoverySlope": 0.259,
-            "onset": 25497,
+            "onset": 25751,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -63112,12 +63754,12 @@
             "depth": 4,
             "duration": 17,
             "recovery": 3,
-            "startIdx": 25521,
-            "nadirIdx": 25521,
-            "endIdx": 25538,
+            "startIdx": 25775,
+            "nadirIdx": 25775,
+            "endIdx": 25792,
             "nadir": 94,
             "recoverySlope": 1.333,
-            "onset": 25521,
+            "onset": 25775,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -63129,12 +63771,12 @@
             "depth": 4,
             "duration": 20,
             "recovery": 111,
-            "startIdx": 26441,
-            "nadirIdx": 26441,
-            "endIdx": 26461,
+            "startIdx": 26695,
+            "nadirIdx": 26695,
+            "endIdx": 26715,
             "nadir": 94,
             "recoverySlope": 0.036,
-            "onset": 26441,
+            "onset": 26695,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -63146,12 +63788,12 @@
             "depth": 5,
             "duration": 26,
             "recovery": 74,
-            "startIdx": 26472,
-            "nadirIdx": 26479,
-            "endIdx": 26498,
+            "startIdx": 26726,
+            "nadirIdx": 26733,
+            "endIdx": 26752,
             "nadir": 93,
             "recoverySlope": 0.068,
-            "onset": 26472,
+            "onset": 26726,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -63163,12 +63805,12 @@
             "depth": 4,
             "duration": 10,
             "recovery": 58,
-            "startIdx": 26504,
-            "nadirIdx": 26504,
-            "endIdx": 26514,
+            "startIdx": 26758,
+            "nadirIdx": 26758,
+            "endIdx": 26768,
             "nadir": 94,
             "recoverySlope": 0.069,
-            "onset": 26504,
+            "onset": 26758,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -63179,15 +63821,83 @@
         ],
         "eventsAll": [
           {
+            "depth": 4,
+            "duration": 24,
+            "recovery": 6,
+            "startIdx": 85,
+            "nadirIdx": 85,
+            "endIdx": 109,
+            "nadir": 93,
+            "recoverySlope": 0.667,
+            "onset": 85,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1785018592000,
+            "startTMs": 1785018592000,
+            "endTMs": 1785018617000
+          },
+          {
+            "depth": 5,
+            "duration": 34,
+            "recovery": 67,
+            "startIdx": 153,
+            "nadirIdx": 173,
+            "endIdx": 187,
+            "nadir": 92,
+            "recoverySlope": 0.075,
+            "onset": 153,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1785018681000,
+            "startTMs": 1785018661000,
+            "endTMs": 1785018695000
+          },
+          {
+            "depth": 4,
+            "duration": 11,
+            "recovery": 51,
+            "startIdx": 192,
+            "nadirIdx": 192,
+            "endIdx": 203,
+            "nadir": 93,
+            "recoverySlope": 0.078,
+            "onset": 192,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1785018700000,
+            "startTMs": 1785018700000,
+            "endTMs": 1785018711000
+          },
+          {
+            "depth": 4,
+            "duration": 15,
+            "recovery": 0,
+            "startIdx": 239,
+            "nadirIdx": 239,
+            "endIdx": 254,
+            "nadir": 93,
+            "recoverySlope": 0,
+            "onset": 239,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1785018754000,
+            "startTMs": 1785018754000,
+            "endTMs": 1785018815000
+          },
+          {
             "depth": 7,
             "duration": 24,
             "recovery": 0,
-            "startIdx": 1020,
-            "nadirIdx": 1024,
-            "endIdx": 1044,
+            "startIdx": 1274,
+            "nadirIdx": 1278,
+            "endIdx": 1298,
             "nadir": 92,
             "recoverySlope": 0,
-            "onset": 1020,
+            "onset": 1274,
             "artifact": true,
             "reason": "nonphysiologic-kinetics",
             "sqi": 0.2,
@@ -63201,12 +63911,12 @@
             "depth": 6,
             "duration": 51,
             "recovery": 0,
-            "startIdx": 1371,
-            "nadirIdx": 1378,
-            "endIdx": 1422,
+            "startIdx": 1625,
+            "nadirIdx": 1632,
+            "endIdx": 1676,
             "nadir": 91,
             "recoverySlope": 0,
-            "onset": 1371,
+            "onset": 1625,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -63218,12 +63928,12 @@
             "depth": 8,
             "duration": 20,
             "recovery": 0,
-            "startIdx": 2998,
-            "nadirIdx": 3012,
-            "endIdx": 3018,
+            "startIdx": 3252,
+            "nadirIdx": 3266,
+            "endIdx": 3272,
             "nadir": 89,
             "recoverySlope": 0,
-            "onset": 2998,
+            "onset": 3252,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -63235,12 +63945,12 @@
             "depth": 6,
             "duration": 80,
             "recovery": 41,
-            "startIdx": 3025,
-            "nadirIdx": 3048,
-            "endIdx": 3105,
+            "startIdx": 3279,
+            "nadirIdx": 3302,
+            "endIdx": 3359,
             "nadir": 91,
             "recoverySlope": 0.146,
-            "onset": 3025,
+            "onset": 3279,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -63252,12 +63962,12 @@
             "depth": 5,
             "duration": 17,
             "recovery": 6,
-            "startIdx": 3123,
-            "nadirIdx": 3127,
-            "endIdx": 3140,
+            "startIdx": 3377,
+            "nadirIdx": 3381,
+            "endIdx": 3394,
             "nadir": 92,
             "recoverySlope": 0.833,
-            "onset": 3123,
+            "onset": 3377,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -63269,12 +63979,12 @@
             "depth": 5,
             "duration": 10,
             "recovery": 5,
-            "startIdx": 18867,
-            "nadirIdx": 18869,
-            "endIdx": 18877,
+            "startIdx": 19121,
+            "nadirIdx": 19123,
+            "endIdx": 19131,
             "nadir": 92,
             "recoverySlope": 1,
-            "onset": 18867,
+            "onset": 19121,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -63286,12 +63996,12 @@
             "depth": 4,
             "duration": 17,
             "recovery": 60,
-            "startIdx": 20477,
-            "nadirIdx": 20477,
-            "endIdx": 20494,
+            "startIdx": 20731,
+            "nadirIdx": 20731,
+            "endIdx": 20748,
             "nadir": 94,
             "recoverySlope": 0.067,
-            "onset": 20477,
+            "onset": 20731,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -63303,12 +64013,12 @@
             "depth": 4,
             "duration": 22,
             "recovery": 24,
-            "startIdx": 20508,
-            "nadirIdx": 20508,
-            "endIdx": 20530,
+            "startIdx": 20762,
+            "nadirIdx": 20762,
+            "endIdx": 20784,
             "nadir": 94,
             "recoverySlope": 0.167,
-            "onset": 20508,
+            "onset": 20762,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -63320,12 +64030,12 @@
             "depth": 7,
             "duration": 17,
             "recovery": 27,
-            "startIdx": 25497,
-            "nadirIdx": 25503,
-            "endIdx": 25514,
+            "startIdx": 25751,
+            "nadirIdx": 25757,
+            "endIdx": 25768,
             "nadir": 91,
             "recoverySlope": 0.259,
-            "onset": 25497,
+            "onset": 25751,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -63337,12 +64047,12 @@
             "depth": 4,
             "duration": 17,
             "recovery": 3,
-            "startIdx": 25521,
-            "nadirIdx": 25521,
-            "endIdx": 25538,
+            "startIdx": 25775,
+            "nadirIdx": 25775,
+            "endIdx": 25792,
             "nadir": 94,
             "recoverySlope": 1.333,
-            "onset": 25521,
+            "onset": 25775,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -63354,12 +64064,12 @@
             "depth": 4,
             "duration": 20,
             "recovery": 111,
-            "startIdx": 26441,
-            "nadirIdx": 26441,
-            "endIdx": 26461,
+            "startIdx": 26695,
+            "nadirIdx": 26695,
+            "endIdx": 26715,
             "nadir": 94,
             "recoverySlope": 0.036,
-            "onset": 26441,
+            "onset": 26695,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -63371,12 +64081,12 @@
             "depth": 5,
             "duration": 26,
             "recovery": 74,
-            "startIdx": 26472,
-            "nadirIdx": 26479,
-            "endIdx": 26498,
+            "startIdx": 26726,
+            "nadirIdx": 26733,
+            "endIdx": 26752,
             "nadir": 93,
             "recoverySlope": 0.068,
-            "onset": 26472,
+            "onset": 26726,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -63388,12 +64098,12 @@
             "depth": 4,
             "duration": 10,
             "recovery": 58,
-            "startIdx": 26504,
-            "nadirIdx": 26504,
-            "endIdx": 26514,
+            "startIdx": 26758,
+            "nadirIdx": 26758,
+            "endIdx": 26768,
             "nadir": 94,
             "recoverySlope": 0.069,
-            "onset": 26504,
+            "onset": 26758,
             "artifact": false,
             "fallRate": 1,
             "pulseValid": 1,
@@ -63405,12 +64115,12 @@
             "depth": 5,
             "duration": 18,
             "recovery": 3,
-            "startIdx": 27028,
-            "nadirIdx": 27028,
-            "endIdx": 27046,
+            "startIdx": 27282,
+            "nadirIdx": 27282,
+            "endIdx": 27300,
             "nadir": 92,
             "recoverySlope": 1.667,
-            "onset": 27028,
+            "onset": 27282,
             "artifact": true,
             "reason": "nonphysiologic-kinetics",
             "sqi": 0.2,
@@ -63424,12 +64134,12 @@
             "depth": 8,
             "duration": 32,
             "recovery": 2,
-            "startIdx": 27197,
-            "nadirIdx": 27213,
-            "endIdx": 27229,
+            "startIdx": 27451,
+            "nadirIdx": 27467,
+            "endIdx": 27483,
             "nadir": 90,
             "recoverySlope": 4,
-            "onset": 27197,
+            "onset": 27451,
             "artifact": true,
             "reason": "nonphysiologic-kinetics",
             "sqi": 0.2,
@@ -63441,29 +64151,29 @@
           }
         ],
         "artifactCount": 3,
-        "dip3Rate": 9.1
+        "dip3Rate": 9.4
       },
       "hrProfile": {
-        "circadianScore": 0.48,
-        "decCapacity": 1.67,
-        "apEn": 0.6839,
+        "circadianScore": -0.18,
+        "decCapacity": 1.76,
+        "apEn": 0.7219,
         "bradyCount": 0,
         "tachyCount": 0
       },
       "crossSignal": {
-        "autoArousalIdx": 2.6,
-        "crcIdx": 0.222,
+        "autoArousalIdx": 3,
+        "crcIdx": 0.137,
         "divergeCount": 0,
         "divergePct": 0,
         "hrRecovery": null
       },
       "spo2Advanced": {
-        "wtdsi": 0.698,
+        "wtdsi": 0.767,
         "spo2IQR": 0,
-        "condMeanBelow94": 92.56,
-        "condPctBelow94": 1.9,
+        "condMeanBelow94": 92.6,
+        "condPctBelow94": 2.2,
         "nadirBins": {
-          "above91": 14,
+          "above91": 17,
           "b90_91": 4,
           "b88_89": 1,
           "b85_87": 0,
@@ -63473,25 +64183,25 @@
       "hrAdvanced": {
         "rmssd": 0.67,
         "hrIQR": 6,
-        "meanHRpb": 62.2,
-        "meanHRnonPb": 60.9,
-        "hrPbContrast": 1.3
+        "meanHRpb": 62.9,
+        "meanHRnonPb": 60.8,
+        "hrPbContrast": 2.1
       },
       "composite": {
-        "couplingScore": 83,
+        "couplingScore": 63,
         "sfi": 1.6,
-        "nsi": 47
+        "nsi": 50
       },
       "sbii": {
-        "sbii": 18.639,
+        "sbii": 21.642,
         "sbiiQ": "Q4"
       },
       "pred3p": {
-        "pred3p": 4.58,
+        "pred3p": 4.96,
         "pred3pQ": "Q2"
       },
       "desSev": {
-        "desSev": 3.09
+        "desSev": 3.81
       },
       "ctPrecise": {
         "ct90s": 3,
@@ -63505,15 +64215,15 @@
         "ct85m": 0
       },
       "sleepStability": {
-        "score": 70,
-        "grade": "Fair",
+        "score": 80,
+        "grade": "Good",
         "components": {
-          "spo2Stab": 72,
+          "spo2Stab": 71,
           "hrFloor": 83,
           "motion": 61,
-          "pb": 45,
-          "hypoxicBurden": 89,
-          "t95": 74
+          "pb": 100,
+          "hypoxicBurden": 87,
+          "t95": 72
         }
       },
       "artifact": {
@@ -63607,32 +64317,32 @@
         "periodicity": null
       },
       "oscillations": {
-        "episodeCount": 11,
-        "peakCrossings": 12,
-        "totalCrossings": 93,
-        "first": "22:38:36 25/07/2026",
-        "last": "06:53:42 26/07/2026"
+        "episodeCount": 0,
+        "peakCrossings": 0,
+        "totalCrossings": 0,
+        "first": null,
+        "last": null
       },
       "flags": [
+        "ODI4_BORDERLINE",
         "HR_SPIKES(10)",
-        "PERIODIC_BREATHING(11)",
         "HR_ARTIFACT_CLEANED(9)",
-        "SBII_Q4(18.639)"
+        "SBII_Q4(21.642)"
       ],
       "newMetrics": {
         "spo2Drift": {
-          "driftSlope": 0.0033,
-          "driftPerHr": 0.04,
-          "driftR2": 0.024,
+          "driftSlope": 0.0038,
+          "driftPerHr": 0.046,
+          "driftR2": 0.04,
           "driftLabel": "Stable"
         },
         "odi2": {
-          "odi2Count": 57,
-          "odi2Rate": 7.42
+          "odi2Count": 59,
+          "odi2Rate": 7.61
         },
         "spo2Overshoot": {
           "overshootMean": 0.69,
-          "overshootCount": 62,
+          "overshootCount": 66,
           "overshootLabel": "Mild"
         },
         "spo2Ac1": {
@@ -63641,9 +64351,9 @@
           "basis": "wholeRecord"
         },
         "hrFreqBands": {
-          "hrLfPow": 4.3,
+          "hrLfPow": 6.8,
           "hrHfPow": 0.1,
-          "hrLfHf": 31,
+          "hrLfHf": 43.5,
           "hrLfHfLabel": "SNS dominant",
           "basis": "medianOf30minWindows",
           "windowsUsed": 15
@@ -63651,30 +64361,30 @@
         "respRate": {
           "respRateBpm": 10.3,
           "rsaPeakFreq": 0.1717,
-          "rsaPeakPow": 0.6,
+          "rsaPeakPow": 0.5,
           "respRateLabel": "Normal (10-20)",
           "basis": "medianOf30minWindows",
           "windowsUsed": 15
         },
         "hrAsymmetry": {
-          "hrAccelAsym": 0.977,
+          "hrAccelAsym": 0.975,
           "meanUpBpm": 1.11,
           "meanDownBpm": 1.14,
           "hrAsymLabel": "Symmetric"
         },
         "hrQuartiles": {
-          "hrQ1": 60,
-          "hrQ2": 60.1,
-          "hrQ3": 60.5,
+          "hrQ1": 60.3,
+          "hrQ2": 60,
+          "hrQ3": 60.4,
           "hrQ4": 64.2,
-          "hrArc": 0.5,
+          "hrArc": 0.1,
           "remReemergence": true,
           "hrArcLabel": "Flat"
         },
         "spo2HRLag": {
-          "crossCorrLag": 19,
-          "crossCorrPeak": 0.136,
-          "crossCorrLabel": "Moderate lag",
+          "crossCorrLag": 40,
+          "crossCorrPeak": 0.161,
+          "crossCorrLabel": "Delayed lag",
           "basis": "medianOf30minWindows",
           "windowsUsed": 15
         },
@@ -63685,9 +64395,9 @@
           "spikeRiseLabel": "Gradual (<2 bpm/s)"
         },
         "dataGaps": {
-          "gapCount": 50,
+          "gapCount": 53,
           "maxGapSec": 999,
-          "gapPct": 9.8,
+          "gapPct": 9.9,
           "gapLabel": "Significant gap (>2min)"
         },
         "hrFlatlines": {
@@ -63702,7 +64412,7 @@
           "ceilingLabel": "Sensor lift likely"
         },
         "odri": {
-          "odri": 0.138,
+          "odri": 0.149,
           "odriLabel": "Low (mixed/OA)"
         },
         "spo2Pct": {
@@ -63714,26 +64424,26 @@
           "spo2IQR": 0
         },
         "spo2Shape": {
-          "spo2Mean": 95.91,
-          "spo2SD": 0.92,
-          "spo2Skew": -0.701,
-          "spo2Kurt": 7.426,
-          "spo2ExcessKurt": 4.426,
+          "spo2Mean": 95.9,
+          "spo2SD": 0.93,
+          "spo2Skew": -0.744,
+          "spo2Kurt": 7.246,
+          "spo2ExcessKurt": 4.246,
           "spo2SkewLabel": "Left-skewed (hypox burden)",
           "spo2KurtLabel": "Leptokurtic (heavy tails/events)"
         },
         "hrCV": {
-          "hrCV": 8.04,
+          "hrCV": 8.03,
           "hrCVmean": 61.2,
-          "hrCVsd": 4.92,
+          "hrCVsd": 4.91,
           "hrCVlabel": "Moderate"
         },
         "hypDose": {
-          "hd94": 773,
+          "hd94": 871,
           "hd90": 3,
           "hd88": 0,
-          "hd94PerHr": 100.6,
-          "desatAUC": 4221,
+          "hd94PerHr": 112.3,
+          "desatAUC": 4464,
           "hd94Label": "Moderate"
         },
         "t88t85": {
@@ -63748,57 +64458,57 @@
         "lcsp": {
           "lcspSec": 3574,
           "lcspMin": 59.6,
-          "lcspStartMin": 238,
+          "lcspStartMin": 242,
           "lcspLabel": "Moderate"
         },
         "poincare": {
           "sd1": 0.48,
-          "sd2": 6.81,
-          "sd1sd2Ratio": 0.07,
+          "sd2": 6.8,
+          "sd1sd2Ratio": 0.071,
           "sd1Label": "Normal (1Hz proxy)",
           "sd2Label": "Normal (1Hz proxy)"
         },
         "o2hrEff": {
-          "o2hrEff": 0.15,
+          "o2hrEff": 0.17,
           "o2hrEffMin": 0,
           "o2hrEffMax": 0.57,
-          "o2hrEffN": 12,
+          "o2hrEffN": 16,
           "o2hrEffLabel": "Blunted arousal response"
         },
         "condSpo2": {
-          "spo2StillMean": 95.91,
+          "spo2StillMean": 95.89,
           "spo2MovingMean": 96.22,
-          "spo2MotionDelta": -0.31,
+          "spo2MotionDelta": -0.33,
           "stillPct": 99.1,
           "motionArtifactLabel": "No significant difference"
         },
         "nadirTrend": {
-          "nadirTrendSlope": 0.3392,
-          "nadirTrendR2": 0.532,
-          "nadirTrendN": 12,
+          "nadirTrendSlope": 0.1206,
+          "nadirTrendR2": 0.155,
+          "nadirTrendN": 16,
           "nadirTrendLabel": "Improving across night"
         },
         "iei": {
-          "ieiMeanSec": 2257.8,
-          "ieiSDsec": 4490.3,
-          "ieiCV": 1.99,
+          "ieiMeanSec": 1752.8,
+          "ieiSDsec": 3946.9,
+          "ieiCV": 2.25,
           "ieiLabel": "Highly variable (OA/mixed)"
         },
         "recovCV": {
-          "recovSlopeMean": 0.398,
-          "recovSlopeSD": 0.449,
-          "recovSlopeCV": 1.13,
+          "recovSlopeMean": 0.369,
+          "recovSlopeSD": 0.42,
+          "recovSlopeCV": 1.137,
           "recovSlopeCVlabel": "High variability (inconsistent arousal)"
         },
         "hrNadirT": {
-          "hrNadirMinFromStart": 85,
+          "hrNadirMinFromStart": 90,
           "hrNadirFrac": 0.19,
           "hrNadirSmoothed": 54.4,
           "hrNadirLabel": "Early nadir (good alignment)"
         },
         "spo2NadirT": {
-          "spo2NadirMinFromStart": 50,
-          "spo2NadirFrac": 0.11,
+          "spo2NadirMinFromStart": 54,
+          "spo2NadirFrac": 0.12,
           "spo2NadirValue": 89,
           "spo2NadirLabel": "Early worst (supine/onset)"
         },
@@ -63810,18 +64520,18 @@
             0.7,
             0.6,
             0.6,
+            0.7,
+            0.7,
+            0.5,
+            0.6,
+            0.9,
             0.8,
-            0.8,
-            0.4,
             0.7,
             0.8,
-            0.7,
-            0.7,
-            0.7,
             0.7
           ],
-          "rmssdArcSlope": 0.0071,
-          "rmssdArcR2": 0.082,
+          "rmssdArcSlope": 0.0118,
+          "rmssdArcR2": 0.23,
           "rmssdFirstHalf": 0.6,
           "rmssdLastHalf": 0.7,
           "rmssdArcDelta": 0.1,
@@ -63829,14 +64539,14 @@
         },
         "spk50Rec": null,
         "stageProxy": {
-          "remProxySec": 14400,
-          "remProxyMin": 240,
-          "remProxyPct": 52,
+          "remProxySec": 14760,
+          "remProxyMin": 246,
+          "remProxyPct": 52.9,
           "nremDeepSec": 600,
           "nremDeepMin": 10,
-          "nremDeepPct": 2.2,
+          "nremDeepPct": 2.1,
           "plausible": false,
-          "plausibilityNote": "REM proxy implausible (52% of the recording; physiological ≈20–25%) — the HR-stability estimator over-fires on quiet sleep. Not a high-REM night; treat as unreliable.",
+          "plausibilityNote": "REM proxy implausible (52.9% of the recording; physiological ≈20–25%) — the HR-stability estimator over-fires on quiet sleep. Not a high-REM night; treat as unreliable.",
           "remProxyLabel": "Implausible — estimator unreliable",
           "nremDeepLabel": "Low deep sleep estimate"
         },
@@ -63938,7 +64648,7 @@
               "purpose": "Peak VO₂max, high-intensity intervals"
             }
           ],
-          "readiness": 41,
+          "readiness": 44,
           "readinessTier": "Low",
           "readinessColor": "warn",
           "recZones": [
@@ -63963,7 +64673,7 @@
             "spo2": 13,
             "sleep": 15,
             "hrFloor": 8,
-            "hrSlope": 1
+            "hrSlope": 4
           },
           "mafHR": 121,
           "mafAdj": "-10 (recovery deficit)",
@@ -64000,42 +64710,42 @@
           },
           "92": {
             "secs": 43,
-            "pct": 0.16
+            "pct": 0.15
           },
           "93": {
-            "secs": 180,
-            "pct": 0.65
+            "secs": 192,
+            "pct": 0.69
           },
           "94": {
-            "secs": 537,
-            "pct": 1.94
+            "secs": 623,
+            "pct": 2.23
           },
           "95": {
-            "secs": 1463,
-            "pct": 5.29
+            "secs": 1583,
+            "pct": 5.67
           }
         },
         "period": null,
         "ct94": {
-          "ct94Sec": 537,
-          "ct94Pct": 1.94
+          "ct94Sec": 623,
+          "ct94Pct": 2.23
         },
         "slopes": {
-          "modl": 93.3,
-          "meanDipSlope": -2.601,
-          "meanRecSlope": 0.168,
-          "clusteringIdx": 0.58,
-          "firstHalfNadirs": 8,
+          "modl": 93.27,
+          "meanDipSlope": -2.622,
+          "meanRecSlope": 0.159,
+          "clusteringIdx": 0.5,
+          "firstHalfNadirs": 11,
           "lastHalfNadirs": 11
         },
         "pbMet": {
-          "pbCycleLen": 132.9,
-          "pbCycleLenSD": 70.8,
-          "pbAmplitude": 4.5,
-          "pbLoad": 14.264,
-          "pbFirstThirdRatio": 0.67,
-          "pbEarlyCount": 8,
-          "pbLateCount": 4
+          "pbCycleLen": null,
+          "pbCycleLenSD": null,
+          "pbAmplitude": null,
+          "pbLoad": null,
+          "pbFirstThirdRatio": null,
+          "pbEarlyCount": 0,
+          "pbLateCount": 0
         },
         "sleepArch": {
           "wasoMin": 4.1,
@@ -64044,7 +64754,7 @@
           "ultradianValleys": 7
         },
         "odi1": {
-          "odi1Rate": 38.5,
+          "odi1Rate": 38.2,
           "odi1Total": 296
         },
         "mos": {
@@ -64052,33 +64762,33 @@
           "mosLabel": "Normal"
         },
         "ahiEst": {
-          "ahiODI4": 1.8,
-          "ahiKulkas": 5.7
+          "ahiODI4": 2.3,
+          "ahiKulkas": 6.5
         },
         "extras": {
           "spo2Range": 10,
-          "tir9499": 98.1,
-          "meanSpo2Early": 95.83,
+          "tir9499": 97.8,
+          "meanSpo2Early": 95.78,
           "meanSpo2Late": 96.03,
           "hrRange": 44,
-          "meanHrEarly": 59.9,
+          "meanHrEarly": 60.1,
           "meanHrLate": 64.2,
           "motionBursts": 11,
           "longestCleanRun": 31,
-          "nadirDensity": 1.56,
-          "t95BurdenScore": 19.04,
-          "odi41ratio": 0.042
+          "nadirDensity": 2.06,
+          "t95BurdenScore": 21.7,
+          "odi41ratio": 0.055
         },
         "rolling": {
-          "worst10minSpo2": 94.41,
-          "worst30minT95": 22.9,
-          "spo2StableWindows": 80,
-          "cdi": 3.06,
-          "postDipHrResponse": -2.9,
+          "worst10minSpo2": 94.4,
+          "worst30minT95": 23.2,
+          "spo2StableWindows": 76,
+          "cdi": 3.09,
+          "postDipHrResponse": -2.8,
           "hrDecelRuns": 0,
           "spo2HrDecouplingPct": 52.5,
           "intraNightNSI": [
-            23,
+            26,
             7,
             10
           ]
@@ -64090,33 +64800,39 @@
           "uarsLabel": "1/3 indicators"
         },
         "dfa": {
-          "alpha1": 1.692,
-          "dfaLabel": "SpO₂ DFA (α1=1.692) — HR-DFA thresholds do not apply to SpO₂ signal"
+          "alpha1": 1.68,
+          "dfaLabel": "SpO₂ DFA (α1=1.68) — HR-DFA thresholds do not apply to SpO₂ signal"
         },
         "fft": {
-          "peakFreqHz": 0.005,
-          "peakCycSec": 200
+          "peakFreqHz": null,
+          "peakCycSec": null,
+          "snr": 9.33,
+          "threshold": 19.19,
+          "bins": 315,
+          "strided": true,
+          "rhoLag1": 0.971,
+          "detected": false
         },
         "hrEnt": {
-          "sampEn": 1.9357,
+          "sampEn": 1.9446,
           "sampEnLabel": "High (irregular)"
         },
         "ssi": {
-          "ssi": 0.624,
+          "ssi": 0.636,
           "ssiLabel": "Moderate"
         },
         "circHR": {
-          "circAmplitude": 3.18,
-          "circNadirHour": 2.6
+          "circAmplitude": 3.19,
+          "circNadirHour": 2.7
         },
         "spo2Ent": {
-          "spo2SampEn": 0.4406,
+          "spo2SampEn": 0.3805,
           "spo2EnLabel": "Normal"
         },
         "hypLoad": {
-          "hypoxicLoad": 9.518,
+          "hypoxicLoad": 10.628,
           "hlLabel": "High",
-          "hl_nadirCount": 41,
+          "hl_nadirCount": 44,
           "hl_meanDepth": 3.9,
           "hl_meanDurSec": 28
         },
@@ -64125,7 +64841,7 @@
           "vagalLabel": "Moderate"
         },
         "recIdx": {
-          "recoveryIndex": 0.065,
+          "recoveryIndex": 0.061,
           "riLabel": "Slow"
         },
         "sleepP": {
@@ -64133,7 +64849,7 @@
           "spiLabel": "Low"
         },
         "breathI": {
-          "biCV": 160.5,
+          "biCV": 168.8,
           "biLabel": "Irregular"
         },
         "oxyCrash": {
@@ -64145,7 +64861,7 @@
           "hrnDipLabel": "Good (intra-night)"
         },
         "desatAsym": {
-          "desatAsym": 15.482,
+          "desatAsym": 16.491,
           "asymLabel": "Abrupt (obstructive)"
         }
       },

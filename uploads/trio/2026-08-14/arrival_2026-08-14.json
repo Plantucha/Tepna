@@ -1,7 +1,7 @@
 {
   "night": "2026-08-14",
   "packets": 168175,
-  "files": 31,
+  "files": 48,
   "devices": [
     {
       "device": "Polar H10 02849638",
@@ -54,5 +54,20 @@
       "t0HostMs": 1786746604624,
       "spanSec": 27039
     }
-  ]
+  ],
+  "datTimefit": {
+    "converged": true,
+    "attempts": 6,
+    "lagS": 152,
+    "datStartHostMs": 1786746452000,
+    "spo2LagS": 154,
+    "pulseLagS": 152,
+    "pulseErr": 1.235,
+    "dat": "Wellue_O2Ring-S_20260814222924_STORED.dat",
+    "csv": "Wellue_O2Ring-S_S8AW2100_20260814223001_SPO2.csv",
+    "reportedOffsetS": null,
+    "deltaS": null,
+    "driftAllowanceS": 0,
+    "disagrees": null
+  }
 }

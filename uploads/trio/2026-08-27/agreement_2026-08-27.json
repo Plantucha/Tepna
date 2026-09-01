@@ -1,0 +1,106 @@
+{
+  "night": "2026-08-27",
+  "tolBpm": 15,
+  "nodes": [
+    "PpgDex",
+    "ECGDex",
+    "OxyDex"
+  ],
+  "compared": 63,
+  "adjudicable": 0,
+  "droppedFragments": 0,
+  "flagged": 5,
+  "flaggedPct": 7.9,
+  "fault": {
+    "PpgDex": 0,
+    "ECGDex": 0,
+    "OxyDex": 0
+  },
+  "epochs": [
+    {
+      "tMs": 1787874903846,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 33
+        },
+        {
+          "node": "OxyDex",
+          "hr": 50
+        }
+      ],
+      "median": 41.5,
+      "spreadBpm": 17,
+      "adjudicated": false,
+      "outlier": null
+    },
+    {
+      "tMs": 1787876103846,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 35
+        },
+        {
+          "node": "OxyDex",
+          "hr": 57
+        }
+      ],
+      "median": 46,
+      "spreadBpm": 22,
+      "adjudicated": false,
+      "outlier": null
+    },
+    {
+      "tMs": 1787876703846,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 33
+        },
+        {
+          "node": "OxyDex",
+          "hr": 55
+        }
+      ],
+      "median": 44,
+      "spreadBpm": 22,
+      "adjudicated": false,
+      "outlier": null
+    },
+    {
+      "tMs": 1787877003846,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 33
+        },
+        {
+          "node": "OxyDex",
+          "hr": 50
+        }
+      ],
+      "median": 41.5,
+      "spreadBpm": 17,
+      "adjudicated": false,
+      "outlier": null
+    },
+    {
+      "tMs": 1787879103846,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 33
+        },
+        {
+          "node": "OxyDex",
+          "hr": 49
+        }
+      ],
+      "median": 41,
+      "spreadBpm": 16,
+      "adjudicated": false,
+      "outlier": null
+    }
+  ]
+}

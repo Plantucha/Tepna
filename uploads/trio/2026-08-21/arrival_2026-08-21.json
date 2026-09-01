@@ -1,0 +1,73 @@
+{
+  "night": "2026-08-21",
+  "packets": 168405,
+  "files": 16,
+  "devices": [
+    {
+      "device": "Polar H10 02849638",
+      "anchors": 90436,
+      "ok": true,
+      "independent": true,
+      "spreadMs": 16392.54,
+      "ppm": -21.4,
+      "maxStepMs": 12569.8,
+      "plausibleCrystal": true,
+      "deviceDrawn": false,
+      "drawnShare": 0.018,
+      "offsetMs": 946670399820.4,
+      "offsetMadMs": 139.3,
+      "t0DevMs": 840678420776,
+      "t0HostMs": 1787348820915,
+      "spanSec": 28430
+    },
+    {
+      "device": "Polar Verity Sense",
+      "anchors": 50074,
+      "ok": true,
+      "independent": true,
+      "spreadMs": 18419.84,
+      "ppm": 53.9,
+      "maxStepMs": 11012.2,
+      "plausibleCrystal": true,
+      "deviceDrawn": false,
+      "drawnShare": 0.004,
+      "offsetMs": 946670401702.3,
+      "offsetMadMs": 182.9,
+      "t0DevMs": 840678432014,
+      "t0HostMs": 1787348831841,
+      "spanSec": 28270
+    },
+    {
+      "device": "Wellue O2Ring-S",
+      "anchors": 27895,
+      "ok": true,
+      "independent": true,
+      "spreadMs": 112202,
+      "ppm": 3969.3,
+      "maxStepMs": 31470,
+      "plausibleCrystal": false,
+      "deviceDrawn": true,
+      "drawnShare": 0.988,
+      "offsetMs": 1787349063203,
+      "offsetMadMs": 36446,
+      "t0DevMs": 1000,
+      "t0HostMs": 1787348989159,
+      "spanSec": 28095
+    }
+  ],
+  "datTimefit": {
+    "converged": true,
+    "attempts": 2,
+    "lagS": 47,
+    "datStartHostMs": 1787348941000,
+    "spo2LagS": 46,
+    "pulseLagS": 47,
+    "pulseErr": 1.659,
+    "dat": "Wellue_O2Ring-S_20260821215140_STORED.dat",
+    "csv": "Wellue_O2Ring-S_S8AW2100_20260821214837_SPO2.csv",
+    "reportedOffsetS": null,
+    "deltaS": null,
+    "driftAllowanceS": 0,
+    "disagrees": null
+  }
+}

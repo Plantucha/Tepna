@@ -1,0 +1,36 @@
+{
+  "night": "2026-06-13",
+  "tolBpm": 15,
+  "nodes": [
+    "PpgDex",
+    "OxyDex"
+  ],
+  "compared": 88,
+  "adjudicable": 0,
+  "droppedFragments": 0,
+  "flagged": 1,
+  "flaggedPct": 1.1,
+  "fault": {
+    "PpgDex": 0,
+    "OxyDex": 0
+  },
+  "epochs": [
+    {
+      "tMs": 1781383526534,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 54
+        },
+        {
+          "node": "OxyDex",
+          "hr": 72
+        }
+      ],
+      "median": 63,
+      "spreadBpm": 18,
+      "adjudicated": false,
+      "outlier": null
+    }
+  ]
+}
