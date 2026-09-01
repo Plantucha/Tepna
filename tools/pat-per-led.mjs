@@ -61,8 +61,8 @@ const arg = (k, d) => {
 const DIR = arg('--dir', null),
   ONLY = arg('--night', null),
   SITE = arg('--site', 'ankle');
-if (!DIR) {
-  console.error('need --dir');
+if (!DIR && !argv.includes('--selftest')) {
+  console.error('need --dir  (or --selftest)');
   process.exit(1);
 }
 const PHYS_LO = 200,
@@ -144,6 +144,51 @@ function pairSame(A, B) {
   return d;
 }
 
+/* ── the SNR column, wired for real (PPG-FOOT-PLACEMENT-FOLLOWUPS §2, 2026-09-01) ────────────────
+   The original line read `P.channelSNR ? P.channelSNR(c, pr.fs).snr : NaN` — and `channelSNR` is
+   LOCAL to ppgdex-dsp.js (line ~830), never on the PPGDSP namespace, so the guard took the NaN arm
+   on every run and this column printed "n/a" from the day the tool was written: a guard that makes
+   an absence look like data. This wrapper computes the IDENTICAL spectral quantity by DELEGATING
+   to the exported `bandpass`/`std` (same mid-recording ≤90 s window, same 0.7–3.0 Hz pulse band
+   over 4.0–8.0 Hz noise band) — no DSP edit, no re-bundle. If `channelSNR` itself is ever exported
+   (it rides the next real re-bundle, not its own), delete this and call it. */
+function chanSNR(sig, fs) {
+  const win = Math.min(sig.length, Math.max(Math.round(fs * 90), Math.round(fs * 20)));
+  let s0 = Math.floor((sig.length - win) / 2);
+  if (s0 < 0) s0 = 0;
+  const slice = s0 === 0 && win === sig.length ? sig : sig.subarray(s0, s0 + win);
+  const pulse = P.bandpass(slice, fs, 0.7, 3.0);
+  const noise = P.bandpass(slice, fs, 4.0, 8.0);
+  return P.std(pulse) / (P.std(noise) || 1e-6);
+}
+
+/* Selftest pins the wrapper against arithmetic, not against the function it mirrors (which is
+   unreachable — that being the point). A 1.5 Hz "pulse" plus a 6.0 Hz "noise" tone, both mid-band:
+   the ratio tracks A/B, and doubling the noise amplitude halves the SNR (a gain-independent
+   known-answer, so a wrapper returning a constant or the wrong band FAILS it). */
+function selftest() {
+  const fs = 55;
+  const N = fs * 120;
+  const mk = (A, B) => {
+    const s = new Float64Array(N);
+    for (let i = 0; i < N; i++) s[i] = A * Math.sin((2 * Math.PI * 1.5 * i) / fs) + B * Math.sin((2 * Math.PI * 6.0 * i) / fs);
+    return s;
+  };
+  const fails = [];
+  const ok = (c, m) => {
+    console.log(`  ${c ? 'ok  ' : 'FAIL'}  ${m}`);
+    if (!c) fails.push(m);
+  };
+  const s1 = chanSNR(mk(10, 1), fs);
+  const s2 = chanSNR(mk(10, 2), fs);
+  ok(s1 > 5 && s1 < 20, `A/B=10 lands near 10 through both passbands (got ${s1.toFixed(2)})`);
+  ok(Math.abs(s1 / s2 - 2) < 0.15, `doubling the noise tone halves SNR (ratio ${(s1 / s2).toFixed(3)})`);
+  ok(chanSNR(mk(1, 10), fs) < 1, `noise-dominated signal reads SNR < 1 (got ${chanSNR(mk(1, 10), fs).toFixed(2)})`);
+  console.log(fails.length ? `SELFTEST FAIL (${fails.length})` : 'SELFTEST PASS (3/3)');
+  return fails.length === 0;
+}
+if (argv.includes('--selftest')) process.exit(selftest() ? 0 : 1);
+
 console.log('PER-LED PAT — each optical channel as its own detector (no consensus)');
 console.log('  inter-LED differences cancel the beat, so their TCH gives FIDUCIAL jitter directly\n');
 const nights = fs
@@ -183,7 +228,7 @@ for (const n of nights) {
   };
   const per = pr.ch.map((c) => P.detectChannel(c, pr.fs));
   const feet = per.map((p) => p.feet.map(toMs));
-  const snr = pr.ch.map((c) => (P.channelSNR ? P.channelSNR(c, pr.fs).snr : NaN));
+  const snr = pr.ch.map((c) => chanSNR(c, pr.fs));
   console.log(`  ${n} · ${SITE} · ${pr.ch.length} channel(s) · fs ${pr.fs.toFixed(2)} Hz · ECG R-peaks ${R.length}`);
   console.log('     LED   SNR    feet   foot-foot SD |  PAT n   yield   med     SD');
   for (let c = 0; c < feet.length; c++) {

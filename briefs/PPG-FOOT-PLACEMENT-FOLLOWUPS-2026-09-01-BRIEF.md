@@ -33,6 +33,17 @@ the absence look like data. Either export it (a DSP text change — moves every 
 note the in-tool ANR (`ppg-foot-residual-sweep.mjs medianAmp/noiseRms`) as the sanctioned
 substitute. Deciding which is a coordinator/owner-lane call only because of the re-bundle cost.
 
+✅ **RESOLVED 2026-09-01 — a third option beat both: the triage found `bandpass` and `std` ARE
+exported**, so `pat-per-led` now computes the IDENTICAL spectral quantity by delegation (same
+≤90 s mid-recording window, 0.7–3.0 Hz pulse over 4.0–8.0 Hz noise) — no DSP edit, no re-bundle,
+no divergable filter copy. Selftest pins it against arithmetic (tone plant; doubling the noise
+tone halves the ratio — a gain-independent known-answer a constant-returning or wrong-band wrapper
+fails). Execution proven on 2026-08-16 box: the column printed **20.59 / 19.99 / 20.44** — its
+first real values ever. The `channelSNR` export itself still rides the next real re-bundle, at
+which point the wrapper deletes (marked at the wrapper). One residue kept honest: `pat-per-led`
+walks only date-directory corpora — the flat canonical `Ecg nightly` prints an empty (headers-only)
+run, an empty-result-is-not-a-negative shape left un-fixed here as out of §2's scope.
+
 ## 3 · Three candidates at 0.68–0.70 are one latent factor, not three near-misses
 
 C1/C2/C3 all landed just under the pre-stated 0.7 bar and are mutually correlated (noise, its
@@ -53,7 +64,9 @@ session should remount it meanwhile.
 
 - [ ] §1: a wander pre-registration exists (bands before measurement) or the item is explicitly
       declined in this header
-- [ ] §2: export-or-delete decided and executed for `channelSNR` / pat-per-led's SNR column
+- [x] §2: export-or-delete decided and executed for `channelSNR` / pat-per-led's SNR column —
+      resolved 2026-09-01 by DELEGATION (exported `bandpass`/`std`, identical quantity, selftested,
+      execution-proven); the DSP export still rides the next real re-bundle
 - [ ] §3: recorded as the design constraint for any future residual reopening (no action beyond §1)
 - [ ] §4: owner has ruled on sdb1 and the stale mirror
 
