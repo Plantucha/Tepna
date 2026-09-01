@@ -369,6 +369,11 @@ def test_summarize_pools_when_the_neighbour_was_still_writing_at_wake(tmp_path):
     _utime(_cap(d31, "Polar_VeritySense_0C301E3F_20260831225711_HR.txt", 19560), ver + 19560)
     _utime(_cap(d31, "Wellue_O2Ring-S_S8AW2100_20260831225733_HR.txt", 19560), oxy + 19560)
     _utime(_cap(d01, "Wellue_O2Ring-S_S8AW2100_20260901042053_HR.txt", 600), frag + 600)
+    # A stale daytime fragment in the neighbour folder, like the real 2026-08-31 dir carried (an 04:22
+    # sitting from the previous morning). Contiguity must key on the neighbour's LATEST write — keyed
+    # on its earliest instead, this 18-h-old file reads as an 18 h gap and pooling wrongly refuses.
+    stale = _dt.strptime("20260831042208", "%Y%m%d%H%M%S").timestamp()
+    _utime(_cap(d31, "Wellue_O2Ring-S_S8AW2100_20260831042208_HR.txt", 600), stale + 600)
     # The shape under test: the fragment OPENS (04:20:53) before the neighbour's last write (04:23:11).
     assert frag < ver + 19560, "fixture must overlap, or it tests the already-covered gap case"
     devs = [
