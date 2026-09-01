@@ -194,7 +194,11 @@ export function withinNight(slopeMinPerBeat, absDiffPerBeat) {
   if (rows.length < 300) return null;
   rows.sort((a, b) => a[0] - b[0]);
   const t = Math.floor(rows.length / 3);
-  const medOf = (seg) => quantile(seg.map((r) => r[1]), 0.5);
+  const medOf = (seg) =>
+    quantile(
+      seg.map((r) => r[1]),
+      0.5
+    );
   const lo = medOf(rows.slice(0, t));
   const mid = medOf(rows.slice(t, 2 * t));
   const hi = medOf(rows.slice(2 * t));
@@ -305,7 +309,10 @@ function selftest() {
     }
     const w = withinNight(slopes, diffs);
     ok('planted 1/slope law ⇒ falls across tertiles', w && w.falls, w ? `${w.lo.toFixed(2)} > ${w.mid.toFixed(2)} > ${w.hi.toFixed(2)}` : 'null');
-    const flat = withinNight(slopes, slopes.map(() => Math.abs(rnd())));
+    const flat = withinNight(
+      slopes,
+      slopes.map(() => Math.abs(rnd()))
+    );
     ok('slope-independent jitter ⇒ does NOT report falls', flat && !flat.falls, flat ? `${flat.lo.toFixed(2)} / ${flat.mid.toFixed(2)} / ${flat.hi.toFixed(2)}` : 'null');
     ok('under 300 usable beats refuses', withinNight(slopes.slice(0, 100), diffs.slice(0, 100)) === null);
   }
@@ -330,7 +337,10 @@ function selftest() {
   });
   const quiet = nightRow([mk(1), mk(1), mk(1)]);
   const loud = nightRow([mk(6), mk(6), mk(6)]);
-  ok('quiet night < loud night on every pair', quiet.pairs.every((p) => p.sd < Math.min(...loud.pairs.map((q) => q.sd))));
+  ok(
+    'quiet night < loud night on every pair',
+    quiet.pairs.every((p) => p.sd < Math.min(...loud.pairs.map((q) => q.sd)))
+  );
   ok('C1 predictor orders with it', quiet.pairs[0].c1 < loud.pairs[0].c1);
   ok('fewer than 2 usable channels refuses', nightRow([mk(1)]) === null);
 
@@ -349,12 +359,28 @@ async function main() {
     console.error('usage: node tools/ppg-foot-residual-sweep.mjs --selftest | --dir <captures root> [--site ankle|ring] [--json <out>]');
     process.exit(2);
   }
-  const ctx = vm.createContext({ console: { log() {}, warn() {}, error() {} }, Math, JSON, Date, Uint8Array, Int16Array, Float32Array, Float64Array, Array, Object, Number, String, isFinite, isNaN, parseInt, parseFloat });
+  const ctx = vm.createContext({
+    console: { log() {}, warn() {}, error() {} },
+    Math,
+    JSON,
+    Date,
+    Uint8Array,
+    Int16Array,
+    Float32Array,
+    Float64Array,
+    Array,
+    Object,
+    Number,
+    String,
+    isFinite,
+    isNaN,
+    parseInt,
+    parseFloat
+  });
   ctx.window = ctx;
   ctx.self = ctx;
   ctx.globalThis = ctx;
-  for (const f of ['clock.js', 'kernel-constants.js', 'metric-registry.js', 'ppgdex-dsp.js'])
-    vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(ROOT, f), 'utf8')), ctx, { filename: f });
+  for (const f of ['clock.js', 'kernel-constants.js', 'metric-registry.js', 'ppgdex-dsp.js']) vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(ROOT, f), 'utf8')), ctx, { filename: f });
   const P = ctx.PPGDSP;
   const RE = { ring: /o2ring.*_PPG\.txt$/i, ankle: /veritysense.*_PPG\.txt$|polar_sense.*_PPG\.txt$/i };
   /* Two corpus layouts, auto-detected: the box tree keeps date-named subdirectories
@@ -446,7 +472,11 @@ async function main() {
           const sMin = idx.map(([a, b]) => Math.min(slopes[i][a], slopes[j][b]));
           const aDiff = idx.map(([a, b]) => Math.abs(chans[j].feetMs[b] - chans[i].feetMs[a]));
           const w = withinNight(sMin, aDiff);
-          console.log(w ? `  ${i}-${j}  n=${w.n}  loSlope ${w.lo.toFixed(2)} · mid ${w.mid.toFixed(2)} · hiSlope ${w.hi.toFixed(2)}  ${w.falls ? 'FALLS ✓' : 'does not fall'}` : `  ${i}-${j}  ⊘ under 300 usable beats`);
+          console.log(
+            w
+              ? `  ${i}-${j}  n=${w.n}  loSlope ${w.lo.toFixed(2)} · mid ${w.mid.toFixed(2)} · hiSlope ${w.hi.toFixed(2)}  ${w.falls ? 'FALLS ✓' : 'does not fall'}`
+              : `  ${i}-${j}  ⊘ under 300 usable beats`
+          );
         }
       continue;
     }
@@ -466,10 +496,34 @@ async function main() {
   const per = rows.map((r) => r.pairs.reduce((a, b) => (b.iqr > a.iqr ? b : a)));
   const y = per.map((p) => p.iqr);
   const table = [
-    ['C1 noise/slope (expect ρ ≥ +0.7)', spearman(per.map((p) => p.c1), y)],
-    ['C2 ANRmin (expect ρ ≤ −0.7)', spearman(per.map((p) => p.snrPair), y)],
-    ['C3 yield (expect ρ ≤ −0.7)', spearman(per.map((p) => p.yield), y)],
-    ['C4 r1 (expect top-half concentration at r1 ≤ −0.3)', spearman(per.map((p) => p.r1), y)]
+    [
+      'C1 noise/slope (expect ρ ≥ +0.7)',
+      spearman(
+        per.map((p) => p.c1),
+        y
+      )
+    ],
+    [
+      'C2 ANRmin (expect ρ ≤ −0.7)',
+      spearman(
+        per.map((p) => p.snrPair),
+        y
+      )
+    ],
+    [
+      'C3 yield (expect ρ ≤ −0.7)',
+      spearman(
+        per.map((p) => p.yield),
+        y
+      )
+    ],
+    [
+      'C4 r1 (expect top-half concentration at r1 ≤ −0.3)',
+      spearman(
+        per.map((p) => p.r1),
+        y
+      )
+    ]
   ];
   console.log(`\nCross-night Spearman vs worst-pair IQR (n=${rows.length} nights):`);
   for (const [k, v] of table) console.log(`  ${k}: ρ = ${isFinite(v) ? v.toFixed(3) : 'n/a'}`);
