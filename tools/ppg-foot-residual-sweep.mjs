@@ -17,8 +17,9 @@
  *   C2         amplitude-to-noise ratio (median foot→peak amplitude / noiseRms) — the coarse form
  *              of C1. ⚠ The pre-registration named `channelSNR`; that function is LOCAL to
  *              ppgdex-dsp.js and NOT on the PPGDSP namespace — `pat-per-led.mjs`'s guarded read
- *              (`P.channelSNR ? … : NaN`) has been printing n/a since it was written, the
- *              half-wired-mechanism shape again. Exporting it would move every bundle's
+ *              (`P.channelSNR ? … : NaN`) printed n/a from its birth until 2026-09-01, the
+ *              half-wired-mechanism shape again (pat-per-led now delegates to the exported
+ *              bandpass/std — FOLLOWUPS §2). Exporting it would move every bundle's
  *              manifestHash for a probe, so C2 is instrumented in-tool instead: same quantity
  *              (signal over noise), substitution recorded in the brief, thresholds unchanged.
  *   C3         motion proxy: same-beat match yield per pair.
