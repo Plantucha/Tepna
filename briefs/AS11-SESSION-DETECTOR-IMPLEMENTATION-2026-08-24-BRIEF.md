@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-08-24 · **Created:** 2026-08-24 · **Follows:** `AS11-SESSION-DETECTION-PROTOCOL-INVESTIGATION-2026-08-24-BRIEF.md`
+**Status:** IN-PROGRESS (increments 1–2 BUILT and running on the box; the rewritten done-when's boundary review DISCHARGED — verified 2026-09-01 from `/srv/tepna/SESSIONDETECT.csv`: one clean 8.7 h night boundary-detected end-to-end on 08-26; the 539 start/stop flaps of 08-27/28 (median 69 s, stops firing while FGState still read Therapy) were #1986's failover radio-steal, not a debounce fault — post-#1986 nights are clean at ~1 session/day. Remaining: the acting-mode follow-up (increment 3) is not yet spawned, and debounce needs no retune on the post-fix evidence) · **Created:** 2026-08-24 · **Follows:** `AS11-SESSION-DETECTION-PROTOCOL-INVESTIGATION-2026-08-24-BRIEF.md`
 
 # AS11 session detector — implementation (shadow-mode-first)
 
