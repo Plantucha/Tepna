@@ -50,7 +50,7 @@
  *
  * Usage:
  *   node tools/pat-window-oracle.mjs --selftest
- *   node tools/pat-window-oracle.mjs --dir <captures root> [--half-width 100] [--fiducial foot|cfd|half]
+ *   node tools/pat-window-oracle.mjs --dir <captures root> [--half-width 100] [--fiducial foot|cfd|half] [--ecg-axis linear|piecewise]
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -125,9 +125,14 @@ export function band(x, nullSd) {
   return 'NO RECOVERY';
 }
 
-/* One channel-night. Returns nulls rather than throwing so a bad night cannot kill a corpus run. */
+/* One channel-night. Refuses — never throws — so a bad night cannot kill a corpus run.
+   ⚠️ A refusal is NAMED: `{ refusal: '<reason>' }`, never a bare null. The bare-null era printed one
+   fixed message ("too few beats") for five different causes, and the catch-swallowed variant of the
+   same defect ate 2026-08-18's 8.6 s mid-file step on H_axis P2's first run (#2047) — a refusal
+   eaten by a catch, in the tool whose #2044 verdict layer exists to stop exactly that class. The
+   success shape is unchanged; a caller that must skip checks `res.refusal` (truthy object!). */
 export function oracleNight(rTimes, fTimes, halfWidth) {
-  if (rTimes.length < 200 || fTimes.length < 200) return null;
+  if (rTimes.length < 200 || fTimes.length < 200) return { refusal: `too few beats (r=${rTimes.length}, f=${fTimes.length}; need 200 each)` };
   /* 🔴 SPLIT ON THE OVERLAP, NOT ON THE ECG'S OWN EXTENT.
      This used to take `mid` from the middle of `rTimes` and score out-of-sample on everything after it.
      Out-of-sample scoring is right; splitting on ONE stream's extent while scoring against the OTHER is
@@ -143,16 +148,16 @@ export function oracleNight(rTimes, fTimes, halfWidth) {
      outside. */
   const lo = Math.max(rTimes[0], fTimes[0]);
   const hi = Math.min(rTimes[rTimes.length - 1], fTimes[fTimes.length - 1]);
-  if (!(hi > lo)) return null;
+  if (!(hi > lo)) return { refusal: 'no overlap between the two trains' };
   const rIn = rTimes.filter((t) => t >= lo && t <= hi);
-  if (rIn.length < 200) return null;
+  if (rIn.length < 200) return { refusal: `too few R beats in the overlap (${rIn.length}; need 200)` };
   const mid = rIn[Math.floor(rIn.length / 2)];
   const rA = rIn.filter((t) => t < mid);
   const rB = rIn.filter((t) => t >= mid);
-  if (rA.length < 100 || rB.length < 100) return null;
+  if (rA.length < 100 || rB.length < 100) return { refusal: `too few beats per half (A=${rA.length}, B=${rB.length}; need 100 each)` };
 
   const mode = lagMode(rawLags(rA, fTimes)); // FIRST half only — out of sample
-  if (mode == null) return null;
+  if (mode == null) return { refusal: 'no mode — fewer than 30 first-half lags in the search range' };
 
   const lagsB = rawLags(rB, fTimes);
   const narrow = acceptWithin(lagsB, mode - halfWidth, mode + halfWidth);
@@ -198,6 +203,10 @@ export function oracleNight(rTimes, fTimes, halfWidth) {
    (500, 650] is suspect but arguable, and stays the acceptance layer's call. */
 export function oracleVerdict(res) {
   if (!res) return null;
+  /* A named refusal propagates AS its name — the whole point. It gets its own tally bucket so a
+     corpus report says how many nights refused and why, instead of folding them into a data verdict
+     or (worse) into silence. */
+  if (res.refusal) return { refused: true, label: `⊘ REFUSED — ${res.refusal}`, tallyKey: 'REFUSED', halves: null };
   const halves = res.modeB == null ? 'halves: B-mode n/a' : Math.abs(res.modeB - res.mode) <= BIN_MS ? 'halves ≡' : `halves ${res.mode.toFixed(0)}→${res.modeB.toFixed(0)} ⚠`;
   if (!res.modeInPhys)
     return {
@@ -282,7 +291,23 @@ function selftest() {
   ok(vGood !== null && vGood.refused === false && vGood.label.includes('mode') && vGood.label.includes('halves'), `in-PHYS verdict carries mode + invariance status, got ${vGood?.label}`);
   ok(res.modeB != null && Math.abs(res.modeB - res.mode) <= BIN_MS, `planted night's halves agree within one bin, got ${res.mode}→${res.modeB}`);
 
-  const TOTAL = 15;
+  /* ── NAMED REFUSALS: a refusing night must propagate its NAME, not a generic skip. ──
+     The planted refusal is disjoint trains (feet 10^8 ms after the last R): structurally
+     unscoreable, and the assertion is on the REASON STRING reaching the verdict layer — the
+     silent-swallow class (#2047's 08-18) is precisely a real reason dying before the report. */
+  const Ffar = R.map((r) => r + 1e8);
+  const resFar = oracleNight(R, Ffar, 100);
+  ok(resFar !== null && resFar.refusal === 'no overlap between the two trains', `disjoint trains refuse BY NAME, got ${JSON.stringify(resFar)}`);
+  const vFar = oracleVerdict(resFar);
+  ok(
+    vFar !== null && vFar.refused === true && vFar.tallyKey === 'REFUSED' && vFar.label.includes('no overlap between the two trains'),
+    `the refusal NAME survives to the verdict line, got ${vFar?.label}`
+  );
+  const resShort = oracleNight(R.slice(0, 50), F.slice(0, 50), 100);
+  ok(resShort !== null && /^too few beats \(r=50, f=50/.test(resShort.refusal || ''), `a short night names its counts, got ${JSON.stringify(resShort)}`);
+  ok(resShort.mode === undefined && resShort.narrowSd === undefined, 'a refusal carries NO score fields a caller could mistakenly consume');
+
+  const TOTAL = 19;
   console.log(fails.length ? `SELFTEST FAIL (${fails.length}/${TOTAL})\n  ${fails.join('\n  ')}` : `SELFTEST PASS (${TOTAL}/${TOTAL})`);
   return fails.length === 0;
 }
@@ -319,12 +344,22 @@ async function main() {
   );
   console.log('night        mode    n     narrowSD    fullSD     nullSD   verdict');
   const tally = {};
+  /* EVERY skip path is NAMED and TALLIED. The bare `continue`s this replaces are the silent-swallow
+     class in this tool's own report: a refusal eaten by a catch (2026-08-18's 8.6 s mid-file step
+     vanished from H_axis P2's first run, #2047), a missing-file night that never printed at all, and
+     one fixed "too few beats" line covering five different oracleNight causes. A corpus line count
+     that doesn't reconcile with the directory count is a filter nobody stated. */
+  const refuse = (n, reason) => {
+    console.log(`${n}  ⊘ REFUSED — ${reason}`);
+    tally.REFUSED = (tally.REFUSED || 0) + 1;
+  };
   for (const n of nights) {
     const dir = join(DIR, n);
     let files;
     try {
       files = readdirSync(dir);
-    } catch {
+    } catch (e) {
+      refuse(n, `unreadable night dir (${String(e.message).slice(0, 60)})`);
       continue;
     }
     const pick = (re) => {
@@ -334,32 +369,35 @@ async function main() {
     };
     const eF = pick(/_ECG\.txt$/);
     const pF = pick(/Verity.*_PPG\.txt$/i) || pick(/_PPG\.txt$/);
-    if (!eF || !pF) continue;
+    if (!eF || !pF) {
+      refuse(n, `missing ${eF ? '' : '_ECG.txt'}${!eF && !pF ? ' and ' : ''}${pF ? '' : '_PPG.txt'}`);
+      continue;
+    }
     let E;
     let P;
     try {
       E = ecgRpeakTimes(readFileSync(eF, 'utf8'), AXIS === 'piecewise' ? { axis: 'piecewise' } : undefined);
       P = ppgFootTimes(readFileSync(pF, 'utf8'));
     } catch (e) {
-      /* Under --ecg-axis piecewise a parse/transform refusal (e.g. the sortedness assertion on a
-         large mid-file step) is a P2 EXCLUSION and must say so — the first run swallowed 2026-08-18
-         (maxStep 8654 ms) right here, a silent filter inside the very design whose frozen
-         conditions demand annotate-and-exclude. Linear mode keeps the historical silent skip. */
-      if (AXIS === 'piecewise') console.log(`${n}  ⊘ excluded (${String(e.message).slice(0, 70)})`);
+      /* The catch cannot narrow WHAT the parse/transform layer throws (it is another module's
+         surface), so it narrows what it is allowed to DO with it: name the night, quote the message,
+         count it. Under --ecg-axis piecewise this is additionally a P2 denominator exclusion (e.g.
+         the sortedness assertion on a large mid-file step), which the wording preserves. */
+      refuse(n, `${AXIS === 'piecewise' ? 'piecewise-axis exclusion: ' : ''}${String(e.message).slice(0, 70)}`);
       continue;
     }
     if (AXIS === 'piecewise' && !E.tMsCorrected) {
-      console.log(`${n}  ⊘ piecewise axis refused (tMsCorrected=false, independent=${E.independent}) — excluded from the P2 denominator`);
+      refuse(n, `piecewise axis refused (tMsCorrected=false, independent=${E.independent}) — excluded from the P2 denominator`);
       continue;
     }
     const train = FID === 'foot' ? P.times : FID === 'cfd' ? P.cfdTimes : P.halfTimes;
     const fTimes = Array.from(train).filter(Number.isFinite);
     const res = oracleNight(Array.from(E.times), fTimes, HW);
-    if (!res) {
-      console.log(`${n}  ⊘ too few beats`);
+    const v = oracleVerdict(res);
+    if (v.refused && v.tallyKey === 'REFUSED') {
+      refuse(n, res.refusal);
       continue;
     }
-    const v = oracleVerdict(res);
     tally[v.tallyKey] = (tally[v.tallyKey] || 0) + 1;
     /* maxStepMs beside every piecewise row (frozen condition c): a mid-file step smears across one
        anchor gap under piecewise and can itself move a half-mode — discovered here, not post-hoc. */
