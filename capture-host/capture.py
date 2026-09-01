@@ -4609,10 +4609,20 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
             # cannot hold its links passes every one of them. That is the 2026-08-29 ring storm: 269
             # reconnects, nothing wedged, nothing switched, nothing said why. Assessed here, on the
             # clean path, precisely because that is where the failure hides.
-            # REPORT-ONLY for now: it publishes a verdict and does not yet trigger a switch. The bands
-            # are pre-stated (RADIO-FAILOVER-DISTRESS-SIGNAL brief) but no baseline file exists on any
-            # box yet, so every verdict is honestly UNKNOWN until one does — and a trigger that fires
-            # off an absent baseline is the fabrication this whole lane exists to prevent.
+            # REPORT-ONLY, and the reason has CHANGED — the old one is no longer true. This used to
+            # say "no baseline file exists on any box yet". One does: vigil has
+            # captures/link-baselines.json since 2026-08-31, two adapters, 6-14 nights per device,
+            # and the live verdicts are real ("1.6/h within band 8.2/h, 14 nights, ok"). A comment
+            # contradicted by the box is how the next reader repeats the last reader's mistake.
+            #
+            # 🔴 IT STAYS REPORT-ONLY FOR A DIFFERENT AND STRUCTURAL REASON: this verdict is
+            # PER-DEVICE, and `ADAPTER` (see the config read in main) is a SINGLE GLOBAL PIN. Firing
+            # a switch off one device's distress would relocate every other device — tearing down
+            # live links mid-night onto a radio their own baselines never complained about. That is
+            # a category mismatch, not a threshold to tune, and it is why the usual
+            # "failing-to-fire is neutral, so arm it" argument does not apply here: failing to fire
+            # costs the status quo, firing wrongly costs a night. A per-ADAPTER aggregation of these
+            # per-device verdicts is the prerequisite, and it lands unarmed by default.
             try:
                 STATUS["radio_distress"] = link_distress_scan(
                     adapter_mac, STATUS.get("devices", {}), _link_baselines(cfg.get("root") or ""),
