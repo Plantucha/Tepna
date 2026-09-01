@@ -5,6 +5,17 @@
 -->
 
 **Status:** IN-PROGRESS — 2026-08-01 (**§2, §3 and §4 are now GATED — see §2a.** All three fixes existed
+
+> **TRIAGE 2026-09-01 — every section resolved; nothing is open to code.** §2·§3·§4 gated and
+> mutation-verified (§2a). §5 is a recorded CAVEAT, not a build item (the confidence gate is not an
+> apnea filter — a pause shorter than the 60 s window does not trigger abstention). §6 is closed as
+> *probably never* — gravity-roll IQR 13.1–17.9° across 26 nights is one posture, so the corpus
+> cannot supply the contrast. §7 needs a SECOND SUBJECT, i.e. data. §8 is **REFUTED** by measurement
+> (2026-08-04) — 'there is nothing left to notch'. §1 is the parent's data-blocked corpus run.
+> ⚠️ The shared `nativeHz(rows)` SPINE helper remains deliberately unbuilt (§2a): it would re-stamp
+> all 8 `manifestHash` values for one caller, and its proposed lint was measured to have **no
+> subjects** — the only count-over-duration hits are genuine EVENT rates. The local `nativeHz` in
+> `ppgdex-dsp.js` / `resp-acc-analysis*.js` is not that helper and does not discharge it.
 in `resp-acc-analysis.js`; none had a test, and the module was loaded by NEITHER runner, so each fix
 rested on the comment above it. It is wired into both lanes and the three failure modes are pinned by
 known answers that reproduce the brief's own published figures (1.19 % rate error · −36.7 dB at 0.8 Hz),
