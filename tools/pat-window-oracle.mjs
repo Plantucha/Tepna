@@ -298,8 +298,15 @@ async function main() {
      index-parallel-with-NaN by contract; the oracle scores a train of event TIMES, so the NaNs
      (edge-unusable beats) are dropped here — order is preserved, no correspondence is consumed. */
   const FID = argv.includes('--fiducial') ? argv[argv.indexOf('--fiducial') + 1] : 'foot';
-  if (!DIR || !existsSync(DIR) || !['foot', 'cfd', 'half'].includes(FID)) {
-    console.error('usage: node tools/pat-window-oracle.mjs --selftest | --dir <captures root> [--half-width 100] [--fiducial foot|cfd|half]');
+  /* --ecg-axis: which time axis the ECG train rides (H_axis P2, PPG-FOOT-PLACEMENT-FOLLOWUPS §1
+     frozen pre-registration). `linear` (default) is byte-identical to the pre-flag tool; `piecewise`
+     asks ecgRpeakTimes for the DSP's host-disciplined tMsAt map. Per the frozen conditions the
+     correction is consumed ONLY when the DSP reports it live (`tMsCorrected` — which already
+     requires an independent second clock); otherwise the night is ANNOTATED and skipped, never
+     scored on a silent zero-correction axis wearing the piecewise label. */
+  const AXIS = argv.includes('--ecg-axis') ? argv[argv.indexOf('--ecg-axis') + 1] : 'linear';
+  if (!DIR || !existsSync(DIR) || !['foot', 'cfd', 'half'].includes(FID) || !['linear', 'piecewise'].includes(AXIS)) {
+    console.error('usage: node tools/pat-window-oracle.mjs --selftest | --dir <captures root> [--half-width 100] [--fiducial foot|cfd|half] [--ecg-axis linear|piecewise]');
     process.exit(2);
   }
   const { getDsps, ecgRpeakTimes, ppgFootTimes } = await import(join(HERE, 'pat-matchrate-strict.mjs'));
@@ -307,7 +314,9 @@ async function main() {
   const nights = readdirSync(DIR)
     .filter((n) => /^2026-/.test(n))
     .sort();
-  console.log(`half-width ±${HW} ms · fiducial ${FID} · mode search 0–${MODE_SEARCH_MAX} ms · bands: <=${BAND_RECOVERED} RECOVERED, <${BAND_PARTIAL} PARTIAL, else NO RECOVERY; null must be beaten\n`);
+  console.log(
+    `half-width ±${HW} ms · fiducial ${FID} · ecg-axis ${AXIS} · mode search 0–${MODE_SEARCH_MAX} ms · bands: <=${BAND_RECOVERED} RECOVERED, <${BAND_PARTIAL} PARTIAL, else NO RECOVERY; null must be beaten\n`
+  );
   console.log('night        mode    n     narrowSD    fullSD     nullSD   verdict');
   const tally = {};
   for (const n of nights) {
@@ -329,9 +338,18 @@ async function main() {
     let E;
     let P;
     try {
-      E = ecgRpeakTimes(readFileSync(eF, 'utf8'));
+      E = ecgRpeakTimes(readFileSync(eF, 'utf8'), AXIS === 'piecewise' ? { axis: 'piecewise' } : undefined);
       P = ppgFootTimes(readFileSync(pF, 'utf8'));
-    } catch {
+    } catch (e) {
+      /* Under --ecg-axis piecewise a parse/transform refusal (e.g. the sortedness assertion on a
+         large mid-file step) is a P2 EXCLUSION and must say so — the first run swallowed 2026-08-18
+         (maxStep 8654 ms) right here, a silent filter inside the very design whose frozen
+         conditions demand annotate-and-exclude. Linear mode keeps the historical silent skip. */
+      if (AXIS === 'piecewise') console.log(`${n}  ⊘ excluded (${String(e.message).slice(0, 70)})`);
+      continue;
+    }
+    if (AXIS === 'piecewise' && !E.tMsCorrected) {
+      console.log(`${n}  ⊘ piecewise axis refused (tMsCorrected=false, independent=${E.independent}) — excluded from the P2 denominator`);
       continue;
     }
     const train = FID === 'foot' ? P.times : FID === 'cfd' ? P.cfdTimes : P.halfTimes;
@@ -343,8 +361,11 @@ async function main() {
     }
     const v = oracleVerdict(res);
     tally[v.tallyKey] = (tally[v.tallyKey] || 0) + 1;
+    /* maxStepMs beside every piecewise row (frozen condition c): a mid-file step smears across one
+       anchor gap under piecewise and can itself move a half-mode — discovered here, not post-hoc. */
+    const axisNote = AXIS === 'piecewise' ? `  [maxStep ${E.maxStepMs == null ? 'n/a' : E.maxStepMs.toFixed(0) + ' ms'}]` : '';
     console.log(
-      `${n}  ${res.mode.toFixed(0).padStart(5)}  ${String(res.narrowN).padStart(5)}  ${res.narrowSd.toFixed(1).padStart(8)}  ${res.fullSd.toFixed(1).padStart(8)}  ${res.nullSd.toFixed(1).padStart(8)}   ${v.label}`
+      `${n}  ${res.mode.toFixed(0).padStart(5)}  ${String(res.narrowN).padStart(5)}  ${res.narrowSd.toFixed(1).padStart(8)}  ${res.fullSd.toFixed(1).padStart(8)}  ${res.nullSd.toFixed(1).padStart(8)}   ${v.label}${axisNote}`
     );
   }
   console.log('\nTALLY:', JSON.stringify(tally));
