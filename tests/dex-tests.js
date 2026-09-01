@@ -6865,17 +6865,25 @@
        confounded with date, so no subsetting can separate code version from night. The per-cohort medians
        differ by 1.5 bpm of PpgDex σ — larger than the shift being attributed.
 
-       The load-bearing assertion is `unreadable`. The cohort of an unmarked night is 'pre-host-axis', so a
-       reader that silently stops populating markers makes every night pre and the corpus reads
-       HOMOGENEOUS — a green verdict produced by reading nothing. That is not hypothetical: it happened on
-       the first wiring, when `runNight` rebuilt its row object and dropped the field, and a corpus
-       measured at 25/15 reported "all 40 from one producing code version". */
+       The load-bearing assertion is `unreadable`. A reader that silently stops populating markers must
+       never yield a green verdict — a verdict produced by reading nothing. That is not hypothetical: it
+       happened on the first wiring, when `runNight` rebuilt its row object and dropped the field, and a
+       corpus measured at 25/15 reported "all 40 from one producing code version".
+
+       The marker is TRI-STATE since 2026-09-01: undefined = no wearable export seen ⇒ NO cohort (absence
+       of the device is not old-code evidence — the refold's 46 early no-wearable nights raised a false
+       MIXED banner over a single-generation corpus under the old two-state rule); null = a wearable
+       export without the field ⇒ pre-host-axis; any value ⇒ post-host-axis. And the mixed/confounded
+       banner fires only when two cohorts BOTH contribute solutions — a cohort that never enters a median
+       cannot confound it. */
     group('a multi-night median is quotable only over one producing-code version', 'tch-corpus · homogeneity', function (T) {
       var TC = env.TchCorpus;
       T.ok('TchCorpus is loaded in this lane', !!TC, 'tools/tch-corpus.js did not load — the group below would vacuously pass');
       if (!TC) return;
-      var N = function (night, marker) {
-        return { night: night, marker: marker };
+      var N = function (night, marker, solved) {
+        var n = { night: night, marker: marker };
+        if (solved !== undefined) n.solved = solved;
+        return n;
       };
 
       // ── one version ⇒ the median is a corpus figure ──
@@ -6883,23 +6891,48 @@
       T.ok('all nights marked ⇒ homogeneous', homo && homo.homogeneous === true);
       T.ok('…and quotable', TC.corpusVerdict(homo).quotable === true);
 
-      // ── THE FAIL-OPEN LEG. No marker anywhere is indistinguishable from a broken reader. ──
+      // ── the tri-state marker: absence of the WEARABLE is not absence of the FIELD ──
+      T.eq('a wearable export without the field is the old-code signature', TC.cohortOf(null), 'pre-host-axis');
+      T.eq('a night with no wearable export carries NO cohort', TC.cohortOf(undefined), null);
+      var noWear = TC.cohortSplit([N('2026-05-03'), N('2026-05-04'), N('2026-06-10', 'device+host'), N('2026-06-11', 'device+host')]);
+      T.eq('no-wearable nights do not found a cohort — the corpus is homogeneous', TC.corpusVerdict(noWear).state, 'homogeneous');
+      T.ok('…and quotable — this is the refold false-MIXED regression', TC.corpusVerdict(noWear).quotable === true);
+      T.eq('…with the uncohorted nights counted, not hidden', noWear.uncohorted, 2);
+      T.ok('…and named in the verdict', /2 night\(s\) without a wearable/.test(TC.corpusVerdict(noWear).why));
+
+      // ── THE FAIL-OPEN LEGS. Every shape a broken reader can produce is refused, not quoted. ──
       var blind = TC.cohortSplit([N('2026-06-10'), N('2026-06-11'), N('2026-06-12')]);
-      T.ok('no marker on ANY night ⇒ every night falls in one cohort', blind && blind.homogeneous === true);
-      T.eq('…but that is REFUSED, not quoted — it cannot be told from a reader that read none', TC.corpusVerdict(blind).state, 'unreadable');
+      T.ok('no cohort on ANY night ⇒ no cohort is founded', blind && Object.keys(blind.cohorts).length === 0);
+      T.eq('…and that is REFUSED, not quoted — it cannot be told from a reader that read none', TC.corpusVerdict(blind).state, 'unreadable');
       T.ok('…and is not quotable', TC.corpusVerdict(blind).quotable === false);
+      var allPre = TC.cohortSplit([N('2026-06-10', null), N('2026-06-11', null)]);
+      T.eq('all-legacy (every marker null) is also refused — indistinguishable from a half-broken reader', TC.corpusVerdict(allPre).state, 'unreadable');
+      var dropped = TC.cohortSplit([N('2026-06-10', 'device+host', true), N('2026-06-11', undefined, true)]);
+      T.eq('a SOLVED night with no cohort is the dropped-field signature ⇒ refused', TC.corpusVerdict(dropped).state, 'unreadable');
+      T.ok('…and says the marker was dropped by the reader', /dropped by the reader/.test(TC.corpusVerdict(dropped).why));
 
       // ── mixed, interleaved: a matched comparison is still possible ──
-      var mixed = TC.cohortSplit([N('2026-06-10', 'device+host'), N('2026-06-11'), N('2026-06-12', 'device+host'), N('2026-06-13')]);
+      var mixed = TC.cohortSplit([N('2026-06-10', 'device+host'), N('2026-06-11', null), N('2026-06-12', 'device+host'), N('2026-06-13', null)]);
       T.eq('interleaved cohorts ⇒ mixed', TC.corpusVerdict(mixed).state, 'mixed');
       T.ok('…and not quotable', TC.corpusVerdict(mixed).quotable === false);
       T.ok('…but NOT date-confounded — the nights can be paired', mixed.dateConfounded === false);
 
       // ── mixed, contiguous: code version and date are the same variable ──
-      var conf = TC.cohortSplit([N('2026-06-10', 'device+host'), N('2026-06-11', 'device+host'), N('2026-07-16'), N('2026-07-17')]);
+      var conf = TC.cohortSplit([N('2026-06-10', 'device+host'), N('2026-06-11', 'device+host'), N('2026-07-16', null), N('2026-07-17', null)]);
       T.eq('cohorts in disjoint date ranges ⇒ confounded', TC.corpusVerdict(conf).state, 'confounded');
       T.ok('…which is a STRONGER refusal than mixed, and says regenerate', /regenerate/.test(TC.corpusVerdict(conf).why));
       T.ok('…and confounded is its own flag, not folded into mixed', conf.dateConfounded === true && mixed.dateConfounded === false);
+
+      // ── the banner needs two cohorts IN THE MEDIAN, not two cohorts in the directory ──
+      var oneSide = TC.cohortSplit([N('2026-06-10', 'device+host', true), N('2026-06-11', 'device+host', true), N('2026-07-16', null, false), N('2026-07-17', null, false)]);
+      T.eq('two cohorts, one contributing solutions ⇒ homogeneous, not confounded', TC.corpusVerdict(oneSide).state, 'homogeneous');
+      T.ok('…quotable — the unsolved cohort enters no median', TC.corpusVerdict(oneSide).quotable === true);
+      T.ok('…and the silent cohort is NAMED, not hidden', /pre-host-axis 2 night\(s\), none solved/.test(TC.corpusVerdict(oneSide).why));
+      var bothSides = TC.cohortSplit([N('2026-06-10', 'device+host', true), N('2026-06-11', 'device+host', true), N('2026-07-16', null, true), N('2026-07-17', null, false)]);
+      T.eq('…but one solved night in the second cohort restores the refusal', TC.corpusVerdict(bothSides).state, 'confounded');
+      var noneSolved = TC.cohortSplit([N('2026-06-10', 'device+host', false), N('2026-07-16', null, false)]);
+      T.ok('two cohorts, zero solutions ⇒ refused, not quoted', TC.corpusVerdict(noneSolved).quotable === false);
+      T.eq('callers that pass no solved info keep the stricter directory-level verdict', TC.corpusVerdict(conf).state, 'confounded');
 
       // ── the shape a caller depends on ──
       T.eq('an empty corpus is null, not an empty pass', TC.cohortSplit([]), null);

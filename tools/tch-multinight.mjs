@@ -281,8 +281,13 @@ function readNightDir(dir) {
        corpus, so no gate in this repo could see it. */
     prov = {};
   /* The producing-code marker, read off the export rather than remembered. `quality.timingSource` is
-     the field the host-axis work added, so its ABSENCE dates a night to before that change — which is
-     exactly the cohort split that made two published σ medians incomparable. */
+     the field the host-axis work added, so its absence FROM A PPGDEX EXPORT dates a night to before
+     that change — which is exactly the cohort split that made two published σ medians incomparable.
+     Tri-state (TchCorpus.cohortOf's contract): a night with NO PpgDex export at all keeps `marker`
+     undefined — no cohort, because absence of the wearable is not old-code evidence (the 2026-09-01
+     refold's 46 early no-wearable nights read as pre-host-axis under the old two-state rule and
+     raised a false MIXED banner over a single-generation corpus). A PpgDex export WITHOUT the field
+     sets null — the genuine old-code signature. */
   let marker;
   let pseudo = false;
   for (const f of files) {
@@ -294,7 +299,10 @@ function readNightDir(dir) {
     }
     const node = nodeOf(j, f);
     if (!node || !LABELS.includes(node)) continue;
-    if (node === 'PpgDex' && j.quality && j.quality.timingSource !== undefined) marker = j.quality.timingSource;
+    if (node === 'PpgDex') {
+      if (j.quality && j.quality.timingSource !== undefined) marker = j.quality.timingSource;
+      else if (marker === undefined) marker = null;
+    }
     /* PER-CORNER AXIS PROVENANCE, for every corner — not just the one that publishes it (2026-08-17).
        `marker` above is a COHORT LABEL read from PpgDex alone; it refuses nothing and says nothing
        about the other two. TCH needs the three errors uncorrelated, and a corner whose exported axis
@@ -408,7 +416,9 @@ function report(rows, { json } = {}) {
   const culpritSig = solved.map((x) => (x.sigmaRho ? x.sigmaRho[x.withRho.culprit] : null));
   /* BEFORE the medians, not after. §F3's PpgDex 2.71 → 3.44 was published and only later found to span
      different night sets; a reader must meet the corpus verdict before the number it qualifies. */
-  const split = TchCorpus.cohortSplit(rows.map((x) => ({ night: x.label, marker: x.marker })));
+  const solvedSet = new Set(solved.map((x) => x.label));
+  const split = TchCorpus.cohortSplit(rows.map((x) => ({ night: x.label, marker: x.marker, solved: solvedSet.has(x.label) })));
+  const corpusVerdict = TchCorpus.corpusVerdict(split);
   const corpusLine = TchCorpus.corpusLine(split);
   if (corpusLine) console.log('\n' + corpusLine);
   console.log('\n  distribution (' + solved.length + ' estimated / ' + rows.length + ' nights):');
@@ -433,8 +443,10 @@ function report(rows, { json } = {}) {
   });
   /* PER-COHORT medians when the corpus is mixed. Saying "mixed" without saying what the mix is worth
      leaves a reader unable to judge whether it matters — on this corpus it is 1.5 bpm of PpgDex σ,
-     which is larger than the shift §F3 was trying to attribute. */
-  if (split && !split.homogeneous) {
+     which is larger than the shift §F3 was trying to attribute. Keyed on the VERDICT, not on the
+     structural cohort count: a second cohort with no solutions contributes to no median, so there is
+     no mix to price (corpusVerdict already named it). */
+  if (split && (corpusVerdict.state === 'mixed' || corpusVerdict.state === 'confounded')) {
     console.log('\n    per-cohort medians (classic) — the mix is worth this much:');
     Object.keys(split.cohorts)
       .sort()
