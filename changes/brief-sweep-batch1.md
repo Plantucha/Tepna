@@ -25,6 +25,15 @@ IN-PROGRESS headers, not open briefs.
   retracted as the same bug). ⚠️ Its three unchecked boxes are **one blocked chain, not three items**:
   the PAT reference must be fixed *before* CFD can be re-scored against it, and re-scoring against an
   unfixed reference would produce a number that means nothing.
+
+  🔴 **And on attempting it, the first box turned out to be SPEC-BLOCKED — the obstacle is the BAR,
+  not the reference.** The bar asks for medians inside **150–400 ms**, while `pat-matchrate-strict`
+  hard-filters lags to `PHYS_LO(200)…PHYS_HI(650)`: **a median below 200 ms is unreachable by
+  construction**, so the bar's lower half cannot be evaluated and the bar can only ever fail HIGH —
+  the window answering instead of the data. And `pat-window-oracle`'s 405 / 215 ms are **modes**
+  (histogram peak, estimated out-of-sample on each night's first half), **not medians**; reading 405
+  as "the median, which fails the 400 bar by 5 ms" would be a wrong verdict from mixing two
+  instruments. Not data-blocked — the corpus is local and both signal nights pair.
 - **`O2RING-RAW-DUAL-WAVELENGTH`** — protocol decoded across two hardware runs (`0x05` is not a
   plethysmogram, `0x03` is). Remainder is hardware-shaped; §5's three failed optical experiments are
   recorded so they are not repeated.
