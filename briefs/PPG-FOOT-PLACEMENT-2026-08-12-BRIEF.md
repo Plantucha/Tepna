@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS · **Created:** 2026-08-12
+**Status:** DONE — 2026-09-01 · **Created:** 2026-08-12
 
 > **TRIAGED 2026-09-01 — the root cause is FIXED; what remains is SEQUENCED behind a dependency, not buildable now.** §0 RESOLVED 2026-08-13: it was a polarity bug in `orient()`, and everything below it is downstream. §1b is RETRACTED — the rate finding *was* the polarity bug, and the refuted claim is retained only for the record. ⚠️ The three unchecked boxes are strictly ordered and the first gates the rest: the **PAT reference must be fixed** (medians inside 150–400 ms, pairing ≥95 % on both modes) *before* CFD can be re-scored against it, and only then can the residual 2.2–13.2 ms spread be explained. Re-scoring against an unfixed reference would produce a number that means nothing — so this is not three parallel items but one blocked chain.
 >
@@ -325,11 +325,12 @@ Fixing that outranks any estimator change — it blocks every PAT measurement, n
       briefly looked like the ΔPAT result was affected — it is not). The fix is correct, systemic,
       and inert on the current results. `ppgFootTimes` now returns `polarityFlipped` so a future
       run cannot be silently on either side of it.
-- [ ] explain the RESIDUAL 2.2–13.2 ms spread that survives the polarity fix — pre-registration
-      committed §5 (2026-09-01), measured same day: C3/C4 refuted, C1 refuted as THE explanation
-      (magnitude ~150× off), C2 passes cross-night (ρ=−0.861) but its within-night conjunct is
-      DATA-BLOCKED (corpus volume failed mid-probe — §5 results). Bounded + partially decomposed;
-      stays open on the within-night test alone
+- [x] explain the RESIDUAL 2.2–13.2 ms spread that survives the polarity fix — **CLOSED under §5's
+      pre-registered rule 3 (2026-09-01): bounded (1.84–13.71 ms, canonical n=31), UNEXPLAINED,
+      C1–C4 all refuted with measurements** (C1 +0.683 / C2 −0.694 / C3 −0.698 all under the 0.7
+      bar; C4 absent outright; within-night conjunct 8/18 with both extremes 0/3). Rule 3 names
+      this a legitimate closure; reopening requires a NEW pre-registration (the slow-wander
+      observation is the seed — see the FOLLOWUPS brief)
 
 ## 5 · Pre-registration — the residual-spread decomposition (committed BEFORE the predictor run)
 
@@ -382,34 +383,44 @@ it would move every bundle's `manifestHash` for a probe, so C2 was instrumented 
 foot→peak amplitude / robust noise RMS (same quantity; thresholds untouched; recorded in the tool
 header and here).
 
-**Primary population (phone tree, n=15 scored of 16 candidate dates; 1 skipped <2 pairable
-channels).** Estimand reproduces: worst-pair IQR spans **2.23–13.71 ms** against the 2.2–13.2
-headline. Against the pre-stated rules:
+**A provenance correction sits in this section's history, kept because the shape recurs.** The
+first measurement ran against `/run/media/…/Ecg-nightly-archive` — a **stale, incomplete mirror**
+holding only the June 10–27 half of the phone corpus (n=15) — and that USB volume then threw Buffer
+I/O errors with lost async page writes mid-campaign and dropped (kernel log 2026-09-01 10:21;
+unmounted, left for the owner). On the mirror subset C1 read ρ=+0.789 and C2 −0.861 — **both above
+bar**; on the canonical corpus below, neither is. An incomplete snapshot flattered two candidates.
+The canonical root is `/srv/data/tepna-corpus/uploads/Ecg nightly` (owner consolidation 2026-08-28,
+`docs/CORPUS-LOCATIONS.md`), and every number below comes from it.
+
+**Primary population (canonical phone tree, n=31 scored of 32 candidate dates, 06-10 → 07-13;
+1 skipped <2 pairable channels).** Estimand: worst-pair IQR spans **1.84–13.71 ms**, median 3.20 —
+brackets the 2.2–13.2 headline. Against the pre-stated rules:
 
 | candidate | cross-night result | verdict |
 |---|---|---|
-| C1 noise/slope | ρ = **+0.789** (bar +0.7) — but the MAGNITUDE clause fails by ~150× (sd/c1 = 68–282, median 147) | rank signal real; **REFUTED as THE explanation** (rule 2): the dispersion is not sample-level white noise through the slope — it is ~two orders larger, i.e. in-band noise |
-| C2 amplitude/noise | ρ = **−0.861** (bar −0.7) | cross-night PASS; promotion to "explains" blocked — see below |
-| C3 yield | ρ = −0.514, and yield sits at 99–100 % on every scored night | **REFUTED as instrumented** — the predictor has no dynamic range on this population (defined, not informative) |
-| C4 alternation | no pair-night anywhere reaches r1 ≤ −0.3 (range −0.05…+0.78) | **REFUTED** — alternation is absent from the measurable phone nights |
+| C1 noise/slope | ρ = **+0.683** (bar +0.7); magnitude ~140× short regardless (sd/c1 = 62–282, median 137) | **REFUTED** — under bar, and the white-noise-through-slope model is two orders too small: the dispersion is in-band noise |
+| C2 amplitude/noise | ρ = **−0.694** (bar −0.7) | **REFUTED** — under bar by the pre-stated rule |
+| C3 yield | ρ = **−0.698** (bar −0.7), and yield sits at 98–100 % throughout | **REFUTED** — under bar, and near-degenerate dynamic range |
+| C4 alternation | no pair-night anywhere reaches r1 ≤ −0.3 (range −0.05…+0.78) | **REFUTED** — alternation is absent from the phone corpus |
 
-**Post-hoc observation (not a registered candidate, labeled as such):** r1 skews strongly POSITIVE
-(up to +0.78 on the worst night) — the inter-LED difference wanders slowly rather than alternating.
-Whatever drives the dispersion is coherent over many beats.
+**Rule 1's within-night conjunct, measured on the six pre-named nights:** the slope-tertile fall
+holds on only **8 of 18** pair-nights, and both extreme nights read 0/3 (06-10, the widest, and
+06-15, among the tightest). The mechanism signature is not consistently present — concordant with
+the cross-night failure.
 
-**Secondary population (box tree, n=45):** same directions, none at bar — C1 +0.550 · C2 −0.574 ·
-C3 −0.563 · C4 +0.048.
+**So rule 3 applies, and it was written for exactly this outcome: the box CLOSES as bounded
+(1.84–13.71 ms per-night worst-pair IQR), UNEXPLAINED, with C1–C4 refuted by these measurements.**
+Three candidates land just under the bar (0.68–0.70), mutually correlated — a real quality-flavoured
+latent signal is plainly present, but the pre-stated bar exists precisely so a near-miss is not
+argued over the line after the fact. Anyone reopening this starts from a new pre-registration with
+a sharper candidate, not from softening this one.
 
-🔴 **Rule 1's within-night conjunct is UNMEASURED — data-blocked, not skipped.** The slope-tertile
-probe (`--within`) was mid-flight on the six pre-named nights when the `data` USB volume (the only
-local phone-tree copy; the `647A` original is offline) threw Buffer I/O errors **with lost async
-page writes**, stopped, and re-attached unmounted (kernel log 2026-09-01 10:21). Remounting a disk
-that just lost writes is the owner's risk call, so the campaign stopped there. Consequence, per the
-pre-stated rules: **neither C1 nor C2 is promoted to "EXPLAINS"** — the honest state is *"C2 (and
-C1's ranking) carry the cross-night signal; the within-night mechanism test is owed"* — and the
-residual-spread box stays open as **bounded + partially decomposed**. Next actionable: run
-`--within` on 2026-06-10/20/21 (high) and 06-18/12/15 (low) from a safe corpus copy (vigil holds
-mirrors; owner call).
+**Post-hoc observations (not registered candidates, labeled as such):** (1) r1 skews strongly
+POSITIVE (to +0.78 on the widest night) — the inter-LED difference **wanders slowly**, it does not
+alternate; whatever drives the dispersion is coherent over many beats, which is inconsistent with
+any per-beat noise mechanism and is the most promising seed for a future candidate. (2) The
+secondary population (box tree, n=45) shows the same directions, none at bar — C1 +0.550 ·
+C2 −0.574 · C3 −0.563 · C4 +0.048.
 
 Related: [`CROSS-DOMAIN-METHODS-2026-08-12-BRIEF.md`](CROSS-DOMAIN-METHODS-2026-08-12-BRIEF.md) ·
 [`PPG-SAMPLE-RATE-AND-PAT-2026-08-03-BRIEF.md`](PPG-SAMPLE-RATE-AND-PAT-2026-08-03-BRIEF.md)
