@@ -15,12 +15,15 @@ import json
 import cmath
 import math
 import os
+import logging
 import subprocess
 
 import allan
 import clock_offset
 import writers
 from datetime import datetime, timedelta
+
+log = logging.getLogger("tepna-capture")
 
 # Sidecars the box writes that are NOT a device capture stream — excluded from the per-device rollup so a
 # LINK/CLOCK/QC file never masquerades as sensor data.
@@ -401,7 +404,9 @@ def measured_hz(path: str, max_rows: int = _RATE_SAMPLE_ROWS):
                 try:
                     ns.append(int(parts[1]))
                 except ValueError:
-                    continue
+                    continue          # BOUNDED BY A FLOOR, which is why this one stays quiet: if
+                                      # enough rows drop, `len(ns) < _RATE_MIN_ROWS` refuses below
+                                      # and returns None rather than a rate built from scraps
     except OSError:
         return None
     if len(ns) < _RATE_MIN_ROWS:
@@ -677,6 +682,10 @@ def newest_data_mtime(night_dir: str) -> float | None:
                 m = os.path.getmtime(p)
                 newest = m if newest is None else max(newest, m)
         except OSError:
+            # NOT a partial total — a WRONG ANSWER. Skipping a file makes the night look OLDER than
+            # it is, and the caller uses this to decide which night is the active one. Rare enough
+            # (per file, not per row) that saying so costs nothing.
+            log.warning("night-QC: %s is unreadable, so it cannot age this night", p, exc_info=True)
             continue
     return newest
 
@@ -1135,8 +1144,14 @@ def arrival_quality(night_dir: str) -> list[dict]:
                         per.setdefault((row.get("device", ""), row.get("meas", "")), []).append(
                             (host_ms, host_ms - int(ns) / 1e6, int(ns)))
                     except (ValueError, TypeError):
-                        continue
+                        continue      # a torn or half-written row is EXPECTED in a live journal and
+                                      # is not evidence about arrival quality; `rows` below reports
+                                      # how many actually survived to be measured
         except OSError:
+            # A whole arrival file lost: every stream inside it silently vanishes from the report,
+            # and an absent stream reads the same as one that was never recorded.
+            log.warning("night-QC: arrival file %s is unreadable, so its streams are absent from "
+                        "this report rather than judged", name, exc_info=True)
             continue
         for (device, meas), pairs in sorted(per.items()):
             quantised = meas.endswith("_DURATION_S")
@@ -1362,12 +1377,16 @@ def ppg2w_contact_quality(night_dir: str) -> list:
                     try:
                         a, b = int(parts[2]), int(parts[3])
                     except ValueError:
-                        continue
+                        continue      # a torn row is expected at a live file's tail; the epoch count
+                                      # is computed from the rows that parsed, and `_PPG2W_MIN_EPOCHS`
+                                      # refuses a block built from too few
                     if first_ts is None:
                         first_ts = parts[0]
                     ch0.append(a)
                     ch1.append(b)
         except OSError:
+            log.warning("night-QC: %s is unreadable, so its contact quality is ABSENT rather than "
+                        "poor — the two must not read alike", name, exc_info=True)
             continue
         block = ppg2w_contact(ch0, ch1)
         if block is None:
@@ -1419,7 +1438,9 @@ def rtc_drift_summary(path: str) -> dict | None:
                 offsets.append(float(p[2]))
                 times.append(p[0])
             except ValueError:
-                continue
+                continue              # the returned `reads` IS len(offsets), so a dropped row shows
+                                      # up as a smaller read count rather than as a silently
+                                      # narrower drift estimate
     if not offsets:
         return None
     span_h = None
