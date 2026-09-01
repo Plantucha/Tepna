@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§11/§13 oracle) · **Interlocks:** `PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md`
+**Status:** IN-PROGRESS · **TRIAGED 2026-09-01 (Osprey): tool BUILT and selftest-clean (`tools/pat-window-oracle.mjs --selftest` = 8/8) but NEVER RUN on a corpus and its results are referenced in no brief, audit or doc. **CORRECTED 2026-09-01: NOT blocked — the raw corpus IS local.** My first stamp said this machine has zero `_ECG.txt`; that was wrong because I searched only the repo's `uploads/` tree, which holds node-export JSON. The canonical root is **`/srv/data/tepna-corpus/` (125 GB, 1131 raw `_ECG.txt`)** with per-night raw dirs under `smoketest-captures/` (box), `uploads/vigil-archive/captures/` (daily mirror) and `uploads/Ecg nightly/` (phone). Pointed at `uploads/trio` the oracle exits 0 with `TALLY: {}` — a WRONG-ROOT failure, not a negative result, which is what made the absence look real. Now running against the real root.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§11/§13 oracle) · **Interlocks:** `PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md`
 
 # There IS signal under the window — the acceptance window is mis-specified, not merely wide
 
@@ -264,6 +264,86 @@ eliminated and physiology-vs-contact left open. **That is a complete and truthfu
 the vigil nights are the natural n. Residual attribution becomes its own brief rather than being
 chased past the charter on two nights.
 
+
+## ✅ FIRST CORPUS RUN — executed 2026-09-01 (Osprey)
+
+`tools/pat-window-oracle.mjs --dir <root>` had never been run against a corpus; its results appeared in
+no brief, audit or doc. Run over **43 box nights** (`/srv/data/tepna-corpus/smoketest-captures/`, with
+`2026-08-23` excluded — see the landmine note), half-width ±100 ms:
+
+| verdict | nights |
+|---|---|
+| **SIGNAL RECOVERED** | **2** |
+| PARTIAL | 14 |
+| NO RECOVERY (null not beaten) | 6 |
+| UNDEFINED (`n = 0` matched beats) | 6 |
+| ⊘ too few beats | 15 |
+
+**The two recoveries are unambiguous**: `2026-07-24` narrowSD **15.3** vs null 59.5, and `2026-08-17`
+**17.9** vs 57.8. Everywhere else the null is at or below the measurement.
+
+### The null IS the window, and the arithmetic says so
+
+`nullSD` sits at **56.2–59.5 ms** on 18 of 22 scored nights. A uniform draw across the ±100 ms search
+window has SD `200/√12 = 57.7 ms`. That is not a coincidence to be interpreted — it is the null
+reproducing its own window width.
+
+`fullSD` lands on **130.1 · 130.4 · 130.5 · 136.9** on the wide nights. The 450 ms PHYS window gives
+`450/√12 = 129.9 ms`.
+
+So this run independently reproduces, at corpus scale and from a tool nobody had executed, the result
+the memory `pat-sd-is-the-window` records from a different direction: **a PAT SD reported without its
+window is a measurement of the window.** Two instruments, one number, no shared code path.
+
+### What that means for the charter
+
+- **§11–13's oracle question is answered for the window layer**: windowing alone accounts for the
+  narrowing on 20 of 22 scored nights. Only 2 nights carry signal that beats their own null.
+- **5 nights recover a mode OUTSIDE the physiological window** (`2026-08-01` 165 ms, `2026-08-02` 185,
+  `2026-08-06` 25, `2026-08-10` 815, `2026-08-28` 1245). A mode at 25 ms or 1245 ms is not a PAT; those
+  are alignment artifacts and should not be read as short/long transit times.
+- **6 nights score `UNDEFINED` with `n = 0` matched beats** — distinct from the 15 marked ⊘ *too few
+  beats*. Zero matches on a night that has beats is a pairing failure worth its own look, and is the
+  most concrete follow-up this run produces.
+
+⚠️ **Not yet done here:** the ±100 ms half-width is the only one swept. The verdict "the null is the
+window" predicts the scores should move with the half-width, and that sweep is the natural next
+execution — cheap now that the root is known.
+
+### 🔒 PRE-REGISTERED before the half-width sweep (written 2026-09-01, BEFORE the run)
+
+Recorded ahead of the measurement so the result cannot be read post-hoc.
+
+**Prediction 1 — the null tracks the window.** If `nullSD` is the search window and not the data, it
+must follow `2w/√12` at every half-width:
+
+| half-width `w` | predicted `nullSD` |
+|---|---|
+| 50 ms | **28.9 ms** |
+| 100 ms | **57.7 ms** (observed: 56.2–59.5 on 18 of 22 nights) |
+| 200 ms | **115.5 ms** |
+| 300 ms | **173.2 ms** |
+
+A windowing-artifact night tracks that column. **The discriminator is a night whose recovered mode and
+score do NOT move with `w`** — that night has something the window is not supplying.
+
+**Prediction 2 — the two signal nights must hold their mode, or they are artifacts too.**
+`2026-07-24` recovered mode **405 ms** at SD 15.3, and `2026-08-17` mode **215 ms** at SD 17.9. Each must
+hold its mode **within ±(its own SD)** across the sweep — 405 ± 15.3 and 215 ± 17.9. If either drifts
+outside its own uncertainty as the window changes, it **reclassifies as an artifact** and the corpus has
+zero recovered nights, not two.
+
+**What would make me wrong:** `nullSD` failing to track `2w/√12` would falsify "the null is the window"
+outright, and I would have to explain the ±100 ms agreement as coincidence rather than arithmetic.
+
+### The 5 out-of-window modes — a refusal-class candidate, not built
+
+`2026-08-06` **25 ms** · `2026-08-01` 165 · `2026-08-02` 185 · `2026-08-10` 815 · `2026-08-28` **1245 ms**.
+
+A 25 ms or 1245 ms "PAT" is not a transit time. These should surface as **REFUSED-artifact** rather than
+as a number a consumer can quote — the same discipline `hostAxis` applies when its bound is exceeded.
+Recorded as a candidate only: whether the oracle refuses or merely flags belongs to that tool's
+owner-decision layer, and is not built here.
 ## 7 · Done when
 
 - [x] Out-of-sample design, circular-shift null, gate-asserted with a noise control.
