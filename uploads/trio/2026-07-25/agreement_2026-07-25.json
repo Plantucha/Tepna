@@ -22,7 +22,7 @@
       "sources": [
         {
           "node": "PpgDex",
-          "hr": 82
+          "hr": 77
         },
         {
           "node": "ECGDex",
@@ -33,7 +33,7 @@
           "hr": 60
         }
       ],
-      "median": 82,
+      "median": 77,
       "spreadBpm": 31.3,
       "adjudicated": true,
       "outlier": "OxyDex"

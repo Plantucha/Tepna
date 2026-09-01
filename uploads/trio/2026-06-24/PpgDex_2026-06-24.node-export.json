@@ -9,7 +9,7 @@
     "node": "PpgDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-08-14T07:33:17.496Z",
+    "generated": "2026-09-01T02:18:13.953Z",
     "provenance": null,
     "doc": "PpgDex PPG-derived events → Ganglior bus. t/tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -1019,7 +1019,7 @@
           "slope": -0.99
         },
         {
-          "sigmaShortestMs": 7.97,
+          "sigmaShortestMs": 7.95,
           "slope": -1.01
         },
         {
@@ -1027,7 +1027,7 @@
           "slope": -1.03
         }
       ],
-      "beatsTripled": 18009,
+      "beatsTripled": 18011,
       "negativeVarianceTaus": 0,
       "independent": true,
       "polarity": [
@@ -1081,10 +1081,10 @@
       "method": "Lomb-Scargle",
       "lowConfidence": false,
       "hfRobustLowMotion": 390,
-      "wholeRecordLf": 1689,
-      "wholeRecordHf": 948,
-      "wholeRecordLfhf": 1.78,
-      "respRate": 14.7,
+      "wholeRecordLf": 2267,
+      "wholeRecordHf": 972,
+      "wholeRecordLfhf": 2.33,
+      "respRate": 10.26,
       "respRateMethod": "RSA (HF-peak of RR spectrum)"
     },
     "confidence": {
@@ -1123,9 +1123,9 @@
         "tMin": 0,
         "hr": 51,
         "hrStat": "rate-of-mean",
-        "rmssd": 49.1,
-        "sdnn": 141.1,
-        "lfhf": 0.35,
+        "rmssd": 48.9,
+        "sdnn": 141.2,
+        "lfhf": 0.38,
         "motionIndex": 0.15,
         "ledAgreementPct": 94,
         "position": "lateral",
@@ -2145,10 +2145,11 @@
     "ppi": {
       "doc": "Per-beat PPI from the SELF-COMPUTED optical spine (3-LED consensus → buildPPI → Malik correctRR) — the device _PPI.txt is often header-only and its _HR.txt all-zero, so this is the ONLY interval series for this sensor, not a second opinion. `spine` names which fiducial won (foot or peak). tSec[i] is the beat time in seconds from startEpochMs; ms[i] is the interval ENDING at that beat. Beat times are EXPLICIT, never reconstructed by cumulative sum — a dropout would otherwise be closed silently and every later beat shifted.",
       "spine": "foot",
-      "n": 18054,
+      "n": 18055,
       "tSec": [
-        3.039,
-        4.287,
+        1.765,
+        3.037,
+        4.288,
         5.481,
         6.666,
         7.877,
@@ -20200,11 +20201,12 @@
         21833.302,
         21834.098,
         21834.918,
-        21835.813
+        21835.812
       ],
       "ms": [
-        1223,
-        1248,
+        1319,
+        1271,
+        1251,
         1193,
         1185,
         1211,
@@ -38256,10 +38258,11 @@
         820,
         796,
         820,
-        895
+        894
       ],
       "corrected": [
-        1,
+        0,
+        0,
         0,
         0,
         0,
@@ -56421,6 +56424,7 @@
         1,
         1,
         1,
+        1,
         0.994,
         1,
         0.994,
@@ -59393,7 +59397,7 @@
         0.954,
         0.956,
         0.952,
-        0.948,
+        0.949,
         0.951,
         0.95,
         0.95,
@@ -64387,7 +64391,7 @@
         0.987,
         0.989,
         0.989,
-        0.99,
+        0.989,
         0.991,
         0.991,
         0.992,
@@ -71490,7 +71494,7 @@
         1,
         1,
         0.97,
-        0.967,
+        0.968,
         0.901,
         0.901,
         0.944,
@@ -72217,7 +72221,7 @@
         0.996,
         0.996,
         0.992,
-        0.99,
+        0.991,
         0.99,
         0.991,
         0.991,
@@ -73340,7 +73344,7 @@
         0.636,
         0.799,
         0.917,
-        0.942,
+        0.943,
         0.974,
         1,
         1,
@@ -73758,7 +73762,7 @@
         0.47,
         0.467,
         0.465,
-        0.46,
+        0.461,
         0.459,
         0.454,
         0.382,

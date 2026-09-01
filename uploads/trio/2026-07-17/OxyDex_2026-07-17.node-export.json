@@ -9,7 +9,7 @@
     "node": "OxyDex",
     "nodeVersion": "1.0",
     "multiNight": false,
-    "generated": "2026-08-15T16:23:44.287Z",
+    "generated": "2026-09-01T02:41:05.665Z",
     "provenance": null,
     "doc": "OxyDex single-night SpO₂/oximetry summary computed headless from a SignalFrame(spo2). Emits ganglior_events[] (desat_event from desatProfile + periodic_breathing from oscillation episodes); OxyDex infers respiration from an SpO₂ proxy, not airflow. tMs = floating wall-clock ms (UTC getters); null = unknown, never fabricated.",
     "scrubbed": true
@@ -84094,15 +84094,6 @@
             "score": 0,
             "sev": "g",
             "cat": null
-          },
-          {
-            "key": "sbii",
-            "label": "SBII",
-            "value": 0,
-            "displayVal": "0 %²·min/hr",
-            "score": 0,
-            "sev": "g",
-            "cat": "spo2"
           }
         ],
         "top5": [
@@ -85320,8 +85311,8 @@
         "nsi": 41
       },
       "sbii": {
-        "sbii": 0,
-        "sbiiQ": "Q1(low)"
+        "sbii": null,
+        "sbiiQ": null
       },
       "pred3p": {
         "pred3p": 9,
@@ -85688,8 +85679,14 @@
           "dfaLabel": "SpO₂ DFA (α1=1.68) — HR-DFA thresholds do not apply to SpO₂ signal"
         },
         "fft": {
-          "peakFreqHz": 0.005,
-          "peakCycSec": 200
+          "peakFreqHz": null,
+          "peakCycSec": null,
+          "snr": 8.39,
+          "threshold": 19.42,
+          "bins": 349,
+          "strided": true,
+          "rhoLag1": 0.9867,
+          "detected": false
         },
         "hrEnt": null,
         "ssi": {
