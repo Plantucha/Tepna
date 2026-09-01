@@ -37,7 +37,7 @@
 #   parseDeviceACC, whose worst 175 ms slip never crosses its 30 s epoch boundary.
 
 from __future__ import annotations
-import os, re as _re, datetime as _dt, time as _time
+import errno as _errno, logging, os, re as _re, datetime as _dt, time as _time
 from typing import Iterable
 
 # The writers use big OS buffers for throughput (StreamWriter 1 MB, Spo2CsvWriter 64 KB) and would
@@ -48,6 +48,61 @@ from typing import Iterable
 # power loss). At this cadence at most FLUSH_INTERVAL_S of the tail is ever at risk. `_time.monotonic()`
 # drives the cadence — it's internal timing, not a written stamp, so the Clock Contract doesn't apply.
 FLUSH_INTERVAL_S = 5.0
+
+_log = logging.getLogger("tepna-capture")
+
+
+def _write_error_name(exc: BaseException) -> str:
+    """The SYMBOLIC errno, because ENOSPC, EIO and EROFS want three different responses at 3am.
+
+    Free some space · get the data off a dying drive · fix the mount. A failure count cannot tell
+    them apart, and neither can `str(exc)` reliably across libc messages."""
+    num = getattr(exc, "errno", None)
+    if num is None:
+        return type(exc).__name__          # ValueError: the handle was already closed
+    return _errno.errorcode.get(num, f"errno {num}")
+
+
+class _FlushHealth:
+    """Whether one file's writes are reaching the disk, logged on TRANSITIONS only.
+
+    A swallowed `flush`/`fsync` is silent data loss: the writer returns normally, capture carries on,
+    and the daemon believes bytes are on disk that are not. `storage_poller` already watches free
+    space and alerts — so the surface left uncovered, and the reason this exists, is every write
+    failure that NEVER MOVES THE FREE-SPACE NUMBER: EIO on a failing drive, EROFS after a read-only
+    remount, a quota. Those look identical to success at the writer and are invisible to a space poll.
+
+    ⚠️ TRANSITIONS, NOT EVENTS. Whatever breaks a write tends to stay broken, so a per-failure line
+    would run to tens of thousands over a night. The objection is not volume though: it is that the
+    second identical line carries nothing the first did not, while BURYING the first — the only one
+    that says when it started. That holds whatever `FLUSH_INTERVAL_S` is later tuned to."""
+
+    def __init__(self, path: str) -> None:
+        self.path = path
+        self.failures = 0
+        self._failing = False
+
+    def failed(self, exc: BaseException) -> None:
+        self.failures += 1
+        if self._failing:
+            return                          # already said so; saying it again only hides the onset
+        self._failing = True
+        _log.warning("%s: WRITE FAILED (%s) — buffered data may NOT be on disk",
+                     self.path, _write_error_name(exc))
+
+    def ok(self) -> None:
+        """Called ONLY from `flush`, never from `close`.
+
+        `close` runs `flush` inside its own `try`, so a `close` that merely managed to shut a handle
+        would otherwise clear a failing state its own flush had just set — and report "writing again"
+        about a file whose tail never landed. The recovery claim belongs to the operation that
+        actually wrote."""
+        if not self._failing:
+            return                          # the ordinary case: nothing to report about a live file
+        self._failing = False
+        _log.info("%s: writing again, after %d failed flush(es)", self.path, self.failures)
+
+
 
 # How many SAMPLE-DATA files are open right now (CAPTURE-HOST-DEEP-AUDIT §A1).
 #
@@ -167,7 +222,8 @@ def resumable_stamp(ndir: str, vendor: str, model: str, device_id: str,
         try:
             m = os.path.getmtime(os.path.join(ndir, f))
         except OSError:
-            continue
+            continue      # vanished between listing and stat: it cannot anchor a resume, and one
+                          # such file is not a reason to abandon the others
         if newest is None or m > newest[0]:
             newest = (m, st)
     if newest is None:
@@ -291,6 +347,7 @@ class StreamWriter:
     def __init__(self, path: str, stream: str, flush_interval: float = FLUSH_INTERVAL_S,
                  fsync: bool = True, timebase: str | None = None):
         self.path = path
+        self._health = _FlushHealth(path)
         self.stream = stream
         # CAPTURE-FILESET-RESUME §2/§3: when the path already exists with a valid tail, APPEND instead
         # of truncating — a reconnect inside the resume window reuses the set. `resuming` is decided
@@ -472,8 +529,10 @@ class StreamWriter:
                 self._rr_fh.flush()
                 if self._fsync:
                     os.fsync(self._rr_fh.fileno())
-        except Exception:
-            pass
+        except Exception as _e:
+            self._health.failed(_e)
+        else:
+            self._health.ok()
 
     @property
     def rows(self) -> int:
@@ -496,7 +555,8 @@ class StreamWriter:
             try:
                 os.remove(p)
             except OSError:
-                pass
+                pass          # a header-only file we could not unlink stays on disk carrying 0 rows:
+                              # inert, and failing the teardown over it would be worse
 
     def close(self) -> None:
         try:
@@ -504,14 +564,20 @@ class StreamWriter:
             self._fh.close()
             if self._rr_fh is not None:
                 self._rr_fh.close()
-        except Exception:
-            pass
+        except Exception as _e:
+            self._health.failed(_e)
         finally:
             # In the finally: a writer whose flush raised is still CLOSED as far as the open-file
             # count is concerned, and leaking a count would pin the clock anchor open forever.
             if self._counted:
                 self._counted = False
                 _writer_closed()
+
+    @property
+    def flush_failures(self) -> int:
+        """How many flushes have failed on this file. Surfaced beside `rows` in STATUS: `rows`
+        counts what we were HANDED, this counts what may never have reached the disk."""
+        return self._health.failures
 
 
 # ── OXYFRAME column order — ONE definition, because two copies is how it went stale ──────────────────
@@ -556,6 +622,7 @@ class OxyFrameLogWriter:
 
     def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True):
         self.path = path
+        self._health = _FlushHealth(path)
         self._fh = open(path, "w", buffering=1 << 16, newline="\n")
         # ppg_n / ppg_dur_step APPENDED, never inserted — the same "never shift an
         # existing column" discipline LinkLogWriter keeps, so a reader written against the 10-column
@@ -618,19 +685,27 @@ class OxyFrameLogWriter:
             self._fh.flush()
             if self._fsync:
                 os.fsync(self._fh.fileno())
-        except (OSError, ValueError):
-            pass
+        except (OSError, ValueError) as _e:
+            self._health.failed(_e)
+        else:
+            self._health.ok()
 
     def close(self) -> None:
         try:
             self.flush()
             self._fh.close()
-        except (OSError, ValueError):
-            pass
+        except (OSError, ValueError) as _e:
+            self._health.failed(_e)
         finally:
             if self._counted:
                 self._counted = False
                 _writer_closed()
+
+    @property
+    def flush_failures(self) -> int:
+        """How many flushes have failed on this file. Surfaced beside `rows` in STATUS: `rows`
+        counts what we were HANDED, this counts what may never have reached the disk."""
+        return self._health.failures
 
 
 class HostClockLogWriter:
@@ -651,6 +726,7 @@ class HostClockLogWriter:
 
     def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True):
         self.path = path
+        self._health = _FlushHealth(path)
         self._fh = open(path, "w", buffering=1 << 16, newline="\n")
         # chrony_skew_ppm then timebase are APPENDED LAST so a positional reader of the earlier columns is
         # unaffected — the same "never shift an existing column" discipline LinkLogWriter keeps.
@@ -691,15 +767,23 @@ class HostClockLogWriter:
             self._fh.flush()
             if self._fsync:
                 os.fsync(self._fh.fileno())
-        except (OSError, ValueError):
-            pass
+        except (OSError, ValueError) as _e:
+            self._health.failed(_e)
+        else:
+            self._health.ok()
 
     def close(self) -> None:
         try:
             self.flush()
             self._fh.close()
-        except (OSError, ValueError):
-            pass
+        except (OSError, ValueError) as _e:
+            self._health.failed(_e)
+
+    @property
+    def flush_failures(self) -> int:
+        """How many flushes have failed on this file. Surfaced beside `rows` in STATUS: `rows`
+        counts what we were HANDED, this counts what may never have reached the disk."""
+        return self._health.failures
 
 
 class RingClockLogWriter:
@@ -723,6 +807,7 @@ class RingClockLogWriter:
 
     def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True):
         self.path = path
+        self._health = _FlushHealth(path)
         self._fh = open(path, "w", buffering=1 << 16, newline="\n")
         self._fh.write("Phone timestamp;event;rtc_offset_s;battery_state;battery_level;"
                        "battery_raw2;battery_raw3\n")
@@ -749,15 +834,23 @@ class RingClockLogWriter:
             if self._fsync:
                 import os as _os
                 _os.fsync(self._fh.fileno())
-        except (OSError, ValueError):
-            pass
+        except (OSError, ValueError) as _e:
+            self._health.failed(_e)
+        else:
+            self._health.ok()
 
     def close(self) -> None:
         try:
             self.flush()
             self._fh.close()
-        except (OSError, ValueError):
-            pass
+        except (OSError, ValueError) as _e:
+            self._health.failed(_e)
+
+    @property
+    def flush_failures(self) -> int:
+        """How many flushes have failed on this file. Surfaced beside `rows` in STATUS: `rows`
+        counts what we were HANDED, this counts what may never have reached the disk."""
+        return self._health.failures
 
 
 class LinkLogWriter:
@@ -791,6 +884,7 @@ class LinkLogWriter:
         # to, and both are kept because indices re-enumerate (a controller power-cycle swapped
         # hci0/hci2 on 2026-07-18) so neither alone identifies the radio after the fact.
         self.path = path
+        self._health = _FlushHealth(path)
         self._fh = open(path, "w", buffering=1 << 16, newline="\n")
         if adapter or hci:
             self._fh.write(f"# adapter={adapter or 'default'} hci={hci or 'unknown'}\n")
@@ -834,15 +928,23 @@ class LinkLogWriter:
             if self._fsync:
                 import os as _os
                 _os.fsync(self._fh.fileno())
-        except (OSError, ValueError):
-            pass
+        except (OSError, ValueError) as _e:
+            self._health.failed(_e)
+        else:
+            self._health.ok()
 
     def close(self) -> None:
         try:
             self.flush()
             self._fh.close()
-        except (OSError, ValueError):
-            pass
+        except (OSError, ValueError) as _e:
+            self._health.failed(_e)
+
+    @property
+    def flush_failures(self) -> int:
+        """How many flushes have failed on this file. Surfaced beside `rows` in STATUS: `rows`
+        counts what we were HANDED, this counts what may never have reached the disk."""
+        return self._health.failures
 
 
 class OxyLifeLogWriter:
@@ -859,6 +961,7 @@ class OxyLifeLogWriter:
     def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True,
                  device: str | None = None):
         self.path = path
+        self._health = _FlushHealth(path)
         self._fh = open(path, "w", buffering=1 << 16, newline="\n")
         if device is not None:
             self._fh.write(f"# device={device}\n")
@@ -887,15 +990,23 @@ class OxyLifeLogWriter:
             if self._fsync:
                 import os as _os
                 _os.fsync(self._fh.fileno())
-        except (OSError, ValueError):
-            pass
+        except (OSError, ValueError) as _e:
+            self._health.failed(_e)
+        else:
+            self._health.ok()
 
     def close(self) -> None:
         try:
             self.flush()
             self._fh.close()
-        except (OSError, ValueError):
-            pass
+        except (OSError, ValueError) as _e:
+            self._health.failed(_e)
+
+    @property
+    def flush_failures(self) -> int:
+        """How many flushes have failed on this file. Surfaced beside `rows` in STATUS: `rows`
+        counts what we were HANDED, this counts what may never have reached the disk."""
+        return self._health.failures
 
 
 class PmdArrivalLogWriter:
@@ -929,6 +1040,7 @@ class PmdArrivalLogWriter:
 
     def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True):
         self.path = path
+        self._health = _FlushHealth(path)
         # CAPTURE-FILESET-RESUME: a resumed set reuses this sidecar's name too — append, keep the header.
         # Torn-tail handling matches StreamWriter's (§3.5).
         _resume = False
@@ -966,15 +1078,17 @@ class PmdArrivalLogWriter:
             if self._fsync:
                 import os as _os
                 _os.fsync(self._fh.fileno())
-        except (OSError, ValueError):
-            pass
+        except (OSError, ValueError) as _e:
+            self._health.failed(_e)
+        else:
+            self._health.ok()
 
     def close(self) -> None:
         try:
             self.flush()
             self._fh.close()
-        except (OSError, ValueError):
-            pass
+        except (OSError, ValueError) as _e:
+            self._health.failed(_e)
 
     @staticmethod
     def floor_ms(diffs_ms, q: float = 0.01):
@@ -999,6 +1113,12 @@ class PmdArrivalLogWriter:
         qv = vals[min(len(vals) - 1, int(q * len(vals)))]
         return (qv, qv - lo)
 
+    @property
+    def flush_failures(self) -> int:
+        """How many flushes have failed on this file. Surfaced beside `rows` in STATUS: `rows`
+        counts what we were HANDED, this counts what may never have reached the disk."""
+        return self._health.failures
+
 
 class Spo2CsvWriter:
     """ViHealth-layout SpO2 CSV — `Time,Oxygen Level,Pulse Rate,Motion` with `HH:MM:SS DD/MM/YYYY`
@@ -1007,6 +1127,7 @@ class Spo2CsvWriter:
 
     def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True):
         self.path = path
+        self._health = _FlushHealth(path)
         self._fh = open(path, "w", buffering=1 << 16, newline="\n")
         self._fh.write("Time,Oxygen Level,Pulse Rate,Motion\n")
         self._n = 0
@@ -1046,8 +1167,10 @@ class Spo2CsvWriter:
             self._fh.flush()
             if self._fsync:
                 os.fsync(self._fh.fileno())
-        except Exception:
-            pass
+        except Exception as _e:
+            self._health.failed(_e)
+        else:
+            self._health.ok()
 
     @property
     def rows(self) -> int:
@@ -1056,12 +1179,18 @@ class Spo2CsvWriter:
     def close(self) -> None:
         try:
             self.flush(); self._fh.close()
-        except Exception:
-            pass
+        except Exception as _e:
+            self._health.failed(_e)
         finally:
             if self._counted:
                 self._counted = False
                 _writer_closed()
+
+    @property
+    def flush_failures(self) -> int:
+        """How many flushes have failed on this file. Surfaced beside `rows` in STATUS: `rows`
+        counts what we were HANDED, this counts what may never have reached the disk."""
+        return self._health.failures
 
 
 # Polar's sensor clock is nanoseconds since 2000-01-01T00:00:00Z, carried verbatim as the secondary

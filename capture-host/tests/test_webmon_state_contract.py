@@ -63,6 +63,11 @@ DEVICE_KEYS = {
     "connected", "battery", "rssi", "clock_synced", "device_time", "clock_skew_sec", "pull_progress",
     "link_epoch", "worn", "worn_why", "worn_optical", "worn_optical_why", "charging", "last_error",
     "clock_uncorrectable", "rate_unmet",
+    # How many of this device's flushes to disk have FAILED. Declared here rather than by relaxing
+    # the assertion, per the note below: a write-failing device looks healthy on every other field —
+    # link up, rows climbing, rate nominal — so this is the only one that can say the night is being
+    # lost. Zero on a healthy device; absent (None) before the daemon has reported.
+    "flush_failures",
     "clock_uncorrectable", "last_sample",
     # The ring's readable clock + gated settings (2026-08-19): the RTC-vs-host offset (GET_INFO [24:31]),
     # when it was read, the ring's own 0x00-read-back settings struct, and the last write's verdict.

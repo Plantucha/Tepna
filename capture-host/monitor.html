@@ -882,6 +882,15 @@ function streamState(s, dev){
   return {cls:'live', txt:'live', trust:true, why:'Delivering samples at the expected rate.'};
 }
 
+// A WRITE-FAILING device looks perfectly healthy everywhere else on this page: the link is up, rows
+// are climbing, the rate is nominal. What is failing is the last step — bytes to disk — so this is the
+// only place the operator can see it. Absent (not zero) means the daemon has not reported yet.
+function writeFailChip(dev){
+  const n = dev ? dev.flush_failures : null;
+  if(!n) return '';
+  return `<span class="clk bad" title="${n} flush(es) to disk have FAILED for this device. Samples are arriving and may not be reaching the file — check the daemon log for the symbolic errno: ENOSPC means free space, EIO means the drive is failing and the data should be copied off now, EROFS means the filesystem went read-only.">⚠ write failing</span>`;
+}
+
 function chargeChip(dev){
   if(!dev || !dev.charging) return '';
   return `<span class="clk chg" title="On the charger. A Polar refuses new streams outright (PMD 0x0D) and resumes within ~${60}s of coming off the dock; a device already streaming when it went on charge simply goes quiet. Detected from the O2Ring's own battery-state flag, and on a Polar from a rising battery level.">⚡ charging</span>`;
@@ -2384,6 +2393,7 @@ function ovRender(){                             // (re)build the cards to match
           <div class="ov-tl-legend"><span id="ovcov-${s.key}">—</span><span id="ovdbm-${s.key}"></span></div>
         </div>
         <div class="ov-pills">
+          <span class="ov-wf" id="ovwf-${s.key}">${writeFailChip(dev)}</span>
           <span class="ov-chg" id="ovchg-${s.key}">${chargeChip(dev)}</span>
           <span class="ov-batt" id="ovbatt-${s.key}">${battChip(dev?dev.battery:null)}</span>
           <span class="ov-sig" id="ovsig-${s.key}">${s.active?rssiChip(dev?dev.rssi:null, s.health, sigTitle(s)):''}</span>
