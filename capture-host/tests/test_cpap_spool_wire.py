@@ -74,6 +74,46 @@ class _Ctl:
     _running = staticmethod(lambda: False)
 
 
+# ── resolve_spool_root — no data path may depend on the daemon's cwd ─────────────────────────────────
+def test_a_RELATIVE_configured_spool_root_resolves_against_the_box_root():
+    """🔴 THE 2026-09-01 VIGIL INCIDENT, pinned. The owner's config said `root: captures/cpap-spool`
+    — the `dest_subdir` idiom one line below it — and the value was consumed verbatim, so the 10:00
+    pull resolved it against the daemon's CWD and wrote the only copy of real AS11 rounds INTO the
+    /opt/tepna checkout, which then blocked every hourly auto-deploy (tepna-update refuses a dirty
+    tree). Both halves of the contract, asserted: relative → joined to the box root; absolute →
+    honored verbatim."""
+    assert capture.resolve_spool_root("captures/cpap-spool", "/srv/tepna") \
+        == "/srv/tepna/captures/cpap-spool"
+    assert capture.resolve_spool_root("/mnt/big/spool", "/srv/tepna") == "/mnt/big/spool"
+
+
+def test_an_absent_spool_root_keeps_the_documented_default():
+    assert capture.resolve_spool_root(None, "/srv/tepna") == "/srv/tepna/cpap-spool"
+    assert capture.resolve_spool_root("", "/srv/tepna") == "/srv/tepna/cpap-spool"
+
+
+def test_the_armed_path_routes_through_the_resolver(tmp_path, caplog):
+    """The wiring, not just the pure rule: an armed start with a relative configured root must LOG
+    the resolved absolute path — the ARMED line is the one surface an operator checks."""
+    cfg = {"cpap": {"enabled": True, "at_hour": 13,
+                    "spool_pull": {"enabled": True, "at_hour": 10, "window_h": 2,
+                                   "root": "captures/cpap-spool"}}}
+    sentinel = object()
+
+    def _create_task(coro):
+        coro.close()
+        return sentinel
+
+    async def _connect():  # pragma: no cover — injected so the bleak edge is never built
+        raise AssertionError
+
+    with caplog.at_level("INFO"):
+        capture._maybe_start_cpap_spool_pull(
+            cfg, "cfg.yaml", str(tmp_path), _Ctl(), [],
+            load_creds=lambda _p: CREDS, connect_factory=_connect, create_task=_create_task)
+    assert str(tmp_path / "captures" / "cpap-spool") in caplog.text, caplog.text
+
+
 # ── _cpap_spool_loop ─────────────────────────────────────────────────────────
 def _drive(*, blocked_by=None, cycle=None, ticks=2, recovering=False):
     """Run the loop for `ticks` minutes of injected time, then stop it. Returns (calls, states)."""
