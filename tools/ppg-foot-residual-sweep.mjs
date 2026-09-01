@@ -14,7 +14,13 @@
  *   C1         noise-over-slope: robust additive-noise RMS (MAD of SECOND differences /0.6745/√6)
  *              divided by the median foot→peak upstroke slope, per channel; pair predictor
  *              √(p_i² + p_j²). The physical model σ_foot ≈ RMS(noise)/slope.
- *   C2         pulse-band SNR (channelSNR) — the coarse form of C1.
+ *   C2         amplitude-to-noise ratio (median foot→peak amplitude / noiseRms) — the coarse form
+ *              of C1. ⚠ The pre-registration named `channelSNR`; that function is LOCAL to
+ *              ppgdex-dsp.js and NOT on the PPGDSP namespace — `pat-per-led.mjs`'s guarded read
+ *              (`P.channelSNR ? … : NaN`) has been printing n/a since it was written, the
+ *              half-wired-mechanism shape again. Exporting it would move every bundle's
+ *              manifestHash for a probe, so C2 is instrumented in-tool instead: same quantity
+ *              (signal over noise), substitution recorded in the brief, thresholds unchanged.
  *   C3         motion proxy: same-beat match yield per pair.
  *   C4         beat alternation: lag-1 autocorrelation r1 of the pairwise difference series, plus
  *              the dispersion after a 2-beat average (alternation collapses; noise halves only).
@@ -112,6 +118,23 @@ export function noiseRms(sig) {
   for (let i = 2; i < sig.length; i++) d.push(Math.abs(sig[i] - 2 * sig[i - 1] + sig[i - 2]));
   const m = quantile(d, 0.5);
   return m / 0.6745 / Math.sqrt(6);
+}
+
+/* Median foot→peak amplitude in signal units (fractional indices honoured) — C2's numerator. */
+export function medianAmp(bp, feet, peaks) {
+  const at = (i) => {
+    const lo = Math.floor(i);
+    const hi = Math.ceil(i);
+    if (lo < 0 || hi > bp.length - 1) return NaN;
+    return lo === hi ? bp[lo] : bp[lo] + (i - lo) * (bp[hi] - bp[lo]);
+  };
+  const a = [];
+  const n = Math.min(feet.length, peaks.length);
+  for (let k = 0; k < n; k++) {
+    const dv = at(peaks[k]) - at(feet[k]);
+    if (dv > 0) a.push(dv);
+  }
+  return a.length ? quantile(a, 0.5) : NaN;
 }
 
 /* Median foot→peak upstroke slope in signal-units per ms (fractional indices honoured). */
@@ -232,6 +255,7 @@ function selftest() {
     peaks.push(p);
   }
   ok('medianSlope of a 100-unit/200 ms ramp is 0.5 u/ms', Math.abs(medianSlope(bp, feet, peaks, fs2) - 0.5) < 1e-9, `${medianSlope(bp, feet, peaks, fs2)}`);
+  ok('medianAmp of the same pulse is 100', Math.abs(medianAmp(bp, feet, peaks) - 100) < 1e-9, `${medianAmp(bp, feet, peaks)}`);
   const noisy = bp.map((v) => v + rnd() * 3 * Math.sqrt(3)); // uniform, σ=3
   const nr = noiseRms(noisy);
   ok('noiseRms recovers planted σ=3 within 40 %', nr > 1.8 && nr < 4.2, `${nr.toFixed(2)}`);
@@ -310,7 +334,7 @@ async function main() {
     }
   }
   const rows = [];
-  console.log('night        pair    n    yield    SD      IQR     r1    SD(avg2)   C1(n/s)  SNRmin');
+  console.log('night        pair    n    yield    SD      IQR     r1    SD(avg2)   C1(n/s)  ANRmin');
   for (const n of [...perNight.keys()].sort()) {
     const cand = perNight.get(n).sort((a, b) => b.s - a.s)[0];
     if (!cand) continue;
@@ -332,12 +356,15 @@ async function main() {
       const sec = okI(lo) && okI(hi) ? rel[lo] + fr * (rel[hi] - rel[lo]) : i / rec.fs;
       return rec.t0Ms + sec * 1000;
     };
-    const chans = per.map((p, i) => ({
-      feetMs: p.feet.map(toMs),
-      snr: P.channelSNR ? P.channelSNR(rec.ch[i], rec.fs).snr : NaN,
-      noise: noiseRms(p.bp),
-      slope: medianSlope(p.bp, p.feet, p.peaks, rec.fs)
-    }));
+    const chans = per.map((p) => {
+      const noise = noiseRms(p.bp);
+      return {
+        feetMs: p.feet.map(toMs),
+        snr: medianAmp(p.bp, p.feet, p.peaks) / noise, // in-tool ANR — see the C2 header note
+        noise,
+        slope: medianSlope(p.bp, p.feet, p.peaks, rec.fs)
+      };
+    });
     const row = nightRow(chans);
     if (!row) {
       console.log(`${n}  ⊘ fewer than 2 pairable channels`);
@@ -355,7 +382,7 @@ async function main() {
   const y = per.map((p) => p.iqr);
   const table = [
     ['C1 noise/slope (expect ρ ≥ +0.7)', spearman(per.map((p) => p.c1), y)],
-    ['C2 SNRmin (expect ρ ≤ −0.7)', spearman(per.map((p) => p.snrPair), y)],
+    ['C2 ANRmin (expect ρ ≤ −0.7)', spearman(per.map((p) => p.snrPair), y)],
     ['C3 yield (expect ρ ≤ −0.7)', spearman(per.map((p) => p.yield), y)],
     ['C4 r1 (expect top-half concentration at r1 ≤ −0.3)', spearman(per.map((p) => p.r1), y)]
   ];
