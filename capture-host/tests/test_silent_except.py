@@ -24,7 +24,7 @@ RATCHET = {
     "as11_clock.py": 1, "clock_offset.py": 1, "cpap_harvest.py": 3,
     "cpap_inventory_adapter.py": 1, "cpap_live.py": 1, "cpap_shadow_runner.py": 1,
     "cpap_stream.py": 1, "cpap_stream_watch.py": 1, "diskguard.py": 1, "jitterfloor.py": 1,
-    "link_distress.py": 3, "link_rssi.py": 1, "nightqc.py": 7, "oxy_inventory.py": 1,
+    "link_distress.py": 3, "link_rssi.py": 1, "nightqc.py": 0, "oxy_inventory.py": 1,
     "polar_psftp.py": 5, "probe_polar_usb.py": 1, "pull_session.py": 1, "telemetry.py": 2,
     "timeline.py": 5, "webmon.py": 3, "wifi_join.py": 1, "writers.py": 0,
     "tests/test_ble_discovery.py": 2, "tests/test_capture.py": 1,
