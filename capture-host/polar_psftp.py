@@ -44,7 +44,9 @@ async def _bt_disconnect(address: str):
         await asyncio.wait_for(p.wait(), timeout=6.0)
         await asyncio.sleep(2.0)   # let the controller settle before re-connecting
     except Exception:
-        pass
+        pass    # BEST-EFFORT BY CONSTRUCTION. This clears a link that may not exist, before a
+                # reconnect that reports its own failure — so there is no outcome here worth
+                # raising: if the disconnect mattered and did not happen, the connect says so.
 
 # Three attempts must fit inside the caller's 300 s offline-op watchdog (capture._OFFLINE_OP_TIMEOUT_S)
 # with room for the backoffs, or the retry cannot run and the watchdog reports "abandoned" instead of the
@@ -282,13 +284,16 @@ class PolarPsFtp:
                 if hasattr(self._client, "_acquire_mtu"):
                     await self._client._acquire_mtu()
             except Exception:
-                pass
+                pass          # OPTIONAL negotiation on a private bleak API. Failing it costs speed,
+                              # never correctness: the line below falls back to the advertised
+                              # mtu_size, or to the BLE minimum of 23 if even that is absent.
             self._frame_mtu = max(20, (getattr(self._client, "mtu_size", 23) or 23) - 3)
             await self._client.start_notify(MTU_CHAR, lambda _s, d: self._q.put_nowait(bytes(d)))
         except Exception:
             # never leak a half-open link — a lingering connection blocks the device's single BLE slot
             try: await self._client.disconnect()
-            except Exception: pass
+            except Exception: pass    # already failing, and `raise` below carries the REAL error —
+                                      # a cleanup failure must not replace the cause with itself
             raise
         return self
 
@@ -306,7 +311,12 @@ class PolarPsFtp:
                 try:
                     await asyncio.wait_for(make_op(), self._TEARDOWN_TIMEOUT_S)
                 except Exception:
-                    pass
+                    # BOUNDED, so this must not raise (see the note above) — but it is not free: a
+                    # disconnect that never completed leaves the device's single BLE slot occupied,
+                    # and the NEXT pull is the one that pays. Debug rather than warning because the
+                    # bounded timeout firing during a cancel is ordinary, not a fault.
+                    log.debug("psftp teardown step did not complete within %.0fs",
+                              self._TEARDOWN_TIMEOUT_S, exc_info=True)
 
     async def _read_response(self, timeout: float) -> bytes:
         seq, out, expect_next = _Seq(), bytearray(), 0
@@ -566,7 +576,8 @@ async def pull_recording(address: str, session: str, out_dir: str, adapter: str 
                         try:
                             on_progress(done, total)
                         except Exception:
-                            pass
+                            pass   # a PROGRESS callback must never fail a transfer that is
+                                   # succeeding — the caller loses a readout, not the recording
                     continue
                 data = await fs.get(full, timeout=180.0)
                 # A SHORT READ IS NOT A VALID FILE — the standard `cpap_harvest.short_read` states for
