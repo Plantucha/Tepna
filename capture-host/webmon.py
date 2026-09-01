@@ -1457,6 +1457,38 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             return web.json_response({"ok": False, "busy": e.holder, "error": str(e)}, status=409)
         except Exception as e:
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=502)
+
+    async def polar_recording(req):
+        """POST /api/polar/recording {address, action: status|start|stop, sample_type?: rr|hr}.
+
+        The H10 ONBOARD-recording control (POLAR-ONBOARD-BACKUP §6 Q1 / FOLLOWUPS §4) — through
+        `_polar_run`, so the op owns the device's single BLE link instead of racing run_polar; the
+        brief forbids a standalone script for exactly that reason. `start` defaults to RR because the
+        RR-acceptance probe is this endpoint's reason to exist; the response carries the device's own
+        READBACK (`recording_on` + identifier), never an echo of the request — see
+        polar_psftp.recording_control. A device REFUSAL (the §6 Q1 'no') arrives as the 502 with the
+        PS-FTP error text: a measurement, so it must reach the caller verbatim, not be flattened."""
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
+        address, action = body.get("address", ""), body.get("action", "")
+        if not _polar_dev(address):
+            return web.json_response({"ok": False, "error": "unknown or non-Polar address"}, status=400)
+        if action not in ("status", "start", "stop"):
+            return web.json_response({"ok": False, "error": "action must be status|start|stop"}, status=400)
+        st_word = body.get("sample_type", "rr")
+        if st_word not in ("rr", "hr"):
+            return web.json_response({"ok": False, "error": "sample_type must be rr|hr"}, status=400)
+        st = polar_psftp.SAMPLE_TYPE_RR_INTERVAL if st_word == "rr" else polar_psftp.SAMPLE_TYPE_HEART_RATE
+        try:
+            out = await _polar_run(address, lambda: polar_psftp.recording_control(
+                address, action, sample_type=st))
+            return web.json_response({"ok": True, **out})
+        except offline_lock.OfflineBusy as e:
+            return web.json_response({"ok": False, "busy": e.holder, "error": str(e)}, status=409)
+        except Exception as e:
+            return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=502)
+
     async def version_get(_req):
         """GET /api/version — what code is running, and since when.
 
@@ -1546,6 +1578,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         web.post("/api/timesync/all", timesync_all),
         web.get("/api/polar/recordings", polar_recordings),
         web.post("/api/polar/pull", polar_pull),
+        web.post("/api/polar/recording", polar_recording),
         web.get("/api/stream/{key}", stream),
         web.get("/api/clock", clock_get),
         web.post("/api/clock", clock_set),
