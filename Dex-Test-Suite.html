@@ -379,6 +379,7 @@ async function main(){
     // so the long-gap path had no committed coverage at all — which is how DEEP-AUDIT-2026-07-14 §1 shipped
     // "export-inert" while the real night's export had actually moved.
     ['glucodex_gap', 'synthetic_glucodex_lingo_gap.csv', 'synthetic_glucodex_gap_golden.node-export.json'],
+    ['glucodex_clarity_low', 'synthetic_glucodex_clarity_low.csv', 'synthetic_glucodex_clarity_low_golden.node-export.json'],
     // ADVERSARIAL twins (DEEP-AUDIT §1/§8/§9) — input only, no golden; the INVARIANTS are the gate.
     ['oxydex_dmy', 'synthetic_oxydex_o2ring_dmy.csv', null],
     ['oxydex_mdy', 'synthetic_oxydex_o2ring_mdy.csv', null],

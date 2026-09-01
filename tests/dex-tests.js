@@ -28788,6 +28788,56 @@
       }
     });
 
+    /* DEEP-AUDIT-VI F6 — the COLUMN PICK must survive a Dexcom Clarity layout: a serial Index counter
+       whose values sit inside locateColumns' [2,600] band, plus the "Low" string Clarity writes for
+       below-range readings. The score `inBand/total − dateHits/total` had no penalty for a serial
+       integer column, so clean glucose won by exactly ONE hit and a single Low cell flipped every
+       headline metric onto ROW NUMBERS (audit repro: mean 501 mg/dL, GMI 15.3, TIR 11.1 — all from
+       the Index column). The control is arithmetic, not a shim: the twin plants 570 measured readings
+       in a 70–200 band plus six Low cells; pre-F6 code computes mean ≈ 288.5 = avg(1..576) and reds
+       by construction. The decoys that must NOT win ride in the same file: a Transmitter Time
+       long-integer column (numeric, step 300 — not a ±1 counter, stays a legal candidate and must
+       lose on band coverage) and a "Glucose Rate of Change" header that also matches the /gluco/i
+       declaration bonus and must lose the same way. */
+    group('GlucoDex column pick — a serial Index counter is never the glucose (DEEP-AUDIT-VI F6)', 'glucodex-dsp · column-pick · adversarial-twin', function (T) {
+      var G = env.GlucoDex || env.GLUDSP;
+      var EQ = env.equiv || {};
+      var clarityIn = EQ.glucodex_clarity_low && EQ.glucodex_clarity_low.input;
+      if (!G || typeof G.compute !== 'function') {
+        T.ok('env.GlucoDex.compute available', false, 'namespace not wired — gate skipped');
+        return;
+      }
+      if (!clarityIn) {
+        T.ok('committed Clarity column-pick twin wired into env.equiv', false, 'it is a COMMITTED input — it must be present in every environment, including CI');
+        return;
+      }
+      var r = G.compute({ text: clarityIn });
+      var glu = r && r.glucose;
+      T.ok('the Clarity twin computes at all', !!glu);
+      if (!glu) return;
+      // The six Low cells are NOT measured glucose, so the analyzable grid is 570 = 576 − 6 (all six
+      // land in overnight: 138 + 144 + 144 + 144 — measured off the minted golden, not assumed).
+      // This leg discriminates on its own: pre-F6 code reads the Index column, where every one of the
+      // 576 rows is numeric, and reports 576.
+      var PARTS = ['overnight', 'morning', 'afternoon', 'evening'];
+      var nSum = 0;
+      for (var i = 0; i < PARTS.length; i++) nSum += (glu.daypart && glu.daypart[PARTS[i]] && glu.daypart[PARTS[i]].n) || 0;
+      T.ok('the six "Low" cells are excluded from the grid (daypart n sums to 570 = 576 − 6)', nSum === 570, 'daypart n sum = ' + nSum);
+      // THE DISCRIMINATOR: the planted curve lives in 70–200 mg/dL. The Index column's mean is
+      // avg(1..576) ≈ 288.5, so this leg reds on pre-F6 code by construction.
+      T.ok('mean glucose sits in the PLANTED band (70–200 mg/dL), not at avg(row numbers) ≈ 288.5', glu.mean >= 70 && glu.mean <= 200, 'mean = ' + glu.mean);
+      // and the pick must be robust beyond the one-Low margin: strip the header row and the serial
+      // guard alone must still keep Index out (no header to bonus, a counter is still a counter).
+      var noHead = clarityIn.split('\n').slice(1).join('\n');
+      var r2 = G.compute({ text: noHead });
+      var glu2 = r2 && r2.glucose;
+      T.ok(
+        'headerless variant still refuses the Index column (the serial-integer guard, not the header bonus, is load-bearing)',
+        !!glu2 && glu2.mean >= 70 && glu2.mean <= 200,
+        glu2 ? 'mean = ' + glu2.mean : 'no glucose block'
+      );
+    });
+
     /* AUDIT-2026-07-16 F1 — the §3 file-level DMY/MDY lock must hold in GlucoDex's node-local parseCSV,
        not only in the shared DexClock.resolveDMY tested above. GlucoDex parses CGM stamps with its own
        _ckParse (a deliberate node-local Clock variant) and used to decide DMY/MDY PER ROW with a fixed
