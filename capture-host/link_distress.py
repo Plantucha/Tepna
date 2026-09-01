@@ -164,6 +164,74 @@ def assess(
     }
 
 
+# How many independently-distressed links it takes before the ADAPTER is the suspect. Two, because the
+# quantity being diagnosed is adapter-wide pathology (interference, USB bandwidth, firmware) and its
+# signature is multiple links degrading TOGETHER: one link storming alone is a device/link pathology
+# that MOVES WITH THE DEVICE (the 2026-08-29 O2Ring storm; the UB500 losing minutes on wearables and
+# ZERO on CPAP), and relocating every healthy sibling for it is the category mismatch the report-only
+# comment in capture.py names. Not configurable, deliberately: lowering it to 1 re-creates that
+# mismatch with a config knob instead of a code change.
+ADAPTER_CORROBORATION = 2
+
+
+def adapter_verdict(per_device: dict) -> dict:
+    """Fold `{device: verdict}` into ONE verdict at the granularity of the thing a failover moves. PURE.
+
+    The failover pin is a single process-global — switching relocates EVERY wearable — so the verdict
+    that may drive it must be about the ADAPTER, not about any one link. The fold therefore demands
+    CORROBORATION: ≥2 rated links distressed at once. A single distressed link is reported in the
+    detail (it is real, and the operator should see it) but the adapter-level state stays `ok` —
+    that is the true claim at this granularity, not a softening: a per-link pathology moves with the
+    device, and a switch would drag the healthy siblings onto a radio their own baselines never
+    complained about.
+
+    UNKNOWN when NO link carries a usable (ok/distressed) verdict — an adapter whose every link is
+    unbaselined is unjudged, and a caller must not read that as an all-clear (same rule as `assess`).
+    The detail always carries the COUNTS with their filter — rated vs unknown vs absent is the
+    difference between "quiet" and "unexamined", and a bare state cannot show it."""
+    per_device = per_device or {}
+    rated = {n: v for n, v in per_device.items() if (v or {}).get("state") in (OK, DISTRESSED)}
+    unknown = [n for n, v in per_device.items() if (v or {}).get("state") == UNKNOWN]
+    bad = {n: v for n, v in rated.items() if v.get("state") == DISTRESSED}
+    base = {
+        "distressed": sorted(bad),
+        "rated": len(rated),
+        "unknown": len(unknown),
+    }
+    if not rated:
+        return {
+            **base,
+            "state": UNKNOWN,
+            "detail": f"no link carries a usable verdict ({len(unknown)} unknown) — an unjudged "
+                      f"adapter is not a healthy one",
+        }
+    if len(bad) >= ADAPTER_CORROBORATION:
+        worst = max(bad.values(), key=lambda v: (v.get("observed") or 0))
+        return {
+            **base,
+            "state": DISTRESSED,
+            # The constituent evidence rides along so the switch event can carry value + band without
+            # a second lookup — a reasonless adapter verdict would be the half-silent event again.
+            "worst": worst,
+            "detail": f"{len(bad)} of {len(rated)} rated link(s) distressed together "
+                      f"({', '.join(sorted(bad))}) — adapter-wide, not device-local",
+        }
+    if bad:
+        (name, v), = bad.items()
+        return {
+            **base,
+            "state": OK,
+            "detail": f"1 of {len(rated)} rated link(s) distressed ({name}: {v.get('detail')}) — "
+                      f"device-local until a second link corroborates; a per-link pathology moves "
+                      f"with the device, not the radio",
+        }
+    return {
+        **base,
+        "state": OK,
+        "detail": f"{len(rated)} rated link(s) all within band ({len(unknown)} unknown)",
+    }
+
+
 def switch_event(*, device, from_mac, to_mac, verdict, cause="reconnect-rate"):
     """The record a switch emits. PURE.
 

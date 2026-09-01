@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-08-29
+**Status:** IN-PROGRESS (part (a) BUILT 2026-09-01 — per-ADAPTER fold `link_distress.adapter_verdict` (≥2-link corroboration), wired to the ladder behind `watchdog.distress_failover` DEFAULT OFF via the shared `_migrate_to_spare` dance, surfaced in /api/state + the monitor (whose renderer's `bad`-vs-`distressed` vocabulary defect is fixed en route); remaining: the OWNER's arming, against §6's pre-stated criterion — not a code item) · **Created:** 2026-08-29
 
 # Radio failover — the DISTRESS SIGNAL, with its bands pre-stated
 
@@ -108,10 +108,49 @@ failover: hci0 -> hci2 | cause=reconnect-rate | device=Wellue O2Ring-S
 surfaced in `STATUS` and in QC-SUMMARY, so radio churn is visible data rather than silent healing.
 A reasonless event is half-silent.
 
+## 6 · Part (a), BUILT 2026-09-01 — the per-ADAPTER verdict, and the arming criterion (pre-stated)
+
+The per-device verdicts landed report-only for a structural reason (recorded at the publication
+site): `ADAPTER` is a single global pin, so firing a switch off ONE device's distress relocates
+every healthy sibling — a category mismatch, not a threshold to tune. The fold that closes it:
+
+- **`link_distress.adapter_verdict(per_device)`** — pure. DISTRESSED only on **corroboration: ≥2
+  rated links distressed together** (`ADAPTER_CORROBORATION = 2`, deliberately not configurable —
+  lowering it to 1 re-creates the category mismatch as a config knob). One distressed link stays
+  `ok` at ADAPTER granularity with the link named in the detail: a per-link pathology moves with
+  the device (the 08-29 O2Ring storm; the UB500 losing minutes on wearables and zero on CPAP), not
+  with the radio. UNKNOWN when NO link is rated — an unjudged adapter is not a healthy one. The
+  detail always carries counts WITH their filter (rated / unknown / absent are different claims).
+- **The switch arm ships DEFAULT OFF** — `watchdog.distress_failover`, absent = false. When armed it
+  reuses the SAME switch dance as the wedge cause (`_migrate_to_spare`, extracted verbatim from L3 so
+  the two causes cannot drift), same `max_failovers` budget, same CPAP-radio reservation, and emits
+  the §5 event with `cause=reconnect-rate` carrying the worst link's observed/band plus the fold's
+  detail. After a switch the per-device histories are keyed to the NEW adapter and start empty →
+  verdicts UNKNOWN → no immediate re-fire: the baseline requirement is itself the flap brake.
+- **Unarmed, the fold is still a surface**: `STATUS.radio_distress_adapter` + `/api/state` + the
+  monitor card (which also had its vocabulary fixed — it ranked a `bad` state the producer never
+  emits, so a real storm rendered as “Radio ok”), and the RISING EDGE logs once per episode so an
+  unarmed firing is findable in the journal afterwards.
+
+> ### 🔒 ARMING CRITERION — written before any night has fired it
+> **Flip `watchdog.distress_failover` to true only after ≥1 night where
+> `radio_distress_adapter` reached DISTRESSED AND the constituent per-device verdicts agreed
+> (≥2 links each independently over their own band, sustained through their own hysteresis) AND
+> post-hoc review confirms a switch would have helped that night rather than dragged healthy links
+> onto a worse radio.** The arming itself is the OWNER's decision, not a session's. Until then a
+> firing costs nothing (report + one log line) and a non-firing costs the status quo — the
+> fail-to-act asymmetry that lets this land unarmed without being dead machinery.
+
 ## Done when
 
-- [ ] The distress assessor is pure, tested, and refuses (UNKNOWN) below 3 nights of baseline.
-- [ ] Hysteresis pinned by a test that a single bad minute does NOT switch.
-- [ ] The switch event carries cause + value + band, asserted in a test.
-- [ ] A planted wedge migrates a device and emits the event — seen to fail over, not assumed.
-- [ ] `down%` and `frames_dropped` are recorded as report-only, with the reason they are not triggers.
+- [x] The distress assessor is pure, tested, and refuses (UNKNOWN) below 3 nights of baseline.
+      *(shipped with the per-device signal, `link_distress.assess` + tests)*
+- [x] Hysteresis pinned by a test that a single bad minute does NOT switch. *(assess's
+      `not yet sustained` arm + the adapter fold's corroboration requirement, both tested)*
+- [x] The switch event carries cause + value + band, asserted in a test. *(both causes now emit
+      through one `_migrate_to_spare`; the distress event carries worst-link numbers + fold detail)*
+- [x] A planted wedge migrates a device and emits the event — seen to fail over, not assumed.
+      *(`test_failover_planted_wedge`, and its distress-cause sibling added 2026-09-01)*
+- [x] `down%` and `frames_dropped` are recorded as report-only, with the reason they are not
+      triggers. *(§3.1 above)*
+- [ ] **Part (b), the arming** — owner-gated on the criterion in §6; not a code item.

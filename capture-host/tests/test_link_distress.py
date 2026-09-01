@@ -94,3 +94,59 @@ def test_the_event_survives_a_missing_verdict_without_inventing_values():
     """It must not fabricate a cause it does not have — None reads as absent, 0 would read as measured."""
     ev = D.switch_event(device="d", from_mac="a", to_mac="b", verdict=None)
     assert ev["observed_per_h"] is None and ev["band_per_h"] is None and ev["detail"] is None
+
+
+# ── the per-ADAPTER fold (part (a), 2026-09-01) ─────────────────────────────────────────────────────
+# The verdict at the granularity a failover actually moves. Its one load-bearing rule: CORROBORATION.
+# One link storming is a device/link pathology that moves WITH the device (the 08-29 ring storm; the
+# UB500 losing minutes on wearables and zero on CPAP) — relocating the healthy siblings for it is the
+# category mismatch the report-only comment in capture.py names.
+
+def _v(state, observed=None, detail="d"):
+    return {"state": state, "observed": observed, "detail": detail}
+
+
+def test_adapter_fold_needs_TWO_distressed_links_not_one():
+    """Both directions: one storming link stays `ok` at ADAPTER granularity (named in the detail, so
+    it is visible rather than softened away); a second corroborating link flips the fold."""
+    one = D.adapter_verdict({"Ring": _v(D.DISTRESSED, 13.7), "H10": _v(D.OK), "Verity": _v(D.OK)})
+    assert one["state"] == D.OK
+    assert "Ring" in one["detail"] and "device-local" in one["detail"]
+    two = D.adapter_verdict({"Ring": _v(D.DISTRESSED, 13.7), "H10": _v(D.DISTRESSED, 9.1),
+                             "Verity": _v(D.OK)})
+    assert two["state"] == D.DISTRESSED
+    assert two["distressed"] == ["H10", "Ring"] and "adapter-wide" in two["detail"]
+
+
+def test_adapter_fold_carries_the_WORST_link_so_the_event_needs_no_second_lookup():
+    out = D.adapter_verdict({"a": _v(D.DISTRESSED, 2.0), "b": _v(D.DISTRESSED, 13.7)})
+    assert out["worst"]["observed"] == 13.7
+
+
+def test_adapter_fold_refuses_when_NO_link_is_rated():
+    """An adapter whose every link is unbaselined is UNJUDGED — same rule as assess: a caller must
+    not be able to read a refusal as an all-clear."""
+    out = D.adapter_verdict({"a": _v(D.UNKNOWN), "b": _v(D.UNKNOWN)})
+    assert out["state"] == D.UNKNOWN and out["rated"] == 0 and out["unknown"] == 2
+    assert D.adapter_verdict({})["state"] == D.UNKNOWN
+
+
+def test_adapter_fold_counts_carry_their_filter():
+    """`rated` vs `unknown` is the difference between "quiet" and "unexamined" — a bare state cannot
+    show it, so the counts ride every verdict (the state-your-filter rule)."""
+    out = D.adapter_verdict({"a": _v(D.OK), "b": _v(D.UNKNOWN), "c": _v(D.OK)})
+    assert out["state"] == D.OK and out["rated"] == 2 and out["unknown"] == 1
+    assert "2 rated" in out["detail"] and "1 unknown" in out["detail"]
+
+
+def test_adapter_fold_unknown_links_do_not_count_toward_corroboration():
+    """Two unknowns plus one distressed is still device-local: corroboration must come from a RATED
+    sibling, or a fleet of unbaselined links would vote with verdicts they do not have."""
+    out = D.adapter_verdict({"a": _v(D.DISTRESSED, 9.0), "b": _v(D.UNKNOWN), "c": _v(D.UNKNOWN)})
+    assert out["state"] == D.OK and "device-local" in out["detail"]
+
+
+def test_the_corroboration_floor_is_two_and_not_configurable():
+    """Pinned so a future knob has to move a test that names why: lowering it to 1 re-creates the
+    single-global-pin category mismatch as configuration."""
+    assert D.ADAPTER_CORROBORATION == 2

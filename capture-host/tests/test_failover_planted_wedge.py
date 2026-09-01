@@ -242,3 +242,117 @@ def test_A_PLAIN_FAILOVER_DOES_NOT_CLAIM_A_RADIO_WAS_COMMANDEERED(monkeypatch, c
 
     assert capture.ADAPTER == SPARE
     assert "RESERVED radio" not in " ".join(r.getMessage() for r in caplog.records)
+
+
+# ── the DISTRESS cause (part (a), 2026-09-01) — same dance, different decision ──────────────────────
+# The adapter is UP and answering — nothing wedged — and simply cannot hold its links: the 08-29 ring
+# storm shape. The verdict that may move the pin is the ADAPTER-level fold (≥2 rated links distressed
+# together), gated behind `watchdog.distress_failover` DEFAULT OFF. Three behaviors, each the
+# inverse of a way this could go wrong.
+
+def _healthy(monkeypatch, *, spares=((SPARE, True),)):
+    """A clean radio: every poll healthy, a spare on offer. The wedge never fires."""
+    bonded = []
+
+    async def hci():
+        return "hci1"
+
+    async def is_up(_h):
+        return True
+
+    async def adapters():
+        return [{"mac": PINNED, "up": True}] + [{"mac": m, "up": u} for m, u in spares]
+
+    async def btctl(_script, timeout=6):
+        return ""
+
+    async def ensure_bonded(addr, mac, force=False):
+        bonded.append((addr, mac))
+        return True
+
+    monkeypatch.setattr(capture, "adapter_hci", hci)
+    monkeypatch.setattr(capture, "_adapter_is_up", is_up)
+    monkeypatch.setattr(capture, "list_adapters", adapters)
+    monkeypatch.setattr(capture.bonding, "_btctl", btctl)
+    monkeypatch.setattr(capture.bonding, "ensure_bonded", ensure_bonded)
+    return bonded
+
+
+def _distress_scan(monkeypatch, verdicts, *, on_adapter=PINNED):
+    """ADAPTER-AWARE, like the real scan: `_LINK_DISTRESS_SEEN` is keyed `(adapter, device)`, so
+    after a switch the new adapter's histories start EMPTY and the verdicts go absent — that keying,
+    the 900 s hysteresis, and `max_failovers` are the three flap brakes. An adapter-blind fake
+    bypasses all three and manufactures a ping-pong the production scan cannot produce in one poll
+    (measured while writing this test: two opposite switches in four polls). The fake must model the
+    keying or it tests a machine that does not exist."""
+    def fake(adapter_mac, devices, baselines, now_s):
+        return dict(verdicts) if adapter_mac == on_adapter else {}
+    monkeypatch.setattr(capture, "link_distress_scan", fake)
+
+
+def _run_healthy_watchdog(monkeypatch, cfg, polls=4):
+    capture.STATUS["devices"]["H10"] = {"connected": True, "address": "24:AC:AC:02:84:96"}
+    _stop_after(monkeypatch, polls)
+    _run(capture.adapter_watchdog(PINNED, cfg))
+
+
+def test_ADAPTER_LEVEL_DISTRESS_migrates_the_pin_when_armed(monkeypatch):
+    """Two rated links distressed together + the flag on → the same migration the wedge takes, with
+    the event naming the cause, the links, and the worst link's numbers."""
+    bonded = _healthy(monkeypatch)
+    _distress_scan(monkeypatch, {
+        "Ring": {"state": "distressed", "observed": 13.7, "band": 8.0, "detail": "over band"},
+        "H10": {"state": "distressed", "observed": 9.1, "band": 8.0, "detail": "over band"},
+    })
+    _run_healthy_watchdog(monkeypatch, _cfg(distress_failover=True))
+    assert capture.ADAPTER == SPARE, "the pin must move on an armed adapter-level verdict"
+    assert bonded, "the sensors must be re-bonded on the spare"
+    (ev,) = capture._RADIO_EVENTS[-1:]
+    assert ev["cause"] == "reconnect-rate" and ev["to"] == SPARE
+    assert "Ring" in ev["device"] and "H10" in ev["device"]
+    assert ev["observed_per_h"] == 13.7, "the worst link's numbers must ride the event"
+    assert "adapter-wide" in ev["detail"]
+
+
+def test_DEFAULT_OFF_means_report_only_however_distressed(monkeypatch):
+    """🔴 THE PIN THIS UNIT SHIPS UNDER. Absent flag = report-only: the fold is published (visible in
+    /api/state) and NOTHING moves — arming is the owner's, against the brief's pre-stated criterion."""
+    _healthy(monkeypatch)
+    _distress_scan(monkeypatch, {
+        "Ring": {"state": "distressed", "observed": 13.7, "detail": "over band"},
+        "H10": {"state": "distressed", "observed": 9.1, "detail": "over band"},
+    })
+    _run_healthy_watchdog(monkeypatch, _cfg())      # no distress_failover key at all — the default
+    assert capture.ADAPTER != SPARE, "an unarmed verdict must not switch"
+    assert capture._RADIO_EVENTS == []
+    av = capture.STATUS.get("radio_distress_adapter") or {}
+    assert av.get("state") == "distressed", "report-only still means REPORTED"
+
+
+def test_ARMED_DISTRESS_with_NO_SPARE_reports_and_stays_put(monkeypatch):
+    """The armed verdict with nowhere to go: no switch, no event, no crash — and the report still
+    stands, because a verdict that evaporates when it cannot act is the silent-healing shape from
+    the opposite direction."""
+    _healthy(monkeypatch, spares=())
+    _distress_scan(monkeypatch, {
+        "Ring": {"state": "distressed", "observed": 13.7, "detail": "over band"},
+        "H10": {"state": "distressed", "observed": 9.1, "detail": "over band"},
+    })
+    _run_healthy_watchdog(monkeypatch, _cfg(distress_failover=True))
+    assert capture.ADAPTER != SPARE and capture._RADIO_EVENTS == []
+    assert (capture.STATUS.get("radio_distress_adapter") or {}).get("state") == "distressed"
+
+
+def test_ONE_distressed_link_does_not_switch_even_armed(monkeypatch):
+    """The corroboration rule, end to end: a single storming link is a device/link pathology that
+    moves with the device — relocating the healthy siblings for it is the category mismatch the
+    per-device verdicts stayed report-only to avoid."""
+    _healthy(monkeypatch)
+    _distress_scan(monkeypatch, {
+        "Ring": {"state": "distressed", "observed": 13.7, "detail": "over band"},
+        "H10": {"state": "ok", "observed": 0.2, "detail": "within band"},
+    })
+    _run_healthy_watchdog(monkeypatch, _cfg(distress_failover=True))
+    assert capture.ADAPTER != SPARE and capture._RADIO_EVENTS == []
+    av = capture.STATUS.get("radio_distress_adapter") or {}
+    assert av.get("state") == "ok" and "device-local" in (av.get("detail") or "")

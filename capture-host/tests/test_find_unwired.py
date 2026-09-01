@@ -513,3 +513,55 @@ def test_AN_UNREADABLE_FILE_DOES_NOT_STOP_THE_REACHABILITY_SCAN():
         (root / "sub" / "trap.py").symlink_to(root / "nonexistent-target")
         mods = {r["module"] for r in find_unwired.scan(str(root))["orphan_modules"]}
         assert "lonely" in mods, "the scan gave up when it met an unreadable path"
+
+
+# ── the TOP-LEVEL publication shape (closed 2026-09-01) ─────────────────────────────────────────────
+# `STATUS["radio_distress"]` was computed nightly and read by nothing while this gate reported
+# 0 unexplained — because scan 1 enumerated only `_set(name, key=…)` and a top-level assignment is a
+# different shape. These plant exactly that class and pin that the zero now carries its filter.
+
+def test_a_top_level_STATUS_assignment_is_seen_and_an_unread_one_reported(tmp_path):
+    root = _tree(tmp_path, {
+        "capture.py": 'STATUS["seen_top"] = 1\nSTATUS["unread_top"] = 2\n'
+                      'STATUS.setdefault("unread_sd", {})["x"] = 3\n',
+        "webmon.py": 'y = status.get("seen_top")\n',
+    })
+    rows = find_unwired.scan(root)["orphan_status_keys"]
+    assert {r["key"] for r in rows} == {"unread_top", "unread_sd"}, rows
+    assert all(r["shape"].startswith("STATUS[key]=") for r in rows), \
+        "a row must say WHICH publication shape it came through"
+
+
+def test_a_STATUS_read_is_not_mistaken_for_a_publication(tmp_path):
+    """`STATUS.get(...)` and right-hand-side subscripts are consumption; collecting them would let a
+    key publish itself by being read, which inverts the whole finding."""
+    root = _tree(tmp_path, {
+        "capture.py": 'x = STATUS["only_read"]\ny = STATUS.get("also_read")\n',
+    })
+    assert find_unwired.scan(root)["orphan_status_keys"] == []
+
+
+def test_the_zero_carries_its_filter(tmp_path):
+    """The report's count must name the enumerated shapes WITH their sizes — a '0 unexplained' over
+    an unnamed population is the examined-nothing shape one level up, and is how the top-level class
+    hid for months."""
+    root = _tree(tmp_path, {
+        "capture.py": 'def f():\n    _set(name, a=1)\nSTATUS["b"] = 2\n',
+        "webmon.py": 'status.get("a"); status.get("b")\n',
+    })
+    res = find_unwired.scan(root)
+    assert res["orphan_status_keys"] == []
+    shapes = res["examined_status_shapes"]
+    assert shapes["_set(name, key=…)"] == 1
+    assert shapes["STATUS[key]= / STATUS.setdefault(key,…)"] == 1
+
+
+def test_a_key_published_through_BOTH_shapes_is_counted_once_and_under_set(tmp_path):
+    """The live tree has keys `_set` writes that also appear top-level; double-reporting one would
+    make every real finding read as two."""
+    src = 'def f():\n    _set(name, both=1)\nSTATUS["both"] = 2\n'
+    both = find_unwired.status_keys(src) & find_unwired.top_status_keys(src)
+    assert both == {"both"}
+    rows = find_unwired.scan(_tree(tmp_path, {"capture.py": src}))["orphan_status_keys"]
+    assert [r["key"] for r in rows] == ["both"], rows
+    assert rows[0]["shape"] == "_set(name, key=…)"
