@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **Created:** 2026-08-27 · **Owner-issued charter** (direct, 2026-08-27 evening — condensed capture in the Appendix; original in the coordinator transcript) · **Interlocks:** `PAT-RELATIVE-REFRAME-2026-08-17-BRIEF.md` (DONE), `CLOCK-LEG-SIGN-CONTRADICTION-2026-08-27-BRIEF.md` (DONE), `KNOWN-CLOCK-ADVERSARIAL-CAPTURE-2026-08-14-BRIEF.md`, `PAT-NO-VALID-ANCHOR` lineage, `O2RING-FRAME-SAMPLE-LOCK-2026-08-03-BRIEF.md`
+**Status:** IN-PROGRESS · **TRIAGED 2026-09-01 (Osprey): charter head. **The forensics wave is FIVE briefs, not three** — WINDOW-ORACLE, WINDOW-REGIMES, FIDUCIAL-JITTER, AXIS-LEG-ASYMMETRY, plus this. **20 `tools/pat-*.mjs` exist**, so §0's "genuinely NEW" list is largely TOOLED already (§6 `pat-fiducial-jitter`, §7 `pat-fiducial-compare`, §11–13 `pat-window-oracle`) — what is missing is EXECUTION against the corpus, and the corpus is on **Heron**, not this volume. None of the 9 Done-when items is closable from here; the two `--dir` tools cannot run at all (no local `_ECG.txt`), the two `<ppg-file>` tools run on a 2-file sample.** · **Created:** 2026-08-27 · **Owner-issued charter** (direct, 2026-08-27 evening — condensed capture in the Appendix; original in the coordinator transcript) · **Interlocks:** `PAT-RELATIVE-REFRAME-2026-08-17-BRIEF.md` (DONE), `CLOCK-LEG-SIGN-CONTRADICTION-2026-08-27-BRIEF.md` (DONE), `KNOWN-CLOCK-ADVERSARIAL-CAPTURE-2026-08-14-BRIEF.md`, `PAT-NO-VALID-ANCHOR` lineage, `O2RING-FRAME-SAMPLE-LOCK-2026-08-03-BRIEF.md`
 
 # PAT root-cause forensics — why PAT fails, from source and data
 

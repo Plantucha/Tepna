@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (phase (b): §7 fiducial family, §6 R-jitter) · **Interlocks:** `EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md` §1, `PAT-FORENSICS-AXIS-LEG-ASYMMETRY-2026-08-28-BRIEF.md`
+**Status:** IN-PROGRESS · **TRIAGED 2026-09-01 (Osprey): tool BUILT and RUNNABLE LOCALLY — `tools/pat-fiducial-jitter.mjs <ppg-file>` produces real output here (fiducial-family pairwise within-SD **6.55–9.84 ms**, IQR 8.75–12.92, every pair `NOT-DOMINANT`; TCH decomposition REFUSED on negative variance for three triplets, consistent with the known onset law). **NOT closable on local data**: only **2** `_PPG.txt` files exist on this machine and `between-file SD` comes back empty, so these numbers are indicative of the method working, not the brief's deliverable over the ~20-night corpus on Heron.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (phase (b): §7 fiducial family, §6 R-jitter) · **Interlocks:** `EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md` §1, `PAT-FORENSICS-AXIS-LEG-ASYMMETRY-2026-08-28-BRIEF.md`
 
 # The fiducial family is not a lever — every family agrees to under 6.2 ms
 

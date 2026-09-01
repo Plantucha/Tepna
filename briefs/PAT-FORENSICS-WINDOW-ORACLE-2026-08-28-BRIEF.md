@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§11/§13 oracle) · **Interlocks:** `PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md`
+**Status:** IN-PROGRESS · **TRIAGED 2026-09-01 (Osprey): tool BUILT and selftest-clean (`tools/pat-window-oracle.mjs --selftest` = 8/8) but NEVER RUN on a corpus and its results are referenced in no brief, audit or doc. **BLOCKED ON DATA LOCALITY, not tooling** — it needs `--dir <captures root>` with per-night dirs holding raw `_ECG.txt`/`_PPG.txt`; this machine has **zero** `_ECG.txt` anywhere, and `uploads/trio/<date>/` holds node-export JSON, not raw captures. Run against `uploads/trio` it exits 0 with an EMPTY table and `TALLY: {}` — an empty result, not a negative. The raw corpus is on **Heron**.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§11/§13 oracle) · **Interlocks:** `PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md`
 
 # There IS signal under the window — the acceptance window is mis-specified, not merely wide
 
