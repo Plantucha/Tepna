@@ -52,7 +52,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
-import { halfAmplitudeIndex } from './pat-fiducial.mjs';
+import { CFD_FRAC, fractionAmplitudeIndex, halfAmplitudeIndex } from './pat-fiducial.mjs';
 
 // the repo's own ESM→classic shim, so a DSP's `export const` tail does not break the vm realm
 const DexBuild = createRequire(import.meta.url)('./build-core.js');
@@ -190,15 +190,27 @@ function ppgFootTimes(text) {
      consumer filters NaN; it cannot recover a correspondence that was thrown away here. */
   const refBp = per[refIdx].bp;
   const half = new Float64Array(cons.feet.length);
+  /* `cfdTimes` — the SAME crossing at f = CFD_FRAC (PPG-FOOT-PLACEMENT §3's constant-fraction
+     discriminator), under the same index-parallel/NaN contract as `halfTimes`. ADDITIVE: `times`
+     and `halfTimes` are unchanged, so every existing caller is byte-identical. */
+  const cfd = new Float64Array(cons.feet.length);
   let nUnusable = 0;
+  let nCfdUnusable = 0;
   for (let i = 0; i < cons.feet.length; i++) {
     const h = halfAmplitudeIndex(refBp, cons.feet[i], cons.peaks[i]);
     if (h == null) {
       nUnusable++;
       half[i] = Number.NaN;
-      continue;
+    } else {
+      half[i] = timeAt(h);
     }
-    half[i] = timeAt(h);
+    const c = fractionAmplitudeIndex(refBp, cons.feet[i], cons.peaks[i], CFD_FRAC);
+    if (c == null) {
+      nCfdUnusable++;
+      cfd[i] = Number.NaN;
+    } else {
+      cfd[i] = timeAt(c);
+    }
   }
   return {
     t0Ms: rec.t0Ms,
@@ -208,7 +220,9 @@ function ppgFootTimes(text) {
     n: cons.feet.length,
     polarityFlipped: flipped,
     halfTimes: half,
-    nHalfUnusable: nUnusable
+    nHalfUnusable: nUnusable,
+    cfdTimes: cfd,
+    nCfdUnusable
   };
 }
 
