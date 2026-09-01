@@ -264,6 +264,51 @@ eliminated and physiology-vs-contact left open. **That is a complete and truthfu
 the vigil nights are the natural n. Residual attribution becomes its own brief rather than being
 chased past the charter on two nights.
 
+
+## ✅ FIRST CORPUS RUN — executed 2026-09-01 (Osprey)
+
+`tools/pat-window-oracle.mjs --dir <root>` had never been run against a corpus; its results appeared in
+no brief, audit or doc. Run over **43 box nights** (`/srv/data/tepna-corpus/smoketest-captures/`, with
+`2026-08-23` excluded — see the landmine note), half-width ±100 ms:
+
+| verdict | nights |
+|---|---|
+| **SIGNAL RECOVERED** | **2** |
+| PARTIAL | 14 |
+| NO RECOVERY (null not beaten) | 6 |
+| UNDEFINED (`n = 0` matched beats) | 6 |
+| ⊘ too few beats | 15 |
+
+**The two recoveries are unambiguous**: `2026-07-24` narrowSD **15.3** vs null 59.5, and `2026-08-17`
+**17.9** vs 57.8. Everywhere else the null is at or below the measurement.
+
+### The null IS the window, and the arithmetic says so
+
+`nullSD` sits at **56.2–59.5 ms** on 18 of 22 scored nights. A uniform draw across the ±100 ms search
+window has SD `200/√12 = 57.7 ms`. That is not a coincidence to be interpreted — it is the null
+reproducing its own window width.
+
+`fullSD` lands on **130.1 · 130.4 · 130.5 · 136.9** on the wide nights. The 450 ms PHYS window gives
+`450/√12 = 129.9 ms`.
+
+So this run independently reproduces, at corpus scale and from a tool nobody had executed, the result
+the memory `pat-sd-is-the-window` records from a different direction: **a PAT SD reported without its
+window is a measurement of the window.** Two instruments, one number, no shared code path.
+
+### What that means for the charter
+
+- **§11–13's oracle question is answered for the window layer**: windowing alone accounts for the
+  narrowing on 20 of 22 scored nights. Only 2 nights carry signal that beats their own null.
+- **5 nights recover a mode OUTSIDE the physiological window** (`2026-08-01` 165 ms, `2026-08-02` 185,
+  `2026-08-06` 25, `2026-08-10` 815, `2026-08-28` 1245). A mode at 25 ms or 1245 ms is not a PAT; those
+  are alignment artifacts and should not be read as short/long transit times.
+- **6 nights score `UNDEFINED` with `n = 0` matched beats** — distinct from the 15 marked ⊘ *too few
+  beats*. Zero matches on a night that has beats is a pairing failure worth its own look, and is the
+  most concrete follow-up this run produces.
+
+⚠️ **Not yet done here:** the ±100 ms half-width is the only one swept. The verdict "the null is the
+window" predicts the scores should move with the half-width, and that sweep is the natural next
+execution — cheap now that the root is known.
 ## 7 · Done when
 
 - [x] Out-of-sample design, circular-shift null, gate-asserted with a noise control.
