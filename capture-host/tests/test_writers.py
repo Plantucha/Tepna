@@ -608,3 +608,23 @@ def test_write_ppg2w_round_trips_through_the_parser(tmp_path):
     assert rows[2] == f"{_PTS};0;123460;7895;0"
     # The device exposes no clock on this opcode; a non-zero ns column here would be invented.
     assert all(r.split(";")[1] == "0" for r in rows[1:])
+
+
+def test_pmd_live_meta_units_appear_in_the_psl_headers():
+    """Every PMD stream carries TWO unit representations — capture._LIVE_META (the monitor card / bus)
+    and writers.StreamWriter.HEADERS (the PSL export). They must agree, so neither can be a hand-pinned
+    constant that drifts from the other (the class of the CPAP flow L/min↔L/s mislabel). The unit is
+    DERIVED from _LIVE_META and asserted to appear bracketed in the header — the test pins nothing itself.
+
+    Excluded, with reason: 'ppg' is unitless raw counts (header names columns, no unit); 'hr'/'ppi' are
+    composite (multiple units in one PSL header), covered by their own layout tests."""
+    import capture
+    import writers
+
+    def _norm(s):
+        return s.replace("µ", "u").replace("μ", "u").replace("₂", "2").lower()
+
+    for meta_key, hdr_key in [("ecg", "ecg"), ("acc", "acc"), ("gyro", "gyro"), ("mag", "mag")]:
+        unit = _norm(capture._LIVE_META[meta_key][1])
+        header = _norm(writers.StreamWriter.HEADERS[hdr_key])
+        assert f"[{unit}]" in header, f"{meta_key}: bus unit {unit!r} not bracketed in header {header!r}"
