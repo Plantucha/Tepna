@@ -265,7 +265,14 @@ the vigil nights are the natural n. Residual attribution becomes its own brief r
 chased past the charter on two nights.
 
 
-## ✅ FIRST CORPUS RUN — executed 2026-09-01 (Osprey)
+## ⚠️ SUPERSEDED — computed under an INSTRUMENT DEFECT (kept for provenance)
+
+> 🔴 **Do not quote the table below.** It was computed with `oracleNight` splitting on the **ECG's own
+> midpoint** rather than the overlap interval. Where the PPG covers only the early part of a long ECG
+> record, the entire scored half lands **after the PPG ended** — so those nights reported
+> `UNDEFINED (n=0)`, which reads as a data verdict and was a **TOOL REFUSAL**. See the corrected run.
+
+## ✅ FIRST CORPUS RUN — executed 2026-09-01 (Osprey), under the defective split
 
 `tools/pat-window-oracle.mjs --dir <root>` had never been run against a corpus; its results appeared in
 no brief, audit or doc. Run over **43 box nights** (`/srv/data/tepna-corpus/smoketest-captures/`, with
@@ -417,3 +424,34 @@ would zero pairing while wall-clock spans look healthy. **First thing to test at
 - [x] Its SOURCE, partially: the **inter-device clock is ELIMINATED** on 8/8 by sign, magnitude and non-linearity, robust to the effective-ppm assumption.
 - [ ] What remains: slow physiology (BP/vasomotor/posture/stage) vs an instrumental effect invisible to the host axis (warming, contact drift).
 - [ ] Whether the 22 unscored nights differ systematically from the 20 scored.
+
+
+## ✅ CORRECTED RUN — overlap-scoped split, 2026-09-01
+
+`oracleNight` now derives its split from the **overlap interval** `[max(r0,f0), min(rN,fN)]`, fitting on
+its first half and scoring out-of-sample on its second. The out-of-sample discipline is unchanged; what
+changed is that both halves now sit inside the region where both streams exist — the only region where a
+cross-device relationship exists at all.
+
+| verdict | before | **after** |
+|---|---|---|
+| SIGNAL RECOVERED | 2 | **4** |
+| PARTIAL | 14 | **20** |
+| NO RECOVERY | 6 | **5** |
+| **UNDEFINED (n=0)** | **6** | **0** |
+
+**All six `UNDEFINED` nights now score, and two carry signal:**
+
+    2026-08-12  mode 315  narrowSD 16.5 vs null 57.8   SIGNAL RECOVERED
+    2026-08-18  mode 355  narrowSD 14.6 vs null 58.6   SIGNAL RECOVERED
+    2026-07-16 495 · 2026-07-21 455 · 2026-07-23 455 · 2026-08-15 205   (PARTIAL)
+
+**Regression band held**, registered before the run: the two window-invariant nights did not move —
+`2026-07-24` **405 -> 405**, `2026-08-17` **215 -> 215**. Sane nights reproduce their modes exactly with
+small `n` increases from the wider in-overlap sample (`08-13` 6840->6865, `08-09` 9032->9208,
+`07-20` 7715->8156) — re-scoping, not re-measuring.
+
+**The corpus has four signal nights, not two**, and two of the four were previously recorded as having no
+data at all. Modes across the four: **215 / 315 / 355 / 405 ms**.
+
+> *Four hypotheses died getting here — every one a proxy standing in for the thing.*
