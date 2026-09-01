@@ -297,6 +297,10 @@ class LiveStreamController:
         # (should_stop_event) -> a fresh TherapyEndSink for this session, or None for NO acting. Default
         # None keeps every existing controller and test bus-only and non-acting.
         self._therapy_end_factory = therapy_end_factory
+        # The LAST session's on-disk artifacts (raw record + EDF), kept ACROSS the stop — the
+        # eager-start retention decision runs after the stream has ended and must be able to name the
+        # fragment it is discarding. Read-only to consumers; only _start rewrites it.
+        self.last_sink_paths: list = []
         self._task = None
         self._stop = None
         self._disconnect = None
@@ -393,6 +397,10 @@ class LiveStreamController:
         # order among sinks, not durable-vs-bus.
         _factories = [f for f in (self._raw_record_factory, self._edf_sink_factory) if f is not None]
         _sinks = [f() for f in _factories]
+        # Remember THIS session's artifact paths across the stop (see __init__): both the raw record
+        # and the EDF — a discarded false start must leave no orphan, and the raw record is an orphan
+        # too when the session it records was never a session.
+        self.last_sink_paths = [s.path for s in _sinks if hasattr(s, "path")]
         # ACTING (therapy-end auto-stop). LAST in the list on purpose: the sinks ahead of it persist this
         # batch BEFORE it can set `should_stop`, so the batch that triggers the stop is still written. It
         # sets the SAME cooperative event the monitor's stop button uses, so the pump drains and every
