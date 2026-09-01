@@ -149,7 +149,8 @@ def tests_for(module: str) -> list[str]:
         try:
             candidates.append((f"tests/{t.name}", t.read_text(encoding="utf-8")))
         except OSError:
-            continue
+            continue   # an unreadable test cannot be offered as a killer; missing one WIDENS the
+                       # surviving set, which over-reports rather than falsely greening
     kept, dropped = select_tests(candidates, stem)
     for d in dropped:
         print(f"  note: {d} excluded from {module}'s selection — a mutant killed ONLY by it "

@@ -76,7 +76,8 @@ def _clean(points):
         try:
             tf, df = float(t), float(d)
         except (TypeError, ValueError):
-            continue
+            continue   # a pair that will not parse cannot constrain a FIT; the estimator reports
+                       # the n it actually used, so dropping it narrows the claim, not the truth
         if tf == tf and df == df and abs(tf) != float("inf") and abs(df) != float("inf"):
             out.append((tf, df))
     out.sort()

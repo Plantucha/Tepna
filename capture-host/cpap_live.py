@@ -207,7 +207,8 @@ def journal_rows(text):
         try:
             ms = float(parts[0])
         except ValueError:
-            continue
+            continue   # a journal row with no parseable timestamp cannot be placed in the session
+                       # it belongs to — and guessing one would fabricate therapy time
         rows.append((ms, parts[8].strip()))
     rows.sort()
     return rows

@@ -145,7 +145,8 @@ def test_a_contended_sweep_is_reported_as_INCONCLUSIVE_not_as_absence(caplog):
         try:
             _run(capture._cpap_connect_any_adapter("04:CD", "hci1", 8.0, connect=conn, adapters=["hci0", "hci1"]))
         except Exception:
-            pass
+            pass   # as above: the sweep is expected to fail; its REPORTING is the subject   # the CALL's outcome is not under test — the LOG is, and the assertion below
+                   # is what fails if the classification is wrong
     assert any("INCONCLUSIVE" in r.message and "NOT evidence" in r.message for r in caplog.records)
 
 
@@ -157,7 +158,7 @@ def test_a_clean_sweep_is_reported_as_an_ordinary_absence(caplog):
         try:
             _run(capture._cpap_connect_any_adapter("04:CD", "hci1", 8.0, connect=conn, adapters=["hci0", "hci1"]))
         except Exception:
-            pass
+            pass   # the sweep is expected to fail; its REPORTING is the subject, asserted below
     assert any("not found on any adapter" in r.message for r in caplog.records)
     assert not any("INCONCLUSIVE" in r.message for r in caplog.records)
 

@@ -19,6 +19,10 @@ import proc_util
 
 import helper_path
 
+import logging
+
+_log = logging.getLogger("tepna-capture")
+
 # Prefer a ROOT-OWNED deployed copy: a NOPASSWD grant must point at a file this user cannot rewrite
 # (this repo sits on a user-writable NTFS mount). See helper_path.py.
 _HELPER = helper_path.resolve("tepna-rssi.sh")
@@ -107,6 +111,10 @@ def sysfs_hci(base: str = "/sys/class/bluetooth") -> dict[str, str]:
             with open(os.path.join(base, name, "address")) as f:
                 addr = f.read().strip().upper()
         except OSError:
+            # This adapter is now ABSENT from the address->hci map, so every RSSI reading from it
+            # goes unattributed — which looks like a radio that reported nothing.
+            _log.debug("link-rssi: %s has no readable address; it will not be attributed", name,
+                       exc_info=True)
             continue
         if re.fullmatch(r"[0-9A-F:]{17}", addr):
             out[addr] = name

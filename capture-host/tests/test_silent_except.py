@@ -17,20 +17,11 @@ import os
 
 from _srcscan import HERE, module_path, module_source
 
-# Debt, measured 2026-08-31, NOT approval. Lower a number when you explain or log a site; a new
-# unexplained swallow in any of these files reds this gate, and a file absent from the map is held
-# at zero. Removing an entry entirely is the goal.
-RATCHET = {
-    "as11_clock.py": 1, "clock_offset.py": 1, "cpap_harvest.py": 0,
-    "cpap_inventory_adapter.py": 1, "cpap_live.py": 1, "cpap_shadow_runner.py": 1,
-    "cpap_stream.py": 1, "cpap_stream_watch.py": 1, "diskguard.py": 1, "jitterfloor.py": 1,
-    "link_distress.py": 3, "link_rssi.py": 1, "nightqc.py": 0, "oxy_inventory.py": 1,
-    "polar_psftp.py": 0, "probe_polar_usb.py": 1, "pull_session.py": 1, "telemetry.py": 2,
-    "timeline.py": 0, "webmon.py": 0, "wifi_join.py": 1, "writers.py": 0,
-    "tests/test_ble_discovery.py": 2, "tests/test_capture.py": 1,
-    "tests/test_capture_coverage_100.py": 1, "tests/test_deploy_sse_frames.py": 2,
-    "tests/test_vigil_sh.py": 1, "tools/find_unwired.py": 1, "tools/mutate.py": 1,
-}
+# EMPTY, AND THAT IS THE POINT. This began at 69 unexplained swallows across 29 files
+# (2026-08-31) and was drained file by file; the map is kept rather than deleted so the
+# mechanism survives, and so the next entry has to be added deliberately by someone who has
+# decided to owe the debt rather than pay it.
+RATCHET: dict[str, int] = {}
 
 
 def unexplained(src):
@@ -75,8 +66,12 @@ def test_CAPTURE_PY_HAS_NO_UNEXPLAINED_SWALLOWED_EXCEPTION():
 
 
 def test_THE_REST_OF_THE_TREE_ONLY_GETS_BETTER():
-    """A ratchet, not a pass. These counts are debt: a new unexplained swallow reds, and a file that
-    improves must lower its number here so the improvement cannot silently be spent again."""
+    """A ratchet, and it is now EMPTY — every file in the tree is held at zero.
+
+    It stays a ratchet rather than a flat assertion because the two halves do different work: a new
+    unexplained swallow reds, AND a file that improves without lowering its number reds as banked
+    progress. With the map empty only the first half can fire, which is exactly the steady state
+    this was aiming at."""
     worse, stale = [], []
     for rel in _py_files():
         # PER-FILE, never `module_source` here. That helper skips the WHOLE TEST on the first file

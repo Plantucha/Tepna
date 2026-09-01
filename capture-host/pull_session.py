@@ -307,7 +307,8 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
                         try:
                             on_progress(off, size)  # a UI hook must never break the transfer
                         except Exception:
-                            pass
+                            pass   # ...which is the whole reason: the caller loses a readout,
+                                   # not the recording
             await send(oxyii.file_end_frame())
             await asyncio.sleep(0.3)
 

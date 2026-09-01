@@ -62,7 +62,8 @@ def parse_pmdarrival(path: Path) -> dict[str, list[tuple[float, int]]]:
         try:
             first_ns = int(parts[3])
         except ValueError:
-            continue
+            continue   # the floor is a MINIMUM over parsed rows, so a dropped row can only make
+                       # the estimate more conservative, never smaller than the truth
         streams.setdefault(parts[1] + "|" + parts[2], []).append((host, first_ns))
     return streams
 

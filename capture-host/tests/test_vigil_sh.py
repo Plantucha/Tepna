@@ -68,7 +68,7 @@ def _kill(box):
             killer()
             return
         except OSError:
-            continue
+            continue   # try the next kill strategy; the loop's end reports total failure
 
 
 # ── the four fixes, one test each ────────────────────────────────────────────────────────────────────

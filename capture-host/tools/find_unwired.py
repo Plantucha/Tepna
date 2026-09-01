@@ -380,7 +380,8 @@ def importers(root: str, module: str) -> set:
                 if pat.search(decommented):
                     found.add(os.path.relpath(os.path.join(dirpath, n), root))
             except OSError:
-                continue
+                continue   # a file we cannot read cannot be shown to import anything, so this scan
+                           # FAILS TOWARD "unwired" — toward reporting, never toward hiding
     return found
 
 

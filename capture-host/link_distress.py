@@ -77,7 +77,8 @@ def baseline_median(per_night_rates):
         try:
             v = float(r)
         except (TypeError, ValueError):
-            continue
+            continue   # a MEDIAN over the rates that parsed; the caller is given the count it was
+                       # computed from, so a dropped sample narrows the claim rather than hiding
         if v == v and v not in (float("inf"), float("-inf")) and v >= 0:
             vals.append(v)
     if len(vals) < MIN_BASELINE_NIGHTS:
@@ -232,7 +233,7 @@ def night_rates(text):
             t = _dt.datetime.fromisoformat(parts[it]).timestamp()
             ep = int(parts[ie] or 0)
         except (ValueError, TypeError):
-            continue
+            continue   # a row with no usable timestamp or epoch cannot be placed in a night
         rows.setdefault(parts[idev], []).append((t, parts[ic].strip().lower() in ("1", "true"), ep))
     out = {}
     for dev, rs in rows.items():
@@ -261,7 +262,8 @@ def merge_baselines(prior, adapter, rates, *, keep=14):
         try:
             r = float(rate)
         except (TypeError, ValueError):
-            continue
+            continue   # merging baselines: an unparseable rate is NOT a zero rate, and folding it
+                       # in as one would drag every merged baseline toward the floor
         if not math.isfinite(r) or r < 0:
             continue
         slot.setdefault(dev, []).append(round(r, 4))
