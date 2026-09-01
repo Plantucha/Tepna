@@ -21,12 +21,12 @@ from _srcscan import HERE, module_path, module_source
 # unexplained swallow in any of these files reds this gate, and a file absent from the map is held
 # at zero. Removing an entry entirely is the goal.
 RATCHET = {
-    "as11_clock.py": 1, "clock_offset.py": 1, "cpap_harvest.py": 3,
+    "as11_clock.py": 1, "clock_offset.py": 1, "cpap_harvest.py": 0,
     "cpap_inventory_adapter.py": 1, "cpap_live.py": 1, "cpap_shadow_runner.py": 1,
     "cpap_stream.py": 1, "cpap_stream_watch.py": 1, "diskguard.py": 1, "jitterfloor.py": 1,
     "link_distress.py": 3, "link_rssi.py": 1, "nightqc.py": 0, "oxy_inventory.py": 1,
     "polar_psftp.py": 0, "probe_polar_usb.py": 1, "pull_session.py": 1, "telemetry.py": 2,
-    "timeline.py": 0, "webmon.py": 3, "wifi_join.py": 1, "writers.py": 0,
+    "timeline.py": 0, "webmon.py": 0, "wifi_join.py": 1, "writers.py": 0,
     "tests/test_ble_discovery.py": 2, "tests/test_capture.py": 1,
     "tests/test_capture_coverage_100.py": 1, "tests/test_deploy_sse_frames.py": 2,
     "tests/test_vigil_sh.py": 1, "tools/find_unwired.py": 1, "tools/mutate.py": 1,
