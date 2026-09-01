@@ -202,7 +202,12 @@ def test_the_top_level_blocks_are_projected_verbatim(tmp_path):
                          # assertion, per the rule above — and it is the second half of a fix whose
                          # first half was that this block reached STATUS and no projection at all,
                          # so nothing rendered it and nothing could.
-                         "radio_distress"}
+                         "radio_distress",
+                         # The part-(a) fold at the granularity a failover moves, and every switch as
+                         # an EVENT with its cause — both previously STATUS-only (the same unrendered
+                         # shape as radio_distress above; `radio_switches` sat unread since the
+                         # wedge-cause event landed).
+                         "radio_distress_adapter", "radio_switches"}
 
 
 def test_the_top_level_blocks_are_null_before_their_pollers_run(tmp_path):

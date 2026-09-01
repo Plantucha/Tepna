@@ -28,6 +28,13 @@ failure one level up. Exit is always 0; the report is the product.
      anticipate (`tool` was reported orphaned while `webmon` and the monitor both read it). Scan 1 there-
      fore walks the AST and takes only the keywords of the `_set` call itself.
 
+  3. And covering ONE publication shape while reporting an unqualified "0 unexplained" (2026-09-01):
+     scan 1 saw only `_set(name, key=…)` — the per-DEVICE shape — so top-level `STATUS["k"] = …`
+     publications were invisible, and `STATUS["radio_distress"]` (computed nightly, read by nothing,
+     #2031) then `STATUS["radio_switches"]` sailed past a green gate. `top_status_keys` closes the
+     shape, and the report now prints WHICH shapes were enumerated with their counts, so the zero
+     carries its filter.
+
 Usage:
     python3 tools/find_unwired.py            # report (always exits 0)
     python3 tools/find_unwired.py --json     # machine-readable
@@ -61,6 +68,16 @@ ALLOW_KEYS = {
                      "inspection — the same charter pattern as oxy_lifecycle directly above, with the "
                      "same tracked monitor-draw follow-up; the close-triggered pull (DAT-AUTO-HARVEST "
                      "unit 2) is its first in-daemon consumer and lands next",
+    # ── top-level shape (STATUS[key]= / setdefault) — covered since 2026-09-01 ──────────────────────
+    "heartbeat_ms": "read by status_union.read_instance (staleness verdict) — the §3.6 merge layer of "
+                    "PER-DEVICE-ADAPTER-PINNING, itself in ALLOW_MODULES as PENDING with its missing "
+                    "producer named; when that brief lands or is retired, this entry goes with it",
+    "instance": "same consumer and same pending brief as heartbeat_ms directly above — the identity "
+                "field status_union folds N instances by",
+    "cpap_wedge": "the DURABLE record is the on-disk WEDGEFIRE journal (_wedge_fire_record), written "
+                  "at the same site — this STATUS copy is the live snapshot for a monitor draw that "
+                  "is a tracked follow-up (bluez_wedge.py's own comment names the journal as the "
+                  "outcome channel precisely because status.json snapshots cannot be one)",
 }
 # Fields the API publishes that the monitor does not draw — either for a consumer OTHER than the monitor,
 # or a monitor draw that is PENDING and tracked. `/api/state` is not the monitor's private channel — but
@@ -317,6 +334,36 @@ def status_keys(src: str) -> set[str]:
     return keys
 
 
+def top_status_keys(src: str) -> set[str]:
+    """Every key published TOP-LEVEL — `STATUS["k"] = …` and `STATUS.setdefault("k", …)` — from the AST.
+
+    THE BLIND SPOT THIS CLOSES (2026-09-01): `status_keys` covers `_set(name, key=…)`, the per-DEVICE
+    shape, and NOTHING covered the top-level shape — so `STATUS["radio_distress"]` was computed
+    nightly and read by nobody while the gate reported 0 unexplained, and `STATUS["radio_switches"]`
+    repeated the pattern the same week. A count is only evidence over the population it enumerated;
+    the report now names both shapes WITH their counts so "0 unexplained" carries its filter.
+
+    Two shapes, deliberately narrow: a Subscript ASSIGN with a constant key, and a `setdefault` call's
+    first constant argument (which creates the key whether or not the value is later mutated in
+    place). Reads (`STATUS.get`, `STATUS["k"]` on the right-hand side) are not publications and are
+    not collected."""
+    keys: set[str] = set()
+    tree = ast.parse(src)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for t in node.targets:
+                if (isinstance(t, ast.Subscript) and isinstance(t.value, ast.Name)
+                        and t.value.id == "STATUS" and isinstance(t.slice, ast.Constant)
+                        and isinstance(t.slice.value, str)):
+                    keys.add(t.slice.value)
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "setdefault" and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "STATUS" and node.args
+                and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str)):
+            keys.add(node.args[0].value)
+    return keys
+
+
 def projected_keys(src: str) -> set[str]:
     """The device-projection keys `webmon` publishes to `/api/state`, from the AST.
 
@@ -408,15 +455,24 @@ def scan(root: "str | None" = None) -> dict:
             consumers += open(p, encoding="utf-8").read()
 
     pop_keys = set()
+    pop_top_keys = set()
     pop_rendered = set()
     pop_js = set()
     orphan_keys = []
     if "capture.py" in src:
         pop_keys = status_keys(src["capture.py"])
-        for key in sorted(pop_keys):
-            if re.search(r"\b%s\b" % re.escape(key), consumers):
-                continue
-            orphan_keys.append({"key": key, "allowed": ALLOW_KEYS.get(key)})
+        pop_top_keys = top_status_keys(src["capture.py"])
+        # BOTH publication shapes, each row saying WHICH it came through. One rule (a key named in no
+        # consumer reaches nobody), two populations — and the report prints both counts, because a
+        # "0 unexplained" that does not name what it enumerated is the examined-nothing shape one
+        # level up (the top-level shape was invisible here while STATUS["radio_distress"] and then
+        # STATUS["radio_switches"] sat unread).
+        for shape, population in (("_set(name, key=…)", pop_keys),
+                                  ("STATUS[key]= / STATUS.setdefault(key,…)", pop_top_keys - pop_keys)):
+            for key in sorted(population):
+                if re.search(r"\b%s\b" % re.escape(key), consumers):
+                    continue
+                orphan_keys.append({"key": key, "shape": shape, "allowed": ALLOW_KEYS.get(key)})
 
     # every .py including probes, plus the shell helpers and tools — a function called only by a probe
     # or a helper script is wired, just not from the daemon.
@@ -557,13 +613,18 @@ def scan(root: "str | None" = None) -> dict:
         # the entry. (A first attempt gated on "is this the full tree", which was the wrong axis: a
         # fixture that sets HERE to itself IS the full tree by that test, and still knows nothing
         # about `close_harvest_decision`.)
-        applies = {"ALLOW_FUNCS": defined, "ALLOW_KEYS": pop_keys,
+        applies = {"ALLOW_FUNCS": defined, "ALLOW_KEYS": pop_keys | pop_top_keys,
                    "ALLOW_RENDERED": pop_rendered, "ALLOW_JS": pop_js}[label]
         for name in sorted((set(allow) & applies) - reported):
             stale.append({"list": label, "name": name, "allowed": None,
                           "reason": allow[name]})
 
     return {"orphan_status_keys": orphan_keys, "orphan_functions": orphan_funcs,
+            # The FILTER, beside the count it qualifies: which publication shapes scan 1 enumerated,
+            # and how many keys each contributed. "0 unexplained" without this is a claim about an
+            # unnamed population — the exact hole the top-level shape hid in.
+            "examined_status_shapes": {"_set(name, key=…)": len(pop_keys),
+                                       "STATUS[key]= / STATUS.setdefault(key,…)": len(pop_top_keys - pop_keys)},
             "orphan_modules": orphan_modules,
             "orphan_rendered": orphan_rendered, "orphan_js": orphan_js,
             "stale_allowlist": stale,
@@ -582,7 +643,7 @@ def main(argv: list[str]) -> int:
         return 0
     for label, rows, fmt in (
             ("status keys published by capture.py and read by nothing",
-             res["orphan_status_keys"], lambda r: r["key"]),
+             res["orphan_status_keys"], lambda r: "%-24s via %s" % (r["key"], r.get("shape", "?"))),
             ("public functions referenced only by tests",
              res["orphan_functions"], lambda r: "%s  %s" % (r["module"], r["func"])),
             ("fields webmon forwards that monitor.html never draws",
@@ -601,6 +662,11 @@ def main(argv: list[str]) -> int:
             if r["allowed"]:
                 print("   (allowed) %-34s %s" % (fmt(r), r["allowed"]))
         print("   %d unexplained, %d allowed" % (len(live), len(rows) - len(live)))
+        if rows is res["orphan_status_keys"]:
+            # The count's FILTER, printed beside it: which shapes were enumerated, and how many keys
+            # each held. A "0 unexplained" over an unnamed population is the examined-nothing shape.
+            print("   shapes examined: " + " · ".join(
+                "%s ×%d" % (s, n) for s, n in res["examined_status_shapes"].items()))
     print("\n== allowlist entries that excuse nothing (the suppression is spent) ==")
     for r in res["stale_allowlist"]:
         print("   %s[%r] — %s" % (r["list"], r["name"], r["reason"][:90]))

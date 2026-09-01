@@ -1332,27 +1332,40 @@ async function testStorage(btn){
 // RADIO DISTRESS — the worst device's verdict, because the question a glance asks is "is any link
 // in trouble", not "what is the mean". A device with no baseline yet reports UNKNOWN and is counted
 // as neither ok nor bad: an unmeasured radio is not a calm one.
-function renderRadioDistress(rd){
+function renderRadioDistress(rd, adapterV, switches){
   const card = $('#rdCard'), pill = $('#rdPill'), txt = $('#rdText'), det = $('#rdDetail');
   if(!card) return;
   const names = Object.keys(rd || {});
   if(!names.length){ card.hidden = true; return; }   // absent until the scan has run: never a fake ok
   card.hidden = false;
-  const rank = {bad: 3, unknown: 2, ok: 1};
+  // 'distressed', NOT 'bad' — this ranked a vocabulary link_distress.py never emits, so a real
+  // distress verdict scored 0 (below ok), the worst-pick chose a healthy sibling, and a storm
+  // rendered as “Radio ok · N links”. The renderer was written against a guessed state name; the
+  // producer's constants are ok/distressed/unknown (link_distress.OK/DISTRESSED/UNKNOWN).
+  const rank = {distressed: 3, unknown: 2, ok: 1};
   let worst = null;
   for(const n of names){
     const v = rd[n] || {};
     if(!worst || (rank[v.state] || 0) > (rank[worst.v.state] || 0)) worst = {n, v};
   }
-  const st = worst.v.state;
-  const cls = st === 'bad' ? 'bad' : st === 'unknown' ? 'idle' : 'ok';
+  // The ADAPTER-level fold outranks the per-device pick when present: it is the verdict at the
+  // granularity a failover would actually move, and its detail already names the links.
+  const av = adapterV || null;
+  const st = av && av.state === 'distressed' ? 'distressed' : worst.v.state;
+  const cls = st === 'distressed' ? 'bad' : st === 'unknown' ? 'idle' : 'ok';
   pill.className = 'data-pill ' + cls;
-  txt.textContent = st === 'bad' ? `Radio distress · ${worst.n}`
+  txt.textContent = av && av.state === 'distressed' ? `Radio distress · ADAPTER (${(av.distressed || []).join(', ')})`
+                  : st === 'distressed' ? `Radio distress · ${worst.n}`
                   : st === 'unknown' ? 'Radio — no baseline yet'
                   : `Radio ok · ${names.length} link${names.length === 1 ? '' : 's'}`;
   // The NUMBERS, not just the verdict: a band without the observation it judged is unreadable.
-  det.textContent = worst.v.detail || '';
-  det.title = names.map(n => `${n}: ${(rd[n] || {}).detail || '—'}`).join('\n');
+  const sw = switches || [];
+  det.textContent = (av && av.state === 'distressed' ? av.detail : worst.v.detail || '')
+                  + (sw.length ? ` · ${sw.length} radio switch${sw.length === 1 ? '' : 'es'} this run` : '');
+  det.title = names.map(n => `${n}: ${(rd[n] || {}).detail || '—'}`)
+    .concat(av ? [`adapter: ${av.detail || '—'}`] : [])
+    .concat(sw.map(e => `switch ${e.from} → ${e.to} (${e.cause}): ${e.detail || ''}`))
+    .join('\n');
 }
 
 function renderStoragePill(st){
@@ -1527,7 +1540,7 @@ async function loadState(){
   renderSideStats();          // sidebar counters: every view, not just Overview
   renderBoxHealth(s.storage, s.qc, s.host, s.alerts, s.host_clock, s.cpap, s.cpap_live);
   renderStoragePill(s.storage);   // sidebar: visible in every view
-  renderRadioDistress(s.radio_distress);
+  renderRadioDistress(s.radio_distress, s.radio_distress_adapter, s.radio_switches);
   renderCpap(s.cpap);
   renderDownload(DEVICES);
   renderRemembered(DEVICES);
