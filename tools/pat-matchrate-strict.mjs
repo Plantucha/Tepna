@@ -124,15 +124,43 @@ function loadDsps() {
   for (const [n, v] of Object.entries({ ECGDSP, PPGDSP, PATAlign })) if (!v) throw new Error('pat-matchrate-strict: ' + n + ' did not load into the headless realm');
 }
 
-/* ── beat derivation: ported from pat-feasibility-worker.js, unchanged ────────────────────────── */
-function ecgRpeakTimes(text) {
+/* ── beat derivation: ported from pat-feasibility-worker.js ───────────────────────────────────────
+   `opts.axis` (ADDITIVE — omitted ⇒ byte-identical to every existing caller):
+     'linear' / omitted — R time = t0Ms + i/fs·1000, the historical form. `fs` may carry the DSP's
+       single-RATE host correction; a step or any non-linear divergence stays in the times.
+     'piecewise' — R time = rec.tMsAt(i), the DSP's own host-disciplined position map (raw device
+       rate + hostAxis interpolation; ecgdex-dsp.js builds it — H_axis pre-registration,
+       PPG-FOOT-PLACEMENT-FOLLOWUPS §1). REPLACE-not-stack is the DSP's construction, not this
+       tool's arithmetic: tMsAt rides fsDevice (pre-ppm), so the linear component is never counted
+       twice. The map is live only when a real, independent second clock exists (`tMsCorrected`);
+       a caller MUST read `tMsCorrected` and treat false as a refusal to discipline — the returned
+       times are then plain device-axis, honestly, never a silent zero-correction "success".
+   The return also carries `maxStepMs` (a step is reported, never corrected — a mid-file step
+   smears across one anchor gap under piecewise and can move a half-mode) and `independent`.
+   Sortedness after the transform is ASSERTED: hostAxis bounds slope, but the assertion is free
+   and a non-monotonic train would silently break every downstream nearest-forward match. */
+function ecgRpeakTimes(text, opts) {
   const rec = ECGDSP.parseECG(text);
   if (rec.t0Ms == null) throw new Error('ECG file carried no phone timestamp.');
   const bp = ECGDSP.bandpass(rec.int16, rec.fs);
   const peaks = ECGDSP.detectPeaks(rec.int16, bp, rec.fs);
+  const piecewise = opts && opts.axis === 'piecewise';
   const t = new Float64Array(peaks.length);
-  for (let i = 0; i < peaks.length; i++) t[i] = rec.t0Ms + (peaks[i] / rec.fs) * 1000;
-  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, times: t, n: peaks.length };
+  for (let i = 0; i < peaks.length; i++) t[i] = piecewise ? rec.tMsAt(peaks[i]) : rec.t0Ms + (peaks[i] / rec.fs) * 1000;
+  if (piecewise) {
+    for (let i = 1; i < t.length; i++) if (!(t[i] >= t[i - 1])) throw new Error(`piecewise ECG axis broke sortedness at beat ${i}`);
+  }
+  return {
+    t0Ms: rec.t0Ms,
+    fs: rec.fs,
+    durSec: rec.durSec,
+    times: t,
+    n: peaks.length,
+    tMsAt: rec.tMsAt,
+    tMsCorrected: !!rec.tMsCorrected,
+    independent: rec.hostAxis ? rec.hostAxis.independent : null,
+    maxStepMs: rec.hostAxis ? rec.hostAxis.maxStepMs : null
+  };
 }
 function ppgFootTimes(text) {
   const rec = PPGDSP.parsePPG(text);
