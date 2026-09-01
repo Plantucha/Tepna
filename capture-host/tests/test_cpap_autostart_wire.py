@@ -10,7 +10,13 @@ import pytest
 import capture
 import cpap_live as L
 
-T0 = 1_787_000_000_000
+# The nights these tests judge are 2026-08-29, and the journal rows must fall INSIDE that night —
+# they did not before. A fixed epoch (2026-08-17) only ever worked because `therapy_minutes` summed
+# the whole journal regardless of which night it was asked about; scoping it exposed the mismatch.
+# Anchored here so the data states the night it belongs to.
+import datetime as _d
+
+T0 = _d.datetime.combine(_d.date(2026, 8, 29), _d.time(23, 0)).timestamp() * 1000.0
 HDR = "host_ms;prior;state;transition;action;trigger;confidence;reachable;fg_state;x;y;z"
 
 
