@@ -113,11 +113,18 @@ def test_no_journal_seeds_nothing(tmp_path):
 # ── the loop ───────────────────────────────────────────────────────────────────────────────────
 
 
-def _loop(tmp_path, therapy_seq, op_results, *, running=False, ticks=None):
-    """Drive `_cpap_autostart_loop` for len(therapy_seq) cycles with a fake clock and op."""
+def _loop(tmp_path, therapy_seq, op_results, *, running=False, ticks=None,
+          running_seq=None, paths=None, unlinked=None, unlink_fn=None):
+    """Drive `_cpap_autostart_loop` for len(therapy_seq) cycles with a fake clock and op.
+
+    `running_seq` scripts `is_running()` per tick (holding its last value) so a retention test can
+    show a started stream ENDING; `paths`/`unlinked` wire the discard seam. The 30 s tick is the
+    TEST clock's step, not the loop's poll_s — passed explicitly so the arithmetic below is
+    unchanged from the gate era."""
     calls, t = [], {"ms": T0 + 20 * 30_000}
     seq = list(therapy_seq)
     res = list(op_results)
+    rseq = list(running_seq or [])
 
     async def sleep(_s):
         t["ms"] += 30_000
@@ -134,24 +141,91 @@ def _loop(tmp_path, therapy_seq, op_results, *, running=False, ticks=None):
     def therapy():
         return seq.pop(0) if seq else None
 
+    def is_running():
+        if rseq:
+            return rseq.pop(0) if len(rseq) > 1 else rseq[0]
+        return running
+
+    def unlink(p):
+        (unlinked if unlinked is not None else []).append(p)
+
+    unlink = unlink if unlink_fn is None else unlink_fn
+
     asyncio.run(
         capture._cpap_autostart_loop(
             root=str(tmp_path),
             op=op,
-            is_running=lambda: running,
-            debounce_s=120.0,
+            is_running=is_running,
+            retain_s=120.0,
+            hold_s=120.0,
             max_attempts=3,
+            get_last_paths=lambda: list(paths or []),
+            poll_s=30.0,
             sleep=sleep,
             now_ms=lambda: t["ms"],
             get_therapy=therapy,
+            unlink=unlink,
         )
     )
     return calls
 
 
-def test_the_loop_starts_the_stream_once_the_debounce_passes(tmp_path):
+def test_the_loop_starts_the_stream_at_the_first_sighting_and_only_once(tmp_path):
+    """EAGER: one start, on the first tick that sees therapy — not after a gate."""
     _in_therapy(tmp_path)
-    assert _loop(tmp_path, [True] * 8, [{"ok": True}]) == ["start"]
+    assert _loop(tmp_path, [True] * 8, [{"ok": True}], running_seq=[False, True]) == ["start"]
+
+
+def test_a_FALSE_START_is_discarded_journalled_and_costs_an_attempt(tmp_path):
+    """The retention half, end to end: our stream starts, ends 60 s later (< retain+hold = 240 s),
+    and the loop deletes the fragment's files, saves the spent attempt, and leaves the session
+    eligible for a bounded retry."""
+    _in_therapy(tmp_path)
+    gone = []
+    # tick1: start (running False) · tick2: running True · tick3: ended -> judged · tick4+: therapy
+    # over, so the (correctly permitted, budget-bounded) retry never re-fires in this fixture
+    calls = _loop(tmp_path, [True, True, True, False, False, False], [{"ok": True}],
+                  running_seq=[False, True, False, False],
+                  paths=["/x/raw.jsonl", "/x/night.edf"], unlinked=gone)
+    assert calls == ["start"]
+    assert gone == ["/x/raw.jsonl", "/x/night.edf"], "the fragment must leave no orphan"
+    rec = json.loads(open(capture._cpap_autostart_path(str(tmp_path))).read())
+    assert rec["attempts"] == 1 and rec["last_error"].startswith("false start:")
+
+
+def test_a_discard_survives_a_missing_file_and_NAMES_a_stubborn_one(tmp_path, caplog):
+    """The two failure arms of the unlink: a file never written (or already gone) is silently fine —
+    no orphan either way — while a file that CANNOT be removed is a real orphan the operator must
+    hear about by name. Neither may kill the loop."""
+    def unlink_fn(p):
+        if "gone" in p:
+            raise FileNotFoundError(p)
+        raise OSError("permission denied")
+
+    _in_therapy(tmp_path)
+    with caplog.at_level("WARNING"):
+        calls = _loop(tmp_path, [True, True, True, False, False, False], [{"ok": True}],
+                      running_seq=[False, True, False, False],
+                      paths=["/x/gone.edf", "/x/stuck.edf"], unlink_fn=unlink_fn)
+    assert calls == ["start"]
+    assert "could NOT be removed" in caplog.text and "/x/stuck.edf" in caplog.text
+    assert "/x/gone.edf" not in caplog.text.split("could NOT")[1], "the missing file is not an orphan"
+    rec = json.loads(open(capture._cpap_autostart_path(str(tmp_path))).read())
+    assert rec["attempts"] == 1, "the judgment itself must survive both unlink failures"
+
+
+def test_a_LONG_session_is_retained_and_spends_nothing(tmp_path):
+    """The other direction: a stream that lives past retain+hold ends as a real session — no
+    deletion, no attempt."""
+    _in_therapy(tmp_path)
+    gone = []
+    # start at tick1; runs for 8 ticks (8*30 s = 240 s ≥ window) before ending
+    calls = _loop(tmp_path, [True] * 12, [{"ok": True}],
+                  running_seq=[False] + [True] * 8 + [False],
+                  paths=["/x/raw.jsonl"], unlinked=gone)
+    assert calls == ["start"] and gone == []
+    rec = json.loads(open(capture._cpap_autostart_path(str(tmp_path))).read())
+    assert rec["attempts"] == 0
 
 
 def test_the_loop_does_NOT_start_while_a_stream_is_already_running(tmp_path):

@@ -316,8 +316,14 @@ cpap:                    # ResMed card auto-harvest over an ez Share Wi-Fi SD ad
     # inherits that decision rather than quietly restoring a refusal the owner removed.
     # auto_start:
     #   enabled: false
-    #   debounce_s: 120.0           # continuous Therapy required before starting (mask-fit blips are shorter)
-    #   max_attempts: 5             # failed starts per SESSION before giving up; backoff 60s doubling, capped 900s
+    #   retain_s: 120.0             # EAGER START (2026-09-01): the stream starts at the FIRST Therapy
+    #                               # sighting; a session that fails to sustain this much therapy is
+    #                               # judged a false start AFTER it ends (window = retain_s + the
+    #                               # auto_stop hold_sec), its fragment discarded, and an attempt spent.
+    #                               # The legacy key `debounce_s` is honoured with the same number —
+    #                               # only WHEN the 120 s question is asked has moved (it used to gate
+    #                               # the start, costing every genuine night a 120 s head gap).
+    #   max_attempts: 5             # failed/false starts per SESSION before giving up; backoff 60s doubling, capped 900s
 
   # STORED-SPOOL PULL — the device's own on-board session record, pulled over BLE (CPAP-SPOOL-
   # ACQUISITION Do-3). Distinct from BOTH neighbours above: the Wi-Fi harvest copies the SD card, the
