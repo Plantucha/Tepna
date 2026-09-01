@@ -391,7 +391,11 @@ def measured_hz(path: str, max_rows: int = _RATE_SAMPLE_ROWS):
     """
     ns: list[int] = []
     try:
-        with open(path) as fh:
+        # errors="replace", like every other text reader here: invalid bytes must degrade to a
+        # row that fails to parse (already handled, and bounded by _RATE_MIN_ROWS below), never
+        # to a UnicodeDecodeError — that is a ValueError, so the `except OSError` around this
+        # would NOT catch it and one corrupt file would take the whole night's QC with it.
+        with open(path, encoding="utf-8", errors="replace") as fh:
             head = fh.readline()
             if "sensor timestamp" not in head:
                 return None                      # not a PMD stream layout — say nothing rather than guess
@@ -1126,7 +1130,7 @@ def arrival_quality(night_dir: str) -> list[dict]:
         path = os.path.join(night_dir, name)
         per: dict[tuple[str, str], list[float]] = {}
         try:
-            with open(path, newline="") as fh:
+            with open(path, newline="", encoding="utf-8", errors="replace") as fh:
                 for row in _csv.DictReader(fh, delimiter=";"):
                     # PAIR AGAINST THE **LAST** SAMPLE IN THE PACKET, not the first. The arrival is
                     # stamped when the packet LANDS, which is after every sample in it — so
@@ -1418,7 +1422,7 @@ def rtc_drift_summary(path: str) -> dict | None:
     past threshold = a battery event that silently ruins the stored .dat's timebase), `pushes` (0xC0
     sent). Rows are `Phone timestamp;event;rtc_offset_s;…`; PURE-ish (reads a path)."""
     try:
-        lines = open(path, encoding="utf-8").read().splitlines()
+        lines = open(path, encoding="utf-8", errors="replace").read().splitlines()
     except OSError:
         return None
     offsets: list[float] = []
