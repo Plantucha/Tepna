@@ -75,6 +75,61 @@ Review record: Osprey (oracle-side data owner) approved 2026-09-01 with conditio
 pin + direct-comparison pin + the whole-night-stability strengthener — all folded above verbatim;
 thresholds unchanged from the pre-review draft.
 
+### §1 RESULTS — measured 2026-09-01, same day, after the freeze; read strictly by the frozen rules
+
+**Instrument note first (a reported deviation):** the P1 tool's first commit computed
+mean_A − mean_B — the NEGATION of the frozen text's order — caught by checking the run against the
+frozen wording, fixed, re-run; the selftest now pins the compliant sign with the derivation
+(R_linear = R_true − c ⇒ measured lag = true + c). One threshold moved: none.
+
+**P1 (anchors-only), against #2044's frozen Δmode = −80 / −120 / +100 / +150:**
+Δmode_pred = **−84.2 / −4.6 / +0.1 / −2.6 ms** (tMsCorrected true and independent on all four;
+maxStep 23 / 15 / 53 / **8654** ms). 07-24 matches at **4.2 ms with the right sign**; the other
+three miss by 100–153 ms. **1 of 4 — P1 fails the ≥3/4 bar.**
+
+**P2 (interventional, `--ecg-axis piecewise`):** denominator = 3 — **2026-08-18 is an ANNOTATED
+exclusion**: its piecewise train breaks sortedness at beat 6015, the 8.6 s mid-file step (the
+H10-2019-origin sync class) doing exactly what frozen condition (c) said a step would do. (The
+first run swallowed that night SILENTLY through the oracle's catch — the tool now prints the
+exclusion under `--ecg-axis piecewise`; the silent version existed for one run and is reported
+here, not absorbed. **The GENERAL form is filed as a candidate with the oracle's owner** (Osprey,
+by request): the catch-and-continue exists so a bad night cannot kill a corpus run, but it also
+eats diagnostic-grade refusals silently on every path — surfacing all caught-exception nights as
+`⊘ <reason>` is their unit, deliberately not built here.)
+
+| night | halves Δ, linear | halves Δ, piecewise | whole-night mode |
+|---|---|---|---|
+| 07-24 | 405→325 (−80) | 445→495 (**+50**) | 405→445 (**+40 — deviation, > ±20**) |
+| 08-12 | 315→195 (−120) | 315→195 (**−120**) | 315→315 (✓) |
+| 08-17 | 215→315 (+100) | 275→335 (**+60**) | 215→275 (**+60 — deviation**) |
+
+Collapse ≤30 ms: **0 of 3 — P2 fails.** Strict refutation (≥80 ms persists on ≥2): only 08-12 —
+**also unmet.** And the intervention DEGRADED the oracle where it acted: 07-24 narrowSD
+15.3→49.7 (SIGNAL RECOVERED → PARTIAL), 08-17 18.0→24.2 (also loses RECOVERED).
+
+**Verdict, by the frozen rules: H_axis FAILS CONFIRMATION on both predictions, and is not
+strictly refuted either.** What the measurements DO establish:
+
+1. **07-24's shift is axis-borne** (P1: 4.2 ms match on the one night with a large residual,
+   c spanning −204 ms) — but even there the piecewise intervention did not yield a cleaner night.
+   **Attribution ≠ correctability** (Osprey's phrasing, kept for the future reader): the
+   host-anchor record's own ≥50 ms structure means the piecewise correction carries anchor noise
+   INTO the train even where the axis story is true — knowing the cause does not hand you the fix.
+2. **The collapse-floor assumption is FALSE on this corpus**: the two piecewise corrections do not
+   agree to ~30 ms — applying the ECG-side one injected ≥50 ms of structure and degraded two
+   nights. The host-anchor record itself carries the wander at this scale, so "just
+   host-discipline everything" is measured dead as a next step, before anyone builds it.
+3. **08-12's −120 and 08-17's +100 are real, non-axis wander** (P1 residuals ≈ 0; P2 barely moves
+   them). Per the freeze, their further decomposition — PAT physiology vs common-mode detector vs
+   host-anchor structure — is the **PARKED branch, now reached and stamped**: no instrument in
+   this suite observes any of the three independently.
+
+The slow-wander seed is therefore MEASURED, not reopened-by-default: one night axis-explained,
+two nights real wander parked at the pre-declared boundary, one night unmeasurable under the
+intervention (annotated). Any future attempt starts from a new pre-registration with an
+instrument that can see one of the three parked terms independently (the O2Ring second-site
+lever remains the candidate).
+
 ## 2 · `channelSNR` is un-exported and `pat-per-led.mjs` silently prints n/a
 
 `channelSNR` is local to `ppgdex-dsp.js` (defined ~line 830, used internally, never on the
@@ -114,8 +169,12 @@ session should remount it meanwhile.
 
 ## Done when
 
-- [ ] §1: a wander pre-registration exists (bands before measurement) or the item is explicitly
-      declined in this header
+- [x] §1: a wander pre-registration exists (bands before measurement) or the item is explicitly
+      declined in this header — **EXISTS, Osprey-reviewed, FROZEN, and EXECUTED 2026-09-01**
+      (§1 results): H_axis fails confirmation (P1 1/4, P2 0/3) and is not strictly refuted;
+      07-24 axis-explained, 08-12/08-17 real non-axis wander parked at the pre-declared boundary,
+      08-18 annotated-excluded (8.6 s step breaks the piecewise train); the collapse-floor
+      assumption measured false — piecewise host-disciplining degrades the oracle on this corpus
 - [x] §2: export-or-delete decided and executed for `channelSNR` / pat-per-led's SNR column —
       resolved 2026-09-01 by DELEGATION (exported `bandpass`/`std`, identical quantity, selftested,
       execution-proven); the DSP export still rides the next real re-bundle
