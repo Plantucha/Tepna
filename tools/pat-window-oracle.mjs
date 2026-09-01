@@ -128,9 +128,27 @@ export function band(x, nullSd) {
 /* One channel-night. Returns nulls rather than throwing so a bad night cannot kill a corpus run. */
 export function oracleNight(rTimes, fTimes, halfWidth) {
   if (rTimes.length < 200 || fTimes.length < 200) return null;
-  const mid = rTimes[Math.floor(rTimes.length / 2)];
-  const rA = rTimes.filter((t) => t < mid);
-  const rB = rTimes.filter((t) => t >= mid);
+  /* 🔴 SPLIT ON THE OVERLAP, NOT ON THE ECG'S OWN EXTENT.
+     This used to take `mid` from the middle of `rTimes` and score out-of-sample on everything after it.
+     Out-of-sample scoring is right; splitting on ONE stream's extent while scoring against the OTHER is
+     not — the quantity this tool measures is a cross-device relationship, and that exists only where
+     both streams exist.
+     Measured 2026-09-01, and it silently zeroed six corpus nights: where the PPG covers only the early
+     part of a long ECG record, the entire scored half lands AFTER the PPG ended.
+       2026-08-12  split@00:39:56  PPG ends@23:40:24  rB=12967 beats, 0 inside the PPG span
+       2026-08-15  split@02:25:35  PPG ends@00:14:40  rB=12513 beats, 0 inside the PPG span
+       2026-08-13  split@01:48:08  PPG ends@04:03:26  rB= 7844 beats, 7794 inside  (this one worked)
+     Those six reported `UNDEFINED (n=0)`, which reads as a data verdict and was a TOOL REFUSAL. The
+     discriminator was the span ratio: ~1.0 keeps the scored half inside, 0.25–0.45 puts it wholly
+     outside. */
+  const lo = Math.max(rTimes[0], fTimes[0]);
+  const hi = Math.min(rTimes[rTimes.length - 1], fTimes[fTimes.length - 1]);
+  if (!(hi > lo)) return null;
+  const rIn = rTimes.filter((t) => t >= lo && t <= hi);
+  if (rIn.length < 200) return null;
+  const mid = rIn[Math.floor(rIn.length / 2)];
+  const rA = rIn.filter((t) => t < mid);
+  const rB = rIn.filter((t) => t >= mid);
   if (rA.length < 100 || rB.length < 100) return null;
 
   const mode = lagMode(rawLags(rA, fTimes)); // FIRST half only — out of sample
