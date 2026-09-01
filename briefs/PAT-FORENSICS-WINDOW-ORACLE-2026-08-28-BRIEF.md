@@ -352,6 +352,39 @@ as a number a consumer can quote — the same discipline `hostAxis` applies when
 Recorded as a candidate only: whether the oracle refuses or merely flags belongs to that tool's
 owner-decision layer, and is not built here.
 
+> ✅ **DECIDED AND BUILT — 2026-09-01 (owner's deputy: REFUSE, not flag).** `oracleVerdict()` in
+> `pat-window-oracle.mjs`: a recovered mode outside PHYS [200, 650] returns **ARTIFACT REFUSAL** with
+> the mode quoted as diagnostic — never a band verdict a consumer can quote. The refusal keys on the
+> PHYS band, deliberately NOT the ratified 200–500 acceptance rail: the rail stays the acceptance
+> layer's sanity band for signal nights, while this refusal is physical impossibility. The verdict
+> line for in-band nights now carries the mode + a per-night halves-invariance diagnostic beside the
+> w-dependent band label (§sweep's consumer hazard: labels degrade with `w`, modes don't).
+>
+> **Measured against a same-corpus baseline run of the pre-change code (58-dir box tree, 29 scored),
+> with two deviations from the pre-statement reported rather than absorbed:**
+>
+> - The refusal invariant holds exactly: the baseline's `[mode OUTSIDE phys window]` nights — **all
+>   6 of them, and only them** — become ARTIFACT REFUSAL (07-22 125 · 08-01 165 · 08-02 185 ·
+>   08-06 895 · 08-10 815 · 08-31 655 ms); every mode identical between runs; zero verdict changes on
+>   any non-refused night; the four signal nights (405/315/215/355) keep mode and SIGNAL RECOVERED.
+>   Tally 4/19/6 → 4 RECOVERED · 15 PARTIAL · 4 NO RECOVERY · **6 ARTIFACT REFUSAL**.
+> - ⚠️ **The list above (the recorded five) was STALE, in three ways, all pre-dating this change:**
+>   `2026-07-22` and `2026-08-31` are out-of-window today and were not recorded; `2026-08-06` reads
+>   mode **895**, not the recorded 25; `2026-08-28` (the recorded 1245) is `⊘ too few beats` under
+>   the pre-change code too — the overlap-split fix (#2034) moved membership after the candidate was
+>   written. The CLASS definition, not the night list, is what got built.
+> - ⚠️ **The halves-agreement expectation FAILED on all four signal nights** (405→325 · 315→195 ·
+>   215→315 · 355→505; pre-stated ±10 ms). This is the known ~450 ms offset wander surfacing in a
+>   new instrument, and it is exactly what the diagnostic exists to show: the night-mode is
+>   w-invariant but NOT time-stable within the night. Diagnostic only — it gates nothing — and the
+>   ±10 ms expectation does hold on the synthetic plant, so the miss is a property of the nights,
+>   not of the arithmetic.
+>
+> Selftest 15/15, including a both-sides plant — a tight 100 ms lag the band layer alone WOULD have
+> quoted as SIGNAL RECOVERED is refused (the fabricated-authority case this class exists for), and a
+> slow-train 700 ms plant refuses high (a 1240 ms plant against RR≈900 aliases mod RR to ~285 — beat
+> trains align only mod one heartbeat — so the high plant uses RR 1500±300).
+
 ### ✅ SWEEP RESULT — measured 2026-09-01, against the bands registered above
 
 **Prediction 1 — `nullSD` tracks `2w/√12`: holds, then breaks, and the break is the informative part.**
