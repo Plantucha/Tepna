@@ -6315,6 +6315,36 @@
       }
     });
 
+    /* ════ mergeEcg carries timing provenance across the merge (H10-2019-ORIGIN, 2026-09-01) ════════
+       The ECG twin of mergePpg's F3 fix: `parseECG` now publishes `deviceEpoch` + `hostAxis`. These
+       ride the single-fragment path for free (mergeEcg returns the rec itself), but the MULTI-fragment
+       merge builds a fresh object, and anything not named there is dropped — which is the fold path,
+       i.e. exactly the surface the 84 unnoticed 2019-origin nights taught us to annotate. Source-scan
+       like the sibling groups, because trio-batch's merge closures are not importable from a test;
+       the scan anchors on the merged-return fold rules, not mere identifier occurrence. */
+    group('trio-batch mergeEcg carries deviceEpoch + timingSource across the merge', 'trio-batch · clock-contract · source-scan', function (T) {
+      var S = env.sources || {};
+      var tb = S['tools/trio-batch.mjs'] || S['trio-batch.mjs'];
+      if (tb == null) {
+        T.skip('trio-batch source wired', 'not in env.sources — the scan would read nothing');
+        return;
+      }
+      var m = tb.indexOf('const mergeEcg');
+      var end = tb.indexOf('const mergePpg', m);
+      var body = m >= 0 && end > m ? tb.slice(m, end) : '';
+      T.ok('mergeEcg found', body.length > 0);
+      T.ok(
+        'the merged rec names deviceEpoch (plausible = EVERY fragment plausible)',
+        /deviceEpoch[\s\S]{0,600}?parts\.every\(\s*\(r\)\s*=>\s*r\.deviceEpoch\.plausible\s*\)/.test(body),
+        'no worst-case deviceEpoch fold in mergeEcg return'
+      );
+      T.ok(
+        '…and a hostAxis with a timingSource derived from fragment independence',
+        /hostAxis[\s\S]{0,900}?timingSource[\s\S]{0,200}?'device\+host'/.test(body),
+        'no timingSource fold in mergeEcg return'
+      );
+    });
+
     /* FINISHED-WORK-IMPROVEMENTS §A 2c (2026-08-22) — the ring's RTC history rolled into the
        arrival sidecar so a fold consumer can see reads/pushes/resets/first-last offset without
        reaching back to the per-session `*_rtclog.csv`. Source-scan, because trio-batch's night loop
@@ -13760,6 +13790,95 @@
         'derived=' + derived.fs + ' indep=' + indep.fs + ' recovered=' + Math.round(movedPpm) + ' ppm from a planted 500'
       );
       T.ok('the refusal is auditable — spreadMs is forwarded, not just a boolean', dAx.spreadMs != null && iAx.spreadMs != null, JSON.stringify([dAx.spreadMs, iAx.spreadMs]));
+    });
+
+    /* ════ THE 2019-ORIGIN H10 IS ANNOTATED, NEVER REFUSED (H10-2019-ORIGIN, 2026-09-01) ════════════
+       The H10 boots its sensor clock at a 2019-01-01 firmware default and adopts real time only when a
+       sync lands. Measured over the full corpus: 87 of 455 H10 ECG files START on that origin and 84
+       never sync — a fifth of the H10 nights, internally perfect (130.00 Hz, monotonic) and absolutely
+       wrong by ~7.6 years, unnoticed for two months because no sidecar persisted the sync outcome and
+       the exports carried no annotation. The sensor-ns column IS the surviving evidence (Polar epoch
+       2000-01-01: a synced device reads ~26 years, a 2019-origin one ~19), so `parseECGText` now
+       publishes `deviceEpoch { offsetMs, plausible }` and the node export carries it.
+       TWO invariants, both directions pinned:
+       · ANNOTATE — a fabricated epoch is visible on the parse rec AND on the Integrator-facing export
+         (`recording.deviceEpoch`, `recording.timingSource`, `recording.hostAxis`). The export legs
+         also pin the analyze() forwarding fix: `recording.hostAxis` (HOSTAXIS-STABILITY §4.2) was dead
+         on every real path because analyze dropped `rec.hostAxis` in its reshape — verified on the
+         2026-09-01 refolded corpus, zero exports carried it.
+       · NEVER REFUSE — the same file parses in full: refusing first-row absolute implausibility would
+         throw away 19 % of H10 nights whose uV samples and relative timing are sound.
+       The 48 h threshold is deliberately coarse: the Verity's constant ~4 h offset and any zone/DST
+       confusion stay PLAUSIBLE (wrong-clock problems, hostAxis's business); the two real populations
+       sit at hours vs years. ════ */
+    group('ECGDex deviceEpoch — a 2019-origin H10 is annotated, never refused', 'ecgdex-dsp · clock-contract', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.parseECG === 'function')) {
+        T.ok('ECGDSP.parseECG available', false, 'not loaded');
+        return;
+      }
+      var HDR = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]';
+      var BASE = Date.UTC(2026, 5, 17, 1, 0, 0);
+      var POLAR_EPOCH = Date.UTC(2000, 0, 1); // sensor-ns epoch (capture-host `_POLAR_EPOCH`)
+      // Same geometry as the derived-host-column group above: 2600 rows × 1000 ms, anchors every 500
+      // rows. The ns column carries an ABSOLUTE device clock whose origin the test plants.
+      function build(devOriginMs) {
+        var rows = [HDR];
+        for (var i = 0; i < 2600; i++) {
+          var rel = i * 1000;
+          var ns = (devOriginMs - POLAR_EPOCH + rel) * 1e6;
+          rows.push(new Date(BASE + rel).toISOString() + ';' + ns + ';' + rel + ';' + (100 + (i % 40)));
+        }
+        return rows.join('\n');
+      }
+      var origin2019 = Date.UTC(2019, 0, 5); // the firmware default plus a few days on the strap
+      var rec = D.parseECG(build(origin2019));
+      T.ok('a 2019-origin device epoch is flagged implausible', rec.deviceEpoch && rec.deviceEpoch.plausible === false, JSON.stringify(rec.deviceEpoch));
+      T.eq('…with the raw offset published, not just a verdict', rec.deviceEpoch && rec.deviceEpoch.offsetMs, origin2019 - BASE);
+      // NEVER REFUSE — the annotation must not become a gate on the samples.
+      T.eq('…and every sample is kept', rec.int16.length, 2600);
+      T.eq('…with t0Ms still anchored on the HOST stamp, not the fabricated device clock', rec.t0Ms, BASE);
+      var syn = D.parseECG(build(BASE + 4000));
+      T.ok('a synced device (4 s skew) is plausible', syn.deviceEpoch && syn.deviceEpoch.plausible === true, JSON.stringify(syn.deviceEpoch));
+      /* The Verity stamps its PMD samples ~4 h ahead of the clock we set and no re-sync moves it
+         (measured 2026-07-18). That is a wrong CLOCK, not a fabricated EPOCH — flagging it here would
+         re-litigate what the hostAxis machinery already absorbs, so the threshold must keep it. */
+      T.ok('a constant 4 h offset (the Verity class) stays plausible', D.parseECG(build(BASE + 4 * 3600e3)).deviceEpoch.plausible === true);
+      // Honest absence: no sensor-ns column ⇒ no epoch claim in either direction (§2.6's rule).
+      var noNs = [HDR];
+      for (var j = 0; j < 20; j++) noNs.push(new Date(BASE + j * 8).toISOString() + ';;' + j * 7.692 + ';' + (100 + j));
+      T.eq('no ns column ⇒ deviceEpoch is null, never a fabricated verdict', D.parseECG(noNs.join('\n')).deviceEpoch, null);
+      // ── the Integrator-facing surface — and the analyze() forwarding fix it rides on ─────────────
+      var ex = D.compute(build(origin2019), { source: 'polar-h10-ecg' });
+      T.ok('the node export carries recording.deviceEpoch', ex.recording.deviceEpoch && ex.recording.deviceEpoch.plausible === false, JSON.stringify(ex.recording.deviceEpoch));
+      T.eq('…and recording.timingSource (a resolution path integrator-dsp already honors)', ex.recording.timingSource, 'device');
+      T.ok(
+        '…and recording.hostAxis — dead until analyze forwarded rec.hostAxis',
+        !!ex.recording.hostAxis && ex.recording.hostAxis.timingSource === 'device',
+        JSON.stringify(ex.recording.hostAxis && ex.recording.hostAxis.timingSource)
+      );
+      // Attach-only-when-present: a rec the parser could not judge adds NO keys (export-shape inertness
+      // for recordings with no ns column / no host stamps — the discipline every sibling block keeps).
+      var nnMin = [];
+      for (var k = 0; k < 20; k++) nnMin.push(800 + (k % 5));
+      var exMin = D.buildNodeExport(
+        {
+          nn: nnMin,
+          tt: nnMin.map(function (_, q) {
+            return q * 0.8;
+          }),
+          events: [],
+          t0Ms: BASE,
+          durSec: 16,
+          fs: 130
+        },
+        {}
+      );
+      T.ok(
+        'a rec with no timing provenance attaches none of the three keys',
+        !('deviceEpoch' in exMin.recording) && !('timingSource' in exMin.recording) && !('hostAxis' in exMin.recording),
+        JSON.stringify(Object.keys(exMin.recording))
+      );
     });
 
     group('ECGDex parseECG — mean-interval fs + raw-gap accounting (DEEP-AUDIT-II §4.3/§4.2)', 'ecgdex-dsp', function (T) {

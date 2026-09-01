@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0wrnC0lVV+CrxqFX7kyOj6IsM0aoYU6jEFEXzId9FCU=' 'sha256-5SeQ/LQ6sV4hKXN6R1UKV7fvvzj1mN+khAZ14uQB4pg=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-R7M9RrF2ioF0E9TUK3xlCzJjg9aXijC5t11ptmDOFxA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-W7m5EJur7zz9xJVj4s2diLK2Ex8nuYlUeh9vJ0nqr8U=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rWqh0krcQ5j4KEgHto+YSbUvoGUVzFyv7ucsRx/6K5s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0wrnC0lVV+CrxqFX7kyOj6IsM0aoYU6jEFEXzId9FCU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-IVo/BSoO8FnIyZgiecGr76EvKvwxfckWDpD0N85/XNk=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-R7M9RrF2ioF0E9TUK3xlCzJjg9aXijC5t11ptmDOFxA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-W7m5EJur7zz9xJVj4s2diLK2Ex8nuYlUeh9vJ0nqr8U=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rWqh0krcQ5j4KEgHto+YSbUvoGUVzFyv7ucsRx/6K5s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -32947,7 +32947,18 @@ __exports.PpgDex = window.PpgDex;
       deviceHR: rec.deviceHR || null,
       deviceACC: rec.deviceACC || null,
       accFs: rec.accFs || null,
-      t0Ms: rec.t0Ms || null
+      t0Ms: rec.t0Ms || null,
+      /* TIMING PROVENANCE, carried through the reshape (H10-2019-ORIGIN, 2026-09-01). Like `endEpochMs`
+         above these are properties of the RECORDING, not of the analysis — and until this line they
+         were DROPPED here, which made `ecgBuildNodeExport`'s `recording.hostAxis` block (HOSTAXIS-
+         STABILITY §4.2) dead on every real path: `compute()` and the app both route parse → analyze →
+         buildNodeExport, so `r.hostAxis` was always undefined and no shipped export ever carried it
+         (verified on the 2026-09-01 refolded corpus — zero `hostAxis`/`timingSource` keys). The same
+         reshape-drop class trio-batch's PPG merge already fixed (WEARABLE-HOST-AXIS-FOLLOWUPS §F3),
+         one node over. A reshape that renames fields must forward the ones it does not rename. */
+      hostAxis: rec.hostAxis || null,
+      tMsCorrected: rec.tMsCorrected === true,
+      deviceEpoch: rec.deviceEpoch || null
     };
   }
 
@@ -34608,6 +34619,29 @@ __exports.PpgDex = window.PpgDex;
     // answers "where does this recording end on the clock" — two questions one scalar cannot both answer.
     var endTs = lastTs != null ? parseTimestamp(lastTs) : null;
     var endEpochMs = endTs && endTs.tMs != null ? endTs.tMs : null;
+    /* ── DEVICE-EPOCH PLAUSIBILITY — the 2019-origin annotation (H10-2019-ORIGIN, 2026-09-01) ─────────
+       The H10 boots its sensor clock at a 2019-01-01 firmware default and adopts real time only when a
+       sync lands. Measured over the full corpus: 87 of 455 H10 ECG files START on that fabricated
+       origin and 84 of them never sync — a fifth of the H10 nights, internally perfect (130.00 Hz,
+       monotonic) and absolutely wrong by ~7.6 years. Nothing in the capture persisted the sync outcome
+       per night (live STATUS is a snapshot, journald rotates), so the file itself is the only evidence
+       channel that survives — and the evidence IS in the file: the sensor-ns column counts from the
+       Polar device epoch (2000-01-01, written in LOCAL wall time by the capture host's sync, so it
+       compares against floating tMs with no zone term), and a synced device reads ~26 years where a
+       2019-origin one reads ~19.
+       ANNOTATE, NEVER REFUSE. These files' uV samples are fine and hostAxis anchoring measures
+       divergence relative to the first anchor, so every relative quantity is sound — a first-row
+       absolute-implausibility refusal would throw away 19 % of H10 nights. The annotation says only:
+       the DEVICE's absolute clock is fabricated; absolute time on this recording is host-provenance
+       (t0Ms comes from the Phone column) or nothing.
+       48 h threshold, deliberately coarse: it must keep the Verity's constant ~4 h offset and any
+       zone/DST confusion (≤ ~14 h) on the plausible side — those are wrong-clock problems, not
+       fabricated-epoch problems, and they are the hostAxis machinery's business. The two populations
+       sit at hours vs YEARS; anything between would be a new failure worth seeing (offsetMs is
+       published raw so it would be). */
+    var POLAR_EPOCH_MS = Date.UTC(2000, 0, 1); // sensor-ns epoch (capture-host `_POLAR_EPOCH`)
+    var deviceEpochOffsetMs = firstNsMs !== null && t0Ms !== null ? POLAR_EPOCH_MS + firstNsMs - t0Ms : null;
+    var deviceEpoch = deviceEpochOffsetMs !== null ? { offsetMs: Math.round(deviceEpochOffsetMs), plausible: Math.abs(deviceEpochOffsetMs) <= 48 * 3600e3 } : null;
     return {
       int16: arr.slice(0, n),
       fs: fs,
@@ -34632,6 +34666,8 @@ __exports.PpgDex = window.PpgDex;
       endEpochMs: endEpochMs,
       firstRelMs: firstRelMs,
       lastRelMs: lastRelMs,
+      // See the block above — null when the file carries no sensor-ns column or no parseable host stamp.
+      deviceEpoch: deviceEpoch,
       /* See the fs block above. `maxStepMs` is the one to read: a step is reported, never corrected.
          `applied` is the field that says whether `fs` actually moved — `ok` alone does NOT mean the
          correction reached the axis, because the span gate can measure a rate and still decline to
@@ -34646,6 +34682,13 @@ __exports.PpgDex = window.PpgDex;
                never had a second clock — different problems with different remedies. */
             independent: ecgHostAx.independent != null ? ecgHostAx.independent : null,
             spreadMs: ecgHostAx.spreadMs != null ? ecgHostAx.spreadMs : null,
+            /* PpgDex's provenance lattice (Clock Contract §7), restricted to the arms this layout can
+               reach: the ECG axis is a REAL per-sample device counter here — never drawn — so the
+               'host'/'none' arms do not arise. `independent === false` (every phone capture: the host
+               column is the device stamp rounded, spread ≈ one quantum) means one clock ⇒ 'device';
+               a genuinely independent host column ⇒ 'device+host'. NOTE this says which clocks set the
+               RATE/RELATIVE axis — `deviceEpoch` above is the orthogonal ABSOLUTE-origin fact. */
+            timingSource: ecgHostAx.independent === false ? 'device' : 'device+host',
             totalMs: ecgHostAx.totalMs,
             ppm: ecgHostAx.ppm,
             maxStepMs: ecgHostAx.maxStepMs,
@@ -34665,7 +34708,13 @@ __exports.PpgDex = window.PpgDex;
               ? undefined
               : 'span ' + Math.round(ecgAxisSpanMs / 1000) + ' s < ' + ECG_AXIS_MIN_SPAN_MS / 1000 + ' s — too short to resolve a crystal rate, fs left on the device clock'
           }
-        : { ok: false, applied: false, reason: ecgHostAx.reason || 'no host anchors' }
+        : {
+            ok: false,
+            applied: false,
+            reason: ecgHostAx.reason || 'no host anchors',
+            // No usable host↔device anchor set ⇒ the published axis rides the device crystal alone.
+            timingSource: 'device'
+          }
     };
   }
 
@@ -35034,6 +35083,7 @@ __exports.PpgDex = window.PpgDex;
         spanMs: r.hostAxis.spanMs,
         independent: r.hostAxis.independent,
         spreadMs: r.hostAxis.spreadMs,
+        timingSource: r.hostAxis.timingSource || null,
         tMsCorrected: r.tMsCorrected === true,
         stability: r.hostAxis.stability
           ? {
@@ -35048,6 +35098,17 @@ __exports.PpgDex = window.PpgDex;
         note: 'quote `ppm` WITH `ppmUncertainty`; `stability:null` means there was no second clock (host column ≡ device stamp), not that the clock was perfect'
       };
     }
+    /* TIMING PROVENANCE on the Integrator-facing surface (H10-2019-ORIGIN, 2026-09-01). ATTACHED ONLY
+       WHEN PRESENT, same discipline as `hostAxis`/`validation` above: a null key is still a changed
+       export shape, so recordings the parser could not judge (no ns column, no host stamp — every
+       synthetic rec) keep today's bytes.
+       `recording.timingSource` is a resolution path `integrator-dsp normalizeFile` already honors —
+       which clocks built the RELATIVE axis. `recording.deviceEpoch` is the orthogonal ABSOLUTE fact:
+       `plausible:false` marks a 2019-origin H10 (a fifth of the corpus's H10 nights) whose device
+       clock never adopted real time — absolute time on such a night is host-provenance or nothing,
+       while every relative/HRV quantity remains sound. Annotate, never refuse. */
+    if (r.hostAxis && r.hostAxis.timingSource) out.recording.timingSource = r.hostAxis.timingSource;
+    if (r.deviceEpoch) out.recording.deviceEpoch = { offsetMs: r.deviceEpoch.offsetMs, plausible: r.deviceEpoch.plausible };
     if (r.deviceRR && r.deviceRR.length) {
       const _v = validateRR(r.nn, r.deviceRR);
       if (_v) {
