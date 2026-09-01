@@ -341,7 +341,8 @@ def stream_minutes(headers):
         try:
             n, dur = float(h[0]), float(h[1])
         except (TypeError, ValueError, IndexError):
-            continue
+            continue   # an unreadable EDF header contributes no minutes; #2004's `unreachable`
+                       # classification is what distinguishes "no data" from "machine was off"
         if n > 0 and dur > 0:
             total += n * dur
     return total / 60.0

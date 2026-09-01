@@ -44,7 +44,7 @@ class _SseHandler(http.server.BaseHTTPRequestHandler):
                     self.wfile.flush()
                     time.sleep(0.1)
             except (BrokenPipeError, ConnectionResetError):
-                pass
+                pass   # the client under test hung up — that is the scenario, not a fault
             return
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
@@ -59,7 +59,7 @@ class _SseHandler(http.server.BaseHTTPRequestHandler):
                 i += 1
                 time.sleep(1.0 / self.frames_per_sec)
         except (BrokenPipeError, ConnectionResetError):
-            pass
+            pass   # the test client closing the stream is the point of this fixture, not a fault
 
     def log_message(self, *a):                          # keep pytest output clean
         pass

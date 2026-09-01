@@ -109,5 +109,7 @@ def prune_old_nights(captures_dir: str, keep_nights: int, protect: set[str] | No
             _rm(os.path.join(captures_dir, n))
             removed.append(n)
         except OSError:
-            pass
+            pass  # THE APPEND IS INSIDE THE TRY, deliberately: a night whose delete failed is not
+                  # reported as removed, so the returned list is what actually went. Freeing space
+                  # must never crash capture (docstring above), but it must not lie about it either
     return removed

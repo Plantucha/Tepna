@@ -157,7 +157,8 @@ def load_rows(ledger_path: str) -> list[dict]:
                 try:
                     obj = json.loads(line)
                 except ValueError:
-                    continue
+                    continue   # a half-written JSONL line is the normal tail of a log being
+                               # appended to right now; the next read gets it once it is complete
                 if isinstance(obj, dict) and "id" in obj:
                     rows.append(obj)
     except OSError:

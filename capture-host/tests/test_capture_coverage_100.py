@@ -1449,7 +1449,7 @@ def test_the_archive_poller_mirrors_the_configured_subtrees(tmp_path, monkeypatc
         try:
             await task
         except asyncio.CancelledError:
-            pass
+            pass   # we cancelled it; awaiting is how we wait for it to actually stop
     try:
         _run(go())
     finally:

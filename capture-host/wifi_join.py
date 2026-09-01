@@ -92,7 +92,8 @@ def parse_scan_results(text):
         try:
             signal = int(sig)
         except ValueError:
-            continue
+            continue   # a scan row with no parseable signal cannot be ranked, and showing it
+                       # unranked would put an unknown-strength network among measured ones
         sec = SECURED if re.search(r"WPA|WEP|PSK|SAE", flags or "", re.I) else OPEN
         prev = best.get(ssid)
         if prev is None or signal > prev["signal"]:

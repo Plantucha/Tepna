@@ -732,9 +732,11 @@ class TelemetryBus:
         for q in list(self._subs):
             if q.full():
                 try: q.get_nowait()
-                except asyncio.QueueEmpty: pass
+                except asyncio.QueueEmpty: pass   # drained by the consumer between full() and here
             try: q.put_nowait(msg)
-            except asyncio.QueueFull: pass
+            except asyncio.QueueFull: pass        # ...and refilled before we could push. A
+                                                  # DROP-OLDEST ring: losing a telemetry frame is
+                                                  # the design; blocking the producer would not be
 
     def snapshot(self, stream: str) -> dict:
         ring = self._rings.get(stream)

@@ -551,7 +551,8 @@ def test_the_SCAN_runs_under_the_adapter_lock(monkeypatch):
             async with capture._connect_scan("AA:BB:CC:DD:EE:FF", timeout=0.05):
                 pass
         except Exception:
-            pass
+            pass   # the connect is EXPECTED to fail with no radio; what is under test is the
+                   # state the context manager leaves behind, asserted after this block
 
     async def _both():
         await _aio.gather(_attempt(), _attempt())

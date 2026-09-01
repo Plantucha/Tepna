@@ -148,7 +148,8 @@ def write_reports(res: dict, *, qc_path: str, journal_path: str) -> dict:
             for line in cpap_inventory.journal_lines(res):
                 fh.write(json.dumps(line) + "\n")
     except OSError:
-        pass
+        pass  # same reason as the report above: the JOURNAL is not the data. Losing it must not
+              # look like losing the capture, and the capture's own writers report their own faults
     return payload
 
 

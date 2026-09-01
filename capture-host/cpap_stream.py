@@ -436,7 +436,8 @@ class LiveStreamController:
                 try:
                     await task
                 except asyncio.CancelledError:
-                    pass
+                    pass   # WE cancelled it one line up; the cancellation coming back is the
+                           # CONFIRMATION that it stopped, not a fault
                 except Exception:  # noqa: BLE001 — a cancelled stream must not stop us tearing the link down
                     pass
             except Exception:  # noqa: BLE001 — a pump that ended by ERROR still lets us close the link
