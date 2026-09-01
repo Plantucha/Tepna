@@ -350,6 +350,44 @@ def test_summarize_pools_when_the_reconnect_took_longer_than_the_gap(tmp_path):
     assert s["degraded"] == [] and s["missing"] == []
 
 
+def test_summarize_pools_when_the_neighbour_was_still_writing_at_wake(tmp_path):
+    """OVERLAP IS CONTIGUITY, NOT ITS ABSENCE. The pooling guard read `0 <= earliest − prev_last_write`,
+    which assumes the neighbour folder FINISHED before this folder's first session opened. At a
+    multi-device wake that ordering routinely inverts: one device opens its morning fragment (filed under
+    today) while another device's night file (filed under yesterday) is still being written. Real case,
+    2026-09-01: the O2Ring's 04:20:53 fragment opened while the Verity's night file wrote until 04:23 —
+    a −138 s difference the lower bound read as "not contiguous", so a complete 17-file tri-device night
+    went unjudged and QC reported the H10 and SpO2 as MISSING from 13 min of morning crumbs. Third failed
+    assumption in this guard's family (near-midnight proxy; long reconnect 2026-07-28; simultaneous wake),
+    and the comment above the guard already stated the contract — "runs into" includes overlap."""
+    from datetime import datetime as _dt
+    d31 = str(tmp_path / "2026-08-31"); os.makedirs(d31)
+    d01 = str(tmp_path / "2026-09-01"); os.makedirs(d01)
+    ver = _dt.strptime("20260831225711", "%Y%m%d%H%M%S").timestamp()   # Verity night, 22:57 → 04:23
+    oxy = _dt.strptime("20260831225733", "%Y%m%d%H%M%S").timestamp()   # O2Ring night, 22:57 → 04:23
+    frag = _dt.strptime("20260901042053", "%Y%m%d%H%M%S").timestamp()  # O2Ring morning fragment, 04:20:53
+    _utime(_cap(d31, "Polar_VeritySense_0C301E3F_20260831225711_HR.txt", 19560), ver + 19560)
+    _utime(_cap(d31, "Wellue_O2Ring-S_S8AW2100_20260831225733_HR.txt", 19560), oxy + 19560)
+    _utime(_cap(d01, "Wellue_O2Ring-S_S8AW2100_20260901042053_HR.txt", 600), frag + 600)
+    # A stale daytime fragment in the neighbour folder, like the real 2026-08-31 dir carried (an 04:22
+    # sitting from the previous morning). Contiguity must key on the neighbour's LATEST write — keyed
+    # on its earliest instead, this 18-h-old file reads as an 18 h gap and pooling wrongly refuses.
+    stale = _dt.strptime("20260831042208", "%Y%m%d%H%M%S").timestamp()
+    _utime(_cap(d31, "Wellue_O2Ring-S_S8AW2100_20260831042208_HR.txt", 600), stale + 600)
+    # The shape under test: the fragment OPENS (04:20:53) before the neighbour's last write (04:23:11).
+    assert frag < ver + 19560, "fixture must overlap, or it tests the already-covered gap case"
+    devs = [
+        {"name": "Verity", "device_id": "0C301E3F", "streams": ["hr"]},
+        {"name": "O2Ring", "device_id": "S8AW2100", "streams": ["hr"]},
+    ]
+    s = nightqc.summarize(d01, devs)
+    assert s["searched_dirs"] == ["2026-09-01", "2026-08-31"]   # overlap pooled, not rejected
+    assert s["missing"] == [], "the night is next door — nothing is missing"
+    assert s["devices"][0]["streams"]["hr"] == 19560            # the Verity night is in the verdict
+    assert s["degraded"] == []                                   # and not read as a trickle
+    assert s["span_sec"] > 5 * 3600                              # the night's span, not the fragment's
+
+
 def test_summarize_does_not_pool_a_non_contiguous_small_hours_session(tmp_path):
     """The probe widens WHERE we ask, never WHAT we accept. A 02:00 sitting whose neighbour stopped at
     18:00 yesterday is not last night's session, and pooling it would fuse two unrelated sittings — the
