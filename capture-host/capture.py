@@ -5262,6 +5262,27 @@ def _wedge_recoveries(root, journal_text):
     return out
 
 
+def _night_window_ms(night_name):
+    """`(since_ms, until_ms)` covering `night_name` +/- one day, or `(None, None)` if unparseable.
+
+    The +/-1 day is not a choice made here — it MIRRORS the EDF folder walk in
+    `_cpap_stream_watch_row`, which reads DATALOG/<d-1|d0|d+1>. A ratio between two measurements is
+    only meaningful when both cover the same stretch, and the EDF side already fixed what that is.
+
+    Local midnight, because a night FOLDER is named by the local date while the journal stamps are
+    epoch ms. `(None, None)` on an unparseable name keeps the old whole-journal behaviour rather
+    than silently measuring nothing — a window we could not compute must not read as an empty night.
+    """
+    import datetime as _d
+    try:
+        d0 = _d.datetime.strptime(str(night_name), "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return (None, None)
+    start = _d.datetime.combine(d0 - _d.timedelta(days=1), _d.time.min)
+    end = _d.datetime.combine(d0 + _d.timedelta(days=2), _d.time.min)
+    return (start.timestamp() * 1000.0, end.timestamp() * 1000.0)
+
+
 def _cpap_stream_watch_row(cfg, root, night_name):
     """Gather the two durations and ask `cpap_stream_watch.assess`. All I/O; no decisions.
 
@@ -5278,7 +5299,14 @@ def _cpap_stream_watch_row(cfg, root, night_name):
     try:
         with open(os.path.join(root, "SESSIONDETECT.csv"), encoding="utf-8", errors="replace") as fh:
             text = fh.read()
-        therapy = cpap_stream_watch.therapy_minutes(text)
+        # SCOPED TO THE SAME WINDOW THE EDF SIDE USES. The journal is one append-only file for the
+        # box, so an unscoped read sums every night in it — and `cover` then divides ONE night's
+        # stream minutes by the WHOLE journal's therapy. Measured on vigil 2026-09-01: 951 min of
+        # therapy (6.45 days' worth) against 321 stream min, reported as "died-early, 25.2 %".
+        # The bounds are the SAME d-1..d+1 span the EDF glob below already walks, so the numerator
+        # and the denominator finally describe the same stretch of time.
+        _since, _until = _night_window_ms(night_name)
+        therapy = cpap_stream_watch.therapy_minutes(text, since_ms=_since, until_ms=_until)
         # WHY the journal could not be read, when it knows. Read from the SAME text so the reason
         # always describes the night the number came from — reading it separately would let the two
         # drift apart on a journal that rotated in between.

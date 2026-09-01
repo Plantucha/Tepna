@@ -1746,8 +1746,20 @@
     // 2) resample EDR · HRresp · HRabs onto a uniform 4 Hz grid
     const FS = 4,
       t0 = tt[0],
-      t1 = tt[n - 1],
-      M = Math.max(16, Math.floor((t1 - t0) * FS));
+      t1 = tt[n - 1];
+    /* REFUSE an implausible SPAN — the SIBLING of detectCVHR's guard (#1800), missed when that fix
+       landed because the instance was fixed, not the class. `tt` is the gap-ACCUMULATED beat-time
+       axis, so one in-file sensor-clock rebase stretches it arbitrarily: measured 2026-08-23 (H10,
+       raw line 1316), the sensor stamp jumps +2792 DAYS ten seconds in, making t1−t0 = 241,259,871 s.
+       M would be 965 million and every Float64Array below ~7.7 GB — external memory, invisible to
+       V8's heap cap, so the process dies by cgroup/kernel OOM with no stack (>50 GB observed before
+       any bound). detectCVHR REFUSED this night correctly while this sibling three calls later
+       killed the fold. Same bound, same reason; `null` is this function's established refusal shape
+       (the M<16 path below) and every consumer already handles it. The only other span-to-grid
+       consumer of `tt` is detectCVHR itself — `beatConfidence` is safe by construction (sample-index
+       seconds, bounded by count). */
+    if (!isFinite(t1 - t0) || t1 - t0 > CVHR_MAX_SPAN_S) return null;
+    const M = Math.max(16, Math.floor((t1 - t0) * FS));
     if (M < 16) return null;
     const grid = new Float64Array(M);
     for (let i = 0; i < M; i++) grid[i] = t0 + i / FS;
@@ -1873,8 +1885,10 @@
   //  Detect dips/cycles in the per-second HR envelope with 20–60 s period and
   //  the characteristic bradycardia→tachycardia rebound. Returns events + index.
   // ════════════════════════════════════════════════════════════════════════
-  // Upper bound on a beat series' span before `detectCVHR` refuses to resample it (see the refusal
-  // below). 48 h — over twice any real recording, so a gappy night still fits.
+  // Upper bound on a beat series' span before a consumer refuses to resample it onto a uniform
+  // grid — TWO consumers: `detectCVHR` (the #1800 refusal below) and `cardiorespCoupling` (the
+  // sibling guard added after 2026-08-23's +2792-day sensor rebase OOM-killed the fold there).
+  // 48 h — over twice any real recording, so a gappy night still fits.
   const CVHR_MAX_SPAN_S = 48 * 3600;
   function detectCVHR(nn, tt) {
     const N = nn.length;
@@ -4177,6 +4191,7 @@
        reaches them through this surface, and the internal call sites are unchanged. */
     poincareGeo,
     detectCVHR,
+    cardiorespCoupling,
     dfaAlpha1,
     sampEn,
     parseTimestamp
