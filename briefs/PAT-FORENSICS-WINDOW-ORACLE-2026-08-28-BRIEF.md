@@ -309,6 +309,41 @@ window is a measurement of the window.** Two instruments, one number, no shared 
 ⚠️ **Not yet done here:** the ±100 ms half-width is the only one swept. The verdict "the null is the
 window" predicts the scores should move with the half-width, and that sweep is the natural next
 execution — cheap now that the root is known.
+
+### 🔒 PRE-REGISTERED before the half-width sweep (written 2026-09-01, BEFORE the run)
+
+Recorded ahead of the measurement so the result cannot be read post-hoc.
+
+**Prediction 1 — the null tracks the window.** If `nullSD` is the search window and not the data, it
+must follow `2w/√12` at every half-width:
+
+| half-width `w` | predicted `nullSD` |
+|---|---|
+| 50 ms | **28.9 ms** |
+| 100 ms | **57.7 ms** (observed: 56.2–59.5 on 18 of 22 nights) |
+| 200 ms | **115.5 ms** |
+| 300 ms | **173.2 ms** |
+
+A windowing-artifact night tracks that column. **The discriminator is a night whose recovered mode and
+score do NOT move with `w`** — that night has something the window is not supplying.
+
+**Prediction 2 — the two signal nights must hold their mode, or they are artifacts too.**
+`2026-07-24` recovered mode **405 ms** at SD 15.3, and `2026-08-17` mode **215 ms** at SD 17.9. Each must
+hold its mode **within ±(its own SD)** across the sweep — 405 ± 15.3 and 215 ± 17.9. If either drifts
+outside its own uncertainty as the window changes, it **reclassifies as an artifact** and the corpus has
+zero recovered nights, not two.
+
+**What would make me wrong:** `nullSD` failing to track `2w/√12` would falsify "the null is the window"
+outright, and I would have to explain the ±100 ms agreement as coincidence rather than arithmetic.
+
+### The 5 out-of-window modes — a refusal-class candidate, not built
+
+`2026-08-06` **25 ms** · `2026-08-01` 165 · `2026-08-02` 185 · `2026-08-10` 815 · `2026-08-28` **1245 ms**.
+
+A 25 ms or 1245 ms "PAT" is not a transit time. These should surface as **REFUSED-artifact** rather than
+as a number a consumer can quote — the same discipline `hostAxis` applies when its bound is exceeded.
+Recorded as a candidate only: whether the oracle refuses or merely flags belongs to that tool's
+owner-decision layer, and is not built here.
 ## 7 · Done when
 
 - [x] Out-of-sample design, circular-shift null, gate-asserted with a noise control.
