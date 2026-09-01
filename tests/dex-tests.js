@@ -10902,6 +10902,36 @@
         }
         var gp = D.detectCVHR(gappy, gappyT);
         T.ok('…while a sparse 20 h night is NOT refused (the bound is not over-tight)', !!gp && gp.reason !== 'implausible-span');
+
+        /* ── cardiorespCoupling: the SIBLING span guard — #1800 fixed the instance, not the class ──
+           Same measured 2026-08-23 geometry through the OTHER uniform-grid consumer of `tt`. Before
+           the guard, `M = floor((t1−t0) * 4 Hz)` = 965 MILLION and each Float64Array below ≈ 7.7 GB —
+           EXTERNAL memory, invisible to V8's old-space cap, so there was no RangeError this time:
+           the process died by kernel/cgroup OOM with NO STACK (>50 GB observed), which is why the
+           defect outlived #1800 by a week — detectCVHR refused this exact night correctly while its
+           sibling three calls later killed the fold. `null` is this function's established refusal
+           shape (its M<16 path); every caller already handles it. */
+        if (typeof D.cardiorespCoupling === 'function') {
+          var crcInt16 = new Int16Array(600);
+          for (var _c = 0; _c < 600; _c++) crcInt16[_c] = (_c % 5) * 100;
+          var crcRef = [];
+          for (var _r = 0; _r < farNN.length; _r++) crcRef.push(_r * 4);
+          var crcFar = D.cardiorespCoupling(farNN, farT, crcInt16, crcRef, 130, null, []);
+          T.eq('cardiorespCoupling refuses the same 7.6-year span instead of allocating a 965M-slot grid', crcFar, null);
+          /* Over-tightness control: a DENSE, sane-span recording still computes. 5000 beats at
+             0.9 s ≈ 75 min — if the span guard were wrongly tightened (or inverted), this would
+             go null and the two assertions could not both pass. */
+          var okNN = [],
+            okT = [],
+            okRef = [];
+          for (var _k = 0; _k < 5000; _k++) {
+            okNN.push(900 + ((_k % 7) - 3) * 12);
+            okT.push(_k * 0.9);
+            okRef.push((_k * 3) % (crcInt16.length - 4));
+          }
+          var crcOk = D.cardiorespCoupling(okNN, okT, crcInt16, okRef, 130, null, []);
+          T.ok('…while a dense 75-min recording is NOT refused (guard bounds span, not substance)', crcOk !== null && typeof crcOk === 'object');
+        } else T.skip('cardiorespCoupling exported', 'not on this build');
       } else T.skip('detectCVHR exported', 'not on this build');
     });
 
