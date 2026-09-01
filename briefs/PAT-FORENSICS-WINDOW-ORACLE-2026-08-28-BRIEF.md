@@ -344,6 +344,70 @@ A 25 ms or 1245 ms "PAT" is not a transit time. These should surface as **REFUSE
 as a number a consumer can quote — the same discipline `hostAxis` applies when its bound is exceeded.
 Recorded as a candidate only: whether the oracle refuses or merely flags belongs to that tool's
 owner-decision layer, and is not built here.
+
+### ✅ SWEEP RESULT — measured 2026-09-01, against the bands registered above
+
+**Prediction 1 — `nullSD` tracks `2w/√12`: holds, then breaks, and the break is the informative part.**
+
+| `w` | predicted | median observed | |
+|---|---|---|---|
+| 50 | 28.9 | **28.9** | exact |
+| 100 | 57.7 | 56.2–59.5 | in band |
+| 200 | 115.5 | **111.6** | in band (−3.4 %) |
+| 300 | 173.2 | **153.8** | **MISS (−11.2 %)** |
+
+Reported as a miss rather than smoothed. Past ~±200 ms the window stops being the binding constraint —
+a uniform draw can only fill a window that candidate matches actually span. So **"the null is the window"
+is true while the window is the NARROWER constraint**, which the ±100 ms operating point satisfies. That
+is a narrower claim than the first corpus run supported, and the sweep is what narrowed it.
+
+**Prediction 2 — the two signal nights must hold their mode: they hold it EXACTLY.**
+
+| night | registered | w=50 | w=200 | w=300 |
+|---|---|---|---|---|
+| `2026-07-24` | 405 ± 15.3 | **405** | **405** | **405** |
+| `2026-08-17` | 215 ± 17.9 | **215** | **215** | **215** |
+
+Not "within tolerance" — **invariant**, across a 6× change in search width. That is exactly the
+registered discriminator. **Both nights survive; neither reclassifies.** The corpus has two genuine
+signal nights, on a basis stronger than a single operating point.
+
+⚠️ **CONSUMER HAZARD — the verdict LABEL is a function of `w`; the MODE is not.** `2026-08-17` reads
+**NO RECOVERY at w=300 while recovering the identical 215 ms**; `2026-07-24` degrades SIGNAL RECOVERED →
+PARTIAL → PARTIAL while never moving off 405 ms. Both SDs grow with `w`, so the score ratio erodes though
+the recovered location is fixed. **Anyone quoting a verdict at one half-width can draw the opposite
+conclusion from the physics.** Quote the mode, or quote the verdict with its `w`.
+
+### 🔎 THE 6 `n = 0` NIGHTS — localised to the matcher, not detection (2026-09-01)
+
+Filter chain with counts at each stage. Selection reproduced exactly as `pick()` does it — **largest
+file, not first**.
+
+| night | R-peaks | ECG span | PPG feet | PPG span | ratio |
+|---|---|---|---|---|---|
+| `2026-08-12` (n=0) | 25 934 | 455.4 min | 9 633 | **166.3 min** | 0.37 |
+| `2026-07-21` (n=0) | 17 086 | 344.4 min | 8 054 | **154.2 min** | 0.45 |
+| `2026-08-15` (n=0) | 25 026 | 489.1 min | 6 181 | **122.8 min** | 0.25 |
+| `2026-08-13` (n=6840) | 15 687 | 285.5 min | 15 295 | 285.9 min | **1.00** |
+| `2026-08-09` (n=9032) | 21 352 | 412.5 min | 20 932 | 409.4 min | **0.99** |
+
+**Both streams are rich on every night — 6 000 to 26 000 beats. This is not a detection failure.** The
+discriminator is the **span ratio**: nights that pair have near-identical spans; every `n=0` night has a
+PPG fragment covering a quarter to a third of the ECG fragment.
+
+But partial coverage should yield *fewer* matches, not *zero* — 9 633 feet inside an overlapping ECG span
+should match something. **The defect is in the matching stage under partial overlap.**
+
+⚠️ **Two hypotheses died here, each a proxy standing in for the thing:**
+1. *"Fragmentation causes it"* — falsified: `2026-08-13` has 3 ECG / 328 PPG fragments and pairs fine.
+2. *"The picked fragments do not overlap"* — falsified twice: first comparing **file-name start times**
+   as a proxy for temporal overlap (a fragment starting at 20:20 can run for hours), then comparing the
+   **first** files when `pick()` returns the **largest**. With the correct files every `n=0` night
+   overlaps substantially (`08-12`: ECG 20:52–04:27 vs PPG 20:54–23:40).
+
+⚠️ **Not excluded:** the H10 sensor-clock rebase (+2792 days mid-file, seen on `08-23`). If the matcher
+keys on `sensor timestamp [ns]` rather than the phone column used above, a device-clock discontinuity
+would zero pairing while wall-clock spans look healthy. **First thing to test at the matching stage.**
 ## 7 · Done when
 
 - [x] Out-of-sample design, circular-shift null, gate-asserted with a noise control.
