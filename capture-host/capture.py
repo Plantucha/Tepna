@@ -7003,6 +7003,23 @@ def _maybe_start_cpap_autostart(cfg, root, cpap_ctl, tasks, *, create_task=None)
     return task
 
 
+def resolve_spool_root(configured, box_root: str) -> str:
+    """Where the CPAP spool lives. PURE — and the one rule that earns the function: a RELATIVE
+    configured path resolves against the BOX ROOT, never the process cwd.
+
+    Measured 2026-09-01 on vigil: the owner-enabled config said `root: captures/cpap-spool` — the
+    same relative idiom as `dest_subdir: captures/cpap` one line below it, which the code joins to
+    the box root — but this value was consumed VERBATIM, so `os.makedirs` resolved it against the
+    daemon's working directory and the 10:00 Summary pull wrote REAL AS11 rounds INTO the /opt/tepna
+    checkout. Two failures from one path: the only copy of pulled therapy data sat in a git tree,
+    and `tepna-update.sh` then refused the dirty tree, so the box silently stopped taking deploys
+    (every hourly run from 10:00 on). A daemon's cwd is an accident of its unit file; no data path
+    may depend on it."""
+    if not configured:
+        return os.path.join(box_root, "cpap-spool")
+    return configured if os.path.isabs(configured) else os.path.join(box_root, configured)
+
+
 def _maybe_start_cpap_spool_pull(cfg, config_path, root, cpap_ctl, tasks, *,
                                  load_creds=None, connect_factory=None, create_task=None):
     """Start the scheduled stored-spool pull if `cpap.spool_pull.enabled` — otherwise a no-op.
@@ -7042,7 +7059,7 @@ def _maybe_start_cpap_spool_pull(cfg, config_path, root, cpap_ctl, tasks, *,
     if connect_factory is None:  # pragma: no cover — the bleak I/O edge, mirrors the shadow runner
         async def connect_factory():
             return await _cpap_ble_connect(creds["ble_addr"], hci)
-    spool_root = scfg.get("root") or os.path.join(root, "cpap-spool")
+    spool_root = resolve_spool_root(scfg.get("root"), root)
     epoch_start = scfg.get("epoch_start", cpap_spool_caller.SPOOL_EPOCH_START_DEFAULT)
     task = (create_task or asyncio.create_task)(_cpap_spool_loop(
         at_hour=arming["at_hour"], window_h=arming["window_h"], root=spool_root, creds=creds,

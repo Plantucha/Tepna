@@ -344,7 +344,12 @@ cpap:                    # ResMed card auto-harvest over an ez Share Wi-Fi SD ad
   #                                # last committed cursor is the authority and this is never read again.
   #                                # Deliberately recent: an epochal floor would make run one an
   #                                # unbounded backfill, on the single run a human is watching.
-  #   root: captures/cpap-spool    # committed/ + incomplete/ + cpap_spool_ledger.jsonl
+  #   root: captures/cpap-spool    # committed/ + incomplete/ + cpap_spool_ledger.jsonl.
+  #                                # A RELATIVE value resolves against the box `root:` above — NEVER
+  #                                # against the daemon's working directory. (This very line, copied
+  #                                # verbatim, once resolved against cwd and wrote the only copy of a
+  #                                # pulled spool into the /opt checkout, which then blocked every
+  #                                # hourly auto-deploy: 2026-09-01, capture.resolve_spool_root.)
 
 # AS11 CPAP session detector (SHADOW — observes only, drives nothing). When enabled, a background task
 # short-connects the AS11 on the CPAP free radio (cpap.ble_stream.adapter, hci1) ONLY while the live
