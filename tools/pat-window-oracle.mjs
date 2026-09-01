@@ -164,8 +164,16 @@ export function oracleNight(rTimes, fTimes, halfWidth) {
   const modeN = lagMode(rawLags(rA, shifted));
   const narrowN = modeN == null ? [] : acceptWithin(rawLags(rB, shifted), modeN - halfWidth, modeN + halfWidth);
 
+  /* SECOND-half mode, diagnostic only (scores nothing): the out-of-sample invariance check a
+     consumer can read off the verdict line. The mode itself is w-INVARIANT by construction — it is
+     estimated from raw lags before any window is applied — which is exactly why it, and not the
+     w-dependent band label, is the quotable location statistic (#2029's consumer hazard: 2026-08-17
+     read NO RECOVERY at w=300 while recovering the identical 215 ms). */
+  const modeB = lagMode(lagsB);
+
   return {
     mode,
+    modeB,
     nB: rB.length,
     narrowN: narrow.length,
     narrowSd: sd(narrow),
@@ -175,6 +183,31 @@ export function oracleNight(rTimes, fTimes, halfWidth) {
     nullSd: sd(narrowN),
     modeInPhys: mode >= PHYS_LO && mode <= PHYS_HI
   };
+}
+
+/* ── THE VERDICT LAYER — a recovered mode outside PHYS is REFUSED, not scored ─────────────────────
+   PAT-FORENSICS-WINDOW-ORACLE §"The 5 out-of-window modes" recorded the class as a candidate and
+   left refuse-vs-flag to the owner-decision layer; decided 2026-09-01 (owner's deputy): REFUSE.
+   A 25 ms or 1245 ms "PAT" is not a transit time — chest-ECG→arm transit cannot physically sit
+   outside [PHYS_LO, PHYS_HI] — so whatever the narrow window recovered there is an ALIGNMENT
+   artifact, and handing it a band verdict is fabricated authority: the same discipline `hostAxis`
+   applies when CK_AXIS_MAX_PPM is exceeded. The mode is still QUOTED in the refusal (diagnostic —
+   the number a debugger needs), it just cannot be consumed as a PAT verdict. The refusal keys on the
+   PHYS band [200, 650], NOT the ratified 200–500 acceptance rail: the rail is the acceptance layer's
+   sanity band for signal nights, while this refusal is about physical impossibility — a mode in
+   (500, 650] is suspect but arguable, and stays the acceptance layer's call. */
+export function oracleVerdict(res) {
+  if (!res) return null;
+  const halves = res.modeB == null ? 'halves: B-mode n/a' : Math.abs(res.modeB - res.mode) <= BIN_MS ? 'halves ≡' : `halves ${res.mode.toFixed(0)}→${res.modeB.toFixed(0)} ⚠`;
+  if (!res.modeInPhys)
+    return {
+      refused: true,
+      label: `ARTIFACT REFUSAL — mode ${res.mode.toFixed(0)} ms outside PHYS ${PHYS_LO}–${PHYS_HI} (alignment artifact; mode diagnostic only, not a PAT)`,
+      tallyKey: 'ARTIFACT REFUSAL',
+      halves
+    };
+  const b = band(res.narrowSd, res.nullSd);
+  return { refused: false, label: `${b} · mode ${res.mode.toFixed(0)} ms (w-invariant, ${halves}); band label is w-dependent`, tallyKey: b, halves };
 }
 
 function selftest() {
@@ -217,7 +250,40 @@ function selftest() {
   const s = circShift([0, 100, 200, 300], 150);
   ok(s.length === 4 && s.every((x, i) => i === 0 || x >= s[i - 1]), 'circShift keeps count and sort order');
 
-  console.log(fails.length ? `SELFTEST FAIL (${fails.length})\n  ${fails.join('\n  ')}` : 'SELFTEST PASS (8/8)');
+  /* ── ARTIFACT REFUSAL: a TIGHT lag outside PHYS must refuse, not read as a quotable verdict. ──
+     The low plant is the load-bearing control, and it is asserted from BOTH sides: the band layer
+     WOULD have said SIGNAL RECOVERED (proving the plant is tight enough that only the refusal — not
+     an incidental score failure — is what catches it), and the verdict layer refuses it anyway. */
+  const Flow = R.map((r) => r + 100 + rnd() * 14).sort((a, b) => a - b); // 100 ms < PHYS_LO
+  const resLow = oracleNight(R, Flow, 100);
+  ok(resLow !== null, 'low-plant night yields a result');
+  ok(
+    resLow !== null && band(resLow.narrowSd, resLow.nullSd) === 'SIGNAL RECOVERED',
+    `low plant must be tight enough that the BAND layer alone would quote it (plant is seen), got ${resLow && band(resLow.narrowSd, resLow.nullSd)}`
+  );
+  const vLow = oracleVerdict(resLow);
+  ok(vLow !== null && vLow.refused === true && /ARTIFACT REFUSAL/.test(vLow.label), `mode ${resLow?.mode?.toFixed(0)} < PHYS_LO must REFUSE, got ${vLow?.label}`);
+  ok(vLow !== null && vLow.label.includes(`${resLow.mode.toFixed(0)} ms`), 'the refusal quotes the mode as diagnostic');
+  /* The high plant needs lag < min RR or nearest-forward matching aliases it mod RR (beat trains
+     align only mod one heartbeat): lag 1240 against RR 900±260 modes at ~285, not 1240. A slower
+     train (RR 1500±300) makes a 700 ms lag — outside PHYS_HI, inside every interval — reachable. */
+  const R2 = [];
+  let t2 = 0;
+  for (let i = 0; i < 900; i++) {
+    t2 += 1500 + rnd() * 300;
+    R2.push(t2);
+  }
+  const Fhigh = R2.map((r) => r + 700 + rnd() * 14).sort((a, b) => a - b); // 700 ms > PHYS_HI
+  const resHigh = oracleNight(R2, Fhigh, 100);
+  const vHigh = oracleVerdict(resHigh);
+  ok(vHigh !== null && vHigh.refused === true, `mode ${resHigh?.mode?.toFixed(0)} > PHYS_HI must REFUSE, got ${vHigh?.label}`);
+  /* In-band verdicts carry the mode + halves-invariance, and are NOT refused. */
+  const vGood = oracleVerdict(res);
+  ok(vGood !== null && vGood.refused === false && vGood.label.includes('mode') && vGood.label.includes('halves'), `in-PHYS verdict carries mode + invariance status, got ${vGood?.label}`);
+  ok(res.modeB != null && Math.abs(res.modeB - res.mode) <= BIN_MS, `planted night's halves agree within one bin, got ${res.mode}→${res.modeB}`);
+
+  const TOTAL = 15;
+  console.log(fails.length ? `SELFTEST FAIL (${fails.length}/${TOTAL})\n  ${fails.join('\n  ')}` : `SELFTEST PASS (${TOTAL}/${TOTAL})`);
   return fails.length === 0;
 }
 
@@ -275,10 +341,10 @@ async function main() {
       console.log(`${n}  ⊘ too few beats`);
       continue;
     }
-    const v = band(res.narrowSd, res.nullSd);
-    tally[v] = (tally[v] || 0) + 1;
+    const v = oracleVerdict(res);
+    tally[v.tallyKey] = (tally[v.tallyKey] || 0) + 1;
     console.log(
-      `${n}  ${res.mode.toFixed(0).padStart(5)}  ${String(res.narrowN).padStart(5)}  ${res.narrowSd.toFixed(1).padStart(8)}  ${res.fullSd.toFixed(1).padStart(8)}  ${res.nullSd.toFixed(1).padStart(8)}   ${v}${res.modeInPhys ? '' : '  [mode OUTSIDE phys window]'}`
+      `${n}  ${res.mode.toFixed(0).padStart(5)}  ${String(res.narrowN).padStart(5)}  ${res.narrowSd.toFixed(1).padStart(8)}  ${res.fullSd.toFixed(1).padStart(8)}  ${res.nullSd.toFixed(1).padStart(8)}   ${v.label}`
     );
   }
   console.log('\nTALLY:', JSON.stringify(tally));
