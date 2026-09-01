@@ -354,11 +354,17 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             # this projection, not the monitor, not the failover ladder — so a distressed radio was
             # computed nightly and seen by nobody (enumerated 2026-09-01).
             #
-            # ⚠️ IT DOES NOT DRIVE FAILOVER, AND MUST NOT WITHOUT AGGREGATION. The verdict is
-            # per-DEVICE; `ADAPTER` is a single global pin, so firing a switch off one device's
-            # distress would relocate every OTHER device — off a radio their own baselines say is
-            # fine. Rendering is the honest consumer until a per-ADAPTER verdict exists.
+            # ⚠️ THE PER-DEVICE VERDICTS DO NOT DRIVE FAILOVER. The per-ADAPTER fold below is the
+            # verdict at the granularity a switch actually moves (`link_distress.adapter_verdict`,
+            # ≥2 rated links distressed together); it ships REPORT-ONLY behind
+            # `watchdog.distress_failover` (default off — arming is the owner's, against the
+            # criterion pre-stated in RADIO-FAILOVER-DISTRESS-SIGNAL §6).
             "radio_distress": status.get("radio_distress"),
+            "radio_distress_adapter": status.get("radio_distress_adapter"),
+            # Every switch as an EVENT with its cause — the brief's item 4. Was published to STATUS
+            # and read by nothing (the find_unwired top-level-STATUS blind spot, sibling of the
+            # radio_distress case this same file records above).
+            "radio_switches": status.get("radio_switches"),
         })
 
     # ── CPAP manual pull ────────────────────────────────────────────────────────────────────────

@@ -1349,6 +1349,49 @@ def _radio_switch_event(ev):
         log.exception("radio switch event could not be recorded; the switch itself stands")
 
 
+def _failover_reserved(cfg) -> tuple:
+    """The CPAP's dedicated radio, as a reservation tuple for `failover_target`. Empty when none is
+    configured. A PREFERENCE, not a prohibition — see the commandeered log in `_migrate_to_spare`."""
+    return tuple(x for x in [((cfg.get("cpap") or {}).get("ble_stream") or {}).get("adapter")] if x)
+
+
+async def _migrate_to_spare(cfg, prev_mac, spare, *, cause, verdict, device_label):
+    """The switch DANCE, shared by both causes (`wedged` = the recovery ladder spent, and
+    `reconnect-rate` = the adapter-level distress verdict): repoint the process-global pin, re-bond
+    every non-optional sensor on the spare, and emit the event that survives the night. Extracted
+    from the L3 wedge branch VERBATIM so the two causes cannot drift — the planted-wedge suite
+    (`test_failover_planted_wedge`) pins the behaviour end to end.
+
+    The caller owns the DECISION (gating flags, `max_failovers`, its own cause-specific critical log)
+    and the loop-local bookkeeping (`adapter_mac`, `sel`, counter resets); this owns only the
+    mechanics, which must be identical however the decision was reached."""
+    # SAY IT WHEN A DEDICATED RADIO IS COMMANDEERED. This is the branch that used to
+    # happen by accident; taking it deliberately is defensible, taking it quietly is not.
+    if spare.upper() in {str(r).upper() for r in _failover_reserved(cfg)}:
+        log.critical("watchdog: the spare taken is the CPAP's RESERVED radio (%s) — no "
+                     "other adapter was available. Wearables and CPAP now share one "
+                     "radio; expect 2.4 GHz contention until a spare returns.", spare)
+    _RECOVER.set()
+    try:
+        await asyncio.sleep(1.5)      # let the device tasks drop their links first
+        _set_active_adapter(spare)    # every reconnect now resolves the spare (adapter_kw)
+        for d in cfg.get("devices", []):
+            if d.get("optional"):
+                continue              # a backup that never joined is not worth a bond wait
+            try:                      # bond on the spare so the reconnect can authenticate
+                await bonding.ensure_bonded(d["address"], spare, force=True)
+            except Exception as e:
+                log.warning("watchdog: failover bond of %s on %s failed: %r",
+                            d["name"], spare, e)
+    finally:
+        _RECOVER.clear()              # device tasks resume + reconnect on the spare
+    # EVERY SWITCH IS AN EVENT, carrying WHICH signal fired. Until now a failover left
+    # only a log line, so radio churn was invisible to anything that survives the
+    # night — the silent-healing shape this suite keeps rediscovering.
+    _radio_switch_event(link_distress.switch_event(
+        device=device_label, from_mac=prev_mac, to_mac=spare, cause=cause, verdict=verdict))
+
+
 # ── DUAL-RADIO FAILOVER (VIGIL-OVERNIGHT-FINDINGS P1.5) ──────────────────────────────────────────────
 # The night the dongle wedged, hci1 sat healthy and idle for ~110 min while the pinned dongle was down.
 # The recovery ladder (adapter_watchdog) resets the SAME radio; when that budget is spent, fail capture
@@ -4494,6 +4537,7 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
     # test can detect is a claim nobody is checking.
     recover = int(wcfg.get("recover_checks", 2))
     consecutive = cycles = silent = healthy_run = failovers = 0
+    distress_fired = False   # rising-edge latch for the adapter-level distress log (once per episode)
     wedge_restarts, wedge_day = 0, None      # per-device wedge budget, reset each day
     max_failovers = int(wcfg.get("max_failovers", 3))   # P1.5: cap ping-pong between two flaky radios
     sel = f"select {adapter_mac}\n" if adapter_mac else ""
@@ -4620,24 +4664,51 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
             # cannot hold its links passes every one of them. That is the 2026-08-29 ring storm: 269
             # reconnects, nothing wedged, nothing switched, nothing said why. Assessed here, on the
             # clean path, precisely because that is where the failure hides.
-            # REPORT-ONLY, and the reason has CHANGED — the old one is no longer true. This used to
-            # say "no baseline file exists on any box yet". One does: vigil has
-            # captures/link-baselines.json since 2026-08-31, two adapters, 6-14 nights per device,
-            # and the live verdicts are real ("1.6/h within band 8.2/h, 14 nights, ok"). A comment
-            # contradicted by the box is how the next reader repeats the last reader's mistake.
-            #
-            # 🔴 IT STAYS REPORT-ONLY FOR A DIFFERENT AND STRUCTURAL REASON: this verdict is
-            # PER-DEVICE, and `ADAPTER` (see the config read in main) is a SINGLE GLOBAL PIN. Firing
-            # a switch off one device's distress would relocate every other device — tearing down
-            # live links mid-night onto a radio their own baselines never complained about. That is
-            # a category mismatch, not a threshold to tune, and it is why the usual
-            # "failing-to-fire is neutral, so arm it" argument does not apply here: failing to fire
-            # costs the status quo, firing wrongly costs a night. A per-ADAPTER aggregation of these
-            # per-device verdicts is the prerequisite, and it lands unarmed by default.
+            # The PER-DEVICE verdicts stay report-only for the structural reason recorded when they
+            # landed: `ADAPTER` is a SINGLE GLOBAL PIN, and firing a switch off ONE device's distress
+            # would relocate every healthy sibling — a category mismatch, not a threshold to tune.
+            # The PER-ADAPTER fold below (`link_distress.adapter_verdict`) is that prerequisite,
+            # built: it demands ≥2 rated links distressed TOGETHER before the adapter is the suspect.
+            # THE SWITCH ARM SHIPS DEFAULT OFF (`watchdog.distress_failover`, absent = false).
+            # ARMING IS THE OWNER'S, against the criterion pre-stated in
+            # RADIO-FAILOVER-DISTRESS-SIGNAL-2026-08-29-BRIEF §6: one night where the adapter-level
+            # verdict fired AND the constituent per-device verdicts agreed. Until then the fold is
+            # itself report-only — visible in /api/state as `radio_distress_adapter`, with the rising
+            # edge logged once per episode so an unarmed firing is findable in the journal.
             try:
                 STATUS["radio_distress"] = link_distress_scan(
                     adapter_mac, STATUS.get("devices", {}), _link_baselines(cfg.get("root") or ""),
                     _time.monotonic())
+                adapter_v = link_distress.adapter_verdict(STATUS.get("radio_distress") or {})
+                STATUS["radio_distress_adapter"] = adapter_v
+                if adapter_v.get("state") == link_distress.DISTRESSED:
+                    if not distress_fired:
+                        distress_fired = True     # rising edge: say it ONCE, armed or not — a
+                        log.critical(              # 25 s poll must not shout all night
+                            "watchdog: adapter %s DISTRESSED at adapter level — %s%s",
+                            adapter_mac, adapter_v.get("detail"),
+                            "" if wcfg.get("distress_failover") else
+                            " (distress_failover OFF — report-only; arming is the owner's, "
+                            "per the brief's pre-stated criterion)")
+                    if wcfg.get("distress_failover") and failovers < max_failovers:
+                        spare = failover_target(adapter_mac, await list_adapters(),
+                                                reserved=_failover_reserved(cfg))
+                        if spare:
+                            failovers += 1
+                            prev_mac = adapter_mac
+                            log.critical("watchdog: FAILING OVER %s -> %s on adapter-level distress "
+                                         "(failover %d/%d)", prev_mac, spare, failovers, max_failovers)
+                            await _migrate_to_spare(
+                                cfg, prev_mac, spare, cause="reconnect-rate",
+                                # the worst link's numbers + the fold's own detail: value AND scope
+                                verdict={**(adapter_v.get("worst") or {}), "detail": adapter_v.get("detail")},
+                                device_label=", ".join(adapter_v.get("distressed") or []) or "(adapter)")
+                            adapter_mac = spare
+                            sel = f"select {adapter_mac}\n"
+                            cycles = consecutive = 0
+                            distress_fired = False   # fresh episode accounting on the new radio
+                else:
+                    distress_fired = False
             except Exception:  # noqa: BLE001 — a report must never cost the watchdog its poll
                 log.exception("radio distress scan failed; the watchdog itself is unaffected")
             # Clean poll — but do not declare recovery until `recover` of them in a row.
@@ -4665,14 +4736,9 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
             if cycles >= max_cycles:
                 # L3 (P1.5): resetting THIS radio is spent — fail over to a healthy spare before giving up.
                 # hci1 sat idle for 110 min the night this brief was written; use it.
-                # RESERVE THE CPAP'S DEDICATED FREE RADIO. Without this the failover takes it by
-                # first-match ordering and re-creates the 2.4 GHz contention the split exists to
-                # prevent — silently. It is a preference, not a prohibition: if it is the ONLY spare
-                # we still take it, because a wedged primary capture is worse than contention, and
-                # the log below says which happened.
-                _reserved = tuple(
-                    x for x in [((cfg.get("cpap") or {}).get("ble_stream") or {}).get("adapter")] if x)
-                spare = failover_target(adapter_mac, await list_adapters(), reserved=_reserved) \
+                # RESERVE THE CPAP'S DEDICATED FREE RADIO (see _failover_reserved / _migrate_to_spare —
+                # the dance is shared with the distress-verdict cause and must not drift from it).
+                spare = failover_target(adapter_mac, await list_adapters(), reserved=_failover_reserved(cfg)) \
                     if wcfg.get("failover", True) and failovers < max_failovers else None
                 if spare:
                     failovers += 1
@@ -4680,37 +4746,14 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                                                       # must say where it came FROM, not where it went
                     log.critical("watchdog: %s STILL wedged after %d power-cycles — FAILING OVER to spare "
                                  "%s (failover %d/%d)", adapter_mac, max_cycles, spare, failovers, max_failovers)
-                    # SAY IT WHEN A DEDICATED RADIO IS COMMANDEERED. This is the branch that used to
-                    # happen by accident; taking it deliberately is defensible, taking it quietly is not.
-                    if spare.upper() in {str(r).upper() for r in _reserved}:
-                        log.critical("watchdog: the spare taken is the CPAP's RESERVED radio (%s) — no "
-                                     "other adapter was available. Wearables and CPAP now share one "
-                                     "radio; expect 2.4 GHz contention until a spare returns.", spare)
-                    _RECOVER.set()
-                    try:
-                        await asyncio.sleep(1.5)      # let the device tasks drop the wedged links first
-                        _set_active_adapter(spare)    # every reconnect now resolves the spare (adapter_kw)
-                        adapter_mac = spare
-                        sel = f"select {adapter_mac}\n"
-                        for d in cfg.get("devices", []):
-                            if d.get("optional"):
-                                continue              # a backup that never joined is not worth a bond wait
-                            try:                      # bond on the spare so the reconnect can authenticate
-                                await bonding.ensure_bonded(d["address"], adapter_mac, force=True)
-                            except Exception as e:
-                                log.warning("watchdog: failover bond of %s on %s failed: %r",
-                                            d["name"], adapter_mac, e)
-                    finally:
-                        _RECOVER.clear()              # device tasks resume + reconnect on the spare
-                    # EVERY SWITCH IS AN EVENT, carrying WHICH signal fired. Until now a failover left
-                    # only a log line, so radio churn was invisible to anything that survives the
-                    # night — the silent-healing shape this suite keeps rediscovering. `cause` is
-                    # `wedged` here because this branch IS the recovery ladder spent; the continuous
-                    # distress signal (`link_distress`) is the other cause, and it names itself.
-                    _radio_switch_event(link_distress.switch_event(
-                        device="(all wearables)", from_mac=prev_mac, to_mac=spare,
-                        cause="wedged", verdict={"detail": f"recovery ladder spent after "
-                                                           f"{max_cycles} power-cycle(s)"}))
+                    # `cause` is `wedged` here because this branch IS the recovery ladder spent; the
+                    # continuous distress signal (`link_distress`) is the other cause, and it names itself.
+                    await _migrate_to_spare(cfg, prev_mac, spare, cause="wedged",
+                                            verdict={"detail": f"recovery ladder spent after "
+                                                               f"{max_cycles} power-cycle(s)"},
+                                            device_label="(all wearables)")
+                    adapter_mac = spare
+                    sel = f"select {adapter_mac}\n"
                     cycles = consecutive = 0          # a fresh reset budget on the new radio
                     continue
                 if wcfg.get("exit_on_giveup"):
