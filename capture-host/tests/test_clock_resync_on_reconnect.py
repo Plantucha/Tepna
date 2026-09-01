@@ -286,8 +286,8 @@ def test_the_first_sync_still_happens_before_the_loop():
     src = _src()
     fn = src.index("async def run_polar")
     loop = src.index("    while not _STOP.is_set():", fn)
-    assert "await auto_sync_clock(name, addr)" in src[fn:loop], \
-        "the pre-loop first sync must survive"
+    assert "await auto_sync_clock(name, addr, root)" in src[fn:loop], \
+        "the pre-loop first sync must survive (root rides along for the CLOCKSYNC.csv evidence channel)"
 
 
 # ── the GIVE-UP verdict is per-device, and is said ONCE ──────────────────────────────────────────────

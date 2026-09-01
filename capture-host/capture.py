@@ -11,7 +11,7 @@
 from __future__ import annotations
 import argparse, asyncio, calendar, contextlib, glob, json, logging, math, os, signal, time as _time, datetime as _dt
 from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_stamp,
-                     HostClockLogWriter, PmdArrivalLogWriter, capture_filename, missing_identity,
+                     HostClockLogWriter, PmdArrivalLogWriter, append_clock_sync_event, capture_filename, missing_identity,
                      night_dir, open_sample_writers)
 import proc_util
 import polar_pmd as pmd
@@ -1856,7 +1856,7 @@ def rebond_due(needs_pmd, bonded, iteration, attempts, every, limit) -> bool:
     return attempts < limit and iteration % every == 0
 
 
-async def auto_sync_clock(name, addr) -> bool:
+async def auto_sync_clock(name, addr, root=None) -> bool:
     """Write the host clock into one Polar device, waiting out contention. Returns True on success.
 
     Every device task starts at once and each wants the single offline slot, so the losers get
@@ -1870,6 +1870,10 @@ async def auto_sync_clock(name, addr) -> bool:
     across the very event that fixes it — a device that failed while docked stayed marked uncorrectable
     for the whole session even after it came off the dock and re-synced cleanly.
 
+    Every OUTCOME is also appended to the night's `CLOCKSYNC.csv` when `root` is given — the per-night
+    evidence channel (see `writers.append_clock_sync_event`): STATUS is a snapshot and journald
+    rotates, which is how 84 nights on the H10's 2019 firmware default went unnoticed for two months.
+
     BOUNDED BY WALL CLOCK, not just by attempt count — see `_CLOCK_SYNC_LADDER_BUDGET_S`."""
     started = _time.monotonic()
     for attempt in range(12):
@@ -1877,6 +1881,7 @@ async def auto_sync_clock(name, addr) -> bool:
             await sync_device_time(addr)
             _set(name, clock_synced=_now().isoformat(timespec="seconds"), clock_uncorrectable=False)
             _CLOCK_FRESHLY_SYNCED.add(addr)
+            append_clock_sync_event(root, _now(), name, addr, "synced", detail=f"attempt {attempt + 1}")
             return True
         except offline_lock.OfflineBusy:
             await asyncio.sleep(5)
@@ -1888,6 +1893,8 @@ async def auto_sync_clock(name, addr) -> bool:
             if device_absent_error(e):
                 log.info("%s clock auto-sync deferred — device not found (attempt %d); the reconnect "
                          "loop will re-trigger it when the device is back", name, attempt + 1)
+                append_clock_sync_event(root, _now(), name, addr, "deferred-absent",
+                                        detail=f"attempt {attempt + 1}")
                 return False
             # BUSY: a transient BlueZ state is a signal from a different layer, not a failure.
             # Surrendering here left the device stamping samples from an unsynced clock all night.
@@ -1917,12 +1924,16 @@ async def auto_sync_clock(name, addr) -> bool:
                     log.info("%s clock auto-sync gave up after %.0fs of a %.0fs budget (attempt %d/12) — "
                              "the reconnect loop will re-trigger it", name, spent,
                              _CLOCK_SYNC_LADDER_BUDGET_S, attempt + 1)
+                    append_clock_sync_event(root, _now(), name, addr, "gave-up-budget",
+                                            detail=f"{spent:.0f}s of {_CLOCK_SYNC_LADDER_BUDGET_S:.0f}s")
                     return False
                 await asyncio.sleep(min(5 * (attempt + 1), 30))
                 continue
             log.warning("%s clock auto-sync failed: %r", name, e)
+            append_clock_sync_event(root, _now(), name, addr, "sync-failed", detail=repr(e)[:120])
             return False
     log.warning("%s clock auto-sync gave up — device stayed unreachable/busy", name)
+    append_clock_sync_event(root, _now(), name, addr, "gave-up-busy", detail="12 attempts")
     return False
 
 
@@ -2143,7 +2154,7 @@ async def run_polar(dev: dict, root: str):
     # characteristic — and it costs a global capture pause to find that out, every task start.
     # This is the FIRST sync; `clock_sync_due` repeats it on every later reconnect (see the loop below).
     if is_polar and (_CFG.get("time") or {}).get("auto_sync_devices", True):
-        await auto_sync_clock(name, addr)
+        await auto_sync_clock(name, addr, root)
     first_attempt = True
     iteration = 0
     rebond_attempts = 0
@@ -2161,7 +2172,7 @@ async def run_polar(dev: dict, root: str):
         # give-up budget. Coming off the dock IS a reconnect, so the sync lands then.
         if clock_sync_due(is_polar, (_CFG.get("time") or {}).get("auto_sync_devices", True),
                           STATUS["devices"].get(name, {}).get("charging"), first_attempt):
-            await auto_sync_clock(name, addr)
+            await auto_sync_clock(name, addr, root)
         first_attempt = False
         # RE-BOND A LOST BOND. Also before `_connect`, and for the same reason the clock write is: the
         # pairing needs the device's own link. Without this a bond that goes stale mid-session is
@@ -4766,7 +4777,7 @@ def _pmd_probe(meas: int, data: bytes, n_samples: int, arrival) -> None:
         pass                      # a diagnostic must never disturb capture
 
 
-async def clock_watchdog(cfg: dict):
+async def clock_watchdog(cfg: dict, root=None):
     """Re-sync a device clock when it JUMPS, not merely when it is offset.
 
     The distinction matters. An H10 silently resets to its 2019 firmware default whenever it leaves the
@@ -4774,7 +4785,10 @@ async def clock_watchdog(cfg: dict):
     offset we do not control — the Verity stamps its PMD samples 4 h ahead of the clock we set, and no
     amount of re-syncing changes that (measured 2026-07-18). Triggering on "skew != 0" would re-sync it
     forever, pausing capture every cycle for nothing. So we trigger on a CHANGE in skew: a constant
-    offset is recorded once and left alone; a jump means the device clock actually moved."""
+    offset is recorded once and left alone; a jump means the device clock actually moved.
+
+    Verdicts (resynced / resync-failed / uncorrectable) also land in the night's `CLOCKSYNC.csv` when
+    `root` is given — see `writers.append_clock_sync_event` for why STATUS+journald are not enough."""
     tcfg = cfg.get("time") or {}
     if not tcfg.get("auto_sync_devices", True):
         return
@@ -4843,6 +4857,8 @@ async def clock_watchdog(cfg: dict):
                                 "stay usable for cross-device alignment; absolute time does not.",
                                 name, skew, CLOCK_ADRIFT_GIVEUP)
                     _set(name, clock_uncorrectable=True, clock_synced=None)
+                    append_clock_sync_event(root, _now(), name, addr, "uncorrectable", skew_s=skew,
+                                            detail=f"after {CLOCK_ADRIFT_GIVEUP} re-syncs")
                 continue                       # in tolerance and steady, or proven unfixable
             gave_up.discard(addr)
             if reason == "adrift":
@@ -4856,6 +4872,7 @@ async def clock_watchdog(cfg: dict):
             try:
                 await sync_device_time(addr)
                 _set(name, clock_synced=_now().isoformat(timespec="seconds"))
+                append_clock_sync_event(root, _now(), name, addr, "resynced", skew_s=skew, detail=reason)
                 seen.pop(addr, None)           # re-baseline after correcting
             except offline_lock.OfflineBusy:
                 seen[addr] = prev              # retry next cycle
@@ -4865,6 +4882,8 @@ async def clock_watchdog(cfg: dict):
                     log.info("%s clock re-sync busy (%s) — will retry", name, type(e).__name__)
                 else:
                     log.warning("%s clock re-sync failed: %r", name, e)
+                    append_clock_sync_event(root, _now(), name, addr, "resync-failed", skew_s=skew,
+                                            detail=repr(e)[:120])
 
 
 async def host_clock_poller(cfg: dict, root: str | None = None):
@@ -7408,7 +7427,7 @@ async def main():
     _BACKGROUND = [("status_loop", lambda: status_loop(root, float(_acfg.get("data_stale_sec", 120)))),
                    ("adapter_watchdog", lambda: adapter_watchdog(ADAPTER, cfg)),
                    ("rssi_poller", lambda: rssi_poller(ADAPTER, cfg, root)),
-                   ("clock_watchdog", lambda: clock_watchdog(cfg)),
+                   ("clock_watchdog", lambda: clock_watchdog(cfg, root)),
                    ("host_clock_poller", lambda: host_clock_poller(cfg, root)),
                    ("storage_poller", lambda: storage_poller(cfg, root, notifier)),
                    ("alert_poller", lambda: alert_poller(cfg, notifier)),

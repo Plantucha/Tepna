@@ -17,7 +17,26 @@
     "durSec": 360.9879843610137,
     "endEpochMs": 1781658739371,
     "offsetMin": null,
-    "events": 0
+    "events": 0,
+    "hostAxis": {
+      "applied": false,
+      "anchors": 95,
+      "ppm": -1.2708329373302014,
+      "ppmUncertainty": null,
+      "maxStepMs": 0.1190185546875,
+      "spanMs": 361648.4221191406,
+      "independent": false,
+      "spreadMs": 0.998779296875,
+      "timingSource": "device",
+      "tMsCorrected": false,
+      "stability": null,
+      "note": "quote `ppm` WITH `ppmUncertainty`; `stability:null` means there was no second clock (host column ≡ device stamp), not that the clock was perfect"
+    },
+    "timingSource": "device",
+    "deviceEpoch": {
+      "offsetMs": -235343518661,
+      "plausible": false
+    }
   },
   "ganglior_events": [],
   "reserved": {

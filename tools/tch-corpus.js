@@ -46,34 +46,59 @@
      not remembered — the same principle as `quality.timingSource` (which is the marker used here) and
      as `computeHash` replacing the hand-written "EXPORT-INERT" claim.
 
-     `marker` is whatever the caller reads off the export; `undefined`/`null` means the field was absent,
-     which is itself the older cohort's signature rather than missing information. */
+     `marker` is tri-state, and the distinction is load-bearing (the 2026-09-01 refold's false MIXED
+     banner counted 46 no-wearable nights as pre-host-axis):
+       undefined — NO wearable export was seen. Absence of the device is not old-code evidence; the
+                   night carries NO cohort. Returns null.
+       null      — a wearable export was seen and the field was absent from it: the older cohort's
+                   signature. 'pre-host-axis'.
+       any value — the field was present. 'post-host-axis'. */
   function cohortOf(marker) {
-    return marker === undefined || marker === null ? 'pre-host-axis' : 'post-host-axis';
+    if (marker === undefined) return null;
+    return marker === null ? 'pre-host-axis' : 'post-host-axis';
   }
 
   /**
    * Split nights into producing-code cohorts.
    *
-   * @param nights [{ night:'YYYY-MM-DD', marker }]  marker = export's quality.timingSource (may be absent)
-   * @returns { total, cohorts:{name→[night]}, homogeneous, dateConfounded, spans:{name→{first,last}} }
-   *          `null` when there is nothing to judge.
+   * @param nights [{ night:'YYYY-MM-DD', marker, solved? }]
+   *        marker = the tri-state cohortOf input · solved = whether the night contributed a σ solution
+   *        (optional; when any night carries it, the mixed/confounded verdict fires only when two
+   *        cohorts BOTH contribute solutions — an unsolved cohort cannot confound a median it never
+   *        enters).
+   * @returns { total, cohorts:{name→[night]}, uncohorted, solvedUncohorted, solvedByCohort,
+   *            hasSolvedInfo, homogeneous, dateConfounded, spans:{name→{first,last}} }
+   *          `null` when there is nothing to judge (empty input). A corpus whose every night is
+   *          uncohorted is NOT null — it must reach corpusVerdict, which refuses it.
    */
   function cohortSplit(nights) {
     if (!nights || !nights.length) return null;
     var cohorts = {};
+    var solvedByCohort = {};
     var markersSeen = 0;
+    var uncohorted = 0;
+    var solvedUncohorted = 0;
+    var hasSolvedInfo = false;
+    var any = false;
     var i, c, n;
     for (i = 0; i < nights.length; i++) {
       n = nights[i];
       if (!n || !n.night) continue;
+      any = true;
+      if (n.solved !== undefined) hasSolvedInfo = true;
       c = cohortOf(n.marker);
+      if (c === null) {
+        uncohorted++;
+        if (n.solved === true) solvedUncohorted++;
+        continue;
+      }
       if (c === 'post-host-axis') markersSeen++;
       if (!cohorts[c]) cohorts[c] = [];
       cohorts[c].push(n.night);
+      if (n.solved === true) solvedByCohort[c] = (solvedByCohort[c] || 0) + 1;
     }
+    if (!any) return null;
     var names = Object.keys(cohorts).sort();
-    if (!names.length) return null;
     var spans = {};
     for (i = 0; i < names.length; i++) {
       var list = cohorts[names[i]].slice().sort();
@@ -105,6 +130,10 @@
       cohorts: cohorts,
       spans: spans,
       markersSeen: markersSeen,
+      uncohorted: uncohorted,
+      solvedUncohorted: solvedUncohorted,
+      solvedByCohort: solvedByCohort,
+      hasSolvedInfo: hasSolvedInfo,
       homogeneous: names.length === 1,
       dateConfounded: confounded
     };
@@ -116,18 +145,51 @@
    */
   function corpusVerdict(split) {
     if (!split) return { state: 'empty', quotable: false, why: 'no nights' };
-    /* ── FAIL CLOSED WHEN NO MARKER WAS READ AT ALL ──────────────────────────────────────────────
-       The cohort of a night with no marker is 'pre-host-axis', so a reader that silently stops
-       populating markers makes EVERY night pre and the corpus reads homogeneous — a green verdict
-       produced by reading nothing, which is the exact failure this check exists to catch. It happened
-       on the first wiring of this module: `runNight` rebuilt its row object and dropped the field, and
-       a corpus measured at 25/15 reported "all 40 from one producing code version".
-       "No night carries the marker" is genuinely indistinguishable from "the marker was never read",
-       so it is refused rather than guessed. A corpus that really is all-legacy is also not a thing to
-       quote a current σ from, so nothing legitimate is lost. */
-    if (split.markersSeen === 0) return { state: 'unreadable', quotable: false, why: 'no night carried a producing-code marker — indistinguishable from a reader that read none' };
-    if (split.homogeneous) return { state: 'homogeneous', quotable: true, why: 'all ' + split.total + ' night(s) from one producing code version' };
     var names = Object.keys(split.cohorts).sort();
+    /* ── FAIL CLOSED ON EVERY SHAPE A BROKEN READER CAN PRODUCE ─────────────────────────────────
+       A reader that silently stops populating markers must never yield a green verdict — that is a
+       verdict produced by reading nothing, and it happened on the first wiring of this module:
+       `runNight` rebuilt its row object and dropped the field, and a corpus measured at 25/15
+       reported "all 40 from one producing code version". Three refusals, one per shape:
+       1. A SOLVED night with no cohort is a contradiction: a night cannot solve without a wearable
+          export, and a wearable export always yields a cohort (null ⇒ pre, value ⇒ post). The only
+          producer of that shape is a reader that dropped the field — refuse.
+       2. No cohort on ANY night: "no wearable anywhere" is indistinguishable from "the reader read
+          none", and a corpus with no wearable has no trio σ to quote anyway — refuse.
+       3. No POST marker on any cohorted night: an all-legacy corpus is genuinely indistinguishable
+          from a reader that reads the export but never the field — refuse, as before. */
+    if (split.solvedUncohorted > 0)
+      return {
+        state: 'unreadable',
+        quotable: false,
+        why: split.solvedUncohorted + ' solved night(s) carry no cohort — a solved night has a wearable export, so its marker was dropped by the reader, not absent from the data'
+      };
+    if (!names.length) return { state: 'unreadable', quotable: false, why: 'no night carried any cohort evidence — indistinguishable from a reader that read none' };
+    if (split.markersSeen === 0) return { state: 'unreadable', quotable: false, why: 'no night carried a producing-code marker — indistinguishable from a reader that read none' };
+    var uncNote = split.uncohorted > 0 ? ' (' + split.uncohorted + ' night(s) without a wearable carry no cohort and are not old-code evidence)' : '';
+    if (split.homogeneous) return { state: 'homogeneous', quotable: true, why: 'all ' + (split.total - split.uncohorted) + ' cohorted night(s) from one producing code version' + uncNote };
+    /* ── THE BANNER NEEDS TWO COHORTS IN THE MEDIAN, NOT TWO COHORTS IN THE DIRECTORY ───────────
+       A mixed corpus is refused because the median moves with the mix — but a cohort whose nights
+       never produced a solution contributes nothing to any median, so it cannot confound one. When
+       the caller says which nights solved, the mixed/confounded verdict fires only when two cohorts
+       BOTH contribute solutions; otherwise the solved set is single-generation and quotable, with
+       the non-contributing cohort named rather than hidden. Callers that pass no solved info keep
+       the stricter directory-level verdict. */
+    if (split.hasSolvedInfo) {
+      var contributing = [];
+      for (var k = 0; k < names.length; k++) if ((split.solvedByCohort[names[k]] || 0) > 0) contributing.push(names[k]);
+      if (contributing.length <= 1) {
+        var silent = [];
+        for (var m = 0; m < names.length; m++) if (contributing.indexOf(names[m]) < 0) silent.push(names[m] + ' ' + split.cohorts[names[m]].length + ' night(s), none solved');
+        var nSolved = contributing.length ? split.solvedByCohort[contributing[0]] : 0;
+        if (!nSolved) return { state: 'unreadable', quotable: false, why: 'no cohorted night produced a solution — nothing to quote (' + silent.join(', ') + ')' };
+        return {
+          state: 'homogeneous',
+          quotable: true,
+          why: 'all ' + nSolved + ' solved night(s) from one producing code version (' + contributing[0] + '); non-contributing: ' + silent.join(', ') + uncNote
+        };
+      }
+    }
     var parts = [];
     for (var i = 0; i < names.length; i++) parts.push(names[i] + ' ' + split.cohorts[names[i]].length);
     return {

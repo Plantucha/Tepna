@@ -1788,7 +1788,45 @@ for (const p of work) {
       console.warn(
         `  ⚠ ECG merge: ${overlaps.length} negative session boundary(ies), total ${(overlaps.reduce((a, o) => a + o.ms, 0) / 1000).toFixed(2)} s — merged elapsed time is OVER-stated by that much`
       );
-    return { int16: out, fs, gaps, overlaps, t0Ms: recs[0].t0Ms, offsetMin: recs[0].offsetMin, source: 'file', durSec: n / fs };
+    return {
+      int16: out,
+      fs,
+      gaps,
+      overlaps,
+      t0Ms: recs[0].t0Ms,
+      offsetMin: recs[0].offsetMin,
+      source: 'file',
+      durSec: n / fs,
+      /* Carry the TIMING PROVENANCE across the merge — the ECG twin of mergePpg's F3 fix below
+         (WEARABLE-HOST-AXIS-FOLLOWUPS §F3): without this a folded multi-fragment night has no
+         `hostAxis`/`deviceEpoch`, so the export's `recording.timingSource`/`recording.deviceEpoch`
+         (H10-2019-ORIGIN) came out absent on exactly the nights BLE reconnects fragment — the common
+         case. Independence mirrors mergePpg's rule: it is a property of the capture SETUP, so any
+         fragment that resolved it speaks for the night; `ok:false` because a merged night has no
+         single anchor set — the fs above already carries the longest fragment's correction. */
+      hostAxis: (() => {
+        const parts = recs.filter((r) => r.hostAxis);
+        if (!parts.length) return undefined;
+        const indep = parts.some((r) => r.hostAxis.independent === true) ? true : parts.some((r) => r.hostAxis.independent === false) ? false : null;
+        return {
+          ok: false,
+          merged: true,
+          fragments: parts.length,
+          independent: indep,
+          timingSource: indep === true ? 'device+host' : indep === false ? 'device' : null,
+          reason: 'merged night — per-fragment axes; fs carries the longest fragment’s correction'
+        };
+      })(),
+      /* Bimodal years-vs-seconds, so no sample-weighting: the night is plausible only if EVERY
+         fragment is (a mid-night sync leaves the early fragments on the 2019 origin), and the
+         published offset is the worst fragment's — the one a reader needs to see. */
+      deviceEpoch: (() => {
+        const parts = recs.filter((r) => r.deviceEpoch);
+        if (!parts.length) return null;
+        const worst = parts.reduce((a, b) => (Math.abs(b.deviceEpoch.offsetMs) > Math.abs(a.deviceEpoch.offsetMs) ? b : a));
+        return { offsetMs: worst.deviceEpoch.offsetMs, plausible: parts.every((r) => r.deviceEpoch.plausible) };
+      })()
+    };
   };
   const mergePpg = (recs) => {
     recs = recs.filter((r) => r && r.n && r.t0Ms != null).sort((a, b) => a.t0Ms - b.t0Ms);

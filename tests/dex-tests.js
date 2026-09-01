@@ -6315,6 +6315,36 @@
       }
     });
 
+    /* ════ mergeEcg carries timing provenance across the merge (H10-2019-ORIGIN, 2026-09-01) ════════
+       The ECG twin of mergePpg's F3 fix: `parseECG` now publishes `deviceEpoch` + `hostAxis`. These
+       ride the single-fragment path for free (mergeEcg returns the rec itself), but the MULTI-fragment
+       merge builds a fresh object, and anything not named there is dropped — which is the fold path,
+       i.e. exactly the surface the 84 unnoticed 2019-origin nights taught us to annotate. Source-scan
+       like the sibling groups, because trio-batch's merge closures are not importable from a test;
+       the scan anchors on the merged-return fold rules, not mere identifier occurrence. */
+    group('trio-batch mergeEcg carries deviceEpoch + timingSource across the merge', 'trio-batch · clock-contract · source-scan', function (T) {
+      var S = env.sources || {};
+      var tb = S['tools/trio-batch.mjs'] || S['trio-batch.mjs'];
+      if (tb == null) {
+        T.skip('trio-batch source wired', 'not in env.sources — the scan would read nothing');
+        return;
+      }
+      var m = tb.indexOf('const mergeEcg');
+      var end = tb.indexOf('const mergePpg', m);
+      var body = m >= 0 && end > m ? tb.slice(m, end) : '';
+      T.ok('mergeEcg found', body.length > 0);
+      T.ok(
+        'the merged rec names deviceEpoch (plausible = EVERY fragment plausible)',
+        /deviceEpoch[\s\S]{0,600}?parts\.every\(\s*\(r\)\s*=>\s*r\.deviceEpoch\.plausible\s*\)/.test(body),
+        'no worst-case deviceEpoch fold in mergeEcg return'
+      );
+      T.ok(
+        '…and a hostAxis with a timingSource derived from fragment independence',
+        /hostAxis[\s\S]{0,900}?timingSource[\s\S]{0,200}?'device\+host'/.test(body),
+        'no timingSource fold in mergeEcg return'
+      );
+    });
+
     /* FINISHED-WORK-IMPROVEMENTS §A 2c (2026-08-22) — the ring's RTC history rolled into the
        arrival sidecar so a fold consumer can see reads/pushes/resets/first-last offset without
        reaching back to the per-session `*_rtclog.csv`. Source-scan, because trio-batch's night loop
@@ -6865,17 +6895,25 @@
        confounded with date, so no subsetting can separate code version from night. The per-cohort medians
        differ by 1.5 bpm of PpgDex σ — larger than the shift being attributed.
 
-       The load-bearing assertion is `unreadable`. The cohort of an unmarked night is 'pre-host-axis', so a
-       reader that silently stops populating markers makes every night pre and the corpus reads
-       HOMOGENEOUS — a green verdict produced by reading nothing. That is not hypothetical: it happened on
-       the first wiring, when `runNight` rebuilt its row object and dropped the field, and a corpus
-       measured at 25/15 reported "all 40 from one producing code version". */
+       The load-bearing assertion is `unreadable`. A reader that silently stops populating markers must
+       never yield a green verdict — a verdict produced by reading nothing. That is not hypothetical: it
+       happened on the first wiring, when `runNight` rebuilt its row object and dropped the field, and a
+       corpus measured at 25/15 reported "all 40 from one producing code version".
+
+       The marker is TRI-STATE since 2026-09-01: undefined = no wearable export seen ⇒ NO cohort (absence
+       of the device is not old-code evidence — the refold's 46 early no-wearable nights raised a false
+       MIXED banner over a single-generation corpus under the old two-state rule); null = a wearable
+       export without the field ⇒ pre-host-axis; any value ⇒ post-host-axis. And the mixed/confounded
+       banner fires only when two cohorts BOTH contribute solutions — a cohort that never enters a median
+       cannot confound it. */
     group('a multi-night median is quotable only over one producing-code version', 'tch-corpus · homogeneity', function (T) {
       var TC = env.TchCorpus;
       T.ok('TchCorpus is loaded in this lane', !!TC, 'tools/tch-corpus.js did not load — the group below would vacuously pass');
       if (!TC) return;
-      var N = function (night, marker) {
-        return { night: night, marker: marker };
+      var N = function (night, marker, solved) {
+        var n = { night: night, marker: marker };
+        if (solved !== undefined) n.solved = solved;
+        return n;
       };
 
       // ── one version ⇒ the median is a corpus figure ──
@@ -6883,23 +6921,48 @@
       T.ok('all nights marked ⇒ homogeneous', homo && homo.homogeneous === true);
       T.ok('…and quotable', TC.corpusVerdict(homo).quotable === true);
 
-      // ── THE FAIL-OPEN LEG. No marker anywhere is indistinguishable from a broken reader. ──
+      // ── the tri-state marker: absence of the WEARABLE is not absence of the FIELD ──
+      T.eq('a wearable export without the field is the old-code signature', TC.cohortOf(null), 'pre-host-axis');
+      T.eq('a night with no wearable export carries NO cohort', TC.cohortOf(undefined), null);
+      var noWear = TC.cohortSplit([N('2026-05-03'), N('2026-05-04'), N('2026-06-10', 'device+host'), N('2026-06-11', 'device+host')]);
+      T.eq('no-wearable nights do not found a cohort — the corpus is homogeneous', TC.corpusVerdict(noWear).state, 'homogeneous');
+      T.ok('…and quotable — this is the refold false-MIXED regression', TC.corpusVerdict(noWear).quotable === true);
+      T.eq('…with the uncohorted nights counted, not hidden', noWear.uncohorted, 2);
+      T.ok('…and named in the verdict', /2 night\(s\) without a wearable/.test(TC.corpusVerdict(noWear).why));
+
+      // ── THE FAIL-OPEN LEGS. Every shape a broken reader can produce is refused, not quoted. ──
       var blind = TC.cohortSplit([N('2026-06-10'), N('2026-06-11'), N('2026-06-12')]);
-      T.ok('no marker on ANY night ⇒ every night falls in one cohort', blind && blind.homogeneous === true);
-      T.eq('…but that is REFUSED, not quoted — it cannot be told from a reader that read none', TC.corpusVerdict(blind).state, 'unreadable');
+      T.ok('no cohort on ANY night ⇒ no cohort is founded', blind && Object.keys(blind.cohorts).length === 0);
+      T.eq('…and that is REFUSED, not quoted — it cannot be told from a reader that read none', TC.corpusVerdict(blind).state, 'unreadable');
       T.ok('…and is not quotable', TC.corpusVerdict(blind).quotable === false);
+      var allPre = TC.cohortSplit([N('2026-06-10', null), N('2026-06-11', null)]);
+      T.eq('all-legacy (every marker null) is also refused — indistinguishable from a half-broken reader', TC.corpusVerdict(allPre).state, 'unreadable');
+      var dropped = TC.cohortSplit([N('2026-06-10', 'device+host', true), N('2026-06-11', undefined, true)]);
+      T.eq('a SOLVED night with no cohort is the dropped-field signature ⇒ refused', TC.corpusVerdict(dropped).state, 'unreadable');
+      T.ok('…and says the marker was dropped by the reader', /dropped by the reader/.test(TC.corpusVerdict(dropped).why));
 
       // ── mixed, interleaved: a matched comparison is still possible ──
-      var mixed = TC.cohortSplit([N('2026-06-10', 'device+host'), N('2026-06-11'), N('2026-06-12', 'device+host'), N('2026-06-13')]);
+      var mixed = TC.cohortSplit([N('2026-06-10', 'device+host'), N('2026-06-11', null), N('2026-06-12', 'device+host'), N('2026-06-13', null)]);
       T.eq('interleaved cohorts ⇒ mixed', TC.corpusVerdict(mixed).state, 'mixed');
       T.ok('…and not quotable', TC.corpusVerdict(mixed).quotable === false);
       T.ok('…but NOT date-confounded — the nights can be paired', mixed.dateConfounded === false);
 
       // ── mixed, contiguous: code version and date are the same variable ──
-      var conf = TC.cohortSplit([N('2026-06-10', 'device+host'), N('2026-06-11', 'device+host'), N('2026-07-16'), N('2026-07-17')]);
+      var conf = TC.cohortSplit([N('2026-06-10', 'device+host'), N('2026-06-11', 'device+host'), N('2026-07-16', null), N('2026-07-17', null)]);
       T.eq('cohorts in disjoint date ranges ⇒ confounded', TC.corpusVerdict(conf).state, 'confounded');
       T.ok('…which is a STRONGER refusal than mixed, and says regenerate', /regenerate/.test(TC.corpusVerdict(conf).why));
       T.ok('…and confounded is its own flag, not folded into mixed', conf.dateConfounded === true && mixed.dateConfounded === false);
+
+      // ── the banner needs two cohorts IN THE MEDIAN, not two cohorts in the directory ──
+      var oneSide = TC.cohortSplit([N('2026-06-10', 'device+host', true), N('2026-06-11', 'device+host', true), N('2026-07-16', null, false), N('2026-07-17', null, false)]);
+      T.eq('two cohorts, one contributing solutions ⇒ homogeneous, not confounded', TC.corpusVerdict(oneSide).state, 'homogeneous');
+      T.ok('…quotable — the unsolved cohort enters no median', TC.corpusVerdict(oneSide).quotable === true);
+      T.ok('…and the silent cohort is NAMED, not hidden', /pre-host-axis 2 night\(s\), none solved/.test(TC.corpusVerdict(oneSide).why));
+      var bothSides = TC.cohortSplit([N('2026-06-10', 'device+host', true), N('2026-06-11', 'device+host', true), N('2026-07-16', null, true), N('2026-07-17', null, false)]);
+      T.eq('…but one solved night in the second cohort restores the refusal', TC.corpusVerdict(bothSides).state, 'confounded');
+      var noneSolved = TC.cohortSplit([N('2026-06-10', 'device+host', false), N('2026-07-16', null, false)]);
+      T.ok('two cohorts, zero solutions ⇒ refused, not quoted', TC.corpusVerdict(noneSolved).quotable === false);
+      T.eq('callers that pass no solved info keep the stricter directory-level verdict', TC.corpusVerdict(conf).state, 'confounded');
 
       // ── the shape a caller depends on ──
       T.eq('an empty corpus is null, not an empty pass', TC.cohortSplit([]), null);
@@ -13760,6 +13823,95 @@
         'derived=' + derived.fs + ' indep=' + indep.fs + ' recovered=' + Math.round(movedPpm) + ' ppm from a planted 500'
       );
       T.ok('the refusal is auditable — spreadMs is forwarded, not just a boolean', dAx.spreadMs != null && iAx.spreadMs != null, JSON.stringify([dAx.spreadMs, iAx.spreadMs]));
+    });
+
+    /* ════ THE 2019-ORIGIN H10 IS ANNOTATED, NEVER REFUSED (H10-2019-ORIGIN, 2026-09-01) ════════════
+       The H10 boots its sensor clock at a 2019-01-01 firmware default and adopts real time only when a
+       sync lands. Measured over the full corpus: 87 of 455 H10 ECG files START on that origin and 84
+       never sync — a fifth of the H10 nights, internally perfect (130.00 Hz, monotonic) and absolutely
+       wrong by ~7.6 years, unnoticed for two months because no sidecar persisted the sync outcome and
+       the exports carried no annotation. The sensor-ns column IS the surviving evidence (Polar epoch
+       2000-01-01: a synced device reads ~26 years, a 2019-origin one ~19), so `parseECGText` now
+       publishes `deviceEpoch { offsetMs, plausible }` and the node export carries it.
+       TWO invariants, both directions pinned:
+       · ANNOTATE — a fabricated epoch is visible on the parse rec AND on the Integrator-facing export
+         (`recording.deviceEpoch`, `recording.timingSource`, `recording.hostAxis`). The export legs
+         also pin the analyze() forwarding fix: `recording.hostAxis` (HOSTAXIS-STABILITY §4.2) was dead
+         on every real path because analyze dropped `rec.hostAxis` in its reshape — verified on the
+         2026-09-01 refolded corpus, zero exports carried it.
+       · NEVER REFUSE — the same file parses in full: refusing first-row absolute implausibility would
+         throw away 19 % of H10 nights whose uV samples and relative timing are sound.
+       The 48 h threshold is deliberately coarse: the Verity's constant ~4 h offset and any zone/DST
+       confusion stay PLAUSIBLE (wrong-clock problems, hostAxis's business); the two real populations
+       sit at hours vs years. ════ */
+    group('ECGDex deviceEpoch — a 2019-origin H10 is annotated, never refused', 'ecgdex-dsp · clock-contract', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.parseECG === 'function')) {
+        T.ok('ECGDSP.parseECG available', false, 'not loaded');
+        return;
+      }
+      var HDR = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]';
+      var BASE = Date.UTC(2026, 5, 17, 1, 0, 0);
+      var POLAR_EPOCH = Date.UTC(2000, 0, 1); // sensor-ns epoch (capture-host `_POLAR_EPOCH`)
+      // Same geometry as the derived-host-column group above: 2600 rows × 1000 ms, anchors every 500
+      // rows. The ns column carries an ABSOLUTE device clock whose origin the test plants.
+      function build(devOriginMs) {
+        var rows = [HDR];
+        for (var i = 0; i < 2600; i++) {
+          var rel = i * 1000;
+          var ns = (devOriginMs - POLAR_EPOCH + rel) * 1e6;
+          rows.push(new Date(BASE + rel).toISOString() + ';' + ns + ';' + rel + ';' + (100 + (i % 40)));
+        }
+        return rows.join('\n');
+      }
+      var origin2019 = Date.UTC(2019, 0, 5); // the firmware default plus a few days on the strap
+      var rec = D.parseECG(build(origin2019));
+      T.ok('a 2019-origin device epoch is flagged implausible', rec.deviceEpoch && rec.deviceEpoch.plausible === false, JSON.stringify(rec.deviceEpoch));
+      T.eq('…with the raw offset published, not just a verdict', rec.deviceEpoch && rec.deviceEpoch.offsetMs, origin2019 - BASE);
+      // NEVER REFUSE — the annotation must not become a gate on the samples.
+      T.eq('…and every sample is kept', rec.int16.length, 2600);
+      T.eq('…with t0Ms still anchored on the HOST stamp, not the fabricated device clock', rec.t0Ms, BASE);
+      var syn = D.parseECG(build(BASE + 4000));
+      T.ok('a synced device (4 s skew) is plausible', syn.deviceEpoch && syn.deviceEpoch.plausible === true, JSON.stringify(syn.deviceEpoch));
+      /* The Verity stamps its PMD samples ~4 h ahead of the clock we set and no re-sync moves it
+         (measured 2026-07-18). That is a wrong CLOCK, not a fabricated EPOCH — flagging it here would
+         re-litigate what the hostAxis machinery already absorbs, so the threshold must keep it. */
+      T.ok('a constant 4 h offset (the Verity class) stays plausible', D.parseECG(build(BASE + 4 * 3600e3)).deviceEpoch.plausible === true);
+      // Honest absence: no sensor-ns column ⇒ no epoch claim in either direction (§2.6's rule).
+      var noNs = [HDR];
+      for (var j = 0; j < 20; j++) noNs.push(new Date(BASE + j * 8).toISOString() + ';;' + j * 7.692 + ';' + (100 + j));
+      T.eq('no ns column ⇒ deviceEpoch is null, never a fabricated verdict', D.parseECG(noNs.join('\n')).deviceEpoch, null);
+      // ── the Integrator-facing surface — and the analyze() forwarding fix it rides on ─────────────
+      var ex = D.compute(build(origin2019), { source: 'polar-h10-ecg' });
+      T.ok('the node export carries recording.deviceEpoch', ex.recording.deviceEpoch && ex.recording.deviceEpoch.plausible === false, JSON.stringify(ex.recording.deviceEpoch));
+      T.eq('…and recording.timingSource (a resolution path integrator-dsp already honors)', ex.recording.timingSource, 'device');
+      T.ok(
+        '…and recording.hostAxis — dead until analyze forwarded rec.hostAxis',
+        !!ex.recording.hostAxis && ex.recording.hostAxis.timingSource === 'device',
+        JSON.stringify(ex.recording.hostAxis && ex.recording.hostAxis.timingSource)
+      );
+      // Attach-only-when-present: a rec the parser could not judge adds NO keys (export-shape inertness
+      // for recordings with no ns column / no host stamps — the discipline every sibling block keeps).
+      var nnMin = [];
+      for (var k = 0; k < 20; k++) nnMin.push(800 + (k % 5));
+      var exMin = D.buildNodeExport(
+        {
+          nn: nnMin,
+          tt: nnMin.map(function (_, q) {
+            return q * 0.8;
+          }),
+          events: [],
+          t0Ms: BASE,
+          durSec: 16,
+          fs: 130
+        },
+        {}
+      );
+      T.ok(
+        'a rec with no timing provenance attaches none of the three keys',
+        !('deviceEpoch' in exMin.recording) && !('timingSource' in exMin.recording) && !('hostAxis' in exMin.recording),
+        JSON.stringify(Object.keys(exMin.recording))
+      );
     });
 
     group('ECGDex parseECG — mean-interval fs + raw-gap accounting (DEEP-AUDIT-II §4.3/§4.2)', 'ecgdex-dsp', function (T) {

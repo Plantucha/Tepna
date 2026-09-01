@@ -269,6 +269,41 @@ re-derived.
 
 ## 4 · 🔴 THE BLOCKER — PAT against the H10 is mis-referenced on the box corpus
 
+> ### 4a · ⚠️ THE 150–400 ms BAR IS SUPERSEDED (2026-09-01, ratified) — it was never satisfiable
+>
+> Kept visible rather than edited away, so nobody re-derives it from file history and assumes it was
+> once met. **Three independent reasons, each measured:**
+>
+> 1. **Its lower half is unreachable by construction.** The judging instrument,
+>    `tools/pat-matchrate-strict.mjs`, hard-filters lags to `PHYS_LO = 200, PHYS_HI = 650`. Nothing
+>    below 200 ms can survive to be measured, so "inside 150–400" could only ever fail *high* — a bar
+>    that cannot be failed at one end is not a bar. (Same family as this suite's
+>    *a statistic computed inside a window measures the window*.)
+> 2. **Its upper edge is failed by every night in §4's own table** — 457.0 on the night the section
+>    labels **good**, then 646.9 · 749.6 · 766.3 · 903.9. The bar was already unmet by the evidence
+>    printed directly beneath it.
+> 3. **The statistic was wrong for the distribution.** On a censored, skewed lag distribution the
+>    **median is a function of the window**. Measured 2026-09-01 over a 6× sweep of the oracle's search
+>    half-width (w = 50/200/300), the **mode is invariant** — `2026-07-24` returns 405/405/405 ms and
+>    `2026-08-17` 215/215/215 — while the verdict label and both SDs move with `w`.
+>
+> **The re-stated bar:**
+>
+> | | |
+> |---|---|
+> | **statistic** | the **MODE** — chosen on measured window-invariance, not preference |
+> | **band** | **200–500 ms**, a sanity rail |
+> | **discriminator** | `pat-window-oracle` verdict **SIGNAL RECOVERED** — a night beating *its own* null |
+> | **grounding** | corpus signal nights **215 · 315 · 355 · 405 ms** — re-verified from post-#2034 `main`; full tally (4 RECOVERED · 19 PARTIAL · 6 NO RECOVERY) and the CFD re-score in the header block |
+>
+> The band is deliberately the weaker half. **A night that beats its own null is the acceptance test**;
+> the numbers only rail against gross mis-referencing (the 646–904 medians above).
+>
+> **PEP is stated, not subtracted.** A chest-ECG→peripheral-foot PAT is PEP-inclusive by construction,
+> and PEP accounts for **12–35 % of rPTT** (Mukkamala R, Hahn JO, Inan OT et al., cited in
+> `PAT-RELATIVE-REFRAME-2026-08-17`). That is part of why 150 ms was never physical for this geometry.
+
+
 Scoring a fiducial needs a reference the estimator cannot fool. PAT = foot − preceding R-peak should
 be **150–400 ms** for arm PPG. Measured, on the host-disciplined ECG axis (`tMsAt`):
 
@@ -298,7 +333,8 @@ Fixing that outranks any estimator change — it blocks every PAT measurement, n
 - [x] CFD and AIC implemented and scored; CFD's gain shown UNVERIFIED, AIC shown negative
 - [x] `CROSS-DOMAIN-METHODS` §2's 12.7 ms premise retracted and §2.1's rate attribution corrected
 - [x] ~~the PAT reference fixed — medians inside 150–400 ms and pairing ≥95 % on both modes~~
-      **BAR SUPERSEDED 2026-09-01** (unevaluable as written — see the header) and **MET under the
+      **BAR SUPERSEDED 2026-09-01** (unevaluable as written — see the header, and §4a for the full
+      three-reason record at the bar's own site) and **MET under the
       re-stated one**: mode per night via `pat-window-oracle`, verdict SIGNAL RECOVERED inside a
       200–500 ms rail. All four signal nights pass — 405 / 315 / 215 / 355 ms. Measured against
       #2034's head, not `main`; re-run once it lands.

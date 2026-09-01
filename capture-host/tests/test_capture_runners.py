@@ -5066,7 +5066,7 @@ def test_run_polar_resumes_a_recent_fileset(tmp_path, monkeypatch, caplog):
     monkeypatch.setattr(capture.bonding, "ensure_bonded", _bonded)
     monkeypatch.setattr(capture.bonding, "is_bonded", _bonded)
 
-    async def _no_sync(name, addr):
+    async def _no_sync(name, addr, root=None):
         return None                        # the real one runs a ~30 s BLE discovery — not in a unit test
     monkeypatch.setattr(capture, "auto_sync_clock", _no_sync)
     def _no_ble(addr):
@@ -5094,7 +5094,7 @@ def test_run_polar_resume_disabled_by_zero_window(tmp_path, monkeypatch):
     monkeypatch.setattr(capture.bonding, "ensure_bonded", _bonded)
     monkeypatch.setattr(capture.bonding, "is_bonded", _bonded)
 
-    async def _no_sync(name, addr):
+    async def _no_sync(name, addr, root=None):
         return None                        # the real one runs a ~30 s BLE discovery — not in a unit test
     monkeypatch.setattr(capture, "auto_sync_clock", _no_sync)
 
