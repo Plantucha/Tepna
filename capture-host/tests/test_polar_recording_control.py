@@ -32,6 +32,17 @@ def _run(coro):
     return asyncio.run(coro)
 
 
+@pytest.fixture(autouse=True)
+def _no_bonding(monkeypatch):
+    """Every `_polar_run` bonds first, which shells out to `bluetoothctl` — present on the dev box,
+    ABSENT on CI, so without this the endpoint tests pass locally and 502 on CI with
+    `FileNotFoundError: bluetoothctl` (measured on #2042's first push: the exact local-green/CI-red
+    divergence). Same autouse fixture `test_webmon_polar_contract` carries, for the same reason."""
+    async def ok(*a, **k):
+        return True
+    monkeypatch.setattr(webmon.bonding, "ensure_bonded", ok)
+
+
 # ── the codec ───────────────────────────────────────────────────────────────────────────────────────
 
 def test_start_recording_params_round_trip_and_exact_bytes():
