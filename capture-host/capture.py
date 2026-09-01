@@ -6950,31 +6950,73 @@ def _cpap_autostart_boot(root, now_ms):
     return watch
 
 
-async def _cpap_autostart_loop(*, root, op, is_running, debounce_s, max_attempts, sleep=None,
-                               now_ms=None, get_therapy=None):
-    """Start the live stream when therapy starts. The deciding is all in `cpap_live`.
+async def _cpap_autostart_loop(*, root, op, is_running, retain_s, hold_s, max_attempts,
+                               get_last_paths=None, poll_s: float = 5.0, sleep=None,
+                               now_ms=None, get_therapy=None, unlink=None):
+    """Start the live stream when therapy starts — EAGERLY — and judge the start afterward.
+    The deciding is all in `cpap_live`.
+
+    The start fires at the FIRST Therapy sighting (the old 120 s gate cost every night that much
+    head; measured 147.44 s total with the poll latency and connect on top). The 120 s question is
+    answered by RETENTION instead: when a started stream ends, `false_start_verdict` reads its
+    lifetime — a genuine session lives hours, a false start lives ~the auto-stop hold — and a false
+    start's fragment is DISCARDED (raw record + EDF, no orphans), journalled per file, and counted
+    against the same per-session attempt budget as a failed connect.
+
+    `poll_s` is 5 s, not the detector's 30: this loop reads an IN-MEMORY status dict, so polling it
+    fast is free and stops the loop's own cadence stacking on the detector's ~27 s latency — the
+    acceptance bar is first-live-sample ≤30 s behind the SD record's therapy start.
 
     🔴 A MANUAL STOP IS SIGNALLED, NEVER INFERRED, and the reason is measured. Auto-stop fires on
     `|flow| <= eps` held for `hold_sec`, and on its first live night (2026-08-29 06:23:21) that was
     FIVE MINUTES ahead of `fg_state` leaving Therapy. So "the stream stopped while the detector still
     says Therapy" is exactly what a NORMAL auto-stop looks like, and inferring manual intent from it
     would mark every ordinary night as operator-cancelled. Intent comes from the operator's actual
-    POST instead — see `_cpap_autostart_wrap_op`."""
+    POST instead — see `_cpap_autostart_wrap_op`. Retention honours the same rule: a manual stop is
+    never a false start, whatever the stream's age."""
     import cpap_live
     sleep = sleep or asyncio.sleep
     now_ms = now_ms or (lambda: _time.time() * 1000.0)
     get_therapy = get_therapy or (lambda: (STATUS.get("cpap") or {}).get("therapy"))
+    get_last_paths = get_last_paths or (lambda: [])
+    unlink = unlink or os.unlink
     watch = _cpap_autostart_boot(root, now_ms())
     _CPAP_AUTOSTART["watch"] = watch
+    streaming_since_ms = None            # set when OUR start succeeds; None once judged
     while not _STOP.is_set():
-        await sleep(30)
+        await sleep(poll_s)
         if _STOP.is_set():
             break
         t = now_ms()
+        running = bool(is_running())
         watch = cpap_live.observe_start(_CPAP_AUTOSTART["watch"], get_therapy(), t)
-        due, why = cpap_live.autostart_due(watch, t, debounce_s=debounce_s,
-                                           max_attempts=max_attempts,
-                                           already_streaming=bool(is_running()))
+        # ── RETENTION — judge a session WE started, once it has ended ────────────────────────────
+        if streaming_since_ms is not None and not running:
+            manual = watch.began_at_ms is not None and watch.manual_stop_for == watch.began_at_ms
+            discard, verdict_why = cpap_live.false_start_verdict(
+                streaming_since_ms, t, manual=manual, retain_s=retain_s, hold_s=hold_s)
+            if discard:
+                watch = cpap_live.note_false_start(watch, t)
+                # EVERY discarded file gets its own journal line — a fragment that vanishes without
+                # a named reason is the silent-healing shape, inverted.
+                for p in get_last_paths():
+                    try:
+                        unlink(p)
+                        log.warning("CPAP auto-start: FALSE START — discarded %s (%s)", p, verdict_why)
+                    except FileNotFoundError:
+                        pass             # never written, or already gone: no orphan either way
+                    except OSError as e:
+                        log.warning("CPAP auto-start: false-start fragment %s could NOT be removed "
+                                    "(%s) — an orphan the operator should know about", p, e)
+                log.warning("CPAP auto-start: false start judged (%s) — attempt %d/%d for this session",
+                            verdict_why, watch.attempts, max_attempts)
+                _cpap_autostart_save(root, watch.began_at_ms, attempts=watch.attempts,
+                                     last_error=f"false start: {verdict_why}", now_ms=t)
+            else:
+                log.info("CPAP auto-start: session ended and RETAINED (%s)", verdict_why)
+            streaming_since_ms = None
+        due, why = cpap_live.autostart_due(watch, t, max_attempts=max_attempts,
+                                           already_streaming=running)
         if not due:
             _CPAP_AUTOSTART["watch"] = watch
             continue
@@ -6985,8 +7027,9 @@ async def _cpap_autostart_loop(*, root, op, is_running, debounce_s, max_attempts
             res = {"ok": False, "error": f"{type(e).__name__}: {e}"}
         if res.get("ok"):
             watch = cpap_live.note_started(watch)
+            streaming_since_ms = now_ms()
             log.info("CPAP auto-start: stream started")
-            _cpap_autostart_save(root, watch.began_at_ms, attempts=0, now_ms=t)
+            _cpap_autostart_save(root, watch.began_at_ms, attempts=watch.attempts, now_ms=t)
         else:
             watch = cpap_live.note_start_failed(watch, t)
             # EVERY attempt is logged, per spec — a bounded retry that gives up silently is the same
@@ -7033,16 +7076,25 @@ def _maybe_start_cpap_autostart(cfg, root, cpap_ctl, tasks, *, create_task=None)
         log.info("CPAP auto-start: OFF (set cpap.ble_stream.auto_start.enabled: true to arm)")
         return None
     import cpap_live
-    debounce = float(acfg.get("debounce_s", cpap_live.AUTOSTART_DEBOUNCE_S))
+    # THE 120 s RULE MOVED FROM THE GATE TO RETENTION (owner-queued 2026-09-01, cpap_live has the
+    # measured decomposition). `retain_s` is the new key; a config still carrying the old
+    # `debounce_s` keeps its NUMBER with the new meaning — the value was always "how much continuous
+    # therapy makes a session real", only WHEN it is asked has moved.
+    retain = float(acfg.get("retain_s", acfg.get("debounce_s", cpap_live.AUTOSTART_RETAIN_S)))
     attempts = int(acfg.get("max_attempts", cpap_live.AUTOSTART_MAX_ATTEMPTS))
+    # The auto-stop's hold rides into the discard window (retain + hold): a false start's stream
+    # lives ~hold_s before the flat-flow stop can end it — see cpap_live.false_start_verdict.
+    hold = float(((cbs.get("auto_stop") or {}).get("hold_sec", 120.0)))
     _CPAP_AUTOSTART["root"] = root
     task = (create_task or asyncio.create_task)(_cpap_autostart_loop(
         root=root, op=cpap_ctl.op, is_running=cpap_ctl._running,
-        debounce_s=debounce, max_attempts=attempts))
+        retain_s=retain, hold_s=hold, max_attempts=attempts,
+        get_last_paths=lambda: list(getattr(cpap_ctl, "last_sink_paths", []) or [])))
     TASK_LABELS[id(task)] = "CPAP auto-start"
     tasks.append(task)
-    log.info("CPAP auto-start: ARMED — starts the live stream after %.0fs of continuous Therapy "
-             "(max %d attempts per session)", debounce, attempts)
+    log.info("CPAP auto-start: ARMED — EAGER (starts at the first Therapy sighting; a session that "
+             "fails to sustain %.0fs is discarded and costs an attempt, max %d per session)",
+             retain, attempts)
     return task
 
 
