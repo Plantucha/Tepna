@@ -26,6 +26,25 @@ SPDX-License-Identifier: Apache-2.0
 > ⚠️ **Measured against #2034's HEAD (`c45551de`), not against `main`** — the re-stated acceptance is defined *under* that overlap split (the oracle had been splitting on the ECG's extent while scoring against the PPG), and #2034 was still open at measurement time. **These numbers are not reproducible from `main` until it lands.** Re-run after it merges before anything downstream cites them.
 >
 > **So the first box is MET**, and the chain's next link — re-score CFD against this reference — is unblocked.
+>
+> ✅ **RE-RUN FROM `main` + CFD RE-SCORED AND REJECTED — 2026-09-01.** The #2034-head caveat above is
+> discharged: from post-#2034 `main` (`e0552bc7`) all four reference nights reproduce **exactly** —
+> 07-24 405 · 08-12 315 · 08-17 215 · 08-18 355, all SIGNAL RECOVERED. The `main` corpus tally is
+> **4 RECOVERED · 19 PARTIAL · 6 NO RECOVERY** (vs 4/20/5 at the #2034 head — one borderline
+> null-margin night flipped; the reference is untouched).
+>
+> **The CFD re-score, against pre-stated bands** (adopt-candidate only if all four signal nights stay
+> SIGNAL RECOVERED inside the 200–500 rail under CFD **and** paired per-night out-of-sample narrowSD
+> improves on a majority of scored nights **and** corpus RECOVERED count does not drop):
+> CFD (f=0.10, sub-sample interpolated, same consensus beats — `cfdTimes` in
+> `tools/pat-matchrate-strict.mjs ppgFootTimes`, scored via `pat-window-oracle --fiducial cfd`)
+> keeps all four signal nights RECOVERED in-rail (425 / 335 / 245 / 365 — the expected ~+10–30 ms
+> later fiducial), but on the paired per-night narrowSD it is **worse on 16 of 29, better on 10,
+> median ΔSD +0.1 ms**, and the tally is unchanged 4/19/6 (two offsetting borderline flips, 07-22 and
+> 08-31, both at null-margin noise level). **Clause 2 fails ⇒ REJECT.** Against a reference the
+> estimator cannot fool, CFD buys nothing over the shipping tangent foot — §3's non-adoption is now
+> confirmed with the right reason, not just the polarity retraction. The chain's last open link is the
+> residual 2.2–13.2 ms spread.
 > 🔴 **SPEC-BLOCKED 2026-09-01 — the first box CANNOT BE EVALUATED AS WRITTEN, and the obstacle is the BAR, not the reference.** Two findings, both measured. **(1) The bar's band and the instrument's band disagree.** The bar asks for medians inside **150–400 ms**; `tools/pat-matchrate-strict.mjs` hard-filters lags to `>= PHYS_LO(200) && <= PHYS_HI(650)` (line 318), so **a median below 200 ms is unreachable by construction** — the bar's lower half cannot be evaluated at all, and the bar can only ever fail HIGH. Judging "is the median inside 150–400" with an instrument that cannot emit anything under 200 lets the window answer instead of the data (`pat-sd-is-the-window`). **(2) ⚠️ `pat-window-oracle`'s 405 / 215 ms are MODES, not medians — do not substitute them.** It takes a histogram mode over binned lags, estimated **out of sample on each night's first half** (`lagMode`); the bar asks for a median, and on a skewed censored distribution these are different statistics. Reading 405 ms as "the median, which fails the 400 bar by 5 ms" would be a wrong verdict reached by mixing two instruments.
 >
 > **NOT data-blocked:** the corpus is local and usable (`~/tepna-smoketest/captures`, 51 nights; both signal nights present with H10+Verity pairs). The bar needs re-stating against the instrument that will judge it — routed to the PAT layer, escalating to the owner if it touches a published number. Pre-stating a threshold is right; pre-stating one the instrument cannot evaluate is the failure mode underneath it.
@@ -217,6 +236,11 @@ the win/loss was attributed to SAMPLING RATE. Rate was confounded with mode. §2
 > intersection on it, which is the whole −33 % on bad nights, and the −107 to −177 ms displacement was
 > CFD sliding along that ramp. Once polarity is correct the nights it "fixed" are already at 2.3–2.7 ms.
 > The decision not to adopt was right; the reason recorded below was not the real one.
+>
+> ✅ **2026-09-01 — re-scored against the oracle reference and REJECTED on that number** (see the
+> header block): paired per-night out-of-sample narrowSD worse on 16 of 29 nights, median ΔSD
+> +0.1 ms, corpus tally unchanged. The acceptance metric this time is the independent ECG (R→foot
+> concentration), which point 1 below demanded and the inter-LED IQR could not provide. Closed.
 
 From nuclear instrumentation: *time-walk* is the amplitude-dependent deviation of a measured
 time-of-arrival that afflicts leading-edge discriminators, and an intersecting-tangent construction is
@@ -278,7 +302,10 @@ Fixing that outranks any estimator change — it blocks every PAT measurement, n
       re-stated one**: mode per night via `pat-window-oracle`, verdict SIGNAL RECOVERED inside a
       200–500 ms rail. All four signal nights pass — 405 / 315 / 215 / 355 ms. Measured against
       #2034's head, not `main`; re-run once it lands.
-- [ ] only THEN: re-score CFD against it, and adopt or reject on that number
+- [x] only THEN: re-score CFD against it, and adopt or reject on that number — **REJECTED
+      2026-09-01** against pre-stated bands: all four signal nights stay RECOVERED in-rail under
+      CFD, but paired narrowSD is worse on 16/29 (median ΔSD +0.1 ms) and the tally is unchanged —
+      no gain over the shipping tangent foot, judged by the independent ECG reference (header block)
 - [x] ~~the mode is PREDICTED by sampling rate~~ — **RETRACTED §1b**: it was the polarity bug
 - [x] the mode-splitting MECHANISM identified — **`orient()` picks the wrong sign** (§0)
 - [x] **ALREADY SHIPPED — verified 2026-08-17, not implemented anew.** `orientByRise` IS the

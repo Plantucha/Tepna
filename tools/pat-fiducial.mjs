@@ -40,16 +40,21 @@ function sampleAt(bp, i) {
   return bp[lo] + (i - lo) * (bp[hi] - bp[lo]);
 }
 
-/** Half-amplitude crossing on the rising edge foot→peak, in SAMPLES (fractional).
+/** Fraction-amplitude crossing on the rising edge foot→peak, in SAMPLES (fractional).
+ *  `frac` = 0.5 is the Ajtay half-amplitude point; `frac` = 0.10 is the digital
+ *  constant-fraction discriminator (CFD) PPG-FOOT-PLACEMENT §3 measured — a trigger at a
+ *  fixed fraction of each pulse's OWN foot→peak amplitude, amplitude-independent by
+ *  construction (nuclear-instrumentation time-walk removal).
  *  `footI` may itself be fractional — that is what the shipped detector emits.
  *  Returns null for a beat whose edge is unusable, so callers can count coverage
  *  rather than silently receive a fabricated point. */
-export function halfAmplitudeIndex(bp, footI, peakI) {
+export function fractionAmplitudeIndex(bp, footI, peakI, frac) {
   if (!(peakI > footI) || !(footI >= 0) || peakI >= bp.length) return null;
+  if (!(frac > 0 && frac < 1)) return null; // 0 is the foot itself, 1 the peak — neither is a crossing
   const lo = sampleAt(bp, footI);
   const hi = sampleAt(bp, peakI);
   if (!(hi > lo)) return null; // not a rising edge — reject, never guess
-  const half = lo + 0.5 * (hi - lo);
+  const thr = lo + frac * (hi - lo);
   /* Left anchor of the first interval is the FOOT itself, not the whole sample before it — that
      sample lies before the foot, on the previous beat's decay, and using it would place the
      crossing outside the rising edge whenever the crossing falls in the first partial interval. */
@@ -58,14 +63,24 @@ export function halfAmplitudeIndex(bp, footI, peakI) {
   for (let i = Math.ceil(footI); i <= peakI; i++) {
     if (i <= footI) continue;
     const v = bp[i];
-    if (v >= half) {
+    if (v >= thr) {
       if (v === prevV) return i;
-      return prevI + ((half - prevV) / (v - prevV)) * (i - prevI); // linear, sub-sample
+      return prevI + ((thr - prevV) / (v - prevV)) * (i - prevI); // linear, sub-sample
     }
     prevI = i;
     prevV = v;
   }
   return null;
+}
+
+/** The CFD fraction §3 measured (f = 0.10). One constant, so the oracle re-score and any
+ *  future consumer cannot silently drift apart on what "CFD" means. */
+export const CFD_FRAC = 0.1;
+
+/** Half-amplitude crossing — the Ajtay et al. (2023) fiducial. Unchanged contract; now a
+ *  projection of the general fraction crossing so there is one crossing implementation. */
+export function halfAmplitudeIndex(bp, footI, peakI) {
+  return fractionAmplitudeIndex(bp, footI, peakI, 0.5);
 }
 
 /** Both fiducials for a beat list, as SECONDS from record start. */
@@ -121,6 +136,20 @@ function selftest() {
     Math.abs(halfAmplitudeIndex(Float64Array.from([0, 100, 100]), 0.5, 2) - 0.75) < 1e-9,
     `${halfAmplitudeIndex(Float64Array.from([0, 100, 100]), 0.5, 2)}`
   );
+
+  console.log('\n### CFD — the same crossing at f=0.10, checked against arithmetic');
+  // linear ramp foot 0 (value 0) → peak 10 (value 100): thr = 10 ⇒ index 1 exactly
+  ok('linear ramp at f=0.10 ⇒ index 1', Math.abs(fractionAmplitudeIndex(ramp, 0, 10, CFD_FRAC) - 1) < 1e-9, `${fractionAmplitudeIndex(ramp, 0, 10, CFD_FRAC)}`);
+  // fractional foot 0.5 (value 5) → peak 10 (value 100): thr = 5 + 0.1·95 = 14.5 ⇒ index 1.45
+  ok(
+    'fractional foot at f=0.10 lands where arithmetic says',
+    Math.abs(fractionAmplitudeIndex(ramp, 0.5, 10, CFD_FRAC) - 1.45) < 1e-9,
+    `${fractionAmplitudeIndex(ramp, 0.5, 10, CFD_FRAC)} (a foot-rounding impl says 1)`
+  );
+  ok('half via the general crossing is unchanged', Math.abs(fractionAmplitudeIndex(ramp, 0, 10, 0.5) - halfAmplitudeIndex(ramp, 0, 10)) < 1e-12);
+  ok('CFD leads the half point on the same edge', fractionAmplitudeIndex(ramp, 0, 10, CFD_FRAC) < halfAmplitudeIndex(ramp, 0, 10));
+  ok('frac 0 refuses (the foot is not a crossing)', fractionAmplitudeIndex(ramp, 0, 10, 0) === null);
+  ok('frac 1 refuses (the peak is not a crossing)', fractionAmplitudeIndex(ramp, 0, 10, 1) === null);
 
   console.log('\n### refusals — an unusable edge must yield null, never a guess');
   ok('flat edge (hi == lo) ⇒ null', halfAmplitudeIndex(Float64Array.from([5, 5, 5]), 0, 2) === null);

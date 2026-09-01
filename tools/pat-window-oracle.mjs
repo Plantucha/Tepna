@@ -50,7 +50,7 @@
  *
  * Usage:
  *   node tools/pat-window-oracle.mjs --selftest
- *   node tools/pat-window-oracle.mjs --dir <captures root> [--half-width 100]
+ *   node tools/pat-window-oracle.mjs --dir <captures root> [--half-width 100] [--fiducial foot|cfd|half]
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -226,8 +226,14 @@ async function main() {
   if (argv.includes('--selftest')) process.exit(selftest() ? 0 : 1);
   const DIR = argv[argv.indexOf('--dir') + 1];
   const HW = Number(argv.includes('--half-width') ? argv[argv.indexOf('--half-width') + 1] : 100);
-  if (!DIR || !existsSync(DIR)) {
-    console.error('usage: node tools/pat-window-oracle.mjs --selftest | --dir <captures root> [--half-width 100]');
+  /* --fiducial: which PPG train the oracle scores. `foot` (default) is byte-identical to the
+     pre-flag tool; `cfd` / `half` are the alternative fiducials `ppgFootTimes` computes on the
+     same beats (PPG-FOOT-PLACEMENT §3 / EXTERNAL-METHODS-SURVEY §1). The alternatives are
+     index-parallel-with-NaN by contract; the oracle scores a train of event TIMES, so the NaNs
+     (edge-unusable beats) are dropped here — order is preserved, no correspondence is consumed. */
+  const FID = argv.includes('--fiducial') ? argv[argv.indexOf('--fiducial') + 1] : 'foot';
+  if (!DIR || !existsSync(DIR) || !['foot', 'cfd', 'half'].includes(FID)) {
+    console.error('usage: node tools/pat-window-oracle.mjs --selftest | --dir <captures root> [--half-width 100] [--fiducial foot|cfd|half]');
     process.exit(2);
   }
   const { getDsps, ecgRpeakTimes, ppgFootTimes } = await import(join(HERE, 'pat-matchrate-strict.mjs'));
@@ -235,7 +241,7 @@ async function main() {
   const nights = readdirSync(DIR)
     .filter((n) => /^2026-/.test(n))
     .sort();
-  console.log(`half-width ±${HW} ms · mode search 0–${MODE_SEARCH_MAX} ms · bands: <=${BAND_RECOVERED} RECOVERED, <${BAND_PARTIAL} PARTIAL, else NO RECOVERY; null must be beaten\n`);
+  console.log(`half-width ±${HW} ms · fiducial ${FID} · mode search 0–${MODE_SEARCH_MAX} ms · bands: <=${BAND_RECOVERED} RECOVERED, <${BAND_PARTIAL} PARTIAL, else NO RECOVERY; null must be beaten\n`);
   console.log('night        mode    n     narrowSD    fullSD     nullSD   verdict');
   const tally = {};
   for (const n of nights) {
@@ -262,7 +268,9 @@ async function main() {
     } catch {
       continue;
     }
-    const res = oracleNight(Array.from(E.times), Array.from(P.times), HW);
+    const train = FID === 'foot' ? P.times : FID === 'cfd' ? P.cfdTimes : P.halfTimes;
+    const fTimes = Array.from(train).filter(Number.isFinite);
+    const res = oracleNight(Array.from(E.times), fTimes, HW);
     if (!res) {
       console.log(`${n}  ⊘ too few beats`);
       continue;
