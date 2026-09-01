@@ -33,6 +33,7 @@
  *
  *   node tools/ppg-foot-residual-sweep.mjs --selftest
  *   node tools/ppg-foot-residual-sweep.mjs --dir <captures root> [--site ankle|ring] [--json <out>]
+ *   node tools/ppg-foot-residual-sweep.mjs --dir <root> --within 2026-06-10   (rule-1 beat probe)
  * ═══════════════════════════════════════════════════════════════════════════════════════════════ */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -168,6 +169,38 @@ export function pairSame(A, B, tol = MATCH_TOL_MS) {
   return d;
 }
 
+/* Same-beat pairing that returns INDEX pairs — the within-night probe needs to look up each
+   matched beat's own upstroke slope, and a compacted diff list cannot recover that correspondence
+   (the halfTimes lesson). Same rule as pairSame; kept separate so pairSame stays byte-stable. */
+export function pairSameIdx(A, B, tol = MATCH_TOL_MS) {
+  const out = [];
+  let j = 0;
+  for (let i = 0; i < A.length; i++) {
+    while (j < B.length && B[j] < A[i] - tol) j++;
+    if (j >= B.length) break;
+    if (Math.abs(B[j] - A[i]) <= tol) out.push([i, j]);
+  }
+  return out;
+}
+
+/* WITHIN-NIGHT signature probe (pre-registration rule 1's second conjunct): bin matched beats by
+   the pair's per-beat MIN upstroke slope (the worse edge governs a difference), report median
+   |Δfoot| per tertile. C1/C2's mechanism predicts |Δ| FALLS from the low-slope to the high-slope
+   tertile. Pure function of per-beat arrays so the selftest can plant it. */
+export function withinNight(slopeMinPerBeat, absDiffPerBeat) {
+  const n = Math.min(slopeMinPerBeat.length, absDiffPerBeat.length);
+  const rows = [];
+  for (let i = 0; i < n; i++) if (isFinite(slopeMinPerBeat[i]) && isFinite(absDiffPerBeat[i])) rows.push([slopeMinPerBeat[i], absDiffPerBeat[i]]);
+  if (rows.length < 300) return null;
+  rows.sort((a, b) => a[0] - b[0]);
+  const t = Math.floor(rows.length / 3);
+  const medOf = (seg) => quantile(seg.map((r) => r[1]), 0.5);
+  const lo = medOf(rows.slice(0, t));
+  const mid = medOf(rows.slice(t, 2 * t));
+  const hi = medOf(rows.slice(2 * t));
+  return { n: rows.length, lo, mid, hi, falls: lo > mid && mid > hi };
+}
+
 /* 2-beat average of a difference series — C4's collapse probe: alternation cancels, noise halves. */
 export const avg2 = (d) => {
   const o = [];
@@ -261,6 +294,22 @@ function selftest() {
   ok('noiseRms recovers planted σ=3 within 40 %', nr > 1.8 && nr < 4.2, `${nr.toFixed(2)}`);
   ok('noiseRms is robust to the pulse itself (clean pulse ≪ planted σ)', noiseRms(bp) < 1.0, `${noiseRms(bp).toFixed(3)}`);
 
+  console.log('\n### withinNight — a planted slope→jitter law is seen, and its absence is not');
+  {
+    const slopes = [];
+    const diffs = [];
+    for (let i = 0; i < 900; i++) {
+      const s = 0.2 + ((i * 7919) % 900) / 900; // deterministic spread of slopes 0.2–1.2
+      slopes.push(s);
+      diffs.push(Math.abs(rnd()) * (1 / s)); // |Δ| ∝ 1/slope — the C1 mechanism
+    }
+    const w = withinNight(slopes, diffs);
+    ok('planted 1/slope law ⇒ falls across tertiles', w && w.falls, w ? `${w.lo.toFixed(2)} > ${w.mid.toFixed(2)} > ${w.hi.toFixed(2)}` : 'null');
+    const flat = withinNight(slopes, slopes.map(() => Math.abs(rnd())));
+    ok('slope-independent jitter ⇒ does NOT report falls', flat && !flat.falls, flat ? `${flat.lo.toFixed(2)} / ${flat.mid.toFixed(2)} / ${flat.hi.toFixed(2)}` : 'null');
+    ok('under 300 usable beats refuses', withinNight(slopes.slice(0, 100), diffs.slice(0, 100)) === null);
+  }
+
   console.log('\n### Spearman — exact on monotone, ~0 on independent, sign on reversed');
   ok('monotone ⇒ +1', spearman([1, 2, 3, 4, 5], [10, 20, 30, 40, 50]) === 1);
   ok('reversed ⇒ −1', spearman([1, 2, 3, 4, 5], [5, 4, 3, 2, 1]) === -1);
@@ -295,6 +344,7 @@ async function main() {
   const DIR = arg('--dir', null);
   const SITE = arg('--site', 'ankle');
   const JSON_OUT = arg('--json', null);
+  const WITHIN = arg('--within', null); // one night: beat-level slope-tertile probe (pre-reg rule 1)
   if (!DIR || !fs.existsSync(DIR)) {
     console.error('usage: node tools/ppg-foot-residual-sweep.mjs --selftest | --dir <captures root> [--site ankle|ring] [--json <out>]');
     process.exit(2);
@@ -334,17 +384,24 @@ async function main() {
     }
   }
   const rows = [];
-  console.log('night        pair    n    yield    SD      IQR     r1    SD(avg2)   C1(n/s)  ANRmin');
+  if (!WITHIN) console.log('night        pair    n    yield    SD      IQR     r1    SD(avg2)   C1(n/s)  ANRmin');
   for (const n of [...perNight.keys()].sort()) {
+    if (WITHIN && n !== WITHIN) continue;
     const cand = perNight.get(n).sort((a, b) => b.s - a.s)[0];
     if (!cand) continue;
     let rec;
     try {
       rec = P.parsePPG(fs.readFileSync(cand.f, 'utf8'));
-    } catch {
+    } catch (e) {
+      console.log(`${n}  ⊘ parse failed (${String(e.message).slice(0, 60)})`);
       continue;
     }
-    if (!rec || !rec.ch || rec.ch.length < 2 || rec.t0Ms == null) continue;
+    /* every skip prints its reason — a silent `continue` is an invisible filter, and a count
+       without its filter is not a fact */
+    if (!rec || !rec.ch || rec.ch.length < 2 || rec.t0Ms == null) {
+      console.log(`${n}  ⊘ ${!rec || !rec.ch ? 'no channels' : rec.ch.length < 2 ? `only ${rec.ch.length} channel` : 'no timestamp'}`);
+      continue;
+    }
     const per = rec.ch.map((c) => P.detectChannel(c, rec.fs));
     P.applyConsensusPolarity(per, (i, sgn) => P.detectChannel(rec.ch[i], rec.fs, sgn));
     const toMs = (i) => {
@@ -365,6 +422,34 @@ async function main() {
         slope: medianSlope(p.bp, p.feet, p.peaks, rec.fs)
       };
     });
+    if (WITHIN) {
+      /* Per-beat upstroke slope per channel, index-parallel with its feet. */
+      const slopeOf = (p) => {
+        const at = (i) => {
+          const lo = Math.floor(i);
+          const hi = Math.ceil(i);
+          if (lo < 0 || hi > p.bp.length - 1) return NaN;
+          return lo === hi ? p.bp[lo] : p.bp[lo] + (i - lo) * (p.bp[hi] - p.bp[lo]);
+        };
+        return p.feet.map((f, k) => {
+          const pk = p.peaks[k];
+          const dv = at(pk) - at(f);
+          const dtMs = ((pk - f) / rec.fs) * 1000;
+          return dv > 0 && dtMs > 0 ? dv / dtMs : NaN;
+        });
+      };
+      const slopes = per.map(slopeOf);
+      console.log(`${n} — within-night slope-tertile probe (median |Δfoot| ms per per-beat MIN-slope tertile)`);
+      for (let i = 0; i < chans.length; i++)
+        for (let j = i + 1; j < chans.length; j++) {
+          const idx = pairSameIdx(chans[i].feetMs, chans[j].feetMs);
+          const sMin = idx.map(([a, b]) => Math.min(slopes[i][a], slopes[j][b]));
+          const aDiff = idx.map(([a, b]) => Math.abs(chans[j].feetMs[b] - chans[i].feetMs[a]));
+          const w = withinNight(sMin, aDiff);
+          console.log(w ? `  ${i}-${j}  n=${w.n}  loSlope ${w.lo.toFixed(2)} · mid ${w.mid.toFixed(2)} · hiSlope ${w.hi.toFixed(2)}  ${w.falls ? 'FALLS ✓' : 'does not fall'}` : `  ${i}-${j}  ⊘ under 300 usable beats`);
+        }
+      continue;
+    }
     const row = nightRow(chans);
     if (!row) {
       console.log(`${n}  ⊘ fewer than 2 pairable channels`);

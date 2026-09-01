@@ -326,7 +326,10 @@ Fixing that outranks any estimator change — it blocks every PAT measurement, n
       and inert on the current results. `ppgFootTimes` now returns `polarityFlipped` so a future
       run cannot be silently on either side of it.
 - [ ] explain the RESIDUAL 2.2–13.2 ms spread that survives the polarity fix — pre-registration
-      committed §5 (2026-09-01), measurement follows it
+      committed §5 (2026-09-01), measured same day: C3/C4 refuted, C1 refuted as THE explanation
+      (magnitude ~150× off), C2 passes cross-night (ρ=−0.861) but its within-night conjunct is
+      DATA-BLOCKED (corpus volume failed mid-probe — §5 results). Bounded + partially decomposed;
+      stays open on the within-night test alone
 
 ## 5 · Pre-registration — the residual-spread decomposition (committed BEFORE the predictor run)
 
@@ -369,6 +372,44 @@ needs a non-rate term). Secondary: the box tree, polarity consensus-forced.
    with the measurements that refuted them" — a legitimate closure, not a failure to close.
 4. C1 subsumes C2 if both pass (they overlap by construction); C2 passing alone means the slope
    term added nothing.
+
+### §5 results — measured 2026-09-01, same day, after the pre-registration commit
+
+**One instrument amendment, made before any predictor table was seen:** C2's named instrument
+`channelSNR` is LOCAL to `ppgdex-dsp.js` and not on the `PPGDSP` namespace — `pat-per-led.mjs`'s
+guarded read has printed n/a since it was written (the half-wired-mechanism shape again). Exporting
+it would move every bundle's `manifestHash` for a probe, so C2 was instrumented in-tool as median
+foot→peak amplitude / robust noise RMS (same quantity; thresholds untouched; recorded in the tool
+header and here).
+
+**Primary population (phone tree, n=15 scored of 16 candidate dates; 1 skipped <2 pairable
+channels).** Estimand reproduces: worst-pair IQR spans **2.23–13.71 ms** against the 2.2–13.2
+headline. Against the pre-stated rules:
+
+| candidate | cross-night result | verdict |
+|---|---|---|
+| C1 noise/slope | ρ = **+0.789** (bar +0.7) — but the MAGNITUDE clause fails by ~150× (sd/c1 = 68–282, median 147) | rank signal real; **REFUTED as THE explanation** (rule 2): the dispersion is not sample-level white noise through the slope — it is ~two orders larger, i.e. in-band noise |
+| C2 amplitude/noise | ρ = **−0.861** (bar −0.7) | cross-night PASS; promotion to "explains" blocked — see below |
+| C3 yield | ρ = −0.514, and yield sits at 99–100 % on every scored night | **REFUTED as instrumented** — the predictor has no dynamic range on this population (defined, not informative) |
+| C4 alternation | no pair-night anywhere reaches r1 ≤ −0.3 (range −0.05…+0.78) | **REFUTED** — alternation is absent from the measurable phone nights |
+
+**Post-hoc observation (not a registered candidate, labeled as such):** r1 skews strongly POSITIVE
+(up to +0.78 on the worst night) — the inter-LED difference wanders slowly rather than alternating.
+Whatever drives the dispersion is coherent over many beats.
+
+**Secondary population (box tree, n=45):** same directions, none at bar — C1 +0.550 · C2 −0.574 ·
+C3 −0.563 · C4 +0.048.
+
+🔴 **Rule 1's within-night conjunct is UNMEASURED — data-blocked, not skipped.** The slope-tertile
+probe (`--within`) was mid-flight on the six pre-named nights when the `data` USB volume (the only
+local phone-tree copy; the `647A` original is offline) threw Buffer I/O errors **with lost async
+page writes**, stopped, and re-attached unmounted (kernel log 2026-09-01 10:21). Remounting a disk
+that just lost writes is the owner's risk call, so the campaign stopped there. Consequence, per the
+pre-stated rules: **neither C1 nor C2 is promoted to "EXPLAINS"** — the honest state is *"C2 (and
+C1's ranking) carry the cross-night signal; the within-night mechanism test is owed"* — and the
+residual-spread box stays open as **bounded + partially decomposed**. Next actionable: run
+`--within` on 2026-06-10/20/21 (high) and 06-18/12/15 (low) from a safe corpus copy (vigil holds
+mirrors; owner call).
 
 Related: [`CROSS-DOMAIN-METHODS-2026-08-12-BRIEF.md`](CROSS-DOMAIN-METHODS-2026-08-12-BRIEF.md) ·
 [`PPG-SAMPLE-RATE-AND-PAT-2026-08-03-BRIEF.md`](PPG-SAMPLE-RATE-AND-PAT-2026-08-03-BRIEF.md)
