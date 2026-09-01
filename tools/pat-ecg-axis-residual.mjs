@@ -15,11 +15,14 @@
  * is, by construction, exactly the axis error the current train carries relative to the
  * host-disciplined one — whatever linear part `fs` already absorbed is already subtracted.
  *
- * PREDICTION DERIVED, NOT ASSUMED: lag = foot − R. If the true (host-axis) R is R_linear + c,
- * the measured lag under the linear train is  lag_true − c  at that moment, so the halves-mode
- * shift the oracle should see is
+ * PREDICTION DERIVED, NOT ASSUMED — and the first derivation was WRONG, caught against the frozen
+ * text (kept per report-don't-absorb): R_linear = R_true − c, so the measured lag
+ * f − R_linear = lag_true + c — INFLATED by c, not deflated. The halves-mode shift is therefore
  *
- *     Δmode_pred = mean_A(c) − mean_B(c)        (A = 1st scored half, B = 2nd; Δmode = modeB−modeA)
+ *     Δmode_pred = mean_B(c) − mean_A(c)        (A = 1st scored half, B = 2nd; Δmode = modeB−modeA)
+ *
+ * which is exactly the frozen §1 wording ("mean over the 2nd scored half − mean over the 1st");
+ * this tool's first commit computed the negation and disagreed with its own pre-registration.
  *
  * evaluated over the oracle's own overlap split (same lo/mid/hi rule as `oracleNight`,
  * re-stated here because that function does not export its split).
@@ -40,9 +43,9 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
 
 /* ── pure core: halves-mean difference of a sampled correction over a split ───────────────────────
-   cSamples: [{t, c}] with t ascending. Returns mean(c | t∈[lo,mid)) − mean(c | t∈[mid,hi]).
-   Uniform-in-time sampling stands in for beat-weighted means (beats are near-uniform overnight;
-   stated in the pre-registration's collapse-floor terms, not hidden). */
+   cSamples: [{t, c}] with t ascending. Returns mean(c | t∈[mid,hi]) − mean(c | t∈[lo,mid)) —
+   B minus A, the frozen §1 order. Uniform-in-time sampling stands in for beat-weighted means
+   (beats are near-uniform overnight; stated in the pre-registration's collapse-floor terms). */
 export function halvesMeanDiff(cSamples, lo, mid, hi) {
   let sa = 0;
   let na = 0;
@@ -59,7 +62,7 @@ export function halvesMeanDiff(cSamples, lo, mid, hi) {
     }
   }
   if (na < 10 || nb < 10) return null;
-  return sa / na - sb / nb;
+  return sb / nb - sa / na;
 }
 
 /* The oracle's overlap-split rule, re-stated (pat-window-oracle.mjs oracleNight does not export
@@ -86,14 +89,36 @@ function selftest() {
     return s;
   };
   console.log('\n### halvesMeanDiff — analytic plants');
-  ok('zero correction ⇒ 0', Math.abs(halvesMeanDiff(mk(() => 0), 0, T / 2, T)) < 1e-9);
-  // step of +100 ms at mid: mean_A 0, mean_B 100 ⇒ diff −100
-  const st = halvesMeanDiff(mk((t) => (t >= T / 2 ? 100 : 0)), 0, T / 2, T);
-  ok('a +100 ms step at mid ⇒ −100 (sign: A minus B)', Math.abs(st - -100) < 1.5, `${st?.toFixed(2)}`);
-  // quadratic c = k·t²: mean_A = kT²/12, mean_B = 7kT²/12 ⇒ diff = −kT²/2
+  ok(
+    'zero correction ⇒ 0',
+    Math.abs(
+      halvesMeanDiff(
+        mk(() => 0),
+        0,
+        T / 2,
+        T
+      )
+    ) < 1e-9
+  );
+  // step of +100 ms at mid: mean_A 0, mean_B 100 ⇒ B−A = +100 — a late-half positive c must
+  // predict a POSITIVE mode shift (measured lag = true + c); the first version asserted −100
+  // and its instrument disagreed with the frozen text's sign on real data.
+  const st = halvesMeanDiff(
+    mk((t) => (t >= T / 2 ? 100 : 0)),
+    0,
+    T / 2,
+    T
+  );
+  ok('a +100 ms step at mid ⇒ +100 (sign: B minus A, the frozen order)', Math.abs(st - 100) < 1.5, `${st?.toFixed(2)}`);
+  // quadratic c = k·t²: mean_A = kT²/12, mean_B = 7kT²/12 ⇒ B−A = +kT²/2
   const k = 100 / (T * T); // c(T) = 100 ms
-  const q = halvesMeanDiff(mk((t) => k * t * t), 0, T / 2, T);
-  ok('quadratic reaching 100 ms ⇒ −50 analytic', Math.abs(q - -50) < 1.0, `${q?.toFixed(2)}`);
+  const q = halvesMeanDiff(
+    mk((t) => k * t * t),
+    0,
+    T / 2,
+    T
+  );
+  ok('quadratic reaching 100 ms ⇒ +50 analytic', Math.abs(q - 50) < 1.0, `${q?.toFixed(2)}`);
   // linear c under an axis that absorbed it is c≡0 by construction — covered by the zero plant.
   ok('under 10 samples per half refuses', halvesMeanDiff(mk(() => 0).slice(0, 15), 0, T / 2, T) === null);
 
