@@ -59,3 +59,20 @@ Only **2 nights** beat their own null (`2026-07-24` 15.3 vs 59.5; `2026-08-17` 1
 recover a mode outside the physiological window** (25 ms, 165, 185, 815, 1245) — alignment artifacts,
 not transit times. **6 nights score UNDEFINED with zero matched beats** despite having beats, which is a
 pairing failure distinct from "too few beats" and is the most concrete follow-up this run produces.
+**HALF-WIDTH SWEEP — run against bands registered beforehand.** `w = 50/200/300` added to the ±100 pass.
+
+*Prediction 1 (`nullSD` = `2w/√12`)* holds exactly at 50 (**28.9** vs 28.9) and in band at 200 (**111.6**
+vs 115.5), and **misses at 300 (153.8 vs 173.2, −11.2 %)**. Reported as a miss: past ±200 ms the window
+stops being the binding constraint, since a uniform draw can only fill a window candidate matches span.
+"The null is the window" is true *while the window is the narrower constraint* — which the ±100 ms
+operating point satisfies.
+
+*Prediction 2 (the two signal nights must hold their mode within their own SD)* passes decisively: both
+are **invariant**, not merely in tolerance — `2026-07-24` recovers **405 ms** and `2026-08-17` **215 ms**
+at every one of w = 50/200/300, across a 6× change in search width. Neither reclassifies; the corpus has
+two genuine signal nights on a basis stronger than one operating point.
+
+⚠️ Their verdict LABELS degrade while their modes do not (`08-17` reads NO RECOVERY at w=300 while
+recovering the identical 215 ms). Both SDs grow with `w`, so the ratio erodes though the location is
+fixed. **The label is a function of the window; the mode is not** — a consumer quoting the verdict at one
+half-width would draw the opposite conclusion from the physics.

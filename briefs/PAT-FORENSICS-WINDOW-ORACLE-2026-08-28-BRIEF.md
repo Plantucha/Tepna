@@ -344,6 +344,41 @@ A 25 ms or 1245 ms "PAT" is not a transit time. These should surface as **REFUSE
 as a number a consumer can quote — the same discipline `hostAxis` applies when its bound is exceeded.
 Recorded as a candidate only: whether the oracle refuses or merely flags belongs to that tool's
 owner-decision layer, and is not built here.
+
+### ✅ SWEEP RESULT — measured 2026-09-01, against the bands registered above
+
+**Prediction 1 — `nullSD` tracks `2w/√12`: holds, then breaks, and the break is the informative part.**
+
+| `w` | predicted | median observed | |
+|---|---|---|---|
+| 50 | 28.9 | **28.9** | exact |
+| 100 | 57.7 | 56.2–59.5 | in band |
+| 200 | 115.5 | **111.6** | in band (−3.4 %) |
+| 300 | 173.2 | **153.8** | **MISS (−11.2 %)** |
+
+The null reproduces the window arithmetic precisely at 50 and 200 and **falls short at 300**. Reported as
+a miss rather than smoothed: at ±300 ms the window stops being the binding constraint — a uniform draw
+can only fill the window if candidate matches exist across it, and beyond some width the beat structure,
+not the window, bounds the spread. So "the null is the window" is true **while the window is the narrower
+constraint**, which the ±100 ms operating point satisfies.
+
+**Prediction 2 — the two signal nights must hold their mode: they hold it EXACTLY.**
+
+| night | registered | w=50 | w=200 | w=300 |
+|---|---|---|---|---|
+| `2026-07-24` | 405 ± 15.3 | **405** | **405** | **405** |
+| `2026-08-17` | 215 ± 17.9 | **215** | **215** | **215** |
+
+Not "within tolerance" — **invariant**, across a 6× change in search width. That is precisely the
+discriminator this sweep was registered to apply: *a night whose recovered mode does not move with `w`
+has something the window is not supplying.* **Both nights survive; neither reclassifies.** The corpus has
+two genuine signal nights, and it now has a reason beyond a single operating point.
+
+⚠️ **Their verdict LABELS degrade while their modes do not** (`07-24` SIGNAL RECOVERED → PARTIAL →
+PARTIAL; `08-17` PARTIAL → PARTIAL → NO RECOVERY). Both SDs grow with `w`, so the score ratio erodes even
+though the recovered location is fixed. **The label is a function of the window; the mode is not.** A
+consumer reading only the verdict at one half-width would conclude `08-17` has no signal at ±300 ms and
+signal at ±100 ms — the mode says otherwise, and the mode is the physical quantity.
 ## 7 · Done when
 
 - [x] Out-of-sample design, circular-shift null, gate-asserted with a noise control.
