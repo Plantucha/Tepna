@@ -786,6 +786,70 @@ class HostClockLogWriter:
         return self._health.failures
 
 
+CLOCKSYNC_NAME = "CLOCKSYNC.csv"
+_CLOCKSYNC_HEADER = "Phone timestamp;device;address;event;skew_sec;detail\n"
+
+
+def append_clock_sync_event(root, when: _dt.datetime, device, address, event: str,
+                            skew_s: float | None = None, detail: str | None = None) -> bool:
+    """Append ONE device clock-sync outcome to the night's own `CLOCKSYNC.csv` sidecar.
+
+    THE PER-NIGHT EVIDENCE CHANNEL (H10-2019-ORIGIN, 2026-09-01). `auto_sync_clock` and
+    `clock_watchdog` have always reported their outcomes — into live STATUS (a snapshot the next write
+    erases) and journald (which rotates). Nothing wrote them into the night's own files, so "was THIS
+    night's device clock actually synced?" was unanswerable after the fact — which is how 84 H10 nights
+    recorded on the strap's 2019-01-01 firmware default went unnoticed for two months. A live status
+    field is not an evidence channel; any question that will be asked about a night post-hoc must be
+    persisted WITH the night.
+
+    Event vocabulary (one word, greppable; the writer does not police it, the emitters do):
+        synced          — a clock write reached the device (startup ladder or reconnect)
+        deferred-absent — the sync was skipped because the device is not reachable; the reconnect
+                          loop re-triggers it, so this defers rather than loses
+        gave-up-busy    — the 12-attempt ladder exhausted on transient busy states
+        gave-up-budget  — the ladder exceeded its wall-clock lock budget
+        sync-failed     — a non-transient failure (the give-up the operator should read first)
+        resynced        — the watchdog corrected a jump/adrift clock mid-session (detail = reason)
+        resync-failed   — the watchdog's correction attempt failed hard
+        uncorrectable   — repeated re-syncs did not move the skew; accepted and left alone
+
+    Same disciplines as the sidecar family above: a SIDECAR, never a column in a vendor layout;
+    TELEMETRY, never a `ganglior.node-export` metric. Two deliberate departures from the writer-class
+    pattern, each earning its place:
+    · OPEN-APPEND-CLOSE per event. Sync outcomes are sparse — a handful per night — so a held-open
+      writer buys nothing and costs midnight-roll and teardown machinery in three async contexts.
+      A FIXED name (like OXYLIFE.csv, unlike the stamped LINK/CLOCK pair) makes the append idempotent
+      across calls; `nightqc.newest_data_mtime` excludes it from data-ranking by construction (it
+      matches no capture-name pattern), so the 00:00 decoy-folder trap does not apply.
+    · NEVER RAISES. Evidence must never take capture down — the same rule the PMD frame dump keeps.
+      Returns False (logged at debug) when the row could not be written; callers do not branch on it.
+
+    Keyed by the EVENT's wall date (`night_dir(root, when)`) — the LINK/CLOCK sidecar convention: a
+    cross-midnight session leaves the late rows in the next date's folder, and the QC/fold layer
+    already reads neighbouring folders as one session."""
+    if not root:
+        return False
+    try:
+        path = os.path.join(night_dir(root, when), CLOCKSYNC_NAME)
+        fresh = not os.path.exists(path) or os.path.getsize(path) == 0
+        with open(path, "a", encoding="utf-8", newline="\n") as fh:
+            if fresh:
+                fh.write(_CLOCKSYNC_HEADER)
+            fh.write(";".join((
+                _phone_ts(when),
+                str(device or ""),
+                str(address or ""),
+                str(event),
+                "" if skew_s is None else f"{skew_s:.3f}",
+                # blank, never a fabricated value; ; and newlines would corrupt the row shape
+                str(detail or "").replace(";", ",").replace("\n", " "),
+            )) + "\n")
+        return True
+    except OSError as e:
+        _log.debug("CLOCKSYNC append failed (%s): %r", event, e)
+        return False
+
+
 class RingClockLogWriter:
     """Per-session RING CLOCK sidecar — the O2Ring's RTC watched against the host, on disk.
 

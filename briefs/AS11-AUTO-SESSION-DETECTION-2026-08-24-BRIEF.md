@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-08-24 · **Created:** 2026-08-24 · **Follows:** `RESMED-AS11-PROTOCOL-REFERENCE-2026-08-21-BRIEF.md`, `CPAP-BLE-CAPTURE-2026-08-21-BRIEF.md`
+**Status:** IN-PROGRESS (evidence + recommended architecture DELIVERED and built — the FGState-primary detector runs in shadow on the box (see `AS11-SESSION-DETECTOR-IMPLEMENTATION`), and the open-items "clock investigation" is ANSWERED: AS11 RTC −21.30 min, −4.71 ppm over 160 h (`AS11-CLOCK-DISCIPLINE`, DONE 2026-09-01). Verified 2026-09-01 still open here: the ~40 s debounce confirmation over several natural mask-offs, Leak-validity promotion timing, and the SubscribeEvent (0x3a) measured yes/no) · **Created:** 2026-08-24 · **Follows:** `RESMED-AS11-PROTOCOL-REFERENCE-2026-08-21-BRIEF.md`, `CPAP-BLE-CAPTURE-2026-08-21-BRIEF.md`
 
 # AS11 automatic therapy-session detection — research program + §23 hardware-matrix findings
 

@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** IN-PROGRESS · **Created:** 2026-08-14 · **Follows:** `ALLAN-DEVIATION-2026-08-12-BRIEF.md`, `WEARABLE-HOST-AXIS-FOLLOWUPS-2026-08-02-BRIEF.md` · **Affects:** `capture-host/`, `clock.js` §7, `ecgdex-dsp.js`, `ppgdex-dsp.js`, `oxydex-dsp.js`
+**Status:** IN-PROGRESS (Phase 1 EXECUTED 2026-08-14 with two confirmed defects; verified 2026-09-01: **Defect A is REMEDIATED and gate-backed** — the `deviceDrawn` refusals now sit in every tool that spends a clock and the suite's `drawn-axis · source-scan` group pins them (checked green this date, per the documented-failure-is-not-open-failure rule) — while the null night, targets 6–8, and target 1's aperiodic-marker evaluation remain OPEN; target 1 is now UNBLOCKED by the proven buzz fiducial (5/5 in H10 ACC and 5/5 in Verity ACC on the pairwise night) but has not been run in this experiment's preregistered frame) · **Created:** 2026-08-14 · **Follows:** `ALLAN-DEVIATION-2026-08-12-BRIEF.md`, `WEARABLE-HOST-AXIS-FOLLOWUPS-2026-08-02-BRIEF.md` · **Affects:** `capture-host/`, `clock.js` §7, `ecgdex-dsp.js`, `ppgdex-dsp.js`, `oxydex-dsp.js`
 
 > **Phase 1 EXECUTED 2026-08-14** — post-capture injection layer run against a real three-device box
 > night. Preregistered criteria, results, and two confirmed defects in **§Findings** below. The
