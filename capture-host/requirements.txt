@@ -1,6 +1,6 @@
 # tepna-capture — requirements
 # Core BLE + config. Install into a venv:  python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
-bleak>=0.22         # cross-platform BLE central; clean on Linux/BlueZ
+bleak>=3.0.2         # cross-platform BLE central; clean on Linux/BlueZ
 PyYAML>=6.0.3         # config.yaml
 aiohttp>=3.9        # webmon.py — monitor + control surface (scan/bond/forget + SSE live waveform)
 cryptography>=42   # as11_cipher.py — AES-256-CBC for the ResMed AS11 encrypted BLE channel (CPAP live stream)
