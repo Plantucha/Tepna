@@ -3,6 +3,8 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 **Status:** IN-PROGRESS · **Created:** 2026-08-05
+
+> **TRIAGED 2026-09-01 — protocol decoded across two hardware runs; the remainder is HARDWARE-shaped.** §1.2 (2026-08-05) answered three of four questions on the box; §1.3's second run established that `0x05` is **not** a plethysmogram and `0x03` is — the wire format in §2 follows from it. §3.1 is ANSWERED (which channel is which wavelength), kept for its reasoning. What is left needs the device and a supervised run, not an edit. ⚠️ §5's three FAILED optical experiments are recorded precisely so they are not repeated; §5.1 records that sunlight is the source that does solve it (owner observation).
 **Supersedes:** O2RING-RAW-STREAMS-ABSENT-2026-08-04-BRIEF.md
 
 # O2Ring `cmd 0x05` — a two-channel raw optical stream we concluded did not exist

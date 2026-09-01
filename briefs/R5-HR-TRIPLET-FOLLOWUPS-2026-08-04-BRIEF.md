@@ -6,6 +6,8 @@
 
 **Status:** IN-PROGRESS · **Created:** 2026-08-04 · **Spawned-by:** `R5-HR-TRIPLET-REFERENCE-2026-07-12-BRIEF.md` (bias item, executed) · **Affects:** every cross-node HR comparison — `oxydex-dsp.js` `oxyBuildEpochSeries`, `ecgdex-dsp.js` epoch builder, the HR three-cornered hat
 
+> **TRIAGED 2026-09-01 — measurement complete; the one residue is an OWNER ROUTING DECISION, not code.** §3's four owed items: three are `[x]` (the epoch block names its statistic via `hrStat`; the spread is ISOLATED to the interval distribution's shape; the parent's §2 attribution is RE-READ and corrected). The fourth is `[~]` by design — the fleet statistic is `rate-of-mean` and OxyDex's closest unbiased proxy is the arithmetic mean of its 1 Hz rates, but **OxyDex has no intervals**, so the switch is *routed, not taken*. Taking it changes a published value and is therefore an owner call. §4 is explicitly NOT owed. Nothing here is open to code.
+
 # The bias was an estimator; the σ is almost untouched — and one of those needs saying out loud
 
 ## 1 · What the parent established

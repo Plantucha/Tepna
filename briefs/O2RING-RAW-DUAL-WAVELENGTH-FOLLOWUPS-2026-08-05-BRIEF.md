@@ -4,6 +4,8 @@ SPDX-License-Identifier: Apache-2.0
 -->
 **Status:** IN-PROGRESS · **Created:** 2026-08-05
 
+> **TRIAGED 2026-09-01 — one open question, and it is a MEASUREMENT question.** §1's defect (signed channels read unsigned) is stated; §2 CONFIRMED `rows − markers = 124.91 Hz`, independently reproducing the 125.000 ADC, and §2.1a's 2026-08-20 update REFUTES the 100 Hz reading — the delivered rate is the **cap**, not the device. §3 is WITHDRAWN (again) — 'AC/DC is ten times too large' does not hold. §4 identifies `0x03` as the real waveform, a different stream from `0x05`. **§2.1 is the sole open item: the marker rate is not the heart rate**, and settling it needs device time rather than code.
+
 # `cmd 0x05` follow-ups — the channels are SIGNED, and `0x03` is the real waveform
 
 Follow-up to `O2RING-RAW-DUAL-WAVELENGTH-2026-08-05-BRIEF.md` (#994), from a further afternoon on
