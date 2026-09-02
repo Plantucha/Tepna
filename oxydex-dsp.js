@@ -6621,7 +6621,10 @@
           odi3: obj.odi3 || { rate: 0, count: 0 },
           hrv: obj.hrv
             ? {
-                hrSdnn: obj.hrv.hrSdnnProxy || obj.hrv.hrSdnn || 0,
+                /* DEEP-AUDIT-IV §3-RESULT — `|| 0` turned an absent proxy into a measured 0.00 in the
+                   export a consumer reads. The two proxies are still tried in order; what changes is
+                   that "neither was measured" now leaves null instead of a number nobody computed. */
+                hrSdnn: obj.hrv.hrSdnnProxy != null && isFinite(obj.hrv.hrSdnnProxy) ? obj.hrv.hrSdnnProxy : obj.hrv.hrSdnn != null && isFinite(obj.hrv.hrSdnn) ? obj.hrv.hrSdnn : null,
                 pnn3: obj.hrv.pnn3 || 0,
                 hrFloor: obj.hrv.hrFloor || 0,
                 hrSlope: obj.hrv.hrSlope || 0,
