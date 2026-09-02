@@ -1,0 +1,85 @@
+{
+  "schema": {
+    "name": "ganglior.integrator-apnea-null-twins",
+    "version": "1.0",
+    "doc": "Committed synthetic twins for the apnea chance-null (DEEP-AUDIT-VI-FOLLOWUPS §4.3). Inputs rebuilt in-code by tests/apnea-null-twins.js, the same builder the equivalence gate uses."
+  },
+  "twins": {
+    "coupled": {
+      "nullModel": {
+        "expectedConfirmed": 5.64,
+        "expectedConfirmedAnalytic": 5.07,
+        "nullMethod": "circular-shift surrogates, covered-time, scored by the published matching",
+        "nullDraws": 80,
+        "pFloor": 0.0123,
+        "pAtLeastObserved": 0.0123,
+        "belowChance": false,
+        "surgeRatePerHr": 6.5,
+        "surgeRateObserver": "ECGDex",
+        "surgeAlsoObservedBy": [],
+        "directionalWindowSec": 75
+      },
+      "nConf": 40,
+      "confirmedAHI": 5,
+      "confirmedAHIReportable": true,
+      "overlapHours": 8
+    },
+    "uncoupled": {
+      "nullModel": {
+        "expectedConfirmed": 5.65,
+        "expectedConfirmedAnalytic": 5.07,
+        "nullMethod": "circular-shift surrogates, covered-time, scored by the published matching",
+        "nullDraws": 80,
+        "pFloor": 0.0123,
+        "pAtLeastObserved": 0.6296,
+        "belowChance": true,
+        "surgeRatePerHr": 6.5,
+        "surgeRateObserver": "ECGDex",
+        "surgeAlsoObservedBy": [],
+        "directionalWindowSec": 75
+      },
+      "nConf": 5,
+      "confirmedAHI": 0.63,
+      "confirmedAHIReportable": false,
+      "overlapHours": 8
+    },
+    "gapped": {
+      "nullModel": {
+        "expectedConfirmed": 4.9,
+        "expectedConfirmedAnalytic": 3.7,
+        "nullMethod": "circular-shift surrogates, covered-time, scored by the published matching",
+        "nullDraws": 80,
+        "pFloor": 0.0123,
+        "pAtLeastObserved": 0.0123,
+        "belowChance": false,
+        "surgeRatePerHr": 6.3,
+        "surgeRateObserver": "ECGDex",
+        "surgeAlsoObservedBy": [],
+        "directionalWindowSec": 75
+      },
+      "nConf": 30,
+      "confirmedAHI": 4.74,
+      "confirmedAHIReportable": true,
+      "overlapHours": 6.33
+    },
+    "contended": {
+      "nullModel": {
+        "expectedConfirmed": 5.61,
+        "expectedConfirmedAnalytic": 11.87,
+        "nullMethod": "circular-shift surrogates, covered-time, scored by the published matching",
+        "nullDraws": 80,
+        "pFloor": 0.0123,
+        "pAtLeastObserved": 0.1605,
+        "belowChance": true,
+        "surgeRatePerHr": 5,
+        "surgeRateObserver": "ECGDex",
+        "surgeAlsoObservedBy": [],
+        "directionalWindowSec": 75
+      },
+      "nConf": 20,
+      "confirmedAHI": 2.5,
+      "confirmedAHIReportable": false,
+      "overlapHours": 8
+    }
+  }
+}
