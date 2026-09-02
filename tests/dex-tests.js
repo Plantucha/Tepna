@@ -15557,6 +15557,40 @@
         var sh = (skew.surges[0] - T0) / 3600000;
         T.ok('control · a surge just before the start (clock skew) is kept, not pushed a day forward', sh > -1 && sh < 0, 'offset=' + sh.toFixed(2) + ' h');
       }
+      // ── DEEP-AUDIT-VI F9 · one jittered row must not roll the rest of the night +24 h ──
+      // The chained roll tolerated a 1 s backwards step; 23:10:05 → 23:10:03 (2 s) sent that surge and every
+      // later one a day forward (last at +31.83 h instead of +7.83 h). 12 h slack, as clock.js CK_ROLL_SLACK_MS.
+      function offsH(rec) {
+        return rec.surges.map(function (ms) {
+          return +((ms - T0) / 3600000).toFixed(2);
+        });
+      }
+      var jit = CN.normalizeEcg(ecgExport(['22:30', '23:10:05', '23:10:03', '23:45', '01:20', '05:50']))[0];
+      if (jit && jit.surges.length === 6) {
+        var jo = offsH(jit);
+        T.ok(
+          'F9 · a 2 s backwards step is disorder, not a wrap — every surge stays inside the 8 h night',
+          jo.every(function (h) {
+            return h > 0 && h < 8;
+          }),
+          'offsets(h)=' + jo.join(', ')
+        );
+        T.eq('F9 · the last surge lands at +7.83 h, not +31.83 h', jo[5], 7.83);
+      } else T.ok('F9 · normalizeEcg kept all six surges', false, jit ? jit.surges.length + ' surges' : 'null');
+      var lex = CN.normalizeEcg(ecgExport(['01:20', '05:50', '22:30', '23:10', '23:45']))[0];
+      if (lex && lex.surges.length === 5) {
+        var lo = offsH(lex);
+        T.ok(
+          'F9 · a lexically-sorted legacy export lands every surge on the right side of midnight',
+          lo.every(function (h) {
+            return h > 0 && h < 8;
+          }),
+          'offsets(h)=' + lo.join(', ')
+        );
+      } else T.ok('F9 · normalizeEcg kept all five lexically-sorted surges', false, lex ? lex.surges.length + ' surges' : 'null');
+      // control · a genuine wrap (~22 h backwards) still rolls: 23:45 → 01:20 is +3.33 h, not −20.67 h
+      var wrap = CN.normalizeEcg(ecgExport(['23:45', '01:20']))[0];
+      if (wrap && wrap.surges.length === 2) T.eq('F9 control · a real midnight wrap still rolls forward (+3.33 h)', offsH(wrap)[1], 3.33);
 
       // ── §6.3 · one surge must not corroborate a whole cluster ──
       function night(apneaOffsetsSec, surgeTimes) {
@@ -32909,6 +32943,57 @@
         var B = OF(night, mkEcg(t0 + 8 * 3600000, 60, []));
         T.eq('§11.2 · a non-overlapping ECG ⇒ coveredDesats 0', B.coveredDesats, 0);
         T.eq('§11.2 · confPct is NULL (no coverage) — never a green 0/N', B.confPct, null);
+
+        /* DEEP-AUDIT-VI F9 — a t-only legacy stream must not be thrown +24 h by one jittered row.
+           The chained midnight roll tolerated a 1 s backwards step; a 2 s one (23:10:05 → 23:10:03)
+           rolled that surge AND every later surge a day forward, so they overlapped zero desats and
+           confPct read a confident 40 % where every desat had a surge. clock.js settled this at 12 h
+           (CK_ROLL_SLACK_MS); the integrator's reconstructEventTMs already placed the same stream
+           correctly. Pair-verified: these assertions red on the 1 s tolerance. */
+        var MIN = 60000;
+        var fiveAt = [30 * MIN, 70 * MIN, 105 * MIN, 200 * MIN, 470 * MIN]; // 22:30 23:10 23:45 01:20 05:50
+        var night5 = {
+          t0Ms: t0,
+          stats: {},
+          hrv: {},
+          desat: {
+            events: fiveAt.map(function (o) {
+              return { tMs: t0 + o, depth: 6 };
+            })
+          },
+          hb: { total: 100 }
+        };
+        var mkEcgT = function (times, extra) {
+          return {
+            recording: { startEpochMs: t0, durationMin: 480 },
+            ganglior_events: times.map(function (t, i) {
+              var ev = { impulse: 'autonomic_surge', t: t };
+              if (extra) extra(ev, i);
+              return ev;
+            }),
+            apnea: { cvhrEvents: 4 },
+            hrv: { time: {} },
+            cardiorespiratory: {}
+          };
+        };
+        // (C) jittered t-only stream — one 2 s backwards step inside the 23:10 desat window
+        var C = OF(night5, mkEcgT(['22:30:00', '23:10:05', '23:10:03', '23:45:00', '01:20:00', '05:50:00']));
+        T.eq('F9 · covered desats = all 5 (8 h ECG spans the night)', C.coveredDesats, 5);
+        T.eq('F9 · a 2 s jitter does NOT roll the rest of the night +24 h — confPct 100, not 40', C.confPct, 100);
+        // (D) lexically-sorted legacy export — post-midnight events listed FIRST
+        var D = OF(night5, mkEcgT(['01:20:00', '05:50:00', '22:30:00', '23:10:00', '23:45:00']));
+        T.eq('F9 · a lexically-sorted stream places every surge on the right side of midnight', D.confPct, 100);
+        // (E) modern emitter — absolute `tMs` is used verbatim, the date-less `t` is not re-derived
+        var E = OF(
+          night5,
+          mkEcgT(['00:00:00', '00:00:00', '00:00:00', '00:00:00', '00:00:00'], function (ev, i) {
+            ev.tMs = t0 + fiveAt[i];
+          })
+        );
+        T.eq('F9 · Clock §6 tMs fast-path — a garbage `t` beside a valid `tMs` changes nothing', E.confPct, 100);
+        // control — a genuine midnight wrap (~22 h backwards) still rolls: 23:45 then 01:20 lands +3.33 h
+        var F = OF(night5, mkEcgT(['23:45:00', '01:20:00']));
+        T.eq('F9 control · the real wrap still rolls forward (2 of 5 confirmed)', F.confPct, 40);
       }
     );
 

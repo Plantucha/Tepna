@@ -30,6 +30,13 @@ function _oxyEcgDate(startEpochMs) {
 }
 // "HH:MM:SS" → absolute floating ms anchored on startEpochMs's civil date,
 // rolled forward past midnight (monotonic relative to prevMs).
+// DEEP-AUDIT-VI F9 — the chained roll used a 1 s tolerance, so ONE ≥2 s backwards step (a jittered/
+// duplicated row, or a lexically-sorted legacy export) rolled that event AND every later one a day
+// forward; surges shifted +24 h overlap zero desats and confPct read a confident 0. A genuine wrap is
+// ~23 h backwards, so the threshold is a FRACTION OF A DAY, never a jitter allowance — the 12 h clock.js
+// settled on as `CK_ROLL_SLACK_MS` (DEEP-AUDIT-III §1.2). Kept local so this file has no DexClock
+// dependency (it is inlined into OxyDex and both orchestrators).
+var OXY_ROLL_SLACK_MS = 43200000; // 12 h
 function _oxyHHMMSStoMs(startEpochMs, hhmmss, prevMs) {
   if (startEpochMs == null || !hhmmss) return null;
   var p = String(hhmmss).split(':');
@@ -39,7 +46,7 @@ function _oxyHHMMSStoMs(startEpochMs, hhmmss, prevMs) {
   // allow the first event to sit slightly before the anchor; otherwise roll forward
   while (base < startEpochMs - 3600000) base += 86400000;
   if (prevMs != null) {
-    while (base < prevMs - 1000) base += 86400000;
+    while (base < prevMs - OXY_ROLL_SLACK_MS) base += 86400000; // F9: 12 h, not 1 s
   }
   return base;
 }
@@ -247,7 +254,9 @@ function oxyComputeFusion(n, ecg) {
     var prev = null;
     ecg.ganglior_events.forEach(function (ev) {
       if (!ev || ev.impulse !== 'autonomic_surge') return;
-      var ms = _oxyHHMMSStoMs(rec.startEpochMs, ev.t, prev);
+      // Clock §6 — a modern emitter writes absolute floating `tMs`; use it verbatim before any
+      // reconstruction from the date-less `t` (F9: this site ignored it, cpapdex-coimport did not).
+      var ms = typeof ev.tMs === 'number' && isFinite(ev.tMs) ? ev.tMs : _oxyHHMMSStoMs(rec.startEpochMs, ev.t, prev);
       if (ms != null) {
         surges.push(ms);
         prev = ms;
