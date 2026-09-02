@@ -63,6 +63,8 @@ uploads/*
 # files, sd −159 s ×0.998) reproducing the night pin's identity verdict + 27.35-min overlap geometry.
 # Real patient slices stay gitignored (health data, public repo); only the synthetic twin is committed.
 !uploads/cpapdex_comparator_live_twin_BRP.edf
+!uploads/cpapdex_maskoff_twin_BRP.edf
+!uploads/cpapdex_maskoff_twin_PLD.edf
 !uploads/cpapdex_comparator_sd_twin_BRP.edf
 !uploads/cpapdex_comparator_golden.json
 

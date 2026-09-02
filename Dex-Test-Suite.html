@@ -411,6 +411,17 @@ async function main(){
     }
     const edfFix = await fetchJSON('uploads/cpapdex_synthetic_edf_golden.node-export.json');
     setEquiv('cpapdex_edf', bufs, edfFix, 'cpapdex_synthetic_edf_golden.node-export.json');
+    // FOLLOWUPS §1.9 — the MASK-OFF twin (BRP + PLD only), input with NO golden: the assertion is an
+    // INVARIANT (a breaths/min is divided by the MEASURED window). Wired in BOTH lanes deliberately —
+    // wiring only tests/run-tests.mjs is what turned this group red in browser-gates while the Node
+    // gate was green, because the group's own "present in every environment" guard fired here.
+    const moBufs = {};
+    for (const k of ['BRP', 'PLD']) {
+      const r2 = await fetch('uploads/cpapdex_maskoff_twin_' + k + '.edf');
+      if (!r2.ok) throw new Error('missing maskoff ' + k);
+      moBufs[k] = await r2.arrayBuffer();
+    }
+    setEquiv('cpapdex_maskoff', moBufs, null, null);
   } catch (e) {
     /* absent → the CASES loop self-skips */
   }

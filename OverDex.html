@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4PDD0J5pXJHOOh+CaOAfpF4NZRtR7miZXGGOwb/MvpE=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-9WtQnELGeJr2siQkvdq1sr9jTTvkljbhvncoWsJqp+Q=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-B24HXlnUMzMhkFCkmJbOEHCPHtqDy2ADFPHpIzjH7jc=' 'sha256-ByHzM+YtHsdGdOmID3qx5m90EwEbyr3hm/VS3QUfmoA=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4PDD0J5pXJHOOh+CaOAfpF4NZRtR7miZXGGOwb/MvpE=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-9WtQnELGeJr2siQkvdq1sr9jTTvkljbhvncoWsJqp+Q=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-B24HXlnUMzMhkFCkmJbOEHCPHtqDy2ADFPHpIzjH7jc=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -37390,7 +37390,9 @@ __exports.ECGDex = window.ECGDex;
    floor). I:E = inspiratory-flow time / expiratory-flow time. Cross-checks the
    device-reported RespRate. O(n) single pass.
    ════════════════════════════════════════════════════════════════════════ */
-  function detectBreaths(flowCh, durSec) {
+  /* ⚠️ `opts.maskOn` / `opts.maskFs` are REQUIRED for a rate (FOLLOWUPS §1.9). Without them this
+     returns the count and I:E but `breathRate: null` — see the denominator note below. */
+  function detectBreaths(flowCh, durSec, opts) {
     if (!flowCh || !flowCh.data || !flowCh.data.length) return null;
     var flow = flowCh.data,
       fs = flowCh.fs || 25,
@@ -37410,7 +37412,18 @@ __exports.ECGDex = window.ECGDex;
     for (var a = 0; a < n; a++) ps[a + 1] = ps[a] + flow[a];
     var lastCrossIdx = -1,
       minBreathSamp = Math.round(fs * 1.2); // ≥1.2 s/breath (≤50 brpm ceiling)
+    // mask index for sample i: the flow grid (25 Hz) and the pressure grid (0.5 Hz) differ, so map
+    // by time rather than by index — off-mask samples take part in neither the count nor I:E.
+    var mOn = opts && opts.maskOn && opts.maskOn.length && opts.maskFs > 0 ? opts.maskOn : null;
+    var mRatio = mOn ? opts.maskFs / fs : 0;
     for (var i = 0; i < n; i++) {
+      if (mOn) {
+        var mi = Math.min(mOn.length - 1, Math.floor(i * mRatio));
+        if (!mOn[mi]) {
+          lastSign = 0;
+          continue;
+        }
+      }
       var lo = Math.max(0, i - W),
         hi = Math.min(n, i + W);
       var base = (ps[hi] - ps[lo]) / (hi - lo);
@@ -37427,9 +37440,33 @@ __exports.ECGDex = window.ECGDex;
         lastSign = -1;
       }
     }
-    var breathRate = durSec > 0 ? +(breaths / (durSec / 60)).toFixed(1) : null;
+    /* 🔴 THE DENOMINATOR IS MASK-ON SECONDS, NOT WALL SECONDS (FOLLOWUPS §1.9). This divided by
+       `durSec` — the whole recording — while EVERY sibling ventilation figure computed beside it
+       (`rrMaskOn`, `tvMaskOn`, `mvMaskOn`, `snMaskOn`, `flMaskOn`) is `_filterBy(..., maskOn)`. A
+       surfaced breaths/min was therefore diluted by however long the mask was off, by a different
+       factor every night — the same shape as F8's `usageHours` and §1.6's `therapyHours`.
+       Found by trying to USE this number as the reference for §1.5's grade adjudication and having
+       to reject it on that ground, which is why the fix is here and not in a grading unit.
+       ⚠️ The corpus CANNOT show the error's size: mask-on was 1.000 on all 24 nights measured, so
+       those nights are silent about this by construction — a committed mask-off twin is the only
+       thing that can red the old form, and that is what pins it.
+       The numerator is gated too: breaths "detected" while the mask is off are noise crossings, and
+       counting them against a smaller denominator would over-correct rather than correct. */
+    var onSec = null;
+    if (opts && opts.maskOn && opts.maskOn.length && opts.maskFs > 0) {
+      var onN = 0;
+      for (var q = 0; q < opts.maskOn.length; q++) if (opts.maskOn[q]) onN++;
+      onSec = onN / opts.maskFs;
+    }
+    var breathRate = onSec != null && onSec > 0 ? +(breaths / (onSec / 60)).toFixed(1) : null;
+    var breathRateReason =
+      onSec == null
+        ? 'no mask-on window (no pressure channel) — a breaths/min needs a measured denominator, not the recording length'
+        : onSec > 0
+          ? null
+          : 'mask never on — no measured time to divide by';
     var ieRatio = expSamp > 0 ? +(inspSamp / expSamp).toFixed(2) : null;
-    return { breathCount: breaths, breathRate: breathRate, ieRatio: ieRatio };
+    return { breathCount: breaths, breathRate: breathRate, ieRatio: ieRatio, breathMaskOnSec: onSec, ...(breathRateReason ? { breathRateReason: breathRateReason } : {}) };
   }
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -37640,7 +37677,8 @@ __exports.ECGDex = window.ECGDex;
     var flMaskOn = flCh ? _filterBy(flCh.data, maskOn) : [];
 
     // ── breath detection from 25 Hz BRP Flow ──
-    var breath = detectBreaths(chan(set.BRP, 'Flow'), durSec);
+    // §1.9: the rate needs the MEASURED window, so mask-on rides in with its own cadence.
+    var breath = detectBreaths(chan(set.BRP, 'Flow'), durSec, { maskOn: maskOn, maskFs: fs });
 
     // ── SA2 oximetry QC lane (self-gated) ──
     var oxi = oximetryLane(set.SA2, durSec);
@@ -37752,6 +37790,9 @@ __exports.ECGDex = window.ECGDex;
       // Breath detection (flow-derived — validates device RespRate)
       breathCount: breath ? breath.breathCount : null,
       breathRate: breath ? breath.breathRate : null,
+      // §1.9 — the MEASURED window this session's rate was divided by, so the night-level pool can
+      // sum mask-on seconds instead of re-deriving a wall duration.
+      breathMaskOnSec: breath ? breath.breathMaskOnSec : null,
       ieRatio: breath ? breath.ieRatio : null
     };
     // F8 — say WHERE the pressure lane came from only when it is not the usual one, and WHY usage is
@@ -37801,6 +37842,11 @@ __exports.ECGDex = window.ECGDex;
         snMaskOn: snMaskOn,
         flMaskOn: flMaskOn,
         breathCount: breath ? breath.breathCount : null,
+        /* §1.9 — the pool is a SEPARATE lightweight object from `metrics`, so a per-session field
+           added to `metrics` alone never reaches `nightMetrics`. The night-level breathRate reads
+           HERE, so the measured denominator has to travel here too; adding it to `metrics` and not
+           to `_pool` is what made the mask-off twin report null with maskOnSec 0. */
+        breathMaskOnSec: breath ? breath.breathMaskOnSec : null,
         ieRatio: breath ? breath.ieRatio : null,
         eprDelta: eprDelta,
         maskOnLatency: metrics.maskOnLatency,
@@ -37842,6 +37888,7 @@ __exports.ECGDex = window.ECGDex;
       eprs = [],
       breaths = 0,
       haveBreaths = false,
+      breathOnSec = 0,
       ieW = 0,
       ieWsum = 0;
     var usageUnknown = 0; // F8 — sessions whose usage is null (no pressure lane), not zero
@@ -37881,6 +37928,8 @@ __exports.ECGDex = window.ECGDex;
         breaths += p.breathCount;
         haveBreaths = true;
       }
+      // §1.9 — pool the MEASURED denominator alongside the numerator (see the breathRate note below)
+      if (p.breathMaskOnSec != null && isFinite(p.breathMaskOnSec)) breathOnSec += p.breathMaskOnSec;
       // I:E is a ratio, so it pools as a usage-weighted mean, not a sum
       if (p.ieRatio != null && isFinite(p.ieRatio) && p.usageHours != null) {
         ieWsum += p.ieRatio * p.usageHours;
@@ -37996,8 +38045,13 @@ __exports.ECGDex = window.ECGDex;
       snorePressureCorr: SN.length && SN.length === P.length ? +_pearson(SN, P).toFixed(2) : null,
       // ── Breath detection (flow-derived) ──
       breathCount: haveBreaths ? breaths : null,
-      // rate over TOTAL therapy time — not a mean of per-session rates
-      breathRate: haveBreaths && durSec > 0 ? +(breaths / (durSec / 60)).toFixed(1) : null,
+      /* Rate over the MEASURED (mask-on) time — not a mean of per-session rates, and NOT over wall
+         duration (§1.9). This divided by `durSec`, the pooled wall span, exactly as the per-session
+         site did; the sibling ventilation figures beside it (RR/TV/MV/SN/FL) are all mask-on pools,
+         so this one number was diluted by mask-off time while its neighbours were not. Fixing only
+         the per-session site would have left THIS one wrong — the night-level export reads here. */
+      breathRate: haveBreaths && breathOnSec > 0 ? +(breaths / (breathOnSec / 60)).toFixed(1) : null,
+      breathMaskOnSec: haveBreaths ? breathOnSec : null,
       ieRatio: ieW > 0 ? +(ieWsum / ieW).toFixed(2) : null
     };
     if (usageUnknown) {
