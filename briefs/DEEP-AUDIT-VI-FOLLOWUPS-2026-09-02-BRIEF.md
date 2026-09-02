@@ -564,16 +564,84 @@ a retired monitor in the same turn you retire it.
 
 ## 4 · The standing empty cells — DEEP-AUDIT-VII opens HERE, not with a new charter pass
 
-Two cells the audit named as unexamined are **still unexamined after all 18 fixes landed**, because no fix
-touched them:
+One cell the audit named as unexamined is **still unexamined after all 18 fixes landed**, because no fix
+touched it. The other was stale as written — see §4.1.
 
-1. **The browser lane was not booted.** `Dex-Test-Suite.html?full`, `verify-provenance.html` and the
-   render-coverage rigs were never run this pass. F2's app-lane work exercised `WORKER_SRC` by source
-   extraction in a vm. Every green above is a headless green.
+1. ~~**The browser lane was not booted.**~~ **CLOSED 2026-09-02 (Magpie) — see §4.1.** The cell was true
+   of the *audit session*, and false of the repo: CI boots the browser lane on every PR.
 2. **Integrator noisy-OR posterior · `effConf` · Poisson-null / event-coupling surrogate** — **three
    consecutive audits** unexamined. F11 fixed the grouping that feeds it; the arithmetic downstream has never
    had an executed lens. This is the largest unverified surface in the suite and it must be the FIRST finder
    in the next workflow, not the tenth.
+
+### 4.1 "The browser lane was not booted" was true of the SESSION and false of the REPO — CLOSED 2026-09-02 (Magpie)
+
+The cell above described the audit session's own reach and was then read as a property of the suite. CI
+boots the browser lane on **every** PR: the `browser-gates` job runs `tests/browser-gates.mjs`, which drives
+`Dex-Test-Suite.html?full`, `verify-provenance.html` and `no-network.html` under headless chromium. It is
+not an optional lane and it is not new.
+
+**Every render-coverage rig boots.** Run
+[`33632991928`](https://github.com/Plantucha/Tepna/actions/runs/33632991928) (browser-gates on #2091, head
+`ea3e1f33`) reported `✕ 1 failing 8313 passed 69 skipped 588 groups`. Reproduced locally at `8025e807`:
+`✓ all green 8313 passed 69 skipped 587 groups`, `sameOriginStatus().bootSkips = []`,
+`renderCoverageGroups = 12`. Same passed count, same skip count; the 588th group and the one failure are
+#2091's own new group.
+
+⚠️ **The CI run proves this on its own, and the argument is worth stating because it is an argument from an
+ABSENCE.** `browser-gates.mjs:109` appends `[boot-skips: …]` to the summary whenever the list is non-empty,
+and run `33632991928` carries no such suffix. That is a real negative rather than an unset variable:
+`Dex-Test-Suite.html:773` initialises `window.__rcBootSkips=[]` as render-coverage *starts*, so reaching
+`__rcState === 'done'` — which the harness waits for — guarantees the array exists. Had it been assigned
+lazily on first skip, an empty print would have been indistinguishable from a rig list that was never built,
+and the same green would have meant nothing.
+
+**What the 69 skips ARE.** CI prints the count and no breakdown, so the number has been quoted for weeks
+with nothing behind it. Enumerated from `ALL_GROUPS` (57 groups carry at least one ⊘), every one is
+**lane-structural** — a check the browser physically cannot perform:
+
+| n | cause |
+|---|---|
+| 12 | `uploads/` is gitignored — the corpus-backed equiv legs' committed inputs are absent |
+| ~30 | Node-lane only, filesystem truth — `readdir`, `git ls-files`, `readClaudeMdClaims`, the docs-/release-/citation-ledger gates |
+| 12 | the browser lane cannot ESM-import a `.mjs` tool (`rebase-safe` ×3, `land-pr`, `queue-doctor`, `commit-shape`, `capture-recapture`, `beat-injection`, PAT ×3, `MutTriage`, `NsrrStage`) |
+| 8 | a module not co-loaded in this lane (`oxydex-fusion`, `ECGUI`, `analysis-stats`, the `*-render.js` headless legs) |
+| 3 | no `process.env` in a browser |
+| 1 | `node:vm` realm (the cohort worker) |
+
+Eight of the 69 have an **empty detail field**, which is the shape that normally hides something. Checked
+individually: all eight carry their reason in the row *name* instead (`MutTriage not in env (browser lane —
+.mjs tool)`). No residue.
+
+**The complement was measured, not assumed — and this is the half that mattered.** Each of those 69 rows
+*claims* the Node lane runs it, and nothing had ever checked that claim; a group skipped in **both** lanes
+would present exactly like the 69 above and would be a real hole. So:
+
+| lane | result |
+|---|---|
+| browser (`?full`, local, `8025e807`) | 8313 passed · **69 ⊘** · 587 groups · `bootSkips []` |
+| Node `run-tests.mjs`, no corpus | 8947 passed · **12 ⊘** · 572 groups |
+| Node `run-tests.mjs`, `DEX_UPLOADS=<primary>/uploads` | 8990 passed · **0 ⊘** · 572 groups |
+
+The Node lane's 12 off-corpus skips are a **subset** of the browser's 69 (the 11 Phase-9 equiv legs plus the
+HRVDex recording block), and they are the documented corpus case, not a hole:
+`uploads/` is gitignored, so those legs skip in CI **and** in any worktree, and the closing mechanism is a
+`verify-fixtures` lap on the primary checkout plus `release.mjs` refusing to cut over an UNVERIFIED
+corpus-backed fixture (see [`docs/CORPUS-LOCATIONS.md`](../docs/CORPUS-LOCATIONS.md)). Pointing the Node run
+at the primary's corpus runs all twelve: **zero skips, +43 assertions** — the same +43 the primary checkout
+has always carried over a worktree.
+
+**So no group is skipped in both lanes with the corpus present, and §4 item 1 closes.** Note the shape of
+what was actually wrong here: nothing was broken, and no fix was owed. The cell was a *stale observation*
+that survived because "the browser lane was not booted" is unfalsifiable as written — it names no lane, no
+run and no tree, so it reads as true forever. A cell that cannot be closed by evidence should carry the
+evidence that would close it. **Reserve "hole" for a group skipped in both lanes with the corpus
+present** — that is the only configuration in which a check is genuinely running nowhere.
+
+**Residue, not blocking:** the CI summary prints `69 skipped` with no breakdown, so the one number a reader
+gets is the one that cannot be acted on — a count without its filter, in the gate's own reporter. A
+one-line change to `browser-gates.mjs` could print the skip causes grouped by tag, the way it already prints
+boot-skips. Not done here: this unit is a doc close, and the reporter change belongs with a gate PR.
 
 ---
 
