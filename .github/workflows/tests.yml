@@ -114,6 +114,12 @@ jobs:
       # 30 releases pass, 0 false positives. Refuses on a shallow clone rather than passing.
       - name: Commit-shape — no blanket-add / ref-move corruption in history
         run: node tools/commit-shape.mjs
+      # The residue ledger's id contract is CROSS-TREE and `docs-ledger` check8c is not: it
+      # asserts uniqueness within the file it can see. Measured 2026-09-02, the day the ledger
+      # shipped — a branch appended R7 while main had advanced to R10, and the full local gate
+      # passed 56/56 because that tree could not see R7–R10. Same shallow-clone refusal as above.
+      - name: Residue ids — no collision with main's ledger, and no row edited or removed
+        run: node tools/residue-ids.mjs --base origin/main
       - name: Shard-union — the shards partition the suite (no group goes unrun)
         run: node tests/verify-shard-union.mjs
       - name: Owned-build core tests (KAT + determinism + cross-hasher parity)

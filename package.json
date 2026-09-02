@@ -33,7 +33,7 @@
     "gates:browser": "node tests/browser-gates.mjs",
     "release": "node tools/release.mjs",
     "release:dry": "node tools/release.mjs --dry-run",
-    "check": "npm run typecheck && npm run verify:commit-shape && npm run test:guards && npm run test:tools && npm run lint && npm run test:par && npm run verify:shard-union && npm run test:build-core && npm run build:check && npm run verify:analysis && npm run verify:docs && npm run verify:manifest && npm run test:hooks",
+    "check": "npm run typecheck && npm run verify:commit-shape && npm run verify:residue-ids && npm run test:guards && npm run test:tools && npm run lint && npm run test:par && npm run verify:shard-union && npm run test:build-core && npm run build:check && npm run verify:analysis && npm run verify:docs && npm run verify:manifest && npm run test:hooks",
     "rebase": "node tools/rebase-safe.mjs",
     "verify:analysis": "node tools/build-analysis.mjs --check",
     "verify:docs": "node tools/build-docs.mjs --check",
@@ -42,7 +42,8 @@
     "test:tools": "node tools/selftest-all.mjs",
     "pseudo:check": "node tools/extreme-mutate.mjs --baseline --file",
     "pseudo:baseline": "node tools/extreme-mutate.mjs --write-baseline --file",
-    "verify:commit-shape": "node tools/commit-shape.mjs"
+    "verify:commit-shape": "node tools/commit-shape.mjs",
+    "verify:residue-ids": "node tools/residue-ids.mjs"
   },
   "engines": {
     "node": ">=18"
