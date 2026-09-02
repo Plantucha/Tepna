@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-R7M9RrF2ioF0E9TUK3xlCzJjg9aXijC5t11ptmDOFxA=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-k+FV7AZrEGGuFvXlh73TfpK+yAoc1Q7YRwHKGyqH0NY=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-B24HXlnUMzMhkFCkmJbOEHCPHtqDy2ADFPHpIzjH7jc=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-k+FV7AZrEGGuFvXlh73TfpK+yAoc1Q7YRwHKGyqH0NY=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>Integrator · Fusion Layer · v2.9.0</title>
@@ -9174,27 +9174,80 @@ function fuseRespirationRate(recs) {
   };
 }
 
+/* DEEP-AUDIT-VI F11 — temporal-overlap grouping is a CONNECTED COMPONENT, not a greedy first-fit.
+   fuseHRVConsensus / fuseStagingConsensus / fusePeriodicBreathing used to place each record in the
+   first existing group it overlapped and never merged groups, so a record that BRIDGES two groups (an
+   HRVDex envelope spanning days, an oximeter night spanning an evening strap and a therapy session)
+   left membership a function of file-drop order: the same three records in three orders produced
+   three different consensus blocks (['HRVDex+PulseDex'] / ['ECGDex+HRVDex+PulseDex'] /
+   ['ECGDex+HRVDex']) and a periodic-breathing corroboration of conf 0.885 · 0.697 · 0.752 for
+   IDENTICAL data. Union-find over the overlap relation makes each block the transitive closure, and
+   the canonical member order (earliest window start, then node name, then original index as the
+   tiebreak) makes `g[0]` — which fuseHRVConsensus reads for the reference hrvWindow — a function of
+   the data too. `ov(a, b)` is the caller's overlap test on its own element shape. */
+function _overlapComponents(items, ov) {
+  var n = items.length;
+  var parent = new Array(n);
+  for (var i = 0; i < n; i++) parent[i] = i;
+  function find(x) {
+    while (parent[x] !== x) {
+      parent[x] = parent[parent[x]];
+      x = parent[x];
+    }
+    return x;
+  }
+  for (var a = 0; a < n; a++)
+    for (var b = a + 1; b < n; b++) {
+      if (!ov(items[a], items[b])) continue;
+      var ra = find(a),
+        rb = find(b);
+      if (ra !== rb) parent[rb] = ra;
+    }
+  var byRoot = {};
+  for (var k = 0; k < n; k++) {
+    var r = find(k);
+    if (!byRoot[r]) byRoot[r] = [];
+    byRoot[r].push(k);
+  }
+  function startOf(idx) {
+    var w = recWindow(items[idx].rec || items[idx]);
+    return w && isFinite(w.startMs) ? w.startMs : Infinity;
+  }
+  function nodeOf(idx) {
+    var it = items[idx].rec || items[idx];
+    return String((it && it.node) || '');
+  }
+  function cmp(x, y) {
+    var sx = startOf(x),
+      sy = startOf(y);
+    if (sx !== sy) return sx < sy ? -1 : 1;
+    var nx = nodeOf(x),
+      ny = nodeOf(y);
+    if (nx !== ny) return nx < ny ? -1 : 1;
+    return x - y;
+  }
+  return Object.keys(byRoot)
+    .map(function (root) {
+      return byRoot[root].sort(cmp);
+    })
+    .sort(function (g, h) {
+      return cmp(g[0], h[0]);
+    })
+    .map(function (g) {
+      return g.map(function (idx) {
+        return items[idx];
+      });
+    });
+}
+
 function fuseHRVConsensus(recs, dtMs) {
   var sources = recs.filter(function (r) {
     return ['ECGDex', 'PulseDex', 'HRVDex', 'PpgDex'].indexOf(r.node) >= 0 && !r.dateUnknown && r.summary && (r.summary.rmssd != null || r.summary.sdnn != null);
   });
   if (sources.length < 2) return null;
   // only compare sources whose windows overlap
-  var groups = [];
-  sources.forEach(function (s) {
-    var placed = false;
-    for (var i = 0; i < groups.length; i++) {
-      if (
-        groups[i].some(function (o) {
-          return overlapInterval(o, s);
-        })
-      ) {
-        groups[i].push(s);
-        placed = true;
-        break;
-      }
-    }
-    if (!placed) groups.push([s]);
+  var groups = _overlapComponents(sources, function (a, b) {
+    return !!overlapInterval(a, b);
   });
   var blocks = groups
     .filter(function (g) {
@@ -9422,21 +9475,8 @@ function fuseStagingConsensus(recs, remGapThresh) {
   });
   if (src.length < 2) return null;
   // group by temporal overlap (same night)
-  var groups = [];
-  src.forEach(function (s) {
-    var placed = false;
-    for (var i = 0; i < groups.length; i++) {
-      if (
-        groups[i].some(function (o) {
-          return overlapInterval(o, s);
-        })
-      ) {
-        groups[i].push(s);
-        placed = true;
-        break;
-      }
-    }
-    if (!placed) groups.push([s]);
+  var groups = _overlapComponents(src, function (a, b) {
+    return !!overlapInterval(a, b);
   });
   /* DEEP-AUDIT-FOLLOWUPS §C2 — FAIL CLOSED across denominators.
      `remFraction` does not mean the same thing on every leg: ECGDex divides REM by TOTAL SLEEP,
@@ -9585,21 +9625,8 @@ function fusePeriodicBreathing(recs) {
     });
   if (src.length < 2) return null;
   // group by temporal overlap (same night) — identical pattern to staging / HRV consensus
-  var groups = [];
-  src.forEach(function (s) {
-    var placed = false;
-    for (var i = 0; i < groups.length; i++) {
-      if (
-        groups[i].some(function (o) {
-          return overlapInterval(o.rec, s.rec);
-        })
-      ) {
-        groups[i].push(s);
-        placed = true;
-        break;
-      }
-    }
-    if (!placed) groups.push([s]);
+  var groups = _overlapComponents(src, function (a, b) {
+    return !!overlapInterval(a.rec, b.rec);
   });
   var blocks = groups
     .map(function (g) {
