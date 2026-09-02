@@ -39,6 +39,7 @@
  *   node tools/selftest-all.mjs --list   # just show what would run
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
 import { execFile } from 'node:child_process';
+import os from 'node:os';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -162,10 +163,14 @@ if (argv.includes('--list')) {
 
 const run = (f) =>
   new Promise((res) => {
+    const t0 = Date.now();
     execFile(process.execPath, [join(TOOLS, f), '--selftest'], { cwd: ROOT, timeout: TOOL_TIMEOUT_MS, maxBuffer: 1 << 24 }, (err, stdout, stderr) => {
+      const ms = Date.now() - t0;
       const out = String(stdout || '') + String(stderr || '');
       const m = out.match(/all (\d+) selftests passed/) || out.match(/all green/);
-      res({ f, ok: !err, n: m && m[1] ? Number(m[1]) : null, readable: !!m, out, why: whyFailed(err, TOOL_TIMEOUT_MS) });
+      /* Load is sampled AT THE KILL, not at the end: by the time the sweep finishes the spike that
+         killed the tool is gone, and an average taken then would describe a different machine. */
+      res({ f, ms, load: err ? os.loadavg()[0] : null, ok: !err, n: m && m[1] ? Number(m[1]) : null, readable: !!m, out, why: whyFailed(err, TOOL_TIMEOUT_MS) });
     });
   });
 
@@ -180,14 +185,25 @@ const nearMiss = readdirSync(TOOLS)
   })
   .sort();
 
+/* LOAD AT SWEEP START, and again at every kill (below). §3.4's surviving hypothesis is that the kills
+   come from CROSS-SESSION load — several fleet sessions running full gates on one box — which is
+   invisible from inside any single session. Printing the 1-minute load average is what turns that from a
+   narrative into something falsifiable: a kill at LOW load refutes it outright, and a kill at high load
+   with no other gate running refutes it differently. Costs one syscall. */
+const load0 = os.loadavg()[0];
+console.log(`  load average at sweep start: ${load0.toFixed(2)} (${os.cpus().length} cores)`);
 const results = await Promise.all(files.map(run));
+/* Wall time is printed for the tools that can actually approach the timeout, so the §3.4 account stays
+   testable on every run rather than only when something dies: if a ≤0.3 s tool ever times out, the
+   CPU-demand explanation is refuted, and these numbers are how anyone would notice. */
+const slow = (r) => (r && r.ms >= 1000 ? `  [${(r.ms / 1000).toFixed(1)} s]` : '');
 let failed = 0,
   warned = 0,
   total = 0;
 for (const r of results) {
   if (!r.ok) {
     failed++;
-    console.log(`  ✗ tools/${r.f}  FAILED${r.why ? '  — ' + r.why : ''}`);
+    console.log(`  ✗ tools/${r.f}  FAILED${r.why ? '  — ' + r.why : ''}${slow(r)}${r.load != null ? `  [load ${r.load.toFixed(2)} at the kill, ${load0.toFixed(2)} at start]` : ''}`);
     /* PRINT THE EVIDENCE THAT EXISTS, not only the evidence of one failure shape. This filtered the
        tool's output to lines containing `✗` or `FAILED` — the signature of an ASSERTION failure — so a
        timeout, a crash or any non-zero exit whose output carries neither token printed a BLANK LINE and
@@ -207,10 +223,10 @@ for (const r of results) {
        off, and then the real failures it would have caught go with it — the same argument that kept a
        coverage threshold out of #1163. */
     warned++;
-    console.log(`  ⚠ tools/${r.f}  green (exit 0), but no parseable summary — cannot report an assertion count`);
+    console.log(`  ⚠ tools/${r.f}  green (exit 0), but no parseable summary — cannot report an assertion count${slow(r)}`);
   } else {
     total += r.n || 0;
-    console.log(`  ✓ tools/${r.f}${r.n ? '  ' + r.n + ' assertions' : '  green'}`);
+    console.log(`  ✓ tools/${r.f}${r.n ? '  ' + r.n + ' assertions' : '  green'}${slow(r)}`);
   }
 }
 for (const f of nearMiss) {
