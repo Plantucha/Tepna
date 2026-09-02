@@ -10427,6 +10427,130 @@
 
        Node-lane only — env.nodeSurfaces is fs-read; the browser lane can't readdir, so it SKIPs
        (mirrors docs-ledger / release-ledger / analysis-tools). */
+    /* ── A LAYER NOTHING READS IS A LAYER NOTHING CHECKS ─────────────────────────────────────────
+       Every text-reading assertion in this suite can only see files that reached `env.sources` (Node)
+       or `SOURCE_FILES` (browser). Whatever is in neither is unscannable BY CONSTRUCTION — not
+       untested, but permanently outside the reach of any source-level gate anyone writes later.
+
+       This is not a hypothetical class. `pat-feasibility.js` sat outside both lists while its WORKER
+       was inside them 5 times, and that asymmetry is precisely how a published `vdCorr` crossed the
+       worker boundary, reached no surface, and left every test green (#2117). The prior audit that
+       found the same hole wrote it into this very file — "DEEP-AUDIT-III §1.4 — ecgdex/ppgdex-render.js
+       were not 'classified', they were INVISIBLE" — and those files are STILL outside both lists. A
+       finding recorded as a comment does not fail when the defect recurs; this does.
+
+       ⚠️ RATCHET, NOT PASS/FAIL, and deliberately so. 13 of 112 are invisible today — the UN-BUNDLED
+       tail (cohort tooling, `dex-coload.js`, `dex-contracts.js`, provenance surfaces, standalone
+       analyses). The registries and spine are NOT among them: `readSources()` walks every bundle's
+       `data-inline-src`, so anything inlined is readable for free. Demanding all 112 at once would land red on day one over
+       work nobody has scoped, and a gate that is red by default gets switched off — taking the real
+       finding with it (the argument that kept a coverage threshold out of #1163 and shaped
+       `no-fabricated-tier`'s cap). So the debt is measured, published, and may SHRINK BUT NEVER GROW:
+       a 39th unreadable file reds immediately, and wiring one in forces the cap down.
+
+       Node-lane only (env.sourceVisibility is fs-read); the browser SKIPs, mirroring docs-ledger. */
+    group('Every runtime source layer is readable by at least one lane', 'cohesion · source-visibility · ratchet', function (T) {
+      var SV = env.sourceVisibility;
+      if (!SV || !env.sources) {
+        T.skip('env.sourceVisibility provided to the runner', 'Node-lane only — wire env.sourceVisibility (run-tests.mjs)');
+        return;
+      }
+      /* Anti-vacuity FIRST: an empty inventory or an unparsed browser list would make every file look
+         readable (or every one unreadable) and the count would be a property of the parse, not the
+         tree. Both sides must be demonstrably non-empty before the verdict means anything. */
+      T.ok('the root inventory was actually read', SV.files.length > 50, SV.files.length + ' root *.js');
+      T.ok("the browser lane's SOURCE_FILES parsed", SV.browser.length > 20, SV.browser.length + ' entries');
+      T.ok("the node lane's env.sources is populated", Object.keys(env.sources).length > 20, Object.keys(env.sources).length + ' entries');
+
+      var readable = {};
+      Object.keys(env.sources).forEach(function (f) {
+        readable[f] = true;
+      });
+      SV.browser.forEach(function (f) {
+        readable[f] = true;
+      });
+      var invisible = SV.files.filter(function (f) {
+        return !readable[f];
+      });
+
+      /* The cap. Lower it — never raise it — when a file is wired into either lane. */
+      var INVISIBLE_CAP = 13;
+      T.ok(
+        'no NEW unscannable source layer (ratchet ' + INVISIBLE_CAP + ')',
+        invisible.length <= INVISIBLE_CAP,
+        invisible.length + ' invisible: ' + invisible.slice(0, 8).join(', ') + (invisible.length > 8 ? ', …' : '')
+      );
+      T.ok('the cap is not STALE — lower it when the debt shrinks', invisible.length >= INVISIBLE_CAP, 'only ' + invisible.length + ' invisible now; set INVISIBLE_CAP = ' + invisible.length);
+      /* Published so the debt is legible in the output rather than only in a brief. The invisible set
+         is NOT the bundled runtime: `readSources()` also walks every bundle's `data-inline-src`, so
+         anything inlined into an app is readable for free — the registries and the spine included.
+         What is left over is the un-bundled tail: cohort tooling, `dex-coload.js`, `dex-contracts.js`,
+         the provenance surfaces and the standalone analyses. Those are the files a source-level gate
+         cannot reach today. */
+      T.ok(
+        'the invisible set is the UN-BUNDLED tail, not the shipped runtime',
+        invisible.filter(function (f) {
+          return /-registry\.js$/.test(f) || /^(kernel-constants|metric-registry)\.js$/.test(f);
+        }).length === 0,
+        'registries/spine are inlined into bundles and therefore already readable'
+      );
+    });
+
+    /* ── COMPUTED, CARRIED, NEVER CONSUMED ───────────────────────────────────────────────────────
+       A value crosses a worker boundary and nothing reads it on the other side. The producer is
+       correct, the payload is correct, every test passes — and the number reaches no surface. #2117
+       was exactly this (`vdCorr`), and MotionDex's `respRateMethod` is the same shape in another
+       family, so it is a class rather than an incident.
+
+       Hand-fixing does not find the siblings: `vdCorr` was fixed by reading the code, and this scan
+       found `detailCorr` — emitted at `pat-feasibility-worker.js:513`, appearing exactly ONCE in the
+       whole repo, its own assignment — on its first run.
+
+       ⚠️ Scoped to DECLARED producer/consumer pairs, not inferred. An automatic boundary-finder would
+       false-positive on every object literal in the repo, and a gate that cries wolf gets switched
+       off. Adding a pair is a deliberate act that says "these two files are a boundary". */
+    group('No value crosses a worker boundary unread', 'cohesion · dead-cross-boundary · pat', function (T) {
+      var S = env.sources || {};
+      var PAIRS = [{ producer: 'pat-feasibility-worker.js', consumers: ['pat-feasibility.js', 'pat-gate.js'] }];
+      /* KNOWN, published, ratcheted — same discipline as the visibility cap above. `detailCorr` is
+         the packed per-beat detail for the ACC-CORRECTED coupling. Surfacing it is a UI decision (a
+         second scatter, or a toggle on the existing one), not a mechanical wiring, and inventing that
+         surface here would consume a design call the way promoting the tier would have in #2117. It
+         is rowed as residue instead; this gate holds the line at one so a SECOND dead key reds. */
+      var KNOWN_DEAD = ['detailCorr'];
+      PAIRS.forEach(function (pair) {
+        var prod = S[pair.producer];
+        T.ok(pair.producer + ' · producer source readable', !!prod, prod ? prod.length + ' bytes' : 'ABSENT from env.sources');
+        if (!prod) return;
+        var consumerText = pair.consumers
+          .map(function (c) {
+            return S[c] || '';
+          })
+          .join('\n');
+        T.ok(pair.producer + ' · at least one consumer readable', consumerText.length > 0, 'consumers: ' + pair.consumers.join(', '));
+        if (!consumerText.length) return;
+        var keys = {},
+          km;
+        var KEY_RE = /\bout\.([A-Za-z_][A-Za-z0-9_]*)\s*=/g;
+        while ((km = KEY_RE.exec(prod))) keys[km[1]] = true;
+        T.ok(pair.producer + ' · payload keys found to check', Object.keys(keys).length > 0, Object.keys(keys).join(', '));
+        var dead = Object.keys(keys).filter(function (k) {
+          return !new RegExp('[.\\b]' + k + '\\b').test(consumerText) && KNOWN_DEAD.indexOf(k) < 0;
+        });
+        T.eq(pair.producer + ' · no UNDECLARED dead key crosses the boundary', dead.join(',') || 'none', 'none');
+        /* Anti-vacuity: the known-dead key must still BE dead, or the gate is pinning a fiction and
+           the cap should drop. This is the leg that fails if someone surfaces `detailCorr` and forgets
+           to remove it from KNOWN_DEAD. */
+        KNOWN_DEAD.forEach(function (k) {
+          T.ok(
+            'the declared dead key ' + k + ' is still genuinely unread',
+            !new RegExp('[.\\b]' + k + '\\b').test(consumerText),
+            k + ' now appears in a consumer — surface it and remove it from KNOWN_DEAD'
+          );
+        });
+      });
+    });
+
     group('Field hints never write to an id no surface defines', 'cohesion · dead-field-hints · render', function (T) {
       var NS = env.nodeSurfaces;
       if (!NS) {
