@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (core BUILT, remainder HARDWARE-BLOCKED — verified 2026-08-31: `cpap_spool_caller` is wired at `capture.py:6474`+ behind the `cpap.spool_pull.enabled` default-OFF gate; what remains is an attended witnessed Summary-spool pull, the assembler fed real fragments, and §11 3-way convergence on ≥1 night — all needing physical box access with the owner remote. Bands half pre-discharged 2026-08-25) · **Created:** 2026-08-25 · **Follows:** `CPAP-BLE-CAPTURE-2026-08-21-BRIEF.md` (the pure spool machinery, DONE) · **Relates:** `CPAP-ACQ-P1-RAW-RECORD-2026-08-23-BRIEF.md` §11 (live/spool convergence), `ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md` Phase B (the assembler, tested-not-witnessed)
+**Status:** PROPOSED (parked 2026-09-02 — re-verified today and the blocker still holds, but narrower than the header claimed. The caller IS shipped behind the default-OFF gate and that box is now closed; note the brief's cited `capture.py:6474` has DRIFTED — the wiring is `_maybe_start_cpap_spool_pull` at `capture.py:7277`, import at `:6956`, arming at `cpap_spool_caller.py:64`. Everything else needs one attended box session, in order: a witnessed Summary-spool pull with the fragment log committed, then the assembler fed those real fragments, then §11's three-way convergence on ≥1 night. Bands pre-stated 2026-08-25, half discharged. No follow-up brief is owed until the pull happens. **Owner:** owner (box, attended; remote at present) · **Next step:** the witnessed pull — items 2 and 4 are downstream of it) · **Created:** 2026-08-25
 
 # CPAP spool acquisition — the caller, the first witnessed pull, and the §11 convergence
 
@@ -241,7 +241,7 @@ planted on identical inputs.
 - [ ] One real spool pulled end-to-end with the fragment log committed as evidence (attended, dated).
 - [ ] Assembler witnessed: envelope emitted from real fragments; deviations from fixtures enumerated
       (or "none", stated).
-- [ ] Caller shipped behind default-OFF flag; arming line shows it; gates green.
+- [x] Caller shipped behind default-OFF flag; arming line shows it; gates green. **SHIPPED 2146dc2d (#1838) — `_maybe_start_cpap_spool_pull` at `capture.py:7277` (the brief's `:6474` has drifted), `spool_arming` at `cpap_spool_caller.py:64`, tests `test_cpap_spool_caller.py` + `test_cpap_spool_wire.py`. Verified 2026-09-02.**
 - [ ] §11 three-way convergence measured on ≥1 night and written down — agreement bands pre-stated
       before the comparison runs.
       **Bands PRE-STATED 2026-08-25 (§11 agreement bands, above) — that half is discharged; the

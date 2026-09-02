@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-08-24 · **Created:** 2026-08-17
+**Status:** IN-PROGRESS — 2026-08-24 · **Created:** 2026-08-17 · **DRAIN 2026-09-02 (Osprey):** tracked by section rather than checkbox — **4 of 11 sections carry a DONE marker**. Not stampable as a unit. **Owner: Osprey. Next step:** convert the remaining sections to checkboxes or split them out; the section-level format is why this brief reads as stalled when parts of it have shipped.
 
 # MUTATION SUITE — FOLLOW-UPS
 

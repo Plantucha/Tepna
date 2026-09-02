@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-26 (**2a and 2b SHIPPED in #1643, 2026-08-23; this brief said PROPOSED with all three boxes open for three days.** Verified in source on `origin/main`, not inferred: 2a at `oxydex-dsp.js:340` + the export projection at `:7396-7397` (`_out.recording.timingSource` / `.rtcOffsetS`), 5 references in `tests/dex-tests.js`; 2b at `integrator-dsp.js:739-745` and `:6120` consuming `rtcOffsetS`/`rtcVerifiedAtMs`, with 14 RTC-reset references in the suite. **Only 2c remains** — `tools/trio-batch.mjs` carries ZERO `rtcOffsetS`/`rtcVerified` occurrences, and no `tools/*.mjs` does. A brief understating shipped work invites someone to rebuild it; that has already cost this fleet once this week.) · **Created:** 2026-08-19 · **Follows:** `O2RING-OPCODE-SURFACE-2026-08-03-BRIEF.md` §9 (RTC readable), `O2RING-BUZZ-FIDUCIAL-2026-08-19-BRIEF.md` (step 1 DONE)
+**Status:** DONE — 2026-09-02 (**all three wirings shipped; 2c was NOT open.** 2a/2b in #1643. **2c landed in 699bfc0e (#1635)** — `feat(trio-batch): attach a ringClock block to arrival sidecar from *_rtclog.csv*: `readRingClockLog` at `tools/trio-batch.mjs:1465` returns `{files, reads, pushes, resets, batteries, firstOffsetS, lastOffsetS, driftS, firstReadMs, lastReadMs, spanH, rows}`, and `:1327` writes it into `arrival_<night>.json` as `artefact.ringClock`; the call site at `:1318` carries a comment naming this brief. That is 2c's ask — the offset (`first/lastOffsetS`), the read time (`first/lastReadMs`), per-row `{tMs, event, offsetS}`, and reset-suspect counts — and more of it. Consumed in `tests/dex-tests.js`. ⚠️ **Why this brief carried a SHIPPED item as *the ONLY remaining task* for ten days: its done-when pinned two IDENTIFIER NAMES (`rtcOffsetS`/`rtcVerified`) instead of the capability, and those are the OXYDEX EXPORT's field names — trio-batch implements the same thing from the capture's `*_rtclog.csv` sidecar under its own vocabulary, so the grep stayed honestly zero while the feature was live.** A done-when that asserts an identifier's absence tests spelling, not behaviour. Verified 2026-09-02 by reading the call site rather than grepping the names again.) · **Created:** 2026-08-19
 
 # Wiring the ring's readable clock into the Dexes, the Integrator, and the trio fold
 
@@ -123,7 +123,7 @@ the waveform side.
 - [x] **2b SHIPPED — #1643 (2026-08-23).** `integrator-dsp.js:739-745` reads `rtcOffsetS` /
       `rtcVerifiedAtMs` off `json.recording` and `:6120` carries them through; the suite holds 14
       RTC-reset references. Verified on `origin/main` 2026-08-26.
-- [ ] **2c — the ONLY remaining task.** `tools/trio-batch.mjs` contains zero `rtcOffsetS` /
+- [x] **2c — SHIPPED in 699bfc0e (#1635); see the status line.** Preserved as written: `tools/trio-batch.mjs` contains zero `rtcOffsetS` /
       `rtcVerified` occurrences, and neither does any other `tools/*.mjs` (checked 2026-08-26).
       ⚠️ Verify that count directly rather than through a pipeline: `git grep ... | head` returns
       head's exit status, so an absence and a masked non-match read identically.
