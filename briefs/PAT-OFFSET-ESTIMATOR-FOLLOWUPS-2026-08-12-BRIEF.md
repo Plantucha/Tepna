@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS · **Created:** 2026-08-12 · **Follows:** `PAT-OFFSET-ESTIMATOR-2026-08-11-BRIEF.md`
+**Status:** IN-PROGRESS · **Created:** 2026-08-12 · **Follows:** `PAT-OFFSET-ESTIMATOR-2026-08-11-BRIEF.md` · **DRAIN 2026-09-02 (Osprey):** verified 2 open Done-when boxes. **Owner: Osprey. Next step:** same check as PAT-NO-VALID-ANCHOR — the offset estimator's inputs moved under the host-axis and pairing fixes, so re-verify the two boxes against current code before costing them.
 
 # The estimator exists and has never seen a real arrival
 

@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-01 · **Related:** `POLAR-OFFLINE-DOWNLOAD-2026-07-17-BRIEF.md` (the pull path this builds on — and one finding it corrects), `VIGIL-O2RING-AUTOPULL-2026-07-21-BRIEF.md` (the O2Ring precedent), `CAPTURE-HOST-2026-06-29-BRIEF.md` (the daemon), `POLAR-SDK-CAPTURE-2026-07-07-BRIEF.md` (SDK capability survey)
+**Status:** PROPOSED (parked 2026-09-02 — drain triage, Kestrel: the whole build is gated on §6 Q1 — does an idle H10 accept a recording-start over the same link the box holds — which is the experiment `POLAR-ONBOARD-BACKUP-FOLLOWUPS` §4 now has an endpoint for (#2042). No code is owed until Q1 answers; a NO closes this brief as infeasible, a YES makes it one work-unit. Owner: Heron for the probe, Kestrel for the build if YES) · **Created:** 2026-08-01 · **Related:** `POLAR-OFFLINE-DOWNLOAD-2026-07-17-BRIEF.md` (the pull path this builds on — and one finding it corrects), `VIGIL-O2RING-AUTOPULL-2026-07-21-BRIEF.md` (the O2Ring precedent), `CAPTURE-HOST-2026-06-29-BRIEF.md` (the daemon), `POLAR-SDK-CAPTURE-2026-07-07-BRIEF.md` (SDK capability survey)
 
 # Polar onboard backup — record on the device, survive the link
 

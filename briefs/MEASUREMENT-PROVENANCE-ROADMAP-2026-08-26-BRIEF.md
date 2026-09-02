@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-08-26 · **Follows:** `ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md` (the acquisition half of this chain — 21/22 §21 criteria met, last one in flight) · **Relates:** CLAUDE.md §🔒 Clock Contract, §🎫 evidence ladder, §🔏 provenance gates, `docs/LEXICON.md`
+**Status:** PROPOSED (parked 2026-09-02 — drain triage, Kestrel: a ROADMAP whose first unit, the §1+§2 measurement-block schema contract, is a MINOR schema bump that re-stamps every node's fixtures in stages — §📦 makes its timing the owner's call, and the owner has not scheduled it; none of the six done-when items is started and none can start before that decision. Owner: the owner (schedule) → Kestrel (spawns the §1+§2 contract brief when scheduled). Not to be executed during the drain) · **Created:** 2026-08-26 · **Follows:** `ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md` (the acquisition half of this chain — 21/22 §21 criteria met, last one in flight) · **Relates:** CLAUDE.md §🔒 Clock Contract, §🎫 evidence ladder, §🔏 provenance gates, `docs/LEXICON.md`
 
 # Measurement-provenance roadmap — the canonical Measurement layer between Dex outputs and the Integrator
 

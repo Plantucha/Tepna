@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **Created:** 2026-08-27 · **Owner-issued charter** ("what should we do next" recon, executed same-day: "write it as brief and implement right after") · **Interlocks:** `QWEN-ENGINEERING-PROGRAM-2026-08-27-BRIEF.md`, `MUTATION-FLEET-EXPANSION-2026-08-25-BRIEF.md`, `MUTATION-PROGRAM-2026-08-09-BRIEF.md`
+**Status:** IN-PROGRESS · **Created:** 2026-08-27 · **Owner-issued charter** ("what should we do next" recon, executed same-day: "write it as brief and implement right after") · **Interlocks:** `QWEN-ENGINEERING-PROGRAM-2026-08-27-BRIEF.md`, `MUTATION-FLEET-EXPANSION-2026-08-25-BRIEF.md`, `MUTATION-PROGRAM-2026-08-09-BRIEF.md` · **DRAIN 2026-09-02 (Osprey):** verified 3 of 6 Done-when boxes ticked, 3 open. Not DONE, not blocked — ordinary unfinished work. **Owner: Osprey. Next step:** the three open boxes are one work-unit; they need the accounting loop run, not more design.
 
 # The mutation accounting loop — design review + the next evolution
 

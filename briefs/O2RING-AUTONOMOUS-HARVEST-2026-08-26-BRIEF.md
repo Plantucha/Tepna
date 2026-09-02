@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-26 · **Owner-issued directive** (verbatim charter, relayed via the coordinator session) · **Extends:** `OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md` (deputy ruling 2026-08-27, owner may overrule — see preamble) · **Interlocks:** `O2RING-WAVEFORM-SPO2-SHIP-2026-08-20-BRIEF.md`, `O2RING-TIME-CAPABILITY-WIRING-2026-08-19-BRIEF.md`, `CAPTURE-FILESET-RESUME-2026-08-19-BRIEF.md` (DONE), the AS11 session-detection line (shared BLE budget) · **Affects:** `capture-host/` O2Ring path, BLE adapter policy, acquisition evidence
+**Status:** PROPOSED (parked 2026-09-02 — an owner-issued CHARTER whose executable arm is O2RING-PRESENCE-TRIGGER-IMPL-2026-08-26; not superseded by it, any more than the CPAP audit is by its phases. Most of §34's 32 acceptance items are already code-backed and cited in the impl brief — presence observability, presence≠connection, connection≠recording, the transactional downloader and `.part`→verify→commit, hash/provenance, idempotent duplicates, restart recovery, the hard abort deadline, adapter identity across renumbering, and the §19 execution witness (90fea439). NOT closable from the repo: **the coexistence matrix** proving CPAP/H10/Verity/PPS are undisturbed, **§25's A–O physical harvest demonstration**, and **§26's negative hardware cases** — all three need the box and a real ring, and all three are one session. **Owner:** owner (box session) · **Next step:** the coexistence matrix) · **Created:** 2026-08-26
 
 # O2Ring autonomous harvesting — match and exceed the best possible operational behavior
 
