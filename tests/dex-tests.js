@@ -30107,6 +30107,45 @@
       }
     });
 
+    /* ── FOLLOWUPS §1.9 — a breaths/min is divided by the MEASURED window, not the wall ─────────
+       `detectBreaths().breathRate` divided by `durSec` (the whole recording) while EVERY sibling
+       ventilation figure computed beside it — rrMaskOn, tvMaskOn, mvMaskOn, snMaskOn, flMaskOn — is
+       `_filterBy(..., maskOn)`. A surfaced breaths/min was therefore diluted by mask-off time, by a
+       different factor every night. Found by trying to USE it as §1.5's grade reference and having
+       to reject it on that ground.
+       THE CORPUS CANNOT FALSIFY IT: mask-on measured 1.000 on all 24 nights §1.5 folded, so every
+       real night has wall ≡ mask-on and is silent by construction (§2.1). Measured on the committed
+       goldens, the fix moves exactly ONE rate — 16.8 → 16.9 on the synthetic EDF golden, a rounding
+       shift on a ~full-mask-on record — and is otherwise purely additive. This twin is the only
+       input that expresses the defect: 20 min recorded, mask on for the first 10, ~150 breaths in
+       the on-half. Pre-fix reports 7.5 br/min (150 / 20 min); the fix reports 15.0 (150 / 10 min).
+       ⚠️ The fix had to land at BOTH sites — the per-session one AND the night-level pool the export
+       actually reads — and the measured denominator had to travel through `_pool`, a separate
+       lightweight object from `metrics`. Fixing only the first left the export unchanged. */
+    group('CPAPDex breath rate divides by the MEASURED window (FOLLOWUPS §1.9)', 'cpapdex-dsp · denominator · adversarial-twin', function (T) {
+      var EQ = env.equiv || {};
+      var mo = EQ.cpapdex_maskoff && EQ.cpapdex_maskoff.input;
+      var CE = env.CpapEdf;
+      var N = env.CPAPDex || env.CpapDex;
+      if (!mo || !CE || typeof CE.readEDF !== 'function' || !N || typeof N.compute !== 'function') {
+        T.ok('mask-off twin + CpapEdf.readEDF + CPAPDex.compute available', false, 'committed twin and the EDF path must be present in every environment, including CI');
+        return;
+      }
+      var set = { BRP: CE.readEDF(mo.BRP), PLD: CE.readEDF(mo.PLD) };
+      var r = N.compute({ edfSets: [set] });
+      var m = r && r.nights && r.nights[0] ? r.nights[0].metrics : r && r.metrics;
+      T.ok('the twin computes a metrics block', !!m);
+      if (!m) return;
+      // the measured denominator, carried explicitly beside the rate (CLAUDE.md §7's rule for a ppm
+      // applies to any rate: never quote one without the window it was measured over)
+      T.eq('breathMaskOnSec is the MASK-ON half only (600 s of a 1200 s record)', m.breathMaskOnSec, 600);
+      // THE DISCRIMINATOR: pre-fix divides 150 breaths by 20 wall-minutes and reports 7.5
+      T.ok('breathRate = breaths / mask-on minutes ≈ 15, not the wall-diluted 7.5', m.breathRate != null && Math.abs(m.breathRate - 15) <= 1.0, 'breathRate = ' + m.breathRate);
+      T.ok('…and it is not the pre-fix value', m.breathRate == null || Math.abs(m.breathRate - 7.5) > 1.0, 'breathRate = ' + m.breathRate);
+      // usageHours is the independent mask-on measure — the two must agree about the window
+      T.ok('control · usageHours agrees with the breath denominator (0.167 h ≈ 600 s)', m.usageHours != null && Math.abs(m.usageHours * 3600 - m.breathMaskOnSec) < 60, 'usageHours = ' + m.usageHours);
+    });
+
     /* ── FOLLOWUPS §1.10 — a rate that cannot be measured is REFUSED, never substituted ─────────
        `respFromEDR` stacked TWO unmarked substitutions behind a surfaced number: it echoed the Lomb
        `respHint` when autocorrelation found no dominant EDR period, and fell to a hardcoded **15**

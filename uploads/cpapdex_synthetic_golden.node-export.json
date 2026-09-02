@@ -84,6 +84,7 @@
     "snorePressureCorr": null,
     "breathCount": 150,
     "breathRate": 15,
+    "breathMaskOnSec": 600,
     "ieRatio": 1
   },
   "crossMetrics": {
