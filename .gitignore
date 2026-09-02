@@ -123,6 +123,10 @@ uploads/*
 !uploads/synthetic_motiondex_acc.txt
 !uploads/synthetic_motiondex_golden.node-export.json
 !uploads/integrator_tch_golden.node-export.json
+# DEEP-AUDIT-VI-FOLLOWUPS §4.3 — the apnea chance-null twins. Synthetic (inputs rebuilt in-code by
+# tests/apnea-null-twins.js), so no privacy bar; committed because a fixture nothing can express is
+# the exposure this closes, and an uncommitted one would skip in CI exactly where it is needed.
+!uploads/integrator_apnea_null_twins.node-export.json
 
 # Trio TCH corpus — DERIVED per-night node-exports (tools/trio-batch.mjs), the §6 input contract
 # for `tools/tch-multinight.mjs --dir`. Tracked so a fresh clone reproduces the real σ distribution
