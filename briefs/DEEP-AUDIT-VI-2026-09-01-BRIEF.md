@@ -263,6 +263,8 @@ grouping note documents real nights that lost files).
 therapy-clock fallback), or publish usageHours **null with a named reason** — never 0.000. One gated change
 in `cpapdex-dsp.js` → CPAPDex re-bundle + fixture regen/verify. Separate unit from F7.
 
+**Status:** BUILT — verified 2026-09-01 (Kestrel, branch `claude/cpap-usage-pld-less-k8`, PR pending a WIP slot). Three states in `buildSessionFromEdf`: PLD present → unchanged (`regen-cpap-goldens` 0 moved); PLD absent + BRP `Press` → the BRP lane, block-mean decimated to the 0.5 Hz PLD cadence, supplies the mask-on MASK only (`pressureSource:'BRP'`; pressure statistics stay unmeasured — mask pressure ≠ set pressure, median 4.57 vs 6.71 on 20260613_045505); no pressure lane → `usageHours:null` + `usageReason:'no-pressure-channel'`, night usage null with `usageUnknownSessions`, indices exclude that session's events AND hours. Gate: `CPAPDex F8` group, 22 assertions, pair-verified red on `origin/main`; `npm run check` EXIT=0; verify-fixtures green (4 stamped, 10 current).
+
 ### Clock Contract §6 consumers (OxyDex fusion + CPAPDex co-import)
 
 #### F9 · MAJOR — mis-states a surfaced number via +24 h event shift · `oxydex-fusion.js:42` + `cpapdex-coimport.js:49`
@@ -284,6 +286,8 @@ both siblings place 23:10:03 next-day and every later event a day late (last +31
 delegate to the integrator's order-independent reconstruction). Both files are inlined → re-bundle OxyDex
 AND CPAPDex + orchestrators, manifestHash moves, fixtures re-stamp; add a jittered t-only stream to the
 §6.3/§6.4 test groups.
+
+**Status:** BUILT — verified 2026-09-01 (Kestrel, PR #2060). Both consumers mirror `clock.js`'s `CK_ROLL_SLACK_MS` (12 h) as a local constant (neither bundle inlines `clock.js`, so `DexClock` is undefined there — CLAUDE.md §✅): a backwards step under the slack keeps the date, only a larger wrap is a midnight; `tMs`, when present, is authoritative and skips the reconstruction. Gate: OxyDex fusion cases C–F + CPAPDex co-import `offsH/jit/lex/wrap` legs, pair-verified red on `origin/main`; verify-fixtures green (OxyDex → `a775fa21bdeb`, regen 0 moved).
 
 ### PpgDex
 
@@ -309,6 +313,8 @@ sites (null + reason; export survives with the affected metrics refused) — the
 declared 'the instance was fixed, not the class'. One gated change in `ppgdex-dsp.js` → PpgDex re-bundle +
 its 6 fixtures re-verify.
 
+**Status:** BUILT — verified 2026-09-01 (Kestrel, PR #2061) for `beatConfidence` + the beat-time constructor: both refuse a span beyond the ECGDex bound with a named reason (the #1800/#2030 pattern). Gate: PpgDex span-refusal legs, pair-verified red on `origin/main`; `npm run check` EXIT=0; verify-fixtures green (1 stamped, 13 current); `regen-ppgdex-goldens` 0 moved. The `cvhrFromNN` half of this finding is the PpgDex port of F3 and lands with F3 (Magpie), as the punch-list orders it.
+
 ### Integrator
 
 #### F11 · MAJOR — mis-states surfaced consensus values (order-dependence) · `integrator-dsp.js:3229` (+ :3473, :3634)
@@ -328,6 +334,8 @@ excluded) vs 0.752 (ECGDex excluded) for identical data.
 outputs are functions of the data, not directory iteration order. One gated change in `integrator-dsp.js` →
 Integrator re-bundle (GATE A covers it), its 3 fixtures regen/verify; add an order-permutation assertion to
 the suite.
+
+**Status:** BUILT — verified 2026-09-01 (Kestrel, branch `claude/integrator-overlap-components-k11`, PR pending a WIP slot). One `_overlapComponents` union-find helper (canonical order: window start → node → index) replaces the three greedy first-fit loops in `fuseHRVConsensus` / `fuseStagingConsensus` / `fusePeriodicBreathing`. Re-ran the brief's probes: PB corroboration now reads 3 observers at conf 0.885 in ALL three orders (was 3/0.885 · 2/0.697 · 2/0.752). Gate: new order-permutation group, 14 assertions (four HRV orders + a disjoint-component control + three PB orders), pair-verified 18 red on `origin/main`; `regen-integrator-goldens` 0 moved; Integrator 8c1072b85159 → 080ccd5e1318.
 
 ### Shared spine
 
@@ -350,6 +358,8 @@ CPAP-INVENTORY all classify ecg+ppg; `_RR.txt` → 'ppg'. QC-SUMMARY.json correc
 `_RR` companion/skip branch to ppgKind. `dex-ingest.js` is inlined into multiple bundles → re-bundle
 ECGDex + PpgDex + orchestrators; gate-backed surface (§6.4) — extend its test rows with these names.
 
+**Status:** BUILT — verified 2026-09-01 (Kestrel, branch `claude/ingest-fixed-sidecars-k12`, PR pending a WIP slot). Every fixed name capture-host writes into a night folder is pinned in `nonSignalName` (`CPAP-INVENTORY · OXYLIFE · CLOCKSYNC · SESSIONDETECT · AS11CLOCK · WEDGEFIRE · MANIFEST · QC-SUMMARY`), `_RTCLOG` joins the stamped alternation, `.JSONL` the container list (`.CSV` deliberately not); `ppgKind` sets `_RR` aside, `foreignKind` labels it `rr`. Measured on the real 2026-08-30 folder: primaries 27 → 23, the four removed exactly OXYLIFE, CPAP-INVENTORY and the two `_RR`. Gate: the §6.4 routing group +24 assertions, pair-verified 16 red on `origin/main`; ECGDex/PpgDex + orchestrators re-bundled; `regen-ecgdex/ppgdex-goldens` 0 moved; verify-fixtures green (2 stamped, 12 current).
+
 #### F13 · MAJOR — contract violation with privacy consequence · `dex-export.js:180`
 
 **Symptom.** `dexScrubExport` (`schema.scrubbed:true`) leaves the raw upload filename in OxyDex
@@ -367,6 +377,8 @@ check: name, sha256, mtime, source filename ALL survive. Envelope shape verified
 inputs name/sha256/mtime, and `recording.source` across nights[]/recordings[]/sessions[]. `dex-export.js`
 is a universal spine module (8 of 8 bundles) → **serialized fleet re-bundle** (§👥.3: announce spine work
 first), all 8 provenance fragments move, fixtures re-stamp; add the §5 acceptance as a test.
+
+**Status:** BUILT — verified 2026-09-01 (Kestrel, branch `claude/scrub-export-filenames-k13`; SPINE — announced to Magpie/Osprey, lands LAST after the node PRs drain). `scrubExport` is now key-driven: `file/fname/filename/fileName/sourceFile` and any filename-shaped `source` are deleted on the envelope AND on every `nights[]/recordings[]/sessions[]` element, each element's `provenance` is reduced to `{buildHash, generated, scrubbed, inputs:[{bytes}]}`, device/serial/model are dropped from every `recording` block; a tag-like `source` and all clinical content survive; the input is not mutated. Gate: new §5 acceptance group with 7 planted tokens, 25 assertions, 18 red on `origin/main`; all 11 bundles rebuilt; `npm run check` EXIT=0.
 
 #### F14 · MAJOR — provenance-gate integrity (class 9) · `manifest-gate.js:152`
 
@@ -387,6 +399,8 @@ unknown/reachable ⇒ inside the closure; over-flagging is the accepted cost). `
 gate, not a bundle: no re-bundle, but every OxyDex computeHash-keyed record re-derives; re-run
 `verify:manifest` + `verify-fixtures.mjs`, and update the §12.1 audit row so the false refutation stops
 re-seeding.
+
+**Status:** BUILT — verified 2026-09-01 (Kestrel, branch `claude/compute-closure-oxy-profile-k14`). `oxydex-profile.js` is removed from `manifest-gate.js`'s `DISPLAY_ONLY` denylist (the other six `*dex-profile.js` stay out — measured: no reach-in from their DSPs). Gate: F14 legs in the fixture-verification group assert `isComputeAsset('oxydex-profile.js')`, the `UP.age`/`upVO2category` reach-in in `oxydex-dsp.js`, and NO `UP.*`/`*Profile.*`/`up[A-Z]…(` reach-in in the six other DSPs (plant-verified: a decoy `upVO2category(` in `ppgdex-dsp.js` reds it); pair-verified red on `origin/main`. DEEP-AUDIT-II §12.1 amended (its #33 false-positive verdict is overturned for OxyDex only). verify-fixtures green (2 stamped, 12 current).
 
 ### Analysis/stats kernels
 
@@ -521,19 +535,19 @@ recording is open (`_civil_shift` ±3600 s, capture.py §A1) — but `instance_h
 2. **F6** GlucoDex column pick — one "Low" cell flips every headline metric to row numbers.
 3. **F5** HRVDex d_cvi/d_csi/d_si unit misclassification — rendered clinical verdicts invert.
 4. **F7** CPAPDex fabricated zero-pulse → fabricated clean oximetry night (port OxyDex optional gating).
-5. **F13** dex-export scrub leak — privacy acceptance violated on every scrubbed export (spine; serialize).
-6. **F9** t-only +24 h roll in oxydex-fusion + cpapdex-coimport (port the 12 h slack + tMs fast-path).
+5. **F13** dex-export scrub leak — privacy acceptance violated on every scrubbed export (spine; serialize). — **BUILT 2026-09-01** (Kestrel; lands last).
+6. **F9** t-only +24 h roll in oxydex-fusion + cpapdex-coimport (port the 12 h slack + tMs fast-path). — **BUILT 2026-09-01** (Kestrel, PR #2060).
 7. **F3** cvhrIndex wall-span denominator (ECGDex, then the PpgDex port as its own change).
-8. **F10** PpgDex span-refusal ports (beatConfidence + cvhrFromNN) — whole-night export crash.
-9. **F11** Integrator union-find grouping — order-independent fusion.
+8. **F10** PpgDex span-refusal ports (beatConfidence + cvhrFromNN) — whole-night export crash. — **beatConfidence BUILT 2026-09-01** (Kestrel, PR #2061); cvhrFromNN rides with F3.
+9. **F11** Integrator union-find grouping — order-independent fusion. — **BUILT 2026-09-01** (Kestrel).
 10. **F12** dex-ingest sidecar routing (CLOCKSYNC/OXYLIFE/CPAP-INVENTORY/_RR) — fails open today on every
-    vigil folder import.
-11. **F8** CPAPDex usageHours 0.000 on PLD-less sets (BRP fallback or honest null).
+    vigil folder import. — **BUILT 2026-09-01** (Kestrel).
+11. **F8** CPAPDex usageHours 0.000 on PLD-less sets (BRP fallback or honest null). — **BUILT 2026-09-01** (Kestrel).
 12. **F2** ECGDex app-lane fs/provenance parity with the headless DSP.
 13. **F18** capture-host stale autostart relabel; **F17** CWD-relative cfg paths (both Python lane, both
     small, deploy to vigil after). — **BUILT 2026-09-01** (Heron, PR #2057; deploy via the hourly
     `tepna-update.timer`).
-14. **F14** computeHash closure: remove oxydex-profile.js from the denylist.
+14. **F14** computeHash closure: remove oxydex-profile.js from the denylist. — **BUILT 2026-09-01** (Kestrel).
 15. **F15** tch multi-root disclosure/refusal; **F16** fused-point/classic-CI mixing.
 16. **F4** ACC card badges (+ extend the badge DOM-walk selectors so the gate can see this class).
 

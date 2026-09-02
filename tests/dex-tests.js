@@ -25837,6 +25837,36 @@
           MG.isComputeAsset('some-new-module.js'),
           'an allowlist would fail OPEN here: forget to list a module and its edits stop moving computeHash — the gate goes blind, which is the exact failure being abolished'
         );
+        /* DEEP-AUDIT-VI F14 — a denylist entry is a CLAIM that the module cannot reach compute(), and for
+           oxydex-profile.js that claim was false: oxydex-dsp.js reads `UP.age` / `UP.hrRestOverride` and
+           calls `upVO2category` inside compute() (vo2est / karv), so editing the profile's defaults moved the
+           export (age 49→35: vo2est 50.9→53.9) while computeHash stayed f61b09629fa7 — an "export-inert,
+           PROVEN" verdict that was wrong. DEEP-AUDIT-II §12.1 had ruled this a false positive after checking
+           only the PpgDex side. The entry is gone; and because the remaining five entries rest on the same
+           kind of claim, each is pinned to its DSP's SOURCE below: a future reach-in reds here instead of
+           silently blinding the gate. */
+        T.ok('F14 · oxydex-profile.js is INSIDE the compute closure (oxydex-dsp reaches UP.age / upVO2category)', MG.isComputeAsset('oxydex-profile.js'));
+        T.ok('F14 · the shared dex-profile.js engine stays inside it', MG.isComputeAsset('dex-profile.js'));
+        var S14 = env.sources || {};
+        var oxySrc = S14['oxydex-dsp.js'];
+        if (typeof oxySrc !== 'string') T.skip('F14 · the OxyDex reach-in is real (source scan)', 'oxydex-dsp.js not in env.sources');
+        else
+          T.ok(
+            'F14 · the reach-in the entry was removed FOR is still in oxydex-dsp.js (UP.age + upVO2category)',
+            /\bUP\.age\b/.test(oxySrc) && /\bupVO2category\b/.test(oxySrc),
+            'if OxyDex stopped reading its profile, the closure may shrink again — deliberately, with this line'
+          );
+        ['pulse', 'hrv', 'gluco', 'ppg', 'ecg', 'cpap'].forEach(function (n) {
+          var f = n + 'dex-profile.js';
+          T.ok('F14 · ' + f + ' stays excluded (display-only claim)', !MG.isComputeAsset(f));
+          var dsp = S14[n + 'dex-dsp.js'];
+          if (typeof dsp !== 'string') {
+            T.skip('F14 · …and ' + n + 'dex-dsp.js does not reach it', n + 'dex-dsp.js not in env.sources');
+            return;
+          }
+          var hits = dsp.match(/\bUP\.[A-Za-z_]+|\b[A-Za-z]+Profile\.[A-Za-z_]+|\bup[A-Z][A-Za-z0-9]+\(/g) || [];
+          T.ok('F14 · …and ' + n + 'dex-dsp.js does not reach it (no UP.* / *Profile.* / up*() reach-ins)', hits.length === 0, hits.slice(0, 5).join(' '));
+        });
       }
 
       // ── §2 · build.mjs is FORBIDDEN to author the claim; verify-fixtures.mjs is the only writer

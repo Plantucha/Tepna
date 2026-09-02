@@ -149,7 +149,15 @@
     /^inline:style:/, // the bundle's inline <style> shells
     /-render\.js$/, // <node>-render.js — DOM painting
     /-app\.js$/, // <node>-app.js — host/event wiring
-    /^(?:oxy|pulse|hrv|gluco|ppg|ecg|cpap|eeg)dex-profile\.js$/, // per-node profile UI (NOT the shared dex-profile.js engine, which feeds metrics)
+    /* per-node profile UI (NOT the shared dex-profile.js engine, which feeds metrics). `oxydex-profile.js`
+       is deliberately ABSENT from this list: oxydex-dsp.js reads `UP.age` / `UP.hrRestOverride` and calls
+       `upVO2category` from it inside compute() (`vo2est`/`karv`), so an edit to its defaults moves the
+       export while computeHash would stay byte-stable — the false "export-inert, PROVEN" verdict this
+       projection exists to abolish (DEEP-AUDIT-VI F14, measured: age default 49→35 moved vo2est 50.9→53.9
+       with computeHash f61b09629fa7 unchanged; it overturns DEEP-AUDIT-II §12.1, which verified only the
+       PpgDex side). The other five nodes' DSPs do not touch their profile module — gate-asserted, so a
+       future reach-in reds rather than silently going blind. */
+    /^(?:pulse|hrv|gluco|ppg|ecg|cpap|eeg)dex-profile\.js$/,
     /^dex-actions\.js$/, // action-bar UI
     /^entrance-guard\.js$/, // entry gate UI
     /^dex-forget\.js$/ // storage-wipe UI
