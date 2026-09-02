@@ -22144,6 +22144,55 @@
       }
     });
 
+    /* DEEP-AUDIT-VI F7 — an SA2 with SpO2 but NO Pulse channel is a real corpus shape (Pulse.1s is
+       present in 249 of 250 files). oximetryLane substituted an all-ZERO pulse series for the
+       missing channel, so the self-gate read pulseValid = 0 on every event, stamped every genuine
+       desat 'perfusion-collapse', and published ODI 0.00 / desatCount 0 — a fabricated clean night.
+       The mirror source (oxydex-dsp.js detectODI) treats the pulse series as optional and falls
+       back to ungated detection. Same SpO2, with and without the channel: the desats must survive. */
+    group('CPAPDex F7 — a missing Pulse channel is an ABSENT lane, not an all-zero one', 'cpapdex-dsp · oximetry · fabricated-absence', function (T) {
+      var DC = env.CpapDsp;
+      if (!DC || typeof DC.oximetryLane !== 'function') {
+        T.ok('CpapDsp.oximetryLane exposed', false, 'not wired');
+        return;
+      }
+      var N = 2400,
+        spo2 = new Float32Array(N).fill(96),
+        pulse = new Float32Array(N).fill(70);
+      // five clean 5 % desats, physiologic 0.5 %/s fall, 20 s nadir hold, symmetric recovery
+      for (var e = 0; e < 5; e++) {
+        var st = 300 + e * 400;
+        for (var i = 0; i < 10; i++) spo2[st + i] = 96 - 0.5 * i;
+        for (var j = 0; j < 20; j++) spo2[st + 10 + j] = 91;
+        for (var k = 0; k < 10; k++) spo2[st + 30 + k] = 91 + 0.5 * k;
+      }
+      var withP = DC.oximetryLane({ signals: { SpO2: { data: spo2 }, Pulse: { data: pulse } } }, N);
+      var noP = DC.oximetryLane({ signals: { SpO2: { data: spo2 } } }, N);
+      T.eq('F7 · control — with a healthy pulse the five desats are real', withP.desatCount, 5);
+      T.eq('F7 · control — …and none is an artifact', withP.artifactCount, 0);
+      T.eq('F7 · control — pulseLane says the self-gate ran', withP.pulseLane, 'present');
+      T.eq('F7 · WITHOUT a Pulse channel the same five desats survive (were: 0, all perfusion-collapse)', noP.desatCount, 5);
+      T.eq('F7 · …artifactCount is 0 because nothing was gated, not because nothing was found', noP.artifactCount, 0);
+      T.eq('F7 · …and ODI matches the with-pulse control (was 0.00 — the fabricated clean night)', noP.odi, withP.odi);
+      T.eq('F7 · the absence is NAMED on the lane so a consumer cannot mistake ungated for clean', noP.pulseLane, 'absent');
+      T.eq('F7 · pulseMedian is null on the absent lane, not a statistic of zeros', noP.pulseMedian, null);
+      T.ok(
+        'F7 · no event carries a perfusion verdict the lane had no pulse to reach',
+        noP.events.every(function (ev) {
+          return ev.reason !== 'perfusion-collapse';
+        }),
+        JSON.stringify(
+          noP.events.map(function (ev) {
+            return ev.reason;
+          })
+        )
+      );
+      // an EMPTY Pulse channel (present in the header, zero samples) is the same absence
+      var emptyP = DC.oximetryLane({ signals: { SpO2: { data: spo2 }, Pulse: { data: new Float32Array(0) } } }, N);
+      T.eq('F7 · a zero-length Pulse channel is absent too', emptyP.pulseLane, 'absent');
+      T.eq('F7 · …and keeps the five desats', emptyP.desatCount, 5);
+    });
+
     group('CPAPDex §7 — periodicBreathingPct is null, not 0, on a zero-duration session', 'cpapdex-dsp · fabricated-absence', function (T) {
       var D = env.CpapDsp;
       if (!D || typeof D.buildSessionFromEdf !== 'function') {

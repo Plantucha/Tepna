@@ -673,8 +673,16 @@
     var spo2Ch = chan(sa2, 'SpO2'),
       pulseCh = chan(sa2, 'Pulse');
     if (!spo2Ch || !spo2Ch.data || !spo2Ch.data.length) return { available: false, reason: 'no-spo2-channel', coverage: 0 };
+    /* DEEP-AUDIT-VI F7 — a missing Pulse channel is an ABSENT lane, not an all-zero one. This line
+       used to substitute `new Float32Array(spo2.length)` (every sample 0 bpm) for a file that carries
+       SpO2 but no Pulse, so selfGateDesat read pulseValid = 0 on EVERY event, stamped every genuine
+       desat 'perfusion-collapse', and the lane published ODI 0.00 / desatCount 0 — a fabricated clean
+       oximetry night (executed: five clean 5 % desats → odi 7.5 with pulse, odi 0 without). The
+       mirror source, oxydex-dsp.js detectODI, treats pulseSeries as OPTIONAL and degrades to
+       ungated detection; selfGateDesat already returns unflagged on a null series. Pass null, and
+       say so (`pulseLane`) so the consumer can see the self-gate did not run. */
     var spo2 = spo2Ch.data,
-      pulse = pulseCh ? pulseCh.data : new Float32Array(spo2.length);
+      pulse = pulseCh && pulseCh.data && pulseCh.data.length ? pulseCh.data : null;
     var n = spo2.length,
       valid = 0;
     for (var i = 0; i < n; i++) if (_spo2Valid(spo2[i])) valid++;
@@ -719,12 +727,15 @@
       }
     }
     var pv = [];
-    for (var m = 0; m < pulse.length; m++) {
+    for (var m = 0; pulse && m < pulse.length; m++) {
       var p = pulse[m];
       if (p >= SELFGATE.PULSE_MIN && p <= SELFGATE.PULSE_MAX) pv.push(p);
     }
     return {
       available: true,
+      // 'present' ⇒ the perfusion/edge self-gate ran; 'absent' ⇒ no Pulse channel, desats are
+      // kinetics-ungated (F7). A consumer must not read artifactCount 0 as "no artifacts" when absent.
+      pulseLane: pulse ? 'present' : 'absent',
       coverage: +coverage.toFixed(3),
       odi: hours > 0 ? +(real.length / hours).toFixed(2) : null,
       desatCount: real.length,
