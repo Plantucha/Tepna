@@ -50183,6 +50183,68 @@
       T.eq('ECGDex still reports its own respiration rate', ecg.summary.respRateBrpm, 16.1);
     });
 
+    /* Heron's cross-family trace, verified 2026-09-02. PpgDex published the axis VERDICT
+       (`timingSource`) and dropped the measurements behind it, while ECGDex has emitted the full
+       block all along. Asserted as PARITY against ECGDex rather than as a field list, so the two
+       cannot drift apart again and a future field added to one is owed by the other. */
+    group('PpgDex publishes the axis MEASUREMENTS, not only its verdict — parity with ECGDex', 'ppgdex-dsp · ecgdex-dsp · export-boundary · host-axis', function (T) {
+      var src = env.sources || {};
+      var P = String(src['ppgdex-dsp.js'] || ''),
+        E = String(src['ecgdex-dsp.js'] || '');
+      if (!P || !E) {
+        T.skip('both DSP sources in env.sources', 'not wired in this lane');
+        return;
+      }
+      /* THE §7 DISCRIMINATORS. CLAUDE.md instructs a consumer to read `independent`, never a ~0 ppm —
+         which it cannot do if the producer never emits it. These are the fields that decide whether a
+         host column is a second clock at all. */
+      var need = ['independent', 'spreadMs', 'ppm', 'stability'];
+      /* BALANCED-BRACE extraction, not a regex to a fixed indent. ⚠️ The first version of this gate
+         matched `\n {6}\};` and OVERSHOT PpgDex's block by 4.5 kB into `out.hrv`, because the block
+         is nested inside an `if` and closes at 8 spaces. Every field assertion below then passed
+         partly on text from a different object — a gate reading the wrong region and reporting
+         confidently about it, which is the class this whole group exists to catch. Caught by the
+         char count (5598 vs ECGDex's 1069), not by the green. */
+      function axisBlock(srcText) {
+        var at = srcText.indexOf('out.recording.hostAxis = {');
+        if (at < 0) return '';
+        var i = srcText.indexOf('{', at),
+          depth = 0;
+        for (var k = i; k < srcText.length; k++) {
+          if (srcText[k] === '{') depth++;
+          else if (srcText[k] === '}') {
+            depth--;
+            if (depth === 0) return srcText.slice(at, k + 1);
+          }
+        }
+        return '';
+      }
+      var pBlock = axisBlock(P),
+        eBlock = axisBlock(E);
+      T.ok(
+        'ECGDex emits a recording.hostAxis block (the reference emitter)',
+        eBlock.length > 0,
+        eBlock ? eBlock.length + ' chars' : 'ABSENT — the parity reference is gone, so this gate proves nothing'
+      );
+      T.ok('PpgDex emits a recording.hostAxis block', pBlock.length > 0, pBlock ? pBlock.length + ' chars' : 'ABSENT — the axis measurements never leave the node');
+      if (!pBlock || !eBlock) return;
+      var missP = need.filter(function (k) {
+        return pBlock.indexOf(k + ':') < 0;
+      });
+      var missE = need.filter(function (k) {
+        return eBlock.indexOf(k + ':') < 0;
+      });
+      T.eq('PpgDex carries every §7 discriminator', missP.sort(), []);
+      T.eq('ECGDex carries every §7 discriminator', missE.sort(), []);
+      /* PpgDex additionally publishes the REASON DexClock gave when it refused independence — a
+         consumer that sees `independent:false` can read why instead of inferring it. */
+      T.ok('…and the inertReason DexClock wrote when it said no', pBlock.indexOf('inertReason') >= 0, 'the verdict carries its sentence');
+      /* CONDITIONAL, so a night with no axis omits the block rather than gaining a wall of nulls —
+         which is what keeps every committed export byte-identical. */
+      T.ok('the block is conditional on an axis existing', /if \(r\.hostAxis && r\.hostAxis\.ok\)/.test(P), 'guarded emission');
+      /* ANTI-VACUITY: the field list must be non-empty, or every assertion above passes trivially. */
+      T.ok('the discriminator set is non-empty (the gate is not vacuous)', need.length >= 4, need.length + ' fields required of both');
+    });
     group('An ABSENT value is not a measured zero — the || 0 fleet pattern (DEEP-AUDIT-IV §3)', 'oxydex-dsp · oxydex-render · integrator-dsp · fabricated-absence', function (T) {
       var src = env.sources || {};
       /* THE SHAPE ITSELF. `git grep '|| 0).toFixed'` over the root *.js returned exactly three

@@ -4842,6 +4842,46 @@
         // so every committed Verity export stays byte-identical; only a finger export carries it.
         ...(r.timebase ? { timebase: r.timebase } : {})
       };
+      /* ── THE AXIS MEASUREMENTS, NOT ONLY ITS VERDICT (Heron's cross-family trace, 2026-09-02) ──
+         `quality` above published the CONCLUSION — `timingSource`, `axisDrawn`, `axisQuantizedShare`
+         — and dropped every number that produced it. A consumer could read `'device+host'` and had
+         no way to check whether the host column was actually a second clock, which is precisely what
+         CLAUDE.md §7 instructs it to read ("read `independent`, never a ~0 ppm"). ECGDex has emitted
+         the full block at `ecgdex-dsp.js:5210+` all along; PpgDex computed the same values (`:760`)
+         and this reshape named none of them.
+         ⚠️ The comment at `:740` predicted this exact failure — `independent`/`spreadMs`/`inertReason`
+         "DROPPED here … discarded one line after it was computed" — and the block one layer down warns
+         that a reshape drops anything it does not name, citing `stability` vanishing at this very seam
+         on the first real-data run. The file documented the defect and nothing read the file.
+         Field set mirrors ECGDex so the two are comparable by construction; CONDITIONAL on an axis
+         existing, so a night without one omits the block and every committed export stays
+         byte-identical rather than gaining a wall of nulls. */
+      if (r.hostAxis && r.hostAxis.ok) {
+        out.recording.hostAxis = {
+          anchors: r.hostAxis.anchors != null ? r.hostAxis.anchors : null,
+          ppm: nz(r.hostAxis.ppm),
+          maxStepMs: nz(r.hostAxis.maxStepMs),
+          totalMs: nz(r.hostAxis.totalMs),
+          /* The three §7 discriminators. `independent` is the verdict on whether the host column is a
+             SECOND CLOCK at all; `spreadMs` is the residual it was decided on; `inertReason` is the
+             sentence DexClock wrote when it said no. Publishing the reason means a reader sees WHY,
+             not just false. */
+          independent: r.hostAxis.independent == null ? null : r.hostAxis.independent,
+          spreadMs: nz(r.hostAxis.spreadMs),
+          inertReason: r.hostAxis.inertReason || null,
+          drawn: r.hostAxis.drawn == null ? null : r.hostAxis.drawn,
+          quantizedShare: nz(r.hostAxis.quantizedShare),
+          timingSource: r.timingSource || null,
+          stability: r.hostAxis.stability
+            ? {
+                tau0: nz(r.hostAxis.stability.tau0),
+                noiseType: r.hostAxis.stability.noiseType || null,
+                slope: nz(r.hostAxis.stability.slope),
+                ppmUncertainty: nz(r.hostAxis.stability.ppmUncertainty)
+              }
+            : null
+        };
+      }
       out.hrv = {
         time: {
           meanRR: nz(r.meanRR),

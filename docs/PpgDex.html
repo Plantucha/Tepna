@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-i6jRg4w3FkJGmcHdy4VzKqroE3ERveXtU1iJw7vqCBQ=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-sEEnnGtQ3WZzpPa7gTX9mVYX7vYKfkNPF+WKya+4VZA=' 'sha256-u6qu93oK/CTK+zlfb7564Qz9wTa0xlDmudRBeRsBSf8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-TIargK1gR+9Pvq0fH2Z6p0RBgHEuxPvG+Zhv7GJEox0=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-i6jRg4w3FkJGmcHdy4VzKqroE3ERveXtU1iJw7vqCBQ=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-sEEnnGtQ3WZzpPa7gTX9mVYX7vYKfkNPF+WKya+4VZA='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.9.0</title>
@@ -11467,6 +11467,46 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         // so every committed Verity export stays byte-identical; only a finger export carries it.
         ...(r.timebase ? { timebase: r.timebase } : {})
       };
+      /* ── THE AXIS MEASUREMENTS, NOT ONLY ITS VERDICT (Heron's cross-family trace, 2026-09-02) ──
+         `quality` above published the CONCLUSION — `timingSource`, `axisDrawn`, `axisQuantizedShare`
+         — and dropped every number that produced it. A consumer could read `'device+host'` and had
+         no way to check whether the host column was actually a second clock, which is precisely what
+         CLAUDE.md §7 instructs it to read ("read `independent`, never a ~0 ppm"). ECGDex has emitted
+         the full block at `ecgdex-dsp.js:5210+` all along; PpgDex computed the same values (`:760`)
+         and this reshape named none of them.
+         ⚠️ The comment at `:740` predicted this exact failure — `independent`/`spreadMs`/`inertReason`
+         "DROPPED here … discarded one line after it was computed" — and the block one layer down warns
+         that a reshape drops anything it does not name, citing `stability` vanishing at this very seam
+         on the first real-data run. The file documented the defect and nothing read the file.
+         Field set mirrors ECGDex so the two are comparable by construction; CONDITIONAL on an axis
+         existing, so a night without one omits the block and every committed export stays
+         byte-identical rather than gaining a wall of nulls. */
+      if (r.hostAxis && r.hostAxis.ok) {
+        out.recording.hostAxis = {
+          anchors: r.hostAxis.anchors != null ? r.hostAxis.anchors : null,
+          ppm: nz(r.hostAxis.ppm),
+          maxStepMs: nz(r.hostAxis.maxStepMs),
+          totalMs: nz(r.hostAxis.totalMs),
+          /* The three §7 discriminators. `independent` is the verdict on whether the host column is a
+             SECOND CLOCK at all; `spreadMs` is the residual it was decided on; `inertReason` is the
+             sentence DexClock wrote when it said no. Publishing the reason means a reader sees WHY,
+             not just false. */
+          independent: r.hostAxis.independent == null ? null : r.hostAxis.independent,
+          spreadMs: nz(r.hostAxis.spreadMs),
+          inertReason: r.hostAxis.inertReason || null,
+          drawn: r.hostAxis.drawn == null ? null : r.hostAxis.drawn,
+          quantizedShare: nz(r.hostAxis.quantizedShare),
+          timingSource: r.timingSource || null,
+          stability: r.hostAxis.stability
+            ? {
+                tau0: nz(r.hostAxis.stability.tau0),
+                noiseType: r.hostAxis.stability.noiseType || null,
+                slope: nz(r.hostAxis.stability.slope),
+                ppmUncertainty: nz(r.hostAxis.stability.ppmUncertainty)
+              }
+            : null
+        };
+      }
       out.hrv = {
         time: {
           meanRR: nz(r.meanRR),
