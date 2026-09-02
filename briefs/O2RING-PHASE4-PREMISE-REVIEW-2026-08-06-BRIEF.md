@@ -2,7 +2,7 @@
 Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (deferred 2026-08-06 — §4 must be answered before any of §3 is worth doing; **§4 EXECUTED 2026-08-17**, see §4's closing note — §1–§3 remain open, which is what keeps this PROPOSED) · **Created:** 2026-08-06
+**Status:** PROPOSED (parked 2026-09-02 — §4 was EXECUTED 2026-08-17 and its defect fixed (dc2ac7d3: the clock guard's only caller passed three arguments; `PATGate.verdict(ov, cp, sc, ax)` now takes four, `_tchHat` guards `timingSource === 'none'`, drawn-axis assertions at `tests/dex-tests.js:9080-9095`), and §1's constant is settled (`O2PPG_FS_DEFAULT = 125.000`, df89b48e, pinned by `test_o2ring_frame_lock.py`). What keeps it open is §2's own instruction: **measure §3's impact before building it — replay a night with marker-aware gridding, diff the HRV outputs, and if nothing moves close Phase 4 as unnecessary.** That replay has never been run (no marker-aware-gridding artifact anywhere); the 8.0 ms p-p sawtooth was measured against PAT beat-to-beat scatter, a different question. So Phase 4 is neither built nor honestly closable yet. **Owner:** Heron · **Next step:** the replay + HRV diff — a desk measurement, and a NULL result closes Phase 4) · **Created:** 2026-08-06
 
 # Phase 4 review — its premise moved, and a bigger timeline defect sits next to it
 

@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **TRIAGED 2026-09-01 (Osprey): tool BUILT and selftest-clean (`tools/pat-window-oracle.mjs --selftest` = 8/8) but NEVER RUN on a corpus and its results are referenced in no brief, audit or doc. **CORRECTED 2026-09-01: NOT blocked — the raw corpus IS local.** My first stamp said this machine has zero `_ECG.txt`; that was wrong because I searched only the repo's `uploads/` tree, which holds node-export JSON. The canonical root is **`/srv/data/tepna-corpus/` (125 GB, 1131 raw `_ECG.txt`)** with per-night raw dirs under `smoketest-captures/` (box), `uploads/vigil-archive/captures/` (daily mirror) and `uploads/Ecg nightly/` (phone). Pointed at `uploads/trio` the oracle exits 0 with `TALLY: {}` — a WRONG-ROOT failure, not a negative result, which is what made the absence look real. Now running against the real root.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§11/§13 oracle) · **Interlocks:** `PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md`
+**Status:** IN-PROGRESS · **TRIAGED 2026-09-01 (Osprey): tool BUILT and selftest-clean (`tools/pat-window-oracle.mjs --selftest` = 8/8) but NEVER RUN on a corpus and its results are referenced in no brief, audit or doc. **CORRECTED 2026-09-01: NOT blocked — the raw corpus IS local.** My first stamp said this machine has zero `_ECG.txt`; that was wrong because I searched only the repo's `uploads/` tree, which holds node-export JSON. The canonical root is **`/srv/data/tepna-corpus/` (125 GB, 1131 raw `_ECG.txt`)** with per-night raw dirs under `smoketest-captures/` (box), `uploads/vigil-archive/captures/` (daily mirror) and `uploads/Ecg nightly/` (phone). Pointed at `uploads/trio` the oracle exits 0 with `TALLY: {}` — a WRONG-ROOT failure, not a negative result, which is what made the absence look real. Now running against the real root.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§11/§13 oracle) · **Interlocks:** `PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md` · **DRAIN 2026-09-02 (Osprey) — RE-RUN under #2082 executed; see the RE-RUN section.** Regression band held exactly (07-24 405->405, 08-17 215->215). Corpus is **48 nights, not 87** — the vigil mirror is a strict subset and one of its nights is an incomplete copy. The unscored-nights Done-when box is **CLOSED**. **Still IN-PROGRESS on one box only:** whether the 20-40 ms residual is slow physiology or an instrumental effect — a research question no run of this tool closes. **Owner: Osprey. Next step:** the phone root's flat-layout defect (50 `_ECG.txt` invisible to the oracle) is the one actionable residue.
 
 # There IS signal under the window — the acceptance window is mis-specified, not merely wide
 
@@ -448,6 +448,47 @@ should match something. **The defect is in the matching stage under partial over
 ⚠️ **Not excluded:** the H10 sensor-clock rebase (+2792 days mid-file, seen on `08-23`). If the matcher
 keys on `sensor timestamp [ns]` rather than the phone column used above, a device-clock discontinuity
 would zero pairing while wall-clock spans look healthy. **First thing to test at the matching stage.**
+## ✅ RE-RUN under #2082's overlap PAIRING — executed 2026-09-02 (Osprey, drain)
+
+The ✅ CORRECTED RUN above predates **#2082**, which rewrote `pick()` to pair the ECG/PPG fragments by
+**temporal overlap** instead of two independent size-sorts. That changes WHICH files a fragmented night
+is scored on, so the corpus was re-run across all three raw roots. Bar registered before the run
+(`oracle-rerun-prestatement.md`): single-fragment nights cannot move, and the two window-invariant
+nights must not move — any movement there means the change touched MEASUREMENT, not selection.
+
+**The regression band HELD exactly: `2026-07-24` 405 -> 405 and `2026-08-17` 215 -> 215**, both still
+SIGNAL RECOVERED. #2082 moved selection and left measurement alone, which is what it was built to do.
+
+| root | nights | SIGNAL | PARTIAL | NO RECOVERY | ARTIFACT REFUSAL | REFUSED |
+|---|---|---|---|---|---|---|
+| `smoketest-captures` (box) | **48** | 5 | 21 | 6 | 11 | 5 |
+| `uploads/vigil-archive/captures` (mirror) | 39 | 3 | 15 | 6 | 10 | 5 |
+| `uploads/Ecg nightly` (phone) | **0 — see below** | | | | | |
+
+🔴 **DO NOT SUM THESE ROWS, and the reason is the finding.** All **39** of the mirror's nights are also
+in the box root — it is a strict SUBSET, not an independent corpus. The scored corpus is **48 nights,
+not 87**. On the 39 shared nights the two copies agree **38/39 on verdict AND mode**, which is a real
+reproducibility result for the oracle. The single disagreement is a **data** difference, not a tool one:
+`2026-07-25` reads SIGNAL/405 from the box and PARTIAL/335 from the mirror because **the mirror is an
+incomplete copy of that night** — 6 ECG + 17 PPG fragments against the box's **21 + 136**. Overlap
+pairing over a smaller fragment set selects a different pair. The mirror is not a faithful copy and must
+not be treated as a second sample.
+
+🔴 **The phone root scored ZERO nights, and that is a LAYOUT defect, not an absence of data.** It holds
+**50 `_ECG.txt` files**, but they sit **flat in the root directory** while the oracle expects
+`<captures root>/<night>/`. `TALLY: {}` with exit 0 is precisely the wrong-root failure this brief's own
+status header already warned about — the same shape, one directory level down. **Residue, owner Osprey:**
+either the oracle grows a flat-layout reader or the phone tree is restructured; until then every phone
+night is invisible to it and no verdict about the corpus may be quoted as covering them.
+
+**The five refusals all name a defensible, self-evidencing reason** — the #2044/#2052 discipline holding
+under a real run: 2 x `missing _ECG.txt`, 2 x `too few beats` with both counts (`r=8522, f=33` and
+`r=2458, f=32`), and `2026-08-20`'s `no overlap between the two trains (R 04:28-04:34 vs feet
+04:36-05:00; disjoint by 2 min)`. That last one independently confirms the train-level measurement
+recorded on 2026-09-01: the night's best pair really is disjoint, and the earlier `0.04 h` figure was a
+FILE-span, not a train overlap.
+
+
 ## 7 · Done when
 
 - [x] Out-of-sample design, circular-shift null, gate-asserted with a noise control.
@@ -456,7 +497,12 @@ would zero pairing while wall-clock spans look healthy. **First thing to test at
 - [x] The 20–40 ms residual's SHAPE: a slow trend on 8/8 nights — not white, not respiratory, no coherent HR dependence.
 - [x] Its SOURCE, partially: the **inter-device clock is ELIMINATED** on 8/8 by sign, magnitude and non-linearity, robust to the effective-ppm assumption.
 - [ ] What remains: slow physiology (BP/vasomotor/posture/stage) vs an instrumental effect invisible to the host axis (warming, contact drift).
-- [ ] Whether the 22 unscored nights differ systematically from the 20 scored.
+- [x] Whether the previously-unscored nights differ systematically from the scored — **ANSWERED
+      2026-09-02 under #2082's pairing.** They do not form a systematic class: of 48 box nights only 5
+      refuse, each for a named data reason (2 missing `_ECG.txt`, 2 below the 200-beat floor with counts,
+      1 genuinely disjoint by 2 min), and 11 more are ARTIFACT REFUSALS whose mode falls outside PHYS
+      200-650 ms. The earlier unscored bulk was substantially a TOOL artifact — independent size-sorts
+      pairing non-overlapping fragments — not a property of those nights.
 
 
 ## ✅ CORRECTED RUN — overlap-scoped split, 2026-09-01

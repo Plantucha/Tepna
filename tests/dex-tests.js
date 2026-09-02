@@ -26486,6 +26486,145 @@
         statusLineRefs('**Status:** PROPOSED · **Executes:** GONE-2026-01-01-BRIEF.md').length === 0
       );
 
+      /* ── CHECK 8 · the RESIDUE LEDGER (briefs/RESIDUE.md) resolves BOTH ways ───────────────────────
+         CLAUDE.md §📌 (owner-ratified 2026-09-02): residue from an executed or triaged brief is ONE ROW
+         here, not a new -FOLLOWUPS- brief; a follow-up brief is created only by the session that picks
+         the row up, which is what gives it an owner. Measured on the 2026-09-02 drain: 27 of 77 open
+         briefs were -FOLLOWUPS- files created at execution time, none owned.
+
+         The gate is the same shape as check5 (Superseded-by ⇄ Supersedes): a row's `source` must be a
+         real brief whose **Status:** line carries `**Residue:** R<n>` naming that row, and a brief that
+         claims residue must have the rows it names. One-sided links are the failure — a header saying
+         "residue, named here, no new file" with no row is prose that no reader will ever pick up, and a
+         row whose source brief does not point back is invisible from the brief.
+
+         Row shape is checked HARD (exactly 6 cells) because the drain measured what a `|` inside a
+         cell does to a `|`-split table: it silently blinds the row (DOCS-INDEX check3b, 2026-09-02). */
+      var RESIDUE_NAME = 'RESIDUE.md';
+      function residueRows(text) {
+        var out = { rows: [], malformed: [] };
+        String(text)
+          .split('\n')
+          .forEach(function (line) {
+            if (!/^\|\s*R\d+\s*\|/.test(line)) return;
+            var cells = line.split('|');
+            // leading '' + 6 cells + trailing '' — anything else means a pipe inside a cell or a missing column
+            if (cells.length !== 8 || cells[0].trim() !== '' || cells[7].trim() !== '') {
+              out.malformed.push(line.slice(0, 40) + '… (' + (cells.length - 2) + ' cells, want 6)');
+              return;
+            }
+            var c = cells.slice(1, 7).map(function (s) {
+              return s.trim();
+            });
+            var src = c[2].match(/^`([A-Za-z0-9._-]+-BRIEF\.md)`$/);
+            var st = c[5];
+            var promoted = st.match(/^→\s*`([A-Za-z0-9._-]+-BRIEF\.md)`$/);
+            var stateOk = st === 'OPEN' || !!promoted || /^fixed #\d+$/.test(st);
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(c[1]) || !src || !stateOk || !c[3] || !c[4]) {
+              out.malformed.push(
+                c[0] + ' (' + (!src ? 'source not a backticked *-BRIEF.md' : !stateOk ? 'state "' + st + '" not OPEN | → `brief` | fixed #N' : 'bad date or empty defect/evidence') + ')'
+              );
+              return;
+            }
+            out.rows.push({ id: c[0], date: c[1], source: src[1], state: st, promoted: promoted ? promoted[1] : null });
+          });
+        return out;
+      }
+      function residueField(text) {
+        var line = String(text)
+          .split('\n')
+          .filter(function (l) {
+            return /^\*\*Status:\*\*/.test(l);
+          })[0];
+        var m = line && line.match(/\*\*Residue:\*\*\s*((?:R\d+)(?:\s*,\s*R\d+)*)/);
+        return m ? m[1].split(/\s*,\s*/) : [];
+      }
+      var ledger = DL.briefs[RESIDUE_NAME];
+      T.ok('check8a · briefs/' + RESIDUE_NAME + ' exists (the residue ledger — CLAUDE.md §📌)', !!ledger);
+      var RR = residueRows(ledger || '');
+      T.ok(
+        'check8b · every ledger row has exactly 6 cells, a dated log, a backticked *-BRIEF.md source and a vocabulary state',
+        RR.malformed.length === 0,
+        RR.malformed.length ? RR.malformed.slice(0, 6).join('; ') : RR.rows.length + ' row(s) parsed'
+      );
+      function residueVerdict(rows, briefs) {
+        var v = { dupId: [], badSrc: [], badPromo: [], noBackRef: [] },
+          seenId = {};
+        rows.forEach(function (r) {
+          if (seenId[r.id]) v.dupId.push(r.id);
+          seenId[r.id] = 1;
+          if (!briefs[r.source]) v.badSrc.push(r.id + ' → ' + r.source);
+          else if (residueField(briefs[r.source]).indexOf(r.id) < 0) v.noBackRef.push(r.id + ' ← ' + r.source.replace(/-BRIEF\.md$/, '') + ' (Status line lacks **Residue:** ' + r.id + ')');
+          if (r.promoted && (!briefs[r.promoted] || r.promoted === r.source)) v.badPromo.push(r.id + ' → ' + r.promoted);
+        });
+        return v;
+      }
+      var RV = residueVerdict(RR.rows, DL.briefs),
+        dupId = RV.dupId,
+        badSrc = RV.badSrc,
+        badPromo = RV.badPromo,
+        noBackRef = RV.noBackRef;
+      T.ok('check8c · row ids are unique (never reused)', dupId.length === 0, dupId.length ? dupId.join(', ') : 'ok');
+      T.ok('check8d · every row’s source brief exists', badSrc.length === 0, badSrc.length ? badSrc.slice(0, 8).join('; ') : RR.rows.length + ' source(s) resolved');
+      T.ok('check8e · a promoted row (→ `brief`) points at a real brief other than its source', badPromo.length === 0, badPromo.length ? badPromo.join('; ') : 'ok');
+      T.ok(
+        'check8f · every row’s source brief points BACK (**Residue:** R<n> on its Status line)',
+        noBackRef.length === 0,
+        noBackRef.length ? noBackRef.slice(0, 8).join('; ') : 'bidirectional for ' + RR.rows.length + ' row(s)'
+      );
+      // the other direction: a brief claiming residue must have those rows, and they must name it
+      var claimBad = [],
+        claimN = 0;
+      names.forEach(function (n) {
+        residueField(DL.briefs[n]).forEach(function (id) {
+          claimN++;
+          var row = RR.rows.filter(function (r) {
+            return r.id === id;
+          })[0];
+          if (!row) claimBad.push(n.replace(/-BRIEF\.md$/, '') + ' claims ' + id + ' (no such row)');
+          else if (row.source !== n) claimBad.push(n.replace(/-BRIEF\.md$/, '') + ' claims ' + id + ' (row names ' + row.source + ')');
+        });
+      });
+      T.ok(
+        'check8g · every **Residue:** R<n> a brief claims is a ledger row naming that brief',
+        claimBad.length === 0,
+        claimBad.length ? claimBad.slice(0, 8).join('; ') : claimN + ' claim(s) resolved'
+      );
+      /* PLANTED CONTROLS — the ledger is small and clean, so without plants none of the above has been
+         shown to fire. */
+      var plantOk = residueRows('| R9 | 2026-09-02 | `' + names[0] + '` | a defect | line 1 | OPEN |');
+      T.ok('self-test · check8 PARSES a well-formed row', plantOk.rows.length === 1 && plantOk.malformed.length === 0 && plantOk.rows[0].source === names[0]);
+      T.ok('self-test · check8 FIRES on a pipe inside a cell (7 cells)', residueRows('| R9 | 2026-09-02 | `X-BRIEF.md` | med|err| | e | OPEN |').malformed.length === 1);
+      T.ok('self-test · check8 FIRES on a state outside the vocabulary', residueRows('| R9 | 2026-09-02 | `X-BRIEF.md` | d | e | maybe |').malformed.length === 1);
+      T.ok(
+        'self-test · check8 ACCEPTS the two closing states',
+        residueRows('| R9 | 2026-09-02 | `X-BRIEF.md` | d | e | → `Y-BRIEF.md` |\n| R10 | 2026-09-02 | `X-BRIEF.md` | d | e | fixed #2104 |').rows.length === 2
+      );
+      T.ok(
+        'self-test · check8 reads **Residue:** ids off a Status line only',
+        residueField('**Status:** DONE — 2026-09-02 · **Residue:** R1, R7 · **Created:** 2026-08-14\n\n**Residue:** R99').join() === 'R1,R7'
+      );
+      var plantBriefs = {
+        'A-2026-01-01-BRIEF.md': '**Status:** DONE — 2026-01-02 · **Residue:** R1, R3',
+        'B-2026-01-01-BRIEF.md': '**Status:** PROPOSED',
+        'C-2026-01-01-BRIEF.md': '**Status:** PROPOSED · **Residue:** R4'
+      };
+      var plantRows = residueRows(
+        [
+          '| R1 | 2026-01-02 | `A-2026-01-01-BRIEF.md` | d | e | OPEN |', // clean, bidirectional
+          '| R2 | 2026-01-02 | `B-2026-01-01-BRIEF.md` | d | e | OPEN |', // B does not point back
+          '| R3 | 2026-01-02 | `GONE-2026-01-01-BRIEF.md` | d | e | OPEN |', // source missing
+          '| R3 | 2026-01-02 | `A-2026-01-01-BRIEF.md` | d | e | → `A-2026-01-01-BRIEF.md` |', // dup id + promoted to itself
+          '| R4 | 2026-01-02 | `C-2026-01-01-BRIEF.md` | d | e | → `NOPE-2026-01-01-BRIEF.md` |' // promoted target missing
+        ].join('\n')
+      ).rows;
+      var PV = residueVerdict(plantRows, plantBriefs);
+      T.ok(
+        'self-test · check8 FIRES on each planted defect exactly once (missing source · missing back-ref · dup id · bad promotion ×2) and NOT on the clean row',
+        PV.badSrc.length === 1 && PV.noBackRef.length === 1 && PV.dupId.join() === 'R3' && PV.badPromo.length === 2 && PV.noBackRef[0].indexOf('R2') === 0,
+        JSON.stringify(PV)
+      );
+
       // ── FLOOR · the brief set was actually loaded from fs (a non-vacuous gate). CPAP-REAL-CORPUS-
       //    FOLLOWUPS-II §4 retired the committed-list staleness legs: there is no docs-ledger-list.txt to
       //    keep in sync any more — the runner reads briefs/ + the tree straight from disk, so every check

@@ -142,7 +142,13 @@ export function bootstrapExempt(failLines, firstStamp) {
     if (m) for (const q of m[1].split(',')) { const n = q.trim().replace(/^["']|["']$/g, ''); if (n) named.push(n); }
   }
   const allFirst = named.length > 0 && named.every((n) => firstStamp.includes(n));
-  return { exempt: only31 && allFirst, named };
+  /* DEDUPE. The §3.1 assertion appears TWICE in the suite's stdout — once in its group's body and
+     once in the `▸ FAILURES` summary — and both lines carry `got [...]`, so every name is parsed
+     twice. The decision is indifferent (a subset test does not care about duplicates), but the
+     operator-facing line is not: the first real run of this exemption printed "named exactly 2
+     first-generation fixture(s)" and listed ONE fixture twice. That line exists so an exemption can
+     be AUDITED, and a false count in it is exactly the unchecked claim this tool exists to prevent. */
+  return { exempt: only31 && allFirst, named: [...new Set(named)] };
 }
 
 /* SELFTEST — runs under `npm run check` via tools/selftest-all.mjs, so the refusal is exercised on
@@ -158,14 +164,24 @@ if (process.argv.includes('--selftest')) {
     ['§3.1 naming a fixture that ALREADY carried a stamp', [L(['glucodex_clean_golden.node-export.json'])], NEW, false],
     ['§3.1 naming one new AND one already-stamped', [L([NEW[0], 'oxydex_1056.node-export.json'])], NEW, false],
     ['a moved fixture and no §3.1 at all', [OTHER], NEW, false],
-    ['an EMPTY failure set must not stamp', [], NEW, false]
+    ['an EMPTY failure set must not stamp', [], NEW, false],
+    /* The real suite emits §3.1 TWICE (group body + FAILURES summary). Every case above uses ONE
+       occurrence, so none of them could have caught the duplicate-count bug this case pins. */
+    ['§3.1 emitted twice, as the real suite does → still ONE fixture', [L(NEW), '  ✕ [Fixture verification] ' + L(NEW).trim()], NEW, true]
   ];
   let bad = 0;
   for (const [name, lines, fs2, want] of cases) {
-    const got = bootstrapExempt(lines, fs2).exempt;
+    const r = bootstrapExempt(lines, fs2);
+    const got = r.exempt;
     if (got !== want) bad++;
     console.log(`  ${got === want ? '✓' : '✗'} ${String(got).padEnd(5)} (want ${String(want).padEnd(5)})  ${name}`);
   }
+  /* The COUNT and the LIST are the audit trail, so assert them, not just the verdict: a case that
+     duplicates the assertion but checks only `exempt` passes on the buggy code. */
+  const dup = bootstrapExempt([L(NEW), '  ✕ [Fixture verification] ' + L(NEW).trim()], NEW);
+  const dupOk = dup.named.length === 1 && dup.named[0] === NEW[0];
+  if (!dupOk) bad++;
+  console.log(`  ${dupOk ? '✓' : '✗'} the Excused list names it ONCE and the count reads ${dup.named.length} (want 1)`);
   console.log(bad ? `selftest: ${cases.length - bad} ok, ${bad} failed` : `selftest: ${cases.length} ok, 0 failed`);
   process.exit(bad ? 1 : 0);
 }

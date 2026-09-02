@@ -556,10 +556,18 @@ Status lives in a one-line header block on the first content line (just after an
   the relevant gates pass (`Dex-Test-Suite.html` all-green, `verify-provenance.html` clean where it
   applies) — flip the header in place to `Status: DONE — <today>`. Do NOT touch the filename. Never
   stamp DONE on unverified work. Greppable fleet-wide via `grep "Status:.*DONE"`.
-- **After executing a brief, spawn a follow-up brief** — `<NAME>-FOLLOWUPS-YYYY-MM-DD-BRIEF.md` —
-  capturing what you discovered during execution that still needs addressing (house pattern:
-  `AUDIT-FOLLOWUPS` → `-II`, `GENERATOR-FOLLOWUPS` → `-II`). If nothing surfaced, say so in the
-  executed brief's header rather than creating an empty follow-up.
+- **After executing (or triaging) a brief, residue goes to `briefs/RESIDUE.md` as ONE ROW per verified
+  defect — NOT a new `-FOLLOWUPS-` brief** (owner-ratified 2026-09-02; this bullet used to say "spawn a
+  follow-up brief"). Row: `| R<n> | logged | source brief | defect | evidence | state |`, and the source
+  brief's **Status:** line gets `**Residue:** R<n>` — bidirectional like `Superseded-by`, and gate-backed
+  (`docs-ledger` check 8: both directions resolve, exactly 6 cells, state vocabulary). A `<NAME>-FOLLOWUPS-
+  YYYY-MM-DD-BRIEF.md` is created **only by the session that picks a row up to execute it** (when the
+  remainder is ≥ one work-unit), and creating it closes the row (`→ \`<NAME>-BRIEF.md\``); a one-PR fix
+  closes it as `fixed #NNNN`. Rows are appended and closed, never edited or deleted.
+  *Why:* measured on the 2026-09-02 drain, **27 of 77** open briefs were `-FOLLOWUPS-` files, and none had
+  an owner — a file created at execution time is written by the session that is leaving, so it belongs to
+  nobody by construction; a row promoted at pickup time belongs to the session that promoted it. The 27
+  existing files are not retro-converted. If nothing surfaced, say so in the executed brief's header.
 - **Non-executable docs** (deploy manifests, backlog checkpoints) use `Status: REFERENCE (living …)`
   or `Status: CHECKPOINT (living …)` with a `last-verified` date instead of DONE.
 - **No `DEFERRED` (or any other) top-level status** (DOCS-LEDGER-GATE-FOLLOWUPS §F1, decided 2026-07-05 =

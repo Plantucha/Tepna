@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **Created:** 2026-08-23 · **Follows:** `OXYII-ACQUISITION-CHARTER-2026-08-23-BRIEF.md` (G6, spec §2–§6) · **Evidence:** `O2RING-PROTOCOL-2026-07-17-BRIEF.md`, `OXYII-PROTOCOL-HARVEST-2026-08-08-BRIEF.md`, `O2RING-OPCODE-SURFACE-2026-08-03-BRIEF.md`, `VIGIL-O2RING-AUTOPULL-2026-07-21-BRIEF.md`, `O2RING-TIME-CAPABILITY-WIRING-2026-08-19-BRIEF.md` · **Affects (brief only — no code):** `capture-host/oxyii.py`, `capture-host/capture.py` (run_oxyii), a new presence module
+**Status:** PROPOSED (parked 2026-09-02 — 4 of 5 done-when items are closed and the mechanism is built and armed (`oxy_presence.py`, `pull.on_doff` at `capture.py:5911-5940`, arming reported at `:6056`). The last item is a COMPARISON, not a build: whether presence-aware scheduling actually beats the hourly poller, measured against the 2026-08-23 cadence baseline over ≥3 nights of worn-ring doff cycles. The data does not exist in the repo and cannot — it is firing counts from OXYLIFE/journal on the box. **Owner:** Heron · **Next step:** collect 3 worn nights, then compare firings against the 2026-08-23 baseline — and record it even if presence LOSES) · **Created:** 2026-08-23
 
 # The ring's presence is a state we can MEASURE, not one we infer from advertising
 

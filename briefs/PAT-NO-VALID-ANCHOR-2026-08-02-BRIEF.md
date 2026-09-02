@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **Created:** 2026-08-02 · **Follows:** `WEARABLE-HOST-AXIS-FOLLOWUPS-2026-08-02-BRIEF.md` §F3-ter, `PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02-BRIEF.md` §5 · **Affects:** no code yet — a capture decision and one measurement
+**Status:** IN-PROGRESS · **Created:** 2026-08-02 · **Follows:** `WEARABLE-HOST-AXIS-FOLLOWUPS-2026-08-02-BRIEF.md` §F3-ter, `PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02-BRIEF.md` §5 · **Affects:** no code yet — a capture decision and one measurement · **DRAIN 2026-09-02 (Osprey):** verified 2 open Done-when boxes across 11 sections. **Owner: Osprey. Next step:** confirm whether the two remainders survived the host-axis work (#2044/#2052/#2082 changed the anchor and refusal paths under this brief) before executing — they may already be answered.
 
 # PAT has never been alignment-limited by precision. It was limited by there being **no valid non-beat anchor** for the ECG and PPG streams — one was derived, and it still does not recover PAT on most nights.
 

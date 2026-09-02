@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-16 (**§2a DESIGN delivered for sign-off** — scope narrowed to the update/restart path only, since `CAP_NET_ADMIN` turned out to be already granted; three options costed, **(C) recommended: do not automate the privileged step, make its drift loud**, because all three measured staleness events were observability failures rather than privilege ones. Nothing applied to the box. · **§3 AUDITED and written down** — both its boxes closed, and it corrects one of this brief's own claims. §2 is an owner decision on the box's privilege model; §4/§5 are decisions, not code) · **Created:** 2026-08-14
+**Status:** PROPOSED (parked 2026-09-02 — §2a's design is delivered and option (C)'s *make the drift loud* half is SHIPPED (`nightqc.system_file_drift`, `monitor.html:2301-2313`, `tests/test_system_file_drift.py`). What is missing is the **owner's A/B/C pick on the box's privilege model** — no decision is recorded anywhere, and nothing else in this brief can move until it is. §4's restart-at-next-idle is likewise an owner call; the 68.6 % number it needed is already measured. ⚠ **Residue, unblocked and unassigned:** §5's consecutive-failure counter is plain desk work — nothing implements it (no counter in `daemon_control.py`/`telemetry.py`/`alerts.py`), and it is what distinguishes *failed once, recovered* from *failing every tick since Tuesday*. Box-side today: `tepna-update.timer` is healthy, last fired 12:41, next 13:45. **Owner:** owner (privilege model) / Heron (§5 counter) · **Next step:** the §5 counter, which needs nobody's permission) · **Created:** 2026-08-14
 
 > Spawned by closing `VIGIL-AUTO-UPDATE-2026-08-04-BRIEF.md` (DONE 2026-08-14, §6 met with 41 observed
 > unattended restarts). Everything here was found by *running* the machinery that brief built, mostly on
@@ -225,5 +225,5 @@ look identical in `systemctl status`.
 
 - [ ] The helper-install gap is either closed by §2's design **or** explicitly accepted by the owner and
       recorded here, so it stops being rediscovered.
-- [ ] §3's audit is run and its answer written down.
+- [x] §3's audit is run and its answer written down. **Stale-unchecked — §3's own two boxes are both closed with the per-helper writes table; verified 2026-09-02.**
 - [ ] §4 and §5 are decided, not merely noted.

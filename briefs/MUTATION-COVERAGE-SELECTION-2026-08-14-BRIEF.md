@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS · **Created:** 2026-08-14
+**Status:** IN-PROGRESS · **Created:** 2026-08-14 · **DRAIN 2026-09-02 (Osprey):** verified **9 of 10** Done-when boxes ticked — the closest brief in this family to DONE. The single remainder is section 1c's uncorrected-denominator hypothesis for `cpapdex`/`glucodex`/`hrvdex`/`motiondex`, which still sit at **zero ledger entries** so their denominators remain uncorrected. **Owner: Osprey. Next step:** sweep those nodes to non-zero ledger entries, then the box closes and the brief flips DONE — one work-unit, no blocker.
 
 # MUTATION — COVERAGE-DIRECTED SELECTION, AND WHAT THE REBOOT MUST NOT COST AGAIN
 
