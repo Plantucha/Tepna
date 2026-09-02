@@ -26,10 +26,12 @@ nothing, found only because someone tried to make a fix land.
 | 1.2 | **F1** | **Capture-side hardening**: rotate the file set on a `clock_watchdog` step so a resynced night lands as two fragments instead of one poisoned file. Specified as a SEPARATE unit in F1's stamp; not built. | Heron |
 | 1.3 | **F1** | **ONE DEVICE CLOCK PER AXIS** — the refold, not the audit, found that pre-resync anchors carry a *different oscillator state* (08-27: +1508 ms over 9.5 s ≈ 160,000 ppm) and `hostAxis` quoted it into `fs`. Fixed for ECGDex (`anchorsDroppedPreResync`, `clockResyncs[].hostOffsetMs`); **the principle is not yet stated in the Clock Contract §7** — an axis must be built from anchors of ONE clock state, and a resync boundary is a state change. Add the paragraph; then check PpgDex's `hostAxis` call site for the same pre-resync exposure. **§7 paragraph BUILT 2026-09-02 (Kestrel)** — the contract now names the split, the ECGDex fields, and the rule that a node which detects no steps has not shown it has none. **PpgDex check OPEN**: `ppgdex-dsp.js` has NO step detection at all (`grep -i resync` → 0), so the question is first whether `_PPG.txt` ever carries a counter step on a resynced night, then the split. | Kestrel (CLAUDE.md §7 — DONE) → Magpie (PpgDex check) |
 | 1.4 | **F2** | Both lanes now resolve `t0Ms` by Clock Contract §4 "first VALID sample". **If a real night ever shows the old app rule ("first non-empty, null if unparseable") choosing a different row, quote the row here** — do not regenerate on the assumption. **Not checked by any sweep**: F2's six-file parser-parity run (2 committed twins + the equiv clip + the three resync nights) asserts that the two PARSERS agree, not that the two ANCHOR RULES pick the same row, and the old rule no longer exists in either lane to run. A watch item with no supporting measurement behind it. | any, on sighting |
-| 1.5 | **F4** | `rraccRate` was re-tiered emerging → **experimental** on 45 real H10 nights (median r 0.07, MAE 2.5 br/min, LoA −4…+7.5). **`edrResp`'s own `emerging` grade was NOT adjudicated** — it needs a reference the corpus lacks (CPAP flow is the candidate reference once the co-imported nights are aligned). Until measured it is probably also experimental; do not re-grade on this sentence alone. | Osprey (measurement) |
+| 1.5 | **F4** | ~~`edrResp`'s own `emerging` grade was NOT adjudicated~~ — **ADJUDICATED 2026-09-02 (Osprey): re-tiered emerging → `experimental`.** The brief's premise that *"it needs a reference the corpus lacks"* was **stale**: 33 nights carry both a raw `_ECG.txt` and a CPAP `*BRP.edf`, and **24 pass a pre-registered overlap rule** (≥4 h AND ≥60 % of the shorter recording); 24 paired, 2 excluded as fallback-15, **n = 22**. Bands frozen before the run. Reference: the device's own mask-on **`RespRate.2s`** — *not* `detectBreaths().breathRate`, which was **rejected on a pre-registered structural criterion** (it divides breaths by WALL duration while every sibling ventilation metric in that block is `_filterBy(..., maskOn)`, so it is diluted by mask-off time — see 1.9). Result: **MAE 1.90** br/min (bar ≤1.5) · bias −1.01 · **LoA [−5.80, +3.78], width 9.58** (bar ≤6) — both fail. ⚠️ **`r` is not cited**: the reference's between-night SD is 0.54 br/min (range 14.8–16.8), so a correlation is range-restricted by construction. 🔴 **The decisive control:** a CONSTANT **15.0** br/min — the metric's own hardcoded fallback — scores **MAE 0.80** on the same nights, and a constant 15.8 scores 0.42. The estimator is beaten by the constant it falls back to, carries ~5× the reference's spread (2.50 vs 0.54) and misses to 7.4 and 20.0 against a truth that never leaves 14.8–16.8. **Not adjudicated by this and still `emerging`: the SIBLING `respRate` (registry line 54)** — a different estimator (per-epoch median, not whole-record autocorrelation) that the Reference guide's 'Resp Rate' card actually maps to. Do not read this re-tier onto it. | Osprey — **DONE** |
 | 1.6 | **F8** | CPAPDex **`therapyHours` = wall duration** feeds the usage KPI and `compliancePct` in the night summary, where mask-on usage is the clinically meant quantity (the F8 fix corrected `usageHours`; `therapyHours` still reads the session span). Measure the gap on the real corpus before deciding whether it is a relabel or a recompute. **MEASURED 2026-09-02 (Kestrel) — gap is ZERO on the whole real corpus; no relabel and no recompute owed.** `tools/cpap-corpus.mjs` over `Ecg nightly/CPAP` (189 nights, 236 sessions, 2026-01-11 → 07-21, all PLD-sourced): `therapyHours` ≡ Σ session `durMin`/60 on 189/189 nights, and `durMin/60 − usageHours` is ≤ 0.0003 h (one sample of rounding) on **236/236 sessions** — max night gap 0.00 h, Σ 1293.8 h both ways, `compliancePct` 98.9 % by either denominator, **zero ≥4 h verdict flips**. Mechanism: a ResMed EDF session record set is opened at mask-on and closed at mask-off (the DSP's own model — "a session is one mask-on file-set"), so the record's wall span IS its mask-on span; the two quantities coincide by the vendor's segmentation, not by luck. The exposure survives only for a writer whose record continues through mask-off time — no such vendor is parsed today. If one is ever added, `buildNight` should prefer Σ `usageHours` over Σ `durMin/60` (the synthetic `prepare→buildSession` route already does, `durMin = usageHours × 60`); do not make that change on this corpus, where it is export-inert by construction and can only move fixtures through 2-vs-3-decimal rounding. | Kestrel — MEASURED, closed |
 | 1.7 | **contested** | `capture-host/status_union.py:77` heartbeat-across-DST — **CONFIRMED and FIXED 2026-09-02** (Heron, PR #2077; see §1.7a below for the measurement, including the one correction it forces on the audit's own description). | Heron |
 | 1.8 | **F3 / F10** | The PpgDex `cvhrFromNN` port (#2073) changes the **denominator** only. The OxyDex §2.6 group's standing note *"PPGDEX cvhrFromNN IS DELIBERATELY NOT PART OF THIS FIX"* governs **nulling `index: 0`** (the refusal marker two goldens pin byte-for-byte) and is UNCHANGED: 0 still means what it meant. Recorded so a third session does not read the port as a violation of that note, or the note as a bar on the port. | — (record only) |
+| 1.9 | **new (from 1.5)** | **`cpapdex-dsp.js detectBreaths().breathRate` divides by WALL duration** (`durSec = recordsRead × recDur`) while every sibling ventilation figure computed beside it (`rrMaskOn`, `tvMaskOn`, `mvMaskOn`, `snMaskOn`, `flMaskOn`) is mask-on filtered. A surfaced breaths/min is therefore **diluted by mask-off time**, per night, by a varying factor — the same shape as 1.6's `therapyHours`. Found by trying to USE it as a reference and rejecting it; **not fixed inside the grading unit** on purpose. Mask-on fraction was 1.000 on all 24 nights measured, so the corpus does not yet show the error's size — that is coverage, not absolution. | unassigned |
+| 1.10 | **new (from 1.5)** | **`respFromEDR` substitutes a hardcoded `15` when `_autocorrPeriod` returns null** (`ecgdex-dsp.js:1788`, after a `respHint` fallback), and the surfaced value carries no marker distinguishing a measurement from the constant. 2 of 24 nights measured returned exactly 15.0. §1.5 had to detect them by value equality, which cannot separate a genuine 15.0 from the fallback — the refusal-vs-fabrication line this suite draws everywhere else (`#2044`, `#2052`). Either surface a flag or refuse. | unassigned |
 
 ---
 
@@ -132,6 +134,46 @@ The ECGDex Reference guide graded posture `ev-measured` for a mount-dependent co
 'Posture' resolved to no registry id, so `cohesion-badges` had nothing to compare. Registering the id made
 the wrong grade visible and it was corrected to experimental. **Sweep:** every reference-guide card label with
 no `idForLabel` hit is a grade nobody checks.
+
+**SWEPT 2026-09-02 (Kestrel) — 127 of 414 graded cards were unchecked; the gate is now resolve-or-declare.**
+Measured over the 8 reference guides (414 graded cards): **OxyDex 96 · ECGDex 23 · PpgDex 5 · CPAPDex 3**, the
+other four 0. Each card was crosswalked by hand against its registry + DSP and declared in the guide markup —
+this is a doc + test unit, no bundle moves. Two attributes, on the card's opening `<div class="mc"`:
+`data-id="<registry ids>"` for a metric whose label the resolver cannot map (space-separated for a compound
+card), and `data-kind="citation|pipeline|unregistered"` for the three non-metric shapes. `cohesion-badges` (b)
+now asserts, per guide: every graded card resolves (label · '/'-split parts · declared id) **or** declares a
+kind; a declared id that is not a registry key is a red (a typo must not un-gate a card); and the
+`unregistered` set **equals a list declared in the test** — a new one reds (register it instead), and a
+declaration the registry has since learned reds (the list may only shrink). Three planted controls per
+guide: an undeclared unregistered card is counted, a bad `data-id` is a red, a stale `unregistered` is a red.
+
+- **Grade disagreements the resolver had been hiding — 25, all corrected to the registry (registry wins):**
+  OxyDex **23** — 19 cards badged `heuristic` where the registry says experimental / emerging / measured
+  (SD1 / SD2, SDNN proxy, CHA-94, OxyCrash, T-AUC Weighted, SSI, Sleep Stability, WASO Windows, Positional
+  Shifts, Recovery Index, Coupling Score, PB HR Contrast, PB Diverge, PB Episode Trend, Poor Nights % →
+  experimental; DFA α1, AHI Estimate, Respiratory Rate (proxy), Nocturnal HR Dip → emerging; Cond. Mean/% <94,
+  Nadir Depth Bins → measured) and **two OVER-claims** — `SpO₂ Night CV` badged measured, registry
+  experimental; `ODI-4 First→Last Δ` badged validated, registry experimental. ECGDex **2** — Lomb–Scargle
+  Spectrum emerging → **validated** (its five constituents `vlf lf hf lfnu hfnu` are all validated, Task Force
+  1996); Fragmentation experimental → **emerging** (`pip`). PpgDex / CPAPDex 0.
+- **Registration debt — 38 surfaced metrics no registry grades** (declared `unregistered`, counted by the
+  gate; a JS-surface unit, **→ Magpie**): OxyDex **35** (MODL · Dip / Recovery Slope · Clustering Index ·
+  SpO₂ SampEn · SpO₂ AC lag-1 · IEI · Recovery CV ≡ biCV (same `ieiCV` quantity, two cards) · Desaturation
+  Asymmetry · SpO₂ / HR Nadir Timing · SpO₂ Ceiling · O₂-HR Efficiency · Post-Dip HR Response · Worst 10-min
+  SpO₂ · Worst 30-min T95 · Stable SpO₂ Windows · RMSSD Arc · LF / HF Power (`hrLfPow/hrHfPow`, NOT
+  `rsaPeakPow`) · HR Asymmetry · HR Quartile Trend (NOT `hrSlope`) · HR CV · Circadian HR Amplitude / Nadir
+  Hour (NOT `circadianScore`) · Vagal Index · HR Deceleration Runs · SpO₂–HR Decoupling % · SPI · Motion
+  Bursts (NOT `restlessWindows`) · Longest Clean Run (NOT `lcsp`) · CS / UARS Score · SpO₂–HR Lag · BLUNTED
+  AROUSAL flag · Intra-Night NSI); ECGDex 1 (Data Gaps, `quality.gaps/gapMin`; IALS/PSS are exported at
+  `ecgdex-app.js` `fragmentationIALS/PSS` and unregistered too, folded under the Fragmentation card); PpgDex 2
+  (Heading `epochs[].headingDeg`, Mag interference `motion.magInterferencePct`). Resolver gaps in the same
+  unit: `ECG_LABEL_ALIAS` lacks 'triangular index' and 'accel. capacity'.
+- **Four registry entries misdescribe the metric their id renders** (leads, not corrected here — a registry
+  edit is a bundle change): `dfaAlpha1` cites pulse-rate DFA but `computeDFA` runs on SpO₂; `ahiEst` says
+  "CVHR-derived" but exports ODI-4 × 1.1; `ssiIdx` is labelled "Sleep-stability index" but the SSI chip is
+  `n.ssi.ssi` (sympathetic surge); `nadirBinLt4/46/69/Gt9` describe drop-DEPTH bins while the render feeds
+  absolute-LEVEL bins (`above91 … below85`). Partial compound registration: ODI-2/ODI-1, T94…T80, kurtosis,
+  HD90/HD88 and SD2 have no entry (their cards are gated by the sibling that does).
 
 ### 2.6 The dormant-surface alias matcher: an alias shorter than a word is not a surface token
 MotionDex `uprightFrac`'s bare alias `upright` matched a posture ENUM value in `POS_ORDER` — a false

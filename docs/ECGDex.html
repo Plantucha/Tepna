@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0mqhj4PCQsNRywYOCDIa/lI1dB/pbF/OnCPxEs9VBIo=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-F7vPwzQE5+g+cZcy7B1Q7kGlx30CN6v0RDBIr/XEv/w=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-NMrN+Emdb7Cq8as9C8VRJylQD4tovI7fpBOThO9Za+Q=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-uv2u2lF0rh+tj6+SiiCtZAVr5XfFovvOFkWiHW1sj3Y='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0mqhj4PCQsNRywYOCDIa/lI1dB/pbF/OnCPxEs9VBIo=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-NMrN+Emdb7Cq8as9C8VRJylQD4tovI7fpBOThO9Za+Q=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-n665YKq/oE7WoR8SrlhH0PwBVUTZhSKoykWFkV1yFT8=' 'sha256-uv2u2lF0rh+tj6+SiiCtZAVr5XfFovvOFkWiHW1sj3Y='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.9.0</title>
@@ -6299,7 +6299,30 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     rsaAmplitude: { label: 'RSA amplitude', unit: 'bpm', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'Peak-to-trough HR swing across the respiratory cycle' },
     crcPLV: { label: 'CRC PLV', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'RR↔respiration phase-locking value — coupling strength' },
     couplingStrength: { label: 'Coupling strength', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'CSI-style cardiorespiratory sync index' },
-    edrResp: { label: 'EDR resp rate', unit: 'br/min', goodDirection: 'down', depth: 'advanced', evidence: 'emerging', cite: 'Respiration from R-peak amplitude modulation (EDR) — surrogate' },
+    /* ADJUDICATED emerging → experimental, 2026-09-02 (DEEP-AUDIT-VI-FOLLOWUPS §1.5, the sibling of
+       #1455's `rraccRate` re-tier). Measured against the CPAP device's own mask-on `RespRate.2s`
+       channel on 22 co-recorded nights (24 paired, 2 excluded as fallback-15), bands frozen before
+       the run: MAE **1.90** br/min (bar ≤1.5) · Bland-Altman bias −1.01, LoA [−5.80, +3.78],
+       width **9.58** (bar ≤6). Both fail, so the tier claim "externally validated" fails with them.
+       ⚠️ `r` is NOT cited as evidence here: the reference varies by only 0.54 br/min SD across
+       nights (14.8–16.8), so a correlation is suppressed by range restriction by construction —
+       the honest statistics on a near-constant truth are the absolute-agreement ones.
+       🔴 The decisive control: a CONSTANT 15.0 br/min — this metric's own hardcoded fallback
+       (`ecgdex-dsp.js` respFromEDR) — scores MAE **0.80** against the same reference, and a
+       constant 15.8 scores 0.42. The estimator is beaten by the constant it falls back to, with
+       ~5× the reference's spread (est SD 2.50 vs 0.54) and misses to 7.4 and 20.0 br/min against a
+       truth that never left 14.8–16.8. Directional only — which is what `experimental` means.
+       NOTE the sibling `respRate` (line 54) is a DIFFERENT estimator (per-epoch median, not
+       whole-record autocorrelation) and is NOT adjudicated by this measurement; it keeps its grade
+       until measured on its own. */
+    edrResp: {
+      label: 'EDR resp rate',
+      unit: 'br/min',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'experimental',
+      cite: 'Respiration from R-peak amplitude modulation (EDR) — surrogate; re-tiered 2026-09-02 against CPAP RespRate on 22 nights (MAE 1.90, LoA width 9.58; a constant 15 scores MAE 0.80)'
+    },
 
     /* CPC high-frequency coupling (Thomas 2005). ONLY HFC is registered, and the reason is the
        validation rather than the literature: across 39 nights paired to device-scored ResMed
