@@ -37328,6 +37328,85 @@
         var td = [];
         diff(gExp, tFix, '', td);
         T.ok('Integrator TCH-HR consensus ≡ committed golden (full tree; vol excluded)', td.length === 0, td.length ? td.slice(0, 8).join(' · ') : 'byte-identical');
+        /* §4.3 — THE APNEA CHANCE-NULL TWINS. Same seam as the TCH golden above: rebuild the inputs
+           in-code from the shared builder, re-run the real fusion, and require byte-equality with the
+           committed fixture. This exists because §4.2b replaced the apnea reportability gate's null
+           and `regen` reported "0 fixtures moved" — no committed artifact could express the change.
+           Four twins, because a mutant to the shipped path must move these bytes: `coupled`/`uncoupled`
+           are the gate's two DIRECTIONS, `gapped` is the only one that can see the covered-time shift,
+           and `contended` the only one that can see the null scoring the PUBLISHED exclusive matching. */
+        var aFix = EQ.integrator_apnea_null_twins && EQ.integrator_apnea_null_twins.fixture;
+        var _twins = env.apneaNullTwins || (typeof apneaNullTwins !== 'undefined' && apneaNullTwins) || null;
+        var FAg = env.fuseApneaEvents || (typeof fuseApneaEvents !== 'undefined' && fuseApneaEvents) || null;
+        /* PRESENCE IS ASSERTED, NOT SKIPPED. The fixture is a COMMITTED artifact, and `uploads/*` is
+           gitignored — it reaches a fresh clone only through an explicit `!` negation in .gitignore.
+           If that negation is ever lost, the file vanishes from CI and a T.skip here would report
+           GREEN for a gate that examined nothing (CLAUDE.md §4b). So a missing fixture is a FAILURE,
+           exactly as the TCH golden above treats its own. */
+        T.ok(
+          'apnea-null twins: committed fixture present (the .gitignore negation still holds)',
+          !!aFix,
+          aFix
+            ? 'uploads/integrator_apnea_null_twins.node-export.json reached this lane'
+            : 'ABSENT — uploads/* is gitignored; check the `!uploads/integrator_apnea_null_twins.node-export.json` negation'
+        );
+        T.ok(
+          'apnea-null twins: builder + fuseApneaEvents wired in this lane',
+          typeof _twins === 'function' && typeof FAg === 'function',
+          typeof _twins === 'function' && typeof FAg === 'function' ? 'both present' : 'tests/apnea-null-twins.js or fuseApneaEvents missing from env'
+        );
+        if (!aFix || typeof _twins !== 'function' || typeof FAg !== 'function') {
+          /* fall through to the TCH assertions below */
+        } else {
+          var aBuilt = {
+            schema: {
+              name: 'ganglior.integrator-apnea-null-twins',
+              version: '1.0',
+              doc: 'Committed synthetic twins for the apnea chance-null (DEEP-AUDIT-VI-FOLLOWUPS §4.3). Inputs rebuilt in-code by tests/apnea-null-twins.js, the same builder the equivalence gate uses.'
+            },
+            twins: {}
+          };
+          var _T = _twins();
+          for (var _ti = 0; _ti < 4; _ti++) {
+            var _k = ['coupled', 'uncoupled', 'gapped', 'contended'][_ti];
+            var _recs = _T[_k].map(function (x) {
+              return Ag(x.json, x.node, x.node)[0];
+            });
+            var _f = FAg(_recs, 120000, {});
+            aBuilt.twins[_k] = _f
+              ? { nullModel: _f.nullModel, nConf: _f.findings.length, confirmedAHI: _f.confirmedAHI, confirmedAHIReportable: _f.confirmedAHIReportable, overlapHours: _f.overlapHours }
+              : null;
+          }
+          var ad = [];
+          diff(JSON.parse(JSON.stringify(aBuilt)), aFix, '', ad);
+          T.ok('Integrator apnea-null twins ≡ committed fixture', ad.length === 0, ad.length ? ad.slice(0, 8).join(' · ') : 'byte-identical');
+          /* THE CORPUS MUST EXPRESS BOTH DIRECTIONS. A fixture set that only ever publishes cannot
+             fail against a null that publishes everything — the half-failure §4.3 was written to end. */
+          T.eq('coupled twin is PUBLISHED', aBuilt.twins.coupled.confirmedAHIReportable, true);
+          T.eq('…at the surrogate floor', aBuilt.twins.coupled.nullModel.pAtLeastObserved, aBuilt.twins.coupled.nullModel.pFloor);
+          T.eq('uncoupled twin is WITHHELD', aBuilt.twins.uncoupled.confirmedAHIReportable, false);
+          T.ok(
+            '…with p mid-range, not at a boundary',
+            aBuilt.twins.uncoupled.nullModel.pAtLeastObserved > 0.1 && aBuilt.twins.uncoupled.nullModel.pAtLeastObserved < 1,
+            String(aBuilt.twins.uncoupled.nullModel.pAtLeastObserved)
+          );
+          /* The two twins hold event COUNTS equal, so a verdict difference cannot be density. */
+          T.eq(
+            'the pair is controlled — identical surrogate opportunity',
+            Math.round(aBuilt.twins.coupled.nullModel.expectedConfirmed),
+            Math.round(aBuilt.twins.uncoupled.nullModel.expectedConfirmed)
+          );
+          /* The gapped twin is the ONLY one that can see _coveredShift: on a single-segment night a
+             covered-time wrap and a wall-clock wrap are byte-identical. Assert it really is sparse. */
+          T.ok('gapped twin declares real sparse coverage', aBuilt.twins.gapped.overlapHours < 7, 'overlapHours=' + aBuilt.twins.gapped.overlapHours);
+          /* The contended twin is the ONLY one that can see the null scoring the PUBLISHED matching:
+             its desats cluster 12 s apart, so an exclusive and a non-exclusive scorer disagree. */
+          T.ok(
+            'contended twin has desats competing for one surge',
+            aBuilt.twins.contended.nConf > 0 && aBuilt.twins.contended.nullModel.expectedConfirmed > 0,
+            'nConf=' + aBuilt.twins.contended.nConf + ' surrogateMean=' + aBuilt.twins.contended.nullModel.expectedConfirmed
+          );
+        }
         var tb = gExp.consensus && gExp.consensus.blocks && gExp.consensus.blocks[0];
         T.ok(
           'HR-hat fires on the staggered co-recorded night — culprit OxyDex, reconciled HR, ρ from motion',
