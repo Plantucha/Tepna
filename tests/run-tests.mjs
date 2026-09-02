@@ -530,6 +530,10 @@ function readSources() {
        axis is drawn on every stream measured (20/20). */
     'tools/pat-host-offset.mjs',
     'tools/regen-integrator-goldens.mjs',
+    /* §4.3 — the §3.1 bootstrap exemption is a CONTRACT BETWEEN TWO FILES: this tool matches the
+       §3.1 assertion's label to recognise a first-generation fixture. A rename in dex-tests.js would
+       silently re-close the deadlock, so the label is read out of the tool as text and compared. */
+    'tools/verify-fixtures.mjs',
     /* CLOCK-AXIS-AND-RENDER-SURFACE-FOLLOWUPS §3 — the cohort desat-recall matcher is implemented TWICE
        (cohort-regression.js + cohort-runner.html), independently, with the same [-10s,+60s] window. No
        executable entry spans both, so cross-site agreement is asserted by source scan (the DA-II §2.2

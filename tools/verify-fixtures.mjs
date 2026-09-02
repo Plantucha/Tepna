@@ -111,6 +111,65 @@ for (const k of owing) {
   }
 }
 
+/* ── FIRST-GENERATION SET (the bootstrap exemption's ONLY input) ──────────────────────────────
+   A brand-new code-gated fixture is unstamped by definition, and dex-tests' §3.1 fails closed on
+   exactly that. But this tool refuses to stamp anything while the suite is red — so the stamp needs
+   a green suite and the suite needs the stamp. Measured 2026-09-02 standing up the apnea-null twins
+   (DEEP-AUDIT-VI-FOLLOWUPS §4.3): 8995 assertions, ONE failing, and it named the very fixture the
+   run existed to stamp. No new `inputs: []` fixture had been added since §3.1 landed 2026-07-14, so
+   the path had never been walked. Same class as the gap `newRecord` closed for the ledger RECORD.
+
+   WHY NOT A `--bootstrap <fixture>` FLAG (considered and rejected): a flag is an OPERATOR CLAIM —
+   it asserts "this one is new, trust me" — and the failure mode of this whole tool is exactly a
+   claim nobody checked. The run already holds the evidence: which fixtures owe a stamp and have
+   none is derivable here, before the suite runs. So the exemption is DERIVED, never asserted, and
+   it cannot be pointed at a fixture that already had a stamp. */
+const firstStamp = owing.filter((k) => !fixtures[k].verifiedUnder);
+/* The §3.1 assertion label this tool matches on. It is asserted EQUAL to dex-tests.js's own label by
+   the `fixture-verification` gate: a rename there would otherwise silently widen this exemption (or,
+   worse, quietly re-close the deadlock) with nobody seeing why. */
+const S31_LABEL = '§3.1 · every corpus-backed fixture carries a verifiedUnder';
+
+/* The exemption as a PURE function of (failing lines, first-generation set) — extracted so the
+   decision can be driven by `--selftest` over adversarial inputs instead of only by a >10-min corpus
+   lap that reaches it once. Returns true ONLY when every failing assertion is §3.1 and every fixture
+   it names is one this run would be minting a first stamp for. */
+export function bootstrapExempt(failLines, firstStamp) {
+  const only31 = failLines.length > 0 && failLines.every((l) => l.includes(S31_LABEL));
+  const named = [];
+  for (const l of failLines) {
+    const m = l.match(/got \[([^\]]*)\]/);
+    if (m) for (const q of m[1].split(',')) { const n = q.trim().replace(/^["']|["']$/g, ''); if (n) named.push(n); }
+  }
+  const allFirst = named.length > 0 && named.every((n) => firstStamp.includes(n));
+  return { exempt: only31 && allFirst, named };
+}
+
+/* SELFTEST — runs under `npm run check` via tools/selftest-all.mjs, so the refusal is exercised on
+   every gate rather than on the rare day someone adds a fixture. Placed before any corpus work so it
+   needs neither the corpus nor the ledger. */
+if (process.argv.includes('--selftest')) {
+  const L = (names) => `  ✕ ${S31_LABEL} (a claim nothing in CI can re-run must record what DID)  — got [${names.map((n) => '"' + n + '"').join(',')}] · want []`;
+  const OTHER = '  ✕ [GlucoDex equiv] compute() ≡ committed export  — 3 fields differ';
+  const NEW = ['integrator_apnea_null_twins.node-export.json'];
+  const cases = [
+    ['§3.1 alone, naming a first-generation fixture → the real bootstrap', [L(NEW)], NEW, true],
+    ['a SECOND failing assertion beside §3.1', [L(NEW), OTHER], NEW, false],
+    ['§3.1 naming a fixture that ALREADY carried a stamp', [L(['glucodex_clean_golden.node-export.json'])], NEW, false],
+    ['§3.1 naming one new AND one already-stamped', [L([NEW[0], 'oxydex_1056.node-export.json'])], NEW, false],
+    ['a moved fixture and no §3.1 at all', [OTHER], NEW, false],
+    ['an EMPTY failure set must not stamp', [], NEW, false]
+  ];
+  let bad = 0;
+  for (const [name, lines, fs2, want] of cases) {
+    const got = bootstrapExempt(lines, fs2).exempt;
+    if (got !== want) bad++;
+    console.log(`  ${got === want ? '✓' : '✗'} ${String(got).padEnd(5)} (want ${String(want).padEnd(5)})  ${name}`);
+  }
+  console.log(bad ? `selftest: ${cases.length - bad} ok, ${bad} failed` : `selftest: ${cases.length} ok, 0 failed`);
+  process.exit(bad ? 1 : 0);
+}
+
 const stale = owing.filter((k) => {
   const ch = computeHashes[fixtures[k].bundle];
   return !ch || fixtures[k].verifiedUnder !== ch;
@@ -182,14 +241,34 @@ try {
   });
 } catch (e) {
   const out = String((e.stdout || '') + (e.stderr || ''));
-  const fails = out.split('\n').filter((l) => /^\s*✕/.test(l)).slice(0, 8);
-  console.error(paint('✕ the suite is RED — stamping NOTHING.', C.red));
-  for (const l of fails) console.error('  ' + l.trim());
-  console.error(
-    '\n  A fixture that does not reproduce is a live stale-fixture finding, not a stamping problem:\n' +
-      '  regenerate it (tools/regen-<node>-goldens.mjs) and re-run this. Partial credit is how false claims are born.'
-  );
-  process.exit(1);
+  /* EVERY failing line, not a printed sample. The old code sliced to 8 for display and would have
+     decided on that slice — the §4b family: a verdict read off a truncated view. Display is capped
+     below; the DECISION reads all of them. */
+  const failLines = out.split('\n').filter((l) => /^\s*✕/.test(l));
+  /* The bootstrap exemption, derived. It applies ONLY when both hold:
+       (a) every failing assertion is §3.1 itself, and
+       (b) the fixtures §3.1 names are a SUBSET of the first-generation set computed above.
+     A second failing assertion, a moved fixture, or a name that already carried a stamp all fail
+     one of these and refuse exactly as before. */
+  const { exempt, named } = bootstrapExempt(failLines, firstStamp);
+  if (exempt) {
+    /* LOUD, because an exemption invisible in the log is indistinguishable from a gate that did not
+       run. The operator must be able to see what was excused and why, without reading this file. */
+    console.log(
+      paint('\n▸ BOOTSTRAP EXEMPTION APPLIED — §3.1 named exactly ' + named.length + ' first-generation fixture(s) this run stamps;', C.yellow) +
+        paint('\n  every other assertion in the suite is GREEN. Excused: ' + named.join(', '), C.yellow) +
+        paint('\n  (a first stamp cannot exist before the stamp — the exemption is derived from the ledger, never claimed by a flag.)', C.dim)
+    );
+  } else {
+    console.error(paint('✕ the suite is RED — stamping NOTHING.', C.red));
+    for (const l of failLines.slice(0, 8)) console.error('  ' + l.trim());
+    if (failLines.length > 8) console.error(paint('  … and ' + (failLines.length - 8) + ' more (all were read; only the first 8 are shown)', C.dim));
+    console.error(
+      '\n  A fixture that does not reproduce is a live stale-fixture finding, not a stamping problem:\n' +
+        '  regenerate it (tools/regen-<node>-goldens.mjs) and re-run this. Partial credit is how false claims are born.'
+    );
+    process.exit(1);
+  }
 }
 
 // 3 · green ⇒ every leg reproduced its fixture under this exact code ⇒ record it.
