@@ -1241,3 +1241,82 @@ def test_pressure_bus_unit_matches_the_edf_pressure_unit():
     edf_press_unit = next(dim for name, dim, *_ in cpap_edf._BRP_SPECS if name.startswith("Press")).strip()
     assert edf_press_unit == "cmH2O"
     assert _ascii(CS.BRP_CHANNELS["MaskPressure"][2]) == edf_press_unit
+
+
+async def _idle_pump_sinks(bus, write, recv_frame, pk, cid, *, channels=None, should_stop=None,
+                           extra_sinks=None):
+    """`_idle_pump`, but accepting the `extra_sinks` kwarg the controller passes when a sink factory
+    is configured — the tests below configure real sinks, so the plain idle pump rejects the call."""
+    while should_stop is None or not should_stop.is_set():
+        await asyncio.sleep(0.005)
+    return 0
+
+
+# ── last_sink_paths against the REAL sinks (the seam every prior test stubbed) ───────────────────────
+# The eager-start bar says a discarded false start leaves no orphan. Its only test drove
+# `_cpap_autostart_loop` with `get_last_paths=lambda: ["/x/raw.jsonl", "/x/night.edf"]` — literal
+# strings — so it pinned the loop's bookkeeping and never once asked the controller what it would
+# actually return. What it actually returned was `[None]`: `RawRecordSink` names its file `_path` and
+# was filtered out by a `hasattr(s, "path")` test, and `EdfSink.path` is None until its first dated
+# batch, which had not happened when the old code snapshotted. `unlink(None)` then raised TypeError —
+# not FileNotFoundError, not OSError — and killed the auto-start task for the rest of the night.
+def test_last_sink_paths_names_the_raw_record_which_hasattr_path_silently_dropped(tmp_path):
+    """The authoritative INV9 artifact must be in the discard list. It publishes `_path`, not `path`."""
+    import cpap_record
+    raw = str(tmp_path / "night.jsonl")
+
+    async def go():
+        c = CS.LiveStreamController(
+            _ControllerBus(), _connector()[0], _creds, _idle_devices, pump=_idle_pump_sinks,
+            raw_record_factory=lambda: cpap_record.RawRecordSink(
+                raw, device_id="AS11", session_id="s1", provenance={}))
+        await c.op("start")
+        await asyncio.sleep(0.01)
+        got = c.last_sink_paths
+        await c.op("stop")
+        return got
+
+    assert _run(go()) == [raw], "the raw record must be named for discard, not silently kept"
+
+
+def test_last_sink_paths_never_yields_a_None_for_an_edf_that_has_no_name_yet(tmp_path):
+    """An EDF sink that has taken no dated batch has no filename. The honest answer is 'nothing to
+    delete', never `[None]` — a None reaches unlink() as a TypeError that no caller catches."""
+    import cpap_edf_writer
+
+    async def go():
+        c = CS.LiveStreamController(
+            _ControllerBus(), _connector()[0], _creds, _idle_devices, pump=_idle_pump_sinks,
+            edf_sink_factory=lambda: cpap_edf_writer.EdfSink(str(tmp_path), "TESTSERIAL"))
+        await c.op("start")
+        await asyncio.sleep(0.01)
+        got = c.last_sink_paths
+        await c.op("stop")
+        return got
+
+    got = _run(go())
+    assert None not in got, f"a None path would crash the discard loop, got {got!r}"
+    assert got == [], "an unopened EDF contributes no path at all"
+
+
+def test_last_sink_paths_is_resolved_when_asked_not_snapshotted_at_start(tmp_path):
+    """The property must answer with what is true NOW. The old code answered at _start, before the
+    pump could give the EDF a name, and froze that wrong answer for the session."""
+    import cpap_edf_writer
+    sink = cpap_edf_writer.EdfSink(str(tmp_path), "TESTSERIAL")
+
+    async def go():
+        c = CS.LiveStreamController(
+            _ControllerBus(), _connector()[0], _creds, _idle_devices, pump=_idle_pump_sinks,
+            edf_sink_factory=lambda: sink)
+        await c.op("start")
+        await asyncio.sleep(0.01)
+        before = c.last_sink_paths
+        sink._final = str(tmp_path / "20260902_230000_BRP.edf")   # what the first dated batch does
+        after = c.last_sink_paths
+        await c.op("stop")
+        return before, after
+
+    before, after = _run(go())
+    assert before == [], "no name yet ⇒ nothing to discard"
+    assert after == [str(tmp_path / "20260902_230000_BRP.edf")], "a later name must be seen"

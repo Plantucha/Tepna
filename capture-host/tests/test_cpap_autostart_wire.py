@@ -188,7 +188,13 @@ def test_a_FALSE_START_is_discarded_journalled_and_costs_an_attempt(tmp_path):
                   running_seq=[False, True, False, False],
                   paths=["/x/raw.jsonl", "/x/night.edf"], unlinked=gone)
     assert calls == ["start"]
-    assert gone == ["/x/raw.jsonl", "/x/night.edf"], "the fragment must leave no orphan"
+    # Both artifacts, and the acquisition-evidence sidecar that rides beside each. The sidecar is
+    # written for a false start too and is not a sink, so nothing else can name it: unnamed, it is an
+    # orphan describing an acquisition that was deleted. The real `unlink` raises FileNotFoundError
+    # for a sidecar that was never written and the caller swallows it; this fake records the attempt,
+    # which is what lets the test see that the attempt is made at all.
+    assert gone == ["/x/raw.jsonl", "/x/raw.jsonl.meta.json",
+                    "/x/night.edf", "/x/night.edf.meta.json"], "the fragment must leave no orphan"
     rec = json.loads(open(capture._cpap_autostart_path(str(tmp_path))).read())
     assert rec["attempts"] == 1 and rec["last_error"].startswith("false start:")
 
@@ -385,3 +391,31 @@ def test_a_CORRUPT_record_falls_back_to_never_started_rather_than_raising(tmp_pa
     for bad in ("{oops", "[1,2]", '{"attempts": "x"}'):
         open(p, "w").write(bad)
         assert capture._cpap_stream_watch_row({}, str(tmp_path), "2026-08-29")["state"] == W.NEVER_STARTED
+
+
+def test_a_falsy_path_is_skipped_and_cannot_kill_the_loop(tmp_path):
+    """The defence that makes the 2026-09-02 crash unrepeatable.
+
+    `unlink(None)` raises TypeError — neither FileNotFoundError nor OSError — so before the fix it
+    escaped the discard loop's guard and killed `_cpap_autostart_loop` for the rest of the night, with
+    no journal line and no attempt recorded. The producer no longer emits a falsy path; this pins that
+    a future sink which does cannot resurrect the outage, and that the REAL fragment beside it is
+    still discarded rather than being lost with the crash."""
+    _in_therapy(tmp_path)
+    gone = []
+
+    def _strict_unlink(p):
+        # The real os.unlink's behaviour on the value that caused the outage. A test that quietly
+        # accepted None here would pin nothing.
+        if not isinstance(p, str):
+            raise TypeError(f"unlink() argument must be str, not {type(p).__name__}")
+        gone.append(p)
+
+    calls = _loop(tmp_path, [True, True, True, False, False, False], [{"ok": True}],
+                  running_seq=[False, True, False, False],
+                  paths=[None, "/x/real.edf"], unlink_fn=_strict_unlink)
+    assert calls == ["start"], "the loop survived the falsy path and completed its session"
+    assert gone == ["/x/real.edf", "/x/real.edf.meta.json"], \
+        "the real fragment is still discarded; the falsy one is skipped, never passed to unlink"
+    rec = json.loads(open(capture._cpap_autostart_path(str(tmp_path))).read())
+    assert rec["attempts"] == 1, "the attempt is still recorded — the loop did not die mid-judgement"
