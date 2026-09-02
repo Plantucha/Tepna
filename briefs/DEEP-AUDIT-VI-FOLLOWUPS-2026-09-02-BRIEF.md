@@ -22,16 +22,58 @@ nothing, found only because someone tried to make a fix land.
 
 | # | under | what stays open | lane |
 |---|---|---|---|
-| 1.1 | **F1** | The sibling **`_ACC.txt` clock step** (MotionDex / PMDARRIVAL inheritance) — F1's repro verified the ns step IS present in the ACC file of the same night; the ECG fix bounds the ECG gap walk by the phone-column delta, but the ACC consumer's consequence was **never executed**, and nothing bounds that stream. First step is to run it, not to port the fix. | Magpie (JS) |
+| 1.1 | **F1** | The sibling **`_ACC.txt` clock step** (MotionDex / PMDARRIVAL inheritance) — F1's repro verified the ns step IS present in the ACC file of the same night; the ECG fix bounds the ECG gap walk by the phone-column delta, but the ACC consumer's consequence was **never executed**, and nothing bounds that stream. First step is to run it, not to port the fix. **✅ RAN IT, then fixed it — 2026-09-02 (Magpie).** The consequence, executed on the real 2026-08-27 ACC file: `relSecOf` PREFERS the device counter, so MotionDex published `recording.durSec` **241,589,697 — 7.66 years for a 50-minute recording** — declaring a window ending **2034-04-22**, the window the Integrator's gap-aware overlap tests against. It does NOT crash (1.9 s, plausible-looking summary), which is why nothing caught it. **Census, 1278 ACC files:** 137 files' worst step is a real DROPOUT (device delta ≈ phone delta — the counter is right about those, left untouched) and exactly **3 are resyncs** — the same three nights F1 found on the ECG side; 0 seams unparseable. Fixed with F1's discriminator, deliberately identical. The new segment anchors on the seam row's **host offset** rather than by subtracting the step, per §7's ONE DEVICE CLOCK PER AXIS (#2075): the pre-seam residual walks 1.449 s over 10.6 s (136,064 ppm — the ACC sibling of F1's +1508 ms/9.5 s on the same night's ECG), so subtracting alone would carry that error across all 148,860 rows instead of the 469 pre-seam ones. After: durSec 3,019 s; post-seam drift **−18/−21/−16 ppm** across the three nights (one consistent H10 crystal, median-of-decile — an endpoint-only read gives 2081 ppm because the last row is a BLE batch-jitter outlier). 16 assertions incl. a real-dropout control, a clean-stream byte-stability leg, and a blind-seam leg that **caught a bug in my own first fix** (the unparseable-stamp fallback re-admitted the step). | Magpie (JS) |
 | 1.2 | **F1** | **Capture-side hardening**: rotate the file set on a `clock_watchdog` step so a resynced night lands as two fragments instead of one poisoned file. Specified as a SEPARATE unit in F1's stamp; not built. | Heron |
-| 1.3 | **F1** | **ONE DEVICE CLOCK PER AXIS** — the refold, not the audit, found that pre-resync anchors carry a *different oscillator state* (08-27: +1508 ms over 9.5 s ≈ 160,000 ppm) and `hostAxis` quoted it into `fs`. Fixed for ECGDex (`anchorsDroppedPreResync`, `clockResyncs[].hostOffsetMs`); **the principle is not yet stated in the Clock Contract §7** — an axis must be built from anchors of ONE clock state, and a resync boundary is a state change. Add the paragraph; then check PpgDex's `hostAxis` call site for the same pre-resync exposure. **§7 paragraph BUILT 2026-09-02 (Kestrel)** — the contract now names the split, the ECGDex fields, and the rule that a node which detects no steps has not shown it has none. **PpgDex check OPEN**: `ppgdex-dsp.js` has NO step detection at all (`grep -i resync` → 0), so the question is first whether `_PPG.txt` ever carries a counter step on a resynced night, then the split. | Kestrel (CLAUDE.md §7 — DONE) → Magpie (PpgDex check) |
+| 1.3 | **F1** | **ONE DEVICE CLOCK PER AXIS** — the refold, not the audit, found that pre-resync anchors carry a *different oscillator state* (08-27: +1508 ms over 9.5 s ≈ 160,000 ppm) and `hostAxis` quoted it into `fs`. Fixed for ECGDex (`anchorsDroppedPreResync`, `clockResyncs[].hostOffsetMs`); **the principle is not yet stated in the Clock Contract §7** — an axis must be built from anchors of ONE clock state, and a resync boundary is a state change. Add the paragraph; then check PpgDex's `hostAxis` call site for the same pre-resync exposure. **§7 paragraph BUILT 2026-09-02 (Kestrel)** — the contract now names the split, the ECGDex fields, and the rule that a node which detects no steps has not shown it has none. **PpgDex check OPEN**: `ppgdex-dsp.js` has NO step detection at all (`grep -i resync` → 0), so the question is first whether `_PPG.txt` ever carries a counter step on a resynced night, then the split. **✅ CHECKED — the split is NOT owed, measured 2026-09-02 (Magpie).** Answering §7's own rule that *a node which detects no steps has not shown it has none*: **0 of 3674 corpus `_PPG.txt` files carry a resync** (84 real dropouts, 402 without an ns column). The resync is H10 FIRMWARE behaviour — the 2019-01-01 epoch adopting real time — and the PPG stream is the Verity's, so there is no night the fix would change. **The exposure is real but unreached, and the existing guard is narrower than it looks:** planted with the true step magnitude, `hostAxis` REFUSES (±50,000 ppm) so `fs` is never corrected by a fabricated rate — that guard works — but the refusal protects the RATE and **not the AXIS**: `relSec` still spans 2.416e8 s, and every duration, epoch grid and export window downstream is built from it. The same distinction §7 draws between quoting `.ppm` and consuming `correctionAt()`, one level up: **a refusal on one quantity is not protection of another.** Recorded as a 6-assertion TRIPWIRE group rather than a prose caveat — if a firmware change or a new capture path ever produces a stepped `_PPG.txt`, the exposure leg starts failing and the split becomes owed. | Kestrel (CLAUDE.md §7 — DONE) → Magpie (PpgDex check — DONE) |
 | 1.4 | **F2** | Both lanes now resolve `t0Ms` by Clock Contract §4 "first VALID sample". **If a real night ever shows the old app rule ("first non-empty, null if unparseable") choosing a different row, quote the row here** — do not regenerate on the assumption. **Not checked by any sweep**: F2's six-file parser-parity run (2 committed twins + the equiv clip + the three resync nights) asserts that the two PARSERS agree, not that the two ANCHOR RULES pick the same row, and the old rule no longer exists in either lane to run. A watch item with no supporting measurement behind it. | any, on sighting |
 | 1.5 | **F4** | ~~`edrResp`'s own `emerging` grade was NOT adjudicated~~ — **ADJUDICATED 2026-09-02 (Osprey): re-tiered emerging → `experimental`.** The brief's premise that *"it needs a reference the corpus lacks"* was **stale**: 33 nights carry both a raw `_ECG.txt` and a CPAP `*BRP.edf`, and **24 pass a pre-registered overlap rule** (≥4 h AND ≥60 % of the shorter recording); 24 paired, 2 excluded as fallback-15, **n = 22**. Bands frozen before the run. Reference: the device's own mask-on **`RespRate.2s`** — *not* `detectBreaths().breathRate`, which was **rejected on a pre-registered structural criterion** (it divides breaths by WALL duration while every sibling ventilation metric in that block is `_filterBy(..., maskOn)`, so it is diluted by mask-off time — see 1.9). Result: **MAE 1.90** br/min (bar ≤1.5) · bias −1.01 · **LoA [−5.80, +3.78], width 9.58** (bar ≤6) — both fail. ⚠️ **`r` is not cited**: the reference's between-night SD is 0.54 br/min (range 14.8–16.8), so a correlation is range-restricted by construction. 🔴 **The decisive control:** a CONSTANT **15.0** br/min — the metric's own hardcoded fallback — scores **MAE 0.80** on the same nights, and a constant 15.8 scores 0.42. The estimator is beaten by the constant it falls back to, carries ~5× the reference's spread (2.50 vs 0.54) and misses to 7.4 and 20.0 against a truth that never leaves 14.8–16.8. **Not adjudicated by this and still `emerging`: the SIBLING `respRate` (registry line 54)** — a different estimator (per-epoch median, not whole-record autocorrelation) that the Reference guide's 'Resp Rate' card actually maps to. Do not read this re-tier onto it. | Osprey — **DONE** |
 | 1.6 | **F8** | CPAPDex **`therapyHours` = wall duration** feeds the usage KPI and `compliancePct` in the night summary, where mask-on usage is the clinically meant quantity (the F8 fix corrected `usageHours`; `therapyHours` still reads the session span). Measure the gap on the real corpus before deciding whether it is a relabel or a recompute. **MEASURED 2026-09-02 (Kestrel) — gap is ZERO on the whole real corpus; no relabel and no recompute owed.** `tools/cpap-corpus.mjs` over `Ecg nightly/CPAP` (189 nights, 236 sessions, 2026-01-11 → 07-21, all PLD-sourced): `therapyHours` ≡ Σ session `durMin`/60 on 189/189 nights, and `durMin/60 − usageHours` is ≤ 0.0003 h (one sample of rounding) on **236/236 sessions** — max night gap 0.00 h, Σ 1293.8 h both ways, `compliancePct` 98.9 % by either denominator, **zero ≥4 h verdict flips**. Mechanism: a ResMed EDF session record set is opened at mask-on and closed at mask-off (the DSP's own model — "a session is one mask-on file-set"), so the record's wall span IS its mask-on span; the two quantities coincide by the vendor's segmentation, not by luck. The exposure survives only for a writer whose record continues through mask-off time — no such vendor is parsed today. If one is ever added, `buildNight` should prefer Σ `usageHours` over Σ `durMin/60` (the synthetic `prepare→buildSession` route already does, `durMin = usageHours × 60`); do not make that change on this corpus, where it is export-inert by construction and can only move fixtures through 2-vs-3-decimal rounding. | Kestrel — MEASURED, closed |
-| 1.7 | **contested** | `capture-host/status_union.py:77` heartbeat-across-DST — still the disposition the audit gave: **drive `_now()` through a real faked-tz transition with a writer open**; only then confirm and pick among the three fixes. Not touched this pass. | Heron |
+| 1.7 | **contested** | `capture-host/status_union.py:77` heartbeat-across-DST — **CONFIRMED and FIXED 2026-09-02** (Heron, PR #2077; see §1.7a below for the measurement, including the one correction it forces on the audit's own description). | Heron |
 | 1.8 | **F3 / F10** | The PpgDex `cvhrFromNN` port (#2073) changes the **denominator** only. The OxyDex §2.6 group's standing note *"PPGDEX cvhrFromNN IS DELIBERATELY NOT PART OF THIS FIX"* governs **nulling `index: 0`** (the refusal marker two goldens pin byte-for-byte) and is UNCHANGED: 0 still means what it meant. Recorded so a third session does not read the port as a violation of that note, or the note as a bar on the port. | — (record only) |
 | 1.9 | **new (from 1.5)** | **`cpapdex-dsp.js detectBreaths().breathRate` divides by WALL duration** (`durSec = recordsRead × recDur`) while every sibling ventilation figure computed beside it (`rrMaskOn`, `tvMaskOn`, `mvMaskOn`, `snMaskOn`, `flMaskOn`) is mask-on filtered. A surfaced breaths/min is therefore **diluted by mask-off time**, per night, by a varying factor — the same shape as 1.6's `therapyHours`. Found by trying to USE it as a reference and rejecting it; **not fixed inside the grading unit** on purpose. Mask-on fraction was 1.000 on all 24 nights measured, so the corpus does not yet show the error's size — that is coverage, not absolution. | unassigned |
 | 1.10 | **new (from 1.5)** | **`respFromEDR` substitutes a hardcoded `15` when `_autocorrPeriod` returns null** (`ecgdex-dsp.js:1788`, after a `respHint` fallback), and the surfaced value carries no marker distinguishing a measurement from the constant. 2 of 24 nights measured returned exactly 15.0. §1.5 had to detect them by value equality, which cannot separate a genuine 15.0 from the fallback — the refusal-vs-fabrication line this suite draws everywhere else (`#2044`, `#2052`). Either surface a flag or refuse. | unassigned |
+
+---
+
+### 1.7a · The contested DST heartbeat, driven rather than emulated — CONFIRMED, with one correction
+
+The disposition asked for `_now()` to be driven through a real faked-tz transition with a writer open.
+Done (`tests/test_status_union_dst_heartbeat.py`): only the clock SOURCE is faked (`datetime.now`,
+`monotonic`); the zone is a real tz-database zone, the offsets come from real `astimezone()`, the
+naive→epoch conversion is real `datetime.timestamp()`, and `_now()` reaches its absorb branch by its own
+arithmetic. The dissent was right that the earlier repro set the anchors; it does not survive driving.
+
+`instance_health` of a heartbeat stamped from `_now()`, recording open across the transition:
+
+| minutes past | spring-forward, healthy | spring-forward, wedged 30 min | fall-back, healthy | fall-back, wedged 30 min |
+|---|---|---|---|---|
+| 1 | live 0 | stale 1800000 | live 0 | **live 0** |
+| 30 | live 0 | stale 1800000 | live 0 | **live 0** |
+| 61 | **stale 3600000** | stale 1800000 | live 0 | **live 0** |
+| 120 | **stale 3600000** | stale 5400000 | live 0 | **live 0** |
+| 300 | **stale 3600000** | stale 5400000 | live 0 | **live 0** |
+
+- **Fall-back is the dangerous leg and is fully confirmed.** A daemon wedged for 30 minutes reads
+  `live, age_ms 0` at every age out to 5 h: the heartbeat sits an hour in the FUTURE and `max(0, …)`
+  clamps the age. That is exactly the up-but-wedged failure the layer exists to catch, and it is
+  invisible for the whole session.
+- **Spring-forward is confirmed but the audit's onset is wrong.** It says a live instance reads stale
+  "for the rest of the recording". Measured: correct for the first ~60 minutes, stale only from ~61 min
+  on. The absorbed stamp is inside the NONEXISTENT hour until then, and Python resolves a gap time
+  through the pre-transition offset — which is precisely the frame absorption preserved, so it
+  round-trips to the right instant by coincidence. A false alarm all night (`degraded` true for a
+  healthy box), starting an hour later than stated.
+- **Fix taken: option 1 of the three — stamp the heartbeat from real `time.time()`**, via a named
+  `capture.heartbeat_ms()` seam. `updated` keeps the capture frame on purpose; it belongs to the
+  recording's timeline. Liveness does not: it is a question about real elapsed time and must be read on
+  the clock the reader ages with. Correcting by `absorbed_shift_sec()` reaches the same number through
+  two parts that must stay in step; publishing the shift spreads the correction across every consumer.
+- **Why the existing clock tests could not have caught this:** the `clock` fixture in
+  `test_capture_clock_and_health.py` stubs `capture._utcoffset`, so no real offset conversion happens —
+  and the entire defect lives in how a naive stamp in one offset frame converts to an epoch under
+  another. The seam exists so the test calls the production stamp instead of mirroring the formula: a
+  mirror agrees with the code whichever clock the code reads. Verified by restoring only the old clock
+  choice behind the same seam — the three verdict tests fail, the absorb-branch guard still passes.
 
 ---
 
@@ -133,6 +175,94 @@ guide: an undeclared unregistered card is counted, a bad `data-id` is a red, a s
   absolute-LEVEL bins (`above91 … below85`). Partial compound registration: ODI-2/ODI-1, T94…T80, kurtosis,
   HD90/HD88 and SD2 have no entry (their cards are gated by the sibling that does).
 
+**OxyDex DISCHARGED 2026-09-02 (Magpie) — and the sweep found the debt was not the defect.**
+All 35 OxyDex cards are registered, graded from the CODE by one rule stated in the registry block:
+`measured` = a direct readout of sensed values, no tuned threshold and no model · `heuristic` = a tuned
+or rule-of-thumb threshold decides the number · `experimental` = a bespoke composite, or an established
+method transferred to a signal it was not validated on (the `dfaAlpha1` precedent — name the transfer
+rather than inherit the method's standing). Result: 23 grades agree with the guide, **4 the guide
+OVERSTATED** and are corrected (`SpO₂ Ceiling` and `Stable SpO₂ Windows` claimed `measured` for threshold
+counts; `SpO₂–HR Decoupling %` and `SpO₂–HR Lag` claimed it for a constructed statistic and an estimate —
+`measured` means DIRECTLY SENSED), and **8 where the rule would RAISE the badge are left alone**
+(MODL, HR Nadir Timing, Circadian HR Amplitude, LF/HF Power, O₂-HR Efficiency, RMSSD Arc, SPI, Vagal
+Index). That asymmetry is deliberate: a grade that understates trust is not a false claim, while
+upgrading one on a rule its author wrote that afternoon is the fabricated authority the mandate exists to
+prevent. Those 8 are listed here so a later pass can decide them deliberately rather than inheriting my
+restraint as a verdict.
+
+⚠️ **THE REGISTRATION WAS THE SMALL HALF. Registering a metric puts a registry-backed badge on its
+card, so the card's text was verified first — and it does not hold up: 13 of the 35 cards make a
+checkable numeric claim, 13 were verified against the code, and 5 were WRONG.**
+
+| card | the card claimed | the code does |
+|---|---|---|
+| Longest Clean Run | "motion = 0, SpO₂ in 70–100 %, no HR artifact flags" | `spo2[i] > 95` alone — none of the three conditions exist |
+| IEI | `IEI_i = nadirTime_i − nadirTime_{i−1}` | `start_i − (start_{i−1} + duration_{i−1})` — the QUIET gap between events, not a nadir-to-nadir cycle |
+| SpO₂–HR Lag | `argmax` over `lag ∈ [0..90 s]` | searches `lag <= 120` and reports the MEDIAN of per-window argmaxes |
+| Motion Bursts | runs "separated by ≥30 s of quiet" | a run ends at the first quiet sample; counted if `burstLen >= 3` |
+| SpO₂ Ceiling | "exactly 100 % for ≥30 consecutive" | `spo2 >= 99`, `run >= 5` |
+
+All five corrected DOC→CODE (the code shipped, is fixture-backed, and produced every number a user has
+seen). Eight were correct as written — including the two most intricate, CS Score and UARS Score, whose
+four-criterion `.ft` lists match the code exactly — so this is specific drift, not uniform decay. The four
+registry-side leads are corrected in the same pass with their code lines: `dfaAlpha1` (cite said PULSE
+rate; `computeDFA` maps `r.spo2`), `ahiEst` (label AND cite said CVHR; the value is `odi4Rate × 1.1`),
+`ssiIdx` (cite said sleep-stability; `computeSympSurge` and the DSP's own row say 'Symp Surge'), and the
+`nadirBin*` family (labels and cites said DEPTH; oxydex-dsp.js:4524 bins on absolute LEVEL — a
+half-finished fix, since the code comment records being corrected to level while the labels never
+followed). The nadir labels are corrected at the render and CSV sites too, with both spellings aliased so
+no surface loses its badge; registry **ids are unchanged**, so no export identity moves.
+
+#### 8 tiers deliberately held BELOW the code rule; decision pending
+Each row's grade would RISE under the rule stated in the registry block. None was taken: understating
+trust is never fabricated authority, and raising a badge on a rule written the same afternoon is exactly
+what the mandate forbids. Listed so the decision is made deliberately, per row, by someone other than the
+author of the rule. Raises belong in a follow-on OxyDex PR (bundle change, one verify lap), not here.
+
+| card | tier now | code rule gives | the code fact behind that |
+|---|---|---|---|
+| MODL | heuristic | measured | `oxydex-dsp.js:1107` — mean of sensed SpO₂ over the detected event set; no threshold of its own |
+| HR Nadir Timing | heuristic | measured | `computeHRNadirTime` (called at `:2891`) — the hour of the lowest 5-min smoothed HR, a readout |
+| Circadian HR Amplitude / Nadir Hour | heuristic | experimental | `:2146` — a least-squares cosine (cosinor) FIT, a model rather than a rule of thumb |
+| LF / HF Power | heuristic | experimental | `:4934` — Task-Force HRV bands (0.04–0.15, 0.15–0.40 Hz) on oximeter PULSE rate, an unvalidated transfer |
+| O₂-HR Efficiency | heuristic | experimental | `computeO2HREfficiency` (`:2886`) — a bespoke per-event HR-rise / SpO₂-drop ratio |
+| RMSSD Arc | heuristic | experimental | `computeRMSSDarc` (`:2893`) — OLS slope of 30-min windowed RMSSD, a bespoke trend |
+| Sleep Pressure Index (SPI) | heuristic | experimental | `:2283` — `waso·0.4 + bursts·0.15 + sol·0.25`, a composite with authored weights |
+| Vagal Index | heuristic | experimental | `:2250` — `pNN3 / max(hrFloor,1) × ln(1+cleanRun)`, a bespoke non-linear composite |
+
+*(Vagal Index's card was examined and left alone on a separate point: its `.md` opens "Weighted
+composite", which is loose for a product with a log term — but its `.ft` states the exact formula and the
+`.md` goes on to name the multiplicative form. The checkable claim is correct, so it is not counted among
+the 5 corrections. Recorded because the looser phrase is the kind of thing a future sweep will re-flag.)*
+
+### 2.5b LEAD — nothing compares a card's DESCRIPTION against the code it describes
+`cohesion-badges` gates the tier, `registry-defs-parity` the crossnight projection, `citation-ledger` the
+DOI attribution. The sentence that tells a user what a number MEANS is ungated across all eight guides.
+Hand rate on the one node swept: **5 of 13 checkable numeric claims wrong**, plus 4 registry-side
+descriptions, none of which any gate could see. Candidate mechanism: a checkable-claim extractor —
+thresholds, windows and units stated in a card's `.ft`/`.md` versus the constants in the node's DSP — which
+would have caught all five. ⚠️ **It would also have a blind spot worth designing around from the start:**
+the 5 were found by keying on NUMERALS, and a claim can be structural without one — "weighted composite",
+"median", "consecutive", "uninterrupted". Vagal Index was checked by hand for exactly that reason and came
+back clean; `Longest Clean Run`'s defect was structural too ("motion = 0 … no artifact flags") and only
+surfaced because the word "clean" invited a look. A numeral-keyed extractor finds the cheap half. Not built here. The other 7 nodes are unswept.
+
+### 2.5c LEAD — `goodDirection` is not compared against anything
+Two inversions found by hand in OxyDex, both corrected here: `ssiIdx` was `'up'` while the DSP scores
+`<0.3` as severity 0, and `nadirBinLt4` was `'up'` while the render treats fewer as better. Nothing
+compares a registry entry's direction against the DSP's severity ordering or the render's colouring, so an
+inverted direction inverts the READING of a number with every gate green. 2 found in one node; 7 nodes
+unswept. Distinct from 2.5b: that one is about what a number means, this one about which way is good.
+
+### 2.5d Write the §2.6 case as a TEST, not a comment — it caught a bug in the fix itself
+FOLLOWUPS §1.1's MotionDex fix (#2080) re-anchors a stepped device counter. The §2.6 branch — an
+over-24 h step whose seam stamps do NOT parse — was handled in code and described in a comment. Written
+as a test leg instead, it immediately failed: the unparseable-stamp fallback re-anchored to the STEPPED
+counter and published a 241,586,834 s span, while every other leg in the group was green. The §2.6
+branches ("a duration nothing measured stays unmeasured") are exactly the ones a happy-path fixture never
+enters, so a comment describing one is a claim nothing checks. **Rule: when a fix has a
+refuse/unmeasured branch, that branch owes a test leg, not a sentence.** Same family as 2.1.
+
 ### 2.6 The dormant-surface alias matcher: an alias shorter than a word is not a surface token
 MotionDex `uprightFrac`'s bare alias `upright` matched a posture ENUM value in `POS_ORDER` — a false
 positive. Matcher (#2072) now admits the label always, an alias only if multi-word or ≥ 8 chars; negative
@@ -145,6 +275,16 @@ gap-geometry test — the intuitive "gaps subtract" model produces assertions th
 ---
 
 ## 3 · Tooling and process residue
+
+**Endpoint-to-endpoint drift lied by 100× against a median-of-decile (2026-09-02, #2080).** Checking
+whether the MotionDex re-anchor worked, the natural measure — host−device residual at the first row vs the
+last — read **2081 ppm** on 2026-08-27 and suggested the fix had not held. The jitter-robust
+median-of-first/last-decile reads **−18 ppm**, an ordinary H10 crystal, and the three nights agree
+(−18/−21/−16). The endpoint figure was one BLE batch-delivery outlier at the final row, which is also the
+whole of an apparent 7.6 s span discrepancy. Clock Contract §7 already warns that two points cannot
+separate a step from a rate for `hostAxis`; the same trap sits one layer out, in the check you write to
+prove your own fix worked, and first-vs-last is the natural way to write it. Prefer a median of deciles
+whenever a residual is compared across a recording.
 
 ### 3.1 `rebase-safe` "THIS REBASE DISCHARGED N VERIFICATION(S)" over-reports by design
 Seen on F11, F12, F13 (Kestrel) and F2 (Magpie): it reports every stamp that reverted to the base's, not
@@ -170,6 +310,31 @@ passed in F2's identical chain 20 min earlier, F4 touched no tool. `selftest-all
 chain-time run was re-embedding. CLAUDE.md says no gate may read doc-search output, yet `selftest-all` runs its
 selftest, so the coupling exists on the primary box and CI never sees it. **Fix candidates:** serialise the two
 behind a lock, or give the qwen selftest a read-only snapshot.
+
+### 3.6 A `<node>-registry.js` edit is a COMPUTE-PATH change, and a re-tier owes a verify lap
+Editing a registry feels like documentation — it changes a label, a cite, a tier. It is not: every
+`<node>-registry.js` is inlined into its node's bundle and sits inside that node's **compute closure**
+(`manifest-gate.js`'s closure is a DENYLIST, so an unlisted asset is inside it by construction). A
+re-tier therefore moves `computeHash`, and every corpus-backed fixture of that node owes a
+re-verification.
+
+**Measured 2026-09-02:** #2078 re-tiered `edrResp` in `ecgdex-registry.js`, rebuilt, and re-stamped
+`manifestHash` — but `ECGDex_2026-06-27_equiv`'s `verifiedUnder` stayed at `302dead99e51`, the value
+produced by #2080 BEFORE that edit. `origin/main` therefore carried a corpus-backed ECGDex fixture
+verified under pre-#2078 code: the state `tools/release.mjs` refuses to cut a release over, and the one
+CI reports without blocking. Discharged by the §2.5 OxyDex PR, whose `verify-fixtures` run re-earned it
+honestly (302dead99e51 → 65e8a013d842) and which names whose stamp it is rather than absorbing it —
+the `verify-fixtures-discharges-others-debt` shape.
+
+**Nothing malfunctioned — and that is exactly why it is dangerous.** `build.mjs` re-stamped the hash it
+can compute and is FORBIDDEN to write `verifiedUnder`, because that one requires actually running the app
+(§🔏 — auto-writing it is how a stale fixture shipped once already). So after a registry edit the fixture
+**LOOKS verified**: GATE A and GATE B are static, they re-reconcile against the freshly-written
+`manifestHash`, and both go green over a compute path that has moved underneath them. A static green
+across a moved compute path is SILENCE, not evidence — the one signal that would have spoken,
+`verifiedUnder`, is precisely the one no builder is allowed to forge. The gap was the author's model of the file, not the tooling: "docs-only"
+is a property of a diff's INTENT, never of a file's position in the closure. **Rule of thumb: if the
+file is inlined into a bundle, the PR owes `verify-fixtures`, whatever the change reads like.**
 
 ### 3.5 Kill only what you own; a pattern is not a name (Osprey / Kestrel, 2026-08-31 → 09-01)
 A pattern kill hit a PEER's gate unit; a clearing sweep globbed `*check*.log` while the evidence sat in
@@ -197,8 +362,39 @@ touched them:
 
 ## 5 · Leads not assigned (cheap first probes)
 
-- **15 of 48 box nights have NO ECG/PPG beat-train overlap** (Osprey, from #2052's un-blinding; formerly
-  hidden as "too few beats"). A capture-session fact, not a DSP one. First probe: a per-night span table from
-  the raw files. Heron-lane candidate.
+- ~~**15 of 48 box nights have NO ECG/PPG beat-train overlap** — a capture-session fact, not a DSP one~~
+  🔴 **REFUTED AND FIXED 2026-09-02. The lead was mine and it was wrong: it was my own tool.** Heron's probe
+  inverted it (46 of 48 nights carry both streams and every one of the 15 has hours of real wall-clock
+  overlap), and the cause was `pat-window-oracle.mjs pick()` selecting the LARGEST `_ECG.txt` and the LARGEST
+  Verity `_PPG.txt` in two INDEPENDENT size-sorts — so on a fragmented night the two winners come from
+  different hours. #2052 made those refusals *visible* and I then attributed them to the capture without
+  checking whether my own file selection could manufacture them: a tool artifact reported as a data verdict,
+  which is the class #2044/#2052 exist to prevent, committed one layer up. Verified independently before
+  building (largest-pair / best-pair / night-level, my numbers ≡ Heron's on 4 spot-checked nights: 08-28
+  0.00/6.31/23.75 h · 08-20 0.00/0.04/19.40 · 08-16 0.00/6.02/6.08 · 07-29 0.00/0.54/3.11).
+  **Fixed by pairing fragments on temporal OVERLAP** (spans from an 8 KB read at each end, never a parse;
+  largest-of-each remains the default so single-fragment nights are byte-identical). Measured on the 48-night
+  tree: bare "no overlap" refusals **15 → 0**, 14 nights newly score, 27 of 29 previously-scoring nights
+  unchanged, and the 2 that changed did so on strictly greater overlap (07-31 0.65→0.87 h, n 1029→1245,
+  narrowSD 38.1→29.0; 08-18 0.86→1.54 h, n 315→1982, mode 355→815 ms ⇒ artifact refusal — ECG side
+  unchanged, a PPG fragment swap, and NOT a clock-step artifact: 3,461,952 samples scanned, zero
+  sensor-counter steps >2000 ms, max phone-stamp backward jump 554 ms).
+  ⚠️ **NOT concatenating fragments per stream** (Heron): a concatenated train spans the inter-fragment gaps
+  and a lag computed across a gap is meaningless. Per-pair scoring only.
+  **2026-08-20 still refuses, and legitimately** — its trains are genuinely disjoint (R 04:28–04:34 vs feet
+  04:36–05:00, disjoint by 2 min; the other PPG fragment holds 2 feet). A ruling to re-word this as a
+  beat-count failure was declined: 0.04 h was FILE-span, not train-span, and printing it would have stated an
+  overlap the trains do not have. The refusal now carries its own extents and gap instead, and the selftest
+  requires them, so the bare phrase cannot return.
+  Sibling defect fixed in the same function: the pick comparator called `readFileSync(b).length` INSIDE the
+  sort — every candidate fully read O(n log n) times to learn a size (237 PPG fragments on 08-16). `statSync`.
+- **§2.4 dormant sweep — EXECUTED 2026-09-02 (Osprey): ZERO false flags.** 23 real `dormant: true` entries
+  (motiondex 2 · ppgdex 21 · ecgdex 0), each checked against its id, label and aliases in that node's
+  app/render/dsp. #1455's two false flags were already corrected by F4; nothing else is silently live.
+  ⚠️ **Extractor caveat, because my first pass reproduced §2.4's own error class:** walking back from each
+  `dormant: true` occurrence to the nearest `ident: {` attributed a flag to `ecgdex lfhf` — a live, surfaced,
+  guide-carded metric — because the match was inside a COMMENT quoting the phrase. Raw grep counts over-read
+  for the same reason (motiondex 4 vs 2 real, ppgdex 22 vs 21). A dormant sweep must be comment-aware; the
+  check that caught it was reconciling the grep count against the extracted id count and chasing the gap.
 - *(Closed while drafting: DEEP-AUDIT-II §12.1's fallen FALSE-POSITIVE row was already re-stamped by #2062 —
   checked in `git show 3411f069`, not assumed.)*

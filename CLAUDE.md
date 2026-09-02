@@ -1200,6 +1200,17 @@ correction**; call `hostAxis` and consume `correctionAt()`.
   unbounded, a −500000 ppm "correction" that doubled `fs` from 130 to 259.9). Out of bounds ⇒ **refuse**.
 - **A refusal returns `{ ok:false, reason, n }` and NO `correctionAt`.** A caller must not be able to
   apply a silent zero: absent a correction the node keeps the device axis and says so.
+  ⚠ **A refusal guards the RATE, not the AXIS.** "Keeps the device axis" is the whole of what a refusal
+  buys: `fs` is never corrected by a fabricated ppm, and NOTHING ELSE is protected. If the device counter
+  carries a step (the `_ECG.txt`/`_ACC.txt` resync of the bullet below), the `relSec` built from it still
+  spans the step — measured 2026-09-02 with the true F1 magnitude planted into a `_PPG.txt`: `hostAxis`
+  refuses at ±50,000 ppm as designed, and `relSec` still spans **2.416e8 s**, so every duration, epoch
+  grid and export window downstream inherits a 7.66-year night while the rate guard reads green. This is
+  the `.ppm`-vs-`correctionAt()` distinction one level up: **a refusal on one quantity is not protection
+  of another.** A node that relies on `hostAxis` refusing to keep a stepped counter out of its outputs
+  has no step guard — the step must be detected and re-anchored on the axis itself (`_clockResyncs`,
+  MotionDex/ECGDex), and a node without step detection owes at least a tripwire that reds the day its
+  stream first carries one (FOLLOWUPS-VI §1.1/§1.3, #2080).
 - **NO span gate here, deliberately** — and this is the one place the sibling tools differ. `hostAxis`
   does not *quote* a rate, it interpolates measured divergence, so its residual is bounded by what it
   observed. Gating on span would refuse the short O2Ring fragments whose real error is ~3 s, i.e. exactly

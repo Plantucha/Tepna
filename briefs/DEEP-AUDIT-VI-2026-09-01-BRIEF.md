@@ -621,6 +621,15 @@ recording is open (`_civil_shift` ±3600 s, capture.py §A1) — but `instance_h
   real (faked-tz) transition with a writer open, then this becomes a confirmed major with the fix being
   either stamping `heartbeat_ms` from `time.time()` directly, correcting by `absorbed_shift_sec()`, or
   publishing the absorbed shift for the union reader.
+- **RESOLVED 2026-09-02 (Heron) — the drive was done and it CONFIRMS, so this is no longer contested.**
+  `tests/test_status_union_dst_heartbeat.py` fakes only the clock source and lets the real zone, real
+  offsets and real `timestamp()` do the rest. Fall-back: a daemon wedged 30 min reads `live, age_ms 0`
+  from +1 min to +5 h — the dangerous leg, exactly as claimed. Spring-forward: confirmed, but NOT "for
+  the rest of the recording" — correct for the first ~60 min, stale only from ~61 min, because the
+  absorbed stamp sits in the nonexistent hour and resolves through the pre-transition offset. Fix taken
+  is the first of the three (real `time.time()`, via a `capture.heartbeat_ms()` seam); `updated` keeps
+  the capture frame deliberately. Full measurement table in
+  `DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md` §1.7a.
 
 ---
 
