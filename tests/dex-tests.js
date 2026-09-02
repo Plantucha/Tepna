@@ -7615,6 +7615,179 @@
       T.ok('…and no cvhrReason', !('cvhrReason' in near));
     });
 
+    /* ════ THE PORT OF F3 — PpgDex counts CVHR per hour OBSERVED, on the SAME basis as ECGDex ════
+       `cvhrFromNN` divided events by `tt[N-1]`, the wall span, so sensor dead time sat in the
+       denominator of a metric the Integrator corroborates against ECGDex's `apnea.cvhrIndex`. The
+       PPG leg carried the larger error of the two: the Verity is the fleet's worst dropout offender
+       (24 recorded segments in one corpus night against the H10's 3), so a night where the strap
+       lost contact deflates the finger index against a chest index that F3 had already fixed — and
+       the corroboration then measures the dropouts rather than the physiology.
+       ⚠️ THIS IS NOT the change the note at the OxyDex §2.6 group forbids. That one is about nulling
+       `index: 0`, the deliberate refusal marker two committed goldens pin; the denominator is a
+       different edit and leaves 0 meaning exactly what it meant. */
+    group('PpgDex cvhrIndex divides by OBSERVED time — the ECGDex F3 port, on one shared basis', 'ppgdex-dsp · cvhr · denominator · DEEP-AUDIT-VI', function (T) {
+      var P = env.PPGDSP;
+      if (!(P && typeof P.cvhrFromNN === 'function')) {
+        T.skip('PPGDSP.cvhrFromNN available', 'not loaded');
+        return;
+      }
+      /* The same planted physiology F3 used on the ECG side: HR 60 bpm with a 30 s-period ±8 bpm
+         oscillation — inside the 20–45 s apnea band, over the 2.6 bpm envelope gate. */
+      function plant(sec, gapAtSec, gapSec) {
+        var nn = [],
+          tt = [],
+          t = 0;
+        while (t < sec) {
+          var rr = 60000 / (60 + 8 * Math.sin((2 * Math.PI * t) / 30));
+          nn.push(rr);
+          tt.push(t);
+          t += rr / 1000;
+          if (gapSec && gapAtSec != null && t >= gapAtSec && t < gapAtSec + gapSec) t = gapAtSec + gapSec;
+        }
+        var active = 0;
+        for (var k = 1; k < tt.length; k++) {
+          var d = tt[k] - tt[k - 1];
+          if (d > 0 && d <= 10) active += d; // the caller's own rule (PPG_CVHR_GAP_S = ECGDex GAP_S)
+        }
+        return { nn: nn, tt: tt, activeSec: active };
+      }
+      var HOUR = 3600;
+      var base = plant(3 * HOUR),
+        gap = plant(3 * HOUR, 0.75 * HOUR, 1.5 * HOUR);
+      var b = P.cvhrFromNN(base.nn, base.tt, base.activeSec),
+        g = P.cvhrFromNN(gap.nn, gap.tt, gap.activeSec);
+      var wallIndex = +(g.events.length / (gap.tt[gap.tt.length - 1] / HOUR)).toFixed(1);
+      T.ok('control · the planted oscillation IS detected (the test is not vacuous)', b.events.length > 50 && b.index > 0, 'events ' + b.events.length + ' index ' + b.index);
+      T.ok(
+        'the dropout removes about half the EVENTS — physiology is unchanged where it is observed',
+        g.events.length > 0.4 * b.events.length && g.events.length < 0.6 * b.events.length,
+        'base ' + b.events.length + ' gap ' + g.events.length
+      );
+      T.ok(
+        '…and the index divides by the OBSERVED 1.5 h, so it matches the gap-free night (±10 %)',
+        Math.abs(g.index - b.index) <= 0.1 * b.index,
+        'base ' + b.index + ' gap ' + g.index + ' denomSec ' + g.denomSec
+      );
+      T.eq('…the denominator IS the caller-measured active seconds', g.denomSec, gap.activeSec);
+      T.ok('DEFECT direction · the wall-span quotient would have HALVED it', wallIndex < 0.6 * b.index, 'wall-span index ' + wallIndex + ' vs ' + b.index);
+      var legacy = P.cvhrFromNN(gap.nn, gap.tt);
+      T.ok('legacy 2-arg call still computes, on the span (added LAST, §🧪 back-compat)', !!legacy && legacy.index === wallIndex, 'legacy ' + (legacy && legacy.index));
+      T.ok('activeSec = 0 falls back to the span rather than dividing by zero', P.cvhrFromNN(gap.nn, gap.tt, 0).index === wallIndex);
+      /* THE POINT OF THE PORT — the Integrator corroborates the two nodes' `apnea.cvhrIndex` against
+         each other, which is only meaningful if they are the same quantity. Same input, same answer. */
+      var E = env.ECGDSP;
+      if (E && typeof E.detectCVHR === 'function') {
+        var eb = E.detectCVHR(base.nn, base.tt, base.activeSec),
+          eg = E.detectCVHR(gap.nn, gap.tt, gap.activeSec);
+        T.eq('CROSS-NODE · ECGDex and PpgDex report the SAME index on identical input (gap-free)', b.index, eb.index);
+        T.eq('CROSS-NODE · …and the same on the gapped night — one basis, so the corroboration is real', g.index, eg.index);
+        T.eq('CROSS-NODE · …and the same denominator', g.denomSec, eg.denomSec);
+      } else T.skip('ECGDSP.detectCVHR co-loaded for the cross-node leg', 'ECGDSP not in this runner');
+      // ── the wiring: analyze() measures the seconds, and the basis reaches the export ──
+      var src = env.sources && env.sources['ppgdex-dsp.js'];
+      if (typeof src === 'string') {
+        T.ok(
+          'analyze() measures active seconds with the SAME gap cut as ECGDex and passes them',
+          /PPG_CVHR_GAP_S\s*=\s*10/.test(src) && /cvhrFromNN\(corr\.nn,\s*corr\.tt,\s*_cvhrActiveSec\)/.test(src),
+          'the call site does not pass measured seconds'
+        );
+        T.ok('the result carries cvhrDenomSec only when one was computed', /_cvhr\.denomSec\s*>\s*0\s*\?\s*\{\s*cvhrDenomSec/.test(src));
+        T.ok('the export attaches apnea.cvhrHours from it, only when the index exists', /cvhrIndex\s*!=\s*null\s*&&\s*r\.cvhrDenomSec\s*>\s*0\s*\?\s*\{\s*cvhrHours/.test(src));
+      } else T.skip('ppgdex-dsp.js source in env.sources', 'not available in this runner');
+
+      /* THE EXPORT LEG, EXECUTED — because no committed golden can carry it. Every PpgDex golden is a
+         short synthetic whose `cvhrIndex` is null, so `cvhrHours` correctly does not attach to any of
+         them and "no fixture moved" says NOTHING about whether the field reaches the export at all.
+         That is the exact shape that hid a dead wire in the ECGDex half of this fix: `denomSec` was
+         returned by the DSP and read by the export and reached nothing, because a reshape between
+         them dropped it, while the source-scan above passed. So drive a record long enough to
+         resolve an index and read the built export. */
+      var Pd = env.PpgDex || (env.PPGDSP && env.PPGDSP.buildNodeExport ? { buildNodeExport: env.PPGDSP.buildNodeExport, analyze: env.PPGDSP.analyze, parsePPG: env.PPGDSP.parsePPG } : null);
+      if (Pd && typeof Pd.buildNodeExport === 'function' && typeof Pd.analyze === 'function' && typeof Pd.parsePPG === 'function') {
+        var p2x = function (x) {
+          return String(x).padStart(2, '0');
+        };
+        // a 3-LED PPG at 135 Hz with a 30 s CVHR oscillation — the generator the sibling group uses
+        var synth = function (sec) {
+          var fs = 135,
+            hr = 60,
+            per = 30,
+            depth = 0.13;
+          var out = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
+          var n = Math.round(sec * fs),
+            step = 1000 / fs,
+            devMs = 0,
+            ph = 0,
+            rr = 60000 / hr;
+          for (var i = 0; i < n; i++) {
+            devMs += step;
+            ph += step / rr;
+            if (ph >= 1) {
+              ph -= 1;
+              rr = 60000 / (hr * (1 + depth * Math.sin((2 * Math.PI * (devMs / 1000)) / per)));
+            }
+            var w = Math.exp(-Math.pow((ph - 0.15) / 0.07, 2)) + 0.35 * Math.exp(-Math.pow((ph - 0.42) / 0.1, 2)) - 0.15 * Math.exp(-Math.pow((ph - 0.75) / 0.25, 2));
+            var v = 20000 + 800 * w;
+            var t = new Date(Date.UTC(2026, 6, 1, 0, 0, 0) + Math.round(devMs));
+            out.push(
+              t.getUTCFullYear() +
+                '-' +
+                p2x(t.getUTCMonth() + 1) +
+                '-' +
+                p2x(t.getUTCDate()) +
+                ' ' +
+                p2x(t.getUTCHours()) +
+                ':' +
+                p2x(t.getUTCMinutes()) +
+                ':' +
+                p2x(t.getUTCSeconds()) +
+                '.' +
+                String(t.getUTCMilliseconds()).padStart(3, '0') +
+                ';' +
+                Math.round(devMs * 1e6) +
+                ';' +
+                Math.round(v) +
+                ';' +
+                Math.round(v * 0.95 + 30) +
+                ';' +
+                Math.round(v * 1.03 - 25) +
+                ';400'
+            );
+          }
+          return out.join('\n');
+        };
+        var rr2 = null;
+        try {
+          rr2 = Pd.analyze(Pd.parsePPG(synth(900), undefined), null);
+        } catch (e) {
+          rr2 = { error: String(e.message) };
+        }
+        if (rr2 && !rr2.error && rr2.cvhrIndex != null) {
+          T.ok(
+            'ANTI-VACUITY · the driven record actually resolved an index (so the export leg is real)',
+            rr2.cvhrIndex != null && rr2.cvhrDenomSec > 0,
+            'index ' + rr2.cvhrIndex + ' denomSec ' + rr2.cvhrDenomSec
+          );
+          /* RICH, deliberately: the apnea block is `opts.rich`-gated (the orchestrate route the
+             Integrator consumes), exactly as ECGDex's is — the common Ganglior stream never carried
+             it and must stay byte-identical. Calling the plain builder here returned no apnea block
+             at all, which is how this leg found its own first mistake. */
+          var xr = Pd.buildNodeExport(rr2, { rich: true }) || {};
+          var xPlain = Pd.buildNodeExport(rr2, {}) || {};
+          T.ok('export · the common (non-rich) Ganglior stream carries no apnea block — unchanged by this port', !('apnea' in xPlain));
+          T.ok(
+            'export · apnea.cvhrHours REACHES the export — the wire is live, not just source-scanned',
+            !!(xr.apnea && xr.apnea.cvhrHours > 0),
+            'apnea ' + JSON.stringify(xr.apnea && { i: xr.apnea.cvhrIndex, h: xr.apnea.cvhrHours })
+          );
+          T.ok(
+            'export · …and cvhrIndex × cvhrHours reproduces the event count (the basis is legible)',
+            !!(xr.apnea && Math.abs(xr.apnea.cvhrIndex * xr.apnea.cvhrHours - xr.apnea.cvhrEvents) < 0.1 * xr.apnea.cvhrEvents + 1),
+            JSON.stringify(xr.apnea && { i: xr.apnea.cvhrIndex, h: xr.apnea.cvhrHours, n: xr.apnea.cvhrEvents })
+          );
+        } else T.skip('a driven PPG record resolves a CVHR index', 'analyze returned ' + (rr2 && rr2.error ? rr2.error : 'index ' + (rr2 && rr2.cvhrIndex)));
+      } else T.skip('PpgDex.buildNodeExport + analyze available', 'not co-loaded in this runner');
+    });
     group('OxyDex waveform SpO2 trend — self-calibrated, refuses without its pair, experimental tier', 'oxydex-dsp · oxydex-registry · spo2w', function (T) {
       var P = (env.OxyDex && env.OxyDex._bare && env.OxyDex._bare.spo2WaveformTrend ? env.OxyDex._bare : null) || env.OxyDex;
       if (!P || typeof P.spo2WaveformTrend !== 'function') {

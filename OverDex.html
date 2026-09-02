@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-B24HXlnUMzMhkFCkmJbOEHCPHtqDy2ADFPHpIzjH7jc=' 'sha256-ByHzM+YtHsdGdOmID3qx5m90EwEbyr3hm/VS3QUfmoA=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-Y9+Z33ppt/JJBWPQv724phf8Nauv0Yw4OjwDLbOiHyQ=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-uv2u2lF0rh+tj6+SiiCtZAVr5XfFovvOFkWiHW1sj3Y=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4PDD0J5pXJHOOh+CaOAfpF4NZRtR7miZXGGOwb/MvpE=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-B24HXlnUMzMhkFCkmJbOEHCPHtqDy2ADFPHpIzjH7jc=' 'sha256-ByHzM+YtHsdGdOmID3qx5m90EwEbyr3hm/VS3QUfmoA=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-uv2u2lF0rh+tj6+SiiCtZAVr5XfFovvOFkWiHW1sj3Y=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -27119,7 +27119,14 @@ __exports.GlucoDex = window.GlucoDex;
   // #1800), killing the whole night's export. 48 h, as ECGDex `CVHR_MAX_SPAN_S`: over twice any real
   // recording, so a gappy night still fits. Refusal ⇒ null with a reason, never a fabricated 0.
   const PPG_MAX_SPAN_S = 48 * 3600;
-  function cvhrFromNN(nn, tt) {
+  /* `activeSec` (OPTIONAL, added LAST for back-compat per CLAUDE.md §🧪) is the beat-COVERED time the
+     caller measured — inter-beat deltas ≤ PPG_CVHR_GAP_S summed. When it is > 0 it is the index's
+     denominator; absent or 0 falls back to the wall span, which is exact for a gap-free series.
+     Ports the ECGDex fix of the same defect (DEEP-AUDIT-VI F3/F10): both nodes now count events per
+     hour OF OBSERVED RECORDING, so the two `apnea.cvhrIndex` values the Integrator corroborates
+     against each other are on the same basis. Divide one by wall span and the other by covered time
+     and the corroboration measures the dropouts, not the physiology. */
+  function cvhrFromNN(nn, tt, activeSec) {
     const N = nn.length;
     if (N < 60 || !tt || tt.length !== N) return { events: [], index: null };
     const tEnd = tt[N - 1];
@@ -27202,9 +27209,17 @@ __exports.GlucoDex = window.GlucoDex;
         }
       }
     }
-    const hours = tEnd / 3600;
+    /* CVHR index = events per hour OF OBSERVED RECORDING (DEEP-AUDIT-VI F3, ported from ECGDex).
+       This divided by the wall span `tEnd`, so sensor DEAD TIME sat in the denominator of a metric
+       the Integrator corroborates against ECGDex's — and the Verity is the fleet's worst offender for
+       dropouts (24 segments in one corpus night against the H10's 3), so the PPG leg carried the
+       larger error of the two. Events can only arise in covered seconds: the 1 Hz resample above
+       holds the last beat's HR flat across a hole, so `res` decays to 0 there and the ENV_ON gate
+       stays shut. `denomSec` is returned so a consumer can see the basis instead of inferring it. */
+    const denomSec = activeSec > 0 ? activeSec : tEnd;
+    const hours = denomSec / 3600;
     const index = hours > 0 ? +(events.length / hours).toFixed(1) : 0;
-    return { events, index };
+    return { events, index, denomSec };
   }
   // `omit` (OPTIONAL, added LAST for back-compat per CLAUDE.md §🧪) marks intervals that are NOT
   // MEASUREMENTS AT ALL — currently only those straddling a time discontinuity (O2RING-PPG-GAP §2).
@@ -28887,7 +28902,18 @@ __exports.GlucoDex = window.GlucoDex;
     // OXYDEX-PULSE-RESOURCING §Phase 4: whole-record CVHR from the corrected NN series (autonomic
     // apnea correlate). Emitted for every PPG record; the Integrator only corroborates the FINGER one
     // (the O2Ring's own pleth) against ECGDex cardiac CVHR. index = events/hour (0 = none detected).
-    const _cvhr = cvhrFromNN(corr.nn, corr.tt);
+    /* OBSERVED seconds for the index's denominator (DEEP-AUDIT-VI F3 port). Measured here with the
+       SAME rule ECGDex applies to its own beat series — inter-beat deltas over the gap cut are dead
+       time, not a long interval — rather than reusing `ppgCoverage`, which answers the neighbouring
+       question about the SAMPLE stream: a hole in the samples and a hole in the accepted beat series
+       are not the same set, and the denominator has to match the series the events came from. */
+    const PPG_CVHR_GAP_S = 10; // ECGDex `GAP_S` — one cut, so the two nodes' indices stay comparable
+    let _cvhrActiveSec = 0;
+    for (let k = 1; k < corr.tt.length; k++) {
+      const _d = corr.tt[k] - corr.tt[k - 1];
+      if (_d > 0 && _d <= PPG_CVHR_GAP_S) _cvhrActiveSec += _d;
+    }
+    const _cvhr = cvhrFromNN(corr.nn, corr.tt, _cvhrActiveSec);
     // §4: per-interval CLEAN-adjacency mask — interval i (between beat i & i+1) is clean when it
     // was NOT correction-flagged AND both endpoint beats cleared SQI≥0.5 (SQI folds the 3-LED
     // agreement, §5). rMSSD/pNN50/SD1 are computed over clean adjacent pairs so sub-ectopy optical
@@ -29308,6 +29334,9 @@ __exports.GlucoDex = window.GlucoDex;
       sdnnRobustBasis,
       cvhrIndex: _cvhr.index, // §Phase 4 — CVHR events/hour from the finger PPI NN series (autonomic apnea correlate)
       cvhrEvents: _cvhr.events.length,
+      // The index's BASIS travels with it (F3 port) — present only when one was computed, so a
+      // refusal path stays byte-stable and no committed fixture moves for an inert key.
+      ...(_cvhr.denomSec > 0 ? { cvhrDenomSec: _cvhr.denomSec } : {}),
       // F10 — present ONLY when the span refusal fired, so a refused null is told apart from a
       // too-short one; absent otherwise (no committed fixture moves for an inert key).
       ...(_cvhr.reason ? { cvhrReason: _cvhr.reason } : {}),
@@ -29743,6 +29772,13 @@ __exports.GlucoDex = window.GlucoDex;
     correctRR,
     beatSQI,
     beatConfidence,
+    /* ADDITIVE EXPORT (DEEP-AUDIT-VI F3 port), mirroring ECGDex, which exports `detectCVHR` for the
+       same reason: the denominator and the refusal guards become directly assertable, and — the part
+       only an export makes possible — the two nodes' implementations can be run on IDENTICAL input in
+       one assertion. The Integrator corroborates `apnea.cvhrIndex` across them, so "same quantity" is
+       a contract between the nodes, not an internal detail of either. No existing caller reaches it
+       through this surface; `analyze` still calls it directly. */
+    cvhrFromNN,
     timeDomain,
     poincare,
     lombScargle,
@@ -30045,6 +30081,11 @@ __exports.GlucoDex = window.GlucoDex;
       out.apnea = {
         cvhrIndex: r.cvhrIndex != null ? r.cvhrIndex : null,
         cvhrEvents: r.cvhrEvents != null ? r.cvhrEvents : null,
+        /* WHICH HOURS the index divided by (F3 port) — attached only when the index was computed, so
+           a refusal carries no basis it does not have. The Integrator reads this block from BOTH
+           nodes; without the denominator a consumer cannot tell a 5 /h from a 40 % covered night
+           apart from a 5 /h from a clean one. */
+        ...(r.cvhrIndex != null && r.cvhrDenomSec > 0 ? { cvhrHours: +(r.cvhrDenomSec / 3600).toFixed(2) } : {}),
         cvhrMethod: 'CVHR events/h from finger PPI NN (Hayano apnea-band 20–45 s; ports ECGDex detectCVHR)',
         cvhrTier: 'emerging'
       };
