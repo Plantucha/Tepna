@@ -17045,6 +17045,8 @@
       var EXPECT_EXACT = [
         ['d_all_night', false],
         ['d_otr_sat', false],
+        ['d_csi_flagged', false], // F5: surfaced dispersion-guard verdict (mirrors d_si_flagged)
+        ['d_cvi_flagged', false], // F5: ditto — under the dispersion band the flag carries signal
         ['d_si_flagged', false],
         ['d_si_ms', true],
         ['d_vo2_cat', 'Superior'],
@@ -17091,8 +17093,10 @@
          rolling-window passes too, so the ten columns those passes own are DERIVED on caller-
          supplied rows instead of being left undefined — d_rmssd_delta_pct, d_ari,
          d_rmssd_rolling_ln, d_stress_auc, d_rmssd_cv7, d_sdnn_z, d_stress_ac, d_pnn50_slope,
-         d_hrv_momentum, d_recovery_debt. The no-argument path is unchanged. */
-      T.eq('computeDerived still produces 62 derived columns', produced.length, 62);
+         d_hrv_momentum, d_recovery_debt. The no-argument path is unchanged.
+         62 → 64 (DEEP-AUDIT-VI F5): d_cvi_flagged + d_csi_flagged — the dispersion-guard verdicts,
+         surfaced instead of discarded at the call site. */
+      T.eq('computeDerived still produces 64 derived columns', produced.length, 64);
     });
 
     group('HRVDex helper floor — 13 + 2 drafts adopted: numeric honesty, persistence guards, the clock pad (mutation-derived)', 'hrvdex-dsp · known-answer · mutation-pinned', function (T) {
@@ -17522,6 +17526,92 @@
       /* ⚠️ AND PROVE THE GLOBAL CAME BACK. A `finally` that runs is not the same as a `finally` that
          restored the right thing, and the cost of getting this wrong is paid by an unrelated group. */
       T.ok('DexUnits is restored after the group', !!(env.DexUnits && env.DexUnits.guardBaevsky) && isFinite(run(false, null).d_si));
+    });
+
+    /* ── DEEP-AUDIT-VI F5 — a DERIVED DISPERSION is not an RR interval ──────────────────────────
+       rMSSD and MxDMn are dispersion statistics whose clinically real range CROSSES the RR guard's
+       threshold (10): rMSSD 8 ms — severe autonomic dysfunction — classified as SECONDS, ×1000,
+       CVI +3 log units, and the render rule (>4.4 good) painted the sickest possible input GREEN.
+       Siblings: MxDMn 9 ms made d_csi 1000× high (verdict inverted, NO flag) and d_si 1000× low
+       (extreme stress read 'ok'). Audit repro measured a +2.996 discontinuity between rMSSD 10.0
+       and 9.9 ms. The operands ride the DISPERSION guard now (threshold 0.5, band [0.0005, 0.5] s),
+       the boundary moved out of the clinical domain, and the flags are surfaced AND carry signal —
+       under the RR band even a correct 38 ms → 0.038 s always flagged, so flagged≈always and the
+       call site was right to ignore it. */
+    group('HRVDex derived-dispersion units — severe-low HRV must not render healthy (DEEP-AUDIT-VI F5)', 'hrvdex-dsp · units · verdict-inversion', function (T) {
+      var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
+      if (!D || typeof D.computeDerived !== 'function') {
+        T.skip('computeDerived available', 'HRVDex._bare not loaded');
+        return;
+      }
+      var DAY = 86400000;
+      var mk = function (over) {
+        var rows = [];
+        for (var n = 0; n < 4; n++) {
+          var r = {
+            _hr: 62,
+            _meanRR: 880,
+            _sdnn: 54,
+            _rmssd: 41,
+            _mxdmn: 320,
+            _pnn50: 18.5,
+            _amo50: 31,
+            _mode: 950,
+            _totalPow: 3200,
+            _hf: 900,
+            _lf: 1400,
+            _vlf: 900,
+            _stress: 3.2,
+            _energy: 5.1,
+            _focus: 4.4,
+            _sns: 1.2,
+            _psns: 2.1,
+            _coherence: 3.3,
+            _hrv: 60,
+            _cv: 5.6,
+            _spanMin: 6,
+            _tMs: Date.UTC(2026, 5, 10, 3, 0, 0) + n * DAY
+          };
+          for (var k in over) r[k] = over[k];
+          rows.push(r);
+        }
+        D.computeDerived(rows);
+        return rows[rows.length - 1];
+      };
+      var near = function (a, b, tol) {
+        return isFinite(a) && Math.abs(a - b) <= tol;
+      };
+
+      // The audit's exact repro: rMSSD 8 ms, meanRR 880 ms. Truth: log10(0.008 × 0.880) + 6 ≈ 3.848.
+      var sick = mk({ _rmssd: 8 });
+      T.ok('rMSSD 8 ms · d_cvi ≈ 3.85 — the true "bad" verdict, not the inverted 6.85 "good"', near(sick.d_cvi, Math.log10(0.008 * 0.88) + 6, 0.01), 'd_cvi = ' + sick.d_cvi);
+      T.ok('…and 8 ms is clinically REAL, so the flag does NOT fire (the flag now carries signal)', sick.d_cvi_flagged === false, 'd_cvi_flagged = ' + sick.d_cvi_flagged);
+
+      // Monotonic across the old boundary: 10.0 vs 9.9 ms differ by log10(10/9.9) ≈ 0.004, not 2.996.
+      var at10 = mk({ _rmssd: 10.0 });
+      var at99 = mk({ _rmssd: 9.9 });
+      T.ok('CVI is continuous across rMSSD 10.0 → 9.9 ms (audit measured a +2.996 jump here)', near(at10.d_cvi - at99.d_cvi, Math.log10(10 / 9.9), 0.001), 'Δ = ' + (at10.d_cvi - at99.d_cvi));
+
+      // The Baevsky siblings: MxDMn 9 ms. d_csi = 0.009/0.880 ≈ 0.01023 (was ~10.23, inverted with
+      // no flag); d_si = 31/(2 × 0.95 × 0.009) ≈ 1812.9 (was 1000× low — extreme stress read 'ok').
+      var mx = mk({ _mxdmn: 9 });
+      T.ok('MxDMn 9 ms · d_csi ≈ 0.0102, not 1000× high', near(mx.d_csi, 0.009 / 0.88, 0.0005), 'd_csi = ' + mx.d_csi);
+      T.ok('MxDMn 9 ms · d_si ≈ 1813 — extreme stress reads extreme, not "ok"', near(mx.d_si, 31 / (2 * 0.95 * 0.009), 1), 'd_si = ' + mx.d_si);
+      T.ok('…and 9 ms is real, so the Baevsky flag does not fire', mx.d_si_flagged === false && mx.d_csi_flagged === false, JSON.stringify({ si: mx.d_si_flagged, csi: mx.d_csi_flagged }));
+
+      // Flags exist, are surfaced, and FIRE on the genuinely implausible (rMSSD 700 ms > 0.5 s band).
+      var normal = mk({});
+      T.ok(
+        'normal row · d_cvi_flagged and d_csi_flagged are surfaced and false',
+        normal.d_cvi_flagged === false && normal.d_csi_flagged === false,
+        JSON.stringify({ cvi: normal.d_cvi_flagged, csi: normal.d_csi_flagged })
+      );
+      var absurd = mk({ _rmssd: 700 });
+      T.ok('rMSSD 700 ms (past the dispersion band) fires d_cvi_flagged', absurd.d_cvi_flagged === true, 'd_cvi_flagged = ' + absurd.d_cvi_flagged);
+
+      // Control: the normal fixture's values are UNTOUCHED by the guard change (41/320/880/950 all
+      // sit on the same side of both thresholds) — this fix moves only the sub-10 ms clinical zone.
+      T.ok('control · normal-row d_cvi unchanged by the dispersion guard (≈ log10(0.041 × 0.880) + 6)', near(normal.d_cvi, Math.log10(0.041 * 0.88) + 6, 0.01), 'd_cvi = ' + normal.d_cvi);
     });
 
     /* ── THE BRANCHES A UNIFORM FIXTURE CANNOT REACH ────────────────────────────────────────────
