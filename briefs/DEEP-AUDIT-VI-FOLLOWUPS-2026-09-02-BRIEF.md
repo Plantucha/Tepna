@@ -28,8 +28,50 @@ nothing, found only because someone tried to make a fix land.
 | 1.4 | **F2** | Both lanes now resolve `t0Ms` by Clock Contract §4 "first VALID sample". **If a real night ever shows the old app rule ("first non-empty, null if unparseable") choosing a different row, quote the row here** — do not regenerate on the assumption. **Not checked by any sweep**: F2's six-file parser-parity run (2 committed twins + the equiv clip + the three resync nights) asserts that the two PARSERS agree, not that the two ANCHOR RULES pick the same row, and the old rule no longer exists in either lane to run. A watch item with no supporting measurement behind it. | any, on sighting |
 | 1.5 | **F4** | `rraccRate` was re-tiered emerging → **experimental** on 45 real H10 nights (median r 0.07, MAE 2.5 br/min, LoA −4…+7.5). **`edrResp`'s own `emerging` grade was NOT adjudicated** — it needs a reference the corpus lacks (CPAP flow is the candidate reference once the co-imported nights are aligned). Until measured it is probably also experimental; do not re-grade on this sentence alone. | Osprey (measurement) |
 | 1.6 | **F8** | CPAPDex **`therapyHours` = wall duration** feeds the usage KPI and `compliancePct` in the night summary, where mask-on usage is the clinically meant quantity (the F8 fix corrected `usageHours`; `therapyHours` still reads the session span). Measure the gap on the real corpus before deciding whether it is a relabel or a recompute. **MEASURED 2026-09-02 (Kestrel) — gap is ZERO on the whole real corpus; no relabel and no recompute owed.** `tools/cpap-corpus.mjs` over `Ecg nightly/CPAP` (189 nights, 236 sessions, 2026-01-11 → 07-21, all PLD-sourced): `therapyHours` ≡ Σ session `durMin`/60 on 189/189 nights, and `durMin/60 − usageHours` is ≤ 0.0003 h (one sample of rounding) on **236/236 sessions** — max night gap 0.00 h, Σ 1293.8 h both ways, `compliancePct` 98.9 % by either denominator, **zero ≥4 h verdict flips**. Mechanism: a ResMed EDF session record set is opened at mask-on and closed at mask-off (the DSP's own model — "a session is one mask-on file-set"), so the record's wall span IS its mask-on span; the two quantities coincide by the vendor's segmentation, not by luck. The exposure survives only for a writer whose record continues through mask-off time — no such vendor is parsed today. If one is ever added, `buildNight` should prefer Σ `usageHours` over Σ `durMin/60` (the synthetic `prepare→buildSession` route already does, `durMin = usageHours × 60`); do not make that change on this corpus, where it is export-inert by construction and can only move fixtures through 2-vs-3-decimal rounding. | Kestrel — MEASURED, closed |
-| 1.7 | **contested** | `capture-host/status_union.py:77` heartbeat-across-DST — still the disposition the audit gave: **drive `_now()` through a real faked-tz transition with a writer open**; only then confirm and pick among the three fixes. Not touched this pass. | Heron |
+| 1.7 | **contested** | `capture-host/status_union.py:77` heartbeat-across-DST — **CONFIRMED and FIXED 2026-09-02** (Heron, PR #2077; see §1.7a below for the measurement, including the one correction it forces on the audit's own description). | Heron |
 | 1.8 | **F3 / F10** | The PpgDex `cvhrFromNN` port (#2073) changes the **denominator** only. The OxyDex §2.6 group's standing note *"PPGDEX cvhrFromNN IS DELIBERATELY NOT PART OF THIS FIX"* governs **nulling `index: 0`** (the refusal marker two goldens pin byte-for-byte) and is UNCHANGED: 0 still means what it meant. Recorded so a third session does not read the port as a violation of that note, or the note as a bar on the port. | — (record only) |
+
+---
+
+### 1.7a · The contested DST heartbeat, driven rather than emulated — CONFIRMED, with one correction
+
+The disposition asked for `_now()` to be driven through a real faked-tz transition with a writer open.
+Done (`tests/test_status_union_dst_heartbeat.py`): only the clock SOURCE is faked (`datetime.now`,
+`monotonic`); the zone is a real tz-database zone, the offsets come from real `astimezone()`, the
+naive→epoch conversion is real `datetime.timestamp()`, and `_now()` reaches its absorb branch by its own
+arithmetic. The dissent was right that the earlier repro set the anchors; it does not survive driving.
+
+`instance_health` of a heartbeat stamped from `_now()`, recording open across the transition:
+
+| minutes past | spring-forward, healthy | spring-forward, wedged 30 min | fall-back, healthy | fall-back, wedged 30 min |
+|---|---|---|---|---|
+| 1 | live 0 | stale 1800000 | live 0 | **live 0** |
+| 30 | live 0 | stale 1800000 | live 0 | **live 0** |
+| 61 | **stale 3600000** | stale 1800000 | live 0 | **live 0** |
+| 120 | **stale 3600000** | stale 5400000 | live 0 | **live 0** |
+| 300 | **stale 3600000** | stale 5400000 | live 0 | **live 0** |
+
+- **Fall-back is the dangerous leg and is fully confirmed.** A daemon wedged for 30 minutes reads
+  `live, age_ms 0` at every age out to 5 h: the heartbeat sits an hour in the FUTURE and `max(0, …)`
+  clamps the age. That is exactly the up-but-wedged failure the layer exists to catch, and it is
+  invisible for the whole session.
+- **Spring-forward is confirmed but the audit's onset is wrong.** It says a live instance reads stale
+  "for the rest of the recording". Measured: correct for the first ~60 minutes, stale only from ~61 min
+  on. The absorbed stamp is inside the NONEXISTENT hour until then, and Python resolves a gap time
+  through the pre-transition offset — which is precisely the frame absorption preserved, so it
+  round-trips to the right instant by coincidence. A false alarm all night (`degraded` true for a
+  healthy box), starting an hour later than stated.
+- **Fix taken: option 1 of the three — stamp the heartbeat from real `time.time()`**, via a named
+  `capture.heartbeat_ms()` seam. `updated` keeps the capture frame on purpose; it belongs to the
+  recording's timeline. Liveness does not: it is a question about real elapsed time and must be read on
+  the clock the reader ages with. Correcting by `absorbed_shift_sec()` reaches the same number through
+  two parts that must stay in step; publishing the shift spreads the correction across every consumer.
+- **Why the existing clock tests could not have caught this:** the `clock` fixture in
+  `test_capture_clock_and_health.py` stubs `capture._utcoffset`, so no real offset conversion happens —
+  and the entire defect lives in how a naive stamp in one offset frame converts to an epoch under
+  another. The seam exists so the test calls the production stamp instead of mirroring the formula: a
+  mirror agrees with the code whichever clock the code reads. Verified by restoring only the old clock
+  choice behind the same seam — the three verdict tests fail, the absorb-branch guard still passes.
 
 ---
 
