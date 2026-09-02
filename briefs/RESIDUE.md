@@ -17,13 +17,20 @@ anyone has decided to do the work.
 |---|---|
 | `R<n>` | unique, monotonic, never reused |
 | logged | `YYYY-MM-DD` the row was written |
-| source | backticked `*-BRIEF.md` that left the residue — must exist, and its **Status:** line must carry `**Residue:** R<n>` (bidirectional, like `Superseded-by`) |
+| source | where the residue came from, backticked. Usually a `*-BRIEF.md` that left it — must exist, and its **Status:** line must carry `**Residue:** R<n>` (bidirectional, like `Superseded-by`). **A residue with no parent brief names its real origin instead**: a repo path (`capture-host/tools/find_unwired.py`), which must exist in the tree, or a `#NNNN` PR. Non-brief sources neither need nor can carry a back-reference |
 | defect | what is wrong — a verified defect, not a wish; **no `\|` in the cell** (a pipe splits the row and blinds the gate — measured on DOCS-INDEX 2026-09-02) |
 | evidence | the line / hash / count / command that shows it — prose is not evidence |
 | state | `OPEN` · `→ \`<NAME>-BRIEF.md\`` (promoted to a brief at pickup — that brief must exist) · `fixed #NNNN` (closed by one PR, no brief needed) |
 
 A row is closed by changing **only** its state cell. Nothing else on a row is ever edited; a wrong
 row gets a new row that says so. Open count: `grep -c '| OPEN |' briefs/RESIDUE.md`.
+
+⚠️ **Never name the nearest brief to fill the source cell.** A residue surfaced by *repairing an
+instrument* has no parent brief — the two orphans `find_unwired.py` found on 2026-09-02, once it
+stopped counting a comment as a consumer, descend from the tool fix and from nothing else. A false
+source **passes** check 8 (which verifies existence and the back-reference, not responsibility) while
+sending whoever picks the row up to a brief that never left the defect. That is the fabricated
+authority this ledger exists to prevent, committed inside the ledger. Name the origin that is true.
 
 **Not retro-applied.** The `-FOLLOWUPS-` briefs that already exist keep their files and headers; this
 ledger starts empty except for the residue named in the 2026-09-02 drain headers.
