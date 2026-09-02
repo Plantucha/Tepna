@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-26 · **Created:** 2026-08-26 · **Executes:** `O2RING-AUTONOMOUS-HARVEST-2026-08-26-BRIEF.md` §36 (the implementation map) + §3/§5/§6/§11/§12/§20/§21 · **Extends:** `OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md` (whose rulings STAND) · **Affects:** `capture-host/`
+**Status:** PROPOSED (parked 2026-09-02 — the module is built, armed and gate-backed (41 assertions, six planted controls). Two items remain and both need the box on the owner's bench: §2's BLE coexistence matrix, which is what earns `scan_coexistence_verified` (the gate exists — `oxy_presence.py:256`, refusal at `capture.py:7355` — only the measurement is missing), and §25's A–O acceptance run with observed timestamps. Confirmed on the box today: no `presence_harvest` or `scan_coexistence` key exists in its config, so presence is default-OFF and the matrix has not been run. **Owner:** owner (box session) · **Next step:** the coexistence matrix, which also unblocks the parent charter's identical item) · **Created:** 2026-08-26
 
 # The O2Ring presence trigger — §36's map, built as a DELTA
 
@@ -107,4 +107,4 @@ Recorded in `oxy_presence.py`'s docstring so the code defends itself.
 - [x] 41 assertions, 100 % stmt+branch on the new module, six planted controls.
 - [ ] §2's coexistence matrix run on the box → `scan_coexistence_verified` earned. **Thursday.**
 - [ ] §25's A–O acceptance run with observed timestamps. **Thursday.**
-- [ ] §19's T-chain witness telemetry (next increment).
+- [x] §19's T-chain witness telemetry. **Stale-unchecked — SHIPPED in 90fea439 (#1846): `oxy_presence.witness_chain()`/`witness_summary()` over the 10-link `WITNESS_LINKS`, wired at `capture.py:7384-7386`, tests `test_oxy_presence.py:149-183`. Verified 2026-09-02.**

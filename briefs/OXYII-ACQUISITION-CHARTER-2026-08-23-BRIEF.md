@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-23 · **Created:** 2026-08-23 · **Follows:** `VIGIL-O2RING-AUTOPULL-2026-07-21-BRIEF.md` (the idempotent pull this hardens), `OXYII-PROTOCOL-HARVEST-2026-08-08-BRIEF.md` (protocol capability + lineage), `VIGIL-BLE-ROBUSTNESS-2026-07-19-BRIEF.md` (+FOLLOWUPS — reconnect/watchdog groundwork) · **Sibling:** `CPAP-ACQUISITION-HARDENING-AUDIT-2026-08-23-BRIEF.md` (the CPAP arm, same owner spec family, same lead) · **Affects (charter only — no code in this brief):** `capture-host/oxyii.py`, `capture-host/pull_session.py`, `capture-host/capture.py` (run_oxyii region), `capture-host/viatom.py`, tests
+**Status:** PROPOSED (parked 2026-09-02 — a living CHARTER whose build arms have largely landed: G1 f4f9be0e (#1702) + 60501cec (#1733), G3 45f6354c (#1689), G4 code 8451d3af (#1709) + 8d551fad (#1714). Three things keep it open and none is code: **G5** (handoff latency, drain occupancy, mid-transfer drop) needs the ring WORN during a live pull; **G4's real-night half** needs `OXYLIFE.csv` off the box; and the **§50 final report** needs the R1-scoped clean-room attestation, which is an OWNER authorization, not an authoring task. Also open and cheap: G1's mutation residue (245 killed / 28 survived) has never been triaged. **Owner:** Heron (arms) / owner (R1 attestation) · **Next step:** triage the 28 surviving mutants — no hardware needed) · **Created:** 2026-08-23
 
 # OxyII acquisition hardening — the lead's charter for the runner
 

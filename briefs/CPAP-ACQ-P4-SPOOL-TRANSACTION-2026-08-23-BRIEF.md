@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-23 · **Created:** 2026-08-23 · **Executes:** `CPAP-ACQUISITION-HARDENING-AUDIT-2026-08-23-BRIEF.md` P4 · **Depends:** `CPAP-ACQ-P2-LIFECYCLE-2026-08-23-BRIEF.md` (the state machine this maps onto) · **Lead:** the acquisition-hardening lead (session codename Mutator, 2026-08-23) · **Affects (design brief — no code yet):** a NEW `capture-host/cpap_spool.py`, `capture-host/as11_pull.py` (unchanged — validated by hardware), the `.part`→commit pattern from `cpap_harvest.py`
+**Status:** PROPOSED (parked 2026-09-02 — four of five done-when boxes are closed (#1711 module + C1–C5 planted controls, #1838 daemon wiring). The one open item is §6's between-rounds capture, and the distinction that matters is that the SEAM is built while the EVIDENCE is not: the injectable `revalidate=` hook exists (`cpap_spool.py:216`, exercised by `test_revalidate_hook_sees_every_cursor_the_loop_trusts`), but no real AirSense-11 drop has been captured between a round-1 cursor commit and a round-2 StartSpool, so the predicted CLEAN cursor re-serve is a prediction and nothing more. **Owner:** owner (attended box run) · **Next step:** one deliberate mid-round drop with the journal watched — confirm the prediction or add the localized guard) · **Created:** 2026-08-23
 
 # CPAP acquisition — P4: the transactional stored-spool synchronization chain
 
