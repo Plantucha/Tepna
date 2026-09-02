@@ -107,6 +107,25 @@ expectcmd ALLOW "write-shaped, but the brief did NOT move upstream"   "sed -i 's
 expectcmd ALLOW "write-shaped, but out of the guarded set"            "sed -i 's/a/b/' README.md"
 expectcmd ALLOW "staging a stale brief is not writing it"             "git add briefs/SHARED-BRIEF.md"
 
+# ── The two defects measured 2026-09-02, each negated by one leg ────────────────────────────
+# (1) A RUN OF >=3 '>' IS A CONFLICT MARKER, NOT A REDIRECT. This exact command — the standard
+#     way to find conflict hunks after a rebase — was DENIED as a write, while being a read, and
+#     being the read a session performs while doing the rebase this guard asks for.
+expectcmd ALLOW "conflict-marker grep is a READ, not a redirect"      "grep -n '<<<<<<<\\|=======\\|>>>>>>>' briefs/SHARED-BRIEF.md"
+# The negation: two '>' is a real append and must still be caught, so the strip cannot be widened.
+expectcmd DENY  "a real >> append is still a write"                   "printf 'v3' >> briefs/SHARED-BRIEF.md"
+
+# (2) THE INLINE HATCH. The hook runs as a separate process BEFORE the command it gates, so an
+#     inline prefix never reached the env check — while the denial text and CLAUDE.md advertised it.
+expectcmd ALLOW "inline hatch in command position releases it"        "CLAUDE_ALLOW_STALE_BRIEF=1 sed -i 's/a/b/' briefs/SHARED-BRIEF.md"
+# ⚠ The `cd` target must be the TEST REPO, not /tmp. A first draft used /tmp and passed against the
+#   UNFIXED hook — the cd-extraction resolved a non-repo, the guard failed open, and the leg proved
+#   nothing. It has to reach the staleness query to be testing command-position matching at all.
+expectcmd ALLOW "inline hatch after && is command position too"       "cd $WORK && CLAUDE_ALLOW_STALE_BRIEF=1 sed -i 's/a/b/' briefs/SHARED-BRIEF.md"
+# The negation, and the reason the match is anchored: merely NAMING the variable must not release
+# the guard, or writing prose about the hatch would disable it.
+expectcmd DENY  "the variable merely QUOTED does not release it"      "echo 'set CLAUDE_ALLOW_STALE_BRIEF=1 to override' >> briefs/SHARED-BRIEF.md"
+
 echo
 echo "### escape hatch + degenerate inputs"
 got="$(printf '{"tool_input":{"file_path":"briefs/SHARED-BRIEF.md"}}' | CLAUDE_ALLOW_STALE_BRIEF=1 bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW)"

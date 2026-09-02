@@ -612,7 +612,13 @@ Status lives in a one-line header block on the first content line (just after an
   query for the file you are touching and denies with the commit list. It covers `briefs/*.md` +
   `DOCS-INDEX.md`, reads your LOCAL `origin/main` and never fetches — so it can only **under**-report,
   which is why the `git fetch` above is part of the rule and not the hook. Escape hatch, for when you
-  have read them and are deliberately writing over them: `CLAUDE_ALLOW_STALE_BRIEF=1`.
+  have read them and are deliberately writing over them: `CLAUDE_ALLOW_STALE_BRIEF=1` — **as a
+  command-position prefix on a Bash command** (`… && CLAUDE_ALLOW_STALE_BRIEF=1 sed -i …`), or
+  **exported**, which is the ONLY form that reaches an `Edit`/`Write`: that path carries no command
+  text for the hook to read, and the hook is a separate process that runs BEFORE your command, so it
+  cannot see an inline prefix there. This sentence claimed the bare form worked everywhere until
+  2026-09-02, when a session that had read the upstream commits was denied twice by the documented
+  hatch and could not tell it from a broken guard (#2088).
 
   ⚠️ **This is a different failure from a merge conflict, and the absence of one is the tell.** If a
   brief edit rebases cleanly against a brief that moved, that is not reassurance — it is the exact

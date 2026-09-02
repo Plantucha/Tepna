@@ -47,7 +47,18 @@
 # this hook as covering the concurrent case — BRIEF-COLLISION-RESIDUAL-GAP §5.
 #
 # Escape hatch: CLAUDE_ALLOW_STALE_BRIEF=1 — set it when you have READ the commits it
-# names and are deliberately writing over them.
+# names and are deliberately writing over them. TWO forms, because a hook cannot see the
+# environment of the command it is gating:
+#   * EXPORTED in the environment Claude Code runs in — the only form that reaches the
+#     Edit/Write path, where there is no command text to carry a prefix.
+#   * a COMMAND-POSITION prefix inside a Bash command (`… && CLAUDE_ALLOW_STALE_BRIEF=1 git
+#     rebase …`). Measured 2026-09-02: this hook runs as a separate process BEFORE the command
+#     it gates, so an inline prefix never reaches the check at line ~54 — while both this
+#     hook's own denial text and CLAUDE.md §📌 presented it as if it did. A session that had
+#     read the upstream commits and reached for the documented hatch was denied anyway, twice,
+#     with no way to tell the hatch from a broken guard. Honouring it here makes the
+#     documentation true rather than making the guard weaker: the prefix is self-declared
+#     exactly like the exported form, and the operator typing it is making the same claim.
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
 
@@ -59,6 +70,15 @@ payload="$(cat 2>/dev/null)" || exit 0
 f="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // empty' 2>/dev/null)"
 cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null)"
 [ -z "$f" ] && [ -z "$cmd" ] && exit 0
+
+# The inline half of the hatch (see the header). COMMAND POSITION only — start of the command,
+# or straight after a `;`/`&&`/`||`/`|`/newline — so the assignment has to be one the shell would
+# actually apply. A bare occurrence anywhere in the text (an echo, a grep pattern, a here-doc
+# line) must NOT release the guard, or quoting the variable's name in prose would disable it.
+# One line and guarded: a bare `exit 0` on its own line is the dead-code shape this hook's own
+# self-test refuses, because one of those short-circuits the guard into a no-op while every
+# behavioural leg still reads green.
+printf '%s' "${cmd:-}" | grep -qE '(^|[;&|])[[:space:]]*CLAUDE_ALLOW_STALE_BRIEF=1[[:space:]]' && exit 0
 
 # ── RESOLVE THE REPOSITORY FROM THE EDITED FILE, NOT FROM THE HOOK'S CWD ───────
 #    A PreToolUse hook runs with cwd = $CLAUDE_PROJECT_DIR (the shared root). CLAUDE.md §👥.1
@@ -136,7 +156,15 @@ GUARDED_RE='(briefs/[A-Za-z0-9._@+-]+\.md|DOCS-INDEX\.md)'
 #    That costs a denial only when the brief ACTUALLY moved upstream — the staleness query
 #    still gates every path — and the message names the commits and the escape hatch.
 looks_like_write() {
-  printf '%s' "$1" | grep -qE "(>>?|\btee\b|\bcp\b|\bmv\b|\btruncate\b)[^|;&]*${GUARDED_RE}" && return 0
+  # A RUN OF ≥3 '>' IS A CONFLICT MARKER, NOT A REDIRECT — strip those runs before the redirect
+  # test. Measured 2026-09-02: `grep -n "<<<<<<<\|=======\|>>>>>>>" briefs/X.md`, i.e. the standard
+  # way to find conflict hunks after a rebase, matched `>` followed by a guarded path and was denied
+  # as a write. That is a READ, and it is the read a session performs while doing the very thing this
+  # guard asks for (rebase onto the upstream edits). No shell redirect uses three '>' — `>` and `>>`
+  # are the whole vocabulary — so removing longer runs cannot hide a real write.
+  local probe
+  probe="$(printf '%s' "$1" | sed 's/>\{3,\}//g')"
+  printf '%s' "$probe" | grep -qE "(>>?|\btee\b|\bcp\b|\bmv\b|\btruncate\b)[^|;&]*${GUARDED_RE}" && return 0
   printf '%s' "$1" | grep -qE '\bsed\b[^|;&]*(-[A-Za-z]*i\b|--in-place)' && return 0
   if printf '%s' "$1" | grep -qE '\b(python3?|node|perl|ruby|php)\b'; then
     # The path is usually behind a variable here, so no adjacency test can see it — the
@@ -198,7 +226,13 @@ Then rebase so your edit lands ON TOP of them rather than instead of them:
 
 If you have read them and are deliberately writing over them, say so:
 
-    CLAUDE_ALLOW_STALE_BRIEF=1
+    CLAUDE_ALLOW_STALE_BRIEF=1 <your bash command>      (command position — the prefix is read
+                                                         from the command text)
+    export CLAUDE_ALLOW_STALE_BRIEF=1                   (REQUIRED for an Edit/Write: that path
+                                                         carries no command text, so the variable
+                                                         must already be in this hook's own
+                                                         environment. An inline prefix cannot
+                                                         reach it.)
 
 (This reads your LOCAL origin/main and never fetches, so it can only UNDER-report.
  \`git fetch origin main\` first if it matters.)
