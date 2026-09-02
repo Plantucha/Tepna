@@ -262,15 +262,28 @@
     // a timestamp column parses as a date.
     const sample = rows.slice(0, Math.min(rows.length, 60));
     const ncol = Math.max(...sample.map((r) => r.split(delim).length));
+    const headCells = (sample[0] || '').split(delim);
     let tsCol = -1,
       gCol = -1,
       gScore = -1;
     for (let c = 0; c < ncol; c++) {
       let dateHits = 0,
         numHits = 0,
+        intHits = 0,
         inBand = 0,
         total = 0,
         sum = 0;
+      /* SERIAL-INTEGER DETECTION (DEEP-AUDIT-VI F6). Dexcom Clarity's first column is a row
+         counter (Index = 1, 2, 3, …) whose values sit inside the [2, 600] "physiologic" band for
+         the whole 60-row sample — so it scored within ONE hit of the real glucose column, and a
+         single non-numeric glucose cell (the "Low" Clarity writes for below-range readings)
+         flipped the pick to it: every headline metric was then computed on ROW NUMBERS, silently.
+         A column whose numeric cells are all integers advancing by exactly ±1 is a counter, not a
+         measurement — it is disqualified from glucose candidacy outright rather than down-scored,
+         because no amount of in-band coverage makes a serial index a glucose series. */
+      let prevNum = null,
+        stepSign = 0,
+        serial = true;
       for (const line of sample) {
         const cells = line.split(delim);
         if (c >= cells.length) continue;
@@ -283,12 +296,26 @@
           numHits++;
           sum += num;
           if ((num >= 2 && num <= 30) || (num >= 30 && num <= 600)) inBand++;
+          if (Number.isInteger(num)) intHits++;
+          if (prevNum !== null) {
+            const st = num - prevNum;
+            if (Math.abs(st) !== 1 || (stepSign !== 0 && st !== stepSign)) serial = false;
+            else stepSign = st;
+          }
+          prevNum = num;
         }
       }
       if (total < 3) continue;
       if (dateHits / total > 0.6 && tsCol < 0) tsCol = c;
-      // prefer the numeric column with the most physiologic in-band hits (not the date)
-      const sc = inBand / total - dateHits / total;
+      const serialCol = serial && numHits >= 5 && intHits === numHits;
+      if (serialCol) continue; // a row counter can be a fine tsCol tiebreak-loser, never the glucose
+      /* Prefer the numeric column with the most physiologic in-band hits (not the date). A header
+         cell naming glucose outranks band statistics (+1 exceeds the whole sc range): the vendor
+         DECLARED the column, and the declaration cannot be outvoted by a lucky integer column —
+         but only a column that is still mostly numeric may claim the bonus, so a text column
+         with a glucose-ish header cannot win. */
+      const gHead = /gluco/i.test((headCells[c] || '').trim());
+      const sc = inBand / total - dateHits / total + (gHead ? 1 : 0);
       if (numHits / total > 0.6 && sc > gScore) {
         gScore = sc;
         gCol = c;

@@ -22144,6 +22144,55 @@
       }
     });
 
+    /* DEEP-AUDIT-VI F7 — an SA2 with SpO2 but NO Pulse channel is a real corpus shape (Pulse.1s is
+       present in 249 of 250 files). oximetryLane substituted an all-ZERO pulse series for the
+       missing channel, so the self-gate read pulseValid = 0 on every event, stamped every genuine
+       desat 'perfusion-collapse', and published ODI 0.00 / desatCount 0 — a fabricated clean night.
+       The mirror source (oxydex-dsp.js detectODI) treats the pulse series as optional and falls
+       back to ungated detection. Same SpO2, with and without the channel: the desats must survive. */
+    group('CPAPDex F7 — a missing Pulse channel is an ABSENT lane, not an all-zero one', 'cpapdex-dsp · oximetry · fabricated-absence', function (T) {
+      var DC = env.CpapDsp;
+      if (!DC || typeof DC.oximetryLane !== 'function') {
+        T.ok('CpapDsp.oximetryLane exposed', false, 'not wired');
+        return;
+      }
+      var N = 2400,
+        spo2 = new Float32Array(N).fill(96),
+        pulse = new Float32Array(N).fill(70);
+      // five clean 5 % desats, physiologic 0.5 %/s fall, 20 s nadir hold, symmetric recovery
+      for (var e = 0; e < 5; e++) {
+        var st = 300 + e * 400;
+        for (var i = 0; i < 10; i++) spo2[st + i] = 96 - 0.5 * i;
+        for (var j = 0; j < 20; j++) spo2[st + 10 + j] = 91;
+        for (var k = 0; k < 10; k++) spo2[st + 30 + k] = 91 + 0.5 * k;
+      }
+      var withP = DC.oximetryLane({ signals: { SpO2: { data: spo2 }, Pulse: { data: pulse } } }, N);
+      var noP = DC.oximetryLane({ signals: { SpO2: { data: spo2 } } }, N);
+      T.eq('F7 · control — with a healthy pulse the five desats are real', withP.desatCount, 5);
+      T.eq('F7 · control — …and none is an artifact', withP.artifactCount, 0);
+      T.eq('F7 · control — pulseLane says the self-gate ran', withP.pulseLane, 'present');
+      T.eq('F7 · WITHOUT a Pulse channel the same five desats survive (were: 0, all perfusion-collapse)', noP.desatCount, 5);
+      T.eq('F7 · …artifactCount is 0 because nothing was gated, not because nothing was found', noP.artifactCount, 0);
+      T.eq('F7 · …and ODI matches the with-pulse control (was 0.00 — the fabricated clean night)', noP.odi, withP.odi);
+      T.eq('F7 · the absence is NAMED on the lane so a consumer cannot mistake ungated for clean', noP.pulseLane, 'absent');
+      T.eq('F7 · pulseMedian is null on the absent lane, not a statistic of zeros', noP.pulseMedian, null);
+      T.ok(
+        'F7 · no event carries a perfusion verdict the lane had no pulse to reach',
+        noP.events.every(function (ev) {
+          return ev.reason !== 'perfusion-collapse';
+        }),
+        JSON.stringify(
+          noP.events.map(function (ev) {
+            return ev.reason;
+          })
+        )
+      );
+      // an EMPTY Pulse channel (present in the header, zero samples) is the same absence
+      var emptyP = DC.oximetryLane({ signals: { SpO2: { data: spo2 }, Pulse: { data: new Float32Array(0) } } }, N);
+      T.eq('F7 · a zero-length Pulse channel is absent too', emptyP.pulseLane, 'absent');
+      T.eq('F7 · …and keeps the five desats', emptyP.desatCount, 5);
+    });
+
     group('CPAPDex §7 — periodicBreathingPct is null, not 0, on a zero-duration session', 'cpapdex-dsp · fabricated-absence', function (T) {
       var D = env.CpapDsp;
       if (!D || typeof D.buildSessionFromEdf !== 'function') {
@@ -28786,6 +28835,56 @@
       } else {
         T.ok('§4 · GlucoDex.parseCSV + analyze exposed (session gate)', false, 'namespace is missing parseCSV/analyze');
       }
+    });
+
+    /* DEEP-AUDIT-VI F6 — the COLUMN PICK must survive a Dexcom Clarity layout: a serial Index counter
+       whose values sit inside locateColumns' [2,600] band, plus the "Low" string Clarity writes for
+       below-range readings. The score `inBand/total − dateHits/total` had no penalty for a serial
+       integer column, so clean glucose won by exactly ONE hit and a single Low cell flipped every
+       headline metric onto ROW NUMBERS (audit repro: mean 501 mg/dL, GMI 15.3, TIR 11.1 — all from
+       the Index column). The control is arithmetic, not a shim: the twin plants 570 measured readings
+       in a 70–200 band plus six Low cells; pre-F6 code computes mean ≈ 288.5 = avg(1..576) and reds
+       by construction. The decoys that must NOT win ride in the same file: a Transmitter Time
+       long-integer column (numeric, step 300 — not a ±1 counter, stays a legal candidate and must
+       lose on band coverage) and a "Glucose Rate of Change" header that also matches the /gluco/i
+       declaration bonus and must lose the same way. */
+    group('GlucoDex column pick — a serial Index counter is never the glucose (DEEP-AUDIT-VI F6)', 'glucodex-dsp · column-pick · adversarial-twin', function (T) {
+      var G = env.GlucoDex || env.GLUDSP;
+      var EQ = env.equiv || {};
+      var clarityIn = EQ.glucodex_clarity_low && EQ.glucodex_clarity_low.input;
+      if (!G || typeof G.compute !== 'function') {
+        T.ok('env.GlucoDex.compute available', false, 'namespace not wired — gate skipped');
+        return;
+      }
+      if (!clarityIn) {
+        T.ok('committed Clarity column-pick twin wired into env.equiv', false, 'it is a COMMITTED input — it must be present in every environment, including CI');
+        return;
+      }
+      var r = G.compute({ text: clarityIn });
+      var glu = r && r.glucose;
+      T.ok('the Clarity twin computes at all', !!glu);
+      if (!glu) return;
+      // The six Low cells are NOT measured glucose, so the analyzable grid is 570 = 576 − 6 (all six
+      // land in overnight: 138 + 144 + 144 + 144 — measured off the minted golden, not assumed).
+      // This leg discriminates on its own: pre-F6 code reads the Index column, where every one of the
+      // 576 rows is numeric, and reports 576.
+      var PARTS = ['overnight', 'morning', 'afternoon', 'evening'];
+      var nSum = 0;
+      for (var i = 0; i < PARTS.length; i++) nSum += (glu.daypart && glu.daypart[PARTS[i]] && glu.daypart[PARTS[i]].n) || 0;
+      T.ok('the six "Low" cells are excluded from the grid (daypart n sums to 570 = 576 − 6)', nSum === 570, 'daypart n sum = ' + nSum);
+      // THE DISCRIMINATOR: the planted curve lives in 70–200 mg/dL. The Index column's mean is
+      // avg(1..576) ≈ 288.5, so this leg reds on pre-F6 code by construction.
+      T.ok('mean glucose sits in the PLANTED band (70–200 mg/dL), not at avg(row numbers) ≈ 288.5', glu.mean >= 70 && glu.mean <= 200, 'mean = ' + glu.mean);
+      // and the pick must be robust beyond the one-Low margin: strip the header row and the serial
+      // guard alone must still keep Index out (no header to bonus, a counter is still a counter).
+      var noHead = clarityIn.split('\n').slice(1).join('\n');
+      var r2 = G.compute({ text: noHead });
+      var glu2 = r2 && r2.glucose;
+      T.ok(
+        'headerless variant still refuses the Index column (the serial-integer guard, not the header bonus, is load-bearing)',
+        !!glu2 && glu2.mean >= 70 && glu2.mean <= 200,
+        glu2 ? 'mean = ' + glu2.mean : 'no glucose block'
+      );
     });
 
     /* AUDIT-2026-07-16 F1 — the §3 file-level DMY/MDY lock must hold in GlucoDex's node-local parseCSV,

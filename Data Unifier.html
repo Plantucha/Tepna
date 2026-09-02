@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0wrnC0lVV+CrxqFX7kyOj6IsM0aoYU6jEFEXzId9FCU=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-IVo/BSoO8FnIyZgiecGr76EvKvwxfckWDpD0N85/XNk=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-W7m5EJur7zz9xJVj4s2diLK2Ex8nuYlUeh9vJ0nqr8U=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rWqh0krcQ5j4KEgHto+YSbUvoGUVzFyv7ucsRx/6K5s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-14YyZfCk3blco3kCkOqPlk6HvveUldb9rYcoNS1JJf4=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-IVo/BSoO8FnIyZgiecGr76EvKvwxfckWDpD0N85/XNk=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-W7m5EJur7zz9xJVj4s2diLK2Ex8nuYlUeh9vJ0nqr8U=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -14830,15 +14830,28 @@ __exports.PulseDex = window.PulseDex;
     // a timestamp column parses as a date.
     const sample = rows.slice(0, Math.min(rows.length, 60));
     const ncol = Math.max(...sample.map((r) => r.split(delim).length));
+    const headCells = (sample[0] || '').split(delim);
     let tsCol = -1,
       gCol = -1,
       gScore = -1;
     for (let c = 0; c < ncol; c++) {
       let dateHits = 0,
         numHits = 0,
+        intHits = 0,
         inBand = 0,
         total = 0,
         sum = 0;
+      /* SERIAL-INTEGER DETECTION (DEEP-AUDIT-VI F6). Dexcom Clarity's first column is a row
+         counter (Index = 1, 2, 3, …) whose values sit inside the [2, 600] "physiologic" band for
+         the whole 60-row sample — so it scored within ONE hit of the real glucose column, and a
+         single non-numeric glucose cell (the "Low" Clarity writes for below-range readings)
+         flipped the pick to it: every headline metric was then computed on ROW NUMBERS, silently.
+         A column whose numeric cells are all integers advancing by exactly ±1 is a counter, not a
+         measurement — it is disqualified from glucose candidacy outright rather than down-scored,
+         because no amount of in-band coverage makes a serial index a glucose series. */
+      let prevNum = null,
+        stepSign = 0,
+        serial = true;
       for (const line of sample) {
         const cells = line.split(delim);
         if (c >= cells.length) continue;
@@ -14851,12 +14864,26 @@ __exports.PulseDex = window.PulseDex;
           numHits++;
           sum += num;
           if ((num >= 2 && num <= 30) || (num >= 30 && num <= 600)) inBand++;
+          if (Number.isInteger(num)) intHits++;
+          if (prevNum !== null) {
+            const st = num - prevNum;
+            if (Math.abs(st) !== 1 || (stepSign !== 0 && st !== stepSign)) serial = false;
+            else stepSign = st;
+          }
+          prevNum = num;
         }
       }
       if (total < 3) continue;
       if (dateHits / total > 0.6 && tsCol < 0) tsCol = c;
-      // prefer the numeric column with the most physiologic in-band hits (not the date)
-      const sc = inBand / total - dateHits / total;
+      const serialCol = serial && numHits >= 5 && intHits === numHits;
+      if (serialCol) continue; // a row counter can be a fine tsCol tiebreak-loser, never the glucose
+      /* Prefer the numeric column with the most physiologic in-band hits (not the date). A header
+         cell naming glucose outranks band statistics (+1 exceeds the whole sc range): the vendor
+         DECLARED the column, and the declaration cannot be outvoted by a lucky integer column —
+         but only a column that is still mostly numeric may claim the bonus, so a text column
+         with a glucose-ish header cannot win. */
+      const gHead = /gluco/i.test((headCells[c] || '').trim());
+      const sc = inBand / total - dateHits / total + (gHead ? 1 : 0);
       if (numHits / total > 0.6 && sc > gScore) {
         gScore = sc;
         gCol = c;
@@ -28544,8 +28571,16 @@ __exports.ECGDex = window.ECGDex;
     var spo2Ch = chan(sa2, 'SpO2'),
       pulseCh = chan(sa2, 'Pulse');
     if (!spo2Ch || !spo2Ch.data || !spo2Ch.data.length) return { available: false, reason: 'no-spo2-channel', coverage: 0 };
+    /* DEEP-AUDIT-VI F7 — a missing Pulse channel is an ABSENT lane, not an all-zero one. This line
+       used to substitute `new Float32Array(spo2.length)` (every sample 0 bpm) for a file that carries
+       SpO2 but no Pulse, so selfGateDesat read pulseValid = 0 on EVERY event, stamped every genuine
+       desat 'perfusion-collapse', and the lane published ODI 0.00 / desatCount 0 — a fabricated clean
+       oximetry night (executed: five clean 5 % desats → odi 7.5 with pulse, odi 0 without). The
+       mirror source, oxydex-dsp.js detectODI, treats pulseSeries as OPTIONAL and degrades to
+       ungated detection; selfGateDesat already returns unflagged on a null series. Pass null, and
+       say so (`pulseLane`) so the consumer can see the self-gate did not run. */
     var spo2 = spo2Ch.data,
-      pulse = pulseCh ? pulseCh.data : new Float32Array(spo2.length);
+      pulse = pulseCh && pulseCh.data && pulseCh.data.length ? pulseCh.data : null;
     var n = spo2.length,
       valid = 0;
     for (var i = 0; i < n; i++) if (_spo2Valid(spo2[i])) valid++;
@@ -28590,12 +28625,15 @@ __exports.ECGDex = window.ECGDex;
       }
     }
     var pv = [];
-    for (var m = 0; m < pulse.length; m++) {
+    for (var m = 0; pulse && m < pulse.length; m++) {
       var p = pulse[m];
       if (p >= SELFGATE.PULSE_MIN && p <= SELFGATE.PULSE_MAX) pv.push(p);
     }
     return {
       available: true,
+      // 'present' ⇒ the perfusion/edge self-gate ran; 'absent' ⇒ no Pulse channel, desats are
+      // kinetics-ungated (F7). A consumer must not read artifactCount 0 as "no artifacts" when absent.
+      pulseLane: pulse ? 'present' : 'absent',
       coverage: +coverage.toFixed(3),
       odi: hours > 0 ? +(real.length / hours).toFixed(2) : null,
       desatCount: real.length,
