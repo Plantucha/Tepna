@@ -46182,6 +46182,145 @@
       T.ok('…citing the uncalibrated device frame rather than a validation it does not have', /UNCALIBRATED/.test(REG.accPosture.cite) && /MotionDex supineFrac/.test(REG.accPosture.cite));
       T.eq('edrDisagree keeps `heuristic` — the 27 % median is consistent with a rule-of-thumb flag', REG.edrDisagree.evidence, 'heuristic');
     });
+    /* ════ goodDirection AGREES WITH THE CODE THAT DECIDES GOOD/BAD (FOLLOWUPS §2.5c) ════
+       A registry `goodDirection` inverts the READING of a number — "higher is better" against a render
+       that colours high values red — and nothing compared it to anything. Two inversions were found by
+       hand in OxyDex (#2083: `ssiIdx` 'up' while the DSP scores <0.3 as severity 0; `nadirBinLt4` 'up'
+       while the render treats fewer as better), both while doing something else, which is why this
+       exists as a standing check rather than a one-off table.
+
+       WHAT IT CAN SEE, stated because the limit is the interesting part. A decision is attributable
+       only when the comparison, its verdict token and the metric's identity sit in ONE expression:
+         · render/app colour ternary — `<value> <op> <n> ? 'ok' : …` on a line that also carries
+           `evBadge('<label>')`, which names the metric;
+         · DSP severity row — `push('<id>', '<Label>', <value>, <value> <op> <n> ? <severity> : …)`,
+           where severity ASCENDS with badness so a first band of 0 means the low end is good.
+       EXTRACTOR CAVEATS, both found by getting them wrong first:
+         · NEIGHBOUR ATTRIBUTION — searching NEAR a metric's name instead of within one expression
+           scores the next row's decision. Measured: PpgDex `cleanPulses` was scored by the
+           `motionRejectedPct` line two rows below and reported as inverted. Hence one-line only.
+         · THE SECOND BAND — `v >= 90 ? 'ok' : v >= 75 ? 'warn' : 'bad'` matches twice, and scoring the
+           middle band inverts the answer. Measured: 11 false inversions, every one a second band.
+           Only the FIRST band decides.
+       NOT A RATCHET on how many metrics are covered: a render reflow would red a count for a
+       non-defect (the "gate asserts a plural" class, §2.2). Coverage is proven instead by PLANTED
+       controls — one per source class — so a change that blinds the extractor fails loudly. */
+    group('every DECIDABLE goodDirection agrees with the code that decides good/bad (FOLLOWUPS §2.5c)', 'registry · direction · cross-node', function (T) {
+      var UI = env.nodeUiSources,
+        SRC = env.sources || {};
+      if (!UI) {
+        T.skip('env.nodeUiSources provided to the runner', 'Node-lane only — the browser lane cannot list the tree');
+        return;
+      }
+      var NODES = [
+        { pre: 'oxydex', reg: env.OXY_REGISTRY, res: env.OxyRegistry },
+        { pre: 'ecgdex', reg: env.ECG_REGISTRY, res: env.EcgRegistry },
+        { pre: 'ppgdex', reg: env.PPG_REGISTRY, res: env.PpgRegistry },
+        { pre: 'pulsedex', reg: env.PULSE_REGISTRY, res: env.PulseRegistry },
+        { pre: 'hrvdex', reg: env.HRV_REGISTRY, res: env.HrvRegistry },
+        { pre: 'glucodex', reg: env.GLU_REGISTRY, res: env.GluRegistry },
+        { pre: 'cpapdex', reg: env.CPAP_REGISTRY, res: env.CpapRegistry },
+        { pre: 'motiondex', reg: env.MOTION_REGISTRY, res: env.MotionRegistry }
+      ].filter(function (n) {
+        return n.reg && n.res && typeof n.res.idForLabel === 'function';
+      });
+      T.ok('ANTI-VACUITY · registries + resolvers are wired', NODES.length >= 6, NODES.length + ' node(s)');
+      if (NODES.length < 6) return;
+
+      /* ONE LINE IN, ZERO OR MORE {id, implied} OUT. Pure, so the planted controls below exercise the
+         same code path the sweep does — a control that tested a copy would certify nothing. */
+      function decisionsOn(line, reg, res) {
+        var out = [];
+        if (/\b(ok|eq|assert|expect)\(/.test(line)) return out; // a tool's own selftest, not a surface
+        var sev = /push\('([\w.]+)',\s*'([^']+)',[^,]+,\s*[\w$.[\]]+\s*(<=|>=|<|>)\s*[-\d.]+\s*\?\s*(\d+)/.exec(line);
+        if (sev) {
+          var sid = reg[sev[1]] ? sev[1] : res.idForLabel(sev[2]);
+          if (sid && reg[sid] && reg[sid].goodDirection) {
+            var sLowGood = sev[3].charAt(0) === '<' ? Number(sev[4]) === 0 : Number(sev[4]) !== 0;
+            out.push({ id: sid, implied: sLowGood ? 'down' : 'up', cls: 'dsp-severity' });
+          }
+        }
+        var m = /([\w$.[\]]+)\s*(<=|>=|<|>)\s*[-\d.]+\s*\?\s*'(ok|good|g|warn|bad|r|w)'/.exec(line); // FIRST band only
+        if (m) {
+          var good = /^(ok|good|g)$/.test(m[3]);
+          var lowGood = m[2].charAt(0) === '<' ? good : !good;
+          var labs = String(line).match(/evBadge\('([^']+)'\)/g) || [];
+          for (var k = 0; k < labs.length; k++) {
+            var lab = labs[k].slice(9, -2);
+            var id = res.idForLabel(lab);
+            if (id && reg[id] && reg[id].goodDirection) out.push({ id: id, implied: lowGood ? 'down' : 'up', cls: 'render-colour' });
+          }
+        }
+        return out;
+      }
+
+      // ── the sweep ──
+      var checked = 0,
+        bad = [],
+        seen = {};
+      NODES.forEach(function (n) {
+        var files = {};
+        for (var f in UI[n.pre] || {}) files[f] = UI[n.pre][f];
+        var dsp = n.pre + '-dsp.js';
+        if (SRC[dsp]) files[dsp] = SRC[dsp];
+        for (var fn in files) {
+          var lines = String(files[fn]).split('\n');
+          for (var i = 0; i < lines.length; i++) {
+            var ds = decisionsOn(lines[i], n.reg, n.res);
+            for (var d = 0; d < ds.length; d++) {
+              checked++;
+              seen[n.pre + '·' + ds[d].id] = 1;
+              if (ds[d].implied !== n.reg[ds[d].id].goodDirection)
+                bad.push(n.pre + ' · ' + ds[d].id + " registry='" + n.reg[ds[d].id].goodDirection + "' but " + ds[d].cls + " implies '" + ds[d].implied + "' (" + fn + ':' + (i + 1) + ')');
+            }
+          }
+        }
+      });
+      /* Coverage is REPORTED, never asserted as a floor — see the header. The floor that IS asserted
+         is "the extractor still works", proven by the controls. */
+      T.ok('ANTI-VACUITY · the sweep resolved at least one real decision site', checked >= 1, checked + ' decision(s) over ' + Object.keys(seen).length + ' distinct metric(s)');
+      T.eq('no DECIDABLE goodDirection disagrees with the code that decides good/bad', bad.length, 0, bad.join(' · '));
+
+      // ── PLANTED CONTROLS: one per source class, or the check above can pass by seeing nothing ──
+      var probe = NODES.filter(function (n) {
+        return n.pre === 'oxydex';
+      })[0];
+      var upId = null,
+        downId = null;
+      if (probe) {
+        for (var id in probe.reg) {
+          var e = probe.reg[id];
+          if (!e || !e.label || !e.goodDirection) continue;
+          if (e.goodDirection === 'up' && !upId && probe.res.idForLabel(e.label) === id) upId = id;
+          if (e.goodDirection === 'down' && !downId && probe.res.idForLabel(e.label) === id) downId = id;
+        }
+        T.ok('ANTI-VACUITY · found an up-metric and a down-metric to plant with', !!upId && !!downId, 'up=' + upId + ' down=' + downId);
+        if (upId && downId) {
+          // (a) render class: an 'up' metric coloured as if LOW were good ⇒ must be caught
+          var pRender = "<div class=\"q-val ${r.x < 5 ? 'ok' : 'bad'}\">${evBadge('" + probe.reg[upId].label + "')}";
+          var rHit = decisionsOn(pRender, probe.reg, probe.res);
+          T.ok('CONTROL · a planted RENDER inversion is detected', rHit.length === 1 && rHit[0].id === upId && rHit[0].implied === 'down', JSON.stringify(rHit));
+          // (b) severity class: a 'down' metric whose first band scores 0 on the HIGH side ⇒ caught
+          var pSev = "push('" + downId + "', '" + probe.reg[downId].label + "', v, v > 9 ? 0 : 3);";
+          var sHit = decisionsOn(pSev, probe.reg, probe.res);
+          T.ok('CONTROL · a planted DSP-SEVERITY inversion is detected', sHit.length === 1 && sHit[0].id === downId && sHit[0].implied === 'up', JSON.stringify(sHit));
+          // (c) and the same shapes AGREEING must NOT be flagged, or the controls prove only noise
+          var okRender = "<div class=\"q-val ${r.x >= 5 ? 'ok' : 'bad'}\">${evBadge('" + probe.reg[upId].label + "')}";
+          var okHit = decisionsOn(okRender, probe.reg, probe.res);
+          T.ok('CONTROL · the agreeing render shape is NOT flagged', okHit.length === 1 && okHit[0].implied === 'up', JSON.stringify(okHit));
+        }
+      }
+      /* THE SECOND-BAND CAVEAT, pinned: scoring the middle band of a chain inverts the answer, and
+         this cost 11 false inversions before it was found. */
+      /* Keyed on the SAME probe metric the controls used. An earlier version keyed on a metric absent
+         from this registry, so the leg silently never ran — a conditional control that cannot fire is
+         not a control, and the caveat it exists to hold was unpinned. */
+      if (probe && upId) {
+        var chain = "<div class=\"q-val ${r.x >= 90 ? 'ok' : r.x >= 75 ? 'warn' : 'bad'}\">${evBadge('" + probe.reg[upId].label + "')}";
+        var cHit = decisionsOn(chain, probe.reg, probe.res);
+        T.ok('CAVEAT · a banded chain is read by its FIRST band only (scoring the second inverts it)', cHit.length === 1 && cHit[0].implied === 'up', JSON.stringify(cHit));
+      }
+    });
     group('No badge carries a tier nobody assigned — BADGE-COVERAGE-AUDIT §5', 'badges · registry · no-fabricated-tier', function (T) {
       var UI = env.nodeUiSources;
       if (!UI) {
