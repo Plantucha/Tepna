@@ -45669,6 +45669,155 @@
        console.warn in an app nobody has a console open on.
        An absent badge is a visible, countable bug; a fabricated one is an invisible lie, and §🎫 rates
        a wrong tier as severe as a wrong unit. This gate makes the fabricated case unshippable. */
+    /* ════ A `dormant` METRIC MUST ACTUALLY BE UNSURFACED — the flag is a claim, so check it ════
+       `dormant: true` asserts, in the registries' own words, "no compute site exists, so the metric
+       reaches no export and no surface". Nothing checked that. Measured 2026-09-01 (DEEP-AUDIT-VI F4):
+       ECGDex's `rraccRate` and `edrDisagree` carried the flag while being computed by `accExtras` and
+       rendered by the ACC sub-cards — since the initial commit, 2026-07-01 — and the flag was added
+       2026-08-18 (#1455) with a comment stating the sweep had "confirmed per-name — id, label and every
+       alias". It was wrong when it was written, not stale. That is the examined-nothing shape: a check
+       reported on surfaces it did not read.
+       THIS is the gate whose absence let it ship. It asks the ONE question the flag makes: does the
+       node's own UI mention this metric? A dormant entry that appears in a render site is either live
+       (drop the flag, re-adjudicate the grade) or mis-named — either way the registry is lying. */
+    group('a dormant metric is genuinely unsurfaced — the flag is checked, not trusted (DEEP-AUDIT-VI F4)', 'badges · registry · dormant-surface', function (T) {
+      var UI = env.nodeUiSources;
+      if (!UI) {
+        T.skip('env.nodeUiSources provided to the runner', 'Node-lane only (run-tests.mjs readdir) — the browser lane can’t list the tree so it SKIPs; CI runs the Node lane');
+        return;
+      }
+      var NODES = [
+        { pre: 'ecgdex', reg: env.EcgRegistry },
+        { pre: 'pulsedex', reg: env.PulseRegistry },
+        { pre: 'glucodex', reg: env.GlucoRegistry },
+        { pre: 'cpapdex', reg: env.CpapRegistry },
+        { pre: 'motiondex', reg: env.MotionRegistry },
+        { pre: 'oxydex', reg: env.OxyRegistry },
+        { pre: 'hrvdex', reg: env.HrvRegistry },
+        { pre: 'ppgdex', reg: env.PpgRegistry }
+      ].filter(function (n) {
+        return n.reg && n.reg.REGISTRY && UI[n.pre];
+      });
+      T.ok('ANTI-VACUITY · node UI sources + registries are wired', NODES.length >= 6, NODES.length + ' node(s) resolvable');
+      if (NODES.length < 6) return;
+      var strip = function (t) {
+        return String(t)
+          .replace(/\/\*[\s\S]*?\*\//g, ' ')
+          .replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+      };
+      /* A metric is "surfaced" if its LABEL or any alias pointing at it appears in a live (comment-
+         stripped) render source. Labels, not ids: a render site prints the label — which is exactly the
+         resolution path `evBadge` takes, and exactly the path #1455's sweep claimed to have walked. */
+      var dormantChecked = 0,
+        surfaced = [];
+      NODES.forEach(function (n) {
+        var REG = n.reg.REGISTRY,
+          ALIAS = n.reg.ALIAS || {};
+        var bodies = [];
+        for (var f in UI[n.pre]) bodies.push(strip(UI[n.pre][f]));
+        var live = bodies.join('\n');
+        Object.keys(REG).forEach(function (id) {
+          if (!REG[id] || REG[id].dormant !== true) return;
+          dormantChecked++;
+          var names = [REG[id].label];
+          for (var a in ALIAS) if (ALIAS[a] === id) names.push(a);
+          names.forEach(function (nm, ni) {
+            nm = String(nm || '');
+            /* WHICH NAMES ARE ADMISSIBLE EVIDENCE. The LABEL always (index 0) — that is the string a
+               render site prints. An ALIAS only if it is multi-word or ≥ 8 characters: a bare short
+               alias is not evidence of a surface, it is a word. Measured while writing this gate —
+               MotionDex's `uprightFrac` carries the alias `upright`, which matches
+               `POS_ORDER = ['supine', 'left', 'right', 'prone', 'upright', 'unknown']` in
+               motiondex-render.js: a posture ENUM VALUE, not a metric label, and `uprightFrac` is
+               genuinely unsurfaced. Accusing on that would make the gate cry wolf on its first run,
+               which is how a gate gets deleted. It under-reports rather than over-reports, and says
+               so — the ECGDex pair this gate was built from is caught either way ('ACC Respiratory
+               Rate (RRacc)' is the label; 'Disagreement' is 12 characters). */
+            if (!nm || (ni > 0 && nm.indexOf(' ') < 0 && nm.length < 8)) return;
+            var re = new RegExp('[\'"`>]\\s*' + nm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*[\'"`<]', 'i');
+            if (re.test(live)) surfaced.push(n.pre + ' → ' + id + " (rendered as '" + nm + "')");
+          });
+        });
+      });
+      T.ok('ANTI-VACUITY · there ARE dormant entries to check', dormantChecked >= 20, dormantChecked + ' dormant entr(ies) across the fleet');
+      /* ANTI-VACUITY for the DETECTOR: a LIVE metric's label must be found by the same search, or the
+         regex is simply never matching anything and the check above is hollow. */
+      var probe = NODES.filter(function (n) {
+        return n.pre === 'ecgdex';
+      })[0];
+      var probeHit = false;
+      if (probe) {
+        var probeLive = Object.keys(UI.ecgdex)
+          .map(function (f) {
+            return strip(UI.ecgdex[f]);
+          })
+          .join('\n');
+        probeHit = /['"`>]\s*ACC Respiratory Rate \(RRacc\)\s*['"`<]/i.test(probeLive);
+      }
+      T.ok('ANTI-VACUITY · the same search DOES find a live metric’s rendered label', probeHit, 'if this is false the dormant scan can never fire — it is not finding labels at all');
+      T.eq('no dormant metric appears in its node’s render sources', surfaced.length, 0, surfaced.join(' · '));
+    });
+
+    /* ════ THE ACC CROSS-CHECK CARD — every surfaced number badged, and the grade is MEASURED ════
+       DEEP-AUDIT-VI F4. The card printed 'ACC breathing N br/min', 'ECG/EDR breathing N', a Δ chip and
+       posture %-pills with NO evidence badge, while the registry graded all of them — invisible to
+       every existing gate because `no-fabricated-tier` scans `evBadge` CALL SITES and there were none
+       to scan. Absence of a call site is the one thing a call-site scan cannot see. */
+    group('the ACC Cross-Check card badges every number it surfaces, on a measured grade (DEEP-AUDIT-VI F4)', 'ecgdex-app · badges · coverage-mandate', function (T) {
+      var R = env.EcgRegistry,
+        REG = env.ECG_REGISTRY;
+      var app = (env.sources || {})['ecgdex-app.js'] || '';
+      if (!(R && REG)) {
+        T.skip('EcgRegistry + ECG_REGISTRY loaded', 'registry not in env');
+        return;
+      }
+      // ── the labels the card actually prints must RESOLVE (they are prose, not registry labels) ──
+      [
+        ['ACC breathing', 'rraccRate'],
+        ['ECG/EDR breathing', 'edrResp'],
+        ['Δ br/min', 'edrAgreement'],
+        ['Body position', 'accPosture']
+      ].forEach(function (pair) {
+        T.eq("the card's '" + pair[0] + "' chip resolves to " + pair[1], R.idForLabel(pair[0]), pair[1]);
+        T.ok(
+          '…and therefore emits a real badge, not the fabricated-experimental fallback',
+          !!R.badgeForLabel(pair[0], false),
+          'badgeForLabel returned empty with fallback OFF — the label does not resolve'
+        );
+      });
+      // ── the call sites exist (the defect was their absence) ──
+      if (app) {
+        var accFn = app.slice(app.indexOf('function renderACCComparison'), app.indexOf('function accExtraCards'));
+        T.ok('ANTI-VACUITY · renderACCComparison was located in the source', accFn.length > 500, accFn.length + ' chars');
+        ['ACC breathing', 'ECG/EDR breathing', 'Δ br/min', 'Body position'].forEach(function (lbl) {
+          T.ok("renderACCComparison badges '" + lbl + "'", accFn.indexOf("evBadge('" + lbl + "')") >= 0, 'no evBadge call for this chip — the number reaches the eye unbadged');
+        });
+        T.ok('the posture %-pills badge too (they are measurements, not decoration)', /postureBreakdown\.map[\s\S]{0,160}evBadge\('Body position'\)/.test(accFn));
+        /* THE CLAIM THAT WENT WITH THE BADGE. The card asserted the two respiration signals were
+           "cross-validating both" whenever their WHOLE-NIGHT means differed by < 2 br/min — an
+           agreement claim from a comparison of two averages, while a median 27 % of the paired epochs
+           behind them differ by more than 3 br/min. Measured over 45 real nights: median r 0.07, LoA
+           −4 … +7.5 br/min (docs/ECGDEX-RRACC-EDR-AGREEMENT-2026-09-01.md). */
+        T.ok('the "cross-validating both" claim is GONE', accFn.indexOf('cross-validating both') < 0, 'the whole-night Δ is asserting agreement again');
+        T.ok(
+          '…replaced by the PAIRED-EPOCH statistic (limits of agreement + the >3 br/min share)',
+          /limits of agreement[\s\S]{0,200}disagreeRate/.test(accFn),
+          'the note no longer quotes what it actually measured'
+        );
+        T.ok('…and it still says the whole-night Δ is not an agreement statistic', /not an agreement statistic/.test(accFn));
+      } else T.skip('ecgdex-app.js source in env.sources', 'not available in this runner');
+      // ── the grade the badge now carries ──
+      T.eq('rraccRate is `experimental` — the 45-night measurement, not the inherited `emerging`', REG.rraccRate.evidence, 'experimental');
+      T.ok('…and its cite carries the measurement + a link to the re-checkable table', /median r 0\.07/.test(REG.rraccRate.cite) && /ECGDEX-RRACC-EDR-AGREEMENT-2026-09-01/.test(REG.rraccRate.cite));
+      T.ok('the two false `dormant` flags are gone (both metrics have shipped since the initial commit)', REG.rraccRate.dormant !== true && REG.edrDisagree.dormant !== true);
+      T.ok(
+        'edrAgreement no longer calls itself a cross-validation — it is the statistic, and the answer was negative',
+        !/a cross-validation of two surrogate/.test(REG.edrAgreement.cite) && /does not establish agreement|verdict is negative/.test(REG.edrAgreement.cite)
+      );
+      T.eq('accPosture is registered `experimental`, inheriting MotionDex supineFrac’s reasoning', REG.accPosture.evidence, 'experimental');
+      T.ok('…citing the uncalibrated device frame rather than a validation it does not have', /UNCALIBRATED/.test(REG.accPosture.cite) && /MotionDex supineFrac/.test(REG.accPosture.cite));
+      T.eq('edrDisagree keeps `heuristic` — the 27 % median is consistent with a rule-of-thumb flag', REG.edrDisagree.evidence, 'heuristic');
+    });
     group('No badge carries a tier nobody assigned — BADGE-COVERAGE-AUDIT §5', 'badges · registry · no-fabricated-tier', function (T) {
       var UI = env.nodeUiSources;
       if (!UI) {
