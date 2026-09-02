@@ -640,6 +640,70 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     return x;
   }
   // Series-level sibling of `tchSigmas`, taking a per-PAIR ρ instead of assuming independence.
+  /* ── Block-bootstrap CI whose ESTIMATOR FOLLOWS THE POINT (DEEP-AUDIT-VI F16) ─────────────────
+     The sigma-no-reference live path pairs a FUSED-hat point (per-second DSP confidences
+     down-weighting artifact bursts) with a CI bootstrapped from the CLASSIC unweighted hat — two
+     different estimators, and on an artifact-flagged night the rendered σ sits entirely OUTSIDE its
+     own rendered 95 % CI (measured: σ_H10 = 1.009 against [7.296, 12.801]). Single-sourced here so
+     the page DELEGATES and the known-answer group can execute it: when the per-corner confidence
+     arrays are supplied they are resampled in LOCKSTEP with the same block indices and every
+     replicate runs tchSigmasFused — the same estimator as the point; without them every replicate
+     runs the classic tchSigmas, which is what the committed-TRIOS path pairs with its classic
+     point. `rand` is injectable so a test can pin the resampling exactly. */
+  function tchBlockBootstrapCI(hh, vv, oo, opts) {
+    opts = opts || {};
+    var cH = opts.cH || null,
+      cV = opts.cV || null,
+      cO = opts.cO || null;
+    var fused = !!(cH && cV && cO);
+    var B = opts.B || 200,
+      rand = opts.rand || Math.random;
+    var n = hh.length,
+      bl = Math.min(n, opts.blockS || 300),
+      nb = Math.ceil(n / bl);
+    var q = function (sorted, p) {
+      return sorted[Math.max(0, Math.min(sorted.length - 1, Math.floor(p * sorted.length)))];
+    };
+    var acc = { h10: [], verity: [], o2: [] };
+    for (var b = 0; b < B; b++) {
+      var H = [],
+        V = [],
+        O = [],
+        CH = fused ? [] : null,
+        CV = fused ? [] : null,
+        CO = fused ? [] : null;
+      for (var k = 0; k < nb; k++) {
+        var st = Math.floor(rand() * (n - bl + 1));
+        for (var j = 0; j < bl; j++) {
+          H.push(hh[st + j]);
+          V.push(vv[st + j]);
+          O.push(oo[st + j]);
+          if (fused) {
+            CH.push(cH[st + j]);
+            CV.push(cV[st + j]);
+            CO.push(cO[st + j]);
+          }
+        }
+      }
+      var s = fused ? tchSigmasFused(H, V, O, CH, CV, CO) : tchSigmas(H, V, O);
+      var keys = ['h10', 'verity', 'o2'];
+      for (var ki = 0; ki < 3; ki++) {
+        var kk = keys[ki];
+        if (s[kk] != null && isFinite(s[kk])) acc[kk].push(s[kk]);
+      }
+    }
+    var out = { estimator: fused ? 'fused' : 'classic' };
+    var keys2 = ['h10', 'verity', 'o2'];
+    for (var ko = 0; ko < 3; ko++) {
+      var kn = keys2[ko];
+      var a = acc[kn].sort(function (p1, p2) {
+        return p1 - p2;
+      });
+      out[kn] = a.length >= 20 ? { lo: q(a, 0.025), hi: q(a, 0.975) } : null;
+    }
+    return out;
+  }
+
   function tchSigmasPairwise(hh, vv, oo, rho) {
     var dHV = [],
       dHO = [],
@@ -1027,6 +1091,7 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     threeCorneredHat: threeCorneredHat,
     tchSigmas: tchSigmas,
     tchSigmasFused: tchSigmasFused,
+    tchBlockBootstrapCI: tchBlockBootstrapCI,
     tchSigmasPairwise: tchSigmasPairwise,
     tchSigmasPairwiseFromVars: tchSigmasPairwiseFromVars,
     tchRhoCrit: tchRhoCrit,
@@ -1328,34 +1393,15 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
   // aligned (H,V,O) triples, recompute TCH σ each rep → percentile CI per device.
   // This is the SAMPLING uncertainty of one window's σ — used when N<3 windows exist,
   // and clearly labelled as within-window (not the across-window CI the brief targets).
-  function blockBootstrapCI(hh, vv, oo) {
-    const n = hh.length,
-      bl = Math.min(n, BLOCK_S),
-      nb = Math.ceil(n / bl);
-    const acc = { h10: [], verity: [], o2: [] };
-    for (let b = 0; b < B_WITHIN; b++) {
-      const H = [],
-        V = [],
-        O = [];
-      for (let k = 0; k < nb; k++) {
-        const st = Math.floor(Math.random() * (n - bl + 1));
-        for (let j = 0; j < bl; j++) {
-          H.push(hh[st + j]);
-          V.push(vv[st + j]);
-          O.push(oo[st + j]);
-        }
-      }
-      const s = tchSigmas(H, V, O);
-      ['h10', 'verity', 'o2'].forEach((k) => {
-        if (s[k] != null && isFinite(s[k])) acc[k].push(s[k]);
-      });
-    }
-    const out = {};
-    ['h10', 'verity', 'o2'].forEach((k) => {
-      const a = acc[k].sort((p, q) => p - q);
-      out[k] = a.length >= 20 ? { lo: pct(a, 0.025), hi: pct(a, 0.975) } : null;
-    });
-    return out;
+  /* DEEP-AUDIT-VI F16 — the CI's estimator must FOLLOW the point's. Delegated to
+     AnalysisStats.tchBlockBootstrapCI (single-sourced, known-answer-gated): with the per-corner
+     confidence arrays present every replicate runs the FUSED hat — the estimator that produced the
+     live path's point — resampling the confidences in lockstep with the same block indices; without
+     them (the committed-TRIOS path, whose point is classic) every replicate runs the classic hat,
+     exactly as before. The old page-local copy bootstrapped tchSigmas unconditionally, so an
+     artifact-flagged night rendered a fused σ entirely outside its own classic CI. */
+  function blockBootstrapCI(hh, vv, oo, cH, cV, cO) {
+    return AnalysisStats.tchBlockBootstrapCI(hh, vv, oo, { cH, cV, cO, B: B_WITHIN, blockS: BLOCK_S });
   }
 
   // Across-window percentile bootstrap of the median σ (used when N≥3 windows).
@@ -1446,7 +1492,7 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     const N = windows.length,
       totalS = windows.reduce((s, w) => s + w.n, 0);
     const biggest = windows.reduce((a, b) => (b.n > a.n ? b : a), windows[0]);
-    const within = N < N_FOR_ACROSS ? blockBootstrapCI(biggest.hh, biggest.vv, biggest.oo) : null;
+    const within = N < N_FOR_ACROSS ? blockBootstrapCI(biggest.hh, biggest.vv, biggest.oo, biggest.cH, biggest.cV, biggest.cO) : null;
     const dev = {};
     for (const k of keys) {
       const vals = windows.map((w) => w.sigma[k]).filter((v) => v != null);
@@ -2192,7 +2238,7 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
   }
   // strip bulky per-sample arrays (grids + aligned window series) from the JSON
   function exportStats() {
-    const drop = new Set(['grids', 'hh', 'vv', 'oo', 'keys', 'dHV', 'dHO', 'dVO']);
+    const drop = new Set(['grids', 'hh', 'vv', 'oo', 'cH', 'cV', 'cO', 'keys', 'dHV', 'dHO', 'dVO']);
     dl('sigma-no-reference-stats.json', new Blob([JSON.stringify(RESULT, (k, v) => (drop.has(k) ? undefined : v), 2)], { type: 'application/json;charset=utf-8;' }));
   }
   function exportFig() {
@@ -2452,6 +2498,11 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
       hh,
       vv,
       oo,
+      // F16: the per-corner DSP confidences ride the window so the within-window CI can bootstrap
+      // the SAME estimator as the point (stripped from stats.json like hh/vv/oo).
+      cH: res.cH,
+      cV: res.cV,
+      cO: res.cO,
       keys: ks,
       source: res.source
     };

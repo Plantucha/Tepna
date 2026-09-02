@@ -10273,6 +10273,53 @@
         // (2) missing confidences default to 1 (⇒ identical to the all-ones call)
         T.approx('fused: missing cH/cV/cO default to 1', S.tchSigmasFused(hhc, vvc, ooc).h10, fusClean.h10, 1e-12);
 
+        /* ── Block-bootstrap CI follows the point estimator (DEEP-AUDIT-VI F16) ─────────────────
+           The live sigma-no-reference path rendered a FUSED point against a CLASSIC-bootstrapped CI;
+           on an artifact-flagged window the σ sat entirely outside its own 95 % CI (measured:
+           1.009 vs [7.296, 12.801]). The plant is the audit's shape shrunk: a confidence-zeroed
+           burst that the fused hat down-weights and the classic hat eats whole. Deterministic rand
+           so the resampling is pinned. */
+        if (typeof S.tchBlockBootstrapCI === 'function') {
+          var bbN = 600;
+          var bbH = [],
+            bbV = [],
+            bbO = [],
+            bbCH = [],
+            bbOnes = [];
+          for (var bi = 0; bi < bbN; bi++) {
+            var base = 60 + 5 * Math.sin(bi / 50);
+            var burst = bi >= 100 && bi < 160;
+            bbH.push(base + (bi % 7) * 0.1 + (burst ? 25 : 0));
+            bbV.push(base + (bi % 5) * 0.12);
+            bbO.push(base + (bi % 3) * 0.15);
+            bbCH.push(burst ? 0 : 1);
+            bbOnes.push(1);
+          }
+          var lcgS = 12345;
+          var lcg = function () {
+            lcgS = (lcgS * 1103515245 + 12345) & 0x7fffffff;
+            return lcgS / 0x7fffffff;
+          };
+          var bbPoint = S.tchSigmasFused(bbH, bbV, bbO, bbCH, bbOnes, bbOnes);
+          var bbFusedCI = S.tchBlockBootstrapCI(bbH, bbV, bbO, { cH: bbCH, cV: bbOnes, cO: bbOnes, B: 200, blockS: 60, rand: lcg });
+          T.eq('bootstrap CI · with confidences the estimator is FUSED', bbFusedCI.estimator, 'fused');
+          T.ok(
+            'bootstrap CI · the fused point sits INSIDE its own fused CI (the F16 invariant)',
+            bbFusedCI.h10 && bbPoint.h10 >= bbFusedCI.h10.lo && bbPoint.h10 <= bbFusedCI.h10.hi,
+            'point ' + bbPoint.h10 + ' vs CI ' + JSON.stringify(bbFusedCI.h10)
+          );
+          lcgS = 12345;
+          var bbClassicCI = S.tchBlockBootstrapCI(bbH, bbV, bbO, { B: 200, blockS: 60, rand: lcg });
+          T.eq('bootstrap CI · without confidences the estimator is CLASSIC (the committed-TRIOS path)', bbClassicCI.estimator, 'classic');
+          T.ok(
+            'bootstrap CI · the OLD pairing is measurably broken: the fused point falls OUTSIDE the classic CI on the burst window',
+            bbClassicCI.h10 && !(bbPoint.h10 >= bbClassicCI.h10.lo && bbPoint.h10 <= bbClassicCI.h10.hi),
+            'point ' + bbPoint.h10 + ' vs classic CI ' + JSON.stringify(bbClassicCI.h10)
+          );
+        } else {
+          T.ok('AnalysisStats.tchBlockBootstrapCI exported', false, 'F16 kernel missing');
+        }
+
         /* ── PAIRWISE-ρ hat (TCH-REFERENCE-VALIDATION R2) ────────────────────────────────────────
            Classic TCH assumes mutually independent corners. For a respiration triplet that is
            measurably false — ECG-RSA and PPG-RSA read the same modulation, ρ = 0.42 against the
@@ -10548,7 +10595,7 @@
       var src = env.sources || {};
       var DELEGATIONS = [
         ['nights-icc-analysis.js', ['AnalysisStats.iccOneWay', 'AnalysisStats.spearmanBrown', 'AnalysisStats.minOccForReliability']],
-        ['sigma-no-reference-analysis.js', ['AnalysisStats.tchSigmas', 'AnalysisStats.tchSigmasFused', 'AnalysisStats.blandAltman', 'AnalysisStats.pearson']],
+        ['sigma-no-reference-analysis.js', ['AnalysisStats.tchSigmas', 'AnalysisStats.tchSigmasFused', 'AnalysisStats.tchBlockBootstrapCI', 'AnalysisStats.blandAltman', 'AnalysisStats.pearson']],
         ['cgm-hrv-coupling-analysis.js', ['AnalysisStats.pearsonCI', 'AnalysisStats.partialCorr']],
         ['treatment-response-analysis.js', ['AnalysisStats.bestSplit', 'AnalysisStats.mannWhitneyAUC']],
         ['odi-bias-analysis.js', ['AnalysisStats.ols']],
