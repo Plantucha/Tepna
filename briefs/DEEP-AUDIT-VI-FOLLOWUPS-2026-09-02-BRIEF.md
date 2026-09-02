@@ -290,12 +290,53 @@ the 5 were found by keying on NUMERALS, and a claim can be structural without on
 back clean; `Longest Clean Run`'s defect was structural too ("motion = 0 … no artifact flags") and only
 surfaced because the word "clean" invited a look. A numeral-keyed extractor finds the cheap half. Not built here. The other 7 nodes are unswept.
 
-### 2.5c LEAD — `goodDirection` is not compared against anything
-Two inversions found by hand in OxyDex, both corrected there: `ssiIdx` was `'up'` while the DSP scores
-`<0.3` as severity 0, and `nadirBinLt4` was `'up'` while the render treats fewer as better. Nothing
-compares a registry entry's direction against the DSP's severity ordering or the render's colouring, so an
-inverted direction inverts the READING of a number with every gate green. 2 found in one node; 7 nodes
-unswept. Distinct from 2.5b: that one is about what a number means, this one about which way is good.
+### 2.5c `goodDirection` vs the code that decides good/bad — SWEPT and GATED 2026-09-02 (Magpie)
+A registry `goodDirection` inverts the READING of a number, and nothing compared it to anything. Two
+inversions were found by hand in OxyDex (#2083: `ssiIdx` `'up'` while the DSP scores `<0.3` as severity 0;
+`nadirBinLt4` `'up'` while the render treats fewer as better) — **both while doing something else, neither
+by a sweep**, which is what argued for a standing check rather than a one-off table.
+
+**The filter, stated with its counts.** Across the 7 previously unswept nodes: **352 registry entries carry
+a `goodDirection` and 0 do not** — there is no "lacking direction" class to list. Per node: ecgdex 78 ·
+pulsedex 69 · ppgdex 66 · cpapdex 53 · glucodex 42 · hrvdex 34 · motiondex 10.
+
+**Result: 25 distinct metrics are DECIDABLE, and all 25 agree — 0 inversions outside OxyDex.**
+
+**What "decidable" means, and why the rest is not.** A decision is attributable only when the comparison,
+its verdict token and the metric's identity sit in ONE expression — two source classes: a render/app
+colour ternary on a line carrying `evBadge('<label>')`, and the DSP findings row `push('<id>', '<Label>',
+<value>, <value> <op> <n> ? <severity> : …)` (severity ASCENDS with badness, so a first band of 0 means the
+low end is good). Everything else is **undecidable-by-instrument**, recorded by reason class rather than by
+row:
+- **`push(...)` severity rows are an OXYDEX-ONLY idiom.** Verified by reading every `push('` site in the
+  other 7 — they are flag lists and text fragments, not severity rows. The 0 is a property of those nodes,
+  not of the regex.
+- **The other nodes DO decide severity in the DSP** — `sev = 'good' | 'warn' | 'bad'` — but inside
+  multi-line `if/else` blocks, where the metric's identity is not in the same expression as the verdict.
+  Attributing those needs an id→DSP-field map that does not exist.
+- **MotionDex is decidable by ABSENCE, and is its own class: "no code decides".** No value-based good/bad
+  exists anywhere in `motiondex-render.js`/`-app.js` — no `'ok'/'warn'/'bad'` ternary, no severity
+  ordering. Its 10 declared directions are **unverifiable, not wrong**: nothing consumes or contradicts
+  them.
+
+**Gated, not tabled.** `registry · direction · cross-node` asserts agreement over the decidable set on
+every run. It deliberately does **NOT** ratchet the coverage count — a render reflow would red a plural for
+a non-defect (§2.2's class). Coverage is proven instead by **planted controls, one per source class**: an
+inverted render ternary and an inverted severity row must both be caught, and the agreeing shape must NOT
+be flagged, so a change that blinds the extractor fails loudly instead of passing over nothing.
+
+**Extractor caveats, both found by getting them wrong first** (recorded the way §2.4's note is, because the
+next person will reach for the same two shortcuts):
+- **NEIGHBOUR ATTRIBUTION.** Searching NEAR a metric's name rather than within one expression scores the
+  next row's decision. Measured: PpgDex `cleanPulses` was scored by the `motionRejectedPct` line two rows
+  below and reported as inverted. A ±4-line window is not a safe join in a stat grid.
+- **THE SECOND BAND.** `v >= 90 ? 'ok' : v >= 75 ? 'warn' : 'bad'` matches twice, and scoring the middle
+  band inverts the answer — it produced **11 false inversions, every one a second band**. Only the FIRST
+  band decides.
+Both caveats are pinned by their own legs, so a "simplification" that re-introduces either fails. A third
+was caught in review of this gate itself: the caveat leg originally keyed on a metric absent from the probe
+registry, so it silently never ran — **a conditional control that cannot fire is not a control**, which is
+§2.1's shape one level up.
 
 ### 2.5d Write the §2.6 case as a TEST, not a comment — it caught a bug in the fix itself
 FOLLOWUPS §1.1's MotionDex fix (#2080) re-anchors a stepped device counter. The §2.6 branch — an
@@ -381,7 +422,7 @@ spine's verify starts until it is pushed** — otherwise each merge burns anothe
 Rebase-safe onto main at idle time when the conflict set is self-owned; the eventual landing is then a
 near fast-forward. One rebase-safe + build, no CI. Adopt as a fleet habit.
 
-### 3.4 `selftest-all` could not REPORT a non-assertion failure — cause of the qwen flake still UNKNOWN
+### 3.4 `selftest-all` could not REPORT a non-assertion failure — cause NAMED 2026-09-02 by the instrument
 **This section previously named a mechanism that is now falsified, on my say-so (Magpie). Recorded as a
 correction rather than overwritten, because the error is the brief's own subject.**
 
@@ -415,7 +456,51 @@ consistent with a timeout or a kill before the tool printed)` when it said nothi
 tell. Verified against a PLANTED hanging tool, which now reports exactly that. 10 assertions pin the
 classifier, including that `killed` outranks `code` (a killed process carries both).
 
-**So the next occurrence will name its own cause, and this row stays OPEN until one does.** §4b's family:
+**CAUSE NAMED — on the instrument's FIRST run after it shipped (#2089).** The third occurrence, during
+the §2.5c chain, reported itself instead of a blank line:
+`✗ tools/dsp-review-qwen.mjs FAILED — TIMED OUT after 120s (killed, SIGTERM)` /
+`(no output at all — consistent with a timeout or a kill before the tool printed)`. The class is settled:
+a **timeout**, never an assertion failure — which is precisely what two prior occurrences could not say.
+
+**And WHY, because "it timed out" is a symptom too.** The tool's selftest is pure (21 assertions over the
+chunker, parser and prompt builder), its module imports in 0.10 s with no blocking top-level work, and it
+passes standalone. Timing every selftest in the sweep:
+
+| tool | wall |
+|---|---|
+| `mutation-crawl` | 4.10 s |
+| **`dsp-review-qwen`** | **3.60 s (100 % CPU)** |
+| `nsrr-stage-validate` | 1.20 s |
+| the other 78 | ≤ 0.30 s |
+
+Two tools are 12–40× the rest, and `selftest-all` launches **all 81 via `Promise.all` with no pool** —
+so the tool with the highest CPU demand is the one a contention spike reaches first, which is why it is
+always this tool and never a 0.2 s one.
+
+⚠️ **BUT THE SOURCE OF THE CONTENTION WAS ASSERTED AND IS WRONG — corrected here rather than quietly.**
+An earlier version of this paragraph said the sweep runs "while the suite holds 8 shards", giving ~89
+runnable processes. **`npm run check` is a sequential `&&` chain and `test:tools` runs BEFORE
+`test:par`** — the shards are never running during the sweep. Measured after that claim was written: a
+controlled reproduction (suite deliberately started first, then the unpooled sweep with the timeout
+lifted so the value is uncensored rather than a 120 s kill) put `dsp-review-qwen` at **6.3 s**, a
+contention factor of only ~1.75× over its 3.6 s standalone — nowhere near 120 s. **So neither the sweep's
+own concurrency nor the shards explains the kills.** What remains, and is consistent with every
+observation, is CROSS-SESSION load: several fleet sessions run full gates on this box at once, which is
+invisible from inside any one of them. That is a hypothesis with a mechanism, not a measurement — it is
+not claimed as established.
+
+**The prediction stands and is now sharper:** `mutation-crawl` (4.1 s) should be the next to time out,
+and a ≤0.3 s tool timing out still refutes the CPU-demand account. Added: if a kill ever happens while
+the box is otherwise idle, cross-session load is refuted too.
+
+**FALSIFIABLE PREDICTION, recorded so the account can be wrong out loud:** if this is right,
+`mutation-crawl` (4.10 s) is the second-most likely to time out and should eventually appear; **if a
+≤0.30 s tool ever times out, the CPU-demand account is refuted** and something else is at work.
+
+**The timeout is NOT the defect and is not tuned.** The defect is unbounded concurrency over 81 child
+processes; a pool fixes the class rather than this tool. Left for its own unit.
+
+**§4b's family:** 
 a report that shows the part matching its expectations and silently drops the rest.
 
 ### 3.6 A `<node>-registry.js` edit is a COMPUTE-PATH change, and a re-tier owes a verify lap
