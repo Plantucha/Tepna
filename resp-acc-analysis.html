@@ -1360,6 +1360,27 @@ function adaptEnvelopeNode(json, node, filename) {
     summary.sdnn = _dig(json, ['hrv', 'time', 'sdnn']) || _dig(json, ['hrv', 'sdnn']) || _dig(json, ['metrics', 'sdnn']) || (json.sdnn != null ? json.sdnn : null);
     summary.lfhf = _dig(json, ['hrv', 'frequency', 'lfhf']) || _dig(json, ['hrv', 'lfhf']) || (json.lfhf != null ? json.lfhf : null);
     summary.hrvWindow = 'wholeRecord';
+    /* ── RESPIRATION FROM THE OPTICAL NODE (Heron's cross-family trace, verified 2026-09-02) ──
+       PpgDex computes an RSA respiration rate and EXPORTS it at `hrv.frequency.respRate` with its
+       method string — a third estimate, mechanistically independent of ECGDex's ECG-RSA and
+       MotionDex's chest-ACC. It reached no fusion, because `summary.respRateBrpm` was assigned at
+       exactly two sites: `:365` inside `if (node === 'ECGDex')` and `:617` inside
+       `if (node === 'MotionDex')`. This block — the one PpgDex actually flows through — already read
+       `hrv.frequency.lfhf` and simply never read the sibling key beside it.
+       ⚠️ TWO COMMENTS ASSERT THIS WAS ALREADY WIRED, AND BOTH ARE WRONG IN THE SAME WAY.
+       `ppgdex-dsp.js`'s export block says *"the field the Integrator already reads … has assigned
+       `summary.respRateBrpm = _hf.respRate` all along (link 3 was never missing)"*, and a brief
+       records the same. True of ECGDex, false of PpgDex: the assignment they name is inside the
+       ECGDex branch, so adding the field to PpgDex's export could never have been enough. A claim
+       that a link exists, written from the producer's side, is how this stayed shut with the value
+       computed, exported, and one `if` away from its consumer.
+       Normalisation mirrors ECGDex exactly (`> 0` ⇒ 'not estimated' becomes null, never 0 bpm), and
+       the guard leaves PulseDex/HRVDex untouched — neither exports the key, so both stay null. */
+    var _frq = (json.hrv && json.hrv.frequency) || {};
+    if (summary.respRateBrpm == null) {
+      summary.respRateBrpm = _frq.respRate != null && _frq.respRate > 0 ? _frq.respRate : null;
+      summary.respRateMethod = summary.respRateBrpm != null ? _frq.respRateMethod || 'RSA (PPG)' : null;
+    }
     /* DEEP-AUDIT-2026-07-11 §14: HRVDex — THE HRV node — could never join the HRV consensus. Its export
        writes per-reading HRV under `measurements[]` (the 2026-07-04 SELF-INGEST enrichment); this chain
        only knew `hrv.time.*`, so summary.rmssd/sdnn were null on 100 % of HRVDex exports and

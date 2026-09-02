@@ -4894,6 +4894,14 @@
             /* §1.6 link 2 — the field the Integrator already reads. `integrator-dsp` has assigned
                `summary.respRateBrpm = _hf.respRate` all along (link 3 was never missing); it simply had
                nothing to read, because this block carried no frequency-valued key at any level.
+               🔴 CORRECTED 2026-09-02 — the two sentences above are WRONG and this key alone was never
+               enough. The Integrator's assignment they name lives inside `if (node === 'ECGDex')`
+               (`integrator-dsp.js:365`); the whole file assigns that field at exactly two sites, the
+               other being MotionDex's. The branch PpgDex actually flows through never read it, so this
+               export published a respiration rate that reached no fusion for a month. Wired on the
+               consumer side 2026-09-02 and gated. Left standing rather than deleted because a producer
+               asserting its consumer is wired is the failure worth seeing: nothing here could have
+               detected it, since the claim is about a file this one does not read.
                WHOLE-RECORD deliberately, not the epoch median: respiration is being reported as ONE
                number for the recording, and `fq` is the whole-record spectrum — the same scale ECGDex
                reports its `respRate` on, which is what makes the two comparable in the fusion. The
