@@ -1950,7 +1950,14 @@
   // #1800), killing the whole night's export. 48 h, as ECGDex `CVHR_MAX_SPAN_S`: over twice any real
   // recording, so a gappy night still fits. Refusal ⇒ null with a reason, never a fabricated 0.
   const PPG_MAX_SPAN_S = 48 * 3600;
-  function cvhrFromNN(nn, tt) {
+  /* `activeSec` (OPTIONAL, added LAST for back-compat per CLAUDE.md §🧪) is the beat-COVERED time the
+     caller measured — inter-beat deltas ≤ PPG_CVHR_GAP_S summed. When it is > 0 it is the index's
+     denominator; absent or 0 falls back to the wall span, which is exact for a gap-free series.
+     Ports the ECGDex fix of the same defect (DEEP-AUDIT-VI F3/F10): both nodes now count events per
+     hour OF OBSERVED RECORDING, so the two `apnea.cvhrIndex` values the Integrator corroborates
+     against each other are on the same basis. Divide one by wall span and the other by covered time
+     and the corroboration measures the dropouts, not the physiology. */
+  function cvhrFromNN(nn, tt, activeSec) {
     const N = nn.length;
     if (N < 60 || !tt || tt.length !== N) return { events: [], index: null };
     const tEnd = tt[N - 1];
@@ -2033,9 +2040,17 @@
         }
       }
     }
-    const hours = tEnd / 3600;
+    /* CVHR index = events per hour OF OBSERVED RECORDING (DEEP-AUDIT-VI F3, ported from ECGDex).
+       This divided by the wall span `tEnd`, so sensor DEAD TIME sat in the denominator of a metric
+       the Integrator corroborates against ECGDex's — and the Verity is the fleet's worst offender for
+       dropouts (24 segments in one corpus night against the H10's 3), so the PPG leg carried the
+       larger error of the two. Events can only arise in covered seconds: the 1 Hz resample above
+       holds the last beat's HR flat across a hole, so `res` decays to 0 there and the ENV_ON gate
+       stays shut. `denomSec` is returned so a consumer can see the basis instead of inferring it. */
+    const denomSec = activeSec > 0 ? activeSec : tEnd;
+    const hours = denomSec / 3600;
     const index = hours > 0 ? +(events.length / hours).toFixed(1) : 0;
-    return { events, index };
+    return { events, index, denomSec };
   }
   // `omit` (OPTIONAL, added LAST for back-compat per CLAUDE.md §🧪) marks intervals that are NOT
   // MEASUREMENTS AT ALL — currently only those straddling a time discontinuity (O2RING-PPG-GAP §2).
@@ -3718,7 +3733,18 @@
     // OXYDEX-PULSE-RESOURCING §Phase 4: whole-record CVHR from the corrected NN series (autonomic
     // apnea correlate). Emitted for every PPG record; the Integrator only corroborates the FINGER one
     // (the O2Ring's own pleth) against ECGDex cardiac CVHR. index = events/hour (0 = none detected).
-    const _cvhr = cvhrFromNN(corr.nn, corr.tt);
+    /* OBSERVED seconds for the index's denominator (DEEP-AUDIT-VI F3 port). Measured here with the
+       SAME rule ECGDex applies to its own beat series — inter-beat deltas over the gap cut are dead
+       time, not a long interval — rather than reusing `ppgCoverage`, which answers the neighbouring
+       question about the SAMPLE stream: a hole in the samples and a hole in the accepted beat series
+       are not the same set, and the denominator has to match the series the events came from. */
+    const PPG_CVHR_GAP_S = 10; // ECGDex `GAP_S` — one cut, so the two nodes' indices stay comparable
+    let _cvhrActiveSec = 0;
+    for (let k = 1; k < corr.tt.length; k++) {
+      const _d = corr.tt[k] - corr.tt[k - 1];
+      if (_d > 0 && _d <= PPG_CVHR_GAP_S) _cvhrActiveSec += _d;
+    }
+    const _cvhr = cvhrFromNN(corr.nn, corr.tt, _cvhrActiveSec);
     // §4: per-interval CLEAN-adjacency mask — interval i (between beat i & i+1) is clean when it
     // was NOT correction-flagged AND both endpoint beats cleared SQI≥0.5 (SQI folds the 3-LED
     // agreement, §5). rMSSD/pNN50/SD1 are computed over clean adjacent pairs so sub-ectopy optical
@@ -4139,6 +4165,9 @@
       sdnnRobustBasis,
       cvhrIndex: _cvhr.index, // §Phase 4 — CVHR events/hour from the finger PPI NN series (autonomic apnea correlate)
       cvhrEvents: _cvhr.events.length,
+      // The index's BASIS travels with it (F3 port) — present only when one was computed, so a
+      // refusal path stays byte-stable and no committed fixture moves for an inert key.
+      ...(_cvhr.denomSec > 0 ? { cvhrDenomSec: _cvhr.denomSec } : {}),
       // F10 — present ONLY when the span refusal fired, so a refused null is told apart from a
       // too-short one; absent otherwise (no committed fixture moves for an inert key).
       ...(_cvhr.reason ? { cvhrReason: _cvhr.reason } : {}),
@@ -4574,6 +4603,13 @@
     correctRR,
     beatSQI,
     beatConfidence,
+    /* ADDITIVE EXPORT (DEEP-AUDIT-VI F3 port), mirroring ECGDex, which exports `detectCVHR` for the
+       same reason: the denominator and the refusal guards become directly assertable, and — the part
+       only an export makes possible — the two nodes' implementations can be run on IDENTICAL input in
+       one assertion. The Integrator corroborates `apnea.cvhrIndex` across them, so "same quantity" is
+       a contract between the nodes, not an internal detail of either. No existing caller reaches it
+       through this surface; `analyze` still calls it directly. */
+    cvhrFromNN,
     timeDomain,
     poincare,
     lombScargle,
@@ -4876,6 +4912,11 @@
       out.apnea = {
         cvhrIndex: r.cvhrIndex != null ? r.cvhrIndex : null,
         cvhrEvents: r.cvhrEvents != null ? r.cvhrEvents : null,
+        /* WHICH HOURS the index divided by (F3 port) — attached only when the index was computed, so
+           a refusal carries no basis it does not have. The Integrator reads this block from BOTH
+           nodes; without the denominator a consumer cannot tell a 5 /h from a 40 % covered night
+           apart from a 5 /h from a clean one. */
+        ...(r.cvhrIndex != null && r.cvhrDenomSec > 0 ? { cvhrHours: +(r.cvhrDenomSec / 3600).toFixed(2) } : {}),
         cvhrMethod: 'CVHR events/h from finger PPI NN (Hayano apnea-band 20–45 s; ports ECGDex detectCVHR)',
         cvhrTier: 'emerging'
       };
