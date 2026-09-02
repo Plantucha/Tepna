@@ -144,6 +144,7 @@ async function main() {
     process.exit(2);
   }
   const { getDsps, ecgRpeakTimes, ppgFootTimes } = await import(join(HERE, 'pat-matchrate-strict.mjs'));
+  const { pickPair } = await import(join(HERE, 'pat-window-oracle.mjs'));
   getDsps();
   console.log('night        ΔmodePred   tMsCorrected  independent  maxStep   c range        split (h)');
   for (const n of nights) {
@@ -155,17 +156,15 @@ async function main() {
       console.log(`${n}  ⊘ no directory`);
       continue;
     }
-    const pick = (re) => {
-      const c = files.filter((f) => re.test(f)).map((f) => join(dir, f));
-      if (!c.length) return null;
-      return c.sort((a, b) => readFileSync(b).length - readFileSync(a).length)[0];
-    };
-    const eF = pick(/_ECG\.txt$/);
-    const pF = pick(/Verity.*_PPG\.txt$/i) || pick(/_PPG\.txt$/);
-    if (!eF || !pF) {
-      console.log(`${n}  ⊘ missing a stream`);
+    /* The oracle's picker, imported — this was the FOURTH copy of the pre-#2082 version. Note it
+       reports its own reason below: that is exactly why `pickPair` RETURNS `missing` instead of
+       printing, since the three call sites each report differently. */
+    const paired = pickPair(dir, files);
+    if (paired.missing) {
+      console.log(`${n}  ⊘ ${paired.missing}`);
       continue;
     }
+    const { eF, pF } = paired;
     let E;
     let P;
     try {

@@ -564,6 +564,13 @@ Status lives in a one-line header block on the first content line (just after an
   YYYY-MM-DD-BRIEF.md` is created **only by the session that picks a row up to execute it** (when the
   remainder is ≥ one work-unit), and creating it closes the row (`→ \`<NAME>-BRIEF.md\``); a one-PR fix
   closes it as `fixed #NNNN`. Rows are appended and closed, never edited or deleted.
+  ⚠️ **A residue with no parent brief names its real origin — a repo path or a `#PR` — never the nearest
+  brief.** Repairing an *instrument* surfaces defects that descend from the fix and from no brief at all
+  (2026-09-02: `find_unwired.py` stopped counting a comment as a consumer and two real orphans fell out).
+  The source cell therefore accepts a `*-BRIEF.md` (back-reference required), a repo path that must exist
+  in the tree, or `#NNNN`. Naming a plausible brief to fill the cell **passes** check 8 — which verifies
+  existence and the back-reference, not responsibility — while sending the picker-up to a brief that never
+  left the defect.
   *Why:* measured on the 2026-09-02 drain, **27 of 77** open briefs were `-FOLLOWUPS-` files, and none had
   an owner — a file created at execution time is written by the session that is leaving, so it belongs to
   nobody by construction; a row promoted at pickup time belongs to the session that promoted it. The 27

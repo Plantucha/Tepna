@@ -26574,17 +26574,24 @@
             var c = cells.slice(1, 7).map(function (s) {
               return s.trim();
             });
-            var src = c[2].match(/^`([A-Za-z0-9._-]+-BRIEF\.md)`$/);
+            var srcBrief = c[2].match(/^`([A-Za-z0-9._-]+-BRIEF\.md)`$/);
+            var srcPath = !srcBrief && c[2].match(/^`([A-Za-z0-9._\/-]+\.[A-Za-z0-9]+)`$/);
+            var srcPr = !srcBrief && !srcPath && c[2].match(/^`(#\d+)`$/);
+            var src = srcBrief || srcPath || srcPr;
+            var srcKind = srcBrief ? 'brief' : srcPath ? 'path' : srcPr ? 'pr' : null;
             var st = c[5];
             var promoted = st.match(/^→\s*`([A-Za-z0-9._-]+-BRIEF\.md)`$/);
             var stateOk = st === 'OPEN' || !!promoted || /^fixed #\d+$/.test(st);
             if (!/^\d{4}-\d{2}-\d{2}$/.test(c[1]) || !src || !stateOk || !c[3] || !c[4]) {
               out.malformed.push(
-                c[0] + ' (' + (!src ? 'source not a backticked *-BRIEF.md' : !stateOk ? 'state "' + st + '" not OPEN | → `brief` | fixed #N' : 'bad date or empty defect/evidence') + ')'
+                c[0] +
+                  ' (' +
+                  (!src ? 'source not a backticked *-BRIEF.md, repo path or #PR' : !stateOk ? 'state "' + st + '" not OPEN | → `brief` | fixed #N' : 'bad date or empty defect/evidence') +
+                  ')'
               );
               return;
             }
-            out.rows.push({ id: c[0], date: c[1], source: src[1], state: st, promoted: promoted ? promoted[1] : null });
+            out.rows.push({ id: c[0], date: c[1], source: src[1], srcKind: srcKind, state: st, promoted: promoted ? promoted[1] : null });
           });
         return out;
       }
@@ -26601,29 +26608,51 @@
       T.ok('check8a · briefs/' + RESIDUE_NAME + ' exists (the residue ledger — CLAUDE.md §📌)', !!ledger);
       var RR = residueRows(ledger || '');
       T.ok(
-        'check8b · every ledger row has exactly 6 cells, a dated log, a backticked *-BRIEF.md source and a vocabulary state',
+        'check8b · every ledger row has exactly 6 cells, a dated log, a backticked *-BRIEF.md / repo-path / #PR source and a vocabulary state',
         RR.malformed.length === 0,
         RR.malformed.length ? RR.malformed.slice(0, 6).join('; ') : RR.rows.length + ' row(s) parsed'
       );
-      function residueVerdict(rows, briefs) {
+      /* A residue's origin is not always a brief. `find_unwired.py` learning to stop counting a COMMENT
+         as a consumer surfaced two real orphans (2026-09-02) whose parent is the instrument fix, not any
+         brief — Heron refused to name the nearest brief, correctly: a false source cell PASSES this gate
+         (it only checks existence + back-reference) while misdirecting whoever picks the row up, which is
+         the fabricated authority the ledger exists to prevent. So the source cell takes a brief, a repo
+         PATH, or a `#PR`. Non-brief sources cannot back-reference, so the gate substitutes the analogous
+         existence check: the path must be in the tree. Every row still names an origin that resolves. */
+      function residueVerdict(rows, briefs, fsPaths) {
         var v = { dupId: [], badSrc: [], badPromo: [], noBackRef: [] },
-          seenId = {};
+          seenId = {},
+          pathSet = null;
+        if (fsPaths) {
+          pathSet = {};
+          fsPaths.forEach(function (p) {
+            pathSet[p] = 1;
+          });
+        }
         rows.forEach(function (r) {
           if (seenId[r.id]) v.dupId.push(r.id);
           seenId[r.id] = 1;
-          if (!briefs[r.source]) v.badSrc.push(r.id + ' → ' + r.source);
+          if (r.srcKind === 'pr') {
+            /* a PR number is well-formed by construction and not resolvable offline (no network in any lane) */
+          } else if (r.srcKind === 'path') {
+            if (pathSet && !pathSet[r.source]) v.badSrc.push(r.id + ' → ' + r.source + ' (no such path in the tree)');
+          } else if (!briefs[r.source]) v.badSrc.push(r.id + ' → ' + r.source);
           else if (residueField(briefs[r.source]).indexOf(r.id) < 0) v.noBackRef.push(r.id + ' ← ' + r.source.replace(/-BRIEF\.md$/, '') + ' (Status line lacks **Residue:** ' + r.id + ')');
           if (r.promoted && (!briefs[r.promoted] || r.promoted === r.source)) v.badPromo.push(r.id + ' → ' + r.promoted);
         });
         return v;
       }
-      var RV = residueVerdict(RR.rows, DL.briefs),
+      var RV = residueVerdict(RR.rows, DL.briefs, DL.fsPaths || null),
         dupId = RV.dupId,
         badSrc = RV.badSrc,
         badPromo = RV.badPromo,
         noBackRef = RV.noBackRef;
       T.ok('check8c · row ids are unique (never reused)', dupId.length === 0, dupId.length ? dupId.join(', ') : 'ok');
-      T.ok('check8d · every row’s source brief exists', badSrc.length === 0, badSrc.length ? badSrc.slice(0, 8).join('; ') : RR.rows.length + ' source(s) resolved');
+      T.ok(
+        'check8d · every row’s source resolves (brief exists, or repo path is in the tree)',
+        badSrc.length === 0,
+        badSrc.length ? badSrc.slice(0, 8).join('; ') : RR.rows.length + ' source(s) resolved'
+      );
       T.ok('check8e · a promoted row (→ `brief`) points at a real brief other than its source', badPromo.length === 0, badPromo.length ? badPromo.join('; ') : 'ok');
       T.ok(
         'check8f · every row’s source brief points BACK (**Residue:** R<n> on its Status line)',
@@ -26662,6 +26691,22 @@
         'self-test · check8 reads **Residue:** ids off a Status line only',
         residueField('**Status:** DONE — 2026-09-02 · **Residue:** R1, R7 · **Created:** 2026-08-14\n\n**Residue:** R99').join() === 'R1,R7'
       );
+      /* the widened source cell: a repo path and a #PR parse as sources, and neither is asked to back-reference */
+      var plantSrc = residueRows(
+        ['| R9 | 2026-09-02 | `capture-host/tools/find_unwired.py` | d | e | OPEN |', '| R10 | 2026-09-02 | `#2113` | d | e | OPEN |', '| R11 | 2026-09-02 | `not a source` | d | e | OPEN |'].join(
+          '\n'
+        )
+      );
+      T.ok(
+        'self-test · check8 ACCEPTS a repo-path and a #PR source, and still FIRES on free text',
+        plantSrc.rows.length === 2 && plantSrc.rows[0].srcKind === 'path' && plantSrc.rows[1].srcKind === 'pr' && plantSrc.malformed.length === 1,
+        JSON.stringify({ rows: plantSrc.rows.length, malformed: plantSrc.malformed })
+      );
+      T.ok(
+        'self-test · check8d FIRES on a repo-path source absent from the tree, and NOT on one present',
+        residueVerdict(plantSrc.rows, {}, ['capture-host/tools/find_unwired.py']).badSrc.length === 0 && residueVerdict(plantSrc.rows, {}, ['some/other/file.py']).badSrc.length === 1
+      );
+      T.ok('self-test · check8f does NOT demand a back-reference from a non-brief source', residueVerdict(plantSrc.rows, {}, ['capture-host/tools/find_unwired.py']).noBackRef.length === 0);
       var plantBriefs = {
         'A-2026-01-01-BRIEF.md': '**Status:** DONE — 2026-01-02 · **Residue:** R1, R3',
         'B-2026-01-01-BRIEF.md': '**Status:** PROPOSED',
@@ -26676,7 +26721,7 @@
           '| R4 | 2026-01-02 | `C-2026-01-01-BRIEF.md` | d | e | → `NOPE-2026-01-01-BRIEF.md` |' // promoted target missing
         ].join('\n')
       ).rows;
-      var PV = residueVerdict(plantRows, plantBriefs);
+      var PV = residueVerdict(plantRows, plantBriefs, null);
       T.ok(
         'self-test · check8 FIRES on each planted defect exactly once (missing source · missing back-ref · dup id · bad promotion ×2) and NOT on the clean row',
         PV.badSrc.length === 1 && PV.noBackRef.length === 1 && PV.dupId.join() === 'R3' && PV.badPromo.length === 2 && PV.noBackRef[0].indexOf('R2') === 0,
