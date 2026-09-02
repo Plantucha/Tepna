@@ -5387,3 +5387,52 @@ def test_run_oxyii_journals_an_interruption_on_a_stall(tmp_path, monkeypatch):
     life = (tmp_path / "captures").rglob("OXYLIFE.csv")
     txt = "".join(p.read_text() for p in life)
     assert "interrupted" in txt, "a stall must journal an INTERRUPTED transition"
+
+
+def test_run_oxyii_absent_ring_does_not_claim_an_unflushed_arrival_tail(tmp_path, monkeypatch, caplog):
+    """A ring that never advertises raises BEFORE any writer exists — so the finally must close
+    nothing and, above all, must not report a tail it never opened.
+
+    Observed on vigil 2026-09-01: BleakDeviceNotFoundError at connect, then a full traceback plus
+    'the arrival writer did not close cleanly — its tail may be unflushed', once per reconnect for
+    hours. `oxy_arr_wr` was the one writer missing from the pre-try None binding, so its close read an
+    unbound local; the guard caught it and warned about data that was never written. The existing
+    'recording mode' test could not see this: it asserts only that nothing propagated, which stayed
+    true the whole time.
+    """
+    from bleak.exc import BleakDeviceNotFoundError
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+
+    def _boom(addr, *a, **k):
+        raise BleakDeviceNotFoundError("O2Ring not advertising (wear it finger-in + close the phone app)")
+
+    monkeypatch.setattr(capture, "_connect_scan", _boom)
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level(logging.WARNING):
+        _run(capture.run_oxyii(_o2dev(name="RingGone"), str(tmp_path)))
+    assert "BleakDeviceNotFoundError" in capture.STATUS["devices"]["RingGone"]["last_error"], \
+        "the link error is still reported — this test must not pass by skipping the failure path"
+    assert not any("arrival writer did not close" in r.getMessage() for r in caplog.records), \
+        "no writer was opened, so there is no tail to warn about"
+    assert not any(r.exc_info and r.exc_info[0] is UnboundLocalError for r in caplog.records), \
+        "the finally must not read an unbound local"
+
+
+def test_run_oxyii_still_warns_when_a_real_arrival_close_fails(tmp_path, monkeypatch, caplog):
+    """The guard is not being removed: a writer that WAS opened and fails to close still warns,
+    because that message describes a real unflushed tail."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+
+    class _BadClose:
+        rows = []
+        def write(self, *a, **k): pass
+        def close(self): raise OSError("disk went away")
+
+    monkeypatch.setattr(capture, "PmdArrivalLogWriter", lambda *a, **k: _BadClose())
+    c = FakeGattClient()
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 2)
+    with caplog.at_level(logging.WARNING):
+        _run(capture.run_oxyii(_o2dev(name="RingBad"), str(tmp_path)))
+    assert any("arrival writer did not close" in r.getMessage() for r in caplog.records), \
+        "a genuine close failure must still be reported"
