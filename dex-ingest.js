@@ -89,8 +89,16 @@
        sidecar as a recording. The `.CSV` extension is deliberately NOT added to the type list below:
        a genuine waveform legitimately arrives as `.csv`, and excluding by extension would set those
        aside too. Name the file that announces itself, not the container. */
-    if (/_(CLOCK|LINK|OXYFRAME|PMDARRIVAL|QC|SUMMARY|TELEMETRY)\b|_(CLOCK|LINK|OXYFRAME|PMDARRIVAL|QC|SUMMARY|TELEMETRY)\./.test(u)) return true;
-    if (/^QC-|^\.|\.(JSON|MD|LOG|YAML|YML|INI|CFG|PNG|JPG|PDF|ZIP)$/.test(u)) return true;
+    if (/_(CLOCK|LINK|OXYFRAME|PMDARRIVAL|RTCLOG|QC|SUMMARY|TELEMETRY)\b|_(CLOCK|LINK|OXYFRAME|PMDARRIVAL|RTCLOG|QC|SUMMARY|TELEMETRY)\./.test(u)) return true;
+    /* DEEP-AUDIT-VI F12 — the SAME defect a third time. The alternation above requires a LEADING
+       UNDERSCORE, so the capture host's FIXED-NAME sidecars — no device, no stamp, just the name —
+       never matched it: on the real 2026-08-30 folder `planIngest` queued `CPAP-INVENTORY.jsonl` and
+       `OXYLIFE.csv` as ECG RECORDINGS, and `CLOCKSYNC.csv` (added 2026-09-01) routed ecg+ppg the day it
+       landed on disk. Every fixed name capture-host writes into a night folder is listed here, read
+       off the writers (`grep -o '"[A-Z-]*\.\(jsonl\|csv\|json\)"' capture-host/*.py`), and `.JSONL`
+       joins the container list — a line-delimited ledger is never a waveform. `.CSV` still is NOT. */
+    if (/^(CPAP-INVENTORY|OXYLIFE|CLOCKSYNC|SESSIONDETECT|AS11CLOCK|WEDGEFIRE|MANIFEST|QC-SUMMARY)\./.test(u)) return true;
+    if (/^QC-|^\.|\.(JSON|JSONL|MD|LOG|YAML|YML|INI|CFG|PNG|JPG|PDF|ZIP)$/.test(u)) return true;
     return false;
   }
 
@@ -139,6 +147,11 @@
     if (/_HR\b|_HR\./.test(u)) return 'hr';
     if (/MARKER/.test(u)) return 'marker';
     if (/_ECG\b|_ECG\./.test(u)) return 'skip';
+    /* DEEP-AUDIT-VI F12 — the H10's firmware `_RR.txt` is ECGDex's companion (`ecgKind` → 'rr');
+       PpgDex's beat-interval companion is the Verity's `_PPI`. With no `_RR` branch the bare-name
+       default queued `Polar_H10_*_RR.txt` as a PPG PRIMARY, and it died in parsePPG. Measured on the
+       real 2026-08-30 folder: 2 of 2. */
+    if (/_RR\b|_RR\./.test(u)) return 'skip';
     if (foreignVendor(name)) return 'skip';
     if (nonSignalName(name)) return 'skip'; // §6.4 — telemetry/sidecar/JSON is not a waveform
     return 'ppg'; // default — assume a bare waveform
@@ -151,6 +164,7 @@
     if (/_MAGN?\b|_MAGN?\./.test(u)) return 'magn'; // §6.4 — capture-host writes _MAG.txt, PSL writes _MAGN.txt; motiondex-dsp.js knew both, these did not
     if (/_GYRO\b|_GYRO\./.test(u)) return 'gyro';
     if (/_ECG\b|_ECG\./.test(u)) return 'ecg';
+    if (/_RR\b|_RR\./.test(u)) return 'rr'; // DEEP-AUDIT-VI F12 — the H10 RR companion PpgDex now sets aside
     var fv = foreignVendor(name);
     if (fv) return fv;
     return 'skip';

@@ -49017,8 +49017,40 @@
         T.eq('§6.4b · non-signal file is set aside, not queued as an ECG: ' + n, I.ecgKind(n), 'skip');
         T.eq('§6.4b · …nor as a PPG: ' + n, I.ppgKind(n), 'skip');
       });
+      /* DEEP-AUDIT-VI F12 — §6.4b a THIRD time, and a different hole from PMDARRIVAL's: not a token
+         that postdated the set, but a SHAPE the alternation could never match. `_(CLOCK|LINK|…)`
+         requires a leading underscore, and the capture host's FIXED-NAME sidecars — no device prefix,
+         no stamp — have none. Measured on the real 2026-08-30 folder against the real routers:
+         `CPAP-INVENTORY.jsonl` and `OXYLIFE.csv` were queued by planIngest as ECG RECORDINGS, and
+         `CLOCKSYNC.csv` (a sidecar that landed 2026-09-01) classified ecg+ppg the day it appeared.
+         Every fixed name capture-host writes is pinned here, including the ones not yet in that
+         folder — the defect is that a new one is admitted by default, so the list must lead the
+         writers, not trail them. `_RTCLOG.csv` (30 per night) joins the stamped alternation. */
+      [
+        'CPAP-INVENTORY.jsonl',
+        'OXYLIFE.csv',
+        'CLOCKSYNC.csv',
+        'SESSIONDETECT.csv',
+        'AS11CLOCK.csv',
+        'WEDGEFIRE.csv',
+        'MANIFEST.json',
+        'Wellue_O2Ring-S_S8AW2100_20260830223546_RTCLOG.csv',
+        'Tepna_20260830223546_RTCLOG.csv'
+      ].forEach(function (n) {
+        T.eq('§F12 · fixed-name sidecar is set aside, not queued as an ECG: ' + n, I.ecgKind(n), 'skip');
+        T.eq('§F12 · …nor as a PPG: ' + n, I.ppgKind(n), 'skip');
+      });
+      /* …and the H10's firmware `_RR.txt` is ECGDex's companion, never PpgDex's PRIMARY. ppgKind had
+         no `_RR` branch, so the bare-name default queued it as a PPG and it died in parsePPG (2 of 2
+         on the real folder). PpgDex's own beat-interval companion is the Verity `_PPI`, unchanged. */
+      var h10rr = 'Polar_H10_02849638_20260830002916_RR.txt';
+      T.eq("§F12 · the H10 _RR companion is ECGDex's (rr) …", I.ecgKind(h10rr), 'rr');
+      T.eq('§F12 · …and PpgDex sets it aside instead of taking it as a PPG primary', I.ppgKind(h10rr), 'skip');
+      if (typeof I.foreignKind === 'function') T.eq('§F12 · …labelled precisely for the breakdown', I.foreignKind(h10rr), 'rr');
+      T.eq('§F12 · control · the Verity _PPI companion still routes as ppi', I.ppgKind('Polar_VeritySense_0C301E3F_20260830224559_PPI.txt'), 'ppi');
       // …while a genuinely bare waveform still defaults through (the reason the default exists)
       T.eq('§6.4b · a bare suffix-less waveform still defaults to the node primary', I.ecgKind('20260618214109.dat'), 'ecg');
+      T.eq('§F12 · control · a bare `.csv` waveform still defaults through — the container is not the verdict', I.ecgKind('20260618214109.csv'), 'ecg');
       // (c) a rival strap is foreign; the H10's own HR companion is untouched
       T.eq('§6.4c · a competing chest strap is set aside, not admitted to the H10 HR lane', I.ecgKind('Coospo_HRM808S_0022265_20260720185250_HR.txt'), 'skip');
       T.eq('§6.4c · …and is labelled precisely', I.foreignVendor('Coospo_HRM808S_0022265_20260720185250_HR.txt'), 'hr-strap');
