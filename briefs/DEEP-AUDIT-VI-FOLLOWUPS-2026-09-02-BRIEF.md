@@ -93,6 +93,46 @@ The ECGDex Reference guide graded posture `ev-measured` for a mount-dependent co
 the wrong grade visible and it was corrected to experimental. **Sweep:** every reference-guide card label with
 no `idForLabel` hit is a grade nobody checks.
 
+**SWEPT 2026-09-02 (Kestrel) — 127 of 414 graded cards were unchecked; the gate is now resolve-or-declare.**
+Measured over the 8 reference guides (414 graded cards): **OxyDex 96 · ECGDex 23 · PpgDex 5 · CPAPDex 3**, the
+other four 0. Each card was crosswalked by hand against its registry + DSP and declared in the guide markup —
+this is a doc + test unit, no bundle moves. Two attributes, on the card's opening `<div class="mc"`:
+`data-id="<registry ids>"` for a metric whose label the resolver cannot map (space-separated for a compound
+card), and `data-kind="citation|pipeline|unregistered"` for the three non-metric shapes. `cohesion-badges` (b)
+now asserts, per guide: every graded card resolves (label · '/'-split parts · declared id) **or** declares a
+kind; a declared id that is not a registry key is a red (a typo must not un-gate a card); and the
+`unregistered` set **equals a list declared in the test** — a new one reds (register it instead), and a
+declaration the registry has since learned reds (the list may only shrink). Three planted controls per
+guide: an undeclared unregistered card is counted, a bad `data-id` is a red, a stale `unregistered` is a red.
+
+- **Grade disagreements the resolver had been hiding — 25, all corrected to the registry (registry wins):**
+  OxyDex **23** — 19 cards badged `heuristic` where the registry says experimental / emerging / measured
+  (SD1 / SD2, SDNN proxy, CHA-94, OxyCrash, T-AUC Weighted, SSI, Sleep Stability, WASO Windows, Positional
+  Shifts, Recovery Index, Coupling Score, PB HR Contrast, PB Diverge, PB Episode Trend, Poor Nights % →
+  experimental; DFA α1, AHI Estimate, Respiratory Rate (proxy), Nocturnal HR Dip → emerging; Cond. Mean/% <94,
+  Nadir Depth Bins → measured) and **two OVER-claims** — `SpO₂ Night CV` badged measured, registry
+  experimental; `ODI-4 First→Last Δ` badged validated, registry experimental. ECGDex **2** — Lomb–Scargle
+  Spectrum emerging → **validated** (its five constituents `vlf lf hf lfnu hfnu` are all validated, Task Force
+  1996); Fragmentation experimental → **emerging** (`pip`). PpgDex / CPAPDex 0.
+- **Registration debt — 38 surfaced metrics no registry grades** (declared `unregistered`, counted by the
+  gate; a JS-surface unit, **→ Magpie**): OxyDex **35** (MODL · Dip / Recovery Slope · Clustering Index ·
+  SpO₂ SampEn · SpO₂ AC lag-1 · IEI · Recovery CV ≡ biCV (same `ieiCV` quantity, two cards) · Desaturation
+  Asymmetry · SpO₂ / HR Nadir Timing · SpO₂ Ceiling · O₂-HR Efficiency · Post-Dip HR Response · Worst 10-min
+  SpO₂ · Worst 30-min T95 · Stable SpO₂ Windows · RMSSD Arc · LF / HF Power (`hrLfPow/hrHfPow`, NOT
+  `rsaPeakPow`) · HR Asymmetry · HR Quartile Trend (NOT `hrSlope`) · HR CV · Circadian HR Amplitude / Nadir
+  Hour (NOT `circadianScore`) · Vagal Index · HR Deceleration Runs · SpO₂–HR Decoupling % · SPI · Motion
+  Bursts (NOT `restlessWindows`) · Longest Clean Run (NOT `lcsp`) · CS / UARS Score · SpO₂–HR Lag · BLUNTED
+  AROUSAL flag · Intra-Night NSI); ECGDex 1 (Data Gaps, `quality.gaps/gapMin`; IALS/PSS are exported at
+  `ecgdex-app.js` `fragmentationIALS/PSS` and unregistered too, folded under the Fragmentation card); PpgDex 2
+  (Heading `epochs[].headingDeg`, Mag interference `motion.magInterferencePct`). Resolver gaps in the same
+  unit: `ECG_LABEL_ALIAS` lacks 'triangular index' and 'accel. capacity'.
+- **Four registry entries misdescribe the metric their id renders** (leads, not corrected here — a registry
+  edit is a bundle change): `dfaAlpha1` cites pulse-rate DFA but `computeDFA` runs on SpO₂; `ahiEst` says
+  "CVHR-derived" but exports ODI-4 × 1.1; `ssiIdx` is labelled "Sleep-stability index" but the SSI chip is
+  `n.ssi.ssi` (sympathetic surge); `nadirBinLt4/46/69/Gt9` describe drop-DEPTH bins while the render feeds
+  absolute-LEVEL bins (`above91 … below85`). Partial compound registration: ODI-2/ODI-1, T94…T80, kurtosis,
+  HD90/HD88 and SD2 have no entry (their cards are gated by the sibling that does).
+
 ### 2.6 The dormant-surface alias matcher: an alias shorter than a word is not a surface token
 MotionDex `uprightFrac`'s bare alias `upright` matched a posture ENUM value in `POS_ORDER` — a false
 positive. Matcher (#2072) now admits the label always, an alias only if multi-word or ≥ 8 chars; negative

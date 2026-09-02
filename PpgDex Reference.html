@@ -481,7 +481,7 @@ body.light .mob-drawer-panel{background:#FFFFFF}
   <div class="mh"><div class="mi"><span class="ma">LF/HF</span><span class="mf">Low/High Frequency Ratio</span></div><span class="mt tr">Research</span></div>
   <p class="md">Ratio of low- (0.04&#x2013;0.15&#x202F;Hz) to high-frequency (0.15&#x2013;0.40&#x202F;Hz) power. Historically read as sympatho-vagal balance, contested &#x2014; treat as directional.</p><div class="fb"><div class="fl">Formula</div><div class="ft">LF/HF = power[0.04&#x2013;0.15 Hz] / power[0.15&#x2013;0.40 Hz]</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
 <span class="ev-corner ev-emerging" title="Emerging &#x2014; LF:HF power ratio, sympatho-vagal proxy; device-dependent"></span></div>
-<div class="mc" data-tier="research">
+<div class="mc" data-tier="research" data-id="vlf lf hf lfnu hfnu">
   <div class="mh"><div class="mi"><span class="ma">VLF / LF / HF Power</span><span class="mf">Band Powers &amp; Normalised Units</span></div><span class="mt tr">Research</span></div>
   <p class="md">Absolute power in the very-low, low and high bands plus normalised units (LFnu, HFnu). HF aligns with respiratory sinus arrhythmia; VLF needs an overnight-length record.</p><div class="fb"><div class="fl">Formula</div><div class="ft">HFnu = 100&#xD7;HF/(LF+HF) ; LFnu = 100&#xD7;LF/(LF+HF)</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
 <span class="ev-corner ev-emerging" title="Emerging &#x2014; Lomb&#x2013;Scargle band powers from uneven PPI; device-dependent"></span></div>
@@ -579,11 +579,11 @@ body.light .mob-drawer-panel{background:#FFFFFF}
   <div class="mh"><div class="mi"><span class="ma">Posture</span><span class="mf">Limb Orientation</span></div><span class="mt tr">Research</span></div>
   <p class="md">Body/limb position class from the gravity vector, with left/right lateral split by magnetometer heading when available. Off-data windows resolve to unknown, never fabricated.</p><div class="fb"><div class="fl">Method</div><div class="ft">gravity = lowpass(ACC) &#x2192; supine/prone/upright/lateral</div></div><div class="no-norm-note">Low-reliability proxy; heavily down-weighted in fusion.</div>
 <span class="ev-corner ev-heuristic" title="Heuristic &#x2014; limb-acc orientation proxy for body position; wear-site not auto-detected, low reliability"></span></div>
-<div class="mc" data-tier="research">
+<div class="mc" data-tier="research" data-kind="unregistered">
   <div class="mh"><div class="mi"><span class="ma">Heading</span><span class="mf">Tilt-Compensated Magnetic Heading</span></div><span class="mt tr">Research</span></div>
   <p class="md">Relative magnetic heading of the limb (deg), gravity-component removed. Uncalibrated for true north &#x2014; used only to separate left- from right-side lateral posture.</p><div class="fb"><div class="fl">Method</div><div class="ft">tilt-compensated heading from mag &#x2212; gravity projection</div></div><div class="no-norm-note">Relative datum; L/R labels may mirror without a calibration gesture.</div>
 <span class="ev-corner ev-heuristic" title="Heuristic &#x2014; relative tilt-compensated heading; uncalibrated, used for L/R disambiguation only"></span></div>
-<div class="mc" data-tier="research">
+<div class="mc" data-tier="research" data-kind="unregistered">
   <div class="mh"><div class="mi"><span class="ma">Mag interference</span><span class="mf">Magnetic-Field Disturbance Flag</span></div><span class="mt tr">Research</span></div>
   <p class="md">A calibration-free quality flag: set when the field magnitude wobbles in a still window or sits &gt;25% off baseline. Informational only &#x2014; it does not alter beat SQI here.</p><div class="fb"><div class="fl">Formula</div><div class="ft">flag if SD(|B|) &gt; threshold or |median&#x2212;baseline|/baseline &gt; 0.25</div></div><div class="no-norm-note">Quality flag; the Integrator decides how to weight it.</div>
 <span class="ev-corner ev-measured" title="Measured &#x2014; magnetometer field-disturbance flag, direct quality channel"></span></div>
@@ -610,11 +610,11 @@ body.light .mob-drawer-panel{background:#FFFFFF}
 <div class="rs" id="sig-qual">
 <div class="sh"><div class="si sig">&#x1F4E1;</div><div><div class="st">Signal Quality &amp; Artifact Flags</div><div class="sd">How PpgDex marks what it could not trust &#x2014; absence stays visible, never fabricated</div></div></div>
 <div class="mg">
-<div class="mc">
+<div class="mc" data-kind="pipeline">
   <div class="mh"><div class="mi"><span class="ma">Motion artifact segment</span><span class="mf">Contiguous High-Motion Span</span></div><span class="mt tc">Core</span></div>
   <p class="md">A flagged interval where the motion index stayed above 0.5 across consecutive beats. Emitted as a low-prior quality event so consumers can exclude the span.</p><div class="fb"><div class="fl">Formula</div><div class="ft">run where motionAtSec(beat) &gt; 0.5</div></div><div class="no-norm-note">Quality flag, not a metric target.</div>
 <span class="ev-corner ev-measured" title="Measured &#x2014; contiguous high-motion span, direct inertial quality flag"></span></div>
-<div class="mc" data-tier="secondary">
+<div class="mc" data-tier="secondary" data-kind="pipeline">
   <div class="mh"><div class="mi"><span class="ma">Off-body / low perfusion</span><span class="mf">Missing-Contact Handling</span></div><span class="mt ta">Advanced</span></div>
   <p class="md">Spans with collapsed perfusion or no resolvable pulse are excluded from HRV rather than filled. Unparseable timestamps surface as null (Clock Contract), never &#x201C;now.&#x201D;</p><div class="fb"><div class="fl">Formula</div><div class="ft">exclude spans where PI collapses / no peak detected</div></div><div class="no-norm-note">Absence stays visible; never fabricated.</div>
 <span class="ev-corner ev-measured" title="Measured &#x2014; coverage/contact quality, direct statistic"></span></div>
